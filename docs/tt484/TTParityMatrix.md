@@ -676,8 +676,10 @@ Two examples of why the distinction is load-bearing:
 
 - `PhysicsSceneClass::Add_Camera_Shake` reads as a TT-only method. It is declared
   in `tt_4.8.4/scripts/PhysicsSceneClass.h:238`, defined nowhere in the donor,
-  and OpenW3D has shipped it all along — reached through `COMBAT_SCENE`, e.g.
-  `Code/Combat/explosion.cpp:372`. Nothing to write.
+  and OpenW3D has shipped it all along — on this very class, at
+  `Code/wwphys/pscene.h:904`, called through `COMBAT_SCENE` from e.g.
+  `Code/Combat/explosion.cpp:372`. Nothing to write. (It read as *TT-only* rather
+  than merely *owned elsewhere* because of the parser gap described in 5.7.)
 - The `BuildingGameObj` geometry cluster 5.5 flags as the prerequisite for
   P33/P37/P38 splits three ways. `Find_MCT` is real TT source
   (`tt_4.8.4/scripts/engine_game.cpp:642`, a trivial walk of `Aggregates`
@@ -712,7 +714,8 @@ Per-class breakdown:
 `TTMethodSources.tsv` is regenerated as merges land, so its row count tracks the
 remaining work rather than the original survey: the table above is the 227-row
 starting state. The 58 that have to be written do not move until they are
-written; what shrinks is the mergeable column.
+written; what shrinks is the mergeable column. Section 5.7 corrects the survey
+itself.
 
 `PhysicsSceneClass` is the one to look at twice: zero mergeable TT code, seven
 methods to write, and all seven are shadow and polygon-budget control
@@ -720,6 +723,40 @@ methods to write, and all seven are shadow and polygon-budget control
 `Get`/`Set_Dynamic_Shadow_Resolution`, `Get_Shadow_Render_Context`,
 `Refresh_Polygon_Budgets`). That is P20's subject matter, not P02's, and it
 should be sequenced with the shadow work rather than with the class merge.
+
+
+### 5.7 Parser correction to the 5.6 survey
+
+`ttparse` matched one physical line at a time. Real headers do not cooperate.
+OpenW3D wraps long signatures — the five-argument `RenderObjClass::Set_Animation`
+spans four lines, `PhysicsSceneClass::Add_Camera_Shake` four — and TT sometimes
+leaves an inline body's opening brace on the line after the signature, as in
+`AirFactoryGameObj::Set_Busy`. Either way `METH` saw a fragment, so the same
+member could read as absent on the OpenW3D side and TT-only on the TT side, and
+the delta reported work that was already done, or missed a TT declaration
+entirely.
+
+`ttparse.logical_lines` now joins a line to its successors while its parentheses
+are open, then pulls in a following line carrying only a trailing qualifier or
+the opening brace. Two stray backspace bytes in `DECORATOR` — a heredoc ate the
+word-boundary escapes when the file was first written, leaving a pattern that
+could never match — are fixed in the same pass.
+
+Net effect on the survey, over and above the merges already landed: five rows
+were false positives and are gone (`RenderObjClass::Set_Animation` ×2,
+`SceneClass::Compute_Point_Visibility`, and `PhysicsSceneClass`'s `Create_Decal`,
+`Optimize_LODs`, `Shatter_Mesh`, `Add_Camera_Shake` — the last four are on
+OpenW3D's own `PhysicsSceneClass`, not owned elsewhere); two TT declarations that
+had been invisible are now counted (`AirFactoryGameObj::Set_Busy`,
+`NavalFactoryGameObj::Set_Busy`).
+
+So `PhysicsSceneClass` is *not* the outlier 5.6 makes it out to be at the
+declaration level — its "elsewhere" column is zero because nothing was owned
+elsewhere, and six methods remain to write, still all shadow and polygon-budget
+control. The sequencing conclusion is unchanged: that is P20's subject matter.
+
+Treat `TTMethodSources.tsv` as the live figure; 5.6's table is the historical
+starting state and is not maintained.
 
 ---
 

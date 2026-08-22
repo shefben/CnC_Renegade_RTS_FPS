@@ -50,7 +50,7 @@ from collections import OrderedDict, Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ttparse import (CLASSES, walk, find_class, members, scan_classes,
-                     METH, KEYWORDS, arity_of, DECORATOR)
+                     METH, KEYWORDS, arity_of, DECORATOR, logical_lines)
 
 TT = 'tt_4.8.4'
 OUT = 'docs/tt484/TTMethodSources.tsv'
@@ -71,9 +71,9 @@ def decls(body, cls):
     disagree about which lines are declarations.
     """
     out = OrderedDict()
-    for i, ln in enumerate(body):
+    for i, ln in logical_lines(body):
         s = ln.strip()
-        if not s or s.startswith('//') or s.startswith('*') or s.startswith('#'):
+        if not s or s.startswith('#'):
             continue
         m = METH.match(ln)
         if not m or m.group(3) in KEYWORDS:

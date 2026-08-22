@@ -112,7 +112,51 @@ def arity_of(raw):
     return n
 
 
-DECORATOR = re.compile(r'(virtual|static|inline|const|explicit|friend|\w+_API)')
+LINE_COMMENT = re.compile(r'//.*$')
+ENDS_DECL = re.compile(r'[;{}]\s*$')
+TRAILER = re.compile(r'^(const|override|final|noexcept|throw|:|\{)')
+CONT_MAX = 6
+
+
+def logical_lines(body):
+    """[(index of first line, joined text)] for each logical declaration.
+
+    Both parsers used to match one physical line at a time.  Real headers do not
+    cooperate: OpenW3D wraps long signatures over several lines -- the
+    five-argument RenderObjClass::Set_Animation spans four -- and TT sometimes
+    leaves an inline body's opening brace on the line after the signature.
+    Either way METH sees a fragment, so the member reads as absent on one side
+    and TT-only on the other, and the delta reports work that is already done.
+
+    Join a line to its successors while its parentheses are still open, then, if
+    the signature ended without punctuation, pull in a following line carrying
+    only a trailing qualifier or the opening brace.
+    """
+    out = []
+    i, n = 0, len(body)
+    while i < n:
+        raw = LINE_COMMENT.sub('', body[i])
+        if not raw.strip() or raw.strip().startswith('*'):
+            i += 1
+            continue
+        txt, start, j = raw, i, i
+        depth = raw.count('(') - raw.count(')')
+        while depth > 0 and j + 1 < n and j - start < CONT_MAX:
+            j += 1
+            nxt = LINE_COMMENT.sub('', body[j])
+            txt += ' ' + nxt.strip()
+            depth += nxt.count('(') - nxt.count(')')
+        if depth <= 0 and not ENDS_DECL.search(txt) and j + 1 < n:
+            nxt = LINE_COMMENT.sub('', body[j + 1]).strip()
+            if TRAILER.match(nxt):
+                j += 1
+                txt += ' ' + nxt
+        out.append((start, txt))
+        i = j + 1
+    return out
+
+
+DECORATOR = re.compile(r'\b(virtual|static|inline|const|explicit|friend|\w+_API)\b')
 
 
 def members(body, cls=None):
@@ -127,9 +171,9 @@ def members(body, cls=None):
     """
     meths = OrderedDict()
     data = OrderedDict()
-    for ln in body:
+    for _off, ln in logical_lines(body):
         s = ln.strip()
-        if not s or s.startswith('//') or s.startswith('*') or s.startswith('#'):
+        if not s or s.startswith('#'):
             continue
         m = METH.match(ln)
         if m and m.group(3) not in KEYWORDS:
