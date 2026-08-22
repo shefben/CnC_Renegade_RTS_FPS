@@ -403,9 +403,112 @@ re-assert can never fire. Nothing to merge; recorded so the row is not reopened.
 `IsRadarEnabled` at `+0x6D7` also independently confirms `BasePowered` at
 `+0x6D4` above.
 
-### 5.9 Still open
+### 5.9 The purchase terminal — 17 sites
 
-The `wwnet` remainder, then `Commando/cnetwork.cpp` (32), then the rest of the
-purchase terminal (the 16 `new unpurchasable logic` / `PT keypress fix` /
-`PT chatbox fix` / `enable secret PT pages` sites, directive 0.9), combat
-objects and UI per section 4.
+Directive 0.9 governs this cluster: canonical PT interaction has to survive.
+Fourteen sites merged, three did not.
+
+**`new unpurchasable logic`** (10 sites, `tt.cpp:295-304`) — **merged**. The
+vehicle half rewrites `0x0047F870`/`0x0047F883` in `sub_47F830`
+(`CNCPurchaseMainMenuClass::Refresh_Button_States`) to
+
+    mov cl, [ebp+6D6h]                  ; CanGenerateVehicles
+    test cl, cl
+    mov ecx, ebp
+    jz  loc_47F930                      ; unavailable
+    push 2 / call Find_Building / test eax,eax / jz 0x47F8D5
+    call [eax+78h]  / test eax,eax / jz 0x47F8D5
+    mov cl, [eax+8B0h] / test cl,cl / jz 0x47F8D3     ; Is_Busy
+
+and nops the destroyed test at `0x0047F8D3`/`0x0047F8DE`/`0x0047F8E6`, so a
+factory object that cannot be found no longer disables anything. The soldier
+half does the same at `0x0047F96D` with `[ebp+6D5h]`. `code10` at `0x004815B4`
+(`xor eax,eax` over the `Find_Base_For_Star` call) blanks the copy of
+`Verify_Vehicle_Purchase` inlined into `Purchase()`.
+
+The field offsets fall out of `basecontroller.h` exactly: `+0x6D4`
+`BasePowered`, `+0x6D5` `CanGenerateSoldiers`, `+0x6D6` `CanGenerateVehicles`,
+`+0x6D7` `IsRadarEnabled` — the same run the 2x-cost and radar patches landed
+in, now confirmed from three independent directions.
+
+The defect is that the client was deciding what the base can build by looking
+at the objects it happens to hold. `Can_Generate_*` is server state, set by the
+factories' `On_Destroyed`/`On_Revived` under `I_Am_Server()` and replicated in
+`BaseControllerClass::Import/Export_Occasional`
+(`basecontroller.cpp:1058,1091`). `Find_Building` returns null on a client that
+was never sent the factory, and the stock code read that as "no production".
+
+Merged as one predicate, `CNCPurchaseMenuClass::Get_Production_Status`, used by
+the item greying, the hot keys and the purchase itself so they cannot disagree.
+Two deliberate deviations: the destroyed/busy/unavailable labels are kept
+(TT collapsed them because a byte patch cannot pick a string), and
+`Verify_Vehicle_Purchase` is kept rather than blanked — it now runs on the
+corrected predicate and can no longer fire off a null factory. A refused
+purchase with no explanation would have been worse than either side.
+
+The `hud.ini NewUnpurchaseableLogic` flag does not survive. Directive 0.4
+forbids keeping stock and TT implementations selected by a flag, so the
+replicated predicate is simply the predicate.
+
+**`PT chatbox fix`** (3 sites, `tt.cpp:995-997`) — **merged**. `WriteNop
+0x00480122, 7` removes `mov ecx,edi / call sub_4F3BC0` from the tail of
+`sub_47FF10` = `CNCPurchaseMainMenuClass::Refresh_Message_Log`, which is its
+`Scroll_To_End()`. Stock rebuilds the whole list on every new message —
+`Delete_All_Entries` resets `ScrollPos` to 0 and `CurrSel` to -1 — then scrolls
+to the bottom, so while the terminal is open you cannot read back through the
+log at all and any selection is thrown away every time somebody talks.
+
+TT's wrapper saves position and selection, rebuilds, and follows the tail only
+if the view was already at the tail. Merged with three small public methods on
+`ListCtrlClass` (`Get_Scroll_Pos`, `Is_Scrolled_To_End`, `Scroll_To`) rather
+than TT's route of making `ScrollBarCtrl` public. `Is_Scrolled_To_End` uses
+`>=`, which is true for an empty list and so subsumes TT's third site — the
+`Set_Range(0,0)` prepended to the `Add_Column` call at `0x0047EB7A`.
+`Scroll_To_End` picked up the `Set_Range` that TT's `listctrl.cpp` adds and
+stock lacks: entries added since the last visibility pass left the bar with a
+stale maximum, and `Set_Pos` clamps against it.
+
+**`PT keypress fix`** (4 sites, `tt.cpp:998-1001`) — **merged**.
+`hookAsCall2(0x00481C45, …, 5)` replaces `call sub_4814F0` inside `sub_481A80`
+(`CNCPurchaseMenuClass::On_Key_Down`) *and nops the five bytes after it*, which
+are `call sub_404D80` = `GameInitMgrClass::Continue_Game` — so the replacement
+owns both. `Add_Item_To_Shopping_Cart` refuses silently when the slot is empty
+or unaffordable, and stock went on to `Purchase()` — which ends the dialog —
+and `Continue_Game()` regardless. A number key aimed at an empty or
+unaffordable slot therefore shut the terminal and bought nothing. `Purchase()`
+now reports whether it purchased, and only ends the dialog when it did.
+
+`hookAsJump 0x00481FF6` extends the missing-control skip in `sub_481F90`
+(`Update_Enabled_Status`) into a production test that routes to the
+`ctrl->Enable(false)` arm at `0x004822A9`. Stock greyed on money and
+`IsProductionDisabled` only, never on the factory.
+
+The two `WriteNop`s at `0x0047FE5F`/`0x0047FE86` remove the
+`cmp [eax+3Bh], bl / jz` pairs behind the `6` and `7` hot keys — the
+`Is_Enabled()` guards on the characters and vehicles buttons. Opening the page
+is safe now that the page itself carries the refusal, where stock just
+swallowed the key. TT left the `8` beacon key and the mouse path guarded, so a
+disabled button still cannot be clicked and the enable state stays as the cue.
+
+**`enable secret PT pages`** (2 sites, `tt.cpp:283-284`) — **declined**, ini
+gated. `0x0047EDA6` turns the laddered-game test in `sub_47ED90` from `jnz`
+into `jmp` so `ExtrasEnabled` is never force-cleared, and `0x00427C80` writes
+`retn 4` over the first instruction of the `extras` console command so it can
+no longer clear the flag either. Gated on `hud.ini UseExtraPTPages`, default
+off, and it makes content the stock game gates available in laddered games.
+That is a content policy change, not a correction; same disposition as
+`DisableCostMultiplier` in 5.8.
+
+**`purchase terminal "building" message change`**
+(`WriteCall(0x0047F899, Building_Msg_Check, 1)`) — **N/A**. The replacement is
+`cl = factory->IsBusy || CurrentlyBuilding`, and `CurrentlyBuilding` only ever
+moves under TT's `VehicleBuildingDisable` production model
+(`engine2.cpp:121`, `BaseControllerClass.cpp:24-40`), which replaces the
+factory-busy model with a per-team flag pushed to clients over TT's text
+channel. OpenW3D has no such model and the roadmap does not ask for one, so
+there is nothing to merge into.
+
+### 5.10 Still open
+
+The `wwnet` remainder, then `Commando/cnetwork.cpp` (32), then combat objects
+and UI per section 4.

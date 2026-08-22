@@ -172,6 +172,9 @@ public:
 	//	Scroll support
 	//
 	void				Scroll_To_End (void);
+	void				Scroll_To (int pos);
+	int				Get_Scroll_Pos (void) const		{ return ScrollPos; }
+	bool				Is_Scrolled_To_End (void) const	{ return ScrollPos >= LastPageTopEntryIndex; }
 
 	//
 	//	Advise-sink callbacks

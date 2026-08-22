@@ -279,9 +279,24 @@ CNCPurchaseMenuClass::Purchase_Item (int ctrl_id)
 	Add_Item_To_Shopping_Cart (ctrl_id);
 
 	//
-	//	Buy the item and return to the game
+	//	Add_Item_To_Shopping_Cart refuses silently when the slot is empty or
+	//	the player cannot afford it.  Stock went on to Purchase() -- which ends
+	//	the dialog -- and Continue_Game() anyway, so a hot key aimed at an empty
+	//	or unaffordable slot shut the terminal and bought nothing.
 	//
-	Purchase ();
+	if (ShoppingList.Count () <= 0) {
+		return ;
+	}
+
+	//
+	//	Buy the item and return to the game.  A refused purchase has put its
+	//	reason on screen already; leave the terminal up so the player can act
+	//	on it.
+	//
+	if (Purchase () == false) {
+		return ;
+	}
+
 	GameInitMgrClass::Continue_Game ();
 	return ;
 }
@@ -404,7 +419,7 @@ CNCPurchaseMenuClass::Clear_Shopping_Cart (void)
 //	Purchase
 //
 ////////////////////////////////////////////////////////////////
-void
+bool
 CNCPurchaseMenuClass::Purchase (void)
 {
 	bool allow_purchase = true;
@@ -414,12 +429,12 @@ CNCPurchaseMenuClass::Purchase (void)
 	{
 	case PurchaseSettingsDefClass::TYPE_CLASSES:
 		vendor_purchase_type = VendorClass::TYPE_CHARACTER;
-		allow_purchase = true;
+		allow_purchase = (Get_Production_Status () == PRODUCTION_OK);
 		break;
 
 	case PurchaseSettingsDefClass::TYPE_SECRET_CLASSES:
 		vendor_purchase_type = VendorClass::TYPE_SECRET_CHARACTER;
-		allow_purchase = true;
+		allow_purchase = (Get_Production_Status () == PRODUCTION_OK);
 		break;
 
 	case PurchaseSettingsDefClass::TYPE_VEHICLES:
@@ -463,11 +478,76 @@ CNCPurchaseMenuClass::Purchase (void)
 	}
 
 	//
-	//	Close the dialog
+	//	Close the dialog, but only if there was a purchase to close it on
 	//
-	End_Dialog ();
-	return ;
+	if (allow_purchase) {
+		End_Dialog ();
+	}
+
+	return allow_purchase;
 }
+
+////////////////////////////////////////////////////////////////
+//
+//	Get_Production_Status
+//
+// Can the base actually build what this page is selling?  This is the one
+// predicate the greying, the hot keys and the purchase itself all use, so
+// they cannot disagree with each other.
+//
+// The availability half is the server's answer: Can_Generate_Soldiers and
+// Can_Generate_Vehicles are maintained by the factories' On_Destroyed and
+// On_Revived and replicated in BaseControllerClass::Import/Export_Occasional.
+// Find_Building returns nullptr on a client that was never sent the factory
+// object, so reading the object alone refused production the server would
+// have allowed.  The object is still consulted for the things only it knows.
+//
+////////////////////////////////////////////////////////////////
+CNCPurchaseMenuClass::PRODUCTION_STATUS
+CNCPurchaseMenuClass::Get_Production_Status (void)
+{
+	BaseControllerClass *base = BaseControllerClass::Find_Base_For_Star ();
+	if (base == nullptr) {
+		return PRODUCTION_OK;
+	}
+
+	switch (PurchaseType)
+	{
+	case PurchaseSettingsDefClass::TYPE_CLASSES:
+	case PurchaseSettingsDefClass::TYPE_SECRET_CLASSES:
+		if (base->Can_Generate_Soldiers () == false) {
+			return PRODUCTION_UNAVAILABLE;
+		}
+		break;
+
+	case PurchaseSettingsDefClass::TYPE_VEHICLES:
+	case PurchaseSettingsDefClass::TYPE_SECRET_VEHICLES:
+	{
+		if (base->Can_Generate_Vehicles () == false) {
+			return PRODUCTION_UNAVAILABLE;
+		}
+
+		BuildingGameObj *building = base->Find_Building (BuildingConstants::TYPE_VEHICLE_FACTORY);
+		VehicleFactoryGameObj *factory = (building != nullptr) ? building->As_VehicleFactoryGameObj () : nullptr;
+		if (factory != nullptr) {
+			if (factory->Is_Busy ()) {
+				return PRODUCTION_BUSY;
+			}
+
+			if (factory->Get_Team_Vehicle_Count () >= factory->Get_Max_Vehicles_Per_Team ()) {
+				return PRODUCTION_LIMIT_REACHED;
+			}
+		}
+		break;
+	}
+
+	default:
+		break;
+	}
+
+	return PRODUCTION_OK;
+}
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -479,38 +559,25 @@ CNCPurchaseMenuClass::Purchase (void)
 bool
 CNCPurchaseMenuClass::Verify_Vehicle_Purchase (void)
 {
-	bool allow_purchase = true;
+	switch (Get_Production_Status ())
+	{
+	case PRODUCTION_BUSY:
+		DlgMsgBox::DoDialog (IDS_CNC_CANT_PURCHASE_TITLE, IDS_CNC_VEHICLE_FACTORY_BUSY_MSG, DlgMsgBox::Okay, nullptr, 0);
+		return false;
 
-	//
-	//	Find the base for this user
-	//
-	BaseControllerClass *base = BaseControllerClass::Find_Base_For_Star ();
-	if (base != nullptr) {
+	case PRODUCTION_UNAVAILABLE:
+		DlgMsgBox::DoDialog (IDS_CNC_CANT_PURCHASE_TITLE, IDS_CNC_VEHICLE_FACTORY_DESTROYED_MSG, DlgMsgBox::Okay, nullptr, 0);
+		return false;
 
-		//
-		//	Find the vehicle factory
-		//
-		BuildingGameObj *building = base->Find_Building (BuildingConstants::TYPE_VEHICLE_FACTORY);
-		if (building != nullptr && building->As_VehicleFactoryGameObj () != nullptr) {
-			VehicleFactoryGameObj *factory = building->As_VehicleFactoryGameObj ();
+	case PRODUCTION_LIMIT_REACHED:
+		DlgMsgBox::DoDialog (IDS_CNC_CANT_PURCHASE_TITLE, IDS_CNC_VEHICLE_FACTORY_LIMIT_REACHED, DlgMsgBox::Okay, nullptr, 0);
+		return false;
 
-			//
-			//	Determine if the factory is busy or destroyed
-			//
-			if (factory->Is_Busy ()) {
-				DlgMsgBox::DoDialog (IDS_CNC_CANT_PURCHASE_TITLE, IDS_CNC_VEHICLE_FACTORY_BUSY_MSG, DlgMsgBox::Okay, nullptr, 0);
-				allow_purchase = false;
-			} else if (factory->Is_Destroyed ()) {
-				DlgMsgBox::DoDialog (IDS_CNC_CANT_PURCHASE_TITLE, IDS_CNC_VEHICLE_FACTORY_DESTROYED_MSG, DlgMsgBox::Okay, nullptr, 0);
-				allow_purchase = false;
-			} else if (factory->Get_Team_Vehicle_Count() >= factory->Get_Max_Vehicles_Per_Team()) {
-				DlgMsgBox::DoDialog (IDS_CNC_CANT_PURCHASE_TITLE, IDS_CNC_VEHICLE_FACTORY_LIMIT_REACHED, DlgMsgBox::Okay, nullptr, 0);
-				allow_purchase = false;
-			}
-		}
+	default:
+		break;
 	}
 
-	return allow_purchase;
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////
@@ -829,6 +896,12 @@ CNCPurchaseMenuClass::Update_Enabled_Status (void)
 	PlayerDataClass *player_data = COMBAT_STAR->Get_Player_Data ();
 
 	//
+	//	Nothing on this page can be bought if the base cannot build it, so say
+	//	so on the controls rather than letting the purchase fail later
+	//
+	bool can_produce = (Get_Production_Status () == PRODUCTION_OK);
+
+	//
 	//	Initialize the purchase controls
 	//
 	for (int index = 0; index < PURCHASE_ITEMS; index ++) {
@@ -854,7 +927,7 @@ CNCPurchaseMenuClass::Update_Enabled_Status (void)
 				//
 				//	Disable any options that cost money if production is disabled
 				//
-				if ((IsProductionDisabled && (cost > 0)) || (player_data->Get_Money () < cost)) {
+				if (can_produce == false || (IsProductionDisabled && (cost > 0)) || (player_data->Get_Money () < cost)) {
 					ctrl->Enable (false);
 				} else {
 					ctrl->Enable (true);

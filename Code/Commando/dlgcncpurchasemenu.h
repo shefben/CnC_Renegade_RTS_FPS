@@ -101,13 +101,31 @@ public:
 private:
 
 	////////////////////////////////////////////////////////////////
+	//	Private enumerations
+	////////////////////////////////////////////////////////////////
+
+	//
+	//	Why the base cannot currently produce what this page sells
+	//
+	typedef enum
+	{
+		PRODUCTION_OK			= 0,
+		PRODUCTION_UNAVAILABLE,
+		PRODUCTION_BUSY,
+		PRODUCTION_LIMIT_REACHED
+
+	} PRODUCTION_STATUS;
+
+	////////////////////////////////////////////////////////////////
 	//	Private methods
 	////////////////////////////////////////////////////////////////
 	void		Add_Item_To_Shopping_Cart (int ctrl_index);
 	void		Clear_Shopping_Cart (void);
-	void		Purchase (void);
+	bool		Purchase (void);
 	void		Purchase_Item (int ctrl_id);
 	bool		Is_Definition_OK (DefinitionClass *definition);
+
+	PRODUCTION_STATUS	Get_Production_Status (void);
 	bool		Verify_Vehicle_Purchase (void);
 
 	void		Update_Enabled_Status (void);

@@ -774,58 +774,53 @@ CNCPurchaseMainMenuClass::Refresh_Button_States (void)
 	if (base_controller != nullptr) {
 
 		//
-		//	Try to find the vehicle factory for this level
+		//	Whether the base can build is the server's answer, not one the
+		//	client can work out for itself.  Can_Generate_Vehicles is set by
+		//	VehicleFactoryGameObj::On_Destroyed/On_Revived on the server and
+		//	replicated (basecontroller.cpp Import/Export_Occasional); a client
+		//	that has not been sent the factory object gets nullptr out of
+		//	Find_Building and used to be refused production the server would
+		//	have allowed.  The factory object is still consulted, but only for
+		//	the things it alone knows -- busy, and which message to show.
 		//
 		BuildingGameObj *building = base_controller->Find_Building (BuildingConstants::TYPE_VEHICLE_FACTORY);
-		if (building != nullptr && building->As_VehicleFactoryGameObj () != nullptr) {
-			VehicleFactoryGameObj *factory = building->As_VehicleFactoryGameObj ();
+		VehicleFactoryGameObj *vehicle_factory = (building != nullptr) ? building->As_VehicleFactoryGameObj () : nullptr;
+
+		if (base_controller->Can_Generate_Vehicles () == false) {
 
 			//
-			//	Determine if the factory is busy or destroyed
+			//	Destroyed if we can see the factory and it says so, otherwise
+			//	there simply is no vehicle production on this base
 			//
-			if (factory->Is_Busy ()) {
-				Set_Dlg_Item_Text (IDC_VEHICLES_STATIC, TRANSLATE (IDS_CNC_PURCHASE_VB_BUSY));
-				enable_vehicles = false;
-			} else if (factory->Is_Destroyed ()) {
+			if (vehicle_factory != nullptr && vehicle_factory->Is_Destroyed ()) {
 				Set_Dlg_Item_Text (IDC_VEHICLES_STATIC, TRANSLATE (IDS_CNC_PURCHASE_VB_DESTROYED));
-				enable_vehicles = false;
 			} else {
-				Set_Dlg_Item_Text (IDC_VEHICLES_STATIC, TRANSLATE (IDS_MENU_VEHICLES));
+				Set_Dlg_Item_Text (IDC_VEHICLES_STATIC, TRANSLATE (IDS_CNC_PURCHASE_VB_UNAVAILABLE));
 			}
-
-		} else {
-
-			//
-			//	Let the user know that there is now vehicle factory
-			//
-			Set_Dlg_Item_Text (IDC_VEHICLES_STATIC, TRANSLATE (IDS_CNC_PURCHASE_VB_UNAVAILABLE));
 			enable_vehicles = false;
+
+		} else if (vehicle_factory != nullptr && vehicle_factory->Is_Busy ()) {
+			Set_Dlg_Item_Text (IDC_VEHICLES_STATIC, TRANSLATE (IDS_CNC_PURCHASE_VB_BUSY));
+			enable_vehicles = false;
+		} else {
+			Set_Dlg_Item_Text (IDC_VEHICLES_STATIC, TRANSLATE (IDS_MENU_VEHICLES));
 		}
 
 		//
-		//	Try to find the vehicle factory for this level
+		//	Same again for soldiers, which have no busy state
 		//
 		building = base_controller->Find_Building (BuildingConstants::TYPE_SOLDIER_FACTORY);
-		if (building != nullptr && building->As_SoldierFactoryGameObj () != nullptr) {
-			SoldierFactoryGameObj *factory = building->As_SoldierFactoryGameObj ();
+		SoldierFactoryGameObj *soldier_factory = (building != nullptr) ? building->As_SoldierFactoryGameObj () : nullptr;
 
-			//
-			//	Determine if the factory is busy or destroyed
-			//
-			if (factory->Is_Destroyed ()) {
+		if (base_controller->Can_Generate_Soldiers () == false) {
+			if (soldier_factory != nullptr && soldier_factory->Is_Destroyed ()) {
 				Set_Dlg_Item_Text (IDC_SOLDIERS_STATIC, TRANSLATE (IDS_CNC_PURCHASE_VB_DESTROYED));
-				enable_chars = false;
 			} else {
-				Set_Dlg_Item_Text (IDC_SOLDIERS_STATIC, TRANSLATE (IDS_MENU_CHARACTERS));
+				Set_Dlg_Item_Text (IDC_SOLDIERS_STATIC, TRANSLATE (IDS_CNC_PURCHASE_VB_UNAVAILABLE));
 			}
-
-		} else {
-
-			//
-			//	Let the user know that there is no soldier factory
-			//
-			Set_Dlg_Item_Text (IDC_SOLDIERS_STATIC, TRANSLATE (IDS_CNC_PURCHASE_VB_UNAVAILABLE));
 			enable_chars = false;
+		} else {
+			Set_Dlg_Item_Text (IDC_SOLDIERS_STATIC, TRANSLATE (IDS_MENU_CHARACTERS));
 		}
 	}
 
@@ -915,16 +910,18 @@ CNCPurchaseMainMenuClass::On_Key_Down (uint32 key_id, uint32 key_data)
 				Purchase_Item (IDC_SUPPLY_PURCHASE);
 				break;
 
+			//
+			//	The purchase page is safe to open even when its button is
+			//	disabled: every control on it is greyed out when the base
+			//	cannot build, and a vehicle purchase names the reason.  Stock
+			//	swallowed the key instead, which just looked broken.
+			//
 			case '6':
-				if (Get_Dlg_Item (IDC_CHARACTERS_BUTTON)->Is_Enabled ()) {
-					Do_Purchase_Screen (PurchaseSettingsDefClass::TYPE_CLASSES);
-				}
+				Do_Purchase_Screen (PurchaseSettingsDefClass::TYPE_CLASSES);
 				break;
 
 			case '7':
-				if (Get_Dlg_Item (IDC_VEHICLES_BUTTON)->Is_Enabled ()) {
-					Do_Purchase_Screen (PurchaseSettingsDefClass::TYPE_VEHICLES);
-				}
+				Do_Purchase_Screen (PurchaseSettingsDefClass::TYPE_VEHICLES);
 				break;
 
 			case '8':
@@ -972,6 +969,14 @@ CNCPurchaseMainMenuClass::Refresh_Message_Log (void)
 		MessageLogLength = count;
 
 		//
+		//	Remember where the player was reading.  Delete_All_Entries resets
+		//	both of these, so they have to come off the control first.
+		//
+		bool was_at_end		= list_ctrl->Is_Scrolled_To_End ();
+		int old_scroll_pos	= list_ctrl->Get_Scroll_Pos ();
+		int old_sel				= list_ctrl->Get_Curr_Sel ();
+
+		//
 		//	Start fresh
 		//
 		list_ctrl->Delete_All_Entries ();
@@ -1006,9 +1011,18 @@ CNCPurchaseMainMenuClass::Refresh_Message_Log (void)
 		}
 
 		//
-		//	Scroll to the end of the message log
-		//.
-		list_ctrl->Scroll_To_End ();
+		//	Follow the tail of the log only if the player was already reading
+		//	the tail.  Stock scrolled to the end unconditionally, which made it
+		//	impossible to read back through the log while the terminal was open:
+		//	every message anybody sent yanked the view to the bottom, and took
+		//	the selection with it.
+		//
+		list_ctrl->Set_Curr_Sel (old_sel);
+		if (was_at_end) {
+			list_ctrl->Scroll_To_End ();
+		} else {
+			list_ctrl->Scroll_To (old_scroll_pos);
+		}
 	}
 
 	return ;

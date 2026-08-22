@@ -45,6 +45,7 @@
 #include "stylemgr.h"
 #include <commctrl.h>
 #include <algorithm>
+#include <climits>
 
 
 ////////////////////////////////////////////////////////////////
@@ -1979,20 +1980,35 @@ ListCtrlClass::Delete_All_Entries (void)
 void
 ListCtrlClass::Scroll_To_End (void)
 {
+	Scroll_To (INT_MAX);
+	return ;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Scroll_To
+//
+////////////////////////////////////////////////////////////////
+void
+ListCtrlClass::Scroll_To (int pos)
+{
 	//
 	//	Update the last page top entry
 	//
 	LastPageTopEntryIndex = Find_Last_Page_Top_Entry ();
 
 	//
-	//	Force scroll to the end
+	//	Clamp the caller's request to what the list can actually show
 	//
-	ScrollPos = LastPageTopEntryIndex;
-	ScrollPos = std::max (ScrollPos, 0);
+	ScrollPos = std::min (std::max (pos, 0), std::max (LastPageTopEntryIndex, 0));
 
 	//
-	//	Update the scrollbar
+	//	Update the scrollbar.  The range has to be refreshed here as well as in
+	//	Update_Scroll_Bar_Visibility: entries added since the last visibility
+	//	pass leave the bar with a stale maximum, and Set_Pos clamps against it.
 	//
+	ScrollBarCtrl.Set_Range (0, std::max (LastPageTopEntryIndex, 0));
 	ScrollBarCtrl.Set_Pos (ScrollPos, false);
 
 	Set_Dirty ();
