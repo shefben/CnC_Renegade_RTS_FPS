@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "ConsoleMode.h"
+#include "gameeventbus.h"
 #include "consolefunction.h"
 #include "wwdebug.h"
 #include "conio.h"
@@ -505,6 +506,13 @@ const char *ConsoleModeClass::Get_Log_File_Name(void)
  *=============================================================================================*/
 void ConsoleModeClass::Log_To_Disk(const char *string)
 {
+	//
+	//	Everything the console prints reaches here, including on a dedicated
+	//	server with no window, which is why this is the console output event
+	//	rather than the print itself.
+	//
+	GameEventBus::Raise_Console_Output(string);
+
 	if (ConsoleOutputHandle != INVALID_HANDLE_VALUE) {
 		if (ServerSettingsClass::Get_Disk_Log_Size() > 0) {
    		FILE *log_file = fopen(Get_Log_File_Name(), "at");

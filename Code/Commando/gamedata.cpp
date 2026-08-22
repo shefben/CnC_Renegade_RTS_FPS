@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "gamedata.h"
+#include "gameeventbus.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -1555,6 +1556,8 @@ void cGameData::Game_Over_Processing(void)
 	WWASSERT(cNetwork::I_Am_Server());
 
    int winning_team = cTeamManager::Get_Leaders_Id();
+
+	GameEventBus::Raise_Game_Over(winning_team);
 
 	//
 	// Reload the game settings if they changed on disk.

@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "playermanager.h"
+#include "gameeventbus.h"
 
 #include <win.h>
 #include <stdio.h>
@@ -316,12 +317,27 @@ void cPlayerManager::Add(cPlayer * p_player)
 
 	PlayerMgrEvent event(PLAYER_ADDED, p_player);
 	mNotifier.NotifyObservers(event);
+
+	//
+	//	The player is in the list and findable by ID from here, so a subscriber
+	//	can act on the join immediately.
+	//
+	StringClass player_name(true);
+	p_player->Get_Name().Convert_To(player_name);
+	GameEventBus::Raise_Player_Join(p_player->Get_Id(), player_name);
 }
 
 //------------------------------------------------------------------------------------
 void cPlayerManager::Remove(cPlayer * p_player)
 {
 	WWASSERT(p_player != nullptr);
+
+	//
+	//	Raised while the player can still be looked up; once the entry is gone
+	//	its ID resolves to nothing.
+	//
+	GameEventBus::Raise_Player_Leave(p_player->Get_Id());
+
    PlayerList.Remove(p_player);
 
 	PlayerMgrEvent event(PLAYER_REMOVED, p_player);

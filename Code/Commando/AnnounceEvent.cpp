@@ -35,6 +35,7 @@
 ******************************************************************************/
 
 #include "AnnounceEvent.h"
+#include "gameeventbus.h"
 #include "networkobjectfactory.h"
 #include "apppackettypes.h"
 #include "networkobjectmgr.h"
@@ -110,7 +111,15 @@ void CSAnnouncement::Act(void)
 	{
 	WWASSERT(cNetwork::I_Am_Server());
 
-	if (GameModeManager::Find("Combat")->Is_Active())
+	//
+	//	Look the sender up for its team, which is what a subscriber filtering
+	//	radio traffic by side needs and the event carries.
+	//
+	cPlayer *sender = cPlayerManager::Find_Player(mFromID);
+	int player_type = (sender != nullptr) ? sender->Get_Player_Type() : 0;
+
+	if (GameModeManager::Find("Combat")->Is_Active() &&
+			GameEventBus::Raise_Radio(player_type, mFromID, mAnnouncementID, mRadioCmdID, mType))
 		{
 		SCAnnouncement* announce = new SCAnnouncement;
 		announce->Init(mToID, mFromID, mAnnouncementID, mType, mRadioCmdID);

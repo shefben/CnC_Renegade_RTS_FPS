@@ -50,6 +50,7 @@ set(COMBAT_SRC
     evasettings.cpp
     explosion.cpp
     ffactorylist.cpp
+    gameeventbus.cpp
     gameobjmanager.cpp
     gameobjobserver.cpp
     gametype.cpp
@@ -153,6 +154,7 @@ set(COMBAT_SRC
     colors.h
     combat.h
     combatchunkid.h
+    communicationtypes.h
     combatdazzle.h
     combatmaterialeffectmanager.h
     combatphysobserver.h
@@ -179,6 +181,7 @@ set(COMBAT_SRC
     evasettings.h
     explosion.h
     ffactorylist.h
+    gameeventbus.h
     gameobjmanager.h
     gameobjobserver.h
     gameobjref.h

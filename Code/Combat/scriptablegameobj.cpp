@@ -49,6 +49,7 @@
 #include "chunkio.h"
 #include "saveload.h"
 #include "combat.h"
+#include "gameeventbus.h"
 #include "persistfactory.h"
 #include "combatchunkid.h"
 #include "parameter.h"
@@ -397,6 +398,12 @@ void	ScriptableGameObj::Set_Delete_Pending( void )
 			}
 		}
 
+		//
+		//	Raised while the object is still whole; by the time it leaves the
+		//	game object list there is nothing left to hand a subscriber.
+		//
+		GameEventBus::Raise_Object_Destroy( this );
+
 		if ( this == COMBAT_STAR ) {
 			CombatManager::Star_Killed();
 		}
@@ -563,6 +570,13 @@ void ScriptableGameObj::Start_Observers( void )
 	for( int index = 0; index < observer_list.Count(); index++ ) {
 		observer_list[ index ]->Created( this );
 	}
+
+	//
+	//	The object is fully constructed and its own scripts have been told, so
+	//	this is the point at which anything watching object creation in general
+	//	can safely look at it.
+	//
+	GameEventBus::Raise_Object_Create( this );
 }
 
 void ScriptableGameObj::Add_Observer( GameObjObserverClass * observer )

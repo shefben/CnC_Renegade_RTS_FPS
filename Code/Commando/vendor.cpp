@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "vendor.h"
+#include "gameeventbus.h"
 #include "gameobjmanager.h"
 #include "playerdata.h"
 #include "soldier.h"
@@ -63,6 +64,54 @@ using namespace BuildingConstants;
 
 ////////////////////////////////////////////////////////////////
 //
+//	Purchase_Category_Of
+//
+////////////////////////////////////////////////////////////////
+static PurchaseCategoryEnum
+Purchase_Category_Of (VendorClass::PURCHASE_TYPE type)
+{
+	if (type == VendorClass::TYPE_VEHICLE || type == VendorClass::TYPE_SECRET_VEHICLE) {
+		return PURCHASE_CATEGORY_VEHICLE;
+	}
+
+	if (type == VendorClass::TYPE_BEACON) {
+		return PURCHASE_CATEGORY_POWERUP;
+	}
+
+	//
+	//	Characters, enlisted characters, secret characters and supply refills
+	//	all come out of the soldier factory.
+	//
+	return PURCHASE_CATEGORY_CHARACTER;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Purchase_Status_To_Error
+//
+// The purchase event lets a subscriber answer with the refusal the player
+// should be shown.  Those refusal values were derived from PURCHASE_ERROR and
+// are numerically identical to it; converting rather than casting keeps that
+// a stated fact instead of an assumption.
+//
+////////////////////////////////////////////////////////////////
+static VendorClass::PURCHASE_ERROR
+Purchase_Status_To_Error (PurchaseStatusEnum status)
+{
+	switch (status) {
+		case PURCHASE_STATUS_GRANTED:					return VendorClass::PERR_SUCCESS;
+		case PURCHASE_STATUS_PENDING:					return VendorClass::PERR_OPERATION_PENDING;
+		case PURCHASE_STATUS_INSUFFICIENT_FUNDS:	return VendorClass::PERR_NO_FUNDS;
+		case PURCHASE_STATUS_FACTORY_UNAVAILABLE:	return VendorClass::PERR_NO_FACTORY;
+		case PURCHASE_STATUS_OUT_OF_STOCK:			return VendorClass::PERR_NOT_IN_STOCK;
+		default:												return VendorClass::PERR_UNKNOWN;
+	}
+}
+
+
+////////////////////////////////////////////////////////////////
+//
 //	Purchase_Vehicle
 //
 ////////////////////////////////////////////////////////////////
@@ -76,6 +125,17 @@ VendorClass::Purchase_Vehicle
 )
 {
 	PURCHASE_ERROR retval = PERR_NOT_IN_STOCK;
+
+	//
+	//	Give anything watching purchases the chance to refuse this one, or to
+	//	let it through free or without a vehicle coming out of the factory.
+	//
+	PurchaseStatusEnum status = GameEventBus::Raise_Purchase (PURCHASE_CATEGORY_VEHICLE,
+			base, player, (unsigned int)cost, (unsigned int)vehicle_id);
+
+	if (status >= PURCHASE_STATUS_GRANTED) {
+		return Purchase_Status_To_Error (status);
+	}
 
 	//
 	//	Check to see if this vehicle is available to build
@@ -109,15 +169,23 @@ VendorClass::Purchase_Vehicle
 				//	If we have a vehicle factory that isn't busy, then start building the vehicle
 				//
 				if (factory->Is_Available ()) {
-					float time = 5.0F * base->Get_Operation_Time_Factor ();
-					factory->Request_Vehicle (vehicle_id, time, player);
+
+					//
+					//	The purchase succeeds either way; a no-spawn purchase
+					//	simply does not queue anything on the factory.
+					//
+					if (status != PURCHASE_STATUS_ALLOW_NO_SPAWN) {
+						float time = 5.0F * base->Get_Operation_Time_Factor ();
+						factory->Request_Vehicle (vehicle_id, time, player);
+					}
+
 					retval = PERR_SUCCESS;
 
 					//
 					//	If a player is purcahsing the vehicle, then debit
 					// the player's account
 					//
-					if (player_data != nullptr) {
+					if (player_data != nullptr && status != PURCHASE_STATUS_ALLOW_FREE) {
 						player_data->Purchase_Item (cost);
 					}
 				}
@@ -139,7 +207,7 @@ VendorClass::Purchase_Vehicle
 VendorClass::PURCHASE_ERROR
 VendorClass::Purchase_Powerup
 (
-	BaseControllerClass *	/* base */,
+	BaseControllerClass *	base,
 	SoldierGameObj *			player,
 	int							cost,
 	int							powerup_id
@@ -154,6 +222,13 @@ VendorClass::Purchase_Powerup
 		return retval;
 	}
 
+	PurchaseStatusEnum status = GameEventBus::Raise_Purchase (PURCHASE_CATEGORY_POWERUP,
+			base, player, (unsigned int)cost, (unsigned int)powerup_id);
+
+	if (status >= PURCHASE_STATUS_GRANTED) {
+		return Purchase_Status_To_Error (status);
+	}
+
 	//
 	//	Lookup the powerup's definition
 	//
@@ -165,9 +240,9 @@ VendorClass::Purchase_Powerup
 		//	If a player is purcahsing the powerup, then debit
 		// the player's account
 		//
-		bool has_funds = false;
+		bool has_funds = (status == PURCHASE_STATUS_ALLOW_FREE);
 		PlayerDataClass *player_data = player->Get_Player_Data ();
-		if (player_data != nullptr) {
+		if (player_data != nullptr && status != PURCHASE_STATUS_ALLOW_FREE) {
 
 			//
 			//	Try to purchase the powerup
@@ -214,11 +289,18 @@ VendorClass::Purchase_Character
 		return retval;
 	}
 
+	PurchaseStatusEnum status = GameEventBus::Raise_Purchase (PURCHASE_CATEGORY_CHARACTER,
+			base, player, (unsigned int)cost, (unsigned int)definition_id);
+
+	if (status >= PURCHASE_STATUS_GRANTED) {
+		return Purchase_Status_To_Error (status);
+	}
+
 	//
 	//	Check to see if the player has sufficient funds to purchase the upgrade
 	//
 	PlayerDataClass *player_data = player->Get_Player_Data ();
-	bool has_funds = (player_data->Get_Money () >= cost);
+	bool has_funds = (status == PURCHASE_STATUS_ALLOW_FREE) || (player_data->Get_Money () >= cost);
 	if (has_funds) {
 		retval = PERR_NO_FACTORY;
 
@@ -245,7 +327,9 @@ VendorClass::Purchase_Character
 				//
 				//	Debit the player's account
 				//
-				player_data->Purchase_Item (cost);
+				if (status != PURCHASE_STATUS_ALLOW_FREE) {
+					player_data->Purchase_Item (cost);
+				}
 			}
 		}
 	}
@@ -341,9 +425,21 @@ VendorClass::Purchase_Item
 			//
 			//	Grant full health, armor and ammo
 			//
-			Grant_Supplies (player);
-			retval = PERR_SUCCESS;
+			if (GameEventBus::Raise_Refill (player)) {
+				Grant_Supplies (player);
+				retval = PERR_SUCCESS;
+			} else {
+				retval = PERR_NOT_IN_STOCK;
+			}
 		}
+
+		//
+		//	Whatever the purchase path decided, anything monitoring purchases
+		//	hears about it here.  This is observation only; the outcome was
+		//	settled above.
+		//
+		GameEventBus::Raise_Purchase_Complete (Purchase_Category_Of (type), base, player,
+				(unsigned int)cost, (unsigned int)definition_id, (int)retval);
 
 		//
 		//	Send the response to the server locally as necessary

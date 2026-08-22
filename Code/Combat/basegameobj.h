@@ -116,6 +116,14 @@ public:
 
 	// Network support
 	virtual uint32					Get_Network_Class_ID( void ) const override		{ return NETCLASSID_GAMEOBJ; }
+
+	//
+	//	Replication.  Overridden purely to report the decision: a game object
+	//	becoming dirty for a client, or becoming visible to one, is what the
+	//	4.8.4 package used to patch the executable to observe.
+	//
+	virtual void					Set_Object_Dirty_Bit( DIRTY_BIT dirty_bit, bool onoff ) override;
+	virtual void					Set_Object_Dirty_Bit( int client_id, DIRTY_BIT dirty_bit, bool onoff ) override;
 	virtual void					Delete (void) override									{ delete this; }
 
 	bool								Is_Post_Think_Allowed( void )				{ return IsPostThinkAllowed; }

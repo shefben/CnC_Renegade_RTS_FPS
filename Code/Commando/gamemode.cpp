@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "gamemode.h"
+#include "gameeventbus.h"
 #include "wwprofile.h"
 #include "ww3d.h"
 #include "wwdebug.h"
@@ -343,6 +344,8 @@ GameModeClass	*GameModeManager::Find( const char * name )
 //-----------------------------------------------------------------------------
 void GameModeClass::Activate()
 {
+	bool was_inactive = Is_Inactive();
+
 	if (State == GAME_MODE_INACTIVE) {
 		Init();
 		State = GAME_MODE_ACTIVE;
@@ -351,6 +354,14 @@ void GameModeClass::Activate()
 	if (State == GAME_MODE_INACTIVE_PENDING) {
 		State = GAME_MODE_ACTIVE;
 	}
+
+	//
+	//	Activate is called on modes that are already running, so the event is
+	//	raised only on the transition.
+	//
+	if (was_inactive && State == GAME_MODE_ACTIVE) {
+		GameEventBus::Raise_Game_Mode_Start(this);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -358,6 +369,12 @@ void GameModeClass::Deactivate()
 {
 	if (!Is_Inactive()) {
 		State = GAME_MODE_INACTIVE_PENDING;
+
+		//
+		//	Raised on the request rather than in Safely_Deactivate, so a
+		//	subscriber still sees the mode intact.
+		//
+		GameEventBus::Raise_Game_Mode_Stop(this);
 	}
 }
 

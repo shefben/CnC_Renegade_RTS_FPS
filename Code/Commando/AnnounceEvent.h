@@ -39,13 +39,7 @@
 
 #include "netevent.h"
 #include "netclassids.h"
-
-enum AnnouncementEnum
-	{
-	ANNOUNCEMENT_PUBLIC = 0,
-	ANNOUNCEMENT_TEAM,
-	ANNOUNCEMENT_PRIVATE,
-	};
+#include "communicationtypes.h"
 
 class	CSAnnouncement :
 		public cNetEvent

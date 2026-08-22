@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "cstextobj.h"
+#include "gameeventbus.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,7 +113,13 @@ cCsTextObj::Act(void)
 {
 	WWASSERT(cNetwork::I_Am_Server());
 
-	if (GameModeManager::Find("Combat")->Is_Active()) {
+	//
+	//	The message has arrived and has not been distributed yet, so this is
+	//	where it can still be dropped.  A refused message is dropped silently:
+	//	the sender is not told, which is what makes filtering usable.
+	//
+	if (GameModeManager::Find("Combat")->Is_Active() &&
+			GameEventBus::Raise_Chat(SenderId, Type, Text.Peek_Buffer(), Recipient)) {
 		cScTextObj * p_test_obj = new cScTextObj;
 		p_test_obj->Init(Text, Type, false, SenderId, Recipient);
 	}

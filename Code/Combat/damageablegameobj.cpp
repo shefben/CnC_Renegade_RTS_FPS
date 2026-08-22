@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "damageablegameobj.h"
+#include "gameeventbus.h"
 #include "debug.h"
 #include "armedgameobj.h"
 #include "playertype.h"
@@ -308,6 +309,20 @@ void	DamageableGameObj::Apply_Damage( const OffenseObjectClass & damager, float 
 		return;
 	}
 
+	//
+	//	Raised before armor and warhead scaling, so the amount reported is what
+	//	the weapon asked for rather than what this object is about to lose.  A
+	//	subscriber that refuses leaves the object untouched: no health change,
+	//	no Damaged notification and no kill.
+	//
+	//	The ammo definition and impact bone are not carried on this path yet;
+	//	they arrive with the rest of the 4.8.4 damage merge.
+	if ( !GameEventBus::Raise_Damage( damager.Get_Owner(), As_PhysicalGameObj(),
+			damager.Get_Damage() * scale, (unsigned int)damager.Get_Warhead(),
+			nullptr, nullptr ) ) {
+		return;
+	}
+
 	float old_health = DefenseObject.Get_Health();
 	float old_shield = DefenseObject.Get_Shield_Strength();
 	DefenseObject.Apply_Damage( damager, scale, alternate_skin );
@@ -328,6 +343,8 @@ void	DamageableGameObj::Apply_Damage( const OffenseObjectClass & damager, float 
 		for( int index = 0; index < observer_list.Count(); index++ ) {
 			observer_list[ index ]->Killed( this, damager.Get_Owner() );
 		}
+
+		GameEventBus::Raise_Kill( As_PhysicalGameObj(), damager.Get_Owner() );
 
 		Completely_Damaged( damager );
 	}

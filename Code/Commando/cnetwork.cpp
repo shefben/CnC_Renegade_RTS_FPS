@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "cnetwork.h"
+#include "gameeventbus.h"
 
 #include <shellapi.h>
 #include <stdio.h>
@@ -715,6 +716,12 @@ void cNetwork::Init_Server(void)
 
 	cAppPacketStats::Reset();
 
+	//
+	//	The listener is up and the teams exist, so the server is ready to be
+	//	joined from here.
+	//
+	GameEventBus::Raise_Server_Startup(The_Game()->IsDedicated.Get());
+
 #endif // not BETACLIENT
 }
 
@@ -722,6 +729,12 @@ void cNetwork::Init_Server(void)
 void cNetwork::Cleanup_Server(void)
 {
    WWDEBUG_SAY(("cNetwork::Cleanup_Server\n"));
+
+	//
+	//	Raised first, while the server can still send: a subscriber that wants
+	//	to say goodbye to the connected clients has to do it here.
+	//
+	GameEventBus::Raise_Server_Shutdown(The_Game() != nullptr && The_Game()->IsDedicated.Get());
 
    if (I_Am_Server()) {
 
@@ -1457,6 +1470,16 @@ REFUSAL_CODE cNetwork::Application_Acceptance_Handler(cPacket & packet)
 	if (!cGameSpyAdmin::Is_Gamespy_Game() &&
 	    cPlayerManager::Find_Player(player_name)) {
 		return REFUSAL_PLAYER_EXISTS;
+	}
+
+	//
+	//	Last word: everything the engine itself checks has passed, so a
+	//	subscriber refusing here is refusing on its own terms -- a ban list, a
+	//	reserved slot, a team balance rule.
+	//
+	int refusal = GameEventBus::Raise_Connection_Accept(player_name, password);
+	if (refusal != REFUSAL_CLIENT_ACCEPTED) {
+		return (REFUSAL_CODE)refusal;
 	}
 
 #endif // not BETACLIENT

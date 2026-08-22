@@ -36,6 +36,7 @@
 
 
 #include "weaponbag.h"
+#include "gameeventbus.h"
 #include "weapons.h"
 #include "debug.h"
 #include "weaponmanager.h"
@@ -375,6 +376,12 @@ void	WeaponBagClass::Select_Index( int index )
 		if ( Get_Weapon() ) {
 			Get_Weapon()->Select();
 		}
+
+		//
+		//	Select_Index is the one place the held weapon changes, whether the
+		//	caller asked by weapon, by ID or by name.
+		//
+		GameEventBus::Raise_Weapon_Changed( Owner, Get_Weapon() );
 
 		Mark_Owner_Dirty();
 	}

@@ -36,6 +36,7 @@
 
 
 #include "weapons.h"
+#include "gameeventbus.h"
 #include "weaponmanager.h"
 #include "debug.h"
 #include "soldier.h"
@@ -656,6 +657,8 @@ void	WeaponClass::Do_Fire( bool primary )
 	}
 
 	//	Debug_Say(( "Fire at %f\n", (float)WW3D::Get_Sync_Time() ));
+
+	GameEventBus::Raise_Weapon_Fire( Get_Owner(), this, primary );
 
 	const AmmoDefinitionClass *ammo_def;
 	if ( primary ) {

@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "combat.h"
+#include "gameeventbus.h"
 #include "ccamera.h"
 #include "gameobjmanager.h"
 #include "input.h"
@@ -160,6 +161,12 @@ void	CombatManager::Init( bool render_available )
 
 	IsGameplayPermitted=false;
 
+	//
+	//	Up first: ScriptManager::Init below registers the built-in scripts,
+	//	and a script may subscribe to an event as it registers.
+	//
+	GameEventBus::Init();
+
 	ConversationMgrClass::Initialize ();
 
 	MessageWindow = new MessageWindowClass;
@@ -208,6 +215,8 @@ void	CombatManager::Init( bool render_available )
 void	CombatManager::Shutdown( void )
 {
 //	Debug_Say(("CombatManager::Shutdown\n"));
+	GameEventBus::Shutdown();
+
 	ScreenFadeManager::Shutdown();
 	HUDClass::Shutdown();
 
@@ -460,8 +469,22 @@ const char *	Get_Collision_Group_Name( Collision_Group_Type group )
 ** notify Pat so he can add those calls manually
 **
 */
+//
+//	The level currently being loaded, unloaded or played.  Declared here rather
+//	than beside the load thread below because the level lifecycle events report
+//	it, and those are raised from further up this file.
+//
+StringClass	_load_map_name;
+
 void	CombatManager::Pre_Load_Level( bool render_available )
 {
+	//
+	//	Raised before anything of the new level exists and before any client
+	//	has been told about it, which is the last point at which a subscriber
+	//	can still change what the clients will be sent.
+	//
+	GameEventBus::Raise_Pre_Load_Level( _load_map_name );
+
 	MultiplayRenderingAllowed = true;
 	if ( !IS_MISSION && !I_Am_Server() ) {
 		MultiplayRenderingAllowed = false;
@@ -512,7 +535,6 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 }
 
 bool	_preload_assets;
-StringClass	_load_map_name;
 
 static class LoadThreadClass : public ThreadClass
 {
@@ -677,6 +699,11 @@ void	CombatManager::Post_Load_Level( void )
 	//	Generate the unit coordination zones
 	//
 	UnitCoordinationZoneMgr::Build_Zones ();
+
+	//
+	//	The level is complete and playable from here.
+	//
+	GameEventBus::Raise_Level_Loaded( _load_map_name );
 	return ;
 }
 
@@ -689,6 +716,12 @@ void	CombatManager::Post_Load_Level( void )
 
 void	CombatManager::Unload_Level( void )
 {
+	//
+	//	Raised while the level is still standing; a subscriber that holds
+	//	object IDs has to drop them before the teardown below runs.
+	//
+	GameEventBus::Raise_Level_Unloaded( _load_map_name );
+
 	// Display please wait screen.....
 	Render2DSentenceClass backdropText;
 	backdropText.Set_Texture_Size_Hint( 256 );
@@ -910,6 +943,12 @@ void 	CombatManager::Think()
 	HUDClass::Think();
 	WeaponViewClass::Think();
 	ScreenFadeManager::Think();
+
+	//
+	//	Last, so a per-frame subscriber sees a settled world rather than one
+	//	halfway through its update.
+	//
+	GameEventBus::Raise_Think();
 }
 
 /*

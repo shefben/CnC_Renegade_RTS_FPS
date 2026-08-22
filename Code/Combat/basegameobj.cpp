@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "basegameobj.h"
+#include "gameeventbus.h"
 #include "combat.h"
 #include "pscene.h"
 #include "gameobjmanager.h"
@@ -268,4 +269,41 @@ bool	BaseGameObj::Load( ChunkLoadClass &cload )
 	}
 
 	return true;
+}
+
+
+/*
+**	Replication reporting.
+**
+**	Both of these forward to NetworkObjectClass and then say what happened.
+**	Creation and deletion bits are how this engine expresses per-client
+**	visibility, so they raise the visibility event as well as the dirty one.
+*/
+void	BaseGameObj::Set_Object_Dirty_Bit( DIRTY_BIT dirty_bit, bool onoff )
+{
+	NetworkObjectClass::Set_Object_Dirty_Bit( dirty_bit, onoff );
+
+	//
+	//	The all-clients form does not name one, so it is reported once with
+	//	a client ID of zero, which is the server.
+	//
+	GameEventBus::Raise_Network_Dirty( this, 0, (int)dirty_bit );
+}
+
+
+void	BaseGameObj::Set_Object_Dirty_Bit( int client_id, DIRTY_BIT dirty_bit, bool onoff )
+{
+	NetworkObjectClass::Set_Object_Dirty_Bit( client_id, dirty_bit, onoff );
+
+	GameEventBus::Raise_Network_Dirty( this, client_id, (int)dirty_bit );
+
+	//
+	//	This engine expresses per-client visibility as the creation bit: set
+	//	means the client has yet to be told the object exists, cleared means it
+	//	has.  Removal travels the delete-pending path instead, which raises the
+	//	object destroy event.
+	//
+	if ( dirty_bit == BIT_CREATION ) {
+		GameEventBus::Raise_Network_Visibility( this, client_id, onoff );
+	}
 }

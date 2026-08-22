@@ -39,18 +39,7 @@
 
 #include "netevent.h"
 #include "netclassids.h"
-
-enum TextMessageEnum
-{
-	TEXT_MESSAGE_PUBLIC,
-	TEXT_MESSAGE_TEAM,
-	TEXT_MESSAGE_PRIVATE,
-};
-
-enum
-{
-	HOST_TEXT_SENDER = -1
-};
+#include "communicationtypes.h"
 
 //-----------------------------------------------------------------------------
 //
