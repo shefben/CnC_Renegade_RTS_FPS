@@ -395,3 +395,46 @@ and 1259 registrations of mod and alternate-game-mode content (`jmg*`,
 rest); none corrects stock behaviour, so directive 0.4 does not reach it.
 Registry target is now 1640 + 13 + 861, not 3889. Recorded in
 `NativeScriptRegistry.md` 4 and `TTParityMatrix.md` 3.2 (`3acf9849`).
+
+## P03-F: the purchase-terminal cluster
+
+Merged 14 of the 17 sites on the two PT dialogs, the highest behavioural-risk
+group in the phase (directive 0.9). `new unpurchasable logic` (10): the client
+decided what the base could build from the objects it happened to hold, so a
+client never sent the factory got nullptr from `Find_Building` and was refused
+production the server would have allowed; the replicated `Can_Generate_*` flags
+are the predicate now, behind one `Get_Production_Status` shared by the greying,
+the hot keys and the purchase. `PT chatbox fix` (3): `Refresh_Message_Log`
+rebuilt the list and scrolled to the bottom on every message, so the log could
+not be read back and the selection was lost each time anybody talked;
+`ListCtrlClass` gained `Get_Scroll_Pos`/`Scroll_To`/`Is_Scrolled_To_End` and
+`Scroll_To_End` now refreshes the range it was clamping against. `PT keypress
+fix` (4): a hot key on an empty or unaffordable slot closed the terminal and
+bought nothing, because `Purchase()` ended the dialog either way -- it reports
+now. `renegade` builds clean (`a490ea4d`); detail in `NativeEventDispatch.md`
+5.9.
+
+## P03-G: TT settings, natively
+
+User direction: the point of the native port is all of TT features and fixes
+without the engine patching and scripts2.dll, so TT configuration is part of
+the deliverable and the earlier "ini-gated means declined" reading is withdrawn.
+`TTSettingsClass` (`Code/wwlib/ttsettings.h/.cpp`) holds the whole engine-side
+surface -- 66 `tt.ini` options and 31 `hud.ini` options -- with TT names and
+defaults, read through the file factory, loaded from `Commando/init.cpp` the
+moment that factory is assigned. Closed three clusters with it:
+`DisableVehicleFlipKill` (the flip kill was merged unconditionally although TT
+defaults it off, so `ExpireTimer` is back), `NewUnpurchaseableLogic` (same
+problem, same fix, one predicate with the setting as its input), and
+`DisableCostMultiplier` across all three readers -- `vendor.cpp` charges,
+the two dialogs display. `renegade` builds clean (`2e34db24`, `7d8b50f4`);
+inventory and remaining order in `docs/tt484/TTSettings.md`.
+
+## P03-H: `TTHookSites.tsv` carries a disposition column
+
+760 rows, one of `merged` / `open` / `n/a` / `out-of-scope`, so "how much of
+Phase 3 is left" is answerable from the file rather than from prose. Standing
+count after this session: 187 merged, 456 open, 13 n/a, 104 out of scope under
+directive 0.6. Only two dispositions are terminal and neither is a judgement
+call -- the 12 `DROP` rows null out stock debug routines, and the radar fix is
+provably inert.

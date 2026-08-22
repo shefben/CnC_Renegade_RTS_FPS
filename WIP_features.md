@@ -7,17 +7,22 @@ Detail lives in `docs/`.
 
 ## P03: merge TT hooks/patches/overrides into canonical implementations
 
-The event layer is done (P03-A) and 139 of the 656 in-scope hook sites are
-merged or dispositioned (P03-B netcode 125, P03-C the six `UDP fixes` plus
-`SlidePrecision`, P03-D the vehicle flip, P03-E the six scroll-fix sites and the
-2x cost message). All 135 addressed byte-patch rows are now triaged against the
-stock image, so the remaining work is named rather than opaque. Absorbs the
+The event layer is done (P03-A) and `TTHookSites.tsv` now carries a
+`disposition` column giving the exact standing: **187 merged, 456 open**, 13
+n/a, 104 out of scope under directive 0.6 (P03-A/B/C/D/E/F/G/H). Absorbs the
 backlog line "Acceptance: No required TT gameplay feature depends on modifying
-executable memory or knowing a hard-coded function address", not yet met. Next
-exact action: the 16 purchase-terminal sites (`new unpurchasable logic` 10,
-`PT keypress fix` 2, `PT chatbox fix`, `enable secret PT pages` 2, `"building"
-message change`) under directive 0.9, then `Commando/cnetwork.cpp` (32), per
-`NativeEventDispatch.md` 5.9.
+executable memory or knowing a hard-coded function address", not yet met. The
+open remainder is 431 `exact-def` rows -- each a TT reimplementation to diff
+against its canonical function -- plus ~25 discrete byte patches. Largest
+groups: `cNetwork` 46, `SoldierGameObj` 16, `VehicleGameObj` 14,
+`BeaconGameObj` 14, `WeaponBagClass` 13, `ModPackageMgrClass` 13, `cGameData`
+12, `DialogMgrClass` 11, `SmartGameObj` 11, `DialogBaseClass` 10. Next exact
+action: finish the `cNetwork` diff started this session
+(`scratchpad/fndiff.py` extracts and normalises both sides; the finding so far
+is that OpenW3D `cnetwork.cpp` has already moved past stock, so most rows are
+"canonical already supersedes" and the TT-forward items are few -- named so far,
+`isPlayerNameAllowed` in `Application_Acceptance_Handler`), then
+`Combat/soldier.cpp` (30) and `Combat/combat.cpp` (20).
 
 ## P04: native stock + TT script registry
 
@@ -34,6 +39,21 @@ functions have portable source, and all 284 closed-binary bindings sit in
 listed in `TTParityMatrix.md` 3.1 -- the `M00_*` cluster in `jfwws.cpp` is the
 largest group -- taking the donor side, and register each as
 `SCRIPT_SOURCE_STOCK_MERGED`.
+
+## P03-INI: the rest of the TT option surface
+
+`TTSettingsClass` exists and three clusters are wired through it (P03-G). The
+remaining ~90 options are declared with their defaults but not yet consumed.
+Sequenced in `docs/tt484/TTSettings.md` 6: the four reopened hook clusters
+(`UseExtraPTPages`, the `.mix` startup scan, the PT "building" message,
+`enable secret PT pages`), then the gameplay options (`Unsquishable` and its
+four armour exemptions, the two weather disables, `NeutralVechiclePointsFix`,
+`DrawDistance`, `ContinueReloadOnVehicleExit`, `BuildTimeDelay`,
+`VehicleOwnershipDisable`, `MapPrefix`, the four colour triples), then the UI
+and styling colours, and `VehicleBuildingDisable` last because it is a whole
+alternate production model rather than a switch. Next exact action:
+`UseExtraPTPages` in `dlgcncpurchasemainmenu.cpp`, which closes the two
+`enable secret PT pages` rows.
 
 ---
 
