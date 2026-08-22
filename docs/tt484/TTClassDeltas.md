@@ -18,17 +18,17 @@ deltas. Data members are compared on name.
 | Class | TT | OpenW3D | TT methods | OW methods | TT-only methods | TT-only fields | Disposition |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `BuildingGameObj` | `tt_4.8.4/scripts/BuildingGameObj.h:40` | `Code/Combat/building.h:164` | 74 | 59 | 16 | 2 | MERGE |
-| `BuildingGameObjDef` | `tt_4.8.4/scripts/BuildingGameObjDef.h:54` | `Code/Combat/building.h:106` | 14 | 12 | 2 | 2 | MERGE |
+| `BuildingGameObjDef` | `tt_4.8.4/scripts/BuildingGameObjDef.h:54` | `Code/Combat/building.h:106` | 13 | 11 | 2 | 2 | MERGE |
 | `SoldierGameObj` | `tt_4.8.4/scripts/SoldierGameObj.h:39` | `Code/Combat/soldier.h:125` | 173 | 141 | 41 | 26 | MERGE |
 | `VehicleGameObj` | `tt_4.8.4/scripts/VehicleGameObj.h:34` | `Code/Combat/vehicle.h:146` | 116 | 87 | 29 | 15 | MERGE |
-| `AirFactoryGameObj` | `tt_4.8.4/scripts/AirFactoryGameObj.h:17` | **absent** | 26 | 0 | 26 | 9 | **NEW** |
-| `NavalFactoryGameObj` | `tt_4.8.4/scripts/NavalFactoryGameObj.h:18` | **absent** | 27 | 0 | 27 | 12 | **NEW** |
+| `AirFactoryGameObj` | `tt_4.8.4/scripts/AirFactoryGameObj.h:17` | **absent** | 25 | 0 | 25 | 9 | **NEW** |
+| `NavalFactoryGameObj` | `tt_4.8.4/scripts/NavalFactoryGameObj.h:18` | **absent** | 26 | 0 | 26 | 12 | **NEW** |
 | `SoldierFactoryGameObj` | `tt_4.8.4/scripts/SoldierFactoryGameObj.h:16` | `Code/Combat/soldierfactorygameobj.h:109` | 13 | 12 | 1 | 0 | MERGE |
 | `ConstructionYardGameObj` | `tt_4.8.4/scripts/ConstructionYardGameObj.h:18` | **absent** | 12 | 0 | 12 | 3 | **NEW** |
 | `SuperweaponGameObj` | `tt_4.8.4/scripts/SuperweaponGameObj.h:16` | **absent** | 18 | 0 | 18 | 4 | **NEW** |
-| `SamSiteGameObj` | `tt_4.8.4/scripts/SamSiteGameObj.h:17` | `Code/Combat/samsite.h:73` | 14 | 14 | 0 | 4 | **NAMING FIX** |
-| `PhysicsSceneClass` | `tt_4.8.4/scripts/PhysicsSceneClass.h:53` | `Code/wwphys/pscene.h:530` | 216 | 207 | 11 | 7 | MERGE |
-| `GridCullSystemClass` | `tt_4.8.4/scripts/GridCull.h:20` | `Code/WWMath/gridcull.h:88` | 25 | 37 | 0 | 2 | MERGE |
+| `SamSiteGameObj` | `tt_4.8.4/scripts/SamSiteGameObj.h:17` | `Code/Combat/samsite.h:73` | 13 | 13 | 0 | 4 | **NAMING FIX** |
+| `PhysicsSceneClass` | `tt_4.8.4/scripts/PhysicsSceneClass.h:53` | `Code/wwphys/pscene.h:530` | 215 | 206 | 11 | 7 | MERGE |
+| `GridCullSystemClass` | `tt_4.8.4/scripts/GridCull.h:20` | `Code/WWMath/gridcull.h:88` | 24 | 35 | 0 | 2 | MERGE |
 | `AABTreeCullSystemClass` | `tt_4.8.4/scripts/AABTreeCull.h:26` | `Code/WWMath/aabtreecull.h:62` | 36 | 37 | 1 | 0 | MERGE |
 | `CullSystemClass` | `tt_4.8.4/scripts/CullSystemClass.h:17` | `Code/WWMath/cullsys.h:151` | 10 | 10 | 0 | 0 | MERGE |
 | `RenderObjClass` | `tt_4.8.4/scripts/RenderObjClass.h:43` | `Code/ww3d2/rendobj.h:131` | 136 | 132 | 4 | 1 | MERGE |
@@ -59,8 +59,8 @@ TT-only fields (2): `IsSpyDisabled`, `BoundingBox`
 
 | | file | bases | methods | fields |
 | --- | --- | --- | --- | --- |
-| TT | `tt_4.8.4/scripts/BuildingGameObjDef.h:54` | `public DamageableGameObjDef` | 14 | 10 |
-| OpenW3D | `Code/Combat/building.h:106` | `public DamageableGameObjDef` | 12 | 8 |
+| TT | `tt_4.8.4/scripts/BuildingGameObjDef.h:54` | `public DamageableGameObjDef` | 13 | 10 |
+| OpenW3D | `Code/Combat/building.h:106` | `public DamageableGameObjDef` | 11 | 8 |
 
 TT-only methods (2): `Dump`, `Get_Hide_Team_Battlefield_Information`
 
@@ -92,10 +92,10 @@ TT-only fields (15): `visible`, `LastTeam`, `DamageMeshesUpdate`, `CanFire`, `Al
 
 | | file | bases | methods | fields |
 | --- | --- | --- | --- | --- |
-| TT | `tt_4.8.4/scripts/AirFactoryGameObj.h:17` | `public BuildingGameObj` | 26 | 9 |
+| TT | `tt_4.8.4/scripts/AirFactoryGameObj.h:17` | `public BuildingGameObj` | 25 | 9 |
 | OpenW3D | **absent** | `-` | 0 | 0 |
 
-TT-only methods (26): `AirFactoryGameObj`, `~AirFactoryGameObj`, `Init`, `Get_Definition`, `As_AirFactoryGameObj`, `Save`, `Load`, `Get_Factory`, `CnC_Initialize`, `On_Destroyed`, `On_Revived`, `Think`, `Is_Available`, `Is_Available_For_Purchase`, `Is_Busy`, `Is_Disabled`, `Set_Disabled`, `Get_Team_Vehicle_Count`, `Set_Max_Vehicles_Per_Team`, `Get_Max_Vehicles_Per_Team`, `Import_Rare`, `Export_Rare`, `Create_Vehicle`, `Set_Object_Dirty_Bit`, `Load_Variables`
+TT-only methods (25): `AirFactoryGameObj`, `~AirFactoryGameObj`, `Init`, `Get_Definition`, `As_AirFactoryGameObj`, `Save`, `Load`, `Get_Factory`, `CnC_Initialize`, `On_Destroyed`, `On_Revived`, `Think`, `Is_Available`, `Is_Available_For_Purchase`, `Is_Busy`, `Is_Disabled`, `Set_Disabled`, `Get_Team_Vehicle_Count`, `Set_Max_Vehicles_Per_Team`, `Get_Max_Vehicles_Per_Team`, `Import_Rare`, `Export_Rare`, `Create_Vehicle`, `Load_Variables`
 
 TT-only fields (9): `Vehicle`, `IsBusy`, `IsDisabled`, `Timer`, `Purchaser`, `LandingPositions`, `CurrentLandingPosition`, `CollisionGroup`, `MaxVehiclesPerTeam`
 
@@ -103,10 +103,10 @@ TT-only fields (9): `Vehicle`, `IsBusy`, `IsDisabled`, `Timer`, `Purchaser`, `La
 
 | | file | bases | methods | fields |
 | --- | --- | --- | --- | --- |
-| TT | `tt_4.8.4/scripts/NavalFactoryGameObj.h:18` | `public BuildingGameObj` | 27 | 12 |
+| TT | `tt_4.8.4/scripts/NavalFactoryGameObj.h:18` | `public BuildingGameObj` | 26 | 12 |
 | OpenW3D | **absent** | `-` | 0 | 0 |
 
-TT-only methods (27): `NavalFactoryGameObj`, `~NavalFactoryGameObj`, `Init`, `Get_Definition`, `As_NavalFactoryGameObj`, `Save`, `Load`, `Get_Factory`, `CnC_Initialize`, `On_Destroyed`, `On_Revived`, `Think`, `Is_Available`, `Can_Spawn`, `Is_Available_For_Purchase`, `Is_Busy`, `Is_Disabled`, `Set_Disabled`, `Get_Team_Vehicle_Count`, `Set_Max_Vehicles_Per_Team`, `Get_Max_Vehicles_Per_Team`, `Import_Rare`, `Export_Rare`, `Create_Vehicle`, `Set_Object_Dirty_Bit`, `Load_Variables`
+TT-only methods (26): `NavalFactoryGameObj`, `~NavalFactoryGameObj`, `Init`, `Get_Definition`, `As_NavalFactoryGameObj`, `Save`, `Load`, `Get_Factory`, `CnC_Initialize`, `On_Destroyed`, `On_Revived`, `Think`, `Is_Available`, `Can_Spawn`, `Is_Available_For_Purchase`, `Is_Busy`, `Is_Disabled`, `Set_Disabled`, `Get_Team_Vehicle_Count`, `Set_Max_Vehicles_Per_Team`, `Get_Max_Vehicles_Per_Team`, `Import_Rare`, `Export_Rare`, `Create_Vehicle`, `Load_Variables`
 
 TT-only fields (12): `IsBusy`, `IsDisabled`, `Timer`, `DefinitionID`, `Purchaser`, `ConstructionZone1Instances`, `ConstructionZone2Instances`, `ConstructionZone3Instances`, `ConstructionZone4Instances`, `ConstructionZone5Instances`, `ConstructionZone6Instances`, `MaxVehiclesPerTeam`
 
@@ -145,8 +145,8 @@ TT-only fields (4): `LaunchAnimID`, `LaunchTimer`, `Launching`, `LaunchFlag`
 
 | | file | bases | methods | fields |
 | --- | --- | --- | --- | --- |
-| TT | `tt_4.8.4/scripts/SamSiteGameObj.h:17` | `public SmartGameObj` | 14 | 4 |
-| OpenW3D | `Code/Combat/samsite.h:73` | `public SmartGameObj` | 14 | 4 |
+| TT | `tt_4.8.4/scripts/SamSiteGameObj.h:17` | `public SmartGameObj` | 13 | 4 |
+| OpenW3D | `Code/Combat/samsite.h:73` | `public SmartGameObj` | 13 | 4 |
 
 TT-only fields (4): `turretbone`, `barrelbone`, `mode`, `time`
 
@@ -154,8 +154,8 @@ TT-only fields (4): `turretbone`, `barrelbone`, `mode`, `time`
 
 | | file | bases | methods | fields |
 | --- | --- | --- | --- | --- |
-| TT | `tt_4.8.4/scripts/PhysicsSceneClass.h:53` | `public SceneClass, public WidgetUserClass` | 216 | 66 |
-| OpenW3D | `Code/wwphys/pscene.h:530` | `public SceneClass , public WidgetUserClass` | 207 | 75 |
+| TT | `tt_4.8.4/scripts/PhysicsSceneClass.h:53` | `public SceneClass, public WidgetUserClass` | 215 | 66 |
+| OpenW3D | `Code/wwphys/pscene.h:530` | `public SceneClass , public WidgetUserClass` | 206 | 75 |
 
 > Base-list difference - reconcile before merging.
 
@@ -167,8 +167,8 @@ TT-only fields (7): `VisEnabled`, `VisInverted`, `VisQuickAndDirty`, `StaticProj
 
 | | file | bases | methods | fields |
 | --- | --- | --- | --- | --- |
-| TT | `tt_4.8.4/scripts/GridCull.h:20` | `public CullSystemClass` | 25 | 17 |
-| OpenW3D | `Code/WWMath/gridcull.h:88` | `public CullSystemClass` | 37 | 15 |
+| TT | `tt_4.8.4/scripts/GridCull.h:20` | `public CullSystemClass` | 24 | 17 |
+| OpenW3D | `Code/WWMath/gridcull.h:88` | `public CullSystemClass` | 35 | 15 |
 
 TT-only fields (2): `delta`, `aaextent`
 

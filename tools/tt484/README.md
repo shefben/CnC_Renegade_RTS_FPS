@@ -8,6 +8,8 @@ python tools/tt484/hooks2.py      # -> docs/tt484/TTHookSites.tsv  (extract)
 python tools/tt484/resolve2.py    # -> docs/tt484/TTHookSites.tsv  (add owner columns)
 python tools/tt484/classdiff.py   # -> docs/tt484/TTClassDeltas.md
 python tools/tt484/files2.py      # -> docs/tt484/TTFileInventory.tsv
+python tools/tt484/defcheck.py    # -> docs/tt484/TTMethodSources.tsv
+python tools/tt484/counterpart.py # -> stdout; checks the NEW dispositions
 ```
 
 `files2.py` must run after `resolve2.py`; it reads `TTHookSites.tsv` to place files
@@ -58,3 +60,29 @@ Hand corrections go in `PER_FILE`, not in the TSV, which is regenerated wholesal
 
 Output is deterministic; re-running with an unchanged tree reproduces the files
 byte for byte.
+
+`ttparse.py` holds the shared C++ declaration parsing (`find_class`, `members`,
+`scan_classes`). It is imported, never run. One subtlety: `METH` allows an empty
+return type so constructors parse, which also matches a bare call statement inside
+an inline body — `Set_Object_Dirty_Bit(BIT_RARE, true);` reads as a declaration.
+`members()` therefore takes the class name and rejects an empty-return-type match
+that is neither the constructor nor the destructor. Callers must pass it.
+
+`defcheck.py` answers the question `classdiff.py` cannot: for each TT-only method,
+where is the body? A TT `scripts/` header is a link-time interface to a binary we
+do not have, so a TT-only declaration is not TT-only code and is not necessarily
+work at all. Rows land in one of `defined`, `inline-header`, `address-stub`
+(`RENEGADE_FUNCTION ... AT2(...)`, a naked thunk into the shipped binary — no TT
+implementation exists), `pure-virtual`, or `declaration-only`. Declaration-only
+rows are split again by whether OpenW3D already declares that method name on some
+other class, since `classdiff.py` only ever compares same-named classes. Output is
+`docs/tt484/TTMethodSources.tsv`; the reading is in parity matrix 5.6.
+
+`counterpart.py` finds the best OpenW3D counterpart for a TT class by member-name
+overlap, so a `NEW` disposition can be checked rather than inferred from the name
+not matching. It scores containment (`shared / TT members`), not Jaccard: a TT
+header re-declares only what TT's scripts call, so the right OpenW3D class is
+usually much larger and Jaccard would rank it below a coincidental small match.
+Run it with no arguments to re-check every class the matrix calls NEW. A flat
+score across several unrelated classes means the overlap is only base-class
+boilerplate, i.e. genuinely new.

@@ -1,0 +1,228 @@
+class	method	arity	virtual	openw3d_class	source_kind	source_file	source_line	address	openw3d_has	openw3d_owners	declaration
+AABTreeCullSystemClass	Collect_Branch	1	0	present	declaration-only				nowhere		void Collect_Branch(AABTreeNodeClass * node);
+AirFactoryGameObj	Get_Definition	0	0	absent	defined	tt_4.8.4/scripts/engine_obj.cpp	74				SCRIPTS_API const AirFactoryGameObjDef & Get_Definition (void) const;
+AirFactoryGameObj	As_AirFactoryGameObj	0	0	absent	inline-header	tt_4.8.4/scripts/AirFactoryGameObj.h	24				AirFactoryGameObj * As_AirFactoryGameObj (void) { return this; }
+AirFactoryGameObj	Get_Max_Vehicles_Per_Team	0	0	absent	inline-header	tt_4.8.4/scripts/AirFactoryGameObj.h	39				static int Get_Max_Vehicles_Per_Team(void) { return MaxVehiclesPerTeam; }
+AirFactoryGameObj	Is_Available	0	0	absent	inline-header	tt_4.8.4/scripts/AirFactoryGameObj.h	32				bool Is_Available (void) const { return (IsBusy == false) && (IsDestroyed == false) && (IsDisabled == false); }
+AirFactoryGameObj	Is_Busy	0	0	absent	inline-header	tt_4.8.4/scripts/AirFactoryGameObj.h	34				bool Is_Busy (void) const { return IsBusy; }
+AirFactoryGameObj	Is_Disabled	0	0	absent	inline-header	tt_4.8.4/scripts/AirFactoryGameObj.h	35				bool Is_Disabled (void) const { return IsDisabled; }
+AirFactoryGameObj	Set_Disabled	1	0	absent	inline-header	tt_4.8.4/scripts/AirFactoryGameObj.h	36				void Set_Disabled(bool disabled) { IsDisabled = disabled; Set_Object_Dirty_Bit (BIT_RARE, true);}
+AirFactoryGameObj	Set_Max_Vehicles_Per_Team	1	0	absent	inline-header	tt_4.8.4/scripts/AirFactoryGameObj.h	38				static void Set_Max_Vehicles_Per_Team(int max) { MaxVehiclesPerTeam = max; }
+AirFactoryGameObj	Create_Vehicle	2	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1233	AT2(0x006EDC80,0x006ED240)			void Create_Vehicle(int defintion_id,SoldierGameObj * player);
+AirFactoryGameObj	Get_Team_Vehicle_Count	0	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1236	AT2(0x006F16B0,0x006F0C70)			int Get_Team_Vehicle_Count(void) const;
+AirFactoryGameObj	Is_Available_For_Purchase	0	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1239	AT2(0x0070B6F0,0x0070ACB0)			bool Is_Available_For_Purchase (void) const;
+AirFactoryGameObj	AirFactoryGameObj	0	0	absent	declaration-only				nowhere		AirFactoryGameObj (void);
+AirFactoryGameObj	CnC_Initialize	1	0	absent	declaration-only				owned elsewhere	AirStripGameObj,BuildingGameObj,RefineryGameObj,RepairBayGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void CnC_Initialize (BaseControllerClass *base);
+AirFactoryGameObj	Export_Rare	1	0	absent	declaration-only				owned elsewhere	BackgroundMgrClass,BeaconGameObj,BuildingGameObj,C4GameObj,CinematicGameObj,DSAPONetworkObjectClass	void Export_Rare (BitStreamClass &packet);
+AirFactoryGameObj	Get_Factory	0	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,AirStripGameObj,AirStripGameObjDef,AmmoDefinitionClass,AttackActionCodeClass	const PersistFactoryClass & Get_Factory (void) const;
+AirFactoryGameObj	Import_Rare	1	0	absent	declaration-only				owned elsewhere	BackgroundMgrClass,BeaconGameObj,BuildingGameObj,C4GameObj,CinematicGameObj,DSAPONetworkObjectClass	void Import_Rare (BitStreamClass &packet);
+AirFactoryGameObj	Init	0	1	absent	declaration-only				owned elsewhere	AABoxClass,AccessiblePhysClass,ActiveCategoryStackClass,AirStripGameObj,AnimCollisionManagerClass,ArgvClass	virtual void Init( void );
+AirFactoryGameObj	Init	1	0	absent	declaration-only				owned elsewhere	AABoxClass,AccessiblePhysClass,ActiveCategoryStackClass,AirStripGameObj,AnimCollisionManagerClass,ArgvClass	void Init (const AirFactoryGameObjDef & definition);
+AirFactoryGameObj	Load	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActiveConversationClass	bool Load (ChunkLoadClass &cload);
+AirFactoryGameObj	Load_Variables	1	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,ActiveConversationClass,AirStripGameObj,AirStripGameObjDef,AudibleSoundDefinitionClass	void Load_Variables (ChunkLoadClass &cload);
+AirFactoryGameObj	On_Destroyed	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,RefineryGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Destroyed (void);
+AirFactoryGameObj	On_Revived	0	0	absent	declaration-only				nowhere		void On_Revived (void);
+AirFactoryGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActiveConversationClass	bool Save (ChunkSaveClass &csave);
+AirFactoryGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think (void);
+AirFactoryGameObj	~AirFactoryGameObj	0	0	absent	declaration-only				nowhere		~AirFactoryGameObj (void);
+BuildingGameObj	Find_MCT	0	0	present	defined	tt_4.8.4/scripts/engine_game.cpp	642				SCRIPTS_API BuildingAggregateClass * Find_MCT();
+BuildingGameObj	As_AirFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	115				virtual AirFactoryGameObj * As_AirFactoryGameObj (void) { return NULL; }
+BuildingGameObj	As_ConstructionYardGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	114				virtual ConstructionYardGameObj * As_ConstructionYardGameObj (void) { return NULL; }
+BuildingGameObj	As_NavalFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	116				virtual NavalFactoryGameObj * As_NavalFactoryGameObj (void) { return NULL; }
+BuildingGameObj	As_SuperweaponGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	117				virtual SuperweaponGameObj * As_SuperweaponGameObj (void) { return NULL; }
+BuildingGameObj	Find_Closest_Poly	1	0	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	108				float Find_Closest_Poly(const Vector3 &pos) { float distance2; Find_Closest_Poly(pos,&distance2); return distance2; }
+BuildingGameObj	Get_Bounds	0	0	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	102				const AABoxClass& Get_Bounds() { return BoundingBox; }
+BuildingGameObj	Is_Spy_Disabled	0	0	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	87				bool Is_Spy_Disabled() const { return IsSpyDisabled; }
+BuildingGameObj	Set_Is_Destroyed	1	0	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	86				void Set_Is_Destroyed(const bool _IsDestroyed) { IsDestroyed = _IsDestroyed; }
+BuildingGameObj	Set_Is_Spy_Disabled	1	0	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	88				void Set_Is_Spy_Disabled(const bool _IsSpyDisabled) {IsSpyDisabled = _IsSpyDisabled; }
+BuildingGameObj	Find_Closest_Poly	3	0	present	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1218	AT2(0x00685630,0x00684ED0)			void Find_Closest_Poly(const Vector3& pos, float* distance2, Vector3* polyPos);
+BuildingGameObj	Building_In_Range	2	0	present	declaration-only				nowhere		int Building_In_Range(const Vector3 &point, float range); //return 0 for no, 1 for yes and 2 for MCT in range
+BuildingGameObj	Cast_Ray	1	0	present	declaration-only				owned elsewhere	AABTreeClass,AABoxRenderObjClass,Box3DClass,BptClass,BptImpClass,CollectionClass	bool Cast_Ray(RayCollisionTestClass& raytest);
+BuildingGameObj	Find_Closest_Poly_For_Model	4	0	present	declaration-only				other arity		void Find_Closest_Poly_For_Model (RenderObjClass *model, const Vector3 &pos, float *distance2, Vector3* polyPos = NULL);
+BuildingGameObj	Is_In_Range_Coarse	2	0	present	declaration-only				nowhere		bool Is_In_Range_Coarse(const Vector3& point, float range_sq);
+BuildingGameObj	On_Revived	0	1	present	declaration-only				nowhere		virtual void On_Revived (void);
+BuildingGameObjDef	Dump	1	1	present	declaration-only				owned elsewhere	CChunkDataView,CChunkTreeView,CChunkViewDoc,CChunkViewView,CDataTreeView,CDataView	virtual void Dump (FileClass &file);
+BuildingGameObjDef	Get_Hide_Team_Battlefield_Information	0	0	present	declaration-only				nowhere		bool Get_Hide_Team_Battlefield_Information() const;
+ConstructionYardGameObj	Get_Definition	0	0	absent	defined	tt_4.8.4/scripts/engine_obj.cpp	109				SCRIPTS_API const ConstructionYardGameObjDef & Get_Definition (void) const;
+ConstructionYardGameObj	As_ConstructionYardGameObj	0	0	absent	inline-header	tt_4.8.4/scripts/ConstructionYardGameObj.h	25				ConstructionYardGameObj * As_ConstructionYardGameObj (void) { return this; }
+ConstructionYardGameObj	Set_Spy	1	0	absent	inline-header	tt_4.8.4/scripts/ConstructionYardGameObj.h	30				void Set_Spy(bool b) {IsSpy = b;}
+ConstructionYardGameObj	ConstructionYardGameObj	0	0	absent	declaration-only				nowhere		ConstructionYardGameObj (void);
+ConstructionYardGameObj	Get_Factory	0	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,AirStripGameObj,AirStripGameObjDef,AmmoDefinitionClass,AttackActionCodeClass	const PersistFactoryClass & Get_Factory (void) const;
+ConstructionYardGameObj	Init	0	1	absent	declaration-only				owned elsewhere	AABoxClass,AccessiblePhysClass,ActiveCategoryStackClass,AirStripGameObj,AnimCollisionManagerClass,ArgvClass	virtual void Init( void );
+ConstructionYardGameObj	Init	1	0	absent	declaration-only				owned elsewhere	AABoxClass,AccessiblePhysClass,ActiveCategoryStackClass,AirStripGameObj,AnimCollisionManagerClass,ArgvClass	void Init (const ConstructionYardGameObjDef & definition);
+ConstructionYardGameObj	Load	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActiveConversationClass	bool Load (ChunkLoadClass &cload);
+ConstructionYardGameObj	Load_Variables	1	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,ActiveConversationClass,AirStripGameObj,AirStripGameObjDef,AudibleSoundDefinitionClass	void Load_Variables (ChunkLoadClass &cload);
+ConstructionYardGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActiveConversationClass	bool Save (ChunkSaveClass &csave);
+ConstructionYardGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think (void);
+ConstructionYardGameObj	~ConstructionYardGameObj	0	0	absent	declaration-only				nowhere		~ConstructionYardGameObj (void);
+ExtendedNetworkObject	setDirtyBitsForClient	1	1	absent	inline-header	tt_4.8.4/scripts/ExtendedNetworkObject.h	42				virtual void setDirtyBitsForClient(const int clientId) { return BaseClass::setDirtyBitsForClient(clientId); }
+HUDSurfaceClass	Get_Aspect_Ratio	0	0	absent	inline-header	tt_4.8.4/scripts/HUDSurfaceClass.h	55				float Get_Aspect_Ratio() const { return boundary.Height() > WWMATH_EPSILON ? boundary.Width() / boundary.Height() : 0; }
+HUDSurfaceClass	Get_Boundary_Area	0	0	absent	inline-header	tt_4.8.4/scripts/HUDSurfaceClass.h	54				const RectClass& Get_Boundary_Area() const { return boundary; }
+HUDSurfaceClass	Get_Client_ID	0	0	absent	inline-header	tt_4.8.4/scripts/HUDSurfaceClass.h	51				int Get_Client_ID() const { return clientId; }
+HUDSurfaceClass	Get_Surface_ID	0	0	absent	inline-header	tt_4.8.4/scripts/HUDSurfaceClass.h	50				int Get_Surface_ID() const { return id; }
+HUDSurfaceClass	Get_Surface_Texture	0	0	absent	inline-header	tt_4.8.4/scripts/HUDSurfaceClass.h	56				const StringClass& Get_Surface_Texture() const { return surfaceTexture; }
+HUDSurfaceClass	Is_Dirty	0	0	absent	inline-header	tt_4.8.4/scripts/HUDSurfaceClass.h	52				bool Is_Dirty() const { return isDirty; }
+HUDSurfaceClass	Set_Dirty	1	0	absent	inline-header	tt_4.8.4/scripts/HUDSurfaceClass.h	53				void Set_Dirty(bool dirty) { isDirty = dirty; }
+HUDSurfaceClass	Set_Surface_Texture	1	0	absent	inline-header	tt_4.8.4/scripts/HUDSurfaceClass.h	57				void Set_Surface_Texture(const char* texture) { surfaceTexture = texture; Set_Dirty(true); }
+HUDSurfaceClass	Add_Element	1	1	absent	declaration-only				nowhere		virtual void Add_Element(HUDElementClass* element);
+HUDSurfaceClass	Clear_Elements	0	1	absent	declaration-only				nowhere		virtual void Clear_Elements();
+HUDSurfaceClass	Create_Element	1	1	absent	declaration-only				nowhere		virtual HUDElementClass* Create_Element(HUDElementType type);
+HUDSurfaceClass	Find_Element	1	1	absent	declaration-only				nowhere		virtual HUDElementClass* Find_Element(int id);
+HUDSurfaceClass	Get_Element_Count	0	1	absent	declaration-only				nowhere		virtual int Get_Element_Count();
+HUDSurfaceClass	Get_Element_Index	1	1	absent	declaration-only				nowhere		virtual HUDElementClass* Get_Element_Index(int index);
+HUDSurfaceClass	HUDSurfaceClass	2	0	absent	declaration-only				nowhere		HUDSurfaceClass(int client, int srf_id);
+HUDSurfaceClass	Remove_Element	1	1	absent	declaration-only				nowhere		virtual void Remove_Element(int id);
+HUDSurfaceClass	~HUDSurfaceClass	0	1	absent	declaration-only				nowhere		virtual ~HUDSurfaceClass();
+NavalFactoryGameObj	Get_Definition	0	0	absent	defined	tt_4.8.4/scripts/engine_obj.cpp	79				SCRIPTS_API const NavalFactoryGameObjDef & Get_Definition (void) const;
+NavalFactoryGameObj	As_NavalFactoryGameObj	0	0	absent	inline-header	tt_4.8.4/scripts/NavalFactoryGameObj.h	25				NavalFactoryGameObj * As_NavalFactoryGameObj (void) { return this; }
+NavalFactoryGameObj	Get_Max_Vehicles_Per_Team	0	0	absent	inline-header	tt_4.8.4/scripts/NavalFactoryGameObj.h	41				static int Get_Max_Vehicles_Per_Team(void) { return MaxVehiclesPerTeam; }
+NavalFactoryGameObj	Is_Available	0	0	absent	inline-header	tt_4.8.4/scripts/NavalFactoryGameObj.h	33				bool Is_Available (void) const { return (IsBusy == false) && (IsDestroyed == false) && (IsDisabled == false); }
+NavalFactoryGameObj	Is_Busy	0	0	absent	inline-header	tt_4.8.4/scripts/NavalFactoryGameObj.h	36				bool Is_Busy (void) const { return IsBusy; }
+NavalFactoryGameObj	Is_Disabled	0	0	absent	inline-header	tt_4.8.4/scripts/NavalFactoryGameObj.h	37				bool Is_Disabled (void) const { return IsDisabled; }
+NavalFactoryGameObj	Set_Disabled	1	0	absent	inline-header	tt_4.8.4/scripts/NavalFactoryGameObj.h	38				void Set_Disabled(bool disabled) { IsDisabled = disabled; Set_Object_Dirty_Bit (BIT_RARE, true);}
+NavalFactoryGameObj	Set_Max_Vehicles_Per_Team	1	0	absent	inline-header	tt_4.8.4/scripts/NavalFactoryGameObj.h	40				static void Set_Max_Vehicles_Per_Team(int max) { MaxVehiclesPerTeam = max; }
+NavalFactoryGameObj	Can_Spawn	1	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1254	AT2(0x007425B0,0x00741E50)			bool Can_Spawn(int definition_id);
+NavalFactoryGameObj	Create_Vehicle	2	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1245	AT2(0x0073EE30,0x0073E6D0)			void Create_Vehicle(int defintion_id,SoldierGameObj * player);
+NavalFactoryGameObj	Get_Team_Vehicle_Count	0	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1248	AT2(0x0073FB80,0x0073F420)			int Get_Team_Vehicle_Count(void) const;
+NavalFactoryGameObj	Is_Available_For_Purchase	0	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1251	AT2(0x007408E0,0x00740180)			bool Is_Available_For_Purchase (void) const;
+NavalFactoryGameObj	CnC_Initialize	1	0	absent	declaration-only				owned elsewhere	AirStripGameObj,BuildingGameObj,RefineryGameObj,RepairBayGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void CnC_Initialize (BaseControllerClass *base);
+NavalFactoryGameObj	Export_Rare	1	0	absent	declaration-only				owned elsewhere	BackgroundMgrClass,BeaconGameObj,BuildingGameObj,C4GameObj,CinematicGameObj,DSAPONetworkObjectClass	void Export_Rare (BitStreamClass &packet);
+NavalFactoryGameObj	Get_Factory	0	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,AirStripGameObj,AirStripGameObjDef,AmmoDefinitionClass,AttackActionCodeClass	const PersistFactoryClass & Get_Factory (void) const;
+NavalFactoryGameObj	Import_Rare	1	0	absent	declaration-only				owned elsewhere	BackgroundMgrClass,BeaconGameObj,BuildingGameObj,C4GameObj,CinematicGameObj,DSAPONetworkObjectClass	void Import_Rare (BitStreamClass &packet);
+NavalFactoryGameObj	Init	0	1	absent	declaration-only				owned elsewhere	AABoxClass,AccessiblePhysClass,ActiveCategoryStackClass,AirStripGameObj,AnimCollisionManagerClass,ArgvClass	virtual void Init( void );
+NavalFactoryGameObj	Init	1	0	absent	declaration-only				owned elsewhere	AABoxClass,AccessiblePhysClass,ActiveCategoryStackClass,AirStripGameObj,AnimCollisionManagerClass,ArgvClass	void Init (const NavalFactoryGameObjDef & definition);
+NavalFactoryGameObj	Load	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActiveConversationClass	bool Load (ChunkLoadClass &cload);
+NavalFactoryGameObj	Load_Variables	1	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,ActiveConversationClass,AirStripGameObj,AirStripGameObjDef,AudibleSoundDefinitionClass	void Load_Variables (ChunkLoadClass &cload);
+NavalFactoryGameObj	NavalFactoryGameObj	0	0	absent	declaration-only				nowhere		NavalFactoryGameObj (void);
+NavalFactoryGameObj	On_Destroyed	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,RefineryGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Destroyed (void);
+NavalFactoryGameObj	On_Revived	0	0	absent	declaration-only				nowhere		void On_Revived (void);
+NavalFactoryGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActiveConversationClass	bool Save (ChunkSaveClass &csave);
+NavalFactoryGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think (void);
+NavalFactoryGameObj	~NavalFactoryGameObj	0	0	absent	declaration-only				nowhere		~NavalFactoryGameObj (void);
+NetworkObjectClass	Set_Is_Delete_Pending	1	0	present	inline-header	tt_4.8.4/scripts/NetworkObjectClass.h	68				void Set_Is_Delete_Pending (bool pending) { IsDeletePending = pending; }
+NetworkObjectClass	getLastHintRequestTime	0	0	present	inline-header	tt_4.8.4/scripts/NetworkObjectClass.h	136				ULONG getLastHintRequestTime() const { return LastHintRequestTime; }
+NetworkObjectClass	setLastHintRequestTime	1	0	present	inline-header	tt_4.8.4/scripts/NetworkObjectClass.h	137				void setLastHintRequestTime(ULONG _lastHintRequestTime) { LastHintRequestTime = _lastHintRequestTime; }
+NetworkObjectClass	Set_Dirty_Bits	1	0	present	declaration-only				nowhere		void Set_Dirty_Bits(uint8 dirtyBits);
+NetworkObjectClass	Set_Object_Dirty_Bitx	3	0	present	declaration-only				nowhere		void Set_Object_Dirty_Bitx(int client_id, DIRTY_BIT dirty_bit, bool onoff);
+PhysicsSceneClass	Add_Camera_Shake	4	0	present	declaration-only				nowhere		void Add_Camera_Shake(const Vector3 & position,float radius = 50.0f,float duration = 1.5f,float power = 1.0f);
+PhysicsSceneClass	Create_Decal	6	0	present	declaration-only				owned elsewhere	HLodClass,MeshClass,MeshModelClass,RenderObjClass	int Create_Decal(const Matrix3D &tm,const char *texture_name,float radius,bool is_permanent = false,bool apply_to_translucent_polys = false,PhysClass *only_this
+PhysicsSceneClass	Generate_Static_Directional_Shadow	2	0	present	declaration-only				nowhere		void Generate_Static_Directional_Shadow(StaticAnimPhysClass& obj, const Vector3& light_dir);
+PhysicsSceneClass	Get_Dynamic_Shadow_Resolution	0	0	present	declaration-only				nowhere		uint Get_Dynamic_Shadow_Resolution();
+PhysicsSceneClass	Get_Shadow_Render_Context	0	0	present	declaration-only				other arity		SpecialRenderInfoClass *Get_Shadow_Render_Context();
+PhysicsSceneClass	Get_Static_Shadow_Resolution	0	0	present	declaration-only				nowhere		uint Get_Static_Shadow_Resolution();
+PhysicsSceneClass	Optimize_LODs	4	0	present	declaration-only				owned elsewhere	PredictiveLODOptimizerClass	void Optimize_LODs(CameraClass & camera,RefMultiListClass<PhysClass> * dyn_obj_list,RefMultiListClass<PhysClass> * static_obj_list,RefMultiListClass<PhysClass> 
+PhysicsSceneClass	Refresh_Polygon_Budgets	0	0	present	declaration-only				nowhere		void Refresh_Polygon_Budgets();
+PhysicsSceneClass	Set_Dynamic_Shadow_Resolution	1	0	present	declaration-only				nowhere		void Set_Dynamic_Shadow_Resolution(uint res);
+PhysicsSceneClass	Set_Static_Shadow_Resolution	1	0	present	declaration-only				nowhere		void Set_Static_Shadow_Resolution(uint res);
+PhysicsSceneClass	Shatter_Mesh	4	0	present	declaration-only				owned elsewhere	ShatterSystem	void Shatter_Mesh(MeshClass * mesh,const Vector3 & impact_point,const Vector3 & impact_normal,const Vector3 & impact_velocity);
+RenderObjClass	Set_Animation	3	1	present	inline-header	tt_4.8.4/scripts/RenderObjClass.h	176				virtual void Set_Animation (HAnimClass*, float, int anim_mode = ANIM_MODE_MANUAL) { }
+RenderObjClass	Set_Animation	5	1	present	inline-header	tt_4.8.4/scripts/RenderObjClass.h	177				virtual void Set_Animation (HAnimClass*, float, HAnimClass*, float, float) { }
+RenderObjClass	Register_For_Rendering	1	0	present	declaration-only				owned elsewhere	MeshModelClass	void Register_For_Rendering(bool hint_static = false);
+RenderObjClass	Set_User_Lighting_Flag	0	0	present	declaration-only				nowhere		void Set_User_Lighting_Flag(); //Set the HAS_USER_LIGHTING flag appropriatly for this renderobj, intended to be called during vertex solve.
+SceneClass	Compute_Point_Visibility	2	1	present	defined	tt_4.8.4/tt/SimpleSceneClass.cpp	172				virtual float Compute_Point_Visibility(RenderInfoClass& rinfo,const Vector3& point);
+ScriptedDialogClass	As_ScriptedMenuDialogClass	0	1	absent	inline-header	tt_4.8.4/scripts/ScriptedDialogClass.h	49				virtual ScriptedMenuDialogClass* As_ScriptedMenuDialogClass() { return NULL; }
+ScriptedDialogClass	As_ScriptedPopupDialogClass	0	1	absent	inline-header	tt_4.8.4/scripts/ScriptedDialogClass.h	50				virtual ScriptedPopupDialogClass* As_ScriptedPopupDialogClass() { return NULL; }
+ScriptedDialogClass	Get_Client_ID	0	0	absent	inline-header	tt_4.8.4/scripts/ScriptedDialogClass.h	53				int Get_Client_ID() { return clientId; }
+ScriptedDialogClass	Get_Dialog_ID	0	0	absent	inline-header	tt_4.8.4/scripts/ScriptedDialogClass.h	52				int Get_Dialog_ID() { return id; }
+ScriptedDialogClass	Is_Dirty	0	0	absent	inline-header	tt_4.8.4/scripts/ScriptedDialogClass.h	54				bool Is_Dirty() { return isDirty; }
+ScriptedDialogClass	Set_Dirty	1	0	absent	inline-header	tt_4.8.4/scripts/ScriptedDialogClass.h	55				void Set_Dirty(bool dirty) { isDirty = dirty; }
+ScriptedDialogClass	Get_Dialog_Type	0	1	absent	pure-virtual	tt_4.8.4/scripts/ScriptedDialogClass.h	48				virtual DialogType Get_Dialog_Type() = 0;
+ScriptedDialogClass	Add_Control	1	1	absent	declaration-only				owned elsewhere	DialogBaseClass	virtual void Add_Control(ScriptedControlClass* control);
+ScriptedDialogClass	Clear_Controls	0	1	absent	declaration-only				nowhere		virtual void Clear_Controls();
+ScriptedDialogClass	Create_Control	1	1	absent	declaration-only				nowhere		virtual ScriptedControlClass* Create_Control(ControlType type);
+ScriptedDialogClass	Find_Control	1	1	absent	declaration-only				owned elsewhere	DialogBaseClass,DialogMgrClass	virtual ScriptedControlClass* Find_Control(int id);
+ScriptedDialogClass	Focus_Control	1	1	absent	declaration-only				nowhere		virtual void Focus_Control(ScriptedControlClass* control);
+ScriptedDialogClass	Get_Control_Count	0	1	absent	declaration-only				owned elsewhere	DialogBaseClass	virtual int Get_Control_Count();
+ScriptedDialogClass	Get_Control_Index	1	1	absent	declaration-only				nowhere		virtual ScriptedControlClass* Get_Control_Index(int index);
+ScriptedDialogClass	Remove_Control	1	1	absent	declaration-only				owned elsewhere	DialogBaseClass	virtual void Remove_Control(int id);
+ScriptedDialogClass	ScriptedDialogClass	2	0	absent	declaration-only				nowhere		ScriptedDialogClass(int client, int dlg_id);
+ScriptedDialogClass	~ScriptedDialogClass	0	1	absent	declaration-only				nowhere		virtual ~ScriptedDialogClass();
+SoldierFactoryGameObj	On_Revived	0	0	present	declaration-only				nowhere		void On_Revived (void);
+SoldierGameObj	Block_Action_Key	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	190				bool Block_Action_Key() { return BlockActionKey; }
+SoldierGameObj	Can_Drive_Vehicles	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	188				bool Can_Drive_Vehicles() { return CanDriveVehicles; }
+SoldierGameObj	Can_Play_Damage_Animations	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	196				bool Can_Play_Damage_Animations() {return CanPlayDamageAnimations;}
+SoldierGameObj	Can_Steal_Vehicles	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	186				bool Can_Steal_Vehicles() { return CanStealVehicles; }
+SoldierGameObj	Get_Bot_Tag	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	205				const WideStringClass& Get_Bot_Tag() { return botTag; }
+SoldierGameObj	Get_Fly_Mode	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	180				bool Get_Fly_Mode() {return InFlyMode;}
+SoldierGameObj	Get_Movement_Loiter_Allowed	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	200				bool Get_Movement_Loiter_Allowed(){return movementLoitersAllowed;};
+SoldierGameObj	Get_Override_Muzzle_Direction	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	203				bool Get_Override_Muzzle_Direction(){return OverrideMuzzleDirection;};
+SoldierGameObj	Get_Scale_Across_Network	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	198				float Get_Scale_Across_Network(){return NetworkRescale;}
+SoldierGameObj	Get_Use_Stock_Ghost_Behavior	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	201				bool Get_Use_Stock_Ghost_Behavior(){return useStockGhostBehavior;}
+SoldierGameObj	Get_Weapon_Render_Model	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	182				RenderObjClass *Get_Weapon_Render_Model() {return WeaponRenderModel; }
+SoldierGameObj	Is_Bot	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	206				bool Is_Bot() { return botTag.Get_Length() > 0; }
+SoldierGameObj	Is_Frozen	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	192				bool Is_Frozen() {return Freeze;}
+SoldierGameObj	Set_Block_Action_Key	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	189				void Set_Block_Action_Key(bool onoff) { BlockActionKey = onoff; Set_Object_Dirty_Bit(BIT_RARE, true); }
+SoldierGameObj	Set_Bot_Tag	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	204				void Set_Bot_Tag(const char* tag) { botTag = tag; Set_Object_Dirty_Bit(BIT_RARE, true); }
+SoldierGameObj	Set_Can_Drive_Vehicles	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	187				void Set_Can_Drive_Vehicles(bool onoff) { CanDriveVehicles = onoff; Set_Object_Dirty_Bit(BIT_RARE, true); }
+SoldierGameObj	Set_Can_Play_Damage_Animations	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	195				void Set_Can_Play_Damage_Animations(bool onoff) {CanPlayDamageAnimations = onoff;Set_Object_Dirty_Bit(BIT_RARE, true);}
+SoldierGameObj	Set_Can_Steal_Vehicles	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	185				void Set_Can_Steal_Vehicles(bool onoff) { CanStealVehicles = onoff; Set_Object_Dirty_Bit(BIT_RARE, true); }
+SoldierGameObj	Set_Freeze	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	191				void Set_Freeze(bool onoff) {Freeze = onoff; Set_Object_Dirty_Bit(BIT_RARE, true);}
+SoldierGameObj	Set_Is_Sniping	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	108				void Set_Is_Sniping() { HumanState.Toggle_State_Flag(HumanStateClass::SNIPING_FLAG); Set_Object_Dirty_Bit(BIT_OCCASIONAL, true); }
+SoldierGameObj	Set_Movement_Loiters_Allowed	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	199				void Set_Movement_Loiters_Allowed(bool allowed){movementLoitersAllowed = allowed;};
+SoldierGameObj	Set_Override_Muzzle_Direction	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	202				void Set_Override_Muzzle_Direction(bool override){OverrideMuzzleDirection = override; Set_Object_Dirty_Bit(BIT_RARE, true);};
+SoldierGameObj	Set_Scale_Across_Network	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	197				void Set_Scale_Across_Network(float scale){NetworkRescale = scale;Set_Object_Dirty_Bit(BIT_RARE, true);}
+SoldierGameObj	Apply_Damage_IgnoreVehicleCheck	3	1	present	declaration-only				nowhere		virtual void Apply_Damage_IgnoreVehicleCheck( const OffenseObjectClass & damager, float scale = 1.0f, int alternate_skin = -1 );
+SoldierGameObj	Disable_Ghost_Collision	0	0	present	declaration-only				nowhere		bool Disable_Ghost_Collision();
+SoldierGameObj	Get_Contact_Surface_Type	0	1	present	declaration-only				owned elsewhere	Phys3Class	virtual int Get_Contact_Surface_Type();
+SoldierGameObj	Get_Human_Anim_Override	0	1	present	declaration-only				nowhere		virtual int Get_Human_Anim_Override();
+SoldierGameObj	Get_Locked_Collision_Mode	0	0	present	declaration-only				nowhere		Collision_Group_Type *Get_Locked_Collision_Mode();
+SoldierGameObj	Get_Override_Weapon_Hold_Style	0	1	present	declaration-only				nowhere		virtual int Get_Override_Weapon_Hold_Style();
+SoldierGameObj	Get_Skeleton_Heigth	0	1	present	declaration-only				nowhere		virtual float Get_Skeleton_Heigth( void );
+SoldierGameObj	Get_Skeleton_Width	0	1	present	declaration-only				nowhere		virtual float Get_Skeleton_Width( void );
+SoldierGameObj	Is_Human_Controlled	0	0	present	declaration-only				owned elsewhere	SmartGameObj	return Is_Human_Controlled();
+SoldierGameObj	Lock_Collision_Mode	2	0	present	declaration-only				nowhere		void Lock_Collision_Mode(bool lockCollisionGroup,Collision_Group_Type lock);
+SoldierGameObj	Set_Delete_Pending	0	1	present	declaration-only				owned elsewhere	BackgroundMgrClass,BaseControllerClass,NetworkObjectClass,ScriptableGameObj,WeatherMgrClass,cServerFps	virtual void Set_Delete_Pending (void);
+SoldierGameObj	Set_Enable_Foot_Steps	1	1	present	declaration-only				nowhere		virtual void Set_Enable_Foot_Steps(bool enableFootSteps);
+SoldierGameObj	Set_Human_Anim_Override	1	1	present	declaration-only				owned elsewhere	HumanStateClass	virtual void Set_Human_Anim_Override(bool enableHumanAnimOverride);
+SoldierGameObj	Set_Override_Weapon_Hold_Style	1	1	present	declaration-only				nowhere		virtual void Set_Override_Weapon_Hold_Style(int overrideWeaponHoldStyleId);
+SoldierGameObj	Set_Skeleton_Height	1	1	present	declaration-only				nowhere		virtual void Set_Skeleton_Height( float height );
+SoldierGameObj	Set_Skeleton_Width	1	1	present	declaration-only				nowhere		virtual void Set_Skeleton_Width( float width );
+SoldierGameObj	Trigger_Smooth_Skeleton_Height_Resize	2	1	present	declaration-only				nowhere		virtual void Trigger_Smooth_Skeleton_Height_Resize(float targetHeight,float speed);
+SoldierGameObj	Trigger_Smooth_Skeleton_Width_Resize	2	1	present	declaration-only				nowhere		virtual void Trigger_Smooth_Skeleton_Width_Resize(float targetWidth,float speed);
+SuperweaponGameObj	Get_Definition	0	0	absent	defined	tt_4.8.4/scripts/engine_obj.cpp	141				SCRIPTS_API const SuperweaponGameObjDef & Get_Definition (void) const;
+SuperweaponGameObj	As_SuperweaponGameObj	0	0	absent	inline-header	tt_4.8.4/scripts/SuperweaponGameObj.h	23				SuperweaponGameObj * As_SuperweaponGameObj (void) { return this; }
+SuperweaponGameObj	Is_Launching	0	0	absent	inline-header	tt_4.8.4/scripts/SuperweaponGameObj.h	31				bool Is_Launching() {return Launching;}
+SuperweaponGameObj	Launch	0	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1177	AT2(0x00740D50,0x007405F0)			SCRIPTS_API void Launch();
+SuperweaponGameObj	CnC_Initialize	1	0	absent	declaration-only				owned elsewhere	AirStripGameObj,BuildingGameObj,RefineryGameObj,RepairBayGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void CnC_Initialize (BaseControllerClass *base);
+SuperweaponGameObj	Export_Occasional	1	0	absent	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,cPlayer	void Export_Occasional( BitStreamClass &packet );
+SuperweaponGameObj	Get_Factory	0	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,AirStripGameObj,AirStripGameObjDef,AmmoDefinitionClass,AttackActionCodeClass	const PersistFactoryClass & Get_Factory (void) const;
+SuperweaponGameObj	Import_Occasional	1	0	absent	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,cPlayer	void Import_Occasional( BitStreamClass &packet );
+SuperweaponGameObj	Init	0	1	absent	declaration-only				owned elsewhere	AABoxClass,AccessiblePhysClass,ActiveCategoryStackClass,AirStripGameObj,AnimCollisionManagerClass,ArgvClass	virtual void Init( void );
+SuperweaponGameObj	Init	1	0	absent	declaration-only				owned elsewhere	AABoxClass,AccessiblePhysClass,ActiveCategoryStackClass,AirStripGameObj,AnimCollisionManagerClass,ArgvClass	void Init (const SuperweaponGameObjDef & definition);
+SuperweaponGameObj	Load	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActiveConversationClass	bool Load (ChunkLoadClass &cload);
+SuperweaponGameObj	Load_Variables	1	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,ActiveConversationClass,AirStripGameObj,AirStripGameObjDef,AudibleSoundDefinitionClass	void Load_Variables (ChunkLoadClass &cload);
+SuperweaponGameObj	On_Destroyed	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,RefineryGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Destroyed (void);
+SuperweaponGameObj	Play_Launch_Animation	1	0	absent	declaration-only				nowhere		void Play_Launch_Animation(bool onoff);
+SuperweaponGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActiveConversationClass	bool Save (ChunkSaveClass &csave);
+SuperweaponGameObj	SuperweaponGameObj	0	0	absent	declaration-only				nowhere		SuperweaponGameObj (void);
+SuperweaponGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think();
+SuperweaponGameObj	~SuperweaponGameObj	0	0	absent	declaration-only				nowhere		~SuperweaponGameObj (void);
+VehicleGameObj	Is_Visible	0	1	present	defined	tt_4.8.4/tt/tt.cpp	781				virtual bool Is_Visible();
+VehicleGameObj	Scripts_Is_Teammate	1	0	present	defined	tt_4.8.4/tt/VehicleGameObj.cpp	723				bool Scripts_Is_Teammate(const DamageableGameObj* oObject);
+VehicleGameObj	Set_Immovable	1	0	present	defined	tt_4.8.4/scripts/engine_obj.cpp	1082				SCRIPTS_API void Set_Immovable(bool b);
+VehicleGameObj	Can_Be_Stolen	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	135				bool Can_Be_Stolen() const { return CanBeStolen; }
+VehicleGameObj	Can_Drive	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	138				bool Can_Drive() {return CanDrive;}
+VehicleGameObj	Damage_Meshes_Update	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	127				void Damage_Meshes_Update() { DamageMeshesUpdate = true; DamageMeshesNetworkUpdate = true; Set_Object_Dirty_Bit(NetworkObjectClass::BIT_FREQUENT, true); }
+VehicleGameObj	Get_Allow_Stealth_While_Empty	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	126				bool Get_Allow_Stealth_While_Empty() const { return AllowStealthWhileEmpty; };
+VehicleGameObj	Get_Is_Scripts_Visible	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	121				bool Get_Is_Scripts_Visible() {return visible;}
+VehicleGameObj	Get_Lock_Team	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	133				int Get_Lock_Team() {return LockTeam;}
+VehicleGameObj	Get_Occupant	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	119				SoldierGameObj *Get_Occupant(int seat) {return SeatOccupants[seat];}
+VehicleGameObj	Get_Scripts_Can_Fire	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	124				bool Get_Scripts_Can_Fire() { return CanFire; };
+VehicleGameObj	Get_Transitions_Enabled	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	100				bool Get_Transitions_Enabled ( void ) { return TransitionsEnabled; }
+VehicleGameObj	Is_Immovable	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	131				bool Is_Immovable() {return Peek_Physical_Object()->Is_Immovable();}
+VehicleGameObj	Is_Underground	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	129				bool Is_Underground() { return Peek_Physical_Object()->Get_Collision_Group() == UNDERGROUND_COLLISION_GROUP; }
+VehicleGameObj	Set_Allow_Stealth_While_Empty	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	125				void Set_Allow_Stealth_While_Empty(bool onoff) { AllowStealthWhileEmpty = onoff; Set_Object_Dirty_Bit(BIT_RARE, true); };
+VehicleGameObj	Set_Can_Be_Stolen	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	134				void Set_Can_Be_Stolen(bool onoff) { CanBeStolen = onoff; Set_Object_Dirty_Bit(BIT_RARE, true); }
+VehicleGameObj	Set_Can_Drive	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	137				void Set_Can_Drive(bool onoff) {CanDrive = onoff; Set_Object_Dirty_Bit(BIT_RARE, true);}
+VehicleGameObj	Set_Color	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	140				void Set_Color(Vector3 &color) {if (UndergroundEffect){UndergroundEffect->Set_Color(color);Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );}}
+VehicleGameObj	Set_Is_Scripts_Visible	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	120				void Set_Is_Scripts_Visible(bool b) {visible = b;}
+VehicleGameObj	Set_Lock_Team	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	132				void Set_Lock_Team(int team) {LockTeam = (char)team;Set_Object_Dirty_Bit(BIT_RARE,true);} //0 = nod, 1 = gdi, 2 = both
+VehicleGameObj	Set_Occupant	2	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	128				void Set_Occupant(int seat, SoldierGameObj *occupant) {SeatOccupants[seat] = occupant;}
+VehicleGameObj	Set_Owner	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	136				void Set_Owner(SoldierGameObj *obj) {Owner = obj;}
+VehicleGameObj	Set_Scripts_Can_Fire	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	123				void Set_Scripts_Can_Fire(bool b) {CanFire = b;Set_Object_Dirty_Bit(NetworkObjectClass::BIT_FREQUENT,true);}
+VehicleGameObj	Set_Scripts_Last_Team	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	122				void Set_Scripts_Last_Team(char c) {LastTeam = c;}
+VehicleGameObj	Check_If_On_Surface	1	1	present	declaration-only				nowhere		virtual int Check_If_On_Surface(int surface_type);
+VehicleGameObj	Collision_Occurred	1	1	present	declaration-only				owned elsewhere	BulletClass,C4GameObj,PhysClass,PhysObserverClass,SoldierGameObj	virtual CollisionReactionType Collision_Occurred( const CollisionEventClass & event );
+VehicleGameObj	Export_Occasional	1	1	present	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,cPlayer	virtual void Export_Occasional( BitStreamClass &packet );
+VehicleGameObj	Import_Occasional	1	1	present	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,cPlayer	virtual void Import_Occasional( BitStreamClass &packet );
+VehicleGameObj	Reset_Sound_Effects	0	0	present	declaration-only				nowhere		void Reset_Sound_Effects( void );
