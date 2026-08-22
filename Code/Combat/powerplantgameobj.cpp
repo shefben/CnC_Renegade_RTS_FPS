@@ -376,3 +376,25 @@ PowerPlantGameObj::On_Destroyed (void)
 
 	return ;
 }
+
+
+////////////////////////////////////////////////////////////////
+//
+//	On_Revived
+//
+////////////////////////////////////////////////////////////////
+void
+PowerPlantGameObj::On_Revived (void)
+{
+	BuildingGameObj::On_Revived ();
+
+	//
+	//	Tell the base that it better check the power state
+	// of the base.
+	//
+	if (BaseController != nullptr) {
+		BaseController->Check_Base_Power ();
+	}
+
+	return ;
+}

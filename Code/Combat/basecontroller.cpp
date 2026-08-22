@@ -271,6 +271,21 @@ void BaseControllerClass::On_Building_Destroyed(BuildingGameObj* building)
 
 ////////////////////////////////////////////////////////////////
 //
+//	On_Building_Revived
+//
+////////////////////////////////////////////////////////////////
+void BaseControllerClass::On_Building_Revived(BuildingGameObj* /*building*/)
+{
+	//	A base counts as destroyed only while every one of its buildings is, so
+	//	bringing one back can take the base out of that state again.
+	if (Is_Base_Destroyed() && !Are_All_Buildings_Destroyed()) {
+		Set_Base_Destroyed(false);
+	}
+}
+
+
+////////////////////////////////////////////////////////////////
+//
 //	On_Vehicle_Generated
 //
 ////////////////////////////////////////////////////////////////

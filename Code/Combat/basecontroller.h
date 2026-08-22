@@ -168,6 +168,7 @@ public:
 	//
 	void		On_Building_Damaged (BuildingGameObj *building);
 	void		On_Building_Destroyed (BuildingGameObj *building);
+	void		On_Building_Revived (BuildingGameObj *building);
 
 	void		On_Vehicle_Generated(VehicleGameObj *vehicle);
 	void		On_Vehicle_Delivered(VehicleGameObj *vehicle);

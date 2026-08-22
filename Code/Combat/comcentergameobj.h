@@ -143,6 +143,7 @@ public:
 	//	From BuildingGameObj
 	//
 	void									On_Destroyed (void) override;
+	void									On_Revived (void) override;
 
 
 private:

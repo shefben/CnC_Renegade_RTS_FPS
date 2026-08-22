@@ -146,6 +146,7 @@ public:
 	//
 	void					CnC_Initialize (BaseControllerClass *base) override;
 	void					On_Destroyed (void) override;
+	void					On_Revived (void) override;
 
 	//
 	//	GameObj methods

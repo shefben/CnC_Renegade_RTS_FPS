@@ -377,3 +377,24 @@ ComCenterGameObj::On_Destroyed (void)
 	return ;
 }
 
+
+////////////////////////////////////////////////////////////////
+//
+//	On_Revived
+//
+////////////////////////////////////////////////////////////////
+void
+ComCenterGameObj::On_Revived (void)
+{
+	BuildingGameObj::On_Revived ();
+
+	//
+	//	Switch the radar back on for each player on this team
+	//
+	if (BaseController != nullptr && CombatManager::I_Am_Server ()) {
+		BaseController->Check_Radar ();
+	}
+
+	return ;
+}
+

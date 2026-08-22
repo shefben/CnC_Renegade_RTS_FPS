@@ -79,7 +79,10 @@ def decls(body, cls):
         if not m or m.group(3) in KEYWORDS:
             continue
         name = m.group(3)
-        if not DECORATOR.sub('', ln[:m.start(3)]).strip() and name != cls and not name.startswith('~'):
+        pre = DECORATOR.sub('', ln[:m.start(3)]).strip()
+        if not pre and name != cls and not name.startswith('~'):
+            continue
+        if any(w in KEYWORDS for w in pre.replace('*', ' ').split()):
             continue
         sig = '%s/%d' % (name, arity_of(m.group(4)))
         if sig in out:

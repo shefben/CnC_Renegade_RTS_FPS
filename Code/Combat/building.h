@@ -63,6 +63,7 @@ class WarFactoryGameObj;
 class RefineryGameObj;
 class ComCenterGameObj;
 class RepairBayGameObj;
+class RayCollisionTestClass;
 
 
 /**
@@ -249,8 +250,9 @@ public:
 	virtual void								CnC_Initialize (BaseControllerClass *base);
 	virtual void								On_Destroyed (void);
 	virtual void								On_Damaged (void);
+	virtual void								On_Revived (void);
 	bool											Is_Destroyed (void) const { return IsDestroyed; }
-	void											Set_Is_Destroyed (bool onoff)			{ IsDestroyed = onoff; }
+	void											Set_Is_Destroyed (bool onoff);
 
 	//
 	//	Spy-disabled buildings are marked by gameplay scripts; the flag is
@@ -289,6 +291,17 @@ public:
 	//
 	void											Find_Closest_Poly (const Vector3 &pos, float *distance2);
 	float											Find_Closest_Poly (const Vector3 &pos)	{ float distance2 = 0; Find_Closest_Poly (pos, &distance2); return distance2; }
+	void											Find_Closest_Poly (const Vector3 &pos, float *distance2, Vector3 *poly_pos);
+
+	//
+	//	Proximity and ray queries against the building's collected geometry.
+	//	Building_In_Range answers 0 for no, 1 for yes and 2 for the MCT being in
+	//	range; Is_In_Range_Coarse is the cheap bounding-box rejection it opens
+	//	with, and is worth calling directly before any per-polygon work.
+	//
+	int											Building_In_Range (const Vector3 &point, float range);
+	bool											Is_In_Range_Coarse (const Vector3 &point, float range_sq) const;
+	bool											Cast_Ray (RayCollisionTestClass &raytest);
 	BuildingAggregateClass *				Find_MCT (void);
 
 	//
@@ -336,7 +349,7 @@ protected:
 	void											Add_Aggregate(BuildingAggregateClass * aggregate);
 	void											Remove_Aggregate(BuildingAggregateClass * aggregate);
 	void											Add_Light(LightPhysClass * light);
-	void											Find_Closest_Poly_For_Model (RenderObjClass *model, const Vector3 &pos, float *distance2);
+	void											Find_Closest_Poly_For_Model (RenderObjClass *model, const Vector3 &pos, float *distance2, Vector3 *poly_pos = nullptr);
 
 	void											Update_State(bool force_update = false);
 	void											Enable_Alternate_Materials(RefMultiListClass<StaticPhysClass> & models, bool onoff);

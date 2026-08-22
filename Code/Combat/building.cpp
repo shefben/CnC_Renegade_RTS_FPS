@@ -56,6 +56,7 @@
 #include "encyclopediamgr.h"
 #include "apppackettypes.h"
 #include "wwprofile.h"
+#include "coltest.h"
 #include <algorithm>
 
 
@@ -1158,6 +1159,62 @@ BuildingGameObj::On_Destroyed (void)
 
 /////////////////////////////////////////////////////////////////////////////
 //
+//	On_Revived
+//
+//	The inverse of On_Destroyed.  Nothing in stock Renegade brings a building
+//	back, but Set_Is_Destroyed does, and without this the base controller would
+//	stay convinced the base was lost and the model would keep its rubble state.
+//
+/////////////////////////////////////////////////////////////////////////////
+void
+BuildingGameObj::On_Revived (void)
+{
+	IsDestroyed = false;
+
+	if (BaseController != nullptr) {
+		BaseController->On_Building_Revived (this);
+	}
+
+	if (CombatManager::I_Am_Server ()) {
+		Set_Object_Dirty_Bit (NetworkObjectClass::BIT_RARE, true);
+	}
+
+	//
+	//	The current state was picked for a destroyed building, so it has to be
+	//	recomputed now that the building is standing again.
+	//
+	Update_State (true);
+	return ;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+//	Set_Is_Destroyed
+//
+//	Routed through the two notifications so a script flipping this flag gets
+//	the same effects the damage system would have produced.
+//
+/////////////////////////////////////////////////////////////////////////////
+void
+BuildingGameObj::Set_Is_Destroyed (bool onoff)
+{
+	if (onoff == IsDestroyed) {
+		return ;
+	}
+
+	if (onoff) {
+		On_Destroyed ();
+	} else {
+		On_Revived ();
+	}
+
+	return ;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
 //	Import_Rare
 //
 /////////////////////////////////////////////////////////////////////////////
@@ -1202,6 +1259,14 @@ BuildingGameObj::Import_Rare (BitStreamClass &packet)
 	//
 	if (is_destroyed && IsDestroyed == false) {
 		On_Destroyed ();
+	}
+
+	//
+	//	... and the other way, so a building revived on the server comes back
+	//	here too.
+	//
+	if (is_destroyed == false && IsDestroyed) {
+		On_Revived ();
 	}
 
 	packet.Get (IsSpyDisabled);
@@ -1599,7 +1664,8 @@ BuildingGameObj::Find_Closest_Poly_For_Model
 (
 	RenderObjClass *	model,
 	const Vector3 &	pos,
-	float *				distance2
+	float *				distance2,
+	Vector3 *			poly_pos
 )
 {
 	if (model == nullptr) {
@@ -1619,7 +1685,7 @@ BuildingGameObj::Find_Closest_Poly_For_Model
 		//	Recurse into this sub-object
 		//
 		if (sub_obj != nullptr) {
-			Find_Closest_Poly_For_Model (sub_obj, pos, distance2);
+			Find_Closest_Poly_For_Model (sub_obj, pos, distance2, poly_pos);
 		}
 
 		REF_PTR_RELEASE (sub_obj);
@@ -1654,6 +1720,14 @@ BuildingGameObj::Find_Closest_Poly_For_Model
 				float dist2				= delta.Length2 ();
 				if (dist2 < (*distance2)) {
 					(*distance2) = dist2;
+
+					//
+					//	The comparison is done in the model's own space; the
+					//	caller wants the answer in world space.
+					//
+					if (poly_pos != nullptr) {
+						Matrix3D::Transform_Vector (model->Get_Transform (), poly_center, poly_pos);
+					}
 				}
 			}
 		}
@@ -1691,6 +1765,22 @@ BuildingGameObj::Find_MCT (void)
 void
 BuildingGameObj::Find_Closest_Poly (const Vector3 &pos, float *distance2)
 {
+	Find_Closest_Poly (pos, distance2, nullptr);
+	return ;
+}
+
+
+////////////////////////////////////////////////////////////////////////////
+//
+//	Find_Closest_Poly
+//
+//	As above, but also reports where the closest polygon is.  poly_pos is left
+//	alone when the building has no geometry, so callers should seed it.
+//
+/////////////////////////////////////////////////////////////////////////////
+void
+BuildingGameObj::Find_Closest_Poly (const Vector3 &pos, float *distance2, Vector3 *poly_pos)
+{
 	(*distance2) = 9999.0F;
 
 	RefMultiListIterator<StaticPhysClass> int_iterator (&InteriorMeshes);
@@ -1700,15 +1790,115 @@ BuildingGameObj::Find_Closest_Poly (const Vector3 &pos, float *distance2)
 	//	Check all the interior meshes first
 	//
 	for (int_iterator.First (); !int_iterator.Is_Done (); int_iterator.Next ()) {
-		Find_Closest_Poly_For_Model (int_iterator.Peek_Obj ()->Peek_Model (), pos, distance2);
+		Find_Closest_Poly_For_Model (int_iterator.Peek_Obj ()->Peek_Model (), pos, distance2, poly_pos);
 	}
 
 	//
 	//	Now, check all the exterior meshes
 	//
 	for (ext_iterator.First (); !ext_iterator.Is_Done (); ext_iterator.Next ()) {
-		Find_Closest_Poly_For_Model (ext_iterator.Peek_Obj ()->Peek_Model (), pos, distance2);
+		Find_Closest_Poly_For_Model (ext_iterator.Peek_Obj ()->Peek_Model (), pos, distance2, poly_pos);
 	}
 
 	return ;
+}
+
+
+////////////////////////////////////////////////////////////////////////////
+//
+//	Is_In_Range_Coarse
+//
+//	Squared distance from the point to the building's bounding box, which is
+//	zero on every axis where the point lies inside the slab.  This is the cheap
+//	rejection that keeps Building_In_Range off the per-polygon path.
+//
+/////////////////////////////////////////////////////////////////////////////
+bool
+BuildingGameObj::Is_In_Range_Coarse (const Vector3 &point, float range_sq) const
+{
+	Vector3 delta (0, 0, 0);
+
+	for (int axis = 0; axis < 3; axis ++) {
+		float offset = point[axis] - BoundingBox.Center[axis];
+		float extent = BoundingBox.Extent[axis];
+
+		if (offset > extent) {
+			delta[axis] = offset - extent;
+		} else if (offset < -extent) {
+			delta[axis] = offset + extent;
+		}
+	}
+
+	return delta.Length2 () <= range_sq;
+}
+
+
+////////////////////////////////////////////////////////////////////////////
+//
+//	Building_In_Range
+//
+//	0 for no, 1 for yes, 2 for the MCT being in range.  The MCT answer is the
+//	more specific one, so it is tested first and wins.
+//
+/////////////////////////////////////////////////////////////////////////////
+int
+BuildingGameObj::Building_In_Range (const Vector3 &point, float range)
+{
+	float range_sq = range * range;
+
+	if (Is_In_Range_Coarse (point, range_sq) == false) {
+		return 0;
+	}
+
+	BuildingAggregateClass *mct = Find_MCT ();
+	if (mct != nullptr) {
+		float mct_distance2 = 9999.0F;
+		Find_Closest_Poly_For_Model (mct->Peek_Model (), point, &mct_distance2);
+		if (mct_distance2 <= range_sq) {
+			return 2;
+		}
+	}
+
+	float distance2 = 9999.0F;
+	Find_Closest_Poly (point, &distance2);
+	if (distance2 <= range_sq) {
+		return 1;
+	}
+
+	return 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////////
+//
+//	Cast_Ray
+//
+//	A building is an aggregate of static meshes with no model of its own, so
+//	the ray has to be offered to each collected mesh in turn.  The result
+//	structure shortens the ray as hits land, so the nearest one survives.
+//
+/////////////////////////////////////////////////////////////////////////////
+bool
+BuildingGameObj::Cast_Ray (RayCollisionTestClass &raytest)
+{
+	if (raytest.Cull (BoundingBox)) {
+		return false;
+	}
+
+	bool hit = false;
+
+	RefMultiListClass<StaticPhysClass> *mesh_lists[2] = { &InteriorMeshes, &ExteriorMeshes };
+	for (int index = 0; index < 2; index ++) {
+
+		RefMultiListIterator<StaticPhysClass> mesh_it (mesh_lists[index]);
+		for (mesh_it.First (); !mesh_it.Is_Done (); mesh_it.Next ()) {
+
+			RenderObjClass *model = mesh_it.Peek_Obj ()->Peek_Model ();
+			if (model != nullptr && model->Cast_Ray (raytest)) {
+				hit = true;
+			}
+		}
+	}
+
+	return hit;
 }

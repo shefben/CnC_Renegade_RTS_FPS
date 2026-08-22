@@ -181,6 +181,11 @@ def members(body, cls=None):
             pre = DECORATOR.sub('', ln[:m.start(3)]).strip()
             if cls and not pre and name != cls and not name.startswith('~'):
                 continue
+            # `return Is_Human_Controlled();` inside a multi-line inline body
+            # parses as a declaration returning `return`.  A real declaration's
+            # prefix is a type name, never a control-flow keyword.
+            if any(w in KEYWORDS for w in pre.replace('*', ' ').split()):
+                continue
             sig = '%s/%d' % (name, arity_of(m.group(4)))
             meths.setdefault(sig, bool(m.group(1)))
             continue

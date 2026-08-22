@@ -22,7 +22,7 @@ AirFactoryGameObj	Init	1	0	absent	declaration-only				owned elsewhere	AABTInters
 AirFactoryGameObj	Load	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Load (ChunkLoadClass &cload);
 AirFactoryGameObj	Load_Variables	1	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,ActiveConversationClass,AirStripGameObj,AirStripGameObjDef,AudibleSoundDefinitionClass	void Load_Variables (ChunkLoadClass &cload);
 AirFactoryGameObj	On_Destroyed	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,RefineryGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Destroyed (void);
-AirFactoryGameObj	On_Revived	0	0	absent	declaration-only				nowhere		void On_Revived (void);
+AirFactoryGameObj	On_Revived	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Revived (void);
 AirFactoryGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Save (ChunkSaveClass &csave);
 AirFactoryGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think (void);
 AirFactoryGameObj	~AirFactoryGameObj	0	0	absent	declaration-only				nowhere		~AirFactoryGameObj (void);
@@ -30,12 +30,6 @@ BuildingGameObj	As_AirFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/
 BuildingGameObj	As_ConstructionYardGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	114				virtual ConstructionYardGameObj * As_ConstructionYardGameObj (void) { return NULL; }
 BuildingGameObj	As_NavalFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	116				virtual NavalFactoryGameObj * As_NavalFactoryGameObj (void) { return NULL; }
 BuildingGameObj	As_SuperweaponGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	117				virtual SuperweaponGameObj * As_SuperweaponGameObj (void) { return NULL; }
-BuildingGameObj	Find_Closest_Poly	3	0	present	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1218	AT2(0x00685630,0x00684ED0)			void Find_Closest_Poly(const Vector3& pos, float* distance2, Vector3* polyPos);
-BuildingGameObj	Building_In_Range	2	0	present	declaration-only				nowhere		int Building_In_Range(const Vector3 &point, float range);
-BuildingGameObj	Cast_Ray	1	0	present	declaration-only				owned elsewhere	AABTreeClass,AABoxRenderObjClass,Box3DClass,BptClass,BptImpClass,CollectionClass	bool Cast_Ray(RayCollisionTestClass& raytest);
-BuildingGameObj	Find_Closest_Poly_For_Model	4	0	present	declaration-only				other arity		void Find_Closest_Poly_For_Model (RenderObjClass *model, const Vector3 &pos, float *distance2, Vector3* polyPos = NULL);
-BuildingGameObj	Is_In_Range_Coarse	2	0	present	declaration-only				nowhere		bool Is_In_Range_Coarse(const Vector3& point, float range_sq);
-BuildingGameObj	On_Revived	0	1	present	declaration-only				nowhere		virtual void On_Revived (void);
 BuildingGameObjDef	Dump	1	1	present	declaration-only				owned elsewhere	CChunkDataView,CChunkTreeView,CChunkViewDoc,CChunkViewView,CDataTreeView,CDataView	virtual void Dump (FileClass &file);
 BuildingGameObjDef	Get_Hide_Team_Battlefield_Information	0	0	present	declaration-only				nowhere		bool Get_Hide_Team_Battlefield_Information() const;
 ConstructionYardGameObj	Get_Definition	0	0	absent	defined	tt_4.8.4/scripts/engine_obj.cpp	109				SCRIPTS_API const ConstructionYardGameObjDef & Get_Definition (void) const;
@@ -91,7 +85,7 @@ NavalFactoryGameObj	Load	1	0	absent	declaration-only				owned elsewhere	AABTreeC
 NavalFactoryGameObj	Load_Variables	1	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,ActiveConversationClass,AirStripGameObj,AirStripGameObjDef,AudibleSoundDefinitionClass	void Load_Variables (ChunkLoadClass &cload);
 NavalFactoryGameObj	NavalFactoryGameObj	0	0	absent	declaration-only				nowhere		NavalFactoryGameObj (void);
 NavalFactoryGameObj	On_Destroyed	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,RefineryGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Destroyed (void);
-NavalFactoryGameObj	On_Revived	0	0	absent	declaration-only				nowhere		void On_Revived (void);
+NavalFactoryGameObj	On_Revived	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Revived (void);
 NavalFactoryGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Save (ChunkSaveClass &csave);
 NavalFactoryGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think (void);
 NavalFactoryGameObj	~NavalFactoryGameObj	0	0	absent	declaration-only				nowhere		~NavalFactoryGameObj (void);
@@ -122,7 +116,6 @@ ScriptedDialogClass	Get_Control_Index	1	1	absent	declaration-only				nowhere		vi
 ScriptedDialogClass	Remove_Control	1	1	absent	declaration-only				owned elsewhere	DialogBaseClass	virtual void Remove_Control(int id);
 ScriptedDialogClass	ScriptedDialogClass	2	0	absent	declaration-only				nowhere		ScriptedDialogClass(int client, int dlg_id);
 ScriptedDialogClass	~ScriptedDialogClass	0	1	absent	declaration-only				nowhere		virtual ~ScriptedDialogClass();
-SoldierFactoryGameObj	On_Revived	0	0	present	declaration-only				nowhere		void On_Revived (void);
 SoldierGameObj	Apply_Damage_IgnoreVehicleCheck	3	1	present	declaration-only				nowhere		virtual void Apply_Damage_IgnoreVehicleCheck( const OffenseObjectClass & damager, float scale = 1.0f, int alternate_skin = -1 );
 SoldierGameObj	Disable_Ghost_Collision	0	0	present	declaration-only				nowhere		bool Disable_Ghost_Collision();
 SoldierGameObj	Get_Contact_Surface_Type	0	1	present	declaration-only				owned elsewhere	Phys3Class	virtual int Get_Contact_Surface_Type();
@@ -131,7 +124,6 @@ SoldierGameObj	Get_Locked_Collision_Mode	0	0	present	declaration-only				nowhere
 SoldierGameObj	Get_Override_Weapon_Hold_Style	0	1	present	declaration-only				nowhere		virtual int Get_Override_Weapon_Hold_Style();
 SoldierGameObj	Get_Skeleton_Heigth	0	1	present	declaration-only				nowhere		virtual float Get_Skeleton_Heigth( void );
 SoldierGameObj	Get_Skeleton_Width	0	1	present	declaration-only				nowhere		virtual float Get_Skeleton_Width( void );
-SoldierGameObj	Is_Human_Controlled	0	0	present	declaration-only				owned elsewhere	SmartGameObj	return Is_Human_Controlled();
 SoldierGameObj	Lock_Collision_Mode	2	0	present	declaration-only				nowhere		void Lock_Collision_Mode(bool lockCollisionGroup,Collision_Group_Type lock);
 SoldierGameObj	Set_Delete_Pending	0	1	present	declaration-only				owned elsewhere	BackgroundMgrClass,BaseControllerClass,NetworkObjectClass,ScriptableGameObj,WeatherMgrClass,cServerFps	virtual void Set_Delete_Pending (void);
 SoldierGameObj	Set_Enable_Foot_Steps	1	1	present	declaration-only				nowhere		virtual void Set_Enable_Foot_Steps(bool enableFootSteps);
