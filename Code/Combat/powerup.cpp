@@ -634,6 +634,10 @@ void	PowerUpGameObj::Set_State( int state )
 		State				= state;
 		StateEndTimer	= 0;
 
+		if ( CombatManager::I_Am_Server() ) {
+			Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
+		}
+
 		if ( State == STATE_GRANTING ) {
 
 			//
@@ -666,6 +670,23 @@ void	PowerUpGameObj::Set_State( int state )
 	}
 
 	return ;
+}
+
+void	PowerUpGameObj::Export_Rare( BitStreamClass &packet )
+{
+	SimpleGameObj::Export_Rare( packet );
+	packet.Add( State );
+}
+
+void	PowerUpGameObj::Import_Rare( BitStreamClass &packet )
+{
+	SimpleGameObj::Import_Rare( packet );
+
+	int state = State;
+	packet.Get( state );
+
+	//	Set_State is what plays the sound and starts the animation
+	Set_State( state );
 }
 
 void	PowerUpGameObj::Update_State( void )

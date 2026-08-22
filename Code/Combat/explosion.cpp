@@ -268,8 +268,9 @@ void	ExplosionManager::Create_Explosion_At( int explosion_def_id, const Matrix3D
 		}
 	}
 
-	// Make the decal
-	if ( !explosion_def->DecalFilename.Is_Empty() ) {
+	// Make the decal.  A dedicated server draws nothing, so it need not build
+	// the decal, play the sound or shake a camera nobody is behind.
+	if ( CombatManager::I_Am_Client() && !explosion_def->DecalFilename.Is_Empty() ) {
 		StringClass	new_name(true);
 		::Strip_Path_From_Filename( new_name, explosion_def->DecalFilename );
 		PhysicsSceneClass::Get_Instance()->Create_Decal( blast_tm, new_name,
@@ -277,8 +278,16 @@ void	ExplosionManager::Create_Explosion_At( int explosion_def_id, const Matrix3D
 	}
 
 
-	// Apply the damage
-//	if ( CombatManager::I_Am_Server() )		 Clients can create damage now...
+	//
+	// Apply the damage.
+	//
+	// An explosion's offense object leaves EnableClientDamage false, so on a
+	// client every one of these lands in DefenseObjectClass::Apply_Damage and
+	// returns without touching anything.  Walking the whole game object list
+	// and casting a ray at each candidate to reach that was the single most
+	// expensive thing a client did when a lot went off at once.
+	//
+	if ( CombatManager::I_Am_Server() )
 	{
 		float radius = explosion_def->DamageRadius;
 		WWASSERT(WWMath::Is_Valid_Float(radius));
@@ -360,7 +369,7 @@ if (!WWMath::Is_Valid_Float(dist)) {
 	}
 
 	// Make the Sound
-	if ( explosion_def->SoundDefID != 0 ) {
+	if ( CombatManager::I_Am_Client() && explosion_def->SoundDefID != 0 ) {
 		RefCountedGameObjReference *owner_ref = new RefCountedGameObjReference;
 		owner_ref->Set_Ptr( damager );
 		WWAudioClass::Get_Instance()->Create_Instant_Sound( explosion_def->SoundDefID, up_tm, owner_ref );
@@ -368,7 +377,7 @@ if (!WWMath::Is_Valid_Float(dist)) {
 	}
 
 	// Make the camera shake!
-	if ( explosion_def->CameraShakeIntensity > 0.0f ) {
+	if ( CombatManager::I_Am_Client() && explosion_def->CameraShakeIntensity > 0.0f ) {
 		COMBAT_SCENE->Add_Camera_Shake(	pos,
 													explosion_def->CameraShakeRadius,
 													explosion_def->CameraShakeDuration,
@@ -381,7 +390,8 @@ if (!WWMath::Is_Valid_Float(dist)) {
 
 void	ExplosionManager::Explosion_Damage_Building( int explosion_def_id, BuildingGameObj * building, bool mct_damage, ArmedGameObj * damager )
 {
-//	if ( CombatManager::I_Am_Server() )			Clients can make damage now
+	//	See Create_Explosion_At -- this cannot damage anything on a client
+	if ( CombatManager::I_Am_Server() )
 	{
 		// Find Explosion Def
 		ExplosionDefinitionClass * explosion_def = (ExplosionDefinitionClass *)DefinitionMgrClass::Find_Definition( explosion_def_id );

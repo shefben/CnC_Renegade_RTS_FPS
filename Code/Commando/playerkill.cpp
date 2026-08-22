@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "playerkill.h"
+#include "ttsettings.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -162,11 +163,14 @@ cPlayerKill::Act(void)
 		}
 
 		//
-		//	Display the message...
+		//	Display the message.  A server may switch these off -- on a busy
+		//	server they push everything else out of the message window.
 		//
-		WideStringClass formatted_text;
-		formatted_text.Format(U_CHAR("%s %s %s\n"), killer_name.Peek_Buffer (), message.Peek_Buffer (), victim_name.Peek_Buffer ());
-		CombatManager::Get_Message_Window ()->Add_Message (formatted_text, p_killer->Get_Color ());
+		if (TTSettingsClass::DisableKillMessages == false) {
+			WideStringClass formatted_text;
+			formatted_text.Format(U_CHAR("%s %s %s\n"), killer_name.Peek_Buffer (), message.Peek_Buffer (), victim_name.Peek_Buffer ());
+			CombatManager::Get_Message_Window ()->Add_Message (formatted_text, p_killer->Get_Color ());
+		}
 	}
 
 	Set_Delete_Pending();

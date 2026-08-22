@@ -38,6 +38,7 @@
 #define _GLOBALS_H
 
 #include "specialbuilds.h"
+#include "ttsettings.h"
 
 /*
 #ifdef FREEDEDICATEDSERVER
@@ -82,7 +83,10 @@ extern char *Build_Registry_Location_String(const char *base, const char *modifi
 #define	APPLICATION_SUB_KEY_NAME_INPUT					Build_Registry_Location_String(APP_SUB_KEY, nullptr, "Input")
 #define	APPLICATION_SUB_KEY_NAME_GAMESPY					Build_Registry_Location_String(APP_SUB_KEY, nullptr, "GameSpy")
 #define	APPLICATION_SUB_KEY_NAME_WOLSETTINGS			Build_Registry_Location_String(APP_SUB_KEY, nullptr, "WOLSettings")
-#define	APPLICATION_SUB_KEY_NAME_URL						Build_Registry_Location_String(APP_SUB_KEY, nullptr, "WOLSettings\\URL")
+//	Where the in-game browser keeps its URLs.  A mod may move it, so that a
+//	server can point the browser somewhere of its own; it defaults to the
+//	stock location.
+#define	APPLICATION_SUB_KEY_NAME_URL						Build_Registry_Location_String(APP_SUB_KEY, nullptr, TTSettingsClass::WOLUrlRegistryKey)
 #define	APPLICATION_SUB_KEY_NAME_LOGINS					Build_Registry_Location_String(APP_SUB_KEY, nullptr, "WOLSettings\\Logins")
 #define	APPLICATION_SUB_KEY_NAME_QUICKMATCH				Build_Registry_Location_String(APP_SUB_KEY, nullptr, "WOLSettings\\QuickMatch")
 #define	APPLICATION_SUB_KEY_NAME_IGNORE_LIST			Build_Registry_Location_String(APP_SUB_KEY, nullptr, "WOLSettings\\Ignore List")

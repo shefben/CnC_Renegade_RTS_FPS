@@ -36,6 +36,7 @@
 
 
 #include "listctrl.h"
+#include "ttsettings.h"
 #include "assetmgr.h"
 #include "refcount.h"
 #include "mousemgr.h"
@@ -1416,7 +1417,20 @@ ListCtrlClass::Add_Column (const unichar_t *column_name, float width, const Vect
 	ListColumnClass *column = new ListColumnClass;
 	column->Set_Name (column_name);
 	column->Set_Width (width);
-	column->Set_Color (color);
+
+	//
+	//	Every dialog picks its own column colour, which leaves a re-skinned menu
+	//	with headings in whatever the stock dialog asked for.  A server may name
+	//	one colour for all of them.
+	//
+	if (TTSettingsClass::ListColumnColorEnabled) {
+		column->Set_Color (Vector3 (	TTSettingsClass::ListColumnColor[0],
+												TTSettingsClass::ListColumnColor[1],
+												TTSettingsClass::ListColumnColor[2] ));
+	} else {
+		column->Set_Color (color);
+	}
+
 	ColList.Add (column);
 	Set_Dirty ();
 	return ;

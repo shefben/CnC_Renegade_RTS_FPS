@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "purchaseresponseevent.h"
+#include "ttsettings.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -107,7 +108,14 @@ cPurchaseResponseEvent::Act(void)
 		// Play a custom SFX for feedback
 		//
 		WWASSERT(WWAudioClass::Get_Instance() != nullptr);
-		WWAudioClass::Get_Instance()->Create_Instant_Sound("Purchase_Granted", Matrix3D(1));
+
+		//
+		//	A server that supplies its own purchase sounds does not want this one
+		//	on top of them.
+		//
+		if (TTSettingsClass::SidebarSoundsEnabled == false) {
+			WWAudioClass::Get_Instance()->Create_Instant_Sound("Purchase_Granted", Matrix3D(1));
+		}
 	} else if ( ResponseId == VendorClass::PERR_NO_FUNDS ) {
 		wide_string.Format( U_CHAR("%s\n"), TRANSLATION(IDS_MP_CNC_INSUFFICIENT_FUNDS) );
 	} else if ( ResponseId == VendorClass::PERR_NO_FACTORY ) {

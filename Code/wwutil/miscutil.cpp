@@ -104,12 +104,12 @@ bool cMiscUtil::File_Exists(const char * filename)
 		return false;
 	}
 #else
+	//	The early return used to skip Return_File, so every successful check
+	//	leaked the file object.
 	FileClass * file = _TheFileFactory->Get_File( filename );
-	if ( file && file->Is_Available() ) {
-		return true;
-	}
+	bool exists = ( file != nullptr && file->Is_Available() );
 	_TheFileFactory->Return_File( file );
-	return false;
+	return exists;
 #endif
 }
 

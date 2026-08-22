@@ -301,6 +301,15 @@ CNCPurchaseMainMenuClass::Render (void)
 void
 CNCPurchaseMainMenuClass::On_Command (int ctrl_id, int message_id, unsigned int param)
 {
+	//
+	//	A server may open the secret purchase pages for everybody, rather than
+	//	leaving them behind the "extras" console command.  A laddered game still
+	//	refuses them.
+	//
+	if (TTSettingsClass::UseExtraPTPages) {
+		SecretsEnabled = true;
+	}
+
 	if (SecretsEnabled && The_Game()->IsLaddered.Is_True()) {
 		SecretsEnabled = false;
 	}

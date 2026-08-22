@@ -47,6 +47,7 @@
 #include "DlgWOLWait.h"
 #include "DlgMessageBox.h"
 #include "_globals.h"
+#include "ttsettings.h"
 #include "colors.h"
 #include "cnetwork.h"
 #include "GameResSend.h"
@@ -199,7 +200,13 @@ void WolGameModeClass::Init(void)
 	RefPtrConst<Product> product = Product::Current();
 
 	if (!product.IsValid()) {
-		Product::Initializer(APPLICATION_SUB_KEY_NAME, RENEGADE_GAMECODE, RENEGADE_LOBBY_PASSWORD, RENEGADE_BASE_SKU);
+		//
+		//	WWOnline reads the installed version out of this key.  A mod that
+		//	ships its own version stamp names its own key here; the default is
+		//	the stock one.
+		//
+		Product::Initializer(Build_Registry_Location_String(TTSettingsClass::VersionRegistryKey, nullptr, ""),
+								 RENEGADE_GAMECODE, RENEGADE_LOBBY_PASSWORD, RENEGADE_BASE_SKU);
 	}
 
 	mWOLSession = Session::GetInstance(true);

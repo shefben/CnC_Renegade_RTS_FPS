@@ -1220,12 +1220,23 @@ void Get_OS_Info(
 	unsigned build_minor=(OSVersionBuildNumber&0xff0000)>>16;
 	unsigned build_sub=(OSVersionBuildNumber&0xffff);
 
+	// Every field is filled in before anything looks at the table, because
+	// several paths through here return without touching VersionString or
+	// the build numbers, and the caller's struct is a raw local.  A version
+	// of Windows this table has never heard of used to leave three char
+	// pointers pointing at whatever was on the stack.
+	memset(&os_info,0,sizeof(os_info));
+	os_info.Code="UNKNOWN";
+	os_info.SubCode="UNKNOWN";
+	os_info.VersionString="UNKNOWN";
+	os_info.BuildMajor=static_cast<unsigned char>(build_major);
+	os_info.BuildMinor=static_cast<unsigned char>(build_minor);
+	os_info.BuildSub=static_cast<unsigned short>(build_sub);
+	os_info.VersionMajor=static_cast<unsigned char>(OSVersionNumberMajor);
+	os_info.VersionMinor=static_cast<unsigned char>(OSVersionNumberMinor);
+
 	switch (OSVersionPlatformId) {
 	default:
-		memset(&os_info,0,sizeof(os_info));
-		os_info.Code="UNKNOWN";
-		os_info.SubCode="UNKNOWN";
-		os_info.VersionString="UNKNOWN";
 		break;
 	case VER_PLATFORM_WIN32_WINDOWS:
 		{

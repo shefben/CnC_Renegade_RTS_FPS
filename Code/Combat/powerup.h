@@ -126,6 +126,14 @@ public:
 
 	// Network support
 	virtual	bool	Is_Always_Dirty( void ) override					{ return false; }
+
+	//
+	//	The grant sound and the grant animation both hang off the state, and
+	//	only the server ever moved it, so nobody else heard a powerup being
+	//	picked up.
+	//
+	virtual	void	Export_Rare( BitStreamClass &packet ) override;
+	virtual	void	Import_Rare( BitStreamClass &packet ) override;
 	//virtual	void	Get_Extended_Information( StringClass & description );
 	virtual	void	Get_Description( StringClass & description ) override;
 
