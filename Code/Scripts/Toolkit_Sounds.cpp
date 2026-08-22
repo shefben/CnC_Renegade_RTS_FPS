@@ -769,7 +769,7 @@ DECLARE_SCRIPT(RMV_Sound_Play_Near_Player, "Receive_Type:int, Receive_Param:int,
 **
 ************************************************************************************************/
 
-DECLARE_SCRIPT (M00_BuildingStateSoundSpeaker, "Sound_Normal:string,Sound_Destroyed:string,BuildingController_ID:int,Is_3D=1:int,Offset:vector3,Offset_Randomness:vector3,Frequency_Min=-1:float,Frequency_Max:float,Is_3D_Destroyed=1:int,Offset_Destroyed:vector3,Offset_Randomness_Destroyed:vector3,Frequency_Min_Destroyed=-1:float,Frequency_Max_Destroyed:float, Explosion_Name:string")
+DECLARE_SCRIPT_MERGED_ALIAS (M00_BuildingStateSoundSpeaker, "Sound_Normal:string,Sound_Destroyed:string,BuildingController_ID:int,Is_3D=1:int,Offset:vector3,Offset_Randomness:vector3,Frequency_Min=-1:float,Frequency_Max:float,Is_3D_Destroyed=1:int,Offset_Destroyed:vector3,Offset_Randomness_Destroyed:vector3,Frequency_Min_Destroyed=-1:float,Frequency_Max_Destroyed:float, Explosion_Name:string", "JFW_BuildingStateSoundSpeaker")
 {
 
 	int sound_int;
@@ -922,7 +922,7 @@ DECLARE_SCRIPT (M00_BuildingStateSoundSpeaker, "Sound_Normal:string,Sound_Destro
 //	out to be the same script: same events, same parameters, same order.
 //	Nothing to take from it, and the name is settled either way.
 //
-DECLARE_SCRIPT_MERGED (M00_BuildingStateSoundController, "BuildingSpeaker_ID:int")
+DECLARE_SCRIPT_MERGED_ALIAS (M00_BuildingStateSoundController, "BuildingSpeaker_ID:int", "JFW_BuildingStateSoundController")
 {
 
 	int object_from;

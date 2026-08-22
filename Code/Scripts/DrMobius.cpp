@@ -37,7 +37,7 @@
 #include "DPrint.h"
 
 
-DECLARE_SCRIPT_MERGED(Dr_Mobius_Script, "")
+DECLARE_SCRIPT_MERGED_ALIAS(Dr_Mobius_Script, "", "JFW_Mobius_Script")
 {
 	//
 	//	The man being followed is held by id, not by pointer.  A raw pointer

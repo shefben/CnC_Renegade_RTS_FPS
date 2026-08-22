@@ -498,7 +498,7 @@ DECLARE_SCRIPT(RMV_MCT_Switcher, "")
 	}
 };
 
-DECLARE_SCRIPT_MERGED(M00_Play_Sound, "Sound_Preset:string, Is_3D=1:int, Offset:vector3, Offset_Randomness:vector3, Frequency_Min=-1:float, Frequency_Max:float")
+DECLARE_SCRIPT_MERGED_ALIAS(M00_Play_Sound, "Sound_Preset:string, Is_3D=1:int, Offset:vector3, Offset_Randomness:vector3, Frequency_Min=-1:float, Frequency_Max:float", "JFW_Play_Sound")
 {
 	void Created(GameObject * obj) override
 	{

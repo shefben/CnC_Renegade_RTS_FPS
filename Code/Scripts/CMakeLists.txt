@@ -51,6 +51,7 @@ set(SCRIPTS_SRC
     Toolkit_Explosions.cpp
     Toolkit_Objectives.cpp
     TT_Powerup.cpp
+    TT_World.cpp
     Toolkit_Objects.cpp
     Toolkit_Powerup.cpp
     Toolkit_Siege.cpp

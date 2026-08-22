@@ -193,7 +193,7 @@ DECLARE_SCRIPT (DAY_VTOL_CircleAttack, "")
 };
 
 
-DECLARE_SCRIPT_MERGED (M00_GrantPowerup_Created, "WeaponDef:string")
+DECLARE_SCRIPT_MERGED_ALIAS (M00_GrantPowerup_Created, "WeaponDef:string", "JFW_GrantPowerup_Created")
 {
 
 	void Created( GameObject *obj) override

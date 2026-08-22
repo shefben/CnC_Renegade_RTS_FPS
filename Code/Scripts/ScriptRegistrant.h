@@ -56,4 +56,16 @@ class	ScriptRegistrant : public ScriptFactoryClass
 	class x; \
 	ScriptRegistrant<x> _## x ##Registrant(#x, d, SCRIPT_SOURCE_TT);
 
+// A 4.8.4 script whose registered name is not its class name.
+#define REGISTER_SCRIPT_TT_NAMED(x, n, d) \
+	class x; \
+	ScriptRegistrant<x> _## x ##Registrant(n, d, SCRIPT_SOURCE_TT);
+
+// A stock script carrying the 4.8.4 corrections, which the 4.8.4 package also
+// registered under a second name.  That second name resolves to this same
+// script rather than to a copy of it.
+#define REGISTER_SCRIPT_MERGED_ALIAS(x, d, a) \
+	class x; \
+	ScriptRegistrant<x> _## x ##Registrant(#x, d, SCRIPT_SOURCE_STOCK_MERGED, a);
+
 #endif // _SCRIPTREGISTRANT_H_

@@ -442,7 +442,7 @@ DECLARE_SCRIPT(M00_Permanent_No_Falling_Damage_IML, "")
 	}
 };
 
-DECLARE_SCRIPT_MERGED (M00_Disable_Transition, "")
+DECLARE_SCRIPT_MERGED_ALIAS (M00_Disable_Transition, "", "JFW_Disable_Transition")
 {
 	void Created (GameObject * obj) override
 	{
@@ -569,7 +569,7 @@ DECLARE_SCRIPT(M00_Vehicle_Regen_DAK, "" )
 	}
 };
 
-DECLARE_SCRIPT_MERGED(M00_PCT_Pokable_DAK, "" )
+DECLARE_SCRIPT_MERGED_ALIAS(M00_PCT_Pokable_DAK, "", "JFW_PCT_Pokable" )
 {
 	void Created ( GameObject *obj ) override
 	{

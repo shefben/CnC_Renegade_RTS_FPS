@@ -209,6 +209,16 @@ private:
 	REGISTER_SCRIPT_TT(x, d) \
 	class x : public ScriptImpClass
 
+// Same, for a 4.8.4 script whose registered name is not its class name.
+#define	DECLARE_SCRIPT_TT_NAMED(x, n, d) \
+	REGISTER_SCRIPT_TT_NAMED(x, n, d) \
+	class x : public ScriptImpClass
+
+// Same, for a merged script that also answers to a second, 4.8.4 name.
+#define	DECLARE_SCRIPT_MERGED_ALIAS(x, d, a) \
+	REGISTER_SCRIPT_MERGED_ALIAS(x, d, a) \
+	class x : public ScriptImpClass
+
 // Load / Save Macros
 #define SAVE_BEGIN()
 #define SAVE_DATA(id, var) ScriptEngine::Save_Data(saver, id, sizeof(var), &var)

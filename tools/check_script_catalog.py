@@ -19,6 +19,22 @@ DECLARE = re.compile(r'\bDECLARE_SCRIPT(?:_MERGED|_TT)?\s*\(\s*([A-Za-z_][A-Za-z
 #	the same registration without a class body
 REGISTER = re.compile(r'\bREGISTER_SCRIPT(?:_MERGED|_TT)?\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
 
+#	a 4.8.4 script whose registered name is not its class name -- the name is
+#	the second argument, and the class name is not a catalog entry at all
+NAMED = re.compile(
+    r'\b(?:DECLARE|REGISTER)_SCRIPT_TT_NAMED\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*,'
+    r'\s*"([^"]*)"')
+
+#	a merged script the 4.8.4 package also registered under a second name.
+#	Both names have to be unique across the catalog, so both are collected:
+#	the class name here, and the alias just below.
+ALIAS = re.compile(
+    r'\b(?:DECLARE|REGISTER)_SCRIPT_MERGED_ALIAS\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
+
+ALIAS_NAME = re.compile(
+    r'\b(?:DECLARE|REGISTER)_SCRIPT_MERGED_ALIAS\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*,'
+    r'\s*"[^"]*"\s*,\s*"([^"]*)"\s*\)')
+
 #	the raw template form, where the string literal is the registered name and
 #	need not equal the class name
 REGISTRANT = re.compile(
@@ -141,7 +157,7 @@ def scan(root):
 
             lines = text.split('\n')
 
-            for pattern in (DECLARE, REGISTER, REGISTRANT):
+            for pattern in (DECLARE, REGISTER, REGISTRANT, NAMED, ALIAS, ALIAS_NAME):
                 for match in pattern.finditer(text):
                     script = match.group(1)
                     line = text.count('\n', 0, match.start()) + 1
