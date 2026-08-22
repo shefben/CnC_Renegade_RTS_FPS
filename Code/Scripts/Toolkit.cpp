@@ -45,6 +45,7 @@
 //
 #include "building.h"
 #include "buildingaggregate.h"
+#include "soldier.h"
 
 /* GENERAL TOOLKIT INFORMATION
 
@@ -1291,7 +1292,7 @@ DECLARE_SCRIPT (M00_Nod_Turret, "")
 };
 
 
-DECLARE_SCRIPT(M00_Nod_Obelisk_CNC, "Controller_ID=0:int")
+DECLARE_SCRIPT_MERGED(M00_Nod_Obelisk_CNC, "Controller_ID=0:int")
 {
 	int obelisk_id;
 
@@ -1308,6 +1309,12 @@ DECLARE_SCRIPT(M00_Nod_Obelisk_CNC, "Controller_ID=0:int")
 		GameObject * obelisk = 	ScriptEngine::Create_Object ("Nod_Obelisk", my_location);
 		if (obelisk)
 		{
+			//
+			//	The beam belongs to whoever owns the building.  It used to be Nod
+			//	by construction, so an obelisk placed for the other team shot at
+			//	its own side.
+			//
+			ScriptEngine::Set_Player_Type (obelisk, ScriptEngine::Get_Player_Type (obj));
 			ScriptEngine::Attach_Script (obelisk, "M00_Obelisk_Weapon_CNC", "");
 			ScriptEngine::Start_Timer (obj, this, 1.0f, 1);
 			obelisk_id = ScriptEngine::Get_ID (obelisk);
@@ -1367,7 +1374,7 @@ DECLARE_SCRIPT(M00_Nod_Obelisk_CNC, "Controller_ID=0:int")
 };
 
 
-DECLARE_SCRIPT (M00_Obelisk_Weapon_CNC, "")
+DECLARE_SCRIPT_MERGED (M00_Obelisk_Weapon_CNC, "")
 {
 	bool able_to_fire;
 	int current_target;
@@ -1392,7 +1399,6 @@ DECLARE_SCRIPT (M00_Obelisk_Weapon_CNC, "")
 		powerup_effect_id = 0;
 		current_target = 0;
 		able_to_fire = true;
-		ScriptEngine::Set_Player_Type (obj, SCRIPT_PLAYERTYPE_NOD);
 		ScriptEngine::Set_Is_Rendered (obj, false);
 		ScriptEngine::Enable_Enemy_Seen (obj, true);
 		ScriptEngine::Enable_Hibernation (obj, false);
@@ -1404,6 +1410,81 @@ DECLARE_SCRIPT (M00_Obelisk_Weapon_CNC, "")
 			powerup_effect_id = ScriptEngine::Get_ID (effect);
 			ScriptEngine::Set_Animation_Frame (effect, "OBL_POWERUP.OBL_POWERUP", 0);
 		}
+	}
+
+
+	//
+	//	Whether the beam should fire at this.  The ring is the obelisk's own
+	//	geometry: closer than fifteen metres in plan and the beam cannot depress
+	//	far enough, further than the range and it will not reach.  The rest is
+	//	what the beam used to ignore -- it fired at the dead, at things behind
+	//	walls it could not see, and at the harvester, which is a player's
+	//	decision to shoot and not a building's.
+	//
+	bool Is_Valid_Target (GameObject * obj, GameObject * target)
+	{
+		if (target == nullptr)
+		{
+			return false;
+		}
+
+		if (ScriptEngine::Get_Player_Type (target) == ScriptEngine::Get_Player_Type (obj))
+		{
+			return false;
+		}
+
+		if (ScriptEngine::Get_Health (target) <= 0.0f)
+		{
+			return false;
+		}
+
+		if (!ScriptEngine::Is_Object_Visible (obj, target))
+		{
+			return false;
+		}
+
+		if (ScriptEngine::Is_Harvester (target))
+		{
+			return false;
+		}
+
+		Vector3 my_position = ScriptEngine::Get_Position (obj);
+		Vector3 target_position = ScriptEngine::Get_Position (target);
+		float distance = ScriptEngine::Get_Distance (my_position, target_position);
+
+		my_position.Z = 0.0f;
+		target_position.Z = 0.0f;
+		float difference = ScriptEngine::Get_Distance (my_position, target_position);
+
+		return (difference > 15.0f) && (distance < range);
+	}
+
+	//
+	//	Where on the target to aim.  Get_Position is at a soldier's feet, so the
+	//	beam came down beside him and left him standing.
+	//
+	Vector3 Get_Aim_Point (GameObject * target)
+	{
+		SoldierGameObj * soldier = target->As_SoldierGameObj ();
+		if (soldier != nullptr)
+		{
+			return soldier->Get_Bullseye_Position ();
+		}
+
+		return ScriptEngine::Get_Bone_Position (target, "target");
+	}
+
+	//
+	//	Turn to the target while charging.  A zero-range attack aims without
+	//	firing, so the beam is already pointing when it goes off instead of
+	//	swinging round afterwards.
+	//
+	void Face_Target (GameObject * obj, GameObject * target)
+	{
+		ActionParamsStruct params;
+		params.Set_Basic (this, 90, 0);
+		params.Set_Attack (target, 0.0f, 0.0f, true);
+		ScriptEngine::Action_Attack (obj, params);
 	}
 
 	void Enemy_Seen(GameObject * obj, GameObject *enemy ) override
@@ -1443,32 +1524,27 @@ DECLARE_SCRIPT (M00_Obelisk_Weapon_CNC, "")
 				if (able_to_fire)
 				{
 					GameObject * target_obj = ScriptEngine::Find_Object (param);
-					if (target_obj)
+					if (Is_Valid_Target (obj, target_obj))
 					{
-						Vector3 enemy_position = ScriptEngine::Get_Position (target_obj);
-						Vector3 my_position = ScriptEngine::Get_Position (obj);
-						float distance = ScriptEngine::Get_Distance (my_position, enemy_position);
-						enemy_position.Z = 0.0f;
-						my_position.Z = 0.0f;
-						float difference = ScriptEngine::Get_Distance (my_position, enemy_position);
-						if ((difference > 15.0f) && (distance < range))
+						current_target = param;
+						able_to_fire = false;
+						ScriptEngine::Start_Timer (obj, this, 2.0f, 1);
+						GameObject * effect = ScriptEngine::Find_Object (powerup_effect_id);
+						if (effect)
 						{
-							current_target = param;
-							able_to_fire = false;
-							ScriptEngine::Start_Timer (obj, this, 2.0f, 1);
-							GameObject * effect = ScriptEngine::Find_Object (powerup_effect_id);
-							if (effect)
-							{
-								ScriptEngine::Set_Animation_Frame (effect, "OBL_POWERUP.OBL_POWERUP", 1);
-							}
-							my_position.Z -= 20.0f;
-							ScriptEngine::Create_Sound ("Obelisk_Warm_Up", my_position, obj);
+							ScriptEngine::Set_Animation_Frame (effect, "OBL_POWERUP.OBL_POWERUP", 1);
 						}
-						else
-						{
-							Destroy_Obelisk_Effect ();
-							ScriptEngine::Action_Reset (obj, 100.0f);
-						}
+
+						Vector3 sound_position = ScriptEngine::Get_Position (obj);
+						sound_position.Z -= 20.0f;
+						ScriptEngine::Create_Sound ("Obelisk_Warm_Up", sound_position, obj);
+
+						Face_Target (obj, target_obj);
+					}
+					else
+					{
+						Destroy_Obelisk_Effect ();
+						ScriptEngine::Action_Reset (obj, 100.0f);
 					}
 				}
 			}
@@ -1489,29 +1565,15 @@ DECLARE_SCRIPT (M00_Obelisk_Weapon_CNC, "")
 			if (timer_id == 1)
 			{
 				GameObject * target_obj = ScriptEngine::Find_Object (current_target);
-				if (target_obj)
+				if (Is_Valid_Target (obj, target_obj))
 				{
-					Vector3 my_position = ScriptEngine::Get_Position (obj);
-					Vector3 enemy_position = ScriptEngine::Get_Position (target_obj);
-					float distance = ScriptEngine::Get_Distance (my_position, enemy_position);
-					enemy_position.Z = 0.0f;
-					my_position.Z = 0.0f;
-					float difference = ScriptEngine::Get_Distance (my_position, enemy_position);
-					if ((difference > 15.0f) && (distance < range))
-					{
-						ActionParamsStruct params;
-						params.Set_Basic (this, 100, 0);
-						params.Set_Attack (target_obj, range, 0.0f, true);
-						ScriptEngine::Action_Attack (obj, params);
-						current_target = 0;
-						ScriptEngine::Start_Timer (obj, this, 2.0f, 2);
-					}
-					else
-					{
-						Destroy_Obelisk_Effect ();
-						ScriptEngine::Action_Reset (obj, 100.0f);
-						able_to_fire = true;
-					}
+					ActionParamsStruct params;
+					params.Set_Basic (this, 100, 0);
+					params.Set_Attack (Get_Aim_Point (target_obj), range, 0.0f, true);
+					params.AttackCheckBlocked = false;
+					ScriptEngine::Action_Attack (obj, params);
+					current_target = 0;
+					ScriptEngine::Start_Timer (obj, this, 2.0f, 2);
 				}
 				else
 				{

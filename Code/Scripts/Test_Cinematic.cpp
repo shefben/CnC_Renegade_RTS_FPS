@@ -120,7 +120,7 @@ DECLARE_SCRIPT(Test_Cinematic_Primary_Killed, "CallbackID=:int")
 
 };
 
-DECLARE_SCRIPT(Test_Cinematic, "ControlFilename=:string")
+DECLARE_SCRIPT_MERGED(Test_Cinematic, "ControlFilename=:string")
 {
 public:
 	/*
@@ -581,6 +581,70 @@ public:
 		}
 	}
 
+	//
+	//	Take an object that is already in the level into a slot, found by preset
+	//	and nearest to the cinematic.  Create_Object makes a new one; this drives
+	//	scenery the designer placed by hand.
+	//
+	void	Command_Add_Object( char * params )
+	{
+		int slot = atoi( Get_First_Parameter( params ) );
+		const char * preset_name = Get_Next_Parameter();
+
+		if ( (slot < 0) || ( slot >= NUM_SLOTS ) ) {
+			return;
+		}
+
+		GameObject * obj = ScriptEngine::Find_Nearest_Preset(
+				ScriptEngine::Get_Position( Owner() ), preset_name );
+		if ( obj != nullptr ) {
+			ObjectSlots[ slot ] = ScriptEngine::Get_ID( obj );
+		}
+	}
+
+	//
+	//	Play an animation through once, from its first frame.  Play_Animation
+	//	starts partway in to stay in step with the cinematic's clock, which is
+	//	wrong when what is wanted is the whole thing.
+	//
+	void	Command_Play_Complete_Animation( char * params )
+	{
+		int slot = atoi( Get_First_Parameter( params ) );
+		const char * name = Get_Next_Parameter();
+
+		if ( (slot < 0) || ( slot >= NUM_SLOTS ) ) {
+			return;
+		}
+
+		GameObject * obj = ScriptEngine::Find_Object( ObjectSlots[ slot ] );
+		if ( obj != nullptr ) {
+			ScriptEngine::Set_Animation( obj, name, false, nullptr, 0.0F, -1.0F, false );
+
+			if ( IsCameraCinematic ) {
+				ScriptEngine::Innate_Disable( obj );
+			}
+		}
+	}
+
+	//	Stop whatever the slot is playing and leave it where it stands.
+	void	Command_Stop_Animation( char * params )
+	{
+		int slot = atoi( Get_First_Parameter( params ) );
+
+		if ( (slot < 0) || ( slot >= NUM_SLOTS ) ) {
+			return;
+		}
+
+		GameObject * obj = ScriptEngine::Find_Object( ObjectSlots[ slot ] );
+		if ( obj != nullptr ) {
+			ScriptEngine::Set_Animation( obj, "", false );
+
+			if ( IsCameraCinematic ) {
+				ScriptEngine::Innate_Disable( obj );
+			}
+		}
+	}
+
 	void	Command_Play_Animation( char * params )
 	{
 //		ScriptEngine::Debug_Message( "Playing Animation %s\n", (int)params );
@@ -925,6 +989,9 @@ public:
 		else	if ( Title_Match( &command, "Create_Real_Object" ) )	Command_Create_Real_Object( command );
 		else	if ( Title_Match( &command, "Create_Explosion" ) )		Command_Create_Explosion( command );
 		else	if ( Title_Match( &command, "Destroy_Object" ) )		Command_Destroy_Object( command );
+		else	if ( Title_Match( &command, "Add_Object" ) )			Command_Add_Object( command );
+		else	if ( Title_Match( &command, "Play_Complete_Animation" ) )	Command_Play_Complete_Animation( command );
+		else	if ( Title_Match( &command, "Stop_Animation" ) )		Command_Stop_Animation( command );
 		else	if ( Title_Match( &command, "Play_Animation" ) )		Command_Play_Animation( command );
 		else	if ( Title_Match( &command, "Play_Audio" ) )				Command_Play_Audio( command );
 		else	if ( Title_Match( &command, "Control_Camera" ) )		Command_Control_Camera( command );

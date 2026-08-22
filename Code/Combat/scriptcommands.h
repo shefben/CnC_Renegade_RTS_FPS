@@ -159,6 +159,7 @@ namespace ScriptEngine
 	// Object Management
 	void Destroy_Object ( GameObject * obj );
 	GameObject * Find_Object ( int obj_id );
+	GameObject * Find_Nearest_Preset ( const Vector3 & position, const char * preset_name );
 	GameObject * Create_Object ( const char * type_name, const Vector3 & position );
 	GameObject * Create_Object_At_Bone ( GameObject * host_obj, const char * new_obj_type_name, const char * bone_name );
 	int Get_ID ( GameObject * obj );

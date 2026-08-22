@@ -930,6 +930,7 @@ void	PhysicalGameObj::Set_Animation( const char *animation_name, bool looping, f
 	//
 	if ( anim_name.Is_Empty() ) {
 		AnimControl->Set_Animation( (HAnimClass *)nullptr, 0 );
+		AnimControl->Set_Mode( ANIM_MODE_STOP, 0 );
 		Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
 		return ;
 	}

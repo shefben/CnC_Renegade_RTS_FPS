@@ -1337,6 +1337,45 @@ void	Set_Shield_Type( GameObject * obj, const char * name )
 //	the man rather than the tank he is sitting in is aiming at the wrong
 //	thing, and that is what this is for.
 //
+//
+//	The closest object of a given preset.  A cinematic control file names
+//	the scenery it wants to drive by preset, because the level designer who
+//	wrote the file has no object id to give it.
+//
+GameObject *	Find_Nearest_Preset( const Vector3 & position, const char * preset_name )
+{
+	if ( preset_name == nullptr ) {
+		return nullptr;
+	}
+
+	GameObject *	nearest = nullptr;
+	float			nearest_dist2 = FLT_MAX;
+
+	SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+	for ( ; node != nullptr; node = node->Next() ) {
+		BaseGameObj * base = node->Data();
+		GameObject * obj = ( base != nullptr ) ? base->As_ScriptableGameObj() : nullptr;
+		if ( obj == nullptr ) {
+			continue;
+		}
+
+		if ( ::stricmp( Get_Preset_Name( obj ), preset_name ) != 0 ) {
+			continue;
+		}
+
+		Vector3 obj_position;
+		obj->Get_Position( &obj_position );
+
+		float dist2 = ( obj_position - position ).Length2();
+		if ( dist2 < nearest_dist2 ) {
+			nearest = obj;
+			nearest_dist2 = dist2;
+		}
+	}
+
+	return nearest;
+}
+
 GameObject *	Get_Vehicle( GameObject * obj )
 {
 	SCRIPT_PTR_CHECK_RET( obj, nullptr );
@@ -1369,28 +1408,35 @@ bool	Is_Harvester( GameObject * obj )
 	return false;
 }
 
+//
+//	Which team owns this.  Asked of a DamageableGameObj rather than a
+//	PhysicalGameObj, because a building controller is the former and not
+//	the latter -- asking a building which team it belonged to answered Nod
+//	and logged a complaint, which is why anything driven by a building had
+//	its team written into the script instead.
+//
 int	Get_Player_Type( GameObject * obj )
 {
 	SCRIPT_PTR_CHECK_RET( obj, 0 );
 
-	PhysicalGameObj * pgobj = obj->As_PhysicalGameObj();
-	if ( pgobj == nullptr ) {
-		Debug_Say(( "Not a PhysicalGameObj at %s %d\n", __FILE__, __LINE__ ));
+	DamageableGameObj * dgobj = obj->As_DamageableGameObj();
+	if ( dgobj == nullptr ) {
+		Debug_Say(( "Not a DamageableGameObj at %s %d\n", __FILE__, __LINE__ ));
 		return 0;
 	}
 
-	return	pgobj->Get_Player_Type();
+	return	dgobj->Get_Player_Type();
 }
 
 void	Set_Player_Type( GameObject * obj, int type )
 {
 	SCRIPT_PTR_CHECK( obj );
 
-	PhysicalGameObj * pgobj = obj->As_PhysicalGameObj();
-	if ( pgobj == nullptr ) {
-		Debug_Say(( "Not a PhysicalGameObj at %s %d\n", __FILE__, __LINE__ ));
+	DamageableGameObj * dgobj = obj->As_DamageableGameObj();
+	if ( dgobj == nullptr ) {
+		Debug_Say(( "Not a DamageableGameObj at %s %d\n", __FILE__, __LINE__ ));
 	} else {
-		pgobj->Set_Player_Type( type );
+		dgobj->Set_Player_Type( type );
 	}
 
 }
