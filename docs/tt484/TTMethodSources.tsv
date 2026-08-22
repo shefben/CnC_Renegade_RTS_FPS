@@ -31,7 +31,6 @@ BuildingGameObj	As_ConstructionYardGameObj	0	1	present	inline-header	tt_4.8.4/sc
 BuildingGameObj	As_NavalFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	116				virtual NavalFactoryGameObj * As_NavalFactoryGameObj (void) { return NULL; }
 BuildingGameObj	As_SuperweaponGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	117				virtual SuperweaponGameObj * As_SuperweaponGameObj (void) { return NULL; }
 BuildingGameObjDef	Dump	1	1	present	declaration-only				owned elsewhere	CChunkDataView,CChunkTreeView,CChunkViewDoc,CChunkViewView,CDataTreeView,CDataView	virtual void Dump (FileClass &file);
-BuildingGameObjDef	Get_Hide_Team_Battlefield_Information	0	0	present	declaration-only				nowhere		bool Get_Hide_Team_Battlefield_Information() const;
 ConstructionYardGameObj	Get_Definition	0	0	absent	defined	tt_4.8.4/scripts/engine_obj.cpp	109				SCRIPTS_API const ConstructionYardGameObjDef & Get_Definition (void) const;
 ConstructionYardGameObj	As_ConstructionYardGameObj	0	0	absent	inline-header	tt_4.8.4/scripts/ConstructionYardGameObj.h	25				ConstructionYardGameObj * As_ConstructionYardGameObj (void) { return this; }
 ConstructionYardGameObj	Set_Spy	1	0	absent	inline-header	tt_4.8.4/scripts/ConstructionYardGameObj.h	30				void Set_Spy(bool b) {IsSpy = b;}
@@ -136,8 +135,6 @@ SuperweaponGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveCo
 SuperweaponGameObj	~SuperweaponGameObj	0	0	absent	declaration-only				nowhere		~SuperweaponGameObj (void);
 VehicleGameObj	Is_Underground	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	129				bool Is_Underground() { return Peek_Physical_Object()->Get_Collision_Group() == UNDERGROUND_COLLISION_GROUP; }
 VehicleGameObj	Set_Color	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	140				void Set_Color(Vector3 &color) {if (UndergroundEffect){UndergroundEffect->Set_Color(color);Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );}}
-VehicleGameObj	Check_If_On_Surface	1	1	present	declaration-only				nowhere		virtual int Check_If_On_Surface(int surface_type);
 VehicleGameObj	Collision_Occurred	1	1	present	declaration-only				owned elsewhere	BulletClass,C4GameObj,EjectCasingObserverClass,PhysClass,PhysObserverClass,SoldierGameObj	virtual CollisionReactionType Collision_Occurred( const CollisionEventClass & event );
 VehicleGameObj	Export_Occasional	1	1	present	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,cPlayer	virtual void Export_Occasional( BitStreamClass &packet );
 VehicleGameObj	Import_Occasional	1	1	present	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,cPlayer	virtual void Import_Occasional( BitStreamClass &packet );
-VehicleGameObj	Reset_Sound_Effects	0	0	present	declaration-only				nowhere		void Reset_Sound_Effects( void );

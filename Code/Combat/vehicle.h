@@ -337,6 +337,19 @@ public:
 
 	void					Set_Lock_Team( int team )				{ LockTeam = (char)team; Set_Object_Dirty_Bit( BIT_RARE, true ); }
 	int					Get_Lock_Team( void )					{ return LockTeam; }
+	//
+	//	How many of the wheels actually touching the ground are on the given
+	//	surface type.  Zero means the vehicle is not on that surface at all.
+	//
+	virtual int			Check_If_On_Surface( int surface_type );
+
+	//
+	//	Drop the cached engine and tire sounds.  The definition owns which
+	//	sounds those are, so anything that changes the definition underneath a
+	//	live vehicle has to call this.
+	//
+	void					Reset_Sound_Effects( void );
+
 	void					Set_Can_Be_Stolen( bool onoff )		{ CanBeStolen = onoff; Set_Object_Dirty_Bit( BIT_RARE, true ); }
 	bool					Can_Be_Stolen( void ) const			{ return CanBeStolen; }
 	void					Set_Owner( SoldierGameObj *obj );

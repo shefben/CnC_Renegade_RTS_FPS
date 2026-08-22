@@ -520,6 +520,7 @@ void	VehicleGameObj::Init( const VehicleGameObjDef & definition )
 
 	Aquire_Turret_Bones();
 	Init_Wheel_Effects();
+	Reset_Sound_Effects();
 	Create_And_Destroy_Transitions();
 	Update_Damage_Meshes();
 
@@ -1811,6 +1812,66 @@ void VehicleGameObj::Change_Engine_Sound_State(int new_state)
 	}
 
 	return ;
+}
+
+//
+//	Reset_Sound_Effects
+//
+//	Drops the sounds cached against the definition and model the vehicle had
+//	until now.  Change_Engine_Sound_State releases whatever is cached and
+//	builds the sound the current definition names, so going to OFF is how the
+//	old one is let go; Update_Sound_Effects starts the engine again on the next
+//	update if it is actually running.
+//
+void	VehicleGameObj::Reset_Sound_Effects( void )
+{
+	Change_Engine_Sound_State( ENGINE_SOUND_STATE_OFF );
+
+	//
+	//	The tire sound belongs to SurfaceEffectsManager and is keyed on what is
+	//	under the wheels, so silencing it here stops the previous surface's loop
+	//	from carrying over.
+	//
+	if ( WheelSurfaceSound != nullptr ) {
+		SurfaceEffectsManager::Update_Persistant_Sound(	WheelSurfaceSound,
+																	SURFACE_TYPE_DEFAULT,
+																	SurfaceEffectsManager::HITTER_TYPE_NONE,
+																	Get_Transform() );
+	}
+
+	return ;
+}
+
+//
+//	Check_If_On_Surface
+//
+//	How many of the wheels actually touching the ground are on the given
+//	surface type.  Contact surface only means anything while a wheel is in
+//	contact, and a fake wheel is a visual prop that never touches anything.
+//
+int	VehicleGameObj::Check_If_On_Surface( int surface_type )
+{
+	VehiclePhysClass *phys_obj = Peek_Vehicle_Phys();
+	if ( phys_obj == nullptr ) {
+		return 0;
+	}
+
+	int count			= 0;
+	int wheel_count	= phys_obj->Get_Wheel_Count();
+
+	for ( int index = 0; index < wheel_count; index ++ ) {
+
+		SuspensionElementClass *wheel = phys_obj->Peek_Wheel( index );
+
+		if (	wheel->Get_Flag( SuspensionElementClass::FAKE ) == false &&
+				wheel->Get_Flag( SuspensionElementClass::INCONTACT ) &&
+				wheel->Get_Contact_Surface() == surface_type )
+		{
+			count ++;
+		}
+	}
+
+	return count;
 }
 
 void	VehicleGameObj::Update_Engine_Sound_Pitch(void)

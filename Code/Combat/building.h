@@ -127,6 +127,13 @@ public:
 	int Get_Damage_Report(int team) const;
 	int Get_Destroy_Report(int team) const;
 
+	//
+	//	When set, this building is left out of the team battlefield
+	//	information screen -- it exists on the map but the team is not told
+	//	about its health or even that it is there.
+	//
+	bool Get_Hide_Team_Battlefield_Information (void) const	{ return HideTeamBattlefieldInformation; }
+
 protected:
 
 	StringClass									MeshPrefix;
@@ -137,6 +144,7 @@ protected:
 	int NodDamageReportID;
 	int GDIDestroyReportID;
 	int NodDestroyReportID;
+	bool HideTeamBattlefieldInformation;
 
 	friend	class								BuildingGameObj;
 };

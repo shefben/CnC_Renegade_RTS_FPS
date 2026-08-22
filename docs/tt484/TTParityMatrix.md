@@ -760,6 +760,43 @@ starting state and is not maintained.
 
 ---
 
+### 5.8 Final disposition of the declaration delta — P02 CLOSED
+
+`TTMethodSources.tsv` stands at **139 rows**, down from the 176 the 5.6 survey
+started with. Nothing left in it is P02 work. Every remaining row is one of:
+
+**Reassigned — the class does not exist in OpenW3D (Phase 5 new-class work).**
+`HUDSurfaceClass` (17), `ScriptedDialogClass` (17), `ExtendedNetworkObject` (1),
+`NavalFactoryGameObj` (27), `AirFactoryGameObj` (26), `SuperweaponGameObj` (18),
+`ConstructionYardGameObj` (12). There is no canonical owner to merge into; 5.2
+and 5.5 already say these port as whole classes.
+
+**Reassigned — `PhysicsSceneClass` (7).** Shadow and polygon-budget control;
+belongs with P20, not with member parity.
+
+**N/A — recorded in `completed_features.md` with the reason.**
+
+| Member | Why not |
+| --- | --- |
+| `NetworkObjectClass::Set_Object_Dirty_Bitx` | Non-virtual duplicate that exists so a DLL hook can reach the unhooked original. Directive 0.4 forbids that architecture and nothing here overrides the virtual. |
+| `VehicleGameObj::Export_Occasional` / `Import_Occasional` | Superseded. The state TT put in the Occasional tier — `CanDrive`, `AllowStealthWhileEmpty`, `CanBeStolen`, `LockTeam`, `ScriptsVisible` — is already replicated through `Export_Rare`, and `CanFire` through the Frequent tier. A second path for the same data is exactly the duplicate-implementation the architecture rules forbid. |
+| `BuildingGameObjDef::Dump` | Guarded by `#ifdef DDBEDIT` in TT's own header: an editor-only preset dump with no runtime behavior and no matching OpenW3D build configuration. `defcheck.py` does not read preprocessor guards, which is why it appeared at all. |
+| `AABTreeCullSystemClass::Collect_Branch` | OpenW3D already has this operation as `Collect_Objects_Recursive(AABTreeNodeClass *)` (`Code/WWMath/aabtreecull.h:170`). Adding TT's name for it would be a duplicate. |
+
+**Deferred inside P02, each blocked on a named piece of later work.**
+
+| Members | Waiting on |
+| --- | --- |
+| `BuildingGameObj` `As_*` casts (4) | The four new building classes of 5.2. |
+| `VehicleGameObj::Is_Underground`, `Set_Color`, `Collision_Occurred` (3) | The underground-vehicle feature. OpenW3D has no `UNDERGROUND_COLLISION_GROUP`; `Is_Underground` is defined in terms of it, `Set_Color` drives `UndergroundEffectClass`, and the collision override is what keeps an underground vehicle from reacting to surface geometry. All three appear together in TT's header. |
+| `RenderObjClass::Register_For_Rendering`, `Set_User_Lighting_Flag` (2) | The renderer rework excluded by directive 0.6, and the static-lighting work respectively. Neither has a body anywhere in the donor. |
+
+**Merged.** `SoldierGameObj` (17), `VehicleGameObj` (2), `BuildingGameObj`,
+`BuildingGameObjDef::Get_Hide_Team_Battlefield_Information`,
+`NetworkObjectClass`, `SoldierFactoryGameObj`. Each flag is wired to a site that
+honours it, per 5.6: a TT header is a link-time interface, so the accessor is
+the cheap half and the enforcement is the work.
+
 ## 6. Outstanding Phase 1 work
 
 Phase 1 acceptance is "100% of TT source is inventoried and every engine-relevant

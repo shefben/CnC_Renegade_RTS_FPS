@@ -120,9 +120,11 @@ BuildingGameObjDef::BuildingGameObjDef (void)	:
 	GDIDamageReportID(0),
 	NodDamageReportID(0),
 	GDIDestroyReportID(0),
-	NodDestroyReportID(0)
+	NodDestroyReportID(0),
+	HideTeamBattlefieldInformation(false)
 {
 	EDITABLE_PARAM( BuildingGameObjDef, ParameterClass::TYPE_STRING,	MeshPrefix );
+	EDITABLE_PARAM( BuildingGameObjDef, ParameterClass::TYPE_BOOL,	HideTeamBattlefieldInformation );
 
 #ifdef PARAM_EDITING_ON
 	int skin_type_counter;
@@ -194,6 +196,7 @@ enum	{
 	MICROCHUNKID_DEF_NOD_DAMAGE_REPORT_ID,
 	MICROCHUNKID_DEF_GDI_DESTROY_REPORT_ID,
 	MICROCHUNKID_DEF_NOD_DESTROY_REPORT_ID,
+	MICROCHUNKID_DEF_HIDE_TEAM_BATTLEFIELD_INFORMATION,
 };
 
 
@@ -217,6 +220,7 @@ BuildingGameObjDef::Save (ChunkSaveClass &csave)
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_NOD_DAMAGE_REPORT_ID, NodDamageReportID );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_GDI_DESTROY_REPORT_ID, GDIDestroyReportID );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_NOD_DESTROY_REPORT_ID, NodDestroyReportID );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_HIDE_TEAM_BATTLEFIELD_INFORMATION, HideTeamBattlefieldInformation );
 	csave.End_Chunk();
 
 	return true;
@@ -251,6 +255,7 @@ BuildingGameObjDef::Load (ChunkLoadClass &cload)
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_NOD_DAMAGE_REPORT_ID, NodDamageReportID );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_GDI_DESTROY_REPORT_ID, GDIDestroyReportID );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_NOD_DESTROY_REPORT_ID, NodDestroyReportID );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_HIDE_TEAM_BATTLEFIELD_INFORMATION, HideTeamBattlefieldInformation );
 
 						default:
 							Debug_Say(("Unhandled Micro Chunk:%d File:%s Line:%d\r\n",cload.Cur_Micro_Chunk_ID(),__FILE__,__LINE__));

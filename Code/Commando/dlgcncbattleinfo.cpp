@@ -251,6 +251,16 @@ CNCBattleInfoDialogClass::Configure_Icons (void)
 		//	Find the building
 		//
 		BuildingGameObj *building = gdi_base->Find_Building (GDI_BUILDINGS[index].type);
+
+		//
+		//	A building whose definition hides team battlefield information gets
+		//	no slot here at all, so its absence is indistinguishable from it
+		//	not being on the map.
+		//
+		if (building != nullptr && building->Get_Definition ().Get_Hide_Team_Battlefield_Information ()) {
+			building = nullptr;
+		}
+
 		if (building != nullptr) {
 
 			//
@@ -294,6 +304,11 @@ CNCBattleInfoDialogClass::Configure_Icons (void)
 		//	Find the building
 		//
 		BuildingGameObj *building = nod_base->Find_Building (NOD_BUILDINGS[index].type);
+
+		if (building != nullptr && building->Get_Definition ().Get_Hide_Team_Battlefield_Information ()) {
+			building = nullptr;
+		}
+
 		if (building != nullptr) {
 
 			//
