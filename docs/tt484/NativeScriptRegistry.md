@@ -171,9 +171,9 @@ convert today.
 
 | | Names | Calls |
 | --- | --- | --- |
-| **Answered** -- `ScriptEngine` has it, or `TTScriptApiRenames.tsv` says what it is instead | 262 | **7945** |
-| Free SDK functions with portable source still to port | 42 | 305 |
-| Free SDK functions needing engine work | 35 | 188 |
+| **Answered** -- `ScriptEngine` has it, or `TTScriptApiRenames.tsv` says what it is instead | 271 | **8007** |
+| Free SDK functions with portable source still to port | 34 | 277 |
+| Free SDK functions needing engine work | 34 | 154 |
 | Blocked -- the stealth gap list, which is a feature and not an API | 1 | 1 |
 | N/A -- plugin hooks (directive 0.5) | 22 | 26 |
 | N/A -- `REF_DECL` data binding | 1 | 5 |
@@ -194,10 +194,15 @@ the rest, 22 names, 26 calls) is declined under directive 0.5. Natively the
 same notifications come off the event bus; see `NativeEventDispatch.md`.
 
 **Conversion order.** `readiness.py` ranks the files by how many calls the
-engine still cannot answer. Three are at zero: `jfwpow.cpp` (done, now
-`Code/Scripts/TT_Powerup.cpp`), `jfwws.cpp` (742 lines, 43 registrations) and
-`jfwgun.cpp` (5015 lines, 60). Everything else is within a handful of names of
-ready.
+engine still cannot answer. Done so far: `jfwpow.cpp` (`TT_Powerup.cpp`, 13
+scripts), `jfwws.cpp` (`TT_World.cpp`, 29 scripts and 7 aliases) and the
+`gm*.cpp` SSGM scripts (`TT_SSGM.cpp`, 32 registrations). Next at zero
+blockers is `jfwgun.cpp` (5015 lines, 60 registrations); everything else is
+within a handful of names of ready.
+
+Four of `gmsoldier.cpp`'s registrations are not in `TT_SSGM.cpp`:
+`SSGM_Log_Key`, `SSGM_C4_Key`, `SSGM_Bind_Key` and `SSGM_BL_Key` all derive
+from `JFW_Key_Hook_Base`, so they arrive with `jfwkey.cpp` rather than here.
 
 **The aliases.** Six of `jfwws.cpp`'s registrations register a `JFW_*` class
 under a second, stock name -- `M00_PCT_Pokable_DAK`, `M00_Disable_Transition`,
@@ -207,11 +212,13 @@ so the `JFW_*` name must become an alias registration of the merged class and
 not a second copy of it. That is what 4.8.4 itself does, and it is the only
 reading directive 0.4 allows.
 
-**SSGM.** The five `gm*.cpp` files are two things at once: 35 script
-registrations, and the server-management layer around them -- a TCP log socket,
-console commands, moderation. `gmlog.cpp` registers no scripts at all. The
-scripts belong in P04; the server-management layer is not a script registry and
-is recorded separately rather than dropped.
+**SSGM.** The five `gm*.cpp` files are two things at once: the scripts, and
+the server-management layer around them. The user asked for both. The layer is
+`SSGMSettingsClass` (`Code/Combat`), `SSGMGameLog` (`Code/Combat`, because the
+scripts that write to it are compiled into the editor too) and
+`SSGMManagerClass` (`Code/Commando`), which subscribes to the event bus rather
+than installing hooks. Its plugin loader is declined under directive 0.5. See
+`SSGM.md`.
 
 ### 4.3 A script can address one client — answered
 
@@ -245,7 +252,7 @@ survey's `_Team` suffix heuristic and is plain server-side work.
 
 ### 4.4 Registry size
 
-1652 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
+1720 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
 than the 1640 this document used to quote, because the checker was counting the
 registration macros themselves as a script called `x` -- plus the first thirteen
 from the 4.8.4 library. The remaining 848 in-scope

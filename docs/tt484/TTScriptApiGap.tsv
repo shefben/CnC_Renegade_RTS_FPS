@@ -48,6 +48,7 @@ Get_Max_Shield_Strength	Commands->	37	done
 Set_Shield_Strength	Commands->	37	done
 Send_Message_Team	engine_tt.h	36	done
 Get_Money	Commands->	35	done
+Remove_Weapon	engine_tt.h	34	done
 Create_2D_WAV_Sound_Player	engine_tt.h	33	done
 Is_VTOL	engine_obj2.h	32	done
 Select_Weapon	Commands->	27	done
@@ -97,6 +98,7 @@ Set_Ash	Commands->	8	done
 Set_Fog_Enable	Commands->	8	done
 Set_Fog_Range	Commands->	8	done
 Set_Rain	Commands->	8	done
+Set_Skin	engine_dmg.h	8	done
 Set_Snow	Commands->	8	done
 Set_War_Blitz	Commands->	8	done
 Add_Objective	Commands->	7	done
@@ -134,10 +136,13 @@ Create_3D_Sound_At_Bone	Commands->	5	done
 Get_C4_Mode	engine_weap.h	5	done
 Get_C4_Planter	engine_weap.h	5	done
 Get_Preset_ID	Commands->	5	done
+Get_Translated_Definition_Name	engine_tdb.h	5	done
 Get_Vehicle_Gunner	engine_obj2.h	5	done
 Grant_Refill	engine_obj2.h	5	done
 Kill_All_Buildings_By_Team	engine_tt.h	5	done
 Set_HUD_Help_Text_Player	engine_tt.h	5	done
+Set_Max_Health	engine_dmg.h	5	done
+Set_Max_Shield_Strength	engine_dmg.h	5	done
 Shake_Camera	Commands->	5	done
 Change_Team_2	engine_player.h	4	done
 Create_2D_WAV_Sound	Commands->	4	done
@@ -198,6 +203,7 @@ Get_C4_Attached	engine_weap.h	2	done
 Get_Mass	engine_phys.h	2	done
 Get_Occupant_Seat	engine_obj2.h	2	done
 Get_The_Star	Commands->	2	done
+Get_Translated_Preset_Name	engine_tdb.h	2	done
 Has_Weapon	engine_weap.h	2	done
 Is_Radar_Enabled	engine_game.h	2	done
 Is_Unit_In_Range	engine_obj.h	2	done
@@ -223,6 +229,7 @@ Change_Team	engine_player.h	1	done
 Cinematic_Sniper_Control	Commands->	1	done
 Clear_Radar_Marker	Commands->	1	done
 Close_Chunk	Commands->	1	done
+Damage_All_Objects_Area	engine_dmg.h	1	done
 Display_Encyclopedia_Event_UI	Commands->	1	done
 Display_Health_Bar	Commands->	1	done
 Enable_Collisions	Commands->	1	done
@@ -251,6 +258,8 @@ Reveal_Encyclopedia_Weapon	Commands->	1	done
 Reveal_Map	Commands->	1	done
 Set_Background_Music	Commands->	1	done
 Set_Background_Music_Player	engine_tt.h	1	done
+Set_Damage_Points	engine_dmg.h	1	done
+Set_Death_Points	engine_dmg.h	1	done
 Set_Innate_Aggressiveness	Commands->	1	done
 Set_Obj_Radar_Blip_Color	Commands->	1	done
 Set_Obj_Radar_Blip_Shape	Commands->	1	done
@@ -286,7 +295,6 @@ AddVehiclePurchaseHook	engine_tt.h	1	n/a-plugin-hook
 RemoveObjectCreateHook	engine_tt.h	1	n/a-plugin-hook
 RemovePowerupPurchaseHook	engine_tt.h	1	n/a-plugin-hook
 Stop_Timer2	engine_tt.h	44	port-engine-work
-Remove_Weapon	engine_tt.h	34	port-engine-work
 Grant_Powerup	engine_obj.h	24	port-engine-work
 Grant_Weapon	engine_tt.h	12	port-engine-work
 Get_Damage_Warhead	engine_tt.h	11	port-engine-work
@@ -328,15 +336,11 @@ Get_Player_Name_By_ID	engine_player.h	14	port-portable-source
 Get_Translated_String	engine_tdb.h	8	port-portable-source
 Hide_Preset_By_Name	engine_pt.h	8	port-portable-source
 Is_Spy	engine_obj2.h	8	port-portable-source
-Set_Skin	engine_dmg.h	8	port-portable-source
 wcsistr	engine_string.h	7	port-portable-source
 Console_Output	engine_common.h	6	port-portable-source
 Get_Team_Name	engine_tdb.h	6	port-portable-source
 Get_Skin	engine_dmg.h	5	port-portable-source
-Get_Translated_Definition_Name	engine_tdb.h	5	port-portable-source
 Release_INI	engine_io.h	5	port-portable-source
-Set_Max_Health	engine_dmg.h	5	port-portable-source
-Set_Max_Shield_Strength	engine_dmg.h	5	port-portable-source
 Create_Zone	engine_obj2.h	4	port-portable-source
 Get_Cost	engine_pt.h	4	port-portable-source
 Get_INI	engine_io.h	3	port-portable-source
@@ -344,10 +348,8 @@ Repair_All_Buildings_By_Team	engine_dmg.h	3	port-portable-source
 Disable_All_Presets_By_Factory_Tech	engine_pt.h	2	port-portable-source
 Disable_Preset_By_Name	engine_pt.h	2	port-portable-source
 Get_Team_Score	engine_player.h	2	port-portable-source
-Get_Translated_Preset_Name	engine_tdb.h	2	port-portable-source
 Attach_Script_Once_V	engine_script.h	1	port-portable-source
 Create_Effect_All_Stealthed_Objects_Area	engine_phys.h	1	port-portable-source
-Damage_All_Objects_Area	engine_dmg.h	1	port-portable-source
 Damage_All_Objects_Area_By_Team	engine_dmg.h	1	port-portable-source
 Damage_Occupants	engine_dmg.h	1	port-portable-source
 Get_Current_Translated_Weapon	engine_tdb.h	1	port-portable-source
@@ -359,6 +361,4 @@ Ranged_Scale_Damage_To_Buildings_Team	engine_dmg.h	1	port-portable-source
 Repair_All_Buildings_By_Team_Radius	engine_dmg.h	1	port-portable-source
 Repair_All_Static_Vehicles_By_Team	engine_dmg.h	1	port-portable-source
 Repair_All_Turrets_By_Team	engine_dmg.h	1	port-portable-source
-Set_Damage_Points	engine_dmg.h	1	port-portable-source
-Set_Death_Points	engine_dmg.h	1	port-portable-source
 stristr	engine_string.h	1	port-portable-source

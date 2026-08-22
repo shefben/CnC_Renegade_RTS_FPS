@@ -7,33 +7,23 @@ Detail lives in `docs/`.
 
 ## P04: the 4.8.4 script library, natively
 
-The stock half, the registry, the thirteen replacements, the per-client seam
-and the portable API port are done (P04-A..P04-G in `completed_features.md`).
-What is left is the rest of the in-scope donor-only library: 848 scripts across
-24 files, absorbing the backlog lines "Compile unchanged stock scripts only
-when TT does not supersede them" and "Compile TT-only new scripts as additional
-canonical scripts". `tools/tt484/readiness.py` ranks the files by how many
-calls the engine still cannot answer; `jfwws.cpp` and `jfwgun.cpp` are at zero.
+The stock half, the registry, the thirteen replacements, the per-client seam,
+the portable API port, `jfwpow.cpp`, `jfwws.cpp` and the whole SSGM layer are
+done (P04-A..P04-K in `completed_features.md`). What is left is the rest of the
+in-scope donor-only library: 787 scripts across 21 files, absorbing the backlog
+lines "Compile unchanged stock scripts only when TT does not supersede them" and
+"Compile TT-only new scripts as additional canonical scripts".
+`tools/tt484/readiness.py` ranks the files by how many calls the engine still
+cannot answer.
 
-Next exact action: convert `tt_4.8.4/scripts/jfwws.cpp` (742 lines, 43
-registrations, 37 distinct classes) to `Code/Scripts/TT_World.cpp`, registering
-each as `SCRIPT_SOURCE_TT`. Six of its registrations put a `JFW_*` class under
-a second, stock name -- `M00_PCT_Pokable_DAK`, `M00_Disable_Transition`,
-`M00_GrantPowerup_Created`, `M00_Play_Sound`, `Dr_Mobius_Script`,
-`M00_BuildingStateSoundController` -- and those stock names are already merged,
-so the `JFW_*` name has to become an alias registration of the merged class
-(needs a `REGISTER_SCRIPT_ALIAS`), never a second copy: directive 0.4. Then
-`jfwgun.cpp`, then port the 42 remaining portable SDK functions
-(`docs/tt484/TTScriptApiGap.tsv`, `port-portable-source`) to unblock the rest.
-
-## P04-H: SSGM's server-management layer
-
-The five `gm*.cpp` files are 35 script registrations plus the server layer
-around them -- a TCP log socket, console commands, moderation. `gmlog.cpp`
-registers no scripts at all. The scripts belong to P04 above; this entry holds
-the server-management layer, which is not a script registry and is not yet
-decided. Next exact action: when P04's file conversion reaches `gm*.cpp`, split
-the two and ask the user whether the server layer is wanted at all.
+Next exact action: convert `tt_4.8.4/scripts/jfwgun.cpp` (5015 lines, 60
+registrations) to `Code/Scripts/TT_Weapons.cpp`, registering each as
+`SCRIPT_SOURCE_TT` and checking each name against the merged catalog first --
+`jfwws.cpp` had seven that were already ours and had to become aliases rather
+than copies. Then `jfwkey.cpp`, which also carries the four `SSGM_*_Key`
+scripts left out of `TT_SSGM.cpp`; then port the 34 remaining portable SDK
+functions (`docs/tt484/TTScriptApiGap.tsv`, `port-portable-source`) to unblock
+the rest.
 
 ---
 

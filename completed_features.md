@@ -742,3 +742,40 @@ their registered names, registered `SCRIPT_SOURCE_TT` through the new
 came with it: the 4.8.4 `Player_Type` parameter (0 Nod, 1 GDI, 2 either, 3 the
 nearest player), asked as the question it is rather than the donor's inverted
 predicate. `4769fce3`.
+
+## P04-I: jfwws.cpp, and a name that means one script
+
+29 general-purpose 4.8.4 scripts ported to `Code/Scripts/TT_World.cpp`. Seven
+names that file registers were already a script this tree owns, so they became
+alias registrations of the canonical script rather than copies -- six that
+4.8.4 registers twice itself, plus the building speaker it could not merge
+because the stock one lived in a DLL it did not build. Needed
+`DECLARE_SCRIPT_TT_NAMED` and `DECLARE_SCRIPT_MERGED_ALIAS`, which the catalog
+checker now understands. 1652 -> 1688. `e0412064`.
+
+## P04-H: SSGM, the server-side game manager, natively
+
+The user asked for the server layer as well, so P04-H is answered and built:
+`SSGMSettingsClass` (Combat) reads ssgm.ini with SSGM's own names, defaults and
+per-map overrides; `SSGMGameLog` (Combat) is the TCP log and remote console;
+`SSGMManagerClass` (Commando) subscribes to the event bus instead of patching
+hooks and comes up only while this machine is a server. The plugin loader is
+declined under directive 0.5. Vehicle claim moved onto `VehicleGameObj` beside
+the lock 4.8.4 had already added. `docs/tt484/SSGM.md`. `ffac5f34`.
+
+## P04-J: the SSGM scripts, and eight more script commands
+
+`Code/Scripts/TT_SSGM.cpp`, 32 registrations from the five `gm*.cpp` files;
+the twenty per-character backpacks are one script under twenty names and the
+powerup acknowledgements are a table. Brought `Get_Translated_Preset_Name`,
+`Get_Translated_Definition_Name`, `Remove_Weapon`, `Set_Skin`, `Set_Max_Health`,
+`Set_Max_Shield_Strength`, `Set_Damage_Points`/`Set_Death_Points` and
+`Damage_All_Objects_Area` into `ScriptEngine` with them; survey now 271 of 363
+names answered, 8007 calls. 1688 -> 1720. `ffac5f34`.
+
+## P04-K: a console-input event
+
+`GameEventBus::ConsoleInput` carries a line typed at something other than this
+machine's console. It is what let the game log live in Combat, where the
+scripts that write to it can reach it -- `Code/Scripts` compiles into
+`leveledit`, which does not link Commando. `ffac5f34`.
