@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "repairbaygameobj.h"
+#include "buildingaggregate.h"
 #include "basecontroller.h"
 #include "wwhack.h"
 #include "simpledefinitionfactory.h"
@@ -457,16 +458,49 @@ RepairBayGameObj::CnC_Initialize (BaseControllerClass *base)
 	}
 
 	//
-	//	Try to find the mesh that contains the
+	//	Try to find the mesh that emits the welding arcs.  Multiplayer maps do
+	//	not have one -- their repair bays are built from MNREP_AG_1/MGREP_AG_1 --
+	//	so note where that aggregate sits and build the effect there instead.
 	//
+	bool has_multiplay_aggregate = false;
+	Matrix3D multiplay_aggregate_tm (1);
+
 	RefMultiListIterator<BuildingAggregateClass> mesh_iterator (&Aggregates);
 	for (mesh_iterator.First (); !mesh_iterator.Is_Done (); mesh_iterator.Next ()) {
 		StaticPhysClass *phys_obj = mesh_iterator.Peek_Obj ();
-		if (phys_obj != nullptr && phys_obj->Peek_Model () != nullptr) {
-			if (::stricmp (phys_obj->Peek_Model ()->Get_Name (), "rep^NOD_fx") == 0) {
-				RepairMesh = phys_obj;
-				break;
-			}
+		if (phys_obj == nullptr || phys_obj->Peek_Model () == nullptr) {
+			continue;
+		}
+
+		const char *name = phys_obj->Peek_Model ()->Get_Name ();
+
+		//
+		//	A substring test: the exact compare this used to be missed every
+		//	aggregate the artists had numbered.
+		//
+		if (::strstr (name, "rep^NOD_fx") != nullptr || ::strstr (name, "REP^NOD_FX") != nullptr) {
+			RepairMesh = phys_obj;
+			break;
+		}
+
+		if (::stricmp (name, "MNREP_AG_1") == 0 || ::stricmp (name, "MGREP_AG_1") == 0) {
+			has_multiplay_aggregate	= true;
+			multiplay_aggregate_tm	= phys_obj->Get_Transform ();
+		}
+	}
+
+	if (	RepairMesh == nullptr &&
+			has_multiplay_aggregate &&
+			BuildingAggregateDefClass::Get_Repair_Bay_Effect_Def () != nullptr)
+	{
+		BuildingAggregateClass *aggregate =
+			(BuildingAggregateClass *)BuildingAggregateDefClass::Get_Repair_Bay_Effect_Def ()->Create ();
+
+		if (aggregate != nullptr) {
+			Add_Aggregate (aggregate);
+			aggregate->Set_Transform (multiplay_aggregate_tm);
+			RepairMesh = aggregate;
+			aggregate->Release_Ref ();
 		}
 	}
 
@@ -802,17 +836,35 @@ RepairBayGameObj::Update_Repairing_Animations (void)
 	//
 	for (int index = 0; index < VehicleList.Count (); index ++) {
 		ScriptableGameObj *game_obj = VehicleList[index];
-		if (game_obj != nullptr) {
-			PhysicalGameObj *physical_game_obj	= game_obj->As_PhysicalGameObj ();
-			RenderObjClass *model					= physical_game_obj->Peek_Model ();
-			if (model != nullptr) {
+		if (game_obj == nullptr) {
+			continue;
+		}
 
-				//
-				//	Randomize the welding-arc's that this vehicle gets
-				//
-				if (FreeRandom.Get_Int (4) == 1) {
-					Emit_Welding_Arc (model);
-				}
+		PhysicalGameObj *physical_game_obj = game_obj->As_PhysicalGameObj ();
+		if (physical_game_obj == nullptr) {
+			continue;
+		}
+
+		//
+		//	The list holds everything in the zone, repairing or not, so an
+		//	undamaged vehicle used to get welded at too.
+		//
+		DefenseObjectClass *defense = physical_game_obj->Get_Defense_Object ();
+		if (	defense != nullptr &&
+				defense->Get_Health () >= defense->Get_Health_Max () &&
+				defense->Get_Shield_Strength () >= defense->Get_Shield_Strength_Max ())
+		{
+			continue;
+		}
+
+		RenderObjClass *model = physical_game_obj->Peek_Model ();
+		if (model != nullptr) {
+
+			//
+			//	Randomize the welding-arc's that this vehicle gets
+			//
+			if (FreeRandom.Get_Int (4) == 1) {
+				Emit_Welding_Arc (model);
 			}
 		}
 	}

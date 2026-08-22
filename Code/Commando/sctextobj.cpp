@@ -379,7 +379,12 @@ cScTextObj::Import_Creation(BitStreamClass & packet)
 	packet.Get(SenderId);
 	packet.Get(RecipientId);
 	packet.Get(IsHostAdminMessage);
-	packet.Get_Wide_Terminated_String(Text.Get_Buffer(256), 256);
+	//
+	//	512, not 256: the console "msg" command and the datasafe's own messages
+	//	are not capped the way the chat box is, and a longer one both tripped
+	//	the length assert and arrived truncated.
+	//
+	packet.Get_Wide_Terminated_String(Text.Get_Buffer(512), 512);
 
 	Act();
 }

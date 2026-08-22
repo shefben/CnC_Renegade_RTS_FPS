@@ -154,7 +154,7 @@ cCsTextObj::Import_Creation(BitStreamClass & packet)
 	packet.Get(SenderId);
 	BYTE type = packet.Get(type);
 	Type = (TextMessageEnum) type;
-	packet.Get_Wide_Terminated_String(Text.Get_Buffer(256), 256);
+	packet.Get_Wide_Terminated_String(Text.Get_Buffer(512), 512);
 	packet.Get(Recipient);
 
 	Act();

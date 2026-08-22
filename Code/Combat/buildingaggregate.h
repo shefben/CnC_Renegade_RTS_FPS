@@ -117,7 +117,17 @@ public:
 
 	DECLARE_EDITABLE( BuildingAggregateDefClass, StaticAnimPhysDefClass );
 
+	//
+	//	The repair bay's welding-arc effect.  Multiplayer maps build their
+	//	repair bays out of aggregates that do not include it, so
+	//	RepairBayGameObj has to create one -- and it can only do that if
+	//	something kept the definition when it went past.
+	//
+	static BuildingAggregateDefClass *	Get_Repair_Bay_Effect_Def( void )	{ return _RepairBayEffectDef; }
+
 protected:
+
+	static BuildingAggregateDefClass *	_RepairBayEffectDef;
 
 	bool											Save_State_Animation_Data(ChunkSaveClass & csave,int state_index);
 	bool											Load_State_Animation_Data(ChunkLoadClass & cload,int state_index);

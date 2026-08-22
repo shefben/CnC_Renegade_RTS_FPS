@@ -669,6 +669,8 @@ bool BuildingAggregateDefClass::Save_State_Animation_Data(ChunkSaveClass & csave
  * HISTORY:                                                                                    *
  *   8/29/2000  gth : Created.                                                                 *
  *=============================================================================================*/
+BuildingAggregateDefClass *	BuildingAggregateDefClass::_RepairBayEffectDef = nullptr;
+
 bool	BuildingAggregateDefClass::Load( ChunkLoadClass &cload )
 {
 	while (cload.Open_Chunk()) {
@@ -710,6 +712,15 @@ bool	BuildingAggregateDefClass::Load( ChunkLoadClass &cload )
 
 		}
 		cload.Close_Chunk();
+	}
+
+	//
+	//	Keep hold of the repair bay's welding-arc effect; see the header.
+	//
+	if ( ::strstr (ModelName.Peek_Buffer (), "rep^nod_fx") != nullptr ||
+		  ::strstr (ModelName.Peek_Buffer (), "REP^NOD_FX") != nullptr )
+	{
+		_RepairBayEffectDef = this;
 	}
 
 	return true;
