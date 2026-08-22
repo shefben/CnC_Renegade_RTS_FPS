@@ -655,6 +655,13 @@ void cNetUtil::Lan_Servicing(SOCKET & sock, LanPacketHandlerCallback p_callback)
 				if (wwnet::SocketGetLastError() != WSAEWOULDBLOCK) {
 					WSA_ERROR;
 				}
+		} else if (retcode < (int)sizeof(unsigned int)) {
+			//
+			// Anything shorter than a single header word cannot be decoded. Handing it
+			// to the callback set a bit length smaller than the fields that callback
+			// then reads, so a runt broadcast read off the end of the packet.
+			//
+			WWDEBUG_SAY(("cNetUtil::Lan_Servicing: discarding runt packet of %d bytes\n", retcode));
 		} else {
 			/*
 			//

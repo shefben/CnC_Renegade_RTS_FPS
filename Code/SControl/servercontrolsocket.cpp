@@ -787,7 +787,20 @@ void ServerControlSocketClass::Service(void)
 					DebugString(("ServerControlSocketClass - recvfrom returned error code %d\n", LAST_ERROR));
 					Clear_Socket_Error();
 					break;
-				} else {
+				}
+
+				/*
+				** A datagram has to be at least as long as the CRC that precedes the
+				** payload. Below that, BufferLen underflows and the memcpy below asks
+				** for close to 4GB out of a 640 byte buffer -- reachable by anyone who
+				** can send a one byte packet to this port.
+				*/
+				if (result < (int)sizeof(WinsockBufferType::CRC)) {
+					DebugString(("ServerControlSocketClass - discarding runt packet of %d bytes\n", result));
+					continue;
+				}
+
+				{
 
 					/*
 					** Create a new holding buffer to store this packet in.

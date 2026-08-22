@@ -211,10 +211,89 @@ left:
 The `wwnet` remainder, then `Commando/cnetwork.cpp` (32), then the purchase
 terminal, combat objects and UI per section 4.
 
-One cluster is **not resolvable from the donor tree alone**: the six
-`WriteMemory` byte patches commented `UDP fixes` (`tt.cpp:1810-1815`). They
-rewrite comparison operands and jump opcodes at six addresses spread across
-unrelated subsystems, carry no replacement symbol, and the name does not match
-any UDP code — the addresses are nowhere near the netcode. Reading them needs a
-disassembly of the stock binary, which this project does not keep. They are the
-`low` confidence rows in the matrix.
+### 5.4 The `UDP fixes` cluster — resolved
+
+This document previously recorded the six `WriteMemory` patches commented
+`UDP fixes` (`tt.cpp:1810-1815`) as unreadable without a disassembly the project
+does not keep. They have now been read.
+
+**The binary.** TT picks its address table by testing 19 bytes at a fixed
+address (`scripts/engine_common.cpp:80,95-97`); `0x0078CE49` selects `Exe == 0`,
+the game client. The image that satisfies it is **`Game.exe`, 4,399,104 bytes,
+md5 `26a203bdc1e58909644dc74694c16fde`**. `RenegadeR.exe` from a TT r3474 install
+is *not* it — it carries the same signature at `0x00765737`, so every TT 4.8.4
+address lands mid-instruction there and decodes as nonsense. Anyone re-running
+this work must check the signature before trusting an address.
+
+**What the six patches say.** All of them are the same edit at six `recvfrom()`
+call sites: the immediate of a `cmp reg, -1` becomes `4` and the following
+branch is retargeted or resized to match.
+
+    n = recvfrom(...);
+    if (n == SOCKET_ERROR) discard;      ->      if (n < 4) discard;
+
+Stock rejected only `SOCKET_ERROR`, so a datagram of 0-3 bytes went straight
+into code that subtracts a four byte header from the length. The name is
+accurate after all; the addresses are spread out because the receive loop is
+duplicated across four subsystems.
+
+| Patch | Stock site | Stock code | Native owner | Status |
+| --- | --- | --- | --- | --- |
+| `UDP1` | `0x0046A76E` | `cmp edi,-1` / `jz` | `Code/Commando/natsock.cpp` — `SocketHandlerClass` | merged |
+| `UDP5` | `0x007725B2` | `cmp edi,-1` / `jz` | `Code/SControl/servercontrolsocket.cpp` — `ServerControlSocketClass` | merged |
+| `UDP4` | `0x0061F99B` | `cmp esi,-1` / `jnz` | `Code/wwnet/netutil.cpp` — `cNetUtil::Lan_Servicing` | merged |
+| `UDP6` | `0x00773843` | `cmp eax,-1` / `jz` | GameSpy SDK | N/A — not in tree |
+| `UDP7` | `0x007757F2` | `cmp eax,-1` / `jz` | GameSpy query-and-reporting SDK | N/A — not in tree |
+| `UDP8` | `0x00775EED` | `jz` → `nop; jmp` | same GameSpy dispatcher | N/A — not in tree |
+
+`UDP1` and `UDP5` are the serious ones. Both loops do
+
+    packet->BufferLen = result - sizeof(packet->CRC);
+    memcpy(packet->Buffer, ReceiveBuffer + sizeof(packet->CRC), packet->BufferLen);
+
+with `BufferLen` an `int` and the memcpy count unsigned, so a zero byte datagram
+requests a copy of about 4GB out of a 640 byte stack buffer. One packet, no
+authentication, no session. The two sites are the only two
+`RECEIVE_BUFFER_LEN 640` handlers in the tree and the stock image carries
+exactly two copies of the loop.
+
+`UDP4` is milder: a runt broadcast reached the LAN callback with a bit length
+smaller than the fields that callback reads.
+
+The merged form differs from TT in one place. TT sends a runt packet down the
+same path as `SOCKET_ERROR`, which **breaks out of the receive loop** for that
+tick — so a stream of one byte packets stops the client draining real ones. The
+native version discards and continues; the loop head re-reads `FIONREAD` and is
+already bounded by its own retry counter, so continuing is safe and strictly
+better.
+
+`UDP6`/`UDP7`/`UDP8` land in the GameSpy SDK statically linked into the stock
+binary — `UDP8`'s function formats `\queryid\%d.%d`, and `UDP8` itself is not a
+bounds fix at all: it forces the `;`-prefixed remote command dispatch through
+`vtbl+0xFC` to be skipped unconditionally. That SDK is not part of this tree and
+its master server is gone, so the three have no native destination.
+
+### 5.5 Other opaque patches read from the same image
+
+- **`SlidePrecision`** (`0x007E1880`, "wall lag fix") — stock `1.01f`, TT writes
+  `1.0f`. Read at `0x0065B32A` in the contact-normal loop of
+  `Code/wwphys/phys3.cpp`. Scaling the removal of the inward velocity component
+  by 1.01 does not cancel that component, it reverses a little of it, so a body
+  sliding along a wall is pushed off every frame. **Merged.**
+- **`StartBugFix`** (`0x004C188C`, "start button bug fix") — stock
+  `jl short 0x004C18B0`, TT writes `jmp 0x004C1933`, skipping a sample-append
+  and the averaging loop that follows it. The containing function
+  (`sub_4C16D0`) looks up a 280 byte record by name with `_strcmpi`, keeps
+  timestamps in a rolling 4000 ms window, and returns a count through its second
+  argument — a named-statistics collector. Its OpenW3D owner is **not yet
+  identified**; recorded here so the next pass starts from the evidence rather
+  than the opcode.
+- **`VehicleOwnershipPatch`** (`hookAsCall 0x0073F22D`) — the call site is
+  `sub_73F0C0` calling `sub_708AF0`; it is gated on the `VehicleOwnershipDisable`
+  ini option, so it is a TT feature toggle rather than a fix. Deferred with the
+  rest of the vehicle-ownership work.
+
+### 5.6 Still open
+
+The `wwnet` remainder, then `Commando/cnetwork.cpp` (32), then the purchase
+terminal, combat objects and UI per section 4.

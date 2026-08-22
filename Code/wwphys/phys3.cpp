@@ -2047,10 +2047,15 @@ void Phys3Class::Clip_Move(const Vector3 * contacts,int contact_count,Vector3 * 
 
 		VERBOSE_LOG(("  normal[%d] = %f %f %f\r\n",i,contacts[i].X,contacts[i].Y,contacts[i].Z));
 
-		// push the velocity a little bit away from the plane
+		// Remove the component of the velocity that points into the plane.
+		//
+		// This used to scale the removal by 1.01f, which does not just cancel the
+		// inward component but reverses a little of it, so a body sliding along a
+		// wall was pushed off it every frame and had to be pushed back. That shows
+		// up as the character lagging and stuttering against walls.
 		float dot = Vector3::Dot_Product(*move,contacts[i]);
 		if (dot < 0.0f) {
-			Vector3 adjustment = 1.01f * dot * contacts[i];
+			Vector3 adjustment = dot * contacts[i];
 			*move -= adjustment;
 			//WWASSERT(Vector3::Dot_Product(*move,contacts[i]) >= 0.0f);
 		}
