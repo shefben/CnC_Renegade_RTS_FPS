@@ -154,9 +154,20 @@ class cRemoteHost
 		void Set_Total_Resent_Packets_In_Queue (int resent_packets) {TotalResentPacketsInQueue = resent_packets;}
 
 
-		inline int Get_Priority_Update_Counter(void)	{return(PriorityUpdateCounter);}
-		inline void Increment_Priority_Count(void)	{PriorityUpdateCounter++; if (PriorityUpdateCounter > PriorityUpdateRate) PriorityUpdateCounter = 0;}
-		static void Set_Priority_Update_Rate(int rate)	{PriorityUpdateRate = rate;}
+		//
+		//	Object priorities are recomputed on a wall clock, not on a frame
+		//	count.  Counting frames made the interval between recomputations
+		//	move with the server frame rate -- the one thing it exists to bound.
+		//	Returns true when this call is the one that should recompute.
+		//
+		bool Priority_Update_Due(unsigned int current_time)
+		{
+			if (current_time - PriorityUpdateTime >= PRIORITY_UPDATE_MS) {
+				PriorityUpdateTime = current_time;
+				return true;
+			}
+			return false;
+		}
 
 		static inline void Set_Allow_Extra_Modem_Bandwidth_Throttling(bool set) {AllowExtraModemBandwidthThrottling = set;}
 
@@ -202,7 +213,7 @@ class cRemoteHost
 		unsigned int	WasLoading;
 		unsigned int	TotalResends;
 		unsigned int	CreationTime;
-		int				PriorityUpdateCounter;
+		unsigned int	PriorityUpdateTime;
 
 		//
 		// Variables for detecting outgoing packet floods.
@@ -216,7 +227,7 @@ class cRemoteHost
 		int				NumOutgoingFloods;
 
 		static bool		AllowExtraModemBandwidthThrottling;
-		static int		PriorityUpdateRate;
+		enum { PRIORITY_UPDATE_MS = 500 };
 
 };
 

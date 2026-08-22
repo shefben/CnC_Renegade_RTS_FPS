@@ -155,7 +155,6 @@ bool CombatNetworkReceiverInstanceClass::Server_Update_Dynamic_Objects(bool is_u
 	//
 	// cRemoteHost figures out when to update priorities based on this so keep it in sync with the NetUpdateRate.
 	//
-	cRemoteHost::Set_Priority_Update_Rate(cUserOptions::NetUpdateRate.Get());
 
    //
    // TSS - bug

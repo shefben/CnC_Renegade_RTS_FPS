@@ -38,7 +38,6 @@
 #include <algorithm>
 
 bool cRemoteHost::AllowExtraModemBandwidthThrottling = true;
-int cRemoteHost::PriorityUpdateRate = 15;
 
 //
 // class defines
@@ -69,7 +68,7 @@ cRemoteHost::cRemoteHost() :
 	WasLoading(0),
 	CreationTime(TIMEGETTIME()),
 	TotalResends(0),
-	PriorityUpdateCounter(0),
+	PriorityUpdateTime(TIMEGETTIME() - PRIORITY_UPDATE_MS),
 	ExtendedAveragePingTime(0),
 	ExtendedAverageCount(0),
 	LastAveragePingTime(0),

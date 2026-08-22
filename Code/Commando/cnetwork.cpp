@@ -365,7 +365,7 @@ void cNetwork::Refusal_Handler([[maybe_unused]] REFUSAL_CODE refusal_code)
 		IDS_MP_CONNECTION_REFUSED_GAME_FULL,      // REFUSAL_GAME_FULL
 		IDS_MP_PASSWORD_WRONG, // REFUSAL_BAD_PASSWORD
 		IDS_MENU_VERSION_MISMATCH, // REFUSAL_VERSION_MISMATCH
-		IDS_MP_CONNECTION_REFUSED_BY_APPLICATION, // REFUSAL_PLAYER_EXISTS
+		IDS_MP_NICKNAME_IN_USE, // REFUSAL_PLAYER_EXISTS
 		IDS_MP_CONNECTION_REFUSED_BY_APPLICATION  // REFUSAL_BY_APPLICATION
 		};
 
@@ -1418,6 +1418,62 @@ void cNetwork::Shell_Command(LPCSTR command)
 }
 
 //-----------------------------------------------------------------------------
+bool cNetwork::Is_Player_Name_Valid(const WideStringClass & player_name)
+{
+	const int length = player_name.Get_Length();
+
+	const int MAX_NAME_LENGTH = 35;
+
+	if (length <= 0 || length > MAX_NAME_LENGTH) {
+		return false;
+	}
+
+	//
+	//	Printable ASCII only, and no leading, trailing or doubled space.
+	//	Starting out "inside" a space is what rejects a leading one; the same
+	//	flag still being set at the end is what rejects a trailing one.
+	//
+	bool prev_was_space = true;
+
+	for (int index = 0; index < length; index ++) {
+		wchar_t ch = player_name[index];
+
+		if (ch == L' ') {
+			if (prev_was_space) {
+				return false;
+			}
+			prev_was_space = true;
+		} else if (ch >= L' ' && ch <= L'~') {
+			prev_was_space = false;
+		} else {
+			return false;
+		}
+	}
+
+	return prev_was_space == false;
+}
+
+//-----------------------------------------------------------------------------
+bool cNetwork::Is_Player_Name_Allowed(const WideStringClass & player_name)
+{
+	if (Is_Player_Name_Valid(player_name) == false) {
+		return false;
+	}
+
+	//
+	//	A remote player may not wear the server's own name.  On a listen server
+	//	the host is a player too, and Find_Player below already covers them.
+	//
+	if (	I_Am_Client_Server() == false &&
+			player_name.Compare(cNetInterface::Get_Nickname()) == 0)
+	{
+		return false;
+	}
+
+	return cPlayerManager::Find_Player(player_name) == nullptr;
+}
+
+//-----------------------------------------------------------------------------
 REFUSAL_CODE cNetwork::Application_Acceptance_Handler(cPacket & packet)
 {
 #ifndef BETACLIENT
@@ -1427,15 +1483,18 @@ REFUSAL_CODE cNetwork::Application_Acceptance_Handler(cPacket & packet)
 	WWASSERT(I_Am_Server());
 
 	//
-	// Get player name
-	// This is not supposed to be empty, but if for whatever reason it it, we should
-	// just refuse, rather than crash.
+	// Get player name.  Stock only caught the empty case, and reported it as a
+	// version mismatch, so a client with an unusable name was told to go and
+	// patch.  Anything the name itself can be wrong about is refused here.
 	//
 	WideStringClass player_name(0, true);
-	//packet.Get_Wide_Terminated_String(player_name.Get_Buffer(256), 256);
 	packet.Get_Wide_Terminated_String(player_name.Get_Buffer(256), 256, true);
-	if (player_name.Get_Length() == 0) {
-      return REFUSAL_VERSION_MISMATCH;
+	if (Is_Player_Name_Valid(player_name) == false) {
+		const unsigned char * ip =
+			(const unsigned char *)&packet.Get_From_Address_Wrapper()->FromAddress.sin_addr;
+		ConsoleBox.Print_Maybe("Player with invalid nickname blocked, player IP was %u.%u.%u.%u\n",
+			ip[0], ip[1], ip[2], ip[3]);
+      return REFUSAL_PLAYER_EXISTS;
 	}
 
 	// Get the clients password
@@ -1464,11 +1523,13 @@ REFUSAL_CODE cNetwork::Application_Acceptance_Handler(cPacket & packet)
 	//
 	// TSS100501
 	//
-	// Make sure the player is not already in the game
-   //GAMESPY
-	//if (cPlayerManager::Find_Player(player_name)) {
-	if (!cGameSpyAdmin::Is_Gamespy_Game() &&
-	    cPlayerManager::Find_Player(player_name)) {
+	// Make sure the name is not already spoken for -- by another player, or by
+	// the server itself.  GameSpy is exempt: it renames a colliding nickname in
+	// cBioEvent::Act rather than refusing the connection.
+	//
+	if (	cGameSpyAdmin::Is_Gamespy_Game() == false &&
+			Is_Player_Name_Allowed(player_name) == false)
+	{
 		return REFUSAL_PLAYER_EXISTS;
 	}
 

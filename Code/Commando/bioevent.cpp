@@ -99,8 +99,20 @@ cBioEvent::Act(void)
 	// Now the server will see additional data.
 	//
 
-	bool is_accepted = true;
+	//
+	//	The name arrives here a second time, and on the GameSpy path this is the
+	//	first the server sees of it -- Application_Acceptance_Handler skips the
+	//	collision checks for GameSpy so the rename below can happen.  A name
+	//	that is malformed rather than merely taken is refused outright.
+	//
+	bool is_accepted = cNetwork::Is_Player_Name_Valid(Nickname);
 	EvictionCodeEnum eviction_code = EVICTION_POOR_BANDWIDTH;
+
+	if (is_accepted == false) {
+		StringClass name (128, true);
+		Nickname.Convert_To (name);
+		ConsoleBox.Print_Maybe ("Player with invalid nickname blocked: %s\n", name.Peek_Buffer ());
+	}
 
    if (is_accepted) {
 		//

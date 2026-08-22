@@ -94,6 +94,15 @@ public:
 	static void Refusal_Handler(REFUSAL_CODE refusal_code);
    static void Connection_Handler(int new_rhost_id);
 	static REFUSAL_CODE Application_Acceptance_Handler(cPacket & packet);
+
+	//
+	//	Name validation.  Is_Player_Name_Valid checks the form of the name on
+	//	its own; Is_Player_Name_Allowed adds the collision checks, which some
+	//	callers have to skip (GameSpy renames a colliding nickname rather than
+	//	refusing it).
+	//
+	static bool	Is_Player_Name_Valid(const WideStringClass & player_name);
+	static bool	Is_Player_Name_Allowed(const WideStringClass & player_name);
    static void Eviction_Handler(int evicted_rhost_id);
 
    static bool I_Am_Client(void)				{return PClientConnection != nullptr;}

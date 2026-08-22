@@ -471,8 +471,7 @@ if (cDevOptions::UseNewTCADO.Is_False()) {
 
 	cRemoteHost *r_host = cNetwork::Get_Server_Rhost(client_id);
 
-	bool update_priorities = (r_host->Get_Priority_Update_Counter() == 0) ? true : false;
-	r_host->Increment_Priority_Count();
+	bool update_priorities = r_host->Priority_Update_Due(TIMEGETTIME());
 
 	int i;
 	VisTableClass *pvs = nullptr;
