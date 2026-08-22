@@ -35,7 +35,7 @@ DECLARE_FORCE_LINK (Superweapon)
 ////////////////////////////////////////////////////////////////
 SimplePersistFactoryClass	<SuperweaponGameObjDef,	CHUNKID_GAME_OBJECT_DEF_SUPERWEAPON>						_SuperweaponGameObjDefPersistFactory;
 SimplePersistFactoryClass	<SuperweaponGameObj,		CHUNKID_GAME_OBJECT_SUPERWEAPON>								_SuperweaponGameObjPersistFactory;
-DECLARE_DEFINITION_FACTORY (SuperweaponGameObjDef,	CLASSID_GAME_OBJECT_DEF_SUPERWEAPON, "Superweapon")	_SuperweaponGameObjDefDefFactory (false);
+DECLARE_DEFINITION_FACTORY (SuperweaponGameObjDef,	CLASSID_GAME_OBJECT_DEF_SUPERWEAPON, "Superweapon")	_SuperweaponGameObjDefDefFactory;
 
 ////////////////////////////////////////////////////////////////
 //	Constants

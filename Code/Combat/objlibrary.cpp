@@ -114,6 +114,8 @@ void Force_Link_Combat( void )
 	FORCE_LINK( RepairBay );
 	FORCE_LINK( AirStrip );
 	FORCE_LINK( WarFactory );
+	FORCE_LINK( ConstructionYard );
+	FORCE_LINK( Superweapon );
 
 	FORCE_LINK( doorphys );
 	FORCE_LINK( elevatorphys );

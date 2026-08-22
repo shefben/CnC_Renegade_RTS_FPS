@@ -33,7 +33,7 @@ DECLARE_FORCE_LINK (ConstructionYard)
 ////////////////////////////////////////////////////////////////
 SimplePersistFactoryClass	<ConstructionYardGameObjDef,	CHUNKID_GAME_OBJECT_DEF_CONSTRUCTION_YARD>								_ConstructionYardGameObjDefPersistFactory;
 SimplePersistFactoryClass	<ConstructionYardGameObj,		CHUNKID_GAME_OBJECT_CONSTRUCTION_YARD>									_ConstructionYardGameObjPersistFactory;
-DECLARE_DEFINITION_FACTORY (ConstructionYardGameObjDef,	CLASSID_GAME_OBJECT_DEF_CONSTRUCTION_YARD, "Construction Yard")	_ConstructionYardGameObjDefDefFactory (false);
+DECLARE_DEFINITION_FACTORY (ConstructionYardGameObjDef,	CLASSID_GAME_OBJECT_DEF_CONSTRUCTION_YARD, "Construction Yard")	_ConstructionYardGameObjDefDefFactory;
 
 ////////////////////////////////////////////////////////////////
 //	Save/Load constants
