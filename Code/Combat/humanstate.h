@@ -194,6 +194,12 @@ public:
 	//	loiters are allowed, only the loiter delay governs, so a soldier will
 	//	loiter while walking.
 	//
+	//
+	//	Weapon hold style override.  -1 leaves the choice to the weapon; any
+	//	other value pins the style, so Update_Weapon stops taking the weapon's.
+	//
+	void				Set_Override_Weapon_Hold_Style( int style_id );
+	int				Get_Override_Weapon_Hold_Style( void )				{ return OverrideWeaponHoldStyle; }
 	void				Set_Movement_Loiters_Allowed( bool allowed )			{ MovementLoitersAllowed = allowed; }
 	bool				Get_Movement_Loiters_Allowed( void )					{ return MovementLoitersAllowed; }
 
@@ -206,6 +212,7 @@ private:
 	int					StateFlags;
 	int					SubState;
 	int					WeaponHoldStyle;		// How is he holding his weapon?
+	int					OverrideWeaponHoldStyle;	// Pinned style, or -1
 	float					WeaponHoldTimer;		// How long until we lower the weapon?
 	bool					LoitersAllowed;
 	bool					MovementLoitersAllowed;

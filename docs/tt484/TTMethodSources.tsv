@@ -116,23 +116,6 @@ ScriptedDialogClass	Get_Control_Index	1	1	absent	declaration-only				nowhere		vi
 ScriptedDialogClass	Remove_Control	1	1	absent	declaration-only				owned elsewhere	DialogBaseClass	virtual void Remove_Control(int id);
 ScriptedDialogClass	ScriptedDialogClass	2	0	absent	declaration-only				nowhere		ScriptedDialogClass(int client, int dlg_id);
 ScriptedDialogClass	~ScriptedDialogClass	0	1	absent	declaration-only				nowhere		virtual ~ScriptedDialogClass();
-SoldierGameObj	Apply_Damage_IgnoreVehicleCheck	3	1	present	declaration-only				nowhere		virtual void Apply_Damage_IgnoreVehicleCheck( const OffenseObjectClass & damager, float scale = 1.0f, int alternate_skin = -1 );
-SoldierGameObj	Disable_Ghost_Collision	0	0	present	declaration-only				nowhere		bool Disable_Ghost_Collision();
-SoldierGameObj	Get_Contact_Surface_Type	0	1	present	declaration-only				owned elsewhere	Phys3Class	virtual int Get_Contact_Surface_Type();
-SoldierGameObj	Get_Human_Anim_Override	0	1	present	declaration-only				nowhere		virtual int Get_Human_Anim_Override();
-SoldierGameObj	Get_Locked_Collision_Mode	0	0	present	declaration-only				nowhere		Collision_Group_Type *Get_Locked_Collision_Mode();
-SoldierGameObj	Get_Override_Weapon_Hold_Style	0	1	present	declaration-only				nowhere		virtual int Get_Override_Weapon_Hold_Style();
-SoldierGameObj	Get_Skeleton_Heigth	0	1	present	declaration-only				nowhere		virtual float Get_Skeleton_Heigth( void );
-SoldierGameObj	Get_Skeleton_Width	0	1	present	declaration-only				nowhere		virtual float Get_Skeleton_Width( void );
-SoldierGameObj	Lock_Collision_Mode	2	0	present	declaration-only				nowhere		void Lock_Collision_Mode(bool lockCollisionGroup,Collision_Group_Type lock);
-SoldierGameObj	Set_Delete_Pending	0	1	present	declaration-only				owned elsewhere	BackgroundMgrClass,BaseControllerClass,NetworkObjectClass,ScriptableGameObj,WeatherMgrClass,cServerFps	virtual void Set_Delete_Pending (void);
-SoldierGameObj	Set_Enable_Foot_Steps	1	1	present	declaration-only				nowhere		virtual void Set_Enable_Foot_Steps(bool enableFootSteps);
-SoldierGameObj	Set_Human_Anim_Override	1	1	present	declaration-only				owned elsewhere	HumanStateClass	virtual void Set_Human_Anim_Override(bool enableHumanAnimOverride);
-SoldierGameObj	Set_Override_Weapon_Hold_Style	1	1	present	declaration-only				nowhere		virtual void Set_Override_Weapon_Hold_Style(int overrideWeaponHoldStyleId);
-SoldierGameObj	Set_Skeleton_Height	1	1	present	declaration-only				nowhere		virtual void Set_Skeleton_Height( float height );
-SoldierGameObj	Set_Skeleton_Width	1	1	present	declaration-only				nowhere		virtual void Set_Skeleton_Width( float width );
-SoldierGameObj	Trigger_Smooth_Skeleton_Height_Resize	2	1	present	declaration-only				nowhere		virtual void Trigger_Smooth_Skeleton_Height_Resize(float targetHeight,float speed);
-SoldierGameObj	Trigger_Smooth_Skeleton_Width_Resize	2	1	present	declaration-only				nowhere		virtual void Trigger_Smooth_Skeleton_Width_Resize(float targetWidth,float speed);
 SuperweaponGameObj	Get_Definition	0	0	absent	defined	tt_4.8.4/scripts/engine_obj.cpp	141				SCRIPTS_API const SuperweaponGameObjDef & Get_Definition (void) const;
 SuperweaponGameObj	As_SuperweaponGameObj	0	0	absent	inline-header	tt_4.8.4/scripts/SuperweaponGameObj.h	23				SuperweaponGameObj * As_SuperweaponGameObj (void) { return this; }
 SuperweaponGameObj	Is_Launching	0	0	absent	inline-header	tt_4.8.4/scripts/SuperweaponGameObj.h	31				bool Is_Launching() {return Launching;}

@@ -58,6 +58,10 @@
 	#include "dialogue.h"
 #endif
 
+#ifndef	COMBAT_H
+	#include "combat.h"		// Collision_Group_Type
+#endif
+
 
 struct TransitionCompletionDataStruct;
 class	PrivateTimerClass;
@@ -157,6 +161,12 @@ public:
 
 	// Damage
 	virtual	void	Apply_Damage( const OffenseObjectClass & damager, float scale = 1.0f, int alternate_skin = -1 ) override;
+
+	//
+	//	Apply_Damage hands damage to the vehicle instead while the soldier is
+	//	riding in one.  This is the way to hurt the occupant himself.
+	//
+	void				Apply_Damage_IgnoreVehicleCheck( const OffenseObjectClass & damager, float scale = 1.0f, int alternate_skin = -1 );
    virtual	void	Apply_Damage_Extended( const OffenseObjectClass & offense, float scale = 1.0f,
 			const	Vector3 & direction = Vector3( 0,0,0 ), const char * collision_box_name = nullptr ) override;
 	virtual	void	Completely_Damaged( const OffenseObjectClass & /* damager */ ) override {}
@@ -305,6 +315,13 @@ public:
 	bool					Is_Soldier_Blocked( const Vector3 &curr_pos );
 	bool					Is_Safe_To_Disable_Ghost_Collision( const Vector3 &curr_pos );
 
+	//
+	//	The alternate to Is_Safe_To_Disable_Ghost_Collision, selected by
+	//	Get_Use_Stock_Ghost_Behavior.  Answers whether ghosting may be turned off
+	//	now, judging only this soldier and not the crowd around him.
+	//
+	bool					Disable_Ghost_Collision( void );
+
 
 	//
 	// Speech support
@@ -389,6 +406,64 @@ public:
 	//	with Disable_Ghost_Collision.
 	//
 	bool					Get_Use_Stock_Ghost_Behavior( void )	{ return UseStockGhostBehavior; }
+
+	//
+	//	Per-instance skeleton size.  The definition seeds these; changing one
+	//	rebuilds the interpolated HTree through Adjust_Skeleton and replicates.
+	//	Get_Skeleton_Heigth is spelled TT's way.
+	//
+	virtual float		Get_Skeleton_Heigth( void )			{ return SkeletonHeight; }
+	virtual void		Set_Skeleton_Height( float height );
+	virtual float		Get_Skeleton_Width( void )				{ return SkeletonWidth; }
+	virtual void		Set_Skeleton_Width( float width );
+
+	//
+	//	Animated skeleton resize.  Speed is skeleton units per second and runs in
+	//	Think until the target is reached; zero or less snaps straight there.
+	//
+	virtual void		Trigger_Smooth_Skeleton_Height_Resize( float target_height, float speed );
+	virtual void		Trigger_Smooth_Skeleton_Width_Resize( float target_width, float speed );
+
+	//
+	//	Weapon hold style override.  -1 lets the weapon choose its own style;
+	//	anything else pins the style HumanStateClass animates to.
+	//
+	virtual void		Set_Override_Weapon_Hold_Style( int style_id );
+	virtual int			Get_Override_Weapon_Hold_Style( void );
+
+	//
+	//	Runtime toggle for the definition's human anim override.  The int return
+	//	is TT's declaration; the value is the flag.
+	//
+	virtual void		Set_Human_Anim_Override( bool enable );
+	virtual int			Get_Human_Anim_Override( void )		{ return EnableHumanAnimOverride; }
+
+	//
+	//	Footstep surface effects.  Off suppresses the effect and, with it, the
+	//	sound nearby AI would have heard.
+	//
+	virtual void		Set_Enable_Foot_Steps( bool enable )	{ EnableFootSteps = enable; }
+	bool					Get_Enable_Foot_Steps( void )			{ return EnableFootSteps; }
+
+	//
+	//	Surface the soldier is standing on.  Everything in here that reacts to
+	//	the ground asks through this, so an override reaches all of it.
+	//
+	virtual int			Get_Contact_Surface_Type( void );
+
+	//
+	//	Collision-group lock.  While locked the soldier stays in the given group:
+	//	the automatic ghosting path and fly mode both defer to it.
+	//	Get_Locked_Collision_Mode returns nullptr when nothing is locked.
+	//
+	void					Lock_Collision_Mode( bool lock_collision_group, Collision_Group_Type lock );
+	Collision_Group_Type *	Get_Locked_Collision_Mode( void );
+
+	//
+	//	A soldier waiting to be deleted must let go of the vehicle it is riding
+	//	in at once, not at destruction time.
+	//
+	virtual void		Set_Delete_Pending( void ) override;
 
 	//
 	//	Bots are server-spawned soldiers with no PlayerDataClass.  The tag is
@@ -476,6 +551,17 @@ protected:
 	float						LastScale;				// Scale currently applied to the model
 	WideStringClass		BotTag;
 
+	float					SkeletonHeight;		// Applied skeleton interpolation, 0 is the base skeleton
+	float					SkeletonWidth;
+	float					TargetSkeletonHeight;	// Where a smooth resize is heading
+	float					TargetSkeletonWidth;
+	float					SkeletonHeightResizeSpeed;	// Units per second, 0 when not resizing
+	float					SkeletonWidthResizeSpeed;
+	bool					EnableHumanAnimOverride;
+	bool					EnableFootSteps;
+	bool					LockCollisionGroup;
+	Collision_Group_Type	LockedCollisionGroup;
+
 	bool						LadderUpMask;
 	bool						LadderDownMask;
 
@@ -494,6 +580,7 @@ protected:
 
 	void						Update_Healing_Effect( void );
 	void						Update_Network_Scale( void );
+	void						Update_Skeleton_Resize( void );
 
 	//
 	//	Longest bot tag accepted off the wire, in wide characters, terminator

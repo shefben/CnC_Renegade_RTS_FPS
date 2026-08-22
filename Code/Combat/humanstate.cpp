@@ -86,6 +86,7 @@ HumanStateClass::HumanStateClass( void ) :
 	StateLocked( false ),
 	AnimControl( nullptr ),
 	WeaponHoldStyle(WEAPON_HOLD_STYLE_EMPTY_HANDS),
+	OverrideWeaponHoldStyle(-1),
 	HumanPhys( nullptr ),
 	TurnVelocity( 0 ),
 	AimingTilt( 0 ),
@@ -140,6 +141,26 @@ void	HumanStateClass::Set_Anim_Control( HumanAnimControlClass * anim_control )
 	AnimControl->Set_Model( HumanPhys->Peek_Model() );
 }
 
+void	HumanStateClass::Set_Override_Weapon_Hold_Style( int style_id )
+{
+	if ( style_id == OverrideWeaponHoldStyle ) {
+		return;
+	}
+
+	OverrideWeaponHoldStyle = style_id;
+
+	//
+	//	Update_Weapon only runs while a weapon is in hand, so apply the pinned
+	//	style here too or an override set on an unarmed soldier does nothing.
+	//
+	if ( OverrideWeaponHoldStyle >= 0 && OverrideWeaponHoldStyle != WeaponHoldStyle ) {
+		WeaponHoldStyle = OverrideWeaponHoldStyle;
+
+		if ( !StateLocked ) {
+			Update_Animation();
+		}
+	}
+}
 void	HumanStateClass::Set_Human_Anim_Override( const char * name )
 {
 	HumanAnimOverride = (HumanAnimOverrideDef *)DefinitionMgrClass::Find_Typed_Definition( name,
@@ -181,6 +202,7 @@ enum	{
 	MICROCHUNKID_HUMAN_ANIM_OVERRIDE_DEF_ID,
 	MICROCHUNKID_HUMAN_LOITER_COLLECTION_DEF_ID,
 	MICROCHUNKID_MOVEMENT_LOITERS_ALLOWED,
+	MICROCHUNKID_OVERRIDE_WEAPON_HOLD_STYLE,
 };
 
 bool	HumanStateClass::Save( ChunkSaveClass & csave )
@@ -191,6 +213,7 @@ bool	HumanStateClass::Save( ChunkSaveClass & csave )
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_SUB_STATE, SubState );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_STATE_LOCKED, StateLocked );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_WEAPON_HOLD_STYLE, WeaponHoldStyle );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_OVERRIDE_WEAPON_HOLD_STYLE, OverrideWeaponHoldStyle );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_AIMING_TILT, AimingTilt );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_AIMING_TURN, AimingTurn );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_TURN_VELOCITY, TurnVelocity );
@@ -242,6 +265,7 @@ bool	HumanStateClass::Load( ChunkLoadClass &cload )
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_SUB_STATE, SubState );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_STATE_LOCKED, StateLocked );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_WEAPON_HOLD_STYLE, WeaponHoldStyle );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_OVERRIDE_WEAPON_HOLD_STYLE, OverrideWeaponHoldStyle );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_AIMING_TILT, AimingTilt );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_AIMING_TURN, AimingTurn );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_TURN_VELOCITY, TurnVelocity );
@@ -335,6 +359,12 @@ void	HumanStateClass::Update_Weapon( WeaponClass * weapon, bool new_weapon )
 		new_hold_style = WEAPON_HOLD_STYLE_EMPTY_HANDS;
 	}
 
+	//
+	//	An override pins the style no matter what the weapon asked for.
+	//
+	if ( OverrideWeaponHoldStyle >= 0 ) {
+		new_hold_style = OverrideWeaponHoldStyle;
+	}
 	if ( new_hold_style == WeaponHoldStyle ) {
 		return;
 	}

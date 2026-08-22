@@ -348,7 +348,17 @@ SoldierGameObj::SoldierGameObj() :
 	OverrideMuzzleDirection( false ),
 	UseStockGhostBehavior( true ),
 	NetworkRescale( 1.0F ),
-	LastScale( 1.0F )
+	LastScale( 1.0F ),
+	SkeletonHeight( 0 ),
+	SkeletonWidth( 0 ),
+	TargetSkeletonHeight( 0 ),
+	TargetSkeletonWidth( 0 ),
+	SkeletonHeightResizeSpeed( 0 ),
+	SkeletonWidthResizeSpeed( 0 ),
+	EnableHumanAnimOverride( false ),
+	EnableFootSteps( true ),
+	LockCollisionGroup( false ),
+	LockedCollisionGroup( SOLDIER_COLLISION_GROUP )
 {
 	// All Humans need a HuamnAnimControl
 	Set_Anim_Control( new HumanAnimControlClass );
@@ -436,7 +446,8 @@ void	SoldierGameObj::Copy_Settings( const SoldierGameObjDef & definition )
 	HumanState.Init( Peek_Human_Phys() );
 	HumanState.Set_Anim_Control( (HumanAnimControlClass *)Get_Anim_Control() );  // Must set the anim control after the phys object
 //HumanState.Set_Human_Anim_Override( "HAO Test" );
-	if ( Get_Definition().HumanAnimOverrideDefID != 0 ) {
+	EnableHumanAnimOverride = (Get_Definition().HumanAnimOverrideDefID != 0);
+	if ( EnableHumanAnimOverride ) {
 		HumanState.Set_Human_Anim_Override( Get_Definition().HumanAnimOverrideDefID );
 	}
 
@@ -444,7 +455,18 @@ void	SoldierGameObj::Copy_Settings( const SoldierGameObjDef & definition )
 		HumanState.Set_Human_Loiter_Collection( Get_Definition().HumanLoiterCollectionDefID );
 	}
 
-	Adjust_Skeleton( definition.SkeletonHeight, definition.SkeletonWidth );
+	//
+	//	The definition seeds the instance's skeleton size; from here on the
+	//	instance owns it and scripts may change it.
+	//
+	SkeletonHeight				= definition.SkeletonHeight;
+	SkeletonWidth				= definition.SkeletonWidth;
+	TargetSkeletonHeight		= SkeletonHeight;
+	TargetSkeletonWidth		= SkeletonWidth;
+	SkeletonHeightResizeSpeed	= 0;
+	SkeletonWidthResizeSpeed	= 0;
+
+	Adjust_Skeleton( SkeletonHeight, SkeletonWidth );
 
 	// All characters force their heads and hands to use the same LOD level as their body.
 	RenderObjClass * model = Peek_Human_Phys()->Peek_Model();
@@ -638,7 +660,11 @@ enum	{
 	MICROCHUNKID_CAN_PLAY_DAMAGE_ANIMATIONS,
 	MICROCHUNKID_OVERRIDE_MUZZLE_DIRECTION,
 	MICROCHUNKID_NETWORK_RESCALE,
-	MICROCHUNKID_BOT_TAG
+	MICROCHUNKID_BOT_TAG,
+	MICROCHUNKID_SKELETON_HEIGHT,
+	MICROCHUNKID_SKELETON_WIDTH,
+	MICROCHUNKID_ENABLE_HUMAN_ANIM_OVERRIDE,
+	MICROCHUNKID_ENABLE_FOOT_STEPS
 };
 
 //------------------------------------------------------------------------------------
@@ -693,6 +719,10 @@ bool	SoldierGameObj::Save( ChunkSaveClass & csave )
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_OVERRIDE_MUZZLE_DIRECTION, OverrideMuzzleDirection );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_NETWORK_RESCALE, NetworkRescale );
 		WRITE_MICRO_CHUNK_WIDESTRING( csave, MICROCHUNKID_BOT_TAG, BotTag );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_SKELETON_HEIGHT, SkeletonHeight );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_SKELETON_WIDTH, SkeletonWidth );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_ENABLE_HUMAN_ANIM_OVERRIDE, EnableHumanAnimOverride );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_ENABLE_FOOT_STEPS, EnableFootSteps );
 
 	csave.End_Chunk();
 
@@ -793,6 +823,10 @@ bool	SoldierGameObj::Load( ChunkLoadClass &cload )
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_OVERRIDE_MUZZLE_DIRECTION, OverrideMuzzleDirection );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_NETWORK_RESCALE, NetworkRescale );
 						READ_MICRO_CHUNK_WIDESTRING( cload, MICROCHUNKID_BOT_TAG, BotTag );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_SKELETON_HEIGHT, SkeletonHeight );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_SKELETON_WIDTH, SkeletonWidth );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_ENABLE_HUMAN_ANIM_OVERRIDE, EnableHumanAnimOverride );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_ENABLE_FOOT_STEPS, EnableFootSteps );
 
 						default:
 							Debug_Say(( "Unrecognized Soldier Variable chunkID\n" ));
@@ -867,7 +901,16 @@ void	SoldierGameObj::On_Post_Load( void )
 		Peek_Model()->Add_Sub_Object_To_Bone( WeaponRenderModel, GUN_BONE_NAME );
 	}
 
-	Adjust_Skeleton( Get_Definition().SkeletonHeight, Get_Definition().SkeletonWidth );
+	//
+	//	Saves written before the skeleton size became per-instance carry no
+	//	value, so fall back to the definition's.
+	//
+	if ( SkeletonHeight == 0 && SkeletonWidth == 0 ) {
+		SkeletonHeight	= Get_Definition().SkeletonHeight;
+		SkeletonWidth	= Get_Definition().SkeletonWidth;
+	}
+
+	Adjust_Skeleton( SkeletonHeight, SkeletonWidth );
 
 	// Fixup BackWeaponRenderModel
 	Update_Back_Gun();
@@ -991,6 +1034,21 @@ void	SoldierGameObj::Export_Rare( BitStreamClass &packet )
 	packet.Add( OverrideMuzzleDirection );
 	packet.Add( NetworkRescale );
 	packet.Add_Wide_Terminated_String( BotTag.Peek_Buffer(), true );
+
+	//
+	//	Skeleton size travels as target plus speed as well as current value, so
+	//	a smooth resize started on the server animates on the client too rather
+	//	than snapping when it finishes.
+	//
+	packet.Add( SkeletonHeight );
+	packet.Add( SkeletonWidth );
+	packet.Add( TargetSkeletonHeight );
+	packet.Add( TargetSkeletonWidth );
+	packet.Add( SkeletonHeightResizeSpeed );
+	packet.Add( SkeletonWidthResizeSpeed );
+	packet.Add( EnableHumanAnimOverride );
+	packet.Add( EnableFootSteps );
+	packet.Add( HumanState.Get_Override_Weapon_Hold_Style() );
 }
 
 
@@ -1042,6 +1100,24 @@ void	SoldierGameObj::Import_Rare( BitStreamClass &packet )
 	unichar_t bot_tag[ MAX_BOT_TAG_LENGTH ] = { 0 };
 	packet.Get_Wide_Terminated_String( bot_tag, MAX_BOT_TAG_LENGTH, true );
 	BotTag = bot_tag;
+
+	packet.Get( SkeletonHeight );
+	packet.Get( SkeletonWidth );
+	packet.Get( TargetSkeletonHeight );
+	packet.Get( TargetSkeletonWidth );
+	packet.Get( SkeletonHeightResizeSpeed );
+	packet.Get( SkeletonWidthResizeSpeed );
+	Adjust_Skeleton( SkeletonHeight, SkeletonWidth );
+
+	bool anim_override = false;
+	packet.Get( anim_override );
+	Set_Human_Anim_Override( anim_override );
+
+	packet.Get( EnableFootSteps );
+
+	int hold_style = -1;
+	packet.Get( hold_style );
+	HumanState.Set_Override_Weapon_Hold_Style( hold_style );
 
 	return ;
 }
@@ -2301,7 +2377,7 @@ SyncLegs = true;
 	}
 
 	// Footsteps
-	if (!Is_Sniping() && !InFlyMode && CombatManager::Is_Gameplay_Permitted() && do_steps && Is_Control_Enabled() ) {
+	if (EnableFootSteps && !Is_Sniping() && !InFlyMode && CombatManager::Is_Gameplay_Permitted() && do_steps && Is_Control_Enabled() ) {
 
 		bool leg_mode = HumanState.Get_Leg_Mode();
 
@@ -2316,7 +2392,7 @@ SyncLegs = true;
 				my_type = SurfaceEffectsManager::HITTER_TYPE_FOOTSTEP_WALK;
 			}
 
-			int ground_type = Peek_Human_Phys()->Get_Contact_Surface_Type();
+			int ground_type = Get_Contact_Surface_Type();
 
 			// Try effects on ladders again BMG
 			/**/if ( Is_On_Ladder() ) {
@@ -2370,7 +2446,8 @@ void	SoldierGameObj::Think( void )
 			Get_Position( &position );
 			if ( UnitCoordinationZoneMgr::Is_Unit_In_Zone( position ) ) {
 				Enable_Ghost_Collision( true );
-			} else if ( Is_Safe_To_Disable_Ghost_Collision( position ) ) {
+			} else if ( UseStockGhostBehavior ? Is_Safe_To_Disable_Ghost_Collision( position )
+													: Disable_Ghost_Collision() ) {
 				Enable_Ghost_Collision( false );
 			}
 		}
@@ -2426,6 +2503,11 @@ void	SoldierGameObj::Think( void )
 		{
 			WWPROFILE("Update_Network_Scale");
 			Update_Network_Scale();
+		}
+
+		{
+			WWPROFILE("Update_Skeleton_Resize");
+			Update_Skeleton_Resize();
 		}
 
 		/*
@@ -2623,7 +2705,7 @@ void	SoldierGameObj::Think( void )
 	{
 		WWPROFILE("Apply_Damage");
 		if ( Peek_Human_Phys() ) {
-			SurfaceEffectsManager::Apply_Damage( Peek_Human_Phys()->Get_Contact_Surface_Type(), this );
+			SurfaceEffectsManager::Apply_Damage( Get_Contact_Surface_Type(), this );
 		}
 	}
 
@@ -2646,7 +2728,7 @@ void	SoldierGameObj::Think( void )
 		Vector3 vel;
 		Peek_Human_Phys()->Get_Velocity(&vel);
 
-		if ((Peek_Human_Phys()->Get_Contact_Surface_Type() == SURFACE_TYPE_UNDERWATER_DIRT) &&
+		if ((Get_Contact_Surface_Type() == SURFACE_TYPE_UNDERWATER_DIRT) &&
 			 (vel.Length2() > 0.1f))
 		{
 
@@ -3644,8 +3726,21 @@ void	SoldierGameObj::Stop_Current_Speech( void )
 void	SoldierGameObj::Apply_Damage( const OffenseObjectClass & damager, float scale, int alternate_skin )
 {
 	if ( !Is_In_Vehicle() ) {
-		SmartGameObj::Apply_Damage( damager, scale, alternate_skin );
+		Apply_Damage_IgnoreVehicleCheck( damager, scale, alternate_skin );
 	}
+}
+
+//------------------------------------------------------------------------------------
+//
+//	Apply_Damage_IgnoreVehicleCheck
+//
+//	Apply_Damage refuses while the soldier is riding in a vehicle, because the
+//	vehicle is what took the hit.  This reaches the occupant himself.
+//
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Apply_Damage_IgnoreVehicleCheck( const OffenseObjectClass & damager, float scale, int alternate_skin )
+{
+	SmartGameObj::Apply_Damage( damager, scale, alternate_skin );
 }
 
 //------------------------------------------------------------------------------------
@@ -4282,6 +4377,227 @@ void	SoldierGameObj::Update_Network_Scale( void )
 }
 
 //------------------------------------------------------------------------------------
+//
+//	Update_Skeleton_Resize
+//
+//	Advances an in-flight smooth skeleton resize.  Rebuilding the interpolated
+//	HTree is not free, so this does nothing at all unless a resize is running.
+//
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Update_Skeleton_Resize( void )
+{
+	if ( SkeletonHeightResizeSpeed <= 0 && SkeletonWidthResizeSpeed <= 0 ) {
+		return;
+	}
+
+	float dt = TimeManager::Get_Frame_Seconds();
+
+	if ( SkeletonHeightResizeSpeed > 0 ) {
+		float step	= SkeletonHeightResizeSpeed * dt;
+		float delta	= TargetSkeletonHeight - SkeletonHeight;
+
+		if ( delta <= step && delta >= -step ) {
+			SkeletonHeight				= TargetSkeletonHeight;
+			SkeletonHeightResizeSpeed	= 0;
+		} else {
+			SkeletonHeight += (delta > 0) ? step : -step;
+		}
+	}
+
+	if ( SkeletonWidthResizeSpeed > 0 ) {
+		float step	= SkeletonWidthResizeSpeed * dt;
+		float delta	= TargetSkeletonWidth - SkeletonWidth;
+
+		if ( delta <= step && delta >= -step ) {
+			SkeletonWidth				= TargetSkeletonWidth;
+			SkeletonWidthResizeSpeed	= 0;
+		} else {
+			SkeletonWidth += (delta > 0) ? step : -step;
+		}
+	}
+
+	Adjust_Skeleton( SkeletonHeight, SkeletonWidth );
+}
+
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Set_Skeleton_Height( float height )
+{
+	//
+	//	An explicit height is an answer, so it cancels whatever a smooth resize
+	//	was still working towards.
+	//
+	SkeletonHeight				= height;
+	TargetSkeletonHeight		= height;
+	SkeletonHeightResizeSpeed	= 0;
+
+	Adjust_Skeleton( SkeletonHeight, SkeletonWidth );
+	Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
+}
+
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Set_Skeleton_Width( float width )
+{
+	SkeletonWidth				= width;
+	TargetSkeletonWidth			= width;
+	SkeletonWidthResizeSpeed	= 0;
+
+	Adjust_Skeleton( SkeletonHeight, SkeletonWidth );
+	Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
+}
+
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Trigger_Smooth_Skeleton_Height_Resize( float target_height, float speed )
+{
+	//
+	//	No speed means no animation to run, so this degenerates to the setter
+	//	rather than starting a resize that would never finish.
+	//
+	if ( speed <= 0 ) {
+		Set_Skeleton_Height( target_height );
+		return;
+	}
+
+	TargetSkeletonHeight		= target_height;
+	SkeletonHeightResizeSpeed	= speed;
+	Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
+}
+
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Trigger_Smooth_Skeleton_Width_Resize( float target_width, float speed )
+{
+	if ( speed <= 0 ) {
+		Set_Skeleton_Width( target_width );
+		return;
+	}
+
+	TargetSkeletonWidth			= target_width;
+	SkeletonWidthResizeSpeed	= speed;
+	Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
+}
+
+//------------------------------------------------------------------------------------
+//
+//	Set_Override_Weapon_Hold_Style
+//
+//	HumanStateClass owns the hold style, so it owns the override too; this is
+//	the soldier-level way in and the thing that replicates it.
+//
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Set_Override_Weapon_Hold_Style( int style_id )
+{
+	HumanState.Set_Override_Weapon_Hold_Style( style_id );
+	Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
+}
+
+//------------------------------------------------------------------------------------
+int	SoldierGameObj::Get_Override_Weapon_Hold_Style( void )
+{
+	return HumanState.Get_Override_Weapon_Hold_Style();
+}
+
+//------------------------------------------------------------------------------------
+//
+//	Set_Human_Anim_Override
+//
+//	Turns the definition's anim override on and off at runtime.  A soldier
+//	whose definition names no override has nothing to turn on.
+//
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Set_Human_Anim_Override( bool enable )
+{
+	EnableHumanAnimOverride = enable && (Get_Definition().HumanAnimOverrideDefID != 0);
+
+	HumanState.Set_Human_Anim_Override( EnableHumanAnimOverride ?
+											Get_Definition().HumanAnimOverrideDefID : 0 );
+
+	Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
+}
+
+//------------------------------------------------------------------------------------
+int	SoldierGameObj::Get_Contact_Surface_Type( void )
+{
+	if ( Peek_Human_Phys() == nullptr ) {
+		return SURFACE_TYPE_DEFAULT;
+	}
+
+	return Peek_Human_Phys()->Get_Contact_Surface_Type();
+}
+
+//------------------------------------------------------------------------------------
+//
+//	Lock_Collision_Mode
+//
+//	Locking is not only a promise about future changes: it puts the soldier in
+//	the requested group now, or the lock would not be observable until
+//	something else tried to change the group.
+//
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Lock_Collision_Mode( bool lock_collision_group, Collision_Group_Type lock )
+{
+	LockCollisionGroup		= lock_collision_group;
+	LockedCollisionGroup	= lock;
+
+	if ( LockCollisionGroup && Peek_Physical_Object() != nullptr ) {
+		Peek_Physical_Object()->Set_Collision_Group( LockedCollisionGroup );
+	}
+}
+
+//------------------------------------------------------------------------------------
+Collision_Group_Type *	SoldierGameObj::Get_Locked_Collision_Mode( void )
+{
+	if ( LockCollisionGroup == false ) {
+		return nullptr;
+	}
+
+	return &LockedCollisionGroup;
+}
+
+//------------------------------------------------------------------------------------
+//
+//	Disable_Ghost_Collision
+//
+//	The alternate to Is_Safe_To_Disable_Ghost_Collision, chosen by
+//	Get_Use_Stock_Ghost_Behavior.  The stock test refuses to un-ghost while any
+//	other living soldier overlaps this one's personal space, which in a crowd
+//	can keep everybody ghosted indefinitely.  This one asks only whether the
+//	soldier is still inside a coordination zone, so collision comes back the
+//	moment the ladder or elevator mouth is clear and crowding elsewhere stops
+//	mattering.
+//
+//------------------------------------------------------------------------------------
+bool	SoldierGameObj::Disable_Ghost_Collision( void )
+{
+	Vector3 position;
+	Get_Position( &position );
+
+	return UnitCoordinationZoneMgr::Is_Unit_In_Zone( position ) == false;
+}
+
+//------------------------------------------------------------------------------------
+//
+//	Set_Delete_Pending
+//
+//	The destructor takes the soldier out of its vehicle, but destruction does
+//	not happen until the end of the frame.  Until then the vehicle still lists
+//	a doomed occupant, and anything walking the seat list -- transitions,
+//	targeting, forced exits -- acts on an object the rest of the game has
+//	already given up on.
+//
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Set_Delete_Pending( void )
+{
+	if ( Is_Delete_Pending() == false ) {
+		if ( Vehicle != nullptr ) {
+			Vehicle->Remove_Occupant( this );
+		}
+
+		Stop_Current_Speech();
+	}
+
+	SmartGameObj::Set_Delete_Pending();
+}
+
+//------------------------------------------------------------------------------------
 
 Vector3	SoldierGameObj::Get_Bullseye_Position( void )
 {
@@ -4709,10 +5025,15 @@ void	SoldierGameObj::Toggle_Fly_Mode( void )
 
 	if ( InFlyMode ) {
 		HumanState.Set_State( HumanStateClass::DEBUG_FLY );
-		Peek_Physical_Object()->Set_Collision_Group( UNCOLLIDEABLE_GROUP );
 	} else {
 		HumanState.Set_State( HumanStateClass::UPRIGHT );
-		Peek_Physical_Object()->Set_Collision_Group( SOLDIER_COLLISION_GROUP );
+	}
+
+	//
+	//	A locked collision group survives fly mode too.
+	//
+	if ( LockCollisionGroup == false ) {
+		Peek_Physical_Object()->Set_Collision_Group( InFlyMode ? UNCOLLIDEABLE_GROUP : SOLDIER_COLLISION_GROUP );
 	}
 }
 
@@ -5128,6 +5449,13 @@ void	SoldierGameObj::Update_Healing_Effect( void )
 
 void	SoldierGameObj::Enable_Ghost_Collision( bool onoff )
 {
+	//
+	//	A locked collision group outranks the automatic ghosting path.
+	//
+	if ( LockCollisionGroup ) {
+		return ;
+	}
+
 	bool is_using_ghost_collision = (Peek_Physical_Object ()->Get_Collision_Group() == SOLDIER_GHOST_COLLISION_GROUP);
 	if ( onoff == is_using_ghost_collision ) {
 		return ;
