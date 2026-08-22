@@ -98,6 +98,7 @@ enum
 	MICROCHUNKID_IS_BUSY,
 	MICROCHUNKID_GENERATION_TIME,
 	MICROCHUNKID_GENERATING_VEHICLE_ID,
+	MICROCHUNKID_IS_DISABLED,
 };
 
 
@@ -259,6 +260,7 @@ VehicleFactoryGameObjDef::Get_Factory (void) const
 VehicleFactoryGameObj::VehicleFactoryGameObj (void)	:
 	CreationTM (1),
 	IsBusy (false),
+	IsDisabled (false),
 	GenerationTime (0),
 	GeneratingVehicleID (0),
 	GeneratingRegion (Vector3 (0, 0, 0), Vector3 (0, 0, 0)),
@@ -347,6 +349,7 @@ VehicleFactoryGameObj::Save (ChunkSaveClass &csave)
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_IS_BUSY,						IsBusy);
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_GENERATION_TIME,			GenerationTime);
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_GENERATING_VEHICLE_ID,	GeneratingVehicleID);
+		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_IS_DISABLED,				IsDisabled);
 
 	csave.End_Chunk ();
 	return true;
@@ -400,6 +403,7 @@ VehicleFactoryGameObj::Load_Variables (ChunkLoadClass &cload)
 			READ_MICRO_CHUNK (cload, MICROCHUNKID_IS_BUSY,						IsBusy);
 			READ_MICRO_CHUNK (cload, MICROCHUNKID_GENERATION_TIME,			GenerationTime);
 			READ_MICRO_CHUNK (cload, MICROCHUNKID_GENERATING_VEHICLE_ID,	GeneratingVehicleID);
+			READ_MICRO_CHUNK (cload, MICROCHUNKID_IS_DISABLED,				IsDisabled);
 
 			default:
 				Debug_Say (("Unrecognized Vehicle Factory Variable chunkID\n"));
@@ -479,6 +483,40 @@ VehicleFactoryGameObj::Think (void)
 	}
 
 	BuildingGameObj::Think ();
+	return ;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Set_Busy
+//
+////////////////////////////////////////////////////////////////
+void
+VehicleFactoryGameObj::Set_Busy (bool busy)
+{
+	if (IsBusy != busy) {
+		IsBusy = busy;
+		Set_Object_Dirty_Bit (BIT_RARE, true);
+	}
+
+	return ;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Set_Disabled
+//
+////////////////////////////////////////////////////////////////
+void
+VehicleFactoryGameObj::Set_Disabled (bool disabled)
+{
+	if (IsDisabled != disabled) {
+		IsDisabled = disabled;
+		Set_Object_Dirty_Bit (BIT_RARE, true);
+	}
+
 	return ;
 }
 
@@ -810,6 +848,7 @@ VehicleFactoryGameObj::Import_Rare (BitStreamClass &packet)
 	//	Read the state information from the server
 	//
 	packet.Get (IsBusy);
+	packet.Get (IsDisabled);
 	return ;
 }
 
@@ -828,5 +867,6 @@ VehicleFactoryGameObj::Export_Rare (BitStreamClass &packet)
 	//	Transmit the state information
 	//
 	packet.Add (IsBusy);
+	packet.Add (IsDisabled);
 	return ;
 }

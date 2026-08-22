@@ -156,9 +156,18 @@ public:
 	//
 	//	Factory state access
 	//
-	bool					Is_Available (void) const	{ return (IsBusy == false) && (IsDestroyed == false); }
+	//
+	//	Availability.  A factory can be taken out of service without being
+	//	destroyed: a disabled factory still stands and still counts as a
+	//	building, it just refuses to produce until something switches it
+	//	back on.
+	//
+	bool					Is_Available (void) const	{ return (IsBusy == false) && (IsDestroyed == false) && (IsDisabled == false); }
 	bool					Is_Available_For_Purchase (void) const;
 	bool					Is_Busy (void) const			{ return IsBusy; }
+	void					Set_Busy (bool busy);
+	bool					Is_Disabled (void) const	{ return IsDisabled; }
+	void					Set_Disabled (bool disabled);
 	int					Get_Team_Vehicle_Count(void) const;
 
 	//
@@ -205,6 +214,7 @@ protected:
 	float					GenerationTime;
 	int					GeneratingVehicleID;
 	bool					IsBusy;
+	bool					IsDisabled;
 	GameObjReference	Purchaser;
 	int					LastDeliveryPath;
 	float					EndTimer;

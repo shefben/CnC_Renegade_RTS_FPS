@@ -42,6 +42,10 @@
 #include "always.h"
 #include "vehiclefactorygameobj.h"
 
+#ifndef VECTOR_H
+	#include "vector.h"
+#endif
+
 
 ////////////////////////////////////////////////////////////////
 //	Forward delcarations
@@ -97,6 +101,23 @@ protected:
 	int					CinematicSlotIndex;
 	float					CinematicLengthToDropOff;
 	float					CinematicLengthToVehicleDisplay;
+
+	//
+	//	Landing pads.  A building with no pad preset drops everything at its
+	//	own creation transform, which is what every stock level expects.  A
+	//	building that names one takes the level-placed instances of that
+	//	preset within LandingPositionDistance as its pads and uses them in
+	//	turn, so consecutive aircraft do not land on top of each other.
+	//
+	int					LandingPositionDefID;
+	float					LandingPositionDistance;
+
+	//
+	//	State the delivered aircraft is handed.  A negative collision group
+	//	leaves whatever the vehicle preset asked for.
+	//
+	int					DeliveredCollisionGroup;
+	bool					DefaultEngineEnable;
 };
 
 
@@ -157,6 +178,8 @@ protected:
 	void					Begin_Generation (void) override;
 	void					Start_Cinematic (void);
 	void					Attach_Vehicle (void);
+	void					Collect_Landing_Positions (void);
+	void					Choose_Landing_Position (void);
 
 	////////////////////////////////////////////////////////////////
 	//	Protected member data
@@ -167,6 +190,14 @@ protected:
 	float					ClearDropoffZoneTimer;
 	bool					IsCinematicStarted;
 	PhysicalGameObj *	CinematicObject;
+
+	//
+	//	Level-derived, so collected in CnC_Initialize rather than saved --
+	//	the same treatment the war factory gives its creation animation.
+	//
+	DynamicVectorClass<int>	LandingPositionIDs;
+	int					CurrentLandingPosition;
+	Matrix3D				DeliveryTM;
 };
 
 

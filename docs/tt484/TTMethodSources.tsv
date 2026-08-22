@@ -13,7 +13,7 @@ AirFactoryGameObj	Create_Vehicle	2	0	absent	address-stub	tt_4.8.4/scripts/engine
 AirFactoryGameObj	Get_Team_Vehicle_Count	0	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1236	AT2(0x006F16B0,0x006F0C70)			int Get_Team_Vehicle_Count(void) const;
 AirFactoryGameObj	Is_Available_For_Purchase	0	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1239	AT2(0x0070B6F0,0x0070ACB0)			bool Is_Available_For_Purchase (void) const;
 AirFactoryGameObj	AirFactoryGameObj	0	0	absent	declaration-only				nowhere		AirFactoryGameObj (void);
-AirFactoryGameObj	CnC_Initialize	1	0	absent	declaration-only				owned elsewhere	AirStripGameObj,BuildingGameObj,RefineryGameObj,RepairBayGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void CnC_Initialize (BaseControllerClass *base);
+AirFactoryGameObj	CnC_Initialize	1	0	absent	declaration-only				owned elsewhere	AirStripGameObj,BuildingGameObj,RefineryGameObj,RepairBayGameObj,SoldierFactoryGameObj,SuperweaponGameObj	void CnC_Initialize (BaseControllerClass *base);
 AirFactoryGameObj	Export_Rare	1	0	absent	declaration-only				owned elsewhere	BackgroundMgrClass,BeaconGameObj,BuildingGameObj,C4GameObj,CinematicGameObj,DSAPONetworkObjectClass	void Export_Rare (BitStreamClass &packet);
 AirFactoryGameObj	Get_Factory	0	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,AirStripGameObj,AirStripGameObjDef,AmmoDefinitionClass,AttackActionCodeClass	const PersistFactoryClass & Get_Factory (void) const;
 AirFactoryGameObj	Import_Rare	1	0	absent	declaration-only				owned elsewhere	BackgroundMgrClass,BeaconGameObj,BuildingGameObj,C4GameObj,CinematicGameObj,DSAPONetworkObjectClass	void Import_Rare (BitStreamClass &packet);
@@ -21,28 +21,14 @@ AirFactoryGameObj	Init	0	1	absent	declaration-only				owned elsewhere	AABTInters
 AirFactoryGameObj	Init	1	0	absent	declaration-only				owned elsewhere	AABTIntersectStruct,AABoxClass,AccessiblePhysClass,ActionCodeClass,ActiveCategoryStackClass,AirStripGameObj	void Init (const AirFactoryGameObjDef & definition);
 AirFactoryGameObj	Load	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Load (ChunkLoadClass &cload);
 AirFactoryGameObj	Load_Variables	1	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,ActiveConversationClass,AirStripGameObj,AirStripGameObjDef,AudibleSoundDefinitionClass	void Load_Variables (ChunkLoadClass &cload);
-AirFactoryGameObj	On_Destroyed	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,RefineryGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Destroyed (void);
+AirFactoryGameObj	On_Destroyed	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,RefineryGameObj,SoldierFactoryGameObj,SuperweaponGameObj	void On_Destroyed (void);
 AirFactoryGameObj	On_Revived	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Revived (void);
 AirFactoryGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Save (ChunkSaveClass &csave);
 AirFactoryGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think (void);
 AirFactoryGameObj	~AirFactoryGameObj	0	0	absent	declaration-only				nowhere		~AirFactoryGameObj (void);
 BuildingGameObj	As_AirFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	115				virtual AirFactoryGameObj * As_AirFactoryGameObj (void) { return NULL; }
-BuildingGameObj	As_ConstructionYardGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	114				virtual ConstructionYardGameObj * As_ConstructionYardGameObj (void) { return NULL; }
 BuildingGameObj	As_NavalFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	116				virtual NavalFactoryGameObj * As_NavalFactoryGameObj (void) { return NULL; }
-BuildingGameObj	As_SuperweaponGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	117				virtual SuperweaponGameObj * As_SuperweaponGameObj (void) { return NULL; }
 BuildingGameObjDef	Dump	1	1	present	declaration-only				owned elsewhere	CChunkDataView,CChunkTreeView,CChunkViewDoc,CChunkViewView,CDataTreeView,CDataView	virtual void Dump (FileClass &file);
-ConstructionYardGameObj	Get_Definition	0	0	absent	defined	tt_4.8.4/scripts/engine_obj.cpp	109				SCRIPTS_API const ConstructionYardGameObjDef & Get_Definition (void) const;
-ConstructionYardGameObj	As_ConstructionYardGameObj	0	0	absent	inline-header	tt_4.8.4/scripts/ConstructionYardGameObj.h	25				ConstructionYardGameObj * As_ConstructionYardGameObj (void) { return this; }
-ConstructionYardGameObj	Set_Spy	1	0	absent	inline-header	tt_4.8.4/scripts/ConstructionYardGameObj.h	30				void Set_Spy(bool b) {IsSpy = b;}
-ConstructionYardGameObj	ConstructionYardGameObj	0	0	absent	declaration-only				nowhere		ConstructionYardGameObj (void);
-ConstructionYardGameObj	Get_Factory	0	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,AirStripGameObj,AirStripGameObjDef,AmmoDefinitionClass,AttackActionCodeClass	const PersistFactoryClass & Get_Factory (void) const;
-ConstructionYardGameObj	Init	0	1	absent	declaration-only				owned elsewhere	AABTIntersectStruct,AABoxClass,AccessiblePhysClass,ActionCodeClass,ActiveCategoryStackClass,AirStripGameObj	virtual void Init( void );
-ConstructionYardGameObj	Init	1	0	absent	declaration-only				owned elsewhere	AABTIntersectStruct,AABoxClass,AccessiblePhysClass,ActionCodeClass,ActiveCategoryStackClass,AirStripGameObj	void Init (const ConstructionYardGameObjDef & definition);
-ConstructionYardGameObj	Load	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Load (ChunkLoadClass &cload);
-ConstructionYardGameObj	Load_Variables	1	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,ActiveConversationClass,AirStripGameObj,AirStripGameObjDef,AudibleSoundDefinitionClass	void Load_Variables (ChunkLoadClass &cload);
-ConstructionYardGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Save (ChunkSaveClass &csave);
-ConstructionYardGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think (void);
-ConstructionYardGameObj	~ConstructionYardGameObj	0	0	absent	declaration-only				nowhere		~ConstructionYardGameObj (void);
 ExtendedNetworkObject	setDirtyBitsForClient	1	1	absent	inline-header	tt_4.8.4/scripts/ExtendedNetworkObject.h	42				virtual void setDirtyBitsForClient(const int clientId) { return BaseClass::setDirtyBitsForClient(clientId); }
 HUDSurfaceClass	Get_Aspect_Ratio	0	0	absent	inline-header	tt_4.8.4/scripts/HUDSurfaceClass.h	55				float Get_Aspect_Ratio() const { return boundary.Height() > WWMATH_EPSILON ? boundary.Width() / boundary.Height() : 0; }
 HUDSurfaceClass	Get_Boundary_Area	0	0	absent	inline-header	tt_4.8.4/scripts/HUDSurfaceClass.h	54				const RectClass& Get_Boundary_Area() const { return boundary; }
@@ -74,7 +60,7 @@ NavalFactoryGameObj	Can_Spawn	1	0	absent	address-stub	tt_4.8.4/scripts/engine_tt
 NavalFactoryGameObj	Create_Vehicle	2	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1245	AT2(0x0073EE30,0x0073E6D0)			void Create_Vehicle(int defintion_id,SoldierGameObj * player);
 NavalFactoryGameObj	Get_Team_Vehicle_Count	0	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1248	AT2(0x0073FB80,0x0073F420)			int Get_Team_Vehicle_Count(void) const;
 NavalFactoryGameObj	Is_Available_For_Purchase	0	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1251	AT2(0x007408E0,0x00740180)			bool Is_Available_For_Purchase (void) const;
-NavalFactoryGameObj	CnC_Initialize	1	0	absent	declaration-only				owned elsewhere	AirStripGameObj,BuildingGameObj,RefineryGameObj,RepairBayGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void CnC_Initialize (BaseControllerClass *base);
+NavalFactoryGameObj	CnC_Initialize	1	0	absent	declaration-only				owned elsewhere	AirStripGameObj,BuildingGameObj,RefineryGameObj,RepairBayGameObj,SoldierFactoryGameObj,SuperweaponGameObj	void CnC_Initialize (BaseControllerClass *base);
 NavalFactoryGameObj	Export_Rare	1	0	absent	declaration-only				owned elsewhere	BackgroundMgrClass,BeaconGameObj,BuildingGameObj,C4GameObj,CinematicGameObj,DSAPONetworkObjectClass	void Export_Rare (BitStreamClass &packet);
 NavalFactoryGameObj	Get_Factory	0	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,AirStripGameObj,AirStripGameObjDef,AmmoDefinitionClass,AttackActionCodeClass	const PersistFactoryClass & Get_Factory (void) const;
 NavalFactoryGameObj	Import_Rare	1	0	absent	declaration-only				owned elsewhere	BackgroundMgrClass,BeaconGameObj,BuildingGameObj,C4GameObj,CinematicGameObj,DSAPONetworkObjectClass	void Import_Rare (BitStreamClass &packet);
@@ -83,7 +69,7 @@ NavalFactoryGameObj	Init	1	0	absent	declaration-only				owned elsewhere	AABTInte
 NavalFactoryGameObj	Load	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Load (ChunkLoadClass &cload);
 NavalFactoryGameObj	Load_Variables	1	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,ActiveConversationClass,AirStripGameObj,AirStripGameObjDef,AudibleSoundDefinitionClass	void Load_Variables (ChunkLoadClass &cload);
 NavalFactoryGameObj	NavalFactoryGameObj	0	0	absent	declaration-only				nowhere		NavalFactoryGameObj (void);
-NavalFactoryGameObj	On_Destroyed	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,RefineryGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Destroyed (void);
+NavalFactoryGameObj	On_Destroyed	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,RefineryGameObj,SoldierFactoryGameObj,SuperweaponGameObj	void On_Destroyed (void);
 NavalFactoryGameObj	On_Revived	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Revived (void);
 NavalFactoryGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Save (ChunkSaveClass &csave);
 NavalFactoryGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think (void);
@@ -115,26 +101,7 @@ ScriptedDialogClass	Get_Control_Index	1	1	absent	declaration-only				nowhere		vi
 ScriptedDialogClass	Remove_Control	1	1	absent	declaration-only				owned elsewhere	DialogBaseClass	virtual void Remove_Control(int id);
 ScriptedDialogClass	ScriptedDialogClass	2	0	absent	declaration-only				nowhere		ScriptedDialogClass(int client, int dlg_id);
 ScriptedDialogClass	~ScriptedDialogClass	0	1	absent	declaration-only				nowhere		virtual ~ScriptedDialogClass();
-SuperweaponGameObj	Get_Definition	0	0	absent	defined	tt_4.8.4/scripts/engine_obj.cpp	141				SCRIPTS_API const SuperweaponGameObjDef & Get_Definition (void) const;
-SuperweaponGameObj	As_SuperweaponGameObj	0	0	absent	inline-header	tt_4.8.4/scripts/SuperweaponGameObj.h	23				SuperweaponGameObj * As_SuperweaponGameObj (void) { return this; }
-SuperweaponGameObj	Is_Launching	0	0	absent	inline-header	tt_4.8.4/scripts/SuperweaponGameObj.h	31				bool Is_Launching() {return Launching;}
-SuperweaponGameObj	Launch	0	0	absent	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1177	AT2(0x00740D50,0x007405F0)			SCRIPTS_API void Launch();
-SuperweaponGameObj	CnC_Initialize	1	0	absent	declaration-only				owned elsewhere	AirStripGameObj,BuildingGameObj,RefineryGameObj,RepairBayGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void CnC_Initialize (BaseControllerClass *base);
-SuperweaponGameObj	Export_Occasional	1	0	absent	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,cPlayer	void Export_Occasional( BitStreamClass &packet );
-SuperweaponGameObj	Get_Factory	0	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,AirStripGameObj,AirStripGameObjDef,AmmoDefinitionClass,AttackActionCodeClass	const PersistFactoryClass & Get_Factory (void) const;
-SuperweaponGameObj	Import_Occasional	1	0	absent	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,cPlayer	void Import_Occasional( BitStreamClass &packet );
-SuperweaponGameObj	Init	0	1	absent	declaration-only				owned elsewhere	AABTIntersectStruct,AABoxClass,AccessiblePhysClass,ActionCodeClass,ActiveCategoryStackClass,AirStripGameObj	virtual void Init( void );
-SuperweaponGameObj	Init	1	0	absent	declaration-only				owned elsewhere	AABTIntersectStruct,AABoxClass,AccessiblePhysClass,ActionCodeClass,ActiveCategoryStackClass,AirStripGameObj	void Init (const SuperweaponGameObjDef & definition);
-SuperweaponGameObj	Load	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Load (ChunkLoadClass &cload);
-SuperweaponGameObj	Load_Variables	1	0	absent	declaration-only				owned elsewhere	AccessiblePhysClass,AccessiblePhysDefClass,ActiveConversationClass,AirStripGameObj,AirStripGameObjDef,AudibleSoundDefinitionClass	void Load_Variables (ChunkLoadClass &cload);
-SuperweaponGameObj	On_Destroyed	0	0	absent	declaration-only				owned elsewhere	BuildingGameObj,ComCenterGameObj,PowerPlantGameObj,RefineryGameObj,SoldierFactoryGameObj,VehicleFactoryGameObj	void On_Destroyed (void);
-SuperweaponGameObj	Play_Launch_Animation	1	0	absent	declaration-only				nowhere		void Play_Launch_Animation(bool onoff);
-SuperweaponGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Save (ChunkSaveClass &csave);
-SuperweaponGameObj	SuperweaponGameObj	0	0	absent	declaration-only				nowhere		SuperweaponGameObj (void);
-SuperweaponGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think();
-SuperweaponGameObj	~SuperweaponGameObj	0	0	absent	declaration-only				nowhere		~SuperweaponGameObj (void);
-VehicleGameObj	Is_Underground	0	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	129				bool Is_Underground() { return Peek_Physical_Object()->Get_Collision_Group() == UNDERGROUND_COLLISION_GROUP; }
 VehicleGameObj	Set_Color	1	0	present	inline-header	tt_4.8.4/scripts/VehicleGameObj.h	140				void Set_Color(Vector3 &color) {if (UndergroundEffect){UndergroundEffect->Set_Color(color);Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );}}
 VehicleGameObj	Collision_Occurred	1	1	present	declaration-only				owned elsewhere	BulletClass,C4GameObj,EjectCasingObserverClass,PhysClass,PhysObserverClass,SoldierGameObj	virtual CollisionReactionType Collision_Occurred( const CollisionEventClass & event );
-VehicleGameObj	Export_Occasional	1	1	present	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,cPlayer	virtual void Export_Occasional( BitStreamClass &packet );
-VehicleGameObj	Import_Occasional	1	1	present	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,cPlayer	virtual void Import_Occasional( BitStreamClass &packet );
+VehicleGameObj	Export_Occasional	1	1	present	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,SuperweaponGameObj	virtual void Export_Occasional( BitStreamClass &packet );
+VehicleGameObj	Import_Occasional	1	1	present	declaration-only				owned elsewhere	BaseControllerClass,DamageableGameObj,NetworkObjectClass,PlayerDataClass,SoldierGameObj,SuperweaponGameObj	virtual void Import_Occasional( BitStreamClass &packet );

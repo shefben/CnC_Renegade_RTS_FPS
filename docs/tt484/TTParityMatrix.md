@@ -762,14 +762,16 @@ starting state and is not maintained.
 
 ### 5.8 Final disposition of the declaration delta — P02 CLOSED
 
-`TTMethodSources.tsv` stands at **139 rows**, down from the 176 the 5.6 survey
-started with. Nothing left in it is P02 work. Every remaining row is one of:
+`TTMethodSources.tsv` stands at **107 rows**, down from the 176 the 5.6 survey
+started with. (The 139 quoted in an earlier pass was read off a TSV that had
+not been regenerated after the construction yard and superweapon landed.)
+Nothing left in it is P02 work. Every remaining row is one of:
 
 **Reassigned — the class does not exist in OpenW3D (Phase 5 new-class work).**
-`HUDSurfaceClass` (17), `ScriptedDialogClass` (17), `ExtendedNetworkObject` (1),
-`NavalFactoryGameObj` (27), `AirFactoryGameObj` (26), `SuperweaponGameObj` (18),
-`ConstructionYardGameObj` (12). There is no canonical owner to merge into; 5.2
-and 5.5 already say these port as whole classes.
+`HUDSurfaceClass` (17), `ScriptedDialogClass` (17), `ExtendedNetworkObject` (1).
+There is no canonical owner to merge into; 5.2 and 5.5 already say these port
+as whole classes. The four TT building types are dispositioned separately in
+5.9.
 
 **Reassigned — `PhysicsSceneClass` (7).** Shadow and polygon-budget control;
 belongs with P20, not with member parity.
@@ -787,7 +789,7 @@ belongs with P20, not with member parity.
 
 | Members | Waiting on |
 | --- | --- |
-| `BuildingGameObj` `As_*` casts (4) | The four new building classes of 5.2. |
+| `BuildingGameObj::As_NavalFactoryGameObj` (1) | `NavalFactoryGameObj`, which 5.9 reassigns to Zero Hour Feature 7. |
 | `VehicleGameObj::Is_Underground`, `Set_Color`, `Collision_Occurred` (3) | The underground-vehicle feature. OpenW3D has no `UNDERGROUND_COLLISION_GROUP`; `Is_Underground` is defined in terms of it, `Set_Color` drives `UndergroundEffectClass`, and the collision override is what keeps an underground vehicle from reacting to surface geometry. All three appear together in TT's header. |
 | `RenderObjClass::Register_For_Rendering`, `Set_User_Lighting_Flag` (2) | The renderer rework excluded by directive 0.6, and the static-lighting work respectively. Neither has a body anywhere in the donor. |
 
@@ -796,6 +798,72 @@ belongs with P20, not with member parity.
 `NetworkObjectClass`, `SoldierFactoryGameObj`. Each flag is wired to a site that
 honours it, per 5.6: a TT header is a link-time interface, so the accessor is
 the cheap half and the enforcement is the work.
+
+### 5.9 The four TT building types — final disposition
+
+5.2 listed `ConstructionYardGameObj`, `SuperweaponGameObj`, `AirFactoryGameObj` and
+`NavalFactoryGameObj` as whole-class ports. Two of them are; the other two are not,
+and for opposite reasons.
+
+**Ported.** `ConstructionYardGameObj` (12 rows) and `SuperweaponGameObj` (18 rows)
+have no counterpart anywhere in OpenW3D, so they arrive as new classes under
+`BuildingGameObj` with their own chunk IDs, definition factories and `As_*` casts.
+
+**`AirFactoryGameObj` — N/A, superseded by `AirStripGameObj`.** TT derives it
+straight from `BuildingGameObj` and re-implements, member for member, machinery
+OpenW3D already owns: `Vehicle`, `Purchaser`, `IsBusy`, `Timer`,
+`Get_Team_Vehicle_Count`, `Set_Max_Vehicles_Per_Team`, `Create_Vehicle`,
+`Is_Available_For_Purchase`. `defcheck.py` reaches the same conclusion mechanically
+— it marks nearly every air-factory row "owned elsewhere" and names
+`AirStripGameObj` first. The def is the clincher: TT's `DropCinematicDefId`,
+`CinematicSlotIndex` and `CinematicTimer` are `AirStripGameObjDef`'s
+`CinematicDefID`, `CinematicSlotIndex` and `CinematicLengthToDropOff` /
+`CinematicLengthToVehicleDisplay` under new names. TT could not subclass the stock
+factory from a DLL; a native merge can, so the architecture rule applies: the TT
+result goes into the canonical owner and no second implementation is kept.
+
+What was genuinely new moved across:
+
+| TT member | Where it landed |
+| --- | --- |
+| `IsDisabled`, `Is_Disabled`, `Set_Disabled`, `Set_Busy` | `VehicleFactoryGameObj`. TT declares these on both new factory types; putting them on the shared base is the one-owner form. Folded into `Is_Available`, saved, and replicated in the rare tier so a client draws the factory as unavailable. |
+| `LandingPositions`, `CurrentLandingPosition`, `LandingPosDefId`, `LandingPosDistance` | `AirStripGameObj`. Level-placed instances of the named preset within the radius become the pads, collected once in `CnC_Initialize` and taken in turn per generation. A building that names no preset keeps the stock single drop point, so existing levels are unchanged. |
+| `DefaultEngineEnable` | `AirStripGameObjDef`, applied to the delivered aircraft in `Start_Cinematic`. |
+| `CollisionGroup` | `AirStripGameObjDef::DeliveredCollisionGroup`, applied to the aircraft for the drop. Negative means "leave the vehicle preset alone", which is the stock behavior. |
+
+`BuildingGameObj::As_AirFactoryGameObj` is therefore N/A as well: `As_AirStripGameObj`
+already exists and is the same cast.
+
+**`NavalFactoryGameObj` — reassigned to Zero Hour Feature 7.** Roadmap Section 22
+lists "TT naval factories" under Feature 7's gameplay/collision integration,
+alongside hover/amphibious/naval units and the water surface. The class needs a
+spawn zone on water, up to six construction-zone presets and naval unit physics,
+none of which exist yet; Renegade ships no naval content and the Commander sidebar
+scope names `BUILDINGS`, `GROUND_VEHICLES`, `AIR_VEHICLES` and `INFANTRY` only.
+Building it now would be inventing a berth system with no water to float it on. Its
+27 rows and `BuildingGameObj::As_NavalFactoryGameObj` carry to Feature 7.
+
+### 5.10 Save/load reconciliation notes
+
+Three findings from wiring the new types through `wwsaveload`:
+
+- **Chunk IDs are persisted, so new ones append.** The first pass inserted the new
+ `CHUNKID_GAME_OBJECT_*` values after `CHUNKID_GAME_OBJECT_DEF_REPAIR_BAY`, which
+ renumbered `CHUNKID_MAPMGR`, `CHUNKID_ENCYCLOPEDIAMGR` and the Mendoza/Raveshaw
+ boss IDs by eight and would have broken every existing level and save file. They
+ now sit at the end of the game-object run, with a comment saying why. The
+ `CLASSID_GAME_OBJECT_DEF_*` values were already appended and needed no change.
+- **A new type must be force-linked or it does not exist.** `combat` is a static
+ library, so the linker only pulls an object file something references. The
+ definition factories are file-scope statics with no external references;
+ `Force_Link_Combat` in `objlibrary.cpp` is what drags them in. Both new types are
+ now in that list — without it the presets register nowhere and fail to load.
+- **TT's numeric IDs are unrecoverable and not matched.** TT never shipped
+ `combatchunkid.h`; its values for these four types live in the closed binary. TT
+ would have had to append after the same stock last value we did, so the allocation
+ is probably close, but nothing here depends on matching it — directive 0.4 and
+ the P02 "no obsolete ABI constraints" rule mean TT-authored preset databases are
+ not a compatibility target.
 
 ## 6. Outstanding Phase 1 work
 

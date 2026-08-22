@@ -48,6 +48,8 @@
 #include "objlibrary.h"
 #include "cinematicgameobj.h"
 #include "combat.h"
+#include "gameobjmanager.h"
+#include "phys.h"
 
 
 ////////////////////////////////////////////////////////////////
@@ -80,7 +82,11 @@ enum
 	MICROCHUNKID_DEF_CINEMATIC_DEFID						= 1,
 	MICROCHUNKID_DEF_CINEMATIC_LENGTH_TO_DROPOFF,
 	MICROCHUNKID_DEF_CINEMATIC_SLOT_INDEX,
-	MICROCHUNKID_DEF_DISPLAY_VEHICLE_TIME
+	MICROCHUNKID_DEF_DISPLAY_VEHICLE_TIME,
+	MICROCHUNKID_DEF_LANDING_POSITION_DEFID,
+	MICROCHUNKID_DEF_LANDING_POSITION_DISTANCE,
+	MICROCHUNKID_DEF_DELIVERED_COLLISION_GROUP,
+	MICROCHUNKID_DEF_DEFAULT_ENGINE_ENABLE
 };
 
 enum
@@ -101,7 +107,11 @@ AirStripGameObjDef::AirStripGameObjDef (void)	:
 	CinematicLengthToDropOff (0),
 	CinematicLengthToVehicleDisplay (0),
 	CinematicDefID (0),
-	CinematicSlotIndex (0)
+	CinematicSlotIndex (0),
+	LandingPositionDefID (0),
+	LandingPositionDistance (0),
+	DeliveredCollisionGroup (-1),
+	DefaultEngineEnable (true)
 {
 	//
 	//	Editable support
@@ -109,12 +119,31 @@ AirStripGameObjDef::AirStripGameObjDef (void)	:
 	EDITABLE_PARAM (AirStripGameObjDef, ParameterClass::TYPE_FLOAT,		CinematicLengthToDropOff);
 	EDITABLE_PARAM (AirStripGameObjDef, ParameterClass::TYPE_INT,			CinematicSlotIndex);
 	EDITABLE_PARAM (AirStripGameObjDef, ParameterClass::TYPE_FLOAT,		CinematicLengthToVehicleDisplay);
+	EDITABLE_PARAM (AirStripGameObjDef, ParameterClass::TYPE_FLOAT,		LandingPositionDistance);
+	EDITABLE_PARAM (AirStripGameObjDef, ParameterClass::TYPE_BOOL,		DefaultEngineEnable);
 
 	#ifdef PARAM_EDITING_ON
 		GenericDefParameterClass *param = new GenericDefParameterClass (&CinematicDefID);
 		param->Set_Class_ID (CLASSID_GAME_OBJECT_DEF_SIMPLE);
 		param->Set_Name ("Drop-Off Cinematic");
 		GENERIC_EDITABLE_PARAM (AirStripGameObjDef, param)
+
+		GenericDefParameterClass *pad_param = new GenericDefParameterClass (&LandingPositionDefID);
+		pad_param->Set_Class_ID (CLASSID_GAME_OBJECT_DEF_SIMPLE);
+		pad_param->Set_Name ("Landing Position");
+		GENERIC_EDITABLE_PARAM (AirStripGameObjDef, pad_param)
+
+		//
+		//	The designer picks the group by name rather than by number, so
+		//	the list has to come from the same table the scene is built from.
+		//
+		EnumParameterClass *group_param = new EnumParameterClass (&DeliveredCollisionGroup);
+		group_param->Set_Name ("Delivered Collision Group");
+		group_param->Add_Value ("Leave Unchanged", -1);
+		for (int group = 0; group < COLLISION_GROUP_COUNT; group ++) {
+			group_param->Add_Value (::Get_Collision_Group_Name ((Collision_Group_Type)group), group);
+		}
+		GENERIC_EDITABLE_PARAM (AirStripGameObjDef, group_param)
 	#endif //PARAM_EDITING_ON
 
 	return ;
@@ -177,6 +206,10 @@ AirStripGameObjDef::Save (ChunkSaveClass &csave)
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_DEF_CINEMATIC_DEFID,					CinematicDefID);
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_DEF_CINEMATIC_SLOT_INDEX,			CinematicSlotIndex);
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_DEF_DISPLAY_VEHICLE_TIME,			CinematicLengthToVehicleDisplay);
+		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_DEF_LANDING_POSITION_DEFID,		LandingPositionDefID);
+		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_DEF_LANDING_POSITION_DISTANCE,	LandingPositionDistance);
+		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_DEF_DELIVERED_COLLISION_GROUP,	DeliveredCollisionGroup);
+		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_DEF_DEFAULT_ENGINE_ENABLE,		DefaultEngineEnable);
 
 	csave.End_Chunk ();
 
@@ -232,6 +265,10 @@ AirStripGameObjDef::Load_Variables (ChunkLoadClass &cload)
 			READ_MICRO_CHUNK (cload, MICROCHUNKID_DEF_CINEMATIC_DEFID,					CinematicDefID);
 			READ_MICRO_CHUNK (cload, MICROCHUNKID_DEF_CINEMATIC_SLOT_INDEX,			CinematicSlotIndex);
 			READ_MICRO_CHUNK (cload, MICROCHUNKID_DEF_DISPLAY_VEHICLE_TIME,			CinematicLengthToVehicleDisplay);
+			READ_MICRO_CHUNK (cload, MICROCHUNKID_DEF_LANDING_POSITION_DEFID,		LandingPositionDefID);
+			READ_MICRO_CHUNK (cload, MICROCHUNKID_DEF_LANDING_POSITION_DISTANCE,	LandingPositionDistance);
+			READ_MICRO_CHUNK (cload, MICROCHUNKID_DEF_DELIVERED_COLLISION_GROUP,	DeliveredCollisionGroup);
+			READ_MICRO_CHUNK (cload, MICROCHUNKID_DEF_DEFAULT_ENGINE_ENABLE,		DefaultEngineEnable);
 
 			default:
 				Debug_Say (("Unrecognized AirStrip Def Variable chunkID\n"));
@@ -267,7 +304,9 @@ AirStripGameObj::AirStripGameObj (void)	:
 	ClearDropoffZoneTimer (UNITIALIZED_TIMER),
 	DisplayVehicleTimer (UNITIALIZED_TIMER),
 	IsCinematicStarted (false),
-	CinematicObject (nullptr)
+	CinematicObject (nullptr),
+	CurrentLandingPosition (-1),
+	DeliveryTM (1)
 {
 	return ;
 }
@@ -413,6 +452,96 @@ void
 AirStripGameObj::CnC_Initialize (BaseControllerClass *base)
 {
 	VehicleFactoryGameObj::CnC_Initialize (base);
+
+	//
+	//	The pads are level geometry, so they are found once, here, rather
+	//	than searched for on every delivery.
+	//
+	Collect_Landing_Positions ();
+	return ;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Collect_Landing_Positions
+//
+////////////////////////////////////////////////////////////////
+void
+AirStripGameObj::Collect_Landing_Positions (void)
+{
+	LandingPositionIDs.Delete_All ();
+	CurrentLandingPosition = -1;
+
+	int pad_def_id = Get_Definition ().LandingPositionDefID;
+	if (pad_def_id == 0) {
+		return ;
+	}
+
+	Vector3 pos;
+	Get_Position (&pos);
+
+	float max_dist = Get_Definition ().LandingPositionDistance;
+	float max_dist2 = max_dist * max_dist;
+
+	//
+	//	Several buildings can share a pad preset, so distance from this
+	//	building is what decides which pads are ours.  A distance of zero
+	//	means the level did not care to divide them up.
+	//
+	SLNode<BaseGameObj> *node = nullptr;
+	for (node = GameObjManager::Get_Game_Obj_List ()->Head (); node != nullptr; node = node->Next ()) {
+
+		PhysicalGameObj *pad = node->Data ()->As_PhysicalGameObj ();
+		if (pad == nullptr || pad->Get_Definition ().Get_ID () != (uint32)pad_def_id) {
+			continue;
+		}
+
+		Vector3 pad_pos;
+		pad->Get_Position (&pad_pos);
+
+		if (max_dist <= 0.0F || (pad_pos - pos).Length2 () <= max_dist2) {
+			LandingPositionIDs.Add (pad->Get_ID ());
+		}
+	}
+
+	return ;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Choose_Landing_Position
+//
+////////////////////////////////////////////////////////////////
+void
+AirStripGameObj::Choose_Landing_Position (void)
+{
+	//
+	//	No pads is the stock arrangement: one building, one drop point.
+	//
+	DeliveryTM = CreationTM;
+
+	int pad_count = LandingPositionIDs.Count ();
+	if (pad_count == 0) {
+		return ;
+	}
+
+	//
+	//	Take the pads in turn.  A pad that has been removed from the level
+	//	since we collected it is skipped rather than waited for.
+	//
+	for (int attempt = 0; attempt < pad_count; attempt ++) {
+
+		CurrentLandingPosition = (CurrentLandingPosition + 1) % pad_count;
+
+		PhysicalGameObj *pad = GameObjManager::Find_PhysicalGameObj (LandingPositionIDs[CurrentLandingPosition]);
+		if (pad != nullptr) {
+			DeliveryTM = pad->Get_Transform ();
+			break;
+		}
+	}
+
 	return ;
 }
 
@@ -496,6 +625,12 @@ AirStripGameObj::Begin_Generation (void)
 {
 	CinematicStartTimer	= GenerationTime - Get_Definition ().CinematicLengthToDropOff;
 	IsCinematicStarted	= false;
+
+	//
+	//	The cinematic, the drop and the pad clearing all read DeliveryTM, so
+	//	the pad is chosen once here and not revisited mid-delivery.
+	//
+	Choose_Landing_Position ();
 	return ;
 }
 
@@ -534,6 +669,22 @@ AirStripGameObj::Start_Cinematic (void)
 		}
 
 		//
+		//	An aircraft on its way down is not where it will end up, so a
+		//	level can put it in a group that ignores whatever the pad sits
+		//	on for the duration of the drop.
+		//
+		int collision_group = Get_Definition ().DeliveredCollisionGroup;
+		if (collision_group >= 0 && vehicle->Peek_Physical_Object () != nullptr) {
+			vehicle->Peek_Physical_Object ()->Set_Collision_Group ((unsigned char)collision_group);
+		}
+
+		//
+		//	An aircraft delivered with its engine off has to be started before
+		//	it can be flown off the pad.
+		//
+		vehicle->Enable_Engine (Get_Definition ().DefaultEngineEnable);
+
+		//
 		//	Create the cinematic controller
 		//
 		CinematicObject = ObjectLibraryManager::Create_Object (Get_Definition ().CinematicDefID);
@@ -543,8 +694,7 @@ AirStripGameObj::Start_Cinematic (void)
 			//
 			//	Position the cinematic controller in the world
 			//
-			Matrix3D test_tm = CreationTM;
-			CinematicObject->Set_Transform (test_tm);
+			CinematicObject->Set_Transform (DeliveryTM);
 
 			//
 			//	Try to find the script parser so we can communicate with it
