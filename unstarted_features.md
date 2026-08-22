@@ -38,23 +38,9 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P03: Merge TT hooks/patches/overrides into canonical implementations (roadmap Section 9)
 
-- [ ] Acceptance: No required TT gameplay feature depends on modifying executable memory or knowing a hard-coded function address.
 
 ## P04: Native stock + TT script registry (roadmap Section 10)
 
-- [ ] Introduce `NativeScriptRegistry`.
-- [ ] Inventory every existing OpenW3D stock script against TT 4.8.4 before registration.
-- [ ] Compile unchanged stock scripts only when TT does not supersede them.
-- [ ] For stock scripts modified/replaced by TT, merge TT changes into the canonical source and compile/register only that resulting implementation.
-- [ ] Compile TT-only new scripts as additional canonical scripts.
-- [ ] Fail generation/build on duplicate built-in script names or multiple factories for the same script.
-- [ ] Use an OBJECT library or explicit generated registration table so the linker cannot dead-strip unreferenced script translation units.
-- [ ] Replace `ScriptManager::Create_Script()` with native registry lookup for built-in scripts.
-- [ ] Replace built-in script destruction with native deletion/factory destruction.
-- [ ] Keep save/load by script name and parameters compatible.
-- [ ] Remove `add_dependencies(combat scripts)` once no longer required.
-- [ ] Stop normal `ScriptManager::Init()` from `Load_Scripts("SCRIPTS.DLL")`.
-- [ ] Ensure editor/tool builds use the same canonical script catalog.
 
 ## P05: Port remaining TT 4.8.4 engine-facing functionality (roadmap Section 11)
 

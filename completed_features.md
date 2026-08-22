@@ -255,3 +255,34 @@ Acceptance met: one canonical engine declaration per core class, with TT 4.8.4
 semantics available natively. Delta 176 -> 107 rows, none of them P02 work --
 matrix 5.8/5.9/5.10 disposition every remaining row. No stock-vs-TT duplicate
 survives and no ABI or facade shim was introduced.
+
+## P03-A: native game event bus
+
+`GameEventBus` gives every event family roadmap Section 9 names a typed channel
+raised from its canonical OpenW3D owner -- 30 channels, 27 wired; Dialog,
+PlayerKey and RenderNotify are declared with their blockers named rather than
+faked. `TextMessageEnum`/`AnnouncementEnum` consolidated into
+`communicationtypes.h`. `combat` and `renegade` link clean; docs in
+`docs/tt484/NativeEventDispatch.md` (`1507f409`).
+
+## P04-A: `ScriptCommands` DLL function table deleted
+
+The 202-entry table and its Size/Version ABI check are gone; the functions it
+pointed at are declared directly in `namespace ScriptEngine` and 25,830 call
+sites now call them. No facade, no dual path (`f3a68490`).
+
+## P04-B: native script registry replaces the SCRIPTS.DLL bootstrap
+
+`NativeScriptRegistry` with per-script provenance and aliases; `Code/Scripts` is
+an OBJECT library so no script can be dead-stripped; `tools/check_script_catalog.py`
+fails generation on a duplicate name (1640 scripts, none duplicated) and
+`Build_Index` checks again at startup; the editor enumerates the same registry.
+Covers the backlog lines "Introduce `NativeScriptRegistry`", "Inventory every
+existing OpenW3D stock script against TT 4.8.4", "Fail generation/build on
+duplicate built-in script names", "Use an OBJECT library...", "Replace
+`ScriptManager::Create_Script()` with native registry lookup", "Replace built-in
+script destruction with native deletion/factory destruction", "Keep save/load by
+script name and parameters compatible", "Remove `add_dependencies(combat scripts)`",
+"Stop normal `ScriptManager::Init()` from `Load_Scripts(\"SCRIPTS.DLL\")`" and
+"Ensure editor/tool builds use the same canonical script catalog". `renegade` and
+`leveledit` link clean; docs in `docs/tt484/NativeScriptRegistry.md` (`f3a68490`).
