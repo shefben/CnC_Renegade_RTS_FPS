@@ -55,6 +55,7 @@
 
 #ifndef	WWSTRING_H
 	#include "wwstring.h"
+	#include "playertype.h"
 #endif
 
 class	Sound3DClass;
@@ -243,6 +244,7 @@ public:
 
 	// Script enabling of transitions
 	void		Script_Enable_Transitions( bool enable )	{	TransitionsEnabled = enable; Create_And_Destroy_Transitions(); }
+	bool		Get_Transitions_Enabled( void )				{ return TransitionsEnabled; }
 
 	static void Set_Precision(void);
 
@@ -279,6 +281,83 @@ public:
 	void					Ignore_Occupants( void );
 	void					Unignore_Occupants( void );
 
+	//
+	//	Direct seat access.  Add_Occupant/Remove_Occupant maintain the seat
+	//	bookkeeping; these two do not, and exist for callers that are moving a
+	//	soldier between vehicles themselves.
+	//
+	SoldierGameObj *	Get_Occupant( int seat )									{ return SeatOccupants[seat]; }
+	void					Set_Occupant( int seat, SoldierGameObj *occupant )	{ SeatOccupants[seat] = occupant; }
+
+	//
+	//	Visibility a script can veto.  Distinct from the stealth effect: an
+	//	invisible vehicle is simply not rendered.
+	//
+	void					Set_Is_Scripts_Visible( bool onoff )	{ ScriptsVisible = onoff; }
+	bool					Get_Is_Scripts_Visible( void )			{ return ScriptsVisible; }
+	virtual bool		Is_Visible( void ) override				{ return ScriptsVisible; }
+
+	//
+	//	Firing and driving can be suppressed independently, so an EMP can kill
+	//	the engine while leaving the turret live, or the reverse.
+	//
+	void					Set_Scripts_Can_Fire( bool onoff )	{ CanFire = onoff; Set_Object_Dirty_Bit( NetworkObjectClass::BIT_FREQUENT, true ); }
+	bool					Get_Scripts_Can_Fire( void )			{ return CanFire; }
+	void					Set_Can_Drive( bool onoff )			{ CanDrive = onoff; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	bool					Can_Drive( void )							{ return CanDrive; }
+
+	//
+	//	Normally a vehicle loses its stealth as soon as the last occupant
+	//	leaves; this keeps it stealthed while empty.
+	//
+	void					Set_Allow_Stealth_While_Empty( bool onoff )	{ AllowStealthWhileEmpty = onoff; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	bool					Get_Allow_Stealth_While_Empty( void ) const	{ return AllowStealthWhileEmpty; }
+
+	//
+	//	Force the damage meshes to be re-evaluated on this machine and on the
+	//	clients, without the health having changed.
+	//
+	void					Damage_Meshes_Update( void );
+
+	//
+	//	Entry restrictions layered on top of Lock_Vehicle.  LockTeam admits a
+	//	whole team; Owner admits exactly one soldier.
+	//
+	enum {
+		LOCK_TEAM_NOD	= PLAYERTYPE_NOD,
+		LOCK_TEAM_GDI	= PLAYERTYPE_GDI,
+		LOCK_TEAM_ANY	= PLAYERTYPE_GDI + 1,
+	};
+
+	//
+	//	LastTeam sentinel meaning "no script has overridden the team, use the
+	//	real player type".
+	//
+	enum { SCRIPTS_TEAM_UNSET = PLAYERTYPE_NEUTRAL };
+
+	void					Set_Lock_Team( int team )				{ LockTeam = (char)team; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	int					Get_Lock_Team( void )					{ return LockTeam; }
+	void					Set_Can_Be_Stolen( bool onoff )		{ CanBeStolen = onoff; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	bool					Can_Be_Stolen( void ) const			{ return CanBeStolen; }
+	void					Set_Owner( SoldierGameObj *obj );
+	SoldierGameObj *	Get_Owner( void );
+
+	//
+	//	Physics passthroughs
+	//
+	void					Set_Immovable( bool onoff );
+	bool					Is_Immovable( void )						{ return Peek_Physical_Object()->Is_Immovable(); }
+
+	//
+	//	Team a script has forced this vehicle to be treated as belonging to.
+	//	LOCK_TEAM_NONE means "use the real player type".
+	//
+	void					Set_Scripts_Last_Team( char team )	{ LastTeam = team; }
+	int					Scripts_Get_Team( void ) const;
+	bool					Scripts_Is_Enemy( DamageableGameObj *obj );
+	bool					Scripts_Is_Teammate( const DamageableGameObj *obj );
+	bool					Scripts_Is_Team_Player( void );
+
 
 protected:
 
@@ -296,6 +375,17 @@ protected:
 	bool						TransitionsEnabled;
 	bool						HasEnterTransitions;
 	bool						HasExitTransitions;
+
+	bool						ScriptsVisible;
+	bool						CanFire;
+	bool						CanDrive;
+	bool						AllowStealthWhileEmpty;
+	bool						CanBeStolen;
+	bool						DamageMeshesUpdate;			// Refresh the meshes on the next think
+	bool						DamageMeshesNetworkUpdate;	// ... and tell the clients to do the same
+	char						LockTeam;
+	char						LastTeam;						// PLAYERTYPE, or SCRIPTS_TEAM_UNSET
+	GameObjReference		Owner;							// Only this soldier may enter
 
 	bool						VehicleDelivered;
 

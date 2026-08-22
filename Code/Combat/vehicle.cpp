@@ -440,7 +440,16 @@ VehicleGameObj::VehicleGameObj()	:
 	HasEnterTransitions( false ),
 	HasExitTransitions( false ),
 	VehicleDelivered(false),
-	LockTimer( 0 )
+	LockTimer( 0 ),
+	ScriptsVisible( true ),
+	CanFire( true ),
+	CanDrive( true ),
+	AllowStealthWhileEmpty( false ),
+	CanBeStolen( true ),
+	DamageMeshesUpdate( false ),
+	DamageMeshesNetworkUpdate( false ),
+	LockTeam( LOCK_TEAM_ANY ),
+	LastTeam( SCRIPTS_TEAM_UNSET )
 {
 	DriverIsGunner = DefaultDriverIsGunner;
 	Set_App_Packet_Type(APPPACKETTYPE_VEHICLE);
@@ -550,6 +559,13 @@ enum	{
 	MICROCHUNKID_TRANSITIONS_ENABLED,
 	MICROCHUNKID_OCCUPIED_SEATS,
 	MICROCHUNKID_NUM_SEATS,
+	MICROCHUNKID_SCRIPTS_VISIBLE,
+	MICROCHUNKID_CAN_FIRE,
+	MICROCHUNKID_CAN_DRIVE,
+	MICROCHUNKID_ALLOW_STEALTH_WHILE_EMPTY,
+	MICROCHUNKID_CAN_BE_STOLEN,
+	MICROCHUNKID_LOCK_TEAM,
+	MICROCHUNKID_LAST_TEAM,
 };
 
 bool	VehicleGameObj::Save( ChunkSaveClass & csave )
@@ -568,6 +584,13 @@ bool	VehicleGameObj::Save( ChunkSaveClass & csave )
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_BARREL_TILT, BarrelTilt );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_TRANSITIONS_ENABLED, TransitionsEnabled );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_OCCUPIED_SEATS, OccupiedSeats );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_SCRIPTS_VISIBLE, ScriptsVisible );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_CAN_FIRE, CanFire );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_CAN_DRIVE, CanDrive );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_ALLOW_STEALTH_WHILE_EMPTY, AllowStealthWhileEmpty );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_CAN_BE_STOLEN, CanBeStolen );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_LOCK_TEAM, LockTeam );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_LAST_TEAM, LastTeam );
 		int num_seats = SeatOccupants.Length();
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_NUM_SEATS, num_seats );
 	csave.End_Chunk();
@@ -605,6 +628,13 @@ bool	VehicleGameObj::Load( ChunkLoadClass &cload )
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_BARREL_TILT, BarrelTilt );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_TRANSITIONS_ENABLED, TransitionsEnabled );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_OCCUPIED_SEATS, OccupiedSeats );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_SCRIPTS_VISIBLE, ScriptsVisible );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_FIRE, CanFire );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_DRIVE, CanDrive );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_ALLOW_STEALTH_WHILE_EMPTY, AllowStealthWhileEmpty );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_BE_STOLEN, CanBeStolen );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_LOCK_TEAM, LockTeam );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_LAST_TEAM, LastTeam );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_NUM_SEATS, num_seats );
 
 						default:
@@ -866,6 +896,15 @@ void VehicleGameObj::Export_Rare( BitStreamClass &packet )
 	}
 
 	packet.Add(VehicleDelivered);
+
+	//
+	//	Script-controlled state the client has to agree on
+	//
+	packet.Add( ScriptsVisible );
+	packet.Add( CanDrive );
+	packet.Add( AllowStealthWhileEmpty );
+	packet.Add( CanBeStolen );
+	packet.Add( LockTeam );
 }
 
 void VehicleGameObj::Import_Rare( BitStreamClass &packet )
@@ -919,6 +958,12 @@ void VehicleGameObj::Import_Rare( BitStreamClass &packet )
 			base->On_Vehicle_Delivered(this);
 		}
 	}
+
+	packet.Get( ScriptsVisible );
+	packet.Get( CanDrive );
+	packet.Get( AllowStealthWhileEmpty );
+	packet.Get( CanBeStolen );
+	packet.Get( LockTeam );
 }
 
 
@@ -1018,6 +1063,13 @@ void VehicleGameObj::Import_Frequent(BitStreamClass & packet)
 	}
 
 	packet.Get( DriverIsGunner );
+	packet.Get( CanFire );
+
+	bool damage_meshes_update = false;
+	packet.Get( damage_meshes_update );
+	if ( damage_meshes_update ) {
+		DamageMeshesUpdate = true;
+	}
 
    SmartGameObj::Import_Frequent(packet);
 
@@ -1111,6 +1163,13 @@ void VehicleGameObj::Export_Frequent(BitStreamClass & packet)
 	}
 
 	packet.Add( DriverIsGunner );
+	packet.Add( CanFire );
+
+	//
+	//	One-shot: tell the client to re-evaluate its damage meshes.
+	//
+	packet.Add( DamageMeshesNetworkUpdate );
+	DamageMeshesNetworkUpdate = false;
 
 	SmartGameObj::Export_Frequent(packet);
 
@@ -1327,6 +1386,22 @@ void VehicleGameObj::Apply_Control( void )
 	Control.Set_Analog( ControlClass::ANALOG_TURN_LEFT,
 		WWMath::Clamp( Control.Get_Analog( ControlClass::ANALOG_TURN_LEFT ), -1.0F, 1.0F ) );
 
+	//
+	//	Driving and firing are suppressed independently, so a disabled engine
+	//	still leaves the turret live and vice versa.
+	//
+	if ( !CanDrive ) {
+		Control.Set_Analog( ControlClass::ANALOG_MOVE_FORWARD, 0 );
+		Control.Set_Analog( ControlClass::ANALOG_MOVE_LEFT, 0 );
+		Control.Set_Analog( ControlClass::ANALOG_MOVE_UP, 0 );
+		Control.Set_Analog( ControlClass::ANALOG_TURN_LEFT, 0 );
+	}
+
+	if ( !CanFire ) {
+		Control.Set_Boolean( ControlClass::BOOLEAN_WEAPON_FIRE_PRIMARY, false );
+		Control.Set_Boolean( ControlClass::BOOLEAN_WEAPON_FIRE_SECONDARY, false );
+	}
+
 	SmartGameObj::Apply_Control();
 }
 */
@@ -1452,9 +1527,16 @@ void	VehicleGameObj::Think( void )
 
 	// UnStealth if we don't have any occupants, and we aren't in single play
 	if (StealthEffect != nullptr) {
-		if ((Get_Occupant_Count() == 0 ) && ( !IS_MISSION )) {
+		if ((Get_Occupant_Count() == 0 ) && ( !IS_MISSION ) && !AllowStealthWhileEmpty) {
 			StealthEffect->Enable_Stealth(false);
 		}
+	}
+
+	// A script can ask for the damage meshes to be re-evaluated without the
+	// health having changed.
+	if ( DamageMeshesUpdate ) {
+		DamageMeshesUpdate = false;
+		Update_Damage_Meshes();
 	}
 }
 }
@@ -2019,9 +2101,22 @@ bool	VehicleGameObj::Is_Entry_Permitted( SoldierGameObj * p_soldier )
 	// and a soldier may be forbidden from doing it.
 	//
 	int vehicle_pt = Get_Player_Type();
-	if (!p_soldier->Can_Steal_Vehicles() &&
-		 vehicle_pt != player_type &&
-		 (vehicle_pt == PLAYERTYPE_NOD || vehicle_pt == PLAYERTYPE_GDI)) {
+	bool is_theft = vehicle_pt != player_type &&
+						 (vehicle_pt == PLAYERTYPE_NOD || vehicle_pt == PLAYERTYPE_GDI);
+
+	if (is_theft && (!p_soldier->Can_Steal_Vehicles() || !CanBeStolen)) {
+		is_permitted = false;
+	}
+
+	//
+	// A vehicle can additionally be reserved for one team, or for one soldier.
+	//
+	if (LockTeam != LOCK_TEAM_ANY && LockTeam != player_type) {
+		is_permitted = false;
+	}
+
+	SoldierGameObj *owner = Get_Owner();
+	if (owner != nullptr && owner != p_soldier) {
 		is_permitted = false;
 	}
 
@@ -2233,6 +2328,140 @@ void	VehicleGameObj::Apply_Damage( const OffenseObjectClass & damager, float sca
 	//
 	Update_Damage_Meshes();
 }
+
+//-----------------------------------------------------------------------------
+//
+//	Damage_Meshes_Update
+//
+//	Ask for the damage meshes to be re-evaluated on the next think, here and on
+//	every client.  Update_Damage_Meshes normally only runs when the health
+//	changes, so a script that swaps the model needs this to catch up.
+//
+//-----------------------------------------------------------------------------
+void	VehicleGameObj::Damage_Meshes_Update( void )
+{
+	DamageMeshesUpdate = true;
+	DamageMeshesNetworkUpdate = true;
+	Set_Object_Dirty_Bit( NetworkObjectClass::BIT_FREQUENT, true );
+}
+
+
+//-----------------------------------------------------------------------------
+//
+//	Set_Owner
+//
+//-----------------------------------------------------------------------------
+void	VehicleGameObj::Set_Owner( SoldierGameObj *obj )
+{
+	//
+	//	Not replicated: entry permission is decided on the server.
+	//
+	Owner = obj;
+}
+
+
+//-----------------------------------------------------------------------------
+//
+//	Get_Owner
+//
+//-----------------------------------------------------------------------------
+SoldierGameObj *	VehicleGameObj::Get_Owner( void )
+{
+	ScriptableGameObj *owner = Owner.Get_Ptr();
+	if ( owner == nullptr ) {
+		return nullptr;
+	}
+	return owner->As_SoldierGameObj();
+}
+
+
+//-----------------------------------------------------------------------------
+//
+//	Set_Immovable
+//
+//	An immovable vehicle keeps its collision but stops responding to forces, so
+//	any velocity it already had has to be discarded with it.
+//
+//-----------------------------------------------------------------------------
+void	VehicleGameObj::Set_Immovable( bool onoff )
+{
+	PhysClass *phys_obj = Peek_Physical_Object();
+	if ( phys_obj == nullptr ) {
+		return;
+	}
+
+	phys_obj->Set_Immovable( onoff );
+	Set_Object_Dirty_Bit( NetworkObjectClass::BIT_FREQUENT, true );
+
+	MoveablePhysClass *moveable = phys_obj->As_MoveablePhysClass();
+	if ( moveable != nullptr ) {
+		moveable->Set_Velocity( Vector3( 0, 0, 0 ) );
+	}
+}
+
+
+//-----------------------------------------------------------------------------
+//
+//	Scripts_Get_Team
+//
+//	The team a script has forced this vehicle to be treated as belonging to,
+//	falling back to the real player type when no script has set one.
+//
+//-----------------------------------------------------------------------------
+int	VehicleGameObj::Scripts_Get_Team( void ) const
+{
+	if ( LastTeam == SCRIPTS_TEAM_UNSET ) {
+		return Get_Player_Type();
+	}
+	return LastTeam;
+}
+
+
+//-----------------------------------------------------------------------------
+//
+//	Scripts_Is_Enemy
+//
+//-----------------------------------------------------------------------------
+bool	VehicleGameObj::Scripts_Is_Enemy( DamageableGameObj *obj )
+{
+	if ( obj == nullptr || obj == this ) {
+		return false;
+	}
+	return Player_Types_Are_Enemies( Scripts_Get_Team(), obj->Get_Player_Type() );
+}
+
+
+//-----------------------------------------------------------------------------
+//
+//	Scripts_Is_Team_Player
+//
+//	True when the vehicle counts as belonging to one of the two real teams,
+//	rather than being neutral, renegade, mutant or spectator.
+//
+//-----------------------------------------------------------------------------
+bool	VehicleGameObj::Scripts_Is_Team_Player( void )
+{
+	int team = Scripts_Get_Team();
+	return team == PLAYERTYPE_NOD || team == PLAYERTYPE_GDI;
+}
+
+
+//-----------------------------------------------------------------------------
+//
+//	Scripts_Is_Teammate
+//
+//-----------------------------------------------------------------------------
+bool	VehicleGameObj::Scripts_Is_Teammate( const DamageableGameObj *obj )
+{
+	if ( obj == this ) {
+		return true;
+	}
+	if ( obj == nullptr ) {
+		return false;
+	}
+	return Scripts_Is_Team_Player() && Scripts_Get_Team() == obj->Get_Player_Type();
+}
+
 
 void	VehicleGameObj::Update_Damage_Meshes( void )
 {
