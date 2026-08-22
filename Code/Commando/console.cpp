@@ -320,13 +320,13 @@ WWPROFILE( "Input Active" );
 		switch (ConsoleInputType) {
 			/*
 			case INPUT_FUNCTION_BEGIN_PUBLIC_MESSAGE :
-				color = COLOR_PUBLIC_TEXT;
+				color = Get_Public_Text_Color();
 				break;
 			case INPUT_FUNCTION_BEGIN_TEAM_MESSAGE :
 				color = cNetwork::Get_My_Color();
 				break;
 			case INPUT_FUNCTION_BEGIN_PRIVATE_MESSAGE :
-				color = COLOR_PRIVATE_TEXT;
+				color = Get_Private_Text_Color();
 				break;
 			*/
 			case INPUT_FUNCTION_BEGIN_CONSOLE :

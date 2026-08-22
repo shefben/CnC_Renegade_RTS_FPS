@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "stylemgr.h"
+#include "ttsettings.h"
 #include "render2d.h"
 #include "assetmgr.h"
 #include "texture.h"
@@ -207,6 +208,26 @@ void
 StyleMgrClass::Initialize_From_INI (const char *filename)
 {
 	Shutdown ();
+
+	//
+	//	A server or mod may re-skin the menus.  These live in TTSettingsClass
+	//	because that is what reads hud.ini; they land here, which is where
+	//	every control asks for them.  Unset, each keeps its stock value.
+	//
+	TitleColor = TTSettingsClass::TitleColor;
+	TitleHilightColor = TTSettingsClass::TitleHilightColor;
+	TitleShadowColor = TTSettingsClass::TitleShadowColor;
+	TextColor = TTSettingsClass::TextColor;
+	TextShadowColor = TTSettingsClass::TextShadowColor;
+	LineColor = TTSettingsClass::LineColor;
+	BkColor = TTSettingsClass::BkColor;
+	DisabledTextColor = TTSettingsClass::DisabledTextColor;
+	DisabledTextShadowColor = TTSettingsClass::DisabledTextShadowColor;
+	DisabledLineColor = TTSettingsClass::DisabledLineColor;
+	DisabledBkColor = TTSettingsClass::DisabledBkColor;
+	HilightColor = TTSettingsClass::HilightColor;
+	TabTextColor = TTSettingsClass::TabTextColor;
+	TabGlowColor = TTSettingsClass::TabGlowColor;
 
 	//
 	//	Compute the scale

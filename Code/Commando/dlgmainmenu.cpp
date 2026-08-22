@@ -36,6 +36,7 @@
 
 
 #include "dlgmainmenu.h"
+#include "ttsettings.h"
 #include "assetmgr.h"
 #include "renegadedialog.h"
 #include "rendobj.h"
@@ -337,7 +338,8 @@ MainMenuDialogClass::Choose_Skirmish_Map (void)
 		//
 		// No skirmish maps found. Look for a C&C map.
 		//
-		file_filter.Format("data/c&c_*.mix");
+		//	See MPLanHostMapCycleOptionsTabClass::Build_Map_List
+		file_filter.Format("data/%s*.mix", TTSettingsClass::MapPrefix.Peek_Buffer());
 		keep_going = true;
 		for (file_find = ::FindFirstFileA (file_filter, &find_info);
 			 (file_find != INVALID_HANDLE_VALUE) && keep_going;

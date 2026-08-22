@@ -1461,7 +1461,7 @@ void WolGameModeClass::HandleNotification(UserEvent& event)
 		case UserEvent::Kicked: {
 			WideStringClass message(0, true);
 			message.Format(TRANSLATE(IDS_MENU_PLAYER_KICKED_MESSAGE), event.Subject()->GetName().Peek_Buffer());
-			CombatManager::Get_Message_Window()->Add_Message(message, COLOR_PUBLIC_TEXT);
+			CombatManager::Get_Message_Window()->Add_Message(message, Get_Public_Text_Color());
 			WWAudioClass::Get_Instance()->Create_Instant_Sound("Public_Message", Matrix3D(1));
 		}
 		break;
@@ -1478,7 +1478,7 @@ void WolGameModeClass::HandleNotification(UserEvent& event)
 			message.Format(TRANSLATE(IDS_CHAT_LOCATEDUSER), user->GetName().Peek_Buffer());
 			message += U_CHAR(" - ");
 			message += location;
-			CombatManager::Get_Message_Window()->Add_Message(message, COLOR_PRIVATE_TEXT);
+			CombatManager::Get_Message_Window()->Add_Message(message, Get_Private_Text_Color());
 			WWAudioClass::Get_Instance()->Create_Instant_Sound("Private_Message", Matrix3D(1));
 		}
 		break;

@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "dlgmplanhostoptions.h"
+#include "ttsettings.h"
 #include "renegadedialog.h"
 #include "tabctrl.h"
 #include "gamedata.h"
@@ -1552,7 +1553,11 @@ MPLanHostMapCycleOptionsTabClass::Build_Map_List (void)
 	StringClass file_filter;
 	WWASSERT(The_Game() != nullptr);
 	if (The_Game()->Is_Cnc()) {
-		file_filter.Format("data/c&c_*.mix");
+		//
+		//	A mod whose maps are not named C&C_ says so, rather than having to
+		//	name them after somebody else's game mode to be listed.
+		//
+		file_filter.Format("data/%s*.mix", TTSettingsClass::MapPrefix.Peek_Buffer());
 	} else {
 		file_filter.Format("data/mp_*.mix");
 	}

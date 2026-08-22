@@ -36,6 +36,7 @@
 
 #include "renegadedialog.h"
 #include "dlgconfigperformancetab.h"
+#include "ttsettings.h"
 #include "registry.h"
 #include "comboboxctrl.h"
 #include "sliderctrl.h"
@@ -140,8 +141,12 @@ const char *VALUE_INI_TEXTURE_RES		= "TextureResolution";
 const char *VALUE_INI_PARTICLE_DETAIL	= "ParticleDetail";
 const char *VALUE_INI_NPATCHES			= "NPatches";
 
-const int MAX_LOD_HIGH	= 10000;
-const int MAX_LOD_MED	= 5000;
+//
+//	What the geometry-detail slider's two upper notches mean, in polygons.  A
+//	mod whose models are heavier than the stock ones moves them.
+//
+#define MAX_LOD_HIGH	(TTSettingsClass::LodBudgetDialogValue2)
+#define MAX_LOD_MED		(TTSettingsClass::LodBudgetDialogValue1)
 const int MAX_LOD_LOW	= 0;
 
 

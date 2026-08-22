@@ -184,14 +184,42 @@ Two deliberate departures from TT, both recorded at the call site:
   ini written for TT keeps working. Same for `HilightColorBkColor` and
   `NeutralVechiclePointsFix`.
 
-## 6. Order
+## 6. Standing
 
-1. `TTSettingsClass` with the full inventory above and TT's defaults;
-2. load it during engine init and gate the two `merged-needs-setting` clusters;
-3. the four reopened hook clusters;
-4. the remaining gameplay options (`Unsquishable`, weather, points, draw
-   distance, `ContinueReloadOnVehicleExit`, `BuildTimeDelay`);
-5. UI and colour options, which are inert until their consumers are touched
-   anyway;
-6. `VehicleBuildingDisable`, last — it is a whole alternate production model,
-   not a switch, and it carries the PT "building" message with it.
+Every option that has a native owner is wired. What is left is closed, with the
+reason, rather than left waiting:
+
+**Honoured.** `DisableCostMultiplier`, `DisableVehicleFlipKill`,
+`NukeWeatherDisable`, `IonWeatherDisable`, `NewUnpurchaseableLogic`,
+`Unsquishable` and its four armour exemptions, `DrawDistance`, `BuildTimeDelay`,
+`VehicleOwnershipDisable`, `ContinueReloadOnVehicleExit`, `DisableKillMessages`,
+`SidebarSoundsEnabled`, `UseExtraPTPages`, `ListColumnColorEnabled` and
+`ListColumnColor`, `VersionRegistryKey`, `WOLUrlRegistryKey`, `HidePlayerList`,
+`HideBottomText`, `NodHouseColor`, `GDIHouseColor`, `PublicMessageColor`,
+`PrivateMessageColor`, `LodBudgetDialogValue1/2`, `MapPrefix`.
+
+**Closed as not applicable**, each with a row in `TTHookSites.tsv` carrying the
+same reason:
+
+| Setting | Why |
+| --- | --- |
+| `VehicleBuildingDisable` | A second production model -- per-team instead of per-factory -- selected by a flag, which directive 0.4 forbids. Its `CurrentlyBuilding` state only travels over the scripts text channel and is a plugin export (0.5), and the roadmap's Commander production model supersedes a team-wide lock. Takes the PT "building" message with it. |
+| `RefillLimit`, `AlternateSelectEnabled`, `SidebarRefillSound`, `SidebarInfantrySound`, `SidebarVehicleSound`, the eight `*AlternateSelectTexture` entries, the background and arrow textures | All belong to TT's own `SidebarDlg`, a hotkey purchase panel superseded by the roadmap's Commander sidebar. `SidebarSoundsEnabled` is honoured on its own: it suppresses the stock purchase sound so a server's own sounds are not doubled. |
+| `ScrollingRadarMap` | Gates receiving scrolling-radar data over the scripts text channel (`SS_RADARMAP`), declined under directive 0.5. |
+| `ModRegistryKey` | Names the registry values a client sends to server plugins over the scripts text channel, declined under directive 0.5. |
+| `NeutralVechiclePointsFix` | Declared in TT 4.8.4 and never read. Its mechanism is the scripts team override, and canonical `Do_Damage` already scores a neutral target zero and a teammate negative. |
+| `ScriptsLastTeamTime` | Unconsumed, with `NeutralVechiclePointsFix`. |
+
+**The fourteen styling colours** (`TitleColor`, `TextColor`, `BkColor`,
+`LineColor`, the disabled set, the tab pair and the two title variants) are
+copied into `StyleMgrClass`'s statics at `Initialize_From_INI`, which is where
+every control reads them from. A server that sets them sees them.
+
+**The eight menu glow colours** -- `DialogTextTitleColor`,
+`DialogTextTitleGlowColor`, `MenuHilightColor`, `MerchandiseTextColor`,
+`MenuStaticGlowColor`, `MenuActiveGlowColor`, `MenuPushedBaseGlowColor`,
+`MenuPushedHighlightGlowColor` -- are loaded and not yet consumed.
+`MenuEntryCtrlClass` derives its glow from two red-channel constants rather
+than from four named colours, and replacing that is a change to how the menu
+widget looks, not a setting. It belongs with the UI pass that touches the
+widget, and is the one loose end left in this file.

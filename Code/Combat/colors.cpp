@@ -37,16 +37,37 @@
 #include "colors.h"
 
 #include "playertype.h"
+#include "ttsettings.h"
 #include "wwdebug.h"
 
 
+//
+//	The house colours.  These reach a long way -- the name over a player's
+//	head, the radar blips, the flag on their back -- so a server that
+//	re-skins its teams sets them in one place.  The defaults are the stock
+//	Nod red and GDI gold.
+//
 Vector3 Get_Color_For_Team(int team)
 {
 	WWASSERT(team == PLAYERTYPE_NOD || team == PLAYERTYPE_GDI);
 
-	if (team == PLAYERTYPE_NOD) {
-		return COLOR_TEAM_0;
-	} else {
-		return COLOR_TEAM_1;
-	}
+	const float *color =	(team == PLAYERTYPE_NOD) ?
+							TTSettingsClass::NodHouseColor :
+							TTSettingsClass::GDIHouseColor;
+
+	return Vector3(color[0], color[1], color[2]);
+}
+
+Vector3 Get_Public_Text_Color(void)
+{
+	return Vector3(	TTSettingsClass::PublicMessageColor[0],
+						TTSettingsClass::PublicMessageColor[1],
+						TTSettingsClass::PublicMessageColor[2]);
+}
+
+Vector3 Get_Private_Text_Color(void)
+{
+	return Vector3(	TTSettingsClass::PrivateMessageColor[0],
+						TTSettingsClass::PrivateMessageColor[1],
+						TTSettingsClass::PrivateMessageColor[2]);
 }

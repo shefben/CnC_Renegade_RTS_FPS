@@ -225,7 +225,7 @@ cScTextObj::Act(void)
 		if (SenderId == HOST_TEXT_SENDER)
 		{
 			sender_name = TRANSLATION(IDS_MP_HOST);
-			sender_color = COLOR_PUBLIC_TEXT;
+			sender_color = Get_Public_Text_Color();
 		}
 		else
 		{
@@ -262,7 +262,7 @@ cScTextObj::Act(void)
 			{
 				case TEXT_MESSAGE_PUBLIC:
 					sound_name = "Public_Message";
-					text_color = COLOR_PUBLIC_TEXT;
+					text_color = Get_Public_Text_Color();
 					break;
 
 				case TEXT_MESSAGE_TEAM:
@@ -272,7 +272,7 @@ cScTextObj::Act(void)
 
 				case TEXT_MESSAGE_PRIVATE:
 					sound_name = "Private_Message";
-					text_color = COLOR_PRIVATE_TEXT;
+					text_color = Get_Private_Text_Color();
 					break;
 
 				default:

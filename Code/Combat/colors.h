@@ -43,13 +43,18 @@ const Vector3 COLOR_TEAM_0				= Vector3(1.0f, 0.0f, 0.0f);
 const Vector3 COLOR_TEAM_1				= Vector3(1.0f, 0.8f, 0.0f);
 const Vector3 COLOR_NEUTRAL			= Vector3(0.8f, 0.8f, 0.8f);
 const Vector3 COLOR_RENEGADE			= Vector3(1.0f, 1.0f, 1.0f);
-const Vector3 COLOR_PUBLIC_TEXT		= Vector3(1.0f, 1.0f, 1.0f);
-const Vector3 COLOR_PRIVATE_TEXT		= Vector3(0.0f, 0.0f, 1.0f);
 const Vector3 COLOR_PAGED_TEXT		= Vector3(0.0f, 1.0f, 1.0f);
 const Vector3 COLOR_INVITE_TEXT		= Vector3(1.0f, 0.0f, 1.0f);
 const Vector3 COLOR_CONSOLE_TEXT		= Vector3(1.0f, 1.0f, 1.0f);
 
 Vector3 Get_Color_For_Team(int team);
+
+//
+//	Chat colours.  A server may name its own, so these are read rather than
+//	compiled in; the defaults are the stock white and blue.
+//
+Vector3 Get_Public_Text_Color(void);
+Vector3 Get_Private_Text_Color(void);
 
 #endif // COLORS_H
 
