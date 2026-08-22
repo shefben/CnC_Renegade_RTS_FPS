@@ -35,6 +35,8 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "playermanager.h"
+#include "hud.h"
+#include "ttsettings.h"
 #include "gameeventbus.h"
 
 #include <win.h>
@@ -132,8 +134,10 @@ void cPlayerManager::Think(void)
 void cPlayerManager::Render(void)
 {
 	WWPROFILE("cPlayerManager::Render");
-	if (PTextRenderer != nullptr) {
-		WWASSERT(PTextRenderer != nullptr);
+
+	//	See MultiHUDClass::Render.  A server may also hide the list for good.
+	if (	PTextRenderer != nullptr && HUDClass::Is_Enabled() &&
+			TTSettingsClass::HidePlayerList == false) {
 		PTextRenderer->Render();
 	}
 }

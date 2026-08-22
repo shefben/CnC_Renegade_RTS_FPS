@@ -43,6 +43,8 @@
 #include "cnetwork.h"
 //#include "gamesettings.h"
 #include "multihud.h"
+#include "hud.h"
+#include "ttsettings.h"
 #include <win.h>
 #include "player.h"
 #include "font3d.h"
@@ -134,7 +136,10 @@ void cTeamManager::Think(void)
 void cTeamManager::Render(void)
 {
 	WWPROFILE("cTeamManager::Render");
-	if (PTextRenderer == nullptr) {
+
+	//	See MultiHUDClass::Render
+	if (	PTextRenderer == nullptr || HUDClass::Is_Enabled() == false ||
+			TTSettingsClass::HidePlayerList) {
 		return;
 	}
 

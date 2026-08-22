@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "multihud.h"
+#include "hud.h"
 
 #include <stdio.h>
 
@@ -193,7 +194,9 @@ void MultiHUDClass::Render(void)
 	}
 #endif
 
-	if (NameRenderer != nullptr) {
+	//	The HUD console command takes the overlays with it -- the names
+	//	floating over everybody are as much of the HUD as the health bar is.
+	if (NameRenderer != nullptr && HUDClass::Is_Enabled()) {
 		WWPROFILE("MultiHud Render");
 		NameRenderer->Render();
 	}

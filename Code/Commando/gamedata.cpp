@@ -35,6 +35,8 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "gamedata.h"
+#include "hud.h"
+#include "ttsettings.h"
 #include "gameeventbus.h"
 
 #include <stdio.h>
@@ -2006,7 +2008,9 @@ void cGameData::Render(void)
 {
 	Show_Game_Settings_Limits();
 
-	if (PTextRenderer != nullptr) {
+	//	See MultiHUDClass::Render.  A server may also hide this line for good.
+	if (	PTextRenderer != nullptr && HUDClass::Is_Enabled() &&
+			TTSettingsClass::HideBottomText == false) {
 		WWPROFILE("cGameData::Render");
 		PTextRenderer->Render();
 	}

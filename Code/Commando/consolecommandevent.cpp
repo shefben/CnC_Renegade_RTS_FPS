@@ -81,9 +81,11 @@ cConsoleCommandEvent::Act(void)
 {
    WWASSERT(cNetwork::I_Am_Client());
 
-	if (GameModeManager::Find("Combat")->Is_Active()) {
-		ConsoleFunctionManager::Parse_Input(Command);
-	}
+	//
+	//	A server has no business running console commands on somebody else's
+	//	machine, and every instruction it legitimately sends has an event of
+	//	its own.  Joining a server should not hand it the console.
+	//
 }
 
 //-----------------------------------------------------------------------------

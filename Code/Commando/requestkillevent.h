@@ -61,6 +61,8 @@ private:
 
 	virtual void			Act(void) override;
 
+	//	Who sent it -- see Act
+	int						SenderId;
 	int						ObjectId;
 };
 

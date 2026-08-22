@@ -35,6 +35,8 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "requestkillevent.h"
+#include "playermanager.h"
+#include "player.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,6 +53,7 @@ DECLARE_NETWORKOBJECT_FACTORY(cRequestKillEvent, NETCLASSID_REQUESTKILLEVENT);
 //-----------------------------------------------------------------------------
 cRequestKillEvent::cRequestKillEvent(void)
 {
+	SenderId = 0;
 	ObjectId = 0;
 
 	Set_App_Packet_Type(APPPACKETTYPE_REQUESTKILLEVENT);
@@ -62,6 +65,7 @@ cRequestKillEvent::Init(int object_id)
 {
 	WWASSERT(cNetwork::I_Am_Client());
 
+	SenderId = cNetwork::Get_My_Id();
 	ObjectId = object_id;
 
 	Set_Network_ID(NetworkObjectMgrClass::Get_New_Client_ID());
@@ -78,6 +82,18 @@ void
 cRequestKillEvent::Act(void)
 {
    WWASSERT(cNetwork::I_Am_Server());
+
+	//
+	//	Anybody with a modified client could send this, and the server used to
+	//	do as it was told.  It is honoured only for a client the server has
+	//	already marked invulnerable, which is the same gate the money and
+	//	score events use and is only reachable through cGodModeEvent.
+	//
+	cPlayer * p_sender = cPlayerManager::Find_Player(SenderId);
+	if (p_sender == nullptr || p_sender->Invulnerable.Is_False()) {
+		Set_Delete_Pending();
+		return;
+	}
 
 	NetworkObjectClass *	p_object = NetworkObjectMgrClass::Find_Object(ObjectId);
 	if (p_object != nullptr) {
@@ -96,6 +112,7 @@ cRequestKillEvent::Export_Creation(BitStreamClass & packet)
 
 	cNetEvent::Export_Creation(packet);
 
+	packet.Add(SenderId);
 	packet.Add(ObjectId);
 
 	Set_Delete_Pending();
@@ -109,6 +126,7 @@ cRequestKillEvent::Import_Creation(BitStreamClass & packet)
 
 	WWASSERT(cNetwork::I_Am_Server());
 
+	packet.Get(SenderId);
 	packet.Get(ObjectId);
 
 	Act();

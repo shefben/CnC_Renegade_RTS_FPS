@@ -35,6 +35,8 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "warpevent.h"
+#include "playermanager.h"
+#include "player.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,6 +82,18 @@ void
 cWarpEvent::Act(void)
 {
    WWASSERT(cNetwork::I_Am_Server());
+
+	//
+	//	Anybody with a modified client could send this, and the server used to
+	//	do as it was told.  It is honoured only for a client the server has
+	//	already marked invulnerable, which is the same gate the money and
+	//	score events use and is only reachable through cGodModeEvent.
+	//
+	cPlayer * p_sender = cPlayerManager::Find_Player(SenderId);
+	if (p_sender == nullptr || p_sender->Invulnerable.Is_False()) {
+		Set_Delete_Pending();
+		return;
+	}
 
 	SoldierGameObj * p_warp_soldier = GameObjManager::Find_Soldier_Of_Client_ID(SenderId);
 

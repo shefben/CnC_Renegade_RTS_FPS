@@ -35,6 +35,8 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "csconsolecommandevent.h"
+#include "playermanager.h"
+#include "player.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,6 +54,7 @@ DECLARE_NETWORKOBJECT_FACTORY(cCsConsoleCommandEvent, NETCLASSID_CSCONSOLECOMMAN
 //-----------------------------------------------------------------------------
 cCsConsoleCommandEvent::cCsConsoleCommandEvent(void)
 {
+	SenderId = 0;
 	::strcpy(Command, "");
 
 	Set_App_Packet_Type(APPPACKETTYPE_CSCONSOLECOMMANDEVENT);
@@ -67,6 +70,7 @@ cCsConsoleCommandEvent::Init(LPCSTR command)
    WWASSERT(::strlen(command) > 0);
    WWASSERT(::strlen(command) < sizeof(Command));
 
+	SenderId = cNetwork::Get_My_Id();
 	::strcpy(Command, command);
 
 	Set_Network_ID(NetworkObjectMgrClass::Get_New_Client_ID());
@@ -79,6 +83,18 @@ void
 cCsConsoleCommandEvent::Act(void)
 {
    WWASSERT(cNetwork::I_Am_Server());
+
+	//
+	//	Anybody with a modified client could send this, and the server used to
+	//	do as it was told.  It is honoured only for a client the server has
+	//	already marked invulnerable, which is the same gate the money and
+	//	score events use and is only reachable through cGodModeEvent.
+	//
+	cPlayer * p_sender = cPlayerManager::Find_Player(SenderId);
+	if (p_sender == nullptr || p_sender->Invulnerable.Is_False()) {
+		Set_Delete_Pending();
+		return;
+	}
 
 	if (GameModeManager::Find("Combat")->Is_Active()) {
 		ConsoleFunctionManager::Parse_Input(Command);
@@ -93,6 +109,7 @@ cCsConsoleCommandEvent::Export_Creation(BitStreamClass & packet)
 
 	cNetEvent::Export_Creation(packet);
 
+	packet.Add(SenderId);
 	packet.Add_Terminated_String(Command);
 
 	Set_Delete_Pending();
@@ -106,6 +123,7 @@ cCsConsoleCommandEvent::Import_Creation(BitStreamClass & packet)
 
 	cNetEvent::Import_Creation(packet);
 
+	packet.Get(SenderId);
 	packet.Get_Terminated_String(Command, sizeof(Command));
 
 	Act();
