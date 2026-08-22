@@ -567,3 +567,104 @@ target and negative points for a teammate, which is TT's non-scripts path.
 
 User directed using TT's handling. The stock swap-the-scores-on-disconnect path
 is gone for good; no further action.
+
+## P03: complete -- TT's hook sites are merged into their canonical owners
+
+`TTHookSites.tsv` reads **571 merged, 76 n/a, 111 out of scope** under directive
+0.6, and the two rows the user directed be left open. Closes the backlog line
+"Acceptance: No required TT gameplay feature depends on modifying executable
+memory or knowing a hard-coded function address". Absorbs the whole P03 backlog
+section and the WIP entry that carried it (P03-A through P03-U). Commits
+`91f31c3e`, `8ced3c5e`, `12bc0376`, `e3d71d96`, `705726d6`, `ccb4e467`,
+`63c17d78`, `f5a1ff60`.
+
+## P03-P: per-weapon scopes
+
+`ScopeMgrClass` reads `scopes.cfg` in the format servers already ship;
+`WeaponClass::Apply_Scope`/`Remove_Scope` swap the sniper overlay texture and
+the two field-of-view endpoints the camera interpolates between, for the local
+player only. Absorbs `better scope code` and the two WeaponClass vtable rows.
+`91f31c3e`.
+
+## P03-Q: four crashes and losses of state
+
+The beam effect manager recycled beams removed from the scene after it had shut
+down, onto a list nothing would drain again -- the crash on exit. Cloaking was
+worked out per machine from the object definition, so a unit a script cloaked
+stayed as it started everywhere but the server; `SmartGameObj` now carries it in
+the frequent update. A client joining a finished game made every other machine
+replay the win screen and named the joiner as the loser. Multiplayer spawning
+picked one point at random and walked the list forward when blocked, so everyone
+blocked walked to the same place. `91f31c3e`.
+
+## P03-R: powerups, explosions and two long-standing leaks
+
+`PowerUpGameObj` exports its state in the rare update, so the grant sound and
+animation reach everybody. Explosions no longer run the damage walk on clients,
+where an explosion offense leaves client damage disabled and every hit returned
+without touching anything, nor build decals, sounds or camera shake on a
+dedicated server. `cMiscUtil::File_Exists` returned before `Return_File`;
+`Get_OS_Info` left three char pointers uninitialised on any path its table did
+not recognise. `8ced3c5e`.
+
+## P03-S: console text, and a log monitor
+
+Five console sites ran the caller's format string through `Format_Args` and then
+handed the result to another function whose first parameter is also a format
+string; `Static_Print_Maybe` dropped its arguments outright. `ConsoleModeClass`
+can now mirror everything it prints to a UDP listener, configured by `rlmon.cfg`
+or the `rlmon`/`rlmonoff` console commands. `12bc0376`.
+
+## P03-T: a server that took orders from whoever asked
+
+`cCsConsoleCommandEvent` ran an arbitrary console command, `cRequestKillEvent`
+deleted any network object by id and `cWarpEvent` teleported the sender to any
+player, none of them asking who sent it. All three carry a sender now and are
+honoured only for a client the server marked invulnerable. In the other
+direction a client no longer runs console commands a server pushes at it.
+`e3d71d96`.
+
+## P03-U: load time, crash dumps, and the last of the sweep
+
+The `.dep` preload is off -- it forced every asset a level references into the
+manager before the level started, which mattered on a CD. `Copy_Logs` defaulted
+to a UNC share on Westwood's network and the caller waits five seconds for it.
+`Exception_Handler` writes a minidump beside `_except.txt`. A vehicle's weapon
+list goes over the wire as a soldier's already did. Scripted damage updates a
+vehicle's damage meshes; the input configuration list refuses to delete the
+built-in default; the win screen finds the local player by id rather than by
+matching the star; a server whose settings do not check out says so and unwinds
+the connection. `705726d6`, `ccb4e467`, `63c17d78`.
+
+## P03-INI: complete -- the TT option surface
+
+Every `tt.ini` and `hud.ini` option is honoured or closed with its reason in
+`docs/tt484/TTSettings.md` 6. Added this pass: `DisableKillMessages`,
+`SidebarSoundsEnabled`, `UseExtraPTPages`, `ListColumnColor`,
+`VersionRegistryKey`, `WOLUrlRegistryKey`, `HidePlayerList`, `HideBottomText`,
+the four colour triples, the fourteen styling colours, `MapPrefix` and the two
+LOD budget values. Absorbs the P03-INI WIP entry. `8ced3c5e`, `f5a1ff60`.
+
+## N/A: VehicleBuildingDisable and the TT sidebar option group
+
+`VehicleBuildingDisable` is a second production model -- per-team rather than
+per-factory -- selected by a flag, which directive 0.4 forbids; its
+`CurrentlyBuilding` state only travels over the scripts text channel, and the
+roadmap's Commander production model supersedes a team-wide lock. It takes the
+PT "building" message with it. `RefillLimit`, `AlternateSelectEnabled` and the
+sidebar sound and texture names belong to TT's own `SidebarDlg`, superseded by
+the roadmap's Commander sidebar. `ScrollingRadarMap` and `ModRegistryKey` only
+move data over the scripts channel.
+
+## N/A: two byte patches with no source counterpart
+
+`emoticons fix` and `start button bug fix` are raw bytes written at stock
+addresses with nothing anywhere in TT's source to explain them. Identifying
+their canonical owners would need the shipped binary, which is out of bounds.
+
+## N/A: TT's injection scaffolding
+
+The `remove call to ...` rows, `nop out WWPhys::Shutdown call`, `stop FDS from
+loading at startup`, `unload level hook` and TT's `Start_Application` all exist
+so a DLL loaded into a running exe can re-run initialisers under its own
+control. Natively those initialisers stay put and read the merged settings.
