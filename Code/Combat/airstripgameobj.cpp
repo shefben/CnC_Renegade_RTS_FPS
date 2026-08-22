@@ -48,6 +48,7 @@
 #include "objlibrary.h"
 #include "cinematicgameobj.h"
 #include "combat.h"
+#include "ttsettings.h"
 #include "gameobjmanager.h"
 #include "phys.h"
 
@@ -676,7 +677,13 @@ AirStripGameObj::Start_Cinematic (void)
 		// Lock the vehicle
 		//
 		if (Purchaser != nullptr) {
-			vehicle->Lock_Vehicle(Purchaser,VEHICLE_LOCK_TIME);
+			//
+			//	A server may switch off the purchaser reservation entirely,
+			//	in which case a new vehicle is anyone's the moment it lands.
+			//
+			if (TTSettingsClass::VehicleOwnershipDisable == false) {
+				vehicle->Lock_Vehicle(Purchaser,VEHICLE_LOCK_TIME);
+			}
 		}
 
 		//

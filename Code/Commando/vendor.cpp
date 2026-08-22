@@ -176,7 +176,18 @@ VendorClass::Purchase_Vehicle
 					//	simply does not queue anything on the factory.
 					//
 					if (status != PURCHASE_STATUS_ALLOW_NO_SPAWN) {
-						float time = 5.0F * base->Get_Operation_Time_Factor ();
+
+						//
+						//	The base's operation time factor is a flat 2 while
+						//	the power plant is down.  BuildTimeDelay is that
+						//	same multiplier, made a server setting; it defaults
+						//	to 2.
+						//
+						float time = 5.0F;
+						if (base->Is_Base_Powered () == false) {
+							time *= TTSettingsClass::BuildTimeDelay;
+						}
+
 						factory->Request_Vehicle (vehicle_id, time, player);
 					}
 

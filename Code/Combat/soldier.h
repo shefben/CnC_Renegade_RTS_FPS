@@ -171,6 +171,12 @@ public:
 			const	Vector3 & direction = Vector3( 0,0,0 ), const char * collision_box_name = nullptr ) override;
 	virtual	void	Completely_Damaged( const OffenseObjectClass & /* damager */ ) override {}
 	virtual CollisionReactionType	Collision_Occurred( const CollisionEventClass & event ) override;
+
+	//
+	//	False when this soldier's armour type is one the server has exempted
+	//	from being run over.
+	//
+	bool					Is_Squishable(void);
 	virtual	Vector3	Get_Bullseye_Position( void ) override;
 
 	// Turret

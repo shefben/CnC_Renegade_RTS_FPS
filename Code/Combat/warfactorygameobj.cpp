@@ -33,6 +33,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "warfactorygameobj.h"
+#include "ttsettings.h"
 #include "basecontroller.h"
 #include "vehicle.h"
 #include "wwhack.h"
@@ -463,7 +464,13 @@ WarFactoryGameObj::Think (void)
 					// Lock the vehicle to anyone but the purchaser
 					//
 					if (Purchaser != nullptr) {
-						vehicle->Lock_Vehicle(Purchaser,WARFACTORY_LOCK_TIME);
+						//
+						//	A server may switch off the purchaser reservation entirely,
+						//	in which case a new vehicle is anyone's the moment it lands.
+						//
+						if (TTSettingsClass::VehicleOwnershipDisable == false) {
+							vehicle->Lock_Vehicle(Purchaser,WARFACTORY_LOCK_TIME);
+						}
 					}
 
 					//

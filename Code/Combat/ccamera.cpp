@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "ccamera.h"
+#include "ttsettings.h"
 #include "timemgr.h"
 #include "physicalgameobj.h"
 #include "physcoltest.h"
@@ -317,7 +318,11 @@ CCameraClass::CCameraClass() :
 	LastProfile( nullptr ),
 	DefaultProfile( nullptr ),
 	NearClipPlane( CCAMERA_NEARZ ),
-	FarClipPlane( CCAMERA_FARZ ),
+	//
+	//	CCAMERA_FARZ is what DrawDistance defaults to, so this is the same
+	//	300 metres unless the server says otherwise.
+	//
+	FarClipPlane( TTSettingsClass::DrawDistance ),
 	IsStarSniping( false ),
 	WasStarSniping( false ),
 	CinematicSnipingEnabled( false ),

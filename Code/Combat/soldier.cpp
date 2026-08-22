@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "soldier.h"
+#include "ttsettings.h"
 #include "debug.h"
 #include "pscene.h"
 #include "combat.h"
@@ -943,6 +944,26 @@ void	SoldierGameObj::Re_Attach_To_Model( void )
 
 //-----------------------------------------------------------------------------
 
+//
+//	Whether a vehicle may run this soldier over.  A server can name up to four
+//	armour types that cannot be squished -- the point is to let a mod give one
+//	class of infantry (an engineer at work, say) immunity without changing what
+//	a vehicle does to everybody else.
+//
+bool	SoldierGameObj::Is_Squishable( void )
+{
+	if ( TTSettingsClass::Unsquishable == false ) {
+		return true;
+	}
+
+	const int armor = (int)Get_Defense_Object ()->Get_Shield_Type ();
+
+	return !(	armor == TTSettingsClass::UnsquishableArmor  ||
+					armor == TTSettingsClass::UnsquishableArmor2 ||
+					armor == TTSettingsClass::UnsquishableArmor3 ||
+					armor == TTSettingsClass::UnsquishableArmor4 );
+}
+
 CollisionReactionType SoldierGameObj::Collision_Occurred(const CollisionEventClass & event)
 {
 //	Debug_Say(( "Soldier Collision %p %p\n", this, event.OtherObj ));
@@ -964,7 +985,8 @@ CollisionReactionType SoldierGameObj::Collision_Occurred(const CollisionEventCla
 
 					// only squish if velocity is high enough, and velocity is towards the soldier
 					if (	(vel.Length() > obj->As_VehicleGameObj()->Get_Squish_Velocity() ) &&
-							(Vector3::Dot_Product(vel,my_pos - vehicle_pos) > 0.0f) )
+							(Vector3::Dot_Product(vel,my_pos - vehicle_pos) > 0.0f) &&
+							(Is_Squishable() ) )
 					{
 						if ( HumanState.Get_State() != HumanStateClass::DEATH ) {
 							// We need to pick a better warhead to damage with

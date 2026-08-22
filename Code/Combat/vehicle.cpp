@@ -39,6 +39,8 @@
 **	Includes
 */
 #include "vehicle.h"
+#include "ttsettings.h"
+#include "weaponbag.h"
 #include "animcontrol.h"
 #include "debug.h"
 #include "combat.h"
@@ -2005,6 +2007,14 @@ void	VehicleGameObj::Add_Occupant( SoldierGameObj * occupant, int seat_id )
 		DriverIsGunner = DefaultDriverIsGunner;
 	}
 
+	//
+	//	If the weapon was put away when the vehicle emptied, take it back
+	//	out.  See Remove_Occupant.
+	//
+	if ( OccupiedSeats == 0 && TTSettingsClass::ContinueReloadOnVehicleExit == false ) {
+		Get_Weapon_Bag()->Select_Weapon_ID( Get_Definition().WeaponDefID );
+	}
+
 	Debug_Say(( "Soldier %p added to seat %d\n", occupant, seat_id ));
 
 	if ( seat_id > Get_Definition().NumSeats-1 ) {
@@ -2098,6 +2108,15 @@ void	VehicleGameObj::Remove_Occupant( SoldierGameObj * occupant )
 	// in MP, empty vehicles are neutral
 	if ( !IS_MISSION && OccupiedSeats == 0 ) {
 		Set_Player_Type( PLAYERTYPE_NEUTRAL );
+	}
+
+	//
+	//	A reload started before the driver got out otherwise finishes while
+	//	nobody is aboard, so hopping out and back in is a free reload.  A
+	//	server may put the weapon away instead, which abandons it.
+	//
+	if ( OccupiedSeats == 0 && TTSettingsClass::ContinueReloadOnVehicleExit == false ) {
+		Get_Weapon_Bag()->Deselect();
 	}
 
 	Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
