@@ -39,6 +39,8 @@
 **	Includes
 */
 #include "smartgameobj.h"
+#include "weaponview.h"
+#include "gametype.h"
 #include "gameobjmanager.h"
 #include "weapons.h"
 #include "bittype.h"
@@ -238,7 +240,7 @@ void	SmartGameObj::Re_Init( const SmartGameObjDef & definition )
 	//	Free the stealth effect as necessary
 	//
 	if (StealthEffect != nullptr) {
-		REF_PTR_RELEASE (StealthEffect);
+		Free_Stealth_Effect ();
 		StealthEnabled			= false;
 		StealthPowerupTimer	= 0.0F;
 		StealthFiringTimer	= 0.0F;
@@ -1002,8 +1004,11 @@ void	SmartGameObj::Import_Creation( BitStreamClass &packet )
 void SmartGameObj::Enable_Stealth(bool onoff)
 {
 	StealthEnabled = onoff;
+
 	if (StealthEnabled) {
 		Alloc_Stealth_Effect ();
+	} else {
+		Free_Stealth_Effect ();
 	}
 
 	return ;
@@ -1049,6 +1054,35 @@ void SmartGameObj::Alloc_Stealth_Effect(void)
 		StealthEffect = NEW_REF(StealthEffectClass,());
 		StealthEffect->Set_Fade_Distance( Get_Stealth_Fade_Distance() );
 	}
+}
+
+//
+//	Detach the stealth effect and let it go.  Think adds it to the physical
+//	object every frame it is stealthed, and weaponview.cpp adds it to the
+//	first-person hands, so releasing the reference on its own left both lists
+//	holding an effect nothing owned any more.
+//
+//	Single player is exempt: the Raveshaw fight moves one effect between
+//	soldiers itself, and taking it off here would end that early.
+//
+void SmartGameObj::Free_Stealth_Effect(void)
+{
+	if (StealthEffect == nullptr) {
+		return ;
+	}
+
+	if ( IS_SOLOPLAY == false ) {
+		if ( Peek_Physical_Object() != nullptr ) {
+			Peek_Physical_Object()->Remove_Effect_From_Me( StealthEffect );
+		}
+
+		if ( this == COMBAT_STAR ) {
+			WeaponViewClass::Remove_Effect_From_Hands( StealthEffect );
+		}
+	}
+
+	REF_PTR_RELEASE (StealthEffect);
+	return ;
 }
 
 void	SmartGameObj::Reset_Controller( void )

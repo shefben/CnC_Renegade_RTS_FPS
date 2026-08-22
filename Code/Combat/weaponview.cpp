@@ -613,6 +613,14 @@ void 	WeaponViewClass::Think()
 	}
 }
 
+void	WeaponViewClass::Remove_Effect_From_Hands( MaterialEffectClass * effect )
+{
+	if ( HandsPhysObj != nullptr && effect != nullptr ) {
+		HandsPhysObj->Remove_Effect_From_Me( effect );
+	}
+}
+
+
 Vector3	WeaponViewClass::Get_Muzzle_Pos()
 {
 	if ( WeaponModel ) {

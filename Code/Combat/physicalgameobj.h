@@ -236,6 +236,15 @@ public:
 
 	void				Hide_Muzzle_Flashes( bool hide = true );
 
+	//
+	//	Swap the model this object is rendered and animated from.  Everything
+	//	bound to the old model -- the animation controller, bone indices, models
+	//	attached to bones -- has to be rebound, and only the derived class knows
+	//	what it attached.  Override in pairs around the base call: release
+	//	before, re-acquire after.
+	//
+	virtual void	Re_Bind_To_Model( const char *model_name );
+
 	void				Enable_HUD_Pokable_Indicator( bool enable );
 	bool				Is_HUD_Pokable_Indicator_Enabled( void )		{ return HUDPokableIndicatorEnabled; }
 

@@ -151,6 +151,11 @@ private:
 	enum { MAX_MUZZLES = 4 };
 	MuzzleRecoilClass			MuzzleRecoilController[MAX_MUZZLES];
 
+protected:
+	//
+	//	The muzzle bones index the model's skeleton, so a subclass swapping the
+	//	model has to rebuild them.
+	//
 	void							Init_Muzzle_Bones( void );
 };
 

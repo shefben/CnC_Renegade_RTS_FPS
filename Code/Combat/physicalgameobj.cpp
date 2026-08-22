@@ -896,6 +896,26 @@ void	PhysicalGameObj::Reset_Radar_Blip_Color_Type( void )
 /*
 **
 */
+void	PhysicalGameObj::Re_Bind_To_Model( const char *model_name )
+{
+	Peek_Physical_Object()->Set_Model_By_Name( model_name );
+
+	//
+	//	The controller holds the old model, and drives it, so it has to be told
+	//	about the new one or the object animates something that is not on screen.
+	//
+	if ( AnimControl != nullptr ) {
+		AnimControl->Set_Model( Peek_Model() );
+	}
+
+	//
+	//	Muzzle flashes are sub-objects of the model that was just replaced.
+	//
+	Hide_Muzzle_Flashes( true );
+	return ;
+}
+
+
 void	PhysicalGameObj::Set_Animation( const char *animation_name, bool looping, float frame_offset )
 {
 	if ( AnimControl == nullptr ) {
@@ -903,7 +923,18 @@ void	PhysicalGameObj::Set_Animation( const char *animation_name, bool looping, f
 	}
 
 	StringClass	anim_name(animation_name,true);
-	if ( !anim_name.Is_Empty() ) {
+
+	//
+	//	An empty name means stop animating.  This used to fall through the
+	//	whole body and do nothing at all, so there was no way to clear one.
+	//
+	if ( anim_name.Is_Empty() ) {
+		AnimControl->Set_Animation( (HAnimClass *)nullptr, 0 );
+		Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
+		return ;
+	}
+
+	{
 
 		// make sure it lead with model name
 		if ( ::strchr( anim_name, '.' ) == nullptr ) {
@@ -1198,9 +1229,9 @@ void	PhysicalGameObj::Import_Rare( BitStreamClass &packet )
 	//
 	//	Set the new model (if necessary)
 	//
-	const char *old_model_name = Peek_Physical_Object()->Peek_Model()->Get_Name();
-	if ( model_name.Compare_No_Case (old_model_name) != 0 ) {
-		Peek_Physical_Object()->Set_Model_By_Name( model_name );
+	RenderObjClass *old_model = Peek_Model();
+	if ( old_model == nullptr || model_name.Compare_No_Case (old_model->Get_Name()) != 0 ) {
+		Re_Bind_To_Model( model_name );
 	}
 
 	//
@@ -1216,12 +1247,32 @@ void	PhysicalGameObj::Import_Rare( BitStreamClass &packet )
 	packet.Get( anim_mode );
 
 	//
-	//	Pass the animation information onto the controller
+	//	Pass the animation information onto the controller.  An object that has
+	//	never animated locally has no controller yet, and used to ignore a
+	//	server-started animation for the rest of its life rather than make one.
 	//
-	if (AnimControl != nullptr) {
-		AnimControl->Set_Animation( animation_name, 0, float(curr_frame) );
-		AnimControl->Set_Target_Frame( float(target_frame) );
-		AnimControl->Set_Mode( (AnimMode)anim_mode );
+	if ( animation_name.Is_Empty() == false ) {
+
+		if (AnimControl == nullptr) {
+			Set_Animation( animation_name, true, float(curr_frame) );
+		}
+
+		if (AnimControl != nullptr) {
+			AnimControl->Set_Animation( animation_name, 0, float(curr_frame) );
+			AnimControl->Set_Target_Frame( float(target_frame) );
+
+			//
+			//	ANIM_MODE_STOP parks on a frame, so it needs to be told which.
+			//
+			if ( anim_mode == ANIM_MODE_STOP ) {
+				AnimControl->Set_Mode( ANIM_MODE_STOP, float(curr_frame) );
+			} else {
+				AnimControl->Set_Mode( (AnimMode)anim_mode );
+			}
+		}
+
+	} else if (AnimControl != nullptr) {
+		AnimControl->Set_Animation( (HAnimClass *)nullptr, 0 );
 	}
 
 	//

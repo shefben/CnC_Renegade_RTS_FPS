@@ -51,6 +51,8 @@ class	ChunkLoadClass;
 /*
 **
 */
+class MaterialEffectClass;
+
 class	WeaponViewClass {
 
 public:
@@ -64,6 +66,12 @@ public:
 	static	bool	Load( ChunkLoadClass &cload );
 
 	static	Vector3	Get_Muzzle_Pos();
+
+	//
+	//	Think() adds the star's stealth effect to the first-person hands.  This
+	//	is how it comes back off when the star stops being stealthed.
+	//
+	static	void	Remove_Effect_From_Hands( MaterialEffectClass * effect );
 };
 
 #endif

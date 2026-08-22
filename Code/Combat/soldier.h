@@ -260,6 +260,8 @@ public:
 	HumanStateClass	* Get_Human_State( void )			{ return &HumanState; }
 
 	void					Set_Model(const char *model_name);
+	void					Re_Bind_To_Model(const char *model_name) override;
+	void					Re_Attach_To_Model(void);
 
 	// Type identification
 	virtual SoldierGameObj		*As_SoldierGameObj() override		{ return this; };

@@ -1236,6 +1236,34 @@ void	VehicleGameObj::Update_Turret( float weapon_turn, float weapon_tilt )
 /*
 ** Vehicle Weapons
 */
+//
+//	Everything below indexes the model's skeleton, so the bones go before it
+//	does and come back once the new one is in place.
+//
+void	VehicleGameObj::Re_Bind_To_Model( const char *model_name )
+{
+	Release_Turret_Bones();
+	Shutdown_Wheel_Effects();
+
+	PhysicalGameObj::Re_Bind_To_Model( model_name );
+
+	Aquire_Turret_Bones();
+	Init_Muzzle_Bones();
+	Init_Wheel_Effects();
+	Update_Damage_Meshes();
+
+	//
+	//	The firing sound is positioned from a muzzle bone that has just been
+	//	replaced.
+	//
+	if ( Get_Weapon() != nullptr ) {
+		Get_Weapon()->Stop_Firing_Sound();
+	}
+
+	return ;
+}
+
+
 bool	VehicleGameObj::Set_Targeting( const Vector3 & target_pos, bool do_tilt )
 {
 	bool	ready = true;

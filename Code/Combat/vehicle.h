@@ -447,6 +447,7 @@ protected:
 	// Turrets
 	void		Aquire_Turret_Bones( void );
 	void		Release_Turret_Bones( void );
+	void		Re_Bind_To_Model( const char *model_name ) override;
 	void		Update_Turret( float weapon_turn, float weapon_tilt );
 
 

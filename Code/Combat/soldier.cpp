@@ -897,6 +897,19 @@ void	SoldierGameObj::On_Post_Load( void )
 
 	SmartGameObj::On_Post_Load();
 
+	Re_Attach_To_Model();
+	return ;
+}
+
+//------------------------------------------------------------------------------------
+//
+//	Bind everything that hangs off the model to the model that is there now.
+//	A load and a networked model swap both arrive with a model this soldier has
+//	not attached anything to yet, and want exactly the same work.
+//
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Re_Attach_To_Model( void )
+{
 	if ( Peek_Model() && (WeaponRenderModel != nullptr) ) {
 		Peek_Model()->Add_Sub_Object_To_Bone( WeaponRenderModel, GUN_BONE_NAME );
 	}
@@ -4342,7 +4355,13 @@ bool	SoldierGameObj::Use_Ladder_View( void )
 //------------------------------------------------------------------------------------
 void SoldierGameObj::Set_Model(const char *model_name)
 {
-	Peek_Physical_Object()->Set_Model_By_Name(model_name);
+	Re_Bind_To_Model( model_name );
+}
+
+void SoldierGameObj::Re_Bind_To_Model(const char *model_name)
+{
+	PhysicalGameObj::Re_Bind_To_Model( model_name );
+
 	HumanState.Set_Anim_Control( (HumanAnimControlClass *)Get_Anim_Control() );  // Must set the anim control after the phys object
 
 	//
@@ -4350,6 +4369,9 @@ void SoldierGameObj::Set_Model(const char *model_name)
 	//	re-applied from scratch on the next update.
 	//
 	LastScale = 1.0F;
+
+	Re_Attach_To_Model();
+	return ;
 }
 
 

@@ -226,6 +226,7 @@ protected:
 	bool						ControlEnabled;
 
 	void						Alloc_Stealth_Effect(void);
+	void						Free_Stealth_Effect(void);
 
 	bool						StealthEnabled;		// stealth enabled by script or initialization code
 	float						StealthPowerupTimer;	// stealth power is in effect
