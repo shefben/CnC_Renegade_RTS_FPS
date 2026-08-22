@@ -263,6 +263,15 @@ These are behavior corrections, not cosmetic renames — Phase 4 must take the T
 These are community script packs by prefix (`jmg`, `jfw`, `dp88`, `unstoppable`).
 `jmgUtility.cpp` alone is 19,468 lines and registers 464 scripts.
 
+**This table is an inventory, not a work list.** Per user direction, only the
+original TT script library is ported: the `jfw*` core, TT's game manager
+(`gm*`), and the two named stock fixes `agtfix.cpp`/`obelfix.cpp`, plus
+`dan.cpp` — 24 files, 874 registrations. The remaining 44 files and 1259
+registrations are mod and alternate-game-mode content (`jmg*`, `renalert*`,
+`ra2`, `reborn`, `scud`, `survival`, `ms*`, `dp88_*`, `DB*`, and the rest) and
+are **out of scope**. See `NativeScriptRegistry.md` §4 for the split and the
+rule behind it.
+
 ### 3.3 Significant findings
 
 **The TT tree contains no stock mission scripts.** Zero `Mission*.cpp` files exist in

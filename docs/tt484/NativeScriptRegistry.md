@@ -160,8 +160,37 @@ with no facade left behind.
   `Is_Harvester`. `Is_Harvester` has portable source; `Grant_Weapon` does not.
   See below.
 
-- **The 2142 donor-only scripts** (matrix §3.2) — these compile against the
-  donor's own engine SDK (`scripts/engine_*.h`).
+- **The in-scope donor scripts** (matrix §3.2, narrowed) — these compile
+  against the donor's own engine SDK (`scripts/engine_*.h`).
+
+  **Scope, set by the user: only the original TT script library is ported. The
+  community gameplay-mode packs are not.** TT 4.8.4 ships one general-purpose
+  script library plus a large body of third-party mod content that happens to
+  live in the same tree under the same licence header, so the licence banner
+  does not separate them — the file does.
+
+  | | Files | Scripts |
+  | --- | --- | --- |
+  | **In scope** — `jfw*.cpp` (17), `gm*.cpp` (4), `agtfix.cpp`, `obelfix.cpp`, `dan.cpp` | 24 | **874** |
+  | **Out of scope** — mod and gameplay-mode packs | 44 | 1259 |
+
+  In scope is the library a stock level actually references: the `jfw*` core
+  (Jonathan Wilson's successor to Westwood's `scripts.dll`), TT's own game
+  manager (`gm*`), and the two named stock fixes. All 13 replacements above are
+  inside it (`jfwws.cpp` 7, `jfwobj.cpp` 3, `agtfix.cpp`, `jfwcine.cpp`,
+  `jfwdef.cpp`), so the donor-only remainder is **861**.
+
+  Out of scope is everything written for a specific mod or alternate game mode:
+  the `jmg*` packs (`jmgUtility.cpp` alone is 464 scripts and 19,468 lines),
+  `renalert*`/`ra2`/`ra_legacy` (Red Alert), `reborn`, `scud`, `survival`,
+  `JmgDeathMatch`, `ms`/`ms_ai`, `dp88_*`, `DB*`, `sh_*`, `kak`, `tda`, `mdb*`,
+  `neo`, `nh`/`nhp`, `shawk`, `kamuix`, `unstoppable`, `iran_scripts`,
+  `cAMpaScripts`, `xpert`, `straw`, `coltest`, `gap`, `tfx`. None of it is a
+  correction to stock behaviour, so directive 0.4 does not reach it — there is
+  no superseded OpenW3D path to retire.
+
+  Counts produced by `tools/check_script_catalog.py`'s parser, which blanks
+  comments and disabled blocks, so parked registrations are not counted.
 
   **Correction.** This document previously said that SDK "binds to the closed
   binary through `REF_DEF2`/`REF_DECL2`" and so had to wait on Phase 2 and
@@ -182,9 +211,12 @@ with no facade left behind.
 
   So the blocker is narrower than recorded: **`engine_tt.h`'s 284 externs**,
   not the SDK. The 406 with source can be ported natively without waiting on
-  anything, and doing so is what unblocks the bulk of the 2142.
+  anything, and doing so is what unblocks the bulk of the 861.
 
   The registry is ready for them: provenance `SCRIPT_SOURCE_TT`, and the
   checker already recognises the registration form they use.
 
-Registry size when both land: 1640 + 13 + 2142, no duplicate names.
+Registry size when both land: 1640 + 13 + 861, no duplicate names. The 1259
+out-of-scope registrations are not counted and not ported; if a mod pack is ever
+wanted it re-enters through the same registry with provenance
+`SCRIPT_SOURCE_TT`, needing no change here.
