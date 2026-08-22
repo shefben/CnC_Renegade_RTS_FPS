@@ -1,0 +1,10 @@
+LIBRARY Binkw32.dll
+EXPORTS
+	BinkSetSoundSystem@8 @55
+	BinkCopyToBuffer@28 @18
+	BinkDoFrame@4 @23
+	BinkWait@4 @59
+	BinkNextFrame@4 @36
+	BinkOpen@8 @37
+	BinkOpenDirectSound@4 @38
+	BinkClose@4 @16

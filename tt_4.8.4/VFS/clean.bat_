@@ -1,0 +1,54 @@
+del "Bin/*.dll" /Q /F /S
+del "Bin/*.pdb" /Q /F /S
+del "Bin/*.lib" /Q /F /S
+del "Bin/*.exp" /Q /F /S
+del "Bin/*.exe" /Q /F /S
+
+del "Debug Bin/*.dll" /Q /F /S
+del "Debug Bin/*.pdb" /Q /F /S
+del "Debug Bin/*.lib" /Q /F /S
+del "Debug Bin/*.exp" /Q /F /S
+del "Debug Bin/*.exe" /Q /F /S
+
+del "Console Client/Debug" /Q /F /S
+del "Console Client/Debug dll" /Q /F /S
+del "Console Client/Release" /Q /F /S
+del "Console Client/Release dll" /Q /F /S
+del "Console Client/x64" /Q /F /S
+
+del "RPC VFS/Debug" /Q /F /S
+del "RPC VFS/Debug dll" /Q /F /S
+del "RPC VFS/Release" /Q /F /S
+del "RPC VFS/Release dll" /Q /F /S
+del "RPC VFS/x64" /Q /F /S
+
+del "Shared/Debug" /Q /F /S
+del "Shared/Debug dll" /Q /F /S
+del "Shared/Release" /Q /F /S
+del "Shared/Release dll" /Q /F /S
+del "Shared/x64" /Q /F /S
+
+del "VFS/Debug" /Q /F /S
+del "VFS/Debug dll" /Q /F /S
+del "VFS/Release" /Q /F /S
+del "VFS/Release dll" /Q /F /S
+del "VFS/x64" /Q /F /S
+
+del "VFS Server/Debug" /Q /F /S
+del "VFS Server/Debug dll" /Q /F /S
+del "VFS Server/Release" /Q /F /S
+del "VFS Server/Release dll" /Q /F /S
+del "VFS Server/x64" /Q /F /S
+
+del "VFS Test/Debug" /Q /F /S
+del "VFS Test/Debug dll" /Q /F /S
+del "VFS Test/Release" /Q /F /S
+del "VFS Test/Release dll" /Q /F /S
+del "VFS Test/x64" /Q /F /S
+
+del "Viewer/Debug" /Q /F /S
+del "Viewer/Debug dll" /Q /F /S
+del "Viewer/Release" /Q /F /S
+del "Viewer/Release dll" /Q /F /S
+del "Viewer/x64" /Q /F /S
+del "*.ncb"

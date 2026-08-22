@@ -1,0 +1,79 @@
+/*	Renegade Scripts.dll
+	Shared FX Declarations
+	Copyright 2008 Mark Sararu
+
+	This file is part of the Renegade scripts.dll
+	The Renegade scripts.dll is free software; you can redistribute it and/or modify it under
+	the terms of the GNU General Public License as published by the Free
+	Software Foundation; either version 2, or (at your option) any later
+	version. See the file COPYING for more details.
+	In addition, an exemption is given to allow Run Time Dynamic Linking of this code with any closed source module that does not contain code covered by this licence.
+	Only the source code to the module(s) containing the licenced code has to be released.
+	
+	 Please use only HLSL Syntax in this file, it *must* be compilable under that language
+*/
+
+#ifdef __cplusplus // Mappings to HLSL types for C++
+typedef Vector2				float2; 
+typedef Vector3				float3; 
+typedef Vector4				float4;
+typedef Matrix4				float4x4;
+#endif
+
+struct SoALightDataStruct
+{
+	float4 light_x;
+	float4 light_y;
+	float4 light_z;
+	float3 light_color[4];
+};
+
+#define FOGMODE_NONE 0
+#define FOGMODE_EXP 1
+#define FOGMODE_EXP2 1 
+#define FOGMODE_LINEAR 3
+
+struct W3DFogStruct
+{
+	int Mode;
+	float Start;
+	float End;
+	float Density;
+	float3 Color;
+};
+
+struct W3DFogStruct2
+{
+	int Mode;
+	float OneOverRange;
+	float FogEndOverRange;
+	float Density;
+	float3 Color;
+};
+
+struct TextureInfoStruct
+{
+	float	Width;
+	float	Height;
+	// PixelWidth/PixelHeight = width/height of one pixel in texture coordinate units
+	float	PixelWidth;
+	float	PixelHeight;
+};
+
+struct SamplerSettings
+{
+	int AddressU;
+	int AddressV;
+	int MagFilter;
+	int MinFilter;
+	int MipFilter;
+	int MaxAnisotropy;
+};
+
+#ifndef __cplusplus
+SamplerSettings sampler0_settings
+<
+	string SasBindAddress="W3D.Sampler0Settings";
+	string UIWidget = "none";
+>;
+#endif

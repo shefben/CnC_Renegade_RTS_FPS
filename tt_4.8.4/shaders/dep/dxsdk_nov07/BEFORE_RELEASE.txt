@@ -1,0 +1,1 @@
+We can't ship the DirectX SDK because of the EULA, so this folder must be emptied and a readme to install the SDK supplied.

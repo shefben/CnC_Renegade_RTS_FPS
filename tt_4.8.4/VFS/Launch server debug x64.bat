@@ -1,0 +1,1 @@
+start "./Debug Bin/VFS Serverx64.exe" pipe:lolwtf vfs:"C:\ROFL LOL\OMG.VFS" mutex:"This mutex"

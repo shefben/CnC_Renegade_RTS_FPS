@@ -1,0 +1,13 @@
+LIBRARY Mss32.dll
+EXPORTS
+	AIL_startup@0 @297
+	AIL_lock@0 @108
+	AIL_unlock@0 @314
+	AIL_enumerate_3D_providers@12 @81
+	AIL_open_3D_provider@4 @123
+	AIL_close_3D_provider@4 @55
+	AIL_shutdown@0 @288
+	AIL_last_error@0 @104
+	AIL_set_preference@8 @253
+	AIL_waveOutClose@4 @318
+	AIL_waveOutOpen@16 @319

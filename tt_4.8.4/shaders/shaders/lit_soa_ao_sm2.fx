@@ -1,0 +1,402 @@
+/*
+$Id: lit_soa_ao_sm2.fx 1806 2009-04-13 07:21:32Z saberhawk $
+
+HLSL SoA Lighting Shader
+Copyright (c) 2008 Tiberian Technologies, Mark Sararu
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+// Uncomment the following if your normal maps are stored in DXT5_NM format
+#define DXT5_NM 
+
+// Uncomment and edit the following if your normal maps are stored in a format that requires a custom swizzler
+//#define CUSTOM_NORMAL_SWIZZLER argb
+
+// Comment out the following if you want to turn off diffuse lighting (not recommended)
+#define DIFFUSE
+
+// Comment out the following if you want to turn off ambient lighting (not recommended)
+#define AMBIENT
+
+// Comment out the following if you want to turn off specular highlights
+#define SPECULAR
+
+// Uncomment the following if your normal map alpha channel contains your specular map
+//#define NORMAL_ALPHA_IS_SPECULAR
+
+// Uncomment the following if your diffuse map alpha channel contains your specular map
+//#define DIFFUSE_ALPHA_IS_SPECULAR
+
+// Uncomment the following for conformant specular (specular light added after other lighting calculations instead of also being modulated by the diffuse texture)
+// Using this is not recommended as it reduces the overall quality of the lighting and leads to "plastic" looking effects
+//#define COLOR_ADD_SPECULAR
+
+// Uncomment the following to enable ambient occlusion
+//#define AMBIENT_OCCLUSION
+
+// Uncomment the following if the specular map alpha channel contains an ambient occlusion map
+//#define SPECULAR_ALPHA_IS_AO
+// Uncomment the following if the diffuse map alpha channel contains an ambient occlusion map
+//#define DIFFUSE_ALPHA_IS_AO
+
+// Uncomment the following to use a warping function on the diffuse lighting
+//#define WARP_DIFFUSE
+
+// Uncomment the following to enable a special normal map visualization function (overrides any output)
+//#define NORMAL_MAP_TEST
+
+// DO NOT MODIFY ANYTHING BEYOND THIS LINE UNLESS YOU KNOW WHAT YOU ARE DOING
+//------------------------------------------------------------------------------------
+
+
+// I mean it... Improper changes can seriously hurt performance or cause this shader to function incorrectly.
+#ifdef DXT5_NM
+	#ifdef RGBA_NM
+		#error DXT5_NM is not compatible with other normal map formats
+	#elif defined(CUSTOM_NORMAL_SWIZZLER)
+		#error DXT5_NM is not compatible with custom normal map formats
+	#endif
+	#define CUSTOM_NORMAL_SWIZZLER argb
+#endif
+
+#ifndef CUSTOM_NORMAL_SWIZZLER
+	#define CUSTOM_NORMAL_SWIZZLER rgba
+#endif
+
+#ifdef SPECULAR
+	#ifdef DXT5_NM
+		#ifdef NORMAL_ALPHA_IS_SPECULAR
+			#error NORMAL_ALPHA_IS_SPECULAR cannot be defined alongside DXT5_NM.
+		#endif
+	#endif
+	#ifdef DIFFUSE_ALPHA_IS_SPECULAR
+		#ifdef NORMAL_ALPHA_IS_SPECULAR
+			#error DIFFUSE_ALPHA_IS_SPECULAR cannot be defined alongside NORMAL_ALPHA_IS_SPECULAR.
+		#endif
+		#define _NOSPECSAMPLER
+	#endif
+	#ifdef NORMAL_ALPHA_IS_SPECULAR
+		#define _NOSPECSAMPLER
+	#endif
+	#ifndef _NOSPECSAMPLER
+		#define _SPECSAMPLER
+	#endif
+#endif
+
+#ifdef AMBIENT_OCCLUSION
+	#ifdef SPECULAR_ALPHA_IS_AO
+		#ifdef NORMAL_ALPHA_IS_SPECULAR
+			#error SPECULAR_ALPHA_IS_AO cannot be defined alongside NORMAL_ALPHA_IS_SPECULAR.
+		#endif
+		#ifdef DIFFUSE_ALPHA_IS_SPECULAR
+			#error SPECULAR_ALPHA_IS_AO cannot be defined alongside DIFFUSE_ALPHA_IS_SPECULAR.
+		#endif
+		#ifndef _SPECSAMPLER
+			#error SPECULAR_ALPHA_IS_AO cannot be used without SPECULAR or with any specular map settings. 
+		#endif
+		#ifdef DIFFUSE_ALPHA_IS_AO
+			#error SPECULAR_ALPHA_IS_AO cannot be defined alongside DIFFUSE_ALPHA_IS_AO.
+		#endif
+		#define _NOAOSAMPLER
+	#endif
+	#ifdef DIFFUSE_ALPHA_IS_AO
+		#ifdef SPECULAR_ALPHA_IS_AO
+			#error DIFFUSE_ALPHA_IS_AO cannot be defined alongside SPECULAR_ALPHA_IS_AO.
+		#endif
+		#define _NOAOSAMPLER
+	#endif
+	#ifndef _NOAOSAMPLER
+		#define _AOSAMPLER
+	#endif
+#endif
+
+#ifdef WARP_DIFFUSE
+	#ifndef DIFFUSE
+		#error WARP_DIFFUSE cannot be used without DIFFUSE
+	#endif
+	#define _WARPSAMPLER
+#endif
+
+#include "fxshared.fxi"
+#include "common.fxi"
+
+float2 specular_ab
+<
+	string LocalBindAddress="SpecularSettings"; // See http://www.gamasutra.com/features/20020801/beaudoin_01.htm for values.
+> = float2(1.959, -0.959); 
+
+texture normalTexture 
+<
+	string LocalBindAddress="NormalMap";
+>;
+
+#ifdef _AOSAMPLER
+texture occlusionTexture 
+<
+	string LocalBindAddress="OcclusionMap";
+>;
+sampler2D occlusionTextureSampler = sampler_state
+{
+	Texture = <occlusionTexture>;
+	AddressU = sampler0_settings.AddressU;
+	AddressV = sampler0_settings.AddressV;
+	MagFilter = sampler0_settings.MagFilter;
+	MinFilter = sampler0_settings.MinFilter;
+	MipFilter = sampler0_settings.MipFilter;
+	MaxAnisotropy = sampler0_settings.MaxAnisotropy;
+};
+#endif
+
+#ifdef _SPECSAMPLER
+texture specularTexture
+<
+	string LocalBindAddress="SpecularTexture";
+>;
+sampler2D specularTextureSampler = sampler_state
+{
+	Texture = <specularTexture>;
+	AddressU = sampler0_settings.AddressU;
+	AddressV = sampler0_settings.AddressV;
+	MagFilter = sampler0_settings.MagFilter;
+	MinFilter = sampler0_settings.MinFilter;
+	MipFilter = sampler0_settings.MipFilter;
+	MaxAnisotropy = sampler0_settings.MaxAnisotropy;
+};
+#endif
+
+#ifdef _WARPSAMPLER
+texture warpTexture
+<
+	string LocalBindAddress="WarpTexture";
+>;
+sampler1D warpTextureSampler = sampler_state
+{
+	Texture = <warpTexture>;
+	AddressU = Wrap;
+	MagFilter = Linear;
+	MinFilter = Linear;
+};
+#endif
+
+//------------------------------------
+float4 ambient: AmbientColor = {0.0f, 0.0f, 0.0f, 1.0f};
+SoALightDataStruct lights
+<
+	string SasBindAddress="W3D.SoALightData";
+>;
+W3DFogStruct2 fog
+<
+	string SasBindAddress="W3D.Fog2";
+>;
+
+texture colorTexture 
+<
+	string SasBindAddress="Texture0";
+	string UIWidget = "none";
+>;
+sampler2D colorTextureSampler = sampler_state
+{
+	Texture = <colorTexture>;
+	AddressU = sampler0_settings.AddressU;
+	AddressV = sampler0_settings.AddressV;
+	MagFilter = sampler0_settings.MagFilter;
+	MinFilter = sampler0_settings.MinFilter;
+	MipFilter = sampler0_settings.MipFilter;
+	MaxAnisotropy = sampler0_settings.MaxAnisotropy;
+};
+sampler2D normalTextureSampler = sampler_state
+{
+	Texture = <normalTexture>;
+	AddressU = sampler0_settings.AddressU;
+	AddressV = sampler0_settings.AddressV;
+	MagFilter = sampler0_settings.MagFilter;
+	MinFilter = sampler0_settings.MinFilter;
+	MipFilter = sampler0_settings.MipFilter;
+	MaxAnisotropy = sampler0_settings.MaxAnisotropy;
+};
+//------------------------------------
+
+struct vertexInput {
+	float4 Position			: POSITION;
+	float3 Normal			: NORMAL;
+	float3 Tangent			: TANGENT;
+	float2 TexCoord0		: TEXCOORD0;
+};
+
+struct vertexOutput{
+	float4 Position		: POSITION;
+	float2 TexCoord0	: TEXCOORD0;
+	float Fog			: TEXCOORD1;
+	#ifdef SPECULAR
+	float3 View			: TEXCOORD2;
+	#endif
+	float3x3 TBN		: TEXCOORD3;
+};
+
+#define pixelInput vertexOutput
+
+vertexOutput VS_Transform(vertexInput IN) 
+{
+	vertexOutput OUT;
+
+	float4 pos = mul(IN.Position, matW);
+
+	OUT.Position = mul(pos,matVP);
+
+#ifdef SPECULAR
+	OUT.View = normalize(matVI[3].xyz - pos);
+#endif
+
+	float3 normal = -mul(IN.Normal,matWIT);
+	float3 tangent = mul(IN.Tangent,matWIT);
+	float3 bitangent = cross(normal,tangent);
+	OUT.TBN = float3x3(tangent,bitangent,normal);
+
+	OUT.TexCoord0 = CalculateTextureCoordinates(IN.TexCoord0, matT0);
+
+	float dist = OUT.Position.z;
+	OUT.Fog =(fog.Mode == FOGMODE_NONE) +
+	1 / exp(dist * fog.Density) * (fog.Mode == FOGMODE_EXP) +
+	1 / exp(pow(dist * fog.Density, 2)) * (fog.Mode == FOGMODE_EXP2) +	 
+	saturate((-dist) * fog.OneOverRange + fog.FogEndOverRange) * (fog.Mode == FOGMODE_LINEAR);
+
+	return OUT;
+};
+
+#ifdef SPECULAR
+float4 compute_specular_power(float4 v)
+{
+	// originally: pow(v, N)
+	// x^N is roughly equal to (max(Ax+B, 0))^2
+	// A,B depend on N
+	float4 t = saturate(specular_ab.x * v + specular_ab.y);
+	return t * t;
+};
+#endif
+
+float3 warp(float i)
+{
+	#ifdef WARP_DIFFUSE
+		return tex1D(warpTextureSampler,i).rgb;
+	#else
+		return i.xxx;
+	#endif
+};
+
+float4 PS_Lit(pixelInput IN): COLOR
+{
+	float4 normalSample	= tex2D(normalTextureSampler,IN.TexCoord0). CUSTOM_NORMAL_SWIZZLER;
+	float4 color = tex2D(colorTextureSampler,IN.TexCoord0);		
+
+	float3 normal = (2.0 * normalSample.rgb) - 1.0;
+
+	normal.z = sqrt(1 - normal.x * normal.x - normal.y * normal.y); 
+	normal = mul(normal,IN.TBN);
+	
+
+	#ifndef NORMAL_MAP_TEST
+	#ifdef DIFFUSE
+	// compute NdotL in parallel
+	float4 NdotL;
+	NdotL  = lights.light_x * normal.x;
+	NdotL += lights.light_y * normal.y;
+	NdotL += lights.light_z * normal.z;
+	NdotL = saturate(NdotL);
+	#endif
+
+	#ifdef SPECULAR
+	// compute RdotL in parallel
+	float3 reflected = reflect(normalize(IN.View),normal);
+	float4 RdotL = 0;
+	RdotL += lights.light_x * reflected.x;
+	RdotL += lights.light_y * reflected.y;	
+	RdotL += lights.light_z * reflected.z;
+	RdotL = saturate(compute_specular_power(RdotL));
+	#endif
+
+	float3 diffuse = float3(0,0,0);
+	#ifdef DIFFUSE
+	diffuse  = warp(NdotL.x) * lights.light_color[0];
+	diffuse += warp(NdotL.y) * lights.light_color[1];
+	diffuse += warp(NdotL.z) * lights.light_color[2]; 
+	diffuse += warp(NdotL.w) * lights.light_color[3];
+	#endif
+
+	float3 specular = float3(0,0,0);
+
+	#ifdef SPECULAR
+		#if defined(NORMAL_ALPHA_IS_SPECULAR)
+		float4 specSample = normalSample.aaaa;
+		#elif defined(DIFFUSE_ALPHA_IS_SPECULAR)
+		float4 specSample = color.aaaa;
+		#else
+		float4 specSample = tex2D(specularTextureSampler,IN.TexCoord0).rgba;
+		#endif
+	specular  = RdotL.x * lights.light_color[0] * specSample;
+	specular += RdotL.y * lights.light_color[1] * specSample;
+	specular += RdotL.z * lights.light_color[2] * specSample; 
+	specular += RdotL.w * lights.light_color[3] * specSample;
+	#endif
+
+	#ifdef AMBIENT		
+		#ifdef AMBIENT_OCCLUSION
+			#ifdef SPECULAR_ALPHA_IS_AO
+				float3 _ambient = (ambient * specSample.a);
+			#elif defined(DIFFUSE_ALPHA_IS_AO)
+				float3 _ambient = (ambient * color.a);
+			#else
+				float3 aoSample = tex2D(occlusionTextureSampler,IN.TexCoord0);
+				float3 _ambient = (ambient * aoSample);
+			#endif
+		#else
+			float3 _ambient = ambient;
+		#endif
+	#else
+		float3 _ambient = float3(0,0,0);
+	#endif
+
+	#ifdef COLOR_ADD_SPECULAR
+		float3 final = color * (_ambient + diffuse) + specular;
+	#else
+		float3 final = color * (_ambient + diffuse + specular);
+	#endif
+
+	return float4(lerp(fog.Color,final,IN.Fog),color.a);
+	#else
+	float3 n_debug = (normal + 1.0f) / 2.0f;
+	return float4(n_debug, 1.0f);
+	#endif 
+}
+
+//-----------------------------------
+
+technique lit
+{
+	pass p0
+	{
+		VertexShader = compile vs_2_0 VS_Transform();
+		PixelShader = compile ps_2_0 PS_Lit();
+		FogEnable = false;
+		AlphaBlendEnable = false;
+	}
+}

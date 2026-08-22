@@ -1,0 +1,53 @@
+keycfg.exe is the GUI based editor for keys.cfg.
+To use it:
+Put it in your renegade folder.
+
+Run it, it will read keys.cfg from your data folder if it exists.
+otherwise it will start empty.
+
+It contains the following UI elements:
+A list of all the logical keys it knows about (either from reading keys.cfg
+or from new keys added via the Add Key button)
+
+A list of all the physical keys in the game, the names match with those in
+the renegade internal keyboard config dialog.
+Since the keyboard hooks dont support mouse wheel up/down or mouse movement
+they are not in the list.
+
+Use "None" if you dont want a particular logical key bound to any physical key
+
+A text box where you type in the name of the new logical key you want to add.
+
+A button labeled "Add Key" that adds a new logical key.
+
+A button labeled "Save & Quit" that saves keys.cfg and exits.
+
+and A button labeled "Quit" that exits without saving keys.cfg.
+
+When the program is started and keys.cfg doesnt exist, nothing will be in the logical keys list
+and the first item in the physical keys list will be selected.
+
+When the program is started and keys.cfg exists, it will be read.
+All the keys in it will be added to the logical keys list.
+The first item in the logical keys list will be selected as will whatever the corresponding
+physical key is.
+
+When an item is selected in the logical keys list, the corresponding physical key is selected.
+
+When an item is selected in the physical keys list, the physical key corresponding to the
+currently selected logical key is changed to the physical key that was just selected.
+
+When the "add" button is pressed, whatever is in the "new key" textbox will be used as the
+name for the new logical key.
+The new key will have the first entry in the physical key list as its physical key untill
+you change it.
+
+When the "quit" button is pressed (or the dialog window is closed), the program exits without saving the new keys.cfg.
+
+When the "save & quit" button is pressed, the program exits, saving all the entries in the logical key list along with their
+matching physical keys.
+
+For those who want to see the source code, open scripts.sln and look at the "keycfg" project.
+the keys.cfg editor is released under the GNU General Public Licence and if you wish to use 
+parts of its code in another program you must comply with that licence.
+See the file COPYING for details of the GNU General Public Licence.

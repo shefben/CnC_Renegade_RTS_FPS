@@ -1,0 +1,114 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="01. Sources">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="02. Resources">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx</Extensions>
+    </Filter>
+    <Filter Include="Include Files">
+      <UniqueIdentifier>{36cf9229-c66b-4430-a0fc-0ec18eac6be7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\scripts\ChunkClasses.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\Crc32.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\engine_string.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="general.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\HashTemplateKeyClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Search.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\TDBCategoryClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="tdbedit.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\TranslateDBClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\AudibleSoundDefinitionClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\DefinitionFactoryMgrClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\definition.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\DefinitionMgrClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\DefinitionFactoryClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\PointerRemapClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\PersistFactoryClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\TDBObjClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\TwiddlerClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\PresetMgr.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\SysTimeClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\RandomClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\Random2Class.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\Random3Class.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="icon.ico">
+      <Filter>02. Resources</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="tdbedit.rc">
+      <Filter>02. Resources</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="general.h">
+      <Filter>Include Files</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Include Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\scripts\PresetMgr.h">
+      <Filter>01. Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="tdbedit.h">
+      <Filter>01. Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Search.h">
+      <Filter>01. Sources</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

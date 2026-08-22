@@ -1,0 +1,1 @@
+"./Debug Bin/VFS ServerWin32.exe" endpoint:lolwtf vfs:"C:\ROFL LOL\OMG.VFS" mutex:"This mutex"

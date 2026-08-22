@@ -1,0 +1,6 @@
+LIBRARY
+	EXPORTS
+		CreateNewInstance		= CreateNewInstance
+		GetVFSVersion			= GetVFSVersion
+		RPCCreateNewInstance	= RPCCreateNewInstance
+		VFSCreateInterface		= VFSCreateInterface;

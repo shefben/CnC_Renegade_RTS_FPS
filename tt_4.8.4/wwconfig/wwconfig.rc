@@ -1,0 +1,286 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "winresrc.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.S.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""winresrc.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_MAIN DIALOGEX 0, 0, 291, 271
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "Renegade Config"
+FONT 8, "MS Sans Serif", 0, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,171,250,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,234,250,50,14
+    CONTROL         130,-1,"Static",SS_BITMAP | SS_CENTERIMAGE | SS_REALSIZEIMAGE | SS_SUNKEN,7,7,277,29
+    CONTROL         "Tab1",IDC_TAB,"SysTabControl32",0x0,7,43,277,198
+END
+
+IDD_TAB_AUDIO DIALOGEX 10, 58, 272, 182
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD | WS_SYSMENU
+EXSTYLE WS_EX_CONTROLPARENT
+FONT 8, "MS Sans Serif", 0, 0, 0x1
+BEGIN
+    ICON            IDI_AUDIO,-1,7,19,20,20
+    LTEXT           "Driver:",1037,7,7,38,8
+    CONTROL         "List1",IDC_SNDDRIVERS,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_SORTASCENDING | LVS_AUTOARRANGE | LVS_NOCOLUMNHEADER | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,47,7,218,36
+    GROUPBOX        "Volume",1036,7,52,258,75
+    CONTROL         "Sound Effects:",IDC_SEENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,66,94,10
+    CONTROL         "Slider1",IDC_SESLIDER,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,117,66,140,10
+    CONTROL         "Music:",IDC_MENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,80,94,10
+    CONTROL         "Slider1",IDC_MSLIDER,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,117,80,140,10
+    LTEXT           "Quality:",1029,7,136,74,8
+    COMBOBOX        IDC_QUALITY,7,145,74,56,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Playback Rate:",1032,98,136,74,8
+    COMBOBOX        IDC_PLAYBACK,98,145,74,68,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Stereo",IDC_STEREO,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,167,258,8
+    CONTROL         "Dialog:",IDC_DENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,94,94,10
+    CONTROL         "Slider1",IDC_CSLIDER,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,117,108,140,10
+    CONTROL         "Cinematic:",IDC_CENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,108,94,10
+    CONTROL         "Slider1",IDC_DSLIDER,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,117,94,140,10
+    COMBOBOX        IDC_SPEAKER,191,145,74,68,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Speaker Setup:",1034,191,136,74,8
+END
+
+IDD_TAB_VIDEO DIALOGEX 10, 58, 272, 182
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD | WS_SYSMENU
+EXSTYLE WS_EX_CONTROLPARENT
+FONT 8, "MS Sans Serif", 0, 0, 0x1
+BEGIN
+    LTEXT           "Driver:",1037,7,7,38,8
+    CONTROL         "List1",IDC_GFXDRIVERS,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_SORTASCENDING | LVS_AUTOARRANGE | LVS_NOCOLUMNHEADER | WS_BORDER | WS_TABSTOP,47,7,218,64
+    GROUPBOX        "",1031,7,74,258,99
+    LTEXT           "Color Depth:",1034,15,111,43,8
+    COMBOBOX        IDC_DEPTH,60,111,51,83,CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    ICON            IDI_VIDEO,IDC_STATIC,7,18,20,20
+    CONTROL         "Slider1",IDC_RES,"msctls_trackbar32",WS_TABSTOP,58,94,82,12
+    LTEXT           "640 x 480",IDC_RESLABEL,141,94,39,8
+    CONTROL         "Windowed Mode",IDC_WINDOW,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,128,69,10
+    ICON            IDI_VIDEO,IDC_STATIC,7,18,20,20
+    LTEXT           "Resolution:",1033,15,94,40,8
+    CONTROL         "Client Chat Log Enabled",IDC_CHATLOG,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,89,127,93,12
+    CONTROL         "High Quality Shadows Enabled",IDC_SHADOWS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,89,140,116,12
+    CONTROL         "VSync Enabled",IDC_VSYNC,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,140,63,12
+    LTEXT           "Multisample Anti-Alias:",IDC_STATIC,190,81,74,12,SS_CENTERIMAGE
+    COMBOBOX        IDC_AA,190,93,55,65,CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "",IDC_SHADERS,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,54,154,66,12
+    LTEXT           "Shader Detail",IDC_STATIC,11,155,44,8
+    CONTROL         "",IDC_SCENE,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,190,154,66,12
+    LTEXT           "Post Processing Detail",IDC_STATIC,119,155,72,8
+END
+
+IDD_TAB_PERFORMANCE DIALOGEX 10, 58, 272, 182
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD | WS_SYSMENU
+EXSTYLE WS_EX_CONTROLPARENT
+FONT 8, "MS Sans Serif", 0, 0, 0x1
+BEGIN
+    GROUPBOX        "Detail",1030,7,7,258,25
+    LTEXT           "Low (fastest)",1038,13,16,68,8,0,WS_EX_RIGHT
+    CONTROL         "Slider1",IDC_DETAIL,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,90,16,92,12
+    LTEXT           "High (slowest)",1032,190,16,68,8
+    CONTROL         "Expert Mode",IDC_EXPERT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,39,152,10
+    GROUPBOX        "Expert Settings",IDC_EXPERTSETTINGS,7,56,258,119
+    LTEXT           "Geometry Detail:",IDC_GD,13,70,77,8
+    CONTROL         "Slider1",IDC_GEO,"msctls_trackbar32",TBS_AUTOTICKS | WS_TABSTOP,137,70,88,10
+    LTEXT           "Character Shadows:",IDC_CS,13,82,77,8
+    CONTROL         "Slider1",IDC_SHADOW,"msctls_trackbar32",TBS_AUTOTICKS | WS_TABSTOP,137,82,88,10
+    LTEXT           "Texture Detail:",IDC_TD,13,94,77,8
+    CONTROL         "Slider1",IDC_TEXTURE,"msctls_trackbar32",TBS_AUTOTICKS | WS_TABSTOP,137,94,88,10
+    LTEXT           "Particle Detail:",IDC_PD,13,106,77,8
+    CONTROL         "Slider1",IDC_PARTICLE,"msctls_trackbar32",TBS_AUTOTICKS | WS_TABSTOP,137,106,88,10
+    LTEXT           "Surface Effect Detail:",IDC_SED,13,118,77,8
+    CONTROL         "Slider1",IDC_SURFACE,"msctls_trackbar32",TBS_AUTOTICKS | WS_TABSTOP,137,118,88,10
+    LTEXT           "Lighting Mode:",IDC_LM,13,135,114,8
+    COMBOBOX        IDC_LIGHTMODE,13,144,114,69,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Terrain Casts Shadows",IDC_TERRAIN,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,161,225,8
+    LTEXT           "Texture Filter:",IDC_TF,147,135,111,8
+    COMBOBOX        IDC_TEXTUREFILT,147,144,111,69,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    RTEXT           "Low",IDC_LOW1,108,70,24,8
+    RTEXT           "Low",IDC_LOW2,108,82,24,8
+    RTEXT           "Low",IDC_LOW3,108,94,24,8
+    RTEXT           "Low",IDC_LOW4,108,106,24,8
+    RTEXT           "Low",IDC_LOW5,108,118,24,8
+    LTEXT           "High",IDC_HIGH1,231,70,26,8
+    LTEXT           "High",IDC_HIGH2,231,82,24,8
+    LTEXT           "High",IDC_HIGH3,231,94,24,8
+    LTEXT           "High",IDC_HIGH4,231,106,24,8
+    LTEXT           "High",IDC_HIGH5,231,118,24,8
+END
+
+#endif    // English (U.S.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// English (Australia) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENA)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_AUS
+#pragma code_page(1252)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDB_LOGO                BITMAP                  "logo.bmp"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_MAIN                ICON                    "icon.ico"
+IDI_VIDEO               ICON                    "Icon2.ico"
+IDI_AUDIO               ICON                    "Icon3.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,8,0,0
+ PRODUCTVERSION 1,8,0,0
+ FILEFLAGSMASK 0x0L
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "Westwood Studios"
+            VALUE "FileVersion", "1, 8, 0, 0"
+            VALUE "InternalName", "WWConfig"
+            VALUE "LegalCopyright", "Copyright © 2002 Electronic Arts"
+            VALUE "OriginalFilename", "WWConfig.exe"
+            VALUE "ProductName", "Renegade Config"
+            VALUE "ProductVersion", "1, 8, 0, 0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog Info
+//
+
+107 DLGINIT
+BEGIN
+    IDC_QUALITY, 0x403, 6, 0
+0x2038, 0x6942, 0x0074, 
+    IDC_QUALITY, 0x403, 7, 0
+0x3631, 0x4220, 0x7469, "\000" 
+    IDC_PLAYBACK, 0x403, 7, 0
+0x3131, 0x6b20, 0x7a48, "\000" 
+    IDC_PLAYBACK, 0x403, 7, 0
+0x3232, 0x6b20, 0x7a48, "\000" 
+    IDC_PLAYBACK, 0x403, 7, 0
+0x3434, 0x6b20, 0x7a48, "\000" 
+    0
+END
+
+#endif    // English (Australia) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

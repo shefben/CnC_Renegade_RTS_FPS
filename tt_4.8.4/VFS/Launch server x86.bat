@@ -1,0 +1,1 @@
+start "./Bin/VFS ServerWin32.exe" pipe:lolwtf vfs:"C:\ROFL LOL\OMG.VFS" mutex:"This mutex"

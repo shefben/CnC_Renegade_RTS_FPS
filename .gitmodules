@@ -1,0 +1,3 @@
+[submodule "GeneralsGameCode"]
+	path = GeneralsGameCode
+	url = https://github.com/TheSuperHackers/GeneralsGameCode.git

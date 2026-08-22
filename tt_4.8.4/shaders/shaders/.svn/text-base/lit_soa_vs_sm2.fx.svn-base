@@ -1,0 +1,142 @@
+/*
+$Id$
+
+HLSL SoA Lighting Shader
+Vertex Shader Edition (for use with stealth effects)
+Copyright (c) 2008 Tiberian Technologies, Mark Sararu
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+// Comment out the following if you want to turn off diffuse lighting (not recommended)
+#define DIFFUSE
+
+// Comment out the following if you want to turn off ambient lighting (not recommended)
+#define AMBIENT
+
+
+// DO NOT MODIFY ANYTHING BEYOND THIS LINE UNLESS YOU KNOW WHAT YOU ARE DOING
+//------------------------------------------------------------------------------------
+
+// I mean it... Improper changes can seriously hurt performance or cause this shader to function incorrectly.
+#include "fxshared.fxi"
+#include "common.fxi"
+
+float4 ambient: AmbientLightColor = {0.0f, 0.0f, 0.0f, 1.0f};
+SoALightDataStruct lights
+<
+	string SasBindAddress="W3D.SoALightData";
+>;
+W3DFogStruct2 fog
+<
+	string SasBindAddress="W3D.Fog2";
+>;
+
+texture colorTexture 
+<
+	string SasBindAddress="Texture0";
+	string UIWidget = "none";
+>;
+sampler2D colorTextureSampler = sampler_state
+{
+	Texture = <colorTexture>;
+	AddressU = Wrap;
+	AddressV = Wrap;
+	MagFilter = Linear;
+	MinFilter = Anisotropic;
+};
+//------------------------------------
+
+struct vertexInput {
+	float4 Position			: POSITION;
+	float3 Normal			: NORMAL;
+	float2 TexCoord0		: TEXCOORD0;
+};
+
+struct vertexOutput{
+	float4 Position		: POSITION;
+	float2 TexCoord0	: TEXCOORD0;
+	float4 Diffuse		: COLOR0;
+	float Fog			: FOG;
+};
+
+#define pixelInput vertexOutput
+
+vertexOutput VS_Transform(vertexInput IN) 
+{
+	vertexOutput OUT;
+	
+	OUT.Position = mul(IN.Position, matWVP);
+	float3 normal = -mul(IN.Normal, matWIT);
+	
+	float3 diffuse = float3(0,0,0);
+	#ifdef DIFFUSE
+	// compute NdotL in parallel
+	float4 NdotL;
+	NdotL  = lights.light_x * normal.x;
+	NdotL += lights.light_y * normal.y;
+	NdotL += lights.light_z * normal.z;
+	NdotL = saturate(NdotL);
+	
+	diffuse  = NdotL.x * lights.light_color[0];
+	diffuse += NdotL.y * lights.light_color[1];
+	diffuse += NdotL.z * lights.light_color[2]; 
+	diffuse += NdotL.w * lights.light_color[3];
+	#endif
+	
+	#ifdef AMBIENT
+	float3 _ambient = ambient.rgb;
+	#else
+	float3 _ambient = float3(0,0,0);
+	#endif
+	
+	OUT.Diffuse = float4(_ambient + diffuse,1);
+	OUT.TexCoord0 = CalculateTextureCoordinates(IN.TexCoord0, matT0);
+	
+	float dist = OUT.Position.z;
+	OUT.Fog =(fog.Mode == FOGMODE_NONE) +
+	1 / exp(dist * fog.Density) * (fog.Mode == FOGMODE_EXP) +
+	1 / exp(pow(dist * fog.Density, 2)) * (fog.Mode == FOGMODE_EXP2) +	 
+	saturate((-dist) * fog.OneOverRange + fog.FogEndOverRange) * (fog.Mode == FOGMODE_LINEAR);
+	
+	return OUT;
+};
+
+float4 PS_Simple(pixelInput IN): COLOR
+{
+	float4 color = tex2D(colorTextureSampler,IN.TexCoord0);
+	color *= IN.Diffuse;
+	return color;
+};
+
+//-----------------------------------
+
+technique lit
+{
+	pass p0
+	{
+		VertexShader = compile vs_2_0 VS_Transform();
+		PixelShader = compile ps_2_0 PS_Simple();
+		FogEnable = true;
+		FogColor = float4(fog.Color,1);
+	}
+}
