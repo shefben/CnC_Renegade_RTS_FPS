@@ -14,10 +14,10 @@ import sys
 
 #	class Foo : public ScriptImpClass, declared through the DECLARE_SCRIPT
 #	macro -- the class name is the registered name.
-DECLARE = re.compile(r'\bDECLARE_SCRIPT(?:_MERGED)?\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
+DECLARE = re.compile(r'\bDECLARE_SCRIPT(?:_MERGED|_TT)?\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
 
 #	the same registration without a class body
-REGISTER = re.compile(r'\bREGISTER_SCRIPT(?:_MERGED)?\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
+REGISTER = re.compile(r'\bREGISTER_SCRIPT(?:_MERGED|_TT)?\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
 
 #	the raw template form, where the string literal is the registered name and
 #	need not equal the class name

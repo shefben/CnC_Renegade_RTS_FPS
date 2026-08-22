@@ -689,3 +689,21 @@ void	ScriptImpClass::Auto_Save_Variable( void * data_ptr, int data_size, int id 
 	// Then create and add the variable;
 	AutoVariableList = new ScriptVariableClass( data_ptr, data_size, id, AutoVariableList );
 }
+
+
+bool ScriptImpClass::Is_Player_Type(GameObject* obj, int type)
+{
+	if (obj == nullptr) {
+		return false;
+	}
+
+	if (type == 2) {
+		return true;
+	}
+
+	if (type == 3) {
+		return ScriptEngine::Get_A_Star(ScriptEngine::Get_Position(Owner())) == obj;
+	}
+
+	return ScriptEngine::Get_Player_Type(obj) == type;
+}

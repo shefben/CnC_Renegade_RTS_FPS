@@ -50,6 +50,7 @@ set(SCRIPTS_SRC
     Toolkit_Broadcaster.cpp
     Toolkit_Explosions.cpp
     Toolkit_Objectives.cpp
+    TT_Powerup.cpp
     Toolkit_Objects.cpp
     Toolkit_Powerup.cpp
     Toolkit_Siege.cpp

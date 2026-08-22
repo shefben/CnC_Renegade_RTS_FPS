@@ -157,6 +157,13 @@ public:
 	virtual	void Register_Auto_Save_Variables( void )	{}
 	void	Auto_Save_Variable( void * data_ptr, int data_size, int id );
 
+	//
+	//	A script's Player_Type parameter, as the 4.8.4 library writes it:
+	//	0 Nod, 1 GDI, 2 either side, and 3 meaning whichever player is
+	//	nearest the object this script is on.
+	//
+	bool Is_Player_Type(GameObject* obj, int type);
+
 protected:
 	void Destroy_Script(void);
 
@@ -195,6 +202,11 @@ private:
 // Same, for a stock script carrying the 4.8.4 corrections.
 #define	DECLARE_SCRIPT_MERGED(x, d) \
 	REGISTER_SCRIPT_MERGED(x, d) \
+	class x : public ScriptImpClass
+
+// Same, for a script the 4.8.4 library brought with it.
+#define	DECLARE_SCRIPT_TT(x, d) \
+	REGISTER_SCRIPT_TT(x, d) \
 	class x : public ScriptImpClass
 
 // Load / Save Macros

@@ -51,4 +51,9 @@ class	ScriptRegistrant : public ScriptFactoryClass
 	class x; \
 	ScriptRegistrant<x> _## x ##Registrant(#x, d, SCRIPT_SOURCE_STOCK_MERGED);
 
+// A script the 4.8.4 library brought that the stock catalog never had.
+#define REGISTER_SCRIPT_TT(x, d) \
+	class x; \
+	ScriptRegistrant<x> _## x ##Registrant(#x, d, SCRIPT_SOURCE_TT);
+
 #endif // _SCRIPTREGISTRANT_H_
