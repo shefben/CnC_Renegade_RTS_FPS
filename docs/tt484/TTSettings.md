@@ -77,16 +77,16 @@ yet implemented.
 
 | Option | Type | Default | Behaviour it drives | Status |
 | --- | --- | --- | --- | --- |
-| `ContinueReloadOnVehicleExit` | bool | true | reload continues after leaving a vehicle | open |
+| `ContinueReloadOnVehicleExit` | bool | true | reload continues after leaving a vehicle | merged (`vehicle.cpp` Add/Remove_Occupant) |
 | `DisableCostMultiplier` | bool | false | suppress the unpowered-base 2x purchase cost | **merged** |
-| `BuildTimeDelay` | float | 2.0 | vehicle build time floor | open |
-| `VehicleOwnershipDisable` | bool | false | drop TT vehicle ownership enforcement | open |
+| `BuildTimeDelay` | float | 2.0 | unpowered vehicle build multiplier | merged (`vendor.cpp`) |
+| `VehicleOwnershipDisable` | bool | false | drop TT vehicle ownership enforcement | merged (air strip + war factory `Lock_Vehicle`) |
 | `VehicleBuildingDisable` | bool | false | alternate per-team production model; also gates the PT "building" message | open |
 | `DisableVehicleFlipKill` | bool | false | a rolled-over vehicle does not self-destruct | **merged** |
-| `Unsquishable` | bool | false | infantry cannot be run over | open |
-| `UnsquishableArmor`…`4` | int | 0 | armour types exempt from squishing | open |
-| `NeutralVechiclePointsFix` | bool | true | points for neutral-vehicle kills | open |
-| `DrawDistance` | float | 300 | hibernation/draw distance | open |
+| `Unsquishable` | bool | false | infantry cannot be run over | merged (`SoldierGameObj::Is_Squishable`) |
+| `UnsquishableArmor`…`4` | int | 0 | armour types exempt from squishing | merged (`SoldierGameObj::Is_Squishable`) |
+| `NeutralVechiclePointsFix` | bool | true | points for neutral-vehicle kills | n/a -- never read in TT 4.8.4; its mechanism is the scripts team override, and canonical `Do_Damage` already scores neutrals as zero and teammates as negative |
+| `DrawDistance` | float | 300 | camera far clip plane | merged (`ccamera.cpp`, was the literal `CCAMERA_FARZ` 300) |
 | `ScriptsLastTeamTime` | int | -1 | last-team bookkeeping for scripts | open |
 | `NukeWeatherDisable` | bool | false | suppress nuke weather effect | **merged** |
 | `IonWeatherDisable` | bool | false | suppress ion weather effect | **merged** |

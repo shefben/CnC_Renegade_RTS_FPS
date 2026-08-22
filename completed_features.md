@@ -483,3 +483,87 @@ per directive 0.5), `weather hooks` + `weather manager hooks` (16, n/a -- the
 73-byte nops only exist to stop the stock statics constructing beside TT's heap
 copies, and `NetworkObjectClass`'s ctor is inert at static-init time so there is
 no order hazard to port).
+
+## P03-L: widescreen, and the side buttons on a mouse
+
+The menus are authored on a 4:3 grid -- 400x300 for dialogs, 800x600 for the
+style manager -- and both were scaled by the raw screen rectangle, so every
+dialog, control and font stretched sideways on a widescreen display while the 3D
+backdrop cropped the art they were positioned against. All menu layout now comes
+from the largest 4:3 box that fits the screen, the backdrop is letterboxed into
+that same box, and `WS_EX_RIGHT` docks a dialog to the screen edge (which the
+Commander sidebar will want). `WW3D::Reset_Viewport` is factored out of
+`Begin_Render` so the letterboxed camera hands the screen back. Separately,
+DirectInput was opened with the three-button mouse format: the side buttons are
+two more entries in the button enum, bindable by name, and reach the dialogs as
+`VK_XBUTTON1/2`. Absorbs `dialog box hooks`, `hook for widescreen stylemgr
+stuff`, `DirectInput hooks`, `Input hooks`, `hook for MenuBackdropClass stuff`.
+`3e2bbccd`.
+
+## P03-M: the harvester, the factory, and cash that rounded to nothing
+
+Harvest animation name derived from the vehicle's htree instead of a hard-coded
+Nod one, so the GDI harvester's arms move; `HarvesterClass` is deleted on detach
+(nothing ever deleted it); the air strip's delivery cinematic is clamped to
+finish inside the window the factory still tracks, which is why a harvester
+built with the power plant down was invisible; the pad-clearing warhead runs a
+narrow-phase test instead of killing everything the culling system returned.
+Cash is a float end to end -- the int parameter truncated the per-frame unload
+trickle to zero and paid an unpowered base's per-second trickle nothing. Also:
+the server rejects a purchase request from a player in a vehicle, and
+`Copy_Settings` clears a stale human-anim override and loiter collection.
+Absorbs the five harvester rows, `weapons factory construction zone fix`,
+`fix distributing of cash`, `fix you cant use a PT inside a vehicle`,
+`fix for humananimoverride issue`. `2ad44c57`, `9d0d27ab`.
+
+## P03-N: animations on a dying soldier, and a null walked in a list
+
+`Set_Animation` and `Set_Blended_Animation` refuse while the soldier is in
+DEATH/DESTROY -- a scripted animation started on a dying soldier overrode the
+death animation and the corpse stayed in it. `Set_Animation` also dropped its
+start frame and mode, and `Import_Rare` replicates animation through that call,
+so a soldier's animation arrived everywhere at frame zero.
+`GenericMultiListClass::Internal_Add_After` tested its node for null after
+dereferencing it. `ab6ace0d`, `75f4f7d2`.
+
+## P03-O: dispositions, 290 open down to 114
+
+`TTHookSites.tsv` reads 488 merged, 114 open, 54 n/a, 104 out of scope. Settled
+beyond the merges above: `SoldierGameObj hooks` (13), `cGameData hooks` (11),
+`VehicleGameObj hooks` (10), `hook cSbboManager` (6), `hook PingProfileWait` (5),
+`MultiListClass hacks` (5), `humanstateclass hooks` (4), `hook for MatrixMapper
+stuff` (4), `StringClass patches` (4), `cBioEvent hooks` (4), `WideStringClass
+patches` (3), `console hooks` (3), `chat dialog hooks` (3), `hook for weapon
+code` (3), `hooks for surfaceeffects.ini` (3), `hook cLanChat` (3), plus
+`combat manager hooks`, `object create hooks`, `WOL hooks` and seven unnamed
+byte-patch rows. Declined per directive 0.5: `hook ScriptManager` (6),
+`hooks for filehashing checks` (5), `cPlayerManager hooks for player titles` (3),
+`vehicle game obj visible change` (2). N/A: `Do not load all .mix files at
+startup` (4) -- the `data/*.mix` scan in `init.cpp` is the only place a level's
+mix is ever mounted, and TT only gets to drop it because scripts2.dll mounts
+maps itself; removing it natively needs a lazy per-map mount in the file factory
+first. N/A: `spawner randomness fix` -- TT ships it behind
+`CONFIG_USE_TT_SPAWNERS` as an opt-in variant, and directive 0.4 forbids
+flag-selected duplicates.
+
+## P03-INI-B: five more tt.ini options honoured
+
+`Unsquishable` and its four armour ids (`SoldierGameObj::Is_Squishable`),
+`DrawDistance` (the camera far clip, which was the literal 300 the option
+defaults to), `BuildTimeDelay` (replacing the base's flat operation time factor
+as the unpowered build multiplier), `VehicleOwnershipDisable` (skips
+`Lock_Vehicle` at both factories) and `ContinueReloadOnVehicleExit` (puts the
+vehicle's weapon away as it empties, abandoning a reload in progress).
+`9f5e3a12`.
+
+## N/A: NeutralVehiclePointsFix
+
+The flag is declared in TT 4.8.4 and never read. Its mechanism is the scripts
+team override (`SCRIPTS_LastTeam`, set by `Set_Vehicle_Team`), declined under
+directive 0.5, and canonical `Do_Damage` already awards no points for a neutral
+target and negative points for a teammate, which is TT's non-scripts path.
+
+## Q-010 answered: team defaulting stays removed
+
+User directed using TT's handling. The stock swap-the-scores-on-disconnect path
+is gone for good; no further action.
