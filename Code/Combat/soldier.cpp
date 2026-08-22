@@ -3102,6 +3102,17 @@ void	SoldierGameObj::Handle_Head_look( void )
 //------------------------------------------------------------------------------------
 void	SoldierGameObj::Set_Blended_Animation( const char *animation_name, bool looping, float frame_offset, bool play_backwards )
 {
+	//
+	//	A scripted animation started on a soldier who is dying overrides the
+	//	death animation, and the state machine never takes it back -- the
+	//	corpse finishes the scripted one and stays in it.
+	//
+	if (	HumanState.Get_State () == HumanStateClass::DEATH ||
+			HumanState.Get_State () == HumanStateClass::DESTROY )
+	{
+		return;
+	}
+
 	if ( animation_name == nullptr ) {
 		HumanState.Stop_Scripted_Animation();
 		return;
@@ -3127,8 +3138,19 @@ void	SoldierGameObj::Set_Blended_Animation( const char *animation_name, bool loo
 
 
 //------------------------------------------------------------------------------------
-void	SoldierGameObj::Set_Animation( const char *animation_name, bool looping, float /* start_frame */ )
+void	SoldierGameObj::Set_Animation( const char *animation_name, bool looping, float start_frame )
 {
+	//
+	//	A scripted animation started on a soldier who is dying overrides the
+	//	death animation, and the state machine never takes it back -- the
+	//	corpse finishes the scripted one and stays in it.
+	//
+	if (	HumanState.Get_State () == HumanStateClass::DEATH ||
+			HumanState.Get_State () == HumanStateClass::DESTROY )
+	{
+		return;
+	}
+
 	if ( animation_name == nullptr ) {
 //		Debug_Say(( "Stoping Scripted Human Animation\n" ));
 		HumanState.Stop_Scripted_Animation();
@@ -3136,11 +3158,19 @@ void	SoldierGameObj::Set_Animation( const char *animation_name, bool looping, fl
 		return;
 	}
 
-	// Humans ignore the start_frame parameter for now
-
 //	Debug_Say(( "Starting Scripted Human Animation %s\n", animation_name ));
 	AnimationName = animation_name;
 	HumanState.Start_Scripted_Animation( animation_name, false, looping );
+
+	//
+	//	The start frame and the mode used to be dropped here, unlike
+	//	Set_Blended_Animation beside it.  Import_Rare replicates an
+	//	animation through this call, so a soldier's animation arrived on
+	//	every other machine at frame zero in whatever mode was already set.
+	//
+	if ( Get_Anim_Control() != nullptr ) {
+		Get_Anim_Control()->Set_Mode( looping ? ANIM_MODE_LOOP : ANIM_MODE_ONCE, start_frame );
+	}
 }
 
 //------------------------------------------------------------------------------------
