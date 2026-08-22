@@ -162,3 +162,59 @@ rewrite the operand of a `mov ecx, PacketManager` instruction so it points at
 the donor's own singleton, duplicated across the two executable variants. In a
 source merge the donor implementation simply becomes `Code/wwnet/packetmgr.cpp`
 and every reference binds at link time.
+
+---
+
+## 5. Merged so far
+
+### 5.1 `PacketManagerClass` — 57 sites, done
+
+Its delta codec is not even reimplemented in the donor tree: both halves are
+declared `RENEGADE_FUNCTION` and call back into the stock binary, and the
+donor's own attempt at `Build_Delta_Packet_Patch` sits commented out above them
+marked "Doesn't seem to work correctly". So the whole rewrite reduces to three
+behavioural differences, all merged:
+
+- `Get_Packet` computed the wrapper CRC over `bytes - sizeof(crc)` from past
+  the wrapper without checking the datagram was longer than the wrapper. Any
+  peer made that length negative with a short datagram.
+- `Break_Packet` bounded the receive buffers with `PACKET_MANAGER_RECEIVE_BUFFERS`
+  — the client constant — rather than the runtime `NumReceiveBuffers`, so a
+  server used 128 of the 2048 slots it had allocated.
+- `Break_Packet` recursed once per piggybacked block over attacker-supplied
+  data. It iterates now.
+
+Two bounds in its sub-packet loop were tested after the write rather than
+before: the buffer index, which the base packet could leave one past the end,
+and the read cursor, which was never checked against the datagram at all.
+
+### 5.2 `cConnection` — 49 sites, and `cRemoteHost` — 19
+
+Most of both reimplementations match stock function for function. The stale
+unreliable drop, the refusal dedupe, the per-type receive stats and the resend
+timeout averaging are all already in OpenW3D. `Adjust_Resend_Timeout` reads
+differently from the donor's and works out identical for every input. What was
+left:
+
+| Merged | Was |
+| --- | --- |
+| `Get_Remote_Host` returns null out of range | asserted the range, then indexed anyway — and `WWASSERT` compiles out of release |
+| `Receive_Packet` goes through that accessor | indexed `PRHost` directly with the wire-supplied sender id, which `cPacket` decodes as a *signed* char |
+| unknown packet type is a counted discard | `DIE` |
+| connect request at a client, or carrying a sender id, is a counted discard | `WWASSERT` |
+| `ExtendedAverageCount += NumInternalPings` | `++`, against a total summed over `NumInternalPings` samples — the lifetime average ping was inflated by the sample count |
+| flood ping-spike test always runs | gated on `MaximumBps < 100000`, so it was off for any host configured above that |
+| flood resend test gates on the resend count | needed >20 packets queued, but a flooded link drains its queue about as fast as it fills |
+
+### 5.3 Still open
+
+The `wwnet` remainder, then `Commando/cnetwork.cpp` (32), then the purchase
+terminal, combat objects and UI per section 4.
+
+One cluster is **not resolvable from the donor tree alone**: the six
+`WriteMemory` byte patches commented `UDP fixes` (`tt.cpp:1810-1815`). They
+rewrite comparison operands and jump opcodes at six addresses spread across
+unrelated subsystems, carry no replacement symbol, and the name does not match
+any UDP code — the addresses are nowhere near the netcode. Reading them needs a
+disassembly of the stock binary, which this project does not keep. They are the
+`low` confidence rows in the matrix.

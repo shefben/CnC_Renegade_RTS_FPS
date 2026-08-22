@@ -145,11 +145,46 @@ with no facade left behind.
   into the canonical script and the stock one deleted, then registered as
   `SCRIPT_SOURCE_STOCK_MERGED`. `agtfix.cpp` and the `M00_*` cluster in
   `jfwws.cpp` are behaviour corrections, so the donor side wins.
+
+  **1 of 13 merged.** `M00_Advanced_Guard_Tower` (`agtfix.cpp`): the four gun
+  mounts are corners of the tower, so their offsets belong to the building's
+  own frame; stock added them unrotated, which only produced the right result
+  for a tower at facing zero. The facing has to come off the MCT — the
+  controller is a `BuildingGameObj`, which derives from `DamageableGameObj`,
+  not `PhysicalGameObj`, so it has no transform and `Get_Facing` returns zero.
+  That path also carries the donor's height correction. `Killed` told the guns
+  the tower was dead and left them standing; they are destroyed now.
+
+  Not taken from that one: the optional `MissileDef`/`GunDef` weapon override
+  needs `Grant_Weapon`, and the gun target test excludes harvesters via
+  `Is_Harvester`. `Is_Harvester` has portable source; `Grant_Weapon` does not.
+  See below.
+
 - **The 2142 donor-only scripts** (matrix §3.2) — these compile against the
-  donor's own engine SDK (`scripts/engine_*.h`), which binds to the closed
-  binary through `REF_DEF2`/`REF_DECL2`. They cannot be compiled natively until
-  that SDK has a native destination, which is Phase 2 and Phase 3 work. The
-  registry is ready for them: provenance `SCRIPT_SOURCE_TT`, and the checker
-  already recognises the registration form they use.
+  donor's own engine SDK (`scripts/engine_*.h`).
+
+  **Correction.** This document previously said that SDK "binds to the closed
+  binary through `REF_DEF2`/`REF_DECL2`" and so had to wait on Phase 2 and
+  Phase 3 entirely. That overstates it. The SDK declares 690 functions across
+  20 headers, and the split is lopsided:
+
+  | | Count | Where |
+  | --- | --- | --- |
+  | Declared with portable C++ source in `engine_*.cpp` | **406** | 18 of the 20 headers |
+  | `SCRIPTS_API extern` — a pointer resolved into the closed binary, no source | **284** | `engine_tt.h` alone |
+
+  Every other header — `engine_obj.h`, `engine_game.h`, `engine_weap.h`,
+  `engine_player.h`, `engine_dmg.h` and the rest — has **zero** extern
+  bindings. Their implementations are ordinary code: `Get_Object_Type` is four
+  lines around `DamageableGameObj::Get_Player_Type`, `Is_Harvester` compares
+  against each base's harvester vehicle. The implemented units carry only 22
+  `REF_DEF`/`REF_DECL` data bindings between them.
+
+  So the blocker is narrower than recorded: **`engine_tt.h`'s 284 externs**,
+  not the SDK. The 406 with source can be ported natively without waiting on
+  anything, and doing so is what unblocks the bulk of the 2142.
+
+  The registry is ready for them: provenance `SCRIPT_SOURCE_TT`, and the
+  checker already recognises the registration form they use.
 
 Registry size when both land: 1640 + 13 + 2142, no duplicate names.

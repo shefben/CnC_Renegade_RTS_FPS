@@ -286,3 +286,29 @@ script name and parameters compatible", "Remove `add_dependencies(combat scripts
 "Stop normal `ScriptManager::Init()` from `Load_Scripts(\"SCRIPTS.DLL\")`" and
 "Ensure editor/tool builds use the same canonical script catalog". `renegade` and
 `leveledit` link clean; docs in `docs/tt484/NativeScriptRegistry.md` (`f3a68490`).
+
+## P03-B: netcode hook merges -- PacketManagerClass, cConnection, cRemoteHost
+
+125 of the 656 in-scope hook sites merged natively: the packet manager singleton
+(57), `cConnection` (49) and `cRemoteHost` (19). Fixes taken include a negative
+CRC length from a short datagram, an out-of-bounds remote-host index from a
+wire-supplied signed sender id, unbounded recursion over piggybacked packet
+blocks, two receive-loop bounds tested after the write, a server using 128 of
+its 2048 receive buffers, and three flood-detection tests that were narrower
+than they read. `wwnet` links clean; detail in `docs/tt484/NativeEventDispatch.md` 5.
+
+## P04-C: `M00_Advanced_Guard_Tower` merged from `agtfix.cpp`
+
+First of the 13 script names the donor redefines. Gun mount offsets are rotated
+by the tower facing read off the MCT instead of being added unrotated to the
+controller position, the height correction for a low-placed controller is taken,
+and the guns and missile emitter are destroyed with the tower instead of being
+left standing. `renegade` links clean.
+
+## P04-D: corrected the recorded blocker on the 2142 donor-only scripts
+
+The donor SDK was recorded as uniformly bound to the closed binary. It is not:
+406 of its 690 declared functions have portable C++ source, and all 284 of the
+`SCRIPTS_API extern` bindings live in `engine_tt.h` alone -- every other header
+has none. The blocker is that one header, not the SDK, so most of the 2142 can
+proceed without waiting on P02/P03. Recorded in `docs/tt484/NativeScriptRegistry.md` 4.
