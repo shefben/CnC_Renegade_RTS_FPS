@@ -7,30 +7,33 @@ Detail lives in `docs/`.
 
 ## P03: merge TT hooks/patches/overrides into canonical implementations
 
-The event layer is done (P03-A) and 125 of the 656 in-scope hook sites are
-merged (P03-B: the packet manager, `cConnection`, `cRemoteHost`). 531 remain,
-resolving to roughly 450 distinct donor symbols, each a reimplementation to diff
-against its canonical function. Absorbs the backlog line "Acceptance: No
-required TT gameplay feature depends on modifying executable memory or knowing a
-hard-coded function address", not yet met. Six `WriteMemory` sites commented
-`UDP fixes` (`tt.cpp:1810-1815`) are unreadable without a disassembly of the
-stock binary and may need a Q-### if they turn out to matter. Next exact action:
-finish the `wwnet` remainder, then `Commando/cnetwork.cpp` (32 sites), per
-`NativeEventDispatch.md` 5.3.
+The event layer is done (P03-A) and 139 of the 656 in-scope hook sites are
+merged or dispositioned (P03-B netcode 125, P03-C the six `UDP fixes` plus
+`SlidePrecision`, P03-D the vehicle flip, P03-E the six scroll-fix sites and the
+2x cost message). All 135 addressed byte-patch rows are now triaged against the
+stock image, so the remaining work is named rather than opaque. Absorbs the
+backlog line "Acceptance: No required TT gameplay feature depends on modifying
+executable memory or knowing a hard-coded function address", not yet met. Next
+exact action: the 16 purchase-terminal sites (`new unpurchasable logic` 10,
+`PT keypress fix` 2, `PT chatbox fix`, `enable secret PT pages` 2, `"building"
+message change`) under directive 0.9, then `Commando/cnetwork.cpp` (32), per
+`NativeEventDispatch.md` 5.9.
 
 ## P04: native stock + TT script registry
 
 The stock half is complete (P04-A, P04-B). Absorbs the three remaining backlog
 lines: "Compile unchanged stock scripts only when TT does not supersede them",
 "For stock scripts modified/replaced by TT, merge TT changes into the canonical
-source" and "Compile TT-only new scripts as additional canonical scripts". The 13
-script names the donor redefines are 1 of 13 merged (P04-C,
-`M00_Advanced_Guard_Tower`). The 2142 donor-only scripts are less blocked than
-recorded (P04-D): 406 of the SDK's 690 functions have portable source, and all
-284 closed-binary bindings sit in `engine_tt.h` alone. Next exact action: merge
-the remaining 12 replacements listed in `TTParityMatrix.md` 3.1 -- the `M00_*`
-cluster in `jfwws.cpp` is the largest group -- taking the donor side, and
-register each as `SCRIPT_SOURCE_STOCK_MERGED`.
+source" and "Compile TT-only new scripts as additional canonical scripts". The
+donor half is now scoped to the original TT library only (P04-E): 861 donor-only
+scripts across 24 files, not 2142. The 13 script names the donor redefines are 1
+of 13 merged (P04-C, `M00_Advanced_Guard_Tower`), and all 13 sit inside that
+scope. The remainder is less blocked than recorded (P04-D): 406 of the SDK's 690
+functions have portable source, and all 284 closed-binary bindings sit in
+`engine_tt.h` alone. Next exact action: merge the remaining 12 replacements
+listed in `TTParityMatrix.md` 3.1 -- the `M00_*` cluster in `jfwws.cpp` is the
+largest group -- taking the donor side, and register each as
+`SCRIPT_SOURCE_STOCK_MERGED`.
 
 ---
 

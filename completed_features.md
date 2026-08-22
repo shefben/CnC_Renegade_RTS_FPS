@@ -312,3 +312,86 @@ The donor SDK was recorded as uniformly bound to the closed binary. It is not:
 `SCRIPTS_API extern` bindings live in `engine_tt.h` alone -- every other header
 has none. The blocker is that one header, not the SDK, so most of the 2142 can
 proceed without waiting on P02/P03. Recorded in `docs/tt484/NativeScriptRegistry.md` 4.
+
+## P03-C: the `UDP fixes` cluster read and merged
+
+Identified the binary TT 4.8.4 actually patches -- `Game.exe`, 4,399,104 bytes,
+md5 `26a203bdc1e58909644dc74694c16fde`, the only image on disk carrying TT's
+`Exe == 0` signature at `0x0078CE49` -- which unblocked the six `WriteMemory`
+sites previously recorded as unreadable. They are one defect at six `recvfrom`
+call sites: stock rejected only `SOCKET_ERROR`, so a 0-3 byte datagram reached
+code that subtracts a four byte header, handing `memcpy` an unsigned ~4GB count
+out of a 640 byte stack buffer -- reachable with one unauthenticated packet.
+Merged at the three sites this tree owns (`natsock.cpp`, `servercontrolsocket.cpp`,
+`netutil.cpp`), discarding and continuing rather than TT's `break`, which let a
+runt stream stop the socket draining. `SlidePrecision` merged with them: the
+1.01f wall-slide scale reversed part of the inward velocity every frame.
+`wwnet`, `wwphys` and `renegade` build clean (`4dd7f309`); detail in
+`docs/tt484/NativeEventDispatch.md` 5.4/5.5.
+
+## N/A: `UDP6`/`UDP7`/`UDP8`
+
+Land in the GameSpy query-and-reporting SDK statically linked into the stock
+binary, which is not part of this tree and whose master server is gone. `UDP8`
+is not a bounds fix at all -- it forces the `;`-prefixed remote command dispatch
+through `vtbl+0xFC` to be skipped unconditionally.
+
+## P03-D: byte-patch triage, and the vehicle flip merge
+
+Disassembled all 135 addressed byte-patch rows in one pass (124 resolve to a
+function) and classified them, separating the clusters already merged in P03-B/C
+from real remaining work: ~6 renderer/shader hooks out of scope under directive
+0.6, ~20 TT subsystem-wiring sites declined, 16 purchase-terminal sites open
+under directive 0.9, ~25 discrete fixes open. Two matrix guesses were proven
+wrong and corrected in the TSV (`UDP fixes`, `wall lag fix`). Merged from the
+pass: `make vehicles not die when they flip over`, deleting `ExpireTimer` and
+`EXPIRE_SECONDS` with the countdown rather than gating them (`ab11a768`).
+
+## N/A: `Do not load all .mix files at startup`
+
+Declined with reason. `WriteJump(0x0043907C, 0x00439192)` does not trim the
+`data/*.mix` scan -- it jumps the whole file-factory mount block because TT
+substitutes its own VFS. That is TT infrastructure, not a stock fix, and
+OpenW3D keeps its own file factory (`Code/Commando/init.cpp:766-791`).
+
+## P03-E: info-dialog scrolling and the doubled-cost warning
+
+Merged the six-site `team information and battlefield information scroll fix`:
+stock hid the cursor on open and its `On_Frame_Update` override returned without
+calling `DialogBaseClass::On_Frame_Update`, so the list control never got
+`Update_Mouse_State` or its own per-frame tick -- unscrollable for two
+independent reasons, both fixed across the battle-info, team-info and
+server-info dialogs. Merged `dead powerplant 2x cost message change`: the price
+doubles on `Is_Base_Powered()` but `IDC_COST_X2_TEXT` was driven off the power
+plant's health fraction, so the terminal could charge double in silence or warn
+while charging normal price. `renegade` builds clean (`809c7b0b`); detail in
+`NativeEventDispatch.md` 5.8.
+
+## N/A: `radar fix`
+
+The patch is inert. `Enable_Radar_Patch` re-asserts
+`base->Enable_Radar(base->Is_Radar_Enabled())` through a `RENEGADE_FUNCTION`
+bound to stock `0x006EFD00`, which opens `cmp [esi+6D7h], al / jz` on that same
+`IsRadarEnabled` field -- so the value is compared against itself and the setter
+returns. Nothing to merge. Recorded with its evidence so the row is not
+reopened.
+
+## Deferred: `dead powerplant 2x cost disable`
+
+Gated on TT's `DisableCostMultiplier` ini option. A server toggle that removes a
+stock rule is not a correction to it; same disposition as `VehicleOwnershipPatch`.
+Owners identified (`dlgcncpurchasemainmenu.cpp:389` and the branch above) if it
+is ever wanted.
+
+## P04-E: Phase 4's donor half narrowed to the original TT script library
+
+User direction: only the original TT scripts go into the engine, not the
+gameplay-mode variations. In scope is the library a stock level actually
+references -- the `jfw*` core, TT's game manager (`gm*`), and the named stock
+fixes `agtfix.cpp`/`obelfix.cpp` plus `dan.cpp`: 24 files, 874 registrations,
+861 of them donor-only, all 13 replacements inside it. Out of scope are 44 files
+and 1259 registrations of mod and alternate-game-mode content (`jmg*`,
+`renalert*`, `ra2`, `reborn`, `scud`, `survival`, `ms*`, `dp88_*`, `DB*` and the
+rest); none corrects stock behaviour, so directive 0.4 does not reach it.
+Registry target is now 1640 + 13 + 861, not 3889. Recorded in
+`NativeScriptRegistry.md` 4 and `TTParityMatrix.md` 3.2 (`3acf9849`).
