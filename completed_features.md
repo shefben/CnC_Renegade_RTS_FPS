@@ -136,3 +136,68 @@ donor. `Register_For_Rendering(bool hint_static)` belongs to TT's renderer
 rework, and `shaders/` is excluded by directive 0.6; `Set_User_Lighting_Flag`
 is a vertex-solve helper whose "appropriately" contract is only recoverable
 alongside the static-lighting work.
+
+## P02-D: TT `SoldierGameObj` additions merged with their enforcement
+
+All 17 remaining `SoldierGameObj` declarations: per-instance skeleton size with a
+smooth resize that replicates as target plus speed, the weapon hold style override
+(owned by `HumanStateClass`, applied in `Update_Weapon`), collision-group locking
+that outranks ghosting and fly mode, `Disable_Ghost_Collision` as the alternate
+`Get_Use_Stock_Ghost_Behavior` branch, gateable footsteps, a routed
+`Get_Contact_Surface_Type`, `Apply_Damage_IgnoreVehicleCheck`, and a
+`Set_Delete_Pending` that leaves the vehicle at once. `combat` and `renegade` link
+clean (`152c03cf`).
+
+## P02-E: declaration delta closed
+
+`BuildingGameObjDef::Get_Hide_Team_Battlefield_Information` (enforced in the battle
+info screen), `VehicleGameObj::Check_If_On_Surface` and `Reset_Sound_Effects`.
+Delta 176 -> 139; matrix 5.8 records the disposition of every remaining row
+(`b461e1ec`).
+
+## P02-F: TT collision groups and their meanings
+
+Collision group widened 4 bits -> 5 and the scene pair table 16x16 -> 32x32; TT's
+twenty new groups added and the matrix built from their documented meanings in
+`Scene_Init`. Covers the "collision-group meanings and train/naval/player-building
+behavior" backlog line and unblocks `VehicleGameObj::Is_Underground`. `renegade`
+links clean (`2cba9901`).
+
+## P02-G: per-client dirty-bit semantics
+
+`NetworkObjectClass::setDirtyBitsForClient` is now the virtual `Restore_Dirty_Bits`
+asks, with the old blanket copy as the base answer. Absorbs the backlog lines "Port
+TT object visibility/per-client state semantics" and "Port TT extended network
+behavior" (`343edfee`).
+
+## N/A: TT `ExtendedNetworkObject`
+
+Not ported. Its stated purpose is adding virtuals to `NetworkObjectClass` without
+changing base-class offsets -- the class-layout ABI constraint the P02 backlog
+lines "Do not preserve obsolete class-layout ABI constraints" and "Do not introduce
+external-plugin facade headers/adapters" forbid. Its one virtual went on
+`NetworkObjectClass` directly (see P02-G); those two constraint lines are discharged
+by that decision.
+
+## N/A: `VehicleGameObj::Export_Occasional` / `Import_Occasional`
+
+Superseded. The state TT carried in the occasional tier -- `CanDrive`,
+`AllowStealthWhileEmpty`, `CanBeStolen`, `LockTeam`, `ScriptsVisible` -- already
+replicates through `Export_Rare`, and `CanFire` through the frequent tier. Matrix
+5.8.
+
+## N/A: `BuildingGameObjDef::Dump` and `AABTreeCullSystemClass::Collect_Branch`
+
+`Dump` is `#ifdef DDBEDIT` in TT's own header: an editor-only preset dump with no
+runtime behavior and no matching OpenW3D build. `Collect_Branch` is OpenW3D's
+existing `Collect_Objects_Recursive(AABTreeNodeClass *)` under another name. Matrix
+5.8.
+
+## P02-H: TT construction yard and superweapon buildings
+
+Two of the four TT building types. The yard repairs its team's buildings and
+vehicles on separate timers, credited to a definition-named warhead, slowed rather
+than stopped by power loss, skipping itself and disabled while spied.
+`SuperweaponGameObj` owns a launch that replicates in the occasional tier and is
+cancelled by destruction. `BaseControllerClass` gained a public building-list
+accessor. `combat` and `renegade` link clean (`04bb9321`).

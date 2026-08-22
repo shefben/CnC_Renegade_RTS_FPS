@@ -35,12 +35,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P02: Reconcile TT public engine classes into canonical OpenW3D classes (roadmap Section 8)
 
-- [ ] Do not preserve obsolete class-layout ABI constraints merely for historical TT binary compatibility.
-- [ ] Do not introduce external-plugin façade headers/adapters during this integration. Internal class design follows the canonical native OpenW3D implementation.
-- [ ] Port TT building/factory object types into `Code/Combat`.
-- [ ] Port TT object visibility/per-client state semantics.
-- [ ] Port TT extended network behavior.
-- [ ] Port TT collision-group meanings and train/naval/player-building behavior.
 - [ ] Port current 4.8.4 changes, including the Revision 9000 additions identified from the source/changelog.
 - [ ] Reconcile TT save/load extensions with `wwsaveload`.
 - [ ] Reconcile TT definitions with `PARAM_EDITING_ON`/tool builds.

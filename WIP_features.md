@@ -5,22 +5,21 @@ Detail lives in `docs/`.
 
 ---
 
-## P02: merge TT members into canonical OpenW3D classes
+## P02: reconcile TT public engine classes into canonical OpenW3D classes
 
-Absorbs the `unstarted_features.md` line "Merge required TT members, virtuals,
-accessors, definitions, and semantics into canonical OpenW3D classes." Scoped in
-`docs/tt484/TTMethodSources.tsv`; matrix 5.7 records the parser correction to the
-5.6 survey. `SoldierGameObj`, `VehicleGameObj`, `BuildingGameObj` and
-`NetworkObjectClass` are merged, every flag wired to a real enforcement site, and
-the delta stands at 159. Two scope corrections: `HUDSurfaceClass`,
-`ScriptedDialogClass` and `ExtendedNetworkObject` do not exist in OpenW3D at all,
-so their members are Phase 5 new-class work and not P02 (matrix 5.5); and
-`PhysicsSceneClass`'s 6 remaining methods are shadow/polygon-budget control and
-belong with P20. Next: the `SoldierGameObj` write-from-declaration clusters, in
-this order — skeleton resize (`Get`/`Set_Skeleton_Height`/`_Width`,
-`Trigger_Smooth_Skeleton_*_Resize`), collision-mode lock (`Lock_Collision_Mode`,
-`Get_Locked_Collision_Mode`, and the deferred `Disable_Ghost_Collision` with it),
-then the anim/hold-style overrides.
+The declaration delta is closed at 139 rows, all of them N/A, deferred behind
+named later work, or reassigned to Phase 5/P20 -- matrix 5.8 has the disposition
+of every one. Also absorbs the `unstarted_features.md` lines "Port TT
+building/factory object types into `Code/Combat`" (2 of 4 done: construction yard
+and superweapon; `AirFactoryGameObj` and `NavalFactoryGameObj` remain), "Port TT
+object visibility/per-client state semantics", "Port TT extended network
+behavior", "Port TT collision-group meanings and train/naval/player-building
+behavior", and the two ABI/facade constraint lines. Next: port
+`AirFactoryGameObj` and `NavalFactoryGameObj` as `VehicleFactoryGameObj`
+subclasses -- the shared busy/purchaser/timer machinery is already there, so the
+new work is the disabled flag (which belongs on `VehicleFactoryGameObj` itself,
+not duplicated on both), air landing positions chosen per generation, and the
+naval spawn zone with its construction zones.
 
 ---
 
