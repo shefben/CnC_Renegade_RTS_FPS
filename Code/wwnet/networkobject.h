@@ -160,6 +160,15 @@ public:
 	void					Set_Dirty_Bits (BYTE bits);
 	virtual bool		Is_Client_Dirty (int client_id);
 
+	//
+	//	Called when a client joins, or rejoins, and has to be told about this
+	//	object again.  The default hands it everything the object has ever had
+	//	to say.  An object that is only some clients' business overrides this
+	//	and tells the others nothing, which is the whole point of it being
+	//	virtual.  Spelling is TT's.
+	//
+	virtual void		setDirtyBitsForClient (int client_id);
+
 	inline bool			Get_Object_Dirty_Bit_2 (int client_id, DIRTY_BIT dirty_bit);
 	inline BYTE			Get_Object_Dirty_Bits_2 (int client_id);
 

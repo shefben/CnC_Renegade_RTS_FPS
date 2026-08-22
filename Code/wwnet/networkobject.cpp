@@ -161,6 +161,28 @@ NetworkObjectClass::Set_Object_Dirty_Bits (int client_id, BYTE bits)
 
 ////////////////////////////////////////////////////////////////
 //
+//	setDirtyBitsForClient
+//
+//	Decide what a joining client is owed for this object.  Slot
+//	MAX_CLIENT_COUNT - 1 is the one nobody ever connects on, so it still
+//	carries every bit this object has raised since it was created; copying it
+//	is how a fresh client is brought up to date.
+//
+//	Override this on an object that is not every client's business -- one
+//	team's purchase settings, say -- and leave the rest of them told nothing.
+//
+////////////////////////////////////////////////////////////////
+void
+NetworkObjectClass::setDirtyBitsForClient (int client_id)
+{
+	WWASSERT(client_id > 0 && client_id < MAX_CLIENT_COUNT);
+
+	Set_Object_Dirty_Bits( client_id, Get_Object_Dirty_Bits( MAX_CLIENT_COUNT - 1 ) );
+}
+
+
+////////////////////////////////////////////////////////////////
+//
 //	Set_Dirty_Bits
 //
 //	Assign the whole status mask for every client at once.  This is to

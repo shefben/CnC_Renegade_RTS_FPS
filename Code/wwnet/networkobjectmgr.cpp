@@ -390,8 +390,13 @@ NetworkObjectMgrClass::Restore_Dirty_Bits (int client_id)
 	for (int index = 0; index < _ObjectList.Count (); index ++) {
 		NetworkObjectClass * p_object = _ObjectList[index];
 		WWASSERT(p_object != nullptr);
-		BYTE generic_bits = p_object->Get_Object_Dirty_Bits(NetworkObjectClass::MAX_CLIENT_COUNT - 1);//TSS2001e
-		p_object->Set_Object_Dirty_Bits(client_id, generic_bits);
+
+		//
+		//	The object decides what this client is owed.  The default is the
+		//	blanket copy that used to be written out here; an object that only
+		//	concerns some clients answers differently.
+		//
+		p_object->setDirtyBitsForClient(client_id);
 	}
 
 	return ;
