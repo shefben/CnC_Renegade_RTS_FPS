@@ -269,19 +269,54 @@ void	CombatManager::Scene_Init( void )
 	GameScene->Set_Ambient_Light(Vector3(1,1,1));
 	GameScene->Set_Fog_Color(Vector3(0.6f,0.6f,0.6f)); //Vector3(80.0f/255.0f,130.0f/255.0f,180.0f/255.0f));
 
-	// Do all 'Enable_All's, then all 'Disable_All's, then the individual pairs
+	//
+	//	Order matters and is the whole trick: every Enable_All first, then every
+	//	Disable_All, then the individual pairs.  A narrow group's Disable_All is
+	//	what takes it back out of the permissive groups it was just added to, so
+	//	only the pairs named below survive.
+	//
+
+	//
+	//	Permissive groups -- these collide with everything unless a narrow group
+	//	opts out of them further down.
+	//
 	COMBAT_SCENE->Enable_All_Collision_Detections( DEFAULT_COLLISION_GROUP );
 	COMBAT_SCENE->Enable_All_Collision_Detections( BULLET_COLLISION_GROUP );
 	COMBAT_SCENE->Enable_All_Collision_Detections( TERRAIN_COLLISION_GROUP );
 	COMBAT_SCENE->Enable_All_Collision_Detections( PhysicsSceneClass::COLLISION_GROUP_WORLD );
 	COMBAT_SCENE->Enable_All_Collision_Detections( SOLDIER_GHOST_COLLISION_GROUP );
 	COMBAT_SCENE->Enable_All_Collision_Detections( SOLDIER_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_All_Collision_Detections( C4_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_All_Collision_Detections( NAVAL_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_All_Collision_Detections( BEACHING_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_All_Collision_Detections( HOVER_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_All_Collision_Detections( AMPHIBIOUS_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_All_Collision_Detections( UNDERGROUND_TRANSITION_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_All_Collision_Detections( PLAYER_BUILDING_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_All_Collision_Detections( PLAYER_BUILDING_GHOST_COLLISION_GROUP );
 
+	//
+	//	Narrow groups -- nothing collides with these until it is named below.
+	//
 	COMBAT_SCENE->Disable_All_Collision_Detections( UNCOLLIDEABLE_GROUP );
 	COMBAT_SCENE->Disable_All_Collision_Detections( TERRAIN_ONLY_COLLISION_GROUP );
 	COMBAT_SCENE->Disable_All_Collision_Detections( TERRAIN_AND_BULLET_COLLISION_GROUP );
 	COMBAT_SCENE->Disable_All_Collision_Detections( BULLET_ONLY_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( UNDERGROUND_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( SOLDIER_ONLY_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( SOLDIER_BULLET_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( WATER_SURFACE_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( WATER_EDGE_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( WATER_EDGE_ALT_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( BEACH_EDGE_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( AMPHIBIOUS_UNIT_FLOOR_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( TRAIN_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_All_Collision_Detections( TRAIN_TRACK_COLLISION_GROUP );
 
+	//
+	//	Stock pairs
+	//
 	COMBAT_SCENE->Enable_Collision_Detection( TERRAIN_ONLY_COLLISION_GROUP, TERRAIN_COLLISION_GROUP );
 	COMBAT_SCENE->Enable_Collision_Detection( TERRAIN_AND_BULLET_COLLISION_GROUP, TERRAIN_COLLISION_GROUP );
 	COMBAT_SCENE->Enable_Collision_Detection( TERRAIN_AND_BULLET_COLLISION_GROUP, BULLET_COLLISION_GROUP );
@@ -290,6 +325,133 @@ void	CombatManager::Scene_Init( void )
 	COMBAT_SCENE->Disable_Collision_Detection( PhysicsSceneClass::COLLISION_GROUP_WORLD,PhysicsSceneClass::COLLISION_GROUP_WORLD );
 	COMBAT_SCENE->Disable_Collision_Detection( SOLDIER_GHOST_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
 	COMBAT_SCENE->Disable_Collision_Detection( SOLDIER_GHOST_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+
+	//
+	//	C4 is DEFAULT plus ghosted soldiers -- a proximity mine has to notice a
+	//	soldier who is walking through his own team -- and minus the two edge
+	//	volumes, which exist to steer vehicles and would detonate it.
+	//
+	COMBAT_SCENE->Enable_Collision_Detection( C4_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+	COMBAT_SCENE->Disable_Collision_Detection( C4_COLLISION_GROUP, UNDERGROUND_TRANSITION_COLLISION_GROUP );
+
+	//
+	//	An underground unit is out of the world: terrain holds it up, other
+	//	underground units block it, and the transition volume is how it surfaces.
+	//
+	COMBAT_SCENE->Enable_Collision_Detection( UNDERGROUND_COLLISION_GROUP, TERRAIN_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( UNDERGROUND_COLLISION_GROUP, UNDERGROUND_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( UNDERGROUND_COLLISION_GROUP, UNDERGROUND_TRANSITION_COLLISION_GROUP );
+
+	//
+	//	Volumes that only infantry may be stopped by
+	//
+	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+
+	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_BULLET_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_BULLET_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_BULLET_COLLISION_GROUP, BULLET_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_BULLET_COLLISION_GROUP, C4_COLLISION_GROUP );
+
+	//
+	//	The water surface is solid to anything that travels on it and to bullets,
+	//	and transparent to everything else.
+	//
+	COMBAT_SCENE->Enable_Collision_Detection( WATER_SURFACE_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( WATER_SURFACE_COLLISION_GROUP, BEACHING_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( WATER_SURFACE_COLLISION_GROUP, HOVER_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( WATER_SURFACE_COLLISION_GROUP, AMPHIBIOUS_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( WATER_SURFACE_COLLISION_GROUP, BULLET_COLLISION_GROUP );
+
+	//
+	//	Shoreline volumes.  WATER_EDGE fences in the things that must not leave
+	//	the water; the ALT variant fences in naval units alone, and BEACH_EDGE
+	//	fences in the units allowed to run aground.
+	//
+	COMBAT_SCENE->Enable_Collision_Detection( WATER_EDGE_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( WATER_EDGE_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( WATER_EDGE_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( WATER_EDGE_ALT_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( BEACH_EDGE_COLLISION_GROUP, BEACHING_UNIT_COLLISION_GROUP );
+
+	//
+	//	The amphibious floor is the lake bed an amphibious unit drives along and
+	//	nothing else can see.
+	//
+	COMBAT_SCENE->Enable_Collision_Detection( AMPHIBIOUS_UNIT_FLOOR_COLLISION_GROUP, AMPHIBIOUS_UNIT_COLLISION_GROUP );
+
+	COMBAT_SCENE->Enable_Collision_Detection( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+
+	//
+	//	A player-built building is solid like terrain, except to the ghost group
+	//	a building being placed uses, which has to be able to sit inside it while
+	//	the placement is still provisional.
+	//
+	COMBAT_SCENE->Disable_Collision_Detection( PLAYER_BUILDING_COLLISION_GROUP, PLAYER_BUILDING_GHOST_COLLISION_GROUP );
+
+	//
+	//	A train is held by its track, not by the ground, so it ignores terrain
+	//	entirely.  It still has to hit the things a moving vehicle must hit.
+	//
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, TRAIN_TRACK_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, BULLET_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, C4_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, BEACHING_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, HOVER_UNIT_COLLISION_GROUP );
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, AMPHIBIOUS_UNIT_COLLISION_GROUP );
+
+	//
+	//	Track pieces line up end to end, so they have to see each other.
+	//
+	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_TRACK_COLLISION_GROUP, TRAIN_TRACK_COLLISION_GROUP );
+}
+
+
+//
+//	Get_Collision_Group_Name
+//
+//	Friendly name for a collision group.  Debug output and the tools show this
+//	rather than a bare number.
+//
+const char *	Get_Collision_Group_Name( Collision_Group_Type group )
+{
+	switch ( group ) {
+		case DEFAULT_COLLISION_GROUP:						return "Default";
+		case UNCOLLIDEABLE_GROUP:							return "Uncollideable";
+		case TERRAIN_ONLY_COLLISION_GROUP:				return "Terrain-only";
+		case BULLET_COLLISION_GROUP:						return "Bullet";
+		case TERRAIN_AND_BULLET_COLLISION_GROUP:		return "Terrain and Bullet";
+		case BULLET_ONLY_COLLISION_GROUP:				return "Bullet-only";
+		case SOLDIER_COLLISION_GROUP:						return "Soldier";
+		case SOLDIER_GHOST_COLLISION_GROUP:				return "Soldier Ghost";
+		case C4_COLLISION_GROUP:							return "C4";
+		case UNDERGROUND_COLLISION_GROUP:				return "Underground";
+		case SOLDIER_ONLY_COLLISION_GROUP:				return "Soldier-only";
+		case SOLDIER_BULLET_COLLISION_GROUP:			return "Soldier and Bullet";
+		case TERRAIN_COLLISION_GROUP:						return "Terrain";
+		case WATER_SURFACE_COLLISION_GROUP:				return "Water Surface";
+		case WATER_EDGE_COLLISION_GROUP:					return "Water Edge";
+		case WATER_EDGE_ALT_COLLISION_GROUP:			return "Water Edge (Naval)";
+		case BEACH_EDGE_COLLISION_GROUP:					return "Beach Edge";
+		case NAVAL_UNIT_COLLISION_GROUP:					return "Naval Unit";
+		case BEACHING_UNIT_COLLISION_GROUP:				return "Beaching Unit";
+		case HOVER_UNIT_COLLISION_GROUP:					return "Hover Unit";
+		case AMPHIBIOUS_UNIT_COLLISION_GROUP:			return "Amphibious Unit";
+		case AMPHIBIOUS_UNIT_FLOOR_COLLISION_GROUP:	return "Amphibious Unit Floor";
+		case UNDERGROUND_TRANSITION_COLLISION_GROUP:	return "Underground Transition";
+		case DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP:	return "Default and Soldier-only";
+		case PLAYER_BUILDING_COLLISION_GROUP:			return "Player Building";
+		case PLAYER_BUILDING_GHOST_COLLISION_GROUP:	return "Player Building Ghost";
+		case TRAIN_COLLISION_GROUP:						return "Train";
+		case TRAIN_TRACK_COLLISION_GROUP:				return "Train Track";
+		default:													return "Unknown";
+	}
 }
 
 /*

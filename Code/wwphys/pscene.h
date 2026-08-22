@@ -689,13 +689,14 @@ public:
 	** disabled.  An object will completely ignore objects in collision
 	** groups that are disabled relative to its collision group.
 	**
-	** Collision groups are numbered 0x0 - 0xF
+	** Collision groups are numbered 0x00 - 0x1F.  The world/terrain group has to
+	** stay at 0x0F: level data and the tools both write that number.
 	*/
 	enum {
 		COLLISION_GROUP_WORLD = 0x0F,
-		MAX_COLLISION_GROUP =	0x0F,
-		NUM_COLLISION_FLAGS =	256,
-		COLLISION_FLAG_SHIFT	=	4
+		MAX_COLLISION_GROUP =	0x1F,
+		NUM_COLLISION_FLAGS =	1024,
+		COLLISION_FLAG_SHIFT	=	5
 	};
 
 	void							Enable_Collision_Detection(int group0,int group1);

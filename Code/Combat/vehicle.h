@@ -53,6 +53,10 @@
 	#include "transition.h"
 #endif
 
+#ifndef	COMBAT_H
+	#include "combat.h"		// Collision_Group_Type
+#endif
+
 #ifndef	WWSTRING_H
 	#include "wwstring.h"
 	#include "playertype.h"
@@ -341,6 +345,11 @@ public:
 	//	How many of the wheels actually touching the ground are on the given
 	//	surface type.  Zero means the vehicle is not on that surface at all.
 	//
+	//
+	//	An underground unit is out of the world: the collision matrix leaves it
+	//	only terrain, other underground units and the transition volume.
+	//
+	bool					Is_Underground( void )				{ return Peek_Physical_Object()->Get_Collision_Group() == UNDERGROUND_COLLISION_GROUP; }
 	virtual int			Check_If_On_Surface( int surface_type );
 
 	//

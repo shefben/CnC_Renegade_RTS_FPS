@@ -429,7 +429,7 @@ public:
 
 	/*
 	** Set the Collision Group for this physics object.  The collision group is an integer
-	** between 0 and 15.  Collisions between any two groups can be enabled/disabled through
+	** between 0 and 31.  Collisions between any two groups can be enabled/disabled through
 	** the physics system.
 	*/
 	void								Set_Collision_Group(unsigned char group)				{ group &= COLLISION_MASK; Flags &= ~COLLISION_MASK; Flags |= group; }
@@ -632,7 +632,7 @@ protected:
 	virtual void						Update_Sun_Status(void);
 
 	enum {
-		COLLISION_MASK =				0x0000000F,		// bits for the collision group
+		COLLISION_MASK =				0x0000001F,		// bits for the collision group (0-31)
 		IMMOVABLE =						0x00000100,		// this object is immovable.
 		DISABLED =						0x00000200,		// Some objects can be disabled (e.g. lights)
 		DEBUGDISPLAY =					0x00000400,		// Render debugging aids (forces, impacts, etc)

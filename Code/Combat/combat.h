@@ -92,8 +92,46 @@ typedef enum {
 	BULLET_ONLY_COLLISION_GROUP,				// collides only with bullets
 	SOLDIER_COLLISION_GROUP,					// collides with everything (but only soldiers use it)
 	SOLDIER_GHOST_COLLISION_GROUP,			// collides with everything but soldiers
+
+	//
+	//	Groups 8-14.  Terrain owns 15 and cannot move.
+	//
+	C4_COLLISION_GROUP,							// like DEFAULT, but also hits SOLDIER_GHOST, and never WATER_EDGE or UNDERGROUND_TRANSITION
+	UNDERGROUND_COLLISION_GROUP,				// collides with TERRAIN, itself and UNDERGROUND_TRANSITION
+	SOLDIER_ONLY_COLLISION_GROUP,				// collides only with SOLDIER and SOLDIER_GHOST
+	SOLDIER_BULLET_COLLISION_GROUP,			// collides with C4, BULLET, SOLDIER and SOLDIER_GHOST
+
 	TERRAIN_COLLISION_GROUP			= 15,		// Terrain must be 15
+
+	//
+	//	Groups 16-31.  Water, amphibious and rail behavior: each of these is
+	//	deliberately narrow, so the permissive groups above are disabled against
+	//	them and the pairs that matter are turned back on one at a time.
+	//
+	WATER_SURFACE_COLLISION_GROUP,			// collides with NAVAL_UNIT, BEACHING_UNIT, HOVER_UNIT, AMPHIBIOUS_UNIT and BULLET
+	WATER_EDGE_COLLISION_GROUP,				// collides with DEFAULT, SOLDIER and NAVAL_UNIT
+	WATER_EDGE_ALT_COLLISION_GROUP,			// collides only with NAVAL_UNIT
+	BEACH_EDGE_COLLISION_GROUP,				// collides only with BEACHING_UNIT
+	NAVAL_UNIT_COLLISION_GROUP,				// like DEFAULT, but also hits WATER_SURFACE and WATER_EDGE
+	BEACHING_UNIT_COLLISION_GROUP,			// like DEFAULT, but also hits WATER_SURFACE and BEACH_EDGE
+	HOVER_UNIT_COLLISION_GROUP,				// like DEFAULT, but also hits WATER_SURFACE
+	AMPHIBIOUS_UNIT_COLLISION_GROUP,			// like DEFAULT, but also hits AMPHIBIOUS_UNIT_FLOOR
+	AMPHIBIOUS_UNIT_FLOOR_COLLISION_GROUP,	// collides only with AMPHIBIOUS_UNIT
+	UNDERGROUND_TRANSITION_COLLISION_GROUP,// like DEFAULT, but also hits UNDERGROUND, and never C4
+	DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP,	// collides only with DEFAULT, SOLDIER and SOLDIER_GHOST
+	PLAYER_BUILDING_COLLISION_GROUP,			// part TERRAIN, part DEFAULT, but never PLAYER_BUILDING_GHOST
+	PLAYER_BUILDING_GHOST_COLLISION_GROUP,	// like DEFAULT, but never PLAYER_BUILDING
+	TRAIN_COLLISION_GROUP,						// collides with TRAIN_TRACK, DEFAULT, SOLDIER, BULLET, C4 and the water-borne unit groups
+	TRAIN_TRACK_COLLISION_GROUP,				// collides with itself and TRAIN
+
+	COLLISION_GROUP_COUNT						// not a group
 } Collision_Group_Type;
+
+//
+//	Friendly name for a collision group, for debug output and the tools.  Keep
+//	this in step with the enum above.
+//
+const char *	Get_Collision_Group_Name( Collision_Group_Type group );
 
 /*
 **
