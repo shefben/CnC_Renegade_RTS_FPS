@@ -95,10 +95,6 @@ NavalFactoryGameObj	On_Revived	0	0	absent	declaration-only				nowhere		void On_R
 NavalFactoryGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActionCodeClass	bool Save (ChunkSaveClass &csave);
 NavalFactoryGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think (void);
 NavalFactoryGameObj	~NavalFactoryGameObj	0	0	absent	declaration-only				nowhere		~NavalFactoryGameObj (void);
-NetworkObjectClass	Set_Is_Delete_Pending	1	0	present	inline-header	tt_4.8.4/scripts/NetworkObjectClass.h	68				void Set_Is_Delete_Pending (bool pending) { IsDeletePending = pending; }
-NetworkObjectClass	getLastHintRequestTime	0	0	present	inline-header	tt_4.8.4/scripts/NetworkObjectClass.h	136				ULONG getLastHintRequestTime() const { return LastHintRequestTime; }
-NetworkObjectClass	setLastHintRequestTime	1	0	present	inline-header	tt_4.8.4/scripts/NetworkObjectClass.h	137				void setLastHintRequestTime(ULONG _lastHintRequestTime) { LastHintRequestTime = _lastHintRequestTime; }
-NetworkObjectClass	Set_Dirty_Bits	1	0	present	declaration-only				nowhere		void Set_Dirty_Bits(uint8 dirtyBits);
 NetworkObjectClass	Set_Object_Dirty_Bitx	3	0	present	declaration-only				nowhere		void Set_Object_Dirty_Bitx(int client_id, DIRTY_BIT dirty_bit, bool onoff);
 PhysicsSceneClass	Generate_Static_Directional_Shadow	2	0	present	declaration-only				nowhere		void Generate_Static_Directional_Shadow(StaticAnimPhysClass& obj, const Vector3& light_dir);
 PhysicsSceneClass	Get_Dynamic_Shadow_Resolution	0	0	present	declaration-only				nowhere		uint Get_Dynamic_Shadow_Resolution();

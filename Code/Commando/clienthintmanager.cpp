@@ -89,6 +89,14 @@ cClientHintManager::Think
 	static DWORD last_hint_time_ms = 0;
 	DWORD	time_now_ms	= TIMEGETTIME();
 	const DWORD MIN_HINT_DELAY_MS = 1000;
+
+	//
+	//	MIN_HINT_DELAY_MS only limits how often we hint at all.  Without a
+	//	per-object cooldown the worst-updated object stays the worst-updated
+	//	object, so it is hinted again every second for as long as the server
+	//	cannot satisfy it, and the next-worst is never asked for.
+	//
+	const DWORD MIN_OBJECT_HINT_DELAY_MS = 5000;
 	if (time_now_ms - last_hint_time_ms < MIN_HINT_DELAY_MS)
 	{
 		//
@@ -195,7 +203,18 @@ cClientHintManager::Think
 		int higher_priority_rate = object_list[i]->Get_Clientside_Update_Frequency();
 
 		//
-		// Don't hint for objects with a recent updates. This should prevent us from hinting about objects we just hinted about.
+		//	Don't hint about an object we just hinted about.  The update-time
+		//	test below cannot do this on its own: it asks when the server last
+		//	sent this object, so an object the server is not sending stays
+		//	eligible forever.  This asks when we last requested it.
+		//
+		ULONG last_hint = object_list[i]->getLastHintRequestTime();
+		if (last_hint != 0 && time - last_hint < MIN_OBJECT_HINT_DELAY_MS) {
+			continue;
+		}
+
+		//
+		// Don't hint for objects with a recent updates.
 		//
 		if (time - object_list[i]->Get_Last_Clientside_Update_Time() > 1500) {
 
@@ -242,6 +261,7 @@ cClientHintManager::Think
 		p_hint->Init(p_object->Get_Network_ID());
 
 		last_hint_time_ms = time_now_ms;
+		p_object->setLastHintRequestTime(time_now_ms);
 
 		//WWDEBUG_SAY(("cClientHintManager::Think, requesting hint for object id %d, avg = %5.2f, max = %d\n",
 		//	p_object->Get_Network_ID(), average_delay_ms, maximum_delay_ms));

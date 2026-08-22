@@ -137,6 +137,9 @@ public:
 	//
 	bool					Is_Delete_Pending (void)	{ return IsDeletePending; }
 	virtual void		Set_Delete_Pending (void);
+	//	Set_Delete_Pending only ever raises the flag; this is the way to lower it
+	//	again for an object whose deletion was called off.
+	void					Set_Is_Delete_Pending (bool pending)	{ IsDeletePending = pending; }
 	virtual void		Delete (void) = 0;
 
 	//
@@ -154,6 +157,7 @@ public:
 	virtual bool		Get_Object_Dirty_Bit (int client_id, DIRTY_BIT dirty_bit);
 	virtual BYTE		Get_Object_Dirty_Bits (int client_id);
 	virtual void		Set_Object_Dirty_Bits (int client_id, BYTE bits);
+	void					Set_Dirty_Bits (BYTE bits);
 	virtual bool		Is_Client_Dirty (int client_id);
 
 	inline bool			Get_Object_Dirty_Bit_2 (int client_id, DIRTY_BIT dirty_bit);
@@ -181,6 +185,15 @@ public:
 	void					Set_Last_Clientside_Update_Time (ULONG time);
 	ULONG					Get_Last_Clientside_Update_Time (void)			{ return LastClientsideUpdateTime; }
 	int					Get_Clientside_Update_Frequency(void);
+
+	//
+	//	When this client last asked the server to prioritise updates for this
+	//	object.  cClientHintManager uses it to stop hinting the same object over
+	//	and over while the server has not yet acted on the previous request.
+	//	Spelling is TT's.
+	//
+	ULONG					getLastHintRequestTime (void) const					{ return LastHintRequestTime; }
+	void					setLastHintRequestTime (ULONG time)					{ LastHintRequestTime = time; }
 
 	//
 	// Ownership
@@ -254,6 +267,7 @@ private:
 	ULONG					ClientsideUpdateFrequencySampleStartTime;
 	int					ClientsideUpdateFrequencySampleCount;
 	int					ClientsideUpdateRate;
+	ULONG					LastHintRequestTime;
 	bool					IsDeletePending;
 	BYTE					AppPacketType;
 

@@ -66,6 +66,7 @@ NetworkObjectClass::NetworkObjectClass (void)	:
 	ClientsideUpdateFrequencySampleStartTime(TIMEGETTIME()),
 	ClientsideUpdateFrequencySampleCount(0),
 	ClientsideUpdateRate(0),
+	LastHintRequestTime(0),
 #ifdef WWDEBUG
 	CreatedByPacketID(0),
 #endif //WWDEBUG
@@ -155,6 +156,32 @@ void
 NetworkObjectClass::Set_Object_Dirty_Bits (int client_id, BYTE bits)
 {
 	ClientStatus[client_id] = bits;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Set_Dirty_Bits
+//
+//	Assign the whole status mask for every client at once.  This is to
+//	Set_Object_Dirty_Bits what Set_Object_Dirty_Bit (DIRTY_BIT, bool) is to its
+//	per-client overload, and it observes the same two rules: only the server
+//	owns client status, and client 0 is the server itself.
+//
+////////////////////////////////////////////////////////////////
+void
+NetworkObjectClass::Set_Dirty_Bits (BYTE bits)
+{
+	if (!IsServer)
+	{
+		return;
+	}
+
+	for (int index = 1; index < MAX_CLIENT_COUNT; index ++) {
+		ClientStatus[index] = bits;
+	}
+
+	return ;
 }
 
 
@@ -603,6 +630,12 @@ void NetworkObjectClass::Reset_Last_Clientside_Update_Time(void)
 	LastClientsideUpdateTime = 0;
 	ClientsideUpdateFrequencySampleStartTime = TIMEGETTIME();
 	ClientsideUpdateFrequencySampleCount = 0;
+
+	//
+	//	A fresh sample window means the old hint is no longer evidence of
+	//	anything, so let this object be hinted again immediately.
+	//
+	LastHintRequestTime = 0;
 }
 
 
