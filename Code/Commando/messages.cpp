@@ -1368,48 +1368,40 @@ void cNetwork::Hibernation_Think(void)
 					p_phys_go->Reset_Hibernating();
 				}
 			}
-		} else {
-
+		} else if (COMBAT_STAR != nullptr) {
 
 			VisTableClass * p_vis_table = Peek_Temp_Vis_Table();
 			WWASSERT(p_vis_table != nullptr);
 
 			//
-			// Build a union of all players' PVS's
+			// Build the PVS of the local star.  This branch is the client (or a
+			// mission), and the game object list there holds the other players
+			// too -- unioning their PVS's in woke objects nobody on this machine
+			// could see, and then paid to simulate them.
 			//
-			for (
-				SLNode<SmartGameObj> * p_smart_objnode = GameObjManager::Get_Smart_Game_Obj_List()->Head();
-				p_smart_objnode;
-				p_smart_objnode = p_smart_objnode->Next()) {
+			SoldierGameObj * p_soldier = COMBAT_STAR->As_SoldierGameObj();
 
-				WWASSERT(p_smart_objnode->Data() != nullptr);
-				SoldierGameObj * p_soldier = p_smart_objnode->Data()->As_SoldierGameObj();
+			if (p_soldier != nullptr && p_soldier->Has_Player()) {
 
-				if (p_soldier != nullptr && p_soldier->Has_Player()) {
+				Vector3 player_pos;
+				p_soldier->Get_Position(&player_pos);
+				player_pos.Z += 2; // Start near the player's head
 
-					Vector3 player_pos;
-					p_soldier->Get_Position(&player_pos);
-					player_pos.Z += 2; // Start near the player's head
+				VisTableClass * p_player_pvs = COMBAT_SCENE->Get_Vis_Table(player_pos);
 
-					VisTableClass * p_player_pvs = COMBAT_SCENE->Get_Vis_Table(player_pos);
-
-					if (p_player_pvs == nullptr) {
-						p_vis_table = nullptr;
-						break;
-					} else {
-						p_vis_table->Merge(*p_player_pvs);
-						REF_PTR_RELEASE(p_player_pvs);
-					}
+				if (p_player_pvs == nullptr) {
+					p_vis_table = nullptr;
+				} else {
+					p_vis_table->Merge(*p_player_pvs);
+					REF_PTR_RELEASE(p_player_pvs);
 				}
 			}
 
 			//
 			// Reset hibernating on anything visible
 			//
-			Vector3	star_pos(0,0,0);
-			if ( COMBAT_STAR ) {
-				COMBAT_STAR->Get_Position( &star_pos );
-			}
+			Vector3	star_pos;
+			COMBAT_STAR->Get_Position( &star_pos );
 
 			for (
 				SLNode<BaseGameObj> * p_objnode = GameObjManager::Get_Game_Obj_List()->Head();
@@ -1573,51 +1565,6 @@ void cNetwork::Remove_Player(int player_id)
 		ConsoleBox.Print_Maybe("Player %s left the game\n", str.Peek_Buffer());
 	}
 
-	if (p_player != nullptr && IS_MULTIPLAY) {
-		Test_For_Team_Defaulting(p_player);
-	}
 }
 
-//-----------------------------------------------------------------------------
-void cNetwork::Test_For_Team_Defaulting(cPlayer * p_player)
-{
-	//
-	// If all players on the winning team bail, take punitive action:
-	// reverse the team scores of Nod and GDI.
-	//
 
-	WWDEBUG_SAY(("cNetwork::Test_For_Team_Defaulting\n"));
-
-	WWASSERT(p_player != nullptr);
-	WWASSERT(IS_MULTIPLAY);
-
-	int count_nod = cPlayerManager::Tally_Team_Size(PLAYERTYPE_NOD);
-	int count_gdi = cPlayerManager::Tally_Team_Size(PLAYERTYPE_GDI);
-
-	cTeam * p_team_nod = cTeamManager::Find_Team(PLAYERTYPE_NOD);
-	WWASSERT(p_team_nod != nullptr);
-	cTeam * p_team_gdi = cTeamManager::Find_Team(PLAYERTYPE_GDI);
-	WWASSERT(p_team_gdi != nullptr);
-
-	float score_nod = p_team_nod->Get_Score();
-	float score_gdi = p_team_gdi->Get_Score();
-
-	if (p_player->Get_Player_Type() == PLAYERTYPE_NOD &&
-		 count_nod == 0 &&
-		 score_nod > score_gdi) {
-
-		WWDEBUG_SAY(("Reversing Nod and GDI scores due to Nod defaulting.\n"));
-
-		p_team_gdi->Set_Score(score_nod);
-		p_team_nod->Set_Score(score_gdi);
-	}
-	else if (p_player->Get_Player_Type() == PLAYERTYPE_GDI &&
-		 count_gdi == 0 &&
-		 score_gdi > score_nod) {
-
-		WWDEBUG_SAY(("Reversing Nod and GDI scores due to GDI defaulting.\n"));
-
-		p_team_gdi->Set_Score(score_nod);
-		p_team_nod->Set_Score(score_gdi);
-	}
-}

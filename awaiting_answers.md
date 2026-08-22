@@ -6,7 +6,15 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
-_None._
+- **Q-010** TT removes stock "team defaulting" and I have merged that removal.
+ When the last player of the *leading* team disconnects, stock swapped the two
+ team scores, handing the win to the team that was behind -- on one person
+ leaving, whether they quit or their connection dropped. TT hooks
+ `cNetwork::Test_For_Team_Defaulting` to an unreachable body *and* reimplements
+ its only caller without the call, so the removal is deliberate on both sides,
+ and directive "merge the TT result, remove the superseded path" points one way.
+ Flagging it because it changes how matches end, and it is cheap to restore:
+ revert the `messages.cpp`/`cnetwork.h` hunks in the commit that removed it.
 
 ---
 

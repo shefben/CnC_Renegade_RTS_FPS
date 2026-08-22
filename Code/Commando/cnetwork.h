@@ -127,7 +127,6 @@ public:
    static void Cleanup_After_Client(int client_id);
    static void Delete_Player_Objects(int client_id);
    static void Remove_Player(int player_id);
-	static void Test_For_Team_Defaulting(cPlayer * p_player);
 
    static void Packet_Graph(Render2DTextClass * renderer, cMsgStatList * p_stat_list, int watch_type, LPCSTR label);
 	static void Watch_Packets(Render2DTextClass * renderer);
