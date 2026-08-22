@@ -47,6 +47,7 @@
 #include "buildingaggregate.h"
 #include "lightphys.h"
 #include "playertype.h"
+#include "aabox.h"
 
 /*
 ** Forward declarations
@@ -249,6 +250,15 @@ public:
 	virtual void								On_Destroyed (void);
 	virtual void								On_Damaged (void);
 	bool											Is_Destroyed (void) const { return IsDestroyed; }
+	void											Set_Is_Destroyed (bool onoff)			{ IsDestroyed = onoff; }
+
+	//
+	//	Spy-disabled buildings are marked by gameplay scripts; the flag is
+	//	replicated and persisted, but the engine imposes no behaviour of its
+	//	own on it.
+	//
+	bool											Is_Spy_Disabled (void) const			{ return IsSpyDisabled; }
+	void											Set_Is_Spy_Disabled (bool onoff)		{ IsSpyDisabled = onoff; }
 
 	/*
 	** Network support
@@ -278,7 +288,15 @@ public:
 	//	Informational
 	//
 	void											Find_Closest_Poly (const Vector3 &pos, float *distance2);
+	float											Find_Closest_Poly (const Vector3 &pos)	{ float distance2 = 0; Find_Closest_Poly (pos, &distance2); return distance2; }
 	BuildingAggregateClass *				Find_MCT (void);
+
+	//
+	//	Bounding box enclosing every collected component.  A building is an
+	//	aggregate of static meshes with no model of its own, so this is what
+	//	callers use in place of Peek_Model()->Get_Bounding_Box().
+	//
+	const AABoxClass &						Get_Bounds (void) const					{ return BoundingBox; }
 
 protected:
 
@@ -288,6 +306,7 @@ protected:
 	BuildingMonitorClass *					BuildingMonitor;
 	BaseControllerClass *					BaseController;
 	bool											IsDestroyed;
+	bool											IsSpyDisabled;
 
 //private:
 
@@ -298,6 +317,7 @@ protected:
 	AudibleSoundClass *						CurrentAnnouncement;
 	SphereClass									AnnouncementSphere;
 	SphereClass									CollectionSphere;
+	AABoxClass									BoundingBox;
 
 	RefMultiListClass<StaticPhysClass>				InteriorMeshes;
 	RefMultiListClass<StaticPhysClass>				ExteriorMeshes;
@@ -311,6 +331,7 @@ protected:
 
 	void											Reset_Components(void);
 	void											Add_Mesh(StaticPhysClass * terrain);
+	void											Update_Bounding_Box (void);
 	void											Remove_Mesh(StaticPhysClass * terrain);
 	void											Add_Aggregate(BuildingAggregateClass * aggregate);
 	void											Remove_Aggregate(BuildingAggregateClass * aggregate);

@@ -709,6 +709,11 @@ Per-class breakdown:
 | `RenderObjClass` | 2 | 0 | 0 | 1 | 1 |
 | others (5 classes) | 2 | 0 | 0 | 1 | 3 |
 
+`TTMethodSources.tsv` is regenerated as merges land, so its row count tracks the
+remaining work rather than the original survey: the table above is the 227-row
+starting state. The 58 that have to be written do not move until they are
+written; what shrinks is the mergeable column.
+
 `PhysicsSceneClass` is the one to look at twice: zero mergeable TT code, seven
 methods to write, and all seven are shadow and polygon-budget control
 (`Generate_Static_Directional_Shadow`, `Get`/`Set_Static_Shadow_Resolution`,

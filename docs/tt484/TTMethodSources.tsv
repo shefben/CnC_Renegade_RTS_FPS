@@ -29,11 +29,6 @@ BuildingGameObj	As_AirFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/
 BuildingGameObj	As_ConstructionYardGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	114				virtual ConstructionYardGameObj * As_ConstructionYardGameObj (void) { return NULL; }
 BuildingGameObj	As_NavalFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	116				virtual NavalFactoryGameObj * As_NavalFactoryGameObj (void) { return NULL; }
 BuildingGameObj	As_SuperweaponGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	117				virtual SuperweaponGameObj * As_SuperweaponGameObj (void) { return NULL; }
-BuildingGameObj	Find_Closest_Poly	1	0	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	108				float Find_Closest_Poly(const Vector3 &pos) { float distance2; Find_Closest_Poly(pos,&distance2); return distance2; }
-BuildingGameObj	Get_Bounds	0	0	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	102				const AABoxClass& Get_Bounds() { return BoundingBox; }
-BuildingGameObj	Is_Spy_Disabled	0	0	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	87				bool Is_Spy_Disabled() const { return IsSpyDisabled; }
-BuildingGameObj	Set_Is_Destroyed	1	0	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	86				void Set_Is_Destroyed(const bool _IsDestroyed) { IsDestroyed = _IsDestroyed; }
-BuildingGameObj	Set_Is_Spy_Disabled	1	0	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	88				void Set_Is_Spy_Disabled(const bool _IsSpyDisabled) {IsSpyDisabled = _IsSpyDisabled; }
 BuildingGameObj	Find_Closest_Poly	3	0	present	address-stub	tt_4.8.4/scripts/engine_tt.cpp	1218	AT2(0x00685630,0x00684ED0)			void Find_Closest_Poly(const Vector3& pos, float* distance2, Vector3* polyPos);
 BuildingGameObj	Building_In_Range	2	0	present	declaration-only				nowhere		int Building_In_Range(const Vector3 &point, float range); //return 0 for no, 1 for yes and 2 for MCT in range
 BuildingGameObj	Cast_Ray	1	0	present	declaration-only				owned elsewhere	AABTreeClass,AABoxRenderObjClass,Box3DClass,BptClass,BptImpClass,CollectionClass	bool Cast_Ray(RayCollisionTestClass& raytest);

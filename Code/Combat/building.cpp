@@ -349,6 +349,8 @@ BuildingGameObj::BuildingGameObj (void)	:
 	CollectionSphere (Vector3 (0, 0, 0), 50.0F),
 	CurrentAnnouncement (nullptr),
 	IsDestroyed (false),
+	IsSpyDisabled (false),
+	BoundingBox (Vector3 (0, 0, 0), Vector3 (0, 0, 0)),
 	BuildingMonitor (nullptr),
 	BaseController (nullptr)
 {
@@ -427,7 +429,8 @@ enum	{
 
 	MICROCHUNKID_POSITION				=	1,
 	MICROCHUNKID_ISPOWERON,
-	MICROCHUNKID_COLLECTION_SPHERE
+	MICROCHUNKID_COLLECTION_SPHERE,
+	MICROCHUNKID_IS_SPY_DISABLED
 };
 
 
@@ -447,6 +450,7 @@ BuildingGameObj::Save (ChunkSaveClass &csave)
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_POSITION,				Position);
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_ISPOWERON,				IsPowerOn);
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_COLLECTION_SPHERE,	CollectionSphere);
+		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_IS_SPY_DISABLED,	IsSpyDisabled);
 	csave.End_Chunk ();
 
 	return true;
@@ -475,6 +479,7 @@ BuildingGameObj::Load (ChunkLoadClass &cload)
 						READ_MICRO_CHUNK (cload, MICROCHUNKID_POSITION,				Position);
 						READ_MICRO_CHUNK (cload, MICROCHUNKID_ISPOWERON,			IsPowerOn);
 						READ_MICRO_CHUNK (cload, MICROCHUNKID_COLLECTION_SPHERE,	CollectionSphere);
+						READ_MICRO_CHUNK (cload, MICROCHUNKID_IS_SPY_DISABLED,	IsSpyDisabled);
 
 						default:
 							Debug_Say(("Unhandled Micro Chunk:%d File:%s Line:%d\r\n",cload.Cur_Micro_Chunk_ID(),__FILE__,__LINE__));
@@ -1199,6 +1204,8 @@ BuildingGameObj::Import_Rare (BitStreamClass &packet)
 		On_Destroyed ();
 	}
 
+	packet.Get (IsSpyDisabled);
+
 	return ;
 }
 
@@ -1219,6 +1226,7 @@ BuildingGameObj::Export_Rare (BitStreamClass &packet)
 	packet.Add (IsDestroyed);
 	packet.Add (IsPowerOn);
 	packet.Add (CurrentState, BITPACK_BUILDING_STATE);
+	packet.Add (IsSpyDisabled);
 	return ;
 }
 
@@ -1382,11 +1390,61 @@ BuildingGameObj::Collect_Building_Components (void)
 		}
 	}
 
+	Update_Bounding_Box ();
+
 	//
 	//	Update the building's state
 	//
 	Initialize_Building ();
 	Update_State (true);
+	return ;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+//	Update_Bounding_Box
+//
+//	Union of every collected component's bounding box.  Falls back to a
+//	degenerate box at the building's position when nothing was collected, so
+//	Get_Bounds never hands back uninitialized memory.
+//
+/////////////////////////////////////////////////////////////////////////////
+void
+BuildingGameObj::Update_Bounding_Box (void)
+{
+	MinMaxAABoxClass bounds;
+	bounds.Init_Empty ();
+	bool found_any = false;
+
+	RefMultiListIterator<BuildingAggregateClass> aggregate_it (&Aggregates);
+	for (aggregate_it.First (); !aggregate_it.Is_Done (); aggregate_it.Next ()) {
+		RenderObjClass *model = aggregate_it.Peek_Obj ()->Peek_Model ();
+		if (model != nullptr) {
+			bounds.Add_Box (model->Get_Bounding_Box ());
+			found_any = true;
+		}
+	}
+
+	RefMultiListClass<StaticPhysClass> *mesh_lists[2] = { &InteriorMeshes, &ExteriorMeshes };
+	for (int index = 0; index < 2; index ++) {
+		RefMultiListIterator<StaticPhysClass> mesh_it (mesh_lists[index]);
+		for (mesh_it.First (); !mesh_it.Is_Done (); mesh_it.Next ()) {
+			RenderObjClass *model = mesh_it.Peek_Obj ()->Peek_Model ();
+			if (model != nullptr) {
+				bounds.Add_Box (model->Get_Bounding_Box ());
+				found_any = true;
+			}
+		}
+	}
+
+	if (found_any) {
+		BoundingBox.Init (bounds);
+	} else {
+		BoundingBox.Center = Position;
+		BoundingBox.Extent.Set (0, 0, 0);
+	}
+
 	return ;
 }
 
