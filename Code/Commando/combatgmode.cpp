@@ -679,7 +679,14 @@ void CombatGameModeClass::Load_Level( void )
 	StringClass map_name(The_Game()->Get_Map_Name(),true);
 	WWASSERT( !map_name.Is_Empty() );
 
-	bool preload_assets = true;
+	//
+	//	The .dep files exist to force every asset a level references into the
+	//	asset manager before the level starts, which was worth doing when the
+	//	assets were coming off a CD.  On anything since, loading them on demand
+	//	is faster than walking the dependency list, and the manager does that
+	//	anyway for everything the list does not mention.
+	//
+	bool preload_assets = false;
 #ifdef WWDEBUG
 	preload_assets = cDevOptions::PreloadAssets.Get();
 #endif

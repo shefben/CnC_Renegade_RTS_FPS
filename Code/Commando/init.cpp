@@ -550,7 +550,17 @@ public:
 
 		RegistryClass reg(APPLICATION_SUB_KEY_NAME_DEBUG);
 		char path[MAX_PATH];
-		reg.Get_String("LogPath", path, sizeof(path), "\\\\tanya\\game\\projects\\renegade\\_error_logs");
+		//
+		//	This used to default to a share on Westwood's network.  Reaching a
+		//	UNC path that has not existed for twenty years takes the full SMB
+		//	timeout, and the caller waits five seconds for this thread, so a
+		//	machine with a crash flag set stalled every time it started.  With
+		//	no LogPath configured there is nowhere to copy to.
+		//
+		reg.Get_String("LogPath", path, sizeof(path), "");
+		if (path[0] == 0) {
+			return;
+		}
 		strcat(path, "/");
 
 		StringClass folder_name(0,true);

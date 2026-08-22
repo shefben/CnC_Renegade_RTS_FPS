@@ -233,7 +233,11 @@ InputConfigMgrClass::Add_Configuration (const unichar_t *display_name)
 void
 InputConfigMgrClass::Delete_Configuration (int index)
 {
-	if (index < 0 || index >= ConfigList.Count ()) {
+	//
+	//	Entry zero is the built-in default configuration, which is not the
+	//	player's to delete -- doing so left them with no bindings at all.
+	//
+	if (index <= 0 || index >= ConfigList.Count ()) {
 		return ;
 	}
 

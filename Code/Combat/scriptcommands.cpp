@@ -2738,6 +2738,17 @@ void	Apply_Damage( GameObject * object, float amount, const char * warhead_name,
 		OffenseObjectClass offense( amount, warhead, smart );
 		if ( damgo->As_SmartGameObj() ) {
 			damgo->As_SmartGameObj()->Apply_Damage_Extended( offense );
+
+			//
+			//	Damage meshes normally follow a hit arriving over the wire.  A
+			//	script doing the damage server-side skips that, so the vehicle
+			//	stays looking undamaged on every machine until something else
+			//	hits it.
+			//
+			VehicleGameObj *vehicle = damgo->As_SmartGameObj()->As_VehicleGameObj();
+			if ( vehicle != nullptr ) {
+				vehicle->Damage_Meshes_Update();
+			}
 		} else {
 			damgo->Apply_Damage( offense );
 		}
