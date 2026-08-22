@@ -70,6 +70,11 @@ public:
 
 	int											Get_Grant_Weapon_ID (void) const	{ return GrantWeaponID; }
 
+	//	A powerup normally refuses to be granted to someone who cannot use
+	//	it; a script can override that per preset.
+	bool				Get_Always_Allow_Grant( void ) const		{ return AlwaysAllowGrant; }
+	void				Set_Always_Allow_Grant( bool onoff )		{ AlwaysAllowGrant = onoff; }
+
 protected:
 	int											GrantShieldType;
 	float											GrantShieldStrength;

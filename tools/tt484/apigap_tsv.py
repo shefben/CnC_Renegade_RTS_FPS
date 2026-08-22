@@ -65,7 +65,13 @@ HOOKISH = ('AddObjectCreateHook', 'AddPowerupPurchaseHook', 'AddKeyHook',
            'AddDialogHook', 'RemovePowerupPurchaseHook', 'RemoveObjectCreateHook')
 
 
+RENAMED = set(l.split(TAB)[0] for l in
+              read('docs/tt484/TTScriptApiRenames.tsv').split(chr(10))[1:] if l.strip())
+
+
 def disposition(name):
+    if name in have or name in RENAMED:
+        return 'done'
     if name in HOOKISH:
         return 'n/a-plugin-hook'
     if name.startswith('REF_'):

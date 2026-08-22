@@ -42,6 +42,7 @@
 #include "gameobjmanager.h"
 #include "crandom.h"
 #include "scriptman.h"
+#include "scriptevents.h"
 #include "objlibrary.h"
 #include "phys.h"
 #include "ccamera.h"
@@ -76,6 +77,13 @@
 #include "building.h"
 #include "basecontroller.h"
 #include "colors.h"
+#include "animcontrol.h"
+#include "beacongameobj.h"
+#include "c4.h"
+#include "movephys.h"
+#include "translatedb.h"
+#include "translateobj.h"
+#include "vehicle.h"
 #include "scscriptcommandevent.h"
 #include "weaponbag.h"
 #include "scriptzone.h"
@@ -3797,6 +3805,1197 @@ void	Grant_Refill( GameObject * player )
 	DefenseObjectClass * defense_obj = soldier->Get_Defense_Object();
 	defense_obj->Set_Health( defense_obj->Get_Health_Max() );
 	defense_obj->Set_Shield_Strength( defense_obj->Get_Shield_Strength_Max() );
+}
+
+
+/*
+**	The portable half of the 4.8.4 script API.
+**
+**	These are the questions the 4.8.4 library asks that the stock catalog never
+**	needed.  None of them are TT-specific: they are ordinary things to want to
+**	know about a vehicle, a base, or a script, and they are written here in the
+**	canonical owner rather than in a library beside the engine.
+**
+**	Where a team is taken, 2 means "either side", which is how the library's
+**	own scripts are authored.
+*/
+
+static bool	Team_Matches( GameObject * obj, int team )
+{
+	if ( team == 2 ) {
+		return true;
+	}
+
+	return Get_Player_Type( obj ) == team;
+}
+
+static VehicleGameObj *	As_Vehicle( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return nullptr;
+	}
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	if ( physical_obj == nullptr ) {
+		return nullptr;
+	}
+
+	return physical_obj->As_VehicleGameObj();
+}
+
+static SoldierGameObj *	As_Soldier( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return nullptr;
+	}
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	if ( physical_obj == nullptr ) {
+		return nullptr;
+	}
+
+	return physical_obj->As_SoldierGameObj();
+}
+
+static MoveablePhysClass *	As_Moveable( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return nullptr;
+	}
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	if ( physical_obj == nullptr ) {
+		return nullptr;
+	}
+
+	PhysClass * phys_obj = physical_obj->Peek_Physical_Object();
+	if ( phys_obj == nullptr ) {
+		return nullptr;
+	}
+
+	return phys_obj->As_MoveablePhysClass();
+}
+
+//
+//	Finding things
+//
+
+GameObject * Find_Object_By_Preset( int team, const char * preset_name )
+{
+	SCRIPT_PTR_CHECK_RET( preset_name, nullptr );
+
+	for ( SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		ScriptableGameObj * obj = node->Data()->As_ScriptableGameObj();
+		if ( obj == nullptr ) {
+			continue;
+		}
+
+		if ( ::stricmp( obj->Get_Definition().Get_Name(), preset_name ) == 0 && Team_Matches( obj, team ) ) {
+			return obj;
+		}
+	}
+
+	return nullptr;
+}
+
+GameObject * Find_Closest_Building( const Vector3 & position )
+{
+	GameObject *	closest			= nullptr;
+	float				closest_dist2	= FLT_MAX;
+
+	for ( SLNode<BuildingGameObj> * node = GameObjManager::Get_Building_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		BuildingGameObj * building = node->Data();
+		float dist2 = ( Get_Position( building ) - position ).Length2();
+		if ( dist2 < closest_dist2 ) {
+			closest_dist2	= dist2;
+			closest			= building;
+		}
+	}
+
+	return closest;
+}
+
+GameObject * Find_Smart_Object_By_Team( int team )
+{
+	for ( SLNode<SmartGameObj> * node = GameObjManager::Get_Smart_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		SmartGameObj * obj = node->Data();
+		if ( Team_Matches( obj, team ) ) {
+			return obj;
+		}
+	}
+
+	return nullptr;
+}
+
+GameObject * Find_Object_With_Script( const char * script_name )
+{
+	SCRIPT_PTR_CHECK_RET( script_name, nullptr );
+
+	for ( SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		ScriptableGameObj * obj = node->Data()->As_ScriptableGameObj();
+		if ( obj != nullptr && Is_Script_Attached( obj, script_name ) ) {
+			return obj;
+		}
+	}
+
+	return nullptr;
+}
+
+int Get_Object_Count( int team, const char * preset_name )
+{
+	SCRIPT_PTR_CHECK_RET( preset_name, 0 );
+
+	int count = 0;
+
+	for ( SLNode<SmartGameObj> * node = GameObjManager::Get_Smart_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		SmartGameObj * obj = node->Data();
+		if ( Team_Matches( obj, team ) &&
+			  ::stricmp( obj->Get_Definition().Get_Name(), preset_name ) == 0 ) {
+			count ++;
+		}
+	}
+
+	return count;
+}
+
+//
+//	`allow_empty` decides whether a vehicle with nobody in it counts.
+//
+bool Is_Unit_In_Range( const char * preset_name, float range, const Vector3 & position, int team, bool allow_empty )
+{
+	SCRIPT_PTR_CHECK_RET( preset_name, false );
+
+	for ( SLNode<SmartGameObj> * node = GameObjManager::Get_Smart_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		SmartGameObj * obj = node->Data();
+		if ( !Team_Matches( obj, team ) ||
+			  ::stricmp( obj->Get_Definition().Get_Name(), preset_name ) != 0 ) {
+			continue;
+		}
+
+		Vector3 offset = Get_Position( obj ) - position;
+		offset.Z = 0.0f;
+		if ( offset.Length2() > ( range * range ) ) {
+			continue;
+		}
+
+		VehicleGameObj * vehicle = obj->As_VehicleGameObj();
+		if ( vehicle != nullptr && !allow_empty && vehicle->Get_Occupant_Count() == 0 ) {
+			continue;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+//
+//	Movement state
+//
+
+Vector3 Get_Velocity( GameObject * obj )
+{
+	Vector3 velocity( 0.0f, 0.0f, 0.0f );
+
+	MoveablePhysClass * moveable = As_Moveable( obj );
+	if ( moveable != nullptr ) {
+		moveable->Get_Velocity( &velocity );
+	}
+
+	return velocity;
+}
+
+void Set_Velocity( GameObject * obj, const Vector3 & velocity )
+{
+	MoveablePhysClass * moveable = As_Moveable( obj );
+	if ( moveable != nullptr ) {
+		moveable->Set_Velocity( velocity );
+	}
+}
+
+void Set_Transform( GameObject * obj, const Matrix3D & transform )
+{
+	MoveablePhysClass * moveable = As_Moveable( obj );
+	if ( moveable != nullptr ) {
+		moveable->Set_Transform( transform );
+	}
+}
+
+float Get_Mass( GameObject * obj )
+{
+	MoveablePhysClass * moveable = As_Moveable( obj );
+	if ( moveable == nullptr ) {
+		return 0.0f;
+	}
+
+	return moveable->Get_Mass();
+}
+
+//
+//	Model and animation state
+//
+
+const char * Get_Model( GameObject * obj )
+{
+	SCRIPT_PTR_CHECK_RET( obj, "DUMMY" );
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	if ( physical_obj == nullptr ) {
+		return "DUMMY";
+	}
+
+	PhysClass * phys_obj = physical_obj->Peek_Physical_Object();
+	if ( phys_obj == nullptr || phys_obj->Peek_Model() == nullptr ) {
+		return "DUMMY";
+	}
+
+	return phys_obj->Peek_Model()->Get_Name();
+}
+
+//
+//	A cinematic object drives its own animation directly and has no control to
+//	ask, which is why it is excluded rather than allowed to return garbage.
+//
+static AnimControlClass *	Peek_Anim_Control( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return nullptr;
+	}
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	if ( physical_obj == nullptr || physical_obj->As_CinematicGameObj() != nullptr ) {
+		return nullptr;
+	}
+
+	return physical_obj->Get_Anim_Control();
+}
+
+float Get_Animation_Frame( GameObject * obj )
+{
+	AnimControlClass * control = Peek_Anim_Control( obj );
+	if ( control == nullptr ) {
+		return 0.0f;
+	}
+
+	return control->Get_Current_Frame();
+}
+
+float Get_Animation_Target_Frame( GameObject * obj )
+{
+	AnimControlClass * control = Peek_Anim_Control( obj );
+	if ( control == nullptr ) {
+		return 0.0f;
+	}
+
+	return control->Get_Target_Frame();
+}
+
+//
+//	Powerups
+//
+
+void Set_Powerup_Always_Allow_Grant( GameObject * obj, bool allow )
+{
+	SCRIPT_PTR_CHECK( obj );
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	if ( physical_obj == nullptr ) {
+		return ;
+	}
+
+	PowerUpGameObj * powerup = physical_obj->As_PowerUpGameObj();
+	if ( powerup == nullptr ) {
+		return ;
+	}
+
+	( (PowerUpGameObjDef &)powerup->Get_Definition() ).Set_Always_Allow_Grant( allow );
+}
+
+const char * Get_Powerup_Weapon( const char * powerup_preset_name )
+{
+	SCRIPT_PTR_CHECK_RET( powerup_preset_name, "None" );
+
+	PowerUpGameObjDef * powerup_def =
+		(PowerUpGameObjDef *)DefinitionMgrClass::Find_Named_Definition( powerup_preset_name );
+	if ( powerup_def == nullptr || powerup_def->Get_Grant_Weapon_ID() == 0 ) {
+		return "None";
+	}
+
+	DefinitionClass * weapon_def =
+		DefinitionMgrClass::Find_Definition( powerup_def->Get_Grant_Weapon_ID(), true );
+	if ( weapon_def == nullptr ) {
+		return "None";
+	}
+
+	return weapon_def->Get_Name();
+}
+
+//
+//	Vehicles and their occupants
+//
+
+GameObject * Get_Vehicle_Driver( GameObject * obj )
+{
+	VehicleGameObj * vehicle = As_Vehicle( obj );
+	if ( vehicle == nullptr ) {
+		return nullptr;
+	}
+
+	return vehicle->Get_Driver();
+}
+
+GameObject * Get_Vehicle_Gunner( GameObject * obj )
+{
+	VehicleGameObj * vehicle = As_Vehicle( obj );
+	if ( vehicle == nullptr ) {
+		return nullptr;
+	}
+
+	return vehicle->Get_Actual_Gunner();
+}
+
+GameObject * Get_Vehicle_Occupant( GameObject * obj, int seat )
+{
+	VehicleGameObj * vehicle = As_Vehicle( obj );
+	if ( vehicle == nullptr ) {
+		return nullptr;
+	}
+
+	if ( seat < 0 || seat >= vehicle->Get_Definition().Get_Seat_Count() ) {
+		return nullptr;
+	}
+
+	return vehicle->Get_Occupant( seat );
+}
+
+int Get_Vehicle_Occupant_Count( GameObject * obj )
+{
+	VehicleGameObj * vehicle = As_Vehicle( obj );
+	if ( vehicle == nullptr ) {
+		return 0;
+	}
+
+	return vehicle->Get_Occupant_Count();
+}
+
+int Get_Vehicle_Seat_Count( GameObject * obj )
+{
+	VehicleGameObj * vehicle = As_Vehicle( obj );
+	if ( vehicle == nullptr ) {
+		return 0;
+	}
+
+	return vehicle->Get_Definition().Get_Seat_Count();
+}
+
+int Get_Occupant_Seat( GameObject * vehicle_obj, GameObject * occupant )
+{
+	VehicleGameObj *	vehicle	= As_Vehicle( vehicle_obj );
+	SoldierGameObj *	soldier	= As_Soldier( occupant );
+
+	if ( vehicle == nullptr || soldier == nullptr ) {
+		return -1;
+	}
+
+	return vehicle->Find_Seat( soldier );
+}
+
+//
+//	Answers for the vehicle the object is, or the one it is riding in.
+//
+int Get_Vehicle_Mode( GameObject * obj )
+{
+	VehicleGameObj * vehicle = As_Vehicle( obj );
+	if ( vehicle == nullptr ) {
+		vehicle = As_Vehicle( Get_Vehicle( obj ) );
+	}
+
+	if ( vehicle == nullptr ) {
+		return 0;
+	}
+
+	return (int)vehicle->Get_Definition().Get_Type();
+}
+
+bool Is_VTOL( GameObject * obj )
+{
+	return ( Get_Vehicle_Mode( obj ) == VEHICLE_TYPE_FLYING ) || Get_Fly_Mode( obj );
+}
+
+//
+//	Action id 39 is the enter/exit action; priority 100 outranks anything a
+//	soldier decides for itself, which is the point of forcing it.
+//
+static void	Order_Exit( SoldierGameObj * occupant )
+{
+	if ( occupant == nullptr ) {
+		return ;
+	}
+
+	ActionParamsStruct params;
+	params.Set_Basic( 0, 100, 39 );
+	Action_Enter_Exit( occupant, params );
+}
+
+void Force_Occupants_Exit( GameObject * obj )
+{
+	VehicleGameObj * vehicle = As_Vehicle( obj );
+	if ( vehicle == nullptr ) {
+		return ;
+	}
+
+	int seat_count = vehicle->Get_Definition().Get_Seat_Count();
+	for ( int seat = 0; seat < seat_count; seat ++ ) {
+		Order_Exit( vehicle->Get_Occupant( seat ) );
+	}
+}
+
+void Force_Occupant_Exit( GameObject * obj, int seat )
+{
+	VehicleGameObj * vehicle = As_Vehicle( obj );
+	if ( vehicle == nullptr ) {
+		return ;
+	}
+
+	if ( seat < 0 || seat >= vehicle->Get_Definition().Get_Seat_Count() ) {
+		return ;
+	}
+
+	Order_Exit( vehicle->Get_Occupant( seat ) );
+}
+
+//
+//	Turns out everyone who is *not* on the given team, which is what a captured
+//	vehicle wants.
+//
+void Force_Occupants_Exit_Team( GameObject * obj, int team )
+{
+	VehicleGameObj * vehicle = As_Vehicle( obj );
+	if ( vehicle == nullptr ) {
+		return ;
+	}
+
+	int seat_count = vehicle->Get_Definition().Get_Seat_Count();
+	for ( int seat = 0; seat < seat_count; seat ++ ) {
+
+		SoldierGameObj * occupant = vehicle->Get_Occupant( seat );
+		if ( occupant != nullptr && Get_Player_Type( occupant ) != team ) {
+			Order_Exit( occupant );
+		}
+	}
+}
+
+void Soldier_Transition_Vehicle( GameObject * obj )
+{
+	Order_Exit( As_Soldier( obj ) );
+}
+
+//
+//	Soldier state
+//
+
+bool Get_Fly_Mode( GameObject * obj )
+{
+	SoldierGameObj * soldier = As_Soldier( obj );
+	if ( soldier == nullptr ) {
+		return false;
+	}
+
+	return soldier->Get_Fly_Mode();
+}
+
+void Toggle_Fly_Mode( GameObject * obj )
+{
+	SoldierGameObj * soldier = As_Soldier( obj );
+	if ( soldier == nullptr ) {
+		return ;
+	}
+
+	soldier->Toggle_Fly_Mode();
+	Enable_Collisions( soldier );
+}
+
+bool Is_Stealth( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return false;
+	}
+
+	SmartGameObj * smart_obj = obj->As_SmartGameObj();
+	if ( smart_obj == nullptr ) {
+		return false;
+	}
+
+	return smart_obj->Is_Stealthed();
+}
+
+bool Is_Stealth_Enabled( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return false;
+	}
+
+	SmartGameObj * smart_obj = obj->As_SmartGameObj();
+	if ( smart_obj == nullptr ) {
+		return false;
+	}
+
+	return smart_obj->Is_Stealth_Enabled();
+}
+
+//
+//	Swap a soldier's character without respawning them.  Refused while they are
+//	in a vehicle, where the seat would still be holding the old body.
+//
+bool Change_Character( GameObject * obj, const char * preset_name )
+{
+	SCRIPT_PTR_CHECK_RET( preset_name, false );
+
+	SoldierGameObj * soldier = As_Soldier( obj );
+	if ( soldier == nullptr || Get_Vehicle( obj ) != nullptr ) {
+		return false;
+	}
+
+	DefinitionClass * def = DefinitionMgrClass::Find_Named_Definition( preset_name );
+	if ( def == nullptr || def->Get_Class_ID() != CLASSID_GAME_OBJECT_DEF_SOLDIER ) {
+		return false;
+	}
+
+	soldier->Re_Init( *(SoldierGameObjDef *)def );
+	soldier->Post_Re_Init();
+	return true;
+}
+
+//
+//	The player behind a soldier, if there is one
+//
+
+int Get_Player_ID( GameObject * obj )
+{
+	SoldierGameObj * soldier = As_Soldier( obj );
+	if ( soldier == nullptr || soldier->Get_Player_Data() == nullptr ) {
+		return -1;
+	}
+
+	return soldier->Get_Player_Data()->Get_Player_Id();
+}
+
+//
+//	A bot has a tag rather than a player record; a soldier with neither is
+//	"None" so a caller always has something to print.
+//
+const unichar_t * Get_Wide_Player_Name( GameObject * obj )
+{
+	SoldierGameObj * soldier = As_Soldier( obj );
+	if ( soldier == nullptr ) {
+		return U_CHAR("None");
+	}
+
+	if ( !soldier->Get_Bot_Tag().Is_Empty() ) {
+		return soldier->Get_Bot_Tag().Peek_Buffer();
+	}
+
+	if ( soldier->Get_Player_Data() != nullptr ) {
+		const unichar_t * name = soldier->Get_Player_Data()->Get_Player_Name();
+		if ( name != nullptr ) {
+			return name;
+		}
+	}
+
+	return U_CHAR("None");
+}
+
+//
+//	Moves the player's record to the other side.  Destroying the body is how a
+//	change takes effect immediately rather than at their next death.
+//
+void Change_Team( GameObject * obj, int team, bool destroy_object )
+{
+	SoldierGameObj * soldier = As_Soldier( obj );
+	if ( soldier == nullptr || soldier->Get_Player_Data() == nullptr ) {
+		return ;
+	}
+
+	soldier->Get_Player_Data()->Set_Player_Type( team );
+
+	if ( destroy_object ) {
+		Destroy_Object( obj );
+	}
+}
+
+//
+//	Bases and buildings
+//
+
+GameObject * Find_Building_By_Type( int team, int type )
+{
+	BaseControllerClass * base = BaseControllerClass::Find_Base( team );
+	if ( base == nullptr ) {
+		return nullptr;
+	}
+
+	return base->Find_Building( (BuildingConstants::BuildingType)type );
+}
+
+GameObject * Find_Construction_Yard( int team )
+{
+	return Find_Building_By_Type( team, BuildingConstants::TYPE_CONYARD );
+}
+
+GameObject * Find_Com_Center( int team )
+{
+	return Find_Building_By_Type( team, BuildingConstants::TYPE_COM_CENTER );
+}
+
+bool Is_Building_Dead( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return false;
+	}
+
+	DamageableGameObj * dgobj = obj->As_DamageableGameObj();
+	if ( dgobj == nullptr ) {
+		return false;
+	}
+
+	BuildingGameObj * building = dgobj->As_BuildingGameObj();
+	if ( building == nullptr ) {
+		return false;
+	}
+
+	return building->Is_Destroyed();
+}
+
+bool Is_Base_Powered( int team )
+{
+	BaseControllerClass * base = BaseControllerClass::Find_Base( team );
+	if ( base == nullptr ) {
+		return false;
+	}
+
+	return base->Is_Base_Powered();
+}
+
+void Power_Base( int team, bool powered )
+{
+	BaseControllerClass * base = BaseControllerClass::Find_Base( team );
+	if ( base != nullptr ) {
+		base->Power_Base( powered );
+	}
+}
+
+bool Is_Radar_Enabled( int team )
+{
+	BaseControllerClass * base = BaseControllerClass::Find_Base( team );
+	if ( base == nullptr ) {
+		return false;
+	}
+
+	return base->Is_Radar_Enabled();
+}
+
+void Enable_Base_Radar( int team, bool enable )
+{
+	BaseControllerClass * base = BaseControllerClass::Find_Base( team );
+	if ( base != nullptr ) {
+		base->Enable_Radar( enable );
+	}
+}
+
+void Set_Can_Generate_Soldiers( int team, bool can_generate )
+{
+	BaseControllerClass * base = BaseControllerClass::Find_Base( team );
+	if ( base != nullptr ) {
+		base->Set_Can_Generate_Soldiers( can_generate );
+	}
+}
+
+//
+//	Weapons
+//
+
+static WeaponBagClass *	Peek_Weapon_Bag( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return nullptr;
+	}
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	if ( physical_obj == nullptr ) {
+		return nullptr;
+	}
+
+	ArmedGameObj * armed_obj = physical_obj->As_ArmedGameObj();
+	if ( armed_obj == nullptr ) {
+		return nullptr;
+	}
+
+	return armed_obj->Get_Weapon_Bag();
+}
+
+const char * Get_Weapon( GameObject * obj, int position )
+{
+	WeaponBagClass * bag = Peek_Weapon_Bag( obj );
+	if ( bag == nullptr || position <= 0 || position >= bag->Get_Count() ) {
+		return "None";
+	}
+
+	WeaponClass * weapon = bag->Peek_Weapon( position );
+	if ( weapon == nullptr ) {
+		return "None";
+	}
+
+	return weapon->Get_Name();
+}
+
+const char * Get_Current_Weapon( GameObject * obj )
+{
+	WeaponBagClass * bag = Peek_Weapon_Bag( obj );
+	if ( bag == nullptr ) {
+		return "None";
+	}
+
+	return Get_Weapon( obj, bag->Get_Index() );
+}
+
+bool Has_Weapon( GameObject * obj, const char * weapon_name )
+{
+	SCRIPT_PTR_CHECK_RET( weapon_name, false );
+
+	WeaponBagClass * bag = Peek_Weapon_Bag( obj );
+	if ( bag == nullptr ) {
+		return false;
+	}
+
+	for ( int index = 0; index < bag->Get_Count(); index ++ ) {
+		WeaponClass * weapon = bag->Peek_Weapon( index );
+		if ( weapon != nullptr && ::stricmp( weapon->Get_Name(), weapon_name ) == 0 ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static C4GameObj *	As_C4( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return nullptr;
+	}
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	if ( physical_obj == nullptr ) {
+		return nullptr;
+	}
+
+	return physical_obj->As_C4GameObj();
+}
+
+int Get_C4_Mode( GameObject * obj )
+{
+	C4GameObj * c4 = As_C4( obj );
+	if ( c4 == nullptr || c4->Peek_Ammo_Definition() == nullptr ) {
+		return 0;
+	}
+
+	return c4->Peek_Ammo_Definition()->AmmoType;
+}
+
+//
+//	Who planted it.  The owner is restored first: it is stored by id and is not
+//	resolved until somebody asks.
+//
+GameObject * Get_C4_Planter( GameObject * obj )
+{
+	C4GameObj * c4 = As_C4( obj );
+	if ( c4 == nullptr ) {
+		return nullptr;
+	}
+
+	c4->Restore_Owner();
+	return c4->Get_Owner();
+}
+
+GameObject * Get_C4_Attached( GameObject * obj )
+{
+	C4GameObj * c4 = As_C4( obj );
+	if ( c4 == nullptr ) {
+		return nullptr;
+	}
+
+	return c4->Get_Stuck_Object();
+}
+
+GameObject * Get_Beacon_Planter( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return nullptr;
+	}
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	if ( physical_obj == nullptr ) {
+		return nullptr;
+	}
+
+	BeaconGameObj * beacon = physical_obj->As_BeaconGameObj();
+	if ( beacon == nullptr ) {
+		return nullptr;
+	}
+
+	return beacon->Get_Owner();
+}
+
+//
+//	Definitions
+//
+
+int Get_Definition_ID( const char * preset_name )
+{
+	SCRIPT_PTR_CHECK_RET( preset_name, 0 );
+
+	DefinitionClass * def = DefinitionMgrClass::Find_Named_Definition( preset_name );
+	if ( def == nullptr ) {
+		return 0;
+	}
+
+	return def->Get_ID();
+}
+
+const char * Get_Definition_Name( int definition_id )
+{
+	if ( definition_id == 0 ) {
+		return "none";
+	}
+
+	DefinitionClass * def = DefinitionMgrClass::Find_Definition( definition_id, true );
+	if ( def == nullptr ) {
+		return "none";
+	}
+
+	return def->Get_Name();
+}
+
+bool Is_Valid_Preset_ID( int definition_id )
+{
+	return DefinitionMgrClass::Find_Definition( definition_id, true ) != nullptr;
+}
+
+//
+//	Translated strings
+//
+
+bool Is_Valid_String_ID( int string_id )
+{
+	return TranslateDBClass::Find_Object( (uint32)string_id ) != nullptr;
+}
+
+int Get_String_Sound_ID( int string_id )
+{
+	TDBObjClass * entry = TranslateDBClass::Find_Object( (uint32)string_id );
+	if ( entry == nullptr ) {
+		return 0;
+	}
+
+	return (int)entry->Get_Sound_ID();
+}
+
+//
+//	Scripts on objects
+//
+
+ScriptClass * Find_Script_On_Object( GameObject * obj, const char * script_name )
+{
+	if ( obj == nullptr || script_name == nullptr ) {
+		return nullptr;
+	}
+
+	const GameObjObserverList & observers = obj->Get_Observers();
+	for ( int index = 0; index < observers.Count(); index ++ ) {
+
+		GameObjObserverClass * observer = observers[ index ];
+		if ( observer != nullptr && ::stricmp( observer->Get_Name(), script_name ) == 0 ) {
+			return (ScriptClass *)observer;
+		}
+	}
+
+	return nullptr;
+}
+
+bool Is_Script_Attached( GameObject * obj, const char * script_name )
+{
+	return Find_Script_On_Object( obj, script_name ) != nullptr;
+}
+
+void Attach_Script_Once( GameObject * obj, const char * script_name, const char * params )
+{
+	SCRIPT_PTR_CHECK( obj );
+
+	if ( !Is_Script_Attached( obj, script_name ) ) {
+		Attach_Script( obj, script_name, params );
+	}
+}
+
+void Attach_Script_Occupants( GameObject * obj, const char * script_name, const char * params )
+{
+	VehicleGameObj * vehicle = As_Vehicle( obj );
+	if ( vehicle == nullptr ) {
+		return ;
+	}
+
+	int seat_count = vehicle->Get_Definition().Get_Seat_Count();
+	for ( int seat = 0; seat < seat_count; seat ++ ) {
+
+		SoldierGameObj * occupant = vehicle->Get_Occupant( seat );
+		if ( occupant != nullptr ) {
+			Attach_Script( occupant, script_name, params );
+		}
+	}
+}
+
+void Attach_Script_Preset( const char * script_name, const char * params, const char * preset_name, int team, bool once )
+{
+	SCRIPT_PTR_CHECK( preset_name );
+
+	for ( SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		ScriptableGameObj * obj = node->Data()->As_ScriptableGameObj();
+		if ( obj == nullptr ) {
+			continue;
+		}
+
+		if ( ::stricmp( obj->Get_Definition().Get_Name(), preset_name ) != 0 || !Team_Matches( obj, team ) ) {
+			continue;
+		}
+
+		if ( once ) {
+			Attach_Script_Once( obj, script_name, params );
+		} else {
+			Attach_Script( obj, script_name, params );
+		}
+	}
+}
+
+void Attach_Script_Type( const char * script_name, const char * params, unsigned long class_id, int team, bool once )
+{
+	for ( SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		ScriptableGameObj * obj = node->Data()->As_ScriptableGameObj();
+		if ( obj == nullptr ) {
+			continue;
+		}
+
+		if ( obj->Get_Definition().Get_Class_ID() != class_id || !Team_Matches( obj, team ) ) {
+			continue;
+		}
+
+		if ( once ) {
+			Attach_Script_Once( obj, script_name, params );
+		} else {
+			Attach_Script( obj, script_name, params );
+		}
+	}
+}
+
+void Attach_Script_Building( const char * script_name, const char * params, int team )
+{
+	for ( SLNode<BuildingGameObj> * node = GameObjManager::Get_Building_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		BuildingGameObj * building = node->Data();
+		if ( Team_Matches( building, team ) ) {
+			Attach_Script( building, script_name, params );
+		}
+	}
+}
+
+void Attach_Script_Player_Once( const char * script_name, const char * params, int team )
+{
+	for ( SLNode<SoldierGameObj> * node = GameObjManager::Get_Star_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		SoldierGameObj * soldier = node->Data();
+		if ( Team_Matches( soldier, team ) ) {
+			Attach_Script_Once( soldier, script_name, params );
+		}
+	}
+}
+
+//
+//	A script asked to remove itself is destroyed rather than detached, so its
+//	own Destroy_Script runs and it lets go of whatever it was holding.
+//
+void Remove_Script( GameObject * obj, const char * script_name )
+{
+	SCRIPT_PTR_CHECK( obj );
+	SCRIPT_PTR_CHECK( script_name );
+
+	const GameObjObserverList & observers = obj->Get_Observers();
+	for ( int index = observers.Count() - 1; index >= 0; index -- ) {
+
+		GameObjObserverClass * observer = observers[ index ];
+		if ( observer != nullptr && ::stricmp( observer->Get_Name(), script_name ) == 0 ) {
+			ScriptManager::Request_Destroy_Script( (ScriptClass *)observer );
+		}
+	}
+}
+
+void Remove_All_Scripts( GameObject * obj )
+{
+	SCRIPT_PTR_CHECK( obj );
+
+	const GameObjObserverList & observers = obj->Get_Observers();
+	for ( int index = observers.Count() - 1; index >= 0; index -- ) {
+
+		GameObjObserverClass * observer = observers[ index ];
+		if ( observer != nullptr && ( (ScriptClass *)observer )->Owner() != nullptr ) {
+			ScriptManager::Request_Destroy_Script( (ScriptClass *)observer );
+		}
+	}
+}
+
+void Remove_Script_Preset( const char * script_name, const char * preset_name, int team )
+{
+	SCRIPT_PTR_CHECK( preset_name );
+
+	for ( SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		ScriptableGameObj * obj = node->Data()->As_ScriptableGameObj();
+		if ( obj == nullptr ) {
+			continue;
+		}
+
+		if ( ::stricmp( obj->Get_Definition().Get_Name(), preset_name ) == 0 && Team_Matches( obj, team ) ) {
+			Remove_Script( obj, script_name );
+		}
+	}
+}
+
+void Remove_Script_Type( const char * script_name, unsigned long class_id, int team )
+{
+	for ( SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		ScriptableGameObj * obj = node->Data()->As_ScriptableGameObj();
+		if ( obj == nullptr ) {
+			continue;
+		}
+
+		if ( obj->Get_Definition().Get_Class_ID() == class_id && Team_Matches( obj, team ) ) {
+			Remove_Script( obj, script_name );
+		}
+	}
+}
+
+//
+//	Broadcasting a custom
+//
+
+void Send_Custom_All_Objects( int type, GameObject * sender, int team )
+{
+	SCRIPT_PTR_CHECK( sender );
+
+	for ( SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		ScriptableGameObj * obj = node->Data()->As_ScriptableGameObj();
+		if ( obj != nullptr && Team_Matches( obj, team ) ) {
+			Send_Custom_Event( sender, obj, type, 0, 0.0f );
+		}
+	}
+}
+
+void Send_Custom_All_Objects_Area( int type, const Vector3 & position, float distance, GameObject * sender, int team )
+{
+	SCRIPT_PTR_CHECK( sender );
+
+	for ( SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		ScriptableGameObj * obj = node->Data()->As_ScriptableGameObj();
+		if ( obj == nullptr || !Team_Matches( obj, team ) ) {
+			continue;
+		}
+
+		Vector3 offset = Get_Position( obj ) - position;
+		offset.Z = 0.0f;
+		if ( offset.Length2() <= ( distance * distance ) ) {
+			Send_Custom_Event( sender, obj, type, 0, 0.0f );
+		}
+	}
+}
+
+void Send_Custom_To_Preset( GameObject * sender, const char * preset_name, int type, int param, float delay )
+{
+	SCRIPT_PTR_CHECK( sender );
+	SCRIPT_PTR_CHECK( preset_name );
+
+	for ( SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		ScriptableGameObj * obj = node->Data()->As_ScriptableGameObj();
+		if ( obj != nullptr && ::stricmp( obj->Get_Definition().Get_Name(), preset_name ) == 0 ) {
+			Send_Custom_Event( sender, obj, type, param, delay );
+		}
+	}
+}
+
+//
+//	Effects over a set of objects
+//
+
+void Create_Effect_All_Of_Preset( const char * effect_preset_name, const char * preset_name, float z_adjust, bool z_absolute )
+{
+	SCRIPT_PTR_CHECK( effect_preset_name );
+	SCRIPT_PTR_CHECK( preset_name );
+
+	for ( SLNode<SmartGameObj> * node = GameObjManager::Get_Smart_Game_Obj_List()->Head();
+			node != nullptr; node = node->Next() ) {
+
+		SmartGameObj * obj = node->Data();
+		if ( ::stricmp( obj->Get_Definition().Get_Name(), preset_name ) != 0 ) {
+			continue;
+		}
+
+		Vector3 position = Get_Position( obj );
+		if ( z_absolute ) {
+			position.Z = z_adjust;
+		} else {
+			position.Z += z_adjust;
+		}
+
+		GameObject * effect = Create_Object( effect_preset_name, position );
+		if ( effect != nullptr ) {
+			Set_Facing( effect, Get_Facing( obj ) );
+		}
+	}
+}
+
+//
+//	Time
+//
+
+void Seconds_To_Hms( float seconds, int & out_hours, int & out_minutes, int & out_seconds )
+{
+	int total = (int)seconds;
+
+	out_hours	= total / 3600;
+	out_minutes	= ( total % 3600 ) / 60;
+	out_seconds	= total % 60;
 }
 
 }	// namespace ScriptEngine

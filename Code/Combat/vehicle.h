@@ -113,6 +113,11 @@ public:
 
 	void											Free_Transition_List( void );
 
+	//	The two fields a script needs to ask about: what kind of vehicle
+	//	this is, and how many people fit in it.
+	VehicleType									Get_Type (void) const			{ return Type; }
+	int											Get_Seat_Count (void) const	{ return NumSeats; }
+
 	int Get_Damage_Report(int team) const;
 	int Get_Destroy_Report(int team) const;
 

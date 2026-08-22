@@ -205,6 +205,7 @@ public:
 	int								Get_Building_Count (void) const		{ return BuildingList.Count (); }
 	BuildingGameObj *				Peek_Building (int index)				{ return BuildingList[index]; }
 
+	void		Enable_Radar (bool onoff);
 protected:
 
 	////////////////////////////////////////////////////////////////
@@ -222,7 +223,6 @@ protected:
 	////////////////////////////////////////////////////////////////
 	void		Initialize_Building_List (void);
 	void		Reset_Building_List (void);
-	void		Enable_Radar (bool onoff);
 
 	//
 	//	Team notification

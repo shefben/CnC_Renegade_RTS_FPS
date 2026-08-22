@@ -80,6 +80,10 @@ class cPlayer : public PlayerDataClass, public NetworkObjectClass {
 		bool Load(ChunkLoadClass & cload);
 
 		int Get_Id(void) const {return Id;}
+
+		//	PlayerDataClass asks these; the engine has no other way to know.
+		virtual int Get_Player_Id(void) const override {return Id;}
+		virtual const unichar_t * Get_Player_Name(void) const override {return Name.Peek_Buffer();}
 		void Set_Id(int id);
 
 		void Set_Name(const WideStringClass & name);
@@ -102,8 +106,8 @@ class cPlayer : public PlayerDataClass, public NetworkObjectClass {
       void Increment_Deaths(void);
       void Set_Deaths(int new_deaths);
 
-      int Get_Player_Type(void) const {return (int)PlayerType;}
-      void Set_Player_Type(int type);
+      virtual int Get_Player_Type(void) const override {return (int)PlayerType;}
+      virtual void Set_Player_Type(int type) override;
 		bool Is_Team_Player(void);
 
       Vector3 Get_Color(void) const;

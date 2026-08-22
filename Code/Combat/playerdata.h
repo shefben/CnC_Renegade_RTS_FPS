@@ -51,6 +51,7 @@
 
 #ifndef	SIMPLEVEC_H
 	#include "simplevec.h"
+	#include "wwstring.h"
 #endif
 
 
@@ -82,6 +83,17 @@ public:
 
 	bool Save(ChunkSaveClass & csave);
 	bool Load(ChunkLoadClass & cload);
+
+	//
+	//	Identity.  Who a player is, and which side they are on, belongs to
+	//	whoever is running the game rather than to the engine, so the derived
+	//	class answers these.  The defaults are what a soldier with no player
+	//	behind it should look like.
+	//
+	virtual	int						Get_Player_Id( void ) const		{ return -1; }
+	virtual	const unichar_t *		Get_Player_Name( void ) const	{ return nullptr; }
+	virtual	int						Get_Player_Type( void ) const		{ return -1; }
+	virtual	void						Set_Player_Type( int /* team */ )	{ }
 
 	void	Set_GameObj( SmartGameObj * soldier )	{ GameObj = (ScriptableGameObj*)soldier; }
 	SmartGameObj * Get_GameObj( void )				{ return (SmartGameObj*)(GameObj.Get_Ptr()); }

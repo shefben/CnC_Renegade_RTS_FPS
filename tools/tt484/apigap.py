@@ -66,8 +66,13 @@ for path in IN_SCOPE:
             frees[m.group(1)] += 1
 
 missing_commands = {k: v for k, v in commands.items() if k not in have}
-portable = {k: v for k, v in frees.items() if k in sdk_impl}
-bound = {k: v for k, v in frees.items() if k not in sdk_impl}
+# A free function ScriptEngine has grown is answered, whatever the donor did
+# with it -- an extern into the closed binary or portable source.
+RENAMED = set(l.split(chr(9))[0] for l in
+             read('docs/tt484/TTScriptApiRenames.tsv').split(chr(10))[1:] if l.strip())
+answered = {k: v for k, v in frees.items() if k in have or k in RENAMED}
+portable = {k: v for k, v in frees.items() if k not in answered and k in sdk_impl}
+bound = {k: v for k, v in frees.items() if k not in answered and k not in sdk_impl}
 
 print('in-scope files          : %d' % len(IN_SCOPE))
 print('ScriptEngine names      : %d' % len(have))
@@ -81,6 +86,8 @@ print('  MISSING from ScriptEngine: %d distinct, %d calls'
 print()
 print('SDK free functions used : %d distinct, %d calls'
       % (len(frees), sum(frees.values())))
+print('  answered or renamed  : %d distinct, %d calls'
+      % (len(answered), sum(answered.values())))
 print('  portable source       : %d distinct, %d calls'
       % (len(portable), sum(portable.values())))
 print('  extern-bound only     : %d distinct, %d calls'

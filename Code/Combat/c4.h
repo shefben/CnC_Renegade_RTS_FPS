@@ -115,6 +115,13 @@ public:
 	SoldierGameObj *Get_Owner( void ) const { return (SoldierGameObj *)Owner.Get_Ptr(); }
 	void				Defuse( void );
 
+	//	What kind of charge this is -- remote, timed, or proximity.
+	const AmmoDefinitionClass *	Peek_Ammo_Definition( void ) const	{ return AmmoDefinition; }
+
+	//	The owner is kept by id and resolved on demand, so anyone asking who
+	//	planted this has to restore it first.
+	void				Restore_Owner( void );
+
 	static	void	Maintain_C4_Limit( int player_type );
 
 private:
@@ -137,7 +144,6 @@ private:
 	float							Age;
 
 	void				Detonate( void );
-	void				Restore_Owner( void );
 
 
 };

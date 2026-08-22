@@ -39,6 +39,8 @@
 
 #ifndef	VECTOR3_H
 	#include "vector3.h"
+	#include "wwstring.h"
+#include "matrix3d.h"
 #endif
 
 #ifndef	COMBATSOUND_H
@@ -59,6 +61,7 @@ class		AudibleSoundClass;
 typedef	AudibleSoundClass	Sound2D;
 class		Sound3DClass;
 typedef	Sound3DClass		Sound3D;
+class		Matrix3D;
 class		ScriptClass;
 class		ScriptSaver;
 class		ScriptLoader;
@@ -472,6 +475,116 @@ namespace ScriptEngine
 	// `player` is any object a client is controlling -- normally the soldier.
 	// A sound started on someone else's machine has no id here, so unlike their
 	// local counterparts these return nothing.
+
+	// ------------------------------------------------------------------
+	//	Questions and actions the 4.8.4 script library needs and the stock
+	//	catalog never asked for.  A team of 2 means "either side" wherever one
+	//	is taken, matching how the library's own scripts are authored.
+	// ------------------------------------------------------------------
+
+	// Finding things
+	GameObject * Find_Object_By_Preset ( int team, const char * preset_name );
+	GameObject * Find_Closest_Building ( const Vector3 & position );
+	GameObject * Find_Smart_Object_By_Team ( int team );
+	GameObject * Find_Object_With_Script ( const char * script_name );
+	int Get_Object_Count ( int team, const char * preset_name );
+	bool Is_Unit_In_Range ( const char * preset_name, float range, const Vector3 & position, int team, bool allow_empty );
+
+	// Movement state
+	Vector3 Get_Velocity ( GameObject * obj );
+	void Set_Velocity ( GameObject * obj, const Vector3 & velocity );
+	void Set_Transform ( GameObject * obj, const Matrix3D & transform );
+	float Get_Mass ( GameObject * obj );
+
+	// Model and animation state
+	const char * Get_Model ( GameObject * obj );
+	float Get_Animation_Frame ( GameObject * obj );
+	float Get_Animation_Target_Frame ( GameObject * obj );
+
+	// Powerups
+	void Set_Powerup_Always_Allow_Grant ( GameObject * obj, bool allow );
+	const char * Get_Powerup_Weapon ( const char * powerup_preset_name );
+
+	// Vehicles and their occupants
+	GameObject * Get_Vehicle_Driver ( GameObject * obj );
+	GameObject * Get_Vehicle_Gunner ( GameObject * obj );
+	GameObject * Get_Vehicle_Occupant ( GameObject * obj, int seat );
+	int Get_Vehicle_Occupant_Count ( GameObject * obj );
+	int Get_Vehicle_Seat_Count ( GameObject * obj );
+	int Get_Occupant_Seat ( GameObject * vehicle, GameObject * occupant );
+	int Get_Vehicle_Mode ( GameObject * obj );
+	bool Is_VTOL ( GameObject * obj );
+	void Force_Occupants_Exit ( GameObject * obj );
+	void Force_Occupant_Exit ( GameObject * obj, int seat );
+	void Force_Occupants_Exit_Team ( GameObject * obj, int team );
+	void Soldier_Transition_Vehicle ( GameObject * obj );
+
+	// Soldier state
+	bool Get_Fly_Mode ( GameObject * obj );
+	void Toggle_Fly_Mode ( GameObject * obj );
+	bool Is_Stealth ( GameObject * obj );
+	bool Is_Stealth_Enabled ( GameObject * obj );
+	bool Change_Character ( GameObject * obj, const char * preset_name );
+
+	// The player behind a soldier, if there is one
+	int Get_Player_ID ( GameObject * obj );
+	const unichar_t * Get_Wide_Player_Name ( GameObject * obj );
+	void Change_Team ( GameObject * obj, int team, bool destroy_object );
+
+	// Bases and buildings
+	GameObject * Find_Building_By_Type ( int team, int type );
+	GameObject * Find_Construction_Yard ( int team );
+	GameObject * Find_Com_Center ( int team );
+	bool Is_Building_Dead ( GameObject * obj );
+	bool Is_Base_Powered ( int team );
+	void Power_Base ( int team, bool powered );
+	bool Is_Radar_Enabled ( int team );
+	void Enable_Base_Radar ( int team, bool enable );
+	void Set_Can_Generate_Soldiers ( int team, bool can_generate );
+
+	// Weapons
+	const char * Get_Weapon ( GameObject * obj, int position );
+	const char * Get_Current_Weapon ( GameObject * obj );
+	bool Has_Weapon ( GameObject * obj, const char * weapon_name );
+	int Get_C4_Mode ( GameObject * obj );
+	GameObject * Get_C4_Planter ( GameObject * obj );
+	GameObject * Get_C4_Attached ( GameObject * obj );
+	GameObject * Get_Beacon_Planter ( GameObject * obj );
+
+	// Definitions
+	int Get_Definition_ID ( const char * preset_name );
+	const char * Get_Definition_Name ( int definition_id );
+	bool Is_Valid_Preset_ID ( int definition_id );
+
+	// Translated strings
+	bool Is_Valid_String_ID ( int string_id );
+	int Get_String_Sound_ID ( int string_id );
+
+	// Scripts on objects
+	bool Is_Script_Attached ( GameObject * obj, const char * script_name );
+	ScriptClass * Find_Script_On_Object ( GameObject * obj, const char * script_name );
+	void Attach_Script_Once ( GameObject * obj, const char * script_name, const char * params );
+	void Attach_Script_Occupants ( GameObject * obj, const char * script_name, const char * params );
+	void Attach_Script_Preset ( const char * script_name, const char * params, const char * preset_name, int team, bool once );
+	void Attach_Script_Type ( const char * script_name, const char * params, unsigned long class_id, int team, bool once );
+	void Attach_Script_Building ( const char * script_name, const char * params, int team );
+	void Attach_Script_Player_Once ( const char * script_name, const char * params, int team );
+	void Remove_Script ( GameObject * obj, const char * script_name );
+	void Remove_All_Scripts ( GameObject * obj );
+	void Remove_Script_Preset ( const char * script_name, const char * preset_name, int team );
+	void Remove_Script_Type ( const char * script_name, unsigned long class_id, int team );
+
+	// Broadcasting a custom
+	void Send_Custom_All_Objects ( int type, GameObject * sender, int team );
+	void Send_Custom_All_Objects_Area ( int type, const Vector3 & position, float distance, GameObject * sender, int team );
+	void Send_Custom_To_Preset ( GameObject * sender, const char * preset_name, int type, int param, float delay );
+
+	// Effects over a set of objects
+	void Create_Effect_All_Of_Preset ( const char * effect_preset_name, const char * preset_name, float z_adjust, bool z_absolute );
+
+	// Time
+	void Seconds_To_Hms ( float seconds, int & out_hours, int & out_minutes, int & out_seconds );
+
 	void Send_Message ( int red, int green, int blue, const char * message );
 	void Send_Message_Player ( GameObject * player, int red, int green, int blue, const char * message );
 	void Send_Message_Team ( int team, int red, int green, int blue, const char * message );
