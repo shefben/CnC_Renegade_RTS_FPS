@@ -36,6 +36,7 @@
 
 #include "renegadedialog.h"
 #include "dlgcncpurchasemenu.h"
+#include "ttsettings.h"
 #include "dlgcncpurchasemainmenu.h"
 #include "purchasesettings.h"
 #include "vendor.h"
@@ -51,6 +52,7 @@
 #include "gdskirmish.h"
 #include "weapons.h"
 #include "vehiclefactorygameobj.h"
+#include "soldierfactorygameobj.h"
 #include "string_ids.h"
 #include "DlgMessageBox.h"
 #include "gameinitmgr.h"
@@ -515,20 +517,32 @@ CNCPurchaseMenuClass::Get_Production_Status (void)
 	{
 	case PurchaseSettingsDefClass::TYPE_CLASSES:
 	case PurchaseSettingsDefClass::TYPE_SECRET_CLASSES:
-		if (base->Can_Generate_Soldiers () == false) {
+	{
+		BuildingGameObj *building = base->Find_Building (BuildingConstants::TYPE_SOLDIER_FACTORY);
+		SoldierFactoryGameObj *factory = (building != nullptr) ? building->As_SoldierFactoryGameObj () : nullptr;
+
+		bool can_build = TTSettingsClass::NewUnpurchasableLogic
+								? base->Can_Generate_Soldiers ()
+								: (factory != nullptr && factory->Is_Destroyed () == false);
+		if (can_build == false) {
 			return PRODUCTION_UNAVAILABLE;
 		}
 		break;
+	}
 
 	case PurchaseSettingsDefClass::TYPE_VEHICLES:
 	case PurchaseSettingsDefClass::TYPE_SECRET_VEHICLES:
 	{
-		if (base->Can_Generate_Vehicles () == false) {
+		BuildingGameObj *building = base->Find_Building (BuildingConstants::TYPE_VEHICLE_FACTORY);
+		VehicleFactoryGameObj *factory = (building != nullptr) ? building->As_VehicleFactoryGameObj () : nullptr;
+
+		bool can_build = TTSettingsClass::NewUnpurchasableLogic
+								? base->Can_Generate_Vehicles ()
+								: (factory != nullptr && factory->Is_Destroyed () == false);
+		if (can_build == false) {
 			return PRODUCTION_UNAVAILABLE;
 		}
 
-		BuildingGameObj *building = base->Find_Building (BuildingConstants::TYPE_VEHICLE_FACTORY);
-		VehicleFactoryGameObj *factory = (building != nullptr) ? building->As_VehicleFactoryGameObj () : nullptr;
 		if (factory != nullptr) {
 			if (factory->Is_Busy ()) {
 				return PRODUCTION_BUSY;
@@ -824,7 +838,8 @@ CNCPurchaseMenuClass::Update_Building_Health (void)
 	//	health.  The two disagree: Power_Base() is server driven, and a base
 	//	with no power plant building at all still pays double.
 	//
-	Get_Dlg_Item (IDC_COST_X2_TEXT)->Show (base->Is_Base_Powered () == false);
+	Get_Dlg_Item (IDC_COST_X2_TEXT)->Show (	base->Is_Base_Powered () == false &&
+														TTSettingsClass::DisableCostMultiplier == false);
 
 	return ;
 }

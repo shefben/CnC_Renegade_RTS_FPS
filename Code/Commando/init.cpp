@@ -46,6 +46,7 @@
 #include "inputconfigmgr.h"
 //#include "gamesettings.h"
 #include "ffactory.h"
+#include "ttsettings.h"
 #include "assets.h"
 #include "_globals.h"
 #include "combatgmode.h"	// gamemode
@@ -800,6 +801,14 @@ bool Game_Init(void)
 	}
 
 	AudioFileFactory.Set_Base_Factory( _TheFileFactory );
+
+	//
+	//	Read tt.ini and hud.ini.  This has to be the first thing after the file
+	//	factory is up: the settings decide behaviour all the way down to wwphys,
+	//	and everything below reads them without checking whether they loaded.
+	//	Absent files are not an error -- every option keeps its TT default.
+	//
+	TTSettingsClass::Load ();
 
 	//Setup_Mix_File();
 

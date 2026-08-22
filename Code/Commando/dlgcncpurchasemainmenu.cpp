@@ -36,6 +36,7 @@
 
 #include "renegadedialog.h"
 #include "dlgcncpurchasemainmenu.h"
+#include "ttsettings.h"
 #include "dlgcncpurchasemenu.h"
 #include "buttonctrl.h"
 #include "globalsettings.h"
@@ -386,7 +387,9 @@ CNCPurchaseMainMenuClass::Do_Purchase_Screen (PurchaseSettingsDefClass::TYPE typ
 			//
 			//	If the base is powered down then all prices double in cost
 			//
-			if (base->Is_Base_Powered () == false) {
+			if (	base->Is_Base_Powered () == false &&
+					TTSettingsClass::DisableCostMultiplier == false)
+			{
 				dialog->Set_Cost_Scaling_Factor (2.0F);
 			}
 
@@ -786,7 +789,17 @@ CNCPurchaseMainMenuClass::Refresh_Button_States (void)
 		BuildingGameObj *building = base_controller->Find_Building (BuildingConstants::TYPE_VEHICLE_FACTORY);
 		VehicleFactoryGameObj *vehicle_factory = (building != nullptr) ? building->As_VehicleFactoryGameObj () : nullptr;
 
-		if (base_controller->Can_Generate_Vehicles () == false) {
+		//
+		//	NewUnpurchaseableLogic picks the predicate.  Stock reads the factory
+		//	object the client happens to hold, which is nullptr on a client that
+		//	was never sent it; TT reads the replicated flag the server itself
+		//	enforces.  One implementation, one input.
+		//
+		bool can_build_vehicles = TTSettingsClass::NewUnpurchasableLogic
+											? base_controller->Can_Generate_Vehicles ()
+											: (vehicle_factory != nullptr && vehicle_factory->Is_Destroyed () == false);
+
+		if (can_build_vehicles == false) {
 
 			//
 			//	Destroyed if we can see the factory and it says so, otherwise
@@ -812,7 +825,11 @@ CNCPurchaseMainMenuClass::Refresh_Button_States (void)
 		building = base_controller->Find_Building (BuildingConstants::TYPE_SOLDIER_FACTORY);
 		SoldierFactoryGameObj *soldier_factory = (building != nullptr) ? building->As_SoldierFactoryGameObj () : nullptr;
 
-		if (base_controller->Can_Generate_Soldiers () == false) {
+		bool can_build_soldiers = TTSettingsClass::NewUnpurchasableLogic
+											? base_controller->Can_Generate_Soldiers ()
+											: (soldier_factory != nullptr && soldier_factory->Is_Destroyed () == false);
+
+		if (can_build_soldiers == false) {
 			if (soldier_factory != nullptr && soldier_factory->Is_Destroyed ()) {
 				Set_Dlg_Item_Text (IDC_SOLDIERS_STATIC, TRANSLATE (IDS_CNC_PURCHASE_VB_DESTROYED));
 			} else {
@@ -911,17 +928,25 @@ CNCPurchaseMainMenuClass::On_Key_Down (uint32 key_id, uint32 key_data)
 				break;
 
 			//
-			//	The purchase page is safe to open even when its button is
-			//	disabled: every control on it is greyed out when the base
-			//	cannot build, and a vehicle purchase names the reason.  Stock
-			//	swallowed the key instead, which just looked broken.
+			//	Under the new logic the purchase page is safe to open even when
+			//	its button is disabled: every control on it is greyed out when
+			//	the base cannot build, and a vehicle purchase names the reason.
+			//	Stock swallowed the key instead, which just looked broken.
 			//
 			case '6':
-				Do_Purchase_Screen (PurchaseSettingsDefClass::TYPE_CLASSES);
+				if (	TTSettingsClass::NewUnpurchasableLogic ||
+						Get_Dlg_Item (IDC_CHARACTERS_BUTTON)->Is_Enabled ())
+				{
+					Do_Purchase_Screen (PurchaseSettingsDefClass::TYPE_CLASSES);
+				}
 				break;
 
 			case '7':
-				Do_Purchase_Screen (PurchaseSettingsDefClass::TYPE_VEHICLES);
+				if (	TTSettingsClass::NewUnpurchasableLogic ||
+						Get_Dlg_Item (IDC_VEHICLES_BUTTON)->Is_Enabled ())
+				{
+					Do_Purchase_Screen (PurchaseSettingsDefClass::TYPE_VEHICLES);
+				}
 				break;
 
 			case '8':

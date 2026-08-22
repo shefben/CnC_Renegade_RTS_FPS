@@ -38,6 +38,7 @@
 
 
 #include "vehiclephys.h"
+#include "ttsettings.h"
 #include "chunkio.h"
 #include "persistfactory.h"
 #include "wwphysids.h"
@@ -47,6 +48,9 @@
 #include "pscene.h"
 #include "wwprofile.h"
 #include "vehicledazzle.h"
+
+// Vehicles will sit rolled over for this long before exploding!
+const float		EXPIRE_SECONDS								= 4.0f;
 
 // HACK! when the engine is off, decimate the momentum each timestep by this fraction...
 const float		PARKING_BRAKE_DAMPING					= 0.5f;
@@ -105,7 +109,8 @@ VehiclePhysClass::VehiclePhysClass(void) :
 	RealWheelCount(0),
 	DriveWheelCount(0),
 	EngineFlameBones(MAX_CAPTURED_BONE_COUNT),
-	LastGoodPosition(1)
+	LastGoodPosition(1),
+	ExpireTimer(EXPIRE_SECONDS)
 {
 	for (int i=0; i<MAX_CAPTURED_BONE_COUNT; i++) {
 		EngineFlameBones[i] = -1;
@@ -276,11 +281,24 @@ void VehiclePhysClass::Timestep(float dt)
 		RigidBodyClass::Timestep(dt);
 	}
 
-	//
-	// A vehicle resting upside down used to destroy itself after four seconds.
-	// Removed: rolling a vehicle is usually someone else's doing, and losing it
-	// to a slope is not a defeat condition anyone chose.
-	//
+	/*
+	** See if we should be destroyed due to coming to rest upside down.  TT
+	** removes this outright, but behind DisableVehicleFlipKill, which defaults
+	** to off -- so the countdown is the default behaviour here too.
+	*/
+	if (TTSettingsClass::DisableVehicleFlipKill == false) {
+		float up_cos = Get_Transform().Get_Z_Vector().Z;
+		const float MIN_Z_COSINE = 0.25f;
+		if (up_cos < MIN_Z_COSINE) {
+			ExpireTimer -= dt;
+			if (ExpireTimer < 0.0f) {
+				ExpireTimer = EXPIRE_SECONDS; // if expiration is denied, try again later.
+				Expire();
+			}
+		} else {
+			ExpireTimer = EXPIRE_SECONDS;
+		}
+	}
 }
 
 SuspensionElementClass * VehiclePhysClass::Peek_Wheel(int wheel_index)

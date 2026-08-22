@@ -16,6 +16,7 @@ set(WWLIB_SRC
     gcd_lcm.cpp
     hash.cpp
     ini.cpp
+    ttsettings.cpp
     int.cpp
     jshell.cpp
     lzo.cpp
@@ -85,6 +86,7 @@ set(WWLIB_SRC
     iff.h
     index.h
     ini.h
+    ttsettings.h
     inisup.h
     int.h
     iostruct.h

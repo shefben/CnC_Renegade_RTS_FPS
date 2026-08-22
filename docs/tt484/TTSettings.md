@@ -78,11 +78,11 @@ yet implemented.
 | Option | Type | Default | Behaviour it drives | Status |
 | --- | --- | --- | --- | --- |
 | `ContinueReloadOnVehicleExit` | bool | true | reload continues after leaving a vehicle | open |
-| `DisableCostMultiplier` | bool | false | suppress the unpowered-base 2x purchase cost | open |
+| `DisableCostMultiplier` | bool | false | suppress the unpowered-base 2x purchase cost | **merged** |
 | `BuildTimeDelay` | float | 2.0 | vehicle build time floor | open |
 | `VehicleOwnershipDisable` | bool | false | drop TT vehicle ownership enforcement | open |
 | `VehicleBuildingDisable` | bool | false | alternate per-team production model; also gates the PT "building" message | open |
-| `DisableVehicleFlipKill` | bool | false | a rolled-over vehicle does not self-destruct | **wired** |
+| `DisableVehicleFlipKill` | bool | false | a rolled-over vehicle does not self-destruct | **merged** |
 | `Unsquishable` | bool | false | infantry cannot be run over | open |
 | `UnsquishableArmor`…`4` | int | 0 | armour types exempt from squishing | open |
 | `NeutralVechiclePointsFix` | bool | true | points for neutral-vehicle kills | open |
@@ -101,7 +101,7 @@ yet implemented.
 | Option | Type | Default | Behaviour it drives | Status |
 | --- | --- | --- | --- | --- |
 | `UseExtraPTPages` | bool | false | secret PT pages available, including in laddered games | open |
-| `NewUnpurchaseableLogic` | bool | false | PT availability from the replicated `Can_Generate_*` flags | **wired** |
+| `NewUnpurchaseableLogic` | bool | false | PT availability from the replicated `Can_Generate_*` flags | **merged** |
 | `RefillLimit` | float | 0 | refill cooldown | open |
 | `AlternateSelectEnabled` | bool | false | alternate sidebar selection art | open |
 | `SidebarSoundsEnabled` | bool | false | sidebar purchase sounds; also gates the stock sound suppression | open |
@@ -151,6 +151,37 @@ Only two dispositions survive as terminal, and neither is a judgement call:
 the 12 `DROP` rows null out stock debug routines and have no behaviour to port,
 and the `radar fix` is provably a no-op (`NativeEventDispatch.md` 5.8). The 104
 shader rows remain out of scope under directive 0.6.
+
+## 5a. What is built
+
+`TTSettingsClass` (`Code/wwlib/ttsettings.h/.cpp`) holds the whole inventory
+above with TT's own defaults and reads both files through `_TheFileFactory`, so
+they resolve out of `data/` or out of a mix exactly as TT's `Get_Data_File`
+does. `Commando/init.cpp` calls `Load()` immediately after the file factory is
+assigned and before anything reads a setting. Neither file existing is not an
+error: every option keeps its TT default, which is what TT does too.
+
+Three clusters are closed by it:
+
+| Cluster | Setting | Owner |
+| --- | --- | --- |
+| vehicle flip kill | `DisableVehicleFlipKill` | `wwphys/vehiclephys.cpp` — `ExpireTimer` and `EXPIRE_SECONDS` restored, the countdown now runs unless the option is set |
+| new unpurchasable logic | `NewUnpurchaseableLogic` | both PT dialogs — one predicate with the setting as its input, not two code paths |
+| 2x cost | `DisableCostMultiplier` | `vendor.cpp` (the price), plus both dialogs (the scaling factor and the warning text) |
+
+The 2x cost one is worth spelling out: `vendor.cpp:401` is what actually
+charges, and the two dialogs only display it. All three read the same setting,
+otherwise the terminal goes back to lying about the price — which is the defect
+5.8 of `NativeEventDispatch.md` was about in the first place.
+
+Two deliberate departures from TT, both recorded at the call site:
+
+- `LodBudgetDialogValue1/2` clamp with `min`, not TT's `max(v, 65535)`. TT's
+  form pins both to 65535 and leaves the options inert; reproducing the option
+  means reproducing what it was for, not the typo.
+- `NewUnpurchaseableLogic` keeps TT's spelling of the key, typo and all, so an
+  ini written for TT keeps working. Same for `HilightColorBkColor` and
+  `NeutralVechiclePointsFix`.
 
 ## 6. Order
 

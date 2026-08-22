@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "vendor.h"
+#include "ttsettings.h"
 #include "gameeventbus.h"
 #include "gameobjmanager.h"
 #include "playerdata.h"
@@ -398,7 +399,14 @@ VendorClass::Purchase_Item
 		//	Cost is doubled if the base isn't powered
 		//
 		//if (base != nullptr && base->Is_Base_Powered () == false) {
-		if (type != TYPE_BEACON && base != nullptr && base->Is_Base_Powered () == false) {
+		//
+	//	Unpowered bases pay double, unless the server has switched that off
+	//
+	if (	type != TYPE_BEACON &&
+			base != nullptr &&
+			base->Is_Base_Powered () == false &&
+			TTSettingsClass::DisableCostMultiplier == false)
+	{
 			cost = cost * 2;
 		}
 

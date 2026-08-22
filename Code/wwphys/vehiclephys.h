@@ -182,6 +182,8 @@ protected:
 	SimpleVecClass<int>				EngineFlameBones;		// indices to "engine-flame" bones
 	Matrix3D								LastGoodPosition;		// last state where all wheels were on the ground
 
+	float									ExpireTimer;			// time left before blowing up when rolled over
+
 	static bool							_DisableVehicleSimulation;
 	static bool							_DisableVehicleRendering;
 
