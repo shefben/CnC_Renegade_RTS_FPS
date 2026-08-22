@@ -70,7 +70,7 @@ cWinEvent::cWinEvent(void)
 
 //-----------------------------------------------------------------------------
 void
-cWinEvent::Init(int winner, int loser, bool is_cycle_over)
+cWinEvent::Init(int winner, int loser, bool is_cycle_over, int target_client_id)
 {
 	WWASSERT(cNetwork::I_Am_Server());
 
@@ -81,9 +81,20 @@ cWinEvent::Init(int winner, int loser, bool is_cycle_over)
 	WWASSERT(The_Game() != nullptr);
 	HostedGameNumber = The_Game()->Get_Hosted_Game_Number();
 
-	Set_Object_Dirty_Bit(BIT_CREATION, true);
+	//
+	//	A win event aimed at one client is somebody being told the game they
+	//	just joined is already over.  Dirtying creation for everybody put the
+	//	win screen back up on every machine still sitting in the intermission,
+	//	and replayed it on the host as well.
+	//
+	if (target_client_id != PLAYER_ID_UNKNOWN) {
+		Set_Object_Dirty_Bit(target_client_id, BIT_CREATION, true);
+	} else {
+		Set_Object_Dirty_Bit(BIT_CREATION, true);
+	}
 
-	if (cNetwork::I_Am_Client())
+	if (	cNetwork::I_Am_Client() &&
+			(target_client_id == PLAYER_ID_UNKNOWN || target_client_id == cNetwork::Get_My_Id()))
 	{
 		Act();
 	}

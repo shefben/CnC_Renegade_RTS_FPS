@@ -45,6 +45,7 @@
 #include "timemgr.h"
 
 #include "input.h"
+#include "wwstring.h"
 
 /*
 **
@@ -91,6 +92,11 @@ Render2DClass		*	_Sniper2DRenderer;
 
 #define	HUD_SNIPER_TEXTURE			"hud_sniper.tga"
 
+/*
+**	Set while a scoped weapon is drawn that names a scope texture of its own.
+*/
+StringClass				_ScopeTextureName;
+
 
 static	void	Info_Editor_Init( void );
 static	void	Info_Editor_Update( void );
@@ -129,9 +135,24 @@ void 	SniperHUDClass::Shutdown( void )
 		_Sniper2DRenderer = nullptr;
 	}
 
+	//	Otherwise the next Init would build the reticle from a scope whose
+	//	weapon is long gone.
+	_ScopeTextureName = "";
+
 //	Info_Editor_Shutdown();
 }
 
+
+void	SniperHUDClass::Set_Scope_Texture( const char * texture_name )
+{
+	StringClass name = ( texture_name != nullptr ) ? texture_name : "";
+	if ( name == _ScopeTextureName ) {
+		return;
+	}
+
+	_ScopeTextureName = name;
+	Build_Base();
+}
 
 void  SniperHUDClass::Build_Base( void )
 {
@@ -140,6 +161,19 @@ void  SniperHUDClass::Build_Base( void )
 	}
 
 	_Sniper2DBaseRenderer->Reset();
+
+	//
+	//	A weapon's own scope replaces the reticle outright -- the art already
+	//	carries whatever crosshair and blackout it wants, so it goes down as one
+	//	quad over the whole screen.  The zoom tick beside it is left alone.
+	//
+	if ( _ScopeTextureName.Get_Length() > 0 ) {
+		_Sniper2DBaseRenderer->Set_Texture( _ScopeTextureName );
+		_Sniper2DBaseRenderer->Add_Quad( Render2DClass::Get_Screen_Resolution(), RectClass( 0, 0, 1, 1 ) );
+		return;
+	}
+
+	_Sniper2DBaseRenderer->Set_Texture( HUD_SNIPER_TEXTURE );
 
 	RectClass uv;
 	RectClass draw;

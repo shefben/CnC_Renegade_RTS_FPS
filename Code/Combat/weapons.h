@@ -264,11 +264,15 @@ private:
 	bool				Fire_Beacon( const AmmoDefinitionClass *ammo_def );
 	void				Fire_Bullet( const AmmoDefinitionClass *ammo_def, bool primary );
 
+	void				Apply_Scope( void );
+	void				Remove_Scope( void );
+
 	// Weapon Info
 	const WeaponDefinitionClass *Definition;
 	GameObjReference				Owner;				// who gets credit for this weapon's kills?
 	RenderObjClass					*Model;
 	int								C4DetonationMode;
+	bool								HasScope;				// true while this weapon's own scope is on screen
 
 	// Ammo Info
 	const AmmoDefinitionClass *PrimaryAmmoDefinition;

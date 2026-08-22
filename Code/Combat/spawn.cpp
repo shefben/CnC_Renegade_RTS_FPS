@@ -873,81 +873,50 @@ Matrix3D SpawnManager::Get_Multiplayer_Spawn_Location( int player_type, SoldierG
 	}
 
 	//
-	// Find out how many suitable spawners there are
+	// Gather every spawner this player could come out of, and the subset of
+	// those nothing is standing in.
 	//
-	int suitable_spawners = 0;
-	for ( int i = 0; i < SpawnerList.Count(); i++ ) {
-		if ( !SpawnerList[i]->Get_Definition().IsPrimary &&
-			  SpawnerList[i]->Get_Definition().IsSoldierStartup &&
-			  SpawnerList[i]->Get_Definition().PlayerType == player_type ) {
+	// This used to pick one suitable spawner at random and, if it was
+	// blocked, walk the list forward from there.  Everyone whose pick was
+	// blocked therefore walked to the same next free one, which is how a
+	// whole team ended up spawning on top of each other.
+	//
+	DynamicVectorClass<int> suitable_spawners;
+	DynamicVectorClass<int> clear_spawners;
 
-			suitable_spawners++;
+	Phys3Class * phys_obj = soldier->Peek_Human_Phys();
+
+	for ( int i = 0; i < SpawnerList.Count(); i++ ) {
+		if ( SpawnerList[i]->Get_Definition().IsPrimary ||
+			  !SpawnerList[i]->Get_Definition().IsSoldierStartup ||
+			  SpawnerList[i]->Get_Definition().PlayerType != player_type ) {
+			continue;
+		}
+
+		suitable_spawners.Add( i );
+
+		if ( phys_obj != nullptr && phys_obj->Can_Teleport( SpawnerList[i]->Get_TM(), true ) ) {
+			clear_spawners.Add( i );
 		}
 	}
 
-	Matrix3D tm;
+	if ( clear_spawners.Count() > 0 ) {
+		return SpawnerList[ clear_spawners[ rand() % clear_spawners.Count() ] ]->Get_TM();
+	}
 
-	if (suitable_spawners == 0) {
-		Debug_Say(("Get_Multiplayer_Spawn_Location: failed to find suitable spawner, return origin.\n"));
-		tm =  Matrix3D(1);
-	} else {
-
+	if ( suitable_spawners.Count() > 0 ) {
 		//
-		// Randomly choose one of the suitable spawners
+		// Nowhere is clear, so somebody is going to be spawned into somebody
+		// else.  Spread that around rather than always choosing the same point.
 		//
-		int i;
-		int selected_spawner = rand() % suitable_spawners;
-		int start_index = 0;
-		int count = 0;
-
-		for ( i = 0; i < SpawnerList.Count(); i++ )
-		{
-			if ( !SpawnerList[i]->Get_Definition().IsPrimary &&
-				  SpawnerList[i]->Get_Definition().IsSoldierStartup &&
-				  SpawnerList[i]->Get_Definition().PlayerType == player_type )
-			{
-				if (count == selected_spawner)
-				{
-					// As a fallback, we will always return the first transform
-					// that was selected.
-					tm = SpawnerList[i]->Get_TM();
-					start_index = i;
-					break;
-				}
-
-				count++;
-			}
-		}
-
-		//
-		// Loop through the entire list of spawners, starting with the one
-		// we just selected, until we find a clear spawn point for this soldier
-		//
-		Phys3Class * phys_obj = soldier->Peek_Human_Phys();
-		if (phys_obj != nullptr) {
-			for ( i = 0; i < SpawnerList.Count(); i++) {
-
-				// Wrap around the list if needed:
-				int index = (i + start_index) % SpawnerList.Count();
-
-				if ( !SpawnerList[index]->Get_Definition().IsPrimary &&
-					  SpawnerList[index]->Get_Definition().IsSoldierStartup &&
-					  SpawnerList[index]->Get_Definition().PlayerType == player_type )
-				{
-					if (phys_obj->Can_Teleport(SpawnerList[index]->Get_TM(),true)) {
-
-						// Return the first good spawn point we find!
-						return SpawnerList[index]->Get_TM();
-					}
-				}
-			}
-			// If we fall through to here, no clear spawn points were found, need more spawners!
+		if ( phys_obj != nullptr ) {
 			WWDEBUG_SAY(("Failed to find clear multiplayer spawn point for object: %s\r\n",phys_obj->Peek_Model()->Get_Name()));
 		}
+		return SpawnerList[ suitable_spawners[ rand() % suitable_spawners.Count() ] ]->Get_TM();
 	}
 
-	// Fallback - return the spawn point we randomly chose.
-	return tm;
+	Debug_Say(("Get_Multiplayer_Spawn_Location: failed to find suitable spawner, return origin.\n"));
+	return Matrix3D(1);
 }
 
 

@@ -182,7 +182,7 @@ cBioEvent::Act(void)
 				//
 				if (stricmp(MapName, The_Game()->Get_Map_Name().Peek_Buffer()) != 0) {
 					cWinEvent * p_win = new cWinEvent;
-					p_win->Init(The_Game()->Get_Winner_ID(), SenderId, The_Game()->Is_Map_Cycle_Over());
+					p_win->Init(The_Game()->Get_Winner_ID(), PLAYER_ID_UNKNOWN, The_Game()->Is_Map_Cycle_Over(), SenderId);
 					cNetwork::Send_Object_Update(p_win, SenderId);
 				} else {
 					p_player->Set_Is_In_Game(false);

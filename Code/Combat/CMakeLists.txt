@@ -99,6 +99,7 @@ set(COMBAT_SRC
     scriptzone.cpp
     simplegameobj.cpp
     smartgameobj.cpp
+    scopemgr.cpp
     sniper.cpp
     soldier.cpp
     soldierfactorygameobj.cpp
@@ -233,6 +234,7 @@ set(COMBAT_SRC
     scriptzone.h
     simplegameobj.h
     smartgameobj.h
+    scopemgr.h
     sniper.h
     soldier.h
     soldierfactorygameobj.h

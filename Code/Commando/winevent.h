@@ -39,6 +39,7 @@
 
 #include "netevent.h"
 #include "netclassids.h"
+#include "playermanager.h"
 
 //-----------------------------------------------------------------------------
 //
@@ -49,7 +50,12 @@ class	cWinEvent : public cNetEvent
 public:
    cWinEvent(void);
 
-	void						Init(int winner, int loser, bool is_cycle_over);
+	//
+	//	target_client_id names one client to send the win screen to -- somebody
+	//	who joined after the game was already over.  Left unknown, the event
+	//	goes to everybody, which is what ending a game does.
+	//
+	void						Init(int winner, int loser, bool is_cycle_over, int target_client_id = PLAYER_ID_UNKNOWN);
 
 	virtual void			Export_Creation(BitStreamClass &packet) override;
 	virtual void			Import_Creation(BitStreamClass &packet) override;

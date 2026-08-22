@@ -116,6 +116,14 @@ public:
 	void				Set_Sniper_Distance( float dist );
 	float				Get_Sniper_Distance( void )			{ return SniperDistance; }
 
+	//
+	//	How far the sniper camera may zoom, as magnification factors.  A weapon
+	//	with a scope of its own sets this on select and puts it back on
+	//	deselect; everything else runs on the stock 1x-to-40x range.
+	//
+	static void		Set_Sniper_Zoom_Range( float min_zoom, float max_zoom );
+	static void		Reset_Sniper_Zoom_Range( void );
+
 	Vector3			Get_First_Person_Offset_Tweak( void );
 	void				Reset_First_Person_Offset_Tweak( void );
 

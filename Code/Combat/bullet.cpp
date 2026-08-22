@@ -75,7 +75,7 @@ const float _INSTANT_BULLET_THRESHHOLD	= 400;  // If speed is >= _INSTANT_BULLET
 class BeamEffectManagerClass : public CombatPhysObserverClass
 {
 public:
-	void		Init( void )		{}
+	void		Init( void )		{ IsShutdown = false; }
 	void		Shutdown( void );
 
 	/*
@@ -97,6 +97,7 @@ private:
 	void								Internal_Get_New_Beam(SegmentedLineClass ** beam_model,TimedDecorationPhysClass ** beam_wrapper);
 
 	RefMultiListClass<TimedDecorationPhysClass>	UnusedBeamList;
+	bool												IsShutdown = true;
 };
 
 static BeamEffectManagerClass _TheBeamEffectManager;
@@ -104,6 +105,8 @@ static BeamEffectManagerClass _TheBeamEffectManager;
 
 void	BeamEffectManagerClass::Shutdown( void )
 {
+	IsShutdown = true;
+
 	while (UnusedBeamList.Peek_Head()) {
 		UnusedBeamList.Release_Head();
 	}
@@ -173,6 +176,16 @@ void BeamEffectManagerClass::Create_Beam_Effect(const AmmoDefinitionClass * ammo
 
 void BeamEffectManagerClass::Object_Removed_From_Scene(PhysClass * observed_obj)
 {
+	/*
+	** Beams that were still in the scene when the manager shut down are removed
+	** after it, as the scene itself goes away, and every one of them reports in
+	** here.  Recycling those puts a reference on a list nothing will ever drain
+	** again, which is what used to bring the game down on the way out.
+	*/
+	if (IsShutdown) {
+		return;
+	}
+
 	/*
 	** One of the "beams" that we are observing expired and was removed from the scene so
 	** lets put it in the list for future re-use

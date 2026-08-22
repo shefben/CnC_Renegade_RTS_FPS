@@ -469,6 +469,17 @@ void SmartGameObj::Import_Frequent(BitStreamClass & packet)
 	//
 	ArmedGameObj::Import_Frequent(packet);
 
+	//
+	//	Cloaking used to be worked out on each machine from the object's
+	//	definition alone, so a unit a script cloaked or uncloaked mid-game
+	//	stayed as it started everywhere but the server.
+	//
+	bool stealth_enabled = false;
+	packet.Get(stealth_enabled);
+	if (stealth_enabled != StealthEnabled) {
+		Enable_Stealth(stealth_enabled);
+	}
+
    //
 	//	Don't import the controller if the player is controlling
 	// this object
@@ -500,6 +511,10 @@ void SmartGameObj::Export_Frequent(BitStreamClass & packet)
 	//	Send data from the base class to the client
 	//
 	ArmedGameObj::Export_Frequent(packet);
+
+	//	See Import_Frequent -- the client cannot work this out for itself
+	packet.Add(StealthEnabled);
+
 	Export_Control_Sc(packet);
 	return ;
 }

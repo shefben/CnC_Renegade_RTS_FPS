@@ -70,6 +70,17 @@
 #define MIN_FOV				0.02f
 #define MAX_FOV				2.6f
 
+/*
+**	The two ends of the sniper zoom, as fields of view.  MIN_FOV is what full
+**	zoom looks through and CCAMERA_ZOOM_DIVISOR is the unzoomed view, so the
+**	stock scope runs from 1x to 40x.  A weapon that names a scope of its own
+**	moves these; everything else leaves them alone.
+*/
+#define CCAMERA_ZOOM_DIVISOR	0.8f
+
+static float	_SniperZoomedInFOV	= MIN_FOV;
+static float	_SniperZoomedOutFOV	= CCAMERA_ZOOM_DIVISOR;
+
 #define CCAMERA_NEARZ						0.26f				// near clip plane distance
 #define CCAMERA_FARZ							300.0f			// far clip plane distance
 #define CCAMERA_SHRINK_NEARZ_DIST		0.5f				// third person distance below which we start shrinking nearz
@@ -167,13 +178,35 @@ void	CCameraProfileClass::Set_Zoom( float amount )
 {
 	amount = WWMath::Sqrt(amount);
 	amount = WWMath::Clamp( (1-amount), 0, 1 );
-	FOV = MIN_FOV + ((0.8f - MIN_FOV) * amount);
+	FOV = _SniperZoomedInFOV + ((_SniperZoomedOutFOV - _SniperZoomedInFOV) * amount);
 }
 
 float CCameraProfileClass::Get_Zoom( void )
 {
 	// TSS - by my reckoning this is the actual zoom factor
-	return 0.8f / FOV;
+	return CCAMERA_ZOOM_DIVISOR / FOV;
+}
+
+/*
+**	A scoped weapon may narrow or widen what the sniper camera reaches.  The
+**	arguments are magnification factors -- 1 is unzoomed -- and are turned into
+**	the two field-of-view endpoints Set_Zoom interpolates between.
+*/
+void	CCameraClass::Set_Sniper_Zoom_Range( float min_zoom, float max_zoom )
+{
+	if ( min_zoom <= 0 || max_zoom <= 0 ) {
+		Reset_Sniper_Zoom_Range();
+		return;
+	}
+
+	_SniperZoomedOutFOV	= WWMath::Clamp( CCAMERA_ZOOM_DIVISOR / min_zoom, MIN_FOV, MAX_FOV );
+	_SniperZoomedInFOV	= WWMath::Clamp( CCAMERA_ZOOM_DIVISOR / max_zoom, MIN_FOV, MAX_FOV );
+}
+
+void	CCameraClass::Reset_Sniper_Zoom_Range( void )
+{
+	_SniperZoomedInFOV	= MIN_FOV;
+	_SniperZoomedOutFOV	= CCAMERA_ZOOM_DIVISOR;
 }
 
 #define	Get_Camera_Profile_Radians( v, e )			\

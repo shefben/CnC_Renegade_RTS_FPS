@@ -52,6 +52,13 @@ public:
 	static	void 	Update( void );
 	static	void 	Render( void );
 
+	//
+	//	Draw this texture over the whole screen instead of the built-in
+	//	reticle.  A scoped weapon that names a scope of its own sets this on
+	//	select; nullptr puts the built-in reticle back.
+	//
+	static	void 	Set_Scope_Texture( const char * texture_name );
+
 private:
 	static	void 	Build_Base( void );
 };

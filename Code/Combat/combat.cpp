@@ -37,6 +37,7 @@
 #include "combat.h"
 #include "gameeventbus.h"
 #include "ccamera.h"
+#include "scopemgr.h"
 #include "gameobjmanager.h"
 #include "input.h"
 #include "weaponmanager.h"
@@ -180,6 +181,8 @@ void	CombatManager::Init( bool render_available )
 
 	CCameraClass::Init();
 
+	ScopeMgrClass::Init();
+
 	SurfaceEffectsManager::Init();
 
 	ObjectiveManager::Init();
@@ -250,6 +253,8 @@ void	CombatManager::Shutdown( void )
 	ObjectiveManager::Shutdown();
 
 	SurfaceEffectsManager::Shutdown();
+
+	ScopeMgrClass::Shutdown();
 
 	CCameraClass::Shutdown();
 

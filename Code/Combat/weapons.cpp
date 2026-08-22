@@ -58,6 +58,8 @@
 #include "crandom.h"
 #include "damage.h"
 #include "ccamera.h"
+#include "sniper.h"
+#include "scopemgr.h"
 #include "rbody.h"
 #include "timeddecophys.h"
 #include "wwphysids.h"
@@ -142,6 +144,7 @@ WeaponClass::WeaponClass( const WeaponDefinitionClass *def ) :
 	ContinuousEmitters( ),
 	ContinuousSound( nullptr ),
 	C4DetonationMode( 1 ),
+	HasScope( false ),
 	Target( 0, 0, 0 ),
 	FiringSound( nullptr ),
 	FiringSoundDefID( 0 ),
@@ -409,6 +412,8 @@ void	WeaponClass::Select( void )
 //	Debug_Say(( "Weapon Selected\n" ));
 	Set_State( STATE_START_SWITCH );
 	UpdateModel = WEAPON_MODEL_UPDATE_WILL_BE_NEEDED;
+
+	Apply_Scope();
 }
 
 void	WeaponClass::Deselect( void )
@@ -418,6 +423,40 @@ void	WeaponClass::Deselect( void )
 	IsSecondaryTriggered = false;
 	LastFrameIsPrimaryTriggered = false;
 	LastFrameIsSecondaryTriggered = false;
+
+	Remove_Scope();
+}
+
+/*
+**	A scoped weapon may bring its own reticle and its own zoom range.  Only
+**	the local player looks through the scope, so nobody else's selection
+**	touches the camera or the HUD.
+*/
+void	WeaponClass::Apply_Scope( void )
+{
+	if ( !Get_Can_Snipe() || Get_Owner() != CombatManager::Get_The_Star() ) {
+		return;
+	}
+
+	const ScopeMgrClass::ScopeClass *scope = ScopeMgrClass::Find( Get_Name() );
+	if ( scope == nullptr ) {
+		return;
+	}
+
+	SniperHUDClass::Set_Scope_Texture( scope->ScopeTexture );
+	CCameraClass::Set_Sniper_Zoom_Range( scope->MinZoom, scope->MaxZoom );
+	HasScope = true;
+}
+
+void	WeaponClass::Remove_Scope( void )
+{
+	if ( !HasScope ) {
+		return;
+	}
+
+	SniperHUDClass::Set_Scope_Texture( nullptr );
+	CCameraClass::Reset_Sniper_Zoom_Range();
+	HasScope = false;
 }
 
 void	WeaponClass::Next_C4_Detonation_Mode( void )
