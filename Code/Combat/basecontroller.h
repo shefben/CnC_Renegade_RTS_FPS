@@ -183,7 +183,7 @@ public:
 	//	Fund support
 	//
 	//void		Deposit_Funds (int funds);
-	void		Distribute_Funds_To_Each_Teammate (int funds);
+	void		Distribute_Funds_To_Each_Teammate (float funds);
 
 	//
 	//	Network support

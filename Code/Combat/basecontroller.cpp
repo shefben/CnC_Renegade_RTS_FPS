@@ -760,7 +760,7 @@ BaseControllerClass::Find_Building (BuildingConstants::BuildingType type)
 //
 ////////////////////////////////////////////////////////////////
 void
-BaseControllerClass::Distribute_Funds_To_Each_Teammate (int funds)
+BaseControllerClass::Distribute_Funds_To_Each_Teammate (float funds)
 {
 	//
 	//	Only let the server assign money
@@ -792,7 +792,7 @@ BaseControllerClass::Distribute_Funds_To_Each_Teammate (int funds)
 				//
 				//	Add the money to this player's total
 				//
-				player_data->Increment_Money (float(funds));
+				player_data->Increment_Money (funds);
 			}
 		}
 	}

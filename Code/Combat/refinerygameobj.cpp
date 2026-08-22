@@ -543,10 +543,15 @@ RefineryGameObj::Think (void)
 			//
 			//	Deposit the money in each team-member's account
 			//
-			int funds	= int(logical_seconds * FundsPerSecond);
-			funds			= std::min (funds, (int)TotalFunds);
+			//
+			//	A frame's worth of this is a fraction of a credit.  Truncating
+			//	it meant nothing was ever paid out here, and TotalFunds was
+			//	never drawn down, until the unload timer dumped the lot.
+			//
+			float funds	= logical_seconds * FundsPerSecond;
+			funds			= std::min (funds, (float)TotalFunds);
 			if (funds > 0) {
-				TotalFunds -= (float)funds;
+				TotalFunds -= funds;
 				//
 				// TSS100401
 				// Requested to give the Total Funds to all players, no division .
@@ -570,7 +575,7 @@ RefineryGameObj::Think (void)
 					// Requested to give the Total Funds to all players, no division .
 					//
 					//BaseController->Deposit_Funds (TotalFunds);
-					BaseController->Distribute_Funds_To_Each_Teammate (int(TotalFunds));
+					BaseController->Distribute_Funds_To_Each_Teammate (TotalFunds);
 					TotalFunds = 0;
 				}
 
@@ -604,7 +609,7 @@ RefineryGameObj::Think (void)
 				//
 				//	Deposit this money in their account
 				//
-				BaseController->Distribute_Funds_To_Each_Teammate ((int)funds);
+				BaseController->Distribute_Funds_To_Each_Teammate (funds);
 			}
 		}
 

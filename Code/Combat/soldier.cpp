@@ -446,14 +446,15 @@ void	SoldierGameObj::Copy_Settings( const SoldierGameObjDef & definition )
 	HumanState.Init( Peek_Human_Phys() );
 	HumanState.Set_Anim_Control( (HumanAnimControlClass *)Get_Anim_Control() );  // Must set the anim control after the phys object
 //HumanState.Set_Human_Anim_Override( "HAO Test" );
+	//
+	//	Both of these have to be cleared when the new definition does not name
+	//	one.  Copy_Settings is how a purchase re-dresses an existing soldier,
+	//	so leaving the old value in place meant a character bought after an
+	//	overridden one kept moving like the one before it.
+	//
 	EnableHumanAnimOverride = (Get_Definition().HumanAnimOverrideDefID != 0);
-	if ( EnableHumanAnimOverride ) {
-		HumanState.Set_Human_Anim_Override( Get_Definition().HumanAnimOverrideDefID );
-	}
-
-	if ( Get_Definition().HumanLoiterCollectionDefID != 0 ) {
-		HumanState.Set_Human_Loiter_Collection( Get_Definition().HumanLoiterCollectionDefID );
-	}
+	HumanState.Set_Human_Anim_Override( EnableHumanAnimOverride ? Get_Definition().HumanAnimOverrideDefID : 0 );
+	HumanState.Set_Human_Loiter_Collection( Get_Definition().HumanLoiterCollectionDefID );
 
 	//
 	//	The definition seeds the instance's skeleton size; from here on the

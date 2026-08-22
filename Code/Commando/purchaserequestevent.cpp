@@ -43,6 +43,7 @@
 #include "cnetwork.h"
 #include "networkobjectmgr.h"
 #include "gameobjmanager.h"
+#include "soldier.h"
 #include "vendor.h"
 #include "playertype.h"
 #include "purchaseresponseevent.h"
@@ -97,7 +98,16 @@ cPurchaseRequestEvent::Act(void)
 	VendorClass::PURCHASE_ERROR result = VendorClass::PERR_UNKNOWN;
 
 	WWASSERT(The_Game() != nullptr);
-	if (The_Game()->Is_Gameplay_Permitted())
+	if (soldier != nullptr && soldier->Get_Vehicle () != nullptr) {
+
+		//
+		//	A player in a vehicle is not standing at a terminal, whatever their
+		//	client says.  This request is server-authoritative, so it is
+		//	checked here rather than taken on trust.
+		//
+		result = VendorClass::PERR_NO_FACTORY;
+	}
+	else if (The_Game()->Is_Gameplay_Permitted())
 	{
 		//
 		//	Attempt to make the purchase
