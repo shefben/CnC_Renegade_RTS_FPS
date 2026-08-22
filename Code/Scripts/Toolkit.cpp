@@ -710,7 +710,7 @@ DECLARE_SCRIPT(M00_ChainRxn_Barrel_JDG, "Controller_ID :int")
 
 */
 
-DECLARE_SCRIPT (M00_Advanced_Guard_Tower, "")
+DECLARE_SCRIPT_MERGED (M00_Advanced_Guard_Tower, "")
 {
 	int missile_id;
 	int gun_01_id;
@@ -1974,7 +1974,7 @@ DECLARE_SCRIPT (M00_Damage_Modifier_DME, "Damage_multiplier:float, Star_Modifier
 };
 
 
-DECLARE_SCRIPT (M00_Base_Defense, "MinAttackDistance=0:int, MaxAttackDistance=300:int, AttackTimer=10:int")
+DECLARE_SCRIPT_MERGED (M00_Base_Defense, "MinAttackDistance=0:int, MaxAttackDistance=300:int, AttackTimer=10:int")
 {
 	int token_01_id;
 	int token_02_id;
@@ -2005,15 +2005,21 @@ DECLARE_SCRIPT (M00_Base_Defense, "MinAttackDistance=0:int, MaxAttackDistance=30
 		Vector3 token_02_pos = my_position;
 		Vector3 token_03_pos = my_position;
 
-		token_01_pos.X -= 10.0f;
-		token_01_pos.Y -= 10.0f;
+		//
+		//	The three points the turret looks at while idle, spaced evenly around
+		//	it.  Two of the three used to sit on the same side, so it spent its
+		//	idle time staring into one quarter of the map and swept the rest only
+		//	on its way past.
+		//
+		token_01_pos.X -= 5.0f;
+		token_01_pos.Y += 8.66025f;
 		token_01_pos.Z += 2.0f;
 
 		token_02_pos.X += 10.0f;
 		token_02_pos.Z += 2.0f;
 
-		token_03_pos.X += 10.0f;
-		token_03_pos.Y -= 10.0f;
+		token_03_pos.X -= 5.0f;
+		token_03_pos.Y -= 8.66025f;
 		token_03_pos.Z += 2.0f;
 
 		GameObject * token_01 = ScriptEngine::Create_Object ("Invisible_Object", token_01_pos);
@@ -2087,17 +2093,34 @@ DECLARE_SCRIPT (M00_Base_Defense, "MinAttackDistance=0:int, MaxAttackDistance=30
 
 	void Enemy_Seen (GameObject * obj, GameObject * enemy) override
 	{
+		//
+		//	Shoot the tank, not the man sitting in it.  Enemy_Seen names the
+		//	soldier, and a defence firing at a driver was aiming at something it
+		//	could not hit while the vehicle sat there unharmed.
+		//
+		GameObject * vehicle = ScriptEngine::Get_Vehicle (enemy);
+		if (vehicle != nullptr)
+		{
+			enemy = vehicle;
+		}
 
 		Vector3 my_loc = ScriptEngine::Get_Position (obj);
 		Vector3 enemy_loc = ScriptEngine::Get_Position (enemy);
 		float distance = ScriptEngine::Get_Distance (my_loc, enemy_loc);
-		if (distance > Get_Int_Parameter("MinAttackDistance") )
+		if (distance >= Get_Int_Parameter("MinAttackDistance") )
 		{
 			ActionParamsStruct params;
 			params.Set_Basic(this, 100, 2);
 			params.Set_Attack(enemy, float(Get_Int_Parameter("MaxAttackDistance")), 0.0f, true);
 			params.AttackCheckBlocked = false;
 			ScriptEngine::Action_Attack(obj, params);
+
+			//
+			//	Each sighting restarted the give-up timer without cancelling the
+			//	one already running, so an older timer would fire mid-burst and
+			//	reset the action against a target still in front of it.
+			//
+			ScriptEngine::Stop_Timer (obj, this, 2);
 			ScriptEngine::Start_Timer (obj, this, float(Get_Int_Parameter( "AttackTimer")), 2);
 		}
 	}

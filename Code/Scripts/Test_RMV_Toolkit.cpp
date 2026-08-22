@@ -498,7 +498,7 @@ DECLARE_SCRIPT(RMV_MCT_Switcher, "")
 	}
 };
 
-DECLARE_SCRIPT(M00_Play_Sound, "Sound_Preset:string, Is_3D=1:int, Offset:vector3, Offset_Randomness:vector3, Frequency_Min=-1:float, Frequency_Max:float")
+DECLARE_SCRIPT_MERGED(M00_Play_Sound, "Sound_Preset:string, Is_3D=1:int, Offset:vector3, Offset_Randomness:vector3, Frequency_Min=-1:float, Frequency_Max:float")
 {
 	void Created(GameObject * obj) override
 	{
@@ -545,8 +545,16 @@ DECLARE_SCRIPT(M00_Play_Sound, "Sound_Preset:string, Is_3D=1:int, Offset:vector3
 		{
 			if (Get_Int_Parameter("Frequency_Min") != -1)
 			{
-				float time = ScriptEngine::Get_Random(Get_Float_Parameter("Frequency_Min"), Get_Float_Parameter("Frequency_Max"));
-				ScriptEngine::Start_Timer(obj, this, time, 0);
+				//
+				//	One sound ending can be reported more than once, and each report
+				//	started another timer, so the sound sped up every time it played
+				//	until the copies were on top of each other.
+				//
+				if (!ScriptEngine::Has_Timer(obj, this, 0))
+				{
+					float time = ScriptEngine::Get_Random(Get_Float_Parameter("Frequency_Min"), Get_Float_Parameter("Frequency_Max"));
+					ScriptEngine::Start_Timer(obj, this, time, 0);
+				}
 			}
 		}
 	}

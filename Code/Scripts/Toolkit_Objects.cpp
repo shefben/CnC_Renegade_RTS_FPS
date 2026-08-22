@@ -442,11 +442,14 @@ DECLARE_SCRIPT(M00_Permanent_No_Falling_Damage_IML, "")
 	}
 };
 
-DECLARE_SCRIPT (M00_Disable_Transition, "")
+DECLARE_SCRIPT_MERGED (M00_Disable_Transition, "")
 {
 	void Created (GameObject * obj) override
 	{
 		ScriptEngine::Enable_Vehicle_Transitions (obj, false);
+
+		//	Nothing further to do, and staying attached costs an observer slot.
+		Destroy_Script ();
 	}
 };
 
@@ -566,12 +569,34 @@ DECLARE_SCRIPT(M00_Vehicle_Regen_DAK, "" )
 	}
 };
 
-DECLARE_SCRIPT(M00_PCT_Pokable_DAK, "" )
+DECLARE_SCRIPT_MERGED(M00_PCT_Pokable_DAK, "" )
 {
 	void Created ( GameObject *obj ) override
 	{
 		ScriptEngine::Enable_HUD_Pokable_Indicator( obj, true );
 		ScriptEngine::Display_Health_Bar( obj, false );
+	}
+
+	//
+	//	A purchase terminal is scenery, not a target.  Anyone could shoot one
+	//	off the wall and leave the building with no way to buy anything for the
+	//	rest of the map, which is why it heals what it takes and puts itself
+	//	back if it is destroyed anyway.
+	//
+	void Damaged ( GameObject *obj, GameObject * /*damager*/, float /*amount*/ ) override
+	{
+		ScriptEngine::Set_Health( obj, ScriptEngine::Get_Max_Health( obj ) );
+		ScriptEngine::Set_Shield_Strength( obj, ScriptEngine::Get_Max_Shield_Strength( obj ) );
+	}
+
+	void Killed ( GameObject *obj, GameObject * /*killer*/ ) override
+	{
+		GameObject * replacement = ScriptEngine::Create_Object(
+				ScriptEngine::Get_Preset_Name( obj ), ScriptEngine::Get_Position( obj ) );
+		if (replacement != nullptr)
+		{
+			ScriptEngine::Set_Facing( replacement, ScriptEngine::Get_Facing( obj ) );
+		}
 	}
 };
 

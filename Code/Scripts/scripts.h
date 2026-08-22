@@ -192,6 +192,11 @@ private:
 	REGISTER_SCRIPT(x, d) \
 	class x : public ScriptImpClass
 
+// Same, for a stock script carrying the 4.8.4 corrections.
+#define	DECLARE_SCRIPT_MERGED(x, d) \
+	REGISTER_SCRIPT_MERGED(x, d) \
+	class x : public ScriptImpClass
+
 // Load / Save Macros
 #define SAVE_BEGIN()
 #define SAVE_DATA(id, var) ScriptEngine::Save_Data(saver, id, sizeof(var), &var)

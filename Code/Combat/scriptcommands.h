@@ -169,6 +169,8 @@ namespace ScriptEngine
 
 	// Timers
 	void Start_Timer ( GameObject * obj, ScriptClass * script, float duration, int timer_id );
+	void Stop_Timer ( GameObject * obj, ScriptClass * script, int timer_id );
+	bool Has_Timer ( GameObject * obj, ScriptClass * script, int timer_id );
 
 	// Weapons
 	void Trigger_Weapon ( GameObject * obj, bool trigger, const Vector3 & target, bool primary = true );
@@ -214,6 +216,8 @@ namespace ScriptEngine
 	void Set_Shield_Strength ( GameObject * obj, float strength );
 	void Set_Shield_Type ( GameObject * obj, const char * name );
 	int Get_Player_Type ( GameObject * obj );
+	GameObject * Get_Vehicle ( GameObject * obj );
+	bool Is_Harvester ( GameObject * obj );
 	void Set_Player_Type ( GameObject * obj, int type );
 
 	// Math

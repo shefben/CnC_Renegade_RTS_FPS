@@ -36,6 +36,7 @@
 ******************************************************************************/
 
 #include "scripts.h"
+#include "vehicle.h"
 #include "Toolkit.h"
 #include "Mission10.h"
 
@@ -1126,11 +1127,23 @@ DECLARE_SCRIPT(M10_Obelisk, "")
 	}
 };
 
-DECLARE_SCRIPT(M10_Turret, "")
+DECLARE_SCRIPT_MERGED(M10_Turret, "")
 {
 	void Created(GameObject * obj) override
 	{
 		ScriptEngine::Enable_Enemy_Seen(obj, true);
+
+	//
+	//	A turret placed by a designer starts aiming wherever its turret bone
+	//	happens to rest, not where the gun is pointing, so its first shot came
+	//	after a swing from an arbitrary direction.  Aim it along its own muzzle.
+	//
+		VehicleGameObj * vehicle = obj->As_VehicleGameObj ();
+		if (vehicle != nullptr)
+		{
+			Vector3 aim = vehicle->Get_Muzzle (0).Get_X_Vector ();
+			vehicle->Set_Targeting (ScriptEngine::Get_Position (obj) + (aim * 100.0f));
+		}
 	}
 
 	void Enemy_Seen(GameObject * obj, GameObject * enemy) override

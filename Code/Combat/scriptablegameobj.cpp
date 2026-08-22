@@ -618,6 +618,34 @@ void	ScriptableGameObj::Start_Observer_Timer( int observer_id, float duration, i
 	ObserverTimerList.Add( new GameObjObserverTimerClass( observer_id, duration, timer_id ) );
 }
 
+//
+//	A script that restarts a timer it may already have running ends up with two,
+//	and the older one fires early against the newer one's intent.  Asking
+//	whether a timer is pending, and being able to drop it, is what keeps a
+//	repeating script from stacking itself.
+//
+void	ScriptableGameObj::Stop_Observer_Timer( int observer_id, int timer_id )
+{
+	for ( int index = ObserverTimerList.Count() - 1; index >= 0; index-- ) {
+		GameObjObserverTimerClass * timer = ObserverTimerList[ index ];
+		if ( timer->ObserverID == observer_id && timer->TimerID == timer_id ) {
+			delete timer;
+			ObserverTimerList.Delete( index );
+		}
+	}
+}
+
+bool	ScriptableGameObj::Has_Observer_Timer( int observer_id, int timer_id ) const
+{
+	for ( int index = 0; index < ObserverTimerList.Count(); index++ ) {
+		const GameObjObserverTimerClass * timer = ObserverTimerList[ index ];
+		if ( timer->ObserverID == observer_id && timer->TimerID == timer_id ) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void	ScriptableGameObj::Start_Custom_Timer( ScriptableGameObj * from, float delay, int type, int param )
 {
 	CustomTimerList.Add( new GameObjCustomTimerClass( from, delay, type, param ) );

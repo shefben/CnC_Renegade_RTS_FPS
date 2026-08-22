@@ -45,4 +45,10 @@ class	ScriptRegistrant : public ScriptFactoryClass
 	class x; \
 	ScriptRegistrant<x> _## x ##Registrant(#x, d);
 
+// A stock script name the 4.8.4 package also defined.  There is one
+// implementation -- the merged one -- and this is how the catalog says so.
+#define REGISTER_SCRIPT_MERGED(x, d) \
+	class x; \
+	ScriptRegistrant<x> _## x ##Registrant(#x, d, SCRIPT_SOURCE_STOCK_MERGED);
+
 #endif // _SCRIPTREGISTRANT_H_

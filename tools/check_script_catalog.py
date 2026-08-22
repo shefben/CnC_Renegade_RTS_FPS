@@ -14,10 +14,10 @@ import sys
 
 #	class Foo : public ScriptImpClass, declared through the DECLARE_SCRIPT
 #	macro -- the class name is the registered name.
-DECLARE = re.compile(r'\bDECLARE_SCRIPT\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
+DECLARE = re.compile(r'\bDECLARE_SCRIPT(?:_MERGED)?\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
 
 #	the same registration without a class body
-REGISTER = re.compile(r'\bREGISTER_SCRIPT\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
+REGISTER = re.compile(r'\bREGISTER_SCRIPT(?:_MERGED)?\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
 
 #	the raw template form, where the string literal is the registered name and
 #	need not equal the class name
@@ -109,6 +109,25 @@ def blank_if_zero(text):
     return '\n'.join(lines)
 
 
+def in_macro(lines, line):
+    """True when this line is part of a `#define` body.
+
+    The registration macros expand a script name, so their own text reads
+    exactly like a registration of a script called `x`.  A continuation line
+    is not a `#define` line itself, so walk back over the trailing
+    backslashes to find out whether one started it.
+    """
+    index = line - 1
+    if lines[index].lstrip().startswith('#define'):
+        return True
+
+    while index > 0 and lines[index - 1].rstrip().endswith('\\'):
+        index -= 1
+        if lines[index].lstrip().startswith('#define'):
+            return True
+
+    return False
+
 def scan(root):
     found = {}
     for dirpath, _dirnames, filenames in os.walk(root):
@@ -128,7 +147,7 @@ def scan(root):
                     line = text.count('\n', 0, match.start()) + 1
 
                     #	the macro definitions themselves are not registrations
-                    if lines[line - 1].lstrip().startswith('#define'):
+                    if in_macro(lines, line):
                         continue
 
                     found.setdefault(script.lower(), []).append(

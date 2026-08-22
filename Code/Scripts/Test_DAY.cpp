@@ -193,13 +193,16 @@ DECLARE_SCRIPT (DAY_VTOL_CircleAttack, "")
 };
 
 
-DECLARE_SCRIPT (M00_GrantPowerup_Created, "WeaponDef:string")
+DECLARE_SCRIPT_MERGED (M00_GrantPowerup_Created, "WeaponDef:string")
 {
 
 	void Created( GameObject *obj) override
 	{
 		const char *Weapon = Get_Parameter( "WeaponDef" );
 		ScriptEngine::Give_PowerUp( obj, Weapon, false );
+
+		//	The grant happens once; there is nothing left to observe.
+		Destroy_Script ();
 	}
 
 };

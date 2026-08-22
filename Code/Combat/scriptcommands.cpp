@@ -74,6 +74,7 @@
 #include "animcontrol.h"
 #include "playerdata.h"
 #include "building.h"
+#include "basecontroller.h"
 #include "scriptzone.h"
 #include "hud.h"
 #include "backgroundmgr.h"
@@ -592,6 +593,21 @@ void	Start_Timer( GameObject * obj, ScriptClass * script, float duration, int ti
 	SCRIPT_PTR_CHECK( script );
 	SCRIPT_TRACE((	"ST>Start_Timer( %d, %d, %f, %d )\n", obj->Get_ID(), script->Get_ID(), duration, timer_id ));
 	obj->Start_Observer_Timer( script->Get_ID(), duration, timer_id );
+}
+
+void	Stop_Timer( GameObject * obj, ScriptClass * script, int timer_id )
+{
+	SCRIPT_PTR_CHECK( obj );
+	SCRIPT_PTR_CHECK( script );
+	SCRIPT_TRACE((	"ST>Stop_Timer( %d, %d, %d )\n", obj->Get_ID(), script->Get_ID(), timer_id ));
+	obj->Stop_Observer_Timer( script->Get_ID(), timer_id );
+}
+
+bool	Has_Timer( GameObject * obj, ScriptClass * script, int timer_id )
+{
+	SCRIPT_PTR_CHECK_RET( obj, false );
+	SCRIPT_PTR_CHECK_RET( script, false );
+	return obj->Has_Observer_Timer( script->Get_ID(), timer_id );
 }
 
 
@@ -1315,6 +1331,43 @@ void	Set_Shield_Type( GameObject * obj, const char * name )
 	dgobj->Get_Defense_Object()->Set_Shield_Type( ArmorWarheadManager::Get_Armor_Type( name ) );
 }
 
+
+//
+//	The vehicle a soldier is driving, if any.  A base defence that fires at
+//	the man rather than the tank he is sitting in is aiming at the wrong
+//	thing, and that is what this is for.
+//
+GameObject *	Get_Vehicle( GameObject * obj )
+{
+	SCRIPT_PTR_CHECK_RET( obj, nullptr );
+
+	SoldierGameObj * soldier = obj->As_SoldierGameObj();
+	if ( soldier == nullptr ) {
+		return nullptr;
+	}
+
+	return soldier->Get_Vehicle();
+}
+
+//
+//	Whether this is a team's harvester.  Automated defences leave it alone:
+//	shooting the harvester is a player's decision, not a turret's.
+//
+bool	Is_Harvester( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return false;
+	}
+
+	for ( int team = 0; team < 2; team++ ) {
+		BaseControllerClass * base = BaseControllerClass::Find_Base( team );
+		if ( base != nullptr && base->Get_Harvester_Vehicle() == obj ) {
+			return true;
+		}
+	}
+
+	return false;
+}
 
 int	Get_Player_Type( GameObject * obj )
 {

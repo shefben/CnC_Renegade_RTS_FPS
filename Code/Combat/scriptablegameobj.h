@@ -143,6 +143,8 @@ public:
 
 	// Timers
 	void	Start_Observer_Timer( int observer_id, float duration, int timer_id );
+	void	Stop_Observer_Timer( int observer_id, int timer_id );
+	bool	Has_Observer_Timer( int observer_id, int timer_id ) const;
 	void	Start_Custom_Timer( ScriptableGameObj * from, float delay, int type, int param );
 
 	// Type identification

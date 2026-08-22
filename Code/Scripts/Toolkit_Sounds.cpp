@@ -917,7 +917,12 @@ DECLARE_SCRIPT (M00_BuildingStateSoundSpeaker, "Sound_Normal:string,Sound_Destro
 	}
 };
 
-DECLARE_SCRIPT (M00_BuildingStateSoundController, "BuildingSpeaker_ID:int")
+//
+//	Reconciled against the 4.8.4 implementation of this name, which turned
+//	out to be the same script: same events, same parameters, same order.
+//	Nothing to take from it, and the name is settled either way.
+//
+DECLARE_SCRIPT_MERGED (M00_BuildingStateSoundController, "BuildingSpeaker_ID:int")
 {
 
 	int object_from;

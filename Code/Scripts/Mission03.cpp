@@ -36,6 +36,7 @@
 ******************************************************************************/
 
 #include "scripts.h"
+#include "vehicle.h"
 #include "Toolkit.h"
 #include <string.h>
 #include <stdio.h>
@@ -681,7 +682,7 @@ DECLARE_SCRIPT(M03_Objective_Controller, "")  //1100004
 	}
 };
 
-DECLARE_SCRIPT(RMV_Test_Big_Gun_Turning, "")
+DECLARE_SCRIPT_MERGED(RMV_Test_Big_Gun_Turning, "")
 {
 	int count;
 	bool gunboat_warned;
@@ -694,11 +695,23 @@ DECLARE_SCRIPT(RMV_Test_Big_Gun_Turning, "")
 		SAVE_VARIABLE( cine, 3 );
 	}
 
-	void Created(GameObject * /*obj*/) override
+	void Created(GameObject * obj) override
 	{
 		cine = false;
 		count = 0;
 		gunboat_warned = false;
+
+	//
+	//	A turret placed by a designer starts aiming wherever its turret bone
+	//	happens to rest, not where the gun is pointing, so its first shot came
+	//	after a swing from an arbitrary direction.  Aim it along its own muzzle.
+	//
+		VehicleGameObj * vehicle = obj->As_VehicleGameObj ();
+		if (vehicle != nullptr)
+		{
+			Vector3 aim = vehicle->Get_Muzzle (0).Get_X_Vector ();
+			vehicle->Set_Targeting (ScriptEngine::Get_Position (obj) + (aim * 100.0f));
+		}
 	}
 
 	void Killed(GameObject * obj, GameObject * /*killer*/) override
