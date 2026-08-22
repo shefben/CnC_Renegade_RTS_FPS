@@ -908,6 +908,14 @@ void VehicleGameObj::Export_Rare( BitStreamClass &packet )
 	packet.Add( AllowStealthWhileEmpty );
 	packet.Add( CanBeStolen );
 	packet.Add( LockTeam );
+
+	//
+	//	A soldier's weapons go over the wire; a vehicle's never did, so a
+	//	weapon granted to one server-side -- by a powerup or a script -- left
+	//	every client still holding the vehicle's original weapon.
+	//
+	WWASSERT( Get_Weapon_Bag() != nullptr );
+	Get_Weapon_Bag()->Export_Weapon_List( packet );
 }
 
 void VehicleGameObj::Import_Rare( BitStreamClass &packet )
@@ -967,6 +975,10 @@ void VehicleGameObj::Import_Rare( BitStreamClass &packet )
 	packet.Get( AllowStealthWhileEmpty );
 	packet.Get( CanBeStolen );
 	packet.Get( LockTeam );
+
+	//	See Export_Rare
+	WWASSERT( Get_Weapon_Bag() != nullptr );
+	Get_Weapon_Bag()->Import_Weapon_List( packet );
 }
 
 

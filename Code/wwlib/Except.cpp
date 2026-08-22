@@ -64,7 +64,9 @@
 #include <limits>
 
 #include	<conio.h>
-#include	<imagehlp.h>
+//	dbghelp.h supersedes imagehlp.h and defines the minidump types as well;
+//	including both redefines every structure they share.
+#include	<dbghelp.h>
 #include <crtdbg.h>
 #include	<stdio.h>
 #include <cinttypes>
@@ -820,6 +822,78 @@ void Dump_Exception_Info(EXCEPTION_POINTERS *e_info)
  * HISTORY:                                                                                    *
  *    7/22/97 12:29PM ST : Created                                                              *
  *=============================================================================================*/
+/***********************************************************************************************
+ * Write_Mini_Dump -- Save a crash dump a debugger can open                                    *
+ *                                                                                             *
+ * The hand-rolled _except.txt beside this is a stack walk and a register dump, which is all    *
+ * that could be done at the time.  A minidump carries the whole thread state and the loaded    *
+ * module list, so a crash report from a player can be opened against the matching symbols.     *
+ *                                                                                             *
+ * dbghelp.dll is resolved at run time so nothing has to link against it.                       *
+ *=============================================================================================*/
+typedef BOOL (WINAPI *MiniDumpWriteDumpType)(HANDLE, DWORD, HANDLE, MINIDUMP_TYPE,
+														PMINIDUMP_EXCEPTION_INFORMATION,
+														PMINIDUMP_USER_STREAM_INFORMATION,
+														PMINIDUMP_CALLBACK_INFORMATION);
+
+static void Write_Mini_Dump(EXCEPTION_POINTERS *e_info)
+{
+	if (e_info == nullptr) {
+		return;
+	}
+
+	HINSTANCE dbghelp = LoadLibraryA("DBGHELP.DLL");
+	if (dbghelp == nullptr) {
+		return;
+	}
+
+	MiniDumpWriteDumpType write_dump =
+		reinterpret_cast<MiniDumpWriteDumpType>(GetProcAddress(dbghelp, "MiniDumpWriteDump"));
+
+	if (write_dump != nullptr) {
+
+		char path[MAX_PATH];
+		GetCurrentDirectoryA(MAX_PATH, path);
+
+		char folder[MAX_PATH];
+		_snprintf(folder, sizeof(folder), "%s\\debug", path);
+		folder[sizeof(folder)-1] = 0;
+		CreateDirectoryA(folder, nullptr);
+
+		SYSTEMTIME time;
+		GetLocalTime(&time);
+
+		char filename[MAX_PATH];
+		_snprintf(filename, sizeof(filename), "%s\\crashdump.%04u%02u%02u-%02u%02u%02u.dmp",
+					folder, time.wYear, time.wMonth, time.wDay,
+					time.wHour, time.wMinute, time.wSecond);
+		filename[sizeof(filename)-1] = 0;
+
+		HANDLE dump_file = CreateFileA(filename, GENERIC_READ | GENERIC_WRITE,
+												FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+												CREATE_ALWAYS, FILE_FLAG_WRITE_THROUGH, nullptr);
+
+		if (dump_file != INVALID_HANDLE_VALUE) {
+
+			MINIDUMP_EXCEPTION_INFORMATION exception_param;
+			exception_param.ThreadId			= GetCurrentThreadId();
+			exception_param.ExceptionPointers	= e_info;
+			exception_param.ClientPointers		= FALSE;
+
+			const MINIDUMP_TYPE type = (MINIDUMP_TYPE)(MiniDumpWithDataSegs |
+																	MiniDumpWithIndirectlyReferencedMemory);
+
+			write_dump(GetCurrentProcess(), GetCurrentProcessId(), dump_file,
+						type, &exception_param, nullptr, nullptr);
+
+			CloseHandle(dump_file);
+		}
+	}
+
+	FreeLibrary(dbghelp);
+}
+
+
 int Exception_Handler(int exception_code, EXCEPTION_POINTERS *e_info)
 {
 	DebugString("Exception!\n");
@@ -863,6 +937,11 @@ int Exception_Handler(int exception_code, EXCEPTION_POINTERS *e_info)
 		** Create a dump of the exception info.
 		*/
 		Dump_Exception_Info(e_info);
+
+		/*
+		** And a minidump, which a debugger can open against the symbols.
+		*/
+		Write_Mini_Dump(e_info);
 
 		/*
 		** Log the machine state to disk
