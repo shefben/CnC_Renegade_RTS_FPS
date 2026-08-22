@@ -166,15 +166,19 @@
 
 void	ConsoleFunctionClass::Print( const char *format, ... )
 {
+	//
+	//	The text is already formatted, so it goes through as an argument
+	//	rather than as a format string of its own.
+	//
 	va_list arg_list;
 	va_start (arg_list, format);
 	StringClass string;
 	string.Format_Args( format, arg_list );
 	if (Get_Text_Display()) {
 		WWASSERT( Get_Text_Display() );
-		Get_Text_Display()->Print_System( string );
+		Get_Text_Display()->Print_System( "%s", string.Peek_Buffer() );
 	}
-	ConsoleBox.Print(string.Peek_Buffer());
+	ConsoleBox.Print("%s", string.Peek_Buffer());
 	va_end (arg_list);
 }
 
@@ -3399,6 +3403,32 @@ public:
 	}
 };
 
+/*
+**	Mirror console output to a log monitor watching from another machine.
+*/
+class RenLogMonConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name( void ) override	{ return "rlmon"; }
+	virtual	const char * Get_Help( void ) override	{ return "RLMON <a.b.c.d:port> - mirror console output to a log monitor."; }
+	virtual	void Activate( const char * input ) override {
+		if ( ConsoleModeClass::Set_Log_Monitor( input ) ) {
+			Print( "RenLogMon is on, sending to %s\n", input );
+		} else {
+			Print( "Invalid input to RLMON -- expected a.b.c.d:port\n" );
+		}
+	}
+};
+
+class RenLogMonOffConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name( void ) override	{ return "rlmonoff"; }
+	virtual	const char * Get_Help( void ) override	{ return "RLMONOFF - stop mirroring console output."; }
+	virtual	void Activate( const char * /* input */ ) override {
+		ConsoleModeClass::Set_Log_Monitor( nullptr );
+		Print( "RenLogMon is off\n" );
+	}
+};
+
 class ExtrasConsoleFunctionClass : public ConsoleFunctionClass {
 public:
 	virtual	const char * Get_Name( void ) override	{ return "extras"; }
@@ -5163,6 +5193,8 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new ScreenUVBiasConsoleFunctionClass() );
 	FunctionList.Add( new SetBandwidthBudgetOutConsoleFunctionClass() );
 	FunctionList.Add( new ToggleSortingConsoleFunctionClass() );
+	FunctionList.Add( new RenLogMonConsoleFunctionClass() );
+	FunctionList.Add( new RenLogMonOffConsoleFunctionClass() );
 	FunctionList.Add( new ExtrasConsoleFunctionClass() );  /// CHEATS? MAY NEED TO BE DEV ONLY!!!!
 	FunctionList.Add( new EditVehicleConsoleFunctionClass() );
 	FunctionList.Add( new NetUpdateRateConsoleFunctionClass() );
@@ -5481,8 +5513,8 @@ void	ConsoleFunctionManager::Print( const char *format, ... )
 	string.Format_Args( format, arg_list );
 	if (Get_Text_Display()) {
 		WWASSERT( Get_Text_Display() );
-		Get_Text_Display()->Print_System( string );
+		Get_Text_Display()->Print_System( "%s", string.Peek_Buffer() );
 	}
-	ConsoleBox.Print(string.Peek_Buffer());
+	ConsoleBox.Print("%s", string.Peek_Buffer());
 	va_end (arg_list);
 }

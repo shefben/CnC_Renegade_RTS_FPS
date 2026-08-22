@@ -58,10 +58,14 @@ void	CombatNetworkReceiverInstanceClass::Print( const char *format, ... )
 	StringClass string;
 	string.Format_Args( format, arg_list );
 
-	ConsoleBox.Print_Maybe(string);
+	//
+	//	The text is already formatted, so it goes through as an argument
+	//	rather than as a format string of its own.
+	//
+	ConsoleBox.Print_Maybe("%s", string.Peek_Buffer());
 	if (!ConsoleBox.Is_Exclusive()) {
 		WWASSERT( Get_Text_Display() );
-		Get_Text_Display()->Print_System( string );
+		Get_Text_Display()->Print_System( "%s", string.Peek_Buffer() );
 	}
 	va_end (arg_list);
 }

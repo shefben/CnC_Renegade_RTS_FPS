@@ -61,6 +61,68 @@
 ConsoleModeClass ConsoleBox;
 
 /*
+** Where console output is mirrored to, if anywhere.  See Set_Log_Monitor.
+*/
+#define	RENLOGMON_CONFIG_FILENAME	"rlmon.cfg"
+
+static sockaddr_in	_LogMonitorAddress;
+static SOCKET			_LogMonitorSocket = INVALID_SOCKET;
+
+
+bool ConsoleModeClass::Is_Log_Monitor_On(void)
+{
+	return _LogMonitorAddress.sin_addr.s_addr != 0;
+}
+
+
+bool ConsoleModeClass::Set_Log_Monitor(const char *address)
+{
+	if (address == nullptr || *address == 0) {
+		memset(&_LogMonitorAddress, 0, sizeof(_LogMonitorAddress));
+		return true;
+	}
+
+	unsigned int a = 0, b = 0, c = 0, d = 0, port = 0;
+	if (sscanf(address, "%u.%u.%u.%u:%u", &a, &b, &c, &d, &port) != 5) {
+		return false;
+	}
+	if (a > 255 || b > 255 || c > 255 || d > 255 || port == 0 || port > 65535) {
+		return false;
+	}
+
+	memset(&_LogMonitorAddress, 0, sizeof(_LogMonitorAddress));
+	_LogMonitorAddress.sin_family			= AF_INET;
+	_LogMonitorAddress.sin_port				= htons((unsigned short)port);
+	_LogMonitorAddress.sin_addr.s_addr	= a | (b << 8) | (c << 16) | (d << 24);
+
+	if (_LogMonitorSocket == INVALID_SOCKET) {
+		_LogMonitorSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	}
+
+	return true;
+}
+
+
+void ConsoleModeClass::Read_Log_Monitor_Config(void)
+{
+	FILE *file = fopen(RENLOGMON_CONFIG_FILENAME, "rt");
+	if (file == nullptr) {
+		return;
+	}
+
+	char line[128] = "";
+	if (fgets(line, sizeof(line), file) != nullptr) {
+		char *end = line + strlen(line);
+		while (end > line && (end[-1] == '\r' || end[-1] == '\n' || end[-1] == ' ')) {
+			*--end = 0;
+		}
+		Set_Log_Monitor(line);
+	}
+
+	fclose(file);
+}
+
+/*
 ** Console title bar text
 */
 #define MASTER_TITLE_BASE "Renegade Master Server"
@@ -135,6 +197,8 @@ ConsoleModeClass::~ConsoleModeClass(void)
  *=============================================================================================*/
 void ConsoleModeClass::Init(void)
 {
+	Read_Log_Monitor_Config();
+
 	if (ConsoleOutputHandle == INVALID_HANDLE_VALUE) {
 
 		/*
@@ -392,7 +456,16 @@ void ConsoleModeClass::Print_Maybe(char const * string, ...)
  *=============================================================================================*/
 void ConsoleModeClass::Static_Print_Maybe(char const * string, ...)
 {
-	ConsoleBox.Print_Maybe(string);
+	//	The arguments used to be dropped here, leaving the format string to be
+	//	printed with whatever happened to be on the stack.
+	char buffer[8192];
+
+	va_list va;
+	va_start(va, string);
+	u_vsnprintf_n(buffer, sizeof(buffer), string, va);
+	va_end(va);
+
+	ConsoleBox.Print_Maybe("%s", buffer);
 }
 
 
@@ -512,6 +585,14 @@ void ConsoleModeClass::Log_To_Disk(const char *string)
 	//	rather than the print itself.
 	//
 	GameEventBus::Raise_Console_Output(string);
+
+	//
+	//	And out to the log monitor, if one has been pointed at us.
+	//
+	if (_LogMonitorSocket != INVALID_SOCKET && _LogMonitorAddress.sin_addr.s_addr != 0) {
+		sendto(	_LogMonitorSocket, string, (int)strlen(string) + 1, 0,
+					(const sockaddr *)&_LogMonitorAddress, sizeof(_LogMonitorAddress));
+	}
 
 	if (ConsoleOutputHandle != INVALID_HANDLE_VALUE) {
 		if (ServerSettingsClass::Get_Disk_Log_Size() > 0) {

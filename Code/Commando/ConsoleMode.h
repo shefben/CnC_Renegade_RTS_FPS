@@ -96,6 +96,15 @@ class ConsoleModeClass
 		** File logging.
 		*/
 		void Log_To_Disk(const char *string);
+
+		//
+		//	Mirror everything the console prints to a UDP listener -- a log
+		//	monitor watching a dedicated server from another machine.  The
+		//	address is "a.b.c.d:port"; nullptr or an empty string turns it off.
+		//
+		static bool Set_Log_Monitor(const char *address);
+		static bool Is_Log_Monitor_On(void);
+		static void Read_Log_Monitor_Config(void);
 		const char *Get_Log_File_Name(void);
 
 	private:
