@@ -278,6 +278,7 @@ public:
 	//	Informational
 	//
 	void											Find_Closest_Poly (const Vector3 &pos, float *distance2);
+	BuildingAggregateClass *				Find_MCT (void);
 
 protected:
 
