@@ -126,97 +126,94 @@ been hiding:
 
 ---
 
-## 4. What remains of Phase 4
+## 4. Where Phase 4 stands
 
-The stock half is done. The donor half is not, and is blocked on work that
-belongs to earlier phases.
+**The stock half is done. The thirteen replacements are done. The in-scope
+donor-only library is not.**
 
-**Done.** The registry itself; the provenance and alias fields; the OBJECT
-library; generate-time and startup duplicate detection; `Create_Script` and
-script destruction through the registry; save/load compatibility;
-`add_dependencies(combat scripts)` removed; `ScriptManager::Init` no longer
-loads a DLL; the editor on the same catalog; the `ScriptCommands` table deleted
-with no facade left behind.
+### 4.1 The thirteen replacements — closed
 
-**Outstanding.**
+Every script name that both catalogs define now has exactly one implementation,
+the merged one, registered through `DECLARE_SCRIPT_MERGED` so the catalog can
+say so. The list and what each donor side corrected is in
+`TTParityMatrix.md` 3.1, which also records why the membership of that list
+changed: the extractor that first produced it did not blank comments, so it
+counted a parked registrant and missed `M00_Nod_Obelisk_CnC`.
 
-- **The 13 replacements** (matrix §3.1) — script names the donor defines that
-  the stock catalog also defines. Each needs the donor implementation merged
-  into the canonical script and the stock one deleted, then registered as
-  `SCRIPT_SOURCE_STOCK_MERGED`. `agtfix.cpp` and the `M00_*` cluster in
-  `jfwws.cpp` are behaviour corrections, so the donor side wins.
+Six engine capabilities landed behind them, none of them TT-specific:
+`Stop_Timer`, `Has_Timer`, `Get_Vehicle`, `Is_Harvester`,
+`Find_Nearest_Preset`, and `Get_Player_Type`/`Set_Player_Type` widened from
+`PhysicalGameObj` to `DamageableGameObj` -- asking a building which team owned
+it used to answer Nod and log a complaint, which is why anything driven by a
+building had its team written into the script.
 
-  **1 of 13 merged.** `M00_Advanced_Guard_Tower` (`agtfix.cpp`): the four gun
-  mounts are corners of the tower, so their offsets belong to the building's
-  own frame; stock added them unrotated, which only produced the right result
-  for a tower at facing zero. The facing has to come off the MCT — the
-  controller is a `BuildingGameObj`, which derives from `DamageableGameObj`,
-  not `PhysicalGameObj`, so it has no transform and `Get_Facing` returns zero.
-  That path also carries the donor's height correction. `Killed` told the guns
-  the tower was dead and left them standing; they are destroyed now.
+One thing did not land. `Test_Cinematic`'s fourth new command, `Show_Message`,
+writes a coloured line into every player's chat, and a script cannot say that:
+the message classes live in `Code/Commando`, and `Code/Scripts` does not link
+it -- the editor builds the same sources as `scriptse` without Commando at all.
+It is the same seam that blocked the powerup-grant sound in Phase 3. See 4.3.
 
-  Not taken from that one: the optional `MissileDef`/`GunDef` weapon override
-  needs `Grant_Weapon`, and the gun target test excludes harvesters via
-  `Is_Harvester`. `Is_Harvester` has portable source; `Grant_Weapon` does not.
-  See below.
+### 4.2 The in-scope donor library -- 861 scripts, 25 files
 
-- **The in-scope donor scripts** (matrix §3.2, narrowed) — these compile
-  against the donor's own engine SDK (`scripts/engine_*.h`).
+Scope, set by the user: only the original TT script library is ported, not the
+community gameplay-mode packs. That is `jfw*.cpp` (17), `gm*.cpp` (4),
+`agtfix.cpp`, `obelfix.cpp` and `dan.cpp` -- 25 files, 873 registrations, of
+which the 13 above are already absorbed. The 44 remaining files and 1259
+registrations (`jmg*`, `renalert*`, `ra2`, `reborn`, `scud`, `survival`,
+`ms*`, `dp88_*`, `DB*`, and the rest) are mod and alternate-game-mode content
+and are out of scope; none of it corrects stock behaviour, so directive 0.4
+does not reach it.
 
-  **Scope, set by the user: only the original TT script library is ported. The
-  community gameplay-mode packs are not.** TT 4.8.4 ships one general-purpose
-  script library plus a large body of third-party mod content that happens to
-  live in the same tree under the same licence header, so the licence banner
-  does not separate them — the file does.
+**What porting them actually costs, measured rather than estimated.**
+`tools/tt484/apigap.py` counts every engine call the 25 files make and asks
+whether the canonical engine can already answer it.
+`tools/tt484/apigap_tsv.py` writes the same result per name to
+`docs/tt484/TTScriptApiGap.tsv`.
 
-  | | Files | Scripts |
-  | --- | --- | --- |
-  | **In scope** — `jfw*.cpp` (17), `gm*.cpp` (4), `agtfix.cpp`, `obelfix.cpp`, `dan.cpp` | 24 | **874** |
-  | **Out of scope** — mod and gameplay-mode packs | 44 | 1259 |
+| | Names | Calls |
+| --- | --- | --- |
+| **Already answerable** -- `Commands->X` where `ScriptEngine::X` exists | 154 | **6740** |
+| Free SDK functions with portable source in `engine_*.cpp` | 129 | 1241 |
+| Free SDK functions needing engine work | 35 | 188 |
+| Blocked on per-client delivery (4.3) | 22 | 270 |
+| N/A -- plugin hooks (directive 0.5) | 22 | 26 |
+| N/A -- `REF_DECL` data binding | 1 | 5 |
 
-  In scope is the library a stock level actually references: the `jfw*` core
-  (Jonathan Wilson's successor to Westwood's `scripts.dll`), TT's own game
-  manager (`gm*`), and the two named stock fixes. All 13 replacements above are
-  inside it (`jfwws.cpp` 7, `jfwobj.cpp` 3, `agtfix.cpp`, `jfwcine.cpp`,
-  `jfwdef.cpp`), so the donor-only remainder is **861**.
+**All 148 `Commands->` methods these files call already exist in
+`ScriptEngine`.** That is the headline: the 6599 `Commands->X(...)` call sites
+are a mechanical rename, not a port. This is a large correction to what this
+document previously recorded -- it said the SDK's binding to the closed binary
+made the bulk of the work wait on Phases 2 and 3. It does not. What is left is
+1241 calls to functions whose source is right there in `engine_*.cpp`, and 188
+calls to 35 functions that need writing.
 
-  Out of scope is everything written for a specific mod or alternate game mode:
-  the `jmg*` packs (`jmgUtility.cpp` alone is 464 scripts and 19,468 lines),
-  `renalert*`/`ra2`/`ra_legacy` (Red Alert), `reborn`, `scud`, `survival`,
-  `JmgDeathMatch`, `ms`/`ms_ai`, `dp88_*`, `DB*`, `sh_*`, `kak`, `tda`, `mdb*`,
-  `neo`, `nh`/`nhp`, `shawk`, `kamuix`, `unstoppable`, `iran_scripts`,
-  `cAMpaScripts`, `xpert`, `straw`, `coltest`, `gap`, `tfx`. None of it is a
-  correction to stock behaviour, so directive 0.4 does not reach it — there is
-  no superseded OpenW3D path to retire.
+The plugin-hook family (`AddChatHook`, `AddPlayerJoinHook`, `AddThinkHook` and
+the rest, 22 names, 26 calls) is declined under directive 0.5. Natively the
+same notifications come off the event bus; see `NativeEventDispatch.md`.
 
-  Counts produced by `tools/check_script_catalog.py`'s parser, which blanks
-  comments and disabled blocks, so parked registrations are not counted.
+### 4.3 The one real blocker: a script cannot address one client
 
-  **Correction.** This document previously said that SDK "binds to the closed
-  binary through `REF_DEF2`/`REF_DECL2`" and so had to wait on Phase 2 and
-  Phase 3 entirely. That overstates it. The SDK declares 690 functions across
-  20 headers, and the split is lopsided:
+Twenty-two names and 270 calls -- `Create_2D_Sound_Team`, `Send_Message_Player`,
+`Create_2D_WAV_Sound_Player`, `Set_HUD_Help_Text_Player`,
+`Set_Screen_Fade_Color_Player`, `Force_Camera_Look_Player` and the rest -- all
+want the same thing: say something to one player, or to one team, rather than
+to everyone. 4.8.4 does it by writing a line onto its scripts text channel,
+which directive 0.5 declines.
 
-  | | Count | Where |
-  | --- | --- | --- |
-  | Declared with portable C++ source in `engine_*.cpp` | **406** | 18 of the 20 headers |
-  | `SCRIPTS_API extern` — a pointer resolved into the closed binary, no source | **284** | `engine_tt.h` alone |
+Natively that means a network event, and network event classes live in
+`Code/Commando`. `Code/Combat` does not reference `Code/Commando` and
+`Code/Scripts` does not link it, so neither the engine's script interface nor a
+script can raise one. This is the third time the same seam has come up (the
+powerup-grant sound in Phase 3, `Show_Message` above, and this), which makes it
+a real architectural item rather than an inconvenience: it belongs to Phase 5,
+and it gates roughly a sixth of the donor library.
 
-  Every other header — `engine_obj.h`, `engine_game.h`, `engine_weap.h`,
-  `engine_player.h`, `engine_dmg.h` and the rest — has **zero** extern
-  bindings. Their implementations are ordinary code: `Get_Object_Type` is four
-  lines around `DamageableGameObj::Get_Player_Type`, `Is_Harvester` compares
-  against each base's harvester vehicle. The implemented units carry only 22
-  `REF_DEF`/`REF_DECL` data bindings between them.
+### 4.4 Registry size
 
-  So the blocker is narrower than recorded: **`engine_tt.h`'s 284 externs**,
-  not the SDK. The 406 with source can be ported natively without waiting on
-  anything, and doing so is what unblocks the bulk of the 861.
-
-  The registry is ready for them: provenance `SCRIPT_SOURCE_TT`, and the
-  checker already recognises the registration form they use.
-
-Registry size when both land: 1640 + 13 + 861, no duplicate names. The 1259
-out-of-scope registrations are not counted and not ported; if a mod pack is ever
-wanted it re-enters through the same registry with provenance
-`SCRIPT_SOURCE_TT`, needing no change here.
+1639 built-in scripts today, no duplicate names -- one fewer than the 1640 this
+document used to quote, because the checker was counting the registration
+macros themselves as a script called `x`; it skips macro bodies now. Adding the
+861 donor-only in-scope scripts takes it to 2500. The 1259 out-of-scope
+registrations are not counted and not ported; if a mod pack is ever wanted it
+re-enters through the same registry with provenance `SCRIPT_SOURCE_TT`,
+needing no change here.

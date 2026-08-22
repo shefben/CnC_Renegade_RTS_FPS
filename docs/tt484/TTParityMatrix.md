@@ -217,31 +217,44 @@ Full TT catalog: `docs/tt484/TTScriptCatalog.txt`.
 
 **Phase 4 registry size: 1734 + 13 + 2142 = 3889 scripts**, with no duplicate names.
 
-### 3.1 The 13 replacements
+### 3.1 The 13 replacements — MERGED
 
-Each requires the TT implementation merged into the canonical script and the stock
-implementation deleted. Directives 0.4/0.5 forbid keeping both, and forbid any
-`StockFoo`/`TTFoo` pair or runtime selector.
+Each needed the 4.8.4 implementation merged into the canonical script and the
+stock one deleted. Directives 0.4/0.5 forbid keeping both, and forbid any
+`StockFoo`/`TTFoo` pair or runtime selector. All thirteen are done; each
+registers through `DECLARE_SCRIPT_MERGED`, so the catalog answers which
+implementation of a name is live.
 
-| Script | TT source | Stock source |
-| --- | --- | --- |
-| `Dr_Mobius_Script` | `scripts/jfwws.cpp` | `Code/Scripts/` |
-| `M00_Advanced_Guard_Tower` | `scripts/agtfix.cpp` | `Code/Scripts/` |
-| `M00_Base_Defense` | `scripts/jfwdef.cpp` | `Code/Scripts/` |
-| `M00_BuildingStateSoundController` | `scripts/jfwws.cpp` | `Code/Scripts/` |
-| `M00_BuildingStateSoundSpeaker` | `scripts/jfwws.cpp` | `Code/Scripts/` |
-| `M00_Disable_Transition` | `scripts/jfwws.cpp` | `Code/Scripts/` |
-| `M00_GrantPowerup_Created` | `scripts/jfwws.cpp` | `Code/Scripts/` |
-| `M00_PCT_Pokable_DAK` | `scripts/jfwws.cpp` | `Code/Scripts/` |
-| `M00_Play_Sound` | `scripts/jfwws.cpp` | `Code/Scripts/` |
-| `M08_Nod_Turret` | `scripts/jfwobj.cpp` | `Code/Scripts/mission08.cpp` |
-| `M10_Turret` | `scripts/jfwobj.cpp` | `Code/Scripts/Mission10.cpp` |
-| `RMV_Test_Big_Gun_Turning` | `scripts/jfwobj.cpp` | `Code/Scripts/Mission03.cpp` |
-| `Test_Cinematic` | `scripts/jfwcine.cpp` | `Code/Scripts/` |
+> **Correction, 2026-08-22.** The membership below is not the list this section
+> carried before. The extractor that produced it did not blank comments, so it
+> counted `M00_BuildingStateSoundSpeaker`, whose donor registrant is commented
+> out (`jfwws.cpp:734`) — 4.8.4 does not replace that name. It also missed
+> `M00_Nod_Obelisk_CnC` in `obelfix.cpp`, which the canonical catalog spells
+> `M00_Nod_Obelisk_CNC`; the registry matches case-insensitively, so the two
+> collide. Recounted with the generate-time checker's own parser
+> (`tools/check_script_catalog.py`), the count is still 13.
 
-`agtfix.cpp` is named as a fix for the stock Advanced Guard Tower, and the `M00_*`
-cluster in `jfwws.cpp` replaces stock building-state sound and powerup behavior.
-These are behavior corrections, not cosmetic renames — Phase 4 must take the TT side.
+| Script | 4.8.4 source | Canonical owner | What the donor corrected |
+| --- | --- | --- | --- |
+| `Dr_Mobius_Script` | `scripts/jfwws.cpp` | `DrMobius.cpp` | Held the followed soldier by raw pointer, which outlives him and then matches whatever reuses the memory; not saved either |
+| `M00_Advanced_Guard_Tower` | `scripts/agtfix.cpp` | `Toolkit.cpp` | Gun offsets unrotated, so only correct at facing zero; guns left standing after the tower died |
+| `M00_Base_Defense` | `scripts/jfwdef.cpp` | `Toolkit.cpp` | Fired at the driver rather than the vehicle; stacked its give-up timer; two of three idle-look points on the same side |
+| `M00_BuildingStateSoundController` | `scripts/jfwws.cpp` | `Toolkit_Sounds.cpp` | Nothing — the donor implementation is the same script |
+| `M00_Disable_Transition` | `scripts/jfwws.cpp` | `Toolkit_Objects.cpp` | Stayed attached after its one action |
+| `M00_GrantPowerup_Created` | `scripts/jfwws.cpp` | `Test_DAY.cpp` | Same |
+| `M00_Nod_Obelisk_CnC` | `scripts/obelfix.cpp` | `Toolkit.cpp` | Beam fired at what it could not see, at the dead, at the harvester, and at the ground under a soldier; did not turn while charging; team hardcoded Nod |
+| `M00_PCT_Pokable_DAK` | `scripts/jfwws.cpp` | `Toolkit_Objects.cpp` | A purchase terminal could be shot off the wall for the rest of the map |
+| `M00_Play_Sound` | `scripts/jfwws.cpp` | `Test_RMV_Toolkit.cpp` | Started another timer on every sound-ended report, so the sound sped up |
+| `M08_Nod_Turret` | `scripts/jfwobj.cpp` | `mission08.cpp` | No initial targeting: first shot came after a swing from an arbitrary direction |
+| `M10_Turret` | `scripts/jfwobj.cpp` | `Mission10.cpp` | Same |
+| `RMV_Test_Big_Gun_Turning` | `scripts/jfwobj.cpp` | `Mission03.cpp` | Same |
+| `Test_Cinematic` | `scripts/jfwcine.cpp` | `Test_Cinematic.cpp` | Four control commands missing; three added, `Show_Message` blocked (see `NativeScriptRegistry.md` 4) |
+
+Six engine capabilities came in behind them, all of them ordinary engine
+questions the stock catalog never had to ask: `Stop_Timer`, `Has_Timer`,
+`Get_Vehicle`, `Is_Harvester`, `Find_Nearest_Preset`, and `Get_Player_Type` /
+`Set_Player_Type` widened from `PhysicalGameObj` to `DamageableGameObj` so a
+building can be asked which team owns it.
 
 ### 3.2 Where TT scripts live
 
