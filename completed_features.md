@@ -668,3 +668,41 @@ The `remove call to ...` rows, `nop out WWPhys::Shutdown call`, `stop FDS from
 loading at startup`, `unload level hook` and TT's `Start_Application` all exist
 so a DLL loaded into a running exe can re-run initialisers under its own
 control. Natively those initialisers stay put and read the merged settings.
+
+## P04-C: the thirteen replacements are merged
+
+Every script name that both the stock catalog and the 4.8.4 package define now
+has one implementation -- the corrected one -- registered through the new
+`DECLARE_SCRIPT_MERGED`. Absorbs the whole of the P04-C backlog item ("For
+stock scripts modified/replaced by TT, merge TT changes into the canonical
+source"). Turret aiming, base-defence targeting, the obelisk beam, a purchase
+terminal that could be shot off the wall, a sound that sped up as it repeated,
+a follow target held by dangling pointer, and three cinematic control commands.
+`93359877`, `86294db5`.
+
+## P04-C1: six engine capabilities behind them
+
+`Stop_Timer`, `Has_Timer`, `Get_Vehicle`, `Is_Harvester`, `Find_Nearest_Preset`,
+and `Get_Player_Type`/`Set_Player_Type` widened from `PhysicalGameObj` to
+`DamageableGameObj` so a building can be asked which team owns it. Clearing an
+animation now stops it as well as unbinding it. The catalog checker no longer
+counts the registration macros themselves as a script called `x`, which is why
+the count reads 1639 rather than 1640. `93359877`, `86294db5`.
+
+## P04-D: the cost of the donor half, measured
+
+`tools/tt484/apigap.py` and `apigap_tsv.py` count every engine call the 25
+in-scope files make; `docs/tt484/TTScriptApiGap.tsv` carries the per-name
+result. All 148 `Commands->` methods they use already exist in `ScriptEngine`,
+so 6740 of their calls are a rename; 1241 more call SDK functions whose source
+sits in `engine_*.cpp`; 188 need engine work; 270 are blocked on one thing.
+This supersedes the earlier record that the SDK's closed-binary binding gated
+the bulk of it. `8a34cec0`.
+
+## N/A: the plugin hook family in the in-scope donor library
+
+`AddChatHook`, `AddPlayerJoinHook`, `AddThinkHook` and nineteen more (26 calls
+across the 25 files) exist so a binary plugin can install a callback into a
+running exe, which directive 0.5 forbids. Natively the same notifications come
+off `GameEventBus`; see `docs/tt484/NativeEventDispatch.md`. The five `REF_DECL`
+data bindings go the same way.

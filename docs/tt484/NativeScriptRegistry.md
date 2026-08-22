@@ -197,16 +197,29 @@ Twenty-two names and 270 calls -- `Create_2D_Sound_Team`, `Send_Message_Player`,
 `Create_2D_WAV_Sound_Player`, `Set_HUD_Help_Text_Player`,
 `Set_Screen_Fade_Color_Player`, `Force_Camera_Look_Player` and the rest -- all
 want the same thing: say something to one player, or to one team, rather than
-to everyone. 4.8.4 does it by writing a line onto its scripts text channel,
-which directive 0.5 declines.
+to everyone. `Grant_Refill` and `Test_Cinematic`'s `Show_Message` want it too,
+and so did the powerup-grant sound in Phase 3. 4.8.4 does it by writing a line
+onto its scripts text channel, which directive 0.5 declines.
 
-Natively that means a network event, and network event classes live in
-`Code/Commando`. `Code/Combat` does not reference `Code/Commando` and
-`Code/Scripts` does not link it, so neither the engine's script interface nor a
-script can raise one. This is the third time the same seam has come up (the
-powerup-grant sound in Phase 3, `Show_Message` above, and this), which makes it
-a real architectural item rather than an inconvenience: it belongs to Phase 5,
-and it gates roughly a sixth of the donor library.
+Natively it means a network event or a purchase-side call, and both live in
+`Code/Commando`: `cScTextObj`, `VendorClass::Grant_Supplies`. `Code/Combat`
+does not reference `Code/Commando`, and `Code/Scripts` does not link it -- the
+editor builds the same sources as `scriptse` without Commando at all -- so
+neither the engine's script interface nor a script can reach them.
+
+**The tree already has the shape of the answer.** `GameEventBus`
+(`Code/Combat/gameeventbus.h`) is declared in Combat and its listeners are
+registered by Commando; that is exactly the direction needed, and
+`GameEventBus::Raise_Refill` already crosses it, only the other way round --
+Commando raises, listeners observe. What is missing is a channel Combat raises
+and Commando *acts on*: `ScriptEngine::Send_Message_Player(...)` raises,
+a Commando-side listener installed at startup builds the `cScTextObj`. The
+editor registers no listener, so the call is a no-op there, which is the right
+answer for a tool with no clients.
+
+That makes this a Phase 4 item and not a Phase 5 one. It is the first thing to
+build, because it unblocks about a sixth of the donor library and closes the
+Phase 3 powerup sound at the same time.
 
 ### 4.4 Registry size
 

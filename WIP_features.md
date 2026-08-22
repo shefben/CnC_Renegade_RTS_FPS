@@ -5,21 +5,27 @@ Detail lives in `docs/`.
 
 ---
 
-## P04: native stock + TT script registry
+## P04: the 4.8.4 script library, natively
 
-The stock half is complete (P04-A, P04-B). Absorbs the three remaining backlog
-lines: "Compile unchanged stock scripts only when TT does not supersede them",
-"For stock scripts modified/replaced by TT, merge TT changes into the canonical
-source" and "Compile TT-only new scripts as additional canonical scripts". The
-donor half is now scoped to the original TT library only (P04-E): 861 donor-only
-scripts across 24 files, not 2142. The 13 script names the donor redefines are 1
-of 13 merged (P04-C, `M00_Advanced_Guard_Tower`), and all 13 sit inside that
-scope. The remainder is less blocked than recorded (P04-D): 406 of the SDK's 690
-functions have portable source, and all 284 closed-binary bindings sit in
-`engine_tt.h` alone. Next exact action: merge the remaining 12 replacements
-listed in `TTParityMatrix.md` 3.1 -- the `M00_*` cluster in `jfwws.cpp` is the
-largest group -- taking the donor side, and register each as
-`SCRIPT_SOURCE_STOCK_MERGED`.
+The stock half, the registry and all thirteen replacements are done (P04-A,
+P04-B, P04-C, P04-C1 in `completed_features.md`). What is left is the in-scope
+donor-only library: 861 scripts across 25 files, absorbing the backlog lines
+"Compile unchanged stock scripts only when TT does not supersede them" and
+"Compile TT-only new scripts as additional canonical scripts". Their cost is
+now measured rather than guessed (P04-D): the engine can already answer 6740 of
+their calls, 1241 more need SDK functions whose source exists, and 270 are
+blocked on one thing -- a script cannot address a single client or team.
+
+Next exact action: build that one thing first. Add a `GameEventBus` channel
+Commando *acts on* rather than observes -- `ScriptEngine::Send_Message_Player`
+and its siblings raise it, a listener registered by Commando at startup builds
+the `cScTextObj` or calls `VendorClass::Grant_Supplies`, and the editor
+registers nothing so the call is a no-op there. See
+`docs/tt484/NativeScriptRegistry.md` 4.3. It closes `Show_Message`,
+`Grant_Refill`, the 270 per-client calls and the Phase 3 powerup-grant sound
+together. Then port the 129 portable SDK functions into `ScriptEngine` and
+convert the 25 files, smallest first (`jfwpow.cpp` is 163 lines and 13
+scripts), registering each as `SCRIPT_SOURCE_TT`.
 
 ---
 
