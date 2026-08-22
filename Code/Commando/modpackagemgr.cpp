@@ -433,7 +433,14 @@ ModPackageMgrClass::Load_Current_Mod (void)
 		return ;
 	}
 
-	FileFactoryListClass::Get_Instance ()->Remove_Temp_FileFactory ();
+	//
+	//	Remove_Temp_FileFactory hands back the factory it detached and does not
+	//	own it afterwards.  Dropping it here leaked the previous mod's whole
+	//	mix file factory on every switch; Unload_Current_Mod already knew that.
+	//
+	FileFactoryClass *previous = FileFactoryListClass::Get_Instance ()->Remove_Temp_FileFactory ();
+	delete previous;
+
 	FileFactoryListClass::Get_Instance ()->Add_Temp_FileFactory (new MixFileFactoryClass (CurrentPackage.Get_Package_Filename (), _TheFileFactory));
 	return ;
 }
