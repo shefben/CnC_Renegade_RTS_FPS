@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "building-assembly.schema.json",
+  "title": "Commander Building Assembly",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "displayName",
+    "team",
+    "sourcePrefix",
+    "coordinateSpace",
+    "models",
+    "gameplayObjects",
+    "anchors"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "displayName": { "type": "string", "minLength": 1 },
+    "team": { "enum": ["GDI", "Nod"] },
+    "sourcePrefix": { "type": "string", "minLength": 1 },
+    "coordinateSpace": { "const": "building_local" },
+    "models": {
+      "type": "object",
+      "required": [
+        "shell",
+        "buildingAggregates",
+        "animatedParts",
+        "specialParts",
+        "stateVariants",
+        "authoringOnly"
+      ],
+      "properties": {
+        "shell": { "$ref": "#/$defs/modelPartArray" },
+        "buildingAggregates": { "$ref": "#/$defs/modelPartArray" },
+        "animatedParts": { "$ref": "#/$defs/modelPartArray" },
+        "specialParts": { "$ref": "#/$defs/modelPartArray" },
+        "stateVariants": { "$ref": "#/$defs/modelPartArray" },
+        "authoringOnly": { "$ref": "#/$defs/modelPartArray" }
+      },
+      "additionalProperties": false
+    },
+    "gameplayObjects": {
+      "type": "object",
+      "required": ["proxySources", "notes"],
+      "properties": {
+        "proxySources": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "\\.w3d$" }
+        },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "anchors": {
+      "type": "object",
+      "required": [
+        "purchaseTerminals",
+        "masterControlTerminals",
+        "infantrySpawns",
+        "vehicleSpawns",
+        "vehicleExits",
+        "repairZones"
+      ],
+      "properties": {
+        "purchaseTerminals": { "type": "array" },
+        "masterControlTerminals": { "type": "array" },
+        "infantrySpawns": { "type": "array" },
+        "vehicleSpawns": { "type": "array" },
+        "vehicleExits": { "type": "array" },
+        "repairZones": { "type": "array" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "vector3": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "number" },
+        { "type": "number" },
+        { "type": "number" }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "modelPart": {
+      "type": "object",
+      "required": ["id", "kind", "model", "position", "rotationDegrees", "loadByDefault"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "pattern": "\\.w3d$" },
+        "position": { "$ref": "#/$defs/vector3" },
+        "rotationDegrees": { "$ref": "#/$defs/vector3" },
+        "loadByDefault": { "type": "boolean" },
+        "behavior": { "type": "string" },
+        "replaces": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "modelPartArray": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/modelPart" }
+    }
+  }
+}

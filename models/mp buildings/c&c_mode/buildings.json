@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "assemblies": [
+    {
+      "id": "gdi_advanced_guard_tower",
+      "manifest": "data/buildings/gdi/mgagd/building.json"
+    },
+    {
+      "id": "gdi_barracks",
+      "manifest": "data/buildings/gdi/mgbar/building.json"
+    },
+    {
+      "id": "gdi_construction_yard",
+      "manifest": "data/buildings/gdi/mgcon/building.json"
+    },
+    {
+      "id": "gdi_power_plant",
+      "manifest": "data/buildings/gdi/mgpwr/building.json"
+    },
+    {
+      "id": "gdi_refinery",
+      "manifest": "data/buildings/gdi/mgref/building.json"
+    },
+    {
+      "id": "gdi_repair_facility",
+      "manifest": "data/buildings/gdi/mgrep/building.json"
+    },
+    {
+      "id": "gdi_weapons_factory",
+      "manifest": "data/buildings/gdi/mgwep/building.json"
+    },
+    {
+      "id": "nod_airstrip",
+      "manifest": "data/buildings/nod/mnatr/building.json"
+    },
+    {
+      "id": "nod_construction_yard",
+      "manifest": "data/buildings/nod/mncon/building.json"
+    },
+    {
+      "id": "nod_hand_of_nod",
+      "manifest": "data/buildings/nod/mnhnd/building.json"
+    },
+    {
+      "id": "nod_obelisk",
+      "manifest": "data/buildings/nod/mnobl/building.json"
+    },
+    {
+      "id": "nod_power_plant",
+      "manifest": "data/buildings/nod/mnpwr/building.json"
+    },
+    {
+      "id": "nod_refinery",
+      "manifest": "data/buildings/nod/mnref/building.json"
+    },
+    {
+      "id": "nod_repair_facility",
+      "manifest": "data/buildings/nod/mnrep/building.json"
+    },
+    {
+      "id": "nod_sam_site",
+      "manifest": "data/buildings/nod/mnsam/building.json"
+    },
+    {
+      "id": "nod_shrine",
+      "manifest": "data/buildings/nod/mnshn/building.json"
+    },
+    {
+      "id": "nod_turret",
+      "manifest": "data/buildings/nod/mntur/building.json"
+    }
+  ]
+}

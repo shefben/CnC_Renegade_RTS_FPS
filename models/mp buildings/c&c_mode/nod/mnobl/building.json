@@ -1,0 +1,254 @@
+{
+  "$schema": "../../building-assembly.schema.json",
+  "schemaVersion": 1,
+  "id": "nod_obelisk",
+  "displayName": "Nod Obelisk of Light",
+  "team": "Nod",
+  "sourcePrefix": "mnobl",
+  "coordinateSpace": "building_local",
+  "models": {
+    "shell": [
+      {
+        "id": "exterior",
+        "kind": "exterior",
+        "model": "data/buildings/nod/mnobl/mnobl_ext.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      },
+      {
+        "id": "interior",
+        "kind": "interior",
+        "model": "data/buildings/nod/mnobl/mnobl_int.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      }
+    ],
+    "buildingAggregates": [
+      {
+        "id": "aggregate_1",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnobl/MNobl_ag_1.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_2",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnobl/MNobl_ag_2.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_3",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnobl/MNobl_ag_3.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      }
+    ],
+    "animatedParts": [
+      {
+        "id": "doors",
+        "kind": "doorSet",
+        "model": "data/buildings/nod/mnobl/mnobl_doors.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "DoorPhys"
+      }
+    ],
+    "specialParts": [
+      {
+        "id": "blocker",
+        "kind": "blocker",
+        "model": "data/buildings/nod/mnobl/blck.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "notes": "Source role is ambiguous; inspect compiled collision flags before enabling."
+      }
+    ],
+    "stateVariants": [
+      {
+        "id": "exterior_night",
+        "kind": "nightVariant",
+        "model": "data/buildings/nod/mnobl/mnobl_ext_n.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "replaces": "exterior"
+      },
+      {
+        "id": "aggregate_3_night",
+        "kind": "nightVariant",
+        "model": "data/buildings/nod/mnobl/MNobl_ag_3n.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "replaces": "aggregate_3"
+      }
+    ],
+    "authoringOnly": [
+      {
+        "id": "interior_temp",
+        "kind": "temporarySource",
+        "model": "data/buildings/nod/mnobl/mnobl_int_tmp.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      },
+      {
+        "id": "vis",
+        "kind": "visibilityHelper",
+        "model": "data/buildings/nod/mnobl/mnobl_vis.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      },
+      {
+        "id": "visx",
+        "kind": "visibilityHelper",
+        "model": "data/buildings/nod/mnobl/mnobl_visx.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      },
+      {
+        "id": "temporary_ground",
+        "kind": "temporarySource",
+        "model": "data/buildings/nod/mnobl/tmp_ground.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      }
+    ]
+  },
+  "gameplayObjects": {
+    "proxySources": [
+      "data/buildings/nod/mnobl/mnobl_int.w3d",
+      "data/buildings/nod/mnobl/MNobl_ag_2.w3d",
+      "data/buildings/nod/mnobl/MNobl_ag_3.w3d"
+    ],
+    "notes": "The Obelisk weapon controller and target origin require a gameplay preset/anchor in addition to these models."
+  },
+  "anchors": {
+    "purchaseTerminals": [],
+    "masterControlTerminals": [],
+    "infantrySpawns": [],
+    "vehicleSpawns": [],
+    "vehicleExits": [],
+    "repairZones": []
+  }
+}

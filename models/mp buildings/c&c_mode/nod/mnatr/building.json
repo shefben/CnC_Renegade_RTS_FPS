@@ -1,0 +1,255 @@
+{
+  "$schema": "../../building-assembly.schema.json",
+  "schemaVersion": 1,
+  "id": "nod_airstrip",
+  "displayName": "Nod Airstrip",
+  "team": "Nod",
+  "sourcePrefix": "mnatr",
+  "coordinateSpace": "building_local",
+  "models": {
+    "shell": [
+      {
+        "id": "exterior",
+        "kind": "exterior",
+        "model": "data/buildings/nod/mnatr/mnatr_ext.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      },
+      {
+        "id": "interior",
+        "kind": "interior",
+        "model": "data/buildings/nod/mnatr/mnatr_int.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      }
+    ],
+    "buildingAggregates": [
+      {
+        "id": "aggregate_1",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnatr/MNatr_ag_1.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_2",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnatr/MNatr_ag_2.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_3",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnatr/MNatr_ag_3.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_4",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnatr/MNatr_ag_4.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      }
+    ],
+    "animatedParts": [
+      {
+        "id": "doors",
+        "kind": "doorSet",
+        "model": "data/buildings/nod/mnatr/mnatr_doors.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "DoorPhys"
+      },
+      {
+        "id": "lift",
+        "kind": "elevator",
+        "model": "data/buildings/nod/mnatr/mnatr_lift.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "ElevatorPhys"
+      },
+      {
+        "id": "production_strip",
+        "kind": "vehicleProductionAnimation",
+        "model": "data/buildings/nod/mnatr/mnatr_strip.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "StaticAnimPhys"
+      }
+    ],
+    "specialParts": [
+      {
+        "id": "strip_visual",
+        "kind": "productionVisual",
+        "model": "data/buildings/nod/mnatr/strip_vis.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      },
+      {
+        "id": "tower_lights",
+        "kind": "lights",
+        "model": "data/buildings/nod/mnatr/tower_lghts.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      },
+      {
+        "id": "tower_visual",
+        "kind": "towerVisual",
+        "model": "data/buildings/nod/mnatr/tower_vis.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      }
+    ],
+    "stateVariants": [],
+    "authoringOnly": [
+      {
+        "id": "interior_temp",
+        "kind": "temporarySource",
+        "model": "data/buildings/nod/mnatr/mnatr_int_tmp.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      }
+    ]
+  },
+  "gameplayObjects": {
+    "proxySources": [
+      "data/buildings/nod/mnatr/mnatr_int.w3d",
+      "data/buildings/nod/mnatr/MNatr_ag_2.w3d",
+      "data/buildings/nod/mnatr/MNatr_ag_3.w3d",
+      "data/buildings/nod/mnatr/MNatr_ag_4.w3d",
+      "data/buildings/nod/mnatr/mnatr_strip.w3d"
+    ],
+    "notes": "Vehicle delivery, spawn, and exit anchors must be extracted from the compiled strip/proxy data before gameplay use."
+  },
+  "anchors": {
+    "purchaseTerminals": [],
+    "masterControlTerminals": [],
+    "infantrySpawns": [],
+    "vehicleSpawns": [],
+    "vehicleExits": [],
+    "repairZones": []
+  }
+}

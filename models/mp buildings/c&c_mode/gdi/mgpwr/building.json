@@ -1,0 +1,225 @@
+{
+  "$schema": "../../building-assembly.schema.json",
+  "schemaVersion": 1,
+  "id": "gdi_power_plant",
+  "displayName": "GDI Power Plant",
+  "team": "GDI",
+  "sourcePrefix": "mgpwr",
+  "coordinateSpace": "building_local",
+  "models": {
+    "shell": [
+      {
+        "id": "exterior",
+        "kind": "exterior",
+        "model": "data/buildings/gdi/mgpwr/mgpwr_ext.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      },
+      {
+        "id": "interior",
+        "kind": "interior",
+        "model": "data/buildings/gdi/mgpwr/mgpwr_int.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      }
+    ],
+    "buildingAggregates": [
+      {
+        "id": "aggregate_1",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/gdi/mgpwr/MGpwr_ag_1.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_2",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/gdi/mgpwr/MGpwr_ag_2.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_3",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/gdi/mgpwr/MGpwr_ag_3.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_4",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/gdi/mgpwr/MGpwr_ag_4.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      }
+    ],
+    "animatedParts": [
+      {
+        "id": "doors",
+        "kind": "doorSet",
+        "model": "data/buildings/gdi/mgpwr/mgpwr_doors.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "DoorPhys"
+      }
+    ],
+    "specialParts": [
+      {
+        "id": "mct_model",
+        "kind": "mctModel",
+        "model": "data/buildings/gdi/mgpwr/mct.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "behavior": "BuildingAggregate",
+        "notes": "Standalone source model; use only if the compiled aggregate proxies do not already supply the building MCT."
+      }
+    ],
+    "stateVariants": [
+      {
+        "id": "exterior_night",
+        "kind": "nightVariant",
+        "model": "data/buildings/gdi/mgpwr/mgpwr_ext_n.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "replaces": "exterior"
+      },
+      {
+        "id": "aggregate_3_night",
+        "kind": "nightVariant",
+        "model": "data/buildings/gdi/mgpwr/MGpwr_ag_3n.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "replaces": "aggregate_3"
+      }
+    ],
+    "authoringOnly": [
+      {
+        "id": "interior_temp",
+        "kind": "temporarySource",
+        "model": "data/buildings/gdi/mgpwr/mgpwr_int_temp.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      }
+    ]
+  },
+  "gameplayObjects": {
+    "proxySources": [
+      "data/buildings/gdi/mgpwr/mgpwr_int.w3d",
+      "data/buildings/gdi/mgpwr/MGpwr_ag_2.w3d",
+      "data/buildings/gdi/mgpwr/MGpwr_ag_3.w3d",
+      "data/buildings/gdi/mgpwr/MGpwr_ag_4.w3d"
+    ],
+    "notes": "The interior and aggregate sources contain PT/MCT proxy naming. Preserve those proxies when compiling and prefer their transforms over hand-authored guesses."
+  },
+  "anchors": {
+    "purchaseTerminals": [],
+    "masterControlTerminals": [],
+    "infantrySpawns": [],
+    "vehicleSpawns": [],
+    "vehicleExits": [],
+    "repairZones": []
+  }
+}

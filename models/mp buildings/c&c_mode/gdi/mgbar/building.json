@@ -1,0 +1,220 @@
+{
+  "$schema": "../../building-assembly.schema.json",
+  "schemaVersion": 1,
+  "id": "gdi_barracks",
+  "displayName": "GDI Barracks",
+  "team": "GDI",
+  "sourcePrefix": "mgbar",
+  "coordinateSpace": "building_local",
+  "models": {
+    "shell": [
+      {
+        "id": "exterior",
+        "kind": "exterior",
+        "model": "data/buildings/gdi/mgbar/mgbar_ext.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      },
+      {
+        "id": "interior",
+        "kind": "interior",
+        "model": "data/buildings/gdi/mgbar/mgbar_int.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      }
+    ],
+    "buildingAggregates": [
+      {
+        "id": "aggregate_1",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/gdi/mgbar/mgbar_ag_1.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_2",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/gdi/mgbar/mgbar_ag_2.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_3",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/gdi/mgbar/mgbar_ag_3.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      }
+    ],
+    "animatedParts": [
+      {
+        "id": "doors",
+        "kind": "doorSet",
+        "model": "data/buildings/gdi/mgbar/mgbar_doors.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "DoorPhys"
+      }
+    ],
+    "specialParts": [],
+    "stateVariants": [
+      {
+        "id": "exterior_night",
+        "kind": "nightVariant",
+        "model": "data/buildings/gdi/mgbar/mgbar_ext_n.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "replaces": "exterior"
+      },
+      {
+        "id": "aggregate_3_night",
+        "kind": "nightVariant",
+        "model": "data/buildings/gdi/mgbar/mgbar_ag_3n.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "replaces": "aggregate_3"
+      }
+    ],
+    "authoringOnly": [
+      {
+        "id": "interior_temp",
+        "kind": "temporarySource",
+        "model": "data/buildings/gdi/mgbar/mgbar_int_temp.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      },
+      {
+        "id": "vis",
+        "kind": "visibilityHelper",
+        "model": "data/buildings/gdi/mgbar/mgbar_vis.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      },
+      {
+        "id": "visx",
+        "kind": "visibilityHelper",
+        "model": "data/buildings/gdi/mgbar/mgbar_visx.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      }
+    ]
+  },
+  "gameplayObjects": {
+    "proxySources": [
+      "data/buildings/gdi/mgbar/mgbar_int.w3d",
+      "data/buildings/gdi/mgbar/mgbar_ag_2.w3d",
+      "data/buildings/gdi/mgbar/mgbar_ag_3.w3d"
+    ],
+    "notes": "Compile with W3D proxies preserved; resolve PT and MCT presets and transforms from these proxy-bearing models."
+  },
+  "anchors": {
+    "purchaseTerminals": [],
+    "masterControlTerminals": [],
+    "infantrySpawns": [],
+    "vehicleSpawns": [],
+    "vehicleExits": [],
+    "repairZones": []
+  }
+}

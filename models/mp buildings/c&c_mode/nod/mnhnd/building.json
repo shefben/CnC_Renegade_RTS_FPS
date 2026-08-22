@@ -1,0 +1,321 @@
+{
+  "$schema": "../../building-assembly.schema.json",
+  "schemaVersion": 1,
+  "id": "nod_hand_of_nod",
+  "displayName": "Hand of Nod",
+  "team": "Nod",
+  "sourcePrefix": "mnhnd",
+  "coordinateSpace": "building_local",
+  "models": {
+    "shell": [
+      {
+        "id": "exterior",
+        "kind": "exterior",
+        "model": "data/buildings/nod/mnhnd/mnhnd_ext.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      },
+      {
+        "id": "interior",
+        "kind": "interior",
+        "model": "data/buildings/nod/mnhnd/mnhnd_int.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      }
+    ],
+    "buildingAggregates": [
+      {
+        "id": "aggregate_1",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnhnd/MNhnd_ag_1.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_2",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnhnd/MNhnd_ag_2.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      },
+      {
+        "id": "aggregate_3",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnhnd/MNhnd_ag_3.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      }
+    ],
+    "animatedParts": [
+      {
+        "id": "doors",
+        "kind": "doorSet",
+        "model": "data/buildings/nod/mnhnd/mnhnd_doors.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "DoorPhys"
+      },
+      {
+        "id": "elevator_01",
+        "kind": "elevator",
+        "model": "data/buildings/nod/mnhnd/mnhnd_elev01.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "ElevatorPhys"
+      },
+      {
+        "id": "elevator_02",
+        "kind": "elevator",
+        "model": "data/buildings/nod/mnhnd/mnhnd_elev02.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "ElevatorPhys"
+      }
+    ],
+    "specialParts": [
+      {
+        "id": "monitor",
+        "kind": "monitor",
+        "model": "data/buildings/nod/mnhnd/mnhnd_monitor.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      },
+      {
+        "id": "shaft",
+        "kind": "elevatorShaft",
+        "model": "data/buildings/nod/mnhnd/shaft.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      }
+    ],
+    "stateVariants": [
+      {
+        "id": "exterior_night",
+        "kind": "nightVariant",
+        "model": "data/buildings/nod/mnhnd/mnhnd_ext_n.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "replaces": "exterior"
+      },
+      {
+        "id": "aggregate_3_night",
+        "kind": "nightVariant",
+        "model": "data/buildings/nod/mnhnd/MNhnd_ag_3n.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "replaces": "aggregate_3"
+      },
+      {
+        "id": "exterior_destroyed_01",
+        "kind": "damageVariant",
+        "model": "data/buildings/nod/mnhnd/mnhnd_blow.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "replaces": "exterior"
+      },
+      {
+        "id": "exterior_destroyed_02",
+        "kind": "damageVariant",
+        "model": "data/buildings/nod/mnhnd/mnhnd_blow2.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false,
+        "replaces": "exterior"
+      }
+    ],
+    "authoringOnly": [
+      {
+        "id": "interior_temp",
+        "kind": "temporarySource",
+        "model": "data/buildings/nod/mnhnd/mnhnd_int_tmp.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      },
+      {
+        "id": "vis",
+        "kind": "visibilityHelper",
+        "model": "data/buildings/nod/mnhnd/mnhnd_vis.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      },
+      {
+        "id": "visx",
+        "kind": "visibilityHelper",
+        "model": "data/buildings/nod/mnhnd/mnhnd_visx.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      }
+    ]
+  },
+  "gameplayObjects": {
+    "proxySources": [
+      "data/buildings/nod/mnhnd/mnhnd_int.w3d",
+      "data/buildings/nod/mnhnd/MNhnd_ag_2.w3d",
+      "data/buildings/nod/mnhnd/MNhnd_ag_3.w3d"
+    ],
+    "notes": "Compile with W3D proxies preserved; elevators still require ElevatorPhys presets with their call zones and frame events."
+  },
+  "anchors": {
+    "purchaseTerminals": [],
+    "masterControlTerminals": [],
+    "infantrySpawns": [],
+    "vehicleSpawns": [],
+    "vehicleExits": [],
+    "repairZones": []
+  }
+}

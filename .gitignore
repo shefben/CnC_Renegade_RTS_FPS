@@ -62,12 +62,12 @@ IDL_*.loc
 /build*
 
 # Local agent/tool state (machine-specific, not project content)
-.claude/settings.local.json
+**/.claude/settings.local.json
 .headroom/
 .ruff_cache/
 .tokensave/
 *.stackdump
-.claude/.headroom_wrap_marker.json
+**/.claude/.headroom_wrap_marker.json
 
 # Python bytecode
 __pycache__/

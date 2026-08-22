@@ -1,0 +1,84 @@
+{
+  "$schema": "../../building-assembly.schema.json",
+  "schemaVersion": 1,
+  "id": "nod_sam_site",
+  "displayName": "Nod SAM Site",
+  "team": "Nod",
+  "sourcePrefix": "mnsam",
+  "coordinateSpace": "building_local",
+  "models": {
+    "shell": [
+      {
+        "id": "exterior",
+        "kind": "exterior",
+        "model": "data/buildings/nod/mnsam/mnsam_ext.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true
+      }
+    ],
+    "buildingAggregates": [
+      {
+        "id": "aggregate_1",
+        "kind": "buildingAggregate",
+        "model": "data/buildings/nod/mnsam/MNsam_ag_1.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": true,
+        "behavior": "BuildingAggregate"
+      }
+    ],
+    "animatedParts": [],
+    "specialParts": [],
+    "stateVariants": [],
+    "authoringOnly": [
+      {
+        "id": "visx",
+        "kind": "visibilityHelper",
+        "model": "data/buildings/nod/mnsam/mnsam_visx.w3d",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "loadByDefault": false
+      }
+    ]
+  },
+  "gameplayObjects": {
+    "proxySources": [
+      "data/buildings/nod/mnsam/mnsam_ext.w3d",
+      "data/buildings/nod/mnsam/MNsam_ag_1.w3d"
+    ],
+    "notes": "The SAM weapon preset, muzzle/aim origin, target rules, and team ownership are required in addition to these models."
+  },
+  "anchors": {
+    "purchaseTerminals": [],
+    "masterControlTerminals": [],
+    "infantrySpawns": [],
+    "vehicleSpawns": [],
+    "vehicleExits": [],
+    "repairZones": []
+  }
+}
