@@ -586,8 +586,12 @@ CNCWinScreenMenuClass::Populate_Player_Lists (int team_id, int list_ctrl1_id)
 			//
 			//	Put a star by the player's name if this is the local player
 			//
-			SmartGameObj *game_obj = player->Get_GameObj ();
-			if (cNetwork::I_Am_Client() && (game_obj == COMBAT_STAR)) {
+			//
+			//	Matching on the star meant a player with no live game object --
+			//	which at the win screen is most of them -- never found their own
+			//	row.  The player id is there either way.
+			//
+			if (cNetwork::I_Am_Client() && player->Get_Id () == cNetwork::Get_My_Id ()) {
 				list_ctrl->Add_Icon (item_index, COL_NAME, "IF_LRGSTAR.TGA");
 				list_ctrl->Set_Entry_Color (item_index, COL_RANK,		Vector3 (1.0F, 1.0F, 1.0F));
 				list_ctrl->Set_Entry_Color (item_index, COL_NAME,		Vector3 (1.0F, 1.0F, 1.0F));

@@ -35,6 +35,7 @@
 ******************************************************************************/
 
 #include "DlgMPConnect.h"
+#include "DlgMPConnectionRefused.h"
 #include "renegadedialog.h"
 #include "gamedata.h"
 #include "gameinitmgr.h"
@@ -257,6 +258,29 @@ void DlgMPConnect::On_Periodic(void)
 		else
 			{
 			WWDEBUG_SAY(("ERROR: %s\n", (const unichar_t*)outMsg));
+
+			// Saying nothing and doing nothing left the player looking at the
+			// menu with a half-open connection behind it.  Tell them why, and
+			// unwind the connection the same way a refusal does.
+			WideStringClass message;
+			message.Format(L"%s", outMsg.Peek_Buffer());
+			DlgMPConnectionRefused::DoDialog(message, false);
+
+			if (GameModeManager::Find("LAN")->Is_Active())
+				{
+				PLC->Refusal_Actions();
+				}
+			else
+				{
+				GameModeClass* gameMode = GameModeManager::Find("WOL");
+
+				if (gameMode && gameMode->Is_Active())
+					{
+					WolGameModeClass* wolGame = static_cast<WolGameModeClass*>(gameMode);
+					WWASSERT(wolGame);
+					wolGame->Refusal_Actions();
+					}
+				}
 			}
 
 		// Release the keep alive reference (this will delete this object)

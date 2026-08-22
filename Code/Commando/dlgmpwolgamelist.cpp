@@ -152,7 +152,9 @@ void MPWolGameListMenuClass::DoDialog(void)
 MPWolGameListMenuClass::MPWolGameListMenuClass(void) :
 		MenuDialogClass(GetRenegadeDialog(RenegadeDialogID::IDD_MP_WOL_GAME_LIST)),
 		mChannelListPending(false),
-		mSortColumn(COL_HOST_NAME),
+		//	A server browser is opened to find somewhere playable, so it opens
+		//	sorted by ping rather than by whoever happens to be hosting.
+		mSortColumn(COL_PING),
 		mIsSortAscending(true),
 		mSortFlags(0)
 	{
