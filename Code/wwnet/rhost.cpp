@@ -511,7 +511,12 @@ bool cRemoteHost::Is_Outgoing_Flooded(void)
 		// average ping time over the life of the connection to use as a base line.
 		int average = (int)(ExtendedAveragePingTime / (unsigned)ExtendedAverageCount);
 
-		if ((LastAveragePingTime > 1500 && MaximumBps < 100000) || LastAveragePingTime > 500 && LastAveragePingTime > average * 3) {
+		//
+		// A ping this far above the connection's own baseline means a flood whatever the
+		// bandwidth setting says; this used to be gated on MaximumBps < 100000, which
+		// switched the test off entirely for any host configured above that.
+		//
+		if (LastAveragePingTime > 1500 || (LastAveragePingTime > 500 && LastAveragePingTime > average * 3)) {
 
 			//
 			// Ping time is bigger than we expect. If we are still receiving stuff from this host then chances are we are
@@ -534,7 +539,12 @@ bool cRemoteHost::Is_Outgoing_Flooded(void)
 	int total_in_queue = PacketList[RELIABLE_SEND_LIST].Get_Count();
 
 	// Let's say that if more than 90% of the packets in the queue have been resent then there is a problem.
-	if (total_in_queue > 20 && (TotalResentPacketsInQueue*10) > (total_in_queue*9)) {
+	//
+	// The gate is on the resend count, not the queue length. A flooded link drains its queue
+	// about as fast as it fills, so the queue stays short while everything in it is resent --
+	// requiring more than 20 queued packets missed exactly that case.
+	//
+	if (TotalResentPacketsInQueue > 15 && (TotalResentPacketsInQueue*10) > (total_in_queue*9)) {
 		//
 		// More resends than we expect. If we are still receiving stuff from this host then chances are we are
 		// flooding him.
@@ -691,8 +701,13 @@ void cRemoteHost::Adjust_Resend_Timeout(void)
 			//
 			// Keep track of the last average we calculated plus the average ping over the life of the connection.
 			//
+			//
+			// TotalInternalPingtimeMs is the sum of NumInternalPings samples, so the count has
+			// to advance by the same amount. Adding one per adjustment made the lifetime
+			// average below come out inflated by the sample count.
+			//
 			ExtendedAveragePingTime += (unsigned) TotalInternalPingtimeMs;
-			ExtendedAverageCount++;
+			ExtendedAverageCount += NumInternalPings;
 			LastAveragePingTime = AverageInternalPingtimeMs;
 		}
 

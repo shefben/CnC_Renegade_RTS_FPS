@@ -766,12 +766,16 @@ bool cConnection::Receive_Packet()
 	WWASSERT(p_from_address != nullptr);
 	cRemoteHost * p_sender_rhost = nullptr;
 	if (sender_id != cPacket::UNDEFINED_ID) {
-		p_sender_rhost = PRHost[sender_id];
+		//
+		// cPacket decodes the sender id from the wire as a signed char, so this has to go
+		// through the bounds-checking accessor rather than indexing PRHost directly.
+		//
+		p_sender_rhost = Get_Remote_Host(sender_id);
 
-		//WWASSERT(p_sender_rhost != nullptr);
       if (p_sender_rhost == nullptr) {
 			packet.Flush();
 			WWDEBUG_SAY(("Packet from null rhost (%d) discarded.\n", sender_id));
+         CombinedStats.StatSample[STAT_DiscardCount]++;
 			return true;
 		}
 	}
@@ -824,8 +828,17 @@ bool cConnection::Receive_Packet()
       case PACKETTYPE_CONNECT_CS: {
 				WWDEBUG_SAY(("CONNECT: PACKETTYPE_CONNECT_CS received\n"));
 
-            WWASSERT(IsServer);
-            WWASSERT(sender_id == ID_UNKNOWN);
+            //
+            // Only a server answers connection requests, and a request carries no sender id
+            // because the sender does not have one yet. Anything else is not a connection
+            // request no matter what its type field says.
+            //
+            if (!IsServer || sender_id != ID_UNKNOWN) {
+					WWDEBUG_SAY(("PACKETTYPE_CONNECT_CS discarded: IsServer %d, sender %d\n", IsServer, sender_id));
+               CombinedStats.StatSample[STAT_DiscardCount]++;
+               packet.Flush();
+               return true;
+            }
 
             //
             // Reliable message, ack it.
@@ -1037,11 +1050,17 @@ bool cConnection::Receive_Packet()
          }
 
       default:
-         DIE;
+         //
+         // The type came off the wire. An unrecognised one is a packet to drop, not an
+         // assertion failure -- this used to take a debug dedicated server down.
+         //
+			WWDEBUG_SAY(("Packet with unknown type %d from rhost %d discarded.\n",
+				packet.Get_Type(), sender_id));
+         CombinedStats.StatSample[STAT_DiscardCount]++;
+         packet.Flush();
          break;
    }
 
-   DIE; // shouldn't get here
    return true;
 }
 
@@ -2189,14 +2208,14 @@ void cConnection::Clear_Resend_Counts()
 //-----------------------------------------------------------------------------
 cRemoteHost * cConnection::Get_Remote_Host(int rhost)
 {
-	WWASSERT(rhost >= MinRHost && rhost <= MaxRHost);
-	/*
+	//
+	// Host ids reach this from the wire, so an out-of-range one is a packet to discard
+	// rather than a programming error. Every caller already handles a null result.
+	//
 	if (rhost < MinRHost || rhost > MaxRHost) {
-		WWDEBUG_SAY((">>> %d: %d,%d   IS:%d\n", rhost, MinRHost, MaxRHost,
-			IsServer));
-		DIE;
+		return nullptr;
 	}
-	*/
+
 	return PRHost[rhost];
 }
 
