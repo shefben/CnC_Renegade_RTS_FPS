@@ -51,6 +51,7 @@ set(COMBAT_SRC
     explosion.cpp
     ffactorylist.cpp
     gameeventbus.cpp
+    nativescriptregistry.cpp
     gameobjmanager.cpp
     gameobjobserver.cpp
     gametype.cpp
@@ -182,6 +183,7 @@ set(COMBAT_SRC
     explosion.h
     ffactorylist.h
     gameeventbus.h
+    nativescriptregistry.h
     gameobjmanager.h
     gameobjobserver.h
     gameobjref.h
@@ -300,6 +302,3 @@ if (W3D_TOOLS)
 
     target_sources(combate PRIVATE ${COMBAT_SRC})
 endif()
-
-# scripts library is dynamically loaded
-add_dependencies(combat scripts)

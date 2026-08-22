@@ -94,7 +94,7 @@ DECLARE_SCRIPT(M00_Soldier_Powerup_Grant, "")
 				return i;
 			}
 		}
-		Commands->Debug_Message( "Soldier_Powerup_Grant failed to find name match %s\n", name );
+		ScriptEngine::Debug_Message( "Soldier_Powerup_Grant failed to find name match %s\n", name );
 		return 0;
 	}
 
@@ -105,56 +105,56 @@ DECLARE_SCRIPT(M00_Soldier_Powerup_Grant, "")
 		// 100% for Easy
 		// 67% for Medium
 		// 33% for Hard
-		if( !Disabled && killer && Commands->Is_A_Star(killer) && (Commands->Get_Random_Int(0, 3) >= Commands->Get_Difficulty_Level()))
+		if( !Disabled && killer && ScriptEngine::Is_A_Star(killer) && (ScriptEngine::Get_Random_Int(0, 3) >= ScriptEngine::Get_Difficulty_Level()))
 		{
 			// Find the destoyed object's preset name
-			const char * preset_name = Commands->Get_Preset_Name( obj );
-			Commands->Debug_Message( "Soldier_Powerup_Grant for %s\n", preset_name );
+			const char * preset_name = ScriptEngine::Get_Preset_Name( obj );
+			ScriptEngine::Debug_Message( "Soldier_Powerup_Grant for %s\n", preset_name );
 
 			// Find the index of this object
 			int index = Find_Powerup_Table_Index( preset_name );
-			Commands->Debug_Message( "Soldier_Powerup_Grant: index %d\n", index );
+			ScriptEngine::Debug_Message( "Soldier_Powerup_Grant: index %d\n", index );
 
 			// Calculate the star's health percentage
-			float star_health = Commands->Get_Health( killer );
-			float star_health_max = Commands->Get_Max_Health( killer );
+			float star_health = ScriptEngine::Get_Health( killer );
+			float star_health_max = ScriptEngine::Get_Max_Health( killer );
 			float star_health_percent = 0;
 			if ( star_health_max ) {
 				star_health_percent = star_health / star_health_max;
 			}
 
 			// Calculate the star's shield percentage
-			float star_shield = Commands->Get_Shield_Strength( killer );
-			float star_shield_max = Commands->Get_Max_Shield_Strength( killer );
+			float star_shield = ScriptEngine::Get_Shield_Strength( killer );
+			float star_shield_max = ScriptEngine::Get_Max_Shield_Strength( killer );
 			float star_shield_percent = 0;
 			if ( star_shield_max ) {
 				star_shield_percent = star_shield / star_shield_max;
 			}
 
 			// Calcutate a powerup spawn point
-			Vector3 spawn_spot = Commands->Get_Position ( obj );
+			Vector3 spawn_spot = ScriptEngine::Get_Position ( obj );
 			spawn_spot.Z += 0.75f;	// Bump it up a bit
 
 			GameObject * powerup = nullptr;
 
 			// If star's health < 25%, drop health
 			if ( star_health_percent < 0.25f ) {
-				Commands->Debug_Message( "Soldier_Powerup_Grant: Star's Health < 25%%.  Dropping Health\n" );
-				powerup = Commands->Create_Object ( "tw_POW00_Health", spawn_spot );
+				ScriptEngine::Debug_Message( "Soldier_Powerup_Grant: Star's Health < 25%%.  Dropping Health\n" );
+				powerup = ScriptEngine::Create_Object ( "tw_POW00_Health", spawn_spot );
 			}
 
 			// If star's shield < 25%, drop shield
 			if ( powerup == nullptr && star_shield_percent < 0.25f ) {
-				Commands->Debug_Message( "Soldier_Powerup_Grant: Star's Shield < 25%%.  Dropping Sheild\n" );
-				powerup = Commands->Create_Object ( "tw_POW00_Armor", spawn_spot );
+				ScriptEngine::Debug_Message( "Soldier_Powerup_Grant: Star's Shield < 25%%.  Dropping Sheild\n" );
+				powerup = ScriptEngine::Create_Object ( "tw_POW00_Armor", spawn_spot );
 			}
 
 			// If star's health > 75%, drop weapon
 			if ( powerup == nullptr && star_health_percent > 0.75f ) {
 				const char * weapon_powerup = Soldier_Powerup_Table[index][1];
 				if ( weapon_powerup != nullptr && weapon_powerup[0] != 0 ) {
-					Commands->Debug_Message( "Soldier_Powerup_Grant: Star's Health > 75%%.  Dropping soldier's weapon %s\n", weapon_powerup );
-					powerup = Commands->Create_Object ( weapon_powerup, spawn_spot );
+					ScriptEngine::Debug_Message( "Soldier_Powerup_Grant: Star's Health > 75%%.  Dropping soldier's weapon %s\n", weapon_powerup );
+					powerup = ScriptEngine::Create_Object ( weapon_powerup, spawn_spot );
 				}
 			}
 
@@ -162,14 +162,14 @@ DECLARE_SCRIPT(M00_Soldier_Powerup_Grant, "")
 			if ( powerup == nullptr ) {
 				const char * twiddler = Soldier_Powerup_Table[index][2];
 				if ( twiddler != nullptr && twiddler[0] != 0 ) {
-					Commands->Debug_Message( "Soldier_Powerup_Grant: Dropping twiddler %s\n", twiddler );
-					powerup = Commands->Create_Object ( twiddler, spawn_spot );
+					ScriptEngine::Debug_Message( "Soldier_Powerup_Grant: Dropping twiddler %s\n", twiddler );
+					powerup = ScriptEngine::Create_Object ( twiddler, spawn_spot );
 				}
 			}
 
 			// It we created a powerup, give it the powerup script
 			if ( powerup != nullptr ) {
-				Commands->Attach_Script( powerup, "M00_Powerup_Destroy", "");
+				ScriptEngine::Attach_Script( powerup, "M00_Powerup_Destroy", "");
 			}
 		}
 	}
@@ -190,14 +190,14 @@ DECLARE_SCRIPT(M00_Soldier_Powerup_Disable, "")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Start_Timer(obj, this, 1.0f, 1);
+		ScriptEngine::Start_Timer(obj, this, 1.0f, 1);
 	}
 
 	void Timer_Expired(GameObject * obj, int timer_id) override
 	{
 		if (timer_id == 1)
 		{
-			Commands->Send_Custom_Event(obj, obj, M00_CUSTOM_POWERUP_GRANT_DISABLE, 0, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, obj, M00_CUSTOM_POWERUP_GRANT_DISABLE, 0, 0.0f);
 		}
 	}
 };
@@ -209,8 +209,8 @@ DECLARE_SCRIPT(M00_Powerup_Destroy, "")
 
 	void Created (GameObject * obj) override
 	{
-		float lifespan = (30.0f - (Commands->Get_Difficulty_Level() * 10));
-		Commands->Start_Timer (obj, this, lifespan, 10);
+		float lifespan = (30.0f - (ScriptEngine::Get_Difficulty_Level() * 10));
+		ScriptEngine::Start_Timer (obj, this, lifespan, 10);
 
 	}
 
@@ -218,7 +218,7 @@ DECLARE_SCRIPT(M00_Powerup_Destroy, "")
 	{
 		if(timer_id == 10)
 		{
-			Commands->Expire_Powerup(obj);
+			ScriptEngine::Expire_Powerup(obj);
 		}
 	}
 };
@@ -237,10 +237,10 @@ DECLARE_SCRIPT (M00_Reveal_Enc_Building_DAY, "BuildingEncyclopediaID:int")
 	{
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
-			bool reveal = Commands->Reveal_Encyclopedia_Building( Get_Int_Parameter("BuildingEncyclopediaID") );
+			bool reveal = ScriptEngine::Reveal_Encyclopedia_Building( Get_Int_Parameter("BuildingEncyclopediaID") );
 			if ( reveal == 1 )
 			{
-				Commands->Display_Encyclopedia_Event_UI();
+				ScriptEngine::Display_Encyclopedia_Event_UI();
 			}
 		}
 	}
@@ -255,10 +255,10 @@ DECLARE_SCRIPT (M00_Reveal_Enc_Character_DAY, "CharacterEncyclopediaID:int")
 	{
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
-			bool reveal = Commands->Reveal_Encyclopedia_Character( Get_Int_Parameter("CharacterEncyclopediaID") );
+			bool reveal = ScriptEngine::Reveal_Encyclopedia_Character( Get_Int_Parameter("CharacterEncyclopediaID") );
 			if ( reveal == 1 )
 			{
-				Commands->Display_Encyclopedia_Event_UI();
+				ScriptEngine::Display_Encyclopedia_Event_UI();
 			}
 		}
 	}
@@ -273,10 +273,10 @@ DECLARE_SCRIPT (M00_Reveal_Enc_Vehicle_DAY, "VehicleEncyclopediaID:int")
 	{
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
-			bool reveal = Commands->Reveal_Encyclopedia_Vehicle( Get_Int_Parameter("VehicleEncyclopediaID") );
+			bool reveal = ScriptEngine::Reveal_Encyclopedia_Vehicle( Get_Int_Parameter("VehicleEncyclopediaID") );
 			if ( reveal == 1 )
 			{
-				Commands->Display_Encyclopedia_Event_UI();
+				ScriptEngine::Display_Encyclopedia_Event_UI();
 			}
 		}
 	}
@@ -292,10 +292,10 @@ DECLARE_SCRIPT (M00_Reveal_Enc_Weapon_DAY, "WeaponEncyclopediaID:int")
 	{
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
-			bool reveal = Commands->Reveal_Encyclopedia_Weapon( Get_Int_Parameter("WeaponEncyclopediaID") );
+			bool reveal = ScriptEngine::Reveal_Encyclopedia_Weapon( Get_Int_Parameter("WeaponEncyclopediaID") );
 			if ( reveal == 1 )
 			{
-				Commands->Display_Encyclopedia_Event_UI();
+				ScriptEngine::Display_Encyclopedia_Event_UI();
 			}
 		}
 	}
@@ -332,12 +332,12 @@ DECLARE_SCRIPT (M00_GrantScore_Powerup, "ScoreAmount:float,Entire_Team=0:int,Ran
 		{
 			random_multiply = 1;
 		}
-		factor_multiply = Commands->Get_Random_Int( 1, (random_multiply + 1) );
+		factor_multiply = ScriptEngine::Get_Random_Int( 1, (random_multiply + 1) );
 		score_grant = factor_multiply * score;
 
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
-			Commands->Give_Points( sender, score_grant, team_grant );
+			ScriptEngine::Give_Points( sender, score_grant, team_grant );
 		}
 	}
 
@@ -363,12 +363,12 @@ DECLARE_SCRIPT (M00_GrantMoney_Powerup, "ScoreAmount:float,Entire_Team=0:int,Ran
 		{
 			random_multiply = 1;
 		}
-		factor_multiply = Commands->Get_Random_Int( 1, (random_multiply + 1) );
+		factor_multiply = ScriptEngine::Get_Random_Int( 1, (random_multiply + 1) );
 		score_grant = factor_multiply * score;
 
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
-			Commands->Give_Money( sender, score_grant, team_grant );
+			ScriptEngine::Give_Money( sender, score_grant, team_grant );
 		}
 	}
 
@@ -382,18 +382,18 @@ DECLARE_SCRIPT (M00_Tiberium_Refinery, "MoneyAmount:int,TimerLength:int")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Start_Timer (obj, this, float(Get_Int_Parameter("TimerLength")), 1);
+		ScriptEngine::Start_Timer (obj, this, float(Get_Int_Parameter("TimerLength")), 1);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
 	{
 		if (timer_id == 1)
 		{
-			float health = Commands->Get_Health (obj);
+			float health = ScriptEngine::Get_Health (obj);
 			if (health)
 			{
-				Commands->Give_Money (obj, float(Get_Int_Parameter ("MoneyAmount")), true);
-				Commands->Start_Timer (obj, this, float(Get_Int_Parameter("TimerLength")), 1);
+				ScriptEngine::Give_Money (obj, float(Get_Int_Parameter ("MoneyAmount")), true);
+				ScriptEngine::Start_Timer (obj, this, float(Get_Int_Parameter("TimerLength")), 1);
 			}
 		}
 	}
@@ -406,7 +406,7 @@ DECLARE_SCRIPT (M00_CNC_Crate, "")
 	{
 		if ((type == CUSTOM_EVENT_POWERUP_GRANTED) && (sender))
 		{
-			Commands->Give_Money (sender, 100.0f, false);
+			ScriptEngine::Give_Money (sender, 100.0f, false);
 		}
 	}
 };
@@ -418,7 +418,7 @@ DECLARE_SCRIPT (M00_Death_Powerup, "")
 	{
 		if ((type == CUSTOM_EVENT_POWERUP_GRANTED) && (sender))
 		{
-			Commands->Apply_Damage (sender, 10000.0f, "Death", nullptr);
+			ScriptEngine::Apply_Damage (sender, 10000.0f, "Death", nullptr);
 		}
 	}
 };

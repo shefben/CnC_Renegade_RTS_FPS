@@ -24,8 +24,8 @@
 #define GTH_DEBUG	0
 
 #if (GTH_DEBUG)
-#define GTH_DEBUG_INT( x , format )			Commands->Display_Int( x, format )
-#define GTH_DEBUG_FLOAT( x , format )		Commands->Display_Float( x, format )
+#define GTH_DEBUG_INT( x , format )			ScriptEngine::Display_Int( x, format )
+#define GTH_DEBUG_FLOAT( x , format )		ScriptEngine::Display_Float( x, format )
 #else
 #define GTH_DEBUG_INT( x , format )
 #define GTH_DEBUG_FLOAT( x , format )
@@ -53,14 +53,14 @@ DECLARE_SCRIPT(GTH_Drop_Object_On_Death, "Drop_Object=:string,Drop_Height=0.25:f
 		if (probability >= 100) {
 			doit = true;
 		} else {
-			int random = Commands->Get_Random_Int(0,100);
+			int random = ScriptEngine::Get_Random_Int(0,100);
 			doit = random < probability;
 		}
 
 		if ((obj_name != nullptr) && (doit)) {
-			Vector3 spawn_location = Commands->Get_Position ( obj );
+			Vector3 spawn_location = ScriptEngine::Get_Position ( obj );
 			spawn_location.Z = spawn_location.Z + Get_Float_Parameter("Drop_Height");
-			Commands->Create_Object ( obj_name, spawn_location );
+			ScriptEngine::Create_Object ( obj_name, spawn_location );
 		}
 	}
 };
@@ -115,13 +115,13 @@ DECLARE_SCRIPT(GTH_Drop_Object_On_Death_Zone, "Custom_Message=20000:int,Drop_Obj
 		if (probability >= 100) {
 			doit = true;
 		} else {
-			int random = Commands->Get_Random_Int(0,100);
+			int random = ScriptEngine::Get_Random_Int(0,100);
 			doit = random < probability;
 		}
 
 		if ((obj_name != nullptr) && (doit)) {
 
-			Vector3 spawn_location = Commands->Get_Position ( obj );
+			Vector3 spawn_location = ScriptEngine::Get_Position ( obj );
 			spawn_location.Z = spawn_location.Z + Get_Float_Parameter("Drop_Height");
 
 			GTH_DEBUG_INT(0,"Creating object ");
@@ -130,7 +130,7 @@ DECLARE_SCRIPT(GTH_Drop_Object_On_Death_Zone, "Custom_Message=20000:int,Drop_Obj
 			GTH_DEBUG_FLOAT(spawn_location.Y," y=%f, ");
 			GTH_DEBUG_FLOAT(spawn_location.Z," z=%f, ");
 
-			Commands->Create_Object ( obj_name, spawn_location );
+			ScriptEngine::Create_Object ( obj_name, spawn_location );
 		}
 	}
 };
@@ -154,7 +154,7 @@ DECLARE_SCRIPT(GTH_Zone_Send_Custom, "Enter_Message=20000:int,Enter_Param=1:int,
 		int message = Get_Int_Parameter("Enter_Message");
 		GTH_DEBUG_INT(message,"GTH_Zone_Send_Custom sending enter message %d\n");
 		if (message != 0) {
-			Commands->Send_Custom_Event(obj,enterer,message,Get_Int_Parameter("Enter_Param"), 0.0f);
+			ScriptEngine::Send_Custom_Event(obj,enterer,message,Get_Int_Parameter("Enter_Param"), 0.0f);
 		}
 	}
 
@@ -163,7 +163,7 @@ DECLARE_SCRIPT(GTH_Zone_Send_Custom, "Enter_Message=20000:int,Enter_Param=1:int,
 		int message = Get_Int_Parameter("Exit_Message");
 		GTH_DEBUG_INT(message,"GTH_Zone_Send_Custom sending exit message %d\n");
 		if (message != 0) {
-			Commands->Send_Custom_Event(obj,exiter,message,Get_Int_Parameter("Exit_Param"), 0.0f);
+			ScriptEngine::Send_Custom_Event(obj,exiter,message,Get_Int_Parameter("Exit_Param"), 0.0f);
 		}
 	}
 };
@@ -211,7 +211,7 @@ protected:
 		// Check player type, if it doesn't match, just return
 		int our_player_type = Get_Int_Parameter("Player_Type");
 		if (our_player_type != 2) {
-			int enter_player_type = Commands->Get_Player_Type(enterer);
+			int enter_player_type = ScriptEngine::Get_Player_Type(enterer);
 			if (enter_player_type != our_player_type) {
 				return;
 			}
@@ -220,7 +220,7 @@ protected:
 		// Check probability, if the check fails, just return
 		float probability = float(Get_Int_Parameter("Probability")); // TODO Why is this float?
 		if (probability < 100) {
-			int random = Commands->Get_Random_Int(0,100);
+			int random = ScriptEngine::Get_Random_Int(0,100);
 			if (random > probability) {
 				return;
 			}
@@ -232,7 +232,7 @@ protected:
 		trigger_count++;
 		script_enabled = false;
 		if (trigger_count < Get_Int_Parameter("Max_Creations")) {
-			Commands->Start_Timer(obj, this, Get_Float_Parameter("Min_Delay"), TIMER_ID_REENABLE);
+			ScriptEngine::Start_Timer(obj, this, Get_Float_Parameter("Min_Delay"), TIMER_ID_REENABLE);
 		}
 
 		// Ok, create the object
@@ -246,7 +246,7 @@ protected:
 			GTH_DEBUG_INT( obj_pos.Y, "y: %f, " );
 			GTH_DEBUG_INT( obj_pos.Z, "z: %f\n" );
 
-			Commands->Create_Object ( obj_name, obj_pos );
+			ScriptEngine::Create_Object ( obj_name, obj_pos );
 		}
 	}
 
@@ -288,11 +288,11 @@ DECLARE_SCRIPT(GTH_Speed_Controlled_Anim,"Stop_Speed=0.1:float,StopAnim=none:str
 	{
 		// initialize the state
 		cur_state = -1;
-		last_pos = Commands->Get_Position( obj );
+		last_pos = ScriptEngine::Get_Position( obj );
 		update_state(obj,eval_speed(obj));
 
 		// start up our update timer
-		Commands->Start_Timer(obj, this, Get_Float_Parameter("Update_Rate"), TIMER_ID_TICK);
+		ScriptEngine::Start_Timer(obj, this, Get_Float_Parameter("Update_Rate"), TIMER_ID_TICK);
 	}
 
 
@@ -303,7 +303,7 @@ DECLARE_SCRIPT(GTH_Speed_Controlled_Anim,"Stop_Speed=0.1:float,StopAnim=none:str
 	{
 		if (timer_id == TIMER_ID_TICK) {
 			update_state(obj,eval_speed(obj));
-			Commands->Start_Timer(obj, this, get_update_rate(), TIMER_ID_TICK);
+			ScriptEngine::Start_Timer(obj, this, get_update_rate(), TIMER_ID_TICK);
 		}
 	}
 
@@ -319,7 +319,7 @@ DECLARE_SCRIPT(GTH_Speed_Controlled_Anim,"Stop_Speed=0.1:float,StopAnim=none:str
 	int	eval_speed( GameObject * obj )
 	{
 		// This function evaluates the object's current speed and returns the state
-		Vector3 cur_pos = Commands->Get_Position(obj);
+		Vector3 cur_pos = ScriptEngine::Get_Position(obj);
 		Vector3 vel = (cur_pos - last_pos) / get_update_rate();
 		last_pos = cur_pos;
 
@@ -361,7 +361,7 @@ DECLARE_SCRIPT(GTH_Speed_Controlled_Anim,"Stop_Speed=0.1:float,StopAnim=none:str
 			};
 
 			if (anim != nullptr) {
-				Commands->Set_Animation( obj, anim, true );
+				ScriptEngine::Set_Animation( obj, anim, true );
 			}
 		}
 	}
@@ -389,7 +389,7 @@ DECLARE_SCRIPT(GTH_On_Enter_Mission_Complete, "Success=1:int, Player_Type=2:int"
 
 		if (our_player_type != 2) {
 
-			int enter_player_type = Commands->Get_Player_Type(enterer);
+			int enter_player_type = ScriptEngine::Get_Player_Type(enterer);
 			GTH_DEBUG_INT(enter_player_type,"Enterer player type: %d\n");
 			if (enter_player_type != our_player_type) {
 				return;
@@ -401,9 +401,9 @@ DECLARE_SCRIPT(GTH_On_Enter_Mission_Complete, "Success=1:int, Player_Type=2:int"
 		GTH_DEBUG_INT(success,"Calling Mission_Complete(%d)\n");
 
 		if (success == 0) {
-			Commands->Mission_Complete(false);
+			ScriptEngine::Mission_Complete(false);
 		} else {
-			Commands->Mission_Complete(true);
+			ScriptEngine::Mission_Complete(true);
 		}
 	}
 };
@@ -429,7 +429,7 @@ DECLARE_SCRIPT(GTH_On_Killed_Mission_Complete, "Success=1:int, Player_Type=2:int
 		GTH_DEBUG_INT(our_player_type,"Script desired player type: %d\n");
 
 		if (our_player_type != 2) {
-			int enter_player_type = Commands->Get_Player_Type(killer);
+			int enter_player_type = ScriptEngine::Get_Player_Type(killer);
 			GTH_DEBUG_INT(enter_player_type,"Enterer player type: %d\n");
 
 			if (enter_player_type != our_player_type) {
@@ -442,9 +442,9 @@ DECLARE_SCRIPT(GTH_On_Killed_Mission_Complete, "Success=1:int, Player_Type=2:int
 		GTH_DEBUG_INT(success,"Calling Mission_Complete(%d)\n");
 
 		if (success == 0) {
-			Commands->Mission_Complete(false);
+			ScriptEngine::Mission_Complete(false);
 		} else {
-			Commands->Mission_Complete(true);
+			ScriptEngine::Mission_Complete(true);
 		}
 	}
 };
@@ -499,18 +499,18 @@ DECLARE_SCRIPT(GTH_Create_Objective,"Creation_Type=0:int,Objective_ID=0:int,Obje
 		int short_desc_id = Get_Int_Parameter("Short_Desc_ID");
 		int long_desc_id = Get_Int_Parameter("Long_Desc_ID");
 
-		Commands->Add_Objective(id,type,OBJECTIVE_STATUS_PENDING,short_desc_id, nullptr, long_desc_id );
+		ScriptEngine::Add_Objective(id,type,OBJECTIVE_STATUS_PENDING,short_desc_id, nullptr, long_desc_id );
 
 		// set up the radar blip
 		Vector3 objective_pos = Get_Vector3_Parameter("Position");
-		Commands->Set_Objective_Radar_Blip(id, objective_pos);
+		ScriptEngine::Set_Objective_Radar_Blip(id, objective_pos);
 
 		// set up the hud stuff
 		const char * pog = Get_Parameter("Pog_Texture");
 		float priority = Get_Float_Parameter("Priority");
 		int pog_text_id = Get_Int_Parameter("Pog_Text_ID");
 
-		Commands->Set_Objective_HUD_Info_Position(id, priority, pog, pog_text_id, objective_pos);
+		ScriptEngine::Set_Objective_HUD_Info_Position(id, priority, pog, pog_text_id, objective_pos);
 	}
 };
 
@@ -550,7 +550,7 @@ DECLARE_SCRIPT(GTH_Objective_Complete_Enter_Kill_Poke, "Objective_ID=0:int, Succ
 		// check the player type
 		int our_player_type = Get_Int_Parameter("Player_Type");
 		if (our_player_type != 2) {
-			int other_player_type = Commands->Get_Player_Type(obj);
+			int other_player_type = ScriptEngine::Get_Player_Type(obj);
 			if (other_player_type != our_player_type) {
 				return;
 			}
@@ -561,9 +561,9 @@ DECLARE_SCRIPT(GTH_Objective_Complete_Enter_Kill_Poke, "Objective_ID=0:int, Succ
 		int id = Get_Int_Parameter("Objective_ID");
 
 		if (success == 0) {
-			Commands->Set_Objective_Status(id, 0);
+			ScriptEngine::Set_Objective_Status(id, 0);
 		} else {
-			Commands->Set_Objective_Status(id, 1);
+			ScriptEngine::Set_Objective_Status(id, 1);
 		}
 
 		already_triggered = true;
@@ -603,14 +603,14 @@ DECLARE_SCRIPT (GTH_User_Controllable_Base_Defense, "MinAttackDistance=0:int, Ma
 		occupied = false;
 
 		// find out what my team preset is.
-		player_type = Commands->Get_Player_Type( obj );
-		Commands->Debug_Message( "***** Player Type Saved *****\n" );
+		player_type = ScriptEngine::Get_Player_Type( obj );
+		ScriptEngine::Debug_Message( "***** Player Type Saved *****\n" );
 
-		Commands->Enable_Hibernation (obj, false);
-		Commands->Innate_Enable (obj);
-		Commands->Enable_Enemy_Seen (obj, true);
+		ScriptEngine::Enable_Hibernation (obj, false);
+		ScriptEngine::Innate_Enable (obj);
+		ScriptEngine::Enable_Enemy_Seen (obj, true);
 
-		Vector3 my_position = Commands->Get_Position (obj);
+		Vector3 my_position = ScriptEngine::Get_Position (obj);
 		Vector3 token_01_pos = my_position;
 		Vector3 token_02_pos = my_position;
 		Vector3 token_03_pos = my_position;
@@ -626,22 +626,22 @@ DECLARE_SCRIPT (GTH_User_Controllable_Base_Defense, "MinAttackDistance=0:int, Ma
 		token_03_pos.Y -= 10.0f;
 		token_03_pos.Z += 2.0f;
 
-		GameObject * token_01 = Commands->Create_Object ("Invisible_Object", token_01_pos);
+		GameObject * token_01 = ScriptEngine::Create_Object ("Invisible_Object", token_01_pos);
 		if (token_01)
 		{
-			token_01_id = Commands->Get_ID (token_01);
+			token_01_id = ScriptEngine::Get_ID (token_01);
 		}
-		token_01 = Commands->Create_Object ("Invisible_Object", token_02_pos);
+		token_01 = ScriptEngine::Create_Object ("Invisible_Object", token_02_pos);
 		if (token_01)
 		{
-			token_02_id = Commands->Get_ID (token_01);
+			token_02_id = ScriptEngine::Get_ID (token_01);
 		}
-		token_01 = Commands->Create_Object ("Invisible_Object", token_03_pos);
+		token_01 = ScriptEngine::Create_Object ("Invisible_Object", token_03_pos);
 		if (token_01)
 		{
-			token_03_id = Commands->Get_ID (token_01);
+			token_03_id = ScriptEngine::Get_ID (token_01);
 		}
-		Commands->Start_Timer (obj, this, 10.0f, 1);
+		ScriptEngine::Start_Timer (obj, this, 10.0f, 1);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
@@ -657,46 +657,46 @@ DECLARE_SCRIPT (GTH_User_Controllable_Base_Defense, "MinAttackDistance=0:int, Ma
 				{
 				case (0):
 					{
-						GameObject * token_01 = Commands->Find_Object (token_01_id);
+						GameObject * token_01 = ScriptEngine::Find_Object (token_01_id);
 						if (token_01)
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, 70, 1);
 							params.Set_Attack(token_01, 0.0f, 0.0f, true);
-							Commands->Action_Attack(obj, params);
+							ScriptEngine::Action_Attack(obj, params);
 						}
 						break;
 					}
 				case (1):
 					{
-						GameObject * token_02 = Commands->Find_Object (token_02_id);
+						GameObject * token_02 = ScriptEngine::Find_Object (token_02_id);
 						if (token_02)
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, 70, 1);
 							params.Set_Attack(token_02, 0.0f, 0.0f, true);
-							Commands->Action_Attack(obj, params);
+							ScriptEngine::Action_Attack(obj, params);
 						}
 						break;
 					}
 				default:
 					{
-						GameObject * token_03 = Commands->Find_Object (token_03_id);
+						GameObject * token_03 = ScriptEngine::Find_Object (token_03_id);
 						if (token_03)
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, 70, 1);
 							params.Set_Attack(token_03, 0.0f, 0.0f, true);
-							Commands->Action_Attack(obj, params);
+							ScriptEngine::Action_Attack(obj, params);
 						}
 					}
 				}
 			}
-			Commands->Start_Timer (obj, this, 10.0f, 1);
+			ScriptEngine::Start_Timer (obj, this, 10.0f, 1);
 		}
 		else if (timer_id == 2)
 		{
-			Commands->Action_Reset (obj, 100.0f);
+			ScriptEngine::Action_Reset (obj, 100.0f);
 		}
 	}
 
@@ -704,17 +704,17 @@ DECLARE_SCRIPT (GTH_User_Controllable_Base_Defense, "MinAttackDistance=0:int, Ma
 	{
 		GTH_DEBUG_INT(occupied,"GTH_User_Controllable_Base_Defense::Enemy_Seen, occupied = %d\n");
 		if (occupied == false) {
-			Vector3 my_loc = Commands->Get_Position (obj);
-			Vector3 enemy_loc = Commands->Get_Position (enemy);
-			float distance = Commands->Get_Distance (my_loc, enemy_loc);
+			Vector3 my_loc = ScriptEngine::Get_Position (obj);
+			Vector3 enemy_loc = ScriptEngine::Get_Position (enemy);
+			float distance = ScriptEngine::Get_Distance (my_loc, enemy_loc);
 			if (distance > Get_Int_Parameter("MinAttackDistance") )
 			{
 				ActionParamsStruct params;
 				params.Set_Basic(this, 100, 2);
 				params.Set_Attack(enemy, float(Get_Int_Parameter("MaxAttackDistance")), 0.0f, true);
 				params.AttackCheckBlocked = false;
-				Commands->Action_Attack(obj, params);
-				Commands->Start_Timer (obj, this, float(Get_Int_Parameter( "AttackTimer")), 2);
+				ScriptEngine::Action_Attack(obj, params);
+				ScriptEngine::Start_Timer (obj, this, float(Get_Int_Parameter( "AttackTimer")), 2);
 			}
 		}
 	}
@@ -723,7 +723,7 @@ DECLARE_SCRIPT (GTH_User_Controllable_Base_Defense, "MinAttackDistance=0:int, Ma
 	{
 		if (action_id == 2)
 		{
-			Commands->Action_Reset (obj, 100.0f);
+			ScriptEngine::Action_Reset (obj, 100.0f);
 		}
 	}
 
@@ -737,15 +737,15 @@ DECLARE_SCRIPT (GTH_User_Controllable_Base_Defense, "MinAttackDistance=0:int, Ma
 			occupied = true;
 
 			params.Set_Basic(this, 100, 3);
-			Commands->Action_Follow_Input( obj, params );
+			ScriptEngine::Action_Follow_Input( obj, params );
 
 			break;
 
 		case CUSTOM_EVENT_VEHICLE_EXITED:
 			occupied = false;
 			// set team back to my preset.
-			Commands->Set_Player_Type( obj, player_type );
-			Commands->Action_Reset (obj, 100.0f);
+			ScriptEngine::Set_Player_Type( obj, player_type );
+			ScriptEngine::Action_Reset (obj, 100.0f);
 
 			break;
 		}
@@ -774,15 +774,15 @@ DECLARE_SCRIPT(GTH_Credit_Trickle, "Credits=1:int,Delay=2.0:float")
 	void Created (GameObject * obj) override
 	{
 		// start the trickle timer
-		Commands->Start_Timer (obj, this, Get_Float_Parameter("Delay"), TRICKLE_TIMER);
+		ScriptEngine::Start_Timer (obj, this, Get_Float_Parameter("Delay"), TRICKLE_TIMER);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
 	{
 		if (timer_id == TRICKLE_TIMER)
 		{
-			Commands->Give_Money( obj, float(Get_Int_Parameter("Credits")), true );
-			Commands->Start_Timer (obj, this, float(Get_Int_Parameter("Delay")), TRICKLE_TIMER);
+			ScriptEngine::Give_Money( obj, float(Get_Int_Parameter("Credits")), true );
+			ScriptEngine::Start_Timer (obj, this, float(Get_Int_Parameter("Delay")), TRICKLE_TIMER);
 		}
 	}
 };
@@ -804,7 +804,7 @@ DECLARE_SCRIPT(GTH_Enable_Spawner_On_Enter, "SpawnerID=0:int,Player_Type=2:int,E
 		// Check player type, if it doesn't match, just return
 		int our_player_type = Get_Int_Parameter("Player_Type");
 		if (our_player_type != 2) {
-			int enter_player_type = Commands->Get_Player_Type(enterer);
+			int enter_player_type = ScriptEngine::Get_Player_Type(enterer);
 			if (enter_player_type != our_player_type) {
 				return;
 			}
@@ -812,7 +812,7 @@ DECLARE_SCRIPT(GTH_Enable_Spawner_On_Enter, "SpawnerID=0:int,Player_Type=2:int,E
 
 		// Now enable the spawner
 		bool enable = (Get_Int_Parameter("Enable") != 0);
-		Commands->Enable_Spawner( Get_Int_Parameter("SpawnerID"),enable);
+		ScriptEngine::Enable_Spawner( Get_Int_Parameter("SpawnerID"),enable);
 	}
 };
 
@@ -900,14 +900,14 @@ DECLARE_SCRIPT(GTH_CTF_Object2, "Update_Delay=0.05:float,Enemy_Player_Type=0:int
 		capture_count = 0;
 		captured_by_id = 0;
 		capture_timer = 0.0;
-		home_position = Commands->Get_Position(obj);
+		home_position = ScriptEngine::Get_Position(obj);
 
 		GTH_DEBUG_FLOAT(home_position.X,"Flag x: %f");
 		GTH_DEBUG_FLOAT(home_position.Y,"Flag y: %f");
 		GTH_DEBUG_FLOAT(home_position.Z,"Flag z: %f\n");
 
 		// Start the update timer!
-		Commands->Start_Timer (obj, this, Get_Float_Parameter("Update_Delay"), CTF_UPDATE_TIMER);
+		ScriptEngine::Start_Timer (obj, this, Get_Float_Parameter("Update_Delay"), CTF_UPDATE_TIMER);
 	}
 
 	void Damaged( GameObject * obj, GameObject * damager, float /*amount*/ ) override
@@ -928,8 +928,8 @@ DECLARE_SCRIPT(GTH_CTF_Object2, "Update_Delay=0.05:float,Enemy_Player_Type=0:int
 		}
 
 		// Check distance, if the damager is too far away, bail
-		Vector3 my_pos = Commands->Get_Position(obj);
-		Vector3 delta = my_pos - Commands->Get_Position(grabber);
+		Vector3 my_pos = ScriptEngine::Get_Position(obj);
+		Vector3 delta = my_pos - ScriptEngine::Get_Position(grabber);
 		if (delta.Length() > Get_Float_Parameter("Pickup_Radius")) {
 			GTH_DEBUG_FLOAT(delta.Length(),"Flag too far away, dist = %f\n");
 			return;
@@ -937,38 +937,38 @@ DECLARE_SCRIPT(GTH_CTF_Object2, "Update_Delay=0.05:float,Enemy_Player_Type=0:int
 
 		// Check player type, if it doesn't match, warp back to our home position
 		int capture_player_type = Get_Int_Parameter("Enemy_Player_Type");
-		int poke_player_type = Commands->Get_Player_Type(grabber);
+		int poke_player_type = ScriptEngine::Get_Player_Type(grabber);
 
 		// Someone poked the flag...see if it needs to respawn back at home.
 		if (capture_player_type != 2) {
 			if (poke_player_type != capture_player_type) {
 				// if we're not being carried and the flag isn't on a timer, warp back
 				if (captured_by_id == 0 && Get_Float_Parameter("Capture_Respawn_Timer") < 0) {
-					Commands->Set_Position(obj,home_position);
+					ScriptEngine::Set_Position(obj,home_position);
 
 					GTH_DEBUG_INT(poke_player_type,"Flag recovered back by team: %d\n");
 					// Play flag returned sound
 					int cust_id = Get_Int_Parameter("Flag_Returned_Event_ID");
-					GameObject * event_obj = Commands->Find_Object(Get_Int_Parameter("Flag_Returned_Object_ID"));
+					GameObject * event_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Flag_Returned_Object_ID"));
 					if (event_obj == nullptr) event_obj = obj;
-					Commands->Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
 				}
 				return;
 			}
 		}
 
 		// The player type matches, Attach to this dude!
-		captured_by_id = Commands->Get_ID(grabber);
+		captured_by_id = ScriptEngine::Get_ID(grabber);
 
 		// attach to bone 0 (root)
-		Commands->Attach_To_Object_Bone(obj,grabber,"ROOTTRANSFORM");
+		ScriptEngine::Attach_To_Object_Bone(obj,grabber,"ROOTTRANSFORM");
 		GTH_DEBUG_INT(poke_player_type,"Flag captured by team: %d\n");
 
 		// Play picked up sound
 		int cust_id = Get_Int_Parameter("Flag_Stolen_Event_ID");
-		GameObject * event_obj = Commands->Find_Object(Get_Int_Parameter("Flag_Stolen_Object_ID"));
+		GameObject * event_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Flag_Stolen_Object_ID"));
 		if (event_obj == nullptr) event_obj = obj;
-		Commands->Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
@@ -979,16 +979,16 @@ DECLARE_SCRIPT(GTH_CTF_Object2, "Update_Delay=0.05:float,Enemy_Player_Type=0:int
 			// BMH 12/7/02 - Get_A_Star only returns the closest to the position.  So if someone just sat
 			// on top of the flag that's the only star we'd ever check.  So check from a random position
 			// within the pickup radius
-			Vector3 my_pos = Commands->Get_Position(obj);
+			Vector3 my_pos = ScriptEngine::Get_Position(obj);
 			Vector3 find_pos = my_pos;
 			float pick_rad = Get_Float_Parameter("Pickup_Radius");
-			float rval = Commands->Get_Random(-pick_rad, pick_rad);
+			float rval = ScriptEngine::Get_Random(-pick_rad, pick_rad);
 			find_pos.X += rval;
-			rval = Commands->Get_Random(-pick_rad, pick_rad);
+			rval = ScriptEngine::Get_Random(-pick_rad, pick_rad);
 			find_pos.Y += rval;
-			rval = Commands->Get_Random(-pick_rad, pick_rad);
+			rval = ScriptEngine::Get_Random(-pick_rad, pick_rad);
 			find_pos.Z += rval;
-			GameObject *star_obj = Commands->Get_A_Star(find_pos);
+			GameObject *star_obj = ScriptEngine::Get_A_Star(find_pos);
 			Grab_Flag(obj,star_obj);
 
 			// check if we've been captured enough to end the game
@@ -996,30 +996,30 @@ DECLARE_SCRIPT(GTH_CTF_Object2, "Update_Delay=0.05:float,Enemy_Player_Type=0:int
 
 				// Play Win Sound!
 				int cust_id = Get_Int_Parameter("Captures_Exceeded_Event_ID");
-				GameObject * event_obj = Commands->Find_Object(Get_Int_Parameter("Captures_Exceeded_Object_ID"));
+				GameObject * event_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Captures_Exceeded_Object_ID"));
 				if (event_obj == nullptr) event_obj = obj;
-				Commands->Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
 
 				// win!
-				GameObject * win_obj = Commands->Find_Object(Get_Int_Parameter("Win_Object_To_Kill0"));
+				GameObject * win_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Win_Object_To_Kill0"));
 				if (win_obj != nullptr) {
-					Commands->Destroy_Object( win_obj );
+					ScriptEngine::Destroy_Object( win_obj );
 				}
-				win_obj = Commands->Find_Object(Get_Int_Parameter("Win_Object_To_Kill1"));
+				win_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Win_Object_To_Kill1"));
 				if (win_obj != nullptr) {
-					Commands->Destroy_Object( win_obj );
+					ScriptEngine::Destroy_Object( win_obj );
 				}
-				win_obj = Commands->Find_Object(Get_Int_Parameter("Win_Object_To_Kill2"));
+				win_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Win_Object_To_Kill2"));
 				if (win_obj != nullptr) {
-					Commands->Destroy_Object( win_obj );
+					ScriptEngine::Destroy_Object( win_obj );
 				}
-				win_obj = Commands->Find_Object(Get_Int_Parameter("Win_Object_To_Kill3"));
+				win_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Win_Object_To_Kill3"));
 				if (win_obj != nullptr) {
-					Commands->Destroy_Object( win_obj );
+					ScriptEngine::Destroy_Object( win_obj );
 				}
-				win_obj = Commands->Find_Object(Get_Int_Parameter("Win_Object_To_Kill4"));
+				win_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Win_Object_To_Kill4"));
 				if (win_obj != nullptr) {
-					Commands->Destroy_Object( win_obj );
+					ScriptEngine::Destroy_Object( win_obj );
 				}
 
 				GTH_DEBUG_INT(0,"Capture count exceeded\n");
@@ -1036,40 +1036,40 @@ DECLARE_SCRIPT(GTH_CTF_Object2, "Update_Delay=0.05:float,Enemy_Player_Type=0:int
 				// Increment the capture count, detatch from our carrier and warp home
 				capture_count++;
 				captured_by_id = 0;
-				Commands->Attach_To_Object_Bone(obj,nullptr,nullptr);
-				Commands->Set_Position(obj,home_position);
+				ScriptEngine::Attach_To_Object_Bone(obj,nullptr,nullptr);
+				ScriptEngine::Set_Position(obj,home_position);
 				GTH_DEBUG_INT(capture_count,"Flag stolen, counter now %d, returning to home!\n");
 
 				// Play flag capture sound
 				int cust_id = Get_Int_Parameter("Flag_Lost_Event_ID");
-				GameObject * event_obj = Commands->Find_Object(Get_Int_Parameter("Flag_Lost_Object_ID"));
+				GameObject * event_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Flag_Lost_Object_ID"));
 				if (event_obj == nullptr) event_obj = obj;
-				Commands->Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
 			}
 
 			// check if we have a capturer and need to update
 			if (captured_by_id != 0) {
-				GameObject * capturer = Commands->Find_Object(captured_by_id);
+				GameObject * capturer = ScriptEngine::Find_Object(captured_by_id);
 
 				if (capturer != nullptr) {
 
 					// Don't do this cause we're using the attach to bone method!
-					//Vector3 cap_position = Commands->Get_Position(capturer);
-					//Commands->Set_Position(obj,cap_position);
+					//Vector3 cap_position = ScriptEngine::Get_Position(capturer);
+					//ScriptEngine::Set_Position(obj,cap_position);
 
 				} else {
 
 					captured_by_id = 0;
 					// start the flag respawn timer.
-					capture_timer = (((float)Commands->Get_Sync_Time()) / 1000.0f);
-					Commands->Attach_To_Object_Bone(obj,nullptr,nullptr);
+					capture_timer = (((float)ScriptEngine::Get_Sync_Time()) / 1000.0f);
+					ScriptEngine::Attach_To_Object_Bone(obj,nullptr,nullptr);
 					GTH_DEBUG_INT(0,"Capturer killed!\n");
 
 					// Play flag saved sound
 					int cust_id = Get_Int_Parameter("Flag_Saved_Event_ID");
-					GameObject * event_obj = Commands->Find_Object(Get_Int_Parameter("Flag_Saved_Object_ID"));
+					GameObject * event_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Flag_Saved_Object_ID"));
 					if (event_obj == nullptr) event_obj = obj;
-					Commands->Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
 				}
 			}
 
@@ -1083,23 +1083,23 @@ DECLARE_SCRIPT(GTH_CTF_Object2, "Update_Delay=0.05:float,Enemy_Player_Type=0:int
 				if (dist > Get_Float_Parameter("Pickup_Radius")) {
 
 					// has the Respawn_Timer expired
-					if (((((float)Commands->Get_Sync_Time()) / 1000.0) - capture_timer) > ctimer) {
+					if (((((float)ScriptEngine::Get_Sync_Time()) / 1000.0) - capture_timer) > ctimer) {
 
 						// Return the flag
-						Commands->Set_Position(obj,home_position);
+						ScriptEngine::Set_Position(obj,home_position);
 						GTH_DEBUG_INT(0,"Flag timeout has been hit, respawning flag back at home.\n");
 
 						// Play flag returned sound
 						int cust_id = Get_Int_Parameter("Flag_Returned_Event_ID");
-						GameObject * event_obj = Commands->Find_Object(Get_Int_Parameter("Flag_Returned_Object_ID"));
+						GameObject * event_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Flag_Returned_Object_ID"));
 						if (event_obj == nullptr) event_obj = obj;
-						Commands->Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj,event_obj,cust_id, 1, 0.0f);
 					}
 				}
 			}
 
 			// register for another update!
-			Commands->Start_Timer (obj, this, Get_Float_Parameter("Update_Delay"), CTF_UPDATE_TIMER);
+			ScriptEngine::Start_Timer (obj, this, Get_Float_Parameter("Update_Delay"), CTF_UPDATE_TIMER);
 		}
 	}
 };

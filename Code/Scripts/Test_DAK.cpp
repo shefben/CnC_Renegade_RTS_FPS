@@ -37,12 +37,12 @@ DECLARE_SCRIPT (DAK_TestScriptOne, "")
 {
 	void Damaged( GameObject *obj , GameObject *damager, float /*amount*/) override
 	{
-		if ( Commands->Is_A_Star(damager) )
+		if ( ScriptEngine::Is_A_Star(damager) )
 		{
 			ActionParamsStruct params;
 			params.Set_Basic( this, 1, 1 );
 			params.Set_Movement( damager, RUN, 2 );
-			Commands->Action_Goto( obj, params );
+			ScriptEngine::Action_Goto( obj, params );
 		}
 	}
 };
@@ -51,20 +51,20 @@ DECLARE_SCRIPT (DAK_PlayerSpotted, "")
 {
 	void Damaged ( GameObject *obj , GameObject *damager, float /*amount*/) override
 	{
-		GameObject * NodSAM = Commands->Find_Object (100012);
+		GameObject * NodSAM = ScriptEngine::Find_Object (100012);
 		if (NodSAM)
 		{
 			ActionParamsStruct params;
 			params.Set_Basic( this, 1, 1 );
 			params.Set_Movement( NodSAM, RUN, 1 );
-			Commands->Action_Goto( obj, params );
+			ScriptEngine::Action_Goto( obj, params );
 		}
 		else
 		{
 			ActionParamsStruct params;
 			params.Set_Basic( this, 1, 1 );
 			params.Set_Attack( damager, 20, 0, 1 );
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 	}
 };
@@ -76,7 +76,7 @@ DECLARE_SCRIPT ( DAK_Fire_Gas_Elec_Death_DAK, "DeathType:string" )
 	void Damaged ( GameObject *obj, GameObject * /*damager*/, float /*amount*/ ) override
 	{
 		// check to see if obj is at 25% or less of its health.
-		if ( Commands->Get_Health ( obj ) <= 0.25 * Commands->Get_Max_Health ( obj ) )
+		if ( ScriptEngine::Get_Health ( obj ) <= 0.25 * ScriptEngine::Get_Max_Health ( obj ) )
 		{
 			// plays animation once.
 			if ( firsttime == true )
@@ -98,10 +98,10 @@ DECLARE_SCRIPT ( DAK_Fire_Gas_Elec_Death_DAK, "DeathType:string" )
 					}
 					else params.Set_Animation( "S_A_HUMAN.H_A_FLMA",0 ); // gas death
 
-				Commands->Action_Play_Animation( obj, params );
+				ScriptEngine::Action_Play_Animation( obj, params );
 
 				// begin DeathType damage
-				Commands->Apply_Damage( obj, 1.0f, Get_Parameter( "DeathType" ), nullptr );
+				ScriptEngine::Apply_Damage( obj, 1.0f, Get_Parameter( "DeathType" ), nullptr );
 			}
 		}
 		else
@@ -115,7 +115,7 @@ DECLARE_SCRIPT ( DAK_Fire_Gas_Elec_Death_DAK, "DeathType:string" )
 		if((action_id == 1) && (reason == ACTION_COMPLETE_NORMAL))
 		{
 			// animation is complete. kill obj.
-			Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", nullptr);
+			ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", nullptr);
 		}
 
 	}
@@ -125,7 +125,7 @@ DECLARE_SCRIPT(DAK_Vehicle_Regen_DAK, "" )
 {
 	void Created ( GameObject *obj ) override
 	{
-		Commands->Send_Custom_Event ( obj, obj, 0, 0, 0 );
+		ScriptEngine::Send_Custom_Event ( obj, obj, 0, 0, 0 );
 	}
 
 	void Custom (GameObject* obj, int type, intptr_t /*param*/, GameObject* /*sender*/) override
@@ -133,12 +133,12 @@ DECLARE_SCRIPT(DAK_Vehicle_Regen_DAK, "" )
 		if ( type == 0 ) // regenerate health.
 		{
 			// check to see if health needs to be regenerated.
-			if ( Commands->Get_Health ( obj ) < Commands->Get_Max_Health ( obj ) )
+			if ( ScriptEngine::Get_Health ( obj ) < ScriptEngine::Get_Max_Health ( obj ) )
 			{
-				Commands->Apply_Damage (obj, -10, "RegenHealth", nullptr);
+				ScriptEngine::Apply_Damage (obj, -10, "RegenHealth", nullptr);
 			}
 			// restart the timer
-			Commands->Send_Custom_Event ( obj, obj, 0, 0, 5 );
+			ScriptEngine::Send_Custom_Event ( obj, obj, 0, 0, 5 );
 		}
 	}
 };
@@ -148,32 +148,32 @@ DECLARE_SCRIPT(DAK_Electric_Death_DAK, "" )
 	void Created ( GameObject *obj ) override
 	{
 		// TODO Why is this casting like this to round rather than calling Get_Random_Int?
-		int time = int(Commands->Get_Random(1, 3));
-		Commands->Send_Custom_Event ( obj, obj, 0, 0, float(time) );
+		int time = int(ScriptEngine::Get_Random(1, 3));
+		ScriptEngine::Send_Custom_Event ( obj, obj, 0, 0, float(time) );
 	}
 
 	void Damaged (GameObject *obj, GameObject * /*damager*/, float /*amount*/ ) override
 	{
-		Commands->Send_Custom_Event ( obj, obj, 1, 0, 1 ); // wait a second before applying next ammount of damage.
+		ScriptEngine::Send_Custom_Event ( obj, obj, 1, 0, 1 ); // wait a second before applying next ammount of damage.
 	}
 
 	void Custom ( GameObject *obj, int type, intptr_t /*param*/, GameObject * /*sender*/ ) override
 	{
 		if ( type == 0 ) // create next soldier, attach script, kill yourself with electric damage.
 		{
-			Vector3 position = Commands->Get_Position (obj);
-			position.X += Commands->Get_Random(-3, 3);
-			position.Y += Commands->Get_Random(-3, 3);
-			GameObject *new_object = Commands->Create_Object( "Nod_Minigunner_0_Def", position);
+			Vector3 position = ScriptEngine::Get_Position (obj);
+			position.X += ScriptEngine::Get_Random(-3, 3);
+			position.Y += ScriptEngine::Get_Random(-3, 3);
+			GameObject *new_object = ScriptEngine::Create_Object( "Nod_Minigunner_0_Def", position);
 
-			Commands->Attach_Script (new_object, "DAK_Electric_Death_DAK", "");
+			ScriptEngine::Attach_Script (new_object, "DAK_Electric_Death_DAK", "");
 
-			Commands->Apply_Damage (obj, 10, "Electric", nullptr);
+			ScriptEngine::Apply_Damage (obj, 10, "Electric", nullptr);
 		}
 
 		if ( type == 1 ) // apply next ammount of electric damage.
 		{
-			Commands->Apply_Damage (obj, 10, "Electric", nullptr);
+			ScriptEngine::Apply_Damage (obj, 10, "Electric", nullptr);
 		}
 	}
 };
@@ -182,8 +182,8 @@ DECLARE_SCRIPT(DAK_PCT_Pokable_DAK, "" )
 {
 	void Created ( GameObject *obj ) override
 	{
-		Commands->Enable_HUD_Pokable_Indicator( obj, true );
-//		Commands->Display_Health_Bar( obj, false );
+		ScriptEngine::Enable_HUD_Pokable_Indicator( obj, true );
+//		ScriptEngine::Display_Health_Bar( obj, false );
 	}
 };
 
@@ -192,7 +192,7 @@ DECLARE_SCRIPT( M00_BUILDING_EXPLODE_NO_DAMAGE_DAK, "" )
 {
 	void Killed( GameObject *obj, GameObject * /*killer*/ ) override
 	{
-		//Commands->Create_Explosion ( "Building_Explode_No_Damage", position, nullptr );
-		Commands->Shake_Camera( Commands->Get_Position( obj ), 25, 0.1f, 4.0f );
+		//ScriptEngine::Create_Explosion ( "Building_Explode_No_Damage", position, nullptr );
+		ScriptEngine::Shake_Camera( ScriptEngine::Get_Position( obj ), 25, 0.1f, 4.0f );
 	}
 };

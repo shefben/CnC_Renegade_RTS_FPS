@@ -74,29 +74,29 @@ DECLARE_SCRIPT(M00_Objective_Controller_For_Objects_RMV, "Objective_ID:int, Obje
 		{
 			switch (objective_type)
 			{
-			case 1: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 1: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 2: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 2: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 3: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 3: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
 			}
-			if ((blip) && (Commands->Find_Object(object_id) != nullptr))
-				Commands->Set_Objective_Radar_Blip_Object(objective_id, Commands->Find_Object(object_id));
+			if ((blip) && (ScriptEngine::Find_Object(object_id) != nullptr))
+				ScriptEngine::Set_Objective_Radar_Blip_Object(objective_id, ScriptEngine::Find_Object(object_id));
 		}
 		else if ((activate == 0) && (hidden == true))
 		{
 			switch (objective_type)
 			{
-			case 1: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
+			case 1: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
 					break;
-			case 2: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
+			case 2: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
 					break;
-			case 3: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
+			case 3: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
 					break;
 			}
-			if ((blip) && (Commands->Find_Object(object_id) != nullptr))
-				Commands->Set_Objective_Radar_Blip_Object(objective_id, Commands->Find_Object(object_id));
+			if ((blip) && (ScriptEngine::Find_Object(object_id) != nullptr))
+				ScriptEngine::Set_Objective_Radar_Blip_Object(objective_id, ScriptEngine::Find_Object(object_id));
 		}
 	}
 
@@ -106,28 +106,28 @@ DECLARE_SCRIPT(M00_Objective_Controller_For_Objects_RMV, "Objective_ID:int, Obje
 		{
 			switch (objective_type)
 			{
-			case 1: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 1: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 2: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 2: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 3: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 3: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
 			}
-			if ((blip) && (Commands->Find_Object(object_id) != nullptr))
-				Commands->Set_Objective_Radar_Blip_Object(objective_id, Commands->Find_Object(object_id));
+			if ((blip) && (ScriptEngine::Find_Object(object_id) != nullptr))
+				ScriptEngine::Set_Objective_Radar_Blip_Object(objective_id, ScriptEngine::Find_Object(object_id));
 		}
 
 		if ((type == custom_type) && (param == success))
 		{
-			Commands->Set_Objective_Status(objective_id, OBJECTIVE_STATUS_ACCOMPLISHED);
+			ScriptEngine::Set_Objective_Status(objective_id, OBJECTIVE_STATUS_ACCOMPLISHED);
 		}
 		if ((type == custom_type) && (param == failure))
 		{
-			Commands->Set_Objective_Status(objective_id, OBJECTIVE_STATUS_FAILED);
+			ScriptEngine::Set_Objective_Status(objective_id, OBJECTIVE_STATUS_FAILED);
 		}
 		if ((type == custom_type) && (hidden == true) && (param == Get_Int_Parameter("Unhide_Param")))
 		{
-			Commands->Set_Objective_Status(objective_id, OBJECTIVE_STATUS_PENDING);
+			ScriptEngine::Set_Objective_Status(objective_id, OBJECTIVE_STATUS_PENDING);
 		}
 	}
 };
@@ -171,29 +171,29 @@ DECLARE_SCRIPT(M00_Objective_Controller_For_Locations_RMV, "Objective_ID:int, Ob
 		{
 			switch (objective_type)
 			{
-			case 1: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 1: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 2: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 2: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 3: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 3: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
 			}
 			if (blip)
-				Commands->Set_Objective_Radar_Blip(objective_id, location);
+				ScriptEngine::Set_Objective_Radar_Blip(objective_id, location);
 		}
 		else if ((activate == 0) && (hidden == true))
 		{
 			switch (objective_type)
 			{
-			case 1: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
+			case 1: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
 					break;
-			case 2: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
+			case 2: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
 					break;
-			case 3: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
+			case 3: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
 					break;
 			}
 			if (blip)
-				Commands->Set_Objective_Radar_Blip(objective_id, location);
+				ScriptEngine::Set_Objective_Radar_Blip(objective_id, location);
 		}
 	}
 
@@ -203,28 +203,28 @@ DECLARE_SCRIPT(M00_Objective_Controller_For_Locations_RMV, "Objective_ID:int, Ob
 		{
 			switch (objective_type)
 			{
-			case 1: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 1: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 2: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 2: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 3: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 3: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
 			}
 			if (blip)
-				Commands->Set_Objective_Radar_Blip(objective_id, location);
+				ScriptEngine::Set_Objective_Radar_Blip(objective_id, location);
 		}
 
 		if ((type == custom_type) && (param == success))
 		{
-			Commands->Set_Objective_Status(objective_id, OBJECTIVE_STATUS_ACCOMPLISHED);
+			ScriptEngine::Set_Objective_Status(objective_id, OBJECTIVE_STATUS_ACCOMPLISHED);
 		}
 		if ((type == custom_type) && (param == failure))
 		{
-			Commands->Set_Objective_Status(objective_id, OBJECTIVE_STATUS_FAILED);
+			ScriptEngine::Set_Objective_Status(objective_id, OBJECTIVE_STATUS_FAILED);
 		}
 		if ((type == custom_type) && (hidden == true) && (param == Get_Int_Parameter("Unhide_Param")))
 		{
-			Commands->Set_Objective_Status(objective_id, OBJECTIVE_STATUS_PENDING);
+			ScriptEngine::Set_Objective_Status(objective_id, OBJECTIVE_STATUS_PENDING);
 		}
 	}
 };
@@ -236,14 +236,14 @@ DECLARE_SCRIPT(M00_Objective_Radar_Blip_On_Object_RMV, "Objective_ID:int, Activa
 		bool activate = ((Get_Int_Parameter("Activate_Type") == 0) && (Get_Int_Parameter("Activate_Param") == 0)) ? true : false;
 		int objective_id = Get_Int_Parameter("Objective_ID");
 		if (activate)
-			Commands->Set_Objective_Radar_Blip_Object(objective_id, obj);
+			ScriptEngine::Set_Objective_Radar_Blip_Object(objective_id, obj);
 	}
 
 	void Custom(GameObject * obj, int type, intptr_t param, GameObject * /*sender*/) override
 	{
 		int objective_id = Get_Int_Parameter("Objective_ID");
 		if ((Get_Int_Parameter("Activate_Type") == type) && (Get_Int_Parameter("Activate_Param") == param))
-			Commands->Set_Objective_Radar_Blip_Object(objective_id, obj);
+			ScriptEngine::Set_Objective_Radar_Blip_Object(objective_id, obj);
 	}
 };
 
@@ -286,11 +286,11 @@ DECLARE_SCRIPT(M00_Objective_Controller_For_Objects_Multiple_Triggers_RMV, "Obje
 		{
 			switch (objective_type)
 			{
-			case 1: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 1: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 2: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 2: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 3: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 3: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
 			}
 		}
@@ -298,11 +298,11 @@ DECLARE_SCRIPT(M00_Objective_Controller_For_Objects_Multiple_Triggers_RMV, "Obje
 		{
 			switch (objective_type)
 			{
-			case 1: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
+			case 1: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
 					break;
-			case 2: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
+			case 2: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
 					break;
-			case 3: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
+			case 3: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, description_id, nullptr, 0);
 					break;
 			}
 		}
@@ -314,29 +314,29 @@ DECLARE_SCRIPT(M00_Objective_Controller_For_Objects_Multiple_Triggers_RMV, "Obje
 		{
 			switch (objective_type)
 			{
-			case 1: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 1: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 2: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 2: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
-			case 3: Commands->Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
+			case 3: ScriptEngine::Add_Objective(objective_id, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_PENDING, description_id, nullptr, 0);
 					break;
 			}
 			if (so_far >= number)
-				Commands->Set_Objective_Status(objective_id, OBJECTIVE_STATUS_ACCOMPLISHED);
+				ScriptEngine::Set_Objective_Status(objective_id, OBJECTIVE_STATUS_ACCOMPLISHED);
 		}
 		if ((type == custom_type) && (param == trigger))
 		{
 			so_far++;
 			if (so_far >= number)
-				Commands->Set_Objective_Status(objective_id, OBJECTIVE_STATUS_ACCOMPLISHED);
+				ScriptEngine::Set_Objective_Status(objective_id, OBJECTIVE_STATUS_ACCOMPLISHED);
 		}
 		if ((type == custom_type) && (param == failure))
 		{
-			Commands->Set_Objective_Status(objective_id, OBJECTIVE_STATUS_FAILED);
+			ScriptEngine::Set_Objective_Status(objective_id, OBJECTIVE_STATUS_FAILED);
 		}
 		if ((type == custom_type) && (hidden == true) && (param == Get_Int_Parameter("Unhide_Param")))
 		{
-			Commands->Set_Objective_Status(objective_id, OBJECTIVE_STATUS_PENDING);
+			ScriptEngine::Set_Objective_Status(objective_id, OBJECTIVE_STATUS_PENDING);
 		}
 	}
 };
@@ -363,9 +363,9 @@ DECLARE_SCRIPT(M00_Global_Objective_Controller_RMV, "Set_Type:int, Set_Status:in
 			i_obj = int(f_obj);
 			i_new = int((f_obj - i_obj) * 10);
 			switch (i_new) {
-			case 1: Commands->Change_Objective_Type(i_obj, OBJECTIVE_TYPE_PRIMARY);
-			case 2: Commands->Change_Objective_Type(i_obj, OBJECTIVE_TYPE_SECONDARY);
-			case 3: Commands->Change_Objective_Type(i_obj, OBJECTIVE_TYPE_TERTIARY);
+			case 1: ScriptEngine::Change_Objective_Type(i_obj, OBJECTIVE_TYPE_PRIMARY);
+			case 2: ScriptEngine::Change_Objective_Type(i_obj, OBJECTIVE_TYPE_SECONDARY);
+			case 3: ScriptEngine::Change_Objective_Type(i_obj, OBJECTIVE_TYPE_TERTIARY);
 			}
 		}
 		else if (type == set_status)
@@ -375,15 +375,15 @@ DECLARE_SCRIPT(M00_Global_Objective_Controller_RMV, "Set_Type:int, Set_Status:in
 			i_obj = int(f_obj);
 			i_new = int((f_obj - i_obj) * 10);
 			switch (i_new) {
-			case 1: Commands->Set_Objective_Status(i_obj, OBJECTIVE_STATUS_PENDING);
-			case 2: Commands->Set_Objective_Status(i_obj, OBJECTIVE_STATUS_ACCOMPLISHED);
-			case 3: Commands->Set_Objective_Status(i_obj, OBJECTIVE_STATUS_FAILED);
-			case 4: Commands->Set_Objective_Status(i_obj, OBJECTIVE_STATUS_HIDDEN);
+			case 1: ScriptEngine::Set_Objective_Status(i_obj, OBJECTIVE_STATUS_PENDING);
+			case 2: ScriptEngine::Set_Objective_Status(i_obj, OBJECTIVE_STATUS_ACCOMPLISHED);
+			case 3: ScriptEngine::Set_Objective_Status(i_obj, OBJECTIVE_STATUS_FAILED);
+			case 4: ScriptEngine::Set_Objective_Status(i_obj, OBJECTIVE_STATUS_HIDDEN);
 			}
 		}
 		else if (type == remove)
 		{
-			Commands->Remove_Objective(param);
+			ScriptEngine::Remove_Objective(param);
 		}
 	}
 };

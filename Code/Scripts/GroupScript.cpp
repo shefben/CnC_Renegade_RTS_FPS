@@ -143,8 +143,8 @@ DECLARE_SCRIPT(MXX_Group_Member_DEL, "GroupName:string")
 			GroupEventInfo* info = (GroupEventInfo*)data;
 			assert(info != nullptr);
 
-			int senderID = Commands->Get_ID(sender);
-			int objectID = Commands->Get_ID(info->Object);
+			int senderID = ScriptEngine::Get_ID(sender);
+			int objectID = ScriptEngine::Get_ID(info->Object);
 
 			switch (info->Event)
 				{
@@ -161,7 +161,7 @@ DECLARE_SCRIPT(MXX_Group_Member_DEL, "GroupName:string")
 				case GROUP_MEMBER_HEARD:
 					{
 					const CombatSound* sound = info->Sound;
-					objectID = Commands->Get_ID(sound->Creator);
+					objectID = ScriptEngine::Get_ID(sound->Creator);
 					DebugPrint("Group %s member %d heard a sound from object %d\n",
 						info->GroupName, senderID, objectID);
 					}

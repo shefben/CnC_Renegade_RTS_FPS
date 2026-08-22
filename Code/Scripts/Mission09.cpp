@@ -65,10 +65,10 @@ DECLARE_SCRIPT(M09_Objective_Controller, "") // Object Controller id: 2000071
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Set_Num_Tertiary_Objectives ( 1 );
+		ScriptEngine::Set_Num_Tertiary_Objectives ( 1 );
 
-		Commands->Start_Timer (obj, this, 1.0f, HAVOCS_SCRIPT);
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Start_Timer (obj, this, 1.0f, HAVOCS_SCRIPT);
+		ScriptEngine::Enable_Hibernation(obj, false);
 
 		spawn_loc = 0;
 
@@ -91,19 +91,19 @@ DECLARE_SCRIPT(M09_Objective_Controller, "") // Object Controller id: 2000071
 		// New Primary Mission Objective:  Retrieve the Mobile Power Suit for Dr. Mobius
 		case 901:
 			{
-				Commands->Set_Objective_HUD_Info(id, -1, "POG_M09_1_01.tga", IDS_POG_RETRIEVE);
+				ScriptEngine::Set_Objective_HUD_Info(id, -1, "POG_M09_1_01.tga", IDS_POG_RETRIEVE);
 			}
 			break;
 		// New Primary Mission Objective: Escort Dr. Mobius to the Surface
 		case 902:
 			{
-				Commands->Set_Objective_HUD_Info(id, -1, "POG_M09_1_02.tga", IDS_POG_ESCORT);
+				ScriptEngine::Set_Objective_HUD_Info(id, -1, "POG_M09_1_02.tga", IDS_POG_ESCORT);
 			}
 			break;
 		// New Primary Mission Objective: Escort Dr. Mobius to the Rendezvous Point
 		case 903:
 			{
-				Commands->Set_Objective_HUD_Info(id, -1, "POG_M09_1_03.tga", IDS_POG_ESCORT);
+				ScriptEngine::Set_Objective_HUD_Info(id, -1, "POG_M09_1_03.tga", IDS_POG_ESCORT);
 			}
 			break;
 		}
@@ -119,13 +119,13 @@ DECLARE_SCRIPT(M09_Objective_Controller, "") // Object Controller id: 2000071
 
 		case 900:
 			{
-				Commands->Add_Objective(900, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M09_04, nullptr, IDS_Enc_Obj_Primary_M09_04);
+				ScriptEngine::Add_Objective(900, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M09_04, nullptr, IDS_Enc_Obj_Primary_M09_04);
 
-				object = Commands->Find_Object(2000010);
+				object = ScriptEngine::Find_Object(2000010);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(900, object);
-					Commands->Set_Objective_HUD_Info_Position( 900, 90, "POG_M09_1_02.tga", IDS_POG_PROTECT, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(900, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position( 900, 90, "POG_M09_1_02.tga", IDS_POG_PROTECT, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
@@ -134,39 +134,39 @@ DECLARE_SCRIPT(M09_Objective_Controller, "") // Object Controller id: 2000071
 
 		case 901:
 			{
-				Commands->Add_Objective(901, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M09_01, nullptr, IDS_Enc_Obj_Primary_M09_01);
+				ScriptEngine::Add_Objective(901, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M09_01, nullptr, IDS_Enc_Obj_Primary_M09_01);
 
-				object = Commands->Find_Object(2002239);
+				object = ScriptEngine::Find_Object(2002239);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(901, object);
-					Commands->Set_Objective_HUD_Info_Position( 901, 99, "POG_M09_1_01.tga", IDS_POG_RETRIEVE, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(901, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position( 901, 99, "POG_M09_1_01.tga", IDS_POG_RETRIEVE, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// New Primary Mission Objective: Escort Dr. Mobius to the Surface
 		case 902:
 			{
-				Commands->Add_Objective(902, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M09_02, nullptr, IDS_Enc_Obj_Primary_M09_02);
+				ScriptEngine::Add_Objective(902, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M09_02, nullptr, IDS_Enc_Obj_Primary_M09_02);
 
-				object = Commands->Find_Object(2000955);
+				object = ScriptEngine::Find_Object(2000955);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(902, object);
-					Commands->Set_Objective_HUD_Info_Position( 902, 98, "POG_M08_1_03.tga", IDS_POG_ESCORT, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(902, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position( 902, 98, "POG_M08_1_03.tga", IDS_POG_ESCORT, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// New Primary Mission Objective: Escort Dr. Mobius to the Rendezvous Point
 		case 903:
 			{
-				Commands->Add_Objective(903, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M09_03, nullptr, IDS_Enc_Obj_Primary_M09_03);
+				ScriptEngine::Add_Objective(903, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M09_03, nullptr, IDS_Enc_Obj_Primary_M09_03);
 
-				object = Commands->Find_Object(2000969);
+				object = ScriptEngine::Find_Object(2000969);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(903, object);
-					Commands->Set_Objective_HUD_Info_Position( 903, 97, "POG_M09_1_03.tga", IDS_POG_ESCORT, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(903, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position( 903, 97, "POG_M09_1_03.tga", IDS_POG_ESCORT, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
@@ -174,18 +174,18 @@ DECLARE_SCRIPT(M09_Objective_Controller, "") // Object Controller id: 2000071
 
 		case 904:
 			{
-				Commands->Add_Objective(904, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Hidden_M09_01, nullptr, IDS_Enc_Obj_Hidden_M09_04);			}
+				ScriptEngine::Add_Objective(904, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Hidden_M09_01, nullptr, IDS_Enc_Obj_Hidden_M09_04);			}
 			break;/*
 		// New Hidden Mission Objective: Comandeer the NOD Stealth Tank.
 		case 905:
 			{
-				Commands->Add_Objective(905, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, IDS_M09_T02, nullptr);
+				ScriptEngine::Add_Objective(905, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, IDS_M09_T02, nullptr);
 			}
 			break;
 		// New Hidden Mission Objective: Comandeer the NOD Stealth Tank.
 		case 906:
 			{
-				Commands->Add_Objective(906, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_M09_P05, nullptr);
+				ScriptEngine::Add_Objective(906, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_M09_P05, nullptr);
 			}
 			break;*/
 		case 1000:
@@ -200,46 +200,46 @@ DECLARE_SCRIPT(M09_Objective_Controller, "") // Object Controller id: 2000071
 		if (type == BLOCK_ON)
 		{
 			if ((block1 != 0) && (block2 != 0) && (block3 != 0) && (block4 != 0)) {
-				Commands->Start_Timer (obj, this, 3.0f, 333);
+				ScriptEngine::Start_Timer (obj, this, 3.0f, 333);
 
-				GameObject *rub1 = Commands->Create_Object ("M08_Rubble_Stub", Vector3 (-108.066f, 483.917f, -191.022f));
-				block1 = Commands->Get_ID (rub1);
-				Commands->Set_Is_Rendered( rub1, false );
-				GameObject *rub2 = Commands->Create_Object ("M08_Rubble_Stub", Vector3 (-25.433f, 513.013f, -150.613f));
-				block2 = Commands->Get_ID (rub2);
-				Commands->Set_Is_Rendered( rub2, false );
-				GameObject *rub3 = Commands->Create_Object ("M08_Rubble_Stub", Vector3 (-47.948f, 535.216f, -103.284f));
-				block3 = Commands->Get_ID (rub3);
-				Commands->Set_Is_Rendered( rub3, false );
-				Commands->Set_Facing (rub3, -90.0);
-				GameObject *rub4 = Commands->Create_Object ("M08_Rubble_Stub", Vector3 (39.231f, 515.105f, -78.137f));
-				block4 = Commands->Get_ID (rub4);
-				Commands->Set_Is_Rendered( rub4, false );
+				GameObject *rub1 = ScriptEngine::Create_Object ("M08_Rubble_Stub", Vector3 (-108.066f, 483.917f, -191.022f));
+				block1 = ScriptEngine::Get_ID (rub1);
+				ScriptEngine::Set_Is_Rendered( rub1, false );
+				GameObject *rub2 = ScriptEngine::Create_Object ("M08_Rubble_Stub", Vector3 (-25.433f, 513.013f, -150.613f));
+				block2 = ScriptEngine::Get_ID (rub2);
+				ScriptEngine::Set_Is_Rendered( rub2, false );
+				GameObject *rub3 = ScriptEngine::Create_Object ("M08_Rubble_Stub", Vector3 (-47.948f, 535.216f, -103.284f));
+				block3 = ScriptEngine::Get_ID (rub3);
+				ScriptEngine::Set_Is_Rendered( rub3, false );
+				ScriptEngine::Set_Facing (rub3, -90.0);
+				GameObject *rub4 = ScriptEngine::Create_Object ("M08_Rubble_Stub", Vector3 (39.231f, 515.105f, -78.137f));
+				block4 = ScriptEngine::Get_ID (rub4);
+				ScriptEngine::Set_Is_Rendered( rub4, false );
 			}
 		}
 
 		if (type == BLOCK_OFF)
 		{
-			Commands->Destroy_Object (Commands->Find_Object (block1));
-			Commands->Destroy_Object (Commands->Find_Object (block2));
-			Commands->Destroy_Object (Commands->Find_Object (block3));
-			Commands->Destroy_Object (Commands->Find_Object (block4));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block1));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block2));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block3));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block4));
 			block1 = block2 = block3 = block4 = 0;
 		}
 
 
 		if (type == MOBIUS_KILLED)
 		{
-			Commands->Set_HUD_Help_Text ( IDS_M09DSGN_DSGN0073I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+			ScriptEngine::Set_HUD_Help_Text ( IDS_M09DSGN_DSGN0073I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
 
-			Commands->Start_Timer (obj, this, 4.0f, 40);
+			ScriptEngine::Start_Timer (obj, this, 4.0f, 40);
 		}
 
         if (type == MISSION09_CHECK && param == MISSION09_CHECK)
 		{
-			Commands->Send_Custom_Event (obj, sender, 901, objective [0], 0.0f);
-			Commands->Send_Custom_Event (obj, sender, 902, objective [1], 0.0f);
-			Commands->Send_Custom_Event (obj, sender, 903, objective [2], 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, sender, 901, objective [0], 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, sender, 902, objective [1], 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, sender, 903, objective [2], 0.0f);
 		}
 
 		if (type == 901 && param == 1)
@@ -264,31 +264,31 @@ DECLARE_SCRIPT(M09_Objective_Controller, "") // Object Controller id: 2000071
 		{
 			case 1:
 				{
-					//Commands->Clear_Radar_Marker (type);
-					Commands->Set_Objective_Status(type, OBJECTIVE_STATUS_ACCOMPLISHED);
+					//ScriptEngine::Clear_Radar_Marker (type);
+					ScriptEngine::Set_Objective_Status(type, OBJECTIVE_STATUS_ACCOMPLISHED);
 				}
 				break;
 			case 2:
 				{
-					//Commands->Clear_Radar_Marker (type);
-					Commands->Set_Objective_Status(type, OBJECTIVE_STATUS_FAILED);
+					//ScriptEngine::Clear_Radar_Marker (type);
+					ScriptEngine::Set_Objective_Status(type, OBJECTIVE_STATUS_FAILED);
 				}
 				break;
 			case 3:
 					Add_An_Objective(type);
 				break;
 			case 4:
-					Commands->Set_Objective_Status(type, OBJECTIVE_STATUS_PENDING);
+					ScriptEngine::Set_Objective_Status(type, OBJECTIVE_STATUS_PENDING);
 				break;
 			case 5:
-					Commands->Set_Objective_Status(type, OBJECTIVE_STATUS_HIDDEN);
+					ScriptEngine::Set_Objective_Status(type, OBJECTIVE_STATUS_HIDDEN);
 				break;
 		}
 
 		if(type == 666 && param == 666)
 		{
 
-			Commands->Start_Timer (obj, this, 0.10f, M09_DEAD_HAVOC);
+			ScriptEngine::Start_Timer (obj, this, 0.10f, M09_DEAD_HAVOC);
 		}
 
 		if (type == SPAWN_LOC && param == INCREMENT)
@@ -302,16 +302,16 @@ DECLARE_SCRIPT(M09_Objective_Controller, "") // Object Controller id: 2000071
 	{
 		if (timer_id == 333)
 		{
-			Commands->Destroy_Object (Commands->Find_Object (block1));
-			Commands->Destroy_Object (Commands->Find_Object (block2));
-			Commands->Destroy_Object (Commands->Find_Object (block3));
-			Commands->Destroy_Object (Commands->Find_Object (block4));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block1));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block2));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block3));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block4));
 			block1 = block2 = block3 = block4 = 0;
 		}
 
 		if (timer_id == 40)
 		{
-			Commands->Mission_Complete(false);
+			ScriptEngine::Mission_Complete(false);
 		}
 	}
 };
@@ -320,38 +320,38 @@ DECLARE_SCRIPT (M09_Havoc_Script, "")
 {
 	void Created (GameObject *obj) override
 	{
-		/*Commands->Give_PowerUp(obj, "Shotgun Weapon 3 Clips PU", false);
-		Commands->Give_PowerUp(obj, "FlameThrower_Weapon_PowerUp", false);
-		Commands->Give_PowerUp(obj, "Flame_Weapon_1_Clip_PowerUp", false);
-		Commands->Give_PowerUp(obj, "Flame_Weapon_1_Clip_PowerUp", false);
-		Commands->Give_PowerUp(obj, "ChemSprayer_Weapon_PowerUp", false);
-		Commands->Give_PowerUp(obj, "Chem_Weapon_1_Clip_PowerUp", false);
-		Commands->Give_PowerUp(obj, "Grenade Launcher Weapon PowerUps", false);
-		Commands->Give_PowerUp(obj, "GL_Weapon_1_Clip_PowerUp", false);
-		Commands->Give_PowerUp(obj, "Mine Weapons PowerUps", false);
-		Commands->Give_PowerUp(obj, "Remote Mine Weapon 1 Clip PU", false);
-		Commands->Give_PowerUp(obj, "Sniper Weapon 1 Clip PU", false);
-		Commands->Give_PowerUp(obj, "Sniper Weapon 1 Clip PU", false);
-		Commands->Give_PowerUp(obj, "MG Weapon 1 Clip PowerUp", false);
-		Commands->Give_PowerUp(obj, "MiniGun 2 Clips PU", false);
-		Commands->Give_PowerUp(obj, "Armor 100 PowerUp", false);
-		Commands->Give_PowerUp(obj, "RL Weapon 1 Clip PowerUp", false);*/
+		/*ScriptEngine::Give_PowerUp(obj, "Shotgun Weapon 3 Clips PU", false);
+		ScriptEngine::Give_PowerUp(obj, "FlameThrower_Weapon_PowerUp", false);
+		ScriptEngine::Give_PowerUp(obj, "Flame_Weapon_1_Clip_PowerUp", false);
+		ScriptEngine::Give_PowerUp(obj, "Flame_Weapon_1_Clip_PowerUp", false);
+		ScriptEngine::Give_PowerUp(obj, "ChemSprayer_Weapon_PowerUp", false);
+		ScriptEngine::Give_PowerUp(obj, "Chem_Weapon_1_Clip_PowerUp", false);
+		ScriptEngine::Give_PowerUp(obj, "Grenade Launcher Weapon PowerUps", false);
+		ScriptEngine::Give_PowerUp(obj, "GL_Weapon_1_Clip_PowerUp", false);
+		ScriptEngine::Give_PowerUp(obj, "Mine Weapons PowerUps", false);
+		ScriptEngine::Give_PowerUp(obj, "Remote Mine Weapon 1 Clip PU", false);
+		ScriptEngine::Give_PowerUp(obj, "Sniper Weapon 1 Clip PU", false);
+		ScriptEngine::Give_PowerUp(obj, "Sniper Weapon 1 Clip PU", false);
+		ScriptEngine::Give_PowerUp(obj, "MG Weapon 1 Clip PowerUp", false);
+		ScriptEngine::Give_PowerUp(obj, "MiniGun 2 Clips PU", false);
+		ScriptEngine::Give_PowerUp(obj, "Armor 100 PowerUp", false);
+		ScriptEngine::Give_PowerUp(obj, "RL Weapon 1 Clip PowerUp", false);*/
 
-		Commands->Start_Timer(obj, this, 0.5f, ACTIVATE);
-		//Commands->Grant_Key ( STAR, 10, true);
+		ScriptEngine::Start_Timer(obj, this, 0.5f, ACTIVATE);
+		//ScriptEngine::Grant_Key ( STAR, 10, true);
 	}
 
 	void Timer_Expired (GameObject * /* obj */, int timer_id) override
 	{
 		if (timer_id == ACTIVATE)
 		{
-			Commands->Grant_Key ( STAR, 10, true);
+			ScriptEngine::Grant_Key ( STAR, 10, true);
 		}
 	}
 
 	void Destroyed(GameObject * obj) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 666, 666, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 666, 666, 0.0f);
 	}
 };
 
@@ -376,13 +376,13 @@ DECLARE_SCRIPT (M09_Mobius_Suit_Objective, "")
 	{
 		if (type == 8888)
 		{
-			GameObject *mobius = Commands->Find_Object (2000010);
+			GameObject *mobius = ScriptEngine::Find_Object (2000010);
 
-			Vector3 havoc_loc = Commands->Get_Position (Commands->Find_Object (1100497));
-			Vector3 mobius_loc = Commands->Get_Position (Commands->Find_Object (2002239));
+			Vector3 havoc_loc = ScriptEngine::Get_Position (ScriptEngine::Find_Object (1100497));
+			Vector3 mobius_loc = ScriptEngine::Get_Position (ScriptEngine::Find_Object (2002239));
 
-			Commands->Set_Position (STAR, havoc_loc );
-			Commands->Set_Position (mobius, mobius_loc );
+			ScriptEngine::Set_Position (STAR, havoc_loc );
+			ScriptEngine::Set_Position (mobius, mobius_loc );
 		}
 	}
 
@@ -391,40 +391,40 @@ DECLARE_SCRIPT (M09_Mobius_Suit_Objective, "")
 	{
 		if (!already_entered)
 		{
-			GameObject *mobius = Commands->Find_Object (2000010);
+			GameObject *mobius = ScriptEngine::Find_Object (2000010);
 			already_entered = true;
 
-			//Commands->Destroy_Object (Commands->Find_Object (1202323));
+			//ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (1202323));
 
 			if (mobius)
 			{
-				Vector3 havoc_loc = Commands->Get_Position (STAR);
-				Vector3 mobius_loc = Commands->Get_Position (mobius);
+				Vector3 havoc_loc = ScriptEngine::Get_Position (STAR);
+				Vector3 mobius_loc = ScriptEngine::Get_Position (mobius);
 
 				havoc_loc.Z += 7.0f;
 				mobius_loc.Z += 7.0f;
 
 
-				Commands->Action_Reset(mobius, 100);
-				Commands->Set_Position (STAR, havoc_loc );
-				Commands->Set_Position (mobius, mobius_loc );
+				ScriptEngine::Action_Reset(mobius, 100);
+				ScriptEngine::Set_Position (STAR, havoc_loc );
+				ScriptEngine::Set_Position (mobius, mobius_loc );
 
-				//Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), SPAWN_LOC, INCREMENT, 0.0f);
-				//Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 901, 1, 0.0f);
+				//ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), SPAWN_LOC, INCREMENT, 0.0f);
+				//ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 901, 1, 0.0f);
 
-				GameObject * powermob = Commands->Create_Object ( "Invisible_Object", Vector3(0.0f, 0.0f, 0.0f));
-				Commands->Set_Facing(powermob, 0.0f);
-				Commands->Attach_Script(powermob, "Test_Cinematic", "X9C_MIDTRO.txt");
+				GameObject * powermob = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(0.0f, 0.0f, 0.0f));
+				ScriptEngine::Set_Facing(powermob, 0.0f);
+				ScriptEngine::Attach_Script(powermob, "Test_Cinematic", "X9C_MIDTRO.txt");
 
-				Commands->Set_Model ( mobius, "c_ag_gdi_pmob" );
-				Commands->Give_PowerUp(mobius, "POW_LaserChaingun_AI", false);
-				Commands->Select_Weapon (mobius, "Weapon_LaserChaingun_Ai" );
+				ScriptEngine::Set_Model ( mobius, "c_ag_gdi_pmob" );
+				ScriptEngine::Give_PowerUp(mobius, "POW_LaserChaingun_AI", false);
+				ScriptEngine::Select_Weapon (mobius, "Weapon_LaserChaingun_Ai" );
 
-				Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 901, 1, 0.0f);
-				Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 902, 3, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 901, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 902, 3, 0.0f);
 
-				Commands->Set_Health (mobius, 300.0f);
-				Commands->Attach_Script(mobius, "M09_Damage_Modifier", ".05");
+				ScriptEngine::Set_Health (mobius, 300.0f);
+				ScriptEngine::Attach_Script(mobius, "M09_Damage_Modifier", ".05");
 			}
 		}
 	}
@@ -433,16 +433,16 @@ DECLARE_SCRIPT (M09_Mobius_Suit_Objective, "")
 	{
 		if (stricmp(anim, "h_a_a0a0_l26da") == 0)
 		{
-			GameObject *mobius = Commands->Find_Object (2000010);
+			GameObject *mobius = ScriptEngine::Find_Object (2000010);
 
-			Commands->Set_Animation ( mobius, "h_a_a0a0_l26db", true, nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Set_Animation ( mobius, "h_a_a0a0_l26db", true, nullptr, 0.0f, -1.0f, false);
 
 			const char *conv_name = ("IDS_M09_D11");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(mobius, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 901);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 901);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 	}
 
@@ -450,21 +450,21 @@ DECLARE_SCRIPT (M09_Mobius_Suit_Objective, "")
 	{
 		if(action_id == 900 && reason == ACTION_COMPLETE_CONVERSATION_ENDED)
 		{
-			/*GameObject *mobius = Commands->Find_Object (2000010);
-			Commands->Set_Model ( mobius, "c_ag_gdi_pmob" );
-			Commands->Give_PowerUp(mobius, "POW_LaserChaingun_AI", false);
-			Commands->Select_Weapon (mobius, "Weapon_LaserChaingun_Ai" );*/
+			/*GameObject *mobius = ScriptEngine::Find_Object (2000010);
+			ScriptEngine::Set_Model ( mobius, "c_ag_gdi_pmob" );
+			ScriptEngine::Give_PowerUp(mobius, "POW_LaserChaingun_AI", false);
+			ScriptEngine::Select_Weapon (mobius, "Weapon_LaserChaingun_Ai" );*/
 
-			//Commands->Set_Animation ( mobius, "h_a_a0a0_l26da", false, nullptr, 0.0f, -1.0f, false);
+			//ScriptEngine::Set_Animation ( mobius, "h_a_a0a0_l26da", false, nullptr, 0.0f, -1.0f, false);
 		}
 
 		if(action_id == 901 && reason == ACTION_COMPLETE_CONVERSATION_ENDED)
 		{
-			GameObject *mobius = Commands->Find_Object (2000010);
+			GameObject *mobius = ScriptEngine::Find_Object (2000010);
 
-			Commands->Set_Animation ( mobius, "h_a_a0a0_l26dc", false, nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Set_Animation ( mobius, "h_a_a0a0_l26dc", false, nullptr, 0.0f, -1.0f, false);
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 902, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 902, 3, 0.0f);
 		}
 	}
 };
@@ -492,15 +492,15 @@ DECLARE_SCRIPT (M09_Surface_Objective, "")
 		{
 			already_entered = true;
 
-			//Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), SPAWN_LOC, INCREMENT, 0.0f);
+			//ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), SPAWN_LOC, INCREMENT, 0.0f);
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 902, 1, 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 903, 3, 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000955), FLYOVER, 0, 0.0f);
-			//Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 906, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 902, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 903, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000955), FLYOVER, 0, 0.0f);
+			//ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 906, 3, 0.0f);
 
-			Commands->Destroy_Object ( Commands->Find_Object (2000614));
-			Commands->Destroy_Object ( Commands->Find_Object (2000954));
+			ScriptEngine::Destroy_Object ( ScriptEngine::Find_Object (2000614));
+			ScriptEngine::Destroy_Object ( ScriptEngine::Find_Object (2000954));
 		}
 	}
 
@@ -532,7 +532,7 @@ DECLARE_SCRIPT (M09_Evac_Point_Objective, "")
 
 	void Exited( GameObject * /* obj */, GameObject * exiter ) override
 	{
-		GameObject * mobius = Commands->Find_Object (2000010);
+		GameObject * mobius = ScriptEngine::Find_Object (2000010);
 
 		if (exiter == STAR)
 		{
@@ -547,7 +547,7 @@ DECLARE_SCRIPT (M09_Evac_Point_Objective, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		GameObject * mobius = Commands->Find_Object (2000010);
+		GameObject * mobius = ScriptEngine::Find_Object (2000010);
 
 		if (enterer == STAR)
 		{
@@ -555,13 +555,13 @@ DECLARE_SCRIPT (M09_Evac_Point_Objective, "")
 
 			if (mobius_in_zone)
 			{
-				Commands->Attach_Script(mobius, "M00_Damage_Modifier_DME", "0.05f, 1, 1, 0, 0");
-				Commands->Start_Timer (obj, this, 1.0f, M09_MISSION_COMPLETE);
+				ScriptEngine::Attach_Script(mobius, "M00_Damage_Modifier_DME", "0.05f, 1, 1, 0, 0");
+				ScriptEngine::Start_Timer (obj, this, 1.0f, M09_MISSION_COMPLETE);
 			}
 
 			if (!mobius_in_zone)
 			{
-				Commands->Send_Custom_Event( obj, mobius, FOLLOW, 2000969, 0.0f );
+				ScriptEngine::Send_Custom_Event( obj, mobius, FOLLOW, 2000969, 0.0f );
 			}
 		}
 
@@ -571,26 +571,26 @@ DECLARE_SCRIPT (M09_Evac_Point_Objective, "")
 
 			if (star_in_zone)
 			{
-				Commands->Attach_Script(mobius, "M00_Damage_Modifier_DME", "0.05f, 1, 1, 0, 0");
-				Commands->Start_Timer (obj, this, 1.0f, M09_MISSION_COMPLETE);
+				ScriptEngine::Attach_Script(mobius, "M00_Damage_Modifier_DME", "0.05f, 1, 1, 0, 0");
+				ScriptEngine::Start_Timer (obj, this, 1.0f, M09_MISSION_COMPLETE);
 			}
 		}
 
-		/*GameObject *mobius = Commands->Find_Object (2000010);
-		float mobius_distance = Commands->Get_Distance(Commands->Get_Position (Commands->Find_Object (2000969)), Commands->Get_Position (mobius));
+		/*GameObject *mobius = ScriptEngine::Find_Object (2000010);
+		float mobius_distance = ScriptEngine::Get_Distance(ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000969)), ScriptEngine::Get_Position (mobius));
 
 		if (mobius_distance < 15.0f)
 		{
-			//Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 903, 1, 0.0f);
+			//ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 903, 1, 0.0f);
 
-			Commands->Start_Timer (obj, this, 5.0f, M09_MISSION_COMPLETE);
+			ScriptEngine::Start_Timer (obj, this, 5.0f, M09_MISSION_COMPLETE);
 
-			GameObject * chin_loc = Commands->Find_Object (2000259);
-			float facing = Commands->Get_Facing (chin_loc);
+			GameObject * chin_loc = ScriptEngine::Find_Object (2000259);
+			float facing = ScriptEngine::Get_Facing (chin_loc);
 
-			GameObject * chinook_obj = Commands->Create_Object ( "Invisible_Object", Commands->Get_Position (chin_loc));
-			Commands->Set_Facing(chinook_obj, facing);
-			Commands->Attach_Script(chinook_obj, "Test_Cinematic", "M09_XG_EV4.txt");
+			GameObject * chinook_obj = ScriptEngine::Create_Object ( "Invisible_Object", ScriptEngine::Get_Position (chin_loc));
+			ScriptEngine::Set_Facing(chinook_obj, facing);
+			ScriptEngine::Attach_Script(chinook_obj, "Test_Cinematic", "M09_XG_EV4.txt");
 		}
 
 		else
@@ -598,11 +598,11 @@ DECLARE_SCRIPT (M09_Evac_Point_Objective, "")
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, 99, MOBIUS_GOTO );
-			params.Set_Movement( Commands->Get_Position (Commands->Find_Object (2000969)), 1.2f, 0.8f );
+			params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000969)), 1.2f, 0.8f );
 
-			Commands->Action_Goto (mobius, params);
+			ScriptEngine::Action_Goto (mobius, params);
 
-			Commands->Start_Timer (obj, this, 3.0f, TIMER_RESET);
+			ScriptEngine::Start_Timer (obj, this, 3.0f, TIMER_RESET);
 		}*/
 	}
 
@@ -610,26 +610,26 @@ DECLARE_SCRIPT (M09_Evac_Point_Objective, "")
 	{
 		if (timer_id == M09_MISSION_COMPLETE)
 		{
-			Commands->Mission_Complete ( true );
+			ScriptEngine::Mission_Complete ( true );
 		}
 
 		if (timer_id == TIMER_RESET)
 		{
-			GameObject *mobius = Commands->Find_Object (2000010);
-			float mobius_distance = Commands->Get_Distance(Commands->Get_Position (Commands->Find_Object (2000969)), Commands->Get_Position (mobius));
+			GameObject *mobius = ScriptEngine::Find_Object (2000010);
+			float mobius_distance = ScriptEngine::Get_Distance(ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000969)), ScriptEngine::Get_Position (mobius));
 
 			if (mobius_distance < 15.0f)
 			{
-				//Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 903, 1, 0.0f);
+				//ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 903, 1, 0.0f);
 
-				Commands->Start_Timer (obj, this, 1.0f, M09_MISSION_COMPLETE);
+				ScriptEngine::Start_Timer (obj, this, 1.0f, M09_MISSION_COMPLETE);
 
-				GameObject * chin_loc = Commands->Find_Object (2000259);
-				float facing = Commands->Get_Facing (chin_loc);
+				GameObject * chin_loc = ScriptEngine::Find_Object (2000259);
+				float facing = ScriptEngine::Get_Facing (chin_loc);
 
-				GameObject * chinook_obj = Commands->Create_Object ( "Invisible_Object", Commands->Get_Position (chin_loc));
-				Commands->Set_Facing(chinook_obj, facing);
-				Commands->Attach_Script(chinook_obj, "Test_Cinematic", "M09_XG_EV4.txt");
+				GameObject * chinook_obj = ScriptEngine::Create_Object ( "Invisible_Object", ScriptEngine::Get_Position (chin_loc));
+				ScriptEngine::Set_Facing(chinook_obj, facing);
+				ScriptEngine::Attach_Script(chinook_obj, "Test_Cinematic", "M09_XG_EV4.txt");
 			}
 
 			else
@@ -637,11 +637,11 @@ DECLARE_SCRIPT (M09_Evac_Point_Objective, "")
 				ActionParamsStruct params;
 
 				params.Set_Basic( this, 99, MOBIUS_GOTO );
-				params.Set_Movement( Commands->Get_Position (Commands->Find_Object (2000969)), 1.2f, 0.8f );
+				params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000969)), 1.2f, 0.8f );
 
-				Commands->Action_Goto (mobius, params);
+				ScriptEngine::Action_Goto (mobius, params);
 
-				Commands->Start_Timer (obj, this, 3.0f, TIMER_RESET);
+				ScriptEngine::Start_Timer (obj, this, 3.0f, TIMER_RESET);
 			}
 		}
 	}
@@ -668,20 +668,20 @@ DECLARE_SCRIPT (M09_LabRoom_Zones, "Mutant_Num:int, Mutant_Goto:int")
 
 		//already_entered = false;
 
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(mutant), GOTO, anim_loc, 4.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(mutant), GOTO, anim_loc, 4.0f);
 
 	}
 
 	void Entered (GameObject * obj, GameObject * /* enterer */) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(2000279), CONVERSATION, TRIGGERED, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000279), CONVERSATION, TRIGGERED, 0.0f);
 
-		Commands->Action_Reset ( Commands->Find_Object (mutant), 100.0f );
+		ScriptEngine::Action_Reset ( ScriptEngine::Find_Object (mutant), 100.0f );
 	}
 
 	void Exited( GameObject * /* obj */, GameObject * /* exiter */ ) override
 	{
-		//Commands->Grant_Key ( STAR, 10, false);
+		//ScriptEngine::Grant_Key ( STAR, 10, false);
 	}
 
 	void Custom(GameObject * /* obj */, int type, intptr_t /* param */, GameObject * /* sender */) override
@@ -701,8 +701,8 @@ DECLARE_SCRIPT (M09_Animating_Mutant, "Animation=0:int")
 	{
 		if (type == GOTO)
 		{
-			//face = Commands->Get_Facing (Commands->Find_Object (param));
-			//Vector3 loc = Commands->Get_Position (Commands->Find_Object (param));
+			//face = ScriptEngine::Get_Facing (ScriptEngine::Find_Object (param));
+			//Vector3 loc = ScriptEngine::Get_Position (ScriptEngine::Find_Object (param));
 
 			ActionParamsStruct params;
 
@@ -711,12 +711,12 @@ DECLARE_SCRIPT (M09_Animating_Mutant, "Animation=0:int")
 			params.Set_Movement( Vector3(0,0,0), RUN, 0.5f);
 			params.WaypathID = param;
 
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 
 		if (type == ANIMATION && param == RESET)
 		{
-			Commands->Action_Reset ( obj, 100 );
+			ScriptEngine::Action_Reset ( obj, 100 );
 		}
 	}
 
@@ -728,12 +728,12 @@ DECLARE_SCRIPT (M09_Animating_Mutant, "Animation=0:int")
 		{
 			if (animation == 0)
 			{
-				//Commands->Set_Facing (obj, face);
+				//ScriptEngine::Set_Facing (obj, face);
 
 				ActionParamsStruct params;
 				params.Set_Basic( this, 99, DOING_ANIMATION );
 				params.Set_Animation ("S_C_HUMAN.H_C_7001", true);
-				Commands->Action_Play_Animation (obj, params);
+				ScriptEngine::Action_Play_Animation (obj, params);
 			}
 
 			if (animation == 1)
@@ -741,7 +741,7 @@ DECLARE_SCRIPT (M09_Animating_Mutant, "Animation=0:int")
 				ActionParamsStruct params;
 				params.Set_Basic( this, 99, DOING_ANIMATION );
 				params.Set_Animation ("S_C_HUMAN.H_C_7002", true);
-				Commands->Action_Play_Animation (obj, params);
+				ScriptEngine::Action_Play_Animation (obj, params);
 			}
 		}
 	}
@@ -778,14 +778,14 @@ DECLARE_SCRIPT (M09_LabRoom_Controller, "")
 			{
 				triggered = true;
 
-				GameObject *mobius = Commands->Find_Object (2000010);
+				GameObject *mobius = ScriptEngine::Find_Object (2000010);
 
 				const char *conv_name = ("M09CON014");
-				int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-				Commands->Join_Conversation(mobius, conv_id, true, true, true);
-				Commands->Join_Conversation(STAR, conv_id, true, true, true);
-				Commands->Start_Conversation (conv_id, 904);
-				Commands->Monitor_Conversation (mobius, conv_id);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+				ScriptEngine::Join_Conversation(mobius, conv_id, true, true, true);
+				ScriptEngine::Join_Conversation(STAR, conv_id, true, true, true);
+				ScriptEngine::Start_Conversation (conv_id, 904);
+				ScriptEngine::Monitor_Conversation (mobius, conv_id);
 			}
 		}
 
@@ -807,14 +807,14 @@ DECLARE_SCRIPT (M09_Mobius_Initial_Conversation, "")
 
 	void Created (GameObject *obj) override
 	{
-		Commands->Set_HUD_Help_Text ( IDS_M09DSGN_DSGN0072I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+		ScriptEngine::Set_HUD_Help_Text ( IDS_M09DSGN_DSGN0072I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
 
-		Commands->Start_Timer (obj, this, 5.0f, 20);
+		ScriptEngine::Start_Timer (obj, this, 5.0f, 20);
 
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 900, 3, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 900, 3, 0.0f);
 
-		Commands->Innate_Disable ( obj );
-		max_health = Commands->Get_Health (obj);
+		ScriptEngine::Innate_Disable ( obj );
+		max_health = ScriptEngine::Get_Health (obj);
 	}
 
 	void Timer_Expired(GameObject * obj, int timer_id ) override
@@ -822,22 +822,22 @@ DECLARE_SCRIPT (M09_Mobius_Initial_Conversation, "")
 		if (timer_id == 20)
 		{
 			const char *conv_name = ("IDS_M09_D07");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(obj, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 900);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(obj, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 900);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 	}
 
 	/*void Damaged (GameObject *obj, GameObject *damager, float amount)
 	{
-		Commands->Set_Health (obj, max_health);
+		ScriptEngine::Set_Health (obj, max_health);
 	}*/
 
 	void Killed(GameObject * obj, GameObject * /* killer */ ) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), MOBIUS_KILLED, 0, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), MOBIUS_KILLED, 0, 0.0f);
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason reason) override
@@ -845,11 +845,11 @@ DECLARE_SCRIPT (M09_Mobius_Initial_Conversation, "")
 		if(action_id == 900 && reason == ACTION_COMPLETE_CONVERSATION_ENDED)
 		{
 			const char *conv_name = ("IDS_M09_P01");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(obj, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 903);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(obj, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 903);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 
 		if(action_id == 901 && reason == ACTION_COMPLETE_CONVERSATION_ENDED)
@@ -860,7 +860,7 @@ DECLARE_SCRIPT (M09_Mobius_Initial_Conversation, "")
 			params.Set_Movement( Vector3(0,0,0), WALK, 0.5f);
 			params.WaypathID = 2000275;
 
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 
 		if (action_id == 101)
@@ -868,37 +868,37 @@ DECLARE_SCRIPT (M09_Mobius_Initial_Conversation, "")
 
 			/*ActionParamsStruct params;
 			params.Set_Basic( this, 99, 150 );
-			params.Set_Face_Location( Commands->Get_Position (STAR), 10.0f);
-			Commands->Action_Face_Location ( obj, params );
+			params.Set_Face_Location( ScriptEngine::Get_Position (STAR), 10.0f);
+			ScriptEngine::Action_Face_Location ( obj, params );
 			*/
 			const char *conv_name = ("IDS_M09_D07");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(obj, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 902);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(obj, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 902);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 
 		if(action_id == 902 && reason == ACTION_COMPLETE_CONVERSATION_ENDED)
 		{
 			const char *conv_name = ("IDS_M09_P01");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(obj, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 903);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(obj, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 903);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 
 		if(action_id == 903 && reason == ACTION_COMPLETE_CONVERSATION_ENDED)
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 901, 3, 0.0f);
-			Commands->Innate_Enable(obj);
-			Commands->Attach_Script(Commands->Find_Object (2000010), "M09_Mobius_Follow", "");
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000279), CONVERSATION, ENDED, 0.0f);
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000010), FOLLOW, 2001012, 1.0f );
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 901, 3, 0.0f);
+			ScriptEngine::Innate_Enable(obj);
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000010), "M09_Mobius_Follow", "");
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000279), CONVERSATION, ENDED, 0.0f);
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000010), FOLLOW, 2001012, 1.0f );
 
-			Commands->Give_PowerUp(obj, "POW_Pistol_AI", false);
-			Commands->Select_Weapon (obj, "Weapon_Pistol_Ai" );
+			ScriptEngine::Give_PowerUp(obj, "POW_Pistol_AI", false);
+			ScriptEngine::Select_Weapon (obj, "Weapon_Pistol_Ai" );
 		}
 	}
 };
@@ -941,21 +941,21 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 	void Follow_Function (GameObject * obj, int waypath_id)
 	{
 		attack_path = waypath_id;
-		//Vector3 loc = Commands->Get_Position (Commands->Find_Object (waypath_id));
+		//Vector3 loc = ScriptEngine::Get_Position (ScriptEngine::Find_Object (waypath_id));
 
 		ActionParamsStruct params;
 
 		params.Set_Basic( this, 96, MOBIUS_GOTO );
-		params.Set_Movement( Commands->Get_Position (Commands->Find_Object (waypath_id)), 1.2f, 0.8f );
+		params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (waypath_id)), 1.2f, 0.8f );
 
-		Commands->Action_Goto (obj, params);
+		ScriptEngine::Action_Goto (obj, params);
 
 		/*ActionParamsStruct params;
 
 		params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), 1);
 		params.Set_Movement (STAR, RUN, 0.5f);
 		params.MoveFollow = true;
-		Commands->Action_Goto (obj, params);*/
+		ScriptEngine::Action_Goto (obj, params);*/
 	}
 
 	/*void Enemy_Seen(GameObject * obj, GameObject *enemy ) override
@@ -963,35 +963,35 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 		ActionParamsStruct params;
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN +5, 10 );
-		params.Set_Movement( Commands->Get_Position (Commands->Find_Object (attack_path)), 1.2f, 1.0f );
+		params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (attack_path)), 1.2f, 1.0f );
 		//params.WaypathID = attack_path;
 		params.Set_Attack(enemy, 100.0f, 1.0f, true);
 		params.AttackCheckBlocked = true;
 		params.AttackActive = true;
 
-		Commands->Action_Attack (obj, params);
+		ScriptEngine::Action_Attack (obj, params);
 	}*/
 
 	void Killed(GameObject * obj, GameObject * /* killer */ ) override
 	{
-        Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), MISSION09_CHECK, MISSION09_CHECK, 0.0f);
+        ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), MISSION09_CHECK, MISSION09_CHECK, 0.0f);
 
 		if (objective_901 == false)
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 901, 2, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 901, 2, 0.0f);
 		}
 
 		else if (objective_902 == false)
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 902, 2, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 902, 2, 0.0f);
 		}
 
 		else if (objective_903 == false)
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 903, 2, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 903, 2, 0.0f);
 		}
 
-		Commands->Mission_Complete(false);
+		ScriptEngine::Mission_Complete(false);
 	}
 
 	void Custom(GameObject * obj, int type, intptr_t param, GameObject * sender) override
@@ -1009,7 +1009,7 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 			}
 		}
 
-		if (sender == (Commands->Find_Object (2000071)))
+		if (sender == (ScriptEngine::Find_Object (2000071)))
 		{
 			switch (type)
 			{
@@ -1039,8 +1039,8 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, 99, 951 );
-			params.Set_Movement( Commands->Find_Object (param), 1.2f, 0.5f);
-			Commands->Action_Goto( obj, params );
+			params.Set_Movement( ScriptEngine::Find_Object (param), 1.2f, 0.5f);
+			ScriptEngine::Action_Goto( obj, params );
 		}
 
 		if (type == FOLLOW)
@@ -1055,37 +1055,37 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, MOBIUS_GOTO );
-			params.Set_Movement( Commands->Get_Position (Commands->Find_Object (param)), 1.2f, 0.8f );
+			params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (param)), 1.2f, 0.8f );
 			params.MovePathfind = false;
 
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 
 		if (type == ELEVATOR)
 		{
-			elev_num = Commands->Get_ID (sender);
-			Commands->Action_Reset ( obj, 100 );
+			elev_num = ScriptEngine::Get_ID (sender);
+			ScriptEngine::Action_Reset ( obj, 100 );
 
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, 99, ELEV_WAYPOINT );
-			params.Set_Movement( Commands->Get_Position (Commands->Find_Object (param)), 1.2f, 1.0f);
+			params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (param)), 1.2f, 1.0f);
 
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 
 		}
 
 		if (type == ELEVATOR_DOWN)
 		{
-			elev_num = Commands->Get_ID (sender);
-			Commands->Action_Reset ( obj, 100 );
+			elev_num = ScriptEngine::Get_ID (sender);
+			ScriptEngine::Action_Reset ( obj, 100 );
 
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, 99, ELEV_WAYPOINT2 );
-			params.Set_Movement( Commands->Get_Position (Commands->Find_Object (param)), 1.2f, 1.0f);
+			params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (param)), 1.2f, 1.0f);
 
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 
 		}
 	}
@@ -1093,7 +1093,7 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 
 	void Created (GameObject *obj) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(2000279), CONVERSATION, ENDED, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000279), CONVERSATION, ENDED, 0.0f);
 
 		for (int x = 0; x <= 2; x++)
 		{
@@ -1113,27 +1113,27 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 
 		closest = 0;
 
-		last_health = Commands->Get_Max_Health(obj);
+		last_health = ScriptEngine::Get_Max_Health(obj);
 		damage_tally = 0;
 
-		Commands->Start_Timer (obj, this, 5.0f, TOO_FAR);
+		ScriptEngine::Start_Timer (obj, this, 5.0f, TOO_FAR);
 	}
 
 	/*void Damaged( GameObject * obj, GameObject * damager, float amount ) override
 	{
-		current_health = Commands->Get_Health (obj);
+		current_health = ScriptEngine::Get_Health (obj);
 		float damage = ((last_health - current_health) + damage_tally);
 		float mod_damage = (damage * .15);
 		damage_tally += mod_damage;
 
-		Commands->Set_Health (obj, (last_health - mod_damage));
-		last_health = Commands->Get_Health (obj);
-		current_health = Commands->Get_Health (obj);
+		ScriptEngine::Set_Health (obj, (last_health - mod_damage));
+		last_health = ScriptEngine::Get_Health (obj);
+		current_health = ScriptEngine::Get_Health (obj);
 
 		if (current_health <= 75)
 		{
-			Commands->Set_Innate_Aggressiveness ( obj, 0.0 );
-			Commands->Set_Innate_Take_Cover_Probability ( obj, 100.0 );
+			ScriptEngine::Set_Innate_Aggressiveness ( obj, 0.0 );
+			ScriptEngine::Set_Innate_Take_Cover_Probability ( obj, 100.0 );
 		}
 	}*/
 
@@ -1141,14 +1141,14 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason reason) override
 	{
 
-		if((action_id == MOBIUS_GOTO) && (action_id != Commands->Get_Action_ID(obj)) && (!Commands->Is_Performing_Pathfind_Action(obj)) && (reason == ACTION_COMPLETE_LOW_PRIORITY))
+		if((action_id == MOBIUS_GOTO) && (action_id != ScriptEngine::Get_Action_ID(obj)) && (!ScriptEngine::Is_Performing_Pathfind_Action(obj)) && (reason == ACTION_COMPLETE_LOW_PRIORITY))
 		{
-			Commands->Start_Timer (obj, this, 5.0f, RESEND_GOTO);
+			ScriptEngine::Start_Timer (obj, this, 5.0f, RESEND_GOTO);
 		}
 
 		if (action_id == MOBIUS_GOTO && reason == ACTION_COMPLETE_PATH_BAD_DEST)
 		{
-			Commands->Start_Timer (obj, this, 0.5f, BAD_PATH);
+			ScriptEngine::Start_Timer (obj, this, 0.5f, BAD_PATH);
 		}
 
 		/*if(action_id == 1 && reason == ACTION_COMPLETE_CONVERSATION_ENDED)
@@ -1158,7 +1158,7 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 
 		if (action_id == 20)
 		{
-			Commands->Start_Timer (obj, this, 10.0f, 20);
+			ScriptEngine::Start_Timer (obj, this, 10.0f, 20);
 		}
 
 		if (action_id == 10000)
@@ -1166,39 +1166,39 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 			ActionParamsStruct params;
 			params.Set_Basic( this, 99, 10001);
 			params.Set_Animation( "H_A_J20b", true );
-			Commands->Action_Play_Animation (obj, params);
+			ScriptEngine::Action_Play_Animation (obj, params);
 		}*/
 
 		/*if (action_id == 951)
 		{
-			Commands->Set_Facing (obj, Commands->Get_Facing (Commands->Find_Object (2000462)));
+			ScriptEngine::Set_Facing (obj, ScriptEngine::Get_Facing (ScriptEngine::Find_Object (2000462)));
 
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000453), VERIFY, GO, 4.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000453), VERIFY, GO, 4.0f );
 
 			const char *conv_name = ("IDS_M09_D17");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(obj, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 952);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(obj, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 952);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}*/
 
 		if(action_id == 952)
 		{
-			Commands->Start_Timer (obj, this, 0.0f, 953);
+			ScriptEngine::Start_Timer (obj, this, 0.0f, 953);
 
 		}
 
 		if (action_id == ELEV_WAYPOINT && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Is_Stationary ( obj, true );
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (elev_num), SET_MOBIUS, 0, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( obj, true );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (elev_num), SET_MOBIUS, 0, 0.0f);
 		}
 
 		if (action_id == ELEV_WAYPOINT2 && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Is_Stationary ( obj, true );
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (elev_num), SET_MOBIUS, 0, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( obj, true );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (elev_num), SET_MOBIUS, 0, 0.0f);
 		}
 	}
 
@@ -1210,38 +1210,38 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 			{
 				stationary = true;
 
-				Commands->Set_Innate_Is_Stationary ( obj, true );
+				ScriptEngine::Set_Innate_Is_Stationary ( obj, true );
 
 				const char *conv_name = ("IDS_M09_D03");
-				int conv_id = Commands->Create_Conversation (conv_name);
-				Commands->Join_Conversation(obj, conv_id, false, true, true);
-				Commands->Start_Conversation (conv_id, 1);
-				Commands->Monitor_Conversation (obj, conv_id);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name);
+				ScriptEngine::Join_Conversation(obj, conv_id, false, true, true);
+				ScriptEngine::Start_Conversation (conv_id, 1);
+				ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 				ActionParamsStruct params;
 				params.Set_Basic( this, 99, 10000);
 				params.Set_Animation( "H_A_J20a", false );
-				Commands->Action_Play_Animation (obj, params);
+				ScriptEngine::Action_Play_Animation (obj, params);
 			}
 
 			else if (stationary == true)
 			{
 				stationary = false;
 
-				Commands->Action_Reset ( obj, 100 );
+				ScriptEngine::Action_Reset ( obj, 100 );
 
-				Commands->Set_Innate_Is_Stationary ( obj, false );
+				ScriptEngine::Set_Innate_Is_Stationary ( obj, false );
 
 				const char *conv_name = ("IDS_M09_D04");
-				int conv_id = Commands->Create_Conversation (conv_name);
-				Commands->Join_Conversation(obj, conv_id, false, true, true);
-				Commands->Start_Conversation (conv_id, 1);
-				Commands->Monitor_Conversation (obj, conv_id);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name);
+				ScriptEngine::Join_Conversation(obj, conv_id, false, true, true);
+				ScriptEngine::Start_Conversation (conv_id, 1);
+				ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 				ActionParamsStruct params;
 				params.Set_Basic( this, 99, 10002);
 				params.Set_Animation( "H_A_J20c", false );
-				Commands->Action_Play_Animation (obj, params);
+				ScriptEngine::Action_Play_Animation (obj, params);
 
 				//Follow_Function (GameObject * obj, int waypath_id);
 			}
@@ -1255,9 +1255,9 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, MOBIUS_GOTO );
-			params.Set_Movement( Commands->Get_Position (Commands->Find_Object (attack_path)), 1.2f, 1.0f );
+			params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (attack_path)), 1.2f, 1.0f );
 
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 
 		if (timer_id == BAD_PATH)
@@ -1265,54 +1265,54 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, MOBIUS_GOTO );
-			params.Set_Movement( Commands->Get_Position (Commands->Find_Object (attack_path)), 1.2f, 1.0f );
+			params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (attack_path)), 1.2f, 1.0f );
 			params.MovePathfind = false;
 
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 
 		if (timer_id == TOO_FAR)
 		{
 			if (!nofollow)
 			{
-				float distance = (Commands->Get_Distance ( Commands->Get_Position (STAR), Commands->Get_Position (Commands->Find_Object (2000010))) );
+				float distance = (ScriptEngine::Get_Distance ( ScriptEngine::Get_Position (STAR), ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000010))) );
 
 				if (distance >= 25.0f)
 				{
 					ActionParamsStruct params;
 
 					params.Set_Basic( this, 96, MOBIUS_GOTO );
-					params.Set_Movement( Commands->Get_Position (STAR), 1.2f, 5.0f );
+					params.Set_Movement( ScriptEngine::Get_Position (STAR), 1.2f, 5.0f );
 					//params.MovePathfind = false;
 
-					Commands->Action_Goto (obj, params);
+					ScriptEngine::Action_Goto (obj, params);
 				}
 
-				Commands->Start_Timer (obj, this, 5.0f, TOO_FAR);
+				ScriptEngine::Start_Timer (obj, this, 5.0f, TOO_FAR);
 			}
 		}
 
 
 		/*if (stationary == false)
 		{
-			int poke_id = Commands->Get_Random_Int(1, 3);
+			int poke_id = ScriptEngine::Get_Random_Int(1, 3);
 
-			Commands->Start_Timer (obj, this, 5.0f, CHECK_DISTANCE);
+			ScriptEngine::Start_Timer (obj, this, 5.0f, CHECK_DISTANCE);
 
 
 			// Don't leave me here
 			if(timer_id == CHECK_DISTANCE && poke_id == 2)
 			{
-				Vector3 star_pos = Commands->Get_Position(STAR);
-				Vector3 mobius_pos = Commands->Get_Position(obj);
-				float distance_to_star = Commands->Get_Distance(star_pos, mobius_pos);
+				Vector3 star_pos = ScriptEngine::Get_Position(STAR);
+				Vector3 mobius_pos = ScriptEngine::Get_Position(obj);
+				float distance_to_star = ScriptEngine::Get_Distance(star_pos, mobius_pos);
 				if(distance_to_star > 15.0f)
 				{
 					const char *conv_name = ("IDS_M09_D01");
-					int conv_id = Commands->Create_Conversation (conv_name);
-					Commands->Join_Conversation(obj, conv_id, false, true, true);
-					Commands->Start_Conversation (conv_id, 1);
-					Commands->Monitor_Conversation (obj, conv_id);
+					int conv_id = ScriptEngine::Create_Conversation (conv_name);
+					ScriptEngine::Join_Conversation(obj, conv_id, false, true, true);
+					ScriptEngine::Start_Conversation (conv_id, 1);
+					ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 					Follow_Function (obj);
 				}
@@ -1321,16 +1321,16 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 			// Hey!  Wait for me!
 			else if(timer_id == CHECK_DISTANCE && poke_id == 1)
 			{
-				Vector3 star_pos = Commands->Get_Position(STAR);
-				Vector3 mobius_pos = Commands->Get_Position(obj);
-				float distance_to_star = Commands->Get_Distance(star_pos, mobius_pos);
+				Vector3 star_pos = ScriptEngine::Get_Position(STAR);
+				Vector3 mobius_pos = ScriptEngine::Get_Position(obj);
+				float distance_to_star = ScriptEngine::Get_Distance(star_pos, mobius_pos);
 				if(distance_to_star > 15.0f)
 				{
 					const char *conv_name = ("IDS_M09_D02");
-					int conv_id = Commands->Create_Conversation (conv_name);
-					Commands->Join_Conversation(obj, conv_id, false, true, true);
-					Commands->Start_Conversation (conv_id, 1);
-					Commands->Monitor_Conversation (obj, conv_id);
+					int conv_id = ScriptEngine::Create_Conversation (conv_name);
+					ScriptEngine::Join_Conversation(obj, conv_id, false, true, true);
+					ScriptEngine::Start_Conversation (conv_id, 1);
+					ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 					Follow_Function (obj);
 				}
@@ -1345,7 +1345,7 @@ DECLARE_SCRIPT (M09_Mobius_Follow, "")  //Mobius (Pre-Suit): 2000010
 
 		if(timer_id == 953)
 		{
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000453), VERIFY, STOP, 3.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000453), VERIFY, STOP, 3.0f );
 
 		}
 
@@ -1363,19 +1363,19 @@ DECLARE_SCRIPT (M09_Stationary, "Reward_override=0:int")
 
 	void Created(GameObject *obj) override
 	{
-		Commands->Set_Innate_Is_Stationary ( obj, true );
+		ScriptEngine::Set_Innate_Is_Stationary ( obj, true );
 
-		reward = Commands->Get_Random_Int ( 1, 101 );
+		reward = ScriptEngine::Get_Random_Int ( 1, 101 );
 
 		if (Get_Int_Parameter("Reward_override") == 1)
 		{
-			Commands->Set_Health ( obj, 5 );
+			ScriptEngine::Set_Health ( obj, 5 );
 		}
 	}
 
 	void Enemy_Seen(GameObject * obj, GameObject * /* enemy */ ) override
 	{
-		Commands->Set_Innate_Is_Stationary ( obj, false );
+		ScriptEngine::Set_Innate_Is_Stationary ( obj, false );
 	}
 
 	/*void Killed( GameObject * obj, GameObject * killer ) override
@@ -1384,16 +1384,16 @@ DECLARE_SCRIPT (M09_Stationary, "Reward_override=0:int")
 		{
 			if (reward > 25)
 			{
-				Vector3 powerup_loc = Commands->Get_Position (obj);
+				Vector3 powerup_loc = ScriptEngine::Get_Position (obj);
 				powerup_loc.Z += 1.0f;
-				Commands->Create_Object("Health 025 PowerUp", powerup_loc);
+				ScriptEngine::Create_Object("Health 025 PowerUp", powerup_loc);
 			}
 
 			if (reward > 80)
 			{
-				Vector3 powerup_loc = Commands->Get_Position (obj);
+				Vector3 powerup_loc = ScriptEngine::Get_Position (obj);
 				powerup_loc.Z += 1.0f;
-				Commands->Create_Object("Armor 025 PowerUp", powerup_loc);
+				ScriptEngine::Create_Object("Armor 025 PowerUp", powerup_loc);
 			}
 		}
 	}*/
@@ -1404,7 +1404,7 @@ DECLARE_SCRIPT (M09_Stationary, "Reward_override=0:int")
 		{
 			if (param == MUTANT)
 			{
-				Commands->Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_MUTANT );
+				ScriptEngine::Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_MUTANT );
 			}
 		}
 	}
@@ -1422,32 +1422,32 @@ DECLARE_SCRIPT (M09_Stationary_Nod, "")
 
 	void Created(GameObject *obj) override
 	{
-		Commands->Set_Innate_Is_Stationary ( obj, true );
+		ScriptEngine::Set_Innate_Is_Stationary ( obj, true );
 
-		Commands->Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_NOD );
+		ScriptEngine::Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_NOD );
 
-		reward = Commands->Get_Random_Int ( 1, 101 );
+		reward = ScriptEngine::Get_Random_Int ( 1, 101 );
 	}
 
 	void Enemy_Seen(GameObject * obj, GameObject * /* enemy */ ) override
 	{
-		Commands->Set_Innate_Is_Stationary ( obj, false );
+		ScriptEngine::Set_Innate_Is_Stationary ( obj, false );
 	}
 
 	/*void Killed( GameObject * obj, GameObject * killer ) override
 	{
 		if (reward > 25)
 		{
-			Vector3 powerup_loc = Commands->Get_Position (obj);
+			Vector3 powerup_loc = ScriptEngine::Get_Position (obj);
 			powerup_loc.Z += 1.0f;
-			Commands->Create_Object("Health 025 PowerUp", powerup_loc);
+			ScriptEngine::Create_Object("Health 025 PowerUp", powerup_loc);
 		}
 
 		if (reward > 80)
 		{
-			Vector3 powerup_loc = Commands->Get_Position (obj);
+			Vector3 powerup_loc = ScriptEngine::Get_Position (obj);
 			powerup_loc.Z += 1.0f;
-			Commands->Create_Object("Armor 025 PowerUp", powerup_loc);
+			ScriptEngine::Create_Object("Armor 025 PowerUp", powerup_loc);
 		}
 	}*/
 
@@ -1457,7 +1457,7 @@ DECLARE_SCRIPT (M09_Stationary_Nod, "")
 		{
 			if (param == MUTANT)
 			{
-				Commands->Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_MUTANT );
+				ScriptEngine::Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_MUTANT );
 			}
 		}
 	}
@@ -1468,7 +1468,7 @@ DECLARE_SCRIPT (M09_Home_Location_10, "")
 {
 	void Created (GameObject *obj) override
 	{
-		Commands->Set_Innate_Soldier_Home_Location(obj, Commands->Get_Position(obj), 10.0f);
+		ScriptEngine::Set_Innate_Soldier_Home_Location(obj, ScriptEngine::Get_Position(obj), 10.0f);
 	}
 };
 
@@ -1492,36 +1492,36 @@ DECLARE_SCRIPT (M09_Mutant_Ambush_Zone_01, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), SPAWN_LOC, INCREMENT, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), SPAWN_LOC, INCREMENT, 0.0f);
 
 			//Nod soldiers
-			Commands->Attach_Script(Commands->Find_Object (2000126), "M09_Nod_Damage_Mod_10", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000126), false );
-			Commands->Attach_Script(Commands->Find_Object (2000127), "M09_Nod_Damage_Mod_10", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000127), false );
-			Commands->Attach_Script(Commands->Find_Object (2000128), "M09_Nod_Damage_Mod_10", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000128), false );
-			Commands->Attach_Script(Commands->Find_Object (2000129), "M09_Nod_Damage_Mod_10", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000129), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000126), "M09_Nod_Damage_Mod_10", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000126), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000127), "M09_Nod_Damage_Mod_10", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000127), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000128), "M09_Nod_Damage_Mod_10", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000128), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000129), "M09_Nod_Damage_Mod_10", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000129), false );
 
 			//Mutant soldiers
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000122), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000122), false );
-			Commands->Attach_Script(Commands->Find_Object (2000122), "M09_Mutant_Damage_Mod_10", "");
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000123), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000123), false );
-			Commands->Attach_Script(Commands->Find_Object (2000123), "M09_Mutant_Damage_Mod_10", "");
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000124), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000124), false );
-			Commands->Attach_Script(Commands->Find_Object (2000124), "M09_Mutant_Damage_Mod_10", "");
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000125), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000125), false );
-			Commands->Attach_Script(Commands->Find_Object (2000125), "M09_Mutant_Damage_Mod_10", "");
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000122), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000122), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000122), "M09_Mutant_Damage_Mod_10", "");
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000123), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000123), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000123), "M09_Mutant_Damage_Mod_10", "");
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000124), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000124), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000124), "M09_Mutant_Damage_Mod_10", "");
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000125), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000125), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000125), "M09_Mutant_Damage_Mod_10", "");
 		}
 	}
 
@@ -1540,7 +1540,7 @@ DECLARE_SCRIPT (M09_Mutant_Damage_Mod_10, "")
 
 	void Created (GameObject * obj) override
 	{
-		last_health = Commands->Get_Max_Health(obj);
+		last_health = ScriptEngine::Get_Max_Health(obj);
 		damage_tally = 0;
 
 	}
@@ -1549,14 +1549,14 @@ DECLARE_SCRIPT (M09_Mutant_Damage_Mod_10, "")
 	{
 		if (damager != STAR)
 		{
-			current_health = Commands->Get_Health (obj);
+			current_health = ScriptEngine::Get_Health (obj);
 			float damage = ((last_health - current_health) + damage_tally);
 			float mod_damage = (damage * .10f);
 			damage_tally += mod_damage;
 
-			Commands->Set_Health (obj, (last_health - mod_damage));
-			last_health = Commands->Get_Health (obj);
-			current_health = Commands->Get_Health (obj);
+			ScriptEngine::Set_Health (obj, (last_health - mod_damage));
+			last_health = ScriptEngine::Get_Health (obj);
+			current_health = ScriptEngine::Get_Health (obj);
 		}
 	}
 };
@@ -1574,7 +1574,7 @@ DECLARE_SCRIPT (M09_Mutant_Damage_Mod_50, "")
 
 	void Created (GameObject * obj) override
 	{
-		last_health = Commands->Get_Max_Health(obj);
+		last_health = ScriptEngine::Get_Max_Health(obj);
 		damage_tally = 0;
 
 	}
@@ -1583,14 +1583,14 @@ DECLARE_SCRIPT (M09_Mutant_Damage_Mod_50, "")
 	{
 		if (damager != STAR)
 		{
-			current_health = Commands->Get_Health (obj);
+			current_health = ScriptEngine::Get_Health (obj);
 			float damage = ((last_health - current_health) + damage_tally);
 			float mod_damage = (damage * .25f);
 			damage_tally += mod_damage;
 
-			Commands->Set_Health (obj, (last_health - mod_damage));
-			last_health = Commands->Get_Health (obj);
-			current_health = Commands->Get_Health (obj);
+			ScriptEngine::Set_Health (obj, (last_health - mod_damage));
+			last_health = ScriptEngine::Get_Health (obj);
+			current_health = ScriptEngine::Get_Health (obj);
 		}
 	}
 };
@@ -1608,7 +1608,7 @@ DECLARE_SCRIPT (M09_Nod_Damage_Mod_10, "")
 
 	void Created (GameObject * obj) override
 	{
-		last_health = Commands->Get_Max_Health(obj);
+		last_health = ScriptEngine::Get_Max_Health(obj);
 		damage_tally = 0;
 
 	}
@@ -1617,14 +1617,14 @@ DECLARE_SCRIPT (M09_Nod_Damage_Mod_10, "")
 	{
 		if (damager != STAR)
 		{
-			current_health = Commands->Get_Health (obj);
+			current_health = ScriptEngine::Get_Health (obj);
 			float damage = ((last_health - current_health) + damage_tally);
 			float mod_damage = (damage * .08f);
 			damage_tally += mod_damage;
 
-			Commands->Set_Health (obj, (last_health - mod_damage));
-			last_health = Commands->Get_Health (obj);
-			current_health = Commands->Get_Health (obj);
+			ScriptEngine::Set_Health (obj, (last_health - mod_damage));
+			last_health = ScriptEngine::Get_Health (obj);
+			current_health = ScriptEngine::Get_Health (obj);
 		}
 	}
 };
@@ -1633,21 +1633,21 @@ DECLARE_SCRIPT (M09_Stealth_Tank_Pilot, "")
 {
 	void Created (GameObject *obj) override
 	{
-		Commands->Set_Facing(obj, 35.0f);
-		Commands->Innate_Disable ( obj );
+		ScriptEngine::Set_Facing(obj, 35.0f);
+		ScriptEngine::Innate_Disable ( obj );
 	}
 
 	void Enemy_Seen(GameObject * obj, GameObject *enemy ) override
 	{
 		if (enemy == STAR)
 		{
-	//		Vector3 location = Commands->Get_Position (Commands->Find_Object (2000091));
+	//		Vector3 location = ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000091));
 
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, 99, RUN_TO_TANK );
-			params.Set_Movement( Commands->Find_Object (2000090), RUN, 4.0f );
-			Commands->Action_Goto( obj, params );
+			params.Set_Movement( ScriptEngine::Find_Object (2000090), RUN, 4.0f );
+			ScriptEngine::Action_Goto( obj, params );
 		}
 	}
 
@@ -1655,9 +1655,9 @@ DECLARE_SCRIPT (M09_Stealth_Tank_Pilot, "")
 	{
 		if (action_id == RUN_TO_TANK && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Destroy_Object (obj);
+			ScriptEngine::Destroy_Object (obj);
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000090), ATTACK, ATTACK, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000090), ATTACK, ATTACK, 0.0f);
 		}
 	}
 
@@ -1671,19 +1671,19 @@ DECLARE_SCRIPT (M09_Stationary_StealthTank, "")
 	{
 		if (type == ATTACK && param == ATTACK)
 		{
-			Vector3 stealth_loc = Commands->Get_Position (obj);
-			Commands->Destroy_Object (obj);
+			Vector3 stealth_loc = ScriptEngine::Get_Position (obj);
+			ScriptEngine::Destroy_Object (obj);
 
 			GameObject *stealth_tank;
-			stealth_tank = Commands->Create_Object ( "Nod_Stealth_Tank", stealth_loc );
-			Commands->Attach_Script (stealth_tank, "M09_Vehicle_Attack_01", "");
-			Commands->Attach_Script (stealth_tank, "M09_CheckpointA_Counter", "");
+			stealth_tank = ScriptEngine::Create_Object ( "Nod_Stealth_Tank", stealth_loc );
+			ScriptEngine::Attach_Script (stealth_tank, "M09_Vehicle_Attack_01", "");
+			ScriptEngine::Attach_Script (stealth_tank, "M09_CheckpointA_Counter", "");
 		}
 
 		if (type == CUSTOM_EVENT_VEHICLE_ENTERED)
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 905, 3, 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 905, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 905, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 905, 1, 0.0f);
 		}
 	}
 };
@@ -1711,7 +1711,7 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_01, "")
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 		charge = false;
 		charging = false;
@@ -1722,17 +1722,17 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_01, "")
 		params.Set_Movement( Vector3(0,0,0), 1.0f, 0 );
 		params.WaypathID = 2000095;
 
-		Commands->Action_Attack (obj, params);
+		ScriptEngine::Action_Attack (obj, params);
 	}
 
 	void Enemy_Seen(GameObject * obj, GameObject *enemy ) override
 	{
-		current_loc = Commands->Get_Position ( obj );
-		enemy_loc = Commands->Get_Position ( enemy );
+		current_loc = ScriptEngine::Get_Position ( obj );
+		enemy_loc = ScriptEngine::Get_Position ( enemy );
 
 		if (!attacking && !charge)
 		{
-			if ((Commands->Get_Distance(current_loc, enemy_loc)) < 65)
+			if ((ScriptEngine::Get_Distance(current_loc, enemy_loc)) < 65)
 			{
 				attacking = true;
 
@@ -1743,14 +1743,14 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_01, "")
 				params.Set_Attack(STAR, 100.0f, 5.0f, true);
 				params.AttackCheckBlocked = false;
 				params.AttackActive = true;
-				Commands->Modify_Action(obj, 10, params, true, true);
+				ScriptEngine::Modify_Action(obj, 10, params, true, true);
 
-				Commands->Start_Timer(obj, this, 5.0f, ATTACK_OVER);
+				ScriptEngine::Start_Timer(obj, this, 5.0f, ATTACK_OVER);
 
 				if (!charging)
 				{
 					charging = true;
-					Commands->Start_Timer(obj, this, 16.0f, CHANGE_ATTACK);
+					ScriptEngine::Start_Timer(obj, this, 16.0f, CHANGE_ATTACK);
 				}
 			}
 		}
@@ -1768,18 +1768,18 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_01, "")
 
 		else if (timer_id == CHANGE_ATTACK)
 		{
-			if ((Commands->Get_Distance(current_loc, enemy_loc)) < 65)
+			if ((ScriptEngine::Get_Distance(current_loc, enemy_loc)) < 65)
 			{
-				Commands->Action_Reset ( obj, 100 );
+				ScriptEngine::Action_Reset ( obj, 100 );
 				charge = true;
 				params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 10 );
 				params.Set_Movement( STAR, 1.5f, 0 );
 				params.Set_Attack(STAR, 100.0f, 5.0f, true);
 				params.AttackCheckBlocked = false;
 				params.AttackActive = true;
-				Commands->Action_Attack (obj, params);
+				ScriptEngine::Action_Attack (obj, params);
 
-				Commands->Start_Timer(obj, this, 6.0f, CHARGE_COMPLETE);
+				ScriptEngine::Start_Timer(obj, this, 6.0f, CHARGE_COMPLETE);
 			}
 
 		}
@@ -1795,7 +1795,7 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_01, "")
 			params.Set_Attack(STAR, 100.0f, 5.0f, true);
 			params.AttackCheckBlocked = false;
 			params.AttackActive = true;
-			Commands->Action_Attack (obj, params);
+			ScriptEngine::Action_Attack (obj, params);
 
 		}
 
@@ -1825,8 +1825,8 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_02, "")
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_NOD );
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_NOD );
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 		charge = false;
 		charging = false;
@@ -1834,12 +1834,12 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_02, "")
 
 	void Enemy_Seen(GameObject * obj, GameObject *enemy ) override
 	{
-		current_loc = Commands->Get_Position ( obj );
-		enemy_loc = Commands->Get_Position ( enemy );
+		current_loc = ScriptEngine::Get_Position ( obj );
+		enemy_loc = ScriptEngine::Get_Position ( enemy );
 
 		if (!attacking)
 		{
-			if ((Commands->Get_Distance(current_loc, enemy_loc)) < 200.0f)
+			if ((ScriptEngine::Get_Distance(current_loc, enemy_loc)) < 200.0f)
 			{
 				attacking = true;
 
@@ -1848,9 +1848,9 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_02, "")
 				params.Set_Attack(STAR, 200.0f, 5.0f, true);
 				params.AttackCheckBlocked = false;
 				params.AttackActive = true;
-				Commands->Action_Attack (obj, params);
+				ScriptEngine::Action_Attack (obj, params);
 
-				Commands->Start_Timer(obj, this, 1.0f, ATTACK_OVER);
+				ScriptEngine::Start_Timer(obj, this, 1.0f, ATTACK_OVER);
 
 			}
 		}
@@ -1877,8 +1877,8 @@ DECLARE_SCRIPT (M09_Sam_Engineer_1, "")
 	{
 		ActionParamsStruct params;
 		params.Set_Basic( this, 99, 10 );
-		params.Set_Movement( Commands->Get_Position (Commands->Find_Object (2000102)), RUN, 1.5f );
-		Commands->Action_Goto (obj, params);
+		params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000102)), RUN, 1.5f );
+		ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
@@ -1888,7 +1888,7 @@ DECLARE_SCRIPT (M09_Sam_Engineer_1, "")
 			ActionParamsStruct params;
 			params.Set_Basic( this, 99, 1);
 			params.Set_Animation( "H_A_a0f0", true );
-			Commands->Action_Play_Animation (obj, params);
+			ScriptEngine::Action_Play_Animation (obj, params);
 		}
 	}
 };
@@ -1899,8 +1899,8 @@ DECLARE_SCRIPT (M09_Sam_Engineer_2, "")
 	{
 		ActionParamsStruct params;
 		params.Set_Basic( this, 99, 10 );
-		params.Set_Movement( Commands->Get_Position (Commands->Find_Object (2000103)), RUN, 1.5f );
-		Commands->Action_Goto (obj, params);
+		params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000103)), RUN, 1.5f );
+		ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
@@ -1910,7 +1910,7 @@ DECLARE_SCRIPT (M09_Sam_Engineer_2, "")
 			ActionParamsStruct params;
 			params.Set_Basic( this, 99, 1);
 			params.Set_Animation( "H_A_a0f0", true );
-			Commands->Action_Play_Animation (obj, params);
+			ScriptEngine::Action_Play_Animation (obj, params);
 		}
 	}
 };
@@ -1920,9 +1920,9 @@ DECLARE_SCRIPT (M09_Excavation_Tunnel_Encounter_On, "")
 {
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if (Commands->Is_A_Star(enterer))
+		if (ScriptEngine::Is_A_Star(enterer))
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000406), ACTIVATE, ACTIVATE, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000406), ACTIVATE, ACTIVATE, 0.0f);
 		}
 	}
 };
@@ -1931,9 +1931,9 @@ DECLARE_SCRIPT (M09_Excavation_Tunnel_Encounter_Off, "")
 {
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if (Commands->Is_A_Star(enterer))
+		if (ScriptEngine::Is_A_Star(enterer))
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000406), DEACTIVATE, DEACTIVATE, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000406), DEACTIVATE, DEACTIVATE, 0.0f);
 		}
 	}
 };
@@ -1945,29 +1945,29 @@ DECLARE_SCRIPT (M09_Excavation_Tunnel_Controller, "")  //2000406
 		if (type == ACTIVATE && param == ACTIVATE)
 		{
 			//nod spawners
-			Commands->Enable_Spawner(2000357, true);
-			Commands->Enable_Spawner(2000354, true);
-			Commands->Enable_Spawner(2000356, true);
+			ScriptEngine::Enable_Spawner(2000357, true);
+			ScriptEngine::Enable_Spawner(2000354, true);
+			ScriptEngine::Enable_Spawner(2000356, true);
 
 			//mutant spawners
-			Commands->Enable_Spawner(2000384, true);
-			Commands->Enable_Spawner(2000383, true);
-			Commands->Enable_Spawner(2000382, true);
-			Commands->Enable_Spawner(2000381, true);
+			ScriptEngine::Enable_Spawner(2000384, true);
+			ScriptEngine::Enable_Spawner(2000383, true);
+			ScriptEngine::Enable_Spawner(2000382, true);
+			ScriptEngine::Enable_Spawner(2000381, true);
 		}
 
 		if (type == DEACTIVATE && param == DEACTIVATE)
 		{
 			//nod spawners
-			Commands->Enable_Spawner(2000357, false);
-			Commands->Enable_Spawner(2000354, false);
-			Commands->Enable_Spawner(2000356, false);
+			ScriptEngine::Enable_Spawner(2000357, false);
+			ScriptEngine::Enable_Spawner(2000354, false);
+			ScriptEngine::Enable_Spawner(2000356, false);
 
 			//mutant spawners
-			Commands->Enable_Spawner(2000384, false);
-			Commands->Enable_Spawner(2000383, false);
-			Commands->Enable_Spawner(2000382, false);
-			Commands->Enable_Spawner(2000381, false);
+			ScriptEngine::Enable_Spawner(2000384, false);
+			ScriptEngine::Enable_Spawner(2000383, false);
+			ScriptEngine::Enable_Spawner(2000382, false);
+			ScriptEngine::Enable_Spawner(2000381, false);
 		}
 	}
 };
@@ -1994,8 +1994,8 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_03, "")
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_NOD );
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_NOD );
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 		charge = false;
 		charging = false;
@@ -2003,12 +2003,12 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_03, "")
 
 	void Enemy_Seen(GameObject * obj, GameObject *enemy ) override
 	{
-		current_loc = Commands->Get_Position ( obj );
-		enemy_loc = Commands->Get_Position ( enemy );
+		current_loc = ScriptEngine::Get_Position ( obj );
+		enemy_loc = ScriptEngine::Get_Position ( enemy );
 
 		if (!attacking)
 		{
-			if ((Commands->Get_Distance(current_loc, enemy_loc)) < 200.0f)
+			if ((ScriptEngine::Get_Distance(current_loc, enemy_loc)) < 200.0f)
 			{
 				attacking = true;
 
@@ -2017,9 +2017,9 @@ DECLARE_SCRIPT (M09_Vehicle_Attack_03, "")
 				params.Set_Attack(enemy, 200.0f, 10.0f, true);
 				params.AttackCheckBlocked = false;
 				params.AttackActive = true;
-				Commands->Action_Attack (obj, params);
+				ScriptEngine::Action_Attack (obj, params);
 
-				Commands->Start_Timer(obj, this, 10.0f, ATTACK_OVER);
+				ScriptEngine::Start_Timer(obj, this, 10.0f, ATTACK_OVER);
 
 			}
 		}
@@ -2048,15 +2048,15 @@ DECLARE_SCRIPT (M09_Tunnel_Spawner_357, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, 10 );
 			params.Set_Movement( Vector3(0,0,0), RUN, 0 );
 			params.WaypathID = 2000364;
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
 	{
 		if(action_id == 10)
 		{
-			Commands->Enable_Enemy_Seen( obj, true);
-			Commands->Set_Innate_Is_Stationary ( obj, true );
+			ScriptEngine::Enable_Enemy_Seen( obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary ( obj, true );
 		}
 	}
 };
@@ -2069,14 +2069,14 @@ DECLARE_SCRIPT (M09_Tunnel_Spawner_354, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, 10 );
 			params.Set_Movement( Vector3(0,0,0), RUN, 0 );
 			params.WaypathID = 2000370;
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
 	{
 		if(action_id == 10)
 		{
-			Commands->Set_Innate_Is_Stationary ( obj, true );
+			ScriptEngine::Set_Innate_Is_Stationary ( obj, true );
 		}
 	}
 };
@@ -2089,14 +2089,14 @@ DECLARE_SCRIPT (M09_Tunnel_Spawner_356, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, 10 );
 			params.Set_Movement( Vector3(0,0,0), RUN, 0 );
 			params.WaypathID = 2000375;
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
 	{
 		if(action_id == 10)
 		{
-			Commands->Set_Innate_Is_Stationary ( obj, true );
+			ScriptEngine::Set_Innate_Is_Stationary ( obj, true );
 		}
 	}
 };
@@ -2105,23 +2105,23 @@ DECLARE_SCRIPT (M09_Tunnel_Spawner_384_382, "")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Innate_Aggressiveness ( obj, 1 );
+		ScriptEngine::Set_Innate_Aggressiveness ( obj, 1 );
 
 		ActionParamsStruct params;
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 10 );
 		params.Set_Movement( Vector3(0,0,0), RUN, 0.25f );
 		params.WaypathID = 2000385;
-		Commands->Action_Goto (obj, params);
+		ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason reason) override
 	{
-		Commands->Debug_Message("Action Complete on M09_Tunnel_Spawner_383_381 %d %d.\n", action_id, reason);
+		ScriptEngine::Debug_Message("Action Complete on M09_Tunnel_Spawner_383_381 %d %d.\n", action_id, reason);
 		if(action_id == 10)
 		{
-			Commands->Action_Reset ( obj, 100 );
+			ScriptEngine::Action_Reset ( obj, 100 );
 
-			Commands->Enable_Enemy_Seen( obj, true);
+			ScriptEngine::Enable_Enemy_Seen( obj, true);
 		}
 	}
 };
@@ -2130,23 +2130,23 @@ DECLARE_SCRIPT (M09_Tunnel_Spawner_383_381, "")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Innate_Aggressiveness ( obj, 1 );
+		ScriptEngine::Set_Innate_Aggressiveness ( obj, 1 );
 
 		ActionParamsStruct params;
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 10 );
 		params.Set_Movement( Vector3(0,0,0), RUN, .25f );
 		params.WaypathID = 2000397;
-		Commands->Action_Goto (obj, params);
+		ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason reason) override
 	{
-		Commands->Debug_Message("Action Complete on M09_Tunnel_Spawner_383_381 %d %d.\n", action_id, reason);
+		ScriptEngine::Debug_Message("Action Complete on M09_Tunnel_Spawner_383_381 %d %d.\n", action_id, reason);
 		if(action_id == 10)
 		{
-			Commands->Action_Reset ( obj, 100 );
+			ScriptEngine::Action_Reset ( obj, 100 );
 
-			Commands->Enable_Enemy_Seen( obj, true);
+			ScriptEngine::Enable_Enemy_Seen( obj, true);
 		}
 	}
 };
@@ -2172,18 +2172,18 @@ DECLARE_SCRIPT (M09_Excavation_Tunnel_3, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 
 			//Nod soldiers
-			Commands->Attach_Script(Commands->Find_Object (2000170), "M09_Nod_Damage_Mod_10", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000170), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000170), "M09_Nod_Damage_Mod_10", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000170), false );
 
 			//Mutant soldiers
-			Commands->Attach_Script(Commands->Find_Object (2000171), "M09_Mutant_Damage_Mod_10", "");
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000171), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000171), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000171), "M09_Mutant_Damage_Mod_10", "");
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000171), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000171), false );
 		}
 	}
 
@@ -2209,44 +2209,44 @@ DECLARE_SCRIPT (M09_Entrance_Zone, "")
 
 	void Entered (GameObject * /* obj */, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 
-			Commands->Enable_Spawner(2000105, true);
-			Commands->Enable_Spawner(2000106, true);
+			ScriptEngine::Enable_Spawner(2000105, true);
+			ScriptEngine::Enable_Spawner(2000106, true);
 
 			//Nod soldiers
-			Commands->Attach_Script(Commands->Find_Object (2000234), "M09_Nod_Damage_Mod_10", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000234), false );
-			Commands->Attach_Script(Commands->Find_Object (2000235), "M09_Nod_Damage_Mod_10", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000235), false );
-			Commands->Attach_Script(Commands->Find_Object (2000236), "M09_Nod_Damage_Mod_1", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000236), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000234), "M09_Nod_Damage_Mod_10", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000234), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000235), "M09_Nod_Damage_Mod_10", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000235), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000236), "M09_Nod_Damage_Mod_1", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000236), false );
 
 			//Mutant soldiers
-			Commands->Attach_Script(Commands->Find_Object (2000216), "M09_Mutant_Damage_Mod_10", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000216), false );
-			Commands->Attach_Script(Commands->Find_Object (2000217), "M09_Mutant_Damage_Mod_10", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000217), false );
-			Commands->Attach_Script(Commands->Find_Object (2000218), "M09_Mutant_Damage_Mod_10", "");
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000218), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000216), "M09_Mutant_Damage_Mod_10", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000216), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000217), "M09_Mutant_Damage_Mod_10", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000217), false );
+			ScriptEngine::Attach_Script(ScriptEngine::Find_Object (2000218), "M09_Mutant_Damage_Mod_10", "");
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000218), false );
 
 			ActionParamsStruct params;
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 10 );
 			params.Set_Movement( Vector3(0,0,0), 1.0f, 0 );
 			params.WaypathID = 2000222;
-			Commands->Action_Goto (Commands->Find_Object (2000217), params);
+			ScriptEngine::Action_Goto (ScriptEngine::Find_Object (2000217), params);
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 11 );
 			params.Set_Movement( Vector3(0,0,0), 1.0f, 0 );
 			params.WaypathID = 2000230;
-			Commands->Action_Goto (Commands->Find_Object (2000216), params);
+			ScriptEngine::Action_Goto (ScriptEngine::Find_Object (2000216), params);
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 12 );
 			params.Set_Movement( Vector3(0,0,0), 1.0f, 0 );
 			params.WaypathID = 2000226;
-			Commands->Action_Goto (Commands->Find_Object (2000218), params);
+			ScriptEngine::Action_Goto (ScriptEngine::Find_Object (2000218), params);
 		}
 	}
 
@@ -2272,8 +2272,8 @@ DECLARE_SCRIPT (M09_CheckpointA_Controller, "") //2000969
 		{
 			if (count++ >= 12)
 			{
-				Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 904, 3, 0.0f);
-				Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 904, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 904, 3, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 904, 1, 0.0f);
 			}
 		}
 	}
@@ -2285,7 +2285,7 @@ DECLARE_SCRIPT (M09_CheckpointA_Counter, "")
 {
 	void Killed( GameObject * obj, GameObject * /* killer */ ) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(2000969), COUNTER, COUNTER, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000969), COUNTER, COUNTER, 0.0f);
 	}
 };
 
@@ -2304,107 +2304,107 @@ DECLARE_SCRIPT(M09_Chinook_ParaDrop, "Preset:string")
 
 	void Created(GameObject * obj) override
 	{
-		Vector3 loc = Commands->Get_Position(obj);
-		float facing = Commands->Get_Facing(obj);
+		Vector3 loc = ScriptEngine::Get_Position(obj);
+		float facing = ScriptEngine::Get_Facing(obj);
 
-		GameObject *chinook_rail = Commands->Create_Object("Generic_Cinematic", loc);
-		Commands->Set_Model(chinook_rail, "X5D_Chinookfly");
-		Commands->Set_Facing(chinook_rail, facing);
-		Commands->Set_Animation(chinook_rail, "X5D_Chinookfly.X5D_Chinookfly", false, nullptr, 0.0f, -1.0f, false);
-		GameObject *chinook = Commands->Create_Object("Nod_Chinook", loc);
-		Commands->Set_Facing(chinook, facing);
-		Commands->Set_Animation(chinook, "v_nod_chinook.vf_nod_chinook", true, nullptr, 0.0f, -1.0f, false);
-		Commands->Attach_To_Object_Bone(chinook, chinook_rail, "BN_Chinook_1");
+		GameObject *chinook_rail = ScriptEngine::Create_Object("Generic_Cinematic", loc);
+		ScriptEngine::Set_Model(chinook_rail, "X5D_Chinookfly");
+		ScriptEngine::Set_Facing(chinook_rail, facing);
+		ScriptEngine::Set_Animation(chinook_rail, "X5D_Chinookfly.X5D_Chinookfly", false, nullptr, 0.0f, -1.0f, false);
+		GameObject *chinook = ScriptEngine::Create_Object("Nod_Chinook", loc);
+		ScriptEngine::Set_Facing(chinook, facing);
+		ScriptEngine::Set_Animation(chinook, "v_nod_chinook.vf_nod_chinook", true, nullptr, 0.0f, -1.0f, false);
+		ScriptEngine::Attach_To_Object_Bone(chinook, chinook_rail, "BN_Chinook_1");
 
 		dead = false;
 		out = 0;
 		char params[12];
-		sprintf(params, "%d", Commands->Get_ID(obj));
-		Commands->Attach_Script(chinook, "M03_Reinforcement_Chinook", params);
+		sprintf(params, "%d", ScriptEngine::Get_ID(obj));
+		ScriptEngine::Attach_Script(chinook, "M03_Reinforcement_Chinook", params);
 
-		chinook_id = Commands->Get_ID(chinook);
+		chinook_id = ScriptEngine::Get_ID(chinook);
 
 		// Destroy Chinook
-		Commands->Start_Timer(obj, this, 280.0f/30.0f, 0);
+		ScriptEngine::Start_Timer(obj, this, 280.0f/30.0f, 0);
 		// Parachutes
-		Commands->Start_Timer(obj, this, 169.0f/30.0f, 1);
-		Commands->Start_Timer(obj, this, 179.0f/30.0f, 2);
-		Commands->Start_Timer(obj, this, 198.0f/30.0f, 3);
+		ScriptEngine::Start_Timer(obj, this, 169.0f/30.0f, 1);
+		ScriptEngine::Start_Timer(obj, this, 179.0f/30.0f, 2);
+		ScriptEngine::Start_Timer(obj, this, 198.0f/30.0f, 3);
 		// Soldiers
-		Commands->Start_Timer(obj, this, 145.0f/30.0f, 4);
-		Commands->Start_Timer(obj, this, 155.0f/30.0f, 5);
-		Commands->Start_Timer(obj, this, 165.0f/30.0f, 6);
+		ScriptEngine::Start_Timer(obj, this, 145.0f/30.0f, 4);
+		ScriptEngine::Start_Timer(obj, this, 155.0f/30.0f, 5);
+		ScriptEngine::Start_Timer(obj, this, 165.0f/30.0f, 6);
 
 
 	}
 
 	void Timer_Expired(GameObject * obj, int timer_id) override
 	{
-		Vector3 loc = Commands->Get_Position(obj);
+		Vector3 loc = ScriptEngine::Get_Position(obj);
 		const char * preset = Get_Parameter("Preset");
-		float facing = Commands->Get_Facing(obj);
+		float facing = ScriptEngine::Get_Facing(obj);
 
 		switch (timer_id)
 		{
 		case 0:
 			GameObject *chinook;
-			chinook = Commands->Find_Object(chinook_id);
-			Commands->Destroy_Object(chinook);
+			chinook = ScriptEngine::Find_Object(chinook_id);
+			ScriptEngine::Destroy_Object(chinook);
 			break;
 		case 1:
 			if (out >= 1)
 			{
 				GameObject *para1;
-				para1 = Commands->Create_Object("Generic_Cinematic", loc);
-				Commands->Set_Facing(para1, facing);
-				Commands->Set_Model(para1, "X5D_Parachute");
-				Commands->Set_Animation(para1, "X5D_Parachute.X5D_ParaC_1", false, nullptr, 0.0f, -1.0f, false);
-				Commands->Create_3D_Sound_At_Bone("parachute_open", para1, "ROOTTRANSFORM");
-				Commands->Attach_Script(para1, "M03_No_More_Parachute", "");
+				para1 = ScriptEngine::Create_Object("Generic_Cinematic", loc);
+				ScriptEngine::Set_Facing(para1, facing);
+				ScriptEngine::Set_Model(para1, "X5D_Parachute");
+				ScriptEngine::Set_Animation(para1, "X5D_Parachute.X5D_ParaC_1", false, nullptr, 0.0f, -1.0f, false);
+				ScriptEngine::Create_3D_Sound_At_Bone("parachute_open", para1, "ROOTTRANSFORM");
+				ScriptEngine::Attach_Script(para1, "M03_No_More_Parachute", "");
 			}
 			break;
 		case 2:
 			if (out >= 2)
 			{
 				GameObject *para2;
-				para2 = Commands->Create_Object("Generic_Cinematic", loc);
-				Commands->Set_Facing(para2, facing);
-				Commands->Set_Model(para2, "X5D_Parachute");
-				Commands->Set_Animation(para2, "X5D_Parachute.X5D_ParaC_2", false, nullptr, 0.0f, -1.0f, false);
-				Commands->Create_3D_Sound_At_Bone("parachute_open", para2, "ROOTTRANSFORM");
-				Commands->Attach_Script(para2, "M03_No_More_Parachute", "");
+				para2 = ScriptEngine::Create_Object("Generic_Cinematic", loc);
+				ScriptEngine::Set_Facing(para2, facing);
+				ScriptEngine::Set_Model(para2, "X5D_Parachute");
+				ScriptEngine::Set_Animation(para2, "X5D_Parachute.X5D_ParaC_2", false, nullptr, 0.0f, -1.0f, false);
+				ScriptEngine::Create_3D_Sound_At_Bone("parachute_open", para2, "ROOTTRANSFORM");
+				ScriptEngine::Attach_Script(para2, "M03_No_More_Parachute", "");
 			}
 			break;
 		case 3:
 			if (out == 3)
 			{
 				GameObject *para3;
-				para3 = Commands->Create_Object("Generic_Cinematic", loc);
-				Commands->Set_Facing(para3, facing);
-				Commands->Set_Model(para3, "X5D_Parachute");
-				Commands->Set_Animation(para3, "X5D_Parachute.X5D_ParaC_3", false, nullptr, 0.0f, -1.0f, false);
-				Commands->Create_3D_Sound_At_Bone("parachute_open", para3, "ROOTTRANSFORM");
-				Commands->Attach_Script(para3, "M03_No_More_Parachute", "");
+				para3 = ScriptEngine::Create_Object("Generic_Cinematic", loc);
+				ScriptEngine::Set_Facing(para3, facing);
+				ScriptEngine::Set_Model(para3, "X5D_Parachute");
+				ScriptEngine::Set_Animation(para3, "X5D_Parachute.X5D_ParaC_3", false, nullptr, 0.0f, -1.0f, false);
+				ScriptEngine::Create_3D_Sound_At_Bone("parachute_open", para3, "ROOTTRANSFORM");
+				ScriptEngine::Attach_Script(para3, "M03_No_More_Parachute", "");
 			}
 			break;
 		case 4:
 			if (!dead)
 			{
 
-			GameObject *box1 = Commands->Create_Object("Generic_Cinematic", loc);
-			Commands->Set_Model(box1, "X5D_Box01");
-			Commands->Set_Facing(box1, facing);
-			Commands->Set_Animation(box1, "X5D_Box01.X5D_Box01", false, nullptr, 0.0f, -1.0f, false);
+			GameObject *box1 = ScriptEngine::Create_Object("Generic_Cinematic", loc);
+			ScriptEngine::Set_Model(box1, "X5D_Box01");
+			ScriptEngine::Set_Facing(box1, facing);
+			ScriptEngine::Set_Animation(box1, "X5D_Box01.X5D_Box01", false, nullptr, 0.0f, -1.0f, false);
 
 			GameObject *soldier1;
-			soldier1 = Commands->Create_Object_At_Bone(box1, preset, "Box01");
-			Commands->Set_Facing(soldier1, facing);
-			Commands->Attach_Script(soldier1, "RMV_Trigger_Killed", "1144444, 1000, 1000");
+			soldier1 = ScriptEngine::Create_Object_At_Bone(box1, preset, "Box01");
+			ScriptEngine::Set_Facing(soldier1, facing);
+			ScriptEngine::Attach_Script(soldier1, "RMV_Trigger_Killed", "1144444, 1000, 1000");
 
-			Commands->Attach_Script(soldier1, "M09_CheckpointA_Counter", "");
+			ScriptEngine::Attach_Script(soldier1, "M09_CheckpointA_Counter", "");
 
-			Commands->Attach_To_Object_Bone( soldier1, box1, "Box01" );
-			Commands->Set_Animation(soldier1, "s_a_human.H_A_X5D_ParaT_1", false, nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Attach_To_Object_Bone( soldier1, box1, "Box01" );
+			ScriptEngine::Set_Animation(soldier1, "s_a_human.H_A_X5D_ParaT_1", false, nullptr, 0.0f, -1.0f, false);
 			out++;
 			if ((out - 1) == DIFFICULTY)
 			{
@@ -2417,20 +2417,20 @@ DECLARE_SCRIPT(M09_Chinook_ParaDrop, "Preset:string")
 			if (!dead)
 			{
 
-			GameObject *box2 = Commands->Create_Object("Generic_Cinematic", loc);
-			Commands->Set_Model(box2, "X5D_Box02");
-			Commands->Set_Facing(box2, facing);
-			Commands->Set_Animation(box2, "X5D_Box02.X5D_Box02", false, nullptr, 0.0f, -1.0f, false);
+			GameObject *box2 = ScriptEngine::Create_Object("Generic_Cinematic", loc);
+			ScriptEngine::Set_Model(box2, "X5D_Box02");
+			ScriptEngine::Set_Facing(box2, facing);
+			ScriptEngine::Set_Animation(box2, "X5D_Box02.X5D_Box02", false, nullptr, 0.0f, -1.0f, false);
 
 			GameObject *soldier2;
-			soldier2 = Commands->Create_Object_At_Bone(box2, preset, "Box02");
-			Commands->Set_Facing(soldier2, facing);
-			Commands->Attach_Script(soldier2, "RMV_Trigger_Killed", "1144444, 1000, 1000");
+			soldier2 = ScriptEngine::Create_Object_At_Bone(box2, preset, "Box02");
+			ScriptEngine::Set_Facing(soldier2, facing);
+			ScriptEngine::Attach_Script(soldier2, "RMV_Trigger_Killed", "1144444, 1000, 1000");
 
-			Commands->Attach_Script(soldier2, "M09_CheckpointA_Counter", "");
+			ScriptEngine::Attach_Script(soldier2, "M09_CheckpointA_Counter", "");
 
-			Commands->Set_Animation(soldier2, "s_a_human.H_A_X5D_ParaT_2", false, nullptr, 0.0f, -1.0f, false);
-			Commands->Attach_To_Object_Bone( soldier2, box2, "Box02" );
+			ScriptEngine::Set_Animation(soldier2, "s_a_human.H_A_X5D_ParaT_2", false, nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Attach_To_Object_Bone( soldier2, box2, "Box02" );
 			out++;
 			if ((out - 1) == DIFFICULTY)
 			{
@@ -2443,20 +2443,20 @@ DECLARE_SCRIPT(M09_Chinook_ParaDrop, "Preset:string")
 			if (!dead)
 			{
 
-			GameObject *box3 = Commands->Create_Object("Generic_Cinematic", loc);
-			Commands->Set_Model(box3, "X5D_Box03");
-			Commands->Set_Facing(box3, facing);
-			Commands->Set_Animation(box3, "X5D_Box03.X5D_Box03", false, nullptr, 0.0f, -1.0f, false);
+			GameObject *box3 = ScriptEngine::Create_Object("Generic_Cinematic", loc);
+			ScriptEngine::Set_Model(box3, "X5D_Box03");
+			ScriptEngine::Set_Facing(box3, facing);
+			ScriptEngine::Set_Animation(box3, "X5D_Box03.X5D_Box03", false, nullptr, 0.0f, -1.0f, false);
 
 			GameObject *soldier3;
-			soldier3 = Commands->Create_Object_At_Bone(box3, preset, "Box03");
-			Commands->Set_Facing(soldier3, facing);
-			Commands->Attach_Script(soldier3, "RMV_Trigger_Killed", "1144444, 1000, 1000");
+			soldier3 = ScriptEngine::Create_Object_At_Bone(box3, preset, "Box03");
+			ScriptEngine::Set_Facing(soldier3, facing);
+			ScriptEngine::Attach_Script(soldier3, "RMV_Trigger_Killed", "1144444, 1000, 1000");
 
-			Commands->Attach_Script(soldier3, "M09_CheckpointA_Counter", "");
+			ScriptEngine::Attach_Script(soldier3, "M09_CheckpointA_Counter", "");
 
-			Commands->Set_Animation(soldier3, "s_a_human.H_A_X5D_ParaT_3", false, nullptr, 0.0f, -1.0f, false);
-			Commands->Attach_To_Object_Bone( soldier3, box3, "Box03" );
+			ScriptEngine::Set_Animation(soldier3, "s_a_human.H_A_X5D_ParaT_3", false, nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Attach_To_Object_Bone( soldier3, box3, "Box03" );
 			out++;
 			if ((out - 1) == DIFFICULTY)
 			{
@@ -2500,13 +2500,13 @@ DECLARE_SCRIPT (M09_First_Mutant_Encounter_Zone, "")
 	{
 		if (!already_entered)
 		{
-			GameObject *mutant1 = Commands->Find_Object (2000280);
+			GameObject *mutant1 = ScriptEngine::Find_Object (2000280);
 
 			if (mutant1)
 			{
 
-				Commands->Attach_Script (mutant1, "M09_First_Mutant_Encounter", "");
-				Commands->Start_Timer (obj, this, 1.0f, 100);
+				ScriptEngine::Attach_Script (mutant1, "M09_First_Mutant_Encounter", "");
+				ScriptEngine::Start_Timer (obj, this, 1.0f, 100);
 			}
 
 		}
@@ -2516,9 +2516,9 @@ DECLARE_SCRIPT (M09_First_Mutant_Encounter_Zone, "")
 	{
 		if (timer_id == 100)
 		{
-			GameObject *mutant2 = Commands->Find_Object (2000281);
+			GameObject *mutant2 = ScriptEngine::Find_Object (2000281);
 
-			Commands->Attach_Script (mutant2, "M09_First_Mutant_Encounter", "");
+			ScriptEngine::Attach_Script (mutant2, "M09_First_Mutant_Encounter", "");
 		}
 	}
 };
@@ -2530,7 +2530,7 @@ DECLARE_SCRIPT (M09_First_Mutant_Encounter, "")
 
 	void Created (GameObject *obj) override
 	{
-		Commands->Start_Timer (obj, this, 2.0f, 20);
+		ScriptEngine::Start_Timer (obj, this, 2.0f, 20);
 	}
 
 	void Timer_Expired(GameObject * obj, int timer_id ) override
@@ -2540,9 +2540,9 @@ DECLARE_SCRIPT (M09_First_Mutant_Encounter, "")
 			ActionParamsStruct params;
 			params.Set_Basic( this, 99, 100);
 			params.Set_Animation( "H_A_J26C", false );
-			Commands->Action_Play_Animation (obj, params);
+			ScriptEngine::Action_Play_Animation (obj, params);
 
-			Commands->Start_Timer (obj, this, 2.0f, 20);
+			ScriptEngine::Start_Timer (obj, this, 2.0f, 20);
 		}
 	}
 };
@@ -2551,18 +2551,18 @@ DECLARE_SCRIPT (M09_Immobile, "")
 {
 	void Created (GameObject *obj) override
 	{
-		Commands->Innate_Disable ( obj );
+		ScriptEngine::Innate_Disable ( obj );
 	}
 
 	void Enemy_Seen(GameObject * obj, GameObject *enemy ) override
 	{
 		if (enemy == STAR)
 		{
-			Commands->Innate_Enable(obj);
+			ScriptEngine::Innate_Enable(obj);
 
 			ActionParamsStruct params;
 			params.Set_Attack( STAR, 50.0f, 5.0f, true );
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 	}
 };
@@ -2571,7 +2571,7 @@ DECLARE_SCRIPT (M09_Mutant, "")
 {
 	void Created (GameObject *obj) override
 	{
-		Commands->Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_MUTANT );
+		ScriptEngine::Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_MUTANT );
 	}
 };
 
@@ -2599,8 +2599,8 @@ DECLARE_SCRIPT (M09_Explosion_Zone_Lab01, "")
 		{
 			already_entered = true;
 
-			Commands->Create_Explosion("Ground Explosions Twiddler", Vector3 (-102.560f, 483.462f ,-155.543f), nullptr);
-			Commands->Start_Timer (obj, this, 1.0f, 100);
+			ScriptEngine::Create_Explosion("Ground Explosions Twiddler", Vector3 (-102.560f, 483.462f ,-155.543f), nullptr);
+			ScriptEngine::Start_Timer (obj, this, 1.0f, 100);
 		}
 	}
 };
@@ -2629,10 +2629,10 @@ DECLARE_SCRIPT (M09_Explosion_Zone_Lab02, "")
 		{
 			already_entered = true;
 
-			Commands->Create_Explosion("Ground Explosions Twiddler", Vector3 (-6.151f, 494.846f ,-151.888f), nullptr);
+			ScriptEngine::Create_Explosion("Ground Explosions Twiddler", Vector3 (-6.151f, 494.846f ,-151.888f), nullptr);
 			GameObject *blocker1;
-			blocker1 = Commands->Create_Object ( "M08_Rubble_Stub", Vector3 (-6.151f, 494.846f ,-151.888f));
-			Commands->Set_Facing ( blocker1, 60.0f );
+			blocker1 = ScriptEngine::Create_Object ( "M08_Rubble_Stub", Vector3 (-6.151f, 494.846f ,-151.888f));
+			ScriptEngine::Set_Facing ( blocker1, 60.0f );
 		}
 	}
 };
@@ -2661,12 +2661,12 @@ DECLARE_SCRIPT (M09_Explosion_Zone_Tunnel01, "")
 		{
 			already_entered = true;
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), SPAWN_LOC, INCREMENT, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), SPAWN_LOC, INCREMENT, 0.0f);
 
-			Commands->Create_Explosion("Ground Explosions Twiddler", Vector3 (-70.356f, 475.905f ,-63.233f), nullptr);
+			ScriptEngine::Create_Explosion("Ground Explosions Twiddler", Vector3 (-70.356f, 475.905f ,-63.233f), nullptr);
 			GameObject *blocker1;
-			blocker1 = Commands->Create_Object ( "M08_Rubble_Stub", Vector3 (-74.290f, 474.747f, -64.022f));
-			Commands->Set_Facing(blocker1, 90.0f);
+			blocker1 = ScriptEngine::Create_Object ( "M08_Rubble_Stub", Vector3 (-74.290f, 474.747f, -64.022f));
+			ScriptEngine::Set_Facing(blocker1, 90.0f);
 		}
 	}
 };
@@ -2675,7 +2675,7 @@ DECLARE_SCRIPT (M09_Sam_Counter, "")
 {
 	void Killed( GameObject * obj, GameObject * /* killer */ ) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(2000331), COUNTER, COUNTER, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000331), COUNTER, COUNTER, 0.0f);
 	}
 };
 
@@ -2702,7 +2702,7 @@ DECLARE_SCRIPT (M09_Sam_Controller, "") //2000331
 
 		if (count >= 3)
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), 906, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), 906, 1, 0.0f);
 		}
 	}
 };
@@ -2711,7 +2711,7 @@ DECLARE_SCRIPT (M09_Unteamed, "")
 {
 	void Created (GameObject *obj) override
 	{
-		Commands->Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_SPECTATOR );
+		ScriptEngine::Set_Player_Type ( obj, SCRIPT_PLAYERTYPE_SPECTATOR );
 	}
 };
 
@@ -2735,27 +2735,27 @@ DECLARE_SCRIPT (M09_Mutant_Excavation_Zone_01, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 
 			//Mutant soldiers
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000158), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000158), false );
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000159), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000159), false );
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000160), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000160), false );
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000161), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
-			Commands->Set_Innate_Is_Stationary ( Commands->Find_Object (2000161), false );
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000158), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000158), false );
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000159), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000159), false );
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000160), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000160), false );
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000161), CHANGE_PLAYERTYPE, MUTANT, 0.0f);
+			ScriptEngine::Set_Innate_Is_Stationary ( ScriptEngine::Find_Object (2000161), false );
 
 			//noddities
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000347), ATTACK, 2000158, 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000175), ATTACK, 2000159, 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000346), ATTACK, 2000160, 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000174), ATTACK, 2000161, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000347), ATTACK, 2000158, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000175), ATTACK, 2000159, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000346), ATTACK, 2000160, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000174), ATTACK, 2000161, 0.0f);
 
 
 
@@ -2770,14 +2770,14 @@ DECLARE_SCRIPT (M09_Custom_Attack, "")
 	{
 		if (type == ATTACK)
 		{
-			Commands->Set_Innate_Is_Stationary ( obj, false );
+			ScriptEngine::Set_Innate_Is_Stationary ( obj, false );
 
 			ActionParamsStruct params;
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 10 );
-			params.Set_Attack(Commands->Find_Object (param), 200.0f, 5.0f, true);
+			params.Set_Attack(ScriptEngine::Find_Object (param), 200.0f, 5.0f, true);
 			params.AttackCheckBlocked = false;
 			params.AttackActive = true;
-			Commands->Action_Attack (obj, params);
+			ScriptEngine::Action_Attack (obj, params);
 		}
 	}
 };
@@ -2802,15 +2802,15 @@ DECLARE_SCRIPT (M09_Flamer_Attack_Zone, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 
 			//Flamer Customs
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000185), ATTACK, (Commands->Get_ID (STAR)), 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000186), ATTACK, (Commands->Get_ID (STAR)), 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000187), ATTACK, (Commands->Get_ID (STAR)), 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object (2000188), ATTACK, (Commands->Get_ID (STAR)), 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000185), ATTACK, (ScriptEngine::Get_ID (STAR)), 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000186), ATTACK, (ScriptEngine::Get_ID (STAR)), 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000187), ATTACK, (ScriptEngine::Get_ID (STAR)), 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (2000188), ATTACK, (ScriptEngine::Get_ID (STAR)), 0.0f);
 		}
 	}
 };
@@ -2831,13 +2831,13 @@ DECLARE_SCRIPT (M09_Cryo_Mutant_Zone_01, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 
-			Commands->Start_Timer (obj, this, 1.0f, 1000);
-			Commands->Enable_Spawner(2000417, true);
-			Commands->Enable_Spawner(2000418, true);
+			ScriptEngine::Start_Timer (obj, this, 1.0f, 1000);
+			ScriptEngine::Enable_Spawner(2000417, true);
+			ScriptEngine::Enable_Spawner(2000418, true);
 
 		}
 	}
@@ -2846,8 +2846,8 @@ DECLARE_SCRIPT (M09_Cryo_Mutant_Zone_01, "")
 	{
 		if (timer_id == 1000)
 		{
-			Commands->Enable_Spawner(2000416, true);
-			Commands->Enable_Spawner(2000424, true);
+			ScriptEngine::Enable_Spawner(2000416, true);
+			ScriptEngine::Enable_Spawner(2000424, true);
 		}
 	}
 };
@@ -2862,7 +2862,7 @@ DECLARE_SCRIPT (M09_Mutant_Path_01, "")
 		params.Set_Movement( Vector3(0,0,0), RUN, 0.5f);
 		params.WaypathID = 2000425;
 
-		Commands->Action_Goto (obj, params);
+		ScriptEngine::Action_Goto (obj, params);
 	}
 };
 
@@ -2876,7 +2876,7 @@ DECLARE_SCRIPT (M09_Mutant_Path_02, "")
 		params.Set_Movement( Vector3(0,0,0), RUN, 0.5f);
 		params.WaypathID = 2000443;
 
-		Commands->Action_Goto (obj, params);
+		ScriptEngine::Action_Goto (obj, params);
 	}
 };
 
@@ -2887,8 +2887,8 @@ DECLARE_SCRIPT (M09_Key_Grant, "")
 		if (poker == STAR)
 		{
 
-			GameObject *key1 = Commands->Create_Object ( "Level_01_Keycard", Vector3 (-97.303f, 520.441f, -153.080f) );
-			Commands->Attach_Script (key1, "M09_Containment_Key_1", "");
+			GameObject *key1 = ScriptEngine::Create_Object ( "Level_01_Keycard", Vector3 (-97.303f, 520.441f, -153.080f) );
+			ScriptEngine::Attach_Script (key1, "M09_Containment_Key_1", "");
 		}
 	}
 };
@@ -2919,7 +2919,7 @@ DECLARE_SCRIPT (M09_Lab_Key_Controller, "") //2000452
 
 		if (type == CHECK)
 		{
-			Commands->Send_Custom_Event( obj, sender, COUNT, key_counter, 0.0f );
+			ScriptEngine::Send_Custom_Event( obj, sender, COUNT, key_counter, 0.0f );
 		}
 	}
 };
@@ -2930,16 +2930,16 @@ DECLARE_SCRIPT (M09_Containment_Key_1, "")
 	{
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000452), KEY_COUNTER, INCREMENT, 0.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000452), KEY_COUNTER, INCREMENT, 0.0f );
 
-			GameObject *mobius = Commands->Find_Object (2000010);
+			GameObject *mobius = ScriptEngine::Find_Object (2000010);
 
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, 99, MOBIUS_GOTO );
-			params.Set_Movement( Commands->Get_Position (Commands->Find_Object (2000988)), 1.2f, 0.8f );
+			params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000988)), 1.2f, 0.8f );
 
-			Commands->Action_Goto (mobius, params);
+			ScriptEngine::Action_Goto (mobius, params);
 		}
 	}
 };
@@ -2950,28 +2950,28 @@ DECLARE_SCRIPT (M09_Containment_Key_2, "")
 	{
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000452), KEY_COUNTER, INCREMENT, 0.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000452), KEY_COUNTER, INCREMENT, 0.0f );
 
-			GameObject *mobius = Commands->Find_Object (2000010);
+			GameObject *mobius = ScriptEngine::Find_Object (2000010);
 
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, 99, MOBIUS_GOTO );
-			params.Set_Movement( Commands->Get_Position (Commands->Find_Object (2000988)), 1.2f, 0.8f );
+			params.Set_Movement( ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000988)), 1.2f, 0.8f );
 
-			Commands->Action_Goto (mobius, params);
+			ScriptEngine::Action_Goto (mobius, params);
 
-			Commands->Destroy_Object (Commands->Find_Object (2000699));
-			Commands->Destroy_Object (Commands->Find_Object (2001988));
-			Commands->Destroy_Object (Commands->Find_Object (2000457));
-			Commands->Destroy_Object (Commands->Find_Object (2000709));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (2000699));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (2001988));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (2000457));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (2000709));
 		}
 	}
 
 		/*if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000452), KEY_COUNTER, INCREMENT, 0.0f );
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000709), GOAL, DECREMENT, 0.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000452), KEY_COUNTER, INCREMENT, 0.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000709), GOAL, DECREMENT, 0.0f );
 		}
 	}*/
 };
@@ -3000,7 +3000,7 @@ DECLARE_SCRIPT (M09_Key_Controller_Zones, "")
 	{
 		if (!already_triggered)
 		{
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000452), CHECK, 0, 0.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000452), CHECK, 0, 0.0f );
 		}
 	}
 
@@ -3036,16 +3036,16 @@ DECLARE_SCRIPT (M09_Key_Box, "")
 		{
 			opened = true;
 
-			Commands->Static_Anim_Phys_Goto_Frame ( 1265140, 0, "lab_spn_door08.lab_spn_door08" );
+			ScriptEngine::Static_Anim_Phys_Goto_Frame ( 1265140, 0, "lab_spn_door08.lab_spn_door08" );
 			GameObject *mobius;
-			mobius = Commands->Find_Object (2000010);
+			mobius = ScriptEngine::Find_Object (2000010);
 
 			const char *conv_name = ("IDS_M09_D18");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(mobius, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 999);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 999);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 	}
 
@@ -3053,7 +3053,7 @@ DECLARE_SCRIPT (M09_Key_Box, "")
 	{
 		if (action_id == 999)
 		{
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000010), FOLLOW, 2000860, 0.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000010), FOLLOW, 2000860, 0.0f );
 		}
 	}
 
@@ -3073,16 +3073,16 @@ DECLARE_SCRIPT (M09_Key_Box, "")
 				if (!opened)
 				{
 					GameObject *mobius;
-					mobius = Commands->Find_Object (2000010);
+					mobius = ScriptEngine::Find_Object (2000010);
 
 					const char *conv_name = ("IDS_M09_D19");
-					int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-					Commands->Join_Conversation(mobius, conv_id, false, false, true);
-					Commands->Join_Conversation(STAR, conv_id, false, false, true);
-					Commands->Start_Conversation (conv_id, 900);
-					Commands->Monitor_Conversation (obj, conv_id);
+					int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+					ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+					ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+					ScriptEngine::Start_Conversation (conv_id, 900);
+					ScriptEngine::Monitor_Conversation (obj, conv_id);
 
-					Commands->Send_Custom_Event( obj, Commands->Find_Object (2000010), WAYPATH, 2000462, 0.0f );
+					ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000010), WAYPATH, 2000462, 0.0f );
 				}
 			}
 		}
@@ -3117,32 +3117,32 @@ DECLARE_SCRIPT (M09_MrShuman_Zone, "")
 	{
 		if (timer_id == DIST_CHECK && star_in_zone)
 		{
-			float mobius_distance = Commands->Get_Distance(Commands->Get_Position (STAR), Commands->Get_Position (Commands->Find_Object (2000010)));
+			float mobius_distance = ScriptEngine::Get_Distance(ScriptEngine::Get_Position (STAR), ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000010)));
 
 			if (mobius_distance <= 7.0 && star_in_zone && !fired_off)
 			{
 				fired_off = true;
 
-				GameObject *shuman = Commands->Find_Object (2000456);
-				GameObject *mobius = Commands->Find_Object (2000010);
+				GameObject *shuman = ScriptEngine::Find_Object (2000456);
+				GameObject *mobius = ScriptEngine::Find_Object (2000010);
 
-				Commands->Send_Custom_Event ( obj, shuman, CLARK_KENT, 0, 0.0f);
+				ScriptEngine::Send_Custom_Event ( obj, shuman, CLARK_KENT, 0, 0.0f);
 
 				if (shuman)
 				{
 					const char *conv_name = ("IDS_M09_D14");
-					int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-					Commands->Join_Conversation(shuman, conv_id, false, true, true);
-					Commands->Join_Conversation(mobius, conv_id, false, true, true);
-					Commands->Join_Conversation(STAR, conv_id, false, false, true);
-					Commands->Start_Conversation (conv_id, 954);
-					Commands->Monitor_Conversation (obj, conv_id);
+					int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+					ScriptEngine::Join_Conversation(shuman, conv_id, false, true, true);
+					ScriptEngine::Join_Conversation(mobius, conv_id, false, true, true);
+					ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+					ScriptEngine::Start_Conversation (conv_id, 954);
+					ScriptEngine::Monitor_Conversation (obj, conv_id);
 				}
 			}
 
 			else
 			{
-				Commands->Start_Timer (obj, this, 2.0f, DIST_CHECK);
+				ScriptEngine::Start_Timer (obj, this, 2.0f, DIST_CHECK);
 			}
 		}
 	}
@@ -3164,29 +3164,29 @@ DECLARE_SCRIPT (M09_MrShuman_Zone, "")
 	{
 		star_in_zone = true;
 
-		float mobius_distance = Commands->Get_Distance(Commands->Get_Position (STAR), Commands->Get_Position (Commands->Find_Object (2000010)));
+		float mobius_distance = ScriptEngine::Get_Distance(ScriptEngine::Get_Position (STAR), ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000010)));
 
 		if (mobius_distance <= 7.0 && star_in_zone && !fired_off)
 		{
 			fired_off = true;
 
-			GameObject *shuman = Commands->Find_Object (2000456);
-			GameObject *mobius = Commands->Find_Object (2000010);
+			GameObject *shuman = ScriptEngine::Find_Object (2000456);
+			GameObject *mobius = ScriptEngine::Find_Object (2000010);
 
-			Commands->Send_Custom_Event ( obj, shuman, CLARK_KENT, 0, 0.0f);
+			ScriptEngine::Send_Custom_Event ( obj, shuman, CLARK_KENT, 0, 0.0f);
 
 			const char *conv_name = ("IDS_M09_D14");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(shuman, conv_id, false, false, true);
-			Commands->Join_Conversation(mobius, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 954);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(shuman, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 954);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 
 		else
 		{
-			Commands->Start_Timer (obj, this, 2.0f, DIST_CHECK);
+			ScriptEngine::Start_Timer (obj, this, 2.0f, DIST_CHECK);
 		}
 
 	}
@@ -3195,10 +3195,10 @@ DECLARE_SCRIPT (M09_MrShuman_Zone, "")
 	{
 		if(action_id == 954)
 		{
-			/*GameObject *key2 = Commands->Create_Object ( "Level_02_Keycard", Vector3 (-76.473f, 457.493f, -153.807f) );
-			Commands->Attach_Script (key2, "M09_Containment_Key_2", "");*/
+			/*GameObject *key2 = ScriptEngine::Create_Object ( "Level_02_Keycard", Vector3 (-76.473f, 457.493f, -153.807f) );
+			ScriptEngine::Attach_Script (key2, "M09_Containment_Key_2", "");*/
 
-			GameObject *shuman = Commands->Find_Object (2000456);
+			GameObject *shuman = ScriptEngine::Find_Object (2000456);
 
 			ActionParamsStruct params;
 
@@ -3206,7 +3206,7 @@ DECLARE_SCRIPT (M09_MrShuman_Zone, "")
 			params.Set_Movement( Vector3(0,0,0), RUN, 0.5f);
 			params.WaypathID = 1200474;
 
-			Commands->Action_Goto (shuman, params);
+			ScriptEngine::Action_Goto (shuman, params);
 
 		}
 	}
@@ -3233,7 +3233,7 @@ DECLARE_SCRIPT (M09_Invincible_MrShuman, "")
 	{
 		if (invincible)
 		{
-			Commands->Set_Health (obj, 5.0f);
+			ScriptEngine::Set_Health (obj, 5.0f);
 		}
 	}
 };
@@ -3261,12 +3261,12 @@ DECLARE_SCRIPT (M09_Elevator_Movement_Zone, "Direction:int, Anim_num:int, Elev_o
 		{
 			if (Get_Int_Parameter("Direction") == 0)
 			{
-				Commands->Static_Anim_Phys_Goto_Frame ( Get_Int_Parameter("Elev_obj_num"), 0, elevators [Get_Int_Parameter("Anim_num")] );
+				ScriptEngine::Static_Anim_Phys_Goto_Frame ( Get_Int_Parameter("Elev_obj_num"), 0, elevators [Get_Int_Parameter("Anim_num")] );
 			}
 
 			if (Get_Int_Parameter("Direction") == 1)
 			{
-				Commands->Static_Anim_Phys_Goto_Last_Frame ( Get_Int_Parameter("Elev_obj_num"), elevators [Get_Int_Parameter("Anim_num")] );
+				ScriptEngine::Static_Anim_Phys_Goto_Last_Frame ( Get_Int_Parameter("Elev_obj_num"), elevators [Get_Int_Parameter("Anim_num")] );
 			}
 		}
 	}
@@ -3290,7 +3290,7 @@ DECLARE_SCRIPT (M09_Elevator_All_Zone, "Controller_num:int")
 		star_in_zone = false;
 
 
-		mobius = Commands->Find_Object (2000010);
+		mobius = ScriptEngine::Find_Object (2000010);
 	}
 
 
@@ -3299,7 +3299,7 @@ DECLARE_SCRIPT (M09_Elevator_All_Zone, "Controller_num:int")
 		if (enterer == STAR)
 		{
 			star_in_zone = true;
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(Get_Int_Parameter("Controller_num")), SET_STAR, ENTER, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(Get_Int_Parameter("Controller_num")), SET_STAR, ENTER, 0.0f);
 		}
 	}
 
@@ -3308,7 +3308,7 @@ DECLARE_SCRIPT (M09_Elevator_All_Zone, "Controller_num:int")
 		if (exiter == STAR)
 		{
 			star_in_zone = false;
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(Get_Int_Parameter("Controller_num")), SET_STAR, EXIT, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(Get_Int_Parameter("Controller_num")), SET_STAR, EXIT, 0.0f);
 		}
 	}
 };
@@ -3354,9 +3354,9 @@ DECLARE_SCRIPT (M09_Elevator_All_Controller, "Waypoint_num:int, Elev_obj_num:int
 			"lab_spn_door08.lab_spn_door08",
 		};
 
-		mobius = Commands->Find_Object (2000010);
+		mobius = ScriptEngine::Find_Object (2000010);
 
-		Commands->Static_Anim_Phys_Goto_Last_Frame ( Get_Int_Parameter("Elev_obj_num"), elevators [Get_Int_Parameter("Anim_num")] );
+		ScriptEngine::Static_Anim_Phys_Goto_Last_Frame ( Get_Int_Parameter("Elev_obj_num"), elevators [Get_Int_Parameter("Anim_num")] );
 
 
 	}
@@ -3365,10 +3365,10 @@ DECLARE_SCRIPT (M09_Elevator_All_Controller, "Waypoint_num:int, Elev_obj_num:int
 	{
 		if (timer_id == 333)
 		{
-			Commands->Destroy_Object (Commands->Find_Object (block1));
-			Commands->Destroy_Object (Commands->Find_Object (block2));
-			Commands->Destroy_Object (Commands->Find_Object (block3));
-			Commands->Destroy_Object (Commands->Find_Object (block4));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block1));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block2));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block3));
+			ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (block4));
 		}
 	}
 //
@@ -3389,12 +3389,12 @@ DECLARE_SCRIPT (M09_Elevator_All_Controller, "Waypoint_num:int, Elev_obj_num:int
 
 		if (type == CHECK_STAR)
 		{
-			Commands->Send_Custom_Event(obj, sender, STAR_STATUS, star_in_zone, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, sender, STAR_STATUS, star_in_zone, 0.0f);
 		}
 
 		if (type == CHECK_MOBIUS)
 		{
-			Commands->Send_Custom_Event(obj, sender, CHECK_MOBIUS, mobius_in_zone, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, sender, CHECK_MOBIUS, mobius_in_zone, 0.0f);
 		}
 
 		if (type == STAR_STATUS)
@@ -3403,12 +3403,12 @@ DECLARE_SCRIPT (M09_Elevator_All_Controller, "Waypoint_num:int, Elev_obj_num:int
 			{
 				if (Get_Int_Parameter("Direction") == 0)
 				{
-					Commands->Send_Custom_Event(obj, Commands->Find_Object (2000010), ELEVATOR, (Get_Int_Parameter("Waypoint_num")), 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (2000010), ELEVATOR, (Get_Int_Parameter("Waypoint_num")), 0.0f);
 				}
 
 				if (Get_Int_Parameter("Direction") == 1)
 				{
-					Commands->Send_Custom_Event(obj, Commands->Find_Object (2000010), ELEVATOR_DOWN, (Get_Int_Parameter("Waypoint_num")), 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (2000010), ELEVATOR_DOWN, (Get_Int_Parameter("Waypoint_num")), 0.0f);
 				}
 			}
 		}
@@ -3422,12 +3422,12 @@ DECLARE_SCRIPT (M09_Elevator_All_Controller, "Waypoint_num:int, Elev_obj_num:int
 
 				if (Get_Int_Parameter("Direction") == 0)
 				{
-					Commands->Send_Custom_Event( obj, obj, ACTIVATE, 0, 0.0f);
+					ScriptEngine::Send_Custom_Event( obj, obj, ACTIVATE, 0, 0.0f);
 				}
 
 				if (Get_Int_Parameter("Direction") == 1)
 				{
-					Commands->Send_Custom_Event( obj, obj, ACTIVATEDOWN, 0, 0.0f);
+					ScriptEngine::Send_Custom_Event( obj, obj, ACTIVATEDOWN, 0, 0.0f);
 				}
 			}
 		}
@@ -3438,27 +3438,27 @@ DECLARE_SCRIPT (M09_Elevator_All_Controller, "Waypoint_num:int, Elev_obj_num:int
 			{
 				star_in_zone = true;
 
-				if (((Commands->Get_ID (obj)) != 2000607) && ((Commands->Get_ID (obj)) != 2000599))
+				if (((ScriptEngine::Get_ID (obj)) != 2000607) && ((ScriptEngine::Get_ID (obj)) != 2000599))
 				{
 					if (Get_Int_Parameter("Direction") == 0)
 					{
-						Commands->Send_Custom_Event(obj, Commands->Find_Object (2000010), ELEVATOR, (Get_Int_Parameter("Waypoint_num")), 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (2000010), ELEVATOR, (Get_Int_Parameter("Waypoint_num")), 0.0f);
 					}
 
 					if (Get_Int_Parameter("Direction") == 1)
 					{
-						Commands->Send_Custom_Event(obj, Commands->Find_Object (2000010), ELEVATOR_DOWN, (Get_Int_Parameter("Waypoint_num")), 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (2000010), ELEVATOR_DOWN, (Get_Int_Parameter("Waypoint_num")), 0.0f);
 					}
 				}
 
-				if ((Commands->Get_ID (obj)) == 2000607)
+				if ((ScriptEngine::Get_ID (obj)) == 2000607)
 				{
-					Commands->Send_Custom_Event(obj, Commands->Find_Object (2000599), CHECK_STAR, 0, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (2000599), CHECK_STAR, 0, 0.0f);
 				}
 
-				if ((Commands->Get_ID (obj)) == 2000599)
+				if ((ScriptEngine::Get_ID (obj)) == 2000599)
 				{
-					Commands->Send_Custom_Event(obj, Commands->Find_Object (2000607), CHECK_STAR, 0, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (2000607), CHECK_STAR, 0, 0.0f);
 				}
 
 			}
@@ -3466,7 +3466,7 @@ DECLARE_SCRIPT (M09_Elevator_All_Controller, "Waypoint_num:int, Elev_obj_num:int
 			if (param == EXIT)
 			{
 				star_in_zone = false;
-				//Commands->Send_Custom_Event(obj, Commands->Find_Object (2000010), FOLLOW, Get_Int_Parameter("Mobius_exit_goto"), 0.0f);
+				//ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (2000010), FOLLOW, Get_Int_Parameter("Mobius_exit_goto"), 0.0f);
 			}
 		}
 
@@ -3474,24 +3474,24 @@ DECLARE_SCRIPT (M09_Elevator_All_Controller, "Waypoint_num:int, Elev_obj_num:int
 		{
 			if (star_in_zone && mobius_in_zone)
 			{
-				Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), BLOCK_ON, 0, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), BLOCK_ON, 0, 0.0f);
 
-			/*	Commands->Start_Timer (obj, this, 3.0f, 333);
+			/*	ScriptEngine::Start_Timer (obj, this, 3.0f, 333);
 
-				GameObject *rub1 = Commands->Create_Object ("M08_Rubble_Stub", Vector3 (-108.916f, 483.904f, -191.022f));
-				block1 = Commands->Get_ID (rub1);
-				Commands->Set_Is_Rendered( rub1, false );
-				GameObject *rub2 = Commands->Create_Object ("M08_Rubble_Stub", Vector3 (-25.433f, 513.013f, -150.613f));
-				block2 = Commands->Get_ID (rub2);
-				Commands->Set_Is_Rendered( rub2, false );
-				GameObject *rub3 = Commands->Create_Object ("M08_Rubble_Stub", Vector3 (-47.948f, 535.216f, -103.284f));
-				block3 = Commands->Get_ID (rub3);
-				Commands->Set_Is_Rendered( rub3, false );
-				Commands->Set_Facing (rub3, -90.0);
-				GameObject *rub4 = Commands->Create_Object ("M08_Rubble_Stub", Vector3 (39.231f, 515.105f, -78.137f));
-				block4 = Commands->Get_ID (rub4);
-				Commands->Set_Is_Rendered( rub4, false );
-*/				Commands->Static_Anim_Phys_Goto_Frame ( Get_Int_Parameter("Elev_obj_num"), 0, elevators [Get_Int_Parameter("Anim_num")] );
+				GameObject *rub1 = ScriptEngine::Create_Object ("M08_Rubble_Stub", Vector3 (-108.916f, 483.904f, -191.022f));
+				block1 = ScriptEngine::Get_ID (rub1);
+				ScriptEngine::Set_Is_Rendered( rub1, false );
+				GameObject *rub2 = ScriptEngine::Create_Object ("M08_Rubble_Stub", Vector3 (-25.433f, 513.013f, -150.613f));
+				block2 = ScriptEngine::Get_ID (rub2);
+				ScriptEngine::Set_Is_Rendered( rub2, false );
+				GameObject *rub3 = ScriptEngine::Create_Object ("M08_Rubble_Stub", Vector3 (-47.948f, 535.216f, -103.284f));
+				block3 = ScriptEngine::Get_ID (rub3);
+				ScriptEngine::Set_Is_Rendered( rub3, false );
+				ScriptEngine::Set_Facing (rub3, -90.0);
+				GameObject *rub4 = ScriptEngine::Create_Object ("M08_Rubble_Stub", Vector3 (39.231f, 515.105f, -78.137f));
+				block4 = ScriptEngine::Get_ID (rub4);
+				ScriptEngine::Set_Is_Rendered( rub4, false );
+*/				ScriptEngine::Static_Anim_Phys_Goto_Frame ( Get_Int_Parameter("Elev_obj_num"), 0, elevators [Get_Int_Parameter("Anim_num")] );
 			}
 		}
 
@@ -3499,7 +3499,7 @@ DECLARE_SCRIPT (M09_Elevator_All_Controller, "Waypoint_num:int, Elev_obj_num:int
 		{
 			if (star_in_zone && mobius_in_zone)
 			{
-				Commands->Static_Anim_Phys_Goto_Last_Frame ( Get_Int_Parameter("Elev_obj_num"), elevators [Get_Int_Parameter("Anim_num")] );
+				ScriptEngine::Static_Anim_Phys_Goto_Last_Frame ( Get_Int_Parameter("Elev_obj_num"), elevators [Get_Int_Parameter("Anim_num")] );
 			}
 		}
 
@@ -3511,7 +3511,7 @@ DECLARE_SCRIPT (M09_Block_Off, "")
 {
 	void Entered (GameObject *obj, GameObject * /* enterer */) override
 	{
-	 	Commands->Send_Custom_Event (obj, Commands->Find_Object(2000071), BLOCK_OFF, 0, 0.0f);
+	 	ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000071), BLOCK_OFF, 0, 0.0f);
 	}
 };
 
@@ -3531,34 +3531,34 @@ DECLARE_SCRIPT (M09_Mutant_Attack, "Target_num:int")
 
 		if ( sound.Type == M09_INNATE_ENABLE )
 		{
-			Vector3 loc = Commands->Get_Position (Commands->Find_Object (target));
+			Vector3 loc = ScriptEngine::Get_Position (ScriptEngine::Find_Object (target));
 
-			Commands->Set_Innate_Aggressiveness ( obj, 100.0f );
-			Commands->Set_Innate_Take_Cover_Probability ( obj, 100.0 );
+			ScriptEngine::Set_Innate_Aggressiveness ( obj, 100.0f );
+			ScriptEngine::Set_Innate_Take_Cover_Probability ( obj, 100.0 );
 
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, 99, RUN_TO_TARGET );
 			params.Set_Movement( loc, 1.2f, 0.75f);
 
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
 	{
-		float face = Commands->Get_Facing (Commands->Find_Object (target));
+		float face = ScriptEngine::Get_Facing (ScriptEngine::Find_Object (target));
 
 		if (action_id == RUN_TO_TARGET)
 		{
-			Commands->Set_Facing (obj, face);
+			ScriptEngine::Set_Facing (obj, face);
 
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, ATTACKING );
-			params.Set_Attack (Commands->Find_Object (2000626), 3.0f, 0.0f, 1);
+			params.Set_Attack (ScriptEngine::Find_Object (2000626), 3.0f, 0.0f, 1);
 
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 	}
 };
@@ -3576,12 +3576,12 @@ DECLARE_SCRIPT (M09_Waypath_Run, "Waypath_num:int, Attacker_num:int, Controller_
 
 	void Created (GameObject *obj) override
 	{
-		Commands->Innate_Disable(obj);
+		ScriptEngine::Innate_Disable(obj);
 
-		attackee_id = Commands->Get_ID(obj);
-		Commands->Send_Custom_Event(obj, Commands->Find_Object (Get_Int_Parameter("Controller_num")), MUTANT_ATTACKEE, attackee_id, 0.0f);
+		attackee_id = ScriptEngine::Get_ID(obj);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (Get_Int_Parameter("Controller_num")), MUTANT_ATTACKEE, attackee_id, 0.0f);
 
-		Commands->Start_Timer (obj, this, 1.0f, START);
+		ScriptEngine::Start_Timer (obj, this, 1.0f, START);
 
 		if (Get_Int_Parameter("Waypath_num") != 0)
 		{
@@ -3591,19 +3591,19 @@ DECLARE_SCRIPT (M09_Waypath_Run, "Waypath_num:int, Attacker_num:int, Controller_
 			params.Set_Movement( Vector3(0,0,0), RUN, 0.5f);
 			params.WaypathID = Get_Int_Parameter("Waypath_num");
 
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 	}
 
 	void Damaged( GameObject * obj, GameObject * /* damager */, float /* amount */ ) override
 	{
-		Commands->Action_Reset ( obj, 100 );
+		ScriptEngine::Action_Reset ( obj, 100 );
 
 		ActionParamsStruct params;
 
 		params.Set_Basic( this, 100, ANIMATION );
 		params.Set_Animation ("h_a_891a", false);
-		Commands->Action_Play_Animation (obj, params);
+		ScriptEngine::Action_Play_Animation (obj, params);
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
@@ -3612,7 +3612,7 @@ DECLARE_SCRIPT (M09_Waypath_Run, "Waypath_num:int, Attacker_num:int, Controller_
 		{
 			if (Get_Int_Parameter("Waypath_num") != 0)
 			{
-				Commands->Action_Reset ( obj, 100 );
+				ScriptEngine::Action_Reset ( obj, 100 );
 
 				ActionParamsStruct params;
 
@@ -3620,14 +3620,14 @@ DECLARE_SCRIPT (M09_Waypath_Run, "Waypath_num:int, Attacker_num:int, Controller_
 				params.Set_Movement( Vector3(0,0,0), RUN, 0.5f);
 				params.WaypathID = Get_Int_Parameter("Waypath_num");
 
-				Commands->Action_Goto (  obj, params );
+				ScriptEngine::Action_Goto (  obj, params );
 			}
 		}
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */ ) override
 	{
-		Commands->Send_Custom_Event(obj, (Commands->Find_Object (mutant_id)), ATTACK_STAR, 0, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, (ScriptEngine::Find_Object (mutant_id)), ATTACK_STAR, 0, 0.0f);
 	}
 
 	void Custom(GameObject * obj, int type, intptr_t param, GameObject * /* sender */) override
@@ -3639,7 +3639,7 @@ DECLARE_SCRIPT (M09_Waypath_Run, "Waypath_num:int, Attacker_num:int, Controller_
 
 		if (type == DEAD_MUTANT)
 		{
-			Commands->Action_Reset ( obj, 100 );
+			ScriptEngine::Action_Reset ( obj, 100 );
 		}
 	}
 
@@ -3648,7 +3648,7 @@ DECLARE_SCRIPT (M09_Waypath_Run, "Waypath_num:int, Attacker_num:int, Controller_
 
 		if(timer_id == START)
 		{
-			Commands->Send_Custom_Event(obj, Commands->Find_Object (Get_Int_Parameter("Controller_num")), ATTACKER_CHECK, 0, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (Get_Int_Parameter("Controller_num")), ATTACKER_CHECK, 0, 0.0f);
 		}
 	}
 
@@ -3679,12 +3679,12 @@ DECLARE_SCRIPT (M09_Mutant_Encounter_Controller, "")
 
 		if (type == ATTACKER_CHECK)
 		{
-			Commands->Send_Custom_Event(obj, sender, ATTACKER_CHECK, mutant_id, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, sender, ATTACKER_CHECK, mutant_id, 0.0f);
 		}
 
 		if (type == ATTACKEE_CHECK)
 		{
-			Commands->Send_Custom_Event(obj, sender, ATTACKEE_CHECK, attackee_id, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, sender, ATTACKEE_CHECK, attackee_id, 0.0f);
 		}
 	}
 };
@@ -3703,7 +3703,7 @@ DECLARE_SCRIPT (M09_Damage_Modifier, "Damage_multiplier:float")
 
 	void Created (GameObject *obj) override
 	{
-		last_health = Commands->Get_Health (obj);
+		last_health = ScriptEngine::Get_Health (obj);
 		damage_tally = 0;
 	}
 
@@ -3713,12 +3713,12 @@ DECLARE_SCRIPT (M09_Damage_Modifier, "Damage_multiplier:float")
 
 		if (damager == STAR)
 		{
-			last_health = Commands->Get_Health (obj);
+			last_health = ScriptEngine::Get_Health (obj);
 		}
 
 		if (damager != STAR)
 		{
-			current_health = Commands->Get_Health (obj);
+			current_health = ScriptEngine::Get_Health (obj);
 			if (current_health == 0)
 			{
 				damage = ((last_health - current_health) + damage_tally);
@@ -3733,9 +3733,9 @@ DECLARE_SCRIPT (M09_Damage_Modifier, "Damage_multiplier:float")
 			float mod_damage = (damage * (Get_Float_Parameter("Damage_multiplier")));
 			damage_tally += mod_damage;
 
-			Commands->Set_Health (obj, (last_health - mod_damage));
-			last_health = Commands->Get_Health (obj);
-			current_health = Commands->Get_Health (obj);
+			ScriptEngine::Set_Health (obj, (last_health - mod_damage));
+			last_health = ScriptEngine::Get_Health (obj);
+			current_health = ScriptEngine::Get_Health (obj);
 		}
 	}
 };
@@ -3763,7 +3763,7 @@ DECLARE_SCRIPT (M09_Zone_Enabled_Mobius, "Waypath_id:int, Condition=0:int")
 	{
 		if (goal <= 0)
 		{
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000010), FOLLOW, Get_Int_Parameter("Waypath_id"), 0.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000010), FOLLOW, Get_Int_Parameter("Waypath_id"), 0.0f );
 			goal = 1;
 		}
 	}
@@ -3796,12 +3796,12 @@ DECLARE_SCRIPT (M09_No_Obj_Damage, "")
 
 	void Created (GameObject *obj) override
 	{
-		curr_health = Commands->Get_Health (obj);
+		curr_health = ScriptEngine::Get_Health (obj);
 	}
 
 	void Damaged( GameObject * obj, GameObject * /* damager */, float /* amount */ ) override
 	{
-		Commands->Set_Health (obj, curr_health);
+		ScriptEngine::Set_Health (obj, curr_health);
 	}
 };
 
@@ -3836,13 +3836,13 @@ DECLARE_SCRIPT (M09_Flyover_Controller, "")
 				"X9A_Trnspt_03.txt",
 
 			};
-			int random = int(Commands->Get_Random(0, 8-WWMATH_EPSILON));
+			int random = int(ScriptEngine::Get_Random(0, 8-WWMATH_EPSILON));
 
 			while (random == last) {
-				random = int(Commands->Get_Random(0, 8-WWMATH_EPSILON));
+				random = int(ScriptEngine::Get_Random(0, 8-WWMATH_EPSILON));
 			}
-			GameObject *controller = Commands->Create_Object("Invisible_Object", Vector3(0,0,0));
-			Commands->Attach_Script(controller, "Test_Cinematic", flyovers[random]);
+			GameObject *controller = ScriptEngine::Create_Object("Invisible_Object", Vector3(0,0,0));
+			ScriptEngine::Attach_Script(controller, "Test_Cinematic", flyovers[random]);
 			last = random;
 		}
 	}
@@ -3852,7 +3852,7 @@ DECLARE_SCRIPT (M09_Flyover_Recycle, "")
 {
 	void Destroyed(GameObject * obj) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(2000955), FLYOVER, 0, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(2000955), FLYOVER, 0, 0.0f);
 	}
 };
 
@@ -3860,10 +3860,10 @@ DECLARE_SCRIPT (M09_Weather_On, "")
 {
 	void Entered (GameObject * /* obj */, GameObject * /* enterer */) override
 	{
-		Commands->Set_Fog_Enable ( true );
-		Commands->Set_Fog_Range (0.0, 150.0, 2.0);
-		Commands->Set_Lightning (0.25f, 0.0f, 0.2f, 265.0f, 0.3f, 2.0f);
-		Commands->Set_Rain ( 10.0, 2.0, false);
+		ScriptEngine::Set_Fog_Enable ( true );
+		ScriptEngine::Set_Fog_Range (0.0, 150.0, 2.0);
+		ScriptEngine::Set_Lightning (0.25f, 0.0f, 0.2f, 265.0f, 0.3f, 2.0f);
+		ScriptEngine::Set_Rain ( 10.0, 2.0, false);
 	}
 };
 
@@ -3871,10 +3871,10 @@ DECLARE_SCRIPT (M09_Weather_Off, "")
 {
 	void Entered (GameObject * /* obj */, GameObject * /* enterer */) override
 	{
-		//Commands->Set_Fog_Enable ( false );
-		Commands->Set_Fog_Range (0.0, 1000.0, 2.0);
-		Commands->Set_Lightning (0.0f, 0.0f, 0.2f, 265.0f, 0.3f, 2.0f);
-		Commands->Set_Rain ( 0.0, 2.0, false);
+		//ScriptEngine::Set_Fog_Enable ( false );
+		ScriptEngine::Set_Fog_Range (0.0, 1000.0, 2.0);
+		ScriptEngine::Set_Lightning (0.0f, 0.0f, 0.2f, 265.0f, 0.3f, 2.0f);
+		ScriptEngine::Set_Rain ( 0.0, 2.0, false);
 	}
 };
 
@@ -3903,33 +3903,33 @@ DECLARE_SCRIPT(M09_Evac_Transport, "")  //2000969
 		{
 			already_entered = true;
 
-			facing = Commands->Get_Facing (Commands->Find_Object (2000969));
+			facing = ScriptEngine::Get_Facing (ScriptEngine::Find_Object (2000969));
 
-			Vector3 loc = Commands->Get_Position (Commands->Find_Object (2000969));
+			Vector3 loc = ScriptEngine::Get_Position (ScriptEngine::Find_Object (2000969));
 
-			GameObject * bone = Commands->Create_Object ( "Invisible_Object", loc );
-			Commands->Set_Facing(bone, facing);
-			Commands->Attach_Script(bone, "M09_Evac_Bone", "");
-			Commands->Set_Model ( bone, "XG_TransprtBone" );
-			Commands->Set_Animation ( bone, "XG_TransprtBone.XG_EV2_PathA", false , nullptr, 0.0f, -1.0f, false);
+			GameObject * bone = ScriptEngine::Create_Object ( "Invisible_Object", loc );
+			ScriptEngine::Set_Facing(bone, facing);
+			ScriptEngine::Attach_Script(bone, "M09_Evac_Bone", "");
+			ScriptEngine::Set_Model ( bone, "XG_TransprtBone" );
+			ScriptEngine::Set_Animation ( bone, "XG_TransprtBone.XG_EV2_PathA", false , nullptr, 0.0f, -1.0f, false);
 
-			GameObject * chinook = Commands->Create_Object_At_Bone( bone, "GDI_Transport_Helicopter", "XG_TransprtBone" );
-			GameObject * troop = Commands->Create_Object_At_Bone( bone, "GDI_RocketSoldier_2SF", "SPAWNER" );
-			Commands->Attach_Script(troop, "M00_Damage_Modifier_DME", "0.05f, 1, 1, 0, 0");
+			GameObject * chinook = ScriptEngine::Create_Object_At_Bone( bone, "GDI_Transport_Helicopter", "XG_TransprtBone" );
+			GameObject * troop = ScriptEngine::Create_Object_At_Bone( bone, "GDI_RocketSoldier_2SF", "SPAWNER" );
+			ScriptEngine::Attach_Script(troop, "M00_Damage_Modifier_DME", "0.05f, 1, 1, 0, 0");
 
 			char param1[12];
-			sprintf(param1, "%d", Commands->Get_ID(troop));
+			sprintf(param1, "%d", ScriptEngine::Get_ID(troop));
 
-			Commands->Set_Facing(chinook, facing);
-			Commands->Attach_Script(chinook, "M09_Evac_Helicopter", param1);
-			Commands->Attach_To_Object_Bone ( chinook, bone, "BN_Trajectory" );
-			Commands->Set_Animation ( chinook, "v_GDI_trnspt.XG_EV2_trnsA", false , nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Set_Facing(chinook, facing);
+			ScriptEngine::Attach_Script(chinook, "M09_Evac_Helicopter", param1);
+			ScriptEngine::Attach_To_Object_Bone ( chinook, bone, "BN_Trajectory" );
+			ScriptEngine::Set_Animation ( chinook, "v_GDI_trnspt.XG_EV2_trnsA", false , nullptr, 0.0f, -1.0f, false);
 
-			Commands->Attach_Script(troop, "M09_Gunner", "");
-			Commands->Attach_Script(chinook, "M09_No_Obj_Damage", "");
-			Commands->Attach_To_Object_Bone ( troop, chinook, "SPAWNER" );
+			ScriptEngine::Attach_Script(troop, "M09_Gunner", "");
+			ScriptEngine::Attach_Script(chinook, "M09_No_Obj_Damage", "");
+			ScriptEngine::Attach_To_Object_Bone ( troop, chinook, "SPAWNER" );
 
-			//Commands->Set_Facing(troop, facing - 180.0);
+			//ScriptEngine::Set_Facing(troop, facing - 180.0);
 		}
 	}
 };
@@ -3940,7 +3940,7 @@ DECLARE_SCRIPT(M09_Evac_Bone, "")
 	{
 		if (stricmp(anim, "XG_TransprtBone.XG_EV2_PathA") == 0)
 		{
-			Commands->Set_Animation ( obj, "XG_TransprtBone.XG_EV2_Pathloop", true , nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Set_Animation ( obj, "XG_TransprtBone.XG_EV2_Pathloop", true , nullptr, 0.0f, -1.0f, false);
 		}
 
 	}
@@ -3954,24 +3954,24 @@ DECLARE_SCRIPT(M09_Evac_Helicopter, "Gunner:int")
 		{
 			int gunner_id = Get_Int_Parameter("Gunner");
 
-			Commands->Disable_Physical_Collisions ( obj );
-			Commands->Start_Timer (obj, this, 3.0f, COLLISION);
+			ScriptEngine::Disable_Physical_Collisions ( obj );
+			ScriptEngine::Start_Timer (obj, this, 3.0f, COLLISION);
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(gunner_id), GO, 0, 0.0f);
-			Commands->Set_Animation ( obj, "v_GDI_trnspt.XG_EV2_trnsloop", true , nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(gunner_id), GO, 0, 0.0f);
+			ScriptEngine::Set_Animation ( obj, "v_GDI_trnspt.XG_EV2_trnsloop", true , nullptr, 0.0f, -1.0f, false);
 		}
 	}
 
 	void Killed(GameObject * /* obj */, GameObject * /* killer */) override
 	{
-		Commands->Mission_Complete(false);
+		ScriptEngine::Mission_Complete(false);
 	}
 
 	void Timer_Expired (GameObject* obj, int timer_id) override
 	{
 		if (timer_id == COLLISION)
 		{
-			Commands->Enable_Collisions ( obj );
+			ScriptEngine::Enable_Collisions ( obj );
 		}
 	}
 };
@@ -3982,26 +3982,26 @@ DECLARE_SCRIPT(M09_Gunner, "")
 
 	void Created ( GameObject *obj) override
 	{
-		full_health = Commands->Get_Health (obj);
+		full_health = ScriptEngine::Get_Health (obj);
 	}
 
 	void Custom(GameObject * obj, int type, intptr_t /* param */, GameObject * /* sender */) override
 	{
 		if (type == GO)
 		{
-			Commands->Attach_To_Object_Bone( obj, nullptr, nullptr );
+			ScriptEngine::Attach_To_Object_Bone( obj, nullptr, nullptr );
 
 
-			//Commands->Enable_Collisions ( obj );
+			//ScriptEngine::Enable_Collisions ( obj );
 
 			ActionParamsStruct params;
 
 			params.Set_Basic( this, 99, 101 );
-			params.Set_Movement( Commands->Find_Object (2000970), RUN, 1.5f);
+			params.Set_Movement( ScriptEngine::Find_Object (2000970), RUN, 1.5f);
 
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 
-			//Commands->Set_Innate_Aggressiveness ( obj, 1.0f );
+			//ScriptEngine::Set_Innate_Aggressiveness ( obj, 1.0f );
 		}
 	}
 
@@ -4014,12 +4014,12 @@ DECLARE_SCRIPT(M09_Gunner, "")
 		params.AttackCheckBlocked = true;
 		params.AttackActive = true;
 
-		Commands->Modify_Action(obj, 10, params, true, true);
+		ScriptEngine::Modify_Action(obj, 10, params, true, true);
 	}
 
 	void Damaged( GameObject * obj, GameObject * /* damager */, float /* amount */ ) override
 	{
-		Commands->Set_Health (obj, full_health);
+		ScriptEngine::Set_Health (obj, full_health);
 	}
 
 };
@@ -4028,9 +4028,9 @@ DECLARE_SCRIPT(M09_Mobius_Goto, "GotoObject:int")
 {
 	void Entered (GameObject *obj, GameObject * /* enterer */) override
 	{
-		GameObject * mobius = Commands->Find_Object (2000010);
+		GameObject * mobius = ScriptEngine::Find_Object (2000010);
 
-		Commands->Send_Custom_Event( obj, mobius, FOLLOW, Get_Int_Parameter("GotoObject"), 0.0f );
+		ScriptEngine::Send_Custom_Event( obj, mobius, FOLLOW, Get_Int_Parameter("GotoObject"), 0.0f );
 	}
 };
 
@@ -4048,10 +4048,10 @@ DECLARE_SCRIPT(M09_Innate_Disable, "")
 
 	void Created (GameObject *obj) override
 	{
-		Commands->Innate_Disable(obj);
+		ScriptEngine::Innate_Disable(obj);
 
-		//GameObject * mobius = Commands->Find_Object (2000010);
-		last_health = Commands->Get_Health (obj);
+		//GameObject * mobius = ScriptEngine::Find_Object (2000010);
+		last_health = ScriptEngine::Get_Health (obj);
 		damage_tally = 0;
 	}
 
@@ -4061,11 +4061,11 @@ DECLARE_SCRIPT(M09_Innate_Disable, "")
 
 		if ( sound.Type == M09_INNATE_ENABLE )
 		{
-			Commands->Innate_Enable(obj);
-			Commands->Set_Innate_Aggressiveness ( obj, 100.0f );
-			//Commands->Innate_Force_State_Gunshots_Heard ( obj, Commands->Get_Position (obj) );
+			ScriptEngine::Innate_Enable(obj);
+			ScriptEngine::Set_Innate_Aggressiveness ( obj, 100.0f );
+			//ScriptEngine::Innate_Force_State_Gunshots_Heard ( obj, ScriptEngine::Get_Position (obj) );
 
-			Vector3 projector = Commands->Get_Position (obj);
+			Vector3 projector = ScriptEngine::Get_Position (obj);
 		}
 	}
 
@@ -4073,31 +4073,31 @@ DECLARE_SCRIPT(M09_Innate_Disable, "")
 	{
 		if (type == M09_INNATE_ENABLE )
 		{
-			Commands->Innate_Enable(obj);
-			Commands->Set_Innate_Aggressiveness ( obj, 100.0f );
-			//Commands->Innate_Force_State_Gunshots_Heard ( obj, Commands->Get_Position (obj) );
+			ScriptEngine::Innate_Enable(obj);
+			ScriptEngine::Set_Innate_Aggressiveness ( obj, 100.0f );
+			//ScriptEngine::Innate_Force_State_Gunshots_Heard ( obj, ScriptEngine::Get_Position (obj) );
 		}
 	}
 
 	void Damaged( GameObject * obj, GameObject * damager, float /* amount */ ) override
 	{
-		GameObject * mobius = Commands->Find_Object (2000010);
+		GameObject * mobius = ScriptEngine::Find_Object (2000010);
 
 		if (damager == STAR  || damager == mobius)
 		{
-			last_health = Commands->Get_Health (obj);
+			last_health = ScriptEngine::Get_Health (obj);
 		}
 
 		if (damager != STAR && damager != mobius)
 		{
-			current_health = Commands->Get_Health (obj);
+			current_health = ScriptEngine::Get_Health (obj);
 			float damage = ((last_health - current_health) + damage_tally);
 			float mod_damage = (damage * 0.05f);
 			damage_tally += mod_damage;
 
-			Commands->Set_Health (obj, (last_health - mod_damage));
-			last_health = Commands->Get_Health (obj);
-			current_health = Commands->Get_Health (obj);
+			ScriptEngine::Set_Health (obj, (last_health - mod_damage));
+			last_health = ScriptEngine::Get_Health (obj);
+			current_health = ScriptEngine::Get_Health (obj);
 		}
 	}
 };
@@ -4136,12 +4136,12 @@ DECLARE_SCRIPT(M09_Innate_Enable_Zone, "SoundProjector:int, Radius=7.0:float, To
 	{
 		if (timer_id == INNATE_RECYCLE && !all_checked_in)
 		{
-			Vector3 projector = Commands->Get_Position (Commands->Find_Object (Get_Int_Parameter ("SoundProjector")));
+			Vector3 projector = ScriptEngine::Get_Position (ScriptEngine::Find_Object (Get_Int_Parameter ("SoundProjector")));
 			float rad = Get_Float_Parameter("Radius");
 
-			Commands->Create_Logical_Sound (obj, M09_INNATE_ENABLE, projector, rad);
+			ScriptEngine::Create_Logical_Sound (obj, M09_INNATE_ENABLE, projector, rad);
 
-			//Commands->Start_Timer (obj, this, 4.0f, INNATE_RECYCLE);
+			//ScriptEngine::Start_Timer (obj, this, 4.0f, INNATE_RECYCLE);
 		}
 	}
 
@@ -4152,12 +4152,12 @@ DECLARE_SCRIPT(M09_Innate_Enable_Zone, "SoundProjector:int, Radius=7.0:float, To
 		{
 			already_entered = true;
 
-			Vector3 projector = Commands->Get_Position (Commands->Find_Object (Get_Int_Parameter ("SoundProjector")));
+			Vector3 projector = ScriptEngine::Get_Position (ScriptEngine::Find_Object (Get_Int_Parameter ("SoundProjector")));
 			float rad = Get_Float_Parameter("Radius");
 
-			Commands->Create_Logical_Sound (obj, M09_INNATE_ENABLE, projector, rad);
+			ScriptEngine::Create_Logical_Sound (obj, M09_INNATE_ENABLE, projector, rad);
 
-			Commands->Start_Timer (obj, this, 4.0f, INNATE_RECYCLE);
+			ScriptEngine::Start_Timer (obj, this, 4.0f, INNATE_RECYCLE);
 		}
 	}
 };
@@ -4166,7 +4166,7 @@ DECLARE_SCRIPT(M09_Zone_Destroy, "")
 {
 	void Entered (GameObject *obj, GameObject * /* enterer */) override
 	{
-		Commands->Destroy_Object(obj);
+		ScriptEngine::Destroy_Object(obj);
 	}
 };
 
@@ -4176,12 +4176,12 @@ DECLARE_SCRIPT (M09_Lab_Powerup, "Target:int")
 	{
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
-			Commands->Grant_Key (Commands->Find_Object (Get_Int_Parameter("Target")), 10, true);
-			Commands->Debug_Message("Key granted to %d.\n", Get_Int_Parameter("Target"));
+			ScriptEngine::Grant_Key (ScriptEngine::Find_Object (Get_Int_Parameter("Target")), 10, true);
+			ScriptEngine::Debug_Message("Key granted to %d.\n", Get_Int_Parameter("Target"));
 
-			//Commands->Send_Custom_Event (obj, Commands->Find_Object (Get_Int_Parameter("Target")), 0, 0, 0.0f);
-			Commands->Action_Reset ( Commands->Find_Object (Get_Int_Parameter("Target")), 100 );
-			Commands->Attach_Script( Commands->Find_Object (Get_Int_Parameter("Target")), "M03_Goto_Star", "");
+			//ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object (Get_Int_Parameter("Target")), 0, 0, 0.0f);
+			ScriptEngine::Action_Reset ( ScriptEngine::Find_Object (Get_Int_Parameter("Target")), 100 );
+			ScriptEngine::Attach_Script( ScriptEngine::Find_Object (Get_Int_Parameter("Target")), "M03_Goto_Star", "");
 		}
 	}
 };
@@ -4200,20 +4200,20 @@ DECLARE_SCRIPT (M09_Ambient_Clutter, "")
 	void Created (GameObject *obj) override
 	{
 
-		float delayTimer = Commands->Get_Random ( 1, 5 );
-		/*int chooser = Commands->Get_Random_Int (0, 7);
-		float rand_dist = Commands->Get_Random ( 15, 20 );
+		float delayTimer = ScriptEngine::Get_Random ( 1, 5 );
+		/*int chooser = ScriptEngine::Get_Random_Int (0, 7);
+		float rand_dist = ScriptEngine::Get_Random ( 15, 20 );
 
-		sound_loc = Commands->Get_Position (STAR);
+		sound_loc = ScriptEngine::Get_Position (STAR);
 
 		sound_loc.X += rand_dist;
 		sound_loc.Y += rand_dist;
 		sound_loc.Z += rand_dist;
 
-		//Commands->Create_Sound ( ambients [chooser], sound_loc, obj );*/
+		//ScriptEngine::Create_Sound ( ambients [chooser], sound_loc, obj );*/
 
-		Commands->Start_Timer(obj, this, (20.0f - delayTimer), AMB_SOUND);
-		Commands->Start_Timer(obj, this, (8.0f + delayTimer), AMB_EXPLOSION);
+		ScriptEngine::Start_Timer(obj, this, (20.0f - delayTimer), AMB_SOUND);
+		ScriptEngine::Start_Timer(obj, this, (8.0f + delayTimer), AMB_EXPLOSION);
 	}
 
 	void Timer_Expired (GameObject* obj, int timer_id) override
@@ -4231,19 +4231,19 @@ DECLARE_SCRIPT (M09_Ambient_Clutter, "")
 					"Vehicle_Explo_Med1",
 				};
 
-			int chooser = Commands->Get_Random_Int (0, 7);
-			float delayTimer = Commands->Get_Random ( 1, 5 );
-			float rand_dist = Commands->Get_Random ( 15, 30 );
+			int chooser = ScriptEngine::Get_Random_Int (0, 7);
+			float delayTimer = ScriptEngine::Get_Random ( 1, 5 );
+			float rand_dist = ScriptEngine::Get_Random ( 15, 30 );
 
-			sound_loc = Commands->Get_Position (STAR);
+			sound_loc = ScriptEngine::Get_Position (STAR);
 
 			sound_loc.X += rand_dist;
 			sound_loc.Y += rand_dist;
 			sound_loc.Z += rand_dist;
 
-			Commands->Create_Sound ( ambients [chooser], sound_loc, obj );
+			ScriptEngine::Create_Sound ( ambients [chooser], sound_loc, obj );
 
-			Commands->Start_Timer(obj, this, (20.0f - delayTimer), AMB_SOUND);
+			ScriptEngine::Start_Timer(obj, this, (20.0f - delayTimer), AMB_SOUND);
 		}
 
 		if (timer_id == AMB_EXPLOSION)
@@ -4256,11 +4256,11 @@ DECLARE_SCRIPT (M09_Ambient_Clutter, "")
 			exp_point [3] = 2006123;
 			exp_point [4] = 2006124;
 
-			int exp_num = Commands->Get_Random_Int (0, 5);
-			Commands->Create_Explosion("Air Explosions Twiddler", Commands->Get_Position (Commands->Find_Object (exp_point [exp_num])), nullptr);
+			int exp_num = ScriptEngine::Get_Random_Int (0, 5);
+			ScriptEngine::Create_Explosion("Air Explosions Twiddler", ScriptEngine::Get_Position (ScriptEngine::Find_Object (exp_point [exp_num])), nullptr);
 
-			float delayTimer = Commands->Get_Random ( 1, 5 );
-			Commands->Start_Timer(obj, this, (8.0f + delayTimer), AMB_EXPLOSION);
+			float delayTimer = ScriptEngine::Get_Random ( 1, 5 );
+			ScriptEngine::Start_Timer(obj, this, (8.0f + delayTimer), AMB_EXPLOSION);
 		}
 	}
 };
@@ -4269,8 +4269,8 @@ DECLARE_SCRIPT (M09_Scientist_Cower, "")
 {
 	void Created (GameObject *obj) override
 	{
-		float delay = Commands->Get_Random ( 1, 3 );
-		Commands->Start_Timer(obj, this, (delay), ANIM_DELAY);
+		float delay = ScriptEngine::Get_Random ( 1, 3 );
+		ScriptEngine::Start_Timer(obj, this, (delay), ANIM_DELAY);
 	}
 
 	void Timer_Expired (GameObject* obj, int timer_id) override
@@ -4280,7 +4280,7 @@ DECLARE_SCRIPT (M09_Scientist_Cower, "")
 			ActionParamsStruct params;
 			params.Set_Basic( this, 99, DOING_ANIMATION );
 			params.Set_Animation ("S_A_HUMAN.H_A_A0A0_L51", true);
-			Commands->Action_Play_Animation (obj, params);
+			ScriptEngine::Action_Play_Animation (obj, params);
 		}
 	}
 };
@@ -4304,21 +4304,21 @@ DECLARE_SCRIPT (M09_Destroy_Self_Zone, "")
 
 	void Entered (GameObject * obj, GameObject * /* enterer */) override
 	{
-		GameObject *mobius = Commands->Find_Object (2000010);
+		GameObject *mobius = ScriptEngine::Find_Object (2000010);
 
 		if (!already_entered)
 		{
 			already_entered = true;
 
-			Commands->Send_Custom_Event(obj, Commands->Find_Object (2000010), NO_FOLLOW, ON, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (2000010), NO_FOLLOW, ON, 0.0f);
 
 			const char *conv_name = ("IDS_M09_D13");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, false, true);
-			Commands->Join_Conversation(mobius, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 900);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 900);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 	}
 };
@@ -4345,7 +4345,7 @@ DECLARE_SCRIPT (M09_KeyCard_Zone, "")
 		fired_off = false;
 
 		initiation = false;
-		mobius = Commands->Find_Object (2000010);
+		mobius = ScriptEngine::Find_Object (2000010);
 	}
 
 	void Timer_Expired(GameObject * obj, int timer_id) override
@@ -4356,12 +4356,12 @@ DECLARE_SCRIPT (M09_KeyCard_Zone, "")
 			{
 				//fired_off = true;
 
-				Commands->Send_Custom_Event( obj, Commands->Find_Object (2000452), CHECK, 0, 0.0f );
+				ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000452), CHECK, 0, 0.0f );
 			}
 
 			else
 			{
-				Commands->Start_Timer (obj, this, 2.0f, DIST_CHECK);
+				ScriptEngine::Start_Timer (obj, this, 2.0f, DIST_CHECK);
 			}
 		}
 	}
@@ -4371,19 +4371,19 @@ DECLARE_SCRIPT (M09_KeyCard_Zone, "")
 	{
 		star_in_zone = true;
 
-		mobius = Commands->Find_Object (2000010);
-		mobius_distance = Commands->Get_Distance(Commands->Get_Position (STAR), Commands->Get_Position (mobius));
+		mobius = ScriptEngine::Find_Object (2000010);
+		mobius_distance = ScriptEngine::Get_Distance(ScriptEngine::Get_Position (STAR), ScriptEngine::Get_Position (mobius));
 
 		if (mobius_distance <= 15.0/* && !fired_off*/)
 		{
 			//fired_off = true;
 
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000452), CHECK, 0, 0.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000452), CHECK, 0, 0.0f );
 		}
 
 		else
 		{
-			Commands->Start_Timer (obj, this, 2.0f, DIST_CHECK);
+			ScriptEngine::Start_Timer (obj, this, 2.0f, DIST_CHECK);
 		}
 	}
 
@@ -4406,12 +4406,12 @@ DECLARE_SCRIPT (M09_KeyCard_Zone, "")
 				//initiation = true;
 
 				/*const char *conv_name = ("IDS_M09_D13");
-				int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-				Commands->Join_Conversation(nullptr, conv_id, false, false, true);
-				Commands->Join_Conversation(mobius, conv_id, false, false, true);
-				Commands->Join_Conversation(STAR, conv_id, false, false, true);
-				Commands->Start_Conversation (conv_id, 900);
-				Commands->Monitor_Conversation (obj, conv_id);*/
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+				ScriptEngine::Join_Conversation(nullptr, conv_id, false, false, true);
+				ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+				ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+				ScriptEngine::Start_Conversation (conv_id, 900);
+				ScriptEngine::Monitor_Conversation (obj, conv_id);*/
 			}
 
 			if (param == 1)
@@ -4419,25 +4419,25 @@ DECLARE_SCRIPT (M09_KeyCard_Zone, "")
 				//initiation = true;
 
 				const char *conv_name = ("IDS_M09_D15");
-				int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-				Commands->Join_Conversation(mobius, conv_id, false, false, true);
-				Commands->Join_Conversation(STAR, conv_id, false, false, true);
-				Commands->Start_Conversation (conv_id, 905);
-				Commands->Monitor_Conversation (obj, conv_id);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+				ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+				ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+				ScriptEngine::Start_Conversation (conv_id, 905);
+				ScriptEngine::Monitor_Conversation (obj, conv_id);
 			}
 
 			if (param == 2)
 			{
-				Commands->Send_Custom_Event( obj, Commands->Find_Object (2000452), KEY_COUNTER, INCREMENT, 0.0f );
+				ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000452), KEY_COUNTER, INCREMENT, 0.0f );
 
-				Commands->Static_Anim_Phys_Goto_Frame ( 1265140, 0, "lab_spn_door08.lab_spn_door08" );
+				ScriptEngine::Static_Anim_Phys_Goto_Frame ( 1265140, 0, "lab_spn_door08.lab_spn_door08" );
 
 				const char *conv_name = ("IDS_M09_D18");
-				int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-				Commands->Join_Conversation(mobius, conv_id, false, false, true);
-				Commands->Join_Conversation(STAR, conv_id, false, false, true);
-				Commands->Start_Conversation (conv_id, 910);
-				Commands->Monitor_Conversation (obj, conv_id);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+				ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+				ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+				ScriptEngine::Start_Conversation (conv_id, 910);
+				ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 
 			}
@@ -4446,18 +4446,18 @@ DECLARE_SCRIPT (M09_KeyCard_Zone, "")
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
 	{
-		mobius = Commands->Find_Object (2000010);
+		mobius = ScriptEngine::Find_Object (2000010);
 
 		if(action_id == 900)
 		{
 			const char *conv_name = ("IDS_M09_D13");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(mobius, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 950);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 950);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 
-			//Commands->Send_Custom_Event( obj, Commands->Find_Object (2000010), FOLLOW, 0, 0.0f );
+			//ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000010), FOLLOW, 0, 0.0f );
 		}
 
 
@@ -4465,40 +4465,40 @@ DECLARE_SCRIPT (M09_KeyCard_Zone, "")
 		if(action_id == 906)
 		{
 			const char *conv_name = ("IDS_M09_D13");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(mobius, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 908);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 908);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 
-			//Commands->Send_Custom_Event( obj, Commands->Find_Object (2000010), FOLLOW, 0, 0.0f );
+			//ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000010), FOLLOW, 0, 0.0f );
 		}
 
 		if(action_id == 907)
 		{
 			const char *conv_name = ("IDS_M09_D15");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(mobius, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 909);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 909);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 
-			//Commands->Send_Custom_Event( obj, Commands->Find_Object (2000010), FOLLOW, 0, 0.0f );
+			//ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000010), FOLLOW, 0, 0.0f );
 		}
 
 		if(action_id == 908)
 		{
 			const char *conv_name = ("IDS_M09_D16");
-			int conv_id = Commands->Create_Conversation (conv_name, 99, 200, false);
-			Commands->Join_Conversation(mobius, conv_id, false, false, true);
-			Commands->Join_Conversation(STAR, conv_id, false, false, true);
-			Commands->Start_Conversation (conv_id, 910);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 99, 200, false);
+			ScriptEngine::Join_Conversation(mobius, conv_id, false, false, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, false, true);
+			ScriptEngine::Start_Conversation (conv_id, 910);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 
 		/*if(action_id == 910)
 		{
-			Commands->Send_Custom_Event( obj, Commands->Find_Object (2000010), WAYPATH, 2000462, 0.0f );
+			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object (2000010), WAYPATH, 2000462, 0.0f );
 
 		}*/
 
@@ -4551,7 +4551,7 @@ DECLARE_SCRIPT (M09_Innate_Activate, "Target0=0:int, Target1=0:int, Target2=0:in
 			{
 				if (target [x] != 0)
 				{
-					Commands->Send_Custom_Event(obj, Commands->Find_Object(target [x]), M09_INNATE_ENABLE, 0, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(target [x]), M09_INNATE_ENABLE, 0, 0.0f);
 				}
 			}
 		}
@@ -4594,7 +4594,7 @@ DECLARE_SCRIPT (M09_Camera_Activate, "Camera0=0:int, Camera1=0:int, Camera2=0:in
 			{
 				if (camera [x] != 0)
 				{
-					Commands->Attach_Script (Commands->Find_Object (camera [x]), "RMV_Camera_Behavior", "90.0, 0, 1, 0.0");
+					ScriptEngine::Attach_Script (ScriptEngine::Find_Object (camera [x]), "RMV_Camera_Behavior", "90.0, 0, 1, 0.0");
 				}
 			}
 		}
@@ -4605,7 +4605,7 @@ DECLARE_SCRIPT(M09_Level10Key, "")
 {
 	void Entered (GameObject * /* obj */, GameObject * /* enterer */) override
 	{
-		Commands->Grant_Key ( STAR, 10, true);
+		ScriptEngine::Grant_Key ( STAR, 10, true);
 	}
 };
 
@@ -4613,14 +4613,14 @@ DECLARE_SCRIPT(M09_Destroy_Zone, "")
 {
 	void Entered (GameObject * obj, GameObject * /* enterer */) override
 	{
-		Commands->Start_Timer (obj, this, 2.0f, 10);
+		ScriptEngine::Start_Timer (obj, this, 2.0f, 10);
 	}
 
 	void Timer_Expired(GameObject * obj, int timer_id ) override
 	{
 		if(timer_id == 10)
 		{
-			Commands->Destroy_Object (obj);
+			ScriptEngine::Destroy_Object (obj);
 		}
 	}
 };
@@ -4646,7 +4646,7 @@ DECLARE_SCRIPT(M09_Elevator_Exit, "Mobius_exit_goto:int")
 	{
 		//already_entered = true;
 
-		Commands->Send_Custom_Event(obj, Commands->Find_Object (2000010), ELEVATOR_EXIT, Get_Int_Parameter("Mobius_exit_goto"), 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (2000010), ELEVATOR_EXIT, Get_Int_Parameter("Mobius_exit_goto"), 0.0f);
 	}
 };
 
@@ -4659,7 +4659,7 @@ DECLARE_SCRIPT(M09_Attack_Blocked_False, "")
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 		params.Set_Attack (enemy, 200.0f, 5.0f, 1);
 		params.AttackCheckBlocked = false;
-		Commands->Action_Attack (obj, params);
+		ScriptEngine::Action_Attack (obj, params);
 	}
 };
 
@@ -4667,7 +4667,7 @@ DECLARE_SCRIPT(M09_Mobius_OnFollow, "")
 {
 	void Entered (GameObject * obj, GameObject * /* enterer */) override
 	{
-		Commands->Send_Custom_Event(obj, Commands->Find_Object (2000010), NO_FOLLOW, OFF, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object (2000010), NO_FOLLOW, OFF, 0.0f);
 	}
 };
 
@@ -4678,16 +4678,16 @@ DECLARE_SCRIPT(M09_PSuitAnim, "")
 		/*ActionParamsStruct params;
 		params.Set_Basic( this, 99, DOING_ANIMATION );
 		params.Set_Animation ("S_A_HUMAN.H_A_X9C_SUIT", true);
-		Commands->Action_Play_Animation (obj, params);*/
+		ScriptEngine::Action_Play_Animation (obj, params);*/
 
-		Commands->Set_Animation ( obj, "S_A_HUMAN.H_A_X9C_SUIT", true, nullptr, 0.0f, -1.0f, false );
+		ScriptEngine::Set_Animation ( obj, "S_A_HUMAN.H_A_X9C_SUIT", true, nullptr, 0.0f, -1.0f, false );
 	}
 
 	void Custom (GameObject *obj, int type, intptr_t /* param */, GameObject * /* sender */) override
 	{
 		if (type == 666)
 		{
-			Commands->Destroy_Object (obj);
+			ScriptEngine::Destroy_Object (obj);
 		}
 	}
 };

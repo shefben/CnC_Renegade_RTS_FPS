@@ -51,7 +51,7 @@ DECLARE_SCRIPT(DEL_VehicleEnterTest, "X:float,Y:float,Z:float")
 		float z = Get_Float_Parameter("Z");
 		DebugPrint("Enter Location %.2f,%.2f,%.2f\n", x, y, z);
 
-		Commands->Action_Movement_Goto_Location(object, Vector3(4.88f, -66.22f, 0.0f), 1.0f);
+		ScriptEngine::Action_Movement_Goto_Location(object, Vector3(4.88f, -66.22f, 0.0f), 1.0f);
 		}
 	};
 #endif

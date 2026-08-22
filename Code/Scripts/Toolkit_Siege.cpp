@@ -49,7 +49,7 @@ DECLARE_SCRIPT(M00_Siege_Zone_RAD, "Start_Now=1:int, Receive_Type:int, Receive_P
 	{
 		float rnd_value;
 
-		rnd_value = Commands->Get_Random(0.1f, 1.0f);
+		rnd_value = ScriptEngine::Get_Random(0.1f, 1.0f);
 		my_actor_id = 0;
 		my_group_id = Get_Int_Parameter("My_Group_ID");
 		debug_mode = (Get_Int_Parameter("Debug_Mode") == 1) ? true : false;
@@ -58,7 +58,7 @@ DECLARE_SCRIPT(M00_Siege_Zone_RAD, "Start_Now=1:int, Receive_Type:int, Receive_P
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Siege_Zone_RAD ACTIVATED.\n"));
 			script_active = true;
-			Commands->Start_Timer (obj, this, rnd_value, M00_TIMER_SIEGE_ZONE);
+			ScriptEngine::Start_Timer (obj, this, rnd_value, M00_TIMER_SIEGE_ZONE);
 		}
 		else
 		{
@@ -73,19 +73,19 @@ DECLARE_SCRIPT(M00_Siege_Zone_RAD, "Start_Now=1:int, Receive_Type:int, Receive_P
 		GameObject*	actor_obj;
 		Vector3		my_loc;
 
-		my_loc = Commands->Get_Position(obj);
+		my_loc = ScriptEngine::Get_Position(obj);
 
 		if (timer_id == M00_TIMER_SIEGE_ZONE)
 		{
 			if (my_actor_id)
 			{
 				SCRIPT_DEBUG_MESSAGE(("M00_Siege_Zone_RAD has a registered actor.\n"));
-				actor_obj = Commands->Find_Object(my_actor_id);
+				actor_obj = ScriptEngine::Find_Object(my_actor_id);
 
 				if (actor_obj)
 				{
 					SCRIPT_DEBUG_MESSAGE(("M00_Siege_Zone_RAD has found the registered actor.\n"));
-					Commands->Send_Custom_Event (obj, actor_obj, M00_CUSTOM_SIEGE_ZONE_CHECKING_ACTOR, 0, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, actor_obj, M00_CUSTOM_SIEGE_ZONE_CHECKING_ACTOR, 0, 0.0f);
 				}
 				else
 				{
@@ -96,12 +96,12 @@ DECLARE_SCRIPT(M00_Siege_Zone_RAD, "Start_Now=1:int, Receive_Type:int, Receive_P
 			else
 			{
 				SCRIPT_DEBUG_MESSAGE(("M00_Siege_Zone_RAD has no actor, shouting for one.\n"));
-				Commands->Create_Logical_Sound(obj, M00_SOUND_SIEGE_ZONE, my_loc, Get_Float_Parameter("Attraction_Radius"));
+				ScriptEngine::Create_Logical_Sound(obj, M00_SOUND_SIEGE_ZONE, my_loc, Get_Float_Parameter("Attraction_Radius"));
 			}
 			if (script_active)
 			{
-				rnd_value = Commands->Get_Random(4.0f, 8.0f);
-				Commands->Start_Timer (obj, this, rnd_value, M00_TIMER_SIEGE_ZONE);
+				rnd_value = ScriptEngine::Get_Random(4.0f, 8.0f);
+				ScriptEngine::Start_Timer (obj, this, rnd_value, M00_TIMER_SIEGE_ZONE);
 			}
 		}
 	}
@@ -116,8 +116,8 @@ DECLARE_SCRIPT(M00_Siege_Zone_RAD, "Start_Now=1:int, Receive_Type:int, Receive_P
 			if ((param == my_group_id) && (sender))
 			{
 				SCRIPT_DEBUG_MESSAGE(("M00_Siege_Zone_RAD verified that this actor is with the same group.\n"));
-				my_actor_id = Commands->Get_ID (sender);
-				Commands->Send_Custom_Event (obj, sender, M00_CUSTOM_SIEGE_ZONE_VERIFICATION, 0, 0.0f);
+				my_actor_id = ScriptEngine::Get_ID (sender);
+				ScriptEngine::Send_Custom_Event (obj, sender, M00_CUSTOM_SIEGE_ZONE_VERIFICATION, 0, 0.0f);
 			}
 		}
 		if ((my_actor_id) && (param == my_actor_id) && (type == M00_CUSTOM_SIEGE_ACTOR_IS_DEAD))
@@ -131,15 +131,15 @@ DECLARE_SCRIPT(M00_Siege_Zone_RAD, "Start_Now=1:int, Receive_Type:int, Receive_P
 			if (param == my_actor_id)
 			{
 				Vector3		my_loc;
-				my_loc = Commands->Get_Position(obj);
+				my_loc = ScriptEngine::Get_Position(obj);
 				SCRIPT_DEBUG_MESSAGE(("M00_Siege_Zone_RAD has verified that this is its actor - setting position.\n"));
-				Commands->Set_Innate_Soldier_Home_Location(sender, my_loc, Get_Float_Parameter("Wander_Distance"));
+				ScriptEngine::Set_Innate_Soldier_Home_Location(sender, my_loc, Get_Float_Parameter("Wander_Distance"));
 			}
 			else
 			{
 				SCRIPT_DEBUG_MESSAGE(("M00_Siege_Zone_RAD is registered to the wrong actor - clearing.\n"));
 				my_actor_id = 0;
-				Commands->Send_Custom_Event (obj, sender, M00_CUSTOM_SIEGE_ACTOR_UNREGISTER, 0, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, sender, M00_CUSTOM_SIEGE_ACTOR_UNREGISTER, 0, 0.0f);
 			}
 		}
 		if (type == Get_Int_Parameter("Receive_Type"))
@@ -149,8 +149,8 @@ DECLARE_SCRIPT(M00_Siege_Zone_RAD, "Start_Now=1:int, Receive_Type:int, Receive_P
 				SCRIPT_DEBUG_MESSAGE(("M00_Siege_Zone_RAD ACTIVATED.\n"));
 				script_active = true;
 				float	rnd_value;
-				rnd_value = Commands->Get_Random(0.1f, 1.0f);
-				Commands->Start_Timer (obj, this, rnd_value, M00_TIMER_SIEGE_ZONE);
+				rnd_value = ScriptEngine::Get_Random(0.1f, 1.0f);
+				ScriptEngine::Start_Timer (obj, this, rnd_value, M00_TIMER_SIEGE_ZONE);
 			}
 			if (param == Get_Int_Parameter("Receive_Param_Off"))
 			{
@@ -197,7 +197,7 @@ DECLARE_SCRIPT(M00_Siege_Actor_RAD, "Start_Now=1:int, Receive_Type:int, Receive_
 			if ((sound.Type == M00_SOUND_SIEGE_ZONE) && (!registered_zone))
 			{
 				SCRIPT_DEBUG_MESSAGE(("M00_Siege_Actor_RAD has heard a zone shouting for an actor, sound ID = %d.\n", sound.Type));
-				Commands->Send_Custom_Event (obj, sound.Creator, M00_CUSTOM_SIEGE_ACTOR_GROUP_CHECK, my_group_id, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, sound.Creator, M00_CUSTOM_SIEGE_ACTOR_GROUP_CHECK, my_group_id, 0.0f);
 			}
 		}
 	}
@@ -206,17 +206,17 @@ DECLARE_SCRIPT(M00_Siege_Actor_RAD, "Start_Now=1:int, Receive_Type:int, Receive_
 	{
 		int my_id;
 
-		my_id = Commands->Get_ID(obj);
+		my_id = ScriptEngine::Get_ID(obj);
 
 		if ((!registered_zone) && (type == M00_CUSTOM_SIEGE_ZONE_VERIFICATION))
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Siege_Actor_RAD is registering with a siege zone.\n"));
-			registered_zone = Commands->Get_ID(sender);
+			registered_zone = ScriptEngine::Get_ID(sender);
 		}
 		if (type == M00_CUSTOM_SIEGE_ZONE_CHECKING_ACTOR)
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Siege_Actor_RAD is being checked for proper ID.\n"));
-			Commands->Send_Custom_Event (obj, sender, M00_CUSTOM_SIEGE_ACTOR_RESPONDING, my_id, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, sender, M00_CUSTOM_SIEGE_ACTOR_RESPONDING, my_id, 0.0f);
 		}
 		if (type == M00_CUSTOM_SIEGE_ACTOR_UNREGISTER)
 		{
@@ -248,18 +248,18 @@ DECLARE_SCRIPT(M00_Siege_Actor_RAD, "Start_Now=1:int, Receive_Type:int, Receive_
 		int my_id;
 		GameObject* zone_obj;
 
-		my_id = Commands->Get_ID(obj);
+		my_id = ScriptEngine::Get_ID(obj);
 
 		if (registered_zone)
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Siege_Actor_RAD has been destroyed.\n"));
 
-			zone_obj = Commands->Find_Object(registered_zone);
+			zone_obj = ScriptEngine::Find_Object(registered_zone);
 
 			if (zone_obj)
 			{
 				SCRIPT_DEBUG_MESSAGE(("M00_Siege_Actor_RAD found its siege zone, unregistering.\n"));
-				Commands->Send_Custom_Event (obj, zone_obj, M00_CUSTOM_SIEGE_ACTOR_IS_DEAD, my_id, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, zone_obj, M00_CUSTOM_SIEGE_ACTOR_IS_DEAD, my_id, 0.0f);
 			}
 		}
 	}

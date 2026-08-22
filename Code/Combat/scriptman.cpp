@@ -36,6 +36,7 @@
 
 #include "scriptman.h"
 #include "debug.h"
+#include "nativescriptregistry.h"
 #include "scriptcommands.h"
 #include "physicalgameobj.h"
 #include "wwstring.h"
@@ -48,8 +49,6 @@
 #include <stdio.h>
 #include <win.h>
 
-ScriptCommands* EngineCommands = nullptr;
-
 #if 1
 #define	SCRIPT_PROFILE_START( x )	WWProfileManager::Profile_Start( "Scripts" );
 #define	SCRIPT_PROFILE_STOP( x )	WWProfileManager::Profile_Stop( );
@@ -61,9 +60,6 @@ ScriptCommands* EngineCommands = nullptr;
 /*
 **
 */
-SharedObject *hDLL = nullptr;
-LPFN_CREATE_SCRIPT ScriptManager::ScriptCreateFunct = nullptr;
-LPFN_DESTROY_SCRIPT ScriptManager::ScriptDestroyFunct = nullptr;
 SimpleDynVecClass<ScriptClass *> ScriptManager::ActiveScriptList;
 SimpleDynVecClass<ScriptClass *> ScriptManager::PendingDestroyList;
 bool	ScriptManager::EnableScriptCreation = true;
@@ -75,166 +71,52 @@ bool	ScriptManager::EnableScriptCreation = true;
 */
 void ScriptManager::Init(void)
 {
-	hDLL = nullptr;
-	EngineCommands = Get_Script_Commands();
-
-#ifdef	PARAM_EDITING_ON	// Editor build
-	Load_Scripts("SCRIPTS.DLL");
-#else
-	#ifdef	WWDEBUG		// DEBUG and PROFILE
-		if ( DebugManager::Load_Debug_Scripts() ) {
-			Load_Scripts("SCRIPTSD.DLL");		// DEBUG
-		} else {
-	#ifdef	NDEBUG		// PROFILE
-			Load_Scripts("SCRIPTSP.DLL");		// PROFILE
-	#else
-			Load_Scripts("SCRIPTSD.DLL");		// DEBUG
-	#endif
-		}
-	#else
-		Load_Scripts("SCRIPTS.DLL");		// RELEASE
-	#endif
-#endif
+	//
+	//	Every built-in script is compiled into this program and has already
+	//	added itself to the registry during static initialization.  All that is
+	//	left is to index the catalog, which is also where a duplicate name is
+	//	caught.
+	//
+	NativeScriptRegistry::Build_Index();
 }
 
-
-/*
-**
-*/
 void ScriptManager::Shutdown(void)
 {
-	// Release scripts
 	while (ActiveScriptList.Count()) {
 		ScriptClass* script = ActiveScriptList[0];
 		assert(script != nullptr);
 
-		assert(ScriptDestroyFunct != nullptr);
-		ScriptDestroyFunct(script);
+		delete script;
 
 		ActiveScriptList.Delete(0);
 	}
 
-	delete hDLL;
-	hDLL = nullptr;
+	NativeScriptRegistry::Shutdown();
 }
-
 
 void ScriptManager::Destroy_Pending(void)
 {
-	// Destroy all the scripts in the pending destroy list.
 	while (PendingDestroyList.Count()) {
 		ScriptClass* script = PendingDestroyList[0];
 		assert(script != nullptr);
 
-		// If the script has an owner then it must be detached before it
-		// can be destroyed.
 		ScriptableGameObj* object = script->Owner();
 
 		if (object != nullptr) {
 			object->Remove_Observer(script);
 		}
 
-		// Destroy the script
-		assert(ScriptDestroyFunct != nullptr);
-		ScriptDestroyFunct(script);
+		delete script;
 		PendingDestroyList.Delete(0);
 	}
 }
 
-
-/*
-**
-*/
-void ScriptManager::Load_Scripts(const char* dll_filename)
-{
-	char dll_fullpath[MAX_PATH];
-	{
-		char path_to_exe[MAX_PATH];
-		char fdrive[_MAX_DRIVE];
-		char fdir[_MAX_DIR];
-		GetModuleFileNameA(nullptr, path_to_exe, sizeof(path_to_exe));
-		_splitpath(path_to_exe, fdrive, fdir, nullptr, nullptr);
-		_makepath(dll_fullpath, fdrive, fdir, dll_filename, nullptr);
-		dll_filename = dll_fullpath;
-	}
-
-	Debug_Say(("Script Manager Loading Script File %s\n", dll_filename));
-
-
-	// If we're in multiplay and not the server, just bail
-   if (!IS_SOLOPLAY && CombatManager::I_Am_Only_Client())
-	{
-		return;
-	}
-
-	hDLL = SharedObject::LoadObject(dll_filename);
-
-	if (hDLL == nullptr) {
-		Debug_Say(("Cound not load DLL file %s\n", dll_filename));
-		return;
-	}
-
-	// Get create script function
-	ScriptCreateFunct = (LPFN_CREATE_SCRIPT)hDLL->LoadFunction(LPSTR_CREATE_SCRIPT);
-	assert(ScriptCreateFunct != nullptr);
-
-	if (!ScriptCreateFunct) {
-		Debug_Say(("Cound not find Create_Script\n"));
-	}
-
-	// Get destroy script function
-	ScriptDestroyFunct = (LPFN_DESTROY_SCRIPT)hDLL->LoadFunction(LPSTR_DESTROY_SCRIPT);
-	assert(ScriptDestroyFunct != nullptr);
-
-	if (!ScriptDestroyFunct) {
-		Debug_Say(("Cound not find Destroy_Script\n"));
-	}
-
-	// Initialize request script destroy function
-	LPFN_SET_REQUEST_DESTROY_FUNC set_request_destroy_func =
-		(LPFN_SET_REQUEST_DESTROY_FUNC)hDLL->LoadFunction(LPSTR_SET_REQUEST_DESTROY_FUNC);
-	assert(set_request_destroy_func != nullptr);
-
-	if (set_request_destroy_func != nullptr) {
-		set_request_destroy_func(Request_Destroy_Script);
-	} else {
-		Debug_Say(("Cound not find Set_Request_Destroy_Func\n"));
-	}
-
-	// Initialize script commands if not being run from the editor
-	if (CombatManager::Are_Observers_Active()) {
-		LPFN_SET_SCRIPT_COMMANDS set_commands_func =
-			(LPFN_SET_SCRIPT_COMMANDS)hDLL->LoadFunction(LPSTR_SET_SCRIPT_COMMANDS);
-		assert(set_commands_func != nullptr);
-
-		if (set_commands_func != nullptr) {
-			ScriptCommandsClass commands;
-			commands.Commands = EngineCommands;
-
-			bool success = set_commands_func(&commands);
-
-			if (!success) {
-				Debug_Say(("Failed to set script commands!\n"));
-
-				// This should keep us from going to scripts!
-				ScriptCreateFunct = nullptr;
-			}
-		} else {
-			Debug_Say(("Cound not find Set_Script_Commands\n"));
-		}
-	}
-}
-
-
-/*
-**
-*/
 ScriptClass* ScriptManager::Create_Script(const char* script_name)
 {
 	ScriptClass* script = nullptr;
 
-	if (EnableScriptCreation && ScriptCreateFunct != nullptr) {
-		script = ScriptCreateFunct(script_name);
+	if (EnableScriptCreation) {
+		script = NativeScriptRegistry::Create(script_name);
 
 		if (script != nullptr) {
 			script->Set_ID( GameObjObserverManager::Get_Next_Observer_ID() );
@@ -245,10 +127,6 @@ ScriptClass* ScriptManager::Create_Script(const char* script_name)
 	return script;
 }
 
-
-/*
-**
-*/
 void ScriptManager::Request_Destroy_Script(ScriptClass* script)
 {
 	ActiveScriptList.Delete(script);

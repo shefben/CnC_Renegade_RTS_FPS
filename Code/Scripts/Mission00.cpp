@@ -118,51 +118,51 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 		lieutenant_id = 0;
 		officer_count = 0;
 
-		Commands->Reveal_Map ();
+		ScriptEngine::Reveal_Map ();
 
 		// Create radar markers for each building MCT.
 
-		Commands->Add_Radar_Marker (MTU_RADAR_MCT_01, Vector3(29.63f,11.98f,-8.04f), RADAR_BLIP_SHAPE_STATIONARY, RADAR_BLIP_COLOR_GDI);
-		Commands->Add_Radar_Marker (MTU_RADAR_MCT_02, Vector3(10.15f,-19.68f,-8.36f), RADAR_BLIP_SHAPE_STATIONARY, RADAR_BLIP_COLOR_GDI);
-		Commands->Add_Radar_Marker (MTU_RADAR_MCT_03, Vector3(-43.23f,25.66f,-6.32f), RADAR_BLIP_SHAPE_STATIONARY, RADAR_BLIP_COLOR_GDI);
-		Commands->Add_Radar_Marker (MTU_RADAR_MCT_04, Vector3(-25.33f,56.15f,-7.56f), RADAR_BLIP_SHAPE_STATIONARY, RADAR_BLIP_COLOR_GDI);
-		Commands->Add_Radar_Marker (MTU_RADAR_MCT_05, Vector3(-7.89f,15.57f,-8.75f), RADAR_BLIP_SHAPE_STATIONARY, RADAR_BLIP_COLOR_GDI);
+		ScriptEngine::Add_Radar_Marker (MTU_RADAR_MCT_01, Vector3(29.63f,11.98f,-8.04f), RADAR_BLIP_SHAPE_STATIONARY, RADAR_BLIP_COLOR_GDI);
+		ScriptEngine::Add_Radar_Marker (MTU_RADAR_MCT_02, Vector3(10.15f,-19.68f,-8.36f), RADAR_BLIP_SHAPE_STATIONARY, RADAR_BLIP_COLOR_GDI);
+		ScriptEngine::Add_Radar_Marker (MTU_RADAR_MCT_03, Vector3(-43.23f,25.66f,-6.32f), RADAR_BLIP_SHAPE_STATIONARY, RADAR_BLIP_COLOR_GDI);
+		ScriptEngine::Add_Radar_Marker (MTU_RADAR_MCT_04, Vector3(-25.33f,56.15f,-7.56f), RADAR_BLIP_SHAPE_STATIONARY, RADAR_BLIP_COLOR_GDI);
+		ScriptEngine::Add_Radar_Marker (MTU_RADAR_MCT_05, Vector3(-7.89f,15.57f,-8.75f), RADAR_BLIP_SHAPE_STATIONARY, RADAR_BLIP_COLOR_GDI);
 
 		// Add all objectives as hidden to start.
 
-		Commands->Add_Objective (MTU_OBJECTIVE_01, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_01, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_01);
-		Commands->Add_Objective (MTU_OBJECTIVE_02, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_02, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_02);
-		Commands->Add_Objective (MTU_OBJECTIVE_03, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_03, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_03);
-		Commands->Add_Objective (MTU_OBJECTIVE_04, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_04, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_04);
-		Commands->Add_Objective (MTU_OBJECTIVE_05, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_05, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_05);
-		Commands->Add_Objective (MTU_OBJECTIVE_06, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_06, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_06);
+		ScriptEngine::Add_Objective (MTU_OBJECTIVE_01, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_01, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_01);
+		ScriptEngine::Add_Objective (MTU_OBJECTIVE_02, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_02, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_02);
+		ScriptEngine::Add_Objective (MTU_OBJECTIVE_03, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_03, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_03);
+		ScriptEngine::Add_Objective (MTU_OBJECTIVE_04, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_04, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_04);
+		ScriptEngine::Add_Objective (MTU_OBJECTIVE_05, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_05, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_05);
+		ScriptEngine::Add_Objective (MTU_OBJECTIVE_06, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_HIDDEN, IDS_Enc_ObjTitle_Primary_M00_06, "IDS_M00EVAG_DSGN0056I1EVAG_SND", IDS_Enc_Obj_Primary_M00_06);
 
 		// Start a slight delay timer, then tell Logan Sheppard to begin.
 
-		Commands->Start_Timer (obj, this, 2.0f, MTU_TIMER_MISSION_START);
-		Commands->Start_Timer (obj, this, float(10 + Get_Int_Random (0, 20)), MTU_TIMER_FLYOVERS);
+		ScriptEngine::Start_Timer (obj, this, 2.0f, MTU_TIMER_MISSION_START);
+		ScriptEngine::Start_Timer (obj, this, float(10 + Get_Int_Random (0, 20)), MTU_TIMER_FLYOVERS);
 
 		// Set the gates to be closed at first.
 
-		GameObject * course_gate = Commands->Find_Object (MTU_GATE_01);
+		GameObject * course_gate = ScriptEngine::Find_Object (MTU_GATE_01);
 		if (course_gate)
 		{
-			Commands->Set_Animation_Frame (course_gate, "CHT_JAIL.CHT_JAIL", 0);
+			ScriptEngine::Set_Animation_Frame (course_gate, "CHT_JAIL.CHT_JAIL", 0);
 		}
-		course_gate = Commands->Find_Object (MTU_GATE_02);
+		course_gate = ScriptEngine::Find_Object (MTU_GATE_02);
 		if (course_gate)
 		{
-			Commands->Set_Animation_Frame (course_gate, "CHT_JAIL.CHT_JAIL", 0);
+			ScriptEngine::Set_Animation_Frame (course_gate, "CHT_JAIL.CHT_JAIL", 0);
 		}
-		course_gate = Commands->Find_Object (MTU_GATE_03);
+		course_gate = ScriptEngine::Find_Object (MTU_GATE_03);
 		if (course_gate)
 		{
-			Commands->Set_Animation_Frame (course_gate, "CHT_JAIL.CHT_JAIL", 0);
+			ScriptEngine::Set_Animation_Frame (course_gate, "CHT_JAIL.CHT_JAIL", 0);
 		}
-		course_gate = Commands->Find_Object (MTU_GATE_04);
+		course_gate = ScriptEngine::Find_Object (MTU_GATE_04);
 		if (course_gate)
 		{
-			Commands->Set_Animation_Frame (course_gate, "CHT_JAIL.CHT_JAIL", 0);
+			ScriptEngine::Set_Animation_Frame (course_gate, "CHT_JAIL.CHT_JAIL", 0);
 		}
 	}
 
@@ -176,104 +176,104 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 			{
 				// Tell Logan Sheppard to begin the tutorial.
 
-				GameObject* logan = Commands->Find_Object(MTU_LOGAN);
+				GameObject* logan = ScriptEngine::Find_Object(MTU_LOGAN);
 				if (logan)
 				{
-					Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_INTRO, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_INTRO, 0.0f);
 				}
 
 				// Turn off the AGT
 
-				GameObject * tower = Commands->Find_Object (MTU_TOWER);
+				GameObject * tower = ScriptEngine::Find_Object (MTU_TOWER);
 				if (tower)
 				{
-					Commands->Send_Custom_Event (obj, tower, 0, 0, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, tower, 0, 0, 0.0f);
 				}
 				break;
 			}
 		case (MTU_TIMER_GUNNER_SNIPER_AMMO):
 			{
-				GameObject * powerup = Commands->Create_Object ("POW_SniperRifle_Player", powerup_loc);
+				GameObject * powerup = ScriptEngine::Create_Object ("POW_SniperRifle_Player", powerup_loc);
 				if (powerup)
 				{
-					Commands->Attach_Script (powerup, "MTU_Range_Powerup", "1");
-					range_powerup = Commands->Get_ID (powerup);
+					ScriptEngine::Attach_Script (powerup, "MTU_Range_Powerup", "1");
+					range_powerup = ScriptEngine::Get_ID (powerup);
 				}
 				break;
 			}
 		case (MTU_TIMER_GUNNER_AUTORIFLE_AMMO):
 			{
-				GameObject * powerup = Commands->Create_Object ("POW_AutoRifle_Player", powerup_loc);
+				GameObject * powerup = ScriptEngine::Create_Object ("POW_AutoRifle_Player", powerup_loc);
 				if (powerup)
 				{
-					Commands->Attach_Script (powerup, "MTU_Range_Powerup", "2");
-					range_powerup = Commands->Get_ID (powerup);
+					ScriptEngine::Attach_Script (powerup, "MTU_Range_Powerup", "2");
+					range_powerup = ScriptEngine::Get_ID (powerup);
 				}
 				break;
 			}
 		case (MTU_TIMER_GUNNER_GRENADE_AMMO):
 			{
-				GameObject * powerup = Commands->Create_Object ("POW_GrenadeLauncher_Player", powerup_loc);
+				GameObject * powerup = ScriptEngine::Create_Object ("POW_GrenadeLauncher_Player", powerup_loc);
 				if (powerup)
 				{
-					Commands->Attach_Script (powerup, "MTU_Range_Powerup", "3");
-					range_powerup = Commands->Get_ID (powerup);
+					ScriptEngine::Attach_Script (powerup, "MTU_Range_Powerup", "3");
+					range_powerup = ScriptEngine::Get_ID (powerup);
 				}
 				break;
 			}
 		case (MTU_TIMER_GUNNER_CHAINGUN_AMMO):
 			{
-				GameObject * powerup = Commands->Create_Object ("POW_Chaingun_Player", powerup_loc);
+				GameObject * powerup = ScriptEngine::Create_Object ("POW_Chaingun_Player", powerup_loc);
 				if (powerup)
 				{
-					Commands->Attach_Script (powerup, "MTU_Range_Powerup", "4");
-					range_powerup = Commands->Get_ID (powerup);
+					ScriptEngine::Attach_Script (powerup, "MTU_Range_Powerup", "4");
+					range_powerup = ScriptEngine::Get_ID (powerup);
 				}
 				break;
 			}
 		case (MTU_TIMER_GUNNER_FLAMETHROWER_AMMO):
 			{
-				GameObject * powerup = Commands->Create_Object ("POW_Flamethrower_Player", powerup_loc);
+				GameObject * powerup = ScriptEngine::Create_Object ("POW_Flamethrower_Player", powerup_loc);
 				if (powerup)
 				{
-					Commands->Attach_Script (powerup, "MTU_Range_Powerup", "5");
-					range_powerup = Commands->Get_ID (powerup);
+					ScriptEngine::Attach_Script (powerup, "MTU_Range_Powerup", "5");
+					range_powerup = ScriptEngine::Get_ID (powerup);
 				}
 				break;
 			}
 		case (MTU_TIMER_GUNNER_ROCKET_AMMO):
 			{
-				GameObject * powerup = Commands->Create_Object ("POW_RocketLauncher_Player", powerup_loc);
+				GameObject * powerup = ScriptEngine::Create_Object ("POW_RocketLauncher_Player", powerup_loc);
 				if (powerup)
 				{
-					Commands->Attach_Script (powerup, "MTU_Range_Powerup", "6");
-					range_powerup = Commands->Get_ID (powerup);
+					ScriptEngine::Attach_Script (powerup, "MTU_Range_Powerup", "6");
+					range_powerup = ScriptEngine::Get_ID (powerup);
 				}
 				break;
 			}
 		case (MTU_TIMER_GUNNER_C4_AMMO):
 			{
-				GameObject * powerup = Commands->Create_Object ("POW_MineRemote_Player", powerup_loc);
+				GameObject * powerup = ScriptEngine::Create_Object ("POW_MineRemote_Player", powerup_loc);
 				if (powerup)
 				{
-					Commands->Attach_Script (powerup, "MTU_Range_Powerup", "7");
-					range_powerup = Commands->Get_ID (powerup);
+					ScriptEngine::Attach_Script (powerup, "MTU_Range_Powerup", "7");
+					range_powerup = ScriptEngine::Get_ID (powerup);
 				}
 				break;
 			}
 		case(MTU_TIMER_GUNNER_ION_AMMO):
 			{
-				GameObject * powerup = Commands->Create_Object ("POW_IonCannonBeacon_Player", powerup_loc);
+				GameObject * powerup = ScriptEngine::Create_Object ("POW_IonCannonBeacon_Player", powerup_loc);
 				if (powerup)
 				{
-					Commands->Attach_Script (powerup, "MTU_Range_Powerup", "8");
-					range_powerup = Commands->Get_ID (powerup);
+					ScriptEngine::Attach_Script (powerup, "MTU_Range_Powerup", "8");
+					range_powerup = ScriptEngine::Get_ID (powerup);
 				}
 				break;
 			}
 		case (MTU_TIMER_ENDGAME):
 			{
-				Commands->Mission_Complete (true);
+				ScriptEngine::Mission_Complete (true);
 				break;
 			}
 		case (MTU_TIMER_FLYOVERS):
@@ -290,21 +290,21 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 				}
 				if (Get_Int_Random (0, 2))
 				{
-					GameObject * flyover = Commands->Create_Object (vehicle, Vector3 (51.02f,128.63f,41.45f));
+					GameObject * flyover = ScriptEngine::Create_Object (vehicle, Vector3 (51.02f,128.63f,41.45f));
 					if (flyover)
 					{
-						Commands->Attach_Script (flyover, "MTU_Flyover", "0");
+						ScriptEngine::Attach_Script (flyover, "MTU_Flyover", "0");
 					}
 				}
 				else
 				{
-					GameObject * flyover = Commands->Create_Object (vehicle, Vector3 (131.78f,-14.58f,51.21f));
+					GameObject * flyover = ScriptEngine::Create_Object (vehicle, Vector3 (131.78f,-14.58f,51.21f));
 					if (flyover)
 					{
-						Commands->Attach_Script (flyover, "MTU_Flyover", "1");
+						ScriptEngine::Attach_Script (flyover, "MTU_Flyover", "1");
 					}
 				}
-				Commands->Start_Timer (obj, this, float(10 + Get_Int_Random (0, 20)), MTU_TIMER_FLYOVERS);
+				ScriptEngine::Start_Timer (obj, this, float(10 + Get_Int_Random (0, 20)), MTU_TIMER_FLYOVERS);
 				break;
 			}
 		}
@@ -325,11 +325,11 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 			{
 				if (sydney_restart)
 				{
-					GameObject * sydney_zone = Commands->Find_Object (MTU_ZONE_START_SYDNEY);
+					GameObject * sydney_zone = ScriptEngine::Find_Object (MTU_ZONE_START_SYDNEY);
 					if (sydney_zone)
 					{
 						sydney_restart = false;
-						Commands->Send_Custom_Event (obj, sydney_zone, MTU_TYPE_SYDNEY_IS_RESET, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, sydney_zone, MTU_TYPE_SYDNEY_IS_RESET, MTU_PARAM_DEFAULT, 0.0f);
 					}
 				}
 				break;
@@ -346,16 +346,16 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 			}
 		case (MTU_TYPE_ALL_POWERUPS_RESET):
 			{
-				GameObject * health_pow = Commands->Find_Object (sydney_health_pow);
+				GameObject * health_pow = ScriptEngine::Find_Object (sydney_health_pow);
 				if (health_pow)
 				{
-					Commands->Destroy_Object (health_pow);
+					ScriptEngine::Destroy_Object (health_pow);
 				}
 				sydney_health_pow = 0;
-				GameObject * armor_pow = Commands->Find_Object (sydney_armor_pow);
+				GameObject * armor_pow = ScriptEngine::Find_Object (sydney_armor_pow);
 				if (armor_pow)
 				{
-					Commands->Destroy_Object (armor_pow);
+					ScriptEngine::Destroy_Object (armor_pow);
 				}
 				sydney_armor_pow = 0;
 				break;
@@ -372,98 +372,98 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 			}
 		case (MTU_TYPE_RANGE_CLEANUP_TARGETS):
 			{
-				GameObject * range_target_one_obj = Commands->Find_Object (range_target_one);
+				GameObject * range_target_one_obj = ScriptEngine::Find_Object (range_target_one);
 				if (range_target_one_obj)
 				{
 					range_target_one = 0;
-					Commands->Destroy_Object (range_target_one_obj);
+					ScriptEngine::Destroy_Object (range_target_one_obj);
 				}
-				GameObject * range_target_two_obj = Commands->Find_Object (range_target_two);
+				GameObject * range_target_two_obj = ScriptEngine::Find_Object (range_target_two);
 				if (range_target_two_obj)
 				{
 					range_target_two = 0;
-					Commands->Destroy_Object (range_target_two_obj);
+					ScriptEngine::Destroy_Object (range_target_two_obj);
 				}
-				GameObject * range_target_three_obj = Commands->Find_Object (range_target_three);
+				GameObject * range_target_three_obj = ScriptEngine::Find_Object (range_target_three);
 				if (range_target_three_obj)
 				{
 					range_target_three = 0;
-					Commands->Destroy_Object (range_target_three_obj);
+					ScriptEngine::Destroy_Object (range_target_three_obj);
 				}
-				GameObject * range_target_four_obj = Commands->Find_Object (range_target_four);
+				GameObject * range_target_four_obj = ScriptEngine::Find_Object (range_target_four);
 				if (range_target_four_obj)
 				{
 					range_target_four = 0;
-					Commands->Destroy_Object (range_target_four_obj);
+					ScriptEngine::Destroy_Object (range_target_four_obj);
 				}
-				GameObject * range_powerup_obj = Commands->Find_Object (range_powerup);
+				GameObject * range_powerup_obj = ScriptEngine::Find_Object (range_powerup);
 				if (range_powerup_obj)
 				{
 					range_powerup = 0;
-					Commands->Destroy_Object (range_powerup_obj);
+					ScriptEngine::Destroy_Object (range_powerup_obj);
 				}
 				break;
 			}
 		case (MTU_TYPE_RANGE_CHECK_TARGETS):
 			{
 				bool found_targets = false;
-				GameObject * range_target_one_obj = Commands->Find_Object (range_target_one);
+				GameObject * range_target_one_obj = ScriptEngine::Find_Object (range_target_one);
 				if (range_target_one_obj)
 				{
 					found_targets = true;
 				}
-				GameObject * range_target_two_obj = Commands->Find_Object (range_target_two);
+				GameObject * range_target_two_obj = ScriptEngine::Find_Object (range_target_two);
 				if (range_target_two_obj)
 				{
 					found_targets = true;
 				}
-				GameObject * range_target_three_obj = Commands->Find_Object (range_target_three);
+				GameObject * range_target_three_obj = ScriptEngine::Find_Object (range_target_three);
 				if (range_target_three_obj)
 				{
 					found_targets = true;
 				}
-				GameObject * gunner = Commands->Find_Object (MTU_GUNNER);
+				GameObject * gunner = ScriptEngine::Find_Object (MTU_GUNNER);
 				if (gunner)
 				{
 					if (found_targets)
 					{
-						Commands->Send_Custom_Event (obj, gunner, MTU_TYPE_GUNNER, MTU_PARAM_SPEECH_MORE_TARGETS, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, gunner, MTU_TYPE_GUNNER, MTU_PARAM_SPEECH_MORE_TARGETS, 0.0f);
 					}
 					else
 					{
-						GameObject * range_powerup_obj = Commands->Find_Object (range_powerup);
+						GameObject * range_powerup_obj = ScriptEngine::Find_Object (range_powerup);
 						if (range_powerup_obj)
 						{
 							range_powerup = 0;
-							Commands->Destroy_Object (range_powerup_obj);
+							ScriptEngine::Destroy_Object (range_powerup_obj);
 						}
-						Commands->Send_Custom_Event (obj, gunner, MTU_TYPE_GUNNER, MTU_PARAM_TARGETS_ELIMINATED, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, gunner, MTU_TYPE_GUNNER, MTU_PARAM_TARGETS_ELIMINATED, 0.0f);
 					}
 				}
 				break;
 			}
 		case (MTU_TYPE_RANGE_SETUP_HANDGUN):
 			{
-				GameObject * range_target_one_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-32.264f,50.158f,1.015f));
+				GameObject * range_target_one_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-32.264f,50.158f,1.015f));
 				if (range_target_one_obj)
 				{
-					Commands->Set_Facing (range_target_one_obj, 90.0f);
-					range_target_one = Commands->Get_ID (range_target_one_obj);
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
+					ScriptEngine::Set_Facing (range_target_one_obj, 90.0f);
+					range_target_one = ScriptEngine::Get_ID (range_target_one_obj);
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
 				}
-				GameObject * range_target_two_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-33.849f,53.635f,1.371f));
+				GameObject * range_target_two_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-33.849f,53.635f,1.371f));
 				if (range_target_two_obj)
 				{
-					Commands->Set_Facing (range_target_two_obj, 90.0f);
-					range_target_two = Commands->Get_ID (range_target_two_obj);
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
+					ScriptEngine::Set_Facing (range_target_two_obj, 90.0f);
+					range_target_two = ScriptEngine::Get_ID (range_target_two_obj);
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
 				}
-				GameObject * range_target_three_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-35.616f,53.662f,1.394f));
+				GameObject * range_target_three_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-35.616f,53.662f,1.394f));
 				if (range_target_three_obj)
 				{
-					Commands->Set_Facing (range_target_three_obj, 90.0f);
-					range_target_three = Commands->Get_ID (range_target_three_obj);
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
+					ScriptEngine::Set_Facing (range_target_three_obj, 90.0f);
+					range_target_three = ScriptEngine::Get_ID (range_target_three_obj);
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
 				}
 				break;
 			}
@@ -500,33 +500,33 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 			}
 		case (MTU_TYPE_RANGE_SETUP_SNIPER_RIFLE):
 			{
-				GameObject * range_target_one_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-39.228f,47.670f,3.232f));
+				GameObject * range_target_one_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-39.228f,47.670f,3.232f));
 				if (range_target_one_obj)
 				{
-					range_target_one = Commands->Get_ID (range_target_one_obj);
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target_Path_Mid", "");
+					range_target_one = ScriptEngine::Get_ID (range_target_one_obj);
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target_Path_Mid", "");
 				}
-				GameObject * range_target_two_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-36.870f,50.308f,1.014f));
+				GameObject * range_target_two_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-36.870f,50.308f,1.014f));
 				if (range_target_two_obj)
 				{
-					Commands->Set_Facing (range_target_two_obj, 90.0f);
-					range_target_two = Commands->Get_ID (range_target_two_obj);
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
+					ScriptEngine::Set_Facing (range_target_two_obj, 90.0f);
+					range_target_two = ScriptEngine::Get_ID (range_target_two_obj);
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
 				}
-				GameObject * range_target_three_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-32.215f,50.497f,1.014f));
+				GameObject * range_target_three_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-32.215f,50.497f,1.014f));
 				if (range_target_three_obj)
 				{
-					Commands->Set_Facing (range_target_three_obj, 90.0f);
-					range_target_three = Commands->Get_ID (range_target_three_obj);
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
+					ScriptEngine::Set_Facing (range_target_three_obj, 90.0f);
+					range_target_three = ScriptEngine::Get_ID (range_target_three_obj);
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
 				}
-				GameObject * range_target_four_obj = Commands->Create_Object ("POW_SniperRifle_Player", powerup_loc);
+				GameObject * range_target_four_obj = ScriptEngine::Create_Object ("POW_SniperRifle_Player", powerup_loc);
 				if (range_target_four_obj)
 				{
 					range_target_four = 0;
-					range_powerup = Commands->Get_ID (range_target_four_obj);
-					Commands->Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "1");
+					range_powerup = ScriptEngine::Get_ID (range_target_four_obj);
+					ScriptEngine::Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "1");
 				}
 				break;
 			}
@@ -536,42 +536,42 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 				{
 				case (1):
 					{
-						Commands->Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_SNIPER_AMMO);
+						ScriptEngine::Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_SNIPER_AMMO);
 						break;
 					}
 				case (2):
 					{
-						Commands->Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_AUTORIFLE_AMMO);
+						ScriptEngine::Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_AUTORIFLE_AMMO);
 						break;
 					}
 				case (3):
 					{
-						Commands->Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_GRENADE_AMMO);
+						ScriptEngine::Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_GRENADE_AMMO);
 						break;
 					}
 				case (4):
 					{
-						Commands->Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_CHAINGUN_AMMO);
+						ScriptEngine::Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_CHAINGUN_AMMO);
 						break;
 					}
 				case (5):
 					{
-						Commands->Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_FLAMETHROWER_AMMO);
+						ScriptEngine::Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_FLAMETHROWER_AMMO);
 						break;
 					}
 				case (6):
 					{
-						Commands->Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_ROCKET_AMMO);
+						ScriptEngine::Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_ROCKET_AMMO);
 						break;
 					}
 				case (7):
 					{
-						Commands->Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_C4_AMMO);
+						ScriptEngine::Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_C4_AMMO);
 						break;
 					}
 				case (8):
 					{
-						Commands->Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_ION_AMMO);
+						ScriptEngine::Start_Timer (obj, this, 2.0f, MTU_TIMER_GUNNER_ION_AMMO);
 						break;
 					}
 				}
@@ -579,222 +579,222 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 			}
 		case (MTU_TYPE_RANGE_SETUP_AUTORIFLE):
 			{
-				GameObject * range_target_one_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-39.228f,47.670f,3.232f));
+				GameObject * range_target_one_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-39.228f,47.670f,3.232f));
 				if (range_target_one_obj)
 				{
-					range_target_one = Commands->Get_ID (range_target_one_obj);
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target_Path_Mid", "");
+					range_target_one = ScriptEngine::Get_ID (range_target_one_obj);
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target_Path_Mid", "");
 				}
-				GameObject * range_target_two_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-39.557f,49.958f,3.232f));
+				GameObject * range_target_two_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-39.557f,49.958f,3.232f));
 				if (range_target_two_obj)
 				{
-					range_target_two = Commands->Get_ID (range_target_two_obj);
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target_Path_Right", "");
+					range_target_two = ScriptEngine::Get_ID (range_target_two_obj);
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target_Path_Right", "");
 				}
-				GameObject * range_target_three_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-29.893f,50.071f,3.232f));
+				GameObject * range_target_three_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-29.893f,50.071f,3.232f));
 				if (range_target_three_obj)
 				{
-					range_target_three = Commands->Get_ID (range_target_three_obj);
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target_Path_Left", "");
+					range_target_three = ScriptEngine::Get_ID (range_target_three_obj);
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target_Path_Left", "");
 				}
-				GameObject * range_target_four_obj = Commands->Create_Object ("POW_AutoRifle_Player", powerup_loc);
+				GameObject * range_target_four_obj = ScriptEngine::Create_Object ("POW_AutoRifle_Player", powerup_loc);
 				if (range_target_four_obj)
 				{
 					range_target_four = 0;
-					range_powerup = Commands->Get_ID (range_target_four_obj);
-					Commands->Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "2");
+					range_powerup = ScriptEngine::Get_ID (range_target_four_obj);
+					ScriptEngine::Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "2");
 				}
 				break;
 			}
 		case (MTU_TYPE_RANGE_SETUP_GRENADE):
 			{
-				GameObject * range_target_one_obj = Commands->Create_Object ("Nod_Buggy", Vector3(-34.853f,54.844f,2.641f));
+				GameObject * range_target_one_obj = ScriptEngine::Create_Object ("Nod_Buggy", Vector3(-34.853f,54.844f,2.641f));
 				if (range_target_one_obj)
 				{
-					range_target_one = Commands->Get_ID (range_target_one_obj);
-					Commands->Set_Facing (range_target_one_obj, 130.0f);
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
+					range_target_one = ScriptEngine::Get_ID (range_target_one_obj);
+					ScriptEngine::Set_Facing (range_target_one_obj, 130.0f);
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
 				}
-				GameObject * range_target_two_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-30.224f,47.9f,3.232f));
+				GameObject * range_target_two_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-30.224f,47.9f,3.232f));
 				if (range_target_two_obj)
 				{
-					range_target_two = Commands->Get_ID (range_target_two_obj);
-					Commands->Set_Facing (range_target_two_obj, 90.0f);
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target_Miss_Commando", "");
+					range_target_two = ScriptEngine::Get_ID (range_target_two_obj);
+					ScriptEngine::Set_Facing (range_target_two_obj, 90.0f);
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target_Miss_Commando", "");
 				}
-				GameObject * range_target_three_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-36.812f,47.595f,3.232f));
+				GameObject * range_target_three_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-36.812f,47.595f,3.232f));
 				if (range_target_three_obj)
 				{
-					range_target_three = Commands->Get_ID (range_target_three_obj);
-					Commands->Set_Facing (range_target_three_obj, 90.0f);
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
+					range_target_three = ScriptEngine::Get_ID (range_target_three_obj);
+					ScriptEngine::Set_Facing (range_target_three_obj, 90.0f);
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
 				}
-				GameObject * range_target_four_obj = Commands->Create_Object ("POW_GrenadeLauncher_Player", powerup_loc);
+				GameObject * range_target_four_obj = ScriptEngine::Create_Object ("POW_GrenadeLauncher_Player", powerup_loc);
 				if (range_target_four_obj)
 				{
 					range_target_four = 0;
-					range_powerup = Commands->Get_ID (range_target_four_obj);
-					Commands->Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "3");
+					range_powerup = ScriptEngine::Get_ID (range_target_four_obj);
+					ScriptEngine::Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "3");
 				}
 				break;
 			}
 		case (MTU_TYPE_RANGE_SETUP_CHAINGUN):
 			{
-				GameObject * range_target_one_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-32.160f,50.072f,1.015f));
+				GameObject * range_target_one_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-32.160f,50.072f,1.015f));
 				if (range_target_one_obj)
 				{
-					range_target_one = Commands->Get_ID (range_target_one_obj);
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target_Miss_Commando", "");
-					Commands->Set_Facing (range_target_one_obj, 90.0f);
+					range_target_one = ScriptEngine::Get_ID (range_target_one_obj);
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target_Miss_Commando", "");
+					ScriptEngine::Set_Facing (range_target_one_obj, 90.0f);
 				}
-				GameObject * range_target_two_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-34.704f,47.525f,3.232f));
+				GameObject * range_target_two_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-34.704f,47.525f,3.232f));
 				if (range_target_two_obj)
 				{
-					range_target_two = Commands->Get_ID (range_target_two_obj);
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target_Miss_Commando", "");
-					Commands->Set_Facing (range_target_two_obj, 90.0f);
+					range_target_two = ScriptEngine::Get_ID (range_target_two_obj);
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target_Miss_Commando", "");
+					ScriptEngine::Set_Facing (range_target_two_obj, 90.0f);
 				}
-				GameObject * range_target_three_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-37.425f,49.562f,1.015f));
+				GameObject * range_target_three_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-37.425f,49.562f,1.015f));
 				if (range_target_three_obj)
 				{
-					range_target_three = Commands->Get_ID (range_target_three_obj);
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target_Miss_Commando", "");
-					Commands->Set_Facing (range_target_three_obj, 90.0f);
+					range_target_three = ScriptEngine::Get_ID (range_target_three_obj);
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target_Miss_Commando", "");
+					ScriptEngine::Set_Facing (range_target_three_obj, 90.0f);
 				}
-				GameObject * range_target_four_obj = Commands->Create_Object ("POW_Chaingun_Player", powerup_loc);
+				GameObject * range_target_four_obj = ScriptEngine::Create_Object ("POW_Chaingun_Player", powerup_loc);
 				if (range_target_four_obj)
 				{
 					range_target_four = 0;
-					range_powerup = Commands->Get_ID (range_target_four_obj);
-					Commands->Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "4");
+					range_powerup = ScriptEngine::Get_ID (range_target_four_obj);
+					ScriptEngine::Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "4");
 				}
 				break;
 			}
 		case (MTU_TYPE_RANGE_SETUP_FLAMETHROWER):
 			{
-				GameObject * range_target_one_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-29.966f,50.615f,3.232f));
+				GameObject * range_target_one_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-29.966f,50.615f,3.232f));
 				if (range_target_one_obj)
 				{
-					range_target_one = Commands->Get_ID (range_target_one_obj);
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target_Path_Left", "");
+					range_target_one = ScriptEngine::Get_ID (range_target_one_obj);
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target_Path_Left", "");
 				}
-				GameObject * range_target_two_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-39.083f,47.287f,3.232f));
+				GameObject * range_target_two_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-39.083f,47.287f,3.232f));
 				if (range_target_two_obj)
 				{
-					range_target_two = Commands->Get_ID (range_target_two_obj);
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target_Path_Mid", "");
+					range_target_two = ScriptEngine::Get_ID (range_target_two_obj);
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target_Path_Mid", "");
 				}
-				GameObject * range_target_three_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-39.557f,50.218f,3.232f));
+				GameObject * range_target_three_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-39.557f,50.218f,3.232f));
 				if (range_target_three_obj)
 				{
-					range_target_three = Commands->Get_ID (range_target_three_obj);
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target_Path_Right", "");
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
+					range_target_three = ScriptEngine::Get_ID (range_target_three_obj);
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target_Path_Right", "");
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
 				}
-				GameObject * range_target_four_obj = Commands->Create_Object ("POW_Flamethrower_Player", powerup_loc);
+				GameObject * range_target_four_obj = ScriptEngine::Create_Object ("POW_Flamethrower_Player", powerup_loc);
 				if (range_target_four_obj)
 				{
 					range_target_four = 0;
-					range_powerup = Commands->Get_ID (range_target_four_obj);
-					Commands->Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "5");
+					range_powerup = ScriptEngine::Get_ID (range_target_four_obj);
+					ScriptEngine::Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "5");
 				}
 				break;
 			}
 		case (MTU_TYPE_RANGE_SETUP_ROCKET):
 			{
-				GameObject * range_target_one_obj = Commands->Create_Object ("Nod_Buggy", Vector3(-34.853f,54.844f,2.641f));
+				GameObject * range_target_one_obj = ScriptEngine::Create_Object ("Nod_Buggy", Vector3(-34.853f,54.844f,2.641f));
 				if (range_target_one_obj)
 				{
-					range_target_one = Commands->Get_ID (range_target_one_obj);
-					Commands->Set_Facing (range_target_one_obj, 135.0f);
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
+					range_target_one = ScriptEngine::Get_ID (range_target_one_obj);
+					ScriptEngine::Set_Facing (range_target_one_obj, 135.0f);
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
 				}
-				GameObject * range_target_two_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-33.967f,50.601f,1.014f));
+				GameObject * range_target_two_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-33.967f,50.601f,1.014f));
 				if (range_target_two_obj)
 				{
-					range_target_two = Commands->Get_ID (range_target_two_obj);
-					Commands->Set_Facing (range_target_two_obj, 90.0f);
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
+					range_target_two = ScriptEngine::Get_ID (range_target_two_obj);
+					ScriptEngine::Set_Facing (range_target_two_obj, 90.0f);
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
 				}
-				GameObject * range_target_four_obj = Commands->Create_Object ("POW_RocketLauncher_Player", powerup_loc);
+				GameObject * range_target_four_obj = ScriptEngine::Create_Object ("POW_RocketLauncher_Player", powerup_loc);
 				if (range_target_four_obj)
 				{
 					range_target_four = 0;
-					range_powerup = Commands->Get_ID (range_target_four_obj);
-					Commands->Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "6");
+					range_powerup = ScriptEngine::Get_ID (range_target_four_obj);
+					ScriptEngine::Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "6");
 				}
 				break;
 			}
 		case (MTU_TYPE_RANGE_SETUP_C4):
 			{
-				GameObject * range_target_one_obj = Commands->Create_Object ("Nod_Buggy", Vector3(-34.853f,54.844f,2.641f));
+				GameObject * range_target_one_obj = ScriptEngine::Create_Object ("Nod_Buggy", Vector3(-34.853f,54.844f,2.641f));
 				if (range_target_one_obj)
 				{
-					range_target_one = Commands->Get_ID (range_target_one_obj);
-					Commands->Set_Facing (range_target_one_obj, 90.0f);
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
+					range_target_one = ScriptEngine::Get_ID (range_target_one_obj);
+					ScriptEngine::Set_Facing (range_target_one_obj, 90.0f);
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
 				}
-				GameObject * range_target_two_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-31.702f,49.550f,1.016f));
+				GameObject * range_target_two_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-31.702f,49.550f,1.016f));
 				if (range_target_two_obj)
 				{
-					range_target_two = Commands->Get_ID (range_target_two_obj);
-					Commands->Set_Facing (range_target_two_obj, -90.0f);
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
+					range_target_two = ScriptEngine::Get_ID (range_target_two_obj);
+					ScriptEngine::Set_Facing (range_target_two_obj, -90.0f);
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
 				}
-				GameObject * range_target_three_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-37.801f,49.708f,1.015f));
+				GameObject * range_target_three_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-37.801f,49.708f,1.015f));
 				if (range_target_three_obj)
 				{
-					range_target_three = Commands->Get_ID (range_target_three_obj);
-					Commands->Set_Facing (range_target_three_obj, -90.0f);
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
+					range_target_three = ScriptEngine::Get_ID (range_target_three_obj);
+					ScriptEngine::Set_Facing (range_target_three_obj, -90.0f);
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
 				}
-				GameObject * range_target_four_obj = Commands->Create_Object ("POW_MineRemote_Player", powerup_loc);
+				GameObject * range_target_four_obj = ScriptEngine::Create_Object ("POW_MineRemote_Player", powerup_loc);
 				if (range_target_four_obj)
 				{
 					range_target_four = 0;
-					range_powerup = Commands->Get_ID (range_target_four_obj);
-					Commands->Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "7");
+					range_powerup = ScriptEngine::Get_ID (range_target_four_obj);
+					ScriptEngine::Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "7");
 				}
 				break;
 			}
 		case (MTU_TYPE_RANGE_SETUP_ION):
 			{
-				GameObject * range_target_one_obj = Commands->Create_Object ("Nod_Light_Tank", Vector3(-34.556f,52.912f,1.841f));
+				GameObject * range_target_one_obj = ScriptEngine::Create_Object ("Nod_Light_Tank", Vector3(-34.556f,52.912f,1.841f));
 				if (range_target_one_obj)
 				{
-					range_target_one = Commands->Get_ID (range_target_one_obj);
-					Commands->Set_Facing (range_target_one_obj, 90.0f);
-					Commands->Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
+					range_target_one = ScriptEngine::Get_ID (range_target_one_obj);
+					ScriptEngine::Set_Facing (range_target_one_obj, 90.0f);
+					ScriptEngine::Attach_Script (range_target_one_obj, "MTU_Range_Target", "1");
 				}
-				GameObject * range_target_two_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-31.562f,50.246f,1.015f));
+				GameObject * range_target_two_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-31.562f,50.246f,1.015f));
 				if (range_target_two_obj)
 				{
-					range_target_two = Commands->Get_ID (range_target_two_obj);
-					Commands->Set_Facing (range_target_two_obj, 90.0f);
-					Commands->Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
+					range_target_two = ScriptEngine::Get_ID (range_target_two_obj);
+					ScriptEngine::Set_Facing (range_target_two_obj, 90.0f);
+					ScriptEngine::Attach_Script (range_target_two_obj, "MTU_Range_Target", "2");
 				}
-				GameObject * range_target_three_obj = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-37.501f,50.184f,1.014f));
+				GameObject * range_target_three_obj = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-37.501f,50.184f,1.014f));
 				if (range_target_three_obj)
 				{
-					range_target_three = Commands->Get_ID (range_target_three_obj);
-					Commands->Set_Facing (range_target_three_obj, 90.0f);
-					Commands->Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
+					range_target_three = ScriptEngine::Get_ID (range_target_three_obj);
+					ScriptEngine::Set_Facing (range_target_three_obj, 90.0f);
+					ScriptEngine::Attach_Script (range_target_three_obj, "MTU_Range_Target", "3");
 				}
-				GameObject * range_target_four_obj = Commands->Create_Object ("POW_IonCannonBeacon_Player", powerup_loc);
+				GameObject * range_target_four_obj = ScriptEngine::Create_Object ("POW_IonCannonBeacon_Player", powerup_loc);
 				if (range_target_four_obj)
 				{
 					range_target_four = 0;
-					range_powerup = Commands->Get_ID (range_target_four_obj);
-					Commands->Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "8");
+					range_powerup = ScriptEngine::Get_ID (range_target_four_obj);
+					ScriptEngine::Attach_Script (range_target_four_obj, "MTU_Range_Powerup", "8");
 				}
 				break;
 			}
@@ -804,68 +804,68 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 
 				if (hotwire_vehicle)
 				{
-					GameObject * vehicle_obj = Commands->Find_Object (hotwire_vehicle);
+					GameObject * vehicle_obj = ScriptEngine::Find_Object (hotwire_vehicle);
 					if (vehicle_obj)
 					{
-						GameObject * hotwire_obj = Commands->Find_Object (MTU_HOTWIRE);
+						GameObject * hotwire_obj = ScriptEngine::Find_Object (MTU_HOTWIRE);
 						if (hotwire_obj)
 						{
-							Commands->Apply_Damage (vehicle_obj, 10000.0f, "Blamokiller", hotwire_obj);
+							ScriptEngine::Apply_Damage (vehicle_obj, 10000.0f, "Blamokiller", hotwire_obj);
 							hotwire_vehicle = 0;
 						}
 					}
 				}
 				if (squish_target_01)
 				{
-					GameObject * squish_obj = Commands->Find_Object (squish_target_01);
+					GameObject * squish_obj = ScriptEngine::Find_Object (squish_target_01);
 					if (squish_obj)
 					{
-						Commands->Destroy_Object (squish_obj);
+						ScriptEngine::Destroy_Object (squish_obj);
 					}
 					squish_target_01 = 0;
 				}
 				if (squish_target_02)
 				{
-					GameObject * squish_obj = Commands->Find_Object (squish_target_02);
+					GameObject * squish_obj = ScriptEngine::Find_Object (squish_target_02);
 					if (squish_obj)
 					{
-						Commands->Destroy_Object (squish_obj);
+						ScriptEngine::Destroy_Object (squish_obj);
 					}
 					squish_target_02 = 0;
 				}
 				if (squish_target_03)
 				{
-					GameObject * squish_obj = Commands->Find_Object (squish_target_03);
+					GameObject * squish_obj = ScriptEngine::Find_Object (squish_target_03);
 					if (squish_obj)
 					{
-						Commands->Destroy_Object (squish_obj);
+						ScriptEngine::Destroy_Object (squish_obj);
 					}
 					squish_target_03 = 0;
 				}
 				if (squish_target_04)
 				{
-					GameObject * squish_obj = Commands->Find_Object (squish_target_04);
+					GameObject * squish_obj = ScriptEngine::Find_Object (squish_target_04);
 					if (squish_obj)
 					{
-						Commands->Destroy_Object (squish_obj);
+						ScriptEngine::Destroy_Object (squish_obj);
 					}
 					squish_target_04 = 0;
 				}
 				if (squish_target_05)
 				{
-					GameObject * squish_obj = Commands->Find_Object (squish_target_05);
+					GameObject * squish_obj = ScriptEngine::Find_Object (squish_target_05);
 					if (squish_obj)
 					{
-						Commands->Destroy_Object (squish_obj);
+						ScriptEngine::Destroy_Object (squish_obj);
 					}
 					squish_target_05 = 0;
 				}
 				if (squish_target_06)
 				{
-					GameObject * squish_obj = Commands->Find_Object (squish_target_06);
+					GameObject * squish_obj = ScriptEngine::Find_Object (squish_target_06);
 					if (squish_obj)
 					{
-						Commands->Destroy_Object (squish_obj);
+						ScriptEngine::Destroy_Object (squish_obj);
 					}
 					squish_target_06 = 0;
 				}
@@ -879,12 +879,12 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 				if (hotwire_state == -1)
 				{
 					hotwire_state = 0;
-					Commands->Send_Custom_Event (obj, obj, MTU_TYPE_WEAP_FACTORY_CLEANUP, MTU_PARAM_DEFAULT, 0.0f);
-					Commands->Send_Custom_Event (obj, obj, MTU_TYPE_RESET_CHECKPOINT_COUNT, MTU_PARAM_DEFAULT, 0.0f);
-					GameObject * logan = Commands->Find_Object (MTU_LOGAN);
+					ScriptEngine::Send_Custom_Event (obj, obj, MTU_TYPE_WEAP_FACTORY_CLEANUP, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, obj, MTU_TYPE_RESET_CHECKPOINT_COUNT, MTU_PARAM_DEFAULT, 0.0f);
+					GameObject * logan = ScriptEngine::Find_Object (MTU_LOGAN);
 					if (logan)
 					{
-						Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_WEAPONS, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_WEAPONS, 0.0f);
 					}
 				}
 				break;
@@ -893,8 +893,8 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 			{
 				// This is called by all other buildings to force weapon factory cleanup!
 				hotwire_state = -1;
-				Commands->Send_Custom_Event (obj, obj, MTU_TYPE_WEAP_FACTORY_CLEANUP, MTU_PARAM_DEFAULT, 0.0f);
-				Commands->Send_Custom_Event (obj, obj, MTU_TYPE_RESET_CHECKPOINT_COUNT, MTU_PARAM_DEFAULT, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, obj, MTU_TYPE_WEAP_FACTORY_CLEANUP, MTU_PARAM_DEFAULT, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, obj, MTU_TYPE_RESET_CHECKPOINT_COUNT, MTU_PARAM_DEFAULT, 0.0f);
 				break;
 			}
 		case (MTU_TYPE_HOTWIRE_START):
@@ -907,50 +907,50 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 					{
 					case (0):
 						{
-							GameObject * hotwire = Commands->Find_Object (MTU_HOTWIRE);
+							GameObject * hotwire = ScriptEngine::Find_Object (MTU_HOTWIRE);
 							if (hotwire)
 							{
-								Commands->Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_INTRO, 0.0f);
+								ScriptEngine::Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_INTRO, 0.0f);
 							}
 							advance_state = true;
 							break;
 						}
 					case(1):
 						{
-							GameObject * hotwire = Commands->Find_Object (MTU_HOTWIRE);
+							GameObject * hotwire = ScriptEngine::Find_Object (MTU_HOTWIRE);
 							if (hotwire)
 							{
 								if (checkpoint_count > 3)
 								{
-									Commands->Send_Custom_Event (obj, obj, MTU_TYPE_RESET_CHECKPOINT_COUNT, MTU_PARAM_DEFAULT, 0.0f);
-									Commands->Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_MEDTANK, 0.0f);
-									Commands->Send_Custom_Event (obj, obj, MTU_TYPE_WEAP_FACTORY_CLEANUP, MTU_PARAM_DEFAULT, 0.0f);
-									Commands->Send_Custom_Event (obj, obj, MTU_TYPE_WEAP_CREATE_MEDTANK, MTU_PARAM_DEFAULT, 0.0f);
-									GameObject * action_zone = Commands->Find_Object (MTU_ZONE_CHECKPOINT_01);
+									ScriptEngine::Send_Custom_Event (obj, obj, MTU_TYPE_RESET_CHECKPOINT_COUNT, MTU_PARAM_DEFAULT, 0.0f);
+									ScriptEngine::Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_MEDTANK, 0.0f);
+									ScriptEngine::Send_Custom_Event (obj, obj, MTU_TYPE_WEAP_FACTORY_CLEANUP, MTU_PARAM_DEFAULT, 0.0f);
+									ScriptEngine::Send_Custom_Event (obj, obj, MTU_TYPE_WEAP_CREATE_MEDTANK, MTU_PARAM_DEFAULT, 0.0f);
+									GameObject * action_zone = ScriptEngine::Find_Object (MTU_ZONE_CHECKPOINT_01);
 									if (action_zone)
 									{
-										Commands->Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
+										ScriptEngine::Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
 									}
-									action_zone = Commands->Find_Object (MTU_ZONE_CHECKPOINT_02);
+									action_zone = ScriptEngine::Find_Object (MTU_ZONE_CHECKPOINT_02);
 									if (action_zone)
 									{
-										Commands->Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
+										ScriptEngine::Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
 									}
-									action_zone = Commands->Find_Object (MTU_ZONE_CHECKPOINT_03);
+									action_zone = ScriptEngine::Find_Object (MTU_ZONE_CHECKPOINT_03);
 									if (action_zone)
 									{
-										Commands->Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
+										ScriptEngine::Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
 									}
-									action_zone = Commands->Find_Object (MTU_ZONE_CHECKPOINT_04);
+									action_zone = ScriptEngine::Find_Object (MTU_ZONE_CHECKPOINT_04);
 									if (action_zone)
 									{
-										Commands->Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
+										ScriptEngine::Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
 									}
 									advance_state = true;
 								}
 								else
 								{
-									Commands->Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_UNFINISHED, 0.0f);
+									ScriptEngine::Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_UNFINISHED, 0.0f);
 								}
 							}
 							break;
@@ -965,23 +965,23 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 			}
 		case (MTU_TYPE_WEAP_CREATE_HUMMVEE):
 			{
-				GameObject * vehicle = Commands->Create_Object ("GDI_Humm-vee_Player", Vector3 (-10.5f,-34.2f,10.192f));
+				GameObject * vehicle = ScriptEngine::Create_Object ("GDI_Humm-vee_Player", Vector3 (-10.5f,-34.2f,10.192f));
 				if (vehicle)
 				{
-					Commands->Set_Facing (vehicle, -90.0f);
-					Commands->Attach_Script (vehicle, "MTU_GDI_Vehicle", "1");
-					hotwire_vehicle = Commands->Get_ID (vehicle);
+					ScriptEngine::Set_Facing (vehicle, -90.0f);
+					ScriptEngine::Attach_Script (vehicle, "MTU_GDI_Vehicle", "1");
+					hotwire_vehicle = ScriptEngine::Get_ID (vehicle);
 				}
 				break;
 			}
 		case (MTU_TYPE_WEAP_CREATE_MEDTANK):
 			{
-				GameObject * vehicle = Commands->Create_Object ("GDI_Medium_Tank_Player", Vector3 (-10.5f,-34.2f,12.192f));
+				GameObject * vehicle = ScriptEngine::Create_Object ("GDI_Medium_Tank_Player", Vector3 (-10.5f,-34.2f,12.192f));
 				if (vehicle)
 				{
-					Commands->Set_Facing (vehicle, -90.0f);
-					Commands->Attach_Script (vehicle, "MTU_GDI_Vehicle", "2");
-					hotwire_vehicle = Commands->Get_ID (vehicle);
+					ScriptEngine::Set_Facing (vehicle, -90.0f);
+					ScriptEngine::Attach_Script (vehicle, "MTU_GDI_Vehicle", "2");
+					hotwire_vehicle = ScriptEngine::Get_ID (vehicle);
 				}
 				break;
 			}
@@ -997,47 +997,47 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 			}
 		case (MTU_TYPE_WEAP_CREATE_SQUISHIES):
 			{
-				GameObject * squish_target = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-27.336f,-11.719f,1.101f));
+				GameObject * squish_target = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-27.336f,-11.719f,1.101f));
 				if (squish_target)
 				{
-					squish_target_01 = Commands->Get_ID (squish_target);
-					Commands->Set_Facing (squish_target, -45.0f);
-					Commands->Innate_Disable (squish_target);
+					squish_target_01 = ScriptEngine::Get_ID (squish_target);
+					ScriptEngine::Set_Facing (squish_target, -45.0f);
+					ScriptEngine::Innate_Disable (squish_target);
 				}
-				squish_target = Commands->Create_Object ("Nod_Minigunner_0", Vector3(-28.596f,21.970f,1.365f));
+				squish_target = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(-28.596f,21.970f,1.365f));
 				if (squish_target)
 				{
-					squish_target_02 = Commands->Get_ID (squish_target);
-					Commands->Set_Facing (squish_target, 0.0f);
-					Commands->Innate_Disable (squish_target);
+					squish_target_02 = ScriptEngine::Get_ID (squish_target);
+					ScriptEngine::Set_Facing (squish_target, 0.0f);
+					ScriptEngine::Innate_Disable (squish_target);
 				}
-				squish_target = Commands->Create_Object ("Nod_Minigunner_0", Vector3(10.713f,35.423f,0.691f));
+				squish_target = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(10.713f,35.423f,0.691f));
 				if (squish_target)
 				{
-					squish_target_03 = Commands->Get_ID (squish_target);
-					Commands->Set_Facing (squish_target, -90.0f);
-					Commands->Innate_Disable (squish_target);
+					squish_target_03 = ScriptEngine::Get_ID (squish_target);
+					ScriptEngine::Set_Facing (squish_target, -90.0f);
+					ScriptEngine::Innate_Disable (squish_target);
 				}
-				squish_target = Commands->Create_Object ("Nod_Minigunner_0", Vector3(50.947f,25.583f,0.899f));
+				squish_target = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(50.947f,25.583f,0.899f));
 				if (squish_target)
 				{
-					squish_target_04 = Commands->Get_ID (squish_target);
-					Commands->Set_Facing (squish_target, -90.0f);
-					Commands->Innate_Disable (squish_target);
+					squish_target_04 = ScriptEngine::Get_ID (squish_target);
+					ScriptEngine::Set_Facing (squish_target, -90.0f);
+					ScriptEngine::Innate_Disable (squish_target);
 				}
-				squish_target = Commands->Create_Object ("Nod_Minigunner_0", Vector3(41.174f,-12.436f,0.947f));
+				squish_target = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(41.174f,-12.436f,0.947f));
 				if (squish_target)
 				{
-					squish_target_05 = Commands->Get_ID (squish_target);
-					Commands->Set_Facing (squish_target, 135.0f);
-					Commands->Innate_Disable (squish_target);
+					squish_target_05 = ScriptEngine::Get_ID (squish_target);
+					ScriptEngine::Set_Facing (squish_target, 135.0f);
+					ScriptEngine::Innate_Disable (squish_target);
 				}
-				squish_target = Commands->Create_Object ("Nod_Minigunner_0", Vector3(7.102f,-49.075f,1.026f));
+				squish_target = ScriptEngine::Create_Object ("Nod_Minigunner_0", Vector3(7.102f,-49.075f,1.026f));
 				if (squish_target)
 				{
-					squish_target_06 = Commands->Get_ID (squish_target);
-					Commands->Set_Facing (squish_target, 105.0f);
-					Commands->Innate_Disable (squish_target);
+					squish_target_06 = ScriptEngine::Get_ID (squish_target);
+					ScriptEngine::Set_Facing (squish_target, 105.0f);
+					ScriptEngine::Innate_Disable (squish_target);
 				}
 				break;
 			}
@@ -1051,10 +1051,10 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 				if (mobius_restart)
 				{
 					mobius_restart = false;
-					GameObject * mobius = Commands->Find_Object (MTU_MOBIUS);
+					GameObject * mobius = ScriptEngine::Find_Object (MTU_MOBIUS);
 					if (mobius)
 					{
-						Commands->Send_Custom_Event (obj, mobius, MTU_TYPE_MOBIUS, MTU_PARAM_SPEECH_MOBIUS_REFINERY, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, mobius, MTU_TYPE_MOBIUS, MTU_PARAM_SPEECH_MOBIUS_REFINERY, 0.0f);
 					}
 				}
 				break;
@@ -1069,126 +1069,126 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 				if (petrova_restart)
 				{
 					petrova_restart = false;
-					GameObject * petrova = Commands->Find_Object (MTU_PETROVA);
+					GameObject * petrova = ScriptEngine::Find_Object (MTU_PETROVA);
 					if (petrova)
 					{
-						Commands->Send_Custom_Event (obj, petrova, MTU_TYPE_PETROVA, MTU_PARAM_SPEECH_PETROVA_POWER, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, petrova, MTU_TYPE_PETROVA, MTU_PARAM_SPEECH_PETROVA_POWER, 0.0f);
 					}
 				}
 				break;
 			}
 		case (MTU_TYPE_ACTIVATE_FINALE):
 			{
-				Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
-				GameObject * instructor = Commands->Find_Object (MTU_SYDNEY);
+				ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+				GameObject * instructor = ScriptEngine::Find_Object (MTU_SYDNEY);
 				if (instructor)
 				{
-					Commands->Destroy_Object (instructor);
+					ScriptEngine::Destroy_Object (instructor);
 				}
-				instructor = Commands->Find_Object (MTU_GUNNER);
+				instructor = ScriptEngine::Find_Object (MTU_GUNNER);
 				if (instructor)
 				{
-					Commands->Destroy_Object (instructor);
+					ScriptEngine::Destroy_Object (instructor);
 				}
-				instructor = Commands->Find_Object (MTU_HOTWIRE);
+				instructor = ScriptEngine::Find_Object (MTU_HOTWIRE);
 				if (instructor)
 				{
-					Commands->Destroy_Object (instructor);
+					ScriptEngine::Destroy_Object (instructor);
 				}
-				instructor = Commands->Find_Object (MTU_MOBIUS);
+				instructor = ScriptEngine::Find_Object (MTU_MOBIUS);
 				if (instructor)
 				{
-					Commands->Destroy_Object (instructor);
+					ScriptEngine::Destroy_Object (instructor);
 				}
-				instructor = Commands->Find_Object (MTU_PETROVA);
+				instructor = ScriptEngine::Find_Object (MTU_PETROVA);
 				if (instructor)
 				{
-					Commands->Destroy_Object (instructor);
+					ScriptEngine::Destroy_Object (instructor);
 				}
-				instructor = Commands->Find_Object (MTU_CONTROLLER);
+				instructor = ScriptEngine::Find_Object (MTU_CONTROLLER);
 				if (instructor)
 				{
-					Commands->Send_Custom_Event (obj, instructor, MTU_TYPE_WEAP_FORCE_RESET, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, instructor, MTU_TYPE_WEAP_FORCE_RESET, MTU_PARAM_DEFAULT, 0.0f);
 				}
-				instructor = Commands->Create_Object ("GDI_Female_Lieutenant", Vector3(-43.724f,37.967f,2.0f));
+				instructor = ScriptEngine::Create_Object ("GDI_Female_Lieutenant", Vector3(-43.724f,37.967f,2.0f));
 				if (instructor)
 				{
-					Commands->Attach_Script (instructor, "MTU_Tutorial_Instructor", "");
-					lieutenant_id = Commands->Get_ID (instructor);
+					ScriptEngine::Attach_Script (instructor, "MTU_Tutorial_Instructor", "");
+					lieutenant_id = ScriptEngine::Get_ID (instructor);
 				}
 				finale_active = true;
 				break;
 			}
 		case (MTU_TYPE_LIEUTENANT_START):
 			{
-				GameObject * lieutenant = Commands->Find_Object (lieutenant_id);
+				GameObject * lieutenant = ScriptEngine::Find_Object (lieutenant_id);
 				if (lieutenant)
 				{
-					Commands->Send_Custom_Event (obj, lieutenant, MTU_TYPE_LIEUTENANT, MTU_PARAM_ACTION_GOTO_HAVOC, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, lieutenant, MTU_TYPE_LIEUTENANT, MTU_PARAM_ACTION_GOTO_HAVOC, 0.0f);
 				}
 				break;
 			}
 		case (MTU_TYPE_MOCK_INVASION):
 			{
 				//set objectives for the two officers. Upon completion, end the mission.
-				GameObject * soldier = Commands->Find_Object (MTU_GATE_GUARD);
+				GameObject * soldier = ScriptEngine::Find_Object (MTU_GATE_GUARD);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MTU_TYPE_GDI_SOLDIER_PATROL, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MTU_TYPE_GDI_SOLDIER_PATROL, MTU_PARAM_DEFAULT, 0.0f);
 				}
-				soldier = Commands->Find_Object (MTU_GDI_01);
+				soldier = ScriptEngine::Find_Object (MTU_GDI_01);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MTU_TYPE_GDI_SOLDIER_PATROL, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MTU_TYPE_GDI_SOLDIER_PATROL, MTU_PARAM_DEFAULT, 0.0f);
 				}
-				soldier = Commands->Find_Object (MTU_GDI_02);
+				soldier = ScriptEngine::Find_Object (MTU_GDI_02);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MTU_TYPE_GDI_SOLDIER_PATROL, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MTU_TYPE_GDI_SOLDIER_PATROL, MTU_PARAM_DEFAULT, 0.0f);
 				}
-				GameObject * officer = Commands->Create_Object ("Nod_Minigunner_1Off", Vector3 (51.793f,23.554f,1.135f));
+				GameObject * officer = ScriptEngine::Create_Object ("Nod_Minigunner_1Off", Vector3 (51.793f,23.554f,1.135f));
 				if (officer)
 				{
-					Commands->Set_Obj_Radar_Blip_Shape (officer, RADAR_BLIP_SHAPE_OBJECTIVE);
-					Commands->Set_Obj_Radar_Blip_Color (officer, RADAR_BLIP_COLOR_PRIMARY_OBJECTIVE);
-					Commands->Attach_Script (officer, "MTU_Nod_Soldier", "2");
+					ScriptEngine::Set_Obj_Radar_Blip_Shape (officer, RADAR_BLIP_SHAPE_OBJECTIVE);
+					ScriptEngine::Set_Obj_Radar_Blip_Color (officer, RADAR_BLIP_COLOR_PRIMARY_OBJECTIVE);
+					ScriptEngine::Attach_Script (officer, "MTU_Nod_Soldier", "2");
 				}
-				officer = Commands->Create_Object ("Nod_Minigunner_1Off", Vector3 (52.793f,24.554f,2.135f));
+				officer = ScriptEngine::Create_Object ("Nod_Minigunner_1Off", Vector3 (52.793f,24.554f,2.135f));
 				if (officer)
 				{
-					Commands->Set_Obj_Radar_Blip_Shape (officer, RADAR_BLIP_SHAPE_OBJECTIVE);
-					Commands->Set_Obj_Radar_Blip_Color (officer, RADAR_BLIP_COLOR_PRIMARY_OBJECTIVE);
-					Commands->Attach_Script (officer, "MTU_Nod_Soldier", "2");
+					ScriptEngine::Set_Obj_Radar_Blip_Shape (officer, RADAR_BLIP_SHAPE_OBJECTIVE);
+					ScriptEngine::Set_Obj_Radar_Blip_Color (officer, RADAR_BLIP_COLOR_PRIMARY_OBJECTIVE);
+					ScriptEngine::Attach_Script (officer, "MTU_Nod_Soldier", "2");
 				}
-				GameObject * hummvee = Commands->Create_Object ("GDI_Humm-vee_Player", Vector3(-10.5f,-34.2f,10.192f));
+				GameObject * hummvee = ScriptEngine::Create_Object ("GDI_Humm-vee_Player", Vector3(-10.5f,-34.2f,10.192f));
 				if (hummvee)
 				{
-					Commands->Attach_Script (hummvee, "MTU_GDI_Vehicle", "4");
+					ScriptEngine::Attach_Script (hummvee, "MTU_GDI_Vehicle", "4");
 				}
-				GameObject * spawn = Commands->Trigger_Spawner(MTU_SPAWN_01);
+				GameObject * spawn = ScriptEngine::Trigger_Spawner(MTU_SPAWN_01);
 				if (spawn)
 				{
-					Commands->Attach_Script(spawn, "MTU_Nod_Soldier", "0");
+					ScriptEngine::Attach_Script(spawn, "MTU_Nod_Soldier", "0");
 				}
-				spawn = Commands->Trigger_Spawner(MTU_SPAWN_02);
+				spawn = ScriptEngine::Trigger_Spawner(MTU_SPAWN_02);
 				if (spawn)
 				{
-					Commands->Attach_Script(spawn, "MTU_Nod_Soldier", "0");
+					ScriptEngine::Attach_Script(spawn, "MTU_Nod_Soldier", "0");
 				}
-				spawn = Commands->Trigger_Spawner(MTU_SPAWN_03);
+				spawn = ScriptEngine::Trigger_Spawner(MTU_SPAWN_03);
 				if (spawn)
 				{
-					Commands->Attach_Script(spawn, "MTU_Nod_Soldier", "0");
+					ScriptEngine::Attach_Script(spawn, "MTU_Nod_Soldier", "0");
 				}
 				break;
 			}
 		case (MTU_TYPE_TRIGGER_SPAWNER):
 			{
 				int spawner_id = MTU_SPAWN_01 + Get_Int_Random (0, 2);
-				GameObject * spawn = Commands->Trigger_Spawner (spawner_id);
+				GameObject * spawn = ScriptEngine::Trigger_Spawner (spawner_id);
 				if (spawn)
 				{
-					Commands->Attach_Script(spawn, "MTU_Nod_Soldier", "0");
+					ScriptEngine::Attach_Script(spawn, "MTU_Nod_Soldier", "0");
 				}
 				break;
 			}
@@ -1197,15 +1197,15 @@ DECLARE_SCRIPT (MTU_Tutorial_Controller, "")
 				officer_count++;
 				if (officer_count > 1)
 				{
-					Commands->Set_Objective_Status (MTU_OBJECTIVE_06, OBJECTIVE_STATUS_ACCOMPLISHED);
-					Commands->Set_HUD_Help_Text(IDS_MENU_TEXT795, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Start_Timer (obj, this, 3.0f, MTU_TIMER_ENDGAME);
+					ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_06, OBJECTIVE_STATUS_ACCOMPLISHED);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MENU_TEXT795, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Start_Timer (obj, this, 3.0f, MTU_TIMER_ENDGAME);
 				}
 				break;
 			}
 		case (MTU_TYPE_REMOVE_OBJECTIVES):
 			{
-				Commands->Clear_Radar_Marker (MTU_RADAR_GUNNER);
+				ScriptEngine::Clear_Radar_Marker (MTU_RADAR_GUNNER);
 				break;
 			}
 		}
@@ -1264,10 +1264,10 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 	{
 		engineer_id = 0;
 		gunner_range_state = MTU_RANGE_STATE_DEFAULT;
-		Commands->Set_Loiters_Allowed (obj, false);
-		Commands->Innate_Disable (obj);
-		Commands->Set_Shield_Type (obj, "Blamo");
-		Commands->Enable_Hibernation (obj, false);
+		ScriptEngine::Set_Loiters_Allowed (obj, false);
+		ScriptEngine::Innate_Disable (obj);
+		ScriptEngine::Set_Shield_Type (obj, "Blamo");
+		ScriptEngine::Enable_Hibernation (obj, false);
 		logan_heard_commando = false;
 		logan_told_about_hearing = false;
 		logan_gave_sneak_speech = false;
@@ -1302,14 +1302,14 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					}
 				case (MTU_PARAM_SPEECH_CROUCH): // Logan is told to start sneaking speech.
 					{
-						Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
 						Say_Something (obj, MTU_SPEECH_LOGAN_CROUCH);
 						break;
 					}
 				case (MTU_PARAM_SPEECH_JUMP): // Logan is told to give results of sneaking and start jump speech.
 					{
 						Move_Somewhere (obj, MTU_MOVE_LOGAN_JUMP_TRAINING, MTU_ACTION_LOGAN_JUMP_TEST);
-						Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
 						/*if (logan_heard_commando)
 						{
 							Say_Something (obj, MTU_SPEECH_LOGAN_SNEAK_LOSE);
@@ -1324,19 +1324,19 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					}
 				case (MTU_PARAM_SPEECH_EVA): // Logan is told to start the eva training speech.
 					{
-						Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
 						Say_Something (obj, MTU_SPEECH_LOGAN_EVA);
 						break;
 					}
 				case (MTU_PARAM_SPEECH_COURSE_DONE): // Logan is told to move to the commando and finish the obstacle course.
 					{
-						Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
 						Move_Somewhere (obj, MTU_MOVE_LOGAN_COURSE_EXTERIOR, MTU_ACTION_LOGAN_COURSE_DONE);
 						break;
 					}
 				case (MTU_PARAM_ACTION_KEYCARD_TRAIN): // The commando has arrived at the AGT, lock control, give keycard speech.
 					{
-						Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
 						Say_Something (obj, MTU_SPEECH_LOGAN_KEYCARDS);
 						break;
 					}
@@ -1362,7 +1362,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 						logan_wait_power = false;
 						logan_wait_agt = false;
 						logan_wait_infantry = false;
-						Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_FOR_HAVOC);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_FOR_HAVOC);
 						break;
 					}
 				case (MTU_PARAM_ACTION_GOTO_REFINERY):
@@ -1386,7 +1386,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 						logan_wait_power = false;
 						logan_wait_agt = false;
 						logan_wait_infantry = false;
-						Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_REFINERY);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_REFINERY);
 						break;
 					}
 				case (MTU_PARAM_ACTION_GOTO_POWER):
@@ -1410,7 +1410,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 						logan_wait_power = true;
 						logan_wait_agt = false;
 						logan_wait_infantry = false;
-						Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_POWER);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_POWER);
 						break;
 					}
 				case (MTU_PARAM_SPEECH_INTRO_INFANTRY):
@@ -1429,7 +1429,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 						logan_wait_power = false;
 						logan_wait_agt = true;
 						logan_wait_infantry = false;
-						Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_AGT);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_AGT);
 						break;
 					}
 				case (MTU_PARAM_SPEECH_WEAP_INTRO):
@@ -1448,7 +1448,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 						logan_wait_power = false;
 						logan_wait_agt = false;
 						logan_wait_infantry = true;
-						Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_INFANTRY);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_INFANTRY);
 						break;
 					}
 				}
@@ -1460,32 +1460,32 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 				{
 				case (MTU_PARAM_SPEECH_SYDNEY_START):
 					{
-						Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
 						Say_Something (obj, MTU_SPEECH_SYDNEY_START);
 						break;
 					}
 				case (MTU_PARAM_SPEECH_HEALTH):
 					{
-						Commands->Action_Reset (obj, 100);
+						ScriptEngine::Action_Reset (obj, 100);
 						Say_Something (obj, MTU_SPEECH_SYDNEY_HEALTH);
 						break;
 					}
 				case (MTU_PARAM_SPEECH_PICKUP):
 					{
-						Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
 						Say_Something (obj, MTU_SPEECH_SYDNEY_ARMOR);
 						break;
 					}
 				case (MTU_PARAM_SPEECH_SHOOT_AGAIN):
 					{
-						Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
 						Say_Something (obj, MTU_SPEECH_SYDNEY_SHOOT_AGAIN);
 						break;
 					}
 				case (MTU_PARAM_SPEECH_LAST_TIME):
 					{
-						Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
-						Commands->Action_Reset (obj, 100);
+						ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+						ScriptEngine::Action_Reset (obj, 100);
 						Say_Something (obj, MTU_SPEECH_SYDNEY_LAST_TIME);
 						break;
 					}
@@ -1508,10 +1508,10 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					}
 				case (MTU_PARAM_CHECK_TARGETS):
 					{
-						GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+						GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_CHECK_TARGETS, MTU_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_CHECK_TARGETS, MTU_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
@@ -1522,72 +1522,72 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 						{
 						case (1):
 							{
-								Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+								ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
 								Say_Something (obj, MTU_SPEECH_GUNNER_START);
 								break;
 							}
 						case (2):
 							{
-								Commands->Set_HUD_Help_Text(IDS_M01DSGN_DSGN0518I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+								ScriptEngine::Set_HUD_Help_Text(IDS_M01DSGN_DSGN0518I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 								Say_Something (obj, MTU_SPEECH_GUNNER_SNIPER_RIFLE);
-								Commands->Give_PowerUp (STAR, "POW_SniperRifle_Player", true);
-								Commands->Create_Object ("POW_SniperRifle_Player", Vector3(-17.298f,73.106f,1.042f));
-								GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+								ScriptEngine::Give_PowerUp (STAR, "POW_SniperRifle_Player", true);
+								ScriptEngine::Create_Object ("POW_SniperRifle_Player", Vector3(-17.298f,73.106f,1.042f));
+								GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 								if (controller)
 								{
-									Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_SNIPER_RIFLE, MTU_PARAM_DEFAULT, 0.0f);
+									ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_SNIPER_RIFLE, MTU_PARAM_DEFAULT, 0.0f);
 								}
 								break;
 							}
 						case (3):
 							{
-								Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0392I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+								ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0392I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 								Say_Something (obj, MTU_SPEECH_GUNNER_AUTORIFLE);
-								Commands->Give_PowerUp (STAR, "POW_AutoRifle_Player", true);
-								Commands->Create_Object ("POW_AutoRifle_Player", Vector3(-17.298f,73.106f,1.042f));
-								GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+								ScriptEngine::Give_PowerUp (STAR, "POW_AutoRifle_Player", true);
+								ScriptEngine::Create_Object ("POW_AutoRifle_Player", Vector3(-17.298f,73.106f,1.042f));
+								GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 								if (controller)
 								{
-									Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_AUTORIFLE, MTU_PARAM_DEFAULT, 0.0f);
+									ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_AUTORIFLE, MTU_PARAM_DEFAULT, 0.0f);
 								}
 								break;
 							}
 						case (4):
 							{
-								Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0393I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+								ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0393I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 								Say_Something (obj, MTU_SPEECH_GUNNER_ROCKET);
-								Commands->Give_PowerUp (STAR, "POW_RocketLauncher_Player", true);
-								Commands->Create_Object ("POW_RocketLauncher_Player", Vector3(-17.298f,73.106f,1.042f));
-								GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+								ScriptEngine::Give_PowerUp (STAR, "POW_RocketLauncher_Player", true);
+								ScriptEngine::Create_Object ("POW_RocketLauncher_Player", Vector3(-17.298f,73.106f,1.042f));
+								GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 								if (controller)
 								{
-									Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_ROCKET, MTU_PARAM_DEFAULT, 0.0f);
+									ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_ROCKET, MTU_PARAM_DEFAULT, 0.0f);
 								}
 								break;
 							}
 						case (5):
 							{
-								Commands->Set_HUD_Help_Text(IDS_M01DSGN_DSGN0519I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+								ScriptEngine::Set_HUD_Help_Text(IDS_M01DSGN_DSGN0519I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 								Say_Something (obj, MTU_SPEECH_GUNNER_C4);
-								Commands->Give_PowerUp (STAR, "POW_MineRemote_Player", true);
-								Commands->Create_Object ("POW_MineRemote_Player", Vector3(-17.298f,73.106f,1.042f));
-								GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+								ScriptEngine::Give_PowerUp (STAR, "POW_MineRemote_Player", true);
+								ScriptEngine::Create_Object ("POW_MineRemote_Player", Vector3(-17.298f,73.106f,1.042f));
+								GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 								if (controller)
 								{
-									Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_C4, MTU_PARAM_DEFAULT, 0.0f);
+									ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_C4, MTU_PARAM_DEFAULT, 0.0f);
 								}
 								break;
 							}
 						case (6):
 							{
-								Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0394I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+								ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0394I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 								Say_Something (obj, MTU_SPEECH_GUNNER_ION);
-								Commands->Give_PowerUp (STAR, "POW_IonCannonBeacon_Player", true);
-								Commands->Create_Object ("POW_IonCannonBeacon_Player", Vector3(-17.298f,73.106f,1.042f));
-								GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+								ScriptEngine::Give_PowerUp (STAR, "POW_IonCannonBeacon_Player", true);
+								ScriptEngine::Create_Object ("POW_IonCannonBeacon_Player", Vector3(-17.298f,73.106f,1.042f));
+								GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 								if (controller)
 								{
-									Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_ION, MTU_PARAM_DEFAULT, 0.0f);
+									ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_ION, MTU_PARAM_DEFAULT, 0.0f);
 								}
 								break;
 							}
@@ -1711,7 +1711,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					}
 					else
 					{
-						Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_FOR_HAVOC);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_FOR_HAVOC);
 					}
 				}
 				break;
@@ -1730,7 +1730,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					}
 					else
 					{
-						Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_REFINERY);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_REFINERY);
 					}
 				}
 				break;
@@ -1743,15 +1743,15 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					{
 						if (!check_logan_wait_power)
 						{
-							Commands->Set_Position (STAR, Vector3(-35.771f,35.033f,2.0f));
-							Commands->Set_Position (obj, Vector3(-33.699f,35.179f,2.0f));
+							ScriptEngine::Set_Position (STAR, Vector3(-35.771f,35.033f,2.0f));
+							ScriptEngine::Set_Position (obj, Vector3(-33.699f,35.179f,2.0f));
 							check_logan_wait_power = true;
-							Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_POWER_02);
+							ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_POWER_02);
 						}
 					}
 					else
 					{
-						Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_POWER);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_POWER);
 					}
 				}
 				break;
@@ -1759,10 +1759,10 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 		case(MTU_TIMER_LOGAN_WAIT_POWER_02):
 			{
 				Say_Something (obj, MTU_SPEECH_LOGAN_PREPARE_FINALE);
-				GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+				GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 				if (controller)
 				{
-					Commands->Send_Custom_Event (obj, controller, MTU_TYPE_ACTIVATE_FINALE, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_ACTIVATE_FINALE, MTU_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
@@ -1780,7 +1780,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					}
 					else
 					{
-						Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_AGT);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_AGT);
 					}
 				}
 				break;
@@ -1793,14 +1793,14 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					{
 						if (!check_wait_infantry)
 						{
-							Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1003I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+							ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1003I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 							Move_Somewhere (obj, MTU_MOVE_LOGAN_WEAPONS, MTU_ACTION_DEFAULT);
 							check_wait_infantry = true;
 						}
 					}
 					else
 					{
-						Commands->Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_INFANTRY);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MTU_TIMER_LOGAN_WAIT_INFANTRY);
 					}
 				}
 				break;
@@ -1812,10 +1812,10 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 			}
 		case (MTU_TIMER_ANOTHER_APACHE):
 			{
-				GameObject * apache = Commands->Create_Object ("NOD_Apache", Vector3(-52.440f,33.644f,-7.825f));
+				GameObject * apache = ScriptEngine::Create_Object ("NOD_Apache", Vector3(-52.440f,33.644f,-7.825f));
 				if (apache)
 				{
-					Commands->Attach_Script (apache, "MTU_Nod_Apache", "0");
+					ScriptEngine::Attach_Script (apache, "MTU_Nod_Apache", "0");
 				}
 				break;
 			}
@@ -1831,7 +1831,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 	void Say_Something (GameObject * obj, int speech_id)
 	{
 		const char *conv_name = ("IDS_MTU_CONVERSATION_01"); //DEFAULT
-		Vector3 target_loc = Commands->Get_Position (obj);
+		Vector3 target_loc = ScriptEngine::Get_Position (obj);
 
 		switch (speech_id)
 		{
@@ -1955,8 +1955,8 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 		case (MTU_SPEECH_SYDNEY_START):
 			{
-				Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1006I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-				Commands->Set_Objective_Status (MTU_OBJECTIVE_01, OBJECTIVE_STATUS_ACCOMPLISHED);
+				ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1006I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+				ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_01, OBJECTIVE_STATUS_ACCOMPLISHED);
 				conv_name = ("MTU_SYDNEY_START");
 				break;
 			}
@@ -1972,15 +1972,15 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 			}
 		case (MTU_SPEECH_SYDNEY_ARMOR):
 			{
-				float health = Commands->Get_Max_Health (STAR);
-				Commands->Set_Health (STAR, health);
+				float health = ScriptEngine::Get_Max_Health (STAR);
+				ScriptEngine::Set_Health (STAR, health);
 				conv_name = ("MTU_SYDNEY_ARMOR");
 				break;
 			}
 		case (MTU_SPEECH_SYDNEY_SHOOT_AGAIN):
 			{
-				float shield = Commands->Get_Max_Shield_Strength (STAR);
-				Commands->Set_Shield_Strength (STAR, shield);
+				float shield = ScriptEngine::Get_Max_Shield_Strength (STAR);
+				ScriptEngine::Set_Shield_Strength (STAR, shield);
 				conv_name = ("MTU_SYDNEY_SHOOT_AGAIN");
 				break;
 			}
@@ -2000,8 +2000,8 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 		case (MTU_SPEECH_GUNNER_START):
 			{
-				Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1006I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-				Commands->Set_Objective_Status (MTU_OBJECTIVE_02, OBJECTIVE_STATUS_ACCOMPLISHED);
+				ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1006I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+				ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_02, OBJECTIVE_STATUS_ACCOMPLISHED);
 				conv_name = ("MTU_GUNNER_START");
 				break;
 			}
@@ -2055,7 +2055,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 			}
 		case (MTU_SPEECH_GUNNER_ION):
 			{
-				Commands->Add_Radar_Marker (MTU_RADAR_GUNNER, Vector3 (-34.91f,61.62f,2.60f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_GUNNER, Vector3 (-34.91f,61.62f,2.60f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
 				conv_name = ("MTU_GUNNER_ION");
 				target_loc.X = 0;
 				break;
@@ -2068,7 +2068,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 			}
 		case (MTU_SPEECH_GUNNER_ENDING):
 			{
-				Commands->Clear_Radar_Marker (MTU_RADAR_GUNNER);
+				ScriptEngine::Clear_Radar_Marker (MTU_RADAR_GUNNER);
 				conv_name = ("MTU_GUNNER_ENDING");
 				target_loc.X = 0;
 				break;
@@ -2078,12 +2078,12 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 		case (MTU_SPEECH_HOTWIRE_INTRO):
 			{
-				Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1006I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-				Commands->Set_Objective_Status (MTU_OBJECTIVE_03, OBJECTIVE_STATUS_ACCOMPLISHED);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_01, Vector3 (-32.12f,-48.05f,1.37f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_02, Vector3 (-26.36f,34.21f,2.0f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_03, Vector3 (47.16f,39.18f,1.51f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_04, Vector3 (30.77f,-26.61f,2.75f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1006I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+				ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_03, OBJECTIVE_STATUS_ACCOMPLISHED);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_01, Vector3 (-32.12f,-48.05f,1.37f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_02, Vector3 (-26.36f,34.21f,2.0f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_03, Vector3 (47.16f,39.18f,1.51f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_04, Vector3 (30.77f,-26.61f,2.75f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
 				conv_name = ("MTU_HOTWIRE_INTRO");
 				target_loc.X = 0;
 				break;
@@ -2108,11 +2108,11 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 			}
 		case (MTU_SPEECH_HOTWIRE_MEDTANK):
 			{
-				Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0395I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_01, Vector3 (-32.12f,-48.05f,1.37f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_02, Vector3 (-26.36f,34.21f,2.0f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_03, Vector3 (47.16f,39.18f,1.51f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_04, Vector3 (30.77f,-26.61f,2.75f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0395I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_01, Vector3 (-32.12f,-48.05f,1.37f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_02, Vector3 (-26.36f,34.21f,2.0f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_03, Vector3 (47.16f,39.18f,1.51f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_04, Vector3 (30.77f,-26.61f,2.75f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
 				conv_name = ("MTU_HOTWIRE_MEDTANK");
 				target_loc.X = 0;
 				break;
@@ -2131,10 +2131,10 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 			}
 		case (MTU_SPEECH_HOTWIRE_BIKE):
 			{
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_01, Vector3 (-32.12f,-48.05f,1.37f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_02, Vector3 (-26.36f,34.21f,2.0f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_03, Vector3 (47.16f,39.18f,1.51f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-				Commands->Add_Radar_Marker (MTU_RADAR_COURSE_04, Vector3 (30.77f,-26.61f,2.75f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_01, Vector3 (-32.12f,-48.05f,1.37f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_02, Vector3 (-26.36f,34.21f,2.0f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_03, Vector3 (47.16f,39.18f,1.51f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+				ScriptEngine::Add_Radar_Marker (MTU_RADAR_COURSE_04, Vector3 (30.77f,-26.61f,2.75f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
 				conv_name = ("MTU_HOTWIRE_BIKE");
 				target_loc.X = 0;
 				break;
@@ -2145,8 +2145,8 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 		case (MTU_SPEECH_MOBIUS_REFINERY):
 			{
 				target_loc.X = 0;
-				Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1006I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-				Commands->Set_Objective_Status (MTU_OBJECTIVE_04, OBJECTIVE_STATUS_ACCOMPLISHED);
+				ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1006I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+				ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_04, OBJECTIVE_STATUS_ACCOMPLISHED);
 				conv_name = ("MTU_MOBIUS_REFINERY");
 				break;
 			}
@@ -2156,8 +2156,8 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 		case (MTU_SPEECH_PETROVA_POWER):
 			{
 				target_loc.X = 0;
-				Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1006I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-				Commands->Set_Objective_Status (MTU_OBJECTIVE_05, OBJECTIVE_STATUS_ACCOMPLISHED);
+				ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1006I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+				ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_05, OBJECTIVE_STATUS_ACCOMPLISHED);
 				conv_name = ("MTU_PETROVA_POWER");
 				break;
 			}
@@ -2194,24 +2194,24 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 				break;
 			}
 		}
-		Commands->Stop_All_Conversations ();
+		ScriptEngine::Stop_All_Conversations ();
 
-		Vector3 my_pos = Commands->Get_Position(obj);
-		Vector3 target_pos = Commands->Get_Position(STAR);
+		Vector3 my_pos = ScriptEngine::Get_Position(obj);
+		Vector3 target_pos = ScriptEngine::Get_Position(STAR);
 		float angle = WWMath::Atan2((my_pos.X - target_pos.X), (my_pos.Y - target_pos.Y));
-		Commands->Set_Facing(obj, -90.0f - RAD_TO_DEGF(angle));
+		ScriptEngine::Set_Facing(obj, -90.0f - RAD_TO_DEGF(angle));
 
 		if (target_loc.X != 0)
 		{
 			target_loc.Z += 1.5f;
-			Commands->Force_Camera_Look (target_loc);
+			ScriptEngine::Force_Camera_Look (target_loc);
 		}
 
-		int conversation = Commands->Create_Conversation (conv_name, 100, 300.0f, false);
-		Commands->Join_Conversation(obj, conversation, false, true, true);
-		Commands->Join_Conversation(STAR, conversation, false, false, false);
-		Commands->Start_Conversation (conversation, speech_id);
-		Commands->Monitor_Conversation (obj, conversation);
+		int conversation = ScriptEngine::Create_Conversation (conv_name, 100, 300.0f, false);
+		ScriptEngine::Join_Conversation(obj, conversation, false, true, true);
+		ScriptEngine::Join_Conversation(STAR, conversation, false, false, false);
+		ScriptEngine::Start_Conversation (conversation, speech_id);
+		ScriptEngine::Monitor_Conversation (obj, conversation);
 	}
 
 	void Move_Somewhere (GameObject * obj, int destination_id, int action_id)
@@ -2307,7 +2307,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 				params.Set_Movement(destination, WALK, 1.0f);
 			}
 		}
-		Commands->Action_Goto(obj, params);
+		ScriptEngine::Action_Goto(obj, params);
 	}
 
 	void Action_Complete (GameObject * obj, int action_id, ActionCompleteReason complete_reason) override
@@ -2321,16 +2321,16 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 			case (MTU_SPEECH_LOGAN_START): // Logan finished intro speech, open the first gate.
 				{
-					Commands->Set_HUD_Help_Text(IDS_M01DSGN_DSGN0515I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					GameObject * course_gate = Commands->Find_Object (MTU_GATE_01);
+					ScriptEngine::Set_HUD_Help_Text(IDS_M01DSGN_DSGN0515I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					GameObject * course_gate = ScriptEngine::Find_Object (MTU_GATE_01);
 					if (course_gate)
 					{
-						Commands->Set_Animation (course_gate, "CHT_JAIL.CHT_JAIL", false, nullptr, 0.0f, 2.0f, false);
+						ScriptEngine::Set_Animation (course_gate, "CHT_JAIL.CHT_JAIL", false, nullptr, 0.0f, 2.0f, false);
 					}
-					course_gate = Commands->Find_Object (MTU_GATE_02);
+					course_gate = ScriptEngine::Find_Object (MTU_GATE_02);
 					if (course_gate)
 					{
-						Commands->Set_Animation (course_gate, "CHT_JAIL.CHT_JAIL", false, nullptr, 0.0f, 2.0f, false);
+						ScriptEngine::Set_Animation (course_gate, "CHT_JAIL.CHT_JAIL", false, nullptr, 0.0f, 2.0f, false);
 					}
 					break;
 				}
@@ -2339,90 +2339,90 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					logan_gave_sneak_speech = true;
 					logan_heard_commando = false;
 					Say_Something (obj, MTU_SPEECH_LOGAN_CROUCH_TEST);
-					/*GameObject * course_gate = Commands->Find_Object (MTU_GATE_02);
+					/*GameObject * course_gate = ScriptEngine::Find_Object (MTU_GATE_02);
 					if (course_gate)
 					{
-						Commands->Set_Animation (course_gate, "CHT_JAIL.CHT_JAIL", false, nullptr, 0.0f, 2.0f);
+						ScriptEngine::Set_Animation (course_gate, "CHT_JAIL.CHT_JAIL", false, nullptr, 0.0f, 2.0f);
 					}*/
 					break;
 				}
 			case (MTU_SPEECH_LOGAN_CROUCH_TEST):
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0382I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0382I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
 					break;
 				}
 			case (MTU_SPEECH_LOGAN_SNEAK_LOSE):
 			case (MTU_SPEECH_LOGAN_SNEAK_WIN): // Logan gave results of sneak test, move to jump test location.
 				{
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_DISABLE, 0.0f);
 					Move_Somewhere (obj, MTU_MOVE_LOGAN_JUMP_TRAINING, MTU_ACTION_LOGAN_JUMP_TEST);
 					break;
 				}
 			case (MTU_SPEECH_LOGAN_JUMP_TEST): // Logan finished giving jump test introduction, enable commando and move to next spot.
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0383I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0383I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
 					Move_Somewhere (obj, MTU_MOVE_LOGAN_EVA_TRAINING, MTU_ACTION_LOGAN_EVA_TRAIN);
-					GameObject * course_gate = Commands->Find_Object (MTU_GATE_03);
+					GameObject * course_gate = ScriptEngine::Find_Object (MTU_GATE_03);
 					if (course_gate)
 					{
-						Commands->Set_Animation (course_gate, "CHT_JAIL.CHT_JAIL", false, nullptr, 0.0f, 2.0f, false);
+						ScriptEngine::Set_Animation (course_gate, "CHT_JAIL.CHT_JAIL", false, nullptr, 0.0f, 2.0f, false);
 					}
 					break;
 				}
 			case (MTU_SPEECH_LOGAN_EVA): // Logan finished introducing EVA, turn on first objective radar location.
 				{
-					Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1004I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Set_Objective_Status (MTU_OBJECTIVE_01, OBJECTIVE_STATUS_PENDING);
-					Commands->Set_Objective_Radar_Blip (MTU_OBJECTIVE_01, Vector3(-12.39f,20.78f,1.81f));
-					Commands->Set_Objective_HUD_Info_Position (MTU_OBJECTIVE_01, 99, "POG_M00_1_01.tga", IDS_POG_LOCATE, Vector3 (-12.39f,20.78f,1.81f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1004I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_01, OBJECTIVE_STATUS_PENDING);
+					ScriptEngine::Set_Objective_Radar_Blip (MTU_OBJECTIVE_01, Vector3(-12.39f,20.78f,1.81f));
+					ScriptEngine::Set_Objective_HUD_Info_Position (MTU_OBJECTIVE_01, 99, "POG_M00_1_01.tga", IDS_POG_LOCATE, Vector3 (-12.39f,20.78f,1.81f));
 					Say_Something (obj, MTU_SPEECH_LOGAN_POKE);
 					break;
 				}
 			case (MTU_SPEECH_LOGAN_POKE): // Logan finished explaining poke command, enable commando control.
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0385I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Select_Weapon (STAR, "Weapon_Pistol_Player");
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0385I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Select_Weapon (STAR, "Weapon_Pistol_Player");
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
 					break;
 				}
 			case (MTU_SPEECH_LOGAN_COURSE_DONE): // Logan finished telling the commando about the course. Move to the AGT.
 				{
-					Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1003I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
+					ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1003I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
 					Move_Somewhere (obj, MTU_MOVE_LOGAN_AGT, MTU_ACTION_LOGAN_GOTO_AGT);
 					break;
 				}
 			case (MTU_SPEECH_LOGAN_KEYCARDS): // Logan finished introducing keycards, give the commando a green one and continue.
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0386I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Create_Object ("Level_01_Keycard", Vector3(-12.637f,24.426f,0.0f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0386I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Create_Object ("Level_01_Keycard", Vector3(-12.637f,24.426f,0.0f));
 					Say_Something (obj, MTU_SPEECH_LOGAN_GO_INSIDE);
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
 					break;
 				}
 			case (MTU_SPEECH_LOGAN_WHATSNEXT): // Logan gave the Whats Next dialog.
 				{
-					Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1003I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Set_Objective_Status (MTU_OBJECTIVE_04, OBJECTIVE_STATUS_PENDING);
-					Commands->Set_Objective_Radar_Blip (MTU_OBJECTIVE_04, Vector3(24.40f,11.86f,2.60f));
-					Commands->Set_Objective_HUD_Info_Position (MTU_OBJECTIVE_04, 99, "POG_M00_1_04.tga", IDS_POG_LOCATE, Vector3 (24.40f,11.86f,2.60f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1003I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_04, OBJECTIVE_STATUS_PENDING);
+					ScriptEngine::Set_Objective_Radar_Blip (MTU_OBJECTIVE_04, Vector3(24.40f,11.86f,2.60f));
+					ScriptEngine::Set_Objective_HUD_Info_Position (MTU_OBJECTIVE_04, 99, "POG_M00_1_04.tga", IDS_POG_LOCATE, Vector3 (24.40f,11.86f,2.60f));
 					Move_Somewhere (obj, MTU_MOVE_LOGAN_REFINERY, MTU_ACTION_DEFAULT);
 					break;
 				}
 			case (MTU_SPEECH_LOGAN_PREPARE_POWER): // Logan is moving toward the power plant
 				{
-					Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1003I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Set_Objective_Status (MTU_OBJECTIVE_05, OBJECTIVE_STATUS_PENDING);
-					Commands->Set_Objective_Radar_Blip (MTU_OBJECTIVE_05, Vector3(-42.46f,19.45f,3.79f));
-					Commands->Set_Objective_HUD_Info_Position (MTU_OBJECTIVE_05, 99, "POG_M00_1_05.tga", IDS_POG_LOCATE, Vector3 (-42.46f,19.45f,3.79f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1003I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_05, OBJECTIVE_STATUS_PENDING);
+					ScriptEngine::Set_Objective_Radar_Blip (MTU_OBJECTIVE_05, Vector3(-42.46f,19.45f,3.79f));
+					ScriptEngine::Set_Objective_HUD_Info_Position (MTU_OBJECTIVE_05, 99, "POG_M00_1_05.tga", IDS_POG_LOCATE, Vector3 (-42.46f,19.45f,3.79f));
 					Move_Somewhere (obj, MTU_MOVE_LOGAN_POWER, MTU_ACTION_DEFAULT);
 					break;
 				}
 			case (MTU_SPEECH_LOGAN_PREPARE_INFANTRY):
 				{
-					Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1003I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1003I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					Move_Somewhere (obj, MTU_MOVE_LOGAN_INFANTRY, MTU_ACTION_DEFAULT);
 					break;
 				}
@@ -2439,21 +2439,21 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					ActionParamsStruct params;
 					params.Set_Basic(this, 100, MTU_ACTION_DEFAULT);
 					params.Set_Attack(STAR, 150.0f, 0.0f, true);
-					Commands->Action_Attack(obj, params);
+					ScriptEngine::Action_Attack(obj, params);
 					break;
 				}
 			case (MTU_SPEECH_SYDNEY_HEALTH): // Sydney finished explaining about health loss. Create a health powerup.
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0387I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					GameObject* health_pow = Commands->Create_Object ("POW_Health_100", Vector3 (-11.975f,23.808f,-9.498f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0387I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					GameObject* health_pow = ScriptEngine::Create_Object ("POW_Health_100", Vector3 (-11.975f,23.808f,-9.498f));
 					if (health_pow)
 					{
-						int pow_id = Commands->Get_ID(health_pow);
-						Commands->Attach_Script (health_pow, "MTU_PowerUp_Health", "");
-						GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+						int pow_id = ScriptEngine::Get_ID(health_pow);
+						ScriptEngine::Attach_Script (health_pow, "MTU_PowerUp_Health", "");
+						GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 						if (controller)
 						{
-							Commands->Send_Custom_Event(obj, controller, MTU_TYPE_HEALTH_POWERUP_ADD, pow_id, 0.0f);
+							ScriptEngine::Send_Custom_Event(obj, controller, MTU_TYPE_HEALTH_POWERUP_ADD, pow_id, 0.0f);
 						}
 						Say_Something (obj, MTU_SPEECH_SYDNEY_PICKUP);
 					}
@@ -2461,24 +2461,24 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 				}
 			case (MTU_SPEECH_SYDNEY_ARMOR):
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0388I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					GameObject* armor_pow = Commands->Create_Object ("POW_Armor_100", Vector3 (-11.853f,25.720f,-9.498f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0388I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					GameObject* armor_pow = ScriptEngine::Create_Object ("POW_Armor_100", Vector3 (-11.853f,25.720f,-9.498f));
 					if (armor_pow)
 					{
-						int pow_id = Commands->Get_ID(armor_pow);
-						Commands->Attach_Script (armor_pow, "MTU_PowerUp_Armor", "");
-						GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+						int pow_id = ScriptEngine::Get_ID(armor_pow);
+						ScriptEngine::Attach_Script (armor_pow, "MTU_PowerUp_Armor", "");
+						GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 						if (controller)
 						{
-							Commands->Send_Custom_Event(obj, controller, MTU_TYPE_ARMOR_POWERUP_ADD, pow_id, 0.0f);
+							ScriptEngine::Send_Custom_Event(obj, controller, MTU_TYPE_ARMOR_POWERUP_ADD, pow_id, 0.0f);
 						}
-						Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
 					}
 					break;
 				}
 			case (MTU_SPEECH_SYDNEY_PICKUP):
 				{
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
 					break;
 				}
 			case (MTU_SPEECH_SYDNEY_SHOOT_AGAIN):
@@ -2486,32 +2486,32 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 					ActionParamsStruct params;
 					params.Set_Basic(this, 100, MTU_ACTION_DEFAULT);
 					params.Set_Attack(STAR, 150.0f, 0.0f, true);
-					Commands->Action_Attack(obj, params);
+					ScriptEngine::Action_Attack(obj, params);
 					break;
 				}
 			case (MTU_SPEECH_SYDNEY_LAST_TIME):
 				{
 					// Create a Nod Apache and fly it over the building.
 
-					GameObject * apache = Commands->Create_Object ("NOD_Apache", Vector3(-52.440f,33.644f,-7.825f));
+					GameObject * apache = ScriptEngine::Create_Object ("NOD_Apache", Vector3(-52.440f,33.644f,-7.825f));
 					if (apache)
 					{
-						Commands->Start_Timer (obj, this, 2.0f, MTU_TIMER_ANOTHER_APACHE);
-						Commands->Attach_Script (apache, "MTU_Nod_Apache", "1");
+						ScriptEngine::Start_Timer (obj, this, 2.0f, MTU_TIMER_ANOTHER_APACHE);
+						ScriptEngine::Attach_Script (apache, "MTU_Nod_Apache", "1");
 					}
 					break;
 				}
 			case (MTU_SPEECH_SYDNEY_RADAR):
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0389I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
-					Commands->Set_Objective_Status (MTU_OBJECTIVE_02, OBJECTIVE_STATUS_PENDING);
-					Commands->Set_Objective_Radar_Blip (MTU_OBJECTIVE_02, Vector3(-16.216f,72.693f,1.042f));
-					Commands->Set_Objective_HUD_Info_Position (MTU_OBJECTIVE_02, 99, "POG_M00_1_02.tga", IDS_POG_LOCATE, Vector3 (-16.216f,72.693f,1.042f));
-					GameObject * logan = Commands->Find_Object (MTU_LOGAN);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0389I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
+					ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_02, OBJECTIVE_STATUS_PENDING);
+					ScriptEngine::Set_Objective_Radar_Blip (MTU_OBJECTIVE_02, Vector3(-16.216f,72.693f,1.042f));
+					ScriptEngine::Set_Objective_HUD_Info_Position (MTU_OBJECTIVE_02, 99, "POG_M00_1_02.tga", IDS_POG_LOCATE, Vector3 (-16.216f,72.693f,1.042f));
+					GameObject * logan = ScriptEngine::Find_Object (MTU_LOGAN);
 					if (logan)
 					{
-						Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_PREPARE_INFANTRY, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_PREPARE_INFANTRY, 0.0f);
 					}
 					break;
 				}
@@ -2520,26 +2520,26 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 			case (MTU_SPEECH_GUNNER_START):
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0390I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Send_Custom_Event (obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0390I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Send_Custom_Event (obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_HANDGUN, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_SETUP_HANDGUN, MTU_PARAM_DEFAULT, 0.0f);
 					}
 					break;
 				}
 			case (MTU_SPEECH_GUNNER_ENDING):
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0389I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					GameObject * logan = Commands->Find_Object (MTU_LOGAN);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0389I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					GameObject * logan = ScriptEngine::Find_Object (MTU_LOGAN);
 					if (logan)
 					{
-						Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_PREPARE_WEAPONS, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_PREPARE_WEAPONS, 0.0f);
 					}
-					Commands->Set_Objective_Status (MTU_OBJECTIVE_03, OBJECTIVE_STATUS_PENDING);
-					Commands->Set_Objective_Radar_Blip (MTU_OBJECTIVE_03, Vector3(-0.687f,-18.630f,0.100f));
-					Commands->Set_Objective_HUD_Info_Position (MTU_OBJECTIVE_03, 99, "POG_M00_1_03.tga", IDS_POG_LOCATE, Vector3 (-0.687f,-18.630f,0.100f));
+					ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_03, OBJECTIVE_STATUS_PENDING);
+					ScriptEngine::Set_Objective_Radar_Blip (MTU_OBJECTIVE_03, Vector3(-0.687f,-18.630f,0.100f));
+					ScriptEngine::Set_Objective_HUD_Info_Position (MTU_OBJECTIVE_03, 99, "POG_M00_1_03.tga", IDS_POG_LOCATE, Vector3 (-0.687f,-18.630f,0.100f));
 					break;
 				}
 
@@ -2547,46 +2547,46 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 			case (MTU_SPEECH_HOTWIRE_INTRO):
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0395I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0395I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_CREATE_HUMMVEE, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_CREATE_HUMMVEE, MTU_PARAM_DEFAULT, 0.0f);
 					}
 					Say_Something (obj, MTU_SPEECH_HOTWIRE_GO_OUT);
 					break;
 				}
 			case (MTU_SPEECH_HOTWIRE_GO_OUT):
 				{
-					GameObject * action_zone = Commands->Find_Object (MTU_ZONE_VEHICLE_APPROACHED);
+					GameObject * action_zone = ScriptEngine::Find_Object (MTU_ZONE_VEHICLE_APPROACHED);
 					if (action_zone)
 					{
-						Commands->Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
 					}
-					action_zone = Commands->Find_Object (MTU_ZONE_CHECKPOINT_01);
+					action_zone = ScriptEngine::Find_Object (MTU_ZONE_CHECKPOINT_01);
 					if (action_zone)
 					{
-						Commands->Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
 					}
-					action_zone = Commands->Find_Object (MTU_ZONE_CHECKPOINT_02);
+					action_zone = ScriptEngine::Find_Object (MTU_ZONE_CHECKPOINT_02);
 					if (action_zone)
 					{
-						Commands->Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
 					}
-					action_zone = Commands->Find_Object (MTU_ZONE_CHECKPOINT_03);
+					action_zone = ScriptEngine::Find_Object (MTU_ZONE_CHECKPOINT_03);
 					if (action_zone)
 					{
-						Commands->Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
 					}
-					action_zone = Commands->Find_Object (MTU_ZONE_CHECKPOINT_04);
+					action_zone = ScriptEngine::Find_Object (MTU_ZONE_CHECKPOINT_04);
 					if (action_zone)
 					{
-						Commands->Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, action_zone, MTU_TYPE_RESET_TRIGGER_ONCE, MTU_PARAM_DEFAULT, 0.0f);
 					}
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RESET_CHECKPOINT_COUNT, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RESET_CHECKPOINT_COUNT, MTU_PARAM_DEFAULT, 0.0f);
 					}
 					break;
 				}
@@ -2595,7 +2595,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 			case (MTU_SPEECH_MOBIUS_REFINERY):
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0389I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0389I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					break;
 				}
 
@@ -2603,21 +2603,21 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 			case (MTU_SPEECH_PETROVA_POWER):
 				{
-					GameObject * powerplant = Commands->Find_Object (MTU_POWERPLANT);
+					GameObject * powerplant = ScriptEngine::Find_Object (MTU_POWERPLANT);
 					if (powerplant)
 					{
-						Commands->Send_Custom_Event (obj, powerplant, MTU_TYPE_BUILDING_POWER_OFF, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, powerplant, MTU_TYPE_BUILDING_POWER_OFF, MTU_PARAM_DEFAULT, 0.0f);
 					}
 					Say_Something (obj, MTU_SPEECH_PETROVA_POWER_END);
 					break;
 				}
 			case (MTU_SPEECH_PETROVA_POWER_END):
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0389I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					GameObject * powerplant = Commands->Find_Object (MTU_POWERPLANT);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0389I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					GameObject * powerplant = ScriptEngine::Find_Object (MTU_POWERPLANT);
 					if (powerplant)
 					{
-						Commands->Send_Custom_Event (obj, powerplant, MTU_TYPE_BUILDING_POWER_ON, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, powerplant, MTU_TYPE_BUILDING_POWER_ON, MTU_PARAM_DEFAULT, 0.0f);
 					}
 					break;
 				}
@@ -2626,57 +2626,57 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 			case (MTU_SPEECH_LIEUTENANT_START):
 				{
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR_FACING, 1, 0.0f);
-					GameObject * chinook_obj1 = Commands->Create_Object("Invisible_Object", Vector3(-16.836f,36.188f,1.341f));
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR_FACING, 1, 0.0f);
+					GameObject * chinook_obj1 = ScriptEngine::Create_Object("Invisible_Object", Vector3(-16.836f,36.188f,1.341f));
 					if (chinook_obj1)
 					{
-						Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X0I_Drop02.txt");
+						ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X0I_Drop02.txt");
 					}
-					Commands->Start_Timer (obj, this, 18.0f, MTU_TIMER_LIEUTENANT_WAIT);
+					ScriptEngine::Start_Timer (obj, this, 18.0f, MTU_TIMER_LIEUTENANT_WAIT);
 					break;
 				}
 			case (MTU_SPEECH_LIEUTENANT_LETIN):
 				{
-					Commands->Set_Position (STAR, Vector3(-16.382f,55.559f,-8.956f));
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR_FACING, 2, 0.0f);
-					GameObject * engineer = Commands->Create_Object ("GDI_Engineer_0", Vector3(-24.003f,56.286f,-8.596f));
+					ScriptEngine::Set_Position (STAR, Vector3(-16.382f,55.559f,-8.956f));
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR_FACING, 2, 0.0f);
+					GameObject * engineer = ScriptEngine::Create_Object ("GDI_Engineer_0", Vector3(-24.003f,56.286f,-8.596f));
 					if (engineer)
 					{
-						Commands->Innate_Disable (engineer);
-						engineer_id = Commands->Get_ID (engineer);
-						Commands->Set_Facing (engineer, 180.0f);
+						ScriptEngine::Innate_Disable (engineer);
+						engineer_id = ScriptEngine::Get_ID (engineer);
+						ScriptEngine::Set_Facing (engineer, 180.0f);
 					}
-					Commands->Start_Timer (obj, this, 5.0f, MTU_TIMER_MCT_ATTACK);
+					ScriptEngine::Start_Timer (obj, this, 5.0f, MTU_TIMER_MCT_ATTACK);
 					Say_Something (obj, MTU_SPEECH_LIEUTENANT_MCT);
 					break;
 				}
 			case (MTU_SPEECH_LIEUTENANT_MCT):
 				{
-					Commands->Set_Position (STAR, Vector3(-16.487f,30.453f,1.125f));
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR_FACING, 3, 0.0f);
-					GameObject * barracks = Commands->Find_Object (MTU_BARRACKS);
+					ScriptEngine::Set_Position (STAR, Vector3(-16.487f,30.453f,1.125f));
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR_FACING, 3, 0.0f);
+					GameObject * barracks = ScriptEngine::Find_Object (MTU_BARRACKS);
 					if (barracks)
 					{
-						Commands->Send_Custom_Event(obj, barracks, MTU_TYPE_BUILDING_DESTROY, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, barracks, MTU_TYPE_BUILDING_DESTROY, MTU_PARAM_DEFAULT, 0.0f);
 					}
-					Commands->Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					ScriptEngine::Send_Custom_Event(obj, STAR, MTU_TYPE_STAR, MTU_PARAM_CONTROL_ENABLE, 0.0f);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_MOCK_INVASION, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_MOCK_INVASION, MTU_PARAM_DEFAULT, 0.0f);
 					}
 					Say_Something (obj, MTU_SPEECH_LIEUTENANT_AFTER);
 					break;
 				}
 			case (MTU_SPEECH_LIEUTENANT_AFTER):
 				{
-					Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0398I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-					Commands->Set_Objective_Status (MTU_OBJECTIVE_06, OBJECTIVE_STATUS_PENDING);
-					Commands->Set_Objective_HUD_Info (MTU_OBJECTIVE_06, 99, "POG_M00_1_06.tga", IDS_POG_ELIMINATE);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0398I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_Objective_Status (MTU_OBJECTIVE_06, OBJECTIVE_STATUS_PENDING);
+					ScriptEngine::Set_Objective_HUD_Info (MTU_OBJECTIVE_06, 99, "POG_M00_1_06.tga", IDS_POG_ELIMINATE);
 					ActionParamsStruct params;
 					params.Set_Basic(this, 100, MTU_ACTION_LIEUTENANT_LEAVE);
 					params.Set_Movement(Vector3(-63.745f,-38.599f,0.495f), WALK, 1.0f);
-					Commands->Action_Goto(obj, params);
+					ScriptEngine::Action_Goto(obj, params);
 					break;
 				}
 			}
@@ -2687,24 +2687,24 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 			{
 			case (MTU_ACTION_LOGAN_JUMP_TEST): // Logan finished moving to jump test location, give speech.
 				{
-					Commands->Set_Position (obj, Vector3(-53.697f,-5.334f,2.0f));
+					ScriptEngine::Set_Position (obj, Vector3(-53.697f,-5.334f,2.0f));
 					Say_Something (obj, MTU_SPEECH_LOGAN_JUMP_TEST);
 					break;
 				}
 			case (MTU_ACTION_LOGAN_COURSE_DONE): // Logan reached the commando outside the course. Wrap it up and move on.
 				{
-					Commands->Set_Position (obj, Vector3(-35.01f,-15.658f,0.705f));
+					ScriptEngine::Set_Position (obj, Vector3(-35.01f,-15.658f,0.705f));
 					Say_Something (obj, MTU_SPEECH_LOGAN_COURSE_DONE);
 					break;
 				}
 			case (MTU_ACTION_MOVE_LOGAN_EXIT):
 				{
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_LIEUTENANT_START, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_LIEUTENANT_START, MTU_PARAM_DEFAULT, 0.0f);
 					}
-					Commands->Destroy_Object (obj);
+					ScriptEngine::Destroy_Object (obj);
 					break;
 				}
 			case (MTU_ACTION_MOVE_LIEUTENANT_HAVOC):
@@ -2714,12 +2714,12 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 				}
 			case (MTU_ACTION_LIEUTENANT_LEAVE):
 				{
-					GameObject * tower = Commands->Find_Object (MTU_TOWER);
+					GameObject * tower = ScriptEngine::Find_Object (MTU_TOWER);
 					if (tower)
 					{
-						Commands->Send_Custom_Event (obj, tower, 1, 0, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, tower, 1, 0, 0.0f);
 					}
-					Commands->Destroy_Object (obj);
+					ScriptEngine::Destroy_Object (obj);
 					break;
 				}
 			default:
@@ -2732,7 +2732,7 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 	void Sound_Heard (GameObject * obj, const CombatSound & sound) override
 	{
-		int my_id = Commands->Get_ID (obj);
+		int my_id = ScriptEngine::Get_ID (obj);
 
 		if ((sound.Creator == STAR) && (my_id == MTU_LOGAN))
 		{
@@ -2747,8 +2747,8 @@ DECLARE_SCRIPT (MTU_Tutorial_Instructor, "")
 
 	void Damaged (GameObject * obj, GameObject * /*damager*/, float /*amount*/) override
 	{
-		float maxhealth = Commands->Get_Max_Health (obj);
-		Commands->Set_Health (obj, maxhealth);
+		float maxhealth = ScriptEngine::Get_Max_Health (obj);
+		ScriptEngine::Set_Health (obj, maxhealth);
 	}
 };
 
@@ -2774,7 +2774,7 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		int zone_id = Commands->Get_ID (obj);
+		int zone_id = ScriptEngine::Get_ID (obj);
 		bool destroy_zone = false;
 		int dual_zone = 0;
 
@@ -2782,56 +2782,56 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 		{
 		case (MTU_ZONE_JUMP_HUD_INFO):
 			{
-				Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0384I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+				ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0384I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 				destroy_zone = true;
 				break;
 			}
 		/*case (MTU_ZONE_TRIGGER_SNEAK_TRAINING):
 			{
-				GameObject * logan = Commands->Find_Object(MTU_LOGAN);
+				GameObject * logan = ScriptEngine::Find_Object(MTU_LOGAN);
 				if (logan)
 				{
-					Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_CROUCH);
+					ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_CROUCH);
 				}
 				destroy_zone = true;
 				break;
 			}*/
 		case (MTU_ZONE_TRIGGER_JUMP_TRAINING):
 			{
-				GameObject * logan = Commands->Find_Object(MTU_LOGAN);
+				GameObject * logan = ScriptEngine::Find_Object(MTU_LOGAN);
 				if (logan)
 				{
-					Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_JUMP, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_JUMP, 0.0f);
 				}
 				destroy_zone = true;
 				break;
 			}
 		case (MTU_ZONE_TRIGGER_EVA_TRAINING):
 			{
-				GameObject * logan = Commands->Find_Object(MTU_LOGAN);
+				GameObject * logan = ScriptEngine::Find_Object(MTU_LOGAN);
 				if (logan)
 				{
-					Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_EVA, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_EVA, 0.0f);
 				}
 				destroy_zone = true;
 				break;
 			}
 		case (MTU_ZONE_TRIGGER_MOVE_TO_AGT):
 			{
-				GameObject * logan = Commands->Find_Object(MTU_LOGAN);
+				GameObject * logan = ScriptEngine::Find_Object(MTU_LOGAN);
 				if (logan)
 				{
-					Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_COURSE_DONE, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_COURSE_DONE, 0.0f);
 				}
 				destroy_zone = true;
 				break;
 			}
 		case (MTU_ZONE_TRIGGER_KEYCARD_TRAINING):
 			{
-				GameObject * logan = Commands->Find_Object(MTU_LOGAN);
+				GameObject * logan = ScriptEngine::Find_Object(MTU_LOGAN);
 				if (logan)
 				{
-					Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_KEYCARD_TRAIN, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_KEYCARD_TRAIN, 0.0f);
 				}
 				destroy_zone = true;
 				break;
@@ -2841,47 +2841,47 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 				if (!gave_elevator_help)
 				{
 					gave_elevator_help = true;
-					Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1013I1EVAG_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1013I1EVAG_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 				}
-				GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+				GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 				if (controller)
 				{
-					Commands->Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
-					Commands->Send_Custom_Event (obj, controller, MTU_TYPE_ALL_POWERUPS_RESET, MTU_PARAM_DEFAULT, 0.0f);
-					Commands->Send_Custom_Event (obj, controller, MTU_TYPE_SYDNEY_RESET, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_ALL_POWERUPS_RESET, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_SYDNEY_RESET, MTU_PARAM_DEFAULT, 0.0f);
 				}
-				GameObject * logan = Commands->Find_Object(MTU_LOGAN);
+				GameObject * logan = ScriptEngine::Find_Object(MTU_LOGAN);
 				if (logan)
 				{
-					Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_AGT_RESET, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_AGT_RESET, 0.0f);
 				}
-				Commands->Send_Custom_Event (obj, STAR, MTU_TYPE_STAR, MTU_PARAM_SYDNEY_SHOT_RESET, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, STAR, MTU_TYPE_STAR, MTU_PARAM_SYDNEY_SHOT_RESET, 0.0f);
 				break;
 			}
 		case (MTU_ZONE_START_SYDNEY):
 			{
-				GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+				GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 				if (controller)
 				{
-					Commands->Send_Custom_Event (obj, controller, MTU_TYPE_SYDNEY_CHECK_RESET, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_SYDNEY_CHECK_RESET, MTU_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MTU_ZONE_INTRODUCE_BARRACKS):
 			{
-				bool green_key = Commands->Has_Key (enterer, 1);
+				bool green_key = ScriptEngine::Has_Key (enterer, 1);
 				if (green_key)
 				{
-					GameObject * logan = Commands->Find_Object(MTU_LOGAN);
+					GameObject * logan = ScriptEngine::Find_Object(MTU_LOGAN);
 					if (logan)
 					{
 						if (Get_Obj_Distance (logan, STAR) < 10.0f)
 						{
-							Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_INTRO_INFANTRY, 0.0f);
+							ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_INTRO_INFANTRY, 0.0f);
 						}
 						else
 						{
-							Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_INFANTRY, 0.0f);
+							ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_INFANTRY, 0.0f);
 						}
 					}
 					destroy_zone = true;
@@ -2890,63 +2890,63 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 			}
 		case (MTU_ZONE_RESET_GUNNER):
 			{
-				bool green_key = Commands->Has_Key (enterer, 1);
+				bool green_key = ScriptEngine::Has_Key (enterer, 1);
 				if (green_key)
 				{
-					GameObject * gunner = Commands->Find_Object (MTU_GUNNER);
+					GameObject * gunner = ScriptEngine::Find_Object (MTU_GUNNER);
 					if (gunner)
 					{
-						Commands->Send_Custom_Event (obj, gunner, MTU_TYPE_GUNNER, MTU_PARAM_GUNNER_RESET, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, gunner, MTU_TYPE_GUNNER, MTU_PARAM_GUNNER_RESET, 0.0f);
 					}
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_CLEANUP_TARGETS, MTU_PARAM_DEFAULT, 0.0f);
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_FORCE_RESET, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_CLEANUP_TARGETS, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_FORCE_RESET, MTU_PARAM_DEFAULT, 0.0f);
 					}
-					GameObject * logan = Commands->Find_Object(MTU_LOGAN);
+					GameObject * logan = ScriptEngine::Find_Object(MTU_LOGAN);
 					if (logan)
 					{
-						Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_INFANTRY, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_INFANTRY, 0.0f);
 					}
 				}
 				break;
 			}
 		case (MTU_ZONE_RESET_RANGE):
 			{
-				GameObject * gunner = Commands->Find_Object (MTU_GUNNER);
+				GameObject * gunner = ScriptEngine::Find_Object (MTU_GUNNER);
 				if (gunner)
 				{
-					Commands->Send_Custom_Event (obj, gunner, MTU_TYPE_GUNNER, MTU_PARAM_SPEECH_RETICULE, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, gunner, MTU_TYPE_GUNNER, MTU_PARAM_SPEECH_RETICULE, 0.0f);
 				}
 				destroy_zone = true;
 				break;
 			}
 		case (MTU_ZONE_GUNNER_NEXT_WEAPON):
 			{
-				GameObject * gunner = Commands->Find_Object (MTU_GUNNER);
+				GameObject * gunner = ScriptEngine::Find_Object (MTU_GUNNER);
 				if (gunner)
 				{
-					Commands->Send_Custom_Event (obj, gunner, MTU_TYPE_GUNNER, MTU_PARAM_CHECK_TARGETS, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, gunner, MTU_TYPE_GUNNER, MTU_PARAM_CHECK_TARGETS, 0.0f);
 				}
 				break;
 			}
 		case (MTU_ZONE_INTRODUCE_WEAPONS_FACTORY):
 			{
-				bool green_key = Commands->Has_Key (enterer, 1);
+				bool green_key = ScriptEngine::Has_Key (enterer, 1);
 				if (green_key)
 				{
-					GameObject * logan = Commands->Find_Object (MTU_LOGAN);
+					GameObject * logan = ScriptEngine::Find_Object (MTU_LOGAN);
 					if (logan)
 					{
 						if (Get_Obj_Distance (logan, STAR) < 4.0f)
 						{
-							Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_WEAP_INTRO, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_WEAP_INTRO, 0.0f);
 						}
 						else
 						{
-							Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_WEAPONS, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_WEAPONS, 0.0f);
 						}
 					}
 					destroy_zone = true;
@@ -2955,38 +2955,38 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 			}
 		case (MTU_ZONE_RESET_HOTWIRE_01):
 			{
-				bool green_key = Commands->Has_Key (enterer, 1);
+				bool green_key = ScriptEngine::Has_Key (enterer, 1);
 				if (green_key)
 				{
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_ATTEMPT_RESET, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_ATTEMPT_RESET, MTU_PARAM_DEFAULT, 0.0f);
 					}
 				}
 				break;
 			}
 		case (MTU_ZONE_RESET_HOTWIRE_02):
 			{
-				bool green_key = Commands->Has_Key (enterer, 1);
+				bool green_key = ScriptEngine::Has_Key (enterer, 1);
 				if (green_key)
 				{
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_ATTEMPT_RESET, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_ATTEMPT_RESET, MTU_PARAM_DEFAULT, 0.0f);
 					}
 				}
 				break;
 			}
 		case (MTU_ZONE_START_HOTWIRE):
 			{
-				GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+				GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 				if (controller)
 				{
-					Commands->Send_Custom_Event (obj, controller, MTU_TYPE_HOTWIRE_START, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_HOTWIRE_START, MTU_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
@@ -2994,12 +2994,12 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 			{
 				if (!trigger_once)
 				{
-					Commands->Set_HUD_Help_Text(IDS_M02DSGN_DSGN0186I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_M02DSGN_DSGN0186I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					trigger_once = true;
-					GameObject * hotwire = Commands->Find_Object (MTU_HOTWIRE);
+					GameObject * hotwire = ScriptEngine::Find_Object (MTU_HOTWIRE);
 					if (hotwire)
 					{
-						Commands->Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_ACTION, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_ACTION, 0.0f);
 					}
 				}
 				break;
@@ -3008,12 +3008,12 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 			{
 				if (!trigger_once)
 				{
-					Commands->Clear_Radar_Marker (MTU_RADAR_COURSE_02);
+					ScriptEngine::Clear_Radar_Marker (MTU_RADAR_COURSE_02);
 					trigger_once = true;
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_ADD_CHECKPOINT, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_ADD_CHECKPOINT, MTU_PARAM_DEFAULT, 0.0f);
 					}
 				}
 				break;
@@ -3022,12 +3022,12 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 			{
 				if (!trigger_once)
 				{
-					Commands->Clear_Radar_Marker (MTU_RADAR_COURSE_03);
+					ScriptEngine::Clear_Radar_Marker (MTU_RADAR_COURSE_03);
 					trigger_once = true;
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_ADD_CHECKPOINT, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_ADD_CHECKPOINT, MTU_PARAM_DEFAULT, 0.0f);
 					}
 				}
 				break;
@@ -3036,12 +3036,12 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 			{
 				if (!trigger_once)
 				{
-					Commands->Clear_Radar_Marker (MTU_RADAR_COURSE_04);
+					ScriptEngine::Clear_Radar_Marker (MTU_RADAR_COURSE_04);
 					trigger_once = true;
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_ADD_CHECKPOINT, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_ADD_CHECKPOINT, MTU_PARAM_DEFAULT, 0.0f);
 					}
 				}
 				break;
@@ -3050,31 +3050,31 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 			{
 				if (!trigger_once)
 				{
-					Commands->Clear_Radar_Marker (MTU_RADAR_COURSE_01);
+					ScriptEngine::Clear_Radar_Marker (MTU_RADAR_COURSE_01);
 					trigger_once = true;
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_ADD_CHECKPOINT, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_ADD_CHECKPOINT, MTU_PARAM_DEFAULT, 0.0f);
 					}
 				}
 				break;
 			}
 		case (MTU_ZONE_INTRODUCE_REFINERY):
 			{
-				bool green_key = Commands->Has_Key (enterer, 1);
+				bool green_key = ScriptEngine::Has_Key (enterer, 1);
 				if (green_key)
 				{
-					GameObject * logan = Commands->Find_Object (MTU_LOGAN);
+					GameObject * logan = ScriptEngine::Find_Object (MTU_LOGAN);
 					if (logan)
 					{
 						if (Get_Obj_Distance (logan, STAR) < 4.0f)
 						{
-							Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_INTRO_REFINERY, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_INTRO_REFINERY, 0.0f);
 						}
 						else
 						{
-							Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_REFINERY, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_REFINERY, 0.0f);
 						}
 					}
 					destroy_zone = true;
@@ -3086,55 +3086,55 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 				if (!gave_elevator_help)
 				{
 					gave_elevator_help = true;
-					Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1013I1EVAG_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1013I1EVAG_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 				}
-				bool green_key = Commands->Has_Key (enterer, 1);
+				bool green_key = ScriptEngine::Has_Key (enterer, 1);
 				if (green_key)
 				{
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_FORCE_RESET, MTU_PARAM_DEFAULT, 0.0f);
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_MOBIUS_RESET, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_FORCE_RESET, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_MOBIUS_RESET, MTU_PARAM_DEFAULT, 0.0f);
 					}
-					GameObject * logan = Commands->Find_Object(MTU_LOGAN);
+					GameObject * logan = ScriptEngine::Find_Object(MTU_LOGAN);
 					if (logan)
 					{
-						Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_REFINERY, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_REFINERY, 0.0f);
 					}
 				}
 				break;
 			}
 		case (MTU_ZONE_START_IGNATIO):
 			{
-				GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+				GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 				if (controller)
 				{
-					Commands->Send_Custom_Event (obj, controller, MTU_TYPE_MOBIUS_CHECK_RESET, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_MOBIUS_CHECK_RESET, MTU_PARAM_DEFAULT, 0.0f);
 				}
-				GameObject * logan = Commands->Find_Object (MTU_LOGAN);
+				GameObject * logan = ScriptEngine::Find_Object (MTU_LOGAN);
 				if (logan)
 				{
-					Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_PREPARE_POWER, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_PREPARE_POWER, 0.0f);
 				}
 				break;
 			}
 		case (MTU_ZONE_INTRODUCE_POWER_PLANT):
 			{
-				bool green_key = Commands->Has_Key (enterer, 1);
+				bool green_key = ScriptEngine::Has_Key (enterer, 1);
 				if (green_key)
 				{
-					GameObject * logan = Commands->Find_Object (MTU_LOGAN);
+					GameObject * logan = ScriptEngine::Find_Object (MTU_LOGAN);
 					if (logan)
 					{
 						if (Get_Obj_Distance (logan, STAR) < 4.0f)
 						{
-							Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_INTRO_POWER, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_SPEECH_INTRO_POWER, 0.0f);
 						}
 						else
 						{
-							Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_POWER, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_POWER, 0.0f);
 						}
 					}
 					destroy_zone = true;
@@ -3146,37 +3146,37 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 				if (!gave_elevator_help)
 				{
 					gave_elevator_help = true;
-					Commands->Set_HUD_Help_Text(IDS_M00DSGN_DSGN1013I1EVAG_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_M00DSGN_DSGN1013I1EVAG_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
 				}
-				bool green_key = Commands->Has_Key (enterer, 1);
+				bool green_key = ScriptEngine::Has_Key (enterer, 1);
 				if (green_key)
 				{
-					GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+					GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_FORCE_RESET, MTU_PARAM_DEFAULT, 0.0f);
-						Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RESET_PETROVA, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_REMOVE_OBJECTIVES, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_FORCE_RESET, MTU_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RESET_PETROVA, MTU_PARAM_DEFAULT, 0.0f);
 					}
-					GameObject * logan = Commands->Find_Object(MTU_LOGAN);
+					GameObject * logan = ScriptEngine::Find_Object(MTU_LOGAN);
 					if (logan)
 					{
-						Commands->Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_POWER, 0.0f);
+						ScriptEngine::Send_Custom_Event(obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_GOTO_POWER, 0.0f);
 					}
 				}
 				break;
 			}
 		case (MTU_ZONE_START_PETROVA):
 			{
-				GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+				GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 				if (controller)
 				{
-					Commands->Send_Custom_Event (obj, controller, MTU_TYPE_PETROVA_CHECK_RESET, MTU_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_PETROVA_CHECK_RESET, MTU_PARAM_DEFAULT, 0.0f);
 				}
-				GameObject * logan = Commands->Find_Object (MTU_LOGAN);
+				GameObject * logan = ScriptEngine::Find_Object (MTU_LOGAN);
 				if (logan)
 				{
-					Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_PREPARE_FINALE, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_PREPARE_FINALE, 0.0f);
 				}
 				break;
 			}
@@ -3188,15 +3188,15 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 
 		if (destroy_zone)
 		{
-			Commands->Destroy_Object (obj);
+			ScriptEngine::Destroy_Object (obj);
 		}
 
 		if (dual_zone)
 		{
-			GameObject * zone = Commands->Find_Object (dual_zone);
+			GameObject * zone = ScriptEngine::Find_Object (dual_zone);
 			if (zone)
 			{
-				Commands->Destroy_Object (zone);
+				ScriptEngine::Destroy_Object (zone);
 			}
 		}
 	}
@@ -3205,14 +3205,14 @@ DECLARE_SCRIPT (MTU_Trigger_Zone, "")
 	{
 		if (type == MTU_TYPE_SYDNEY_IS_RESET)
 		{
-			float commando_max_health = Commands->Get_Max_Health (STAR);
-			Commands->Set_Health (STAR, commando_max_health);
-			Commands->Set_Shield_Strength (STAR, 0.0f);
+			float commando_max_health = ScriptEngine::Get_Max_Health (STAR);
+			ScriptEngine::Set_Health (STAR, commando_max_health);
+			ScriptEngine::Set_Shield_Strength (STAR, 0.0f);
 
-			GameObject * sydney = Commands->Find_Object (MTU_SYDNEY);
+			GameObject * sydney = ScriptEngine::Find_Object (MTU_SYDNEY);
 			if (sydney)
 			{
-				Commands->Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_SYDNEY_START, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_SYDNEY_START, 0.0f);
 			}
 		}
 		if (type == MTU_TYPE_RESET_TRIGGER_ONCE)
@@ -3236,15 +3236,15 @@ DECLARE_SCRIPT (MTU_GDI_Soldier, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Enable_Hibernation (obj, false);
-		Commands->Set_Loiters_Allowed (obj, false);
-		Commands->Enable_Enemy_Seen (obj, false);
+		ScriptEngine::Enable_Hibernation (obj, false);
+		ScriptEngine::Set_Loiters_Allowed (obj, false);
+		ScriptEngine::Enable_Enemy_Seen (obj, false);
 		gate_guard_opened = false;
-		Commands->Innate_Disable (obj);
-		int my_id = Commands->Get_ID (obj);
+		ScriptEngine::Innate_Disable (obj);
+		int my_id = ScriptEngine::Get_ID (obj);
 		if (my_id != MTU_GATE_GUARD)
 		{
-			Commands->Start_Timer (obj, this, 5.0f, MTU_TIMER_GDI_CONVERSATION);
+			ScriptEngine::Start_Timer (obj, this, 5.0f, MTU_TIMER_GDI_CONVERSATION);
 		}
 	}
 
@@ -3252,40 +3252,40 @@ DECLARE_SCRIPT (MTU_GDI_Soldier, "")
 	{
 		if (timer_id == MTU_TIMER_GDI_CONVERSATION)
 		{
-			Vector3 my_location = Commands->Get_Position (obj);
-			Vector3 star_location = Commands->Get_Position (STAR);
-			float distance = Commands->Get_Distance (my_location, star_location);
+			Vector3 my_location = ScriptEngine::Get_Position (obj);
+			Vector3 star_location = ScriptEngine::Get_Position (STAR);
+			float distance = ScriptEngine::Get_Distance (my_location, star_location);
 			if (distance < 20.0f)
 			{
 				ActionParamsStruct params;
 				params.Set_Basic(this, 100, MTU_ACTION_DEFAULT);
 				params.WaypathID = 400083;
 				params.Set_Movement(obj, WALK, 1.0f);
-				Commands->Action_Goto(obj, params);
+				ScriptEngine::Action_Goto(obj, params);
 			}
 			else
 			{
-				Commands->Start_Timer (obj, this, 5.0f, MTU_TIMER_GDI_CONVERSATION);
+				ScriptEngine::Start_Timer (obj, this, 5.0f, MTU_TIMER_GDI_CONVERSATION);
 			}
 		}
 		else if (timer_id == MTU_TIMER_POKE_DELAY)
 		{
-			Commands->Select_Weapon (STAR, nullptr);
+			ScriptEngine::Select_Weapon (STAR, nullptr);
 			gate_guard_opened = true;
-			int conversation = Commands->Create_Conversation ("MTU_GDI_POKE", 100, 300.0f, true);
-			Commands->Join_Conversation(obj, conversation, false, true, true);
-			Commands->Join_Conversation(STAR, conversation, false, true, true);
-			Commands->Start_Conversation (conversation, MTU_SPEECH_GATEGUARD_POKE);
-			Commands->Monitor_Conversation (obj, conversation);
+			int conversation = ScriptEngine::Create_Conversation ("MTU_GDI_POKE", 100, 300.0f, true);
+			ScriptEngine::Join_Conversation(obj, conversation, false, true, true);
+			ScriptEngine::Join_Conversation(STAR, conversation, false, true, true);
+			ScriptEngine::Start_Conversation (conversation, MTU_SPEECH_GATEGUARD_POKE);
+			ScriptEngine::Monitor_Conversation (obj, conversation);
 		}
 	}
 
 	void Poked (GameObject * obj, GameObject * /*poker*/) override
 	{
-		int my_id = Commands->Get_ID (obj);
+		int my_id = ScriptEngine::Get_ID (obj);
 		if ((my_id == MTU_GATE_GUARD) && (!gate_guard_opened))
 		{
-			Commands->Start_Timer (obj, this, 1.5f, MTU_TIMER_POKE_DELAY);
+			ScriptEngine::Start_Timer (obj, this, 1.5f, MTU_TIMER_POKE_DELAY);
 		}
 	}
 
@@ -3295,14 +3295,14 @@ DECLARE_SCRIPT (MTU_GDI_Soldier, "")
 		{
 			if (action_id == MTU_SPEECH_GATEGUARD_POKE)
 			{
-				GameObject * course_gate = Commands->Find_Object (MTU_GATE_04);
+				GameObject * course_gate = ScriptEngine::Find_Object (MTU_GATE_04);
 				if (course_gate)
 				{
-					Commands->Set_Animation_Frame (course_gate, "CHT_JAIL.CHT_JAIL", 1);
+					ScriptEngine::Set_Animation_Frame (course_gate, "CHT_JAIL.CHT_JAIL", 1);
 					ActionParamsStruct params;
 					params.Set_Basic(this, 100, MTU_ACTION_GATEGUARD_OUTSIDE);
 					params.Set_Movement(Vector3(-20.148f,-19.637f,0.0f), WALK, 1.0f);
-					Commands->Action_Goto(obj, params);
+					ScriptEngine::Action_Goto(obj, params);
 				}
 			}
 		}
@@ -3314,7 +3314,7 @@ DECLARE_SCRIPT (MTU_GDI_Soldier, "")
 				params.Set_Basic(this, 100, MTU_ACTION_GATEGUARD_PATROL);
 				params.WaypathID = 400083;
 				params.Set_Movement(obj, WALK, 1.0f);
-				Commands->Action_Goto(obj, params);
+				ScriptEngine::Action_Goto(obj, params);
 			}
 		}
 	}
@@ -3323,19 +3323,19 @@ DECLARE_SCRIPT (MTU_GDI_Soldier, "")
 	{
 		if (type == MTU_TYPE_GDI_SOLDIER_PATROL)
 		{
-			Commands->Action_Reset (obj, 100);
-			Commands->Enable_Enemy_Seen (obj, true);
-			Commands->Innate_Enable (obj);
+			ScriptEngine::Action_Reset (obj, 100);
+			ScriptEngine::Enable_Enemy_Seen (obj, true);
+			ScriptEngine::Innate_Enable (obj);
 		}
 	}
 
 	void Damaged (GameObject * obj, GameObject * /*damager*/, float /*amount*/) override
 	{
-		int my_id = Commands->Get_ID (obj);
+		int my_id = ScriptEngine::Get_ID (obj);
 		if (my_id == MTU_GATE_GUARD)
 		{
-			float health = Commands->Get_Max_Health (obj);
-			Commands->Set_Health (obj, health);
+			float health = ScriptEngine::Get_Max_Health (obj);
+			ScriptEngine::Set_Health (obj, health);
 		}
 	}
 };
@@ -3354,8 +3354,8 @@ DECLARE_SCRIPT (MTU_Commando, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Reveal_Encyclopedia_Weapon (14);
-		Commands->Select_Weapon (obj, nullptr);
+		ScriptEngine::Reveal_Encyclopedia_Weapon (14);
+		ScriptEngine::Select_Weapon (obj, nullptr);
 		sydney_shot = false;
 	}
 
@@ -3367,15 +3367,15 @@ DECLARE_SCRIPT (MTU_Commando, "")
 			{
 			case (MTU_PARAM_CONTROL_DISABLE): // The commando is having his control disabled.
 				{
-					Commands->Control_Enable (obj, false);
+					ScriptEngine::Control_Enable (obj, false);
 					break;
 				}
 			case (MTU_PARAM_CONTROL_ENABLE): // The commando is having is control returned.
 				{
-					Commands->Control_Enable (obj, true);
+					ScriptEngine::Control_Enable (obj, true);
 					ActionParamsStruct params;
 					params.Set_Basic (this, 100, 0);
-					Commands->Action_Follow_Input (obj, params);
+					ScriptEngine::Action_Follow_Input (obj, params);
 					break;
 				}
 			case (MTU_PARAM_SYDNEY_SHOT_RESET):
@@ -3391,17 +3391,17 @@ DECLARE_SCRIPT (MTU_Commando, "")
 			{
 			case (1):
 				{
-					Commands->Force_Camera_Look (Vector3(-15.329f,37.597f,3.074f));
+					ScriptEngine::Force_Camera_Look (Vector3(-15.329f,37.597f,3.074f));
 					break;
 				}
 			case (2):
 				{
-					Commands->Start_Timer (obj, this, 0.1f, MTU_TIMER_COMMANDO_CAMERA_01);
+					ScriptEngine::Start_Timer (obj, this, 0.1f, MTU_TIMER_COMMANDO_CAMERA_01);
 					break;
 				}
 			case (3):
 				{
-					Commands->Start_Timer (obj, this, 0.1f, MTU_TIMER_COMMANDO_CAMERA_02);
+					ScriptEngine::Start_Timer (obj, this, 0.1f, MTU_TIMER_COMMANDO_CAMERA_02);
 					break;
 				}
 			default:
@@ -3416,37 +3416,37 @@ DECLARE_SCRIPT (MTU_Commando, "")
 	{
 		if (timer_id == MTU_TIMER_COMMANDO_CAMERA_01)
 		{
-			Commands->Force_Camera_Look (Vector3(-25.079f,56.451f,-7.670f));
+			ScriptEngine::Force_Camera_Look (Vector3(-25.079f,56.451f,-7.670f));
 		}
 		else if (timer_id == MTU_TIMER_COMMANDO_CAMERA_02)
 		{
-			Commands->Force_Camera_Look (Vector3(-16.330f,48.791f,5.461f));
+			ScriptEngine::Force_Camera_Look (Vector3(-16.330f,48.791f,5.461f));
 		}
 	}
 
 	void Damaged (GameObject * obj, GameObject * damager, float /*amount*/) override
 	{
-		float commandohealth = Commands->Get_Health (STAR);
-		float commandomax = (Commands->Get_Max_Health (STAR) / 4.0f);
+		float commandohealth = ScriptEngine::Get_Health (STAR);
+		float commandomax = (ScriptEngine::Get_Max_Health (STAR) / 4.0f);
 		if (commandohealth < commandomax)
 		{
-			Commands->Set_Health (STAR, commandomax);
+			ScriptEngine::Set_Health (STAR, commandomax);
 		}
 
-		GameObject * sydney = Commands->Find_Object (MTU_SYDNEY);
+		GameObject * sydney = ScriptEngine::Find_Object (MTU_SYDNEY);
 		if (damager == sydney)
 		{
 			if (!sydney_shot)
 			{
-				Commands->Set_Health (obj, 25.0f);
+				ScriptEngine::Set_Health (obj, 25.0f);
 				sydney_shot = true;
-				Commands->Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_HEALTH, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_HEALTH, 0.0f);
 			}
 			else
 			{
-				Commands->Set_Health (obj, 50.0f);
-				Commands->Set_Shield_Strength (obj, 50.0f);
-				Commands->Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_LAST_TIME, 0.0f);
+				ScriptEngine::Set_Health (obj, 50.0f);
+				ScriptEngine::Set_Shield_Strength (obj, 50.0f);
+				ScriptEngine::Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_LAST_TIME, 0.0f);
 			}
 		}
 	}
@@ -3457,7 +3457,7 @@ DECLARE_SCRIPT (MTU_Commando_Startup, "")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Attach_Script (obj, "MTU_Commando", "");
+		ScriptEngine::Attach_Script (obj, "MTU_Commando", "");
 	}
 };
 
@@ -3468,15 +3468,15 @@ DECLARE_SCRIPT (MTU_PowerUp_Health, "")
 	{
 		if (type == CUSTOM_EVENT_POWERUP_GRANTED)
 		{
-			GameObject * sydney = Commands->Find_Object (MTU_SYDNEY);
+			GameObject * sydney = ScriptEngine::Find_Object (MTU_SYDNEY);
 			if (sydney)
 			{
-				Commands->Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_PICKUP, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_PICKUP, 0.0f);
 			}
-			GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+			GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 			if (controller)
 			{
-				Commands->Send_Custom_Event(obj, controller, MTU_TYPE_HEALTH_POWERUP_SUBTRACT, 0, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, controller, MTU_TYPE_HEALTH_POWERUP_SUBTRACT, 0, 0.0f);
 			}
 		}
 	}
@@ -3489,15 +3489,15 @@ DECLARE_SCRIPT (MTU_PowerUp_Armor, "")
 	{
 		if (type == CUSTOM_EVENT_POWERUP_GRANTED)
 		{
-			GameObject * sydney = Commands->Find_Object (MTU_SYDNEY);
+			GameObject * sydney = ScriptEngine::Find_Object (MTU_SYDNEY);
 			if (sydney)
 			{
-				Commands->Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_SHOOT_AGAIN, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_SHOOT_AGAIN, 0.0f);
 			}
-			GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+			GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 			if (controller)
 			{
-				Commands->Send_Custom_Event(obj, controller, MTU_TYPE_ARMOR_POWERUP_SUBTRACT, 0, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, controller, MTU_TYPE_ARMOR_POWERUP_SUBTRACT, 0, 0.0f);
 			}
 		}
 	}
@@ -3508,33 +3508,33 @@ DECLARE_SCRIPT (MTU_Nod_Apache, "Apache_ID:int")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Disable_Physical_Collisions (obj);
+		ScriptEngine::Disable_Physical_Collisions (obj);
 		ActionParamsStruct params;
 		params.Set_Basic(this, 100, 0);
 		params.Set_Movement(Vector3(0,0,0), 2.5f, 1.0f);
 		params.WaypathID = MTU_WAYPATH_APACHE_FLYOVER;
 		params.WaypathSplined = true;
-		Commands->Action_Goto(obj, params);
+		ScriptEngine::Action_Goto(obj, params);
 		int apache_id = Get_Int_Parameter ("Apache_ID");
 		if (apache_id)
 		{
-			Commands->Start_Timer(obj, this, 4.0f, MTU_TIMER_SYDNEY_CONTINUE);
+			ScriptEngine::Start_Timer(obj, this, 4.0f, MTU_TIMER_SYDNEY_CONTINUE);
 		}
-		Commands->Start_Timer(obj, this, 10.0f, MTU_TIMER_APACHE_DESTROY);
+		ScriptEngine::Start_Timer(obj, this, 10.0f, MTU_TIMER_APACHE_DESTROY);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
 	{
 		if (timer_id == MTU_TIMER_APACHE_DESTROY)
 		{
-			Commands->Destroy_Object (obj);
+			ScriptEngine::Destroy_Object (obj);
 		}
 		else if (timer_id == MTU_TIMER_SYDNEY_CONTINUE)
 		{
-			GameObject * sydney = Commands->Find_Object (MTU_SYDNEY);
+			GameObject * sydney = ScriptEngine::Find_Object (MTU_SYDNEY);
 			if (sydney)
 			{
-				Commands->Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_RADAR, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, sydney, MTU_TYPE_SYDNEY, MTU_PARAM_SPEECH_RADAR, 0.0f);
 			}
 		}
 	}
@@ -3545,18 +3545,18 @@ DECLARE_SCRIPT (MTU_Range_Target, "Target_ID:int")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Attach_Script (obj, "M00_Soldier_Powerup_Disable", "");
-		Commands->Innate_Disable (obj);
+		ScriptEngine::Attach_Script (obj, "M00_Soldier_Powerup_Disable", "");
+		ScriptEngine::Innate_Disable (obj);
 	}
 
 	void Killed (GameObject * obj, GameObject * /*killer*/) override
 	{
-		Vector3 myloc = Commands->Get_Position (obj);
-		GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+		Vector3 myloc = ScriptEngine::Get_Position (obj);
+		GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 		if (controller)
 		{
 			int param = Get_Int_Parameter ("Target_ID");
-			Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_TARGET_DESTROYED, param, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_TARGET_DESTROYED, param, 0.0f);
 		}
 	}
 };
@@ -3570,7 +3570,7 @@ DECLARE_SCRIPT (MTU_Range_Target_Path_Mid, "")
 		params.Set_Basic(this, 100, 1);
 		params.Set_Movement(Vector3(0,0,0), WALK, 1.0f);
 		params.WaypathID = 400105;
-		Commands->Action_Goto(obj, params);
+		ScriptEngine::Action_Goto(obj, params);
 	}
 };
 
@@ -3583,7 +3583,7 @@ DECLARE_SCRIPT (MTU_Range_Target_Path_Right, "")
 		params.Set_Basic(this, 100, 1);
 		params.Set_Movement(Vector3(0,0,0), WALK, 1.0f);
 		params.WaypathID = 400115;
-		Commands->Action_Goto(obj, params);
+		ScriptEngine::Action_Goto(obj, params);
 	}
 };
 
@@ -3596,7 +3596,7 @@ DECLARE_SCRIPT (MTU_Range_Target_Path_Left, "")
 		params.Set_Basic(this, 100, 1);
 		params.Set_Movement(Vector3(0,0,0), WALK, 1.0f);
 		params.WaypathID = 400129;
-		Commands->Action_Goto(obj, params);
+		ScriptEngine::Action_Goto(obj, params);
 	}
 };
 
@@ -3605,7 +3605,7 @@ DECLARE_SCRIPT (MTU_Range_Target_Miss_Commando, "")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Enable_Enemy_Seen (obj, true);
+		ScriptEngine::Enable_Enemy_Seen (obj, true);
 	}
 
 	void Enemy_Seen (GameObject * obj, GameObject * enemy) override
@@ -3615,7 +3615,7 @@ DECLARE_SCRIPT (MTU_Range_Target_Miss_Commando, "")
 			ActionParamsStruct params;
 			params.Set_Basic(this, 100, 0);
 			params.Set_Attack(enemy, 150.0f, 5.0f, true);
-			Commands->Action_Attack(obj, params);
+			ScriptEngine::Action_Attack(obj, params);
 		}
 	}
 };
@@ -3627,11 +3627,11 @@ DECLARE_SCRIPT (MTU_Range_Powerup, "Powerup_ID:int")
 	{
 		if (type == CUSTOM_EVENT_POWERUP_GRANTED)
 		{
-			GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+			GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 			if (controller)
 			{
 				int int_param = Get_Int_Parameter ("Powerup_ID");
-				Commands->Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_POWERUP_RETRIEVED, int_param, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_RANGE_POWERUP_RETRIEVED, int_param, 0.0f);
 			}
 		}
 	}
@@ -3649,24 +3649,24 @@ DECLARE_SCRIPT (MTU_GDI_Vehicle, "Vehicle_ID:int")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Player_Type (obj, SCRIPT_PLAYERTYPE_NEUTRAL);
+		ScriptEngine::Set_Player_Type (obj, SCRIPT_PLAYERTYPE_NEUTRAL);
 		entered_me = false;
 	}
 
 	void Killed (GameObject * obj, GameObject * killer) override
 	{
-		GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
-		GameObject * hotwire_obj = Commands->Find_Object (MTU_HOTWIRE);
+		GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
+		GameObject * hotwire_obj = ScriptEngine::Find_Object (MTU_HOTWIRE);
 		if ((controller) && (killer != hotwire_obj))
 		{
 			int my_id = Get_Int_Parameter ("Vehicle_ID");
 			if (my_id == 1)
 			{
-				Commands->Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_CREATE_HUMMVEE, MTU_PARAM_DEFAULT, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_CREATE_HUMMVEE, MTU_PARAM_DEFAULT, 0.0f);
 			}
 			else
 			{
-				Commands->Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_CREATE_MEDTANK, MTU_PARAM_DEFAULT, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_CREATE_MEDTANK, MTU_PARAM_DEFAULT, 0.0f);
 			}
 		}
 	}
@@ -3683,34 +3683,34 @@ DECLARE_SCRIPT (MTU_GDI_Vehicle, "Vehicle_ID:int")
 				{
 				case (1):
 					{
-						Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0396I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-						GameObject * hotwire = Commands->Find_Object (MTU_HOTWIRE);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0396I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						GameObject * hotwire = ScriptEngine::Find_Object (MTU_HOTWIRE);
 						if (hotwire)
 						{
-							Commands->Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_MOVEOUT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_MOVEOUT, 0.0f);
 						}
 						break;
 					}
 				case (2):
 					{
-						Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0389I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-						GameObject * hotwire = Commands->Find_Object (MTU_HOTWIRE);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0389I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						GameObject * hotwire = ScriptEngine::Find_Object (MTU_HOTWIRE);
 						if (hotwire)
 						{
-							Commands->Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_SQUISH, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, hotwire, MTU_TYPE_HOTWIRE, MTU_PARAM_SPEECH_WEAP_SQUISH, 0.0f);
 						}
-						GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+						GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_CREATE_SQUISHIES, MTU_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_WEAP_CREATE_SQUISHIES, MTU_PARAM_DEFAULT, 0.0f);
 						}
 
 						// Setup Logan to intro the next part of the course - Tiberium Refinery.
 
-						GameObject * logan = Commands->Find_Object (MTU_LOGAN);
+						GameObject * logan = ScriptEngine::Find_Object (MTU_LOGAN);
 						if (logan)
 						{
-							Commands->Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_PREPARE_REFINERY, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, logan, MTU_TYPE_LOGAN, MTU_PARAM_ACTION_PREPARE_REFINERY, 0.0f);
 						}
 						break;
 					}
@@ -3736,13 +3736,13 @@ DECLARE_SCRIPT (MTU_Building_Controller, "Building_ID:int")
 
 	void Damaged (GameObject * obj, GameObject * /*damager*/, float /*amount*/) override
 	{
-		int id = Commands->Get_ID (obj);
+		int id = ScriptEngine::Get_ID (obj);
 		if ((id == MTU_BARRACKS) || (id == MTU_POWERPLANT))
 		{
 			if (!can_be_damaged)
 			{
-				float max_health = Commands->Get_Max_Health (obj);
-				Commands->Set_Health (obj, max_health);
+				float max_health = ScriptEngine::Get_Max_Health (obj);
+				ScriptEngine::Set_Health (obj, max_health);
 			}
 		}
 	}
@@ -3755,16 +3755,16 @@ DECLARE_SCRIPT (MTU_Building_Controller, "Building_ID:int")
 		}
 		else if (type == MTU_TYPE_BUILDING_POWER_OFF)
 		{
-			Commands->Set_Building_Power (obj, false);
+			ScriptEngine::Set_Building_Power (obj, false);
 		}
 		else if (type == MTU_TYPE_BUILDING_POWER_ON)
 		{
-			Commands->Set_Building_Power (obj, true);
+			ScriptEngine::Set_Building_Power (obj, true);
 		}
 		else if (type == MTU_TYPE_BUILDING_DESTROY)
 		{
 			can_be_damaged = true;
-			Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", nullptr);
+			ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", nullptr);
 		}
 	}
 };
@@ -3774,23 +3774,23 @@ DECLARE_SCRIPT (MTU_Nod_Soldier, "Soldier_ID:int")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Grant_Key (obj, 1, true);
+		ScriptEngine::Grant_Key (obj, 1, true);
 		int soldier_id = Get_Int_Parameter ("Soldier_ID");
 		if (soldier_id == 1)
 		{
-			Commands->Innate_Disable (obj);
+			ScriptEngine::Innate_Disable (obj);
 			ActionParamsStruct params;
 			params.Set_Basic(this, 100, MTU_ACTION_DEFAULT);
 			params.Set_Movement(Vector3(-12.07f,47.084f,1.042f), RUN, 2.0f);
-			Commands->Action_Goto(obj, params);
-			Commands->Start_Timer (obj, this, 6.0f, MTU_TIMER_NOD_SOLDIER_REMOVAL);
+			ScriptEngine::Action_Goto(obj, params);
+			ScriptEngine::Start_Timer (obj, this, 6.0f, MTU_TIMER_NOD_SOLDIER_REMOVAL);
 		}
 		else if (!soldier_id)
 		{
 			ActionParamsStruct params;
 			params.Set_Basic(this, 30, MTU_ACTION_DEFAULT);
 			params.Set_Movement(STAR, RUN, 2.0f);
-			Commands->Action_Goto(obj, params);
+			ScriptEngine::Action_Goto(obj, params);
 		}
 	}
 
@@ -3799,7 +3799,7 @@ DECLARE_SCRIPT (MTU_Nod_Soldier, "Soldier_ID:int")
 		int soldier_id = Get_Int_Parameter ("Soldier_ID");
 		if ((damager != STAR) && (soldier_id == 2))
 		{
-			Commands->Set_Health (obj, 10.0f);
+			ScriptEngine::Set_Health (obj, 10.0f);
 		}
 	}
 
@@ -3808,18 +3808,18 @@ DECLARE_SCRIPT (MTU_Nod_Soldier, "Soldier_ID:int")
 		int soldier_id = Get_Int_Parameter ("Soldier_ID");
 		if (!soldier_id)
 		{
-			GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+			GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 			if (controller)
 			{
-				Commands->Send_Custom_Event (obj, controller, MTU_TYPE_TRIGGER_SPAWNER, MTU_PARAM_DEFAULT, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_TRIGGER_SPAWNER, MTU_PARAM_DEFAULT, 0.0f);
 			}
 		}
 		else if (soldier_id == 2)
 		{
-			GameObject * controller = Commands->Find_Object (MTU_CONTROLLER);
+			GameObject * controller = ScriptEngine::Find_Object (MTU_CONTROLLER);
 			if (controller)
 			{
-				Commands->Send_Custom_Event (obj, controller, MTU_TYPE_COUNT_OFFICERS, MTU_PARAM_DEFAULT, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, controller, MTU_TYPE_COUNT_OFFICERS, MTU_PARAM_DEFAULT, 0.0f);
 			}
 		}
 	}
@@ -3828,7 +3828,7 @@ DECLARE_SCRIPT (MTU_Nod_Soldier, "Soldier_ID:int")
 	{
 		if (timer_id == MTU_TIMER_NOD_SOLDIER_REMOVAL)
 		{
-			Commands->Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
+			ScriptEngine::Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
 		}
 	}
 };
@@ -3850,12 +3850,12 @@ DECLARE_SCRIPT (MTU_Flyover, "Vehicle_ID:int")
 		{
 			params.Set_Movement(Vector3 (-37.96f,-169.71f,41.45f), RUN, 5.0f);
 		}
-		Commands->Action_Goto(obj, params);
+		ScriptEngine::Action_Goto(obj, params);
 	}
 
 	void Action_Complete (GameObject * obj, int /*action_id*/, ActionCompleteReason /*complete_reason*/) override
 	{
-		Commands->Destroy_Object (obj);
+		ScriptEngine::Destroy_Object (obj);
 	}
 };
 
@@ -3870,51 +3870,51 @@ DECLARE_SCRIPT (MSK_Controller, "")
 {
 	void Created (GameObject * obj) override
 	{
-		int conversation = Commands->Create_Conversation ("MSK_MP_STARTUP_DESC", 100, 300.0f, false);
-		Commands->Join_Conversation(obj, conversation, false, false, false);
-		Commands->Start_Conversation (conversation, 1);
+		int conversation = ScriptEngine::Create_Conversation ("MSK_MP_STARTUP_DESC", 100, 300.0f, false);
+		ScriptEngine::Join_Conversation(obj, conversation, false, false, false);
+		ScriptEngine::Start_Conversation (conversation, 1);
 
-		Commands->Set_HUD_Help_Text(IDS_MP_STARTUP_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+		ScriptEngine::Set_HUD_Help_Text(IDS_MP_STARTUP_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 
-		Commands->Add_Radar_Marker (300204, Vector3(-148.55f, -53.50f, -2.44f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300205, Vector3(-130.60f, -23.70f, -1.33f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300206, Vector3(-172.46f, -18.81f, -2.22f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300207, Vector3(-142.41f, -63.27f, -1.28f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300208, Vector3(-171.69f, -42.64f, -1.67f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300209, Vector3(-138.67f, -80.16f, -1.29f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300216, Vector3(-138.72f, -38.65f, -2.11f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300219, Vector3(-147.80f, -36.11f, -1.95f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300220, Vector3(-42.57f, 53.47f, 1.32f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300221, Vector3(-63.18f, 61.87f, -0.89f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300222, Vector3(-43.25f, 130.42f, -1.98f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300223, Vector3(-45.95f, 45.55f, 0.59f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300224, Vector3(-21.88f, 86.67f, -2.14f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300225, Vector3(-26.22f, 43.53f, -2.12f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300226, Vector3(-46.19f, 77.10f, 1.31f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
-		Commands->Add_Radar_Marker (300230, Vector3(-45.71f, 62.55f, -2.55f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300204, Vector3(-148.55f, -53.50f, -2.44f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300205, Vector3(-130.60f, -23.70f, -1.33f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300206, Vector3(-172.46f, -18.81f, -2.22f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300207, Vector3(-142.41f, -63.27f, -1.28f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300208, Vector3(-171.69f, -42.64f, -1.67f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300209, Vector3(-138.67f, -80.16f, -1.29f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300216, Vector3(-138.72f, -38.65f, -2.11f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300219, Vector3(-147.80f, -36.11f, -1.95f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300220, Vector3(-42.57f, 53.47f, 1.32f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300221, Vector3(-63.18f, 61.87f, -0.89f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300222, Vector3(-43.25f, 130.42f, -1.98f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300223, Vector3(-45.95f, 45.55f, 0.59f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300224, Vector3(-21.88f, 86.67f, -2.14f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300225, Vector3(-26.22f, 43.53f, -2.12f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300226, Vector3(-46.19f, 77.10f, 1.31f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
+		ScriptEngine::Add_Radar_Marker (300230, Vector3(-45.71f, 62.55f, -2.55f), RADAR_BLIP_SHAPE_OBJECTIVE, RADAR_BLIP_COLOR_SECONDARY_OBJECTIVE);
 
-		Commands->Trigger_Spawner(MSK_GDI_DEF_01);
-		Commands->Trigger_Spawner(MSK_GDI_DEF_02);
-		Commands->Trigger_Spawner(MSK_GDI_DEF_03);
-		Commands->Trigger_Spawner(MSK_GDI_DEF_04);
-		Commands->Trigger_Spawner(MSK_NOD_DEF_01);
-		Commands->Trigger_Spawner(MSK_NOD_DEF_02);
-		Commands->Trigger_Spawner(MSK_NOD_DEF_03);
-		Commands->Trigger_Spawner(MSK_NOD_DEF_04);
+		ScriptEngine::Trigger_Spawner(MSK_GDI_DEF_01);
+		ScriptEngine::Trigger_Spawner(MSK_GDI_DEF_02);
+		ScriptEngine::Trigger_Spawner(MSK_GDI_DEF_03);
+		ScriptEngine::Trigger_Spawner(MSK_GDI_DEF_04);
+		ScriptEngine::Trigger_Spawner(MSK_NOD_DEF_01);
+		ScriptEngine::Trigger_Spawner(MSK_NOD_DEF_02);
+		ScriptEngine::Trigger_Spawner(MSK_NOD_DEF_03);
+		ScriptEngine::Trigger_Spawner(MSK_NOD_DEF_04);
 
-		Commands->Trigger_Spawner(MSK_GDI_ATK_01);
-		Commands->Trigger_Spawner(MSK_GDI_ATK_02);
-		Commands->Trigger_Spawner(MSK_GDI_ATK_03);
-		Commands->Trigger_Spawner(MSK_NOD_ATK_01);
-		Commands->Trigger_Spawner(MSK_NOD_ATK_02);
-		Commands->Trigger_Spawner(MSK_NOD_ATK_03);
+		ScriptEngine::Trigger_Spawner(MSK_GDI_ATK_01);
+		ScriptEngine::Trigger_Spawner(MSK_GDI_ATK_02);
+		ScriptEngine::Trigger_Spawner(MSK_GDI_ATK_03);
+		ScriptEngine::Trigger_Spawner(MSK_NOD_ATK_01);
+		ScriptEngine::Trigger_Spawner(MSK_NOD_ATK_02);
+		ScriptEngine::Trigger_Spawner(MSK_NOD_ATK_03);
 	}
 
 	void Custom (GameObject * /*obj*/, int type, intptr_t param, GameObject * /*sender*/) override
 	{
 		if (type == MSK_SOLDIER_DEAD)
 		{
-			Commands->Trigger_Spawner(param);
+			ScriptEngine::Trigger_Spawner(param);
 		}
 	}
 };
@@ -3930,9 +3930,9 @@ DECLARE_SCRIPT (MSK_Soldier, "Spawner_ID:int")
 	void Created (GameObject * obj) override
 	{
 		spawner_id = Get_Int_Parameter ("Spawner_ID");
-		Commands->Start_Timer (obj, this, 2.0f, MSK_TIMER_02);
-		Commands->Enable_Innate_Conversations (obj, false);
-		Commands->Enable_Hibernation (obj, false);
+		ScriptEngine::Start_Timer (obj, this, 2.0f, MSK_TIMER_02);
+		ScriptEngine::Enable_Innate_Conversations (obj, false);
+		ScriptEngine::Enable_Hibernation (obj, false);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
@@ -4018,7 +4018,7 @@ DECLARE_SCRIPT (MSK_Soldier, "Spawner_ID:int")
 					break;
 				}
 			}
-			Commands->Action_Goto(obj, params);
+			ScriptEngine::Action_Goto(obj, params);
 		}
 		else if (timer_id == MSK_TIMER)
 		{
@@ -4111,7 +4111,7 @@ DECLARE_SCRIPT (MSK_Soldier, "Spawner_ID:int")
 					break;
 				}
 			}
-			Commands->Action_Goto(obj, params);
+			ScriptEngine::Action_Goto(obj, params);
 		}
 	}
 
@@ -4119,34 +4119,34 @@ DECLARE_SCRIPT (MSK_Soldier, "Spawner_ID:int")
 	{
 		if ((action_id == 2) && (complete_reason == ACTION_COMPLETE_NORMAL))
 		{
-			Commands->Start_Timer (obj, this, 0.1f, MSK_TIMER);
+			ScriptEngine::Start_Timer (obj, this, 0.1f, MSK_TIMER);
 		}
 		else
 		{
-			Commands->Start_Timer (obj, this, 0.1f, MSK_TIMER_02);
+			ScriptEngine::Start_Timer (obj, this, 0.1f, MSK_TIMER_02);
 		}
 	}
 
 	void Killed (GameObject * obj, GameObject * /*killer*/) override
 	{
-		GameObject * controller = Commands->Find_Object (MSK_CONTROLLER);
+		GameObject * controller = ScriptEngine::Find_Object (MSK_CONTROLLER);
 		if (controller)
 		{
-			Commands->Send_Custom_Event (obj, controller, MSK_SOLDIER_DEAD, spawner_id, 20.0f);
+			ScriptEngine::Send_Custom_Event (obj, controller, MSK_SOLDIER_DEAD, spawner_id, 20.0f);
 		}
 	}
 
 	void Damaged (GameObject * obj, GameObject * damager, float /*amount*/) override
 	{
-		int	player_type = Commands->Get_Player_Type (obj);
-		int	damager_type = Commands->Get_Player_Type (damager);
+		int	player_type = ScriptEngine::Get_Player_Type (obj);
+		int	damager_type = ScriptEngine::Get_Player_Type (damager);
 
 		if (player_type != damager_type)
 		{
 			ActionParamsStruct params;
 			params.Set_Basic(this, 76, 1);
 			params.Set_Attack (damager, 300.0f, 0.0f, true);
-			Commands->Action_Attack (obj, params);
+			ScriptEngine::Action_Attack (obj, params);
 		}
 	}
 };
@@ -4168,54 +4168,54 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 		if (!was_entered)
 		{
 			const char *conv_name = (""); //DEFAULT
-			int zone_id = Commands->Get_ID (obj);
-			Commands->Clear_Radar_Marker (zone_id);
+			int zone_id = ScriptEngine::Get_ID (obj);
+			ScriptEngine::Clear_Radar_Marker (zone_id);
 			switch (zone_id)
 			{
 			case (300204):
 				{
-					Commands->Force_Camera_Look (Vector3(-151.38f, -53.24f, -1.89f));
-					Commands->Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-151.38f, -53.24f, -1.89f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_PURCHASE_GDI");
 					was_entered = true;
 					break;
 				}
 			case (300205):
 				{
-					Commands->Force_Camera_Look (Vector3(-131.16f, -15.65f, 1.42f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_GDI_PowerPlant_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-131.16f, -15.65f, 1.42f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_GDI_PowerPlant_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_POWER_DESC");
 					was_entered = true;
 					break;
 				}
 			case (300206):
 				{
-					Commands->Force_Camera_Look (Vector3(-178.36f, -4.89f, 4.02f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_GDI_TiberiumRefinery_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-178.36f, -4.89f, 4.02f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_GDI_TiberiumRefinery_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_REFINERY_DESC");
 					was_entered = true;
 					break;
 				}
 			case (300207):
 				{
-					Commands->Force_Camera_Look (Vector3(-142.59f, -59.16f, 0.86f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_GDI_InfantryBarracks_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-142.59f, -59.16f, 0.86f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_GDI_InfantryBarracks_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_BARRACKS_DESC");
 					was_entered = true;
 					break;
 				}
 			case (300208):
 				{
-					Commands->Force_Camera_Look (Vector3(-175.71f, -45.22f, 1.45f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_GDI_WeaponsFactory_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-175.71f, -45.22f, 1.45f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_GDI_WeaponsFactory_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_WEAPONS_DESC");
 					was_entered = true;
 					break;
 				}
 			case (300209):
 				{
-					Commands->Force_Camera_Look (Vector3(-139.77f, -83.85f, 4.71f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_GDI_AdvancedGuardTower_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-139.77f, -83.85f, 4.71f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_GDI_AdvancedGuardTower_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_AGT_DESC");
 					was_entered = true;
 					break;
@@ -4224,7 +4224,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_DEFENSES_DESC");
 						first_message = true;
 					}
@@ -4260,7 +4260,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_DEFENSES_DESC");
 						first_message = true;
 					}
@@ -4296,7 +4296,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_DEFENSES_DESC");
 						first_message = true;
 					}
@@ -4332,7 +4332,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_DEFENSES_DESC");
 						first_message = true;
 					}
@@ -4368,7 +4368,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_DEFENSES_DESC");
 						first_message = true;
 					}
@@ -4404,7 +4404,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_DEFENSES_DESC");
 						first_message = true;
 					}
@@ -4439,98 +4439,98 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 			case (300216):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_NUKE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_NUKE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_NUKE_NOD");
 					break;
 				}
 			case (300217):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_VEHICLE_DESC");
 					break;
 				}
 			case (300218):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_HARVESTER_DESC");
 					break;
 				}
 			case (300219):
 				{
 					was_entered = true;
-					Commands->Force_Camera_Look (Vector3(-149.33f, -38.15f, -1.99f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_GDI_MCT_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-149.33f, -38.15f, -1.99f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_GDI_MCT_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_MCT_DESC");
 					break;
 				}
 			case (300220):
 				{
 					was_entered = true;
-					Commands->Force_Camera_Look (Vector3(-40.03f, 53.96f, 2.23f));
-					Commands->Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-40.03f, 53.96f, 2.23f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_PURCHASE_NOD");
 					break;
 				}
 			case (300221):
 				{
 					was_entered = true;
-					Commands->Force_Camera_Look (Vector3(-79.35f, 62.74f, 5.56f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_GDI_PowerPlant_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-79.35f, 62.74f, 5.56f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_GDI_PowerPlant_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_POWER_DESC");
 					break;
 				}
 			case (300222):
 				{
 					was_entered = true;
-					Commands->Force_Camera_Look (Vector3(-49.14f, 144.49f, 4.40f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_GDI_TiberiumRefinery_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-49.14f, 144.49f, 4.40f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_GDI_TiberiumRefinery_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_REFINERY_DESC");
 					break;
 				}
 			case (300223):
 				{
 					was_entered = true;
-					Commands->Force_Camera_Look (Vector3(-45.95f, 51.97f, 9.28f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_Nod_HandOfNod_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-45.95f, 51.97f, 9.28f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_Nod_HandOfNod_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_HAND_DESC");
 					break;
 				}
 			case (300224):
 				{
 					was_entered = true;
-					Commands->Force_Camera_Look (Vector3(-9.24f, 78.92f, 3.32f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_Nod_Airstrip_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-9.24f, 78.92f, 3.32f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_Nod_Airstrip_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_AIRSTRIP_DESC");
 					break;
 				}
 			case (300225):
 				{
 					was_entered = true;
-					Commands->Force_Camera_Look (Vector3(-18.51f, 43.76f, 11.13f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_Nod_Obelisk_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-18.51f, 43.76f, 11.13f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_Nod_Obelisk_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_OBELISK_DESC");
 					break;
 				}
 			case (300226):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_ION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_ION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_ION_GDI");
 					break;
 				}
 			case (300227):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_VEHICLE_DESC");
 					break;
 				}
 			case (300228):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_HARVESTER_DESC");
 					break;
 				}
@@ -4538,7 +4538,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_CAUTION_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_TIBERIUM_DESC");
 						first_message = true;
 					}
@@ -4573,8 +4573,8 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 			case (300230):
 				{
 					was_entered = true;
-					Commands->Force_Camera_Look (Vector3(-45.90f, 59.84f, -2.18f));
-					Commands->Set_HUD_Help_Text(IDS_Enc_Struct_GDI_MCT_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Force_Camera_Look (Vector3(-45.90f, 59.84f, -2.18f));
+					ScriptEngine::Set_HUD_Help_Text(IDS_Enc_Struct_GDI_MCT_Name, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_MCT_DESC");
 					break;
 				}
@@ -4582,7 +4582,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_SNIPER_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_SNIPER_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_SNIPER_DESC");
 						first_message = true;
 					}
@@ -4618,7 +4618,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_SNIPER_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_SNIPER_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_SNIPER_DESC");
 						first_message = true;
 					}
@@ -4654,7 +4654,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_SNIPER_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_SNIPER_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_SNIPER_DESC");
 						first_message = true;
 					}
@@ -4690,7 +4690,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_TUNNEL_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_TUNNEL_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_TUNNEL_DESC");
 						first_message = true;
 					}
@@ -4726,7 +4726,7 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 				{
 					if (!first_message)
 					{
-						Commands->Set_HUD_Help_Text(IDS_MP_TUNNEL_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						ScriptEngine::Set_HUD_Help_Text(IDS_MP_TUNNEL_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 						conv_name = ("MSK_MP_TUNNEL_DESC");
 						first_message = true;
 					}
@@ -4761,56 +4761,56 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 			case (300236):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_PURCHASE_NOD");
 					break;
 				}
 			case (300237):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_PURCHASE_NOD");
 					break;
 				}
 			case (300238):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_PURCHASE_NOD");
 					break;
 				}
 			case (300239):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_PURCHASE_NOD");
 					break;
 				}
 			case (300240):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_PURCHASE_GDI");
 					break;
 				}
 			case (300241):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_PURCHASE_GDI");
 					break;
 				}
 			case (300242):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_PURCHASE_GDI");
 					break;
 				}
 			case (300243):
 				{
 					was_entered = true;
-					Commands->Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
+					ScriptEngine::Set_HUD_Help_Text(IDS_MP_PURCHASE_HUD, TEXT_COLOR_OBJECTIVE_PRIMARY);
 					conv_name = ("MSK_MP_PURCHASE_GDI");
 					break;
 				}
@@ -4819,9 +4819,9 @@ DECLARE_SCRIPT (MSK_Info_Zone, "")
 					break;
 				}
 			}
-			int conversation = Commands->Create_Conversation (conv_name, 100, 300.0f, false);
-			Commands->Join_Conversation(obj, conversation, false, false, false);
-			Commands->Start_Conversation (conversation, 1);
+			int conversation = ScriptEngine::Create_Conversation (conv_name, 100, 300.0f, false);
+			ScriptEngine::Join_Conversation(obj, conversation, false, false, false);
+			ScriptEngine::Start_Conversation (conversation, 1);
 		}
 	}
 };

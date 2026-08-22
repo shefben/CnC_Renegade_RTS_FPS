@@ -38,6 +38,7 @@
 #include "StdAfx.h"
 #include "pathutil.h"
 #include "scriptmgr.h"
+#include "nativescriptregistry.h"
 #include "scriptevents.H"
 #include "EditScript.h"
 #include "Utils.h"
@@ -71,90 +72,26 @@ ScriptMgrClass::~ScriptMgrClass (void)
 void
 ScriptMgrClass::Initialize (void)
 {
-	CString scripts_path	= ::Get_File_Mgr ()->Make_Full_Path (SCRIPTS_PATH);
-	//CString search_path	= ::Make_Path (scripts_path, "*.dll");
-
-	CString filename;
-
-// Denzil 4/3/00 - Use scripts.dll for all builds
-#if(0)
-
-	#ifdef WWDEBUG
-	#ifndef NDEBUG
-		filename = "SCRIPTSD.DLL";
-	#else
-		filename = "SCRIPTSP.DLL";
-	#endif
-	#else
-		filename = "SCRIPTS.DLL";
-	#endif
-
-#else // Denzil
-		filename = "SCRIPTS.DLL";
-#endif // Denzil
-
-
 	//
-	// Find all files that match this wildcard
+	//	The built-in scripts are compiled into this program, the same catalog
+	//	the game runs, so there is no DLL to enumerate.  Registration has
+	//	already happened; indexing it is what puts it in name order and rejects
+	//	a duplicate name.
 	//
-	/*WIN32_FIND_DATA find_info = { 0 };
-	BOOL keep_going = true;
-	for (HANDLE file_find = ::FindFirstFile (search_path, &find_info);
-		  (file_find != INVALID_HANDLE_VALUE) && keep_going;
-		  keep_going = ::FindNextFile (file_find, &find_info))
-	{*/
+	NativeScriptRegistry::Build_Index ();
 
-		//
-		// Build a path to the DLL
-		//
-		//CString dll_name = ::Make_Path (scripts_path, Get_Filename_From_Path (find_info.cFileName));
-		CString dll_name = ::Make_Path (scripts_path, filename);
-		if (cPathUtil::PathExists (dll_name)) {
-			HMODULE module_handle = ::LoadLibrary (dll_name);
-			if (module_handle != nullptr) {
-
-				// Lookup the function pointer we need to call to determine
-				// a filename list
-				LPFN_GET_SCRIPT_COUNT pfn_get_script_count		= (LPFN_GET_SCRIPT_COUNT)::GetProcAddress (module_handle, LPSTR_GET_SCRIPT_COUNT);
-				LPFN_GET_SCRIPT_NAME pfn_get_script_name			= (LPFN_GET_SCRIPT_NAME)::GetProcAddress (module_handle, LPSTR_GET_SCRIPT_NAME);
-				LPFN_GET_SCRIPT_PARAM_DESCRIPTION pfn_get_param_desc	= (LPFN_GET_SCRIPT_PARAM_DESCRIPTION)::GetProcAddress (module_handle, LPSTR_GET_SCRIPT_PARAM_DESCRIPTION);
-				ASSERT (pfn_get_script_count != nullptr);
-				ASSERT (pfn_get_script_name != nullptr);
-				ASSERT (pfn_get_param_desc != nullptr);
-				if ((pfn_get_script_count != nullptr) &&
-					 (pfn_get_script_name != nullptr) &&
-					 (pfn_get_param_desc != nullptr))
-				{
-					int count = (*pfn_get_script_count) ();
-
-					//
-					// Loop through all the scripts in the list and add their names
-					// to our list
-					//
-					for (int index = 0; index < count; index ++) {
-						EditScriptClass *script = new EditScriptClass;
-
-						//
-						// Pass the script name, and the script params onto our object
-						//
-						script->Set_Name ((*pfn_get_script_name) (index));
-						script->Set_Param_Desc ((*pfn_get_param_desc) (index));
-
-						// Add this script to the list
-						_ScriptList.Add (script);
-					}
-				}
-
-				// Unload the DLL from memory
-				::FreeLibrary (module_handle);
-				module_handle = nullptr;
-			}
+	for (int index = 0; index < NativeScriptRegistry::Count (); index ++) {
+		ScriptFactoryClass *factory = NativeScriptRegistry::Peek (index);
+		if (factory == nullptr) {
+			continue;
 		}
-	/*}
 
-	if (file_find != INVALID_HANDLE_VALUE) {
-		::FindClose (file_find);
-	}*/
+		EditScriptClass *script = new EditScriptClass;
+		script->Set_Name (factory->Get_Name ());
+		script->Set_Param_Desc (factory->Get_Parameter_Description ());
+
+		_ScriptList.Add (script);
+	}
 
 	return ;
 }

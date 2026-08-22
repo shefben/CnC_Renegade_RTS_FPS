@@ -1,35 +1,10 @@
-/*
-**	Command & Conquer Renegade(tm)
-**	Copyright 2025 Electronic Arts Inc.
-**
-**	This program is free software: you can redistribute it and/or modify
-**	it under the terms of the GNU General Public License as published by
-**	the Free Software Foundation, either version 3 of the License, or
-**	(at your option) any later version.
-**
-**	This program is distributed in the hope that it will be useful,
-**	but WITHOUT ANY WARRANTY; without even the implied warranty of
-**	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-**	GNU General Public License for more details.
-**
-**	You should have received a copy of the GNU General Public License
-**	along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 /******************************************************************************
 *
 * FILE
+*     ScriptRegistrant.h
 *
 * DESCRIPTION
-*
-* PROGRAMMER
-*     Denzil E. Long, Jr.
-*
-* VERSION INFO
-*     $Author: Byon_g $
-*     $Revision: 2 $
-*     $Modtime: 10/30/00 6:47p $
-*     $Archive: /Commando/Code/Scripts/ScriptRegistrant.h $
+*     Registers one built-in script class with the native script registry.
 *
 ******************************************************************************/
 
@@ -37,18 +12,21 @@
 #define _SCRIPTREGISTRANT_H_
 
 #include <cstdlib>
-#include "ScriptFactory.h"
+#include <cassert>
+#include "nativescriptregistry.h"
 
-// Script factory registrant
+class ScriptImpClass;
+
 template<class T>
-class	ScriptRegistrant : public ScriptFactory
+class	ScriptRegistrant : public ScriptFactoryClass
 	{
 	public:
-		ScriptRegistrant(const char* name, const char* param)
-			: ScriptFactory(name, param)
+		ScriptRegistrant(const char* name, const char* param,
+				ScriptSourceEnum source = SCRIPT_SOURCE_STOCK, const char* alias = nullptr)
+			: ScriptFactoryClass(name, param, source, alias)
 			{}
 
-		virtual ScriptImpClass* Create(void) override
+		virtual ScriptClass* Create(void) override
 			{
 			T* script = new T;
 			assert(script != nullptr);
@@ -58,11 +36,13 @@ class	ScriptRegistrant : public ScriptFactory
 			}
 	};
 
-
-// Register script factory
+//
+//	The script name is the class name.  A script whose registered name differs
+//	from its class name, or that carries an alias or a non-stock provenance,
+//	declares its ScriptRegistrant directly instead of using this.
+//
 #define REGISTER_SCRIPT(x, d) \
 	class x; \
 	ScriptRegistrant<x> _## x ##Registrant(#x, d);
-
 
 #endif // _SCRIPTREGISTRANT_H_

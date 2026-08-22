@@ -34,9 +34,10 @@
 ******************************************************************************/
 
 #include "scripts.h"
-#include "ScriptFactory.h"
+#include "nativescriptregistry.h"
+#include "scriptman.h"
 #include "DPrint.h"
-#include "strtrim.h"
+#include "trim.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -51,14 +52,6 @@ enum {
 	DATAID_OWNERPTR,
 };
 
-// Script commands
-ScriptCommands* Commands = nullptr;
-void (*ScriptImpClass::Request_Destroy_Script)(ScriptClass*) =  nullptr;
-
-void ScriptImpClass::Set_Request_Destroy_Func(void (*function)(ScriptClass*))
-{
-	Request_Destroy_Script = function;
-}
 
 
 /******************************************************************************
@@ -105,10 +98,8 @@ ScriptImpClass::ScriptImpClass()
 ScriptImpClass::~ScriptImpClass()
 {
 	#ifdef _DEBUG
-	if (Commands != nullptr) {
-		DebugPrint("Script '%s' for object '%d' deleted.\n",
-			Get_Name(), ((mOwner != nullptr) ? Commands->Get_ID(mOwner) : 0 ));
-	}
+	DebugPrint("Script '%s' for object '%d' deleted.\n",
+		Get_Name(), ((mOwner != nullptr) ? ScriptEngine::Get_ID(mOwner) : 0 ));
 	#endif
 
 	Clear_Parameters();
@@ -140,7 +131,7 @@ ScriptImpClass::~ScriptImpClass()
 
 const char* ScriptImpClass::Get_Name(void)
 {
-	return mFactory->GetName();
+	return mFactory->Get_Name();
 }
 
 
@@ -162,9 +153,9 @@ const char* ScriptImpClass::Get_Name(void)
 
 void ScriptImpClass::Destroy_Script(void)
 {
-	if (Request_Destroy_Script != nullptr) {
-		Request_Destroy_Script(this);
-	}
+	//	The script manager owns the script and defers the delete to a safe
+	//	point in the frame, so this is a request rather than a delete.
+	ScriptManager::Request_Destroy_Script(this);
 }
 
 
@@ -187,10 +178,8 @@ void ScriptImpClass::Destroy_Script(void)
 void ScriptImpClass::Attach(GameObject* obj)
 {
 	#ifdef _DEBUG
-	if (Commands != nullptr) {
-		DebugPrint("Attaching script '%s' to object %d\n",
-			Get_Name(), Commands->Get_ID(obj));
-	}
+	DebugPrint("Attaching script '%s' to object %d\n",
+		Get_Name(), ScriptEngine::Get_ID(obj));
 	#endif
 
 	mOwner = obj;
@@ -537,7 +526,7 @@ Vector3 ScriptImpClass::Get_Vector3_Parameter(const char* parameterName)
 
 int ScriptImpClass::Get_Parameter_Index(const char* parameterName)
 {
-	const char* paramDesc = mFactory->GetParamDescription();
+	const char* paramDesc = mFactory->Get_Parameter_Description();
 
 	// Make copy of parameter description string to work with.
 	char string[512];
@@ -595,19 +584,19 @@ int ScriptImpClass::Get_Parameter_Index(const char* parameterName)
 
 void ScriptImpClass::Save(ScriptSaver& saver)
 {
-/*	Commands->Begin_Chunk(saver, CHUNKID_SCRIPTDATA);
+/*	ScriptEngine::Begin_Chunk(saver, CHUNKID_SCRIPTDATA);
 	Save_Data(saver);
-	Commands->End_Chunk(saver);
+	ScriptEngine::End_Chunk(saver);
 */
 
 	ScriptVariableClass * var = AutoVariableList;
 	if ( var != nullptr ) {
-		Commands->Begin_Chunk(saver, CHUNKID_SCRIPT_AUTO_VARIABLES);
+		ScriptEngine::Begin_Chunk(saver, CHUNKID_SCRIPT_AUTO_VARIABLES);
 	 	while ( var != nullptr ) {
-			Commands->Save_Data(saver, var->Get_ID(), var->Get_Data_Size(), var->Get_Data_Ptr() );
+			ScriptEngine::Save_Data(saver, var->Get_ID(), var->Get_Data_Size(), var->Get_Data_Ptr() );
 	 		var = var->Get_Next();
 	 	}
-		Commands->End_Chunk(saver);
+		ScriptEngine::End_Chunk(saver);
 	}
 
 }
@@ -633,7 +622,7 @@ void ScriptImpClass::Load(ScriptLoader& loader)
 {
 	unsigned int chunkID;
 
-	while (Commands->Open_Chunk(loader, &chunkID)) {
+	while (ScriptEngine::Open_Chunk(loader, &chunkID)) {
 
 		switch (chunkID) {
 
@@ -646,16 +635,16 @@ void ScriptImpClass::Load(ScriptLoader& loader)
 			case CHUNKID_SCRIPT_AUTO_VARIABLES:
 			{
 				int id;
-				while (Commands->Load_Begin(loader, &id)) {
+				while (ScriptEngine::Load_Begin(loader, &id)) {
 					// If we find this ID, load it
 					ScriptVariableClass * var = AutoVariableList;
 					while ( var != nullptr ) {
 						if ( var->Get_ID() == id ) {
-							Commands->Load_Data(loader, var->Get_Data_Size(), var->Get_Data_Ptr() );
+							ScriptEngine::Load_Data(loader, var->Get_Data_Size(), var->Get_Data_Ptr() );
 						}
 				 		var = var->Get_Next();
 					}
-					Commands->Load_End(loader);
+					ScriptEngine::Load_End(loader);
 				}
 			}
 			break;
@@ -665,7 +654,7 @@ void ScriptImpClass::Load(ScriptLoader& loader)
 			break;
 		}
 
-		Commands->Close_Chunk(loader);
+		ScriptEngine::Close_Chunk(loader);
 	}
 }
 

@@ -1,17 +1,36 @@
+#
+# One name, one built-in script.  Two registrations of the same name compile
+# fine and then race during static initialization, so the catalog is checked
+# here and generation fails rather than the collision being found at runtime.
+#
+find_package(Python3 COMPONENTS Interpreter)
+
+if(Python3_FOUND)
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/check_script_catalog.py"
+                "${CMAKE_CURRENT_SOURCE_DIR}"
+        RESULT_VARIABLE SCRIPT_CATALOG_RESULT
+        OUTPUT_VARIABLE SCRIPT_CATALOG_OUTPUT
+        ERROR_VARIABLE SCRIPT_CATALOG_ERROR)
+
+    if(NOT SCRIPT_CATALOG_RESULT EQUAL 0)
+        message(FATAL_ERROR "Built-in script catalog check failed:\n${SCRIPT_CATALOG_ERROR}")
+    endif()
+
+    string(STRIP "${SCRIPT_CATALOG_OUTPUT}" SCRIPT_CATALOG_OUTPUT)
+    message(STATUS "Script catalog: ${SCRIPT_CATALOG_OUTPUT}")
+else()
+    message(WARNING "Python not found; the built-in script catalog was not checked for duplicate names.")
+endif()
+
 set(SCRIPTS_SRC
     CustomEvents.h
-    $<$<BOOL:${WIN32}>:DLLmain.cpp>
     DPrint.cpp
     DPrint.h
     DrMobius.cpp
-    ScriptFactory.cpp
-    ScriptFactory.h
     ScriptNode.h
     ScriptRegistrant.h
-    ScriptRegistrar.cpp
-    ScriptRegistrar.h
-    strtrim.cpp
-    strtrim.h
     Test_BMG.cpp
     Test_Cinematic.cpp
     Test_DAK.cpp
@@ -69,15 +88,33 @@ set(SCRIPTS_SRC
 )
 
 # Targets to build.
-add_library(scripts SHARED)
 
-target_compile_definitions(scripts PRIVATE BUILDING_DLL)
+#
+# An OBJECT library, not a static one.  Every built-in script registers itself
+# from a file-scope object that nothing references, so a static library would
+# let the linker drop whole scripts; object libraries are linked whole.
+#
+add_library(scripts OBJECT)
 
 target_link_libraries(scripts PRIVATE
     wwcommon
 )
 
-set_target_properties(scripts PROPERTIES PREFIX "")
-set_target_properties(scripts PROPERTIES OUTPUT_NAME "scripts$<$<CONFIG:Debug>:d>")
-
 target_sources(scripts PRIVATE ${SCRIPTS_SRC})
+
+#
+# The editor needs the same catalog the game runs, so it links the same
+# sources.  Its combat library is built with PARAM_EDITING_ON, but the scripts
+# themselves only ever call the engine interface declared in scriptcommands.h.
+#
+if (W3D_TOOLS)
+    add_library(scriptse OBJECT)
+
+    target_link_libraries(scriptse PRIVATE
+        wwcommon
+    )
+
+    target_compile_definitions(scriptse PRIVATE PARAM_EDITING_ON)
+
+    target_sources(scriptse PRIVATE ${SCRIPTS_SRC})
+endif()

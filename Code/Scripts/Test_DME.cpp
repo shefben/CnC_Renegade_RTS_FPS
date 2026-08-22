@@ -49,9 +49,9 @@ DECLARE_SCRIPT (DME_Test_Powerup, "")
 	void Killed( GameObject * obj, GameObject * /*killer*/ ) override
 	{
 
-		Commands->Trigger_Spawner ( 100022 );
+		ScriptEngine::Trigger_Spawner ( 100022 );
 		reward_type = Get_Int_Random(0, 7);
-		Vector3 enemy_loc = Commands->Get_Position ( obj );
+		Vector3 enemy_loc = ScriptEngine::Get_Position ( obj );
 		enemy_loc.Z += 1.0f;
 
 		switch (reward_type)
@@ -59,134 +59,134 @@ DECLARE_SCRIPT (DME_Test_Powerup, "")
 		case 0:
 			{
 				GameObject *spawn_objectarmor;
-				spawn_objectarmor = Commands->Create_Object( "Spawner Created Special Effect", enemy_loc );
+				spawn_objectarmor = ScriptEngine::Create_Object( "Spawner Created Special Effect", enemy_loc );
 
 				if (spawn_objectarmor)
 				{
-					Commands->Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
+					ScriptEngine::Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
 				}
 
 				GameObject *armor;
-				armor = Commands->Create_Object ( "Armor 025 PowerUp", enemy_loc );
-				Commands->Attach_Script (armor, "DME_Destroy_Item", "15.0f");
+				armor = ScriptEngine::Create_Object ( "Armor 025 PowerUp", enemy_loc );
+				ScriptEngine::Attach_Script (armor, "DME_Destroy_Item", "15.0f");
 				break;
 			}
 
 		case 1:
 			{
 				GameObject *spawn_objectarmor;
-				spawn_objectarmor = Commands->Create_Object( "Spawner Created Special Effect", enemy_loc );
+				spawn_objectarmor = ScriptEngine::Create_Object( "Spawner Created Special Effect", enemy_loc );
 
 				if (spawn_objectarmor)
 				{
-					Commands->Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
+					ScriptEngine::Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
 				}
 
 				GameObject *armor;
-				armor = Commands->Create_Object ( "Armor 050 PowerUp", enemy_loc );
-				Commands->Attach_Script (armor, "DME_Destroy_Item", "15.0f");
+				armor = ScriptEngine::Create_Object ( "Armor 050 PowerUp", enemy_loc );
+				ScriptEngine::Attach_Script (armor, "DME_Destroy_Item", "15.0f");
 				break;
 			}
 
 		case 2:
 			{
 				GameObject *spawn_objectarmor;
-				spawn_objectarmor = Commands->Create_Object( "Spawner Created Special Effect", enemy_loc );
+				spawn_objectarmor = ScriptEngine::Create_Object( "Spawner Created Special Effect", enemy_loc );
 
 				if (spawn_objectarmor)
 				{
-					Commands->Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
+					ScriptEngine::Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
 				}
 
 				GameObject *armor;
-				armor = Commands->Create_Object ( "Armor 100 PowerUp", enemy_loc );
-				Commands->Attach_Script (armor, "DME_Destroy_Item", "15.0f");
+				armor = ScriptEngine::Create_Object ( "Armor 100 PowerUp", enemy_loc );
+				ScriptEngine::Attach_Script (armor, "DME_Destroy_Item", "15.0f");
 				break;
 			}
 
 		case 3:
 			{
 				GameObject *spawn_objectarmor;
-				spawn_objectarmor = Commands->Create_Object( "Spawner Created Special Effect", enemy_loc );
+				spawn_objectarmor = ScriptEngine::Create_Object( "Spawner Created Special Effect", enemy_loc );
 
 				if (spawn_objectarmor)
 				{
-					Commands->Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
+					ScriptEngine::Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
 				}
 
 				GameObject *armor;
-				armor = Commands->Create_Object ( "Health 025 PowerUp", enemy_loc );
-				Commands->Attach_Script (armor, "DME_Destroy_Item", "15.0f");
+				armor = ScriptEngine::Create_Object ( "Health 025 PowerUp", enemy_loc );
+				ScriptEngine::Attach_Script (armor, "DME_Destroy_Item", "15.0f");
 				break;
 			}
 
 		case 4:
 			{
 				GameObject *spawn_objectarmor;
-				spawn_objectarmor = Commands->Create_Object( "Spawner Created Special Effect", enemy_loc );
+				spawn_objectarmor = ScriptEngine::Create_Object( "Spawner Created Special Effect", enemy_loc );
 
 				if (spawn_objectarmor)
 				{
-					Commands->Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
+					ScriptEngine::Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
 				}
 
 				GameObject *armor;
-				armor = Commands->Create_Object ( "Health 050 PowerUp", enemy_loc );
-				Commands->Attach_Script (armor, "DME_Destroy_Item", "15.0f");
+				armor = ScriptEngine::Create_Object ( "Health 050 PowerUp", enemy_loc );
+				ScriptEngine::Attach_Script (armor, "DME_Destroy_Item", "15.0f");
 				break;
 			}
 
 		case 5:
 			{
 				GameObject *spawn_objectarmor;
-				spawn_objectarmor = Commands->Create_Object( "Spawner Created Special Effect", enemy_loc );
+				spawn_objectarmor = ScriptEngine::Create_Object( "Spawner Created Special Effect", enemy_loc );
 
 				if (spawn_objectarmor)
 				{
-					Commands->Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
+					ScriptEngine::Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
 				}
 
 				GameObject *armor;
-				armor = Commands->Create_Object ( "Health 100 PowerUp", enemy_loc );
-				Commands->Attach_Script (armor, "DME_Destroy_Item", "15.0f");
+				armor = ScriptEngine::Create_Object ( "Health 100 PowerUp", enemy_loc );
+				ScriptEngine::Attach_Script (armor, "DME_Destroy_Item", "15.0f");
 				break;
 			}
 
 		case 6:
 			{
 				GameObject *spawn_objectarmor;
-				spawn_objectarmor = Commands->Create_Object( "Spawner Created Special Effect", enemy_loc );
+				spawn_objectarmor = ScriptEngine::Create_Object( "Spawner Created Special Effect", enemy_loc );
 
 				if (spawn_objectarmor)
 				{
-					Commands->Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
+					ScriptEngine::Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
 				}
 
 				GameObject *armor;
-				armor = Commands->Create_Object ( "Shotgun Weapon PowerUps", enemy_loc );
-				Commands->Attach_Script (armor, "DME_Destroy_Item", "15.0f");
+				armor = ScriptEngine::Create_Object ( "Shotgun Weapon PowerUps", enemy_loc );
+				ScriptEngine::Attach_Script (armor, "DME_Destroy_Item", "15.0f");
 				break;
 			}
 
 		case 7:
 			{
 				GameObject *spawn_objectarmor;
-				spawn_objectarmor = Commands->Create_Object( "Spawner Created Special Effect", enemy_loc );
+				spawn_objectarmor = ScriptEngine::Create_Object( "Spawner Created Special Effect", enemy_loc );
 
 				if (spawn_objectarmor)
 				{
-					Commands->Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
+					ScriptEngine::Attach_Script( spawn_objectarmor, "M00_Create_Anim_Effect_DAY", "C4_EX1A.C4_EX1A");
 				}
 
 				GameObject *armor;
-				armor = Commands->Create_Object ( "MiniGun Weapon PowerUps", enemy_loc );
-				Commands->Attach_Script (armor, "DME_Destroy_Item", "15.0f");
+				armor = ScriptEngine::Create_Object ( "MiniGun Weapon PowerUps", enemy_loc );
+				ScriptEngine::Attach_Script (armor, "DME_Destroy_Item", "15.0f");
 				break;
 			}
 
 		default:
 			{
-				Commands->Debug_Message ("********NO POWER-UP CREATED********");
+				ScriptEngine::Debug_Message ("********NO POWER-UP CREATED********");
 				break;
 			}
 		}
@@ -201,14 +201,14 @@ DECLARE_SCRIPT (DME_Destroy_Item, "timer_length: float")
 	void Created( GameObject * obj ) override
 	{
 		float timer_length = Get_Float_Parameter("timer_length");
-		Commands->Start_Timer(obj, this, timer_length, 10);
+		ScriptEngine::Start_Timer(obj, this, timer_length, 10);
 	}
 
 	void Timer_Expired (GameObject* obj, int timer_id) override
 	{
 		if (timer_id ==10)
 		{
-			Commands->Destroy_Object (obj);
+			ScriptEngine::Destroy_Object (obj);
 		}
 
 	}
@@ -226,7 +226,7 @@ DECLARE_SCRIPT (DME_Waypath_test, "")
 		params.WaypointStartID = 100037;
 		params.WaypointEndID = 100039;
 		params.WaypathSplined = true;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 	}
 
 };
@@ -235,15 +235,15 @@ DECLARE_SCRIPT (DME_Test_Ejected_Soldier, "")
 {
 	void Killed ( GameObject * obj, GameObject * /*killer*/ ) override
 	{
-		Vector3 spawn_loc = Commands->Get_Position ( obj );
+		Vector3 spawn_loc = ScriptEngine::Get_Position ( obj );
 		spawn_loc.Z -= 30.0f;
 
 		GameObject *spawn_objectsoldier;
-		spawn_objectsoldier = Commands->Create_Object( "Spawner Created Special Effect", spawn_loc );
+		spawn_objectsoldier = ScriptEngine::Create_Object( "Spawner Created Special Effect", spawn_loc );
 
 		GameObject *soldier;
-		soldier = Commands->Create_Object ( "Nod_Technician_0", spawn_loc );
-		Commands->Attach_Script (soldier, "DME_Test_Paradrop", "");
+		soldier = ScriptEngine::Create_Object ( "Nod_Technician_0", spawn_loc );
+		ScriptEngine::Attach_Script (soldier, "DME_Test_Paradrop", "");
 
 	}
 };
@@ -253,29 +253,29 @@ DECLARE_SCRIPT (DME_Test_Paradrop, "")
 {
 	void Created ( GameObject * obj ) override
 	{
-		/*Vector3 loc = Commands->Get_Position ( obj );
+		/*Vector3 loc = ScriptEngine::Get_Position ( obj );
 		GameObject *para1;
-		para1 = Commands->Create_Object_At_Bone (obj, "Generic_Cinematic", "C HEAD");
-		Commands->Attach_To_Object_Bone( obj, para1, "C HEAD" );
-		Commands->Set_Model(para1, "X5D_Parachute");
-		Commands->Set_Animation(para1, "X5D_Parachute.X5D_ParaC_1", false);
-		Commands->Create_3D_Sound_At_Bone("parachute_open", para1, "ROOTTRANSFORM");*/
+		para1 = ScriptEngine::Create_Object_At_Bone (obj, "Generic_Cinematic", "C HEAD");
+		ScriptEngine::Attach_To_Object_Bone( obj, para1, "C HEAD" );
+		ScriptEngine::Set_Model(para1, "X5D_Parachute");
+		ScriptEngine::Set_Animation(para1, "X5D_Parachute.X5D_ParaC_1", false);
+		ScriptEngine::Create_3D_Sound_At_Bone("parachute_open", para1, "ROOTTRANSFORM");*/
 
-		Commands->Start_Timer (obj, this, .8385f, 10);
-		Vector3 loc = Commands->Get_Position ( obj );
-		float facing = Commands->Get_Facing(obj);
+		ScriptEngine::Start_Timer (obj, this, .8385f, 10);
+		Vector3 loc = ScriptEngine::Get_Position ( obj );
+		float facing = ScriptEngine::Get_Facing(obj);
 
-		GameObject *box1 = Commands->Create_Object("Generic_Cinematic", loc);
-		Commands->Set_Model(box1, "X5D_Box01");
-		Commands->Set_Facing(box1, facing);
-		Commands->Set_Animation(box1, "X5D_Box01.X5D_Box01", false, nullptr, 0.0f, -1.0f, false);
+		GameObject *box1 = ScriptEngine::Create_Object("Generic_Cinematic", loc);
+		ScriptEngine::Set_Model(box1, "X5D_Box01");
+		ScriptEngine::Set_Facing(box1, facing);
+		ScriptEngine::Set_Animation(box1, "X5D_Box01.X5D_Box01", false, nullptr, 0.0f, -1.0f, false);
 
 		GameObject *soldier1;
-		soldier1 = Commands->Create_Object_At_Bone(box1, "Nod_Technician_0", "Box01");
-		Commands->Set_Facing(soldier1, facing);
-		Commands->Attach_Script(soldier1, "RMV_Trigger_Killed", "1144444, 1000, 1000");
-		Commands->Attach_To_Object_Bone( soldier1, box1, "Box01" );
-		Commands->Set_Animation(soldier1, "s_a_human.H_A_X5D_ParaT_1", false, nullptr, 0.0f, -1.0f, false);
+		soldier1 = ScriptEngine::Create_Object_At_Bone(box1, "Nod_Technician_0", "Box01");
+		ScriptEngine::Set_Facing(soldier1, facing);
+		ScriptEngine::Attach_Script(soldier1, "RMV_Trigger_Killed", "1144444, 1000, 1000");
+		ScriptEngine::Attach_To_Object_Bone( soldier1, box1, "Box01" );
+		ScriptEngine::Set_Animation(soldier1, "s_a_human.H_A_X5D_ParaT_1", false, nullptr, 0.0f, -1.0f, false);
 
 
 
@@ -286,15 +286,15 @@ DECLARE_SCRIPT (DME_Test_Paradrop, "")
 		if (timer_id == 10)
 		{
 			GameObject *para1;
-			Vector3 loc = Commands->Get_Position ( obj );
+			Vector3 loc = ScriptEngine::Get_Position ( obj );
 			loc.Z += 1.5;
-			float facing = Commands->Get_Facing(obj);
-			para1 = Commands->Create_Object("Generic_Cinematic", loc);
-			Commands->Set_Facing(para1, facing);
-			Commands->Set_Model(para1, "X5D_Parachute");
-			Commands->Set_Animation(para1, "X5D_Parachute.X5D_ParaC_1", false, nullptr, 0.0f, -1.0f, false);
-			Commands->Create_3D_Sound_At_Bone("parachute_open", para1, "ROOTTRANSFORM");
-			Commands->Attach_Script(para1, "M03_No_More_Parachute", "");
+			float facing = ScriptEngine::Get_Facing(obj);
+			para1 = ScriptEngine::Create_Object("Generic_Cinematic", loc);
+			ScriptEngine::Set_Facing(para1, facing);
+			ScriptEngine::Set_Model(para1, "X5D_Parachute");
+			ScriptEngine::Set_Animation(para1, "X5D_Parachute.X5D_ParaC_1", false, nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Create_3D_Sound_At_Bone("parachute_open", para1, "ROOTTRANSFORM");
+			ScriptEngine::Attach_Script(para1, "M03_No_More_Parachute", "");
 		}
 
 	}
@@ -331,12 +331,12 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 	{																				//100 not occupied, 200 is occupied.
 		if (type == DME_OCCUPIED && param == 100)
 		{
-			Commands->Send_Custom_Event(obj, sender, 70, 70, 0.0f);				//if not occupied, sends custom to set status to occupied.
+			ScriptEngine::Send_Custom_Event(obj, sender, 70, 70, 0.0f);				//if not occupied, sends custom to set status to occupied.
 		}
 
 		else if (type == 200 && param == 200)
 		{
-			Commands->Debug_Message("Custom received on worker type: %d param: %d sender_id %d. \n", type, param, Commands->Get_ID(sender));
+			ScriptEngine::Debug_Message("Custom received on worker type: %d param: %d sender_id %d. \n", type, param, ScriptEngine::Get_ID(sender));
 			Worker_Loop (obj);												//if occupied, tells worker to choose a now location.
 		}
 	}
@@ -362,26 +362,26 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 		last_loc = choice;
 		count++;
 
-		destination_object = Commands->Find_Object (loc_id [choice]);
-		Commands->Send_Custom_Event(obj, destination_object, 50, 50, 0.5f);
+		destination_object = ScriptEngine::Find_Object (loc_id [choice]);
+		ScriptEngine::Send_Custom_Event(obj, destination_object, 50, 50, 0.5f);
 
-		work_loc = Commands->Find_Object (loc_id [choice]);
-		location = Commands->Get_Position ( work_loc );
-		facing = Commands->Get_Facing (work_loc);
+		work_loc = ScriptEngine::Find_Object (loc_id [choice]);
+		location = ScriptEngine::Get_Position ( work_loc );
+		facing = ScriptEngine::Get_Facing (work_loc);
 
 		ActionParamsStruct params;
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 1, 90 );
 		params.Set_Movement( location, WALK, 0.0f );
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 
 	}
 
 	void Action_Complete( GameObject * obj, int action_id, ActionCompleteReason /*complete_reason*/ ) override	//this is called when the servant reaches the destination location.
 	{																										//the purpose of this function is to have the servant perform their destination animation.
 
-		Vector3 current_loc = Commands->Get_Position ( obj );
-		float distance = Commands->Get_Distance ( current_loc, location );
+		Vector3 current_loc = ScriptEngine::Get_Position ( obj );
+		float distance = ScriptEngine::Get_Distance ( current_loc, location );
 
 		if (action_id == 90)
 		{
@@ -389,13 +389,13 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 			{
 				anim_playing = true;
 
-				Commands->Start_Timer (obj, this, 2.0f, 500);
-				Commands->Set_Facing(obj, facing);
+				ScriptEngine::Start_Timer (obj, this, 2.0f, 500);
+				ScriptEngine::Set_Facing(obj, facing);
 
 				ActionParamsStruct params;
 				params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 1);
 				params.Set_Animation( area_anim, true );
-				Commands->Action_Play_Animation (obj, params);
+				ScriptEngine::Action_Play_Animation (obj, params);
 			}
 		}
 
@@ -404,8 +404,8 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 	void Created ( GameObject * obj ) override		//this is the created function for the servant, it sets up most of the variables.
 	{
 		int work_area = Get_Int_Parameter("Work_Area");
-		Commands->Set_Player_Type( obj, 0 );
-		Commands->Innate_Disable( obj );
+		ScriptEngine::Set_Player_Type( obj, 0 );
+		ScriptEngine::Innate_Disable( obj );
 		poke_choice = 3;	//Get_Int_Random (1, 3);
 		star_seen = false;
 		reward_given = false;
@@ -473,11 +473,11 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 		{
 			anim_playing = false;
 
-			Commands->Action_Reset(obj, 99);
-			Commands->Set_Animation( obj, nullptr, false , nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Action_Reset(obj, 99);
+			ScriptEngine::Set_Animation( obj, nullptr, false , nullptr, 0.0f, -1.0f, false);
 
-			destination_object = Commands->Find_Object (loc_id [choice]);
-			Commands->Send_Custom_Event(obj, destination_object, 90, 90, 0.0f);
+			destination_object = ScriptEngine::Find_Object (loc_id [choice]);
+			ScriptEngine::Send_Custom_Event(obj, destination_object, 90, 90, 0.0f);
 
 			Worker_Loop (obj);
 
@@ -488,9 +488,9 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 		{
 			star_seen = false;
 
-			Commands->Action_Reset(obj, 99);
-			Commands->Set_Animation( obj, "H_A_HOST_L1B", false, nullptr, 0.0f, -1.0f, false );
-			Commands->Set_Animation_Frame(obj, "H_A_HOST_L1B", 16);
+			ScriptEngine::Action_Reset(obj, 99);
+			ScriptEngine::Set_Animation( obj, "H_A_HOST_L1B", false, nullptr, 0.0f, -1.0f, false );
+			ScriptEngine::Set_Animation_Frame(obj, "H_A_HOST_L1B", 16);
 
 			Worker_Loop (obj);
 
@@ -500,7 +500,7 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 		else if (timer_id == 520)			//this timer is a general reset after being poked.
 		{
 			poked = false;
-			Commands->Set_Player_Type( obj, 0 );
+			ScriptEngine::Set_Player_Type( obj, 0 );
 
 			Worker_Loop ( obj );
 		}
@@ -519,22 +519,22 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 		{
 			if (anim_playing == false)
 			{
-				destination_object = Commands->Find_Object (loc_id [choice]);
-				Commands->Send_Custom_Event(obj, destination_object, 90, 90, 0.0f);
+				destination_object = ScriptEngine::Find_Object (loc_id [choice]);
+				ScriptEngine::Send_Custom_Event(obj, destination_object, 90, 90, 0.0f);
 
 				star_seen = true;
-				Commands->Start_Timer (obj, this, 9.0f, 510);
+				ScriptEngine::Start_Timer (obj, this, 9.0f, 510);
 
 				const char *conv_name = ("IDS_M06_DME");
-				int conv_id = Commands->Create_Conversation (conv_name, 0, 0, true);
-				Commands->Join_Conversation(obj, conv_id, false, false, true);
-				Commands->Start_Conversation (conv_id, 1);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 0, 0, true);
+				ScriptEngine::Join_Conversation(obj, conv_id, false, false, true);
+				ScriptEngine::Start_Conversation (conv_id, 1);
 
 
 				ActionParamsStruct params;
 				params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1);
 				params.Set_Animation( "H_A_HOST_L1B", true );
-				Commands->Action_Play_Animation (obj, params);
+				ScriptEngine::Action_Play_Animation (obj, params);
 			}
 
 		}
@@ -545,10 +545,10 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 	{
 		if (poked == !true)
 		{
-			Commands->Set_Player_Type( obj, -2 );
+			ScriptEngine::Set_Player_Type( obj, -2 );
 
-			destination_object = Commands->Find_Object (loc_id [choice]);
-			Commands->Send_Custom_Event(obj, destination_object, 90, 90, 0.0f);
+			destination_object = ScriptEngine::Find_Object (loc_id [choice]);
+			ScriptEngine::Send_Custom_Event(obj, destination_object, 90, 90, 0.0f);
 
 			poked = true;
 
@@ -556,13 +556,13 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 			{
 			case 1:		//call for guards
 				{
-					Commands->Start_Timer (obj, this, 5.0f, 520);
+					ScriptEngine::Start_Timer (obj, this, 5.0f, 520);
 
 					const char *conv_name = ("IDS_M06_DME02");
-					int conv_id = Commands->Create_Conversation (conv_name, 0, 0, true);
-					Commands->Join_Conversation(obj, conv_id, false, false, true);
-					Commands->Start_Conversation (conv_id, 1);
-					Commands->Create_Logical_Sound(obj, SOUND_TYPE_GUNSHOT, Commands->Get_Position(obj), 75.0f);
+					int conv_id = ScriptEngine::Create_Conversation (conv_name, 0, 0, true);
+					ScriptEngine::Join_Conversation(obj, conv_id, false, false, true);
+					ScriptEngine::Start_Conversation (conv_id, 1);
+					ScriptEngine::Create_Logical_Sound(obj, SOUND_TYPE_GUNSHOT, ScriptEngine::Get_Position(obj), 75.0f);
 
 
 
@@ -571,12 +571,12 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 
 			case 2:		//sound alarm
 				{
-					Commands->Start_Timer (obj, this, 5.0f, 520);
+					ScriptEngine::Start_Timer (obj, this, 5.0f, 520);
 
 					const char *conv_name = ("IDS_M06_D05");
-					int conv_id = Commands->Create_Conversation (conv_name, 0, 0, true);
-					Commands->Join_Conversation(obj, conv_id, false, false, true);
-					Commands->Start_Conversation (conv_id, 1);
+					int conv_id = ScriptEngine::Create_Conversation (conv_name, 0, 0, true);
+					ScriptEngine::Join_Conversation(obj, conv_id, false, false, true);
+					ScriptEngine::Start_Conversation (conv_id, 1);
 
 
 
@@ -587,23 +587,23 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 				{
 					if (reward_given == false)
 					{
-						Commands->Action_Reset(obj, 99);
-						Commands->Set_Animation( obj, "H_A_HOST_L1B", false , nullptr, 0.0f, -1.0f, false);
-						Commands->Set_Animation_Frame(obj, "H_A_HOST_L1B", 16);
+						ScriptEngine::Action_Reset(obj, 99);
+						ScriptEngine::Set_Animation( obj, "H_A_HOST_L1B", false , nullptr, 0.0f, -1.0f, false);
+						ScriptEngine::Set_Animation_Frame(obj, "H_A_HOST_L1B", 16);
 
 						reward_given = true;									//records that the reward has been given.
 						int reward_type = Get_Int_Random(0, 5);
-						Commands->Start_Timer (obj, this, 5.0f, 530);
+						ScriptEngine::Start_Timer (obj, this, 5.0f, 530);
 
 						const char *conv_name = ("IDS_M06_DME3");				//starts conversation.
-						int conv_id = Commands->Create_Conversation (conv_name, 0, 0, true);
-						Commands->Join_Conversation(obj, conv_id, false, false, true);
-						Commands->Start_Conversation (conv_id, 1);
+						int conv_id = ScriptEngine::Create_Conversation (conv_name, 0, 0, true);
+						ScriptEngine::Join_Conversation(obj, conv_id, false, false, true);
+						ScriptEngine::Start_Conversation (conv_id, 1);
 
 
-						Vector3 pos = Commands->Get_Position(obj);				//specifies drop location and plays droping anim.
-						float obj_facing = Commands->Get_Facing(obj);
-						Commands->Set_Animation( obj, "H_A_J12C", false, nullptr, 0.0f, -1.0f, false );
+						Vector3 pos = ScriptEngine::Get_Position(obj);				//specifies drop location and plays droping anim.
+						float obj_facing = ScriptEngine::Get_Facing(obj);
+						ScriptEngine::Set_Animation( obj, "H_A_J12C", false, nullptr, 0.0f, -1.0f, false );
 						float a = WWMath::Cos(DEG_TO_RADF(obj_facing)) * 1.5f;
 						float b = WWMath::Sin(DEG_TO_RADF(obj_facing)) * 1.5f;
 						Vector3 powerup_loc = pos + Vector3(a, b, 0.5f);
@@ -612,38 +612,38 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 						{
 						case 0:
 							{
-								Commands->Create_Object("Armor 025 PowerUp", powerup_loc);
+								ScriptEngine::Create_Object("Armor 025 PowerUp", powerup_loc);
 
 							}
 							break;
 
 						case 1:
 							{
-								Commands->Create_Object("Armor 050 PowerUp", powerup_loc);
+								ScriptEngine::Create_Object("Armor 050 PowerUp", powerup_loc);
 							}
 							break;
 
 						case 2:
 							{
-								Commands->Create_Object("Armor 100 PowerUp", powerup_loc);
+								ScriptEngine::Create_Object("Armor 100 PowerUp", powerup_loc);
 							}
 							break;
 
 						case 3:
 							{
-								Commands->Create_Object("Health 025 PowerUp", powerup_loc);
+								ScriptEngine::Create_Object("Health 025 PowerUp", powerup_loc);
 							}
 							break;
 
 						case 4:
 							{
-								Commands->Create_Object("Health 025 PowerUp", powerup_loc);
+								ScriptEngine::Create_Object("Health 025 PowerUp", powerup_loc);
 							}
 							break;
 
 						case 5:
 							{
-								Commands->Create_Object("Health 025 PowerUp", powerup_loc);
+								ScriptEngine::Create_Object("Health 025 PowerUp", powerup_loc);
 							}
 							break;
 						}
@@ -651,7 +651,7 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 
 					else
 					{
-						Commands->Start_Timer (obj, this, 3.0f, 530);
+						ScriptEngine::Start_Timer (obj, this, 3.0f, 530);
 					}
 
 				}
@@ -659,7 +659,7 @@ DECLARE_SCRIPT (DME_Test_Worker_Wander, "Work_Area=3:int")
 
 			default:
 				{
-					Commands->Debug_Message ("********poke_choice out of range");
+					ScriptEngine::Debug_Message ("********poke_choice out of range");
 					break;
 				}
 
@@ -684,14 +684,14 @@ DECLARE_SCRIPT (DME_Test_Work_Area, "")			//this script needs to be placed on al
 		{
 			if (!occupied)
 			{
-				Commands->Debug_Message("Not occupied\n");
-				Commands->Send_Custom_Event(obj, sender, DME_OCCUPIED, 100, 0.0f);
+				ScriptEngine::Debug_Message("Not occupied\n");
+				ScriptEngine::Send_Custom_Event(obj, sender, DME_OCCUPIED, 100, 0.0f);
 			}
 
 			else
 			{
-				Commands->Debug_Message("Occupied\n");
-				Commands->Send_Custom_Event(obj, sender, 200, 200, 0.0f);
+				ScriptEngine::Debug_Message("Occupied\n");
+				ScriptEngine::Send_Custom_Event(obj, sender, 200, 200, 0.0f);
 			}
 		}
 
@@ -723,7 +723,7 @@ DECLARE_SCRIPT (M05_Tank_Drop_01_DME, "")
 	{
 		if (entered == false)
 		{
-			if (type == CUSTOM_EVENT_VEHICLE_ENTERED && Commands->Is_A_Star(sender))
+			if (type == CUSTOM_EVENT_VEHICLE_ENTERED && ScriptEngine::Is_A_Star(sender))
 			{
 				entered = true;
 
@@ -733,9 +733,9 @@ DECLARE_SCRIPT (M05_Tank_Drop_01_DME, "")
 				drop_loc.Z = 13.020f;
 				float facing = 337.603f;
 
-				GameObject * chinook_obj = Commands->Create_Object ( "Invisible_Object", drop_loc);
-				Commands->Set_Facing(chinook_obj, facing);
-				Commands->Attach_Script(chinook_obj, "Test_Cinematic", "M05_XG_VehicleDrop1.txt");
+				GameObject * chinook_obj = ScriptEngine::Create_Object ( "Invisible_Object", drop_loc);
+				ScriptEngine::Set_Facing(chinook_obj, facing);
+				ScriptEngine::Attach_Script(chinook_obj, "Test_Cinematic", "M05_XG_VehicleDrop1.txt");
 			}
 		}
 	}
@@ -757,7 +757,7 @@ DECLARE_SCRIPT (M05_Tank_Attack_DME, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 		first = true;
 	}
@@ -768,10 +768,10 @@ DECLARE_SCRIPT (M05_Tank_Attack_DME, "")
 
 		Vector3 current_loc;
 		Vector3 enemy_loc;
-		current_loc = Commands->Get_Position ( obj );
-		enemy_loc = Commands->Get_Position ( enemy );
+		current_loc = ScriptEngine::Get_Position ( obj );
+		enemy_loc = ScriptEngine::Get_Position ( enemy );
 
-		if ((Commands->Get_Distance(current_loc, enemy_loc)) < 65)
+		if ((ScriptEngine::Get_Distance(current_loc, enemy_loc)) < 65)
 		{
 			if(!attacking && first)
 			{
@@ -780,9 +780,9 @@ DECLARE_SCRIPT (M05_Tank_Attack_DME, "")
 				params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 				params.Set_Attack (enemy, 65.0f, 3.0f, 1);
 				params.AttackCheckBlocked = true;
-				Commands->Action_Attack( obj, params );
+				ScriptEngine::Action_Attack( obj, params );
 
-				Commands->Start_Timer(obj, this, 5.0f, ATTACK_OVER);
+				ScriptEngine::Start_Timer(obj, this, 5.0f, ATTACK_OVER);
 			}
 		}
 
@@ -792,9 +792,9 @@ DECLARE_SCRIPT (M05_Tank_Attack_DME, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (enemy, 250.0f, 3.0f, 1);
 			params.AttackCheckBlocked = true;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 5.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 5.0f, ATTACK_OVER);
 		}
 	}
 
@@ -840,12 +840,12 @@ DECLARE_SCRIPT (M05_Tech_Wander_DME, "Work_Area=1:int")
 	{																				//100 not occupied, 200 is occupied.
 		if (type == DME_OCCUPIED && param == 100)
 		{
-			Commands->Send_Custom_Event(obj, sender, 70, 70, 0.0f);				//if not occupied, sends custom to set status to occupied.
+			ScriptEngine::Send_Custom_Event(obj, sender, 70, 70, 0.0f);				//if not occupied, sends custom to set status to occupied.
 		}
 
 		else if (type == 200 && param == 200)
 		{
-			Commands->Debug_Message("Custom received on worker type: %d param: %d sender_id %d. \n", type, param, Commands->Get_ID(sender));
+			ScriptEngine::Debug_Message("Custom received on worker type: %d param: %d sender_id %d. \n", type, param, ScriptEngine::Get_ID(sender));
 			Worker_Loop (obj);												//if occupied, tells worker to choose a now location.
 		}
 	}
@@ -871,26 +871,26 @@ DECLARE_SCRIPT (M05_Tech_Wander_DME, "Work_Area=1:int")
 		last_loc = choice;
 		count++;
 
-		destination_object = Commands->Find_Object (loc_id [choice]);
-		Commands->Send_Custom_Event(obj, destination_object, 50, 50, 0.5f);
+		destination_object = ScriptEngine::Find_Object (loc_id [choice]);
+		ScriptEngine::Send_Custom_Event(obj, destination_object, 50, 50, 0.5f);
 
-		work_loc = Commands->Find_Object (loc_id [choice]);
-		location = Commands->Get_Position ( work_loc );
-		facing = Commands->Get_Facing (work_loc);
+		work_loc = ScriptEngine::Find_Object (loc_id [choice]);
+		location = ScriptEngine::Get_Position ( work_loc );
+		facing = ScriptEngine::Get_Facing (work_loc);
 
 		ActionParamsStruct params;
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 1, 90 );
 		params.Set_Movement( location, WALK, 0.0f );
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 
 	}
 
 	void Action_Complete( GameObject * obj, int action_id, ActionCompleteReason /*complete_reason*/ ) override	//this is called when the servant reaches the destination location.
 	{																										//the purpose of this function is to have the servant perform their destination animation.
 
-		Vector3 current_loc = Commands->Get_Position ( obj );
-		float distance = Commands->Get_Distance ( current_loc, location );
+		Vector3 current_loc = ScriptEngine::Get_Position ( obj );
+		float distance = ScriptEngine::Get_Distance ( current_loc, location );
 
 		if (action_id == 90)
 		{
@@ -898,13 +898,13 @@ DECLARE_SCRIPT (M05_Tech_Wander_DME, "Work_Area=1:int")
 			{
 				anim_playing = true;
 
-				Commands->Start_Timer (obj, this, 2.0f, 500);
-				Commands->Set_Facing(obj, facing);
+				ScriptEngine::Start_Timer (obj, this, 2.0f, 500);
+				ScriptEngine::Set_Facing(obj, facing);
 
 				ActionParamsStruct params;
 				params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 1);
 				params.Set_Animation( area_anim, true );
-				Commands->Action_Play_Animation (obj, params);
+				ScriptEngine::Action_Play_Animation (obj, params);
 			}
 		}
 
@@ -913,8 +913,8 @@ DECLARE_SCRIPT (M05_Tech_Wander_DME, "Work_Area=1:int")
 	void Created ( GameObject * obj ) override		//this is the created function for the servant, it sets up most of the variables.
 	{
 		int work_area = Get_Int_Parameter("Work_Area");
-		Commands->Set_Player_Type( obj, 0 );
-		Commands->Innate_Disable( obj );
+		ScriptEngine::Set_Player_Type( obj, 0 );
+		ScriptEngine::Innate_Disable( obj );
 		poke_choice = 3;	//Get_Int_Random (1, 3);
 		star_seen = false;
 		reward_given = false;
@@ -950,11 +950,11 @@ DECLARE_SCRIPT (M05_Tech_Wander_DME, "Work_Area=1:int")
 		{
 			anim_playing = false;
 
-			Commands->Action_Reset(obj, 99);
-			Commands->Set_Animation( obj, nullptr, false, nullptr, 0.0f, -1.0f, false );
+			ScriptEngine::Action_Reset(obj, 99);
+			ScriptEngine::Set_Animation( obj, nullptr, false, nullptr, 0.0f, -1.0f, false );
 
-			destination_object = Commands->Find_Object (loc_id [choice]);
-			Commands->Send_Custom_Event(obj, destination_object, 90, 90, 0.0f);
+			destination_object = ScriptEngine::Find_Object (loc_id [choice]);
+			ScriptEngine::Send_Custom_Event(obj, destination_object, 90, 90, 0.0f);
 
 			Worker_Loop (obj);
 
@@ -965,9 +965,9 @@ DECLARE_SCRIPT (M05_Tech_Wander_DME, "Work_Area=1:int")
 		{
 			star_seen = false;
 
-			Commands->Action_Reset(obj, 99);
-			Commands->Set_Animation( obj, "H_A_HOST_L1B", false , nullptr, 0.0f, -1.0f, false);
-			Commands->Set_Animation_Frame(obj, "H_A_HOST_L1B", 16);
+			ScriptEngine::Action_Reset(obj, 99);
+			ScriptEngine::Set_Animation( obj, "H_A_HOST_L1B", false , nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Set_Animation_Frame(obj, "H_A_HOST_L1B", 16);
 
 			Worker_Loop (obj);
 
@@ -980,22 +980,22 @@ DECLARE_SCRIPT (M05_Tech_Wander_DME, "Work_Area=1:int")
 		{
 			if (anim_playing == false)
 			{
-				destination_object = Commands->Find_Object (loc_id [choice]);
-				Commands->Send_Custom_Event(obj, destination_object, 90, 90, 0.0f);
+				destination_object = ScriptEngine::Find_Object (loc_id [choice]);
+				ScriptEngine::Send_Custom_Event(obj, destination_object, 90, 90, 0.0f);
 
 				star_seen = true;
-				Commands->Start_Timer (obj, this, 9.0f, 510);
+				ScriptEngine::Start_Timer (obj, this, 9.0f, 510);
 
 				const char *conv_name = ("IDS_M06_DME");
-				int conv_id = Commands->Create_Conversation (conv_name, 0, 0, true);
-				Commands->Join_Conversation(obj, conv_id, false, false, true);
-				Commands->Start_Conversation (conv_id, 1);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 0, 0, true);
+				ScriptEngine::Join_Conversation(obj, conv_id, false, false, true);
+				ScriptEngine::Start_Conversation (conv_id, 1);
 
 
 				ActionParamsStruct params;
 				params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1);
 				params.Set_Animation( "H_A_HOST_L1B", true );
-				Commands->Action_Play_Animation (obj, params);
+				ScriptEngine::Action_Play_Animation (obj, params);
 			}
 		}
 	}
@@ -1007,7 +1007,7 @@ DECLARE_SCRIPT (test_Ssm_Trigger, "")
 	{
 		if (damager == STAR)
 		{
-			Commands->Send_Custom_Event (obj, obj, M00_LAUNCH_SSM, 0, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, obj, M00_LAUNCH_SSM, 0, 0.0f);
 		}
 	}
 };
@@ -1016,36 +1016,36 @@ DECLARE_SCRIPT(DME_Cinematic_Test, "")
 {
 	void Created (GameObject * /*obj*/) override
 	{
-	/*	Commands->Enable_Hibernation(obj, false);
-		Commands->Set_Player_Type(obj, PLAYERTYPE_NEUTRAL );
-		Commands->Create_Object ( "XG_TransprtBone", Vector3(0.0f, 0.0f, 0.0f));*/
+	/*	ScriptEngine::Enable_Hibernation(obj, false);
+		ScriptEngine::Set_Player_Type(obj, PLAYERTYPE_NEUTRAL );
+		ScriptEngine::Create_Object ( "XG_TransprtBone", Vector3(0.0f, 0.0f, 0.0f));*/
 	}
 
 
 	void Damaged( GameObject * /*obj*/, GameObject * /*damager*/, float /*amount*/ ) override
 	{
-	/*	GameObject * chinook_obj0 = Commands->Create_Object ( "Invisible_Object", Vector3(0.0f, 0.0f, 0.0f));
-		Commands->Set_Facing(chinook_obj0, 0.0f);
-		Commands->Attach_Script(chinook_obj0, "Test_Cinematic", "X7A_TrnsptCt_00.txt");
+	/*	GameObject * chinook_obj0 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(0.0f, 0.0f, 0.0f));
+		ScriptEngine::Set_Facing(chinook_obj0, 0.0f);
+		ScriptEngine::Attach_Script(chinook_obj0, "Test_Cinematic", "X7A_TrnsptCt_00.txt");
 
-		GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Vector3(0.0f, 0.0f, 0.0f));
-		Commands->Set_Facing(chinook_obj1, 0.0f);
-		Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7A_TrnsptCt_01.txt");*/
+		GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(0.0f, 0.0f, 0.0f));
+		ScriptEngine::Set_Facing(chinook_obj1, 0.0f);
+		ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7A_TrnsptCt_01.txt");*/
 
-		GameObject * chinook_obj2 = Commands->Create_Object ( "Invisible_Object", Vector3(0.0f, 0.0f, 0.0f));
-		Commands->Set_Facing(chinook_obj2, 0.0f);
-		Commands->Attach_Script(chinook_obj2, "Test_Cinematic", "X10D_CHTroopdrop1.txt");
+		GameObject * chinook_obj2 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(0.0f, 0.0f, 0.0f));
+		ScriptEngine::Set_Facing(chinook_obj2, 0.0f);
+		ScriptEngine::Attach_Script(chinook_obj2, "Test_Cinematic", "X10D_CHTroopdrop1.txt");
 
-	//	GameObject * napc = Commands->Create_Object("Invisible_Object", Vector3(0.0f, 0.0f, 0.0f));
-	//	Commands->Set_Model(napc, "e_chopperdust1");
+	//	GameObject * napc = ScriptEngine::Create_Object("Invisible_Object", Vector3(0.0f, 0.0f, 0.0f));
+	//	ScriptEngine::Set_Model(napc, "e_chopperdust1");
 
-	/*	Commands->Send_Custom_Event(obj, Commands->Find_Object(100001), M07_EVAC_INN, 1, 0.0f);
+	/*	ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100001), M07_EVAC_INN, 1, 0.0f);
 
-		Commands->Enable_Spawner(100002, true);
-		Commands->Enable_Spawner(100004, true);
-		Commands->Enable_Spawner(100005, true);
-		Commands->Enable_Spawner(100006, true);
-		Commands->Enable_Spawner(100007, true);*/
+		ScriptEngine::Enable_Spawner(100002, true);
+		ScriptEngine::Enable_Spawner(100004, true);
+		ScriptEngine::Enable_Spawner(100005, true);
+		ScriptEngine::Enable_Spawner(100006, true);
+		ScriptEngine::Enable_Spawner(100007, true);*/
 	}
 };
 

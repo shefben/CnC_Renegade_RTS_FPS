@@ -103,11 +103,11 @@
 #define	M07_RELOCATE_TRIANGLE_APACHE		17006
 
 // Predefined Constants
-#define GUNNER (Commands->Find_Object(100661))
-#define PATCH (Commands->Find_Object(100659))
-#define DEADEYE (Commands->Find_Object(100660))
-#define SYDNEY (Commands->Find_Object(100662))
-#define HOTWIRE (Commands->Find_Object(100658))
+#define GUNNER (ScriptEngine::Find_Object(100661))
+#define PATCH (ScriptEngine::Find_Object(100659))
+#define DEADEYE (ScriptEngine::Find_Object(100660))
+#define SYDNEY (ScriptEngine::Find_Object(100662))
+#define HOTWIRE (ScriptEngine::Find_Object(100658))
 
 
 

@@ -43,7 +43,7 @@ DECLARE_SCRIPT(PDS_Generic_Test, "")
 {
 	void Created (GameObject *game_obj) override
 	{
-		Commands->Start_Timer(game_obj, this, 3.0F, 777);
+		ScriptEngine::Start_Timer(game_obj, this, 3.0F, 777);
 		return ;
 	}
 
@@ -51,13 +51,13 @@ DECLARE_SCRIPT(PDS_Generic_Test, "")
 	void Timer_Expired (GameObject *game_obj, int timer_id) override
 	{
 		if (timer_id == 777) {
-			GameObject *star = Commands->Get_The_Star ();
+			GameObject *star = ScriptEngine::Get_The_Star ();
 			if (star != nullptr) {
-				Vector3 pos = Commands->Get_Position (star);
-				pos.Z = Commands->Get_Safe_Flight_Height (pos.X, pos.Y);
-				Commands->Set_Position (game_obj, pos);
+				Vector3 pos = ScriptEngine::Get_Position (star);
+				pos.Z = ScriptEngine::Get_Safe_Flight_Height (pos.X, pos.Y);
+				ScriptEngine::Set_Position (game_obj, pos);
 			}
-			Commands->Start_Timer(game_obj, this, 3.0F, 777);
+			ScriptEngine::Start_Timer(game_obj, this, 3.0F, 777);
 		}
 
 		return ;
@@ -70,7 +70,7 @@ DECLARE_SCRIPT(PDS_Test_Modify_Attack, "WaypathID=:int")
 {
 	void Created (GameObject *game_obj) override
 	{
-		Commands->Start_Timer(game_obj, this, 3.0F, 777);
+		ScriptEngine::Start_Timer(game_obj, this, 3.0F, 777);
 		return ;
 	}
 
@@ -79,7 +79,7 @@ DECLARE_SCRIPT(PDS_Test_Modify_Attack, "WaypathID=:int")
 	{
 		if (timer_id == 777) {
 
-			Commands->Enable_Engine (game_obj, true);
+			ScriptEngine::Enable_Engine (game_obj, true);
 
 			ActionParamsStruct params;
 			params.Set_Basic (this, 100, 777);
@@ -88,14 +88,14 @@ DECLARE_SCRIPT(PDS_Test_Modify_Attack, "WaypathID=:int")
 			params.WaypathSplined	= true;
 			params.AttackActive		= false;
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack (game_obj, params);
+			ScriptEngine::Action_Attack (game_obj, params);
 
-			//params.Set_Attack (Commands->Get_The_Star (), 100, 0.5F, true);
+			//params.Set_Attack (ScriptEngine::Get_The_Star (), 100, 0.5F, true);
 			//params.AttackCheckBlocked = false;
-			//Commands->Action_Attack( game_obj, params );
-			//Commands->Action_Goto( game_obj, params );
+			//ScriptEngine::Action_Attack( game_obj, params );
+			//ScriptEngine::Action_Goto( game_obj, params );
 
-			Commands->Start_Timer(game_obj, this, 4.0F, 888);
+			ScriptEngine::Start_Timer(game_obj, this, 4.0F, 888);
 
 		} else if (timer_id == 888) {
 
@@ -105,12 +105,12 @@ DECLARE_SCRIPT(PDS_Test_Modify_Attack, "WaypathID=:int")
 			params.WaypathID			= Get_Int_Parameter (0);
 			params.WaypathSplined	= true;
 			params.AttackActive		= true;
-			params.Set_Attack (Commands->Get_The_Star (), 100, 0.5F, true);
+			params.Set_Attack (ScriptEngine::Get_The_Star (), 100, 0.5F, true);
 			params.AttackCheckBlocked = false;
 
-			Commands->Modify_Action (game_obj, 777, params, true, true);
+			ScriptEngine::Modify_Action (game_obj, 777, params, true, true);
 
-			Commands->Start_Timer(game_obj, this, 4.0F, 999);
+			ScriptEngine::Start_Timer(game_obj, this, 4.0F, 999);
 
 		} else if (timer_id == 999) {
 
@@ -121,11 +121,11 @@ DECLARE_SCRIPT(PDS_Test_Modify_Attack, "WaypathID=:int")
 			params.WaypathSplined	= true;
 			params.AttackActive		= false;
 			params.AttackCheckBlocked = false;
-			//params.Set_Attack (Commands->Get_The_Star (), 100, 0.5F, true);
+			//params.Set_Attack (ScriptEngine::Get_The_Star (), 100, 0.5F, true);
 
-			Commands->Modify_Action (game_obj, 777, params, true, true);
+			ScriptEngine::Modify_Action (game_obj, 777, params, true, true);
 
-			Commands->Start_Timer(game_obj, this, 4.0F, 888);
+			ScriptEngine::Start_Timer(game_obj, this, 4.0F, 888);
 		}
 
 		return ;
@@ -139,7 +139,7 @@ DECLARE_SCRIPT(PDS_Test_Dock, "DockDestObjID=:int,DockEntranceObjID=:int")
 {
 	void Created (GameObject *game_obj) override
 	{
-		Commands->Start_Timer (game_obj, this, 3.0F, 777);
+		ScriptEngine::Start_Timer (game_obj, this, 3.0F, 777);
 		return ;
 	}
 
@@ -154,20 +154,20 @@ DECLARE_SCRIPT(PDS_Test_Dock, "DockDestObjID=:int,DockEntranceObjID=:int")
 		//	Lookup the objects which mark the destination (docked) position
 		// and the entrance to the docking bay
 		//
-		GameObject *dest_obj			= Commands->Find_Object (Get_Int_Parameter (0));
-		GameObject *entrance_obj	= Commands->Find_Object (Get_Int_Parameter (1));
+		GameObject *dest_obj			= ScriptEngine::Find_Object (Get_Int_Parameter (0));
+		GameObject *entrance_obj	= ScriptEngine::Find_Object (Get_Int_Parameter (1));
 		if (dest_obj != nullptr && entrance_obj != nullptr) {
 
 			//
 			//	Start the vehicle's engine
 			//
-			//Commands->Enable_Engine (game_obj, true);
+			//ScriptEngine::Enable_Engine (game_obj, true);
 
 			//
 			// Lookup the positions of the two docking markers
 			//
-			Vector3 dest_pos		= Commands->Get_Position (dest_obj);
-			Vector3 entrance_pos	= Commands->Get_Position (entrance_obj);
+			Vector3 dest_pos		= ScriptEngine::Get_Position (dest_obj);
+			Vector3 entrance_pos	= ScriptEngine::Get_Position (entrance_obj);
 
 			//
 			//	Dock the vehicle
@@ -176,7 +176,7 @@ DECLARE_SCRIPT(PDS_Test_Dock, "DockDestObjID=:int,DockEntranceObjID=:int")
 			params.Set_Basic (this, 100, 777);
 			params.Dock_Vehicle (dest_pos, entrance_pos);
 			params.MoveSpeed = 1.0F;
-			Commands->Action_Dock (game_obj, params);
+			ScriptEngine::Action_Dock (game_obj, params);
 		}
 
 		return ;
@@ -192,7 +192,7 @@ DECLARE_SCRIPT(PDS_Test_Conversation, "Conversation Name=:string,Soldier1_ID=0:i
 	////////////////////////////////////////////////////////////////////
 	void Created (GameObject *game_obj) override
 	{
-		Commands->Start_Timer(game_obj, this, 3.0F, 777);
+		ScriptEngine::Start_Timer(game_obj, this, 3.0F, 777);
 		return ;
 	}
 
@@ -205,7 +205,7 @@ DECLARE_SCRIPT(PDS_Test_Conversation, "Conversation Name=:string,Soldier1_ID=0:i
 		//	Just for kicks, make the unit crouch
 		//
 		if (action_id == 778) {
-			Commands->Set_Animation (game_obj, "S_A_HUMAN.H_A_A0A0_L08", true, nullptr, 0.0f, -1.0f, false);
+			ScriptEngine::Set_Animation (game_obj, "S_A_HUMAN.H_A_A0A0_L08", true, nullptr, 0.0f, -1.0f, false);
 		}
 
 		return ;
@@ -244,7 +244,7 @@ DECLARE_SCRIPT(PDS_Test_Conversation, "Conversation Name=:string,Soldier1_ID=0:i
 		//
 		//	Create the conversation
 		//
-		int conv_id = Commands->Create_Conversation (conv_name, 0, 0, true);
+		int conv_id = ScriptEngine::Create_Conversation (conv_name, 0, 0, true);
 		if (conv_id != -1) {
 
 			int soldier1_id = Get_Int_Parameter (1);
@@ -254,39 +254,39 @@ DECLARE_SCRIPT(PDS_Test_Conversation, "Conversation Name=:string,Soldier1_ID=0:i
 			//
 			//	Have the participants join the conversation
 			//
-			Commands->Join_Conversation (game_obj, conv_id, true, true, true);
+			ScriptEngine::Join_Conversation (game_obj, conv_id, true, true, true);
 
 			if (soldier1_id == -1) {
-				GameObject *soldier = Commands->Get_The_Star ();
+				GameObject *soldier = ScriptEngine::Get_The_Star ();
 				if (soldier != nullptr) {
-					Commands->Join_Conversation (soldier, conv_id, true, true, true);
+					ScriptEngine::Join_Conversation (soldier, conv_id, true, true, true);
 				}
 			} else if (soldier1_id != 0) {
-				GameObject *soldier = Commands->Find_Object (soldier1_id);
+				GameObject *soldier = ScriptEngine::Find_Object (soldier1_id);
 				if (soldier != nullptr) {
-					Commands->Join_Conversation (soldier, conv_id, true, true, true);
+					ScriptEngine::Join_Conversation (soldier, conv_id, true, true, true);
 				}
 			}
 
 			if (soldier2_id != 0) {
-				GameObject *soldier = Commands->Find_Object (soldier2_id);
+				GameObject *soldier = ScriptEngine::Find_Object (soldier2_id);
 				if (soldier != nullptr) {
-					Commands->Join_Conversation (soldier, conv_id, true, true, true);
+					ScriptEngine::Join_Conversation (soldier, conv_id, true, true, true);
 				}
 			}
 
 			if (soldier3_id != 0) {
-				GameObject *soldier = Commands->Find_Object (soldier3_id);
+				GameObject *soldier = ScriptEngine::Find_Object (soldier3_id);
 				if (soldier != nullptr) {
-					Commands->Join_Conversation (soldier, conv_id, true, true, true);
+					ScriptEngine::Join_Conversation (soldier, conv_id, true, true, true);
 				}
 			}
 
 			//
 			//	Begin the conversation
 			//
-			Commands->Start_Conversation (conv_id, 778);
-			Commands->Monitor_Conversation (game_obj, conv_id);
+			ScriptEngine::Start_Conversation (conv_id, 778);
+			ScriptEngine::Monitor_Conversation (game_obj, conv_id);
 		}
 
 		return ;
@@ -309,18 +309,18 @@ DECLARE_SCRIPT(PDS_Get_In_Vehicle_Do_Waypath, "VehicleID=:int,WaypathID=:int,V3T
 		//	Find the vehicle we want to get into
 		//
 		m_StartedWaypath = false;
-		GameObject *dest_obj = Commands->Find_Object (Get_Int_Parameter (0));
+		GameObject *dest_obj = ScriptEngine::Find_Object (Get_Int_Parameter (0));
 		if (dest_obj != nullptr) {
 
 			//
 			// Instruct our game object to goto the driver's side of the destination vehicle
 			//
-			Vector3 pos = Commands->Get_Position (dest_obj);
-//			Commands->Action_Movement_Goto_Location (game_obj, pos, 1.0F);
+			Vector3 pos = ScriptEngine::Get_Position (dest_obj);
+//			ScriptEngine::Action_Movement_Goto_Location (game_obj, pos, 1.0F);
 			ActionParamsStruct params;
 			params.Set_Basic( this, 50, 0 );
 			params.Set_Movement( pos, 1, 1 );
-			Commands->Action_Goto( game_obj, params );
+			ScriptEngine::Action_Goto( game_obj, params );
 
 		} else {
 			DebugPrint ("Error! Cannot find destination for PDS_Get_In_Vehicle_Do_Waypath.\n");
@@ -339,12 +339,12 @@ DECLARE_SCRIPT(PDS_Get_In_Vehicle_Do_Waypath, "VehicleID=:int,WaypathID=:int,V3T
 		//	Now tell the object to follow the waypath
 		//
 		if (m_StartedWaypath == false) {
-//			Commands->Action_Movement_Follow_Waypath (game_obj, Get_Int_Parameter(1), 0, 0, true);
+//			ScriptEngine::Action_Movement_Follow_Waypath (game_obj, Get_Int_Parameter(1), 0, 0, true);
 			ActionParamsStruct params;
 			params.Set_Basic( this, 50, 0 );
 			params.Set_Movement( Vector3(0,0,0), 1, 1 );
 			params.WaypathID = Get_Int_Parameter(1);
-			Commands->Action_Goto( game_obj, params );
+			ScriptEngine::Action_Goto( game_obj, params );
 			m_StartedWaypath = true;
 		}
 		return ;
@@ -358,7 +358,7 @@ DECLARE_SCRIPT(PDS_Test_Goto_Player, "")
 
 	void Created(GameObject* game_obj) override
 	{
-		Commands->Start_Timer(game_obj, this, 3.0F, 777);
+		ScriptEngine::Start_Timer(game_obj, this, 3.0F, 777);
 	}
 
 	////////////////////////////////////////////////////////////////////
@@ -373,9 +373,9 @@ DECLARE_SCRIPT(PDS_Test_Goto_Player, "")
 		ActionParamsStruct params;
 		//params.ActionID = 777;
 		params.Set_Basic( this, 50, 777 );
-		params.Set_Movement( Commands->Get_The_Star (), 1, 2 );
+		params.Set_Movement( ScriptEngine::Get_The_Star (), 1, 2 );
 		params.MoveFollow = false;
-		Commands->Action_Goto( game_obj, params );
+		ScriptEngine::Action_Goto( game_obj, params );
 
 		return ;
 	}
@@ -399,7 +399,7 @@ DECLARE_SCRIPT(PDS_Test_Goto_Loc, "ObjDestID=:int")
 	////////////////////////////////////////////////////////////////////
 	void Created (GameObject* game_obj) override
 	{
-		Commands->Start_Timer(game_obj, this, 3.0F, 777);
+		ScriptEngine::Start_Timer(game_obj, this, 3.0F, 777);
 		return ;
 	}
 
@@ -416,18 +416,18 @@ DECLARE_SCRIPT(PDS_Test_Goto_Loc, "ObjDestID=:int")
 		//
 		//	Find the destination 'object'
 		//
-		GameObject* dest_obj = Commands->Find_Object(Get_Int_Parameter(0));
+		GameObject* dest_obj = ScriptEngine::Find_Object(Get_Int_Parameter(0));
 		if (dest_obj != nullptr) {
 
 			//
 			// Instruct our game object to goto the location of the destination object
 			//
-			Vector3 pos = Commands->Get_Position(dest_obj);
-//			Commands->Action_Movement_Goto_Location(game_obj, pos, 3.0F);
+			Vector3 pos = ScriptEngine::Get_Position(dest_obj);
+//			ScriptEngine::Action_Movement_Goto_Location(game_obj, pos, 3.0F);
 			ActionParamsStruct params;
 			params.Set_Basic( this, 50, 0 );
 			params.Set_Movement( pos, 0.5F, 3 );
-			Commands->Action_Goto( game_obj, params );
+			ScriptEngine::Action_Goto( game_obj, params );
 		} else {
 			DebugPrint("Error! Cannot find destination for PDS_Test_Goto_Loc.\n");
 		}
@@ -445,13 +445,13 @@ DECLARE_SCRIPT(PDS_Test_Follow_Player, "")
 	void Created (GameObject *game_obj) override
 	{
 
-		Commands->Start_Timer(game_obj, this, 3.0F, 777);
+		ScriptEngine::Start_Timer(game_obj, this, 3.0F, 777);
 		return ;
 	}
 
 	void	Poked( GameObject * obj, GameObject * /*poker*/ ) override
 	{
-		Commands->Grant_Key (obj, 1, true);
+		ScriptEngine::Grant_Key (obj, 1, true);
 		return ;
 	}
 
@@ -460,21 +460,21 @@ DECLARE_SCRIPT(PDS_Test_Follow_Player, "")
 	////////////////////////////////////////////////////////////////////
 	void Timer_Expired (GameObject *game_obj, int /*timer_id*/) override
 	{
-		Commands->Innate_Disable (game_obj);
-//		Commands->Action_Movement_Follow_Object (game_obj, Commands->Get_The_Star (), 2.0F);
+		ScriptEngine::Innate_Disable (game_obj);
+//		ScriptEngine::Action_Movement_Follow_Object (game_obj, ScriptEngine::Get_The_Star (), 2.0F);
 		/*ActionParamsStruct params;
 		params.Set_Basic( this, 50, 0 );
-		params.Set_Movement( Commands->Get_The_Star (), 1, 15 );
-		//params.Set_Attack( Commands->Get_The_Star (), 100, 15, true );
-		//params.Set_Movement( Commands->Get_The_Star (), 1, 15 );
+		params.Set_Movement( ScriptEngine::Get_The_Star (), 1, 15 );
+		//params.Set_Attack( ScriptEngine::Get_The_Star (), 100, 15, true );
+		//params.Set_Movement( ScriptEngine::Get_The_Star (), 1, 15 );
 		params.MoveFollow = true;
-		Commands->Action_Attack( game_obj, params );*/
+		ScriptEngine::Action_Attack( game_obj, params );*/
 
 		ActionParamsStruct params2;
 		params2.Set_Basic( this, 50, 0 );
-		params2.Set_Movement( Commands->Get_The_Star (), 1, 5 );
+		params2.Set_Movement( ScriptEngine::Get_The_Star (), 1, 5 );
 		params2.MoveFollow = true;
-		Commands->Action_Goto( game_obj, params2 );
+		ScriptEngine::Action_Goto( game_obj, params2 );
 
 		return ;
 	}
@@ -485,28 +485,28 @@ DECLARE_SCRIPT(PDS_Test_Follow_Waypath, "WaypathID=:int,WaypointStartID=:int,Way
 {
 	void Created (GameObject *game_obj) override
 	{
-		Commands->Grant_Key (game_obj, 0, true);
-		Commands->Grant_Key (game_obj, 1, true);
-		Commands->Grant_Key (game_obj, 2, true);
-		Commands->Grant_Key (game_obj, 3, true);
-		Commands->Grant_Key (game_obj, 4, true);
-		Commands->Grant_Key (game_obj, 5, true);
-		Commands->Grant_Key (game_obj, 6, true);
-		Commands->Grant_Key (game_obj, 7, true);
+		ScriptEngine::Grant_Key (game_obj, 0, true);
+		ScriptEngine::Grant_Key (game_obj, 1, true);
+		ScriptEngine::Grant_Key (game_obj, 2, true);
+		ScriptEngine::Grant_Key (game_obj, 3, true);
+		ScriptEngine::Grant_Key (game_obj, 4, true);
+		ScriptEngine::Grant_Key (game_obj, 5, true);
+		ScriptEngine::Grant_Key (game_obj, 6, true);
+		ScriptEngine::Grant_Key (game_obj, 7, true);
 
-		Commands->Enable_Engine (game_obj, true);
+		ScriptEngine::Enable_Engine (game_obj, true);
 
 		ActionParamsStruct params;
 		params.Set_Basic( this, 100, 777 );
 		params.Set_Movement( Vector3(0,0,0), 1, 5 );
-		params.Set_Attack (Commands->Get_The_Star (), 100, 0.5F, true);
+		params.Set_Attack (ScriptEngine::Get_The_Star (), 100, 0.5F, true);
 
 		params.WaypathID = Get_Int_Parameter(0);
 		params.WaypathSplined = true;
 		params.AttackActive = false;
 		params.AttackCheckBlocked = false;
 
-		Commands->Action_Attack( game_obj, params );
+		ScriptEngine::Action_Attack( game_obj, params );
 
 		return ;
 	}
@@ -514,7 +514,7 @@ DECLARE_SCRIPT(PDS_Test_Follow_Waypath, "WaypathID=:int,WaypointStartID=:int,Way
 
 	void Timer_Expired (GameObject *game_obj, int timer_id) override
 	{
-//		Commands->Action_Movement_Follow_Waypath (game_obj, Get_Int_Parameter(0), Get_Int_Parameter(1), Get_Int_Parameter(2), true);
+//		ScriptEngine::Action_Movement_Follow_Waypath (game_obj, Get_Int_Parameter(0), Get_Int_Parameter(1), Get_Int_Parameter(2), true);
 
 		if (timer_id == 777) {
 
@@ -525,11 +525,11 @@ DECLARE_SCRIPT(PDS_Test_Follow_Waypath, "WaypathID=:int,WaypointStartID=:int,Way
 			params.WaypathSplined	= true;
 			params.AttackActive		= false;
 			params.AttackCheckBlocked = false;
-			params.Set_Attack (Commands->Get_The_Star (), 100, 0.5F, true);
+			params.Set_Attack (ScriptEngine::Get_The_Star (), 100, 0.5F, true);
 
-			Commands->Modify_Action (game_obj, 777, params, true, true);
+			ScriptEngine::Modify_Action (game_obj, 777, params, true, true);
 
-			//Commands->Action_Goto( game_obj, params );
+			//ScriptEngine::Action_Goto( game_obj, params );
 			return ;
 		}
 	}
@@ -543,12 +543,12 @@ DECLARE_SCRIPT(PDS_Test_Follow_Waypath, "WaypathID=:int,WaypointStartID=:int,Way
 		params.WaypathSplined	= true;
 		params.AttackActive		= true;
 		params.AttackCheckBlocked = false;
-		params.Set_Attack (Commands->Get_The_Star (), 100, 0.5F, true);
+		params.Set_Attack (ScriptEngine::Get_The_Star (), 100, 0.5F, true);
 
-		Commands->Modify_Action (game_obj, 777, params, true, true);
+		ScriptEngine::Modify_Action (game_obj, 777, params, true, true);
 
 		// attack for a while, then go back to following the waypath
-		Commands->Start_Timer(game_obj, this, 5.0F, 777);
+		ScriptEngine::Start_Timer(game_obj, this, 5.0F, 777);
 	}
 
 };
@@ -645,7 +645,7 @@ DECLARE_SCRIPT(PDS_Test_Harvester, "TiberiumID=:int,DriveToID=:int,EntranceID=:i
 				break;
 
 			case HARVEST_TIBERIUM:
-				Commands->Start_Timer (m_GameObj, this, Commands->Get_Random (3.0F, 6.0F), 777);
+				ScriptEngine::Start_Timer (m_GameObj, this, ScriptEngine::Get_Random (3.0F, 6.0F), 777);
 				break;
 
 			case DRIVE_TO_REFINERY:
@@ -661,7 +661,7 @@ DECLARE_SCRIPT(PDS_Test_Harvester, "TiberiumID=:int,DriveToID=:int,EntranceID=:i
 				break;
 
 			case UNLOAD_TIBERIUM:
-				Commands->Start_Timer (m_GameObj, this, Commands->Get_Random (2.0F, 4.0F), 777);
+				ScriptEngine::Start_Timer (m_GameObj, this, ScriptEngine::Get_Random (2.0F, 4.0F), 777);
 				break;
 		}
 
@@ -676,27 +676,27 @@ DECLARE_SCRIPT(PDS_Test_Harvester, "TiberiumID=:int,DriveToID=:int,EntranceID=:i
 		//
 		//	Find the destination object
 		//
-		GameObject* dest_obj = Commands->Find_Object (obj_id);
+		GameObject* dest_obj = ScriptEngine::Find_Object (obj_id);
 		if (dest_obj != nullptr) {
 
 			//
 			// Instruct our game object to goto the location of the destination object
 			//
-			Vector3 pos = Commands->Get_Position (dest_obj);
+			Vector3 pos = ScriptEngine::Get_Position (dest_obj);
 
 			if (force_backup == false) {
-//				Commands->Action_Movement_Goto_Location (m_GameObj, pos, 1.0F);
+//				ScriptEngine::Action_Movement_Goto_Location (m_GameObj, pos, 1.0F);
 				ActionParamsStruct params;
 				params.Set_Basic( this, 50, 0 );
 				params.Set_Movement( pos, 1, 1 );
-				Commands->Action_Goto( m_GameObj, params );
+				ScriptEngine::Action_Goto( m_GameObj, params );
 			} else {
-//				Commands->Action_Movement_Backup_Goto_Location (m_GameObj, pos, 1.0F);
+//				ScriptEngine::Action_Movement_Backup_Goto_Location (m_GameObj, pos, 1.0F);
 				ActionParamsStruct params;
 				params.Set_Basic( this, 50, 0 );
 				params.Set_Movement( pos, 1, 1 );
 				params.MoveBackup = true;
-				Commands->Action_Goto( m_GameObj, params );
+				ScriptEngine::Action_Goto( m_GameObj, params );
 			}
 
 		} else {
@@ -821,10 +821,10 @@ DECLARE_SCRIPT(PDS_Test_Bubba, "")
 	////////////////////////////////////////////////////////////////////
 	void Created (GameObject *game_obj) override
 	{
-		Commands->Clear_Map_Cell_By_Pos (Commands->Get_Position (game_obj));
-		Commands->Clear_Map_Cell (0, 0);
-		Commands->Clear_Map_Cell (10, 10);
-		Commands->Clear_Map_Cell (19, 19);
+		ScriptEngine::Clear_Map_Cell_By_Pos (ScriptEngine::Get_Position (game_obj));
+		ScriptEngine::Clear_Map_Cell (0, 0);
+		ScriptEngine::Clear_Map_Cell (10, 10);
+		ScriptEngine::Clear_Map_Cell (19, 19);
 		return ;
 	}
 };
@@ -839,7 +839,7 @@ DECLARE_SCRIPT(PDS_Test_Controller, "")
 	////////////////////////////////////////////////////////////////////
 	void Created (GameObject *game_obj) override
 	{
-		Commands->Start_Timer (game_obj, this, 2.0F, 777);
+		ScriptEngine::Start_Timer (game_obj, this, 2.0F, 777);
 		return ;
 	}
 
@@ -849,9 +849,9 @@ DECLARE_SCRIPT(PDS_Test_Controller, "")
 	void Timer_Expired (GameObject * /*game_obj*/, int timer_id) override
 	{
 		if (timer_id == 777) {
-			GameObject *the_player = Commands->Get_The_Star ();
+			GameObject *the_player = ScriptEngine::Get_The_Star ();
 			if (the_player != nullptr) {
-				Commands->Attach_Script (the_player, "PDS_Test_Inventory", "");
+				ScriptEngine::Attach_Script (the_player, "PDS_Test_Inventory", "");
 			}
 		}
 
@@ -897,8 +897,8 @@ DECLARE_SCRIPT(PDS_Test_Gunboat, "")
 		Move_To_Next_Location ();
 		//State = STATE_IN_TRANSIT;
 
-		Commands->Enable_Engine (GameObj, true);
-		Commands->Disable_All_Collisions (GameObj);
+		ScriptEngine::Enable_Engine (GameObj, true);
+		ScriptEngine::Disable_All_Collisions (GameObj);
 		Start_Attack ();
 		return ;
 	}
@@ -909,7 +909,7 @@ DECLARE_SCRIPT(PDS_Test_Gunboat, "")
 	void Start_Attack (void)
 	{
 		if (State != STATE_IN_TRANSIT) {
-			//Commands->Start_Timer (GameObj, this, Commands->Get_Random (10.0F, 12.0F), TIMER_ATTACK);
+			//ScriptEngine::Start_Timer (GameObj, this, ScriptEngine::Get_Random (10.0F, 12.0F), TIMER_ATTACK);
 		}
 
 		return ;
@@ -940,7 +940,7 @@ DECLARE_SCRIPT(PDS_Test_Gunboat, "")
 			params.WaypointStartID	= 0;
 			params.WaypointEndID		= 0;
 			params.WaypathSplined	= true;
-			Commands->Action_Goto (GameObj, params);
+			ScriptEngine::Action_Goto (GameObj, params);
 		}
 
 		return ;
@@ -952,18 +952,18 @@ DECLARE_SCRIPT(PDS_Test_Gunboat, "")
 	void Timer_Expired (GameObject * /*game_obj*/, int timer_id) override
 	{
 		if (timer_id == TIMER_ATTACK) {
-			GameObject *the_player = Commands->Get_The_Star ();
+			GameObject *the_player = ScriptEngine::Get_The_Star ();
 			if (the_player != nullptr) {
 
-				Vector3 pos = Commands->Get_Position (the_player);
-				//pos.X += Commands->Get_Random (-1.0F, 1.0F) * Commands->Get_Random (6.0F, 10.0F);
-				//pos.Y += Commands->Get_Random (-1.0F, 1.0F) * Commands->Get_Random (6.0F, 10.0F);
-				//pos.Z += Commands->Get_Random (-1.0F, 1.0F) * Commands->Get_Random (6.0F, 10.0F);
+				Vector3 pos = ScriptEngine::Get_Position (the_player);
+				//pos.X += ScriptEngine::Get_Random (-1.0F, 1.0F) * ScriptEngine::Get_Random (6.0F, 10.0F);
+				//pos.Y += ScriptEngine::Get_Random (-1.0F, 1.0F) * ScriptEngine::Get_Random (6.0F, 10.0F);
+				//pos.Z += ScriptEngine::Get_Random (-1.0F, 1.0F) * ScriptEngine::Get_Random (6.0F, 10.0F);
 
 				ActionParamsStruct params;
 				params.Set_Basic (this, 50, 0);
 				params.Set_Attack (pos, 200, 0, true);
-				Commands->Action_Attack (GameObj, params);
+				ScriptEngine::Action_Attack (GameObj, params);
 
 				Start_Attack ();
 			}
@@ -991,10 +991,10 @@ DECLARE_SCRIPT(PDS_Test_Sound, "")
 	void	Poked (GameObject * /*obj*/, GameObject * /*poker*/) override
 	{
 		if (IsPlaying) {
-			Commands->Stop_Sound (1700002, false);
+			ScriptEngine::Stop_Sound (1700002, false);
 			IsPlaying = false;
 		} else {
-			Commands->Start_Sound (1700002);
+			ScriptEngine::Start_Sound (1700002);
 			IsPlaying = true;
 		}
 

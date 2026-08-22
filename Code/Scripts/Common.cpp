@@ -57,9 +57,9 @@
 
 Vector3 RandomVector3(float xRange, float yRange, float zRange)
 {
-	float x = Commands->Get_Random(-xRange, xRange);
-	float y = Commands->Get_Random(-yRange, yRange);
-	float z = Commands->Get_Random(-zRange, zRange);
+	float x = ScriptEngine::Get_Random(-xRange, xRange);
+	float y = ScriptEngine::Get_Random(-yRange, yRange);
+	float z = ScriptEngine::Get_Random(-zRange, zRange);
 
 	return Vector3(x, y, z);
 }

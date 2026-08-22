@@ -60,7 +60,7 @@ DECLARE_SCRIPT(M00_Explosion_Create_RMV, "Start_Now=0:int, Create_At_Obj=0:int, 
 		debug_mode = (Get_Int_Parameter("Debug_Mode") == 1) ? true : false;
 		if (Get_Int_Parameter("Create_At_Obj"))
 		{
-			explosion_origin = Commands->Get_Position(obj);
+			explosion_origin = ScriptEngine::Get_Position(obj);
 		}
 		else
 		{
@@ -71,7 +71,7 @@ DECLARE_SCRIPT(M00_Explosion_Create_RMV, "Start_Now=0:int, Create_At_Obj=0:int, 
 		if (Get_Int_Parameter("Start_Now"))
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Explosion_Create_RMV ACTIVATED.\n"));
-			Commands->Create_Explosion(Get_Parameter("Explosion_Name"), explosion_origin, obj);
+			ScriptEngine::Create_Explosion(Get_Parameter("Explosion_Name"), explosion_origin, obj);
 		}
 	}
 
@@ -81,7 +81,7 @@ DECLARE_SCRIPT(M00_Explosion_Create_RMV, "Start_Now=0:int, Create_At_Obj=0:int, 
 		if ((type == custom_type) && (param == parameter))
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Explosion_Create_RMV ACTIVATED.\n"));
-			Commands->Create_Explosion(Get_Parameter("Explosion_Name"), explosion_origin, obj);
+			ScriptEngine::Create_Explosion(Get_Parameter("Explosion_Name"), explosion_origin, obj);
 		}
 	}
 };
@@ -114,8 +114,8 @@ DECLARE_SCRIPT(M00_Explosion_Create_At_Bone_RMV, "Start_Now=0:int, Receive_Type:
 		if (Get_Int_Parameter("Start_Now"))
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Explosion_Create_At_Bone_RMV ACTIVATED.\n"));
-			if (Commands->Find_Object(target_id) != nullptr)
-				Commands->Create_Explosion_At_Bone(Get_Parameter("Explosion_Name"), Commands->Find_Object(target_id), Get_Parameter("Bone_Name"), obj);
+			if (ScriptEngine::Find_Object(target_id) != nullptr)
+				ScriptEngine::Create_Explosion_At_Bone(Get_Parameter("Explosion_Name"), ScriptEngine::Find_Object(target_id), Get_Parameter("Bone_Name"), obj);
 		}
 	}
 
@@ -125,8 +125,8 @@ DECLARE_SCRIPT(M00_Explosion_Create_At_Bone_RMV, "Start_Now=0:int, Receive_Type:
 		if ((type == custom_type) && (param == parameter))
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Explosion_Create_At_Bone_RMV ACTIVATED.\n"));
-			if (Commands->Find_Object(target_id) != nullptr)
-				Commands->Create_Explosion_At_Bone(Get_Parameter("Explosion_Name"), Commands->Find_Object(target_id), Get_Parameter("Bone_Name"), obj);
+			if (ScriptEngine::Find_Object(target_id) != nullptr)
+				ScriptEngine::Create_Explosion_At_Bone(Get_Parameter("Explosion_Name"), ScriptEngine::Find_Object(target_id), Get_Parameter("Bone_Name"), obj);
 		}
 	}
 };
@@ -175,8 +175,8 @@ DECLARE_SCRIPT(M00_Create_Random_Explosion_DLS, "Explosion_Name:string, Delay_Mi
 		if(type == M00_CREATE_RANDOM_EXPLOSION && param == 1)
 		{
 			active = true;
-			float delay = Commands->Get_Random(Get_Float_Parameter("Delay_Min"), Get_Float_Parameter("Delay_Max"));
-			Commands->Start_Timer (obj, this, delay, EXPLODE);
+			float delay = ScriptEngine::Get_Random(Get_Float_Parameter("Delay_Min"), Get_Float_Parameter("Delay_Max"));
+			ScriptEngine::Start_Timer (obj, this, delay, EXPLODE);
 		}
 		if(type == M00_CREATE_RANDOM_EXPLOSION && param == 0)
 		{
@@ -191,14 +191,14 @@ DECLARE_SCRIPT(M00_Create_Random_Explosion_DLS, "Explosion_Name:string, Delay_Mi
 		{
 			while (random == last || loc_id[random] == 0)
 			{
-				random = Commands->Get_Random_Int(0, 9);
+				random = ScriptEngine::Get_Random_Int(0, 9);
 			}
 
-			Commands->Create_Explosion(Get_Parameter("Explosion_Name"), Commands->Get_Position(Commands->Find_Object(loc_id[random])), obj);
+			ScriptEngine::Create_Explosion(Get_Parameter("Explosion_Name"), ScriptEngine::Get_Position(ScriptEngine::Find_Object(loc_id[random])), obj);
 			last = random;
 
-			float delay = Commands->Get_Random(Get_Float_Parameter("Delay_Min"), Get_Float_Parameter("Delay_Max"));
-			Commands->Start_Timer (obj, this, delay, EXPLODE);
+			float delay = ScriptEngine::Get_Random(Get_Float_Parameter("Delay_Min"), Get_Float_Parameter("Delay_Max"));
+			ScriptEngine::Start_Timer (obj, this, delay, EXPLODE);
 		}
 	}
 };
@@ -209,17 +209,17 @@ DECLARE_SCRIPT( M00_NukeStrike_Anim, "")
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Send_Custom_Event( obj, obj, 0, 1, 206/30 );
-		Commands->Send_Custom_Event( obj, obj, 0, 2, 250/30 );
-		Commands->Send_Custom_Event( obj, obj, 0, 3, 350/30 );
+		ScriptEngine::Send_Custom_Event( obj, obj, 0, 1, 206/30 );
+		ScriptEngine::Send_Custom_Event( obj, obj, 0, 2, 250/30 );
+		ScriptEngine::Send_Custom_Event( obj, obj, 0, 3, 350/30 );
 
 		GameObject *Nuke;
-		Nuke = Commands->Create_Object( "Generic_Cinematic", Commands->Get_Position(obj) );
+		Nuke = ScriptEngine::Create_Object( "Generic_Cinematic", ScriptEngine::Get_Position(obj) );
 		if ( Nuke )
 		{
-			Commands->Set_Model( Nuke, "XG_AG_Nuke" );
-			Commands->Attach_Script( Nuke, "M00_PlayAnimation_DestroyObject_DAY", "Nuke_Missle.Nuke_Missle");
-			Commands->Create_3D_Sound_At_Bone( "SFX.Nuclear_Strike_Buildup", Nuke, "ROOTTRANSFORM" );
+			ScriptEngine::Set_Model( Nuke, "XG_AG_Nuke" );
+			ScriptEngine::Attach_Script( Nuke, "M00_PlayAnimation_DestroyObject_DAY", "Nuke_Missle.Nuke_Missle");
+			ScriptEngine::Create_3D_Sound_At_Bone( "SFX.Nuclear_Strike_Buildup", Nuke, "ROOTTRANSFORM" );
 		}
 	}
 
@@ -228,27 +228,27 @@ DECLARE_SCRIPT( M00_NukeStrike_Anim, "")
 		if ( type == 1 )
 		{
 			GameObject *NukeCloud;
-			NukeCloud = Commands->Create_Object( "Generic_Cinematic", Commands->Get_Position(obj) );
+			NukeCloud = ScriptEngine::Create_Object( "Generic_Cinematic", ScriptEngine::Get_Position(obj) );
 			if ( NukeCloud )
 			{
-				Commands->Set_Model( NukeCloud, "XG_AG_Nukecloud" );
-				Commands->Attach_Script( NukeCloud, "M00_PlayAnimation_DestroyObject_DAY", "Nuke_cloud.Nuke_cloud");
+				ScriptEngine::Set_Model( NukeCloud, "XG_AG_Nukecloud" );
+				ScriptEngine::Attach_Script( NukeCloud, "M00_PlayAnimation_DestroyObject_DAY", "Nuke_cloud.Nuke_cloud");
 			}
 
-			Commands->Shake_Camera( Commands->Get_Position(obj), 2.0f, 0.5f, 2.0f );
+			ScriptEngine::Shake_Camera( ScriptEngine::Get_Position(obj), 2.0f, 0.5f, 2.0f );
 		}
 		else if ( type == 2 )
 		{
-			Commands->Shake_Camera( Commands->Get_Position(obj), 2.0f, 1.0f, 3.0f );
+			ScriptEngine::Shake_Camera( ScriptEngine::Get_Position(obj), 2.0f, 1.0f, 3.0f );
 		}
 		else if ( type == 3 )
 		{
 			GameObject *NukeCloudTwo;
-			NukeCloudTwo = Commands->Create_Object( "Generic_Cinematic", Commands->Get_Position(obj) );
+			NukeCloudTwo = ScriptEngine::Create_Object( "Generic_Cinematic", ScriptEngine::Get_Position(obj) );
 			if ( NukeCloudTwo )
 			{
-				Commands->Set_Model( NukeCloudTwo, "XG_AG_NukeCloud" );
-				Commands->Attach_Script( NukeCloudTwo, "M00_PlayAnimation_DestroyObject_DAY", "XG_Nukecloud_02");
+				ScriptEngine::Set_Model( NukeCloudTwo, "XG_AG_NukeCloud" );
+				ScriptEngine::Attach_Script( NukeCloudTwo, "M00_PlayAnimation_DestroyObject_DAY", "XG_Nukecloud_02");
 			}
 		}
 	}

@@ -76,18 +76,18 @@ void M00_Controller_Trigger_RMV (GameObject * obj, GameObject * target, float ti
 	if ((time_lower_bound == 0.0) && (time_upper_bound == 0.0))
 	{
 		if (target)
-			Commands->Send_Custom_Event(obj, target, custom_type, custom_param, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, target, custom_type, custom_param, 0.0f);
 	}
 	else if ((time_lower_bound != 0.0) && (time_upper_bound == 0.0))
 	{
 		if (target)
-			Commands->Send_Custom_Event(obj, target, custom_type, custom_param, time_lower_bound);
+			ScriptEngine::Send_Custom_Event(obj, target, custom_type, custom_param, time_lower_bound);
 	}
 	else if (time_upper_bound != 0.0)
 	{
-		float random_time = Commands->Get_Random(time_lower_bound, time_upper_bound);
+		float random_time = ScriptEngine::Get_Random(time_lower_bound, time_upper_bound);
 		if (target)
-			Commands->Send_Custom_Event(obj, target, custom_type, custom_param, random_time);
+			ScriptEngine::Send_Custom_Event(obj, target, custom_type, custom_param, random_time);
 	}
 };
 
@@ -130,14 +130,14 @@ DECLARE_SCRIPT(M00_Trigger_When_Killed_RMV, "Start_Now=1:int, Receive_Type=1:int
 		float time_up = Get_Float_Parameter("Max_Delay");
 		int param = Get_Int_Parameter("Send_Param");
 		int type = Get_Int_Parameter("Send_Type");
-		GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+		GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 
 		if (script_enabled)
 		{
 			SCRIPT_DEBUG_MESSAGE (("Unit killed with active M00_Trigger_When_Killed_RMV attached.\n"));
 			if (target_id > 0)
 			{
-				target = Commands->Find_Object(target_id);
+				target = ScriptEngine::Find_Object(target_id);
 			}
 			if (target)
 			{
@@ -211,14 +211,14 @@ DECLARE_SCRIPT(M00_Trigger_When_Destroyed_RMV, "Start_Now=1:int, Receive_Type=2:
 		float time_up = Get_Float_Parameter("Max_Delay");
 		int param = Get_Int_Parameter("Send_Param");
 		int type = Get_Int_Parameter("Send_Type");
-		GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+		GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 
 		if (script_enabled)
 		{
 			SCRIPT_DEBUG_MESSAGE (("Unit destroyed with active M00_Trigger_When_Destroyed_RMV attached.\n"));
 			if (target_id > 0)
 			{
-				target = Commands->Find_Object(target_id);
+				target = ScriptEngine::Find_Object(target_id);
 			}
 			if (target)
 			{
@@ -278,10 +278,10 @@ DECLARE_SCRIPT(M00_Trigger_When_Created_RMV, "Target_ID:int, Send_Type:int, Send
 		int param = Get_Int_Parameter("Send_Param");
 		int type = Get_Int_Parameter("Send_Type");
 
-		GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+		GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 		if (target_id > 0)
 		{
-			target = Commands->Find_Object(target_id);
+			target = ScriptEngine::Find_Object(target_id);
 		}
 		if (target)
 		{
@@ -393,22 +393,22 @@ DECLARE_SCRIPT(M00_Trigger_Zone_Entered_RMV, "Start_Now=1:int, Receive_Type=3:in
 				}
 			}
 
-			GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+			GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 
 			if (target_id > 0)
 			{
-				target = Commands->Find_Object(target_id);
+				target = ScriptEngine::Find_Object(target_id);
 			}
 
 			if (target)
 			{
 				SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Entered_RMV found its target object.\n"));
-				if ((allowed == COMMANDO) && (enterer == Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
+				if ((allowed == COMMANDO) && (enterer == ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
 				{
 					SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Entered_RMV triggered properly.\n"));
 					M00_Controller_Trigger_RMV(obj, target, time_low, time_up, type, param);
 				}
-				else if ((allowed == NONCOMMANDO) && (enterer != Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
+				else if ((allowed == NONCOMMANDO) && (enterer != ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
 				{
 					SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Entered_RMV triggered properly.\n"));
 					M00_Controller_Trigger_RMV(obj, target, time_low, time_up, type, param);
@@ -543,22 +543,22 @@ DECLARE_SCRIPT(M00_Trigger_Zone_Exited_RMV, "Start_Now=1:int, Receive_Type=4:int
 				}
 			}
 
-			GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+			GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 
 			if (target_id > 0)
 			{
-				target = Commands->Find_Object(target_id);
+				target = ScriptEngine::Find_Object(target_id);
 			}
 
 			if (target)
 			{
 				SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Exited_RMV found its target object.\n"));
-				if ((allowed == COMMANDO) && (enterer == Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
+				if ((allowed == COMMANDO) && (enterer == ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
 				{
 					SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Exited_RMV triggered properly.\n"));
 					M00_Controller_Trigger_RMV(obj, target, time_low, time_up, type, param);
 				}
-				else if ((allowed == NONCOMMANDO) && (enterer != Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
+				else if ((allowed == NONCOMMANDO) && (enterer != ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
 				{
 					SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Exited_RMV triggered properly.\n"));
 					M00_Controller_Trigger_RMV(obj, target, time_low, time_up, type, param);
@@ -683,22 +683,22 @@ DECLARE_SCRIPT(M00_Trigger_Zone_Entered_Or_Exited_RMV, "Start_Now=1:int, Receive
 				}
 			}
 
-			GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+			GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 
 			if (target_id > 0)
 			{
-				target = Commands->Find_Object(target_id);
+				target = ScriptEngine::Find_Object(target_id);
 			}
 
 			if (target)
 			{
 				SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Entered_Or_Exited_RMV found its target object.\n"));
-				if ((allowed == COMMANDO) && (enterer == Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
+				if ((allowed == COMMANDO) && (enterer == ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
 				{
 					SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Entered_Or_Exited_RMV triggered properly.\n"));
 					M00_Controller_Trigger_RMV(obj, target, time_low, time_up, type, param);
 				}
-				else if ((allowed == NONCOMMANDO) && (enterer != Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
+				else if ((allowed == NONCOMMANDO) && (enterer != ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
 				{
 					SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Entered_Or_Exited_RMV triggered properly.\n"));
 					M00_Controller_Trigger_RMV(obj, target, time_low, time_up, type, param);
@@ -757,22 +757,22 @@ DECLARE_SCRIPT(M00_Trigger_Zone_Entered_Or_Exited_RMV, "Start_Now=1:int, Receive
 				}
 			}
 
-			GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+			GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 
 			if (target_id > 0)
 			{
-				target = Commands->Find_Object(target_id);
+				target = ScriptEngine::Find_Object(target_id);
 			}
 
 			if (target)
 			{
 				SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Entered_Or_Exited_RMV found its target object.\n"));
-				if ((allowed == COMMANDO) && (enterer == Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
+				if ((allowed == COMMANDO) && (enterer == ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
 				{
 					SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Entered_Or_Exited_RMV triggered properly.\n"));
 					M00_Controller_Trigger_RMV(obj, target, time_low, time_up, type, param);
 				}
-				else if ((allowed == NONCOMMANDO) && (enterer != Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
+				else if ((allowed == NONCOMMANDO) && (enterer != ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f))))
 				{
 					SCRIPT_DEBUG_MESSAGE (("M00_Trigger_Zone_Entered_Or_Exited_RMV triggered properly.\n"));
 					M00_Controller_Trigger_RMV(obj, target, time_low, time_up, type, param);
@@ -862,11 +862,11 @@ DECLARE_SCRIPT(M00_Trigger_When_Enemy_Seen_RMV, "Start_Now=1:int, Receive_Type=6
 			float time_up = Get_Float_Parameter("Max_Delay");
 			int param = Get_Int_Parameter("Send_Param");
 			int type = Get_Int_Parameter("Send_Type");
-			GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+			GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 
 			if (target_id > 0)
 			{
-				target = Commands->Find_Object(target_id);
+				target = ScriptEngine::Find_Object(target_id);
 			}
 
 			if (target)
@@ -956,11 +956,11 @@ DECLARE_SCRIPT(M00_Trigger_When_Damaged_RMV, "Start_Now=1:int, Receive_Type=7:in
 			float time_up = Get_Float_Parameter("Max_Delay");
 			int param = Get_Int_Parameter("Send_Param");
 			int type = Get_Int_Parameter("Send_Type");
-			GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+			GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 
 			if (target_id > 0)
 			{
-				target = Commands->Find_Object(target_id);
+				target = ScriptEngine::Find_Object(target_id);
 			}
 			if (target)
 			{
@@ -1048,11 +1048,11 @@ DECLARE_SCRIPT(M00_Trigger_When_Action_Complete_RMV, "Start_Now=1:int, Receive_T
 			float time_up = Get_Float_Parameter("Max_Delay");
 			int param = Get_Int_Parameter("Send_Param");
 			int type = Get_Int_Parameter("Send_Type");
-			GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+			GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 
 			if (target_id > 0)
 			{
-				target = Commands->Find_Object(target_id);
+				target = ScriptEngine::Find_Object(target_id);
 			}
 			if (target)
 			{
@@ -1144,11 +1144,11 @@ DECLARE_SCRIPT(M00_Trigger_When_Animation_Complete_RMV, "Start_Now=1:int, Receiv
 			int param = Get_Int_Parameter("Send_Param");
 			int type = Get_Int_Parameter("Send_Type");
 			const char *anim = Get_Parameter("Animation_Name");
-			GameObject *target = Commands->Get_A_Star(Vector3(0.0f,0.0f,0.0f));
+			GameObject *target = ScriptEngine::Get_A_Star(Vector3(0.0f,0.0f,0.0f));
 
 			if (target_id > 0)
 			{
-				target = Commands->Find_Object(target_id);
+				target = ScriptEngine::Find_Object(target_id);
 			}
 			if (target)
 			{
@@ -1228,14 +1228,14 @@ DECLARE_SCRIPT(M00_Trigger_Timer_Expired_RAD, "Start_Now=0:int, Receive_Type=15:
 
 		if (timer_max > timer_min)
 		{
-			timer_value = Commands->Get_Random(timer_min, timer_max);
+			timer_value = ScriptEngine::Get_Random(timer_min, timer_max);
 		}
 		else
 		{
 			timer_value = timer_min;
 		}
 		SCRIPT_DEBUG_MESSAGE(("M00_Trigger_Timer_Expired_RAD is starting the timer.\n"));
-		Commands->Start_Timer (obj, this, timer_value, M00_TIMER_TRIGGER_EXPIRED);
+		ScriptEngine::Start_Timer (obj, this, timer_value, M00_TIMER_TRIGGER_EXPIRED);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
@@ -1260,7 +1260,7 @@ DECLARE_SCRIPT(M00_Trigger_Timer_Expired_RAD, "Start_Now=0:int, Receive_Type=15:
 
 				if (timer_id == M00_TIMER_TRIGGER_EXPIRED)
 				{
-					target_obj = Commands->Find_Object(target_id);
+					target_obj = ScriptEngine::Find_Object(target_id);
 
 					if (target_obj)
 					{
@@ -1270,14 +1270,14 @@ DECLARE_SCRIPT(M00_Trigger_Timer_Expired_RAD, "Start_Now=0:int, Receive_Type=15:
 
 						if (max_delay > min_delay)
 						{
-							delay_value = Commands->Get_Random(min_delay, max_delay);
+							delay_value = ScriptEngine::Get_Random(min_delay, max_delay);
 						}
 						else
 						{
 							delay_value = min_delay;
 						}
 
-						Commands->Send_Custom_Event (obj, target_obj, Get_Int_Parameter("Send_Type"), Get_Int_Parameter("Send_Param"), delay_value);
+						ScriptEngine::Send_Custom_Event (obj, target_obj, Get_Int_Parameter("Send_Type"), Get_Int_Parameter("Send_Param"), delay_value);
 					}
 				}
 				else
@@ -1401,7 +1401,7 @@ DECLARE_SCRIPT(M00_Trigger_State_Sequence_RAD, "Start_Now=0:int, Receive_Type:in
 		if (state_num)
 		{
 			target_id = Get_Int_Parameter("Target_ID");
-			target_obj = Commands->Find_Object(target_id);
+			target_obj = ScriptEngine::Find_Object(target_id);
 
 			if (target_obj)
 			{
@@ -1412,14 +1412,14 @@ DECLARE_SCRIPT(M00_Trigger_State_Sequence_RAD, "Start_Now=0:int, Receive_Type:in
 
 				if (max_delay > min_delay)
 				{
-					delay_value = Commands->Get_Random(min_delay, max_delay);
+					delay_value = ScriptEngine::Get_Random(min_delay, max_delay);
 				}
 				else
 				{
 					delay_value = min_delay;
 				}
 
-				Commands->Send_Custom_Event (obj, target_obj, Get_Int_Parameter("Send_Type"), state_num, delay_value);
+				ScriptEngine::Send_Custom_Event (obj, target_obj, Get_Int_Parameter("Send_Type"), state_num, delay_value);
 			}
 			else
 			{

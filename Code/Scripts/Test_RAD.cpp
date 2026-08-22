@@ -112,9 +112,9 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 	{
 		if (unit)
 		{
-			Commands->Attach_Script (unit, "MX0_A02_ACTOR", "0");
-			MX0_A02_UNIT_ID [count] = Commands->Get_ID (unit);
-			Commands->Send_Custom_Event (unit, unit, MX0_A02_CUSTOM_TYPE_REGISTER_ACTOR_ID, count, 0.1f);
+			ScriptEngine::Attach_Script (unit, "MX0_A02_ACTOR", "0");
+			MX0_A02_UNIT_ID [count] = ScriptEngine::Get_ID (unit);
+			ScriptEngine::Send_Custom_Event (unit, unit, MX0_A02_CUSTOM_TYPE_REGISTER_ACTOR_ID, count, 0.1f);
 		}
 	}
 
@@ -129,22 +129,22 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				GameObject * actor = obj;
 				while (count < MX0_A02_ACTOR_HEADCOUNT)
 				{
-					actor = Commands->Find_Object (MX0_A02_UNIT_ID [count]);
+					actor = ScriptEngine::Find_Object (MX0_A02_UNIT_ID [count]);
 					if (actor)
 					{
-						Commands->Send_Custom_Event (obj, actor, MX0_A02_CUSTOM_TYPE_MAIN_ENDING, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, actor, MX0_A02_CUSTOM_TYPE_MAIN_ENDING, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
 					count++;
 				}
 				//DEBUG send out the required A03 custom.
-				Commands->Destroy_Object (obj);
+				ScriptEngine::Destroy_Object (obj);
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_HANDOFF_SNIPER_01_ID):
 			{
 				if (sender)
 				{
-					Commands->Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_KILL_SNIPER_01, MX0_A01_NOD_SNIPER_01, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_KILL_SNIPER_01, MX0_A01_NOD_SNIPER_01, 0.0f);
 				}
 				break;
 			}
@@ -152,7 +152,7 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 			{
 				if (sender)
 				{
-					Commands->Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_KILL_SNIPER_02, MX0_A01_NOD_SNIPER_02, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_KILL_SNIPER_02, MX0_A01_NOD_SNIPER_02, 0.0f);
 				}
 				break;
 			}
@@ -171,97 +171,97 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				if (!ran_startup)
 				{
 					ran_startup = true;
-					GameObject * spawnloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_01);
-					GameObject * unit = Commands->Find_Object (MX0_A02_MOVE_OBJ_01);
+					GameObject * spawnloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_01);
+					GameObject * unit = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_01);
 					if (spawnloc)
 					{
-						unit = Commands->Create_Object ("MX0_GDI_MiniGunner_0_B", Commands->Get_Position(spawnloc));
+						unit = ScriptEngine::Create_Object ("MX0_GDI_MiniGunner_0_B", ScriptEngine::Get_Position(spawnloc));
 						Attach_Unit_Script (unit, 1);
-						Commands->Attach_Script(unit, "M00_Send_Object_ID", "1400041,11,0.0f");
+						ScriptEngine::Attach_Script(unit, "M00_Send_Object_ID", "1400041,11,0.0f");
 					}
-					spawnloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_03);
+					spawnloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_03);
 					if (spawnloc)
 					{
-						unit = Commands->Create_Object ("MX0_GDI_MiniGunner_1Off", Commands->Get_Position(spawnloc));
+						unit = ScriptEngine::Create_Object ("MX0_GDI_MiniGunner_1Off", ScriptEngine::Get_Position(spawnloc));
 						Attach_Unit_Script (unit, 2);
 					}
-					spawnloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_05);
+					spawnloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_05);
 					if (spawnloc)
 					{
-						unit = Commands->Create_Object ("MX0_GDI_RocketSoldier_1Off", Commands->Get_Position(spawnloc));
+						unit = ScriptEngine::Create_Object ("MX0_GDI_RocketSoldier_1Off", ScriptEngine::Get_Position(spawnloc));
 						Attach_Unit_Script (unit, 3);
 					}
-					spawnloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_07);
+					spawnloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_07);
 					if (spawnloc)
 					{
-						unit = Commands->Create_Object ("MX0_GDI_MiniGunner_0", Commands->Get_Position(spawnloc));
+						unit = ScriptEngine::Create_Object ("MX0_GDI_MiniGunner_0", ScriptEngine::Get_Position(spawnloc));
 						Attach_Unit_Script (unit, 4);
 					}
-					spawnloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_09);
+					spawnloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_09);
 					if (spawnloc)
 					{
-						unit = Commands->Create_Object ("MX0_Nod_Minigunner_0", Commands->Get_Position(spawnloc));
+						unit = ScriptEngine::Create_Object ("MX0_Nod_Minigunner_0", ScriptEngine::Get_Position(spawnloc));
 						Attach_Unit_Script (unit, 5);
 					}
-					spawnloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_11);
+					spawnloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_11);
 					if (spawnloc)
 					{
-						unit = Commands->Create_Object ("MX0_Nod_Minigunner_0", Commands->Get_Position(spawnloc));
+						unit = ScriptEngine::Create_Object ("MX0_Nod_Minigunner_0", ScriptEngine::Get_Position(spawnloc));
 						Attach_Unit_Script (unit, 6);
 					}
-					spawnloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_13);
+					spawnloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_13);
 					if (spawnloc)
 					{
-						unit = Commands->Create_Object ("MX0_Nod_Minigunner_0", Commands->Get_Position(spawnloc));
+						unit = ScriptEngine::Create_Object ("MX0_Nod_Minigunner_0", ScriptEngine::Get_Position(spawnloc));
 						Attach_Unit_Script (unit, 7);
 					}
-					spawnloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_15);
+					spawnloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_15);
 					if (spawnloc)
 					{
-						unit = Commands->Create_Object ("MX0_Nod_Minigunner_0", Commands->Get_Position(spawnloc));
+						unit = ScriptEngine::Create_Object ("MX0_Nod_Minigunner_0", ScriptEngine::Get_Position(spawnloc));
 						Attach_Unit_Script (unit, 8);
 					}
 					pre_ambient_on = true;
 					pre_ambient_count = 1;
-					Commands->Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_PRE_AMBIENT);
+					ScriptEngine::Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_PRE_AMBIENT);
 
-					GameObject * humm_vee = Commands->Create_Object ("MX0_GDI_Humm-Vee_destroyed", Vector3(-84.582f,-60.035f,1.050f));
+					GameObject * humm_vee = ScriptEngine::Create_Object ("MX0_GDI_Humm-Vee_destroyed", Vector3(-84.582f,-60.035f,1.050f));
 					if (humm_vee)
 					{
-						Commands->Attach_Script (humm_vee, "MX0_A02_GDI_VEHICLE", "");
-						Commands->Set_Facing (humm_vee, 50.0f);
-						MX0_A02_HUMM_VEE_ID = Commands->Get_ID (humm_vee);
+						ScriptEngine::Attach_Script (humm_vee, "MX0_A02_GDI_VEHICLE", "");
+						ScriptEngine::Set_Facing (humm_vee, 50.0f);
+						MX0_A02_HUMM_VEE_ID = ScriptEngine::Get_ID (humm_vee);
 					}
 
-					GameObject * med_tank = Commands->Create_Object ("MX0_GDI_Medium_Tank_Dec", Vector3(-90.183f,-51.691f,1.216f));
+					GameObject * med_tank = ScriptEngine::Create_Object ("MX0_GDI_Medium_Tank_Dec", Vector3(-90.183f,-51.691f,1.216f));
 					if (med_tank)
 					{
-						Commands->Attach_Script (med_tank, "MX0_A02_GDI_VEHICLE", "");
-						Commands->Set_Facing (med_tank, -20.0f);
-						MX0_A02_MED_TANK_ID = Commands->Get_ID (med_tank);
+						ScriptEngine::Attach_Script (med_tank, "MX0_A02_GDI_VEHICLE", "");
+						ScriptEngine::Set_Facing (med_tank, -20.0f);
+						MX0_A02_MED_TANK_ID = ScriptEngine::Get_ID (med_tank);
 					}
-					GameObject * gdi_apc = Commands->Create_Object ("MX0_GDI_APC", Vector3(-101.576f,-54.945f,1.050f));
+					GameObject * gdi_apc = ScriptEngine::Create_Object ("MX0_GDI_APC", Vector3(-101.576f,-54.945f,1.050f));
 					if (gdi_apc)
 					{
-						Commands->Attach_Script (gdi_apc, "MX0_A02_GDI_APC", "");
-						Commands->Set_Facing (gdi_apc, -45.0f);
-						MX0_A02_GDI_APC_ID = Commands->Get_ID (gdi_apc);
+						ScriptEngine::Attach_Script (gdi_apc, "MX0_A02_GDI_APC", "");
+						ScriptEngine::Set_Facing (gdi_apc, -45.0f);
+						MX0_A02_GDI_APC_ID = ScriptEngine::Get_ID (gdi_apc);
 					}
 
-					GameObject * debris = Commands->Create_Object ("Simple_Level_x0_A02_Blockage", Vector3(-71.233f, -41.517f, 0.181f));
+					GameObject * debris = ScriptEngine::Create_Object ("Simple_Level_x0_A02_Blockage", Vector3(-71.233f, -41.517f, 0.181f));
 					if (debris)
 					{
-						MX0_A02_BLOCKAGE_ID = Commands->Get_ID (debris);
-						Commands->Set_Facing (debris, -40.000f);
+						MX0_A02_BLOCKAGE_ID = ScriptEngine::Get_ID (debris);
+						ScriptEngine::Set_Facing (debris, -40.000f);
 					}
 
-					GameObject * a01_controller = Commands->Find_Object (MX0_A01_CONTROLLER_ID);
+					GameObject * a01_controller = ScriptEngine::Find_Object (MX0_A01_CONTROLLER_ID);
 					if (a01_controller)
 					{
-						Commands->Send_Custom_Event (obj, a01_controller, MX0_A02_CUSTOM_TYPE_GET_SNIPER_01_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
-						Commands->Send_Custom_Event (obj, a01_controller, MX0_A02_CUSTOM_TYPE_GET_SNIPER_02_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, a01_controller, MX0_A02_CUSTOM_TYPE_GET_SNIPER_01_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, a01_controller, MX0_A02_CUSTOM_TYPE_GET_SNIPER_02_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
-					Commands->Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_RANDOM_EXPLOSIONS);
+					ScriptEngine::Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_RANDOM_EXPLOSIONS);
 				}
 				break;
 			}
@@ -271,11 +271,11 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				{
 					if (param < MX0_A02_ACTOR_NOD_START)
 					{
-						Commands->Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_TYPE_REQUEST_TARGET, MX0_A02_UNIT_ID[Get_Int_Random(MX0_A02_ACTOR_NOD_START, (MX0_A02_ACTOR_HEADCOUNT - 1))], 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_TYPE_REQUEST_TARGET, MX0_A02_UNIT_ID[Get_Int_Random(MX0_A02_ACTOR_NOD_START, (MX0_A02_ACTOR_HEADCOUNT - 1))], 0.0f);
 					}
 					else
 					{
-						Commands->Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_TYPE_REQUEST_TARGET, MX0_A02_UNIT_ID[Get_Int_Random(1, (MX0_A02_ACTOR_NOD_START - 1))], 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_TYPE_REQUEST_TARGET, MX0_A02_UNIT_ID[Get_Int_Random(1, (MX0_A02_ACTOR_NOD_START - 1))], 0.0f);
 					}
 				}
 				break;
@@ -287,42 +287,42 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				if (!player_retreat)
 				{
 					player_retreat = true;
-					GameObject * sniper = Commands->Find_Object (MX0_A01_NOD_SNIPER_01);
+					GameObject * sniper = ScriptEngine::Find_Object (MX0_A01_NOD_SNIPER_01);
 					if (sniper)
 					{
-						GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[3]);
+						GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[3]);
 						if (soldier)
 						{
-							Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_KILL_SNIPER_01, MX0_A01_NOD_SNIPER_01, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_KILL_SNIPER_01, MX0_A01_NOD_SNIPER_01, 0.0f);
 						}
 					}
 					else
 					{
-						sniper = Commands->Find_Object (MX0_A01_NOD_SNIPER_02);
+						sniper = ScriptEngine::Find_Object (MX0_A01_NOD_SNIPER_02);
 						if (sniper)
 						{
-							GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[3]);
+							GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[3]);
 							if (soldier)
 							{
-								Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_KILL_SNIPER_02, MX0_A01_NOD_SNIPER_02, 0.0f);
+								ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_KILL_SNIPER_02, MX0_A01_NOD_SNIPER_02, 0.0f);
 							}
 						}
 					}
 
 					// Start greeting sequence with Unit 01.
 
-					GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+					GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 					if (soldier)
 					{
-						Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_START_GDI_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_START_GDI_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
 
 					// Tell the APC it's okay to start shooting.
 
-					GameObject * apc = Commands->Find_Object (MX0_A02_GDI_APC_ID);
+					GameObject * apc = ScriptEngine::Find_Object (MX0_A02_GDI_APC_ID);
 					if (apc)
 					{
-						Commands->Send_Custom_Event (obj, apc, MX0_A02_CUSTOM_TYPE_STARTUP, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, apc, MX0_A02_CUSTOM_TYPE_STARTUP, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
 				}
 			}
@@ -332,7 +332,7 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 		case (MX0_A02_CUSTOM_TYPE_PRE_AMBIENT_OFF):
 			{
 				pre_ambient_on = false;
-				Commands->Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_PLAYER_RETREAT);
+				ScriptEngine::Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_PLAYER_RETREAT);
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_CONTINUE):
@@ -340,13 +340,13 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				// Make the Nod soldiers able to be killed.
 
 				int nod_count = MX0_A02_ACTOR_NOD_START;
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 				while (nod_count < MX0_A02_ACTOR_HEADCOUNT)
 				{
-					soldier = Commands->Find_Object (MX0_A02_UNIT_ID[nod_count]);
+					soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[nod_count]);
 					if (soldier)
 					{
-						Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_DAMAGE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_DAMAGE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
 					nod_count++;
 				}
@@ -355,55 +355,55 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 
 
 				// Have the Nod Officer say something.
-				Commands->Create_2D_Sound ("MX0_NODOFFICER_044");
+				ScriptEngine::Create_2D_Sound ("MX0_NODOFFICER_044");
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_START_GDI_02):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_START_GDI_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_START_GDI_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_START_GDI_03):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_START_GDI_03, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_START_GDI_03, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_START_GDI_04):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_START_GDI_04, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_START_GDI_04, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_START_GDI_05):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[3]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[3]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_START_GDI_05, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_START_GDI_05, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_PLAYER_KILLED_NOD):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[Get_Int_Random(1,4)]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[Get_Int_Random(1,4)]);
 				if (soldier)
 				{
 					if (congrats_loop > 9)
 					{
 						congrats_loop = 0;
 					}
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_PLAYER_CONGRATS, congrats_loop, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_PLAYER_CONGRATS, congrats_loop, 0.0f);
 					congrats_loop++;
 				}
 				break;
@@ -411,14 +411,14 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 		case (MX0_A02_CUSTOM_TYPE_SOLDIER_KILLED_NOD):
 			{
 
-				GameObject * soldier = Commands->Find_Object (param);
+				GameObject * soldier = ScriptEngine::Find_Object (param);
 				if (soldier)
 				{
 					if (soldier_congrats_loop > 3)
 					{
 						soldier_congrats_loop = 0;
 					}
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SOLDIER_CONGRATS, soldier_congrats_loop, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SOLDIER_CONGRATS, soldier_congrats_loop, 0.0f);
 					soldier_congrats_loop++;
 				}
 				break;
@@ -439,7 +439,7 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 
 				while (count < MX0_A02_ACTOR_HEADCOUNT)
 				{
-					GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[count]);
+					GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[count]);
 					if ((count == param) || (!soldier))
 					{
 						MX0_A02_UNIT_ID[count] = 0;
@@ -455,7 +455,7 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				if ((death_counter > 2) && (death_counter < 99))
 				{
 					death_counter = 99;
-					Commands->Fade_Background_Music( "Level 0 Hero.mp3", 2, 2);
+					ScriptEngine::Fade_Background_Music( "Level 0 Hero.mp3", 2, 2);
 				}
 				if (!retreat_sequence)
 				{
@@ -482,73 +482,73 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 								{
 								case(0): // Nod Guy falls off ledge after getting shot.
 									{
-										GameObject * soldier = Commands->Create_Object ("MX0_Nod_Minigunner_0", Vector3(-78.442f,-78.044f,6.404f));
+										GameObject * soldier = ScriptEngine::Create_Object ("MX0_Nod_Minigunner_0", Vector3(-78.442f,-78.044f,6.404f));
 										if (soldier)
 										{
 											space_available--;
 											sequence_active = true;
-											Commands->Attach_Script (soldier, "MX0_A02_ACTOR", "1");
+											ScriptEngine::Attach_Script (soldier, "MX0_A02_ACTOR", "1");
 											MX0_A02_Fill_Empty_Slot (soldier, true);
 										}
 										break;
 									}
 								case (1): // Second Nod guy falls off ledge after getting shot.
 									{
-										GameObject * soldier = Commands->Create_Object ("MX0_Nod_Minigunner_0", Vector3(-102.985f,-73.331f,4.415f));
+										GameObject * soldier = ScriptEngine::Create_Object ("MX0_Nod_Minigunner_0", Vector3(-102.985f,-73.331f,4.415f));
 										if (soldier)
 										{
 											space_available--;
 											sequence_active = true;
-											Commands->Attach_Script (soldier, "MX0_A02_ACTOR", "2");
+											ScriptEngine::Attach_Script (soldier, "MX0_A02_ACTOR", "2");
 											MX0_A02_Fill_Empty_Slot (soldier, true);
 										}
 										break;
 									}
 								case (2):
 									{
-										GameObject * soldier = Commands->Create_Object ("Nod_RocketSoldier_0", Vector3(-78.442f,-78.044f,6.404f));
+										GameObject * soldier = ScriptEngine::Create_Object ("Nod_RocketSoldier_0", Vector3(-78.442f,-78.044f,6.404f));
 										if (soldier)
 										{
 											space_available--;
 											sequence_active = true;
-											Commands->Attach_Script (soldier, "MX0_A02_ACTOR", "3");
+											ScriptEngine::Attach_Script (soldier, "MX0_A02_ACTOR", "3");
 											MX0_A02_Fill_Empty_Slot (soldier, false);
 										}
 										break;
 									}
 								case (3): // Nod Chopper drops 2 minigunners, not tracked.
 									{
-										GameObject * chinook_obj1 = Commands->Create_Object("Invisible_Object", Vector3(-71.497f,-47.387f,9.0f));
+										GameObject * chinook_obj1 = ScriptEngine::Create_Object("Invisible_Object", Vector3(-71.497f,-47.387f,9.0f));
 										if (chinook_obj1)
 										{
 											sequence_active = true;
-											Commands->Set_Facing(chinook_obj1, -100.0f);
-											Commands->Attach_Script(chinook_obj1, "MX0_A02_HELICOPTER", "0");
-											Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X0I_Drop02_A02_E01.txt");
-											Commands->Start_Timer (obj, this, 20.0f, MX0_A02_TIMER_AFTER_HELI_01);
+											ScriptEngine::Set_Facing(chinook_obj1, -100.0f);
+											ScriptEngine::Attach_Script(chinook_obj1, "MX0_A02_HELICOPTER", "0");
+											ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X0I_Drop02_A02_E01.txt");
+											ScriptEngine::Start_Timer (obj, this, 20.0f, MX0_A02_TIMER_AFTER_HELI_01);
 										}
-										GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+										GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 										if (soldier)
 										{
-											Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_HELI_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 10.0f);
+											ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_HELI_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 10.0f);
 										}
 										break;
 									}
 								case (4): // Next chopper arrives with FlameThrower infantry.
 									{
 										nod_spawn_sequence = 5;
-										GameObject * chinook_obj1 = Commands->Create_Object("Invisible_Object", Vector3(-83.454f,-70.323f,9.60f));
+										GameObject * chinook_obj1 = ScriptEngine::Create_Object("Invisible_Object", Vector3(-83.454f,-70.323f,9.60f));
 										if (chinook_obj1)
 										{
 											sequence_active = true;
-											Commands->Set_Facing(chinook_obj1, 90.0f);
-											Commands->Attach_Script(chinook_obj1, "MX0_A02_HELICOPTER", "1");
-											Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X0I_Drop02_A02_E02.txt");
+											ScriptEngine::Set_Facing(chinook_obj1, 90.0f);
+											ScriptEngine::Attach_Script(chinook_obj1, "MX0_A02_HELICOPTER", "1");
+											ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X0I_Drop02_A02_E02.txt");
 										}
-										GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+										GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 										if (soldier)
 										{
-											Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_HELI_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 10.0f);
+											ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_HELI_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 10.0f);
 										}
 										break;
 									}
@@ -592,36 +592,36 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 											break;
 										}
 									}
-									GameObject * spawnloc = Commands->Trigger_Spawner (spawnloc_id);
+									GameObject * spawnloc = ScriptEngine::Trigger_Spawner (spawnloc_id);
 									if (spawnloc)
 									{
 										Attach_Unit_Script (spawnloc, count);
-										Commands->Send_Custom_Event (obj, spawnloc, MX0_A02_CUSTOM_TYPE_DAMAGE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.1f);
+										ScriptEngine::Send_Custom_Event (obj, spawnloc, MX0_A02_CUSTOM_TYPE_DAMAGE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.1f);
 										count = MX0_A02_ACTOR_HEADCOUNT;
 									}
 								}
 								count++;
 							}
 						}
-						Commands->Start_Timer (obj, this, 3.0f, MX0_A02_TIMER_PREVENT_SPAWNS);
+						ScriptEngine::Start_Timer (obj, this, 3.0f, MX0_A02_TIMER_PREVENT_SPAWNS);
 					}
 				}
 				else
 				{
-					GameObject * spawner = Commands->Find_Object (MX0_A02_SPAWNER_01);
+					GameObject * spawner = ScriptEngine::Find_Object (MX0_A02_SPAWNER_01);
 					if (spawner)
 					{
-						Commands->Destroy_Object (spawner);
+						ScriptEngine::Destroy_Object (spawner);
 					}
-					spawner = Commands->Find_Object (MX0_A02_SPAWNER_02);
+					spawner = ScriptEngine::Find_Object (MX0_A02_SPAWNER_02);
 					if (spawner)
 					{
-						Commands->Destroy_Object (spawner);
+						ScriptEngine::Destroy_Object (spawner);
 					}
-					spawner = Commands->Find_Object (MX0_A02_SPAWNER_03);
+					spawner = ScriptEngine::Find_Object (MX0_A02_SPAWNER_03);
 					if (spawner)
 					{
-						Commands->Destroy_Object (spawner);
+						ScriptEngine::Destroy_Object (spawner);
 					}
 				}
 				break;
@@ -630,13 +630,13 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 			{
 				// Make GDI 01 say something about the soldier spotted.
 
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 				if (soldier)
 				{
-					GameObject * target = Commands->Find_Object (MX0_A02_UNIT_ID[current_nod_target]);
+					GameObject * target = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[current_nod_target]);
 					if (target)
 					{
-						Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_NOD_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_NOD_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
 				}
 				break;
@@ -645,13 +645,13 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 			{
 				// Time for GDI to shoot at the first falling soldier.
 
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 				if (soldier)
 				{
-					GameObject * target = Commands->Find_Object (MX0_A02_UNIT_ID[current_nod_target]);
+					GameObject * target = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[current_nod_target]);
 					if (target)
 					{
-						Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_SHOOTS_NOD_01, MX0_A02_UNIT_ID[current_nod_target], 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_SHOOTS_NOD_01, MX0_A02_UNIT_ID[current_nod_target], 0.0f);
 					}
 				}
 
@@ -661,10 +661,10 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 			{
 				// Make 01 say something about the falling soldier.
 
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_RESPONDS_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_RESPONDS_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
@@ -672,69 +672,69 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 			{
 				// Time for GDI to shoot at the second falling soldier.
 
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[4]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[4]);
 				if (soldier)
 				{
-					GameObject * target = Commands->Find_Object (MX0_A02_UNIT_ID[current_nod_target]);
+					GameObject * target = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[current_nod_target]);
 					if (target)
 					{
-						Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_SHOOTS_NOD_02, MX0_A02_UNIT_ID[current_nod_target], 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_SHOOTS_NOD_02, MX0_A02_UNIT_ID[current_nod_target], 0.0f);
 					}
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_APC_BLOWITUP):
 			{
-				GameObject * apc = Commands->Find_Object (MX0_A02_GDI_APC_ID);
+				GameObject * apc = ScriptEngine::Find_Object (MX0_A02_GDI_APC_ID);
 				if (apc)
 				{
-					Commands->Send_Custom_Event (obj, apc, MX0_A02_CUSTOM_TYPE_DESTROY_APC, MX0_A02_CUSTOM_PARAM_DEFAULT, 2.0f);
+					ScriptEngine::Send_Custom_Event (obj, apc, MX0_A02_CUSTOM_TYPE_DESTROY_APC, MX0_A02_CUSTOM_PARAM_DEFAULT, 2.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_GET_APC_ID):
 			{
-				GameObject * apc = Commands->Find_Object (MX0_A02_GDI_APC_ID);
+				GameObject * apc = ScriptEngine::Find_Object (MX0_A02_GDI_APC_ID);
 				if (apc)
 				{
 					if (sender)
 					{
-						Commands->Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_TYPE_GET_APC_ID, MX0_A02_GDI_APC_ID, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_TYPE_GET_APC_ID, MX0_A02_GDI_APC_ID, 0.0f);
 					}
 				}
 				else
 				{
 					if (sender)
 					{
-						Commands->Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_TYPE_GET_APC_ID, 0, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_TYPE_GET_APC_ID, 0, 0.0f);
 					}
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_HELI_DESTROYED):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_HELI_DESTROYED, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_HELI_DESTROYED, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_GDI_NOTICES_FLAME):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[3]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[3]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_FLAME, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_FLAME, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_GDI_NOTICES_FLAME_DEAD):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[4]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[4]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_FLAME_DEAD, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_FLAME_DEAD, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
@@ -744,124 +744,124 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				{
 					player_retreat = false;
 					call_heli_destroy_once = true;
-					GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+					GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 					if (soldier)
 					{
-						Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_HELI_DESTROYED_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.5f);
+						ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_HELI_DESTROYED_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.5f);
 					}
-					soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+					soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 					if (soldier)
 					{
-						Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_HELI_DESTROYED_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 1.5f);
+						ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_HELI_DESTROYED_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 1.5f);
 					}
-					Commands->Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_NOD_RETREAT);
+					ScriptEngine::Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_NOD_RETREAT);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_ENDING_02):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[4]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[4]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_ENDING_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_ENDING_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_ENDING_03):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_ENDING_03, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_ENDING_03, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_ENDING_04):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_ENDING_04, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_ENDING_04, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_ENDING_05):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[3]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[3]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_ENDING_05, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_ENDING_05, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_ENDING_06):
 			{
-				Commands->Create_2D_Sound ("MX0_GDIEAGLEBASE_110");
-				Commands->Start_Timer (obj, this, 5.0f, MX0_A02_TIMER_EAGLE_BASE);
+				ScriptEngine::Create_2D_Sound ("MX0_GDIEAGLEBASE_110");
+				ScriptEngine::Start_Timer (obj, this, 5.0f, MX0_A02_TIMER_EAGLE_BASE);
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_ENGINEER_MOVETOTANK):
 			{
 				if (sender)
 				{
-					engineer_01_id = Commands->Get_ID (sender);
-					Commands->Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_TYPE_ENGINEER_MOVETOTANK, MX0_A02_MED_TANK_ID, 0.0f);
+					engineer_01_id = ScriptEngine::Get_ID (sender);
+					ScriptEngine::Send_Custom_Event (obj, sender, MX0_A02_CUSTOM_TYPE_ENGINEER_MOVETOTANK, MX0_A02_MED_TANK_ID, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_ENGINEER_DONE):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SAY_TANK, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
-					Commands->Start_Timer (obj, this, 5.0f, MX0_A02_TIMER_ENTER_TANK);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SAY_TANK, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Start_Timer (obj, this, 5.0f, MX0_A02_TIMER_ENTER_TANK);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_ENGINEER_02_REGISTER):
 			{
-				engineer_02_id = Commands->Get_ID (sender);
+				engineer_02_id = ScriptEngine::Get_ID (sender);
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_ENTERED_TANK):
 			{
 				entered_tank = true;
-				GameObject * controller = Commands->Find_Object (1400041);
+				GameObject * controller = ScriptEngine::Find_Object (1400041);
 				if (controller)
 				{
-					Commands->Send_Custom_Event (obj, controller, MX0_A03_CUSTOM_TYPE_START_ZONE, MX0_A02_CUSTOM_PARAM_DEFAULT, 2.0f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MX0_A03_CUSTOM_TYPE_START_ZONE, MX0_A02_CUSTOM_PARAM_DEFAULT, 2.0f);
 				}
-				GameObject * soldier = Commands->Find_Object (engineer_02_id);
+				GameObject * soldier = ScriptEngine::Find_Object (engineer_02_id);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SAY_FIREHOLE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SAY_FIREHOLE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_EXPLODE):
 			{
-				GameObject * debris = Commands->Find_Object (MX0_A02_BLOCKAGE_ID);
+				GameObject * debris = ScriptEngine::Find_Object (MX0_A02_BLOCKAGE_ID);
 				if (debris)
 				{
-					Commands->Create_Explosion ("Ground Explosion 01 - Harmless", Vector3(-71.233f, -41.517f, 0.181f), nullptr);
-					Commands->Set_Animation (debris, "AG_L0_BLOCKAGE1.AG_L0_BLOCKAGE1", false, nullptr, 0.0f, -1.0f, false);
-					Commands->Start_Timer (obj, this, 2.0f, MX0_A02_TIMER_DESTROY_RUBBLE);
+					ScriptEngine::Create_Explosion ("Ground Explosion 01 - Harmless", Vector3(-71.233f, -41.517f, 0.181f), nullptr);
+					ScriptEngine::Set_Animation (debris, "AG_L0_BLOCKAGE1.AG_L0_BLOCKAGE1", false, nullptr, 0.0f, -1.0f, false);
+					ScriptEngine::Start_Timer (obj, this, 2.0f, MX0_A02_TIMER_DESTROY_RUBBLE);
 				}
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_FOLLOW_HAVOC, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_FOLLOW_HAVOC, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
-				Commands->Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_WRONG_WAY);
+				ScriptEngine::Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_WRONG_WAY);
 				break;
 			}
 		case (MX0_A02_CUSTOM_TYPE_SAY_APC_DOWN):
 			{
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[3]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[3]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SAY_APC_DOWN, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SAY_APC_DOWN, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				break;
 			}
@@ -870,10 +870,10 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				int count = 1;
 				while (count < 5)
 				{
-					GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[count]);
+					GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[count]);
 					if (soldier)
 					{
-						Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SHOOT_HELI_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SHOOT_HELI_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
 					count++;
 				}
@@ -898,57 +898,57 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 					{
 					case (1):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 							break;
 						}
 					case (2):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[3]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[3]);
 							break;
 						}
 					case (3):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[4]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[4]);
 							break;
 						}
 					case (4):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 							break;
 						}
 					case (5):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 							break;
 						}
 					case (6):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[4]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[4]);
 							break;
 						}
 					case (7):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[4]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[4]);
 							break;
 						}
 					case (8):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 							break;
 						}
 					case (9):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 							break;
 						}
 					case (10):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[3]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[3]);
 							break;
 						}
 					case (11):
 						{
-							soldier = Commands->Find_Object (MX0_A02_UNIT_ID[4]);
+							soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[4]);
 							break;
 						}
 					default:
@@ -958,14 +958,14 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 					}
 					if (soldier)
 					{
-						Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_PRE_AMBIENT, pre_ambient_count, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_PRE_AMBIENT, pre_ambient_count, 0.0f);
 					}
 					pre_ambient_count++;
 					if (pre_ambient_count > MX0_A02_PRE_AMBIENT_MAX)
 					{
 						pre_ambient_count = 1;
 					}
-					Commands->Start_Timer (obj, this, float(Get_Int_Random (2, 4)), MX0_A02_TIMER_PRE_AMBIENT);
+					ScriptEngine::Start_Timer (obj, this, float(Get_Int_Random (2, 4)), MX0_A02_TIMER_PRE_AMBIENT);
 				}
 				break;
 			}
@@ -973,18 +973,18 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 			{
 				if (player_retreat)
 				{
-					Vector3 player_loc = Commands->Get_Position (STAR);
-					Vector3 controller_loc = Commands->Get_Position (obj);
-					float distance = Commands->Get_Distance (player_loc, controller_loc);
+					Vector3 player_loc = ScriptEngine::Get_Position (STAR);
+					Vector3 controller_loc = ScriptEngine::Get_Position (obj);
+					float distance = ScriptEngine::Get_Distance (player_loc, controller_loc);
 					if (distance > MX0_A02_PLAYER_RETREAT_DISTANCE)
 					{
-						GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[Get_Int_Random(1,4)]);
+						GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[Get_Int_Random(1,4)]);
 						if (soldier)
 						{
-							Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_PLAYER_RETREAT, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_PLAYER_RETREAT, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 					}
-					Commands->Start_Timer (obj, this, 3.0f, MX0_A02_TIMER_PLAYER_RETREAT);
+					ScriptEngine::Start_Timer (obj, this, 3.0f, MX0_A02_TIMER_PLAYER_RETREAT);
 				}
 				break;
 			}
@@ -993,13 +993,13 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				if (!retreat_sequence)
 				{
 					prevent_spawns = false;
-					Commands->Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_NOD_SOLDIER_KILLED, 0, 0.1f);
+					ScriptEngine::Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_NOD_SOLDIER_KILLED, 0, 0.1f);
 				}
 				break;
 			}
 		case (MX0_A02_TIMER_AFTER_HELI_01):
 			{
-				Commands->Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_NEXT_SEQUENCE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_NEXT_SEQUENCE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				break;
 			}
 		case (MX0_A02_TIMER_NOD_RETREAT):
@@ -1009,16 +1009,16 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				retreat_sequence = true;
 				player_retreat = false;
 
-				GameObject * chinook_obj1 = Commands->Create_Object("Invisible_Object", Vector3(-106.497f,-37.154f,1.093f));
+				GameObject * chinook_obj1 = ScriptEngine::Create_Object("Invisible_Object", Vector3(-106.497f,-37.154f,1.093f));
 				if (chinook_obj1)
 				{
-					Commands->Set_Facing(chinook_obj1, -55.0f);
-					Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X0I_GDI_Drop02_Engineer.txt");
+					ScriptEngine::Set_Facing(chinook_obj1, -55.0f);
+					ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X0I_GDI_Drop02_Engineer.txt");
 				}
-				GameObject * music_control = Commands->Find_Object (1700006);
+				GameObject * music_control = ScriptEngine::Find_Object (1700006);
 				if (music_control)
 				{
-					Commands->Destroy_Object (music_control);
+					ScriptEngine::Destroy_Object (music_control);
 				}
 
 				int count = MX0_A02_ACTOR_NOD_START;
@@ -1026,16 +1026,16 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				{
 					if (MX0_A02_UNIT_ID[count])
 					{
-						GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[count]);
+						GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[count]);
 						if (soldier)
 						{
-							Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_RETREAT_SEQUENCE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_RETREAT_SEQUENCE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 					}
 					count++;
 				}
-				Commands->Create_2D_Sound ("MX0_NODSOLDIER1_101");
-				Commands->Start_Timer (obj, this, 3.0f, MX0_A02_TIMER_RETREAT_DONE);
+				ScriptEngine::Create_2D_Sound ("MX0_NODSOLDIER1_101");
+				ScriptEngine::Start_Timer (obj, this, 3.0f, MX0_A02_TIMER_RETREAT_DONE);
 				break;
 			}
 		case (MX0_A02_TIMER_RETREAT_DONE):
@@ -1045,13 +1045,13 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				int count = 1;
 				while (count < MX0_A02_ACTOR_NOD_START)
 				{
-					GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[count]);
+					GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[count]);
 					if (soldier)
 					{
-						Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_RETREAT_DONE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_RETREAT_DONE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						if (count == 2)
 						{
-							Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_ENDING_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_ENDING_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 					}
 					count++;
@@ -1060,7 +1060,7 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 			}
 		case (MX0_A02_TIMER_EAGLE_BASE):
 			{
-				Commands->Create_2D_Sound ("MX0_GDIEAGLEBASE_116");
+				ScriptEngine::Create_2D_Sound ("MX0_GDIEAGLEBASE_116");
 				break;
 			}
 		case (MX0_A02_TIMER_ENTER_TANK):
@@ -1071,28 +1071,28 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 					{
 					case (0):
 						{
-							GameObject * soldier = Commands->Find_Object (engineer_02_id);
+							GameObject * soldier = ScriptEngine::Find_Object (engineer_02_id);
 							if (soldier)
 							{
-								Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_TANKSAY_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+								ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_TANKSAY_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 							}
 							break;
 						}
 					case (1):
 						{
-							GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[1]);
+							GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[1]);
 							if (soldier)
 							{
-								Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_TANKSAY_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+								ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_TANKSAY_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 							}
 							break;
 						}
 					case (2):
 						{
-							GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[2]);
+							GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[2]);
 							if (soldier)
 							{
-								Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_TANKSAY_03, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+								ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_TANKSAY_03, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 							}
 							break;
 						}
@@ -1102,7 +1102,7 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 						}
 					}
 					havoc_entered_tank++;
-					Commands->Start_Timer (obj, this, 5.0f, MX0_A02_TIMER_ENTER_TANK);
+					ScriptEngine::Start_Timer (obj, this, 5.0f, MX0_A02_TIMER_ENTER_TANK);
 				}
 				break;
 			}
@@ -1110,88 +1110,88 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 			{
 				if (!retreat_sequence)
 				{
-					GameObject * location = Commands->Find_Object (MX0_A02_MOVE_OBJ_SNIPER_01);
+					GameObject * location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_SNIPER_01);
 					int choice = Get_Int_Random (1, 16);
 					switch (choice)
 					{
 					case (1):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_01);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_01);
 							break;
 						}
 					case (2):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_02);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_02);
 							break;
 						}
 					case (3):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_03);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_03);
 							break;
 						}
 					case (4):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_04);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_04);
 							break;
 						}
 					case (5):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_05);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_05);
 							break;
 						}
 					case (6):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_06);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_06);
 							break;
 						}
 					case (7):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_07);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_07);
 							break;
 						}
 					case (8):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_08);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_08);
 							break;
 						}
 					case (9):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_09);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_09);
 							break;
 						}
 					case (10):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_10);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_10);
 							break;
 						}
 					case (11):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_11);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_11);
 							break;
 						}
 					case (12):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_12);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_12);
 							break;
 						}
 					case (13):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_13);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_13);
 							break;
 						}
 					case (14):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_14);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_14);
 							break;
 						}
 					case (15):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_15);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_15);
 							break;
 						}
 					case (16):
 						{
-							location = Commands->Find_Object (MX0_A02_MOVE_OBJ_16);
+							location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_16);
 							break;
 						}
 					default:
@@ -1201,21 +1201,21 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 					}
 					if (location)
 					{
-						Vector3 location_pos = Commands->Get_Position (location);
+						Vector3 location_pos = ScriptEngine::Get_Position (location);
 						location_pos.X += float(Get_Int_Random(-2,2));
 						location_pos.Y += float(Get_Int_Random(-2,2));
-						Commands->Create_Explosion ("Explosion_MX0", location_pos, obj);
-						Commands->Start_Timer (obj, this, float(Get_Int_Random(3,6)), MX0_A02_TIMER_RANDOM_EXPLOSIONS);
+						ScriptEngine::Create_Explosion ("Explosion_MX0", location_pos, obj);
+						ScriptEngine::Start_Timer (obj, this, float(Get_Int_Random(3,6)), MX0_A02_TIMER_RANDOM_EXPLOSIONS);
 					}
 				}
 				break;
 			}
 		case (MX0_A02_TIMER_DESTROY_RUBBLE):
 			{
-				GameObject * blockage = Commands->Find_Object (MX0_A02_BLOCKAGE_ID);
+				GameObject * blockage = ScriptEngine::Find_Object (MX0_A02_BLOCKAGE_ID);
 				if (blockage)
 				{
-					Commands->Destroy_Object (blockage);
+					ScriptEngine::Destroy_Object (blockage);
 				}
 				break;
 			}
@@ -1226,12 +1226,12 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				{
 					wrong_way_count = 2;
 				}
-				GameObject * soldier = Commands->Find_Object (MX0_A02_UNIT_ID[wrong_way_count]);
+				GameObject * soldier = ScriptEngine::Find_Object (MX0_A02_UNIT_ID[wrong_way_count]);
 				if (soldier)
 				{
-					Commands->Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SAY_WRONG_WAY, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, soldier, MX0_A02_CUSTOM_TYPE_SAY_WRONG_WAY, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
-				Commands->Start_Timer (obj, this, 5.0f, MX0_A02_TIMER_WRONG_WAY);
+				ScriptEngine::Start_Timer (obj, this, 5.0f, MX0_A02_TIMER_WRONG_WAY);
 			}
 		default:
 			{
@@ -1247,7 +1247,7 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 		{
 			if (!MX0_A02_UNIT_ID[count])
 			{
-				MX0_A02_UNIT_ID[count] = Commands->Get_ID (obj);
+				MX0_A02_UNIT_ID[count] = ScriptEngine::Get_ID (obj);
 				if (current_target)
 				{
 					current_nod_target = count;
@@ -1256,7 +1256,7 @@ DECLARE_SCRIPT (MX0_A02_Controller, "")
 				{
 					current_nod_target = 0;
 				}
-				Commands->Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_REGISTER_ACTOR_ID, count, 0.1f);
+				ScriptEngine::Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_REGISTER_ACTOR_ID, count, 0.1f);
 				count = MX0_A02_ACTOR_HEADCOUNT;
 			}
 			count++;
@@ -1299,11 +1299,11 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Attach_Script (obj, "M00_Soldier_Powerup_Disable", "");
+		ScriptEngine::Attach_Script (obj, "M00_Soldier_Powerup_Disable", "");
 		active_actor = true;
-		start_health = Commands->Get_Health (obj);
-		last_armor = Commands->Get_Shield_Strength (obj);
-		Commands->Innate_Disable (obj);
+		start_health = ScriptEngine::Get_Health (obj);
+		last_armor = ScriptEngine::Get_Shield_Strength (obj);
+		ScriptEngine::Innate_Disable (obj);
 		my_sniper_target = 0;
 		my_register_id = 0;
 		can_damage = false;
@@ -1313,12 +1313,12 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 		MX0_A02_NOD_SNIPER_02 = 0;
 		medtank_id = 0;
 
-		Commands->Enable_Enemy_Seen (obj, false);
+		ScriptEngine::Enable_Enemy_Seen (obj, false);
 
 		int actor_id = Get_Int_Parameter("ActorID");
 		if (!actor_id)
 		{
-			Commands->Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 		}
 		else
 		{
@@ -1329,8 +1329,8 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					ActionParamsStruct params;
 					params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_NODFALL01_MOVE);
 					params.Set_Movement(Vector3(-79.172f,-72.536f,6.0f), RUN, 0.5f, false);
-					Commands->Action_Goto (obj, params);
-					Commands->Enable_Enemy_Seen (obj, true);
+					ScriptEngine::Action_Goto (obj, params);
+					ScriptEngine::Enable_Enemy_Seen (obj, true);
 					break;
 				}
 			case (2): // Second falling Nod guy moves into position.
@@ -1338,8 +1338,8 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					ActionParamsStruct params;
 					params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_NODFALL02_MOVE);
 					params.Set_Movement(Vector3(-97.415f,-68.822f,3.944f), RUN, 0.5f, false);
-					Commands->Action_Goto (obj, params);
-					Commands->Enable_Enemy_Seen (obj, true);
+					ScriptEngine::Action_Goto (obj, params);
+					ScriptEngine::Enable_Enemy_Seen (obj, true);
 					break;
 				}
 			case (3): // Nod Rocket Soldier shoots APC.
@@ -1347,7 +1347,7 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					ActionParamsStruct params;
 					params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_NOD_MOVETO_APC);
 					params.Set_Movement(Vector3(-79.172f,-72.536f,6.0f), RUN, 0.5f, false);
-					Commands->Action_Goto (obj, params);
+					ScriptEngine::Action_Goto (obj, params);
 					break;
 				}
 			case (4): // Nod soldiers that get dropped from the helicopter 01.
@@ -1356,9 +1356,9 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_NOD_HELI_01_MOVE);
 					params.Set_Movement(Vector3(0,0,0), RUN, 0.5f, false);
 					params.WaypathID = MX0_A02_WAYPATH_01;
-					Commands->Action_Goto (obj, params);
+					ScriptEngine::Action_Goto (obj, params);
 					can_damage = true;
-					Commands->Start_Timer (obj, this, 20.0f, MX0_A02_TIMER_DESTROY_MINIGUNNER);
+					ScriptEngine::Start_Timer (obj, this, 20.0f, MX0_A02_TIMER_DESTROY_MINIGUNNER);
 					break;
 				}
 			case (5): // Nod FlameThrower jumps down and fires at targets until dead.
@@ -1370,31 +1370,31 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					params.WaypathID = MX0_A02_WAYPATH_02;
 					params.AttackCheckBlocked = false;
 					params.AttackForceFire = true;
-					Commands->Action_Attack (obj, params);
+					ScriptEngine::Action_Attack (obj, params);
 					can_damage = true;
-					Commands->Start_Timer (obj, this, 10.0f, MX0_A02_TIMER_DESTROY_FLAME);
-					Commands->Trigger_Weapon (obj, true, Vector3(-90.941f,-60.470f,0.069f), true);
-					GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+					ScriptEngine::Start_Timer (obj, this, 10.0f, MX0_A02_TIMER_DESTROY_FLAME);
+					ScriptEngine::Trigger_Weapon (obj, true, Vector3(-90.941f,-60.470f,0.069f), true);
+					GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_FLAME, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_FLAME, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
 					break;
 				}
 			case (6): // Nod FlameThrower explodes shortly after creation, before ending rappel.
 				{
 					can_damage = true;
-					Commands->Start_Timer (obj, this, 2.0f, MX0_A02_TIMER_DESTROY_FLAME);
+					ScriptEngine::Start_Timer (obj, this, 2.0f, MX0_A02_TIMER_DESTROY_FLAME);
 					break;
 				}
 			case (7): // Engineer 01 moves to repair the tank.
 				{
-					Commands->Start_Timer (obj, this, 4.0f, MX0_A02_TIMER_WAITFOR_MOVETOTANK);
+					ScriptEngine::Start_Timer (obj, this, 4.0f, MX0_A02_TIMER_WAITFOR_MOVETOTANK);
 					break;
 				}
 			case (8): // Engineer 02 moves to destroy the rubble.
 				{
-					Commands->Start_Timer (obj, this, 4.0f, MX0_A02_TIMER_WAITFOR_MOVETORUBBLE);
+					ScriptEngine::Start_Timer (obj, this, 4.0f, MX0_A02_TIMER_WAITFOR_MOVETORUBBLE);
 					break;
 				}
 			default:
@@ -1415,12 +1415,12 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				{
 					last_armor -= 1.0f;
 				}
-				Commands->Set_Shield_Strength (obj, last_armor);
-				Commands->Set_Health (obj, start_health);
+				ScriptEngine::Set_Shield_Strength (obj, last_armor);
+				ScriptEngine::Set_Health (obj, start_health);
 			}
 			else
 			{
-				last_armor = Commands->Get_Shield_Strength (obj);
+				last_armor = ScriptEngine::Get_Shield_Strength (obj);
 			}
 			if (default_state)
 			{
@@ -1430,8 +1430,8 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					{
 						if (damager != STAR)
 						{
-							int	my_type = Commands->Get_Player_Type (obj);
-							int their_type = Commands->Get_Player_Type (damager);
+							int	my_type = ScriptEngine::Get_Player_Type (obj);
+							int their_type = ScriptEngine::Get_Player_Type (damager);
 							if (my_type != their_type)
 							{
 								ActionParamsStruct params;
@@ -1441,7 +1441,7 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 								{
 									params.AttackCheckBlocked = false;
 								}
-								Commands->Action_Attack (obj, params);
+								ScriptEngine::Action_Attack (obj, params);
 							}
 						}
 					}
@@ -1454,7 +1454,7 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 						{
 							params.AttackCheckBlocked = false;
 						}
-						Commands->Action_Attack (obj, params);
+						ScriptEngine::Action_Attack (obj, params);
 					}
 				}
 			}
@@ -1471,22 +1471,22 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					case (1):
 						{
 							//DEBUG insert falling death animation here. Animation must kill unit at completion.
-							Commands->Debug_Message ("XXXX INSERT FALLING DEATH ANIMATION HERE.\n");
+							ScriptEngine::Debug_Message ("XXXX INSERT FALLING DEATH ANIMATION HERE.\n");
 							//DEBUG also, play a sound effect for the falling scream.
-							Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", obj);
-							GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+							ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", obj);
+							GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 							if (controller)
 							{
-								Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_RESPONDS_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+								ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_RESPONDS_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 							}
 							break;
 						}
 					case (2):
 						{
 							//DEBUG insert falling death animation here. Animation must kill unit at completion.
-							Commands->Debug_Message ("XXXX INSERT FALLING DEATH ANIMATION HERE.\n");
+							ScriptEngine::Debug_Message ("XXXX INSERT FALLING DEATH ANIMATION HERE.\n");
 							//DEBUG also, play a sound effect for the falling scream.
-							Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", obj);
+							ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", obj);
 
 							// Response from here is action complete send to destroy APC.
 							break;
@@ -1505,24 +1505,24 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 	{
 		if (active_actor)
 		{
-			GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+			GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 			if (controller)
 			{
 				if (killer == STAR)
 				{
-					Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_PLAYER_KILLED_NOD, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_PLAYER_KILLED_NOD, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 				}
 				else
 				{
 					if (killer)
 					{
-						int killer_id = Commands->Get_ID (killer);
-						Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_SOLDIER_KILLED_NOD, killer_id, 0.0f);
+						int killer_id = ScriptEngine::Get_ID (killer);
+						ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_SOLDIER_KILLED_NOD, killer_id, 0.0f);
 					}
 				}
 				if (my_register_id >= MX0_A02_ACTOR_NOD_START)
 				{
-					Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_NOD_SOLDIER_KILLED, my_register_id, 0.1f);
+					ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_NOD_SOLDIER_KILLED, my_register_id, 0.1f);
 				}
 			}
 		}
@@ -1557,7 +1557,7 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				}
 			case (MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON):
 				{
-					Commands->Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
+					ScriptEngine::Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
 					default_state = true;
 					break;
 				}
@@ -1570,7 +1570,7 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				{
 					if (default_state)
 					{
-						GameObject * target = Commands->Find_Object (param);
+						GameObject * target = ScriptEngine::Find_Object (param);
 						if (target)
 						{
 							ActionParamsStruct params;
@@ -1582,7 +1582,7 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 							{
 								params.AttackCheckBlocked = false;
 							}
-							Commands->Action_Attack (obj, params);
+							ScriptEngine::Action_Attack (obj, params);
 						}
 					}
 					break;
@@ -1595,33 +1595,33 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 			case (MX0_A02_CUSTOM_KILL_SNIPER_01):
 				{
 					default_state = false;
-					GameObject * sniper = Commands->Find_Object (param);
+					GameObject * sniper = ScriptEngine::Find_Object (param);
 					if (sniper)
 					{
-						MX0_A02_NOD_SNIPER_01 = Commands->Get_ID (sniper);
-						GameObject * location = Commands->Find_Object (MX0_A02_MOVE_OBJ_SNIPER_02);
+						MX0_A02_NOD_SNIPER_01 = ScriptEngine::Get_ID (sniper);
+						GameObject * location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_SNIPER_02);
 						if (location)
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_ROCKET_SNIPER_MOVE);
-							params.Set_Movement(Commands->Get_Position (location), RUN, 0.5f, false);
-							Commands->Action_Goto (obj, params);
+							params.Set_Movement(ScriptEngine::Get_Position (location), RUN, 0.5f, false);
+							ScriptEngine::Action_Goto (obj, params);
 						}
 						else
 						{
-							GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+							GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 							if (controller)
 							{
-								Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HANDOFF_SNIPER_02_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+								ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HANDOFF_SNIPER_02_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 							}
 						}
 					}
 					else
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HANDOFF_SNIPER_02_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HANDOFF_SNIPER_02_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 					}
 					break;
@@ -1629,32 +1629,32 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 			case (MX0_A02_CUSTOM_KILL_SNIPER_02):
 				{
 					default_state = false;
-					GameObject * sniper = Commands->Find_Object (param);
+					GameObject * sniper = ScriptEngine::Find_Object (param);
 					if (sniper)
 					{
-						MX0_A02_NOD_SNIPER_02 = Commands->Get_ID (sniper);
-						GameObject * location = Commands->Find_Object (MX0_A02_MOVE_OBJ_SNIPER_02);
+						MX0_A02_NOD_SNIPER_02 = ScriptEngine::Get_ID (sniper);
+						GameObject * location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_SNIPER_02);
 						if (location)
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_ROCKET_SNIPER_MOVE_02);
-							params.Set_Movement(Commands->Get_Position (location), RUN, 0.5f, false);
-							Commands->Action_Goto (obj, params);
+							params.Set_Movement(ScriptEngine::Get_Position (location), RUN, 0.5f, false);
+							ScriptEngine::Action_Goto (obj, params);
 						}
 						else
 						{
-							Commands->Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 					}
 					else
 					{
-						Commands->Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
 					break;
 				}
 			case (MX0_A02_CUSTOM_TYPE_START_GDI_01):
 				{
-					Commands->Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_SOLDIER_02_START);
+					ScriptEngine::Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_SOLDIER_02_START);
 					break;
 				}
 			case (MX0_A02_CUSTOM_TYPE_START_GDI_03):
@@ -1665,15 +1665,15 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 			case (MX0_A02_CUSTOM_TYPE_START_GDI_04):
 				{
 					default_state = false;
-					Vector3 my_loc = Commands->Get_Position (obj);
-					Vector3 star_loc = Commands->Get_Position (STAR);
-					float distance = Commands->Get_Distance (my_loc, star_loc);
+					Vector3 my_loc = ScriptEngine::Get_Position (obj);
+					Vector3 star_loc = ScriptEngine::Get_Position (STAR);
+					float distance = ScriptEngine::Get_Distance (my_loc, star_loc);
 					if (distance > MX0_A02_APPROACH_DISTANCE)
 					{
 						ActionParamsStruct params;
 						params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_APPROACH_HAVOC_01);
 						params.Set_Movement(STAR, RUN, 3.0f, false);
-						Commands->Action_Goto (obj, params);
+						ScriptEngine::Action_Goto (obj, params);
 					}
 					else
 					{
@@ -1717,13 +1717,13 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				}
 			case (MX0_A02_CUSTOM_TYPE_GDI_SHOOTS_NOD_01):
 				{
-					GameObject * target = Commands->Find_Object (param);
+					GameObject * target = ScriptEngine::Find_Object (param);
 					if (target)
 					{
 						ActionParamsStruct params;
 						params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_GDI_SHOOTS_NOD_01);
 						params.Set_Attack(target, 300.0f, 0.0f, true);
-						Commands->Action_Attack (obj, params);
+						ScriptEngine::Action_Attack (obj, params);
 					}
 					break;
 				}
@@ -1734,37 +1734,37 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				}
 			case (MX0_A02_CUSTOM_TYPE_GDI_SHOOTS_NOD_02):
 				{
-					GameObject * target = Commands->Find_Object (param);
+					GameObject * target = ScriptEngine::Find_Object (param);
 					if (target)
 					{
 						ActionParamsStruct params;
 						params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_GDI_SHOOTS_NOD_02);
 						params.Set_Attack(target, 300.0f, 0.0f, true);
-						Commands->Action_Attack (obj, params);
+						ScriptEngine::Action_Attack (obj, params);
 					}
 					break;
 				}
 			case (MX0_A02_CUSTOM_TYPE_GET_APC_ID):
 				{
-					GameObject * apc = Commands->Find_Object (param);
+					GameObject * apc = ScriptEngine::Find_Object (param);
 					if (apc)
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_APC_BLOWITUP, MX0_A02_CUSTOM_PARAM_DEFAULT, 1.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_APC_BLOWITUP, MX0_A02_CUSTOM_PARAM_DEFAULT, 1.0f);
 						}
 						ActionParamsStruct params;
 						params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_NOD_SHOOT_APC);
 						params.Set_Attack(apc, 300.0f, 0.0f, true);
-						Commands->Action_Attack (obj, params);
+						ScriptEngine::Action_Attack (obj, params);
 					}
 					else
 					{
 						ActionParamsStruct params;
 						params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_NOD_DONEWITH_APC);
 						params.Set_Movement(Vector3(-78.442f,-78.044f,6.404f), RUN, 0.5f, false);
-						Commands->Action_Goto (obj, params);
+						ScriptEngine::Action_Goto (obj, params);
 					}
 					break;
 				}
@@ -1807,27 +1807,27 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				}
 			case (MX0_A02_CUSTOM_TYPE_RETREAT_SEQUENCE):
 				{
-					GameObject * moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_16);
+					GameObject * moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_16);
 					switch (my_register_id)
 					{
 					case (5):
 						{
-							moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_09);
+							moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_09);
 							break;
 						}
 					case (6):
 						{
-							moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_11);
+							moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_11);
 							break;
 						}
 					case (7):
 						{
-							moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_13);
+							moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_13);
 							break;
 						}
 					case (8):
 						{
-							moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_15);
+							moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_15);
 							break;
 						}
 					default:
@@ -1839,8 +1839,8 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					{
 						ActionParamsStruct params;
 						params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_RETREAT_MOVE);
-						params.Set_Movement(Commands->Get_Position (moveloc), RUN, 0.5f, false);
-						Commands->Action_Goto (obj, params);
+						params.Set_Movement(ScriptEngine::Get_Position (moveloc), RUN, 0.5f, false);
+						ScriptEngine::Action_Goto (obj, params);
 					}
 					break;
 				}
@@ -1878,7 +1878,7 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					ActionParamsStruct params;
 					params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_DEFAULT);
 					params.Set_Movement(move_location, 0.2f, 3.0f, false);
-					Commands->Action_Goto (obj, params);
+					ScriptEngine::Action_Goto (obj, params);
 					break;
 				}
 			case (MX0_A02_CUSTOM_TYPE_ENDING_01):
@@ -1909,17 +1909,17 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 			case (MX0_A02_CUSTOM_TYPE_ENGINEER_MOVETOTANK):
 				{
 					MX0_A02_Say_Something (obj, MX0_A02_SPEECH_ENGINEER_TANK_01, false);
-					GameObject * tank = Commands->Find_Object (param);
+					GameObject * tank = ScriptEngine::Find_Object (param);
 					if (tank)
 					{
 						medtank_id = param;
-						GameObject * moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_06);
+						GameObject * moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_06);
 						if (moveloc)
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_ENGINEER_01_MEDTANK);
-							params.Set_Movement(Commands->Get_Position(moveloc), RUN, 3.0f, false);
-							Commands->Action_Goto (obj, params);
+							params.Set_Movement(ScriptEngine::Get_Position(moveloc), RUN, 3.0f, false);
+							ScriptEngine::Action_Goto (obj, params);
 						}
 					}
 					break;
@@ -1954,7 +1954,7 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					ActionParamsStruct params;
 					params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_DEFAULT);
 					params.Set_Movement(STAR, RUN, 10.0f, false);
-					Commands->Action_Goto (obj, params);
+					ScriptEngine::Action_Goto (obj, params);
 					//HANDOFF MY ID TO THE NEW CONTROLLER HERE!
 					break;
 				}
@@ -1969,14 +1969,14 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_DEFAULT);
 					params.Set_Attack(Vector3(-85.66f,-73.31f,22.81f), 300.0f, 0.0f, true);
 					params.AttackCheckBlocked = false;
-					Commands->Action_Attack (obj, params);
+					ScriptEngine::Action_Attack (obj, params);
 					break;
 				}
 			case (MX0_A02_CUSTOM_TYPE_SAY_WRONG_WAY):
 				{
-					Vector3 my_loc = Commands->Get_Position (obj);
-					Vector3 star_loc = Commands->Get_Position (STAR);
-					float distance = Commands->Get_Distance (my_loc, star_loc);
+					Vector3 my_loc = ScriptEngine::Get_Position (obj);
+					Vector3 star_loc = ScriptEngine::Get_Position (STAR);
+					float distance = ScriptEngine::Get_Distance (my_loc, star_loc);
 					if (distance < 10.0f)
 					{
 						switch (my_register_id)
@@ -2023,146 +2023,146 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				case (MX0_A02_SPEECH_GDI_01_STARTUP):
 					{
 						default_state = true;
-						Commands->Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						ScriptEngine::Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_START_GDI_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_START_GDI_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_GDI_02_STARTUP):
 					{
 						default_state = true;
-						Commands->Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						ScriptEngine::Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_START_GDI_04, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_START_GDI_04, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_GDI_01_STARTUP_02):
 					{
 						default_state = true;
-						Commands->Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						ScriptEngine::Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_START_GDI_05, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_START_GDI_05, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_GDI_02_BECKON):
 					{
 						default_state = true;
-						Commands->Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						ScriptEngine::Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_START_GDI_03, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_START_GDI_03, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_GDI_03_STARTUP):
 					{
 						default_state = true;
-						Commands->Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						ScriptEngine::Start_Timer (obj, this, 0.1f, MX0_A02_TIMER_BASIC_MOVE_02);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_CONTINUE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_CONTINUE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_GDI_NOTICES_NOD_01):
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_SHOOTS_NOD_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_SHOOTS_NOD_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_ENDING_01):
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENDING_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENDING_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_ENDING_02):
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENDING_03, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENDING_03, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_ENDING_03):
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENDING_04, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENDING_04, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_ENDING_04):
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENDING_05, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENDING_05, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_ENDING_05):
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENDING_06, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENDING_06, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_ENGINEER_DONE):
 					{
-						Commands->Create_2D_Sound ("MX0_GDIEAGLEBASE_117");
-						Commands->Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0397I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						ScriptEngine::Create_2D_Sound ("MX0_GDIEAGLEBASE_117");
+						ScriptEngine::Set_HUD_Help_Text(IDS_MTUDSGN_DSGN0397I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENGINEER_DONE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENGINEER_DONE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_TANKSAY_04):
 					{
-						GameObject * location = Commands->Find_Object (MX0_A02_MOVE_OBJ_SNIPER_02);
+						GameObject * location = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_SNIPER_02);
 						if (location)
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_ENGINEER_RETREAT);
-							params.Set_Movement(Commands->Get_Position (location), RUN, 5.0f, false);
-							Commands->Action_Goto (obj, params);
+							params.Set_Movement(ScriptEngine::Get_Position (location), RUN, 5.0f, false);
+							ScriptEngine::Action_Goto (obj, params);
 						}
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_EXPLODE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_EXPLODE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_SPEECH_GDI_SPOTS_HELI_02):
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_SHOOT_HELI_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_SHOOT_HELI_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
@@ -2178,54 +2178,54 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				{
 				case (MX0_A02_ACTION_ROCKET_SNIPER_MOVE):
 					{
-						GameObject * sniper = Commands->Find_Object (MX0_A02_NOD_SNIPER_01);
+						GameObject * sniper = ScriptEngine::Find_Object (MX0_A02_NOD_SNIPER_01);
 						if (sniper)
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_ROCKET_SNIPER_SHOOT);
 							params.Set_Attack(sniper, 300.0f, 0.0f, true);
 							params.AttackCheckBlocked = false;
-							Commands->Action_Attack (obj, params);
+							ScriptEngine::Action_Attack (obj, params);
 						}
 						else
 						{
-							GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+							GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 							if (controller)
 							{
-								Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HANDOFF_SNIPER_02_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+								ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HANDOFF_SNIPER_02_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 							}
 						}
 						break;
 					}
 				case (MX0_A02_ACTION_ROCKET_SNIPER_MOVE_02):
 					{
-						GameObject * sniper = Commands->Find_Object (MX0_A02_NOD_SNIPER_02);
+						GameObject * sniper = ScriptEngine::Find_Object (MX0_A02_NOD_SNIPER_02);
 						if (sniper)
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_ROCKET_SNIPER_SHOOT_02);
 							params.Set_Attack(sniper, 300.0f, 0.0f, true);
 							params.AttackCheckBlocked = false;
-							Commands->Action_Attack (obj, params);
+							ScriptEngine::Action_Attack (obj, params);
 						}
 						else
 						{
-							Commands->Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_ACTION_ROCKET_SNIPER_SHOOT):
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HANDOFF_SNIPER_02_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HANDOFF_SNIPER_02_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_ACTION_ROCKET_SNIPER_SHOOT_02):
 					{
-						Commands->Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, obj, MX0_A02_CUSTOM_TYPE_DEFAULT_STATE_ON, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						break;
 					}
 				case (MX0_A02_ACTION_BASIC_MOVE_01):
@@ -2233,10 +2233,10 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					{
 						if (default_state)
 						{
-							GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+							GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 							if (controller)
 							{
-								Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_REQUEST_TARGET, my_register_id, 0.0f);
+								ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_REQUEST_TARGET, my_register_id, 0.0f);
 							}
 						}
 						break;
@@ -2249,58 +2249,58 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				case (MX0_A02_ACTION_NODFALL01_MOVE):
 					{
 						can_damage = true;
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_NOD_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_NOD_01, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_ACTION_NODFALL02_MOVE):
 					{
 						can_damage = true;
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_SHOOTS_NOD_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_SHOOTS_NOD_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_ACTION_NOD_MOVETO_APC):
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GET_APC_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GET_APC_ID, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_ACTION_NOD_SHOOT_APC):
 					{
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_SAY_APC_DOWN, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_SAY_APC_DOWN, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						ActionParamsStruct params;
 						params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_NOD_DONEWITH_APC);
 						params.Set_Movement(Vector3(-78.442f,-78.044f,6.404f), RUN, 0.5f, false);
-						Commands->Action_Goto (obj, params);
+						ScriptEngine::Action_Goto (obj, params);
 						break;
 					}
 				case (MX0_A02_ACTION_NOD_DONEWITH_APC):
 					{
-						Commands->Destroy_Object (obj);
-						GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+						ScriptEngine::Destroy_Object (obj);
+						GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 						if (controller)
 						{
-							Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_NEXT_SEQUENCE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+							ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_NEXT_SEQUENCE, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 						}
 						break;
 					}
 				case (MX0_A02_ACTION_NOD_HELI_01_MOVE):
 					{
-						Commands->Enable_Enemy_Seen (obj, true);
+						ScriptEngine::Enable_Enemy_Seen (obj, true);
 						break;
 					}
 				case (MX0_A02_ACTION_NOD_HELI_02_MOVE):
@@ -2309,25 +2309,25 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 						params.Set_Basic(this, MX0_A02_PRIORITY_DEFAULT_SHOOT, MX0_A02_ACTION_DEFAULT);
 						params.Set_Attack(STAR, 30.0f, 0.0f, true);
 						params.Set_Movement (STAR, RUN, 1.0f, false);
-						Commands->Action_Attack (obj, params);
+						ScriptEngine::Action_Attack (obj, params);
 						break;
 					}
 				case (MX0_A02_ACTION_RETREAT_MOVE):
 					{
-						Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", nullptr);
+						ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", nullptr);
 						break;
 					}
 				case (MX0_A02_ACTION_ENGINEER_01_MEDTANK):
 					{
-						GameObject * tank = Commands->Find_Object (medtank_id);
+						GameObject * tank = ScriptEngine::Find_Object (medtank_id);
 						if (tank)
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_DEFAULT);
 							params.Set_Attack(tank, 300.0f, 0.0f, false);
 							params.AttackCheckBlocked = false;
-							Commands->Action_Attack (obj, params);
-							Commands->Start_Timer (obj, this, 5.0f, MX0_A02_TIMER_ENGINEER_FIX_TANK);
+							ScriptEngine::Action_Attack (obj, params);
+							ScriptEngine::Start_Timer (obj, this, 5.0f, MX0_A02_TIMER_ENGINEER_FIX_TANK);
 						}
 						break;
 					}
@@ -2338,7 +2338,7 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 						params.Set_Attack(Vector3(-75.0f,-43.4f,0.1f), 0.0f, 0.0f, true);
 						params.MoveCrouched = true;
 						params.AttackCrouched = true;
-						Commands->Action_Attack (obj, params);
+						ScriptEngine::Action_Attack (obj, params);
 						break;
 					}
 				default:
@@ -2357,7 +2357,7 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 		params.Set_Attack(enemy, 300.0f, 0.0f, true);
 		params.MoveCrouched = true;
 		params.AttackCrouched = true;
-		Commands->Action_Attack (obj, params);
+		ScriptEngine::Action_Attack (obj, params);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
@@ -2370,47 +2370,47 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				{
 					if (default_state)
 					{
-						GameObject * moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_16);
+						GameObject * moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_16);
 						switch (my_register_id)
 						{
 						case (1):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_02);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_02);
 								break;
 							}
 						case (2):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_04);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_04);
 								break;
 							}
 						case (3):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_06);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_06);
 								break;
 							}
 						case (4):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_08);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_08);
 								break;
 							}
 						case (5):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_10);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_10);
 								break;
 							}
 						case (6):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_12);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_12);
 								break;
 							}
 						case (7):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_14);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_14);
 								break;
 							}
 						case (8):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_16);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_16);
 								break;
 							}
 						default:
@@ -2422,10 +2422,10 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_BASIC_MOVE_01);
-							params.Set_Movement(Commands->Get_Position (moveloc), RUN, 0.5f, false);
-							Commands->Action_Goto (obj, params);
+							params.Set_Movement(ScriptEngine::Get_Position (moveloc), RUN, 0.5f, false);
+							ScriptEngine::Action_Goto (obj, params);
 						}
-						Commands->Start_Timer (obj, this, float(MX0_A02_TIMERLENGTH_BASIC_MOVE + Get_Int_Random(0, MX0_A02_TIMERLENGTH_BASIC_MOVE)), MX0_A02_TIMER_BASIC_MOVE_02);
+						ScriptEngine::Start_Timer (obj, this, float(MX0_A02_TIMERLENGTH_BASIC_MOVE + Get_Int_Random(0, MX0_A02_TIMERLENGTH_BASIC_MOVE)), MX0_A02_TIMER_BASIC_MOVE_02);
 					}
 					break;
 				}
@@ -2433,47 +2433,47 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 				{
 					if (default_state)
 					{
-						GameObject * moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_16);
+						GameObject * moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_16);
 						switch (my_register_id)
 						{
 						case (1):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_01);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_01);
 								break;
 							}
 						case (2):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_03);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_03);
 								break;
 							}
 						case (3):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_05);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_05);
 								break;
 							}
 						case (4):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_07);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_07);
 								break;
 							}
 						case (5):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_09);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_09);
 								break;
 							}
 						case (6):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_11);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_11);
 								break;
 							}
 						case (7):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_13);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_13);
 								break;
 							}
 						case (8):
 							{
-								moveloc = Commands->Find_Object (MX0_A02_MOVE_OBJ_15);
+								moveloc = ScriptEngine::Find_Object (MX0_A02_MOVE_OBJ_15);
 								break;
 							}
 						default:
@@ -2485,18 +2485,18 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_BASIC_MOVE_02);
-							params.Set_Movement(Commands->Get_Position (moveloc), RUN, 0.5f, false);
-							Commands->Action_Goto (obj, params);
+							params.Set_Movement(ScriptEngine::Get_Position (moveloc), RUN, 0.5f, false);
+							ScriptEngine::Action_Goto (obj, params);
 						}
-						Commands->Start_Timer (obj, this, float(MX0_A02_TIMERLENGTH_BASIC_MOVE + Get_Int_Random(0, MX0_A02_TIMERLENGTH_BASIC_MOVE)), MX0_A02_TIMER_BASIC_MOVE_01);
+						ScriptEngine::Start_Timer (obj, this, float(MX0_A02_TIMERLENGTH_BASIC_MOVE + Get_Int_Random(0, MX0_A02_TIMERLENGTH_BASIC_MOVE)), MX0_A02_TIMER_BASIC_MOVE_01);
 					}
 					break;
 				}
 			case (MX0_A02_TIMER_SOLDIER_01_START):
 				{
-					Vector3 my_location = Commands->Get_Position (obj);
-					Vector3 star_location = Commands->Get_Position (STAR);
-					float distance = Commands->Get_Distance (my_location, star_location);
+					Vector3 my_location = ScriptEngine::Get_Position (obj);
+					Vector3 star_location = ScriptEngine::Get_Position (STAR);
+					float distance = ScriptEngine::Get_Distance (my_location, star_location);
 					if (distance < MX0_A02_APPROACH_DISTANCE)
 					{
 						default_state = false;
@@ -2504,15 +2504,15 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					}
 					else
 					{
-						Commands->Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_SOLDIER_01_START);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_SOLDIER_01_START);
 					}
 					break;
 				}
 			case(MX0_A02_TIMER_SOLDIER_02_START):
 				{
-					Vector3 my_location = Commands->Get_Position (obj);
-					Vector3 star_location = Commands->Get_Position (STAR);
-					float distance = Commands->Get_Distance (my_location, star_location);
+					Vector3 my_location = ScriptEngine::Get_Position (obj);
+					Vector3 star_location = ScriptEngine::Get_Position (STAR);
+					float distance = ScriptEngine::Get_Distance (my_location, star_location);
 					if (distance < MX0_A02_APPROACH_DISTANCE)
 					{
 						default_state = false;
@@ -2523,65 +2523,65 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 						ActionParamsStruct params;
 						params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_DEFAULT);
 						params.Set_Movement(star_location, RUN, 0.5f, false);
-						Commands->Action_Goto (obj, params);
-						Commands->Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_SOLDIER_02_START);
+						ScriptEngine::Action_Goto (obj, params);
+						ScriptEngine::Start_Timer (obj, this, 1.0f, MX0_A02_TIMER_SOLDIER_02_START);
 					}
 					break;
 				}
 			case (MX0_A02_TIMER_DESTROY_FLAME):
 				{
-					GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+					GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_FLAME_DEAD, MX0_A02_CUSTOM_PARAM_DEFAULT, 1.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GDI_NOTICES_FLAME_DEAD, MX0_A02_CUSTOM_PARAM_DEFAULT, 1.0f);
 					}
-					Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", obj);
+					ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", obj);
 					break;
 				}
 			case (MX0_A02_TIMER_DESTROY_MINIGUNNER):
 				{
-					Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", obj);
+					ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", obj);
 					break;
 				}
 			case (MX0_A02_TIMER_ENGINEER_FIX_TANK):
 				{
-					GameObject * tank = Commands->Find_Object (medtank_id);
+					GameObject * tank = ScriptEngine::Find_Object (medtank_id);
 					if (tank)
 					{
-						Vector3 tank_pos = Commands->Get_Position (tank);
-						float tank_facing = Commands->Get_Facing (tank);
-						Commands->Destroy_Object (tank);
-						GameObject * newtank = Commands->Create_Object ("GDI_Medium_Tank_Player", tank_pos);
+						Vector3 tank_pos = ScriptEngine::Get_Position (tank);
+						float tank_facing = ScriptEngine::Get_Facing (tank);
+						ScriptEngine::Destroy_Object (tank);
+						GameObject * newtank = ScriptEngine::Create_Object ("GDI_Medium_Tank_Player", tank_pos);
 						if (newtank)
 						{
-							Commands->Attach_Script( obj, "M00_Send_Object_ID", "1400041,13,0.0f");
-							Commands->Set_Facing (newtank, tank_facing);
+							ScriptEngine::Attach_Script( obj, "M00_Send_Object_ID", "1400041,13,0.0f");
+							ScriptEngine::Set_Facing (newtank, tank_facing);
 							MX0_A02_Say_Something (obj, MX0_A02_SPEECH_ENGINEER_DONE, true);
-							Commands->Attach_Script (newtank, "MX0_A02_GDI_MEDTANK", "");
+							ScriptEngine::Attach_Script (newtank, "MX0_A02_GDI_MEDTANK", "");
 						}
 					}
 					break;
 				}
 			case (MX0_A02_TIMER_WAITFOR_MOVETOTANK):
 				{
-					GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+					GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENGINEER_MOVETOTANK, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENGINEER_MOVETOTANK, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
 					break;
 				}
 			case (MX0_A02_TIMER_WAITFOR_MOVETORUBBLE):
 				{
-					GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+					GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 					if (controller)
 					{
-						Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENGINEER_02_REGISTER, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+						ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENGINEER_02_REGISTER, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 					}
 					ActionParamsStruct params;
 					params.Set_Basic(this, MX0_A02_PRIORITY_FORCED_ACTION, MX0_A02_ACTION_ENGINEER_02_RUBBLE);
 					params.Set_Movement(Vector3(-76.3f,-45.0f,0.1f), RUN, 1.0f, false);
-					Commands->Action_Goto (obj, params);
+					ScriptEngine::Action_Goto (obj, params);
 					break;
 				}
 			default:
@@ -2901,18 +2901,18 @@ DECLARE_SCRIPT (MX0_A02_ACTOR, "ActorID=0:int")
 					break;
 				}
 			}
-			int conversation = Commands->Create_Conversation (conv_name, priority, 300.0f, false);
+			int conversation = ScriptEngine::Create_Conversation (conv_name, priority, 300.0f, false);
 			if (face_target)
 			{
-				Commands->Join_Conversation (obj, conversation, false, true, true);
+				ScriptEngine::Join_Conversation (obj, conversation, false, true, true);
 			}
 			else
 			{
-				Commands->Join_Conversation (obj, conversation, false, true, true);
+				ScriptEngine::Join_Conversation (obj, conversation, false, true, true);
 			}
-			Commands->Join_Conversation(STAR, conversation, false, false, false);
-			Commands->Start_Conversation (conversation, speech_id);
-			Commands->Monitor_Conversation (obj, conversation);
+			ScriptEngine::Join_Conversation(STAR, conversation, false, false, false);
+			ScriptEngine::Start_Conversation (conversation, speech_id);
+			ScriptEngine::Monitor_Conversation (obj, conversation);
 		}
 	}
 };
@@ -2924,12 +2924,12 @@ DECLARE_SCRIPT (MX0_A02_GDI_VEHICLE, "")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Health (obj, 10.0f);
+		ScriptEngine::Set_Health (obj, 10.0f);
 	}
 
 	void Damaged (GameObject * obj, GameObject * /*damager*/, float /*amount*/) override
 	{
-		Commands->Set_Health (obj, 10.0f);
+		ScriptEngine::Set_Health (obj, 10.0f);
 	}
 };
 
@@ -2952,7 +2952,7 @@ DECLARE_SCRIPT (MX0_A02_GDI_MEDTANK, "")
 
 	void Damaged (GameObject * obj, GameObject * /*damager*/, float /*amount*/) override
 	{
-		Commands->Set_Health (obj, Commands->Get_Max_Health (obj));
+		ScriptEngine::Set_Health (obj, ScriptEngine::Get_Max_Health (obj));
 	}
 
 	void Custom (GameObject * obj, int type, intptr_t /*param*/, GameObject * /*sender*/) override
@@ -2960,11 +2960,11 @@ DECLARE_SCRIPT (MX0_A02_GDI_MEDTANK, "")
 		if ((type == CUSTOM_EVENT_VEHICLE_ENTERED) && (!entered))
 		{
 			entered = true;
-			Commands->Fade_Background_Music( "Level 0 Tiberium.mp3", 2, 2);
-			GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+			ScriptEngine::Fade_Background_Music( "Level 0 Tiberium.mp3", 2, 2);
+			GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 			if (controller)
 			{
-				Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENTERED_TANK, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_ENTERED_TANK, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 			}
 		}
 	}
@@ -2986,7 +2986,7 @@ DECLARE_SCRIPT (MX0_A02_GDI_APC, "")
 	{
 		if (!can_damage)
 		{
-			Commands->Set_Health (obj, Commands->Get_Max_Health (obj));
+			ScriptEngine::Set_Health (obj, ScriptEngine::Get_Max_Health (obj));
 		}
 	}
 
@@ -2996,7 +2996,7 @@ DECLARE_SCRIPT (MX0_A02_GDI_APC, "")
 		params.Set_Basic(this, MX0_A02_PRIORITY_DEFAULT_SHOOT, MX0_A02_ACTION_DEFAULT);
 		params.Set_Attack(enemy, 300.0f, 0.0f, true);
 		params.AttackCheckBlocked = false;
-		Commands->Action_Attack (obj, params);
+		ScriptEngine::Action_Attack (obj, params);
 	}
 
 	void Custom (GameObject * obj, int type, intptr_t /*param*/, GameObject * sender) override
@@ -3004,12 +3004,12 @@ DECLARE_SCRIPT (MX0_A02_GDI_APC, "")
 		if (type == MX0_A02_CUSTOM_TYPE_DESTROY_APC)
 		{
 			can_damage = true;
-			Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", sender);
+			ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", sender);
 		}
 		else if (type == MX0_A02_CUSTOM_TYPE_STARTUP)
 		{
-			Commands->Innate_Enable (obj);
-			Commands->Enable_Enemy_Seen (obj, true);
+			ScriptEngine::Innate_Enable (obj);
+			ScriptEngine::Enable_Enemy_Seen (obj, true);
 		}
 	}
 };
@@ -3021,11 +3021,11 @@ DECLARE_SCRIPT (MX0_A02_ZONE_STARTUP, "")
 {
 	void Entered (GameObject * obj, GameObject * /*enterer*/) override
 	{
-		GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+		GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 		if (controller)
 		{
-			Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_STARTUP, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
-			Commands->Destroy_Object (obj);
+			ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_STARTUP, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+			ScriptEngine::Destroy_Object (obj);
 		}
 	}
 };
@@ -3040,7 +3040,7 @@ DECLARE_SCRIPT (MX0_A02_HELICOPTER, "ActorID=0:int")
 		int actor_id = Get_Int_Parameter ("ActorID");
 		if (actor_id)
 		{
-			Commands->Start_Timer (obj, this, 23.0f, MX0_A02_TIMER_DESTROY_HELI_02);
+			ScriptEngine::Start_Timer (obj, this, 23.0f, MX0_A02_TIMER_DESTROY_HELI_02);
 		}
 	}
 
@@ -3049,18 +3049,18 @@ DECLARE_SCRIPT (MX0_A02_HELICOPTER, "ActorID=0:int")
 		int actor_id = Get_Int_Parameter ("ActorID");
 		if (!actor_id)
 		{
-			GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+			GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 			if (controller)
 			{
-				Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HELI_DESTROYED, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HELI_DESTROYED, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 			}
 		}
 		else
 		{
-			GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+			GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 			if (controller)
 			{
-				Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HELI_DESTROYED_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_HELI_DESTROYED_02, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
 			}
 		}
 	}
@@ -3069,7 +3069,7 @@ DECLARE_SCRIPT (MX0_A02_HELICOPTER, "ActorID=0:int")
 	{
 		if (timer_id == MX0_A02_TIMER_DESTROY_HELI_02)
 		{
-			Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", nullptr);
+			ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", nullptr);
 		}
 	}
 };
@@ -3081,14 +3081,14 @@ DECLARE_SCRIPT (MX0_A02_DEFAULT_OFF, "")
 {
 	void Created (GameObject * obj) override
 	{
-		Commands->Innate_Disable (obj);
+		ScriptEngine::Innate_Disable (obj);
 	}
 
 	void Damaged (GameObject * obj, GameObject * damager, float /*amount*/) override
 	{
 		if (damager != STAR)
 		{
-			Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", obj);
+			ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", obj);
 		}
 	}
 };
@@ -3097,12 +3097,12 @@ DECLARE_SCRIPT (MX0_A02_ZONE_DEFAULT_ON, "")
 {
 	void Entered (GameObject * obj, GameObject * /*enterer*/) override
 	{
-		GameObject * controller = Commands->Find_Object (MX0_A02_CONTROLLER_ID);
+		GameObject * controller = ScriptEngine::Find_Object (MX0_A02_CONTROLLER_ID);
 		if (controller)
 		{
-			Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_MAIN_STARTUP, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
-			Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GET_SNIPER_01_ID, 1200017, 0.0f);
-			Commands->Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GET_SNIPER_02_ID, 1200023, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_MAIN_STARTUP, MX0_A02_CUSTOM_PARAM_DEFAULT, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GET_SNIPER_01_ID, 1200017, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, controller, MX0_A02_CUSTOM_TYPE_GET_SNIPER_02_ID, 1200023, 0.0f);
 		}
 	}
 };
@@ -3148,7 +3148,7 @@ DECLARE_SCRIPT (M03_A05_Evac_Zone, "")
 	{
 		int count;
 
-		if ((Commands->Is_A_Star(enterer)) && (script_active))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (script_active))
 		{
 			script_active = false;
 
@@ -3162,14 +3162,14 @@ DECLARE_SCRIPT (M03_A05_Evac_Zone, "")
 	void Create_Soldier (Vector3 position)
 	{
 		GameObject* soldier_obj_1;
-		soldier_obj_1 = Commands->Create_Object("Nod MiniGunner", position);
+		soldier_obj_1 = ScriptEngine::Create_Object("Nod MiniGunner", position);
 
 		ActionParamsStruct params;
 
 		if (soldier_obj_1)
 		{
-			Commands->Attach_Script(soldier_obj_1, "M00_Trigger_When_Destroyed_RMV", "1,2,1,0,1000004,1000,1,0.0,0.0,0");
-			if (Commands->Get_Random(0.0f,1.0f) < 0.75f)
+			ScriptEngine::Attach_Script(soldier_obj_1, "M00_Trigger_When_Destroyed_RMV", "1,2,1,0,1000004,1000,1,0.0,0.0,0");
+			if (ScriptEngine::Get_Random(0.0f,1.0f) < 0.75f)
 			{
 				params.Set_Basic(this, 99, 1);
 			}
@@ -3178,7 +3178,7 @@ DECLARE_SCRIPT (M03_A05_Evac_Zone, "")
 				params.Set_Basic(this, 85, 1);
 			}
 			params.Set_Movement(Vector3(-330.0f,75.0f,4.0f), 1.0f, 1.0f);
-			Commands->Action_Goto(soldier_obj_1, params);
+			ScriptEngine::Action_Goto(soldier_obj_1, params);
 		}
 	}
 
@@ -3214,10 +3214,10 @@ DECLARE_SCRIPT (M00_Test_Sound_RAD, "")
 {
 	void Created (GameObject * /*obj*/) override
 	{
-		int id = Commands->Create_Conversation("M00_TEST_CONVERSATION", 100, 300, true);
-		Commands->Stop_All_Conversations (); /// <--- This cancels the following conversation!
-		Commands->Join_Conversation(nullptr, id, true, true, true);
-		Commands->Join_Conversation (STAR, id, true, false, false);
-		Commands->Start_Conversation(id, 0);
+		int id = ScriptEngine::Create_Conversation("M00_TEST_CONVERSATION", 100, 300, true);
+		ScriptEngine::Stop_All_Conversations (); /// <--- This cancels the following conversation!
+		ScriptEngine::Join_Conversation(nullptr, id, true, true, true);
+		ScriptEngine::Join_Conversation (STAR, id, true, false, false);
+		ScriptEngine::Start_Conversation(id, 0);
 	}
 };

@@ -39,18 +39,18 @@ DECLARE_SCRIPT(M00_Screenshot_Poser_DAY, "Anim_Name:string" )
 
 	void Created( GameObject *obj ) override
 	{
-		Commands->Set_Loiters_Allowed( obj, false );
-		Commands->Innate_Disable( obj );
-		Commands->Innate_Soldier_Enable_Enemy_Seen( obj, false );
-		Commands->Innate_Soldier_Enable_Gunshot_Heard( obj, false );
-		Commands->Innate_Soldier_Enable_Footsteps_Heard( obj, false );
-		Commands->Innate_Soldier_Enable_Bullet_Heard( obj, false );
-		Commands->Innate_Soldier_Enable_Actions( obj, false );
+		ScriptEngine::Set_Loiters_Allowed( obj, false );
+		ScriptEngine::Innate_Disable( obj );
+		ScriptEngine::Innate_Soldier_Enable_Enemy_Seen( obj, false );
+		ScriptEngine::Innate_Soldier_Enable_Gunshot_Heard( obj, false );
+		ScriptEngine::Innate_Soldier_Enable_Footsteps_Heard( obj, false );
+		ScriptEngine::Innate_Soldier_Enable_Bullet_Heard( obj, false );
+		ScriptEngine::Innate_Soldier_Enable_Actions( obj, false );
 
 		ActionParamsStruct params;
 		params.Set_Basic( this, 99, 0 );
 		params.Set_Animation( Get_Parameter( "Anim_Name" ), true );
-		Commands->Action_Play_Animation( obj, params );
+		ScriptEngine::Action_Play_Animation( obj, params );
 	}
 
 	void Action_Complete( GameObject * obj, int action_id, ActionCompleteReason /*complete_reason*/ ) override
@@ -60,7 +60,7 @@ DECLARE_SCRIPT(M00_Screenshot_Poser_DAY, "Anim_Name:string" )
 			ActionParamsStruct params;
 			params.Set_Basic( this, 99, 0 );
 			params.Set_Animation( Get_Parameter( "Anim_Name" ), true );
-			Commands->Action_Play_Animation( obj, params );
+			ScriptEngine::Action_Play_Animation( obj, params );
 		}
 	}
 };
@@ -76,12 +76,12 @@ DECLARE_SCRIPT (DAY_TestScriptOne, "")
 		action = 1;
 		ActionParamsStruct params;
 		params.Set_Basic( this, 99, 1 );
-		params.Set_Movement( Commands->Get_Position( Commands->Find_Object(100077) ), 0.6f, 1.0f, false );
-		params.Set_Attack( Commands->Find_Object(100079), 40.0f, 0.0f, true );
+		params.Set_Movement( ScriptEngine::Get_Position( ScriptEngine::Find_Object(100077) ), 0.6f, 1.0f, false );
+		params.Set_Attack( ScriptEngine::Find_Object(100079), 40.0f, 0.0f, true );
 		params.AttackCrouched = true;
 		params.MoveCrouched = true;
-		Commands->Action_Attack( obj, params );
-		Commands->Send_Custom_Event( obj, obj, 0, 0, 5.0f );
+		ScriptEngine::Action_Attack( obj, params );
+		ScriptEngine::Send_Custom_Event( obj, obj, 0, 0, 5.0f );
 	}
 
 	void Custom( GameObject *obj, int /*type*/, intptr_t /*param*/, GameObject * /*sender*/) override
@@ -91,25 +91,25 @@ DECLARE_SCRIPT (DAY_TestScriptOne, "")
 			action = 2;
 			ActionParamsStruct params;
 			params.Set_Basic( this, 99, 2 );
-			params.Set_Movement( Commands->Get_Position( Commands->Find_Object(100078) ), 0.6f, 1.0f, false );
-			params.Set_Attack( Commands->Find_Object(100079), 40.0f, 0.0f, true );
+			params.Set_Movement( ScriptEngine::Get_Position( ScriptEngine::Find_Object(100078) ), 0.6f, 1.0f, false );
+			params.Set_Attack( ScriptEngine::Find_Object(100079), 40.0f, 0.0f, true );
 			params.AttackCrouched = true;
 			params.MoveCrouched = true;
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
-			Commands->Send_Custom_Event( obj, obj, 0, 0, 5.0f );
+			ScriptEngine::Action_Attack( obj, params );
+			ScriptEngine::Send_Custom_Event( obj, obj, 0, 0, 5.0f );
 		}
 		else
 		{
 			action = 1;
 			ActionParamsStruct params;
 			params.Set_Basic( this, 99, 1 );
-			params.Set_Movement( Commands->Get_Position( Commands->Find_Object(100077) ), 0.6f, 1.0f, false );
-			params.Set_Attack( Commands->Find_Object(100079), 40.0f, 0.0f, true );
+			params.Set_Movement( ScriptEngine::Get_Position( ScriptEngine::Find_Object(100077) ), 0.6f, 1.0f, false );
+			params.Set_Attack( ScriptEngine::Find_Object(100079), 40.0f, 0.0f, true );
 			params.AttackCrouched = true;
 			params.MoveCrouched = true;
-			Commands->Action_Attack( obj, params );
-			Commands->Send_Custom_Event( obj, obj, 0, 0, 5.0f );
+			ScriptEngine::Action_Attack( obj, params );
+			ScriptEngine::Send_Custom_Event( obj, obj, 0, 0, 5.0f );
 		}
 
 	}
@@ -120,7 +120,7 @@ DECLARE_SCRIPT (DAY_TestScriptTwo, "")
 {
 	void Created( GameObject *obj ) override
 	{
-		Commands->Innate_Disable(obj);
+		ScriptEngine::Innate_Disable(obj);
 	}
 
 };
@@ -129,7 +129,7 @@ DECLARE_SCRIPT (DAY_TestScriptThree, "")
 {
 	void Created( GameObject *obj ) override
 	{
-		Commands->Create_Explosion( "Explosion_Rocket_Gunboat_M01", Commands->Get_Position(obj), obj);
+		ScriptEngine::Create_Explosion( "Explosion_Rocket_Gunboat_M01", ScriptEngine::Get_Position(obj), obj);
 	}
 
 };
@@ -142,18 +142,18 @@ DECLARE_SCRIPT (DAY_VTOL_CircleAttack, "")
 	Vector3 Get_Circle_Position( GameObject *obj, GameObject *target , float radius , float reverseprob)
 	{
 		double theta_angle = 90;
-		float reverse = Commands->Get_Random(0.0f,1.0f);
+		float reverse = ScriptEngine::Get_Random(0.0f,1.0f);
 		if ( reverse < reverseprob)
 			{
 				theta_angle *= -1;
 			}
-		Vector3 position = Commands->Get_Position(obj);
-		Vector3 targetlocation = Commands->Get_Position( target ) - position;
+		Vector3 position = ScriptEngine::Get_Position(obj);
+		Vector3 targetlocation = ScriptEngine::Get_Position( target ) - position;
 		targetlocation.Normalize();
 		targetlocation *= radius;
 		targetlocation.Rotate_Z(DEG_TO_RADF(theta_angle));
 		targetlocation += position;
-		targetlocation.Z += Commands->Get_Safe_Flight_Height( targetlocation.X, targetlocation.Y );
+		targetlocation.Z += ScriptEngine::Get_Safe_Flight_Height( targetlocation.X, targetlocation.Y );
 		return targetlocation;
 	}
 
@@ -165,9 +165,9 @@ DECLARE_SCRIPT (DAY_VTOL_CircleAttack, "")
 	{
 		if ( damager )
 		{
-		damager_id = Commands->Get_ID(damager);
+		damager_id = ScriptEngine::Get_ID(damager);
 		}
-		Commands->Send_Custom_Event( obj, obj, 1, 1, 0.0f );
+		ScriptEngine::Send_Custom_Event( obj, obj, 1, 1, 0.0f );
 	}
 
 	void Custom( GameObject * obj, int type, intptr_t param, GameObject * /*sender*/ ) override
@@ -176,15 +176,15 @@ DECLARE_SCRIPT (DAY_VTOL_CircleAttack, "")
 		{
 			if ( param == 1 )
 			{
-				GameObject *target = Commands->Find_Object(damager_id);
+				GameObject *target = ScriptEngine::Find_Object(damager_id);
 				if (target)
 				{
 					ActionParamsStruct params;
 					params.Set_Basic( this, 99, 1 );
 					params.Set_Movement(Get_Circle_Position( obj, target, 5.0f, 0.1f ), 1.0f, 1.0f, false );
 					params.Set_Attack(target, 40.0f, 0.0f, true );
-					Commands->Action_Attack( obj, params );
-					Commands->Send_Custom_Event( obj, obj, 1, 1, 5.0f );
+					ScriptEngine::Action_Attack( obj, params );
+					ScriptEngine::Send_Custom_Event( obj, obj, 1, 1, 5.0f );
 				}
 			}
 		}
@@ -199,7 +199,7 @@ DECLARE_SCRIPT (M00_GrantPowerup_Created, "WeaponDef:string")
 	void Created( GameObject *obj) override
 	{
 		const char *Weapon = Get_Parameter( "WeaponDef" );
-		Commands->Give_PowerUp( obj, Weapon, false );
+		ScriptEngine::Give_PowerUp( obj, Weapon, false );
 	}
 
 };
@@ -209,13 +209,13 @@ DECLARE_SCRIPT (M00_VisceroidInnate_DAY, "")
 {
 	void Created( GameObject *obj ) override
 	{
-		Commands->Set_Loiters_Allowed( obj, false );
-		Commands->Set_Animation( obj, "C_Visceroid.C_Visceroid", true, nullptr, 0.0f, -1.0f, false );
+		ScriptEngine::Set_Loiters_Allowed( obj, false );
+		ScriptEngine::Set_Animation( obj, "C_Visceroid.C_Visceroid", true, nullptr, 0.0f, -1.0f, false );
 	}
 
 	void Killed( GameObject *obj, GameObject * /*killer*/ ) override
 	{
-		Commands->Set_Animation( obj, "C_Visceroid.C_Visceroid_Die", false, nullptr, 0.0f, -1.0f, false );
+		ScriptEngine::Set_Animation( obj, "C_Visceroid.C_Visceroid_Die", false, nullptr, 0.0f, -1.0f, false );
 	}
 
 };
@@ -228,10 +228,10 @@ DECLARE_SCRIPT (M00_DestroyedStateObject_DAY, "OriginalModelFacing:float,Destroy
 
 	void Destroyed( GameObject *obj ) override
 	{
-		Vector3 object_pos = Commands->Get_Position(obj);
+		Vector3 object_pos = ScriptEngine::Get_Position(obj);
 		GameObject *DestroyedModel;
-		DestroyedModel = Commands->Create_Object( Get_Parameter("DestroyedModelPreset"), object_pos );
-		Commands->Set_Facing( DestroyedModel, Get_Float_Parameter("OriginalModelFAcing") );
+		DestroyedModel = ScriptEngine::Create_Object( Get_Parameter("DestroyedModelPreset"), object_pos );
+		ScriptEngine::Set_Facing( DestroyedModel, Get_Float_Parameter("OriginalModelFAcing") );
 	}
 
 };
@@ -248,23 +248,23 @@ DECLARE_SCRIPT(M00_Play_Sound_Object_Bone_DAY, "Sound_Preset:string, Frequency_M
 		}
 		else
 		{
-			float time = Commands->Get_Random(Get_Float_Parameter("Frequency_Min"), Get_Float_Parameter("Frequency_Max"));
-			Commands->Start_Timer(obj, this, time, 0);
+			float time = ScriptEngine::Get_Random(Get_Float_Parameter("Frequency_Min"), Get_Float_Parameter("Frequency_Max"));
+			ScriptEngine::Start_Timer(obj, this, time, 0);
 		}
 	}
 
 	void Timer_Expired(GameObject * obj, int /*timer_id*/) override
 	{
 		const char * sound = Get_Parameter("Sound_Preset");
-		Vector3 pos = Commands->Get_Position(obj);
+		Vector3 pos = ScriptEngine::Get_Position(obj);
 		pos += Get_Vector3_Parameter("Offset");
 
 		int id;
 
-		Commands->Debug_Message("Playing 3D Sound\n");
-		id = Commands->Create_3D_Sound_At_Bone( sound, obj, "ROOTTRANSFORM" );
+		ScriptEngine::Debug_Message("Playing 3D Sound\n");
+		id = ScriptEngine::Create_3D_Sound_At_Bone( sound, obj, "ROOTTRANSFORM" );
 
-		Commands->Monitor_Sound(obj, id);
+		ScriptEngine::Monitor_Sound(obj, id);
 	}
 
 	void Custom(GameObject * obj, int type, intptr_t /*param*/, GameObject * /*sender*/) override
@@ -273,8 +273,8 @@ DECLARE_SCRIPT(M00_Play_Sound_Object_Bone_DAY, "Sound_Preset:string, Frequency_M
 		{
 			if (Get_Int_Parameter("Frequency_Min") < 0 )
 			{
-				float time = Commands->Get_Random(Get_Float_Parameter("Frequency_Min"), Get_Float_Parameter("Frequency_Max"));
-				Commands->Start_Timer(obj, this, time, 0);
+				float time = ScriptEngine::Get_Random(Get_Float_Parameter("Frequency_Min"), Get_Float_Parameter("Frequency_Max"));
+				ScriptEngine::Start_Timer(obj, this, time, 0);
 			}
 		}
 	}
@@ -287,12 +287,12 @@ DECLARE_SCRIPT (M00_PlayAnimation_DestroyObject_DAY, "AnimationName:string")
 	void Created( GameObject * obj ) override
 	{
 		const char * animname = Get_Parameter("AnimationName");
-		Commands->Set_Animation( obj, animname, 0, nullptr, 0.0f, -1.0f, false );
+		ScriptEngine::Set_Animation( obj, animname, 0, nullptr, 0.0f, -1.0f, false );
 	}
 
 	void Animation_Complete( GameObject * obj, const char * /*animation_name*/ ) override
 	{
-		Commands->Destroy_Object(obj);
+		ScriptEngine::Destroy_Object(obj);
 	}
 
 };
@@ -303,14 +303,14 @@ DECLARE_SCRIPT (M00_Disable_Loiter_DAY, "")
 
 	void Created( GameObject * obj ) override
 	{
-		Commands->Set_Loiters_Allowed( obj , false );
+		ScriptEngine::Set_Loiters_Allowed( obj , false );
 	}
 
 	void Custom( GameObject * obj, int type, intptr_t /*param*/, GameObject * /*sender*/ ) override
 	{
 		if ( type == M00_LOITER_ENABLE_TOGGLE )
 		{
-			Commands->Set_Loiters_Allowed( obj, true );
+			ScriptEngine::Set_Loiters_Allowed( obj, true );
 		}
 	}
 
@@ -321,7 +321,7 @@ DECLARE_SCRIPT (M00_Cinematic_Kill_Object_DAY, "")
 
 	void Created( GameObject * obj ) override
 	{
-		Commands->Apply_Damage( obj, 10000.0f, "BlamoKiller", nullptr );
+		ScriptEngine::Apply_Damage( obj, 10000.0f, "BlamoKiller", nullptr );
 	}
 
 };
@@ -331,7 +331,7 @@ DECLARE_SCRIPT (M00_Set_Background_Music_DAY, "MusicFile:string")
 
 	void Created( GameObject * /*obj*/ ) override
 	{
-		Commands->Set_Background_Music( Get_Parameter("MusicFile") );
+		ScriptEngine::Set_Background_Music( Get_Parameter("MusicFile") );
 	}
 
 };

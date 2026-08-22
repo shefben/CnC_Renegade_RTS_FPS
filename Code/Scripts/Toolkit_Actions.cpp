@@ -94,8 +94,8 @@ DECLARE_SCRIPT(M00_Action, "Start_Now=0:int, Receive_Type=14:int, Receive_Param_
 		GameObject*	move_target;
 		GameObject* attack_target;
 
-		move_target = Commands->Find_Object(Get_Int_Parameter("_Move_Target_ID"));
-		attack_target = Commands->Find_Object(Get_Int_Parameter("_Attack_Target_ID"));
+		move_target = ScriptEngine::Find_Object(Get_Int_Parameter("_Move_Target_ID"));
+		attack_target = ScriptEngine::Find_Object(Get_Int_Parameter("_Attack_Target_ID"));
 		primary_weapon = (Get_Int_Parameter("_Attack_Primary") == 1) ? true : false;
 		current_attack_location = Get_Vector3_Parameter("_Attack_Location");
 		empty_vector = Vector3(0.0f,0.0f,0.0f);
@@ -159,13 +159,13 @@ DECLARE_SCRIPT(M00_Action, "Start_Now=0:int, Receive_Type=14:int, Receive_Param_
 				{
 					SCRIPT_DEBUG_MESSAGE(("M00_Action is moving and attacking.\n"));
 
-					Commands->Action_Attack(obj, params);
+					ScriptEngine::Action_Attack(obj, params);
 				}
 				else
 				{
 					SCRIPT_DEBUG_MESSAGE(("M00_Action is moving only - no attack.\n"));
 
-					Commands->Action_Goto(obj, params);
+					ScriptEngine::Action_Goto(obj, params);
 				}
 			}
 		}
@@ -181,8 +181,8 @@ DECLARE_SCRIPT(M00_Action, "Start_Now=0:int, Receive_Type=14:int, Receive_Param_
 				GameObject*	move_target;
 				GameObject* attack_target;
 
-				move_target = Commands->Find_Object(Get_Int_Parameter("_Move_Target_ID"));
-				attack_target = Commands->Find_Object(Get_Int_Parameter("_Attack_Target_ID"));
+				move_target = ScriptEngine::Find_Object(Get_Int_Parameter("_Move_Target_ID"));
+				attack_target = ScriptEngine::Find_Object(Get_Int_Parameter("_Attack_Target_ID"));
 
 				ActionParamsStruct params;
 				params.Set_Basic(this, float(Get_Int_Parameter("Action_Priority")), Get_Int_Parameter("Action_ID"));
@@ -242,13 +242,13 @@ DECLARE_SCRIPT(M00_Action, "Start_Now=0:int, Receive_Type=14:int, Receive_Param_
 				{
 					SCRIPT_DEBUG_MESSAGE(("M00_Action is moving and attacking.\n"));
 
-				Commands->Action_Attack(obj, params);
+				ScriptEngine::Action_Attack(obj, params);
 				}
 				else
 				{
 					SCRIPT_DEBUG_MESSAGE(("M00_Action is moving only - no attack.\n"));
 
-					Commands->Action_Goto(obj, params);
+					ScriptEngine::Action_Goto(obj, params);
 				}
 			}
 		}
@@ -256,7 +256,7 @@ DECLARE_SCRIPT(M00_Action, "Start_Now=0:int, Receive_Type=14:int, Receive_Param_
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Action DEACTIVATED.\n"));
 			script_active = false;
-			Commands->Action_Reset(obj, float(Get_Int_Parameter("Action_Priority")+1));
+			ScriptEngine::Action_Reset(obj, float(Get_Int_Parameter("Action_Priority")+1));
 		}
 	}
 }
@@ -334,7 +334,7 @@ DECLARE_SCRIPT(M00_Action_Set_Home_Location, "Start_Now=1:int, Receive_Type:int,
 
 	void Set_Innate_Position (GameObject* obj)
 	{
-		Commands->Set_Innate_Soldier_Home_Location(obj, Get_Vector3_Parameter("Home_Location"), Get_Float_Parameter("Wander_Distance"));
+		ScriptEngine::Set_Innate_Soldier_Home_Location(obj, Get_Vector3_Parameter("Home_Location"), Get_Float_Parameter("Wander_Distance"));
 	}
 };
 
@@ -348,7 +348,7 @@ DECLARE_SCRIPT (M00_Action_Innate_Follow_Waypath, "Waypath_ID:int")
 
 	void Action_Complete(GameObject * /*obj*/, int /*action_id*/, ActionCompleteReason /*complete_reason*/) override
 	{
-		//Commands->Start_Timer (obj, this, 3.0f, 32);
+		//ScriptEngine::Start_Timer (obj, this, 3.0f, 32);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
@@ -367,7 +367,7 @@ DECLARE_SCRIPT (M00_Action_Innate_Follow_Waypath, "Waypath_ID:int")
 		params.Set_Basic(this, 29, 11);
 		params.Set_Movement(Vector3(0.0f,0.0f,0.0f), 0.5f, 1.0f);
 		params.WaypathID = Get_Int_Parameter("Waypath_ID");
-		Commands->Action_Goto (obj, params);
+		ScriptEngine::Action_Goto (obj, params);
 		*/
 	}
 };
@@ -376,22 +376,22 @@ DECLARE_SCRIPT (M00_Action_Innate_Follow_Player, "")
 {
 	void Created (GameObject* obj) override
 	{
-		Commands->Start_Timer (obj, this, 1.0f, 33);
+		ScriptEngine::Start_Timer (obj, this, 1.0f, 33);
 	}
 
 	void Timer_Expired (GameObject* obj, int timer_id) override
 	{
 		if (timer_id == 33)
 		{
-			Vector3 my_loc = Commands->Get_Position(obj);
-			GameObject * nearest = Commands->Get_A_Star (my_loc);
+			Vector3 my_loc = ScriptEngine::Get_Position(obj);
+			GameObject * nearest = ScriptEngine::Get_A_Star (my_loc);
 			if (nearest)
 			{
 				ActionParamsStruct params;
 				params.Set_Basic(this, 39, 11);
 				params.Set_Movement(nearest, 1.0f, 3.0f);
-				Commands->Action_Goto (nearest, params);
-				Commands->Start_Timer (obj, this, 10.0f, 33);
+				ScriptEngine::Action_Goto (nearest, params);
+				ScriptEngine::Start_Timer (obj, this, 10.0f, 33);
 			}
 		}
 	}

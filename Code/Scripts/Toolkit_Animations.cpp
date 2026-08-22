@@ -61,14 +61,14 @@ void M00_Controller_Animation_RMV (GameObject * obj, GameObjObserverClass * scri
 	ActionParamsStruct params;
 	params.Set_Basic(script, float(priority), action_id);
 	params.Set_Animation(animation_name, loop);
-	Commands->Action_Play_Animation(obj, params);
+	ScriptEngine::Action_Play_Animation(obj, params);
 	if (drop_frame != 0)
 	{
 		if (drop_object != nullptr)
 		{
 			if (drop_bone != nullptr)
 			{
-				Commands->Send_Custom_Event(obj, obj, M00_CUSTOM_ANIMATION_DROP_OBJECT, 0, float(drop_frame/30));
+				ScriptEngine::Send_Custom_Event(obj, obj, M00_CUSTOM_ANIMATION_DROP_OBJECT, 0, float(drop_frame/30));
 			}
 		}
 	}
@@ -114,7 +114,7 @@ DECLARE_SCRIPT(M00_Animation_Play_RMV, "Start_Now=0:int, Receive_Type:int, Recei
 			}
 			if (param == Get_Int_Parameter("Receive_Param_Off"))
 			{
-				Commands->Action_Reset(obj, float(priority + 1));
+				ScriptEngine::Action_Reset(obj, float(priority + 1));
 				SCRIPT_DEBUG_MESSAGE(("M00_Animation_Play_RMV DEACTIVATED.\n"));
 			}
 		}
@@ -182,13 +182,13 @@ DECLARE_SCRIPT(M00_Animation_Play_Drop_Object_RMV, "Start_Now=0:int, Receive_Typ
 			}
 			if (param == Get_Int_Parameter("Receive_Param_Off"))
 			{
-				Commands->Action_Reset(obj, float(priority + 1));
+				ScriptEngine::Action_Reset(obj, float(priority + 1));
 				SCRIPT_DEBUG_MESSAGE(("M00_Animation_Play_Drop_Object_RMV DEACTIVATED.\n"));
 			}
 		}
 		if ((type == M00_CUSTOM_ANIMATION_DROP_OBJECT) && (param == 0))
 		{
-			Commands->Create_Object_At_Bone(obj, object, bone);
+			ScriptEngine::Create_Object_At_Bone(obj, object, bone);
 			SCRIPT_DEBUG_MESSAGE(("Object %s created by M00_Animation_Play_Drop_Object_RMV.\n", object));
 		}
 	}
@@ -253,12 +253,12 @@ DECLARE_SCRIPT(M00_Animation_Play_Drop_Object_Attach_Script_RMV, "Start_Now=0:in
 			if (param == Get_Int_Parameter("Receive_Param_Off"))
 			{
 				SCRIPT_DEBUG_MESSAGE(("M00_Animation_Play_Drop_Object_Attach_Script_RMV DEACTIVATED.\n"));
-				Commands->Action_Reset(obj, float(priority + 1));
+				ScriptEngine::Action_Reset(obj, float(priority + 1));
 			}
 		}
 		if ((type == M00_CUSTOM_ANIMATION_DROP_OBJECT) && (param == 0))
 		{
-			GameObject *new_object = Commands->Create_Object_At_Bone(obj, object, bone);
+			GameObject *new_object = ScriptEngine::Create_Object_At_Bone(obj, object, bone);
 			SCRIPT_DEBUG_MESSAGE(("Object %s created by M00_Animation_Play_Drop_Object_Attach_Script_RMV.\n", object));
 
 			const char *script = Get_Parameter("Script_Name");
@@ -266,7 +266,7 @@ DECLARE_SCRIPT(M00_Animation_Play_Drop_Object_Attach_Script_RMV, "Start_Now=0:in
 			char fixed_params[255];
 			Fix_Params(params, fixed_params);
 
-			Commands->Attach_Script(new_object, script, fixed_params);
+			ScriptEngine::Attach_Script(new_object, script, fixed_params);
 			SCRIPT_DEBUG_MESSAGE(("Script %s attached to new object by M00_Animation_Play_Drop_Object_Attach_Script_RMV.", script));
 		}
 	}

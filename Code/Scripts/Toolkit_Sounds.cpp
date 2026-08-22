@@ -54,11 +54,11 @@ void M00_Controller_Sound_RAD (GameObject* obj, const Vector3& sound_loc, const 
 {
 	if (two_dimensional)
 	{
-		Commands->Create_2D_WAV_Sound (sound_effect);
+		ScriptEngine::Create_2D_WAV_Sound (sound_effect);
 	}
 	else
 	{
-		Commands->Create_Sound (sound_effect, sound_loc, obj);
+		ScriptEngine::Create_Sound (sound_effect, sound_loc, obj);
 	}
 };
 
@@ -100,7 +100,7 @@ DECLARE_SCRIPT(M00_Sound_Play_2D_RAD, "Start_Now=0:int, Receive_Type:int, Receiv
 		if (Get_Int_Parameter("Start_Now"))
 		{
 			delay_time = 0.1f;
-			Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_2D_RAD);
+			ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_2D_RAD);
 			SCRIPT_DEBUG_MESSAGE(("M00_Sound_Play_2D_RAD ACTIVATED.\n"));
 		}
 	}
@@ -116,7 +116,7 @@ DECLARE_SCRIPT(M00_Sound_Play_2D_RAD, "Start_Now=0:int, Receive_Type:int, Receiv
 				if (play_count > 1)
 				{
 					delay_time = 0.1f;
-					Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_2D_RAD);
+					ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_2D_RAD);
 				}
 				else
 				{
@@ -147,13 +147,13 @@ DECLARE_SCRIPT(M00_Sound_Play_2D_RAD, "Start_Now=0:int, Receive_Type:int, Receiv
 				}
 				else
 				{
-					delay_time = Commands->Get_Random(delay_time_min, delay_time_max);
+					delay_time = ScriptEngine::Get_Random(delay_time_min, delay_time_max);
 				}
 				const char *sound_effect;
 				sound_effect = Get_Parameter("Sound_Effect");
 				SCRIPT_DEBUG_MESSAGE(("M00_Sound_Play_2D_RAD playing sound.\n"));
 				M00_Controller_Sound_RAD (obj, Vector3(0.0f, 0.0f, 0.0f), sound_effect, 1);
-				Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_2D_RAD);
+				ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_2D_RAD);
 			}
 			else
 			{
@@ -207,7 +207,7 @@ DECLARE_SCRIPT (M00_Sound_Play_3D_On_Object_RAD, "Start_Now=0:int, Receive_Type:
 		if (Get_Int_Parameter("Start_Now"))
 		{
 			delay_time = 0.1f;
-			Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
+			ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
 			SCRIPT_DEBUG_MESSAGE(("M00_Sound_Play_3D_On_Object_RAD ACTIVATED.\n"));
 		}
 	}
@@ -223,7 +223,7 @@ DECLARE_SCRIPT (M00_Sound_Play_3D_On_Object_RAD, "Start_Now=0:int, Receive_Type:
 				if ((play_count > 1) || (!play_count))
 				{
 					delay_time = 0.1f;
-					Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
+					ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
 				}
 				else
 				{
@@ -231,12 +231,12 @@ DECLARE_SCRIPT (M00_Sound_Play_3D_On_Object_RAD, "Start_Now=0:int, Receive_Type:
 					if (Get_Int_Parameter("Object_ID"))
 					{
 						GameObject* target_object;
-						target_object = Commands->Find_Object(Get_Int_Parameter("Object_ID"));
+						target_object = ScriptEngine::Find_Object(Get_Int_Parameter("Object_ID"));
 						if (target_object)
 						{
 							const char* sound_effect;
 							sound_effect = Get_Parameter("Sound_Effect");
-							my_position = Commands->Get_Position(target_object);
+							my_position = ScriptEngine::Get_Position(target_object);
 							M00_Controller_Sound_RAD (target_object, my_position, sound_effect, 0);
 						}
 					}
@@ -244,7 +244,7 @@ DECLARE_SCRIPT (M00_Sound_Play_3D_On_Object_RAD, "Start_Now=0:int, Receive_Type:
 					{
 						const char* sound_effect;
 						sound_effect = Get_Parameter("Sound_Effect");
-						my_position = Commands->Get_Position(obj);
+						my_position = ScriptEngine::Get_Position(obj);
 						M00_Controller_Sound_RAD (obj, my_position, sound_effect, 0);
 					}
 				}
@@ -288,29 +288,29 @@ DECLARE_SCRIPT (M00_Sound_Play_3D_On_Object_RAD, "Start_Now=0:int, Receive_Type:
 		}
 		else
 		{
-			delay_time = Commands->Get_Random(delay_time_min, delay_time_max);
+			delay_time = ScriptEngine::Get_Random(delay_time_min, delay_time_max);
 		}
 		SCRIPT_DEBUG_MESSAGE(("M00_Sound_Play_3D_On_Object_RAD playing sound.\n"));
 		if (!Get_Int_Parameter("Object_ID"))
 		{
 			const char *sound_effect;
 			sound_effect = Get_Parameter("Sound_Effect");
-			my_position = Commands->Get_Position(obj);
+			my_position = ScriptEngine::Get_Position(obj);
 			M00_Controller_Sound_RAD (obj, my_position, sound_effect, 0);
 		}
 		else
 		{
 			GameObject *target_obj;
-			target_obj = Commands->Find_Object(Get_Int_Parameter("Object_ID"));
+			target_obj = ScriptEngine::Find_Object(Get_Int_Parameter("Object_ID"));
 			if (target_obj)
 			{
 				const char *sound_effect;
 				sound_effect = Get_Parameter("Sound_Effect");
-				my_position = Commands->Get_Position(target_obj);
+				my_position = ScriptEngine::Get_Position(target_obj);
 				M00_Controller_Sound_RAD (target_obj, my_position, sound_effect, 0);
 			}
 		}
-		Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
+		ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
 	}
 };
 
@@ -354,7 +354,7 @@ DECLARE_SCRIPT(M00_Sound_Play_3D_At_Location_RMV, "Start_Now=0:int, Receive_Type
 		if (Get_Int_Parameter("Start_Now"))
 		{
 			delay_time = 0.1f;
-			Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_RAD);
+			ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_RAD);
 			SCRIPT_DEBUG_MESSAGE(("M00_Sound_Play_3D_At_Location_RMV ACTIVATED.\n"));
 		}
 	}
@@ -370,7 +370,7 @@ DECLARE_SCRIPT(M00_Sound_Play_3D_At_Location_RMV, "Start_Now=0:int, Receive_Type
 				if (play_count > 1)
 				{
 					delay_time = 0.1f;
-					Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_RAD);
+					ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_RAD);
 				}
 				else
 				{
@@ -400,12 +400,12 @@ DECLARE_SCRIPT(M00_Sound_Play_3D_At_Location_RMV, "Start_Now=0:int, Receive_Type
 				}
 				else
 				{
-					delay_time = Commands->Get_Random(delay_time_min, delay_time_max);
+					delay_time = ScriptEngine::Get_Random(delay_time_min, delay_time_max);
 				}
 				const char* sound_effect;
 				sound_effect = Get_Parameter("Sound_Effect");
 				M00_Controller_Sound_RAD (obj, my_position, sound_effect, 0);
-				Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_RAD);
+				ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_RAD);
 			}
 			else
 			{
@@ -456,7 +456,7 @@ DECLARE_SCRIPT(M00_Sound_Play_3D_At_Bone_RMV, "Start_Now=0:int, Receive_Type:int
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Sound_Play_3D_At_Bone_RMV ACTIVATED.\n"));
 			delay_time = 0.1f;
-			Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
+			ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
 		}
 	}
 
@@ -471,17 +471,17 @@ DECLARE_SCRIPT(M00_Sound_Play_3D_At_Bone_RMV, "Start_Now=0:int, Receive_Type:int
 				if (play_count > 1)
 				{
 					delay_time = 0.1f;
-					Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
+					ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
 				}
 				else
 				{
 					GameObject *target_object;
-					target_object = Commands->Find_Object(Get_Int_Parameter("Object_ID"));
+					target_object = ScriptEngine::Find_Object(Get_Int_Parameter("Object_ID"));
 					if (target_object)
 					{
 						const char* sound_effect;
 						sound_effect = Get_Parameter("Sound_Effect");
-						my_position = Commands->Get_Bone_Position(target_object, Get_Parameter("Bone_Name"));
+						my_position = ScriptEngine::Get_Bone_Position(target_object, Get_Parameter("Bone_Name"));
 						M00_Controller_Sound_RAD (target_object, my_position, sound_effect, 0);
 					}
 				}
@@ -507,20 +507,20 @@ DECLARE_SCRIPT(M00_Sound_Play_3D_At_Bone_RMV, "Start_Now=0:int, Receive_Type:int
 				}
 				else
 				{
-					delay_time = Commands->Get_Random(delay_time_min, delay_time_max);
+					delay_time = ScriptEngine::Get_Random(delay_time_min, delay_time_max);
 				}
 
 				GameObject *target_object;
-				target_object = Commands->Find_Object(Get_Int_Parameter("Object_ID"));
+				target_object = ScriptEngine::Find_Object(Get_Int_Parameter("Object_ID"));
 				if (target_object)
 				{
 					const char *sound_effect;
 					sound_effect = Get_Parameter("Sound_Effect");
-					my_position = Commands->Get_Bone_Position(target_object, Get_Parameter("Bone_Name"));
+					my_position = ScriptEngine::Get_Bone_Position(target_object, Get_Parameter("Bone_Name"));
 					M00_Controller_Sound_RAD (target_object, my_position, sound_effect, 0);
 				}
 
-				Commands->Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
+				ScriptEngine::Start_Timer (obj, this, delay_time, M00_TIMER_SOUND_PLAY_3D_ON_OBJECT_RAD);
 			}
 			else
 			{
@@ -628,19 +628,19 @@ DECLARE_SCRIPT(RMV_Audio_Timer_Delay, "Target_ID:int, Custom_Type=0:int, Custom_
 		if ((min == 0) && (max == 0))
 		{
 			GameObject *target;
-			target = Commands->Find_Object(Get_Int_Parameter("Target_ID"));
-			Commands->Send_Custom_Event(obj, target, type, param, 0.0f);
+			target = ScriptEngine::Find_Object(Get_Int_Parameter("Target_ID"));
+			ScriptEngine::Send_Custom_Event(obj, target, type, param, 0.0f);
 		}
 		else
 			if ((min != 0) && (max == 0))
 			{
 				delay = min;
-				Commands->Start_Timer(obj, this, delay, id);
+				ScriptEngine::Start_Timer(obj, this, delay, id);
 			}
 			else if (max != 0)
 			{
-				delay = Commands->Get_Random(min, max);
-				Commands->Start_Timer(obj, this, delay, id);
+				delay = ScriptEngine::Get_Random(min, max);
+				ScriptEngine::Start_Timer(obj, this, delay, id);
 			}
 	}
 
@@ -650,8 +650,8 @@ DECLARE_SCRIPT(RMV_Audio_Timer_Delay, "Target_ID:int, Custom_Type=0:int, Custom_
 		{
 			if (max !=0)
 				if (random)
-					delay = Commands->Get_Random(min, max);
-			Commands->Start_Timer(obj, this, delay, id);
+					delay = ScriptEngine::Get_Random(min, max);
+			ScriptEngine::Start_Timer(obj, this, delay, id);
 		}
 	}
 };
@@ -676,11 +676,11 @@ DECLARE_SCRIPT(RMV_Audio_Sound_Player_WAV, "WAV_File:string, Is_3D=1:int, Custom
 			sound = Get_Parameter("WAV_File");
 			if (is3d)
 			{
-				Commands->Create_3D_WAV_Sound_At_Bone(sound, obj, "ROOTTRANSFORM");
+				ScriptEngine::Create_3D_WAV_Sound_At_Bone(sound, obj, "ROOTTRANSFORM");
 			}
 			else
 			{
-				Commands->Create_2D_WAV_Sound(sound);
+				ScriptEngine::Create_2D_WAV_Sound(sound);
 			}
 		}
 	}
@@ -704,7 +704,7 @@ DECLARE_SCRIPT(RMV_Audio_Sound_Player_Preset, "Preset_Name:string, Custom_Type=0
 		{
 			const char *sound;
 			sound = Get_Parameter("Preset_Name");
-			Commands->Create_Sound(sound, origin, obj);
+			ScriptEngine::Create_Sound(sound, origin, obj);
 		}
 	}
 };
@@ -738,17 +738,17 @@ DECLARE_SCRIPT(RMV_Sound_Play_Near_Player, "Receive_Type:int, Receive_Param:int,
 			const char *preset;
 			preset = Get_Parameter("Sound_Preset");
 			GameObject *player;
-			player = Commands->Get_A_Star(Vector3(0,0,0));
-			Vector3 player_pos = Commands->Get_Position(player);
-			current.X = Commands->Get_Random(-offset.X, offset.X);
-			current.Y = Commands->Get_Random(-offset.Y, offset.Y);
-			current.Z = Commands->Get_Random(0.0, offset.Z);
+			player = ScriptEngine::Get_A_Star(Vector3(0,0,0));
+			Vector3 player_pos = ScriptEngine::Get_Position(player);
+			current.X = ScriptEngine::Get_Random(-offset.X, offset.X);
+			current.Y = ScriptEngine::Get_Random(-offset.Y, offset.Y);
+			current.Z = ScriptEngine::Get_Random(0.0, offset.Z);
 			Vector3 sound_pos = player_pos + current;
 			if (freq_max == 0.0)
 				freq = freq_min;
-			else freq = Commands->Get_Random(freq_min, freq_max);
-			Commands->Create_Sound(preset, sound_pos, obj);
-			Commands->Start_Timer(obj, this, freq, SOUND_PLAYER_TIMER);
+			else freq = ScriptEngine::Get_Random(freq_min, freq_max);
+			ScriptEngine::Create_Sound(preset, sound_pos, obj);
+			ScriptEngine::Start_Timer(obj, this, freq, SOUND_PLAYER_TIMER);
 		}
 	}
 };
@@ -787,13 +787,13 @@ DECLARE_SCRIPT (M00_BuildingStateSoundSpeaker, "Sound_Normal:string,Sound_Destro
 		building_destroyed = false;
 		building_explode = true; // set play building explosions to true for when building is destroyed.
 
-		GameObject *building = Commands->Find_Object( Get_Int_Parameter("BuildingController_ID") );
+		GameObject *building = ScriptEngine::Find_Object( Get_Int_Parameter("BuildingController_ID") );
 		if (building)
 		{
-			int speaker_id = Commands->Get_ID ( obj );
+			int speaker_id = ScriptEngine::Get_ID ( obj );
 			char speaker[16];
 			sprintf (speaker, "%d", speaker_id);
-			Commands->Attach_Script( building, "M00_BuildingStateSoundController", speaker);
+			ScriptEngine::Attach_Script( building, "M00_BuildingStateSoundController", speaker);
 		}
 
 		if (Get_Int_Parameter("Frequency_Min") == -1)
@@ -802,8 +802,8 @@ DECLARE_SCRIPT (M00_BuildingStateSoundSpeaker, "Sound_Normal:string,Sound_Destro
 		}
 		else
 		{
-			float time = Commands->Get_Random(Get_Float_Parameter("Frequency_Min"), Get_Float_Parameter("Frequency_Max"));
-			Commands->Start_Timer(obj, this, time, 0);
+			float time = ScriptEngine::Get_Random(Get_Float_Parameter("Frequency_Min"), Get_Float_Parameter("Frequency_Max"));
+			ScriptEngine::Start_Timer(obj, this, time, 0);
 		}
 
 	}
@@ -813,45 +813,45 @@ DECLARE_SCRIPT (M00_BuildingStateSoundSpeaker, "Sound_Normal:string,Sound_Destro
 		if ( building_destroyed == false )
 		{
 			bool is_3d = (Get_Int_Parameter("Is_3D") == 1) ? true : false;
-			Vector3 pos = Commands->Get_Position(obj);
+			Vector3 pos = ScriptEngine::Get_Position(obj);
 			pos += Get_Vector3_Parameter("Offset");
 			Vector3 offset_random = Get_Vector3_Parameter("Offset_Randomness");
-			pos.X += Commands->Get_Random(-offset_random.X, offset_random.X);
-			pos.Y += Commands->Get_Random(-offset_random.Y, offset_random.Y);
-			pos.Z += Commands->Get_Random(-offset_random.Z, offset_random.Z);
+			pos.X += ScriptEngine::Get_Random(-offset_random.X, offset_random.X);
+			pos.Y += ScriptEngine::Get_Random(-offset_random.Y, offset_random.Y);
+			pos.Z += ScriptEngine::Get_Random(-offset_random.Z, offset_random.Z);
 			if (is_3d)
 			{
-				Commands->Debug_Message("Playing 3D Sound\n");
-				sound_int = Commands->Create_Sound(Get_Parameter("Sound_Normal"), pos, obj);
+				ScriptEngine::Debug_Message("Playing 3D Sound\n");
+				sound_int = ScriptEngine::Create_Sound(Get_Parameter("Sound_Normal"), pos, obj);
 			}
 			else
 			{
-				Commands->Debug_Message("Playing 2D Sound\n");
-				sound_int = Commands->Create_2D_Sound(Get_Parameter("Sound_Normal"));
+				ScriptEngine::Debug_Message("Playing 2D Sound\n");
+				sound_int = ScriptEngine::Create_2D_Sound(Get_Parameter("Sound_Normal"));
 			}
 		}
 		else
 		{
 			bool is_3d_destroyed = (Get_Int_Parameter("Is_3D_Destroyed") == 1) ? true : false;
-			Vector3 pos = Commands->Get_Position(obj);
+			Vector3 pos = ScriptEngine::Get_Position(obj);
 			pos += Get_Vector3_Parameter("Offset_Destroyed");
 			Vector3 offset_random = Get_Vector3_Parameter("Offset_Randomness_Destroyed");
-			pos.X += Commands->Get_Random(-offset_random.X, offset_random.X);
-			pos.Y += Commands->Get_Random(-offset_random.Y, offset_random.Y);
-			pos.Z += Commands->Get_Random(-offset_random.Z, offset_random.Z);
+			pos.X += ScriptEngine::Get_Random(-offset_random.X, offset_random.X);
+			pos.Y += ScriptEngine::Get_Random(-offset_random.Y, offset_random.Y);
+			pos.Z += ScriptEngine::Get_Random(-offset_random.Z, offset_random.Z);
 			if (is_3d_destroyed)
 			{
-				Commands->Debug_Message("Playing 3D Sound\n");
-				sound_int = Commands->Create_Sound(Get_Parameter("Sound_Destroyed"), pos, obj);
+				ScriptEngine::Debug_Message("Playing 3D Sound\n");
+				sound_int = ScriptEngine::Create_Sound(Get_Parameter("Sound_Destroyed"), pos, obj);
 			}
 			else
 			{
-				Commands->Debug_Message("Playing 2D Sound\n");
-				sound_int = Commands->Create_2D_Sound(Get_Parameter("Sound_Destroyed"));
+				ScriptEngine::Debug_Message("Playing 2D Sound\n");
+				sound_int = ScriptEngine::Create_2D_Sound(Get_Parameter("Sound_Destroyed"));
 			}
 		}
 
-		Commands->Monitor_Sound(obj, sound_int);
+		ScriptEngine::Monitor_Sound(obj, sound_int);
 	}
 
 	void Custom( GameObject * obj, int type, intptr_t param, GameObject * /*sender*/ ) override
@@ -862,16 +862,16 @@ DECLARE_SCRIPT (M00_BuildingStateSoundSpeaker, "Sound_Normal:string,Sound_Destro
 			{
 				if (Get_Int_Parameter("Frequency_Min") != -1)
 				{
-					float time = Commands->Get_Random(Get_Float_Parameter("Frequency_Min"), Get_Float_Parameter("Frequency_Max"));
-					Commands->Start_Timer(obj, this, time, 0);
+					float time = ScriptEngine::Get_Random(Get_Float_Parameter("Frequency_Min"), Get_Float_Parameter("Frequency_Max"));
+					ScriptEngine::Start_Timer(obj, this, time, 0);
 				}
 			}
 			else
 			{
 				if (Get_Int_Parameter("Frequency_Min_Destroyed") != -1)
 				{
-					float time = Commands->Get_Random(Get_Float_Parameter("Frequency_Min_Destroyed"), Get_Float_Parameter("Frequency_Max_Destroyed"));
-					Commands->Start_Timer(obj, this, time, 0);
+					float time = ScriptEngine::Get_Random(Get_Float_Parameter("Frequency_Min_Destroyed"), Get_Float_Parameter("Frequency_Max_Destroyed"));
+					ScriptEngine::Start_Timer(obj, this, time, 0);
 				}
 			}
 		}
@@ -880,7 +880,7 @@ DECLARE_SCRIPT (M00_BuildingStateSoundSpeaker, "Sound_Normal:string,Sound_Destro
 		{
 			if ( param == 1 )
 			{
-				Commands->Stop_Sound( sound_int, true );
+				ScriptEngine::Stop_Sound( sound_int, true );
 				Timer_Expired(obj, 0);
 			}
 		}
@@ -892,16 +892,16 @@ DECLARE_SCRIPT (M00_BuildingStateSoundSpeaker, "Sound_Normal:string,Sound_Destro
 				const char *explosion_def_name;
 
 				// insert EXPLODE sound code here...
-				Vector3 pos = Commands->Get_Position(obj);
-				pos.X += Commands->Get_Random(2, 5);
-				pos.Y += Commands->Get_Random(2, 5);
-				pos.Z += Commands->Get_Random(2, 5);
+				Vector3 pos = ScriptEngine::Get_Position(obj);
+				pos.X += ScriptEngine::Get_Random(2, 5);
+				pos.Y += ScriptEngine::Get_Random(2, 5);
+				pos.Z += ScriptEngine::Get_Random(2, 5);
 
 				explosion_def_name = Get_Parameter("Explosion_Name");
-				Commands->Create_Explosion( explosion_def_name, pos, nullptr );
+				ScriptEngine::Create_Explosion( explosion_def_name, pos, nullptr );
 
-				float time = Commands->Get_Random( 3, 6 );
-				Commands->Send_Custom_Event( obj, obj, M00_CUSTOM_BUILDING_EXPLODE, 1, time );
+				float time = ScriptEngine::Get_Random( 3, 6 );
+				ScriptEngine::Send_Custom_Event( obj, obj, M00_CUSTOM_BUILDING_EXPLODE, 1, time );
 			}
 		}
 
@@ -934,12 +934,12 @@ DECLARE_SCRIPT (M00_BuildingStateSoundController, "BuildingSpeaker_ID:int")
 
 	void Killed( GameObject * obj, GameObject * /*killer*/ ) override
 	{
-		GameObject *target = Commands->Find_Object(object_from);
+		GameObject *target = ScriptEngine::Find_Object(object_from);
 
 		if (target)
 		{
-			Commands->Send_Custom_Event( obj, target, M00_CUSTOM_SOUND_BUILDING, 1, 0.0f);		// Play Destroyed Sounds
-			Commands->Send_Custom_Event( obj, target, M00_CUSTOM_BUILDING_EXPLODE, 1, 0.0f);	// Play Explosion Sounds
+			ScriptEngine::Send_Custom_Event( obj, target, M00_CUSTOM_SOUND_BUILDING, 1, 0.0f);		// Play Destroyed Sounds
+			ScriptEngine::Send_Custom_Event( obj, target, M00_CUSTOM_BUILDING_EXPLODE, 1, 0.0f);	// Play Explosion Sounds
 		}
 	}
 
@@ -947,16 +947,16 @@ DECLARE_SCRIPT (M00_BuildingStateSoundController, "BuildingSpeaker_ID:int")
 	{
 		if ( type == M00_CUSTOM_BUILDING_EXPLODE_NO ) // flip play building explosions to false.
 		{
-			GameObject *target = Commands->Find_Object(object_from);
+			GameObject *target = ScriptEngine::Find_Object(object_from);
 			if (target)
-			Commands->Send_Custom_Event( obj, target, M00_CUSTOM_BUILDING_EXPLODE_NO, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event( obj, target, M00_CUSTOM_BUILDING_EXPLODE_NO, 1, 0.0f);
 		}
 
 		if ( type == M00_CUSTOM_BUILDING_EXPLODE_YES ) // flip play building explosions to true.
 		{
-			GameObject *target = Commands->Find_Object(object_from);
+			GameObject *target = ScriptEngine::Find_Object(object_from);
 			if (target)
-			Commands->Send_Custom_Event( obj, target, M00_CUSTOM_BUILDING_EXPLODE_YES, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event( obj, target, M00_CUSTOM_BUILDING_EXPLODE_YES, 1, 0.0f);
 		}
 
 	}

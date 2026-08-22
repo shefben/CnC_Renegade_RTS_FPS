@@ -44,7 +44,6 @@
 #include <assert.h>
 
 #include "scriptcommands.h"
-extern ScriptCommands* Commands;
 
 #define LOGFILE_NAME "ScriptLog"
 
@@ -79,16 +78,8 @@ void DebugPrint(const char* string, ...)
 		vsprintf(&_buffer[0], string, va);
 		va_end(va);
 
-		if (Commands != nullptr)
-			{
-			// Send string to commando executable
-			Commands->Debug_Message(_buffer);
-			}
-		else
-			{
-			// Send string to debugger
-			fprintf(stderr, "%s", _buffer);
-			}
+		// Send string to the engine
+		ScriptEngine::Debug_Message(_buffer);
 
 #if 0
 		HANDLE file = INVALID_HANDLE_VALUE;

@@ -44,7 +44,6 @@
 #include <cstdint>
 
 class CombatSound;
-class ScriptFactory;
 
 
 // ScriptVariables
@@ -73,8 +72,6 @@ private:
 class ScriptImpClass : public ScriptClass
 {
 public:
-	static void Set_Request_Destroy_Func(void (*function)(ScriptClass*));
-
 	ScriptImpClass();
 	virtual ~ScriptImpClass();
 
@@ -131,7 +128,7 @@ public:
 	//
 	// This must only be called by the script factory upon creation of
 	// the script.
-	void SetFactory(ScriptFactory* factory)
+	void SetFactory(ScriptFactoryClass* factory)
 		{mFactory = factory;}
 
 	/* Event Functions which will be called as events happen
@@ -170,8 +167,6 @@ protected:
 	virtual void Load(ScriptLoader& loader) override;
 
 private:
-	static void (*Request_Destroy_Script)(ScriptClass*);
-
 	void Clear_Parameters(void);
 	void Set_Parameter(int index, const char* str);
 
@@ -185,7 +180,7 @@ private:
 	// The factory reference could also be used for script cloning.
 	// (The script would use this factory to create a new instance of
 	// itself then copy its state to the new script instance.)
-	ScriptFactory* mFactory;
+	ScriptFactoryClass* mFactory;
 
 	// Auto Variable Save and Load
 	ScriptVariableClass *	AutoVariableList;
@@ -199,27 +194,27 @@ private:
 
 // Load / Save Macros
 #define SAVE_BEGIN()
-#define SAVE_DATA(id, var) Commands->Save_Data(saver, id, sizeof(var), &var)
-#define SAVE_STRING(id, string) Commands->Save_Data(saver, id, strlen(string), string)
+#define SAVE_DATA(id, var) ScriptEngine::Save_Data(saver, id, sizeof(var), &var)
+#define SAVE_STRING(id, string) ScriptEngine::Save_Data(saver, id, (int)strlen(string), string)
 #define SAVE_END()
 
 
 #define LOAD_BEGIN() \
 { \
 	int id; \
-	while (Commands->Load_Begin(loader, &id)) { \
+	while (ScriptEngine::Load_Begin(loader, &id)) { \
 		switch (id) {
 
 #define LOAD_DATA(id, var) \
 			case id: \
-				Commands->Load_Data(loader, sizeof(var), &var); \
+				ScriptEngine::Load_Data(loader, sizeof(var), &var); \
 			break;
 
 #define LOAD_END() \
 			default: \
 				break; \
 		} \
-		Commands->Load_End(loader); \
+		ScriptEngine::Load_End(loader); \
 	} \
 }
 
@@ -229,10 +224,8 @@ private:
 #define REGISTER_VARIABLES()			public: void Register_Auto_Save_Variables( void ) override
 #define SAVE_VARIABLE( x, id )		Auto_Save_Variable( &x, sizeof( x ), id )
 
-extern ScriptCommands* Commands;
-
 // Array Macros
 #define		ARRAY_ELEMENT_COUNT( x )	( sizeof( x ) / sizeof( x[0] ) )
-#define		RANDOM_ARRAY_ELEMENT( x )	( x[Commands->Get_Random_Int( 0, ARRAY_ELEMENT_COUNT( x ) )] )
+#define		RANDOM_ARRAY_ELEMENT( x )	( x[ScriptEngine::Get_Random_Int( 0, ARRAY_ELEMENT_COUNT( x ) )] )
 
 #endif // SCRIPTS_H

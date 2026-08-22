@@ -88,8 +88,23 @@
 #include "screenfademanager.h"
 
 
-#define	SCRIPT_TRACE(x)	if (ScriptTrace) {Debug_Say(x);}
+//
+//	Toggled by the scripttrace console command, so it is engine state rather
+//	than part of the script-facing interface and stays outside the namespace.
+//
 bool		ScriptTrace	= false;
+
+
+//
+//	Everything below is the script-facing engine interface declared in
+//	scriptcommands.h.  See that header for why it is namespaced.
+//
+namespace ScriptEngine
+{
+
+
+
+#define	SCRIPT_TRACE(x)	if (::ScriptTrace) {Debug_Say(x);}
 
 #define	SCRIPT_PTR_CHECK( x )				if ( x == nullptr ) { Debug_Say(( "nullptr Script Ptr at %s line %d\n", __FILE__, __LINE__ )); return;	}
 #define	SCRIPT_PTR_CHECK_RET( x, ret )	if ( x == nullptr ) { Debug_Say(( "nullptr Script Ptr at %s line %d\n", __FILE__, __LINE__ )); return ret;	}
@@ -2360,7 +2375,7 @@ int	Get_Difficulty_Level( void )
 	return CombatManager::Get_Difficulty_Level();
 }
 
-void	Grant_Key( GameObject* object, int key, bool grant = true )
+void	Grant_Key( GameObject* object, int key, bool grant )
 {
 	SCRIPT_PTR_CHECK( object );
 	SCRIPT_TRACE((	"ST>Grant_Key( %d, %d )\n", object->Get_ID(), key, grant ));
@@ -2708,7 +2723,7 @@ void	Unlock_Soldier_Facing( GameObject * object )
 /*
 **
 */
-void	Apply_Damage( GameObject * object, float amount, const char * warhead_name, GameObject * damager = nullptr )
+void	Apply_Damage( GameObject * object, float amount, const char * warhead_name, GameObject * damager )
 {
 	SCRIPT_PTR_CHECK( object );
 	SCRIPT_TRACE((	"ST>Apply_Damage( %d, %f, %s )\n", object->Get_ID(), amount, warhead_name ));
@@ -3360,273 +3375,4 @@ void	Set_Screen_Fade_Opacity( float opacity, float seconds )
 	ScreenFadeManager::Set_Screen_Overlay_Opacity(opacity,seconds);
 }
 
-
-
-/*
-**
-*/
-ScriptCommands* Get_Script_Commands( void )
-{
-	static ScriptCommands	EngineCommands;
-
-	memset(&EngineCommands, 0, sizeof(EngineCommands));
-
-	// Denzil 4/7/00 - Using the structure size automates the version check.
-	EngineCommands.Size = sizeof(EngineCommands);
-	EngineCommands.Version = SCRIPT_COMMANDS_VERSION;
-
-	EngineCommands.Debug_Message = &Debug_Message;
-
-	// Action Commands
-	EngineCommands.Action_Reset = Action_Reset;
-	EngineCommands.Action_Goto = Action_Goto;
-	EngineCommands.Action_Attack = Action_Attack;
-	EngineCommands.Action_Play_Animation = Action_Play_Animation;
-	EngineCommands.Action_Enter_Exit = Action_Enter_Exit;
-	EngineCommands.Action_Face_Location = Action_Face_Location;
-	EngineCommands.Action_Dock = Action_Dock;
-	EngineCommands.Action_Follow_Input = Action_Follow_Input;
-
-	EngineCommands.Modify_Action = Modify_Action;
-
-	EngineCommands.Set_Position = &Set_Position;
-	EngineCommands.Get_Position = &Get_Position;
-	EngineCommands.Get_Bone_Position = &Get_Bone_Position;
-	EngineCommands.Get_Facing = &Get_Facing;
-	EngineCommands.Set_Facing = &Set_Facing;
-
-	EngineCommands.Disable_All_Collisions = &Disable_All_Collisions;
-	EngineCommands.Disable_Physical_Collisions = &Disable_Physical_Collisions;
-	EngineCommands.Enable_Collisions = &Enable_Collisions;
-
-	EngineCommands.Destroy_Object = &Destroy_Object;
-	EngineCommands.Find_Object = &Find_Object;
-	EngineCommands.Create_Object = &Create_Object;
-	EngineCommands.Create_Object_At_Bone = &Create_Object_At_Bone;
-	EngineCommands.Attach_Script = Attach_Script;
-	EngineCommands.Add_To_Dirty_Cull_List = Add_To_Dirty_Cull_List;
-
-	EngineCommands.Get_ID = &Get_ID;
-	EngineCommands.Get_Preset_ID = &Get_Preset_ID;
-	EngineCommands.Get_Preset_Name = &Get_Preset_Name;
-	EngineCommands.Start_Timer = &Start_Timer;
-	EngineCommands.Trigger_Weapon = &Trigger_Weapon;
-	EngineCommands.Select_Weapon = &Select_Weapon;
-	EngineCommands.Send_Custom_Event = &Send_Custom_Event;
-	EngineCommands.Send_Damaged_Event = &Send_Damaged_Event;
-	EngineCommands.Get_Random = &Get_Random;
-	EngineCommands.Get_Random_Int = &Get_Random_Int;
-	EngineCommands.Find_Random_Simple_Object = &Find_Random_Simple_Object;
-	EngineCommands.Set_Model = &Set_Model;
-	EngineCommands.Set_Animation = &Set_Animation;
-	EngineCommands.Set_Animation_Frame = &Set_Animation_Frame;
-	EngineCommands.Create_Sound = Create_Sound;
-	EngineCommands.Create_2D_Sound = Create_2D_Sound;
-	EngineCommands.Create_2D_WAV_Sound = Create_2D_WAV_Sound;
-	EngineCommands.Create_3D_WAV_Sound_At_Bone = Create_3D_WAV_Sound_At_Bone;
-	EngineCommands.Create_3D_Sound_At_Bone = Create_3D_Sound_At_Bone;
-	EngineCommands.Create_Logical_Sound = Create_Logical_Sound;
-	EngineCommands.Set_Background_Music = Set_Background_Music;
-	EngineCommands.Fade_Background_Music = Fade_Background_Music;
-	EngineCommands.Stop_Background_Music = Stop_Background_Music;
-	EngineCommands.Monitor_Sound = Monitor_Sound;
-	EngineCommands.Stop_Sound = Stop_Sound;
-	EngineCommands.Start_Sound = Start_Sound;
-	EngineCommands.Get_Health = Get_Health;
-	EngineCommands.Get_Max_Health = Get_Max_Health;
-	EngineCommands.Set_Health = Set_Health;
-	EngineCommands.Get_Shield_Strength = Get_Shield_Strength;
-	EngineCommands.Get_Max_Shield_Strength = Get_Max_Shield_Strength;
-	EngineCommands.Set_Shield_Strength = Set_Shield_Strength;
-	EngineCommands.Set_Shield_Type = Set_Shield_Type;
-	EngineCommands.Get_Player_Type = Get_Player_Type;
-	EngineCommands.Set_Player_Type = Set_Player_Type;
-	EngineCommands.Get_Distance = Get_Distance;
-	EngineCommands.Set_Camera_Host = Set_Camera_Host;
-	EngineCommands.Force_Camera_Look = Force_Camera_Look;
-
-	EngineCommands.Get_The_Star = Get_The_Star;
-	EngineCommands.Get_A_Star = Get_A_Star;
-
-	EngineCommands.Find_Closest_Soldier = Find_Closest_Soldier;
-	EngineCommands.Is_A_Star = Is_A_Star;
-
-	EngineCommands.Control_Enable = Control_Enable;
-	EngineCommands.Get_Damage_Bone_Name = Get_Damage_Bone_Name;
-	EngineCommands.Get_Damage_Bone_Direction = Get_Damage_Bone_Direction;
-	EngineCommands.Is_Object_Visible = Is_Object_Visible;
-	EngineCommands.Enable_Enemy_Seen = Enable_Enemy_Seen;
-
-	EngineCommands.Set_Display_Color = Set_Display_Color;
-	EngineCommands.Display_Text = Display_Text;
-	EngineCommands.Display_Float = Display_Float;
-	EngineCommands.Display_Int = Display_Int;
-
-	EngineCommands.Save_Data = Save_Data;
-	EngineCommands.Save_Pointer = Save_Pointer;
-	EngineCommands.Load_Begin = Load_Begin;
-	EngineCommands.Load_Data = Load_Data;
-	EngineCommands.Load_Pointer = Load_Pointer;
-	EngineCommands.Load_End = Load_End;
-
-	EngineCommands.Begin_Chunk = Begin_Chunk;
-	EngineCommands.End_Chunk = End_Chunk;
-	EngineCommands.Open_Chunk = Open_Chunk;
-	EngineCommands.Close_Chunk = Close_Chunk;
-
-	EngineCommands.Clear_Radar_Markers = Clear_Radar_Markers;
-	EngineCommands.Clear_Radar_Marker = Clear_Radar_Marker;
-	EngineCommands.Add_Radar_Marker = Add_Radar_Marker;
-//	EngineCommands.Add_Obj_Radar_Marker = Add_Obj_Radar_Marker;
-	EngineCommands.Set_Obj_Radar_Blip_Shape = Set_Obj_Radar_Blip_Shape;
-	EngineCommands.Set_Obj_Radar_Blip_Color = Set_Obj_Radar_Blip_Color;
-	EngineCommands.Enable_Radar = Enable_Radar;
-
-	EngineCommands.Create_Explosion = Create_Explosion;
-	EngineCommands.Create_Explosion_At_Bone = Create_Explosion_At_Bone;
-
-	EngineCommands.Enable_HUD = Enable_HUD;
-	EngineCommands.Mission_Complete = Mission_Complete;
-	EngineCommands.Give_PowerUp = Give_PowerUp;
-
-	EngineCommands.Innate_Disable = Innate_Disable;
-	EngineCommands.Innate_Enable = Innate_Enable;
-	EngineCommands.Innate_Soldier_Enable_Enemy_Seen = &Innate_Soldier_Enable_Enemy_Seen;
-	EngineCommands.Innate_Soldier_Enable_Gunshot_Heard = &Innate_Soldier_Enable_Gunshot_Heard;
-	EngineCommands.Innate_Soldier_Enable_Footsteps_Heard = &Innate_Soldier_Enable_Footsteps_Heard;
-	EngineCommands.Innate_Soldier_Enable_Bullet_Heard = &Innate_Soldier_Enable_Bullet_Heard;
-	EngineCommands.Innate_Soldier_Enable_Actions = &Innate_Soldier_Enable_Actions;
-	EngineCommands.Set_Innate_Soldier_Home_Location = Set_Innate_Soldier_Home_Location;
-	EngineCommands.Set_Innate_Aggressiveness = Set_Innate_Aggressiveness;
-	EngineCommands.Set_Innate_Take_Cover_Probability = Set_Innate_Take_Cover_Probability;
-	EngineCommands.Set_Innate_Is_Stationary = Set_Innate_Is_Stationary;
-	EngineCommands.Innate_Force_State_Bullet_Heard = &Innate_Force_State_Bullet_Heard;
-	EngineCommands.Innate_Force_State_Footsteps_Heard = &Innate_Force_State_Footsteps_Heard;
-	EngineCommands.Innate_Force_State_Gunshots_Heard = &Innate_Force_State_Gunshots_Heard;
-	EngineCommands.Innate_Force_State_Enemy_Seen = &Innate_Force_State_Enemy_Seen;
-
-	EngineCommands.Static_Anim_Phys_Goto_Frame = &Static_Anim_Phys_Goto_Frame;
-	EngineCommands.Static_Anim_Phys_Goto_Last_Frame = &Static_Anim_Phys_Goto_Last_Frame;
-
-	EngineCommands.Get_Sync_Time = &Get_Sync_Time;
-
-	EngineCommands.Add_Objective = &Add_Objective;
-	EngineCommands.Remove_Objective = &Remove_Objective;
-	EngineCommands.Set_Objective_Status = &Set_Objective_Status;
-	EngineCommands.Change_Objective_Type = &Change_Objective_Type;
-	EngineCommands.Set_Objective_Radar_Blip = &Set_Objective_Radar_Blip;
-	EngineCommands.Set_Objective_Radar_Blip_Object = &Set_Objective_Radar_Blip_Object;
-	EngineCommands.Set_Objective_HUD_Info = &Set_Objective_HUD_Info;
-	EngineCommands.Set_Objective_HUD_Info_Position = &Set_Objective_HUD_Info_Position;
-
-	EngineCommands.Shake_Camera = Shake_Camera;
-
-	EngineCommands.Enable_Spawner = Enable_Spawner;
-	EngineCommands.Trigger_Spawner = Trigger_Spawner;
-
-	EngineCommands.Enable_Engine = Enable_Engine;
-	EngineCommands.Get_Difficulty_Level = Get_Difficulty_Level;
-
-	EngineCommands.Grant_Key = Grant_Key;
-	EngineCommands.Has_Key = Has_Key;
-	EngineCommands.Enable_Hibernation = Enable_Hibernation;
-	EngineCommands.Attach_To_Object_Bone = Attach_To_Object_Bone;
-
-	EngineCommands.Create_Conversation			= Create_Conversation;
-	EngineCommands.Join_Conversation				= Join_Conversation;
-	EngineCommands.Join_Conversation_Facing	= Join_Conversation_Facing;
-	EngineCommands.Start_Conversation			= Start_Conversation;
-	EngineCommands.Monitor_Conversation			= Monitor_Conversation;
-	EngineCommands.Start_Random_Conversation	= Start_Random_Conversation;
-	EngineCommands.Stop_Conversation				= Stop_Conversation;
-	EngineCommands.Stop_All_Conversations		= Stop_All_Conversations;
-
-	EngineCommands.Apply_Damage					= Apply_Damage;
-	EngineCommands.Set_Loiters_Allowed			= Set_Loiters_Allowed;
-
-	EngineCommands.Set_Is_Visible					= Set_Is_Visible;
-	EngineCommands.Set_Is_Rendered				= Set_Is_Rendered;
-
-	EngineCommands.Get_Points						= Get_Points;
-	EngineCommands.Give_Points						= Give_Points;
-
-	EngineCommands.Get_Money						= Get_Money;
-	EngineCommands.Give_Money						= Give_Money;
-
-	EngineCommands.Get_Building_Power				= Get_Building_Power;
-	EngineCommands.Set_Building_Power				= Set_Building_Power;
-	EngineCommands.Play_Building_Announcement		= Play_Building_Announcement;
-	EngineCommands.Find_Nearest_Building			= Find_Nearest_Building;
-	EngineCommands.Find_Nearest_Building_To_Pos	= Find_Nearest_Building_To_Pos;
-
-	EngineCommands.Team_Members_In_Zone			= Team_Members_In_Zone;
-
-	EngineCommands.Set_Clouds						= Set_Clouds;
-	EngineCommands.Set_Lightning					= Set_Lightning;
-	EngineCommands.Set_War_Blitz					= Set_War_Blitz;
-
-	EngineCommands.Set_Wind							= Set_Wind;
-	EngineCommands.Set_Rain							= Set_Rain;
-	EngineCommands.Set_Snow							= Set_Snow;
-	EngineCommands.Set_Ash							= Set_Ash;
-	EngineCommands.Set_Fog_Enable					= Set_Fog_Enable;
-	EngineCommands.Set_Fog_Range					= Set_Fog_Range;
-
-	EngineCommands.Clear_Map_Cell						= Clear_Map_Cell;
-	EngineCommands.Clear_Map_Cell_By_Pos			= Clear_Map_Cell_By_Pos;
-	EngineCommands.Clear_Map_Cell_By_Pixel_Pos	= Clear_Map_Cell_By_Pixel_Pos;
-	EngineCommands.Clear_Map_Region_By_Pos			= Clear_Map_Region_By_Pos;
-	EngineCommands.Reveal_Map							= Reveal_Map;
-	EngineCommands.Shroud_Map							= Shroud_Map;
-	EngineCommands.Show_Player_Map_Marker			= Show_Player_Map_Marker;
-
-	EngineCommands.Get_Safe_Flight_Height		= Get_Safe_Flight_Height;
-
-	EngineCommands.Enable_Stealth					= Enable_Stealth;
-	EngineCommands.Cinematic_Sniper_Control	= Cinematic_Sniper_Control;
-
-	EngineCommands.Text_File_Open					= Text_File_Open;
-	EngineCommands.Text_File_Get_String			= Text_File_Get_String;
-	EngineCommands.Text_File_Close				= Text_File_Close;
-
-	EngineCommands.Enable_Vehicle_Transitions	= Enable_Vehicle_Transitions;
-
-	EngineCommands.Display_GDI_Player_Terminal		= Display_GDI_Player_Terminal;
-	EngineCommands.Display_NOD_Player_Terminal		= Display_NOD_Player_Terminal;
-	EngineCommands.Display_Mutant_Player_Terminal	= Display_Mutant_Player_Terminal;
-
-	EngineCommands.Reveal_Encyclopedia_Character		= Reveal_Encyclopedia_Character;
-	EngineCommands.Reveal_Encyclopedia_Weapon			= Reveal_Encyclopedia_Weapon;
-	EngineCommands.Reveal_Encyclopedia_Vehicle		= Reveal_Encyclopedia_Vehicle;
-	EngineCommands.Reveal_Encyclopedia_Building		= Reveal_Encyclopedia_Building;
-	EngineCommands.Display_Encyclopedia_Event_UI		= Display_Encyclopedia_Event_UI;
-
-	EngineCommands.Scale_AI_Awareness			=	Scale_AI_Awareness;
-	EngineCommands.Enable_Cinematic_Freeze		= Enable_Cinematic_Freeze;
-	EngineCommands.Expire_Powerup					= Expire_Powerup;
-
-	EngineCommands.Get_Action_ID							= Get_Action_ID;
-	EngineCommands.Get_Action_Params						= Get_Action_Params;
-	EngineCommands.Is_Performing_Pathfind_Action		= Is_Performing_Pathfind_Action;
-
-	EngineCommands.Set_HUD_Help_Text				= Set_HUD_Help_Text;
-	EngineCommands.Enable_HUD_Pokable_Indicator	= Enable_HUD_Pokable_Indicator;
-
-	EngineCommands.Enable_Innate_Conversations	= Enable_Innate_Conversations;
-
-	EngineCommands.Lock_Soldier_Facing				= Lock_Soldier_Facing;
-	EngineCommands.Unlock_Soldier_Facing			= Unlock_Soldier_Facing;
-
-	EngineCommands.Display_Health_Bar				= Display_Health_Bar;
-	EngineCommands.Enable_Shadow						= Enable_Shadow;
-
-	EngineCommands.Clear_Weapons						= Clear_Weapons;
-
-	EngineCommands.Set_Num_Tertiary_Objectives	= Set_Num_Tertiary_Objectives;
-
-	EngineCommands.Enable_Letterbox					= Enable_Letterbox;
-	EngineCommands.Set_Screen_Fade_Color			= Set_Screen_Fade_Color;
-	EngineCommands.Set_Screen_Fade_Opacity			= Set_Screen_Fade_Opacity;
-
-	return &EngineCommands;
-}
+}	// namespace ScriptEngine

@@ -100,10 +100,6 @@ public:
 	static	void				Enable_Script_Creation( bool enable ) { EnableScriptCreation = enable; }
 
 private:
-	static void Load_Scripts(const char * dll_filename);
-
-	static LPFN_CREATE_SCRIPT ScriptCreateFunct;
-	static LPFN_DESTROY_SCRIPT ScriptDestroyFunct;
 
 	static SimpleDynVecClass<ScriptClass *> ActiveScriptList;
 	static SimpleDynVecClass<ScriptClass *> PendingDestroyList;

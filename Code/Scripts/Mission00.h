@@ -385,13 +385,13 @@ inline float Get_Obj_Distance (GameObject * obj1, GameObject * obj2)
 
 	if (obj1)
 	{
-		loc1 = Commands->Get_Position (obj1);
+		loc1 = ScriptEngine::Get_Position (obj1);
 	}
 	if (obj2)
 	{
-		loc2 = Commands->Get_Position (obj2);
+		loc2 = ScriptEngine::Get_Position (obj2);
 	}
-	return Commands->Get_Distance (loc1, loc2);
+	return ScriptEngine::Get_Distance (loc1, loc2);
 };
 
 // THESE DEFINES ARE FOR THE SKIRMISH MODE IN MULTIPLAYER

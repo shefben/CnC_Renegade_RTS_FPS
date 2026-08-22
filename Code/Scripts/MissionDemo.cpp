@@ -57,16 +57,16 @@ DECLARE_SCRIPT(MDD_Objective_Controller, "")
 	void Created(GameObject * obj) override
 	{
 		//DEMO
-		Commands->Enable_HUD (false);
-		GameObject * camera = Commands->Create_Object("Invisible_Object", Vector3(0,0,0));
+		ScriptEngine::Enable_HUD (false);
+		GameObject * camera = ScriptEngine::Create_Object("Invisible_Object", Vector3(0,0,0));
 		if (camera)
 		{
-			Commands->Attach_Script(camera, "Test_Cinematic", "XG_DemoCam.txt");
+			ScriptEngine::Attach_Script(camera, "Test_Cinematic", "XG_DemoCam.txt");
 		}
-		int id = Commands->Create_Conversation("Demo_Intro", 0, 0, true);
-		Commands->Join_Conversation(nullptr, id, true, true, true);
-		Commands->Join_Conversation(STAR, id, true, true, true);
-		Commands->Start_Conversation(id, 0);
+		int id = ScriptEngine::Create_Conversation("Demo_Intro", 0, 0, true);
+		ScriptEngine::Join_Conversation(nullptr, id, true, true, true);
+		ScriptEngine::Join_Conversation(STAR, id, true, true, true);
+		ScriptEngine::Start_Conversation(id, 0);
 
 		//DEMO
 		// Set up the expected number of convoy trucks for the objective.
@@ -75,14 +75,14 @@ DECLARE_SCRIPT(MDD_Objective_Controller, "")
 
 		// Prevent the Objective Controller from hibernating
 
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Enable_Hibernation(obj, false);
 
 		// Turn on the first primary objective (Locate the Missing Scientists)
 		// Turn on the tertiary objectives (if any)
 
-		//DEMO Commands->Add_Objective(201, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_M02_OBJECTIVE_01);
-		//DEMO Commands->Add_Objective(222, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, IDS_M02_OBJECTIVE_22);
-		//DEMO Commands->Add_Objective(223, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, IDS_M02_OBJECTIVE_23);
+		//DEMO ScriptEngine::Add_Objective(201, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_M02_OBJECTIVE_01);
+		//DEMO ScriptEngine::Add_Objective(222, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, IDS_M02_OBJECTIVE_22);
+		//DEMO ScriptEngine::Add_Objective(223, OBJECTIVE_TYPE_TERTIARY, OBJECTIVE_STATUS_HIDDEN, IDS_M02_OBJECTIVE_23);
 	}
 
 	// This custom receives requests to activate and deactivate objectives
@@ -156,30 +156,30 @@ DECLARE_SCRIPT (MDD_Respawn_Controller, "")
 
 		// Wake up the A25 units.
 
-		//DEMO Commands->Send_Custom_Event(obj, Commands->Find_Object(400985), 0, 0, 0.0f);
+		//DEMO ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(400985), 0, 0, 0.0f);
 		//DEMO Turn on A25
-		GameObject * object = Commands->Find_Object(M02_OBJCONTROLLER);
+		GameObject * object = ScriptEngine::Find_Object(M02_OBJCONTROLLER);
 
 		if (object)
 		{
-			Commands->Send_Custom_Event(obj, object, 104, 25, 0.0f);
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(401741), 0, 0, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, object, 104, 25, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(401741), 0, 0, 0.0f);
 		}
 
 		// Call the ORCA strike intro.
 
-		//DEMO GameObject * chinook_obj1 = Commands->Create_Object("Invisible_Object", Vector3(0,0,0));
+		//DEMO GameObject * chinook_obj1 = ScriptEngine::Create_Object("Invisible_Object", Vector3(0,0,0));
 		/*if (chinook_obj1)
 		{
-			Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X2A_OrcaStrike.txt");
+			ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X2A_OrcaStrike.txt");
 		}*/
 
-		Commands->Start_Timer(obj, this, 3.0f, 2);
+		ScriptEngine::Start_Timer(obj, this, 3.0f, 2);
 
 		//DEMO
-		Commands->Start_Timer(obj, this, 10.0f, 99);
-		Commands->Start_Timer(obj, this, 5.0f, 100);
-		Commands->Start_Timer(obj, this, 60.0f, 101);
+		ScriptEngine::Start_Timer(obj, this, 10.0f, 99);
+		ScriptEngine::Start_Timer(obj, this, 5.0f, 100);
+		ScriptEngine::Start_Timer(obj, this, 60.0f, 101);
 		//DEMO
 	}
 
@@ -187,12 +187,12 @@ DECLARE_SCRIPT (MDD_Respawn_Controller, "")
 	{
 		Vector3 drop_loc = Vector3(511.3f,680.3f,-21.2f);
 		float facing = 146.6f;
-		GameObject * chinook_obj1 = Commands->Create_Object("Invisible_Object", drop_loc);
+		GameObject * chinook_obj1 = ScriptEngine::Create_Object("Invisible_Object", drop_loc);
 
 		if (chinook_obj1)
 		{
-			Commands->Set_Facing(chinook_obj1, facing);
-			Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X2I_GDI_Drop_PowerUp.txt");
+			ScriptEngine::Set_Facing(chinook_obj1, facing);
+			ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X2I_GDI_Drop_PowerUp.txt");
 		}
 	}
 
@@ -212,7 +212,7 @@ DECLARE_SCRIPT (MDD_Respawn_Controller, "")
 
 					if (area_officer[counter])
 					{
-						GameObject* officer = Commands->Find_Object(area_officer[counter]);
+						GameObject* officer = ScriptEngine::Find_Object(area_officer[counter]);
 
 						if (officer)
 						{
@@ -222,32 +222,32 @@ DECLARE_SCRIPT (MDD_Respawn_Controller, "")
 				}
 				counter++;
 			}
-Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",area_unit_count[25],area_unit_max[25]);
-			int players_difficulty = Commands->Get_Difficulty_Level();
+ScriptEngine::Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",area_unit_count[25],area_unit_max[25]);
+			int players_difficulty = ScriptEngine::Get_Difficulty_Level();
 			float timer_length = float(25 - (10 * (players_difficulty)));
-			Commands->Start_Timer(obj, this, timer_length, 2);
+			ScriptEngine::Start_Timer(obj, this, timer_length, 2);
 		}
 		//DEMO
 		else if (timer_id == 99)
 		{
-			GameObject *buggy = Commands->Create_Object ("GDI_Orca", Vector3(506.590f,470.752f,-40.590f));
+			GameObject *buggy = ScriptEngine::Create_Object ("GDI_Orca", Vector3(506.590f,470.752f,-40.590f));
 			if (buggy)
 			{
-				Commands->Attach_Script (buggy, "MDD_Flying_Vehicle", "0");
+				ScriptEngine::Attach_Script (buggy, "MDD_Flying_Vehicle", "0");
 			}
 		}
 		else if (timer_id == 100)
 		{
-			GameObject *buggy = Commands->Create_Object ("Nod_Apache", Vector3(587.296f,504.567f,-44.034f));
+			GameObject *buggy = ScriptEngine::Create_Object ("Nod_Apache", Vector3(587.296f,504.567f,-44.034f));
 			if (buggy)
 			{
-				Commands->Attach_Script (buggy, "MDD_Flying_Vehicle", "1");
+				ScriptEngine::Attach_Script (buggy, "MDD_Flying_Vehicle", "1");
 			}
 		}
 		else if (timer_id == 101)
 		{
 			area_unit_count [25] = 0;
-			Commands->Start_Timer(obj, this, 60.0f, 101);
+			ScriptEngine::Start_Timer(obj, this, 60.0f, 101);
 		}
 		//DEMO
 	}
@@ -362,13 +362,13 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 		drop_location = Vector3(546.5f,274.5f,-45.0f);
 		facing = 30.0f;
 
-		GameObject * chinook_obj1 = Commands->Create_Object("Invisible_Object", drop_location);
+		GameObject * chinook_obj1 = ScriptEngine::Create_Object("Invisible_Object", drop_location);
 
 		if (chinook_obj1)
 		{
-			Commands->Set_Facing(chinook_obj1, facing);
-			Commands->Attach_Script(chinook_obj1, "M02_Reset_Spawn", parameters);
-			Commands->Attach_Script(chinook_obj1, cinematic, textfile);
+			ScriptEngine::Set_Facing(chinook_obj1, facing);
+			ScriptEngine::Attach_Script(chinook_obj1, "M02_Reset_Spawn", parameters);
+			ScriptEngine::Attach_Script(chinook_obj1, cinematic, textfile);
 		}
 	}
 
@@ -388,13 +388,13 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 		drop_location = Vector3(558.6f,381.7f,-51.1f);
 		facing = -75.6f;
 
-		GameObject * chinook_obj2 = Commands->Create_Object("Invisible_Object", drop_location);
+		GameObject * chinook_obj2 = ScriptEngine::Create_Object("Invisible_Object", drop_location);
 
 		if (chinook_obj2)
 		{
-			Commands->Set_Facing(chinook_obj2, facing);
-			Commands->Attach_Script(chinook_obj2, "M02_Reset_Spawn", parameters);
-			Commands->Attach_Script(chinook_obj2, cinematic, textfile);
+			ScriptEngine::Set_Facing(chinook_obj2, facing);
+			ScriptEngine::Attach_Script(chinook_obj2, "M02_Reset_Spawn", parameters);
+			ScriptEngine::Attach_Script(chinook_obj2, cinematic, textfile);
 		}
 	}
 
@@ -414,13 +414,13 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 		drop_location = Vector3(598.7f,342.2f,-62.7f);
 		facing = 173.9f;
 
-		GameObject * plane_obj = Commands->Create_Object("Invisible_Object", drop_location);
+		GameObject * plane_obj = ScriptEngine::Create_Object("Invisible_Object", drop_location);
 
 		if (plane_obj)
 		{
-			Commands->Set_Facing(plane_obj, facing);
-			Commands->Attach_Script(plane_obj, "M02_Reset_Spawn", parameters);
-			Commands->Attach_Script(plane_obj, cinematic, textfile);
+			ScriptEngine::Set_Facing(plane_obj, facing);
+			ScriptEngine::Attach_Script(plane_obj, "M02_Reset_Spawn", parameters);
+			ScriptEngine::Attach_Script(plane_obj, cinematic, textfile);
 		}
 	}
 
@@ -458,10 +458,10 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 		}
 		spawner_params = "25,0,-1";
 
-		GameObject * spawn1 = Commands->Trigger_Spawner(spawner_id);
+		GameObject * spawn1 = ScriptEngine::Trigger_Spawner(spawner_id);
 		if (spawn1)
 		{
-			Commands->Attach_Script(spawn1, "MDD_Nod_Soldier", spawner_params);
+			ScriptEngine::Attach_Script(spawn1, "MDD_Nod_Soldier", spawner_params);
 			return true;
 		}
 		else
@@ -511,7 +511,7 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 
 			if (sender)
 			{
-				area_officer[param] = Commands->Get_ID(sender);
+				area_officer[param] = ScriptEngine::Get_ID(sender);
 			}
 		}
 		else if (type == 107)
@@ -578,17 +578,17 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 			{
 				// Complete this mission objective.
 
-				Commands->Send_Custom_Event (obj, obj, 222, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, obj, 222, 1, 0.0f);
 			}
 		}
 		//DEMO
 		else if (type == 180)
 		{
-			Commands->Start_Timer(obj, this, 20.0f, 99);
+			ScriptEngine::Start_Timer(obj, this, 20.0f, 99);
 		}
 		else if (type == 181)
 		{
-			Commands->Start_Timer(obj, this, 20.0f, 100);
+			ScriptEngine::Start_Timer(obj, this, 20.0f, 100);
 		}
 	}
 
@@ -617,11 +617,11 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 			{
 				drop_loc = Vector3(494.652f,128.786f,-56.159f);
 				facing = 90.0f;
-				GameObject *buggy = Commands->Create_Object ("Nod_Buggy", drop_loc);
+				GameObject *buggy = ScriptEngine::Create_Object ("Nod_Buggy", drop_loc);
 				if (buggy)
 				{
-					Commands->Set_Facing (buggy, facing);
-					Commands->Attach_Script (buggy, "M02_Player_Vehicle", "3");
+					ScriptEngine::Set_Facing (buggy, facing);
+					ScriptEngine::Attach_Script (buggy, "M02_Player_Vehicle", "3");
 				}
 				nocinematic = true;
 				break;
@@ -637,11 +637,11 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 			{
 				drop_loc = Vector3(429.672f, 894.045f, 4.354f);
 				facing = -25.0f;
-				GameObject *buggy = Commands->Create_Object ("Nod_Light_Tank", drop_loc);
+				GameObject *buggy = ScriptEngine::Create_Object ("Nod_Light_Tank", drop_loc);
 				if (buggy)
 				{
-					Commands->Set_Facing (buggy, facing);
-					Commands->Attach_Script (buggy, "M02_Player_Vehicle", "5");
+					ScriptEngine::Set_Facing (buggy, facing);
+					ScriptEngine::Attach_Script (buggy, "M02_Player_Vehicle", "5");
 				}
 				nocinematic = true;
 				break;
@@ -650,11 +650,11 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 			{
 				drop_loc = Vector3(611.1f, 1164.9f, 4.6f);
 				facing = -39.7f;
-				GameObject *buggy = Commands->Create_Object ("Nod_Recon_Bike", drop_loc);
+				GameObject *buggy = ScriptEngine::Create_Object ("Nod_Recon_Bike", drop_loc);
 				if (buggy)
 				{
-					Commands->Set_Facing (buggy, facing);
-					Commands->Attach_Script (buggy, "M02_Player_Vehicle", "6");
+					ScriptEngine::Set_Facing (buggy, facing);
+					ScriptEngine::Attach_Script (buggy, "M02_Player_Vehicle", "6");
 				}
 				nocinematic = true;
 				break;
@@ -670,11 +670,11 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 			{
 				drop_loc = Vector3(1229.37f, 742.89f, 27.03f);
 				facing = 85.0f;
-				GameObject *buggy = Commands->Create_Object ("Nod_Recon_Bike", drop_loc);
+				GameObject *buggy = ScriptEngine::Create_Object ("Nod_Recon_Bike", drop_loc);
 				if (buggy)
 				{
-					Commands->Set_Facing (buggy, facing);
-					Commands->Attach_Script (buggy, "M02_Player_Vehicle", "14");
+					ScriptEngine::Set_Facing (buggy, facing);
+					ScriptEngine::Attach_Script (buggy, "M02_Player_Vehicle", "14");
 				}
 				nocinematic = true;
 				break;
@@ -683,12 +683,12 @@ Commands->Debug_Message (">>>>>>>>>>>>>>>> UNIT COUNT = %i, UNIT MAX = %i.\n",ar
 
 		if (!nocinematic)
 		{
-			GameObject * chinook_obj1 = Commands->Create_Object("Invisible_Object", drop_loc);
+			GameObject * chinook_obj1 = ScriptEngine::Create_Object("Invisible_Object", drop_loc);
 
 			if (chinook_obj1)
 			{
-				Commands->Set_Facing(chinook_obj1, facing);
-				Commands->Attach_Script(chinook_obj1, "Test_Cinematic", textfile);
+				ScriptEngine::Set_Facing(chinook_obj1, facing);
+				ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", textfile);
 			}
 		}
 	}
@@ -721,19 +721,19 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 
 		// Set the unit's home point, save the value.
 
-		Vector3 this_home_point = Commands->Get_Position(obj);
-		Commands->Set_Innate_Soldier_Home_Location(obj, this_home_point, 20.0f);
+		Vector3 this_home_point = ScriptEngine::Get_Position(obj);
+		ScriptEngine::Set_Innate_Soldier_Home_Location(obj, this_home_point, 20.0f);
 
 		// Turn hibernation off for a moment.
 
-		Commands->Enable_Hibernation (obj, false);
+		ScriptEngine::Enable_Hibernation (obj, false);
 
 		// Start the timer to register with the controller.
 
-		Commands->Start_Timer(obj, this, 1.0f, 1);
+		ScriptEngine::Start_Timer(obj, this, 1.0f, 1);
 
 		//DEMO
-		Commands->Start_Timer(obj, this, 10.0f, 8);
+		ScriptEngine::Start_Timer(obj, this, 10.0f, 8);
 		//DEMO
 
 		// If the unit is spawned, do not disturb it.
@@ -746,10 +746,10 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 		{
 			// Give spawned units a green key for the Hand of Nod.
 
-			Commands->Grant_Key (obj, 1, true);
+			ScriptEngine::Grant_Key (obj, 1, true);
 
-			//DEMOGameObject *starobj = Commands->Get_A_Star (my_home_point);
-			GameObject *starobj = Commands->Find_Object(403063);
+			//DEMOGameObject *starobj = ScriptEngine::Get_A_Star (my_home_point);
+			GameObject *starobj = ScriptEngine::Find_Object(403063);
 			//DEMO
 
 			if (starobj)
@@ -757,7 +757,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 				ActionParamsStruct params;
 				params.Set_Basic(this, 71, 0);
 				params.Set_Movement(starobj, RUN, 5.0f, 0);
-				Commands->Action_Goto(obj, params);
+				ScriptEngine::Action_Goto(obj, params);
 			}
 		}
 		else
@@ -766,7 +766,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 			{
 				// Turn off all actions for preplaced soldiers.
 
-				Commands->Innate_Disable (obj);
+				ScriptEngine::Innate_Disable (obj);
 			}
 		}
 	}
@@ -784,7 +784,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 		{
 			if (sound.Creator)
 			{
-				Commands->Send_Custom_Event(obj, sound.Creator, 100, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, sound.Creator, 100, 1, 0.0f);
 			}
 		}
 
@@ -802,7 +802,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 				ActionParamsStruct params;
 				params.Set_Basic(this, 99, 0);
 				params.Set_Movement(my_home_point, RUN, 20.0f, false);
-				Commands->Modify_Action (obj, 0, params, true, false);
+				ScriptEngine::Modify_Action (obj, 0, params, true, false);
 			}
 		}
 	}
@@ -816,20 +816,20 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 			int officer = Get_Int_Parameter("Area_Officer");
 			int preplaced = Get_Int_Parameter("Pre_Placed");
 			int param = Get_Int_Parameter("Area_Number");
-			GameObject * object = Commands->Find_Object(M02_OBJCONTROLLER);
+			GameObject * object = ScriptEngine::Find_Object(M02_OBJCONTROLLER);
 
 			if (object)
 			{
 				// Register with the respawn controller.
 
-				Commands->Send_Custom_Event(obj, object, 103, param, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, object, 103, param, 0.0f);
 
 				if (officer)
 				{
 					// Unit is a preplaced officer. Register as an officer and hibernate.
 
-					Commands->Set_Innate_Take_Cover_Probability (obj, 100.0f);
-					Commands->Send_Custom_Event(obj, object, 106, param, 0.0f);
+					ScriptEngine::Set_Innate_Take_Cover_Probability (obj, 100.0f);
+					ScriptEngine::Send_Custom_Event(obj, object, 106, param, 0.0f);
 				}
 				else
 				{
@@ -843,7 +843,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 							if ((param == 0) || (param == 3) || (param == 6) || (param == 10) || (param == 16) || (param == 21))
 							{
 								no_return_home = true;
-								Commands->Start_Timer(obj, this, 15.0f, 4);
+								ScriptEngine::Start_Timer(obj, this, 15.0f, 4);
 							}
 						}
 
@@ -854,41 +854,41 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 							ActionParamsStruct params;
 							params.Set_Basic(this, 99, 0);
 							params.Set_Attack(STAR, 150.0f, 0.0f, true);
-							Commands->Action_Attack(obj, params);
-							Commands->Start_Timer(obj, this, 5.0, 6);
+							ScriptEngine::Action_Attack(obj, params);
+							ScriptEngine::Start_Timer(obj, this, 5.0, 6);
 						}
 					}
 					else
 					{
 						// Unit is not pre-placed, activate cleanup code and do not hibernate if not in the interior areas.
 
-						Commands->Start_Timer(obj, this, 15.0f, 2);
+						ScriptEngine::Start_Timer(obj, this, 15.0f, 2);
 					}
 				}
 			}
-			//DEMO Commands->Enable_Hibernation (obj, 1);
+			//DEMO ScriptEngine::Enable_Hibernation (obj, 1);
 		}
 		else if (timer_id == 2)
 		{
 			// Cleanup code - find the nearest star, check distance, then check visibility
 
-			Vector3 myloc = Commands->Get_Position(obj);
-			//DEMO	GameObject *star_obj = Commands->Get_A_Star(myloc);
-			GameObject *star_obj = Commands->Find_Object(403063);
+			Vector3 myloc = ScriptEngine::Get_Position(obj);
+			//DEMO	GameObject *star_obj = ScriptEngine::Get_A_Star(myloc);
+			GameObject *star_obj = ScriptEngine::Find_Object(403063);
 			//DEMO
 
 			if (star_obj)
 			{
-				Vector3 starloc = Commands->Get_Position(star_obj);
-				float distance = Commands->Get_Distance (myloc, starloc);
+				Vector3 starloc = ScriptEngine::Get_Position(star_obj);
+				float distance = ScriptEngine::Get_Distance (myloc, starloc);
 
 				//DEMOif (distance > 70.0f)
 				if (distance > 300.0f)
 				{
-					bool visibility = Commands->Is_Object_Visible(star_obj, obj);
+					bool visibility = ScriptEngine::Is_Object_Visible(star_obj, obj);
 					if (!visibility)
 					{
-						Commands->Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
+						ScriptEngine::Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
 					}
 					else
 					{
@@ -900,49 +900,49 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 					Force_Move (obj);
 				}
 			}
-			Commands->Start_Timer(obj, this, 15.0f, 2);
+			ScriptEngine::Start_Timer(obj, this, 15.0f, 2);
 		}
 		else if (timer_id == 3)
 		{
 			// Force movement code to prevent irregular activity.
 
 			Force_Move (obj);
-			Commands->Start_Timer(obj, this, 15.0f, 3);
+			ScriptEngine::Start_Timer(obj, this, 15.0f, 3);
 		}
 		else if (timer_id == 4)
 		{
 			// Force fire at star code to prevent irregular activity.
 
 			Vector3 myloc;
-			myloc = Commands->Get_Position(obj);
-			GameObject* starobj = Commands->Get_A_Star(myloc);
+			myloc = ScriptEngine::Get_Position(obj);
+			GameObject* starobj = ScriptEngine::Get_A_Star(myloc);
 
 			if (starobj)
 			{
 				Vector3 starloc;
 				float distance;
 
-				starloc = Commands->Get_Position(starobj);
-				distance = Commands->Get_Distance(myloc, starloc);
+				starloc = ScriptEngine::Get_Position(starobj);
+				distance = ScriptEngine::Get_Distance(myloc, starloc);
 
 				if (distance < 150.0f)
 				{
 					ActionParamsStruct params;
 					params.Set_Basic(this, 90, 0);
 					params.Set_Attack(starobj, 150.0f, 0.0f, true);
-					Commands->Action_Attack(obj, params);
+					ScriptEngine::Action_Attack(obj, params);
 				}
 			}
-			Commands->Start_Timer(obj, this, 15.0f, 4);
+			ScriptEngine::Start_Timer(obj, this, 15.0f, 4);
 		}
 		else if (timer_id == 5)
 		{
 			// An officer is trying to play an animation.
 
-			Vector3 playerloc = Commands->Get_Position (STAR);
-			Vector3 myloc = Commands->Get_Position(obj);
+			Vector3 playerloc = ScriptEngine::Get_Position (STAR);
+			Vector3 myloc = ScriptEngine::Get_Position(obj);
 
-			float distance = Commands->Get_Distance(myloc, playerloc);
+			float distance = ScriptEngine::Get_Distance(myloc, playerloc);
 
 			if (distance > 10.0f)
 			{
@@ -956,15 +956,15 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 				{
 				case (0):
 					{
-						GameObject *nearsoldier = Commands->Find_Closest_Soldier (myloc, 1.0f, 50.0f, true);
+						GameObject *nearsoldier = ScriptEngine::Find_Closest_Soldier (myloc, 1.0f, 50.0f, true);
 						if ((nearsoldier) && (nearsoldier != STAR))
 						{
 							ActionParamsStruct params;
 							params.Set_Basic(this, 99, 0);
-							Vector3 soldierloc = Commands->Get_Position (nearsoldier);
+							Vector3 soldierloc = ScriptEngine::Get_Position (nearsoldier);
 							params.Set_Animation ("H_A_J18C", false);
 							params.Set_Face_Location (soldierloc, 4.0f);
-							Commands->Action_Play_Animation (obj, params);
+							ScriptEngine::Action_Play_Animation (obj, params);
 						}
 						break;
 					}
@@ -976,7 +976,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 							params.Set_Basic(this, 99, 0);
 							params.Set_Animation ("H_A_J23C", false);
 							params.Set_Face_Location (playerloc, 4.0f);
-							Commands->Action_Play_Animation (obj, params);
+							ScriptEngine::Action_Play_Animation (obj, params);
 						}
 						break;
 					}
@@ -988,17 +988,17 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 							params.Set_Basic(this, 99, 0);
 							params.Set_Animation ("H_A_J27C", false);
 							params.Set_Face_Location (playerloc, 4.0f);
-							Commands->Action_Play_Animation (obj, params);
+							ScriptEngine::Action_Play_Animation (obj, params);
 						}
 						break;
 					}
 				}
 			}
-			Commands->Start_Timer(obj, this, 10.0f, 5);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, 5);
 		}
 		else if (timer_id == 6)
 		{
-			Commands->Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
+			ScriptEngine::Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
 		}
 		else if (timer_id == 7)
 		{
@@ -1038,33 +1038,33 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 				ActionParamsStruct params;
 				params.Set_Basic(this, 31, 0);
 				params.Set_Movement(newloc, WALK, 10.0f, false);
-				Commands->Action_Goto(obj, params);
+				ScriptEngine::Action_Goto(obj, params);
 			}
 			else
 			{
 				Force_Move (obj);
 			}
-			Commands->Start_Timer(obj, this, 30.0f, 7);
+			ScriptEngine::Start_Timer(obj, this, 30.0f, 7);
 		}
 		//DEMO
 		else if (timer_id == 8)
 		{
-			Vector3 mydemopos = Commands->Get_Position (obj);
-			GameObject* starobj = Commands->Find_Object(403063);
+			Vector3 mydemopos = ScriptEngine::Get_Position (obj);
+			GameObject* starobj = ScriptEngine::Find_Object(403063);
 			if (starobj)
 			{
-				Commands->Send_Custom_Event (obj, starobj, 100, 0, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, starobj, 100, 0, 0.0f);
 			}
-			Commands->Start_Timer(obj, this, 10.0f, 8);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, 8);
 		}
 		//DEMO
 	}
 
 	void Force_Move (GameObject* obj)
 	{
-		Vector3 mypos = Commands->Get_Position(obj);
-		//DEMO 	GameObject *starobj = Commands->Get_A_Star (mypos);
-		GameObject *starobj = Commands->Find_Object(403063);
+		Vector3 mypos = ScriptEngine::Get_Position(obj);
+		//DEMO 	GameObject *starobj = ScriptEngine::Get_A_Star (mypos);
+		GameObject *starobj = ScriptEngine::Find_Object(403063);
 		//DEMO
 		if (starobj)
 		{
@@ -1072,7 +1072,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 			params.Set_Basic(this, 90, 0);
 			params.Set_Movement(starobj, RUN, 10.0f, 0);
 			params.Set_Attack(starobj, 150.0f, 0.0f, true);
-			Commands->Action_Attack(obj, params);
+			ScriptEngine::Action_Attack(obj, params);
 		}
 	}
 
@@ -1082,11 +1082,11 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 
 		int param;
 		param = Get_Int_Parameter("Area_Number");
-		GameObject * object = Commands->Find_Object(M02_OBJCONTROLLER);
+		GameObject * object = ScriptEngine::Find_Object(M02_OBJCONTROLLER);
 
 		if (object)
 		{
-			Commands->Send_Custom_Event (obj, object, 101, param, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, object, 101, param, 0.0f);
 		}
 		if (param == 3)
 		{
@@ -1096,7 +1096,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 			{
 				// If a Medium Tank is needed for A03, drop it.
 
-				Commands->Send_Custom_Event (obj, object, 111, 2, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, object, 111, 2, 0.0f);
 			}
 		}
 	}
@@ -1105,7 +1105,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 	{
 		if ((type == 0) && (param == 0))
 		{
-			Commands->Innate_Enable (obj);
+			ScriptEngine::Innate_Enable (obj);
 
 			// If the unit is a preplaced minigunner, forced movement code is activated for this unit.
 
@@ -1113,23 +1113,23 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 
 			if (preplaced == 2)
 			{
-				int myid = Commands->Get_ID(obj);
+				int myid = ScriptEngine::Get_ID(obj);
 				if ((myid != 400512) || (myid != 400513))
 				{
-					Commands->Start_Timer(obj, this, 1.0f, 3);
+					ScriptEngine::Start_Timer(obj, this, 1.0f, 3);
 				}
 			}
 			else if (preplaced == 1)
 			{
 				// Unit is an officer, start the animation timer.
 
-				Commands->Start_Timer(obj, this, 10.0f, 5);
+				ScriptEngine::Start_Timer(obj, this, 10.0f, 5);
 			}
 			else if (preplaced == 6)
 			{
 				// Unit is a chem-warrior, start low priority wandering.
 
-				Commands->Start_Timer(obj, this, 1.0f, 7);
+				ScriptEngine::Start_Timer(obj, this, 1.0f, 7);
 			}
 			else if (preplaced == 5)
 			{
@@ -1141,7 +1141,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 					ActionParamsStruct params;
 					params.Set_Basic(this, 31, 100);
 					params.Set_Animation ("H_A_CON2", true);
-					Commands->Action_Play_Animation (obj, params);
+					ScriptEngine::Action_Play_Animation (obj, params);
 				}
 			}
 		}
@@ -1155,10 +1155,10 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 				ActionParamsStruct params;
 				params.Set_Basic(this, 99, 214);
 				params.Set_Movement(sender, RUN, 10.0f, 0);
-				Vector3 senderpos = Commands->Get_Position(sender);
+				Vector3 senderpos = ScriptEngine::Get_Position(sender);
 				senderpos.Z -= 1.0f;
 				params.Set_Attack(senderpos, 10.0f, 0.0f, false);
-				Commands->Action_Attack(obj, params);
+				ScriptEngine::Action_Attack(obj, params);
 			}
 			else if (param == 202)
 			{
@@ -1166,7 +1166,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 				params.Set_Basic(this, 50, 214);
 				params.Set_Movement(Vector3(1113.61f,877.4f,17.15f), RUN, 10.0f, 0);
 				params.Set_Attack(Vector3(1113.61f,877.4f,17.15f), 10.0f, 0.0f, false);
-				Commands->Action_Attack(obj, params);
+				ScriptEngine::Action_Attack(obj, params);
 			}
 			else if (param == 217)
 			{
@@ -1174,14 +1174,14 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 				params.Set_Basic(this, 50, 214);
 				params.Set_Movement(Vector3(1062.24f,978.38f,-16.85f), RUN, 10.0f, 0);
 				params.Set_Attack(Vector3(1062.24f,978.38f,-16.85f), 10.0f, 0.0f, false);
-				Commands->Action_Attack(obj, params);
+				ScriptEngine::Action_Attack(obj, params);
 			}
 		}
 		if (!initial_damage)
 		{
 			if (type == CUSTOM_EVENT_FALLING_DAMAGE)
 			{
-				initial_health = Commands->Get_Health(obj);
+				initial_health = ScriptEngine::Get_Health(obj);
 			}
 		}
 	}
@@ -1191,7 +1191,7 @@ DECLARE_SCRIPT (MDD_Nod_Soldier, "Area_Number:int,Area_Officer:int,Pre_Placed:in
 		if (!initial_damage && damager == nullptr)
 		{
 			initial_damage = true;
-			Commands->Set_Health(obj, initial_health);
+			ScriptEngine::Set_Health(obj, initial_health);
 		}
 	}
 };
@@ -1218,8 +1218,8 @@ DECLARE_SCRIPT (MDD_GDI_Soldier, "Area_ID:int, Soldier_Type=0:int")
 	void Created(GameObject* obj) override
 	{
 		//DEMO
-		Commands->Enable_Hibernation(obj, false);
-		startloc = Commands->Get_Position(obj);
+		ScriptEngine::Enable_Hibernation(obj, false);
+		startloc = ScriptEngine::Get_Position(obj);
 		//DEMO
 
 		stop_following = false;
@@ -1230,13 +1230,13 @@ DECLARE_SCRIPT (MDD_GDI_Soldier, "Area_ID:int, Soldier_Type=0:int")
 
 		if (area_id == 1)
 		{
-			Commands->Innate_Disable (obj);
+			ScriptEngine::Innate_Disable (obj);
 		}
 		else
 		{
 			// Default spawned following unit - Give orders to stay near the commando on a timer.
 
-			Commands->Start_Timer(obj, this, 1.0f, 1);
+			ScriptEngine::Start_Timer(obj, this, 1.0f, 1);
 		}
 	}
 
@@ -1247,7 +1247,7 @@ DECLARE_SCRIPT (MDD_GDI_Soldier, "Area_ID:int, Soldier_Type=0:int")
 			int type = Get_Int_Parameter("Soldier_Type");
 			if (type < 12)
 			{
-				Commands->Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
+				ScriptEngine::Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
 			}
 			if (!stop_following)
 			{
@@ -1255,16 +1255,16 @@ DECLARE_SCRIPT (MDD_GDI_Soldier, "Area_ID:int, Soldier_Type=0:int")
 
 				//Start this check timer again.
 
-				Vector3 mypos = Commands->Get_Position(obj);
-				//DEMO GameObject *starobj = Commands->Get_A_Star (mypos);
-				GameObject *starobj = Commands->Find_Object(403063);
+				Vector3 mypos = ScriptEngine::Get_Position(obj);
+				//DEMO GameObject *starobj = ScriptEngine::Get_A_Star (mypos);
+				GameObject *starobj = ScriptEngine::Find_Object(403063);
 				//DEMO
 				if (starobj)
 				{
 					ActionParamsStruct params;
 					params.Set_Basic(this, 71, 0);
 					params.Set_Movement(starobj, 1.0f, 10.0f, 0);
-					Commands->Action_Goto(obj, params);
+					ScriptEngine::Action_Goto(obj, params);
 				}
 				else
 				{
@@ -1273,7 +1273,7 @@ DECLARE_SCRIPT (MDD_GDI_Soldier, "Area_ID:int, Soldier_Type=0:int")
 
 				//DEBUG good time to make a quip or comment.
 			}
-			Commands->Start_Timer(obj, this, 10.0f, 1);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, 1);
 		}
 	}
 
@@ -1295,7 +1295,7 @@ DECLARE_SCRIPT (MDD_GDI_Soldier, "Area_ID:int, Soldier_Type=0:int")
 						ActionParamsStruct params;
 						params.Set_Basic(this, 81, 0);
 						params.Set_Movement(guard_tower_loc, WALK, 1.0f, 0);
-						Commands->Action_Goto(obj, params);
+						ScriptEngine::Action_Goto(obj, params);
 						//DEBUG say something to the commando here indicating a position hold.
 						break;
 					}
@@ -1305,7 +1305,7 @@ DECLARE_SCRIPT (MDD_GDI_Soldier, "Area_ID:int, Soldier_Type=0:int")
 						ActionParamsStruct params;
 						params.Set_Basic(this, 81, 0);
 						params.Set_Movement(house_loc, WALK, 1.0f, 0);
-						Commands->Action_Goto(obj, params);
+						ScriptEngine::Action_Goto(obj, params);
 						//DEBUG say something to the commando here indicating a position hold.
 						break;
 					}
@@ -1320,7 +1320,7 @@ DECLARE_SCRIPT (MDD_GDI_Soldier, "Area_ID:int, Soldier_Type=0:int")
 		{
 			// A zone is trying to enable actions for this soldier.
 
-			Commands->Innate_Enable (obj);
+			ScriptEngine::Innate_Enable (obj);
 		}
 	}
 
@@ -1332,28 +1332,28 @@ DECLARE_SCRIPT (MDD_GDI_Soldier, "Area_ID:int, Soldier_Type=0:int")
 		{
 		case (12):
 			{
-				GameObject * soldier = Commands->Create_Object("GDI_Grenadier_2SF", startloc);
+				GameObject * soldier = ScriptEngine::Create_Object("GDI_Grenadier_2SF", startloc);
 				if (soldier)
 				{
-					Commands->Attach_Script(soldier, "MDD_GDI_Soldier", "25, 12");
+					ScriptEngine::Attach_Script(soldier, "MDD_GDI_Soldier", "25, 12");
 				}
 				break;
 			}
 		case (13):
 			{
-				GameObject * soldier = Commands->Create_Object("GDI_MiniGunner_2SF", startloc);
+				GameObject * soldier = ScriptEngine::Create_Object("GDI_MiniGunner_2SF", startloc);
 				if (soldier)
 				{
-					Commands->Attach_Script(soldier, "MDD_GDI_Soldier", "25, 13");
+					ScriptEngine::Attach_Script(soldier, "MDD_GDI_Soldier", "25, 13");
 				}
 				break;
 			}
 		case (14):
 			{
-				GameObject * soldier = Commands->Create_Object("GDI_RocketSoldier_2SF", startloc);
+				GameObject * soldier = ScriptEngine::Create_Object("GDI_RocketSoldier_2SF", startloc);
 				if (soldier)
 				{
-					Commands->Attach_Script(soldier, "MDD_GDI_Soldier", "25, 14");
+					ScriptEngine::Attach_Script(soldier, "MDD_GDI_Soldier", "25, 14");
 				}
 				break;
 			}
@@ -1368,8 +1368,8 @@ DECLARE_SCRIPT (MDD_Stationary_Vehicle,"Area_ID:int")
 	void Created (GameObject* obj) override
 	{
 		//DEMO
-		Commands->Set_Shield_Type (obj, "Blamo");
-		Commands->Enable_Enemy_Seen (obj, true);
+		ScriptEngine::Set_Shield_Type (obj, "Blamo");
+		ScriptEngine::Enable_Enemy_Seen (obj, true);
 		//DEMO
 
 		int area_id;
@@ -1377,11 +1377,11 @@ DECLARE_SCRIPT (MDD_Stationary_Vehicle,"Area_ID:int")
 
 		// Area One is a conflict area, other stationary vehicles in conflict areas must be paused as well
 
-		//DEMO Commands->Enable_Enemy_Seen (obj, false);
+		//DEMO ScriptEngine::Enable_Enemy_Seen (obj, false);
 
 		if (area_id == 99)
 		{
-			Commands->Start_Timer(obj, this, 6.0f, 1);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, 1);
 		}
 	}
 
@@ -1391,8 +1391,8 @@ DECLARE_SCRIPT (MDD_Stationary_Vehicle,"Area_ID:int")
 		params.Set_Basic(this, 90, 0);
 		params.Set_Attack(enemy, 300.0f, 0.0f, true);
 		params.AttackCheckBlocked = false;
-		Commands->Action_Attack(obj, params);
-		Commands->Start_Timer(obj, this, 5.0f, 2);
+		ScriptEngine::Action_Attack(obj, params);
+		ScriptEngine::Start_Timer(obj, this, 5.0f, 2);
 	}
 
 	void Sound_Heard (GameObject * obj, const CombatSound & sound) override
@@ -1403,10 +1403,10 @@ DECLARE_SCRIPT (MDD_Stationary_Vehicle,"Area_ID:int")
 		{
 			if (sound.Creator)
 			{
-				int	player_type = Commands->Get_Player_Type (obj);
+				int	player_type = ScriptEngine::Get_Player_Type (obj);
 				if (player_type == SCRIPT_PLAYERTYPE_NOD)
 				{
-					Commands->Send_Custom_Event(obj, sound.Creator, 100, 1, 0.0f);
+					ScriptEngine::Send_Custom_Event(obj, sound.Creator, 100, 1, 0.0f);
 				}
 			}
 		}
@@ -1418,7 +1418,7 @@ DECLARE_SCRIPT (MDD_Stationary_Vehicle,"Area_ID:int")
 		{
 			// A zone is trying to enable actions for this vehicle.
 
-			Commands->Enable_Enemy_Seen (obj, true);
+			ScriptEngine::Enable_Enemy_Seen (obj, true);
 		}
 	}
 
@@ -1426,11 +1426,11 @@ DECLARE_SCRIPT (MDD_Stationary_Vehicle,"Area_ID:int")
 	{
 		if (timer_id == 1)
 		{
-			Commands->Apply_Damage (obj, 10000.0f, "Blamokiller", nullptr);
+			ScriptEngine::Apply_Damage (obj, 10000.0f, "Blamokiller", nullptr);
 		}
 		else if (timer_id == 2)
 		{
-			Commands->Action_Reset (obj, 100);
+			ScriptEngine::Action_Reset (obj, 100);
 		}
 	}
 };
@@ -1473,10 +1473,10 @@ DECLARE_SCRIPT (MDD_Nod_Apache, "Area_ID:int")
 			}
 		}
 
-		Commands->Enable_Engine(obj, true);
-		Commands->Disable_Physical_Collisions(obj);
-		Commands->Start_Timer(obj, this, timer_len, 1);
-		Commands->Start_Timer(obj, this, 15.0f, 3);
+		ScriptEngine::Enable_Engine(obj, true);
+		ScriptEngine::Disable_Physical_Collisions(obj);
+		ScriptEngine::Start_Timer(obj, this, timer_len, 1);
+		ScriptEngine::Start_Timer(obj, this, 15.0f, 3);
 	}
 
 	void Timer_Expired(GameObject * obj, int timer_id) override
@@ -1548,17 +1548,17 @@ DECLARE_SCRIPT (MDD_Nod_Apache, "Area_ID:int")
 				params.Set_Attack(STAR, 200.0f, 0.0f, true);
 				params.AttackCheckBlocked = false;
 				params.AttackActive = false;
-				Commands->Action_Attack(obj, params);
+				ScriptEngine::Action_Attack(obj, params);
 			}
-			Commands->Start_Timer(obj, this, 5.0f, 2);
+			ScriptEngine::Start_Timer(obj, this, 5.0f, 2);
 		}
 		else if (timer_id == 2)
 		{
 			// Time to start firing, and move again in a second.
 
-			Vector3 myloc = Commands->Get_Position(obj);
+			Vector3 myloc = ScriptEngine::Get_Position(obj);
 			//DEMO
-			GameObject* target = Commands->Find_Object(403063);
+			GameObject* target = ScriptEngine::Find_Object(403063);
 			//DEMO
 
 			ActionParamsStruct params;
@@ -1569,8 +1569,8 @@ DECLARE_SCRIPT (MDD_Nod_Apache, "Area_ID:int")
 			//DEMO
 			params.AttackCheckBlocked = false;
 			params.AttackActive = true;
-			Commands->Action_Attack(obj, params);
-			Commands->Start_Timer(obj, this, 5.0f, 1);
+			ScriptEngine::Action_Attack(obj, params);
+			ScriptEngine::Start_Timer(obj, this, 5.0f, 1);
 		}
 		else if (timer_id == 3)
 		{
@@ -1579,20 +1579,20 @@ DECLARE_SCRIPT (MDD_Nod_Apache, "Area_ID:int")
 			float distance;
 			Vector3 myloc;
 			Vector3 starloc;
-			myloc = Commands->Get_Position(obj);
-			GameObject *star_obj = Commands->Get_A_Star(myloc);
+			myloc = ScriptEngine::Get_Position(obj);
+			GameObject *star_obj = ScriptEngine::Get_A_Star(myloc);
 			if (star_obj)
 			{
-				starloc = Commands->Get_Position(star_obj);
-				distance = Commands->Get_Distance (myloc, starloc);
+				starloc = ScriptEngine::Get_Position(star_obj);
+				distance = ScriptEngine::Get_Distance (myloc, starloc);
 				//DEMO if (distance > 300.0f)
 				if (distance > 3000.0f)
 				//DEMO
 				{
-					Commands->Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
+					ScriptEngine::Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
 				}
 			}
-			Commands->Start_Timer(obj, this, 15.0f, 3);
+			ScriptEngine::Start_Timer(obj, this, 15.0f, 3);
 		}
 	}
 
@@ -1604,7 +1604,7 @@ DECLARE_SCRIPT (MDD_Nod_Apache, "Area_ID:int")
 		{
 			if (sound.Creator)
 			{
-				Commands->Send_Custom_Event(obj, sound.Creator, 100, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, sound.Creator, 100, 1, 0.0f);
 			}
 		}
 	}
@@ -1617,17 +1617,17 @@ DECLARE_SCRIPT (MDD_Nod_Stealth, "")
 
 	void Created (GameObject* obj) override
 	{
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Enable_Hibernation(obj, false);
 
 		nofiring = true;
-		Commands->Enable_Enemy_Seen (obj, true);
+		ScriptEngine::Enable_Enemy_Seen (obj, true);
 		ActionParamsStruct params;
 		params.Set_Basic(this, 99, 0);
 		params.Set_Movement(Vector3(0,0,0), 2.5f, 1.0f);
 		params.WaypathID = 401465;
-		Commands->Action_Goto(obj, params);
-		Commands->Start_Timer(obj, this, 10.0f, 1);
-		Commands->Start_Timer(obj, this, 2.0f, 3);
+		ScriptEngine::Action_Goto(obj, params);
+		ScriptEngine::Start_Timer(obj, this, 10.0f, 1);
+		ScriptEngine::Start_Timer(obj, this, 2.0f, 3);
 	}
 
 	void Enemy_Seen (GameObject * obj, GameObject * enemy) override
@@ -1639,8 +1639,8 @@ DECLARE_SCRIPT (MDD_Nod_Stealth, "")
 			params.Set_Basic(this, 99, 0);
 			params.Set_Attack(enemy, 200.0f, 0.0f, true);
 			params.AttackActive = true;
-			Commands->Action_Attack (obj, params);
-			Commands->Start_Timer(obj, this, 10.0f, 2);
+			ScriptEngine::Action_Attack (obj, params);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, 2);
 		}
 	}
 
@@ -1656,24 +1656,24 @@ DECLARE_SCRIPT (MDD_Nod_Stealth, "")
 			params.Set_Basic(this, 99, 0);
 			params.Set_Movement(Vector3(0,0,0), 2.5f, 1.0f);
 			params.WaypathID = 401465;
-			Commands->Action_Goto(obj, params);
-			Commands->Start_Timer(obj, this, 10.0f, 1);
+			ScriptEngine::Action_Goto(obj, params);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, 1);
 		}
 		else if (timer_id == 3)
 		{
-			Vector3 myloc = Commands->Get_Position (obj);
-			Commands->Create_Logical_Sound (obj, 1999, myloc, 10.0f);
-			Commands->Start_Timer(obj, this, 2.0f, 3);
+			Vector3 myloc = ScriptEngine::Get_Position (obj);
+			ScriptEngine::Create_Logical_Sound (obj, 1999, myloc, 10.0f);
+			ScriptEngine::Start_Timer(obj, this, 2.0f, 3);
 		}
 	}
 
 	void Destroyed (GameObject* /* obj */) override
 	{
-		GameObject * nodtank = Commands->Create_Object("Nod_Stealth_Tank", Vector3(598.777f,479.691f,-55.824f));
+		GameObject * nodtank = ScriptEngine::Create_Object("Nod_Stealth_Tank", Vector3(598.777f,479.691f,-55.824f));
 		if (nodtank)
 		{
-			Commands->Set_Facing(nodtank, -100.0f);
-			Commands->Attach_Script(nodtank, "MDD_Nod_Stealth", "");
+			ScriptEngine::Set_Facing(nodtank, -100.0f);
+			ScriptEngine::Attach_Script(nodtank, "MDD_Nod_Stealth", "");
 		}
 	}
 };
@@ -1683,9 +1683,9 @@ DECLARE_SCRIPT (MDD_Flying_Vehicle, "Unit_ID:int")
 {
 	void Created (GameObject* obj) override
 	{
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Enable_Hibernation(obj, false);
 
-		Commands->Enable_Enemy_Seen (obj, true);
+		ScriptEngine::Enable_Enemy_Seen (obj, true);
 		int unit_id = Get_Int_Parameter ("Unit_ID");
 		int waypath_id = 0;
 		if (unit_id)
@@ -1697,17 +1697,17 @@ DECLARE_SCRIPT (MDD_Flying_Vehicle, "Unit_ID:int")
 			waypath_id = 402768;
 		}
 
-		Commands->Enable_Engine(obj, true);
-		Commands->Disable_Physical_Collisions(obj);
+		ScriptEngine::Enable_Engine(obj, true);
+		ScriptEngine::Disable_Physical_Collisions(obj);
 
 		ActionParamsStruct params;
 		params.Set_Basic(this, 99, 0);
 		params.Set_Movement(Vector3(0,0,0), 2.5f, 1.0f);
 		params.WaypathID = waypath_id;
 		params.WaypathSplined = true;
-		Commands->Action_Goto(obj, params);
+		ScriptEngine::Action_Goto(obj, params);
 
-		Commands->Start_Timer(obj, this, 15.0f, 1);
+		ScriptEngine::Start_Timer(obj, this, 15.0f, 1);
 	}
 
 	void Enemy_Seen (GameObject * obj, GameObject * enemy) override
@@ -1716,19 +1716,19 @@ DECLARE_SCRIPT (MDD_Flying_Vehicle, "Unit_ID:int")
 		params.Set_Basic(this, 92, 2);
 		params.AttackCheckBlocked = false;
 		params.Set_Attack(enemy, 300.0f, 0.0f, true);
-		Commands->Action_Attack(obj, params);
+		ScriptEngine::Action_Attack(obj, params);
 	}
 
 	void Timer_Expired(GameObject * obj, int timer_id) override
 	{
 		if (timer_id == 1)
 		{
-			Vector3 myloc = Commands->Get_Position(obj);
+			Vector3 myloc = ScriptEngine::Get_Position(obj);
 			ActionParamsStruct params;
 			params.Set_Basic(this, 99, 1);
 			params.Set_Movement(myloc, 0.0, 5.0f);
-			Commands->Action_Goto(obj, params);
-			Commands->Start_Timer(obj, this, 10.0f, 2);
+			ScriptEngine::Action_Goto(obj, params);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, 2);
 		}
 		else if (timer_id == 2)
 		{
@@ -1747,29 +1747,29 @@ DECLARE_SCRIPT (MDD_Flying_Vehicle, "Unit_ID:int")
 			}
 			params.WaypathID = waypath_id;
 			params.WaypathSplined = true;
-			Commands->Action_Goto(obj, params);
+			ScriptEngine::Action_Goto(obj, params);
 
-			Commands->Start_Timer(obj, this, 15.0f, 3);
+			ScriptEngine::Start_Timer(obj, this, 15.0f, 3);
 		}
 		else
 		{
-			Commands->Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
+			ScriptEngine::Apply_Damage(obj, 10000.0f, "Blamokiller", nullptr);
 		}
 	}
 
 	void Destroyed (GameObject* obj) override
 	{
-		GameObject * object = Commands->Find_Object(M02_OBJCONTROLLER);
+		GameObject * object = ScriptEngine::Find_Object(M02_OBJCONTROLLER);
 		if (object)
 		{
 			int unit_id = Get_Int_Parameter ("Unit_ID");
 			if (!unit_id)
 			{
-				Commands->Send_Custom_Event(obj, object, 180, 0, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, object, 180, 0, 0.0f);
 			}
 			else
 			{
-				Commands->Send_Custom_Event(obj, object, 181, 0, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, object, 181, 0, 0.0f);
 			}
 		}
 	}
@@ -1780,8 +1780,8 @@ DECLARE_SCRIPT (MDD_Commando, "")
 {
 	void Created (GameObject* obj) override
 	{
-		Commands->Control_Enable (obj, false);
-		Commands->Set_Shield_Type (obj, "Blamo");
+		ScriptEngine::Control_Enable (obj, false);
+		ScriptEngine::Set_Shield_Type (obj, "Blamo");
 	}
 };
 
@@ -1792,18 +1792,18 @@ DECLARE_SCRIPT (MDD_Havoc_Unit, "")
 
 	void Created (GameObject* obj) override
 	{
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Enable_Hibernation(obj, false);
 
 		forcemove = true;
-		Commands->Set_Shield_Type (obj, "Blamo");
-		Commands->Set_Shield_Strength (obj, 100.0f);
-		Commands->Start_Timer(obj, this, 5.0f, 1);
+		ScriptEngine::Set_Shield_Type (obj, "Blamo");
+		ScriptEngine::Set_Shield_Strength (obj, 100.0f);
+		ScriptEngine::Start_Timer(obj, this, 5.0f, 1);
 
 		// move to the center of the field
 		ActionParamsStruct params;
 		params.Set_Basic(this, 99, 1);
 		params.Set_Movement(Vector3(544.119f,339.562f,-60.75f), 1.0, 20.0f);
-		Commands->Action_Goto(obj, params);
+		ScriptEngine::Action_Goto(obj, params);
 	}
 
 	void Custom(GameObject * obj, int type, intptr_t param, GameObject * sender) override
@@ -1816,7 +1816,7 @@ DECLARE_SCRIPT (MDD_Havoc_Unit, "")
 				ActionParamsStruct params;
 				params.Set_Basic(this, 70, 1);
 				params.Set_Movement(sender, 1.0, 1.0f);
-				Commands->Action_Goto(obj, params);
+				ScriptEngine::Action_Goto(obj, params);
 			}
 		}
 	}
@@ -1826,7 +1826,7 @@ DECLARE_SCRIPT (MDD_Havoc_Unit, "")
 		if (timer_id == 1)
 		{
 			forcemove = true;
-			Commands->Start_Timer(obj, this, 10.0f, 1);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, 1);
 		}
 	}
 
@@ -1839,7 +1839,7 @@ DECLARE_SCRIPT (MDD_Havoc_Unit, "")
 				ActionParamsStruct params;
 				params.Set_Basic(this, 99, 1);
 				params.Set_Movement(Vector3(544.119f,339.562f,-60.75f), 1.0, 20.0f);
-				Commands->Action_Goto(obj, params);
+				ScriptEngine::Action_Goto(obj, params);
 			}
 		}
 	}

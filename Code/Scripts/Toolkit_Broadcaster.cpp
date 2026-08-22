@@ -71,12 +71,12 @@ DECLARE_SCRIPT (M00_Broadcaster_Register_RAD, "Terminal_ID:int, Send_Attempts=3:
 		send_attempts = Get_Int_Parameter("Send_Attempts");
 		terminal_id = Get_Int_Parameter("Terminal_ID");
 		send_delay = Get_Int_Parameter("Send_Delay");
-		item_id = Commands->Get_ID(obj);
+		item_id = ScriptEngine::Get_ID(obj);
 		current_send = 0;
 
 		SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Register_RAD ACTIVATED.\n"));
 
-		Commands->Start_Timer (obj, this, 0.1f, 0);
+		ScriptEngine::Start_Timer (obj, this, 0.1f, 0);
 		//DEBUG Timer may not work here without proper ID later.
 	}
 
@@ -93,15 +93,15 @@ DECLARE_SCRIPT (M00_Broadcaster_Register_RAD, "Terminal_ID:int, Send_Attempts=3:
 			}
 			else
 			{
-				terminal_obj = Commands->Find_Object(terminal_id);
+				terminal_obj = ScriptEngine::Find_Object(terminal_id);
 				if (terminal_obj)
 				{
 					SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Registry_RAD is sending custom type M00_CUSTOM_BROADCASTER_REGISTRATION, param %d.\n", item_id));
-					Commands->Send_Custom_Event (obj, terminal_obj, M00_CUSTOM_BROADCASTER_REGISTRATION, item_id, 0.0f);
+					ScriptEngine::Send_Custom_Event (obj, terminal_obj, M00_CUSTOM_BROADCASTER_REGISTRATION, item_id, 0.0f);
 				}
 				else
 				{
-					Commands->Start_Timer (obj, this, float(send_delay), 0);
+					ScriptEngine::Start_Timer (obj, this, float(send_delay), 0);
 				}
 			}
 		}
@@ -112,7 +112,7 @@ DECLARE_SCRIPT (M00_Broadcaster_Register_RAD, "Terminal_ID:int, Send_Attempts=3:
 		if (type == M00_CUSTOM_BROADCASTER_REGISTRY_ERROR)
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Registry_RAD received custom type M00_CUSTOM_BROADCASTER_REGISTRY_ERROR, param %d.\n", param));
-			Commands->Start_Timer (obj, this, float(send_delay), 0);
+			ScriptEngine::Start_Timer (obj, this, float(send_delay), 0);
 		}
 		else
 		{
@@ -123,11 +123,11 @@ DECLARE_SCRIPT (M00_Broadcaster_Register_RAD, "Terminal_ID:int, Send_Attempts=3:
 	void Destroyed (GameObject* obj) override
 	{
 		GameObject* terminal_obj;
-		terminal_obj = Commands->Find_Object(terminal_id);
+		terminal_obj = ScriptEngine::Find_Object(terminal_id);
 		if (terminal_obj)
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Registry_RAD is sending custom type M00_CUSTOM_BROADCASTER_REGISTRATION, param 0.\n"));
-			Commands->Send_Custom_Event (obj, terminal_obj, M00_CUSTOM_BROADCASTER_REGISTRATION, 0, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, terminal_obj, M00_CUSTOM_BROADCASTER_REGISTRATION, 0, 0.0f);
 		}
 	}
 };
@@ -216,7 +216,7 @@ DECLARE_SCRIPT (M00_Broadcaster_Terminal_RAD, "Random_Percentage=100.0:float, Ra
 
 		if (sender)
 		{
-			sender_id = Commands->Get_ID (sender);
+			sender_id = ScriptEngine::Get_ID (sender);
 		}
 		else
 		{
@@ -225,7 +225,7 @@ DECLARE_SCRIPT (M00_Broadcaster_Terminal_RAD, "Random_Percentage=100.0:float, Ra
 
 		if (ready_for_objects)
 		{
-			my_id = Commands->Get_ID (obj);
+			my_id = ScriptEngine::Get_ID (obj);
 
 			if (my_id == sender_id)
 			{
@@ -279,7 +279,7 @@ DECLARE_SCRIPT (M00_Broadcaster_Terminal_RAD, "Random_Percentage=100.0:float, Ra
 								}
 								else
 								{
-									obj_id = Commands->Get_ID (obj);
+									obj_id = ScriptEngine::Get_ID (obj);
 									DebugPrint ("ERROR - M00_Broadcaster_Terminal_RAD - Broadcaster Terminal %d is full!\n", obj_id);
 								}
 							}
@@ -370,16 +370,16 @@ DECLARE_SCRIPT (M00_Broadcaster_Terminal_RAD, "Random_Percentage=100.0:float, Ra
 
 								for (object_count = 0;object_count < M00_BROADCASTER_TERMINAL_SIZE_RAD; object_count++)
 								{
-									random_value = Commands->Get_Random_Int (0, 100);
+									random_value = ScriptEngine::Get_Random_Int (0, 100);
 									if (random_value <= Get_Float_Parameter ("Random_Percentage"))
 									{
 										if (object_random_record [object_count])
 										{
-											target_obj = Commands->Find_Object (object_random_record [object_count]);
+											target_obj = ScriptEngine::Find_Object (object_random_record [object_count]);
 											if (target_obj)
 											{
 												SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Terminal_RAD is sending custom type %d, param %d.\n", type, param));
-												Commands->Send_Custom_Event (obj, target_obj, type, param, 0.0f);
+												ScriptEngine::Send_Custom_Event (obj, target_obj, type, param, 0.0f);
 											}
 											else
 											{
@@ -399,12 +399,12 @@ DECLARE_SCRIPT (M00_Broadcaster_Terminal_RAD, "Random_Percentage=100.0:float, Ra
 								{
 									if (object_specific_record [object_count])
 									{
-										target_obj = Commands->Find_Object (object_specific_record [object_count]);
+										target_obj = ScriptEngine::Find_Object (object_specific_record [object_count]);
 										if (target_obj)
 										{
-											random_value = Commands->Get_Random_Int (parameter_low, parameter_high);
+											random_value = ScriptEngine::Get_Random_Int (parameter_low, parameter_high);
 											SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Terminal_RAD is sending custom type %d, param %d.\n", type, random_value));
-											Commands->Send_Custom_Event (obj, target_obj, type, random_value, 0.0f);
+											ScriptEngine::Send_Custom_Event (obj, target_obj, type, random_value, 0.0f);
 										}
 										else
 										{
@@ -424,15 +424,15 @@ DECLARE_SCRIPT (M00_Broadcaster_Terminal_RAD, "Random_Percentage=100.0:float, Ra
 								{
 									if (object_random_record [object_count])
 									{
-										random_value = Commands->Get_Random_Int (0, 100);
+										random_value = ScriptEngine::Get_Random_Int (0, 100);
 										if (random_value <= Get_Float_Parameter ("Random_Percentage"))
 										{
-											target_obj = Commands->Find_Object (object_random_record [object_count]);
+											target_obj = ScriptEngine::Find_Object (object_random_record [object_count]);
 											if (target_obj)
 											{
-												random_value2 = Commands->Get_Random_Int (parameter_low, parameter_high);
+												random_value2 = ScriptEngine::Get_Random_Int (parameter_low, parameter_high);
 												SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Terminal_RAD is sending custom type %d, param %d.\n", type, random_value2));
-												Commands->Send_Custom_Event (obj, target_obj, type, random_value2, 0.0f);
+												ScriptEngine::Send_Custom_Event (obj, target_obj, type, random_value2, 0.0f);
 											}
 											else
 											{
@@ -450,11 +450,11 @@ DECLARE_SCRIPT (M00_Broadcaster_Terminal_RAD, "Random_Percentage=100.0:float, Ra
 								{
 									if (object_specific_record [object_count])
 									{
-										target_obj = Commands->Find_Object(object_specific_record [object_count]);
+										target_obj = ScriptEngine::Find_Object(object_specific_record [object_count]);
 										if (target_obj)
 										{
 											SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Terminal_RAD is sending custom type %d, param %d.\n", type, param));
-											Commands->Send_Custom_Event (obj, target_obj, type, param, 0.0f);
+											ScriptEngine::Send_Custom_Event (obj, target_obj, type, param, 0.0f);
 										}
 										else
 										{
@@ -476,7 +476,7 @@ DECLARE_SCRIPT (M00_Broadcaster_Terminal_RAD, "Random_Percentage=100.0:float, Ra
 
 			SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Terminal_RAD is sending custom type M00_CUSTOM_BROADCASTER_REGISTRY_ERROR, param 0.\n"));
 
-			Commands->Send_Custom_Event (obj, sender, M00_CUSTOM_BROADCASTER_REGISTRY_ERROR, 0, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, sender, M00_CUSTOM_BROADCASTER_REGISTRY_ERROR, 0, 0.0f);
 		}
 	}
 };
@@ -520,14 +520,14 @@ DECLARE_SCRIPT (M00_Broadcaster_Activator_RAD, "Terminal_ID:int, Prompt_Value=0:
 
 		GameObject* terminal_obj;
 
-		terminal_obj = Commands->Find_Object(terminal_id);
+		terminal_obj = ScriptEngine::Find_Object(terminal_id);
 		if (terminal_obj)
 		{
 			SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Activator_RAD is sending custom type M00_CUSTOM_BROADCASTER_PROMPTER, param %d.\n", prompt_value));
 			SCRIPT_DEBUG_MESSAGE(("M00_Broadcaster_Activator_RAD is sending custom type %d, param %d.\n", type, param));
 
-			Commands->Send_Custom_Event (obj, terminal_obj, M00_CUSTOM_BROADCASTER_PROMPTER, prompt_value, 0.0f);
-			Commands->Send_Custom_Event (obj, terminal_obj, type, param, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, terminal_obj, M00_CUSTOM_BROADCASTER_PROMPTER, prompt_value, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, terminal_obj, type, param, 0.0f);
 		}
 		else
 		{

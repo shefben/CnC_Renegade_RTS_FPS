@@ -54,6 +54,6 @@ DECLARE_SCRIPT(MS04_Gunboat_Waypath_Movement, "")
 		params.Set_Basic( this, 45, 999 );
 		params.Set_Movement( Vector3(0,0,0), 1.0f, 3.0f );
 		params.WaypathID = 100033;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 	}
 }

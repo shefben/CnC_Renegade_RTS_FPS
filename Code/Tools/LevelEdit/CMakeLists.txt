@@ -464,4 +464,4 @@ target_link_libraries(leveledit PRIVATE
     combate
 )
 
-target_sources(leveledit PRIVATE ${LEVELEDIT_SRC})
+target_sources(leveledit PRIVATE ${LEVELEDIT_SRC} $<TARGET_OBJECTS:scriptse>)

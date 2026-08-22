@@ -47,7 +47,7 @@ DECLARE_SCRIPT(Dr_Mobius_Script, "")
 	void Created (GameObject *game_obj) override
 	{
 		CurrentLeader = nullptr;
-		Commands->Start_Timer (game_obj, this, 0.5F, 777);
+		ScriptEngine::Start_Timer (game_obj, this, 0.5F, 777);
 		return ;
 	}
 
@@ -57,20 +57,20 @@ DECLARE_SCRIPT(Dr_Mobius_Script, "")
 	void Timer_Expired (GameObject *game_obj, int timer_id) override
 	{
 		if (timer_id == 777) {
-			Commands->Innate_Disable (game_obj);
+			ScriptEngine::Innate_Disable (game_obj);
 
-			Vector3 pos = Commands->Get_Position(game_obj);
-			GameObject * p_leader = Commands->Find_Closest_Soldier(pos, 0.1f, 2.0f, true);
+			Vector3 pos = ScriptEngine::Get_Position(game_obj);
+			GameObject * p_leader = ScriptEngine::Find_Closest_Soldier(pos, 0.1f, 2.0f, true);
 			if (p_leader != nullptr && p_leader != CurrentLeader) {
 				ActionParamsStruct params;
 				params.Set_Basic(this, 100, 100);
 				params.Set_Movement(p_leader, 1.0f, 1.0f);
 				params.MoveFollow = true;
-				Commands->Action_Goto(game_obj, params);
+				ScriptEngine::Action_Goto(game_obj, params);
 				CurrentLeader = p_leader;
 			}
 
-			Commands->Start_Timer (game_obj, this, 0.5F, 777);
+			ScriptEngine::Start_Timer (game_obj, this, 0.5F, 777);
 		}
 		return ;
 	}

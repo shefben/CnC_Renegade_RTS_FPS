@@ -44,7 +44,7 @@
 
 /*
 #ifdef WWDEBUG
-#define SCRIPT_DEBUG_MESSAGE( X )	if (debug_mode)	{ Commands->Debug_Message X ; }
+#define SCRIPT_DEBUG_MESSAGE( X )	if (debug_mode)	{ ScriptEngine::Debug_Message X ; }
 #else
 #define SCRIPT_DEBUG_MESSAGE( X )
 #endif
@@ -52,20 +52,20 @@
 
 
 #ifdef WWDEBUG
-#define NULL_POINTER_CHECK( X )		(if (X == nullptr) { Commands->Debug_Message("***nullptr pointer found in script: Line %d of file %s.\n", __LINE__, __FILE__); })
+#define NULL_POINTER_CHECK( X )		(if (X == nullptr) { ScriptEngine::Debug_Message("***nullptr pointer found in script: Line %d of file %s.\n", __LINE__, __FILE__); })
 #else
 #define NULL_POINTER_CHECK( X )
 #endif
 
 #ifdef WWDEBUG
-#define DISPLAY_VECTOR3( V )	Commands->Debug_Message("Value of '%s' is (%3.2f, %3.2f, %3.2f) at line %d of file %s.\n", #V, V.X, V.Y, V.Z, __LINE__, __FILE__)
+#define DISPLAY_VECTOR3( V )	ScriptEngine::Debug_Message("Value of '%s' is (%3.2f, %3.2f, %3.2f) at line %d of file %s.\n", #V, V.X, V.Y, V.Z, __LINE__, __FILE__)
 #else
 #define DISPLAY_VECTOR3( V )
 #endif
 
-#define STAR (Commands->Get_A_Star(Commands->Get_Position(Owner())))
+#define STAR (ScriptEngine::Get_A_Star(ScriptEngine::Get_Position(Owner())))
 
-#define DIFFICULTY (Commands->Get_Difficulty_Level())
+#define DIFFICULTY (ScriptEngine::Get_Difficulty_Level())
 
 #define MAX3( a, b, c ) (WWMath::Max(WWMath::Max(a, b), WWMath::Max(b, c)))
 
@@ -187,7 +187,7 @@ inline int Get_Int_Random(int min, int max)
 {
 	float random;
 	int d_random;
-	random = Commands->Get_Random(float(min), float(max)+1.0f-WWMATH_EPSILON);
+	random = ScriptEngine::Get_Random(float(min), float(max)+1.0f-WWMATH_EPSILON);
 	d_random = int(random);
 	d_random = (d_random > max) ? max : d_random;
 	return d_random;

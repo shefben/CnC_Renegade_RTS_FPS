@@ -224,7 +224,7 @@ inline const char *M11_Choose_Mutant_Idle_Sound ( )
 			"M00MEIN_STOA0001I1MEIN_SND",
 			"M00MEIN_STOR0001I1MEIN_SND",
 		};
-		int random = Commands->Get_Random_Int(0, 4);
+		int random = ScriptEngine::Get_Random_Int(0, 4);
 
 	return soundList[random];
 };
@@ -237,7 +237,7 @@ inline const char *M11_Choose_Mutant_Alerted_Sound ( )
 			"M00MEIN_RTOS0001I1MEIN_SND",
 			"M00MEIN_TDFA0001I1MEIN_SND",
 		};
-		int random = Commands->Get_Random_Int(0, 3);
+		int random = ScriptEngine::Get_Random_Int(0, 3);
 
 	return soundList[random];
 };
@@ -250,7 +250,7 @@ inline const char *M11_Choose_Mutant_Attack_Sound ( )
 			"M00MEIN_CTOS0001I1MEIN_SND",
 			"M00MEIN_STOC0001I1MEIN_SND",
 		};
-		int random = Commands->Get_Random_Int(0, 3);
+		int random = ScriptEngine::Get_Random_Int(0, 3);
 
 	return soundList[random];
 };
@@ -267,7 +267,7 @@ inline const char *M11_Choose_Mutant_Attack_Animation ( )
 			"S_A_Human.H_A_A0F0",
 			//"S_A_Human.H_A_D11A",
 		};
-		int random = Commands->Get_Random_Int(0, 6);
+		int random = ScriptEngine::Get_Random_Int(0, 6);
 
 
 	return animationList[random];

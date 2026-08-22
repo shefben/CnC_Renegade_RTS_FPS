@@ -86,10 +86,10 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 	{
 		if ( script_override > 0 )
 		{
-			GameObject *controller = Commands->Find_Object(controller_id);
+			GameObject *controller = ScriptEngine::Find_Object(controller_id);
 			if ( controller )
 			{
-				Commands->Send_Custom_Event( obj, controller, OV_ANIMCOMPLETE, 0);
+				ScriptEngine::Send_Custom_Event( obj, controller, OV_ANIMCOMPLETE, 0);
 				return;
 			}
 		}
@@ -101,7 +101,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		{
 			if ( function == FUNC_PANIC )
 			{
-				if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+				if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 				{
 					Sound_Create_Search( obj );
 				}
@@ -123,27 +123,27 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 	void Created(GameObject * obj) override
 	{
 		anim_script = nullptr;
-		self_id = Commands->Get_ID( obj );
-		idleposition = Commands->Get_Position( obj );
+		self_id = ScriptEngine::Get_ID( obj );
+		idleposition = ScriptEngine::Get_Position( obj );
 		state = STATE_IDLE;
 
 		float duration;
-		duration = Commands->Get_Random( 5, 15 );
+		duration = ScriptEngine::Get_Random( 5, 15 );
 
-		Commands->Start_Timer ( obj, duration, TIMER_IDLE_ANIM );
+		ScriptEngine::Start_Timer ( obj, duration, TIMER_IDLE_ANIM );
 
 		if ( script_override > 0 )
 		{
-			GameObject *controller = Commands->Find_Object(controller_id);
+			GameObject *controller = ScriptEngine::Find_Object(controller_id);
 			if ( controller )
 			{
-				Commands->Send_Custom_Event( obj, controller, OV_CREATED, 0);
+				ScriptEngine::Send_Custom_Event( obj, controller, OV_CREATED, 0);
 			}
 		}
 		else
 		{
-			Commands->Enable_Enemy_Seen( obj, true );
-//			Commands->Enable_Sound_Heard( obj, true );
+			ScriptEngine::Enable_Enemy_Seen( obj, true );
+//			ScriptEngine::Enable_Sound_Heard( obj, true );
 		}
 
 		if ( Get_Int_Parameter(0) )
@@ -198,23 +198,23 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		{
 			if ( param == 1 )
 			{
-				Commands->Enable_Enemy_Seen( obj, true );
-//				Commands->Enable_Sound_Heard( Me(), true );
+				ScriptEngine::Enable_Enemy_Seen( obj, true );
+//				ScriptEngine::Enable_Sound_Heard( Me(), true );
 			}
 			if ( param == 0 )
 			{
-				Commands->Enable_Enemy_Seen( obj, false );
-//				Commands->Enable_Sound_Heard( Me(), false );
+				ScriptEngine::Enable_Enemy_Seen( obj, false );
+//				ScriptEngine::Enable_Sound_Heard( Me(), false );
 			}
 		}
 		if ( script_override > 0 )
 		{
 			if ( type == OV_VERIFY )
 			{
-				GameObject *controller = Commands->Find_Object(controller_id);
+				GameObject *controller = ScriptEngine::Find_Object(controller_id);
 				if ( controller )
 				{
-					Commands->Send_Custom_Event( obj, controller, OV_CONFIRM, 0);
+					ScriptEngine::Send_Custom_Event( obj, controller, OV_CONFIRM, 0);
 				}
 			}
 			return;
@@ -223,24 +223,24 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		{
 			if ( sender )
 			{
-				if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+				if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 				{
 					Sound_Create_Defensive_Attack( obj );
 				}
-				Commands->Send_Custom_Event( obj, sender, CUSTOM_TARGET_INFO, enemy_id);
+				ScriptEngine::Send_Custom_Event( obj, sender, CUSTOM_TARGET_INFO, enemy_id);
 			}
 		}
 		else if ( type == CUSTOM_TARGET_INFO )
 		{
-			GameObject *obj = Commands->Find_Object(param);
+			GameObject *obj = ScriptEngine::Find_Object(param);
 
 			if ( obj )
 			{
-				if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+				if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 				{
 					Sound_Create_Attack( obj );
 				}
-				searchposition = Commands->Get_Position( obj );
+				searchposition = ScriptEngine::Get_Position( obj );
 
 				if ( soldier_type == 3 )
 				{
@@ -260,7 +260,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 
 		Sound_Create_Damaged ( obj );
 
-		if (Commands->Get_Health(obj) < 10.0f)
+		if (ScriptEngine::Get_Health(obj) < 10.0f)
 		{
 			State_Change_Critical( obj );
 
@@ -270,25 +270,25 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		}
 		else
 		{
-			Commands->Set_Animation( obj,nullptr,0);
+			ScriptEngine::Set_Animation( obj,nullptr,0);
 			if ( script_override > 0 )
 			{
-				GameObject *controller = Commands->Find_Object(controller_id);
+				GameObject *controller = ScriptEngine::Find_Object(controller_id);
 				if ( controller )
 				{
-					Commands->Send_Custom_Event( obj, controller, OV_DAMAGED, 0);
+					ScriptEngine::Send_Custom_Event( obj, controller, OV_DAMAGED, 0);
 					return;
 				}
 			}
 			else if ( state < STATE_OFFENSIVE )
 			{
-				if (Commands->Is_Object_Visible(obj,damager) == false)
+				if (ScriptEngine::Is_Object_Visible(obj,damager) == false)
 				{
-					if ( Commands->Get_Random( 0.0f, 100.0f) < 25.0f )
+					if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 25.0f )
 					{
 						Sound_Create_Search( obj );
 					}
-					searchposition = Commands->Get_Position( damager );
+					searchposition = ScriptEngine::Get_Position( damager );
 
 					if ( soldier_type == 3 )
 					{
@@ -310,10 +310,10 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		}
 
 /*
-		float random = Commands->Get_Random( 0.0f, 1.0f );
+		float random = ScriptEngine::Get_Random( 0.0f, 1.0f );
 		if ( random <= 0.25f )
 		{
-			Create_Crate( obj, Commands->Get_Position( obj ), 1 );
+			Create_Crate( obj, ScriptEngine::Get_Position( obj ), 1 );
 		}
 */
 	}
@@ -322,37 +322,37 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 	{
 		if ( script_override > 0 )
 		{
-			GameObject *controller = Commands->Find_Object(controller_id);
+			GameObject *controller = ScriptEngine::Find_Object(controller_id);
 			if ( controller )
 			{
-				Commands->Send_Custom_Event( obj, Commands->Find_Object(controller_id), OV_ENEMYSEEN, 0);
+				ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object(controller_id), OV_ENEMYSEEN, 0);
 			}
 			return;
 		}
 		else if ( state < STATE_OFFENSIVE )
 		{
-			if ( Commands->Is_Object_Visible( obj, enemy ) == true )
+			if ( ScriptEngine::Is_Object_Visible( obj, enemy ) == true )
 			{
-				enemy_id = Commands->Get_ID(enemy);
-				if ( Commands->Get_Random( 0.0f, 100.0f) < 25.0f )
+				enemy_id = ScriptEngine::Get_ID(enemy);
+				if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 25.0f )
 				{
 					Sound_Create_Enemy_Seen( obj );
 				}
-//				Commands->Create_Instant_Logical_Sound( (CombatSoundType)(SOUND_ENEMY_SEEN), 20.0, obj, Commands->Get_Position(obj) );
-				Commands->Enable_Enemy_Seen( obj, false );
+//				ScriptEngine::Create_Instant_Logical_Sound( (CombatSoundType)(SOUND_ENEMY_SEEN), 20.0, obj, ScriptEngine::Get_Position(obj) );
+				ScriptEngine::Enable_Enemy_Seen( obj, false );
 
 				if ( soldier_type == 3 )
 				{
-					if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+					if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 					{
 						Sound_Create_Attack( obj );
 					}
 
 					Function_Stand_Attack( obj, enemy, 5.0f, 100.0f );
 				}
-				else if ( Commands->Get_Random(0.0f, 1.0f) < 0.2f )
+				else if ( ScriptEngine::Get_Random(0.0f, 1.0f) < 0.2f )
 				{
-					if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+					if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 					{
 						Sound_Create_Attack( obj );
 					}
@@ -360,7 +360,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 				}
 				else
 				{
-					if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+					if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 					{
 						Sound_Create_Defensive_Attack( obj );
 					}
@@ -378,7 +378,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			return;
 		}
 
-		GameObject *target = Commands->Find_Object(enemy_id);
+		GameObject *target = ScriptEngine::Find_Object(enemy_id);
 
 		switch(reason)
 		{
@@ -386,21 +386,21 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			{
 				if ( script_override > 0 )
 				{
-					GameObject *controller = Commands->Find_Object(controller_id);
+					GameObject *controller = ScriptEngine::Find_Object(controller_id);
 					if ( controller )
 					{
-						Commands->Send_Custom_Event( obj, controller, OV_ARRIVED, 0);
+						ScriptEngine::Send_Custom_Event( obj, controller, OV_ARRIVED, 0);
 						return;
 					}
 				}
 				else if ( (state == STATE_OFFENSIVE) && (function == FUNC_CIRCLE_ATTACK) )
 				{
-					GameObject * target  = Commands->Find_Object(enemy_id);
+					GameObject * target  = ScriptEngine::Find_Object(enemy_id);
 					if ( target )
 					{
-						if ( Commands->Get_Random(0.0f, 1.0f) < 0.2f )
+						if ( ScriptEngine::Get_Random(0.0f, 1.0f) < 0.2f )
 						{
-							if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+							if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 							{
 								Sound_Create_Attack( obj );
 							}
@@ -408,7 +408,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 						}
 						else
 						{
-							if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+							if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 							{
 								Sound_Create_Defensive_Attack( obj );
 							}
@@ -428,7 +428,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 				{
 					if ( function == FUNC_SEARCH_LOCATION )
 					{
-						Commands->Start_Timer( obj, 10.0, TIMER_SEARCH_LOCATION );
+						ScriptEngine::Start_Timer( obj, 10.0, TIMER_SEARCH_LOCATION );
 						Function_Search_Circle( obj, searchposition, 10.0f);
 					}
 					else if ( function == FUNC_SEARCH_CIRCLE )
@@ -446,7 +446,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 				{
 					if ( target )
 					{
-						if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+						if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 						{
 							Sound_Create_Attack( obj );
 						}
@@ -465,7 +465,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 				{
 					if ( target )
 					{
-						if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+						if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 						{
 							Sound_Create_Defensive_Attack( obj );
 						}
@@ -483,30 +483,30 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 
 	void Killed(GameObject * obj, GameObject *killer ) override
 	{
-		GameObject *scoreboard = Commands->Find_Object(scoreboard_id);
+		GameObject *scoreboard = ScriptEngine::Find_Object(scoreboard_id);
 		if ( scoreboard )
 		{
-			Commands->Send_Custom_Event(obj,scoreboard,TALLY,TALLY_KILL);
+			ScriptEngine::Send_Custom_Event(obj,scoreboard,TALLY,TALLY_KILL);
 		}
 
-		Commands->Action_Movement_Stop( obj );
-		Commands->Action_Attack_Stop( obj );
-		Commands->Create_Sound("Death01",Commands->Get_Position(obj), obj );
-//		Commands->Create_Instant_Logical_Sound( (CombatSoundType)(SOUND_DEATH), 30.0, obj, Commands->Get_Position( obj ) );
+		ScriptEngine::Action_Movement_Stop( obj );
+		ScriptEngine::Action_Attack_Stop( obj );
+		ScriptEngine::Create_Sound("Death01",ScriptEngine::Get_Position(obj), obj );
+//		ScriptEngine::Create_Instant_Logical_Sound( (CombatSoundType)(SOUND_DEATH), 30.0, obj, ScriptEngine::Get_Position( obj ) );
 
-		if ( killer == Commands->Get_The_Star() )
+		if ( killer == ScriptEngine::Get_The_Star() )
 		{
-			float death_random = Commands->Get_Random(0,100);
+			float death_random = ScriptEngine::Get_Random(0,100);
 			if ( death_random < 25.0 )
 			{
 				Sound_Create_Commando_Taunt(killer);
 			}
 		}
 
-		GameObject *controller = Commands->Find_Object(controller_id);
+		GameObject *controller = ScriptEngine::Find_Object(controller_id);
 		if (controller)
 		{
-			Commands->Send_Custom_Event( obj, controller, OV_KILLED, 0);
+			ScriptEngine::Send_Custom_Event( obj, controller, OV_KILLED, 0);
 		}
 	}
 
@@ -514,22 +514,22 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 	{
 		if ( script_override > 0 )
 		{
-//			Commands->Send_Custom_Event( obj, Commands->Find_Object(controller_id), OV_SOUNDHEARD, 0);
+//			ScriptEngine::Send_Custom_Event( obj, ScriptEngine::Find_Object(controller_id), OV_SOUNDHEARD, 0);
 			return;
 		}
 
-		if ( Commands->Get_Player_Type(sound.Creator) == Commands->Get_Player_Type( obj) )
+		if ( ScriptEngine::Get_Player_Type(sound.Creator) == ScriptEngine::Get_Player_Type( obj) )
 		{
 			if ( sound.Type == SOUND_DEATH )
 			{
-				if ( Commands->Get_Random( 0.0f, 100.0f) < 50.0f )
+				if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 50.0f )
 				{
 					Sound_Create_Support( obj );
 				}
-				GameObject *commando = Commands->Get_The_Star();
+				GameObject *commando = ScriptEngine::Get_The_Star();
 				if ( commando )
 				{
-					searchposition = Commands->Get_Position( commando );
+					searchposition = ScriptEngine::Get_Position( commando );
 				}
 				Function_Panic( obj );
 			}
@@ -539,7 +539,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			if ( sound.Type == SOUND_TYPE_BULLET_HIT )	// WAS WEAPON
 			{
 				searchposition = sound.Position;
-				if ( Commands->Get_Random( 0.0f, 100.0f) < 25.0f )
+				if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 25.0f )
 				{
 					Sound_Create_Panic( obj );
 				}
@@ -548,7 +548,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			else if ( sound.Type == SOUND_TYPE_GUNSHOT )
 			{
 				searchposition = sound.Position;
-				if ( Commands->Get_Random( 0.0f, 100.0f) < 25.0f )
+				if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 25.0f )
 				{
 					Sound_Create_Panic( obj );
 				}
@@ -557,7 +557,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			else if(sound.Type == SOUND_TYPE_FOOTSTEPS)
 			{
 				searchposition = sound.Position;
-				if ( Commands->Get_Random( 0.0f, 100.0f) < 25.0f )
+				if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 25.0f )
 				{
 					Sound_Create_Search( obj );
 				}
@@ -571,7 +571,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			else if (sound.Type == SOUND_TYPE_VEHICLE)
 			{
 				searchposition = sound.Position;
-				if ( Commands->Get_Random( 0.0f, 100.0f) < 25.0f )
+				if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 25.0f )
 				{
 					Sound_Create_Search( obj );
 				}
@@ -586,7 +586,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			{
 				if ( sound.Creator )
 				{
-					Commands->Send_Custom_Event( obj, sound.Creator, CUSTOM_ALLY_INFO, self_id);
+					ScriptEngine::Send_Custom_Event( obj, sound.Creator, CUSTOM_ALLY_INFO, self_id);
 				}
 			}
 		}
@@ -599,19 +599,19 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			if ( timer == TIMER_IDLE_ANIM )
 			{
 				float duration;
-				duration = Commands->Get_Random( 15, 25);
-				Commands->Start_Timer(obj, duration ,TIMER_IDLE_ANIM);
+				duration = ScriptEngine::Get_Random( 15, 25);
+				ScriptEngine::Start_Timer(obj, duration ,TIMER_IDLE_ANIM);
 			}
 			return;
 		}
 		if ( timer == TIMER_CROUCH_ATTACK )
 		{
-			GameObject *target = Commands->Find_Object(enemy_id);
+			GameObject *target = ScriptEngine::Find_Object(enemy_id);
 			if ( target )
 			{
-				if ( Commands->Get_Random(0.0f, 1.0f) < 0.2f )
+				if ( ScriptEngine::Get_Random(0.0f, 1.0f) < 0.2f )
 				{
-					if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+					if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 					{
 						Sound_Create_Attack( obj );
 					}
@@ -619,7 +619,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 				}
 				else
 				{
-					if ( Commands->Get_Random( 0.0f, 100.0f) < 10.0f )
+					if ( ScriptEngine::Get_Random( 0.0f, 100.0f) < 10.0f )
 					{
 						Sound_Create_Defensive_Attack( obj );
 					}
@@ -642,8 +642,8 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		else if ( timer == TIMER_IDLE_ANIM )
 		{
 			float duration;
-			duration = Commands->Get_Random( 15, 25);
-			Commands->Start_Timer( obj, duration ,TIMER_IDLE_ANIM);
+			duration = ScriptEngine::Get_Random( 15, 25);
+			ScriptEngine::Start_Timer( obj, duration ,TIMER_IDLE_ANIM);
 			if ( state == STATE_IDLE )
 			{
 				Function_Play_Idle_Anim( obj );
@@ -735,7 +735,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		position.Z += .25;
 		const char * crate;
 		float random;
-		random = Commands->Get_Random( 0.0f, 5.0f );
+		random = ScriptEngine::Get_Random( 0.0f, 5.0f );
 		if ( random <= 0.5f )
 		{
 			crate = "Health_100";
@@ -756,7 +756,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		{
 			crate = "Health_25";
 		}
-		Commands->Create_Object( crate, position);
+		ScriptEngine::Create_Object( crate, position);
 	}
 */
 
@@ -764,54 +764,54 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 	{
 		state = STATE_OFFENSIVE;
 		function = FUNC_CIRCLE_ATTACK;
-		Commands->Enable_Enemy_Seen( obj, false);
-//		Commands->Enable_Sound_Heard( Me, false);
-//		Commands->Create_Instant_Logical_Sound( (CombatSoundType)(SOUND_ENEMY_SEEN), 20.0, Me, Commands->Get_Position( Me ) );
-		Commands->Action_Movement_Set_Crouch( obj, false);
+		ScriptEngine::Enable_Enemy_Seen( obj, false);
+//		ScriptEngine::Enable_Sound_Heard( Me, false);
+//		ScriptEngine::Create_Instant_Logical_Sound( (CombatSoundType)(SOUND_ENEMY_SEEN), 20.0, Me, ScriptEngine::Get_Position( Me ) );
+		ScriptEngine::Action_Movement_Set_Crouch( obj, false);
 		double theta_angle = (360/5);
-		float temp = Commands->Get_Random(0.0f,1.0f);
+		float temp = ScriptEngine::Get_Random(0.0f,1.0f);
 		if (temp > 0.4f)
 			{
 				theta_angle *= -1;
 			}
 
-		Vector3 targetlocation = Commands->Get_Position( obj ) - Commands->Get_Position(Enemy);
+		Vector3 targetlocation = ScriptEngine::Get_Position( obj ) - ScriptEngine::Get_Position(Enemy);
 		targetlocation.Normalize();
 		targetlocation *= Radius;
 		targetlocation.Rotate_Z( DEG_TO_RADF(theta_angle) );
-		targetlocation += Commands->Get_Position( Enemy );
+		targetlocation += ScriptEngine::Get_Position( Enemy );
 		targetlocation.Z += 0.5;
-		Commands->Action_Movement_Set_Forward_Speed( obj, 0.3f );
-		Commands->Action_Movement_Goto_Location( obj, targetlocation, 2.0f);
+		ScriptEngine::Action_Movement_Set_Forward_Speed( obj, 0.3f );
+		ScriptEngine::Action_Movement_Goto_Location( obj, targetlocation, 2.0f);
 
 		if ( soldier_type > 0 )
 		{
 			return;
 		}
 
-		Commands->Action_Attack_Object( obj, Enemy, Accuracy , Range );
+		ScriptEngine::Action_Attack_Object( obj, Enemy, Accuracy , Range );
 	}
 
 	void Function_Crouch_Attack(GameObject * obj, GameObject * Enemy, float Accuracy, float Range, float Duration )
 	{
 		state = STATE_OFFENSIVE;
 		function = FUNC_CROUCH_ATTACK;
-		Commands->Enable_Enemy_Seen( obj, false);
-//		Commands->Enable_Sound_Heard( Me, false);
-//		Commands->Create_Instant_Logical_Sound( (CombatSoundType)(SOUND_ENEMY_SEEN), 20.0, Me, Commands->Get_Position( Me ) );
-		Commands->Action_Movement_Set_Crouch( obj, true );
-		Commands->Start_Timer( obj, Duration, TIMER_CROUCH_ATTACK );
-		Commands->Action_Attack_Object( obj, Enemy, Accuracy, Range );
+		ScriptEngine::Enable_Enemy_Seen( obj, false);
+//		ScriptEngine::Enable_Sound_Heard( Me, false);
+//		ScriptEngine::Create_Instant_Logical_Sound( (CombatSoundType)(SOUND_ENEMY_SEEN), 20.0, Me, ScriptEngine::Get_Position( Me ) );
+		ScriptEngine::Action_Movement_Set_Crouch( obj, true );
+		ScriptEngine::Start_Timer( obj, Duration, TIMER_CROUCH_ATTACK );
+		ScriptEngine::Action_Attack_Object( obj, Enemy, Accuracy, Range );
 	}
 
 	void Function_Stand_Attack(GameObject * obj, GameObject * Enemy, float Accuracy, float Range )
 	{
 		state = STATE_OFFENSIVE;
 		function = FUNC_STAND_ATTACK;
-		Commands->Enable_Enemy_Seen( obj, false);
-//		Commands->Enable_Sound_Heard( Me, false);
-//		Commands->Create_Instant_Logical_Sound( (CombatSoundType)(SOUND_ENEMY_SEEN), 20.0, Me, Commands->Get_Position( Me ) );
-		Commands->Action_Attack_Object( obj, Enemy, Accuracy, Range );
+		ScriptEngine::Enable_Enemy_Seen( obj, false);
+//		ScriptEngine::Enable_Sound_Heard( Me, false);
+//		ScriptEngine::Create_Instant_Logical_Sound( (CombatSoundType)(SOUND_ENEMY_SEEN), 20.0, Me, ScriptEngine::Get_Position( Me ) );
+		ScriptEngine::Action_Attack_Object( obj, Enemy, Accuracy, Range );
 	}
 
 	void Function_Panic(GameObject * obj)
@@ -820,18 +820,18 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		{
 			state = STATE_SEARCH;
 			function = FUNC_PANIC;
-			Commands->Set_Animation( obj, nullptr, 0);
-			if ( Commands->Get_Random( 0.0f, 1.0f) < 0.5f )
+			ScriptEngine::Set_Animation( obj, nullptr, 0);
+			if ( ScriptEngine::Get_Random( 0.0f, 1.0f) < 0.5f )
 			{
-				Commands->Set_Animation( obj, "human.j21c01",0);
+				ScriptEngine::Set_Animation( obj, "human.j21c01",0);
 			}
 		}
 	}
 
 	void Function_Play_Idle_Anim(GameObject * obj)
 	{
-		Commands->Set_Animation( obj, nullptr, 0);
-		float animnum = Commands->Get_Random(0,90);
+		ScriptEngine::Set_Animation( obj, nullptr, 0);
+		float animnum = ScriptEngine::Get_Random(0,90);
 		if (animnum <= 10)
 		{anim_script = "human.j03c01";}else
 		if (animnum <= 20)
@@ -851,15 +851,15 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		if (animnum <= 90)
 		{anim_script = "human.j20c01";}
 		state = STATE_IDLE_ANIMATION;
-		Commands->Set_Animation( obj, anim_script, 0);
+		ScriptEngine::Set_Animation( obj, anim_script, 0);
 	}
 
 /*
 	void Function_Play_Knockdown_Anim( GameObject * obj )
 	{
-		Commands->Set_Animation( obj, nullptr, 0);
-		const char * damaged_bone = Commands->Get_Damage_Bone_Name();
-		bool direction = Commands->Get_Damage_Bone_Direction();
+		ScriptEngine::Set_Animation( obj, nullptr, 0);
+		const char * damaged_bone = ScriptEngine::Get_Damage_Bone_Name();
+		bool direction = ScriptEngine::Get_Damage_Bone_Direction();
 
 		if (direction == false)
 		{
@@ -956,14 +956,14 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			anim_script ="human.622a";
 		}
 
-		Commands->Set_Animation( obj, anim_script, 0);
+		ScriptEngine::Set_Animation( obj, anim_script, 0);
 	}
 */
 
 	void Function_Play_Search_Anim( GameObject * obj )
 	{
-		Commands->Set_Animation( obj, nullptr, 0);
-		float animnum = Commands->Get_Random(0,30);
+		ScriptEngine::Set_Animation( obj, nullptr, 0);
+		float animnum = ScriptEngine::Get_Random(0,30);
 		if ( animnum <= 10 )
 		{anim_script = "human.j09c01";}
 		else if ( animnum <= 20 )
@@ -971,7 +971,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		else if( animnum <= 30 )
 		{anim_script = "human.j11c01";}
 
-		Commands->Set_Animation( obj, anim_script, 0);
+		ScriptEngine::Set_Animation( obj, anim_script, 0);
 	}
 
 
@@ -980,35 +980,35 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		state = STATE_SEARCH;
 		function = FUNC_SEARCH_CIRCLE;
 
-		Commands->Enable_Enemy_Seen( obj, true);
-//		Commands->Enable_Sound_Heard( Me, true);
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
+//		ScriptEngine::Enable_Sound_Heard( Me, true);
 
-		Commands->Action_Movement_Set_Crouch( obj, false);
-		Commands->Action_Attack_Stop( obj );
-		Commands->Action_Movement_Set_Forward_Speed( obj, 0.4f );
+		ScriptEngine::Action_Movement_Set_Crouch( obj, false);
+		ScriptEngine::Action_Attack_Stop( obj );
+		ScriptEngine::Action_Movement_Set_Forward_Speed( obj, 0.4f );
 
 		double theta_angle = (360/5);
-		float reverse = Commands->Get_Random(0.0f,1.0f);
+		float reverse = ScriptEngine::Get_Random(0.0f,1.0f);
 		if ( reverse < 0.1f)
 			{
 				theta_angle *= -1;
 			}
-		Vector3 targetlocation = Commands->Get_Position( obj ) - position;
+		Vector3 targetlocation = ScriptEngine::Get_Position( obj ) - position;
 		targetlocation.Normalize();
 		targetlocation *= Radius;
 		targetlocation.Rotate_Z(DEG_TO_RADF(theta_angle));
 		targetlocation += position;
 		targetlocation.Z += 0.5;
-		Commands->Action_Movement_Goto_Location( obj, targetlocation, 2.0f);
+		ScriptEngine::Action_Movement_Goto_Location( obj, targetlocation, 2.0f);
 	}
 
 	void Function_Search_Facing( GameObject * obj, Vector3 position, float Distance )
 	{
 		state = STATE_SEARCH;
 		function = FUNC_SEARCH_FACING;
-		Commands->Enable_Enemy_Seen( obj, true);
-//		Commands->Enable_Sound_Heard( Me, true);
-		Commands->Action_Attack_Location( obj, searchposition, 0, 0 );
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
+//		ScriptEngine::Enable_Sound_Heard( Me, true);
+		ScriptEngine::Action_Attack_Location( obj, searchposition, 0, 0 );
 	}
 
 	void Function_Search_Location( GameObject * obj, Vector3 position , bool Crouch )
@@ -1016,77 +1016,77 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		state = STATE_SEARCH;
 		function = FUNC_SEARCH_LOCATION;
 
-		Commands->Enable_Enemy_Seen( obj, true);
-//		Commands->Enable_Sound_Heard( Me, true);
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
+//		ScriptEngine::Enable_Sound_Heard( Me, true);
 
-		Commands->Action_Movement_Set_Crouch( obj, Crouch );
-		Commands->Action_Movement_Set_Forward_Speed( obj, 0.4f );
-		Commands->Action_Attack_Location( obj, searchposition, 0, 0 );
-		Commands->Action_Movement_Goto_Location( obj, searchposition, 3.0f );
+		ScriptEngine::Action_Movement_Set_Crouch( obj, Crouch );
+		ScriptEngine::Action_Movement_Set_Forward_Speed( obj, 0.4f );
+		ScriptEngine::Action_Attack_Location( obj, searchposition, 0, 0 );
+		ScriptEngine::Action_Movement_Goto_Location( obj, searchposition, 3.0f );
 	}
 
 /*
 	void Score_Hit_Tally( GameObject * obj )
 	{
-		const char * damaged_bone = Commands->Get_Damage_Bone_Name();
-		bool direction = Commands->Get_Damage_Bone_Direction();
+		const char * damaged_bone = ScriptEngine::Get_Damage_Bone_Name();
+		bool direction = ScriptEngine::Get_Damage_Bone_Direction();
 
-		GameObject *scoreboard = Commands->Find_Object(scoreboard_id);
+		GameObject *scoreboard = ScriptEngine::Find_Object(scoreboard_id);
 
 		if ( scoreboard )
 		{
 			if ( direction == false )
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, HITDIRECTION, HD_FRONTHIT );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, HITDIRECTION, HD_FRONTHIT );
 			}
 			else if ( direction == true )
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, HITDIRECTION, HD_BACKHIT );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, HITDIRECTION, HD_BACKHIT );
 			}
 
 			if (!strcmp(damaged_bone,"CHEADD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_HEAD );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_HEAD );
 			}
 			else if (!strcmp(damaged_bone,"CTHORAXD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_CHEST );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_CHEST );
 			}
 			else if (!strcmp(damaged_bone,"CLHUMERUSD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_LEFTARM );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_LEFTARM );
 			}
 			else if (!strcmp(damaged_bone,"CRHUMERUSD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_RIGHTARM );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_RIGHTARM );
 			}
 			else if (!strcmp(damaged_bone,"CLRADIUSD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_LEFTARM );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_LEFTARM );
 			}
 			else if (!strcmp(damaged_bone,"CRRADIUSD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_RIGHTARM );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_RIGHTARM );
 			}
 			else if (!strcmp(damaged_bone,"CPELVISD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_GROIN );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_GROIN );
 			}
 			else if (!strcmp(damaged_bone,"CLFEMURD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_LEFTLEG );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_LEFTLEG );
 			}
 			else if (!strcmp(damaged_bone,"CRFEMURD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_RIGHTLEG );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_RIGHTLEG );
 			}
 			else if (!strcmp(damaged_bone,"CLTIBIAD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_LEFTLEG );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_LEFTLEG );
 			}
 			else if (!strcmp(damaged_bone,"CRTIBIAD"))
 			{
-				Commands->Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_RIGHTLEG );
+				ScriptEngine::Send_Custom_Event ( obj, scoreboard, BODYLOCATION, BL_RIGHTLEG );
 			}
 		}
 	}
@@ -1097,9 +1097,9 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		if (combatspeech == false )
 		{
 			combatspeech = true;
-			Commands->Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
+			ScriptEngine::Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
 
-			float sound_random = Commands->Get_Random( 0.0f , 80.0f);
+			float sound_random = ScriptEngine::Get_Random( 0.0f , 80.0f);
 			if ( sound_random <= 10)
 			{ speech_script = "FireAtWill01"; }
 			else if ( sound_random <= 20)
@@ -1117,13 +1117,13 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			else if ( sound_random <= 80)
 			{ speech_script = "TargetHasBeenEngaged02"; }
 
-			Commands->Create_Sound( speech_script, Commands->Get_Position( obj ), obj );
+			ScriptEngine::Create_Sound( speech_script, ScriptEngine::Get_Position( obj ), obj );
 		}
 	}
 
 	void Sound_Create_Commando_Taunt(GameObject * Commando)
 	{
-		float sound_random = Commands->Get_Random( 0.0 , 60.0 );
+		float sound_random = ScriptEngine::Get_Random( 0.0 , 60.0 );
 
 		if ( sound_random <=10.0 )
 		{ speech_script = "CVoice03KeepEmComin"; }
@@ -1138,12 +1138,12 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		else
 		{ speech_script = "CVoice14Cmon"; }
 
-		Commands->Create_Sound( speech_script,Commands->Get_Position(Commando), Commando );
+		ScriptEngine::Create_Sound( speech_script,ScriptEngine::Get_Position(Commando), Commando );
 	}
 
 	void Sound_Create_Damaged( GameObject * obj )
 	{
-		float sound_random = Commands->Get_Random( 0.0f, 20.0f );
+		float sound_random = ScriptEngine::Get_Random( 0.0f, 20.0f );
 		if ( sound_random <= 10.0f )
 		{
 			speech_script = "BodyHit01";
@@ -1153,7 +1153,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			speech_script = "BodyHit02";
 		}
 
-		Commands->Create_Sound( speech_script, Commands->Get_Position( obj ), obj);
+		ScriptEngine::Create_Sound( speech_script, ScriptEngine::Get_Position( obj ), obj);
 	}
 
 	void Sound_Create_Defensive_Attack(GameObject * obj)
@@ -1161,8 +1161,8 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		if (combatspeech == false )
 		{
 			combatspeech = true;
-			Commands->Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
-			float sound_random = Commands->Get_Random( 0.0f , 40.0f);
+			ScriptEngine::Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
+			float sound_random = ScriptEngine::Get_Random( 0.0f , 40.0f);
 			if ( sound_random <=10.0 )
 			{ speech_script = "HoldYourPositions01"; }
 			else if ( sound_random <=20.0 )
@@ -1172,7 +1172,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			else if ( sound_random <=40.0 )
 			{ speech_script = "KeepYourHeadDown02"; }
 
-			Commands->Create_Sound( speech_script,Commands->Get_Position( obj ), obj );
+			ScriptEngine::Create_Sound( speech_script,ScriptEngine::Get_Position( obj ), obj );
 		}
 	}
 
@@ -1181,8 +1181,8 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		if (combatspeech == false )
 		{
 			combatspeech = true;
-			Commands->Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
-			float sound_random = Commands->Get_Random( 0.0f , 120.0f);
+			ScriptEngine::Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
+			float sound_random = ScriptEngine::Get_Random( 0.0f , 120.0f);
 			if ( sound_random <= 10.0 )
 			{ speech_script = "ForKane01"; }
 			else if ( sound_random <= 20.0 )
@@ -1208,7 +1208,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			else if ( sound_random <= 120.0 )
 			{ speech_script = "ThereHeIs02"; }
 
-			Commands->Create_Sound( speech_script,Commands->Get_Position( obj ), obj );
+			ScriptEngine::Create_Sound( speech_script,ScriptEngine::Get_Position( obj ), obj );
 		}
 	}
 
@@ -1217,8 +1217,8 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		if (combatspeech == false )
 		{
 			combatspeech = true;
-			Commands->Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
-			float sound_random = Commands->Get_Random( 0.0f , 20.0f);
+			ScriptEngine::Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
+			float sound_random = ScriptEngine::Get_Random( 0.0f , 20.0f);
 			if ( sound_random <= 10.0 )
 			{ speech_script = "UhOh01"; }
 			else if ( sound_random <= 20.0 )
@@ -1228,7 +1228,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			else if ( sound_random <= 40.0 )
 			{ speech_script = "WatchOut02"; }
 
-			Commands->Create_Sound( speech_script,Commands->Get_Position( obj ), obj );
+			ScriptEngine::Create_Sound( speech_script,ScriptEngine::Get_Position( obj ), obj );
 		}
 	}
 
@@ -1237,8 +1237,8 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		if (combatspeech == false )
 		{
 			combatspeech = true;
-			Commands->Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
-			float taunt_random = Commands->Get_Random( 0.0f , 20.0f);
+			ScriptEngine::Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
+			float taunt_random = ScriptEngine::Get_Random( 0.0f , 20.0f);
 			if ( taunt_random <= 10.0 )
 			{ speech_script = "Q_Huh01"; }
 			else if ( taunt_random <= 20.0 )
@@ -1248,7 +1248,7 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			else if ( taunt_random <= 40.0 )
 			{ speech_script = "Q_WhatThat02"; }
 
-			Commands->Create_Sound( speech_script,Commands->Get_Position( obj ), obj );
+			ScriptEngine::Create_Sound( speech_script,ScriptEngine::Get_Position( obj ), obj );
 		}
 	}
 
@@ -1257,8 +1257,8 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 		if (combatspeech == false )
 		{
 			combatspeech = true;
-			Commands->Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
-			float taunt_random = Commands->Get_Random( 0.0f , 20.0f);
+			ScriptEngine::Start_Timer( obj, 4.0f, TIMER_COMBAT_SPEECH );
+			float taunt_random = ScriptEngine::Get_Random( 0.0f , 20.0f);
 
 			if ( taunt_random <= 10.0 )
 			{ speech_script = "GonnaDieHere01"; }
@@ -1269,29 +1269,29 @@ DECLARE_SCRIPT ( Unit_Combat,"Scoreboard_ID=0:int,Controller_ID=0:int,Script_Ove
 			else if ( taunt_random <= 40.0 )
 			{ speech_script = "Medic02"; }
 
-			Commands->Create_Sound( speech_script,Commands->Get_Position( obj ), obj );
+			ScriptEngine::Create_Sound( speech_script,ScriptEngine::Get_Position( obj ), obj );
 		}
 	}
 
 	void State_Change_Critical( GameObject *obj )
 	{
 		state = STATE_CRITICAL;
-		Commands->Action_Movement_Stop( obj );
-		Commands->Action_Attack_Stop( obj );
-		Commands->Set_Animation( obj, nullptr, 0);
-		Commands->Enable_Enemy_Seen( obj, false);
-//		Commands->Enable_Sound_Heard( Me, false);
+		ScriptEngine::Action_Movement_Stop( obj );
+		ScriptEngine::Action_Attack_Stop( obj );
+		ScriptEngine::Set_Animation( obj, nullptr, 0);
+		ScriptEngine::Enable_Enemy_Seen( obj, false);
+//		ScriptEngine::Enable_Sound_Heard( Me, false);
 	}
 
 	void State_Change_Idle( GameObject * obj, Vector3 position )
 	{
 		state = STATE_IDLE_MOVEMENT;
-		Commands->Action_Attack_Stop( obj );
-		Commands->Action_Movement_Set_Crouch( obj, false);
-		Commands->Action_Movement_Set_Forward_Speed( obj, 0.1f);
-		Commands->Enable_Enemy_Seen( obj, true);
-//		Commands->Enable_Sound_Heard( Me, true);
-		Commands->Action_Movement_Goto_Location( obj, position , 1.0 );
+		ScriptEngine::Action_Attack_Stop( obj );
+		ScriptEngine::Action_Movement_Set_Crouch( obj, false);
+		ScriptEngine::Action_Movement_Set_Forward_Speed( obj, 0.1f);
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
+//		ScriptEngine::Enable_Sound_Heard( Me, true);
+		ScriptEngine::Action_Movement_Goto_Location( obj, position , 1.0 );
 	}
 
 };

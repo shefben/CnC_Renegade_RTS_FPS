@@ -59,10 +59,10 @@ DECLARE_SCRIPT(M07_Objective_Controller, "") // 100657
 	void Created(GameObject * obj) override
 	{
 		// Background Music
-		Commands->Set_Background_Music ("07-Got A Present For Ya.mp3");
+		ScriptEngine::Set_Background_Music ("07-Got A Present For Ya.mp3");
 
-		Commands->Start_Timer (obj, this, 0.5f, HAVOCS_SCRIPT);
-		Commands->Start_Timer (obj, this, 1.0f, INITIAL_CONV);
+		ScriptEngine::Start_Timer (obj, this, 0.5f, HAVOCS_SCRIPT);
+		ScriptEngine::Start_Timer (obj, this, 1.0f, INITIAL_CONV);
 		Add_An_Objective(709);
 		accomplished_705 = false;
 		accomplished_701 = false;
@@ -77,123 +77,123 @@ DECLARE_SCRIPT(M07_Objective_Controller, "") // 100657
 		// Evacuate Sydney
 		case 701:
 			{
-				Commands->Add_Objective(701, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M07_01, nullptr, IDS_Enc_Obj_Primary_M07_01);
-				object = Commands->Find_Object(100664);
+				ScriptEngine::Add_Objective(701, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M07_01, nullptr, IDS_Enc_Obj_Primary_M07_01);
+				object = ScriptEngine::Find_Object(100664);
 				if(object)
 				{
-					Commands->Set_HUD_Help_Text ( IDS_M11DSGN_DSGN1007I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
-					Commands->Set_Objective_Radar_Blip_Object(701, object);
-					Commands->Set_Objective_HUD_Info_Position(701, 90.0f, "POG_M07_1_04.tga", IDS_POG_EVACUATE, Commands->Get_Position (object));
+					ScriptEngine::Set_HUD_Help_Text ( IDS_M11DSGN_DSGN1007I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+					ScriptEngine::Set_Objective_Radar_Blip_Object(701, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position(701, 90.0f, "POG_M07_1_04.tga", IDS_POG_EVACUATE, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// Secure SAM Sites
 		case 702:
 			{
-				Commands->Add_Objective(702, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M07_03, nullptr, IDS_Enc_Obj_Primary_M07_03);
-				object = Commands->Find_Object(100673);
+				ScriptEngine::Add_Objective(702, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M07_03, nullptr, IDS_Enc_Obj_Primary_M07_03);
+				object = ScriptEngine::Find_Object(100673);
 				if(object)
 				{
-					Commands->Set_HUD_Help_Text ( IDS_M07DSGN_DSGN0089I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
-					Commands->Set_Objective_Radar_Blip_Object(702, object);
-					Commands->Set_Objective_HUD_Info_Position(702, 90.0f, "POG_M07_1_01.tga", IDS_POG_SECURE, Commands->Get_Position (object));
+					ScriptEngine::Set_HUD_Help_Text ( IDS_M07DSGN_DSGN0089I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+					ScriptEngine::Set_Objective_Radar_Blip_Object(702, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position(702, 90.0f, "POG_M07_1_01.tga", IDS_POG_SECURE, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// Destroy SSM Launchers
 		case 703:
 			{
-				Commands->Add_Objective(703, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M07_04, nullptr, IDS_Enc_Obj_Primary_M07_04);
-				object = Commands->Find_Object(100798);
+				ScriptEngine::Add_Objective(703, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M07_04, nullptr, IDS_Enc_Obj_Primary_M07_04);
+				object = ScriptEngine::Find_Object(100798);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(703, object);
-					Commands->Set_Objective_HUD_Info_Position(703, 90.0f, "POG_M07_1_02.tga", IDS_POG_DESTROY, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(703, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position(703, 90.0f, "POG_M07_1_02.tga", IDS_POG_DESTROY, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// Destroy Radar Installations
 		case 704:
 			{
-				Commands->Add_Objective(704, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Secondary_M07_01, nullptr, IDS_Enc_Obj_Secondary_M07_01);
-				object = Commands->Find_Object(100721);
+				ScriptEngine::Add_Objective(704, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Secondary_M07_01, nullptr, IDS_Enc_Obj_Secondary_M07_01);
+				object = ScriptEngine::Find_Object(100721);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(704, object);
-					Commands->Set_Objective_HUD_Info_Position(704, 90.0f, "POG_M07_2_07.tga", IDS_POG_DESTROY, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(704, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position(704, 90.0f, "POG_M07_2_07.tga", IDS_POG_DESTROY, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// Rescue Resistance
 		case 705:
 			{
-				Commands->Add_Objective(705, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Secondary_M07_02, nullptr, IDS_Enc_Obj_Secondary_M07_02);
-				object = Commands->Find_Object(115842);
+				ScriptEngine::Add_Objective(705, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Secondary_M07_02, nullptr, IDS_Enc_Obj_Secondary_M07_02);
+				object = ScriptEngine::Find_Object(115842);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(705, object);
-					Commands->Set_Objective_HUD_Info_Position(705, 90.0f, "POG_M07_2_04.tga", IDS_POG_RESCUE, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(705, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position(705, 90.0f, "POG_M07_2_04.tga", IDS_POG_RESCUE, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// Destroy Napalm Stockpile
 		case 706:
 			{
-				Commands->Add_Objective(706, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Secondary_M07_03, nullptr, IDS_Enc_Obj_Secondary_M07_03);
-				object = Commands->Find_Object(100781);
+				ScriptEngine::Add_Objective(706, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Secondary_M07_03, nullptr, IDS_Enc_Obj_Secondary_M07_03);
+				object = ScriptEngine::Find_Object(100781);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(706, object);
-					Commands->Set_Objective_HUD_Info_Position(706, 90.0f, "POG_M07_2_06.tga", IDS_POG_DESTROY, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(706, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position(706, 90.0f, "POG_M07_2_06.tga", IDS_POG_DESTROY, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// Destroy Stealth Tank
 		case 707:
 			{
-				Commands->Add_Objective(707, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Secondary_M07_04, nullptr, IDS_Enc_Obj_Secondary_M07_04);
-				object = Commands->Find_Object(100801);
+				ScriptEngine::Add_Objective(707, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Secondary_M07_04, nullptr, IDS_Enc_Obj_Secondary_M07_04);
+				object = ScriptEngine::Find_Object(100801);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(707, object);
-					Commands->Set_Objective_HUD_Info_Position(707, 90.0f, "POG_M07_2_03.tga", IDS_POG_DESTROY, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(707, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position(707, 90.0f, "POG_M07_2_03.tga", IDS_POG_DESTROY, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// Defeat Obelisk
 		case 708:
 			{
-				Commands->Add_Objective(708, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Secondary_M07_05, nullptr, IDS_Enc_Obj_Secondary_M07_05);
-				object = Commands->Find_Object(168926);
+				ScriptEngine::Add_Objective(708, OBJECTIVE_TYPE_SECONDARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Secondary_M07_05, nullptr, IDS_Enc_Obj_Secondary_M07_05);
+				object = ScriptEngine::Find_Object(168926);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(708, object);
-					Commands->Set_Objective_HUD_Info_Position(708, 90.0f, "POG_M07_2_05.tga", IDS_POG_DEFEAT, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(708, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position(708, 90.0f, "POG_M07_2_05.tga", IDS_POG_DEFEAT, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// Protect Team Members
 		case 709:
 			{
-				Commands->Add_Objective(709, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M07_05, nullptr, IDS_Enc_Obj_Primary_M07_05);
-				object = Commands->Find_Object(100717);
+				ScriptEngine::Add_Objective(709, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M07_05, nullptr, IDS_Enc_Obj_Primary_M07_05);
+				object = ScriptEngine::Find_Object(100717);
 				if(object)
 				{
-					Commands->Set_HUD_Help_Text ( IDS_M07DSGN_DSGN0091I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
-					Commands->Set_Objective_Radar_Blip_Object(709, object);
-					Commands->Set_Objective_HUD_Info_Position(709, 90.0f, "POG_M07_1_05.tga", IDS_POG_PROTECT, Commands->Get_Position (object));
+					ScriptEngine::Set_HUD_Help_Text ( IDS_M07DSGN_DSGN0091I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+					ScriptEngine::Set_Objective_Radar_Blip_Object(709, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position(709, 90.0f, "POG_M07_1_05.tga", IDS_POG_PROTECT, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
 		// Escape Nuclear Strike
 		case 710:
 			{
-				Commands->Add_Objective(710, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M07_02, nullptr, IDS_Enc_Obj_Primary_M07_02);
-				object = Commands->Find_Object(100717);
+				ScriptEngine::Add_Objective(710, OBJECTIVE_TYPE_PRIMARY, OBJECTIVE_STATUS_PENDING, IDS_Enc_ObjTitle_Primary_M07_02, nullptr, IDS_Enc_Obj_Primary_M07_02);
+				object = ScriptEngine::Find_Object(100717);
 				if(object)
 				{
-					Commands->Set_Objective_Radar_Blip_Object(710, object);
-					Commands->Set_Objective_HUD_Info_Position(710, 90.0f, "POG_M07_1_03.tga", IDS_POG_ESCAPE, Commands->Get_Position (object));
+					ScriptEngine::Set_Objective_Radar_Blip_Object(710, object);
+					ScriptEngine::Set_Objective_HUD_Info_Position(710, 90.0f, "POG_M07_1_03.tga", IDS_POG_ESCAPE, ScriptEngine::Get_Position (object));
 				}
 			}
 			break;
@@ -207,7 +207,7 @@ DECLARE_SCRIPT(M07_Objective_Controller, "") // 100657
 		// Evacuate Dr. Sydney Mobius
 		case 701:
 			{
-				Commands->Set_Objective_HUD_Info (701, -1, "POG_M07_1_04.tga", IDS_POG_PROTECT);
+				ScriptEngine::Set_Objective_HUD_Info (701, -1, "POG_M07_1_04.tga", IDS_POG_PROTECT);
 			}
 			break;
 		}
@@ -231,12 +231,12 @@ DECLARE_SCRIPT(M07_Objective_Controller, "") // 100657
 					{
 						accomplished_701 = true;
 					}
-					Commands->Clear_Radar_Marker (type);
-					Commands->Set_Objective_Status(type, OBJECTIVE_STATUS_ACCOMPLISHED);
+					ScriptEngine::Clear_Radar_Marker (type);
+					ScriptEngine::Set_Objective_Status(type, OBJECTIVE_STATUS_ACCOMPLISHED);
 					Remove_Pog(type);
 					if(type == 703)
 					{
-						Commands->Mission_Complete ( true );
+						ScriptEngine::Mission_Complete ( true );
 					}
 
 				}
@@ -247,24 +247,24 @@ DECLARE_SCRIPT(M07_Objective_Controller, "") // 100657
 					{
 						return;
 					}
-					Commands->Clear_Radar_Marker (type);
-					Commands->Set_Objective_Status(type, OBJECTIVE_STATUS_FAILED);
+					ScriptEngine::Clear_Radar_Marker (type);
+					ScriptEngine::Set_Objective_Status(type, OBJECTIVE_STATUS_FAILED);
 					Remove_Pog(type);
 					if(type == 701)
 					{
-						Commands->Mission_Complete ( false );
+						ScriptEngine::Mission_Complete ( false );
 					}
 					if(type == 702)
 					{
-						Commands->Mission_Complete ( false );
+						ScriptEngine::Mission_Complete ( false );
 					}
 					if(type == 709)
 					{
-						Commands->Mission_Complete ( false );
+						ScriptEngine::Mission_Complete ( false );
 					}
 					if(type == 710)
 					{
-						Commands->Mission_Complete ( false );
+						ScriptEngine::Mission_Complete ( false );
 					}
 				}
 				break;
@@ -272,10 +272,10 @@ DECLARE_SCRIPT(M07_Objective_Controller, "") // 100657
 					Add_An_Objective(type);
 				break;
 			case 4:
-					Commands->Set_Objective_Status(type, OBJECTIVE_STATUS_PENDING);
+					ScriptEngine::Set_Objective_Status(type, OBJECTIVE_STATUS_PENDING);
 				break;
 			case 5:
-					Commands->Set_Objective_Status(type, OBJECTIVE_STATUS_HIDDEN);
+					ScriptEngine::Set_Objective_Status(type, OBJECTIVE_STATUS_HIDDEN);
 				break;
 		}
 	}
@@ -287,13 +287,13 @@ DECLARE_SCRIPT(M07_Objective_Controller, "") // 100657
 		{
 			// How are Dr. Mobius and Sydney?\n
 			const char *conv_name = ("M07_CON001");
-			int conv_id = Commands->Create_Conversation (conv_name, INNATE_PRIORITY_ENEMY_SEEN - 5, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Join_Conversation(STAR, conv_id, false, true, true);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Join_Conversation(GUNNER, conv_id, true, true, true);
-			Commands->Start_Conversation (conv_id, 300701);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, INNATE_PRIORITY_ENEMY_SEEN - 5, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(GUNNER, conv_id, true, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 300701);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 		if(timer_id == PROTECT_TEAM)
 		{
@@ -309,21 +309,21 @@ DECLARE_SCRIPT(M07_Objective_Controller, "") // 100657
 		{
 			Add_An_Objective(701);
 
-			Commands->Start_Timer (obj, this, 2.0f, PROTECT_TEAM);
+			ScriptEngine::Start_Timer (obj, this, 2.0f, PROTECT_TEAM);
 
 			// Start nuclear strike countdown
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100663), M07_GO_EVAC_SITE, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100663), M07_GO_EVAC_SITE, 1, 0.0f);
 			// Customs to move team to evac site
 			// Gunner
-			Commands->Send_Custom_Event(obj, GUNNER, M07_GO_ASSEMBLY, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, GUNNER, M07_GO_ASSEMBLY, 1, 0.0f);
 			// Deadeye
-			Commands->Send_Custom_Event(obj, DEADEYE, M07_GO_ASSEMBLY, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, DEADEYE, M07_GO_ASSEMBLY, 1, 0.0f);
 			// Sydney
-			Commands->Send_Custom_Event(obj, SYDNEY, M07_GO_ASSEMBLY, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, SYDNEY, M07_GO_ASSEMBLY, 1, 0.0f);
 			// Hotwire
-			Commands->Send_Custom_Event(obj, HOTWIRE, M07_GO_ASSEMBLY, 1, 2.0f);
+			ScriptEngine::Send_Custom_Event(obj, HOTWIRE, M07_GO_ASSEMBLY, 1, 2.0f);
 			// Patch
-			Commands->Send_Custom_Event(obj, PATCH, M07_GO_ASSEMBLY, 1, 2.0f);
+			ScriptEngine::Send_Custom_Event(obj, PATCH, M07_GO_ASSEMBLY, 1, 2.0f);
 		}
 	}
 };
@@ -345,10 +345,10 @@ DECLARE_SCRIPT(M07_Havoc_DLS, "")
 	void Created(GameObject * obj) override
 	{
 		nuke_blast = true;
-		Commands->Give_PowerUp(obj, "POW_Chaingun_Player", false);
-		Commands->Give_PowerUp(obj, "POW_SniperRifle_Player", false);
-		Commands->Give_PowerUp(obj, "POW_RocketLauncher_Player", false);
-		Commands->Give_PowerUp(obj, "POW_MineRemote_Player", false);
+		ScriptEngine::Give_PowerUp(obj, "POW_Chaingun_Player", false);
+		ScriptEngine::Give_PowerUp(obj, "POW_SniperRifle_Player", false);
+		ScriptEngine::Give_PowerUp(obj, "POW_RocketLauncher_Player", false);
+		ScriptEngine::Give_PowerUp(obj, "POW_MineRemote_Player", false);
 	}
 
 	void Custom( GameObject * /* obj */, int type, intptr_t param, GameObject * /* sender */ ) override
@@ -365,21 +365,21 @@ DECLARE_SCRIPT(M07_Havoc_DLS, "")
 		{
 			if(nuke_blast)
 			{
-				Commands->Apply_Damage( obj, 10000.0f, "DEATH", nullptr);
+				ScriptEngine::Apply_Damage( obj, 10000.0f, "DEATH", nullptr);
 			}
 		}
 	}
 
 	void Enemy_Seen(GameObject * obj, GameObject *enemy ) override
 	{
-		if(enemy == Commands->Find_Object(100801))
+		if(enemy == ScriptEngine::Find_Object(100801))
 		{
 			// You've got to be kidding.\n
 			const char *conv_name = ("M07_CON015");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(STAR, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 300707);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 300707);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 	}
 
@@ -388,15 +388,15 @@ DECLARE_SCRIPT(M07_Havoc_DLS, "")
 		if (action_id == 300702 && reason == ACTION_COMPLETE_CONVERSATION_ENDED)
 		{
 			// Defeat Stealth Tank.
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 707, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 707, 3, 0.0f);
 			// Change soundtrack to attack
-			Commands->Set_Background_Music ("Raveshaw_Act on Instinct");
+			ScriptEngine::Set_Background_Music ("Raveshaw_Act on Instinct");
 		}
 	}
 
 	void Killed (GameObject * /* obj */, GameObject * /* killer */) override
 	{
-		Commands->Mission_Complete(false);
+		ScriptEngine::Mission_Complete(false);
 	}
 
 };
@@ -420,10 +420,10 @@ DECLARE_SCRIPT(M07_Dead6_Minigunner, "")  // Deadeye
 	void Created(GameObject * obj) override
 	{
 		nuke_blast = true;
-		Commands->Set_Innate_Is_Stationary(obj, true);
-		health = Commands->Get_Max_Health(obj);
-		shield = Commands->Get_Max_Shield_Strength(obj);
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Set_Innate_Is_Stationary(obj, true);
+		health = ScriptEngine::Get_Max_Health(obj);
+		shield = ScriptEngine::Get_Max_Shield_Strength(obj);
+		ScriptEngine::Enable_Hibernation(obj, false);
 	}
 
 	void Custom( GameObject * obj, int type, intptr_t param, GameObject * /* sender */ ) override
@@ -435,16 +435,16 @@ DECLARE_SCRIPT(M07_Dead6_Minigunner, "")  // Deadeye
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, M07_GO_ASSEMBLY );
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.WaypathID = 102495;
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if ( type == M07_GO_EVAC_SITE )
 		{
-			Commands->Apply_Damage( obj, -10000.0f, "DEATH", nullptr);
+			ScriptEngine::Apply_Damage( obj, -10000.0f, "DEATH", nullptr);
 
-			Commands->Set_Innate_Is_Stationary(obj, false);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, false);
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_GO_EVAC_SITE);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 10.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if ( type == M07_NUKE_BLAST )
 		{
@@ -453,9 +453,9 @@ DECLARE_SCRIPT(M07_Dead6_Minigunner, "")  // Deadeye
 		if ( type == M07_CAPTURE_SAM )
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN + 5), M07_CAPTURE_SAM);
-			params.Set_Movement (Commands->Find_Object(100682), RUN, 3.0f);
-			Commands->Action_Goto (obj, params);
-			Commands->Enable_Hibernation(obj, true);
+			params.Set_Movement (ScriptEngine::Find_Object(100682), RUN, 3.0f);
+			ScriptEngine::Action_Goto (obj, params);
+			ScriptEngine::Enable_Hibernation(obj, true);
 		}
 	}
 
@@ -466,8 +466,8 @@ DECLARE_SCRIPT(M07_Dead6_Minigunner, "")  // Deadeye
 		if(timer_id == M07_GO_EVAC_SITE)
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_GO_EVAC_SITE);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 10.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 	}
 
@@ -475,15 +475,15 @@ DECLARE_SCRIPT(M07_Dead6_Minigunner, "")  // Deadeye
 	{
 		if (action_id == M07_GO_EVAC_SITE && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Soldier_Home_Location(obj, Commands->Get_Position(obj), 999999.0f);
+			ScriptEngine::Set_Innate_Soldier_Home_Location(obj, ScriptEngine::Get_Position(obj), 999999.0f);
 		}
 		if (action_id == M07_GO_EVAC_SITE && reason == ACTION_COMPLETE_LOW_PRIORITY)
 		{
-			Commands->Start_Timer(obj, this, 6.0f, M07_GO_EVAC_SITE);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, M07_GO_EVAC_SITE);
 		}
 		if (action_id == M07_CAPTURE_SAM && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		}
 	}
 
@@ -493,7 +493,7 @@ DECLARE_SCRIPT(M07_Dead6_Minigunner, "")  // Deadeye
 		{
 			if(nuke_blast)
 			{
-				Commands->Apply_Damage( obj, 10000.0f, "STEEL", nullptr);
+				ScriptEngine::Apply_Damage( obj, 10000.0f, "STEEL", nullptr);
 			}
 		}
 	}
@@ -502,13 +502,13 @@ DECLARE_SCRIPT(M07_Dead6_Minigunner, "")  // Deadeye
 	{
 		if(damager == obj || damager == GUNNER || damager == PATCH || damager == HOTWIRE)
 		{
-			Commands->Set_Health(obj, health);
-			Commands->Set_Shield_Strength(obj, shield);
+			ScriptEngine::Set_Health(obj, health);
+			ScriptEngine::Set_Shield_Strength(obj, shield);
 		}
 		else
 		{
-			health = Commands->Get_Health(obj);
-			shield = Commands->Get_Shield_Strength(obj);
+			health = ScriptEngine::Get_Health(obj);
+			shield = ScriptEngine::Get_Shield_Strength(obj);
 		}
 
 	}
@@ -516,8 +516,8 @@ DECLARE_SCRIPT(M07_Dead6_Minigunner, "")  // Deadeye
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Deadeye Killed
-		Commands->Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0178I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 710, 2, 1.0f);
+		ScriptEngine::Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0178I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 710, 2, 1.0f);
 
 	}
 };
@@ -541,10 +541,10 @@ DECLARE_SCRIPT(M07_Dead6_Rocket_Soldier, "")  // Gunner
 	void Created(GameObject * obj) override
 	{
 		nuke_blast = true;
-		Commands->Set_Innate_Is_Stationary(obj, true);
-		health = Commands->Get_Max_Health(obj);
-		shield = Commands->Get_Max_Shield_Strength(obj);
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Set_Innate_Is_Stationary(obj, true);
+		health = ScriptEngine::Get_Max_Health(obj);
+		shield = ScriptEngine::Get_Max_Shield_Strength(obj);
+		ScriptEngine::Enable_Hibernation(obj, false);
 	}
 
 	void Custom( GameObject * obj, int type, intptr_t param, GameObject * /* sender */ ) override
@@ -556,14 +556,14 @@ DECLARE_SCRIPT(M07_Dead6_Rocket_Soldier, "")  // Gunner
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, M07_GO_ASSEMBLY );
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.WaypathID = 102479;
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if ( type == M07_GO_EVAC_SITE )
 		{
-			Commands->Set_Innate_Is_Stationary(obj, false);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, false);
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_GO_EVAC_SITE);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 10.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if ( type == M07_NUKE_BLAST )
 		{
@@ -571,12 +571,12 @@ DECLARE_SCRIPT(M07_Dead6_Rocket_Soldier, "")  // Gunner
 		}
 		if ( type == M07_CAPTURE_SAM )
 		{
-			Commands->Apply_Damage( obj, -10000.0f, "DEATH", nullptr);
+			ScriptEngine::Apply_Damage( obj, -10000.0f, "DEATH", nullptr);
 
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN + 5), M07_CAPTURE_SAM);
-			params.Set_Movement (Commands->Find_Object(100681), RUN, 3.0f);
-			Commands->Action_Goto (obj, params);
-			Commands->Enable_Hibernation(obj, true);
+			params.Set_Movement (ScriptEngine::Find_Object(100681), RUN, 3.0f);
+			ScriptEngine::Action_Goto (obj, params);
+			ScriptEngine::Enable_Hibernation(obj, true);
 		}
 	}
 
@@ -587,8 +587,8 @@ DECLARE_SCRIPT(M07_Dead6_Rocket_Soldier, "")  // Gunner
 		if(timer_id == M07_GO_EVAC_SITE)
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_GO_EVAC_SITE);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 10.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 	}
 
@@ -596,15 +596,15 @@ DECLARE_SCRIPT(M07_Dead6_Rocket_Soldier, "")  // Gunner
 	{
 		if (action_id == M07_GO_EVAC_SITE && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Soldier_Home_Location(obj, Commands->Get_Position(obj), 999999.0f);
+			ScriptEngine::Set_Innate_Soldier_Home_Location(obj, ScriptEngine::Get_Position(obj), 999999.0f);
 		}
 		if (action_id == M07_GO_EVAC_SITE && reason == ACTION_COMPLETE_LOW_PRIORITY)
 		{
-			Commands->Start_Timer(obj, this, 6.0f, M07_GO_EVAC_SITE);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, M07_GO_EVAC_SITE);
 		}
 		if (action_id == M07_CAPTURE_SAM && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		}
 	}
 
@@ -614,7 +614,7 @@ DECLARE_SCRIPT(M07_Dead6_Rocket_Soldier, "")  // Gunner
 		{
 			if(nuke_blast)
 			{
-				Commands->Apply_Damage( obj, 10000.0f, "STEEL", nullptr);
+				ScriptEngine::Apply_Damage( obj, 10000.0f, "STEEL", nullptr);
 			}
 		}
 	}
@@ -623,22 +623,22 @@ DECLARE_SCRIPT(M07_Dead6_Rocket_Soldier, "")  // Gunner
 	{
 		if(damager == obj || damager == DEADEYE || damager == PATCH || damager == HOTWIRE)
 		{
-			Commands->Set_Health(obj, health);
-			Commands->Set_Shield_Strength(obj, shield);
+			ScriptEngine::Set_Health(obj, health);
+			ScriptEngine::Set_Shield_Strength(obj, shield);
 		}
 		else
 		{
-			health = Commands->Get_Health(obj);
-			shield = Commands->Get_Shield_Strength(obj);
+			health = ScriptEngine::Get_Health(obj);
+			shield = ScriptEngine::Get_Shield_Strength(obj);
 		}
 	}
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Gunner Killed
-		Commands->Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0176I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+		ScriptEngine::Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0176I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
 
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 710, 2, 1.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 710, 2, 1.0f);
 
 	}
 };
@@ -662,10 +662,10 @@ DECLARE_SCRIPT(M07_Dead6_Grenadier, "")  // Patch
 	void Created(GameObject * obj) override
 	{
 		nuke_blast = true;
-		Commands->Set_Innate_Is_Stationary(obj, true);
-		health = Commands->Get_Max_Health(obj);
-		shield = Commands->Get_Max_Shield_Strength(obj);
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Set_Innate_Is_Stationary(obj, true);
+		health = ScriptEngine::Get_Max_Health(obj);
+		shield = ScriptEngine::Get_Max_Shield_Strength(obj);
+		ScriptEngine::Enable_Hibernation(obj, false);
 	}
 
 	void Custom( GameObject * obj, int type, intptr_t param, GameObject * /* sender */ ) override
@@ -677,16 +677,16 @@ DECLARE_SCRIPT(M07_Dead6_Grenadier, "")  // Patch
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, M07_GO_ASSEMBLY );
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.WaypathID = 102495;
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if ( type == M07_GO_EVAC_SITE )
 		{
-			Commands->Apply_Damage( obj, -10000.0f, "DEATH", nullptr);
+			ScriptEngine::Apply_Damage( obj, -10000.0f, "DEATH", nullptr);
 
-			Commands->Set_Innate_Is_Stationary(obj, false);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, false);
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_GO_EVAC_SITE);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 10.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if ( type == M07_NUKE_BLAST )
 		{
@@ -697,8 +697,8 @@ DECLARE_SCRIPT(M07_Dead6_Grenadier, "")  // Patch
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_CAPTURE_SAM);
 			params.Set_Movement (SYDNEY, RUN, 3.0f);
 			params.MoveFollow = true;
-			Commands->Action_Goto (obj, params);
-			Commands->Enable_Hibernation(obj, true);
+			ScriptEngine::Action_Goto (obj, params);
+			ScriptEngine::Enable_Hibernation(obj, true);
 		}
 	}
 
@@ -709,15 +709,15 @@ DECLARE_SCRIPT(M07_Dead6_Grenadier, "")  // Patch
 		if(timer_id == M07_GO_EVAC_SITE)
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_GO_EVAC_SITE);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 10.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if(timer_id == M07_CAPTURE_SAM)
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_CAPTURE_SAM);
 			params.Set_Movement (SYDNEY, RUN, 3.0f);
 			params.MoveFollow = true;
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 	}
 
@@ -725,15 +725,15 @@ DECLARE_SCRIPT(M07_Dead6_Grenadier, "")  // Patch
 	{
 		if (action_id == M07_GO_EVAC_SITE && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Soldier_Home_Location(obj, Commands->Get_Position(obj), 999999.0f);
+			ScriptEngine::Set_Innate_Soldier_Home_Location(obj, ScriptEngine::Get_Position(obj), 999999.0f);
 		}
 		if (action_id == M07_GO_EVAC_SITE && reason == ACTION_COMPLETE_LOW_PRIORITY)
 		{
-			Commands->Start_Timer(obj, this, 6.0f, M07_GO_EVAC_SITE);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, M07_GO_EVAC_SITE);
 		}
 		if (action_id == M07_CAPTURE_SAM && reason == ACTION_COMPLETE_LOW_PRIORITY)
 		{
-			Commands->Start_Timer(obj, this, 6.0f, M07_CAPTURE_SAM);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, M07_CAPTURE_SAM);
 		}
 	}
 
@@ -743,7 +743,7 @@ DECLARE_SCRIPT(M07_Dead6_Grenadier, "")  // Patch
 		{
 			if(nuke_blast)
 			{
-				Commands->Apply_Damage( obj, 10000.0f, "STEEL", nullptr);
+				ScriptEngine::Apply_Damage( obj, 10000.0f, "STEEL", nullptr);
 			}
 		}
 	}
@@ -752,13 +752,13 @@ DECLARE_SCRIPT(M07_Dead6_Grenadier, "")  // Patch
 	{
 		if(damager == obj || damager == DEADEYE || damager == GUNNER || damager == HOTWIRE)
 		{
-			Commands->Set_Health(obj, health);
-			Commands->Set_Shield_Strength(obj, shield);
+			ScriptEngine::Set_Health(obj, health);
+			ScriptEngine::Set_Shield_Strength(obj, shield);
 		}
 		else
 		{
-			health = Commands->Get_Health(obj);
-			shield = Commands->Get_Shield_Strength(obj);
+			health = ScriptEngine::Get_Health(obj);
+			shield = ScriptEngine::Get_Shield_Strength(obj);
 		}
 
 	}
@@ -766,9 +766,9 @@ DECLARE_SCRIPT(M07_Dead6_Grenadier, "")  // Patch
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Patch Killed
-		Commands->Set_HUD_Help_Text ( IDS_M07DSGN_DSGN0092I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+		ScriptEngine::Set_HUD_Help_Text ( IDS_M07DSGN_DSGN0092I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
 
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 710, 2, 1.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 710, 2, 1.0f);
 
 	}
 };
@@ -787,22 +787,22 @@ DECLARE_SCRIPT(M07_Dead6_Grenadier2, "")  // Patch2
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Enable_Hibernation(obj, false);
 
 		ActionParamsStruct params;
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 		params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 		params.WaypathID = 103837;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
 	{
 		if (action_id == WAYPATH)
 		{
-			int dead6_id = Commands->Get_ID(obj);
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
+			int dead6_id = ScriptEngine::Get_ID(obj);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
 		}
 
 	}
@@ -816,8 +816,8 @@ DECLARE_SCRIPT(M07_Dead6_Grenadier2, "")  // Patch2
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Patch Killed
-		Commands->Set_HUD_Help_Text ( IDS_M07DSGN_DSGN0092I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 710, 2, 1.0f);
+		ScriptEngine::Set_HUD_Help_Text ( IDS_M07DSGN_DSGN0092I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 710, 2, 1.0f);
 
 	}
 };
@@ -835,21 +835,21 @@ DECLARE_SCRIPT(M07_Dead6_MiniGunner2, "")  // Deadeye2
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Enable_Hibernation(obj, false);
 		ActionParamsStruct params;
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 		params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 		params.WaypathID = 103837;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
 	{
 		if (action_id == WAYPATH)
 		{
-			int dead6_id = Commands->Get_ID(obj);
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
+			int dead6_id = ScriptEngine::Get_ID(obj);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
 		}
 
 	}
@@ -857,8 +857,8 @@ DECLARE_SCRIPT(M07_Dead6_MiniGunner2, "")  // Deadeye2
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Deadeye Killed
-		Commands->Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0178I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 710, 2, 1.0f);
+		ScriptEngine::Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0178I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 710, 2, 1.0f);
 
 	}
 
@@ -878,22 +878,22 @@ DECLARE_SCRIPT(M07_Dead6_Rocket_Soldier2, "")  // Gunner2
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Enable_Hibernation(obj, false);
 
 		ActionParamsStruct params;
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 		params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 		params.WaypathID = 103837;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
 	{
 		if (action_id == WAYPATH)
 		{
-			int dead6_id = Commands->Get_ID(obj);
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
+			int dead6_id = ScriptEngine::Get_ID(obj);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
 		}
 
 	}
@@ -901,8 +901,8 @@ DECLARE_SCRIPT(M07_Dead6_Rocket_Soldier2, "")  // Gunner2
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Gunner Killed
-		Commands->Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0176I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 710, 2, 1.0f);
+		ScriptEngine::Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0176I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 710, 2, 1.0f);
 
 	}
 
@@ -921,30 +921,30 @@ DECLARE_SCRIPT(M07_Sydney2, "")
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Enable_Hibernation(obj, false);
 
 		ActionParamsStruct params;
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 		params.Set_Movement( Vector3(0,0,0), 1.0f, 1.5f );
 		params.WaypathID = 103837;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason /* reason */) override
 	{
 		if (action_id == WAYPATH)
 		{
-			int dead6_id = Commands->Get_ID(obj);
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
+			int dead6_id = ScriptEngine::Get_ID(obj);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
 		}
 
 	}
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Set_HUD_Help_Text ( IDS_M11DSGN_DSGN1008I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 701, 2, 1.0f);
+		ScriptEngine::Set_HUD_Help_Text ( IDS_M11DSGN_DSGN1008I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 701, 2, 1.0f);
 
 	}
 
@@ -980,11 +980,11 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Enable_Hibernation(obj, false);
 
 		nuke_blast = true;
 		go_evac_site = false;
-		Commands->Set_Innate_Is_Stationary(obj, true);
+		ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		dont_move = true;
 		evac = false;
 		current_move_loc = 0;
@@ -999,8 +999,8 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 		move_loc[8] = 102477;
 		move_loc[9] = 102478;
 
-		health = Commands->Get_Max_Health(obj);
-		shield = Commands->Get_Max_Shield_Strength(obj);
+		health = ScriptEngine::Get_Max_Health(obj);
+		shield = ScriptEngine::Get_Max_Shield_Strength(obj);
 	}
 
 	void Custom( GameObject * obj, int type, intptr_t param, GameObject * /* sender */ ) override
@@ -1011,24 +1011,24 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 		{
 			evac = true;
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN + 5), ARRIVE_EVAC_SPOT);
-			params.Set_Movement (Commands->Find_Object(105151), RUN, 3.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(105151), RUN, 3.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if ( type == M07_GO_ASSEMBLY )
 		{
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, M07_GO_ASSEMBLY );
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.WaypathID = 102510;
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if ( type == M07_GO_EVAC_SITE )
 		{
-			Commands->Apply_Damage( obj, -10000.0f, "DEATH", nullptr);
+			ScriptEngine::Apply_Damage( obj, -10000.0f, "DEATH", nullptr);
 
-			Commands->Set_Innate_Is_Stationary(obj, false);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, false);
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_GO_EVAC_SITE);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 10.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if ( type == M07_NUKE_BLAST )
 		{
@@ -1042,45 +1042,45 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 		//	params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN + 5), M07_CAPTURE_SAM);
 		//	params.Set_Movement (STAR, RUN, 3.0f);
 		//	params.MoveFollow = true;
-		//	Commands->Action_Goto (obj, params);
+		//	ScriptEngine::Action_Goto (obj, params);
 
 			dont_move = false;
 
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), HOTWIRE_MOVE_LOC);
-			params.Set_Movement (Commands->Find_Object(move_loc[current_move_loc]), RUN, 3.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(move_loc[current_move_loc]), RUN, 3.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
-		if ( type == M07_HOTWIRE_CAPTURE_SAMS && (!Commands->Find_Object(100905)))
+		if ( type == M07_HOTWIRE_CAPTURE_SAMS && (!ScriptEngine::Find_Object(100905)))
 		{
-			Commands->Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
-			if(Commands->Find_Object(100674))
+			ScriptEngine::Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
+			if(ScriptEngine::Find_Object(100674))
 			{
-				Commands->Set_Innate_Is_Stationary(obj, false);
+				ScriptEngine::Set_Innate_Is_Stationary(obj, false);
 				dont_move = true;
 				params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, GO_SAM1 );
-				params.Set_Movement (Commands->Find_Object(100674), RUN, 10.0f);
-				Commands->Action_Goto( obj, params );
+				params.Set_Movement (ScriptEngine::Find_Object(100674), RUN, 10.0f);
+				ScriptEngine::Action_Goto( obj, params );
 
-				GameObject * inn_loc = Commands->Find_Object(100718);
-				Commands->Set_Innate_Soldier_Home_Location(obj, Commands->Get_Position(inn_loc), 999999.0f);
+				GameObject * inn_loc = ScriptEngine::Find_Object(100718);
+				ScriptEngine::Set_Innate_Soldier_Home_Location(obj, ScriptEngine::Get_Position(inn_loc), 999999.0f);
 			}
 
-			else if(Commands->Find_Object(100673))
+			else if(ScriptEngine::Find_Object(100673))
 			{
-				Commands->Set_Innate_Is_Stationary(obj, false);
+				ScriptEngine::Set_Innate_Is_Stationary(obj, false);
 				dont_move = true;
 				params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, GO_SAM2 );
-				params.Set_Movement (Commands->Find_Object(100673), RUN, 10.0f);
-				Commands->Action_Goto( obj, params );
+				params.Set_Movement (ScriptEngine::Find_Object(100673), RUN, 10.0f);
+				ScriptEngine::Action_Goto( obj, params );
 
-				GameObject * inn_loc = Commands->Find_Object(100718);
-				Commands->Set_Innate_Soldier_Home_Location(obj, Commands->Get_Position(inn_loc), 999999.0f);
+				GameObject * inn_loc = ScriptEngine::Find_Object(100718);
+				ScriptEngine::Set_Innate_Soldier_Home_Location(obj, ScriptEngine::Get_Position(inn_loc), 999999.0f);
 			}
 		}
 
-		if ( type == M07_HOTWIRE_CAPTURE_SAMS && (Commands->Find_Object(100905)))
+		if ( type == M07_HOTWIRE_CAPTURE_SAMS && (ScriptEngine::Find_Object(100905)))
 		{
-			Commands->Start_Timer(obj, this, 5.0f, TANK_STILL_THERE);
+			ScriptEngine::Start_Timer(obj, this, 5.0f, TANK_STILL_THERE);
 
 		}
 
@@ -1089,8 +1089,8 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 			current_move_loc = param;
 
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), HOTWIRE_MOVE_LOC);
-			params.Set_Movement (Commands->Find_Object(move_loc[current_move_loc]), RUN, 3.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(move_loc[current_move_loc]), RUN, 3.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 
 	}
@@ -1102,45 +1102,45 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 		if(timer_id == M07_GO_EVAC_SITE && !go_evac_site && !evac)
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_GO_EVAC_SITE);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 10.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if(timer_id == ATTACK_SAM1 && !evac)
 		{
 			// Custom to change SAMs playertype to GDI
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(100674), M07_CHANGE_SAM_TEAM, 1, 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(100679), M07_CHANGE_SAM_TEAM, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100674), M07_CHANGE_SAM_TEAM, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100679), M07_CHANGE_SAM_TEAM, 1, 0.0f);
 
-			Commands->Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
+			ScriptEngine::Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, GO_SAM2 );
-			params.Set_Movement (Commands->Find_Object(100673), RUN, 10.0f);
-			Commands->Action_Goto( obj, params );
+			params.Set_Movement (ScriptEngine::Find_Object(100673), RUN, 10.0f);
+			ScriptEngine::Action_Goto( obj, params );
 
 
 		}
 		if(timer_id == ATTACK_SAM2 && !evac)
 		{
 			// Custom to change SAMs playertype to GDI
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(100673), M07_CHANGE_SAM_TEAM, 1, 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(100680), M07_CHANGE_SAM_TEAM, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100673), M07_CHANGE_SAM_TEAM, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100680), M07_CHANGE_SAM_TEAM, 1, 0.0f);
 
-			Commands->Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
-			Commands->Select_Weapon(obj, nullptr );
+			ScriptEngine::Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
+			ScriptEngine::Select_Weapon(obj, nullptr );
 
 		}
 
 		if(timer_id == MOVE_LOC_LOW_PRIORITY)
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), HOTWIRE_MOVE_LOC);
-			params.Set_Movement (Commands->Find_Object(move_loc[current_move_loc]), RUN, 3.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(move_loc[current_move_loc]), RUN, 3.0f);
+			ScriptEngine::Action_Goto (obj, params);
 
 		}
 
 		if(timer_id == TANK_STILL_THERE)
 		{
-			Commands->Send_Custom_Event (obj, obj, M07_HOTWIRE_CAPTURE_SAMS, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, obj, M07_HOTWIRE_CAPTURE_SAMS, 1, 0.0f);
 
 		}
 	}
@@ -1151,58 +1151,58 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 
 		if (action_id == ARRIVE_EVAC_SPOT && reason == ACTION_COMPLETE_NORMAL && evac)
 		{
-			int dead6_id = Commands->Get_ID(obj);
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
+			int dead6_id = ScriptEngine::Get_ID(obj);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
 		}
 
 		if (action_id == ARRIVE_EVAC_SPOT && reason == ACTION_COMPLETE_MOVE_NO_PROGRESS_MADE && evac)
 		{
 			// This is a hack for the moment, need to have pathfinding around dec_phys vehicles at inn
-			int dead6_id = Commands->Get_ID(obj);
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
+			int dead6_id = ScriptEngine::Get_ID(obj);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(104496), M07_DEAD6_EVAC, dead6_id, 0.0f);
 		}
 
 		if (action_id == M07_GO_EVAC_SITE && reason == ACTION_COMPLETE_NORMAL && !evac)
 		{
 			go_evac_site = true;
-			Commands->Set_Innate_Soldier_Home_Location(obj, Commands->Get_Position(obj), 999999.0f);
+			ScriptEngine::Set_Innate_Soldier_Home_Location(obj, ScriptEngine::Get_Position(obj), 999999.0f);
 		}
 		if (action_id == M07_GO_EVAC_SITE && reason == ACTION_COMPLETE_LOW_PRIORITY && !evac)
 		{
-			Commands->Start_Timer(obj, this, 6.0f, M07_GO_EVAC_SITE);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, M07_GO_EVAC_SITE);
 		}
 
 		if (action_id == GO_SAM1 && reason == ACTION_COMPLETE_NORMAL && !evac)
 		{
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 100 );
-			params.Set_Attack (Commands->Find_Object(100679), 250.0f, 0.0f, 0);
+			params.Set_Attack (ScriptEngine::Find_Object(100679), 250.0f, 0.0f, 0);
 			params.AttackCheckBlocked = true;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_SAM1);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_SAM1);
 		}
 		if (action_id == GO_SAM1 && reason == ACTION_COMPLETE_LOW_PRIORITY && !evac)
 		{
 			// Keep trying to GO_SAM1
-			Commands->Send_Custom_Event (obj, HOTWIRE, M07_HOTWIRE_CAPTURE_SAMS, 1, 2.0f);
+			ScriptEngine::Send_Custom_Event (obj, HOTWIRE, M07_HOTWIRE_CAPTURE_SAMS, 1, 2.0f);
 		}
 		if (action_id == GO_SAM2 && reason == ACTION_COMPLETE_NORMAL && !evac)
 		{
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 100 );
-			params.Set_Attack (Commands->Find_Object(100680), 250.0f, 0.0f, 0);
+			params.Set_Attack (ScriptEngine::Find_Object(100680), 250.0f, 0.0f, 0);
 			params.AttackCheckBlocked = true;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_SAM2);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_SAM2);
 		}
 
 		if(action_id == HOTWIRE_MOVE_LOC && reason == ACTION_COMPLETE_NORMAL && !evac)
 		{
-			Commands->Set_Innate_Soldier_Home_Location(obj, Commands->Get_Position(obj), 4.0f);
+			ScriptEngine::Set_Innate_Soldier_Home_Location(obj, ScriptEngine::Get_Position(obj), 4.0f);
 		}
 		if(action_id == HOTWIRE_MOVE_LOC && reason == ACTION_COMPLETE_LOW_PRIORITY && !evac)
 		{
-			Commands->Start_Timer(obj, this, 4.0f, MOVE_LOC_LOW_PRIORITY);
+			ScriptEngine::Start_Timer(obj, this, 4.0f, MOVE_LOC_LOW_PRIORITY);
 		}
 
 
@@ -1210,7 +1210,7 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 
 	void Destroyed(GameObject * obj) override
 	{
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(104496), M07_DEAD6_EVAC, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(104496), M07_DEAD6_EVAC, 1, 0.0f);
 
 	}
 
@@ -1220,7 +1220,7 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 		{
 			if(nuke_blast)
 			{
-				Commands->Apply_Damage( obj, 10000.0f, "STEEL", nullptr);
+				ScriptEngine::Apply_Damage( obj, 10000.0f, "STEEL", nullptr);
 			}
 		}
 	}
@@ -1229,13 +1229,13 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 	{
 		if(damager == obj || damager == DEADEYE || damager == GUNNER || damager == HOTWIRE)
 		{
-			Commands->Set_Health(obj, health);
-			Commands->Set_Shield_Strength(obj, shield);
+			ScriptEngine::Set_Health(obj, health);
+			ScriptEngine::Set_Shield_Strength(obj, shield);
 		}
 		else
 		{
-			health = Commands->Get_Health(obj);
-			shield = Commands->Get_Shield_Strength(obj);
+			health = ScriptEngine::Get_Health(obj);
+			shield = ScriptEngine::Get_Shield_Strength(obj);
 		}
 
 	}
@@ -1243,8 +1243,8 @@ DECLARE_SCRIPT(M07_Dead6_Engineer, "")  // Hotwire
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Hotwire Killed
-		Commands->Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0174I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 710, 2, 1.0f);
+		ScriptEngine::Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0174I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 710, 2, 1.0f);
 
 	}
 };
@@ -1267,13 +1267,13 @@ DECLARE_SCRIPT(M07_Sydney, "")
 	void Created(GameObject * obj) override
 	{
 		nuke_blast = true;
-		Commands->Set_Innate_Is_Stationary(obj, true);
-		Commands->Enable_Hibernation(obj, false);
-		health = Commands->Get_Max_Health(obj);
-		shield = Commands->Get_Max_Shield_Strength(obj);
+		ScriptEngine::Set_Innate_Is_Stationary(obj, true);
+		ScriptEngine::Enable_Hibernation(obj, false);
+		health = ScriptEngine::Get_Max_Health(obj);
+		shield = ScriptEngine::Get_Max_Shield_Strength(obj);
 		// Give Sydney initial pistol
-		Commands->Give_PowerUp(obj, "POW_Pistol_AI", false);
-		Commands->Select_Weapon(obj, "Weapon_Pistol_Ai" );
+		ScriptEngine::Give_PowerUp(obj, "POW_Pistol_AI", false);
+		ScriptEngine::Select_Weapon(obj, "Weapon_Pistol_Ai" );
 	}
 
 	void Custom( GameObject * obj, int type, intptr_t param, GameObject * /* sender */ ) override
@@ -1285,13 +1285,13 @@ DECLARE_SCRIPT(M07_Sydney, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, M07_GO_ASSEMBLY );
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.WaypathID = 102479;
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if(type == M07_GO_EVAC_SITE)
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_GO_EVAC_SITE);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 10.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 		if ( type == M07_NUKE_BLAST )
 		{
@@ -1301,10 +1301,10 @@ DECLARE_SCRIPT(M07_Sydney, "")
 		if ( type == M07_CAPTURE_SAM )
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN + 5), M07_CAPTURE_SAM);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 3.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 3.0f);
+			ScriptEngine::Action_Goto (obj, params);
 
-			Commands->Enable_Hibernation(obj, true);
+			ScriptEngine::Enable_Hibernation(obj, true);
 		}
 	}
 
@@ -1312,15 +1312,15 @@ DECLARE_SCRIPT(M07_Sydney, "")
 	{
 		if (action_id == M07_CAPTURE_SAM && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		}
 		if (action_id == M07_GO_EVAC_SITE && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Soldier_Home_Location(obj, Commands->Get_Position(obj), 999999.0f);
+			ScriptEngine::Set_Innate_Soldier_Home_Location(obj, ScriptEngine::Get_Position(obj), 999999.0f);
 		}
 		if (action_id == M07_GO_EVAC_SITE && reason == ACTION_COMPLETE_LOW_PRIORITY)
 		{
-			Commands->Start_Timer(obj, this, 6.0f, M07_GO_EVAC_SITE);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, M07_GO_EVAC_SITE);
 		}
 
 	}
@@ -1331,7 +1331,7 @@ DECLARE_SCRIPT(M07_Sydney, "")
 		{
 			if(nuke_blast)
 			{
-				Commands->Apply_Damage( obj, 10000.0f, "STEEL", nullptr);
+				ScriptEngine::Apply_Damage( obj, 10000.0f, "STEEL", nullptr);
 			}
 		}
 	}
@@ -1343,8 +1343,8 @@ DECLARE_SCRIPT(M07_Sydney, "")
 		if(timer_id == M07_GO_EVAC_SITE)
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), M07_GO_EVAC_SITE);
-			params.Set_Movement (Commands->Find_Object(100664), RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			params.Set_Movement (ScriptEngine::Find_Object(100664), RUN, 10.0f);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 	}
 
@@ -1352,13 +1352,13 @@ DECLARE_SCRIPT(M07_Sydney, "")
 	{
 		if(damager == obj || damager == DEADEYE || damager == GUNNER || damager == HOTWIRE || damager == PATCH)
 		{
-			Commands->Set_Health(obj, health);
-			Commands->Set_Shield_Strength(obj, shield);
+			ScriptEngine::Set_Health(obj, health);
+			ScriptEngine::Set_Shield_Strength(obj, shield);
 		}
 		else
 		{
-			health = Commands->Get_Health(obj);
-			shield = Commands->Get_Shield_Strength(obj);
+			health = ScriptEngine::Get_Health(obj);
+			shield = ScriptEngine::Get_Shield_Strength(obj);
 		}
 
 	}
@@ -1366,8 +1366,8 @@ DECLARE_SCRIPT(M07_Sydney, "")
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Sydney Killed
-		Commands->Set_HUD_Help_Text ( IDS_M11DSGN_DSGN1008I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 701, 2, 1.0f);
+		ScriptEngine::Set_HUD_Help_Text ( IDS_M11DSGN_DSGN1008I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 701, 2, 1.0f);
 
 	}
 };
@@ -1392,11 +1392,11 @@ DECLARE_SCRIPT(M07_Cathedral_Controller, "")  // 100663
 		{
 			// Impact: 2 Minutes.\n
 			const char *conv_name = ("M07_CON003");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
-			Commands->Start_Timer(obj, this, 60.0f, TWO_MIN);
+			ScriptEngine::Start_Timer(obj, this, 60.0f, TWO_MIN);
 		}
 	}
 
@@ -1406,84 +1406,84 @@ DECLARE_SCRIPT(M07_Cathedral_Controller, "")  // 100663
 		{
 			// Impact: 1 Minute.\n
 			const char *conv_name = ("M07_CON004");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
-			Commands->Start_Timer(obj, this, 30.0f, ONE_MIN);
+			ScriptEngine::Start_Timer(obj, this, 30.0f, ONE_MIN);
 		}
 		if(timer_id == ONE_MIN)
 		{
 			// Impact: 30 seconds.\n
 			const char *conv_name = ("M07_CON005");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
-			Commands->Start_Timer(obj, this, 10.0f, THIRTY);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, THIRTY);
 		}
 		if(timer_id == THIRTY)
 		{
 			// Impact: 20 seconds.\n
 			const char *conv_name = ("M07_CON006");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
-			Commands->Start_Timer(obj, this, 10.0f, TWENTY);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, TWENTY);
 		}
 		if(timer_id == TWENTY)
 		{
 			// Impact: 10 seconds.\n
 			const char *conv_name = ("M07_CON007");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
-			Commands->Start_Timer(obj, this, 5.0f, TEN);
+			ScriptEngine::Start_Timer(obj, this, 5.0f, TEN);
 		}
 		if(timer_id == TEN)
 		{
 			// Impact: 5 seconds.\n
 			const char *conv_name = ("M07_CON008");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
-			Commands->Start_Timer(obj, this, 1.0f, FIVE);
+			ScriptEngine::Start_Timer(obj, this, 1.0f, FIVE);
 		}
 		if(timer_id == FIVE)
 		{
-			GameObject * cinematic_controller = Commands->Create_Object ( "Invisible_Object", Vector3(-100.879f, 88.570f, 29.184f));
-			Commands->Attach_Script(cinematic_controller, "Test_Cinematic", "XG_NukeStrike.txt");
+			GameObject * cinematic_controller = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-100.879f, 88.570f, 29.184f));
+			ScriptEngine::Attach_Script(cinematic_controller, "Test_Cinematic", "XG_NukeStrike.txt");
 
 			// 4 seconds.\n
 			const char *conv_name = ("M07_CON009");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
-			Commands->Start_Timer(obj, this, 1.0f, FOUR);
+			ScriptEngine::Start_Timer(obj, this, 1.0f, FOUR);
 		}
 		if(timer_id == FOUR)
 		{
 			// 3 seconds.\n
 			const char *conv_name = ("M07_CON010");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
-			Commands->Start_Timer(obj, this, 1.0f, THREE);
+			ScriptEngine::Start_Timer(obj, this, 1.0f, THREE);
 		}
 		if(timer_id == THREE)
 		{
 			// 2 seconds.\n
 			const char *conv_name = ("M07_CON011");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
-			Commands->Start_Timer(obj, this, 1.0f, TWO);
+			ScriptEngine::Start_Timer(obj, this, 1.0f, TWO);
 
 
 		}
@@ -1491,41 +1491,41 @@ DECLARE_SCRIPT(M07_Cathedral_Controller, "")  // 100663
 		{
 			// 1 seconds.\n
 			const char *conv_name = ("M07_CON012");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
-			Commands->Start_Timer(obj, this, 1.0f, ONE);
+			ScriptEngine::Start_Timer(obj, this, 1.0f, ONE);
 
-			Commands->Set_Clouds (1.0f, 1.0f, 3.0f);
+			ScriptEngine::Set_Clouds (1.0f, 1.0f, 3.0f);
 		}
 		if(timer_id == ONE)
 		{
 			// Send customs to Nuke Blast Radius determination zones to deactivate them
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(100665), M07_DEACTIVATE_NUKE_BLAST, 1, 0.0f);
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(100666), M07_DEACTIVATE_NUKE_BLAST, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100665), M07_DEACTIVATE_NUKE_BLAST, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100666), M07_DEACTIVATE_NUKE_BLAST, 1, 0.0f);
 			// Boom!
-			Commands->Create_Logical_Sound(obj, M07_NUKE_IMPACT, Commands->Get_Position(obj), 2500.0f);
-			Commands->Set_Ash(0.15f, 3.0f, false);
-			Commands->Set_Wind(90.0f, 5.0f, 2.0f, 0.0f);
+			ScriptEngine::Create_Logical_Sound(obj, M07_NUKE_IMPACT, ScriptEngine::Get_Position(obj), 2500.0f);
+			ScriptEngine::Set_Ash(0.15f, 3.0f, false);
+			ScriptEngine::Set_Wind(90.0f, 5.0f, 2.0f, 0.0f);
 
-			Commands->Start_Timer(obj, this, 2.0f, NUKEBITS);
+			ScriptEngine::Start_Timer(obj, this, 2.0f, NUKEBITS);
 		}
 		if(timer_id == NUKEBITS)
 		{
-			Commands->Create_Explosion("Ground Explosions Twiddler", Commands->Get_Position(Commands->Find_Object(119890)), nullptr);
-			Commands->Create_Explosion("Ground Explosions Twiddler", Commands->Get_Position(Commands->Find_Object(119891)), nullptr);
-			Commands->Create_Explosion("Ground Explosions Twiddler", Commands->Get_Position(Commands->Find_Object(119892)), nullptr);
-			Commands->Create_Explosion("Ground Explosions Twiddler", Commands->Get_Position(Commands->Find_Object(119893)), nullptr);
-			GameObject * nukebits = Commands->Create_Object("M07_Nukebits", Vector3(-128.295f, 71.892f, 26.754f));
-			Commands->Set_Facing( nukebits, -10.000f );
-			Commands->Start_Timer(obj, this, 3.0f, ESCAPED);
+			ScriptEngine::Create_Explosion("Ground Explosions Twiddler", ScriptEngine::Get_Position(ScriptEngine::Find_Object(119890)), nullptr);
+			ScriptEngine::Create_Explosion("Ground Explosions Twiddler", ScriptEngine::Get_Position(ScriptEngine::Find_Object(119891)), nullptr);
+			ScriptEngine::Create_Explosion("Ground Explosions Twiddler", ScriptEngine::Get_Position(ScriptEngine::Find_Object(119892)), nullptr);
+			ScriptEngine::Create_Explosion("Ground Explosions Twiddler", ScriptEngine::Get_Position(ScriptEngine::Find_Object(119893)), nullptr);
+			GameObject * nukebits = ScriptEngine::Create_Object("M07_Nukebits", Vector3(-128.295f, 71.892f, 26.754f));
+			ScriptEngine::Set_Facing( nukebits, -10.000f );
+			ScriptEngine::Start_Timer(obj, this, 3.0f, ESCAPED);
 		}
 		if(timer_id == ESCAPED)
 		{
 			if(SYDNEY)
 			{
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 710, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 710, 1, 0.0f);
 			}
 		}
 	}
@@ -1576,19 +1576,19 @@ DECLARE_SCRIPT(M07_In_Nuke_Blast, "")
 			return;
 		}
 		// Send to enterer to let script know in blast zone
-		Commands->Send_Custom_Event (obj, enterer, M07_NUKE_BLAST, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, enterer, M07_NUKE_BLAST, 1, 0.0f);
 		if(!star_in_blast && enterer == STAR)
 		{
 			star_in_blast = true;
 
 			// Send custom to in blast script to let it know player is out of blast
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(100666), M07_NUKE_BLAST, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100666), M07_NUKE_BLAST, 1, 0.0f);
 
 			// Warning - Your are within the Nuclear Strike blast radius. Evacuate immediately.\n
 			const char *conv_name = ("M07_CON013");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 		}
 
 	}
@@ -1637,19 +1637,19 @@ DECLARE_SCRIPT(M07_Out_Nuke_Blast, "")
 			return;
 		}
 		// Send to enterer to let script know out blast zone
-		Commands->Send_Custom_Event (obj, enterer, M07_NUKE_BLAST, 0, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, enterer, M07_NUKE_BLAST, 0, 0.0f);
 		if(star_in_blast && enterer == STAR)
 		{
 			star_in_blast = false;
 
 			// Minimum safe distance achieved.\n
 			const char *conv_name = ("M07_CON014");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 10);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 10);
 
 			// Send custom to in blast script to let it know player is out of blast
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(100665), M07_NUKE_BLAST, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100665), M07_NUKE_BLAST, 1, 0.0f);
 		}
 
 	}
@@ -1670,8 +1670,8 @@ DECLARE_SCRIPT(M07_Nod_Gun_Emplacement, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NOD );
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NOD );
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 
 	}
@@ -1686,9 +1686,9 @@ DECLARE_SCRIPT(M07_Nod_Gun_Emplacement, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (enemy, 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 	}
 
@@ -1702,9 +1702,9 @@ DECLARE_SCRIPT(M07_Nod_Gun_Emplacement, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (damager, 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 
 	}
@@ -1722,8 +1722,8 @@ DECLARE_SCRIPT(M07_Nod_Gun_Emplacement, "")
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Custom to evac site controller to count when four vehicles in area destroyed
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(100664), M07_EVAC_SITE_VEHICLE_KILLED, 1, 0.0f);
-		Commands->Debug_Message("Evac Site Vehicle Killed = %d \n", Commands->Get_ID(obj));
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100664), M07_EVAC_SITE_VEHICLE_KILLED, 1, 0.0f);
+		ScriptEngine::Debug_Message("Evac Site Vehicle Killed = %d \n", ScriptEngine::Get_ID(obj));
 	}
 
 };
@@ -1752,11 +1752,11 @@ DECLARE_SCRIPT(M07_Evac_Site_Controller, "")  // 100664
 		{
 
 			m07_evac_site_vehicle_killed++;
-			Commands->Debug_Message("Evac Site Vehicle Killed = %d \n", m07_evac_site_vehicle_killed);
+			ScriptEngine::Debug_Message("Evac Site Vehicle Killed = %d \n", m07_evac_site_vehicle_killed);
 			if(m07_evac_site_vehicle_killed == 4)
 			{
-				Commands->Debug_Message("Evac Site is clear.  Play Locke, where evac conversation");
-				Commands->Start_Timer (obj, this, 4.0f, WHERE_EVAC);
+				ScriptEngine::Debug_Message("Evac Site is clear.  Play Locke, where evac conversation");
+				ScriptEngine::Start_Timer (obj, this, 4.0f, WHERE_EVAC);
 			}
 		}
 	}
@@ -1768,14 +1768,14 @@ DECLARE_SCRIPT(M07_Evac_Site_Controller, "")  // 100664
 		{
 			// Locke, what's my evac status?\n
 			const char *conv_name = ("M07_CON002");
-			int conv_id = Commands->Create_Conversation (conv_name, INNATE_PRIORITY_ENEMY_SEEN + 5, 2000.0f, false);
-			Commands->Join_Conversation(STAR, conv_id, false, true, true);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Join_Conversation(GUNNER, conv_id, false, true, true);
-			Commands->Join_Conversation(HOTWIRE, conv_id, false, true, true);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 300702);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, INNATE_PRIORITY_ENEMY_SEEN + 5, 2000.0f, false);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(GUNNER, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(HOTWIRE, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 300702);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 		}
 
 	}
@@ -1785,19 +1785,19 @@ DECLARE_SCRIPT(M07_Evac_Site_Controller, "")  // 100664
 		if (action_id == 300702 && (reason == ACTION_COMPLETE_CONVERSATION_ENDED || reason == ACTION_COMPLETE_CONVERSATION_INTERRUPTED))
 		{
 			// Activate Hotwire to SAM sites primary objective
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 702, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 702, 3, 0.0f);
 
 			// Customs to position team for Primary MO 702
 			// Hotwire
-			Commands->Send_Custom_Event(obj, HOTWIRE, M07_CAPTURE_SAM, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, HOTWIRE, M07_CAPTURE_SAM, 1, 0.0f);
 			// Patch
-			Commands->Send_Custom_Event(obj, PATCH, M07_CAPTURE_SAM, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, PATCH, M07_CAPTURE_SAM, 1, 0.0f);
 			// Gunner
-			Commands->Send_Custom_Event(obj, GUNNER, M07_CAPTURE_SAM, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, GUNNER, M07_CAPTURE_SAM, 1, 0.0f);
 			// Deadeye
-			Commands->Send_Custom_Event(obj, DEADEYE, M07_CAPTURE_SAM, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, DEADEYE, M07_CAPTURE_SAM, 1, 0.0f);
 			// Sydney
-			Commands->Send_Custom_Event(obj, SYDNEY, M07_CAPTURE_SAM, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, SYDNEY, M07_CAPTURE_SAM, 1, 0.0f);
 		}
 	}
 };
@@ -1807,8 +1807,8 @@ DECLARE_SCRIPT(M07_Evac_Site_APC, "")
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Custom to evac site controller to count when four vehicles in area destroyed
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(100664), M07_EVAC_SITE_VEHICLE_KILLED, 1, 0.0f);
-		Commands->Debug_Message("Evac Site Vehicle Killed = %d \n", Commands->Get_ID(obj));
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100664), M07_EVAC_SITE_VEHICLE_KILLED, 1, 0.0f);
+		ScriptEngine::Debug_Message("Evac Site Vehicle Killed = %d \n", ScriptEngine::Get_ID(obj));
 	}
 
 };
@@ -1834,14 +1834,14 @@ DECLARE_SCRIPT(M07_Evac_Site_APC_Soldier, "APC_ID=0:int")
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, 1 );
 		params.Set_Movement( STAR, RUN, 20.0f );
-		Commands->Action_Goto (obj, params);
+		ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		if(Commands->Find_Object(apc_id))
+		if(ScriptEngine::Find_Object(apc_id))
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
 		}
 
 	}
@@ -1863,14 +1863,14 @@ DECLARE_SCRIPT(M07_Evac_Site_Soldier, "APC_ID=0:int")
 	{
 		apc_id = Get_Int_Parameter("APC_ID");
 
-		Commands->Set_Innate_Is_Stationary(obj, true);
+		ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 	}
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		if(Commands->Find_Object(apc_id))
+		if(ScriptEngine::Find_Object(apc_id))
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
 		}
 
 	}
@@ -1900,14 +1900,14 @@ DECLARE_SCRIPT(M07_Activate_Hotwire, "")
 		if(enterer == HOTWIRE && !already_entered)
 		{
 			already_entered = true;
-			Commands->Enable_Spawner(100715, true);
+			ScriptEngine::Enable_Spawner(100715, true);
 
 			// Keep those Nod forces off my back, Havoc.  I'll crack these SAM's in no time.\n
 			const char *conv_name = ("M07_CON016");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(HOTWIRE, conv_id, true, true, true);
-			Commands->Start_Conversation (conv_id, HOTWIRE_CAPTURE_SAMS);
-			Commands->Monitor_Conversation(obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(HOTWIRE, conv_id, true, true, true);
+			ScriptEngine::Start_Conversation (conv_id, HOTWIRE_CAPTURE_SAMS);
+			ScriptEngine::Monitor_Conversation(obj, conv_id);
 		}
 
 	}
@@ -1916,7 +1916,7 @@ DECLARE_SCRIPT(M07_Activate_Hotwire, "")
 	{
 		if (action_id == HOTWIRE_CAPTURE_SAMS && reason == ACTION_COMPLETE_CONVERSATION_ENDED)
 		{
-			Commands->Send_Custom_Event (obj, HOTWIRE, M07_HOTWIRE_CAPTURE_SAMS, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, HOTWIRE, M07_HOTWIRE_CAPTURE_SAMS, 1, 0.0f);
 		}
 	}
 };
@@ -1937,15 +1937,15 @@ DECLARE_SCRIPT(M07_Fancy_Inn_Sam, "")
 
 		if(type == M07_CHANGE_SAM_TEAM)
 		{
-			Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100685), M07_SAM_CONVERTED, 1, 0.0f);
+			ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100685), M07_SAM_CONVERTED, 1, 0.0f);
 		}
 
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100685), M07_SAM_KILLED, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100685), M07_SAM_KILLED, 1, 0.0f);
 	}
 };
 
@@ -1962,7 +1962,7 @@ DECLARE_SCRIPT(M07_SAM_Truck_100680, "")
 
 	void Created (GameObject * obj) override
 	{
-		health = Commands->Get_Max_Health(obj);
+		health = ScriptEngine::Get_Max_Health(obj);
 	}
 
 	void Custom (GameObject * obj, int type, intptr_t /* param */, GameObject * /* sender */) override
@@ -1971,25 +1971,25 @@ DECLARE_SCRIPT(M07_SAM_Truck_100680, "")
 
 		if(type == M07_CHANGE_SAM_TEAM)
 		{
-			Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
+			ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
 		}
 
 	}
 
 	void Damaged( GameObject * obj, GameObject * /* damager */, float /* amount */ ) override
 	{
-		if(health > (.2 * Commands->Get_Max_Health(obj)))
+		if(health > (.2 * ScriptEngine::Get_Max_Health(obj)))
 		{
-			float damage = health - Commands->Get_Health(obj);
+			float damage = health - ScriptEngine::Get_Health(obj);
 			damage *= 0.5f;
 			health -= damage;
-			Commands->Set_Health(obj, health);
+			ScriptEngine::Set_Health(obj, health);
 		}
 	}
 
 	void Killed(GameObject * /* obj */, GameObject * /* killer */) override
 	{
-		Commands->Apply_Damage( Commands->Find_Object(100680), 10000.0f, "DEATH", nullptr);
+		ScriptEngine::Apply_Damage( ScriptEngine::Find_Object(100680), 10000.0f, "DEATH", nullptr);
 
 	}
 };
@@ -2007,7 +2007,7 @@ DECLARE_SCRIPT(M07_SAM_Truck_100679, "")
 
 	void Created (GameObject * obj) override
 	{
-		health = Commands->Get_Max_Health(obj);
+		health = ScriptEngine::Get_Max_Health(obj);
 	}
 
 	void Custom (GameObject * obj, int type, intptr_t /* param */, GameObject * /* sender */) override
@@ -2016,25 +2016,25 @@ DECLARE_SCRIPT(M07_SAM_Truck_100679, "")
 
 		if(type == M07_CHANGE_SAM_TEAM)
 		{
-			Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
+			ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
 		}
 
 	}
 
 	void Damaged( GameObject * obj, GameObject * /* damager */, float /* amount */ ) override
 	{
-		if(health > (.2 * Commands->Get_Max_Health(obj)))
+		if(health > (.2 * ScriptEngine::Get_Max_Health(obj)))
 		{
-			float damage = health - Commands->Get_Health(obj);
+			float damage = health - ScriptEngine::Get_Health(obj);
 			damage *= 0.5f;
 			health -= damage;
-			Commands->Set_Health(obj, health);
+			ScriptEngine::Set_Health(obj, health);
 		}
 	}
 
 	void Killed(GameObject * /* obj */, GameObject * /* killer */) override
 	{
-		Commands->Apply_Damage( Commands->Find_Object(100679), 10000.0f, "DEATH", nullptr);
+		ScriptEngine::Apply_Damage( ScriptEngine::Find_Object(100679), 10000.0f, "DEATH", nullptr);
 
 	}
 };
@@ -2067,27 +2067,27 @@ DECLARE_SCRIPT(M07_Fancy_Inn_Controller, "")
 			m07_sam_converted++;
 			if(m07_sam_converted == 1)
 			{
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 702, 1, 0.0f);
-				Commands->Enable_Spawner(100715, false);
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(104496), M07_EVAC_INN, 1, 0.0f);
-				Commands->Start_Timer(obj, this, 3.0f, CONTROL_SAMS);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 702, 1, 0.0f);
+				ScriptEngine::Enable_Spawner(100715, false);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(104496), M07_EVAC_INN, 1, 0.0f);
+				ScriptEngine::Start_Timer(obj, this, 3.0f, CONTROL_SAMS);
 
 				// Spawn DEAD6 and Sydney to evacuate
-				Commands->Enable_Spawner(103833, true);
-				Commands->Enable_Spawner(103834, true);
-				Commands->Enable_Spawner(103835, true);
-				Commands->Enable_Spawner(103836, true);
+				ScriptEngine::Enable_Spawner(103833, true);
+				ScriptEngine::Enable_Spawner(103834, true);
+				ScriptEngine::Enable_Spawner(103835, true);
+				ScriptEngine::Enable_Spawner(103836, true);
 
 				// Destroy the initial group of people
-				Commands->Destroy_Object(Commands->Find_Object(100659));
-				Commands->Destroy_Object(Commands->Find_Object(100660));
-				Commands->Destroy_Object(Commands->Find_Object(100661));
-				Commands->Destroy_Object(Commands->Find_Object(100662));
+				ScriptEngine::Destroy_Object(ScriptEngine::Find_Object(100659));
+				ScriptEngine::Destroy_Object(ScriptEngine::Find_Object(100660));
+				ScriptEngine::Destroy_Object(ScriptEngine::Find_Object(100661));
+				ScriptEngine::Destroy_Object(ScriptEngine::Find_Object(100662));
 
 				// Grant health increase medal
-				Commands->Create_Object ( "POW_Medal_Health", Vector3(-45.888f, -73.569f, 4.222f));
+				ScriptEngine::Create_Object ( "POW_Medal_Health", Vector3(-45.888f, -73.569f, 4.222f));
 				// Grant armor increase medal
-				Commands->Create_Object ( "POW_Medal_Armor", Vector3(-43.445f, -73.384f, 4.222f));
+				ScriptEngine::Create_Object ( "POW_Medal_Armor", Vector3(-43.445f, -73.384f, 4.222f));
 			}
 		}
 		if(type == M07_SAM_KILLED)
@@ -2096,9 +2096,9 @@ DECLARE_SCRIPT(M07_Fancy_Inn_Controller, "")
 			if(m07_sam_killed == 2)
 			{
 				// SAMs Killed
-				Commands->Set_HUD_Help_Text ( IDS_M07DSGN_DSGN0090I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+				ScriptEngine::Set_HUD_Help_Text ( IDS_M07DSGN_DSGN0090I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
 				// Objective failed if both SAMs destroyed
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 702, 2, 1.0f);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 702, 2, 1.0f);
 			}
 		}
 
@@ -2125,13 +2125,13 @@ DECLARE_SCRIPT(M07_Inn_Apache, "")
 		ActionParamsStruct params;
 
 		attacking = false;
-		Commands->Disable_Physical_Collisions(obj);
+		ScriptEngine::Disable_Physical_Collisions(obj);
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 		params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 		params.WaypathID = 100707;
 		params.MovePathfind = false;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason reason) override
@@ -2140,13 +2140,13 @@ DECLARE_SCRIPT(M07_Inn_Apache, "")
 
 		if (action_id == WAYPATH && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Enable_Enemy_Seen(obj, true);
+			ScriptEngine::Enable_Enemy_Seen(obj, true);
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, INN_PATROL );
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.WaypathID = 100687;
 			params.MovePathfind = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 	}
 
@@ -2163,9 +2163,9 @@ DECLARE_SCRIPT(M07_Inn_Apache, "")
 			params.Set_Attack (enemy, 250.0f, 0.0f, 1);
 			params.WaypathID = 100687;
 			params.MovePathfind = false;
-			Commands->Modify_Action (obj, INN_PATROL, params, true, true);
+			ScriptEngine::Modify_Action (obj, INN_PATROL, params, true, true);
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 	}
 
@@ -2201,23 +2201,23 @@ DECLARE_SCRIPT(M07_Activate_Objective_704, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if (Commands->Is_A_Star(enterer) && !already_entered )
+		if (ScriptEngine::Is_A_Star(enterer) && !already_entered )
 		{
 			already_entered = true;
 
 			// Attention GDI, this is Resistance Radio. Nod's aerial reinforcements are coordinated from mobile radar stations in the Town Square.  We need those radar dishes destroyed.\n
 			const char *conv_name = ("M07_CON018");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Join_Conversation(STAR, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 300704);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 300704);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 			// Engineers in Town Square
-			Commands->Enable_Spawner(100726, true);
-			Commands->Enable_Spawner(100727, true);
+			ScriptEngine::Enable_Spawner(100726, true);
+			ScriptEngine::Enable_Spawner(100727, true);
 
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100746), M07_TOWNSQUARE_CHINOOK, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100746), M07_TOWNSQUARE_CHINOOK, 1, 0.0f);
 		}
 
 	}
@@ -2226,7 +2226,7 @@ DECLARE_SCRIPT(M07_Activate_Objective_704, "")
 	{
 		if (action_id == 300704 && (reason == ACTION_COMPLETE_CONVERSATION_ENDED || reason == ACTION_COMPLETE_CONVERSATION_INTERRUPTED))
 		{
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 704, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 704, 3, 0.0f);
 		}
 	}
 };
@@ -2251,17 +2251,17 @@ DECLARE_SCRIPT(M07_Activate_Objective_705, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if (Commands->Is_A_Star(enterer) && !already_entered )
+		if (ScriptEngine::Is_A_Star(enterer) && !already_entered )
 		{
 			already_entered = true;
 
 			// This is Resistance Radio, I have reports of captured resistance fighters west of your position.  Can anyone assist?\n
 			const char *conv_name = ("M07_CON019");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Join_Conversation(STAR, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 300705);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 300705);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 
 		}
@@ -2272,7 +2272,7 @@ DECLARE_SCRIPT(M07_Activate_Objective_705, "")
 	{
 		if (action_id == 300705 && (reason == ACTION_COMPLETE_CONVERSATION_ENDED || reason == ACTION_COMPLETE_CONVERSATION_INTERRUPTED))
 		{
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 705, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 705, 3, 0.0f);
 		}
 	}
 };
@@ -2297,17 +2297,17 @@ DECLARE_SCRIPT(M07_Activate_Objective_706, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if (Commands->Is_A_Star(enterer) && !already_entered )
+		if (ScriptEngine::Is_A_Star(enterer) && !already_entered )
 		{
 			already_entered = true;
 
 			// Havoc, we've spotted an SSM napalm stockpile to your west.\n
 			const char *conv_name = ("M07_CON020");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Join_Conversation(STAR, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 300706);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 300706);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 
 		}
@@ -2318,7 +2318,7 @@ DECLARE_SCRIPT(M07_Activate_Objective_706, "")
 	{
 		if (action_id == 300706 && (reason == ACTION_COMPLETE_CONVERSATION_ENDED || reason == ACTION_COMPLETE_CONVERSATION_INTERRUPTED))
 		{
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 706, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 706, 3, 0.0f);
 		}
 	}
 };
@@ -2343,16 +2343,16 @@ DECLARE_SCRIPT(M07_Activate_Objective_707, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if (Commands->Is_A_Star(enterer) && !already_entered )
+		if (ScriptEngine::Is_A_Star(enterer) && !already_entered )
 		{
 			already_entered = true;
 
 			// Those must be the SSMs. Time to get to work.\n
 			const char *conv_name = ("M07_CON021");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(STAR, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 300707);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 300707);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 
 		}
@@ -2363,7 +2363,7 @@ DECLARE_SCRIPT(M07_Activate_Objective_707, "")
 	{
 		if (action_id == 300707 && (reason == ACTION_COMPLETE_CONVERSATION_ENDED || reason == ACTION_COMPLETE_CONVERSATION_INTERRUPTED))
 		{
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 707, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 707, 3, 0.0f);
 		}
 	}
 };
@@ -2388,17 +2388,17 @@ DECLARE_SCRIPT(M07_Activate_Objective_708, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if (Commands->Is_A_Star(enterer) && !already_entered )
+		if (ScriptEngine::Is_A_Star(enterer) && !already_entered )
 		{
 			already_entered = true;
 
 			// \\Warning - Nod Obelisk detected.\n
 			const char *conv_name = ("M07_CON022");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Join_Conversation(STAR, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 300708);
-			Commands->Monitor_Conversation (obj, conv_id);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 300708);
+			ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 
 		}
@@ -2409,7 +2409,7 @@ DECLARE_SCRIPT(M07_Activate_Objective_708, "")
 	{
 		if (action_id == 300708 && (reason == ACTION_COMPLETE_CONVERSATION_ENDED || reason == ACTION_COMPLETE_CONVERSATION_INTERRUPTED))
 		{
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 708, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 708, 3, 0.0f);
 		}
 	}
 };
@@ -2434,11 +2434,11 @@ DECLARE_SCRIPT(M07_Activate_Objective_710, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if ( Commands->Is_A_Star(enterer) )
+		if ( ScriptEngine::Is_A_Star(enterer) )
 		{
 			already_entered = true;
 
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 710, 3, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 710, 3, 0.0f);
 		}
 
 	}
@@ -2458,14 +2458,14 @@ DECLARE_SCRIPT(M07_SAM_Site_Logic, "")
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Enable_Enemy_Seen(obj, true);
+		ScriptEngine::Enable_Enemy_Seen(obj, true);
 		target_acquired = false;
 		current = 0;
 		for (int x = 0; x < 10; x++)
 		{
 			ignore_ids[x] = 0;
 		}
-		Commands->Start_Timer(obj, this, Commands->Get_Random(2, 3), 1);
+		ScriptEngine::Start_Timer(obj, this, ScriptEngine::Get_Random(2, 3), 1);
 	}
 
 	bool Is_Ignore_Target(int id)
@@ -2489,13 +2489,13 @@ DECLARE_SCRIPT(M07_SAM_Site_Logic, "")
 			return;
 		}
 
-		if (Commands->Is_A_Star(enemy) || Is_Ignore_Target(Commands->Get_ID(enemy)))
+		if (ScriptEngine::Is_A_Star(enemy) || Is_Ignore_Target(ScriptEngine::Get_ID(enemy)))
 		{
 			return;
 		}
 
-		Vector3 target_pos = Commands->Get_Position(enemy);
-		Vector3 my_pos = Commands->Get_Position(obj);
+		Vector3 target_pos = ScriptEngine::Get_Position(enemy);
+		Vector3 my_pos = ScriptEngine::Get_Position(obj);
 		if (target_pos.Z - my_pos.Z >= 5.0f)
 		{
 			target_acquired = true;
@@ -2503,8 +2503,8 @@ DECLARE_SCRIPT(M07_SAM_Site_Logic, "")
 			params.Set_Basic(this, 90, 0);
 			params.Set_Attack(enemy, 500.0f, 0.0f, true);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack(obj, params);
-			Commands->Start_Timer(obj, this, 2.0f, 0);
+			ScriptEngine::Action_Attack(obj, params);
+			ScriptEngine::Start_Timer(obj, this, 2.0f, 0);
 		}
 	}
 
@@ -2513,21 +2513,21 @@ DECLARE_SCRIPT(M07_SAM_Site_Logic, "")
 		if (timer_id == 0)
 		{
 			target_acquired = false;
-			Commands->Action_Reset(obj, 95);
+			ScriptEngine::Action_Reset(obj, 95);
 		}
 		if (timer_id == 1)
 		{
-			Vector3 my_target = Commands->Get_Position(obj);
-			my_target.X += Commands->Get_Random( -10.0f , 10.0f);
-			my_target.Y += Commands->Get_Random( -10.0f , 10.0f);
-			my_target.Z += Commands->Get_Random( 2.0f, 6.0f);
+			Vector3 my_target = ScriptEngine::Get_Position(obj);
+			my_target.X += ScriptEngine::Get_Random( -10.0f , 10.0f);
+			my_target.Y += ScriptEngine::Get_Random( -10.0f , 10.0f);
+			my_target.Z += ScriptEngine::Get_Random( 2.0f, 6.0f);
 
 			ActionParamsStruct params;
 			params.Set_Basic( this, 80, 20 );
 			params.Set_Attack( my_target, 0, 0, true );
 			params.AttackCheckBlocked = true;
-			Commands->Action_Attack (obj, params);
-			Commands->Start_Timer(obj, this, Commands->Get_Random(2, 3), 1);
+			ScriptEngine::Action_Attack (obj, params);
+			ScriptEngine::Start_Timer(obj, this, ScriptEngine::Get_Random(2, 3), 1);
 		}
 	}
 
@@ -2544,12 +2544,12 @@ DECLARE_SCRIPT(M07_Destroyed_SAM_Site, "")
 {
 	void Created(GameObject * obj) override
 	{
-		Commands->Start_Timer(obj, this, 1.0f, 0);
+		ScriptEngine::Start_Timer(obj, this, 1.0f, 0);
 	}
 
 	void Timer_Expired(GameObject * /* obj */, int /* timer_id */) override
 	{
-		Commands->Create_2D_Sound("00-N170E");
+		ScriptEngine::Create_2D_Sound("00-N170E");
 	}
 };
 
@@ -2566,26 +2566,26 @@ DECLARE_SCRIPT(M07_Mobile_Radar, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Animation(obj, "v_nod_radar.v_nod_radar", true, nullptr, 0.0f, -1.0f, false);
+		ScriptEngine::Set_Animation(obj, "v_nod_radar.v_nod_radar", true, nullptr, 0.0f, -1.0f, false);
 	}
 
 	void Damaged(GameObject * obj, GameObject * /* damager */, float /* amount */) override
 	{
-		if(Commands->Get_Health(obj) < Commands->Get_Max_Health(obj))
+		if(ScriptEngine::Get_Health(obj) < ScriptEngine::Get_Max_Health(obj))
 		{
-			Commands->Create_Logical_Sound(obj, M07_RADAR_DAMAGED, Commands->Get_Position(obj), 10.0f);
+			ScriptEngine::Create_Logical_Sound(obj, M07_RADAR_DAMAGED, ScriptEngine::Get_Position(obj), 10.0f);
 		}
 		else
 		{
-			Commands->Create_Logical_Sound(obj, M07_RADAR_FIXED, Commands->Get_Position(obj), 10.0f);
+			ScriptEngine::Create_Logical_Sound(obj, M07_RADAR_FIXED, ScriptEngine::Get_Position(obj), 10.0f);
 		}
 
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Create_Explosion("Ground Explosions Twiddler", Commands->Get_Position(obj), nullptr);
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100746), M07_RADAR_KILLED, 0, 0.0f);
+		ScriptEngine::Create_Explosion("Ground Explosions Twiddler", ScriptEngine::Get_Position(obj), nullptr);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100746), M07_RADAR_KILLED, 0, 0.0f);
 	}
 };
 
@@ -2604,14 +2604,14 @@ DECLARE_SCRIPT(M07_Radar_Engineer, "Radar_ID=0:int")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Enable_Enemy_Seen(obj, false);
+		ScriptEngine::Enable_Enemy_Seen(obj, false);
 
 		int radar_id = Get_Int_Parameter("Radar_ID");
 
 		ActionParamsStruct params;
 		params.Set_Basic(this, INNATE_PRIORITY_ENEMY_SEEN + 5, GO_RADAR);
-		params.Set_Movement(Commands->Find_Object(radar_id), RUN, 1.0f);
-		Commands->Action_Goto(obj, params);
+		params.Set_Movement(ScriptEngine::Find_Object(radar_id), RUN, 1.0f);
+		ScriptEngine::Action_Goto(obj, params);
 	}
 
 	void Sound_Heard(GameObject * obj, const CombatSound &sound) override
@@ -2623,11 +2623,11 @@ DECLARE_SCRIPT(M07_Radar_Engineer, "Radar_ID=0:int")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 100 );
 			params.Set_Attack (sound.Creator, 250.0f, 0.0f, 0);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 		if (static_cast<int>(sound.Type) == M07_RADAR_FIXED)
 		{
-			Commands->Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
+			ScriptEngine::Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
 		}
 	}
 
@@ -2635,7 +2635,7 @@ DECLARE_SCRIPT(M07_Radar_Engineer, "Radar_ID=0:int")
 	{
 		if (action_id == GO_RADAR && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		}
 	}
 };
@@ -2661,14 +2661,14 @@ DECLARE_SCRIPT(M07_TownSquare_Unit, "Spawn_ID=0:int, Waypath_ID=0:int")
 
 		if(waypath_id == 0)
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		}
 		else
 		{
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 			params.Set_Movement( Vector3(0,0,0), RUN, 0.5f );
 			params.WaypathID = waypath_id;
-			Commands->Action_Goto( obj, params );
+			ScriptEngine::Action_Goto( obj, params );
 		}
 	}
 
@@ -2676,14 +2676,14 @@ DECLARE_SCRIPT(M07_TownSquare_Unit, "Spawn_ID=0:int, Waypath_ID=0:int")
 	{
 		if (action_id == WAYPATH && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		}
 	}
 
 	void Killed(GameObject * /* obj */, GameObject * /* killer */) override
 	{
 		int spawn_id = Get_Int_Parameter("Spawn_ID");
-		Commands->Enable_Spawner(spawn_id, true);
+		ScriptEngine::Enable_Spawner(spawn_id, true);
 	}
 };
 
@@ -2716,12 +2716,12 @@ DECLARE_SCRIPT(M07_TownSquare_Controller, "")  //
 			{
 				chinooks_active = true;
 
-				GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Vector3(-316.374f, -149.140f, 5.023f));
-				Commands->Set_Facing(chinook_obj1, 95.000f);
-				Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_EV3_1.txt");
+				GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-316.374f, -149.140f, 5.023f));
+				ScriptEngine::Set_Facing(chinook_obj1, 95.000f);
+				ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_EV3_1.txt");
 
-				Commands->Start_Timer(obj, this, 20.0f, CHINOOK1);
-				Commands->Start_Timer(obj, this, 10.0f, CHINOOK2);
+				ScriptEngine::Start_Timer(obj, this, 20.0f, CHINOOK1);
+				ScriptEngine::Start_Timer(obj, this, 10.0f, CHINOOK2);
 			}
 			if(param == 0)
 			{
@@ -2735,7 +2735,7 @@ DECLARE_SCRIPT(M07_TownSquare_Controller, "")  //
 			m07_radar_killed++;
 			if(m07_radar_killed == 2)
 			{
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 704, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 704, 1, 0.0f);
 			}
 
 		}
@@ -2745,19 +2745,19 @@ DECLARE_SCRIPT(M07_TownSquare_Controller, "")  //
 	{
 		if(timer_id == CHINOOK1 && chinooks_active)
 		{
-			GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Vector3(-316.374f, -149.140f, 5.023f));
-			Commands->Set_Facing(chinook_obj1, 95.000f);
-			Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_EV3_1.txt");
+			GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-316.374f, -149.140f, 5.023f));
+			ScriptEngine::Set_Facing(chinook_obj1, 95.000f);
+			ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_EV3_1.txt");
 
-			Commands->Start_Timer(obj, this, 20.0f, CHINOOK1);
+			ScriptEngine::Start_Timer(obj, this, 20.0f, CHINOOK1);
 		}
 		if(timer_id == CHINOOK2 && chinooks_active)
 		{
-			GameObject * chinook_obj2 = Commands->Create_Object ( "Invisible_Object", Vector3(-343.696f, -145.495f, 5.136f));
-			Commands->Set_Facing(chinook_obj2, -55.000f);
-			Commands->Attach_Script(chinook_obj2, "Test_Cinematic", "M07_XG_EV3_1.txt");
+			GameObject * chinook_obj2 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-343.696f, -145.495f, 5.136f));
+			ScriptEngine::Set_Facing(chinook_obj2, -55.000f);
+			ScriptEngine::Attach_Script(chinook_obj2, "Test_Cinematic", "M07_XG_EV3_1.txt");
 
-			Commands->Start_Timer(obj, this, 20.0f, CHINOOK2);
+			ScriptEngine::Start_Timer(obj, this, 20.0f, CHINOOK2);
 		}
 	}
 };
@@ -2782,11 +2782,11 @@ DECLARE_SCRIPT(M07_Deactivate_TownSquare_Chinook, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if (Commands->Is_A_Star(enterer) && !already_entered )
+		if (ScriptEngine::Is_A_Star(enterer) && !already_entered )
 		{
 			already_entered = true;
 
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100746), M07_TOWNSQUARE_CHINOOK, 0, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100746), M07_TOWNSQUARE_CHINOOK, 0, 0.0f);
 		}
 
 	}
@@ -2806,7 +2806,7 @@ DECLARE_SCRIPT(M07_TownSquare_Gun_Emp, "")
 
 	void Killed(GameObject * /* obj */, GameObject * /* killer */) override
 	{
-		Commands->Enable_Spawner(100748, true);
+		ScriptEngine::Enable_Spawner(100748, true);
 	}
 };
 
@@ -2823,13 +2823,13 @@ DECLARE_SCRIPT(M07_Prisoner_Gate, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Animation_Frame(obj, "cht_jail.cht_jail", 0);
+		ScriptEngine::Set_Animation_Frame(obj, "cht_jail.cht_jail", 0);
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(115842), M07_FREE_CIV, 1, 0.0f);
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100751), M07_FREE_CIV, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(115842), M07_FREE_CIV, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100751), M07_FREE_CIV, 1, 0.0f);
 	}
 
 };
@@ -2852,9 +2852,9 @@ DECLARE_SCRIPT(M07_Captured_Civ_Resist, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Innate_Is_Stationary(obj, true);
-		Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NEUTRAL );
-		Commands->Enable_HUD_Pokable_Indicator( obj, true );
+		ScriptEngine::Set_Innate_Is_Stationary(obj, true);
+		ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NEUTRAL );
+		ScriptEngine::Enable_HUD_Pokable_Indicator( obj, true );
 		poked = false;
 		freed = false;
 	}
@@ -2863,9 +2863,9 @@ DECLARE_SCRIPT(M07_Captured_Civ_Resist, "")
 	{
 		ActionParamsStruct params;
 
-		if ((Commands->Is_A_Star(poker)) && (!poked) && (!freed))
+		if ((ScriptEngine::Is_A_Star(poker)) && (!poked) && (!freed))
 		{
-			Commands->Create_Logical_Sound(obj, M07_FREE_CIV_RESIST, Commands->Get_Position(obj), 40.0f);
+			ScriptEngine::Create_Logical_Sound(obj, M07_FREE_CIV_RESIST, ScriptEngine::Get_Position(obj), 40.0f);
 		}
 	}
 
@@ -2874,24 +2874,24 @@ DECLARE_SCRIPT(M07_Captured_Civ_Resist, "")
 		if (static_cast<int>(sound.Type) == M07_FREE_CIV_RESIST)
 		{
 			freed = true;
-			Commands->Enable_HUD_Pokable_Indicator( obj, false );
-			Commands->Set_Innate_Is_Stationary(obj, false);
-			Commands->Give_PowerUp(obj, "POW_Chaingun_AI", false);
-			Commands->Select_Weapon(obj, "Weapon_Chaingun_Ai" );
-			Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 705, 1, 0.0f);
+			ScriptEngine::Enable_HUD_Pokable_Indicator( obj, false );
+			ScriptEngine::Set_Innate_Is_Stationary(obj, false);
+			ScriptEngine::Give_PowerUp(obj, "POW_Chaingun_AI", false);
+			ScriptEngine::Select_Weapon(obj, "Weapon_Chaingun_Ai" );
+			ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 705, 1, 0.0f);
 
 			ActionParamsStruct params;
 			params.Set_Basic(this, INNATE_PRIORITY_ENEMY_SEEN + 5, 10);
-			params.Set_Movement(Commands->Find_Object(115823), RUN, 1.0f);
-			Commands->Action_Goto(obj, params);
+			params.Set_Movement(ScriptEngine::Find_Object(115823), RUN, 1.0f);
+			ScriptEngine::Action_Goto(obj, params);
 		}
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
 		// Spawn reinforcment civ resist
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(101056), M07_SPAWN_TRIANGLE_CIV, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(101056), M07_SPAWN_TRIANGLE_CIV, 1, 0.0f);
 	}
 
 };
@@ -2916,20 +2916,20 @@ DECLARE_SCRIPT(M07_Activate_Present, "")
 
 	void Entered (GameObject * /* obj */, GameObject * enterer) override
 	{
-		if ( Commands->Is_A_Star(enterer) && !already_entered)
+		if ( ScriptEngine::Is_A_Star(enterer) && !already_entered)
 		{
 			already_entered = true;
 
 			// Havoc, got a present for ya.\n
 			const char *conv_name = ("M07_CON023");
-			int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-			Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-			Commands->Join_Conversation(STAR, conv_id, false, true, true);
-			Commands->Start_Conversation (conv_id, 300700);
+			int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+			ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+			ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+			ScriptEngine::Start_Conversation (conv_id, 300700);
 
-			GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Vector3(-446.944f, -25.105f, 14.134f));
-			Commands->Set_Facing(chinook_obj1, 155.000f);
-			Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_VehicleDrop1.txt");
+			GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-446.944f, -25.105f, 14.134f));
+			ScriptEngine::Set_Facing(chinook_obj1, 155.000f);
+			ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_VehicleDrop1.txt");
 		}
 
 	}
@@ -2949,28 +2949,28 @@ DECLARE_SCRIPT(M07_Player_Vehicle, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
-		health = Commands->Get_Max_Health(obj);
-		int vehicle_id = Commands->Get_ID(obj);
+		ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
+		health = ScriptEngine::Get_Max_Health(obj);
+		int vehicle_id = ScriptEngine::Get_ID(obj);
 		// Let enemy tank drop controller know player vehicle id
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(101131), M07_PLAYER_VEHICLE_ID, vehicle_id, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(101131), M07_PLAYER_VEHICLE_ID, vehicle_id, 0.0f);
 	}
 
 	void Damaged(GameObject * obj, GameObject * /* damager */, float /* amount */) override
 	{
-		if(health > (.2 * Commands->Get_Max_Health(obj)))
+		if(health > (.2 * ScriptEngine::Get_Max_Health(obj)))
 		{
-			float damage = health - Commands->Get_Health(obj);
+			float damage = health - ScriptEngine::Get_Health(obj);
 			damage *= 0.5f;
 			health -= damage;
-			Commands->Set_Health(obj, health);
+			ScriptEngine::Set_Health(obj, health);
 		}
 
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100757), M07_PLAYER_VEHICLE_KILLED, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100757), M07_PLAYER_VEHICLE_KILLED, 1, 0.0f);
 	}
 
 };
@@ -3016,10 +3016,10 @@ DECLARE_SCRIPT(M07_Vehicle_Drop_Controller, "")
 			{
 				// Havoc!  Taking missile fire over the park.  Launcher is unseen.  Repeat, launcher is unseen.\n
 				const char *conv_name = ("M07_CON024");
-				int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-				Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-				Commands->Join_Conversation(STAR, conv_id, false, true, true);
-				Commands->Start_Conversation (conv_id, 300700);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+				ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+				ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+				ScriptEngine::Start_Conversation (conv_id, 300700);
 			}
 			else
 			{
@@ -3036,32 +3036,32 @@ DECLARE_SCRIPT(M07_Vehicle_Drop_Controller, "")
 				{
 					// Got you another ride, inbound now!\n
 					const char *conv_name = ("M07_CON025");
-					int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-					Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-					Commands->Start_Conversation (conv_id, 300700);
+					int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+					ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+					ScriptEngine::Start_Conversation (conv_id, 300700);
 
-					GameObject * drop_loc = Commands->Find_Object(vehicle_drop[drop_zone]);
-					float drop_facing = Commands->Get_Facing(drop_loc);
+					GameObject * drop_loc = ScriptEngine::Find_Object(vehicle_drop[drop_zone]);
+					float drop_facing = ScriptEngine::Get_Facing(drop_loc);
 
-					GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Commands->Get_Position(drop_loc));
-					Commands->Set_Facing(chinook_obj1, drop_facing);
-					Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_VehicleDrop1.txt");
+					GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", ScriptEngine::Get_Position(drop_loc));
+					ScriptEngine::Set_Facing(chinook_obj1, drop_facing);
+					ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_VehicleDrop1.txt");
 				}
 				else
 				{
 					// Complements of the local resistance.\n
 					const char *conv_name = ("M07_CON026");
-					int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-					Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-					Commands->Join_Conversation(STAR, conv_id, false, true, true);
-					Commands->Start_Conversation (conv_id, 300700);
+					int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+					ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+					ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+					ScriptEngine::Start_Conversation (conv_id, 300700);
 
-					GameObject * drop_loc = Commands->Find_Object(vehicle_drop[drop_zone]);
-					float drop_facing = Commands->Get_Facing(drop_loc);
+					GameObject * drop_loc = ScriptEngine::Find_Object(vehicle_drop[drop_zone]);
+					float drop_facing = ScriptEngine::Get_Facing(drop_loc);
 
-					GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Commands->Get_Position(drop_loc));
-					Commands->Set_Facing(chinook_obj1, drop_facing);
-					Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_VehicleDrop4.txt");
+					GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", ScriptEngine::Get_Position(drop_loc));
+					ScriptEngine::Set_Facing(chinook_obj1, drop_facing);
+					ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_VehicleDrop4.txt");
 				}
 
 
@@ -3070,17 +3070,17 @@ DECLARE_SCRIPT(M07_Vehicle_Drop_Controller, "")
 			{
 				// Last one, Captain.  Recon show Nod's pulling back to the park.\n
 				const char *conv_name = ("M07_CON027");
-				int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-				Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-				Commands->Join_Conversation(STAR, conv_id, false, true, true);
-				Commands->Start_Conversation (conv_id, 300700);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+				ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+				ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+				ScriptEngine::Start_Conversation (conv_id, 300700);
 
-				GameObject * drop_loc = Commands->Find_Object(vehicle_drop[drop_zone]);
-				float drop_facing = Commands->Get_Facing(drop_loc);
+				GameObject * drop_loc = ScriptEngine::Find_Object(vehicle_drop[drop_zone]);
+				float drop_facing = ScriptEngine::Get_Facing(drop_loc);
 
-				GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Commands->Get_Position(drop_loc));
-				Commands->Set_Facing(chinook_obj1, drop_facing);
-				Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_VehicleDrop3.txt");
+				GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", ScriptEngine::Get_Position(drop_loc));
+				ScriptEngine::Set_Facing(chinook_obj1, drop_facing);
+				ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_VehicleDrop3.txt");
 			}
 
 
@@ -3111,14 +3111,14 @@ DECLARE_SCRIPT(M07_Vehicle_Drop_Zone, "Zone_ID=0:int")
 	{
 		int zone_id = Get_Int_Parameter("Zone_ID");
 
-		if(Commands->Is_A_Star(enterer) && !already_entered)
+		if(ScriptEngine::Is_A_Star(enterer) && !already_entered)
 		{
 			if(zone_id == 10)
 			{
 				already_entered = true;
 			}
 
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100757), M07_VEHICLE_DROP_ZONE, zone_id, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100757), M07_VEHICLE_DROP_ZONE, zone_id, 0.0f);
 		}
 
 	}
@@ -3138,14 +3138,14 @@ DECLARE_SCRIPT(M07_Biohazard_Barrel, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Animation_Frame(obj, "o_barrl_bio.o_barrl_bio", 0);
+		ScriptEngine::Set_Animation_Frame(obj, "o_barrl_bio.o_barrl_bio", 0);
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Create_Explosion("Ground Explosions Twiddler", Commands->Get_Position(obj), nullptr);
+		ScriptEngine::Create_Explosion("Ground Explosions Twiddler", ScriptEngine::Get_Position(obj), nullptr);
 
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100781), M07_EXPLODE_BARRELS, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100781), M07_EXPLODE_BARRELS, 1, 0.0f);
 
 	}
 
@@ -3174,7 +3174,7 @@ DECLARE_SCRIPT(M07_Stockpile_Object, "")
 	{
 		if (static_cast<int>(sound.Type) == M07_EXPLODE_BARRELS)
 		{
-			Commands->Apply_Damage( obj, 100000.0f, "STEEL", nullptr);
+			ScriptEngine::Apply_Damage( obj, 100000.0f, "STEEL", nullptr);
 		}
 	}
 
@@ -3182,8 +3182,8 @@ DECLARE_SCRIPT(M07_Stockpile_Object, "")
 	{
 		if(timer_id == STILL_DAMAGED && damaged)
 		{
-			Commands->Create_Logical_Sound(obj, M07_ENGINEER_DAMAGED, Commands->Get_Position(obj), 40.0f);
-			Commands->Start_Timer(obj, this, 8.0f, STILL_DAMAGED);
+			ScriptEngine::Create_Logical_Sound(obj, M07_ENGINEER_DAMAGED, ScriptEngine::Get_Position(obj), 40.0f);
+			ScriptEngine::Start_Timer(obj, this, 8.0f, STILL_DAMAGED);
 			damaged = true;
 		}
 
@@ -3191,16 +3191,16 @@ DECLARE_SCRIPT(M07_Stockpile_Object, "")
 
 	void Damaged(GameObject * obj, GameObject * /* damager */, float /* amount */) override
 	{
-		if(Commands->Get_Health(obj) < Commands->Get_Max_Health(obj))
+		if(ScriptEngine::Get_Health(obj) < ScriptEngine::Get_Max_Health(obj))
 		{
-			Commands->Create_Logical_Sound(obj, M07_ENGINEER_DAMAGED, Commands->Get_Position(obj), 40.0f);
-			Commands->Start_Timer(obj, this, 8.0f, STILL_DAMAGED);
+			ScriptEngine::Create_Logical_Sound(obj, M07_ENGINEER_DAMAGED, ScriptEngine::Get_Position(obj), 40.0f);
+			ScriptEngine::Start_Timer(obj, this, 8.0f, STILL_DAMAGED);
 			damaged = true;
 		}
 		else
 		{
 			damaged = false;
-			Commands->Create_Logical_Sound(obj, M07_ENGINEER_FIXED, Commands->Get_Position(obj), 40.0f);
+			ScriptEngine::Create_Logical_Sound(obj, M07_ENGINEER_FIXED, ScriptEngine::Get_Position(obj), 40.0f);
 		}
 
 	}
@@ -3222,7 +3222,7 @@ DECLARE_SCRIPT(M07_Stockpile_Controller, "")
 
 	void Created (GameObject * /* obj */) override
 	{
-		Commands->Enable_Spawner(100795, true);
+		ScriptEngine::Enable_Spawner(100795, true);
 		ssm_crate_killed = 0;
 	}
 
@@ -3233,7 +3233,7 @@ DECLARE_SCRIPT(M07_Stockpile_Controller, "")
 			ssm_crate_killed++;
 			if(ssm_crate_killed == 4)
 			{
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 706, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 706, 1, 0.0f);
 			}
 		}
 	}
@@ -3255,12 +3255,12 @@ DECLARE_SCRIPT(M07_Stockpile_Engineer, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Enable_Enemy_Seen(obj, false);
+		ScriptEngine::Enable_Enemy_Seen(obj, false);
 
 		ActionParamsStruct params;
 		params.Set_Basic(this, INNATE_PRIORITY_ENEMY_SEEN + 5, GO_STOCKPILE);
-		params.Set_Movement(Commands->Find_Object(100781), RUN, 1.0f);
-		Commands->Action_Goto(obj, params);
+		params.Set_Movement(ScriptEngine::Find_Object(100781), RUN, 1.0f);
+		ScriptEngine::Action_Goto(obj, params);
 	}
 
 	void Sound_Heard(GameObject * obj, const CombatSound &sound) override
@@ -3272,11 +3272,11 @@ DECLARE_SCRIPT(M07_Stockpile_Engineer, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 100 );
 			params.Set_Attack (sound.Creator, 250.0f, 0.0f, 0);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 		if (static_cast<int>(sound.Type) == M07_ENGINEER_FIXED)
 		{
-			Commands->Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
+			ScriptEngine::Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
 		}
 	}
 
@@ -3284,7 +3284,7 @@ DECLARE_SCRIPT(M07_Stockpile_Engineer, "")
 	{
 		if (action_id == GO_STOCKPILE && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		}
 	}
 };
@@ -3313,7 +3313,7 @@ DECLARE_SCRIPT(M07_Park_Controller, "")
 			if(m07_artillery_killed == 2)
 			{
 				// Destroy Artillery Piece Objective
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 703, 1, 5.0f);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 703, 1, 5.0f);
 			}
 		}
 
@@ -3337,14 +3337,14 @@ DECLARE_SCRIPT(M07_Park_SSM, "")
 	{
 		if(timer_id == STILL_DAMAGED)
 		{
-			if(Commands->Get_Health(obj) < Commands->Get_Max_Health(obj))
+			if(ScriptEngine::Get_Health(obj) < ScriptEngine::Get_Max_Health(obj))
 			{
-				Commands->Create_Logical_Sound(obj, M07_SSM_DAMAGED, Commands->Get_Position(obj), 1000.0f);
-				Commands->Start_Timer(obj, this, 10.0f, STILL_DAMAGED);
+				ScriptEngine::Create_Logical_Sound(obj, M07_SSM_DAMAGED, ScriptEngine::Get_Position(obj), 1000.0f);
+				ScriptEngine::Start_Timer(obj, this, 10.0f, STILL_DAMAGED);
 			}
 			else
 			{
-				Commands->Create_Logical_Sound(obj, M07_SSM_FIXED, Commands->Get_Position(obj), 1000.0f);
+				ScriptEngine::Create_Logical_Sound(obj, M07_SSM_FIXED, ScriptEngine::Get_Position(obj), 1000.0f);
 			}
 
 
@@ -3353,20 +3353,20 @@ DECLARE_SCRIPT(M07_Park_SSM, "")
 
 	void Damaged(GameObject * obj, GameObject * /* damager */, float /* amount */) override
 	{
-		if(Commands->Get_Health(obj) < Commands->Get_Max_Health(obj))
+		if(ScriptEngine::Get_Health(obj) < ScriptEngine::Get_Max_Health(obj))
 		{
-			Commands->Create_Logical_Sound(obj, M07_SSM_DAMAGED, Commands->Get_Position(obj), 1000.0f);
+			ScriptEngine::Create_Logical_Sound(obj, M07_SSM_DAMAGED, ScriptEngine::Get_Position(obj), 1000.0f);
 		}
 		else
 		{
-			Commands->Create_Logical_Sound(obj, M07_SSM_FIXED, Commands->Get_Position(obj), 1000.0f);
+			ScriptEngine::Create_Logical_Sound(obj, M07_SSM_FIXED, ScriptEngine::Get_Position(obj), 1000.0f);
 		}
 
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100799), M07_ARTILLERY_KILLED, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100799), M07_ARTILLERY_KILLED, 1, 0.0f);
 	}
 };
 
@@ -3394,7 +3394,7 @@ DECLARE_SCRIPT(M07_Nod_Obelisk, "")
 		if(type == M07_PLAYERTYPE_CHANGE_OBELISK)
 		{
 			converted = true;
-			Commands->Set_Player_Type(Commands->Find_Object(obelisk_weapon_id), SCRIPT_PLAYERTYPE_GDI );
+			ScriptEngine::Set_Player_Type(ScriptEngine::Find_Object(obelisk_weapon_id), SCRIPT_PLAYERTYPE_GDI );
 
 		}
 		if(type == M00_OBELISK_WEAPON_ID)
@@ -3410,9 +3410,9 @@ DECLARE_SCRIPT(M07_Nod_Obelisk, "")
 		if(!converted)
 		{
 			// Custom to Objective_Controller that Obelisk has been destroyed
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 708, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 708, 1, 0.0f);
 			// Custom to Obelisk Poke to turn it off so that it cannot be converted
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100805), M07_OBELISK_KILLED, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100805), M07_OBELISK_KILLED, 1, 0.0f);
 		}
 	}
 
@@ -3432,20 +3432,20 @@ DECLARE_SCRIPT(M07_Nod_Obelisk_MCT, "")
 	void Created (GameObject * obj) override
 	{
 		poked = false;
-		Commands->Enable_HUD_Pokable_Indicator( obj, true );
+		ScriptEngine::Enable_HUD_Pokable_Indicator( obj, true );
 	}
 
 	void Poked(GameObject * obj, GameObject * poker) override
 	{
-		if ((Commands->Is_A_Star(poker)) && (!poked))
+		if ((ScriptEngine::Is_A_Star(poker)) && (!poked))
 		{
-			Commands->Enable_HUD_Pokable_Indicator( obj, false );
-			Commands->Create_Sound("Computer_Operate_02", Commands->Get_Position(obj), obj);
+			ScriptEngine::Enable_HUD_Pokable_Indicator( obj, false );
+			ScriptEngine::Create_Sound("Computer_Operate_02", ScriptEngine::Get_Position(obj), obj);
 			poked = true;
 			// Change playertype of Nod Obelisk
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(168926), M07_PLAYERTYPE_CHANGE_OBELISK, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(168926), M07_PLAYERTYPE_CHANGE_OBELISK, 1, 0.0f);
 
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 708, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 708, 1, 0.0f);
 		}
 	}
 
@@ -3453,7 +3453,7 @@ DECLARE_SCRIPT(M07_Nod_Obelisk_MCT, "")
 	{
 		if(type == M07_OBELISK_KILLED)
 		{
-			Commands->Enable_HUD_Pokable_Indicator( obj, false );
+			ScriptEngine::Enable_HUD_Pokable_Indicator( obj, false );
 			poked = true;
 		}
 
@@ -3477,11 +3477,11 @@ DECLARE_SCRIPT(M07_Park_Zone, "Zone=0:int")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)))
+		if ((ScriptEngine::Is_A_Star(enterer)))
 		{
 
 			int activate_zone = Get_Int_Parameter("Zone");
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100801), M07_MOVE_STEALTH_TANK, activate_zone, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100801), M07_MOVE_STEALTH_TANK, activate_zone, 0.0f);
 
 		}
 	}
@@ -3510,7 +3510,7 @@ DECLARE_SCRIPT(M07_Activate_Encounter, "Spawner_ID1=0:int, Spawner_ID2=0:int, Sp
 
 	void Entered (GameObject * /* obj */, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 
@@ -3523,27 +3523,27 @@ DECLARE_SCRIPT(M07_Activate_Encounter, "Spawner_ID1=0:int, Spawner_ID2=0:int, Sp
 
 			if(spawner_id1 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id1, true);
+				ScriptEngine::Enable_Spawner(spawner_id1, true);
 			}
 			if(spawner_id2 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id2, true);
+				ScriptEngine::Enable_Spawner(spawner_id2, true);
 			}
 			if(spawner_id3 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id3, true);
+				ScriptEngine::Enable_Spawner(spawner_id3, true);
 			}
 			if(spawner_id4 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id4, true);
+				ScriptEngine::Enable_Spawner(spawner_id4, true);
 			}
 			if(spawner_id5 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id5, true);
+				ScriptEngine::Enable_Spawner(spawner_id5, true);
 			}
 			if(spawner_id6 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id6, true);
+				ScriptEngine::Enable_Spawner(spawner_id6, true);
 			}
 
 
@@ -3563,27 +3563,27 @@ DECLARE_SCRIPT(M07_Activate_Encounter, "Spawner_ID1=0:int, Spawner_ID2=0:int, Sp
 
 			if(spawner_id1 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id1, false);
+				ScriptEngine::Enable_Spawner(spawner_id1, false);
 			}
 			if(spawner_id2 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id2, false);
+				ScriptEngine::Enable_Spawner(spawner_id2, false);
 			}
 			if(spawner_id3 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id3, false);
+				ScriptEngine::Enable_Spawner(spawner_id3, false);
 			}
 			if(spawner_id4 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id4, false);
+				ScriptEngine::Enable_Spawner(spawner_id4, false);
 			}
 			if(spawner_id5 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id5, false);
+				ScriptEngine::Enable_Spawner(spawner_id5, false);
 			}
 			if(spawner_id6 != 0)
 			{
-				Commands->Enable_Spawner(spawner_id6, false);
+				ScriptEngine::Enable_Spawner(spawner_id6, false);
 			}
 		}
 	}
@@ -3611,12 +3611,12 @@ DECLARE_SCRIPT(M07_Deactivate_Encounter, "Activate_Zone=0:int")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 
 			int activate_zone = Get_Int_Parameter("Activate_Zone");
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(activate_zone), M07_DEACTIVATE_ENCOUNTER, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(activate_zone), M07_DEACTIVATE_ENCOUNTER, 1, 0.0f);
 
 		}
 	}
@@ -3652,25 +3652,25 @@ DECLARE_SCRIPT(M07_Encounter_Unit, "Waypath_ID=0:int, Priority=0:int, Suicide=0:
 
 		if(waypath_id == 0)
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		}
 		else if(waypath_id == 1)
 		{
 			params.Set_Basic( this, float(priority), GO_STAR );
 			params.Set_Movement( STAR, RUN, 2.0f );
-			Commands->Action_Goto (  obj, params );
+			ScriptEngine::Action_Goto (  obj, params );
 		}
 		else
 		{
 			params.Set_Basic( this, float(priority), WAYPATH );
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.WaypathID = waypath_id;
-			Commands->Action_Goto( obj, params );
+			ScriptEngine::Action_Goto( obj, params );
 		}
 
 		if(suicide)
 		{
-			Commands->Start_Timer (obj, this, 15.0f, DIE_SURPRISE);
+			ScriptEngine::Start_Timer (obj, this, 15.0f, DIE_SURPRISE);
 		}
 	}
 
@@ -3679,14 +3679,14 @@ DECLARE_SCRIPT(M07_Encounter_Unit, "Waypath_ID=0:int, Priority=0:int, Suicide=0:
 
 		if(timer_id == DIE_SURPRISE)
 		{
-			Commands->Apply_Damage( obj, 100000, "STEEL", nullptr );
-			Vector3 obj_pos = Commands->Get_Position(obj);
+			ScriptEngine::Apply_Damage( obj, 100000, "STEEL", nullptr );
+			Vector3 obj_pos = ScriptEngine::Get_Position(obj);
 			Vector3 shot_pos;
 			shot_pos.X = obj_pos.X + 4.0f;
 			shot_pos.Y = obj_pos.Y + 4.0f;
 			shot_pos.Z = obj_pos.Z + 4.0f;
 
-			Commands->Create_Sound("Sniper_Fire_01", shot_pos, obj);
+			ScriptEngine::Create_Sound("Sniper_Fire_01", shot_pos, obj);
 		}
 	}
 
@@ -3698,10 +3698,10 @@ DECLARE_SCRIPT(M07_Encounter_Unit, "Waypath_ID=0:int, Priority=0:int, Suicide=0:
 		}
 		if (action_id == WAYPATH)
 		{
-			Commands->Innate_Force_State_Enemy_Seen(obj, STAR);
+			ScriptEngine::Innate_Force_State_Enemy_Seen(obj, STAR);
 			if(stationary)
 			{
-				Commands->Set_Innate_Is_Stationary(obj, true);
+				ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 			}
 		}
 	}
@@ -3751,7 +3751,7 @@ DECLARE_SCRIPT(M07_V05_Controller, "")
 
 		if (type == M07_ACTIVATE_ENCOUNTER)
 		{
-			Commands->Start_Timer(obj, this, 0.0f, REINFORCEMENT_CHECK);
+			ScriptEngine::Start_Timer(obj, this, 0.0f, REINFORCEMENT_CHECK);
 		}
 
 		if (type == M07_V05_OFFICER_KILLED)
@@ -3767,13 +3767,13 @@ DECLARE_SCRIPT(M07_V05_Controller, "")
 		{
 			if(m07_v05_units < 3 && reinforce)
 			{
-				GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Vector3(30.873f, -9.825f, 5.346f));
-				Commands->Set_Facing(chinook_obj1, -80.000f);
-				Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7I_TroopDrop1.txt");
+				GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(30.873f, -9.825f, 5.346f));
+				ScriptEngine::Set_Facing(chinook_obj1, -80.000f);
+				ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7I_TroopDrop1.txt");
 			}
 		}
 
-		Commands->Start_Timer(obj, this, 30.0f, REINFORCEMENT_CHECK);
+		ScriptEngine::Start_Timer(obj, this, 30.0f, REINFORCEMENT_CHECK);
 	}
 
 
@@ -3794,7 +3794,7 @@ DECLARE_SCRIPT(M07_V05_Officer, "")
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100899), M07_V05_OFFICER_KILLED, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100899), M07_V05_OFFICER_KILLED, 1, 0.0f);
 	}
 
 };
@@ -3814,15 +3814,15 @@ DECLARE_SCRIPT(M07_V05_Unit, "Stationary=0:int")
 		bool stationary = (Get_Int_Parameter("Stationary") == 1) ? true : false;
 		if(stationary)
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		}
 
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100899), M07_REINFORCEMENT_UNIT_CREATED, 1, 2.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100899), M07_REINFORCEMENT_UNIT_CREATED, 1, 2.0f);
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100899), M07_REINFORCEMENT_UNIT_KILLED, 1, 2.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100899), M07_REINFORCEMENT_UNIT_KILLED, 1, 2.0f);
 	}
 };
 
@@ -3845,10 +3845,10 @@ DECLARE_SCRIPT(M07_Activate_V05, "")
 	void Entered(GameObject * obj, GameObject * enterer) override
 	{
 		{
-			if(Commands->Is_A_Star(enterer) && !already_entered)
+			if(ScriptEngine::Is_A_Star(enterer) && !already_entered)
 			{
 				already_entered = true;
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(100899), M07_ACTIVATE_ENCOUNTER, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100899), M07_ACTIVATE_ENCOUNTER, 1, 0.0f);
 			}
 
 		}
@@ -3876,8 +3876,8 @@ DECLARE_SCRIPT(M07_Nod_Light_Tank_Dec, "Attack_ID0=0:int, Attack_ID1=0:int, Atta
 	{
 		ActionParamsStruct params;
 
-		Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NOD );
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NOD );
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 
 		attack_id[0] = Get_Int_Parameter("Attack_ID0");
@@ -3886,19 +3886,19 @@ DECLARE_SCRIPT(M07_Nod_Light_Tank_Dec, "Attack_ID0=0:int, Attack_ID1=0:int, Atta
 
 		if(attack_id[0] != 0)
 		{
-			int random = Commands->Get_Random_Int(0,2);
+			int random = ScriptEngine::Get_Random_Int(0,2);
 
 			while(attack_id[random] == 0)
 			{
-				random = Commands->Get_Random_Int(0,2);
+				random = ScriptEngine::Get_Random_Int(0,2);
 			}
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
-			params.Set_Attack (Commands->Find_Object(attack_id[random]), 250.0f, 0.0f, 1);
+			params.Set_Attack (ScriptEngine::Find_Object(attack_id[random]), 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = true;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_LOC);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_LOC);
 		}
 
 	}
@@ -3913,9 +3913,9 @@ DECLARE_SCRIPT(M07_Nod_Light_Tank_Dec, "Attack_ID0=0:int, Attack_ID1=0:int, Atta
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (enemy, 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = true;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 	}
 
@@ -3929,9 +3929,9 @@ DECLARE_SCRIPT(M07_Nod_Light_Tank_Dec, "Attack_ID0=0:int, Attack_ID1=0:int, Atta
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (damager, 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = true;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 
 	}
@@ -3948,14 +3948,14 @@ DECLARE_SCRIPT(M07_Nod_Light_Tank_Dec, "Attack_ID0=0:int, Attack_ID1=0:int, Atta
 		if(timer_id == ATTACK_LOC && !attacking)
 		{
 
-			int random = Commands->Get_Random_Int(0,2);
+			int random = ScriptEngine::Get_Random_Int(0,2);
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
-			params.Set_Attack (Commands->Find_Object(attack_id[random]), 250.0f, 0.0f, 1);
+			params.Set_Attack (ScriptEngine::Find_Object(attack_id[random]), 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = true;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_LOC);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_LOC);
 		}
 	}
 
@@ -3977,8 +3977,8 @@ DECLARE_SCRIPT(M07_Nod_Inn_Light_Tank_Dec, "APC_ID=0:int")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NOD );
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NOD );
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 		apc_id = Get_Int_Parameter("APC_ID");
 	}
@@ -3993,9 +3993,9 @@ DECLARE_SCRIPT(M07_Nod_Inn_Light_Tank_Dec, "APC_ID=0:int")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (enemy, 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 	}
 
@@ -4009,9 +4009,9 @@ DECLARE_SCRIPT(M07_Nod_Inn_Light_Tank_Dec, "APC_ID=0:int")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (damager, 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 
 	}
@@ -4028,7 +4028,7 @@ DECLARE_SCRIPT(M07_Nod_Inn_Light_Tank_Dec, "APC_ID=0:int")
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
 	}
 
 };
@@ -4049,7 +4049,7 @@ DECLARE_SCRIPT(M07_Inn_APC, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 		reinforce = 0;
 	}
@@ -4065,9 +4065,9 @@ DECLARE_SCRIPT(M07_Inn_APC, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 1 );
 			params.Set_Attack (enemy, 200.0f, 5.0f, 1);
 			params.AttackCheckBlocked = true;
-			Commands->Action_Attack (obj, params);
+			ScriptEngine::Action_Attack (obj, params);
 
-			Commands->Start_Timer (obj, this, 30.0f, CHECK_ENEMY);
+			ScriptEngine::Start_Timer (obj, this, 30.0f, CHECK_ENEMY);
 		}
 	}
 
@@ -4083,16 +4083,16 @@ DECLARE_SCRIPT(M07_Inn_APC, "")
 			if(reinforce < 7)
 			{
 				char param1[12];
-				sprintf(param1, "%d", Commands->Get_ID(obj));
+				sprintf(param1, "%d", ScriptEngine::Get_ID(obj));
 
-				Vector3 pos = Commands->Get_Position(obj);
-				float facing = Commands->Get_Facing(obj);
+				Vector3 pos = ScriptEngine::Get_Position(obj);
+				float facing = ScriptEngine::Get_Facing(obj);
 				float a = WWMath::Cos(DEG_TO_RADF(facing)) * -4.0f;
 				float b = WWMath::Sin(DEG_TO_RADF(facing)) * -4.0f;
 
 				Vector3 soldier_loc1 = pos + Vector3(a, b + .5f, 0.5f);
-				GameObject * soldier1 = Commands->Create_Object("M07_Nod_APC", soldier_loc1);
-				Commands->Attach_Script(soldier1, "M07_Inn_APC_Soldier", param1);
+				GameObject * soldier1 = ScriptEngine::Create_Object("M07_Nod_APC", soldier_loc1);
+				ScriptEngine::Attach_Script(soldier1, "M07_Inn_APC_Soldier", param1);
 
 			}
 		}
@@ -4131,14 +4131,14 @@ DECLARE_SCRIPT(M07_Inn_APC_Soldier, "APC_ID=0:int")
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, 1 );
 		params.Set_Movement( STAR, RUN, 20.0f );
-		Commands->Action_Goto (obj, params);
+		ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		if(Commands->Find_Object(apc_id))
+		if(ScriptEngine::Find_Object(apc_id))
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
 		}
 
 	}
@@ -4160,14 +4160,14 @@ DECLARE_SCRIPT(M07_Inn_Balcony_Sniper, "APC_ID=0:int")
 	{
 		apc_id = Get_Int_Parameter("APC_ID");
 
-		Commands->Set_Innate_Is_Stationary(obj, true);
+		ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 	}
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		if(Commands->Find_Object(apc_id))
+		if(ScriptEngine::Find_Object(apc_id))
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
 		}
 
 	}
@@ -4187,11 +4187,11 @@ DECLARE_SCRIPT(M07_Activate_V01, "")
 
 	void Entered(GameObject * obj, GameObject * enterer) override
 	{
-		if(Commands->Is_A_Star(enterer))
+		if(ScriptEngine::Is_A_Star(enterer))
 		{
 
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(100952), M07_ACTIVATE_V01, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100952), M07_ACTIVATE_V01, 1, 0.0f);
 		}
 	}
 };
@@ -4209,11 +4209,11 @@ DECLARE_SCRIPT(M07_Deactivate_V01, "")
 
 	void Entered(GameObject * obj, GameObject * enterer) override
 	{
-		if(Commands->Is_A_Star(enterer))
+		if(ScriptEngine::Is_A_Star(enterer))
 		{
 
 
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(100953), M07_DEACTIVATE_V01, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100953), M07_DEACTIVATE_V01, 1, 0.0f);
 		}
 	}
 };
@@ -4244,12 +4244,12 @@ DECLARE_SCRIPT(M07_V01_Controller, "")
 		{
 			activated = true;
 
-			Commands->Enable_Spawner(100956, true);
-			Commands->Enable_Spawner(100962, true);
+			ScriptEngine::Enable_Spawner(100956, true);
+			ScriptEngine::Enable_Spawner(100962, true);
 
-			GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Vector3(-193.706f, -82.114f, 4.987f));
-			Commands->Set_Facing(chinook_obj1, 20.000f);
-			Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop2.txt");
+			GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-193.706f, -82.114f, 4.987f));
+			ScriptEngine::Set_Facing(chinook_obj1, 20.000f);
+			ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop2.txt");
 
 		}
 
@@ -4258,9 +4258,9 @@ DECLARE_SCRIPT(M07_V01_Controller, "")
 			m07_v01_unit_killed++;
 			if(m07_v01_unit_killed%2 == 0)
 			{
-				GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Vector3(-193.706f, -82.114f, 4.987f));
-				Commands->Set_Facing(chinook_obj1, 20.000f);
-				Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop2.txt");
+				GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-193.706f, -82.114f, 4.987f));
+				ScriptEngine::Set_Facing(chinook_obj1, 20.000f);
+				ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop2.txt");
 			}
 
 		}
@@ -4269,8 +4269,8 @@ DECLARE_SCRIPT(M07_V01_Controller, "")
 		{
 			activated = false;
 
-			Commands->Enable_Spawner(100956, false);
-			Commands->Enable_Spawner(100962, false);
+			ScriptEngine::Enable_Spawner(100956, false);
+			ScriptEngine::Enable_Spawner(100962, false);
 
 		}
 
@@ -4297,14 +4297,14 @@ DECLARE_SCRIPT(M07_V01_Destroyed_Flame_Tank, "")
 
 		if(type == M07_ACTIVATE_V01)
 		{
-			Commands->Apply_Damage( obj, 10000.0f, "DEATH", nullptr);
+			ScriptEngine::Apply_Damage( obj, 10000.0f, "DEATH", nullptr);
 
 		}
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(100953), M07_ACTIVATE_V01, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100953), M07_ACTIVATE_V01, 1, 0.0f);
 	}
 };
 
@@ -4323,8 +4323,8 @@ DECLARE_SCRIPT(M07_Nod_Buggy_Dec, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NOD );
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NOD );
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 
 	}
@@ -4339,9 +4339,9 @@ DECLARE_SCRIPT(M07_Nod_Buggy_Dec, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (enemy, 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 	}
 
@@ -4355,9 +4355,9 @@ DECLARE_SCRIPT(M07_Nod_Buggy_Dec, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (damager, 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 
 	}
@@ -4389,8 +4389,8 @@ DECLARE_SCRIPT(M07_Nod_Recon_Bike_Dec, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NOD );
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NOD );
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 
 	}
@@ -4405,9 +4405,9 @@ DECLARE_SCRIPT(M07_Nod_Recon_Bike_Dec, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (enemy, 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 	}
 
@@ -4421,9 +4421,9 @@ DECLARE_SCRIPT(M07_Nod_Recon_Bike_Dec, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, 1 );
 			params.Set_Attack (damager, 250.0f, 0.0f, 1);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 
 	}
@@ -4456,7 +4456,7 @@ DECLARE_SCRIPT(M07_V01_Unit, "")
 	void Created (GameObject * obj) override
 	{
 
-		Commands->Start_Timer(obj, this, 3.0f, 10);
+		ScriptEngine::Start_Timer(obj, this, 3.0f, 10);
 	}
 
 	void Timer_Expired(GameObject * obj, int timer_id) override
@@ -4468,13 +4468,13 @@ DECLARE_SCRIPT(M07_V01_Unit, "")
 		{
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN, GO_STAR );
 			params.Set_Movement( STAR, RUN, 2.0f );
-			Commands->Action_Goto (  obj, params );
+			ScriptEngine::Action_Goto (  obj, params );
 		}
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(100953), M07_V01_UNIT_KILLED, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(100953), M07_V01_UNIT_KILLED, 1, 0.0f);
 	}
 };
 
@@ -4491,10 +4491,10 @@ DECLARE_SCRIPT(M07_Activate_Triangle_Apache, "")
 
 	void Entered(GameObject * /* obj */, GameObject * enterer) override
 	{
-		if(Commands->Is_A_Star(enterer))
+		if(ScriptEngine::Is_A_Star(enterer))
 		{
 
-			Commands->Enable_Spawner(101010, true);
+			ScriptEngine::Enable_Spawner(101010, true);
 
 		}
 	}
@@ -4525,7 +4525,7 @@ DECLARE_SCRIPT(M07_Triangle_Apache, "")
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 		params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 		params.WaypathID = 101011;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason reason) override
@@ -4534,13 +4534,13 @@ DECLARE_SCRIPT(M07_Triangle_Apache, "")
 
 		if (action_id == WAYPATH && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Enable_Enemy_Seen(obj, true);
+			ScriptEngine::Enable_Enemy_Seen(obj, true);
 			curr_waypath = 101016;
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, TRIANGLE_PATROL );
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.WaypathID = curr_waypath;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 	}
 
@@ -4556,9 +4556,9 @@ DECLARE_SCRIPT(M07_Triangle_Apache, "")
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.Set_Attack (enemy, 250.0f, 0.0f, 1);
 			params.WaypathID = curr_waypath;
-			Commands->Modify_Action (obj, TRIANGLE_PATROL, params, true, true);
+			ScriptEngine::Modify_Action (obj, TRIANGLE_PATROL, params, true, true);
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 	}
 
@@ -4583,7 +4583,7 @@ DECLARE_SCRIPT(M07_Triangle_Apache, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, TRIANGLE_PATROL );
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.WaypathID = curr_waypath;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 	}
 
@@ -4603,10 +4603,10 @@ DECLARE_SCRIPT(M07_Relocate_Triangle_Apache, "")
 
 	void Entered(GameObject * obj, GameObject * enterer) override
 	{
-		if(Commands->Is_A_Star(enterer))
+		if(ScriptEngine::Is_A_Star(enterer))
 		{
 
-			Commands->Create_Logical_Sound(obj, M07_RELOCATE_TRIANGLE_APACHE, Commands->Get_Position(obj), 100.0f);
+			ScriptEngine::Create_Logical_Sound(obj, M07_RELOCATE_TRIANGLE_APACHE, ScriptEngine::Get_Position(obj), 100.0f);
 
 		}
 	}
@@ -4617,7 +4617,7 @@ DECLARE_SCRIPT(M07_Triangle_APC, "")
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(101056), M07_TRIANGLE_APC_KILLED, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(101056), M07_TRIANGLE_APC_KILLED, 1, 0.0f);
 	}
 
 };
@@ -4642,14 +4642,14 @@ DECLARE_SCRIPT(M07_Triangle_APC_Soldier, "APC_ID=0:int")
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, 1 );
 		params.Set_Movement( STAR, RUN, 20.0f );
-		Commands->Action_Goto (obj, params);
+		ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		if(Commands->Find_Object(apc_id))
+		if(ScriptEngine::Find_Object(apc_id))
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
 		}
 
 	}
@@ -4673,14 +4673,14 @@ DECLARE_SCRIPT(M07_Triangle_Guard, "APC_ID=0:int")
 
 		apc_id = Get_Int_Parameter("APC_ID");
 
-		Commands->Set_Innate_Is_Stationary(obj, true);
+		ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 	}
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		if(Commands->Find_Object(apc_id))
+		if(ScriptEngine::Find_Object(apc_id))
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
 		}
 
 	}
@@ -4715,9 +4715,9 @@ DECLARE_SCRIPT(M07_Triangle_Controller, "")
 			m07_triangle_apc_killed++;
 			if(m07_triangle_apc_killed == 2)
 			{
-				GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Vector3(-531.675f, -87.333f, 13.908f));
-				Commands->Set_Facing(chinook_obj1, -70.000f);
-				Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop3.txt");
+				GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-531.675f, -87.333f, 13.908f));
+				ScriptEngine::Set_Facing(chinook_obj1, -70.000f);
+				ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop3.txt");
 			}
 		}
 
@@ -4726,9 +4726,9 @@ DECLARE_SCRIPT(M07_Triangle_Controller, "")
 			m07_triangle_unit_killed++;
 			if(m07_triangle_unit_killed%3 == 0 && m07_triangle_unit_killed < 9)
 			{
-				GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Vector3(-531.675f, -87.333f, 13.908f));
-				Commands->Set_Facing(chinook_obj1, -70.000f);
-				Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop3.txt");
+				GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-531.675f, -87.333f, 13.908f));
+				ScriptEngine::Set_Facing(chinook_obj1, -70.000f);
+				ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop3.txt");
 			}
 		}
 		if(type == M07_SPAWN_TRIANGLE_CIV)
@@ -4736,18 +4736,18 @@ DECLARE_SCRIPT(M07_Triangle_Controller, "")
 			civ_captive_killed++;
 			if(civ_captive_killed == 2)
 			{
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 705, 2, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 705, 2, 0.0f);
 			}
 			switch(param)
 			{
 			case 1:
 				{
-					Commands->Enable_Spawner(101057, true);
+					ScriptEngine::Enable_Spawner(101057, true);
 				}
 				break;
 			case 2:
 				{
-					Commands->Enable_Spawner(101058, true);
+					ScriptEngine::Enable_Spawner(101058, true);
 				}
 				break;
 			}
@@ -4769,7 +4769,7 @@ DECLARE_SCRIPT(M07_Triangle_Unit, "")
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Send_Custom_Event (obj, Commands->Find_Object(101056), M07_TRIANGLE_UNIT_KILLED, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(101056), M07_TRIANGLE_UNIT_KILLED, 1, 0.0f);
 
 	}
 };
@@ -4787,15 +4787,15 @@ DECLARE_SCRIPT(M07_Activate_Hostage_Encounter, "")
 
 	void Entered(GameObject * /* obj */, GameObject * enterer) override
 	{
-		if(Commands->Is_A_Star(enterer))
+		if(ScriptEngine::Is_A_Star(enterer))
 		{
 			// Hostage
-			Commands->Enable_Spawner(101066, true);
+			ScriptEngine::Enable_Spawner(101066, true);
 
 			// Hostage Takers
-			Commands->Enable_Spawner(101073, true);
-			Commands->Enable_Spawner(101074, true);
-			Commands->Enable_Spawner(101079, true);
+			ScriptEngine::Enable_Spawner(101073, true);
+			ScriptEngine::Enable_Spawner(101074, true);
+			ScriptEngine::Enable_Spawner(101079, true);
 
 		}
 	}
@@ -4815,14 +4815,14 @@ DECLARE_SCRIPT(M07_Fuel_Barrel, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Animation_Frame(obj, "o_barrl_fuel.o_barrl_fuel", 0);
+		ScriptEngine::Set_Animation_Frame(obj, "o_barrl_fuel.o_barrl_fuel", 0);
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Create_Explosion("Ground Explosions Twiddler", Commands->Get_Position(obj), nullptr);
+		ScriptEngine::Create_Explosion("Ground Explosions Twiddler", ScriptEngine::Get_Position(obj), nullptr);
 
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(101059), M07_EXPLODE_BARRELS, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(101059), M07_EXPLODE_BARRELS, 1, 0.0f);
 
 	}
 
@@ -4845,7 +4845,7 @@ DECLARE_SCRIPT(M07_Hostage_Controller, "")
 	void Created (GameObject * /* obj */) override
 	{
 		destroy_stockpile = false;
-		Commands->Enable_Spawner(100795, true);
+		ScriptEngine::Enable_Spawner(100795, true);
 	}
 
 	void Custom(GameObject * /* obj */, int type, intptr_t /* param */, GameObject * /* sender */) override
@@ -4854,13 +4854,13 @@ DECLARE_SCRIPT(M07_Hostage_Controller, "")
 		{
 			destroy_stockpile = true;
 
-			Commands->Apply_Damage( Commands->Find_Object(101060), 10000.0f, "STEEL", nullptr);
-			Commands->Apply_Damage( Commands->Find_Object(101061), 10000.0f, "STEEL", nullptr);
-			Commands->Apply_Damage( Commands->Find_Object(101062), 10000.0f, "STEEL", nullptr);
-			Commands->Apply_Damage( Commands->Find_Object(101063), 10000.0f, "STEEL", nullptr);
-			Commands->Apply_Damage( Commands->Find_Object(101064), 10000.0f, "STEEL", nullptr);
-			Commands->Apply_Damage( Commands->Find_Object(101065), 10000.0f, "STEEL", nullptr);
-			Commands->Apply_Damage( Commands->Find_Object(101084), 10000.0f, "STEEL", nullptr);
+			ScriptEngine::Apply_Damage( ScriptEngine::Find_Object(101060), 10000.0f, "STEEL", nullptr);
+			ScriptEngine::Apply_Damage( ScriptEngine::Find_Object(101061), 10000.0f, "STEEL", nullptr);
+			ScriptEngine::Apply_Damage( ScriptEngine::Find_Object(101062), 10000.0f, "STEEL", nullptr);
+			ScriptEngine::Apply_Damage( ScriptEngine::Find_Object(101063), 10000.0f, "STEEL", nullptr);
+			ScriptEngine::Apply_Damage( ScriptEngine::Find_Object(101064), 10000.0f, "STEEL", nullptr);
+			ScriptEngine::Apply_Damage( ScriptEngine::Find_Object(101065), 10000.0f, "STEEL", nullptr);
+			ScriptEngine::Apply_Damage( ScriptEngine::Find_Object(101084), 10000.0f, "STEEL", nullptr);
 
 
 		}
@@ -4889,9 +4889,9 @@ DECLARE_SCRIPT(M07_Hostage, "")
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 		params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 		params.WaypathID = 101067;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 
-		Commands->Start_Timer(obj, this, 6.0f, SWITCH_TYPE);
+		ScriptEngine::Start_Timer(obj, this, 6.0f, SWITCH_TYPE);
 		poked = false;
 	}
 
@@ -4899,23 +4899,23 @@ DECLARE_SCRIPT(M07_Hostage, "")
 	{
 		ActionParamsStruct params;
 
-		if ((Commands->Is_A_Star(poker)) && (!poked))
+		if ((ScriptEngine::Is_A_Star(poker)) && (!poked))
 		{
 			poked = true;
 
 			// Assume hands over head anim
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 1);
 			params.Set_Animation( "H_A_HOST_L1C", false );
-			Commands->Action_Play_Animation (obj, params);
+			ScriptEngine::Action_Play_Animation (obj, params);
 
-			Commands->Set_Innate_Is_Stationary(obj, false);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, false);
 
-			Vector3 pos = Commands->Get_Position(obj);
-			float facing = Commands->Get_Facing(obj);
+			Vector3 pos = ScriptEngine::Get_Position(obj);
+			float facing = ScriptEngine::Get_Facing(obj);
 			float a = WWMath::Cos(DEG_TO_RADF(facing)) * 1.5f;
 			float b = WWMath::Sin(DEG_TO_RADF(facing)) * 1.5f;
 			Vector3 powerup_loc = pos + Vector3(a, b, 0.5f);
-			Commands->Create_Object("Ramjet_Weapon_Powerup", powerup_loc);
+			ScriptEngine::Create_Object("Ramjet_Weapon_Powerup", powerup_loc);
 
 		}
 	}
@@ -4933,12 +4933,12 @@ DECLARE_SCRIPT(M07_Hostage, "")
 		}
 		if (action_id == WAYPATH)
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 
 			// Assume hands over head anim
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 1);
 			params.Set_Animation( "H_A_HOST_L1B", true );
-			Commands->Action_Play_Animation (obj, params);
+			ScriptEngine::Action_Play_Animation (obj, params);
 		}
 	}
 
@@ -4946,7 +4946,7 @@ DECLARE_SCRIPT(M07_Hostage, "")
 	{
 		if(timer_id == SWITCH_TYPE)
 		{
-			Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
+			ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_GDI );
 		}
 	}
 };
@@ -4974,7 +4974,7 @@ DECLARE_SCRIPT(M07_Hostage_Taker, "Waypath_ID=0:int")
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, WAYPATH );
 		params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 		params.WaypathID = waypath_id;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 	}
 
 
@@ -4996,7 +4996,7 @@ DECLARE_SCRIPT(M07_APC_Dec, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = false;
 		reinforce = 0;
 	}
@@ -5012,9 +5012,9 @@ DECLARE_SCRIPT(M07_APC_Dec, "")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, 1 );
 			params.Set_Attack (enemy, 200.0f, 5.0f, 1);
 			params.AttackCheckBlocked = true;
-			Commands->Action_Attack (obj, params);
+			ScriptEngine::Action_Attack (obj, params);
 
-			Commands->Start_Timer (obj, this, 30.0f, CHECK_ENEMY);
+			ScriptEngine::Start_Timer (obj, this, 30.0f, CHECK_ENEMY);
 		}
 	}
 
@@ -5030,16 +5030,16 @@ DECLARE_SCRIPT(M07_APC_Dec, "")
 			if(reinforce < 7)
 			{
 				char param1[12];
-				sprintf(param1, "%d", Commands->Get_ID(obj));
+				sprintf(param1, "%d", ScriptEngine::Get_ID(obj));
 
-				Vector3 pos = Commands->Get_Position(obj);
-				float facing = Commands->Get_Facing(obj);
+				Vector3 pos = ScriptEngine::Get_Position(obj);
+				float facing = ScriptEngine::Get_Facing(obj);
 				float a = WWMath::Cos(DEG_TO_RADF(facing)) * -4.0f;
 				float b = WWMath::Sin(DEG_TO_RADF(facing)) * -4.0f;
 
 				Vector3 soldier_loc1 = pos + Vector3(a, b + .5f, 0.5f);
-				GameObject * soldier1 = Commands->Create_Object("M07_Nod_APC", soldier_loc1);
-				Commands->Attach_Script(soldier1, "M07_APC_Dec_Soldier", param1);
+				GameObject * soldier1 = ScriptEngine::Create_Object("M07_Nod_APC", soldier_loc1);
+				ScriptEngine::Attach_Script(soldier1, "M07_APC_Dec_Soldier", param1);
 
 			}
 		}
@@ -5078,14 +5078,14 @@ DECLARE_SCRIPT(M07_APC_Dec_Soldier, "APC_ID=0:int")
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN - 5, 1 );
 		params.Set_Movement( STAR, RUN, 20.0f );
-		Commands->Action_Goto (obj, params);
+		ScriptEngine::Action_Goto (obj, params);
 	}
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		if(Commands->Find_Object(apc_id))
+		if(ScriptEngine::Find_Object(apc_id))
 		{
-			Commands->Send_Custom_Event (obj, Commands->Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(apc_id), M07_REINFORCEMENT_KILLED, apc_id, 0.0f);
 		}
 
 	}
@@ -5104,13 +5104,13 @@ DECLARE_SCRIPT(M07_Activate_Bridge_Civ, "")
 
 	void Entered(GameObject * /* obj */, GameObject * enterer) override
 	{
-		if(Commands->Is_A_Star(enterer))
+		if(ScriptEngine::Is_A_Star(enterer))
 		{
 			// Bridge Civilians
-			Commands->Enable_Spawner(101109, true);
-			Commands->Enable_Spawner(101114, true);
+			ScriptEngine::Enable_Spawner(101109, true);
+			ScriptEngine::Enable_Spawner(101114, true);
 			// Bridge overlook Apache
-			Commands->Enable_Spawner(109150, true);
+			ScriptEngine::Enable_Spawner(109150, true);
 		}
 	}
 };
@@ -5136,7 +5136,7 @@ DECLARE_SCRIPT(M07_Bridge_Civ, "Waypath_ID=0:int")
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 		params.Set_Movement( Vector3(0,0,0), RUN, 0.5f );
 		params.WaypathID = waypath_id;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 
 
 	}
@@ -5145,7 +5145,7 @@ DECLARE_SCRIPT(M07_Bridge_Civ, "Waypath_ID=0:int")
 	{
 
 
-		Commands->Set_Innate_Is_Stationary(obj, true);
+		ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 
 	}
 
@@ -5179,22 +5179,22 @@ DECLARE_SCRIPT(M07_Activate_E10_Tank_Drop, "")
 		}
 		if ( type == M07_E10_TANK_CREATED )
 		{
-			Commands->Send_Custom_Event(obj, sender, M07_PLAYER_VEHICLE_ID, Commands->Get_ID(sender), 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, sender, M07_PLAYER_VEHICLE_ID, ScriptEngine::Get_ID(sender), 0.0f);
 		}
 	}
 
 	void Entered(GameObject * /* obj */, GameObject * enterer) override
 	{
-		if(Commands->Is_A_Star(enterer) && !already_entered)
+		if(ScriptEngine::Is_A_Star(enterer) && !already_entered)
 		{
 			already_entered = true;
 
-			GameObject * drop_loc = Commands->Find_Object(101132);
-			float drop_facing = Commands->Get_Facing(drop_loc);
+			GameObject * drop_loc = ScriptEngine::Find_Object(101132);
+			float drop_facing = ScriptEngine::Get_Facing(drop_loc);
 
-			GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Commands->Get_Position(drop_loc));
-			Commands->Set_Facing(chinook_obj1, drop_facing);
-			Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_VehicleDrop2.txt");
+			GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", ScriptEngine::Get_Position(drop_loc));
+			ScriptEngine::Set_Facing(chinook_obj1, drop_facing);
+			ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "M07_XG_VehicleDrop2.txt");
 		}
 	}
 };
@@ -5214,9 +5214,9 @@ DECLARE_SCRIPT(M07_E10_Tank, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Enable_Enemy_Seen(obj, true);
+		ScriptEngine::Enable_Enemy_Seen(obj, true);
 		m07_player_vehicle_id = 0;
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(101131), M07_E10_TANK_CREATED, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(101131), M07_E10_TANK_CREATED, 1, 0.0f);
 	}
 
 	void Custom( GameObject * obj, int type, intptr_t param, GameObject * /* sender */ ) override
@@ -5224,7 +5224,7 @@ DECLARE_SCRIPT(M07_E10_Tank, "")
 		if ( type == M07_PLAYER_VEHICLE_ID )
 		{
 			m07_player_vehicle_id = param;
-			Commands->Start_Timer(obj, this, 3.0f, 10);
+			ScriptEngine::Start_Timer(obj, this, 3.0f, 10);
 		}
 
 	}
@@ -5233,13 +5233,13 @@ DECLARE_SCRIPT(M07_E10_Tank, "")
 	{
 		ActionParamsStruct params;
 
-		if (Commands->Is_A_Star(enemy))
+		if (ScriptEngine::Is_A_Star(enemy))
 		{
 			params.Set_Basic(this, INNATE_PRIORITY_ENEMY_SEEN + 5, GO_PLAYER_VEHICLE);
-			params.Set_Attack(Commands->Find_Object(m07_player_vehicle_id), 40.0f, 1.0f, true);
+			params.Set_Attack(ScriptEngine::Find_Object(m07_player_vehicle_id), 40.0f, 1.0f, true);
 			params.AttackCheckBlocked = false;
 			params.MoveFollow = true;
-			Commands->Modify_Action (obj, GO_PLAYER_VEHICLE, params, true, true);
+			ScriptEngine::Modify_Action (obj, GO_PLAYER_VEHICLE, params, true, true);
 		}
 	}
 
@@ -5250,10 +5250,10 @@ DECLARE_SCRIPT(M07_E10_Tank, "")
 			ActionParamsStruct params;
 
 			params.Set_Basic(this, INNATE_PRIORITY_ENEMY_SEEN + 5, GO_PLAYER_VEHICLE);
-			params.Set_Attack(Commands->Find_Object(m07_player_vehicle_id), 40.0f, 1.0f, true);
+			params.Set_Attack(ScriptEngine::Find_Object(m07_player_vehicle_id), 40.0f, 1.0f, true);
 			params.AttackCheckBlocked = false;
 			params.MoveFollow = true;
-			Commands->Action_Attack(obj, params);
+			ScriptEngine::Action_Attack(obj, params);
 		}
 	}
 };
@@ -5329,12 +5329,12 @@ DECLARE_SCRIPT(M07_Para_Drop_Controller, "")
 					m07_paradrop_unit1_killed++;
 					if(m07_paradrop_unit1_killed%3 == 0 && m07_paradrop_unit1_killed < 9)
 					{
-						GameObject * drop_loc = Commands->Find_Object(para_drop[drop_zone]);
-						float drop_facing = Commands->Get_Facing(drop_loc);
+						GameObject * drop_loc = ScriptEngine::Find_Object(para_drop[drop_zone]);
+						float drop_facing = ScriptEngine::Get_Facing(drop_loc);
 
-						GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Commands->Get_Position(drop_loc));
-						Commands->Set_Facing(chinook_obj1, drop_facing);
-						Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop4.txt");
+						GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", ScriptEngine::Get_Position(drop_loc));
+						ScriptEngine::Set_Facing(chinook_obj1, drop_facing);
+						ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop4.txt");
 					}
 				}
 				break;
@@ -5345,12 +5345,12 @@ DECLARE_SCRIPT(M07_Para_Drop_Controller, "")
 					if(m07_paradrop_unit2_killed < 2)
 					{
 
-						GameObject * drop_loc = Commands->Find_Object(109837);
-						float drop_facing = Commands->Get_Facing(drop_loc);
+						GameObject * drop_loc = ScriptEngine::Find_Object(109837);
+						float drop_facing = ScriptEngine::Get_Facing(drop_loc);
 
-						GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Commands->Get_Position(drop_loc));
-						Commands->Set_Facing(chinook_obj1, drop_facing);
-						Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop5.txt");
+						GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", ScriptEngine::Get_Position(drop_loc));
+						ScriptEngine::Set_Facing(chinook_obj1, drop_facing);
+						ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop5.txt");
 					}
 				}
 				break;
@@ -5361,12 +5361,12 @@ DECLARE_SCRIPT(M07_Para_Drop_Controller, "")
 					if(m07_paradrop_unit3_killed < 2)
 					{
 
-						GameObject * drop_loc = Commands->Find_Object(109838);
-						float drop_facing = Commands->Get_Facing(drop_loc);
+						GameObject * drop_loc = ScriptEngine::Find_Object(109838);
+						float drop_facing = ScriptEngine::Get_Facing(drop_loc);
 
-						GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Commands->Get_Position(drop_loc));
-						Commands->Set_Facing(chinook_obj1, drop_facing);
-						Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop6.txt");
+						GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", ScriptEngine::Get_Position(drop_loc));
+						ScriptEngine::Set_Facing(chinook_obj1, drop_facing);
+						ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop6.txt");
 					}
 				}
 				break;
@@ -5377,12 +5377,12 @@ DECLARE_SCRIPT(M07_Para_Drop_Controller, "")
 					if(m07_paradrop_unit4_killed < 2)
 					{
 
-						GameObject * drop_loc = Commands->Find_Object(109839);
-						float drop_facing = Commands->Get_Facing(drop_loc);
+						GameObject * drop_loc = ScriptEngine::Find_Object(109839);
+						float drop_facing = ScriptEngine::Get_Facing(drop_loc);
 
-						GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Commands->Get_Position(drop_loc));
-						Commands->Set_Facing(chinook_obj1, drop_facing);
-						Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop7.txt");
+						GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", ScriptEngine::Get_Position(drop_loc));
+						ScriptEngine::Set_Facing(chinook_obj1, drop_facing);
+						ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop7.txt");
 					}
 				}
 				break;
@@ -5409,9 +5409,9 @@ DECLARE_SCRIPT(M07_Para_Drop_Zone, "Zone_ID=0:int")
 	{
 		int zone_id = Get_Int_Parameter("Zone_ID");
 
-		if(Commands->Is_A_Star(enterer))
+		if(ScriptEngine::Is_A_Star(enterer))
 		{
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(101133), M07_VEHICLE_DROP_ZONE, zone_id, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(101133), M07_VEHICLE_DROP_ZONE, zone_id, 0.0f);
 		}
 
 	}
@@ -5434,11 +5434,11 @@ DECLARE_SCRIPT(M07_Para_Drop_Unit, "Unit_ID=0:int")
 	{
 		if(Get_Int_Parameter("Unit_ID") == 1)
 		{
-			Commands->Start_Timer(obj, this, 3.0f, GO_STAR);
+			ScriptEngine::Start_Timer(obj, this, 3.0f, GO_STAR);
 		}
 		else
 		{
-			Commands->Set_Innate_Is_Stationary(obj, true);
+			ScriptEngine::Set_Innate_Is_Stationary(obj, true);
 		}
 	}
 
@@ -5450,14 +5450,14 @@ DECLARE_SCRIPT(M07_Para_Drop_Unit, "Unit_ID=0:int")
 		{
 			params.Set_Basic (this, (INNATE_PRIORITY_ENEMY_SEEN - 5), 10);
 			params.Set_Movement (STAR, RUN, 10.0f);
-			Commands->Action_Goto (obj, params);
+			ScriptEngine::Action_Goto (obj, params);
 		}
 	}
 
 	void Killed(GameObject * obj, GameObject * /* killer */) override
 	{
 		int unit_id = Get_Int_Parameter("Unit_ID");
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(101133), M07_PARADROP_UNIT_KILLED, unit_id, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(101133), M07_PARADROP_UNIT_KILLED, unit_id, 0.0f);
 	}
 
 };
@@ -5483,25 +5483,25 @@ DECLARE_SCRIPT(M07_Activate_Para_Drop, "")
 	{
 
 
-		if(Commands->Is_A_Star(enterer) && !already_entered)
+		if(ScriptEngine::Is_A_Star(enterer) && !already_entered)
 		{
 			already_entered = true;
 
-			GameObject * chinook_obj1 = Commands->Create_Object ( "Invisible_Object", Vector3(-417.090f, 39.921f, 20.435f));
-			Commands->Set_Facing(chinook_obj1, 0.000f);
-			Commands->Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop4.txt");
+			GameObject * chinook_obj1 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-417.090f, 39.921f, 20.435f));
+			ScriptEngine::Set_Facing(chinook_obj1, 0.000f);
+			ScriptEngine::Attach_Script(chinook_obj1, "Test_Cinematic", "X7D_CHTroopdrop4.txt");
 
-			GameObject * chinook_obj2 = Commands->Create_Object ( "Invisible_Object", Vector3(-437.171f, 35.261f, 36.155f));
-			Commands->Set_Facing(chinook_obj2, -5.000f);
-			Commands->Attach_Script(chinook_obj2, "Test_Cinematic", "X7D_CHTroopdrop5.txt");
+			GameObject * chinook_obj2 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-437.171f, 35.261f, 36.155f));
+			ScriptEngine::Set_Facing(chinook_obj2, -5.000f);
+			ScriptEngine::Attach_Script(chinook_obj2, "Test_Cinematic", "X7D_CHTroopdrop5.txt");
 
-			GameObject * chinook_obj3 = Commands->Create_Object ( "Invisible_Object", Vector3(-474.645f, 36.897f, 32.859f));
-			Commands->Set_Facing(chinook_obj3, 0.000f);
-			Commands->Attach_Script(chinook_obj3, "Test_Cinematic", "X7D_CHTroopdrop6.txt");
+			GameObject * chinook_obj3 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-474.645f, 36.897f, 32.859f));
+			ScriptEngine::Set_Facing(chinook_obj3, 0.000f);
+			ScriptEngine::Attach_Script(chinook_obj3, "Test_Cinematic", "X7D_CHTroopdrop6.txt");
 
-			GameObject * chinook_obj4 = Commands->Create_Object ( "Invisible_Object", Vector3(-516.036f, 40.087f, 30.558f));
-			Commands->Set_Facing(chinook_obj4, -5.000f);
-			Commands->Attach_Script(chinook_obj4, "Test_Cinematic", "X7D_CHTroopdrop7.txt");
+			GameObject * chinook_obj4 = ScriptEngine::Create_Object ( "Invisible_Object", Vector3(-516.036f, 40.087f, 30.558f));
+			ScriptEngine::Set_Facing(chinook_obj4, -5.000f);
+			ScriptEngine::Attach_Script(chinook_obj4, "Test_Cinematic", "X7D_CHTroopdrop7.txt");
 
 		}
 
@@ -5529,11 +5529,11 @@ DECLARE_SCRIPT(M07_Deactivate_Para_Drop, "")
 	{
 
 
-		if(Commands->Is_A_Star(enterer) && !already_entered)
+		if(ScriptEngine::Is_A_Star(enterer) && !already_entered)
 		{
 			already_entered = true;
 
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(101133), M07_DEACTIVATE_PARADROP, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(101133), M07_DEACTIVATE_PARADROP, 1, 0.0f);
 
 		}
 
@@ -5551,7 +5551,7 @@ DECLARE_SCRIPT(M07_Flyover_Controller, "")
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Start_Timer(obj, this, 10.0f, 0);
+		ScriptEngine::Start_Timer(obj, this, 10.0f, 0);
 		last = 0;
 
 	}
@@ -5571,16 +5571,16 @@ DECLARE_SCRIPT(M07_Flyover_Controller, "")
 			"X7A_Apache_03.txt",
 
 		};
-		int random = Commands->Get_Random_Int ( 0, 7 );
+		int random = ScriptEngine::Get_Random_Int ( 0, 7 );
 
 		while (random == last)
 		{
-			random = Commands->Get_Random_Int ( 0, 7 );
+			random = ScriptEngine::Get_Random_Int ( 0, 7 );
 		}
 
-		GameObject *controller = Commands->Create_Object("Invisible_Object", Vector3(0,0,0));
-		Commands->Attach_Script(controller, "Test_Cinematic", flyovers[random]);
-		Commands->Start_Timer(obj, this, 10.0f, 0);
+		GameObject *controller = ScriptEngine::Create_Object("Invisible_Object", Vector3(0,0,0));
+		ScriptEngine::Attach_Script(controller, "Test_Cinematic", flyovers[random]);
+		ScriptEngine::Start_Timer(obj, this, 10.0f, 0);
 
 		last = random;
 	}
@@ -5605,16 +5605,16 @@ DECLARE_SCRIPT(M07_Activate_Flyover, "Text_File:string")
 
 	void Entered(GameObject * obj, GameObject * enterer) override
 	{
-		if(Commands->Is_A_Star(enterer) && !already_entered)
+		if(ScriptEngine::Is_A_Star(enterer) && !already_entered)
 		{
 			already_entered = true;
 
 			const char * flyover = Get_Parameter("Text_File");
 
-			GameObject *controller = Commands->Create_Object("Invisible_Object", Vector3(0,0,0));
-			Commands->Attach_Script(controller, "Test_Cinematic", flyover);
+			GameObject *controller = ScriptEngine::Create_Object("Invisible_Object", Vector3(0,0,0));
+			ScriptEngine::Attach_Script(controller, "Test_Cinematic", flyover);
 
-			Commands->Start_Timer(obj, this, 10.0f, PLAY_AGAIN);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, PLAY_AGAIN);
 		}
 	}
 
@@ -5639,7 +5639,7 @@ DECLARE_SCRIPT(M07_Disable_Hibernation, "")
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Enable_Hibernation(obj, false);
+		ScriptEngine::Enable_Hibernation(obj, false);
 	}
 
 };
@@ -5666,21 +5666,21 @@ DECLARE_SCRIPT(M07_Move_To_Evac, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if(Commands->Is_A_Star(enterer))
+		if(ScriptEngine::Is_A_Star(enterer))
 		{
 			// Customs to move team to evac site
 			// Havoc
-			Commands->Send_Custom_Event(obj, STAR, M07_GO_EVAC_SITE, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, STAR, M07_GO_EVAC_SITE, 1, 0.0f);
 			// Hotwire
-			Commands->Send_Custom_Event(obj, HOTWIRE, M07_GO_EVAC_SITE, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, HOTWIRE, M07_GO_EVAC_SITE, 1, 0.0f);
 			// Patch
-			Commands->Send_Custom_Event(obj, PATCH, M07_GO_EVAC_SITE, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, PATCH, M07_GO_EVAC_SITE, 1, 0.0f);
 			// Gunner
-			Commands->Send_Custom_Event(obj, GUNNER, M07_GO_EVAC_SITE, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, GUNNER, M07_GO_EVAC_SITE, 1, 0.0f);
 			// Deadeye
-			Commands->Send_Custom_Event(obj, DEADEYE, M07_GO_EVAC_SITE, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, DEADEYE, M07_GO_EVAC_SITE, 1, 0.0f);
 			// Sydney
-			Commands->Send_Custom_Event(obj, SYDNEY, M07_GO_EVAC_SITE, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, SYDNEY, M07_GO_EVAC_SITE, 1, 0.0f);
 		}
 
 	}
@@ -5700,10 +5700,10 @@ DECLARE_SCRIPT(M07_Move_Hotwire, "Move_Loc=0:int")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if (Commands->Is_A_Star(enterer))
+		if (ScriptEngine::Is_A_Star(enterer))
 		{
 			int move_loc = Get_Int_Parameter("Move_Loc");
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100658), M07_MOVE_HOTWIRE, move_loc, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100658), M07_MOVE_HOTWIRE, move_loc, 0.0f);
 		}
 	}
 
@@ -5723,15 +5723,15 @@ DECLARE_SCRIPT(M07_Player_Rocket_Emplacement, "")
 
 	void Damaged( GameObject * obj, GameObject * damager, float /* amount */ ) override
 	{
-		if(damager == Commands->Find_Object(100905))
+		if(damager == ScriptEngine::Find_Object(100905))
 		{
-			if(Commands->Get_Health(obj) < 10.0f)
+			if(ScriptEngine::Get_Health(obj) < 10.0f)
 			{
-				Commands->Set_Health(obj, 10.0f);
+				ScriptEngine::Set_Health(obj, 10.0f);
 			}
-			if(Commands->Get_Health(obj) < (.3 * Commands->Get_Max_Health(obj)))
+			if(ScriptEngine::Get_Health(obj) < (.3 * ScriptEngine::Get_Max_Health(obj)))
 			{
-				Commands->Apply_Damage( obj, -10000.0f, "STEEL", nullptr );
+				ScriptEngine::Apply_Damage( obj, -10000.0f, "STEEL", nullptr );
 			}
 		}
 
@@ -5754,7 +5754,7 @@ DECLARE_SCRIPT(M07_Playertype_Neutral, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NEUTRAL );
+		ScriptEngine::Set_Player_Type(obj, SCRIPT_PLAYERTYPE_NEUTRAL );
 	}
 
 };
@@ -5794,51 +5794,51 @@ DECLARE_SCRIPT(M07_Inn_Evac, "")//104496
 			char param1[12];
 			sprintf(param1, "%d", (int)param);
 
-			Vector3 evacPosition = Commands->Get_Position ( obj );
-			float evacFacing = Commands->Get_Facing ( obj );
-			GameObject *troopBone = Commands->Create_Object("Saveable_Invisible_Object", evacPosition );
-			Commands->Set_Model ( troopBone, "XG_EV5_troopBN" );
-			Commands->Set_Facing ( troopBone, evacFacing );
-			Commands->Attach_Script(troopBone, "M07_Inn_Evac_Climb", param1);
+			Vector3 evacPosition = ScriptEngine::Get_Position ( obj );
+			float evacFacing = ScriptEngine::Get_Facing ( obj );
+			GameObject *troopBone = ScriptEngine::Create_Object("Saveable_Invisible_Object", evacPosition );
+			ScriptEngine::Set_Model ( troopBone, "XG_EV5_troopBN" );
+			ScriptEngine::Set_Facing ( troopBone, evacFacing );
+			ScriptEngine::Attach_Script(troopBone, "M07_Inn_Evac_Climb", param1);
 
 			dead6_cnt++;
 			if(dead6_cnt == 4)
 			{
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(100658), M07_EVAC_INN, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100658), M07_EVAC_INN, 1, 0.0f);
 
 			}
 			if(dead6_cnt == 5)
 			{
 				// This is Resistance Radio.  Nod SSM deployment confirmed.  All available personnel to the park.\n
 				const char *conv_name = ("M07_CON017");
-				int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-				Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-				Commands->Join_Conversation(STAR, conv_id, false, true, true);
-				Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-				Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-				Commands->Start_Conversation (conv_id, 300703);
-				Commands->Monitor_Conversation (obj, conv_id);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+				ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+				ScriptEngine::Join_Conversation(STAR, conv_id, false, true, true);
+				ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+				ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+				ScriptEngine::Start_Conversation (conv_id, 300703);
+				ScriptEngine::Monitor_Conversation (obj, conv_id);
 
 
 			}
 		}
 		if (type == M07_EVAC_INN) //SAM sites captured, evac DEAD6 and Sydney
 		{
-			Vector3 evacPosition = Commands->Get_Position ( obj );
-			float evacFacing = Commands->Get_Facing ( obj );
-			GameObject *evacWaypath = Commands->Create_Object("Saveable_Invisible_Object", evacPosition );
-			Commands->Attach_Script(evacWaypath, "M07_Inn_Evac_Trajectory", "");
-			Commands->Set_Model ( evacWaypath, "XG_EV5_Path" );
-			Commands->Set_Facing ( evacWaypath, evacFacing );
-			Commands->Set_Animation ( evacWaypath, "XG_EV5_Path.XG_EV5_PathA", false, nullptr, 0.0f, -1.0f, false );
-			Commands->Start_Timer (obj, this, 130.0f/30.0f, LOWER_ROPE);
-			evac_waypath_id = Commands->Get_ID(evacWaypath);
+			Vector3 evacPosition = ScriptEngine::Get_Position ( obj );
+			float evacFacing = ScriptEngine::Get_Facing ( obj );
+			GameObject *evacWaypath = ScriptEngine::Create_Object("Saveable_Invisible_Object", evacPosition );
+			ScriptEngine::Attach_Script(evacWaypath, "M07_Inn_Evac_Trajectory", "");
+			ScriptEngine::Set_Model ( evacWaypath, "XG_EV5_Path" );
+			ScriptEngine::Set_Facing ( evacWaypath, evacFacing );
+			ScriptEngine::Set_Animation ( evacWaypath, "XG_EV5_Path.XG_EV5_PathA", false, nullptr, 0.0f, -1.0f, false );
+			ScriptEngine::Start_Timer (obj, this, 130.0f/30.0f, LOWER_ROPE);
+			evac_waypath_id = ScriptEngine::Get_ID(evacWaypath);
 
-			GameObject *evacChopper = Commands->Create_Object_At_Bone( evacWaypath, "GDI_Transport_Helicopter_Flyover", "BN_Trajectory" );
-			Commands->Attach_Script(evacChopper, "M07_Inn_Evac_Helicopter", "");
-			Commands->Set_Animation ( evacChopper, "v_GDI_trnspt.XG_EV5_trnsA", false, nullptr, 0.0f, -1.0f, false );
-			Commands->Attach_To_Object_Bone( evacChopper, evacWaypath, "BN_Trajectory" );
-			evac_helicopter_id = Commands->Get_ID ( evacChopper );
+			GameObject *evacChopper = ScriptEngine::Create_Object_At_Bone( evacWaypath, "GDI_Transport_Helicopter_Flyover", "BN_Trajectory" );
+			ScriptEngine::Attach_Script(evacChopper, "M07_Inn_Evac_Helicopter", "");
+			ScriptEngine::Set_Animation ( evacChopper, "v_GDI_trnspt.XG_EV5_trnsA", false, nullptr, 0.0f, -1.0f, false );
+			ScriptEngine::Attach_To_Object_Bone( evacChopper, evacWaypath, "BN_Trajectory" );
+			evac_helicopter_id = ScriptEngine::Get_ID ( evacChopper );
 
 		}
 
@@ -5849,11 +5849,11 @@ DECLARE_SCRIPT(M07_Inn_Evac, "")//104496
 		if (action_id == 300703 && (reason == ACTION_COMPLETE_CONVERSATION_ENDED || reason == ACTION_COMPLETE_CONVERSATION_INTERRUPTED))
 		{
 			// Destroy Artillery Piece Objective
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 703, 3, 0.0f);
-			Commands->Start_Timer (obj, this, 3.0f, CHINOOK_OUT);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 703, 3, 0.0f);
+			ScriptEngine::Start_Timer (obj, this, 3.0f, CHINOOK_OUT);
 
 
-			Commands->Start_Timer(obj, this, 10.0f, DESTROY_SYDNEY);
+			ScriptEngine::Start_Timer(obj, this, 10.0f, DESTROY_SYDNEY);
 		}
 	}
 
@@ -5864,52 +5864,52 @@ DECLARE_SCRIPT(M07_Inn_Evac, "")//104496
 		if(timer_id == DESTROY_SYDNEY)
 		{
 			// Once GDI evac has arrived destroy Sydney and DEAD-6 to give appearance of liftoff
-			Commands->Destroy_Object(DEADEYE);
-			Commands->Destroy_Object(GUNNER);
-			Commands->Destroy_Object(PATCH);
-			Commands->Destroy_Object(SYDNEY);
+			ScriptEngine::Destroy_Object(DEADEYE);
+			ScriptEngine::Destroy_Object(GUNNER);
+			ScriptEngine::Destroy_Object(PATCH);
+			ScriptEngine::Destroy_Object(SYDNEY);
 
 
 
-	//		Commands->Start_Timer(obj, this, 10.0f, DROP_DEAD6_INN);
+	//		ScriptEngine::Start_Timer(obj, this, 10.0f, DROP_DEAD6_INN);
 		}
 		if(timer_id == LOWER_ROPE)
 		{
-			Vector3 evacPosition = Commands->Get_Position ( obj );
-			float evacFacing = Commands->Get_Facing ( obj );
-			GameObject * evacRope = Commands->Create_Object("Saveable_Invisible_Object", evacPosition );
-			Commands->Attach_Script(evacRope, "M07_Inn_Evac_Rope", "");
-			Commands->Set_Model ( evacRope, "XG_EV5_rope" );
-			Commands->Set_Facing ( evacRope, evacFacing );
-			Commands->Set_Animation ( evacRope, "XG_EV5_rope.XG_EV5_ropeA", false, nullptr, 0.0f, -1.0f, false );
-			evac_rope_id = Commands->Get_ID ( evacRope );
+			Vector3 evacPosition = ScriptEngine::Get_Position ( obj );
+			float evacFacing = ScriptEngine::Get_Facing ( obj );
+			GameObject * evacRope = ScriptEngine::Create_Object("Saveable_Invisible_Object", evacPosition );
+			ScriptEngine::Attach_Script(evacRope, "M07_Inn_Evac_Rope", "");
+			ScriptEngine::Set_Model ( evacRope, "XG_EV5_rope" );
+			ScriptEngine::Set_Facing ( evacRope, evacFacing );
+			ScriptEngine::Set_Animation ( evacRope, "XG_EV5_rope.XG_EV5_ropeA", false, nullptr, 0.0f, -1.0f, false );
+			evac_rope_id = ScriptEngine::Get_ID ( evacRope );
 		}
 
 		if(timer_id == CHINOOK_OUT)
 		{
-			GameObject * evacChopper = Commands->Find_Object ( evac_helicopter_id );
-			GameObject * evacWaypath = Commands->Find_Object ( evac_waypath_id );
-			GameObject * evacRope = Commands->Find_Object ( evac_rope_id );
+			GameObject * evacChopper = ScriptEngine::Find_Object ( evac_helicopter_id );
+			GameObject * evacWaypath = ScriptEngine::Find_Object ( evac_waypath_id );
+			GameObject * evacRope = ScriptEngine::Find_Object ( evac_rope_id );
 
 			if (evacChopper != nullptr)
 			{
-				Commands->Send_Custom_Event ( obj, evacChopper, M07_INN_HELICOPTER_OUT, 1, 0 );
+				ScriptEngine::Send_Custom_Event ( obj, evacChopper, M07_INN_HELICOPTER_OUT, 1, 0 );
 			}
 
 			if (evacWaypath != nullptr)
 			{
-				Commands->Send_Custom_Event ( obj, evacWaypath, M07_INN_HELICOPTER_OUT, 1, 0 );
+				ScriptEngine::Send_Custom_Event ( obj, evacWaypath, M07_INN_HELICOPTER_OUT, 1, 0 );
 			}
 
 			if (evacRope != nullptr)
 			{
-				Commands->Send_Custom_Event ( obj, evacRope, M07_INN_HELICOPTER_OUT, 1, 0 );
+				ScriptEngine::Send_Custom_Event ( obj, evacRope, M07_INN_HELICOPTER_OUT, 1, 0 );
 			}
 
 			// Objective accomplished for rescuing Sydney
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 701, 1, 0.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 701, 1, 0.0f);
 			// Objective accomplished for protecting team
-			Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 709, 1, 1.0f);
+			ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 709, 1, 1.0f);
 		}
 
 	}
@@ -5923,17 +5923,17 @@ DECLARE_SCRIPT(M07_Inn_Evac_Climb, "Dead6_ID=0:int")
 	void Created( GameObject * obj ) override
 	{
 		int dead6_id = Get_Int_Parameter("Dead6_ID");
-		GameObject * dead6 = Commands->Find_Object(dead6_id);
-		Commands->Attach_Script(dead6, "M07_Climb_Rope", "");
-		Commands->Attach_To_Object_Bone(dead6, obj, "Troop_L" );
-		Commands->Set_Animation ( obj, "XG_EV5_troopBN.XG_EV5_troopBN", false, nullptr, 0.0f, -1.0f, false );
+		GameObject * dead6 = ScriptEngine::Find_Object(dead6_id);
+		ScriptEngine::Attach_Script(dead6, "M07_Climb_Rope", "");
+		ScriptEngine::Attach_To_Object_Bone(dead6, obj, "Troop_L" );
+		ScriptEngine::Set_Animation ( obj, "XG_EV5_troopBN.XG_EV5_troopBN", false, nullptr, 0.0f, -1.0f, false );
 	}
 
 	void Animation_Complete(GameObject * obj, const char *anim) override
 	{
 		if (stricmp(anim, "XG_EV5_troopBN.XG_EV5_troopBN") == 0)
 		{
-			Commands->Destroy_Object ( obj );
+			ScriptEngine::Destroy_Object ( obj );
 		}
 
 	}
@@ -5951,14 +5951,14 @@ DECLARE_SCRIPT(M07_Climb_Rope, "")
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, CLIMB_ROPE );
 		params.Set_Animation ("S_A_Human.XG_EV5_Troop", false);
 	//	params.Set_Animation ("S_A_HUMAN.H_A_A0F0", true);
-		Commands->Action_Play_Animation (obj, params);
+		ScriptEngine::Action_Play_Animation (obj, params);
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason reason) override
 	{
 		if(action_id == CLIMB_ROPE && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Destroy_Object(obj);
+			ScriptEngine::Destroy_Object(obj);
 		}
 
 	}
@@ -5971,12 +5971,12 @@ DECLARE_SCRIPT(M07_Inn_Evac_Rope, "")
 	{
 		if (stricmp(anim, "XG_EV5_rope.XG_EV5_ropeA") == 0)
 		{
-			Commands->Set_Animation ( obj, "XG_EV5_rope.XG_EV5_ropeL", true, nullptr, 0.0f, -1.0f, false );
+			ScriptEngine::Set_Animation ( obj, "XG_EV5_rope.XG_EV5_ropeL", true, nullptr, 0.0f, -1.0f, false );
 		}
 
 		else if (stricmp(anim, "XG_EV5_rope.XG_EV5_ropeZ") == 0)
 		{
-			Commands->Destroy_Object ( obj );
+			ScriptEngine::Destroy_Object ( obj );
 		}
 	}
 
@@ -5986,7 +5986,7 @@ DECLARE_SCRIPT(M07_Inn_Evac_Rope, "")
 		{
 			case M07_INN_HELICOPTER_OUT:
 				{
-					Commands->Set_Animation ( obj, "XG_EV5_rope.XG_EV5_ropeZ", false, nullptr, 0.0f, -1.0f, false );
+					ScriptEngine::Set_Animation ( obj, "XG_EV5_rope.XG_EV5_ropeZ", false, nullptr, 0.0f, -1.0f, false );
 				}
 				break;
 		}
@@ -5999,12 +5999,12 @@ DECLARE_SCRIPT(M07_Inn_Evac_Trajectory, "")
 	{
 		if (stricmp(anim, "XG_EV5_Path.XG_EV5_PathA") == 0)
 		{
-			Commands->Set_Animation ( obj, "XG_EV5_Path.XG_EV5_PathL", true, nullptr, 0.0f, -1.0f, false );
+			ScriptEngine::Set_Animation ( obj, "XG_EV5_Path.XG_EV5_PathL", true, nullptr, 0.0f, -1.0f, false );
 		}
 
 		else if (stricmp(anim, "XG_EV5_Path.XG_EV5_PathZ") == 0)
 		{
-			Commands->Destroy_Object ( obj );
+			ScriptEngine::Destroy_Object ( obj );
 		}
 	}
 
@@ -6014,7 +6014,7 @@ DECLARE_SCRIPT(M07_Inn_Evac_Trajectory, "")
 		{
 			case M07_INN_HELICOPTER_OUT:
 				{
-					Commands->Set_Animation ( obj, "XG_EV5_Path.XG_EV5_PathZ", false, nullptr, 0.0f, -1.0f, false );
+					ScriptEngine::Set_Animation ( obj, "XG_EV5_Path.XG_EV5_PathZ", false, nullptr, 0.0f, -1.0f, false );
 				}
 				break;
 		}
@@ -6025,24 +6025,24 @@ DECLARE_SCRIPT(M07_Inn_Evac_Helicopter, "")
 {
 	void Created( GameObject * obj ) override
 	{
-		Commands->Enable_Hibernation( obj, false );
-		Commands->Disable_Physical_Collisions ( obj );
-		Commands->Send_Custom_Event ( obj, obj, M07_INN_HELO_COLLISIONS, 1, 3.0F );
+		ScriptEngine::Enable_Hibernation( obj, false );
+		ScriptEngine::Disable_Physical_Collisions ( obj );
+		ScriptEngine::Send_Custom_Event ( obj, obj, M07_INN_HELO_COLLISIONS, 1, 3.0F );
 	}
 
 	void Animation_Complete(GameObject * obj, const char *anim) override
 	{
 		if (stricmp(anim, "v_GDI_trnspt.XG_EV5_trnsA") == 0)
 		{
-			Commands->Set_Animation ( obj, "v_GDI_trnspt.XG_EV5_trnsL", true, nullptr, 0.0f, -1.0f, false );
-			Commands->Enable_Collisions ( obj );
+			ScriptEngine::Set_Animation ( obj, "v_GDI_trnspt.XG_EV5_trnsL", true, nullptr, 0.0f, -1.0f, false );
+			ScriptEngine::Enable_Collisions ( obj );
 
 
 		}
 
 		else if (stricmp(anim, "v_GDI_trnspt.XG_EV5_trnsz") == 0)
 		{
-			Commands->Destroy_Object ( obj );
+			ScriptEngine::Destroy_Object ( obj );
 		}
 	}
 
@@ -6052,14 +6052,14 @@ DECLARE_SCRIPT(M07_Inn_Evac_Helicopter, "")
 		{
 			case M07_INN_HELICOPTER_OUT:
 				{
-					Commands->Disable_Physical_Collisions ( obj );
-					Commands->Set_Animation ( obj, "v_GDI_trnspt.XG_EV5_trnsz", false, nullptr, 0.0f, -1.0f, false );
+					ScriptEngine::Disable_Physical_Collisions ( obj );
+					ScriptEngine::Set_Animation ( obj, "v_GDI_trnspt.XG_EV5_trnsz", false, nullptr, 0.0f, -1.0f, false );
 				}
 				break;
 
 			case M07_INN_HELO_COLLISIONS:
 				{
-					Commands->Enable_Collisions ( obj );
+					ScriptEngine::Enable_Collisions ( obj );
 				}
 				break;
 
@@ -6068,13 +6068,13 @@ DECLARE_SCRIPT(M07_Inn_Evac_Helicopter, "")
 
 	void Damaged( GameObject * obj, GameObject * /* damager */, float /* amount */ ) override
 	{
-		if(Commands->Get_Health(obj) < 10.0f)
+		if(ScriptEngine::Get_Health(obj) < 10.0f)
 		{
-			Commands->Set_Health(obj, 10.0f);
+			ScriptEngine::Set_Health(obj, 10.0f);
 		}
-		if(Commands->Get_Health(obj) < (.3 * Commands->Get_Max_Health(obj)))
+		if(ScriptEngine::Get_Health(obj) < (.3 * ScriptEngine::Get_Max_Health(obj)))
 		{
-			Commands->Apply_Damage( obj, -10000.0f, "STEEL", nullptr );
+			ScriptEngine::Apply_Damage( obj, -10000.0f, "STEEL", nullptr );
 		}
 
 	}
@@ -6092,13 +6092,13 @@ DECLARE_SCRIPT(M07_Deadeye_Nod_Chinook, "")
 
 	void Damaged( GameObject * obj, GameObject * /* damager */, float /* amount */ ) override
 	{
-		if(Commands->Get_Health(obj) < 10.0f)
+		if(ScriptEngine::Get_Health(obj) < 10.0f)
 		{
-			Commands->Set_Health(obj, 10.0f);
+			ScriptEngine::Set_Health(obj, 10.0f);
 		}
-		if(Commands->Get_Health(obj) < (.3 * Commands->Get_Max_Health(obj)))
+		if(ScriptEngine::Get_Health(obj) < (.3 * ScriptEngine::Get_Max_Health(obj)))
 		{
-			Commands->Apply_Damage( obj, -10000.0f, "STEEL", nullptr );
+			ScriptEngine::Apply_Damage( obj, -10000.0f, "STEEL", nullptr );
 		}
 
 	}
@@ -6123,7 +6123,7 @@ DECLARE_SCRIPT(M07_Alley_Vehicle, "Waypath_ID=0:int")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Enable_Enemy_Seen( obj, true);
+		ScriptEngine::Enable_Enemy_Seen( obj, true);
 		attacking = true;
 		active = false;
 		waypath_id = Get_Int_Parameter("Waypath_ID");
@@ -6140,7 +6140,7 @@ DECLARE_SCRIPT(M07_Alley_Vehicle, "Waypath_ID=0:int")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 			params.Set_Movement( Vector3(0,0,0), 1.0f, 1.5f );
 			params.WaypathID = waypath_id;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 	}
 
@@ -6162,7 +6162,7 @@ DECLARE_SCRIPT(M07_Alley_Vehicle, "Waypath_ID=0:int")
 		if(!active)
 		{
 			active = true;
-			Commands->Send_Custom_Event (obj, obj, M07_CUSTOM_ACTIVATE, 0, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, obj, M07_CUSTOM_ACTIVATE, 0, 0.0f);
 		}
 		if(!attacking)
 		{
@@ -6172,9 +6172,9 @@ DECLARE_SCRIPT(M07_Alley_Vehicle, "Waypath_ID=0:int")
 			params.Set_Movement( Vector3(0,0,0), 0.0f, 1.5f );
 			params.Set_Attack (enemy, 250.0f, 0.0f, 0);
 			params.WaypathID = waypath_id;
-			Commands->Modify_Action (obj, WAYPATH, params, true, true);
+			ScriptEngine::Modify_Action (obj, WAYPATH, params, true, true);
 
-			Commands->Start_Timer (obj, this, 5.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer (obj, this, 5.0f, ATTACK_OVER);
 		}
 	}
 
@@ -6185,10 +6185,10 @@ DECLARE_SCRIPT(M07_Alley_Vehicle, "Waypath_ID=0:int")
 		if(!active)
 		{
 			active = true;
-			Commands->Send_Custom_Event (obj, obj, M07_CUSTOM_ACTIVATE, 0, 0.0f);
+			ScriptEngine::Send_Custom_Event (obj, obj, M07_CUSTOM_ACTIVATE, 0, 0.0f);
 		}
 
-		if(!attacking && (Commands->Get_Player_Type(damager) != SCRIPT_PLAYERTYPE_NOD))
+		if(!attacking && (ScriptEngine::Get_Player_Type(damager) != SCRIPT_PLAYERTYPE_NOD))
 		{
 			attacking = true;
 
@@ -6196,9 +6196,9 @@ DECLARE_SCRIPT(M07_Alley_Vehicle, "Waypath_ID=0:int")
 			params.Set_Movement( Vector3(0,0,0), 0.0f, 1.5f );
 			params.Set_Attack (damager, 250.0f, 0.0f, 0);
 			params.WaypathID = waypath_id;
-			Commands->Modify_Action (obj, WAYPATH, params, true, true);
+			ScriptEngine::Modify_Action (obj, WAYPATH, params, true, true);
 
-			Commands->Start_Timer (obj, this, 5.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer (obj, this, 5.0f, ATTACK_OVER);
 		}
 	}
 
@@ -6213,7 +6213,7 @@ DECLARE_SCRIPT(M07_Alley_Vehicle, "Waypath_ID=0:int")
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 			params.Set_Movement( Vector3(0,0,0), 1.0f, 1.5f );
 			params.WaypathID = waypath_id;
-			Commands->Modify_Action (obj, WAYPATH, params, true, true);
+			ScriptEngine::Modify_Action (obj, WAYPATH, params, true, true);
 
 		}
 
@@ -6242,7 +6242,7 @@ DECLARE_SCRIPT(M07_Custom_Activate, "Object1_ID=0:int, Object2_ID=0:int, Object3
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 			int object1_id = Get_Int_Parameter("Object1_ID");
@@ -6251,15 +6251,15 @@ DECLARE_SCRIPT(M07_Custom_Activate, "Object1_ID=0:int, Object2_ID=0:int, Object3
 
 			if(object1_id != 0)
 			{
-				Commands->Send_Custom_Event (obj, Commands->Find_Object(object1_id), M07_CUSTOM_ACTIVATE, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(object1_id), M07_CUSTOM_ACTIVATE, 1, 0.0f);
 			}
 			if(object2_id != 0)
 			{
-				Commands->Send_Custom_Event (obj, Commands->Find_Object(object2_id), M07_CUSTOM_ACTIVATE, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(object2_id), M07_CUSTOM_ACTIVATE, 1, 0.0f);
 			}
 			if(object3_id != 0)
 			{
-				Commands->Send_Custom_Event (obj, Commands->Find_Object(object3_id), M07_CUSTOM_ACTIVATE, 1, 0.0f);
+				ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(object3_id), M07_CUSTOM_ACTIVATE, 1, 0.0f);
 			}
 
 		}
@@ -6284,12 +6284,12 @@ DECLARE_SCRIPT(M07_Bridge_Overlook_Apache, "")
 		ActionParamsStruct params;
 
 		attacking = false;
-		Commands->Disable_Physical_Collisions(obj);
+		ScriptEngine::Disable_Physical_Collisions(obj);
 
 		params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, WAYPATH );
 		params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 		params.WaypathID = 109145;
-		Commands->Action_Goto( obj, params );
+		ScriptEngine::Action_Goto( obj, params );
 	}
 
 	void Action_Complete(GameObject * obj, int action_id, ActionCompleteReason reason) override
@@ -6298,12 +6298,12 @@ DECLARE_SCRIPT(M07_Bridge_Overlook_Apache, "")
 
 		if (action_id == WAYPATH && reason == ACTION_COMPLETE_NORMAL)
 		{
-			Commands->Enable_Enemy_Seen(obj, true);
+			ScriptEngine::Enable_Enemy_Seen(obj, true);
 
 			params.Set_Basic( this, INNATE_PRIORITY_ENEMY_SEEN + 5, INN_PATROL );
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.WaypathID = 109151;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 	}
 
@@ -6319,9 +6319,9 @@ DECLARE_SCRIPT(M07_Bridge_Overlook_Apache, "")
 			params.Set_Movement( Vector3(0,0,0), RUN, 1.5f );
 			params.Set_Attack (enemy, 250.0f, 0.0f, 1);
 			params.WaypathID = 109151;
-			Commands->Modify_Action (obj, INN_PATROL, params, true, true);
+			ScriptEngine::Modify_Action (obj, INN_PATROL, params, true, true);
 
-			Commands->Start_Timer(obj, this, 6.0f, ATTACK_OVER);
+			ScriptEngine::Start_Timer(obj, this, 6.0f, ATTACK_OVER);
 		}
 	}
 
@@ -6354,21 +6354,21 @@ DECLARE_SCRIPT(M07_SSM_Unit, "")
 
 	void Created (GameObject * obj) override
 	{
-		Commands->Enable_Hibernation(obj, false);
-		Commands->Set_Innate_Aggressiveness(obj, 1.0f );
-		Commands->Set_Innate_Take_Cover_Probability(obj, 0.0f );
+		ScriptEngine::Enable_Hibernation(obj, false);
+		ScriptEngine::Set_Innate_Aggressiveness(obj, 1.0f );
+		ScriptEngine::Set_Innate_Take_Cover_Probability(obj, 0.0f );
 
 		ActionParamsStruct params;
 		params.Set_Basic(this, INNATE_PRIORITY_ENEMY_SEEN - 5, GO_STAR);
 		params.Set_Movement(STAR, RUN, 1.0f);
-		Commands->Action_Goto(obj, params);
+		ScriptEngine::Action_Goto(obj, params);
 	}
 
 	void Sound_Heard(GameObject * obj, const CombatSound &sound) override
 	{
 		ActionParamsStruct params;
 
-		const char * preset_name = Commands->Get_Preset_Name( obj );
+		const char * preset_name = ScriptEngine::Get_Preset_Name( obj );
 
 		if (static_cast<int>(sound.Type) == M07_SSM_DAMAGED && ( ::strncmp( "Nod_Engineer_0", preset_name, ::strlen( "Nod_Engineer_0" ) ) == 0 ))
 		{
@@ -6376,11 +6376,11 @@ DECLARE_SCRIPT(M07_SSM_Unit, "")
 			params.Set_Movement( Vector3(0,0,0), RUN, 5.5f );
 			params.Set_Attack (sound.Creator, 250.0f, 0.0f, 0);
 			params.AttackCheckBlocked = false;
-			Commands->Action_Attack( obj, params );
+			ScriptEngine::Action_Attack( obj, params );
 		}
 		if (static_cast<int>(sound.Type) == M07_SSM_FIXED && ( ::strncmp( "Nod_Engineer_0", preset_name, ::strlen( "Nod_Engineer_0" ) ) == 0 ))
 		{
-			Commands->Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
+			ScriptEngine::Action_Reset(obj, INNATE_PRIORITY_ENEMY_SEEN + 5);
 		}
 	}
 
@@ -6398,14 +6398,14 @@ DECLARE_SCRIPT(M07_Obelisk_Unit, "")
 
 	void Created(GameObject * obj) override
 	{
-		Commands->Innate_Disable(obj);
+		ScriptEngine::Innate_Disable(obj);
 	}
 
 	void Custom (GameObject * obj, int type, intptr_t /* param */, GameObject * /* sender */) override
 	{
 		if(type == M07_CUSTOM_ACTIVATE)
 		{
-			Commands->Innate_Enable(obj);
+			ScriptEngine::Innate_Enable(obj);
 		}
 	}
 
@@ -6426,24 +6426,24 @@ DECLARE_SCRIPT (M07_Park_Stealth_Tank, "")
 
 	void Created(GameObject * obj) override
 	{
-		health = Commands->Get_Health(obj);
+		health = ScriptEngine::Get_Health(obj);
 	}
 
 	void Damaged(GameObject * obj, GameObject * /* damager */, float /* amount */) override
 	{
-		if(health > (.2 * Commands->Get_Max_Health(obj)))
+		if(health > (.2 * ScriptEngine::Get_Max_Health(obj)))
 		{
-			float damage = health - Commands->Get_Health(obj);
+			float damage = health - ScriptEngine::Get_Health(obj);
 			damage *= 0.5f;
 			health -= damage;
-			Commands->Set_Health(obj, health);
+			ScriptEngine::Set_Health(obj, health);
 		}
 	}
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
 		// Defeat Stealth Tank.
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 707, 1, 0.0f);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 707, 1, 0.0f);
 	}
 };
 
@@ -6458,8 +6458,8 @@ DECLARE_SCRIPT(M07_SSM_Crate, "")
 
 	void Killed (GameObject * obj, GameObject * /* killer */) override
 	{
-		Commands->Create_Explosion("Explosion_Rocket_SSM", Commands->Get_Position(obj), nullptr);
-		Commands->Send_Custom_Event(obj, Commands->Find_Object(100781), M07_SSM_CRATE_KILLED, 1, 0.0f);
+		ScriptEngine::Create_Explosion("Explosion_Rocket_SSM", ScriptEngine::Get_Position(obj), nullptr);
+		ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100781), M07_SSM_CRATE_KILLED, 1, 0.0f);
 	}
 };
 
@@ -6470,7 +6470,7 @@ DECLARE_SCRIPT(M07_DataDisc_01_DLS, "")//
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
 			// Reveal Stealth Tank
-			Commands->Reveal_Encyclopedia_Vehicle(33);
+			ScriptEngine::Reveal_Encyclopedia_Vehicle(33);
 		}
 	}
 };
@@ -6482,7 +6482,7 @@ DECLARE_SCRIPT(M07_DataDisc_02_DLS, "")//
 		if ( type == CUSTOM_EVENT_POWERUP_GRANTED )
 		{
 			// Reveal Stealth Soldier
-			Commands->Reveal_Encyclopedia_Character(47);
+			ScriptEngine::Reveal_Encyclopedia_Character(47);
 		}
 	}
 };
@@ -6507,18 +6507,18 @@ DECLARE_SCRIPT(M07_Hotwire_Help, "")
 
 	void Entered (GameObject * /* obj */, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 
 			// Hotwire
-			if(Commands->Find_Object(100658))
+			if(ScriptEngine::Find_Object(100658))
 			{
 				// Hotwire here, I need help!  Now!  Anyone!?
 				const char *conv_name = ("M07_CON028");
-				int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-				Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-				Commands->Start_Conversation (conv_id, 100658);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+				ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+				ScriptEngine::Start_Conversation (conv_id, 100658);
 
 			}
 
@@ -6547,19 +6547,19 @@ DECLARE_SCRIPT(M07_Hotwire_Dead, "")
 
 	void Entered (GameObject * obj, GameObject * enterer) override
 	{
-		if ((Commands->Is_A_Star(enterer)) && (!already_entered))
+		if ((ScriptEngine::Is_A_Star(enterer)) && (!already_entered))
 		{
 			already_entered = true;
 
 			// Hotwire
-			if(Commands->Find_Object(100658))
+			if(ScriptEngine::Find_Object(100658))
 			{
 				// This is Hotwire, I can't hold this position! Requesting - oh great! <gunfire and static>
 				const char *conv_name = ("M07_CON029");
-				int conv_id = Commands->Create_Conversation (conv_name, 100, 200.0f, false);
-				Commands->Join_Conversation(nullptr, conv_id, false, true, true);
-				Commands->Start_Conversation (conv_id, 100658);
-				Commands->Monitor_Conversation (obj, conv_id);
+				int conv_id = ScriptEngine::Create_Conversation (conv_name, 100, 200.0f, false);
+				ScriptEngine::Join_Conversation(nullptr, conv_id, false, true, true);
+				ScriptEngine::Start_Conversation (conv_id, 100658);
+				ScriptEngine::Monitor_Conversation (obj, conv_id);
 			}
 
 		}
@@ -6572,9 +6572,9 @@ DECLARE_SCRIPT(M07_Hotwire_Dead, "")
 			if(action_id == 100658)
 			{
 				// Hotwire Killed
-				Commands->Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0174I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
+				ScriptEngine::Set_HUD_Help_Text ( IDS_M05DSGN_DSGN0174I1DSGN_TXT, TEXT_COLOR_OBJECTIVE_PRIMARY );
 				// Protect Team Members
-				Commands->Send_Custom_Event(obj, Commands->Find_Object(100657), 709, 2, 0.0f);
+				ScriptEngine::Send_Custom_Event(obj, ScriptEngine::Find_Object(100657), 709, 2, 0.0f);
 
 			}
 

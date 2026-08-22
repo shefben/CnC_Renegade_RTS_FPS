@@ -264,6 +264,6 @@ void Group::SendCustomEvent(GameObject* from, int event, int data)
 		{
 		GameObject* object = mMembers[index];
 		assert(object != nullptr);
-		Commands->Send_Custom_Event(from, object, event, data);
+		ScriptEngine::Send_Custom_Event(from, object, event, data);
 		}
 	}

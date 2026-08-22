@@ -48,8 +48,8 @@ DECLARE_SCRIPT (M00_Cinematic_Attack_Command_DLS, "AttackDuration=1.0:float")
 
 	void Created( GameObject * obj ) override
 	{
-		float facing = Commands->Get_Facing(Owner());
-		Vector3 target = Commands->Get_Position(Owner());
+		float facing = ScriptEngine::Get_Facing(Owner());
+		Vector3 target = ScriptEngine::Get_Position(Owner());
 		target.X += WWMath::Cos(DEG_TO_RADF(facing)) * 10.0f;
 		target.Y += WWMath::Sin(DEG_TO_RADF(facing)) * 10.0f;
 		target.Z += 2.0f;
@@ -59,13 +59,13 @@ DECLARE_SCRIPT (M00_Cinematic_Attack_Command_DLS, "AttackDuration=1.0:float")
 		params.Set_Attack( target, 100.0f, 0.0f, true );
 		params.AttackForceFire = true;
 
-		Commands->Action_Attack( obj, params );
-		Commands->Send_Custom_Event( obj, obj, 1, 1, Get_Float_Parameter("AttackDuration") );
+		ScriptEngine::Action_Attack( obj, params );
+		ScriptEngine::Send_Custom_Event( obj, obj, 1, 1, Get_Float_Parameter("AttackDuration") );
 	}
 
 	void Custom( GameObject * obj, int /*type*/, intptr_t /*param*/, GameObject * /*sender*/ ) override
 	{
-		Commands->Action_Reset( obj, 100 );
+		ScriptEngine::Action_Reset( obj, 100 );
 
 	}
 
@@ -93,12 +93,12 @@ DECLARE_SCRIPT(Test_Cinematic_Primary_Killed, "CallbackID=:int")
 		if (!custom_sent)
 		{
 			custom_sent = true;
-			Commands->Debug_Message( "Cinematic Primary Killed\n" );
+			ScriptEngine::Debug_Message( "Cinematic Primary Killed\n" );
 			int id = Get_Int_Parameter( "CallbackID" );
 
-			GameObject * callback = Commands->Find_Object( id );
+			GameObject * callback = ScriptEngine::Find_Object( id );
 			if ( callback ) {
-				Commands->Send_Custom_Event( obj, callback, M00_CUSTOM_CINEMATIC_PRIMARY_KILLED, 0, 0.0f );
+				ScriptEngine::Send_Custom_Event( obj, callback, M00_CUSTOM_CINEMATIC_PRIMARY_KILLED, 0, 0.0f );
 			}
 		}
 	}
@@ -108,12 +108,12 @@ DECLARE_SCRIPT(Test_Cinematic_Primary_Killed, "CallbackID=:int")
 		if (!custom_sent)
 		{
 			custom_sent = true;
-			Commands->Debug_Message( "Cinematic Primary Destroyed\n" );
+			ScriptEngine::Debug_Message( "Cinematic Primary Destroyed\n" );
 			int id = Get_Int_Parameter( "CallbackID" );
 
-			GameObject * callback = Commands->Find_Object( id );
+			GameObject * callback = ScriptEngine::Find_Object( id );
 			if ( callback ) {
-				Commands->Send_Custom_Event( obj, callback, M00_CUSTOM_CINEMATIC_PRIMARY_KILLED, 0, 0.0f );
+				ScriptEngine::Send_Custom_Event( obj, callback, M00_CUSTOM_CINEMATIC_PRIMARY_KILLED, 0, 0.0f );
 			}
 		}
 	}
@@ -192,7 +192,7 @@ public:
 	void	Display_Control_Lines( void )
 	{
 		for ( ControlLine * node = Controls; node != nullptr; node = node->Next ) {
-//			Commands->Debug_Message( "%3.2f \"%s\"\n", node->Time, node->Command );
+//			ScriptEngine::Debug_Message( "%3.2f \"%s\"\n", node->Time, node->Command );
 		}
 	}
 
@@ -201,19 +201,19 @@ public:
 	*/
 	void	Load_Control_File( const char * filename )
 	{
-		Commands->Debug_Message( "Loading Control File %s\n", filename );
+		ScriptEngine::Debug_Message( "Loading Control File %s\n", filename );
 
 		char full_filename[80];
 		snprintf( full_filename, sizeof(full_filename), "DATA/%s", filename );
 //		FILE * in = fopen( full_filename, "rt" );
-		void *handle = Commands->Text_File_Open( filename );
+		void *handle = ScriptEngine::Text_File_Open( filename );
 		if ( handle == nullptr ) {
-			Commands->Debug_Message( "Failed to open %s\n", full_filename );
+			ScriptEngine::Debug_Message( "Failed to open %s\n", full_filename );
 			return;
 		}
 
 		char *line,line_data[200];
-		while ( Commands->Text_File_Get_String( handle, line_data, sizeof( line_data )-1 ) ) {
+		while ( ScriptEngine::Text_File_Get_String( handle, line_data, sizeof( line_data )-1 ) ) {
 			line = line_data;
 			// Convert tabs to spaces
 			for ( char * l = line; *l; l++ ) {
@@ -244,7 +244,7 @@ public:
 		}
 
 //		fclose( in );
-		Commands->Text_File_Close( handle );
+		ScriptEngine::Text_File_Close( handle );
 	}
 
 	/*
@@ -315,43 +315,43 @@ public:
 	*/
 	void Save(ScriptSaver& saver) override
 	{
-//		Commands->Debug_Message( "Cinematic Saving\n" );
-//		Commands->Debug_Message("Sync time is %d.\n", Commands->Get_Sync_Time());
+//		ScriptEngine::Debug_Message( "Cinematic Saving\n" );
+//		ScriptEngine::Debug_Message("Sync time is %d.\n", ScriptEngine::Get_Sync_Time());
 
 		// Save the Variables
-		Commands->Begin_Chunk(saver, CHUNKID_VARIABLES);
-			int sync_diff = Commands->Get_Sync_Time() - LastSyncTime;
-			Commands->Save_Data(saver, CHUNKID_VARIABLE_SYNC_DIFF, sizeof( sync_diff ), &sync_diff );
-//Commands->Debug_Message( "Saving sync_diff %d\n", sync_diff );
-			Commands->Save_Data(saver, CHUNKID_VARIABLE_TIME, sizeof( Time ), &Time );
-//Commands->Debug_Message( "Saving Time %f\n", Time );
-			Commands->Save_Data(saver, CHUNKID_PRIMARY_KILLED, sizeof( PrimaryKilled ), &PrimaryKilled );
-		Commands->End_Chunk(saver);
+		ScriptEngine::Begin_Chunk(saver, CHUNKID_VARIABLES);
+			int sync_diff = ScriptEngine::Get_Sync_Time() - LastSyncTime;
+			ScriptEngine::Save_Data(saver, CHUNKID_VARIABLE_SYNC_DIFF, sizeof( sync_diff ), &sync_diff );
+//ScriptEngine::Debug_Message( "Saving sync_diff %d\n", sync_diff );
+			ScriptEngine::Save_Data(saver, CHUNKID_VARIABLE_TIME, sizeof( Time ), &Time );
+//ScriptEngine::Debug_Message( "Saving Time %f\n", Time );
+			ScriptEngine::Save_Data(saver, CHUNKID_PRIMARY_KILLED, sizeof( PrimaryKilled ), &PrimaryKilled );
+		ScriptEngine::End_Chunk(saver);
 
 		// Save the Object Slots
-		Commands->Begin_Chunk(saver, CHUNKID_OBJECT_SLOTS);
+		ScriptEngine::Begin_Chunk(saver, CHUNKID_OBJECT_SLOTS);
 		for ( int i = 0; i < NUM_SLOTS; i++ ) {
 			if ( ObjectSlots[i] != 0 ) {
-				Commands->Save_Data(saver, i, sizeof( ObjectSlots[i] ), &ObjectSlots[ i ] );
-//Commands->Debug_Message( "Saving Slot %d as %d\n", i, ObjectSlots[ i ] );
+				ScriptEngine::Save_Data(saver, i, sizeof( ObjectSlots[i] ), &ObjectSlots[ i ] );
+//ScriptEngine::Debug_Message( "Saving Slot %d as %d\n", i, ObjectSlots[ i ] );
 			}
 		}
-		Commands->End_Chunk(saver);
+		ScriptEngine::End_Chunk(saver);
 
 		// Save Control Lines
-		Commands->Begin_Chunk(saver, CHUNKID_CONTROL_LINES);
+		ScriptEngine::Begin_Chunk(saver, CHUNKID_CONTROL_LINES);
 		ControlLine * controls = Controls;
 		while ( controls != nullptr ) {
-			Commands->Save_Data(saver, CHUNKID_CONTROL_TIME, sizeof( controls->Time ), &controls->Time );
+			ScriptEngine::Save_Data(saver, CHUNKID_CONTROL_TIME, sizeof( controls->Time ), &controls->Time );
 			const size_t command_len = ::strlen( controls->Command ) + 1;
 			assert(command_len <= static_cast<size_t>(std::numeric_limits<int>::max()));
 			int len = static_cast<int>(command_len);
-			Commands->Save_Data(saver, CHUNKID_CONTROL_COMMAND_SIZE, sizeof( len ), &len );
-			Commands->Save_Data(saver, CHUNKID_CONTROL_COMMAND, len, controls->Command );
-//Commands->Debug_Message( "Saving Command %f %s\n", controls->Time, controls->Command );
+			ScriptEngine::Save_Data(saver, CHUNKID_CONTROL_COMMAND_SIZE, sizeof( len ), &len );
+			ScriptEngine::Save_Data(saver, CHUNKID_CONTROL_COMMAND, len, controls->Command );
+//ScriptEngine::Debug_Message( "Saving Command %f %s\n", controls->Time, controls->Command );
 			controls = controls->Next;
 		}
-		Commands->End_Chunk(saver);
+		ScriptEngine::End_Chunk(saver);
 
 	}
 
@@ -364,12 +364,12 @@ public:
 			ObjectSlots[i] =0;
 		}
 
-//		Commands->Debug_Message( "Cinematic Loading\n" );
-//		Commands->Debug_Message("Sync time is %d.\n", Commands->Get_Sync_Time());
+//		ScriptEngine::Debug_Message( "Cinematic Loading\n" );
+//		ScriptEngine::Debug_Message("Sync time is %d.\n", ScriptEngine::Get_Sync_Time());
 
 		unsigned int chunkID;
 
-		while (Commands->Open_Chunk(loader, &chunkID)) {
+		while (ScriptEngine::Open_Chunk(loader, &chunkID)) {
 
 			switch (chunkID) {
 
@@ -377,26 +377,26 @@ public:
 				{
 					int id;
 					int sync_diff;
-					while (Commands->Load_Begin(loader, &id)) {
+					while (ScriptEngine::Load_Begin(loader, &id)) {
 						switch ( id ) {
 							case CHUNKID_VARIABLE_SYNC_DIFF:
-								Commands->Load_Data(loader, sizeof( sync_diff ), &sync_diff );
-//Commands->Debug_Message( "Loading sync_diff %d\n", sync_diff );
-								LastSyncTime = Commands->Get_Sync_Time() - sync_diff;
+								ScriptEngine::Load_Data(loader, sizeof( sync_diff ), &sync_diff );
+//ScriptEngine::Debug_Message( "Loading sync_diff %d\n", sync_diff );
+								LastSyncTime = ScriptEngine::Get_Sync_Time() - sync_diff;
 		  						break;
 
 							case CHUNKID_VARIABLE_TIME:
-								Commands->Load_Data(loader, sizeof( Time ), &Time );
-//Commands->Debug_Message( "Loading Time %f\n", Time );
+								ScriptEngine::Load_Data(loader, sizeof( Time ), &Time );
+//ScriptEngine::Debug_Message( "Loading Time %f\n", Time );
 								break;
 
 							case CHUNKID_PRIMARY_KILLED:
-								Commands->Load_Data(loader, sizeof( PrimaryKilled ), &PrimaryKilled );
-//Commands->Debug_Message( "Loading Time %f\n", Time );
+								ScriptEngine::Load_Data(loader, sizeof( PrimaryKilled ), &PrimaryKilled );
+//ScriptEngine::Debug_Message( "Loading Time %f\n", Time );
 								break;
 
 						}
-						Commands->Load_End(loader);
+						ScriptEngine::Load_End(loader);
 					}
 				}
 				break;
@@ -404,12 +404,12 @@ public:
 				case CHUNKID_OBJECT_SLOTS:
 				{
 					int id;
-					while (Commands->Load_Begin(loader, &id)) {
+					while (ScriptEngine::Load_Begin(loader, &id)) {
 						if ( id >= 0 && id < NUM_SLOTS ) {
-							Commands->Load_Data(loader, sizeof( ObjectSlots[id] ), &ObjectSlots[id] );
-//Commands->Debug_Message( "Loading Slot %d as %d\n", id, ObjectSlots[ id ] );
+							ScriptEngine::Load_Data(loader, sizeof( ObjectSlots[id] ), &ObjectSlots[id] );
+//ScriptEngine::Debug_Message( "Loading Slot %d as %d\n", id, ObjectSlots[ id ] );
 						}
-						Commands->Load_End(loader);
+						ScriptEngine::Load_End(loader);
 					}
 				}
 				break;
@@ -421,23 +421,23 @@ public:
 					float time = 0;
 					int len = 0;
 
-					while (Commands->Load_Begin(loader, &id)) {
+					while (ScriptEngine::Load_Begin(loader, &id)) {
 						if ( id == CHUNKID_CONTROL_TIME ) {
-							Commands->Load_Data(loader, sizeof( time ), &time );
+							ScriptEngine::Load_Data(loader, sizeof( time ), &time );
 						}
 						if ( id == CHUNKID_CONTROL_COMMAND_SIZE ) {
-							Commands->Load_Data(loader, sizeof( len ), &len );
+							ScriptEngine::Load_Data(loader, sizeof( len ), &len );
 						}
 						if ( id == CHUNKID_CONTROL_COMMAND ) {
 							#define	MAX_COMMAND_LOAD_SIZE 200
 							char load_command[MAX_COMMAND_LOAD_SIZE+1];
 							if ( len < MAX_COMMAND_LOAD_SIZE ) {
-								Commands->Load_Data(loader, len, &load_command[0] );
+								ScriptEngine::Load_Data(loader, len, &load_command[0] );
 								Add_Control_Line( time, load_command );
-//Commands->Debug_Message( "Loading Command %f %s\n", time, load_command );
+//ScriptEngine::Debug_Message( "Loading Command %f %s\n", time, load_command );
 							}
 						}
-						Commands->Load_End(loader);
+						ScriptEngine::Load_End(loader);
 					}
 				}
 				break;
@@ -447,7 +447,7 @@ public:
 				break;
 			}
 
-			Commands->Close_Chunk(loader);
+			ScriptEngine::Close_Chunk(loader);
 		}
 	}
 
@@ -459,39 +459,39 @@ public:
 	*/
 	void	Command_Create_Object( char * params )
 	{
-//		Commands->Debug_Message_2( "Creating Object %s\n", (int)params );
+//		ScriptEngine::Debug_Message_2( "Creating Object %s\n", (int)params );
 		int slot = atoi( Get_First_Parameter( params ) );
 		const char * model_name = Get_Next_Parameter();
 
 		if ( (slot < 0) || ( slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Slot Number %d\n", slot );
+//			ScriptEngine::Debug_Message( "Bad Slot Number %d\n", slot );
 			slot = -1;
 		}
 
 		if ( slot != -1 && ObjectSlots[ slot ] != 0 ) {
-//			Commands->Debug_Message( "Used Slot number %d\n", slot );
-//			Commands->Debug_Message( "Slot used by %d\n", ObjectSlots[ slot ] );
+//			ScriptEngine::Debug_Message( "Used Slot number %d\n", slot );
+//			ScriptEngine::Debug_Message( "Slot used by %d\n", ObjectSlots[ slot ] );
 		}
 
 		// Create a decoration cinematic object, then set it's model
-		GameObject * obj = Commands->Create_Object( "Generic_Cinematic", Commands->Get_Position( Owner() ) );
-		Commands->Enable_Hibernation( obj, false );
+		GameObject * obj = ScriptEngine::Create_Object( "Generic_Cinematic", ScriptEngine::Get_Position( Owner() ) );
+		ScriptEngine::Enable_Hibernation( obj, false );
 
 		if ( obj ) {
-			Commands->Add_To_Dirty_Cull_List(obj);
-			Commands->Set_Model( obj, model_name );
-			Commands->Set_Facing( obj, Commands->Get_Facing( Owner() ) );
+			ScriptEngine::Add_To_Dirty_Cull_List(obj);
+			ScriptEngine::Set_Model( obj, model_name );
+			ScriptEngine::Set_Facing( obj, ScriptEngine::Get_Facing( Owner() ) );
 			if ( slot != -1 ) {
-				ObjectSlots[ slot ] = Commands->Get_ID( obj );
+				ObjectSlots[ slot ] = ScriptEngine::Get_ID( obj );
 			}
 
 			if ( IsCameraCinematic ) {
-				Commands->Enable_Cinematic_Freeze( obj, false );
-				Commands->Enable_Hibernation(obj, false);
+				ScriptEngine::Enable_Cinematic_Freeze( obj, false );
+				ScriptEngine::Enable_Hibernation(obj, false);
 			}
 
 		} else {
-//			Commands->Debug_Message( "Failed to create %s\n", (int)model_name );
+//			ScriptEngine::Debug_Message( "Failed to create %s\n", (int)model_name );
 		}
 	}
 
@@ -500,47 +500,47 @@ public:
 	*/
 	void	Command_Create_Real_Object( char * params )
 	{
-//		Commands->Debug_Message_2( "Creating Real Object %s\n", (int)params );
+//		ScriptEngine::Debug_Message_2( "Creating Real Object %s\n", (int)params );
 		int slot = atoi( Get_First_Parameter( params ) );
 		const char * preset_name = Get_Next_Parameter();
 		const char * host_slot_name = Get_Next_Parameter();
 		const char * host_bone_name = Get_Next_Parameter();
 
 		if ( (slot < 0) || ( slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Slot Number %d\n", slot );
+//			ScriptEngine::Debug_Message( "Bad Slot Number %d\n", slot );
 			slot = -1;
 		}
 
 		if ( slot != -1 && ObjectSlots[ slot ] != 0 ) {
-//			Commands->Debug_Message( "Used Slot number %d\n", slot );
-//			Commands->Debug_Message( "Slot used by %d\n", ObjectSlots[ slot ] );
+//			ScriptEngine::Debug_Message( "Used Slot number %d\n", slot );
+//			ScriptEngine::Debug_Message( "Slot used by %d\n", ObjectSlots[ slot ] );
 		}
 
 		GameObject * obj = nullptr;
 		if (( host_slot_name != nullptr ) && ( *host_slot_name != 0 ) ) {
 			int host_slot = atoi( host_slot_name );
-			GameObject * host_obj = Commands->Find_Object( ObjectSlots[ host_slot ] );
-			obj = Commands->Create_Object_At_Bone( host_obj, preset_name, host_bone_name );
+			GameObject * host_obj = ScriptEngine::Find_Object( ObjectSlots[ host_slot ] );
+			obj = ScriptEngine::Create_Object_At_Bone( host_obj, preset_name, host_bone_name );
 		} else {
-			obj = Commands->Create_Object( preset_name, Commands->Get_Position( Owner() ) );
-			Commands->Set_Facing( obj, Commands->Get_Facing( Owner() ) );
+			obj = ScriptEngine::Create_Object( preset_name, ScriptEngine::Get_Position( Owner() ) );
+			ScriptEngine::Set_Facing( obj, ScriptEngine::Get_Facing( Owner() ) );
 		}
 
 		if ( obj ) {
-			Commands->Enable_Engine( obj, true );
-			Commands->Add_To_Dirty_Cull_List(obj);
-//			Commands->Enable_Hibernation( obj, false );
+			ScriptEngine::Enable_Engine( obj, true );
+			ScriptEngine::Add_To_Dirty_Cull_List(obj);
+//			ScriptEngine::Enable_Hibernation( obj, false );
 			if ( slot != -1 ) {
-				ObjectSlots[ slot ] = Commands->Get_ID( obj );
+				ObjectSlots[ slot ] = ScriptEngine::Get_ID( obj );
 			}
 
 			if ( IsCameraCinematic ) {
-				Commands->Enable_Cinematic_Freeze( obj, false );
-				Commands->Enable_Hibernation(obj, false);
+				ScriptEngine::Enable_Cinematic_Freeze( obj, false );
+				ScriptEngine::Enable_Hibernation(obj, false);
 			}
 
 		} else {
-//			Commands->Debug_Message( "Failed to create real %s\n", (int)preset_name );
+//			ScriptEngine::Debug_Message( "Failed to create real %s\n", (int)preset_name );
 		}
 	}
 
@@ -549,33 +549,33 @@ public:
 	*/
 	void	Command_Create_Explosion( char * params )
 	{
-//		Commands->Debug_Message_2( "Creating Explosion %s\n", (int)params );
+//		ScriptEngine::Debug_Message_2( "Creating Explosion %s\n", (int)params );
 		const char * preset_name = Get_First_Parameter( params );
 		int host_slot = atoi( Get_Next_Parameter() );
 		const char * host_bone_name = Get_Next_Parameter();
 
-		GameObject * host_obj = Commands->Find_Object( ObjectSlots[ host_slot ] );
-		Commands->Create_Explosion_At_Bone( preset_name, host_obj, host_bone_name, nullptr );
+		GameObject * host_obj = ScriptEngine::Find_Object( ObjectSlots[ host_slot ] );
+		ScriptEngine::Create_Explosion_At_Bone( preset_name, host_obj, host_bone_name, nullptr );
 	}
 
 	void	Command_Destroy_Object( char * params )
 	{
-//		Commands->Debug_Message_2( "Destroying Object %s\n", (int)params );
+//		ScriptEngine::Debug_Message_2( "Destroying Object %s\n", (int)params );
 		int slot = atoi( Get_First_Parameter( params ) );
 
 		if ( (slot < 0) || ( slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Slot Number %d\n", slot );
+//			ScriptEngine::Debug_Message( "Bad Slot Number %d\n", slot );
 			slot = -1;
 		}
 
 		if ( slot != -1 ) {
 			if ( ObjectSlots[ slot ] == 0 ) {
-//				Commands->Debug_Message( "Empty Slot number %d\n", slot );
+//				ScriptEngine::Debug_Message( "Empty Slot number %d\n", slot );
 			} else {
 				int id = ObjectSlots[ slot ];
-				GameObject * obj = Commands->Find_Object( id );
+				GameObject * obj = ScriptEngine::Find_Object( id );
 				if ( obj ) {
-					Commands->Destroy_Object( obj );
+					ScriptEngine::Destroy_Object( obj );
 				}
 			}
 		}
@@ -583,7 +583,7 @@ public:
 
 	void	Command_Play_Animation( char * params )
 	{
-//		Commands->Debug_Message( "Playing Animation %s\n", (int)params );
+//		ScriptEngine::Debug_Message( "Playing Animation %s\n", (int)params );
 		int slot = atoi( Get_First_Parameter( params ) );
 		const char * name = Get_Next_Parameter();
 		bool looping = atoi( Get_Next_Parameter() ) != 0;
@@ -591,24 +591,24 @@ public:
 		bool is_blended = atoi( Get_Next_Parameter() ) == 1;
 
 		if ( (slot < 0) || ( slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Slot Number %d\n", slot );
+//			ScriptEngine::Debug_Message( "Bad Slot Number %d\n", slot );
 			slot = -1;
 		}
 
 		if ( slot != -1 ) {
 			int id = ObjectSlots[ slot ];
-			GameObject * obj = Commands->Find_Object( id );
+			GameObject * obj = ScriptEngine::Find_Object( id );
 			if ( obj ) {
-				Commands->Set_Animation( obj, name, looping, sub_obj_name, FrameSync, -1.0F, is_blended );
+				ScriptEngine::Set_Animation( obj, name, looping, sub_obj_name, FrameSync, -1.0F, is_blended );
 
 				// Anyone that plays an animation in a camera cine, doesn't get innate
 				if ( IsCameraCinematic ) {
-					Commands->Innate_Disable( obj );
+					ScriptEngine::Innate_Disable( obj );
 				}
 
 
 			} else {
-//				Commands->Debug_Message( "Slot Object not found %d\n", slot );
+//				ScriptEngine::Debug_Message( "Slot Object not found %d\n", slot );
 			}
 		}
 
@@ -616,7 +616,7 @@ public:
 
 	void	Command_Play_Audio( char * params )
 	{
-//		Commands->Debug_Message( "Playing Audio %s\n", (int)params );
+//		ScriptEngine::Debug_Message( "Playing Audio %s\n", (int)params );
 		const char * preset_name = Get_First_Parameter( params );
 		const char * slot_name = Get_Next_Parameter();
 		const char * bone_name = Get_Next_Parameter();
@@ -627,56 +627,56 @@ public:
 		}
 
 		if ( (slot < 0) || ( slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Slot Number %d\n", slot );
+//			ScriptEngine::Debug_Message( "Bad Slot Number %d\n", slot );
 			slot = -1;
 		}
 
 		if ( slot != -1 ) {
 			int id = ObjectSlots[ slot ];
-			GameObject * obj = Commands->Find_Object( id );
+			GameObject * obj = ScriptEngine::Find_Object( id );
 			if ( obj ) {
-				Commands->Create_3D_Sound_At_Bone( preset_name, obj, bone_name );
+				ScriptEngine::Create_3D_Sound_At_Bone( preset_name, obj, bone_name );
 			} else {
-//				Commands->Debug_Message( "Slot Object not found %d\n", slot );
+//				ScriptEngine::Debug_Message( "Slot Object not found %d\n", slot );
 			}
 		} else {
-			Commands->Create_2D_Sound( preset_name );
+			ScriptEngine::Create_2D_Sound( preset_name );
 		}
 	}
 
 	void	Command_Control_Camera( char * params )
 	{
-//		Commands->Debug_Message_2( "Controlling the camera %s\n", (int)params );
+//		ScriptEngine::Debug_Message_2( "Controlling the camera %s\n", (int)params );
 		int slot = atoi( Get_First_Parameter( params ) );
 
 		if ( (slot < -1) || ( slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Slot Number %d\n", slot );
+//			ScriptEngine::Debug_Message( "Bad Slot Number %d\n", slot );
 			slot = -1;
 		}
 
 		if ( slot != -1 ) {
 			int id = ObjectSlots[ slot ];
-			GameObject * obj = Commands->Find_Object( id );
+			GameObject * obj = ScriptEngine::Find_Object( id );
 			if ( obj ) {
-				Commands->Set_Camera_Host( obj );
-				Commands->Control_Enable( Commands->Get_The_Star(), false );
-				Commands->Enable_HUD(0);
+				ScriptEngine::Set_Camera_Host( obj );
+				ScriptEngine::Control_Enable( ScriptEngine::Get_The_Star(), false );
+				ScriptEngine::Enable_HUD(0);
 				IsCameraCinematic = true;
-				Commands->Enable_Cinematic_Freeze( obj, false );
-				Commands->Enable_Hibernation(obj, false);
+				ScriptEngine::Enable_Cinematic_Freeze( obj, false );
+				ScriptEngine::Enable_Hibernation(obj, false);
 			} else {
-//				Commands->Debug_Message( "Slot Object not found %d\n", slot );
+//				ScriptEngine::Debug_Message( "Slot Object not found %d\n", slot );
 			}
 		} else {
-			Commands->Set_Camera_Host( nullptr );
-			Commands->Control_Enable( Commands->Get_The_Star(), true );
-			Commands->Enable_HUD(1);
+			ScriptEngine::Set_Camera_Host( nullptr );
+			ScriptEngine::Control_Enable( ScriptEngine::Get_The_Star(), true );
+			ScriptEngine::Enable_HUD(1);
 		}
 	}
 
 	void	Command_Send_Custom( char * params )
 	{
-//		Commands->Debug_Message_2( "Send Custom %s\n", (int)params );
+//		ScriptEngine::Debug_Message_2( "Send Custom %s\n", (int)params );
 		const char * to_id_name = Get_First_Parameter( params );
 		int type = atoi( Get_Next_Parameter() );
 		const char * parameter_name = Get_Next_Parameter();
@@ -685,7 +685,7 @@ public:
 		if ( ::strchr( to_id_name, '#' ) != nullptr ) {
 			int to_slot = atoi( ::strchr( to_id_name, '#' ) + 1 );
 			if ( (to_slot < 0) || ( to_slot >= NUM_SLOTS ) ) {
-//				Commands->Debug_Message( "Bad Slot Number %d\n", to_slot );
+//				ScriptEngine::Debug_Message( "Bad Slot Number %d\n", to_slot );
 			} else {
 				to_id = ObjectSlots[ to_slot ];
 			}
@@ -697,7 +697,7 @@ public:
 		if ( ::strchr( parameter_name, '#' ) != nullptr ) {
 			int parameter_slot = atoi( ::strchr( parameter_name, '#' ) + 1 );
 			if ( (parameter_slot < 0) || ( parameter_slot >= NUM_SLOTS ) ) {
-//				Commands->Debug_Message( "Bad Slot Number %d\n", parameter_slot );
+//				ScriptEngine::Debug_Message( "Bad Slot Number %d\n", parameter_slot );
 			} else {
 				parameter = ObjectSlots[ parameter_slot ];
 			}
@@ -706,97 +706,97 @@ public:
 		}
 
 
-		GameObject * to = Commands->Find_Object( to_id );
+		GameObject * to = ScriptEngine::Find_Object( to_id );
 		if ( to ) {
-			Commands->Send_Custom_Event( Owner(), to, type, parameter, 0.0f );
+			ScriptEngine::Send_Custom_Event( Owner(), to, type, parameter, 0.0f );
 		} else {
-//			Commands->Debug_Message( "Send Custom Target not found %d\n", to_id );
+//			ScriptEngine::Debug_Message( "Send Custom Target not found %d\n", to_id );
 		}
 	}
 
 	void	Command_Attach_To_Bone( char * params )
 	{
-//		Commands->Debug_Message_2( "Attach_To_Bone %s\n", (int)params );
+//		ScriptEngine::Debug_Message_2( "Attach_To_Bone %s\n", (int)params );
 		int obj_slot = atoi( Get_First_Parameter( params ) );
 		int host_slot = atoi( Get_Next_Parameter() );
 		const char * bone_name = Get_Next_Parameter();
 
 		if ( (obj_slot < 0) || ( obj_slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Obj Slot Number %d\n", obj_slot );
+//			ScriptEngine::Debug_Message( "Bad Obj Slot Number %d\n", obj_slot );
 			obj_slot = -1;
 		}
 
 		if ( (host_slot < 0) || ( host_slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Host Slot Number %d\n", host_slot );
+//			ScriptEngine::Debug_Message( "Bad Host Slot Number %d\n", host_slot );
 			host_slot = -1;
 		}
 
 		if ( obj_slot != -1 ) {
 			int id = ObjectSlots[ obj_slot ];
-			GameObject * obj = Commands->Find_Object( id );
+			GameObject * obj = ScriptEngine::Find_Object( id );
 			if ( obj ) {
 
 				if ( host_slot != -1 ) {
 					id = ObjectSlots[ host_slot ];
-					GameObject * host = Commands->Find_Object( id );
+					GameObject * host = ScriptEngine::Find_Object( id );
 					if	( host ) {
-						Commands->Attach_To_Object_Bone( obj, host, bone_name );
+						ScriptEngine::Attach_To_Object_Bone( obj, host, bone_name );
 					} else {
-//						Commands->Debug_Message( "Host Object not found %d\n", host_slot );
+//						ScriptEngine::Debug_Message( "Host Object not found %d\n", host_slot );
 					}
 				} else {
-					Commands->Attach_To_Object_Bone( obj, nullptr, nullptr );
+					ScriptEngine::Attach_To_Object_Bone( obj, nullptr, nullptr );
 				}
 			} else {
-//				Commands->Debug_Message( "Slot Object not found %d\n", obj_slot );
+//				ScriptEngine::Debug_Message( "Slot Object not found %d\n", obj_slot );
 			}
 		}
 	}
 
 	void	Command_Attach_Script( char * params )
 	{
-//		Commands->Debug_Message_2( "Attach_Script %s\n", (int)params );
+//		ScriptEngine::Debug_Message_2( "Attach_Script %s\n", (int)params );
 		int obj_slot = atoi( Get_First_Parameter( params ) );
 		const char * script_name = Get_Next_Parameter();
 		const char * script_parameters = Get_Next_Parameter();
 
 		if ( (obj_slot < 0) || ( obj_slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Obj Slot Number %d\n", obj_slot );
+//			ScriptEngine::Debug_Message( "Bad Obj Slot Number %d\n", obj_slot );
 			obj_slot = -1;
 		}
 
 		if ( obj_slot != -1 ) {
 			int id = ObjectSlots[ obj_slot ];
-			GameObject * obj = Commands->Find_Object( id );
+			GameObject * obj = ScriptEngine::Find_Object( id );
 			if ( obj ) {
-//				Commands->Debug_Message( "Attaching Script %s \"%s\"\n", script_name, script_parameters );
-				Commands->Attach_Script( obj, script_name, script_parameters );
+//				ScriptEngine::Debug_Message( "Attaching Script %s \"%s\"\n", script_name, script_parameters );
+				ScriptEngine::Attach_Script( obj, script_name, script_parameters );
 			} else {
-//				Commands->Debug_Message( "Slot Object not found %d\n", obj_slot );
+//				ScriptEngine::Debug_Message( "Slot Object not found %d\n", obj_slot );
 			}
 		}
 	}
 
 	void	Command_Set_Primary( char * params )
 	{
-//		Commands->Debug_Message_2( "Set_Primary %s\n", (int)params );
+//		ScriptEngine::Debug_Message_2( "Set_Primary %s\n", (int)params );
 		int obj_slot = atoi( Get_First_Parameter( params ) );
 
 		if ( (obj_slot < 0) || ( obj_slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Obj Slot Number %d\n", obj_slot );
+//			ScriptEngine::Debug_Message( "Bad Obj Slot Number %d\n", obj_slot );
 			obj_slot = -1;
 		}
 
 		if ( obj_slot != -1 ) {
 			int id = ObjectSlots[ obj_slot ];
-			GameObject * obj = Commands->Find_Object( id );
+			GameObject * obj = ScriptEngine::Find_Object( id );
 			if ( obj ) {
-				Commands->Enable_Hibernation( obj, false );
+				ScriptEngine::Enable_Hibernation( obj, false );
 				char id_str[12];
 				sprintf( id_str, "%d", MyID );
-				Commands->Attach_Script( obj, "Test_Cinematic_Primary_Killed", id_str );
+				ScriptEngine::Attach_Script( obj, "Test_Cinematic_Primary_Killed", id_str );
 			} else {
-//				Commands->Debug_Message( "Slot Object not found %d\n", obj_slot );
+//				ScriptEngine::Debug_Message( "Slot Object not found %d\n", obj_slot );
 			}
 		}
 	}
@@ -825,7 +825,7 @@ public:
 		int enabled = atoi( Get_First_Parameter( params ) );
 		float zoom = strtof( Get_Next_Parameter() , nullptr);
 
-		Commands->Cinematic_Sniper_Control( enabled != 0, zoom );
+		ScriptEngine::Cinematic_Sniper_Control( enabled != 0, zoom );
 	}
 
 	void	Command_Shake_Camera( char * params )
@@ -835,18 +835,18 @@ public:
 		float duration = strtof( Get_Next_Parameter() , nullptr);
 
 		if ( (obj_slot < 0) || ( obj_slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Obj Slot Number %d\n", obj_slot );
+//			ScriptEngine::Debug_Message( "Bad Obj Slot Number %d\n", obj_slot );
 			obj_slot = -1;
 		}
 
 		if ( obj_slot != -1 ) {
 			int id = ObjectSlots[ obj_slot ];
-			GameObject * obj = Commands->Find_Object( id );
+			GameObject * obj = ScriptEngine::Find_Object( id );
 			if ( obj ) {
-				Vector3 pos = Commands->Get_Bone_Position( obj, "Camera" );
-				Commands->Shake_Camera( pos, 100, intensity, duration );
+				Vector3 pos = ScriptEngine::Get_Bone_Position( obj, "Camera" );
+				ScriptEngine::Shake_Camera( pos, 100, intensity, duration );
 			} else {
-//				Commands->Debug_Message( "Slot Object not found %d\n", obj_slot );
+//				ScriptEngine::Debug_Message( "Slot Object not found %d\n", obj_slot );
 			}
 		}
 	}
@@ -857,17 +857,17 @@ public:
 		int onoff = atoi( Get_Next_Parameter() );
 
 		if ( (obj_slot < 0) || ( obj_slot >= NUM_SLOTS ) ) {
-//			Commands->Debug_Message( "Bad Obj Slot Number %d\n", obj_slot );
+//			ScriptEngine::Debug_Message( "Bad Obj Slot Number %d\n", obj_slot );
 			obj_slot = -1;
 		}
 
 		if ( obj_slot != -1 ) {
 			int id = ObjectSlots[ obj_slot ];
-			GameObject * obj = Commands->Find_Object( id );
+			GameObject * obj = ScriptEngine::Find_Object( id );
 			if ( obj ) {
-				Commands->Enable_Shadow(obj,(onoff != 0));
+				ScriptEngine::Enable_Shadow(obj,(onoff != 0));
 			} else {
-//				Commands->Debug_Message( "Slot Object not found %d\n", obj_slot );
+//				ScriptEngine::Debug_Message( "Slot Object not found %d\n", obj_slot );
 			}
 		}
 	}
@@ -877,7 +877,7 @@ public:
 		int onoff = atoi( Get_First_Parameter( params ) );
 		float time = strtof( Get_Next_Parameter() , nullptr);
 
-		Commands->Enable_Letterbox(!!onoff,time);
+		ScriptEngine::Enable_Letterbox(!!onoff,time);
 	}
 
 	void Command_Set_Screen_Fade_Color( char * params )
@@ -887,7 +887,7 @@ public:
 		float b = strtof( Get_Next_Parameter() , nullptr);
 		float time = strtof( Get_Next_Parameter() , nullptr);
 
-		Commands->Set_Screen_Fade_Color(r,g,b,time);
+		ScriptEngine::Set_Screen_Fade_Color(r,g,b,time);
 	}
 
 	void Command_Set_Screen_Fade_Opacity( char * params )
@@ -895,7 +895,7 @@ public:
 		float opacity = strtof( Get_First_Parameter( params ) , nullptr);
 		float time = strtof( Get_Next_Parameter() , nullptr);
 
-		Commands->Set_Screen_Fade_Opacity(opacity,time);
+		ScriptEngine::Set_Screen_Fade_Opacity(opacity,time);
 	}
 
 	/*
@@ -919,7 +919,7 @@ public:
 
 	void	Parse_Command( char *command )
 	{
-//		Commands->Debug_Message( "Parse %s\n", (int)command );
+//		ScriptEngine::Debug_Message( "Parse %s\n", (int)command );
 
 				if ( Title_Match( &command, "Create_Object" ) )			Command_Create_Object( command );
 		else	if ( Title_Match( &command, "Create_Real_Object" ) )	Command_Create_Real_Object( command );
@@ -940,21 +940,21 @@ public:
 		else	if ( Title_Match( &command, "Set_Screen_Fade_Color" ) )	Command_Set_Screen_Fade_Color( command );
 		else	if ( Title_Match( &command, "Set_Screen_Fade_Opacity" ) )	Command_Set_Screen_Fade_Opacity( command );
 		else {
-//			Commands->Debug_Message( "Failed to parse %s\n", (int)command );
+//			ScriptEngine::Debug_Message( "Failed to parse %s\n", (int)command );
 		}
 	}
 
 	void	Parse_Commands( GameObject* obj ) {
 
-		unsigned int sync_diff = Commands->Get_Sync_Time() - LastSyncTime;
+		unsigned int sync_diff = ScriptEngine::Get_Sync_Time() - LastSyncTime;
 		LastSyncTime += sync_diff;
 
 		float bump_time = ((float)sync_diff) / 1000.0f;
 		Time += bump_time;
 
-		MyID = Commands->Get_ID( obj );
+		MyID = ScriptEngine::Get_ID( obj );
 
-//		Commands->Debug_Message( "Cinematic Time %1.3f Frame %1.3f Bump Time %1.3f\n", Time, Time * 30.0f, bump_time );
+//		ScriptEngine::Debug_Message( "Cinematic Time %1.3f Frame %1.3f Bump Time %1.3f\n", Time, Time * 30.0f, bump_time );
 
 		// If Primary Destroyed,
 		if ( PrimaryKilled ) {
@@ -979,18 +979,18 @@ public:
 		if ( Controls != nullptr ) {
 			// if the next command is > than the LAST_VALID_TIMESTAMP, we are done
 			if ( Controls->Time >= LAST_VALID_TIMESTAMP ) {
-				Commands->Destroy_Object( obj );
+				ScriptEngine::Destroy_Object( obj );
 			} else {
 				float time_diff = Controls->Time - Time;
-				Commands->Start_Timer( obj, this, time_diff, 0 );
+				ScriptEngine::Start_Timer( obj, this, time_diff, 0 );
 			}
 		} else {
-			Commands->Destroy_Object( obj );
+			ScriptEngine::Destroy_Object( obj );
 		}
 
 		// Make sure we don't sleep
 		if ( IsCameraCinematic ) {
-			Commands->Enable_Cinematic_Freeze( obj, false );
+			ScriptEngine::Enable_Cinematic_Freeze( obj, false );
 		}
 
 	}
@@ -1000,14 +1000,14 @@ public:
 	*/
 	void Created(GameObject* obj) override
 	{
-		Commands->Enable_Hibernation( obj, false );
+		ScriptEngine::Enable_Hibernation( obj, false );
 
 		Controls = nullptr;
 		for ( int i = 0; i < NUM_SLOTS; i++ ) {
 			ObjectSlots[ i ] = 0;
 		}
 
-		LastSyncTime = Commands->Get_Sync_Time();
+		LastSyncTime = ScriptEngine::Get_Sync_Time();
 		Time = 0;
 		PrimaryKilled = false;
 		IsCameraCinematic = false;
@@ -1018,7 +1018,7 @@ public:
 
 	void Timer_Expired (GameObject* obj, int /*timer_id*/) override
 	{
-//		Commands->Debug_Message("In Timer_Expired Get_Sync_Time is %d.\n", Commands->Get_Sync_Time());
+//		ScriptEngine::Debug_Message("In Timer_Expired Get_Sync_Time is %d.\n", ScriptEngine::Get_Sync_Time());
 		Parse_Commands(obj);
 	}
 
@@ -1026,7 +1026,7 @@ public:
 	{
 		if ( type == M00_CUSTOM_CINEMATIC_PRIMARY_KILLED ) {
 			if ( !PrimaryKilled ) {		// Prevent loops
-				Commands->Debug_Message("Cinematic:Primary Killed\n");
+				ScriptEngine::Debug_Message("Cinematic:Primary Killed\n");
 				PrimaryKilled = true;
 				Parse_Commands( obj );
 			}
@@ -1035,10 +1035,10 @@ public:
 			int slot = type - M00_CUSTOM_CINEMATIC_SET_SLOT;
 			if ( slot < NUM_SLOTS ) {
 				if ( ObjectSlots[ slot ] != 0 ) {
-//					Commands->Debug_Message( "Slot number %d used by %d\n", slot, ObjectSlots[ slot ] );
+//					ScriptEngine::Debug_Message( "Slot number %d used by %d\n", slot, ObjectSlots[ slot ] );
 				} else {
 					ObjectSlots[ slot ] = param;
-//					Commands->Debug_Message( "Slot number %d set to %d\n", slot, ObjectSlots[ slot ] );
+//					ScriptEngine::Debug_Message( "Slot number %d set to %d\n", slot, ObjectSlots[ slot ] );
 				}
 			}
 		}

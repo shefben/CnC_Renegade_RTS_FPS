@@ -48,22 +48,22 @@ DECLARE_SCRIPT(M00_Spawner_Controller_RMV, "Spawner_ID:int, Custom_Type_To_Enabl
 		enable = Get_Int_Parameter("Custom_Type_To_Enable");
 		trigger = Get_Int_Parameter("Custom_Type_To_Trigger");
 		start_on = (Get_Int_Parameter("On_When_Created") == 1) ? true : false;
-		if (Commands->Find_Object(id) != nullptr)
-			Commands->Enable_Spawner(id, start_on);
+		if (ScriptEngine::Find_Object(id) != nullptr)
+			ScriptEngine::Enable_Spawner(id, start_on);
 	}
 	void Custom(GameObject * /*obj*/, int type, intptr_t param, GameObject * /*sender*/) override
 	{
 		if (type == enable)
 		{
 			bool toggle = (param == 1) ? true : false;
-			if (Commands->Find_Object(id) != nullptr)
-				Commands->Enable_Spawner(id, toggle);
+			if (ScriptEngine::Find_Object(id) != nullptr)
+				ScriptEngine::Enable_Spawner(id, toggle);
 		}
 		if (type == trigger)
 		{
 //			bool force = (param == 1) ? true : false;
-			if (Commands->Find_Object(id) != nullptr)
-				Commands->Trigger_Spawner(id);
+			if (ScriptEngine::Find_Object(id) != nullptr)
+				ScriptEngine::Trigger_Spawner(id);
 		}
 	}
 };

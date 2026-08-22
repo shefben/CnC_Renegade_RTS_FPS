@@ -85,25 +85,25 @@ typedef enum
 
 inline void Send_Custom_To_SAM_Sites (GameObject * obj, int type, int param)
 {
-	GameObject * sam = Commands->Find_Object(1100085);
+	GameObject * sam = ScriptEngine::Find_Object(1100085);
 	if (sam)
 	{
-		Commands->Send_Custom_Event(obj, sam, type, param, 0.5f);
+		ScriptEngine::Send_Custom_Event(obj, sam, type, param, 0.5f);
 	}
-	sam = Commands->Find_Object(1100094);
+	sam = ScriptEngine::Find_Object(1100094);
 	if (sam)
 	{
-		Commands->Send_Custom_Event(obj, sam, type, param, 0.5f);
+		ScriptEngine::Send_Custom_Event(obj, sam, type, param, 0.5f);
 	}
-	sam = Commands->Find_Object(1100120);
+	sam = ScriptEngine::Find_Object(1100120);
 	if (sam)
 	{
-		Commands->Send_Custom_Event(obj, sam, type, param, 0.5f);
+		ScriptEngine::Send_Custom_Event(obj, sam, type, param, 0.5f);
 	}
-	sam = Commands->Find_Object(1100130);
+	sam = ScriptEngine::Find_Object(1100130);
 	if (sam)
 	{
-		Commands->Send_Custom_Event(obj, sam, type, param, 0.5f);
+		ScriptEngine::Send_Custom_Event(obj, sam, type, param, 0.5f);
 	}
 }
 

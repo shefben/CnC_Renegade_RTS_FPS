@@ -473,7 +473,7 @@ endif()
 
 # Targets to build.
 if(W3D_CLIENT) # Full game client
-    add_executable(renegade WIN32 ${COMMANDO_SRC})
+    add_executable(renegade WIN32 ${COMMANDO_SRC} $<TARGET_OBJECTS:scripts>)
 
     target_link_libraries(renegade PRIVATE
         commando
@@ -487,7 +487,7 @@ if(W3D_CLIENT) # Full game client
 endif()
 
 if(W3D_FDS) # Dedicated headless server
-    add_executable(renegadeserver WIN32 ${COMMANDO_SRC})
+    add_executable(renegadeserver WIN32 ${COMMANDO_SRC} $<TARGET_OBJECTS:scripts>)
 
     target_link_libraries(renegadeserver PRIVATE
         commando

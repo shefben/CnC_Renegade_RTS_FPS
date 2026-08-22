@@ -601,7 +601,7 @@ inline const char* M01_Choose_Cheer_Animation ( )
 			"H_A_J24C",
 			"H_A_J26C",
 		};
-		int random = Commands->Get_Random_Int(0, 4);
+		int random = ScriptEngine::Get_Random_Int(0, 4);
 
 
 	return animationList[random];
@@ -617,7 +617,7 @@ inline const char* M01_Choose_Duck_Animation ( )
 			"H_A_A0A0_L52",
 			"H_A_J21C",
 		};
-		int random = Commands->Get_Random_Int(0, 5);
+		int random = ScriptEngine::Get_Random_Int(0, 5);
 
 
 	return animationList[random];
@@ -633,7 +633,7 @@ inline const char* M01_Choose_Search_Animation ( )
 			"H_A_J23C",
 			"H_A_J27C",
 		};
-		int random = Commands->Get_Random_Int(0, 4);
+		int random = ScriptEngine::Get_Random_Int(0, 4);
 
 
 	return animationList[random];
@@ -658,7 +658,7 @@ inline const char* M01_Choose_Idle_Animation ( )
 			"H_A_J14C",
 			"H_A_J11C",
 		};
-		int random = Commands->Get_Random_Int(0, 14);
+		int random = ScriptEngine::Get_Random_Int(0, 14);
 
 	return animationList[random];
 };
@@ -666,7 +666,7 @@ inline const char* M01_Choose_Idle_Animation ( )
 /*inline char *M01_Choose_Cheer_Animation ( )
 {
 	char *animationName;
-	float animationNumber = Commands->Get_Random ( 0.5f, 4.5f);
+	float animationNumber = ScriptEngine::Get_Random ( 0.5f, 4.5f);
 
 	if ((animationNumber >= 0.5) && (animationNumber < 1.5))
 	{
@@ -694,7 +694,7 @@ inline const char* M01_Choose_Idle_Animation ( )
 /*inline char *M01_Choose_Search_Animation ( )
 {
 	char *animationName;
-	float animationNumber = Commands->Get_Random ( 0.5f, 5.5f);
+	float animationNumber = ScriptEngine::Get_Random ( 0.5f, 5.5f);
 
 	if ((animationNumber >= 0.5) && (animationNumber < 1.5))
 	{
@@ -728,7 +728,7 @@ inline const char* M01_Choose_Idle_Animation ( )
 {
 	char *animationName;
 
-	float animationNumber = Commands->Get_Random ( 0.5f, 14.5f);
+	float animationNumber = ScriptEngine::Get_Random ( 0.5f, 14.5f);
 
 	if ((animationNumber >= 0.5) && (animationNumber < 1.5))
 	{
