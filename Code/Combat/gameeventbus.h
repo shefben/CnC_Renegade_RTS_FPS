@@ -540,6 +540,23 @@ public:
 **	Owners raise through the Raise_ helpers rather than touching the channel,
 **	so the payload is built in exactly one place.
 */
+//
+//	Combat can address a client by id, but only the game knows who is connected
+//	and which team they chose.  This is the one channel a listener is expected to
+//	answer rather than observe: it fills in the client ids and sets Answered.
+//	Nobody answers it in the editor, which has no clients, so a caller that gets
+//	false back should do nothing rather than guess.
+//
+class	ClientQueryEventClass : public GameEventClass
+{
+public:
+	ClientQueryEventClass (int team)	: Team (team), Answered (false)	{ }
+
+	int									Team;			// -1 for every connected client
+	bool									Answered;
+	DynamicVectorClass<int>		ClientIDs;
+};
+
 class	GameEventBus
 {
 public:
@@ -591,6 +608,8 @@ public:
 	static GameEventChannelClass<NetworkVisibilityEventClass>	NetworkVisibility;
 	static GameEventChannelClass<NetworkDirtyEventClass>			NetworkDirty;
 
+	static GameEventChannelClass<ClientQueryEventClass>			ClientQuery;
+
 	//
 	//	Raise helpers.  These are what the canonical owners call; each returns
 	//	whatever decision the event carries, so the owner reads one value.
@@ -638,6 +657,8 @@ public:
 
 	static void	Raise_Network_Visibility (NetworkObjectClass *object, int client_id, bool visible);
 	static void	Raise_Network_Dirty (NetworkObjectClass *object, int client_id, int bit);
+
+	static bool	Raise_Client_Query (int team, DynamicVectorClass<int> &client_ids);
 };
 
 

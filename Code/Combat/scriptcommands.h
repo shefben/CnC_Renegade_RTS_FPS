@@ -465,6 +465,44 @@ namespace ScriptEngine
 	void Set_Screen_Fade_Color ( float r, float g, float b, float seconds );
 	void Set_Screen_Fade_Opacity ( float opacity, float seconds );
 
+	// Commands whose effect belongs to one client rather than to the world.
+	// A script runs on the server, so these ask the addressee's machine to run
+	// the matching command above; on a dedicated server the server itself sees
+	// nothing, which is right.  A team of -1 means every connected client.
+	// `player` is any object a client is controlling -- normally the soldier.
+	// A sound started on someone else's machine has no id here, so unlike their
+	// local counterparts these return nothing.
+	void Send_Message ( int red, int green, int blue, const char * message );
+	void Send_Message_Player ( GameObject * player, int red, int green, int blue, const char * message );
+	void Send_Message_Team ( int team, int red, int green, int blue, const char * message );
+	void Send_Message_With_Team_Color ( int team, const char * message );
+
+	void Create_Sound_Player ( GameObject * player, const char * sound_preset_name, const Vector3 & position );
+	void Create_Sound_Team ( int team, const char * sound_preset_name, const Vector3 & position );
+	void Create_2D_Sound_Player ( GameObject * player, const char * sound_preset_name );
+	void Create_2D_Sound_Team ( int team, const char * sound_preset_name );
+	void Create_2D_WAV_Sound_Player ( GameObject * player, const char * wav_filename );
+	void Create_2D_WAV_Sound_Team ( int team, const char * wav_filename );
+
+	void Set_Background_Music_Player ( GameObject * player, const char * wav_filename );
+	void Fade_Background_Music_Player ( GameObject * player, const char * wav_filename, int fade_out_time, int fade_in_time );
+	void Stop_Background_Music_Player ( GameObject * player );
+
+	void Set_HUD_Help_Text_Player ( GameObject * player, int string_id, const Vector3 & color );
+	void Set_Screen_Fade_Color_Player ( GameObject * player, float r, float g, float b, float seconds );
+	void Set_Screen_Fade_Opacity_Player ( GameObject * player, float opacity, float seconds );
+	void Force_Camera_Look_Player ( GameObject * player, const Vector3 & target );
+	void Enable_Radar_Player ( GameObject * player, bool enable );
+	void Display_GDI_Player_Terminal_Player ( GameObject * player );
+	void Display_NOD_Player_Terminal_Player ( GameObject * player );
+
+	// Server-side team operations
+	void Kill_All_Buildings_By_Team ( int team );
+
+	// Restore a soldier's ammunition, health and armor -- what a vehicle
+	// purchase terminal grants when it sells a refill.
+	void Grant_Refill ( GameObject * player );
+
 }	// namespace ScriptEngine
 
 #endif	// SCRIPTCOMMANDS_H

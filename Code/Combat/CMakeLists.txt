@@ -91,6 +91,7 @@ set(COMBAT_SRC
     samsite.cpp
     savegame.cpp
     scexplosionevent.cpp
+    scscriptcommandevent.cpp
     scobeliskevent.cpp
     screenfademanager.cpp
     scriptablegameobj.cpp
@@ -225,6 +226,7 @@ set(COMBAT_SRC
     samsite.h
     savegame.h
     scexplosionevent.h
+    scscriptcommandevent.h
     scobeliskevent.h
     screenfademanager.h
     scriptablegameobj.h

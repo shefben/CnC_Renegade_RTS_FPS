@@ -93,6 +93,7 @@
 #include "encyclopediamgr.h"
 #include "texturethumbnail.h"
 #include "playermanager.h"
+#include "gameeventlisteners.h"
 #include "teammanager.h"
 #include "stackdump.h"
 #include "registry.h"
@@ -1005,6 +1006,12 @@ bool Game_Init(void)
    cNetUtil::Wsa_Init();
 
 	CombatManager::Init(ConsoleBox.Is_Exclusive() ? false : true);
+
+	//
+	//	CombatManager::Init resets the event bus, so the game's answers go on
+	//	afterwards, never before.
+	//
+	GameEventListeners::Register();
 
 	CampaignManager::Init();
 

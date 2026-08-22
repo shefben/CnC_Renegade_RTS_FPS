@@ -75,6 +75,9 @@
 #include "playerdata.h"
 #include "building.h"
 #include "basecontroller.h"
+#include "colors.h"
+#include "scscriptcommandevent.h"
+#include "weaponbag.h"
 #include "scriptzone.h"
 #include "hud.h"
 #include "backgroundmgr.h"
@@ -3483,6 +3486,317 @@ void	Set_Screen_Fade_Opacity( float opacity, float seconds )
 {
 	SCRIPT_TRACE(( "ST>Set_Screen_Fade_Opacity( %f, %f)\n", opacity,seconds ));
 	ScreenFadeManager::Set_Screen_Overlay_Opacity(opacity,seconds);
+}
+
+
+/*
+**	Per-client commands.
+**
+**	A script runs on the server.  Anything that draws, plays, or fades belongs
+**	to one machine, so these build the S->C event and let the addressee's own
+**	client run the ordinary command.  There is still exactly one implementation
+**	of each effect -- the local one above -- which is the point.
+*/
+
+static int	Client_Id_Of( GameObject * player )
+{
+	if ( player == nullptr ) {
+		return -1;
+	}
+
+	SmartGameObj * smart_obj = player->As_SmartGameObj();
+	if ( smart_obj == nullptr ) {
+		return -1;
+	}
+
+	return smart_obj->Get_Control_Owner();
+}
+
+void	Send_Message( int red, int green, int blue, const char * message )
+{
+	SCRIPT_PTR_CHECK( message );
+	SCRIPT_TRACE(( "ST>Send_Message( %d, %d, %d, %s )\n", red, green, blue, message ));
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( message );
+	event->Set_Color( Vector3( red / 255.0f, green / 255.0f, blue / 255.0f ) );
+	event->Init( SCRIPT_CLIENT_CMD_SEND_MESSAGE, -1 );
+}
+
+void	Send_Message_Player( GameObject * player, int red, int green, int blue, const char * message )
+{
+	SCRIPT_PTR_CHECK( message );
+	SCRIPT_TRACE(( "ST>Send_Message_Player( %d, %d, %d, %s )\n", red, green, blue, message ));
+
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( message );
+	event->Set_Color( Vector3( red / 255.0f, green / 255.0f, blue / 255.0f ) );
+	event->Init( SCRIPT_CLIENT_CMD_SEND_MESSAGE, client_id );
+}
+
+void	Send_Message_Team( int team, int red, int green, int blue, const char * message )
+{
+	SCRIPT_PTR_CHECK( message );
+	SCRIPT_TRACE(( "ST>Send_Message_Team( %d, %s )\n", team, message ));
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( message );
+	event->Set_Color( Vector3( red / 255.0f, green / 255.0f, blue / 255.0f ) );
+	event->Init_For_Team( SCRIPT_CLIENT_CMD_SEND_MESSAGE, team );
+}
+
+void	Send_Message_With_Team_Color( int team, const char * message )
+{
+	SCRIPT_PTR_CHECK( message );
+	SCRIPT_TRACE(( "ST>Send_Message_With_Team_Color( %d, %s )\n", team, message ));
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( message );
+	event->Set_Color( ::Get_Color_For_Team( team ) );
+	event->Init( SCRIPT_CLIENT_CMD_SEND_MESSAGE, -1 );
+}
+
+void	Create_Sound_Player( GameObject * player, const char * sound_preset_name, const Vector3 & position )
+{
+	SCRIPT_PTR_CHECK( sound_preset_name );
+
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( sound_preset_name );
+	event->Set_Position( position );
+	event->Init( SCRIPT_CLIENT_CMD_CREATE_SOUND, client_id );
+}
+
+void	Create_Sound_Team( int team, const char * sound_preset_name, const Vector3 & position )
+{
+	SCRIPT_PTR_CHECK( sound_preset_name );
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( sound_preset_name );
+	event->Set_Position( position );
+	event->Init_For_Team( SCRIPT_CLIENT_CMD_CREATE_SOUND, team );
+}
+
+void	Create_2D_Sound_Player( GameObject * player, const char * sound_preset_name )
+{
+	SCRIPT_PTR_CHECK( sound_preset_name );
+
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( sound_preset_name );
+	event->Init( SCRIPT_CLIENT_CMD_CREATE_2D_SOUND, client_id );
+}
+
+void	Create_2D_Sound_Team( int team, const char * sound_preset_name )
+{
+	SCRIPT_PTR_CHECK( sound_preset_name );
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( sound_preset_name );
+	event->Init_For_Team( SCRIPT_CLIENT_CMD_CREATE_2D_SOUND, team );
+}
+
+void	Create_2D_WAV_Sound_Player( GameObject * player, const char * wav_filename )
+{
+	SCRIPT_PTR_CHECK( wav_filename );
+
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( wav_filename );
+	event->Init( SCRIPT_CLIENT_CMD_CREATE_2D_WAV_SOUND, client_id );
+}
+
+void	Create_2D_WAV_Sound_Team( int team, const char * wav_filename )
+{
+	SCRIPT_PTR_CHECK( wav_filename );
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( wav_filename );
+	event->Init_For_Team( SCRIPT_CLIENT_CMD_CREATE_2D_WAV_SOUND, team );
+}
+
+void	Set_Background_Music_Player( GameObject * player, const char * wav_filename )
+{
+	SCRIPT_PTR_CHECK( wav_filename );
+
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( wav_filename );
+	event->Init( SCRIPT_CLIENT_CMD_SET_BACKGROUND_MUSIC, client_id );
+}
+
+void	Fade_Background_Music_Player( GameObject * player, const char * wav_filename, int fade_out_time, int fade_in_time )
+{
+	SCRIPT_PTR_CHECK( wav_filename );
+
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( wav_filename );
+	event->Set_Int_Params( fade_out_time, fade_in_time );
+	event->Init( SCRIPT_CLIENT_CMD_FADE_BACKGROUND_MUSIC, client_id );
+}
+
+void	Stop_Background_Music_Player( GameObject * player )
+{
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Init( SCRIPT_CLIENT_CMD_STOP_BACKGROUND_MUSIC, client_id );
+}
+
+void	Set_HUD_Help_Text_Player( GameObject * player, int string_id, const Vector3 & color )
+{
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Int_Params( string_id );
+	event->Set_Color( color );
+	event->Init( SCRIPT_CLIENT_CMD_SET_HUD_HELP_TEXT, client_id );
+}
+
+void	Set_Screen_Fade_Color_Player( GameObject * player, float r, float g, float b, float seconds )
+{
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Color( Vector3( r, g, b ) );
+	event->Set_Float_Params( seconds );
+	event->Init( SCRIPT_CLIENT_CMD_SET_SCREEN_FADE_COLOR, client_id );
+}
+
+void	Set_Screen_Fade_Opacity_Player( GameObject * player, float opacity, float seconds )
+{
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Float_Params( opacity, seconds );
+	event->Init( SCRIPT_CLIENT_CMD_SET_SCREEN_FADE_OPACITY, client_id );
+}
+
+void	Force_Camera_Look_Player( GameObject * player, const Vector3 & target )
+{
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Position( target );
+	event->Init( SCRIPT_CLIENT_CMD_FORCE_CAMERA_LOOK, client_id );
+}
+
+void	Enable_Radar_Player( GameObject * player, bool enable )
+{
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Int_Params( enable ? 1 : 0 );
+	event->Init( SCRIPT_CLIENT_CMD_ENABLE_RADAR, client_id );
+}
+
+void	Display_GDI_Player_Terminal_Player( GameObject * player )
+{
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Init( SCRIPT_CLIENT_CMD_DISPLAY_GDI_TERMINAL, client_id );
+}
+
+void	Display_NOD_Player_Terminal_Player( GameObject * player )
+{
+	int client_id = Client_Id_Of( player );
+	if ( client_id == -1 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Init( SCRIPT_CLIENT_CMD_DISPLAY_NOD_TERMINAL, client_id );
+}
+
+void	Kill_All_Buildings_By_Team( int team )
+{
+	SCRIPT_TRACE(( "ST>Kill_All_Buildings_By_Team( %d )\n", team ));
+
+	BaseControllerClass * base = BaseControllerClass::Find_Base( team );
+	if ( base != nullptr ) {
+		base->Set_Base_Destroyed( true );
+	}
+}
+
+/*
+**	One implementation of a refill, here rather than in the purchase terminal,
+**	because a script can want to grant one without a terminal being involved.
+**	VendorClass::Grant_Supplies calls this.
+*/
+void	Grant_Refill( GameObject * player )
+{
+	SCRIPT_PTR_CHECK( player );
+
+	PhysicalGameObj * physical_obj = player->As_PhysicalGameObj();
+	if ( physical_obj == nullptr ) {
+		return ;
+	}
+
+	SoldierGameObj * soldier = physical_obj->As_SoldierGameObj();
+	if ( soldier == nullptr ) {
+		return ;
+	}
+
+	WeaponBagClass * weapon_bag = soldier->Get_Weapon_Bag();
+	for ( int weapon_index = 0; weapon_index < weapon_bag->Get_Count(); weapon_index ++ ) {
+		WeaponClass * weapon = weapon_bag->Peek_Weapon( weapon_index );
+		if ( weapon != nullptr && weapon->Get_Definition()->CanReceiveGenericCnCAmmo ) {
+			weapon->Set_Inventory_Rounds( weapon->Get_Definition()->MaxInventoryRounds );
+			weapon->Set_Clip_Rounds( weapon->Get_Definition()->ClipSize );
+		}
+	}
+
+	DefenseObjectClass * defense_obj = soldier->Get_Defense_Object();
+	defense_obj->Set_Health( defense_obj->Get_Health_Max() );
+	defense_obj->Set_Shield_Strength( defense_obj->Get_Shield_Strength_Max() );
 }
 
 }	// namespace ScriptEngine

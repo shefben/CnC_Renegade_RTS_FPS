@@ -63,6 +63,8 @@ GameEventChannelClass<ThinkEventClass>					GameEventBus::Think;
 GameEventChannelClass<NetworkVisibilityEventClass>	GameEventBus::NetworkVisibility;
 GameEventChannelClass<NetworkDirtyEventClass>		GameEventBus::NetworkDirty;
 
+GameEventChannelClass<ClientQueryEventClass>		GameEventBus::ClientQuery;
+
 
 /*
 **	Init exists so the bus has a named place in the engine startup order even
@@ -121,6 +123,8 @@ GameEventBus::Shutdown (void)
 
 	NetworkVisibility.Reset ();
 	NetworkDirty.Reset ();
+
+	ClientQuery.Reset ();
 
 	return ;
 }
@@ -479,4 +483,28 @@ GameEventBus::Raise_Network_Dirty (NetworkObjectClass *object, int client_id, in
 	NetworkDirtyEventClass event (object, client_id, bit);
 	NetworkDirty.Dispatch (event);
 	return ;
+}
+
+/*
+**	The one query on the bus.  Combat can address a client by id but has no
+**	roster; the game answers with one, and nothing in the editor does.  A false
+**	return means "nobody can tell you", which is different from "nobody is on
+**	that team" -- callers must not treat it as an empty list.
+*/
+bool
+GameEventBus::Raise_Client_Query (int team, DynamicVectorClass<int> &client_ids)
+{
+	if (!ClientQuery.Has_Subscribers ()) {
+		return false;
+	}
+
+	ClientQueryEventClass event (team);
+	ClientQuery.Dispatch (event);
+
+	if (!event.Answered) {
+		return false;
+	}
+
+	client_ids = event.ClientIDs;
+	return true;
 }

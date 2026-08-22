@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "vendor.h"
+#include "scriptcommands.h"
 #include "ttsettings.h"
 #include "gameeventbus.h"
 #include "gameobjmanager.h"
@@ -481,28 +482,7 @@ VendorClass::Purchase_Item
 void
 VendorClass::Grant_Supplies (SoldierGameObj *player)
 {
-	//
-	//	Grant ammo
-	//
-	WeaponBagClass *weapon_bag = player->Get_Weapon_Bag ();
-	for (int weapon_index = 0; weapon_index < weapon_bag->Get_Count (); weapon_index ++) {
-		WeaponClass	*weapon = weapon_bag->Peek_Weapon (weapon_index);
-		if (weapon != nullptr && weapon->Get_Definition ()->CanReceiveGenericCnCAmmo) {
-
-			//
-			//	Restore full ammo
-			//
-			weapon->Set_Inventory_Rounds (weapon->Get_Definition ()->MaxInventoryRounds);
-			weapon->Set_Clip_Rounds (weapon->Get_Definition ()->ClipSize);
-		}
-	}
-
-	//
-	//	Grant full health and armor
-	//
-	DefenseObjectClass *defense_obj = player->Get_Defense_Object ();
-	defense_obj->Set_Health (defense_obj->Get_Health_Max ());
-	defense_obj->Set_Shield_Strength (defense_obj->Get_Shield_Strength_Max ());
+	ScriptEngine::Grant_Refill (player);
 	return ;
 }
 

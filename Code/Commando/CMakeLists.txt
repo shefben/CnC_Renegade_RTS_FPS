@@ -388,6 +388,8 @@ set(COMMANDO_SRC
     scoreevent.h
     scpingresponseevent.cpp
     scpingresponseevent.h
+    gameeventlisteners.cpp
+    gameeventlisteners.h
     sctextobj.cpp
     sctextobj.h
     suicideevent.cpp

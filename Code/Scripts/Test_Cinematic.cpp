@@ -645,6 +645,42 @@ public:
 		}
 	}
 
+	//	Put a line of text in front of the players watching.  Team 2 -- the
+	//	default when the parameter is left off -- means everyone.  A colour
+	//	that is not fully given falls back to white rather than to black.
+	void	Command_Show_Message( char * params )
+	{
+		const char * message	= Get_First_Parameter( params );
+		const char * team_str	= Get_Next_Parameter();
+		const char * red_str		= Get_Next_Parameter();
+		const char * green_str	= Get_Next_Parameter();
+		const char * blue_str	= Get_Next_Parameter();
+
+		if ( (message == nullptr) || (message[0] == 0) ) {
+			return;
+		}
+
+		int team = ( (team_str != nullptr) && (team_str[0] != 0) ) ? atoi( team_str ) : 2;
+
+		int red		= 255;
+		int green	= 255;
+		int blue		= 255;
+
+		if ( (red_str != nullptr) && (red_str[0] != 0) &&
+			  (green_str != nullptr) && (green_str[0] != 0) &&
+			  (blue_str != nullptr) && (blue_str[0] != 0) ) {
+			red	= atoi( red_str );
+			green	= atoi( green_str );
+			blue	= atoi( blue_str );
+		}
+
+		if ( (team != SCRIPT_PLAYERTYPE_NOD) && (team != SCRIPT_PLAYERTYPE_GDI) ) {
+			ScriptEngine::Send_Message( red, green, blue, message );
+		} else {
+			ScriptEngine::Send_Message_Team( team, red, green, blue, message );
+		}
+	}
+
 	void	Command_Play_Animation( char * params )
 	{
 //		ScriptEngine::Debug_Message( "Playing Animation %s\n", (int)params );
@@ -994,6 +1030,7 @@ public:
 		else	if ( Title_Match( &command, "Stop_Animation" ) )		Command_Stop_Animation( command );
 		else	if ( Title_Match( &command, "Play_Animation" ) )		Command_Play_Animation( command );
 		else	if ( Title_Match( &command, "Play_Audio" ) )				Command_Play_Audio( command );
+		else	if ( Title_Match( &command, "Show_Message" ) )			Command_Show_Message( command );
 		else	if ( Title_Match( &command, "Control_Camera" ) )		Command_Control_Camera( command );
 		else	if ( Title_Match( &command, "Send_Custom" ) )			Command_Send_Custom( command );
 		else	if ( Title_Match( &command, "Attach_To_Bone" ) )		Command_Attach_To_Bone( command );
