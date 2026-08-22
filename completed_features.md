@@ -97,3 +97,42 @@ muzzle-direction override, stealth-while-empty, and a building bounding box unio
 in `Collect_Building_Components`. All saved, replicated and defaulted to stock
 behaviour; `combat` links clean. Delta 227 -> 176 (`6b46638a`, `3d4d6bb9`,
 `cfd49a95`).
+
+## P02-B: TT NetworkObjectClass members merged, hint loop closed
+
+`Set_Is_Delete_Pending`, `Set_Dirty_Bits` and the per-object hint timestamp
+merged. The timestamp closes a real hole: `cClientHintManager` tested when the
+server last *sent* an object, not when the client last *asked*, so an object the
+server could not satisfy was re-hinted every second forever. `renegade.exe` links
+clean (`58d62db7`).
+
+## P02-C: TT BuildingGameObj geometry queries and the building revival path
+
+`Building_In_Range`, `Is_In_Range_Coarse`, `Cast_Ray` and the closest-polygon
+position overloads written from the declared semantics on top of the bounding box
+from P02-A; these are the primitives matrix 5.5 flags as the prerequisite for
+P33/P37/P38. `On_Revived` and a routed `Set_Is_Destroyed` give buildings a
+reversible destroyed state, with inverses on the four subclasses that have them.
+`combat` links clean; `BuildingGameObj` and `SoldierFactoryGameObj` are clear
+(`50d728cc`).
+
+## P02 tooling: wrapped-declaration parsing in the TT survey generators
+
+`ttparse` matched one physical line at a time, so wrapped signatures parsed as
+fragments and members OpenW3D already had read as TT-only. Joining logical lines
+removed five false positives and recovered two hidden TT declarations; matrix 5.7
+records it (`a1d601e0`, and the keyword-prefix guard in `50d728cc`).
+
+## N/A: `NetworkObjectClass::Set_Object_Dirty_Bitx`
+
+Not merged. A non-virtual duplicate of `Set_Object_Dirty_Bit` existing so a DLL
+hook could reach the unhooked original; nothing overrides that virtual in OpenW3D
+and directive 0.4 forbids reintroducing the hook architecture.
+
+## N/A: `RenderObjClass::Register_For_Rendering` and `Set_User_Lighting_Flag`
+
+Deferred, not merged. Both are declaration-only with no body anywhere in the
+donor. `Register_For_Rendering(bool hint_static)` belongs to TT's renderer
+rework, and `shaders/` is excluded by directive 0.6; `Set_User_Lighting_Flag`
+is a vertex-solve helper whose "appropriately" contract is only recoverable
+alongside the static-lighting work.

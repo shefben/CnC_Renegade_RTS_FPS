@@ -8,15 +8,19 @@ Detail lives in `docs/`.
 ## P02: merge TT members into canonical OpenW3D classes
 
 Absorbs the `unstarted_features.md` line "Merge required TT members, virtuals,
-accessors, definitions, and semantics into canonical OpenW3D classes." Scoped
-first (`docs/tt484/TTMethodSources.tsv`, matrix 5.6): of 227 TT-only declarations
-only 100 are mergeable TT code, 57 already exist on another OpenW3D owner, and 58
-must be written. `SoldierGameObj`, `VehicleGameObj` and `BuildingGameObj` are
-merged with every flag wired to a real enforcement site, not left as inert state;
-`combat` builds clean and the delta stands at 176. Next: merge the 3
-`NetworkObjectClass` and 2 `RenderObjClass` inline additions, then the 8
-`HUDSurfaceClass` and 6 `ScriptedDialogClass` ones (filter `TTMethodSources.tsv`
-on `source_kind=inline-header`).
+accessors, definitions, and semantics into canonical OpenW3D classes." Scoped in
+`docs/tt484/TTMethodSources.tsv`; matrix 5.7 records the parser correction to the
+5.6 survey. `SoldierGameObj`, `VehicleGameObj`, `BuildingGameObj` and
+`NetworkObjectClass` are merged, every flag wired to a real enforcement site, and
+the delta stands at 159. Two scope corrections: `HUDSurfaceClass`,
+`ScriptedDialogClass` and `ExtendedNetworkObject` do not exist in OpenW3D at all,
+so their members are Phase 5 new-class work and not P02 (matrix 5.5); and
+`PhysicsSceneClass`'s 6 remaining methods are shadow/polygon-budget control and
+belong with P20. Next: the `SoldierGameObj` write-from-declaration clusters, in
+this order — skeleton resize (`Get`/`Set_Skeleton_Height`/`_Width`,
+`Trigger_Smooth_Skeleton_*_Resize`), collision-mode lock (`Lock_Collision_Mode`,
+`Get_Locked_Collision_Mode`, and the deferred `Disable_Ghost_Collision` with it),
+then the anim/hold-style overrides.
 
 ---
 
