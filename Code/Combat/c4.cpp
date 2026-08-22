@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "c4.h"
+#include "dynamicphys.h"
 #include "debug.h"
 #include "phys.h"
 #include "combat.h"
@@ -512,6 +513,17 @@ void C4GameObj::Think( void )
 
 	WWPROFILE( "C4 Think" );
 
+	//
+	//	Before the server-only work: C4 stuck to a vehicle is a dynamic phys
+	//	object, and a dynamic object that never refreshes its visibility status
+	//	is not drawn.  Everything below this line returns early on a client, so
+	//	the charge was invisible to everyone but the server.
+	//
+	DynamicPhysClass *dynamic_phys = Peek_Physical_Object()->As_DynamicPhysClass();
+	if ( dynamic_phys != nullptr ) {
+		dynamic_phys->Update_Visibility_Status();
+	}
+
 	if ( !CombatManager::I_Am_Server() ) {
 		return;
 	}
@@ -565,6 +577,17 @@ void C4GameObj::Think( void )
 			SLNode<SmartGameObj> * smart_objnode;
 			for (smart_objnode = GameObjManager::Get_Smart_Game_Obj_List()->Head(); smart_objnode; smart_objnode = smart_objnode->Next()) {
 				SmartGameObj * obj = smart_objnode->Data();
+
+				//
+				//	A body on the ground is still an enemy soldier as far as
+				//	Is_Enemy is concerned, so proximity charges went off next to
+				//	corpses.
+				//
+				SoldierGameObj *soldier = (obj != nullptr) ? obj->As_SoldierGameObj() : nullptr;
+				if ( soldier != nullptr && (soldier->Is_Dead() || soldier->Is_Destroyed()) ) {
+					continue;
+				}
+
 				if ( obj && Is_Enemy( obj ) ) {
 					Vector3 obj_pos;
 					obj->Get_Position( &obj_pos );
