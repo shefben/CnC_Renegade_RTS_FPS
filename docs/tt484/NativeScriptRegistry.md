@@ -147,11 +147,9 @@ Six engine capabilities landed behind them, none of them TT-specific:
 it used to answer Nod and log a complaint, which is why anything driven by a
 building had its team written into the script.
 
-One thing did not land. `Test_Cinematic`'s fourth new command, `Show_Message`,
-writes a coloured line into every player's chat, and a script cannot say that:
-the message classes live in `Code/Commando`, and `Code/Scripts` does not link
-it -- the editor builds the same sources as `scriptse` without Commando at all.
-It is the same seam that blocked the powerup-grant sound in Phase 3. See 4.3.
+All four of 4.8.4's additions to `Test_Cinematic` are in, `Show_Message`
+included -- it was blocked when 4.1 was first written and is not any more; see
+4.3.
 
 ### 4.2 The in-scope donor library -- 861 scripts, 25 files
 
@@ -166,67 +164,92 @@ does not reach it.
 
 **What porting them actually costs, measured rather than estimated.**
 `tools/tt484/apigap.py` counts every engine call the 25 files make and asks
-whether the canonical engine can already answer it.
-`tools/tt484/apigap_tsv.py` writes the same result per name to
-`docs/tt484/TTScriptApiGap.tsv`.
+whether the canonical engine can already answer it. `tools/tt484/apigap_tsv.py`
+writes the same result per name to `docs/tt484/TTScriptApiGap.tsv`, and
+`tools/tt484/readiness.py` turns it round to say which files are ready to
+convert today.
 
 | | Names | Calls |
 | --- | --- | --- |
-| **Already answerable** -- `Commands->X` where `ScriptEngine::X` exists | 154 | **6740** |
-| Free SDK functions with portable source in `engine_*.cpp` | 129 | 1241 |
+| **Answered** -- `ScriptEngine` has it, or `TTScriptApiRenames.tsv` says what it is instead | 262 | **7945** |
+| Free SDK functions with portable source still to port | 42 | 305 |
 | Free SDK functions needing engine work | 35 | 188 |
-| Blocked on per-client delivery (4.3) | 22 | 270 |
+| Blocked -- the stealth gap list, which is a feature and not an API | 1 | 1 |
 | N/A -- plugin hooks (directive 0.5) | 22 | 26 |
 | N/A -- `REF_DECL` data binding | 1 | 5 |
 
-**All 148 `Commands->` methods these files call already exist in
-`ScriptEngine`.** That is the headline: the 6599 `Commands->X(...)` call sites
-are a mechanical rename, not a port. This is a large correction to what this
-document previously recorded -- it said the SDK's binding to the closed binary
-made the bulk of the work wait on Phases 2 and 3. It does not. What is left is
-1241 calls to functions whose source is right there in `engine_*.cpp`, and 188
-calls to 35 functions that need writing.
+Two corrections to what this section said before. First, all 148 `Commands->`
+methods these files call already existed in `ScriptEngine`, so those 6599 call
+sites were never a port -- they are a rename. Second, the 22 names and 270
+calls this document called the one real blocker are not blocked any more: see
+4.3. What actually remains is small and ordinary.
+
+Fourteen SDK names are a second spelling of something the engine already does
+(`Get_Object_Type` is `Get_Player_Type`). Directive 0.4 forbids keeping both,
+so they are not ported; `TTScriptApiRenames.tsv` records the mapping and the
+survey tools read it.
 
 The plugin-hook family (`AddChatHook`, `AddPlayerJoinHook`, `AddThinkHook` and
 the rest, 22 names, 26 calls) is declined under directive 0.5. Natively the
 same notifications come off the event bus; see `NativeEventDispatch.md`.
 
-### 4.3 The one real blocker: a script cannot address one client
+**Conversion order.** `readiness.py` ranks the files by how many calls the
+engine still cannot answer. Three are at zero: `jfwpow.cpp` (done, now
+`Code/Scripts/TT_Powerup.cpp`), `jfwws.cpp` (742 lines, 43 registrations) and
+`jfwgun.cpp` (5015 lines, 60). Everything else is within a handful of names of
+ready.
+
+**The aliases.** Six of `jfwws.cpp`'s registrations register a `JFW_*` class
+under a second, stock name -- `M00_PCT_Pokable_DAK`, `M00_Disable_Transition`,
+`M00_GrantPowerup_Created`, `M00_Play_Sound`, `Dr_Mobius_Script`,
+`M00_BuildingStateSoundController`. Those stock names are already merged (4.1),
+so the `JFW_*` name must become an alias registration of the merged class and
+not a second copy of it. That is what 4.8.4 itself does, and it is the only
+reading directive 0.4 allows.
+
+**SSGM.** The five `gm*.cpp` files are two things at once: 35 script
+registrations, and the server-management layer around them -- a TCP log socket,
+console commands, moderation. `gmlog.cpp` registers no scripts at all. The
+scripts belong in P04; the server-management layer is not a script registry and
+is recorded separately rather than dropped.
+
+### 4.3 A script can address one client — answered
 
 Twenty-two names and 270 calls -- `Create_2D_Sound_Team`, `Send_Message_Player`,
-`Create_2D_WAV_Sound_Player`, `Set_HUD_Help_Text_Player`,
-`Set_Screen_Fade_Color_Player`, `Force_Camera_Look_Player` and the rest -- all
-want the same thing: say something to one player, or to one team, rather than
-to everyone. `Grant_Refill` and `Test_Cinematic`'s `Show_Message` want it too,
-and so did the powerup-grant sound in Phase 3. 4.8.4 does it by writing a line
-onto its scripts text channel, which directive 0.5 declines.
+`Set_HUD_Help_Text_Player`, `Force_Camera_Look_Player` and the rest -- all
+wanted the same thing: say something to one player, or to one team, rather than
+to everyone. `Grant_Refill` and `Test_Cinematic`'s `Show_Message` wanted it too.
+4.8.4 does it by writing a line onto its scripts text channel, which directive
+0.5 declines.
 
-Natively it means a network event or a purchase-side call, and both live in
-`Code/Commando`: `cScTextObj`, `VendorClass::Grant_Supplies`. `Code/Combat`
-does not reference `Code/Commando`, and `Code/Scripts` does not link it -- the
-editor builds the same sources as `scriptse` without Commando at all -- so
-neither the engine's script interface nor a script can reach them.
+`cScScriptCommandEvent` (`Code/Combat/scscriptcommandevent.h`) is the native
+answer: an ordinary S->C network event carrying one command and its parameters,
+addressed with the per-client dirty bit that already exists for exactly this.
+Its client half calls the same local `ScriptEngine` function the world-wide
+version calls, so there is still one implementation of each effect. A listen
+server that is itself the addressee runs the command directly rather than
+sending it to nobody.
 
-**The tree already has the shape of the answer.** `GameEventBus`
-(`Code/Combat/gameeventbus.h`) is declared in Combat and its listeners are
-registered by Commando; that is exactly the direction needed, and
-`GameEventBus::Raise_Refill` already crosses it, only the other way round --
-Commando raises, listeners observe. What is missing is a channel Combat raises
-and Commando *acts on*: `ScriptEngine::Send_Message_Player(...)` raises,
-a Commando-side listener installed at startup builds the `cScTextObj`. The
-editor registers no listener, so the call is a no-op there, which is the right
-answer for a tool with no clients.
+Combat can address a client by id but has no roster, and the roster lives in
+Commando. `GameEventBus` gains one channel a listener *answers* rather than
+observes -- who is connected, and on which team -- registered by
+`GameEventListeners::Register` immediately after `CombatManager::Init` resets
+the bus. The editor registers nothing, so a team-addressed command there does
+nothing, which is the right answer for a tool with no clients. A false return
+means "nobody can tell you", which callers must not confuse with an empty team.
 
-That makes this a Phase 4 item and not a Phase 5 one. It is the first thing to
-build, because it unblocks about a sixth of the donor library and closes the
-Phase 3 powerup sound at the same time.
+`Grant_Refill` turned out not to need any of this: its whole body was Combat
+classes, so it is a `ScriptEngine` command now and `VendorClass::Grant_Supplies`
+calls it rather than owning it. `Kill_All_Buildings_By_Team` was misfiled by the
+survey's `_Team` suffix heuristic and is plain server-side work.
 
 ### 4.4 Registry size
 
-1639 built-in scripts today, no duplicate names -- one fewer than the 1640 this
-document used to quote, because the checker was counting the registration
-macros themselves as a script called `x`; it skips macro bodies now. Adding the
-861 donor-only in-scope scripts takes it to 2500. The 1259 out-of-scope
+1652 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
+than the 1640 this document used to quote, because the checker was counting the
+registration macros themselves as a script called `x` -- plus the first thirteen
+from the 4.8.4 library. The remaining 848 in-scope
+scripts take it to 2500. The 1259 out-of-scope
 registrations are not counted and not ported; if a mod pack is ever wanted it
 re-enters through the same registry with provenance `SCRIPT_SOURCE_TT`,
 needing no change here.

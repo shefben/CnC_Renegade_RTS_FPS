@@ -248,7 +248,7 @@ implementation of a name is live.
 | `M08_Nod_Turret` | `scripts/jfwobj.cpp` | `mission08.cpp` | No initial targeting: first shot came after a swing from an arbitrary direction |
 | `M10_Turret` | `scripts/jfwobj.cpp` | `Mission10.cpp` | Same |
 | `RMV_Test_Big_Gun_Turning` | `scripts/jfwobj.cpp` | `Mission03.cpp` | Same |
-| `Test_Cinematic` | `scripts/jfwcine.cpp` | `Test_Cinematic.cpp` | Four control commands missing; three added, `Show_Message` blocked (see `NativeScriptRegistry.md` 4) |
+| `Test_Cinematic` | `scripts/jfwcine.cpp` | `Test_Cinematic.cpp` | Four control commands missing; all four added, `Show_Message` last once a script could address one team |
 
 Six engine capabilities came in behind them, all of them ordinary engine
 questions the stock catalog never had to ask: `Stop_Timer`, `Has_Timer`,

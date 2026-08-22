@@ -706,3 +706,39 @@ across the 25 files) exist so a binary plugin can install a callback into a
 running exe, which directive 0.5 forbids. Natively the same notifications come
 off `GameEventBus`; see `docs/tt484/NativeEventDispatch.md`. The five `REF_DECL`
 data bindings go the same way.
+
+## P04-E: a script can address one client
+
+`cScScriptCommandEvent` carries one script command to one client, one team, or
+everyone, and its client half calls the same local `ScriptEngine` function the
+world-wide version does. `GameEventBus` gains the one channel a listener
+answers rather than observes -- who is connected and on which team -- which the
+game registers and the editor does not. Closes the 22 names and 270 calls
+`docs/tt484/NativeScriptRegistry.md` 4.3 had recorded as the one real blocker,
+plus `Test_Cinematic`'s `Show_Message`. `2c1680e7`.
+
+## P04-E1: Grant_Refill and Kill_All_Buildings_By_Team
+
+Neither needed the seam. The refill body was all Combat classes, so it is a
+`ScriptEngine` command with `VendorClass::Grant_Supplies` calling it rather
+than owning it; the building kill was misfiled by the survey's `_Team` suffix
+heuristic. `2c1680e7`.
+
+## P04-F: the portable half of the 4.8.4 script API
+
+About seventy commands ported into `ScriptEngine` -- vehicle occupants, base
+power and radar, animation frames, scripts on objects, C4 and beacon planters,
+definitions, broadcast customs. Fourteen more were a second name for something
+the engine already does and are recorded in `docs/tt484/TTScriptApiRenames.tsv`
+instead, per directive 0.4. `PlayerDataClass` grows the identity its own header
+always said the game would supply. The survey now reads 262 of 363 names
+answered, 7945 of the library's engine calls. `0760dc28`.
+
+## P04-G: the first 4.8.4 script file, natively
+
+`jfwpow.cpp` becomes `Code/Scripts/TT_Powerup.cpp` -- thirteen scripts keeping
+their registered names, registered `SCRIPT_SOURCE_TT` through the new
+`DECLARE_SCRIPT_TT`. Registry 1639 -> 1652. `ScriptImpClass::Is_Player_Type`
+came with it: the 4.8.4 `Player_Type` parameter (0 Nod, 1 GDI, 2 either, 3 the
+nearest player), asked as the question it is rather than the donor's inverted
+predicate. `4769fce3`.

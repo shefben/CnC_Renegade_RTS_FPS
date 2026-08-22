@@ -7,25 +7,33 @@ Detail lives in `docs/`.
 
 ## P04: the 4.8.4 script library, natively
 
-The stock half, the registry and all thirteen replacements are done (P04-A,
-P04-B, P04-C, P04-C1 in `completed_features.md`). What is left is the in-scope
-donor-only library: 861 scripts across 25 files, absorbing the backlog lines
-"Compile unchanged stock scripts only when TT does not supersede them" and
-"Compile TT-only new scripts as additional canonical scripts". Their cost is
-now measured rather than guessed (P04-D): the engine can already answer 6740 of
-their calls, 1241 more need SDK functions whose source exists, and 270 are
-blocked on one thing -- a script cannot address a single client or team.
+The stock half, the registry, the thirteen replacements, the per-client seam
+and the portable API port are done (P04-A..P04-G in `completed_features.md`).
+What is left is the rest of the in-scope donor-only library: 848 scripts across
+24 files, absorbing the backlog lines "Compile unchanged stock scripts only
+when TT does not supersede them" and "Compile TT-only new scripts as additional
+canonical scripts". `tools/tt484/readiness.py` ranks the files by how many
+calls the engine still cannot answer; `jfwws.cpp` and `jfwgun.cpp` are at zero.
 
-Next exact action: build that one thing first. Add a `GameEventBus` channel
-Commando *acts on* rather than observes -- `ScriptEngine::Send_Message_Player`
-and its siblings raise it, a listener registered by Commando at startup builds
-the `cScTextObj` or calls `VendorClass::Grant_Supplies`, and the editor
-registers nothing so the call is a no-op there. See
-`docs/tt484/NativeScriptRegistry.md` 4.3. It closes `Show_Message`,
-`Grant_Refill`, the 270 per-client calls and the Phase 3 powerup-grant sound
-together. Then port the 129 portable SDK functions into `ScriptEngine` and
-convert the 25 files, smallest first (`jfwpow.cpp` is 163 lines and 13
-scripts), registering each as `SCRIPT_SOURCE_TT`.
+Next exact action: convert `tt_4.8.4/scripts/jfwws.cpp` (742 lines, 43
+registrations, 37 distinct classes) to `Code/Scripts/TT_World.cpp`, registering
+each as `SCRIPT_SOURCE_TT`. Six of its registrations put a `JFW_*` class under
+a second, stock name -- `M00_PCT_Pokable_DAK`, `M00_Disable_Transition`,
+`M00_GrantPowerup_Created`, `M00_Play_Sound`, `Dr_Mobius_Script`,
+`M00_BuildingStateSoundController` -- and those stock names are already merged,
+so the `JFW_*` name has to become an alias registration of the merged class
+(needs a `REGISTER_SCRIPT_ALIAS`), never a second copy: directive 0.4. Then
+`jfwgun.cpp`, then port the 42 remaining portable SDK functions
+(`docs/tt484/TTScriptApiGap.tsv`, `port-portable-source`) to unblock the rest.
+
+## P04-H: SSGM's server-management layer
+
+The five `gm*.cpp` files are 35 script registrations plus the server layer
+around them -- a TCP log socket, console commands, moderation. `gmlog.cpp`
+registers no scripts at all. The scripts belong to P04 above; this entry holds
+the server-management layer, which is not a script registry and is not yet
+decided. Next exact action: when P04's file conversion reaches `gm*.cpp`, split
+the two and ask the user whether the server layer is wanted at all.
 
 ---
 
