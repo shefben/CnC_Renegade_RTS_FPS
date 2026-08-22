@@ -201,3 +201,57 @@ than stopped by power loss, skipping itself and disabled while spied.
 `SuperweaponGameObj` owns a launch that replicates in the occasional tier and is
 cancelled by destruction. `BaseControllerClass` gained a public building-list
 accessor. `combat` and `renegade` link clean (`04bb9321`).
+
+## P02-I: TT air factory merged into `AirStripGameObj`
+
+The disabled switch went onto `VehicleFactoryGameObj` (saved, folded into
+`Is_Available`, replicated in the rare tier); the airstrip gained round-robin
+landing pads, delivered engine state and a delivery collision group. Completes the
+backlog line "Port TT building/factory object types into `Code/Combat`" -- all four
+types dispositioned, matrix 5.9. `combat`, `combate` and `renegade` link clean
+(`15f91e09`).
+
+## N/A: TT `AirFactoryGameObj`
+
+Superseded by `AirStripGameObj`, which already owns the vehicle/purchaser/busy
+machinery and the drop-off cinematic that TT's def renames. `defcheck.py` reaches
+the same answer, marking its rows "owned elsewhere" and naming the airstrip first.
+`BuildingGameObj::As_AirFactoryGameObj` is N/A with it -- `As_AirStripGameObj` is
+the same cast. Matrix 5.9.
+
+## N/A: TT `NavalFactoryGameObj` -- reassigned to Zero Hour Feature 7
+
+Roadmap Section 22 lists "TT naval factories" under Feature 7 alongside the water
+surface and amphibious/naval physics its spawn zone needs. Its 27 rows and
+`BuildingGameObj::As_NavalFactoryGameObj` carry there. Matrix 5.9.
+
+## P02-J: TT save/load extensions reconciled with `wwsaveload`
+
+Fixed three defects in how the new building types reached `wwsaveload`: new
+`CHUNKID_GAME_OBJECT_*` values had been inserted mid-run and renumbered
+`CHUNKID_MAPMGR`, `CHUNKID_ENCYCLOPEDIAMGR` and the boss IDs (breaking every
+existing level/save), neither type was in `Force_Link_Combat` so its definition
+factory would never register, and both presets were marked not-displayed. Covers
+the backlog line "Reconcile TT save/load extensions with `wwsaveload`"; matrix 5.10
+(`8e2dddf8`).
+
+## P02-K: TT definitions reconciled with `PARAM_EDITING_ON`/tool builds
+
+New and extended defs expose editable params -- including a landing-pad preset
+picker and a collision-group enum built from `Get_Collision_Group_Name` -- and the
+editor variant `combate` builds and links clean. Covers the backlog line "Reconcile
+TT definitions with `PARAM_EDITING_ON`/tool builds".
+
+## P02-L: current 4.8.4 / Revision 9000 changes
+
+Covers the backlog line "Port current 4.8.4 changes, including the Revision 9000
+additions identified from the source/changelog". The 4.8.4 rev-9000 drop in
+`tt_4.8.4/` is the input to the declaration delta, and it ships no changelog file --
+so the delta closure (P02-A..P02-K) is the port of those changes.
+
+## P02 CLOSED: TT public engine classes reconciled into canonical OpenW3D classes
+
+Acceptance met: one canonical engine declaration per core class, with TT 4.8.4
+semantics available natively. Delta 176 -> 107 rows, none of them P02 work --
+matrix 5.8/5.9/5.10 disposition every remaining row. No stock-vs-TT duplicate
+survives and no ABI or facade shim was introduced.

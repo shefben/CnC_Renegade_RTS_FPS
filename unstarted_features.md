@@ -35,9 +35,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P02: Reconcile TT public engine classes into canonical OpenW3D classes (roadmap Section 8)
 
-- [ ] Port current 4.8.4 changes, including the Revision 9000 additions identified from the source/changelog.
-- [ ] Reconcile TT save/load extensions with `wwsaveload`.
-- [ ] Reconcile TT definitions with `PARAM_EDITING_ON`/tool builds.
 
 ## P03: Merge TT hooks/patches/overrides into canonical implementations (roadmap Section 9)
 

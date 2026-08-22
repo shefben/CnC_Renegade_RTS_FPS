@@ -5,26 +5,9 @@ Detail lives in `docs/`.
 
 ---
 
-## P02: reconcile TT public engine classes into canonical OpenW3D classes
-
-The declaration delta is closed at 139 rows, all of them N/A, deferred behind
-named later work, or reassigned to Phase 5/P20 -- matrix 5.8 has the disposition
-of every one. Also absorbs the `unstarted_features.md` lines "Port TT
-building/factory object types into `Code/Combat`" (2 of 4 done: construction yard
-and superweapon; `AirFactoryGameObj` and `NavalFactoryGameObj` remain), "Port TT
-object visibility/per-client state semantics", "Port TT extended network
-behavior", "Port TT collision-group meanings and train/naval/player-building
-behavior", and the two ABI/facade constraint lines. Next: port
-`AirFactoryGameObj` and `NavalFactoryGameObj` as `VehicleFactoryGameObj`
-subclasses -- the shared busy/purchaser/timer machinery is already there, so the
-new work is the disabled flag (which belongs on `VehicleFactoryGameObj` itself,
-not duplicated on both), air landing positions chosen per generation, and the
-naval spawn zone with its construction zones.
-
----
-
-P01 is complete (see `completed_features.md`). P03-P06 still gate everything after
-them; the backlog is in `unstarted_features.md`.
+Nothing is in flight. P01 and P02 are complete (see `completed_features.md`);
+P03 is next and still gates everything after it. The backlog is in
+`unstarted_features.md`.
 
 ---
 
