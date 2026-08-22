@@ -258,6 +258,13 @@ public:
 	float			Get_Damage_Points(void) const			{ return DamagePoints; }
 	float			Get_Death_Points(void) const			{ return DeathPoints; }
 
+	//
+	//	What this object is worth.  Settable because a wreck is worth
+	//	nothing even though the vehicle it came from was worth plenty.
+	//
+	void			Set_Damage_Points(float points)		{ DamagePoints = points; }
+	void			Set_Death_Points(float points)		{ DeathPoints = points; }
+
 #ifdef WWDEBUG
 	static bool Toggle_One_Shot_Kills(void)			{ OneShotKills = !OneShotKills; return OneShotKills; }
 #endif // _WWDEBUG

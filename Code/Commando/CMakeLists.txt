@@ -389,7 +389,9 @@ set(COMMANDO_SRC
     scpingresponseevent.cpp
     scpingresponseevent.h
     gameeventlisteners.cpp
+    ssgmmanager.cpp
     gameeventlisteners.h
+    ssgmmanager.h
     sctextobj.cpp
     sctextobj.h
     suicideevent.cpp

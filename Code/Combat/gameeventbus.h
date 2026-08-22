@@ -462,6 +462,19 @@ public:
 };
 
 //
+//	A line of console input that arrived from somewhere other than the console
+//	itself -- a remote administration tool, typically.  Raised where the line
+//	arrives; the game subscribes and parses it, and a tool with no console of
+//	its own subscribes to nothing and the line is discarded.
+//
+class	ConsoleInputEventClass : public GameEventClass
+{
+public:
+	ConsoleInputEventClass (const char *text)	: Text (text)	{ }
+	const char *	Text;
+};
+
+//
 //	Render/shader notifications.  Raised on the client only.
 //
 class	RenderNotifyEventClass : public GameEventClass
@@ -598,6 +611,7 @@ public:
 
 	static GameEventChannelClass<DialogEventClass>					Dialog;
 	static GameEventChannelClass<ConsoleOutputEventClass>			ConsoleOutput;
+	static GameEventChannelClass<ConsoleInputEventClass>			ConsoleInput;
 	static GameEventChannelClass<RenderNotifyEventClass>			RenderNotify;
 
 	static GameEventChannelClass<GameModeEventClass>				GameModeStart;
@@ -648,6 +662,7 @@ public:
 
 	static void	Raise_Dialog (int player_id, int dialog_id, int control_id, DialogMessageTypeEnum type);
 	static void	Raise_Console_Output (const char *text);
+	static void	Raise_Console_Input (const char *text);
 	static void	Raise_Render_Notify (int id, int notify);
 
 	static void	Raise_Game_Mode_Start (GameModeClass *mode);

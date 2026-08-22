@@ -40,6 +40,7 @@
 #ifndef	VECTOR3_H
 	#include "vector3.h"
 	#include "wwstring.h"
+#include "widestring.h"
 #include "matrix3d.h"
 #endif
 
@@ -551,12 +552,36 @@ namespace ScriptEngine
 	GameObject * Get_C4_Attached ( GameObject * obj );
 	GameObject * Get_Beacon_Planter ( GameObject * obj );
 
+	// Object state a server rule needs to change
+	void Remove_Weapon ( GameObject * obj, const char * weapon_name );
+	void Set_Skin ( GameObject * obj, const char * armor_name );
+	void Set_Max_Health ( GameObject * obj, float health );
+	void Set_Max_Shield_Strength ( GameObject * obj, float strength );
+	void Set_Damage_Points ( GameObject * obj, float points );
+	void Set_Death_Points ( GameObject * obj, float points );
+	
+	//
+	//	Hurt everything within radius of a point.  A team of 0 or 1 hurts
+	//	only that team; anything else hurts everyone.
+	//
+	void Damage_All_Objects_Area ( float amount, const char * warhead_name,
+			const Vector3 & position, float radius, int team, GameObject * damager );
+	
 	// Definitions
 	int Get_Definition_ID ( const char * preset_name );
 	const char * Get_Definition_Name ( int definition_id );
 	bool Is_Valid_Preset_ID ( int definition_id );
 
 	// Translated strings
+	//
+	//	The name to show a player for an object, or for a preset: the
+	//	translated name where the definition has one, and the preset's own
+	//	name where it does not.  Out-parameters rather than a returned
+	//	buffer, so there is nothing for the caller to free.
+	//
+	void Get_Translated_Preset_Name ( GameObject * obj, WideStringClass & name );
+	void Get_Translated_Definition_Name ( int definition_id, WideStringClass & name );
+	
 	bool Is_Valid_String_ID ( int string_id );
 	int Get_String_Sound_ID ( int string_id );
 

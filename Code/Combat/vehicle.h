@@ -368,6 +368,15 @@ public:
 	bool					Can_Be_Stolen( void ) const			{ return CanBeStolen; }
 	void					Set_Owner( SoldierGameObj *obj );
 	SoldierGameObj *	Get_Owner( void );
+	
+	//
+	//	Who claimed this vehicle, which is a weaker thing than owning it:
+	//	a claim says whose vehicle this is, an owner says who may get
+	//	in.  A server that hands vehicles to the player who bought them
+	//	sets the claim first and the owner only when they ask for it.
+	//
+	void					Set_Claimant( SoldierGameObj *obj );
+	SoldierGameObj *	Get_Claimant( void );
 
 	//
 	//	Physics passthroughs
@@ -413,6 +422,7 @@ protected:
 	char						LockTeam;
 	char						LastTeam;						// PLAYERTYPE, or SCRIPTS_TEAM_UNSET
 	GameObjReference		Owner;							// Only this soldier may enter
+	GameObjReference		Claimant;						// and this one says it is theirs
 
 	bool						VehicleDelivered;
 

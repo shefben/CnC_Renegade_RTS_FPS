@@ -61,6 +61,9 @@
 #include "assets.h"
 #include "widestring.h"
 #include "translatedb.h"
+#include "damageablegameobj.h"
+#include "weaponbag.h"
+#include "weapons.h"
 #include "vehicle.h"
 #include "combatchunkid.h"
 #include "LogicalSound.h"
@@ -4673,6 +4676,141 @@ int Get_Definition_ID( const char * preset_name )
 	return def->Get_ID();
 }
 
+void Remove_Weapon( GameObject * obj, const char * weapon_name )
+{
+	WeaponBagClass * bag = Peek_Weapon_Bag( obj );
+	if ( bag == nullptr || weapon_name == nullptr ) {
+		return ;
+	}
+
+	for ( int index = 0; index < bag->Get_Count(); index ++ ) {
+
+		WeaponClass * weapon = bag->Peek_Weapon( index );
+		if ( weapon == nullptr || weapon->Get_Name() == nullptr ) {
+			continue;
+		}
+
+		if ( ::_stricmp( weapon->Get_Name(), weapon_name ) == 0 ) {
+			bag->Remove_Weapon( index );
+			return ;
+		}
+	}
+
+	return ;
+}
+
+
+void Set_Skin( GameObject * obj, const char * armor_name )
+{
+	DamageableGameObj * damageable = ( obj != nullptr ) ? obj->As_DamageableGameObj() : nullptr;
+	if ( damageable == nullptr ) {
+		return ;
+	}
+
+	damageable->Get_Defense_Object()->Set_Skin( ArmorWarheadManager::Get_Armor_Type( armor_name ) );
+	return ;
+}
+
+
+void Set_Max_Health( GameObject * obj, float health )
+{
+	DamageableGameObj * damageable = ( obj != nullptr ) ? obj->As_DamageableGameObj() : nullptr;
+	if ( damageable == nullptr ) {
+		return ;
+	}
+
+	damageable->Get_Defense_Object()->Set_Health_Max( health );
+	return ;
+}
+
+
+void Set_Max_Shield_Strength( GameObject * obj, float strength )
+{
+	DamageableGameObj * damageable = ( obj != nullptr ) ? obj->As_DamageableGameObj() : nullptr;
+	if ( damageable == nullptr ) {
+		return ;
+	}
+
+	damageable->Get_Defense_Object()->Set_Shield_Strength_Max( strength );
+	return ;
+}
+
+
+void Set_Damage_Points( GameObject * obj, float points )
+{
+	DamageableGameObj * damageable = ( obj != nullptr ) ? obj->As_DamageableGameObj() : nullptr;
+	if ( damageable == nullptr ) {
+		return ;
+	}
+
+	damageable->Get_Defense_Object()->Set_Damage_Points( points );
+	return ;
+}
+
+
+void Set_Death_Points( GameObject * obj, float points )
+{
+	DamageableGameObj * damageable = ( obj != nullptr ) ? obj->As_DamageableGameObj() : nullptr;
+	if ( damageable == nullptr ) {
+		return ;
+	}
+
+	damageable->Get_Defense_Object()->Set_Death_Points( points );
+	return ;
+}
+
+
+void Damage_All_Objects_Area
+(
+	float					amount,
+	const char *		warhead_name,
+	const Vector3 &	position,
+	float					radius,
+	int					team,
+	GameObject *		damager
+)
+{
+	float radius_squared = radius * radius;
+
+	//
+	//	Collected first, because applying damage can destroy an object and
+	//	take it out of the list this is walking.
+	//
+	DynamicVectorClass<GameObject *> targets;
+
+	for (	SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List()->Head();
+			node != nullptr;
+			node = node->Next() ) {
+
+		ScriptableGameObj * obj = ( node->Data() != nullptr ) ? node->Data()->As_ScriptableGameObj() : nullptr;
+		PhysicalGameObj * physical = ( obj != nullptr ) ? obj->As_PhysicalGameObj() : nullptr;
+
+		if ( physical == nullptr ) {
+			continue;
+		}
+
+		if ( team == 0 || team == 1 ) {
+			if ( physical->Get_Player_Type() != team ) {
+				continue;
+			}
+		}
+
+		Vector3 delta = Get_Position( obj ) - position;
+		if ( delta.Length2() > radius_squared ) {
+			continue;
+		}
+
+		targets.Add( obj );
+	}
+
+	for ( int index = 0; index < targets.Count(); index ++ ) {
+		Apply_Damage( targets[index], amount, warhead_name, damager );
+	}
+
+	return ;
+}
+
+
 const char * Get_Definition_Name( int definition_id )
 {
 	if ( definition_id == 0 ) {
@@ -4685,6 +4823,63 @@ const char * Get_Definition_Name( int definition_id )
 	}
 
 	return def->Get_Name();
+}
+
+
+//
+//	The translated name a definition carries, if it carries one.  Only a
+//	damageable thing has one -- a building, a vehicle, a soldier -- which is
+//	also the only kind of thing anybody wants a name for.
+//
+static bool	Translated_Name_Of( DefinitionClass * def, WideStringClass & name )
+{
+	DamageableGameObjDef * damageable = dynamic_cast<DamageableGameObjDef *>( def );
+	if ( damageable == nullptr ) {
+		return false;
+	}
+
+	int name_id = damageable->Get_Translated_Name_ID();
+	if ( name_id == 0 ) {
+		return false;
+	}
+
+	const unichar_t * translated = TranslateDBClass::Get_String( name_id );
+	if ( translated == nullptr || translated[0] == 0 ) {
+		return false;
+	}
+
+	name = translated;
+	return true;
+}
+
+
+void Get_Translated_Definition_Name( int definition_id, WideStringClass & name )
+{
+	name = L"";
+
+	DefinitionClass * def = DefinitionMgrClass::Find_Definition( definition_id, true );
+	if ( def == nullptr ) {
+		return ;
+	}
+
+	if ( !Translated_Name_Of( def, name ) ) {
+		name = def->Get_Name();
+	}
+
+	return ;
+}
+
+
+void Get_Translated_Preset_Name( GameObject * obj, WideStringClass & name )
+{
+	name = L"";
+
+	if ( obj == nullptr ) {
+		return ;
+	}
+
+	Get_Translated_Definition_Name( (int)obj->Get_Definition().Get_ID(), name );
+	return ;
 }
 
 bool Is_Valid_Preset_ID( int definition_id )

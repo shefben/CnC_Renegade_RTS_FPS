@@ -21,9 +21,14 @@
 #include "gameeventbus.h"
 #include "player.h"
 #include "playermanager.h"
+#include "ssgmmanager.h"
+#include "consolefunction.h"
 
 
 static int	_ClientQueryToken	= 0;
+static int	_ServerStartupToken	= 0;
+static int	_ServerShutdownToken	= 0;
+static int	_ConsoleInputToken	= 0;
 
 
 //-----------------------------------------------------------------------------
@@ -58,11 +63,56 @@ Client_Query_Handler (ClientQueryEventClass &event, void * /* data */)
 
 
 //-----------------------------------------------------------------------------
+//
+//	The server-side game manager exists only while this machine is a server,
+//	because every rule it applies is a decision only a server gets to make.
+//
+//
+//	A line typed at something other than this machine's own console -- the
+//	server's remote administration port, for instance.  It is a console
+//	command like any other once it gets here.
+//
+static void
+Console_Input_Handler (ConsoleInputEventClass &event, void * /*data*/)
+{
+	if (event.Text != nullptr && event.Text[0] != 0) {
+		ConsoleFunctionManager::Parse_Input (event.Text);
+	}
+
+	return ;
+}
+
+
+static void
+Server_Startup_Handler (ServerLifecycleEventClass & /*event*/, void * /*data*/)
+{
+	SSGMManagerClass::Register ();
+	return ;
+}
+
+
+static void
+Server_Shutdown_Handler (ServerLifecycleEventClass & /*event*/, void * /*data*/)
+{
+	SSGMManagerClass::Unregister ();
+	return ;
+}
+
+
 void
 GameEventListeners::Register (void)
 {
 	if (_ClientQueryToken == 0) {
 		_ClientQueryToken = GameEventBus::ClientQuery.Register (Client_Query_Handler);
+	}
+
+	if (_ServerStartupToken == 0) {
+		_ServerStartupToken = GameEventBus::ServerStartup.Register (Server_Startup_Handler);
+		_ServerShutdownToken = GameEventBus::ServerShutdown.Register (Server_Shutdown_Handler);
+	}
+
+	if (_ConsoleInputToken == 0) {
+		_ConsoleInputToken = GameEventBus::ConsoleInput.Register (Console_Input_Handler);
 	}
 
 	return ;
@@ -77,6 +127,20 @@ GameEventListeners::Unregister (void)
 		GameEventBus::ClientQuery.Unregister (_ClientQueryToken);
 		_ClientQueryToken = 0;
 	}
+
+	if (_ServerStartupToken != 0) {
+		GameEventBus::ServerStartup.Unregister (_ServerStartupToken);
+		GameEventBus::ServerShutdown.Unregister (_ServerShutdownToken);
+		_ServerStartupToken = 0;
+		_ServerShutdownToken = 0;
+	}
+
+	if (_ConsoleInputToken != 0) {
+		GameEventBus::ConsoleInput.Unregister (_ConsoleInputToken);
+		_ConsoleInputToken = 0;
+	}
+
+	SSGMManagerClass::Unregister ();
 
 	return ;
 }

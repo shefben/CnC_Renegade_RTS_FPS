@@ -2506,6 +2506,36 @@ SoldierGameObj *	VehicleGameObj::Get_Owner( void )
 
 //-----------------------------------------------------------------------------
 //
+//	Set_Claimant
+//
+//-----------------------------------------------------------------------------
+void	VehicleGameObj::Set_Claimant( SoldierGameObj *obj )
+{
+	//
+	//	Not replicated, for the same reason the owner is not: whose vehicle
+	//	this is only matters where the decision is made.
+	//
+	Claimant = obj;
+}
+
+
+//-----------------------------------------------------------------------------
+//
+//	Get_Claimant
+//
+//-----------------------------------------------------------------------------
+SoldierGameObj *	VehicleGameObj::Get_Claimant( void )
+{
+	ScriptableGameObj *claimant = Claimant.Get_Ptr();
+	if ( claimant == nullptr ) {
+		return nullptr;
+	}
+	return claimant->As_SoldierGameObj();
+}
+
+
+//-----------------------------------------------------------------------------
+//
 //	Set_Immovable
 //
 //	An immovable vehicle keeps its collision but stops responding to forces, so
