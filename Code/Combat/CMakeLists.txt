@@ -115,6 +115,8 @@ set(COMBAT_SRC
     unitcoordinationzonemgr.cpp
     vehicle.cpp
     vehicledriver.cpp
+    constructionyardgameobj.cpp
+    superweapongameobj.cpp
     vehiclefactorygameobj.cpp
     viseme.cpp
     warfactorygameobj.cpp
@@ -245,6 +247,8 @@ set(COMBAT_SRC
     unitcoordinationzonemgr.h
     vehicle.h
     vehicledriver.h
+    constructionyardgameobj.h
+    superweapongameobj.h
     vehiclefactorygameobj.h
     viseme.h
     warfactorygameobj.h

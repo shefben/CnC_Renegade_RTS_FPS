@@ -198,6 +198,13 @@ public:
 	static BaseControllerClass *	Find_Base_For_Star (void);
 	BuildingGameObj *				Find_Building (BuildingConstants::BuildingType type);
 
+	//
+	//	The whole list, for the things that have to act on every building the
+	//	team owns rather than look one up by type.
+	//
+	int								Get_Building_Count (void) const		{ return BuildingList.Count (); }
+	BuildingGameObj *				Peek_Building (int index)				{ return BuildingList[index]; }
+
 protected:
 
 	////////////////////////////////////////////////////////////////

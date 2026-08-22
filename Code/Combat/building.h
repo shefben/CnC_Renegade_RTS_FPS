@@ -63,6 +63,10 @@ class WarFactoryGameObj;
 class RefineryGameObj;
 class ComCenterGameObj;
 class RepairBayGameObj;
+class AirFactoryGameObj;
+class NavalFactoryGameObj;
+class ConstructionYardGameObj;
+class SuperweaponGameObj;
 class RayCollisionTestClass;
 
 
@@ -194,6 +198,10 @@ public:
 	virtual	PowerPlantGameObj *		As_PowerPlantGameObj (void)		{ return nullptr; }
 	virtual	SoldierFactoryGameObj *	As_SoldierFactoryGameObj (void)	{ return nullptr; }
 	virtual	VehicleFactoryGameObj *	As_VehicleFactoryGameObj (void)	{ return nullptr; }
+	virtual	AirFactoryGameObj *		As_AirFactoryGameObj (void)		{ return nullptr; }
+	virtual	NavalFactoryGameObj *	As_NavalFactoryGameObj (void)		{ return nullptr; }
+	virtual	ConstructionYardGameObj *	As_ConstructionYardGameObj (void)	{ return nullptr; }
+	virtual	SuperweaponGameObj *		As_SuperweaponGameObj (void)		{ return nullptr; }
 	virtual	AirStripGameObj *			As_AirStripGameObj (void)			{ return nullptr; }
 	virtual	WarFactoryGameObj *		As_WarFactoryGameObj (void)		{ return nullptr; }
 	virtual	RefineryGameObj *			As_RefineryGameObj (void)			{ return nullptr; }
