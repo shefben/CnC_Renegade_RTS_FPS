@@ -39,6 +39,13 @@
 #include "Toolkit.h"
 #include "Mission1.h"
 
+//
+// M00_Advanced_Guard_Tower reads the tower's facing and height off its MCT: the
+// building controller itself is not a phys object and carries neither.
+//
+#include "building.h"
+#include "buildingaggregate.h"
+
 /* GENERAL TOOLKIT INFORMATION
 
   1. All toolkit systems are listed in categories of system type: Actions, Explosions, etc.
@@ -736,29 +743,65 @@ DECLARE_SCRIPT (M00_Advanced_Guard_Tower, "")
 		// Create the four guns associated with this object.
 
 		Vector3 my_location = ScriptEngine::Get_Position (obj);
-		Vector3 gun_01_pos = my_location;
-		Vector3 gun_02_pos = my_location;
-		Vector3 gun_03_pos = my_location;
-		Vector3 gun_04_pos = my_location;
 		Vector3 missile_loc = my_location;
 
-		missile_loc.Z += 6.0f;
+		missile_loc.Z += 4.0f;
 
-		gun_01_pos.X = gun_01_pos.X + 5.179f;
-		gun_01_pos.Y = gun_01_pos.Y - 4.239f;
-		gun_01_pos.Z = gun_01_pos.Z - 9.0f;
+		//
+		// The four gun mounts are corners of the tower, so their offsets are in the
+		// building's own frame and have to be rotated into the world by its facing.
+		// Placing them unrotated only ever worked for a tower sitting at facing zero.
+		//
+		// The facing lives on the MCT, not on the controller: BuildingGameObj is a
+		// DamageableGameObj, so it has no transform of its own.
+		//
+		float facing = 0.0f;
 
-		gun_02_pos.X = gun_02_pos.X + 5.161f;
-		gun_02_pos.Y = gun_02_pos.Y + 3.272f;
-		gun_02_pos.Z = gun_02_pos.Z - 9.0f;
+		BuildingGameObj * building = obj->As_BuildingGameObj ();
+		BuildingAggregateClass * mct = (building != nullptr) ? building->Find_MCT () : nullptr;
+		if (mct != nullptr)
+		{
+			const Matrix3D & mct_tm = mct->Get_Transform ();
+			facing = mct_tm.Get_Z_Rotation ();
 
-		gun_03_pos.X = gun_03_pos.X - 4.491f;
-		gun_03_pos.Y = gun_03_pos.Y + 3.257f;
-		gun_03_pos.Z = gun_03_pos.Z - 9.0f;
+			//
+			// A controller placed level with the roof instead of above it puts the guns
+			// through the floor. Measure from the MCT when that has happened.
+			//
+			const float mct_height = mct_tm.Get_Translation ().Z + 8.0f;
+			if (my_location.Z - mct_height < 11.0f)
+			{
+				my_location.Z = mct_height + 9.2f;
+				missile_loc = my_location;
+				missile_loc.Z += 4.0f;
+			}
+		}
 
-		gun_04_pos.X = gun_04_pos.X - 5.133f;
-		gun_04_pos.Y = gun_04_pos.Y - 4.366f;
-		gun_04_pos.Z = gun_04_pos.Z - 9.0f;
+		const float cos_facing = cosf (facing);
+		const float sin_facing = sinf (facing);
+
+		static const float GUN_OFFSET[4][2] = {
+			{  5.019f, -3.409f },
+			{  5.011f,  3.672f },
+			{ -5.011f,  3.657f },
+			{ -5.013f, -3.406f },
+		};
+
+		Vector3 gun_pos[4];
+		for (int gun_index = 0; gun_index < 4; gun_index++)
+		{
+			const float local_x = GUN_OFFSET[gun_index][0];
+			const float local_y = GUN_OFFSET[gun_index][1];
+
+			gun_pos[gun_index].X = my_location.X + (local_x * cos_facing) - (local_y * sin_facing);
+			gun_pos[gun_index].Y = my_location.Y + (local_x * sin_facing) + (local_y * cos_facing);
+			gun_pos[gun_index].Z = my_location.Z - 9.0f;
+		}
+
+		Vector3 gun_01_pos = gun_pos[0];
+		Vector3 gun_02_pos = gun_pos[1];
+		Vector3 gun_03_pos = gun_pos[2];
+		Vector3 gun_04_pos = gun_pos[3];
 
 		GameObject * missile_object = ScriptEngine::Create_Object ("GDI_AGT", missile_loc);
 		if (missile_object)
@@ -821,6 +864,16 @@ DECLARE_SCRIPT (M00_Advanced_Guard_Tower, "")
 		{
 			ScriptEngine::Send_Custom_Event (obj, gun_04, 3, 0, 0);//tells gun 04 to reset action and lets him know AGT is dead -- JDG 2/12/02
 		}
+
+		//
+		// Telling them the tower is dead is not enough -- nothing else ever removed them,
+		// so a destroyed tower left four guns and a missile emitter standing in the air.
+		//
+		ScriptEngine::Destroy_Object (gun_01);
+		ScriptEngine::Destroy_Object (gun_02);
+		ScriptEngine::Destroy_Object (gun_03);
+		ScriptEngine::Destroy_Object (gun_04);
+		ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (missile_id));
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
