@@ -144,6 +144,14 @@ public:
 	static float			Get_Y_Scale (void)	{ return ScaleY; }
 
 	//
+	//	The menus are authored against a 4:3 grid.  This is the largest 4:3
+	//	box that fits the screen, centred on it -- everything that lays a menu
+	//	out scales against this rather than the raw screen rectangle, or it
+	//	stretches on a widescreen display.
+	//
+	static RectClass		Get_Aspect_Corrected_Screen_Rect (void);
+
+	//
 	//	Color methods
 	//
 	static uint32			Get_Text_Color (void)						{ return TextColor; }

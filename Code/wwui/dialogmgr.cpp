@@ -154,6 +154,8 @@ DialogMgrClass::Reset_Inputs (void)
 	LastMouseButtonState[MB_LBUTTON] = Input->Is_Button_Down (VK_LBUTTON);
 	LastMouseButtonState[MB_MBUTTON] = Input->Is_Button_Down (VK_MBUTTON);
 	LastMouseButtonState[MB_RBUTTON] = Input->Is_Button_Down (VK_RBUTTON);
+	LastMouseButtonState[MB_XBUTTON1] = Input->Is_Button_Down (VK_XBUTTON1);
+	LastMouseButtonState[MB_XBUTTON2] = Input->Is_Button_Down (VK_XBUTTON2);
 	return ;
 }
 
@@ -865,6 +867,14 @@ DialogMgrClass::Was_Button_Down (int vk_mouse_button_id)
 
 		case VK_RBUTTON:
 			retval = LastMouseButtonState[MB_RBUTTON];
+			break;
+
+		case VK_XBUTTON1:
+			retval = LastMouseButtonState[MB_XBUTTON1];
+			break;
+
+		case VK_XBUTTON2:
+			retval = LastMouseButtonState[MB_XBUTTON2];
 			break;
 	}
 

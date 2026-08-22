@@ -179,7 +179,7 @@ void DirectInput::Init( void )
 	if ( DIMouseDevice != nullptr ) {
 
 		// Set the mouse's data format
-		hr = DIMouseDevice->SetDataFormat(&c_dfDIMouse);
+		hr = DIMouseDevice->SetDataFormat(&c_dfDIMouse2);
 		WWASSERT( !FAILED(hr) );
 
 		/**/
@@ -523,6 +523,8 @@ enum {
     eDIMOFS_Z = DIMOFS_Z,
     eDIMOFS_Y = DIMOFS_Y,
     eDIMOFS_X = DIMOFS_X,
+    eDIMOFS_BUTTON4 = DIMOFS_BUTTON4,
+    eDIMOFS_BUTTON3 = DIMOFS_BUTTON3,
     eDIMOFS_BUTTON2 = DIMOFS_BUTTON2,
     eDIMOFS_BUTTON1 = DIMOFS_BUTTON1,
     eDIMOFS_BUTTON0 = DIMOFS_BUTTON0,
@@ -594,6 +596,8 @@ void DirectInput::ReadMouse( void )
 							CursorPos[index]		+= ((int)input_buffer.dwData) * 2;
 			   			break;
 
+				case	eDIMOFS_BUTTON4:	index++;
+				case	eDIMOFS_BUTTON3:	index++;
 				case	eDIMOFS_BUTTON2:	index++;
 				case	eDIMOFS_BUTTON1:	index++;
 				case	eDIMOFS_BUTTON0:

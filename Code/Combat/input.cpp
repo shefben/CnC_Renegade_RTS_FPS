@@ -226,6 +226,8 @@ StringID	ButtonNames[] = {
 	{	DirectInput::BUTTON_MOUSE_LEFT,	"Left_Mouse_Button"		},
 	{	DirectInput::BUTTON_MOUSE_RIGHT,	"Right_Mouse_Button"		},
 	{	DirectInput::BUTTON_MOUSE_CENTER,	"Center_Mouse_Button"	},
+	{	DirectInput::BUTTON_MOUSE_SIDE1,	"Left_Side_Mouse_Button"	},
+	{	DirectInput::BUTTON_MOUSE_SIDE2,	"Right_Side_Mouse_Button"	},
 
 	{	DirectInput::BUTTON_JOYSTICK_A,	"Joystick_Button_A"		},
 	{	DirectInput::BUTTON_JOYSTICK_B,	"Joystick_Button_B"		},
@@ -1066,7 +1068,11 @@ float	Input::Get_Value( int function_index, int input, float /* clamp */ )
 
 		// Special case ctrl and alt for the 0 - 9 keys
 		// Assumtion:  DIK_keys go 1,2,3..9,0
-		if ( (input&0xFF) >= DIK_1 && (input&0xFF) <= DIK_0 ) {
+		// The mask is what makes the id fit a DIK, so this has to be told to
+		// stay off the mouse and joystick: masked down, the centre and side
+		// buttons land inside the number-key range.
+		if (	input < DirectInput::BUTTON_MOUSE_FIRST &&
+				(input&0xFF) >= DIK_1 && (input&0xFF) <= DIK_0 ) {
 			// Shift is a key, used for walk!
 //			modifier |= ((DirectInput::Get_Button_Value(DIK_SHIFT) & BUTTON_BIT_HELD) ? BUTTON_SHIFT : 0);
 			modifier |= ((DirectInput::Get_Button_Value(DIK_CONTROL) & BUTTON_BIT_HELD) ? BUTTON_CTRL : 0);
@@ -1610,6 +1616,18 @@ Input::Save_Accelerated_Keys (INIClass	*input_ini)
 void
 Input::Get_Translated_Key_Name (int dik_id, WideStringClass &name)
 {
+	//
+	//	The side buttons have no string-table entry -- the table was written
+	//	before mice had them -- so they show an untranslated name.
+	//
+	if (dik_id == DirectInput::BUTTON_MOUSE_SIDE1) {
+		name = L"Mouse 4";
+		return ;
+	} else if (dik_id == DirectInput::BUTTON_MOUSE_SIDE2) {
+		name = L"Mouse 5";
+		return ;
+	}
+
 	for (int index = 0; index < KEYNAME_MAP_COUNT; index ++) {
 
 		//

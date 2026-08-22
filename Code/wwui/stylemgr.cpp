@@ -135,8 +135,9 @@ StyleMgrClass::Initialize (void)
 	//
 	//	Compute the scale
 	//
-	ScaleX = Render2DClass::Get_Screen_Resolution().Width () / 800.0F;
-	ScaleY = Render2DClass::Get_Screen_Resolution().Height () / 600.0F;
+	const RectClass safe_rect = Get_Aspect_Corrected_Screen_Rect ();
+	ScaleX = safe_rect.Width () / 800.0F;
+	ScaleY = safe_rect.Height () / 600.0F;
 
 	//
 	//	Load each font
@@ -165,6 +166,40 @@ StyleMgrClass::Initialize (void)
 
 ////////////////////////////////////////////////////////////////
 //
+//	Get_Aspect_Corrected_Screen_Rect
+//
+////////////////////////////////////////////////////////////////
+RectClass
+StyleMgrClass::Get_Aspect_Corrected_Screen_Rect (void)
+{
+	const RectClass &screen_rect = Render2DClass::Get_Screen_Resolution ();
+
+	const float ASPECT = 4.0F / 3.0F;
+
+	float width		= screen_rect.Width ();
+	float height	= screen_rect.Height ();
+
+	if ((width / height) <= ASPECT) {
+		//	Narrower than 4:3, so the width is what runs out first
+		height = width / ASPECT;
+	} else {
+		//	Wider than 4:3, so the height is
+		width = height * ASPECT;
+	}
+
+	const Vector2 center = screen_rect.Center ();
+
+	RectClass safe_rect;
+	safe_rect.Left		= center.X - (width * 0.5F);
+	safe_rect.Right	= center.X + (width * 0.5F);
+	safe_rect.Top		= center.Y - (height * 0.5F);
+	safe_rect.Bottom	= center.Y + (height * 0.5F);
+	return safe_rect;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
 //	Initialize_From_INI
 //
 ////////////////////////////////////////////////////////////////
@@ -176,8 +211,9 @@ StyleMgrClass::Initialize_From_INI (const char *filename)
 	//
 	//	Compute the scale
 	//
-	ScaleX = Render2DClass::Get_Screen_Resolution().Width () / 800.0F;
-	ScaleY = Render2DClass::Get_Screen_Resolution().Height () / 600.0F;
+	const RectClass safe_rect = Get_Aspect_Corrected_Screen_Rect ();
+	ScaleX = safe_rect.Width () / 800.0F;
+	ScaleY = safe_rect.Height () / 600.0F;
 
 	//
 	//	Get the INI file

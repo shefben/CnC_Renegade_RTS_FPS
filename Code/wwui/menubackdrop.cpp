@@ -40,6 +40,7 @@
 #include "ww3d.h"
 #include "assetmgr.h"
 #include "render2d.h"
+#include "stylemgr.h"
 #include "light.h"
 #include "hanim.h"
 
@@ -94,12 +95,27 @@ MenuBackDropClass::MenuBackDropClass (void)	:
 	Camera->Set_Position (Vector3 (0, 0, 800));
 
 	//
-	//	Configure the view plane
+	//	Configure the view plane.  The backdrops are modelled to fill a 4:3
+	//	frame, so the frame stays 4:3 -- deriving the vertical FOV from the
+	//	screen aspect used to crop the artwork on a widescreen display.
 	//
-	const RectClass &screen_size = Render2DClass::Get_Screen_Resolution ();
 	float hfov = DEG_TO_RAD(45.0F);
-	float vfov = (screen_size.Height () / screen_size.Width ()) * hfov;
+	float vfov = (3.0F / 4.0F) * hfov;
 	Camera->Set_View_Plane (hfov, vfov);
+
+	//
+	//	...and the frame is letterboxed into the same 4:3 box the dialogs are
+	//	laid out in, so the two line up.  The bars either side keep whatever
+	//	Begin_Render cleared the screen to.
+	//
+	const RectClass &screen_rect	= Render2DClass::Get_Screen_Resolution ();
+	const RectClass safe_rect		= StyleMgrClass::Get_Aspect_Corrected_Screen_Rect ();
+
+	Vector2 viewport_min (	(safe_rect.Left - screen_rect.Left) / screen_rect.Width (),
+									(safe_rect.Top - screen_rect.Top) / screen_rect.Height ());
+	Vector2 viewport_max (	(safe_rect.Right - screen_rect.Left) / screen_rect.Width (),
+									(safe_rect.Bottom - screen_rect.Top) / screen_rect.Height ());
+	Camera->Set_Viewport (viewport_min, viewport_max);
 
 	//
 	//	Set the clip planes
@@ -135,6 +151,13 @@ MenuBackDropClass::Render (void)
 	//	Simple render the scene
 	//
 	WW3D::Render (Scene, Camera, ClearScreen, ClearScreen);
+
+	//
+	//	The camera is letterboxed and Apply() left that viewport on the device.
+	//	Everything drawn after this -- the dialogs, the cursor -- wants the
+	//	whole screen back.
+	//
+	WW3D::Reset_Viewport ();
 	return ;
 }
 

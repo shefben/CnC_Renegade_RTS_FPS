@@ -168,6 +168,14 @@ class RenegadeUIInputClass : public WWUIInputClass
 			case VK_RBUTTON:
 				retval = Input::Is_Button_Down (DirectInput::BUTTON_MOUSE_RIGHT);
 				break;
+
+			case VK_XBUTTON1:
+				retval = Input::Is_Button_Down (DirectInput::BUTTON_MOUSE_SIDE1);
+				break;
+
+			case VK_XBUTTON2:
+				retval = Input::Is_Button_Down (DirectInput::BUTTON_MOUSE_SIDE2);
+				break;
 		}
 
 		return retval;

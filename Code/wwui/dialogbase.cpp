@@ -40,6 +40,7 @@
 #include "dialogtext.h"
 #include "editctrl.h"
 #include "dialogmgr.h"
+#include "stylemgr.h"
 #include "ww3d.h"
 #include "vector4.h"
 #include "assetmgr.h"
@@ -139,16 +140,27 @@ DialogBaseClass::Start_Dialog (void)
 	Title = TranslateDialogString(DialogResource_->caption);
 
 	//
-	//	Convert the dialog's width and height from dialog units to screen units
+	//	Convert the dialog's width and height from dialog units to screen
+	//	units.  The dialog grid is 4:3, so it is scaled against the 4:3 box
+	//	rather than the screen -- otherwise every dialog stretches sideways on
+	//	a widescreen display and stops lining up with the backdrop art.
 	//
 	const RectClass &screen_rect	= Render2DClass::Get_Screen_Resolution ();
-	float dlg_screen_width				= WWMath::Trunc(((float)DialogResource_->cx / RES_SCREEN_WIDTH) * screen_rect.Width ());
-	float dlg_screen_height			= WWMath::Trunc(((float)DialogResource_->cy / RES_SCREEN_HEIGHT) * screen_rect.Height ());
+	const RectClass safe_rect		= StyleMgrClass::Get_Aspect_Corrected_Screen_Rect ();
+	float dlg_screen_width				= WWMath::Trunc(((float)DialogResource_->cx / RES_SCREEN_WIDTH) * safe_rect.Width ());
+	float dlg_screen_height			= WWMath::Trunc(((float)DialogResource_->cy / RES_SCREEN_HEIGHT) * safe_rect.Height ());
 
-	//
-	//	Center the dialog on the screen
-	//
-	Rect.Left	= WWMath::Trunc(screen_rect.Center ().X - (dlg_screen_width * 0.5F));
+	if (DialogResource_->exstyle & WS_EX_RIGHT) {
+
+		//
+		//	Dock the dialog against the right-hand edge of the screen -- not of
+		//	the 4:3 box, since the point of docking it is to reach the edge.
+		//
+		Rect.Left	= WWMath::Trunc(screen_rect.Right - dlg_screen_width);
+	} else {
+		Rect.Left	= WWMath::Trunc(screen_rect.Center ().X - (dlg_screen_width * 0.5F));
+	}
+
 	Rect.Top		= WWMath::Trunc(screen_rect.Center ().Y - (dlg_screen_height * 0.5F));
 	Rect.Right	= WWMath::Trunc(Rect.Left + dlg_screen_width);
 	Rect.Bottom	= WWMath::Trunc(Rect.Top + dlg_screen_height);
@@ -268,15 +280,15 @@ DialogBaseClass::Start_Dialog (void)
 			control->Set_Style (info.style);
 			control->Set_ID (info.id);
 
-			float ctrl_width		= WWMath::Trunc((((float)info.cx) / RES_SCREEN_WIDTH) * screen_rect.Width ());
-			float ctrl_height	= WWMath::Trunc((((float)info.cy) / RES_SCREEN_HEIGHT) * screen_rect.Height ());
+			float ctrl_width		= WWMath::Trunc((((float)info.cx) / RES_SCREEN_WIDTH) * safe_rect.Width ());
+			float ctrl_height	= WWMath::Trunc((((float)info.cy) / RES_SCREEN_HEIGHT) * safe_rect.Height ());
 
 			//
 			//	Calculate the screen position of the control
 			//
 			RectClass rect;
-			rect.Left	= WWMath::Trunc(Rect.Left + ((((float)info.x) / RES_SCREEN_WIDTH) * screen_rect.Width ()));
-			rect.Top		= WWMath::Trunc(Rect.Top + ((((float)info.y) / RES_SCREEN_HEIGHT) * screen_rect.Height ()));
+			rect.Left	= WWMath::Trunc(Rect.Left + ((((float)info.x) / RES_SCREEN_WIDTH) * safe_rect.Width ()));
+			rect.Top		= WWMath::Trunc(Rect.Top + ((((float)info.y) / RES_SCREEN_HEIGHT) * safe_rect.Height ()));
 			rect.Right	= WWMath::Trunc(rect.Left + ctrl_width);
 			rect.Bottom	= WWMath::Trunc(rect.Top + ctrl_height);
 			control->Set_Window_Rect (rect);
@@ -818,6 +830,22 @@ DialogBaseClass::Send_Mouse_Input (DialogControlClass *control, const Vector2 &m
 			control->On_MButton_Down (mouse_pos);
 		} else {
 			control->On_MButton_Up (mouse_pos);
+		}
+	}
+
+	//
+	//	The side buttons have no click handler of their own -- controls that
+	//	care about them treat them as keys.
+	//
+	if (DialogMgrClass::Is_Button_Down (VK_XBUTTON1) != DialogMgrClass::Was_Button_Down (VK_XBUTTON1)) {
+		if (DialogMgrClass::Is_Button_Down (VK_XBUTTON1)) {
+			control->On_Key_Down (VK_XBUTTON1, 0);
+		}
+	}
+
+	if (DialogMgrClass::Is_Button_Down (VK_XBUTTON2) != DialogMgrClass::Was_Button_Down (VK_XBUTTON2)) {
+		if (DialogMgrClass::Is_Button_Down (VK_XBUTTON2)) {
+			control->On_Key_Down (VK_XBUTTON2, 0);
 		}
 	}
 

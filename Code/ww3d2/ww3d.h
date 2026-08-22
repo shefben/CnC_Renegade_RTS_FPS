@@ -148,6 +148,13 @@ public:
 	static WW3DErrorType		Render(const LayerListClass & layerlist);
 	static WW3DErrorType		Render(const LayerClass & layer);
 	static WW3DErrorType		Render(SceneClass * scene,CameraClass * cam,bool clear = false,bool clearz = false,const Vector3 & color = Vector3(0,0,0));
+
+	//
+	//	Put the whole render target back under the viewport.  Rendering through
+	//	a camera leaves that camera's viewport on the device, so anything that
+	//	renders through a letterboxed camera has to hand the screen back.
+	//
+	static void					Reset_Viewport(void);
 	static WW3DErrorType		Render(RenderObjClass & obj,RenderInfoClass & rinfo);
 	static void					Flush(RenderInfoClass & rinfo);	// NOTE: "normal" usage should *NEVER* require the user to call this function
 

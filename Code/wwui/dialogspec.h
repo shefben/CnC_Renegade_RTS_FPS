@@ -61,4 +61,11 @@ typedef struct DialogResource {
     const unichar_t *caption;
     const DialogResourceControl *controls;
     size_t count_controls;
+
+    //
+    //	Extended window style.  Only WS_EX_RIGHT is honoured: it docks the
+    //	dialog against the right-hand edge of the screen instead of centring
+    //	it.  Every existing dialog leaves this zero.
+    //
+    unsigned int exstyle;
 } DialogResource;

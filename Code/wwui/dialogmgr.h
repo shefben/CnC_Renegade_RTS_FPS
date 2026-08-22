@@ -187,6 +187,8 @@ private:
 		MB_LBUTTON	= 0,
 		MB_MBUTTON,
 		MB_RBUTTON,
+		MB_XBUTTON1,
+		MB_XBUTTON2,
 		MB_COUNT,
 	};
 
