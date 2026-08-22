@@ -6,11 +6,7 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
-- **Q-005** `docs/`, `tools/tt484/`, the four state files, `tt_4.8.4/`,
- `models/` and the roadmap are all untracked. Phase 1 output is now the authority
- for Phases 2-5, so it should be under version control, but committing the TT and
- Zero Hour donor trees is a separate call. Commit the analysis output and project
- state now, and if so, are the donor trees in or out?
+_None._
 
 ---
 
@@ -28,3 +24,9 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
   P00-BUILD closed and the runtime items stayed in `unstarted_features.md`. Premise
   later corrected: assets do exist, at `C:\Westwood\Renegade_full`, not `Run/` — so
   those items are unblocked, not blocked. Its shipped binaries are out of scope.
+- **Q-005** Phase 1 output, project state and the donor trees were all untracked.
+ User directed committing everything locally (no remote is under our control yet).
+ Done in four commits on `main`: `ce4c3b75` analysis + state files, `cdd1ed2a` TT
+ 4.8.4 tree and the pinned `GeneralsGameCode` submodule, `0a191e58` the standalone
+ `Code/` side projects, `41164d71` the ~900 MB `models/` art. Local agent/tool
+ caches are gitignored instead.

@@ -35,7 +35,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P02: Reconcile TT public engine classes into canonical OpenW3D classes (roadmap Section 8)
 
-- [ ] Merge required TT members, virtuals, accessors, definitions, and semantics into canonical OpenW3D classes.
 - [ ] Do not preserve obsolete class-layout ABI constraints merely for historical TT binary compatibility.
 - [ ] Do not introduce external-plugin façade headers/adapters during this integration. Internal class design follows the canonical native OpenW3D implementation.
 - [ ] Port TT building/factory object types into `Code/Combat`.
