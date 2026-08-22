@@ -88,8 +88,8 @@ yet implemented.
 | `NeutralVechiclePointsFix` | bool | true | points for neutral-vehicle kills | open |
 | `DrawDistance` | float | 300 | hibernation/draw distance | open |
 | `ScriptsLastTeamTime` | int | -1 | last-team bookkeeping for scripts | open |
-| `NukeWeatherDisable` | bool | false | suppress nuke weather effect | open |
-| `IonWeatherDisable` | bool | false | suppress ion weather effect | open |
+| `NukeWeatherDisable` | bool | false | suppress nuke weather effect | **merged** |
+| `IonWeatherDisable` | bool | false | suppress ion weather effect | **merged** |
 | `MapPrefix` | string | `C&C_` | map-name prefix used by map cycling | open |
 | `NodHouseRed/Green/Blue` | int | 255/0/0 | Nod team colour | open |
 | `GDIHouseRed/Green/Blue` | int | 255/204/0 | GDI team colour | open |
@@ -167,6 +167,7 @@ Three clusters are closed by it:
 | --- | --- | --- |
 | vehicle flip kill | `DisableVehicleFlipKill` | `wwphys/vehiclephys.cpp` — `ExpireTimer` and `EXPIRE_SECONDS` restored, the countdown now runs unless the option is set |
 | new unpurchasable logic | `NewUnpurchaseableLogic` | both PT dialogs — one predicate with the setting as its input, not two code paths |
+| beacon weather | `NukeWeatherDisable` / `IonWeatherDisable` | `Combat/beacongameobj.cpp` — all four sites together: the override, the restore on disarm, the restore on cleanup, and the post-detonation ash. Gating the override without its restore would strand the sky |
 | 2x cost | `DisableCostMultiplier` | `vendor.cpp` (the price), plus both dialogs (the scaling factor and the warning text) |
 
 The 2x cost one is worth spelling out: `vendor.cpp:401` is what actually
