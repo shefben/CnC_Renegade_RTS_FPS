@@ -1,0 +1,122 @@
+# OpenW3D / Renegade Project Instructions for Codex
+
+## Scope
+
+This root `AGENTS.md` applies to the entire repository unless a more specific nested `AGENTS.md` provides local implementation details. A nested file may refine local workflow, but it must not override root architectural rules, donor rules, or user requirements unless the user explicitly changes them.
+
+## Authoritative specification
+
+Before modifying code, read:
+
+1. `openw3d_tt484_zerohour_commander_integration_roadmap_v1.1.0.md`
+2. `completed_features.md`
+3. `WIP_features.md`
+4. `unstarted_features.md`
+5. `awaiting_answers.md`
+
+Treat the roadmap as the authoritative implementation specification and the four state files as the authoritative human-readable continuation state. Do not rely on prior chat/session memory when repository state is available.
+
+## Mandatory architecture rules
+
+- Target the OpenW3D architecture described by the roadmap.
+- Integrate TT 4.8.4 natively before Zero Hour donor work.
+- TT hooks/patches/replacements become the single canonical OpenW3D implementation. Do not keep stock and TT variants side-by-side.
+- The Zero Hour implementation donor is **TheSuperHackers `GeneralsGameCode`: `Core + GeneralsMD`**.
+- Do not use TheSuperHackers `Generals/` as an implementation donor.
+- EA `GeneralsMD` is optional historical Zero Hour validation only.
+- Keep OpenW3D/WWPhys. Do not introduce Jolt or another replacement physics engine.
+- Preserve Renegade FPS geometry/interiors/tunnels. Terrain additions must not force a heightfield-only world.
+- Do not add binary compatibility/plugin layers unless the roadmap or user explicitly requires them.
+- Prefer extending/canonicalizing existing OpenW3D code over importing a parallel SAGE subsystem.
+
+## Codex execution behavior
+
+- Inspect only repository areas relevant to the current task before broad searches.
+- Use `rg`/targeted code search before opening large files or trees.
+- Prefer small, reviewable canonical changes over speculative rewrites.
+- Do not stop at analysis when the requested change can be implemented safely.
+- Do not silently alter roadmap scope.
+- Research code/source questions yourself before asking the user.
+- Record genuine user decisions in `awaiting_answers.md`.
+- Internal task lists are temporary helpers only. They never replace the four persistent state files.
+
+## Mandatory current Commander/RTS scope
+
+The authoritative roadmap explicitly includes all of the following. Do not collapse them into a generic "Commander Mode" task:
+
+- FPS-first gameplay invariants and an embodied/vulnerable Commander soldier body;
+- Commander intelligence firewall: strategic camera movement is not a sensor;
+- finite JSON-driven team building power generation/consumption with deterministic load shedding;
+- validated server-authoritative live building-JSON tuning/reload;
+- Communications Center/Advanced Communications Center tactical coverage;
+- Tiberium Silo team-wide player wallet-capacity bonuses;
+- right-side two-row Commander sidebar with `BUILDINGS`, `GROUND_VEHICLES`, `AIR_VEHICLES`, and `INFANTRY` modes;
+- power generation/consumption/overload bars;
+- contextual production by clicking the physical ground factory, Air Pad/air factory, Barracks, or Hand of Nod;
+- Commander purchases create normal Renegade AI infantry/vehicles/aircraft, not fake human players;
+- Commander selection and server-authoritative orders for produced AI;
+- deterministic batched procedural construction blocks before a placed building becomes operational;
+- automatic PCT/MCT placement from W3D semantic nodes;
+- human-player movement/right-of-way and FPS responsiveness take priority over distant Commander AI work.
+
+Follow the roadmap dependency order exactly:
+
+```text
+building descriptors
+-> finite power/capabilities
+-> embodied Commander camera
+-> Commander sidebar
+-> ghost placement
+-> procedural construction
+-> AI production/control
+-> persistence/network/dedicated-server/regression
+```
+
+## Validation economy
+
+Section 0B of the roadmap is mandatory.
+
+During normal implementation:
+
+1. Build only directly affected targets.
+2. Run directly relevant cheap existing tests when useful.
+3. Run one focused smoke check when runtime behavior warrants it.
+4. If those checks pass and no roadmap escalation trigger applies, **STOP VALIDATING AND CONTINUE IMPLEMENTATION**.
+
+Do not automatically run the full suite, all golden scenarios, all targets, broad benchmarks, or unrelated tests. Do not repeatedly rerun an unchanged passing test. Do not create unit tests by default for trivial wrappers/getters/forwarders or already-covered behavior.
+
+Do not read large successful build/test logs. Check status and concise output. For failures, inspect the smallest relevant error region first.
+
+Broad regression belongs at designated roadmap hard/regression gates or when a concrete cross-cutting problem requires it.
+
+## Session-state protocol
+
+At session start:
+
+- read all four state files;
+- inspect current Git status/HEAD;
+- resume WIP before starting unrelated work unless roadmap dependency/order requires otherwise;
+- put newly started substantive work in `WIP_features.md`.
+
+Before every intentional session end or handoff:
+
+- reconcile `completed_features.md`;
+- reconcile `WIP_features.md` with precise next actions;
+- reconcile `unstarted_features.md`;
+- reconcile `awaiting_answers.md`;
+- run the cheap feature-state validator when available;
+- record targeted build/test state already obtained;
+- do **not** launch broad regression merely because the session is ending.
+
+Never mark an item COMPLETE merely because code was written. It must satisfy its applicable acceptance gate.
+
+## Git discipline
+
+Before declaring work complete:
+
+- inspect `git status` and relevant diff;
+- make sure generated/temporary/debug files are not accidentally included;
+- preserve unrelated user changes;
+- do not reset, rewrite, or discard user work unless explicitly instructed.
+
+The repository state, roadmap, and four tracking files must agree when the session ends.

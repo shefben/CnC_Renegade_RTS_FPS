@@ -1,0 +1,1608 @@
+path	area	role	lines	native_destination	dest_method	dest_confidence
+tt_4.8.4/AntiSpawnKill/AntiSpawnKill.cpp	AntiSpawnKill	custom gameplay script	102	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/AntiSpawnKill/AntiSpawnKill.h	AntiSpawnKill	custom gameplay script	23	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/AntiSpawnKill/General.cpp	AntiSpawnKill	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/AntiSpawnKill/General.h	AntiSpawnKill	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/CTF/CTF.cpp	CTF	custom gameplay script	777	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/CTF/General.cpp	CTF	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/CTF/General.h	CTF	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/CharacterRefund/CharacterRefund.cpp	CharacterRefund	custom gameplay script	98	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/CharacterRefund/CharacterRefund.h	CharacterRefund	custom gameplay script	21	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/CharacterRefund/General.cpp	CharacterRefund	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/CharacterRefund/General.h	CharacterRefund	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/ExtraConsoleCommands/ExtraConsoleCommands.cpp	ExtraConsoleCommands	custom gameplay script	472	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/ExtraConsoleCommands/ExtraConsoleCommands.h	ExtraConsoleCommands	custom gameplay script	14	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/ExtraConsoleCommands/General.cpp	ExtraConsoleCommands	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/ExtraConsoleCommands/General.h	ExtraConsoleCommands	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/FirstBlood/FirstBlood.cpp	FirstBlood	custom gameplay script	85	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/FirstBlood/FirstBlood.h	FirstBlood	custom gameplay script	19	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/FirstBlood/General.cpp	FirstBlood	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/FirstBlood/General.h	FirstBlood	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/Launcher/Archive build/Archive.h	Launcher	installer/deployment	1	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Archive build/main.cpp	Launcher	installer/deployment	102	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Archive build/main.h	Launcher	installer/deployment	7	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/Browser.cpp	Launcher	installer/deployment	452	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/Browser.h	Launcher	installer/deployment	412	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/BrowserAPI.h	Launcher	installer/deployment	154	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/BrowserEvents.cpp	Launcher	installer/deployment	484	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/BrowserInterface.cpp	Launcher	installer/deployment	77	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/ClientSite.cpp	Launcher	installer/deployment	47	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/CommandTarget.cpp	Launcher	installer/deployment	47	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/DocHost.cpp	Launcher	installer/deployment	100	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/Frame.cpp	Launcher	installer/deployment	69	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/InPlaceSite.cpp	Launcher	installer/deployment	98	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/InetProtocol.cpp	Launcher	installer/deployment	1105	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/InetProtocol.h	Launcher	installer/deployment	270	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/OleItemContainer.cpp	Launcher	installer/deployment	49	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/POSTParser.cpp	Launcher	installer/deployment	828	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/POSTParser.h	Launcher	installer/deployment	76	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/Storage.cpp	Launcher	installer/deployment	77	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Browser/dllmain.cpp	Launcher	installer/deployment	13	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/Core.h	Launcher	installer/deployment	36	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/CoreAPI.h	Launcher	installer/deployment	40	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/CoreEntry.cpp	Launcher	installer/deployment	71	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/CoreSelfupdate.cpp	Launcher	installer/deployment	121	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/CoreSpawnEntry.cpp	Launcher	installer/deployment	304	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/GameUpdate.cpp	Launcher	installer/deployment	278	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/GameUpdate.h	Launcher	installer/deployment	8	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/Settings.h	Launcher	installer/deployment	35	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/TriggerDetect.cpp	Launcher	installer/deployment	66	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/dllmain.cpp	Launcher	installer/deployment	12	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Core/resource.h	Launcher	installer/deployment	21	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Downloader/CallbackDownload.cpp	Launcher	installer/deployment	48	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Downloader/Downloader.h	Launcher	installer/deployment	164	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Downloader/DownloaderAPI.h	Launcher	installer/deployment	22	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Downloader/FileDownload.cpp	Launcher	installer/deployment	199	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Downloader/MemoryDownload.cpp	Launcher	installer/deployment	211	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Downloader/StreamDownload.cpp	Launcher	installer/deployment	190	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Downloader/dllmain.cpp	Launcher	installer/deployment	13	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Launcher/main.cpp	Launcher	installer/deployment	350	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Launcher/main.h	Launcher	installer/deployment	11	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/aes.h	Launcher	installer/deployment	205	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/aes_modes.c	Launcher	installer/deployment	918	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/aes_via_ace.h	Launcher	installer/deployment	529	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/aescpp.h	Launcher	installer/deployment	148	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/aescrypt.c	Launcher	installer/deployment	301	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/aeskey.c	Launcher	installer/deployment	555	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/aesopt.h	Launcher	installer/deployment	746	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/aestab.c	Launcher	installer/deployment	383	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/aestab.h	Launcher	installer/deployment	174	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/brg_endian.h	Launcher	installer/deployment	133	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/brg_types.h	Launcher	installer/deployment	223	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/AES/rdtsc.h	Launcher	installer/deployment	127	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Archive.cpp	Launcher	installer/deployment	640	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Archive.h	Launcher	installer/deployment	31	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Backup/Memory.cpp	Launcher	installer/deployment	253	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Backup/Memory.h	Launcher	installer/deployment	290	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Base.h	Launcher	installer/deployment	44	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/BaseClasses.cpp	Launcher	installer/deployment	77	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/BaseClasses.h	Launcher	installer/deployment	62	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Basetypes.h	Launcher	installer/deployment	33	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/ChunkClasses.cpp	Launcher	installer/deployment	189	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/ChunkClasses.h	Launcher	installer/deployment	61	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Debug.cpp	Launcher	installer/deployment	228	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Debug.h	Launcher	installer/deployment	11	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/FileStream.cpp	Launcher	installer/deployment	208	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/FileStream.h	Launcher	installer/deployment	40	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/HTMLWrite.cpp	Launcher	installer/deployment	562	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/HTMLWrite.h	Launcher	installer/deployment	46	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Hash.cpp	Launcher	installer/deployment	131	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Hash.h	Launcher	installer/deployment	11	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Lists.h	Launcher	installer/deployment	1300	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Memory.cpp	Launcher	installer/deployment	259	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/Memory.h	Launcher	installer/deployment	370	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/MemoryStream.cpp	Launcher	installer/deployment	400	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/MemoryStream.h	Launcher	installer/deployment	47	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/MultiCache.cpp	Launcher	installer/deployment	65	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/MultiCache.h	Launcher	installer/deployment	30	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/StdLib.cpp	Launcher	installer/deployment	1301	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/StdLib.h	Launcher	installer/deployment	122	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/zconf.h	Launcher	installer/deployment	332	Code/Launcher	area-rule	high
+tt_4.8.4/Launcher/Shared/zlib.h	Launcher	installer/deployment	1357	Code/Launcher	area-rule	high
+tt_4.8.4/MemoryManager/DList.h	MemoryManager	utility	226	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/FastAllocator.cpp	MemoryManager	utility	37	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/FastAllocator.h	MemoryManager	utility	350	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/FastCriticalSection.h	MemoryManager	utility	54	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/MemTracker.cpp	MemoryManager	utility	462	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/MemTracker.h	MemoryManager	utility	170	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/MemoryManager.h	MemoryManager	utility	122	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/MemoryManager_debug.cpp	MemoryManager	utility	122	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/MemoryManager_release.cpp	MemoryManager	utility	143	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/TSList.h	MemoryManager	utility	319	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/dllmain_debug.cpp	MemoryManager	utility	68	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/dllmain_release.cpp	MemoryManager	utility	22	Code/wwlib	area-rule	high
+tt_4.8.4/MemoryManager/platform.h	MemoryManager	utility	52	Code/wwlib	area-rule	high
+tt_4.8.4/Mute/General.cpp	Mute	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/Mute/General.h	Mute	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/Mute/Mute.cpp	Mute	custom gameplay script	171	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/Mute/Mute.h	Mute	custom gameplay script	14	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/NoPoints/General.cpp	NoPoints	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/NoPoints/General.h	NoPoints	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/NoPoints/NoPoints.cpp	NoPoints	custom gameplay script	84	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/NoPoints/NoPoints.h	NoPoints	custom gameplay script	23	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/PointsDistribution/DamagePoints.cpp	PointsDistribution	custom gameplay script	78	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/PointsDistribution/DamagePoints.h	PointsDistribution	custom gameplay script	23	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/PointsDistribution/General.cpp	PointsDistribution	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/PointsDistribution/General.h	PointsDistribution	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/PointsDistribution/PointsDistribution.cpp	PointsDistribution	custom gameplay script	81	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/PointsDistribution/PointsDistribution.h	PointsDistribution	custom gameplay script	14	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/SuddenDeath/General.cpp	SuddenDeath	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/SuddenDeath/General.h	SuddenDeath	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/SuddenDeath/SuddenDeath.cpp	SuddenDeath	custom gameplay script	231	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/SuddenDeath/SuddenDeath.h	SuddenDeath	custom gameplay script	24	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/VFS/Console Client/main.cpp	VFS	utility	98	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/RPC VFS/RPC VFS.cpp	VFS	utility	540	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/RPC VFS/RPC VFS.h	VFS	engine wrapper/API	124	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/RPC VFS/RPC VFS_c.c	VFS	utility	3991	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/RPC VFS/RPC VFS_h.h	VFS	engine wrapper/API	445	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/RPC VFS/RPC VFS_s.c	VFS	utility	3121	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/RPC VFS/main.cpp	VFS	utility	68	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/aes.h	VFS	engine wrapper/API	205	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/aes_modes.c	VFS	utility	918	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/aes_via_ace.h	VFS	engine wrapper/API	529	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/aescpp.h	VFS	engine wrapper/API	148	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/aescrypt.c	VFS	utility	301	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/aeskey.c	VFS	utility	555	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/aesopt.h	VFS	engine wrapper/API	746	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/aestab.c	VFS	utility	383	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/aestab.h	VFS	engine wrapper/API	174	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/brg_endian.h	VFS	engine wrapper/API	133	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/brg_types.h	VFS	engine wrapper/API	223	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/AES/rdtsc.h	VFS	engine wrapper/API	127	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Base.h	VFS	engine wrapper/API	25	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/BaseClasses.cpp	VFS	utility	157	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/BaseClasses.h	VFS	engine wrapper/API	97	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Basetypes.h	VFS	engine wrapper/API	19	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Console.cpp	VFS	utility	207	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Console.h	VFS	engine wrapper/API	67	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Hash.cpp	VFS	utility	131	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Hash.h	VFS	engine wrapper/API	11	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Lists.h	VFS	engine wrapper/API	1300	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/MD5.cpp	VFS	utility	283	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/MD5.h	VFS	engine wrapper/API	61	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Memory.cpp	VFS	utility	88	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Memory.h	VFS	engine wrapper/API	247	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Serialize.cpp	VFS	utility	106	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/Serialize.h	VFS	engine wrapper/API	67	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/StdLib.cpp	VFS	utility	1108	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/StdLib.h	VFS	engine wrapper/API	110	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/StreamMap.cpp	VFS	utility	175	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Shared/StreamMap.h	VFS	engine wrapper/API	50	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Server/RPC Procs.cpp	VFS	utility	509	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Server/RPC VFS_c.c	VFS	utility	3991	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Server/RPC VFS_h.h	VFS	engine wrapper/API	445	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Server/RPC VFS_s.c	VFS	utility	3121	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Server/main.cpp	VFS	utility	255	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Server/main.h	VFS	engine wrapper/API	25	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Test/RPC VFS_c.c	VFS	utility	3991	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Test/RPC VFS_h.h	VFS	engine wrapper/API	445	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Test/RPC VFS_s.c	VFS	utility	3121	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Test/STB.cpp	VFS	utility	305	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Test/STB.h	VFS	engine wrapper/API	59	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS Test/main.cpp	VFS	utility	584	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/API/VFSAdvanced.h	VFS	engine wrapper/API	34	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/API/VFSBase.h	VFS	engine wrapper/API	165	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/API/VFSCryptography.h	VFS	engine wrapper/API	14	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/API/VFSErrorcodes.h	VFS	engine wrapper/API	50	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/API/VFSInterface.h	VFS	engine wrapper/API	135	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/API/VFSInterfaceV2.h	VFS	engine wrapper/API	10	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/API/VFSModule.h	VFS	engine wrapper/API	18	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/API/VFSPipeCommands.h	VFS	engine wrapper/API	55	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/API/VFSRPCInterface.h	VFS	engine wrapper/API	107	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/API/VFSVersion.h	VFS	engine wrapper/API	4	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/InetProtocol.cpp	VFS	utility	377	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/InetProtocol.h	VFS	engine wrapper/API	100	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/VFS.cpp	VFS	utility	3964	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/VFS.h	VFS	engine wrapper/API	402	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/VFS2.cpp	VFS	utility	28	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/VFSIStream.cpp	VFS	utility	166	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/VFSStructures.h	VFS	engine wrapper/API	224	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/dllmain.cpp	VFS	utility	134	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/dllmain.h	VFS	engine wrapper/API	26	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/VFS/resource.h	VFS	engine wrapper/API	14	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Viewer/main.cpp	VFS	utility	1226	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Viewer/main.h	VFS	engine wrapper/API	34	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/VFS/Viewer/resource.h	VFS	engine wrapper/API	43	DROP: standalone out-of-process VFS provider, superseded by Code/wwlib file factory	area-rule	high
+tt_4.8.4/bansystem/BanList.cpp	bansystem	server-only	79	Code/wwnet	area-rule	high
+tt_4.8.4/bansystem/BanList.h	bansystem	server-only	62	Code/wwnet	area-rule	high
+tt_4.8.4/bansystem/BanListStore.cpp	bansystem	server-only	91	Code/wwnet	area-rule	high
+tt_4.8.4/bansystem/BanListStore.h	bansystem	server-only	35	Code/wwnet	area-rule	high
+tt_4.8.4/bansystem/BanSystem.h	bansystem	server-only	48	Code/wwnet	area-rule	high
+tt_4.8.4/bansystem/General.cpp	bansystem	server-only	12	Code/wwnet	area-rule	high
+tt_4.8.4/bansystem/General.h	bansystem	server-only	18	Code/wwnet	area-rule	high
+tt_4.8.4/bansystem/IpAddress.cpp	bansystem	server-only	15	Code/wwnet	area-rule	high
+tt_4.8.4/bansystem/IpAddress.h	bansystem	server-only	35	Code/wwnet	area-rule	high
+tt_4.8.4/bansystem/bansystem.cpp	bansystem	server-only	211	Code/wwnet	area-rule	high
+tt_4.8.4/crates/General.cpp	crates	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/crates/General.h	crates	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/crates/crates.cpp	crates	custom gameplay script	749	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/dep/libconfig/libconfig.h	dep	utility	266	EXCLUDED: vendored third-party dependency	area-rule	high
+tt_4.8.4/example-plugin/ExamplePlugin.cpp	example-plugin	custom gameplay script	166	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/example-plugin/ExamplePlugin.h	example-plugin	custom gameplay script	52	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/example-plugin/General.cpp	example-plugin	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/example-plugin/General.h	example-plugin	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/keycfg/keycfg.cpp	keycfg	installer/deployment	510	Code/Tools/WWConfig	area-rule	high
+tt_4.8.4/keycfg/resource.h	keycfg	installer/deployment	25	Code/Tools/WWConfig	area-rule	high
+tt_4.8.4/randomstartingcredits/General.cpp	randomstartingcredits	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/randomstartingcredits/General.h	randomstartingcredits	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/randomstartingcredits/RandomStartingCredits.cpp	randomstartingcredits	custom gameplay script	56	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/randomstartingcredits/RandomStartingCredits.h	randomstartingcredits	custom gameplay script	14	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/scripts/AABTreeCull.h	scripts	utility	179	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/AABoxClass.h	scripts	utility	286	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/AAPlaneClass.h	scripts	utility	55	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/AirFactoryGameObj.h	scripts	building/factory class	62	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/scripts/AirFactoryGameObjDef.h	scripts	building/factory class	41	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/scripts/AirStripGameObj.h	scripts	engine wrapper/API	63	Code/Combat	class-decl	high
+tt_4.8.4/scripts/AirStripGameObjDef.h	scripts	engine wrapper/API	49	Code/Combat	class-decl	high
+tt_4.8.4/scripts/AnimCollisionManagerClass.h	scripts	physics/collision API	164	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/AnimControlClass.h	scripts	engine wrapper/API	59	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ArmedGameObj.h	scripts	engine wrapper/API	64	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ArmedGameObjDef.h	scripts	engine wrapper/API	43	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ArmorWarheadManager.h	scripts	utility	62	Code/wwlib	include-fanout (1/2)	low
+tt_4.8.4/scripts/AudibleSoundClass.h	scripts	engine wrapper/API	171	Code/WWAudio	class-decl	high
+tt_4.8.4/scripts/AudibleSoundDefinitionClass.cpp	scripts	engine wrapper/API	271	Code/WWAudio	class-decl (paired header)	high
+tt_4.8.4/scripts/AudibleSoundDefinitionClass.h	scripts	engine wrapper/API	94	Code/WWAudio	class-decl	high
+tt_4.8.4/scripts/AudioCallbackListClass.h	scripts	engine wrapper/API	70	Code/WWAudio	class-decl	high
+tt_4.8.4/scripts/BaseControllerClass.h	scripts	building/factory class	144	Code/Combat	class-decl	high
+tt_4.8.4/scripts/BaseGameObj.h	scripts	engine wrapper/API	63	Code/Combat	class-decl	high
+tt_4.8.4/scripts/BaseGameObjDef.h	scripts	engine wrapper/API	27	Code/Combat	class-decl	high
+tt_4.8.4/scripts/BeaconGameObj.h	scripts	engine wrapper/API	84	Code/Combat	class-decl	high
+tt_4.8.4/scripts/BeaconGameObjDef.h	scripts	engine wrapper/API	57	Code/Combat	class-decl	high
+tt_4.8.4/scripts/BufferedFileClass.h	scripts	utility	139	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/BuildingAggregateClass.h	scripts	engine wrapper/API	37	Code/Combat	class-decl	high
+tt_4.8.4/scripts/BuildingAggregateDefClass.h	scripts	engine wrapper/API	53	Code/Combat	class-decl	high
+tt_4.8.4/scripts/BuildingGameObj.h	scripts	building/factory class	157	Code/Combat	class-decl	high
+tt_4.8.4/scripts/BuildingGameObjDef.h	scripts	engine wrapper/API	87	Code/Combat	class-decl	high
+tt_4.8.4/scripts/C4GameObj.h	scripts	engine wrapper/API	65	Code/Combat	class-decl	high
+tt_4.8.4/scripts/C4GameObjDef.h	scripts	engine wrapper/API	34	Code/Combat	class-decl	high
+tt_4.8.4/scripts/CastResultStruct.h	scripts	utility	28	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/ChunkClass.h	scripts	utility	127	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/ChunkClasses.cpp	scripts	utility	351	Code/wwlib	member-def	high
+tt_4.8.4/scripts/CinematicGameObj.h	scripts	engine wrapper/API	43	Code/Combat	class-decl	high
+tt_4.8.4/scripts/CinematicGameObjDef.h	scripts	engine wrapper/API	40	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ComCenterGameObj.h	scripts	engine wrapper/API	34	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ComCenterGameObjDef.h	scripts	engine wrapper/API	37	Code/Combat	class-decl	high
+tt_4.8.4/scripts/CombatManager.h	scripts	engine wrapper/API	219	Code/Combat	class-decl	high
+tt_4.8.4/scripts/CommandLineParser.cpp	scripts	custom gameplay script	114	Code/Scripts	area-default	low
+tt_4.8.4/scripts/CommandLineParser.h	scripts	custom gameplay script	35	Code/Scripts	area-default	low
+tt_4.8.4/scripts/ConnectionAcceptanceFilter.h	scripts	network extension	48	Code/wwnet	per-file	high
+tt_4.8.4/scripts/ConnectionRequest.h	scripts	utility	31	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/scripts/ConstructionYardGameObj.h	scripts	building/factory class	40	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/scripts/ConstructionYardGameObjDef.h	scripts	building/factory class	39	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/scripts/ControlClass.h	scripts	engine wrapper/API	118	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ConversationClass.h	scripts	engine wrapper/API	258	Code/Combat	class-decl	high
+tt_4.8.4/scripts/Crc32.cpp	scripts	utility	123	Code/wwlib	include-fanout (2/2)	medium
+tt_4.8.4/scripts/Crc32.h	scripts	utility	22	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/CriticalSectionClass.cpp	scripts	utility	67	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/scripts/CriticalSectionClass.h	scripts	utility	117	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/CullSystemClass.h	scripts	utility	40	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/CullableClass.h	scripts	utility	50	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/DBIKScripts.cpp	scripts	custom gameplay script	1975	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/DBIKScripts.h	scripts	custom gameplay script	282	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/DBScripts.cpp	scripts	custom gameplay script	1551	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/DBVehicleBypass.cpp	scripts	custom gameplay script	183	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/DB_General.h	scripts	custom gameplay script	31	Code/Scripts	area-default	low
+tt_4.8.4/scripts/DB_Innate.cpp	scripts	custom gameplay script	944	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/DB_Innate.h	scripts	custom gameplay script	114	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/DB_Research_Terminals.cpp	scripts	custom gameplay script	1026	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/DB_Research_Terminals.h	scripts	custom gameplay script	177	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/DamageZoneGameObj.h	scripts	engine wrapper/API	35	Code/Combat	class-decl	high
+tt_4.8.4/scripts/DamageZoneGameObjDef.h	scripts	engine wrapper/API	37	Code/Combat	class-decl	high
+tt_4.8.4/scripts/DamageableGameObj.h	scripts	engine wrapper/API	56	Code/Combat	class-decl	high
+tt_4.8.4/scripts/DamageableGameObjDef.h	scripts	engine wrapper/API	54	Code/Combat	class-decl	high
+tt_4.8.4/scripts/DecorationPhysClass.h	scripts	physics/collision API	46	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/DecorationPhysDefClass.h	scripts	physics/collision API	37	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/DefaultConnectionAcceptanceFilter.cpp	scripts	network extension	132	Code/wwnet	per-file	high
+tt_4.8.4/scripts/DefaultConnectionAcceptanceFilter.h	scripts	network extension	35	Code/wwnet	per-file	high
+tt_4.8.4/scripts/DefenseObjectClass.h	scripts	engine wrapper/API	84	Code/Combat	class-decl	high
+tt_4.8.4/scripts/DefenseObjectDefClass.h	scripts	engine wrapper/API	34	Code/Combat	class-decl	high
+tt_4.8.4/scripts/Defines.h	scripts	utility	313	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/scripts/Definition.h	scripts	save/load	84	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/DefinitionFactoryClass.cpp	scripts	save/load	24	Code/wwsaveload	class-decl (paired header)	high
+tt_4.8.4/scripts/DefinitionFactoryClass.h	scripts	save/load	27	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/DefinitionFactoryMgrClass.cpp	scripts	save/load	108	Code/wwsaveload	class-decl (paired header)	high
+tt_4.8.4/scripts/DefinitionFactoryMgrClass.h	scripts	save/load	31	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/DefinitionMgrClass.cpp	scripts	save/load	501	Code/wwsaveload	class-decl (paired header)	high
+tt_4.8.4/scripts/DefinitionMgrClass.h	scripts	save/load	89	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/DialogueClass.h	scripts	engine wrapper/API	81	Code/Combat	class-decl	high
+tt_4.8.4/scripts/DynamicPhysClass.h	scripts	physics/collision API	48	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/DynamicPhysDefClass.h	scripts	physics/collision API	35	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/DynamicShadowManager.h	scripts	physics/collision API	54	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/Editable.h	scripts	save/load	37	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/ExtendedNetworkObject.h	scripts	network extension	51	Code/wwnet	per-file	high
+tt_4.8.4/scripts/FileFactoryListClass.cpp	scripts	engine wrapper/API	151	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/scripts/FileFactoryListClass.h	scripts	engine wrapper/API	53	Code/Combat	class-decl	high
+tt_4.8.4/scripts/FrustumClass.h	scripts	utility	79	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/GameData.h	scripts	network extension	471	Code/Commando	class-decl	high
+tt_4.8.4/scripts/GameDefinition.h	scripts	utility	64	Code/wwlib	include-fanout (2/2)	medium
+tt_4.8.4/scripts/GameObjManager.h	scripts	building/factory class	88	Code/Combat	class-decl	high
+tt_4.8.4/scripts/General.cpp	scripts	utility	12	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/General.h	scripts	utility	18	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/scripts/GridCull.h	scripts	utility	263	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/HTreeClass.h	scripts	render/shader integration	111	Code/ww3d2	class-decl	high
+tt_4.8.4/scripts/HUDSurfaceClass.h	scripts	HUD/UI	197	Code/wwui	per-file	high
+tt_4.8.4/scripts/HarvesterClass.h	scripts	engine wrapper/API	114	Code/Combat	class-decl	high
+tt_4.8.4/scripts/HashTemplateClass.h	scripts	utility	391	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/HashTemplateIterator.h	scripts	utility	92	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/scripts/HashTemplateKeyClass.cpp	scripts	custom gameplay script	20	Code/Scripts	area-default	low
+tt_4.8.4/scripts/HashTemplateKeyClass.h	scripts	custom gameplay script	39	Code/Scripts	area-default	low
+tt_4.8.4/scripts/HumanStateClass.h	scripts	engine wrapper/API	168	Code/Combat	class-decl	high
+tt_4.8.4/scripts/Iterator.cpp	scripts	utility	16	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/Iterator.h	scripts	utility	206	Code/wwlib	include-fanout (2/2)	medium
+tt_4.8.4/scripts/JMGRenetBuster.h	scripts	custom gameplay script	2536	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/JMGRenetBusters.cpp	scripts	custom gameplay script	4447	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/JmgDeathMatch.cpp	scripts	custom gameplay script	449	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/JmgDeathMatch.h	scripts	custom gameplay script	244	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/LightPhysClass.h	scripts	physics/collision API	39	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/LineSegClass.cpp	scripts	utility	68	Code/WWMath	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/LineSegClass.h	scripts	utility	95	Code/WWMath	include-fanout (2/2)	medium
+tt_4.8.4/scripts/LoopedAnimationController.cpp	scripts	utility	121	Code/Combat	include-fanout (2/2)	medium
+tt_4.8.4/scripts/LoopedAnimationController.h	scripts	engine wrapper/API	105	Code/Combat	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/MaterialEffectClass.h	scripts	physics/collision API	41	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/Matrix3.cpp	scripts	utility	148	Code/WWMath	member-def	high
+tt_4.8.4/scripts/Matrix3.h	scripts	utility	469	Code/WWMath	basename	high
+tt_4.8.4/scripts/Matrix3D.cpp	scripts	utility	470	Code/WWMath	member-def	high
+tt_4.8.4/scripts/Matrix3D.h	scripts	utility	627	Code/WWMath	basename	high
+tt_4.8.4/scripts/MeshClass.h	scripts	render/shader integration	187	Code/ww3d2	class-decl	high
+tt_4.8.4/scripts/MixFileFactoryClass.cpp	scripts	utility	373	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/scripts/MixFileFactoryClass.h	scripts	utility	123	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/MoveablePhysClass.h	scripts	physics/collision API	80	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/MoveablePhysDefClass.h	scripts	physics/collision API	51	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/MuzzleFlashClass.h	scripts	engine wrapper/API	41	Code/Combat	class-decl	high
+tt_4.8.4/scripts/MuzzleRecoilClass.h	scripts	engine wrapper/API	42	Code/Combat	class-decl	high
+tt_4.8.4/scripts/NavalFactoryGameObj.h	scripts	building/factory class	74	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/scripts/NavalFactoryGameObjDef.h	scripts	building/factory class	42	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/scripts/NetworkObjectClass.h	scripts	network extension	168	Code/wwnet	class-decl	high
+tt_4.8.4/scripts/ODESystemClass.h	scripts	utility	26	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/ObjectLibraryManager.cpp	scripts	engine wrapper/API	31	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/scripts/ObjectLibraryManager.h	scripts	engine wrapper/API	16	Code/Combat	class-decl	high
+tt_4.8.4/scripts/Observee.h	scripts	utility	33	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/scripts/ObserverImpClass.h	scripts	engine wrapper/API	50	Code/Combat	per-file	high
+tt_4.8.4/scripts/OffenseObjectClass.h	scripts	engine wrapper/API	37	Code/Combat	class-decl	high
+tt_4.8.4/scripts/Parameter.h	scripts	save/load	196	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/Persist.h	scripts	save/load	25	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/PersistFactoryClass.cpp	scripts	save/load	169	Code/wwsaveload	class-decl (paired header)	high
+tt_4.8.4/scripts/PersistFactoryClass.h	scripts	save/load	33	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/PhysClass.h	scripts	physics/collision API	269	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/PhysControllerClass.h	scripts	physics/collision API	46	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/PhysDefClass.h	scripts	physics/collision API	128	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/PhysObserverClass.h	scripts	physics/collision API	47	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/PhysicalGameObj.h	scripts	engine wrapper/API	138	Code/Combat	class-decl	high
+tt_4.8.4/scripts/PhysicalGameObjDef.h	scripts	engine wrapper/API	53	Code/Combat	class-decl	high
+tt_4.8.4/scripts/PhysicsConstants.h	scripts	physics/collision API	78	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/PhysicsSceneClass.h	scripts	physics/collision API	421	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/PlayerDataClass.h	scripts	engine wrapper/API	101	Code/Combat	class-decl	high
+tt_4.8.4/scripts/PointerRemapClass.cpp	scripts	save/load	113	Code/wwsaveload	class-decl (paired header)	high
+tt_4.8.4/scripts/PointerRemapClass.h	scripts	save/load	74	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/PostLoadableClass.h	scripts	save/load	27	Code/wwsaveload	per-file	high
+tt_4.8.4/scripts/PowerPlantGameObj.h	scripts	building/factory class	34	Code/Combat	class-decl	high
+tt_4.8.4/scripts/PowerPlantGameObjDef.h	scripts	building/factory class	37	Code/Combat	class-decl	high
+tt_4.8.4/scripts/PowerupGameObj.h	scripts	engine wrapper/API	54	Code/Combat	class-decl	high
+tt_4.8.4/scripts/PowerupGameObjDef.h	scripts	engine wrapper/API	58	Code/Combat	class-decl	high
+tt_4.8.4/scripts/PresetMgr.cpp	scripts	engine wrapper/API	372	Code/Tools/LevelEdit	class-decl (paired header)	high
+tt_4.8.4/scripts/PresetMgr.h	scripts	engine wrapper/API	123	Code/Tools/LevelEdit	class-decl	high
+tt_4.8.4/scripts/ProjectorManagerClass.h	scripts	physics/collision API	79	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/PurchaseSettingsDefClass.h	scripts	engine wrapper/API	222	Code/Combat	per-file	high
+tt_4.8.4/scripts/Quaternion.cpp	scripts	utility	343	Code/WWMath	class-decl (paired header)	high
+tt_4.8.4/scripts/Quaternion.h	scripts	utility	155	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/Random2Class.cpp	scripts	utility	104	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/scripts/Random2Class.h	scripts	utility	112	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/Random3Class.cpp	scripts	utility	60	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/scripts/Random3Class.h	scripts	utility	58	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/RandomClass.cpp	scripts	utility	26	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/scripts/RandomClass.h	scripts	utility	37	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/RawFileClass.h	scripts	utility	440	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/ReferenceableClass.h	scripts	engine wrapper/API	85	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ReferencerClass.cpp	scripts	engine wrapper/API	79	Code/Combat	member-def	high
+tt_4.8.4/scripts/ReferencerClass.h	scripts	save/load	68	Code/wwsaveload	include-fanout (1/2)	low
+tt_4.8.4/scripts/RefineryGameObj.h	scripts	building/factory class	84	Code/Combat	class-decl	high
+tt_4.8.4/scripts/RefineryGameObjDef.h	scripts	building/factory class	44	Code/Combat	class-decl	high
+tt_4.8.4/scripts/RenderObjClass.h	scripts	render/shader integration	332	Code/ww3d2	class-decl	high
+tt_4.8.4/scripts/RepairBayGameObj.h	scripts	engine wrapper/API	62	Code/Combat	class-decl	high
+tt_4.8.4/scripts/RepairBayGameObjDef.h	scripts	engine wrapper/API	41	Code/Combat	class-decl	high
+tt_4.8.4/scripts/RigidBodyClass.h	scripts	physics/collision API	208	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/SCAnnouncement.h	scripts	engine wrapper/API	45	Code/Commando	class-decl	high
+tt_4.8.4/scripts/SList.h	scripts	utility	366	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/SamSiteGameObj.h	scripts	engine wrapper/API	39	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SamSiteGameObjDef.h	scripts	engine wrapper/API	32	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SaveLoadSubSystemClass.h	scripts	save/load	37	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/SaveLoadSystemClass.h	scripts	save/load	53	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/SceneClass.h	scripts	render/shader integration	90	Code/ww3d2	class-decl	high
+tt_4.8.4/scripts/ScriptZoneGameObj.h	scripts	engine wrapper/API	53	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ScriptZoneGameObjDef.h	scripts	engine wrapper/API	61	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ScriptableGameObj.h	scripts	engine wrapper/API	80	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ScriptableGameObjDef.h	scripts	engine wrapper/API	32	Code/Combat	class-decl	high
+tt_4.8.4/scripts/ScriptedControlClass.h	scripts	utility	77	Code/wwlib	include-fanout (1/2)	low
+tt_4.8.4/scripts/ScriptedControls.h	scripts	utility	248	Code/wwlib	include-fanout (2/3)	medium
+tt_4.8.4/scripts/ScriptedDialogClass.h	scripts	HUD/UI	110	Code/wwui	per-file	high
+tt_4.8.4/scripts/SimpleDefinitionFactoryClass.h	scripts	save/load	47	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/SimpleFileFactoryClass.cpp	scripts	utility	200	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/scripts/SimpleFileFactoryClass.h	scripts	utility	43	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/SimpleGameObj.h	scripts	engine wrapper/API	34	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SimpleGameObjDef.h	scripts	engine wrapper/API	38	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SimplePersistFactoryClass.h	scripts	save/load	51	Code/wwsaveload	include-fanout (2/2)	medium
+tt_4.8.4/scripts/Singleton.h	scripts	utility	67	Code/wwlib	per-file	high
+tt_4.8.4/scripts/SmartGameObj.h	scripts	engine wrapper/API	128	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SmartGameObjDef.h	scripts	engine wrapper/API	49	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SoldierFactoryGameObj.h	scripts	building/factory class	35	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SoldierFactoryGameObjDef.h	scripts	building/factory class	38	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SoldierGameObj.h	scripts	engine wrapper/API	308	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SoldierGameObjDef.h	scripts	engine wrapper/API	73	Code/Combat	class-decl	high
+tt_4.8.4/scripts/Sound3DClass.h	scripts	engine wrapper/API	69	Code/WWAudio	class-decl	high
+tt_4.8.4/scripts/SoundBufferClass.h	scripts	engine wrapper/API	59	Code/WWAudio	class-decl	high
+tt_4.8.4/scripts/SoundSceneObjClass.h	scripts	engine wrapper/API	113	Code/WWAudio	class-decl	high
+tt_4.8.4/scripts/SpecialEffectsGameObj.h	scripts	engine wrapper/API	35	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SpecialEffectsGameObjDef.h	scripts	engine wrapper/API	38	Code/Combat	class-decl	high
+tt_4.8.4/scripts/SphereClass.h	scripts	utility	238	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/Standard.h	scripts	installer/deployment	51	Code/Launcher	include-fanout (2/3)	medium
+tt_4.8.4/scripts/StaticAnimPhysClass.h	scripts	physics/collision API	65	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/StaticAnimPhysDefClass.h	scripts	physics/collision API	54	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/StaticPhysClass.h	scripts	physics/collision API	132	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/StaticPhysDefClass.h	scripts	physics/collision API	41	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/StealthEffectClass.h	scripts	physics/collision API	66	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/SuperweaponGameObj.h	scripts	building/factory class	48	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/scripts/SuperweaponGameObjDef.h	scripts	building/factory class	34	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/scripts/SysTimeClass.cpp	scripts	custom gameplay script	52	Code/Scripts	area-default	low
+tt_4.8.4/scripts/SysTimeClass.h	scripts	custom gameplay script	34	Code/Scripts	area-default	low
+tt_4.8.4/scripts/TDBCategoryClass.cpp	scripts	engine wrapper/API	86	Code/wwtranslatedb	class-decl (paired header)	high
+tt_4.8.4/scripts/TDBCategoryClass.h	scripts	engine wrapper/API	41	Code/wwtranslatedb	class-decl	high
+tt_4.8.4/scripts/TDBObjClass.cpp	scripts	engine wrapper/API	197	Code/wwtranslatedb	class-decl (paired header)	high
+tt_4.8.4/scripts/TDBObjClass.h	scripts	engine wrapper/API	60	Code/wwtranslatedb	class-decl	high
+tt_4.8.4/scripts/TeamPurchaseSettingsDefClass.h	scripts	network extension	165	Code/wwnet	include-fanout (2/5)	low
+tt_4.8.4/scripts/ThreadClass.cpp	scripts	utility	90	Code/wwlib	member-def	high
+tt_4.8.4/scripts/ThreadClass.h	scripts	utility	52	Code/wwlib	paired-file (member-def)	high
+tt_4.8.4/scripts/TransitionGameObj.h	scripts	engine wrapper/API	45	Code/Combat	class-decl	high
+tt_4.8.4/scripts/TransitionGameObjDef.h	scripts	engine wrapper/API	63	Code/Combat	class-decl	high
+tt_4.8.4/scripts/TransitionInstanceClass.h	scripts	engine wrapper/API	44	Code/Combat	class-decl	high
+tt_4.8.4/scripts/TranslateDBClass.cpp	scripts	engine wrapper/API	701	Code/wwtranslatedb	class-decl (paired header)	high
+tt_4.8.4/scripts/TranslateDBClass.h	scripts	engine wrapper/API	242	Code/wwtranslatedb	class-decl	high
+tt_4.8.4/scripts/TwiddlerClass.cpp	scripts	save/load	143	Code/wwsaveload	class-decl (paired header)	high
+tt_4.8.4/scripts/TwiddlerClass.h	scripts	save/load	40	Code/wwsaveload	class-decl	high
+tt_4.8.4/scripts/Types.h	scripts	utility	51	Code/wwlib	per-file	high
+tt_4.8.4/scripts/UndergroundEffectClass.h	scripts	physics/collision API	63	Code/wwphys	include-fanout (1/2)	low
+tt_4.8.4/scripts/Vector3.h	scripts	utility	436	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/Vector3i.h	scripts	utility	66	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/VehicleFactoryGameObj.h	scripts	building/factory class	75	Code/Combat	class-decl	high
+tt_4.8.4/scripts/VehicleFactoryGameObjDef.h	scripts	building/factory class	47	Code/Combat	class-decl	high
+tt_4.8.4/scripts/VehicleGameObj.h	scripts	engine wrapper/API	325	Code/Combat	class-decl	high
+tt_4.8.4/scripts/VehicleGameObjDef.h	scripts	engine wrapper/API	105	Code/Combat	class-decl	high
+tt_4.8.4/scripts/VisTableClass.h	scripts	physics/collision API	118	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/VisTableMgrClass.h	scripts	physics/collision API	93	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/WWAudioClass.h	scripts	engine wrapper/API	357	Code/WWAudio	class-decl	high
+tt_4.8.4/scripts/WarFactoryGameObj.h	scripts	building/factory class	41	Code/Combat	class-decl	high
+tt_4.8.4/scripts/WarFactoryGameObjDef.h	scripts	building/factory class	38	Code/Combat	class-decl	high
+tt_4.8.4/scripts/WeaponBagClass.h	scripts	engine wrapper/API	69	Code/Combat	class-decl	high
+tt_4.8.4/scripts/WeaponClass.h	scripts	engine wrapper/API	217	Code/Combat	class-decl	high
+tt_4.8.4/scripts/WeaponManager.cpp	scripts	engine wrapper/API	40	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/scripts/WeaponManager.h	scripts	engine wrapper/API	30	Code/Combat	class-decl	high
+tt_4.8.4/scripts/WidgetUserClass.h	scripts	physics/collision API	32	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/action.h	scripts	engine wrapper/API	71	Code/Combat	class-decl	high
+tt_4.8.4/scripts/agtfix.cpp	scripts	custom gameplay script	376	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/agtfix.h	scripts	custom gameplay script	46	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/audiocallback.h	scripts	engine wrapper/API	38	Code/WWAudio	class-decl	high
+tt_4.8.4/scripts/boxrenderobjclass.h	scripts	render/shader integration	127	Code/ww3d2	class-decl	high
+tt_4.8.4/scripts/cAMpaScripts.cpp	scripts	custom gameplay script	175	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/cAMpaScripts.h	scripts	custom gameplay script	33	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/cGameType.cpp	scripts	engine wrapper/API	17	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/scripts/cGameType.h	scripts	engine wrapper/API	34	Code/Combat	class-decl	high
+tt_4.8.4/scripts/cNetEvent.h	scripts	engine wrapper/API	41	Code/Commando	class-decl	high
+tt_4.8.4/scripts/cPlayer.h	scripts	engine wrapper/API	160	Code/Commando	class-decl	high
+tt_4.8.4/scripts/cPlayerKill.h	scripts	engine wrapper/API	17	Code/Commando	class-decl	high
+tt_4.8.4/scripts/cPurchaseResponseEvent.h	scripts	engine wrapper/API	41	Code/Commando	class-decl	high
+tt_4.8.4/scripts/cScTextObj.h	scripts	engine wrapper/API	51	Code/Commando	class-decl	high
+tt_4.8.4/scripts/cTeam.h	scripts	engine wrapper/API	78	Code/Commando	class-decl	high
+tt_4.8.4/scripts/coltest.cpp	scripts	render/shader integration	221	Code/ww3d2	class-decl (paired header)	high
+tt_4.8.4/scripts/coltest.h	scripts	render/shader integration	164	Code/ww3d2	class-decl	high
+tt_4.8.4/scripts/coltype.h	scripts	render/shader integration	32	Code/ww3d2	basename	high
+tt_4.8.4/scripts/dan.cpp	scripts	custom gameplay script	467	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dan.h	scripts	custom gameplay script	37	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/datasafe.cpp	scripts	engine wrapper/API	124	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/scripts/datasafe.h	scripts	engine wrapper/API	1266	Code/Commando	class-decl	high
+tt_4.8.4/scripts/definition.cpp	scripts	save/load	83	Code/wwsaveload	class-decl (paired header)	high
+tt_4.8.4/scripts/dllmain.cpp	scripts	custom gameplay script	498	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_ar.cpp	scripts	custom gameplay script	3636	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_ar.h	scripts	custom gameplay script	1127	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_ar_unitScripts.cpp	scripts	custom gameplay script	883	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_ar_unitScripts.h	scripts	custom gameplay script	295	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_buildingScripts.cpp	scripts	custom gameplay script	1643	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_buildingScripts.h	scripts	custom gameplay script	559	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_customAI.cpp	scripts	custom gameplay script	1740	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_customAI.h	scripts	custom gameplay script	894	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_custom_timer_defines.h	scripts	custom gameplay script	191	Code/Scripts	area-default	low
+tt_4.8.4/scripts/dp88_misc.cpp	scripts	custom gameplay script	2878	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_misc.h	scripts	custom gameplay script	1315	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_veterancy.cpp	scripts	custom gameplay script	1317	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/dp88_veterancy.h	scripts	custom gameplay script	244	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/engine.h	scripts	utility	34	Code/wwlib	include-fanout (3/4)	medium
+tt_4.8.4/scripts/engine_common.cpp	scripts	utility	98	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/scripts/engine_common.h	scripts	utility	41	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/engine_def.cpp	scripts	utility	105	Code/Combat	include-fanout (4/7)	medium
+tt_4.8.4/scripts/engine_def.h	scripts	engine wrapper/API	26	Code/Combat	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/engine_dialog.cpp	scripts	utility	222	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/scripts/engine_dialog.h	scripts	utility	34	Code/wwlib	include-fanout (2/3)	medium
+tt_4.8.4/scripts/engine_dmg.cpp	scripts	building/factory class	856	Code/Combat	member-def	high
+tt_4.8.4/scripts/engine_dmg.h	scripts	engine wrapper/API	93	Code/Combat	paired-file (member-def)	high
+tt_4.8.4/scripts/engine_game.cpp	scripts	building/factory class	662	Code/Combat	member-def	high
+tt_4.8.4/scripts/engine_game.h	scripts	utility	523	Code/Commando	include-fanout (1/1)	medium
+tt_4.8.4/scripts/engine_io.cpp	scripts	utility	941	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/scripts/engine_io.h	scripts	utility	275	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/engine_math.cpp	scripts	utility	100	Code/WWMath	include-fanout (1/1)	medium
+tt_4.8.4/scripts/engine_math.h	scripts	utility	104	Code/WWMath	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/engine_obj.cpp	scripts	building/factory class	1095	Code/Combat	member-def	high
+tt_4.8.4/scripts/engine_obj.h	scripts	utility	77	Code/wwlib	include-fanout (1/2)	low
+tt_4.8.4/scripts/engine_obj2.cpp	scripts	building/factory class	722	Code/Combat	include-fanout (12/16)	medium
+tt_4.8.4/scripts/engine_obj2.h	scripts	engine wrapper/API	71	Code/Combat	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/engine_phys.cpp	scripts	utility	253	Code/Combat	include-fanout (5/13)	low
+tt_4.8.4/scripts/engine_phys.h	scripts	engine wrapper/API	43	Code/Combat	paired-file (include-fanout)	low
+tt_4.8.4/scripts/engine_player.cpp	scripts	utility	709	Code/Commando	include-fanout (4/9)	low
+tt_4.8.4/scripts/engine_player.h	scripts	engine wrapper/API	61	Code/Commando	paired-file (include-fanout)	low
+tt_4.8.4/scripts/engine_pt.cpp	scripts	network extension	229	Code/wwnet	include-fanout (1/2)	low
+tt_4.8.4/scripts/engine_pt.h	scripts	utility	26	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/scripts/engine_script.cpp	scripts	building/factory class	719	Code/Combat	include-fanout (4/9)	low
+tt_4.8.4/scripts/engine_script.h	scripts	utility	169	Code/wwlib	include-fanout (2/2)	medium
+tt_4.8.4/scripts/engine_string.cpp	scripts	utility	463	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/scripts/engine_string.h	scripts	utility	1156	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/engine_tdb.cpp	scripts	utility	242	Code/Combat	include-fanout (3/5)	medium
+tt_4.8.4/scripts/engine_tdb.h	scripts	engine wrapper/API	159	Code/Combat	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/engine_threading.cpp	scripts	utility	38	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/engine_threading.h	scripts	utility	33	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/scripts/engine_tt.cpp	scripts	building/factory class	1310	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/engine_tt.h	scripts	custom gameplay script	734	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/engine_ttdef.h	scripts	custom gameplay script	149	Code/Scripts	area-default	low
+tt_4.8.4/scripts/engine_vector.h	scripts	utility	1818	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/engine_weap.cpp	scripts	utility	941	Code/Combat	include-fanout (11/14)	medium
+tt_4.8.4/scripts/engine_weap.h	scripts	engine wrapper/API	279	Code/Combat	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/gap.cpp	scripts	custom gameplay script	376	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/gap.h	scripts	custom gameplay script	43	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/gmbuilding.cpp	scripts	custom gameplay script	273	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/gmbuilding.h	scripts	custom gameplay script	25	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/gmgame.cpp	scripts	custom gameplay script	2171	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/gmgame.h	scripts	custom gameplay script	213	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/gmlog.cpp	scripts	utility	185	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/scripts/gmlog.h	scripts	utility	28	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/scripts/gmplugin.h	scripts	utility	69	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/scripts/gmsoldier.cpp	scripts	custom gameplay script	367	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/gmsoldier.h	scripts	custom gameplay script	48	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/gmvehicle.cpp	scripts	custom gameplay script	617	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/gmvehicle.h	scripts	custom gameplay script	43	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/inttest.h	scripts	render/shader integration	140	Code/ww3d2	class-decl	high
+tt_4.8.4/scripts/iran_scripts.cpp	scripts	custom gameplay script	256	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/iran_scripts.h	scripts	custom gameplay script	61	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwcine.cpp	scripts	custom gameplay script	1404	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwcine.h	scripts	custom gameplay script	141	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwcust.cpp	scripts	custom gameplay script	1729	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwcust.h	scripts	custom gameplay script	529	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwdef.cpp	scripts	custom gameplay script	4182	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwdef.h	scripts	custom gameplay script	721	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwdmg.cpp	scripts	custom gameplay script	1375	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwdmg.h	scripts	custom gameplay script	451	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwgame.cpp	scripts	custom gameplay script	3587	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwgame.h	scripts	custom gameplay script	475	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwgun.cpp	scripts	custom gameplay script	5014	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwgun.h	scripts	custom gameplay script	581	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwhook.cpp	scripts	custom gameplay script	996	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwhook.h	scripts	custom gameplay script	128	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwmisc.cpp	scripts	custom gameplay script	2958	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwmisc.h	scripts	custom gameplay script	704	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwobj.cpp	scripts	custom gameplay script	4204	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwobj.h	scripts	custom gameplay script	149	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwpoke.cpp	scripts	custom gameplay script	1406	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwpoke.h	scripts	custom gameplay script	308	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwpow.cpp	scripts	custom gameplay script	162	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwpow.h	scripts	custom gameplay script	64	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwscr.cpp	scripts	custom gameplay script	521	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwscr.h	scripts	custom gameplay script	105	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwsnd.cpp	scripts	custom gameplay script	694	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwsnd.h	scripts	custom gameplay script	157	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwveh.cpp	scripts	custom gameplay script	1427	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwveh.h	scripts	custom gameplay script	271	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwweap.cpp	scripts	custom gameplay script	1508	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwweap.h	scripts	custom gameplay script	286	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwws.cpp	scripts	custom gameplay script	741	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwws.h	scripts	custom gameplay script	192	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwzone.cpp	scripts	custom gameplay script	3530	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jfwzone.h	scripts	custom gameplay script	604	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jmgBearHunter.cpp	scripts	custom gameplay script	9591	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jmgBearHunter.h	scripts	custom gameplay script	3726	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jmgMetroid.cpp	scripts	custom gameplay script	5470	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jmgMetroid.h	scripts	custom gameplay script	4545	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jmgUtility.cpp	scripts	custom gameplay script	19468	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/jmgUtility.h	scripts	custom gameplay script	12689	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/kak.cpp	scripts	custom gameplay script	1085	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/kak.h	scripts	custom gameplay script	141	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/kamuix.cpp	scripts	custom gameplay script	271	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/kamuix.h	scripts	custom gameplay script	89	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/matrix4.cpp	scripts	utility	98	Code/WWMath	basename	high
+tt_4.8.4/scripts/matrix4.h	scripts	utility	316	Code/WWMath	basename	high
+tt_4.8.4/scripts/mdb.cpp	scripts	custom gameplay script	499	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/mdb.h	scripts	custom gameplay script	119	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/mdbdef.cpp	scripts	custom gameplay script	733	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/mdbdef.h	scripts	custom gameplay script	87	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/mdbevf.cpp	scripts	custom gameplay script	1392	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/mdbevf.h	scripts	custom gameplay script	136	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/ms.cpp	scripts	custom gameplay script	1232	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/ms.h	scripts	custom gameplay script	153	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/ms_ai.cpp	scripts	custom gameplay script	8586	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/multilist.cpp	scripts	utility	157	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/scripts/multilist.h	scripts	utility	452	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/neo.cpp	scripts	custom gameplay script	674	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/neo.h	scripts	custom gameplay script	55	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/nh.cpp	scripts	custom gameplay script	142	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/nh.h	scripts	custom gameplay script	37	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/nhp.cpp	scripts	custom gameplay script	310	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/nhp.h	scripts	custom gameplay script	50	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/obboxclass.h	scripts	utility	109	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/obelfix.cpp	scripts	custom gameplay script	592	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/obelfix.h	scripts	custom gameplay script	75	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/physcoltest.h	scripts	physics/collision API	84	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/physinttest.h	scripts	physics/collision API	117	Code/wwphys	class-decl	high
+tt_4.8.4/scripts/plane.h	scripts	utility	120	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/prototypeclass.h	scripts	render/shader integration	37	Code/ww3d2	class-decl	high
+tt_4.8.4/scripts/ra2.cpp	scripts	custom gameplay script	701	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/ra2.h	scripts	custom gameplay script	114	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/ra_legacy.cpp	scripts	custom gameplay script	501	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/ra_legacy.h	scripts	custom gameplay script	67	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/reborn.cpp	scripts	custom gameplay script	1526	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/reborn.h	scripts	custom gameplay script	143	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/rect.h	scripts	utility	69	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/renalert.cpp	scripts	custom gameplay script	4038	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/renalert.h	scripts	custom gameplay script	438	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/renalert2.cpp	scripts	custom gameplay script	621	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/renalert2.h	scripts	custom gameplay script	99	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/scriptfactory.cpp	scripts	custom gameplay script	52	Code/Scripts	member-def	high
+tt_4.8.4/scripts/scriptregistrar.cpp	scripts	custom gameplay script	109	Code/Scripts	basename	high
+tt_4.8.4/scripts/scripts.cpp	scripts	custom gameplay script	350	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/scripts.h	scripts	custom gameplay script	801	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/scud.cpp	scripts	custom gameplay script	1036	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/scud.h	scripts	custom gameplay script	164	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/sh_blocker.cpp	scripts	custom gameplay script	76	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/sh_factory.cpp	scripts	custom gameplay script	120	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/sh_underground.cpp	scripts	custom gameplay script	441	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/shawk.cpp	scripts	custom gameplay script	400	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/shawk.h	scripts	custom gameplay script	24	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/straw.cpp	scripts	utility	156	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/scripts/straw.h	scripts	utility	269	Code/wwlib	class-decl	high
+tt_4.8.4/scripts/survival.cpp	scripts	custom gameplay script	832	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/survival.h	scripts	custom gameplay script	106	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/tda.cpp	scripts	custom gameplay script	509	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/tda.h	scripts	custom gameplay script	212	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/tfx.cpp	scripts	custom gameplay script	59	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/tfx.h	scripts	custom gameplay script	19	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/unstoppable.cpp	scripts	custom gameplay script	1886	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/unstoppable.h	scripts	custom gameplay script	1382	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/vector2.h	scripts	utility	299	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/vector4.h	scripts	utility	156	Code/WWMath	class-decl	high
+tt_4.8.4/scripts/w3d.h	scripts	render/shader integration	1071	Code/ww3d2	class-decl	high
+tt_4.8.4/scripts/weaponmgr.h	scripts	engine wrapper/API	205	Code/Combat	class-decl	high
+tt_4.8.4/scripts/wwmath.cpp	scripts	utility	49	Code/WWMath	basename	high
+tt_4.8.4/scripts/wwmath.h	scripts	utility	345	Code/WWMath	basename	high
+tt_4.8.4/scripts/xpert.cpp	scripts	custom gameplay script	73	Code/Scripts	script-decl	high
+tt_4.8.4/scripts/xpert.h	scripts	custom gameplay script	21	Code/Scripts	script-decl	high
+tt_4.8.4/shaders/AABTreeCullSystemClass.h	shaders	render/shader integration	20	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ArmorWarheadManager.h	shaders	render/shader integration	54	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/AudibleSoundClass.cpp	shaders	render/shader integration	488	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/AudibleSoundClass.h	shaders	render/shader integration	160	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/AudibleSoundDefinitionClass.h	shaders	render/shader integration	72	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/AudioCallbackListClass.h	shaders	render/shader integration	59	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/BackgroundMgrClass.cpp	shaders	render/shader integration	1936	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/BackgroundMgrClass.h	shaders	render/shader integration	469	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/BufferedFileClass.h	shaders	render/shader integration	128	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/BuildingAggregateClass.cpp	shaders	render/shader integration	31	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/BuildingAggregateDefClass.h	shaders	render/shader integration	40	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/BulletManager.cpp	shaders	render/shader integration	8	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/BulletManager.h	shaders	render/shader integration	31	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/CCameraClass.cpp	shaders	render/shader integration	721	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/CCameraClass.h	shaders	render/shader integration	109	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/CameraShakeSystemClass.cpp	shaders	render/shader integration	6	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/CameraShakeSystemClass.h	shaders	render/shader integration	9	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/CollisionMath.cpp	shaders	render/shader integration	73	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/CollisionMath.h	shaders	render/shader integration	93	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/CombatDazzleClass.h	shaders	render/shader integration	20	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/CombatManager.h	shaders	render/shader integration	202	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/CombatManager.shaders.cpp	shaders	render/shader integration	237	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ConversationMgrClass.cpp	shaders	render/shader integration	8	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ConversationMgrClass.h	shaders	render/shader integration	67	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/CullSystemClass.h	shaders	render/shader integration	52	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DDSFile.cpp	shaders	render/shader integration	233	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DDSFile.h	shaders	render/shader integration	134	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DLListClass.h	shaders	render/shader integration	205	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DX8MeshRendererClass.cpp	shaders	render/shader integration	249	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DX8MeshRendererClass.h	shaders	render/shader integration	75	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DX8PolygonRendererClass.cpp	shaders	render/shader integration	51	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DX8PolygonRendererClass.h	shaders	render/shader integration	54	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DX8TextureCategoryClass.cpp	shaders	render/shader integration	245	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DX8TextureCategoryClass.h	shaders	render/shader integration	58	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DX8Wrapper.cpp	shaders	render/shader integration	1371	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DX8Wrapper.h	shaders	render/shader integration	227	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DazzleLayerClass.cpp	shaders	render/shader integration	44	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DazzleLayerClass.h	shaders	render/shader integration	30	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DazzleRenderObjClass.cpp	shaders	render/shader integration	116	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DazzleRenderObjClass.h	shaders	render/shader integration	88	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DecalMeshClass.h	shaders	render/shader integration	36	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DefinitionMgrClass.cpp	shaders	render/shader integration	106	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DefinitionMgrClass.h	shaders	render/shader integration	43	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DynTexProjectClass.cpp	shaders	render/shader integration	84	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DynTexProjectClass.h	shaders	render/shader integration	26	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DynamicPhysClass.h	shaders	render/shader integration	33	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DynamicPhysDefClass.h	shaders	render/shader integration	20	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DynamicShadowManager.cpp	shaders	render/shader integration	47	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/DynamicShadowManager.h	shaders	render/shader integration	43	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/FileHash.h	shaders	render/shader integration	52	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/FilteredSoundClass.h	shaders	render/shader integration	16	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/GameCombatNetworkHandlerClass.h	shaders	render/shader integration	27	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/GameObjObserverManager.cpp	shaders	render/shader integration	4	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/GameObjObserverManager.h	shaders	render/shader integration	14	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/General.cpp	shaders	render/shader integration	1	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/General.h	shaders	render/shader integration	9	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/GridCullSystemClass.h	shaders	render/shader integration	18	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/HUDClass.cpp	shaders	render/shader integration	2467	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/HUDClass.h	shaders	render/shader integration	44	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/HUDGlobalSettingsDef.cpp	shaders	render/shader integration	4	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/HUDGlobalSettingsDef.h	shaders	render/shader integration	63	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/HUDInfo.cpp	shaders	render/shader integration	27	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/HUDInfo.h	shaders	render/shader integration	55	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/LightClass.h	shaders	render/shader integration	40	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/LightEnvironmentClass.cpp	shaders	render/shader integration	49	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/LightEnvironmentClass.h	shaders	render/shader integration	33	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Line3DClass.cpp	shaders	render/shader integration	181	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Line3DClass.h	shaders	render/shader integration	51	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/LineGroupClass.cpp	shaders	render/shader integration	72	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/LineGroupClass.h	shaders	render/shader integration	78	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Listener3DClass.cpp	shaders	render/shader integration	144	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Listener3DClass.h	shaders	render/shader integration	49	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/LogicalSoundClass.h	shaders	render/shader integration	47	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/MaterialPassClass.h	shaders	render/shader integration	60	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/MixFileFactoryClass.cpp	shaders	render/shader integration	131	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/MixFileFactoryClass.h	shaders	render/shader integration	59	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/MoveablePhysDefClass.h	shaders	render/shader integration	34	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Objective.cpp	shaders	render/shader integration	6	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Objective.h	shaders	render/shader integration	49	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ObjectiveManager.cpp	shaders	render/shader integration	36	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ObjectiveManager.h	shaders	render/shader integration	56	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ParticleBufferClass.cpp	shaders	render/shader integration	1692	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ParticleEmitterClass.cpp	shaders	render/shader integration	426	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ParticleEmitterDefClass.h	shaders	render/shader integration	257	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ParticleEmitterPrototypeClass.cpp	shaders	render/shader integration	15	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ParticleEmitterPrototypeClass.h	shaders	render/shader integration	17	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PersistFactoryClass.h	shaders	render/shader integration	25	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PhysDecalSysClass.cpp	shaders	render/shader integration	43	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PhysDecalSysClass.h	shaders	render/shader integration	60	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PhysDefClass.h	shaders	render/shader integration	29	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PhysGridCullClass.h	shaders	render/shader integration	26	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PhysTexProjectClass.cpp	shaders	render/shader integration	95	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PhysTexProjectClass.h	shaders	render/shader integration	12	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PhysicsSceneClass.cpp	shaders	render/shader integration	158	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PhysicsSceneClass.h	shaders	render/shader integration	384	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PhysicsSceneClass.shaders.cpp	shaders	render/shader integration	756	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PlaneReflectionCamera.h	shaders	render/shader integration	110	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PlaneReflectionRenderTarget.cpp	shaders	render/shader integration	136	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PlaneReflectionRenderTarget.h	shaders	render/shader integration	31	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PointGroupClass.cpp	shaders	render/shader integration	329	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PointGroupClass.h	shaders	render/shader integration	130	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/PointerRemapClass.h	shaders	render/shader integration	16	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ProjectorManagerClass.cpp	shaders	render/shader integration	141	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Quaternion.cpp	shaders	render/shader integration	157	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Quaternion.h	shaders	render/shader integration	132	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/RadarManager.cpp	shaders	render/shader integration	314	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/RadarManager.h	shaders	render/shader integration	70	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/RadarMarkerClass.h	shaders	render/shader integration	32	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Random2Class.cpp	shaders	render/shader integration	44	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Random2Class.h	shaders	render/shader integration	28	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/RawFileClass.h	shaders	render/shader integration	383	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/RenderInfoClass.cpp	shaders	render/shader integration	80	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/RenderInfoClass.h	shaders	render/shader integration	47	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SaveLoadSubSystemClass.h	shaders	render/shader integration	26	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SaveLoadSystemClass.h	shaders	render/shader integration	25	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SceneClass.cpp	shaders	render/shader integration	75	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SceneClass.h	shaders	render/shader integration	79	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ScreenFadeManager.cpp	shaders	render/shader integration	14	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ScreenFadeManager.h	shaders	render/shader integration	32	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ScriptManager.cpp	shaders	render/shader integration	254	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/ScriptManager.h	shaders	render/shader integration	32	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SegLineRenderer.cpp	shaders	render/shader integration	46	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SegLineRenderer.h	shaders	render/shader integration	110	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SignBufferedFileClass.h	shaders	render/shader integration	11	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SimpleEffectClass.cpp	shaders	render/shader integration	34	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SimpleEffectClass.h	shaders	render/shader integration	36	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SimpleFileFactoryClass.cpp	shaders	render/shader integration	74	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SimpleFileFactoryClass.h	shaders	render/shader integration	16	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SimpleSceneClass.h	shaders	render/shader integration	26	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SortingRenderer.cpp	shaders	render/shader integration	469	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SortingRenderer.h	shaders	render/shader integration	48	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Sound3DClass.cpp	shaders	render/shader integration	157	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Sound3DClass.h	shaders	render/shader integration	56	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SoundBufferClass.h	shaders	render/shader integration	32	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SoundEnvironmentClass.cpp	shaders	render/shader integration	8	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SoundEnvironmentClass.h	shaders	render/shader integration	39	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SoundHandleClass.h	shaders	render/shader integration	52	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SoundPseudo3DClass.h	shaders	render/shader integration	31	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SoundSceneObjClass.cpp	shaders	render/shader integration	175	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SoundSceneObjClass.h	shaders	render/shader integration	86	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SpawnManager.h	shaders	render/shader integration	34	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SpawnerClass.h	shaders	render/shader integration	62	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/StaticAABTreeCullClass.h	shaders	render/shader integration	20	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/StaticAnimPhysDefClass.h	shaders	render/shader integration	41	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/StaticPhysClass.h	shaders	render/shader integration	49	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/StaticPhysDefClass.h	shaders	render/shader integration	26	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Subtitle.cpp	shaders	render/shader integration	100	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Subtitle.h	shaders	render/shader integration	54	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SurfaceEffectsManager.h	shaders	render/shader integration	68	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntry.h	shaders	render/shader integration	28	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntryBool.cpp	shaders	render/shader integration	29	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntryBool.h	shaders	render/shader integration	36	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntryDynamicLODBudget.cpp	shaders	render/shader integration	24	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntryDynamicLODBudget.h	shaders	render/shader integration	13	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntryEnum.cpp	shaders	render/shader integration	24	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntryEnum.h	shaders	render/shader integration	37	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntrySlider.cpp	shaders	render/shader integration	44	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntrySlider.h	shaders	render/shader integration	45	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntryStaticLODBudget.cpp	shaders	render/shader integration	24	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntryStaticLODBudget.h	shaders	render/shader integration	13	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntryTextureFilterMode.cpp	shaders	render/shader integration	18	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettingEntryTextureFilterMode.h	shaders	render/shader integration	39	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettings.cpp	shaders	render/shader integration	62	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/SystemSettings.h	shaders	render/shader integration	31	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/TexProjectClass.cpp	shaders	render/shader integration	399	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/TextureController.cpp	shaders	render/shader integration	376	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/TextureController.h	shaders	render/shader integration	118	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Textures_Material_And_Shader_Booking_Struct.cpp	shaders	render/shader integration	37	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/Textures_Material_And_Shader_Booking_Struct.h	shaders	render/shader integration	51	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/TimeManager.cpp	shaders	render/shader integration	50	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/TimeManager.h	shaders	render/shader integration	29	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/TimedDecorationPhysClass.h	shaders	render/shader integration	19	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/UnderwaterRenderTarget.cpp	shaders	render/shader integration	98	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/UnderwaterRenderTarget.h	shaders	render/shader integration	31	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/UserClipPlaneCamera.h	shaders	render/shader integration	144	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/VisTableMgrClass.h	shaders	render/shader integration	20	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WW3D.cpp	shaders	render/shader integration	208	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WW3D.h	shaders	render/shader integration	145	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WW3DAssetManager.cpp	shaders	render/shader integration	32	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WW3DAssetManager.h	shaders	render/shader integration	113	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WWAudioClass.cpp	shaders	render/shader integration	680	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WWAudioClass.h	shaders	render/shader integration	312	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WaterSystemClass.cpp	shaders	render/shader integration	19	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WaterSystemClass.h	shaders	render/shader integration	145	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WeaponManager.cpp	shaders	render/shader integration	58	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WeaponManager.h	shaders	render/shader integration	18	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WeaponViewClass.cpp	shaders	render/shader integration	15	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WeaponViewClass.h	shaders	render/shader integration	31	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WeatherMgrClass.cpp	shaders	render/shader integration	987	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WeatherMgrClass.h	shaders	render/shader integration	290	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/WidgetUserClass.h	shaders	render/shader integration	9	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/animobj.cpp	shaders	render/shader integration	6	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/animobj.h	shaders	render/shader integration	70	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/basicshader.cpp	shaders	render/shader integration	151	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/basicshader.h	shaders	render/shader integration	37	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/bink.cpp	shaders	render/shader integration	232	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/bink.h	shaders	render/shader integration	67	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/boxrenderobjclass.h	shaders	render/shader integration	38	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/cMathUtil.cpp	shaders	render/shader integration	23	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/cMathUtil.h	shaders	render/shader integration	16	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/coltest.h	shaders	render/shader integration	178	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/coltype.h	shaders	render/shader integration	19	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/composite.h	shaders	render/shader integration	34	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/coreshader.cpp	shaders	render/shader integration	351	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/coreshader.h	shaders	render/shader integration	43	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/decalsys.cpp	shaders	render/shader integration	63	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/decalsys.h	shaders	render/shader integration	57	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3D10.h	shaders	render/shader integration	6740	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3D10_1.h	shaders	render/shader integration	1793	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3D10_1shader.h	shaders	render/shader integration	299	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3D10effect.h	shaders	render/shader integration	1465	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3D10shader.h	shaders	render/shader integration	701	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3DX10.h	shaders	render/shader integration	72	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3DX10core.h	shaders	render/shader integration	509	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3DX10math.h	shaders	render/shader integration	1858	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3DX10math.inl	shaders	render/shader integration	2228	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3DX10mesh.h	shaders	render/shader integration	286	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/D3DX10tex.h	shaders	render/shader integration	766	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/DXGI.h	shaders	render/shader integration	1804	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/DXGIType.h	shaders	render/shader integration	261	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/DxErr.h	shaders	render/shader integration	99	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/PIXPlugin.h	shaders	render/shader integration	120	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/X3DAudio.h	shaders	render/shader integration	309	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/XAPO.h	shaders	render/shader integration	603	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/XAPOBase.h	shaders	render/shader integration	193	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/XInput.h	shaders	render/shader integration	258	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/audiodefs.h	shaders	render/shader integration	209	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/comdecl.h	shaders	render/shader integration	59	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3d10misc.h	shaders	render/shader integration	174	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3d10sdklayers.h	shaders	render/shader integration	1294	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3d9.h	shaders	render/shader integration	2582	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3d9caps.h	shaders	render/shader integration	512	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3d9types.h	shaders	render/shader integration	2012	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx10async.h	shaders	render/shader integration	283	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9.h	shaders	render/shader integration	76	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9anim.h	shaders	render/shader integration	1114	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9core.h	shaders	render/shader integration	753	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9effect.h	shaders	render/shader integration	873	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9math.h	shaders	render/shader integration	1796	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9math.inl	shaders	render/shader integration	2251	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9mesh.h	shaders	render/shader integration	3007	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9shader.h	shaders	render/shader integration	1207	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9shape.h	shaders	render/shader integration	221	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9tex.h	shaders	render/shader integration	1735	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/d3dx9xof.h	shaders	render/shader integration	299	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/ddraw.h	shaders	render/shader integration	5856	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/dinput.h	shaders	render/shader integration	4417	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/dinputd.h	shaders	render/shader integration	755	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/dsconf.h	shaders	render/shader integration	195	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/dsetup.h	shaders	render/shader integration	286	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/dsound.h	shaders	render/shader integration	2369	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/dvp.h	shaders	render/shader integration	966	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/dxdiag.h	shaders	render/shader integration	187	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/dxerr9.h	shaders	render/shader integration	99	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/dxfile.h	shaders	render/shader integration	240	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/dxsdkver.h	shaders	render/shader integration	18	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/gameux.h	shaders	render/shader integration	250	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/multimon.h	shaders	render/shader integration	484	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/rpcsal.h	shaders	render/shader integration	386	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/xact.h	shaders	render/shader integration	1643	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/xact2wb.h	shaders	render/shader integration	402	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/xact3.h	shaders	render/shader integration	1522	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/xact3d.h	shaders	render/shader integration	273	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/xact3d3.h	shaders	render/shader integration	273	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/xaudio2.h	shaders	render/shader integration	1216	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/xaudio2fx.h	shaders	render/shader integration	418	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/dxsdk_nov07/include/xma2defs.h	shaders	render/shader integration	681	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/google/sparsehash/densehashtable.h	shaders	render/shader integration	926	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/google/sparsehash/sparseconfig.h	shaders	render/shader integration	37	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/google/sparsehash/sparsehashtable.h	shaders	render/shader integration	884	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dep/google/type_traits.h	shaders	render/shader integration	191	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dx8fvf.cpp	shaders	render/shader integration	973	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dx8fvf.h	shaders	render/shader integration	179	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dx8texman.cpp	shaders	render/shader integration	46	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/dx8texman.h	shaders	render/shader integration	25	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/effect.cpp	shaders	render/shader integration	521	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/effect.h	shaders	render/shader integration	203	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/filecache.cpp	shaders	render/shader integration	59	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/filecache.h	shaders	render/shader integration	25	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/hlod.cpp	shaders	render/shader integration	30	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/hlod.h	shaders	render/shader integration	106	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/indexbuffer.cpp	shaders	render/shader integration	302	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/indexbuffer.h	shaders	render/shader integration	127	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/intersec.h	shaders	render/shader integration	70	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/mapper.cpp	shaders	render/shader integration	1660	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/mapper.h	shaders	render/shader integration	351	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/missingtexture.cpp	shaders	render/shader integration	92	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/missingtexture.h	shaders	render/shader integration	11	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/projector.cpp	shaders	render/shader integration	57	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/projector.h	shaders	render/shader integration	24	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/prototypeclass.h	shaders	render/shader integration	13	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/render2d.cpp	shaders	render/shader integration	1594	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/render2d.h	shaders	render/shader integration	322	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/renderobjclass.cpp	shaders	render/shader integration	481	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/resource.h	shaders	render/shader integration	15	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/segline.cpp	shaders	render/shader integration	118	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/segline.h	shaders	render/shader integration	77	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/shader.cpp	shaders	render/shader integration	892	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/shader.h	shaders	render/shader integration	363	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/shaderhud.cpp	shaders	render/shader integration	1788	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/shaders.cpp	shaders	render/shader integration	260	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/shaders.h	shaders	render/shader integration	94	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/shaderstatemanager.cpp	shaders	render/shader integration	334	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/shaderstatemanager.h	shaders	render/shader integration	60	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/sniperhud.cpp	shaders	render/shader integration	64	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/sniperhud.h	shaders	render/shader integration	13	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/straw.cpp	shaders	render/shader integration	145	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/straw.h	shaders	render/shader integration	53	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/string_ids.h	shaders	render/shader integration	11691	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/texture.cpp	shaders	render/shader integration	703	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/texture.h	shaders	render/shader integration	135	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/textureloader.cpp	shaders	render/shader integration	1650	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/textureloader.h	shaders	render/shader integration	270	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/vertexbuffer.cpp	shaders	render/shader integration	934	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/vertexbuffer.h	shaders	render/shader integration	328	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/w3dbindings.cpp	shaders	render/shader integration	470	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/w3dbindings.h	shaders	render/shader integration	46	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/w3dbindings_transform.cpp	shaders	render/shader integration	553	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shaders/w3dbindings_transform.h	shaders	render/shader integration	10	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	area-rule	high
+tt_4.8.4/shared/General.cpp	shared	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/shared/General.h	shared	custom gameplay script	19	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/shared/shared.cpp	shared	custom gameplay script	20	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/swap/General.cpp	swap	custom gameplay script	12	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/swap/General.h	swap	custom gameplay script	18	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/swap/Swap.cpp	swap	custom gameplay script	336	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/swap/Swap.h	swap	custom gameplay script	30	DROP: directive 0.5 (no binary-plugin compatibility layer)	area-rule	high
+tt_4.8.4/tdbedit/Search.cpp	tdbedit	editor/LevelEdit	764	Code/Strings Editor	area-rule	high
+tt_4.8.4/tdbedit/Search.h	tdbedit	editor/LevelEdit	35	Code/Strings Editor	area-rule	high
+tt_4.8.4/tdbedit/general.cpp	tdbedit	editor/LevelEdit	12	Code/Strings Editor	area-rule	high
+tt_4.8.4/tdbedit/general.h	tdbedit	editor/LevelEdit	17	Code/Strings Editor	area-rule	high
+tt_4.8.4/tdbedit/resource.h	tdbedit	editor/LevelEdit	69	Code/Strings Editor	area-rule	high
+tt_4.8.4/tdbedit/tdbedit.cpp	tdbedit	editor/LevelEdit	1056	Code/Strings Editor	area-rule	high
+tt_4.8.4/tdbedit/tdbedit.h	tdbedit	editor/LevelEdit	32	Code/Strings Editor	area-rule	high
+tt_4.8.4/teamspeak/General.cpp	teamspeak	client-only	12	DROP: out of engine scope (external voice client)	area-rule	high
+tt_4.8.4/teamspeak/General.h	teamspeak	client-only	18	DROP: out of engine scope (external voice client)	area-rule	high
+tt_4.8.4/teamspeak/TCPclass.cpp	teamspeak	client-only	321	DROP: out of engine scope (external voice client)	area-rule	high
+tt_4.8.4/teamspeak/TCPclass.h	teamspeak	client-only	46	DROP: out of engine scope (external voice client)	area-rule	high
+tt_4.8.4/teamspeak/teamspeak.cpp	teamspeak	client-only	370	DROP: out of engine scope (external voice client)	area-rule	high
+tt_4.8.4/teamspeak/teamspeak.h	teamspeak	client-only	29	DROP: out of engine scope (external voice client)	area-rule	high
+tt_4.8.4/tt/AccessiblePhysClass.h	tt	physics/collision API	14	Code/wwphys	class-decl	high
+tt_4.8.4/tt/ActionClass.cpp	tt	engine wrapper/API	332	Code/Combat	member-def	high
+tt_4.8.4/tt/AirStripGameObj.cpp	tt	engine wrapper/API	68	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/AirStripGameObj.h	tt	engine wrapper/API	52	Code/Combat	class-decl	high
+tt_4.8.4/tt/AirStripGameObjDef.h	tt	engine wrapper/API	30	Code/Combat	class-decl	high
+tt_4.8.4/tt/AnimCollisionManagerClass.cpp	tt	physics/collision API	33	Code/wwphys	include-fanout (1/1)	medium
+tt_4.8.4/tt/AnimControlClass.cpp	tt	engine wrapper/API	29	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/AnimControlClass.h	tt	engine wrapper/API	48	Code/Combat	class-decl	high
+tt_4.8.4/tt/ArmedGameObj.cpp	tt	engine wrapper/API	189	Code/Combat	basename	high
+tt_4.8.4/tt/ArmorWarheadManager.cpp	tt	engine wrapper/API	124	Code/Combat	member-def	high
+tt_4.8.4/tt/AssetStatusClass.cpp	tt	render/shader integration	6	Code/ww3d2	class-decl (paired header)	high
+tt_4.8.4/tt/AssetStatusClass.h	tt	render/shader integration	31	Code/ww3d2	class-decl	high
+tt_4.8.4/tt/BandwidthBalancerClass.cpp	tt	network extension	12	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/BandwidthBalancerClass.h	tt	network extension	35	Code/wwnet	class-decl	high
+tt_4.8.4/tt/BaseControllerClass.cpp	tt	building/factory class	81	Code/Combat	include-fanout (4/5)	medium
+tt_4.8.4/tt/BeaconGameObj.cpp	tt	building/factory class	514	Code/Combat	basename	high
+tt_4.8.4/tt/BitCounterClass.cpp	tt	utility	22	Code/Combat	area-default	low
+tt_4.8.4/tt/BitCounterClass.h	tt	utility	24	Code/Combat	area-default	low
+tt_4.8.4/tt/BitPacker.cpp	tt	network extension	94	Code/wwbitpack	class-decl (paired header)	high
+tt_4.8.4/tt/BitPacker.h	tt	network extension	74	Code/wwbitpack	class-decl	high
+tt_4.8.4/tt/BonesManager.h	tt	engine wrapper/API	9	Code/Combat	class-decl	high
+tt_4.8.4/tt/BuildingAggregateClass.tt.cpp	tt	utility	10	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/tt/BuildingAggregateDefClass.cpp	tt	utility	61	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/tt/BuildingGameObj.cpp	tt	building/factory class	126	Code/Combat	include-fanout (2/3)	medium
+tt_4.8.4/tt/BuildingGameObjDef.cpp	tt	utility	19	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/tt/BulletClass.h	tt	utility	36	Code/wwlib	include-fanout (1/3)	low
+tt_4.8.4/tt/BulletDataClass.cpp	tt	utility	161	Code/Combat	include-fanout (9/17)	medium
+tt_4.8.4/tt/BulletDataClass.h	tt	save/load	34	Code/wwsaveload	include-fanout (1/2)	low
+tt_4.8.4/tt/C4GameObj.cpp	tt	utility	499	Code/Combat	include-fanout (11/21)	medium
+tt_4.8.4/tt/CCDKeyAuth.cpp	tt	engine wrapper/API	14	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/CCDKeyAuth.h	tt	engine wrapper/API	26	Code/Commando	class-decl	high
+tt_4.8.4/tt/CClientControl.cpp	tt	engine wrapper/API	106	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/CClientControl.h	tt	engine wrapper/API	39	Code/Combat	class-decl	high
+tt_4.8.4/tt/CClientFps.cpp	tt	engine wrapper/API	86	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/CClientFps.h	tt	engine wrapper/API	41	Code/Commando	class-decl	high
+tt_4.8.4/tt/CGameSpyQnR.cpp	tt	engine wrapper/API	90	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/CGameSpyQnR.h	tt	engine wrapper/API	65	Code/Commando	class-decl	high
+tt_4.8.4/tt/CPUDetectClass.cpp	tt	utility	5	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/tt/CPUDetectClass.h	tt	utility	11	Code/wwlib	class-decl	high
+tt_4.8.4/tt/CallbackHook.h	tt	utility	18	Code/wwlib	class-decl	high
+tt_4.8.4/tt/CampaignManager.cpp	tt	engine wrapper/API	74	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/CampaignManager.h	tt	engine wrapper/API	42	Code/Commando	class-decl	high
+tt_4.8.4/tt/CollisionEventClass.h	tt	physics/collision API	18	Code/wwphys	class-decl	high
+tt_4.8.4/tt/CombatGameModeClass.cpp	tt	engine wrapper/API	540	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/CombatGameModeClass.h	tt	engine wrapper/API	47	Code/Commando	class-decl	high
+tt_4.8.4/tt/CombatManager.cpp	tt	utility	233	Code/Combat	include-fanout (4/8)	low
+tt_4.8.4/tt/CombatMaterialEffectManager.cpp	tt	engine wrapper/API	62	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/CombatMaterialEffectManager.h	tt	engine wrapper/API	13	Code/Combat	class-decl	high
+tt_4.8.4/tt/CombatNetworkReceiver.h	tt	engine wrapper/API	26	Code/Commando	class-decl	high
+tt_4.8.4/tt/CombatNetworkReceiverInstanceClass.cpp	tt	engine wrapper/API	87	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/CombatNetworkReceiverInstanceClass.h	tt	engine wrapper/API	27	Code/Commando	class-decl	high
+tt_4.8.4/tt/CommandoSaveLoadClass.cpp	tt	engine wrapper/API	6	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/CommandoSaveLoadClass.h	tt	engine wrapper/API	32	Code/Commando	class-decl	high
+tt_4.8.4/tt/Config.cpp	tt	utility	49	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/tt/Config.h	tt	utility	58	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/ConsoleGameModeClass.cpp	tt	engine wrapper/API	6	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/ConsoleGameModeClass.h	tt	engine wrapper/API	56	Code/Commando	class-decl	high
+tt_4.8.4/tt/ConsoleModeClass.cpp	tt	engine wrapper/API	131	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/ConsoleModeClass.h	tt	engine wrapper/API	32	Code/Commando	class-decl	high
+tt_4.8.4/tt/ControlClass.cpp	tt	utility	147	Code/Combat	include-fanout (1/2)	low
+tt_4.8.4/tt/DamageableGameObj.cpp	tt	engine wrapper/API	77	Code/Combat	basename	high
+tt_4.8.4/tt/DamageableStaticPhysClass.cpp	tt	engine wrapper/API	8	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/DamageableStaticPhysClass.h	tt	engine wrapper/API	41	Code/Combat	class-decl	high
+tt_4.8.4/tt/DazzleTypeClass.cpp	tt	render/shader integration	46	Code/ww3d2	class-decl (paired header)	high
+tt_4.8.4/tt/DazzleTypeClass.h	tt	render/shader integration	76	Code/ww3d2	class-decl	high
+tt_4.8.4/tt/DebugManager.cpp	tt	utility	68	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/tt/DebugManager.h	tt	utility	83	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/DebugSocket.cpp	tt	utility	115	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/DebugSocket.h	tt	utility	42	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/DefenseObjectClass.cpp	tt	utility	337	Code/Combat	include-fanout (9/15)	medium
+tt_4.8.4/tt/DialogueClass.cpp	tt	utility	10	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/tt/DlgCnCReference.cpp	tt	engine wrapper/API	36	Code/Commando	basename	high
+tt_4.8.4/tt/DlgCnCReference.h	tt	engine wrapper/API	34	Code/Commando	basename	high
+tt_4.8.4/tt/DlgCnCWinScreen.cpp	tt	HUD/UI	184	Code/Commando	basename	high
+tt_4.8.4/tt/DlgCnCWinScreen.h	tt	engine wrapper/API	45	Code/Commando	basename	high
+tt_4.8.4/tt/DlgHelpScreen.cpp	tt	engine wrapper/API	36	Code/Commando	basename	high
+tt_4.8.4/tt/DlgHelpScreen.h	tt	engine wrapper/API	29	Code/Commando	basename	high
+tt_4.8.4/tt/DlgMPConnecting.cpp	tt	utility	114	Code/Commando	include-fanout (11/12)	medium
+tt_4.8.4/tt/DlgMPConnecting.h	tt	HUD/UI	45	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/DlgMPConnectionRefused.cpp	tt	engine wrapper/API	9	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/DlgMPConnectionRefused.h	tt	engine wrapper/API	24	Code/Commando	class-decl	high
+tt_4.8.4/tt/DlgMPTeamSelect.cpp	tt	engine wrapper/API	8	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/DlgMPTeamSelect.h	tt	engine wrapper/API	21	Code/Commando	class-decl	high
+tt_4.8.4/tt/DlgMsgBox.cpp	tt	engine wrapper/API	12	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/DlgMsgBox.h	tt	engine wrapper/API	43	Code/Commando	class-decl	high
+tt_4.8.4/tt/DlgPasswordPrompt.cpp	tt	engine wrapper/API	64	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/DlgPasswordPrompt.h	tt	engine wrapper/API	33	Code/Commando	class-decl	high
+tt_4.8.4/tt/DoorNetworkObjectClass.cpp	tt	engine wrapper/API	16	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/DoorNetworkObjectClass.h	tt	engine wrapper/API	15	Code/Combat	class-decl	high
+tt_4.8.4/tt/DoorPhysClass.cpp	tt	engine wrapper/API	9	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/DoorPhysClass.h	tt	engine wrapper/API	44	Code/Combat	class-decl	high
+tt_4.8.4/tt/DynamicAnimPhysClass.h	tt	physics/collision API	18	Code/wwphys	class-decl	high
+tt_4.8.4/tt/DynamicSpeechAnimClass.cpp	tt	engine wrapper/API	6	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/DynamicSpeechAnimClass.h	tt	engine wrapper/API	10	Code/Combat	class-decl	high
+tt_4.8.4/tt/EditCtrl.h	tt	HUD/UI	167	Code/wwui	class-decl	high
+tt_4.8.4/tt/ElevatorPhysClass.cpp	tt	engine wrapper/API	11	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/ElevatorPhysClass.h	tt	engine wrapper/API	36	Code/Combat	class-decl	high
+tt_4.8.4/tt/ExplosionManager.cpp	tt	engine wrapper/API	170	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/ExplosionManager.h	tt	engine wrapper/API	18	Code/Combat	class-decl	high
+tt_4.8.4/tt/FileFactoryListClass.cpp	tt	engine wrapper/API	86	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/FileFactoryListClass.h	tt	engine wrapper/API	40	Code/Combat	class-decl	high
+tt_4.8.4/tt/FileHashEvent.cpp	tt	network extension	222	Code/wwnet	include-fanout (2/4)	low
+tt_4.8.4/tt/FileHashEvent.h	tt	network extension	27	Code/wwnet	include-fanout (4/9)	low
+tt_4.8.4/tt/GameHintEvent.cpp	tt	utility	167	Code/WWAudio	include-fanout (1/3)	low
+tt_4.8.4/tt/GameHintEvent.h	tt	network extension	32	Code/wwnet	include-fanout (3/5)	medium
+tt_4.8.4/tt/GameInitMgrClass.cpp	tt	engine wrapper/API	170	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/GameInitMgrClass.h	tt	engine wrapper/API	49	Code/Commando	class-decl	high
+tt_4.8.4/tt/GameModeClass.cpp	tt	engine wrapper/API	85	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/GameModeClass.h	tt	engine wrapper/API	41	Code/Commando	class-decl	high
+tt_4.8.4/tt/GameModeManager.cpp	tt	engine wrapper/API	167	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/GameModeManager.h	tt	engine wrapper/API	38	Code/Commando	class-decl	high
+tt_4.8.4/tt/GameObjManager.cpp	tt	engine wrapper/API	181	Code/Combat	basename	high
+tt_4.8.4/tt/General.cpp	tt	utility	1	Code/wwlib	paired-file (include-fanout)	low
+tt_4.8.4/tt/General.h	tt	utility	8	Code/wwlib	include-fanout (1/2)	low
+tt_4.8.4/tt/GlobalSettingsDef.cpp	tt	engine wrapper/API	4	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/GlobalSettingsDef.h	tt	engine wrapper/API	40	Code/Combat	class-decl	high
+tt_4.8.4/tt/HAnimClass.h	tt	utility	50	Code/wwlib	class-decl	high
+tt_4.8.4/tt/HMorphAnim.h	tt	render/shader integration	8	Code/ww3d2	class-decl	high
+tt_4.8.4/tt/HarvesterClass.cpp	tt	engine wrapper/API	139	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/HarvesterClass.h	tt	engine wrapper/API	70	Code/Combat	class-decl	high
+tt_4.8.4/tt/HashManagerClass.cpp	tt	utility	197	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/tt/HashManagerClass.h	tt	utility	26	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/HashMixFileFactoryClass.cpp	tt	utility	57	Code/wwlib	include-fanout (1/2)	low
+tt_4.8.4/tt/HashMixFileFactoryClass.h	tt	utility	15	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/HookRegistrant.h	tt	binary hook/patch	31	DROP: directive 0.4 (hook installation machinery has no native equivalent)	per-file	high
+tt_4.8.4/tt/HumanAnimControlClass.h	tt	render/shader integration	46	Code/ww3d2	class-decl	high
+tt_4.8.4/tt/HumanAnimOverrideDef.h	tt	engine wrapper/API	15	Code/Combat	class-decl	high
+tt_4.8.4/tt/HumanLoiterGlobalSettingsDef.cpp	tt	engine wrapper/API	22	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/HumanLoiterGlobalSettingsDef.h	tt	engine wrapper/API	25	Code/Combat	class-decl	high
+tt_4.8.4/tt/HumanPhysClass.h	tt	physics/collision API	25	Code/wwphys	class-decl	high
+tt_4.8.4/tt/HumanStateClass.cpp	tt	utility	1134	Code/Combat	include-fanout (9/15)	medium
+tt_4.8.4/tt/IMECandidate.h	tt	HUD/UI	110	Code/wwui	class-decl	high
+tt_4.8.4/tt/IMECandidateCtrl.cpp	tt	HUD/UI	73	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/IMECandidateCtrl.h	tt	HUD/UI	74	Code/wwui	class-decl	high
+tt_4.8.4/tt/IMEManager.h	tt	HUD/UI	198	Code/wwui	class-decl	high
+tt_4.8.4/tt/IPAddressClass.h	tt	engine wrapper/API	52	Code/Commando	class-decl	high
+tt_4.8.4/tt/IngameSendMessageDialog.cpp	tt	utility	181	Code/Commando	include-fanout (6/11)	medium
+tt_4.8.4/tt/IngameSendMessageDialog.h	tt	HUD/UI	39	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/Input.h	tt	engine wrapper/API	242	Code/Combat	class-decl	high
+tt_4.8.4/tt/InputConfigClass.h	tt	engine wrapper/API	13	Code/Commando	class-decl	high
+tt_4.8.4/tt/InputConfigMgrClass.cpp	tt	engine wrapper/API	46	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/InputConfigMgrClass.h	tt	engine wrapper/API	16	Code/Commando	class-decl	high
+tt_4.8.4/tt/Internet.cpp	tt	utility	52	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/tt/Internet.h	tt	utility	42	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/InternetFile.cpp	tt	utility	54	Code/Combat	area-default	low
+tt_4.8.4/tt/InternetFile.h	tt	utility	34	Code/Combat	area-default	low
+tt_4.8.4/tt/Iterator.tt.cpp	tt	utility	5	Code/wwlib	paired-file (include-fanout)	low
+tt_4.8.4/tt/Iterator.tt.h	tt	utility	30	Code/wwlib	include-fanout (1/2)	low
+tt_4.8.4/tt/LanGameModeClass.cpp	tt	engine wrapper/API	31	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/LanGameModeClass.h	tt	engine wrapper/API	39	Code/Commando	class-decl	high
+tt_4.8.4/tt/LevelManager.cpp	tt	engine wrapper/API	8	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/LevelManager.h	tt	engine wrapper/API	17	Code/Commando	class-decl	high
+tt_4.8.4/tt/LightClass.cpp	tt	render/shader integration	86	Code/ww3d2	member-def	high
+tt_4.8.4/tt/LoadingScreenClass.cpp	tt	utility	265	Code/Commando	include-fanout (3/7)	low
+tt_4.8.4/tt/LoadingScreenClass.h	tt	HUD/UI	34	Code/wwui	include-fanout (1/2)	low
+tt_4.8.4/tt/LogicalListenerClass.h	tt	engine wrapper/API	24	Code/WWAudio	class-decl	high
+tt_4.8.4/tt/MainMenuDialog.cpp	tt	HUD/UI	9	Code/wwui	paired-file (include-fanout)	medium
+tt_4.8.4/tt/MainMenuDialog.h	tt	HUD/UI	24	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/MapSelectDialog.cpp	tt	utility	49	Code/Commando	include-fanout (2/3)	medium
+tt_4.8.4/tt/MapSelectDialog.h	tt	HUD/UI	21	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/MemoryFile.cpp	tt	utility	5	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/tt/MemoryFile.h	tt	utility	101	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/ModPackageMgrClass.cpp	tt	engine wrapper/API	201	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/ModPackageMgrClass.h	tt	engine wrapper/API	41	Code/Commando	class-decl	high
+tt_4.8.4/tt/MultiHUDClass.cpp	tt	engine wrapper/API	190	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/MultiHUDClass.h	tt	engine wrapper/API	39	Code/Commando	class-decl	high
+tt_4.8.4/tt/MuzzleFlashClass.cpp	tt	engine wrapper/API	66	Code/Combat	member-def	high
+tt_4.8.4/tt/MuzzleRecoilClass.cpp	tt	engine wrapper/API	55	Code/Combat	member-def	high
+tt_4.8.4/tt/NetworkDiagnostics.cpp	tt	network extension	100	Code/wwnet	include-fanout (2/6)	low
+tt_4.8.4/tt/NetworkDiagnostics.h	tt	utility	47	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/NetworkObjectClass.cpp	tt	network extension	274	Code/wwnet	member-def	high
+tt_4.8.4/tt/NetworkObjectClassId.h	tt	network extension	65	Code/wwnet	per-file	high
+tt_4.8.4/tt/NetworkObjectFactoryClass.cpp	tt	network extension	20	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/NetworkObjectFactoryClass.h	tt	network extension	25	Code/wwnet	class-decl	high
+tt_4.8.4/tt/NetworkObjectFactoryMgrClass.cpp	tt	network extension	100	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/NetworkObjectFactoryMgrClass.h	tt	network extension	30	Code/wwnet	class-decl	high
+tt_4.8.4/tt/NetworkObjectMgrClass.cpp	tt	network extension	125	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/NetworkObjectMgrClass.h	tt	network extension	45	Code/wwnet	class-decl	high
+tt_4.8.4/tt/NewDamageEvent.cpp	tt	network extension	126	Code/wwnet	include-fanout (6/15)	low
+tt_4.8.4/tt/NewDamageEvent.h	tt	utility	43	Code/Commando	include-fanout (1/3)	low
+tt_4.8.4/tt/ODESystemClass.h	tt	utility	22	Code/WWMath	class-decl	high
+tt_4.8.4/tt/ObjectLibraryManager.cpp	tt	engine wrapper/API	31	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/ObjectLibraryManager.h	tt	engine wrapper/API	16	Code/Combat	class-decl	high
+tt_4.8.4/tt/ObjectivesViewerClass.cpp	tt	engine wrapper/API	8	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/ObjectivesViewerClass.h	tt	engine wrapper/API	31	Code/Combat	class-decl	high
+tt_4.8.4/tt/OctBoxClass.cpp	tt	physics/collision API	125	Code/wwphys	class-decl (paired header)	high
+tt_4.8.4/tt/OctBoxClass.h	tt	physics/collision API	51	Code/wwphys	class-decl	high
+tt_4.8.4/tt/PersistFactoryClass.cpp	tt	save/load	13	Code/wwsaveload	member-def	high
+tt_4.8.4/tt/PersistentGameObjObserverClass.cpp	tt	engine wrapper/API	34	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/PersistentGameObjObserverClass.h	tt	engine wrapper/API	22	Code/Combat	class-decl	high
+tt_4.8.4/tt/Phys3Class.cpp	tt	physics/collision API	14	Code/wwphys	class-decl (paired header)	high
+tt_4.8.4/tt/Phys3Class.h	tt	physics/collision API	112	Code/wwphys	class-decl	high
+tt_4.8.4/tt/PhysControllerClass.cpp	tt	physics/collision API	6	Code/wwphys	include-fanout (1/1)	medium
+tt_4.8.4/tt/PhysicalGameObj.cpp	tt	engine wrapper/API	347	Code/Combat	basename	high
+tt_4.8.4/tt/PhysicsConstants.cpp	tt	physics/collision API	18	Code/wwphys	class-decl (paired header)	high
+tt_4.8.4/tt/PhysicsConstants.h	tt	physics/collision API	92	Code/wwphys	class-decl	high
+tt_4.8.4/tt/PingProfileWait.cpp	tt	network extension	98	Code/WWOnline	class-decl (paired header)	high
+tt_4.8.4/tt/PingProfileWait.h	tt	network extension	39	Code/WWOnline	class-decl	high
+tt_4.8.4/tt/PlayerDataClass.cpp	tt	engine wrapper/API	126	Code/Combat	member-def	high
+tt_4.8.4/tt/PlayerTerminalClass.cpp	tt	engine wrapper/API	4	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/PlayerTerminalClass.h	tt	engine wrapper/API	17	Code/Combat	class-decl	high
+tt_4.8.4/tt/PointerRemapClass.cpp	tt	save/load	16	Code/wwsaveload	include-fanout (1/1)	medium
+tt_4.8.4/tt/ProgressCtrl.h	tt	HUD/UI	83	Code/wwui	class-decl	high
+tt_4.8.4/tt/ProjectileClass.h	tt	physics/collision API	51	Code/wwphys	class-decl	high
+tt_4.8.4/tt/ProjectileDefClass.h	tt	physics/collision API	28	Code/wwphys	class-decl	high
+tt_4.8.4/tt/RadioCommandDisplayClass.cpp	tt	engine wrapper/API	8	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/RadioCommandDisplayClass.h	tt	engine wrapper/API	23	Code/Commando	class-decl	high
+tt_4.8.4/tt/RandomStringClass.cpp	tt	utility	26	Code/wwlib	class-decl (paired header)	high
+tt_4.8.4/tt/RandomStringClass.h	tt	utility	28	Code/wwlib	class-decl	high
+tt_4.8.4/tt/RefCounted.cpp	tt	network extension	18	Code/WWOnline	class-decl (paired header)	high
+tt_4.8.4/tt/RefCounted.h	tt	network extension	24	Code/WWOnline	class-decl	high
+tt_4.8.4/tt/RefCountedReferencerClass.h	tt	engine wrapper/API	31	Code/Combat	class-decl	high
+tt_4.8.4/tt/RefPtr.h	tt	network extension	37	Code/WWOnline	basename	high
+tt_4.8.4/tt/RefPtrBase.h	tt	network extension	39	Code/WWOnline	class-decl	high
+tt_4.8.4/tt/RefineryGameObj.cpp	tt	building/factory class	102	Code/Combat	basename	high
+tt_4.8.4/tt/RefineryGameObjDef.cpp	tt	utility	3	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/tt/RepairBayGameObj.cpp	tt	building/factory class	330	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/RepairBayGameObj.h	tt	engine wrapper/API	48	Code/Combat	class-decl	high
+tt_4.8.4/tt/RepairBayGameObjDef.h	tt	engine wrapper/API	25	Code/Combat	class-decl	high
+tt_4.8.4/tt/ResourceMgr/DownloadManager.cpp	tt	utility	45	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/tt/ResourceMgr/DownloadManager.h	tt	utility	42	Code/wwlib	include-fanout (4/4)	medium
+tt_4.8.4/tt/ResourceMgr/DownloadTask.cpp	tt	utility	84	Code/wwlib	include-fanout (2/2)	medium
+tt_4.8.4/tt/ResourceMgr/DownloadTask.h	tt	utility	49	Code/wwlib	include-fanout (2/2)	medium
+tt_4.8.4/tt/ResourceMgr/NetworkManager.cpp	tt	network extension	232	Code/Commando	include-fanout (3/13)	low
+tt_4.8.4/tt/ResourceMgr/NetworkManager.h	tt	utility	110	Code/wwlib	include-fanout (1/2)	low
+tt_4.8.4/tt/ResourceMgr/Package.cpp	tt	utility	176	Code/wwlib	per-file	high
+tt_4.8.4/tt/ResourceMgr/Package.h	tt	utility	89	Code/wwlib	per-file	high
+tt_4.8.4/tt/ResourceMgr/PackageDownloadTask.cpp	tt	utility	39	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/ResourceMgr/PackageDownloadTask.h	tt	utility	32	Code/wwlib	include-fanout (2/2)	medium
+tt_4.8.4/tt/ResourceMgr/PackageManager.cpp	tt	utility	290	Code/wwlib	per-file	high
+tt_4.8.4/tt/ResourceMgr/PackageManager.h	tt	utility	59	Code/wwlib	per-file	high
+tt_4.8.4/tt/RigidBodyClass.cpp	tt	physics/collision API	157	Code/wwphys	class-decl (paired header)	high
+tt_4.8.4/tt/RigidBodyClass.h	tt	physics/collision API	128	Code/wwphys	class-decl	high
+tt_4.8.4/tt/RigidBodyDefClass.h	tt	physics/collision API	27	Code/wwphys	class-decl	high
+tt_4.8.4/tt/RigidBodyStateStruct.h	tt	physics/collision API	41	Code/wwphys	class-decl	high
+tt_4.8.4/tt/SaveGameManager.cpp	tt	engine wrapper/API	303	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/SaveGameManager.h	tt	engine wrapper/API	34	Code/Combat	class-decl	high
+tt_4.8.4/tt/SaveLoadSystemClass.cpp	tt	save/load	82	Code/wwsaveload	member-def	high
+tt_4.8.4/tt/Screenshot.cpp	tt	utility	228	Code/wwlib	include-fanout (1/3)	low
+tt_4.8.4/tt/Screenshot.h	tt	utility	28	Code/wwlib	paired-file (include-fanout)	low
+tt_4.8.4/tt/ScreenshotManager.cpp	tt	utility	92	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/ScreenshotManager.h	tt	utility	47	Code/wwlib	include-fanout (3/3)	medium
+tt_4.8.4/tt/ScriptCommands.cpp	tt	engine wrapper/API	379	Code/Combat	basename	high
+tt_4.8.4/tt/ScriptCommands.h	tt	engine wrapper/API	6	Code/Combat	basename	high
+tt_4.8.4/tt/ScriptableGameObj.cpp	tt	engine wrapper/API	36	Code/Combat	basename	high
+tt_4.8.4/tt/ServerSettingsClass.cpp	tt	engine wrapper/API	8	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/ServerSettingsClass.h	tt	engine wrapper/API	32	Code/Commando	class-decl	high
+tt_4.8.4/tt/SimpleAnimControlClass.cpp	tt	engine wrapper/API	384	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/SimpleAnimControlClass.h	tt	engine wrapper/API	101	Code/Combat	class-decl	high
+tt_4.8.4/tt/SimpleNetworkObjectFactoryClass.h	tt	network extension	31	Code/wwnet	class-decl	high
+tt_4.8.4/tt/SimplePersistFactoryClass.h	tt	save/load	41	Code/wwsaveload	include-fanout (1/1)	medium
+tt_4.8.4/tt/SimpleSceneClass.cpp	tt	render/shader integration	213	Code/ww3d2	member-def	high
+tt_4.8.4/tt/SingleWait.cpp	tt	network extension	20	Code/WWOnline	class-decl (paired header)	high
+tt_4.8.4/tt/SingleWait.h	tt	network extension	43	Code/WWOnline	class-decl	high
+tt_4.8.4/tt/SlaveMasterClass.cpp	tt	engine wrapper/API	90	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/SlaveMasterClass.h	tt	engine wrapper/API	48	Code/Commando	class-decl	high
+tt_4.8.4/tt/SlaveServerClass.h	tt	engine wrapper/API	31	Code/Commando	class-decl	high
+tt_4.8.4/tt/SmartGameObj.cpp	tt	engine wrapper/API	484	Code/Combat	basename	high
+tt_4.8.4/tt/Socket.cpp	tt	utility	81	Code/Combat	area-default	low
+tt_4.8.4/tt/Socket.h	tt	utility	38	Code/Combat	area-default	low
+tt_4.8.4/tt/SocketHandlerClass.h	tt	engine wrapper/API	19	Code/Commando	class-decl	high
+tt_4.8.4/tt/SoldierFactoryGameObj.h	tt	building/factory class	24	Code/Combat	class-decl	high
+tt_4.8.4/tt/SoldierFactoryGameObjDef.h	tt	building/factory class	20	Code/Combat	class-decl	high
+tt_4.8.4/tt/SoldierGameObj.cpp	tt	utility	1627	Code/Combat	include-fanout (28/43)	medium
+tt_4.8.4/tt/SoldierObserverClass.cpp	tt	engine wrapper/API	47	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/SoldierObserverClass.h	tt	engine wrapper/API	69	Code/Combat	class-decl	high
+tt_4.8.4/tt/SpawnManager.cpp	tt	utility	69	Code/Combat	include-fanout (2/3)	medium
+tt_4.8.4/tt/SpawnerClass.cpp	tt	utility	149	Code/wwlib	include-fanout (2/5)	low
+tt_4.8.4/tt/SpawnerDefClass.h	tt	engine wrapper/API	55	Code/Combat	class-decl	high
+tt_4.8.4/tt/StateVectorClass.h	tt	utility	12	Code/WWMath	class-decl	high
+tt_4.8.4/tt/StaticAnimPhysClass.cpp	tt	physics/collision API	31	Code/wwphys	include-fanout (1/3)	low
+tt_4.8.4/tt/StaticAnimPhysDefClass.cpp	tt	physics/collision API	9	Code/wwphys	include-fanout (1/1)	medium
+tt_4.8.4/tt/StaticNetworkObjectClass.h	tt	engine wrapper/API	30	Code/Combat	class-decl	high
+tt_4.8.4/tt/StealthEffectClass.cpp	tt	physics/collision API	166	Code/wwphys	member-def	high
+tt_4.8.4/tt/SurfaceEffect.h	tt	utility	23	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/tt/SurfaceEffectsManager.cpp	tt	utility	376	Code/wwlib	include-fanout (2/8)	low
+tt_4.8.4/tt/TextDisplayGameModeClass.cpp	tt	engine wrapper/API	17	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/TextDisplayGameModeClass.h	tt	engine wrapper/API	62	Code/Commando	class-decl	high
+tt_4.8.4/tt/Thread.cpp	tt	utility	61	Code/wwlib	basename	high
+tt_4.8.4/tt/Thread.h	tt	utility	28	Code/wwlib	basename	high
+tt_4.8.4/tt/TrackedVehicleClass.cpp	tt	physics/collision API	157	Code/wwphys	class-decl (paired header)	high
+tt_4.8.4/tt/TrackedVehicleClass.h	tt	physics/collision API	61	Code/wwphys	class-decl	high
+tt_4.8.4/tt/TrackedVehicleDefClass.h	tt	physics/collision API	40	Code/wwphys	class-decl	high
+tt_4.8.4/tt/TransitionEffectClass.cpp	tt	physics/collision API	67	Code/wwphys	class-decl (paired header)	high
+tt_4.8.4/tt/TransitionEffectClass.h	tt	physics/collision API	56	Code/wwphys	class-decl	high
+tt_4.8.4/tt/TransitionInstanceClass.cpp	tt	engine wrapper/API	6	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/TransitionInstanceClass.h	tt	engine wrapper/API	11	Code/Combat	class-decl	high
+tt_4.8.4/tt/TransitionManager.cpp	tt	engine wrapper/API	6	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/TransitionManager.h	tt	engine wrapper/API	10	Code/Combat	class-decl	high
+tt_4.8.4/tt/UnitCoordinationZoneMgr.cpp	tt	engine wrapper/API	6	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/UnitCoordinationZoneMgr.h	tt	engine wrapper/API	9	Code/Combat	class-decl	high
+tt_4.8.4/tt/Vector.h	tt	utility	133	Code/wwlib	basename	high
+tt_4.8.4/tt/VehicleFactoryGameObj.cpp	tt	building/factory class	185	Code/Combat	basename	high
+tt_4.8.4/tt/VehicleGameObj.cpp	tt	utility	740	Code/Combat	include-fanout (11/19)	medium
+tt_4.8.4/tt/VehicleGameObjDef.cpp	tt	utility	22	Code/wwlib	include-fanout (4/8)	low
+tt_4.8.4/tt/VehiclePhysClass.cpp	tt	physics/collision API	16	Code/wwphys	class-decl (paired header)	high
+tt_4.8.4/tt/VehiclePhysClass.h	tt	physics/collision API	76	Code/wwphys	class-decl	high
+tt_4.8.4/tt/VehiclePhysDefClass.h	tt	physics/collision API	48	Code/wwphys	class-decl	high
+tt_4.8.4/tt/VfsFile.cpp	tt	utility	50	Code/wwlib	per-file	high
+tt_4.8.4/tt/VfsFile.h	tt	utility	48	Code/wwlib	per-file	high
+tt_4.8.4/tt/VisTableClass.cpp	tt	physics/collision API	232	Code/wwphys	class-decl (paired header)	high
+tt_4.8.4/tt/VisTableClass.h	tt	physics/collision API	64	Code/wwphys	class-decl	high
+tt_4.8.4/tt/WOLNATInterfaceClass.cpp	tt	network extension	83	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/WOLNATInterfaceClass.h	tt	engine wrapper/API	36	Code/Commando	class-decl	high
+tt_4.8.4/tt/WWMeasureItClass.h	tt	utility	44	Code/wwdebug	class-decl	high
+tt_4.8.4/tt/WWOnline.cpp	tt	network extension	14	Code/WWOnline	class-decl (paired header)	high
+tt_4.8.4/tt/WWOnline.h	tt	network extension	110	Code/WWOnline	class-decl	high
+tt_4.8.4/tt/WaitCondition.cpp	tt	network extension	31	Code/WWOnline	class-decl (paired header)	high
+tt_4.8.4/tt/WaitCondition.h	tt	network extension	44	Code/WWOnline	class-decl	high
+tt_4.8.4/tt/WarFactoryGameObj.cpp	tt	building/factory class	15	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/WarFactoryGameObj.h	tt	building/factory class	28	Code/Combat	class-decl	high
+tt_4.8.4/tt/WarFactoryGameObjDef.h	tt	building/factory class	21	Code/Combat	class-decl	high
+tt_4.8.4/tt/WeaponBagClass.cpp	tt	engine wrapper/API	417	Code/Combat	member-def	high
+tt_4.8.4/tt/WeaponClass.cpp	tt	engine wrapper/API	847	Code/Combat	member-def	high
+tt_4.8.4/tt/WeaponEvent.cpp	tt	utility	78	Code/Combat	include-fanout (4/6)	medium
+tt_4.8.4/tt/WeaponEvent.h	tt	network extension	27	Code/wwnet	include-fanout (3/6)	low
+tt_4.8.4/tt/WeatherMgrClass.tt.cpp	tt	engine wrapper/API	378	Code/Combat	member-def	high
+tt_4.8.4/tt/WolGameModeClass.cpp	tt	engine wrapper/API	219	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/WolGameModeClass.h	tt	engine wrapper/API	78	Code/Commando	class-decl	high
+tt_4.8.4/tt/advancedgamelistings.cpp	tt	HUD/UI	254	Code/wwui	include-fanout (2/4)	low
+tt_4.8.4/tt/advancedgamelistings.h	tt	HUD/UI	44	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/backgroundmgrclass.tt.cpp	tt	engine wrapper/API	465	Code/Combat	member-def	high
+tt_4.8.4/tt/bitpackids.h	tt	network extension	80	Code/wwbitpack	basename	high
+tt_4.8.4/tt/bitstream.cpp	tt	network extension	133	Code/wwbitpack	class-decl (paired header)	high
+tt_4.8.4/tt/bitstream.h	tt	network extension	195	Code/wwbitpack	class-decl	high
+tt_4.8.4/tt/bonesmanager.cpp	tt	engine wrapper/API	6	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/buttonctrl.cpp	tt	HUD/UI	199	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/buttonctrl.h	tt	HUD/UI	109	Code/wwui	class-decl	high
+tt_4.8.4/tt/cAppPacketStats.cpp	tt	engine wrapper/API	80	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cAppPacketStats.h	tt	engine wrapper/API	39	Code/Commando	class-decl	high
+tt_4.8.4/tt/cBandwidth.cpp	tt	engine wrapper/API	20	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cBandwidth.h	tt	engine wrapper/API	33	Code/Commando	class-decl	high
+tt_4.8.4/tt/cBioEvent.cpp	tt	network extension	133	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cBioEvent.h	tt	engine wrapper/API	36	Code/Commando	class-decl	high
+tt_4.8.4/tt/cChangeTeamEvent.cpp	tt	engine wrapper/API	15	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cChangeTeamEvent.h	tt	engine wrapper/API	34	Code/Commando	class-decl	high
+tt_4.8.4/tt/cClientGoodbyeEvent.cpp	tt	engine wrapper/API	70	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cClientGoodbyeEvent.h	tt	engine wrapper/API	33	Code/Commando	class-decl	high
+tt_4.8.4/tt/cClientHintManager.cpp	tt	engine wrapper/API	115	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cClientHintManager.h	tt	engine wrapper/API	18	Code/Commando	class-decl	high
+tt_4.8.4/tt/cClientPingManager.cpp	tt	engine wrapper/API	38	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cClientPingManager.h	tt	engine wrapper/API	29	Code/Commando	class-decl	high
+tt_4.8.4/tt/cConnection.cpp	tt	network extension	1437	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/cConnection.h	tt	network extension	209	Code/wwnet	class-decl	high
+tt_4.8.4/tt/cCsHint.cpp	tt	engine wrapper/API	63	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cCsHint.h	tt	engine wrapper/API	37	Code/Commando	class-decl	high
+tt_4.8.4/tt/cCsPingRequestEvent.cpp	tt	engine wrapper/API	62	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cCsPingRequestEvent.h	tt	engine wrapper/API	32	Code/Commando	class-decl	high
+tt_4.8.4/tt/cCsTextObj.cpp	tt	engine wrapper/API	83	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cCsTextObj.h	tt	engine wrapper/API	39	Code/Commando	class-decl	high
+tt_4.8.4/tt/cDevOptions.cpp	tt	engine wrapper/API	10	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cDevOptions.h	tt	engine wrapper/API	21	Code/Commando	class-decl	high
+tt_4.8.4/tt/cDiagnostics.cpp	tt	network extension	92	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cDiagnostics.h	tt	engine wrapper/API	27	Code/Commando	class-decl	high
+tt_4.8.4/tt/cGameData.cpp	tt	utility	312	Code/Commando	include-fanout (14/25)	medium
+tt_4.8.4/tt/cGameDataUpdateEvent.cpp	tt	engine wrapper/API	74	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cGameDataUpdateEvent.h	tt	engine wrapper/API	29	Code/Commando	class-decl	high
+tt_4.8.4/tt/cGameOptionsEvent.cpp	tt	network extension	130	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cGameOptionsEvent.h	tt	engine wrapper/API	33	Code/Commando	class-decl	high
+tt_4.8.4/tt/cGameSpyAdmin.cpp	tt	engine wrapper/API	65	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cGameSpyAdmin.h	tt	engine wrapper/API	54	Code/Commando	class-decl	high
+tt_4.8.4/tt/cGod.cpp	tt	engine wrapper/API	199	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cGod.h	tt	engine wrapper/API	42	Code/Commando	class-decl	high
+tt_4.8.4/tt/cLanChat.cpp	tt	engine wrapper/API	160	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cLanChat.h	tt	engine wrapper/API	45	Code/Commando	class-decl	high
+tt_4.8.4/tt/cLoadingEvent.cpp	tt	engine wrapper/API	86	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cLoadingEvent.h	tt	engine wrapper/API	32	Code/Commando	class-decl	high
+tt_4.8.4/tt/cMsgStat.cpp	tt	network extension	19	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/cMsgStat.h	tt	network extension	24	Code/wwnet	class-decl	high
+tt_4.8.4/tt/cMsgStatList.cpp	tt	network extension	105	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/cMsgStatList.h	tt	network extension	39	Code/wwnet	class-decl	high
+tt_4.8.4/tt/cMsgStatListGroup.cpp	tt	network extension	98	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/cMsgStatListGroup.h	tt	network extension	40	Code/wwnet	class-decl	high
+tt_4.8.4/tt/cNetEvent.cpp	tt	network extension	45	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cNetEvent.h	tt	engine wrapper/API	29	Code/Commando	class-decl	high
+tt_4.8.4/tt/cNetInterface.cpp	tt	engine wrapper/API	29	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cNetInterface.h	tt	engine wrapper/API	30	Code/Commando	class-decl	high
+tt_4.8.4/tt/cNetStats.cpp	tt	network extension	93	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/cNetStats.h	tt	network extension	80	Code/wwnet	class-decl	high
+tt_4.8.4/tt/cNetUtil.cpp	tt	network extension	78	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/cNetUtil.h	tt	network extension	39	Code/wwnet	class-decl	high
+tt_4.8.4/tt/cNetwork.cpp	tt	network extension	1917	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cNetwork.h	tt	network extension	157	Code/Commando	class-decl	high
+tt_4.8.4/tt/cPacket.cpp	tt	network extension	343	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/cPacket.h	tt	network extension	107	Code/wwnet	class-decl	high
+tt_4.8.4/tt/cPlayer.tt.cpp	tt	engine wrapper/API	243	Code/Commando	member-def	high
+tt_4.8.4/tt/cPlayerManager.cpp	tt	engine wrapper/API	387	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cPlayerManager.h	tt	engine wrapper/API	88	Code/Commando	class-decl	high
+tt_4.8.4/tt/cPriority.cpp	tt	engine wrapper/API	62	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cPriority.h	tt	engine wrapper/API	39	Code/Commando	class-decl	high
+tt_4.8.4/tt/cPurchaseRequestEvent.cpp	tt	engine wrapper/API	85	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cPurchaseRequestEvent.h	tt	engine wrapper/API	30	Code/Commando	class-decl	high
+tt_4.8.4/tt/cPurchaseResponseEvent.cpp	tt	engine wrapper/API	49	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cPurchaseResponseEvent.h	tt	engine wrapper/API	30	Code/Commando	class-decl	high
+tt_4.8.4/tt/cRegistryBool.cpp	tt	engine wrapper/API	38	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cRegistryBool.h	tt	engine wrapper/API	17	Code/Commando	class-decl	high
+tt_4.8.4/tt/cRegistryFloat.cpp	tt	engine wrapper/API	33	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cRegistryFloat.h	tt	engine wrapper/API	16	Code/Commando	class-decl	high
+tt_4.8.4/tt/cRegistryInt.cpp	tt	engine wrapper/API	33	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cRegistryInt.h	tt	engine wrapper/API	16	Code/Commando	class-decl	high
+tt_4.8.4/tt/cRegistryString.cpp	tt	engine wrapper/API	33	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cRegistryString.h	tt	engine wrapper/API	16	Code/Commando	class-decl	high
+tt_4.8.4/tt/cRemoteHost.cpp	tt	network extension	476	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/cRemoteHost.h	tt	network extension	213	Code/wwnet	class-decl	high
+tt_4.8.4/tt/cSbboManager.cpp	tt	engine wrapper/API	91	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cSbboManager.h	tt	engine wrapper/API	31	Code/Commando	class-decl	high
+tt_4.8.4/tt/cScExplosionEvent.cpp	tt	engine wrapper/API	23	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/cScExplosionEvent.h	tt	engine wrapper/API	25	Code/Combat	class-decl	high
+tt_4.8.4/tt/cScPingResponseEvent.cpp	tt	engine wrapper/API	55	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cScPingResponseEvent.h	tt	engine wrapper/API	31	Code/Commando	class-decl	high
+tt_4.8.4/tt/cScTextObj.cpp	tt	engine wrapper/API	235	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cScTextObj.h	tt	engine wrapper/API	40	Code/Commando	class-decl	high
+tt_4.8.4/tt/cServerFps.cpp	tt	engine wrapper/API	49	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cServerFps.h	tt	engine wrapper/API	37	Code/Commando	class-decl	high
+tt_4.8.4/tt/cSinglePlayerData.cpp	tt	network extension	34	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/tt/cSinglePlayerData.h	tt	network extension	34	Code/wwnet	class-decl	high
+tt_4.8.4/tt/cTeam.cpp	tt	engine wrapper/API	207	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cTeam.h	tt	engine wrapper/API	66	Code/Commando	class-decl	high
+tt_4.8.4/tt/cTeamManager.cpp	tt	engine wrapper/API	184	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cTeamManager.h	tt	engine wrapper/API	58	Code/Commando	class-decl	high
+tt_4.8.4/tt/cUserOptions.cpp	tt	engine wrapper/API	46	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cUserOptions.h	tt	engine wrapper/API	51	Code/Commando	class-decl	high
+tt_4.8.4/tt/cWinEvent.cpp	tt	engine wrapper/API	133	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/cWinEvent.h	tt	engine wrapper/API	31	Code/Commando	class-decl	high
+tt_4.8.4/tt/chatdlg.cpp	tt	utility	56	Code/Commando	include-fanout (2/3)	medium
+tt_4.8.4/tt/chatdlg.h	tt	HUD/UI	11	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/checkboxctrl.cpp	tt	HUD/UI	152	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/checkboxctrl.h	tt	HUD/UI	97	Code/wwui	class-decl	high
+tt_4.8.4/tt/childdialog.cpp	tt	HUD/UI	96	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/childdialog.h	tt	HUD/UI	103	Code/wwui	class-decl	high
+tt_4.8.4/tt/comboboxctrl.cpp	tt	HUD/UI	240	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/comboboxctrl.h	tt	HUD/UI	139	Code/wwui	class-decl	high
+tt_4.8.4/tt/configdlg.cpp	tt	HUD/UI	263	Code/wwui	include-fanout (4/8)	low
+tt_4.8.4/tt/configdlg.h	tt	HUD/UI	19	Code/wwui	include-fanout (2/2)	medium
+tt_4.8.4/tt/consolecommands.cpp	tt	building/factory class	1562	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/consolecommands.h	tt	engine wrapper/API	500	Code/Commando	class-decl	high
+tt_4.8.4/tt/controladvisesink.h	tt	HUD/UI	140	Code/wwui	class-decl	high
+tt_4.8.4/tt/dep/include/lpng/png.h	tt	utility	3587	EXCLUDED: vendored third-party dependency	area-rule	high
+tt_4.8.4/tt/dep/include/lpng/pngconf.h	tt	utility	1481	EXCLUDED: vendored third-party dependency	area-rule	high
+tt_4.8.4/tt/dep/include/zlib/zconf.h	tt	utility	332	EXCLUDED: vendored third-party dependency	area-rule	high
+tt_4.8.4/tt/dep/include/zlib/zlib.h	tt	utility	1357	EXCLUDED: vendored third-party dependency	area-rule	high
+tt_4.8.4/tt/dialogbase.cpp	tt	HUD/UI	1656	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/dialogbase.h	tt	HUD/UI	282	Code/wwui	class-decl	high
+tt_4.8.4/tt/dialogcontrol.cpp	tt	HUD/UI	65	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/dialogcontrol.h	tt	HUD/UI	238	Code/wwui	class-decl	high
+tt_4.8.4/tt/dialogfactory.h	tt	HUD/UI	63	Code/wwui	class-decl	high
+tt_4.8.4/tt/dialogmgr.cpp	tt	HUD/UI	969	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/dialogmgr.h	tt	HUD/UI	228	Code/wwui	class-decl	high
+tt_4.8.4/tt/dialogparser.cpp	tt	utility	423	Code/wwtranslatedb	include-fanout (1/1)	medium
+tt_4.8.4/tt/dialogparser.h	tt	utility	111	Code/wwlib	include-fanout (2/2)	medium
+tt_4.8.4/tt/dialogresource.h	tt	engine wrapper/API	153	Code/Commando	per-file	high
+tt_4.8.4/tt/dialogtext.cpp	tt	HUD/UI	133	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/dialogtext.h	tt	HUD/UI	75	Code/wwui	class-decl	high
+tt_4.8.4/tt/dialogtransition.cpp	tt	HUD/UI	44	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/dialogtransition.h	tt	HUD/UI	95	Code/wwui	class-decl	high
+tt_4.8.4/tt/directinput.cpp	tt	engine wrapper/API	613	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/directinput.h	tt	engine wrapper/API	172	Code/Combat	class-decl	high
+tt_4.8.4/tt/dlgconfigperformancetab.cpp	tt	engine wrapper/API	184	Code/Commando	basename	high
+tt_4.8.4/tt/dlgconfigperformancetab.h	tt	engine wrapper/API	19	Code/Commando	basename	high
+tt_4.8.4/tt/dlgconfigvideotab.cpp	tt	engine wrapper/API	76	Code/Commando	basename	high
+tt_4.8.4/tt/dlgconfigvideotab.h	tt	engine wrapper/API	15	Code/Commando	basename	high
+tt_4.8.4/tt/dlghint.cpp	tt	utility	44	Code/Commando	include-fanout (1/2)	low
+tt_4.8.4/tt/dlghint.h	tt	HUD/UI	17	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/dlgimghint.cpp	tt	utility	46	Code/Commando	include-fanout (1/3)	low
+tt_4.8.4/tt/dlgimghint.h	tt	HUD/UI	17	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/dlginput.cpp	tt	utility	36	Code/Combat	include-fanout (1/1)	medium
+tt_4.8.4/tt/dlginput.h	tt	HUD/UI	6	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/dropdownctrl.cpp	tt	HUD/UI	273	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/dropdownctrl.h	tt	HUD/UI	167	Code/wwui	class-decl	high
+tt_4.8.4/tt/editctrl.cpp	tt	HUD/UI	296	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/encoderlist.cpp	tt	network extension	10	Code/wwbitpack	class-decl (paired header)	high
+tt_4.8.4/tt/encoderlist.h	tt	network extension	63	Code/wwbitpack	class-decl	high
+tt_4.8.4/tt/encodertypeentry.cpp	tt	network extension	29	Code/wwbitpack	class-decl (paired header)	high
+tt_4.8.4/tt/encodertypeentry.h	tt	network extension	48	Code/wwbitpack	class-decl	high
+tt_4.8.4/tt/encyclopedia.cpp	tt	engine wrapper/API	6	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/encyclopedia.h	tt	engine wrapper/API	9	Code/Combat	class-decl	high
+tt_4.8.4/tt/engine2.cpp	tt	building/factory class	1174	Code/Combat	include-fanout (13/36)	low
+tt_4.8.4/tt/engine2.h	tt	engine wrapper/API	19	Code/Combat	paired-file (include-fanout)	low
+tt_4.8.4/tt/engine_net.cpp	tt	network extension	92	Code/wwnet	include-fanout (3/4)	medium
+tt_4.8.4/tt/exports.cpp	tt	utility	1616	Code/Combat	include-fanout (5/11)	low
+tt_4.8.4/tt/healthbarctrl.cpp	tt	HUD/UI	30	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/healthbarctrl.h	tt	HUD/UI	76	Code/wwui	class-decl	high
+tt_4.8.4/tt/hooks.cpp	tt	utility	351	Code/Combat	include-fanout (5/8)	medium
+tt_4.8.4/tt/hooksupport.cpp	tt	binary hook/patch	180	DROP: directive 0.4 (hook installation machinery has no native equivalent)	per-file	high
+tt_4.8.4/tt/hooksupport.h	tt	binary hook/patch	82	DROP: directive 0.4 (hook installation machinery has no native equivalent)	per-file	high
+tt_4.8.4/tt/hud.cpp	tt	HUD/UI	263	Code/Combat	basename	high
+tt_4.8.4/tt/imagectrl.cpp	tt	HUD/UI	48	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/imagectrl.h	tt	HUD/UI	75	Code/wwui	class-decl	high
+tt_4.8.4/tt/input.cpp	tt	engine wrapper/API	1191	Code/Combat	class-decl (paired header)	high
+tt_4.8.4/tt/inputctrl.cpp	tt	HUD/UI	157	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/inputctrl.h	tt	HUD/UI	109	Code/wwui	class-decl	high
+tt_4.8.4/tt/listctrl.cpp	tt	HUD/UI	542	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/listctrl.h	tt	HUD/UI	471	Code/wwui	class-decl	high
+tt_4.8.4/tt/listiconmgr.cpp	tt	HUD/UI	11	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/listiconmgr.h	tt	HUD/UI	96	Code/wwui	class-decl	high
+tt_4.8.4/tt/mainmenutransition.cpp	tt	engine wrapper/API	275	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/mainmenutransition.h	tt	HUD/UI	100	Code/Commando	class-decl	high
+tt_4.8.4/tt/mapctrl.cpp	tt	HUD/UI	131	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/mapctrl.h	tt	HUD/UI	253	Code/wwui	class-decl	high
+tt_4.8.4/tt/menubackdrop.cpp	tt	HUD/UI	134	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/menubackdrop.h	tt	HUD/UI	97	Code/wwui	class-decl	high
+tt_4.8.4/tt/menudialog.cpp	tt	HUD/UI	240	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/menudialog.h	tt	HUD/UI	113	Code/wwui	class-decl	high
+tt_4.8.4/tt/menuentryctrl.cpp	tt	HUD/UI	386	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/menuentryctrl.h	tt	HUD/UI	119	Code/wwui	class-decl	high
+tt_4.8.4/tt/merchandisectrl.cpp	tt	HUD/UI	86	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/merchandisectrl.h	tt	HUD/UI	113	Code/wwui	class-decl	high
+tt_4.8.4/tt/modpackageclass.cpp	tt	engine wrapper/API	130	Code/Commando	class-decl (paired header)	high
+tt_4.8.4/tt/modpackageclass.h	tt	engine wrapper/API	34	Code/Commando	class-decl	high
+tt_4.8.4/tt/mousemgr.cpp	tt	HUD/UI	18	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/mousemgr.h	tt	HUD/UI	93	Code/wwui	class-decl	high
+tt_4.8.4/tt/multilinetextctrl.cpp	tt	HUD/UI	129	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/multilinetextctrl.h	tt	HUD/UI	91	Code/wwui	class-decl	high
+tt_4.8.4/tt/notify.h	tt	utility	241	Code/wwlib	class-decl	high
+tt_4.8.4/tt/objdlg.cpp	tt	utility	45	Code/Commando	include-fanout (2/3)	medium
+tt_4.8.4/tt/objdlg.h	tt	HUD/UI	10	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/optionsdlg.cpp	tt	HUD/UI	25	Code/wwui	include-fanout (1/2)	low
+tt_4.8.4/tt/optionsdlg.h	tt	HUD/UI	7	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/parameterimpl.h	tt	save/load	596	Code/wwsaveload	class-decl	high
+tt_4.8.4/tt/playermenu.cpp	tt	HUD/UI	40	Code/wwui	include-fanout (1/2)	low
+tt_4.8.4/tt/playermenu.h	tt	HUD/UI	28	Code/wwui	paired-file (include-fanout)	low
+tt_4.8.4/tt/playerterminal.cpp	tt	building/factory class	209	Code/Combat	basename	high
+tt_4.8.4/tt/popupdialog.cpp	tt	HUD/UI	194	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/popupdialog.h	tt	HUD/UI	101	Code/wwui	class-decl	high
+tt_4.8.4/tt/progressctrl.cpp	tt	HUD/UI	101	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/resource.h	tt	engine wrapper/API	741	Code/Commando	basename	high
+tt_4.8.4/tt/screencursor.h	tt	HUD/UI	68	Code/wwui	class-decl	high
+tt_4.8.4/tt/scrollbarctrl.cpp	tt	HUD/UI	157	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/scrollbarctrl.h	tt	HUD/UI	139	Code/wwui	class-decl	high
+tt_4.8.4/tt/shaderdev_console.cpp	tt	utility	50	Code/Commando	include-fanout (1/2)	low
+tt_4.8.4/tt/shaderdev_console.h	tt	engine wrapper/API	38	Code/Commando	paired-file (include-fanout)	low
+tt_4.8.4/tt/shortcutbarctrl.cpp	tt	HUD/UI	182	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/shortcutbarctrl.h	tt	HUD/UI	133	Code/wwui	class-decl	high
+tt_4.8.4/tt/sidebar.cpp	tt	HUD/UI	1343	Code/Commando	include-fanout (4/14)	low
+tt_4.8.4/tt/sidebar.h	tt	HUD/UI	37	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/sliderctrl.cpp	tt	HUD/UI	114	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/sliderctrl.h	tt	HUD/UI	92	Code/wwui	class-decl	high
+tt_4.8.4/tt/stylemgr.cpp	tt	HUD/UI	191	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/stylemgr.h	tt	HUD/UI	197	Code/wwui	class-decl	high
+tt_4.8.4/tt/tabctrl.cpp	tt	HUD/UI	208	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/tabctrl.h	tt	HUD/UI	144	Code/wwui	class-decl	high
+tt_4.8.4/tt/textmarqueectrl.cpp	tt	HUD/UI	54	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/textmarqueectrl.h	tt	HUD/UI	111	Code/wwui	class-decl	high
+tt_4.8.4/tt/tooltip.cpp	tt	HUD/UI	26	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/tooltip.h	tt	HUD/UI	84	Code/wwui	class-decl	high
+tt_4.8.4/tt/tooltipmgr.cpp	tt	HUD/UI	18	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/tooltipmgr.h	tt	HUD/UI	80	Code/wwui	class-decl	high
+tt_4.8.4/tt/treectrl.cpp	tt	HUD/UI	140	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/treectrl.h	tt	HUD/UI	284	Code/wwui	class-decl	high
+tt_4.8.4/tt/tt.cpp	tt	binary hook/patch	1852	SPLIT: per hook site, see TTHookSites.tsv	per-file	high
+tt_4.8.4/tt/tt.h	tt	utility	254	SPLIT: per hook site, see TTHookSites.tsv	per-file	high
+tt_4.8.4/tt/ttcli.cpp	tt	utility	907	Code/Combat	include-fanout (5/17)	low
+tt_4.8.4/tt/vehicledlg.cpp	tt	HUD/UI	83	Code/wwui	include-fanout (3/7)	low
+tt_4.8.4/tt/vehicledlg.h	tt	utility	33	Code/Combat	include-fanout (3/6)	low
+tt_4.8.4/tt/viewerctrl.cpp	tt	HUD/UI	273	Code/wwui	class-decl (paired header)	high
+tt_4.8.4/tt/viewerctrl.h	tt	HUD/UI	128	Code/wwui	class-decl	high
+tt_4.8.4/tt/viewerdlg.cpp	tt	HUD/UI	31	Code/wwui	include-fanout (1/3)	low
+tt_4.8.4/tt/viewerdlg.h	tt	HUD/UI	11	Code/wwui	include-fanout (1/1)	medium
+tt_4.8.4/tt/wwuiinput.h	tt	HUD/UI	95	Code/wwui	class-decl	high
+tt_4.8.4/ttinit/BandTest.cpp	ttinit	engine wrapper/API	1877	Code/BandTest	basename	high
+tt_4.8.4/ttinit/BandTest.h	ttinit	engine wrapper/API	95	Code/BandTest	basename	high
+tt_4.8.4/ttinit/DX8Caps.cpp	ttinit	render/shader integration	706	Code/ww3d2	class-decl (paired header)	high
+tt_4.8.4/ttinit/DX8Caps.h	ttinit	render/shader integration	70	Code/ww3d2	class-decl	high
+tt_4.8.4/ttinit/General.cpp	ttinit	utility	1	Code/wwlib	paired-file (include-fanout)	low
+tt_4.8.4/ttinit/General.h	ttinit	utility	9	Code/wwlib	include-fanout (1/2)	low
+tt_4.8.4/ttinit/LoggingFileFactoryClass.cpp	ttinit	utility	7	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/ttinit/LoggingFileFactoryClass.h	ttinit	utility	10	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	ttinit	binary hook/patch	871	Code/wwnet	class-decl (paired header)	high
+tt_4.8.4/ttinit/PacketManagerClass.h	ttinit	network extension	269	Code/wwnet	class-decl	high
+tt_4.8.4/ttinit/StrippingFileFactoryClass.cpp	ttinit	utility	9	Code/wwlib	paired-file (include-fanout)	medium
+tt_4.8.4/ttinit/StrippingFileFactoryClass.h	ttinit	utility	10	Code/wwlib	include-fanout (1/1)	medium
+tt_4.8.4/ttinit/_globals.h	ttinit	engine wrapper/API	89	Code/Commando	basename	high
+tt_4.8.4/ttinit/cNetwork.ttinit.cpp	ttinit	utility	125	Code/Commando	include-fanout (1/2)	low
+tt_4.8.4/ttinit/d3d8caps.h	ttinit	utility	364	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	per-file	high
+tt_4.8.4/ttinit/init.cpp	ttinit	engine wrapper/API	57	Code/Commando	basename	high
+tt_4.8.4/ttinit/resource.h	ttinit	engine wrapper/API	15	Code/Commando	basename	high
+tt_4.8.4/ttinit/shaderhooks.cpp	ttinit	binary hook/patch	208	EXCLUDED: directive 0.6 (D3D8-to-D3D9 layer, not imported)	per-file	high
+tt_4.8.4/ttinit/specialbuilds.h	ttinit	engine wrapper/API	146	Code/Combat	basename	high
+tt_4.8.4/ttinit/ttinit.cpp	ttinit	binary hook/patch	425	DROP: directive 0.4 (injector/bootstrap architecture discarded)	per-file	high
+tt_4.8.4/ttle/General.cpp	ttle	editor/LevelEdit	1	Code/Tools/LevelEdit	area-rule	high
+tt_4.8.4/ttle/General.h	ttle	editor/LevelEdit	7	Code/Tools/LevelEdit	area-rule	high
+tt_4.8.4/ttle/parameter.cpp	ttle	editor/LevelEdit	1034	Code/Tools/LevelEdit	area-rule	high
+tt_4.8.4/ttle/resource.h	ttle	editor/LevelEdit	15	Code/Tools/LevelEdit	area-rule	high
+tt_4.8.4/wwconfig/general.cpp	wwconfig	installer/deployment	1	Code/Tools/WWConfig	area-rule	high
+tt_4.8.4/wwconfig/general.h	wwconfig	installer/deployment	13	Code/Tools/WWConfig	area-rule	high
+tt_4.8.4/wwconfig/mss32.h	wwconfig	installer/deployment	16	Code/Tools/WWConfig	area-rule	high
+tt_4.8.4/wwconfig/resource.h	wwconfig	installer/deployment	77	Code/Tools/WWConfig	area-rule	high
+tt_4.8.4/wwconfig/wwaudio.cpp	wwconfig	installer/deployment	148	Code/Tools/WWConfig	area-rule	high
+tt_4.8.4/wwconfig/wwconfig.cpp	wwconfig	installer/deployment	898	Code/Tools/WWConfig	area-rule	high
