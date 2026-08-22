@@ -24,7 +24,7 @@ tt_4.8.4/tt/tt.cpp	977	WriteJump	0x004015C6	DoCombatKeyboard	custom keyboard key
 tt_4.8.4/tt/tt.cpp	978	WriteNop	0x0043C21F		nop out WWPhys::Shutdown call	Code/wwphys/wwphys.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	980	WriteMemory	0x004B488C		emoticons fix	Code/Combat/messagewindow.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	983	WriteJump	0x006EF6C0	Enable_Radar_Patch	radar fix	Code/Combat/radar.cpp	manual: radar enable state	medium
-tt_4.8.4/tt/tt.cpp	984	WriteCall	0x0047F899	Building_Msg_Check	purchase terminal "building" message change	Code/Commando/dlgcncpurchasemenu.cpp	manual: PT "building"/unavailable message text	medium
+tt_4.8.4/tt/tt.cpp	984	WriteCall	0x0047F899	Building_Msg_Check	"purchase terminal ""building"" message change"	Code/Commando/dlgcncpurchasemenu.cpp	"manual: PT ""building""/unavailable message text"	medium
 tt_4.8.4/tt/tt.cpp	986	WriteMemory	0x00481D1F		dead powerplant 2x cost message change	Code/Combat/basecontroller.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	987	WriteVtable2	0x007D51DC	OptionsDlg::New_Start_Dialog	options dialog hook	Code/wwui/menudialog.cpp	manual: options dialog start	medium
 tt_4.8.4/tt/tt.cpp	988	WriteVtable2	0x007D5200	OptionsDlg::New_On_Command	options dialog hook	Code/wwui/menudialog.cpp	manual: options dialog command	medium
@@ -130,8 +130,8 @@ tt_4.8.4/tt/tt.cpp	1130	WriteNop	0x00434C59		stop FDS from loading at startup	Co
 tt_4.8.4/tt/tt.cpp	1131	WriteJump	0x0043911C,0x00439232		Do not load all .mix files at startup	Code/Commando/gameinitmgr.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	1165	WriteMemory	0x00481D2E		dead powerplant 2x cost disable	Code/Combat/basecontroller.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	1166	WriteMemory	0x0047EEA6		dead powerplant 2x cost disable	Code/Combat/basecontroller.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1174	WriteMemory	0x0062D019		make vehicles not die when they flip over	Code/wwphys/vehiclephys.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1178	WriteMemory	0x0062C8B9		make vehicles not die when they flip over	Code/wwphys/vehiclephys.cpp	byte-patch by intent	low
+tt_4.8.4/tt/tt.cpp	1174	WriteMemory	0x0062D019		make vehicles not die when they flip over	Code/wwphys/vehiclephys.cpp	disassembly of stock Game.exe: VehiclePhysClass::Timestep expire branch	high
+tt_4.8.4/tt/tt.cpp	1178	WriteMemory	0x0062C8B9		make vehicles not die when they flip over	Code/wwphys/vehiclephys.cpp	disassembly of stock Game.exe: VehiclePhysClass::Timestep expire branch	high
 tt_4.8.4/tt/tt.cpp	1183	hookNop	0x004261E2,0x004261E2		remove MSG console command	Code/Commando/consolefunction.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	1186	hookAsCall	0x00670A13,0x006702B3	DoUnloadLevel	unload level hook	Code/Combat/combat.cpp	manual: level unload	medium
 tt_4.8.4/tt/tt.cpp	1187	WriteMemory			disable cDonateEvent	Code/Commando/donateevent.cpp	byte-patch by intent	low
@@ -174,9 +174,9 @@ tt_4.8.4/tt/tt.cpp	1226	hookAsJump	0x006F3F60,0x006F3520	WeaponBagClass::Select_
 tt_4.8.4/tt/tt.cpp	1227	hookAsJump	0x006A2570,0x006A1E10	SpawnManager::Get_Multiplayer_Spawn_Location	randomize spawning points	Code/Combat/spawn.cpp:866	exact-def	high
 tt_4.8.4/tt/tt.cpp	1228	hookAsJump	0x0069EDD0,0x0069E670	SmartGameObj::Export_Frequent	send stealth state over the network	Code/Combat/smartgameobj.cpp:486	exact-def	high
 tt_4.8.4/tt/tt.cpp	1229	hookAsJump	0x0069ED60,0x0069E600	SmartGameObj::Import_Frequent	send stealth state over the network	Code/Combat/smartgameobj.cpp:452	exact-def	high
-tt_4.8.4/tt/tt.cpp	1230	hookAsCall	0x0060796A,0x0060720A	Bluehell_Fix	bluehell fix	Code/wwphys/pscene.cpp	manual: out-of-world ("blue hell") recovery	medium
-tt_4.8.4/tt/tt.cpp	1231	hookAsCall	0x00607B45,0x006073E5	Bluehell_Fix	bluehell fix	Code/wwphys/pscene.cpp	manual: out-of-world ("blue hell") recovery	medium
-tt_4.8.4/tt/tt.cpp	1232	hookAsCall	0x00607D25,0x006075C5	Bluehell_Fix	bluehell fix	Code/wwphys/pscene.cpp	manual: out-of-world ("blue hell") recovery	medium
+tt_4.8.4/tt/tt.cpp	1230	hookAsCall	0x0060796A,0x0060720A	Bluehell_Fix	bluehell fix	Code/wwphys/pscene.cpp	"manual: out-of-world (""blue hell"") recovery"	medium
+tt_4.8.4/tt/tt.cpp	1231	hookAsCall	0x00607B45,0x006073E5	Bluehell_Fix	bluehell fix	Code/wwphys/pscene.cpp	"manual: out-of-world (""blue hell"") recovery"	medium
+tt_4.8.4/tt/tt.cpp	1232	hookAsCall	0x00607D25,0x006075C5	Bluehell_Fix	bluehell fix	Code/wwphys/pscene.cpp	"manual: out-of-world (""blue hell"") recovery"	medium
 tt_4.8.4/tt/tt.cpp	1233	typedHookAsJump	0x006EF730,0x006EECF0	BaseControllerClass::Distribute_Funds_To_Each_Teammate	fix distributing of cash	Code/Combat/basecontroller.cpp:748	exact-def	high
 tt_4.8.4/tt/tt.cpp	1234	hookAsJump	0x004BB530,0x004BAD30	cWinEvent::Init	join after server is gameovered fix	Code/Commando/winevent.cpp:73	exact-def	high
 tt_4.8.4/tt/tt.cpp	1235	hookAsJump	0x006EE210,0x006ED7D0	VehicleFactoryGameObj::Destroy_Blocking_Objects	weapons factory construction zone fix	Code/Combat/vehiclefactorygameobj.cpp:634	exact-def	high
@@ -531,79 +531,79 @@ tt_4.8.4/tt/tt.cpp	1756	hookAsJump	0x006EAA40,0x006EA240	BackgroundMgrClass::Sav
 tt_4.8.4/tt/tt.cpp	1757	hookAsJump	0x006EB530,0x006EAD50	BackgroundMgrClass::Load_Dynamic	weather hooks	Code/Combat/backgroundmgr.cpp:3943	exact-def	high
 tt_4.8.4/tt/tt.cpp	1759	hookAsJump	0x00460220,0x0045FCB0	cDiagnostics::Render		Code/Commando/diagnostics.cpp:156	exact-def	high
 tt_4.8.4/tt/tt.cpp	1761	hookAsJump	0x007434A0,0x00742D40	RefineryGameObj::Think		Code/Combat/refinerygameobj.cpp:517	exact-def	high
-tt_4.8.4/tt/tt.cpp	1810	WriteMemory			UDP fixes	Code/wwnet/connect.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1811	WriteMemory			UDP fixes	Code/wwnet/connect.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1812	WriteMemory			UDP fixes	Code/wwnet/connect.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1813	WriteMemory			UDP fixes	Code/wwnet/connect.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1814	WriteMemory			UDP fixes	Code/wwnet/connect.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1815	WriteMemory			UDP fixes	Code/wwnet/connect.cpp	byte-patch by intent	low
+tt_4.8.4/tt/tt.cpp	1810	WriteMemory			UDP fixes	Code/Commando/natsock.cpp;Code/SControl/servercontrolsocket.cpp;Code/wwnet/netutil.cpp	disassembly of stock Game.exe: recvfrom length check, see NativeEventDispatch.md 5.4	high
+tt_4.8.4/tt/tt.cpp	1811	WriteMemory			UDP fixes	Code/Commando/natsock.cpp;Code/SControl/servercontrolsocket.cpp;Code/wwnet/netutil.cpp	disassembly of stock Game.exe: recvfrom length check, see NativeEventDispatch.md 5.4	high
+tt_4.8.4/tt/tt.cpp	1812	WriteMemory			UDP fixes	Code/Commando/natsock.cpp;Code/SControl/servercontrolsocket.cpp;Code/wwnet/netutil.cpp	disassembly of stock Game.exe: recvfrom length check, see NativeEventDispatch.md 5.4	high
+tt_4.8.4/tt/tt.cpp	1813	WriteMemory			UDP fixes	Code/Commando/natsock.cpp;Code/SControl/servercontrolsocket.cpp;Code/wwnet/netutil.cpp	disassembly of stock Game.exe: recvfrom length check, see NativeEventDispatch.md 5.4	high
+tt_4.8.4/tt/tt.cpp	1814	WriteMemory			UDP fixes	Code/Commando/natsock.cpp;Code/SControl/servercontrolsocket.cpp;Code/wwnet/netutil.cpp	disassembly of stock Game.exe: recvfrom length check, see NativeEventDispatch.md 5.4	high
+tt_4.8.4/tt/tt.cpp	1815	WriteMemory			UDP fixes	Code/Commando/natsock.cpp;Code/SControl/servercontrolsocket.cpp;Code/wwnet/netutil.cpp	disassembly of stock Game.exe: recvfrom length check, see NativeEventDispatch.md 5.4	high
 tt_4.8.4/tt/tt.cpp	1818	hookAsCall	0x0073F22D,0x0073EACD	VehicleOwnershipPatch	vehicle ownership disable	Code/Combat/vehiclefactorygameobj.cpp	manual: vehicle ownership enforcement	medium
 tt_4.8.4/tt/tt.cpp	1821	WriteMemory			start button bug fix	Code/Commando/dlgmplanhostoptions.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	1822	hookAsCall	0x00678463,0x00677D03	VehicleGameObj::ConInit	vehicle game obj visible change	Code/Combat/vehicle.h:146	class-only: TT adds method ConInit	medium
 tt_4.8.4/tt/tt.cpp	1823	hookVtable	0x007E2988,0x007E1970	VehicleGameObj::Is_Visible	vehicle game obj visible change	Code/Combat/vehicle.h:146	class-only: TT adds method Is_Visible	medium
-tt_4.8.4/tt/tt.cpp	1825	WriteMemory			wall lag fix	Code/wwphys/humanphys.cpp	byte-patch by intent	low
+tt_4.8.4/tt/tt.cpp	1825	WriteMemory			wall lag fix	Code/wwphys/phys3.cpp	disassembly of stock Game.exe: 1.01f slide scale at 0x0065B32A	high
 tt_4.8.4/tt/tt.cpp	1826	hookAsJump	0x006A1620,0x006A0EC0	SpawnerClass::Determine_Spawn_TM	spawner randomness fix	Code/Combat/spawn.cpp:454	exact-def	high
 tt_4.8.4/tt/tt.cpp	1827	hookAsJump	0x00435B00,0x00435BA0	ConsoleModeClass::Print	console hooks	Code/Commando/ConsoleMode.cpp:317	exact-def	high
 tt_4.8.4/tt/tt.cpp	1828	hookAsJump	0x00435C70,0x00435D10	ConsoleModeClass::Print_Maybe	console hooks	Code/Commando/ConsoleMode.cpp:354	exact-def	high
 tt_4.8.4/tt/tt.cpp	1829	hookAsJump	0x00436550,0x004365F0	ConsoleModeClass::Add_Message	console hooks	Code/Commando/ConsoleMode.cpp:753	exact-def	high
 tt_4.8.4/tt/tt.cpp	1830	hookAsJump	0x00409880,0x00409880	InputConfigMgrClass::Delete_Configuration	input hooks	Code/Commando/inputconfigmgr.cpp:234;Code/Commando/inputconfigmgr.cpp:285	exact-def	high
-tt_4.8.4/ttinit/PacketManagerClass.cpp	792	WriteMemory	0x0040345A			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	793	WriteMemory	0x00404927			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	794	WriteMemory	0x00404F7C			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	795	WriteMemory	0x00404FF0			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	796	WriteMemory	0x004050B6			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	797	WriteMemory	0x00426E8C			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	798	WriteMemory	0x00426FEC			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	799	WriteMemory	0x00456CEF			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	800	WriteMemory	0x00457FC9			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	801	WriteMemory	0x004586CD			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	802	WriteMemory	0x00458EB3			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	803	WriteMemory	0x004602CE			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	804	WriteMemory	0x004602ED			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	805	WriteMemory	0x0046CF28			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	806	WriteMemory	0x0046CF34			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	807	WriteMemory	0x0046D0CD			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	808	WriteMemory	0x006194E0			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	809	WriteMemory	0x006194F0			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	810	WriteMemory	0x0061969D			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	811	WriteMemory	0x006196B1			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	812	WriteMemory	0x0061988E			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	813	WriteMemory	0x006198A2			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	814	WriteMemory	0x00619929			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	815	WriteMemory	0x0061ACCD			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	816	WriteMemory	0x0061B5C0			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	817	WriteMemory	0x0061DECB			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	818	WriteMemory	0x00620DFC			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	819	WriteMemory	0x006211EA			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	822	WriteMemory	0x007F4704			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	829	WriteMemory	0x0040345A			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	830	WriteMemory	0x00404927			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	831	WriteMemory	0x00404F7C			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	832	WriteMemory	0x00404FF0			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	833	WriteMemory	0x004050B6			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	834	WriteMemory	0x00426E8C			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	835	WriteMemory	0x00426FEC			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	836	WriteMemory	0x00457A79			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	837	WriteMemory	0x0045815D			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	838	WriteMemory	0x00458943			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	839	WriteMemory	0x0045FDC8			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	840	WriteMemory	0x0045FDE7			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	841	WriteMemory	0x0046C858			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	842	WriteMemory	0x0046C864			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	843	WriteMemory	0x0046C9FD			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	844	WriteMemory	0x00618D80			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	845	WriteMemory	0x00618D90			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	846	WriteMemory	0x00618F3D			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	847	WriteMemory	0x00618F51			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	848	WriteMemory	0x0061912E			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	849	WriteMemory	0x00619142			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	850	WriteMemory	0x006191C9			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	851	WriteMemory	0x0061A56D			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	852	WriteMemory	0x0061AE60			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	853	WriteMemory	0x0061D76B			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	854	WriteMemory	0x0062069C			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	855	WriteMemory	0x00620A8A			Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
-tt_4.8.4/ttinit/PacketManagerClass.cpp	858	WriteMemory	0x007F3704		Disable static constructor	Code/wwnet/packetmgr.cpp	byte-patch cluster: singleton-redirect: every stock "mov ecx, PacketManager" repointed at TT PacketManager()	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	792	WriteMemory	0x0040345A			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	793	WriteMemory	0x00404927			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	794	WriteMemory	0x00404F7C			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	795	WriteMemory	0x00404FF0			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	796	WriteMemory	0x004050B6			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	797	WriteMemory	0x00426E8C			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	798	WriteMemory	0x00426FEC			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	799	WriteMemory	0x00456CEF			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	800	WriteMemory	0x00457FC9			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	801	WriteMemory	0x004586CD			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	802	WriteMemory	0x00458EB3			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	803	WriteMemory	0x004602CE			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	804	WriteMemory	0x004602ED			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	805	WriteMemory	0x0046CF28			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	806	WriteMemory	0x0046CF34			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	807	WriteMemory	0x0046D0CD			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	808	WriteMemory	0x006194E0			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	809	WriteMemory	0x006194F0			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	810	WriteMemory	0x0061969D			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	811	WriteMemory	0x006196B1			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	812	WriteMemory	0x0061988E			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	813	WriteMemory	0x006198A2			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	814	WriteMemory	0x00619929			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	815	WriteMemory	0x0061ACCD			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	816	WriteMemory	0x0061B5C0			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	817	WriteMemory	0x0061DECB			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	818	WriteMemory	0x00620DFC			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	819	WriteMemory	0x006211EA			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	822	WriteMemory	0x007F4704			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	829	WriteMemory	0x0040345A			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	830	WriteMemory	0x00404927			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	831	WriteMemory	0x00404F7C			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	832	WriteMemory	0x00404FF0			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	833	WriteMemory	0x004050B6			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	834	WriteMemory	0x00426E8C			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	835	WriteMemory	0x00426FEC			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	836	WriteMemory	0x00457A79			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	837	WriteMemory	0x0045815D			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	838	WriteMemory	0x00458943			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	839	WriteMemory	0x0045FDC8			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	840	WriteMemory	0x0045FDE7			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	841	WriteMemory	0x0046C858			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	842	WriteMemory	0x0046C864			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	843	WriteMemory	0x0046C9FD			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	844	WriteMemory	0x00618D80			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	845	WriteMemory	0x00618D90			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	846	WriteMemory	0x00618F3D			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	847	WriteMemory	0x00618F51			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	848	WriteMemory	0x0061912E			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	849	WriteMemory	0x00619142			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	850	WriteMemory	0x006191C9			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	851	WriteMemory	0x0061A56D			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	852	WriteMemory	0x0061AE60			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	853	WriteMemory	0x0061D76B			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	854	WriteMemory	0x0062069C			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	855	WriteMemory	0x00620A8A			Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
+tt_4.8.4/ttinit/PacketManagerClass.cpp	858	WriteMemory	0x007F3704		Disable static constructor	Code/wwnet/packetmgr.cpp	"byte-patch cluster: singleton-redirect: every stock ""mov ecx, PacketManager"" repointed at TT PacketManager()"	medium
 tt_4.8.4/ttinit/shaderhooks.cpp	76	hookAsJump	0x00529B50,0x00000000	WW3D::Set_Texture_Filter	hook WW3D::Create_Texture_Filter		EXCLUDED: D3D8 shader layer (directive 0.6)	none
 tt_4.8.4/ttinit/shaderhooks.cpp	79	WriteMemory	0x00644854		hooks to make all vertex buffers use vertex declarations		EXCLUDED: D3D8 shader layer (directive 0.6)	none
 tt_4.8.4/ttinit/shaderhooks.cpp	80	WriteCall	0x00644854	Vertex_Buffer_Allocate	hooks to make all vertex buffers use vertex declarations		EXCLUDED: D3D8 shader layer (directive 0.6)	none

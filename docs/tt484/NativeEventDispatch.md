@@ -293,7 +293,44 @@ its master server is gone, so the three have no native destination.
   ini option, so it is a TT feature toggle rather than a fix. Deferred with the
   rest of the vehicle-ownership work.
 
-### 5.6 Still open
+### 5.6 Byte-patch triage
+
+Every byte-patch row in `TTHookSites.tsv` (135 with an address: 100
+`WriteMemory`, 27 `WriteNop`, 12 `WriteJump`, and the rest) was disassembled in
+one pass against the stock image. 124 land inside a function. The categories:
+
+| Category | Sites | Disposition |
+| --- | --- | --- |
+| `PacketManager` singleton redirect (`mov ecx, offset unk_854708`) | ~28 | already merged in 5.1 |
+| `cConnection`/`cRemoteHost` region, no intent comment | ~15 | already merged in 5.2 |
+| `recvfrom` length checks (`UDP fixes`) | 6 | merged, 5.4 |
+| Renderer/shader hooks — vertex declarations, `SetTransform`, `CreateIndexBuffer` | ~6 | out of scope, directive 0.6 |
+| TT subsystem wiring — weather manager, screenshot, custom keys, RenLogMon, `disable OverlayGameModeClass`, `remove call to X::Initialize` | ~20 | **declined**: installs TT's own subsystems, not a stock behaviour to merge |
+| Purchase terminal — `new unpurchasable logic` (10), `PT keypress fix` (2), `PT chatbox fix`, `enable secret PT pages` (2), `"building" message change` | 16 | open, directive 0.9, highest behavioural risk |
+| Remaining discrete gameplay/UI fixes | ~25 | open, see below |
+
+Two matrix guesses were wrong and are corrected in the TSV: `UDP fixes` was
+attributed to `Code/wwnet/connect.cpp` (real owners in 5.4) and `wall lag fix`
+to `Code/wwphys/humanphys.cpp` (real owner `phys3.cpp`).
+
+**Declined with reason.** `Do not load all .mix files at startup`
+(`WriteJump(0x0043907C, 0x00439192)`) does not trim the `data/*.mix` scan — it
+jumps over the whole file-factory mount block, `Always2.dat`, `Always.dbs`,
+`Always.dat` and the scan alike, because TT substitutes its own VFS. That is TT
+infrastructure, not a fix to the stock path, and OpenW3D keeps its own file
+factory (`Code/Commando/init.cpp:766-791`).
+
+**Merged from this pass.** `make vehicles not die when they flip over`
+(`0x0062D019`, `jz` → `jmp`): the rolled-over countdown in
+`VehiclePhysClass::Timestep` is removed along with `ExpireTimer` and
+`EXPIRE_SECONDS`, which had no other reader. A vehicle resting upside down no
+longer destroys itself after four seconds.
+
+To regenerate the raw windows, run the batch dump over `Game.exe` with the
+headless IDA session wrapper; the address column of `TTHookSites.tsv` is the
+input and only the first address of each pair is game-side.
+
+### 5.7 Still open
 
 The `wwnet` remainder, then `Commando/cnetwork.cpp` (32), then the purchase
 terminal, combat objects and UI per section 4.
