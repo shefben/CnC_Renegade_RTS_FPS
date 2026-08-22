@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "beacongameobj.h"
+#include "ttsettings.h"
 #include "debug.h"
 #include "phys.h"
 #include "combat.h"
@@ -775,12 +776,16 @@ BeaconGameObj::Set_State (int state)
 					// switch to pre detonate weather
 					Debug_Say(( "Pre-Detonate weather override\n" ));
 					if ( is_nuke ) {
-						BackgroundMgrClass::Override_Sky_Tint ( 0.8f, DetonateTimer/2 );
-						WeatherMgrClass::Override_Wind (0, 3, 1, DetonateTimer/2 );
+						if (TTSettingsClass::NukeWeatherDisable == false) {
+							BackgroundMgrClass::Override_Sky_Tint ( 0.8f, DetonateTimer/2 );
+							WeatherMgrClass::Override_Wind (0, 3, 1, DetonateTimer/2 );
+						}
 					} else {
-						BackgroundMgrClass::Override_Clouds(1.0f, 1.0f, DetonateTimer/2);
-						BackgroundMgrClass::Override_Lightning( 0.8f, 0.2f, 0.8f, 0, 1.0f, DetonateTimer/2);
-						WeatherMgrClass::Override_Precipitation (WeatherMgrClass::PRECIPITATION_RAIN, 2.0f, DetonateTimer/2);
+						if (TTSettingsClass::IonWeatherDisable == false) {
+							BackgroundMgrClass::Override_Clouds(1.0f, 1.0f, DetonateTimer/2);
+							BackgroundMgrClass::Override_Lightning( 0.8f, 0.2f, 0.8f, 0, 1.0f, DetonateTimer/2);
+							WeatherMgrClass::Override_Precipitation (WeatherMgrClass::PRECIPITATION_RAIN, 2.0f, DetonateTimer/2);
+						}
 					}
 				}
 
@@ -807,12 +812,16 @@ BeaconGameObj::Set_State (int state)
 				// cancel weather override
 				Debug_Say(( "Cancelling weather override\n" ));
 				if ( is_nuke ) {
-					BackgroundMgrClass::Restore_Sky_Tint ( 5 );
-					WeatherMgrClass::Restore_Wind( 5 );
+					if (TTSettingsClass::NukeWeatherDisable == false) {
+						BackgroundMgrClass::Restore_Sky_Tint ( 5 );
+						WeatherMgrClass::Restore_Wind( 5 );
+					}
 				} else {
-					BackgroundMgrClass::Restore_Clouds( 5 );
-					BackgroundMgrClass::Restore_Lightning( 5 );
-					WeatherMgrClass::Restore_Precipitation( 5 );
+					if (TTSettingsClass::IonWeatherDisable == false) {
+						BackgroundMgrClass::Restore_Clouds( 5 );
+						BackgroundMgrClass::Restore_Lightning( 5 );
+						WeatherMgrClass::Restore_Precipitation( 5 );
+					}
 				}
 			}
 
@@ -851,7 +860,7 @@ BeaconGameObj::Set_State (int state)
 				// switch to post detonate weather
 				Debug_Say(( "Post-Detonate weather override\n" ));
 
-				if ( is_nuke ) {
+				if ( is_nuke && TTSettingsClass::NukeWeatherDisable == false ) {
 					WeatherMgrClass::Override_Precipitation (WeatherMgrClass::PRECIPITATION_ASH, 0.3f);
 				}
 
@@ -932,10 +941,15 @@ BeaconGameObj::Update_State (void)
 
 		case STATE_ARMING: {
 			//
-			//	Update the action bar in the HUD
+			//	Update the action bar in the HUD -- for our own beacon only.
+			//	Start_Owner_Animation already only raises the bar for the star;
+			//	without the same test here, anyone else arming a beacon anywhere
+			//	on the map drove the local player's bar.
 			//
-			float percent = (1.0F - StateTimer / Get_Definition ().ArmTime);
-			HUDInfo::Set_Action_Status_Value (percent);
+			if (Get_Owner () == COMBAT_STAR) {
+				float percent = (1.0F - StateTimer / Get_Definition ().ArmTime);
+				HUDInfo::Set_Action_Status_Value (percent);
+			}
 
 			//
 			//	Did the player successfully arm the beacon?
@@ -988,13 +1002,17 @@ BeaconGameObj::Update_State (void)
 
 					bool is_nuke = !!Get_Definition().IsNuke;
 					if ( is_nuke ) {
-						BackgroundMgrClass::Restore_Sky_Tint ( 5 );
-						WeatherMgrClass::Restore_Wind( 5 );
-						WeatherMgrClass::Restore_Precipitation( 5 );
+						if (TTSettingsClass::NukeWeatherDisable == false) {
+							BackgroundMgrClass::Restore_Sky_Tint ( 5 );
+							WeatherMgrClass::Restore_Wind( 5 );
+							WeatherMgrClass::Restore_Precipitation( 5 );
+						}
 					} else {
-						BackgroundMgrClass::Restore_Clouds( 5 );
-						BackgroundMgrClass::Restore_Lightning( 5 );
-						WeatherMgrClass::Restore_Precipitation( 5 );
+						if (TTSettingsClass::IonWeatherDisable == false) {
+							BackgroundMgrClass::Restore_Clouds( 5 );
+							BackgroundMgrClass::Restore_Lightning( 5 );
+							WeatherMgrClass::Restore_Precipitation( 5 );
+						}
 					}
 				}
 
@@ -1317,7 +1335,12 @@ BeaconGameObj::Get_Owner (void)
 void
 BeaconGameObj::Completely_Damaged (const OffenseObjectClass &/* damager */)
 {
-	if (!Is_Delete_Pending()) {
+	//
+	//	A beacon that has already detonated is not disarmed by being shot; going
+	//	back to STATE_DISARMED here would replay its message and its weather
+	//	restore after the fact.
+	//
+	if (!Is_Delete_Pending() && State != STATE_DETONATING) {
 		Set_State (STATE_DISARMED);
 		Set_Delete_Pending ();
 	}

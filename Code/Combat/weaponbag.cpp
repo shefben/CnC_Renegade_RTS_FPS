@@ -160,11 +160,38 @@ bool	WeaponBagClass::Is_Ammo_Full( int weapon_id )
 void	WeaponBagClass::Remove_Weapon( int index )
 {
 	//
-	//	Simply destroy the weapon if its in our list
+	//	Slot 0 is the "no weapon" slot and is never removed.
 	//
-	if ( index >= 0 && index < WeaponList.Count() ) {
-		delete	WeaponList[index];
-		WeaponList.Delete( index );
+	if ( index <= 0 || index >= WeaponList.Count() ) {
+		return ;
+	}
+
+	//
+	//	Work out where the selection lands before the list shifts under it.
+	//	Deleting an entry moves everything after it down a slot, so a selection
+	//	past the removed one is off by one, and a selection *on* it has to move
+	//	to a neighbour -- or to the end of the list if it was the last weapon.
+	//
+	int new_index = 0;
+
+	if ( index < WeaponIndex ) {
+		new_index = WeaponIndex - 1;
+	} else if ( index == WeaponIndex && WeaponList.Count() > 2 ) {
+		new_index = ( index == WeaponList.Count() - 1 ) ? 1 : WeaponIndex;
+	}
+
+	//
+	//	Deselect through Select_Index so the weapon being taken away gets its
+	//	Deselect(), and so the owner is marked dirty.
+	//
+	Select_Index( 0 );
+
+	WeaponClass * weapon = WeaponList[index];
+	WeaponList.Delete( index );
+	delete weapon;
+
+	if ( new_index != 0 ) {
+		Select_Index( new_index );
 	}
 
 	return ;
@@ -275,14 +302,35 @@ WeaponClass	*	WeaponBagClass::Get_Next_Weapon( void )
 	return nullptr;
 }
 
+//
+//	Is this weapon worth cycling onto?  Owning it is not enough -- an owned
+//	weapon with no rounds left cannot be fired, and stopping on it just means
+//	the player presses the key again.  A weapon with no clip at all is how the
+//	melee and infinite-ammo weapons are described, and those always read as
+//	empty, so they are exempt.
+//
+bool	WeaponBagClass::Is_Weapon_Selectable( int index ) const
+{
+	WeaponClass * weapon = WeaponList[ index ];
+
+	if ( weapon == nullptr || weapon->Does_Weapon_Exist() == false ) {
+		return false;
+	}
+
+	if ( (int)weapon->Get_Definition()->ClipSize > 0 && weapon->Get_Total_Rounds() == 0 ) {
+		return false;
+	}
+
+	return true;
+}
+
 void	WeaponBagClass::Select_Next( void )
 {
 	// Find the next existing weapons
 	for ( int i = 1; i < WeaponList.Count(); i++ ) {
 		int index = ( WeaponIndex + i ) % WeaponList.Count();
 		// BMG remove no weapon slot
-//		if ( WeaponList[ index ] == nullptr || WeaponList[ index ]->Does_Weapon_Exist() ) {
-		if ( WeaponList[ index ] != nullptr && WeaponList[ index ]->Does_Weapon_Exist() ) {
+		if ( Is_Weapon_Selectable( index ) ) {
 			Select_Index( index );
 			break;
 		}
@@ -295,8 +343,7 @@ void	WeaponBagClass::Select_Prev( void )
 	for ( int i = 1; i < WeaponList.Count(); i++ ) {
 		int index = ( WeaponIndex - i + WeaponList.Count()) % WeaponList.Count();
 		// BMG remove no weapon slot
-//		if ( WeaponList[ index ] == nullptr || WeaponList[ index ]->Does_Weapon_Exist() ) {
-		if ( WeaponList[ index ] != nullptr && WeaponList[ index ]->Does_Weapon_Exist() ) {
+		if ( Is_Weapon_Selectable( index ) ) {
 			Select_Index( index );
 			break;
 		}
@@ -397,21 +444,37 @@ void WeaponBagClass::Deselect( void )
 //-----------------------------------------------------------------------------
 void WeaponBagClass::Import_Weapon_List(BitStreamClass & packet)
 {
-	int weapon_count = packet.Get(weapon_count);
-	int weapon_id;
-	for (int weapon_num = 0; weapon_num < weapon_count; weapon_num++) {
-		weapon_id = packet.Get(weapon_id);
-		int total_rounds = packet.Get(total_rounds);
-		Add_Weapon(weapon_id, 0);
+	//
+	//	Read the whole list first.  What arrives is the bag as the server sees
+	//	it, not a list of additions, so anything we hold that is missing from it
+	//	has been taken away and has to go -- which is what this used to skip,
+	//	leaving removed weapons in the bag, selectable, forever.
+	//
+	DynamicVectorClass<int> weapon_ids;
+	DynamicVectorClass<int> round_counts;
 
-		WeaponClass * weapon = nullptr;
-		for( int i = 1; i < WeaponList.Count(); i++ ) {
-			if ( (int) WeaponList[i]->Get_Definition()->Get_ID() == weapon_id ) {
-				weapon = WeaponList[i];
-			}
+	int weapon_count = packet.Get(weapon_count);
+
+	for (int weapon_num = 0; weapon_num < weapon_count; weapon_num++) {
+		int weapon_id = packet.Get(weapon_id);
+		int total_rounds = packet.Get(total_rounds);
+		weapon_ids.Add( weapon_id );
+		round_counts.Add( total_rounds );
+	}
+
+	//
+	//	Backwards, so the indices ahead of us stay put as entries are deleted.
+	//
+	for ( int i = WeaponList.Count() - 1; i > 0; i-- ) {
+		if ( weapon_ids.ID( (int)WeaponList[i]->Get_Definition()->Get_ID() ) == -1 ) {
+			Remove_Weapon( i );
 		}
+	}
+
+	for ( int i = 0; i < weapon_ids.Count(); i++ ) {
+		WeaponClass * weapon = Add_Weapon( weapon_ids[i], 0 );
 		if ( weapon != nullptr ) {
-			weapon->Set_Total_Rounds( total_rounds );
+			weapon->Set_Total_Rounds( round_counts[i] );
 		}
 	}
 }

@@ -76,6 +76,7 @@ public:
 	WeaponClass * 	Add_Weapon( int id, int rounds = 0, bool give_weapon = true );
 	WeaponClass * 	Add_Weapon( const char *weapon_name, int rounds = 0, bool give_weapon = true );
 	void				Remove_Weapon( int index );
+	bool				Is_Weapon_Selectable( int index ) const;
 
 	void				Clear_Weapons( void );
 
