@@ -54,6 +54,8 @@
 #include "waypath.h"
 #include "gameobjmanager.h"
 #include "mapmgr.h"
+#include "physinttest.h"
+#include "coltype.h"
 
 
 const float UNITIALIZED_TIMER		= -100.0F;

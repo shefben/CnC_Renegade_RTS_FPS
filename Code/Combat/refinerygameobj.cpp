@@ -755,7 +755,6 @@ RefineryGameObj::Set_Harvester_Vehicle (VehicleGameObj *harvester)
 	Harvester->Set_Dock_Location (dock_location);
 	Harvester->Set_Dock_Entrance (dock_entrance);
 	Harvester->Set_Tiberium_Region (TiberiumField);
-	Harvester->Set_Harvest_Anim ("V_NOD_HARVESTER.V_NOD_HARVESTER");
 	harvester->Add_Observer (Harvester);
 	Harvester->Initialize ();
 	return ;

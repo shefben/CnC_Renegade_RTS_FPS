@@ -39,6 +39,10 @@
 #include "refinerygameobj.h"
 #include "animcontrol.h"
 #include "vehiclephys.h"
+#include "gameobjobserver.h"
+#include "htree.h"
+#include "rendobj.h"
+#include "phys.h"
 
 
 ////////////////////////////////////////////////////////////////
@@ -146,6 +150,14 @@ HarvesterClass::Go_Harvest (void)
 void
 HarvesterClass::Go_Unload_Tiberium (void)
 {
+	//
+	//	Thinking about unloading twice would issue the dock action twice, and
+	//	the second one restarts the approach from wherever the vehicle is.
+	//
+	if (Vehicle == nullptr || State == STATE_GOING_TO_UNLOAD) {
+		return ;
+	}
+
 	Play_Harvest_Animation (false);
 
 	//
@@ -176,8 +188,15 @@ HarvesterClass::Go_Unload_Tiberium (void)
 void
 HarvesterClass::Unload_Tiberium (void)
 {
-	Refinery->On_Harvester_Docked ();
+	//
+	//	...and docking twice would credit the team twice.
+	//
+	if (Refinery == nullptr || State == STATE_UNLOADING) {
+		return ;
+	}
+
 	State = STATE_UNLOADING;
+	Refinery->On_Harvester_Docked ();
 	return ;
 }
 
@@ -190,6 +209,10 @@ HarvesterClass::Unload_Tiberium (void)
 void
 HarvesterClass::Harvest_Tiberium (void)
 {
+	if (Vehicle == nullptr) {
+		return ;
+	}
+
 	//
 	//	Reset the harvesting timer (if necessary)
 	//
@@ -203,6 +226,17 @@ HarvesterClass::Harvest_Tiberium (void)
 	//
 	State			= STATE_HARVESTING;
 	StateTimer	= WWMath::Random_Float (3.0F, 7.0F);
+
+	//
+	//	Every harvester's harvest animation is named after its own htree, and
+	//	the name is only knowable once there is a model.  It used to be set
+	//	once, to the Nod harvester's, so the GDI harvester's arms never moved.
+	//
+	RenderObjClass *model = Vehicle->Peek_Model ();
+	if (model != nullptr && model->Get_HTree () != nullptr) {
+		const char *htree_name = model->Get_HTree ()->Get_Name ();
+		HarvestAnimationName.Format ("%s.%s", htree_name, htree_name);
+	}
 
 	//
 	//	Start playing the harvest animation
@@ -244,7 +278,9 @@ HarvesterClass::Action_Complete
 				Harvest_Tiberium ();
 			}
 		} else if (action_id == ACTIONID_DOCK) {
-			Unload_Tiberium ();
+			if (State == STATE_GOING_TO_UNLOAD) {
+				Unload_Tiberium ();
+			}
 		}
 	}
 
@@ -308,6 +344,15 @@ HarvesterClass::Detach (GameObject * /*game_obj*/)
 	}
 
 	Vehicle = nullptr;
+
+	//
+	//	Nothing else owns this.  The refinery creates one per harvester and the
+	//	observer list only unhooks it, so without this every harvester that
+	//	died and was rebuilt left one behind.  Deleting through the manager
+	//	rather than here, because Detach is called from inside the walk over
+	//	the observer list.
+	//
+	GameObjObserverManager::Delete_Register (this);
 	return ;
 }
 
@@ -329,6 +374,7 @@ HarvesterClass::Think (void)
 		HarvestTimer -= TimeManager::Get_Frame_Seconds ();
 		if (HarvestTimer <= 0) {
 			Go_Unload_Tiberium ();
+			return ;
 		}
 	}
 

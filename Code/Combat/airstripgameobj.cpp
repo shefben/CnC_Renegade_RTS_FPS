@@ -623,7 +623,18 @@ AirStripGameObj::Think (void)
 void
 AirStripGameObj::Begin_Generation (void)
 {
-	CinematicStartTimer	= GenerationTime - Get_Definition ().CinematicLengthToDropOff;
+	//
+	//	The factory stops tracking this generation once the definition's total
+	//	building time is up, and everything that displays and delivers the
+	//	vehicle is gated on it still tracking.  A longer requested generation
+	//	time -- which is what a base with its power plant down gets -- used to
+	//	push the cinematic past that point and leave the vehicle hidden for
+	//	good, so the start is clamped to leave room for the drop.
+	//
+	const float drop_length	= Get_Definition ().CinematicLengthToDropOff;
+	const float latest_start	= Get_Definition ().Get_Total_Building_Time () - drop_length;
+
+	CinematicStartTimer	= WWMath::Min (GenerationTime - drop_length, latest_start);
 	IsCinematicStarted	= false;
 
 	//
