@@ -1006,6 +1006,13 @@ void PacketManagerClass::Disable_Optimizations(void)
 bool PacketManagerClass::Break_Packet(unsigned char *packet, int original_packet_size, unsigned char *ip_address, unsigned short port)
 {
 	/*
+	** Walk the chain of piggybacked blocks iteratively. This used to tail-recurse once per
+	** block, on a buffer supplied by whoever sent the datagram; a server with 2048 receive
+	** buffers would recurse that deep before the buffer count stopped it.
+	*/
+	while (original_packet_size >= (int)sizeof(PacketPackHeaderStruct)) {
+
+	/*
 	** Dereference a pointer to the packet header.
 	*/
 	PacketPackHeaderStruct *header = (PacketPackHeaderStruct*) packet;
@@ -1023,6 +1030,21 @@ bool PacketManagerClass::Break_Packet(unsigned char *packet, int original_packet
 	}
 	pm_assert(num_packets >= 1);
 	pm_assert(packet_size <= PACKET_MANAGER_MTU);
+
+	/*
+	** The block has to actually contain the base packet it claims to.
+	*/
+	if (packet_size + (int)sizeof(*header) > original_packet_size) {
+		WWDEBUG_SAY(("PacketManager - Packet decode error. Block claims %d bytes, %d remain\n", packet_size, original_packet_size));
+		return(false);
+	}
+
+	/*
+	** No room to hold it. The rest of the datagram is lost, by design.
+	*/
+	if (NumReceivePackets >= NumReceiveBuffers) {
+		return(true);
+	}
 
 	/*
 	** Get the first packet. This is needed as a reference for other delta packets.
@@ -1043,6 +1065,19 @@ bool PacketManagerClass::Break_Packet(unsigned char *packet, int original_packet
 	** Get the rest of the packets.
 	*/
 	for (int i=0 ; i<num_packets-1 ; i++) {
+
+		/*
+		** Both bounds have to hold before anything is written: a slot to decode into, and at
+		** least a delta header still inside the datagram to decode from.
+		*/
+		if (NumReceivePackets >= NumReceiveBuffers) {
+			break;
+		}
+		if ((int)(packet_ptr - packet) + (int)sizeof(PacketDeltaHeaderStruct) > original_packet_size) {
+			WWDEBUG_SAY(("*** WARNING: MALFORMED PACKET - PacketManagerClass::Break_Packet -- ran off the end\n"));
+			return(false);
+		}
+
 		PacketDeltaHeaderStruct * delta_header = (PacketDeltaHeaderStruct*) packet_ptr;
 
 		/*
@@ -1074,6 +1109,10 @@ bool PacketManagerClass::Break_Packet(unsigned char *packet, int original_packet
 			** Not a delta, just copy the whole thing.
 			*/
 			packet_ptr += sizeof(*delta_header);
+			if ((int)(packet_ptr - packet) + packet_size > original_packet_size) {
+				WWDEBUG_SAY(("*** WARNING: MALFORMED PACKET - PacketManagerClass::Break_Packet -- sub packet runs off the end\n"));
+				return(false);
+			}
 			memcpy(&ReceiveBuffers[NumReceivePackets].ReceiveHoldingBuffer[0], packet_ptr, packet_size);
 			ReceiveBuffers[NumReceivePackets].ReceivePacketLength = packet_size;
 			packet_ptr += packet_size;
@@ -1081,25 +1120,25 @@ bool PacketManagerClass::Break_Packet(unsigned char *packet, int original_packet
 			Register_Packet_In(ip_address, port, 0, packet_size + UDP_HEADER_SIZE);
 			//WWDEBUG_SAY(("Extracted secondary packet from metapacket - %d (+1) bytes\n", PacketLength));
 		}
-		if (NumReceivePackets >= PACKET_MANAGER_RECEIVE_BUFFERS) {
-			break;
-		}
 	}
 
-	int bytes_pulled_from_packet = packet_ptr - packet;
+	int bytes_pulled_from_packet = (int)(packet_ptr - packet);
 
 	/*
 	** More packets in this buffer?
 	*/
-	if (more_packets && NumReceivePackets < PACKET_MANAGER_RECEIVE_BUFFERS) {
-		if (!Break_Packet(packet_ptr, original_packet_size - bytes_pulled_from_packet, ip_address, port)) {
-			return(false);
-		}
+	if (!more_packets || NumReceivePackets >= NumReceiveBuffers) {
+		break;
 	}
+
+	original_packet_size -= bytes_pulled_from_packet;
+	packet = packet_ptr;
 
 	//if (NumReceivePackets > 20) {
 	//	WWDEBUG_SAY(("Sub packet broken into %d packets\n", NumReceivePackets));
 	//}
+
+	}
 
 	return(true);
 }
@@ -1167,6 +1206,18 @@ WWPROFILE("Pmgr Get");
 		if (result == 0 && bytes_available != 0) {
 
 			int bytes = wwnet::SocketRecvFrom(socket, (char*)packet_buffer, packet_buffer_size, 0, (sockaddr*)&addr, &address_size);
+
+			/*
+			** The datagram has to be at least large enough to hold the wrapper before we can
+			** subtract the wrapper from it, and no larger than a wrapped meta-packet can be.
+			** Anything else is not ours -- and a datagram shorter than the wrapper used to make
+			** the CRC length below negative.
+			*/
+			if (bytes > 0 && (bytes <= (int)sizeof(unsigned int) || bytes > PACKET_MANAGER_MTU + (int)sizeof(unsigned int))) {
+				WWDEBUG_SAY(("PMC::Get_Packet: discarding %d byte datagram from %s\n", bytes, Addr_As_String(&addr)));
+				bytes = 0;
+			}
+
 			if (bytes > 0) {
 #ifndef WRAPPER_CRC
 				Register_Packet_In((unsigned char*) &addr.sin_addr.s_addr, addr.sin_port, bytes + UDP_HEADER_SIZE, 0);
