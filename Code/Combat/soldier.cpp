@@ -339,7 +339,16 @@ SoldierGameObj::SoldierGameObj() :
 	HealingEffect( nullptr ),
 	ReloadingTilt(0),
 	WaterWake(nullptr),
-	WeaponChanged( false )
+	WeaponChanged( false ),
+	CanStealVehicles( true ),
+	CanDriveVehicles( true ),
+	BlockActionKey( false ),
+	Freeze( false ),
+	CanPlayDamageAnimations( true ),
+	OverrideMuzzleDirection( false ),
+	UseStockGhostBehavior( true ),
+	NetworkRescale( 1.0F ),
+	LastScale( 1.0F )
 {
 	// All Humans need a HuamnAnimControl
 	Set_Anim_Control( new HumanAnimControlClass );
@@ -621,7 +630,15 @@ enum	{
 	MICROCHUNKID_WEAPON_MODEL,
 	MICROCHUNKID_SPECIAL_DAMAGE_MODE,
 	MICROCHUNKID_SPECIAL_DAMAGE_TIMER,
-	MICROCHUNKID_IS_USING_GHOST_COLLISION
+	MICROCHUNKID_IS_USING_GHOST_COLLISION,
+	MICROCHUNKID_CAN_STEAL_VEHICLES,
+	MICROCHUNKID_CAN_DRIVE_VEHICLES,
+	MICROCHUNKID_BLOCK_ACTION_KEY,
+	MICROCHUNKID_FREEZE,
+	MICROCHUNKID_CAN_PLAY_DAMAGE_ANIMATIONS,
+	MICROCHUNKID_OVERRIDE_MUZZLE_DIRECTION,
+	MICROCHUNKID_NETWORK_RESCALE,
+	MICROCHUNKID_BOT_TAG
 };
 
 //------------------------------------------------------------------------------------
@@ -668,6 +685,14 @@ bool	SoldierGameObj::Save( ChunkSaveClass & csave )
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_AI_STATE, AIState );
 		WRITE_MICRO_CHUNK_PTR( csave, MICROCHUNKID_WEAPON_MODEL, WeaponRenderModel );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_IS_USING_GHOST_COLLISION, IsUsingGhostCollision );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_CAN_STEAL_VEHICLES, CanStealVehicles );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_CAN_DRIVE_VEHICLES, CanDriveVehicles );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_BLOCK_ACTION_KEY, BlockActionKey );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_FREEZE, Freeze );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_CAN_PLAY_DAMAGE_ANIMATIONS, CanPlayDamageAnimations );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_OVERRIDE_MUZZLE_DIRECTION, OverrideMuzzleDirection );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_NETWORK_RESCALE, NetworkRescale );
+		WRITE_MICRO_CHUNK_WIDESTRING( csave, MICROCHUNKID_BOT_TAG, BotTag );
 
 	csave.End_Chunk();
 
@@ -760,6 +785,14 @@ bool	SoldierGameObj::Load( ChunkLoadClass &cload )
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_AI_STATE, AIState );
 						READ_MICRO_CHUNK_PTR( cload, MICROCHUNKID_WEAPON_MODEL, WeaponRenderModel );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_IS_USING_GHOST_COLLISION, IsUsingGhostCollision );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_STEAL_VEHICLES, CanStealVehicles );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_DRIVE_VEHICLES, CanDriveVehicles );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_BLOCK_ACTION_KEY, BlockActionKey );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_FREEZE, Freeze );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_PLAY_DAMAGE_ANIMATIONS, CanPlayDamageAnimations );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_OVERRIDE_MUZZLE_DIRECTION, OverrideMuzzleDirection );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_NETWORK_RESCALE, NetworkRescale );
+						READ_MICRO_CHUNK_WIDESTRING( cload, MICROCHUNKID_BOT_TAG, BotTag );
 
 						default:
 							Debug_Say(( "Unrecognized Soldier Variable chunkID\n" ));
@@ -946,6 +979,18 @@ void	SoldierGameObj::Export_Rare( BitStreamClass &packet )
 	//
 	uint32 definition_id = Get_Definition ().Get_ID ();
 	packet.Add( definition_id );
+
+	//
+	//	Gameplay restrictions and presentation state the client has to agree on
+	//
+	packet.Add( CanStealVehicles );
+	packet.Add( CanDriveVehicles );
+	packet.Add( BlockActionKey );
+	packet.Add( Freeze );
+	packet.Add( CanPlayDamageAnimations );
+	packet.Add( OverrideMuzzleDirection );
+	packet.Add( NetworkRescale );
+	packet.Add_Wide_Terminated_String( BotTag.Peek_Buffer(), true );
 }
 
 
@@ -985,6 +1030,18 @@ void	SoldierGameObj::Import_Rare( BitStreamClass &packet )
 			Re_Init (*soldier_def);
 		}
 	}
+
+	packet.Get( CanStealVehicles );
+	packet.Get( CanDriveVehicles );
+	packet.Get( BlockActionKey );
+	packet.Get( Freeze );
+	packet.Get( CanPlayDamageAnimations );
+	packet.Get( OverrideMuzzleDirection );
+	packet.Get( NetworkRescale );
+
+	unichar_t bot_tag[ MAX_BOT_TAG_LENGTH ] = { 0 };
+	packet.Get_Wide_Terminated_String( bot_tag, MAX_BOT_TAG_LENGTH, true );
+	BotTag = bot_tag;
 
 	return ;
 }
@@ -1603,6 +1660,23 @@ void SoldierGameObj::Apply_Control( void )
 		Clear_Control();
 		Controller.Reset();
 		return;
+	}
+
+	//
+	//	A frozen soldier cannot fire, move, jump or climb ladders.
+	//
+	if ( Freeze ) {
+		Clear_Control();
+		Controller.Reset();
+		return;
+	}
+
+	//
+	//	Suppress the action key without disturbing the rest of the control set,
+	//	so a soldier can still move and fire while unable to use anything.
+	//
+	if ( BlockActionKey ) {
+		Control.Set_Boolean( ControlClass::BOOLEAN_ACTION, false );
 	}
 
 #ifdef WWDEBUG
@@ -2349,6 +2423,11 @@ void	SoldierGameObj::Think( void )
 			Handle_Legs();
 		}
 
+		{
+			WWPROFILE("Update_Network_Scale");
+			Update_Network_Scale();
+		}
+
 		/*
 		if (CombatManager::I_Am_Server()) {
 			TransitionManager::Check( this );
@@ -2678,7 +2757,7 @@ const Matrix3D & SoldierGameObj::Get_Muzzle( int /* index */ )
 		Vector3 muzzle_pos = true_muzzle.Get_Translation();
 		_muzzle.Obj_Look_At( muzzle_pos, Get_Targeting_Pos(), 0 );
 
-		if ( !Is_Human_Controlled() ) {
+		if ( !Is_Human_Controlled() && !OverrideMuzzleDirection ) {
 			// If the bullet is not close to going down the muzzle, force it to be
 			Vector3	to_target = _muzzle.Get_X_Vector();
 			Vector3	down_muzzle = true_muzzle.Get_X_Vector();
@@ -3613,7 +3692,7 @@ void	SoldierGameObj::Apply_Damage_Extended( const OffenseObjectClass & damager, 
 		}
 	}
 
-	bool anim_ok = true;
+	bool anim_ok = CanPlayDamageAnimations;
 
 	Reset_Hibernating();		// Wake up when damaged
 
@@ -3824,7 +3903,7 @@ void	SoldierGameObj::Apply_Damage_Extended( const OffenseObjectClass & damager, 
 		anim_ok = false;
 		if ( 	_cry_delay < 0 ) {
 			_cry_delay = 2;		// don't shake/sound too fast
-			anim_ok = true;
+			anim_ok = CanPlayDamageAnimations;
 
 			// Play ouch sound
 			AudibleSoundClass * sound = WWAudioClass::Get_Instance()->Create_Sound( "Take_Damage_Sound" );
@@ -4085,6 +4164,10 @@ bool SoldierGameObj::Is_Permitted_To_Enter_Vehicle(void)
 		return false;
 	}
 
+	if (!CanDriveVehicles) {
+		return false;
+	}
+
 	/*
 	//
 	// A soldier cannot enter a vehicle if he is carrying a flag
@@ -4166,6 +4249,36 @@ void SoldierGameObj::Set_Model(const char *model_name)
 {
 	Peek_Physical_Object()->Set_Model_By_Name(model_name);
 	HumanState.Set_Anim_Control( (HumanAnimControlClass *)Get_Anim_Control() );  // Must set the anim control after the phys object
+
+	//
+	//	The new model comes in at its authored size, so the scale has to be
+	//	re-applied from scratch on the next update.
+	//
+	LastScale = 1.0F;
+}
+
+
+//------------------------------------------------------------------------------------
+//
+//	Update_Network_Scale
+//
+//	RenderObjClass::Scale is cumulative, so the scale currently on the model has
+//	to be divided back out before the requested one is applied.
+//
+//------------------------------------------------------------------------------------
+void	SoldierGameObj::Update_Network_Scale( void )
+{
+	if ( NetworkRescale == LastScale ) {
+		return;
+	}
+
+	RenderObjClass *model = Peek_Model();
+	if ( model == nullptr || NetworkRescale <= 0 || LastScale <= 0 ) {
+		return;
+	}
+
+	model->Scale( NetworkRescale / LastScale );
+	LastScale = NetworkRescale;
 }
 
 //------------------------------------------------------------------------------------

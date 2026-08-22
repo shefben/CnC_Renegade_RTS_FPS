@@ -2014,6 +2014,17 @@ bool	VehicleGameObj::Is_Entry_Permitted( SoldierGameObj * p_soldier )
 		is_permitted = false;
 	}
 
+	//
+	// Taking an unoccupied vehicle that belongs to the other team is stealing,
+	// and a soldier may be forbidden from doing it.
+	//
+	int vehicle_pt = Get_Player_Type();
+	if (!p_soldier->Can_Steal_Vehicles() &&
+		 vehicle_pt != player_type &&
+		 (vehicle_pt == PLAYERTYPE_NOD || vehicle_pt == PLAYERTYPE_GDI)) {
+		is_permitted = false;
+	}
+
 	return is_permitted;
 }
 

@@ -51,6 +51,7 @@
 
 #ifndef	WWSTRING_H
 	#include "wwstring.h"
+	#include "widestring.h"
 #endif
 
 #ifndef	__DIALOGUE_H
@@ -213,6 +214,7 @@ public:
 	bool				Is_Airborne( void )		{ return Get_State() == HumanStateClass::AIRBORNE; }
 	bool				Is_Crouched( void )		{ return HumanState.Get_State_Flag( HumanStateClass::CROUCHED_FLAG ); }
 	bool				Is_Sniping( void )		{ return HumanState.Get_State_Flag( HumanStateClass::SNIPING_FLAG ); }
+	void				Set_Is_Sniping( void )	{ HumanState.Toggle_State_Flag( HumanStateClass::SNIPING_FLAG ); Set_Object_Dirty_Bit( BIT_OCCASIONAL, true ); }
 	bool				Is_Slow( void )			{ return (Get_Sub_State() & HumanStateClass::SUB_STATE_SLOW) != 0; }
 	bool				Is_On_Ladder( void )		{ return Get_State() == HumanStateClass::LADDER; }
 	bool				Is_State_Locked( void )	{ return HumanState.Is_Locked(); }
@@ -220,6 +222,8 @@ public:
 
 	void				Reset_Loiter_Delay( void )				{ HumanState.Reset_Loiter_Delay(); }
 	void				Set_Loiters_Allowed( bool allowed )	{ HumanState.Set_Loiters_Allowed( allowed ); }
+	void				Set_Movement_Loiters_Allowed( bool allowed )	{ HumanState.Set_Movement_Loiters_Allowed( allowed ); }
+	bool				Get_Movement_Loiter_Allowed( void )	{ return HumanState.Get_Movement_Loiters_Allowed(); }
 
 	virtual	void	Get_Information( StringClass & string ) override;
 	//virtual	void	Get_Extended_Information( StringClass & description );
@@ -344,6 +348,56 @@ public:
 	// Stealth
 	virtual float		Get_Stealth_Fade_Distance(void) const override;
 
+	//
+	//	Fly mode / weapon model
+	//
+	bool					Get_Fly_Mode( void )					{ return InFlyMode; }
+	RenderObjClass *	Get_Weapon_Render_Model( void )	{ return WeaponRenderModel; }
+
+	//
+	//	Gameplay restrictions.  Each of these is enforced by the engine, not
+	//	merely reported: see Apply_Control, Is_Permitted_To_Enter_Vehicle,
+	//	VehicleGameObj::Is_Entry_Permitted and Apply_Damage.
+	//
+	void					Set_Can_Steal_Vehicles( bool onoff )	{ CanStealVehicles = onoff; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	bool					Can_Steal_Vehicles( void )				{ return CanStealVehicles; }
+	void					Set_Can_Drive_Vehicles( bool onoff )	{ CanDriveVehicles = onoff; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	bool					Can_Drive_Vehicles( void )				{ return CanDriveVehicles; }
+	void					Set_Block_Action_Key( bool onoff )	{ BlockActionKey = onoff; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	bool					Block_Action_Key( void )				{ return BlockActionKey; }
+	void					Set_Freeze( bool onoff )				{ Freeze = onoff; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	bool					Is_Frozen( void )							{ return Freeze; }
+	void					Set_Can_Play_Damage_Animations( bool onoff )	{ CanPlayDamageAnimations = onoff; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	bool					Can_Play_Damage_Animations( void )	{ return CanPlayDamageAnimations; }
+
+	//
+	//	Replicated uniform model scale.  1.0 is the model's authored size.
+	//
+	void					Set_Scale_Across_Network( float scale )	{ NetworkRescale = scale; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	float					Get_Scale_Across_Network( void )		{ return NetworkRescale; }
+
+	//
+	//	When set, the muzzle always points at the targeting position even for
+	//	AI soldiers whose muzzle bone is far off-axis (non-humanoid models).
+	//
+	void					Set_Override_Muzzle_Direction( bool override )	{ OverrideMuzzleDirection = override; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	bool					Get_Override_Muzzle_Direction( void )	{ return OverrideMuzzleDirection; }
+
+	//
+	//	Ghost collision behavior selector.  Only the stock coordination-zone
+	//	behavior exists today, so this reads true; the alternate path arrives
+	//	with Disable_Ghost_Collision.
+	//
+	bool					Get_Use_Stock_Ghost_Behavior( void )	{ return UseStockGhostBehavior; }
+
+	//
+	//	Bots are server-spawned soldiers with no PlayerDataClass.  The tag is
+	//	the name they are displayed under.
+	//
+	void								Set_Bot_Tag( const char *tag )	{ BotTag = tag; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	const WideStringClass &		Get_Bot_Tag( void )				{ return BotTag; }
+	bool								Is_Bot( void )						{ return BotTag.Get_Length() > 0; }
+
 protected:
 	RenderObjClass		*	WeaponRenderModel;
 	RenderObjClass		*	BackWeaponRenderModel;
@@ -411,6 +465,17 @@ protected:
 	bool						InFlyMode;
 	bool						IsVisible;
 
+	bool						CanStealVehicles;
+	bool						CanDriveVehicles;
+	bool						BlockActionKey;
+	bool						Freeze;					// Cannot fire, move, jump or climb ladders
+	bool						CanPlayDamageAnimations;
+	bool						OverrideMuzzleDirection;
+	bool						UseStockGhostBehavior;
+	float						NetworkRescale;		// Requested uniform model scale
+	float						LastScale;				// Scale currently applied to the model
+	WideStringClass		BotTag;
+
 	bool						LadderUpMask;
 	bool						LadderDownMask;
 
@@ -428,6 +493,13 @@ protected:
 	void						Reset_RenderObjs( void );
 
 	void						Update_Healing_Effect( void );
+	void						Update_Network_Scale( void );
+
+	//
+	//	Longest bot tag accepted off the wire, in wide characters, terminator
+	//	included.
+	//
+	enum { MAX_BOT_TAG_LENGTH = 64 };
 
 
 	//

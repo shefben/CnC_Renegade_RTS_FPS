@@ -189,6 +189,14 @@ public:
 	void				Reset_Loiter_Delay( void );
 	void				Set_Loiters_Allowed( bool allowed )						{ LoitersAllowed = allowed; }
 
+	//
+	//	Normally any movement or crouching suppresses loiters.  When movement
+	//	loiters are allowed, only the loiter delay governs, so a soldier will
+	//	loiter while walking.
+	//
+	void				Set_Movement_Loiters_Allowed( bool allowed )			{ MovementLoitersAllowed = allowed; }
+	bool				Get_Movement_Loiters_Allowed( void )					{ return MovementLoitersAllowed; }
+
 	void				Get_Information( StringClass & string );
 
 private:
@@ -200,6 +208,7 @@ private:
 	int					WeaponHoldStyle;		// How is he holding his weapon?
 	float					WeaponHoldTimer;		// How long until we lower the weapon?
 	bool					LoitersAllowed;
+	bool					MovementLoitersAllowed;
 	float					LoiterDelay;
 	float					AimingTilt;
 	float					AimingTurn;

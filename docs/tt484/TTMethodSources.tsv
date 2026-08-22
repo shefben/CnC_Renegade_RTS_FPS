@@ -25,7 +25,6 @@ AirFactoryGameObj	On_Revived	0	0	absent	declaration-only				nowhere		void On_Rev
 AirFactoryGameObj	Save	1	0	absent	declaration-only				owned elsewhere	AABTreeCullSystemClass,AABTreeSoundCullClass,AccessiblePhysClass,AccessiblePhysDefClass,ActionClass,ActiveConversationClass	bool Save (ChunkSaveClass &csave);
 AirFactoryGameObj	Think	0	0	absent	declaration-only				owned elsewhere	ActiveConversationClass,AirStripGameObj,AutoRestartClass,BaseControllerClass,BaseGameObj,BeaconGameObj	void Think (void);
 AirFactoryGameObj	~AirFactoryGameObj	0	0	absent	declaration-only				nowhere		~AirFactoryGameObj (void);
-BuildingGameObj	Find_MCT	0	0	present	defined	tt_4.8.4/scripts/engine_game.cpp	642				SCRIPTS_API BuildingAggregateClass * Find_MCT();
 BuildingGameObj	As_AirFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	115				virtual AirFactoryGameObj * As_AirFactoryGameObj (void) { return NULL; }
 BuildingGameObj	As_ConstructionYardGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	114				virtual ConstructionYardGameObj * As_ConstructionYardGameObj (void) { return NULL; }
 BuildingGameObj	As_NavalFactoryGameObj	0	1	present	inline-header	tt_4.8.4/scripts/BuildingGameObj.h	116				virtual NavalFactoryGameObj * As_NavalFactoryGameObj (void) { return NULL; }
@@ -138,29 +137,6 @@ ScriptedDialogClass	Remove_Control	1	1	absent	declaration-only				owned elsewher
 ScriptedDialogClass	ScriptedDialogClass	2	0	absent	declaration-only				nowhere		ScriptedDialogClass(int client, int dlg_id);
 ScriptedDialogClass	~ScriptedDialogClass	0	1	absent	declaration-only				nowhere		virtual ~ScriptedDialogClass();
 SoldierFactoryGameObj	On_Revived	0	0	present	declaration-only				nowhere		void On_Revived (void);
-SoldierGameObj	Block_Action_Key	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	190				bool Block_Action_Key() { return BlockActionKey; }
-SoldierGameObj	Can_Drive_Vehicles	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	188				bool Can_Drive_Vehicles() { return CanDriveVehicles; }
-SoldierGameObj	Can_Play_Damage_Animations	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	196				bool Can_Play_Damage_Animations() {return CanPlayDamageAnimations;}
-SoldierGameObj	Can_Steal_Vehicles	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	186				bool Can_Steal_Vehicles() { return CanStealVehicles; }
-SoldierGameObj	Get_Bot_Tag	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	205				const WideStringClass& Get_Bot_Tag() { return botTag; }
-SoldierGameObj	Get_Fly_Mode	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	180				bool Get_Fly_Mode() {return InFlyMode;}
-SoldierGameObj	Get_Movement_Loiter_Allowed	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	200				bool Get_Movement_Loiter_Allowed(){return movementLoitersAllowed;};
-SoldierGameObj	Get_Override_Muzzle_Direction	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	203				bool Get_Override_Muzzle_Direction(){return OverrideMuzzleDirection;};
-SoldierGameObj	Get_Scale_Across_Network	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	198				float Get_Scale_Across_Network(){return NetworkRescale;}
-SoldierGameObj	Get_Use_Stock_Ghost_Behavior	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	201				bool Get_Use_Stock_Ghost_Behavior(){return useStockGhostBehavior;}
-SoldierGameObj	Get_Weapon_Render_Model	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	182				RenderObjClass *Get_Weapon_Render_Model() {return WeaponRenderModel; }
-SoldierGameObj	Is_Bot	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	206				bool Is_Bot() { return botTag.Get_Length() > 0; }
-SoldierGameObj	Is_Frozen	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	192				bool Is_Frozen() {return Freeze;}
-SoldierGameObj	Set_Block_Action_Key	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	189				void Set_Block_Action_Key(bool onoff) { BlockActionKey = onoff; Set_Object_Dirty_Bit(BIT_RARE, true); }
-SoldierGameObj	Set_Bot_Tag	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	204				void Set_Bot_Tag(const char* tag) { botTag = tag; Set_Object_Dirty_Bit(BIT_RARE, true); }
-SoldierGameObj	Set_Can_Drive_Vehicles	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	187				void Set_Can_Drive_Vehicles(bool onoff) { CanDriveVehicles = onoff; Set_Object_Dirty_Bit(BIT_RARE, true); }
-SoldierGameObj	Set_Can_Play_Damage_Animations	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	195				void Set_Can_Play_Damage_Animations(bool onoff) {CanPlayDamageAnimations = onoff;Set_Object_Dirty_Bit(BIT_RARE, true);}
-SoldierGameObj	Set_Can_Steal_Vehicles	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	185				void Set_Can_Steal_Vehicles(bool onoff) { CanStealVehicles = onoff; Set_Object_Dirty_Bit(BIT_RARE, true); }
-SoldierGameObj	Set_Freeze	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	191				void Set_Freeze(bool onoff) {Freeze = onoff; Set_Object_Dirty_Bit(BIT_RARE, true);}
-SoldierGameObj	Set_Is_Sniping	0	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	108				void Set_Is_Sniping() { HumanState.Toggle_State_Flag(HumanStateClass::SNIPING_FLAG); Set_Object_Dirty_Bit(BIT_OCCASIONAL, true); }
-SoldierGameObj	Set_Movement_Loiters_Allowed	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	199				void Set_Movement_Loiters_Allowed(bool allowed){movementLoitersAllowed = allowed;};
-SoldierGameObj	Set_Override_Muzzle_Direction	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	202				void Set_Override_Muzzle_Direction(bool override){OverrideMuzzleDirection = override; Set_Object_Dirty_Bit(BIT_RARE, true);};
-SoldierGameObj	Set_Scale_Across_Network	1	0	present	inline-header	tt_4.8.4/scripts/SoldierGameObj.h	197				void Set_Scale_Across_Network(float scale){NetworkRescale = scale;Set_Object_Dirty_Bit(BIT_RARE, true);}
 SoldierGameObj	Apply_Damage_IgnoreVehicleCheck	3	1	present	declaration-only				nowhere		virtual void Apply_Damage_IgnoreVehicleCheck( const OffenseObjectClass & damager, float scale = 1.0f, int alternate_skin = -1 );
 SoldierGameObj	Disable_Ghost_Collision	0	0	present	declaration-only				nowhere		bool Disable_Ghost_Collision();
 SoldierGameObj	Get_Contact_Surface_Type	0	1	present	declaration-only				owned elsewhere	Phys3Class	virtual int Get_Contact_Surface_Type();

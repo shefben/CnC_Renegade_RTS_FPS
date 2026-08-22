@@ -94,6 +94,7 @@ HumanStateClass::HumanStateClass( void ) :
 	RecoilScale( 1.0f ),
 	LoiterDelay( 0 ),
 	LoitersAllowed( true ),
+	MovementLoitersAllowed( false ),
 	LegRotation( 0 ),
 	WeaponHoldTimer( 0 ),
 	NoAnimBlend( false ),
@@ -179,6 +180,7 @@ enum	{
 	MICROCHUNKID_WEAPON_HOLD_TIMER,
 	MICROCHUNKID_HUMAN_ANIM_OVERRIDE_DEF_ID,
 	MICROCHUNKID_HUMAN_LOITER_COLLECTION_DEF_ID,
+	MICROCHUNKID_MOVEMENT_LOITERS_ALLOWED,
 };
 
 bool	HumanStateClass::Save( ChunkSaveClass & csave )
@@ -195,6 +197,7 @@ bool	HumanStateClass::Save( ChunkSaveClass & csave )
 		WRITE_MICRO_CHUNK_PTR( csave, MICROCHUNKID_PHYSOBJ,	HumanPhys );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_LOITER_DELAY,	LoiterDelay );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_LOITERS_ALLOWED,	LoitersAllowed );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_MOVEMENT_LOITERS_ALLOWED,	MovementLoitersAllowed );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_JUMP_TM,	JumpTM );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_STATE_TIMER, StateTimer );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_WEAPON_HOLD_TIMER, WeaponHoldTimer );
@@ -245,6 +248,7 @@ bool	HumanStateClass::Load( ChunkLoadClass &cload )
 						READ_MICRO_CHUNK_PTR( cload, MICROCHUNKID_PHYSOBJ,	HumanPhys );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_LOITER_DELAY,	LoiterDelay );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_LOITERS_ALLOWED,	LoitersAllowed );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_MOVEMENT_LOITERS_ALLOWED,	MovementLoitersAllowed );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_JUMP_TM,	JumpTM );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_STATE_TIMER, StateTimer );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_WEAPON_HOLD_TIMER, WeaponHoldTimer );
@@ -935,7 +939,7 @@ void	HumanStateClass::Update_State( void )
 	if ( State == UPRIGHT && LoitersAllowed ) {
 
 		// Don't loiter when crouched or moving
-		if ( SubState != 0 ) {
+		if ( SubState != 0 && !MovementLoitersAllowed ) {
 			Reset_Loiter_Delay();
 		}
 
