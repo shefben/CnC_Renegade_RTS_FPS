@@ -438,3 +438,48 @@ count after this session: 187 merged, 456 open, 13 n/a, 104 out of scope under
 directive 0.6. Only two dispositions are terminal and neither is a judgement
 call -- the 12 `DROP` rows null out stock debug routines, and the radar fix is
 provably inert.
+
+## P03-I: the cNetwork cluster, closed
+
+All 46 rows settled. The finding is that OpenW3D's `cnetwork.cpp` /
+`messages.cpp` / `pkthandlers.cpp` have already moved past the stock code TT
+reimplemented in order to hook it, so most rows are "canonical supersedes"; four
+needed work. `cNetwork::Is_Player_Name_Valid`/`Is_Player_Name_Allowed` replace a
+check that only caught an empty name and reported it as a version mismatch, and
+run at both call sites (the GameSpy path never showed the final name to the
+acceptance handler); `REFUSAL_PLAYER_EXISTS` names its reason instead of the
+generic string. `cRemoteHost` recomputes object priorities on a 500ms wall clock
+instead of every N frames, so the interval no longer moves with the server frame
+rate; the counter is gone. Team defaulting is removed with its caller
+(TT hooks it unreachable) -- raised as Q-010. `Hibernation_Think`'s client branch
+unioned every player's PVS, waking objects nobody local could see, and woke
+everything near the world origin when there was no star. `ec3b06fe`, `187a1ba8`.
+
+## P03-J: the named TT gameplay fixes
+
+Twelve clusters merged into their canonical owners, each built clean:
+**beacon** (detonated-beacon guard, action bar gated on the local star, the two
+weather options) and **weapon bag** (cycling skips empty weapons,
+`Remove_Weapon` repairs the selection, `Import_Weapon_List` drops what the
+server removed) in `e3b8988a`; **turret lag** (the import records the aim point,
+`VehicleGameObj::Think` slews per frame), **bluehell** (`ObbCollisionStruct::Side`
+was read uninitialised, so the collision normal was multiplied by stack
+garbage), **obelisk walk** (the bullseye is a bone, not the origin plus a
+number) and **max health on the wire** in `13bb9df3`; **stealth effect
+lifetime**, **model rebinding** (`Re_Bind_To_Model`, so a networked model swap
+rebuilds turret bones, wheel effects, damage meshes and the soldier's
+attachments) and **animation replication** in `17787445`; **repair bay welding
+arcs on multiplayer maps** and **chat length** in `a2fbeff1`; **C4 visibility on
+vehicles and proximity charges next to corpses** in `56337cd3`; the **mod file
+factory leak** in `6885e2d3`.
+
+## P03-K: dispositions, 456 open down to 290
+
+`TTHookSites.tsv` now reads 337 merged, 290 open, 29 n/a, 104 out of scope.
+Settled this session beyond the merges above: `netcode hooks` (24, canon's
+Import/Export keep the same wire format and are ahead in places),
+`modpackage hooks` (19, canon supersedes; TT's HashMixFileFactory VFS declined
+per directive 0.5), `weather hooks` + `weather manager hooks` (16, n/a -- the
+73-byte nops only exist to stop the stock statics constructing beside TT's heap
+copies, and `NetworkObjectClass`'s ctor is inert at static-init time so there is
+no order hazard to port).

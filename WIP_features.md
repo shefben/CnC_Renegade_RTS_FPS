@@ -7,22 +7,28 @@ Detail lives in `docs/`.
 
 ## P03: merge TT hooks/patches/overrides into canonical implementations
 
-The event layer is done (P03-A) and `TTHookSites.tsv` now carries a
-`disposition` column giving the exact standing: **187 merged, 456 open**, 13
-n/a, 104 out of scope under directive 0.6 (P03-A/B/C/D/E/F/G/H). Absorbs the
-backlog line "Acceptance: No required TT gameplay feature depends on modifying
-executable memory or knowing a hard-coded function address", not yet met. The
-open remainder is 431 `exact-def` rows -- each a TT reimplementation to diff
-against its canonical function -- plus ~25 discrete byte patches. Largest
-groups: `cNetwork` 46, `SoldierGameObj` 16, `VehicleGameObj` 14,
-`BeaconGameObj` 14, `WeaponBagClass` 13, `ModPackageMgrClass` 13, `cGameData`
-12, `DialogMgrClass` 11, `SmartGameObj` 11, `DialogBaseClass` 10. Next exact
-action: finish the `cNetwork` diff started this session
-(`scratchpad/fndiff.py` extracts and normalises both sides; the finding so far
-is that OpenW3D `cnetwork.cpp` has already moved past stock, so most rows are
-"canonical already supersedes" and the TT-forward items are few -- named so far,
-`isPlayerNameAllowed` in `Application_Acceptance_Handler`), then
-`Combat/soldier.cpp` (30) and `Combat/combat.cpp` (20).
+The event layer is done (P03-A) and `TTHookSites.tsv`'s `disposition` column
+gives the exact standing: **337 merged, 290 open**, 29 n/a, 104 out of scope
+under directive 0.6 (P03-A through P03-K). Absorbs the backlog line
+"Acceptance: No required TT gameplay feature depends on modifying executable
+memory or knowing a hard-coded function address", not yet met. Largest open
+groups: `dialog box hooks` 24, `SoldierGameObj hooks` 13, `cGameData hooks` 11,
+`VehicleGameObj hooks` 10, `hook cSbboManager` 6, `Input hooks` 6,
+`hook ScriptManager` 6, `hooks for filehashing checks` 5, `hook PingProfileWait`
+5, `DirectInput hooks` 5, `MultiListClass hacks` 5, plus ~9 unnamed byte-patch
+rows and a long tail of two-to-four row clusters. Next exact action: the
+`dialog box hooks` cluster (24) -- run `scratchpad/fndiff.py DialogBaseClass
+tt_4.8.4/tt/dialogbase.cpp -- Code/wwui/dialogbase.cpp` and the same for
+`DialogMgrClass`, then disposition with `scratchpad/disp.py --intent "dialog box
+hooks"`. After that `SoldierGameObj hooks` (13) and `cGameData hooks` (11).
+
+Method that is working, for the next session: TT reimplemented most of what it
+hooks purely so it had something to hook, so the default answer for an
+`X hooks` cluster is "canonical already supersedes" and the job is to find the
+few rows where TT went somewhere OpenW3D had not. `fndiff.py` extracts and
+normalises both sides; `disp.py` settles a whole cluster with the reasoning in
+`mapping_method`. The named clusters (`... fix`, `... fixes`, `... patch`) are
+where the real gameplay work is and are worth doing first.
 
 ## P04: native stock + TT script registry
 
@@ -44,10 +50,11 @@ largest group -- taking the donor side, and register each as
 
 `TTSettingsClass` exists and three clusters are wired through it (P03-G). The
 remaining ~90 options are declared with their defaults but not yet consumed.
-Sequenced in `docs/tt484/TTSettings.md` 6: the four reopened hook clusters
-(`UseExtraPTPages`, the `.mix` startup scan, the PT "building" message,
-`enable secret PT pages`), then the gameplay options (`Unsquishable` and its
-four armour exemptions, the two weather disables, `NeutralVechiclePointsFix`,
+`NukeWeatherDisable` and `IonWeatherDisable` are now honoured too, by the
+beacon's four weather sites. Sequenced in `docs/tt484/TTSettings.md` 6: the four
+reopened hook clusters (`UseExtraPTPages`, the `.mix` startup scan, the PT
+"building" message, `enable secret PT pages`), then the gameplay options
+(`Unsquishable` and its four armour exemptions, `NeutralVechiclePointsFix`,
 `DrawDistance`, `ContinueReloadOnVehicleExit`, `BuildTimeDelay`,
 `VehicleOwnershipDisable`, `MapPrefix`, the four colour triples), then the UI
 and styling colours, and `VehicleBuildingDisable` last because it is a whole
