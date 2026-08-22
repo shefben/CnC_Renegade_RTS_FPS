@@ -86,3 +86,14 @@ submodule, `0a191e58` the standalone `Code/` side projects, `41164d71` the ~900 
 `models/` art); local agent/tool caches gitignored. No remote is under our control,
 so nothing is pushed.
 
+
+## P02-A: TT SoldierGameObj, VehicleGameObj and BuildingGameObj members merged
+
+51 TT-only members merged into the three canonical classes, each flag wired to
+the engine site that enforces it rather than left as inert state — freeze and
+blocked-action-key in `Apply_Control`, vehicle-theft permission split across
+`Is_Permitted_To_Enter_Vehicle` and `Is_Entry_Permitted`, replicated model scale,
+muzzle-direction override, stealth-while-empty, and a building bounding box unioned
+in `Collect_Building_Components`. All saved, replicated and defaulted to stock
+behaviour; `combat` links clean. Delta 227 -> 176 (`6b46638a`, `3d4d6bb9`,
+`cfd49a95`).
