@@ -23,9 +23,9 @@ tt_4.8.4/tt/tt.cpp	976	WriteCall	0x0043B905	KeyboardUpdateHook	custom keyboard k
 tt_4.8.4/tt/tt.cpp	977	WriteJump	0x004015C6	DoCombatKeyboard	custom keyboard keys hook	Code/Combat/input.cpp	manual: combat keyboard dispatch	medium
 tt_4.8.4/tt/tt.cpp	978	WriteNop	0x0043C21F		nop out WWPhys::Shutdown call	Code/wwphys/wwphys.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	980	WriteMemory	0x004B488C		emoticons fix	Code/Combat/messagewindow.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	983	WriteJump	0x006EF6C0	Enable_Radar_Patch	radar fix	Code/Combat/radar.cpp	manual: radar enable state	medium
+tt_4.8.4/tt/tt.cpp	983	WriteJump	0x006EF6C0	Enable_Radar_Patch	radar fix	N/A - inert	disassembly of stock Game.exe: 0x006EFD00 guards on IsRadarEnabled (+0x6D7), so the re-assert is a no-op	high
 tt_4.8.4/tt/tt.cpp	984	WriteCall	0x0047F899	Building_Msg_Check	"purchase terminal ""building"" message change"	Code/Commando/dlgcncpurchasemenu.cpp	"manual: PT ""building""/unavailable message text"	medium
-tt_4.8.4/tt/tt.cpp	986	WriteMemory	0x00481D1F		dead powerplant 2x cost message change	Code/Combat/basecontroller.cpp	byte-patch by intent	low
+tt_4.8.4/tt/tt.cpp	986	WriteMemory	0x00481D1F		dead powerplant 2x cost message change	Code/Commando/dlgcncpurchasemenu.cpp	disassembly of stock Game.exe: sub_481C70 = Update_Building_Health, +0x6D4 = BasePowered	high
 tt_4.8.4/tt/tt.cpp	987	WriteVtable2	0x007D51DC	OptionsDlg::New_Start_Dialog	options dialog hook	Code/wwui/menudialog.cpp	manual: options dialog start	medium
 tt_4.8.4/tt/tt.cpp	988	WriteVtable2	0x007D5200	OptionsDlg::New_On_Command	options dialog hook	Code/wwui/menudialog.cpp	manual: options dialog command	medium
 tt_4.8.4/tt/tt.cpp	991	WriteVtable2	0x007D513C	RenegadeUIInputClass::Is_Button_Down	hook for dialog boxes and side mouse buttons	Code/Commando/renegadedialogmgr.cpp:137	class-only: TT adds method Is_Button_Down	medium
@@ -38,12 +38,12 @@ tt_4.8.4/tt/tt.cpp	998	hookAsCall2	0x00481C45,0x00000000	OnUnitPtKeyDownPatch	PT
 tt_4.8.4/tt/tt.cpp	999	hookAsJump	0x00481FF6,0x00000000	OnUnitPtMerchandiseItemUpdatePatch	PT keypress fix	Code/Commando/dlgcncpurchasemenu.cpp	manual: PT merchandise item update	medium
 tt_4.8.4/tt/tt.cpp	1000	WriteNop	0x0047FE5F		PT keypress fix	Code/Commando/dlgcncpurchasemenu.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	1001	WriteNop	0x0047FE86		PT keypress fix	Code/Commando/dlgcncpurchasemenu.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1002	hookAsJump	0x0047E730,0x00000000	DlgCncBattleInfo::On_Frame_Update	team information and battlefield information scroll fix	Code/Commando/dlgcncbattleinfo.cpp:439	renamed-class: TT DlgCncBattleInfo == OpenW3D CNCBattleInfoDialogClass	high
-tt_4.8.4/tt/tt.cpp	1003	WriteNop	0x0047DBFC		team information and battlefield information scroll fix	Code/Commando/dlgcncbattleinfo.cpp;Code/Commando/dlgcncteaminfo.cpp;Code/Commando/dlgcncserverinfo.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1004	hookAsJump	0x00484470,0x00000000	DlgCncTeamInfo::On_Frame_Update	team information and battlefield information scroll fix	Code/Commando/dlgcncteaminfo.cpp:416	renamed-class: TT DlgCncTeamInfo == OpenW3D CNCTeamInfoDialogClass	high
-tt_4.8.4/tt/tt.cpp	1005	WriteNop	0x004835DC		team information and battlefield information scroll fix	Code/Commando/dlgcncbattleinfo.cpp;Code/Commando/dlgcncteaminfo.cpp;Code/Commando/dlgcncserverinfo.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1006	hookAsJump	0x004834E0,0x00000000	DlgCncServerInfo::On_Frame_Update	team information and battlefield information scroll fix	Code/Commando/dlgcncserverinfo.cpp:183	renamed-class: TT DlgCncServerInfo == OpenW3D CNCServerInfoDialogClass	high
-tt_4.8.4/tt/tt.cpp	1007	WriteNop	0x0048326C		team information and battlefield information scroll fix	Code/Commando/dlgcncbattleinfo.cpp;Code/Commando/dlgcncteaminfo.cpp;Code/Commando/dlgcncserverinfo.cpp	byte-patch by intent	low
+tt_4.8.4/tt/tt.cpp	1002	hookAsJump	0x0047E730,0x00000000	DlgCncBattleInfo::On_Frame_Update	team information and battlefield information scroll fix	Code/Commando/dlgcncbattleinfo.cpp:439	disassembly of stock Game.exe: nopped run is MouseMgrClass::Show_Cursor(false); see NativeEventDispatch.md 5.8	high
+tt_4.8.4/tt/tt.cpp	1003	WriteNop	0x0047DBFC		team information and battlefield information scroll fix	Code/Commando/dlgcncbattleinfo.cpp;Code/Commando/dlgcncteaminfo.cpp;Code/Commando/dlgcncserverinfo.cpp	disassembly of stock Game.exe: nopped run is MouseMgrClass::Show_Cursor(false); see NativeEventDispatch.md 5.8	high
+tt_4.8.4/tt/tt.cpp	1004	hookAsJump	0x00484470,0x00000000	DlgCncTeamInfo::On_Frame_Update	team information and battlefield information scroll fix	Code/Commando/dlgcncteaminfo.cpp:416	disassembly of stock Game.exe: nopped run is MouseMgrClass::Show_Cursor(false); see NativeEventDispatch.md 5.8	high
+tt_4.8.4/tt/tt.cpp	1005	WriteNop	0x004835DC		team information and battlefield information scroll fix	Code/Commando/dlgcncbattleinfo.cpp;Code/Commando/dlgcncteaminfo.cpp;Code/Commando/dlgcncserverinfo.cpp	disassembly of stock Game.exe: nopped run is MouseMgrClass::Show_Cursor(false); see NativeEventDispatch.md 5.8	high
+tt_4.8.4/tt/tt.cpp	1006	hookAsJump	0x004834E0,0x00000000	DlgCncServerInfo::On_Frame_Update	team information and battlefield information scroll fix	Code/Commando/dlgcncserverinfo.cpp:183	disassembly of stock Game.exe: nopped run is MouseMgrClass::Show_Cursor(false); see NativeEventDispatch.md 5.8	high
+tt_4.8.4/tt/tt.cpp	1007	WriteNop	0x0048326C		team information and battlefield information scroll fix	Code/Commando/dlgcncbattleinfo.cpp;Code/Commando/dlgcncteaminfo.cpp;Code/Commando/dlgcncserverinfo.cpp	disassembly of stock Game.exe: nopped run is MouseMgrClass::Show_Cursor(false); see NativeEventDispatch.md 5.8	high
 tt_4.8.4/tt/tt.cpp	1008	hookAsJump	0x004B6340,0x00000000	cCsTextObj::Init	chat message sent patch	Code/Commando/cstextobj.cpp:65	exact-def	high
 tt_4.8.4/tt/tt.cpp	1009	hookAsJump	0x004BA720,0x00000000	cScTextObj::Import_Creation	chat message sent patch	Code/Commando/sctextobj.cpp:371	exact-def	high
 tt_4.8.4/tt/tt.cpp	1010	WriteJump	0x0052A440	Make_Screen_Shot	screenshot hook	Code/ww3d2/ww3d.cpp	manual: screenshot capture	medium
@@ -128,8 +128,8 @@ tt_4.8.4/tt/tt.cpp	1128	WriteMemory	0x00435F3D		RenLogMon hook	Code/Commando/Con
 tt_4.8.4/tt/tt.cpp	1129	WriteNop	0x00435F3D		RenLogMon hook	Code/Commando/ConsoleMode.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	1130	WriteNop	0x00434C59		stop FDS from loading at startup	Code/Commando/ConsoleMode.cpp	byte-patch by intent	low
 tt_4.8.4/tt/tt.cpp	1131	WriteJump	0x0043911C,0x00439232		Do not load all .mix files at startup	Code/Commando/gameinitmgr.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1165	WriteMemory	0x00481D2E		dead powerplant 2x cost disable	Code/Combat/basecontroller.cpp	byte-patch by intent	low
-tt_4.8.4/tt/tt.cpp	1166	WriteMemory	0x0047EEA6		dead powerplant 2x cost disable	Code/Combat/basecontroller.cpp	byte-patch by intent	low
+tt_4.8.4/tt/tt.cpp	1165	WriteMemory	0x00481D2E		dead powerplant 2x cost disable	Code/Commando/dlgcncpurchasemainmenu.cpp;Code/Commando/dlgcncpurchasemenu.cpp	disassembly of stock Game.exe: gated on TT DisableCostMultiplier ini option, deferred	high
+tt_4.8.4/tt/tt.cpp	1166	WriteMemory	0x0047EEA6		dead powerplant 2x cost disable	Code/Commando/dlgcncpurchasemainmenu.cpp;Code/Commando/dlgcncpurchasemenu.cpp	disassembly of stock Game.exe: gated on TT DisableCostMultiplier ini option, deferred	high
 tt_4.8.4/tt/tt.cpp	1174	WriteMemory	0x0062D019		make vehicles not die when they flip over	Code/wwphys/vehiclephys.cpp	disassembly of stock Game.exe: VehiclePhysClass::Timestep expire branch	high
 tt_4.8.4/tt/tt.cpp	1178	WriteMemory	0x0062C8B9		make vehicles not die when they flip over	Code/wwphys/vehiclephys.cpp	disassembly of stock Game.exe: VehiclePhysClass::Timestep expire branch	high
 tt_4.8.4/tt/tt.cpp	1183	hookNop	0x004261E2,0x004261E2		remove MSG console command	Code/Commando/consolefunction.cpp	byte-patch by intent	low

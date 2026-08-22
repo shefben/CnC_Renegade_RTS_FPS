@@ -330,7 +330,82 @@ To regenerate the raw windows, run the batch dump over `Game.exe` with the
 headless IDA session wrapper; the address column of `TTHookSites.tsv` is the
 input and only the first address of each pair is game-side.
 
-### 5.7 Still open
+### 5.8 The dialog and purchase-terminal fixes
 
-The `wwnet` remainder, then `Commando/cnetwork.cpp` (32), then the purchase
-terminal, combat objects and UI per section 4.
+**`team information and battlefield information scroll fix`** (6 sites,
+`tt.cpp:1002-1007`) — **merged**. Three jump hooks replace `On_Frame_Update` on
+the battle-info, team-info and server-info dialogs; three `WriteNop`s of ten
+bytes each remove an identically shaped run
+
+    6A 00              push 0
+    E8 xx xx xx xx     call MouseMgrClass::Show_Cursor
+    83 C4 04           add  esp, 4
+
+sitting between `MenuDialogClass::On_Init_Dialog` and `Get_Dlg_Item(0x4B6)`,
+which matches `On_Init_Dialog` in all three sources exactly.
+
+One defect in two halves. Stock hid the cursor when the dialog opened, and its
+`On_Frame_Update` override did the key-release check and returned without
+calling `DialogBaseClass::On_Frame_Update()` — the function that runs
+`Update_Mouse_State()` and each control's own `On_Frame_Update()`. So there was
+no pointer to aim, and the list control never saw the mouse regardless. Both
+halves are needed and both are merged into the three canonical dialogs.
+`MenuDialogClass` does not override `On_Frame_Update`, so calling the base
+directly skips nothing.
+
+**`dead powerplant 2x cost message change`** (`0x00481D1F`, `tt.cpp:986`) —
+**merged**. The 16 byte replacement decodes to `xor edx,edx` /
+`cmp byte [edi+6D4h], dl` / seven nops / `jnz` reusing the original
+displacement, over a stock run of `fld` / `fcomp 0.0f` / `fnstsw` /
+`test ah,41h` / `jz`. `sub_481C70` is
+`CNCPurchaseMenuClass::Update_Building_Health` and `0x61E` is
+`IDC_COST_X2_TEXT`; field `+0x6D4` is `BasePowered`, confirmed by the companion
+patch at `0x0047EEA6` which tests the same byte before storing 2.0f.
+
+The price doubles on `Is_Base_Powered()` (`Code/Commando/vendor.cpp:401` is the
+authoritative one), but the message announcing it was driven off the power
+plant's health fraction. Those are different predicates — `Power_Base()` is
+server driven — so the terminal could charge double in silence, or warn while
+charging normal price.
+
+Two deliberate deviations, both because native code is not held to 16 bytes:
+`Show (base->Is_Base_Powered () == false)` rather than TT's one-sided
+`Show (true)`, since stock never hid the text again once the power plant came
+back; and the call moves out of the `if (building != nullptr)` scope, because
+whether the base is powered has nothing to do with whether a power plant object
+was found — a base with none at all still pays double and still got no warning.
+
+**`dead powerplant 2x cost disable`** (`0x00481D2E`, `0x0047EEA6`,
+`tt.cpp:1165-1166`) — **deferred**. Gated on TT's `DisableCostMultiplier` ini
+option. A server toggle that removes a stock rule is not a correction to it;
+same disposition as `VehicleOwnershipPatch` in 5.5. Owners are identified
+(`dlgcncpurchasemainmenu.cpp:389` and the branch above) if it is ever wanted.
+
+**`radar fix`** (`WriteJump(0x006EF6C0, Enable_Radar_Patch)`, `tt.cpp:983`) —
+**N/A, the patch is inert.** `0x006EF6C0` is `nullsub_212`, a one byte `retn`
+called twice each from `sub_478570` and `sub_479840` — a hook of opportunity,
+not a function whose own semantics matter. TT's replacement (`tt.cpp:754`) is
+
+    BaseControllerClass* base = BaseControllerClass::Find_Base_For_Star();
+    if (base) base->Enable_Radar(base->Is_Radar_Enabled());
+
+and `BaseControllerClass::Enable_Radar` is a `RENEGADE_FUNCTION`
+(`scripts/engine_tt.cpp:1222`, `AT3(0x006EFD00,...)`) that calls straight back
+into the stock binary. Stock `0x006EFD00` opens with
+
+    mov al, [esp+4]
+    mov esi, ecx
+    cmp [esi+6D7h], al        ; IsRadarEnabled
+    jz  short loc_6EFD59
+
+so passing the field back to itself compares it against itself and returns. The
+re-assert can never fire. Nothing to merge; recorded so the row is not reopened.
+`IsRadarEnabled` at `+0x6D7` also independently confirms `BasePowered` at
+`+0x6D4` above.
+
+### 5.9 Still open
+
+The `wwnet` remainder, then `Commando/cnetwork.cpp` (32), then the rest of the
+purchase terminal (the 16 `new unpurchasable logic` / `PT keypress fix` /
+`PT chatbox fix` / `enable secret PT pages` sites, directive 0.9), combat
+objects and UI per section 4.

@@ -56,7 +56,6 @@
 #include <WWOnline/WOLUser.h>
 #include "translatedb.h"
 #include "string_ids.h"
-#include "mousemgr.h"
 #include "directinput.h"
 
 
@@ -103,7 +102,6 @@ void
 CNCServerInfoDialogClass::On_Init_Dialog (void)
 {
 	MenuDialogClass::On_Init_Dialog ();
-	MouseMgrClass::Show_Cursor (false);
 
 	//
 	//	Get a pointer to the list control
@@ -188,7 +186,16 @@ CNCServerInfoDialogClass::On_Frame_Update (void)
 	int dik_id = Input::Get_Primary_Key_For_Function (INPUT_FUNCTION_SERVER_INFO_TOGGLE);
 	if ((DirectInput::Get_Keyboard_Button (dik_id) & DirectInput::DI_BUTTON_HELD) == 0) {
 		End_Dialog ();
+		return ;
 	}
+
+	//
+	//	Let the dialog think.  Without this the list control never gets
+	//	Update_Mouse_State() or its own On_Frame_Update(), so the list cannot
+	//	be scrolled for as long as the key is held -- which is the whole time
+	//	the dialog is up.
+	//
+	DialogBaseClass::On_Frame_Update ();
 
 	return ;
 }

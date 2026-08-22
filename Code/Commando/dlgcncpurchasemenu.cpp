@@ -749,14 +749,15 @@ CNCPurchaseMenuClass::Update_Building_Health (void)
 	if (building != nullptr) {
 		float life = building->Get_Defense_Object ()->Get_Health () / building->Get_Defense_Object ()->Get_Health_Max ();
 		((HealthBarCtrlClass *)Get_Dlg_Item (IDC_BUILDING02_HEALTHBAR))->Set_Life (life);
-
-		//
-		//	Show the cost doubled text
-		//
-		if (life <= 0) {
-			Get_Dlg_Item (IDC_COST_X2_TEXT)->Show (true);
-		}
 	}
+
+	//
+	//	Show the cost doubled text.  This has to read the same flag the price
+	//	reads -- Is_Base_Powered(), see vendor.cpp -- and not the power plant's
+	//	health.  The two disagree: Power_Base() is server driven, and a base
+	//	with no power plant building at all still pays double.
+	//
+	Get_Dlg_Item (IDC_COST_X2_TEXT)->Show (base->Is_Base_Powered () == false);
 
 	return ;
 }
