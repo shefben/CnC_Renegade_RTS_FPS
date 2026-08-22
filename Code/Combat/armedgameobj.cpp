@@ -346,6 +346,37 @@ void	ArmedGameObj::On_Post_Load( void )
 
 
 //-----------------------------------------------------------------------------
+//
+//	Apply an aim point that arrived over the network.
+//
+//	A vehicle gets it assigned rather than applied.  VehicleGameObj::Set_Targeting
+//	advances the turret by at most one frame's worth of turn rate per call, and
+//	the network update rate is nothing like the frame rate -- driving the slew
+//	from here gave a remote turret one step per packet, so it trailed its real
+//	aim by the difference between the two rates.  VehicleGameObj::Think does the
+//	advancing now, every frame, which is what the rate limit was written for.
+//
+void ArmedGameObj::Set_Imported_Targeting(const Vector3 & targeting_pos)
+{
+	SmartGameObj *smart_game_obj = As_SmartGameObj ();
+
+	//
+	//	Never force the targeting of something this machine is driving itself.
+	//
+	if (smart_game_obj != nullptr && smart_game_obj->Is_Controlled_By_Me()) {
+		return ;
+	}
+
+	if (smart_game_obj != nullptr && smart_game_obj->As_VehicleGameObj () != nullptr) {
+		TargetingPos = targeting_pos;
+	} else {
+		Set_Targeting(targeting_pos);
+	}
+
+	return ;
+}
+
+//-----------------------------------------------------------------------------
 void ArmedGameObj::Import_Frequent(BitStreamClass & packet)
 {
 	PhysicalGameObj::Import_Frequent( packet );
@@ -355,14 +386,7 @@ void ArmedGameObj::Import_Frequent(BitStreamClass & packet)
 	packet.Get(targeting_pos.Y, BITPACK_WORLD_POSITION_Y);
 	packet.Get(targeting_pos.Z, BITPACK_WORLD_POSITION_Z);
 
-	//
-	//	Don't force the targetting if the object is controlled
-	// by this player
-	//
-	SmartGameObj *smart_game_obj = As_SmartGameObj ();
-	if (smart_game_obj == nullptr || smart_game_obj->Is_Controlled_By_Me() == false) {
-		Set_Targeting(targeting_pos);
-	}
+	Set_Imported_Targeting(targeting_pos);
 
 	return ;
 }
@@ -406,14 +430,14 @@ void ArmedGameObj::Import_State_Cs(BitStreamClass & packet)
 	Get_Position( &my_pos );
 	Vector3 targeting_pos = rel_target + my_pos;
 
-	Set_Targeting(targeting_pos);
+	Set_Imported_Targeting(targeting_pos);
 #else
 	Vector3 targeting_pos;
 	packet.Get(targeting_pos.X, BITPACK_WORLD_POSITION_X);
 	packet.Get(targeting_pos.Y, BITPACK_WORLD_POSITION_Y);
 	packet.Get(targeting_pos.Z, BITPACK_WORLD_POSITION_Z);
 
-	Set_Targeting(targeting_pos);
+	Set_Imported_Targeting(targeting_pos);
 #endif
 }
 

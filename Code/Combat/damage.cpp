@@ -1272,7 +1272,17 @@ float DefenseObjectClass::Get_Health(void) const
 void DefenseObjectClass::Set_Health_Max(float health)
 {
 	HealthMax = WWMath::Clamp(health, 0, MAX_MAX_HEALTH);
+
+	//
+	//	Lowering the maximum below the current health used to leave the object
+	//	above its own ceiling.
+	//
+	if ( (float)HealthMax < (float)Health ) {
+		Health = HealthMax;
+	}
+
 	Mark_Owner_Dirty();
+	Mark_Owner_Rare_Dirty();
 }
 
 float DefenseObjectClass::Get_Health_Max(void) const
@@ -1304,7 +1314,13 @@ float DefenseObjectClass::Get_Shield_Strength(void) const
 void DefenseObjectClass::Set_Shield_Strength_Max(float str)
 {
 	ShieldStrengthMax = WWMath::Clamp(str, 0, MAX_MAX_SHIELD_STRENGTH);
+
+	if ( (float)ShieldStrengthMax < (float)ShieldStrength ) {
+		ShieldStrength = ShieldStrengthMax;
+	}
+
 	Mark_Owner_Dirty();
+	Mark_Owner_Rare_Dirty();
 }
 
 float DefenseObjectClass::Get_Shield_Strength_Max(void) const
@@ -1333,6 +1349,17 @@ void	DefenseObjectClass::Mark_Owner_Dirty( void )
 {
 	if ( Get_Owner() != nullptr ) {
 		Get_Owner()->Set_Object_Dirty_Bit( NetworkObjectClass::BIT_OCCASIONAL, true );
+	}
+}
+
+//
+//	The maxima ride in the rare tier -- Mark_Owner_Dirty only asks for the
+//	occasional one, which carries current health but not its ceiling.
+//
+void	DefenseObjectClass::Mark_Owner_Rare_Dirty( void )
+{
+	if ( Get_Owner() != nullptr ) {
+		Get_Owner()->Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
 	}
 }
 

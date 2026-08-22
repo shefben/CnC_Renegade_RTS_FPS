@@ -366,6 +366,30 @@ void	DamageableGameObj::Apply_Damage( const OffenseObjectClass & damager, float 
 /*
 **
 */
+//
+//	The maxima.  A script or a server may change either, and until they crossed
+//	the wire every other machine drew the health bar against the value baked
+//	into the definition.
+//
+void	DamageableGameObj::Export_Rare( BitStreamClass &packet )
+{
+	ScriptableGameObj::Export_Rare( packet );
+
+	packet.Add( DefenseObject.Get_Health_Max() );
+	packet.Add( DefenseObject.Get_Shield_Strength_Max() );
+}
+
+void	DamageableGameObj::Import_Rare( BitStreamClass &packet )
+{
+	ScriptableGameObj::Import_Rare( packet );
+
+	float health_max = packet.Get( health_max );
+	float shield_max = packet.Get( shield_max );
+
+	DefenseObject.Set_Health_Max( health_max );
+	DefenseObject.Set_Shield_Strength_Max( shield_max );
+}
+
 void	DamageableGameObj::Export_Occasional( BitStreamClass &packet )
 {
 	ScriptableGameObj::Export_Occasional( packet );

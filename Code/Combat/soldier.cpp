@@ -4605,6 +4605,27 @@ Vector3	SoldierGameObj::Get_Bullseye_Position( void )
 		return Get_Vehicle()->Get_Bullseye_Position();
 	}
 
+	//
+	//	The chest, not the feet plus a number.  A bone follows the animation, so
+	//	crouching needs no special case -- and, unlike a point floating near the
+	//	origin, it cannot end up inside the geometry the soldier is standing
+	//	behind while the soldier themselves is in the open.
+	//
+	RenderObjClass * model = Peek_Model();
+
+	if ( model != nullptr ) {
+
+		int bone = model->Get_Bone_Index( "target" );
+		if ( bone > 0 ) {
+			return model->Get_Bone_Transform( bone ).Get_Translation();
+		}
+
+		bone = model->Get_Bone_Index( "C SPINE1" );
+		if ( bone > 0 ) {
+			return model->Get_Bone_Transform( bone ).Get_Translation();
+		}
+	}
+
 	Vector3 pos;
 	Get_Position(&pos);
 	if ( Is_Crouched() ) {
@@ -4612,7 +4633,6 @@ Vector3	SoldierGameObj::Get_Bullseye_Position( void )
 	} else {
 		pos.Z += Get_Bullseye_Offset_Z();
 	}
-//	pos.Z += 1.2f;
 	return pos;
 }
 

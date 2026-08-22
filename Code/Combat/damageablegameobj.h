@@ -145,6 +145,8 @@ public:
 	//
 	virtual	void								Import_Occasional( BitStreamClass &packet ) override;
 	virtual	void								Export_Occasional( BitStreamClass &packet ) override;
+	virtual	void								Import_Rare( BitStreamClass &packet ) override;
+	virtual	void								Export_Rare( BitStreamClass &packet ) override;
 
 protected:
 

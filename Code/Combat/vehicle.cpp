@@ -1511,6 +1511,15 @@ void	VehicleGameObj::Think( void )
 	Apply_Control();	// ????
 
 	Update_Transitions();
+
+	//
+	//	Advance the turret towards where the vehicle is aiming.  Set_Targeting
+	//	moves it by one frame's worth of turn rate, so it has to be called at
+	//	the frame rate -- the network import only records the aim point.
+	//
+	if ( IS_MULTIPLAY ) {
+		Set_Targeting( Get_Targeting_Pos(), true );
+	}
 }
 	SmartGameObj::Think(); 										// Perform smart object thinking
 {	WWPROFILE( _profile_name );

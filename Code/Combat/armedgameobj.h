@@ -132,6 +132,7 @@ public:
 	// Targeting
 	Vector3						Get_Targeting_Pos( void )					{ return TargetingPos; }
    virtual bool				Set_Targeting( const Vector3 & pos, bool do_tilt = true );
+	void							Set_Imported_Targeting( const Vector3 & pos );
 
 	// Type identification
 	virtual	ArmedGameObj	*As_ArmedGameObj( void ) override					{ return this; }

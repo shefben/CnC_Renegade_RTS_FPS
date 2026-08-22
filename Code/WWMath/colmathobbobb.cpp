@@ -519,6 +519,7 @@ struct ObbCollisionStruct
 		StartBad(true),													// Startbad is true until one of the axes clears it
 		AxisId(INTERSECTION),											// AxisId will be the axis that allowed the longest move
 		MaxFrac(0.0f),														// MaxFrac is the longest allowed move so far
+		Side(0),																// Only set when a separating axis is found; see below
 		Box0(box0),
 		Move0(move0),
 		Box1(box1),
@@ -539,7 +540,13 @@ struct ObbCollisionStruct
 	bool						StartBad;			// Inital configuration is intersecting?
 	float						MaxFrac;				// Longest move allowed so far
 	int						AxisId;				// Last separating axis
-	int						Side;					// which side of the interval
+	//
+	//	Which side of the interval.  Only obb_separation_test assigns this, and
+	//	only when it finds a separating axis -- so on an intersecting start it
+	//	was read uninitialised, and the collision normal came back multiplied by
+	//	whatever was on the stack.  That is what threw objects out of the world.
+	//
+	int						Side;
 
 	int						TestAxisId;			// Axis 'id' we're working on
 	Vector3					TestAxis;			// Axis that we're working on

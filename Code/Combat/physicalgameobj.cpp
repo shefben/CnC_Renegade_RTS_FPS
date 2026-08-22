@@ -590,11 +590,36 @@ bool	PhysicalGameObj::Is_Soft( void )
 	return DefenseObject.Is_Soft();
 }
 
+//
+//	Where things aim when they aim at this object.  A bone rather than the
+//	origin, so the point sits on the model and moves with it.
+//
 Vector3	PhysicalGameObj::Get_Bullseye_Position( void )
 {
+	RenderObjClass * model = Peek_Model();
+
+	if ( model != nullptr ) {
+
+		//
+		//	An artist-supplied aim point wins.
+		//
+		int bone = model->Get_Bone_Index( "target" );
+		if ( bone > 0 ) {
+			return model->Get_Bone_Transform( bone ).Get_Translation();
+		}
+
+		//
+		//	The transport helicopter's origin is nowhere near the part of it you
+		//	can see, so aim at the fuselage.
+		//
+		bone = model->Get_Bone_Index( "V_FUSELAGE" );
+		if ( bone > 0 ) {
+			return model->Get_Bone_Transform( bone ).Get_Translation();
+		}
+	}
+
 	Vector3 pos;
 	Get_Position(&pos);
-//	pos.Z += Get_Bullseye_Offset_Z();
 	return pos;
 }
 

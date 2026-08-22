@@ -208,8 +208,13 @@ public:
 	void	Set_Skin( ArmorType skin )		{ Skin = skin; }
 	ArmorType	Get_Skin( void ) const 	{ return Skin;	}
 
-	enum {MAX_MAX_HEALTH					= 2000};//500};
-	enum {MAX_MAX_SHIELD_STRENGTH		= 2000};//500};
+	//
+	//	The ceiling on what a definition or a script may set as a maximum.  It
+	//	also drives the bit-packing range in Set_Precision, so the two cannot
+	//	drift apart and leave health that does not survive the wire.
+	//
+	enum {MAX_MAX_HEALTH					= 10000};//2000};//500};
+	enum {MAX_MAX_SHIELD_STRENGTH		= 10000};//2000};//500};
 
 	// Health
 	void				Set_Health(float health);
@@ -271,6 +276,7 @@ private:
 	GameObjReference	Owner;
 
 	void				Mark_Owner_Dirty( void );
+	void				Mark_Owner_Rare_Dirty( void );
 
 #ifdef WWDEBUG
 	static bool		OneShotKills;
