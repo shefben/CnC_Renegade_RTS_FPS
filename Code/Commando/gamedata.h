@@ -192,6 +192,7 @@ class	cGameData :
 		//
 		//	Map cycle looping support
 		//
+		int	Get_Map_Cycle_Index (void) const		{ return MapCycleIndex; }
 		bool	Is_Map_Cycle_Over (void)				{ return IsMapCycleOver; }
 		void	Set_Is_Map_Cycle_Over (bool onoff)	{ IsMapCycleOver = onoff; }
 		bool	Do_Maps_Loop (void)						{ return DoMapsLoop; }

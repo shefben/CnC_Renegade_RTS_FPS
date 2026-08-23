@@ -84,6 +84,13 @@ public:
 	virtual void		Display_Default_Terminal_For_Player (SoldierGameObj * /*player*/) {}
 
 	//
+	//	A page of plain text a level names by file.  4.8.4's objectives dialog;
+	//	the request is made on the server and lands here on the one client it
+	//	was addressed to.  A tool has no screen to open it on and does nothing.
+	//
+	virtual void		Display_Objectives_Text (const char * /*filename*/) {}
+
+	//
 	//	Static methods
 	//
 	static PlayerTerminalClass *	Get_Instance (void)	{ return _TheInstance; }

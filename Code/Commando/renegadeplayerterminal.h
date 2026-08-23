@@ -69,6 +69,7 @@ public:
 	//
 	void				Display_Terminal (SoldierGameObj *player, TYPE type) override;
 	void				Display_Default_Terminal_For_Player (SoldierGameObj *player) override;
+	void				Display_Objectives_Text (const char *filename) override;
 
 private:
 

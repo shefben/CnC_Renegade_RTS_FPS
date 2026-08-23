@@ -832,6 +832,19 @@ namespace ScriptEngine
 	void Display_GDI_Player_Terminal_Player ( GameObject * player );
 	void Display_NOD_Player_Terminal_Player ( GameObject * player );
 
+	//	Open a page of plain text on one player's screen.  4.8.4's objectives
+	//	dialog: the file travels by name and is read on the client that shows
+	//	it.
+	void Display_Objectives_Text_Player ( GameObject * player, const char * filename );
+
+	//	A sound file rather than a preset, played on one player's machine at a
+	//	bone of an object both machines know about, and an emoticon over one
+	//	soldier's head as one other player sees it.
+	void Create_3D_WAV_Sound_At_Bone_Player ( GameObject * player, const char * wav_filename,
+			GameObject * obj, const char * bone_name );
+	void Set_Emot_Icon_Player ( GameObject * player, GameObject * target, const char * model_name,
+			float duration );
+
 	// Server-side team operations
 	void Kill_All_Buildings_By_Team ( int team );
 

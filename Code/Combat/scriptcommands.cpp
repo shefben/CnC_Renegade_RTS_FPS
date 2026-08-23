@@ -4163,6 +4163,59 @@ void	Display_GDI_Player_Terminal_Player( GameObject * player )
 	event->Init( SCRIPT_CLIENT_CMD_DISPLAY_GDI_TERMINAL, client_id );
 }
 
+void	Display_Objectives_Text_Player( GameObject * player, const char * filename )
+{
+	SCRIPT_TRACE(( "ST>Display_Objectives_Text_Player( %s )\n", ( filename != nullptr ) ? filename : "" ));
+
+	if ( ( filename == nullptr ) || ( filename[0] == 0 ) ) {
+		return ;
+	}
+
+	Send_To_Players_Client( player, SCRIPT_CLIENT_CMD_DISPLAY_OBJECTIVES_TEXT, filename );
+}
+
+void	Create_3D_WAV_Sound_At_Bone_Player( GameObject * player, const char * wav_filename,
+		GameObject * obj, const char * bone_name )
+{
+	if ( !CombatManager::I_Am_Server() || ( player == nullptr ) || ( obj == nullptr ) ) {
+		return ;
+	}
+
+	if ( ( wav_filename == nullptr ) || ( wav_filename[0] == 0 ) ) {
+		return ;
+	}
+
+	int client_id = Get_Player_ID( player );
+	if ( client_id <= 0 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( wav_filename );
+	event->Set_Text2( ( bone_name != nullptr ) ? bone_name : "ROOTTRANSFORM" );
+	event->Set_Int_Params( Get_ID( obj ) );
+	event->Init( SCRIPT_CLIENT_CMD_CREATE_3D_WAV_SOUND_AT_BONE, client_id );
+}
+
+void	Set_Emot_Icon_Player( GameObject * player, GameObject * target, const char * model_name,
+		float duration )
+{
+	if ( !CombatManager::I_Am_Server() || ( player == nullptr ) || ( target == nullptr ) ) {
+		return ;
+	}
+
+	int client_id = Get_Player_ID( player );
+	if ( client_id <= 0 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( ( model_name != nullptr ) ? model_name : "" );
+	event->Set_Int_Params( Get_ID( target ) );
+	event->Set_Float_Params( duration );
+	event->Init( SCRIPT_CLIENT_CMD_SET_EMOT_ICON, client_id );
+}
+
 void	Display_NOD_Player_Terminal_Player( GameObject * player )
 {
 	int client_id = Client_Id_Of( player );

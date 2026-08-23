@@ -68,6 +68,13 @@
 */
 DECLARE_FORCE_LINK( C4 )
 
+//
+//	What Export_Rare sends in place of a stuck-object ID when the charge is
+//	stuck to the level rather than to an object.  Zero cannot be used: it is a
+//	valid network ID on a client.
+//
+static const int	NO_STUCK_OBJECT	= -1;
+
 SimplePersistFactoryClass<C4GameObjDef, CHUNKID_GAME_OBJECT_DEF_C4>	_C4GameObjDefPersistFactory;
 
 DECLARE_DEFINITION_FACTORY(C4GameObjDef, CLASSID_GAME_OBJECT_DEF_C4, "C4") _C4GameObjDefDefFactory;
@@ -748,7 +755,14 @@ void	C4GameObj::Export_Rare( BitStreamClass &packet )
 		packet.Add(StuckMCT);
 		packet.Add(StuckToObject);
 
-		int stuck_object_id=0;
+		//
+		//	NO_STUCK_OBJECT, not zero.  A C4 stuck to level geometry has no
+		//	object to name, and zero is a real network ID on a client -- the
+		//	repair bay's welding arc effects carry it -- so the receiver used
+		//	to attach the charge to an arc and the charge appeared to follow
+		//	it around.
+		//
+		int stuck_object_id = NO_STUCK_OBJECT;
 		if (StuckObject.Get_Ptr()) {
 			stuck_object_id = StuckObject.Get_Ptr()->Get_ID();
 		}
@@ -828,7 +842,8 @@ void	C4GameObj::Import_Rare( BitStreamClass &packet )
 
 		int stuck_object_id;
 		packet.Get(stuck_object_id);
-		StuckObject = GameObjManager::Find_ScriptableGameObj(stuck_object_id);
+		StuckObject = (stuck_object_id != NO_STUCK_OBJECT)
+				? GameObjManager::Find_ScriptableGameObj(stuck_object_id) : nullptr;
 
 		if (StuckToObject) {
 			packet.Get(StuckOffset.X, BITPACK_VEHICLE_VELOCITY);	// offset, using velocity packing...

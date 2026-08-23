@@ -27,6 +27,8 @@
 #include "mapmgr.h"
 #include "ttsettings.h"
 #include "gamehint.h"
+#include "playerterminal.h"
+#include "soldier.h"
 #include "messagewindow.h"
 #include "networkobjectfactory.h"
 #include "scriptcommands.h"
@@ -211,6 +213,25 @@ cScScriptCommandEvent::Act (void)
 		case SCRIPT_CLIENT_CMD_DISPLAY_GAME_HINT:
 			GameHintClass::Show (IntParam1, Text, IntParam2, IntParam3, IntParam4, IntParam5, Text2);
 			break;
+
+		case SCRIPT_CLIENT_CMD_DISPLAY_OBJECTIVES_TEXT:
+			PlayerTerminalClass::Get_Instance ()->Display_Objectives_Text (Text);
+			break;
+
+		case SCRIPT_CLIENT_CMD_CREATE_3D_WAV_SOUND_AT_BONE:
+			ScriptEngine::Create_3D_WAV_Sound_At_Bone (Text,
+					ScriptEngine::Find_Object (IntParam1), Text2);
+			break;
+
+		case SCRIPT_CLIENT_CMD_SET_EMOT_ICON:
+		{
+			GameObject *		target	= ScriptEngine::Find_Object (IntParam1);
+			SoldierGameObj *	soldier	= (target != nullptr) ? target->As_SoldierGameObj () : nullptr;
+			if (soldier != nullptr) {
+				soldier->Set_Emot_Icon (Text, FloatParam1);
+			}
+			break;
+		}
 
 		case SCRIPT_CLIENT_CMD_SET_GLOBAL_STEALTH_DISABLE:
 			SmartGameObj::Set_Global_Stealth_Disabled (IntParam1 != 0);

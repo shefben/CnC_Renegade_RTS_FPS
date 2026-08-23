@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "consolefunction.h"
+#include "ttconsole.h"
 #include "console.h"
 #include "textdisplay.h"
 #include "combatgmode.h"
@@ -5208,6 +5209,12 @@ void	ConsoleFunctionManager::Init( void )
 
 
 	SystemSettings::Add_Console_Functions( FunctionList );
+
+	//
+	//	The server-operator commands 4.8.4 added.  They go into this list, not
+	//	a second one of their own.
+	//
+	TTConsole::Add_Console_Functions( FunctionList );
 
 	Sort_Function_List();
 

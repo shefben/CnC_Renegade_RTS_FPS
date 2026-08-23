@@ -2378,17 +2378,21 @@ JFW_SHADER_MARKER (JFW_Shader_Custom_Create,			"Number:int,Number2:float")
 JFW_SHADER_MARKER (JFW_Shader_Custom_Poke,			"Number:int,Number2:float")
 
 
-/******************************************************************************
-*
-*	The one name that is not here
-*
-*	JFW_Custom_Objectives_Dlg opens the objectives dialog on the screen of
-*	whoever sent it a message, showing a named objectives file.  4.8.4 did that
-*	by calling a function it resolved out of its own engine DLL by name; there
-*	is no source for it here and no equivalent in this tree, because the
-*	objectives viewer is client side and nothing can currently ask one client
-*	to open it.  It wants the server-to-client dialog request that the HUD and
-*	dialog work brings with it, and is recorded against that work rather than
-*	guessed at here.
-*
-******************************************************************************/
+/*JFW_Custom_Objectives_Dlg
+
+  Opens the objectives dialog on the screen of whoever sent the message,
+  showing a named text file.  The viewer is client side, so the request goes
+  to that one player and the file is read where it is drawn -- only the name
+  travels.
+*/
+
+DECLARE_SCRIPT_TT (JFW_Custom_Objectives_Dlg, "Message:int,File:string")
+{
+	void Custom (GameObject * /*obj*/, int type, intptr_t /*param*/, GameObject *sender) override
+	{
+		if (type == Get_Int_Parameter ("Message"))
+		{
+			ScriptEngine::Display_Objectives_Text_Player (sender, Get_Parameter ("File"));
+		}
+	}
+};

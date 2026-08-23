@@ -164,6 +164,13 @@ enum class RenegadeDialogID {
     //  4.8.4 level expects one.
     //
     IDD_GAME_HINT =                   258,
+
+    //
+    //  A scrollable page of plain text a level names by file.  Not a Westwood
+    //  dialog either; 4.8.4 opened one of these on a single player's screen
+    //  and a level still asks for it.
+    //
+    IDD_OBJECTIVES_TEXT =             259,
 };
 #define IDC_INVITE_BUDDY_BUTTON         3
 #define IDC_PAGE_BUTTON                 4

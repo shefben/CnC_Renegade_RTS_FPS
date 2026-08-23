@@ -279,6 +279,7 @@ Damage_All_Objects_Area_By_Team	engine_dmg.h	1	done
 Damage_Occupants	engine_dmg.h	1	done
 Display_Encyclopedia_Event_UI	Commands->	1	done
 Display_Health_Bar	Commands->	1	done
+Do_Objectives_Dlg	engine_tt.h	1	done
 Enable_Collisions	Commands->	1	done
 Enable_Letterbox	Commands->	1	done
 Enable_Radar	Commands->	1	done
@@ -361,4 +362,3 @@ RemovePowerupPurchaseHook	engine_tt.h	1	n/a-plugin-hook
 newstr	engine_string.h	45	n/a-sdk-helper
 wcsistr	engine_string.h	7	n/a-sdk-helper
 stristr	engine_string.h	1	n/a-sdk-helper
-Do_Objectives_Dlg	engine_tt.h	1	port-engine-work

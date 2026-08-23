@@ -244,6 +244,10 @@ set(COMMANDO_SRC
     dlgmainmenu.h
     dlggamehint.cpp
     dlggamehint.h
+    dlgobjectivestext.cpp
+    dlgobjectivestext.h
+    ttconsole.cpp
+    ttconsole.h
     DlgMessageBox.cpp
     DlgMessageBox.h
     dlgmovieoptions.cpp

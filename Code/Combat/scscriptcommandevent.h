@@ -60,6 +60,11 @@ enum ScriptClientCommandEnum
 	SCRIPT_CLIENT_CMD_DISPLAY_GAME_HINT,		// IntParam1 = event id, IntParam2 = title string id,
 												// IntParam3/4/5 = the three text string ids,
 												// Text = sound, Text2 = texture or empty
+	SCRIPT_CLIENT_CMD_DISPLAY_OBJECTIVES_TEXT,	// Text = the text file to show
+	SCRIPT_CLIENT_CMD_CREATE_3D_WAV_SOUND_AT_BONE,	// Text = wav file, IntParam1 = object id,
+													// Text2 = bone name
+	SCRIPT_CLIENT_CMD_SET_EMOT_ICON,			// IntParam1 = soldier id, Text = model,
+												// FloatParam1 = seconds
 
 	SCRIPT_CLIENT_CMD_COUNT
 };

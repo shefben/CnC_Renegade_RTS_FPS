@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "renegadeplayerterminal.h"
+#include "dlgobjectivestext.h"
 #include "renegadedialog.h"
 #include "dlgcncpurchasemainmenu.h"
 #include "soldier.h"
@@ -134,6 +135,19 @@ RenegadePlayerTerminalClass::Display_Terminal (SoldierGameObj *player, TYPE type
 		RenegadeDialogMgrClass::Do_Simple_Dialog (GetRenegadeDialog(RenegadeDialogID::IDD_CNC_PURCHASE_ACCESS_DENIED));
 	}
 
+	return ;
+}
+
+
+//////////////////////////////////////////////////////////////////////
+//
+//	Display_Objectives_Text
+//
+//////////////////////////////////////////////////////////////////////
+void
+RenegadePlayerTerminalClass::Display_Objectives_Text (const char *filename)
+{
+	DlgObjectivesText::DoDialog (filename);
 	return ;
 }
 

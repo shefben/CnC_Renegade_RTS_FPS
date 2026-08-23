@@ -343,6 +343,17 @@ void	CombatManager::Scene_Init( void )
 	COMBAT_SCENE->Disable_Collision_Detection( SOLDIER_GHOST_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
 
 	//
+	//	A ghosted soldier passes through the DEFAULT group as well.  Ghosting
+	//	is entered inside a ladder or elevator coordination zone and while
+	//	squeezing past a team mate, and in both cases the point is that the
+	//	soldier is not to be stopped by whatever he is sharing the space with.
+	//	Leaving DEFAULT solid meant a vehicle or a placed dynamic object could
+	//	still pin him at the foot of a ladder, which is the 4.8.4 ladder fix
+	//	and the behavior every server has run since.
+	//
+	COMBAT_SCENE->Disable_Collision_Detection( SOLDIER_GHOST_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
+
+	//
 	//	C4 is DEFAULT plus ghosted soldiers -- a proximity mine has to notice a
 	//	soldier who is walking through his own team -- and minus the two edge
 	//	volumes, which exist to steer vehicles and would detonate it.
