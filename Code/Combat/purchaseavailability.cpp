@@ -23,6 +23,7 @@
 #include "combat.h"
 #include "gameobjmanager.h"
 #include "playertype.h"
+#include "ssgmsettings.h"
 
 #include <string.h>
 
@@ -35,6 +36,8 @@ unsigned char	PurchaseAvailabilityClass::PageFlags
 unsigned char	PurchaseAvailabilityClass::EnlistedFlags
 		[TeamPurchaseSettingsDefClass::TEAM_COUNT]
 		[PurchaseAvailabilityClass::ENLISTED_COUNT] = { { 0 } };
+
+int				PurchaseAvailabilityClass::TechLevel = 0;
 
 
 //
@@ -56,6 +59,20 @@ void	PurchaseAvailabilityClass::Reset (void)
 	::memset (PageFlags, 0, sizeof (PageFlags));
 	::memset (EnlistedFlags, 0, sizeof (EnlistedFlags));
 
+	//	The match starts wherever the server layer says it starts.
+	TechLevel = SSGMSettingsClass::TechLevel;
+
+	Changed ();
+}
+
+
+void	PurchaseAvailabilityClass::Set_Tech_Level (int level)
+{
+	if ((level == TechLevel) || !CombatManager::I_Am_Server ()) {
+		return ;
+	}
+
+	TechLevel = level;
 	Changed ();
 }
 
@@ -75,7 +92,19 @@ unsigned char	PurchaseAvailabilityClass::Get_Flags (PurchaseSettingsDefClass::TY
 	if ((team < 0) || (team >= PurchaseSettingsDefClass::TEAM_COUNT))	{ return 0; }
 	if ((index < 0) || (index >= ENTRY_COUNT))								{ return 0; }
 
-	return PageFlags[type][team][index];
+	unsigned char flags = PageFlags[type][team][index];
+
+	//
+	//	An entry the match has not teched up to is greyed out whatever the
+	//	flags say.  This is read on both sides, so both have to agree; the
+	//	tech level replicates and the definition is the same everywhere.
+	//
+	PurchaseSettingsDefClass *page = PurchaseSettingsDefClass::Find_Definition (type, team);
+	if ((page != nullptr) && (page->Get_Tech_Level (index) > TechLevel)) {
+		flags |= FLAG_DISABLED;
+	}
+
+	return flags;
 }
 
 
@@ -223,6 +252,8 @@ void	PurchaseAvailabilityClass::Export_Rare (BitStreamClass &packet)
 			packet.Add (EnlistedFlags[team][index]);
 		}
 	}
+
+	packet.Add (TechLevel);
 }
 
 
@@ -241,4 +272,6 @@ void	PurchaseAvailabilityClass::Import_Rare (BitStreamClass &packet)
 			packet.Get (EnlistedFlags[team][index]);
 		}
 	}
+
+	packet.Get (TechLevel);
 }

@@ -22,9 +22,11 @@
 #include "bitpackids.h"
 #include "combat.h"
 #include "gameeventbus.h"
+#include "gamehint.h"
 #include "messagewindow.h"
 #include "networkobjectfactory.h"
 #include "scriptcommands.h"
+#include "smartgameobj.h"
 #include "widestring.h"
 
 
@@ -36,6 +38,9 @@ cScScriptCommandEvent::cScScriptCommandEvent (void)
 	:	Command (SCRIPT_CLIENT_CMD_COUNT),
 		IntParam1 (0),
 		IntParam2 (0),
+		IntParam3 (0),
+		IntParam4 (0),
+		IntParam5 (0),
 		FloatParam1 (0.0f),
 		FloatParam2 (0.0f),
 		Color (1.0f, 1.0f, 1.0f),
@@ -177,6 +182,14 @@ cScScriptCommandEvent::Act (void)
 			ScriptEngine::Display_NOD_Player_Terminal ();
 			break;
 
+		case SCRIPT_CLIENT_CMD_DISPLAY_GAME_HINT:
+			GameHintClass::Show (IntParam1, Text, IntParam2, IntParam3, IntParam4, IntParam5, Text2);
+			break;
+
+		case SCRIPT_CLIENT_CMD_SET_GLOBAL_STEALTH_DISABLE:
+			SmartGameObj::Set_Global_Stealth_Disabled (IntParam1 != 0);
+			break;
+
 		case SCRIPT_CLIENT_CMD_SET_CAMERA_HOST:
 			ScriptEngine::Set_Camera_Host ((IntParam1 != 0)
 					? ScriptEngine::Find_Object (IntParam1) : nullptr);
@@ -212,6 +225,9 @@ cScScriptCommandEvent::Export_Creation (BitStreamClass &packet)
 	packet.Add ((BYTE)Command);
 	packet.Add (IntParam1);
 	packet.Add (IntParam2);
+	packet.Add (IntParam3);
+	packet.Add (IntParam4);
+	packet.Add (IntParam5);
 	packet.Add (FloatParam1);
 	packet.Add (FloatParam2);
 	packet.Add (Color.X);
@@ -241,6 +257,9 @@ cScScriptCommandEvent::Import_Creation (BitStreamClass &packet)
 
 	packet.Get (IntParam1);
 	packet.Get (IntParam2);
+	packet.Get (IntParam3);
+	packet.Get (IntParam4);
+	packet.Get (IntParam5);
 	packet.Get (FloatParam1);
 	packet.Get (FloatParam2);
 	packet.Get (Color.X);

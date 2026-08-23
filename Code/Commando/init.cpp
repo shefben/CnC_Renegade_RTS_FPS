@@ -71,6 +71,7 @@
 #include	"systemsettings.h"
 #include "gamedata.h"
 #include "gameinfoimpl.h"
+#include "dlggamehint.h"
 #include "playerrosterimpl.h"
 #include "sphereobj.h"
 #include "ringobj.h"
@@ -1021,6 +1022,10 @@ bool Game_Init(void)
 	//
 	GameInfoImplClass::Register();
 	PlayerRosterImplClass::Register();
+
+	//	And the popup a level uses to explain itself.
+	static GameHintDialogClass	_TheGameHintDialog;
+	GameHintClass::Set_Interface( &_TheGameHintDialog );
 
 	CampaignManager::Init();
 

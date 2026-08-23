@@ -137,6 +137,19 @@ public:
 	static int			RefillLimit;
 
 	//
+	//	How many mines one player may have on the map at once.  Laying one
+	//	more than this removes the oldest.
+	//
+	static int			MineLimit;
+
+	//
+	//	The tech level the match starts at.  A purchase entry whose own tech
+	//	level is higher than the current one is greyed out; zero, the
+	//	default for both, puts everything on offer.
+	//
+	static int			TechLevel;
+
+	//
 	//	Everyone is put on this team regardless of what they chose.  -1 leaves
 	//	team choice alone, which is the default.  A map may answer differently.
 	//

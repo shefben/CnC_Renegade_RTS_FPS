@@ -165,6 +165,9 @@ float		SmartGameObj::GlobalSightRangeScale = 1.0f;
 /*
 ** SmartGameObj
 */
+bool	SmartGameObj::GlobalStealthDisabled = false;
+
+
 SmartGameObj::SmartGameObj( void ) :
 	Action( this ),
    ControlOwner( SERVER_CONTROL_OWNER ),
@@ -777,7 +780,9 @@ void SmartGameObj::Think()
 			StealthEffect->Set_Friendly( Is_Teammate( COMBAT_STAR ) );
 		}
 
-		if (((StealthPowerupTimer > 0.0f) || (StealthEnabled)) && (StealthFiringTimer <= 0.0f)) {
+		if (!GlobalStealthDisabled
+				&& ((StealthPowerupTimer > 0.0f) || (StealthEnabled))
+				&& (StealthFiringTimer <= 0.0f)) {
 			WWPROFILE("Stealh");
 
 			Alloc_Stealth_Effect();

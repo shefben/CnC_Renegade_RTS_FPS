@@ -846,6 +846,38 @@ namespace ScriptEngine
 	//	Everything the named building produces, at once.
 	void Disable_All_Presets_By_Factory_Tech ( int building_type, int team, bool disable );
 
+	//
+	//	The tech level the match has reached, and the mine cap.  Both start
+	//	from the server layer's ssgm.ini; the tech level can be moved during
+	//	a match and replicates when it is.
+	//
+	void Set_Tech_Level ( int level );
+	int Get_Tech_Level ( void );
+	int Get_Mine_Limit ( void );
+
+	//
+	//	What a player of each side spawns as.  Empty means the game's own
+	//	default soldier for that side.
+	//
+	const char * Get_GDI_Soldier_Name ( void );
+	const char * Get_Nod_Soldier_Name ( void );
+	void Set_GDI_Soldier_Name ( const char * preset_name );
+	void Set_Nod_Soldier_Name ( const char * preset_name );
+
+	//
+	//	The popup a level uses to explain itself.  Shown to one player, once
+	//	per event ID for as long as that player keeps their hints file.  A
+	//	text ID of zero leaves that line out.
+	//
+	void Display_Game_Hint ( GameObject * player, int event_id, const char * sound,
+			int title_id, int text_id, int text_id2, int text_id3 );
+
+	void Display_Game_Hint_Image ( GameObject * player, int event_id, const char * sound,
+			int title_id, int text_id, int text_id2, int text_id3, const char * texture_name );
+
+	//	One switch for every cloak in the level.
+	void Set_Global_Stealth_Disable ( bool disable );
+
 	// Two questions a character's preset answers about itself: whether it is a
 	// spy -- a soldier the other team's entry zones read as one of their own --
 	// and whether a vehicle is allowed to run it over.

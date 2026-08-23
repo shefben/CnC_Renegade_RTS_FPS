@@ -1214,6 +1214,20 @@ static const DialogResource dialog_IDD_WEBPAGE = {
 	nullptr, 0
 };
 
+static const DialogResourceControl controls_IDD_GAME_HINT[] = {
+	{ CONTROL_STATIC,      9,   7,  64,  64, IDC_IMAGE, WS_VISIBLE|WS_CHILD|SS_BITMAP|SS_CENTERIMAGE, nullptr },
+	{ CONTROL_STATIC,     81,   7, 190,  20, IDC_MESSAGE, WS_VISIBLE|WS_CHILD|SS_LEFT|WS_GROUP, nullptr },
+	{ CONTROL_STATIC,     81,  29, 190,  20, IDC_MESSAGE2, WS_VISIBLE|WS_CHILD|SS_LEFT|WS_GROUP, nullptr },
+	{ CONTROL_STATIC,     81,  51, 190,  20, IDC_MESSAGE3, WS_VISIBLE|WS_CHILD|SS_LEFT|WS_GROUP, nullptr },
+	{ CONTROL_BUTTON,    109,  79,  61,  20, IDOK, WS_VISIBLE|WS_TABSTOP|WS_CHILD|BS_PUSHBUTTON, U_CHAR("IDS_MENU_TEXT462") },
+};
+static const DialogResource dialog_IDD_GAME_HINT = {
+	(int)RenegadeDialogID::IDD_GAME_HINT,
+	  0,   0, 280, 107,
+	nullptr,
+	controls_IDD_GAME_HINT, ARRAYSIZE(controls_IDD_GAME_HINT)
+};
+
 static const DialogResourceControl controls_IDD_MESSAGEBOX_OK[] = {
 	{ CONTROL_BUTTON,     75,  46,  61,  20, IDOK, WS_VISIBLE|WS_TABSTOP|WS_CHILD|BS_PUSHBUTTON, U_CHAR("IDS_MENU_TEXT462") },
 	{ CONTROL_STATIC,      9,   7, 194,  36, IDC_MESSAGE, WS_VISIBLE|WS_CHILD|SS_LEFT|WS_GROUP, nullptr },
@@ -2354,6 +2368,9 @@ const DialogResource * GetRenegadeDialog(RenegadeDialogID id)
 		return &dialog_IDD_FAILED_OPTIONS;
 	case RenegadeDialogID::IDD_WEBPAGE:
 		return &dialog_IDD_WEBPAGE;
+	case RenegadeDialogID::IDD_GAME_HINT:
+		return &dialog_IDD_GAME_HINT;
+
 	case RenegadeDialogID::IDD_MESSAGEBOX_OK:
 		return &dialog_IDD_MESSAGEBOX_OK;
 	case RenegadeDialogID::IDD_MESSAGEBOX_YESNO:

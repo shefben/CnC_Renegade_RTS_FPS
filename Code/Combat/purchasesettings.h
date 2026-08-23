@@ -104,6 +104,12 @@ public:
 
 	const unichar_t *					Get_Name (int index);
 	int								Get_Cost (int index)						{ return CostList[index]; }
+
+	//
+	//	The tech level a team has to have reached before this entry is on
+	//	offer.  Zero, the default, means it always is.
+	//
+	int								Get_Tech_Level (int index)				{ return TechLevelList[index]; }
 	int								Get_Definition (int index)				{ return DefinitionList[index]; }
 	const StringClass &			Get_Texture (int index)					{ return TextureList[index]; }
 
@@ -152,6 +158,7 @@ protected:
 	TEAM					Team;
 	TYPE					Type;
 	int					CostList[MAX_ENTRIES];
+	int					TechLevelList[MAX_ENTRIES];
 	int					DefinitionList[MAX_ENTRIES];
 	int					NameList[MAX_ENTRIES];
 	StringClass			TextureList[MAX_ENTRIES];

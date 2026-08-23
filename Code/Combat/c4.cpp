@@ -40,6 +40,7 @@
 #include "debug.h"
 #include "phys.h"
 #include "combat.h"
+#include "ssgmsettings.h"
 #include "explosion.h"
 #include "soldier.h"
 #include "persistfactory.h"
@@ -900,8 +901,6 @@ void	C4GameObj::Restore_Owner( void )
 **
 */
 
-#define	C4_LIMIT			30
-
 void	C4GameObj::Maintain_C4_Limit( int player_type )
 {
 	if ( !CombatManager::I_Am_Server() || IS_MISSION ) {
@@ -929,7 +928,7 @@ void	C4GameObj::Maintain_C4_Limit( int player_type )
 		}
 	}
 
-	if ( count > C4_LIMIT && oldest_c4 != nullptr ) {
+	if ( count > SSGMSettingsClass::MineLimit && oldest_c4 != nullptr ) {
 		oldest_c4->Defuse();
 	}
 

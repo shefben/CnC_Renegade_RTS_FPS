@@ -80,6 +80,15 @@ public:
 	static void	Reset (void);
 
 	//
+	//	The tech level the match has reached.  An entry whose own tech level
+	//	is higher than this reads as disabled, without anything having had
+	//	to set a flag on it.  Server only for the setter; the value
+	//	replicates with the flags.
+	//
+	static void	Set_Tech_Level (int level);
+	static int	Get_Tech_Level (void)			{ return TechLevel; }
+
+	//
 	//	Asking.  An out-of-range index reads as available rather than as
 	//	whatever is next in memory.
 	//
@@ -124,6 +133,8 @@ private:
 
 	static unsigned char	EnlistedFlags[TeamPurchaseSettingsDefClass::TEAM_COUNT]
 										[ENLISTED_COUNT];
+
+	static int				TechLevel;
 };
 
 

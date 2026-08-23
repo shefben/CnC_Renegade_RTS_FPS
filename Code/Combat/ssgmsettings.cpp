@@ -65,6 +65,8 @@ bool			SSGMSettingsClass::PlayPowerupSounds			= false;
 bool			SSGMSettingsClass::PlayQuakeSounds				= false;
 float			SSGMSettingsClass::PowerupExpireTime			= 10.0F;
 float			SSGMSettingsClass::WreckDestroySelfTime		= 60.0F;
+int			SSGMSettingsClass::MineLimit				= 30;
+int			SSGMSettingsClass::TechLevel				= 0;
 int			SSGMSettingsClass::RefillLimit					= 0;
 int			SSGMSettingsClass::ForceTeam						= -1;
 int			SSGMSettingsClass::WeatherType					= SSGM_WEATHER_NONE;
@@ -331,6 +333,8 @@ SSGMSettingsClass::Load_General (const INIClass &ini)
 	PowerupExpireTime			= ini.Get_Float (SECTION, "PowerupExpireTime", 10.0F);
 	WreckDestroySelfTime		= ini.Get_Float (SECTION, "WreckDestroySelfTime", 60.0F);
 	RefillLimit					= ini.Get_Int (SECTION, "RefillLimit", 0);
+	MineLimit					= ini.Get_Int (SECTION, "MineLimit", 30);
+	TechLevel					= ini.Get_Int (SECTION, "TechLevel", 0);
 
 	EnableGamelog				= ini.Get_Bool (SECTION, "EnableGamelog", false);
 	LogPort						= ini.Get_Int (SECTION, "Port", 0);

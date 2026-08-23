@@ -157,6 +157,13 @@ enum class RenegadeDialogID {
     IDD_MENU_SPLASH1 =                255,
     IDD_MENU_SPLASH2 =                256,
     IDD_MULTIPLAY_CONNECTION_REFUSED = 257,
+
+    //
+    //  The popup a level uses to explain itself: a title, three lines and
+    //  an optional picture.  Not a Westwood dialog; added here because a
+    //  4.8.4 level expects one.
+    //
+    IDD_GAME_HINT =                   258,
 };
 #define IDC_INVITE_BUDDY_BUTTON         3
 #define IDC_PAGE_BUTTON                 4
@@ -482,6 +489,8 @@ enum class RenegadeDialogID {
 #define IDC_NAME_EDIT                   1310
 #define IDC_SHORTCUT_BAR                1311
 #define IDC_MESSAGE                     1313
+#define IDC_MESSAGE2                    11039
+#define IDC_MESSAGE3                    11040
 #define IDC_OUTPUT                      1315
 #define IDC_SAVE_GAME_BUTTON            1316
 #define IDC_FILENAME_EDIT               1317

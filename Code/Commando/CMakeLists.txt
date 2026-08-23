@@ -242,6 +242,8 @@ set(COMMANDO_SRC
     dlgloadspgame.h
     dlgmainmenu.cpp
     dlgmainmenu.h
+    dlggamehint.cpp
+    dlggamehint.h
     DlgMessageBox.cpp
     DlgMessageBox.h
     dlgmovieoptions.cpp

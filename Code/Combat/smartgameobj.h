@@ -213,6 +213,15 @@ public:
 	// Get_Stealth_Fade_Distance - humans and vehicles fade in at different distances.
 	//
 	void				Enable_Stealth(bool onoff);
+
+	//
+	//	One switch for every cloak in the level.  While this is on, nothing
+	//	stealths, whatever its own state says; turning it off puts everything
+	//	back the way it was.  A level's own scripts use it to run a stretch
+	//	of a match with stealth suppressed.
+	//
+	static void		Set_Global_Stealth_Disabled(bool onoff)	{ GlobalStealthDisabled = onoff; }
+	static bool		Is_Global_Stealth_Disabled(void)			{ return GlobalStealthDisabled; }
 	void				Toggle_Stealth(void);
 	bool				Is_Stealth_Enabled(void);
 	bool				Is_Stealthed(void) const;
@@ -233,6 +242,8 @@ protected:
 
 	void						Alloc_Stealth_Effect(void);
 	void						Free_Stealth_Effect(void);
+
+	static bool				GlobalStealthDisabled;
 
 	bool						StealthEnabled;		// stealth enabled by script or initialization code
 	float						StealthPowerupTimer;	// stealth power is in effect

@@ -47,9 +47,13 @@ enum ScriptClientCommandEnum
 	SCRIPT_CLIENT_CMD_STOP_BACKGROUND_MUSIC,	//
 	SCRIPT_CLIENT_CMD_DISPLAY_GDI_TERMINAL,	//
 	SCRIPT_CLIENT_CMD_DISPLAY_NOD_TERMINAL,	//
+	SCRIPT_CLIENT_CMD_SET_GLOBAL_STEALTH_DISABLE,	// IntParam1 = 1 to suppress every cloak
 	SCRIPT_CLIENT_CMD_SET_CAMERA_HOST,		// IntParam1 = object id, 0 to give the camera back
 	SCRIPT_CLIENT_CMD_SET_SUBOBJECT_ANIMATION,	// IntParam1 = object id, IntParam2 = 1 looping | 2 blended,
 												// FloatParam1/2 = first/last frame, Text = animation, Text2 = sub-object
+	SCRIPT_CLIENT_CMD_DISPLAY_GAME_HINT,		// IntParam1 = event id, IntParam2 = title string id,
+												// IntParam3/4/5 = the three text string ids,
+												// Text = sound, Text2 = texture or empty
 
 	SCRIPT_CLIENT_CMD_COUNT
 };
@@ -81,6 +85,8 @@ public:
 	void					Set_Color (const Vector3 &color)		{ Color = color; }
 	void					Set_Position (const Vector3 &pos)	{ Position = pos; }
 	void					Set_Int_Params (int p1, int p2 = 0)	{ IntParam1 = p1; IntParam2 = p2; }
+	void					Set_Int_Params2 (int p3, int p4 = 0, int p5 = 0)
+								{ IntParam3 = p3; IntParam4 = p4; IntParam5 = p5; }
 	void					Set_Float_Params (float p1, float p2 = 0.0f)	{ FloatParam1 = p1; FloatParam2 = p2; }
 
 	virtual void		Delete (void) override										{ delete this; }
@@ -97,6 +103,9 @@ private:
 	int					Command;
 	int					IntParam1;
 	int					IntParam2;
+	int					IntParam3;
+	int					IntParam4;
+	int					IntParam5;
 	float					FloatParam1;
 	float					FloatParam2;
 	Vector3				Color;

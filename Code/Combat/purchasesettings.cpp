@@ -77,7 +77,8 @@ enum
 	VARID_INDEX,
 	VARID_ALT_INDEX,
 	VARID_ALT_TEXTURE_NAME,
-	VARID_ALT_DEFINITION
+	VARID_ALT_DEFINITION,
+	VARID_TECH_LEVEL
 };
 
 
@@ -99,6 +100,7 @@ PurchaseSettingsDefClass::PurchaseSettingsDefClass (void)	:
 	//	Initialize the cost and definition lists
 	//
 	::memset (CostList,						0, sizeof (CostList));
+	::memset (TechLevelList,				0, sizeof (TechLevelList));
 	::memset (DefinitionList,				0, sizeof (DefinitionList));
 	::memset (NameList,						0, sizeof (NameList));
 	::memset (AlternateDefinitionList,	0, sizeof (AlternateDefinitionList));
@@ -142,6 +144,7 @@ PurchaseSettingsDefClass::PurchaseSettingsDefClass (void)	:
 		//
 		NAMED_EDITABLE_PARAM (PurchaseSettingsDefClass, ParameterClass::TYPE_STRINGSDB_ID,	NameList[index], "Name");
 		NAMED_EDITABLE_PARAM (PurchaseSettingsDefClass, ParameterClass::TYPE_INT,				CostList[index], "Cost");
+		NAMED_EDITABLE_PARAM (PurchaseSettingsDefClass, ParameterClass::TYPE_INT,				TechLevelList[index], "Tech Level");
 		NAMED_EDITABLE_PARAM (PurchaseSettingsDefClass, ParameterClass::TYPE_STRING,			TextureList[index], "Texture");
 
 		#ifdef PARAM_EDITING_ON
@@ -255,6 +258,7 @@ PurchaseSettingsDefClass::Save (ChunkSaveClass &csave)
 		for (int index = 0; index < MAX_ENTRIES; index ++) {
 			WRITE_MICRO_CHUNK (csave, VARID_INDEX,							index);
 			WRITE_MICRO_CHUNK (csave, VARID_COST,							CostList[index]);
+			WRITE_MICRO_CHUNK (csave, VARID_TECH_LEVEL,					TechLevelList[index]);
 			WRITE_MICRO_CHUNK (csave, VARID_DEFINITION,					DefinitionList[index]);
 			WRITE_MICRO_CHUNK (csave, VARID_NAME,							NameList[index]);
 			WRITE_MICRO_CHUNK_WWSTRING (csave, VARID_TEXTURE_NAME,	TextureList[index]);
@@ -333,6 +337,12 @@ PurchaseSettingsDefClass::Load_Variables (ChunkLoadClass &cload)
 			case VARID_COST:
 				if (entry_index >= 0 && entry_index < MAX_ENTRIES) {
 					LOAD_MICRO_CHUNK (cload, CostList[entry_index]);
+				}
+				break;
+
+			case VARID_TECH_LEVEL:
+				if (entry_index >= 0 && entry_index < MAX_ENTRIES) {
+					LOAD_MICRO_CHUNK (cload, TechLevelList[entry_index]);
 				}
 				break;
 

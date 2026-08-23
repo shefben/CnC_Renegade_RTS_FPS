@@ -55,6 +55,8 @@ set(COMBAT_SRC
     gameeventbus.cpp
     gameinfo.cpp
     gameinfo.h
+    gamehint.cpp
+    gamehint.h
     playerroster.cpp
     purchaseavailability.cpp
     purchaseavailability.h

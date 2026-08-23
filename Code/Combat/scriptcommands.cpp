@@ -87,6 +87,7 @@
 #include "scriptzone.h"
 #include "damageablegameobj.h"
 #include "purchaseavailability.h"
+#include "ssgmsettings.h"
 #include "purchasesettings.h"
 #include "teampurchasesettings.h"
 #include "playertype.h"
@@ -3861,6 +3862,112 @@ static void	Set_Preset_Availability( int team, const char * preset_name, unsigne
 	}
 
 	PurchaseAvailabilityClass::Set_By_Definition( team, Get_Definition_ID( preset_name ), flag, on );
+}
+
+
+/*
+**	The hint popup.  Only a human player has a screen to show it on, so an
+**	AI or a piece of scenery is quietly nothing.
+*/
+static void	Send_Game_Hint( GameObject * player, int event_id, const char * sound,
+		int title_id, int text_id, int text_id2, int text_id3, const char * texture_name )
+{
+	if ( !CombatManager::I_Am_Server() || ( player == nullptr ) ) {
+		return ;
+	}
+
+	int client_id = Get_Player_ID( player );
+	if ( client_id <= 0 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Int_Params( event_id, title_id );
+	event->Set_Int_Params2( text_id, text_id2, text_id3 );
+	event->Set_Text( ( sound != nullptr ) ? sound : "" );
+	event->Set_Text2( ( texture_name != nullptr ) ? texture_name : "" );
+	event->Init( SCRIPT_CLIENT_CMD_DISPLAY_GAME_HINT, client_id );
+}
+
+
+void	Display_Game_Hint( GameObject * player, int event_id, const char * sound,
+		int title_id, int text_id, int text_id2, int text_id3 )
+{
+	Send_Game_Hint( player, event_id, sound, title_id, text_id, text_id2, text_id3, nullptr );
+}
+
+
+void	Display_Game_Hint_Image( GameObject * player, int event_id, const char * sound,
+		int title_id, int text_id, int text_id2, int text_id3, const char * texture_name )
+{
+	Send_Game_Hint( player, event_id, sound, title_id, text_id, text_id2, text_id3, texture_name );
+}
+
+
+void	Set_Tech_Level( int level )
+{
+	PurchaseAvailabilityClass::Set_Tech_Level( level );
+}
+
+
+int	Get_Tech_Level( void )
+{
+	return PurchaseAvailabilityClass::Get_Tech_Level();
+}
+
+
+int	Get_Mine_Limit( void )
+{
+	return SSGMSettingsClass::MineLimit;
+}
+
+
+const char *	Get_GDI_Soldier_Name( void )
+{
+	return SSGMSettingsClass::GDISpawnCharacter;
+}
+
+
+const char *	Get_Nod_Soldier_Name( void )
+{
+	return SSGMSettingsClass::NodSpawnCharacter;
+}
+
+
+void	Set_GDI_Soldier_Name( const char * preset_name )
+{
+	if ( !CombatManager::I_Am_Server() ) {
+		return ;
+	}
+
+	SSGMSettingsClass::GDISpawnCharacter = ( preset_name != nullptr ) ? preset_name : "";
+}
+
+
+void	Set_Nod_Soldier_Name( const char * preset_name )
+{
+	if ( !CombatManager::I_Am_Server() ) {
+		return ;
+	}
+
+	SSGMSettingsClass::NodSpawnCharacter = ( preset_name != nullptr ) ? preset_name : "";
+}
+
+
+/*
+**	Suppressing every cloak at once.  The flag lives with the objects that
+**	obey it and is read on both sides, so the call is broadcast rather than
+**	being a server-only change nothing would see.
+*/
+void	Set_Global_Stealth_Disable( bool disable )
+{
+	if ( !CombatManager::I_Am_Server() ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Int_Params( disable ? 1 : 0 );
+	event->Init( SCRIPT_CLIENT_CMD_SET_GLOBAL_STEALTH_DISABLE, -1 );
 }
 
 
