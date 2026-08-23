@@ -136,6 +136,7 @@ DECLARE_DEFINITION_FACTORY(VehicleGameObjDef, CLASSID_GAME_OBJECT_DEF_VEHICLE, "
 VehicleGameObjDef::VehicleGameObjDef( void ) :
 	Type( VEHICLE_TYPE_CAR ),
 	TurnRadius( 10.0f ),
+	CanRepair( true ),
 	OccupantsVisible( true ),
 	EngineSoundMaxPitchFactor( 2.0F ),
 	SightDownMuzzle( false ),
@@ -163,6 +164,7 @@ VehicleGameObjDef::VehicleGameObjDef( void ) :
 	EDITABLE_PARAM( VehicleGameObjDef, ParameterClass::TYPE_FLOAT, 	TurnRadius );
 	EDITABLE_PARAM( VehicleGameObjDef, ParameterClass::TYPE_FLOAT, 	SquishVelocity );
 	EDITABLE_PARAM( VehicleGameObjDef, ParameterClass::TYPE_BOOL,		Aim2D );
+	EDITABLE_PARAM( VehicleGameObjDef, ParameterClass::TYPE_BOOL,		CanRepair );
 
 #ifdef	PARAM_EDITING_ON
 	{
@@ -174,6 +176,8 @@ VehicleGameObjDef::VehicleGameObjDef( void ) :
 	param->Add_Value ( "Bike", 	VEHICLE_TYPE_BIKE );
 	param->Add_Value ( "Flying", 	VEHICLE_TYPE_FLYING );
 	param->Add_Value ( "Turret", 	VEHICLE_TYPE_TURRET );
+	param->Add_Value ( "Boat", 	VEHICLE_TYPE_BOAT );
+	param->Add_Value ( "Sub", 		VEHICLE_TYPE_SUB );
 
 	GENERIC_EDITABLE_PARAM(VehicleGameObjDef,param)
 	}
@@ -262,6 +266,13 @@ enum	{
 	MICROCHUNKID_DEF_NOD_DAMAGE_REPORT_ID,
 	MICROCHUNKID_DEF_GDI_DESTROY_REPORT_ID,
 	MICROCHUNKID_DEF_NOD_DESTROY_REPORT_ID,
+
+	//
+	//	Written only since the flag existed.  A definition file older than it
+	//	has no chunk here and keeps the constructor's answer, which is the
+	//	behaviour everything had before.
+	//
+	MICROCHUNKID_DEF_CAN_REPAIR,
 };
 
 bool	VehicleGameObjDef::Save( ChunkSaveClass & csave )
@@ -292,6 +303,7 @@ bool	VehicleGameObjDef::Save( ChunkSaveClass & csave )
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_NOD_DAMAGE_REPORT_ID, NodDamageReportID );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_GDI_DESTROY_REPORT_ID, GDIDestroyReportID );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_NOD_DESTROY_REPORT_ID, NodDestroyReportID );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_CAN_REPAIR, CanRepair );
 	csave.End_Chunk();
 
 	//	Save each of the transition 'definitions' in our list.
@@ -353,6 +365,7 @@ bool	VehicleGameObjDef::Load( ChunkLoadClass &cload )
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_NOD_DAMAGE_REPORT_ID, NodDamageReportID );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_GDI_DESTROY_REPORT_ID, GDIDestroyReportID );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_NOD_DESTROY_REPORT_ID, NodDestroyReportID );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_CAN_REPAIR, CanRepair );
 						default:
 							Debug_Say(( "Unrecognized VehicleDef Variable chunkID\n" ));
 							break;

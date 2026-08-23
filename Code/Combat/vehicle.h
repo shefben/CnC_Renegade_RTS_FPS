@@ -78,6 +78,14 @@ typedef enum {
 	VEHICLE_TYPE_BIKE,
 	VEHICLE_TYPE_FLYING,
 	VEHICLE_TYPE_TURRET,
+
+	//
+	//	Two classifications 4.8.4 added.  Nothing in the engine treats them
+	//	specially yet -- they exist so a preset can say what it is and a
+	//	script can ask, which is all the boat-aware scripts need.
+	//
+	VEHICLE_TYPE_BOAT,
+	VEHICLE_TYPE_SUB,
 } VehicleType;
 
 enum
@@ -116,6 +124,13 @@ public:
 	//	The two fields a script needs to ask about: what kind of vehicle
 	//	this is, and how many people fit in it.
 	VehicleType									Get_Type (void) const			{ return Type; }
+
+	//
+	//	Whether a repair bay is allowed to work on this vehicle.  A wreck or a
+	//	scenery vehicle says no; everything else says yes, which is what stock
+	//	Renegade behaved as before the flag existed.
+	//
+	bool											Can_Repair (void) const			{ return CanRepair; }
 	int											Get_Seat_Count (void) const	{ return NumSeats; }
 
 	int Get_Damage_Report(int team) const;
@@ -130,6 +145,7 @@ protected:
 	StringClass									Profile;
 	TRANSITION_DATA_LIST						Transitions;
 	float											TurnRadius;
+	bool											CanRepair;
 	bool											OccupantsVisible;
 	bool											SightDownMuzzle;
 	bool											Aim2D;
