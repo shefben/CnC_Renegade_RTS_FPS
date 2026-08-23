@@ -144,6 +144,11 @@ facility the 4.8.4 script library was waiting on.
 | the emitter | `ScriptKeyManagerClass::Key_Pressed` | raises `PlayerKey` |
 | the script base | `KeyHookScriptClass` (`Code/Scripts/scripts.h`) | one subscription behind every hook in the level, not one each |
 
+`ObjectCreateHookScriptClass` beside it is the same shape over `ObjectCreate`,
+for the four scripts that put a script on whatever the level creates next. Both
+collect the matching hooks by observer id before calling any of them, because a
+hook is entitled to destroy the object another hook is attached to.
+
 **The client is deliberately ignorant.** It does not know what a key does,
 whether anything is listening, or whether the press was acted on; it forwards
 the name and nothing else. That is what lets a level invent a key without

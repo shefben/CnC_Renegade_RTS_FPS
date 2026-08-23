@@ -199,10 +199,11 @@ engine still cannot answer, and an `n/a` disposition does not count -- it is a
 decision, not a gap. Done so far: `jfwpow.cpp` (`TT_Powerup.cpp`, 13 scripts),
 `jfwws.cpp` (`TT_World.cpp`, 29 scripts and 7 aliases), the `gm*.cpp` SSGM
 scripts (`TT_SSGM.cpp`, 32 registrations), `jfwgun.cpp` (`TT_Weapons.cpp`, 60)
-`jfwscr.cpp` (`TT_Scripts.cpp`, 18) and `jfwweap.cpp` (`TT_Defenses.cpp`, 24).
-Next is `jfwhook.cpp`, whose own blockers are now features rather than
-facilities -- the jetpack, and the underground vehicle already deferred in
-`TTParityMatrix.md`.
+`jfwscr.cpp` (`TT_Scripts.cpp`, 18), `jfwweap.cpp` (`TT_Defenses.cpp`, 24) and
+`jfwhook.cpp` (`TT_Hooks.cpp`, 14). Next at zero blockers are `jfwveh.cpp` (31
+registrations), `agtfix.cpp` (4) and `obelfix.cpp` (5) -- but the last two
+register stock names, so they are merges into the canonical AGT and obelisk
+scripts with 4.8.4's second names as aliases, not new registrations.
 
 **The key hook is answered.** 4.8.4 let a script ask to be told when a
 particular player pressed a particular logically-named key --
@@ -214,8 +215,10 @@ names living in the engine's own input configuration. See
 `NativeEventDispatch.md` §3A. Of the twenty registrations it gated, three have
 landed -- the two switchers in `TT_Defenses.cpp` and `SSGM_Log_Key` in
 `TT_SSGM.cpp`; three are answered by `SSGMManagerClass` instead of by a script,
-under directive 0.4; and the remaining fourteen are `jfwhook.cpp`, which is a
-file port rather than a facility. There is no `jfwkey.cpp`; an earlier note
+under directive 0.4; and the remaining fourteen came with `jfwhook.cpp`, which
+also needed the same shape for the other kind of hook it uses --
+`ObjectCreateHookScriptClass` over `GameEventBus::ObjectCreate`, for the four
+scripts that put a script on whatever the level creates next. There is no `jfwkey.cpp`; an earlier note
 here named one, and the file that owns the base is `jfwhook.cpp`.
 
 **The aliases.** Six of `jfwws.cpp`'s registrations register a `JFW_*` class
@@ -266,10 +269,10 @@ survey's `_Team` suffix heuristic and is plain server-side work.
 
 ### 4.4 Registry size
 
-1823 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
+1837 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
 than the 1640 this document used to quote, because the checker was counting the
-registration macros themselves as a script called `x` -- plus 184 from the
-4.8.4 library. The remaining 677 in-scope scripts take it to 2500, less the
+registration macros themselves as a script called `x` -- plus 198 from the
+4.8.4 library. The remaining 663 in-scope scripts take it to 2500, less the
 three `gmsoldier.cpp` key scripts the server manager owns instead. The 1259 out-of-scope
 registrations are not counted and not ported; if a mod pack is ever wanted it
 re-enters through the same registry with provenance `SCRIPT_SOURCE_TT`,

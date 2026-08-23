@@ -39,6 +39,8 @@
 #include "DPrint.h"
 #include "trim.h"
 #include "gameeventbus.h"
+#include "basegameobj.h"
+#include "scriptablegameobj.h"
 #include "vector.h"
 #include <string.h>
 #include <stdio.h>
@@ -849,6 +851,117 @@ void KeyHookScriptClass::Player_Key_Handler(PlayerKeyEventClass& event, void* /*
 		for (KeyHookScriptClass* hook = HookList; hook != nullptr; hook = hook->NextHook) {
 			if (hook->Get_ID() == matches[index]) {
 				hook->Key_Hook();
+				break;
+			}
+		}
+	}
+}
+
+
+/******************************************************************************
+*
+*     ObjectCreateHookScriptClass
+*
+******************************************************************************/
+
+ObjectCreateHookScriptClass*	ObjectCreateHookScriptClass::CreateHookList		= nullptr;
+int								ObjectCreateHookScriptClass::CreateHookToken	= 0;
+
+
+ObjectCreateHookScriptClass::ObjectCreateHookScriptClass(void)
+	:	CreateHookInstalled(false),
+		NextCreateHook(nullptr)
+{
+}
+
+
+ObjectCreateHookScriptClass::~ObjectCreateHookScriptClass(void)
+{
+	Remove_Create_Hook();
+}
+
+
+void ObjectCreateHookScriptClass::Created(GameObject* /*obj*/)
+{
+	Install_Create_Hook();
+}
+
+
+void ObjectCreateHookScriptClass::Detach(GameObject* obj)
+{
+	Remove_Create_Hook();
+	ScriptImpClass::Detach(obj);
+}
+
+
+void ObjectCreateHookScriptClass::Install_Create_Hook(void)
+{
+	if (CreateHookInstalled) {
+		return;
+	}
+
+	CreateHookInstalled	= true;
+	NextCreateHook		= CreateHookList;
+	CreateHookList		= this;
+
+	if (CreateHookToken == 0) {
+		CreateHookToken = GameEventBus::ObjectCreate.Register(Object_Create_Handler);
+	}
+}
+
+
+void ObjectCreateHookScriptClass::Remove_Create_Hook(void)
+{
+	if (!CreateHookInstalled) {
+		return;
+	}
+
+	CreateHookInstalled = false;
+
+	ObjectCreateHookScriptClass** link = &CreateHookList;
+	while (*link != nullptr) {
+		if (*link == this) {
+			*link = NextCreateHook;
+			break;
+		}
+
+		link = &(*link)->NextCreateHook;
+	}
+
+	NextCreateHook = nullptr;
+
+	if (CreateHookList == nullptr && CreateHookToken != 0) {
+		GameEventBus::ObjectCreate.Unregister(CreateHookToken);
+		CreateHookToken = 0;
+	}
+}
+
+
+/*
+**	Collected first, called second, by observer id rather than pointer: a hook
+**	is entitled to attach a script, and the script it attaches may be another
+**	one of these.
+*/
+void ObjectCreateHookScriptClass::Object_Create_Handler(ObjectCreateEventClass& event, void* /*data*/)
+{
+	ScriptableGameObj* created =
+		(event.Object != nullptr) ? event.Object->As_ScriptableGameObj() : nullptr;
+	if (created == nullptr) {
+		return;
+	}
+
+	SimpleDynVecClass<int> hooks;
+
+	for (ObjectCreateHookScriptClass* hook = CreateHookList; hook != nullptr;
+			hook = hook->NextCreateHook) {
+		hooks.Add(hook->Get_ID());
+	}
+
+	for (int index = 0; index < hooks.Count(); index++) {
+		for (ObjectCreateHookScriptClass* hook = CreateHookList; hook != nullptr;
+				hook = hook->NextCreateHook) {
+			if (hook->Get_ID() == hooks[index]) {
+				hook->Object_Created(created);
 				break;
 			}
 		}

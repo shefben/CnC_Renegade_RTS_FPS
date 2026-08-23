@@ -813,3 +813,38 @@ because their portable donor source reads data Combat sits below. Recorded in
 substitution the donor wrote out sixteen times over a hand-allocated copy is
 now `ScriptImpClass::Get_Nested_Parameters` over a `StringClass`. 1780 -> 1798.
 `d4fa3b16`.
+
+## P04-O: jfwweap.cpp, the base defences
+
+`Code/Scripts/TT_Defenses.cpp`, 24 registrations: Nod turret, obelisk pair,
+both Advanced Guard Towers as one script and a virtual, guard duty, hunt, and
+the weapon-change family. Three corrections (the guard duty helper's id was the
+guard's own, an unchecked bone attach, an unchecked wreck creation) and two dead
+paths dropped. 1798 -> 1820, then 1823 with the two key-hook switchers.
+`15d75d16`, `7e423ade`.
+
+## P04-P: the key hook, natively
+
+The last facility the 4.8.4 library was waiting on. `[Script Keys]` in the
+engine's own input configuration, edge-polled in `Input::Update`, forwarded as
+`cCsScriptKeyEvent`, raised as `GameEventBus::PlayerKey` by
+`ScriptKeyManagerClass`, delivered by `KeyHookScriptClass` with one subscription
+behind every hook. `SSGM_Log_Key` landed with it; `SSGM_C4_Key`,
+`SSGM_Bind_Key` and `SSGM_BL_Key` are N/A as scripts -- `SSGMManagerClass`
+answers `C4Count`, `VehBind` and `VehBL` beside the chat words that do the same
+thing. `7e423ade`.
+
+## P04-Q: three names that were holding four files up
+
+`Grant_Weapon`, `Attach_Script_Once_V` and `Set_Occupants_Fade`. Each was the
+last unanswered name in at least one donor file; together they took
+`agtfix.cpp`, `obelfix.cpp`, `jfwhook.cpp` and `jfwveh.cpp` to zero blockers.
+`84c29a1b`.
+
+## P04-R: jfwhook.cpp, the hook scripts
+
+`Code/Scripts/TT_Hooks.cpp`, 14 registrations. The six jetpacks are one script
+and a table; the four attach-on-create scripts are one base over the new
+`ObjectCreateHookScriptClass`. Also the deployable tank, the burrowing vehicle
+and the suicide bomber. `JFW_Sidebar_Key_2` is registered empty because the
+donor class is empty. 1823 -> 1837.

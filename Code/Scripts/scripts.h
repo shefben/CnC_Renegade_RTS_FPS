@@ -205,6 +205,7 @@ private:
 
 
 class PlayerKeyEventClass;
+class ObjectCreateEventClass;
 
 
 /******************************************************************************
@@ -324,5 +325,52 @@ private:
 // Array Macros
 #define		ARRAY_ELEMENT_COUNT( x )	( sizeof( x ) / sizeof( x[0] ) )
 #define		RANDOM_ARRAY_ELEMENT( x )	( x[ScriptEngine::Get_Random_Int( 0, ARRAY_ELEMENT_COUNT( x ) )] )
+
+/******************************************************************************
+*
+* CLASS
+*     ObjectCreateHookScriptClass
+*
+* DESCRIPTION
+*     Base for a script that wants to hear about everything that is created.
+*
+*     A level uses one of these to say "whatever else turns up in this map,
+*     put this script on it if it is one of these" -- a rule about the map
+*     rather than a rule about an object.  4.8.4 reached it by patching the
+*     engine's object list; here it is GameEventBus::ObjectCreate.
+*
+*     Shaped like KeyHookScriptClass and for the same reason: one subscription
+*     stands behind every hook, the list is collected before any hook runs, and
+*     cleanup is the base class's own.
+*
+******************************************************************************/
+
+class ObjectCreateHookScriptClass : public ScriptImpClass
+{
+public:
+	ObjectCreateHookScriptClass(void);
+	virtual ~ObjectCreateHookScriptClass(void);
+
+	//	Called for every object created while the hook is installed.
+	virtual void Object_Created(GameObject* obj) = 0;
+
+	void Install_Create_Hook(void);
+	void Remove_Create_Hook(void);
+
+protected:
+	void Created(GameObject* obj) override;
+	void Detach(GameObject* obj) override;
+
+private:
+	static void Object_Create_Handler(ObjectCreateEventClass& event, void* data);
+
+	bool	CreateHookInstalled;
+
+	ObjectCreateHookScriptClass*	NextCreateHook;
+
+	static ObjectCreateHookScriptClass*	CreateHookList;
+	static int							CreateHookToken;
+};
+
 
 #endif // SCRIPTS_H

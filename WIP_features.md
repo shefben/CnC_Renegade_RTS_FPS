@@ -8,27 +8,26 @@ Detail lives in `docs/`.
 ## P04: the 4.8.4 script library, natively
 
 The stock half, the registry, the thirteen replacements, the per-client seam,
-the portable API port, `jfwpow.cpp`, `jfwws.cpp`, the SSGM layer, `jfwgun.cpp`
-and `jfwscr.cpp` are done (P04-A..P04-N in `completed_features.md`). What is
-left is the rest of the in-scope donor-only library: 702 scripts across 19
-files, absorbing the backlog lines "Compile unchanged stock scripts only when
-TT does not supersede them" and "Compile TT-only new scripts as additional
-canonical scripts". `tools/tt484/readiness.py` ranks the files by how many
-calls the engine still cannot answer; nine portable SDK names remain
-(`docs/tt484/TTScriptApiGap.tsv`, `port-portable-source`), all of them purchase
-terminal, INI or `Attach_Script_Once_V`.
+the portable API port, the key-hook facility, and `jfwpow.cpp`, `jfwws.cpp`,
+the SSGM layer, `jfwgun.cpp`, `jfwscr.cpp`, `jfwweap.cpp` and `jfwhook.cpp` are
+done (P04-A..P04-R in `completed_features.md`). What is left is the rest of the
+in-scope donor-only library: 663 scripts across 15 files, absorbing the backlog
+lines "Compile unchanged stock scripts only when TT does not supersede them" and
+"Compile TT-only new scripts as additional canonical scripts".
+`tools/tt484/readiness.py` ranks the files by how many calls the engine still
+cannot answer; six portable SDK names remain
+(`docs/tt484/TTScriptApiGap.tsv`, `port-portable-source`).
 
-Next exact action: convert `tt_4.8.4/scripts/jfwweap.cpp` (1509 lines, 24
-registrations) to `Code/Scripts/TT_Defenses.cpp` -- turret, obelisk, both
-Advanced Guard Towers, guard duty, hunt, and the weapon-swap scripts -- leaving
-out `JFW_Vehicle_Weapon_Switcher` and `JFW_Char_Weapon_Switcher`, which want
-the key hook. Then build the key hook: a client-to-server event of the same
-shape as `cCsDamageEvent` carrying a logically-named key press, a server-side
-registry of who asked for which key, and a script-side base to replace
-`JFW_Key_Hook_Base`. It gates twenty registrations -- fourteen in
-`jfwhook.cpp`, the two above, and `SSGM_Log_Key`, `SSGM_C4_Key`,
-`SSGM_Bind_Key` and `SSGM_BL_Key` from `gmsoldier.cpp`, which `TT_SSGM.cpp`
-left out. There is no `jfwkey.cpp`; an earlier note in this file named one.
+Next exact action: convert `tt_4.8.4/scripts/jfwveh.cpp` (1428 lines, 31
+registrations, zero blockers) to `Code/Scripts/TT_Vehicles.cpp`. After that,
+`agtfix.cpp` (4) and `obelfix.cpp` (5) -- but those register **stock** names
+(`M00_Advanced_Guard_Tower`, `GDI_AGT`, `Nod_Obelisk_CnC`, `Obelisk_Weapon_CnC`
+and so on), so under directive 0.4 they are merges into the canonical scripts
+in `Code/Scripts/Toolkit.cpp` with 4.8.4's second names registered as aliases,
+not new registrations. The next cheapest API unblock is `GetExplosionObj`,
+which is the only thing holding `gmbuilding.cpp` and `gmvehicle.cpp`: it is the
+object an explosion is currently being applied for, and needs a seam rather
+than a port.
 
 ---
 
