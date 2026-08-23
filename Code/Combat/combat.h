@@ -133,6 +133,25 @@ typedef enum {
 //
 const char *	Get_Collision_Group_Name( Collision_Group_Type group );
 
+//
+//	Where the collision matrix gets written.  CombatManager describes the matrix
+//	once, in Define_Collision_Groups; the game scene is one place it can be
+//	described to and a table of somebody else's is another.  Building a physics
+//	scene needs a graphics device behind it, so a check that wants to read the
+//	matrix back cannot have one -- this is how it gets the same matrix anyway,
+//	rather than a second copy of it written out by hand.
+//
+class	CollisionGroupSinkClass
+{
+public:
+	virtual	~CollisionGroupSinkClass( void )						{}
+
+	virtual	void	Enable_All( int group )							= 0;
+	virtual	void	Disable_All( int group )						= 0;
+	virtual	void	Enable( int group0, int group1 )				= 0;
+	virtual	void	Disable( int group0, int group1 )			= 0;
+};
+
 /*
 **
 */
@@ -167,6 +186,11 @@ public:
 
 	// Scene_Init is called by the game, but not the editor
 	static	void	Scene_Init( void );
+
+	//	The collision matrix, described once.  Scene_Init writes it into the
+	//	game scene; anything that wants to read it back writes it somewhere it
+	//	can read.
+	static	void	Define_Collision_Groups( CollisionGroupSinkClass & sink );
 
 	// Level Loading functions get called for each level loaded.
 	static	void	Pre_Load_Level( bool render_available = true );

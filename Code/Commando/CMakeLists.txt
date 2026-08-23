@@ -406,6 +406,8 @@ set(COMMANDO_SRC
     scriptcatalogcheck.h
     sctextobj.cpp
     sctextobj.h
+    ttselfcheck.cpp
+    ttselfcheck.h
     suicideevent.cpp
     suicideevent.h
     svrgoodbyeevent.cpp
@@ -529,4 +531,13 @@ if(BUILD_TESTING AND TARGET renegade)
         COMMAND renegade -scriptcatalogcheck duplicates)
     add_test(NAME scripts_catalog_recreate
         COMMAND renegade -scriptcatalogcheck recreate)
+
+    #
+    #	The 4.8.4 hard gate -- roadmap Section 12.  See ttselfcheck.h.
+    #
+    add_test(NAME tt_objects     COMMAND renegade -ttselfcheck objects)
+    add_test(NAME tt_visibility  COMMAND renegade -ttselfcheck visibility)
+    add_test(NAME tt_hooks       COMMAND renegade -ttselfcheck hooks)
+    add_test(NAME tt_dialogs     COMMAND renegade -ttselfcheck dialogs)
+    add_test(NAME tt_collision   COMMAND renegade -ttselfcheck collision)
 endif()

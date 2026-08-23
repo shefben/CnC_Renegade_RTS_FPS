@@ -277,6 +277,24 @@ void	CombatManager::Shutdown( void )
 //	Debug_Say(( "Combat Shutdown %d refs\n", RefCountClass::Total_Refs() ));
 }
 
+//
+//	The sink Scene_Init uses: every group written straight through to the game
+//	scene, which is where the matrix has to end up.
+//
+class	PhysicsSceneCollisionGroupSink : public CollisionGroupSinkClass
+{
+public:
+	void	Enable_All( int group ) override
+		{ COMBAT_SCENE->Enable_All_Collision_Detections( group ); }
+	void	Disable_All( int group ) override
+		{ COMBAT_SCENE->Disable_All_Collision_Detections( group ); }
+	void	Enable( int group0, int group1 ) override
+		{ COMBAT_SCENE->Enable_Collision_Detection( group0, group1 ); }
+	void	Disable( int group0, int group1 ) override
+		{ COMBAT_SCENE->Disable_Collision_Detection( group0, group1 ); }
+};
+
+
 void	CombatManager::Scene_Init( void )
 {
 	// Game scene is where the main action occurs!
@@ -285,6 +303,21 @@ void	CombatManager::Scene_Init( void )
 	GameScene->Set_Ambient_Light(Vector3(1,1,1));
 	GameScene->Set_Fog_Color(Vector3(0.6f,0.6f,0.6f)); //Vector3(80.0f/255.0f,130.0f/255.0f,180.0f/255.0f));
 
+	PhysicsSceneCollisionGroupSink	sink;
+	Define_Collision_Groups( sink );
+}
+
+
+//
+//	Define_Collision_Groups
+//
+//	The collision matrix, described once.  Scene_Init writes it into the scene;
+//	the hard-gate self check writes it into a table of its own and reads it
+//	back, which is the only way to look at the matrix without a physics scene
+//	and the device it needs behind it.
+//
+void	CombatManager::Define_Collision_Groups( CollisionGroupSinkClass & sink )
+{
 	//
 	//	Order matters and is the whole trick: every Enable_All first, then every
 	//	Disable_All, then the individual pairs.  A narrow group's Disable_All is
@@ -296,51 +329,51 @@ void	CombatManager::Scene_Init( void )
 	//	Permissive groups -- these collide with everything unless a narrow group
 	//	opts out of them further down.
 	//
-	COMBAT_SCENE->Enable_All_Collision_Detections( DEFAULT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( BULLET_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( TERRAIN_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( PhysicsSceneClass::COLLISION_GROUP_WORLD );
-	COMBAT_SCENE->Enable_All_Collision_Detections( SOLDIER_GHOST_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( SOLDIER_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( C4_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( NAVAL_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( BEACHING_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( HOVER_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( AMPHIBIOUS_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( UNDERGROUND_TRANSITION_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( PLAYER_BUILDING_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_All_Collision_Detections( PLAYER_BUILDING_GHOST_COLLISION_GROUP );
+	sink.Enable_All( DEFAULT_COLLISION_GROUP );
+	sink.Enable_All( BULLET_COLLISION_GROUP );
+	sink.Enable_All( TERRAIN_COLLISION_GROUP );
+	sink.Enable_All( PhysicsSceneClass::COLLISION_GROUP_WORLD );
+	sink.Enable_All( SOLDIER_GHOST_COLLISION_GROUP );
+	sink.Enable_All( SOLDIER_COLLISION_GROUP );
+	sink.Enable_All( C4_COLLISION_GROUP );
+	sink.Enable_All( NAVAL_UNIT_COLLISION_GROUP );
+	sink.Enable_All( BEACHING_UNIT_COLLISION_GROUP );
+	sink.Enable_All( HOVER_UNIT_COLLISION_GROUP );
+	sink.Enable_All( AMPHIBIOUS_UNIT_COLLISION_GROUP );
+	sink.Enable_All( UNDERGROUND_TRANSITION_COLLISION_GROUP );
+	sink.Enable_All( PLAYER_BUILDING_COLLISION_GROUP );
+	sink.Enable_All( PLAYER_BUILDING_GHOST_COLLISION_GROUP );
 
 	//
 	//	Narrow groups -- nothing collides with these until it is named below.
 	//
-	COMBAT_SCENE->Disable_All_Collision_Detections( UNCOLLIDEABLE_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( TERRAIN_ONLY_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( TERRAIN_AND_BULLET_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( BULLET_ONLY_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( UNDERGROUND_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( SOLDIER_ONLY_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( SOLDIER_BULLET_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( WATER_SURFACE_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( WATER_EDGE_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( WATER_EDGE_ALT_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( BEACH_EDGE_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( AMPHIBIOUS_UNIT_FLOOR_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( TRAIN_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_All_Collision_Detections( TRAIN_TRACK_COLLISION_GROUP );
+	sink.Disable_All( UNCOLLIDEABLE_GROUP );
+	sink.Disable_All( TERRAIN_ONLY_COLLISION_GROUP );
+	sink.Disable_All( TERRAIN_AND_BULLET_COLLISION_GROUP );
+	sink.Disable_All( BULLET_ONLY_COLLISION_GROUP );
+	sink.Disable_All( UNDERGROUND_COLLISION_GROUP );
+	sink.Disable_All( SOLDIER_ONLY_COLLISION_GROUP );
+	sink.Disable_All( SOLDIER_BULLET_COLLISION_GROUP );
+	sink.Disable_All( WATER_SURFACE_COLLISION_GROUP );
+	sink.Disable_All( WATER_EDGE_COLLISION_GROUP );
+	sink.Disable_All( WATER_EDGE_ALT_COLLISION_GROUP );
+	sink.Disable_All( BEACH_EDGE_COLLISION_GROUP );
+	sink.Disable_All( AMPHIBIOUS_UNIT_FLOOR_COLLISION_GROUP );
+	sink.Disable_All( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP );
+	sink.Disable_All( TRAIN_COLLISION_GROUP );
+	sink.Disable_All( TRAIN_TRACK_COLLISION_GROUP );
 
 	//
 	//	Stock pairs
 	//
-	COMBAT_SCENE->Enable_Collision_Detection( TERRAIN_ONLY_COLLISION_GROUP, TERRAIN_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TERRAIN_AND_BULLET_COLLISION_GROUP, TERRAIN_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TERRAIN_AND_BULLET_COLLISION_GROUP, BULLET_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_Collision_Detection( BULLET_COLLISION_GROUP, BULLET_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( BULLET_ONLY_COLLISION_GROUP, BULLET_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_Collision_Detection( PhysicsSceneClass::COLLISION_GROUP_WORLD,PhysicsSceneClass::COLLISION_GROUP_WORLD );
-	COMBAT_SCENE->Disable_Collision_Detection( SOLDIER_GHOST_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_Collision_Detection( SOLDIER_GHOST_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+	sink.Enable( TERRAIN_ONLY_COLLISION_GROUP, TERRAIN_COLLISION_GROUP );
+	sink.Enable( TERRAIN_AND_BULLET_COLLISION_GROUP, TERRAIN_COLLISION_GROUP );
+	sink.Enable( TERRAIN_AND_BULLET_COLLISION_GROUP, BULLET_COLLISION_GROUP );
+	sink.Disable( BULLET_COLLISION_GROUP, BULLET_COLLISION_GROUP );
+	sink.Enable( BULLET_ONLY_COLLISION_GROUP, BULLET_COLLISION_GROUP );
+	sink.Disable( PhysicsSceneClass::COLLISION_GROUP_WORLD,PhysicsSceneClass::COLLISION_GROUP_WORLD );
+	sink.Disable( SOLDIER_GHOST_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	sink.Disable( SOLDIER_GHOST_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
 
 	//
 	//	A ghosted soldier passes through the DEFAULT group as well.  Ghosting
@@ -351,92 +384,92 @@ void	CombatManager::Scene_Init( void )
 	//	still pin him at the foot of a ladder, which is the 4.8.4 ladder fix
 	//	and the behavior every server has run since.
 	//
-	COMBAT_SCENE->Disable_Collision_Detection( SOLDIER_GHOST_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
+	sink.Disable( SOLDIER_GHOST_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
 
 	//
 	//	C4 is DEFAULT plus ghosted soldiers -- a proximity mine has to notice a
 	//	soldier who is walking through his own team -- and minus the two edge
 	//	volumes, which exist to steer vehicles and would detonate it.
 	//
-	COMBAT_SCENE->Enable_Collision_Detection( C4_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
-	COMBAT_SCENE->Disable_Collision_Detection( C4_COLLISION_GROUP, UNDERGROUND_TRANSITION_COLLISION_GROUP );
+	sink.Enable( C4_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+	sink.Disable( C4_COLLISION_GROUP, UNDERGROUND_TRANSITION_COLLISION_GROUP );
 
 	//
 	//	An underground unit is out of the world: terrain holds it up, other
 	//	underground units block it, and the transition volume is how it surfaces.
 	//
-	COMBAT_SCENE->Enable_Collision_Detection( UNDERGROUND_COLLISION_GROUP, TERRAIN_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( UNDERGROUND_COLLISION_GROUP, UNDERGROUND_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( UNDERGROUND_COLLISION_GROUP, UNDERGROUND_TRANSITION_COLLISION_GROUP );
+	sink.Enable( UNDERGROUND_COLLISION_GROUP, TERRAIN_COLLISION_GROUP );
+	sink.Enable( UNDERGROUND_COLLISION_GROUP, UNDERGROUND_COLLISION_GROUP );
+	sink.Enable( UNDERGROUND_COLLISION_GROUP, UNDERGROUND_TRANSITION_COLLISION_GROUP );
 
 	//
 	//	Volumes that only infantry may be stopped by
 	//
-	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+	sink.Enable( SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	sink.Enable( SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
 
-	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_BULLET_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_BULLET_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_BULLET_COLLISION_GROUP, BULLET_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( SOLDIER_BULLET_COLLISION_GROUP, C4_COLLISION_GROUP );
+	sink.Enable( SOLDIER_BULLET_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	sink.Enable( SOLDIER_BULLET_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+	sink.Enable( SOLDIER_BULLET_COLLISION_GROUP, BULLET_COLLISION_GROUP );
+	sink.Enable( SOLDIER_BULLET_COLLISION_GROUP, C4_COLLISION_GROUP );
 
 	//
 	//	The water surface is solid to anything that travels on it and to bullets,
 	//	and transparent to everything else.
 	//
-	COMBAT_SCENE->Enable_Collision_Detection( WATER_SURFACE_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( WATER_SURFACE_COLLISION_GROUP, BEACHING_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( WATER_SURFACE_COLLISION_GROUP, HOVER_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( WATER_SURFACE_COLLISION_GROUP, AMPHIBIOUS_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( WATER_SURFACE_COLLISION_GROUP, BULLET_COLLISION_GROUP );
+	sink.Enable( WATER_SURFACE_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
+	sink.Enable( WATER_SURFACE_COLLISION_GROUP, BEACHING_UNIT_COLLISION_GROUP );
+	sink.Enable( WATER_SURFACE_COLLISION_GROUP, HOVER_UNIT_COLLISION_GROUP );
+	sink.Enable( WATER_SURFACE_COLLISION_GROUP, AMPHIBIOUS_UNIT_COLLISION_GROUP );
+	sink.Enable( WATER_SURFACE_COLLISION_GROUP, BULLET_COLLISION_GROUP );
 
 	//
 	//	Shoreline volumes.  WATER_EDGE fences in the things that must not leave
 	//	the water; the ALT variant fences in naval units alone, and BEACH_EDGE
 	//	fences in the units allowed to run aground.
 	//
-	COMBAT_SCENE->Enable_Collision_Detection( WATER_EDGE_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( WATER_EDGE_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( WATER_EDGE_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( WATER_EDGE_ALT_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( BEACH_EDGE_COLLISION_GROUP, BEACHING_UNIT_COLLISION_GROUP );
+	sink.Enable( WATER_EDGE_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
+	sink.Enable( WATER_EDGE_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	sink.Enable( WATER_EDGE_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
+	sink.Enable( WATER_EDGE_ALT_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
+	sink.Enable( BEACH_EDGE_COLLISION_GROUP, BEACHING_UNIT_COLLISION_GROUP );
 
 	//
 	//	The amphibious floor is the lake bed an amphibious unit drives along and
 	//	nothing else can see.
 	//
-	COMBAT_SCENE->Enable_Collision_Detection( AMPHIBIOUS_UNIT_FLOOR_COLLISION_GROUP, AMPHIBIOUS_UNIT_COLLISION_GROUP );
+	sink.Enable( AMPHIBIOUS_UNIT_FLOOR_COLLISION_GROUP, AMPHIBIOUS_UNIT_COLLISION_GROUP );
 
-	COMBAT_SCENE->Enable_Collision_Detection( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+	sink.Enable( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
+	sink.Enable( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	sink.Enable( DEFAULT_AND_SOLDIER_ONLY_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
 
 	//
 	//	A player-built building is solid like terrain, except to the ghost group
 	//	a building being placed uses, which has to be able to sit inside it while
 	//	the placement is still provisional.
 	//
-	COMBAT_SCENE->Disable_Collision_Detection( PLAYER_BUILDING_COLLISION_GROUP, PLAYER_BUILDING_GHOST_COLLISION_GROUP );
+	sink.Disable( PLAYER_BUILDING_COLLISION_GROUP, PLAYER_BUILDING_GHOST_COLLISION_GROUP );
 
 	//
 	//	A train is held by its track, not by the ground, so it ignores terrain
 	//	entirely.  It still has to hit the things a moving vehicle must hit.
 	//
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, TRAIN_TRACK_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, BULLET_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, C4_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, BEACHING_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, HOVER_UNIT_COLLISION_GROUP );
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_COLLISION_GROUP, AMPHIBIOUS_UNIT_COLLISION_GROUP );
+	sink.Enable( TRAIN_COLLISION_GROUP, TRAIN_TRACK_COLLISION_GROUP );
+	sink.Enable( TRAIN_COLLISION_GROUP, DEFAULT_COLLISION_GROUP );
+	sink.Enable( TRAIN_COLLISION_GROUP, SOLDIER_COLLISION_GROUP );
+	sink.Enable( TRAIN_COLLISION_GROUP, SOLDIER_GHOST_COLLISION_GROUP );
+	sink.Enable( TRAIN_COLLISION_GROUP, BULLET_COLLISION_GROUP );
+	sink.Enable( TRAIN_COLLISION_GROUP, C4_COLLISION_GROUP );
+	sink.Enable( TRAIN_COLLISION_GROUP, NAVAL_UNIT_COLLISION_GROUP );
+	sink.Enable( TRAIN_COLLISION_GROUP, BEACHING_UNIT_COLLISION_GROUP );
+	sink.Enable( TRAIN_COLLISION_GROUP, HOVER_UNIT_COLLISION_GROUP );
+	sink.Enable( TRAIN_COLLISION_GROUP, AMPHIBIOUS_UNIT_COLLISION_GROUP );
 
 	//
 	//	Track pieces line up end to end, so they have to see each other.
 	//
-	COMBAT_SCENE->Enable_Collision_Detection( TRAIN_TRACK_COLLISION_GROUP, TRAIN_TRACK_COLLISION_GROUP );
+	sink.Enable( TRAIN_TRACK_COLLISION_GROUP, TRAIN_TRACK_COLLISION_GROUP );
 }
 
 

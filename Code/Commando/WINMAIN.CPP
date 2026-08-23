@@ -106,6 +106,7 @@
 #include "packetmgr.h"
 #include "ProcessManager.h"
 #include "scriptcatalogcheck.h"
+#include "ttselfcheck.h"
 
 //----------------------------------------------------------------------------
 //	Globals
@@ -164,6 +165,13 @@ int main(int argc, char *argv[])
 	//
 	if ((argc > 1) && (::strcmp(argv[1], "-scriptcatalogcheck") == 0)) {
 		return ScriptCatalogCheck::Run((argc > 2) ? argv[2] : nullptr);
+	}
+
+	//
+	//	The 4.8.4 hard gate, for the same reason and in the same place.
+	//
+	if ((argc > 1) && (::strcmp(argv[1], "-ttselfcheck") == 0)) {
+		return TTSelfCheck::Run((argc > 2) ? argv[2] : nullptr);
 	}
 
 	WWMemoryLogClass::Init();	// This switches memlog from static to dynamic allocations mode

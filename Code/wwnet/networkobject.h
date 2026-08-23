@@ -233,6 +233,7 @@ public:
 	//	Static methods
 	//
 	static void			Set_Is_Server(bool flag)								{ IsServer = flag; }
+	static bool			Is_Server(void)										{ return IsServer; }
 
 	void					Set_Cached_Priority (float priority);
 	virtual float		Get_Cached_Priority (void) const						{ return CachedPriority; }
