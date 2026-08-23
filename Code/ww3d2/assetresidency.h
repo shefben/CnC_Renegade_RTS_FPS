@@ -119,11 +119,28 @@ public:
 	int					Capture_Loaded_Assets(AssetScopeType scope);
 
 	/*
+	** The same thing for textures.  Everything the asset manager is holding a texture for
+	** and nobody has claimed becomes this scope's.  Run at the end of startup this claims
+	** the HUD, the cursor and the font pages without any of them having to say so, which
+	** is the point: a stock installation's UI textures are simply the ones resident before
+	** the first level loads.
+	*/
+	int					Capture_Loaded_Textures(AssetScopeType scope);
+
+	/*
 	** Build the list of names that must survive releasing `scope`: everything belonging to
 	** a longer-lived scope, closed over dependencies.  Exposed because it is the whole of
 	** the decision and is worth being able to check on its own.
 	*/
 	void					Build_Retained_List(AssetScopeType scope, DynamicVectorClass<StringClass> & names) const;
+
+	/*
+	** How many records survive releasing `scope`.  This is not the length of the retained
+	** list: that list holds only the names the exclusion list can act on, and a scope may
+	** be holding nothing but textures, which are retained by reference count rather than
+	** by name.  Whether anything is being kept at all is a question about records.
+	*/
+	int					Get_Retained_Count(AssetScopeType scope) const;
 
 	/*
 	** Release `scope` and everything shorter-lived than it.

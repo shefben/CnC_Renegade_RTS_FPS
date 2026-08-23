@@ -190,12 +190,22 @@ int	Run_Residency (void)
 	DynamicVectorClass<StringClass>	retained;
 	scoped.Build_Retained_List (ASSET_SCOPE_WORLD, retained);
 
-	Check (List_Contains (retained, "hud_reticle"), "releasing WORLD dropped a PERMANENT asset");
 	Check (List_Contains (retained, "c_ag_gdi"),    "releasing WORLD dropped a GAME_MODE asset");
 	Check (List_Contains (retained, "mx0_bldg") == false,   "releasing WORLD kept the WORLD asset");
 	Check (List_Contains (retained, "mx0_tree01") == false, "releasing WORLD kept a SECTOR asset");
 	Check (List_Contains (retained, "expl_flash") == false, "releasing WORLD kept a TRANSIENT asset");
-	Check (retained.Count () == 2, "releasing WORLD retained %d names, not 2", retained.Count ());
+
+	//
+	//	hud_reticle is retained, but it is a texture, and the exclusion list matches w3d
+	//	file names.  Naming a texture there would ask it a question it cannot answer, so
+	//	the record survives and the name is not in the list.
+	//
+	Check (List_Contains (retained, "hud_reticle") == false,
+			"a texture was named in the exclusion list");
+	Check (scoped.Get_Retained_Count (ASSET_SCOPE_WORLD) == 2,
+			"releasing WORLD retained %d records, not 2",
+			scoped.Get_Retained_Count (ASSET_SCOPE_WORLD));
+	Check (retained.Count () == 1, "releasing WORLD retained %d names, not 1", retained.Count ());
 
 	//
 	//	Releasing SECTOR keeps everything longer-lived than a sector, including the world.
@@ -206,8 +216,11 @@ int	Run_Residency (void)
 			"releasing SECTOR dropped the WORLD asset");
 	Check (List_Contains (sector_retained, "mx0_tree01") == false,
 			"releasing SECTOR kept the SECTOR asset");
-	Check (sector_retained.Count () == 3,
-			"releasing SECTOR retained %d names, not 3", sector_retained.Count ());
+	Check (sector_retained.Count () == 2,
+			"releasing SECTOR retained %d names, not 2", sector_retained.Count ());
+	Check (scoped.Get_Retained_Count (ASSET_SCOPE_SECTOR) == 3,
+			"releasing SECTOR retained %d records, not 3",
+			scoped.Get_Retained_Count (ASSET_SCOPE_SECTOR));
 
 	//
 	//	A dependency drags a shorter-lived asset up with its owner.  A character kept for the
@@ -234,8 +247,27 @@ int	Run_Residency (void)
 	scoped.Build_Retained_List (ASSET_SCOPE_WORLD, transitive);
 	Check (List_Contains (transitive, "s_a_human_bones"),
 			"the dependency closure stopped after one step");
-	Check (transitive.Count () == 4,
-			"the closure retained %d names, not 4", transitive.Count ());
+	Check (transitive.Count () == 3,
+			"the closure retained %d names, not 3", transitive.Count ());
+
+	//
+	//	A scope holding nothing but textures retains records and names nothing.  That is not
+	//	the same as retaining nothing: it still asks for the fonts and the texture hash to be
+	//	left alone, which is exactly what claiming the user interface at startup does.
+	//
+	AssetResidencyManagerClass	ui_only;
+	ui_only.Register_Asset ("hud_reticle", ASSET_KIND_TEXTURE, ASSET_SCOPE_PERMANENT, 4096);
+	ui_only.Register_Asset ("mx0_bldg",    ASSET_KIND_PROTOTYPE, ASSET_SCOPE_WORLD, 65536);
+
+	DynamicVectorClass<StringClass>	ui_names;
+	ui_only.Build_Retained_List (ASSET_SCOPE_WORLD, ui_names);
+	Check (ui_names.Count () == 0,
+			"a texture-only permanent scope named %d assets", ui_names.Count ());
+	Check (ui_only.Get_Retained_Count (ASSET_SCOPE_WORLD) == 1,
+			"a texture-only permanent scope retained %d records, not 1",
+			ui_only.Get_Retained_Count (ASSET_SCOPE_WORLD));
+	Check (ui_only.Get_Retained_Count (ASSET_SCOPE_PERMANENT) == 0,
+			"releasing PERMANENT retained something");
 
 	//
 	//	An asset depending on itself is not a dependency.

@@ -94,6 +94,7 @@
 #include "serverfps.h"
 #include "nicenum.h"
 #include "encyclopediamgr.h"
+#include "assetresidency.h"
 #include "texturethumbnail.h"
 #include "playermanager.h"
 #include "gameeventlisteners.h"
@@ -1068,6 +1069,20 @@ bool Game_Init(void)
 	//	Initialize the encyclopedia logic
 	//
 	EncyclopediaMgrClass::Initialize ();
+
+	//
+	//	Everything the asset manager is holding a texture for at this point was loaded
+	//	by startup: the HUD reticles, the cursor, the dialog art and the font pages.
+	//	Claiming it permanently is what stops a level change from dropping the font
+	//	caches and the whole texture hash and reloading them for the next level.
+	//
+	//	Nothing is claimed by name, so a stock installation needs no manifest and no
+	//	re-authored asset; the permanent set is simply what is resident before the
+	//	first level loads.  On a dedicated server nothing renders, so nothing is
+	//	resident, the permanent scope stays empty and a level release behaves exactly
+	//	as it always has.
+	//
+	AssetResidencyManagerClass::Get_Instance().Capture_Loaded_Textures( ASSET_SCOPE_PERMANENT );
 
 #if (IMMEDIATE_LOAD)
 	// Immediately load up the specified level

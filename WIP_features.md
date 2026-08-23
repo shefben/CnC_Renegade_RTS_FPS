@@ -5,24 +5,22 @@ Detail lives in `docs/`.
 
 ---
 
-## P08 -- the two halves that have no caller yet
+## P08 -- the two scopes that still have no caller
 
-The residency service is complete and wired to the world scope, but only the world
-scope has a caller (see `docs/zerohour/AssetResidency.md`, "What is left"). Three
-things follow and are the remaining P08 work, absorbing the backlog's P08 acceptance
-line *Repeated map/world load/unload does not invalidate retained assets or leak
-unbounded resources*: nothing claims `PERMANENT` yet, so the HUD, cursor and font
-assets are still freed and reloaded on every level change; `GAME_MODE` needs a caller
-at mode entry and exit; and `SECTOR` has no consumer until something streams part of
-a level, which belongs to the terrain work. Materials and generated world buffers
-have record kinds but no registration site for the same reason.
+`PERMANENT` and `WORLD` both have callers now (see `docs/zerohour/AssetResidency.md`,
+"What is left"). What remains of P08, still absorbing the backlog's acceptance line
+*Repeated map/world load/unload does not invalidate retained assets or leak unbounded
+resources*: `GAME_MODE` needs a caller at mode entry and exit, and `SECTOR` has no
+consumer until something streams part of a level, which belongs to the terrain work.
+Materials and generated world buffers have record kinds and no registration site for
+the same reason.
 
 The acceptance condition is proved as arithmetic by `asset_residency` -- sixteen
-cycles leak nothing -- but not yet against a real map. Next exact action: register
-the HUD/cursor/font assets as `ASSET_SCOPE_PERMANENT` at startup, then run
+cycles leak nothing, and a texture-only permanent scope retains a record while naming
+nothing -- but not yet against a real map. Next exact action: run
 `renegade --gamedir "C:\Westwood\Renegade_full"` through two map loads and read the
-`Log_Report` line to confirm the permanent scope survives and the live prototype
-count drops.
+`WWDEBUG` `Log_Report` line, confirming the permanent texture count is unchanged
+across the change and the live prototype count drops back.
 
 ---
 

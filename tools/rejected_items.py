@@ -218,6 +218,17 @@ PHASE_DECISIONS = [
      'animations the manager alone holds. An animation something is still playing is '
      'kept whatever the keep-list says, because the alternative is a dangling pointer '
      'in a live `Animatable3DObj`.'),
+    ('P08', 'Claiming prototypes permanently at startup',
+     'Deliberately not done. `Capture_Loaded_Textures` claims the startup textures and '
+     'nothing claims a prototype, so every prototype is still freed on a level change. '
+     'Prototypes are where the memory is, and keeping a menu-full of 3D content for the '
+     'life of the process buys nothing; which prototypes are genuinely shared between levels '
+     'is a decision to make against a profile, not in advance.'),
+    ('P08', 'Naming textures, materials and world buffers in the exclusion list',
+     'Rejected. The exclusion list matches w3d file names and has no way to answer for '
+     'an asset that has none, so `Build_Retained_List` emits only prototypes, hierarchy '
+     'trees and animations. Those kinds are retained the way they always have been, by '
+     'reference count, via `Release_Unused_Textures`.'),
 ]
 
 

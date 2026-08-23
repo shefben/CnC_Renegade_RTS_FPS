@@ -100,16 +100,54 @@ that is actually complete.
 
 | Site | Call |
 | --- | --- |
+| `Code/Commando/init.cpp`, after `EncyclopediaMgrClass::Initialize` | `Capture_Loaded_Textures(ASSET_SCOPE_PERMANENT)` |
 | `Code/Commando/combatgmode.cpp`, end of `Load_Level` | `Capture_Loaded_Assets(ASSET_SCOPE_WORLD)`, then `Log_Report` under `WWDEBUG` |
 | `Code/Commando/level.cpp`, `LevelManager::Release_Level` | `Release_Scope(ASSET_SCOPE_WORLD)` |
 
-`Release_Scope` with an empty keep-list calls `Free_Assets`, not
-`Free_Assets_With_Exclusion_List` with nothing in it. Those are not the same:
+`Release_Scope` with nothing retained calls `Free_Assets`, not
+`Free_Assets_With_Exclusion_List` with an empty list. Those are not the same:
 `Free_Assets` also drops the fonts and every texture reference, while the exclusion
-path releases only unreferenced textures. Since nothing yet claims a `PERMANENT` or
-`GAME_MODE` asset, the keep-list is empty and **the engine frees exactly what it
-freed before this change**. The behaviour turns on when something starts claiming,
-which is the next piece of work, not a flag.
+path releases only unreferenced textures. On a dedicated server nothing renders, so
+nothing is resident to claim, and a level release there behaves exactly as it always
+has.
+
+## What the permanent scope claims
+
+`Capture_Loaded_Textures(ASSET_SCOPE_PERMANENT)` runs once at the end of startup, and
+what it claims is simply **whatever the asset manager is holding a texture for before
+the first level loads** -- the HUD reticles, the cursor, the dialog art, the font
+pages. There is no manifest, no list of names in a header, and nothing for a stock
+installation to author: the permanent set is defined by when it loaded, not by what it
+is called.
+
+That claim is what turns the level release from `Free_Assets` into the exclusion path,
+and the win is not in the keep-list -- it is in what the exclusion path *doesn't* do.
+It leaves `Font3DDatas` and `FontChars` alone, so the font caches are no longer thrown
+away and rebuilt for every level, and it leaves `TextureHash` alone, so a texture the
+HUD is still holding stays known to the manager instead of being reloaded from disk as
+a second copy under the same name.
+
+Prototypes are deliberately **not** claimed at startup. A menu's 3D content would be
+kept for the life of the process for no benefit, and prototypes are where the memory
+actually is. Nothing yet claims a prototype permanently, so every prototype is still
+freed on a level change -- which is the correct behaviour until something is genuinely
+shared between levels.
+
+### Why a texture is retained without being named
+
+The exclusion list matches w3d file names. A texture, a material and a generated world
+buffer have no name it can match, and putting one in the keep-list would ask it a
+question it has no way to answer -- so `Build_Retained_List` emits names only for the
+three kinds it can act on. Those assets are retained the way they have always been
+retained, by reference count: `Free_Assets_With_Exclusion_List` ends in
+`Release_Unused_Textures`, which frees only what nothing else holds.
+
+That splits one question into two. *Is anything retained* is a question about records
+and is answered by `Get_Retained_Count`. *Which names must survive* is a question about
+the exclusion list and is answered by `Build_Retained_List`. A permanent scope holding
+nothing but the user interface answers one and not the other, and `Release_Scope` has
+to ask the first: it is still being asked to leave the fonts and the texture hash
+alone.
 
 ## Renegade asset compatibility
 
@@ -139,7 +177,10 @@ are pure decisions over names, so they need no device, no window, no level and n
 game data, and they run before anything is initialised — the arrangement the script
 catalog check and the 4.8.4 gate already use.
 
-`asset_residency` ends by running sixteen load/release cycles and asserting that the
+`asset_residency` also covers the split above: that a retained texture is not named in
+the keep-list, that a scope holding only textures reports one retained record and zero
+retained names, and that the record counts and the name counts diverge in the way the
+kinds say they should. It ends by running sixteen load/release cycles and asserting that the
 record count, the dependency count, the retained permanent asset and the accounted
 memory are all exactly where they started. That is Section 14's acceptance condition
 stated as arithmetic. What the checks do **not** cover is the release itself, which
@@ -167,11 +208,18 @@ All four are in `docs/RejectedItems.md`, which is generated.
 
 ## What is left
 
-The scopes exist and the arithmetic is right, but only `WORLD` has a caller. Three
-things follow from that and belong to later work rather than here:
+`PERMANENT` and `WORLD` both have callers. What is left belongs to later work rather
+than here:
 
-1. nothing claims `PERMANENT` yet — the HUD, cursor and font assets should, and until
-   they do a level change frees and reloads them exactly as it always has;
-2. `GAME_MODE` needs a caller at mode entry and exit;
-3. `SECTOR` has no consumer until there is something that streams part of a level,
-   which is the terrain and procedural-world work, not this.
+1. `GAME_MODE` needs a caller at mode entry and exit;
+2. `SECTOR` has no consumer until there is something that streams part of a level,
+   which is the terrain and procedural-world work, not this;
+3. nothing claims a prototype permanently, on purpose (above). The first real candidate
+   is whatever ends up shared between every level -- the player characters, most
+   likely -- and that is a decision to make against a profile, not in advance;
+4. materials and generated world buffers have record kinds and no registration site,
+   for the same reason `SECTOR` has no consumer.
+
+The permanent claim is verified as arithmetic by `asset_residency`; confirming the
+resident texture count and the font caches actually survive a map change is a runtime
+observation of the `Log_Report` line, not a ctest.

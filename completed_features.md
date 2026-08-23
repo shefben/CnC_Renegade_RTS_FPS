@@ -1243,11 +1243,20 @@ assets, dangling references, per-scope memory*. All four print in `Log_Report`;
 `WW3DAssetManager::Prototype_Count()` was added for the first and textures report
 real bytes from `Get_Texture_Memory_Usage`.
 
-**P08-E: wired into the level cycle without changing today's behaviour.**
-`LevelManager::Release_Level` now releases the world scope and `Load_Level` captures
-into it. `Release_Scope` with an empty keep-list calls `Free_Assets`, not an empty
-exclusion list -- they are not the same, and since nothing yet claims a longer-lived
-scope the engine frees exactly what it freed before.
+**P08-E: wired into the level cycle.** `LevelManager::Release_Level` releases the
+world scope and `Load_Level` captures into it. `Release_Scope` with nothing retained
+calls `Free_Assets`, not an empty exclusion list -- they are not the same -- so a
+dedicated server, where nothing is resident to claim, frees exactly what it froze
+before.
+
+**P08-H: the permanent scope has a caller.** `Capture_Loaded_Textures` claims every
+texture resident at the end of startup -- HUD, cursor, dialog art, font pages -- so a
+level change now takes the exclusion path and stops discarding the font caches and the
+whole texture hash. Prototypes are deliberately not claimed; the keep-list names only
+the three kinds the exclusion list can match, and `Get_Retained_Count` answers "is
+anything retained" separately from "which names must survive". Absorbs the backlog's
+*Repeated map/world load/unload does not invalidate retained assets or leak unbounded
+resources* for the permanent half. 25/25 ctest.
 
 **P08-F: stock Renegade assets are unaffected.** Absorbs *Stock-asset compatibility:
 unmodified Renegade `.w3d`, `.mix`, `.dds`/`.tga` and level assets keep loading

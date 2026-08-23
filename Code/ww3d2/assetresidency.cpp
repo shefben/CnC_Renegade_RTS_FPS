@@ -11,6 +11,8 @@
  *   AssetResidencyManagerClass::Register_Asset -- claim an asset for a scope                  *
  *   AssetResidencyManagerClass::Add_Dependency -- one asset cannot be kept without another    *
  *   AssetResidencyManagerClass::Capture_Loaded_Assets -- claim whatever is loaded now         *
+ *   AssetResidencyManagerClass::Capture_Loaded_Textures -- claim every resident texture      *
+ *   AssetResidencyManagerClass::Get_Retained_Count -- how many records survive a release     *
  *   AssetResidencyManagerClass::Build_Retained_List -- what survives releasing a scope        *
  *   AssetResidencyManagerClass::Release_Scope -- release a scope and all shorter-lived ones   *
  *   AssetResidencyManagerClass::Get_Dangling_Reference_Count -- records with nothing behind   *
@@ -26,6 +28,21 @@
 
 
 AssetResidencyManagerClass * AssetResidencyManagerClass::TheInstance = nullptr;
+
+
+/*
+** Which kinds the exclusion list is able to act on.  It matches w3d file names, so a
+** prototype, a hierarchy tree and an animation can be kept by naming them.  A texture,
+** a material or a generated world buffer cannot: those are kept, or not, by whether
+** anything still references them, and putting their names in the keep-list would ask
+** the exclusion list a question it has no way to answer.
+*/
+static bool Is_Named_In_Exclusion_List(AssetKindType kind)
+{
+	return (kind == ASSET_KIND_PROTOTYPE)
+		|| (kind == ASSET_KIND_HIERARCHY_TREE)
+		|| (kind == ASSET_KIND_ANIMATION);
+}
 
 
 AssetResidencyManagerClass::AssetResidencyManagerClass(void)
@@ -214,6 +231,61 @@ int AssetResidencyManagerClass::Capture_Loaded_Assets(AssetScopeType scope)
 
 
 /***********************************************************************************************
+ * AssetResidencyManagerClass::Capture_Loaded_Textures -- claim every resident texture         *
+ *                                                                                             *
+ * Same idea as Capture_Loaded_Assets and for the same reason: nothing announces the textures  *
+ * it loads, so the only complete account is the asset manager's own.  Run at the end of       *
+ * startup, before a level has been near the thing, what is resident is the user interface.    *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+int AssetResidencyManagerClass::Capture_Loaded_Textures(AssetScopeType scope)
+{
+	WWASSERT(scope >= 0 && scope < ASSET_SCOPE_COUNT);
+
+	WW3DAssetManager * assets = WW3DAssetManager::Get_Instance();
+	if (assets == nullptr) {
+		return 0;
+	}
+
+	int added = 0;
+
+	HashTemplateIterator<StringClass,TextureClass *> it(assets->Texture_Hash());
+	for (it.First(); !it.Is_Done(); it.Next()) {
+
+		TextureClass * texture = it.Peek_Value();
+		if (texture == nullptr) {
+			continue;
+		}
+
+		//	The hash key is not always the name the texture reports, so ask the texture.
+		if (!Is_Registered(texture->Get_Full_Path())) {
+			Register_Texture(texture,scope);
+			added++;
+		}
+	}
+
+	return added;
+}
+
+
+/***********************************************************************************************
+ * AssetResidencyManagerClass::Get_Retained_Count -- how many records survive a release        *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+int AssetResidencyManagerClass::Get_Retained_Count(AssetScopeType scope) const
+{
+	WWASSERT(scope >= 0 && scope < ASSET_SCOPE_COUNT);
+
+	int count = 0;
+	for (int i=0; i<Assets.Count(); i++) {
+		if (Assets[i].Scope < scope) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+
+/***********************************************************************************************
  * AssetResidencyManagerClass::Build_Retained_List -- what survives releasing a scope          *
  *                                                                                             *
  * Everything belonging to a longer-lived scope survives, and so does everything those assets  *
@@ -235,7 +307,9 @@ void AssetResidencyManagerClass::Build_Retained_List
 		if (Assets[i].Scope < scope) {
 			if (!retained.Exists(Assets[i].Name)) {
 				retained.Insert(Assets[i].Name,1);
-				names.Add(Assets[i].OriginalName);
+				if (Is_Named_In_Exclusion_List(Assets[i].Kind)) {
+					names.Add(Assets[i].OriginalName);
+				}
 			}
 		}
 	}
@@ -251,10 +325,16 @@ void AssetResidencyManagerClass::Build_Retained_List
 
 				retained.Insert(edge.Dependent,1);
 
-				//	Report the name the way it was registered where we know it, so the
-				//	exclusion list is matching against something a human can recognise.
 				int index = Find_Record(edge.Dependent);
-				names.Add(index >= 0 ? Assets[index].OriginalName : edge.Dependent);
+				if (index < 0) {
+					//	Nothing registered under that name, so there is no kind to
+					//	judge it by and no reason to assume it is safe to free.
+					names.Add(edge.Dependent);
+				} else if (Is_Named_In_Exclusion_List(Assets[index].Kind)) {
+					//	Report the name the way it was registered, so the exclusion
+					//	list is matching against something a human can recognise.
+					names.Add(Assets[index].OriginalName);
+				}
 				grew = true;
 			}
 		}
@@ -286,13 +366,17 @@ void AssetResidencyManagerClass::Release_Scope(AssetScopeType scope)
 
 	WW3DAssetManager * assets = WW3DAssetManager::Get_Instance();
 	if (assets != nullptr) {
-		if (retained.Count() == 0) {
+		if (Get_Retained_Count(scope) == 0) {
 			//	Nothing is being kept, so this is the release the engine has always
 			//	done, and Free_Assets does it more thoroughly than an empty exclusion
 			//	list would: it also drops the fonts and every texture reference, not
 			//	just the unreferenced ones.
 			assets->Free_Assets();
 		} else {
+			//	The name list may still be empty here -- a scope holding only textures
+			//	keeps them by reference count, not by name -- and that is not the same
+			//	request as the one above.  It asks for the fonts and the texture hash
+			//	to be left alone.
 			assets->Free_Assets_With_Exclusion_List(retained);
 		}
 	}
