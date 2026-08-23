@@ -142,5 +142,25 @@ include(gamespy)
 # Add main build targets
 add_subdirectory(Code)
 
+#
+# The Zero Hour donor matrices in docs/zerohour are generated from, and checked
+# against, the pinned donor submodule.  They go stale silently otherwise: the
+# donor moves, a directory appears that nobody classified, a capability loses
+# its port-matrix row.  These run them.
+#
+if(BUILD_TESTING)
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_FOUND)
+    add_test(NAME zerohour_surface_classified
+             COMMAND "${Python3_EXECUTABLE}"
+                     "${CMAKE_SOURCE_DIR}/tools/zerohour/check_surface_classified.py")
+    add_test(NAME zerohour_port_matrix
+             COMMAND "${Python3_EXECUTABLE}"
+                     "${CMAKE_SOURCE_DIR}/tools/zerohour/check_port_matrix.py")
+  else()
+    message(WARNING "Python not found; the Zero Hour donor matrices were not checked.")
+  endif()
+endif()
+
 feature_summary(WHAT ENABLED_FEATURES DESCRIPTION "Enabled features:")
 feature_summary(WHAT DISABLED_FEATURES DESCRIPTION "Disabled features:")

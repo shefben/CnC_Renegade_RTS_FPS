@@ -1,0 +1,8 @@
+Library	OpenW3DDirectory	DonorFiles	OpenW3DFiles	SharedNames	DonorOnly	OpenW3DOnly	DonorOnlyNames
+WW3D2	Code/ww3d2	232	222	217	15	5	classid.h;dx8webbrowser.cpp;dx8webbrowser.h;shdlib.h;soundlibrarybridge.h;static_sort_list.cpp;static_sort_list.h;streak.cpp;streak.h;streakrender.cpp;streakrender.h;texturefilter.cpp;texturefilter.h;w3dexclusionlist.cpp;w3dexclusionlist.h
+WWMath	Code/WWMath	79	79	79	0	0	
+WWLib	Code/wwlib	164	174	131	33	43	bfiofile.cpp;bfiofile.h;crandom.h;dbghelpguard.cpp;dbghelpguard.h;dbghelploader.cpp;dbghelploader.h;dbghelploader_minidump.h;global.h;lzopipe.cpp;lzopipe.h;lzostraw.cpp;lzostraw.h;md5.cpp;md5.h;mingw.h;mmsys.h;mpsc_intrusive_queue.h;notifier.h;regexpr.cpp;regexpr.h;stlutils.h;stringex.h;strtok_r.cpp;strtok_r.h;systemallocator.h;tgatodxt.cpp;tgatodxt.h;utf8.cpp;utf8.h;visualc.h;wwcommon.h;wwdefines.h
+WWDebug	Code/wwdebug	7	8	7	0	1	
+WWSaveLoad	Code/wwsaveload	33	33	33	0	0	
+WWAudio	Code/WWAudio	43	36	33	10	3	listenerhandle.cpp;listenerhandle.h;sound2dhandle.cpp;sound2dhandle.h;sound3dhandle.cpp;sound3dhandle.h;soundbuffer.cpp;soundstreamhandle.cpp;soundstreamhandle.h;utils.cpp
+WWDownload	Code/Libs/WWDownload	11	0	0	11	0	download.cpp;download.h;downloaddebug.h;downloaddefs.h;ftp.cpp;ftp.h;ftpdefs.h;registry.cpp;registry.h;urlbuilder.cpp;urlbuilder.h

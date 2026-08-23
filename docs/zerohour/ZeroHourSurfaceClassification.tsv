@@ -1,0 +1,52 @@
+Directory	Classification	Reason
+.	NOT_RELEVANT_TO_OPENW3D	Root list file plus an STLport shim for VC6 builds. OpenW3D builds with the 2022 toolchain and has no VC6 configuration.
+Dependencies/Utility	NOT_RELEVANT_TO_OPENW3D	Donor build glue (CppMacros.h, force-included). Build infrastructure, not engine code.
+resources	NOT_RELEVANT_TO_OPENW3D	Donor Win32 resource scripts and icons for its own executables.
+Core	NOT_RELEVANT_TO_OPENW3D	Interface targets and include paths only; no source of its own. Its children carry the code.
+Core/Libraries/Source/WWVegas	NOT_RELEVANT_TO_OPENW3D	Aggregation target only; no source of its own.
+Core/Libraries/Source/WWVegas/WW3D2	PORT_RENDER_FEATURE	Same Westwood W3D renderer OpenW3D descends from: 217 of 232 donor file names exist in Code/ww3d2. Ports are file-to-file adaptations. The 15 donor-only names are the new capabilities; see ZeroHourSharedLineage.tsv.
+Core/Libraries/Source/WWVegas/WWAudio	OPENW3D_ALREADY_EQUIVALENT	Code/WWAudio is the same library. 33 of 43 names shared; the donor-only ones are Miles-specific glue OpenW3D already replaced.
+Core/Libraries/Source/WWVegas/WWDebug	OPENW3D_ALREADY_EQUIVALENT	Code/wwdebug, 7 of 7 file names shared.
+Core/Libraries/Source/WWVegas/WWDownload	RETAIL_INFRASTRUCTURE_REJECT	HTTP patch downloader for the retail auto-update service. That service is gone and OpenW3D does not ship a patcher.
+Core/Libraries/Source/WWVegas/WWLib	PORT_ENGINE_ENHANCEMENT	Code/wwlib is the same library, 131 of 164 names shared. The 33 donor-only names are container, string and RNG additions worth reading individually rather than adopting wholesale.
+Core/Libraries/Source/WWVegas/WWMath	OPENW3D_ALREADY_EQUIVALENT	Code/WWMath, 79 of 79 file names shared. Nothing to port; a source of fixes only.
+Core/Libraries/Source/WWVegas/WWSaveLoad	OPENW3D_ALREADY_EQUIVALENT	Code/wwsaveload, 33 of 33 file names shared. The persistence contract is common ancestry, which is why donor save/load code adapts cleanly.
+Core/Libraries/Source/WWVegas/WWStub	NOT_RELEVANT_TO_OPENW3D	Link stubs for tools that must not pull the whole engine. A donor build artifact.
+Core/Libraries/Source/profile	PORT_DEBUG_PROFILING	Tracy integration and the legacy profiler. OpenW3D has no frame profiler; this is a real gap.
+Core/Libraries/Source/debug	PORT_DEBUG_PROFILING	The donor's structured debug/assert/log library, with an out-of-process debug window client.
+Core/Libraries/Source/EABrowserDispatch	RETAIL_INFRASTRUCTURE_REJECT	Embedded Internet Explorer COM dispatch for the retail in-game browser.
+Core/Libraries/Source/EABrowserEngine	RETAIL_INFRASTRUCTURE_REJECT	The other half of the same embedded browser.
+Core/Libraries/Source/Compression	PORT_RESOURCE_MANAGEMENT	RefPack/LZH/zlib codecs behind one interface, used for archives, maps and save games. OpenW3D has no equivalent front end.
+Core/GameEngine	PORT_NEW_ENGINE_CAPABILITY	The shared RTS engine: terrain, partition, radar, particles, AI interfaces. Ported per system, not wholesale -- Thing/Drawable ownership and the SAGE game loop are rejected subparts. File granularity is in ZeroHourCapabilitySources.tsv.
+Core/GameEngineDevice	PORT_RENDER_FEATURE	The W3D device layer, where most of the 25 mandatory systems live at this SHA: BaseHeightMap, TerrainTex, W3DShaderManager, W3DSmudge, W3DSnow, W3DTerrainBackground, the draw modules. Rejected subparts: Bink and Miles device bindings, Win32 DirectInput devices.
+Core/Tools/DebugWindow	PORT_DEBUG_PROFILING	Out-of-process debug output window. Pairs with Libraries/Source/debug.
+Core/Tools/ParticleEditor	PORT_TOOLING	Live particle system editor attached to the running game. OpenW3D edits particles only through LevelEdit definitions.
+Core/Tools/assetcull	PORT_TOOLING	Computes the asset residency sets the exclusion system consumes. Belongs with ZH-01.
+Core/Tools/Babylon	NOT_RELEVANT_TO_OPENW3D	Localization string tool for the donor's own string format. OpenW3D has Code/Strings Editor and wwtranslatedb.
+Core/Tools/buildVersionUpdate	NOT_RELEVANT_TO_OPENW3D	Stamps donor build numbers. OpenW3D has Code/Tools/VerStamp.
+Core/Tools/Compress	PORT_TOOLING	Command-line front end to the Compression library; useful if that library is adopted.
+Core/Tools/CRCDiff	PORT_TOOLING	Compares per-frame state CRC logs to find where two runs diverged. Directly useful for server-authoritative determinism work.
+Core/Tools/mangler	RETAIL_INFRASTRUCTURE_REJECT	GameSpy NAT negotiation server.
+Core/Tools/matchbot	RETAIL_INFRASTRUCTURE_REJECT	GameSpy matchmaking bot.
+Core/Tools/textureCompress	PORT_TOOLING	Batch DXT compression for texture assets.
+Core/Tools/timingTest	NOT_RELEVANT_TO_OPENW3D	A microbenchmark of the donor's own timer calls.
+Core/Tools/versionUpdate	NOT_RELEVANT_TO_OPENW3D	Retail patch version bookkeeping.
+Core/Tools/wolSetup	RETAIL_INFRASTRUCTURE_REJECT	Westwood Online account setup.
+Core/Tools/WW3D/pluglib	OPENW3D_ALREADY_EQUIVALENT	Code/Tools/pluglib is the same 3ds Max plugin support library.
+Core/Tools/WW3D/max2w3d	OPENW3D_ALREADY_EQUIVALENT	Code/Tools/max2w3d is the same exporter. OpenW3D also has Blender2, which the donor does not.
+GeneralsMD/Code	NOT_RELEVANT_TO_OPENW3D	Interface targets and include paths only; no source of its own.
+GeneralsMD/Code/Libraries/Source/WWVegas	NOT_RELEVANT_TO_OPENW3D	Aggregation target only; no source of its own.
+GeneralsMD/Code/Libraries/Source/WWVegas/WWAudio	OPENW3D_ALREADY_EQUIVALENT	Target wrapper with no sources of its own at this SHA; the code is in Core.
+GeneralsMD/Code/Libraries/Source/WWVegas/WW3D2	PORT_RENDER_FEATURE	The 68 renderer files not yet unified into Core -- mesh, hlod, part_buf, light, scene, shader and friends. Every one of the 68 exists in Code/ww3d2 under the same name, so these are the Zero Hour deltas over the renderer OpenW3D already has.
+GeneralsMD/Code/Libraries/Source/WWVegas/WWDownload	RETAIL_INFRASTRUCTURE_REJECT	Target wrapper for the retail patch downloader.
+GeneralsMD/Code/GameEngine	PORT_NEW_ENGINE_CAPABILITY	Zero Hour-specific engine: shroud, roads, bridges, projected shadows, AI states and pathfinding, AcademyStats. Ported per system. Rejected subparts: faction unit behaviour, generals challenge and campaign shells, SAGE networking, GameSpy code.
+GeneralsMD/Code/GameEngineDevice	PORT_RENDER_FEATURE	Zero Hour W3D device code: W3DRoadBuffer, W3DBridgeBuffer, W3DShroud, W3DStatusCircle, W3dWaypointBuffer, the Shadow directory.
+GeneralsMD/Code/Main	SAGE_ARCHITECTURE_REJECT	WinMain, the SAGE game loop and its ownership model. Roadmap directive: OpenW3D keeps its own game loop.
+GeneralsMD/Code/Tools/GUIEdit	NOT_RELEVANT_TO_OPENW3D	Editor for the SAGE .wnd window format, which OpenW3D does not use.
+GeneralsMD/Code/Tools/ImagePacker	PORT_TOOLING	Packs loose images into texture atlases with a generated mapping. OpenW3D has no atlas packer.
+GeneralsMD/Code/Tools/MapCacheBuilder	NOT_RELEVANT_TO_OPENW3D	Builds a cache of SAGE .map files. OpenW3D levels are W3D/LevelEdit assets.
+GeneralsMD/Code/Tools/W3DView	OPENW3D_ALREADY_EQUIVALENT	Code/Tools/W3DView is the same asset viewer.
+GeneralsMD/Code/Tools/wdump	OPENW3D_ALREADY_EQUIVALENT	Code/Tools/wdump and WDumpCore are the same chunk dumper.
+GeneralsMD/Code/Tools/WorldBuilder	NOT_RELEVANT_TO_OPENW3D	SAGE terrain map editor. OpenW3D authors levels in LevelEdit against W3D geometry, which the roadmap requires preserving.
+GeneralsMD/Code/Tools/Launcher	RETAIL_INFRASTRUCTURE_REJECT	Retail launcher and update shell.
+GeneralsMD/Code/Tools/Launcher/DatGen	RETAIL_INFRASTRUCTURE_REJECT	Generates the launcher's data file.
