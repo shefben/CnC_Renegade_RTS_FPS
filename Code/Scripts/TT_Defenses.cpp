@@ -154,7 +154,7 @@ DECLARE_SCRIPT_TT(JFW_Nod_Turret, "")
 			case JFW_ACTION_ATTACK:
 			{
 				GameObject* marker =
-					ScriptEngine::Find_Object(MarkerID[ScriptEngine::Get_Random_Int(0, 2)]);
+					ScriptEngine::Find_Object(MarkerID[ScriptEngine::Get_Random_Int(0, 3)]);
 				if (marker != nullptr) {
 					ActionParamsStruct params;
 					params.Set_Basic(this, 70, JFW_ACTION_ATTACK);

@@ -66,7 +66,7 @@ public:
 	// Get a random 32 bit int integer less than max
 	inline int Get_Int( int max )	{	WWASSERT( max > 0 );	return (Generator() & 0x7FFFFFFF) % max;	}
 
-	// Get a random 32 bit int between min and max (both inclusive)
+	// Get a random 32 bit int between min and max-1, inclusive -- NOT max
 	inline int Get_Int( int min, int max );
 
 	// Get a random float between 0 and 1 (both inclusive)
@@ -83,7 +83,9 @@ private:
 };
 
 
-// Get a random 32 bit int between min and max (both inclusive)
+// Get a random 32 bit int between min and max-1, inclusive.  The upper bound
+// is excluded: this is Get_Int( max - min ) + min, and Get_Int( n ) is n-modulo.
+// A min equal to max asks for Get_Int( 0 ) and divides by zero.
 inline int CRandom::Get_Int( int min, int max )
 {
 	// make sure we have a valid range

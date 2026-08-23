@@ -146,7 +146,7 @@ DECLARE_SCRIPT_TT (JFW_Custom_Send_Random_Custom,
 			return;
 		}
 
-		if (ScriptEngine::Get_Random_Int (0, 99) < Get_Int_Parameter ("Percentage"))
+		if (ScriptEngine::Get_Random_Int (0, 100) < Get_Int_Parameter ("Percentage"))
 		{
 			ScriptEngine::Send_Custom_Event (obj,
 					ScriptEngine::Find_Object (Get_Int_Parameter ("SendID")),
