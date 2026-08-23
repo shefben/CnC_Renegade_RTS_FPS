@@ -970,3 +970,62 @@ not ported again.
 commands rather than character behaviour and porting them would be the
 duplicate path directive 0.4 forbids. The `SSGMManagerInterfaceClass` seam a
 previous session wrote into WIP is not needed. `gmsoldier.cpp` is complete.
+**P04-AF: five character-preset flags, and the seams jfwsnd/jfwdmg/jfwzone
+needed.** `SoldierGameObjDef` gained `IsSpy`, `IsUnsquishable`, `CanRefill`,
+`CanStealVehicles` and `CanDriveVehicles` as editable, saved fields, with
+`Copy_Settings` seeding the instance from the preset and `Is_Squishable`
+consulting it; `VendorClass` refuses a refill to a character whose preset says
+no. `PlayerRosterInterfaceClass` (`Code/Combat/playerroster.h`, implemented
+Commando-side) answers `Get_Player_Name_By_ID` after a player loses their
+soldier. Ten script commands added: `Is_Spy`, `Is_Unsquishable`,
+`Get_Player_Name_By_ID`, `Find_Object_By_Player_ID`, `Get_Player_Type_By_ID`,
+`Get_INI`/`Release_INI`, `Get_Object_Color`, `Set_Zone_Box`/`Create_Zone`,
+`Get_Team_Cost`/`Get_Cost`. Commits `8e807c72`, `801c1cb7`.
+
+**P04-AG: `jfwsnd.cpp` ported to `Code/Scripts/TT_Sounds.cpp`.** 25
+registrations -- timed and random sound loops, damage-triggered sounds, music
+on custom, C4 warning sounds and the time-remaining countdown. Four donor
+defects fixed, including an unvalidated count handed to `new[]` and a
+`sprintf` of two unmeasured names into a 100-byte buffer freed through a
+`const char *`. Commit `7c359ae1`.
+
+**P04-AH: `jfwdmg.cpp` ported to `Code/Scripts/TT_Damage.cpp`.** 55
+registrations; the sixteen attribute-on-custom scripts became one template and
+a macro, and the regeneration, spawn-on-death, engineer-repair and building-
+damage families each collapsed to a base and a virtual. Nine donor defects
+fixed, including an unchecked `Get_INI` result that crashed at level load on a
+misspelt filename and an inverted player-type test. Commit `907911df`.
+
+**P04-AI: `jfwzone.cpp` ported to `Code/Scripts/TT_Zones.cpp`.** 93
+registrations -- the largest donor file -- collapsed to eight families: repair
+and heal zones, damage zones, two relay shapes behind four gates, grant zones
+with and without a price, animation zones, key-hook service zones, and thirteen
+spy zones written as six behaviours instantiated twice. `VehicleGameObjDef`
+gained `Can_Repair`, and `VehicleType` gained `VEHICLE_TYPE_BOAT` and
+`VEHICLE_TYPE_SUB`, which the boat-aware zones ask for. Eight donor defects
+fixed, including every repair/heal/damage zone dereferencing a destroyed
+target and `JFW_Group_Purchase_Zone` paying contributors instead of charging
+them. Commit `c7f0c9a2`.
+
+**P04-AJ: `jfwcine.cpp` ported, and cinematics made visible to clients.**
+`cScScriptCommandEvent` carries a second string and two new commands, giving
+`Set_Camera_Host_Network` and `Set_Subobject_Animation` -- both broadcast,
+because a camera move only the server sees is not a camera move. The
+interpreter is the stock `Test_Cinematic`, which now answers to `JFW_Cinematic`
+as well, takes 4.8.4's `StartPaused` parameter, and uses the network commands;
+`M00_Cinematic_Attack_Command_DLS` and `Test_Cinematic_Primary_Killed` gained
+their 4.8.4 aliases and `TT_World.cpp`'s duplicate copy of the latter was
+removed under directive 0.4. The remaining twelve scripts are
+`Code/Scripts/TT_Cinematics.cpp`. Commit `7da74892`.
+
+**P04-AK: purchase-terminal availability, and `Force_Vehicle_Entry`.**
+`PurchaseAvailabilityClass` (`Code/Combat/purchaseavailability.h`) holds
+hidden/disabled/busy per purchase entry per team, replicates as a fixed-ID
+`NetworkObjectClass` like `BackgroundMgrClass`, is honoured by the purchase
+menu when it builds and on its half-second sweep, and is enforced in
+`VendorClass::Purchase_Item` so a stale client cannot buy what it should not
+see. Gives `Hide_Preset_By_Name`, `Disable_Preset_By_Name`,
+`Busy_Preset_By_Name` and `Disable_All_Presets_By_Factory_Tech`; the last
+derives an entry's factory from its page, this engine having no per-entry
+factory field. `Force_Vehicle_Entry` wraps `VehicleGameObj::Add_Occupant`.
+`jfwgame.cpp` now reports zero blocked calls. Commits `494e262c`, `955ac8a7`.
