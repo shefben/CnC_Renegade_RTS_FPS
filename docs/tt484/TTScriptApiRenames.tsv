@@ -22,3 +22,10 @@ The_Game	GameInfoInterfaceClass	not a script command: the game-info seam, Code/C
 Change_Time_Limit	GameInfoInterfaceClass::Set_Time_Limit_Minutes	same seam
 Change_Time_Remaining	GameInfoInterfaceClass::Set_Time_Remaining_Seconds	same seam, in seconds
 Enable_Team_Radar	Enable_Radar_Team	argument order: the canonical one takes the side first
+Create_2D_Sound_Team	Create_2D_Sound_Team	SAME NAME, ARGUMENTS SWAPPED -- the canonical one takes the side first, the donor took the sound first. Silent at the call site because both are one pointer and one int only after conversion; check every ported call
+SoldierGameObjList	GameObjManager::Get_Smart_Game_Obj_List	the 4.8.4 library kept a list of every soldier; this tree keeps one list of smart objects. Walk that and ask each for As_SoldierGameObj
+Clear_Animation	Set_Animation	PhysicalGameObj has no Clear_Animation here. An empty animation name is how the engine is told to stop: ScriptEngine::Set_Animation(obj, "", false)
+TT_UNREACHABLE		not a name to port. It marks a branch the donor believed could not happen, usually the fourth case of a three-value rank. Ported code answers the default instead of asserting
+CUSTOM_VETERANCY_PROMOTED		dp88_custom_timer_defines.h constant, 0xDA010001. The dp88 files are out of scope but jfwobj.cpp uses three of their numbers, so they are spelled out in Code/Scripts/TT_Objects.cpp with the same values
+CUSTOM_VEHICLE_DEPLOY		same header, 0xDA000004: 0 stowed, 1 deploying, 2 deployed, 3 stowing
+CUSTOM_RADAR_JAM		same header, 0xDA000005: 0 switches the enemy radar off, 1 back on

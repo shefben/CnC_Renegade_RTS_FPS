@@ -98,7 +98,7 @@ first, preserving line numbers, because this catalog is full of parked scripts
 that still contain their `DECLARE_SCRIPT`; without that, four of its five
 initial findings were false.
 
-Current result: **2070 built-in scripts, no duplicate names** (see 4.4).
+Current result: **2143 built-in scripts, no duplicate names** (see 4.4).
 
 `NativeScriptRegistry::Build_Index` checks again at startup. That second check
 is not redundant: it catches a name produced at registration rather than written
@@ -269,19 +269,30 @@ survey's `_Team` suffix heuristic and is plain server-side work.
 
 ### 4.4 Registry size
 
-2070 built-in scripts today, no duplicate names: 1638 canonical -- two fewer
+2143 built-in scripts today, no duplicate names: 1638 canonical -- two fewer
 than the 1640 this document used to quote, one because the checker was counting
 the registration macros themselves as a script called `x` and one because
 `M00_Base_Defense` turned out to be the all-defaults member of a 4.8.4 family
-and moved into it -- plus 432 from the 4.8.4 library. The remaining 369
-in-scope scripts take it to about 2439, less whatever else turns out to be a
+and moved into it -- plus 505 from the 4.8.4 library. The remaining 358
+in-scope scripts take it to about 2501, less whatever else turns out to be a
 second name for something that already exists rather than a script of its own.
 
-Those 369 are what is left of nine donor files, and they are held up by the
-engine names they call rather than by the porting: `jfwmisc.cpp` 103,
+`jfwobj.cpp` accounts for 73 of the 505 and is worth a note on counting: the
+readiness survey credits it with 11 scripts because eleven is what it
+registers with a plain `ScriptRegistrant`, and the other sixty-four go through
+a `REGISTER_SCRIPT` macro the file defines halfway down for itself. Three of
+those sixty-four are stock mission scripts 4.8.4 had patched -- `M08_Nod_Turret`,
+`M10_Turret` and `RMV_Test_Big_Gun_Turning` -- which are already merged into
+`mission08.cpp`, `Mission10.cpp` and `Mission03.cpp` and are not ported again.
+One script came with them from outside the file: the pilot's key hook
+`Reborn_Deployable_Vehicle_Player`, which the deployable vehicle and mech
+attach by name.
+
+The 358 that remain are what is left of eight donor files, and they are held up
+by the engine names they call rather than by the porting: `jfwmisc.cpp` 103,
 `jfwzone.cpp` 93, `jfwgame.cpp` 64, `jfwdmg.cpp` 55, `jfwsnd.cpp` 25,
-`jfwcine.cpp` 14, `jfwobj.cpp` 11, `gmsoldier.cpp` 3, and the one
-`jfwcust.cpp` script that wants a dialog on one client.
+`jfwcine.cpp` 14, `gmsoldier.cpp` 3, and the one `jfwcust.cpp` script that
+wants a dialog on one client.
 `tools/tt484/readiness.py` prints the ranking and the blockers.
 
 Counting them is no longer a matter of matching `DECLARE_SCRIPT`. Where a donor

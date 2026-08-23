@@ -61,6 +61,7 @@ set(SCRIPTS_SRC
     TT_Vehicles.cpp
     TT_Poke.cpp
     TT_Crates.cpp
+    TT_Objects.cpp
     Toolkit_Objects.cpp
     Toolkit_Powerup.cpp
     Toolkit_Siege.cpp
