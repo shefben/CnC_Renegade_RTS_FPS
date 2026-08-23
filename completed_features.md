@@ -1281,3 +1281,24 @@ in-phase decisions, each with its reason. Requested by the user this session.
 acceptance line; they now carry the roadmap's own Section 14, 15 and 16 work items,
 one line each, so the remaining surface of each is visible. Requested by the user
 this session.
+
+**P08-I: the mode scope has a caller.** `CombatGameModeClass::Init` sweeps twice --
+menu leftovers to `WORLD` first, so the second sweep cannot mistake them for the
+mode's own art -- and `Shutdown` releases `ASSET_SCOPE_GAME_MODE`. The release is
+deliberately not in `Core_Shutdown`, which a restart runs without running `Init`
+again. 25/25 ctest.
+
+**P09-A: the shader and state management layer.** `ShaderManagerClass` in
+`Code/ww3d2/shadermgr.h`: a registry of named material programs, one current at a
+time, resetting the previous one on handover, with the textures programs read staged
+by reference. Stock W3D content is registered as `MATERIAL_PROGRAM_LEGACY_W3D` rather
+than bypassing the layer, so a 2002 model renders in the state it always did. Tier
+comes from D3D9 caps, not the donor's card table. Absorbs the backlog's *`W3DShaderManager`
+equivalent ... as the single state/shader management layer* and *Rule: no D3D8 wrapper
+DLL and no second rendering backend*. New `shader_programs`/`fds_shader_programs`;
+27/27 ctest. `docs/zerohour/ShaderManager.md`.
+
+**Fixed on the way: `DX8Caps` pixel shader version.** Both
+`Get_Pixel_Shader_Majon_Version` and `Get_Pixel_Shader_Minor_Version` read
+`VertexShaderVersion`. Nothing called them until the shader tier detection became
+the first caller.

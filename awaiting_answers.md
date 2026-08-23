@@ -6,7 +6,14 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
-None.
+- **Q-006** P08's acceptance -- that repeated map load and unload keeps what was
+ retained and leaks nothing -- is proved as arithmetic by `asset_residency` but not
+ against real game data, and it cannot be automated here: the client takes no map
+ argument, so reaching a second level means driving the menus. Needs one manual run:
+ `renegade --gamedir "C:\Westwood\Renegade_full"`, start a level, change to another,
+ and report the `WWDEBUG` `Log_Report` lines. Expected: permanent texture count
+ unchanged across the change, live prototype count dropping back. Not blocking any
+ other work.
 
 
 ---

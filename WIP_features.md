@@ -5,22 +5,46 @@ Detail lives in `docs/`.
 
 ---
 
-## P08 -- the two scopes that still have no caller
+## P08 -- one scope left, and a check only a person can run
 
-`PERMANENT` and `WORLD` both have callers now (see `docs/zerohour/AssetResidency.md`,
-"What is left"). What remains of P08, still absorbing the backlog's acceptance line
-*Repeated map/world load/unload does not invalidate retained assets or leak unbounded
-resources*: `GAME_MODE` needs a caller at mode entry and exit, and `SECTOR` has no
-consumer until something streams part of a level, which belongs to the terrain work.
-Materials and generated world buffers have record kinds and no registration site for
-the same reason.
+`PERMANENT`, `GAME_MODE` and `WORLD` all have callers now (see
+`docs/zerohour/AssetResidency.md`, "What is left"). What remains of P08, still
+absorbing the backlog's acceptance line *Repeated map/world load/unload does not
+invalidate retained assets or leak unbounded resources*: `SECTOR` has no consumer
+until something streams part of a level, which belongs to the terrain work, and
+materials and generated world buffers have record kinds and no registration site for
+the same reason. No prototype is claimed permanently, deliberately, until a profile
+says which ones are shared.
 
 The acceptance condition is proved as arithmetic by `asset_residency` -- sixteen
 cycles leak nothing, and a texture-only permanent scope retains a record while naming
-nothing -- but not yet against a real map. Next exact action: run
-`renegade --gamedir "C:\Westwood\Renegade_full"` through two map loads and read the
-`WWDEBUG` `Log_Report` line, confirming the permanent texture count is unchanged
-across the change and the live prototype count drops back.
+nothing -- but not against a real map. That check cannot be automated here: the client
+takes no map argument, so reaching a second level means driving the menus. Next exact
+action is a manual one for the user: run
+`renegade --gamedir "C:\Westwood\Renegade_full"`, start a level, change to another,
+and read the `WWDEBUG` `Log_Report` line, confirming the permanent texture count is
+unchanged across the change and the live prototype count drops back.
+
+---
+
+## P09 -- the layer exists, the pipelines do not
+
+`ShaderManagerClass` is in place and checked (see `docs/zerohour/ShaderManager.md`),
+with stock W3D content registered as a program rather than bypassing the layer. What
+is left of Section 15 is the pipeline list itself: terrain, terrain detail, roads,
+bridges, water, foliage, projected shadows, particles, tracers and beams, status
+markers, ghost building tint, debug overlays. They are enumerated and unregistered
+because most of them have nothing to draw yet -- the first five wait on the terrain
+framework, foliage and ghost tint and status markers on the Commander work -- and each
+registers itself when its system lands.
+
+Two things are true structurally but unverified at runtime: that existing Renegade
+materials render unchanged through the layer, and the acceptance line *new donor
+systems share one state/shader management layer*, which needs a second system to share
+it. Next exact action: register `MATERIAL_PROGRAM_DEBUG_OVERLAY` against the existing
+debug drawing in `Code/ww3d2/ww3d.cpp` (`Render_Debug_Resources`), which is the one
+listed pipeline whose consumer already exists, giving the layer a second program and
+the first evidence that handover works against a real device.
 
 ---
 

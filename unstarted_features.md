@@ -49,8 +49,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P09: Shader manager architecture (roadmap Section 15)
 
-- [ ] `W3DShaderManager` equivalent extending the existing D3D9-backed `Code/ww3d2` renderer as the single state/shader management layer.
-- [ ] Rule: no D3D8 wrapper DLL and no second rendering backend; existing `DX8Wrapper` names may stay but new code uses real D3D9 capabilities.
 - [ ] Material programs/pipelines: terrain, terrain detail, roads, bridges, water, foliage.
 - [ ] Material programs/pipelines: projected shadows, particles, tracers/beams, status markers, ghost building tint, debug overlays.
 - [ ] Stock-asset compatibility: existing Renegade W3D materials, shaders and texture formats render unchanged through the new layer.
