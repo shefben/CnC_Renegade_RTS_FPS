@@ -14,3 +14,5 @@ Get_Team_Color	Get_Color_For_Team	canonical returns a Vector3 of 0..1 rather tha
 Find_Definition	Is_Valid_Preset_ID / Get_Definition_Name	a script has no use for the DefinitionClass itself; ask what it wanted to know
 Get_GameObj	Find_Object_By_Player_ID	see TTScriptApiGap.tsv: still to port
 Get_Player_Name	Get_Wide_Player_Name	the canonical one answers wide, which is what the name actually is; the donor narrowed it into a buffer the caller had to free
+Grant_Powerup	Give_PowerUp	canonical takes a third argument for whether the pickup shows on the HUD; granting one is the same as picking one up, so it does
+Get_Random_Int	Get_Random_Int	SAME NAME, DIFFERENT RANGE: the donor stops one below its upper bound, the canonical one includes it. Every ported call needs max-1, and one that indexes an array with the donor bound reads past its end

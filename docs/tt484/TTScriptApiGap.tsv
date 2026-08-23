@@ -320,7 +320,7 @@ wcsistr	engine_string.h	7	n/a-sdk-helper
 stristr	engine_string.h	1	n/a-sdk-helper
 Stop_Timer2	engine_tt.h	44	done
 The_Game	engine_game.h	40	done
-Grant_Powerup	engine_obj.h	24	port-engine-work
+Grant_Powerup	engine_obj.h	24	done
 Get_Player_Name_By_ID	engine_player.h	14	port-engine-work
 Get_Damage_Warhead	engine_tt.h	11	port-engine-work
 Is_Spy	engine_obj2.h	8	port-engine-work

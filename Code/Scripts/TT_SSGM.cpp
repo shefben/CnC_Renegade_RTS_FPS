@@ -498,7 +498,7 @@ DECLARE_SCRIPT_TT(SSGM_Soldier, "")
 				= SSGMSettingsClass::Get_Weapon_Drops(ScriptEngine::Get_Preset_Name(obj));
 
 		if (drops != nullptr && drops->Count() > 0) {
-			int pick = ScriptEngine::Get_Random_Int(0, drops->Count());
+			int pick = ScriptEngine::Get_Random_Int(0, drops->Count() - 1);
 			GameObject* powerup = ScriptEngine::Create_Object((*drops)[pick], ScriptEngine::Get_Position(obj));
 			if (powerup != nullptr) {
 				ScriptEngine::Attach_Script_Once(powerup, "SSGM_Powerup_Expire", "");
@@ -1308,7 +1308,7 @@ public:
 			return;
 		}
 
-		ScriptEngine::Change_Character(sender, entry.Presets[ScriptEngine::Get_Random_Int(0, count)]);
+		ScriptEngine::Change_Character(sender, entry.Presets[ScriptEngine::Get_Random_Int(0, count - 1)]);
 	}
 };
 
@@ -1405,7 +1405,7 @@ DECLARE_SCRIPT_TT(SSGM_Drop_DNA_Powerup, "")
 	void Destroyed(GameObject* obj) override
 	{
 		//	One in five, which is 4.8.4's two-in-ten.
-		if (ScriptEngine::Get_Random_Int(1, 11) > 2) {
+		if (ScriptEngine::Get_Random_Int(1, 10) > 2) {
 			return;
 		}
 
