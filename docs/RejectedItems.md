@@ -230,3 +230,13 @@ Rejections a phase made while writing code, which have no generated home. Kept i
 | A mode-scope claim in the menu game mode | Declined. The menu could claim its own art at mode entry, but the first sweep in `CombatGameModeClass::Init` already gives menu leftovers an owner with the lifetime they already had. Two major modes writing one scope would mean two release paths for a lifetime that is already correct. |
 | Releasing the mode scope in `Core_Shutdown` | Rejected in favour of `Shutdown`. `Core_Restart` calls `Core_Shutdown` without ever running `Init` again, so releasing there would empty the mode scope for the rest of the session with nothing left to re-claim it. |
 | Naming textures, materials and world buffers in the exclusion list | Rejected. The exclusion list matches w3d file names and has no way to answer for an asset that has none, so `Build_Retained_List` emits only prototypes, hierarchy trees and animations. Those kinds are retained the way they always have been, by reference count, via `Release_Unused_Textures`. |
+
+### P09
+
+| Item | Why not |
+| --- | --- |
+| The chipset / vendor / driver-version table | Not adopted. `W3DShaderManager` picked its implementations from a list of card names and driver revisions, which was how a 2001 title survived contemporary hardware and is now a table that answers wrongly for every card released since. `Detect_Tier` reads D3D9 caps instead, and a program declines a tier it cannot run on rather than being excluded by name. |
+| `.vso` files and DWORD shader handles | Rejected. `LoadAndCreateD3DShader` and the `IDirect3DTexture8` surfaces around it are the D3D8 API the roadmap rules out. A program that wants programmable hardware asks the tier and builds real D3D9 resources in its own `Init`. |
+| The screen filters -- motion blur, black and white, cross fade | Not ported. They are SAGE presentation effects driven by render-to-texture, not material programs, and none of them appears in the Section 15 pipeline list. Bringing them across would import the D3D8 render-target code with them for effects nothing in Renegade asks for. |
+| Raw texture-stage pointers | Changed rather than ported. The donor stored bare `TextureClass *` in its stage array and relied on the caller outliving the draw, which holds right up until a level release happens between staging and drawing. The stages hold references. |
+| Registering the listed pipelines before their systems exist | Deliberately not done. Terrain, roads, bridges, water and foliage have nothing to draw until the terrain framework lands, and ghost tint and status markers wait on the Commander work. Each registers itself when its system arrives; until then `Is_Supported` is false and `Get_Pass_Count` is zero. |

@@ -232,8 +232,8 @@ public:
 
 	int Get_Vertex_Shader_Majon_Version() const { return 0xff&(VertexShaderVersion>>8); }
 	int Get_Vertex_Shader_Minor_Version() const { return 0xff&(VertexShaderVersion); }
-	int Get_Pixel_Shader_Majon_Version() const { return 0xff&(VertexShaderVersion>>8); }
-	int Get_Pixel_Shader_Minor_Version() const { return 0xff&(VertexShaderVersion); }
+	int Get_Pixel_Shader_Majon_Version() const { return 0xff&(PixelShaderVersion>>8); }
+	int Get_Pixel_Shader_Minor_Version() const { return 0xff&(PixelShaderVersion); }
 
 	bool Support_Texture_Format(WW3DFormat format) const { return SupportTextureFormat[format]; }
 	bool Support_Render_To_Texture_Format(WW3DFormat format) const { return SupportRenderToTextureFormat[format]; }

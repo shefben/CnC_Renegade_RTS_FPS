@@ -199,6 +199,30 @@ def collect_matrix_rejections():
 #	------------------------------------------------------------------------------
 
 PHASE_DECISIONS = [
+    ('P09', 'The chipset / vendor / driver-version table',
+     'Not adopted. `W3DShaderManager` picked its implementations from a list of card '
+     'names and driver revisions, which was how a 2001 title survived contemporary '
+     'hardware and is now a table that answers wrongly for every card released since. '
+     '`Detect_Tier` reads D3D9 caps instead, and a program declines a tier it cannot '
+     'run on rather than being excluded by name.'),
+    ('P09', '`.vso` files and DWORD shader handles',
+     'Rejected. `LoadAndCreateD3DShader` and the `IDirect3DTexture8` surfaces around it '
+     'are the D3D8 API the roadmap rules out. A program that wants programmable '
+     'hardware asks the tier and builds real D3D9 resources in its own `Init`.'),
+    ('P09', 'The screen filters -- motion blur, black and white, cross fade',
+     'Not ported. They are SAGE presentation effects driven by render-to-texture, not '
+     'material programs, and none of them appears in the Section 15 pipeline list. '
+     'Bringing them across would import the D3D8 render-target code with them for '
+     'effects nothing in Renegade asks for.'),
+    ('P09', 'Raw texture-stage pointers',
+     'Changed rather than ported. The donor stored bare `TextureClass *` in its stage '
+     'array and relied on the caller outliving the draw, which holds right up until a '
+     'level release happens between staging and drawing. The stages hold references.'),
+    ('P09', 'Registering the listed pipelines before their systems exist',
+     'Deliberately not done. Terrain, roads, bridges, water and foliage have nothing to '
+     'draw until the terrain framework lands, and ghost tint and status markers wait on '
+     'the Commander work. Each registers itself when its system arrives; until then '
+     '`Is_Supported` is false and `Get_Pass_Count` is zero.'),
     ('P08', 'The donor\'s `PrototypeClass::DeleteSelf()`',
      'Not adopted. OpenW3D prototypes are deleted with `delete`, which is what '
      '`Free_Assets` already does; adding a second destruction protocol would leave two '

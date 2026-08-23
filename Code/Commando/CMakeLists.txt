@@ -404,6 +404,8 @@ set(COMMANDO_SRC
     ssgmmanager.h
     assetselfcheck.cpp
     assetselfcheck.h
+    shaderselfcheck.cpp
+    shaderselfcheck.h
     scriptcatalogcheck.cpp
     scriptcatalogcheck.h
     sctextobj.cpp
@@ -549,6 +551,9 @@ if(BUILD_TESTING AND TARGET renegade)
     #
     add_test(NAME asset_exclusion COMMAND renegade -assetselfcheck exclusion)
     add_test(NAME asset_residency COMMAND renegade -assetselfcheck residency)
+
+    #	The shader and state management layer -- roadmap Section 15.  See shaderselfcheck.h.
+    add_test(NAME shader_programs COMMAND renegade -shaderselfcheck programs)
 endif()
 
 #
@@ -569,4 +574,5 @@ if(BUILD_TESTING AND TARGET renegadeserver)
     add_test(NAME fds_tt_modules       COMMAND renegadeserver -ttselfcheck modules)
     add_test(NAME fds_asset_exclusion  COMMAND renegadeserver -assetselfcheck exclusion)
     add_test(NAME fds_asset_residency  COMMAND renegadeserver -assetselfcheck residency)
+    add_test(NAME fds_shader_programs  COMMAND renegadeserver -shaderselfcheck programs)
 endif()

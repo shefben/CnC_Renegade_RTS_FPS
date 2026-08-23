@@ -84,6 +84,7 @@ set(WW3D2_SRC
     segline.cpp
     seglinerenderer.cpp
     shader.cpp
+    shadermgr.cpp
     shattersystem.cpp
     snappts.cpp
     sortingrenderer.cpp
@@ -196,6 +197,7 @@ set(WW3D2_SRC
     segline.h
     seglinerenderer.h
     shader.h
+    shadermgr.h
     shattersystem.h
     snappts.h
     sortingrenderer.h

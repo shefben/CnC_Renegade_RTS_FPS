@@ -60,6 +60,7 @@
 #include "render2d.h"
 #include "sortingrenderer.h"
 #include "shattersystem.h"
+#include "shadermgr.h"
 #include "light.h"
 #include "assetmgr.h"
 #include "textureloader.h"
@@ -354,6 +355,13 @@ void DX8Wrapper::Do_Onetime_Device_Dependent_Inits(void)
 	ShatterSystem::Init();
 	TextureLoader::Init();
 
+	//
+	//	The shader manager has to come up after Compute_Caps, because the tier it picks
+	//	is read straight off the caps, and after the subsystems above, because a program
+	//	is free to build device resources in its Init.
+	//
+	ShaderManagerClass::Init();
+
 	Set_Default_Global_Render_States();
 }
 
@@ -411,6 +419,11 @@ void DX8Wrapper::Do_Onetime_Device_Dependent_Shutdowns(void)
 	REF_PTR_RELEASE(render_state.index_buffer);
 	REF_PTR_RELEASE(render_state.material);
 	for (unsigned i=0;i<MAX_TEXTURE_STAGES;++i) REF_PTR_RELEASE(render_state.Textures[i]);
+
+	//
+	//	Before the texture manager goes, since the stages hold references.
+	//
+	ShaderManagerClass::Shutdown();
 
 	TextureLoader::Deinit();
 	SortingRendererClass::Deinit();
