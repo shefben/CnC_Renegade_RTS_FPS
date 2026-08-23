@@ -324,7 +324,7 @@ Grant_Powerup	engine_obj.h	24	port-engine-work
 Get_Player_Name_By_ID	engine_player.h	14	port-engine-work
 Get_Damage_Warhead	engine_tt.h	11	port-engine-work
 Is_Spy	engine_obj2.h	8	port-engine-work
-Create_Vehicle	engine_obj2.h	5	port-engine-work
+Create_Vehicle	engine_obj2.h	5	done
 Set_Global_Stealth_Disable	engine_tt.h	5	port-engine-work
 Update_Network_Object	engine_tt.h	5	port-engine-work
 GetExplosionObj	engine_tt.h	4	port-engine-work

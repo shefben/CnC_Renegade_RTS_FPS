@@ -81,6 +81,7 @@
 #include "playerdata.h"
 #include "building.h"
 #include "basecontroller.h"
+#include "vehiclefactorygameobj.h"
 #include "colors.h"
 #include "animcontrol.h"
 #include "beacongameobj.h"
@@ -564,6 +565,53 @@ GameObject* Create_Object_At_Bone(GameObject* host_obj, const char* new_obj_type
 	Matrix3D tm = pgobj->Peek_Model()->Get_Bone_Transform(bone_name);
 	return Create_Object(new_obj_type_name, tm);
 #endif
+}
+
+
+bool Create_Vehicle(const char* preset_name, float delay, GameObject* owner, int player_type)
+{
+	SCRIPT_PTR_CHECK_RET( preset_name, false );
+
+	SCRIPT_TRACE((	"ST>Create_Vehicle( %s %f %d )\n", preset_name, delay, player_type ));
+
+	//
+	//	Only the server builds vehicles.  A client asking would produce one
+	//	the rest of the game does not know about.
+	//
+	if ( CombatManager::I_Am_Server() == false ) {
+		return false;
+	}
+
+	int definition_id = Get_Definition_ID( preset_name );
+	if ( definition_id == 0 ) {
+		Debug_Say(( "Create_Vehicle: no preset named %s\n", preset_name ));
+		return false;
+	}
+
+	BaseControllerClass * base = BaseControllerClass::Find_Base( player_type );
+	if ( base == nullptr ) {
+		return false;
+	}
+
+	BuildingGameObj * building = base->Find_Building( BuildingConstants::TYPE_VEHICLE_FACTORY );
+	if ( building == nullptr ) {
+		return false;
+	}
+
+	VehicleFactoryGameObj * factory = building->As_VehicleFactoryGameObj();
+	if ( factory == nullptr || factory->Is_Available() == false ) {
+		return false;
+	}
+
+	SoldierGameObj * player = nullptr;
+	if ( owner != nullptr ) {
+		PhysicalGameObj * physical = owner->As_PhysicalGameObj();
+		if ( physical != nullptr ) {
+			player = physical->As_SoldierGameObj();
+		}
+	}
+
+	return factory->Request_Vehicle( definition_id, delay, player );
 }
 
 

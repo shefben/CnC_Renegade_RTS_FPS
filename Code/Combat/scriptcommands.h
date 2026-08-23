@@ -166,6 +166,17 @@ namespace ScriptEngine
 	GameObject * Find_Nearest_Preset ( const Vector3 & position, const char * preset_name );
 	GameObject * Create_Object ( const char * type_name, const Vector3 & position );
 	GameObject * Create_Object_At_Bone ( GameObject * host_obj, const char * new_obj_type_name, const char * bone_name );
+
+	//
+	//	Build a vehicle at the vehicle factory of a side, the way a player
+	//	buying one does: it is generated over `delay` seconds and then driven
+	//	out of the factory door.  False when that side has no factory, or has
+	//	one that is destroyed, disabled or already building something.
+	//
+	//	`owner`, if given, is the player it is delivered to; a vehicle with no
+	//	owner belongs to the side alone.
+	//
+	bool Create_Vehicle ( const char * preset_name, float delay, GameObject * owner, int player_type );
 	int Get_ID ( GameObject * obj );
 	int Get_Preset_ID ( GameObject * obj );
 	const char * Get_Preset_Name ( GameObject * obj );
