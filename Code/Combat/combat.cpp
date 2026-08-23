@@ -35,6 +35,8 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "combat.h"
+
+#include "purchaseavailability.h"
 #include "gameeventbus.h"
 #include "ccamera.h"
 #include "scopemgr.h"
@@ -489,6 +491,9 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	//	can still change what the clients will be sent.
 	//
 	GameEventBus::Raise_Pre_Load_Level( _load_map_name );
+
+	//	Every purchase entry is on offer again in a new level.
+	PurchaseAvailabilityClass::Reset();
 
 	MultiplayRenderingAllowed = true;
 	if ( !IS_MISSION && !I_Am_Server() ) {

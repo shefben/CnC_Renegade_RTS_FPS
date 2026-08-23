@@ -829,6 +829,18 @@ namespace ScriptEngine
 	int Get_Cost ( int definition_id );
 	int Get_Cost ( const char * preset_name );
 
+	//
+	//	What a purchase terminal offers a team right now.  `team` is a
+	//	PLAYERTYPE.  Hidden entries are not drawn, disabled and busy ones are
+	//	drawn greyed out, and all three refuse the purchase server-side.
+	//
+	void Hide_Preset_By_Name ( int team, const char * preset_name, bool hide );
+	void Disable_Preset_By_Name ( int team, const char * preset_name, bool disable );
+	void Busy_Preset_By_Name ( int team, const char * preset_name, bool busy );
+
+	//	Everything the named building produces, at once.
+	void Disable_All_Presets_By_Factory_Tech ( int building_type, int team, bool disable );
+
 	// Two questions a character's preset answers about itself: whether it is a
 	// spy -- a soldier the other team's entry zones read as one of their own --
 	// and whether a vehicle is allowed to run it over.

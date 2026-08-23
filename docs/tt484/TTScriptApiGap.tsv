@@ -103,6 +103,7 @@ Create_Object_At_Bone	Commands->	8	done
 Find_Nearest_Preset	engine_obj.h	8	done
 Get_Translated_String	engine_tdb.h	8	done
 Has_Key	Commands->	8	done
+Hide_Preset_By_Name	engine_pt.h	8	done
 Is_Spy	engine_obj2.h	8	done
 Set_Ash	Commands->	8	done
 Set_Fog_Enable	Commands->	8	done
@@ -216,7 +217,9 @@ Attach_Script_Preset	engine_script.h	2	done
 Attach_Script_Type	engine_script.h	2	done
 Create_Explosion_At_Bone	Commands->	2	done
 Create_Sound_Player	engine_tt.h	2	done
+Disable_All_Presets_By_Factory_Tech	engine_pt.h	2	done
 Disable_Physical_Collisions	Commands->	2	done
+Disable_Preset_By_Name	engine_pt.h	2	done
 Enable_HUD	Commands->	2	done
 Enable_Radar_Player	engine_tt.h	2	done
 Find_Closest_Building	engine_obj.h	2	done
@@ -359,6 +362,3 @@ Get_Lightning	engine_tt.h	1	port-engine-work
 Get_Mine_Limit	engine_tt.h	1	port-engine-work
 Load_New_HUD_INI	engine_tt.h	1	port-engine-work
 Set_Moon_Is_Earth	engine_tt.h	1	port-engine-work
-Hide_Preset_By_Name	engine_pt.h	8	port-portable-source
-Disable_All_Presets_By_Factory_Tech	engine_pt.h	2	port-portable-source
-Disable_Preset_By_Name	engine_pt.h	2	port-portable-source

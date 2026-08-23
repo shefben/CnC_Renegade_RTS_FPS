@@ -56,6 +56,8 @@ set(COMBAT_SRC
     gameinfo.cpp
     gameinfo.h
     playerroster.cpp
+    purchaseavailability.cpp
+    purchaseavailability.h
     playerroster.h
     nativescriptregistry.cpp
     gameobjmanager.cpp

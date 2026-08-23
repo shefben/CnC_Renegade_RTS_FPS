@@ -35,6 +35,8 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "vendor.h"
+
+#include "purchaseavailability.h"
 #include "scriptcommands.h"
 #include "ttsettings.h"
 #include "gameeventbus.h"
@@ -356,6 +358,49 @@ VendorClass::Purchase_Character
 //	Purchase_Powerup
 //
 ////////////////////////////////////////////////////////////////
+/*
+**	A script can take a purchase entry off the menu while a client is
+**	looking at it.  The client draws its own menu from the definitions, so
+**	the refusal has to be made here as well as there.
+*/
+static bool	Is_Entry_On_Offer( SoldierGameObj * player, VendorClass::PURCHASE_TYPE type, int item_index )
+{
+	int player_type = player->Get_Player_Type();
+
+	PurchaseSettingsDefClass::TEAM page_team = ( player_type == PLAYERTYPE_NOD )
+			? PurchaseSettingsDefClass::TEAM_NOD : PurchaseSettingsDefClass::TEAM_GDI;
+
+	switch ( type ) {
+
+		case VendorClass::TYPE_CHARACTER:
+			return PurchaseAvailabilityClass::Is_Available(
+					PurchaseSettingsDefClass::TYPE_CLASSES, page_team, item_index );
+
+		case VendorClass::TYPE_VEHICLE:
+			return PurchaseAvailabilityClass::Is_Available(
+					PurchaseSettingsDefClass::TYPE_VEHICLES, page_team, item_index );
+
+		case VendorClass::TYPE_SECRET_CHARACTER:
+			return PurchaseAvailabilityClass::Is_Available(
+					PurchaseSettingsDefClass::TYPE_SECRET_CLASSES, page_team, item_index );
+
+		case VendorClass::TYPE_SECRET_VEHICLE:
+			return PurchaseAvailabilityClass::Is_Available(
+					PurchaseSettingsDefClass::TYPE_SECRET_VEHICLES, page_team, item_index );
+
+		case VendorClass::TYPE_ENLISTED_CHARACTER:
+			return PurchaseAvailabilityClass::Is_Enlisted_Available(
+					( player_type == PLAYERTYPE_NOD )
+							? TeamPurchaseSettingsDefClass::TEAM_NOD
+							: TeamPurchaseSettingsDefClass::TEAM_GDI,
+					item_index );
+
+		default:
+			return true;
+	}
+}
+
+
 VendorClass::PURCHASE_ERROR
 VendorClass::Purchase_Item
 (
@@ -393,6 +438,10 @@ VendorClass::Purchase_Item
 		//
 		//	Determine which base controller to purchase from
 		//
+		if (Is_Entry_On_Offer (player, type, item_index) == false) {
+			return PERR_NOT_IN_STOCK;
+		}
+
 		BaseControllerClass *base = nullptr;
 		if (player->Get_Player_Type () == PLAYERTYPE_NOD) {
 			base = BaseControllerClass::Find_Base ( PLAYERTYPE_NOD );

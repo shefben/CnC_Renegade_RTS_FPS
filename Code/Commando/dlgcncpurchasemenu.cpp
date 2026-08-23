@@ -36,6 +36,8 @@
 
 #include "renegadedialog.h"
 #include "dlgcncpurchasemenu.h"
+
+#include "purchaseavailability.h"
 #include "ttsettings.h"
 #include "dlgcncpurchasemainmenu.h"
 #include "purchasesettings.h"
@@ -151,7 +153,17 @@ CNCPurchaseMenuClass::On_Init_Dialog (void)
 			//
 			int definition_id					= Definition->Get_Definition (index);
 			DefinitionClass *definition	= DefinitionMgrClass::Find_Definition (definition_id);
-			if (Is_Definition_OK (definition)) {
+
+			//
+			//	A script can take an entry off the menu.  A hidden one is not
+			//	drawn at all, which is the same thing that happens to a slot
+			//	the level left empty.
+			//
+			unsigned char flags = PurchaseAvailabilityClass::Get_Flags (
+					Definition->Get_Type (), Definition->Get_Team (), index);
+
+			if (Is_Definition_OK (definition)
+					&& (flags & PurchaseAvailabilityClass::FLAG_HIDDEN) == 0) {
 
 				//
 				//	Configure the merchandise settings
@@ -177,7 +189,8 @@ CNCPurchaseMenuClass::On_Init_Dialog (void)
 				//
 				//	Disable any options that cost money if production is disabled
 				//
-				if ((IsProductionDisabled && (cost > 0)) || (player_data->Get_Money () < cost)) {
+				if ((IsProductionDisabled && (cost > 0)) || (player_data->Get_Money () < cost)
+						|| (flags != 0)) {
 					ctrl->Enable (false);
 				}
 
@@ -942,7 +955,11 @@ CNCPurchaseMenuClass::Update_Enabled_Status (void)
 				//
 				//	Disable any options that cost money if production is disabled
 				//
-				if (can_produce == false || (IsProductionDisabled && (cost > 0)) || (player_data->Get_Money () < cost)) {
+				unsigned char flags = PurchaseAvailabilityClass::Get_Flags (
+						Definition->Get_Type (), Definition->Get_Team (), index);
+
+				if (can_produce == false || (IsProductionDisabled && (cost > 0))
+						|| (player_data->Get_Money () < cost) || (flags != 0)) {
 					ctrl->Enable (false);
 				} else {
 					ctrl->Enable (true);

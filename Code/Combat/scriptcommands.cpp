@@ -86,6 +86,7 @@
 #include "obbox.h"
 #include "scriptzone.h"
 #include "damageablegameobj.h"
+#include "purchaseavailability.h"
 #include "purchasesettings.h"
 #include "teampurchasesettings.h"
 #include "playertype.h"
@@ -3848,6 +3849,46 @@ void	Set_Occupants_Fade( GameObject * vehicle_obj, float r, float g, float b, fl
 **	locally are broadcast.  Client id -1 is everybody, and on a listen
 **	server that includes this machine.
 */
+/*
+**	Taking something off the purchase menu, or putting it back.  The state
+**	lives in PurchaseAvailabilityClass, which replicates it, so a script
+**	sets it on the server and every client's menu follows.
+*/
+static void	Set_Preset_Availability( int team, const char * preset_name, unsigned char flag, bool on )
+{
+	if ( preset_name == nullptr ) {
+		return ;
+	}
+
+	PurchaseAvailabilityClass::Set_By_Definition( team, Get_Definition_ID( preset_name ), flag, on );
+}
+
+
+void	Hide_Preset_By_Name( int team, const char * preset_name, bool hide )
+{
+	Set_Preset_Availability( team, preset_name, PurchaseAvailabilityClass::FLAG_HIDDEN, hide );
+}
+
+
+void	Disable_Preset_By_Name( int team, const char * preset_name, bool disable )
+{
+	Set_Preset_Availability( team, preset_name, PurchaseAvailabilityClass::FLAG_DISABLED, disable );
+}
+
+
+void	Busy_Preset_By_Name( int team, const char * preset_name, bool busy )
+{
+	Set_Preset_Availability( team, preset_name, PurchaseAvailabilityClass::FLAG_BUSY, busy );
+}
+
+
+void	Disable_All_Presets_By_Factory_Tech( int building_type, int team, bool disable )
+{
+	PurchaseAvailabilityClass::Set_By_Factory( team, building_type,
+			PurchaseAvailabilityClass::FLAG_DISABLED, disable );
+}
+
+
 void	Set_Camera_Host_Network( GameObject * obj )
 {
 	if ( !CombatManager::I_Am_Server() ) {
