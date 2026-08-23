@@ -911,3 +911,41 @@ powerup). Fixed and recorded in `docs/tt484/TTScriptApiRenames.tsv`.
 `Grant_Powerup` (24 calls), `Get_Object_Type`/`Set_Object_Type` (98) and
 `Send_Custom_Event_To_Object` turned out to be existing commands under other
 names, clearing `jfwpoke.cpp` and `dan.cpp` outright.
+
+**P04-Z: `jfwpoke.cpp` (56 scripts) and `dan.cpp` (3).**
+`Code/Scripts/TT_Poke.cpp` writes poking's seven behaviours once each and lets
+the fifty-six names configure them -- eighteen shops, thirteen doors, eight
+sound players, six senders. `Code/Scripts/TT_Crates.cpp` carries dan.cpp's
+crate; its two wreckage scripts went to `TT_Vehicles.cpp`. Fixed: group
+purchases paid contributors instead of charging them and sent message 0;
+`JFW_Toggle_Door_Team_2` did nothing at all; six timed doors and two timed
+sound players fired on any timer; the crate could never give its last prize and
+read past its own table; `JFW_Escort_Poke` could not be re-recruited by
+someone it had dismissed. The crate's SSGM console-command strings became
+`Send_Message`/`Send_Message_Player` directly. Registry 2011 -> 2070.
+
+**P04-AA: `Get_Random_Int` correction (reverts P04-Y's code half).**
+`CRandom::Get_Int(min,max)` is `Get_Int(max-min)+min` over an n-modulo, so it
+is `[min,max)` -- the same as the donor's, not one wider. P04-Y claimed
+otherwise on the strength of two wrong comments in `Code/Combat/crandom.h` and
+shortened five ported calls by one; all five are reverted and the comments
+corrected. `docs/tt484/TTScriptApiRenames.tsv` now records the ranges as
+identical, with the proof.
+
+**P04-AB: the damage-context seam.** `DamageContextClass`
+(`Code/Combat/damagecontext.h`) records what is hitting an object for the
+duration of the hit, in nesting scopes, so a `Damaged`/`Killed` handler can
+ask. Gives `ScriptEngine::Get_Damage_Warhead`, `Get_Explosion_Object` (the
+mine/C4/beacon, recorded by `C4GameObj::Detonate` and
+`BeaconGameObj::Create_Explosion`) and `Get_Warhead_Type`. Also
+`Update_Network_Object`, which marks `BIT_RARE` so a script's state change
+reaches clients. Clears `gmbuilding.cpp` and unblocks `jfwobj.cpp` (11
+scripts) and `gmsoldier.cpp` entirely.
+
+**P04-AC: `tools/tt484/apigap_tsv.py` stopped losing hand-set dispositions.**
+It silently reverted five rows -- `Stop_Timer2`, `The_Game`,
+`Change_Time_Limit`, `Change_Time_Remaining`, `Enable_Team_Radar`, 87 calls
+between them -- on every run. All five are renames and are recorded in
+`docs/tt484/TTScriptApiRenames.tsv`, which the generator reads; `The_Game` and
+`Get_Team_Score` left its stale `NEEDS_SEAM` list. Regenerating now reproduces
+the committed table exactly.
