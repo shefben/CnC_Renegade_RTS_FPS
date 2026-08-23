@@ -45,16 +45,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P07: Freeze Zero Hour donor; capability/port matrices (roadmap Section 13)
 
-- [ ] TheSuperHackers Zero Hour donor SHA frozen and documented
-- [ ] `Core + GeneralsMD` explicitly documented as the sole SAGE implementation donor
-- [ ] `Generals/` excluded from the implementation workflow
-- [ ] all relevant Zero Hour engine areas classified
-- [ ] all 25 known macro-systems mapped to actual `Core`/`GeneralsMD` sources
-- [ ] additional reusable Zero Hour capabilities discovered by the audit are added to the port matrix
-- [ ] relevant TheSuperHackers fixes/enhancements for selected subsystems are classified
-- [ ] every rejected engine-looking capability has a written reason
-- [ ] no plan exists to build or stage through a predecessor-game implementation before the Zero Hour implementation
-
 ## P08: Asset exclusion / residency (roadmap Section 14)
 
 - [ ] Acceptance: Repeated map/world load/unload does not invalidate retained assets or leak unbounded resources.
