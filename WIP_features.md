@@ -7,32 +7,31 @@ Detail lives in `docs/`.
 
 ## P04: the 4.8.4 script library, natively
 
-Done so far: P04-A..P04-AK in `completed_features.md`. Twenty of the
+Done so far: P04-A..P04-AN in `completed_features.md`. Twenty-one of the
 twenty-five in-scope donor files are fully ported; `tools/tt484/readiness.py`
 is the ranking and `docs/tt484/TTScriptApiGap.tsv` the dispositions. Registry
-is at 2330 built-in scripts with no duplicate names; `renegade` and
+is at 2394 built-in scripts with no duplicate names; `renegade` and
 `leveledit` both build clean.
 
-What is left is three files. `jfwgame.cpp` (64 scripts) now has **zero**
-blocked calls and is pure porting work. `jfwmisc.cpp` (103 scripts) has 26
-blocked calls left. `jfwcust.cpp` is 89/90, waiting only on
-`Do_Objectives_Dlg`, which is Phase 5 dialog work.
+**Every in-scope donor file except `jfwcust.cpp` now reports zero blocked
+calls.** The only blocked call left anywhere in the set is
+`Do_Objectives_Dlg`, which is Phase 5 dialog work and leaves `jfwcust.cpp` at
+89 of 90.
 
-Next exact action: port `tt_4.8.4/scripts/jfwgame.cpp` to
-`Code/Scripts/TT_Game.cpp` -- 64 registrations, nothing blocking.
-`Ranged_Stealth_On_Team` is a private function of
-`JFW_Global_Stealth_Controller` there, not a script command; the rename table
-records that. Follow the pattern of `TT_Zones.cpp`: base plus virtual for each
-family, donor defects fixed and listed in the file header, then add the file to
-`Code/Scripts/CMakeLists.txt` and build both targets.
+Next exact action: port `tt_4.8.4/scripts/jfwmisc.cpp` to
+`Code/Scripts/TT_Misc.cpp` -- 103 registrations, nothing blocking. It is the
+last unported file. The families worth collapsing are the eight
+`JFW_PT_Hide`/`JFW_PT_Show` variants (one call, four triggers, two
+directions), the eight `JFW_*_Disable` building scripts (one
+`Disable_All_Presets_By_Factory_Tech` call and a building type each), the six
+`JFW_Game_Hint*` scripts (two calls, three triggers), the four screen-fade
+scripts and the three `JFW_Ion_Storm` variants. Follow the pattern of
+`TT_Game.cpp`: base plus virtual for each family, donor defects fixed and
+listed in the file header, then add the file to `Code/Scripts/CMakeLists.txt`
+and build both targets.
 
-Then `jfwmisc.cpp`'s remaining 26 blockers, in leverage order:
-`Set_Global_Stealth_Disable` (5), `Display_Game_Hint` and
-`Display_Game_Hint_Image` (6 together), `Set_Tech_Level` (3),
-`Get_Mine_Limit`, `Get_GDI_Soldier_Name`/`Get_Nod_Soldier_Name` and their
-setters. The tech level and the mine limit have no counterpart in this engine
-and need a decision about where the setting lives -- see `Q-011` in
-`awaiting_answers.md`.
+After that, `gmsoldier.cpp` is 2 of 5 with the other three recorded N/A in
+P04-AE, so P04's porting work is finished and what remains is the hard gate.
 
 Assembling a generated `.cpp` from parts: write the parts with the Write tool
 and concatenate them with Python. `cat a b > c` in this shell silently drops

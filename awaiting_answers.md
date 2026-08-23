@@ -6,20 +6,20 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
-- **Q-011** Where do the tech level and the mine limit live? `jfwmisc.cpp` calls
- `Set_Tech_Level` (3) and `Get_Mine_Limit` (1), and `gmgame.cpp` calls
- `Get_Mine_Limit` too. Neither has any counterpart in this engine: there is no
- tech-level gate on purchase entries and no per-player mine cap. Two options.
- (a) Put both in `SSGMSettingsClass` as server-layer settings, which is where
- the rest of the 4.8.4 server manager's tunables already live, and have the
- purchase-availability flags added in P04-AK carry the tech-level effect.
- (b) Make them engine-level: a tech level on `PurchaseAvailabilityClass` and a
- mine cap on `PlayerDataClass`. (a) is smaller and matches how 4.8.4 shipped
- them -- they are `ssgm.ini` settings there. Which?
+None.
+
 
 ---
 
 ## Resolved
+
+- **Q-011 (resolved by decision, reversible)** Where the tech level and the
+ mine limit live. Taken as recommended: both are `SSGMSettingsClass`
+ settings read from `ssgm.ini`, which is where 4.8.4 kept them. The tech
+ level splits in two -- the starting value is the setting, the running
+ value is `PurchaseAvailabilityClass::TechLevel`, because a script moves
+ it during a match and every client's menu has to follow. Say the word and
+ it moves.
 
 - **Q-010** Team defaulting. User directed using TT's handling, so the removal
   stands: the stock swap-the-scores path that handed a win to the losing team

@@ -1029,3 +1029,34 @@ see. Gives `Hide_Preset_By_Name`, `Disable_Preset_By_Name`,
 derives an entry's factory from its page, this engine having no per-entry
 factory field. `Force_Vehicle_Entry` wraps `VehicleGameObj::Add_Occupant`.
 `jfwgame.cpp` now reports zero blocked calls. Commits `494e262c`, `955ac8a7`.
+**P04-AL: `jfwgame.cpp` ported to `Code/Scripts/TT_Game.cpp`.** 64
+registrations -- domination zones, construction yards, ore and tiberium,
+carryalls, chrono harvesters, radar jammers, stealth-generator fields,
+submarines and hijackers. `Ranged_Stealth_On_Team` is a private function of
+the controller rather than a script command, and its hand-rolled linked list
+is a vector. `SmartGameObjDef::Is_Stealth_Unit` and `CUSTOM_EVENT_REFILL`
+were the two seams it needed. Eleven donor defects fixed, including a
+carryall fleet that could never refill a slot lost from the middle of its
+list. Commit `85495325`.
+
+**P04-AM: tech level, mine cap, spawn names, global stealth, game hints.**
+`PurchaseSettingsDefClass` gained a per-entry Tech Level and
+`PurchaseAvailabilityClass` the level the match has reached, replicated with
+the flags; the starting value is `SSGMSettingsClass::TechLevel` from
+`ssgm.ini`, which resolves `Q-011`. `Maintain_C4_Limit` reads
+`SSGMSettingsClass::MineLimit` instead of a hardcoded thirty.
+`Get/Set_GDI_Soldier_Name` and the Nod pair wrap the spawn-character settings
+that were already there. `SmartGameObj` gained one switch that suppresses
+every cloak. `GameHintClass` plus `IDD_GAME_HINT` and `DlgGameHint` give the
+popup a level explains itself with, once per event ID per player, remembered
+in `data/hints.cfg`. Commit `902dbcbf`.
+
+**P04-AN: the sky, the radar and one player's screen.**
+`BackgroundMgrClass::Set_Moon_Is_Earth` swaps the moon for the earth,
+replicated; `Create_Lightning` draws a bolt between two points on the map as
+a scene-added `SegmentedLineClass` with a third of a second to live;
+`Get_Clouds`/`Get_Lightning` let a script put the weather back;
+`Change_Radar_Map` broadcasts the three `MapMgrClass` settings;
+`Set_Info_Texture`/`Clear_Info_Texture` put a picture over one player's whole
+screen and `Load_New_HUD_INI` re-reads their UI options from a named file.
+With these, `jfwmisc.cpp` reports zero blocked calls. Commit `0d18e216`.
