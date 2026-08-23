@@ -12,7 +12,6 @@ Change_Team_2	Change_Team	destroy_object=false
 Is_Harvester_Preset	Is_Harvester	canonical asks the base, not the preset table
 Get_Team_Color	Get_Color_For_Team	canonical returns a Vector3 of 0..1 rather than three 0..255 ints
 Find_Definition	Is_Valid_Preset_ID / Get_Definition_Name	a script has no use for the DefinitionClass itself; ask what it wanted to know
-Get_GameObj	Find_Object_By_Player_ID	see TTScriptApiGap.tsv: still to port
 Get_Player_Name	Get_Wide_Player_Name	the canonical one answers wide, which is what the name actually is; the donor narrowed it into a buffer the caller had to free
 Grant_Powerup	Give_PowerUp	canonical takes a third argument for whether the pickup shows on the HUD; granting one is the same as picking one up, so it does
 Get_Random_Int	Get_Random_Int	SAME NAME, SAME RANGE -- port calls unchanged. Both stop one below the upper bound: CRandom::Get_Int(min,max) is Get_Int(max-min)+min and Get_Int(n) is (...)%n, so the result is [min,max). scriptcommands.h says so; the 'both inclusive' comments in Code/Combat/crandom.h are wrong and cost one session a set of off-by-one 'fixes' (reverted). Stock agrees: Mission01.cpp:7533 indexes Powerups[2] with Get_Random_Int(0,2). Note min==max divides by zero
@@ -29,3 +28,8 @@ TT_UNREACHABLE		not a name to port. It marks a branch the donor believed could n
 CUSTOM_VETERANCY_PROMOTED		dp88_custom_timer_defines.h constant, 0xDA010001. The dp88 files are out of scope but jfwobj.cpp uses three of their numbers, so they are spelled out in Code/Scripts/TT_Objects.cpp with the same values
 CUSTOM_VEHICLE_DEPLOY		same header, 0xDA000004: 0 stowed, 1 deploying, 2 deployed, 3 stowing
 CUSTOM_RADAR_JAM		same header, 0xDA000005: 0 switches the enemy radar off, 1 back on
+Get_File_Path	_TheWritingFileFactory	not a path to ask for. The one in-scope caller opens a log file next to the game with fopen; a native script writes through the engine's writing file factory instead, which needs no path at all
+Get_Player_Name_By_ID	Get_Player_Name_By_ID	SAME NAME, WIDE RETURN -- the donor handed back a newstr'd narrow copy the caller had to free. This returns the engine's own wide name and never allocates. Answered through the player-roster seam in Code/Combat/playerroster.h
+Get_Object_Color	Get_Object_Color	SAME NAME, ONE RETURN VALUE -- the donor filled three unsigned out-parameters scaled to 0-255. This returns the Vector3 the engine actually keeps, components 0-1
+Get_Team_Cost	Get_Team_Cost	SAME NAME, TEAM ARGUMENT IS A PLAYERTYPE -- the donor took its own PT team index and converted with PTTEAM(t). Pass PLAYERTYPE_NOD or PLAYERTYPE_GDI here
+Get_GameObj	Find_Object_By_Player_ID	now exists. GameObjManager::Find_Soldier_Of_Client_ID answers it, so it needs no seam

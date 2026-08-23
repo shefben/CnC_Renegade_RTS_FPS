@@ -71,6 +71,7 @@
 #include	"systemsettings.h"
 #include "gamedata.h"
 #include "gameinfoimpl.h"
+#include "playerrosterimpl.h"
 #include "sphereobj.h"
 #include "ringobj.h"
 #include "diagnostics.h"
@@ -1019,6 +1020,7 @@ bool Game_Init(void)
 	//	Combat has the shape of but not the answer to.
 	//
 	GameInfoImplClass::Register();
+	PlayerRosterImplClass::Register();
 
 	CampaignManager::Init();
 

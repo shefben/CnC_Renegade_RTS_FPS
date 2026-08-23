@@ -63,6 +63,8 @@ typedef	AudibleSoundClass	Sound2D;
 class		Sound3DClass;
 typedef	Sound3DClass		Sound3D;
 class		Matrix3D;
+class		OBBoxClass;
+class		INIClass;
 class		ScriptClass;
 class		ScriptSaver;
 class		ScriptLoader;
@@ -571,6 +573,14 @@ namespace ScriptEngine
 	// The player behind a soldier, if there is one
 	int Get_Player_ID ( GameObject * obj );
 	const unichar_t * Get_Wide_Player_Name ( GameObject * obj );
+
+	// The same two questions asked by number rather than by body, for a script
+	// that has only a player ID -- a kill message, a chat command, a
+	// scoreboard line.  The name survives the player losing their soldier;
+	// the object does not.
+	const unichar_t * Get_Player_Name_By_ID ( int player_id );
+	GameObject * Find_Object_By_Player_ID ( int player_id );
+	int Get_Player_Type_By_ID ( int player_id );
 	void Change_Team ( GameObject * obj, int team, bool destroy_object );
 
 	// Bases and buildings
@@ -788,6 +798,26 @@ namespace ScriptEngine
 	// Restore a soldier's ammunition, health and armor -- what a vehicle
 	// purchase terminal grants when it sells a refill.
 	void Grant_Refill ( GameObject * player );
+
+	// Reading a script's own ini file through the engine's mix-file lookup.
+	// The caller owns what Get_INI returns and passes it to Release_INI.
+	INIClass * Get_INI ( const char * filename );
+	void Release_INI ( INIClass * ini );
+
+	// A team colour, asked about an object rather than about the team.
+	Vector3 Get_Object_Color ( GameObject * obj );
+
+	// Script zones made at runtime.  A zone's bounding box is not part of its
+	// preset, so one created from a preset has to be given a box.
+	void Set_Zone_Box ( GameObject * obj, const OBBoxClass & box );
+	GameObject * Create_Zone ( const char * preset_name, const OBBoxClass & box );
+
+	// What a purchase terminal charges for a preset.  Zero means it is not
+	// sold, or is free.
+	int Get_Team_Cost ( int definition_id, int player_type );
+	int Get_Team_Cost ( const char * preset_name, int player_type );
+	int Get_Cost ( int definition_id );
+	int Get_Cost ( const char * preset_name );
 
 	// Two questions a character's preset answers about itself: whether it is a
 	// spy -- a soldier the other team's entry zones read as one of their own --

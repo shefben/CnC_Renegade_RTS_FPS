@@ -55,6 +55,8 @@ set(COMBAT_SRC
     gameeventbus.cpp
     gameinfo.cpp
     gameinfo.h
+    playerroster.cpp
+    playerroster.h
     nativescriptregistry.cpp
     gameobjmanager.cpp
     gameobjobserver.cpp

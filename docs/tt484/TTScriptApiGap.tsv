@@ -80,6 +80,7 @@ Control_Enable	Commands->	16	done
 Get_Vehicle_Mode	engine_obj2.h	15	done
 Get_Wide_Player_Name	engine_player.h	15	done
 Enable_Base_Radar	engine_game.h	14	done
+Get_Player_Name_By_ID	engine_player.h	14	done
 Get_Player_Type	engine_player.h	14	done
 Send_Message	engine_tt.h	14	done
 Set_Animation_Frame	Commands->	14	done
@@ -153,6 +154,7 @@ Get_Translated_Definition_Name	engine_tdb.h	5	done
 Get_Vehicle_Gunner	engine_obj2.h	5	done
 Grant_Refill	engine_obj2.h	5	done
 Kill_All_Buildings_By_Team	engine_tt.h	5	done
+Release_INI	engine_io.h	5	done
 Set_HUD_Help_Text_Player	engine_tt.h	5	done
 Set_Max_Health	engine_dmg.h	5	done
 Set_Max_Shield_Strength	engine_dmg.h	5	done
@@ -161,11 +163,13 @@ Update_Network_Object	engine_tt.h	5	done
 Change_Team_2	engine_player.h	4	done
 Create_2D_WAV_Sound	Commands->	4	done
 Create_Effect_All_Of_Preset	engine_phys.h	4	done
+Create_Zone	engine_obj2.h	4	done
 Display_GDI_Player_Terminal_Player	engine_tt.h	4	done
 Display_NOD_Player_Terminal_Player	engine_tt.h	4	done
 Enable_Cinematic_Freeze	Commands->	4	done
 Force_Camera_Look_Player	engine_tt.h	4	done
 GetExplosionObj	engine_tt.h	4	done
+Get_Cost	engine_pt.h	4	done
 Get_Definition_ID	engine_def.h	4	done
 Get_GameObj	engine_player.h	4	done
 Get_Object_Count	engine_obj.h	4	done
@@ -189,6 +193,7 @@ End_Chunk	Commands->	3	done
 Find_Object_With_Script	engine_script.h	3	done
 Force_Occupant_Exit	engine_obj2.h	3	done
 Get_A_Star	Commands->	3	done
+Get_INI	engine_io.h	3	done
 Get_Vehicle_Return	engine_obj2.h	3	done
 Get_Vehicle_Seat_Count	engine_obj2.h	3	done
 Is_Harvester_Preset	engine_game.h	3	done
@@ -271,6 +276,8 @@ Force_Occupants_Exit_Team	engine_obj2.h	1	done
 Get_Animation_Target_Frame	engine_phys.h	1	done
 Get_Beacon_Planter	engine_weap.h	1	done
 Get_Current_Translated_Weapon	engine_tdb.h	1	done
+Get_File_Path	engine_io.h	1	done
+Get_Object_Color	engine_obj.h	1	done
 Get_Velocity	engine_obj.h	1	done
 Grant_Key	Commands->	1	done
 Has_Timer	engine_tt.h	1	done
@@ -331,7 +338,6 @@ RemovePowerupPurchaseHook	engine_tt.h	1	n/a-plugin-hook
 newstr	engine_string.h	45	n/a-sdk-helper
 wcsistr	engine_string.h	7	n/a-sdk-helper
 stristr	engine_string.h	1	n/a-sdk-helper
-Get_Player_Name_By_ID	engine_player.h	14	port-engine-work
 Set_Global_Stealth_Disable	engine_tt.h	5	port-engine-work
 Display_Game_Hint	engine_tt.h	3	port-engine-work
 Display_Game_Hint_Image	engine_tt.h	3	port-engine-work
@@ -350,15 +356,9 @@ Do_Objectives_Dlg	engine_tt.h	1	port-engine-work
 Get_Clouds	engine_tt.h	1	port-engine-work
 Get_Lightning	engine_tt.h	1	port-engine-work
 Get_Mine_Limit	engine_tt.h	1	port-engine-work
-Get_Object_Color	engine_obj.h	1	port-engine-work
 Load_New_HUD_INI	engine_tt.h	1	port-engine-work
 Set_Moon_Is_Earth	engine_tt.h	1	port-engine-work
 Set_Subobject_Animation	engine_tt.h	1	port-engine-work
 Hide_Preset_By_Name	engine_pt.h	8	port-portable-source
-Release_INI	engine_io.h	5	port-portable-source
-Create_Zone	engine_obj2.h	4	port-portable-source
-Get_Cost	engine_pt.h	4	port-portable-source
-Get_INI	engine_io.h	3	port-portable-source
 Disable_All_Presets_By_Factory_Tech	engine_pt.h	2	port-portable-source
 Disable_Preset_By_Name	engine_pt.h	2	port-portable-source
-Get_File_Path	engine_io.h	1	port-portable-source

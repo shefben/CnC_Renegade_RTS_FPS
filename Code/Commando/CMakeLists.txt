@@ -167,6 +167,8 @@ set(COMMANDO_SRC
     gamedata.cpp
     gameinfoimpl.cpp
     gameinfoimpl.h
+    playerrosterimpl.cpp
+    playerrosterimpl.h
     gamedata.h
     gdcnc.cpp
     gdcnc.h

@@ -79,6 +79,16 @@
 #include "orator.h"
 #include "gameobjobserver.h"
 #include "gameinfo.h"
+#include "playerroster.h"
+#include "ini.h"
+#include "ffactory.h"
+#include "wwfile.h"
+#include "obbox.h"
+#include "scriptzone.h"
+#include "damageablegameobj.h"
+#include "purchasesettings.h"
+#include "teampurchasesettings.h"
+#include "playertype.h"
 #include "animcontrol.h"
 #include "playerdata.h"
 #include "building.h"
@@ -4563,6 +4573,41 @@ const unichar_t * Get_Wide_Player_Name( GameObject * obj )
 }
 
 //
+//	The roster answers by ID.  A player who has just disconnected still has an
+//	ID in flight in somebody's script, so all three of these answer a harmless
+//	nothing rather than assuming the player is still there.
+//
+
+const unichar_t * Get_Player_Name_By_ID( int player_id )
+{
+	PlayerRosterInterfaceClass * roster = PlayerRosterClass::Peek_Interface();
+	if ( roster == nullptr ) {
+		return U_CHAR("None");
+	}
+
+	const unichar_t * name = roster->Get_Player_Name( player_id );
+	return ( name != nullptr ) ? name : U_CHAR("None");
+}
+
+
+GameObject * Find_Object_By_Player_ID( int player_id )
+{
+	return GameObjManager::Find_Soldier_Of_Client_ID( player_id );
+}
+
+
+int Get_Player_Type_By_ID( int player_id )
+{
+	PlayerRosterInterfaceClass * roster = PlayerRosterClass::Peek_Interface();
+	if ( roster == nullptr ) {
+		return PLAYERTYPE_NEUTRAL;
+	}
+
+	return roster->Get_Player_Type( player_id );
+}
+
+
+//
 //	Moves the player's record to the other side.  Destroying the body is how a
 //	change takes effect immediately rather than at their next death.
 //
@@ -5961,5 +6006,184 @@ void Seconds_To_Hms( float seconds, int & out_hours, int & out_minutes, int & ou
 	out_minutes	= ( total % 3600 ) / 60;
 	out_seconds	= total % 60;
 }
+
+
+
+/*
+**	Reading an ini file that is not one of the engine's own.  A script may ship
+**	its own configuration -- a table of sounds, a table of kill messages -- and
+**	wants it read through the same mix-file lookup everything else uses rather
+**	than through the operating system.  The caller owns what comes back and
+**	hands it to Release_INI.
+*/
+INIClass * Get_INI( const char * filename )
+{
+	SCRIPT_PTR_CHECK_RET( filename, nullptr );
+
+	if ( _TheFileFactory == nullptr ) {
+		return nullptr;
+	}
+
+	FileClass * file = _TheFileFactory->Get_File( filename );
+	if ( file == nullptr ) {
+		return nullptr;
+	}
+
+	INIClass * ini = nullptr;
+	if ( file->Is_Available() ) {
+		ini = new INIClass( *file );
+	}
+
+	_TheFileFactory->Return_File( file );
+	return ini;
+}
+
+
+void Release_INI( INIClass * ini )
+{
+	delete ini;
+}
+
+
+/*
+**	A team's colour, asked about an object rather than about the team.  The
+**	4.8.4 shape returned it through three unsigned out-parameters; here it is
+**	one vector, which is what the engine keeps and what every caller wanted.
+*/
+Vector3 Get_Object_Color( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return Vector3( 1.0f, 1.0f, 1.0f );
+	}
+
+	DamageableGameObj * damageable = obj->As_DamageableGameObj();
+	if ( damageable == nullptr ) {
+		return Vector3( 1.0f, 1.0f, 1.0f );
+	}
+
+	return damageable->Get_Team_Color();
+}
+
+
+/*
+**	Zones made at runtime.  A script zone's bounding box is not part of its
+**	preset -- a level editor places it -- so a zone created from a preset has
+**	to be given one before anything is allowed to observe it entering.
+*/
+void Set_Zone_Box( GameObject * obj, const OBBoxClass & box )
+{
+	if ( obj == nullptr ) {
+		return ;
+	}
+
+	ScriptZoneGameObj * zone = obj->As_ScriptZoneGameObj();
+	if ( zone == nullptr ) {
+		return ;
+	}
+
+	zone->Set_Bounding_Box( const_cast<OBBoxClass &>( box ) );
+}
+
+
+GameObject * Create_Zone( const char * preset_name, const OBBoxClass & box )
+{
+	SCRIPT_PTR_CHECK_RET( preset_name, nullptr );
+
+	GameObject * zone = Create_Object( preset_name, box.Center );
+	if ( zone == nullptr ) {
+		return nullptr;
+	}
+
+	Set_Zone_Box( zone, box );
+	zone->Start_Observers();
+	return zone;
+}
+
+
+/*
+**	What a purchase terminal charges one side for a preset.  Zero means the
+**	preset is not sold there, which is also what a free unit answers -- the
+**	4.8.4 shape had the same ambiguity and every caller treats both the same
+**	way, as "no price to divide by".
+**
+**	The beacon is asked about first because it is the one entry a team's
+**	settings carry directly rather than on one of the pages.
+*/
+//
+//	The page geometry is the purchase settings' own, but those constants are
+//	protected, so the two that matter are spelled out here.  A page holds ten
+//	entries and each entry may carry three alternate skins.
+//
+static const int	PURCHASE_ENTRIES		= 10;
+static const int	PURCHASE_ALTERNATES	= 3;
+
+int Get_Team_Cost( int definition_id, int player_type )
+{
+	if ( definition_id == 0 ) {
+		return 0;
+	}
+
+	TeamPurchaseSettingsDefClass::TEAM team = ( player_type == PLAYERTYPE_NOD )
+			? TeamPurchaseSettingsDefClass::TEAM_NOD
+			: TeamPurchaseSettingsDefClass::TEAM_GDI;
+
+	TeamPurchaseSettingsDefClass * team_settings = TeamPurchaseSettingsDefClass::Get_Definition( team );
+	if ( team_settings != nullptr && team_settings->Get_Beacon_Definition() == definition_id ) {
+		return team_settings->Get_Beacon_Cost();
+	}
+
+	PurchaseSettingsDefClass::TEAM page_team = ( player_type == PLAYERTYPE_NOD )
+			? PurchaseSettingsDefClass::TEAM_NOD
+			: PurchaseSettingsDefClass::TEAM_GDI;
+
+	for ( int type = 0; type < PurchaseSettingsDefClass::TYPE_COUNT; type ++ ) {
+
+		PurchaseSettingsDefClass * page = PurchaseSettingsDefClass::Find_Definition(
+				(PurchaseSettingsDefClass::TYPE)type, page_team );
+		if ( page == nullptr ) {
+			continue;
+		}
+
+		for ( int index = 0; index < PURCHASE_ENTRIES; index ++ ) {
+
+			bool is_match = ( page->Get_Definition( index ) == definition_id );
+			for ( int alt = 0; !is_match && alt < PURCHASE_ALTERNATES; alt ++ ) {
+				is_match = ( page->Get_Alt_Definition( index, alt ) == definition_id );
+			}
+
+			if ( is_match ) {
+				return page->Get_Cost( index );
+			}
+		}
+	}
+
+	return 0;
+}
+
+
+int Get_Team_Cost( const char * preset_name, int player_type )
+{
+	SCRIPT_PTR_CHECK_RET( preset_name, 0 );
+	return Get_Team_Cost( Get_Definition_ID( preset_name ), player_type );
+}
+
+
+int Get_Cost( int definition_id )
+{
+	int cost = Get_Team_Cost( definition_id, PLAYERTYPE_NOD );
+	if ( cost == 0 ) {
+		cost = Get_Team_Cost( definition_id, PLAYERTYPE_GDI );
+	}
+
+	return cost;
+}
+
+
+int Get_Cost( const char * preset_name )
+{
+	SCRIPT_PTR_CHECK_RET( preset_name, 0 );
+	return Get_Cost( Get_Definition_ID( preset_name ) );
+}
+
 
 }	// namespace ScriptEngine

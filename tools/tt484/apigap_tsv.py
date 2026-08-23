@@ -79,12 +79,14 @@ SDK_HELPER = ('newstr', 'stristr', 'wcsistr', 'WideCharToChar', 'CharToWideChar'
 # before they can be answered, so they are engine work however portable the
 # donor's own implementation looks.
 #
-# The_Game and Get_Team_Score used to be here too and are not any more: the
-# game-info seam answers them.  Anything resolved by a seam rather than by a
+# The_Game and Get_Team_Score used to be here too, then Is_Spy and
+# Get_Player_Name_By_ID; none of them are any more.  The game-info seam answers
+# the first two, the soldier definition answers the third and the player-roster
+# seam answers the fourth, so the list is empty and kept only for the next one.  Anything resolved by a seam rather than by a
 # ScriptEngine name of the same spelling belongs in TTScriptApiRenames.tsv,
 # which this reads -- that is the only way a hand-known answer survives a
 # regeneration.
-NEEDS_SEAM = ('Get_Player_Name_By_ID', 'Is_Spy')
+NEEDS_SEAM = ()
 
 
 def disposition(name):
