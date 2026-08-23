@@ -171,11 +171,12 @@ convert today.
 
 | | Names | Calls |
 | --- | --- | --- |
-| **Answered** -- `ScriptEngine` has it, or `TTScriptApiRenames.tsv` says what it is instead | 271 | **8007** |
-| Free SDK functions with portable source still to port | 34 | 277 |
-| Free SDK functions needing engine work | 34 | 154 |
+| **Answered** -- `ScriptEngine` has it, or `TTScriptApiRenames.tsv` says what it is instead | 289 | **8137** |
+| Free SDK functions with portable source still to port | 9 | 30 |
+| Free SDK functions needing engine work | 38 | 218 |
 | Blocked -- the stealth gap list, which is a feature and not an API | 1 | 1 |
 | N/A -- plugin hooks (directive 0.5) | 22 | 26 |
+| N/A -- C-string helpers the SDK exported (`newstr`, `stristr`, `wcsistr`) | 3 | 53 |
 | N/A -- `REF_DECL` data binding | 1 | 5 |
 
 Two corrections to what this section said before. First, all 148 `Commands->`
@@ -194,15 +195,24 @@ the rest, 22 names, 26 calls) is declined under directive 0.5. Natively the
 same notifications come off the event bus; see `NativeEventDispatch.md`.
 
 **Conversion order.** `readiness.py` ranks the files by how many calls the
-engine still cannot answer. Done so far: `jfwpow.cpp` (`TT_Powerup.cpp`, 13
-scripts), `jfwws.cpp` (`TT_World.cpp`, 29 scripts and 7 aliases) and the
-`gm*.cpp` SSGM scripts (`TT_SSGM.cpp`, 32 registrations). Next at zero
-blockers is `jfwgun.cpp` (5015 lines, 60 registrations); everything else is
-within a handful of names of ready.
+engine still cannot answer, and an `n/a` disposition does not count -- it is a
+decision, not a gap. Done so far: `jfwpow.cpp` (`TT_Powerup.cpp`, 13 scripts),
+`jfwws.cpp` (`TT_World.cpp`, 29 scripts and 7 aliases), the `gm*.cpp` SSGM
+scripts (`TT_SSGM.cpp`, 32 registrations), `jfwgun.cpp` (`TT_Weapons.cpp`, 60)
+and `jfwscr.cpp` (`TT_Scripts.cpp`, 18). Next at zero blockers is
+`jfwweap.cpp` (1509 lines, 24 registrations), of which two want the key hook
+below; everything else is within a handful of names of ready.
 
-Four of `gmsoldier.cpp`'s registrations are not in `TT_SSGM.cpp`:
-`SSGM_Log_Key`, `SSGM_C4_Key`, `SSGM_Bind_Key` and `SSGM_BL_Key` all derive
-from `JFW_Key_Hook_Base`, so they arrive with `jfwkey.cpp` rather than here.
+**The key hook is the one facility still missing.** 4.8.4 lets a script ask to
+be told when a particular player presses a particular logically-named key --
+`JFW_Key_Hook_Base::InstallHook`, and `AddKeyHook` underneath it. It is a
+client-to-server seam of the same shape as `cCsDamageEvent`, and nothing in
+this tree answers it yet. It gates twenty registrations: fourteen in
+`jfwhook.cpp`, two in `jfwweap.cpp` (`JFW_Vehicle_Weapon_Switcher` and
+`JFW_Char_Weapon_Switcher`), and four in `gmsoldier.cpp` that are not in
+`TT_SSGM.cpp` -- `SSGM_Log_Key`, `SSGM_C4_Key`, `SSGM_Bind_Key` and
+`SSGM_BL_Key`. There is no `jfwkey.cpp`; an earlier note here named one, and
+the file that owns the base is `jfwhook.cpp`.
 
 **The aliases.** Six of `jfwws.cpp`'s registrations register a `JFW_*` class
 under a second, stock name -- `M00_PCT_Pokable_DAK`, `M00_Disable_Transition`,
@@ -252,11 +262,10 @@ survey's `_Team` suffix heuristic and is plain server-side work.
 
 ### 4.4 Registry size
 
-1720 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
+1798 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
 than the 1640 this document used to quote, because the checker was counting the
-registration macros themselves as a script called `x` -- plus the first thirteen
-from the 4.8.4 library. The remaining 848 in-scope
-scripts take it to 2500. The 1259 out-of-scope
+registration macros themselves as a script called `x` -- plus 159 from the
+4.8.4 library. The remaining 702 in-scope scripts take it to 2500. The 1259 out-of-scope
 registrations are not counted and not ported; if a mod pack is ever wanted it
 re-enters through the same registry with provenance `SCRIPT_SOURCE_TT`,
 needing no change here.

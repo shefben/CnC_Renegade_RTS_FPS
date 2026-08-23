@@ -779,3 +779,37 @@ names answered, 8007 calls. 1688 -> 1720. `ffac5f34`.
 machine's console. It is what let the game log live in Combat, where the
 scripts that write to it can reach it -- `Code/Scripts` compiles into
 `leveledit`, which does not link Commando. `ffac5f34`.
+
+## P04-L: jfwgun.cpp, once instead of sixty times
+
+`Code/Scripts/TT_Weapons.cpp`, 60 registrations: two scripts -- the building
+half and the gun half -- and a table of thirty variants, since the donor file
+is those two written out once per combination of style, target filter and fire
+mode. All sixty names and parameter lists checked against the donor before
+generation; three unchecked-pointer reads corrected, the plain/animated
+power-signal asymmetry preserved. 1720 -> 1780. `f11074fc`.
+
+## P04-M: seventeen more free functions, and a console-print event
+
+Repair/damage-by-category (11), `Get_Skin`,
+`Create_Effect_All_Stealthed_Objects_Area`, three translated names as
+out-parameters, and `Console_Input`/`Console_Output`. Output needed somewhere
+to go, so `GameEventBus::ConsolePrint` is the other half of `ConsoleInput`.
+Survey 271 -> 289 of 363 answered, 8137 calls; portable remaining 34 -> 9.
+`1370decb`.
+
+## P04-M1: three API reclassifications
+
+`newstr`/`stristr`/`wcsistr` are `n/a-sdk-helper` -- C-string helpers a plugin
+needed because it could not reach the engine's string library; `Get_Player_Name`
+renamed to the existing `Get_Wide_Player_Name`; `The_Game`,
+`Get_Player_Name_By_ID`, `Get_Team_Score` and `Is_Spy` moved to engine-work
+because their portable donor source reads data Combat sits below. Recorded in
+`tools/tt484/apigap_tsv.py`, not hand-edited into the table. `1370decb`.
+
+## P04-N: jfwscr.cpp, the scripts that attach scripts
+
+`Code/Scripts/TT_Scripts.cpp`, 18 registrations. The delimiter-to-comma
+substitution the donor wrote out sixteen times over a hand-allocated copy is
+now `ScriptImpClass::Get_Nested_Parameters` over a `StringClass`. 1780 -> 1798.
+`d4fa3b16`.

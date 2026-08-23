@@ -8,22 +8,27 @@ Detail lives in `docs/`.
 ## P04: the 4.8.4 script library, natively
 
 The stock half, the registry, the thirteen replacements, the per-client seam,
-the portable API port, `jfwpow.cpp`, `jfwws.cpp` and the whole SSGM layer are
-done (P04-A..P04-K in `completed_features.md`). What is left is the rest of the
-in-scope donor-only library: 787 scripts across 21 files, absorbing the backlog
-lines "Compile unchanged stock scripts only when TT does not supersede them" and
-"Compile TT-only new scripts as additional canonical scripts".
-`tools/tt484/readiness.py` ranks the files by how many calls the engine still
-cannot answer.
+the portable API port, `jfwpow.cpp`, `jfwws.cpp`, the SSGM layer, `jfwgun.cpp`
+and `jfwscr.cpp` are done (P04-A..P04-N in `completed_features.md`). What is
+left is the rest of the in-scope donor-only library: 702 scripts across 19
+files, absorbing the backlog lines "Compile unchanged stock scripts only when
+TT does not supersede them" and "Compile TT-only new scripts as additional
+canonical scripts". `tools/tt484/readiness.py` ranks the files by how many
+calls the engine still cannot answer; nine portable SDK names remain
+(`docs/tt484/TTScriptApiGap.tsv`, `port-portable-source`), all of them purchase
+terminal, INI or `Attach_Script_Once_V`.
 
-Next exact action: convert `tt_4.8.4/scripts/jfwgun.cpp` (5015 lines, 60
-registrations) to `Code/Scripts/TT_Weapons.cpp`, registering each as
-`SCRIPT_SOURCE_TT` and checking each name against the merged catalog first --
-`jfwws.cpp` had seven that were already ours and had to become aliases rather
-than copies. Then `jfwkey.cpp`, which also carries the four `SSGM_*_Key`
-scripts left out of `TT_SSGM.cpp`; then port the 34 remaining portable SDK
-functions (`docs/tt484/TTScriptApiGap.tsv`, `port-portable-source`) to unblock
-the rest.
+Next exact action: convert `tt_4.8.4/scripts/jfwweap.cpp` (1509 lines, 24
+registrations) to `Code/Scripts/TT_Defenses.cpp` -- turret, obelisk, both
+Advanced Guard Towers, guard duty, hunt, and the weapon-swap scripts -- leaving
+out `JFW_Vehicle_Weapon_Switcher` and `JFW_Char_Weapon_Switcher`, which want
+the key hook. Then build the key hook: a client-to-server event of the same
+shape as `cCsDamageEvent` carrying a logically-named key press, a server-side
+registry of who asked for which key, and a script-side base to replace
+`JFW_Key_Hook_Base`. It gates twenty registrations -- fourteen in
+`jfwhook.cpp`, the two above, and `SSGM_Log_Key`, `SSGM_C4_Key`,
+`SSGM_Bind_Key` and `SSGM_BL_Key` from `gmsoldier.cpp`, which `TT_SSGM.cpp`
+left out. There is no `jfwkey.cpp`; an earlier note in this file named one.
 
 ---
 
