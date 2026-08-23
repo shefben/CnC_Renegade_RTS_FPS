@@ -22,14 +22,16 @@
 *     script and a virtual, and the four guns are an array rather than four
 *     names repeated through every handler.
 *
-*     Two registrations from that file are not here: JFW_Vehicle_Weapon_Switcher
-*     and JFW_Char_Weapon_Switcher both derive from the library's key hook,
-*     which this engine does not have yet.  They arrive with it.
+*     The last two scripts here are the file's key hooks.  A key hook is a key
+*     the level gives a meaning to and the engine has none for; see
+*     Code/Combat/scriptkeys.h for how a press gets from a client to them.
 *
 ******************************************************************************/
 
 #include "scripts.h"
 #include "actionparams.h"
+#include "physicalgameobj.h"
+#include "vehicle.h"
 #include "wwstring.h"
 
 
@@ -1275,5 +1277,213 @@ DECLARE_SCRIPT_TT(JFW_Fire_Weapon_Custom, "Target:vector3,Custom:int")
 		if (type == Get_Int_Parameter("Custom")) {
 			ScriptEngine::Trigger_Weapon(obj, true, Get_Vector3_Parameter("Target"), true);
 		}
+	}
+};
+
+
+////////////////////////////////////////////////////////////////////////////
+//
+//	Weapons on a key
+//
+////////////////////////////////////////////////////////////////////////////
+
+/*JFW_Vehicle_Weapon_Switcher
+
+  A vehicle with a second weapon its driver deploys on a key.  Switching takes
+  SwitchTime, during which the vehicle cannot fire at all -- that is the cost
+  of deploying -- and each direction has its own sound.  The hook follows the
+  driver: it is installed when somebody gets in and removed when they get out,
+  so a key press by a passenger, or by the last driver after they have left,
+  does nothing.
+
+  Two corrections.  Coming back from the deployed weapon with nothing recorded
+  to come back to -- which is the state a vehicle is in if the script is
+  attached mid-switch -- selected a null weapon name.  And the timer restored
+  the vehicle's ability to fire without checking it was still a vehicle.
+*/
+
+REGISTER_SCRIPT_TT(JFW_Vehicle_Weapon_Switcher,
+	"Powerup:string,Keyhook=VDeploy:string,SwitchTime:float,OldSound:string,NewSound:string")
+class JFW_Vehicle_Weapon_Switcher : public KeyHookScriptClass
+{
+	bool			Switching;
+	bool			Deployed;
+	int				PilotID;
+	StringClass		StowedWeapon;
+
+	//
+	//	Nothing is auto-saved, as in 4.8.4.  Three of the four members would
+	//	save cleanly and the fourth -- the weapon name to come back to -- would
+	//	not, and a vehicle that restores as deployed with nothing to undeploy
+	//	to is worse than one that restores stowed.
+	//
+
+	void Created(GameObject* obj) override
+	{
+		Switching	= false;
+		Deployed	= false;
+		PilotID		= 0;
+		StowedWeapon = "";
+
+		ScriptEngine::Give_PowerUp(obj, Get_Parameter("Powerup"), false);
+	}
+
+	void Custom(GameObject* /*obj*/, int type, intptr_t /*param*/, GameObject* sender) override
+	{
+		if (type == CUSTOM_EVENT_VEHICLE_ENTERED) {
+			if (PilotID == 0 && sender != nullptr) {
+				Install_Hook(Get_Parameter("Keyhook"), sender);
+				PilotID = ScriptEngine::Get_ID(sender);
+			}
+
+		} else if (type == CUSTOM_EVENT_VEHICLE_EXITED) {
+			if (sender != nullptr && PilotID == ScriptEngine::Get_ID(sender)) {
+				Remove_Hook();
+				PilotID = 0;
+			}
+		}
+	}
+
+	void Killed(GameObject* /*obj*/, GameObject* /*killer*/) override
+	{
+		Remove_Hook();
+	}
+
+	void Key_Hook(void) override
+	{
+		if (Switching) {
+			return;
+		}
+
+		GameObject* obj = Owner();
+
+		VehicleGameObj* vehicle = (obj != nullptr) ? obj->As_VehicleGameObj() : nullptr;
+		if (vehicle == nullptr) {
+			return;
+		}
+
+		vehicle->Set_Scripts_Can_Fire(false);
+		Switching	= true;
+		Deployed	= !Deployed;
+
+		ScriptEngine::Create_Sound(Get_Parameter(Deployed ? "NewSound" : "OldSound"),
+				ScriptEngine::Get_Position(obj), obj);
+
+		ScriptEngine::Start_Timer(obj, this, Get_Float_Parameter("SwitchTime"), 1);
+	}
+
+	void Timer_Expired(GameObject* obj, int timer_id) override
+	{
+		if (timer_id != 1) {
+			return;
+		}
+
+		Switching = false;
+
+		VehicleGameObj* vehicle = (obj != nullptr) ? obj->As_VehicleGameObj() : nullptr;
+		if (vehicle != nullptr) {
+			vehicle->Set_Scripts_Can_Fire(true);
+		}
+
+		if (Deployed) {
+			//
+			//	Remember what it was carrying before the deployed weapon takes
+			//	its place, so that undeploying has something to go back to.
+			//
+			StowedWeapon = ScriptEngine::Get_Current_Weapon(obj);
+			ScriptEngine::Select_Weapon(obj, ScriptEngine::Get_Powerup_Weapon(Get_Parameter("Powerup")));
+
+		} else if (StowedWeapon.Is_Empty() == false) {
+			ScriptEngine::Select_Weapon(obj, StowedWeapon);
+			StowedWeapon = "";
+		}
+	}
+};
+
+
+/*JFW_Char_Weapon_Switcher
+
+  A character carrying one of two weapons and swapping between them on a key.
+  Unlike the vehicle above the weapon is genuinely put away: the one being left
+  behind is taken off them, and SwitchTime later the other is handed over.  A
+  second press during that window is ignored, and a press within SwitchTime of
+  the last completed swap is refused out loud, so the round trip costs twice
+  the switch time.
+
+  The cooldown is measured on the game clock rather than the wall clock the
+  4.8.4 script read, which is the same clock the timer runs on.
+*/
+
+REGISTER_SCRIPT_TT(JFW_Char_Weapon_Switcher,
+	"SwitchTime:float,WeaponPowerup1:string,WeaponPowerup2:string,Keyhook:string")
+class JFW_Char_Weapon_Switcher : public KeyHookScriptClass
+{
+	unsigned int	LastSwitch;		// sync time in milliseconds
+	bool			WantSecond;
+	bool			Switching;
+
+	REGISTER_VARIABLES()
+	{
+		SAVE_VARIABLE(LastSwitch, 1);
+		SAVE_VARIABLE(WantSecond, 2);
+		SAVE_VARIABLE(Switching, 3);
+	}
+
+	void Created(GameObject* obj) override
+	{
+		LastSwitch	= 0;
+		WantSecond	= true;
+		Switching	= false;
+
+		Install_Hook(Get_Parameter("Keyhook"), obj);
+	}
+
+	void Key_Hook(void) override
+	{
+		GameObject* obj = Owner();
+		if (obj == nullptr || Switching) {
+			return;
+		}
+
+		//
+		//	Not while driving: the weapon being swapped is not the one in use.
+		//
+		if (ScriptEngine::Get_Vehicle(obj) != nullptr) {
+			return;
+		}
+
+		float wait = Get_Float_Parameter("SwitchTime");
+
+		unsigned int now = ScriptEngine::Get_Sync_Time();
+		if (LastSwitch != 0 && now - LastSwitch < (unsigned int)(wait * 1000.0f)) {
+			StringClass message;
+			message.Format("You cannot switch weapons yet, you must wait at least "
+					"%g seconds after switching to switch again.", wait);
+			ScriptEngine::Send_Message_Player(obj, 153, 204, 25, message);
+			return;
+		}
+
+		LastSwitch = now;
+
+		ScriptEngine::Remove_Weapon(obj, ScriptEngine::Get_Powerup_Weapon(
+				Get_Parameter(WantSecond ? "WeaponPowerup1" : "WeaponPowerup2")));
+
+		Switching = true;
+		ScriptEngine::Start_Timer(obj, this, wait, 1);
+	}
+
+	void Timer_Expired(GameObject* obj, int timer_id) override
+	{
+		if (timer_id != 1) {
+			return;
+		}
+
+		const char* powerup = Get_Parameter(WantSecond ? "WeaponPowerup2" : "WeaponPowerup1");
+
+		ScriptEngine::Give_PowerUp(obj, powerup, false);
+		ScriptEngine::Select_Weapon(obj, ScriptEngine::Get_Powerup_Weapon(powerup));
+
+		WantSecond	= !WantSecond;
+		Switching	= false;
 	}
 };

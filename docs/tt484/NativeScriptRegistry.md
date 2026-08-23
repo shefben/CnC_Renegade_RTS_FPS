@@ -199,20 +199,24 @@ engine still cannot answer, and an `n/a` disposition does not count -- it is a
 decision, not a gap. Done so far: `jfwpow.cpp` (`TT_Powerup.cpp`, 13 scripts),
 `jfwws.cpp` (`TT_World.cpp`, 29 scripts and 7 aliases), the `gm*.cpp` SSGM
 scripts (`TT_SSGM.cpp`, 32 registrations), `jfwgun.cpp` (`TT_Weapons.cpp`, 60)
-and `jfwscr.cpp` (`TT_Scripts.cpp`, 18). Next at zero blockers is
-`jfwweap.cpp` (1509 lines, 24 registrations), of which two want the key hook
-below; everything else is within a handful of names of ready.
+`jfwscr.cpp` (`TT_Scripts.cpp`, 18) and `jfwweap.cpp` (`TT_Defenses.cpp`, 24).
+Next is `jfwhook.cpp`, whose own blockers are now features rather than
+facilities -- the jetpack, and the underground vehicle already deferred in
+`TTParityMatrix.md`.
 
-**The key hook is the one facility still missing.** 4.8.4 lets a script ask to
-be told when a particular player presses a particular logically-named key --
-`JFW_Key_Hook_Base::InstallHook`, and `AddKeyHook` underneath it. It is a
-client-to-server seam of the same shape as `cCsDamageEvent`, and nothing in
-this tree answers it yet. It gates twenty registrations: fourteen in
-`jfwhook.cpp`, two in `jfwweap.cpp` (`JFW_Vehicle_Weapon_Switcher` and
-`JFW_Char_Weapon_Switcher`), and four in `gmsoldier.cpp` that are not in
-`TT_SSGM.cpp` -- `SSGM_Log_Key`, `SSGM_C4_Key`, `SSGM_Bind_Key` and
-`SSGM_BL_Key`. There is no `jfwkey.cpp`; an earlier note here named one, and
-the file that owns the base is `jfwhook.cpp`.
+**The key hook is answered.** 4.8.4 let a script ask to be told when a
+particular player pressed a particular logically-named key --
+`JFW_Key_Hook_Base::InstallHook`, and `AddKeyHook` underneath it. It was the
+one facility this tree was missing, and it now exists as `KeyHookScriptClass`
+over `GameEventBus::PlayerKey`, with a client-to-server seam
+(`cCsScriptKeyEvent`) of the same shape as `cCsDamageEvent` and the logical
+names living in the engine's own input configuration. See
+`NativeEventDispatch.md` §3A. Of the twenty registrations it gated, three have
+landed -- the two switchers in `TT_Defenses.cpp` and `SSGM_Log_Key` in
+`TT_SSGM.cpp`; three are answered by `SSGMManagerClass` instead of by a script,
+under directive 0.4; and the remaining fourteen are `jfwhook.cpp`, which is a
+file port rather than a facility. There is no `jfwkey.cpp`; an earlier note
+here named one, and the file that owns the base is `jfwhook.cpp`.
 
 **The aliases.** Six of `jfwws.cpp`'s registrations register a `JFW_*` class
 under a second, stock name -- `M00_PCT_Pokable_DAK`, `M00_Disable_Transition`,
@@ -262,10 +266,11 @@ survey's `_Team` suffix heuristic and is plain server-side work.
 
 ### 4.4 Registry size
 
-1798 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
+1823 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
 than the 1640 this document used to quote, because the checker was counting the
-registration macros themselves as a script called `x` -- plus 159 from the
-4.8.4 library. The remaining 702 in-scope scripts take it to 2500. The 1259 out-of-scope
+registration macros themselves as a script called `x` -- plus 184 from the
+4.8.4 library. The remaining 677 in-scope scripts take it to 2500, less the
+three `gmsoldier.cpp` key scripts the server manager owns instead. The 1259 out-of-scope
 registrations are not counted and not ported; if a mod pack is ever wanted it
 re-enters through the same registry with provenance `SCRIPT_SOURCE_TT`,
 needing no change here.

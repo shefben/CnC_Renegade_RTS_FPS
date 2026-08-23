@@ -38,6 +38,8 @@
 #include "scriptman.h"
 #include "DPrint.h"
 #include "trim.h"
+#include "gameeventbus.h"
+#include "vector.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -727,4 +729,128 @@ bool ScriptImpClass::Is_Player_Type(GameObject* obj, int type)
 	}
 
 	return ScriptEngine::Get_Player_Type(obj) == type;
+}
+
+
+/******************************************************************************
+*
+*     KeyHookScriptClass
+*
+******************************************************************************/
+
+KeyHookScriptClass*	KeyHookScriptClass::HookList		= nullptr;
+int					KeyHookScriptClass::HookToken	= 0;
+
+
+KeyHookScriptClass::KeyHookScriptClass(void)
+	:	HookPlayerID(-1),
+		NextHook(nullptr)
+{
+}
+
+
+KeyHookScriptClass::~KeyHookScriptClass(void)
+{
+	Remove_Hook();
+}
+
+
+void KeyHookScriptClass::Detach(GameObject* obj)
+{
+	//
+	//	The script manager defers the delete to a safe point in the frame, so
+	//	without this a detached script would still answer key presses for the
+	//	rest of the frame, on an owner it no longer has.
+	//
+	Remove_Hook();
+	ScriptImpClass::Detach(obj);
+}
+
+
+void KeyHookScriptClass::Install_Hook(const char* key_name, GameObject* obj)
+{
+	Remove_Hook();
+
+	if (key_name == nullptr || key_name[0] == 0) {
+		return;
+	}
+
+	int player_id = ScriptEngine::Get_Player_ID(obj);
+	if (player_id == -1) {
+		return;
+	}
+
+	HookKeyName		= key_name;
+	HookPlayerID	= player_id;
+
+	NextHook	= HookList;
+	HookList	= this;
+
+	//
+	//	First hook in the level pays for the subscription; the rest ride on it.
+	//
+	if (HookToken == 0) {
+		HookToken = GameEventBus::PlayerKey.Register(Player_Key_Handler);
+	}
+}
+
+
+void KeyHookScriptClass::Remove_Hook(void)
+{
+	if (HookPlayerID == -1) {
+		return;
+	}
+
+	HookPlayerID = -1;
+	HookKeyName = "";
+
+	KeyHookScriptClass** link = &HookList;
+	while (*link != nullptr) {
+		if (*link == this) {
+			*link = NextHook;
+			break;
+		}
+
+		link = &(*link)->NextHook;
+	}
+
+	NextHook = nullptr;
+
+	if (HookList == nullptr && HookToken != 0) {
+		GameEventBus::PlayerKey.Unregister(HookToken);
+		HookToken = 0;
+	}
+}
+
+
+/*
+**	Collected first, called second.  A key hook is entitled to do anything a
+**	script can do -- including destroying the object another hook is attached
+**	to -- so the list must not be being walked while one runs.  Observer ids
+**	rather than pointers, because by the time a hook is reached the script that
+**	was going to run it may be gone.
+*/
+void KeyHookScriptClass::Player_Key_Handler(PlayerKeyEventClass& event, void* /*data*/)
+{
+	if (event.KeyName == nullptr || event.KeyName[0] == 0) {
+		return;
+	}
+
+	SimpleDynVecClass<int> matches;
+
+	for (KeyHookScriptClass* hook = HookList; hook != nullptr; hook = hook->NextHook) {
+		if (hook->HookPlayerID == event.PlayerID
+				&& hook->HookKeyName.Compare_No_Case(event.KeyName) == 0) {
+			matches.Add(hook->Get_ID());
+		}
+	}
+
+	for (int index = 0; index < matches.Count(); index++) {
+		for (KeyHookScriptClass* hook = HookList; hook != nullptr; hook = hook->NextHook) {
+			if (hook->Get_ID() == matches[index]) {
+				hook->Key_Hook();
+				break;
+			}
+		}
+	}
 }

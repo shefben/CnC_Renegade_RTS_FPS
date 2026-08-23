@@ -116,9 +116,19 @@ forever; and a failed send was never noticed.
 - `SSGM_Powerup`'s two-hundred-line chain of preset-name tests is a table of three
   strings.
 
-Four registrations from `gmsoldier.cpp` are **not** here: `SSGM_Log_Key`, `SSGM_C4_Key`,
-`SSGM_Bind_Key` and `SSGM_BL_Key` derive from `JFW_Key_Hook_Base`, so they arrive with
-`jfwkey.cpp`.
+`SSGM_Log_Key` is here too, and it is a key hook: it writes a fixed line to the
+server log -- `"Havoc: !vote yes"` -- when the player presses a named key, so a
+moderation tool watching the log can act on a vote nobody typed. `SSGM_Soldier`
+attaches it twice, for `VoteYes` and `VoteNo`.
+
+The other three key scripts from `gmsoldier.cpp` are **not** scripts here.
+`SSGM_C4_Key`, `SSGM_Bind_Key` and `SSGM_BL_Key` did nothing but call what
+`!c4`, `!bind` and `!bl` call, from a script attached to every player, because
+a plugin DLL had no other way in. `SSGMManagerClass` subscribes to
+`GameEventBus::PlayerKey` and answers `C4Count`, `VehBind` and `VehBL` beside
+the chat words themselves, stopping dispatch when it does so that a level key
+of the same name cannot fire twice. Under directive 0.4 there is one owner and
+one path, and the owner is the layer whose commands these are.
 
 ## 8. Script commands this needed
 

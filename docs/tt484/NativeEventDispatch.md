@@ -71,7 +71,7 @@ declared but not yet raised, for the reasons given in §3.
 | kill | `Kill` | `DamageableGameObj::Apply_Damage`, health-exhausted branch |
 | weapon events | `WeaponFire` | `WeaponClass::Do_Fire` |
 | | `WeaponChanged` | `WeaponBagClass::Select_Index` |
-| | `PlayerKey` | *(declared; see §3)* |
+| | `PlayerKey` | `ScriptKeyManagerClass::Key_Pressed` |
 | dialog events | `Dialog` | *(declared; see §3)* |
 | console output | `ConsoleOutput` | `ConsoleModeClass::Log_To_Disk` |
 | shader/render notify | `RenderNotify` | *(declared; see §3)* |
@@ -117,16 +117,53 @@ insert.
 
 ## 3. Declared but not yet raised
 
-These three have no canonical owner in OpenW3D today. They are declared because
-they are named in the roadmap's required families and because the class that
-will own them is already scheduled; nothing fakes an emitter for them.
+These have no canonical owner in OpenW3D today. They are declared because they
+are named in the roadmap's required families and because the class that will
+own them is already scheduled; nothing fakes an emitter for them.
 
 | Event | Waiting on |
 | --- | --- |
 | `Dialog` | `ScriptedDialogClass`, which OpenW3D does not have. Matrix §5.8 assigns its 17 declaration rows to Phase 5. |
-| `PlayerKey` | The client-to-server logical key message. The donor added it; stock Renegade forwards no such message. Arrives with the input merge (`Code/Combat/input.cpp`, 4 hook sites). |
 | `RenderNotify` | The shader layer, excluded by directive 0.6. The 104 `ttinit/shaderhooks.cpp` sites are out of scope. |
 | `HostMessage` | Console-originated chat. Reaches `cScTextObj` directly rather than through `cCsTextObj::Act`; folded in with the console-command merge. |
+
+---
+
+## 3A. Script keys — the `PlayerKey` emitter
+
+A script key is a key a level gives a meaning to and the engine has none for.
+Stock Renegade has no such thing and forwards no such message, so `PlayerKey`
+needed an emitter built rather than found. It has one now, and it is the last
+facility the 4.8.4 script library was waiting on.
+
+| Piece | Home | What it does |
+| --- | --- | --- |
+| the bindings | `Code/Combat/input.cpp`, `[Script Keys]` | logical name to key, in the player's own input configuration alongside every other binding, saved and loaded by the same two functions |
+| the poll | `Input::Update_Script_Keys` | edge triggered, suppressed while the menu or console is up |
+| the seam | `cCsScriptKeyEvent` | one name, client to server, reliable |
+| the emitter | `ScriptKeyManagerClass::Key_Pressed` | raises `PlayerKey` |
+| the script base | `KeyHookScriptClass` (`Code/Scripts/scripts.h`) | one subscription behind every hook in the level, not one each |
+
+**The client is deliberately ignorant.** It does not know what a key does,
+whether anything is listening, or whether the press was acted on; it forwards
+the name and nothing else. That is what lets a level invent a key without
+shipping client code, and it is why the decision is never taken client side.
+The one thing the client does decide is that the menu and the console are not
+script keys, because the player is typing.
+
+4.8.4 did this with a `keys.cfg` of its own, a configuration dialog of its own,
+and a chat message addressed to a magic recipient. None of that is reproduced:
+the names live in the input configuration file the engine already owns, and the
+press is a network object like every other client-to-server event here.
+`AddKeyHook` and `RemoveKeyHook` stay `n/a-plugin-hook` in
+`TTScriptApiGap.tsv` — the facility is answered, the exported plugin entry
+points are not, which is true of all twenty-two `Add*Hook` names.
+
+**Two names are the server's, not the level's.** `SSGMManagerClass` subscribes
+to `PlayerKey` and answers `C4Count`, `VehBind` and `VehBL` beside the `!c4`,
+`!bind` and `!bl` chat words that do the same thing, stopping dispatch when it
+does. 4.8.4 reached those through three scripts attached to every player; they
+are commands of the server layer, not behaviour of a character.
 
 ---
 

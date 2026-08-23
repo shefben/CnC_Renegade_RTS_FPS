@@ -52,6 +52,7 @@ int	SSGMManagerClass::ObjectCreateToken		= 0;
 int	SSGMManagerClass::LevelLoadedToken		= 0;
 int	SSGMManagerClass::GameOverToken			= 0;
 int	SSGMManagerClass::ChatToken				= 0;
+int	SSGMManagerClass::PlayerKeyToken		= 0;
 int	SSGMManagerClass::RefillToken				= 0;
 int	SSGMManagerClass::PurchaseToken			= 0;
 int	SSGMManagerClass::ConsoleOutputToken	= 0;
@@ -131,6 +132,7 @@ SSGMManagerClass::Register (void)
 	LevelLoadedToken		= GameEventBus::LevelLoaded.Register (On_Level_Loaded);
 	GameOverToken			= GameEventBus::GameOver.Register (On_Game_Over);
 	ChatToken				= GameEventBus::Chat.Register (On_Chat);
+	PlayerKeyToken			= GameEventBus::PlayerKey.Register (On_Player_Key);
 	RefillToken				= GameEventBus::Refill.Register (On_Refill);
 	PurchaseToken			= GameEventBus::Purchase.Register (On_Purchase);
 	ConsoleOutputToken	= GameEventBus::ConsoleOutput.Register (On_Console_Output);
@@ -157,6 +159,7 @@ SSGMManagerClass::Unregister (void)
 	GameEventBus::LevelLoaded.Unregister (LevelLoadedToken);
 	GameEventBus::GameOver.Unregister (GameOverToken);
 	GameEventBus::Chat.Unregister (ChatToken);
+	GameEventBus::PlayerKey.Unregister (PlayerKeyToken);
 	GameEventBus::Refill.Unregister (RefillToken);
 	GameEventBus::Purchase.Unregister (PurchaseToken);
 	GameEventBus::ConsoleOutput.Unregister (ConsoleOutputToken);
@@ -166,6 +169,7 @@ SSGMManagerClass::Unregister (void)
 	LevelLoadedToken	= 0;
 	GameOverToken		= 0;
 	ChatToken			= 0;
+	PlayerKeyToken		= 0;
 	RefillToken			= 0;
 	PurchaseToken		= 0;
 	ConsoleOutputToken	= 0;
@@ -760,6 +764,64 @@ SSGMManagerClass::Handle_Chat_Command (int player_id, const wchar_t *message)
 	}
 
 	return false;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Handle_Key_Command
+//
+//	The key names are 4.8.4's own, so a server's existing keys.cfg and the
+//	players' existing bindings keep working.
+////////////////////////////////////////////////////////////////
+bool
+SSGMManagerClass::Handle_Key_Command (int player_id, const char *key_name)
+{
+	SoldierGameObj *soldier = GameObjManager::Find_Soldier_Of_Client_ID (player_id);
+	if (soldier == nullptr) {
+		return false;
+	}
+
+	if (::_stricmp (key_name, "C4Count") == 0) {
+		Report_Mines (soldier);
+		return true;
+	}
+
+	if (SSGMSettingsClass::VehicleOwnership) {
+
+		if (::_stricmp (key_name, "VehBind") == 0) {
+			Bind_Vehicle (soldier);
+			return true;
+		}
+
+		if (::_stricmp (key_name, "VehBL") == 0) {
+			Bind_Vehicle (soldier);
+			Lock_Vehicle (soldier);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	On_Player_Key
+//
+////////////////////////////////////////////////////////////////
+void
+SSGMManagerClass::On_Player_Key (PlayerKeyEventClass &event, void * /*data*/)
+{
+	//
+	//	A key this layer answers is not passed on to the level's scripts: a
+	//	server key and a level key of the same name would otherwise both fire.
+	//
+	if (Handle_Key_Command (event.PlayerID, event.KeyName)) {
+		event.Stop_Dispatch ();
+	}
+
+	return ;
 }
 
 

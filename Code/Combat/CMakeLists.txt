@@ -36,6 +36,7 @@ set(COMBAT_SRC
     conversationremark.cpp
     cover.cpp
     csdamageevent.cpp
+    csscriptkeyevent.cpp
     damage.cpp
     damageablegameobj.cpp
     damageablestaticphys.cpp
@@ -98,6 +99,7 @@ set(COMBAT_SRC
     screenfademanager.cpp
     scriptablegameobj.cpp
     scriptcommands.cpp
+    scriptkeys.cpp
     scriptman.cpp
     scriptzone.cpp
     simplegameobj.cpp
@@ -172,6 +174,7 @@ set(COMBAT_SRC
     conversationremark.h
     cover.h
     csdamageevent.h
+    csscriptkeyevent.h
     damage.h
     damageablegameobj.h
     damageablestaticphys.h
@@ -235,6 +238,7 @@ set(COMBAT_SRC
     screenfademanager.h
     scriptablegameobj.h
     scriptcommands.h
+    scriptkeys.h
     scriptevents.h
     scriptman.h
     scriptzone.h

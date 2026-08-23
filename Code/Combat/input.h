@@ -332,6 +332,19 @@ public:
 	static	int	Find_First_Function_By_Secondary_Key (int key_id);
 	static	int	Find_Next_Function_By_Secondary_Key (int function_id, int key_id);
 
+	//
+	//	Script keys.  A script key is a key a level's scripts give a meaning
+	//	to and the engine has none for.  Its logical name comes from the input
+	//	configuration file, so a mod ships the names its scripts ask for and
+	//	the player binds keys to them alongside every other binding.  Pressing
+	//	one is forwarded to the server; see scriptkeys.h.
+	//
+	static	int	Get_Script_Key_Count (void);
+	static	const char *	Get_Script_Key_Name (int index);
+	static	int	Get_Script_Key (int index);
+	static	void	Set_Script_Key (int index, int key_id);
+	static	int	Find_Script_Key (const char *name);
+
 	static	void	Load_Configuration (const char *filename);
 	static	void	Save_Configuration (const char *filename);
 
@@ -372,6 +385,10 @@ private:
 	static	void	Save_Accelerated_Keys (INIClass *input_ini);
 	static	void	Load_Accelerated_Keys (INIClass *input_ini);
 	static	void	Load_Accelerated_Key (INIClass *input_ini, const char *section_name);
+
+	static	void	Load_Script_Keys (INIClass *input_ini);
+	static	void	Save_Script_Keys (INIClass *input_ini);
+	static	void	Update_Script_Keys (void);
 
 	static	void	Load_Misc_Settings (INIClass	*input_ini);
 	static	void	Save_Misc_Settings (INIClass	*input_ini);

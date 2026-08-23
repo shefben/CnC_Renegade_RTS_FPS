@@ -204,6 +204,66 @@ private:
 };
 
 
+class PlayerKeyEventClass;
+
+
+/******************************************************************************
+*
+* CLASS
+*     KeyHookScriptClass
+*
+* DESCRIPTION
+*     Base for a script that wants to hear about a key.
+*
+*     A key hook is server side.  The script names a logical key and a player,
+*     and Key_Hook runs when that player presses whatever they have bound to
+*     that name.  Which key that is, the script never learns; that the key
+*     means anything, the client never learns.  See Code/Combat/scriptkeys.h.
+*
+*     One subscription to GameEventBus::PlayerKey stands behind every hook in
+*     the level rather than one each, so a map with fifty deployable vehicles
+*     costs one dispatch per key press rather than fifty.
+*
+*     Cleanup is the base class's own -- the destructor and Detach both remove
+*     the hook -- so a derived script does not have to remember to chain.
+*
+******************************************************************************/
+
+class KeyHookScriptClass : public ScriptImpClass
+{
+public:
+	KeyHookScriptClass(void);
+	virtual ~KeyHookScriptClass(void);
+
+	//	Called on the server when the hooked player presses the hooked key.
+	virtual void Key_Hook(void) = 0;
+
+	//
+	//	`obj` is who is doing the pressing: the soldier whose player the hook
+	//	follows, or a vehicle's occupant.  An object with no player behind it
+	//	installs nothing.  A second call replaces the first.
+	//
+	void Install_Hook(const char* key_name, GameObject* obj);
+	void Remove_Hook(void);
+
+	bool Is_Hook_Installed(void) const	{ return HookPlayerID != -1; }
+
+protected:
+	void Detach(GameObject* obj) override;
+
+private:
+	static void Player_Key_Handler(PlayerKeyEventClass& event, void* data);
+
+	StringClass	HookKeyName;
+	int			HookPlayerID;
+
+	KeyHookScriptClass*	NextHook;
+
+	static KeyHookScriptClass*	HookList;
+	static int					HookToken;
+};
+
+
 // Declare script definition
 #define	DECLARE_SCRIPT(x, d) \
 	REGISTER_SCRIPT(x, d) \

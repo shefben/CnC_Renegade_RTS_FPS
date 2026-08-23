@@ -49,6 +49,7 @@
 #include "vehicle.h"
 #include "combat.h"
 #include "ccamera.h"
+#include "scriptkeys.h"
 
 #include <dinput.h>
 
@@ -101,6 +102,7 @@ const char *DEFAULT_INPUT_FILENAME = "DEFAULT_INPUT.CFG";
 #define	ENTRY_ACCELERATION			"Acceleration"
 
 #define	SECTION_MISC_SETTINGS		"Misc Settings"
+#define	SECTION_SCRIPT_KEYS			"Script Keys"
 #define	ENTRY_DAMAGE_INDICATORS		"DamageIndicatorsEnabled"
 #define	ENTRY_MOUSE_SENSITIVITY		"MouseSensitivity"
 #define	ENTRY_MOUSE_SCALE				"MouseScale"
@@ -640,6 +642,29 @@ bool	Input::UsingDirectInput = true;
 
 SimpleDynVecClass<AcceleratedKeyDef>	AcceleratedKeyList;
 
+
+/*
+**	One script key: a logical name and whatever the player has bound to it.
+**	A key of zero is a name nothing is bound to, which is the state a name
+**	arrives in when a mod adds it to the configuration file and the player has
+**	not been to the controls screen yet.
+*/
+struct ScriptKeyDef
+{
+	ScriptKeyDef (void)	: Key (0)	{ }
+
+	StringClass	Name;
+	int			Key;
+
+	//	DynamicVectorClass wants these; nothing here searches by value.
+	bool	operator== (const ScriptKeyDef &that) const
+		{ return Key == that.Key && Name.Compare_No_Case (that.Name) == 0; }
+	bool	operator!= (const ScriptKeyDef &that) const
+		{ return !(*this == that); }
+};
+
+DynamicVectorClass<ScriptKeyDef>	ScriptKeyList;
+
 int	_StatsHelpScreen;
 int	_StatsObjectives;
 int	_StatsMap;
@@ -696,6 +721,11 @@ void	Input::Free_Mappings( void )
 	//	Free the accelerated key list
 	//
 	AcceleratedKeyList.Delete_All ();
+
+	//
+	//	And the script keys, which are read from the same file
+	//
+	ScriptKeyList.Delete_All ();
 	return;
 }
 
@@ -979,8 +1009,137 @@ void	Input::Update( void )
 		FunctionValue[index] = std::max (value1, value2);
 	}
 
+	Update_Script_Keys ();
 	return ;
 }
+
+
+/*
+**	A script key is edge triggered and unconditional: it is not a function with
+**	a value, so nothing here reads FunctionValue and nothing suppresses it in
+**	sniping mode or a vehicle.  It is suppressed while the menu or the console
+**	is up, because the player is typing.
+*/
+void	Input::Update_Script_Keys( void )
+{
+	if (MenuMode || ConsoleMode) {
+		return ;
+	}
+
+	for (int index = 0; index < ScriptKeyList.Count (); index ++) {
+		int key = ScriptKeyList[index].Key;
+
+		if (key == 0) {
+			continue;
+		}
+
+		if ((DirectInput::Get_Button_Value (key) & BUTTON_BIT_HIT) == 0) {
+			continue;
+		}
+
+		ScriptKeyManagerClass::Local_Key_Pressed (ScriptKeyList[index].Name);
+	}
+
+	return ;
+}
+
+
+int	Input::Get_Script_Key_Count( void )
+{
+	return ScriptKeyList.Count ();
+}
+
+
+const char *	Input::Get_Script_Key_Name( int index )
+{
+	if (index < 0 || index >= ScriptKeyList.Count ()) {
+		return "";
+	}
+
+	return ScriptKeyList[index].Name;
+}
+
+
+int	Input::Get_Script_Key( int index )
+{
+	if (index < 0 || index >= ScriptKeyList.Count ()) {
+		return 0;
+	}
+
+	return ScriptKeyList[index].Key;
+}
+
+
+void	Input::Set_Script_Key( int index, int key_id )
+{
+	if (index >= 0 && index < ScriptKeyList.Count ()) {
+		ScriptKeyList[index].Key = key_id;
+	}
+
+	return ;
+}
+
+
+int	Input::Find_Script_Key( const char *name )
+{
+	if (name != nullptr) {
+		for (int index = 0; index < ScriptKeyList.Count (); index ++) {
+			if (ScriptKeyList[index].Name.Compare_No_Case (name) == 0) {
+				return index;
+			}
+		}
+	}
+
+	return -1;
+}
+
+
+/*
+**	The section is a plain list of name-to-key: "Deploy=D".  A name with an
+**	empty or unrecognised key is kept rather than dropped, so that the name a
+**	mod declared still reaches the controls screen for the player to bind.
+*/
+void	Input::Load_Script_Keys( INIClass *input_ini )
+{
+	int count = input_ini->Entry_Count (SECTION_SCRIPT_KEYS);
+
+	for (int index = 0; index < count; index ++) {
+		ScriptKeyDef def;
+		def.Name = input_ini->Get_Entry (SECTION_SCRIPT_KEYS, index);
+
+		if (def.Name.Is_Empty ()) {
+			continue;
+		}
+
+		StringClass key_name (0, true);
+		input_ini->Get_String (key_name, SECTION_SCRIPT_KEYS, def.Name);
+
+		if (key_name.Is_Empty () == false) {
+			def.Key = Get_Key (key_name);
+		}
+
+		ScriptKeyList.Add (def);
+	}
+
+	return ;
+}
+
+
+void	Input::Save_Script_Keys( INIClass *input_ini )
+{
+	for (int index = 0; index < ScriptKeyList.Count (); index ++) {
+		StringClass key_name;
+
+		if (ScriptKeyList[index].Key != 0) {
+			key_name = Get_Key_Name (short(ScriptKeyList[index].Key));
+		}
+
+		input_ini->Put_String (SECTION_SCRIPT_KEYS, ScriptKeyList[index].Name, key_name);
+	}
+
+	return ;
+}
+
 
 int	Input::Console_Get_Key()
 {
@@ -1304,6 +1463,7 @@ Input::Save_Configuration (const char *filename)
 	//	Save the accelerated functions
 	//
 	Save_Accelerated_Keys (&input_ini);
+	Save_Script_Keys (&input_ini);
 	Save_Misc_Settings (&input_ini);
 
 	//
@@ -1514,6 +1674,7 @@ Input::Load_Configuration (const char *filename)
 	//	Load the accelerated keys from the ini
 	//
 	Load_Accelerated_Keys (input_ini);
+	Load_Script_Keys (input_ini);
 	Load_Misc_Settings (input_ini);
 
 	//

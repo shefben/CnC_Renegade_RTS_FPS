@@ -71,6 +71,7 @@ private:
 	static void		On_Level_Loaded (class LevelEventClass &event, void *data);
 	static void		On_Game_Over (class GameOverEventClass &event, void *data);
 	static void		On_Chat (class ChatEventClass &event, void *data);
+	static void		On_Player_Key (class PlayerKeyEventClass &event, void *data);
 	static void		On_Refill (class RefillEventClass &event, void *data);
 	static void		On_Purchase (class PurchaseEventClass &event, void *data);
 	static void		On_Console_Output (class ConsoleOutputEventClass &event, void *data);
@@ -89,6 +90,14 @@ private:
 
 	//	The chat commands, answered before the message is distributed.
 	static bool		Handle_Chat_Command (int player_id, const wchar_t *message);
+
+	//
+	//	The same three answers on a key.  4.8.4 reached them through three
+	//	scripts attached to every player; they are commands of this layer,
+	//	not behaviour of a character, so they live beside the chat words
+	//	that do the same thing.
+	//
+	static bool		Handle_Key_Command (int player_id, const char *key_name);
 
 	static void		Bind_Vehicle (class SoldierGameObj *soldier);
 	static void		Unbind_Vehicle (class SoldierGameObj *soldier, bool silent);
@@ -110,6 +119,7 @@ private:
 	static int		LevelLoadedToken;
 	static int		GameOverToken;
 	static int		ChatToken;
+	static int		PlayerKeyToken;
 	static int		RefillToken;
 	static int		PurchaseToken;
 	static int		ConsoleOutputToken;

@@ -320,6 +320,15 @@ DECLARE_SCRIPT_TT(SSGM_Soldier, "")
 			if (SSGMSettingsClass::CharactersDropDNA) {
 				ScriptEngine::Attach_Script_Once(obj, "SSGM_Drop_DNA_Powerup", "");
 			}
+
+			//
+			//	Voting on a key rather than by typing.  The other three keys
+			//	4.8.4 attached here -- the mine count and the two vehicle
+			//	claims -- are answered by the server manager beside the chat
+			//	commands that do the same thing; see docs/tt484/SSGM.md.
+			//
+			ScriptEngine::Attach_Script(obj, "SSGM_Log_Key", "VoteYes,!vote yes");
+			ScriptEngine::Attach_Script(obj, "SSGM_Log_Key", "VoteNo,!vote no");
 		}
 
 		const DynamicVectorClass<StringClass>* granted
@@ -761,6 +770,37 @@ DECLARE_SCRIPT_TT(SSGM_Vehicle_Wreckage, "preset:string")
 			ScriptEngine::Set_Shield_Strength(vehicle, 0.0f);
 			ScriptEngine::Set_Player_Type(vehicle, -2);
 		}
+	}
+};
+
+
+/*SSGM_Log_Key
+
+  Writes a fixed line to the server log when the player presses a named key.
+  The line is whatever the level author put in `Write`, prefixed with the
+  player's name, so a moderation tool watching the log sees "Havoc: !vote yes"
+  and can act on it without the player having typed anything.
+
+  `Key` is a logical key name, not a key: what it is bound to is the player's
+  business, and the client is never told the key means anything.  See
+  Code/Combat/scriptkeys.h.
+*/
+
+REGISTER_SCRIPT_TT(SSGM_Log_Key, "Key:string,Write:string")
+class SSGM_Log_Key : public KeyHookScriptClass
+{
+	void Created(GameObject* obj) override
+	{
+		Install_Hook(Get_Parameter("Key"), obj);
+	}
+
+	void Key_Hook(void) override
+	{
+		StringClass message;
+		message.Format("%ls: %s", ScriptEngine::Get_Wide_Player_Name(Owner()),
+			Get_Parameter("Write"));
+
+		SSGMGameLog::Log_Ren_Log(message);
 	}
 };
 
