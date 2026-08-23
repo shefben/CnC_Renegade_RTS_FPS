@@ -63,6 +63,7 @@
 #include "widestring.h"
 #include "translatedb.h"
 #include "damageablegameobj.h"
+#include "damagecontext.h"
 #include "weaponbag.h"
 #include "weapons.h"
 #include "vehicle.h"
@@ -2920,6 +2921,21 @@ void	Apply_Damage( GameObject * object, float amount, const char * warhead_name,
 	} else {
 		Debug_Say(( "Can only Apply_Damage to a DamageableGameObj\n" ));
 	}
+}
+
+unsigned int	Get_Damage_Warhead( void )
+{
+	return DamageContextClass::Get_Warhead();
+}
+
+GameObject *	Get_Explosion_Object( void )
+{
+	return DamageContextClass::Get_Explosion_Object();
+}
+
+unsigned int	Get_Warhead_Type( const char * warhead_name )
+{
+	return ArmorWarheadManager::Get_Warhead_Type( warhead_name );
 }
 
 void	Set_Loiters_Allowed( GameObject * object, bool allowed )

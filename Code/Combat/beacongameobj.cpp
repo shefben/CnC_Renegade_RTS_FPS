@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "beacongameobj.h"
+#include "damagecontext.h"
 #include "ttsettings.h"
 #include "debug.h"
 #include "phys.h"
@@ -1372,6 +1373,12 @@ BeaconGameObj::Create_Explosion (void)
 	// (gth) don't explode if the owner is gone
 	//
 	if (Get_Owner() != nullptr) {
+
+		//
+		//	As C4GameObj::Detonate: whatever this blast hurts can ask what set
+		//	it off, and the answer is the beacon rather than its owner.
+		//
+		DamageContextClass::ExplosionScopeClass explosion_scope( this );
 
 		ExplosionManager::Create_Explosion_At (Get_Definition ().ExplosionDefID, Get_Transform (), Get_Owner ());
 

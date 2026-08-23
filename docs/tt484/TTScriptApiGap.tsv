@@ -36,9 +36,11 @@ Attach_Script_Once	engine_script.h	49	done
 Get_Vehicle_Driver	engine_obj2.h	49	done
 Get_Max_Health	Commands->	46	done
 Send_Message_Player	engine_tt.h	44	done
+Stop_Timer2	engine_tt.h	44	done
 Find_Definition	engine_def.h	43	done
 Set_Health	Commands->	41	done
 Get_Shield_Strength	Commands->	40	done
+The_Game	engine_game.h	40	done
 Change_Character	engine_obj2.h	39	done
 Get_Building_Power	Commands->	39	done
 Get_Random_Int	Commands->	39	done
@@ -57,6 +59,7 @@ Select_Weapon	Commands->	27	done
 Set_Player_Type	Commands->	27	done
 Attach_To_Object_Bone	Commands->	26	done
 Create_2D_Sound	Commands->	25	done
+Grant_Powerup	engine_obj.h	24	done
 Create_2D_WAV_Sound_Team	engine_tt.h	23	done
 Get_Bone_Position	Commands->	23	done
 Is_Script_Attached	engine_script.h	21	done
@@ -86,6 +89,7 @@ Find_Construction_Yard	engine_game.h	12	done
 Find_Object_By_Preset	engine_obj.h	12	done
 Get_Current_Weapon	engine_weap.h	12	done
 Grant_Weapon	engine_tt.h	12	done
+Get_Damage_Warhead	engine_tt.h	11	done
 Get_Vehicle_Occupant_Count	engine_obj2.h	11	done
 Enable_Engine	Commands->	10	done
 Find_Script_On_Object	engine_script.h	10	done
@@ -139,6 +143,7 @@ Set_Object_Type	engine_obj.h	6	done
 Set_Screen_Fade_Color	Commands->	6	done
 Set_Screen_Fade_Opacity	Commands->	6	done
 Create_3D_Sound_At_Bone	Commands->	5	done
+Create_Vehicle	engine_obj2.h	5	done
 Get_C4_Mode	engine_weap.h	5	done
 Get_C4_Planter	engine_weap.h	5	done
 Get_Preset_ID	Commands->	5	done
@@ -158,6 +163,7 @@ Display_GDI_Player_Terminal_Player	engine_tt.h	4	done
 Display_NOD_Player_Terminal_Player	engine_tt.h	4	done
 Enable_Cinematic_Freeze	Commands->	4	done
 Force_Camera_Look_Player	engine_tt.h	4	done
+GetExplosionObj	engine_tt.h	4	done
 Get_Definition_ID	engine_def.h	4	done
 Get_GameObj	engine_player.h	4	done
 Get_Object_Count	engine_obj.h	4	done
@@ -211,6 +217,8 @@ Force_Camera_Look	Commands->	2	done
 Get_C4_Attached	engine_weap.h	2	done
 Get_Mass	engine_phys.h	2	done
 Get_Occupant_Seat	engine_obj2.h	2	done
+Get_Team_Credits	engine_tt.h	2	done
+Get_Team_Score	engine_player.h	2	done
 Get_The_Star	Commands->	2	done
 Get_Translated_Preset_Name	engine_tdb.h	2	done
 Has_Weapon	engine_weap.h	2	done
@@ -236,6 +244,8 @@ Attach_Script_Player_Once	engine_script.h	1	done
 Attach_Script_Preset_Once	engine_script.h	1	done
 Attach_Script_Type_Once	engine_script.h	1	done
 Change_Team	engine_player.h	1	done
+Change_Time_Limit	engine_tt.h	1	done
+Change_Time_Remaining	engine_tt.h	1	done
 Cinematic_Sniper_Control	Commands->	1	done
 Clear_Radar_Marker	Commands->	1	done
 Close_Chunk	Commands->	1	done
@@ -249,6 +259,7 @@ Enable_Collisions	Commands->	1	done
 Enable_Letterbox	Commands->	1	done
 Enable_Radar	Commands->	1	done
 Enable_Shadow	Commands->	1	done
+Enable_Team_Radar	engine_tt.h	1	done
 Expire_Powerup	Commands->	1	done
 Fade_Background_Music	Commands->	1	done
 Fade_Background_Music_Player	engine_tt.h	1	done
@@ -318,16 +329,10 @@ RemovePowerupPurchaseHook	engine_tt.h	1	n/a-plugin-hook
 newstr	engine_string.h	45	n/a-sdk-helper
 wcsistr	engine_string.h	7	n/a-sdk-helper
 stristr	engine_string.h	1	n/a-sdk-helper
-Stop_Timer2	engine_tt.h	44	done
-The_Game	engine_game.h	40	done
-Grant_Powerup	engine_obj.h	24	done
 Get_Player_Name_By_ID	engine_player.h	14	port-engine-work
-Get_Damage_Warhead	engine_tt.h	11	port-engine-work
 Is_Spy	engine_obj2.h	8	port-engine-work
-Create_Vehicle	engine_obj2.h	5	done
 Set_Global_Stealth_Disable	engine_tt.h	5	port-engine-work
 Update_Network_Object	engine_tt.h	5	port-engine-work
-GetExplosionObj	engine_tt.h	4	port-engine-work
 Display_Game_Hint	engine_tt.h	3	port-engine-work
 Display_Game_Hint_Image	engine_tt.h	3	port-engine-work
 Force_Vehicle_Entry	engine_tt.h	3	port-engine-work
@@ -335,18 +340,13 @@ Set_Tech_Level	engine_tt.h	3	port-engine-work
 Clear_Info_Texture	engine_tt.h	2	port-engine-work
 Get_GDI_Soldier_Name	engine_tt.h	2	port-engine-work
 Get_Nod_Soldier_Name	engine_tt.h	2	port-engine-work
-Get_Team_Credits	engine_tt.h	2	done
-Get_Team_Score	engine_player.h	2	done
 Set_Camera_Host_Network	engine_tt.h	2	port-engine-work
 Set_GDI_Soldier_Name	engine_tt.h	2	port-engine-work
 Set_Info_Texture	engine_tt.h	2	port-engine-work
 Set_Nod_Soldier_Name	engine_tt.h	2	port-engine-work
 Change_Radar_Map	engine_tt.h	1	port-engine-work
-Change_Time_Limit	engine_tt.h	1	done
-Change_Time_Remaining	engine_tt.h	1	done
 Create_Lightning	engine_tt.h	1	port-engine-work
 Do_Objectives_Dlg	engine_tt.h	1	port-engine-work
-Enable_Team_Radar	engine_tt.h	1	done
 Get_Clouds	engine_tt.h	1	port-engine-work
 Get_Lightning	engine_tt.h	1	port-engine-work
 Get_Mine_Limit	engine_tt.h	1	port-engine-work

@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "c4.h"
+#include "damagecontext.h"
 #include "dynamicphys.h"
 #include "debug.h"
 #include "phys.h"
@@ -649,6 +650,12 @@ void	C4GameObj::Detonate( void )
 {
 	if ( CombatManager::I_Am_Server() ) {
 		Restore_Owner();
+
+		//
+		//	Anything hurt by this blast can ask what set it off.  The device,
+		//	not the player who placed it -- that is already the damager.
+		//
+		DamageContextClass::ExplosionScopeClass explosion_scope( this );
 
 		if ( AmmoDefinition && AmmoDefinition->ExplosionDefID ) {
 			int owner_id = 0;

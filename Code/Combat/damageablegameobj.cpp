@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "damageablegameobj.h"
+#include "damagecontext.h"
 #include "gameeventbus.h"
 #include "debug.h"
 #include "armedgameobj.h"
@@ -322,6 +323,12 @@ void	DamageableGameObj::Apply_Damage( const OffenseObjectClass & damager, float 
 			nullptr, nullptr ) ) {
 		return;
 	}
+
+	//
+	//	Record what is hitting this object, so a Damaged or Killed handler can
+	//	ask.  Cleared again when this returns; see damagecontext.h.
+	//
+	DamageContextClass::WarheadScopeClass warhead_scope( damager.Get_Warhead() );
 
 	float old_health = DefenseObject.Get_Health();
 	float old_shield = DefenseObject.Get_Shield_Strength();

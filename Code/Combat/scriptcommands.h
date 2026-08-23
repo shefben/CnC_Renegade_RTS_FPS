@@ -389,6 +389,27 @@ namespace ScriptEngine
 	// Apply Damage
 	void Apply_Damage ( GameObject * object, float amount, const char * warhead_name, GameObject * damager = nullptr );
 
+	//
+	//	What is hitting this object, asked from inside its Damaged, Killed or
+	//	Destroyed handler.  Those are handed the victim, who is responsible and
+	//	how much health went, which does not distinguish a repair gun from a
+	//	tank shell.
+	//
+	//	Get_Damage_Warhead is the warhead of the damage being applied; compare
+	//	it against a Get_Warhead_Type of the name you care about.  It reads
+	//	(unsigned int)-1 outside any damage.
+	//
+	//	Get_Explosion_Object is the mine, C4 or beacon whose blast is being
+	//	resolved, and null when the damage came from anything else.  It is the
+	//	device rather than the player who placed it; the player is the damager
+	//	the handler already has.
+	//
+	unsigned int Get_Damage_Warhead ( void );
+	GameObject * Get_Explosion_Object ( void );
+
+	//	Look a warhead up by the name a level or a .ini writes.
+	unsigned int Get_Warhead_Type ( const char * warhead_name );
+
 	// Soldier
 	void Set_Loiters_Allowed ( GameObject * object, bool allowed );
 

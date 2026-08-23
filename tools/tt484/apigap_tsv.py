@@ -75,10 +75,16 @@ RENAMED = set(l.split(TAB)[0] for l in
 SDK_HELPER = ('newstr', 'stristr', 'wcsistr', 'WideCharToChar', 'CharToWideChar')
 
 # The SDK has portable source for these, but that source reads data this
-# library sits below -- the player roster, the team table, the game object.
-# They need a seam before they can be answered, so they are engine work
-# however portable the donor's own implementation looks.
-NEEDS_SEAM = ('The_Game', 'Get_Player_Name_By_ID', 'Get_Team_Score', 'Is_Spy')
+# library sits below -- the player roster, the team table.  They need a seam
+# before they can be answered, so they are engine work however portable the
+# donor's own implementation looks.
+#
+# The_Game and Get_Team_Score used to be here too and are not any more: the
+# game-info seam answers them.  Anything resolved by a seam rather than by a
+# ScriptEngine name of the same spelling belongs in TTScriptApiRenames.tsv,
+# which this reads -- that is the only way a hand-known answer survives a
+# regeneration.
+NEEDS_SEAM = ('Get_Player_Name_By_ID', 'Is_Spy')
 
 
 def disposition(name):

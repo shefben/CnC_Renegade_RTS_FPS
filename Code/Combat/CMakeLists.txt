@@ -39,6 +39,7 @@ set(COMBAT_SRC
     csscriptkeyevent.cpp
     damage.cpp
     damageablegameobj.cpp
+    damagecontext.cpp
     damageablestaticphys.cpp
     damagezone.cpp
     diaglog.cpp

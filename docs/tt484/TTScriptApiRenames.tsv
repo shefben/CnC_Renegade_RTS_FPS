@@ -16,3 +16,9 @@ Get_GameObj	Find_Object_By_Player_ID	see TTScriptApiGap.tsv: still to port
 Get_Player_Name	Get_Wide_Player_Name	the canonical one answers wide, which is what the name actually is; the donor narrowed it into a buffer the caller had to free
 Grant_Powerup	Give_PowerUp	canonical takes a third argument for whether the pickup shows on the HUD; granting one is the same as picking one up, so it does
 Get_Random_Int	Get_Random_Int	SAME NAME, SAME RANGE -- port calls unchanged. Both stop one below the upper bound: CRandom::Get_Int(min,max) is Get_Int(max-min)+min and Get_Int(n) is (...)%n, so the result is [min,max). scriptcommands.h says so; the 'both inclusive' comments in Code/Combat/crandom.h are wrong and cost one session a set of off-by-one 'fixes' (reverted). Stock agrees: Mission01.cpp:7533 indexes Powerups[2] with Get_Random_Int(0,2). Note min==max divides by zero
+GetExplosionObj	Get_Explosion_Object	the mine, C4 or beacon whose blast is being resolved, read from inside Damaged/Killed. Recorded by DamageContextClass (Code/Combat/damagecontext.h) around C4GameObj::Detonate and BeaconGameObj::Create_Explosion
+Stop_Timer2	Stop_Timer	the canonical one already takes the timer id, so there is nothing for a second form to add
+The_Game	GameInfoInterfaceClass	not a script command: the game-info seam, Code/Combat/gameinfo.h, implemented Commando-side by GameInfoImplClass
+Change_Time_Limit	GameInfoInterfaceClass::Set_Time_Limit_Minutes	same seam
+Change_Time_Remaining	GameInfoInterfaceClass::Set_Time_Remaining_Seconds	same seam, in seconds
+Enable_Team_Radar	Enable_Radar_Team	argument order: the canonical one takes the side first
