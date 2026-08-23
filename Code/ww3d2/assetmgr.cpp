@@ -111,6 +111,8 @@
 #include "texture.h"
 #include "wwprofile.h"
 #include "assetstatus.h"
+#include "w3dexclusionlist.h"
+#include "dx8renderer.h"
 
 #include <filesystem>
 
@@ -499,6 +501,91 @@ void WW3DAssetManager::Release_Unused_Assets(void)
 	// and remove them from our lists.
 	Release_Unused_Textures();
 	Release_Unused_Font3DDatas();
+}
+
+
+/***********************************************************************************************
+ * WW3DAssetManager::Free_Assets_With_Exclusion_List -- release all assets not named in a list *
+ *                                                                                             *
+ * Each prototype is kept if it is named in the list or is a child of something named in it;    *
+ * everything else is deleted.  Hierarchy trees and animations are filtered the same way.       *
+ *                                                                                             *
+ * INPUT:                                                                                      *
+ * exclusion_names - names of render object prototypes not to release.                         *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+void WW3DAssetManager::Free_Assets_With_Exclusion_List(const DynamicVectorClass<StringClass> & exclusion_names)
+{
+	WWPROFILE( "WW3DAssetManager::Free_Assets_With_Exclusion_List" );
+
+	// The mesh renderer caches pointers into meshes that are about to be deleted.
+	TheDX8MeshRenderer.Invalidate();
+
+	W3DExclusionListClass exclusion_list(exclusion_names);
+
+	// Prototypes that survive, collected before the array is reset.  Grow in one step:
+	// a stock Renegade level keeps thousands of these and the default growth pattern
+	// costs more in reallocation than the memory it saves.
+	const int DEFAULT_EXCLUDE_ARRAY_SIZE = 8000;
+	DynamicVectorClass<PrototypeClass *> exclude_array(DEFAULT_EXCLUDE_ARRAY_SIZE);
+	exclude_array.Set_Growth_Step(DEFAULT_EXCLUDE_ARRAY_SIZE);
+
+	int i=0;
+	for (; i<Prototypes.Count(); i++) {
+
+		PrototypeClass * proto = Prototypes[i];
+		if (proto != nullptr) {
+
+			if (exclusion_list.Is_Excluded(proto)) {
+				exclude_array.Add(proto);
+			} else {
+				delete proto;
+			}
+			Prototypes[i] = nullptr;
+		}
+	}
+
+	// Everything is either deleted or held in exclude_array now.
+	Prototypes.Reset_Active();
+
+	// clear the prototype hash table
+	memset(PrototypeHashTable,0,sizeof(PrototypeClass *) * PROTOTYPE_HASH_TABLE_SIZE);
+
+	// re-add the prototypes that were kept
+	for (i=0; i<exclude_array.Count(); i++) {
+		Add_Prototype(exclude_array[i]);
+	}
+
+	HAnimManager.Free_All_Anims_With_Exclusion_List(exclusion_list);
+	HTreeManager.Free_All_Trees_With_Exclusion_List(exclusion_list);
+
+	// textures nothing references any more
+	Release_Unused_Textures();
+}
+
+
+/***********************************************************************************************
+ * WW3DAssetManager::Create_Asset_List -- list the w3d files that are currently loaded          *
+ *                                                                                             *
+ * Sub-objects (a '.' in the name) and run-time munged objects (a '#') are skipped: they are    *
+ * kept or freed with the file they came out of.  As elsewhere in this library, a top-level     *
+ * render object is assumed to be named after the w3d file containing it.                       *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+void WW3DAssetManager::Create_Asset_List(DynamicVectorClass<StringClass> & model_list)
+{
+	for (int i=0; i<Prototypes.Count(); i++) {
+
+		PrototypeClass * proto = Prototypes[i];
+		if (proto != nullptr) {
+
+			const char * name = proto->Get_Name();
+			if ((strchr(name,'#') == nullptr) && (strchr(name,'.') == nullptr)) {
+				model_list.Add(StringClass(name));
+			}
+		}
+	}
+
+	// and the files the loaded animations came from
+	HAnimManager.Create_Asset_List(model_list);
 }
 
 

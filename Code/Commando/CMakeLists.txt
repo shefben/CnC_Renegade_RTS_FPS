@@ -402,6 +402,8 @@ set(COMMANDO_SRC
     ssgmmanager.cpp
     gameeventlisteners.h
     ssgmmanager.h
+    assetselfcheck.cpp
+    assetselfcheck.h
     scriptcatalogcheck.cpp
     scriptcatalogcheck.h
     sctextobj.cpp
@@ -541,6 +543,12 @@ if(BUILD_TESTING AND TARGET renegade)
     add_test(NAME tt_dialogs     COMMAND renegade -ttselfcheck dialogs)
     add_test(NAME tt_collision   COMMAND renegade -ttselfcheck collision)
     add_test(NAME tt_modules     COMMAND renegade -ttselfcheck modules)
+
+    #
+    #	Asset exclusion and residency -- roadmap Section 14.  See assetselfcheck.h.
+    #
+    add_test(NAME asset_exclusion COMMAND renegade -assetselfcheck exclusion)
+    add_test(NAME asset_residency COMMAND renegade -assetselfcheck residency)
 endif()
 
 #
@@ -559,4 +567,6 @@ if(BUILD_TESTING AND TARGET renegadeserver)
     add_test(NAME fds_tt_hooks         COMMAND renegadeserver -ttselfcheck hooks)
     add_test(NAME fds_tt_collision     COMMAND renegadeserver -ttselfcheck collision)
     add_test(NAME fds_tt_modules       COMMAND renegadeserver -ttselfcheck modules)
+    add_test(NAME fds_asset_exclusion  COMMAND renegadeserver -assetselfcheck exclusion)
+    add_test(NAME fds_asset_residency  COMMAND renegadeserver -assetselfcheck residency)
 endif()

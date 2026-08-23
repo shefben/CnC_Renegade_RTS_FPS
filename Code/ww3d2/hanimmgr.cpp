@@ -55,6 +55,7 @@
 #include "chunkio.h"
 #include "wwmemlog.h"
 #include "animatedsoundmgr.h"
+#include "w3dexclusionlist.h"
 
 
 /***********************************************************************************************
@@ -317,6 +318,46 @@ HAnimClass * HAnimManagerClass::Get_Anim(const char * name)
  * HISTORY:                                                                                    *
  *   08/11/1997 GH  : Created.                                                                 *
  *=============================================================================================*/
+/***********************************************************************************************
+ * HAnimManagerClass::Free_All_Anims_With_Exclusion_List -- release animations not in the list  *
+ *                                                                                             *
+ * Only animations the manager alone holds are released.  One with a live reference belongs to  *
+ * something still playing it and is kept whatever the list says.                               *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+void HAnimManagerClass::Free_All_Anims_With_Exclusion_List(const W3DExclusionListClass & exclusion_list)
+{
+	HAnimManagerIterator it( *this );
+	for( it.First(); !it.Is_Done(); it.Next() ) {
+		HAnimClass *anim = it.Get_Current_Anim();
+
+		if ((anim->Num_Refs() == 1) && (exclusion_list.Is_Excluded(anim) == false)) {
+			AnimPtrTable->Remove(anim);
+			anim->Release_Ref();
+		}
+	}
+}
+
+
+/***********************************************************************************************
+ * HAnimManagerClass::Create_Asset_List -- list the w3d files the loaded animations came from   *
+ *                                                                                             *
+ * Animations are named "<skeleton>.<animname>"; the part after the '.' is the file.            *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+void HAnimManagerClass::Create_Asset_List(DynamicVectorClass<StringClass> & model_list)
+{
+	HAnimManagerIterator it( *this );
+	for( it.First(); !it.Is_Done(); it.Next() ) {
+		HAnimClass *anim = it.Get_Current_Anim();
+
+		const char * anim_name = anim->Get_Name();
+		const char * filename = strchr(anim_name,'.');
+		if (filename != nullptr) {
+			model_list.Add(StringClass(filename+1));
+		}
+	}
+}
+
+
 void HAnimManagerClass::Free_All_Anims(void)
 {
 	// Make an iterator, and release all ptrs

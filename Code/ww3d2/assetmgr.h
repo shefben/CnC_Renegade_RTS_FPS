@@ -45,6 +45,7 @@
 
 #include "always.h"
 #include "vector.h"
+#include "wwstring.h"
 #include "htreemgr.h"
 #include "hanimmgr.h"
 #include "slist.h"
@@ -216,6 +217,19 @@ public:
 	virtual void						Free_Assets(void);
 
 	/*
+	** Get rid of every asset except the ones named in the exclusion list and the ones
+	** that are children of something named in it.  This is what makes a level change
+	** cheap: assets both levels use are never freed and reloaded.
+	*/
+	virtual void						Free_Assets_With_Exclusion_List(const DynamicVectorClass<StringClass> & model_exclusion_list);
+
+	/*
+	** Build the list of w3d files currently loaded, in the form the exclusion list wants.
+	** Taking it before an unload and handing it straight back keeps everything.
+	*/
+	virtual void						Create_Asset_List(DynamicVectorClass<StringClass> & model_list);
+
+	/*
 	**	Release any assets that only the asset manager has a reference to.
 	*/
 	virtual void						Release_Unused_Assets(void);
@@ -229,6 +243,12 @@ public:
 	** query if there is a render object with the specified name
 	*/
 	virtual bool						Render_Obj_Exists(const char * name);
+
+	/*
+	** How many prototypes are loaded right now.  Diagnostic only -- the residency
+	** service reports it, and a level change that does not move it is not working.
+	*/
+	int									Prototype_Count(void) const { return Prototypes.Count(); }
 
 	/*
 	** Iterate through all render objects or through the

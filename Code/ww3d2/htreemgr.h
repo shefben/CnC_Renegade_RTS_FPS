@@ -50,6 +50,7 @@
 class FileClass;
 class ChunkLoadClass;
 class HTreeClass;
+class W3DExclusionListClass;
 class StringClass;
 
 /*
@@ -74,6 +75,7 @@ public:
 	HTreeClass *				Get_Tree(int id);
 	uint32						Get_Tree_Handle(char * name);
 	void							Free_All_Trees(void);
+	void							Free_All_Trees_With_Exclusion_List(const W3DExclusionListClass & exclusion_list);
 
 	int							Get_Tree_ID(const char * name);
    char *						Get_Tree_Name(const int id);

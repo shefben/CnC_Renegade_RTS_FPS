@@ -105,6 +105,7 @@
 #include "singletoninstancekeeper.h"
 #include "packetmgr.h"
 #include "ProcessManager.h"
+#include "assetselfcheck.h"
 #include "scriptcatalogcheck.h"
 #include "ttselfcheck.h"
 
@@ -172,6 +173,13 @@ int main(int argc, char *argv[])
 	//
 	if ((argc > 1) && (::strcmp(argv[1], "-ttselfcheck") == 0)) {
 		return TTSelfCheck::Run((argc > 2) ? argv[2] : nullptr);
+	}
+
+	//
+	//	Asset exclusion and residency -- roadmap Section 14, same arrangement.
+	//
+	if ((argc > 1) && (::strcmp(argv[1], "-assetselfcheck") == 0)) {
+		return AssetSelfCheck::Run((argc > 2) ? argv[2] : nullptr);
 	}
 
 	WWMemoryLogClass::Init();	// This switches memlog from static to dynamic allocations mode

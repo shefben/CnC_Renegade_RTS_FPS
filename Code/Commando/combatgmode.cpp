@@ -92,6 +92,7 @@
 #include "bandwidthgraph.h"
 #include "suicideevent.h"
 #include "assetstatus.h"
+#include "assetresidency.h"
 #include "stylemgr.h"
 #include "gametype.h"
 #include "wwmemlog.h"
@@ -837,6 +838,16 @@ void CombatGameModeClass::Load_Level( void )
 
 	ConsoleBox.Print("Load %d%% complete\n", 100);
 	ConsoleBox.Print("Level loaded OK\n");
+
+	//
+	//	Everything the level pulled in that nobody has claimed for a longer-lived
+	//	scope belongs to this world.  Doing it here rather than inside the loader
+	//	means it covers load-on-demand as well as anything a .dep file forced in.
+	//
+	AssetResidencyManagerClass::Get_Instance().Capture_Loaded_Assets( ASSET_SCOPE_WORLD );
+#ifdef WWDEBUG
+	AssetResidencyManagerClass::Get_Instance().Log_Report();
+#endif
 
 	GameSpyQnR.Init();
 

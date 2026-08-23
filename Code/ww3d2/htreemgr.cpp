@@ -49,6 +49,7 @@
 #include "htree.h"
 #include "chunkio.h"
 #include "wwmemlog.h"
+#include "w3dexclusionlist.h"
 
 
 /***********************************************************************************************
@@ -117,6 +118,48 @@ void HTreeManagerClass::Free(void)
  * HISTORY:                                                                                    *
  *   08/11/1997 GH  : Created.                                                                 *
  *=============================================================================================*/
+/***********************************************************************************************
+ * HTreeManagerClass::Free_All_Trees_With_Exclusion_List -- delete every tree not in the list   *
+ *                                                                                             *
+ * The tree array is compacted in place: an excluded tree is moved down to the new tail, any    *
+ * other tree is deleted.  The name hash is rebuilt from what is left.                          *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+void HTreeManagerClass::Free_All_Trees_With_Exclusion_List(const W3DExclusionListClass & exclusion_list)
+{
+	int new_tail = 0;
+
+	int treeidx=0;
+	for (; treeidx < MAX_TREES; treeidx++) {
+		if (TreePtr[treeidx] != nullptr) {
+
+			if (exclusion_list.Is_Excluded(TreePtr[treeidx])) {
+
+				TreePtr[new_tail] = TreePtr[treeidx];
+				if (new_tail != treeidx) {
+					TreePtr[treeidx] = nullptr;
+				}
+				new_tail++;
+
+			} else {
+
+				delete TreePtr[treeidx];
+				TreePtr[treeidx] = nullptr;
+			}
+		}
+	}
+	NumTrees = new_tail;
+
+	// The tree ids just moved, so the hash has to be rebuilt rather than pruned.
+	TreeHash.Remove_All();
+
+	for (treeidx=0; treeidx < new_tail; treeidx++) {
+		StringClass lower_case_name(TreePtr[treeidx]->Get_Name(),true);
+		_strlwr(lower_case_name.Peek_Buffer());
+		TreeHash.Insert(lower_case_name,TreePtr[treeidx]);
+	}
+}
+
+
 void HTreeManagerClass::Free_All_Trees(void)
 {
 	// Clear the hash table

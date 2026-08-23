@@ -46,9 +46,11 @@
 #include "always.h"
 #include "hash.h"
 #include "wwstring.h"
+#include "vector.h"
 
 class HAnimClass;
 class ChunkLoadClass;
+class W3DExclusionListClass;
 
 /*
 ** An entry for a table of anims not found, so we can quickly determine their loss
@@ -84,6 +86,8 @@ public:
 	HAnimClass *		Peek_Anim(const char * name);
 	bool					Add_Anim(HAnimClass *new_anim);
 	void			 		Free_All_Anims(void);
+	void			 		Free_All_Anims_With_Exclusion_List(const W3DExclusionListClass & exclusion_list);
+	void			 		Create_Asset_List(DynamicVectorClass<StringClass> & model_list);
 
 	void					Register_Missing( const char * name );
 	bool					Is_Missing( const char * name );

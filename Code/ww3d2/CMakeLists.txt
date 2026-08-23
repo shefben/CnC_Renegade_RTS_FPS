@@ -6,6 +6,7 @@ set(WW3D2_SRC
     animatedsoundmgr.cpp
     animobj.cpp
     assetmgr.cpp
+    assetresidency.cpp
     assetstatus.cpp
     bitmaphandler.cpp
     bmp2d.cpp
@@ -100,6 +101,7 @@ set(WW3D2_SRC
     visrasterizer.cpp
     w3d_dep.cpp
     w3d_util.cpp
+    w3dexclusionlist.cpp
     ww3d.cpp
     ww3dformat.cpp
     aabtree.h
@@ -108,6 +110,7 @@ set(WW3D2_SRC
     animatedsoundmgr.h
     animobj.h
     assetmgr.h
+    assetresidency.h
     assetstatus.h
     bitmaphandler.h
     bmp2d.h
@@ -213,6 +216,7 @@ set(WW3D2_SRC
     w3d_obsolete.h
     w3d_util.h
     w3derr.h
+    w3dexclusionlist.h
     ww3d.h
     ww3dformat.h
     ww3dids.h

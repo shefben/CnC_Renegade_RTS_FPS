@@ -47,6 +47,7 @@
 #include "wwprofile.h"
 #include "phys.h"
 #include "rendobj.h"
+#include "assetresidency.h"
 
 /*
 ** Release all objects and resources loaded for this level
@@ -77,7 +78,13 @@ WWPROFILENAMED( "Release Level", top );
 }
 
 {WWPROFILE( "Free assets" );
-	WW3DAssetManager::Get_Instance()->Free_Assets();
+	//
+	//	Releasing the world scope frees everything the level owned and keeps whatever
+	//	a longer-lived scope claimed.  With nothing claimed -- which is the case until
+	//	something registers permanent assets -- this is exactly the full Free_Assets
+	//	this line has always done.
+	//
+	AssetResidencyManagerClass::Get_Instance().Release_Scope( ASSET_SCOPE_WORLD );
 }
 }
 
