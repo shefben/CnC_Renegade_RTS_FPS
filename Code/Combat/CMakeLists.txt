@@ -52,6 +52,8 @@ set(COMBAT_SRC
     explosion.cpp
     ffactorylist.cpp
     gameeventbus.cpp
+    gameinfo.cpp
+    gameinfo.h
     nativescriptregistry.cpp
     gameobjmanager.cpp
     gameobjobserver.cpp

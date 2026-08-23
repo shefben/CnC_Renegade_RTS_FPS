@@ -76,6 +76,7 @@
 #include "activeconversation.h"
 #include "orator.h"
 #include "gameobjobserver.h"
+#include "gameinfo.h"
 #include "animcontrol.h"
 #include "playerdata.h"
 #include "building.h"
@@ -5197,6 +5198,115 @@ bool Grant_Weapon_Definition( GameObject * obj, int definition_id, bool select )
 	}
 
 	return true;
+}
+
+
+//
+//	The match that is running
+//
+//	Commando owns all of this; see gameinfo.h for why the questions are asked
+//	through an interface instead of reached for directly.
+//
+
+float Get_Time_Remaining_Seconds( void )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	return ( game != nullptr ) ? game->Get_Time_Remaining_Seconds() : 0.0f;
+}
+
+void Set_Time_Remaining_Seconds( float seconds )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	if ( game != nullptr ) {
+		game->Set_Time_Remaining_Seconds( seconds );
+	}
+}
+
+int Get_Time_Limit_Minutes( void )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	return ( game != nullptr ) ? game->Get_Time_Limit_Minutes() : 0;
+}
+
+void Set_Time_Limit_Minutes( int minutes )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	if ( game != nullptr ) {
+		game->Set_Time_Limit_Minutes( minutes );
+	}
+}
+
+unsigned int Get_Game_Duration_Seconds( void )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	return ( game != nullptr ) ? game->Get_Duration_Seconds() : 0;
+}
+
+int Get_Game_Win_Type( void )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	return ( game != nullptr ) ? game->Get_Win_Type() : 0;
+}
+
+int Get_Game_Winner_ID( void )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	return ( game != nullptr ) ? game->Get_Winner_ID() : -1;
+}
+
+int Get_Game_Max_Players( void )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	return ( game != nullptr ) ? game->Get_Max_Players() : 0;
+}
+
+const char * Get_Map_Name( void )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	const char * name = ( game != nullptr ) ? game->Get_Map_Name() : nullptr;
+	return ( name != nullptr ) ? name : "";
+}
+
+const unichar_t * Get_Game_Title( void )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	const unichar_t * title = ( game != nullptr ) ? game->Get_Title() : nullptr;
+	return ( title != nullptr ) ? title : U_CHAR("");
+}
+
+float Get_Team_Score( int player_type )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	return ( game != nullptr ) ? game->Get_Team_Score( player_type ) : 0.0f;
+}
+
+int Get_Team_Credits( int player_type )
+{
+	GameInfoInterfaceClass * game = GameInfoClass::Peek_Interface();
+	return ( game != nullptr ) ? game->Get_Team_Credits( player_type ) : 0;
+}
+
+
+//
+//	Turn the radar on or off for one whole side.  Player type 2 is neither
+//	side and means everybody, which is the convention the 4.8.4 library used.
+//
+void Enable_Radar_Team( int player_type, bool onoff )
+{
+	SLNode<SoldierGameObj> * node = GameObjManager::Get_Star_Game_Obj_List()->Head();
+	while ( node != nullptr ) {
+
+		SoldierGameObj * soldier = node->Data();
+		node = node->Next();
+
+		if ( soldier == nullptr ) {
+			continue;
+		}
+
+		if ( player_type == 2 || soldier->Get_Player_Type() == player_type ) {
+			Enable_Radar_Player( soldier, onoff );
+		}
+	}
 }
 
 

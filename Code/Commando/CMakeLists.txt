@@ -165,6 +165,8 @@ set(COMMANDO_SRC
     vendor.cpp
     vendor.h
     gamedata.cpp
+    gameinfoimpl.cpp
+    gameinfoimpl.h
     gamedata.h
     gdcnc.cpp
     gdcnc.h

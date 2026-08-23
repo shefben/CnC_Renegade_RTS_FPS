@@ -573,6 +573,28 @@ namespace ScriptEngine
 	//	carries.
 	//
 	bool Grant_Weapon_Definition ( GameObject * obj, int definition_id, bool select );
+
+	//
+	//	The match that is running.  A level asks these; there is no match in the
+	//	editor, so each of them answers with a harmless nothing there.
+	//
+	float Get_Time_Remaining_Seconds ( void );
+	void Set_Time_Remaining_Seconds ( float seconds );
+	int Get_Time_Limit_Minutes ( void );
+	void Set_Time_Limit_Minutes ( int minutes );
+	unsigned int Get_Game_Duration_Seconds ( void );
+	int Get_Game_Win_Type ( void );
+	int Get_Game_Winner_ID ( void );
+	int Get_Game_Max_Players ( void );
+	const char * Get_Map_Name ( void );
+	const unichar_t * Get_Game_Title ( void );
+	float Get_Team_Score ( int player_type );
+	int Get_Team_Credits ( int player_type );
+
+	//
+	//	Turn the radar on or off for one whole side at once.
+	//
+	void Enable_Radar_Team ( int player_type, bool onoff );
 	void Set_Skin ( GameObject * obj, const char * armor_name );
 	void Set_Max_Health ( GameObject * obj, float health );
 	void Set_Max_Shield_Strength ( GameObject * obj, float strength );

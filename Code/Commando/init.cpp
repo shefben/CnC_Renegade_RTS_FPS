@@ -70,6 +70,7 @@
 #include "savegame.h"
 #include	"systemsettings.h"
 #include "gamedata.h"
+#include "gameinfoimpl.h"
 #include "sphereobj.h"
 #include "ringobj.h"
 #include "diagnostics.h"
@@ -1012,6 +1013,12 @@ bool Game_Init(void)
 	//	afterwards, never before.
 	//
 	GameEventListeners::Register();
+
+	//
+	//	And the same for what a script may ask about the running match, which
+	//	Combat has the shape of but not the answer to.
+	//
+	GameInfoImplClass::Register();
 
 	CampaignManager::Init();
 
