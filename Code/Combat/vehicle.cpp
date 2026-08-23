@@ -3070,3 +3070,33 @@ void VehicleGameObj::Import_State_Sc(BitStreamClass & packet)
    WWASSERT(packet.Is_Flushed());
 }
 */
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Lock_Vehicle
+//
+//	Reserve this vehicle for whoever bought it, and tell the vehicle's own
+//	scripts who that is.  4.8.4 raised the same notification from a hook on
+//	the airstrip; the vehicle is what knows, so the vehicle raises it.
+//
+////////////////////////////////////////////////////////////////
+void
+VehicleGameObj::Lock_Vehicle( ScriptableGameObj *lockowner, float locktime )
+{
+	LockOwner	= lockowner;
+	LockTimer	= locktime;
+
+	if ( lockowner == nullptr ) {
+		return ;
+	}
+
+	const GameObjObserverList & observer_list = Get_Observers();
+	for( int index = 0; index < observer_list.Count(); index++ ) {
+		observer_list[ index ]->Custom( this, CUSTOM_EVENT_VEHICLE_OWNER,
+				lockowner->Get_ID(), lockowner );
+	}
+
+	return ;
+}
+

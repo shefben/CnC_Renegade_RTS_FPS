@@ -107,7 +107,16 @@ enum
 	//	A character has been given full health, armour and ammunition at a
 	//	purchase terminal.  Sent to the character's own scripts.
 	//
-	CUSTOM_EVENT_REFILL
+	CUSTOM_EVENT_REFILL,
+
+	//
+	//	A vehicle has been reserved for whoever bought it.  Sent to the
+	//	vehicle's own scripts the moment the factory locks it, with the
+	//	purchaser as the sender and their object ID as the parameter.  4.8.4
+	//	raised this from a DLL hook on the airstrip; here the vehicle raises
+	//	it itself, because the vehicle is what knows.
+	//
+	CUSTOM_EVENT_VEHICLE_OWNER
 };
 
 #define	MovementCompleteReason		ActionCompleteReason		// TEMP

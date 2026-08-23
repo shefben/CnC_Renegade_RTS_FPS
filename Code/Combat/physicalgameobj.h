@@ -85,6 +85,13 @@ public:
 	virtual bool								Is_Valid_Config (StringClass &message) override;
 
 	int		Get_Phys_Def_ID( void ) const	{ return PhysDefID; }
+
+	//
+	//	The animation the preset plays by default.  A script that interrupts
+	//	it with one of its own needs this to put the object back.
+	//
+	const StringClass &	Get_Animation( void ) const	{ return Animation; }
+
 	int		Get_Orator_Type( void ) const	{ return OratorType; }
 
 	DECLARE_EDITABLE( PhysicalGameObjDef, DamageableGameObjDef );

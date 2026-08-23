@@ -157,7 +157,16 @@ public:
 	//
 	//	State access
 	//
-	bool					Needs_Harvester (void) const			{ return (!IsDestroyed) && (Harvester == nullptr); }
+	bool					Needs_Harvester (void) const			{ return (!IsDestroyed) && (Harvester == nullptr) && (!IsHarvesterSpawnBlocked); }
+
+	//
+	//	A script may stop the refinery asking for a replacement harvester --
+	//	the building is still alive and still unloads, it simply does not get
+	//	another one when the last is lost.  Blocking does not remove the
+	//	harvester already out there.
+	//
+	void					Set_Harvester_Spawn_Blocked (bool onoff)	{ IsHarvesterSpawnBlocked = onoff; }
+	bool					Is_Harvester_Spawn_Blocked (void) const	{ return IsHarvesterSpawnBlocked; }
 	int					Get_Harvester_Def_ID (void) const	{ return Get_Definition ().HarvesterDefID; }
 	void					Set_Is_Harvester_Docked(bool flag);
 	bool					Get_Is_Harvester_Docked(void)			{ return IsHarvesterDocked; }
@@ -212,6 +221,7 @@ private:
 	HarvesterClass *	Harvester;
 	OBBoxClass			TiberiumField;
 	bool					IsHarvesterDocked;
+	bool					IsHarvesterSpawnBlocked;
 	float					UnloadTimer;
 	int					UnloadAnimationID;
 	float					TotalFunds;

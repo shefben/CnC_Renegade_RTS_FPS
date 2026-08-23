@@ -92,7 +92,8 @@ enum
 	MICROCHUNKID_IS_HARVESTER_DOCKED,
 	MICROCHUNKID_UNLOAD_TIMER,
 	XXXMICROCHUNKID_UNLOAD_DOOR_ID,
-	MICROCHUNKID_DOCK_TM
+	MICROCHUNKID_DOCK_TM,
+	MICROCHUNKID_HARVESTER_SPAWN_BLOCKED
 };
 
 
@@ -267,6 +268,7 @@ RefineryGameObjDef::Get_Factory (void) const
 ////////////////////////////////////////////////////////////////
 RefineryGameObj::RefineryGameObj (void)	:
 	IsHarvesterDocked (false),
+	IsHarvesterSpawnBlocked (false),
 	Harvester (nullptr),
 	UnloadAnimationID (0),
 	UnloadTimer (0),
@@ -363,6 +365,7 @@ RefineryGameObj::Save (ChunkSaveClass &csave)
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_IS_HARVESTER_DOCKED,	IsHarvesterDocked);
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_UNLOAD_TIMER,			UnloadTimer);
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_DOCK_TM,					DockTM);
+		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_HARVESTER_SPAWN_BLOCKED,	IsHarvesterSpawnBlocked);
 	csave.End_Chunk ();
 	return true;
 }
@@ -415,6 +418,7 @@ RefineryGameObj::Load_Variables (ChunkLoadClass &cload)
 			READ_MICRO_CHUNK (cload, MICROCHUNKID_IS_HARVESTER_DOCKED,	IsHarvesterDocked);
 			READ_MICRO_CHUNK (cload, MICROCHUNKID_UNLOAD_TIMER,			UnloadTimer);
 			READ_MICRO_CHUNK (cload, MICROCHUNKID_DOCK_TM,					DockTM);
+			READ_MICRO_CHUNK (cload, MICROCHUNKID_HARVESTER_SPAWN_BLOCKED,	IsHarvesterSpawnBlocked);
 
 			default:
 				Debug_Say (("Unrecognized Refinery Variable chunkID\n"));
@@ -526,6 +530,7 @@ RefineryGameObj::Think (void)
 		//	Create a new harvester (if necessary)
 		//
 		if (	(Harvester == nullptr) &&
+				(IsHarvesterSpawnBlocked == false) &&
 				(DefenseObject.Get_Health() > 0.0f) &&
 				(CombatManager::Is_Gameplay_Permitted()) )
 		{

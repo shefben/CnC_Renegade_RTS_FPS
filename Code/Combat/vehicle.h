@@ -286,7 +286,7 @@ public:
 	// owner for a certain amount of time.
 	// NOTE: for network play, locking a vehicle only works at creation time and only
 	// if the lock is set up prior to the creation packet being sent.
-	void						Lock_Vehicle( ScriptableGameObj *lockowner, float locktime ) { LockOwner = lockowner, LockTimer = locktime; }
+	void						Lock_Vehicle( ScriptableGameObj *lockowner, float locktime );
 	bool						Is_Locked(void) { return ((LockOwner.Get_Ptr() != nullptr) && (LockTimer > 0.0f)); }
 	ScriptableGameObj *	Get_Lock_Owner(void) { return LockOwner.Get_Ptr(); }
 
