@@ -33,3 +33,5 @@ Get_Player_Name_By_ID	Get_Player_Name_By_ID	SAME NAME, WIDE RETURN -- the donor 
 Get_Object_Color	Get_Object_Color	SAME NAME, ONE RETURN VALUE -- the donor filled three unsigned out-parameters scaled to 0-255. This returns the Vector3 the engine actually keeps, components 0-1
 Get_Team_Cost	Get_Team_Cost	SAME NAME, TEAM ARGUMENT IS A PLAYERTYPE -- the donor took its own PT team index and converted with PTTEAM(t). Pass PLAYERTYPE_NOD or PLAYERTYPE_GDI here
 Get_GameObj	Find_Object_By_Player_ID	now exists. GameObjManager::Find_Soldier_Of_Client_ID answers it, so it needs no seam
+Get_Ammo_Def	Peek_Ammo_Definition	C4GameObj keeps the ammunition it was placed with; the canonical name says it is a borrowed pointer
+NodHouseColor / GDIHouseColor	Get_Color_For_Team	the two house colour globals are not exported here. Get_Color_For_Team in Code/Combat/colors.h answers the same question and knows about the teams that are not those two
