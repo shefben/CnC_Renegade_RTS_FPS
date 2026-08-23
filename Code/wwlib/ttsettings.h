@@ -58,6 +58,12 @@ public:
 	//
 	static void			Load (void);
 
+	//
+	//	Re-read the UI options from a named file.  A level that wants its own
+	//	HUD hands the filename to the clients and they each read it.
+	//
+	static bool			Load_UI_File (const char *filename);
+
 	static bool			Is_Loaded (void)	{ return IsLoaded; }
 
 	////////////////////////////////////////////////////////////////

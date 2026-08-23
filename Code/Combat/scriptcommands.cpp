@@ -3218,6 +3218,89 @@ void Set_Lightning (float intensity, float startdistance, float enddistance, flo
 	}
 }
 
+void Get_Clouds (float & cloudcover, float & cloudgloominess)
+{
+	BackgroundMgrClass::Get_Clouds (cloudcover, cloudgloominess);
+}
+
+void Get_Lightning (float & intensity, float & startdistance, float & enddistance, float & heading, float & distribution)
+{
+	BackgroundMgrClass::Get_Lightning (intensity, startdistance, enddistance, heading, distribution);
+}
+
+/*
+**	A bolt is drawn, not simulated, so every client has to be told to draw
+**	it; a strike only the server saw would be a strike nobody saw.
+*/
+void Create_Lightning (const Vector3 & start, const Vector3 & end, float width)
+{
+	if ( !CombatManager::I_Am_Server() ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Position( start );
+	event->Set_Color( end );
+	event->Set_Float_Params( width );
+	event->Init( SCRIPT_CLIENT_CMD_CREATE_LIGHTNING, -1 );
+}
+
+void Set_Moon_Is_Earth (bool earth)
+{
+	if ( !CombatManager::I_Am_Server() ) {
+		return ;
+	}
+
+	BackgroundMgrClass::Set_Moon_Is_Earth( earth );
+}
+
+void Change_Radar_Map (float scale, float offset_x, float offset_y, const char * texture_name)
+{
+	if ( !CombatManager::I_Am_Server() ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( ( texture_name != nullptr ) ? texture_name : "" );
+	event->Set_Float_Params( scale );
+	event->Set_Position( Vector3( offset_x, offset_y, 0.0f ) );
+	event->Init( SCRIPT_CLIENT_CMD_CHANGE_RADAR_MAP, -1 );
+}
+
+/*
+**	Things one player's screen does that nobody else's does.
+*/
+static void	Send_To_Players_Client( GameObject * player, ScriptClientCommandEnum command, const char * text )
+{
+	if ( !CombatManager::I_Am_Server() || ( player == nullptr ) ) {
+		return ;
+	}
+
+	int client_id = Get_Player_ID( player );
+	if ( client_id <= 0 ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Text( ( text != nullptr ) ? text : "" );
+	event->Init( command, client_id );
+}
+
+void Set_Info_Texture ( GameObject * player, const char * texture_name )
+{
+	Send_To_Players_Client( player, SCRIPT_CLIENT_CMD_SET_INFO_TEXTURE, texture_name );
+}
+
+void Clear_Info_Texture ( GameObject * player )
+{
+	Send_To_Players_Client( player, SCRIPT_CLIENT_CMD_SET_INFO_TEXTURE, "" );
+}
+
+void Load_New_HUD_INI ( GameObject * player, const char * ini_name )
+{
+	Send_To_Players_Client( player, SCRIPT_CLIENT_CMD_LOAD_HUD_INI, ini_name );
+}
+
 void Set_War_Blitz (float intensity, float startdistance, float enddistance, float heading, float distribution, float ramptime)
 {
 	if (!BackgroundMgrClass::Set_War_Blitz (intensity, startdistance, enddistance, heading, distribution, ramptime)) {

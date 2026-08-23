@@ -51,6 +51,12 @@ enum ScriptClientCommandEnum
 	SCRIPT_CLIENT_CMD_SET_CAMERA_HOST,		// IntParam1 = object id, 0 to give the camera back
 	SCRIPT_CLIENT_CMD_SET_SUBOBJECT_ANIMATION,	// IntParam1 = object id, IntParam2 = 1 looping | 2 blended,
 												// FloatParam1/2 = first/last frame, Text = animation, Text2 = sub-object
+	SCRIPT_CLIENT_CMD_SET_INFO_TEXTURE,			// Text = texture, empty to clear it
+	SCRIPT_CLIENT_CMD_LOAD_HUD_INI,				// Text = ini filename
+	SCRIPT_CLIENT_CMD_CHANGE_RADAR_MAP,			// Text = texture, FloatParam1 = scale,
+												// Position X/Y = the map's centre pixel
+	SCRIPT_CLIENT_CMD_CREATE_LIGHTNING,			// Position = one end, Color = the other,
+												// FloatParam1 = width
 	SCRIPT_CLIENT_CMD_DISPLAY_GAME_HINT,		// IntParam1 = event id, IntParam2 = title string id,
 												// IntParam3/4/5 = the three text string ids,
 												// Text = sound, Text2 = texture or empty

@@ -362,7 +362,11 @@ class	SkyClass : public RenderObjClass
 
 		void Set_Light_Direction (const Vector3 &sundirection, const Vector3 &moondirection);
 		void Set_Time_Of_Day (unsigned hours, unsigned minutes);
-		void Set_Moon_Type (MoonTypeEnum moontype);
+		//
+		//	The same two phases, drawn as the earth instead of the moon, for a
+		//	level that is not standing on it.
+		//
+		void Set_Moon_Type (MoonTypeEnum moontype, bool earth = false);
 		void Set_Clouds (float cloudcover, float gloominess);
 		void Set_Tint_Factor (float tintfactor);
 
@@ -535,6 +539,17 @@ class	BackgroundMgrClass : public SaveLoadSubSystemClass, public NetworkObjectCl
 			return (_MoonType);
 		}
 
+		static void Set_Moon_Is_Earth (bool earth)
+		{
+			_MoonIsEarth = earth;
+			Set_Dirty();
+		}
+
+		static bool Is_Moon_Earth()
+		{
+			return (_MoonIsEarth);
+		}
+
 		static bool Set_Clouds (float cloudcover, float cloudgloominess, float ramptime = 0.0f);
 		static bool	Override_Clouds (float cloudcover, float cloudgloominess, float ramptime = 0.0f);
 		static void Get_Clouds (float &cloudcover, float &gloominess);
@@ -553,6 +568,14 @@ class	BackgroundMgrClass : public SaveLoadSubSystemClass, public NetworkObjectCl
 		static bool Set_War_Blitz (float intensity, float ramptime = 0.0f);
 		static bool Set_War_Blitz (float intensity, float startdistance, float enddistance, float heading, float distribution, float ramptime = 0.0f, bool override = false);
 		static void Get_War_Blitz (float &intensity, float &startdistance, float &enddistance, float &heading, float &distribution);
+
+		//
+		//	A single bolt between two points in the world, as opposed to the
+		//	distant ones the weather draws.  It lasts a fraction of a second
+		//	and then takes itself out of the scene.  Client-side.
+		//
+		static void Create_Lightning_Bolt (const Vector3 &start, const Vector3 &end, float width = 1.0f);
+		static void Clear_Lightning_Bolts (void);
 
 		static void Update (PhysicsSceneClass *mainscene, CameraClass *camera);
 
@@ -631,6 +654,7 @@ class	BackgroundMgrClass : public SaveLoadSubSystemClass, public NetworkObjectCl
 		static unsigned							_Minutes;
 		static LightSourceTypeEnum				_LightSourceType;
   		static SkyClass::MoonTypeEnum			_MoonType;
+  		static bool									_MoonIsEarth;
 		static BackgroundParameterClass		_Parameters [PARAMETER_COUNT];
 		static Vector3								_LightVector;
 		static Vector3								_UnitLightVector;

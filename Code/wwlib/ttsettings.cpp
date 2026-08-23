@@ -389,6 +389,23 @@ TTSettingsClass::Load_UI (const INIClass &ini)
 //	Load
 //
 ////////////////////////////////////////////////////////////////
+bool
+TTSettingsClass::Load_UI_File (const char *filename)
+{
+	if ((filename == nullptr) || (filename [0] == 0)) {
+		return false;
+	}
+
+	INIClass ini;
+	if (!Load_File (filename, ini)) {
+		return false;
+	}
+
+	Load_UI (ini);
+	return true;
+}
+
+
 void
 TTSettingsClass::Load (void)
 {

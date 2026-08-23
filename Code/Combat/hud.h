@@ -67,6 +67,14 @@ public:
 	static	bool	Is_Enabled( void );
 	static	void	Enable( bool );
 
+	//
+	//	A picture the level puts over the whole screen -- a briefing, a map, a
+	//	photograph.  It is drawn above everything else the HUD draws and is
+	//	cleared by the level, not by a timer.
+	//
+	static	void	Set_Info_Texture( const char * texture_name );
+	static	void	Clear_Info_Texture( void );
+
 	static	void	Force_Weapon_Chart_Update( void );
 	static	void	Force_Weapon_Chart_Display( void );
 

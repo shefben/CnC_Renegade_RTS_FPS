@@ -40,6 +40,7 @@
 #include "assetmgr.h"
 #include "AudibleSound.h"
 #include "camera.h"
+#include "combat.h"
 #include "dazzle.h"
 #include "dx8wrapper.h"
 #include "gameobjmanager.h"
@@ -54,6 +55,7 @@
 #include "texture.h"
 #include "WWAudio.h"
 #include "wwmemlog.h"
+#include "segline.h"
 #include "seglinerenderer.h"
 #include "textureloader.h"
 #include <algorithm>
@@ -68,6 +70,118 @@ unsigned											  BackgroundMgrClass::_Hours;
 unsigned											  BackgroundMgrClass::_Minutes;
 BackgroundMgrClass::LightSourceTypeEnum  BackgroundMgrClass::_LightSourceType;
 SkyClass::MoonTypeEnum						  BackgroundMgrClass::_MoonType;
+bool												  BackgroundMgrClass::_MoonIsEarth;
+
+static Random2Class _RandomNumber (0x1f855092);
+
+
+//
+//	The bolts a script has asked for, each with the time it has left.  The
+//	weather's own lightning is drawn by the sky and is nothing to do with
+//	these; these stand between two named points on the ground.
+//
+struct	ScriptedBoltStruct
+{
+	SegmentedLineClass *	Bolt;
+	float						SecondsLeft;
+
+	bool	operator == (const ScriptedBoltStruct &other) const	{ return Bolt == other.Bolt; }
+	bool	operator != (const ScriptedBoltStruct &other) const	{ return Bolt != other.Bolt; }
+};
+
+static DynamicVectorClass<ScriptedBoltStruct>	_ScriptedBolts;
+
+static const float	SCRIPTED_BOLT_SECONDS	= 0.35f;
+
+
+void BackgroundMgrClass::Create_Lightning_Bolt (const Vector3 &start, const Vector3 &end, float width)
+{
+	if (COMBAT_SCENE == nullptr) {
+		return;
+	}
+
+	Vector3	along		= end - start;
+	float		length	= along.Length();
+	if (length < WWMATH_EPSILON) {
+		return;
+	}
+
+	//	One vertex every couple of metres, wandering off the straight line.
+	const int	randomness	= 100;
+	const float	amplitude	= 1.5f;
+
+	int vertexcount = (int)std::max (2.0f, length * 0.5f);
+	if (vertexcount > 256) {
+		vertexcount = 256;
+	}
+
+	Vector3 *	points	= new Vector3 [vertexcount];
+	Vector3		sideways	(-along.Y, along.X, 0.0f);
+	if (sideways.Length2() < WWMATH_EPSILON) {
+		sideways.Set (1.0f, 0.0f, 0.0f);
+	}
+	sideways.Normalize();
+
+	float drift = 0.0f;
+	for (int index = 0; index < vertexcount; index ++) {
+		float along_fraction = index / (float)(vertexcount - 1);
+		points [index] = start + (along * along_fraction) + (sideways * drift);
+		drift += _RandomNumber (-randomness, +randomness) * 0.5f * amplitude / randomness;
+	}
+
+	//	The ends are where they were asked for, however far the middle wandered.
+	points [0]						= start;
+	points [vertexcount - 1]	= end;
+
+	SegmentedLineClass *bolt = new SegmentedLineClass;
+	bolt->Set_Points (vertexcount, points);
+	delete [] points;
+
+	TextureClass *texture = WW3DAssetManager::Get_Instance()->Get_Texture ("LightningBolt.tga",
+			TextureClass::MIP_LEVELS_3);
+	bolt->Set_Texture (texture);
+	REF_PTR_RELEASE (texture);
+
+	bolt->Set_Shader (ShaderClass::_PresetAdditive2DShader);
+	bolt->Set_Width (width);
+	bolt->Set_Texture_Mapping_Mode (SegLineRendererClass::UNIFORM_WIDTH_TEXTURE_MAP);
+	bolt->Set_Merge_Intersections (false);
+	bolt->Set_Disable_Sorting (true);
+
+	COMBAT_SCENE->Add_Render_Object (bolt);
+
+	ScriptedBoltStruct entry = { bolt, SCRIPTED_BOLT_SECONDS };
+	_ScriptedBolts.Add (entry);
+}
+
+
+void BackgroundMgrClass::Clear_Lightning_Bolts (void)
+{
+	for (int index = 0; index < _ScriptedBolts.Count(); index ++) {
+		SegmentedLineClass *bolt = _ScriptedBolts [index].Bolt;
+		bolt->Remove();
+		bolt->Release_Ref();
+	}
+
+	_ScriptedBolts.Delete_All();
+}
+
+
+static void	Update_Scripted_Bolts (float seconds)
+{
+	for (int index = _ScriptedBolts.Count() - 1; index >= 0; index --) {
+
+		_ScriptedBolts [index].SecondsLeft -= seconds;
+		if (_ScriptedBolts [index].SecondsLeft > 0.0f) {
+			continue;
+		}
+
+		SegmentedLineClass *bolt = _ScriptedBolts [index].Bolt;
+		bolt->Remove();
+		bolt->Release_Ref();
+		_ScriptedBolts.Delete (index);
+	}
+}
 BackgroundParameterClass					  BackgroundMgrClass::_Parameters [PARAMETER_COUNT];
 Vector3											  BackgroundMgrClass::_LightVector;
 Vector3											  BackgroundMgrClass::_UnitLightVector;
@@ -79,7 +193,6 @@ bool												  BackgroundMgrClass::_Dirty;
 SkyClass											 *BackgroundMgrClass::_Sky		= nullptr;
 DazzleRenderObjClass							 *BackgroundMgrClass::_Dazzle	= nullptr;
 
-static Random2Class _RandomNumber (0x1f855092);
 
 
 /***********************************************************************************************
@@ -2671,12 +2784,14 @@ void SkyClass::Set_Color()
  * HISTORY:                                                                                    *
  *   09/15/00    IML : Created.                                                                *
  *=============================================================================================*/
-void SkyClass::Set_Moon_Type (MoonTypeEnum moontype)
+void SkyClass::Set_Moon_Type (MoonTypeEnum moontype, bool earth)
 {
 	const char *moontextures [MOON_TYPE_COUNT] = {"FullMoon.tga",
 																 "PartMoon.tga"};
+	const char *earthtextures [MOON_TYPE_COUNT] = {"FullEarth.tga",
+																  "PartEarth.tga"};
 
-	Moon->Set_Texture (moontextures [moontype]);
+	Moon->Set_Texture (earth ? earthtextures [moontype] : moontextures [moontype]);
 }
 
 
@@ -3706,11 +3821,13 @@ void BackgroundMgrClass::Update (PhysicsSceneClass *mainscene, CameraClass *came
 
 	if (Is_Dirty()) {
 		_Sky->Set_Time_Of_Day (_Hours, _Minutes);
-		_Sky->Set_Moon_Type (_MoonType);
+		_Sky->Set_Moon_Type (_MoonType, _MoonIsEarth);
 	}
 
 	// Process parameters.
 	time = WW3D::Get_Frame_Time() * 0.001f;
+
+	Update_Scripted_Bolts (time);
 
 	cloudsmodified	 = _Parameters [PARAMETER_CLOUD_COVER].Update (time, _CloudOverrideCount > 0);
 	cloudsmodified	|= _Parameters [PARAMETER_CLOUD_GLOOMINESS].Update (time, _CloudOverrideCount > 0);
@@ -4033,6 +4150,7 @@ void BackgroundMgrClass::Export_Rare (BitStreamClass &packet)
 	packet.Add (_CloudOverrideCount);
 	packet.Add (_LightningOverrideCount);
 	packet.Add (_SkyTintOverrideCount);
+	packet.Add (_MoonIsEarth);
 }
 
 
@@ -4069,6 +4187,15 @@ void BackgroundMgrClass::Import_Rare (BitStreamClass &packet)
 	packet.Get (_CloudOverrideCount);
 	packet.Get (_LightningOverrideCount);
 	packet.Get (_SkyTintOverrideCount);
+
+	{
+		bool earth = false;
+		packet.Get (earth);
+		if (earth != _MoonIsEarth) {
+			_MoonIsEarth = earth;
+			Set_Dirty();
+		}
+	}
 }
 
 

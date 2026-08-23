@@ -2264,9 +2264,41 @@ float	LastHealth = 0;
 float	CenterHealthTimer = 0;
 const float	CENTER_HEALTH_TIME	= 2.0f;
 
+//
+//	The full-screen picture a level can put up.  One quad covering the
+//	screen, whose texture the level names; nothing is drawn while there is
+//	no texture.
+//
+static	Render2DClass *	InfoTextureRenderer	= nullptr;
+static	bool					RenderInfoTexture		= false;
+
+
+void	HUDClass::Set_Info_Texture( const char * texture_name )
+{
+	if ( InfoTextureRenderer == nullptr || texture_name == nullptr ) {
+		return;
+	}
+
+	InfoTextureRenderer->Set_Texture( texture_name );
+	RenderInfoTexture = true;
+}
+
+
+void	HUDClass::Clear_Info_Texture( void )
+{
+	RenderInfoTexture = false;
+}
+
+
 static	void	Info_Init( void )
 {
 	Info_Editor_Init();
+
+	InfoTextureRenderer = new Render2DClass();
+	InfoTextureRenderer->Set_Coordinate_Range( Render2DClass::Get_Screen_Resolution() );
+	InfoTextureRenderer->Add_Quad( Render2DClass::Get_Screen_Resolution(),
+			RectClass( 0, 0, 1, 1 ), 0xFFFFFFFF );
+	RenderInfoTexture = false;
 
 	InfoRenderer = new Render2DClass();
 	InfoRenderer->Set_Texture( HUD_MAIN_TEXTURE );
@@ -2290,6 +2322,10 @@ static	void	Info_Init( void )
 static	void	Info_Shutdown( void )
 {
 	Info_Editor_Shutdown() ;
+
+	delete InfoTextureRenderer;
+	InfoTextureRenderer = nullptr;
+	RenderInfoTexture = false;
 
 	delete InfoRenderer;
 	InfoRenderer = nullptr;
@@ -2819,6 +2855,11 @@ void 	HUDClass::Render()
 			if ( RenderImages[i] ) {
 				RenderImages[i]->Render();
 			}
+		}
+
+		//	Over the top of everything else the HUD drew.
+		if ( RenderInfoTexture && InfoTextureRenderer != nullptr ) {
+			InfoTextureRenderer->Render();
 		}
 	}
 #endif

@@ -22,6 +22,10 @@
 #include "bitpackids.h"
 #include "combat.h"
 #include "gameeventbus.h"
+#include "backgroundmgr.h"
+#include "hud.h"
+#include "mapmgr.h"
+#include "ttsettings.h"
 #include "gamehint.h"
 #include "messagewindow.h"
 #include "networkobjectfactory.h"
@@ -180,6 +184,28 @@ cScScriptCommandEvent::Act (void)
 
 		case SCRIPT_CLIENT_CMD_DISPLAY_NOD_TERMINAL:
 			ScriptEngine::Display_NOD_Player_Terminal ();
+			break;
+
+		case SCRIPT_CLIENT_CMD_SET_INFO_TEXTURE:
+			if (Text.Is_Empty ()) {
+				HUDClass::Clear_Info_Texture ();
+			} else {
+				HUDClass::Set_Info_Texture (Text);
+			}
+			break;
+
+		case SCRIPT_CLIENT_CMD_LOAD_HUD_INI:
+			TTSettingsClass::Load_UI_File (Text);
+			break;
+
+		case SCRIPT_CLIENT_CMD_CHANGE_RADAR_MAP:
+			MapMgrClass::Set_Map_Texture (Text);
+			MapMgrClass::Set_Map_Scale (Vector2 (FloatParam1, FloatParam1));
+			MapMgrClass::Set_Map_Center (Vector2 (Position.X, Position.Y));
+			break;
+
+		case SCRIPT_CLIENT_CMD_CREATE_LIGHTNING:
+			BackgroundMgrClass::Create_Lightning_Bolt (Position, Color, FloatParam1);
 			break;
 
 		case SCRIPT_CLIENT_CMD_DISPLAY_GAME_HINT:

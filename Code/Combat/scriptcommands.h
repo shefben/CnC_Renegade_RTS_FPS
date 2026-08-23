@@ -458,6 +458,31 @@ namespace ScriptEngine
 	// Background
 	void Set_Clouds (float cloudcover, float cloudgloominess, float ramptime);
 	void Set_Lightning (float intensity, float startdistance, float enddistance, float heading, float distribution, float ramptime);
+
+	//	The weather as it stands, so a script can put it back afterwards.
+	void Get_Clouds (float & cloudcover, float & cloudgloominess);
+	void Get_Lightning (float & intensity, float & startdistance, float & enddistance, float & heading, float & distribution);
+
+	//	One bolt between two points on the map, as opposed to the distant
+	//	ones the weather draws.
+	void Create_Lightning (const Vector3 & start, const Vector3 & end, float width = 1.0f);
+
+	//	The moon, drawn as the earth, for a level that is not standing on it.
+	void Set_Moon_Is_Earth (bool earth);
+
+	//
+	//	The radar's own map: which picture it draws, how many pixels of it
+	//	cover a metre of world, and where world zero sits on it.
+	//
+	void Change_Radar_Map (float scale, float offset_x, float offset_y, const char * texture_name);
+
+	//
+	//	A picture over one player's whole screen, and the HUD layout they
+	//	draw with.  Both are that player's alone.
+	//
+	void Set_Info_Texture ( GameObject * player, const char * texture_name );
+	void Clear_Info_Texture ( GameObject * player );
+	void Load_New_HUD_INI ( GameObject * player, const char * ini_name );
 	void Set_War_Blitz (float intensity, float startdistance, float enddistance, float heading, float distribution, float ramptime);
 
 	// Weather
