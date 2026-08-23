@@ -116,6 +116,15 @@ public:
 	// Get a parameter as a float
 	float Get_Float_Parameter(const char* parameterName);
 
+	// Get a parameter as a bool.  Anything that reads as a non-zero integer is
+	// true; a level author writes 1 or 0.
+	bool Get_Bool_Parameter(int index)
+		{return Get_Int_Parameter(index) != 0;}
+
+	// Get a parameter as a bool
+	bool Get_Bool_Parameter(const char* parameterName)
+		{return Get_Int_Parameter(parameterName) != 0;}
+
 	// Get a parameter as a vector3
 	Vector3 Get_Vector3_Parameter(int index);
 
