@@ -25,9 +25,9 @@ NAMED = re.compile(
     r'\b(?:DECLARE|REGISTER)_SCRIPT_TT_NAMED\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*,'
     r'\s*"([^"]*)"')
 
-#	a merged script the 4.8.4 package also registered under a second name.
-#	Both names have to be unique across the catalog, so both are collected:
-#	the class name here, and the alias just below.
+#	a merged script the 4.8.4 package also registered under names of its own.
+#	Every one has to be unique across the catalog, so all are collected: the
+#	class name here, and the semicolon-separated alias list just below.
 ALIAS = re.compile(
     r'\b(?:DECLARE|REGISTER)_SCRIPT_MERGED_ALIAS\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
 
@@ -159,15 +159,23 @@ def scan(root):
 
             for pattern in (DECLARE, REGISTER, REGISTRANT, NAMED, ALIAS, ALIAS_NAME):
                 for match in pattern.finditer(text):
-                    script = match.group(1)
                     line = text.count('\n', 0, match.start()) + 1
 
                     #	the macro definitions themselves are not registrations
                     if in_macro(lines, line):
                         continue
 
-                    found.setdefault(script.lower(), []).append(
-                        (script, path, line))
+                    #	an alias field is a semicolon-separated list of names
+                    names = (match.group(1).split(';')
+                             if pattern is ALIAS_NAME else [match.group(1)])
+
+                    for script in names:
+                        script = script.strip()
+                        if not script:
+                            continue
+
+                        found.setdefault(script.lower(), []).append(
+                            (script, path, line))
 
     return found
 

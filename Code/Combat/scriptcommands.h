@@ -565,6 +565,14 @@ namespace ScriptEngine
 	//
 	void Grant_Weapon ( GameObject * obj, const char * weapon_name, bool grant,
 			int rounds, bool in_clips );
+
+	//
+	//	Give an object the weapon with this definition id, and optionally make
+	//	it the one in its hands.  False if the id names no weapon: a level that
+	//	leaves the parameter at zero is asking for whatever the preset already
+	//	carries.
+	//
+	bool Grant_Weapon_Definition ( GameObject * obj, int definition_id, bool select );
 	void Set_Skin ( GameObject * obj, const char * armor_name );
 	void Set_Max_Health ( GameObject * obj, float health );
 	void Set_Max_Shield_Strength ( GameObject * obj, float strength );

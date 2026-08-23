@@ -126,6 +126,13 @@ public:
 	static ScriptFactoryClass *	Find (const char *name);
 
 	//
+	//	Whether one of the names in a semicolon-separated alias list is this
+	//	one.  A script that absorbed several of another package's names
+	//	answers to all of them.
+	//
+	static bool						Alias_Matches (const char *aliases, const char *name);
+
+	//
 	//	Enumeration, for the editor catalog and for diagnostics.  Index order
 	//	is the sorted order, so it is stable between runs.
 	//

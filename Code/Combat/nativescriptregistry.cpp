@@ -252,18 +252,54 @@ NativeScriptRegistry::Find (const char *name)
 	}
 
 	//
-	//	Not a current name.  A script that was renamed keeps its old name as an
-	//	alias so that levels saved against it still load; aliases are rare
-	//	enough that a linear sweep is the right cost.
+	//	Not a current name.  A script that was renamed, or that a merged package
+	//	also registered under names of its own, keeps those as aliases so that
+	//	levels saved against them still load; aliases are rare enough that a
+	//	linear sweep is the right cost.
 	//
 	for (int index = 0; index < _SortedIndex->Count (); index ++) {
-		const char *alias = (*_SortedIndex)[index]->Get_Alias ();
-		if (alias != nullptr && ::_stricmp (alias, name) == 0) {
+		if (Alias_Matches ((*_SortedIndex)[index]->Get_Alias (), name)) {
 			return (*_SortedIndex)[index];
 		}
 	}
 
 	return nullptr;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Alias_Matches
+//
+//	A factory's alias field is a semicolon-separated list, because a script
+//	that absorbed several of another package's names answers to all of them.
+//
+////////////////////////////////////////////////////////////////
+bool
+NativeScriptRegistry::Alias_Matches (const char *aliases, const char *name)
+{
+	if (aliases == nullptr || name == nullptr) {
+		return false;
+	}
+
+	const size_t length = ::strlen (name);
+
+	for (const char *start = aliases; *start != 0; ) {
+		const char *end = ::strchr (start, ';');
+		const size_t span = (end != nullptr) ? (size_t)(end - start) : ::strlen (start);
+
+		if (span == length && ::_strnicmp (start, name, length) == 0) {
+			return true;
+		}
+
+		if (end == nullptr) {
+			break;
+		}
+
+		start = end + 1;
+	}
+
+	return false;
 }
 
 

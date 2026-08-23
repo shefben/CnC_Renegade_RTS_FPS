@@ -85,7 +85,14 @@ enum
 	CUSTOM_EVENT_CONVERSATION_REMARK_ENDED,
 
 	CUSTOM_EVENT_LADDER_OCCUPIED,
-	CUSTOM_EVENT_FALLING_DAMAGE
+	CUSTOM_EVENT_FALLING_DAMAGE,
+
+	//
+	//	The inverse of a building being destroyed.  Nothing in stock Renegade
+	//	brings a building back, so the defences it drives never had to hear
+	//	about it; Set_Is_Destroyed does, and they do.
+	//
+	CUSTOM_EVENT_BUILDING_REVIVED
 };
 
 #define	MovementCompleteReason		ActionCompleteReason		// TEMP

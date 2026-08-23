@@ -45,6 +45,7 @@
 //
 #include "building.h"
 #include "buildingaggregate.h"
+#include "playertype.h"
 #include "soldier.h"
 
 /* GENERAL TOOLKIT INFORMATION
@@ -709,37 +710,107 @@ DECLARE_SCRIPT(M00_ChainRxn_Barrel_JDG, "Controller_ID :int")
 
   - The guns use enemy_seen to spot, and inform the missile when it is time to fire.
 
+  The 4.8.4 package registered its own tower under this name and under GDI_AGT, and the merged
+  result is what runs. From it: the guns and the missile exist exactly while the tower is powered
+  and enabled, rather than standing there permanently with their perception switched off; they
+  take the tower's own side rather than being GDI by construction; and a level can name the weapon
+  they carry.
+
+  Parameters:
+
+  MissileDef		= Definition id of the weapon to give the missile emitter, or 0 for the preset's own.
+  GunDef			= Definition id of the weapon to give the four guns, or 0 for the preset's own.
 */
 
-DECLARE_SCRIPT_MERGED (M00_Advanced_Guard_Tower, "")
+DECLARE_SCRIPT_MERGED_ALIAS (M00_Advanced_Guard_Tower, "MissileDef=0:int,GunDef=0:int", "GDI_AGT")
 {
+	enum { GUN_COUNT = 4 };
+
 	int missile_id;
-	int gun_01_id;
-	int gun_02_id;
-	int gun_03_id;
-	int gun_04_id;
+	int gun_id[GUN_COUNT];
 	bool can_fire;
 
 	//Adding unneeded save/load variables just to be safe -- 2/12/2002 JDG.
 	REGISTER_VARIABLES()
 	{
 		SAVE_VARIABLE(missile_id, 1);
-		SAVE_VARIABLE(gun_01_id, 2);
-		SAVE_VARIABLE(gun_02_id, 3);
-		SAVE_VARIABLE(gun_03_id, 4);
-		SAVE_VARIABLE(gun_04_id, 5);
-		SAVE_VARIABLE(can_fire, 6);
+		SAVE_VARIABLE(gun_id, 2);
+		SAVE_VARIABLE(can_fire, 3);
 	}
 
 	void Created (GameObject* obj) override
 	{
 		can_fire = true;
-		ScriptEngine::Enable_Hibernation (obj, false);
 		missile_id = 0;
-		gun_01_id = 0;
-		gun_02_id = 0;
-		gun_03_id = 0;
-		gun_04_id = 0;
+		for (int gun_index = 0; gun_index < GUN_COUNT; gun_index++)
+		{
+			gun_id[gun_index] = 0;
+		}
+
+		ScriptEngine::Enable_Hibernation (obj, false);
+
+		if (ScriptEngine::Get_Building_Power (obj))
+		{
+			Create_Guns (obj);
+		}
+	}
+
+	void Killed( GameObject * /*obj*/, GameObject * /*killer*/ ) override
+	{
+		//
+		// Nothing else ever removed them, so a destroyed tower left four guns and a
+		// missile emitter standing in the air.
+		//
+		Destroy_Guns ();
+	}
+
+	void Custom (GameObject * obj, int type, intptr_t param, GameObject * /*sender*/) override
+	{
+		//
+		// The building itself says when it has power and when it has been brought
+		// back. Stock polled for the first once a second and never heard about the
+		// second at all.
+		//
+		if (type == CUSTOM_EVENT_BUILDING_POWER_CHANGED)
+		{
+			if (param == 0)
+			{
+				Destroy_Guns ();
+			}
+			else if (can_fire)
+			{
+				Create_Guns (obj);
+			}
+		}
+		else if (type == CUSTOM_EVENT_BUILDING_REVIVED)
+		{
+			if (can_fire && ScriptEngine::Get_Building_Power (obj))
+			{
+				Create_Guns (obj);
+			}
+		}
+
+		//
+		// A mission turning the tower off and on. The two names are the stock ones.
+		//
+		else if (type == 1)
+		{
+			can_fire = true;
+			if (ScriptEngine::Get_Building_Power (obj))
+			{
+				Create_Guns (obj);
+			}
+		}
+		else if (type == 0)
+		{
+			can_fire = false;
+			Destroy_Guns ();
+		}
+	}
+
+	void Create_Guns (GameObject * obj)
+	{
+		Destroy_Guns ();
 
 		// Create the four guns associated with this object.
 
@@ -781,226 +852,133 @@ DECLARE_SCRIPT_MERGED (M00_Advanced_Guard_Tower, "")
 		const float cos_facing = cosf (facing);
 		const float sin_facing = sinf (facing);
 
-		static const float GUN_OFFSET[4][2] = {
+		static const float GUN_OFFSET[GUN_COUNT][2] = {
 			{  5.019f, -3.409f },
 			{  5.011f,  3.672f },
 			{ -5.011f,  3.657f },
 			{ -5.013f, -3.406f },
 		};
 
-		Vector3 gun_pos[4];
-		for (int gun_index = 0; gun_index < 4; gun_index++)
-		{
-			const float local_x = GUN_OFFSET[gun_index][0];
-			const float local_y = GUN_OFFSET[gun_index][1];
-
-			gun_pos[gun_index].X = my_location.X + (local_x * cos_facing) - (local_y * sin_facing);
-			gun_pos[gun_index].Y = my_location.Y + (local_x * sin_facing) + (local_y * cos_facing);
-			gun_pos[gun_index].Z = my_location.Z - 9.0f;
-		}
-
-		Vector3 gun_01_pos = gun_pos[0];
-		Vector3 gun_02_pos = gun_pos[1];
-		Vector3 gun_03_pos = gun_pos[2];
-		Vector3 gun_04_pos = gun_pos[3];
+		const int side = ScriptEngine::Get_Player_Type (obj);
 
 		GameObject * missile_object = ScriptEngine::Create_Object ("GDI_AGT", missile_loc);
 		if (missile_object)
 		{
+			ScriptEngine::Grant_Weapon_Definition (missile_object, Get_Int_Parameter ("MissileDef"), true);
+			ScriptEngine::Set_Player_Type (missile_object, side);
 			ScriptEngine::Attach_Script (missile_object, "M00_Advanced_Guard_Tower_Missile", "");
 			missile_id = ScriptEngine::Get_ID (missile_object);
 		}
-		GameObject * gun_01 = ScriptEngine::Create_Object ("GDI_Ceiling_Gun_AGT", gun_01_pos);
-		if (gun_01)
-		{
-			ScriptEngine::Attach_Script (gun_01, "M00_Advanced_Guard_Tower_Gun", "");
-			gun_01_id = ScriptEngine::Get_ID (gun_01);
-		}
-		GameObject * gun_02 = ScriptEngine::Create_Object ("GDI_Ceiling_Gun_AGT", gun_02_pos);
-		if (gun_02)
-		{
-			ScriptEngine::Attach_Script (gun_02, "M00_Advanced_Guard_Tower_Gun", "");
-			gun_02_id = ScriptEngine::Get_ID (gun_02);
-		}
-		GameObject * gun_03 = ScriptEngine::Create_Object ("GDI_Ceiling_Gun_AGT", gun_03_pos);
-		if (gun_03)
-		{
-			ScriptEngine::Attach_Script (gun_03, "M00_Advanced_Guard_Tower_Gun", "");
-			gun_03_id = ScriptEngine::Get_ID (gun_03);
-		}
-		GameObject * gun_04 = ScriptEngine::Create_Object ("GDI_Ceiling_Gun_AGT", gun_04_pos);
-		if (gun_04)
-		{
-			ScriptEngine::Attach_Script (gun_04, "M00_Advanced_Guard_Tower_Gun", "");
-			gun_04_id = ScriptEngine::Get_ID (gun_04);
-		}
-		ScriptEngine::Start_Timer (obj, this, 1.0f, 1);
-		ScriptEngine::Start_Timer (obj, this, 1.0f, 2);
-	}
 
-	void Killed( GameObject * obj, GameObject * /*killer*/ ) override
-	{
-		//telling AGT guns that AGT has been killed (2/12/2002 JDG)
-		GameObject * gun_01 = ScriptEngine::Find_Object (gun_01_id);
-		GameObject * gun_02 = ScriptEngine::Find_Object (gun_02_id);
-		GameObject * gun_03 = ScriptEngine::Find_Object (gun_03_id);
-		GameObject * gun_04 = ScriptEngine::Find_Object (gun_04_id);
-
-		if (gun_01 != nullptr)
+		for (int gun_index = 0; gun_index < GUN_COUNT; gun_index++)
 		{
-			ScriptEngine::Send_Custom_Event (obj, gun_01, 3, 0, 0);//tells gun 01 to reset action and lets him know AGT is dead -- JDG 2/12/02
-		}
+			const float local_x = GUN_OFFSET[gun_index][0];
+			const float local_y = GUN_OFFSET[gun_index][1];
 
-		if (gun_02 != nullptr)
-		{
-			ScriptEngine::Send_Custom_Event (obj, gun_02, 3, 0, 0);//tells gun 02 to reset action and lets him know AGT is dead -- JDG 2/12/02
-		}
+			Vector3 gun_pos;
+			gun_pos.X = my_location.X + (local_x * cos_facing) - (local_y * sin_facing);
+			gun_pos.Y = my_location.Y + (local_x * sin_facing) + (local_y * cos_facing);
+			gun_pos.Z = my_location.Z - 9.0f;
 
-		if (gun_03 != nullptr)
-		{
-			ScriptEngine::Send_Custom_Event (obj, gun_03, 3, 0, 0);//tells gun 03 to reset action and lets him know AGT is dead -- JDG 2/12/02
-		}
-
-		if (gun_04 != nullptr)
-		{
-			ScriptEngine::Send_Custom_Event (obj, gun_04, 3, 0, 0);//tells gun 04 to reset action and lets him know AGT is dead -- JDG 2/12/02
-		}
-
-		//
-		// Telling them the tower is dead is not enough -- nothing else ever removed them,
-		// so a destroyed tower left four guns and a missile emitter standing in the air.
-		//
-		ScriptEngine::Destroy_Object (gun_01);
-		ScriptEngine::Destroy_Object (gun_02);
-		ScriptEngine::Destroy_Object (gun_03);
-		ScriptEngine::Destroy_Object (gun_04);
-		ScriptEngine::Destroy_Object (ScriptEngine::Find_Object (missile_id));
-	}
-
-	void Timer_Expired (GameObject * obj, int timer_id) override
-	{
-		GameObject * gun_01 = ScriptEngine::Find_Object (gun_01_id);
-		GameObject * gun_02 = ScriptEngine::Find_Object (gun_02_id);
-		GameObject * gun_03 = ScriptEngine::Find_Object (gun_03_id);
-		GameObject * gun_04 = ScriptEngine::Find_Object (gun_04_id);
-		if (timer_id == 1)
-		{
-			if (gun_01)
+			GameObject * gun = ScriptEngine::Create_Object ("GDI_Ceiling_Gun_AGT", gun_pos);
+			if (gun == nullptr)
 			{
-				ScriptEngine::Send_Custom_Event (obj, gun_01, 1, missile_id, 0.0f);
+				continue;
 			}
-			if (gun_02)
-			{
-				ScriptEngine::Send_Custom_Event (obj, gun_02, 1, missile_id, 0.0f);
-			}
-			if (gun_03)
-			{
-				ScriptEngine::Send_Custom_Event (obj, gun_03, 1, missile_id, 0.0f);
-			}
-			if (gun_04)
-			{
-				ScriptEngine::Send_Custom_Event (obj, gun_04, 1, missile_id, 0.0f);
-			}
-		}
-		else if (timer_id == 2)
-		{
-			float health = ScriptEngine::Get_Health (obj);
-			bool power = ScriptEngine::Get_Building_Power (obj);
-			if ((!health) || (!power))
-			{
-				if (gun_01)
-				{
-					ScriptEngine::Send_Custom_Event (obj, gun_01, 2, 0, 0.0f);
-				}
-				if (gun_02)
-				{
-					ScriptEngine::Send_Custom_Event (obj, gun_02, 2, 0, 0.0f);
-				}
-				if (gun_03)
-				{
-					ScriptEngine::Send_Custom_Event (obj, gun_03, 2, 0, 0.0f);
-				}
-				if (gun_04)
-				{
-					ScriptEngine::Send_Custom_Event (obj, gun_04, 2, 0, 0.0f);
-				}
-			}
-			else if ((power) && (can_fire))
-			{
-				if (gun_01)
-				{
-					ScriptEngine::Send_Custom_Event (obj, gun_01, 2, 1, 0.0f);
-				}
-				if (gun_02)
-				{
-					ScriptEngine::Send_Custom_Event (obj, gun_02, 2, 1, 0.0f);
-				}
-				if (gun_03)
-				{
-					ScriptEngine::Send_Custom_Event (obj, gun_03, 2, 1, 0.0f);
-				}
-				if (gun_04)
-				{
-					ScriptEngine::Send_Custom_Event (obj, gun_04, 2, 1, 0.0f);
-				}
-			}
-			ScriptEngine::Start_Timer (obj, this, 1.0f, 2);
+
+			//
+			// 4.8.4 handed GunDef to the missile emitter instead of to the gun, four
+			// times over, so the guns never got the weapon the level named for them.
+			//
+			ScriptEngine::Grant_Weapon_Definition (gun, Get_Int_Parameter ("GunDef"), true);
+			ScriptEngine::Set_Player_Type (gun, side);
+			ScriptEngine::Attach_Script (gun, "M00_Advanced_Guard_Tower_Gun", "");
+			ScriptEngine::Send_Custom_Event (obj, gun, 1, missile_id, 0.0f);
+			gun_id[gun_index] = ScriptEngine::Get_ID (gun);
 		}
 	}
 
-	void Custom (GameObject * obj, int type, intptr_t /*param*/, GameObject * /*sender*/) override
+	void Destroy_Guns (void)
 	{
-		GameObject * gun_01 = ScriptEngine::Find_Object (gun_01_id);
-		GameObject * gun_02 = ScriptEngine::Find_Object (gun_02_id);
-		GameObject * gun_03 = ScriptEngine::Find_Object (gun_03_id);
-		GameObject * gun_04 = ScriptEngine::Find_Object (gun_04_id);
-		if (type == 1)
+		for (int gun_index = 0; gun_index < GUN_COUNT; gun_index++)
 		{
-			can_fire = true;
-			if (gun_01)
+			GameObject * gun = ScriptEngine::Find_Object (gun_id[gun_index]);
+			if (gun != nullptr)
 			{
-				ScriptEngine::Send_Custom_Event (obj, gun_01, 2, 1, 0.0f);
+				ScriptEngine::Destroy_Object (gun);
 			}
-			if (gun_02)
-			{
-				ScriptEngine::Send_Custom_Event (obj, gun_02, 2, 1, 0.0f);
-			}
-			if (gun_03)
-			{
-				ScriptEngine::Send_Custom_Event (obj, gun_03, 2, 1, 0.0f);
-			}
-			if (gun_04)
-			{
-				ScriptEngine::Send_Custom_Event (obj, gun_04, 2, 1, 0.0f);
-			}
+
+			gun_id[gun_index] = 0;
 		}
-		else if (!type)
+
+		GameObject * missile_object = ScriptEngine::Find_Object (missile_id);
+		if (missile_object != nullptr)
 		{
-			can_fire = false;
-			if (gun_01)
-			{
-				ScriptEngine::Send_Custom_Event (obj, gun_01, 2, 0, 0.0f);
-			}
-			if (gun_02)
-			{
-				ScriptEngine::Send_Custom_Event (obj, gun_02, 2, 0, 0.0f);
-			}
-			if (gun_03)
-			{
-				ScriptEngine::Send_Custom_Event (obj, gun_03, 2, 0, 0.0f);
-			}
-			if (gun_04)
-			{
-				ScriptEngine::Send_Custom_Event (obj, gun_04, 2, 0, 0.0f);
-			}
+			ScriptEngine::Destroy_Object (missile_object);
 		}
+
+		missile_id = 0;
 	}
 };
 
 
-DECLARE_SCRIPT (M00_Advanced_Guard_Tower_Gun, "")
+//
+//	Whether an Advanced Guard Tower part should shoot at this.  The tower is a
+//	building and picks its own fights, so it takes only the other side of the
+//	war -- not a neutral, not a renegade -- and not the harvester, which is a
+//	player's decision to shoot at.  Stock checked none of this and fired at the
+//	dead and at things it could not see.
+//
+static bool M00_AGT_Is_Valid_Target (GameObject * obj, GameObject * target, float minimum_range)
 {
+	if (target == nullptr)
+	{
+		return false;
+	}
+
+	const int my_side = ScriptEngine::Get_Player_Type (obj);
+	const int wanted = (my_side == PLAYERTYPE_NOD) ? PLAYERTYPE_GDI : PLAYERTYPE_NOD;
+	if (ScriptEngine::Get_Player_Type (target) != wanted)
+	{
+		return false;
+	}
+
+	if (ScriptEngine::Get_Health (target) <= 0.0f)
+	{
+		return false;
+	}
+
+	if (!ScriptEngine::Is_Object_Visible (obj, target))
+	{
+		return false;
+	}
+
+	if (ScriptEngine::Is_Harvester (target))
+	{
+		return false;
+	}
+
+	Vector3 my_position = ScriptEngine::Get_Position (obj);
+	Vector3 target_position = ScriptEngine::Get_Position (target);
+	return ScriptEngine::Get_Distance (my_position, target_position) > minimum_range;
+}
+
+
+/* M00_Advanced_Guard_Tower_Gun
+
+  One of the four ceiling guns. Spots for itself and for the missile emitter, which cannot see.
+
+  Registered by the 4.8.4 package as GDI_AGT_Gun as well, and the merged result is what runs: the
+  gun holds a target for as long as that target is worth holding and re-checks ten times a second,
+  instead of firing blind for ten seconds at whatever it saw first.
+*/
+
+DECLARE_SCRIPT_MERGED_ALIAS (M00_Advanced_Guard_Tower_Gun, "", "GDI_AGT_Gun")
+{
+	enum { GUN_RANGE = 20 };
+
 	int missile_object;
+	int enemy_id;
 	bool agt_is_dead;
 
 	//Adding unneeded save/load variables just to be safe -- 2/12/2002 JDG.
@@ -1008,6 +986,7 @@ DECLARE_SCRIPT (M00_Advanced_Guard_Tower_Gun, "")
 	{
 		SAVE_VARIABLE(missile_object, 1);
 		SAVE_VARIABLE(agt_is_dead, 2);
+		SAVE_VARIABLE(enemy_id, 3);
 	}
 
 	void Created (GameObject * obj) override
@@ -1017,58 +996,74 @@ DECLARE_SCRIPT (M00_Advanced_Guard_Tower_Gun, "")
 		ScriptEngine::Innate_Enable (obj);
 		ScriptEngine::Enable_Enemy_Seen (obj, true);
 		missile_object = 0;
+		enemy_id = 0;
 		agt_is_dead = false;
+	}
+
+	void Destroyed (GameObject * obj) override
+	{
+		ScriptEngine::Action_Reset (obj, 100.0f);
 	}
 
 	void Enemy_Seen (GameObject * obj, GameObject * enemy) override
 	{
-		if (agt_is_dead == false)
+		if (agt_is_dead)
 		{
-			GameObject * missile_obj = ScriptEngine::Find_Object (missile_object);
-			if (missile_obj)
-			{
-				int enemy_id = ScriptEngine::Get_ID (enemy);
-				ScriptEngine::Send_Custom_Event (obj, missile_obj, 1, enemy_id, 0.0f);
-			}
-			Vector3 my_loc = ScriptEngine::Get_Position (obj);
-			Vector3 enemy_loc = ScriptEngine::Get_Position (enemy);
-			float distance = ScriptEngine::Get_Distance (my_loc, enemy_loc);
-			if (distance > 20.0f)
-			{
-				ActionParamsStruct params;
-				params.Set_Basic(this, 100, 1);
-				params.Set_Attack(enemy, 300.0f, 0.0f, true);
-				params.AttackCheckBlocked = false;
-				ScriptEngine::Action_Attack(obj, params);
-				ScriptEngine::Start_Timer (obj, this, 10.0f, 1);
-			}
+			return;
 		}
+
+		if (!M00_AGT_Is_Valid_Target (obj, enemy, (float)GUN_RANGE))
+		{
+			return;
+		}
+
+		Tell_Missile (obj, ScriptEngine::Get_ID (enemy));
+
+		//
+		// Already shooting at something that is still worth shooting at.
+		//
+		if (M00_AGT_Is_Valid_Target (obj, ScriptEngine::Find_Object (enemy_id), (float)GUN_RANGE))
+		{
+			return;
+		}
+
+		ActionParamsStruct params;
+		params.Set_Basic(this, 100, 1);
+		params.Set_Attack(enemy, 300.0f, 0.0f, true);
+		params.AttackCheckBlocked = false;
+		ScriptEngine::Action_Attack(obj, params);
+
+		enemy_id = ScriptEngine::Get_ID (enemy);
+		ScriptEngine::Start_Timer (obj, this, 0.1f, 1);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
 	{
-		if (timer_id == 1)
+		if (timer_id != 1)
+		{
+			return;
+		}
+
+		if (!M00_AGT_Is_Valid_Target (obj, ScriptEngine::Find_Object (enemy_id), (float)GUN_RANGE))
 		{
 			ScriptEngine::Action_Reset (obj, 100.0f);
+			enemy_id = 0;
+			return;
 		}
+
+		Tell_Missile (obj, enemy_id);
+		ScriptEngine::Start_Timer (obj, this, 0.1f, 1);
 	}
 
 	void Custom (GameObject * obj, int type, intptr_t param, GameObject * /*sender*/) override
 	{
 		if (type == 1)
 		{
-			missile_object = param;
+			missile_object = (int)param;
 		}
 		else if (type == 2)
 		{
-			if (param == 0)
-			{
-				ScriptEngine::Enable_Enemy_Seen (obj, false);
-			}
-			else
-			{
-				ScriptEngine::Enable_Enemy_Seen (obj, true);
-			}
+			ScriptEngine::Enable_Enemy_Seen (obj, param != 0);
 		}
 
 		else if (type == 3)//AGT has been killed...reset your action and prevent further firing -- 02/12/2002 JDG
@@ -1077,54 +1072,106 @@ DECLARE_SCRIPT (M00_Advanced_Guard_Tower_Gun, "")
 			ScriptEngine::Action_Reset (obj, 100.0f);
 		}
 	}
+
+	//
+	//	The emitter has no perception of its own; it shoots at what the guns see.
+	//
+	void Tell_Missile (GameObject * obj, int target_id)
+	{
+		GameObject * missile_obj = ScriptEngine::Find_Object (missile_object);
+		if (missile_obj != nullptr)
+		{
+			ScriptEngine::Send_Custom_Event (obj, missile_obj, 1, target_id, 0.0f);
+		}
+	}
 };
 
 
-DECLARE_SCRIPT (M00_Advanced_Guard_Tower_Missile, "")
+/* M00_Advanced_Guard_Tower_Missile
+
+  The missile emitter on the tower roof. Invisible, blind, and fires only at what the guns tell it
+  about. Registered by the 4.8.4 package as GDI_AGT_Missile as well.
+*/
+
+DECLARE_SCRIPT_MERGED_ALIAS (M00_Advanced_Guard_Tower_Missile, "", "GDI_AGT_Missile")
 {
-	bool firing;
+	enum { MISSILE_RANGE = 30 };
+
+	int enemy_id;
+	bool agt_is_dead;
+
+	REGISTER_VARIABLES()
+	{
+		SAVE_VARIABLE(enemy_id, 1);
+		SAVE_VARIABLE(agt_is_dead, 2);
+	}
 
 	void Created (GameObject * obj) override
 	{
 		ScriptEngine::Set_Is_Rendered (obj, false);
 		ScriptEngine::Enable_Hibernation (obj, false);
-		firing = false;
+		enemy_id = 0;
+		agt_is_dead = false;
+	}
+
+	void Destroyed (GameObject * obj) override
+	{
+		ScriptEngine::Action_Reset (obj, 100.0f);
 	}
 
 	void Custom (GameObject * obj, int type, intptr_t param, GameObject * /*sender*/) override
 	{
-		if (type == 1)
+		if (type == 3)
 		{
-			GameObject * enemy = ScriptEngine::Find_Object (param);
-			if (enemy)
-			{
-				Vector3 my_position = ScriptEngine::Get_Position (obj);
-				Vector3 enemy_position = ScriptEngine::Get_Position (enemy);
-				float distance = ScriptEngine::Get_Distance (my_position, enemy_position);
-				if (distance > 30.0f)
-				{
-					if (!firing)
-					{
-						firing = true;
-						ActionParamsStruct params;
-						params.Set_Basic(this, 100, 1);
-						params.Set_Attack(enemy, 300.0f, 0.0f, true);
-						params.AttackCheckBlocked = false;
-						ScriptEngine::Action_Attack(obj, params);
-						ScriptEngine::Start_Timer (obj, this, 1.0f, 1);
-					}
-				}
-			}
+			agt_is_dead = true;
+			ScriptEngine::Action_Reset (obj, 100.0f);
+			return;
 		}
+
+		if (type != 1 || agt_is_dead)
+		{
+			return;
+		}
+
+		//
+		// Already shooting at something that is still worth shooting at.
+		//
+		if (M00_AGT_Is_Valid_Target (obj, ScriptEngine::Find_Object (enemy_id), (float)MISSILE_RANGE))
+		{
+			return;
+		}
+
+		GameObject * enemy = ScriptEngine::Find_Object ((int)param);
+		if (!M00_AGT_Is_Valid_Target (obj, enemy, (float)MISSILE_RANGE))
+		{
+			return;
+		}
+
+		ActionParamsStruct params;
+		params.Set_Basic(this, 100, 1);
+		params.Set_Attack(enemy, 300.0f, 0.0f, true);
+		params.AttackCheckBlocked = false;
+		ScriptEngine::Action_Attack(obj, params);
+
+		enemy_id = (int)param;
+		ScriptEngine::Start_Timer (obj, this, 0.1f, 1);
 	}
 
 	void Timer_Expired (GameObject * obj, int timer_id) override
 	{
-		if (timer_id == 1)
+		if (timer_id != 1)
 		{
-			ScriptEngine::Action_Reset (obj, 100);
-			firing = false;
+			return;
 		}
+
+		if (!M00_AGT_Is_Valid_Target (obj, ScriptEngine::Find_Object (enemy_id), (float)MISSILE_RANGE))
+		{
+			ScriptEngine::Action_Reset (obj, 100.0f);
+			enemy_id = 0;
+			return;
+		}
+
+		ScriptEngine::Start_Timer (obj, this, 0.1f, 1);
 	}
 };
 
@@ -1292,7 +1339,29 @@ DECLARE_SCRIPT (M00_Nod_Turret, "")
 };
 
 
-DECLARE_SCRIPT_MERGED(M00_Nod_Obelisk_CNC, "Controller_ID=0:int")
+/* M00_Nod_Obelisk_CNC
+
+  The Obelisk of Light. Attach this to the building controller; the beam itself is a separate
+  object created forty-five metres above it, because the controller is not a phys object and
+  cannot aim.
+
+  The 4.8.4 package registered its own obelisk under M00_Nod_Obelisk_CnC, Nod_Obelisk_CnC and
+  Nod_Obelisk_CnC_Ground, and the merged result is what runs. From it: the beam exists exactly
+  while the building is powered, rather than standing there permanently with its perception
+  switched off, and a level can name the weapon it fires and the model its charge effect wears.
+  The Ground variant differed only in shooting at GDI whoever owned it, which is the bug the
+  merged obelisk already fixes, so it is a second name for this script rather than a copy.
+
+  Parameters:
+
+  Controller_ID	= Object to tell the beam's id to, or 0 for nobody.
+  WeaponDef		= Definition id of the weapon to give the beam, or 0 for the preset's own.
+  EffectModel		= Model for the charge effect, or empty for the preset's own.
+*/
+
+DECLARE_SCRIPT_MERGED_ALIAS(M00_Nod_Obelisk_CNC,
+	"Controller_ID=0:int,WeaponDef=0:int,EffectModel:string",
+	"Nod_Obelisk_CnC;Nod_Obelisk_CnC_Ground")
 {
 	int obelisk_id;
 
@@ -1304,22 +1373,10 @@ DECLARE_SCRIPT_MERGED(M00_Nod_Obelisk_CNC, "Controller_ID=0:int")
 	void Created (GameObject * obj) override
 	{
 		obelisk_id = 0;
-		Vector3 my_location = ScriptEngine::Get_Position (obj);
-		my_location.Z += 45.0f;
-		GameObject * obelisk = 	ScriptEngine::Create_Object ("Nod_Obelisk", my_location);
-		if (obelisk)
+
+		if (ScriptEngine::Get_Building_Power (obj))
 		{
-			//
-			//	The beam belongs to whoever owns the building.  It used to be Nod
-			//	by construction, so an obelisk placed for the other team shot at
-			//	its own side.
-			//
-			ScriptEngine::Set_Player_Type (obelisk, ScriptEngine::Get_Player_Type (obj));
-			ScriptEngine::Attach_Script (obelisk, "M00_Obelisk_Weapon_CNC", "");
-			ScriptEngine::Start_Timer (obj, this, 1.0f, 1);
-			obelisk_id = ScriptEngine::Get_ID (obelisk);
-			// Send Obelisk Weapon ID to controller identified through parameter Controller_ID
-			ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(Get_Int_Parameter("Controller_ID")), M00_OBELISK_WEAPON_ID, ScriptEngine::Get_ID(obelisk), 0);
+			Create_Beam (obj);
 		}
 	}
 
@@ -1330,51 +1387,95 @@ DECLARE_SCRIPT_MERGED(M00_Nod_Obelisk_CNC, "Controller_ID=0:int")
 		{
 			ScriptEngine::Send_Custom_Event (obj, obelisk, 3, 0, 0);//this custom tells the obelisk weapon that the obelisk has been destroyed -- 02/12/2002 JDG
 		}
+
+		Destroy_Beam ();
 	}
 
-	void Timer_Expired (GameObject * obj, int timer_id) override
+	void Custom (GameObject * obj, int type, intptr_t param, GameObject * /*sender*/) override
 	{
-		if (timer_id == 1)
+		//
+		// The building says when it has power and when it has been brought back.
+		// Stock polled for the first once a second and never heard about the second.
+		//
+		if (type == CUSTOM_EVENT_BUILDING_POWER_CHANGED)
 		{
-			float health = ScriptEngine::Get_Health (obj);
-			bool power = ScriptEngine::Get_Building_Power (obj);
-			if ((!health) || (!power))
+			if (param == 0)
 			{
-				GameObject * obelisk = ScriptEngine::Find_Object (obelisk_id);
-				if (obelisk)
-				{
-					ScriptEngine::Send_Custom_Event (obj, obelisk, 1, 0, 0.0f);
-				}
+				Destroy_Beam ();
 			}
-			else if (power)
+			else
 			{
-				GameObject * obelisk = ScriptEngine::Find_Object (obelisk_id);
-				if (obelisk)
-				{
-					ScriptEngine::Send_Custom_Event (obj, obelisk, 1, 1, 0.0f);
-				}
+				Create_Beam (obj);
 			}
-			ScriptEngine::Start_Timer (obj, this, 1.0f, 1);
 		}
-	}
+		else if (type == CUSTOM_EVENT_BUILDING_REVIVED)
+		{
+			if (ScriptEngine::Get_Building_Power (obj))
+			{
+				Create_Beam (obj);
+			}
+		}
 
-	void Custom (GameObject * /*obj*/, int type, intptr_t param, GameObject * /*sender*/) override
-	{
-		if ((type == 1) && (param == 1))
+		else if ((type == 1) && (param == 1))
 		{
 			// Custom received to destroy obelisk weapon.
-
-			GameObject * obelisk = ScriptEngine::Find_Object (obelisk_id);
-			if (obelisk)
-			{
-				ScriptEngine::Destroy_Object (obelisk);
-			}
+			Destroy_Beam ();
 		}
+	}
+
+	void Create_Beam (GameObject * obj)
+	{
+		Destroy_Beam ();
+
+		Vector3 my_location = ScriptEngine::Get_Position (obj);
+		my_location.Z += 45.0f;
+
+		GameObject * obelisk = ScriptEngine::Create_Object ("Nod_Obelisk", my_location);
+		if (obelisk == nullptr)
+		{
+			return;
+		}
+
+		//
+		//	The beam belongs to whoever owns the building.  It used to be Nod
+		//	by construction, so an obelisk placed for the other team shot at
+		//	its own side.
+		//
+		ScriptEngine::Set_Player_Type (obelisk, ScriptEngine::Get_Player_Type (obj));
+		ScriptEngine::Grant_Weapon_Definition (obelisk, Get_Int_Parameter ("WeaponDef"), true);
+		ScriptEngine::Attach_Script (obelisk, "M00_Obelisk_Weapon_CNC", Get_Parameter ("EffectModel"));
+		obelisk_id = ScriptEngine::Get_ID (obelisk);
+
+		// Send Obelisk Weapon ID to controller identified through parameter Controller_ID
+		ScriptEngine::Send_Custom_Event (obj, ScriptEngine::Find_Object(Get_Int_Parameter("Controller_ID")), M00_OBELISK_WEAPON_ID, obelisk_id, 0);
+	}
+
+	void Destroy_Beam (void)
+	{
+		GameObject * obelisk = ScriptEngine::Find_Object (obelisk_id);
+		if (obelisk != nullptr)
+		{
+			ScriptEngine::Destroy_Object (obelisk);
+		}
+
+		obelisk_id = 0;
 	}
 };
 
 
-DECLARE_SCRIPT_MERGED (M00_Obelisk_Weapon_CNC, "")
+/* M00_Obelisk_Weapon_CNC
+
+  The beam. Invisible, sits forty-five metres over the building, and is created and destroyed by
+  M00_Nod_Obelisk_CNC. Registered by the 4.8.4 package as Obelisk_Weapon_CnC and
+  Obelisk_Weapon_CnC_Ground as well.
+
+  Parameters:
+
+  EffectModel		= Model for the charge effect, or empty for the preset's own.
+*/
+
+DECLARE_SCRIPT_MERGED_ALIAS (M00_Obelisk_Weapon_CNC, "EffectModel:string",
+	"Obelisk_Weapon_CnC;Obelisk_Weapon_CnC_Ground")
 {
 	bool able_to_fire;
 	int current_target;
@@ -1407,6 +1508,16 @@ DECLARE_SCRIPT_MERGED (M00_Obelisk_Weapon_CNC, "")
 		GameObject * effect = ScriptEngine::Create_Object ("Obelisk Effect", my_position);
 		if (effect)
 		{
+			//
+			//	A level that wants its obelisk to charge in a different colour says
+			//	so here rather than shipping its own effect preset.
+			//
+			const char * effect_model = Get_Parameter ("EffectModel");
+			if (effect_model != nullptr && effect_model[0] != 0)
+			{
+				ScriptEngine::Set_Model (effect, effect_model);
+			}
+
 			powerup_effect_id = ScriptEngine::Get_ID (effect);
 			ScriptEngine::Set_Animation_Frame (effect, "OBL_POWERUP.OBL_POWERUP", 0);
 		}

@@ -5179,6 +5179,27 @@ void Grant_Weapon( GameObject * obj, const char * weapon_name, bool grant,
 }
 
 
+bool Grant_Weapon_Definition( GameObject * obj, int definition_id, bool select )
+{
+	if ( obj == nullptr || definition_id == 0 ) {
+		return false;
+	}
+
+	const WeaponDefinitionClass * def = WeaponManager::Find_Weapon_Definition( definition_id );
+	if ( def == nullptr || def->Get_Name() == nullptr ) {
+		return false;
+	}
+
+	Grant_Weapon( obj, def->Get_Name(), true, -1, true );
+
+	if ( select ) {
+		Select_Weapon( obj, def->Get_Name() );
+	}
+
+	return true;
+}
+
+
 void Remove_Weapon( GameObject * obj, const char * weapon_name )
 {
 	WeaponBagClass * bag = Peek_Weapon_Bag( obj );

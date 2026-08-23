@@ -1180,6 +1180,15 @@ BuildingGameObj::On_Revived (void)
 		BaseController->On_Building_Revived (this);
 	}
 
+	//
+	//	A defence that tore its guns down when the building fell has to be told
+	//	it may put them back up.
+	//
+	const GameObjObserverList &observer_list = Get_Observers ();
+	for (int index = 0; index < observer_list.Count (); index ++) {
+		observer_list[index]->Custom (this, CUSTOM_EVENT_BUILDING_REVIVED, 0, nullptr);
+	}
+
 	if (CombatManager::I_Am_Server ()) {
 		Set_Object_Dirty_Bit (NetworkObjectClass::BIT_RARE, true);
 	}
