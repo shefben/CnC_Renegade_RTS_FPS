@@ -1078,3 +1078,37 @@ twenty-five carry every script they registered; `gmlog.cpp` registers none;
 `jfwcust.cpp` is 89 of 90, its one holdout `Do_Objectives_Dlg` deferred to
 Phase 5 dialog work. Registry is 2497 built-in scripts with no duplicate
 names; `renegade` and `leveledit` both build clean.
+
+**P05-A: the objectives dialog, and the last blocked call.** `Do_Objectives_Dlg`
+is now `ScriptEngine::Display_Objectives_Text_Player` -- a first-class S->C
+script command acted on through `PlayerTerminalClass::Display_Objectives_Text`
+over the new `IDD_OBJECTIVES_TEXT`, with only the file name on the wire and a
+path in it refused. `JFW_Custom_Objectives_Dlg` is registered, so `jfwcust.cpp`
+is 90 of 90 and `TTScriptApiGap.tsv` has no `port-engine-work` row.
+
+**P05-B: 49 of TT's console commands, natively.** `Code/Commando/ttconsole.cpp`
+adds them to the one console function list the way `SystemSettings` already
+did, each reaching a client through the script command that already does the
+thing; two effects gained a per-player command
+(`Create_3D_WAV_Sound_At_Bone_Player`, `Set_Emot_Icon_Player`). The ten not
+ported -- the remote-screenshot pair, `mapch`, `tag`, `view`, `log`/`logp`,
+`version`/`sversion`, `serial` -- each carry a written reason in
+`docs/tt484/TTConsoleCommands.md`.
+
+**P05-C: the last two open hook sites, and the upward delete notification.**
+C4 stuck to level geometry sent object ID 0, which on a client belongs to the
+repair bay's welding arcs, so a charge attached itself to an arc; it now sends
+a sentinel. A ghosted soldier no longer collides with the DEFAULT group, which
+is 4.8.4's ladder fix. `cNetwork::Tell_Server_About_Delete_Notifications` gives
+the client half of a path stock had only server-to-client.
+`TTHookSites.tsv` has no open row.
+
+**P05 complete: TT 4.8.4 is natively implemented.** All seven of roadmap
+Section 11's categories are answered item by item in
+`docs/tt484/TTPhase5Audit.md` -- game-object/building extensions (11.1),
+network (11.2), HUD/radar/dialog (11.3), input (11.4, nothing to port: TT's
+`Input.h` adds only address-binding macros), collision (11.5), the script
+library (11.6) and console/admin (11.7). The parity matrix carries no
+`UNREVIEWED` or unexplained `MISSING` entry: 760 hook rows all dispositioned,
+363 script-API rows all done or explained N/A. Registry 2498 built-in scripts,
+no duplicate names; `renegade` and `leveledit` both build clean.

@@ -933,3 +933,24 @@ filter on `dest_confidence` / `confidence` rather than re-deriving them.
 - The 210 `REF_DEF2` bindings are the clearest evidence that most of TT's "address
   soup" is a symptom of closed-binary linkage, not genuine behavioral complexity.
   A native merge deletes them rather than translating them.
+---
+
+## 8. Phase 5 — closed
+
+Roadmap Section 11's acceptance is that this matrix carries no `UNREVIEWED` or
+unexplained `MISSING` entry. It does not.
+
+- `TTHookSites.tsv`: 760 rows, **no open row** (573 merged, 111 out of scope,
+  76 n/a). The last two -- the C4/repair-bay arc fix and TT's ghost/DEFAULT
+  collision change -- were merged in P05.
+- `TTScriptApiGap.tsv`: **no `port-engine-work` row** (338 done, 25 n/a).
+  `Do_Objectives_Dlg`, the last one, is now
+  `ScriptEngine::Display_Objectives_Text_Player`.
+- Every one of Section 11's seven categories is answered, item by item, in
+  `docs/tt484/TTPhase5Audit.md`, and the console commands command by command in
+  `docs/tt484/TTConsoleCommands.md`.
+
+The two soft results Section 6 carried forward are unchanged in kind but no longer
+soft in effect: every hook site now has a disposition rather than a guessed owner,
+and the 73 low-confidence file destinations were never a gate -- they are a
+convenience for whoever merges the owning subsystem next.

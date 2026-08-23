@@ -117,6 +117,7 @@ public:
    static int Send_Object_Update(NetworkObjectClass *object, int client_id);
    static void Tell_Client_About_Dynamic_Objects(int recipient_client_id, Vector3 & dest_pos);
 	static void Tell_Client_About_Delete_Notifications(int recipient_client_id);
+	static void Tell_Server_About_Delete_Notifications(void);
    static void Tell_Server_About_Dynamic_Objects(void);
 
    static void Server_Kill_Connection(int client_id);

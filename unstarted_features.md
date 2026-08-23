@@ -41,8 +41,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P05: Port remaining TT 4.8.4 engine-facing functionality (roadmap Section 11)
 
-- [ ] Acceptance: The TT parity matrix has no `UNREVIEWED` or unexplained `MISSING` entries.
-
 ## P06: TT compatibility/cleanup/testing HARD GATE (roadmap Section 12)
 
 - [ ] stock script catalog test

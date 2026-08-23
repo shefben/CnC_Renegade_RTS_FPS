@@ -254,6 +254,12 @@ bool CombatNetworkReceiverInstanceClass::Client_Update_Dynamic_Objects(bool is_u
 	/*TSS092101*/
 	WWASSERT(cNetwork::I_Am_Client());
 
+	//
+	//	An object this client has finished with is told about straight away,
+	//	not at the update rate below.
+	//
+	cNetwork::Tell_Server_About_Delete_Notifications();
+
 	static DWORD last_update_time_ms = 0;
    DWORD time_now_ms = TIMEGETTIME();
 	DWORD time_elapsed_ms = time_now_ms - last_update_time_ms;

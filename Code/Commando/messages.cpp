@@ -880,6 +880,43 @@ void cNetwork::Tell_Server_About_Dynamic_Objects
 }
 
 //-----------------------------------------------------------------------------
+//
+//	The mirror of Tell_Client_About_Delete_Notifications.  A client owns
+//	objects too -- its control object and the events it raises -- and stock
+//	only ever pushed a delete-pending object downwards.  Upwards it waited for
+//	the throttled dynamic-object update, which an object that has stopped
+//	moving is no longer part of, so a client-owned object the client had
+//	finished with could sit on the server until something else disturbed it.
+//	4.8.4 added this call at the top of the client update; it is here for the
+//	same reason.
+//
+void cNetwork::Tell_Server_About_Delete_Notifications(void)
+{
+#ifndef BETACLIENT
+
+	if (!cNetwork::I_Am_Client() || cNetwork::I_Am_Server()) {
+		return;
+	}
+
+	if (Get_Client_Rhost() == nullptr) {
+		return;
+	}
+
+	int count = NetworkObjectMgrClass::Get_Object_Count();
+	for (int index = 0; index < count; index ++) {
+		NetworkObjectClass *object = NetworkObjectMgrClass::Get_Object(index);
+
+		if (object != nullptr && object->Is_Delete_Pending()) {
+			Send_Object_Update(object, 0);
+		}
+	}
+
+	return ;
+
+#endif // not BETACLIENT
+}
+
+//-----------------------------------------------------------------------------
 void cNetwork::Tell_Client_About_Delete_Notifications(int client_id)
 {
 #ifndef BETACLIENT
