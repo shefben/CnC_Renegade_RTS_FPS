@@ -4025,6 +4025,9 @@ void	Grant_Refill( GameObject * player )
 	DefenseObjectClass * defense_obj = soldier->Get_Defense_Object();
 	defense_obj->Set_Health( defense_obj->Get_Health_Max() );
 	defense_obj->Set_Shield_Strength( defense_obj->Get_Shield_Strength_Max() );
+
+	//	Anything riding on this character hears that it has been topped up.
+	Send_Custom_Event( player, player, CUSTOM_EVENT_REFILL, 0, 0 );
 }
 
 

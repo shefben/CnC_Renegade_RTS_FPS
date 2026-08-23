@@ -101,7 +101,13 @@ enum
 	//	owner's object ID in the parameter.
 	//
 	CUSTOM_EVENT_VEHICLE_DRIVER,
-	CUSTOM_EVENT_VEHICLE_DRIVER_ID
+	CUSTOM_EVENT_VEHICLE_DRIVER_ID,
+
+	//
+	//	A character has been given full health, armour and ammunition at a
+	//	purchase terminal.  Sent to the character's own scripts.
+	//
+	CUSTOM_EVENT_REFILL
 };
 
 #define	MovementCompleteReason		ActionCompleteReason		// TEMP

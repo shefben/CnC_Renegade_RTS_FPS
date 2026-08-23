@@ -87,6 +87,12 @@ public:
 
 	DECLARE_EDITABLE( SmartGameObjDef, ArmedGameObjDef );
 
+	//
+	//	Whether the preset itself is a stealth unit, as opposed to something
+	//	a script or a powerup has cloaked for a while.
+	//
+	bool											Is_Stealth_Unit (void) const	{ return IsStealthUnit; }
+
 protected:
 	float											SightRange;
 	float											SightArc;
