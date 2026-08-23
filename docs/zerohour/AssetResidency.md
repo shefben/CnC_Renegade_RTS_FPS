@@ -101,6 +101,8 @@ that is actually complete.
 | Site | Call |
 | --- | --- |
 | `Code/Commando/init.cpp`, after `EncyclopediaMgrClass::Initialize` | `Capture_Loaded_Textures(ASSET_SCOPE_PERMANENT)` |
+| `Code/Commando/combatgmode.cpp`, `CombatGameModeClass::Init` | `Capture_Loaded_Textures(ASSET_SCOPE_WORLD)`, then `Capture_Loaded_Textures(ASSET_SCOPE_GAME_MODE)` around the mode's own initialization |
+| `Code/Commando/combatgmode.cpp`, `CombatGameModeClass::Shutdown` | `Release_Scope(ASSET_SCOPE_GAME_MODE)` |
 | `Code/Commando/combatgmode.cpp`, end of `Load_Level` | `Capture_Loaded_Assets(ASSET_SCOPE_WORLD)`, then `Log_Report` under `WWDEBUG` |
 | `Code/Commando/level.cpp`, `LevelManager::Release_Level` | `Release_Scope(ASSET_SCOPE_WORLD)` |
 
@@ -206,19 +208,39 @@ needs a loaded level and is a runtime check rather than a ctest one.
 
 All four are in `docs/RejectedItems.md`, which is generated.
 
+## What the mode scope claims
+
+`CombatGameModeClass::Init` sweeps twice, and the order is the whole point. The first
+sweep, before the mode initializes anything, claims what is resident but unclaimed --
+the menus the player just left. That is not a lifetime change: the level load that
+follows opens by releasing the world scope, which is where that art died before. It is
+there so the second sweep cannot mistake a menu backdrop for something combat loaded.
+
+The second sweep, after `MultiHUDClass::Init` and the radio command window, claims what
+the mode itself pulled in. Those assets outlive a map change and are released by
+`CombatGameModeClass::Shutdown` when the player leaves the game. As with the permanent
+claim there is no list of names anywhere: the mode's set is defined by what its own
+initialization loaded.
+
+The release is in `Shutdown` and deliberately not in `Core_Shutdown`. `Core_Restart`
+calls `Core_Shutdown` without ever running `Init` again, so releasing there would empty
+the mode scope for the rest of the session with nothing left to re-claim it.
+
 ## What is left
 
-`PERMANENT` and `WORLD` both have callers. What is left belongs to later work rather
-than here:
+`PERMANENT`, `GAME_MODE` and `WORLD` all have callers. What is left belongs to later
+work rather than here:
 
-1. `GAME_MODE` needs a caller at mode entry and exit;
-2. `SECTOR` has no consumer until there is something that streams part of a level,
+1. `SECTOR` has no consumer until there is something that streams part of a level,
    which is the terrain and procedural-world work, not this;
-3. nothing claims a prototype permanently, on purpose (above). The first real candidate
+2. nothing claims a prototype permanently, on purpose (above). The first real candidate
    is whatever ends up shared between every level -- the player characters, most
    likely -- and that is a decision to make against a profile, not in advance;
-4. materials and generated world buffers have record kinds and no registration site,
-   for the same reason `SECTOR` has no consumer.
+3. materials and generated world buffers have record kinds and no registration site,
+   for the same reason `SECTOR` has no consumer;
+4. only the combat mode claims a mode scope. The menu could, but the sweep at combat
+   entry already gives menu art an owner, and two major modes writing one scope would
+   mean two release paths for a lifetime that is already correct.
 
 The permanent claim is verified as arithmetic by `asset_residency`; confirming the
 resident texture count and the font caches actually survive a map change is a runtime

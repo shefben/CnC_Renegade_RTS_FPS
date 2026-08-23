@@ -224,6 +224,15 @@ PHASE_DECISIONS = [
      'Prototypes are where the memory is, and keeping a menu-full of 3D content for the '
      'life of the process buys nothing; which prototypes are genuinely shared between levels '
      'is a decision to make against a profile, not in advance.'),
+    ('P08', 'A mode-scope claim in the menu game mode',
+     'Declined. The menu could claim its own art at mode entry, but the first sweep in '
+     '`CombatGameModeClass::Init` already gives menu leftovers an owner with the lifetime '
+     'they already had. Two major modes writing one scope would mean two release paths '
+     'for a lifetime that is already correct.'),
+    ('P08', 'Releasing the mode scope in `Core_Shutdown`',
+     'Rejected in favour of `Shutdown`. `Core_Restart` calls `Core_Shutdown` without ever '
+     'running `Init` again, so releasing there would empty the mode scope for the rest of '
+     'the session with nothing left to re-claim it.'),
     ('P08', 'Naming textures, materials and world buffers in the exclusion list',
      'Rejected. The exclusion list matches w3d file names and has no way to answer for '
      'an asset that has none, so `Build_Retained_List` emits only prototypes, hierarchy '

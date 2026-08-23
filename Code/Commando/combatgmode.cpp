@@ -354,6 +354,15 @@ void	CombatGameModeClass::Init()
 {
 	Debug_Say(("CombatGameModeClass::Init\n"));
 
+	//
+	//	Whatever is resident and unclaimed at this point is the menu the player just
+	//	left: backdrops, shell dialog art, the mouse over states.  Claiming it for the
+	//	world gives it the lifetime it already has -- the level load below opens by
+	//	releasing the world scope -- and, more to the point, it stops the mode claim
+	//	further down from mistaking menu art for something this mode loaded.
+	//
+	AssetResidencyManagerClass::Get_Instance().Capture_Loaded_Textures( ASSET_SCOPE_WORLD );
+
 	if (!IS_MISSION) {
 		MultiHUDClass::Init();
 	}
@@ -369,6 +378,15 @@ void	CombatGameModeClass::Init()
 	// Notify combat about the state of the CameraLockedToTurret user option.
 	//
 	VehicleGameObj::Set_Camera_Locked_To_Turret(cUserOptions::CameraLockedToTurret.Get());
+
+	//
+	//	Everything the mode itself just loaded -- the multiplayer HUD font pages, the
+	//	radio command window art -- belongs to the mode rather than to any one level,
+	//	so it survives a map change and is released when the player leaves the game.
+	//	Nothing here is named: the mode's set is whatever its own initialization
+	//	pulled in, which is why a stock installation needs no list.
+	//
+	AssetResidencyManagerClass::Get_Instance().Capture_Loaded_Textures( ASSET_SCOPE_GAME_MODE );
 }
 
 /*
@@ -384,6 +402,14 @@ void 	CombatGameModeClass::Shutdown()
 	//	Shutdown the radio command display window
 	//
 	RadioCommandDisplayClass::Shutdown ();
+
+	//
+	//	The mode is going away, so its assets go with it, along with everything
+	//	shorter-lived that Core_Shutdown has not already released.  Deliberately here
+	//	and not in Core_Shutdown: a restart runs that without running Init again, and
+	//	there would be nothing left to re-claim the mode scope afterwards.
+	//
+	AssetResidencyManagerClass::Get_Instance().Release_Scope( ASSET_SCOPE_GAME_MODE );
 	return ;
 }
 
