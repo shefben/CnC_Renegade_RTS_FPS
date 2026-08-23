@@ -98,7 +98,7 @@ first, preserving line numbers, because this catalog is full of parked scripts
 that still contain their `DECLARE_SCRIPT`; without that, four of its five
 initial findings were false.
 
-Current result: **1640 built-in scripts, no duplicate names.**
+Current result: **2070 built-in scripts, no duplicate names** (see 4.4).
 
 `NativeScriptRegistry::Build_Index` checks again at startup. That second check
 is not redundant: it catches a name produced at registration rather than written
@@ -269,15 +269,20 @@ survey's `_Team` suffix heuristic and is plain server-side work.
 
 ### 4.4 Registry size
 
-1922 built-in scripts today, no duplicate names: 1638 canonical -- two fewer
+2070 built-in scripts today, no duplicate names: 1638 canonical -- two fewer
 than the 1640 this document used to quote, one because the checker was counting
 the registration macros themselves as a script called `x` and one because
 `M00_Base_Defense` turned out to be the all-defaults member of a 4.8.4 family
-and moved into it -- plus 284 from the 4.8.4 library. The remaining 514
-in-scope scripts take it to about 2430, less the three `gmsoldier.cpp` key
-scripts the server manager owns instead and less whatever else turns out to be
-a second name for something that already exists rather than a script of its
-own.
+and moved into it -- plus 432 from the 4.8.4 library. The remaining 369
+in-scope scripts take it to about 2439, less whatever else turns out to be a
+second name for something that already exists rather than a script of its own.
+
+Those 369 are what is left of nine donor files, and they are held up by the
+engine names they call rather than by the porting: `jfwmisc.cpp` 103,
+`jfwzone.cpp` 93, `jfwgame.cpp` 64, `jfwdmg.cpp` 55, `jfwsnd.cpp` 25,
+`jfwcine.cpp` 14, `jfwobj.cpp` 11, `gmsoldier.cpp` 3, and the one
+`jfwcust.cpp` script that wants a dialog on one client.
+`tools/tt484/readiness.py` prints the ranking and the blockers.
 
 Counting them is no longer a matter of matching `DECLARE_SCRIPT`. Where a donor
 file writes one script out many times over a matrix of small differences, this

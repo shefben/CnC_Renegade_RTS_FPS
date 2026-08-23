@@ -1948,3 +1948,100 @@ DECLARE_SCRIPT_TT(JFW_Vehicle_Visible_Weapon, "Animation:string")
 		ScriptEngine::Start_Timer(obj, this, 0.01f, 1);
 	}
 };
+
+
+////////////////////////////////////////////////////////////////////////////
+//
+//	Wreckage
+//
+//	From the 4.8.4 library's dan.cpp, whose other script -- the crate -- is
+//	nothing to do with vehicles and lives in TT_Crates.cpp.
+//
+////////////////////////////////////////////////////////////////////////////
+
+/*DAN_Drop_Wreckage_On_Death
+
+  Leaves a burnt-out hulk where the vehicle died, facing the way it was
+  facing, and tells the hulk what it used to be so somebody can weld it back
+  together.
+
+  Parameters:
+
+  Wreckage_Preset	= Object to leave behind.
+*/
+
+DECLARE_SCRIPT_TT(DAN_Drop_Wreckage_On_Death, "Wreckage_Preset:string")
+{
+	void Killed(GameObject* obj, GameObject* /*killer*/) override
+	{
+		GameObject* wreck = ScriptEngine::Create_Object(Get_Parameter("Wreckage_Preset"),
+				ScriptEngine::Get_Position(obj));
+
+		if (wreck == nullptr) {
+			return ;
+		}
+
+		ScriptEngine::Set_Facing(wreck, ScriptEngine::Get_Facing(obj));
+		ScriptEngine::Attach_Script(wreck, "DAN_Wreckage_Rebuildable",
+				ScriptEngine::Get_Preset_Name(obj));
+	}
+};
+
+
+/*DAN_Wreckage_Rebuildable
+
+  A hulk anybody can repair back into a working vehicle.  It belongs to
+  nobody while it lies there, so either side may work on it, and it goes to
+  whoever finished the job -- with almost no health, so the first shot still
+  takes it out.
+
+  Parameters:
+
+  Vehicle_Preset	= What it turns back into.
+*/
+
+DECLARE_SCRIPT_TT(DAN_Wreckage_Rebuildable, "Vehicle_Preset:string")
+{
+	void Created(GameObject* obj) override
+	{
+		ScriptEngine::Set_Player_Type(obj, PLAYERTYPE_NEUTRAL);
+		ScriptEngine::Set_Health(obj, 50.0f);
+		ScriptEngine::Set_Shield_Strength(obj, 0.0f);
+	}
+
+	void Damaged(GameObject* obj, GameObject* damager, float amount) override
+	{
+		//	Repair, not damage.
+		if (amount >= 0.0f || damager == nullptr) {
+			return ;
+		}
+
+		float health = ScriptEngine::Get_Health(obj) + ScriptEngine::Get_Shield_Strength(obj);
+		float whole = ScriptEngine::Get_Max_Health(obj)
+				+ ScriptEngine::Get_Max_Shield_Strength(obj);
+
+		if (health < whole) {
+			return ;
+		}
+
+		Vector3 position = ScriptEngine::Get_Position(obj);
+
+		GameObject* vehicle = ScriptEngine::Create_Object(Get_Parameter("Vehicle_Preset"),
+				position);
+
+		if (vehicle == nullptr) {
+			return ;
+		}
+
+		ScriptEngine::Set_Facing(vehicle, ScriptEngine::Get_Facing(obj));
+		ScriptEngine::Set_Health(vehicle, 5.0f);
+		ScriptEngine::Set_Shield_Strength(vehicle, 0.0f);
+		ScriptEngine::Set_Player_Type(vehicle, ScriptEngine::Get_Player_Type(damager));
+
+		//	Clear of the wreck's own collision before it is taken away.
+		position.Z += 1.0f;
+		ScriptEngine::Set_Position(vehicle, position);
+
+		ScriptEngine::Destroy_Object(obj);
+	}
+};

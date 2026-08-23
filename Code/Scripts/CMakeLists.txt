@@ -59,6 +59,8 @@ set(SCRIPTS_SRC
     TT_Customs.cpp
     TT_Hooks.cpp
     TT_Vehicles.cpp
+    TT_Poke.cpp
+    TT_Crates.cpp
     Toolkit_Objects.cpp
     Toolkit_Powerup.cpp
     Toolkit_Siege.cpp
