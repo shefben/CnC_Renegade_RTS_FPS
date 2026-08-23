@@ -55,6 +55,7 @@ set(SCRIPTS_SRC
     TT_SSGM.cpp
     TT_Weapons.cpp
     TT_Scripts.cpp
+    TT_Defenses.cpp
     Toolkit_Objects.cpp
     Toolkit_Powerup.cpp
     Toolkit_Siege.cpp
