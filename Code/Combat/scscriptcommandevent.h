@@ -47,6 +47,9 @@ enum ScriptClientCommandEnum
 	SCRIPT_CLIENT_CMD_STOP_BACKGROUND_MUSIC,	//
 	SCRIPT_CLIENT_CMD_DISPLAY_GDI_TERMINAL,	//
 	SCRIPT_CLIENT_CMD_DISPLAY_NOD_TERMINAL,	//
+	SCRIPT_CLIENT_CMD_SET_CAMERA_HOST,		// IntParam1 = object id, 0 to give the camera back
+	SCRIPT_CLIENT_CMD_SET_SUBOBJECT_ANIMATION,	// IntParam1 = object id, IntParam2 = 1 looping | 2 blended,
+												// FloatParam1/2 = first/last frame, Text = animation, Text2 = sub-object
 
 	SCRIPT_CLIENT_CMD_COUNT
 };
@@ -74,6 +77,7 @@ public:
 	void					Init_For_Team (ScriptClientCommandEnum command, int team);
 
 	void					Set_Text (const char *text)			{ Text = text; }
+	void					Set_Text2 (const char *text)		{ Text2 = text; }
 	void					Set_Color (const Vector3 &color)		{ Color = color; }
 	void					Set_Position (const Vector3 &pos)	{ Position = pos; }
 	void					Set_Int_Params (int p1, int p2 = 0)	{ IntParam1 = p1; IntParam2 = p2; }
@@ -98,6 +102,7 @@ private:
 	Vector3				Color;
 	Vector3				Position;
 	StringClass			Text;
+	StringClass			Text2;
 };
 
 //-----------------------------------------------------------------------------

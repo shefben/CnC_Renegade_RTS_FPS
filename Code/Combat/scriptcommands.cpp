@@ -3842,6 +3842,41 @@ void	Set_Occupants_Fade( GameObject * vehicle_obj, float r, float g, float b, fl
 }
 
 
+/*
+**	A cinematic runs on the server and has to be seen on every client, so
+**	the two commands a cinematic needs that the engine only ever did
+**	locally are broadcast.  Client id -1 is everybody, and on a listen
+**	server that includes this machine.
+*/
+void	Set_Camera_Host_Network( GameObject * obj )
+{
+	if ( !CombatManager::I_Am_Server() ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Int_Params( ( obj != nullptr ) ? obj->Get_ID() : 0 );
+	event->Init( SCRIPT_CLIENT_CMD_SET_CAMERA_HOST, -1 );
+}
+
+
+void	Set_Subobject_Animation( GameObject * obj, const char * anim_name, bool looping, const char * sub_obj_name, float start_frame, float end_frame, bool is_blended )
+{
+	SCRIPT_PTR_CHECK( obj );
+
+	if ( !CombatManager::I_Am_Server() ) {
+		return ;
+	}
+
+	cScScriptCommandEvent * event = new cScScriptCommandEvent;
+	event->Set_Int_Params( obj->Get_ID(), ( looping ? 1 : 0 ) | ( is_blended ? 2 : 0 ) );
+	event->Set_Float_Params( start_frame, end_frame );
+	event->Set_Text( ( anim_name != nullptr ) ? anim_name : "" );
+	event->Set_Text2( ( sub_obj_name != nullptr ) ? sub_obj_name : "" );
+	event->Init( SCRIPT_CLIENT_CMD_SET_SUBOBJECT_ANIMATION, -1 );
+}
+
+
 void	Force_Camera_Look_Player( GameObject * player, const Vector3 & target )
 {
 	int client_id = Client_Id_Of( player );

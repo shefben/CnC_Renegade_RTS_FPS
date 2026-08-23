@@ -210,6 +210,12 @@ namespace ScriptEngine
 	void Set_Animation ( GameObject * obj, const char * anim_name, bool looping, const char * sub_obj_name = nullptr, float start_frame = 0.0F, float end_frame = -1.0F, bool is_blended = false );
 	void Set_Animation_Frame ( GameObject * obj, const char * anim_name, int frame );
 
+	//	Set_Animation drives a sub-object on the machine it is called on and
+	//	nowhere else, because the sub-object's animation is not part of what
+	//	the object replicates.  This says it to every client as well, which
+	//	is what a cinematic needs.
+	void Set_Subobject_Animation ( GameObject * obj, const char * anim_name, bool looping, const char * sub_obj_name, float start_frame, float end_frame, bool is_blended );
+
 	// Sounds
 	// Note: Each sound creation function returns the ID of the new sound (0 on error)
 	int Create_Sound ( const char * sound_preset_name, const Vector3 & position, GameObject * creator );
@@ -252,6 +258,10 @@ namespace ScriptEngine
 
 	// Set Camera Host
 	void Set_Camera_Host ( GameObject * obj );
+
+	//	The same, said to every client: a scripted camera move that only the
+	//	server sees is not a camera move.  A null object gives the camera back.
+	void Set_Camera_Host_Network ( GameObject * obj );
 	void Force_Camera_Look ( const Vector3 & target );
 
 	// Get the Star

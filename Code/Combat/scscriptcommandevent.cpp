@@ -177,6 +177,21 @@ cScScriptCommandEvent::Act (void)
 			ScriptEngine::Display_NOD_Player_Terminal ();
 			break;
 
+		case SCRIPT_CLIENT_CMD_SET_CAMERA_HOST:
+			ScriptEngine::Set_Camera_Host ((IntParam1 != 0)
+					? ScriptEngine::Find_Object (IntParam1) : nullptr);
+			break;
+
+		case SCRIPT_CLIENT_CMD_SET_SUBOBJECT_ANIMATION:
+		{
+			GameObject *object = ScriptEngine::Find_Object (IntParam1);
+			if (object != nullptr) {
+				ScriptEngine::Set_Animation (object, Text, (IntParam2 & 1) != 0, Text2,
+					FloatParam1, FloatParam2, (IntParam2 & 2) != 0);
+			}
+			break;
+		}
+
 		default:
 			WWDEBUG_SAY (("cScScriptCommandEvent::Act: unknown command %d\n", Command));
 			break;
@@ -206,6 +221,7 @@ cScScriptCommandEvent::Export_Creation (BitStreamClass &packet)
 	packet.Add (Position.Y, BITPACK_WORLD_POSITION_Y);
 	packet.Add (Position.Z, BITPACK_WORLD_POSITION_Z);
 	packet.Add_Terminated_String (Text, true);
+	packet.Add_Terminated_String (Text2, true);
 
 	Set_Delete_Pending ();
 }
@@ -237,6 +253,10 @@ cScScriptCommandEvent::Import_Creation (BitStreamClass &packet)
 	char buffer[512] = { 0 };
 	packet.Get_Terminated_String (buffer, sizeof (buffer), true);
 	Text = buffer;
+
+	buffer[0] = 0;
+	packet.Get_Terminated_String (buffer, sizeof (buffer), true);
+	Text2 = buffer;
 
 	Act ();
 }

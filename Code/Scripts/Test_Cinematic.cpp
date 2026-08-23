@@ -43,7 +43,11 @@
 
 #define		LAST_VALID_TIMESTAMP		999000.0f
 
-DECLARE_SCRIPT (M00_Cinematic_Attack_Command_DLS, "AttackDuration=1.0:float")
+//
+//	4.8.4 shipped a byte-for-byte copy of this under its own name.  One
+//	implementation, two names.
+//
+DECLARE_SCRIPT_MERGED_ALIAS (M00_Cinematic_Attack_Command_DLS, "AttackDuration=1.0:float", "JFW_Cinematic_Attack_Command")
 {
 
 	void Created( GameObject * obj ) override
@@ -71,7 +75,7 @@ DECLARE_SCRIPT (M00_Cinematic_Attack_Command_DLS, "AttackDuration=1.0:float")
 
 };
 
-DECLARE_SCRIPT(Test_Cinematic_Primary_Killed, "CallbackID=:int")
+DECLARE_SCRIPT_MERGED_ALIAS(Test_Cinematic_Primary_Killed, "CallbackID=:int", "JFW_Cinematic_Primary_Killed")
 {
 
 	bool custom_sent;
@@ -120,7 +124,7 @@ DECLARE_SCRIPT(Test_Cinematic_Primary_Killed, "CallbackID=:int")
 
 };
 
-DECLARE_SCRIPT_MERGED(Test_Cinematic, "ControlFilename=:string")
+DECLARE_SCRIPT_MERGED_ALIAS(Test_Cinematic, "ControlFilename=:string,StartPaused=0:int", "JFW_Cinematic")
 {
 public:
 	/*
@@ -140,6 +144,13 @@ public:
 	bool				PrimaryKilled;
 
 	bool				IsCameraCinematic;
+
+	//
+	//	4.8.4's second parameter: a cinematic that does not start itself, so
+	//	a level can fill its object slots before the first command runs.
+	//	Custom M00_CUSTOM_CINEMATIC_START releases it.
+	//
+	bool				StartPaused;
 
 
 	/*
@@ -309,6 +320,7 @@ public:
 #define	CHUNKID_CONTROL_COMMAND_SIZE				5
 #define	CHUNKID_CONTROL_COMMAND						6
 #define	CHUNKID_PRIMARY_KILLED						7
+#define	CHUNKID_START_PAUSED						8
 
 	/*
 	**
@@ -326,6 +338,7 @@ public:
 			ScriptEngine::Save_Data(saver, CHUNKID_VARIABLE_TIME, sizeof( Time ), &Time );
 //ScriptEngine::Debug_Message( "Saving Time %f\n", Time );
 			ScriptEngine::Save_Data(saver, CHUNKID_PRIMARY_KILLED, sizeof( PrimaryKilled ), &PrimaryKilled );
+			ScriptEngine::Save_Data(saver, CHUNKID_START_PAUSED, sizeof( StartPaused ), &StartPaused );
 		ScriptEngine::End_Chunk(saver);
 
 		// Save the Object Slots
@@ -393,6 +406,10 @@ public:
 							case CHUNKID_PRIMARY_KILLED:
 								ScriptEngine::Load_Data(loader, sizeof( PrimaryKilled ), &PrimaryKilled );
 //ScriptEngine::Debug_Message( "Loading Time %f\n", Time );
+								break;
+
+							case CHUNKID_START_PAUSED:
+								ScriptEngine::Load_Data(loader, sizeof( StartPaused ), &StartPaused );
 								break;
 
 						}
@@ -699,7 +716,8 @@ public:
 			int id = ObjectSlots[ slot ];
 			GameObject * obj = ScriptEngine::Find_Object( id );
 			if ( obj ) {
-				ScriptEngine::Set_Animation( obj, name, looping, sub_obj_name, FrameSync, -1.0F, is_blended );
+				ScriptEngine::Update_Network_Object( obj );
+				ScriptEngine::Set_Subobject_Animation( obj, name, looping, sub_obj_name, FrameSync, -1.0F, is_blended );
 
 				// Anyone that plays an animation in a camera cine, doesn't get innate
 				if ( IsCameraCinematic ) {
@@ -758,7 +776,8 @@ public:
 			int id = ObjectSlots[ slot ];
 			GameObject * obj = ScriptEngine::Find_Object( id );
 			if ( obj ) {
-				ScriptEngine::Set_Camera_Host( obj );
+				ScriptEngine::Update_Network_Object( obj );
+				ScriptEngine::Set_Camera_Host_Network( obj );
 				ScriptEngine::Control_Enable( ScriptEngine::Get_The_Star(), false );
 				ScriptEngine::Enable_HUD(0);
 				IsCameraCinematic = true;
@@ -768,7 +787,7 @@ public:
 //				ScriptEngine::Debug_Message( "Slot Object not found %d\n", slot );
 			}
 		} else {
-			ScriptEngine::Set_Camera_Host( nullptr );
+			ScriptEngine::Set_Camera_Host_Network( nullptr );
 			ScriptEngine::Control_Enable( ScriptEngine::Get_The_Star(), true );
 			ScriptEngine::Enable_HUD(1);
 		}
@@ -1104,19 +1123,30 @@ public:
 	*/
 	void Created(GameObject* obj) override
 	{
-		ScriptEngine::Enable_Hibernation( obj, false );
-
 		Controls = nullptr;
 		for ( int i = 0; i < NUM_SLOTS; i++ ) {
 			ObjectSlots[ i ] = 0;
 		}
+
+		Load_Control_File( Get_Parameter( "ControlFilename" ) );
+
+		//	A level written before the parameter existed does not carry it.
+		StartPaused = ( Get_Parameter_Count() >= 2 ) && Get_Bool_Parameter( 1 );
+
+		if ( !StartPaused ) {
+			Start_Cinematic( obj );
+		}
+	}
+
+	void Start_Cinematic( GameObject* obj )
+	{
+		ScriptEngine::Enable_Hibernation( obj, false );
 
 		LastSyncTime = ScriptEngine::Get_Sync_Time();
 		Time = 0;
 		PrimaryKilled = false;
 		IsCameraCinematic = false;
 
-		Load_Control_File( Get_Parameter( "ControlFilename" ) );
 		Parse_Commands( obj );
 	}
 
@@ -1128,6 +1158,14 @@ public:
 
 	void	Custom( GameObject * obj, int type, intptr_t param, GameObject * /*sender*/ ) override
 	{
+		if ( type == M00_CUSTOM_CINEMATIC_START ) {
+			if ( StartPaused ) {
+				StartPaused = false;
+				Start_Cinematic( obj );
+			}
+			return;
+		}
+
 		if ( type == M00_CUSTOM_CINEMATIC_PRIMARY_KILLED ) {
 			if ( !PrimaryKilled ) {		// Prevent loops
 				ScriptEngine::Debug_Message("Cinematic:Primary Killed\n");

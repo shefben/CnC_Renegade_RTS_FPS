@@ -654,47 +654,11 @@ DECLARE_SCRIPT_TT(JFW_Play_Sound_Object_Bone, "Sound_Preset:string,Frequency_Min
 };
 
 
-/*JFW_Cinematic_Primary_Killed
-
-  Tells a cinematic that the object it was watching is gone, whether it was
-  killed or simply removed, and only once either way.
-
-  Parameters:
-
-  CallbackID		= Cinematic to tell.
-*/
-
-DECLARE_SCRIPT_TT(JFW_Cinematic_Primary_Killed, "CallbackID=0:int")
-{
-	bool killed;
-
-	REGISTER_VARIABLES()
-	{
-		SAVE_VARIABLE(killed, 1);
-	}
-
-	void Created(GameObject* /*obj*/) override
-	{
-		killed = false;
-	}
-
-	void Report(GameObject* obj)
-	{
-		if (killed) {
-			return;
-		}
-
-		killed = true;
-
-		GameObject* cinematic = ScriptEngine::Find_Object(Get_Int_Parameter("CallbackID"));
-		if (cinematic != nullptr) {
-			ScriptEngine::Send_Custom_Event(obj, cinematic, M00_CUSTOM_CINEMATIC_PRIMARY_KILLED, 0, 0);
-		}
-	}
-
-	void Killed(GameObject* obj, GameObject* /*killer*/) override		{ Report(obj); }
-	void Destroyed(GameObject* obj) override							{ Report(obj); }
-};
+//
+//	JFW_Cinematic_Primary_Killed is not here.  The stock catalog already had
+//	the same script under the name Test_Cinematic_Primary_Killed, and one
+//	implementation answers to both names; see Test_Cinematic.cpp.
+//
 
 
 /*JFW_Disable_Loiter

@@ -210,6 +210,7 @@ Set_Wind	Commands->	3	done
 Soldier_Transition_Vehicle	engine_obj2.h	3	done
 Start_Conversation	Commands->	3	done
 Stop_Timer	engine_tt.h	3	done
+AddPowerupPurchaseHook	engine_tt.h	2	done
 Attach_Script_Occupants	engine_script.h	2	done
 Attach_Script_Preset	engine_script.h	2	done
 Attach_Script_Type	engine_script.h	2	done
@@ -237,6 +238,7 @@ Send_Custom_All_Objects	engine_obj.h	2	done
 Send_Custom_All_Objects_Area	engine_obj.h	2	done
 Send_Custom_Event_To_Object	engine_obj.h	2	done
 Set_Building_Power	Commands->	2	done
+Set_Camera_Host_Network	engine_tt.h	2	done
 Set_Can_Generate_Soldiers	engine_game.h	2	done
 Set_Innate_Is_Stationary	Commands->	2	done
 Set_Innate_Take_Cover_Probability	Commands->	2	done
@@ -304,6 +306,7 @@ Set_Death_Points	engine_dmg.h	1	done
 Set_Innate_Aggressiveness	Commands->	1	done
 Set_Obj_Radar_Blip_Color	Commands->	1	done
 Set_Obj_Radar_Blip_Shape	Commands->	1	done
+Set_Subobject_Animation	engine_tt.h	1	done
 Static_Anim_Phys_Goto_Frame	Commands->	1	done
 Static_Anim_Phys_Goto_Last_Frame	Commands->	1	done
 Stop_Background_Music	Commands->	1	done
@@ -315,7 +318,6 @@ Trigger_Weapon	Commands->	1	done
 REF_DECL	engine_io.h	5	n/a-data-binding
 AddKeyHook	engine_tt.h	2	n/a-plugin-hook
 AddObjectCreateHook	engine_tt.h	2	n/a-plugin-hook
-AddPowerupPurchaseHook	engine_tt.h	2	n/a-plugin-hook
 RemoveKeyHook	engine_tt.h	2	n/a-plugin-hook
 AddCharacterPurchaseHook	engine_tt.h	1	n/a-plugin-hook
 AddChatHook	engine_tt.h	1	n/a-plugin-hook
@@ -346,7 +348,6 @@ Set_Tech_Level	engine_tt.h	3	port-engine-work
 Clear_Info_Texture	engine_tt.h	2	port-engine-work
 Get_GDI_Soldier_Name	engine_tt.h	2	port-engine-work
 Get_Nod_Soldier_Name	engine_tt.h	2	port-engine-work
-Set_Camera_Host_Network	engine_tt.h	2	port-engine-work
 Set_GDI_Soldier_Name	engine_tt.h	2	port-engine-work
 Set_Info_Texture	engine_tt.h	2	port-engine-work
 Set_Nod_Soldier_Name	engine_tt.h	2	port-engine-work
@@ -358,7 +359,6 @@ Get_Lightning	engine_tt.h	1	port-engine-work
 Get_Mine_Limit	engine_tt.h	1	port-engine-work
 Load_New_HUD_INI	engine_tt.h	1	port-engine-work
 Set_Moon_Is_Earth	engine_tt.h	1	port-engine-work
-Set_Subobject_Animation	engine_tt.h	1	port-engine-work
 Hide_Preset_By_Name	engine_pt.h	8	port-portable-source
 Disable_All_Presets_By_Factory_Tech	engine_pt.h	2	port-portable-source
 Disable_Preset_By_Name	engine_pt.h	2	port-portable-source

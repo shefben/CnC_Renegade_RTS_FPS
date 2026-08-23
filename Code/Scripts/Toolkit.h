@@ -181,6 +181,9 @@ enum
 
 	// This type and the next 20+ are used to set a slot in a cinematic script to an ID
 	M00_CUSTOM_CINEMATIC_SET_SLOT = 10000,				// 10000
+
+	// Releases a cinematic that was told to wait for its slots to be filled
+	M00_CUSTOM_CINEMATIC_START = 99000,					// 99000
 };
 
 inline int Get_Int_Random(int min, int max)
