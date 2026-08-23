@@ -85,6 +85,7 @@ Enable_Vehicle_Transitions	Commands->	13	done
 Find_Construction_Yard	engine_game.h	12	done
 Find_Object_By_Preset	engine_obj.h	12	done
 Get_Current_Weapon	engine_weap.h	12	done
+Grant_Weapon	engine_tt.h	12	done
 Get_Vehicle_Occupant_Count	engine_obj2.h	11	done
 Enable_Engine	Commands->	10	done
 Find_Script_On_Object	engine_script.h	10	done
@@ -190,6 +191,7 @@ Monitor_Conversation	Commands->	3	done
 Monitor_Sound	Commands->	3	done
 Repair_All_Buildings_By_Team	engine_dmg.h	3	done
 Set_HUD_Help_Text	Commands->	3	done
+Set_Occupants_Fade	engine_tt.h	3	done
 Set_Transform	engine_obj.h	3	done
 Set_Wind	Commands->	3	done
 Soldier_Transition_Vehicle	engine_obj2.h	3	done
@@ -229,6 +231,7 @@ Action_Follow_Input	Commands->	1	done
 Add_Radar_Marker	Commands->	1	done
 Attach_Script_Building	engine_script.h	1	done
 Attach_Script_Is_Preset	engine_script.h	1	done
+Attach_Script_Once_V	engine_script.h	1	done
 Attach_Script_Player_Once	engine_script.h	1	done
 Attach_Script_Preset_Once	engine_script.h	1	done
 Attach_Script_Type_Once	engine_script.h	1	done
@@ -319,7 +322,6 @@ Stop_Timer2	engine_tt.h	44	port-engine-work
 The_Game	engine_game.h	40	port-engine-work
 Grant_Powerup	engine_obj.h	24	port-engine-work
 Get_Player_Name_By_ID	engine_player.h	14	port-engine-work
-Grant_Weapon	engine_tt.h	12	port-engine-work
 Get_Damage_Warhead	engine_tt.h	11	port-engine-work
 Is_Spy	engine_obj2.h	8	port-engine-work
 Create_Vehicle	engine_obj2.h	5	port-engine-work
@@ -329,7 +331,6 @@ GetExplosionObj	engine_tt.h	4	port-engine-work
 Display_Game_Hint	engine_tt.h	3	port-engine-work
 Display_Game_Hint_Image	engine_tt.h	3	port-engine-work
 Force_Vehicle_Entry	engine_tt.h	3	port-engine-work
-Set_Occupants_Fade	engine_tt.h	3	port-engine-work
 Set_Tech_Level	engine_tt.h	3	port-engine-work
 Clear_Info_Texture	engine_tt.h	2	port-engine-work
 Get_GDI_Soldier_Name	engine_tt.h	2	port-engine-work
@@ -360,5 +361,4 @@ Get_Cost	engine_pt.h	4	port-portable-source
 Get_INI	engine_io.h	3	port-portable-source
 Disable_All_Presets_By_Factory_Tech	engine_pt.h	2	port-portable-source
 Disable_Preset_By_Name	engine_pt.h	2	port-portable-source
-Attach_Script_Once_V	engine_script.h	1	port-portable-source
 Get_File_Path	engine_io.h	1	port-portable-source

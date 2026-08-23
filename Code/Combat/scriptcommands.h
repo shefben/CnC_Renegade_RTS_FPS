@@ -554,6 +554,17 @@ namespace ScriptEngine
 
 	// Object state a server rule needs to change
 	void Remove_Weapon ( GameObject * obj, const char * weapon_name );
+
+	//
+	//	A weapon by its own definition name rather than through a powerup that
+	//	grants it, which is what a script wants when the weapon it is handing
+	//	out has no powerup -- an emplacement's gun, say.  Grant false takes it
+	//	away again.  Rounds of -1 fills the clip and leaves the reserve
+	//	unlimited; a positive count is rounds, or clips of rounds when
+	//	`in_clips` is set.
+	//
+	void Grant_Weapon ( GameObject * obj, const char * weapon_name, bool grant,
+			int rounds, bool in_clips );
 	void Set_Skin ( GameObject * obj, const char * armor_name );
 	void Set_Max_Health ( GameObject * obj, float health );
 	void Set_Max_Shield_Strength ( GameObject * obj, float strength );
@@ -648,6 +659,9 @@ namespace ScriptEngine
 	bool Is_Script_Attached ( GameObject * obj, const char * script_name );
 	ScriptClass * Find_Script_On_Object ( GameObject * obj, const char * script_name );
 	void Attach_Script_Once ( GameObject * obj, const char * script_name, const char * params );
+
+	//	The same, with the parameter list built printf-style.
+	void Attach_Script_Once_V ( GameObject * obj, const char * script_name, const char * format, ... );
 	void Attach_Script_Occupants ( GameObject * obj, const char * script_name, const char * params );
 	void Attach_Script_Preset ( const char * script_name, const char * params, const char * preset_name, int team, bool once );
 	void Attach_Script_Type ( const char * script_name, const char * params, unsigned long class_id, int team, bool once );
@@ -688,6 +702,10 @@ namespace ScriptEngine
 	void Set_HUD_Help_Text_Player ( GameObject * player, int string_id, const Vector3 & color );
 	void Set_Screen_Fade_Color_Player ( GameObject * player, float r, float g, float b, float seconds );
 	void Set_Screen_Fade_Opacity_Player ( GameObject * player, float opacity, float seconds );
+
+	//	Every occupant of a vehicle at once, which is what a script wants when
+	//	the vehicle itself is what is doing something to their view.
+	void Set_Occupants_Fade ( GameObject * vehicle, float r, float g, float b, float opacity );
 	void Force_Camera_Look_Player ( GameObject * player, const Vector3 & target );
 	void Enable_Radar_Player ( GameObject * player, bool enable );
 	void Display_GDI_Player_Terminal_Player ( GameObject * player );

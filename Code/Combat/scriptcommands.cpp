@@ -51,6 +51,7 @@
 #include "radar.h"
 #include "explosion.h"
 #include "powerup.h"
+#include "weaponmanager.h"
 #include "soldier.h"
 #include "weapons.h"
 #include "pscene.h"
@@ -3723,6 +3724,35 @@ void	Set_Screen_Fade_Opacity_Player( GameObject * player, float opacity, float s
 	event->Init( SCRIPT_CLIENT_CMD_SET_SCREEN_FADE_OPACITY, client_id );
 }
 
+void	Set_Occupants_Fade( GameObject * vehicle_obj, float r, float g, float b, float opacity )
+{
+	PhysicalGameObj * physical = ( vehicle_obj != nullptr ) ? vehicle_obj->As_PhysicalGameObj() : nullptr;
+	VehicleGameObj * vehicle = ( physical != nullptr ) ? physical->As_VehicleGameObj() : nullptr;
+	if ( vehicle == nullptr ) {
+		return ;
+	}
+
+	//
+	//	Both halves at once and both instant.  The colour and the opacity are
+	//	two commands to the client, and fading one without the other leaves a
+	//	seat looking through the last colour it was given.
+	//
+	int seat_count = vehicle->Get_Definition().Get_Seat_Count();
+	for ( int seat = 0; seat < seat_count; seat ++ ) {
+
+		SoldierGameObj * occupant = vehicle->Get_Occupant( seat );
+		if ( occupant == nullptr ) {
+			continue;
+		}
+
+		Set_Screen_Fade_Color_Player( occupant, r, g, b, 0 );
+		Set_Screen_Fade_Opacity_Player( occupant, opacity, 0 );
+	}
+
+	return ;
+}
+
+
 void	Force_Camera_Look_Player( GameObject * player, const Vector3 & target )
 {
 	int client_id = Client_Id_Of( player );
@@ -5116,6 +5146,39 @@ void Console_Output( const char * format, ... )
 }
 
 
+void Grant_Weapon( GameObject * obj, const char * weapon_name, bool grant,
+		int rounds, bool in_clips )
+{
+	if ( !grant ) {
+		Remove_Weapon( obj, weapon_name );
+		return ;
+	}
+
+	WeaponBagClass * bag = Peek_Weapon_Bag( obj );
+	if ( bag == nullptr || weapon_name == nullptr ) {
+		return ;
+	}
+
+	const WeaponDefinitionClass * def = WeaponManager::Find_Weapon_Definition( weapon_name );
+	if ( def == nullptr ) {
+		Debug_Say(( "Weapon Definition %s not found\n", weapon_name ));
+		return ;
+	}
+
+	//
+	//	A count in clips is a count in rounds once the clip size is known.
+	//	Negative counts are the engine's "as much as it holds" and are passed
+	//	through untouched.
+	//
+	if ( in_clips && rounds > 0 ) {
+		rounds *= (int)def->ClipSize;
+	}
+
+	bag->Add_Weapon( def, rounds, true );
+	return ;
+}
+
+
 void Remove_Weapon( GameObject * obj, const char * weapon_name )
 {
 	WeaponBagClass * bag = Peek_Weapon_Bag( obj );
@@ -5381,6 +5444,32 @@ void Attach_Script_Once( GameObject * obj, const char * script_name, const char 
 		Attach_Script( obj, script_name, params );
 	}
 }
+
+void Attach_Script_Once_V( GameObject * obj, const char * script_name, const char * format, ... )
+{
+	SCRIPT_PTR_CHECK( obj );
+	SCRIPT_PTR_CHECK( format );
+
+	//
+	//	Tested before the list is built rather than after: a script already
+	//	attached is the common case, and there is no reason to format for it.
+	//
+	if ( Is_Script_Attached( obj, script_name ) ) {
+		return ;
+	}
+
+	va_list arg_list;
+	va_start( arg_list, format );
+
+	StringClass params;
+	params.Format_Args( format, arg_list );
+
+	va_end( arg_list );
+
+	Attach_Script( obj, script_name, params );
+	return ;
+}
+
 
 void Attach_Script_Occupants( GameObject * obj, const char * script_name, const char * params )
 {
