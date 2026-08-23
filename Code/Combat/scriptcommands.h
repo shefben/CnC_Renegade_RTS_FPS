@@ -569,6 +569,11 @@ namespace ScriptEngine
 	int Get_Vehicle_Mode ( GameObject * obj );
 	bool Is_VTOL ( GameObject * obj );
 	void Force_Occupants_Exit ( GameObject * obj );
+
+	//	The other direction, and without asking the vehicle whether it would
+	//	have let the soldier in: a hijacker takes a seat rather than being
+	//	offered one.
+	void Force_Vehicle_Entry ( GameObject * soldier, GameObject * vehicle );
 	void Force_Occupant_Exit ( GameObject * obj, int seat );
 	void Force_Occupants_Exit_Team ( GameObject * obj, int team );
 	void Soldier_Transition_Vehicle ( GameObject * obj );

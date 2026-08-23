@@ -1,5 +1,4 @@
 name	declared_in	calls	disposition
-Ranged_Stealth_On_Team	engine_tt.h	1	blocked-per-client-delivery
 Find_Object	Commands->	909	done
 Start_Timer	Commands->	607	done
 Get_Position	Commands->	495	done
@@ -193,6 +192,7 @@ Enable_Spawner	Commands->	3	done
 End_Chunk	Commands->	3	done
 Find_Object_With_Script	engine_script.h	3	done
 Force_Occupant_Exit	engine_obj2.h	3	done
+Force_Vehicle_Entry	engine_tt.h	3	done
 Get_A_Star	Commands->	3	done
 Get_INI	engine_io.h	3	done
 Get_Vehicle_Return	engine_obj2.h	3	done
@@ -291,6 +291,7 @@ Open_Chunk	Commands->	1	done
 Ranged_Damage_To_Buildings_Team	engine_dmg.h	1	done
 Ranged_Percentage_Damage_To_Buildings_Team	engine_dmg.h	1	done
 Ranged_Scale_Damage_To_Buildings_Team	engine_dmg.h	1	done
+Ranged_Stealth_On_Team	engine_tt.h	1	done
 Remove_All_Scripts	engine_script.h	1	done
 Remove_Script_Preset	engine_script.h	1	done
 Remove_Script_Type	engine_script.h	1	done
@@ -346,7 +347,6 @@ stristr	engine_string.h	1	n/a-sdk-helper
 Set_Global_Stealth_Disable	engine_tt.h	5	port-engine-work
 Display_Game_Hint	engine_tt.h	3	port-engine-work
 Display_Game_Hint_Image	engine_tt.h	3	port-engine-work
-Force_Vehicle_Entry	engine_tt.h	3	port-engine-work
 Set_Tech_Level	engine_tt.h	3	port-engine-work
 Clear_Info_Texture	engine_tt.h	2	port-engine-work
 Get_GDI_Soldier_Name	engine_tt.h	2	port-engine-work

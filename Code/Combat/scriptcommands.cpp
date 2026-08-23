@@ -3889,6 +3889,26 @@ void	Disable_All_Presets_By_Factory_Tech( int building_type, int team, bool disa
 }
 
 
+void	Force_Vehicle_Entry( GameObject * soldier, GameObject * vehicle )
+{
+	SCRIPT_PTR_CHECK( soldier );
+	SCRIPT_PTR_CHECK( vehicle );
+
+	SoldierGameObj * rider = soldier->As_SoldierGameObj();
+	if ( rider == nullptr ) {
+		return ;
+	}
+
+	PhysicalGameObj * physical = vehicle->As_PhysicalGameObj();
+	VehicleGameObj * ride = ( physical != nullptr ) ? physical->As_VehicleGameObj() : nullptr;
+	if ( ride == nullptr ) {
+		return ;
+	}
+
+	ride->Add_Occupant( rider );
+}
+
+
 void	Set_Camera_Host_Network( GameObject * obj )
 {
 	if ( !CombatManager::I_Am_Server() ) {
