@@ -269,13 +269,26 @@ survey's `_Team` suffix heuristic and is plain server-side work.
 
 ### 4.4 Registry size
 
-1875 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
-than the 1640 this document used to quote, because the checker was counting the
-registration macros themselves as a script called `x` -- plus 236 from the
-4.8.4 library. The remaining 561 in-scope scripts take it to about 2430, less
-the three `gmsoldier.cpp` key scripts the server manager owns instead and less
-whatever else turns out to be a second name for something that already exists
-rather than a script of its own.
+1922 built-in scripts today, no duplicate names: 1638 canonical -- two fewer
+than the 1640 this document used to quote, one because the checker was counting
+the registration macros themselves as a script called `x` and one because
+`M00_Base_Defense` turned out to be the all-defaults member of a 4.8.4 family
+and moved into it -- plus 284 from the 4.8.4 library. The remaining 514
+in-scope scripts take it to about 2430, less the three `gmsoldier.cpp` key
+scripts the server manager owns instead and less whatever else turns out to be
+a second name for something that already exists rather than a script of its
+own.
+
+Counting them is no longer a matter of matching `DECLARE_SCRIPT`. Where a donor
+file writes one script out many times over a matrix of small differences, this
+tree writes the script once and declares the variants through a macro of its
+own -- `JFW_DEFENCE` in `TT_Defenses.cpp` names forty-five of them. So
+`tools/check_script_catalog.py` first finds every macro in the tree whose body
+expands to a registration, excluding the registration primitives themselves,
+and then counts calls of those macros as registrations too. It also splits
+`REGISTER_SCRIPT_MERGED_ALIAS` calls into arguments rather than matching the
+whole call, because the parameter argument may now be a macro rather than a
+string literal.
 
 A name is not always a script. A factory's alias field is a semicolon-separated
 list, so one merged script can answer to several of the names 4.8.4 registered

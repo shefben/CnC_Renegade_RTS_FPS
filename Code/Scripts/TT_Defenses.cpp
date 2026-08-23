@@ -22,15 +22,25 @@
 *     script and a virtual, and the four guns are an array rather than four
 *     names repeated through every handler.
 *
-*     The last two scripts here are the file's key hooks.  A key hook is a key
-*     the level gives a meaning to and the engine has none for; see
+*     The last two of those scripts are the file's key hooks.  A key hook is a
+*     key the level gives a meaning to and the engine has none for; see
 *     Code/Combat/scriptkeys.h for how a press gets from a client to them.
+*
+*     After them comes the second donor this file carries: jfwdef.cpp, the
+*     generic base defence, which the 4.8.4 library registers forty-eight
+*     times.  See the note above that section for the five things the
+*     forty-eight differ in.  It lives here rather than in a file of its own
+*     because a file named for defences already existed, and two of them
+*     spelled a letter apart would be a trap.
 *
 ******************************************************************************/
 
 #include "scripts.h"
+#include "Toolkit.h"
+
 #include "actionparams.h"
 #include "physicalgameobj.h"
+#include "smartgameobj.h"
 #include "vehicle.h"
 #include "wwstring.h"
 
@@ -1487,3 +1497,757 @@ class JFW_Char_Weapon_Switcher : public KeyHookScriptClass
 		Switching	= false;
 	}
 };
+
+////////////////////////////////////////////////////////////////////////////
+//
+//	The base defence, forty-eight times
+//
+////////////////////////////////////////////////////////////////////////////
+//
+//	How long the turret holds each of the three points it stares at while it
+//	has nothing to shoot.
+//
+static const float	JFW_DEFENCE_SWEEP_TIME	= 10.0f;
+
+//
+//	Timer 1 is the sweep for a turret standing in the open and the retract for
+//	one that pops up; timer 2 is the give-up for the first and the "you are all
+//	the way up now, you may fire" for the second.
+//
+enum
+{
+	JFW_DEFENCE_TIMER_SWEEP		= 1,
+	JFW_DEFENCE_TIMER_RETRACT	= 1,
+	JFW_DEFENCE_TIMER_GIVE_UP	= 2,
+	JFW_DEFENCE_TIMER_RISEN		= 2
+};
+
+//
+//	Action 1 is what a popup turret attacks with, action 2 what a standing one
+//	does, and action 3 the aim of the player once he is sitting in it.
+//
+enum
+{
+	JFW_DEFENCE_ACTION_POPUP	= 1,
+	JFW_DEFENCE_ACTION_ATTACK	= 2,
+	JFW_DEFENCE_ACTION_DRIVEN	= 3
+};
+
+enum JFW_Defence_Filter
+{
+	DEFENCE_FILTER_ANY,
+	DEFENCE_FILTER_NOT_LISTED,			// anything except the eight PresetN
+	DEFENCE_FILTER_ONLY_LISTED,			// only the eight PresetN
+	DEFENCE_FILTER_NO_VTOL,
+	DEFENCE_FILTER_VTOL_ONLY,
+	DEFENCE_FILTER_NO_VTOL_NO_STEALTH
+};
+
+enum JFW_Defence_Fire
+{
+	DEFENCE_FIRE_PRIMARY,				// always the primary weapon
+	DEFENCE_FIRE_ALTERNATE,				// swap every time it re-acquires
+	DEFENCE_FIRE_SWAPPED				// swap when told to by a custom message
+};
+
+struct	JFW_Defence_Traits
+{
+	JFW_Defence_Filter	Filter;
+	bool						Popup;
+	bool						Sound;
+	JFW_Defence_Fire		Fire;
+	bool						Driveable;
+};
+
+
+/*
+**	One base defence.
+**
+**	Everything the forty-eight registered names do is here; each of them says
+**	only which of the five choices it made.
+*/
+class	JFW_Defence_Base : public ScriptImpClass
+{
+public:
+
+	void Register_Auto_Save_Variables (void) override
+	{
+		//
+		//	All of it, whichever variant this is.  The 4.8.4 file registered
+		//	these per variant and got it wrong every time a popup turret was
+		//	involved: the "may fire now" flag was written with a size of two or
+		//	three bytes for a one-byte bool, under the same id the popup flag
+		//	had already claimed, and the variants that swap weapons on a
+		//	message did not save it at all.  No popup turret came back from a
+		//	save in the state it went in.
+		//
+		SAVE_VARIABLE (Token_ID[0],	1);
+		SAVE_VARIABLE (Token_ID[1],	2);
+		SAVE_VARIABLE (Token_ID[2],	3);
+		SAVE_VARIABLE (Player_Type,	4);
+		SAVE_VARIABLE (Primary,		5);
+		SAVE_VARIABLE (Popped_Up,	6);
+		SAVE_VARIABLE (Can_Attack,	7);
+		SAVE_VARIABLE (Driven,		8);
+	}
+
+protected:
+
+	//
+	//	Which of the forty-eight this is.  Asked wherever the answer is needed
+	//	rather than cached, so that a subclass is nothing but the answer.
+	//
+	virtual void	Traits (JFW_Defence_Traits & traits) = 0;
+
+	int		Token_ID[3];
+	int		Player_Type;
+	bool		Primary;
+	bool		Popped_Up;
+	bool		Can_Attack;
+	bool		Driven;
+
+	void Created (GameObject * obj) override
+	{
+		JFW_Defence_Traits traits;
+		Traits (traits);
+
+		Player_Type	= ScriptEngine::Get_Player_Type (obj);
+		Primary		= true;
+		Popped_Up	= false;
+		Can_Attack	= false;
+		Driven		= false;
+
+		Token_ID[0] = Token_ID[1] = Token_ID[2] = 0;
+
+		if (traits.Popup)
+		{
+			//
+			//	Sunk out of sight, watching.  It has nothing to sweep and
+			//	nothing to sweep with until it comes up.
+			//
+			ScriptEngine::Set_Animation (obj, Get_Parameter ("Animation"), false,
+					nullptr, 0.0f, 0.0f, false);
+			ScriptEngine::Enable_Enemy_Seen (obj, true);
+			return ;
+		}
+
+		ScriptEngine::Enable_Hibernation (obj, false);
+		ScriptEngine::Innate_Enable (obj);
+		ScriptEngine::Enable_Enemy_Seen (obj, true);
+
+		Create_Sweep_Points (obj);
+		ScriptEngine::Start_Timer (obj, this, JFW_DEFENCE_SWEEP_TIME, JFW_DEFENCE_TIMER_SWEEP);
+	}
+
+	void Custom (GameObject * obj, int type, intptr_t /*param*/, GameObject * /*sender*/) override
+	{
+		JFW_Defence_Traits traits;
+		Traits (traits);
+
+		if (traits.Fire == DEFENCE_FIRE_SWAPPED && type == Get_Int_Parameter ("SwapMessage"))
+		{
+			Primary = !Primary;
+			return ;
+		}
+
+		if (!traits.Driveable)
+		{
+			return ;
+		}
+
+		if (type == CUSTOM_EVENT_VEHICLE_ENTERED)
+		{
+			//
+			//	Somebody is in it.  It stops picking its own targets and
+			//	points wherever he is looking.
+			//
+			Driven = true;
+
+			ActionParamsStruct params;
+			params.Set_Basic (this, 100.0f, JFW_DEFENCE_ACTION_DRIVEN);
+			ScriptEngine::Action_Follow_Input (obj, params);
+		}
+		else if (type == CUSTOM_EVENT_VEHICLE_EXITED)
+		{
+			Driven = false;
+			ScriptEngine::Set_Player_Type (obj, Player_Type);
+			ScriptEngine::Action_Reset (obj, 100.0f);
+		}
+	}
+
+	void Enemy_Seen (GameObject * obj, GameObject * enemy) override
+	{
+		//
+		//	Shoot the tank, not the man sitting in it.  Enemy_Seen names the
+		//	soldier, and a defence firing at a driver was aiming at something
+		//	it could not hit while the vehicle sat there unharmed.
+		//
+		GameObject * vehicle = ScriptEngine::Get_Vehicle (enemy);
+		if (vehicle != nullptr)
+		{
+			enemy = vehicle;
+		}
+
+		JFW_Defence_Traits traits;
+		Traits (traits);
+
+		if (Driven || !Wants_Target (obj, enemy, traits))
+		{
+			return ;
+		}
+
+		if (traits.Popup)
+		{
+			Popup_Attack (obj, enemy, traits);
+		}
+		else
+		{
+			Standing_Attack (obj, enemy, traits);
+		}
+	}
+
+	void Timer_Expired (GameObject * obj, int timer_id) override
+	{
+		JFW_Defence_Traits traits;
+		Traits (traits);
+
+		if (traits.Popup)
+		{
+			if (timer_id == JFW_DEFENCE_TIMER_RETRACT)
+			{
+				//
+				//	Back down again, and blind until it next comes up.
+				//
+				Popped_Up	= false;
+				Can_Attack	= false;
+				ScriptEngine::Set_Animation (obj, Get_Parameter ("Animation"), false,
+						nullptr, Get_Float_Parameter ("LastFrame"), 0.0f, false);
+				ScriptEngine::Action_Reset (obj, 100.0f);
+			}
+			else if (timer_id == JFW_DEFENCE_TIMER_RISEN)
+			{
+				Can_Attack = true;
+			}
+
+			return ;
+		}
+
+		if (timer_id == JFW_DEFENCE_TIMER_SWEEP)
+		{
+			if (!Driven)
+			{
+				Sweep (obj);
+			}
+
+			ScriptEngine::Start_Timer (obj, this, JFW_DEFENCE_SWEEP_TIME, JFW_DEFENCE_TIMER_SWEEP);
+		}
+		else if (timer_id == JFW_DEFENCE_TIMER_GIVE_UP)
+		{
+			ScriptEngine::Action_Reset (obj, 100.0f);
+		}
+	}
+
+	void Action_Complete (GameObject * obj, int action_id, ActionCompleteReason /*reason*/) override
+	{
+		if (action_id == JFW_DEFENCE_ACTION_ATTACK)
+		{
+			ScriptEngine::Action_Reset (obj, 100.0f);
+		}
+	}
+
+	void Exited (GameObject * obj, GameObject * /*exiter*/) override
+	{
+		//
+		//	Sitting in a defence hands it the side of the driver for as long
+		//	as he is in it.  Give it back.
+		//
+		ScriptEngine::Set_Player_Type (obj, Player_Type);
+	}
+
+private:
+
+	//
+	//	The three points a standing turret looks at while idle, spaced evenly
+	//	around it.  Two of the three used to sit on the same side, so it spent
+	//	its idle time staring into one quarter of the map and swept the rest
+	//	only on its way past.
+	//
+	void Create_Sweep_Points (GameObject * obj)
+	{
+		const Vector3 my_position = ScriptEngine::Get_Position (obj);
+
+		Vector3 offsets[3];
+		offsets[0].Set (-5.0f,  8.66025f, 2.0f);
+		offsets[1].Set (10.0f,  0.0f,     2.0f);
+		offsets[2].Set (-5.0f, -8.66025f, 2.0f);
+
+		for (int index = 0; index < 3; index ++)
+		{
+			GameObject * token = ScriptEngine::Create_Object ("Invisible_Object",
+					my_position + offsets[index]);
+			if (token != nullptr)
+			{
+				Token_ID[index] = ScriptEngine::Get_ID (token);
+			}
+		}
+	}
+
+	void Sweep (GameObject * obj)
+	{
+		GameObject * token = ScriptEngine::Find_Object (Token_ID[Get_Int_Random (0, 2)]);
+		if (token == nullptr)
+		{
+			return ;
+		}
+
+		ActionParamsStruct params;
+		params.Set_Basic (this, 70.0f, JFW_DEFENCE_TIMER_SWEEP);
+		params.Set_Attack (token, 0.0f, 0.0f, true);
+		ScriptEngine::Action_Attack (obj, params);
+	}
+
+	void Standing_Attack (GameObject * obj, GameObject * enemy, const JFW_Defence_Traits & traits)
+	{
+		const float distance = ScriptEngine::Get_Distance (ScriptEngine::Get_Position (obj),
+				ScriptEngine::Get_Position (enemy));
+		if (distance < Get_Float_Parameter ("MinAttackDistance"))
+		{
+			return ;
+		}
+
+		ActionParamsStruct params;
+		params.Set_Basic (this, 100.0f, JFW_DEFENCE_ACTION_ATTACK);
+		params.Set_Attack (enemy, Get_Float_Parameter ("MaxAttackDistance"), 0.0f, Primary);
+		params.AttackCheckBlocked = false;
+		ScriptEngine::Action_Attack (obj, params);
+
+		//
+		//	Each sighting restarted the give-up timer without cancelling the
+		//	one already running, so an older timer would fire mid-burst and
+		//	reset the action against a target still in front of it.
+		//
+		ScriptEngine::Stop_Timer (obj, this, JFW_DEFENCE_TIMER_GIVE_UP);
+		ScriptEngine::Start_Timer (obj, this, Get_Float_Parameter ("AttackTimer"),
+				JFW_DEFENCE_TIMER_GIVE_UP);
+
+		if (traits.Fire == DEFENCE_FIRE_ALTERNATE)
+		{
+			Primary = !Primary;
+		}
+	}
+
+	void Popup_Attack (GameObject * obj, GameObject * enemy, const JFW_Defence_Traits & traits)
+	{
+		if (!Popped_Up)
+		{
+			//
+			//	Coming up takes PopupTime, and it cannot shoot on the way.
+			//
+			Popped_Up = true;
+			ScriptEngine::Start_Timer (obj, this, Get_Float_Parameter ("PopupTime"),
+					JFW_DEFENCE_TIMER_RISEN);
+			ScriptEngine::Set_Animation (obj, Get_Parameter ("Animation"), false,
+					nullptr, 0.0f, Get_Float_Parameter ("LastFrame"), false);
+
+			if (traits.Sound)
+			{
+				ScriptEngine::Create_Sound (Get_Parameter ("Sound"),
+						ScriptEngine::Get_Position (enemy), obj);
+			}
+
+			ScriptEngine::Stop_Timer (obj, this, JFW_DEFENCE_TIMER_RETRACT);
+			ScriptEngine::Start_Timer (obj, this, Get_Float_Parameter ("AttackTimer"),
+					JFW_DEFENCE_TIMER_RETRACT);
+		}
+		else if (Can_Attack)
+		{
+			ActionParamsStruct params;
+			params.Set_Basic (this, 100.0f, JFW_DEFENCE_ACTION_POPUP);
+			params.Set_Attack (enemy, Get_Float_Parameter ("MaxAttackDistance"), 0.0f, Primary);
+			params.AttackCheckBlocked = false;
+			ScriptEngine::Action_Attack (obj, params);
+
+			if (traits.Fire == DEFENCE_FIRE_ALTERNATE)
+			{
+				Primary = !Primary;
+			}
+		}
+	}
+
+	bool Wants_Target (GameObject * obj, GameObject * enemy, const JFW_Defence_Traits & traits)
+	{
+		switch (traits.Filter)
+		{
+			case DEFENCE_FILTER_NOT_LISTED:
+				return !Is_Listed_Preset (enemy);
+
+			case DEFENCE_FILTER_ONLY_LISTED:
+				return Is_Listed_Preset (enemy);
+
+			case DEFENCE_FILTER_NO_VTOL:
+				return !ScriptEngine::Is_VTOL (enemy);
+
+			case DEFENCE_FILTER_VTOL_ONLY:
+				return ScriptEngine::Is_VTOL (enemy);
+
+			case DEFENCE_FILTER_NO_VTOL_NO_STEALTH:
+			{
+				if (ScriptEngine::Is_VTOL (enemy))
+				{
+					return false;
+				}
+
+				//
+				//	A stealthed unit is only worth shooting at from close
+				//	enough that the turret could plausibly have noticed it.
+				//
+				SmartGameObj * smart = enemy->As_SmartGameObj ();
+				if (smart == nullptr || !smart->Is_Stealthed ())
+				{
+					return true;
+				}
+
+				const float distance = ScriptEngine::Get_Distance (ScriptEngine::Get_Position (obj),
+						ScriptEngine::Get_Position (enemy));
+				return (distance <= Get_Float_Parameter ("MaxStealthAttackDistance"));
+			}
+
+			default:
+				break;
+		}
+
+		return true;
+	}
+
+	//
+	//	Is this one of the eight presets the level named?  The 4.8.4 file
+	//	spelled this out as a sixteen-term condition in each of the twenty
+	//	filtered variants, fetching the preset name of the target once per
+	//	term.
+	//
+	bool Is_Listed_Preset (GameObject * enemy)
+	{
+		const char * name = ScriptEngine::Get_Preset_Name (enemy);
+		if (name == nullptr || name[0] == 0)
+		{
+			return false;
+		}
+
+		static const char * const	_slots[8] =
+		{
+			"Preset1", "Preset2", "Preset3", "Preset4",
+			"Preset5", "Preset6", "Preset7", "Preset8"
+		};
+
+		for (int index = 0; index < 8; index ++)
+		{
+			const char * listed = Get_Parameter (_slots[index]);
+			if (listed != nullptr && listed[0] != 0 && ::_stricmp (name, listed) == 0)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+};
+
+
+//
+//	The parameters, in the order the 4.8.4 file registered them.  A standing
+//	turret has a minimum range and gives up after AttackTimer; one that pops up
+//	has no minimum, and AttackTimer is instead how long it stays up.
+//
+#define	JFW_DEF_RANGE			"MinAttackDistance=0.0:float,MaxAttackDistance=300.0:float,AttackTimer=10.0:float"
+#define	JFW_DEF_POPUP_RANGE	"MaxAttackDistance:float,AttackTimer:float"
+#define	JFW_DEF_PRESETS		",Preset1:string,Preset2:string,Preset3:string,Preset4:string,Preset5:string,Preset6:string,Preset7:string,Preset8:string"
+#define	JFW_DEF_ANIM			",Animation:string,LastFrame:float,PopupTime:float"
+#define	JFW_DEF_SOUND			",Sound:string"
+#define	JFW_DEF_SWAP			",SwapMessage:int"
+#define	JFW_DEF_STEALTH		",MaxStealthAttackDistance=0.0:float"
+
+//
+//	One of the forty-eight.  The body is the five answers and nothing else.
+//
+#define	JFW_DEFENCE(x, params, filter, popup, sound, fire)	\
+	REGISTER_SCRIPT_TT (x, params)							\
+	class x : public JFW_Defence_Base							\
+	{																	\
+		void Traits (JFW_Defence_Traits & traits) override	\
+		{																\
+			traits.Filter		= filter;							\
+			traits.Popup		= popup;								\
+			traits.Sound		= sound;								\
+			traits.Fire			= fire;								\
+			traits.Driveable	= false;								\
+		}																\
+	};
+
+
+/*
+**	The stock base defence, which is the all-defaults member of the family:
+**	shoots anything, stands in the open, always fires its primary weapon.
+**
+**	The 4.8.4 file registered its own JFW_Base_Defence alongside a second
+**	registration of this same stock name, the two being the same script written
+**	twice.  Here there is one script, and JFW_Base_Defence is a second name for
+**	it.  The registered parameters read as floats rather than the ints the
+**	stock name used, so a level may now give it a fractional range; an integer
+**	still parses as one, so nothing already built changes.
+*/
+REGISTER_SCRIPT_MERGED_ALIAS (M00_Base_Defense, JFW_DEF_RANGE, "JFW_Base_Defence")
+class	M00_Base_Defense : public JFW_Defence_Base
+{
+	void Traits (JFW_Defence_Traits & traits) override
+	{
+		traits.Filter		= DEFENCE_FILTER_ANY;
+		traits.Popup		= false;
+		traits.Sound		= false;
+		traits.Fire			= DEFENCE_FIRE_PRIMARY;
+		traits.Driveable	= false;
+	}
+};
+
+
+/*
+**	The same, except that a player may climb in and aim it himself.  While
+**	somebody is driving it, it stops choosing its own targets and stops
+**	sweeping.
+*/
+REGISTER_SCRIPT_TT (JFW_User_Controllable_Base_Defence, JFW_DEF_RANGE)
+class	JFW_User_Controllable_Base_Defence : public JFW_Defence_Base
+{
+	void Traits (JFW_Defence_Traits & traits) override
+	{
+		traits.Filter		= DEFENCE_FILTER_ANY;
+		traits.Popup		= false;
+		traits.Sound		= false;
+		traits.Fire			= DEFENCE_FIRE_PRIMARY;
+		traits.Driveable	= true;
+	}
+};
+
+
+/*
+**	Standing in the open, primary weapon only.
+*/
+
+JFW_DEFENCE (JFW_Base_Defence_No_Aircraft,
+		JFW_DEF_RANGE JFW_DEF_PRESETS,
+		DEFENCE_FILTER_NOT_LISTED, false, false, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_Aircraft_Only,
+		JFW_DEF_RANGE JFW_DEF_PRESETS,
+		DEFENCE_FILTER_ONLY_LISTED, false, false, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_No_VTOL,
+		JFW_DEF_RANGE,
+		DEFENCE_FILTER_NO_VTOL, false, false, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_No_VTOL_No_Stealth,
+		JFW_DEF_RANGE JFW_DEF_STEALTH,
+		DEFENCE_FILTER_NO_VTOL_NO_STEALTH, false, false, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_VTOL_Only,
+		JFW_DEF_RANGE,
+		DEFENCE_FILTER_VTOL_ONLY, false, false, DEFENCE_FIRE_PRIMARY)
+
+
+/*
+**	Standing in the open, alternating primary and secondary each time it re-acquires.
+*/
+
+JFW_DEFENCE (JFW_Base_Defence_Secondary,
+		JFW_DEF_RANGE,
+		DEFENCE_FILTER_ANY, false, false, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_No_Aircraft_Secondary,
+		JFW_DEF_RANGE JFW_DEF_PRESETS,
+		DEFENCE_FILTER_NOT_LISTED, false, false, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_Aircraft_Only_Secondary,
+		JFW_DEF_RANGE JFW_DEF_PRESETS,
+		DEFENCE_FILTER_ONLY_LISTED, false, false, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_No_VTOL_Secondary,
+		JFW_DEF_RANGE,
+		DEFENCE_FILTER_NO_VTOL, false, false, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_VTOL_Only_Secondary,
+		JFW_DEF_RANGE,
+		DEFENCE_FILTER_VTOL_ONLY, false, false, DEFENCE_FIRE_ALTERNATE)
+
+
+/*
+**	Standing in the open, weapon chosen by a custom message.
+*/
+
+JFW_DEFENCE (JFW_Base_Defence_Swap,
+		JFW_DEF_RANGE JFW_DEF_SWAP,
+		DEFENCE_FILTER_ANY, false, false, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_No_Aircraft_Swap,
+		JFW_DEF_RANGE JFW_DEF_PRESETS JFW_DEF_SWAP,
+		DEFENCE_FILTER_NOT_LISTED, false, false, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_Aircraft_Only_Swap,
+		JFW_DEF_RANGE JFW_DEF_PRESETS JFW_DEF_SWAP,
+		DEFENCE_FILTER_ONLY_LISTED, false, false, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_No_VTOL_Swap,
+		JFW_DEF_RANGE JFW_DEF_SWAP,
+		DEFENCE_FILTER_NO_VTOL, false, false, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_VTOL_Only_Swap,
+		JFW_DEF_RANGE JFW_DEF_SWAP,
+		DEFENCE_FILTER_VTOL_ONLY, false, false, DEFENCE_FIRE_SWAPPED)
+
+
+/*
+**	Popping up out of the ground, primary weapon only.
+*/
+
+JFW_DEFENCE (JFW_Base_Defence_Animated,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM,
+		DEFENCE_FILTER_ANY, true, false, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_No_Aircraft,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM,
+		DEFENCE_FILTER_NOT_LISTED, true, false, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Aircraft_Only,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM,
+		DEFENCE_FILTER_ONLY_LISTED, true, false, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_No_VTOL,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM,
+		DEFENCE_FILTER_NO_VTOL, true, false, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_VTOL_Only,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM,
+		DEFENCE_FILTER_VTOL_ONLY, true, false, DEFENCE_FIRE_PRIMARY)
+
+
+/*
+**	Popping up, alternating primary and secondary.
+*/
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Secondary,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM,
+		DEFENCE_FILTER_ANY, true, false, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_No_Aircraft_Secondary,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM,
+		DEFENCE_FILTER_NOT_LISTED, true, false, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Aircraft_Only_Secondary,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM,
+		DEFENCE_FILTER_ONLY_LISTED, true, false, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_No_VTOL_Secondary,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM,
+		DEFENCE_FILTER_NO_VTOL, true, false, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_VTOL_Only_Secondary,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM,
+		DEFENCE_FILTER_VTOL_ONLY, true, false, DEFENCE_FIRE_ALTERNATE)
+
+
+/*
+**	Popping up, weapon chosen by a custom message.
+*/
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Swap,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SWAP,
+		DEFENCE_FILTER_ANY, true, false, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_No_Aircraft_Swap,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM JFW_DEF_SWAP,
+		DEFENCE_FILTER_NOT_LISTED, true, false, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Aircraft_Only_Swap,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM JFW_DEF_SWAP,
+		DEFENCE_FILTER_ONLY_LISTED, true, false, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_No_VTOL_Swap,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SWAP,
+		DEFENCE_FILTER_NO_VTOL, true, false, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_VTOL_Only_Swap,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SWAP,
+		DEFENCE_FILTER_VTOL_ONLY, true, false, DEFENCE_FIRE_SWAPPED)
+
+
+/*
+**	Popping up with a sound as it rises, primary weapon only.
+*/
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SOUND,
+		DEFENCE_FILTER_ANY, true, true, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_No_Aircraft,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM JFW_DEF_SOUND,
+		DEFENCE_FILTER_NOT_LISTED, true, true, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_Aircraft_Only,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM JFW_DEF_SOUND,
+		DEFENCE_FILTER_ONLY_LISTED, true, true, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_No_VTOL,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SOUND,
+		DEFENCE_FILTER_NO_VTOL, true, true, DEFENCE_FIRE_PRIMARY)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_VTOL_Only,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SOUND,
+		DEFENCE_FILTER_VTOL_ONLY, true, true, DEFENCE_FIRE_PRIMARY)
+
+
+/*
+**	Popping up with a sound, alternating primary and secondary.
+*/
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_Secondary,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SOUND,
+		DEFENCE_FILTER_ANY, true, true, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_No_Aircraft_Secondary,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM JFW_DEF_SOUND,
+		DEFENCE_FILTER_NOT_LISTED, true, true, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_Aircraft_Only_Secondary,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM JFW_DEF_SOUND,
+		DEFENCE_FILTER_ONLY_LISTED, true, true, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_No_VTOL_Secondary,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SOUND,
+		DEFENCE_FILTER_NO_VTOL, true, true, DEFENCE_FIRE_ALTERNATE)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_VTOL_Only_Secondary,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SOUND,
+		DEFENCE_FILTER_VTOL_ONLY, true, true, DEFENCE_FIRE_ALTERNATE)
+
+
+/*
+**	Popping up with a sound, weapon chosen by a custom message.
+*/
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_Swap,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SOUND JFW_DEF_SWAP,
+		DEFENCE_FILTER_ANY, true, true, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_No_Aircraft_Swap,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM JFW_DEF_SOUND JFW_DEF_SWAP,
+		DEFENCE_FILTER_NOT_LISTED, true, true, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_Aircraft_Only_Swap,
+		JFW_DEF_POPUP_RANGE JFW_DEF_PRESETS JFW_DEF_ANIM JFW_DEF_SOUND JFW_DEF_SWAP,
+		DEFENCE_FILTER_ONLY_LISTED, true, true, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_No_VTOL_Swap,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SOUND JFW_DEF_SWAP,
+		DEFENCE_FILTER_NO_VTOL, true, true, DEFENCE_FIRE_SWAPPED)
+
+JFW_DEFENCE (JFW_Base_Defence_Animated_Sound_VTOL_Only_Swap,
+		JFW_DEF_POPUP_RANGE JFW_DEF_ANIM JFW_DEF_SOUND JFW_DEF_SWAP,
+		DEFENCE_FILTER_VTOL_ONLY, true, true, DEFENCE_FIRE_SWAPPED)

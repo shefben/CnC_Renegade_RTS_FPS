@@ -31,9 +31,101 @@ NAMED = re.compile(
 ALIAS = re.compile(
     r'\b(?:DECLARE|REGISTER)_SCRIPT_MERGED_ALIAS\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,')
 
-ALIAS_NAME = re.compile(
-    r'\b(?:DECLARE|REGISTER)_SCRIPT_MERGED_ALIAS\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*,'
-    r'\s*"[^"]*"\s*,\s*"([^"]*)"\s*\)')
+#	The alias list is the third argument, and the second argument may be a
+#	macro rather than a string literal, so the call is split into arguments
+#	rather than matched whole.
+ALIAS_CALL = re.compile(r'\b(?:DECLARE|REGISTER)_SCRIPT_MERGED_ALIAS\s*\(')
+
+#	A macro defined in this tree whose body registers a script is itself a
+#	registration: every call of it registers the script it is handed.
+MACRO_DEFINE = re.compile(r'^\s*#\s*define\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(')
+
+
+def split_arguments(text, open_paren):
+    """Split one macro call into its top-level arguments.
+
+    `open_paren` indexes the `(`.  Commas inside nested parentheses or inside
+    string literals do not separate arguments -- a script parameter string is
+    very little but commas.  Returns None if the call is never closed.
+    """
+    args = []
+    current = []
+    depth = 0
+    index = open_paren
+    length = len(text)
+
+    while index < length:
+        char = text[index]
+
+        if char == '"':
+            end = index + 1
+            while end < length and text[end] != '"':
+                end += 2 if text[end] == '\\' else 1
+            current.append(text[index:end + 1])
+            index = end + 1
+            continue
+
+        if char == '(':
+            depth += 1
+            if depth == 1:
+                index += 1
+                continue
+
+        elif char == ')':
+            depth -= 1
+            if depth == 0:
+                args.append(''.join(current).strip())
+                return args
+
+        elif char == ',' and depth == 1:
+            args.append(''.join(current).strip())
+            current = []
+            index += 1
+            continue
+
+        current.append(char)
+        index += 1
+
+    return None
+
+
+def literal_names(argument):
+    """The names in an alias argument: one string literal, semicolons inside."""
+    if argument is None or not argument.startswith('"') or not argument.endswith('"'):
+        return []
+
+    return [name.strip() for name in argument[1:-1].split(';')]
+
+
+def registration_macros(text):
+    """Names of macros defined here whose body expands to a registration."""
+    names = set()
+    lines = text.split('\n')
+
+    for index, line in enumerate(lines):
+        match = MACRO_DEFINE.match(line)
+        if match is None:
+            continue
+
+        #	the body is this line and every continuation of it
+        body = [line]
+        cursor = index
+        while lines[cursor].rstrip().endswith('\\') and cursor + 1 < len(lines):
+            cursor += 1
+            body.append(lines[cursor])
+
+        name = match.group(1)
+
+        #	the registration primitives are matched by their own patterns
+        #	above; counting their calls again here would double every
+        #	script in the tree.
+        if name.startswith(('DECLARE_SCRIPT', 'REGISTER_SCRIPT')):
+            continue
+
+        if 'REGISTER_SCRIPT' in '\n'.join(body[1:] or body):
+            names.add(name)
+
+    return names
 
 #	the raw template form, where the string literal is the registered name and
 #	need not equal the class name
@@ -145,7 +237,7 @@ def in_macro(lines, line):
     return False
 
 def scan(root):
-    found = {}
+    sources = []
     for dirpath, _dirnames, filenames in os.walk(root):
         for name in filenames:
             if not name.lower().endswith(('.cpp', '.h')):
@@ -153,29 +245,58 @@ def scan(root):
 
             path = os.path.join(dirpath, name)
             with open(path, 'r', encoding='utf-8', errors='replace') as handle:
-                text = blank_if_zero(blank_comments(handle.read()))
+                sources.append(
+                    (path, blank_if_zero(blank_comments(handle.read()))))
 
-            lines = text.split('\n')
+    #	A macro of this tree that expands to a registration registers whatever
+    #	it is handed, so its calls count too.  It may be defined in one file
+    #	and called from another, so all of them are collected first.
+    macros = set()
+    for _path, body in sources:
+        macros |= registration_macros(body)
 
-            for pattern in (DECLARE, REGISTER, REGISTRANT, NAMED, ALIAS, ALIAS_NAME):
-                for match in pattern.finditer(text):
-                    line = text.count('\n', 0, match.start()) + 1
+    macro_call = None
+    if macros:
+        macro_call = re.compile(
+            r'\b(?:' + '|'.join(sorted(macros)) + r')\s*\(\s*'
+            r'([A-Za-z_][A-Za-z0-9_]*)\s*,')
 
-                    #	the macro definitions themselves are not registrations
-                    if in_macro(lines, line):
-                        continue
+    found = {}
 
-                    #	an alias field is a semicolon-separated list of names
-                    names = (match.group(1).split(';')
-                             if pattern is ALIAS_NAME else [match.group(1)])
+    def record(script, path, line):
+        script = script.strip()
+        if script:
+            found.setdefault(script.lower(), []).append((script, path, line))
 
-                    for script in names:
-                        script = script.strip()
-                        if not script:
-                            continue
+    for path, body in sources:
+        lines = body.split('\n')
 
-                        found.setdefault(script.lower(), []).append(
-                            (script, path, line))
+        patterns = [DECLARE, REGISTER, REGISTRANT, NAMED, ALIAS]
+        if macro_call is not None:
+            patterns.append(macro_call)
+
+        for pattern in patterns:
+            for match in pattern.finditer(body):
+                line = body.count('\n', 0, match.start()) + 1
+
+                #	the macro definitions themselves are not registrations
+                if in_macro(lines, line):
+                    continue
+
+                record(match.group(1), path, line)
+
+        #	the alias list, which needs the call split into arguments
+        for match in ALIAS_CALL.finditer(body):
+            line = body.count('\n', 0, match.start()) + 1
+            if in_macro(lines, line):
+                continue
+
+            args = split_arguments(body, match.end() - 1)
+            if args is None or len(args) < 3:
+                continue
+
+            for script in literal_names(args[2]):
+                record(script, path, line)
 
     return found
 
