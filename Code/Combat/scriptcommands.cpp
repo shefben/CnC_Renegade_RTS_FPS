@@ -86,6 +86,8 @@
 #include "movephys.h"
 #include "translatedb.h"
 #include "translateobj.h"
+#include "gameeventbus.h"
+#include "string_ids.h"
 #include "vehicle.h"
 #include "scscriptcommandevent.h"
 #include "weaponbag.h"
@@ -4675,6 +4677,444 @@ int Get_Definition_ID( const char * preset_name )
 
 	return def->Get_ID();
 }
+
+void Repair_All_Buildings_By_Team( int team, int except_id, float health )
+{
+	for (	SLNode<BuildingGameObj> * node = GameObjManager::Get_Building_Game_Obj_List()->Head();
+			node != nullptr;
+			node = node->Next() ) {
+
+		BuildingGameObj * building = node->Data();
+		if ( building == nullptr || !Team_Matches( building, team ) ) {
+			continue;
+		}
+
+		if ( Get_ID( building ) == except_id ) {
+			continue;
+		}
+
+		//
+		//	A building on nothing stays on nothing: this repairs damage, it
+		//	does not rebuild.
+		//
+		float health_now = Get_Health( building );
+		if ( health_now > 0 ) {
+			Set_Health( building, health_now + health );
+		}
+	}
+
+	return ;
+}
+
+
+void Repair_All_Buildings_By_Team_Radius( int team, int center_id, float health, float radius )
+{
+	GameObject * center = Find_Object( center_id );
+	if ( center == nullptr ) {
+		return ;
+	}
+
+	Vector3 position = Get_Position( center );
+	float radius_squared = radius * radius;
+
+	for (	SLNode<BuildingGameObj> * node = GameObjManager::Get_Building_Game_Obj_List()->Head();
+			node != nullptr;
+			node = node->Next() ) {
+
+		BuildingGameObj * building = node->Data();
+		if ( building == nullptr || !Team_Matches( building, team ) ) {
+			continue;
+		}
+
+		if ( Get_ID( building ) == center_id ) {
+			continue;
+		}
+
+		float health_now = Get_Health( building );
+		if ( health_now <= 0 ) {
+			continue;
+		}
+
+		if ( ( Get_Position( building ) - position ).Length2() <= radius_squared ) {
+			Set_Health( building, health_now + health );
+		}
+	}
+
+	return ;
+}
+
+
+//
+//	A base defence is a vehicle that never moves, so it repairs itself when
+//	asked rather than being repaired from here.  This is the asking.
+//
+void Repair_All_Static_Vehicles_By_Team( int team, int message )
+{
+	for (	SLNode<SmartGameObj> * node = GameObjManager::Get_Smart_Game_Obj_List()->Head();
+			node != nullptr;
+			node = node->Next() ) {
+
+		SmartGameObj * smart_obj = node->Data();
+		VehicleGameObj * vehicle = ( smart_obj != nullptr ) ? smart_obj->As_VehicleGameObj() : nullptr;
+
+		if ( vehicle == nullptr || !Team_Matches( vehicle, team ) ) {
+			continue;
+		}
+
+		PhysClass * physical_obj = vehicle->Peek_Physical_Object();
+		if ( physical_obj != nullptr && physical_obj->As_DecorationPhysClass() != nullptr ) {
+			Send_Custom_Event( vehicle, vehicle, message, 0, 0 );
+		}
+	}
+
+	return ;
+}
+
+
+void Repair_All_Turrets_By_Team( int team, float health )
+{
+	for (	SLNode<SmartGameObj> * node = GameObjManager::Get_Smart_Game_Obj_List()->Head();
+			node != nullptr;
+			node = node->Next() ) {
+
+		SmartGameObj * smart_obj = node->Data();
+		VehicleGameObj * vehicle = ( smart_obj != nullptr ) ? smart_obj->As_VehicleGameObj() : nullptr;
+
+		if ( vehicle == nullptr || !vehicle->Is_Turret() || !Team_Matches( vehicle, team ) ) {
+			continue;
+		}
+
+		float health_now = Get_Health( vehicle );
+		if ( health_now > 0 ) {
+			Set_Health( vehicle, health_now + health );
+		}
+
+		float shield_now = Get_Shield_Strength( vehicle );
+		if ( shield_now > 0 ) {
+			Set_Shield_Strength( vehicle, shield_now + health );
+		}
+	}
+
+	return ;
+}
+
+
+void Damage_Occupants( GameObject * obj, float amount, const char * warhead_name )
+{
+	VehicleGameObj * vehicle = ( obj != nullptr ) ? obj->As_VehicleGameObj() : nullptr;
+	if ( vehicle == nullptr ) {
+		return ;
+	}
+
+	int seats = vehicle->Get_Definition().Get_Seat_Count();
+	for ( int seat = 0; seat < seats; seat ++ ) {
+
+		SoldierGameObj * occupant = vehicle->Get_Occupant( seat );
+		if ( occupant != nullptr ) {
+			Apply_Damage( occupant, amount, warhead_name, nullptr );
+		}
+	}
+
+	return ;
+}
+
+
+void Kill_Occupants( GameObject * obj )
+{
+	Damage_Occupants( obj, 99999.0f, "Death" );
+	return ;
+}
+
+
+void Damage_All_Objects_Area_By_Team
+(
+	float					amount,
+	const char *		warhead_name,
+	const Vector3 &	position,
+	float					radius,
+	GameObject *		damager,
+	bool					soldiers,
+	bool					vehicles,
+	int					team
+)
+{
+	float radius_squared = radius * radius;
+
+	//
+	//	Collected first, because applying damage can destroy an object and
+	//	take it out of the list this is walking.
+	//
+	DynamicVectorClass<GameObject *> targets;
+
+	for (	SLNode<SmartGameObj> * node = GameObjManager::Get_Smart_Game_Obj_List()->Head();
+			node != nullptr;
+			node = node->Next() ) {
+
+		SmartGameObj * smart_obj = node->Data();
+		if ( smart_obj == nullptr || !Team_Matches( smart_obj, team ) ) {
+			continue;
+		}
+
+		bool wanted = ( soldiers && smart_obj->As_SoldierGameObj() != nullptr )
+				|| ( vehicles && smart_obj->As_VehicleGameObj() != nullptr );
+
+		if ( !wanted ) {
+			continue;
+		}
+
+		if ( ( Get_Position( smart_obj ) - position ).Length2() <= radius_squared ) {
+			targets.Add( smart_obj );
+		}
+	}
+
+	for ( int index = 0; index < targets.Count(); index ++ ) {
+		Apply_Damage( targets[index], amount, warhead_name, damager );
+	}
+
+	return ;
+}
+
+
+//
+//	The three ranged-damage calls differ only in how far the damage falls off
+//	with distance, so they share one walk.
+//
+enum RangedFalloffEnum
+{
+	RANGED_FLAT,				// the same damage everywhere inside the radius
+	RANGED_SCALED,				// full damage at the centre, none at the edge
+	RANGED_PERCENTAGE			// a fraction of the target's own maximum health
+};
+
+static void	Ranged_Damage_To_Buildings_Team_Internal
+(
+	int						team,
+	float						amount,
+	const char *			warhead_name,
+	const Vector3 &		position,
+	float						radius,
+	GameObject *			damager,
+	RangedFalloffEnum		falloff
+)
+{
+	if ( radius <= 0 ) {
+		return ;
+	}
+
+	DynamicVectorClass<GameObject *> targets;
+	DynamicVectorClass<float> amounts;
+
+	for (	SLNode<BuildingGameObj> * node = GameObjManager::Get_Building_Game_Obj_List()->Head();
+			node != nullptr;
+			node = node->Next() ) {
+
+		BuildingGameObj * building = node->Data();
+		if ( building == nullptr || !Team_Matches( building, team ) ) {
+			continue;
+		}
+
+		if ( Get_Health( building ) <= 0 ) {
+			continue;
+		}
+
+		float distance = ( Get_Position( building ) - position ).Length();
+		if ( distance > radius ) {
+			continue;
+		}
+
+		targets.Add( building );
+
+		switch ( falloff )
+		{
+			case RANGED_SCALED:
+				amounts.Add( amount - distance * ( amount / radius ) );
+				break;
+
+			case RANGED_PERCENTAGE:
+				amounts.Add( Get_Max_Health( building ) * amount );
+				break;
+
+			default:
+				amounts.Add( amount );
+				break;
+		}
+	}
+
+	for ( int index = 0; index < targets.Count(); index ++ ) {
+		Apply_Damage( targets[index], amounts[index], warhead_name, damager );
+	}
+
+	return ;
+}
+
+
+void Ranged_Damage_To_Buildings_Team( int team, float amount, const char * warhead_name,
+		const Vector3 & position, float radius, GameObject * damager )
+{
+	Ranged_Damage_To_Buildings_Team_Internal( team, amount, warhead_name, position,
+			radius, damager, RANGED_FLAT );
+	return ;
+}
+
+
+void Ranged_Scale_Damage_To_Buildings_Team( int team, float amount, const char * warhead_name,
+		const Vector3 & position, float radius, GameObject * damager )
+{
+	Ranged_Damage_To_Buildings_Team_Internal( team, amount, warhead_name, position,
+			radius, damager, RANGED_SCALED );
+	return ;
+}
+
+
+void Ranged_Percentage_Damage_To_Buildings_Team( int team, float fraction, const char * warhead_name,
+		const Vector3 & position, float radius, GameObject * damager )
+{
+	Ranged_Damage_To_Buildings_Team_Internal( team, fraction, warhead_name, position,
+			radius, damager, RANGED_PERCENTAGE );
+	return ;
+}
+
+
+const char * Get_Skin( GameObject * obj )
+{
+	DamageableGameObj * damageable = ( obj != nullptr ) ? obj->As_DamageableGameObj() : nullptr;
+	if ( damageable == nullptr ) {
+		return "";
+	}
+
+	return ArmorWarheadManager::Get_Armor_Name( damageable->Get_Defense_Object()->Get_Skin() );
+}
+
+
+void Create_Effect_All_Stealthed_Objects_Area
+(
+	const Vector3 &	position,
+	float					radius,
+	const char *		effect_preset,
+	const Vector3 &	offset,
+	int					team
+)
+{
+	//
+	//	Measured on the ground, so height does not put a target out of range.
+	//
+	Vector3 center = position;
+	center.Z = 0;
+
+	float radius_squared = radius * radius;
+
+	for (	SLNode<SmartGameObj> * node = GameObjManager::Get_Smart_Game_Obj_List()->Head();
+			node != nullptr;
+			node = node->Next() ) {
+
+		SmartGameObj * smart_obj = node->Data();
+		if ( smart_obj == nullptr || !Team_Matches( smart_obj, team ) ) {
+			continue;
+		}
+
+		Vector3 where = Get_Position( smart_obj );
+		Vector3 flat = where;
+		flat.Z = 0;
+
+		if ( ( flat - center ).Length2() > radius_squared ) {
+			continue;
+		}
+
+		VehicleGameObj * vehicle = smart_obj->As_VehicleGameObj();
+		bool hiding = Is_Stealth( smart_obj )
+				|| ( vehicle != nullptr && vehicle->Is_Underground() );
+
+		if ( hiding ) {
+			Create_Object( effect_preset, where + offset );
+		}
+	}
+
+	return ;
+}
+
+
+void Get_Translated_String( int string_id, WideStringClass & text )
+{
+	text = L"";
+
+	const unichar_t * translated = TranslateDBClass::Get_String( string_id );
+	if ( translated != nullptr ) {
+		text = translated;
+	}
+
+	return ;
+}
+
+
+void Get_Team_Name( int team, WideStringClass & name )
+{
+	//
+	//	The two playing teams are named in the translation database; anything
+	//	else is neutral, which is not a team anyone plays and so is not there.
+	//
+	if ( team == 0 ) {
+		Get_Translated_String( IDS_MP_TEAMNAME_MISSIONS_TEAM_0, name );
+	} else if ( team == 1 ) {
+		Get_Translated_String( IDS_MP_TEAMNAME_MISSIONS_TEAM_1, name );
+	} else {
+		name = L"Neutral";
+	}
+
+	return ;
+}
+
+
+void Get_Current_Translated_Weapon( GameObject * obj, WideStringClass & name )
+{
+	name = L"";
+
+	WeaponBagClass * bag = Peek_Weapon_Bag( obj );
+	if ( bag == nullptr ) {
+		return ;
+	}
+
+	int index = bag->Get_Index();
+	if ( index <= 0 || index >= bag->Get_Count() ) {
+		return ;
+	}
+
+	WeaponClass * weapon = bag->Peek_Weapon( index );
+	if ( weapon == nullptr || weapon->Get_Definition() == nullptr ) {
+		return ;
+	}
+
+	Get_Translated_String( weapon->Get_Definition()->IconNameID, name );
+	return ;
+}
+
+
+void Console_Input( const char * text )
+{
+	if ( text == nullptr ) {
+		return ;
+	}
+
+	GameEventBus::Raise_Console_Input( text );
+	return ;
+}
+
+
+void Console_Output( const char * format, ... )
+{
+	SCRIPT_PTR_CHECK( format );
+
+	va_list arg_list;
+	va_start( arg_list, format );
+
+	StringClass text;
+	text.Format_Args( format, arg_list );
+
+	va_end( arg_list );
+
+	GameEventBus::Raise_Console_Print( text.Peek_Buffer() );
+	return ;
+}
+
 
 void Remove_Weapon( GameObject * obj, const char * weapon_name )
 {

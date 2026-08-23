@@ -69,6 +69,18 @@ RENAMED = set(l.split(TAB)[0] for l in
               read('docs/tt484/TTScriptApiRenames.tsv').split(chr(10))[1:] if l.strip())
 
 
+# C-string helpers the SDK exported because a plugin could not reach the
+# engine's own string library.  A native script uses StringClass, so these are
+# not gaps and there is nothing to port.
+SDK_HELPER = ('newstr', 'stristr', 'wcsistr', 'WideCharToChar', 'CharToWideChar')
+
+# The SDK has portable source for these, but that source reads data this
+# library sits below -- the player roster, the team table, the game object.
+# They need a seam before they can be answered, so they are engine work
+# however portable the donor's own implementation looks.
+NEEDS_SEAM = ('The_Game', 'Get_Player_Name_By_ID', 'Get_Team_Score', 'Is_Spy')
+
+
 def disposition(name):
     if name in have or name in RENAMED:
         return 'done'
@@ -76,6 +88,10 @@ def disposition(name):
         return 'n/a-plugin-hook'
     if name.startswith('REF_'):
         return 'n/a-data-binding'
+    if name in SDK_HELPER:
+        return 'n/a-sdk-helper'
+    if name in NEEDS_SEAM:
+        return 'port-engine-work'
     if name in sdk_impl:
         return 'port-portable-source'
     if name.endswith(PER_CLIENT) or name.startswith('Send_Message'):

@@ -54,6 +54,7 @@ GameEventChannelClass<PlayerKeyEventClass>			GameEventBus::PlayerKey;
 GameEventChannelClass<DialogEventClass>				GameEventBus::Dialog;
 GameEventChannelClass<ConsoleOutputEventClass>		GameEventBus::ConsoleOutput;
 GameEventChannelClass<ConsoleInputEventClass>		GameEventBus::ConsoleInput;
+GameEventChannelClass<ConsolePrintEventClass>		GameEventBus::ConsolePrint;
 GameEventChannelClass<RenderNotifyEventClass>		GameEventBus::RenderNotify;
 
 GameEventChannelClass<GameModeEventClass>				GameEventBus::GameModeStart;
@@ -116,6 +117,7 @@ GameEventBus::Shutdown (void)
 	Dialog.Reset ();
 	ConsoleOutput.Reset ();
 	ConsoleInput.Reset ();
+	ConsolePrint.Reset ();
 	RenderNotify.Reset ();
 
 	GameModeStart.Reset ();
@@ -417,6 +419,24 @@ GameEventBus::Raise_Console_Input (const char *text)
 
 	ConsoleInputEventClass event (text);
 	ConsoleInput.Dispatch (event);
+	return ;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	Raise_Console_Print
+//
+////////////////////////////////////////////////////////////////
+void
+GameEventBus::Raise_Console_Print (const char *text)
+{
+	if (text == nullptr || !ConsolePrint.Has_Subscribers ()) {
+		return ;
+	}
+
+	ConsolePrintEventClass event (text);
+	ConsolePrint.Dispatch (event);
 	return ;
 }
 

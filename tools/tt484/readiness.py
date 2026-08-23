@@ -33,7 +33,9 @@ for path in IN_SCOPE:
     blockers = Counter()
     for m in CALL.finditer(stripped):
         d = disp.get(m.group(1))
-        if d is not None and d not in ('done',):
+        #	An n/a disposition is a decision, not a gap: nothing is owed and
+        #	the file is not held up by it.
+        if d is not None and d != 'done' and not d.startswith('n/a'):
             blockers[m.group(1) + ':' + d] += 1
     rows.append((len(text.split('\n')), os.path.basename(path),
                  text.count('ScriptRegistrant<'), sum(blockers.values()),

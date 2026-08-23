@@ -567,6 +567,56 @@ namespace ScriptEngine
 	void Damage_All_Objects_Area ( float amount, const char * warhead_name,
 			const Vector3 & position, float radius, int team, GameObject * damager );
 	
+	//
+	//	Whole categories of thing repaired or damaged at once, which is how a
+	//	superweapon and a repair beacon work.  Throughout this group Nod is 0,
+	//	GDI is 1, and 2 means both.
+	//
+	void Repair_All_Buildings_By_Team ( int team, int except_id, float health );
+	void Repair_All_Buildings_By_Team_Radius ( int team, int center_id, float health,
+			float radius );
+	void Repair_All_Static_Vehicles_By_Team ( int team, int message );
+	void Repair_All_Turrets_By_Team ( int team, float health );
+	
+	void Damage_Occupants ( GameObject * obj, float amount, const char * warhead_name );
+	void Kill_Occupants ( GameObject * obj );
+	
+	void Damage_All_Objects_Area_By_Team ( float amount, const char * warhead_name,
+			const Vector3 & position, float radius, GameObject * damager,
+			bool soldiers, bool vehicles, int team );
+	
+	void Ranged_Damage_To_Buildings_Team ( int team, float amount,
+			const char * warhead_name, const Vector3 & position, float radius,
+			GameObject * damager );
+	void Ranged_Scale_Damage_To_Buildings_Team ( int team, float amount,
+			const char * warhead_name, const Vector3 & position, float radius,
+			GameObject * damager );
+	void Ranged_Percentage_Damage_To_Buildings_Team ( int team, float fraction,
+			const char * warhead_name, const Vector3 & position, float radius,
+			GameObject * damager );
+	
+	//
+	//	The armor an object is wearing.  The name is the 4.8.4 library's; it
+	//	reads what Set_Skin writes.
+	//
+	const char * Get_Skin ( GameObject * obj );
+	
+	//
+	//	An indicator object beside everything in the area that is hiding --
+	//	stealthed, or a vehicle that has gone underground.
+	//
+	void Create_Effect_All_Stealthed_Objects_Area ( const Vector3 & position,
+			float radius, const char * effect_preset, const Vector3 & offset,
+			int team );
+	
+	//
+	//	The two halves of the console seam.  Input is a line to run as though
+	//	it had been typed; output is a line to print.  Both go out on the
+	//	event bus, because the console itself lives above this library.
+	//
+	void Console_Input ( const char * text );
+	void Console_Output ( const char * format, ... );
+	
 	// Definitions
 	int Get_Definition_ID ( const char * preset_name );
 	const char * Get_Definition_Name ( int definition_id );
@@ -581,6 +631,15 @@ namespace ScriptEngine
 	//
 	void Get_Translated_Preset_Name ( GameObject * obj, WideStringClass & name );
 	void Get_Translated_Definition_Name ( int definition_id, WideStringClass & name );
+	
+	//
+	//	A string out of the translation database by its id, the name of a
+	//	team, and the name of the weapon an object is holding.  All three are
+	//	out-parameters for the same reason as the pair above.
+	//
+	void Get_Translated_String ( int string_id, WideStringClass & text );
+	void Get_Team_Name ( int team, WideStringClass & name );
+	void Get_Current_Translated_Weapon ( GameObject * obj, WideStringClass & name );
 	
 	bool Is_Valid_String_ID ( int string_id );
 	int Get_String_Sound_ID ( int string_id );

@@ -13,3 +13,4 @@ Is_Harvester_Preset	Is_Harvester	canonical asks the base, not the preset table
 Get_Team_Color	Get_Color_For_Team	canonical returns a Vector3 of 0..1 rather than three 0..255 ints
 Find_Definition	Is_Valid_Preset_ID / Get_Definition_Name	a script has no use for the DefinitionClass itself; ask what it wanted to know
 Get_GameObj	Find_Object_By_Player_ID	see TTScriptApiGap.tsv: still to port
+Get_Player_Name	Get_Wide_Player_Name	the canonical one answers wide, which is what the name actually is; the donor narrowed it into a buffer the caller had to free

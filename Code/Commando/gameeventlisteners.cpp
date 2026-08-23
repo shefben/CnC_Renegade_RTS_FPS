@@ -29,6 +29,7 @@ static int	_ClientQueryToken	= 0;
 static int	_ServerStartupToken	= 0;
 static int	_ServerShutdownToken	= 0;
 static int	_ConsoleInputToken	= 0;
+static int	_ConsolePrintToken	= 0;
 
 
 //-----------------------------------------------------------------------------
@@ -83,6 +84,22 @@ Console_Input_Handler (ConsoleInputEventClass &event, void * /*data*/)
 }
 
 
+//
+//	Something below the console -- a script, usually -- asking for a line on
+//	it.  Printing raises ConsoleOutput in its turn, so a logger hears it
+//	once, from the console, rather than twice.
+//
+static void
+Console_Print_Handler (ConsolePrintEventClass &event, void * /*data*/)
+{
+	if (event.Text != nullptr && event.Text[0] != 0) {
+		ConsoleFunctionManager::Print ("%s", event.Text);
+	}
+
+	return ;
+}
+
+
 static void
 Server_Startup_Handler (ServerLifecycleEventClass & /*event*/, void * /*data*/)
 {
@@ -115,6 +132,10 @@ GameEventListeners::Register (void)
 		_ConsoleInputToken = GameEventBus::ConsoleInput.Register (Console_Input_Handler);
 	}
 
+	if (_ConsolePrintToken == 0) {
+		_ConsolePrintToken = GameEventBus::ConsolePrint.Register (Console_Print_Handler);
+	}
+
 	return ;
 }
 
@@ -138,6 +159,11 @@ GameEventListeners::Unregister (void)
 	if (_ConsoleInputToken != 0) {
 		GameEventBus::ConsoleInput.Unregister (_ConsoleInputToken);
 		_ConsoleInputToken = 0;
+	}
+
+	if (_ConsolePrintToken != 0) {
+		GameEventBus::ConsolePrint.Unregister (_ConsolePrintToken);
+		_ConsolePrintToken = 0;
 	}
 
 	SSGMManagerClass::Unregister ();
