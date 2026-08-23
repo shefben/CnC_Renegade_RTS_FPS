@@ -43,23 +43,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P06: TT compatibility/cleanup/testing HARD GATE (roadmap Section 12)
 
-- [ ] stock script catalog test
-- [ ] TT script catalog test
-- [ ] duplicate script-name collision test
-- [ ] save/load script recreation
-- [ ] TT building/factory object creation
-- [ ] TT per-client visibility
-- [ ] TT purchase/refill hooks
-- [ ] TT damage/kill hooks
-- [ ] TT chat/player hooks
-- [ ] TT dialogs
-- [ ] TT collision groups
-- [ ] controller behavior where supported
-- [ ] client/server map transition
-- [ ] dedicated server
-- [ ] clean startup with no scripts-related DLLs
-- [ ] tool/editor build
-
 ## P07: Freeze Zero Hour donor; capability/port matrices (roadmap Section 13)
 
 - [ ] TheSuperHackers Zero Hour donor SHA frozen and documented

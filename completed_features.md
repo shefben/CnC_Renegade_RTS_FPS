@@ -1112,3 +1112,51 @@ library (11.6) and console/admin (11.7). The parity matrix carries no
 `UNREVIEWED` or unexplained `MISSING` entry: 760 hook rows all dispositioned,
 363 script-API rows all done or explained N/A. Registry 2498 built-in scripts,
 no duplicate names; `renegade` and `leveledit` both build clean.
+
+**P06-A: the script catalog, checked in the binary that holds it.** Absorbs the
+backlog lines *stock script catalog test*, *TT script catalog test*, *duplicate
+script-name collision test* and *save/load script recreation*.
+`renegade -scriptcatalogcheck <stock|tt|duplicates|recreate>` runs before
+anything is opened and compares `NativeScriptRegistry` against a manifest
+`tools/tt484/script_catalog_manifest.py` writes from the source. 2477 scripts,
+1636 stock of which 19 merged, 841 from 4.8.4, 18 aliases, no duplicate names,
+and every entry rebuilt by name the way a load does it.
+
+**P06-B: three stock scripts a level can name are not in the game.** The first
+run of the catalog check found `MS04_Gunboat_Waypath_Movement`,
+`MXX_Group_Member_DEL` and `Unit_Combat` declared but not registered: nine
+source files under `Code/Scripts` have never been in `SCRIPTS_SRC` and do not
+compile -- they are written against a script interface that never shipped and
+`MissionS04.cpp` is truncated mid-function. Written down where the source list
+is; the manifest generator reads that list so the two agree.
+
+**P06-C: the 4.8.4 hard gate, from inside the binary.** Absorbs *TT
+building/factory object creation*, *TT per-client visibility*, *TT
+purchase/refill hooks*, *TT damage/kill hooks*, *TT chat/player hooks*, *TT
+dialogs*, *TT collision groups* and *clean startup with no scripts-related
+DLLs*. `renegade -ttselfcheck <objects|visibility|hooks|dialogs|collision|
+modules>`. The collision check needed the matrix without a graphics device
+behind it, so `CombatManager::Define_Collision_Groups` now describes it once
+through a `CollisionGroupSinkClass` -- the scene is one reader, the check is
+another.
+
+**P06-D: the dedicated server passes the same gate.** Absorbs *dedicated
+server*. Eight `fds_*` tests run the catalog and self checks through
+`renegadeserver`, a second binary built from the same sources with
+`FREEDEDICATEDSERVER`; it starts clean and holds the same catalog.
+
+**P06-E: tool/editor build.** `leveledit` builds and links against `combate`
+and `scriptse`. It is a GUI application with no headless mode, so the build is
+the test and there is no ctest entry.
+
+**N/A: controller behavior where supported.** There is no controller support in
+this tree to have broken -- `tt/Input.h` declares no member `Code/Combat/input.h`
+lacks, and DirectInput is declined on the roadmap's own instruction. Section 12
+asks for controller behavior *where supported*; it is not supported.
+
+**P06 complete: the TT hard gate passes.** All sixteen of roadmap Section 12's
+required tests are answered in `docs/tt484/TTPhase6Gate.md` -- thirteen by a
+ctest entry, one by the editor building, one not applicable with the reason, and
+*client/server map transition* by a written two-process manual step, since it
+needs two processes and a level. 17 tests, `renegade`, `renegadeserver` and
+`leveledit` all build clean. Tagged `tt-native-complete`.
