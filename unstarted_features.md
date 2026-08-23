@@ -47,14 +47,23 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P08: Asset exclusion / residency (roadmap Section 14)
 
-- [ ] Acceptance: Repeated map/world load/unload does not invalidate retained assets or leak unbounded resources.
-
 ## P09: Shader manager architecture (roadmap Section 15)
 
+- [ ] `W3DShaderManager` equivalent extending the existing D3D9-backed `Code/ww3d2` renderer as the single state/shader management layer.
+- [ ] Rule: no D3D8 wrapper DLL and no second rendering backend; existing `DX8Wrapper` names may stay but new code uses real D3D9 capabilities.
+- [ ] Material programs/pipelines: terrain, terrain detail, roads, bridges, water, foliage.
+- [ ] Material programs/pipelines: projected shadows, particles, tracers/beams, status markers, ghost building tint, debug overlays.
+- [ ] Stock-asset compatibility: existing Renegade W3D materials, shaders and texture formats render unchanged through the new layer.
 - [ ] Acceptance: Existing W3D materials remain functional and new donor systems share one state/shader management layer.
 
 ## P10: Spatial query/index layer (roadmap Section 16)
 
+- [ ] `WorldSpatialIndex` service over the existing `CullSystemClass`, `GridCullSystemClass`, `AABTreeCull` and `PhysicsSceneClass` baseline, delegating to specialized structures internally.
+- [ ] Queries: `QueryAABB`, `QueryOBB`, `QuerySphere`, `QueryFrustum`, `QueryRay`.
+- [ ] Queries: `QueryPlacementOverlap` and `QueryNearbyLights`.
+- [ ] Rule: SAGE `PartitionManager` is not imported as a second unrelated world database.
+- [ ] Consumers moved onto the service: rendering, game-object proximity, area damage, AI queries.
+- [ ] Consumers moved onto the service: Commander building placement, nearby lights, foliage cells, roads/bridges/water, future procedural world generation.
 - [ ] Acceptance: Common large-world queries no longer require scanning the complete global object list.
 
 ## P11: Hybrid heightmap/terrain framework (roadmap Section 17)
