@@ -949,3 +949,24 @@ between them -- on every run. All five are renames and are recorded in
 `docs/tt484/TTScriptApiRenames.tsv`, which the generator reads; `The_Game` and
 `Get_Team_Score` left its stale `NEEDS_SEAM` list. Regenerating now reproduces
 the committed table exactly.
+
+**P04-AD: `jfwobj.cpp` ported to `Code/Scripts/TT_Objects.cpp`.** 73
+registrations -- mission objectives, orders, veterancy, deploying, radar
+jamming -- plus the pilot key hook `Reborn_Deployable_Vehicle_Player` they
+attach by name; the eleven objective scripts, the two tutorial conversations,
+the goto and attack pairs, the two sabotage beacons and the eight veterancy
+scripts each collapse to one base and a virtual. Thirteen donor defects fixed,
+the worst being a custom event's int parameter cast to a pointer and
+dereferenced (always zero) and `JFW_Start_Timer` never starting a timer; the
+header block lists them. Registry 2070 -> 2143, no duplicate names; `renegade`
+and `leveledit` both build. `M08_Nod_Turret`, `M10_Turret` and
+`RMV_Test_Big_Gun_Turning` were already merged into the mission files and are
+not ported again.
+
+**P04-AE: N/A: `gmsoldier.cpp`'s `SSGM_C4_Key`, `SSGM_Bind_Key` and
+`SSGM_BL_Key`.** Superseded, not ported. `SSGMManagerClass::Handle_Key_Command`
+(`Code/Commando/ssgmmanager.cpp:778`) already answers `C4Count`, `VehBind` and
+`VehBL` for every player and stops the dispatch, so these are server-layer
+commands rather than character behaviour and porting them would be the
+duplicate path directive 0.4 forbids. The `SSGMManagerInterfaceClass` seam a
+previous session wrote into WIP is not needed. `gmsoldier.cpp` is complete.

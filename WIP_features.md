@@ -7,39 +7,37 @@ Detail lives in `docs/`.
 
 ## P04: the 4.8.4 script library, natively
 
-Done so far: P04-A..P04-AC in `completed_features.md` -- the stock half, the
+Done so far: P04-A..P04-AE in `completed_features.md` -- the stock half, the
 registry, the per-client seam, the key-hook facility, the SSGM layer, the
 game-info and damage-context seams, and the donor files `jfwpow.cpp`,
 `jfwws.cpp`, `jfwgun.cpp`, `jfwscr.cpp`, `jfwweap.cpp`, `jfwhook.cpp`,
 `jfwveh.cpp`, `agtfix.cpp`, `obelfix.cpp`, `jfwdef.cpp`, `jfwcust.cpp`
-(89/90), `jfwpoke.cpp`, `dan.cpp`, `gmbuilding.cpp` and `gmvehicle.cpp`.
-Registry is at 2070 built-in scripts, no duplicate names; `renegade` and
-`leveledit` both link. What remains is 369 donor-only scripts across nine
-files; `tools/tt484/readiness.py` ranks them and
-`docs/tt484/TTScriptApiGap.tsv` carries the dispositions.
+(89/90), `jfwpoke.cpp`, `dan.cpp`, `jfwobj.cpp`, `gmbuilding.cpp`,
+`gmvehicle.cpp` and `gmsoldier.cpp`. Registry is at 2143 built-in scripts, no
+duplicate names; `renegade` and `leveledit` both link. What remains is 358
+donor-only scripts across eight files, and none of it is porting work any more
+-- every one of them is gated on an engine name. `tools/tt484/readiness.py`
+ranks them and `docs/tt484/TTScriptApiGap.tsv` carries the dispositions.
 
-Next exact action: convert `tt_4.8.4/scripts/jfwobj.cpp` (4205 lines, 11
-registrations, zero blockers since `Update_Network_Object` landed) to
-`Code/Scripts/TT_Objects.cpp`. Read
-`docs/tt484/TTScriptApiRenames.tsv` before starting -- several names that look
-missing are present under others, and `Get_Random_Int` is `[min, max)` here
-exactly as in the donor, so ported calls need no adjustment and a `min` equal
-to `max` divides by zero.
+Next exact action: add `IsSpy`, `IsUnsquishable`, `CanRefill`,
+`CanStealVehicles` and `CanDriveVehicles` to `SoldierGameObjDef`
+(`Code/Combat/soldier.h`, definition at `soldier.cpp`), with editable
+parameters, save/load micro-chunks and the accessors 4.8.4 spells
+`Is_Spy()`, `Is_Unsquishable()` and `Can_Refill()`; then
+`ScriptEngine::Is_Spy(GameObject*)` on top. Compare
+`tt_4.8.4/scripts/SoldierGameObjDef.h` -- the canonical class is that class
+minus those five fields. This is a definition-format change, so check what
+`Load` does with an older chunk before writing it. It unblocks 8 calls across
+`jfwzone.cpp` and `jfwgame.cpp`.
 
-Then `gmsoldier.cpp`'s last three (`SSGM_C4_Key`, `SSGM_Bind_Key`,
-`SSGM_BL_Key`). Readiness calls them unblocked but they are not: they call
-`Print_C4`, `Bind_Vehicle` and `Lock_Vehicle`, which exist as
-`SSGMManagerClass` members in `Code/Commando/ssgmmanager.cpp` and cannot be
-reached from `Code/Scripts` (it links `combate`, not Commando). They want an
-abstract `SSGMManagerInterfaceClass` in `Code/Combat` implemented Commando-side,
-the same shape as `GameInfoInterfaceClass` in `Code/Combat/gameinfo.h`.
-
-After that the remainder is the API gap rather than porting. In leverage order:
-`Hide_Preset_By_Name` (8 calls, jfwmisc), `Is_Spy` (8, jfwzone+jfwgame),
-`Get_INI`/`Release_INI` (6, jfwsnd+jfwdmg), `Set_Global_Stealth_Disable` (5,
-jfwmisc), `Get_Cost` (4, jfwzone), `Get_Player_Name_By_ID` (14, jfwgame+jfwdmg
--- needs a player-roster seam), `Display_Game_Hint`/`_Image` (6, jfwmisc),
-`Set_Camera_Host_Network` (2, jfwcine), `Create_Zone` (2, jfwzone).
+Then the rest of the API gap, in leverage order: `Hide_Preset_By_Name` (8
+calls, jfwmisc), `Get_INI`/`Release_INI` (6, jfwsnd+jfwdmg),
+`Set_Global_Stealth_Disable` (5, jfwmisc), `Get_Cost` (4, jfwzone),
+`Get_Player_Name_By_ID` (14, jfwgame+jfwdmg -- needs a player-roster seam),
+`Display_Game_Hint`/`_Image` (6, jfwmisc), `Set_Camera_Host_Network` (2,
+jfwcine), `Create_Zone` (2, jfwzone), `Set_Subobject_Animation` (1),
+`Get_Object_Color` (1). `Hide_Preset_By_Name` and `Get_Cost` are
+purchase-terminal calls and may want a seam rather than a command.
 `Get_Mine_Limit` and `Set_Tech_Level` have no counterpart here and need a
 decision about where the setting lives, likely `SSGMSettingsClass`.
 
