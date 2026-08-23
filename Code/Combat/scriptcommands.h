@@ -236,6 +236,15 @@ namespace ScriptEngine
 	bool Is_Harvester ( GameObject * obj );
 	void Set_Player_Type ( GameObject * obj, int type );
 
+	//
+	//	Say everything this object has to say to every client again.  A script
+	//	that changes state the object does not itself mark as changed -- its
+	//	side, its model, what it is standing on -- leaves the clients showing
+	//	the old thing until something else makes the object talk.  This makes
+	//	it talk.
+	//
+	void Update_Network_Object ( GameObject * obj );
+
 	// Math
 	float Get_Distance ( const Vector3 & p1, const Vector3 & p2 );
 

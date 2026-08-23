@@ -156,6 +156,7 @@ Set_HUD_Help_Text_Player	engine_tt.h	5	done
 Set_Max_Health	engine_dmg.h	5	done
 Set_Max_Shield_Strength	engine_dmg.h	5	done
 Shake_Camera	Commands->	5	done
+Update_Network_Object	engine_tt.h	5	done
 Change_Team_2	engine_player.h	4	done
 Create_2D_WAV_Sound	Commands->	4	done
 Create_Effect_All_Of_Preset	engine_phys.h	4	done
@@ -332,7 +333,6 @@ stristr	engine_string.h	1	n/a-sdk-helper
 Get_Player_Name_By_ID	engine_player.h	14	port-engine-work
 Is_Spy	engine_obj2.h	8	port-engine-work
 Set_Global_Stealth_Disable	engine_tt.h	5	port-engine-work
-Update_Network_Object	engine_tt.h	5	port-engine-work
 Display_Game_Hint	engine_tt.h	3	port-engine-work
 Display_Game_Hint_Image	engine_tt.h	3	port-engine-work
 Force_Vehicle_Entry	engine_tt.h	3	port-engine-work

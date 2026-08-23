@@ -64,6 +64,7 @@
 #include "translatedb.h"
 #include "damageablegameobj.h"
 #include "damagecontext.h"
+#include "networkobject.h"
 #include "weaponbag.h"
 #include "weapons.h"
 #include "vehicle.h"
@@ -1506,6 +1507,19 @@ void	Set_Player_Type( GameObject * obj, int type )
 		dgobj->Set_Player_Type( type );
 	}
 
+}
+
+
+void	Update_Network_Object( GameObject * obj )
+{
+	SCRIPT_PTR_CHECK( obj );
+	SCRIPT_TRACE((	"ST>Update_Network_Object( %d )\n", obj->Get_ID() ));
+
+	//
+	//	BIT_RARE carries the occasional and frequent bits with it, so this is
+	//	everything the object has to say rather than only its slowest state.
+	//
+	obj->Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
 }
 
 
