@@ -1060,3 +1060,21 @@ a scene-added `SegmentedLineClass` with a third of a second to live;
 `Set_Info_Texture`/`Clear_Info_Texture` put a picture over one player's whole
 screen and `Load_New_HUD_INI` re-reads their UI options from a named file.
 With these, `jfwmisc.cpp` reports zero blocked calls. Commit `0d18e216`.
+
+**P04-AO: the long tail a level is furnished from.** `jfwmisc.cpp` ported to
+`Code/Scripts/TT_Misc.cpp` -- 103 scripts covering weather, the tech level,
+screen fades, purchase entries, ion storms, EMP and mines, runtime zones and
+the one-idea scripts, with eleven donor defects fixed and named in the file
+header; two registered names keep the donor's own misspellings because levels
+were built against them. Needed three engine seams:
+`CUSTOM_EVENT_VEHICLE_OWNER` raised from `VehicleGameObj::Lock_Vehicle`
+instead of 4.8.4's declined airstrip hook,
+`RefineryGameObj::Set_Harvester_Spawn_Blocked`, and a public
+`PhysicalGameObjDef::Get_Animation`. Commit `cb44d71b`.
+
+**P04 complete: every in-scope donor file is ported.** Twenty-two of the
+twenty-five carry every script they registered; `gmlog.cpp` registers none;
+`gmsoldier.cpp` is 2 of 5 with the other three recorded N/A in P04-AE; and
+`jfwcust.cpp` is 89 of 90, its one holdout `Do_Objectives_Dlg` deferred to
+Phase 5 dialog work. Registry is 2497 built-in scripts with no duplicate
+names; `renegade` and `leveledit` both build clean.
