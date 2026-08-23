@@ -102,6 +102,7 @@ Create_Object_At_Bone	Commands->	8	done
 Find_Nearest_Preset	engine_obj.h	8	done
 Get_Translated_String	engine_tdb.h	8	done
 Has_Key	Commands->	8	done
+Is_Spy	engine_obj2.h	8	done
 Set_Ash	Commands->	8	done
 Set_Fog_Enable	Commands->	8	done
 Set_Fog_Range	Commands->	8	done
@@ -331,7 +332,6 @@ newstr	engine_string.h	45	n/a-sdk-helper
 wcsistr	engine_string.h	7	n/a-sdk-helper
 stristr	engine_string.h	1	n/a-sdk-helper
 Get_Player_Name_By_ID	engine_player.h	14	port-engine-work
-Is_Spy	engine_obj2.h	8	port-engine-work
 Set_Global_Stealth_Disable	engine_tt.h	5	port-engine-work
 Display_Game_Hint	engine_tt.h	3	port-engine-work
 Display_Game_Hint_Image	engine_tt.h	3	port-engine-work

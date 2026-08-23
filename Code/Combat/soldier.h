@@ -102,6 +102,19 @@ public:
 
 	DialogueClass *							Get_Dialog_List( void )			{ return DialogList; }
 
+	//
+	//	Five things a preset says about the character it describes.  The engine
+	//	asks all five: a spy reads as the other team to a building's entry
+	//	zones, an unsquishable soldier survives being run over, one that cannot
+	//	refill gets nothing from a purchase terminal's supply button, and the
+	//	two vehicle permissions seed the matching per-soldier restrictions.
+	//
+	bool											Is_Spy( void ) const					{ return IsSpy; }
+	bool											Is_Unsquishable( void ) const		{ return IsUnsquishable; }
+	bool											Can_Refill( void ) const			{ return CanRefill; }
+	bool											Can_Steal_Vehicles( void ) const	{ return CanStealVehicles; }
+	bool											Can_Drive_Vehicles( void ) const	{ return CanDriveVehicles; }
+
 	DECLARE_EDITABLE( SoldierGameObjDef, SmartGameObjDef );
 
 protected:
@@ -118,6 +131,11 @@ protected:
 	int											HumanAnimOverrideDefID;
 	int											HumanLoiterCollectionDefID;
 	int											DeathSoundPresetID;
+	bool											CanStealVehicles;
+	bool											CanDriveVehicles;
+	bool											IsSpy;
+	bool											IsUnsquishable;
+	bool											CanRefill;
 
 	friend	class								SoldierGameObj;
 	friend	class								SoldierObserverClass;
@@ -396,6 +414,19 @@ public:
 	bool					Can_Play_Damage_Animations( void )	{ return CanPlayDamageAnimations; }
 
 	//
+	//	Refilling.  The definition seeds this; a script may take it away and
+	//	give it back, which is why the instance carries its own copy.
+	//
+	void					Set_Can_Refill( bool onoff )			{ CanRefill = onoff; Set_Object_Dirty_Bit( BIT_RARE, true ); }
+	bool					Can_Refill( void )						{ return CanRefill; }
+
+	//
+	//	Disguise.  This one is not per-instance: a preset either is a spy or is
+	//	not, and nothing in 4.8.4 changes it at runtime.
+	//
+	bool					Is_Spy( void ) const						{ return Get_Definition().Is_Spy(); }
+
+	//
 	//	Replicated uniform model scale.  1.0 is the model's authored size.
 	//
 	void					Set_Scale_Across_Network( float scale )	{ NetworkRescale = scale; Set_Object_Dirty_Bit( BIT_RARE, true ); }
@@ -550,6 +581,7 @@ protected:
 
 	bool						CanStealVehicles;
 	bool						CanDriveVehicles;
+	bool						CanRefill;
 	bool						BlockActionKey;
 	bool						Freeze;					// Cannot fire, move, jump or climb ladders
 	bool						CanPlayDamageAnimations;

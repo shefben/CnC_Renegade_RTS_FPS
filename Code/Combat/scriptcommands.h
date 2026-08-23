@@ -789,6 +789,12 @@ namespace ScriptEngine
 	// purchase terminal grants when it sells a refill.
 	void Grant_Refill ( GameObject * player );
 
+	// Two questions a character's preset answers about itself: whether it is a
+	// spy -- a soldier the other team's entry zones read as one of their own --
+	// and whether a vehicle is allowed to run it over.
+	bool Is_Spy ( GameObject * obj );
+	bool Is_Unsquishable ( GameObject * obj );
+
 }	// namespace ScriptEngine
 
 #endif	// SCRIPTCOMMANDS_H

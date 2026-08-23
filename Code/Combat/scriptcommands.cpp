@@ -3923,6 +3923,37 @@ void	Grant_Refill( GameObject * player )
 
 
 /*
+**	Two per-preset character flags.  Both answer false for anything that is not
+**	a soldier, which is what every caller wants: a vehicle is not a spy, and
+**	asking whether a building can be squished is not a question.
+*/
+bool	Is_Spy( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return false;
+	}
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	SoldierGameObj * soldier = ( physical_obj != nullptr ) ? physical_obj->As_SoldierGameObj() : nullptr;
+
+	return ( soldier != nullptr ) && soldier->Get_Definition().Is_Spy();
+}
+
+
+bool	Is_Unsquishable( GameObject * obj )
+{
+	if ( obj == nullptr ) {
+		return false;
+	}
+
+	PhysicalGameObj * physical_obj = obj->As_PhysicalGameObj();
+	SoldierGameObj * soldier = ( physical_obj != nullptr ) ? physical_obj->As_SoldierGameObj() : nullptr;
+
+	return ( soldier != nullptr ) && !soldier->Is_Squishable();
+}
+
+
+/*
 **	The portable half of the 4.8.4 script API.
 **
 **	These are the questions the 4.8.4 library asks that the stock catalog never

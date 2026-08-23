@@ -134,7 +134,12 @@ SoldierGameObjDef::SoldierGameObjDef( void ) :
 	InnateIsStationary( false ),
 	HumanAnimOverrideDefID( 0 ),
 	HumanLoiterCollectionDefID( 0 ),
-	DeathSoundPresetID( 0 )
+	DeathSoundPresetID( 0 ),
+	CanStealVehicles( true ),
+	CanDriveVehicles( true ),
+	IsSpy( false ),
+	IsUnsquishable( false ),
+	CanRefill( true )
 {
 	EDITABLE_PARAM( SoldierGameObjDef, ParameterClass::TYPE_ANGLE, TurnRate );
 	EDITABLE_PARAM( SoldierGameObjDef, ParameterClass::TYPE_FLOAT, JumpVelocity );
@@ -148,6 +153,11 @@ SoldierGameObjDef::SoldierGameObjDef( void ) :
 	GENERIC_DEFID_PARAM( SoldierGameObjDef, HumanAnimOverrideDefID, CLASSID_GLOBAL_SETTINGS_DEF_HUMAN_ANIM_OVERRIDE );
 	GENERIC_DEFID_PARAM( SoldierGameObjDef, HumanLoiterCollectionDefID, CLASSID_GLOBAL_SETTINGS_DEF_HUMAN_LOITER );
 	GENERIC_DEFID_PARAM( SoldierGameObjDef, DeathSoundPresetID, CLASSID_SOUND );
+	EDITABLE_PARAM( SoldierGameObjDef, ParameterClass::TYPE_BOOL, CanStealVehicles );
+	EDITABLE_PARAM( SoldierGameObjDef, ParameterClass::TYPE_BOOL, CanDriveVehicles );
+	EDITABLE_PARAM( SoldierGameObjDef, ParameterClass::TYPE_BOOL, IsSpy );
+	EDITABLE_PARAM( SoldierGameObjDef, ParameterClass::TYPE_BOOL, IsUnsquishable );
+	EDITABLE_PARAM( SoldierGameObjDef, ParameterClass::TYPE_BOOL, CanRefill );
 
 	MODEL_DEF_PARAM( SoldierGameObjDef, PhysDefID, "HumanPhysDef" );
 
@@ -192,6 +202,17 @@ enum	{
 	MICROCHUNKID_DEF_HUMAN_ANIM_OVERRIDE_DEF_ID,
 	MICROCHUNKID_DEF_DEATH_SOUND_PRESET,
 	MICROCHUNKID_DEF_HUMAN_LOITER_COLLECTION_DEF_ID,
+
+	//
+	//	The five 4.8.4 character flags.  Anything written before they existed
+	//	simply has no micro chunk here, and Load leaves the constructor's
+	//	defaults alone -- which are the values stock Renegade behaved as.
+	//
+	MICROCHUNKID_DEF_CAN_STEAL_VEHICLES,
+	MICROCHUNKID_DEF_CAN_DRIVE_VEHICLES,
+	MICROCHUNKID_DEF_IS_SPY,
+	MICROCHUNKID_DEF_IS_UNSQUISHABLE,
+	MICROCHUNKID_DEF_CAN_REFILL,
 };
 
 bool	SoldierGameObjDef::Save( ChunkSaveClass & csave )
@@ -223,6 +244,11 @@ bool	SoldierGameObjDef::Save( ChunkSaveClass & csave )
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_HUMAN_ANIM_OVERRIDE_DEF_ID, HumanAnimOverrideDefID );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_HUMAN_LOITER_COLLECTION_DEF_ID, HumanLoiterCollectionDefID );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_DEATH_SOUND_PRESET, DeathSoundPresetID );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_CAN_STEAL_VEHICLES, CanStealVehicles );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_CAN_DRIVE_VEHICLES, CanDriveVehicles );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_IS_SPY, IsSpy );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_IS_UNSQUISHABLE, IsUnsquishable );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_CAN_REFILL, CanRefill );
 
 	csave.End_Chunk();
 
@@ -263,6 +289,11 @@ bool	SoldierGameObjDef::Load( ChunkLoadClass &cload )
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_HUMAN_ANIM_OVERRIDE_DEF_ID, HumanAnimOverrideDefID );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_HUMAN_LOITER_COLLECTION_DEF_ID, HumanLoiterCollectionDefID );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_DEATH_SOUND_PRESET, DeathSoundPresetID );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_CAN_STEAL_VEHICLES, CanStealVehicles );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_CAN_DRIVE_VEHICLES, CanDriveVehicles );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_IS_SPY, IsSpy );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_IS_UNSQUISHABLE, IsUnsquishable );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_CAN_REFILL, CanRefill );
 
 						default:
 							//Debug_Say(( "Unrecognized SoldierDef Variable chunkID\n" ));
@@ -343,6 +374,7 @@ SoldierGameObj::SoldierGameObj() :
 	WeaponChanged( false ),
 	CanStealVehicles( true ),
 	CanDriveVehicles( true ),
+	CanRefill( true ),
 	BlockActionKey( false ),
 	Freeze( false ),
 	CanPlayDamageAnimations( true ),
@@ -467,6 +499,15 @@ void	SoldierGameObj::Copy_Settings( const SoldierGameObjDef & definition )
 	TargetSkeletonWidth		= SkeletonWidth;
 	SkeletonHeightResizeSpeed	= 0;
 	SkeletonWidthResizeSpeed	= 0;
+
+	//
+	//	The same for the three permissions the definition carries.  A purchase
+	//	re-dresses an existing soldier through here, so a character bought
+	//	after a thief has to stop being able to steal.
+	//
+	CanStealVehicles	= definition.CanStealVehicles;
+	CanDriveVehicles	= definition.CanDriveVehicles;
+	CanRefill			= definition.CanRefill;
 
 	Adjust_Skeleton( SkeletonHeight, SkeletonWidth );
 
@@ -666,7 +707,8 @@ enum	{
 	MICROCHUNKID_SKELETON_HEIGHT,
 	MICROCHUNKID_SKELETON_WIDTH,
 	MICROCHUNKID_ENABLE_HUMAN_ANIM_OVERRIDE,
-	MICROCHUNKID_ENABLE_FOOT_STEPS
+	MICROCHUNKID_ENABLE_FOOT_STEPS,
+	MICROCHUNKID_CAN_REFILL
 };
 
 //------------------------------------------------------------------------------------
@@ -725,6 +767,7 @@ bool	SoldierGameObj::Save( ChunkSaveClass & csave )
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_SKELETON_WIDTH, SkeletonWidth );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_ENABLE_HUMAN_ANIM_OVERRIDE, EnableHumanAnimOverride );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_ENABLE_FOOT_STEPS, EnableFootSteps );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_CAN_REFILL, CanRefill );
 
 	csave.End_Chunk();
 
@@ -819,6 +862,7 @@ bool	SoldierGameObj::Load( ChunkLoadClass &cload )
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_IS_USING_GHOST_COLLISION, IsUsingGhostCollision );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_STEAL_VEHICLES, CanStealVehicles );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_DRIVE_VEHICLES, CanDriveVehicles );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_REFILL, CanRefill );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_BLOCK_ACTION_KEY, BlockActionKey );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_FREEZE, Freeze );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_PLAY_DAMAGE_ANIMATIONS, CanPlayDamageAnimations );
@@ -945,13 +989,18 @@ void	SoldierGameObj::Re_Attach_To_Model( void )
 //-----------------------------------------------------------------------------
 
 //
-//	Whether a vehicle may run this soldier over.  A server can name up to four
-//	armour types that cannot be squished -- the point is to let a mod give one
-//	class of infantry (an engineer at work, say) immunity without changing what
-//	a vehicle does to everybody else.
+//	Whether a vehicle may run this soldier over.  There are two ways to be
+//	immune.  The character's own preset can say so outright, and a server can
+//	additionally name up to four armour types that cannot be squished -- the
+//	point of the second is to let a mod give one class of infantry (an engineer
+//	at work, say) immunity without editing every preset that wears that armour.
 //
 bool	SoldierGameObj::Is_Squishable( void )
 {
+	if ( Get_Definition().Is_Unsquishable() ) {
+		return false;
+	}
+
 	if ( TTSettingsClass::Unsquishable == false ) {
 		return true;
 	}
@@ -1064,6 +1113,7 @@ void	SoldierGameObj::Export_Rare( BitStreamClass &packet )
 	//
 	packet.Add( CanStealVehicles );
 	packet.Add( CanDriveVehicles );
+	packet.Add( CanRefill );
 	packet.Add( BlockActionKey );
 	packet.Add( Freeze );
 	packet.Add( CanPlayDamageAnimations );
@@ -1127,6 +1177,7 @@ void	SoldierGameObj::Import_Rare( BitStreamClass &packet )
 
 	packet.Get( CanStealVehicles );
 	packet.Get( CanDriveVehicles );
+	packet.Get( CanRefill );
 	packet.Get( BlockActionKey );
 	packet.Get( Freeze );
 	packet.Get( CanPlayDamageAnimations );

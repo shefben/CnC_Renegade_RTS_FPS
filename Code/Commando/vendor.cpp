@@ -445,7 +445,14 @@ VendorClass::Purchase_Item
 			//
 			//	Grant full health, armor and ammo
 			//
-			if (GameEventBus::Raise_Refill (player)) {
+			//
+			//	A character's preset may say it cannot be refilled, and a
+			//	script may take the permission away for a while.  Either way
+			//	the terminal has nothing to sell this soldier.
+			//
+			if (!player->Can_Refill ()) {
+				retval = PERR_NOT_IN_STOCK;
+			} else if (GameEventBus::Raise_Refill (player)) {
 				Grant_Supplies (player);
 				retval = PERR_SUCCESS;
 			} else {
