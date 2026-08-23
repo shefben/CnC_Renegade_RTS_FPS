@@ -24,6 +24,16 @@ else()
     message(WARNING "Python not found; the built-in script catalog was not checked for duplicate names.")
 endif()
 
+#
+# Not every .cpp in this directory is here.  Common.cpp, Group.cpp,
+# GroupControl.cpp, GroupScript.cpp, MissionS04.cpp, PRDemo.cpp, Test_DEL.cpp,
+# Test_DLS_M03.cpp and unitcombat.cpp are Westwood leftovers written against a
+# script interface that never shipped -- Action_Movement_Goto_Location, a
+# three-argument Start_Timer, SOUND_TYPE_DESIGNER -- and MissionS04.cpp is
+# truncated mid-function.  They have never been part of the build and do not
+# compile.  The scripts they declare are therefore not in the catalog, which
+# tools/tt484/script_catalog_manifest.py reads this list to know.
+#
 set(SCRIPTS_SRC
     CustomEvents.h
     DPrint.cpp

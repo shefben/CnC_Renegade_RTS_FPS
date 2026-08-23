@@ -402,6 +402,8 @@ set(COMMANDO_SRC
     ssgmmanager.cpp
     gameeventlisteners.h
     ssgmmanager.h
+    scriptcatalogcheck.cpp
+    scriptcatalogcheck.h
     sctextobj.cpp
     sctextobj.h
     suicideevent.cpp
@@ -508,4 +510,23 @@ if(W3D_FDS) # Dedicated headless server
     )
 
     target_compile_definitions(renegadeserver PRIVATE FREEDEDICATEDSERVER)
+endif()
+
+#
+#	The built-in script catalog, checked against what the source says it is.
+#	The game binary runs the check itself and exits, so what is checked is the
+#	catalog this binary holds -- see scriptcatalogcheck.h.  Regenerate the
+#	manifest these compare against with:
+#
+#		python tools/tt484/script_catalog_manifest.py
+#
+if(BUILD_TESTING AND TARGET renegade)
+    add_test(NAME scripts_catalog_stock
+        COMMAND renegade -scriptcatalogcheck stock)
+    add_test(NAME scripts_catalog_tt
+        COMMAND renegade -scriptcatalogcheck tt)
+    add_test(NAME scripts_catalog_duplicates
+        COMMAND renegade -scriptcatalogcheck duplicates)
+    add_test(NAME scripts_catalog_recreate
+        COMMAND renegade -scriptcatalogcheck recreate)
 endif()

@@ -105,6 +105,7 @@
 #include "singletoninstancekeeper.h"
 #include "packetmgr.h"
 #include "ProcessManager.h"
+#include "scriptcatalogcheck.h"
 
 //----------------------------------------------------------------------------
 //	Globals
@@ -154,6 +155,17 @@ int Top_Level_Exception_Filter(EXCEPTION_POINTERS *e_info)
  *=============================================================================================*/
 int main(int argc, char *argv[])
 {
+	//
+	//	The built-in script catalog check, taken before anything else starts.
+	//	Static initialization has already filled the registry by the time this
+	//	runs, which is the whole point: the catalog being checked is the one
+	//	this binary holds, not one a test program linked for itself.  Nothing
+	//	is opened, no window is made, and the process exits with the result.
+	//
+	if ((argc > 1) && (::strcmp(argv[1], "-scriptcatalogcheck") == 0)) {
+		return ScriptCatalogCheck::Run((argc > 2) ? argv[2] : nullptr);
+	}
+
 	WWMemoryLogClass::Init();	// This switches memlog from static to dynamic allocations mode
 
 #ifdef _DEBUG
