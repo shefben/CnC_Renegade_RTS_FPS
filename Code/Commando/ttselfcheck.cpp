@@ -11,11 +11,15 @@
 #include "definitionfactory.h"
 #include "definitionfactorymgr.h"
 #include "gameeventbus.h"
+#include "nativescriptregistry.h"
 #include "networkobject.h"
 #include "phys.h"
 #include "pscene.h"
 #include "renegadedialog.h"
 #include "saveload.h"
+
+#include <windows.h>
+#include <tlhelp32.h>
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -643,6 +647,75 @@ int	Run_Collision (void)
 	return _Failures;
 }
 
+/***********************************************************************************************
+**	modules -- nothing scripts-related is loaded
+***********************************************************************************************/
+
+//
+//	The names the patch stack used.  4.8.4 shipped as scripts.dll and its
+//	successors alongside a proxy; the whole point of doing this natively is that
+//	none of them is here, and the way to be sure is to ask the process what it
+//	has actually loaded rather than to read the source and believe it.
+//
+const char * const	_ForbiddenModules[] =
+{
+	"scripts.dll",
+	"scripts2.dll",
+	"scripts3.dll",
+	"tt.dll",
+	"bhs.dll",
+};
+
+int	Run_Modules (void)
+{
+	HANDLE snapshot = ::CreateToolhelp32Snapshot (TH32CS_SNAPMODULE, ::GetCurrentProcessId ());
+
+	if (snapshot == INVALID_HANDLE_VALUE) {
+		Fail ("could not look at what this process has loaded");
+		return _Failures;
+	}
+
+	MODULEENTRY32 entry;
+	::memset (&entry, 0, sizeof (entry));
+	entry.dwSize = sizeof (entry);
+
+	const int forbidden_count =
+			(int)(sizeof (_ForbiddenModules) / sizeof (_ForbiddenModules[0]));
+
+	int loaded = 0;
+
+	if (::Module32First (snapshot, &entry)) {
+		do {
+			loaded ++;
+
+			for (int index = 0; index < forbidden_count; index ++) {
+				if (::_stricmp (entry.szModule, _ForbiddenModules[index]) == 0) {
+					Fail ("'%s' is loaded -- this build is supposed to be the"
+							" whole implementation, not a host for one", entry.szModule);
+				}
+			}
+		} while (::Module32Next (snapshot, &entry));
+	}
+
+	::CloseHandle (snapshot);
+
+	Check (loaded > 0, "this process claims to have loaded nothing at all");
+
+	//
+	//	And the catalog is not empty, which is the other half of the same
+	//	statement: the scripts are here, in this binary, rather than in
+	//	something that failed to load.
+	//
+	Check (NativeScriptRegistry::Count () > 0,
+			"no built-in scripts are registered, so the catalog came from"
+			" somewhere that is not here");
+
+	::printf ("modules: %d modules loaded, none of them a scripts library;"
+			" %d built-in scripts are in this binary\n",
+			loaded, NativeScriptRegistry::Count ());
+	return _Failures;
+}
+
 }	// namespace
 
 
@@ -662,6 +735,8 @@ int	TTSelfCheck::Run (const char *which)
 		Run_Dialogs ();
 	} else if (::strcmp (which, "collision") == 0) {
 		Run_Collision ();
+	} else if (::strcmp (which, "modules") == 0) {
+		Run_Modules ();
 	} else {
 		::fprintf (stderr, "unknown self check '%s'\n", which);
 		return 2;

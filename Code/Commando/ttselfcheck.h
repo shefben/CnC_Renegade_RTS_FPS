@@ -30,6 +30,7 @@ namespace	TTSelfCheck
 	//		hooks       the event channels that replaced 4.8.4's patch sites
 	//		dialogs     the dialogs 4.8.4 added, as dialog resources
 	//		collision   the collision matrix CombatManager sets up
+	//		modules     nothing scripts-related is loaded into the process
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

@@ -540,4 +540,23 @@ if(BUILD_TESTING AND TARGET renegade)
     add_test(NAME tt_hooks       COMMAND renegade -ttselfcheck hooks)
     add_test(NAME tt_dialogs     COMMAND renegade -ttselfcheck dialogs)
     add_test(NAME tt_collision   COMMAND renegade -ttselfcheck collision)
+    add_test(NAME tt_modules     COMMAND renegade -ttselfcheck modules)
+endif()
+
+#
+#	The dedicated server is a second binary built from the same sources with
+#	FREEDEDICATEDSERVER defined, so whether it starts clean and holds the same
+#	catalog is a separate question from whether the client does.  Roadmap
+#	Section 12 asks it separately, so it is asked separately.
+#
+if(BUILD_TESTING AND TARGET renegadeserver)
+    add_test(NAME fds_scripts_catalog
+        COMMAND renegadeserver -scriptcatalogcheck duplicates)
+    add_test(NAME fds_scripts_recreate
+        COMMAND renegadeserver -scriptcatalogcheck recreate)
+    add_test(NAME fds_tt_objects       COMMAND renegadeserver -ttselfcheck objects)
+    add_test(NAME fds_tt_visibility    COMMAND renegadeserver -ttselfcheck visibility)
+    add_test(NAME fds_tt_hooks         COMMAND renegadeserver -ttselfcheck hooks)
+    add_test(NAME fds_tt_collision     COMMAND renegadeserver -ttselfcheck collision)
+    add_test(NAME fds_tt_modules       COMMAND renegadeserver -ttselfcheck modules)
 endif()
