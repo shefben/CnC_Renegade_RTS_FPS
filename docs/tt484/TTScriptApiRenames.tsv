@@ -35,3 +35,7 @@ Get_Team_Cost	Get_Team_Cost	SAME NAME, TEAM ARGUMENT IS A PLAYERTYPE -- the dono
 Get_GameObj	Find_Object_By_Player_ID	now exists. GameObjManager::Find_Soldier_Of_Client_ID answers it, so it needs no seam
 Get_Ammo_Def	Peek_Ammo_Definition	C4GameObj keeps the ammunition it was placed with; the canonical name says it is a borrowed pointer
 NodHouseColor / GDIHouseColor	Get_Color_For_Team	the two house colour globals are not exported here. Get_Color_For_Team in Code/Combat/colors.h answers the same question and knows about the teams that are not those two
+CombatSound::sound	CombatSound::Type	the logical sound's number. Compare as an int -- the canonical field is a CombatSoundType, whose named values stop well below the numbers a script picks
+AddPowerupPurchaseHook	GameEventBus::Purchase	a handler on the purchase channel that sets event.Status. PURCHASE_STATUS_FACTORY_UNAVAILABLE is PurchaseStatus_FactoryUnavailable. Register in Created, Unregister in the destructor -- there is no executable to test for
+CUSTOM_EVENT_VHEICLE_DRIVER_ID	CUSTOM_EVENT_VEHICLE_DRIVER_ID	same constant, donor's spelling of VEHICLE corrected. Both it and CUSTOM_EVENT_VEHICLE_DRIVER are in Code/Combat/gameobjobserver.h
+CheckPlayerType	Is_Player_Type	INVERTED -- CheckPlayerType answers true when the object is NOT of the allowed type, Is_Player_Type answers true when it IS. Every ported call has to flip

@@ -92,7 +92,16 @@ enum
 	//	brings a building back, so the defences it drives never had to hear
 	//	about it; Set_Is_Destroyed does, and they do.
 	//
-	CUSTOM_EVENT_BUILDING_REVIVED
+	CUSTOM_EVENT_BUILDING_REVIVED,
+
+	//
+	//	Asking an empty vehicle who owns it.  A script that wants to credit a
+	//	kill to a driver who is no longer aboard sends the first of these to
+	//	the vehicle; whatever tracks ownership answers with the second, the
+	//	owner's object ID in the parameter.
+	//
+	CUSTOM_EVENT_VEHICLE_DRIVER,
+	CUSTOM_EVENT_VEHICLE_DRIVER_ID
 };
 
 #define	MovementCompleteReason		ActionCompleteReason		// TEMP

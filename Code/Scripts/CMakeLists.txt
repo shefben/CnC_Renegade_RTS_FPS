@@ -63,6 +63,7 @@ set(SCRIPTS_SRC
     TT_Crates.cpp
     TT_Objects.cpp
     TT_Sounds.cpp
+    TT_Damage.cpp
     Toolkit_Objects.cpp
     Toolkit_Powerup.cpp
     Toolkit_Siege.cpp
