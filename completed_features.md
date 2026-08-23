@@ -848,3 +848,34 @@ and a table; the four attach-on-create scripts are one base over the new
 `ObjectCreateHookScriptClass`. Also the deployable tank, the burrowing vehicle
 and the suicide bomber. `JFW_Sidebar_Key_2` is registered empty because the
 donor class is empty. 1823 -> 1837.
+
+## P04-S: jfwveh.cpp, the vehicle scripts
+
+`Code/Scripts/TT_Vehicles.cpp`, 31 registrations. Three families collapsed to
+one script and a virtual each: the motion-driven animations (3), the visible
+riders (6), the spawned turret (2). Corrections: riders now tracked by who
+left rather than by list position, the seat range clamped, the parked
+down-animation edge-triggered, the refill prop null-checked, the vehicle lock's
+unfound owner. `ScriptImpClass` gained `Get_Bool_Parameter`. 1837 -> 1868.
+`89e508ff`.
+
+## P04-T: agtfix.cpp and obelfix.cpp, merged not doubled
+
+Both register stock names, so under directive 0.4 they merged into
+`M00_Advanced_Guard_Tower`/`_Gun`/`_Missile` and
+`M00_Nod_Obelisk_CNC`/`M00_Obelisk_Weapon_CNC` in `Toolkit.cpp`, with `GDI_AGT`,
+`GDI_AGT_Gun`, `GDI_AGT_Missile`, `Nod_Obelisk_CnC`, `Obelisk_Weapon_CnC` and
+the two `_Ground` names as aliases. Needed
+`CUSTOM_EVENT_BUILDING_REVIVED` (emitted from `BuildingGameObj::On_Revived`),
+`ScriptEngine::Grant_Weapon_Definition`, and a semicolon-separated alias list
+on `ScriptFactoryClass`. 1868 -> 1875. `32c51fd0`.
+
+## P04-U: the game-info seam
+
+`GameInfoInterfaceClass` in Combat, `GameInfoImplClass` in Commando installed
+next to `GameEventListeners::Register`, and twelve commands over it. Answers
+`The_Game` (40 calls, 4 files), `Get_Team_Score`, `Get_Team_Credits`,
+`Change_Time_Remaining`, `Change_Time_Limit` and `Enable_Team_Radar`.
+`Stop_Timer2` was already answered by `ScriptEngine::Stop_Timer`, which alone
+unblocked `jfwdef.cpp`. `readiness.py` now reports which donor files are
+already ported. `5c5dca96`, `27f8d34d`.

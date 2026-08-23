@@ -269,11 +269,21 @@ survey's `_Team` suffix heuristic and is plain server-side work.
 
 ### 4.4 Registry size
 
-1837 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
+1875 built-in scripts today, no duplicate names: 1639 canonical -- one fewer
 than the 1640 this document used to quote, because the checker was counting the
-registration macros themselves as a script called `x` -- plus 198 from the
-4.8.4 library. The remaining 663 in-scope scripts take it to 2500, less the
-three `gmsoldier.cpp` key scripts the server manager owns instead. The 1259 out-of-scope
+registration macros themselves as a script called `x` -- plus 236 from the
+4.8.4 library. The remaining 561 in-scope scripts take it to about 2430, less
+the three `gmsoldier.cpp` key scripts the server manager owns instead and less
+whatever else turns out to be a second name for something that already exists
+rather than a script of its own.
+
+A name is not always a script. A factory's alias field is a semicolon-separated
+list, so one merged script can answer to several of the names 4.8.4 registered
+separately: the merged Advanced Guard Tower answers to `GDI_AGT`, the merged
+obelisk to `Nod_Obelisk_CnC`, `Nod_Obelisk_CnC_Ground` and their weapon
+equivalents. `NativeScriptRegistry::Find` binary-searches the real names and
+falls back to a linear sweep of the alias lists, which is the right cost for
+something this rare. The 1259 out-of-scope
 registrations are not counted and not ported; if a mod pack is ever wanted it
 re-enters through the same registry with provenance `SCRIPT_SOURCE_TT`,
 needing no change here.
