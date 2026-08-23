@@ -879,3 +879,35 @@ next to `GameEventListeners::Register`, and twelve commands over it. Answers
 `Stop_Timer2` was already answered by `ScriptEngine::Stop_Timer`, which alone
 unblocked `jfwdef.cpp`. `readiness.py` now reports which donor files are
 already ported. `5c5dca96`, `27f8d34d`.
+
+**P04-V: `jfwdef.cpp`, the base defence family.** All 48 registered names are
+one script in `Code/Scripts/TT_Defenses.cpp` parameterised by five traits
+(target filter, popup, sound, weapon choice, driveable); stock
+`M00_Base_Defense` moved there from `Toolkit.cpp` as the all-defaults member,
+with `JFW_Base_Defence` as its alias. Fixed the donor save bug that left every
+popup turret unrestorable. Registry 1875 -> 1922, both targets link.
+
+**P04-W: the catalog checker sees macro registrations.**
+`tools/check_script_catalog.py` now treats any tree macro whose body expands to
+a `REGISTER_SCRIPT` as a registration, and splits `MERGED_ALIAS` calls into
+arguments instead of matching them whole. Without it the 45 `JFW_DEFENCE` names
+were invisible to the duplicate check.
+
+**P04-X: `jfwcust.cpp`, 89 of 90 scripts.**
+`Code/Scripts/TT_Customs.cpp`: the custom-message wiring, with the create/
+destroy, teleport, explosion, weather, broadcast, animation and timer families
+written once each. New `ScriptEngine::Create_Vehicle` builds at a factory the
+way a purchase does. Fixed the donor's swapped `Auto_Save_Variable` size/id
+arguments throughout, two counters that re-fired on unrelated messages, and a
+repair that copied health into the shield. Registry 1922 -> 2011.
+`JFW_Custom_Objectives_Dlg` is not ported -- it needs a server-to-client dialog
+request that only the Phase 5 HUD/dialog work provides.
+
+**P04-Y: `Get_Random_Int` range mismatch, and three API names that were
+renames.** The donor's `Get_Random_Int` excludes its upper bound and this
+tree's includes it, so ported calls ran one past: three were indexing arrays
+off the end (the Nod turret's markers, the character weapon drop, the DNA
+powerup). Fixed and recorded in `docs/tt484/TTScriptApiRenames.tsv`.
+`Grant_Powerup` (24 calls), `Get_Object_Type`/`Set_Object_Type` (98) and
+`Send_Custom_Event_To_Object` turned out to be existing commands under other
+names, clearing `jfwpoke.cpp` and `dan.cpp` outright.

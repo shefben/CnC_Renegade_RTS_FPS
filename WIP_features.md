@@ -7,39 +7,38 @@ Detail lives in `docs/`.
 
 ## P04: the 4.8.4 script library, natively
 
-The stock half, the registry, the thirteen replacements, the per-client seam,
-the portable API port, the key-hook facility, and `jfwpow.cpp`, `jfwws.cpp`,
-the SSGM layer, `jfwgun.cpp`, `jfwscr.cpp`, `jfwweap.cpp`, `jfwhook.cpp`,
-`jfwveh.cpp`, `agtfix.cpp` and `obelfix.cpp` are done (P04-A..P04-U in
-`completed_features.md`), absorbing the backlog lines "Compile unchanged stock
-scripts only when TT does not supersede them" and "Compile TT-only new scripts
-as additional canonical scripts". What is left is 561 donor-only scripts across
-11 files, and the 38 API names still gating most of them.
-`tools/tt484/readiness.py` now says which donor files are already ported and
-which are held up by what; `docs/tt484/TTScriptApiGap.tsv` carries the
-dispositions.
+Done so far: P04-A..P04-Y in `completed_features.md` -- the stock half, the
+registry, the per-client seam, the key-hook facility, the SSGM layer, and the
+donor files `jfwpow.cpp`, `jfwws.cpp`, `jfwgun.cpp`, `jfwscr.cpp`,
+`jfwweap.cpp`, `jfwhook.cpp`, `jfwveh.cpp`, `agtfix.cpp`, `obelfix.cpp`,
+`jfwdef.cpp` and `jfwcust.cpp` (89/90). Registry is at 2011 built-in scripts,
+no duplicate names; `renegade` and `leveledit` both link. What remains is 425
+donor-only scripts across 10 files and the API names gating most of them --
+`tools/tt484/readiness.py` ranks them and `docs/tt484/TTScriptApiGap.tsv`
+carries the dispositions.
 
-Next exact action: convert `tt_4.8.4/scripts/jfwdef.cpp` (4183 lines, 48
-registrations, now zero blockers) to `Code/Scripts/TT_Defences.cpp`. It is one
-script written out 48 times over a trait matrix -- target filter (all /
-no-aircraft / aircraft-only / no-VTOL / VTOL-only / no-VTOL-no-stealth, the
-filtered ones carrying eight `PresetN` exceptions), animated (Animation,
-LastFrame, PopupTime), sound, secondary weapon, swap (SwapMessage), plus
-`JFW_User_Controllable_Base_Defence` -- so it wants one base class and a table,
-the way the six jetpacks became one. `M00_Base_Defense` is already canonical in
-`Code/Scripts/Toolkit.cpp:2150` as `DECLARE_SCRIPT_MERGED`, so under directive
-0.4 the plain `JFW_Base_Defence` is an alias merged into it, not a 49th
-registration.
+Next exact action: convert `tt_4.8.4/scripts/jfwpoke.cpp` (1407 lines, 56
+registrations, now zero blockers since `Grant_Powerup` resolved to
+`ScriptEngine::Give_PowerUp`) to `Code/Scripts/TT_Poke.cpp`. Then `dan.cpp`
+(3 scripts, also clear) -- but note its crate script talks to players by
+building SSGM console-command strings (`MESSAGE ...`, `PPAGE %d ...`) and this
+tree has no such console commands, so those want
+`ScriptEngine::Send_Message_Player` and a team/all equivalent directly rather
+than a string parser; it also never picks its last crate type (`x < 9` over ten
+entries) and indexes its weighting table one past the end.
 
-After that the remaining work is almost entirely the API gap, not porting: 38
-names still block 11 files. In leverage order -- `Grant_Powerup` (24 calls, 3
-files), `Get_Player_Name_By_ID` (14, 2), `Get_Damage_Warhead` (11, 3),
-`Hide_Preset_By_Name` (8, 1), `Is_Spy` (8, 2), `Update_Network_Object` (5, 4),
-`GetExplosionObj` (4, 4), `Create_Vehicle` (5, 3), `Get_INI`/`Release_INI` (8,
-3). `GetExplosionObj` and `Get_Damage_Warhead` both want the same shape: an
-ambient recording what damage or explosion is currently being applied, readable
-from inside `Damaged`. `Get_Mine_Limit` and `Set_Tech_Level` have no OpenW3D
-counterpart at all and need a decision about where the setting lives.
+After those two the remainder is the API gap rather than porting. In leverage
+order: `Get_Player_Name_By_ID` (14 calls, 2 files), `Get_Damage_Warhead` (11,
+3), `Hide_Preset_By_Name` (8, 1), `Is_Spy` (8, 2), `Get_INI`/`Release_INI` (8,
+3), `Get_Cost` (4, 1), `Update_Network_Object` (5, 4), `GetExplosionObj` (4,
+4), `Create_Zone` (2, 1). `GetExplosionObj` and `Get_Damage_Warhead` want the
+same shape: an ambient recording what damage or explosion is being applied,
+readable from inside `Damaged`. `Get_Mine_Limit` and `Set_Tech_Level` have no
+counterpart here and need a decision about where the setting lives.
+Before porting any further file, check `docs/tt484/TTScriptApiRenames.tsv`
+first -- three of this session's "missing" names were already present under
+other names, and `Get_Random_Int` is present under the *same* name with a
+different range.
 
 ---
 
