@@ -691,6 +691,27 @@ void	ScriptImpClass::Auto_Save_Variable( void * data_ptr, int data_size, int id 
 }
 
 
+void ScriptImpClass::Get_Nested_Parameters(const char* params_name,
+		const char* delimiter_name, StringClass& params)
+{
+	params = Get_Parameter(params_name);
+
+	const char* delimiter = Get_Parameter(delimiter_name);
+	if (delimiter == nullptr || delimiter[0] == 0) {
+		return;
+	}
+
+	char* text = params.Peek_Buffer();
+	for (int index = 0; text[index] != 0; index++) {
+		if (text[index] == delimiter[0]) {
+			text[index] = ',';
+		}
+	}
+
+	return;
+}
+
+
 bool ScriptImpClass::Is_Player_Type(GameObject* obj, int type)
 {
 	if (obj == nullptr) {

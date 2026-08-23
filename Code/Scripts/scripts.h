@@ -41,6 +41,7 @@
 #include "scriptcommands.h"
 #include "ScriptRegistrant.h"
 #include "string_ids.h"
+#include "wwstring.h"
 #include <cstdint>
 
 class CombatSound;
@@ -163,6 +164,15 @@ public:
 	//	nearest the object this script is on.
 	//
 	bool Is_Player_Type(GameObject* obj, int type);
+
+	//
+	//	A script parameter that is itself the parameter list for another
+	//	script.  It cannot hold commas, so the level author picks a
+	//	delimiter and names it in a second parameter; this puts the commas
+	//	back.  An empty delimiter parameter leaves the list alone.
+	//
+	void Get_Nested_Parameters(const char* params_name, const char* delimiter_name,
+			StringClass& params);
 
 protected:
 	void Destroy_Script(void);
