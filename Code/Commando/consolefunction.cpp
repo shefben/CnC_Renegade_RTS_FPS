@@ -43,6 +43,7 @@
 #include "datasafe.h"
 #include "pscene.h"
 #include "worldterrainsystem.h"
+#include "terraintexturesystem.h"
 #include "playermanager.h"
 #include "ccamera.h"
 #include "debug.h"
@@ -675,11 +676,53 @@ public:
 		WorldTerrainSystem::Set_Heights( heights, vertex_count * vertex_count );
 		delete [] heights;
 
+		//	Dress it before building, because building is what fills the material passes and a
+		//	field with no layers defined gets built bare.
+		TerrainTextureSystem::Create_Masks();
+		TerrainTextureSystem::Define_Default_Layers();
+
 		if ( WorldTerrainSystem::Build_Collision() ) {
 			Print( "terrain_test: %d x %d cells of %.1fm, %d collision patches.\n",
 					 cells, cells, cell_size, WorldTerrainSystem::Get_Collision_Patch_Count() );
 		} else {
 			Print( "terrain_test: the field exists but its collision would not build.\n" );
+		}
+	}
+};
+
+
+/*
+**	Re-decide what the ground is made of.
+**
+**	Roadmap Section 18's acceptance is that a generated heightfield can obtain coherent terrain
+**	materials entirely from runtime data and masks.  This is that sentence as a command: no
+**	texture was painted, no map file was read, and the rules alone decide where the rock, the
+**	cliff face, the shoreline and the road go.
+*/
+class TerrainDressConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "terrain_dress"; }
+	virtual	const char * Get_Help( void ) override	{ return "TERRAIN_DRESS - re-decides terrain materials from the default layer rules."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		if ( !WorldTerrainSystem::Has_Terrain() ) {
+			Print( "There is no generated terrain to dress.\n" );
+			return;
+		}
+
+		if ( !TerrainTextureSystem::Has_Masks() ) {
+			TerrainTextureSystem::Create_Masks();
+		}
+		TerrainTextureSystem::Update_Water_Distance();
+		TerrainTextureSystem::Define_Default_Layers();
+
+		if ( TerrainTextureSystem::Build_All_Patch_Materials() ) {
+			Print( "terrain_dress: %d layers over %d patches.\n",
+					 TerrainTextureSystem::Get_Layer_Count(),
+					 WorldTerrainSystem::Get_Collision_Patch_Count() );
+		} else {
+			Print( "terrain_dress: the layers are defined but the patches would not take them.\n" );
 		}
 	}
 };
@@ -5118,6 +5161,7 @@ void	ConsoleFunctionManager::Init( void )
    FunctionList.Add( new DonateConsoleFunctionClass() );
 	FunctionList.Add( new DoStuffConsoleFunctionClass() );
 	FunctionList.Add( new TerrainTestConsoleFunctionClass() );
+	FunctionList.Add( new TerrainDressConsoleFunctionClass() );
 	FunctionList.Add( new TerrainClearConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );

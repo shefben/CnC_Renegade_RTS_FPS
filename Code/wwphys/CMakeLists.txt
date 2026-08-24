@@ -69,6 +69,8 @@ set(WWPHYS_SRC
     staticphys.cpp
     stealtheffect.cpp
     terrainmaterial.cpp
+    terrainmask.cpp
+    terraintexturesystem.cpp
     timeddecophys.cpp
     trackedvehicle.cpp
     transitioneffect.cpp
@@ -159,6 +161,8 @@ set(WWPHYS_SRC
     staticphys.h
     stealtheffect.h
     terrainmaterial.h
+    terrainmask.h
+    terraintexturesystem.h
     timeddecophys.h
     trackedvehicle.h
     transitioneffect.h

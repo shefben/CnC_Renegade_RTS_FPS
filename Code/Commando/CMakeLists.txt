@@ -574,6 +574,7 @@ if(BUILD_TESTING AND TARGET renegade)
     add_test(NAME terrain_shaping  COMMAND renegade -terrainselfcheck shaping)
     add_test(NAME terrain_service  COMMAND renegade -terrainselfcheck service)
     add_test(NAME terrain_collision  COMMAND renegade -terrainselfcheck collision)
+    add_test(NAME terrain_textures  COMMAND renegade -terrainselfcheck textures)
 endif()
 
 #
@@ -600,4 +601,5 @@ if(BUILD_TESTING AND TARGET renegadeserver)
     add_test(NAME fds_terrain_shaping  COMMAND renegadeserver -terrainselfcheck shaping)
     add_test(NAME fds_terrain_service  COMMAND renegadeserver -terrainselfcheck service)
     add_test(NAME fds_terrain_collision  COMMAND renegadeserver -terrainselfcheck collision)
+    add_test(NAME fds_terrain_textures  COMMAND renegadeserver -terrainselfcheck textures)
 endif()

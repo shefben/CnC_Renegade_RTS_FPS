@@ -30,6 +30,7 @@ namespace	TerrainSelfCheck
 	//		shaping     height regions, road grades, river cuts, and patch invalidation
 	//		service     the service with and without terrain under it
 	//		collision   the geometry handed to the physics scene, and that it agrees with sampling
+	//		textures    masks, layer rules, and the material passes they fill
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

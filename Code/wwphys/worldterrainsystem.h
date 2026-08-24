@@ -64,20 +64,6 @@ class StaticPhysClass;
 
 
 /*
-**	What the ground is made of at a point.
-**
-**	Section 18 is the terrain texture system, and it is what will decide these from height,
-**	slope, moisture, masks and the rest.  Until it lands there is one answer, and the enum
-**	exists so that callers written now ask the question in the form Section 18 will answer.
-*/
-enum TerrainMaterialType
-{
-	TERRAIN_MATERIAL_DEFAULT		= 0,
-	TERRAIN_MATERIAL_COUNT
-};
-
-
-/*
 **	The answer to "can something stand here".
 **
 **	A single sample is not enough to place a building on: the ground under a footprint can be
@@ -126,7 +112,15 @@ public:
 	static bool			Sample_Normal(float x,float y,Vector3 * normal_out);
 	static bool			Sample_Slope(float x,float y,float * slope_radians_out);
 	static bool			Ray_Intersect_Terrain(const LineSegClass & ray,float * fraction_out,Vector3 * normal_out);
-	static bool			Get_Material(float x,float y,TerrainMaterialType * material_out);
+	/*
+	**	What the ground is made of at a point.  The answer is an index into the terrain texture
+	**	system's layer list -- Section 18 is what decides it, from height, slope, curvature and
+	**	the masks -- and the surface type is the stock Renegade one that footsteps and decals
+	**	already read.  Both return false when there is no terrain, and when the layer table has
+	**	nothing to say, which is a level whose ground nobody has dressed yet.
+	*/
+	static bool			Get_Material(float x,float y,int * layer_index_out);
+	static bool			Get_Surface_Type(float x,float y,int * surface_type_out);
 	static bool			Get_Bounds(AABoxClass * bounds_out);
 
 	/*
@@ -188,6 +182,7 @@ public:
 	static bool			Has_Collision(void);
 	static int			Get_Collision_Patch_Count(void);
 	static StaticPhysClass *	Peek_Collision_Patch(int px,int py);
+	static RenegadeTerrainPatchClass *	Peek_Patch_Model(int px,int py);
 
 	/*
 	**	The geometry of one patch, on its own.  Create_Patch_Model hands back a render object

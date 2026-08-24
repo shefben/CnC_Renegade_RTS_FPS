@@ -11,6 +11,8 @@
 #include "lineseg.h"
 #include "coltype.h"
 #include "renegadeterrainpatch.h"
+#include "terrainmask.h"
+#include "terraintexturesystem.h"
 #include "worldterrainsystem.h"
 #include "wwmath.h"
 
@@ -547,6 +549,257 @@ void	Check_Collision (void)
 	Check (WorldTerrainSystem::Has_Collision () == false, "collision outlived the service");
 }
 
+/***********************************************************************************************
+**	textures
+***********************************************************************************************/
+
+/*
+**	A field with a step in it: flat, then a wall, then flat again.
+**
+**	The two grid lines either side of the wall have the same slope beside them and opposite
+**	curvature -- the lower one is the inside of a corner, the upper one is the lip.  That pair is
+**	what makes curvature worth having as a rule input at all, so it is what the layer rules are
+**	checked against.
+*/
+void	Build_Step (int size = 33, float cell = 1.0f, float step_height = 10.0f)
+{
+	Check (WorldTerrainSystem::Create_Terrain (size, size, cell, Vector3 (0.0f, 0.0f, 0.0f)),
+			"a %dx%d stepped field would not be created", size, size);
+
+	float *heights = new float[size * size];
+	for (int iy = 0; iy < size; iy ++) {
+		for (int ix = 0; ix < size; ix ++) {
+			heights[iy * size + ix] = (ix >= (size / 2)) ? step_height : 0.0f;
+		}
+	}
+
+	Check (WorldTerrainSystem::Set_Heights (heights, size * size), "the step's heights were refused");
+	delete [] heights;
+}
+
+
+float	Layer_Weight (int ix, int iy, const char *name)
+{
+	int index = TerrainTextureSystem::Find_Layer (name);
+	if (index < 0) {
+		Check (false, "there is no layer called '%s'", name);
+		return 0.0f;
+	}
+
+	float weights[TerrainTextureSystem::MAX_LAYERS];
+	int count = TerrainTextureSystem::Compute_Weights (ix, iy, weights,
+																		TerrainTextureSystem::MAX_LAYERS);
+	if (index >= count) {
+		return 0.0f;
+	}
+	return weights[index];
+}
+
+
+void	Check_Textures (void)
+{
+	WorldTerrainSystem::Init ();
+
+	//
+	//	Masks are the same shape as the field, so that a rule can ask about height and about the
+	//	road at the same grid point without converting between two ideas of where a point is.
+	//
+	Build_Step ();
+	Check (TerrainTextureSystem::Create_Masks (), "the masks would not be created");
+	Check (TerrainTextureSystem::Has_Masks (), "the masks were created and are not there");
+
+	TerrainMaskClass *road = TerrainTextureSystem::Peek_Mask (TERRAIN_MASK_ROAD);
+	Check (road != nullptr, "there is no road mask");
+
+	if (road != nullptr) {
+
+		Check (road->Get_Vertex_Count_X () == 33, "the road mask is %d wide, the field is 33",
+				road->Get_Vertex_Count_X ());
+		Check (Near (road->Get (10, 10), 0.0f), "a mask nobody wrote to is not empty");
+
+		//
+		//	A road is a polyline stamped into a mask.  It has to be continuous along its length:
+		//	discs dropped too far apart leave gaps, and a road with gaps in it is a dashed line.
+		//
+		Vector3 line[2];
+		line[0].Set (4.0f, 16.0f, 0.0f);
+		line[1].Set (12.0f, 16.0f, 0.0f);
+		road->Stamp_Polyline (line, 2, 4.0f, 1.0f, 1.0f);
+
+		for (int along = 4; along <= 12; along ++) {
+			Check (road->Get (along, 16) > 0.9f, "the road is only %f at x=%d",
+					road->Get (along, 16), along);
+		}
+
+		Check (Near (road->Get (25, 16), 0.0f, 0.01f), "the road reached x=25, which is nowhere near it");
+	}
+
+	//
+	//	Water distance is derived from the river mask rather than written.  A column of river at
+	//	x=8 puts every point its own distance away, and saturates rather than growing forever.
+	//
+	TerrainMaskClass *river = TerrainTextureSystem::Peek_Mask (TERRAIN_MASK_RIVER);
+	TerrainMaskClass *water = TerrainTextureSystem::Peek_Mask (TERRAIN_MASK_WATER_DISTANCE);
+	Check ((river != nullptr) && (water != nullptr), "the water masks are missing");
+
+	if ((river != nullptr) && (water != nullptr)) {
+
+		for (int iy = 0; iy < 33; iy ++) {
+			river->Set (8, iy, 1.0f);
+		}
+
+		Check (TerrainTextureSystem::Update_Water_Distance (0.5f, 20.0f),
+				"the water distance field would not build");
+
+		Check (Near (water->Get (8, 16), 0.0f), "the river is %f from itself", water->Get (8, 16));
+		Check (Near (water->Get (11, 16), 3.0f, 0.01f), "three cells from the river reads %f",
+				water->Get (11, 16));
+		Check (Near (water->Get (30, 16), 20.0f, 0.01f),
+				"far from the river reads %f, not the 20 it saturates at", water->Get (30, 16));
+	}
+
+	//
+	//	The default layer table, and the thing it is for: coherent materials with nobody having
+	//	painted anything.
+	//
+	TerrainTextureSystem::Define_Default_Layers ();
+	Check (TerrainTextureSystem::Get_Layer_Count () > 0, "the default layers defined nothing");
+	Check (TerrainTextureSystem::Find_Layer ("ground") == 0, "the ground is not the first layer");
+
+	//
+	//	The base is always fully there.  If its weight fell wherever another layer was strong,
+	//	two weak layers at the same point would leave a hole in the world.
+	//
+	Check (Near (Layer_Weight (4, 4, "ground"), 1.0f), "the base layer is %f on flat ground",
+			Layer_Weight (4, 4, "ground"));
+	Check (Near (Layer_Weight (16, 16, "ground"), 1.0f), "the base layer is %f on the cliff",
+			Layer_Weight (16, 16, "ground"));
+
+	//
+	//	Flat ground is ground: nothing steep, nothing curved, no mask written there.
+	//
+	Check (Near (Layer_Weight (4, 4, "rock"), 0.0f, 0.01f), "flat ground is %f rock",
+			Layer_Weight (4, 4, "rock"));
+	Check (Near (Layer_Weight (4, 4, "cliff"), 0.0f, 0.01f), "flat ground is %f cliff",
+			Layer_Weight (4, 4, "cliff"));
+
+	//
+	//	The pair that curvature exists for.  x=15 and x=16 sit either side of the wall and have
+	//	the same slope; only their curvature differs, and only the lip is a cliff face.
+	//
+	Check (Layer_Weight (15, 4, "rock") > 0.9f, "the foot of the wall is only %f rock",
+			Layer_Weight (15, 4, "rock"));
+	Check (Layer_Weight (16, 4, "rock") > 0.9f, "the lip of the wall is only %f rock",
+			Layer_Weight (16, 4, "rock"));
+
+	Check (Near (Layer_Weight (15, 4, "cliff"), 0.0f, 0.01f),
+			"the foot of the wall is %f cliff face, and it curves the other way",
+			Layer_Weight (15, 4, "cliff"));
+	Check (Layer_Weight (16, 4, "cliff") > 0.9f, "the lip of the wall is only %f cliff face",
+			Layer_Weight (16, 4, "cliff"));
+
+	//
+	//	An exclusive layer pushes the others aside in proportion to how strongly it applies.  A
+	//	road drawn over a slope is a road, not a road with a hill showing through it.
+	//
+	if (road != nullptr) {
+		Vector3 over_the_lip[2];
+		over_the_lip[0].Set (16.0f, 2.0f, 0.0f);
+		over_the_lip[1].Set (16.0f, 8.0f, 0.0f);
+		road->Stamp_Polyline (over_the_lip, 2, 4.0f, 1.0f, 1.0f);
+
+		Check (Layer_Weight (16, 4, "road") > 0.9f, "the road over the lip is only %f",
+				Layer_Weight (16, 4, "road"));
+		Check (Near (Layer_Weight (16, 4, "rock"), 0.0f, 0.05f),
+				"the road let %f of the rock through", Layer_Weight (16, 4, "rock"));
+		Check (Near (Layer_Weight (16, 4, "ground"), 1.0f),
+				"the road took the ground out from under itself");
+
+		Check (TerrainTextureSystem::Find_Layer ("road") ==
+				 TerrainTextureSystem::Get_Dominant_Layer (16, 4),
+				"the dominant layer on the road is not the road");
+	}
+
+	//
+	//	Four metres from the river is shoreline, and twenty is not.  Which is the point of a
+	//	derived distance: nobody drew a beach, they drew a river, and the beach follows.
+	//
+	Check (TerrainTextureSystem::Find_Layer ("shore") ==
+			 TerrainTextureSystem::Get_Dominant_Layer (4, 4),
+			"four metres from the river is not shoreline");
+
+	Check (TerrainTextureSystem::Get_Dominant_Layer (28, 28) == 0,
+			"flat ground far from everything is not the base");
+
+	//
+	//	Determinism.  There is no random number generator below this line: variation is a hash of
+	//	where you are asking and a seed, so a server and a client agree without sending anything.
+	//
+	Check (Near (TerrainMaskClass::Hash_Value (17, 23, 5),
+					 TerrainMaskClass::Hash_Value (17, 23, 5)),
+			"the same hash gave two answers");
+	Check (!Near (TerrainMaskClass::Hash_Value (17, 23, 5),
+					  TerrainMaskClass::Hash_Value (17, 23, 6)),
+			"two seeds gave the same answer");
+
+	float first[TerrainTextureSystem::MAX_LAYERS];
+	float again[TerrainTextureSystem::MAX_LAYERS];
+	int count = TerrainTextureSystem::Compute_Weights (9, 9, first, TerrainTextureSystem::MAX_LAYERS);
+	TerrainTextureSystem::Compute_Weights (9, 9, again, TerrainTextureSystem::MAX_LAYERS);
+	for (int index = 0; index < count; index ++) {
+		Check (Near (first[index], again[index]), "layer %d weighed %f and then %f",
+				index, first[index], again[index]);
+	}
+
+	//
+	//	Off the field there is no answer, the same as everywhere else in this service.
+	//
+	int layer = -1;
+	Check (TerrainTextureSystem::Get_Dominant_Layer_At (-50.0f, -50.0f, &layer) == false,
+			"somewhere off the field is made of something");
+
+	//
+	//	And the passes themselves: weights become the thing the renderer reads.  The composite is
+	//	stock Renegade's -- first layer with any influence draws the quad opaque, later ones draw
+	//	over it -- so a patch built from rules is a patch the renderer already knows how to read.
+	//
+	RenegadeTerrainPatchClass *patch = WorldTerrainSystem::Create_Patch_Model (0, 0);
+	Check (patch != nullptr, "a patch to dress would not build");
+
+	if (patch != nullptr) {
+
+		Check (TerrainTextureSystem::Build_Patch_Materials (patch, 0, 0),
+				"the patch would not take its materials");
+		Check (patch->Get_Material_Count () > 0, "the dressed patch has no material passes");
+
+		RenegadeTerrainMaterialPassClass *base_pass = patch->Peek_Material_Pass (0);
+		Check (base_pass != nullptr, "there is no pass for the base layer");
+		if (base_pass != nullptr) {
+			Check (base_pass->QuadList[RenegadeTerrainMaterialPassClass::PASS_BASE].Count () > 0,
+					"the base layer draws no quads opaquely, so the ground has a hole in it");
+		}
+
+		int rock_index = TerrainTextureSystem::Find_Layer ("rock");
+		if ((rock_index > 0) && (rock_index < patch->Get_Material_Count ())) {
+			RenegadeTerrainMaterialPassClass *rock_pass = patch->Peek_Material_Pass (rock_index);
+			Check (rock_pass->QuadList[RenegadeTerrainMaterialPassClass::PASS_ALPHA].Count () > 0,
+					"the rock layer blends over nothing, and this patch has a wall in it");
+		}
+
+		patch->Release_Ref ();
+	}
+
+	//
+	//	The masks belong to the field they describe, so a new field of a different size must not
+	//	inherit the old one's road.
+	//
+	WorldTerrainSystem::Destroy_Terrain ();
+	Check (TerrainTextureSystem::Has_Masks () == false, "the masks outlived the ground");
+
+	WorldTerrainSystem::Shutdown ();
+	Check (TerrainTextureSystem::Get_Layer_Count () == 0, "the layers outlived the service");
+}
+
 }	// anonymous namespace
 
 
@@ -568,6 +821,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "collision") == 0)) {
 		Check_Collision ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "textures") == 0)) {
+		Check_Textures ();
 	}
 
 	if (_Failures == 0) {

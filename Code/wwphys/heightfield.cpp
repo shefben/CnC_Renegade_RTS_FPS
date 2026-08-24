@@ -345,6 +345,23 @@ Vector3 HeightfieldClass::Compute_Vertex_Normal(int ix,int iy) const
 }
 
 
+float HeightfieldClass::Compute_Curvature(int ix,int iy) const
+{
+	if (Heights == nullptr) {
+		return 0.0f;
+	}
+
+	//	The discrete Laplacian, negated so that convex ground reads positive.  Get_Height clamps
+	//	at the border, which makes the outermost ring read as flat rather than as a cliff -- the
+	//	edge of the field is not a feature of the terrain.
+	float centre = Get_Height(ix,iy);
+	float sum = Get_Height(ix-1,iy) + Get_Height(ix+1,iy)
+				 + Get_Height(ix,iy-1) + Get_Height(ix,iy+1);
+
+	return ((4.0f * centre) - sum) / (CellSize * CellSize);
+}
+
+
 bool HeightfieldClass::Get_Cell_Triangles(int cx,int cy,Vector3 * verts_out) const
 {
 	if ((Heights == nullptr) || (verts_out == nullptr)) {

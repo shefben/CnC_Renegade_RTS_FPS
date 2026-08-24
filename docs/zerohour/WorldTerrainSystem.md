@@ -171,20 +171,18 @@ and judging it needs someone to walk on it.
 
 ## Not built yet, and saying so
 
-- **Drawing it.** The patch is a render object and it is in the scene, but it has no material
-  passes, so it has nothing to draw with. Those are Section 18's terrain texture system and the
-  terrain pipelines enumerated in `ShaderManager.md`. Until then generated ground is something
-  you collide with and cannot see. `Fill_Patch_Model` already calls `Update_UVs` and
-  `Update_Vertex_Render_Lists` — both do nothing with no passes — so the fill stays right when
-  the passes arrive rather than becoming something to remember.
+- **Drawing it.** The patch now takes material passes from Section 18
+  (`TerrainTextureSystem.md`) whenever layers are defined, so `Build_Collision` dresses what it
+  builds. What is still missing is art: the default layers carry rules and no texture names, so
+  a pass has nothing to put on the ground. Nothing here has been seen on a screen.
 - **`Build_Far_Terrain_Representation`** still returns false and logs once. It is declared
   because Section 17 names it and callers should be written against the final shape, and it
   refuses rather than pretends because a service that silently returned success would be worse
   than one that is honestly incomplete. It is Section 34's own phase (Feature 21,
   `W3DTerrainBackground`).
-- **`Get_Material`** returns one material. Section 18 will decide it from height, slope,
-  curvature, biome, moisture, water distance and the masks; the question is asked in its final
-  form now so callers written before then do not need rewriting after.
+- **`Get_Material`** now asks Section 18's layer table, which landed: see
+  `TerrainTextureSystem.md`. The placeholder enum is gone and the answer is a layer index, with
+  `Get_Surface_Type` beside it for the stock surface type footsteps and decals already read.
 - **`Build_Collision` with no physics scene** returns false and says so once. That is not a
   refusal to implement, it is the honest answer: `PhysClass::Set_Model` asks the scene singleton
   whether it already holds the object, so there is nothing to build into. A check that runs

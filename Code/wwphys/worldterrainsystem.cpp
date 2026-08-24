@@ -33,6 +33,7 @@
 #include "pscene.h"
 #include "renegadeterrainpatch.h"
 #include "staticphys.h"
+#include "terraintexturesystem.h"
 #include "wwdebug.h"
 #include "wwmath.h"
 
@@ -71,6 +72,7 @@ void WorldTerrainSystem::Init(void)
 	//	Nothing to build.  A level with no heightfield is the normal case and must cost nothing,
 	//	so the field is allocated by Create_Terrain and not before.
 	Destroy_Terrain();
+	TerrainTextureSystem::Init();
 	ReportedNoCollision = false;
 	ReportedNoFarTerrain = false;
 }
@@ -79,6 +81,7 @@ void WorldTerrainSystem::Init(void)
 void WorldTerrainSystem::Shutdown(void)
 {
 	Destroy_Terrain();
+	TerrainTextureSystem::Shutdown();
 }
 
 
@@ -110,8 +113,11 @@ bool WorldTerrainSystem::Set_Heights(const float * heights,int count)
 void WorldTerrainSystem::Destroy_Terrain(void)
 {
 	//	The collision patches are geometry cut out of this field, so they go first, while the
-	//	field they were cut from is still there to describe them.
+	//	field they were cut from is still there to describe them.  The masks go with them: a mask
+	//	is one value per grid point of *this* field, and keeping them across a new field of a
+	//	different size would read the wrong ground.
 	Destroy_Collision();
+	TerrainTextureSystem::Destroy_Masks();
 
 	if (Heightfield != nullptr) {
 		delete Heightfield;
@@ -177,17 +183,17 @@ bool WorldTerrainSystem::Ray_Intersect_Terrain(const LineSegClass & ray,float * 
  * One answer until Section 18.  The question is asked in its final form now so that the        *
  * callers written between here and there do not have to be rewritten when the masks arrive.    *
  *=============================================================================================*/
-bool WorldTerrainSystem::Get_Material(float x,float y,TerrainMaterialType * material_out)
+bool WorldTerrainSystem::Get_Material(float x,float y,int * layer_index_out)
 {
-	float height;
-	if (!Sample_Height(x,y,&height)) {
-		return false;
-	}
+	//	The shape of the ground is this class's; what it is made of is Section 18's, and asking
+	//	it here rather than answering here is what keeps there being one place that decides.
+	return TerrainTextureSystem::Get_Dominant_Layer_At(x,y,layer_index_out);
+}
 
-	if (material_out != nullptr) {
-		*material_out = TERRAIN_MATERIAL_DEFAULT;
-	}
-	return true;
+
+bool WorldTerrainSystem::Get_Surface_Type(float x,float y,int * surface_type_out)
+{
+	return TerrainTextureSystem::Get_Surface_Type_At(x,y,surface_type_out);
 }
 
 
@@ -650,6 +656,13 @@ bool WorldTerrainSystem::Build_Collision(void)
 		}
 	}
 
+	//	Geometry that has just been rebuilt is wearing the materials the old shape called for, so
+	//	dressing follows building rather than being asked for separately.  With no layers defined
+	//	this does nothing, which is the right answer for terrain nobody has dressed.
+	if (TerrainTextureSystem::Get_Layer_Count() > 0) {
+		TerrainTextureSystem::Build_All_Patch_Materials();
+	}
+
 	if (first_build) {
 		WWDEBUG_SAY(("WorldTerrainSystem: terrain collision built, %d x %d patches.\r\n",
 						 count_x,count_y));
@@ -721,6 +734,16 @@ StaticPhysClass * WorldTerrainSystem::Peek_Collision_Patch(int px,int py)
 		return nullptr;
 	}
 	return CollisionPatches[py * CollisionPatchCountX + px];
+}
+
+
+RenegadeTerrainPatchClass * WorldTerrainSystem::Peek_Patch_Model(int px,int py)
+{
+	StaticPhysClass * phys = Peek_Collision_Patch(px,py);
+	if (phys == nullptr) {
+		return nullptr;
+	}
+	return (RenegadeTerrainPatchClass *)phys->Peek_Model();
 }
 
 

@@ -187,6 +187,16 @@ public:
 	*/
 	Vector3				Compute_Vertex_Normal(int ix,int iy) const;
 
+	/*
+	**	How much the ground bends at a vertex, in height per square metre.  Positive on a ridge
+	**	or the lip of a cliff, negative in a gully, zero on any plane however steep.
+	**
+	**	Roadmap Section 18 lists curvature alongside height and slope as an input to choosing
+	**	terrain materials, and it is the one that separates the two things slope cannot: the top
+	**	of a cliff and the bottom of one have the same slope beside them and opposite curvature.
+	*/
+	float					Compute_Curvature(int ix,int iy) const;
+
 private:
 
 	void					Update_Bounds(void);

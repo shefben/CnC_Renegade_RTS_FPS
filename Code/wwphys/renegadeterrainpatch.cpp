@@ -553,6 +553,17 @@ RenegadeTerrainPatchClass::Render_By_Texture (int texture_index, int pass_type)
 	}
 
 	//
+	//	A pass with no material has no texture to set, and Set_Texture below would read through
+	//	the null pointer.  Get_Material_Pass has always been able to produce this state -- it
+	//	grows the list with Add_Material(nullptr) -- and terrain built at runtime reaches it for
+	//	real, because a generator decides where a layer goes before it decides what it looks
+	//	like.
+	//
+	if (MaterialPassList[texture_index]->Material == nullptr) {
+		return ;
+	}
+
+	//
 	//	Pass the vertex and index buffers onto DX8
 	//
 	Submit_Rendering_Buffers (texture_index, pass_type);
