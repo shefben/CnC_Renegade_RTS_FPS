@@ -248,3 +248,16 @@ ever been drawn, nothing reads foliage out of a level, no weapon damages a plant
 user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then
 `foliage_test 2000 200 <a tree model name from that level>` at the console, and report the printed
 plant-to-batch numbers and whether the wood looks like a wood.
+
+## P17 -- carved, stamped, tagged, and nothing has been seen
+
+`WaterSystem` is in and checked (P17-A in `completed_features.md`, `docs/zerohour/WaterSystem.md`,
+twenty green terrain ctest entries). This entry carries the absorbed acceptance line *Water works
+visually and physically without a competing collision system*: the physical half is proved by
+construction (the surface mesh is tagged into Renegade's existing water surface type rather than
+answered by a new system), but no pond has ever been drawn, nothing reads water areas out of a
+level, flow direction and scroll speed are stored but drive no per-frame animation, there is no
+reflection, and no naval/amphibious unit yet asks `Get_Water_Depth`/`Is_Navigable`. Next exact
+action is a manual one for the user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a
+level, then `water_test 20 <a texture name from that level>` at the console, and report whether the
+pond carved into the ground, whether the shoreline looked blended, and whether it drew.

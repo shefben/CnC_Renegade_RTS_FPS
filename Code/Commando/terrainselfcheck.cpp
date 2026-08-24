@@ -19,6 +19,8 @@
 #include "roadsystem.h"
 #include "terrainmask.h"
 #include "terraintexturesystem.h"
+#include "watersystem.h"
+#include "watertype.h"
 #include "worldterrainsystem.h"
 #include "wwmath.h"
 
@@ -1923,6 +1925,220 @@ void	Check_Foliage (void)
 }
 
 
+/*
+**	Roadmap Section 22.  The acceptance is that water works visually and physically without a
+**	competing collision system, and the reason this is checkable at all without a device is the
+**	same reason Check_Foliage is: shaping the ground, stamping the shoreline mask and answering
+**	is-this-point-wet all come from the authored shape rather than from anything a renderer or a
+**	physics scene would have to exist to provide.  Only the surface mesh itself needs a scene,
+**	and it is checked the same way FoliageSystem::Build_Geometry is -- declining correctly with
+**	none there.
+*/
+void	Check_Water (void)
+{
+	WaterSystem::Init ();
+
+	//
+	//	Six categories.  Ocean and coast do not carve; lake, pond, river and stream do.  River
+	//	and stream flow; nothing else does.
+	//
+	Check (::strcmp (Water_Category_Name (WATER_RIVER), "river") == 0,
+			"the river category is named '%s'", Water_Category_Name (WATER_RIVER));
+	Check (Water_Category_Flows (WATER_RIVER) && Water_Category_Flows (WATER_STREAM),
+			"a river or a stream does not flow");
+	Check (!Water_Category_Flows (WATER_LAKE) && !Water_Category_Flows (WATER_OCEAN),
+			"a lake or an ocean flows");
+	Check (Water_Category_Carves_Terrain (WATER_LAKE) && Water_Category_Carves_Terrain (WATER_POND) &&
+			 Water_Category_Carves_Terrain (WATER_RIVER) && Water_Category_Carves_Terrain (WATER_STREAM),
+			"a bounded body of water does not carve its own bed");
+	Check (!Water_Category_Carves_Terrain (WATER_OCEAN) && !Water_Category_Carves_Terrain (WATER_COAST),
+			"an ocean or a coast carved a bed it has no boundary to carve along");
+
+	//
+	//	One definition per category, none of them naming any art.
+	//
+	WaterSystem::Define_Default_Water ();
+	Check (WaterSystem::Get_Definition_Count () == 6,
+			"%d default water kinds were defined, not 6", WaterSystem::Get_Definition_Count ());
+
+	WaterDefinitionClass *lake_def = WaterSystem::Find_Definition ("ow_water_lake");
+	WaterDefinitionClass *river_def = WaterSystem::Find_Definition ("ow_water_river");
+	Check ((lake_def != nullptr) && (river_def != nullptr), "a default water kind is missing");
+	Check (WaterSystem::Find_Definition ("ow_water_swamp") == nullptr,
+			"a kind nobody defined was found anyway");
+
+	if (lake_def != nullptr) {
+		Check (lake_def->Get_Category () == WATER_LAKE, "the lake definition is not a lake");
+		Check (!lake_def->Names_Any_Texture (), "the lake definition names art that does not exist");
+	}
+
+	//
+	//	A pond: a closed square ring, still water at one flat height.
+	//
+	WaterAreaClass pond;
+	pond.Set_Name ("test_pond");
+	pond.Set_Definition ("ow_water_pond");
+	pond.Set_Closed (true);
+	pond.Set_Height (-1.0f);
+	pond.Add_Station (Vector3 (10.0f, 10.0f, 0.0f), 0.0f);
+	pond.Add_Station (Vector3 (20.0f, 10.0f, 0.0f), 0.0f);
+	pond.Add_Station (Vector3 (20.0f, 20.0f, 0.0f), 0.0f);
+	pond.Add_Station (Vector3 (10.0f, 20.0f, 0.0f), 0.0f);
+	int pond_index = WaterSystem::Add_Area (pond);
+	Check (WaterSystem::Get_Area_Count () == 1, "adding a pond did not add an area");
+	Check (WaterSystem::Find_Area ("test_pond") != nullptr, "the pond cannot be found by name");
+
+	Check (WaterSystem::Peek_Area (pond_index).Contains_Point (15.0f, 15.0f),
+			"the middle of the pond is not in the pond");
+	Check (!WaterSystem::Peek_Area (pond_index).Contains_Point (0.0f, 0.0f),
+			"the origin, ten metres outside the pond, is in the pond");
+
+	float height = 0.0f;
+	bool has_height = WaterSystem::Get_Water_Height (15.0f, 15.0f, &height);
+	Check (has_height && Near (height, -1.0f), "the pond surface reads %f, not -1", height);
+	Check (!WaterSystem::Get_Water_Height (0.0f, 0.0f, &height),
+			"there is a water height at a point with no water");
+
+	Vector3 direction;
+	float speed = -1.0f;
+	Check (WaterSystem::Get_Flow (15.0f, 15.0f, &direction, &speed),
+			"the pond could not answer a flow query at all");
+	Check (Near (speed, 0.0f), "still water in a pond flows at %f", speed);
+
+	//
+	//	A stream: an open, sloping line, narrower at the far end.
+	//
+	WaterAreaClass stream;
+	stream.Set_Name ("test_stream");
+	stream.Set_Definition ("ow_water_stream");
+	stream.Set_Closed (false);
+	stream.Add_Station (Vector3 (0.0f, 0.0f, 2.0f), 4.0f);
+	stream.Add_Station (Vector3 (20.0f, 0.0f, 0.0f), 2.0f);
+	int stream_index = WaterSystem::Add_Area (stream);
+
+	Check (WaterSystem::Peek_Area (stream_index).Contains_Point (10.0f, 1.0f),
+			"a point one metre off a four metre wide stream's centre line is outside it");
+	Check (!WaterSystem::Peek_Area (stream_index).Contains_Point (10.0f, 5.0f),
+			"a point five metres off the stream is inside it");
+
+	has_height = WaterSystem::Get_Water_Height (10.0f, 0.0f, &height);
+	Check (has_height && Near (height, 1.0f, 0.01f),
+			"halfway down a slope from 2 to 0 the surface reads %f, not 1", height);
+
+	Check (WaterSystem::Get_Flow (10.0f, 0.0f, &direction, &speed),
+			"the stream could not answer a flow query");
+	Check (Near (direction.X, 1.0f, 0.01f) && Near (direction.Y, 0.0f, 0.01f),
+			"a stream running due east flows towards %f,%f", direction.X, direction.Y);
+	Check (speed > 0.0f, "a flowing stream reports zero speed");
+
+	float depth = -1.0f;
+	bool has_depth = WaterSystem::Get_Water_Depth (10.0f, 0.0f, -3.0f, &depth);
+	Check (has_depth && Near (depth, 4.0f, 0.01f),
+			"the ground three below a surface at one is %f deep, not 4", depth);
+	has_depth = WaterSystem::Get_Water_Depth (10.0f, 0.0f, 5.0f, &depth);
+	Check (has_depth && Near (depth, 0.0f),
+			"a floor above the surface reads a depth of %f, not 0", depth);
+	Check (WaterSystem::Is_Navigable (10.0f, 0.0f, -3.0f, 2.0f),
+			"four metres of depth is not navigable to something that draws two");
+	Check (!WaterSystem::Is_Navigable (10.0f, 0.0f, -3.0f, 10.0f),
+			"four metres of depth is navigable to something that draws ten");
+
+	//
+	//	Shaping the ground.  A flat field, carved along the stream and under the pond, and left
+	//	alone where an ocean was placed over it -- there is no boundary for an ocean to carve.
+	//
+	WorldTerrainSystem::Init ();
+	Check (WorldTerrainSystem::Create_Terrain (33, 33, 1.0f, Vector3 (0.0f, 0.0f, 0.0f)),
+			"a flat field would not be created");
+
+	float *flat = new float[33 * 33];
+	for (int i = 0; i < 33 * 33; i ++) { flat[i] = 0.0f; }
+	Check (WorldTerrainSystem::Set_Heights (flat, 33 * 33), "the flat field's heights were refused");
+	delete [] flat;
+
+	//
+	//	Near its source the stream sits at Z=2, well above the flat field it is cut into, so a
+	//	levelled-and-cut bed there reads well above the original 0 -- proof the cut ran at all,
+	//	not just that the ground near it happens to still read close to flat.
+	//
+	Check (WaterSystem::Shape_Terrain (stream_index), "the stream would not shape the ground");
+	float carved = -5.0f;
+	bool sampled = WorldTerrainSystem::Sample_Height (2.0f, 0.0f, &carved);
+	Check (sampled && (carved > 0.4f),
+			"the ground near the stream's source reads %f, not levelled up to it at all", carved);
+
+	//	The centre is only reached by one row of the interior sweep at a partial, smoothstep-
+	//	tapered weight, so it lands well short of the full -2.5 the surface and bed depth would
+	//	give a fully saturated point; -1.0 is a wide, safe margin that only a real cut clears.
+	Check (WaterSystem::Shape_Terrain (pond_index), "the pond would not shape the ground");
+	sampled = WorldTerrainSystem::Sample_Height (15.0f, 15.0f, &carved);
+	Check (sampled && (carved < -1.0f),
+			"the ground under the pond reads %f, barely below the flat field it cut into", carved);
+
+	WaterAreaClass ocean;
+	ocean.Set_Name ("test_ocean");
+	ocean.Set_Definition ("ow_water_ocean");
+	ocean.Set_Closed (true);
+	ocean.Set_Height (0.0f);
+	ocean.Add_Station (Vector3 (0.0f, 25.0f, 0.0f), 0.0f);
+	ocean.Add_Station (Vector3 (10.0f, 25.0f, 0.0f), 0.0f);
+	ocean.Add_Station (Vector3 (10.0f, 32.0f, 0.0f), 0.0f);
+	ocean.Add_Station (Vector3 (0.0f, 32.0f, 0.0f), 0.0f);
+	int ocean_index = WaterSystem::Add_Area (ocean);
+
+	Check (WaterSystem::Shape_Terrain (ocean_index), "an ocean refused to shape, which is a no-op");
+	sampled = WorldTerrainSystem::Sample_Height (5.0f, 28.0f, &carved);
+	Check (sampled && Near (carved, 0.0f),
+			"an ocean, which does not carve, left the ground at %f instead of the flat 0 under it",
+			carved);
+
+	//
+	//	The shoreline mask.  Section 18 built TERRAIN_MASK_RIVER and TERRAIN_MASK_WATER_DISTANCE
+	//	with nothing to stamp them; this is that writer, for every category, not only rivers.
+	//
+	Check (TerrainTextureSystem::Create_Masks (), "the masks would not be created");
+	int stamped = WaterSystem::Stamp_All_Masks ();
+	Check (stamped == 3, "%d of 3 placed areas stamped the shoreline mask", stamped);
+
+	TerrainMaskClass *river_mask = TerrainTextureSystem::Peek_Mask (TERRAIN_MASK_RIVER);
+	TerrainMaskClass *distance_mask = TerrainTextureSystem::Peek_Mask (TERRAIN_MASK_WATER_DISTANCE);
+	Check ((river_mask != nullptr) && (distance_mask != nullptr), "the shoreline masks are missing");
+
+	if ((river_mask != nullptr) && (distance_mask != nullptr)) {
+		Check (river_mask->Get (10, 0) > 0.5f, "the stream's own line barely marks the river mask");
+		Check (Near (distance_mask->Get (10, 0), 0.0f, 1.5f),
+				"the stream is %f from the water it is standing in", distance_mask->Get (10, 0));
+	}
+
+	//
+	//	No device, no scene -- but the missing-texture count still tells a caller which of its
+	//	kinds have nothing to draw, exactly as FoliageSystem's does.
+	//
+	Check (!WaterSystem::Build_Geometry (pond_index), "geometry was built for a kind naming no art");
+	Check (WaterSystem::Get_Missing_Texture_Count () == 1,
+			"%d missing textures reported after one attempt", WaterSystem::Get_Missing_Texture_Count ());
+
+	WaterDefinitionClass *stream_def = WaterSystem::Find_Definition ("ow_water_stream");
+	if (stream_def != nullptr) {
+		stream_def->Set_Surface_Texture ("ow_water_stream");
+		Check (!WaterSystem::Build_Geometry (stream_index),
+				"geometry was built for a textured kind with no physics scene to put it in");
+		Check (WaterSystem::Get_Missing_Texture_Count () == 1,
+				"a textured kind was counted as missing its art");
+	}
+
+	Check (WaterSystem::Get_Object_Count () == 0, "there are objects in a scene that is not there");
+	Check (!WaterSystem::Has_Geometry (pond_index), "the pond says it has geometry with no scene built");
+
+	//
+	//	Nothing outlives the world it described.
+	//
+	WaterSystem::Shutdown ();
+	Check (WaterSystem::Get_Area_Count () == 0, "the areas outlived the service");
+	Check (WaterSystem::Get_Definition_Count () == 0, "the kinds outlived the service");
+}
+
+
 }	// anonymous namespace
 
 
@@ -1956,6 +2172,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "foliage") == 0)) {
 		Check_Foliage ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "water") == 0)) {
+		Check_Water ();
 	}
 
 	if (_Failures == 0) {

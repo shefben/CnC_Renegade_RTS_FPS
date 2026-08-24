@@ -1452,3 +1452,16 @@ the doc. `DynamicMeshBuilderClass` gained `Triangle`, and the bridges' `Emit_Box
 `Box` so it has one owner. Missing art degrades to nothing drawn while collision and batching stay
 real -- names in `docs/assets/FoliageModels.md`. Evidence: `docs/zerohour/FoliageSystem.md`;
 eighteen green terrain ctest entries including the new `terrain_foliage` and `fds_terrain_foliage`.
+
+## P17-A: Water is Renegade's own collision, tagged, not a second system
+
+`WaterSystem`/`WaterAreaClass`/`WaterDefinitionClass` place ocean, coast, lake, pond, river and
+stream areas as a station list (closed ring or open sloping line), carve their bed through the
+existing `WorldTerrainSystem::Apply_River_Cut` primitive, stamp the terrain's existing (until now
+unwritten) `TERRAIN_MASK_RIVER`/water-distance shoreline blend, and build a surface mesh tagged
+`SURFACE_TYPE_WATER_PERMEABLE` with `COLLISION_TYPE_PROJECTILE` so every existing Renegade water
+reaction (wake, splash, surface damage) fires over it with no new collision code -- the acceptance's
+"without a competing collision system" read literally. Headless queries (height, depth, flow,
+navigability) answer from the authored shape with no scene. Missing texture degrades to nothing
+drawn, same policy as foliage. Evidence: `docs/zerohour/WaterSystem.md`, `docs/assets/WaterModels.md`;
+twenty green terrain ctest entries including the new `terrain_water` and `fds_terrain_water`.

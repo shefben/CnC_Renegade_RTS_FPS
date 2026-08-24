@@ -48,6 +48,8 @@
 #include "bridgesection.h"
 #include "foliagesystem.h"
 #include "foliagetype.h"
+#include "watersystem.h"
+#include "watertype.h"
 #include "bridgesystem.h"
 #include "roadsystem.h"
 #include "playermanager.h"
@@ -1210,6 +1212,118 @@ public:
 
 		FoliageSystem::Clear_Instances();
 		Print( "Generated foliage cleared.\n" );
+	}
+};
+
+
+/*
+**	Section 22's acceptance is that water works visually and physically without a competing
+**	collision system, and both halves of that are things to read as much as things to look at:
+**	whether the ground carved, whether the shoreline mask stamped, how many things the surface
+**	is drawn as.  This places a round pond around the player and reports all three.
+**
+**	It takes a texture name for the same reason foliage_test takes a model name: there is no
+**	water art of our own yet, and pointing the pond at a texture already in a stock mix file is
+**	how the shader and the collision tagging are seen working before any of ours exists.
+*/
+class WaterTestConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "water_test"; }
+	virtual	const char * Get_Help( void ) override	{ return "WATER_TEST <radius> <texture> - places a pond around you and reports how it carved, stamped and drew."; }
+	virtual	void Activate( const char * input ) override {
+
+		if ( COMBAT_STAR == nullptr ) {
+			Print( "water_test needs somewhere to put the pond; there is no player.\n" );
+			return;
+		}
+
+		float	radius	= 20.0f;
+		char	texture[ 128 ];
+		texture[ 0 ] = 0;
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%f %127s", &radius, texture );
+		}
+
+		if ( radius < 4.0f )		radius = 4.0f;
+		if ( radius > 200.0f )	radius = 200.0f;
+
+		if ( WaterSystem::Get_Definition_Count() == 0 ) {
+			WaterSystem::Init();
+			WaterSystem::Define_Default_Water();
+		}
+
+		WaterDefinitionClass * def = WaterSystem::Find_Definition( "ow_water_pond" );
+		if ( def == nullptr ) {
+			Print( "water_test: the default pond is not defined.\n" );
+			return;
+		}
+
+		//	A texture given on the command line replaces the one the kind names, so the pond can
+		//	be drawn out of whatever texture this level already has.
+		if ( texture[ 0 ] != 0 ) {
+			def->Set_Surface_Texture( texture );
+		}
+
+		Vector3 star_pos;
+		COMBAT_STAR->Get_Position( &star_pos );
+
+		WaterSystem::Clear_Areas();
+
+		WaterAreaClass pond;
+		pond.Set_Name( "water_test_pond" );
+		pond.Set_Definition( "ow_water_pond" );
+		pond.Set_Closed( true );
+		pond.Set_Height( star_pos.Z );
+
+		const int SIDES = 16;
+		for ( int i = 0; i < SIDES; i ++ ) {
+			float angle = ( 2.0f * WWMATH_PI * (float)i ) / (float)SIDES;
+			Vector3 point( star_pos.X + radius * WWMath::Cos( angle ),
+								star_pos.Y + radius * WWMath::Sin( angle ), 0.0f );
+			pond.Add_Station( point, 0.0f );
+		}
+
+		int index = WaterSystem::Add_Area( pond );
+
+		bool shaped = WaterSystem::Shape_Terrain( index );
+		bool stamped = TerrainTextureSystem::Has_Masks() && WaterSystem::Stamp_Mask( index );
+		if ( stamped ) {
+			TerrainTextureSystem::Update_Water_Distance();
+		}
+		bool built = WaterSystem::Build_Geometry( index );
+
+		Print( "water_test: a pond of radius %.0f -- ground %s, shoreline %s, surface %s.\n",
+				 radius,
+				 shaped ? "carved" : "not carved (no terrain)",
+				 stamped ? "stamped" : "not stamped (no terrain texture masks)",
+				 built ? "drawn" : "not drawn (no texture, or no physics scene)" );
+
+		Print( "water_test: %d object(s) in the scene.\n", WaterSystem::Get_Object_Count() );
+
+		if ( WaterSystem::Get_Missing_Texture_Count() > 0 ) {
+			Print( "water_test: %d kind(s) name no texture, so their surface draws nothing.\n",
+					 WaterSystem::Get_Missing_Texture_Count() );
+		}
+	}
+};
+
+
+class WaterClearConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "water_clear"; }
+	virtual	const char * Get_Help( void ) override	{ return "WATER_CLEAR - removes generated water areas and their geometry from the scene."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		if ( WaterSystem::Get_Area_Count() == 0 ) {
+			Print( "There is no generated water to clear.\n" );
+			return;
+		}
+
+		WaterSystem::Clear_Areas();
+		Print( "Generated water cleared.\n" );
 	}
 };
 
@@ -5639,6 +5753,8 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new FoliageTestConsoleFunctionClass() );
 	FunctionList.Add( new FoliageCutConsoleFunctionClass() );
 	FunctionList.Add( new FoliageClearConsoleFunctionClass() );
+	FunctionList.Add( new WaterTestConsoleFunctionClass() );
+	FunctionList.Add( new WaterClearConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );
 	FunctionList.Add( new ExposePrelitConsoleFunctionClass() );

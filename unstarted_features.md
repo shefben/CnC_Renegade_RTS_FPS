@@ -80,7 +80,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P17: Reflective water / river system (roadmap Section 22)
 
-- [ ] Acceptance: Water works visually and physically without a competing collision system.
 
 ## P18: Terrain tracks / surface ribbons (roadmap Section 23)
 
