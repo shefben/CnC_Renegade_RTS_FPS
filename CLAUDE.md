@@ -25,6 +25,7 @@ The four state files are persistent project memory. Claude's internal todo list,
 - OpenW3D remains the destination architectural authority.
 - Keep OpenW3D/WWPhys; no Jolt/replacement-physics migration.
 - Preserve Renegade FPS world geometry and interiors.
+- **No network compatibility with other clients is required.** OpenW3D clients and servers only ever talk to each other, so the wire protocol, packet layout, net class ids, and app packet types may be changed freely. Never constrain a design, keep a legacy field, or add a version/compat path to stay interoperable with stock Renegade, TT 4.8.4, or any other build. Asset compatibility (models, maps, textures, `.w3d`, `always.dat`) is a separate rule and still stands.
 - Do not reintroduce historical TT DLL-hook/proxy architecture or an unnecessary binary plugin compatibility layer.
 
 ## Claude-specific anti-drift rules
