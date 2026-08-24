@@ -1436,3 +1436,19 @@ carries and breaks -- names in `docs/assets/BridgeSections.md`. `RoadMeshBuilder
 twice. Evidence: `docs/zerohour/BridgeSystem.md`; sixteen green terrain ctest entries including the
 new `terrain_bridges` and `fds_terrain_bridges`.
 
+## P16-A: FoliageSystem, a wood drawn as cells rather than trees
+
+Roadmap Section 21 implemented natively as `Code/WWPhys/foliagetype.{h,cpp}` and
+`Code/WWPhys/foliagesystem.{h,cpp}`: five categories and a separate blocking flag set so
+visual-only, infantry blocker, vehicle blocker and destructible are four behaviours rather than
+four categories; a grid built over the instances; batching by `(cell, material, level of detail)`
+so a wood of 2000 trees is drawn as about 120 things; per-cell distance and cone culling; a near
+level of merged model triangles and a far level of merged crossed-quad impostors, both built once
+and hidden rather than a buffer refilled per frame; and merged invisible collision posts per cell
+per blocking behaviour, which work with no art at all. `Scatter` grows a wood deterministically
+from a seed so a client can rebuild the server's rather than be sent it. The donor's global
+4000-tree buffer, mega-texture and partial bubble sort were deliberately not taken -- reasons in
+the doc. `DynamicMeshBuilderClass` gained `Triangle`, and the bridges' `Emit_Box` moved into it as
+`Box` so it has one owner. Missing art degrades to nothing drawn while collision and batching stay
+real -- names in `docs/assets/FoliageModels.md`. Evidence: `docs/zerohour/FoliageSystem.md`;
+eighteen green terrain ctest entries including the new `terrain_foliage` and `fds_terrain_foliage`.

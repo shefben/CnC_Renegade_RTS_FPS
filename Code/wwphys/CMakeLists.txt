@@ -71,6 +71,8 @@ set(WWPHYS_SRC
     terrainmaterial.cpp
     bridgesection.cpp
     bridgesystem.cpp
+    foliagesystem.cpp
+    foliagetype.cpp
     roadspline.cpp
     roadsystem.cpp
     terrainmask.cpp
@@ -168,6 +170,8 @@ set(WWPHYS_SRC
     bridgesection.h
     bridgesystem.h
     dynamicmeshbuilder.h
+    foliagesystem.h
+    foliagetype.h
     roadspline.h
     roadsystem.h
     terrainmask.h

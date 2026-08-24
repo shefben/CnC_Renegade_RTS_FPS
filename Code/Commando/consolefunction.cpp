@@ -46,6 +46,8 @@
 #include "terraintexturesystem.h"
 #include "roadspline.h"
 #include "bridgesection.h"
+#include "foliagesystem.h"
+#include "foliagetype.h"
 #include "bridgesystem.h"
 #include "roadsystem.h"
 #include "playermanager.h"
@@ -1053,6 +1055,161 @@ public:
 
 		BridgeSystem::Clear_Bridges();
 		Print( "Generated bridges cleared.\n" );
+	}
+};
+
+
+/*
+**	Section 21's acceptance is a ratio between the number of plants in a wood and the number of
+**	things the wood is drawn as, and a ratio is a thing to read rather than to look at.  This
+**	plants a wood around the player and prints both numbers.
+**
+**	It takes a model name because there is no foliage art of our own and there are perfectly
+**	good trees in a stock Renegade mix file.  Pointing the type at one is how the batching is
+**	seen working on art that exists rather than only counted on art that does not.
+*/
+class FoliageTestConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "foliage_test"; }
+	virtual	const char * Get_Help( void ) override	{ return "FOLIAGE_TEST <count> <radius> <model> - plants a wood around you and reports how many things it is drawn as."; }
+	virtual	void Activate( const char * input ) override {
+
+		if ( COMBAT_STAR == nullptr ) {
+			Print( "foliage_test needs somewhere to put the wood; there is no player.\n" );
+			return;
+		}
+
+		int	count		= 500;
+		float	radius	= 120.0f;
+		char	model[ 128 ];
+		model[ 0 ] = 0;
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%d %f %127s", &count, &radius, model );
+		}
+
+		if ( count < 1 )			count = 1;
+		if ( count > 20000 )		count = 20000;
+		if ( radius < 4.0f )		radius = 4.0f;
+		if ( radius > 2000.0f )	radius = 2000.0f;
+
+		if ( FoliageSystem::Get_Type_Count() == 0 ) {
+			FoliageSystem::Init();
+		}
+
+		FoliageTypeClass * type = FoliageSystem::Find_Type( "ow_tree_conifer" );
+		if ( type == nullptr ) {
+			Print( "foliage_test: the default tree is not defined.\n" );
+			return;
+		}
+
+		//	A model given on the command line replaces the one the type names, so that the wood
+		//	can be planted out of whatever trees this level already has.
+		if ( model[ 0 ] != 0 ) {
+			type->Set_Model( model );
+		}
+
+		Vector3 star_pos;
+		COMBAT_STAR->Get_Position( &star_pos );
+
+		FoliageSystem::Clear_Instances();
+		FoliageSystem::Scatter( "ow_tree_conifer", star_pos, radius, count, 1234 );
+
+		if ( !FoliageSystem::Build_Cells( 32.0f ) ) {
+			Print( "foliage_test: the wood would not lay out.\n" );
+			return;
+		}
+		if ( !FoliageSystem::Build_Batches() ) {
+			Print( "foliage_test: the wood would not batch.\n" );
+			return;
+		}
+
+		bool built = FoliageSystem::Build_Geometry();
+
+		Vector3 facing( 1.0f, 0.0f, 0.0f );
+		FoliageSystem::Update_Visibility( star_pos, facing );
+
+		Print( "foliage_test: %d plants in %d cell(s), drawn as %d batch(es) -- %d from here.\n",
+				 FoliageSystem::Get_Instance_Count(),
+				 FoliageSystem::Get_Cell_Count(),
+				 FoliageSystem::Get_Batch_Count(),
+				 FoliageSystem::Get_Visible_Batch_Count() );
+
+		Print( "foliage_test: %d collision proxy object(s), %d object(s) in the scene.\n",
+				 FoliageSystem::Get_Proxy_Count(),
+				 FoliageSystem::Get_Object_Count() );
+
+		if ( !built ) {
+			Print( "foliage_test: no geometry was built.\n" );
+		}
+		if ( FoliageSystem::Get_Missing_Model_Count() > 0 ) {
+			Print( "foliage_test: %d type(s) name no model that loads, so their batches draw nothing.\n",
+					 FoliageSystem::Get_Missing_Model_Count() );
+		}
+		if ( FoliageSystem::Get_Multi_Material_Model_Count() > 0 ) {
+			Print( "foliage_test: %d model(s) use more than one material; only the first is drawn.\n",
+					 FoliageSystem::Get_Multi_Material_Model_Count() );
+		}
+		if ( FoliageSystem::Get_Oversized_Batch_Count() > 0 ) {
+			Print( "foliage_test: %d batch(es) were too large to build.\n",
+					 FoliageSystem::Get_Oversized_Batch_Count() );
+		}
+	}
+};
+
+
+class FoliageCutConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "foliage_cut"; }
+	virtual	const char * Get_Help( void ) override	{ return "FOLIAGE_CUT - destroys the nearest destructible plant."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		if ( COMBAT_STAR == nullptr ) {
+			Print( "foliage_cut needs to know where you are standing.\n" );
+			return;
+		}
+		if ( FoliageSystem::Get_Instance_Count() == 0 ) {
+			Print( "There is nothing planted to cut.\n" );
+			return;
+		}
+
+		Vector3 star_pos;
+		COMBAT_STAR->Get_Position( &star_pos );
+
+		int index = FoliageSystem::Find_Nearest_Instance( star_pos, 30.0f );
+		if ( index < 0 ) {
+			Print( "foliage_cut: nothing is planted within thirty metres of you.\n" );
+			return;
+		}
+
+		if ( !FoliageSystem::Destroy_Instance( index ) ) {
+			Print( "foliage_cut: plant %d would not come down.\n", index );
+			return;
+		}
+
+		Print( "foliage_cut: plant %d is down; %d of %d still standing.\n",
+				 index, FoliageSystem::Get_Live_Instance_Count(),
+				 FoliageSystem::Get_Instance_Count() );
+	}
+};
+
+
+class FoliageClearConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "foliage_clear"; }
+	virtual	const char * Get_Help( void ) override	{ return "FOLIAGE_CLEAR - removes generated foliage and its geometry from the scene."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		if ( FoliageSystem::Get_Instance_Count() == 0 ) {
+			Print( "There is no generated foliage to clear.\n" );
+			return;
+		}
+
+		FoliageSystem::Clear_Instances();
+		Print( "Generated foliage cleared.\n" );
 	}
 };
 
@@ -5479,6 +5636,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new BridgeTestConsoleFunctionClass() );
 	FunctionList.Add( new BridgeBreakConsoleFunctionClass() );
 	FunctionList.Add( new BridgeClearConsoleFunctionClass() );
+	FunctionList.Add( new FoliageTestConsoleFunctionClass() );
+	FunctionList.Add( new FoliageCutConsoleFunctionClass() );
+	FunctionList.Add( new FoliageClearConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );
 	FunctionList.Add( new ExposePrelitConsoleFunctionClass() );

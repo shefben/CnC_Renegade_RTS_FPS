@@ -579,6 +579,9 @@ if(BUILD_TESTING AND TARGET renegade)
 
     #	Sectional bridges -- roadmap Section 20.  See terrainselfcheck.h.
     add_test(NAME terrain_bridges  COMMAND renegade -terrainselfcheck bridges)
+
+    #	Batched foliage -- roadmap Section 21.  See terrainselfcheck.h.
+    add_test(NAME terrain_foliage  COMMAND renegade -terrainselfcheck foliage)
 endif()
 
 #
@@ -602,6 +605,7 @@ if(BUILD_TESTING AND TARGET renegadeserver)
     add_test(NAME fds_shader_programs  COMMAND renegadeserver -shaderselfcheck programs)
     add_test(NAME fds_terrain_sampling COMMAND renegadeserver -terrainselfcheck sampling)
     add_test(NAME fds_terrain_bridges  COMMAND renegadeserver -terrainselfcheck bridges)
+    add_test(NAME fds_terrain_foliage  COMMAND renegadeserver -terrainselfcheck foliage)
     add_test(NAME fds_terrain_rays     COMMAND renegadeserver -terrainselfcheck rays)
     add_test(NAME fds_terrain_shaping  COMMAND renegadeserver -terrainselfcheck shaping)
     add_test(NAME fds_terrain_service  COMMAND renegadeserver -terrainselfcheck service)

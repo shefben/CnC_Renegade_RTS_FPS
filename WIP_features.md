@@ -237,3 +237,14 @@ or packet calls any of it yet. Next exact action is a manual one for the user: r
 `bridge_break` at the console, and report whether a soldier walks onto the deck and falls through
 the broken span.
 
+## P16 -- counted, unseen, and nothing plants it
+
+`FoliageSystem` is in and checked (P16-A in `completed_features.md`,
+`docs/zerohour/FoliageSystem.md`, eighteen green terrain ctest entries). This entry carries the
+absorbed acceptance line *Large forests render with substantially fewer submissions than individual
+`RenderObj` instances*: the ratio is proved device-less at about sixteen to one, but no batch has
+ever been drawn, nothing reads foliage out of a level, no weapon damages a plant, and nothing calls
+`Update_Visibility` per frame to switch levels of detail. Next exact action is a manual one for the
+user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then
+`foliage_test 2000 200 <a tree model name from that level>` at the console, and report the printed
+plant-to-batch numbers and whether the wood looks like a wood.

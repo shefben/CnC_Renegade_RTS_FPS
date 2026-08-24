@@ -143,6 +143,11 @@ systems build a `DynamicMeshClass`, which is sized at creation and therefore has
 triangles counted before any are written, so both run their emitter twice against the same
 helper. It was moved to its own header rather than written twice.
 
+The box a missing section is built as went the same way: it was `Emit_Box` here, and Section
+21's foliage system needs the same box for a tree's collision post, so it is now
+`DynamicMeshBuilderClass::Box` and this file's copy is gone. See
+[FoliageSystem.md](FoliageSystem.md).
+
 ## Not done
 
 - **Nothing has been seen.** The checks run device-less, so there is no physics scene and

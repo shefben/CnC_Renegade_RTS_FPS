@@ -77,7 +77,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P16: Tree/foliage buffer (roadmap Section 21)
 
-- [ ] Acceptance: Large forests render with substantially fewer submissions than individual `RenderObj` instances.
 
 ## P17: Reflective water / river system (roadmap Section 22)
 

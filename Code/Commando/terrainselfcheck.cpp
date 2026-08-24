@@ -8,6 +8,8 @@
 #include "bridgesection.h"
 #include "bridgesystem.h"
 #include "castres.h"
+#include "foliagesystem.h"
+#include "foliagetype.h"
 #include "coltest.h"
 #include "heightfield.h"
 #include "lineseg.h"
@@ -1545,6 +1547,382 @@ void	Check_Bridges (void)
 }
 
 
+/*
+**	Section 21's acceptance is a ratio: a large forest has to be drawn as substantially fewer
+**	things than it has plants in it.  That ratio is a question about how instances group into
+**	cells and materials, not about what they look like, so it has an answer here -- with no
+**	device, no scene and no art -- and the answer is the same one a running client would get.
+*/
+void	Check_Foliage (void)
+{
+	FoliageSystem::Init ();
+
+	//
+	//	Five categories, four blocking behaviours, and the two are separate axes.
+	//
+	Check (FoliageSystem::Get_Type_Count () == 5,
+			"%d default foliage types were defined, not 5", FoliageSystem::Get_Type_Count ());
+
+	FoliageTypeClass *conifer = FoliageSystem::Find_Type ("ow_tree_conifer");
+	FoliageTypeClass *scrub = FoliageSystem::Find_Type ("ow_bush_scrub");
+	FoliageTypeClass *dead = FoliageSystem::Find_Type ("ow_tree_dead");
+	FoliageTypeClass *grass = FoliageSystem::Find_Type ("ow_grass_clump");
+	FoliageTypeClass *boulder = FoliageSystem::Find_Type ("ow_rock_boulder");
+
+	Check (conifer != nullptr && scrub != nullptr && dead != nullptr &&
+			 grass != nullptr && boulder != nullptr, "a default foliage type is missing");
+	Check (FoliageSystem::Find_Type ("ow_tree_banana") == nullptr,
+			"a type nobody defined was found anyway");
+
+	if (conifer != nullptr) {
+		Check (conifer->Get_Category () == FOLIAGE_TREE, "the conifer is not a tree");
+		Check (conifer->Blocks_Infantry () && conifer->Blocks_Vehicles (),
+				"a live tree does not stop everything");
+		Check (!conifer->Is_Destructible (), "a live tree is destructible");
+		Check (!conifer->Has_Far_Lod (), "a type naming no impostor has a far level anyway");
+	}
+	if (grass != nullptr) {
+		Check (grass->Is_Visual_Only (), "grass blocks something");
+		Check (!grass->Is_Destructible (), "grass is destructible");
+	}
+	if (dead != nullptr) {
+		Check (dead->Blocks_Infantry () && !dead->Blocks_Vehicles (),
+				"a dead tree does not stop exactly a soldier");
+		Check (dead->Is_Destructible (), "a dead tree does not break");
+	}
+	if (scrub != nullptr) {
+		Check (scrub->Is_Visual_Only () && scrub->Is_Destructible (),
+				"scrub is not the destructible visual-only case");
+	}
+	if (boulder != nullptr) {
+		Check (boulder->Blocks_Infantry () && boulder->Blocks_Vehicles () &&
+				 !boulder->Is_Destructible (), "a boulder is not the solid indestructible case");
+	}
+
+	Check (::strcmp (Foliage_Category_Name (FOLIAGE_GRASS_CLUMP), "GRASS_CLUMP") == 0,
+			"a category has the wrong name");
+	Check (::strcmp (Foliage_Lod_Name (FOLIAGE_LOD_FAR), "FAR") == 0, "a level has the wrong name");
+
+	//
+	//	A forest from a seed is the same forest twice.  This is what lets a client rebuild the
+	//	server's wood rather than be sent it.
+	//
+	Check (FoliageSystem::Scatter ("ow_tree_conifer", Vector3 (0.0f, 0.0f, 0.0f), 200.0f, 2000, 1234) == 2000,
+			"the scatter did not plant everything it was asked for");
+	Check (FoliageSystem::Get_Instance_Count () == 2000,
+			"%d trees were planted, not 2000", FoliageSystem::Get_Instance_Count ());
+
+	Vector3 first_tree (0.0f, 0.0f, 0.0f);
+	Vector3 last_tree (0.0f, 0.0f, 0.0f);
+	if (FoliageSystem::Peek_Instance (0) != nullptr) {
+		first_tree = FoliageSystem::Peek_Instance (0)->Position;
+	}
+	if (FoliageSystem::Peek_Instance (1999) != nullptr) {
+		last_tree = FoliageSystem::Peek_Instance (1999)->Position;
+	}
+
+	Check (first_tree != last_tree, "every tree in the scatter landed in the same place");
+
+	FoliageSystem::Clear_Instances ();
+	FoliageSystem::Scatter ("ow_tree_conifer", Vector3 (0.0f, 0.0f, 0.0f), 200.0f, 2000, 1234);
+	Check (FoliageSystem::Peek_Instance (0) != nullptr &&
+			 FoliageSystem::Peek_Instance (0)->Position == first_tree,
+			"the same seed grew a different forest");
+	Check (FoliageSystem::Peek_Instance (1999) != nullptr &&
+			 FoliageSystem::Peek_Instance (1999)->Position == last_tree,
+			"the same seed grew a different forest at the far end");
+
+	FoliageSystem::Clear_Instances ();
+	FoliageSystem::Scatter ("ow_tree_conifer", Vector3 (0.0f, 0.0f, 0.0f), 200.0f, 2000, 5678);
+	Check (FoliageSystem::Peek_Instance (0) != nullptr &&
+			 FoliageSystem::Peek_Instance (0)->Position != first_tree,
+			"two different seeds grew the same forest");
+
+	//
+	//	Cells.  Every tree is in one, the grid finds the one a point is in, and the lists add up.
+	//
+	FoliageSystem::Clear_Instances ();
+	FoliageSystem::Scatter ("ow_tree_conifer", Vector3 (0.0f, 0.0f, 0.0f), 200.0f, 2000, 1234);
+
+	Check (FoliageSystem::Build_Cells (32.0f), "the grid would not build");
+	Check (FoliageSystem::Are_Cells_Built (), "the grid says it is not built");
+	Check (Near (FoliageSystem::Get_Cell_Size (), 32.0f),
+			"the cells came out %f across, not 32", FoliageSystem::Get_Cell_Size ());
+
+	int cells = FoliageSystem::Get_Cell_Count ();
+	Check (cells > 50 && cells < 250,
+			"%d cells hold a 400 metre wood cut into 32 metre squares", cells);
+
+	int counted = 0;
+	for (int c = 0; c < cells; c ++) {
+		const FoliageCellClass *cell = FoliageSystem::Peek_Cell (c);
+		Check (cell != nullptr && cell->Count > 0, "cell %d holds nothing and exists anyway", c);
+		if (cell != nullptr) {
+			counted += cell->Count;
+		}
+	}
+	Check (counted == 2000, "the cells hold %d trees between them, not 2000", counted);
+
+	const FoliageInstanceClass *sample = FoliageSystem::Peek_Instance (17);
+	Check (sample != nullptr && sample->Cell >= 0, "a tree is in no cell");
+	if (sample != nullptr) {
+		Check (FoliageSystem::Find_Cell (sample->Position.X, sample->Position.Y) == sample->Cell,
+				"the grid puts a tree in a different cell than the tree does");
+	}
+	Check (FoliageSystem::Find_Cell (100000.0f, 100000.0f) == -1,
+			"a point off the map is in a cell");
+
+	//
+	//	The acceptance.  A batch is one thing to draw; there have to be far fewer of them than
+	//	there are trees.
+	//
+	Check (FoliageSystem::Build_Batches (), "the batches would not plan");
+	int batches = FoliageSystem::Get_Batch_Count ();
+	Check (batches > 0, "a wood of 2000 trees plans no batches at all");
+	Check ((batches * 8) <= FoliageSystem::Get_Instance_Count (),
+			"2000 trees plan %d batches, which is not substantially fewer", batches);
+	Check (batches == cells,
+			"%d batches for %d cells: one material at one level should be one batch a cell",
+			batches, cells);
+
+	int batched = 0;
+	for (int b = 0; b < batches; b ++) {
+		const FoliageBatchClass *batch = FoliageSystem::Peek_Batch (b);
+		Check (batch != nullptr, "batch %d is not there", b);
+		if (batch == nullptr) { continue ; }
+		Check (batch->Lod == FOLIAGE_LOD_NEAR,
+				"a type naming no impostor planned a far batch");
+		Check (batch->Count > 0 && batch->Count <= 256,
+				"batch %d holds %d instances", b, batch->Count);
+		Check (Near (batch->NearDistance, 90.0f) && Near (batch->CullDistance, 400.0f),
+				"a batch of conifers switches at %f and dies at %f",
+				batch->NearDistance, batch->CullDistance);
+		batched += batch->Count;
+	}
+	Check (batched == 2000, "the batches hold %d trees between them, not 2000", batched);
+
+	//
+	//	Collision proxies are per cell per blocking behaviour, not per tree.
+	//
+	Check (FoliageSystem::Get_Proxy_Count () == cells,
+			"%d proxies for %d cells of one kind of tree",
+			FoliageSystem::Get_Proxy_Count (), cells);
+
+	if (sample != nullptr) {
+		Check (FoliageSystem::Is_Blocked (sample->Position + Vector3 (0.0f, 0.0f, 1.0f),
+													FOLIAGE_BLOCKS_INFANTRY),
+				"a soldier walks through a tree trunk");
+		Check (!FoliageSystem::Is_Blocked (sample->Position + Vector3 (0.0f, 0.0f, 100.0f),
+													  FOLIAGE_BLOCKS_INFANTRY),
+				"a tree blocks the sky above itself");
+		Check (!FoliageSystem::Is_Blocked (sample->Position + Vector3 (0.0f, 0.0f, 1.0f),
+													  FOLIAGE_BLOCKS_NOTHING),
+				"something that blocks nothing was blocked");
+	}
+
+	//
+	//	Visibility.  A cell is culled and takes its batches with it.
+	//
+	FoliageSystem::Update_Visibility (Vector3 (0.0f, 0.0f, 0.0f), Vector3 (1.0f, 0.0f, 0.0f));
+	Check (FoliageSystem::Get_Visible_Cell_Count () == cells,
+			"%d cells of %d are visible with nothing culling them",
+			FoliageSystem::Get_Visible_Cell_Count (), cells);
+
+	FoliageSystem::Update_Visibility (Vector3 (0.0f, 0.0f, 0.0f), Vector3 (1.0f, 0.0f, 0.0f), -1.0f, 50.0f);
+	int near_cells = FoliageSystem::Get_Visible_Cell_Count ();
+	Check (near_cells > 0 && near_cells < cells,
+			"a fifty metre view distance leaves %d of %d cells", near_cells, cells);
+
+	FoliageSystem::Update_Visibility (Vector3 (0.0f, 0.0f, 0.0f), Vector3 (1.0f, 0.0f, 0.0f), 0.5f, 0.0f);
+	int cone_cells = FoliageSystem::Get_Visible_Cell_Count ();
+	Check (cone_cells > 0 && cone_cells < cells,
+			"a sixty degree cone leaves %d of %d cells", cone_cells, cells);
+
+	//	A conifer names no impostor, so it has no far level to drop to: past its near distance
+	//	its cells simply stop drawing.  From the middle of a wood twice as wide as that
+	//	distance, some of it draws and some does not, and everything that draws is inside it.
+	FoliageSystem::Update_Visibility (Vector3 (0.0f, 0.0f, 0.0f), Vector3 (1.0f, 0.0f, 0.0f));
+	int drawn = FoliageSystem::Get_Visible_Instance_Count ();
+	Check (drawn > 0 && drawn < 2000,
+			"%d of 2000 trees draw from the middle of a wood wider than their near distance",
+			drawn);
+
+	for (int b = 0; b < FoliageSystem::Get_Batch_Count (); b ++) {
+		const FoliageBatchClass *batch = FoliageSystem::Peek_Batch (b);
+		if (batch == nullptr || !batch->Visible) { continue ; }
+		const FoliageCellClass *cell = FoliageSystem::Peek_Cell (batch->Cell);
+		Check (cell != nullptr && cell->Distance <= batch->NearDistance,
+				"a batch with no far level is drawn past its near distance");
+	}
+
+	//	From far enough away every cell is past the cull distance and nothing is submitted.
+	FoliageSystem::Update_Visibility (Vector3 (5000.0f, 0.0f, 0.0f), Vector3 (-1.0f, 0.0f, 0.0f));
+	Check (FoliageSystem::Get_Visible_Batch_Count () == 0,
+			"%d batches are still drawn from five kilometres away",
+			FoliageSystem::Get_Visible_Batch_Count ());
+
+	//
+	//	Distance LOD.  A type with an impostor plans two batches a cell and never draws both.
+	//
+	{
+		FoliageSystem::Clear_Instances ();
+
+		FoliageTypeClass impostored;
+		impostored.Set_Name ("ow_tree_conifer_lod");
+		impostored.Set_Category (FOLIAGE_TREE);
+		impostored.Set_Model ("ow_tree_conifer");
+		impostored.Set_Material ("ow_tree_conifer.tga");
+		impostored.Set_Impostor ("ow_tree_conifer_impostor.tga", 6.0f, 10.0f);
+		impostored.Set_Distances (60.0f, 300.0f);
+		Check (FoliageSystem::Define_Type (impostored), "an impostored type was refused");
+
+		//	Wider than the near distance and inside the cull distance, so the wood has cells at
+		//	both levels at once and none that have dropped out altogether.
+		FoliageSystem::Scatter ("ow_tree_conifer_lod", Vector3 (0.0f, 0.0f, 0.0f), 200.0f, 400, 99);
+		Check (FoliageSystem::Build_Cells (32.0f), "the impostored grid would not build");
+		Check (FoliageSystem::Build_Batches (), "the impostored batches would not plan");
+
+		int lod_cells = FoliageSystem::Get_Cell_Count ();
+		Check (FoliageSystem::Get_Batch_Count () == (lod_cells * 2),
+				"%d batches for %d cells that each have two levels",
+				FoliageSystem::Get_Batch_Count (), lod_cells);
+
+		//	Standing in the middle: the near cells draw their models and the outer ones their
+		//	impostors, and no cell draws both.
+		FoliageSystem::Update_Visibility (Vector3 (0.0f, 0.0f, 0.0f), Vector3 (1.0f, 0.0f, 0.0f));
+		Check (FoliageSystem::Get_Visible_Batch_Count () == lod_cells,
+				"%d of %d cells drew exactly one level",
+				FoliageSystem::Get_Visible_Batch_Count (), lod_cells);
+
+		int near_batches = 0;
+		int far_batches = 0;
+		for (int b = 0; b < FoliageSystem::Get_Batch_Count (); b ++) {
+			const FoliageBatchClass *batch = FoliageSystem::Peek_Batch (b);
+			if (batch == nullptr || !batch->Visible) { continue ; }
+			if (batch->Lod == FOLIAGE_LOD_NEAR) { near_batches ++; } else { far_batches ++; }
+		}
+		Check (near_batches > 0, "nothing is close enough to draw its model");
+		Check (far_batches > 0, "nothing is far enough to drop to an impostor");
+
+		//	Standing off the near edge of the wood by more than the near distance: nothing is
+		//	close enough to draw its model, the near half is impostors, and the far half is past
+		//	the cull distance and drawn not at all.
+		FoliageSystem::Update_Visibility (Vector3 (400.0f, 0.0f, 0.0f), Vector3 (-1.0f, 0.0f, 0.0f));
+		int impostors = 0;
+		for (int b = 0; b < FoliageSystem::Get_Batch_Count (); b ++) {
+			const FoliageBatchClass *batch = FoliageSystem::Peek_Batch (b);
+			if (batch == nullptr || !batch->Visible) { continue ; }
+			Check (batch->Lod == FOLIAGE_LOD_FAR, "a model is still drawn at four hundred metres");
+			impostors ++;
+		}
+		Check (impostors > 0, "nothing at all is drawn from four hundred metres");
+		Check (impostors < lod_cells, "nothing was culled by distance at four hundred metres");
+	}
+
+	//
+	//	A cell too crowded for one mesh becomes several batches of the same material rather
+	//	than one mesh too large to draw.
+	//
+	{
+		FoliageSystem::Clear_Instances ();
+		FoliageSystem::Scatter ("ow_tree_conifer", Vector3 (0.0f, 0.0f, 0.0f), 4.0f, 600, 7);
+		Check (FoliageSystem::Build_Cells (32.0f), "the crowded grid would not build");
+		Check (FoliageSystem::Build_Batches (), "the crowded batches would not plan");
+
+		int crowded = FoliageSystem::Get_Batch_Count ();
+		Check (crowded >= 3, "600 trees inside one cell planned %d batches", crowded);
+
+		int held = 0;
+		for (int b = 0; b < crowded; b ++) {
+			const FoliageBatchClass *batch = FoliageSystem::Peek_Batch (b);
+			if (batch == nullptr) { continue ; }
+			Check (batch->Count <= 256, "a batch holds %d instances, past the cap", batch->Count);
+			held += batch->Count;
+		}
+		Check (held == 600, "the crowded batches hold %d trees, not 600", held);
+	}
+
+	//
+	//	Destruction.  Only what says it breaks breaks, and felling one thing does not disturb
+	//	the count of everything else.
+	//
+	{
+		FoliageSystem::Clear_Instances ();
+
+		int solid = FoliageSystem::Add_Instance ("ow_tree_conifer", Vector3 (0.0f, 0.0f, 0.0f));
+		int breakable = FoliageSystem::Add_Instance ("ow_tree_dead", Vector3 (4.0f, 0.0f, 0.0f));
+		Check (solid == 0 && breakable == 1, "the two test plants were not planted");
+		Check (FoliageSystem::Add_Instance ("ow_tree_banana", Vector3 (0.0f, 0.0f, 0.0f)) == -1,
+				"a plant of a type nobody defined was planted");
+
+		Check (FoliageSystem::Build_Cells (32.0f), "the small grid would not build");
+		Check (FoliageSystem::Build_Batches (), "the small batches would not plan");
+
+		Check (!FoliageSystem::Apply_Damage (solid, 10000.0f),
+				"a live tree was shot down and it is not destructible");
+		Check (FoliageSystem::Get_Live_Instance_Count () == 2, "something died that should not");
+
+		Check (!FoliageSystem::Apply_Damage (breakable, 100.0f),
+				"a dead tree with 150 health fell to 100 damage");
+		Check (FoliageSystem::Apply_Damage (breakable, 100.0f),
+				"a dead tree with 50 health left survived 100 more damage");
+		Check (FoliageSystem::Get_Live_Instance_Count () == 1,
+				"%d plants are alive after one fell", FoliageSystem::Get_Live_Instance_Count ());
+		Check (FoliageSystem::Get_Destroyed_Count () == 1,
+				"%d plants are counted as destroyed", FoliageSystem::Get_Destroyed_Count ());
+		Check (!FoliageSystem::Destroy_Instance (breakable), "a fallen tree fell again");
+		Check (FoliageSystem::Get_Instance_Count () == 2,
+				"a destroyed plant was removed from the world rather than marked");
+
+		//	Replanning after a felling leaves the fallen one out.
+		Check (FoliageSystem::Build_Batches (), "the batches would not replan");
+		int left = 0;
+		for (int b = 0; b < FoliageSystem::Get_Batch_Count (); b ++) {
+			const FoliageBatchClass *batch = FoliageSystem::Peek_Batch (b);
+			if (batch != nullptr) { left += batch->Count; }
+		}
+		Check (left == 1, "%d plants are still batched after one fell", left);
+	}
+
+	//
+	//	Queries.
+	//
+	{
+		FoliageSystem::Clear_Instances ();
+		FoliageSystem::Add_Instance ("ow_tree_conifer", Vector3 (0.0f, 0.0f, 0.0f));
+		FoliageSystem::Add_Instance ("ow_tree_conifer", Vector3 (10.0f, 0.0f, 0.0f));
+		FoliageSystem::Add_Instance ("ow_tree_conifer", Vector3 (100.0f, 0.0f, 0.0f));
+		FoliageSystem::Build_Cells (32.0f);
+
+		DynamicVectorClass<int> found;
+		Check (FoliageSystem::Find_Instances_Near (Vector3 (0.0f, 0.0f, 0.0f), 20.0f, found) == 2,
+				"%d trees are within twenty metres of the first one, not 2", found.Count ());
+		Check (FoliageSystem::Find_Nearest_Instance (Vector3 (9.0f, 0.0f, 0.0f), 20.0f) == 1,
+				"the nearest tree to a point beside the second one is not the second one");
+		Check (FoliageSystem::Find_Nearest_Instance (Vector3 (500.0f, 0.0f, 0.0f), 20.0f) == -1,
+				"a tree was found five hundred metres from any");
+	}
+
+	//
+	//	No device, no scene, no geometry -- and the batches were still planned and counted,
+	//	which is the whole reason the acceptance is answerable here.
+	//
+	Check (!FoliageSystem::Build_Geometry (),
+			"geometry was built with no physics scene to put it in");
+	Check (FoliageSystem::Get_Object_Count () == 0, "there are objects in a scene that is not there");
+	Check (!FoliageSystem::Has_Geometry (), "the system says it has geometry");
+
+	//
+	//	Nothing outlives the world it described.
+	//
+	FoliageSystem::Shutdown ();
+	Check (FoliageSystem::Get_Instance_Count () == 0, "the plants outlived the service");
+	Check (FoliageSystem::Get_Type_Count () == 0, "the types outlived the service");
+	Check (FoliageSystem::Get_Cell_Count () == 0, "the cells outlived the service");
+	Check (FoliageSystem::Get_Batch_Count () == 0, "the batches outlived the service");
+}
+
+
 }	// anonymous namespace
 
 
@@ -1575,6 +1953,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "bridges") == 0)) {
 		Check_Bridges ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "foliage") == 0)) {
+		Check_Foliage ();
 	}
 
 	if (_Failures == 0) {

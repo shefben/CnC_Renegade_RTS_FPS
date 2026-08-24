@@ -37,6 +37,7 @@ textures load unmodified, and no name we invent may shadow one of theirs.
 | [TerrainLayers.md](TerrainLayers.md) | Runtime terrain texture layers (roadmap Section 18) | 6 textures |
 | [RoadSurfaces.md](RoadSurfaces.md) | Runtime road surfaces (roadmap Section 19) | 3 textures |
 | [BridgeSections.md](BridgeSections.md) | Sectional bridge models (roadmap Section 20) | 60 models, 3 debris |
+| [FoliageModels.md](FoliageModels.md) | Batched foliage models and impostors (roadmap Section 21) | 5 models, 5 textures, 5 impostors |
 
 ## Format of an entry
 

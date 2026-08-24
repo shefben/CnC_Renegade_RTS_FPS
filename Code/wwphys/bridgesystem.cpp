@@ -668,42 +668,11 @@ bool BridgeSystem::Build_Geometry(void)
 
 
 /*
-**	A box, in the section's own space: X along the bridge, Y across it, Z up, with the deck
-**	surface at Z = 0 so that whatever height the endpoints were given is the height a soldier
-**	stands at.
+**	The box a missing section is built as comes from DynamicMeshBuilderClass, which is where
+**	the road system and the foliage system get theirs too.  In this section's own space X runs
+**	along the bridge, Y across it and Z up, with the deck surface at Z = 0 so that whatever
+**	height the endpoints were given is the height a soldier stands at.
 */
-static void Emit_Box(DynamicMeshBuilderClass & builder,
-							float half_length,float half_width,float top,float bottom)
-{
-	const float x0 = -half_length, x1 = half_length;
-	const float y0 = -half_width, y1 = half_width;
-	const float z0 = bottom, z1 = top;
-
-	struct QuadDesc { Vector3 a,b,c,d; };
-
-	QuadDesc quads[6] = {
-		//	top
-		{ Vector3(x0,y0,z1), Vector3(x1,y0,z1), Vector3(x0,y1,z1), Vector3(x1,y1,z1) },
-		//	bottom
-		{ Vector3(x0,y1,z0), Vector3(x1,y1,z0), Vector3(x0,y0,z0), Vector3(x1,y0,z0) },
-		//	left
-		{ Vector3(x0,y1,z1), Vector3(x1,y1,z1), Vector3(x0,y1,z0), Vector3(x1,y1,z0) },
-		//	right
-		{ Vector3(x0,y0,z0), Vector3(x1,y0,z0), Vector3(x0,y0,z1), Vector3(x1,y0,z1) },
-		//	start
-		{ Vector3(x0,y0,z1), Vector3(x0,y1,z1), Vector3(x0,y0,z0), Vector3(x0,y1,z0) },
-		//	end
-		{ Vector3(x1,y1,z1), Vector3(x1,y0,z1), Vector3(x1,y1,z0), Vector3(x1,y0,z0) },
-	};
-
-	for (int q = 0; q < 6; q++) {
-		builder.Begin_Strip();
-		builder.Vertex(quads[q].a,0.0f,0.0f);
-		builder.Vertex(quads[q].b,1.0f,0.0f);
-		builder.Vertex(quads[q].c,0.0f,1.0f);
-		builder.Vertex(quads[q].d,1.0f,1.0f);
-	}
-}
 
 
 /***********************************************************************************************
@@ -776,11 +745,11 @@ bool BridgeSystem::Build_Section_Geometry(BridgeSectionClass & section,
 		DynamicMeshBuilderClass builder;
 
 		builder.Begin_Count();
-		Emit_Box(builder,half_length,half_width,top,bottom);
+		builder.Box(half_length,half_width,top,bottom);
 		if (!builder.Begin_Build()) {
 			return false;
 		}
-		Emit_Box(builder,half_length,half_width,top,bottom);
+		builder.Box(half_length,half_width,top,bottom);
 
 		DynamicMeshClass * mesh = builder.Detach_Mesh();
 		if (mesh == nullptr) {
