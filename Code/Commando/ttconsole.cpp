@@ -28,6 +28,9 @@
 #include "player.h"
 #include "playermanager.h"
 #include "playertype.h"
+#include "remotescreenshot.h"
+#include "scmapqueryevent.h"
+#include "scscreenshotrequestevent.h"
 #include "scriptcommands.h"
 #include "sctextobj.h"
 #include "smartgameobj.h"
@@ -1540,6 +1543,130 @@ public:
 };
 
 
+class	SsUrlConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	const char *	Get_Name (void) override	{ return "ssurl"; }
+	const char *	Get_Help (void) override
+	{ return "SSURL <url> - Where remote screenshots are uploaded. No url turns the feature off. Host only."; }
+
+	void	Activate (const char *input) override
+	{
+		if (!Server_Command ()) {
+			return ;
+		}
+
+		RemoteScreenshot::Set_Upload_Url (input);
+
+		if (RemoteScreenshot::Is_Enabled ()) {
+			Print ("Remote screenshots will be uploaded to %s\n", RemoteScreenshot::Get_Upload_Url ());
+		} else {
+			Print ("Remote screenshots are off\n");
+		}
+	}
+};
+
+
+class	SsHotConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	const char *	Get_Name (void) override	{ return "sshot"; }
+	const char *	Get_Help (void) override
+	{ return "SSHOT <player> - Ask a player for a picture of their game window. Needs SSURL first. Host only."; }
+
+	void	Activate (const char *input) override
+	{
+		if (!Server_Command ()) {
+			return ;
+		}
+
+		//
+		//	Refused rather than defaulted.  A screenshot with nowhere to go is a
+		//	picture of somebody taken for no reason.
+		//
+		if (!RemoteScreenshot::Is_Enabled ()) {
+			Print ("No upload url is set. Use SSURL first.\n");
+			return ;
+		}
+
+		int player_id = atoi (input);
+		if (Find_Player (player_id) == nullptr) {
+			return ;
+		}
+
+		StringClass url = RemoteScreenshot::Get_Upload_Url ();
+
+		cScScreenshotRequestEvent *request = new cScScreenshotRequestEvent;
+		request->Init (player_id, url);
+	}
+};
+
+
+class	MapChConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	const char *	Get_Name (void) override	{ return "mapch"; }
+	const char *	Get_Help (void) override
+	{ return "MAPCH <player> <map> - Ask a player whether they have a map. The answer is printed when it arrives. Host only."; }
+
+	void	Activate (const char *input) override
+	{
+		if (!Server_Command ()) {
+			return ;
+		}
+
+		StringClass head, tail;
+		if (!Split (input, head, tail)) {
+			return ;
+		}
+
+		int player_id = atoi (head);
+		if (Find_Player (player_id) == nullptr) {
+			return ;
+		}
+
+		//
+		//	The answer arrives later, in cCsMapQueryResponseEvent::Act, and prints
+		//	itself.  There is nothing to say here that would still be true by then.
+		//
+		cScMapQueryEvent *query = new cScMapQueryEvent;
+		query->Init (player_id, tail);
+	}
+};
+
+
+class	TagConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	const char *	Get_Name (void) override	{ return "tag"; }
+	const char *	Get_Help (void) override
+	{ return "TAG <player> <text> - Sets a name tag shown under a player. Empty text clears it. Host only."; }
+
+	void	Activate (const char *input) override
+	{
+		if (!Server_Command ()) {
+			return ;
+		}
+
+		//
+		//	Split returns false for a bare player id, which is how a tag is cleared:
+		//	the tail is empty and that is a legal tag rather than bad input.
+		//
+		StringClass head, tail;
+		Split (input, head, tail);
+
+		cPlayer *player = Find_Player (atoi (head));
+		if (player == nullptr) {
+			return ;
+		}
+
+		WideStringClass tag;
+		tag.Convert_From (tail);
+		player->Set_Custom_Tag (tag);
+	}
+};
+
+
 //-----------------------------------------------------------------------------
 
 void	TTConsole::Add_Console_Functions (DynamicVectorClass<ConsoleFunctionClass *> &list)
@@ -1602,6 +1729,11 @@ void	TTConsole::Add_Console_Functions (DynamicVectorClass<ConsoleFunctionClass *
 	list.Add (new MapNumConsoleFunctionClass);
 	list.Add (new MListConsoleFunctionClass);
 	list.Add (new MListCConsoleFunctionClass);
+
+	list.Add (new MapChConsoleFunctionClass);
+	list.Add (new SsUrlConsoleFunctionClass);
+	list.Add (new SsHotConsoleFunctionClass);
+	list.Add (new TagConsoleFunctionClass);
 
 	return ;
 }

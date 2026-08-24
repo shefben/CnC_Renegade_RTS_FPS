@@ -199,6 +199,35 @@ def collect_matrix_rejections():
 #	------------------------------------------------------------------------------
 
 PHASE_DECISIONS = [
+    ('P05', 'A client-side opt-out for remote screenshots',
+     'Not added. The capture is the game window and nothing else, and the player is '
+     'always told before the picture leaves, so the exposure is bounded and visible. '
+     'A switch that let a client silently refuse would remove the only reason the '
+     'feature exists while leaving the appearance of it; a player who objects to what '
+     'a server can ask for can leave the server, which is a decision they can make '
+     'with the notice in front of them. See `docs/tt484/RemoteScreenshots.md`.'),
+    ('P05', '`ssurl` as an `ssgm.ini` setting',
+     'Rejected. The tech level and the mine limit live in `SSGMSettingsClass` by '
+     'Q-011, and this looked like the same shape. It is not: a capability that '
+     'photographs players should require somebody to have decided today rather than '
+     'once in a file two years ago. The URL is held in memory, so the feature is off '
+     'after every restart.'),
+    ('P05', 'libpng for the uploaded screenshot',
+     'Not added. 4.8.4 encoded its uploads as PNG; this tree has a Targa writer and no '
+     'image codec, and adding one for a single admin feature is not a trade worth '
+     'making. The upload is an uncompressed Targa and the size is documented. If a '
+     'codec arrives for another reason this is the first caller that would use it.'),
+    ('P05', 'Persisting a player custom tag in savegames',
+     'Deliberately not done. `CustomTag` rides in `cPlayer` rare state and is drawn '
+     'under the name; it is a multiplayer admin decoration and savegames are single '
+     'player. Adding a micro chunk for it would change the save format for something '
+     'no saved game can contain.'),
+    ('P05', 'Answering `mapch` and `sshot` over the private-message channel',
+     'Not ported. 4.8.4 smuggled both the question and the answer through private '
+     'chat messages beginning `"j\\n"` with an opcode number, which only worked '
+     'because a hooked DLL was reading other players mail. Both directions are '
+     'ordinary network events here, which is the client-to-server reply channel the '
+     'map transition work needed and the reason the two landed together.'),
     ('P09', 'The chipset / vendor / driver-version table',
      'Not adopted. `W3DShaderManager` picked its implementations from a list of card '
      'names and driver revisions, which was how a 2001 title survived contemporary '

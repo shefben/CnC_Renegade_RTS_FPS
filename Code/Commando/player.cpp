@@ -942,6 +942,13 @@ void cPlayer::Export_Rare(BitStreamClass &packet)
 
 	packet.Add((int)WolRank);
 	packet.Add(NumWolGames);
+
+	//
+	//	The tag goes last so that reading it is the last thing an importer does, and
+	//	an empty one is a single terminator rather than an absent field: there is one
+	//	rare-state layout, not one per whether an admin has been typing.
+	//
+	packet.Add_Wide_Terminated_String(CustomTag, true);
 	//WWDEBUG_SAY(("cPlayer::Export_Rare NumWolGames = %d\n", NumWolGames));
 
 }
@@ -965,6 +972,8 @@ void cPlayer::Import_Rare(BitStreamClass &packet)
 
 	WolRank = packet.Get(int_placeholder);
 	NumWolGames = packet.Get(int_placeholder);
+
+	packet.Get_Wide_Terminated_String(CustomTag.Get_Buffer(MAX_TAG_LENGTH), MAX_TAG_LENGTH, true);
 }
 
 //------------------------------------------------------------------------------------
@@ -991,6 +1000,22 @@ void cPlayer::Import_Occasional(BitStreamClass &packet)
 
    Set_Kills(		packet.Get(int_placeholder));
    Set_Deaths(		packet.Get(int_placeholder));
+}
+
+//------------------------------------------------------------------------------------
+void cPlayer::Set_Custom_Tag(const WideStringClass & tag)
+{
+	CustomTag = tag;
+
+	//
+	//	Truncate rather than refuse.  The importer reads a bounded buffer, and a tag
+	//	that did not fit is an admin typing too much, not a protocol error.
+	//
+	if (CustomTag.Get_Length() >= MAX_TAG_LENGTH) {
+		CustomTag.Erase(MAX_TAG_LENGTH - 1, CustomTag.Get_Length() - (MAX_TAG_LENGTH - 1));
+	}
+
+	Set_Object_Dirty_Bit(NetworkObjectClass::BIT_RARE, true);
 }
 
 //------------------------------------------------------------------------------------

@@ -204,7 +204,10 @@ cGameData::cGameData(void)	:
 	WinType								= WIN_TYPE_TIME;
 	GameDurationS						= 0;
 	LastServerConfigModTime			= 0;
-	SettingsDescription = 			TRANSLATE(IDS_SERVER_SAVELOAD_CUSTOM_DEFAULT);
+	//
+	//	Deliberately not translated here.  See Get_Settings_Description.
+	//
+	SettingsDescription = "";
 
 	Clear_Clans();
 
@@ -2275,6 +2278,16 @@ void cGameData::Set_Win_Type(WinTypeEnum type)
 void cGameData::Set_Game_Duration_S(unsigned int seconds)
 {
 	GameDurationS = seconds;
+}
+
+//-----------------------------------------------------------------------------
+WideStringClass cGameData::Get_Settings_Description(void)
+{
+	if (SettingsDescription.Is_Empty()) {
+		return WideStringClass(TRANSLATE(IDS_SERVER_SAVELOAD_CUSTOM_DEFAULT));
+	}
+
+	return WideStringClass(SettingsDescription.Peek_Buffer());
 }
 
 //-----------------------------------------------------------------------------

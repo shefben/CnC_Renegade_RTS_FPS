@@ -416,6 +416,16 @@ void MultiHUDClass::Show_Player_Names(void)
 			}
 
 			//
+			//	A tag the server hung on this player, under everything the game itself
+			//	says about them.  Nobody has one until an admin sets one, so a stock
+			//	game draws exactly what it drew before.
+			//
+			if (!p_player->Get_Custom_Tag().Is_Empty()) {
+				text += U_CHAR("\n");
+				text += p_player->Get_Custom_Tag();
+			}
+
+			//
 			// WOL game newbies get a "recruit" tag
 			//
 			if (GameModeManager::Find("WOL")->Is_Active() &&

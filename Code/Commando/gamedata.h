@@ -290,7 +290,13 @@ class	cGameData :
 		virtual	void	Get_Description(WideStringClass & description);
 
 
-		WideStringClass	Get_Settings_Description(void)						{return(SettingsDescription.Peek_Buffer());}
+		//
+		//	The description is empty until somebody sets one, and reads as the default
+		//	when it is.  Resolving it here rather than in the constructor is what lets a
+		//	cGameData be built before the string table is loaded: the constructor runs
+		//	during startup for the server settings, and TRANSLATE before Init asserts.
+		//
+		WideStringClass	Get_Settings_Description(void);
 		void					Set_Settings_Description(WideStringClass desc)	{SettingsDescription = desc;}
 
 		cBoolean			IsIntermission;

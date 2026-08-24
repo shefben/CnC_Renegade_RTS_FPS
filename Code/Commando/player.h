@@ -89,6 +89,15 @@ class cPlayer : public PlayerDataClass, public NetworkObjectClass {
 		void Set_Name(const WideStringClass & name);
       const WideStringClass & Get_Name(void) const {return Name;}
 
+		//
+		//	A name tag the server hangs on a player: a clan, a role, a warning.  It rides
+		//	in the rare state beside the name and is drawn under it, so it costs a client
+		//	nothing until somebody sets one.
+		//
+		enum { MAX_TAG_LENGTH = 64 };
+		void Set_Custom_Tag(const WideStringClass & tag);
+		const WideStringClass & Get_Custom_Tag(void) const {return CustomTag;}
+
 		virtual void Set_Score(float score) override;
 		virtual void Increment_Score(float add) override;
 
@@ -221,6 +230,7 @@ class cPlayer : public PlayerDataClass, public NetworkObjectClass {
 		void On_Destroy(void);
 
       WideStringClass	Name;
+		WideStringClass	CustomTag;
       int					Id;
 		safe_int				LadderPoints;
       safe_int				Kills;

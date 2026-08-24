@@ -111,9 +111,10 @@ recorded N/A in P04-AE; every other file carries every script it registered.
 
 ## 11.7 TT debug / console / admin facilities
 
-`docs/tt484/TTConsoleCommands.md`. Of 65 commands, 6 already existed, **49 are
-ported**, and 10 are not — each named there with a reason, the two substantial ones
-being the remote-screenshot pair (`ssurl`/`sshot`), which is a policy question about
-a player's screen leaving their machine and not one to answer with a silent port,
-and `mapch`, which needs a client-to-server reply channel that belongs with the map
-transition work.
+`docs/tt484/TTConsoleCommands.md`. Of 65 commands, 6 already existed, **53 are
+ported**, and 6 are not — each named there with a reason. The four held back at
+the time of this audit have since been finished: `tag` gained its `cPlayer` field,
+`mapch` gained the client-to-server reply channel it needed, and the remote
+screenshot pair (`ssurl`/`sshot`) was implemented once its policy question had an
+answer written into the design rather than into a comment — see
+`docs/tt484/RemoteScreenshots.md`.

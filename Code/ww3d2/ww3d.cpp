@@ -1258,7 +1258,7 @@ void WW3D::Normalize_Coordinates(int x, int y, float &fx, float &fy)
  *   5/19/99    GTH : Created.                                                                 *
  *   2/26/2001  hy : Updated to DX8                                                            *
  *=============================================================================================*/
-void WW3D::Make_Screen_Shot( const char * filename_base )
+void WW3D::Make_Screen_Shot( const char * filename_base, StringClass * filename_out )
 {
 
 	WWASSERT(!IsRendering);
@@ -1337,6 +1337,10 @@ void WW3D::Make_Screen_Shot( const char * filename_base )
 	}
 
 	targ.Save(filename,TGAF_IMAGE,false);
+
+	if ( filename_out != nullptr ) {
+		*filename_out = filename;
+	}
 
 	delete [] image;
 

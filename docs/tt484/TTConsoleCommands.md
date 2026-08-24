@@ -7,8 +7,8 @@ Source: `tt_4.8.4/tt/consolecommands.h` and `.cpp` — 65 commands.
 
 Six of them (`message`/`msg`, `hud`, `rlmon`, `rlmonoff`, and the two names they
 alias) already existed in `Code/Commando/consolefunction.cpp` and were left alone.
-Of the remaining 59, **49 are ported** and live in `Code/Commando/ttconsole.cpp`;
-**10 are not**, each for a reason given below.
+Of the remaining 59, **53 are ported** and live in `Code/Commando/ttconsole.cpp`;
+**6 are not**, each for a reason given below.
 
 ## How they got here
 
@@ -34,7 +34,7 @@ Two effects had no per-player script command and gained one in P05:
 | A WAV file, not a preset, played at a bone of an object | `ScriptEngine::Create_3D_WAV_Sound_At_Bone_Player` | `SCRIPT_CLIENT_CMD_CREATE_3D_WAV_SOUND_AT_BONE` |
 | An emoticon over a soldier's head as one other player sees it | `ScriptEngine::Set_Emot_Icon_Player` | `SCRIPT_CLIENT_CMD_SET_EMOT_ICON` |
 
-## Ported (49)
+## Ported (53)
 
 | Group | Commands |
 | --- | --- |
@@ -49,6 +49,7 @@ Two effects had no per-player script command and gained one in P05:
 | Limits | `mlimit`, `mlimitd`, `mined`, `vlimit`, `vlimitd`, `plimit`, `plimitd` |
 | Time | `time`, `timed`, `timel`, `timeld` |
 | The map cycle | `radar`, `map`, `mod`, `mapnum`, `mlist`, `mlistc` |
+| Asking a client something | `mapch`, `tag`, `ssurl`, `sshot` |
 
 Behavioural notes where the native version is not a transcription:
 
@@ -63,19 +64,29 @@ Behavioural notes where the native version is not a transcription:
 - **`disarmb`** destroys a player's beacons. 4.8.4 called its own `Disarm_Beacons`;
   `BeaconGameObj` has no disarm entry point here, and destroying the beacon is what
   that function did.
+- **`tag`** adds `CustomTag` to `cPlayer`'s rare state and draws it under the name
+  the multiplayer HUD already draws. An empty tag is a legal tag, which is how one
+  is cleared, so there is one rare-state layout rather than one per whether an
+  admin has been typing.
+- **`mapch`** is a pair of real network events, `cScMapQueryEvent` and
+  `cCsMapQueryResponseEvent`, rather than a chat message with an opcode in it. The
+  client answers by the same two-step the server uses on its own map cycle -- the
+  name as given, then the name under `data/` -- so both ends mean the same thing by
+  having a map. The answer prints when it arrives.
+- **`ssurl`/`sshot`** are the remote screenshot pair; see
+  `docs/tt484/RemoteScreenshots.md` for what was decided and why. The URL is held
+  only in memory, so the feature is off after every restart until an operator turns
+  it on.
 - **`team`** disarms the player's C4 and changes their team through
   `ScriptEngine::Change_Team`, which already destroys the body. 4.8.4 changed the
   team and then destroyed the object as a separate step.
 
-## Not ported (10), with reasons
+## Not ported (6), with reasons
 
 | Command | Why not |
 | --- | --- |
 | `version <player>`, `sversion` | Both report the version of `tt.dll` on a machine. There is no `tt.dll`: this is the engine. Nothing to report. |
 | `serial <player>` | Prints the serial hash a 4.8.4 client sent during the TT handshake. That handshake was part of the DLL-injection architecture directive 0.5 declines, and no client sends one. |
-| `ssurl <url>`, `sshot <player>` | Remote screenshots: the server names a URL and a client uploads a picture of its screen to it. Porting this means building screen capture and an HTTP uploader on the client and deciding what a player is told before their screen leaves their machine. It is a policy question as much as an engineering one and is not being answered by a silent port. Recorded here rather than dropped. |
-| `mapch <player> <map>` | Asks one client whether it has a named map, and needs a client-to-server reply channel that does not exist yet. Belongs with the map transition and download work, not with the console. |
-| `tag <player> <tag>` | Sets a custom name tag on a player and replicates it in `cPlayer`'s rare state. `cPlayer` has no such field here; adding one is a network contract change that wants to be made once, alongside whatever else the player object gains. |
 | `view <w3d> <anim>` | Opens 4.8.4's model viewer dialog. That dialog is not in this tree, and it is an asset-inspection tool rather than engine behavior — `leveledit` is where a model gets looked at. |
 | `log <0\|1>`, `logp` | Turn the client chat log on and off. 4.8.4 stored the setting in the registry under Westwood's key. This tree does not read that key and has no client chat-log setting to toggle; `ConsoleBox` logs to disk unconditionally. Wants a real settings entry first. |
 

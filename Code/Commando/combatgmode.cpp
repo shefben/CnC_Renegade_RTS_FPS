@@ -35,6 +35,8 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "combatgmode.h"
+
+#include "remotescreenshot.h"
 #include "level.h"
 #include "input.h"
 #include "cnetwork.h"
@@ -410,6 +412,12 @@ void 	CombatGameModeClass::Shutdown()
 	//	there would be nothing left to re-claim the mode scope afterwards.
 	//
 	AssetResidencyManagerClass::Get_Instance().Release_Scope( ASSET_SCOPE_GAME_MODE );
+
+	//
+	//	Any upload still in flight is waited for and dropped here: the player is
+	//	leaving the server that asked for it.
+	//
+	RemoteScreenshot::Shutdown();
 	return ;
 }
 
@@ -1409,6 +1417,13 @@ void 	CombatGameModeClass::Think()
 #endif
 */
 	}
+
+	//
+	//	A screenshot the server asked for, taken here rather than during rendering
+	//	because the capture reads the front buffer, and reported here rather than
+	//	from the upload thread because network objects belong to this one.
+	//
+	RemoteScreenshot::Think();
 
 	// Autosave, after one run throught main loop
 	if ( CombatManager::Is_Autosave_Requested() ) {

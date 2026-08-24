@@ -360,6 +360,10 @@ set(COMMANDO_SRC
     consolecommandevent.h
     csconsolecommandevent.cpp
     csconsolecommandevent.h
+    csmapqueryresponseevent.cpp
+    csmapqueryresponseevent.h
+    csscreenshotresultevent.cpp
+    csscreenshotresultevent.h
     cshint.cpp
     cshint.h
     cspingrequestevent.cpp
@@ -396,6 +400,12 @@ set(COMMANDO_SRC
     requestkillevent.h
     scoreevent.cpp
     scoreevent.h
+    remotescreenshot.cpp
+    remotescreenshot.h
+    scmapqueryevent.cpp
+    scmapqueryevent.h
+    scscreenshotrequestevent.cpp
+    scscreenshotrequestevent.h
     scpingresponseevent.cpp
     scpingresponseevent.h
     gameeventlisteners.cpp
@@ -451,6 +461,7 @@ add_library(commando INTERFACE)
 
 target_link_libraries(commando INTERFACE
     winmm
+    wininet
     wsock32
     version
     wwcommon
