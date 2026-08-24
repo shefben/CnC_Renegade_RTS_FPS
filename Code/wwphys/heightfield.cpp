@@ -315,6 +315,36 @@ bool HeightfieldClass::Cell_From_World(float x,float y,int * cx_out,int * cy_out
  * into geometry -- a renderer, a collision mesh, a ray -- reads it here, which is how the      *
  * drawn ground and the walked ground stay the same ground.                                     *
  *=============================================================================================*/
+Vector3 HeightfieldClass::Compute_Vertex_Normal(int ix,int iy) const
+{
+	if (Heights == nullptr) {
+		return Vector3(0.0f,0.0f,1.0f);
+	}
+
+	int ix0 = ix - 1;	if (ix0 < 0) ix0 = 0;
+	int ix1 = ix + 1;	if (ix1 > VertexCountX - 1) ix1 = VertexCountX - 1;
+	int iy0 = iy - 1;	if (iy0 < 0) iy0 = 0;
+	int iy1 = iy + 1;	if (iy1 > VertexCountY - 1) iy1 = VertexCountY - 1;
+
+	//	The span is measured rather than assumed to be two cells, because at the border one of
+	//	the neighbours is the vertex itself and a gradient over the wrong distance tilts the
+	//	whole edge of the field.
+	float dx = (ix1 - ix0) * CellSize;
+	float dy = (iy1 - iy0) * CellSize;
+
+	Vector3 normal(0.0f,0.0f,1.0f);
+	if (dx > 0.0f) {
+		normal.X = (Get_Height(ix0,iy) - Get_Height(ix1,iy)) / dx;
+	}
+	if (dy > 0.0f) {
+		normal.Y = (Get_Height(ix,iy0) - Get_Height(ix,iy1)) / dy;
+	}
+
+	normal.Normalize();
+	return normal;
+}
+
+
 bool HeightfieldClass::Get_Cell_Triangles(int cx,int cy,Vector3 * verts_out) const
 {
 	if ((Heights == nullptr) || (verts_out == nullptr)) {

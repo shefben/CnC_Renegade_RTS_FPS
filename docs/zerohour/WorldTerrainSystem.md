@@ -3,7 +3,8 @@
 Roadmap Section 17 (Zero Hour / SAGE Feature 4, hybrid heightmap / terrain framework).
 
 `Code/WWPhys/heightfield.{h,cpp}`, `Code/WWPhys/worldterrainsystem.{h,cpp}`,
-`Code/Commando/terrainselfcheck.{h,cpp}`.
+`Code/Commando/terrainselfcheck.{h,cpp}`, and the `terrain_test` / `terrain_clear` console
+commands in `Code/Commando/consolefunction.cpp`.
 
 ## Shape
 
@@ -94,32 +95,115 @@ every vertex under it costs more than a placement preview following a cursor can
 half-metre cells and a field of five-metre cells do not need different constants to look
 the same.
 
+## Collision: the engine's own terrain patch
+
+`Build_Collision` turns the heightfield into geometry the physics scene can see. One
+`RenegadeTerrainPatchClass` per heightfield patch, each wrapped in a `StaticPhysClass` and
+handed to `PhysicsSceneClass::Add_Static_Object`.
+
+That render object is not new and not mine. It is stock Westwood — Patrick Smith, 2002 — and
+it is what the Renegade level editor has always built terrain out of. Using it rather than
+writing a terrain mesh type is the whole safety of this slice, because of one line in its
+`Collide_Quad`:
+
+```cpp
+tri1.V[0] = &Grid[v0_index];   // (x,   y  )
+tri1.V[1] = &Grid[v2_index];   // (x+1, y+1)
+tri1.V[2] = &Grid[v3_index];   // (x,   y+1)
+tri2.V[0] = &Grid[v2_index];
+tri2.V[1] = &Grid[v0_index];
+tri2.V[2] = &Grid[v1_index];   // (x+1, y  )
+```
+
+It splits a cell along the diagonal from the low corner to the high corner — the same diagonal
+`HeightfieldClass::Get_Cell_Triangles` uses, chosen independently and before this class was
+found. So Section 17's requirement that rendered terrain and terrain collision derive from the
+same source data is not kept by two systems being careful with each other; it is kept by there
+being one grid, one triangulation, and one object that is both the collision geometry and the
+render object.
+
+It is also not a second implementation in the sense directive 0.4 forbids. There is no
+alternative terrain mesh type to select between: the service owns the only heightfield, and the
+patches are cut from it. And because the class itself is untouched, a level that already
+contains saved terrain patches loads exactly as it did before.
+
+### Lifecycle
+
+```text
+Build_Collision     create what is missing, refill what is dirty
+Update_Collision    refill what is dirty, create nothing
+Destroy_Collision   remove from the scene and release
+```
+
+`Update_Collision` refuses to create on purpose. Something shaping the ground every frame wants
+the patches it moved rebuilt; it does not want a world built underneath it because it called
+the wrong function too early. `Destroy_Terrain` destroys collision first, while the field the
+patches were cut from is still there to describe them.
+
+A patch's height range is taken from the field's own patch extents rather than left to grow
+from the vertices, because `Set_Vertex_Pos` only ever raises the ceiling — a patch refilled
+after the ground was lowered would keep the old one forever.
+
+The dirty bit has exactly one consumer, which is why clearing it here is safe: the collision
+object and the render object are the same object. If that ever stops being true, the bit has to
+become one bit per consumer, and it will not announce itself.
+
+### What it costs, and what has not been tried
+
+- A static object added at runtime lands in whichever `AABTreeCullClass` node contains it, and
+  when none does, in the root — where it is tested against every query. Correct, and not
+  optimal. The tree is built for a level's shipped geometry and knows nothing about ground that
+  did not exist when it was built.
+- Patches added at runtime have no vis sector id, so nothing here has been tried against a
+  vis-solved level. Collision does not go through vis; drawing does.
+- Nothing has been measured.
+
+### Standing on it
+
+`terrain_test <cells> <cell_size> <amplitude>` lays a rolling heightfield down centred on the
+player, in whatever level is loaded, and builds its collision. `terrain_clear` takes it away.
+Rolling rather than flat on purpose: a plane collides correctly even when the triangulation is
+wrong, so it would prove nothing.
+
+This is what Section 17's acceptance line — *FPS and vehicle gameplay works on runtime-created
+heightfield terrain while arbitrary W3D geometry remains supported* — has to be judged against,
+and judging it needs someone to walk on it.
+
 ## Not built yet, and saying so
 
-`Build_Collision` and `Build_Far_Terrain_Representation` return false and log once.
-They are declared because Section 17 names them and callers should be written against
-the final shape, and they refuse rather than pretend because a terrain service that
-silently returned success would be worse than one that is honestly incomplete.
-
-- **Collision** needs runtime mesh building against WWPhys — a `PhysClass` holding
-  terrain geometry, registered with the physics scene, rebuilt per dirty patch. Until
-  it exists the heightfield answers queries but the physics scene cannot see the ground,
-  so Section 17's acceptance line (*FPS and vehicle gameplay works on runtime-created
-  heightfield terrain*) is **not** met.
-- **Rendering** is the terrain pipelines enumerated in `ShaderManager.md`, waiting on
-  the same phase.
-- **The far/background layer** is Section 34's own phase (Feature 21,
+- **Drawing it.** The patch is a render object and it is in the scene, but it has no material
+  passes, so it has nothing to draw with. Those are Section 18's terrain texture system and the
+  terrain pipelines enumerated in `ShaderManager.md`. Until then generated ground is something
+  you collide with and cannot see. `Fill_Patch_Model` already calls `Update_UVs` and
+  `Update_Vertex_Render_Lists` — both do nothing with no passes — so the fill stays right when
+  the passes arrive rather than becoming something to remember.
+- **`Build_Far_Terrain_Representation`** still returns false and logs once. It is declared
+  because Section 17 names it and callers should be written against the final shape, and it
+  refuses rather than pretends because a service that silently returned success would be worse
+  than one that is honestly incomplete. It is Section 34's own phase (Feature 21,
   `W3DTerrainBackground`).
-- **`Get_Material`** returns one material. Section 18 is the terrain texture system that
-  will decide it from height, slope, curvature, biome, moisture, water distance and the
-  masks; the question is asked in its final form now so callers written before then do
-  not need rewriting after.
+- **`Get_Material`** returns one material. Section 18 will decide it from height, slope,
+  curvature, biome, moisture, water distance and the masks; the question is asked in its final
+  form now so callers written before then do not need rewriting after.
+- **`Build_Collision` with no physics scene** returns false and says so once. That is not a
+  refusal to implement, it is the honest answer: `PhysClass::Set_Model` asks the scene singleton
+  whether it already holds the object, so there is nothing to build into. A check that runs
+  before the game is initialised gets that answer, and so would a tool that never made a scene.
 
 ## Checks
 
-`renegade -terrainselfcheck <sampling|rays|shaping|service>`, registered as
-`terrain_sampling`, `terrain_rays`, `terrain_shaping`, `terrain_service` and their
-`fds_` twins. Eight tests, all green.
+`renegade -terrainselfcheck <sampling|rays|shaping|service|collision>`, registered as
+`terrain_sampling`, `terrain_rays`, `terrain_shaping`, `terrain_service`,
+`terrain_collision` and their `fds_` twins. Ten tests, all green.
+
+`terrain_collision` is the one that holds the diagonal contract across the boundary between the
+two classes: it fills a patch from a field with a different height at every corner of every
+cell, drops rays on the patch's own collision, and requires each hit to agree with
+`Sample_Height` at the same point. A flat field cannot catch a wrong diagonal — both diagonals
+of a planar quad give the same answer everywhere — which is why the ramp is not used there. It
+also casts down the seam between two patches from either side and requires the shared grid line
+to be in the same place in both, since a disagreement there is a strip of level you fall
+through.
 
 They run before anything is initialised and need no device, no level and no physics
 scene — it is a grid of numbers, a triangulation and some arithmetic. The ramp they

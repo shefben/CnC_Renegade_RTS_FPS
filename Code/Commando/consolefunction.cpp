@@ -42,6 +42,7 @@
 #include "combat.h"
 #include "datasafe.h"
 #include "pscene.h"
+#include "worldterrainsystem.h"
 #include "playermanager.h"
 #include "ccamera.h"
 #include "debug.h"
@@ -65,6 +66,7 @@
 #include "assets.h"
 #include "animobj.h"
 #include "matpass.h"
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -604,6 +606,102 @@ public:
 		}
 	}
 };
+
+/*
+**	Generated ground, under your feet, now.
+**
+**	Roadmap Section 17 requires the terrain service to accept height data from an in-memory or
+**	generated source, and its acceptance line is that FPS and vehicle gameplay works on terrain
+**	made that way.  Nothing in a stock Renegade level generates any, so without a way to ask for
+**	some there is no way to stand on it and find out.  This is that way.
+**
+**	The field is laid down centred on wherever you are standing, so it appears in a level that
+**	knows nothing about it, alongside the W3D geometry that level is made of -- which is the
+**	arrangement Section 17 describes and the thing worth seeing work.
+*/
+class TerrainTestConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "terrain_test"; }
+	virtual	const char * Get_Help( void ) override	{ return "TERRAIN_TEST <cells> <cell_size> <amplitude> - generates a heightfield under you and gives it to the physics scene."; }
+	virtual	void Activate( const char * input ) override {
+
+		if ( COMBAT_STAR == nullptr ) {
+			Print( "terrain_test needs somewhere to put the terrain; there is no player.\n" );
+			return;
+		}
+
+		int	cells		= 64;
+		float	cell_size	= 2.0f;
+		float	amplitude	= 4.0f;
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%d %f %f", &cells, &cell_size, &amplitude );
+		}
+
+		//	A field with fewer than one cell is not a field, and one big enough to eat the
+		//	address space is not a test.
+		if ( cells < 1 )		cells = 1;
+		if ( cells > 512 )	cells = 512;
+		if ( cell_size < 0.1f )	cell_size = 0.1f;
+
+		int vertex_count = cells + 1;
+
+		Vector3 star_pos;
+		COMBAT_STAR->Get_Position( &star_pos );
+
+		//	Centred on the player and a little below, so the ground appears underfoot rather
+		//	than swallowing them.
+		Vector3 origin( star_pos.X - (cells * cell_size * 0.5f),
+							 star_pos.Y - (cells * cell_size * 0.5f),
+							 star_pos.Z - 1.0f - amplitude );
+
+		if ( !WorldTerrainSystem::Create_Terrain( vertex_count, vertex_count, cell_size, origin ) ) {
+			Print( "terrain_test could not create the field.\n" );
+			return;
+		}
+
+		//	Rolling ground rather than a plane: a flat field would collide correctly even if the
+		//	triangulation were wrong, and would say nothing about whether walking on it works.
+		float * heights = new float[ vertex_count * vertex_count ];
+		for ( int iy = 0; iy < vertex_count; iy ++ ) {
+			for ( int ix = 0; ix < vertex_count; ix ++ ) {
+				float x = (float)ix * 0.25f;
+				float y = (float)iy * 0.25f;
+				heights[ iy * vertex_count + ix ] =
+					amplitude * ( 0.5f + 0.5f * ( ::sinf( x ) * ::cosf( y ) ) );
+			}
+		}
+		WorldTerrainSystem::Set_Heights( heights, vertex_count * vertex_count );
+		delete [] heights;
+
+		if ( WorldTerrainSystem::Build_Collision() ) {
+			Print( "terrain_test: %d x %d cells of %.1fm, %d collision patches.\n",
+					 cells, cells, cell_size, WorldTerrainSystem::Get_Collision_Patch_Count() );
+		} else {
+			Print( "terrain_test: the field exists but its collision would not build.\n" );
+		}
+	}
+};
+
+
+class TerrainClearConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "terrain_clear"; }
+	virtual	const char * Get_Help( void ) override	{ return "TERRAIN_CLEAR - removes generated terrain and its collision from the scene."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		if ( !WorldTerrainSystem::Has_Terrain() ) {
+			Print( "There is no generated terrain to clear.\n" );
+			return;
+		}
+
+		WorldTerrainSystem::Destroy_Terrain();
+		Print( "Generated terrain cleared.\n" );
+	}
+};
+
 
 class VisLockConsoleFunctionClass : public ConsoleFunctionClass
 {
@@ -5019,6 +5117,8 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new DirtyCullDebugConsoleFunctionClass() );
    FunctionList.Add( new DonateConsoleFunctionClass() );
 	FunctionList.Add( new DoStuffConsoleFunctionClass() );
+	FunctionList.Add( new TerrainTestConsoleFunctionClass() );
+	FunctionList.Add( new TerrainClearConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );
 	FunctionList.Add( new ExposePrelitConsoleFunctionClass() );

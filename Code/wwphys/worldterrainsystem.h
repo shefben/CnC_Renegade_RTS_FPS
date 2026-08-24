@@ -59,6 +59,8 @@
 
 class FrustumClass;
 class LineSegClass;
+class RenegadeTerrainPatchClass;
+class StaticPhysClass;
 
 
 /*
@@ -166,20 +168,56 @@ public:
 	static void			Get_Visible_Terrain_Patches(const FrustumClass & frustum,DynamicVectorClass<int> & patch_indices);
 
 	/*
-	**	Collision, and the far/background layer.  Both are declared because Section 17 names
-	**	them and callers should be written against the final shape; both refuse for now and say
-	**	why once.  Collision needs runtime mesh building against WWPhys, and the far layer is
-	**	Section 34's own phase.
+	**	Collision: the heightfield's triangles, as geometry the physics scene can see.
+	**
+	**	One RenegadeTerrainPatchClass per heightfield patch, each wrapped in a StaticPhysClass
+	**	and handed to the static culling system.  The engine's own terrain render object is used
+	**	rather than a new mesh type because it splits a cell along the same diagonal this
+	**	heightfield does, so what a soldier walks into is the surface the sampling functions
+	**	describe.  Section 17's requirement that rendered terrain and terrain collision derive
+	**	from the same source data is kept by there being one triangulation and one grid.
+	**
+	**	Build_Collision creates whatever is missing and refills whatever is dirty, so calling it
+	**	again after shaping the ground rebuilds only the patches that moved.  Update_Collision is
+	**	the same sweep without the creation, for a caller that shapes terrain every frame and
+	**	does not want to accidentally build a world.
 	*/
 	static bool			Build_Collision(void);
+	static void			Update_Collision(void);
+	static void			Destroy_Collision(void);
+	static bool			Has_Collision(void);
+	static int			Get_Collision_Patch_Count(void);
+	static StaticPhysClass *	Peek_Collision_Patch(int px,int py);
+
+	/*
+	**	The geometry of one patch, on its own.  Create_Patch_Model hands back a render object
+	**	holding a patch's triangles with one reference on it; Fill_Patch_Model refills one that
+	**	already exists.  Both are public because the collision builder is not the only thing
+	**	that will want a patch's mesh -- a renderer wants the same fill, and the checks build a
+	**	patch with no physics scene to put it in.
+	*/
+	static RenegadeTerrainPatchClass *	Create_Patch_Model(int px,int py);
+	static bool			Fill_Patch_Model(RenegadeTerrainPatchClass * model,int px,int py);
+
+	/*
+	**	The far/background layer.  Declared because Section 17 names it and callers should be
+	**	written against the final shape; it refuses for now and says why once, because it is
+	**	Section 34's own phase.
+	*/
 	static bool			Build_Far_Terrain_Representation(void);
 	static void			Invalidate_Far_Terrain_Region(const AABoxClass & region);
 
 private:
 
+	static bool			Build_Collision_Patch(int px,int py);
+
 	static HeightfieldClass *	Heightfield;
 	static bool						ReportedNoCollision;
 	static bool						ReportedNoFarTerrain;
+
+	static StaticPhysClass **	CollisionPatches;
+	static int						CollisionPatchCountX;
+	static int						CollisionPatchCountY;
 };
 
 #endif	// WORLDTERRAINSYSTEM_H

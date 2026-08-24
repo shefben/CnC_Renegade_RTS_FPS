@@ -29,6 +29,10 @@
 #include "colmath.h"
 #include "frustum.h"
 #include "lineseg.h"
+#include "matrix3d.h"
+#include "pscene.h"
+#include "renegadeterrainpatch.h"
+#include "staticphys.h"
 #include "wwdebug.h"
 #include "wwmath.h"
 
@@ -36,6 +40,30 @@
 HeightfieldClass *	WorldTerrainSystem::Heightfield				= nullptr;
 bool						WorldTerrainSystem::ReportedNoCollision		= false;
 bool						WorldTerrainSystem::ReportedNoFarTerrain	= false;
+
+StaticPhysClass **	WorldTerrainSystem::CollisionPatches			= nullptr;
+int						WorldTerrainSystem::CollisionPatchCountX	= 0;
+int						WorldTerrainSystem::CollisionPatchCountY	= 0;
+
+
+/*
+**	The vertex range one patch covers.
+**
+**	Patches share the vertices along their seam -- patch p ends on the same grid line patch p+1
+**	starts on -- which is why the range is inclusive at both ends, and why moving a seam vertex
+**	has to dirty the patches on both sides of it.
+*/
+static void Patch_Vertex_Range(const HeightfieldClass & field,int px,int py,
+										 int * ix0,int * iy0,int * ix1,int * iy1)
+{
+	*ix0 = px * HeightfieldClass::PATCH_CELLS;
+	*iy0 = py * HeightfieldClass::PATCH_CELLS;
+	*ix1 = *ix0 + HeightfieldClass::PATCH_CELLS;
+	*iy1 = *iy0 + HeightfieldClass::PATCH_CELLS;
+
+	if (*ix1 > field.Get_Vertex_Count_X() - 1) *ix1 = field.Get_Vertex_Count_X() - 1;
+	if (*iy1 > field.Get_Vertex_Count_Y() - 1) *iy1 = field.Get_Vertex_Count_Y() - 1;
+}
 
 
 void WorldTerrainSystem::Init(void)
@@ -81,6 +109,10 @@ bool WorldTerrainSystem::Set_Heights(const float * heights,int count)
 
 void WorldTerrainSystem::Destroy_Terrain(void)
 {
+	//	The collision patches are geometry cut out of this field, so they go first, while the
+	//	field they were cut from is still there to describe them.
+	Destroy_Collision();
+
 	if (Heightfield != nullptr) {
 		delete Heightfield;
 		Heightfield = nullptr;
@@ -448,14 +480,247 @@ void WorldTerrainSystem::Get_Visible_Terrain_Patches(const FrustumClass & frustu
 /***********************************************************************************************
  * Not yet: collision meshes and the far layer                                                  *
  *=============================================================================================*/
+/***********************************************************************************************
+ * Collision                                                                                   *
+ *=============================================================================================*/
+
+bool WorldTerrainSystem::Fill_Patch_Model(RenegadeTerrainPatchClass * model,int px,int py)
+{
+	if ((model == nullptr) || !Has_Terrain()) {
+		return false;
+	}
+	if ((px < 0) || (py < 0) ||
+		 (px >= Heightfield->Get_Patch_Count_X()) || (py >= Heightfield->Get_Patch_Count_Y())) {
+		return false;
+	}
+
+	int ix0,iy0,ix1,iy1;
+	Patch_Vertex_Range(*Heightfield,px,py,&ix0,&iy0,&ix1,&iy1);
+
+	const Vector3 & origin = Heightfield->Get_Origin();
+	float cell = Heightfield->Get_Cell_Size();
+
+	/*
+	**	The patch works out which cell a point is in from its own bounding box, so the box has to
+	**	be right before anything asks it a question.  Its height range is taken from the field
+	**	rather than left to grow from the vertices, because Set_Vertex_Pos only ever raises the
+	**	ceiling -- a patch refilled after the ground was lowered would keep the old one forever.
+	*/
+	TerrainPatchClass extents;
+	Heightfield->Get_Patch(px,py,&extents);
+
+	model->Set_Bounding_Box_Min(Vector3(origin.X + ix0 * cell,
+													origin.Y + iy0 * cell,
+													origin.Z + extents.MinHeight));
+	model->Set_Bounding_Box_Max(Vector3(origin.X + ix1 * cell,
+													origin.Y + iy1 * cell,
+													origin.Z + extents.MaxHeight));
+
+	for (int iy = iy0; iy <= iy1; iy++) {
+		for (int ix = ix0; ix <= ix1; ix++) {
+
+			Vector3 pos(origin.X + ix * cell,
+							origin.Y + iy * cell,
+							origin.Z + Heightfield->Get_Height(ix,iy));
+
+			model->Set_Vertex_Pos(ix - ix0,iy - iy0,pos);
+			model->Set_Vertex_Normal(ix - ix0,iy - iy0,Heightfield->Compute_Vertex_Normal(ix,iy));
+		}
+	}
+
+	//	Both of these do nothing until the patch has material passes, which is where the terrain
+	//	texture system will hang.  They are called anyway so that the fill is still right once it
+	//	does, rather than becoming a thing someone has to remember to add later.
+	model->Update_UVs();
+	model->Update_Vertex_Render_Lists();
+	return true;
+}
+
+
+RenegadeTerrainPatchClass * WorldTerrainSystem::Create_Patch_Model(int px,int py)
+{
+	if (!Has_Terrain()) {
+		return nullptr;
+	}
+	if ((px < 0) || (py < 0) ||
+		 (px >= Heightfield->Get_Patch_Count_X()) || (py >= Heightfield->Get_Patch_Count_Y())) {
+		return nullptr;
+	}
+
+	int ix0,iy0,ix1,iy1;
+	Patch_Vertex_Range(*Heightfield,px,py,&ix0,&iy0,&ix1,&iy1);
+
+	//	The last patch in a row is short whenever the field is not a whole number of patches
+	//	across, so the size comes from the range rather than from PATCH_CELLS.
+	RenegadeTerrainPatchClass * model = NEW_REF(RenegadeTerrainPatchClass,());
+	model->Allocate(ix1 - ix0 + 1,iy1 - iy0 + 1,Heightfield->Get_Cell_Size());
+
+	if (!Fill_Patch_Model(model,px,py)) {
+		model->Release_Ref();
+		return nullptr;
+	}
+
+	return model;
+}
+
+
+bool WorldTerrainSystem::Build_Collision_Patch(int px,int py)
+{
+	int index = py * CollisionPatchCountX + px;
+	StaticPhysClass * phys = CollisionPatches[index];
+
+	if (phys == nullptr) {
+
+		RenegadeTerrainPatchClass * model = Create_Patch_Model(px,py);
+		if (model == nullptr) {
+			return false;
+		}
+
+		phys = new StaticPhysClass;
+		phys->Set_Model(model);
+		phys->Set_Transform(Matrix3D(1));
+		model->Release_Ref();				// the physics object holds it now
+
+		PhysicsSceneClass::Get_Instance()->Add_Static_Object(phys);
+		CollisionPatches[index] = phys;
+
+	} else {
+
+		if (!Heightfield->Is_Patch_Dirty(px,py)) {
+			return true;
+		}
+
+		RenegadeTerrainPatchClass * model = (RenegadeTerrainPatchClass *)phys->Peek_Model();
+		if ((model == nullptr) || !Fill_Patch_Model(model,px,py)) {
+			return false;
+		}
+	}
+
+	phys->Update_Cull_Box();
+	Heightfield->Validate_Patch(px,py);
+	return true;
+}
+
+
 bool WorldTerrainSystem::Build_Collision(void)
 {
-	if (!ReportedNoCollision) {
-		ReportedNoCollision = true;
-		WWDEBUG_SAY(("WorldTerrainSystem: terrain collision is not built yet; "
-						 "heightfield queries answer, the physics scene does not see the ground.\r\n"));
+	if (!Has_Terrain()) {
+		Destroy_Collision();
+		return false;
 	}
-	return false;
+
+	//	Set_Model asks the scene whether it already holds the object, so there is no building
+	//	collision without one.  The checks run in exactly that state and want an answer rather
+	//	than a crash.
+	PhysicsSceneClass * scene = PhysicsSceneClass::Get_Instance();
+	if (scene == nullptr) {
+		if (!ReportedNoCollision) {
+			ReportedNoCollision = true;
+			WWDEBUG_SAY(("WorldTerrainSystem: no physics scene to put terrain collision in.\r\n"));
+		}
+		return false;
+	}
+
+	int count_x = Heightfield->Get_Patch_Count_X();
+	int count_y = Heightfield->Get_Patch_Count_Y();
+
+	//	A field of a different shape is a different set of patches, so start over rather than try
+	//	to grow the grid around what is already there.
+	if ((CollisionPatches != nullptr) &&
+		 ((count_x != CollisionPatchCountX) || (count_y != CollisionPatchCountY))) {
+		Destroy_Collision();
+	}
+
+	bool first_build = (CollisionPatches == nullptr);
+	if (first_build) {
+		CollisionPatchCountX = count_x;
+		CollisionPatchCountY = count_y;
+		CollisionPatches = new StaticPhysClass *[count_x * count_y];
+		for (int index = 0; index < count_x * count_y; index++) {
+			CollisionPatches[index] = nullptr;
+		}
+	}
+
+	bool built_everything = true;
+	for (int py = 0; py < count_y; py++) {
+		for (int px = 0; px < count_x; px++) {
+			if (!Build_Collision_Patch(px,py)) {
+				built_everything = false;
+			}
+		}
+	}
+
+	if (first_build) {
+		WWDEBUG_SAY(("WorldTerrainSystem: terrain collision built, %d x %d patches.\r\n",
+						 count_x,count_y));
+	}
+
+	return built_everything;
+}
+
+
+void WorldTerrainSystem::Update_Collision(void)
+{
+	//	Deliberately not a build.  Something shaping the ground every frame wants the patches it
+	//	moved rebuilt, not a world created underneath it because it called this too early.
+	if (CollisionPatches == nullptr) {
+		return;
+	}
+	Build_Collision();
+}
+
+
+void WorldTerrainSystem::Destroy_Collision(void)
+{
+	if (CollisionPatches == nullptr) {
+		return;
+	}
+
+	PhysicsSceneClass * scene = PhysicsSceneClass::Get_Instance();
+	int count = CollisionPatchCountX * CollisionPatchCountY;
+
+	for (int index = 0; index < count; index++) {
+
+		StaticPhysClass * phys = CollisionPatches[index];
+		if (phys == nullptr) {
+			continue;
+		}
+
+		if (scene != nullptr) {
+			scene->Remove_Object(phys);
+		}
+		phys->Release_Ref();
+		CollisionPatches[index] = nullptr;
+	}
+
+	delete [] CollisionPatches;
+	CollisionPatches = nullptr;
+	CollisionPatchCountX = 0;
+	CollisionPatchCountY = 0;
+}
+
+
+bool WorldTerrainSystem::Has_Collision(void)
+{
+	return (CollisionPatches != nullptr);
+}
+
+
+int WorldTerrainSystem::Get_Collision_Patch_Count(void)
+{
+	return CollisionPatchCountX * CollisionPatchCountY;
+}
+
+
+StaticPhysClass * WorldTerrainSystem::Peek_Collision_Patch(int px,int py)
+{
+	if (CollisionPatches == nullptr) {
+		return nullptr;
+	}
+	if ((px < 0) || (py < 0) || (px >= CollisionPatchCountX) || (py >= CollisionPatchCountY)) {
+		return nullptr;
+	}
+	return CollisionPatches[py * CollisionPatchCountX + px];
 }
 
 

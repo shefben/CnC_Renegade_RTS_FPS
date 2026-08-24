@@ -175,6 +175,18 @@ public:
 	*/
 	bool					Get_Cell_Triangles(int cx,int cy,Vector3 * verts_out) const;
 
+	/*
+	**	The shading normal at a grid vertex.  Sample_Normal answers for a point inside a
+	**	triangle and gives that triangle's face normal; a vertex is where several triangles
+	**	meet and none of their normals is the one a renderer wants, so this takes the height
+	**	gradient across the vertex's neighbours instead.
+	**
+	**	Neighbours are clamped at the border, which means the patches either side of a seam
+	**	compute the same normal for the vertex they share -- lighting that disagreed across a
+	**	seam would draw the seam.
+	*/
+	Vector3				Compute_Vertex_Normal(int ix,int iy) const;
+
 private:
 
 	void					Update_Bounds(void);

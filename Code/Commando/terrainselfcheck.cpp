@@ -5,8 +5,12 @@
 
 #include "terrainselfcheck.h"
 
+#include "castres.h"
+#include "coltest.h"
 #include "heightfield.h"
 #include "lineseg.h"
+#include "coltype.h"
+#include "renegadeterrainpatch.h"
 #include "worldterrainsystem.h"
 #include "wwmath.h"
 
@@ -61,6 +65,24 @@ void	Build_Ramp (HeightfieldClass &field, int vx = 33, int vy = 33, float cell =
 
 	Check (field.Set_Heights (heights, vx * vy), "the ramp's heights were refused");
 	delete [] heights;
+}
+
+
+/*
+**	Drop a ray on a terrain patch render object and report where it landed.
+*/
+bool	Drop_Ray_On_Model (RenegadeTerrainPatchClass *model, float x, float y, float *z_out)
+{
+	CastResultStruct result;
+	LineSegClass ray (Vector3 (x, y, 100.0f), Vector3 (x, y, -100.0f));
+	RayCollisionTestClass raytest (ray, &result, COLLISION_TYPE_PHYSICAL);
+
+	if (!model->Cast_Ray (raytest)) {
+		return false;
+	}
+
+	*z_out = 100.0f + result.Fraction * (-200.0f);
+	return true;
 }
 
 
@@ -323,14 +345,206 @@ void	Check_Service (void)
 	Check (info.IsOnTerrain == false, "a footprint hanging off the corner claims to be on terrain");
 
 	//
-	//	The parts that are declared but not built yet refuse rather than pretend.
+	//	Collision is real now, but it needs somewhere to put itself.  There is no physics scene
+	//	in a check that runs before the game is initialised, so the answer is no -- and it has to
+	//	be a returned no rather than a crash, because that is also what a dedicated server or a
+	//	tool that never made a scene will get.
 	//
-	Check (WorldTerrainSystem::Build_Collision () == false, "terrain collision claims to be built");
+	Check (WorldTerrainSystem::Build_Collision () == false,
+			"collision was built with no physics scene to build it in");
+	Check (WorldTerrainSystem::Has_Collision () == false, "a failed build left collision behind");
+	Check (WorldTerrainSystem::Peek_Collision_Patch (0, 0) == nullptr,
+			"there is a collision patch with no collision");
+
+	//
+	//	The far layer is still declared and still refuses; it is Section 34's own phase.
+	//
 	Check (WorldTerrainSystem::Build_Far_Terrain_Representation () == false,
 			"far terrain claims to be built");
 
 	WorldTerrainSystem::Shutdown ();
 	Check (WorldTerrainSystem::Has_Terrain () == false, "terrain outlived the service");
+}
+
+/***********************************************************************************************
+**	collision
+***********************************************************************************************/
+void	Check_Collision (void)
+{
+	WorldTerrainSystem::Init ();
+
+	//
+	//	The whole point of building collision out of the engine's own terrain patch instead of a
+	//	new mesh type is that the patch splits a cell along the same diagonal the heightfield
+	//	does.  If that were ever untrue, a soldier would collide with a surface a few centimetres
+	//	away from the one the sampling functions describe, and nothing would say so.
+	//
+	//	So: fill a patch from a field with a bump in every cell, drop rays on it, and require the
+	//	geometry and the samples to agree.
+	//
+	Check (WorldTerrainSystem::Create_Terrain (33, 33, 1.0f, Vector3 (0.0f, 0.0f, 0.0f)),
+			"the service would not create terrain to build collision from");
+
+	//
+	//	A different height at every corner of every cell.  The ramp cannot be used here: it is
+	//	planar, and both diagonals of a planar quad give the same answer everywhere, so a field
+	//	with no plane in it is what makes a wrong diagonal show up.
+	//
+	{
+		float *heights = new float[33 * 33];
+		for (int iy = 0; iy < 33; iy ++) {
+			for (int ix = 0; ix < 33; ix ++) {
+				heights[iy * 33 + ix] = (float)(((ix * 7) + (iy * 13)) % 5);
+			}
+		}
+		Check (WorldTerrainSystem::Set_Heights (heights, 33 * 33), "the bumpy heights were refused");
+		delete [] heights;
+	}
+
+	//
+	//	Thirty-two cells is two patches of sixteen, each seventeen vertices across because the
+	//	two share the grid line between them.
+	//
+	Check (WorldTerrainSystem::Get_Patch_Count_X () == 2, "a 32 cell field is %d patches across",
+			WorldTerrainSystem::Get_Patch_Count_X ());
+
+	RenegadeTerrainPatchClass *patch = WorldTerrainSystem::Create_Patch_Model (0, 0);
+	Check (patch != nullptr, "the first patch would not build");
+
+	if (patch != nullptr) {
+
+		Check (patch->Get_Vertex_Count () == 17 * 17, "a 16 cell patch has %d vertices, not 289",
+				patch->Get_Vertex_Count ());
+
+		//
+		//	The patch works out which cell a point falls in from where its own footprint starts,
+		//	so a footprint that does not match where the vertices actually are sends every query
+		//	to the wrong cell.  Only the centre is checked: the extent a terrain patch reports is
+		//	stock Renegade's, and it is deliberately about twice the real size plus a metre --
+		//	loose is safe for culling, and it is not this phase's to tighten.
+		//
+		AABoxClass box;
+		patch->Get_Obj_Space_Bounding_Box (box);
+		Check (Near (box.Center.X, 8.0f, 0.01f), "the first patch is centred at x=%f, not 8",
+				box.Center.X);
+		Check (Near (box.Center.Y, 8.0f, 0.01f), "the first patch is centred at y=%f, not 8",
+				box.Center.Y);
+
+		//
+		//	Two points per cell, one either side of the diagonal, over a block of cells.
+		//
+		for (int cy = 0; cy < 8; cy ++) {
+			for (int cx = 0; cx < 8; cx ++) {
+
+				float points[2][2] = { { 0.7f, 0.3f }, { 0.3f, 0.7f } };
+
+				for (int which = 0; which < 2; which ++) {
+
+					float x = (float)cx + points[which][0];
+					float y = (float)cy + points[which][1];
+
+					float sampled = 0.0f;
+					Check (WorldTerrainSystem::Sample_Height (x, y, &sampled),
+							"the field has no height at %f,%f", x, y);
+
+					float hit_z = 0.0f;
+					bool hit = Drop_Ray_On_Model (patch, x, y, &hit_z);
+					Check (hit, "a ray dropped at %f,%f missed the collision patch", x, y);
+
+					if (hit) {
+						Check (Near (hit_z, sampled, 0.01f),
+								"at %f,%f collision says %f and sampling says %f",
+								x, y, hit_z, sampled);
+					}
+				}
+			}
+		}
+
+		patch->Release_Ref ();
+	}
+
+	//
+	//	The seam.  Two patches share a grid line, and both have to put it in the same place --
+	//	a disagreement there is a strip of level you fall through.
+	//
+	RenegadeTerrainPatchClass *left	= WorldTerrainSystem::Create_Patch_Model (0, 0);
+	RenegadeTerrainPatchClass *right	= WorldTerrainSystem::Create_Patch_Model (1, 0);
+	Check ((left != nullptr) && (right != nullptr), "the patches either side of the seam would not build");
+
+	if ((left != nullptr) && (right != nullptr)) {
+
+		for (int step = 1; step < 8; step ++) {
+
+			float y = (float)step + 0.5f;
+			float left_z = 0.0f;
+			float right_z = 0.0f;
+
+			bool left_hit		= Drop_Ray_On_Model (left, 16.0f, y, &left_z);
+			bool right_hit		= Drop_Ray_On_Model (right, 16.0f, y, &right_z);
+
+			Check (left_hit && right_hit, "the seam at y=%f was missed by one of its patches", y);
+			if (left_hit && right_hit) {
+				Check (Near (left_z, right_z, 0.01f),
+						"the seam at y=%f is at %f on one side and %f on the other",
+						y, left_z, right_z);
+			}
+		}
+
+		left->Release_Ref ();
+		right->Release_Ref ();
+	}
+
+	//
+	//	A field that is not a whole number of patches across still covers all of itself: the
+	//	last patch is short rather than missing, and rounding it up would build geometry over
+	//	ground that does not exist.
+	//
+	WorldTerrainSystem::Destroy_Terrain ();
+	Check (WorldTerrainSystem::Create_Terrain (20, 20, 1.0f, Vector3 (0.0f, 0.0f, 0.0f)),
+			"a 20 vertex field would not be created");
+	Check (WorldTerrainSystem::Get_Patch_Count_X () == 2, "a 19 cell field is %d patches across",
+			WorldTerrainSystem::Get_Patch_Count_X ());
+
+	RenegadeTerrainPatchClass *last = WorldTerrainSystem::Create_Patch_Model (1, 1);
+	Check (last != nullptr, "the short last patch would not build");
+	if (last != nullptr) {
+		//	Vertices 16 through 19: four across, not seventeen.
+		Check (last->Get_Vertex_Count () == 4 * 4, "the short last patch has %d vertices, not 16",
+				last->Get_Vertex_Count ());
+		last->Release_Ref ();
+	}
+
+	Check (WorldTerrainSystem::Create_Patch_Model (2, 0) == nullptr,
+			"a patch past the end of the field was built anyway");
+
+	//
+	//	Vertex normals, which is what the ground will be lit by.  On a forty-five degree ramp
+	//	the gradient normal is the face normal, so the two can be compared against each other.
+	//
+	HeightfieldClass ramp;
+	Build_Ramp (ramp);
+
+	Vector3 normal = ramp.Compute_Vertex_Normal (8, 8);
+	Check (Near (normal.Z, 0.7071f, 0.01f), "the ramp's vertex normal has z=%f, not 0.707", normal.Z);
+	Check (normal.X < 0.0f, "the ramp rises with x, so its normal must lean back, not to %f", normal.X);
+	Check (Near (normal.Y, 0.0f, 0.01f), "a ramp along x has a vertex normal with y=%f", normal.Y);
+
+	Vector3 sampled_normal;
+	Check (ramp.Sample_Normal (8.3f, 8.3f, &sampled_normal), "the ramp has no normal at 8.3,8.3");
+	Check (Near (normal.X, sampled_normal.X, 0.01f) && Near (normal.Z, sampled_normal.Z, 0.01f),
+			"on a plane the vertex normal (%f,%f,%f) and the face normal (%f,%f,%f) must agree",
+			normal.X, normal.Y, normal.Z,
+			sampled_normal.X, sampled_normal.Y, sampled_normal.Z);
+
+	//
+	//	A vertex on the border has half its neighbours clipped away, and a gradient measured over
+	//	the wrong distance would tilt the whole edge of the field.
+	//
+	Vector3 edge = ramp.Compute_Vertex_Normal (0, 8);
+	Check (Near (edge.Z, 0.7071f, 0.01f), "the ramp's edge normal has z=%f, not 0.707", edge.Z);
+
+	WorldTerrainSystem::Shutdown ();
+	Check (WorldTerrainSystem::Has_Collision () == false, "collision outlived the service");
 }
 
 }	// anonymous namespace
@@ -351,6 +565,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "service") == 0)) {
 		Check_Service ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "collision") == 0)) {
+		Check_Collision ();
 	}
 
 	if (_Failures == 0) {
