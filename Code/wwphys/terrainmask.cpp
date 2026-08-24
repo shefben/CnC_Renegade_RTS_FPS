@@ -210,38 +210,93 @@ void TerrainMaskClass::Stamp_Disc(const Vector3 & center,float radius,float valu
 
 void TerrainMaskClass::Stamp_Polyline(const Vector3 * points,int count,float width,float value,float feather)
 {
-	if ((points == nullptr) || (count < 2) || (width <= 0.0f)) {
+	if ((Values == nullptr) || (points == nullptr) || (count < 2) || (width <= 0.0f)) {
 		return;
 	}
 
 	float radius = width * 0.5f;
+	float outer = radius + ((feather > 0.0f) ? feather : 0.0f);
 
-	//	Discs walked along each segment, half a radius apart, so the result is a continuous strip
-	//	rather than a row of dots with gaps between them.
-	float step = radius * 0.5f;
-	if (step < CellSize * 0.5f) {
-		step = CellSize * 0.5f;
+	//	The distance to the whole line, measured once per grid point, rather than a row of discs
+	//	blended one after another.
+	//
+	//	Discs were the obvious way to do this and they are wrong, quietly.  Each one moves the
+	//	value part of the way towards its own, so a point out in the feathered rim is moved
+	//	part of the way a hundred times as the line goes past it, and arrives at full strength.
+	//	The soft edge survives a short line and disappears on a long one, which is exactly the
+	//	kind of defect that never shows up until a road is a road rather than a test.
+	//
+	//	Distance to the line has no such history: a point is as far from the road as it is, and
+	//	the falloff is applied to it once.
+
+	float min_x = points[0].X;
+	float max_x = points[0].X;
+	float min_y = points[0].Y;
+	float max_y = points[0].Y;
+	for (int index = 1; index < count; index++) {
+		if (points[index].X < min_x) min_x = points[index].X;
+		if (points[index].X > max_x) max_x = points[index].X;
+		if (points[index].Y < min_y) min_y = points[index].Y;
+		if (points[index].Y > max_y) max_y = points[index].Y;
 	}
 
-	for (int index = 0; index < count - 1; index++) {
+	int ix0 = WWMath::Float_To_Int_Floor((min_x - outer - Origin.X) / CellSize);
+	int iy0 = WWMath::Float_To_Int_Floor((min_y - outer - Origin.Y) / CellSize);
+	int ix1 = WWMath::Float_To_Int_Floor((max_x + outer - Origin.X) / CellSize) + 1;
+	int iy1 = WWMath::Float_To_Int_Floor((max_y + outer - Origin.Y) / CellSize) + 1;
 
-		Vector3 from = points[index];
-		Vector3 to = points[index + 1];
-		Vector3 along = to - from;
-		along.Z = 0.0f;
+	if (ix0 < 0) ix0 = 0;
+	if (iy0 < 0) iy0 = 0;
+	if (ix1 > VertexCountX - 1) ix1 = VertexCountX - 1;
+	if (iy1 > VertexCountY - 1) iy1 = VertexCountY - 1;
 
-		float length = along.Length();
-		if (length <= 0.0f) {
-			Stamp_Disc(from,radius,value,feather);
-			continue;
+	for (int iy = iy0; iy <= iy1; iy++) {
+		for (int ix = ix0; ix <= ix1; ix++) {
+
+			float px = Origin.X + ix * CellSize;
+			float py = Origin.Y + iy * CellSize;
+
+			float closest_sq = -1.0f;
+
+			for (int index = 0; index < count - 1; index++) {
+
+				float ax = points[index].X;
+				float ay = points[index].Y;
+				float bx = points[index+1].X - ax;
+				float by = points[index+1].Y - ay;
+
+				float span_sq = (bx * bx) + (by * by);
+				float t = 0.0f;
+				if (span_sq > WWMATH_EPSILON) {
+					t = (((px - ax) * bx) + ((py - ay) * by)) / span_sq;
+					if (t < 0.0f) t = 0.0f;
+					if (t > 1.0f) t = 1.0f;
+				}
+
+				float dx = px - (ax + (bx * t));
+				float dy = py - (ay + (by * t));
+				float distance_sq = (dx * dx) + (dy * dy);
+
+				if ((closest_sq < 0.0f) || (distance_sq < closest_sq)) {
+					closest_sq = distance_sq;
+				}
+			}
+
+			if ((closest_sq < 0.0f) || (closest_sq > (outer * outer))) {
+				continue;
+			}
+
+			float distance = WWMath::Sqrt(closest_sq);
+
+			float strength = 1.0f;
+			if ((feather > 0.0f) && (distance > radius)) {
+				float t = 1.0f - ((distance - radius) / feather);
+				strength = t * t * (3.0f - 2.0f * t);			// smoothstep, so edges do not band
+			}
+
+			float & existing = Values[iy * VertexCountX + ix];
+			existing = existing + (value - existing) * strength;
 		}
-
-		along /= length;
-
-		for (float travelled = 0.0f; travelled <= length; travelled += step) {
-			Stamp_Disc(from + along * travelled,radius,value,feather);
-		}
-		Stamp_Disc(to,radius,value,feather);
 	}
 }
 

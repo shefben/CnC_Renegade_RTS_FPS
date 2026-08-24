@@ -39,6 +39,16 @@ point is. They are destroyed with the field, because a mask is a statement about
 
 ### Water distance is derived, not written
 
+### A stamp is measured, not accumulated
+
+`Stamp_Polyline` measures the distance from each grid point to the whole line and applies the
+falloff once. It used to walk a row of overlapping discs, which is the obvious way to do it and is
+quietly wrong: each disc moves the value part of the way towards its own, so a point out in the
+feathered rim is moved part of the way a hundred times as the line goes past it and arrives at
+full strength. The soft edge survived a short line and vanished on a long one — a defect that
+could not show up until a road was a road rather than a test, and did not, until Section 19's
+shoulder asked for a value between nought and one and got 0.9999.
+
 `Update_Water_Distance` builds a distance field from the river mask: a two-pass chamfer sweep,
 zero where the river fires, saturating at a maximum. Nobody draws a beach; they draw a river,
 and the beach follows. The chamfer is a few per cent long on diagonals and nothing downstream
@@ -178,7 +188,8 @@ pass, because a patch with none has a hole in it.
   the biome mask; scorch wants damage events to stamp it, which is Section 35's decal work.
 - **`Get_Meters_Per_Tile`** is per material and per layer, and `Update_UVs` reads it, so tiling
   works — but nothing chooses good values, because nothing has textures to choose them for.
-- **The masks have no writers yet** except the checks and `terrain_dress`. The road mask is
-  written by Section 19's road system, the river mask by Section 22's water, the Tiberium mask
-  by the resource work, and the city mask by whatever draws cities. Each arrives with its
-  section; the mask is here first so they have somewhere to write.
+- **Most masks still have no writers.** The road mask now has one — Section 19's road system
+  stamps it at the carriageway width and feathers it across the shoulder, so the `road` layer is
+  fed by real roads (see `RoadSystem.md`). The river mask waits on Section 22's water, the
+  Tiberium mask on the resource work, and the city mask on whatever draws cities. Each arrives
+  with its section; the mask is here first so they have somewhere to write.
