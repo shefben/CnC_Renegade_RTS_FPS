@@ -38,6 +38,7 @@
 **	Includes
 */
 #include "cinematicgameobj.h"
+#include "worldspatialindex.h"
 #include "debug.h"
 #include "animcontrol.h"
 #include "Sound3D.h"
@@ -314,10 +315,17 @@ void	CinematicGameObj::Think( void )
 		Vector3	my_pos;
 		Get_Position( &my_pos );
 
-		// if any enemies can be found in range
-		SLNode<BaseGameObj> *objnode;
-		for (	objnode = GameObjManager::Get_Game_Obj_List()->Head(); objnode; objnode = objnode->Next()) {
-			PhysicalGameObj *obj = objnode->Data()->As_PhysicalGameObj();
+		// if any enemies can be found in range.  Which one, when several are, was
+		// whichever came last in the object list; it is now whichever comes last out
+		// of the index.  Both are arbitrary, and the range test below is unchanged.
+		float weapon_range = Get_Weapon()->Get_Range();
+
+		GameObjQueryListClass in_range;
+		WorldSpatialIndex::Query_Game_Objects_In_Sphere( my_pos, weapon_range, in_range,
+																WorldSpatialIndex::QUERY_DYNAMIC );
+
+		for ( int range_index = 0; range_index < in_range.Count(); range_index ++ ) {
+			PhysicalGameObj *obj = in_range[ range_index ];
 			if ( obj && obj->Peek_Physical_Object() ) {	// zones have no phy obj  CHANGE THIS
 				if ( obj == this ) {
 					continue;
@@ -329,7 +337,7 @@ void	CinematicGameObj::Think( void )
 				Vector3 v;
 				obj->Get_Position(&v);
 				v -= my_pos;
-				if ( v.Length() < Get_Weapon()->Get_Range() ) {
+				if ( v.Length() < weapon_range ) {
 					enemy = obj;
 				}
 			}

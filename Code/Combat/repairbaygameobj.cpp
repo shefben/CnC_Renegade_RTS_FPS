@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "repairbaygameobj.h"
+#include "worldspatialindex.h"
 #include "buildingaggregate.h"
 #include "basecontroller.h"
 #include "wwhack.h"
@@ -677,7 +678,7 @@ RepairBayGameObj::Repair_Vehicle (void)
 	// Collect the dynamic physics objects in the repair zone
 	//
 	NonRefPhysListClass objs_to_repair;
-	PhysicsSceneClass::Get_Instance ()->Collect_Objects (RepairZone, false, true, &objs_to_repair);
+	WorldSpatialIndex::Query_OBBox (RepairZone, &objs_to_repair, WorldSpatialIndex::QUERY_DYNAMIC);
 
 	//
 	//	Loop over all the objects

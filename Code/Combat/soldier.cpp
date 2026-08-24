@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "soldier.h"
+#include "worldspatialindex.h"
 #include "ttsettings.h"
 #include "debug.h"
 #include "pscene.h"
@@ -5636,7 +5637,7 @@ bool	SoldierGameObj::Is_Safe_To_Disable_Ghost_Collision( const Vector3 &curr_pos
 	//	Collect all the dynamic objects in this box
 	//
 	NonRefPhysListClass obj_list;
-	PhysicsSceneClass::Get_Instance ()->Collect_Objects (box, false, true, &obj_list);
+	WorldSpatialIndex::Query_AABox (box, &obj_list, WorldSpatialIndex::QUERY_DYNAMIC);
 
 	//
 	//	Loop over all the collected objects
@@ -5704,7 +5705,7 @@ bool	SoldierGameObj::Is_Soldier_Blocked( const Vector3 &curr_pos )
 	//	Collect all the dynamic objects in this box
 	//
 	NonRefPhysListClass obj_list;
-	PhysicsSceneClass::Get_Instance ()->Collect_Objects (box, false, true, &obj_list);
+	WorldSpatialIndex::Query_AABox (box, &obj_list, WorldSpatialIndex::QUERY_DYNAMIC);
 
 	uint32 my_id			= Get_ID ();
 	uint32 smallest_id	= my_id;

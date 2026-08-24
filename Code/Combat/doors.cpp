@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "doors.h"
+#include "worldspatialindex.h"
 #include "simpledefinitionfactory.h"
 #include "persistfactory.h"
 #include "wwphysids.h"
@@ -687,7 +688,7 @@ int DoorPhysClass::Check_Door_Trigger( const OBBoxClass &trigger_zone )
 
 	NonRefPhysListClass obj_list;
 	WWASSERT(PhysicsSceneClass::Get_Instance() != nullptr);
-	PhysicsSceneClass::Get_Instance()->Collect_Objects(trigger_zone,false,true,&obj_list);
+	WorldSpatialIndex::Query_OBBox(trigger_zone,&obj_list,WorldSpatialIndex::QUERY_DYNAMIC);
 	NonRefPhysListIterator it(&obj_list);
 
 	while (!it.Is_Done() && result == DOOR_OPEN_NOONE) {

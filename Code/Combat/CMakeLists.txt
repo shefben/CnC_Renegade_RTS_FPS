@@ -142,6 +142,7 @@ set(COMBAT_SRC
     weapons.cpp
     weaponview.cpp
     WeatherMgr.cpp
+    worldspatialindex.cpp
     action.h
     actionparams.h
     activeconversation.h
@@ -283,6 +284,7 @@ set(COMBAT_SRC
     weapons.h
     weaponview.h
     WeatherMgr.h
+    worldspatialindex.h
     assets.cpp
     crandom.cpp
     debug.cpp

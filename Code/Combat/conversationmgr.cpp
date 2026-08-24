@@ -36,6 +36,7 @@
 
 
 #include "conversationmgr.h"
+#include "worldspatialindex.h"
 #include "combatchunkid.h"
 #include "chunkio.h"
 #include "vector3.h"
@@ -484,7 +485,7 @@ ConversationMgrClass::Build_Buddy_List
 	//	Collect all the dynamic objects in this box
 	//
 	NonRefPhysListClass obj_list;
-	PhysicsSceneClass::Get_Instance ()->Collect_Objects (box, false, true, &obj_list);
+	WorldSpatialIndex::Query_AABox (box, &obj_list, WorldSpatialIndex::QUERY_DYNAMIC);
 
 	//
 	//	Loop over all the collected objects

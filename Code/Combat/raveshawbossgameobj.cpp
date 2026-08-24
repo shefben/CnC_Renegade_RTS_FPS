@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "raveshawbossgameobj.h"
+#include "worldspatialindex.h"
 #include "wwhack.h"
 #include "simpledefinitionfactory.h"
 #include "persistfactory.h"
@@ -4256,7 +4257,7 @@ RaveshawBossGameObjClass::Collect_Lightning_Rods (void)
 	//	Collect all the static objects in this box
 	//
 	NonRefPhysListClass obj_list;
-	COMBAT_SCENE->Collect_Objects (box, true, false, &obj_list);
+	WorldSpatialIndex::Query_AABox (box, &obj_list, WorldSpatialIndex::QUERY_STATIC);
 
 	//
 	//	Loop over all the objects

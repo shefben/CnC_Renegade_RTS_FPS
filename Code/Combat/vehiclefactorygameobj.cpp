@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "vehiclefactorygameobj.h"
+#include "worldspatialindex.h"
 #include "basecontroller.h"
 #include "vehicle.h"
 #include "wwhack.h"
@@ -702,7 +703,7 @@ VehicleFactoryGameObj::Destroy_Blocking_Objects (void)
 	// Collect the dynamic physics objects in the generation region
 	//
 	NonRefPhysListClass objs_to_kill;
-	PhysicsSceneClass::Get_Instance ()->Collect_Objects (GeneratingRegion, false, true, &objs_to_kill);
+	WorldSpatialIndex::Query_OBBox (GeneratingRegion, &objs_to_kill, WorldSpatialIndex::QUERY_DYNAMIC);
 
 	//
 	//	Loop over all the objects

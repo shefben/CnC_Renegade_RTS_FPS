@@ -36,6 +36,7 @@
 
 
 #include "explosion.h"
+#include "worldspatialindex.h"
 #include "debug.h"
 #include "damage.h"
 #include "combat.h"
@@ -298,23 +299,32 @@ void	ExplosionManager::Create_Explosion_At( int explosion_def_id, const Matrix3D
 			// Create an offense object to carry the damage information
 			OffenseObjectClass offense( explosion_def->DamageStrength, explosion_def->DamageWarhead, damager );
 
-			// Loop over all game objects, appling damage to those close enough
-			SLNode<BaseGameObj> *objnode;
-			for (	objnode = GameObjManager::Get_Game_Obj_List()->Head(); objnode; objnode = objnode->Next()) {
+			// The force victim takes it all, and takes it whether or not it is close
+			// enough to be in the blast, which is why it is handled outside the query.
+			if ( force_victim != nullptr ) {
 
-				PhysicalGameObj *obj = objnode->Data()->As_PhysicalGameObj();
-
-				// If this object is the force victim, give him it all!
-				if ( objnode->Data() == force_victim ) {
-
-					// physical objs take extended damage
-					if ( obj != nullptr ) {
-						obj->Apply_Damage_Extended( offense );
-					} else {
-						force_victim->Apply_Damage( offense );
-					}
-
+				// physical objs take extended damage
+				PhysicalGameObj *victim_obj = force_victim->As_PhysicalGameObj();
+				if ( victim_obj != nullptr ) {
+					victim_obj->Apply_Damage_Extended( offense );
 				} else {
+					force_victim->Apply_Damage( offense );
+				}
+			}
+
+			// Everything else close enough.  The index answers with the objects whose
+			// bounds reach the blast; the distance test below is still the one that
+			// decides, it just runs over a handful of candidates rather than over every
+			// object in the level.
+			GameObjQueryListClass candidates;
+			WorldSpatialIndex::Query_Game_Objects_In_Sphere( pos, radius, candidates,
+																		WorldSpatialIndex::QUERY_DYNAMIC );
+
+			for ( int candidate_index = 0; candidate_index < candidates.Count(); candidate_index ++ ) {
+
+				PhysicalGameObj *obj = candidates[ candidate_index ];
+
+				if ( obj != force_victim ) {
 
 					if ( obj && obj->Peek_Physical_Object() ) {	// zones have no phy obj  CHANGE THIS
 

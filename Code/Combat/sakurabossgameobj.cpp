@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "sakurabossgameobj.h"
+#include "worldspatialindex.h"
 #include "wwhack.h"
 #include "simpledefinitionfactory.h"
 #include "persistfactory.h"
@@ -2742,7 +2743,7 @@ SakuraBossGameObj::Find_Closest_Human_Player (void)
 	// Collect the dynamic physics objects in the valley
 	//
 	NonRefPhysListClass objs_in_valley;
-	PhysicsSceneClass::Get_Instance ()->Collect_Objects (valley_box, false, true, &objs_in_valley);
+	WorldSpatialIndex::Query_AABox (valley_box, &objs_in_valley, WorldSpatialIndex::QUERY_DYNAMIC);
 
 	//
 	//	Loop over all the objects

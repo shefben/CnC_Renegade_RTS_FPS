@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "scriptcommands.h"
+#include "worldspatialindex.h"
 #include "debug.h"
 #include "combat.h"
 #include "smartgameobj.h"
@@ -1588,7 +1589,7 @@ GameObject * Find_Closest_Soldier( const Vector3 & pos, float min_dist, float ma
 	//	Collect all the dynamic objects in this box
 	//
 	NonRefPhysListClass obj_list;
-	PhysicsSceneClass::Get_Instance ()->Collect_Objects (box, false, true, &obj_list);
+	WorldSpatialIndex::Query_AABox (box, &obj_list, WorldSpatialIndex::QUERY_DYNAMIC);
 
 	float closest_dist		= max_dist;
 	GameObject *closest_obj	= nullptr;

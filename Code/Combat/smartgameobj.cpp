@@ -39,6 +39,7 @@
 **	Includes
 */
 #include "smartgameobj.h"
+#include "worldspatialindex.h"
 #include "weaponview.h"
 #include "gametype.h"
 #include "gameobjmanager.h"
@@ -744,10 +745,20 @@ void SmartGameObj::Think()
 
 			// if I have sight, see who I see
 			if ( Is_Enemy_Seen_Enabled() ) {
-				// for all physicalgameobjs
-				SLNode<BaseGameObj> *objnode;
-				for (	objnode = GameObjManager::Get_Game_Obj_List()->Head(); objnode; objnode = objnode->Next()) {
-					SmartGameObj *obj = objnode->Data()->As_SmartGameObj();
+
+				// Nothing beyond sight range can be seen, and Is_Obj_Visible below says so
+				// exactly, so ask the world for that sphere rather than for everything in
+				// it.  Every unit in the level used to walk every object in the level, once
+				// or twice a second each.
+				float sight_range = Get_Definition().SightRange * GlobalSightRangeScale;
+				Vector3 eye_pos = Get_Look_Transform().Get_Translation();
+
+				GameObjQueryListClass seen_candidates;
+				WorldSpatialIndex::Query_Game_Objects_In_Sphere( eye_pos, sight_range, seen_candidates,
+																			WorldSpatialIndex::QUERY_DYNAMIC );
+
+				for ( int seen_index = 0; seen_index < seen_candidates.Count(); seen_index ++ ) {
+					SmartGameObj *obj = seen_candidates[ seen_index ]->As_SmartGameObj();
 					if ( obj ) {
 						if ( obj == this )	continue;
 						if ( !Is_Enemy( obj ) ) continue;
