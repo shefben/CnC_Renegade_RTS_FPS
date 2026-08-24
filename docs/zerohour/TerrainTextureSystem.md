@@ -186,8 +186,12 @@ pass, because a patch with none has a hole in it.
 - **Detail, biome and scorch layers** have kinds and no entries in the default table. Detail and
   macro want a second UV rate the stock pass does not carry; biome wants a generator to write
   the biome mask; scorch wants damage events to stamp it, which is Section 35's decal work.
+- **The six default layers name no texture.** What each one has to be, and the constraints the
+  top-down UV projection puts on it, are written down in `docs/assets/TerrainLayers.md`. Giving
+  them their art is six string literals in `Define_Default_Layers` and nothing else.
 - **`Get_Meters_Per_Tile`** is per material and per layer, and `Update_UVs` reads it, so tiling
   works — but nothing chooses good values, because nothing has textures to choose them for.
+  `docs/assets/TerrainLayers.md` suggests one per layer.
 - **Most masks still have no writers.** The road mask now has one — Section 19's road system
   stamps it at the carriageway width and feathers it across the shoulder, so the `road` layer is
   fed by real roads (see `RoadSystem.md`). The river mask waits on Section 22's water, the

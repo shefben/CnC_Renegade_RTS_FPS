@@ -28,6 +28,22 @@ The four state files are persistent project memory. Claude's internal todo list,
 - **No network compatibility with other clients is required.** OpenW3D clients and servers only ever talk to each other, so the wire protocol, packet layout, net class ids, and app packet types may be changed freely. Never constrain a design, keep a legacy field, or add a version/compat path to stay interoperable with stock Renegade, TT 4.8.4, or any other build. Asset compatibility (models, maps, textures, `.w3d`, `always.dat`) is a separate rule and still stands.
 - Do not reintroduce historical TT DLL-hook/proxy architecture or an unnecessary binary plugin compatibility layer.
 
+## Missing art is not a reason to skip code
+
+Textures, models and other assets that do not exist yet never block engine work. Write the
+system, have it name the asset it wants, make the absent case behave sanely (untextured
+geometry, a layer with a rule and no content, a model slot that draws nothing -- never a
+crash, a blocking error, or a stand-in file checked into the tree), and record the asset in
+`docs/assets/`.
+
+One markdown file per system, listed in `docs/assets/README.md`. Each entry gives the exact
+name the code passes to the asset manager, what the thing is in words an artist can act on,
+where in the code it is read, what happens today without it, and the constraints the
+geometry imposes -- tiling, projection, aspect, UV layout. Write the constraints while the
+code that imposes them is being written; that is the only moment they are obvious.
+
+Invented names are prefixed `ow_` so nothing we add can shadow a stock Renegade asset.
+
 ## Claude-specific anti-drift rules
 
 - Do not spend a session repeatedly proving already-green code.

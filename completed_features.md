@@ -1408,3 +1408,13 @@ strength, because each disc moved it part of the way again; the soft edge surviv
 and vanished on a long one. It measures the distance to the whole line and applies the falloff
 once now. Found by P14's shoulder check. Commit `65915368`.
 
+## Missing-asset ledger
+
+`docs/assets/` records every texture or model engine code already asks for and nobody has
+made: the exact name passed to the asset manager, what it is for, where it is read, what
+happens without it, and the constraints the geometry imposes. Backfilled with Section 18's
+six terrain layers and Section 19's three road surfaces, including the road UV layout
+(`u` spans the carriageway once, `v` tiles every 8 m) that decides what those images have
+to be. The governing rule -- missing art never blocks engine work; name it, degrade sanely,
+record it -- is in `CLAUDE.md`.
+

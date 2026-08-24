@@ -166,6 +166,9 @@ terrain layer under a road is the road layer; and the graded pair described abov
   manual run that would, and it works on a stock level as well as on generated terrain —
   `road_test` accepts a texture name so a stock Renegade road texture can be tried without a
   rebuild.
+- **No road art exists.** The three surfaces the road classes want are specified, down to the
+  UV layout they have to be drawn for, in `docs/assets/RoadSurfaces.md`. Nothing maps a road
+  class to a material yet either; the caller names it.
 - **No road authoring.** Roads are built by calling `Add_Road`. Nothing reads them from a level,
   and nothing places them procedurally; the world generation phases are where that arrives.
 - **The junction polygon is flat in texture space.** Its texture coordinates come from the frame

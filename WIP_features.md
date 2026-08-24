@@ -91,9 +91,10 @@ the S bend, the crossing and the tee look like roads.
 entry carries out of the absorbed acceptance line is the half no rule can supply: the
 default layers name no textures, so a generated map has coherent material *selection* and
 nothing to put on the ground, and detail, biome and scorch have kinds and no entries.
-Next exact action: choose stock Renegade terrain texture names for the six default layers
-and pass them to `Define_Layer`, then run `terrain_test` and `terrain_dress` in a client
-and look at it.
+Next exact action: point the six default layers at stock Renegade texture names as a
+stand-in (`docs/assets/TerrainLayers.md` says what each layer has to be, what the purpose-made
+`ow_ter_*.tga` replacements are, and why the stock ones are a stand-in), then run
+`terrain_test` and `terrain_dress` in a client and look at it.
 
 ---
 
