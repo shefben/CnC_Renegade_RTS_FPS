@@ -877,7 +877,12 @@ public:
 
 	/*
 	** Decal system
-	** Project a decal onto the geometry in the vicinity of the given coordinate system
+	** Project a decal onto the geometry in the vicinity of the given coordinate system.
+	**
+	** This is the geometry-clipping backend, not the way the game asks for a mark.  Everything
+	** that wants to leave a mark on the world goes through WorldSurfaceMarkManager, which owns
+	** the one bounded pool of marks and decides whether a mark needs clipping at all; this is
+	** what it calls when the answer is yes.
 	*/
 	int							Create_Decal(	const Matrix3D &	tm,
 														const char *		texture_name,
@@ -887,6 +892,14 @@ public:
 														PhysClass *			only_this_obj = nullptr	);
 
 	bool							Remove_Decal(uint32 id);
+
+	/*
+	** How many clipped decals may be live at once.  The surface-mark manager sizes this against
+	** its own budget for clipped marks, so that the ring underneath can never recycle a decal
+	** the manager still believes it owns.
+	*/
+	void							Set_Decal_Pool_Size(int count);
+	int							Get_Decal_Pool_Size(void);
 
 	/*
 	** Shatter system

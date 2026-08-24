@@ -274,3 +274,17 @@ kind has no harvester, and marks do not cull by distance within their mesh. Next
 manual one for the user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then
 `ribbon_texture <a texture name from that level>` at the console, drive a vehicle over dirt, and
 report whether tracks appear behind it and what `ribbon_status` prints for marks against objects.
+
+## P19 -- the marks are batched and nobody has looked at one
+
+`WorldSurfaceMarkManager` is in and checked (P19-A in `completed_features.md`,
+`docs/zerohour/WorldSurfaceMarkManager.md`, twenty-four green terrain ctest entries). This entry
+carries the absorbed acceptance line *Hundreds or thousands of marks can exist without one draw call
+or one network object per mark, and mark lifetime/eviction cannot grow memory without bound*: the
+bounds are proved by construction and by the checks, but no batched mark has ever been drawn on
+screen, the seven named kinds have no art, and nothing yet places a CONSTRUCTION, DIRT or
+OIL_OR_STAIN mark. Next exact action is a manual one for the user: run
+`renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then `mark_texture <a texture name
+from that level>`, `mark_test 500` and `mark_status` at the console, and report whether the scorches
+appear on the ground, whether they follow slopes, and what `mark_status` prints for marks against
+objects.

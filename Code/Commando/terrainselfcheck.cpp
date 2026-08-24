@@ -18,12 +18,14 @@
 #include "ribbontype.h"
 #include "roadspline.h"
 #include "roadsystem.h"
+#include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
 #include "terrainmask.h"
 #include "terraintexturesystem.h"
 #include "watersystem.h"
 #include "watertype.h"
 #include "w3d_file.h"
+#include "worldsurfacemarkmanager.h"
 #include "worldterrainsystem.h"
 #include "wwmath.h"
 
@@ -2337,6 +2339,214 @@ void	Check_Ribbons (void)
 }
 
 
+
+
+/*
+**	Marks on the world -- roadmap Section 35.
+**
+**	The acceptance is about cost and about bounds, so this is arithmetic again: the pool is a
+**	fixed size, a group holds a fixed number of marks, and neither number moves however many
+**	marks are thrown at it.  Everything here runs with no scene and no art, which is also how
+**	the two paths through the manager get told apart -- with no world under it, a mark that
+**	wants to drape onto the ground correctly refuses to be placed at all.
+*/
+void	Check_Marks (void)
+{
+	//
+	//	The seven types Section 35 names.
+	//
+	Check (::strcmp (Surface_Mark_Type_Name (SURFACE_MARK_SCORCH), "SCORCH") == 0,
+			 "the scorch is called %s", Surface_Mark_Type_Name (SURFACE_MARK_SCORCH));
+	Check (::strcmp (Surface_Mark_Type_Name (SURFACE_MARK_OIL_OR_STAIN), "OIL_OR_STAIN") == 0,
+			 "the stain is called %s", Surface_Mark_Type_Name (SURFACE_MARK_OIL_OR_STAIN));
+	Check (::strcmp (Surface_Mark_Type_Name (SURFACE_MARK_DECORATIVE_WORLD_MARK),
+							"DECORATIVE_WORLD_MARK") == 0,
+			 "the world mark is called %s", Surface_Mark_Type_Name (SURFACE_MARK_DECORATIVE_WORLD_MARK));
+	Check (SURFACE_MARK_TYPE_COUNT == 7, "there are %d mark types, not seven", SURFACE_MARK_TYPE_COUNT);
+
+	//
+	//	A mark that was placed outlives one that was thrown.
+	//
+	Check (Surface_Mark_Type_Is_Persistent (SURFACE_MARK_CONSTRUCTION),
+			 "a construction mark expires like a scorch");
+	Check (Surface_Mark_Type_Is_Persistent (SURFACE_MARK_DECORATIVE_WORLD_MARK),
+			 "a world mark expires like a scorch");
+	Check (!Surface_Mark_Type_Is_Persistent (SURFACE_MARK_SCORCH), "a scorch never expires");
+	Check (!Surface_Mark_Type_Is_Persistent (SURFACE_MARK_IMPACT), "a bullet hole never expires");
+
+	WorldSurfaceMarkManager::Init ();
+
+	//
+	//	The pool exists before anything asks for it, and it is the only allocation there is.
+	//
+	const int pool = WorldSurfaceMarkManager::Get_Pool_Size ();
+	Check (pool > 0, "the pool is %d marks", pool);
+	Check (WorldSurfaceMarkManager::Get_Mark_Count () == 0, "a fresh pool already holds marks");
+	Check (WorldSurfaceMarkManager::Get_Object_Count () == 0, "a fresh pool already draws something");
+
+	WorldSurfaceMarkManager::Define_Default_Marks ();
+	Check (WorldSurfaceMarkManager::Get_Definition_Count () == 7,
+			 "there are %d kinds of mark, not seven",
+			 WorldSurfaceMarkManager::Get_Definition_Count ());
+
+	int blast = WorldSurfaceMarkManager::Find_Definition_By_Type (SURFACE_MARK_BLAST);
+	Check (blast >= 0, "the blast mark is not defined");
+	if (blast >= 0) {
+		const SurfaceMarkDefinitionClass &blast_def = WorldSurfaceMarkManager::Peek_Definition (blast);
+		Check (!blast_def.Names_A_Texture (), "the blast mark names art that does not exist");
+		Check (blast_def.Get_Lifetime () > 0.0f, "the blast mark never expires");
+	}
+
+	int construction = WorldSurfaceMarkManager::Find_Definition_By_Type (SURFACE_MARK_CONSTRUCTION);
+	Check (construction >= 0, "the construction mark is not defined");
+	if (construction >= 0) {
+		Check (WorldSurfaceMarkManager::Peek_Definition (construction).Is_Persistent (),
+				 "the construction mark expires");
+	}
+
+	//
+	//	A kind that does not drape needs no ground under it, which is what lets the pool, the
+	//	handles and the eviction policy all be checked with no world loaded.
+	//
+	SurfaceMarkDefinitionClass flat;
+	flat.Set_Name ("ow_mark_selfcheck_flat");
+	flat.Set_Type (SURFACE_MARK_SCORCH);
+	flat.Set_Radius (1.0f);
+	flat.Set_Lifetime (10.0f);
+	flat.Set_Fade_Start (0.5f);
+	flat.Set_Lift_Height (0.0f);
+	flat.Set_Drape (false);
+
+	int flat_index = WorldSurfaceMarkManager::Define_Definition (flat);
+	Check (flat_index >= 0, "a flat kind could not be defined");
+	if (flat_index < 0) {
+		WorldSurfaceMarkManager::Shutdown ();
+		return ;
+	}
+
+	//
+	//	One mark.  It is a quad of the size it was asked for, and the handle finds it again.
+	//
+	uint32 handle = WorldSurfaceMarkManager::Add_Mark (flat_index, Vector3 (10.0f, 20.0f, 5.0f),
+																		Vector3 (0.0f, 0.0f, 1.0f), 1.0f);
+	Check (handle != 0, "a mark on flat ground was refused");
+	Check (WorldSurfaceMarkManager::Is_Mark_Alive (handle), "the mark is not alive");
+	Check (WorldSurfaceMarkManager::Get_Mark_Count () == 1,
+			 "one mark placed and %d in the pool", WorldSurfaceMarkManager::Get_Mark_Count ());
+	Check (WorldSurfaceMarkManager::Get_Batched_Mark_Count () == 1, "the mark did not go to the batch");
+	Check (WorldSurfaceMarkManager::Get_Projected_Mark_Count () == 0, "the mark went to the clipper");
+
+	const SurfaceMarkClass *mark = WorldSurfaceMarkManager::Peek_Mark (handle);
+	Check (mark != nullptr, "the handle does not find the mark");
+	if (mark != nullptr) {
+		float width = (mark->Corner[1] - mark->Corner[0]).Length ();
+		Check (WWMath::Fabs (width - 2.0f) < 0.01f, "the mark is %f across, not two", width);
+		Check (!mark->Is_Projected (), "the mark thinks it was clipped");
+	}
+
+	//
+	//	A handle to a mark that has gone stops matching, rather than addressing whatever took
+	//	its slot.
+	//
+	Check (WorldSurfaceMarkManager::Remove_Mark (handle), "the mark could not be removed");
+	Check (!WorldSurfaceMarkManager::Is_Mark_Alive (handle), "the removed mark is still alive");
+	Check (!WorldSurfaceMarkManager::Remove_Mark (handle), "the mark was removed twice");
+	Check (WorldSurfaceMarkManager::Peek_Mark (handle) == nullptr, "a stale handle still finds a mark");
+	Check (WorldSurfaceMarkManager::Get_Mark_Count () == 0, "removing the only mark left one behind");
+
+	//
+	//	The bound.  Far more marks than any group can hold, thrown at it in one go: the group
+	//	stops growing, the pool never does, and every mark that left was evicted on purpose.
+	//
+	const int before_evictions = WorldSurfaceMarkManager::Get_Eviction_Count ();
+	for (int i = 0; i < (SURFACE_MARK_MAX_PER_GROUP * 3); i ++) {
+		WorldSurfaceMarkManager::Add_Mark (flat_index,
+													 Vector3 (float (i), 0.0f, 0.0f),
+													 Vector3 (0.0f, 0.0f, 1.0f), 1.0f);
+	}
+
+	Check (WorldSurfaceMarkManager::Get_Group_Mark_Count (flat_index) <= SURFACE_MARK_MAX_PER_GROUP,
+			 "one group holds %d marks, more than its mesh was built for",
+			 WorldSurfaceMarkManager::Get_Group_Mark_Count (flat_index));
+	Check (WorldSurfaceMarkManager::Get_Mark_Count () <= pool,
+			 "the pool holds %d marks out of %d", WorldSurfaceMarkManager::Get_Mark_Count (), pool);
+	Check (WorldSurfaceMarkManager::Get_Pool_Size () == pool, "the pool grew to %d",
+			 WorldSurfaceMarkManager::Get_Pool_Size ());
+	Check (WorldSurfaceMarkManager::Get_Eviction_Count () > before_evictions,
+			 "nothing was evicted while the group overflowed");
+
+	//
+	//	Nothing was drawn, because nothing names a texture -- and with no scene there is nothing
+	//	to draw into either.  The marks are all still there and still counted.
+	//
+	Check (!WorldSurfaceMarkManager::Build_Geometry (), "geometry was built with no scene");
+	Check (WorldSurfaceMarkManager::Get_Object_Count () == 0, "%d objects were made with no scene",
+			 WorldSurfaceMarkManager::Get_Object_Count ());
+	Check (WorldSurfaceMarkManager::Get_Missing_Texture_Count () >= 1,
+			 "a group with marks and no texture was not reported");
+	Check (!WorldSurfaceMarkManager::Has_Geometry (flat_index), "a group with no texture has a mesh");
+
+	//
+	//	The clock.  Past the lifetime every mark of that kind is gone, and gone without the
+	//	pool having grown to hold them in the meantime.
+	//
+	WorldSurfaceMarkManager::Timestep (11.0f);
+	Check (WorldSurfaceMarkManager::Get_Group_Mark_Count (flat_index) == 0,
+			 "%d marks outlived their lifetime",
+			 WorldSurfaceMarkManager::Get_Group_Mark_Count (flat_index));
+	Check (WorldSurfaceMarkManager::Get_Pool_Size () == pool, "the pool grew while marks expired");
+
+	//
+	//	A mark that wants to drape needs ground under it.  With no world there is none, so it is
+	//	refused rather than placed somewhere invented -- and the refusal costs no slot.
+	//
+	SurfaceMarkDefinitionClass draped;
+	draped.Set_Name ("ow_mark_selfcheck_draped");
+	draped.Set_Type (SURFACE_MARK_DIRT);
+	draped.Set_Radius (1.0f);
+	draped.Set_Lifetime (10.0f);
+	draped.Set_Drape (true);
+
+	int draped_index = WorldSurfaceMarkManager::Define_Definition (draped);
+	Check (draped_index >= 0, "a draping kind could not be defined");
+	if (draped_index >= 0) {
+		int held = WorldSurfaceMarkManager::Get_Mark_Count ();
+		uint32 nowhere = WorldSurfaceMarkManager::Add_Mark (draped_index,
+																			Vector3 (0.0f, 0.0f, 0.0f),
+																			Vector3 (0.0f, 0.0f, 1.0f), 1.0f);
+		Check (nowhere == 0, "a mark draped onto ground that is not there");
+		Check (WorldSurfaceMarkManager::Get_Mark_Count () == held,
+				 "the refused mark kept a slot anyway");
+	}
+
+	//
+	//	The group table is capped too.  Content that names more decal textures than the table
+	//	holds gets counted refusals, not a table that grows with the content.
+	//
+	const int before_refusals = WorldSurfaceMarkManager::Get_Group_Refusal_Count ();
+	for (int g = 0; g < (SURFACE_MARK_MAX_GROUPS + 8); g ++) {
+		StringClass name;
+		name.Format ("ow_mark_selfcheck_group_%d", g);
+		WorldSurfaceMarkManager::Find_Or_Define_Texture_Group (name, SURFACE_MARK_SCORCH, 1.0f);
+	}
+	Check (WorldSurfaceMarkManager::Get_Definition_Count () <= SURFACE_MARK_MAX_GROUPS,
+			 "the group table grew to %d", WorldSurfaceMarkManager::Get_Definition_Count ());
+	Check (WorldSurfaceMarkManager::Get_Group_Refusal_Count () > before_refusals,
+			 "the group table overflowed without saying so");
+
+	//
+	//	The world going away takes the marks with it.
+	//
+	WorldSurfaceMarkManager::Clear_Marks ();
+	Check (WorldSurfaceMarkManager::Get_Mark_Count () == 0, "%d marks survived the world unloading",
+			 WorldSurfaceMarkManager::Get_Mark_Count ());
+
+	WorldSurfaceMarkManager::Shutdown ();
+	Check (WorldSurfaceMarkManager::Get_Pool_Size () == 0, "the pool outlived the service");
+	Check (WorldSurfaceMarkManager::Get_Mark_Count () == 0, "the marks outlived the service");
+	Check (WorldSurfaceMarkManager::Get_Definition_Count () == 0, "the kinds outlived the service");
+}
+
 }	// anonymous namespace
 
 
@@ -2376,6 +2586,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "ribbons") == 0)) {
 		Check_Ribbons ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "marks") == 0)) {
+		Check_Marks ();
 	}
 
 	if (_Failures == 0) {

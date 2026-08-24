@@ -50,7 +50,9 @@
 #include "foliagetype.h"
 #include "watersystem.h"
 #include "watertype.h"
+#include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
+#include "worldsurfacemarkmanager.h"
 #include "ribbontype.h"
 #include "bridgesystem.h"
 #include "roadsystem.h"
@@ -1418,6 +1420,163 @@ public:
 
 		SurfaceRibbonSystem::Clear_Marks();
 		Print( "Ground marks cleared.\n" );
+	}
+};
+
+
+class MarkTextureConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "mark_texture"; }
+	virtual	const char * Get_Help( void ) override	{ return "MARK_TEXTURE <texture> - draws every kind of surface mark with the named texture.  No argument clears it again."; }
+	virtual	void Activate( const char * input ) override {
+
+		char	texture[ 128 ];
+		texture[ 0 ] = 0;
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%127s", texture );
+		}
+
+		if ( WorldSurfaceMarkManager::Get_Definition_Count() == 0 ) {
+			WorldSurfaceMarkManager::Define_Default_Marks();
+		}
+
+		int count = WorldSurfaceMarkManager::Get_Definition_Count();
+		for ( int i = 0; i < count; i ++ ) {
+			SurfaceMarkDefinitionClass def = WorldSurfaceMarkManager::Peek_Definition( i );
+			def.Set_Texture( texture );
+			WorldSurfaceMarkManager::Define_Definition( def );
+		}
+
+		//	The meshes were made against the old texture, or not made at all.  Let them go and
+		//	they are made again on the next frame with whatever was just named.
+		WorldSurfaceMarkManager::Destroy_Geometry();
+
+		if ( texture[ 0 ] != 0 ) {
+			Print( "mark_texture: %d kind(s) of surface mark will draw with %s.\n", count, texture );
+			Print( "mark_texture: try mark_test 200, or blow something up.\n" );
+		} else {
+			Print( "mark_texture: %d kind(s) of surface mark draw nothing again.\n", count );
+		}
+	}
+};
+
+
+class MarkTestConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "mark_test"; }
+	virtual	const char * Get_Help( void ) override	{ return "MARK_TEST <count> [radius] - scatters that many marks on the ground around the camera."; }
+	virtual	void Activate( const char * input ) override {
+
+		int	count		= 200;
+		float	radius	= 1.0f;
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%d %f", &count, &radius );
+		}
+		if ( count < 1 )		{ count = 1; }
+		if ( count > 4096 )	{ count = 4096; }
+		if ( radius <= 0.0f )	{ radius = 1.0f; }
+
+		if ( WorldSurfaceMarkManager::Get_Definition_Count() == 0 ) {
+			WorldSurfaceMarkManager::Define_Default_Marks();
+		}
+
+		int definition = WorldSurfaceMarkManager::Find_Definition_By_Type( SURFACE_MARK_SCORCH );
+		if ( definition < 0 ) {
+			Print( "mark_test: no scorch is defined.\n" );
+			return ;
+		}
+
+		if ( COMBAT_SCENE == nullptr ) {
+			Print( "mark_test: no scene.\n" );
+			return ;
+		}
+
+		Vector3 center = COMBAT_SCENE->Get_Last_Camera_Position();
+
+		//	Spiral outward from where the camera is, so that however many are asked for they
+		//	land on ground the player can walk to and look at.
+		int placed		= 0;
+		int refused		= 0;
+		for ( int i = 0; i < count; i ++ ) {
+
+			float angle	= float( i ) * 2.39996323f;			// the golden angle, so it does not band
+			float dist	= 2.0f + ( 1.2f * WWMath::Sqrt( float( i ) ) );
+
+			Vector3 spot( center.X + ( dist * WWMath::Cos( angle ) ),
+							  center.Y + ( dist * WWMath::Sin( angle ) ),
+							  center.Z );
+
+			float height = spot.Z;
+			if ( !WorldSurfaceMarkManager::Conform_Point( spot.X, spot.Y, spot.Z, &height ) ) {
+				refused ++;
+				continue;
+			}
+			spot.Z = height;
+
+			if ( WorldSurfaceMarkManager::Add_Mark( definition, spot, Vector3( 0.0f, 0.0f, 1.0f ), radius ) != 0 ) {
+				placed ++;
+			} else {
+				refused ++;
+			}
+		}
+
+		Print( "mark_test: %d placed, %d refused (no ground, or the drape was too steep).\n",
+				 placed, refused );
+		Print( "mark_test: %d mark(s) now drawn by %d object(s).  mark_status for the rest.\n",
+				 WorldSurfaceMarkManager::Get_Mark_Count(),
+				 WorldSurfaceMarkManager::Get_Object_Count() );
+	}
+};
+
+
+class MarkStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "mark_status"; }
+	virtual	const char * Get_Help( void ) override	{ return "MARK_STATUS - how many marks the world holds and how many draw calls they cost."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		int marks		= WorldSurfaceMarkManager::Get_Mark_Count();
+		int batched		= WorldSurfaceMarkManager::Get_Batched_Mark_Count();
+		int projected	= WorldSurfaceMarkManager::Get_Projected_Mark_Count();
+
+		Print( "mark_status: %d mark(s) of %d in the pool -- %d batched, %d clipped (budget %d).\n",
+				 marks, WorldSurfaceMarkManager::Get_Pool_Size(), batched, projected,
+				 WorldSurfaceMarkManager::Get_Projected_Budget() );
+
+		//	This is the acceptance in two numbers: marks go up, objects do not.
+		Print( "mark_status: %d group(s), %d object(s), %d polygon(s).\n",
+				 WorldSurfaceMarkManager::Get_Definition_Count(),
+				 WorldSurfaceMarkManager::Get_Object_Count(),
+				 WorldSurfaceMarkManager::Get_Poly_Count() );
+
+		Print( "mark_status: %d eviction(s), %d group refusal(s), draw distance %.1f.\n",
+				 WorldSurfaceMarkManager::Get_Eviction_Count(),
+				 WorldSurfaceMarkManager::Get_Group_Refusal_Count(),
+				 WorldSurfaceMarkManager::Get_Draw_Distance() );
+
+		int missing = WorldSurfaceMarkManager::Get_Missing_Texture_Count();
+		if ( missing > 0 ) {
+			Print( "mark_status: %d kind(s) have marks and no texture -- see docs/assets/SurfaceMarks.md.\n",
+					 missing );
+		}
+	}
+};
+
+
+class MarkClearConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "mark_clear"; }
+	virtual	const char * Get_Help( void ) override	{ return "MARK_CLEAR - erases every surface mark in the world."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		WorldSurfaceMarkManager::Clear_Marks();
+		Print( "Surface marks cleared.\n" );
 	}
 };
 
@@ -5852,6 +6011,10 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new RibbonTextureConsoleFunctionClass() );
 	FunctionList.Add( new RibbonStatusConsoleFunctionClass() );
 	FunctionList.Add( new RibbonClearConsoleFunctionClass() );
+	FunctionList.Add( new MarkTextureConsoleFunctionClass() );
+	FunctionList.Add( new MarkTestConsoleFunctionClass() );
+	FunctionList.Add( new MarkStatusConsoleFunctionClass() );
+	FunctionList.Add( new MarkClearConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );
 	FunctionList.Add( new ExposePrelitConsoleFunctionClass() );

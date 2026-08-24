@@ -1480,3 +1480,16 @@ ground, airborne and teleport all fall out of `Add_Point` needing no cooperation
 Nothing is networked or saved -- both are functions of state already replicated. Evidence:
 `docs/zerohour/SurfaceRibbonSystem.md`, `docs/assets/RibbonSurfaces.md`; twenty-two green terrain
 ctest entries including the new `terrain_ribbons` and `fds_terrain_ribbons`.
+
+## P19-A: One bounded surface-mark service in front of two backends
+
+`WorldSurfaceMarkManager` (`Code/WWPhys/worldsurfacemarkmanager.*`, `surfacemarktype.*`) is the one
+entry point for every mark in the world, replacing direct `PhysicsSceneClass::Create_Decal` calls in
+`explosion.cpp` and `surfaceeffects.cpp`. A mark that lies on conformable ground becomes four
+vertices in a `DynamicMeshClass` shared per texture group; one that cannot -- a wall, glass, a
+staircase nose, a drape whose corners disagree -- goes to the existing geometry-clipping projector,
+which stays the only thing that can follow arbitrary W3D geometry. Both are entries in one fixed
+1024-mark pool with one eviction policy (most-faded first, group cap 256, group table cap 32, clipped
+budget 96), so nothing grows: stock Renegade's fifty-decal ring is now a backend the manager sizes.
+Evidence: `docs/zerohour/WorldSurfaceMarkManager.md`, `docs/assets/SurfaceMarks.md`; twenty-four
+green terrain ctest entries including the new `terrain_marks` and `fds_terrain_marks`.

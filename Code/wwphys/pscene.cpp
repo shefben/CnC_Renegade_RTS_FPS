@@ -113,6 +113,7 @@
 #include "meshmdl.h"
 #include "camerashakesystem.h"
 #include "surfaceribbonsystem.h"
+#include "worldsurfacemarkmanager.h"
 #include "lightenvironment.h"
 #include "dx8wrapper.h"
 #include "physresourcemgr.h"
@@ -414,6 +415,16 @@ void PhysicsSceneClass::Update(float dt,int frameid)
 	{
 		WWPROFILE("SurfaceRibbons");
 		SurfaceRibbonSystem::Timestep(dt);
+	}
+
+	/*
+	** And the marks that are not ribbons: scorches, blasts, stains, bullet holes.  Same
+	** reasoning, same place, a separate pool -- a ribbon is a strip behind something that
+	** moved, a mark is a single event that stayed.
+	*/
+	{
+		WWPROFILE("SurfaceMarks");
+		WorldSurfaceMarkManager::Timestep(dt);
 	}
 
 	/*

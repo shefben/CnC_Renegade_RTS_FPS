@@ -36,6 +36,7 @@
 
 
 #include "explosion.h"
+#include "worldsurfacemarkmanager.h"
 #include "worldspatialindex.h"
 #include "debug.h"
 #include "damage.h"
@@ -274,8 +275,11 @@ void	ExplosionManager::Create_Explosion_At( int explosion_def_id, const Matrix3D
 	if ( CombatManager::I_Am_Client() && !explosion_def->DecalFilename.Is_Empty() ) {
 		StringClass	new_name(true);
 		::Strip_Path_From_Filename( new_name, explosion_def->DecalFilename );
-		PhysicsSceneClass::Get_Instance()->Create_Decal( blast_tm, new_name,
-																		explosion_def->DecalSize, false, false );
+		//	Through the surface-mark manager rather than straight at the decal projector: a
+		//	blast on open ground becomes four vertices in a shared mesh, and only one that
+		//	lands somewhere a flat quad cannot follow costs a clip through real geometry.
+		WorldSurfaceMarkManager::Create_Mark( blast_tm, new_name,
+														 explosion_def->DecalSize, SURFACE_MARK_BLAST );
 	}
 
 

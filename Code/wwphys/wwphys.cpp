@@ -40,6 +40,7 @@
 #include "physcon.h"
 #include "physresourcemgr.h"
 #include "surfaceribbonsystem.h"
+#include "worldsurfacemarkmanager.h"
 
 
 void WWPhys::Init(void)
@@ -52,10 +53,16 @@ void WWPhys::Init(void)
 	//	happen here rather than waiting for a caller that would only ever say yes.
 	SurfaceRibbonSystem::Init();
 	SurfaceRibbonSystem::Define_Default_Ribbons();
+
+	//	Marks on the ground and on the walls.  One bounded pool, one eviction policy, one place
+	//	that knows how many marks the world is holding -- roadmap Section 35.
+	WorldSurfaceMarkManager::Init();
+	WorldSurfaceMarkManager::Define_Default_Marks();
 }
 
 void WWPhys::Shutdown(void)
 {
+	WorldSurfaceMarkManager::Shutdown();
 	SurfaceRibbonSystem::Shutdown();
 	PhysResourceMgrClass::Shutdown();
 }

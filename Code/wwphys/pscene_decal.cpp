@@ -86,3 +86,16 @@ bool PhysicsSceneClass::Remove_Decal(uint32 id)
 }
 
 
+
+
+void PhysicsSceneClass::Set_Decal_Pool_Size(int count)
+{
+	WWASSERT(DecalSystem != nullptr);
+	DecalSystem->Set_Temporary_Decal_Pool_Size(count);
+}
+
+int PhysicsSceneClass::Get_Decal_Pool_Size(void)
+{
+	WWASSERT(DecalSystem != nullptr);
+	return DecalSystem->Get_Temporary_Decal_Pool_Size();
+}

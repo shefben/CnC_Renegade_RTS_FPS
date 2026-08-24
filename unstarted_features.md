@@ -86,7 +86,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P19: Surface smudge / decal manager (roadmap Section 35)
 
-- [ ] Acceptance: Hundreds or thousands of marks can exist without one draw call or one network object per mark, and mark lifetime/eviction cannot grow memory without bound.
 
 ## P20: Projected / cached shadows (roadmap Section 24)
 

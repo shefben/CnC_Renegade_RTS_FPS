@@ -80,7 +80,9 @@ set(WWPHYS_SRC
     watersystem.cpp
     watertype.cpp
     ribbontype.cpp
+    surfacemarktype.cpp
     surfaceribbonsystem.cpp
+    worldsurfacemarkmanager.cpp
     timeddecophys.cpp
     trackedvehicle.cpp
     transitioneffect.cpp
@@ -183,7 +185,9 @@ set(WWPHYS_SRC
     watersystem.h
     watertype.h
     ribbontype.h
+    surfacemarktype.h
     surfaceribbonsystem.h
+    worldsurfacemarkmanager.h
     timeddecophys.h
     trackedvehicle.h
     transitioneffect.h

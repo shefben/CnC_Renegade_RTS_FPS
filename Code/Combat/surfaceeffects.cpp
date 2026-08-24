@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "surfaceeffects.h"
+#include "worldsurfacemarkmanager.h"
 #include "w3d_file.h"
 #include "part_emt.h"
 #include "assets.h"
@@ -564,9 +565,9 @@ void	SurfaceEffectsManager::Apply_Effect
 		// object.  Otherwise, we use normal decal processing which collects the meshes
 		// that overlap the volume and applies the decal to all of them
 		if ((surface_type == SURFACE_TYPE_GLASS) || (surface_type == SURFACE_TYPE_GLASS_PERMEABLE)) {
-			PhysicsSceneClass::Get_Instance()->Create_Decal( tm, new_name, size, false, true, hit_obj );
+			WorldSurfaceMarkManager::Create_Mark( tm, new_name, size, SURFACE_MARK_IMPACT, true, hit_obj );
 		} else {
-			PhysicsSceneClass::Get_Instance()->Create_Decal( tm, new_name, size );
+			WorldSurfaceMarkManager::Create_Mark( tm, new_name, size, SURFACE_MARK_IMPACT );
 		}
 	}
 }
