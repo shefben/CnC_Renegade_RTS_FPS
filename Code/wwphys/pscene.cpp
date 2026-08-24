@@ -114,6 +114,7 @@
 #include "camerashakesystem.h"
 #include "surfaceribbonsystem.h"
 #include "worldsurfacemarkmanager.h"
+#include "worldshadowmanager.h"
 #include "lightenvironment.h"
 #include "dx8wrapper.h"
 #include "physresourcemgr.h"
@@ -201,16 +202,9 @@ PhysicsSceneClass::PhysicsSceneClass(void) :
 	CurrentVisTable(nullptr),
 	StaticProjectorsEnabled(false),
 	DynamicProjectorsEnabled(false),
-	ShadowMode(SHADOW_MODE_NONE),
-	ShadowAttenStart(25.0f),
-	ShadowAttenEnd(40.0f),
-	ShadowNormalIntensity(0.45f),
-	ShadowBlobTexture(nullptr),
 	ShadowCamera(nullptr),
 	ShadowRenderContext(nullptr),
 	ShadowMaterialPass(nullptr),
-	ShadowResWidth(128),
-	ShadowResHeight(128),
 	DecalSystem(nullptr),
 	Pathfinder(nullptr),
 	CameraShakeSystem(nullptr),
@@ -425,6 +419,16 @@ void PhysicsSceneClass::Update(float dt,int frameid)
 	{
 		WWPROFILE("SurfaceMarks");
 		WorldSurfaceMarkManager::Timestep(dt);
+	}
+
+	/*
+	**	Shadows cast by world systems -- anything that is not a MovePhysClass or a
+	**	DynamicAnimPhysClass, since those two update their own from their post-timestep.  Same
+	**	code decides both; this is only the other set of callers.  Roadmap Section 24.
+	*/
+	{
+		WWPROFILE("WorldShadows");
+		WorldShadowManager::Timestep(dt);
 	}
 
 	/*

@@ -55,6 +55,7 @@
 #include "dx8wrapper.h"
 #include "pot.h"
 #include "materialeffect.h"
+#include "worldshadowmanager.h"
 #include "wwmemlog.h"
 #include "TARGA.H"
 #include "bitmaphandler.h"
@@ -71,347 +72,13 @@
 #endif
 
 const int		SHADOW_CLIP_FAR							= 500;
-const int		STATIC_PROJECTOR_RESOLUTION			= 256; //128;
 const float		STATIC_SHADOW_INTENSITY					= 0.6f;
-const float		MIN_STATIC_SHADOW_COS_HALF_THETA		= cos(DEG_TO_RADF(10.0f)/2.0f);	// angle to allow shadow tex re-use
-
-const int		DEFAULT_MAX_DYNAMIC_SHADOWS			= 6;
-const int		DEFAULT_DYNAMIC_SHADOW_RESOLUTION	= 256;
-
-/**
-** StaticShadowTexMgrClass
-** This object simply manages the list of unique shadow textures being used by the
-** static shadow projectors.  For example, all instances of the same tree model
-** re-use the same shadow texture...
-*/
-class StaticShadowTexMgrClass
-{
-public:
-	StaticShadowTexMgrClass(void);
-	virtual ~StaticShadowTexMgrClass(void);
-	void						Reset(void);
-
-	TextureClass *			Peek_Shadow_Texture(uint32 obj_type_id,const Quaternion & orientation);
-	void						Add_Shadow_Texture(uint32 obj_type_id,const Quaternion & orientation,TextureClass * tex);
-	void						Remove_Shadow_Texture(TextureClass * tex);
-
-private:
-
-	class	 ShadowTexClass
-	{
-	public:
-		ShadowTexClass(void);
-		ShadowTexClass(uint32 obj_type_id,const Quaternion & orientation,TextureClass * tex);
-		ShadowTexClass(const ShadowTexClass & that);
-		~ShadowTexClass(void);
-		const ShadowTexClass & operator = (const ShadowTexClass &);
-
-		bool					operator == (const ShadowTexClass &)						{ return false; }
-		bool					operator != (const ShadowTexClass &)					{ return true; }
-		uint32				ObjectTypeID;			// use the Definition ID to uniquely identify object types
-		Quaternion			ObjectOrientation;	// orientation of the object when this shadow was generated
-		TextureClass *		Texture;					// texture
-
-	};
-
-	DynamicVectorClass<ShadowTexClass>	ShadowTextures;
-};
-
-
-/**
-** DynamicShadowTexMgrClass
-** This class manages a pool of render target textures which are shared by the currently
-** active shadow projectors.
-*/
-class DynamicShadowTexMgrClass
-{
-public:
-
-	DynamicShadowTexMgrClass(void);
-	virtual ~DynamicShadowTexMgrClass(void);
-//	void					Reset(); // Jani: Disabling reset. Re-allocating render targets if the device is out of
-										// free texture memory causes problems on at least TNT2.
-
-	void					Set_Max_Simultaneous_Shadows(unsigned int max);
-	unsigned int		Get_Max_Simultaneous_Shadows(void);
-
-	void					Set_Shadow_Resolution(unsigned int size);
-	unsigned int		Get_Shadow_Resolution(void);
-
-	void					Per_Frame_Reset(void);
-	void					Assign_Render_Target_Texture(TexProjectClass * tex_proj);
-
-private:
-
-	TextureClass *		Allocate_Render_Target_Texture(void);
-
-	unsigned int		CurShadow;
-	unsigned int		TextureResolution;
-	SimpleVecClass<TextureClass *>	ShadowTextures;
-
-};
-
 
 /*
-**
-** Instantiate the Shadow Texture Managers.
-**
+**	Resolutions, the render-target pool, the shared static shadow textures and the shadow
+**	settings all moved to WorldShadowManager -- roadmap Section 24.  What is left in this file
+**	is the projector pass itself: collect, attenuate, decide who draws, apply.
 */
-static StaticShadowTexMgrClass		_StaticShadowTexMgr;
-static DynamicShadowTexMgrClass		_DynamicShadowTexMgr;
-
-
-static TextureClass* Create_Projector_Render_Target(unsigned w,unsigned h)
-{
-	WW3DFormat format=WW3D_FORMAT_UNKNOWN;
-	// Try if 8 or 16 bit render target formats would be supported
-	if (DX8Wrapper::Get_Current_Caps()->Support_Render_To_Texture_Format(WW3D_FORMAT_R3G3B2)) format=WW3D_FORMAT_R3G3B2;
-	else if (DX8Wrapper::Get_Current_Caps()->Support_Render_To_Texture_Format(WW3D_FORMAT_R5G6B5)) format=WW3D_FORMAT_R5G6B5;
-	else if (DX8Wrapper::Get_Current_Caps()->Support_Render_To_Texture_Format(WW3D_FORMAT_A4R4G4B4)) format=WW3D_FORMAT_A4R4G4B4;
-	else if (DX8Wrapper::Get_Current_Caps()->Support_Render_To_Texture_Format(WW3D_FORMAT_X1R5G5B5)) format=WW3D_FORMAT_X1R5G5B5;
-
-	TextureClass* texture = DX8Wrapper::Create_Render_Target(w,h,format);
-	if (texture) return texture;
-
-	// As a last resort, try creating with unknown format (which means using the current display resolution)
-	if (format!=WW3D_FORMAT_UNKNOWN) {
-		format=WW3D_FORMAT_UNKNOWN;
-		return DX8Wrapper::Create_Render_Target(w,h,format);
-	}
-	return nullptr;
-
-}
-
-/************************************************************************************
-**
-** ShadowTexClass Implemenation
-**
-************************************************************************************/
-StaticShadowTexMgrClass::ShadowTexClass::ShadowTexClass(void) :
-	ObjectTypeID(0),
-	ObjectOrientation(1),
-	Texture(nullptr)
-{
-}
-
-StaticShadowTexMgrClass::ShadowTexClass::ShadowTexClass
-(
-	uint32 obj_type_id,
-	const Quaternion & orientation,
-	TextureClass * tex
-) :
-	ObjectTypeID(obj_type_id),
-	ObjectOrientation(orientation),
-	Texture(nullptr)
-{
-	REF_PTR_SET(Texture,tex);
-}
-
-StaticShadowTexMgrClass::ShadowTexClass::ShadowTexClass(const ShadowTexClass & that) :
-	ObjectTypeID(0),
-	ObjectOrientation(1),
-	Texture(nullptr)
-{
-	*this = that;
-}
-
-const StaticShadowTexMgrClass::ShadowTexClass &
-StaticShadowTexMgrClass::ShadowTexClass::operator = (const ShadowTexClass & that)
-{
-	ObjectTypeID = that.ObjectTypeID;
-	ObjectOrientation = that.ObjectOrientation;
-	REF_PTR_SET(Texture,that.Texture);
-	return *this;
-}
-
-StaticShadowTexMgrClass::ShadowTexClass::~ShadowTexClass(void)
-{
-	REF_PTR_RELEASE(Texture);
-}
-
-
-/************************************************************************************
-**
-** StaticShadowTexMgrClass Implemenation
-**
-************************************************************************************/
-StaticShadowTexMgrClass::StaticShadowTexMgrClass(void)
-{
-}
-
-StaticShadowTexMgrClass::~StaticShadowTexMgrClass(void)
-{
-}
-
-void StaticShadowTexMgrClass::Reset(void)
-{
-	ShadowTextures.Delete_All();
-}
-
-TextureClass * StaticShadowTexMgrClass::Peek_Shadow_Texture
-(
-	uint32					obj_type_id,
-	const Quaternion &	orientation
-)
-{
-	for (int i=0; i<ShadowTextures.Count(); i++) {
-		Quaternion deltaq = ShadowTextures[i].ObjectOrientation * Inverse(orientation);
-		if (	(ShadowTextures[i].ObjectTypeID == obj_type_id) &&
-				(deltaq.W > MIN_STATIC_SHADOW_COS_HALF_THETA))
-		{
-			return ShadowTextures[i].Texture;
-		}
-	}
-	return nullptr;
-}
-
-void StaticShadowTexMgrClass::Add_Shadow_Texture
-(
-	uint32					obj_type_id,
-	const Quaternion &	orientation,
-	TextureClass *			tex
-)
-{
-	WWASSERT(Peek_Shadow_Texture(obj_type_id,orientation) == nullptr);
-	ShadowTexClass record(obj_type_id,orientation,tex);
-	ShadowTextures.Add(record);
-}
-
-void StaticShadowTexMgrClass::Remove_Shadow_Texture
-(
-	TextureClass *			tex
-)
-{
-	for (int i=0; i<ShadowTextures.Count(); i++) {
-		if (ShadowTextures[i].Texture == tex) {
-			ShadowTextures.Delete(i);
-			return;
-		}
-	}
-}
-
-
-/************************************************************************************
-**
-** DynamicShadowTexMgrClass Implementation
-**
-************************************************************************************/
-DynamicShadowTexMgrClass::DynamicShadowTexMgrClass(void) :
-	CurShadow(0),
-	TextureResolution(DEFAULT_DYNAMIC_SHADOW_RESOLUTION)
-{
-	WWMEMLOG(MEM_GAMEDATA);
-
-	ShadowTextures.Resize(DEFAULT_MAX_DYNAMIC_SHADOWS);
-	for (int i=0; i<ShadowTextures.Length(); i++) {
-		ShadowTextures[i] = nullptr;
-	}
-}
-
-DynamicShadowTexMgrClass::~DynamicShadowTexMgrClass(void)
-{
-//	Reset();
-	for (int i=0; i<ShadowTextures.Length(); i++) {
-		REF_PTR_RELEASE(ShadowTextures[i]);
-	}
-}
-/*
-void DynamicShadowTexMgrClass::Reset(void)
-{
-	for (int i=0; i<ShadowTextures.Length(); i++) {
-		REF_PTR_RELEASE(ShadowTextures[i]);
-	}
-}
-*/
-
-// Set the maximum number of dynamic render targets. Allocate all
-// textures at this point!
-void DynamicShadowTexMgrClass::Set_Max_Simultaneous_Shadows(unsigned int max)
-{
-	int curlen = ShadowTextures.Length();
-	int i;
-	for (i=max;i<curlen; i++) {
-		REF_PTR_RELEASE(ShadowTextures[i]);
-	}
-	ShadowTextures.Resize(max);
-
-	if (curlen>ShadowTextures.Length()) curlen=ShadowTextures.Length();
-	for (i=0; i<curlen; i++) {
-		if (!ShadowTextures[i]) {
-			ShadowTextures[i] = Allocate_Render_Target_Texture();
-		}
-	}
-	for (; i<ShadowTextures.Length(); i++) {
-		ShadowTextures[i] = Allocate_Render_Target_Texture();
-	}
-}
-
-unsigned int DynamicShadowTexMgrClass::Get_Max_Simultaneous_Shadows(void)
-{
-	return ShadowTextures.Length();
-}
-
-void DynamicShadowTexMgrClass::Set_Shadow_Resolution(unsigned int res)
-{
-	unsigned int oksize = ::Find_POT(res);
-	if (oksize > 256) {
-		oksize = 256;
-	}
-	if (oksize < 16) {
-		oksize = 16;
-	}
-
-	if (oksize != TextureResolution) {
-
-		int i;
-		for (i=0; i<ShadowTextures.Length(); i++) {
-			REF_PTR_RELEASE(ShadowTextures[i]);
-		}
-
-		TextureResolution = oksize;
-
-		for (i=0; i<ShadowTextures.Length(); i++) {
-			ShadowTextures[i] = Allocate_Render_Target_Texture();
-		}
-	}
-}
-
-unsigned int DynamicShadowTexMgrClass::Get_Shadow_Resolution(void)
-{
-	return TextureResolution;
-}
-
-void DynamicShadowTexMgrClass::Per_Frame_Reset(void)
-{
-	CurShadow = 0;
-}
-
-void DynamicShadowTexMgrClass::Assign_Render_Target_Texture(TexProjectClass * tex_proj)
-{
-	if (CurShadow < (unsigned int)ShadowTextures.Length()) {
-		if (ShadowTextures[CurShadow] == nullptr) {
-			ShadowTextures[CurShadow] = Allocate_Render_Target_Texture();
-		}
-		tex_proj->Set_Render_Target(ShadowTextures[CurShadow]);
-		CurShadow++;
-	}
-}
-
-TextureClass * DynamicShadowTexMgrClass::Allocate_Render_Target_Texture(void)
-{
-	TextureClass * texture=Create_Projector_Render_Target(TextureResolution,TextureResolution);
-
-	if (texture != nullptr) {
-
-		SET_REF_OWNER(texture);
-		texture->Set_U_Addr_Mode(TextureClass::TEXTURE_ADDRESS_CLAMP);
-		texture->Set_V_Addr_Mode(TextureClass::TEXTURE_ADDRESS_CLAMP);
-	}
-	return texture;
-}
-
-
-
 
 /************************************************************************************
 **
@@ -427,30 +94,55 @@ void PhysicsSceneClass::Release_Projector_Resources(void)
 
 	REF_PTR_RELEASE(ShadowMaterialPass);
 	REF_PTR_RELEASE(ShadowCamera);
-	REF_PTR_RELEASE(ShadowBlobTexture);
-	_StaticShadowTexMgr.Reset();
-//	_DynamicShadowTexMgr.Reset();
+	//	The shadow manager owns every device resource the shadow system holds, so giving them
+	//	back is one call rather than a list this file has to keep current.
+	WorldShadowManager::Release_Resources();
 }
 
 
 void PhysicsSceneClass::Set_Shadow_Resolution(unsigned int res)
 {
-	_DynamicShadowTexMgr.Set_Shadow_Resolution(res);
+	WorldShadowManager::Set_Dynamic_Resolution(res);
 }
 
 unsigned int PhysicsSceneClass::Get_Shadow_Resolution(void)
 {
-	return _DynamicShadowTexMgr.Get_Shadow_Resolution();
+	return WorldShadowManager::Get_Dynamic_Resolution();
+}
+
+/*
+**	TT names the static and dynamic shadow resolutions separately.  It is the right split --
+**	the static one is paid once when a level loads, the dynamic one every time a shadow is
+**	regenerated -- and both land on the same owner, which is what Section 24 is asking for.
+*/
+void PhysicsSceneClass::Set_Static_Shadow_Resolution(unsigned int res)
+{
+	WorldShadowManager::Set_Static_Resolution(res);
+}
+
+unsigned int PhysicsSceneClass::Get_Static_Shadow_Resolution(void)
+{
+	return WorldShadowManager::Get_Static_Resolution();
+}
+
+void PhysicsSceneClass::Set_Dynamic_Shadow_Resolution(unsigned int res)
+{
+	WorldShadowManager::Set_Dynamic_Resolution(res);
+}
+
+unsigned int PhysicsSceneClass::Get_Dynamic_Shadow_Resolution(void)
+{
+	return WorldShadowManager::Get_Dynamic_Resolution();
 }
 
 void PhysicsSceneClass::Set_Max_Simultaneous_Shadows(unsigned int count)
 {
-	_DynamicShadowTexMgr.Set_Max_Simultaneous_Shadows(count);
+	WorldShadowManager::Set_Max_Simultaneous_Shadows(count);
 }
 
 unsigned int PhysicsSceneClass::Get_Max_Simultaneous_Shadows(void)
 {
-	return _DynamicShadowTexMgr.Get_Max_Simultaneous_Shadows();
+	return WorldShadowManager::Get_Max_Simultaneous_Shadows();
 }
 
 
@@ -525,72 +217,41 @@ bool PhysicsSceneClass::Are_Dynamic_Projectors_Enabled(void)
 	return DynamicProjectorsEnabled;
 }
 
+/*
+**	The shadow settings.  These are the names TT and every script in the tree spell, and they
+**	still mean exactly what they meant.  What changed is that the scene no longer holds the
+**	values: there is one owner, so a setting made through the scene and a setting made through
+**	the manager cannot disagree.
+*/
 void PhysicsSceneClass::Set_Shadow_Mode(ShadowEnum shadow_mode)
 {
-	if (((int)shadow_mode >= 0) && ((int)shadow_mode < SHADOW_MODE_COUNT)) {
-		if (ShadowMode!=shadow_mode) {
-			ShadowMode = shadow_mode;
-
-			switch (ShadowMode) {
-			default:
-			case SHADOW_MODE_NONE:			// no shadows at all
-			case SHADOW_MODE_BLOBS:			// projected blob shadows
-				Set_Max_Simultaneous_Shadows(0);
-				break;
-			case SHADOW_MODE_BLOBS_PLUS:	// projected blobs with main character having a rendered shadow
-				Set_Max_Simultaneous_Shadows(1);
-				break;
-			case SHADOW_MODE_HARDWARE:		// use render-to-texture hardware
-				Set_Max_Simultaneous_Shadows(4);
-				break;
-			}
-		}
-	}
+	WorldShadowManager::Set_Mode((int)shadow_mode);
 }
 
 PhysicsSceneClass::ShadowEnum
 PhysicsSceneClass::Get_Shadow_Mode(void)
 {
-	return ShadowMode;
+	return (ShadowEnum)WorldShadowManager::Get_Mode();
 }
 
 void PhysicsSceneClass::Set_Shadow_Attenuation(float atten_start_distance,float atten_end_distance)
 {
-	if (atten_start_distance < 0.0f) {
-		atten_start_distance = 0.0f;
-	}
-	if (atten_end_distance < atten_start_distance) {
-		atten_end_distance = atten_start_distance;
-	}
-	ShadowAttenStart = atten_start_distance;
-	ShadowAttenEnd = atten_end_distance;
+	WorldShadowManager::Set_Attenuation(atten_start_distance,atten_end_distance);
 }
 
 void PhysicsSceneClass::Get_Shadow_Attenuation(float * set_atten_start,float * set_atten_end)
 {
-	if (set_atten_start != nullptr) {
-		*set_atten_start = ShadowAttenStart;
-	}
-
-	if (set_atten_end != nullptr) {
-		*set_atten_end = ShadowAttenEnd;
-	}
+	WorldShadowManager::Get_Attenuation(set_atten_start,set_atten_end);
 }
 
 void PhysicsSceneClass::Set_Shadow_Normal_Intensity(float normal_intensity)
 {
-	if (normal_intensity < 0.0f) {
-		normal_intensity = 0.0f;
-	}
-	if (normal_intensity > 1.0f) {
-		normal_intensity = 1.0f;
-	}
-	ShadowNormalIntensity = normal_intensity;
+	WorldShadowManager::Set_Normal_Intensity(normal_intensity);
 }
 
 float PhysicsSceneClass::Get_Shadow_Normal_Intensity(void)
 {
-	return ShadowNormalIntensity;
+	return WorldShadowManager::Get_Normal_Intensity();
 }
 
 void PhysicsSceneClass::Add_Static_Texture_Projector(TexProjectClass * newprojector)
@@ -656,13 +317,21 @@ float PhysicsSceneClass::Compute_Projector_Attenuation(TexProjectClass * dynamic
 	Vector3 r;
 	Vector3::Subtract(dynamic_projector->Get_Bounding_Volume().Center,view_pos,&r);
 	float dist = Vector3::Dot_Product(r,view_dir);
-	if (dist > ShadowAttenEnd) {
+
+	float atten_start;
+	float atten_end;
+	WorldShadowManager::Get_Attenuation(&atten_start,&atten_end);
+
+	if (dist > atten_end) {
 		return 0.0f;
 	}
-	if (dist < ShadowAttenStart) {
+	if (dist < atten_start) {
 		return 1.0f;
 	}
-	return 1.0f - (dist - ShadowAttenStart) / (ShadowAttenEnd - ShadowAttenStart);
+	if (atten_end <= atten_start) {
+		return 1.0f;
+	}
+	return 1.0f - (dist - atten_start) / (atten_end - atten_start);
 }
 
 
@@ -721,10 +390,15 @@ void PhysicsSceneClass::Apply_Projectors
 	}
 
 	/*
-	** Build a list of the dynamic shadow textures that need to be rendered
+	**	The dynamic half.  Every visible dynamic projector goes into one list whether or not
+	**	its texture needs regenerating, because a projector whose picture is still good is
+	**	still holding the render target that picture lives in, and it must not lose it to a
+	**	projector that happens to be dirty this frame.  Roadmap Section 24.
 	*/
 	TexProjListClass rt_projector_list;
 	unsigned int count = 0;
+
+	WorldShadowManager::Begin_Frame();
 
 	if (DynamicProjectorsEnabled) {
 
@@ -737,9 +411,12 @@ void PhysicsSceneClass::Apply_Projectors
 		TexProjectClass * dynamic_projector = DynamicProjectorCullingSystem->Get_First_Collected_Object();
 		while (dynamic_projector != nullptr) {
 
+			TexProjectClass * next = DynamicProjectorCullingSystem->Get_Next_Collected_Object(dynamic_projector);
+
 			/*
 			** only keep considering this projector if its intensity is above ZERO
 			*/
+			bool keep = false;
 			if (!dynamic_projector->Is_Intensity_Zero()) {
 
 				/*
@@ -761,18 +438,31 @@ void PhysicsSceneClass::Apply_Projectors
 					}
 
 					/*
-					** If this projector needs to recompute its texture, add it to the list,
-					** otherwise set it up now.
+					**	A projector that wants a render target -- either because its picture is
+					**	stale or because it is already holding the target its picture is in --
+					**	competes for one.  A blob shadow wants neither and is applied straight
+					**	away, since its texture is an ordinary asset.
 					*/
-					if (dynamic_projector->Needs_Render_Target()) {
+					if (	dynamic_projector->Needs_Render_Target() ||
+							WorldShadowManager::Holds_Render_Target(dynamic_projector)) {
 						rt_projector_list.Add(dynamic_projector);
 						count++;
+						keep = true;
 					} else {
 						Apply_Projector_To_Objects(dynamic_projector,camera);
 					}
 				}
 			}
-			dynamic_projector = DynamicProjectorCullingSystem->Get_Next_Collected_Object(dynamic_projector);
+
+			/*
+			**	Not drawn this frame, so it gives back any render target it was holding rather
+			**	than pinning one that a visible shadow could be using.
+			*/
+			if (!keep) {
+				WorldShadowManager::Release_Render_Target(dynamic_projector);
+			}
+
+			dynamic_projector = next;
 		}
 	}
 
@@ -783,7 +473,7 @@ void PhysicsSceneClass::Apply_Projectors
 	camera.Get_Transform().Get_Translation(&cam_pos);
 
 	TexProjListIterator it(&rt_projector_list);
-	while (count > _DynamicShadowTexMgr.Get_Max_Simultaneous_Shadows()) {
+	while (count > WorldShadowManager::Get_Max_Simultaneous_Shadows()) {
 
 		/*
 		** Find the projector farthest from the camera
@@ -806,23 +496,26 @@ void PhysicsSceneClass::Apply_Projectors
 		** Remove it from the list and disable it.
 		*/
 		rt_projector_list.Remove(farthest_shadow);
+		WorldShadowManager::Release_Render_Target(farthest_shadow);
 		farthest_shadow->Set_Render_Target(nullptr);
 		count--;
 	}
 
 	/*
-	** Process the most "important" active dynamic shadows
+	**	Draw the shadows that made the cut.  Acquiring keeps whatever target this projector
+	**	already had, so a shadow whose picture did not change is not re-rendered -- that is
+	**	the "cached" half of Section 24, and mark_status has a shadow-shaped twin in
+	**	shadow_status that prints the renders against the hits.
 	*/
-	_DynamicShadowTexMgr.Per_Frame_Reset();
 	it.First();
 
 	while (!it.Is_Done()) {
 
 		TexProjectClass * projector = it.Peek_Obj();
-		_DynamicShadowTexMgr.Assign_Render_Target_Texture(projector);
 
-		if (projector->Peek_Render_Target() != nullptr) {
+		if (WorldShadowManager::Acquire_Render_Target(projector)) {
 			Apply_Projector_To_Objects(projector,camera);
+			WorldShadowManager::Note_Texture_Rendered(projector);
 		}
 
 		it.Next();
@@ -1095,7 +788,7 @@ void PhysicsSceneClass::Invalidate_Static_Shadow_Projectors()
 	/*
 	** Release all of the textures we were using for static shadows
 	*/
-	_StaticShadowTexMgr.Reset();
+	WorldShadowManager::Reset_Static_Shadow_Textures();
 }
 
 void PhysicsSceneClass::Generate_Static_Shadow_Projectors(void)
@@ -1126,13 +819,13 @@ void PhysicsSceneClass::Generate_Static_Shadow_Projectors(void)
 	/*
 	** Release all of the textures we were using for static shadows
 	*/
-	_StaticShadowTexMgr.Reset();
+	WorldShadowManager::Reset_Static_Shadow_Textures();
 
 	/*
 	** Allocate a render target texture for all of the static shadows to share
 	*/
-	TextureClass * render_target = Create_Projector_Render_Target(STATIC_PROJECTOR_RESOLUTION,STATIC_PROJECTOR_RESOLUTION);
-//	TextureClass * render_target = DX8Wrapper::Create_Render_Target(STATIC_PROJECTOR_RESOLUTION,STATIC_PROJECTOR_RESOLUTION);
+	unsigned int static_res = WorldShadowManager::Get_Static_Resolution();
+	TextureClass * render_target = WorldShadowManager::Create_Render_Target(static_res,static_res);
 
 	// Test render target functionality. Some NVidia driver versions have issues with rendering to a texture and
 	// copying surface to another texture. If this fails, we'll not use static shadow projectors. Dynamic shadow
@@ -1230,7 +923,7 @@ void PhysicsSceneClass::Setup_Static_Directional_Shadow
 	*/
 	PhysTexProjectClass * shadow_projector = NEW_REF(PhysTexProjectClass,());
 
-	shadow_projector->Set_Texture_Size(STATIC_PROJECTOR_RESOLUTION);
+	shadow_projector->Set_Texture_Size((int)WorldShadowManager::Get_Static_Resolution());
 	shadow_projector->Set_Intensity(def->Shadow_Intensity(),true);
 
 	if (def->Shadow_Is_Additive()) {
@@ -1252,7 +945,7 @@ void PhysicsSceneClass::Setup_Static_Directional_Shadow
 	/*
 	** See if we already have a suitable texture.
 	*/
-	TextureClass * existing_texture = _StaticShadowTexMgr.Peek_Shadow_Texture(type_id,obj_orientation);
+	TextureClass * existing_texture = WorldShadowManager::Peek_Static_Shadow_Texture(type_id,obj_orientation);
 	if (existing_texture != nullptr) {
 		shadow_projector->Set_Texture(existing_texture);
 	}
@@ -1282,7 +975,7 @@ void PhysicsSceneClass::Setup_Static_Directional_Shadow
 		REF_PTR_RELEASE(new_surf);
 		REF_PTR_RELEASE(new_texture);
 
-		_StaticShadowTexMgr.Add_Shadow_Texture(type_id,obj_orientation,shadow_projector->Peek_Texture());
+		WorldShadowManager::Add_Static_Shadow_Texture(type_id,obj_orientation,shadow_projector->Peek_Texture());
 	}
 
 	/*
@@ -1294,4 +987,34 @@ void PhysicsSceneClass::Setup_Static_Directional_Shadow
 	** Release resources
 	*/
 	REF_PTR_RELEASE(shadow_projector);
+}
+
+
+/*
+**	The TT-facing form: one object, one light direction, and the render target found here
+**	rather than passed in.  It exists so a caller that has a single object to re-shadow does
+**	not have to know how static shadow render targets are made -- WorldShadowManager knows,
+**	and that is the only place that does.  Roadmap Section 24.
+*/
+void PhysicsSceneClass::Generate_Static_Directional_Shadow
+(
+	StaticAnimPhysClass &	obj,
+	const Vector3 &			light_dir
+)
+{
+	if (DX8Wrapper::Is_Device_Lost() || !DX8Wrapper::Is_Initted()) {
+		return;
+	}
+
+	unsigned int res = WorldShadowManager::Get_Static_Resolution();
+	TextureClass * render_target = WorldShadowManager::Create_Render_Target(res,res);
+	if (render_target == nullptr) {
+		return;
+	}
+
+	SET_REF_OWNER(render_target);
+	Setup_Static_Directional_Shadow(obj,light_dir,render_target);
+
+	DX8Wrapper::Set_Render_Target((IDirect3DSurface9 *)nullptr);
+	REF_PTR_RELEASE(render_target);
 }

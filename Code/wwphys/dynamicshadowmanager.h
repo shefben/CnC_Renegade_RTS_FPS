@@ -96,9 +96,10 @@ public:
 protected:
 
 	/*
-	** Internal shadow support.
+	** Internal shadow support.  Allocation moved to WorldShadowManager along with the rest of
+	** the shadow policy -- roadmap Section 24.  A projector is created the first time the
+	** manager decides this object should have one, and released here when it goes away.
 	*/
-	void								Allocate_Shadow(void);
 	void								Release_Shadow(void);
 
 	PhysClass &						Parent;

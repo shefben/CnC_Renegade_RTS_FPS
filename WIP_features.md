@@ -288,3 +288,14 @@ OIL_OR_STAIN mark. Next exact action is a manual one for the user: run
 from that level>`, `mark_test 500` and `mark_status` at the console, and report whether the scorches
 appear on the ground, whether they follow slopes, and what `mark_status` prints for marks against
 objects.
+
+## P20 -- the shadows are cached and nobody has watched one
+
+`WorldShadowManager` is in and checked (P20-A in `completed_features.md`,
+`docs/zerohour/WorldShadowManager.md`, twenty-six green terrain ctest entries). The caching is proved
+structurally and by the device-less checks, but no shadow has been seen: the checks cannot allocate a
+render target, nothing registers a world-system caster yet, and local lights still do not cast. Next
+exact action is a manual one for the user: run `renegade --gamedir "C:\Westwood\Renegade_full"`,
+load a level, then `shadow_mode 3` and `shadow_status` at the console while standing still, and
+`shadow_status` again while running and turning, and report whether shadows still look right and
+whether the render count drops to the cache-hit count when nothing is moving.

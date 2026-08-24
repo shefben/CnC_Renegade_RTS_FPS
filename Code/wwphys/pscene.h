@@ -861,6 +861,16 @@ public:
 
 	void							Set_Shadow_Resolution(unsigned int res);
 	unsigned int				Get_Shadow_Resolution(void);
+
+	/*
+	** TT names the two shadow resolutions separately.  Set_Shadow_Resolution above is the
+	** dynamic one under its older name; all four land on WorldShadowManager.
+	*/
+	void							Set_Static_Shadow_Resolution(unsigned int res);
+	unsigned int				Get_Static_Shadow_Resolution(void);
+	void							Set_Dynamic_Shadow_Resolution(unsigned int res);
+	unsigned int				Get_Dynamic_Shadow_Resolution(void);
+
 	void							Set_Max_Simultaneous_Shadows(unsigned int count);
 	unsigned int				Get_Max_Simultaneous_Shadows(void);
 
@@ -874,6 +884,7 @@ public:
 	void							Invalidate_Static_Shadow_Projectors(void);
 	void							Generate_Static_Shadow_Projectors(void);
 	void							Setup_Static_Directional_Shadow(StaticAnimPhysClass & obj,const Vector3 & light_dir,TextureClass * render_target);
+	void							Generate_Static_Directional_Shadow(StaticAnimPhysClass & obj,const Vector3 & light_dir);
 
 	/*
 	** Decal system
@@ -1145,17 +1156,15 @@ protected:
 	*/
 	bool							StaticProjectorsEnabled;	// toggle static shadows (shadows cast by static objs onto dynamic objs)
 	bool							DynamicProjectorsEnabled;	// toggle dynamic shadows (shadows cast by dynamic objs onto everything)
-	ShadowEnum					ShadowMode;						// current shadow mode
-	float							ShadowAttenStart;				// distance to start of shadow attenuation
-	float							ShadowAttenEnd;				// distance to end of shadow attenuation
-	float							ShadowNormalIntensity;		// "normal" non attenuated shadow intensity
-	TextureClass *				ShadowBlobTexture;			// texture to use for fake "blob" shadows
 
+	/*
+	** The mode, the attenuation, the intensity, both resolutions, the render-target pool and
+	** the shared static shadow textures all belong to WorldShadowManager -- roadmap Section
+	** 24.  The scene keeps only the render context it renders shadows through.
+	*/
 	SpecialRenderInfoClass *ShadowRenderContext;			// render context for shadows
 	CameraClass *				ShadowCamera;					// camera for rendering shadow textures
 	MaterialPassClass *		ShadowMaterialPass;			// material pass for shadows
-	int							ShadowResWidth;
-	int							ShadowResHeight;
 
 	/*
 	** Decal System

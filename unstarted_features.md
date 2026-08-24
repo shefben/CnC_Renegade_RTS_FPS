@@ -89,7 +89,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P20: Projected / cached shadows (roadmap Section 24)
 
-- [ ] Acceptance: There is one shadow implementation serving both TT-facing APIs and new world systems.
 
 ## P21: Dynamic-light filtering (roadmap Section 25)
 

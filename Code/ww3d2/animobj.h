@@ -94,6 +94,7 @@ public:
 	virtual void					Set_Animation( HAnimComboClass * anim_combo) override;
 
 	virtual HAnimClass *			Peek_Animation( void ) override;
+	virtual float					Get_Animation_Frame(void) const override	{ return Compute_Current_Frame(); }
 	virtual bool					Is_Animation_Complete( void ) const;
 	virtual int						Get_Num_Bones(void) override;
 	virtual const char *			Get_Bone_Name(int bone_index) override;

@@ -52,6 +52,7 @@
 #include "watertype.h"
 #include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
+#include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
 #include "ribbontype.h"
 #include "bridgesystem.h"
@@ -1577,6 +1578,102 @@ public:
 
 		WorldSurfaceMarkManager::Clear_Marks();
 		Print( "Surface marks cleared.\n" );
+	}
+};
+
+
+class ShadowStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "shadow_status"; }
+	virtual	const char * Get_Help( void ) override	{ return "SHADOW_STATUS - how many shadows are cached and how many are being re-rendered."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		static const char * mode_names[] = { "off", "blobs", "blobs+", "hardware" };
+
+		int mode = WorldShadowManager::Get_Mode();
+		const char * mode_name = ((mode >= 0) && (mode < 4)) ? mode_names[ mode ] : "?";
+
+		Print( "shadow_status: mode %s, static %u, dynamic %u, %u simultaneous.\n",
+				 mode_name,
+				 WorldShadowManager::Get_Static_Resolution(),
+				 WorldShadowManager::Get_Dynamic_Resolution(),
+				 WorldShadowManager::Get_Max_Simultaneous_Shadows() );
+
+		//	This is the section stated in two numbers: hits should dominate renders whenever
+		//	the things casting shadows are holding still.
+		Print( "shadow_status: %d render(s) and %d cache hit(s) last frame.\n",
+				 WorldShadowManager::Get_Texture_Render_Count(),
+				 WorldShadowManager::Get_Cache_Hit_Count() );
+
+		Print( "shadow_status: %d of %d slot(s) held, %d render target(s) made, %d eviction(s).\n",
+				 WorldShadowManager::Get_Held_Slot_Count(),
+				 (int)WorldShadowManager::Get_Max_Simultaneous_Shadows(),
+				 WorldShadowManager::Get_Render_Target_Count(),
+				 WorldShadowManager::Get_Eviction_Count() );
+
+		Print( "shadow_status: %d static shadow texture(s) shared, %d registered caster(s), %d refusal(s).\n",
+				 WorldShadowManager::Get_Static_Shadow_Texture_Count(),
+				 WorldShadowManager::Get_Registered_Caster_Count(),
+				 WorldShadowManager::Get_Caster_Refusal_Count() );
+
+		int missing = WorldShadowManager::Get_Missing_Target_Count();
+		if ( missing > 0 ) {
+			Print( "shadow_status: %d shadow(s) went without a render target -- the device refused one.\n",
+					 missing );
+		}
+	}
+};
+
+
+class ShadowModeConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "shadow_mode"; }
+	virtual	const char * Get_Help( void ) override	{ return "SHADOW_MODE <0-3> - 0 off, 1 blobs, 2 blobs plus a real one for the player, 3 rendered."; }
+	virtual	void Activate( const char * input ) override {
+
+		int mode = -1;
+		if ( input != nullptr ) {
+			::sscanf( input, "%d", &mode );
+		}
+
+		if ( ( mode < 0 ) || ( mode >= WorldShadowManager::SHADOW_MODE_COUNT ) ) {
+			Print( "shadow_mode: the mode is %d.  0 off, 1 blobs, 2 blobs+, 3 rendered.\n",
+					 WorldShadowManager::Get_Mode() );
+			return ;
+		}
+
+		//	Through the scene, because that is the name every script in the tree spells and
+		//	this is a good place to notice if the two ever stop agreeing.
+		if ( COMBAT_SCENE != nullptr ) {
+			COMBAT_SCENE->Set_Shadow_Mode( (PhysicsSceneClass::ShadowEnum)mode );
+		} else {
+			WorldShadowManager::Set_Mode( mode );
+		}
+
+		Print( "shadow_mode: mode %d, %u simultaneous rendered shadow(s).\n",
+				 WorldShadowManager::Get_Mode(),
+				 WorldShadowManager::Get_Max_Simultaneous_Shadows() );
+	}
+};
+
+
+class ShadowInvalidateConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "shadow_invalidate"; }
+	virtual	const char * Get_Help( void ) override	{ return "SHADOW_INVALIDATE - throws away every cached shadow picture so they are all taken again."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		WorldShadowManager::Invalidate_All();
+
+		if ( COMBAT_SCENE != nullptr ) {
+			COMBAT_SCENE->Invalidate_Static_Shadow_Projectors();
+			COMBAT_SCENE->Generate_Static_Shadow_Projectors();
+		}
+
+		Print( "Every cached shadow will be rendered again.\n" );
 	}
 };
 
@@ -6015,6 +6112,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new MarkTestConsoleFunctionClass() );
 	FunctionList.Add( new MarkStatusConsoleFunctionClass() );
 	FunctionList.Add( new MarkClearConsoleFunctionClass() );
+	FunctionList.Add( new ShadowStatusConsoleFunctionClass() );
+	FunctionList.Add( new ShadowModeConsoleFunctionClass() );
+	FunctionList.Add( new ShadowInvalidateConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );
 	FunctionList.Add( new ExposePrelitConsoleFunctionClass() );

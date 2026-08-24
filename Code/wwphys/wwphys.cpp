@@ -41,6 +41,7 @@
 #include "physresourcemgr.h"
 #include "surfaceribbonsystem.h"
 #include "worldsurfacemarkmanager.h"
+#include "worldshadowmanager.h"
 
 
 void WWPhys::Init(void)
@@ -58,10 +59,15 @@ void WWPhys::Init(void)
 	//	that knows how many marks the world is holding -- roadmap Section 35.
 	WorldSurfaceMarkManager::Init();
 	WorldSurfaceMarkManager::Define_Default_Marks();
+
+	//	One shadow implementation, holding the settings, the render targets and the shared
+	//	static shadow textures -- roadmap Section 24.
+	WorldShadowManager::Init();
 }
 
 void WWPhys::Shutdown(void)
 {
+	WorldShadowManager::Shutdown();
 	WorldSurfaceMarkManager::Shutdown();
 	SurfaceRibbonSystem::Shutdown();
 	PhysResourceMgrClass::Shutdown();

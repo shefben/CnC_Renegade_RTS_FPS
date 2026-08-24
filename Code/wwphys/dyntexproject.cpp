@@ -58,7 +58,14 @@ void DynTexProjectClass::Pre_Render_Update(const Matrix3D & camera)
 	TexProjectClass::Pre_Render_Update(camera);
 
 	if (Get_Flag(TEXTURE_DIRTY)) {
-		Compute_Texture(ProjectionObject);
+		/*
+		**	Clear the flag only when the picture was actually taken.  The shadow manager reads
+		**	it back to decide whether the render target now holds what it thinks it holds, and
+		**	a failed render must not be recorded as a fresh one.
+		*/
+		if (Compute_Texture(ProjectionObject)) {
+			Set_Flag(TEXTURE_DIRTY,false);
+		}
 	}
 }
 

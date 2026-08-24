@@ -25,6 +25,9 @@
 #include "watersystem.h"
 #include "watertype.h"
 #include "w3d_file.h"
+#include "decophys.h"
+#include "pscene.h"
+#include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldterrainsystem.h"
 #include "wwmath.h"
@@ -2547,6 +2550,185 @@ void	Check_Marks (void)
 	Check (WorldSurfaceMarkManager::Get_Definition_Count () == 0, "the kinds outlived the service");
 }
 
+
+/*
+**	Shadows -- roadmap Section 24.
+**
+**	The acceptance is a structural one: there is supposed to be one shadow implementation, and
+**	the way that claim dies quietly is for the physics scene and the shadow manager to drift
+**	apart until a setting made through one is invisible to the other.  So this checks the
+**	shared vocabulary first, then the bounds, then the one behaviour that has to be right on a
+**	machine with no graphics device at all: asking for a render target has to fail and say so
+**	rather than assert, because that is a dedicated server every time it runs.
+*/
+void	Check_Shadows (void)
+{
+	//
+	//	The scene and the manager have to be talking about the same four modes.  Nothing else
+	//	in this file matters if these two ever disagree.
+	//
+	Check ((int)PhysicsSceneClass::SHADOW_MODE_NONE == (int)WorldShadowManager::SHADOW_MODE_NONE,
+			 "the scene and the manager disagree about SHADOW_MODE_NONE");
+	Check ((int)PhysicsSceneClass::SHADOW_MODE_BLOBS == (int)WorldShadowManager::SHADOW_MODE_BLOBS,
+			 "the scene and the manager disagree about SHADOW_MODE_BLOBS");
+	Check ((int)PhysicsSceneClass::SHADOW_MODE_BLOBS_PLUS == (int)WorldShadowManager::SHADOW_MODE_BLOBS_PLUS,
+			 "the scene and the manager disagree about SHADOW_MODE_BLOBS_PLUS");
+	Check ((int)PhysicsSceneClass::SHADOW_MODE_HARDWARE == (int)WorldShadowManager::SHADOW_MODE_HARDWARE,
+			 "the scene and the manager disagree about SHADOW_MODE_HARDWARE");
+	Check ((int)PhysicsSceneClass::SHADOW_MODE_COUNT == (int)WorldShadowManager::SHADOW_MODE_COUNT,
+			 "there are %d shadow modes on the scene and %d on the manager",
+			 (int)PhysicsSceneClass::SHADOW_MODE_COUNT, (int)WorldShadowManager::SHADOW_MODE_COUNT);
+
+	WorldShadowManager::Init ();
+
+	//
+	//	What a fresh manager holds.
+	//
+	Check (WorldShadowManager::Get_Mode () == WorldShadowManager::SHADOW_MODE_NONE,
+			 "a fresh shadow manager is already in mode %d", WorldShadowManager::Get_Mode ());
+	Check (WorldShadowManager::Get_Held_Slot_Count () == 0, "a fresh manager already holds slots");
+	Check (WorldShadowManager::Get_Render_Target_Count () == 0,
+			 "a fresh manager already made %d render target(s)",
+			 WorldShadowManager::Get_Render_Target_Count ());
+	Check (WorldShadowManager::Get_Registered_Caster_Count () == 0, "a fresh manager already has casters");
+	Check (WorldShadowManager::Get_Static_Shadow_Texture_Count () == 0,
+			 "a fresh manager already cached static shadow textures");
+
+	float atten_start = -1.0f;
+	float atten_end = -1.0f;
+	WorldShadowManager::Get_Attenuation (&atten_start, &atten_end);
+	Check (atten_start > 0.0f, "the shadows start attenuating at %f", atten_start);
+	Check (atten_end > atten_start, "shadows finish attenuating at %f before they start at %f",
+			 atten_end, atten_start);
+
+	//
+	//	The mode decides how many rendered shadows may exist, and every mode change makes every
+	//	cached picture wrong, so it moves the generation on.
+	//
+	uint32 generation = WorldShadowManager::Get_Generation ();
+
+	WorldShadowManager::Set_Mode (WorldShadowManager::SHADOW_MODE_HARDWARE);
+	Check (WorldShadowManager::Get_Mode () == WorldShadowManager::SHADOW_MODE_HARDWARE,
+			 "the hardware shadow mode did not take");
+	Check (WorldShadowManager::Get_Max_Simultaneous_Shadows () > 0,
+			 "hardware shadows allow %d at once", WorldShadowManager::Get_Max_Simultaneous_Shadows ());
+	Check (WorldShadowManager::Get_Generation () != generation,
+			 "changing the shadow mode left every cached shadow believed to be current");
+
+	WorldShadowManager::Set_Mode (WorldShadowManager::SHADOW_MODE_BLOBS);
+	Check (WorldShadowManager::Get_Max_Simultaneous_Shadows () == 0,
+			 "blob shadows still keep %d render target(s) around",
+			 WorldShadowManager::Get_Max_Simultaneous_Shadows ());
+
+	WorldShadowManager::Set_Mode (WorldShadowManager::SHADOW_MODE_BLOBS_PLUS);
+	Check (WorldShadowManager::Get_Max_Simultaneous_Shadows () == 1,
+			 "blobs-plus keeps %d rendered shadow(s), not one",
+			 WorldShadowManager::Get_Max_Simultaneous_Shadows ());
+
+	//
+	//	A mode outside the enum is refused rather than stored.
+	//
+	WorldShadowManager::Set_Mode (99);
+	Check (WorldShadowManager::Get_Mode () == WorldShadowManager::SHADOW_MODE_BLOBS_PLUS,
+			 "a shadow mode of 99 was accepted");
+
+	//
+	//	Both resolutions are powers of two inside a fixed range, and they are independent --
+	//	that separation is the whole reason TT names them separately.
+	//
+	WorldShadowManager::Set_Dynamic_Resolution (100);
+	unsigned int dyn = WorldShadowManager::Get_Dynamic_Resolution ();
+	Check ((dyn & (dyn - 1)) == 0, "a dynamic shadow resolution of %u is not a power of two", dyn);
+
+	WorldShadowManager::Set_Dynamic_Resolution (4096);
+	Check (WorldShadowManager::Get_Dynamic_Resolution () <= 256,
+			 "the dynamic shadow resolution reached %u", WorldShadowManager::Get_Dynamic_Resolution ());
+
+	WorldShadowManager::Set_Dynamic_Resolution (1);
+	Check (WorldShadowManager::Get_Dynamic_Resolution () >= 16,
+			 "the dynamic shadow resolution fell to %u", WorldShadowManager::Get_Dynamic_Resolution ());
+
+	WorldShadowManager::Set_Static_Resolution (64);
+	WorldShadowManager::Set_Dynamic_Resolution (256);
+	Check (WorldShadowManager::Get_Static_Resolution () == 64,
+			 "setting the dynamic resolution moved the static one to %u",
+			 WorldShadowManager::Get_Static_Resolution ());
+
+	WorldShadowManager::Set_Static_Resolution (4096);
+	Check (WorldShadowManager::Get_Static_Resolution () <= 256,
+			 "the static shadow resolution reached %u", WorldShadowManager::Get_Static_Resolution ());
+
+	//
+	//	The bound on how many shadows may be rendered at once.
+	//
+	WorldShadowManager::Set_Max_Simultaneous_Shadows (100000);
+	unsigned int slots = WorldShadowManager::Get_Max_Simultaneous_Shadows ();
+	Check (slots <= 32, "a hundred thousand shadows became %u slots", slots);
+	Check (WorldShadowManager::Get_Held_Slot_Count () == 0,
+			 "%d slot(s) are held by nobody in particular", WorldShadowManager::Get_Held_Slot_Count ());
+
+	//
+	//	With no graphics device there is no render target to be had.  It has to be counted and
+	//	refused, not asserted: this is exactly the state a dedicated server runs in.
+	//
+	Check (WorldShadowManager::Create_Render_Target (64, 64) == nullptr,
+			 "a render target was created with no device");
+
+	//
+	//	Casters that are not MovePhysClass or DynamicAnimPhysClass.  Before this there was no
+	//	way at all for a world system to cast a shadow; now there is one, and it is bounded.
+	//
+	const int before_refusals = WorldShadowManager::Get_Caster_Refusal_Count ();
+
+	DynamicVectorClass<DecorationPhysClass *> casters;
+	for (int i = 0; i < (WORLD_SHADOW_MAX_REGISTERED_CASTERS + 8); i ++) {
+		DecorationPhysClass *obj = new DecorationPhysClass;
+		casters.Add (obj);
+		WorldShadowManager::Register_Caster (obj);
+	}
+
+	Check (WorldShadowManager::Get_Registered_Caster_Count () <= WORLD_SHADOW_MAX_REGISTERED_CASTERS,
+			 "the caster table grew to %d", WorldShadowManager::Get_Registered_Caster_Count ());
+	Check (WorldShadowManager::Get_Caster_Refusal_Count () > before_refusals,
+			 "the caster table overflowed without saying so");
+
+	//
+	//	Registering the same object twice does not cost a second entry.
+	//
+	int held = WorldShadowManager::Get_Registered_Caster_Count ();
+	Check (WorldShadowManager::Register_Caster (casters[0]), "a registered caster could not re-register");
+	Check (WorldShadowManager::Get_Registered_Caster_Count () == held,
+			 "registering the same caster twice made %d entries out of %d",
+			 WorldShadowManager::Get_Registered_Caster_Count (), held);
+	Check (WorldShadowManager::Is_Registered_Caster (casters[0]), "a registered caster is not registered");
+
+	Check (WorldShadowManager::Unregister_Caster (casters[0]), "a registered caster could not be dropped");
+	Check (!WorldShadowManager::Is_Registered_Caster (casters[0]), "a dropped caster is still registered");
+	Check (!WorldShadowManager::Unregister_Caster (casters[0]), "a caster was dropped twice");
+
+	//
+	//	Running the clock over registered casters with no scene under them does nothing and
+	//	costs nothing -- no shadow can be created without somewhere to put it.
+	//
+	WorldShadowManager::Timestep (0.033f);
+	Check (WorldShadowManager::Get_Held_Slot_Count () == 0,
+			 "%d shadow slot(s) were taken with no scene", WorldShadowManager::Get_Held_Slot_Count ());
+
+	//
+	//	The service going away takes everything with it, casters included.
+	//
+	WorldShadowManager::Shutdown ();
+	Check (WorldShadowManager::Get_Registered_Caster_Count () == 0, "casters outlived the service");
+	Check (WorldShadowManager::Get_Max_Simultaneous_Shadows () == 0, "the slot table outlived the service");
+	Check (WorldShadowManager::Get_Static_Shadow_Texture_Count () == 0,
+			 "cached static shadow textures outlived the service");
+
+	for (int i = 0; i < casters.Count (); i ++) {
+		casters[i]->Release_Ref ();
+	}
+	casters.Delete_All ();
+}
+
 }	// anonymous namespace
 
 
@@ -2589,6 +2771,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "marks") == 0)) {
 		Check_Marks ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "shadows") == 0)) {
+		Check_Shadows ();
 	}
 
 	if (_Failures == 0) {

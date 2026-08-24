@@ -1493,3 +1493,19 @@ which stays the only thing that can follow arbitrary W3D geometry. Both are entr
 budget 96), so nothing grows: stock Renegade's fifty-decal ring is now a backend the manager sizes.
 Evidence: `docs/zerohour/WorldSurfaceMarkManager.md`, `docs/assets/SurfaceMarks.md`; twenty-four
 green terrain ctest entries including the new `terrain_marks` and `fds_terrain_marks`.
+
+## P20-A: One shadow implementation, and the pictures are cached
+
+`WorldShadowManager` (`Code/WWPhys/worldshadowmanager.*`) now owns every part of the shadow system
+that was previously split four ways -- the settings on `PhysicsSceneClass`, the two texture managers
+that were file statics in `pscene_projectors.cpp`, the per-object policy inside
+`DynamicShadowManagerClass`, and the hard-coded `STATIC_PROJECTOR_RESOLUTION` -- with the TT-facing
+scene names kept as forwarders and TT's four missing resolution names plus
+`Generate_Static_Directional_Shadow` added on the same owner. Render targets are now held by the
+projector using them instead of handed out from a per-frame ring, so a shadow texture is regenerated
+only when the light, orientation, model or pose changed; terrain reception is traced end to end and
+`Register_Caster` gives world systems that are not `MovePhysClass` a way in. Absorbs the acceptance
+*There is one shadow implementation serving both TT-facing APIs and new world systems*. Evidence:
+`docs/zerohour/WorldShadowManager.md`; twenty-six green terrain ctest entries including the new
+`terrain_shadows` and `fds_terrain_shadows`, which assert the scene and the manager still agree about
+every shadow mode.

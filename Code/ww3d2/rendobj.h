@@ -279,6 +279,11 @@ public:
 	virtual void					Set_Animation( HAnimComboClass * /*anim_combo*/)							{ }
 
 	virtual HAnimClass *			Peek_Animation( void )														{ return nullptr; }
+
+	// Where in its animation this object currently is.  Cached shadows need to know when a
+	// pose changed, and an object that cannot animate never moves off zero.
+	virtual float					Get_Animation_Frame(void) const												{ return 0.0f; }
+
 	virtual int						Get_Num_Bones(void)															{ return 0; }
 	virtual const char *			Get_Bone_Name(int /*bone_index*/)												{ return nullptr; }
 	virtual int						Get_Bone_Index(const char * /*bonename*/)									{ return 0; }
