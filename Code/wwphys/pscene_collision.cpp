@@ -38,6 +38,7 @@
 
 
 #include "pscene.h"
+#include "worldlightmanager.h"
 #include "physcoltest.h"
 #include "physinttest.h"
 #include "staticaabtreecull.h"
@@ -639,8 +640,9 @@ void PhysicsSceneClass::Add_Collected_Lights_To_List
 		}
 	}
 
-	// link the dynamic lights
-	// TODO!!
+	// The dynamic lights are not in one of this scene's culling systems, so they are not
+	// waiting in a collection to be linked; each Collect_Lights asks the light manager
+	// directly with the volume it was given.  Roadmap Section 25.
 }
 
 void PhysicsSceneClass::Collect_Lights
@@ -658,9 +660,11 @@ void PhysicsSceneClass::Collect_Lights
 		StaticLightingSystem->Collect_Objects(point);
 	}
 
-	// TODO: Dynamic lights!!
-
 	Add_Collected_Lights_To_List(static_lights,dynamic_lights,list);
+
+	if (dynamic_lights) {
+		WorldLightManager::Collect_Dynamic_Lights(point,list);
+	}
 }
 
 
@@ -679,8 +683,10 @@ void PhysicsSceneClass::Collect_Lights
 		StaticLightingSystem->Collect_Objects(bounds);
 	}
 
-	// TODO: Dynamic lights!!
-
 	Add_Collected_Lights_To_List(static_lights,dynamic_lights,list);
+
+	if (dynamic_lights) {
+		WorldLightManager::Collect_Dynamic_Lights(bounds,list);
+	}
 }
 

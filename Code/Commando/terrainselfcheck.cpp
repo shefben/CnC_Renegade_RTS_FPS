@@ -26,7 +26,12 @@
 #include "watertype.h"
 #include "w3d_file.h"
 #include "decophys.h"
+#include "light.h"
+#include "lightenvironment.h"
+#include "lightphys.h"
+#include "physlist.h"
 #include "pscene.h"
+#include "worldlightmanager.h"
 #include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldterrainsystem.h"
@@ -2729,6 +2734,353 @@ void	Check_Shadows (void)
 	casters.Delete_All ();
 }
 
+
+/*
+**	Dynamic lights -- roadmap Section 25.
+**
+**	The acceptance is a claim about how cost scales: lighting has to cost what is nearby and
+**	not what exists.  A claim like that is only worth anything as a number, so the middle of
+**	this check plants a field of lights, asks one question in the middle of it, and counts how
+**	many lights had to be looked at to answer.  Growing the field from eight lights to the full
+**	table must not grow that count.
+**
+**	Everything else here is the bounds and the lifecycle, and all of it runs with no graphics
+**	device and no physics scene -- which is also a dedicated server, where lights are still
+**	created, still expire, and still cost nothing to nobody.
+*/
+void	Check_Lights (void)
+{
+	WorldLightManager::Init ();
+
+	//
+	//	What a fresh manager holds.
+	//
+	Check (WorldLightManager::Get_Dynamic_Light_Count () == 0,
+			 "a fresh light manager already has %d light(s)", WorldLightManager::Get_Dynamic_Light_Count ());
+	Check (WorldLightManager::Has_Dynamic_Lights () == false, "a fresh light manager has lights");
+	Check (WorldLightManager::Is_Partitioned () == false, "a fresh light manager is already partitioned");
+	Check (WorldLightManager::Get_Max_Light_Radius () > 0.0f, "a light may have no radius at all");
+
+	//
+	//	Somewhere for the lights to be.  The manager would ask the physics scene for this, and
+	//	fall back to a default box; the check says where the world is so the numbers below are
+	//	about a known grid rather than a guessed one.
+	//
+	WorldLightManager::Re_Partition (Vector3 (-1000.0f, -1000.0f, -100.0f),
+												Vector3 ( 1000.0f,  1000.0f,  100.0f));
+	Check (WorldLightManager::Is_Partitioned (), "the light grid would not partition");
+
+	//
+	//	One light, and it is findable, movable and removable.
+	//
+	const Vector3 white (1.0f, 1.0f, 1.0f);
+
+	LightPhysClass *light = WorldLightManager::Create_Point_Light (Vector3 (10.0f, 0.0f, 0.0f),
+																						white, 0.0f, 20.0f, 1.0f, -1.0f);
+	Check (light != nullptr, "a point light would not be created");
+
+	if (light != nullptr) {
+
+		Check (WorldLightManager::Get_Dynamic_Light_Count () == 1,
+				 "creating one light made %d", WorldLightManager::Get_Dynamic_Light_Count ());
+		Check (WorldLightManager::Is_Dynamic_Light (light), "a created light is not a dynamic light");
+		Check (WorldLightManager::Has_Dynamic_Lights (), "a manager holding a light says it has none");
+
+		//
+		//	The union bound has to actually contain the light, because it is the gate every
+		//	object is tested against before anything else happens.
+		//
+		AABoxClass bounds;
+		WorldLightManager::Get_Light_Bounds (&bounds);
+		Check (bounds.Extent.X >= 20.0f, "the light bound has X extent %f for a light of radius 20",
+				 bounds.Extent.X);
+		Check (WWMath::Fabs (bounds.Center.X - 10.0f) < 0.01f,
+				 "the light bound is centred at X %f, not on the one light in it", bounds.Center.X);
+
+		//
+		//	Found where it is, not found where it is not.
+		//
+		{
+			NonRefPhysListClass near_list;
+			Check (WorldLightManager::Collect_Dynamic_Lights (Vector3 (10.0f, 0.0f, 0.0f), &near_list) == 1,
+					 "a light was not found at its own position");
+		}
+		{
+			NonRefPhysListClass far_list;
+			Check (WorldLightManager::Collect_Dynamic_Lights (Vector3 (500.0f, 0.0f, 0.0f), &far_list) == 0,
+					 "a light of radius 20 was found 490 metres away");
+		}
+
+		//
+		//	Moving it moves both the grid bucket and the bound.
+		//
+		WorldLightManager::Move_Dynamic_Light (light, Vector3 (-300.0f, 0.0f, 0.0f));
+		{
+			NonRefPhysListClass moved_list;
+			Check (WorldLightManager::Collect_Dynamic_Lights (Vector3 (-300.0f, 0.0f, 0.0f), &moved_list) == 1,
+					 "a moved light was not found where it moved to");
+		}
+		{
+			NonRefPhysListClass old_list;
+			Check (WorldLightManager::Collect_Dynamic_Lights (Vector3 (10.0f, 0.0f, 0.0f), &old_list) == 0,
+					 "a moved light is still where it used to be");
+		}
+
+		Check (WorldLightManager::Remove_Dynamic_Light (light), "a light would not be removed");
+		Check (WorldLightManager::Remove_Dynamic_Light (light) == false, "a light was removed twice");
+		Check (WorldLightManager::Get_Dynamic_Light_Count () == 0,
+				 "removing the only light left %d", WorldLightManager::Get_Dynamic_Light_Count ());
+	}
+
+	//
+	//	A light bigger than the grid holds is clamped rather than refused, because the caller
+	//	asked for a big flash and a big flash is what it should roughly get -- but it is counted,
+	//	because a system quietly not doing what it was asked is worse than a slow one.
+	//
+	{
+		const int before = WorldLightManager::Get_Clamped_Radius_Count ();
+
+		LightPhysClass *huge = WorldLightManager::Create_Point_Light (Vector3 (0.0f, 0.0f, 0.0f),
+																						 white, 0.0f, 10000.0f, 1.0f, -1.0f);
+		Check (huge != nullptr, "a light with an absurd radius was refused instead of clamped");
+		Check (WorldLightManager::Get_Clamped_Radius_Count () > before,
+				 "a ten kilometre light was accepted without saying so");
+
+		if (huge != nullptr) {
+			LightClass *light_obj = (LightClass *)huge->Peek_Model ();
+			Check (light_obj != nullptr, "a created light has no light object");
+			if (light_obj != nullptr) {
+				float atten_start = 0.0f;
+				float atten_end = 0.0f;
+				light_obj->Get_Far_Attenuation_Range (atten_start, atten_end);
+				Check (atten_end <= WorldLightManager::Get_Max_Light_Radius (),
+						 "a clamped light still reaches %f metres", atten_end);
+			}
+			WorldLightManager::Remove_Dynamic_Light (huge);
+		}
+	}
+
+	//
+	//	The lifetime.  A light with one fades and then goes away by itself; a light without one
+	//	stays until somebody removes it.  This is what every muzzle flash is going to use, and
+	//	it is the only thing in the system that removes a light without being asked to.
+	//
+	{
+		LightPhysClass *flash = WorldLightManager::Create_Point_Light (Vector3 (0.0f, 0.0f, 0.0f),
+																						  white, 0.0f, 10.0f, 2.0f, 1.0f);
+		LightPhysClass *lamp = WorldLightManager::Create_Point_Light (Vector3 (50.0f, 0.0f, 0.0f),
+																						 white, 0.0f, 10.0f, 2.0f, -1.0f);
+		Check (flash != nullptr, "a light with a lifetime would not be created");
+		Check (lamp != nullptr, "a light without a lifetime would not be created");
+
+		WorldLightManager::Timestep (0.5f);
+		Check (WorldLightManager::Get_Dynamic_Light_Count () == 2,
+				 "a light with half a second left has already gone");
+
+		if (flash != nullptr) {
+			LightClass *flash_obj = (LightClass *)flash->Peek_Model ();
+			Check ((flash_obj != nullptr) && (flash_obj->Get_Intensity () < 2.0f),
+					 "a half-expired light is still at full intensity");
+		}
+		if (lamp != nullptr) {
+			LightClass *lamp_obj = (LightClass *)lamp->Peek_Model ();
+			Check ((lamp_obj != nullptr) && Near (lamp_obj->Get_Intensity (), 2.0f),
+					 "a light with no lifetime faded anyway");
+		}
+
+		WorldLightManager::Timestep (0.75f);
+		Check (WorldLightManager::Get_Dynamic_Light_Count () == 1,
+				 "after its lifetime %d light(s) are left, not the one with no lifetime",
+				 WorldLightManager::Get_Dynamic_Light_Count ());
+		Check ((lamp != nullptr) && WorldLightManager::Is_Dynamic_Light (lamp),
+				 "the light with no lifetime expired");
+
+		WorldLightManager::Remove_All_Dynamic_Lights ();
+		Check (WorldLightManager::Get_Dynamic_Light_Count () == 0, "lights survived being cleared");
+	}
+
+	//
+	//	The acceptance, as a number.
+	//
+	//	A field of lights spaced far enough apart that no two of them reach the same place.  Ask
+	//	one question in the middle of it, and count the lights that had to be looked at to answer
+	//	it.  Then fill the table to its limit and ask exactly the same question again.  If the
+	//	second count is bigger, lighting cost is scaling with the number of lights in the world,
+	//	which is the thing Section 25 exists to stop.
+	//
+	{
+		const float	SPACING = 200.0f;
+		const float	ORIGIN = -700.0f;
+		const float	RADIUS = 20.0f;
+
+		DynamicVectorClass<LightPhysClass *> field;
+
+		//	Eight lights, in a row.
+		for (int i = 0; i < 8; i ++) {
+			LightPhysClass *made = WorldLightManager::Create_Point_Light (
+											Vector3 (ORIGIN + (float)i * SPACING, ORIGIN, 0.0f),
+											white, 0.0f, RADIUS, 1.0f, -1.0f);
+			Check (made != nullptr, "light %d of the field would not be created", i);
+			if (made != nullptr) {
+				field.Add (made);
+			}
+		}
+
+		const Vector3 probe (ORIGIN, ORIGIN, 0.0f);
+
+		WorldLightManager::Begin_Frame ();
+		int found_few = 0;
+		{
+			NonRefPhysListClass few_list;
+			found_few = WorldLightManager::Collect_Dynamic_Lights (probe, &few_list);
+		}
+		const int examined_few = WorldLightManager::Get_Lights_Examined ();
+		const int queries_few = WorldLightManager::Get_Query_Count ();
+
+		Check (found_few == 1, "%d of eight spaced lights reach the same point", found_few);
+		Check (queries_few == 1, "one collection ran %d queries", queries_few);
+		Check (examined_few <= 4,
+				 "eight spaced lights cost %d examination(s) to light one point", examined_few);
+
+		//	Now fill the table.
+		for (int i = 8; i < WORLD_LIGHT_MAX_DYNAMIC_LIGHTS; i ++) {
+			LightPhysClass *made = WorldLightManager::Create_Point_Light (
+											Vector3 (ORIGIN + (float)(i % 8) * SPACING,
+														ORIGIN + (float)(i / 8) * SPACING,
+														0.0f),
+											white, 0.0f, RADIUS, 1.0f, -1.0f);
+			if (made != nullptr) {
+				field.Add (made);
+			}
+		}
+
+		Check (WorldLightManager::Get_Dynamic_Light_Count () == WORLD_LIGHT_MAX_DYNAMIC_LIGHTS,
+				 "the field holds %d lights, not the %d asked for",
+				 WorldLightManager::Get_Dynamic_Light_Count (), (int)WORLD_LIGHT_MAX_DYNAMIC_LIGHTS);
+
+		WorldLightManager::Begin_Frame ();
+		int found_many = 0;
+		{
+			NonRefPhysListClass many_list;
+			found_many = WorldLightManager::Collect_Dynamic_Lights (probe, &many_list);
+		}
+		const int examined_many = WorldLightManager::Get_Lights_Examined ();
+
+		Check (found_many == 1, "%d of a full table of spaced lights reach the same point", found_many);
+		Check (examined_many <= examined_few,
+				 "answering the same question cost %d lights with a full table and %d with eight",
+				 examined_many, examined_few);
+		Check (examined_many < WORLD_LIGHT_MAX_DYNAMIC_LIGHTS,
+				 "%d of %d lights were examined to light one point",
+				 examined_many, (int)WORLD_LIGHT_MAX_DYNAMIC_LIGHTS);
+
+		//
+		//	The table is a bound, and going past it is refused and counted rather than grown into.
+		//
+		const int before_refusals = WorldLightManager::Get_Refusal_Count ();
+		LightPhysClass *one_too_many = WorldLightManager::Create_Point_Light (
+													Vector3 (0.0f, 0.0f, 0.0f), white, 0.0f, RADIUS, 1.0f, -1.0f);
+		Check (one_too_many == nullptr, "a light past the table's limit was created anyway");
+		Check (WorldLightManager::Get_Refusal_Count () > before_refusals,
+				 "the light table overflowed without saying so");
+
+		//
+		//	A point no light reaches is rejected by the union bound before the grid is touched at
+		//	all.  That free answer is what makes a per-object light query affordable.
+		//
+		WorldLightManager::Begin_Frame ();
+		{
+			NonRefPhysListClass nowhere_list;
+			Check (WorldLightManager::Collect_Dynamic_Lights (Vector3 (900.0f, 900.0f, 90.0f),
+																			 &nowhere_list) == 0,
+					 "a light was found where the field does not reach");
+		}
+		Check (WorldLightManager::Get_Trivial_Reject_Count () > 0,
+				 "a point outside every light went to the grid instead of being rejected outright");
+		Check (WorldLightManager::Get_Query_Count () == 0,
+				 "a trivially rejected point still ran %d grid quer(ies)",
+				 WorldLightManager::Get_Query_Count ());
+
+		WorldLightManager::Remove_All_Dynamic_Lights ();
+		field.Delete_All ();
+	}
+
+	//
+	//	Composition.  An object that no dynamic light reaches is handed back exactly the
+	//	environment it came in with -- the same pointer, not a copy of it -- because that is the
+	//	case that happens to nearly every object in nearly every frame.
+	//
+	{
+		LightPhysClass *probe_obj = new LightPhysClass (true);
+		probe_obj->Set_Position (Vector3 (0.0f, 0.0f, 0.0f));
+
+		LightEnvironmentClass env;
+		env.Reset (Vector3 (0.0f, 0.0f, 0.0f), Vector3 (0.1f, 0.1f, 0.1f));
+
+		WorldLightManager::Begin_Frame ();
+		Check (WorldLightManager::Apply_Dynamic_Lights (probe_obj, &env) == &env,
+				 "an object with no dynamic light near it was given a different lighting environment");
+		Check (WorldLightManager::Get_Lit_Object_Count () == 0,
+				 "%d object(s) were lit by no lights", WorldLightManager::Get_Lit_Object_Count ());
+
+		//	Now put a light on top of it.
+		LightPhysClass *near_light = WorldLightManager::Create_Point_Light (Vector3 (0.0f, 0.0f, 0.0f),
+																								  white, 0.0f, 20.0f, 1.0f, -1.0f);
+		Check (near_light != nullptr, "a light for the composition check would not be created");
+
+		WorldLightManager::Begin_Frame ();
+		LightEnvironmentClass *composed = WorldLightManager::Apply_Dynamic_Lights (probe_obj, &env);
+		Check (composed != &env, "an object standing in a dynamic light got the unlit environment");
+		Check (WorldLightManager::Get_Lit_Object_Count () == 1,
+				 "%d object(s) were lit when one was", WorldLightManager::Get_Lit_Object_Count ());
+		Check (WorldLightManager::Get_Lights_Applied () == 1,
+				 "%d light(s) were applied when one was", WorldLightManager::Get_Lights_Applied ());
+
+		//
+		//	The composed environments are a fixed pool, because a mesh on the static sort list
+		//	keeps the pointer it was handed until the frame is flushed.  Past the pool an object
+		//	is drawn with its cached static lighting, which is the picture it had before any of
+		//	this existed rather than somebody else's.
+		//
+		WorldLightManager::Set_Max_Lit_Objects (1);
+		Check (WorldLightManager::Get_Max_Lit_Objects () == 1,
+				 "the lit-object pool is %u, not the one asked for",
+				 WorldLightManager::Get_Max_Lit_Objects ());
+
+		WorldLightManager::Begin_Frame ();
+		Check (WorldLightManager::Apply_Dynamic_Lights (probe_obj, &env) != &env,
+				 "the first lit object of a frame did not get a composed environment");
+		Check (WorldLightManager::Apply_Dynamic_Lights (probe_obj, &env) == &env,
+				 "the pool handed out more environments than it has");
+		Check (WorldLightManager::Get_Overflow_Count () == 1,
+				 "the lit-object pool ran out %d time(s) instead of once",
+				 WorldLightManager::Get_Overflow_Count ());
+
+		WorldLightManager::Set_Max_Lit_Objects (100000);
+		Check (WorldLightManager::Get_Max_Lit_Objects () <= 1024,
+				 "the lit-object pool reached %u", WorldLightManager::Get_Max_Lit_Objects ());
+
+		WorldLightManager::Remove_All_Dynamic_Lights ();
+		probe_obj->Release_Ref ();
+	}
+
+	//
+	//	The service going away takes the lights with it, and the world going away takes them too
+	//	-- a light belongs to the world it was lit in.
+	//
+	WorldLightManager::Create_Point_Light (Vector3 (0.0f, 0.0f, 0.0f), white, 0.0f, 10.0f, 1.0f, -1.0f);
+	WorldLightManager::Release_Resources ();
+	Check (WorldLightManager::Get_Dynamic_Light_Count () == 0, "lights outlived their world");
+	Check (WorldLightManager::Is_Partitioned () == false,
+			 "the light grid is still partitioned for a world that was unloaded");
+
+	WorldLightManager::Create_Point_Light (Vector3 (0.0f, 0.0f, 0.0f), white, 0.0f, 10.0f, 1.0f, -1.0f);
+	WorldLightManager::Shutdown ();
+	Check (WorldLightManager::Get_Dynamic_Light_Count () == 0, "lights outlived the service");
+	Check (WorldLightManager::Get_Max_Lit_Objects () == 0, "the environment pool outlived the service");
+}
+
+
 }	// anonymous namespace
 
 
@@ -2774,6 +3126,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "shadows") == 0)) {
 		Check_Shadows ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "lights") == 0)) {
+		Check_Lights ();
 	}
 
 	if (_Failures == 0) {

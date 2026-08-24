@@ -122,8 +122,8 @@ public:
 
 	/*
 	**	Lights near a point or a volume, for the small relevant light sets Section 16 asks
-	**	for.  Static lights only, because dynamic lights are not in a culling system yet --
-	**	the physics scene says as much where it collects them.
+	**	for.  Both kinds: the static lights come from the scene's AABTree, the dynamic ones
+	**	from WorldLightManager's grid, and neither answer is found by walking a light list.
 	*/
 	static void		Query_Nearby_Lights(const Vector3 & point,NonRefPhysListClass * list);
 	static void		Query_Nearby_Lights(const AABoxClass & bounds,NonRefPhysListClass * list);

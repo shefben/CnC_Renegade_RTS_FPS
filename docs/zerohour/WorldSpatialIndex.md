@@ -107,10 +107,12 @@ Two behaviour notes, both deliberate:
   yet. They arrive with P11 and after, and `Query_AABox` / `Query_Frustum` are waiting.
 - **Commander building placement** is what `Query_Placement_Overlap` exists for; the
   caller arrives with the Commander phase.
-- **Nearby lights**: `Query_Nearby_Lights` wraps `Collect_Lights`, which is static
-  lights only — dynamic lights are not in a culling system, as the physics scene says
-  at the `// TODO: Dynamic lights!!` where it collects them. The relevant-light-set
-  consumers Section 16 names arrive with the lighting work.
+- **Nearby lights**: `Query_Nearby_Lights` wraps `Collect_Lights`, which was static
+  lights only — dynamic lights were not in a culling system, as the physics scene said
+  at the `// TODO: Dynamic lights!!` where it collected them. P21 closed that: the
+  dynamic lights live in `WorldLightManager`'s own grid and `Collect_Lights` now honours
+  its `dynamic_lights` argument, so both halves of the query are spatial. See
+  `WorldLightManager.md`.
 
 ## What is not proved
 

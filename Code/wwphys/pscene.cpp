@@ -114,6 +114,7 @@
 #include "camerashakesystem.h"
 #include "surfaceribbonsystem.h"
 #include "worldsurfacemarkmanager.h"
+#include "worldlightmanager.h"
 #include "worldshadowmanager.h"
 #include "lightenvironment.h"
 #include "dx8wrapper.h"
@@ -432,6 +433,14 @@ void PhysicsSceneClass::Update(float dt,int frameid)
 	}
 
 	/*
+	**	Dynamic lights fade and expire.  Roadmap Section 25.
+	*/
+	{
+		WWPROFILE("WorldLights");
+		WorldLightManager::Timestep(dt);
+	}
+
+	/*
 	** Process pending release requests
 	** Put here prior to rendering to insure items won't draw too many times.
 	*/
@@ -564,6 +573,29 @@ void PhysicsSceneClass::Internal_Add_Static_Object(StaticPhysClass * newtile)
  * HISTORY:                                                                                    *
  *   7/7/2000   gth : Created.                                                                 *
  *=============================================================================================*/
+/***********************************************************************************************
+ * PhysicsSceneClass::Add_Dynamic_Light -- add a light that moves, fades or expires            *
+ *                                                                                             *
+ * This was declared and never defined for twenty years, which is what it looks like when the  *
+ * dynamic half of a lighting system is missing rather than slow.  It exists now, and it        *
+ * forwards: WorldLightManager owns the dynamic lights and the grid they are found in.          *
+ * Roadmap Section 25.                                                                          *
+ *=============================================================================================*/
+void PhysicsSceneClass::Add_Dynamic_Light(LightPhysClass * light)
+{
+	WorldLightManager::Add_Dynamic_Light(light);
+}
+
+
+/***********************************************************************************************
+ * PhysicsSceneClass::Remove_Dynamic_Light -- give a dynamic light back                        *
+ *=============================================================================================*/
+void PhysicsSceneClass::Remove_Dynamic_Light(LightPhysClass * light)
+{
+	WorldLightManager::Remove_Dynamic_Light(light);
+}
+
+
 void PhysicsSceneClass::Add_Static_Light(LightPhysClass * newlight,int /* cull_node_id */)
 {
 	WWASSERT(newlight != nullptr);
@@ -746,6 +778,12 @@ void PhysicsSceneClass::Remove_All(void)
 		Remove_Object(light);
 		light = (LightPhysClass *)StaticLightList.Peek_Head();
 	}
+
+	/*
+	**	The dynamic lights belong to the world, not to the scene's object lists, so they are let
+	**	go here rather than found by the loops above.  Roadmap Section 25.
+	*/
+	WorldLightManager::Release_Resources();
 
 	TexProjectClass * static_proj = StaticProjectorList.Peek_Head();
 	while(static_proj) {
@@ -1116,6 +1154,12 @@ void PhysicsSceneClass::Pre_Render_Processing(CameraClass & camera)
 	WWPROFILENAMED("Pre_Render_Processing", top);
 
 	LastCameraPosition = camera.Get_Position();
+
+	/*
+	**	The composed lighting environments handed out this frame stay alive until the static sort
+	**	list is flushed, so they are recycled here and nowhere else.  Roadmap Section 25.
+	*/
+	WorldLightManager::Begin_Frame();
 
 	DecalSystem->Update_Decal_Fade_Distances(camera);
 
@@ -1514,7 +1558,14 @@ void PhysicsSceneClass::Render_Object(RenderInfoClass & context,PhysClass * obj)
 
 		WWPROFILE("setup lights");
 
-		LightEnvironmentClass & light_env = *(obj->Get_Static_Lighting_Environment());
+		/*
+		**	The cached half -- the sun and the static lights -- is computed once and reused until
+		**	something invalidates it.  The dynamic half cannot be cached, so it is added on top of
+		**	a copy, and only for the objects a dynamic light actually reaches: everything else is
+		**	handed the same cache it was handed before and nothing is copied.  Section 25.
+		*/
+		LightEnvironmentClass & light_env =
+			*WorldLightManager::Apply_Dynamic_Lights(obj,obj->Get_Static_Lighting_Environment());
 		light_env.Pre_Render_Update(context.Camera.Get_Transform());
 
 		/*
@@ -1705,6 +1756,9 @@ void PhysicsSceneClass::Re_Partition_Dynamic_Culling_System(void)
 													MIN_GRID_CELL_SIZE,
 													MAX_GRID_CELL_COUNT,
 													MAX_DYNAMIC_OBJ_RADIUS	);
+
+	//	The dynamic lights live over the same world; size their grid to it too.
+	WorldLightManager::Re_Partition(wmin,wmax);
 
 	Reset_Vis();
 }

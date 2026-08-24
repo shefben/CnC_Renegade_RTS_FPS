@@ -41,6 +41,7 @@
 #include "physresourcemgr.h"
 #include "surfaceribbonsystem.h"
 #include "worldsurfacemarkmanager.h"
+#include "worldlightmanager.h"
 #include "worldshadowmanager.h"
 
 
@@ -63,10 +64,15 @@ void WWPhys::Init(void)
 	//	One shadow implementation, holding the settings, the render targets and the shared
 	//	static shadow textures -- roadmap Section 24.
 	WorldShadowManager::Init();
+
+	//	The dynamic lights, in a grid of their own so that asking which ones reach a place costs
+	//	the place and not the world -- roadmap Section 25.
+	WorldLightManager::Init();
 }
 
 void WWPhys::Shutdown(void)
 {
+	WorldLightManager::Shutdown();
 	WorldShadowManager::Shutdown();
 	WorldSurfaceMarkManager::Shutdown();
 	SurfaceRibbonSystem::Shutdown();

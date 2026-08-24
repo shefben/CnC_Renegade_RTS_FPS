@@ -92,7 +92,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P21: Dynamic-light filtering (roadmap Section 25)
 
-- [ ] Acceptance: Lighting cost scales mainly with nearby/relevant lights instead of total world light count.
 
 ## P22: Particle batching (roadmap Section 26)
 

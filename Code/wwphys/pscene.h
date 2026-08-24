@@ -554,6 +554,7 @@ public:
 	void Add_Dynamic_Object(PhysClass * newobj);
 	void Add_Static_Object(StaticPhysClass * newtile,int cull_node_id = -1);
 	void Add_Dynamic_Light(LightPhysClass * light);
+	void Remove_Dynamic_Light(LightPhysClass * light);
 	void Add_Static_Light(LightPhysClass * newlight,int cull_node_id = -1);
 
 	void Remove_Object(PhysClass * obj);

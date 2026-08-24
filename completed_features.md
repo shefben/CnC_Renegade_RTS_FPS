@@ -1509,3 +1509,15 @@ only when the light, orientation, model or pose changed; terrain reception is tr
 `docs/zerohour/WorldShadowManager.md`; twenty-six green terrain ctest entries including the new
 `terrain_shadows` and `fds_terrain_shadows`, which assert the scene and the manager still agree about
 every shadow mode.
+
+## P21-A: The dynamic lights exist, and asking for them costs the place and not the world
+
+`WorldLightManager` (`Code/WWPhys/worldlightmanager.*`) owns the dynamic lights in a grid culling
+system of their own, so `PhysicsSceneClass::Add_Dynamic_Light` -- declared and never defined until
+now -- has a body, `Collect_Lights` honours its long-ignored `dynamic_lights` argument, and
+`Render_Object` composes a cached static lighting environment with only the dynamic lights that
+actually reach the object, returning the same pointer untouched when none do. Absorbs the acceptance
+*Lighting cost scales mainly with nearby/relevant lights instead of total world light count*, which
+`terrain_lights` proves as a number: the same question over a full sixty-four-light table examines no
+more lights than it does over eight. Evidence: `docs/zerohour/WorldLightManager.md`; twenty-eight
+green terrain ctest entries including the new `terrain_lights` and `fds_terrain_lights`.

@@ -299,3 +299,14 @@ exact action is a manual one for the user: run `renegade --gamedir "C:\Westwood\
 load a level, then `shadow_mode 3` and `shadow_status` at the console while standing still, and
 `shadow_status` again while running and turning, and report whether shadows still look right and
 whether the render count drops to the cache-hit count when nothing is moving.
+
+## P21 -- the lights are filtered and nothing has switched one on
+
+`WorldLightManager` is in and checked (P21-A in `completed_features.md`,
+`docs/zerohour/WorldLightManager.md`, twenty-eight green terrain ctest entries). No gameplay code
+creates a dynamic light yet -- weapons, explosions and Commander feedback are later phases -- and
+particles are unlit so they have no light set to filter. Next exact action is a manual one for the
+user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then `light_test 8 15`
+and `light_status` at the console, walk into and out of the ring, and report whether the world
+actually lights up, whether the lights-per-query number stays flat after `light_test 64 15`, and what
+`light_clear` leaves behind.

@@ -52,6 +52,7 @@
 #include "watertype.h"
 #include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
+#include "worldlightmanager.h"
 #include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
 #include "ribbontype.h"
@@ -1674,6 +1675,128 @@ public:
 		}
 
 		Print( "Every cached shadow will be rendered again.\n" );
+	}
+};
+
+
+class LightStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "light_status"; }
+	virtual	const char * Get_Help( void ) override	{ return "LIGHT_STATUS - how many dynamic lights exist and how many had to be looked at."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		int lights = WorldLightManager::Get_Dynamic_Light_Count();
+		int queries = WorldLightManager::Get_Query_Count();
+		int examined = WorldLightManager::Get_Lights_Examined();
+
+		Print( "light_status: %d dynamic light(s) in the world, %u allowed, radius up to %.1f.\n",
+				 lights,
+				 WorldLightManager::Get_Max_Dynamic_Lights(),
+				 WorldLightManager::Get_Max_Light_Radius() );
+
+		//	This is the acceptance stated in two numbers: the lights per query has to stay flat as
+		//	the first number grows, otherwise lighting is costing what exists rather than what is
+		//	near.
+		if ( queries > 0 ) {
+			Print( "light_status: %d quer(ies) examined %d light(s) last frame -- %.2f per query.\n",
+					 queries, examined, (float)examined / (float)queries );
+		} else {
+			Print( "light_status: no light queries ran last frame.\n" );
+		}
+
+		Print( "light_status: %d object(s) lit, %d light(s) applied, %d point(s) rejected outright.\n",
+				 WorldLightManager::Get_Lit_Object_Count(),
+				 WorldLightManager::Get_Lights_Applied(),
+				 WorldLightManager::Get_Trivial_Reject_Count() );
+
+		AABoxClass bounds;
+		WorldLightManager::Get_Light_Bounds( &bounds );
+		Print( "light_status: the lights reach %.1f x %.1f x %.1f around %.1f,%.1f,%.1f.\n",
+				 bounds.Extent.X * 2.0f, bounds.Extent.Y * 2.0f, bounds.Extent.Z * 2.0f,
+				 bounds.Center.X, bounds.Center.Y, bounds.Center.Z );
+
+		int overflows = WorldLightManager::Get_Overflow_Count();
+		if ( overflows > 0 ) {
+			Print( "light_status: %d object(s) went unlit -- more than %u wanted a lighting environment.\n",
+					 overflows, WorldLightManager::Get_Max_Lit_Objects() );
+		}
+
+		int refusals = WorldLightManager::Get_Refusal_Count();
+		if ( refusals > 0 ) {
+			Print( "light_status: %d light(s) were refused, %d had their radius clamped.\n",
+					 refusals, WorldLightManager::Get_Clamped_Radius_Count() );
+		}
+	}
+};
+
+
+class LightTestConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "light_test"; }
+	virtual	const char * Get_Help( void ) override	{ return "LIGHT_TEST <count> [radius] [seconds] - drop coloured lights around the camera."; }
+	virtual	void Activate( const char * input ) override {
+
+		int count = 8;
+		float radius = 15.0f;
+		float seconds = 0.0f;
+		if ( input != nullptr ) {
+			::sscanf( input, "%d %f %f", &count, &radius, &seconds );
+		}
+
+		if ( count < 1 ) { count = 1; }
+		if ( count > (int)WorldLightManager::Get_Max_Dynamic_Lights() ) {
+			count = (int)WorldLightManager::Get_Max_Dynamic_Lights();
+		}
+		if ( radius <= 0.0f ) { radius = 15.0f; }
+
+		Vector3 center( 0.0f, 0.0f, 0.0f );
+		if ( COMBAT_SCENE != nullptr ) {
+			center = COMBAT_SCENE->Get_Last_Camera_Position();
+		}
+
+		//	A ring around the camera, one colour per light so that which light is lighting what is
+		//	something the eye can answer.
+		static const Vector3 colors[6] = {
+			Vector3( 1.0f, 0.2f, 0.2f ),	Vector3( 0.2f, 1.0f, 0.2f ),
+			Vector3( 0.2f, 0.4f, 1.0f ),	Vector3( 1.0f, 1.0f, 0.3f ),
+			Vector3( 1.0f, 0.3f, 1.0f ),	Vector3( 0.3f, 1.0f, 1.0f ),
+		};
+
+		int made = 0;
+		for ( int i = 0; i < count; i ++ ) {
+
+			float angle = 2.0f * WWMATH_PI * (float)i / (float)count;
+			Vector3 pos = center + Vector3( WWMath::Cos( angle ) * radius * 0.75f,
+													  WWMath::Sin( angle ) * radius * 0.75f,
+													  1.0f );
+
+			if ( WorldLightManager::Create_Point_Light( pos, colors[ i % 6 ], 0.0f, radius,
+																	  1.0f, seconds ) != nullptr ) {
+				made ++;
+			}
+		}
+
+		Print( "light_test: %d of %d light(s) placed around %.1f,%.1f,%.1f.\n",
+				 made, count, center.X, center.Y, center.Z );
+		if ( seconds > 0.0f ) {
+			Print( "light_test: they fade out over %.1f second(s).\n", seconds );
+		}
+	}
+};
+
+
+class LightClearConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "light_clear"; }
+	virtual	const char * Get_Help( void ) override	{ return "LIGHT_CLEAR - remove every dynamic light."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		int count = WorldLightManager::Get_Dynamic_Light_Count();
+		WorldLightManager::Remove_All_Dynamic_Lights();
+		Print( "light_clear: %d dynamic light(s) removed.\n", count );
 	}
 };
 
@@ -6115,6 +6238,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new ShadowStatusConsoleFunctionClass() );
 	FunctionList.Add( new ShadowModeConsoleFunctionClass() );
 	FunctionList.Add( new ShadowInvalidateConsoleFunctionClass() );
+	FunctionList.Add( new LightStatusConsoleFunctionClass() );
+	FunctionList.Add( new LightTestConsoleFunctionClass() );
+	FunctionList.Add( new LightClearConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );
 	FunctionList.Add( new ExposePrelitConsoleFunctionClass() );
