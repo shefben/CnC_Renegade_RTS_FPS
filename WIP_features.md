@@ -222,3 +222,18 @@ re-exported.
 
 The tag `tt-native-complete` marks the commit where TT 4.8.4 is natively
 implemented and the hard gate passes, before any Zero Hour work.
+
+---
+
+## P15 -- built, unwalked, and nothing damages it
+
+`BridgeSystem` is in and checked (P15-A in `completed_features.md`,
+`docs/zerohour/BridgeSystem.md`, sixteen green terrain ctest entries). This entry carries the
+absorbed acceptance line *Bridges support variable length, damage, broken spans, collision, and
+multiplayer state*: four of the five are proved device-less, but collision is not, because a check
+with no physics scene has nothing to put a static object into, and no gameplay damage, path-finder
+or packet calls any of it yet. Next exact action is a manual one for the user: run
+`renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then `bridge_test 120` and
+`bridge_break` at the console, and report whether a soldier walks onto the deck and falls through
+the broken span.
+

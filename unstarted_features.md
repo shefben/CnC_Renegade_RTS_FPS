@@ -74,7 +74,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P15: Sectional bridge system (roadmap Section 20)
 
-- [ ] Acceptance: Bridges support variable length, damage, broken spans, collision, and multiplayer state.
 
 ## P16: Tree/foliage buffer (roadmap Section 21)
 

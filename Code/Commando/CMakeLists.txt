@@ -576,6 +576,9 @@ if(BUILD_TESTING AND TARGET renegade)
     add_test(NAME terrain_collision  COMMAND renegade -terrainselfcheck collision)
     add_test(NAME terrain_textures  COMMAND renegade -terrainselfcheck textures)
     add_test(NAME terrain_roads  COMMAND renegade -terrainselfcheck roads)
+
+    #	Sectional bridges -- roadmap Section 20.  See terrainselfcheck.h.
+    add_test(NAME terrain_bridges  COMMAND renegade -terrainselfcheck bridges)
 endif()
 
 #
@@ -598,6 +601,7 @@ if(BUILD_TESTING AND TARGET renegadeserver)
     add_test(NAME fds_asset_residency  COMMAND renegadeserver -assetselfcheck residency)
     add_test(NAME fds_shader_programs  COMMAND renegadeserver -shaderselfcheck programs)
     add_test(NAME fds_terrain_sampling COMMAND renegadeserver -terrainselfcheck sampling)
+    add_test(NAME fds_terrain_bridges  COMMAND renegadeserver -terrainselfcheck bridges)
     add_test(NAME fds_terrain_rays     COMMAND renegadeserver -terrainselfcheck rays)
     add_test(NAME fds_terrain_shaping  COMMAND renegadeserver -terrainselfcheck shaping)
     add_test(NAME fds_terrain_service  COMMAND renegadeserver -terrainselfcheck service)

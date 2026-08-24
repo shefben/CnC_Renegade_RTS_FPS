@@ -128,11 +128,16 @@ compromise.
 
 ## Bridges and tunnels
 
-Section 20's bridges do not exist yet. What can be settled now is the seam: a road whose end
-connection is a bridge or a tunnel records where its surface stopped, which way it was pointing
-and what it expects to meet, and the structure that arrives later reads that instead of guessing.
-A connection whose `TargetID` is still -1 is a road that has been told a bridge belongs here and
-has not been told which one.
+A road whose end connection is a bridge or a tunnel records where its surface stopped, which way
+it was pointing and what it expects to meet, and the structure that arrives reads that instead of
+guessing. A connection whose `TargetID` is still -1 is a road that has been told a structure
+belongs here and has not been told which one.
+
+**The bridge half is closed.** `BridgeSystem::Connect_Roads` walks the roads, finds every
+connection of type `ROAD_ENDPOINT_BRIDGE`, and binds it to the abutment standing at that point:
+the road's `TargetID` becomes the bridge's id, and the bridge records which road arrives at each
+end. Nothing about the road geometry changes -- the road already trimmed itself back there. See
+[BridgeSystem.md](BridgeSystem.md). Tunnels are still a connection type with nothing behind it.
 
 ## Navigation metadata
 

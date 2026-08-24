@@ -40,7 +40,7 @@
 #include "assetmgr.h"
 #include "castres.h"
 #include "coltype.h"
-#include "dynamesh.h"
+#include "dynamicmeshbuilder.h"
 #include "lineseg.h"
 #include "matrix3d.h"
 #include "physcoltest.h"
@@ -125,92 +125,6 @@ public:
 };
 
 
-/*
-**	Counting the geometry and then writing it, from the same code.
-**
-**	A DynamicMeshClass is sized when it is created, so the triangles have to be counted before
-**	any of them can be written.  Rather than count in one place and emit in another -- where the
-**	two drift apart and the mesh overruns -- the emitter runs twice against this, once counting
-**	and once building.
-*/
-class RoadMeshBuilderClass
-{
-public:
-
-	RoadMeshBuilderClass(void) :
-		Mesh(nullptr), Counting(true), PolyCount(0), VertCount(0), PrimitiveVerts(0) { }
-
-	~RoadMeshBuilderClass(void)
-	{
-		REF_PTR_RELEASE(Mesh);
-	}
-
-	void	Begin_Count(void)
-	{
-		REF_PTR_RELEASE(Mesh);
-		Counting = true;
-		PolyCount = 0;
-		VertCount = 0;
-		PrimitiveVerts = 0;
-	}
-
-	int	Get_Poly_Count(void) const		{ return PolyCount; }
-	int	Get_Vert_Count(void) const		{ return VertCount; }
-
-	bool	Begin_Build(void)
-	{
-		if ((PolyCount <= 0) || (VertCount <= 0)) {
-			return false;
-		}
-		REF_PTR_RELEASE(Mesh);
-		Mesh = NEW_REF(DynamicMeshClass,(PolyCount,VertCount));
-		Counting = false;
-		PrimitiveVerts = 0;
-		return (Mesh != nullptr);
-	}
-
-	void	Begin_Strip(void)
-	{
-		PrimitiveVerts = 0;
-		if (!Counting && (Mesh != nullptr)) { Mesh->Begin_Tri_Strip(); }
-	}
-
-	void	Begin_Fan(void)
-	{
-		PrimitiveVerts = 0;
-		if (!Counting && (Mesh != nullptr)) { Mesh->Begin_Tri_Fan(); }
-	}
-
-	void	Vertex(const Vector3 & position,float u,float v)
-	{
-		if (Counting) {
-			VertCount++;
-			if (PrimitiveVerts >= 2) { PolyCount++; }
-		} else if (Mesh != nullptr) {
-			Mesh->Vertex(position.X,position.Y,position.Z,u,v);
-		}
-		PrimitiveVerts++;
-	}
-
-	//	Hands the mesh over with its reference; the builder no longer has one.
-	DynamicMeshClass *	Detach_Mesh(void)
-	{
-		DynamicMeshClass * mesh = Mesh;
-		Mesh = nullptr;
-		return mesh;
-	}
-
-private:
-
-	RoadMeshBuilderClass(const RoadMeshBuilderClass &);
-	RoadMeshBuilderClass & operator = (const RoadMeshBuilderClass &);
-
-	DynamicMeshClass *	Mesh;
-	bool						Counting;
-	int						PolyCount;
-	int						VertCount;
-	int						PrimitiveVerts;
-};
 
 
 DynamicVectorClass<RoadSplineClass>			RoadSystem::Roads;
@@ -902,7 +816,7 @@ static void Collect_Geometry_Inputs(void)
 /*
 **	The ribbon for one stretch, as a triangle strip of left and right edges.
 */
-static void Emit_Run(RoadMeshBuilderClass & builder,const RoadRunClass & run,float offset)
+static void Emit_Run(DynamicMeshBuilderClass & builder,const RoadRunClass & run,float offset)
 {
 	RoadSplineClass * road = RoadSystem::Peek_Road(run.RoadID);
 	if (road == nullptr) { return; }
@@ -953,7 +867,7 @@ public:
 **	between the arms as well as the arms themselves, which is what makes a tee a tee and a
 **	crossroads a crossroads without either being a case in the code.
 */
-static void Emit_Junction(RoadMeshBuilderClass & builder,int junction_index,float offset)
+static void Emit_Junction(DynamicMeshBuilderClass & builder,int junction_index,float offset)
 {
 	const RoadJunctionClass * junction = RoadSystem::Peek_Junction(junction_index);
 	if (junction == nullptr) { return; }
@@ -1041,7 +955,7 @@ static void Emit_Junction(RoadMeshBuilderClass & builder,int junction_index,floa
 /*
 **	Everything in one material, counted or built depending on the builder.
 */
-static void Emit_Material(RoadMeshBuilderClass & builder,const StringClass & material,float offset)
+static void Emit_Material(DynamicMeshBuilderClass & builder,const StringClass & material,float offset)
 {
 	for (int i = 0; i < _Runs.Count(); i++) {
 		RoadSplineClass * road = RoadSystem::Peek_Road(_Runs[i].RoadID);
@@ -1107,7 +1021,7 @@ bool RoadSystem::Build_Geometry(void)
 
 	for (int m = 0; m < materials.Count(); m++) {
 
-		RoadMeshBuilderClass builder;
+		DynamicMeshBuilderClass builder;
 
 		builder.Begin_Count();
 		Emit_Material(builder,materials[m],SurfaceOffset);

@@ -1418,3 +1418,21 @@ six terrain layers and Section 19's three road surfaces, including the road UV l
 to be. The governing rule -- missing art never blocks engine work; name it, degrade sanely,
 record it -- is in `CLAUDE.md`.
 
+## P15-A: `BridgeSystem`, bridges built from sections
+
+Section 20's whole representation and everything derived from it: `BridgeDefinitionClass` (five
+section kinds by four damage states, each rule carrying model, collision, traversal and debris --
+the roadmap's own list of what a state may change), `BridgeClass` and `BridgeSystem` (layout that
+divides any gap into whole spans stretched to land exactly on the far bank, piers placed at joints
+where the measured ground drop earns one, per-section damage so a bridge can stand at both ends
+and be cut in the middle, deck collision as static physics objects because a bridge -- unlike a
+road -- is the only surface over the gap, `Conform_Point`/`Is_Traversable`/`Get_Traversable_Extent`
+for whatever paths across it, a one-byte-per-section state block so clients replicate state and
+rebuild geometry themselves, and debris recorded for Section 35). `Connect_Roads` closes the seam
+P14 left, binding `ROAD_ENDPOINT_BRIDGE` road ends to the abutment standing there. Missing art
+never blocks it: a section with no model is a slab of its declared size that still collides,
+carries and breaks -- names in `docs/assets/BridgeSections.md`. `RoadMeshBuilderClass` became
+`Code/WWPhys/dynamicmeshbuilder.h`, one owner shared with the road system rather than written
+twice. Evidence: `docs/zerohour/BridgeSystem.md`; sixteen green terrain ctest entries including the
+new `terrain_bridges` and `fds_terrain_bridges`.
+

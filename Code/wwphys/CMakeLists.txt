@@ -69,6 +69,8 @@ set(WWPHYS_SRC
     staticphys.cpp
     stealtheffect.cpp
     terrainmaterial.cpp
+    bridgesection.cpp
+    bridgesystem.cpp
     roadspline.cpp
     roadsystem.cpp
     terrainmask.cpp
@@ -163,6 +165,9 @@ set(WWPHYS_SRC
     staticphys.h
     stealtheffect.h
     terrainmaterial.h
+    bridgesection.h
+    bridgesystem.h
+    dynamicmeshbuilder.h
     roadspline.h
     roadsystem.h
     terrainmask.h

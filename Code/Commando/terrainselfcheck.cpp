@@ -5,6 +5,8 @@
 
 #include "terrainselfcheck.h"
 
+#include "bridgesection.h"
+#include "bridgesystem.h"
 #include "castres.h"
 #include "coltest.h"
 #include "heightfield.h"
@@ -1212,6 +1214,337 @@ void	Check_Roads (void)
 	WorldTerrainSystem::Shutdown ();
 }
 
+
+/*
+**	Bridges -- roadmap Section 20.
+**
+**	The acceptance is variable length, damage, broken spans, collision and multiplayer state,
+**	and four of those five can be asked without a screen or a physics scene.  Collision cannot:
+**	a check running device-less has no scene to put a static object into, so what is checked
+**	here is that the geometry declines cleanly rather than that a soldier stands on it.
+*/
+void	Check_Bridges (void)
+{
+	BridgeSystem::Init ();
+
+	Check (BridgeSystem::Get_Definition_Count () == 3,
+			"there are %d default bridge definitions, not three",
+			BridgeSystem::Get_Definition_Count ());
+
+	BridgeDefinitionClass *concrete = BridgeSystem::Find_Definition ("ow_bridge_concrete");
+	Check (concrete != nullptr, "the concrete bridge is not defined");
+	Check (BridgeSystem::Find_Definition ("ow_bridge_nobody_made_this") == nullptr,
+			"a definition nobody defined was found anyway");
+
+	if (concrete == nullptr) {
+		BridgeSystem::Shutdown ();
+		return ;
+	}
+
+	//
+	//	No bridge art exists, and the section that says so is the section that has to keep
+	//	working without it.
+	//
+	Check (!concrete->Names_Any_Model (),
+			"a default bridge definition names a model, which would mean art exists");
+
+	//
+	//	Variable length.  A hundred metre gap with six metre abutments and eight metre spans is
+	//	eleven spans of exactly eight, and the far end of the last piece is the far bank -- not
+	//	near it, and not past it.  That is what generating a bridge rather than modelling one
+	//	has to mean.
+	//
+	BridgeClass bridge;
+	bridge.Set_Name ("test_span");
+	bridge.Set_Definition ("ow_bridge_concrete");
+	bridge.Set_Endpoints (Vector3 (0.0f, 0.0f, 10.0f), Vector3 (100.0f, 0.0f, 10.0f));
+
+	int id = BridgeSystem::Add_Bridge (bridge);
+	Check (id == 0, "the first bridge was given id %d", id);
+
+	Check (BridgeSystem::Build_Layout (), "the bridge would not lay out");
+
+	BridgeClass *placed = BridgeSystem::Peek_Bridge (id);
+	Check (placed != nullptr, "the bridge that was just added is not there");
+
+	if (placed == nullptr) {
+		BridgeSystem::Shutdown ();
+		return ;
+	}
+
+	int caps = 0;
+	int spans = 0;
+	int piers = 0;
+	float deck = 0.0f;
+
+	for (int i = 0; i < placed->Get_Section_Count (); i ++) {
+		const BridgeSectionClass &section = placed->Get_Section (i);
+		switch (section.Kind) {
+			case BRIDGE_SECTION_START_CAP:
+			case BRIDGE_SECTION_END_CAP:		caps ++;  deck += section.Length;  break;
+			case BRIDGE_SECTION_SPAN:			spans ++; deck += section.Length;  break;
+			case BRIDGE_SECTION_SUPPORT:		piers ++; break;
+			default:									break;
+		}
+	}
+
+	Check (caps == 2, "the bridge has %d abutments, not two", caps);
+	Check (spans == 11, "a hundred metres of eight metre spans came out as %d spans", spans);
+	Check (Near (deck, 100.0f, 0.01f), "the deck is %f long over a hundred metre gap", deck);
+
+	//	A pier every twenty-four metres of an eighty-eight metre span region is three.
+	Check (piers == 3, "the bridge stands on %d piers, not three", piers);
+
+	//
+	//	The deck is continuous.  Every piece starts where the one before it stopped, which is
+	//	the difference between a bridge and a row of slabs with gaps between them.
+	//
+	{
+		bool first = true;
+		Vector3 previous (0.0f, 0.0f, 0.0f);
+		float worst = 0.0f;
+
+		for (int i = 0; i < placed->Get_Section_Count (); i ++) {
+			const BridgeSectionClass &section = placed->Get_Section (i);
+			if ((section.Kind != BRIDGE_SECTION_START_CAP) &&
+				 (section.Kind != BRIDGE_SECTION_SPAN) &&
+				 (section.Kind != BRIDGE_SECTION_END_CAP)) {
+				continue ;
+			}
+			if (!first) {
+				Vector3 gap = section.Start - previous;
+				if (gap.Length () > worst) worst = gap.Length ();
+			}
+			previous = section.End;
+			first = false;
+		}
+
+		Check (worst < 0.001f, "there is a %f metre gap between two pieces of the deck", worst);
+		Check ((previous - placed->Get_End ()).Length () < 0.001f,
+				"the last piece of the deck does not end at the far bank");
+	}
+
+	//
+	//	Collision, as far as it can be asked here.  There is no physics scene in a device-less
+	//	run, so the right answer is that nothing was built and nothing crashed.
+	//
+	Check (!BridgeSystem::Build_Geometry (), "geometry was built with no physics scene");
+	Check (BridgeSystem::Get_Instance_Count () == 0, "physics objects exist with no scene");
+
+	//
+	//	Where the deck is.  Over a bridge the deck is the ground, and that is the whole reason
+	//	this question is asked of the bridge and not of the terrain.
+	//
+	float height = 0.0f;
+	int over = -1;
+	Check (BridgeSystem::Conform_Point (20.0f, 0.0f, &height, &over),
+			"the middle of the deck is not on the bridge");
+	Check (Near (height, 10.0f), "the deck is at %f, not the height it was built at", height);
+	Check (over == id, "the point over bridge %d says it is over bridge %d", id, over);
+
+	Check (BridgeSystem::Conform_Point (20.0f, 3.0f, &height),
+			"a point inside the carriageway is off the bridge");
+	Check (!BridgeSystem::Conform_Point (20.0f, 6.0f, &height),
+			"a point beyond the parapet is still on the bridge");
+	Check (!BridgeSystem::Conform_Point (-10.0f, 0.0f, &height),
+			"a point off the near end is still on the bridge");
+
+	//
+	//	Damage, and broken spans, which is the interesting half of it.  A bridge with its
+	//	middle span gone is standing at both ends and useless, and every question anybody asks
+	//	about it has to give that answer.
+	//
+	Check (BridgeSystem::Is_Traversable (id), "a bridge nobody has touched cannot be crossed");
+
+	const int MIDDLE = 6;			// the abutment is section 0, so this is the sixth span
+
+	Check (BridgeSystem::Set_Section_State (id, MIDDLE, BRIDGE_STATE_BROKEN),
+			"the middle span would not break");
+	Check (BridgeSystem::Get_Section_State (id, MIDDLE) == BRIDGE_STATE_BROKEN,
+			"the broken span is not broken");
+	Check (!BridgeSystem::Is_Traversable (id), "a bridge with a hole in it can still be crossed");
+
+	int broken_at = -1;
+	Check (BridgeSystem::Find_Break (id, &broken_at), "the break was not found");
+	Check (broken_at == MIDDLE, "the break was found at %d, not at %d", broken_at, MIDDLE);
+
+	Check (placed->Get_Damage_State () == BRIDGE_STATE_BROKEN,
+			"a bridge with a broken span does not report itself broken");
+
+	//	Six metres of abutment and five whole spans, from each end.
+	float from_start = 0.0f;
+	float from_end = 0.0f;
+	Check (BridgeSystem::Get_Traversable_Extent (id, &from_start, &from_end),
+			"the bridge would not say how much of it is left");
+	Check (Near (from_start, 46.0f, 0.01f), "%f metres are reachable from the near end", from_start);
+	Check (Near (from_end, 46.0f, 0.01f), "%f metres are reachable from the far end", from_end);
+
+	//	And the hole is a hole: nothing conforms over it, while the deck either side still does.
+	Check (!BridgeSystem::Conform_Point (50.0f, 0.0f, &height),
+			"the broken span is still a floor");
+	Check (BridgeSystem::Conform_Point (20.0f, 0.0f, &height),
+			"breaking one span took the rest of the deck with it");
+	Check (BridgeSystem::Conform_Point (80.0f, 0.0f, &height),
+			"breaking one span took the far half of the deck with it");
+
+	//
+	//	Multiplayer state.  What travels is one byte per section and nothing about the geometry,
+	//	because a client with the same definition and the same two endpoints lays out the same
+	//	bridge.  So the block has to be able to put a client's copy into the server's state.
+	//
+	{
+		int expected = 2 + 4 + placed->Get_Section_Count ();
+		Check (BridgeSystem::Get_State_Block_Size () == expected,
+				"the state block is %d bytes, not the %d one bridge needs",
+				BridgeSystem::Get_State_Block_Size (), expected);
+
+		unsigned char block[256];
+		int used = 0;
+		Check (BridgeSystem::Get_State_Block (block, sizeof (block), &used),
+				"the state block would not be written");
+		Check (used == expected, "the state block wrote %d bytes, not %d", used, expected);
+
+		unsigned char small_block[4];
+		int small_used = -1;
+		Check (!BridgeSystem::Get_State_Block (small_block, sizeof (small_block), &small_used),
+				"the state block fitted in four bytes");
+		Check (small_used == 0, "a refused state block reported %d bytes written", small_used);
+
+		//	Repair everything, then hand the block back and watch the damage return.
+		Check (BridgeSystem::Set_Damage_State (id, BRIDGE_STATE_PRISTINE),
+				"the bridge would not be repaired");
+		Check (BridgeSystem::Is_Traversable (id), "a repaired bridge cannot be crossed");
+
+		Check (BridgeSystem::Apply_State_Block (block, used), "the state block would not apply");
+		Check (BridgeSystem::Get_Section_State (id, MIDDLE) == BRIDGE_STATE_BROKEN,
+				"the state block did not carry the break");
+		Check (!BridgeSystem::Is_Traversable (id), "the state block did not carry the hole");
+
+		//	Applying what the server said is not a local change to send back out again.
+		BridgeSystem::Clear_State_Dirty ();
+		Check (BridgeSystem::Apply_State_Block (block, used), "the state block would not reapply");
+		Check (!BridgeSystem::Is_State_Dirty (),
+				"applying the server's state marked it as something to send");
+
+		//	A truncated block is refused rather than half applied.
+		Check (!BridgeSystem::Apply_State_Block (block, 3), "a truncated state block was accepted");
+	}
+
+	//
+	//	Debris.  Nothing draws it yet, so the system holds what came off until something does.
+	//	The default definitions name none, so this is the empty case being empty on purpose.
+	//
+	Check (BridgeSystem::Get_Pending_Debris_Count () == 0,
+			"debris was emitted by a definition that names none");
+
+	{
+		BridgeDefinitionClass rubble = *concrete;
+		rubble.Set_Name ("ow_bridge_concrete_debris_check");
+		rubble.Set_Debris (BRIDGE_SECTION_SPAN, BRIDGE_STATE_BROKEN, "ow_bridge_concrete_rubble", 4);
+		Check (BridgeSystem::Define_Bridge (rubble), "the debris definition would not define");
+		Check (BridgeSystem::Get_Definition_Count () == 4,
+				"defining a fourth bridge left %d", BridgeSystem::Get_Definition_Count ());
+
+		BridgeClass second;
+		second.Set_Definition ("ow_bridge_concrete_debris_check");
+		second.Set_Endpoints (Vector3 (0.0f, 60.0f, 10.0f), Vector3 (60.0f, 60.0f, 10.0f));
+		int second_id = BridgeSystem::Add_Bridge (second);
+
+		Check (BridgeSystem::Build_Layout (), "the second bridge would not lay out");
+		Check (BridgeSystem::Break_Span_At (second_id, Vector3 (30.0f, 60.0f, 10.0f)),
+				"no span was broken where the shell landed");
+		Check (BridgeSystem::Get_Pending_Debris_Count () == 1,
+				"%d pieces of debris came off one span",
+				BridgeSystem::Get_Pending_Debris_Count ());
+
+		const BridgeDebrisClass *debris = BridgeSystem::Peek_Pending_Debris (0);
+		Check (debris != nullptr, "the debris that was recorded is not there");
+		if (debris != nullptr) {
+			Check (debris->BridgeID == second_id, "the debris belongs to bridge %d", debris->BridgeID);
+			Check (debris->Count == 4, "%d pieces came off, not four", debris->Count);
+			Check (WWMath::Fabs (debris->Position.X - 30.0f) < 8.0f,
+					"the debris came off %f metres along, not near the middle", debris->Position.X);
+		}
+
+		BridgeSystem::Clear_Pending_Debris ();
+		Check (BridgeSystem::Get_Pending_Debris_Count () == 0, "the debris was not cleared");
+	}
+
+	//
+	//	A bridge naming a kind nobody defined is a map error, not a crash: it stays in the list
+	//	with no sections, carries nothing, and does not take the other bridges down with it.
+	//
+	{
+		BridgeClass orphan;
+		orphan.Set_Name ("orphan");
+		orphan.Set_Definition ("ow_bridge_not_a_kind");
+		orphan.Set_Endpoints (Vector3 (0.0f, -60.0f, 10.0f), Vector3 (40.0f, -60.0f, 10.0f));
+		int orphan_id = BridgeSystem::Add_Bridge (orphan);
+
+		Check (!BridgeSystem::Build_Layout (),
+				"a bridge with no definition laid out anyway");
+
+		BridgeClass *placed_orphan = BridgeSystem::Peek_Bridge (orphan_id);
+		Check (placed_orphan != nullptr, "the orphan bridge disappeared");
+		if (placed_orphan != nullptr) {
+			Check (placed_orphan->Get_Section_Count () == 0,
+					"a bridge with no definition has %d sections",
+					placed_orphan->Get_Section_Count ());
+		}
+		Check (!BridgeSystem::Is_Traversable (orphan_id), "a bridge with no sections can be crossed");
+		Check (BridgeSystem::Is_Traversable (0), "the orphan took the first bridge with it");
+	}
+
+	//
+	//	The join to Section 19.  A road that said it hands over to a bridge is bound to the
+	//	abutment it is standing at, and both ends then know each other's id.
+	//
+	{
+		RoadSystem::Init ();
+
+		RoadSplineClass road;
+		road.Set_Name ("approach");
+		road.Add_Control_Point (Vector3 (-40.0f, 0.0f, 10.0f));
+		road.Add_Control_Point (Vector3 (-20.0f, 0.0f, 10.0f));
+		road.Add_Control_Point (Vector3 (0.0f, 0.0f, 10.0f));
+		road.Set_Width (8.0f);
+		road.Get_End_Connection ().Type = ROAD_ENDPOINT_BRIDGE;
+
+		int road_id = RoadSystem::Add_Road (road);
+		Check (RoadSystem::Build_Network (), "the approach road would not build");
+
+		Check (BridgeSystem::Connect_Roads () == 1,
+				"the road that hands over to a bridge was not bound to one");
+
+		RoadSplineClass *bound = RoadSystem::Peek_Road (road_id);
+		Check (bound != nullptr, "the approach road is not there");
+		if (bound != nullptr) {
+			Check (bound->Get_End_Connection ().TargetID == 0,
+					"the road hands over to bridge %d, not to the one it is touching",
+					bound->Get_End_Connection ().TargetID);
+		}
+
+		BridgeClass *met = BridgeSystem::Peek_Bridge (0);
+		Check (met != nullptr, "the bridge the road meets is not there");
+		if (met != nullptr) {
+			Check (met->Get_Start_Road () == road_id,
+					"the bridge says road %d arrives at it, not road %d",
+					met->Get_Start_Road (), road_id);
+		}
+
+		RoadSystem::Shutdown ();
+	}
+
+	//
+	//	Nothing outlives the world it described.
+	//
+	BridgeSystem::Shutdown ();
+	Check (BridgeSystem::Get_Bridge_Count () == 0, "the bridges outlived the service");
+	Check (BridgeSystem::Get_Definition_Count () == 0, "the definitions outlived the service");
+	Check (BridgeSystem::Get_Pending_Debris_Count () == 0, "the debris outlived the service");
+}
+
+
 }	// anonymous namespace
 
 
@@ -1239,6 +1572,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "roads") == 0)) {
 		Check_Roads ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "bridges") == 0)) {
+		Check_Bridges ();
 	}
 
 	if (_Failures == 0) {

@@ -45,6 +45,8 @@
 #include "worldterrainsystem.h"
 #include "terraintexturesystem.h"
 #include "roadspline.h"
+#include "bridgesection.h"
+#include "bridgesystem.h"
 #include "roadsystem.h"
 #include "playermanager.h"
 #include "ccamera.h"
@@ -886,6 +888,171 @@ public:
 
 		RoadSystem::Clear_Roads();
 		Print( "Generated roads cleared.\n" );
+	}
+};
+
+
+/*
+**	Section 20's acceptance is that bridges support variable length, damage, broken spans,
+**	collision and multiplayer state, and the first four of those are things to look at rather
+**	than things to read.  This drops a bridge across the ground in front of the player at
+**	whatever length was asked for, so that "variable length" can be checked by asking for a
+**	different number and seeing a different number of spans.
+**
+**	No bridge art exists, so every section will be a slab of the size the definition declares.
+**	That is the point: the slab collides and carries traffic, so the bridge can be walked and
+**	driven over now, and the models replace the slabs later without anything else changing.
+*/
+class BridgeTestConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "bridge_test"; }
+	virtual	const char * Get_Help( void ) override	{ return "BRIDGE_TEST <length> <kind> - builds a sectional bridge across the ground in front of you."; }
+	virtual	void Activate( const char * input ) override {
+
+		if ( COMBAT_STAR == nullptr ) {
+			Print( "bridge_test needs somewhere to put the bridge; there is no player.\n" );
+			return;
+		}
+
+		float	length	= 100.0f;
+		char	kind[ 128 ];
+		::strcpy( kind, "ow_bridge_concrete" );
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%f %127s", &length, kind );
+		}
+
+		if ( length < 8.0f )		length = 8.0f;
+		if ( length > 2000.0f )	length = 2000.0f;
+
+		if ( BridgeSystem::Get_Definition_Count() == 0 ) {
+			BridgeSystem::Init();
+		}
+
+		if ( BridgeSystem::Find_Definition( kind ) == nullptr ) {
+			Print( "bridge_test: there is no bridge kind called \"%s\".  The ones there are:\n", kind );
+			for ( int i = 0; i < BridgeSystem::Get_Definition_Count(); i ++ ) {
+				BridgeDefinitionClass * definition = BridgeSystem::Peek_Definition( i );
+				if ( definition != nullptr ) {
+					Print( "  %s (%.1fm wide, %.1fm spans)\n", definition->Get_Name(),
+							 definition->Get_Width(),
+							 definition->Get_Section_Length( BRIDGE_SECTION_SPAN ) );
+				}
+			}
+			return;
+		}
+
+		Vector3 star_pos;
+		COMBAT_STAR->Get_Position( &star_pos );
+
+		float half = length * 0.5f;
+
+		BridgeSystem::Clear_Bridges();
+
+		BridgeClass bridge;
+		bridge.Set_Name( "test" );
+		bridge.Set_Definition( kind );
+		bridge.Set_Endpoints( Vector3( star_pos.X - half, star_pos.Y, star_pos.Z ),
+									 Vector3( star_pos.X + half, star_pos.Y, star_pos.Z ) );
+		BridgeSystem::Add_Bridge( bridge );
+
+		if ( !BridgeSystem::Build_Layout() ) {
+			Print( "bridge_test: the bridge would not lay out.\n" );
+			return;
+		}
+
+		BridgeClass * placed = BridgeSystem::Peek_Bridge( 0 );
+		int spans = 0;
+		int piers = 0;
+		if ( placed != nullptr ) {
+			for ( int i = 0; i < placed->Get_Section_Count(); i ++ ) {
+				if ( placed->Get_Section( i ).Kind == BRIDGE_SECTION_SPAN )		spans ++;
+				if ( placed->Get_Section( i ).Kind == BRIDGE_SECTION_SUPPORT )	piers ++;
+			}
+		}
+
+		//	Any road that said it hands over to a bridge now has one to hand over to.
+		int bound = BridgeSystem::Connect_Roads( 16.0f );
+
+		if ( BridgeSystem::Build_Geometry() ) {
+			Print( "bridge_test: %.0fm of %s -- %d span(s), %d pier(s), %d object(s) in the scene.\n",
+					 length, kind, spans, piers, BridgeSystem::Get_Instance_Count() );
+			if ( BridgeSystem::Get_Missing_Model_Count() > 0 ) {
+				Print( "bridge_test: %d section(s) have no model, so they are slabs of the declared size.\n",
+						 BridgeSystem::Get_Missing_Model_Count() );
+			}
+		} else {
+			Print( "bridge_test: %d span(s) and %d pier(s) laid out, and no geometry was built.\n",
+					 spans, piers );
+		}
+
+		if ( bound > 0 ) {
+			Print( "bridge_test: %d road end(s) hand over to this bridge.\n", bound );
+		}
+	}
+};
+
+
+/*
+**	The half of Section 20 that cannot be seen by building a bridge: breaking one span leaves a
+**	bridge standing at both ends that nothing can cross.
+*/
+class BridgeBreakConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "bridge_break"; }
+	virtual	const char * Get_Help( void ) override	{ return "BRIDGE_BREAK - breaks the bridge span nearest you."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		if ( COMBAT_STAR == nullptr ) {
+			Print( "bridge_break needs to know where you are standing.\n" );
+			return;
+		}
+		if ( BridgeSystem::Get_Bridge_Count() == 0 ) {
+			Print( "There are no bridges to break.\n" );
+			return;
+		}
+
+		Vector3 star_pos;
+		COMBAT_STAR->Get_Position( &star_pos );
+
+		//	Whichever bridge is under you, or the first one if you are not on one.
+		int id = BridgeSystem::Find_Bridge_At( star_pos, 8.0f );
+		if ( id < 0 ) {
+			id = 0;
+		}
+
+		if ( !BridgeSystem::Break_Span_At( id, star_pos ) ) {
+			Print( "bridge_break: bridge %d has no span to break there.\n", id );
+			return;
+		}
+
+		float from_start = 0.0f;
+		float from_end = 0.0f;
+		BridgeSystem::Get_Traversable_Extent( id, &from_start, &from_end );
+
+		Print( "bridge_break: bridge %d is %s; %.0fm reachable from one end, %.0fm from the other.\n",
+				 id, BridgeSystem::Is_Traversable( id ) ? "still crossable" : "cut",
+				 from_start, from_end );
+	}
+};
+
+
+class BridgeClearConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "bridge_clear"; }
+	virtual	const char * Get_Help( void ) override	{ return "BRIDGE_CLEAR - removes generated bridges and their geometry from the scene."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		if ( BridgeSystem::Get_Bridge_Count() == 0 ) {
+			Print( "There are no generated bridges to clear.\n" );
+			return;
+		}
+
+		BridgeSystem::Clear_Bridges();
+		Print( "Generated bridges cleared.\n" );
 	}
 };
 
@@ -5309,6 +5476,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new TerrainClearConsoleFunctionClass() );
 	FunctionList.Add( new RoadTestConsoleFunctionClass() );
 	FunctionList.Add( new RoadClearConsoleFunctionClass() );
+	FunctionList.Add( new BridgeTestConsoleFunctionClass() );
+	FunctionList.Add( new BridgeBreakConsoleFunctionClass() );
+	FunctionList.Add( new BridgeClearConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );
 	FunctionList.Add( new ExposePrelitConsoleFunctionClass() );

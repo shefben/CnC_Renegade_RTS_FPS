@@ -99,8 +99,10 @@ mesh per junction kind and exactly what this section's acceptance rules out. Jun
 are generated polygons that reuse an arm's texture. If the flat projection at a junction
 ever looks bad enough to matter, the fix is a blend or a decal, not an atlas.
 
-**Bridge decks are Section 20's**, and get their own list when that code names them. The
-seam already exists: a road ending in `ROAD_ENDPOINT_BRIDGE` records where its surface
-stopped and which way it pointed, so a bridge's own deck material meets the road there.
+**Bridge decks are Section 20's**, and have their own list now that that code exists:
+[BridgeSections.md](BridgeSections.md). The seam is closed -- a road ending in
+`ROAD_ENDPOINT_BRIDGE` records where its surface stopped, and `BridgeSystem::Connect_Roads`
+binds it to the abutment standing there -- so a bridge's own deck model meets the road there,
+and the three default bridge widths are these three roads' widths for that reason.
 
 **Tunnel portals** likewise: a connection type with no geometry behind it yet.
