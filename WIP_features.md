@@ -41,9 +41,33 @@ Two things remain unproved. Nothing here has been seen on a screen: the checks r
 without a device, so whether a debug box still looks like a debug box wants one run
 with a display mask on. And the acceptance line *new donor systems share one
 state/shader management layer* needs a donor system, which debug overlays are not.
-Next exact action: nothing in P09 can move until P11 brings the terrain framework, so
-the next work is P10, the spatial query layer, starting with `WorldSpatialIndex` over
-the existing `CullSystemClass` and `PhysicsSceneClass`.
+Next exact action: nothing in P09 can move until the terrain framework can draw, so its
+pipelines wait on P11's renderer.
+
+---
+
+## P10 -- the service is there, the later consumers are not
+
+`WorldSpatialIndex` and the consumers that existed are done (see `completed_features.md`
+P10-A and P10-B, and `docs/zerohour/WorldSpatialIndex.md`). Two backlog lines are left in
+`unstarted_features.md` rather than here because neither is blocked on this phase: the
+second consumer line (Commander placement, nearby lights, foliage cells, roads/bridges/
+water, procedural generation) waits on systems that do not exist, and the acceptance line
+is structural today and unmeasured. Next exact action: nothing, until one of those systems
+lands and calls `Query_Placement_Overlap` or `Query_Nearby_Lights` for real.
+
+---
+
+## P11 -- the ground answers, the physics scene cannot see it
+
+`WorldTerrainSystem` and `HeightfieldClass` are in and checked (P11-A in
+`completed_features.md`, `docs/zerohour/WorldTerrainSystem.md`, eight green ctest
+entries). This entry absorbs the phase's acceptance line, *FPS and vehicle gameplay works
+on runtime-created heightfield terrain while arbitrary W3D geometry remains supported*,
+which is not met: `Build_Collision` refuses, so the field answers queries and nothing can
+stand on it, and nothing draws it either. Next exact action: build terrain collision --
+a `PhysClass` holding geometry from `HeightfieldClass::Get_Cell_Triangles`, registered
+with `PhysicsSceneClass` as a static object and rebuilt per dirty patch.
 
 ---
 

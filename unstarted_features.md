@@ -56,17 +56,11 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P10: Spatial query/index layer (roadmap Section 16)
 
-- [ ] `WorldSpatialIndex` service over the existing `CullSystemClass`, `GridCullSystemClass`, `AABTreeCull` and `PhysicsSceneClass` baseline, delegating to specialized structures internally.
-- [ ] Queries: `QueryAABB`, `QueryOBB`, `QuerySphere`, `QueryFrustum`, `QueryRay`.
-- [ ] Queries: `QueryPlacementOverlap` and `QueryNearbyLights`.
-- [ ] Rule: SAGE `PartitionManager` is not imported as a second unrelated world database.
-- [ ] Consumers moved onto the service: rendering, game-object proximity, area damage, AI queries.
 - [ ] Consumers moved onto the service: Commander building placement, nearby lights, foliage cells, roads/bridges/water, future procedural world generation.
 - [ ] Acceptance: Common large-world queries no longer require scanning the complete global object list.
 
 ## P11: Hybrid heightmap/terrain framework (roadmap Section 17)
 
-- [ ] Acceptance: FPS and vehicle gameplay works on runtime-created heightfield terrain while arbitrary W3D geometry remains supported.
 
 ## P12: Far/background terrain LOD (roadmap Section 34)
 

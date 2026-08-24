@@ -1326,3 +1326,31 @@ reaching into `DX8Wrapper`, and the superseded static is gone. First program tha
 builds a device resource in its `Init`, so the self-check registers it with no device
 present. Covers the *debug overlays* part of the P09 pipeline backlog line; the other
 five on that line still wait on their systems. 27/27 ctest.
+
+## P10-A: `WorldSpatialIndex`, the one place to ask what is near something
+
+Query service over the culling systems `PhysicsSceneClass` already owns -- point, AABox,
+OBBox, sphere, frustum, ray, placement overlap, nearby lights, plus game-object forms of
+the same -- with no state of its own, keeping Section 16's rule against a second world
+database. Absorbs four backlog lines: the service itself, the five named queries, the
+`QueryPlacementOverlap`/`QueryNearbyLights` pair, and the no-`PartitionManager` rule.
+See `docs/zerohour/WorldSpatialIndex.md`. Commit `57ef679e`.
+
+## P10-B: the whole-world scans that were spatial questions
+
+Explosion area damage, unit sight (`SmartGameObj::Think`) and cinematic auto-fire stop
+walking `GameObjManager::Get_Game_Obj_List()`; the ten sites already calling
+`Collect_Objects` directly go through the service instead. Absorbs the backlog line
+*consumers moved onto the service: rendering, game-object proximity, area damage, AI
+queries* -- rendering is `PhysicsSceneClass`'s own visibility pass, inside the delegate,
+so there was nothing to reroute. Client and server both build clean.
+
+## P11-A: `WorldTerrainSystem` and `HeightfieldClass`
+
+Section 17's terrain service and the height data under it: one owner, a triangulation
+that sampling and ray casting share so drawn ground and walked ground agree, patches as
+the unit of rebuild, in-memory heights only (generated-source requirement), road grading
+and river cutting over the height-region primitive, placement surface queries, LOD and
+frustum patch selection. Terrain is additive: `Has_Terrain()` is false for every stock
+level and every query returns false there. See `docs/zerohour/WorldTerrainSystem.md`.
+Eight new ctest entries green (`terrain_*` and `fds_terrain_*`). Commit `6bf9d87a`.
