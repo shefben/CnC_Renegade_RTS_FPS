@@ -39,6 +39,7 @@ textures load unmodified, and no name we invent may shadow one of theirs.
 | [BridgeSections.md](BridgeSections.md) | Sectional bridge models (roadmap Section 20) | 60 models, 3 debris |
 | [FoliageModels.md](FoliageModels.md) | Batched foliage models and impostors (roadmap Section 21) | 5 models, 5 textures, 5 impostors |
 | [WaterModels.md](WaterModels.md) | Water surface textures (roadmap Section 22) | 6 textures |
+| [RibbonSurfaces.md](RibbonSurfaces.md) | Ground mark textures -- tracks, scorches, drag marks (roadmap Section 23) | 5 textures |
 
 ## Format of an entry
 

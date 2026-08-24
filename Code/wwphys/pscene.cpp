@@ -112,6 +112,7 @@
 #include "vistable.h"
 #include "meshmdl.h"
 #include "camerashakesystem.h"
+#include "surfaceribbonsystem.h"
 #include "lightenvironment.h"
 #include "dx8wrapper.h"
 #include "physresourcemgr.h"
@@ -403,6 +404,16 @@ void PhysicsSceneClass::Update(float dt,int frameid)
 	{
 		WWPROFILE("MaterialEffects");
 		MaterialEffectClass::Timestep_All_Effects(dt);
+	}
+
+	/*
+	** Age the marks on the ground and refill the meshes that draw them.  This is the same kind
+	** of thing as the two above it: a world-level effect with no object of its own to be
+	** stepped through, so it is stepped here rather than by giving every mark a PhysClass.
+	*/
+	{
+		WWPROFILE("SurfaceRibbons");
+		SurfaceRibbonSystem::Timestep(dt);
 	}
 
 	/*

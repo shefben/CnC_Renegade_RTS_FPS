@@ -1465,3 +1465,18 @@ reaction (wake, splash, surface damage) fires over it with no new collision code
 navigability) answer from the authored shape with no scene. Missing texture degrades to nothing
 drawn, same policy as foliage. Evidence: `docs/zerohour/WaterSystem.md`, `docs/assets/WaterModels.md`;
 twenty green terrain ctest entries including the new `terrain_water` and `fds_terrain_water`.
+
+## P18-A: A mark is an edge in a fixed ring, not an object
+
+`SurfaceRibbonSystem`/`SurfaceRibbonClass`/`SurfaceRibbonDefinitionClass` generalise the donor's
+`W3DTerrainTracks` into five kinds of ground ribbon (tank/tire/harvester track, scorch trail, drag
+mark), answering roadmap Section 23's acceptance structurally: one pool of forty-eight ribbons
+allocated once at `WWPhys::Init` and never grown, a fixed forty-eight-edge ring inside each, and one
+`DynamicMeshClass` per *kind* refilled in place each frame -- so a mark is thirty-odd bytes, not a
+render object, and every tank track on the map is one thing to draw. `VehiclePhysClass` lays a left
+and a right ribbon from the wheel contacts its suspension already computed, which is the whole of
+"terrain/road/bridge conform"; `TrackedVehicleClass` overrides the kind to treads. Break on hard
+ground, airborne and teleport all fall out of `Add_Point` needing no cooperation from the mover.
+Nothing is networked or saved -- both are functions of state already replicated. Evidence:
+`docs/zerohour/SurfaceRibbonSystem.md`, `docs/assets/RibbonSurfaces.md`; twenty-two green terrain
+ctest entries including the new `terrain_ribbons` and `fds_terrain_ribbons`.

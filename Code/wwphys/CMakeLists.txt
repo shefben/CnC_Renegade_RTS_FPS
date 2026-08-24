@@ -79,6 +79,8 @@ set(WWPHYS_SRC
     terraintexturesystem.cpp
     watersystem.cpp
     watertype.cpp
+    ribbontype.cpp
+    surfaceribbonsystem.cpp
     timeddecophys.cpp
     trackedvehicle.cpp
     transitioneffect.cpp
@@ -180,6 +182,8 @@ set(WWPHYS_SRC
     terraintexturesystem.h
     watersystem.h
     watertype.h
+    ribbontype.h
+    surfaceribbonsystem.h
     timeddecophys.h
     trackedvehicle.h
     transitioneffect.h

@@ -50,6 +50,8 @@
 #include "foliagetype.h"
 #include "watersystem.h"
 #include "watertype.h"
+#include "surfaceribbonsystem.h"
+#include "ribbontype.h"
 #include "bridgesystem.h"
 #include "roadsystem.h"
 #include "playermanager.h"
@@ -1324,6 +1326,98 @@ public:
 
 		WaterSystem::Clear_Areas();
 		Print( "Generated water cleared.\n" );
+	}
+};
+
+
+/*
+**	Marks on the ground -- roadmap Section 23.
+**
+**	There is nothing to place: every vehicle in the level is already laying marks off its own
+**	wheel contacts, and has been since the physics library started.  What is missing is a
+**	texture to draw them with, so that is the whole of what this command supplies -- point the
+**	five kinds at a texture this level already has, then drive something over soft ground.
+*/
+class RibbonTextureConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "ribbon_texture"; }
+	virtual	const char * Get_Help( void ) override	{ return "RIBBON_TEXTURE <texture> - draws every kind of ground mark with the named texture.  No argument clears it again."; }
+	virtual	void Activate( const char * input ) override {
+
+		char	texture[ 128 ];
+		texture[ 0 ] = 0;
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%127s", texture );
+		}
+
+		if ( SurfaceRibbonSystem::Get_Definition_Count() == 0 ) {
+			SurfaceRibbonSystem::Define_Default_Ribbons();
+		}
+
+		int count = SurfaceRibbonSystem::Get_Definition_Count();
+		for ( int i = 0; i < count; i ++ ) {
+			SurfaceRibbonDefinitionClass def = SurfaceRibbonSystem::Peek_Definition( i );
+			def.Set_Texture( texture );
+			SurfaceRibbonSystem::Define_Definition( def );
+		}
+
+		//	The meshes were made against the old texture, or not made at all.  Let them go and
+		//	they are made again on the next frame with whatever was just named.
+		SurfaceRibbonSystem::Destroy_Geometry();
+
+		if ( texture[ 0 ] != 0 ) {
+			Print( "ribbon_texture: %d kind(s) of ground mark will draw with %s.\n", count, texture );
+			Print( "ribbon_texture: drive a vehicle over dirt, sand, mud, grass or snow.\n" );
+		} else {
+			Print( "ribbon_texture: %d kind(s) of ground mark draw nothing again.\n", count );
+		}
+	}
+};
+
+
+class RibbonStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "ribbon_status"; }
+	virtual	const char * Get_Help( void ) override	{ return "RIBBON_STATUS - reports how many ground marks exist and how many things are drawn to show them."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		Print( "ribbon_status: %d of %d ribbon(s) in use, %d mark(s) laid.\n",
+				 SurfaceRibbonSystem::Get_Active_Ribbon_Count(),
+				 SurfaceRibbonSystem::Get_Pool_Size(),
+				 SurfaceRibbonSystem::Get_Edge_Count() );
+
+		//	This line is roadmap Section 23's acceptance, printed: however many marks exist, the
+		//	number of things drawn to show them is at most the number of kinds of mark.
+		Print( "ribbon_status: %d object(s) drawing %d polygon(s).\n",
+				 SurfaceRibbonSystem::Get_Object_Count(),
+				 SurfaceRibbonSystem::Get_Poly_Count() );
+
+		if ( SurfaceRibbonSystem::Get_Missing_Texture_Count() > 0 ) {
+			Print( "ribbon_status: %d kind(s) are being laid with no texture, so they draw nothing.\n",
+					 SurfaceRibbonSystem::Get_Missing_Texture_Count() );
+			Print( "ribbon_status: try ribbon_texture <a texture name from this level>.\n" );
+		}
+
+		if ( SurfaceRibbonSystem::Get_Bind_Failure_Count() > 0 ) {
+			Print( "ribbon_status: %d time(s) the pool was full and a mark was refused rather than allocated.\n",
+					 SurfaceRibbonSystem::Get_Bind_Failure_Count() );
+		}
+	}
+};
+
+
+class RibbonClearConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "ribbon_clear"; }
+	virtual	const char * Get_Help( void ) override	{ return "RIBBON_CLEAR - erases every ground mark without stopping anything from laying new ones."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		SurfaceRibbonSystem::Clear_Marks();
+		Print( "Ground marks cleared.\n" );
 	}
 };
 
@@ -5755,6 +5849,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new FoliageClearConsoleFunctionClass() );
 	FunctionList.Add( new WaterTestConsoleFunctionClass() );
 	FunctionList.Add( new WaterClearConsoleFunctionClass() );
+	FunctionList.Add( new RibbonTextureConsoleFunctionClass() );
+	FunctionList.Add( new RibbonStatusConsoleFunctionClass() );
+	FunctionList.Add( new RibbonClearConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );
 	FunctionList.Add( new ExposePrelitConsoleFunctionClass() );

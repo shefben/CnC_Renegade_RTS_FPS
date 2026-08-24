@@ -37,6 +37,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "trackedvehicle.h"
+#include "ribbontype.h"
 #include "rendobj.h"
 #include "lineseg.h"
 #include "lookuptable.h"
@@ -359,6 +360,11 @@ void TrackedVehicleClass::Compute_Force_And_Torque(Vector3 * force,Vector3 * tor
 	** Pass on to the base class
 	*/
 	VehiclePhysClass::Compute_Force_And_Torque(force,torque);
+}
+
+int TrackedVehicleClass::Get_Default_Ribbon_Category(void) const
+{
+	return RIBBON_TANK_TRACK;
 }
 
 SuspensionElementClass * TrackedVehicleClass::Alloc_Suspension_Element(void)

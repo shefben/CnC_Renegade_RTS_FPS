@@ -39,16 +39,24 @@
 #include "wwphys.h"
 #include "physcon.h"
 #include "physresourcemgr.h"
+#include "surfaceribbonsystem.h"
 
 
 void WWPhys::Init(void)
 {
 	PhysicsConstants::Init();
 	PhysResourceMgrClass::Init();
+
+	//	Marks on the ground.  The pool is the only allocation the ribbon system ever makes, and
+	//	the five kinds roadmap Section 23 names cost nothing until something lays one, so both
+	//	happen here rather than waiting for a caller that would only ever say yes.
+	SurfaceRibbonSystem::Init();
+	SurfaceRibbonSystem::Define_Default_Ribbons();
 }
 
 void WWPhys::Shutdown(void)
 {
+	SurfaceRibbonSystem::Shutdown();
 	PhysResourceMgrClass::Shutdown();
 }
 

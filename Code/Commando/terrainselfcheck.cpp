@@ -15,12 +15,15 @@
 #include "lineseg.h"
 #include "coltype.h"
 #include "renegadeterrainpatch.h"
+#include "ribbontype.h"
 #include "roadspline.h"
 #include "roadsystem.h"
+#include "surfaceribbonsystem.h"
 #include "terrainmask.h"
 #include "terraintexturesystem.h"
 #include "watersystem.h"
 #include "watertype.h"
+#include "w3d_file.h"
 #include "worldterrainsystem.h"
 #include "wwmath.h"
 
@@ -2139,6 +2142,201 @@ void	Check_Water (void)
 }
 
 
+/*
+**	Marks on the ground -- roadmap Section 23.
+**
+**	The acceptance is a claim about cost, not about looks, so this is mostly arithmetic: the
+**	pool is a fixed size, a ribbon holds a fixed number of edges, and neither number moves no
+**	matter how far anything is driven.  Everything here runs with no scene and no art, because
+**	none of what is being claimed depends on either.
+*/
+void	Check_Ribbons (void)
+{
+	//
+	//	The five kinds Section 23 names.
+	//
+	Check (::strcmp (Ribbon_Category_Name (RIBBON_TANK_TRACK), "tank track") == 0,
+			 "the tank track is called %s", Ribbon_Category_Name (RIBBON_TANK_TRACK));
+	Check (::strcmp (Ribbon_Category_Name (RIBBON_HARVESTER_TRACK), "harvester track") == 0,
+			 "the harvester track is called %s", Ribbon_Category_Name (RIBBON_HARVESTER_TRACK));
+	Check (::strcmp (Ribbon_Category_Name (RIBBON_DRAG_MARK), "drag mark") == 0,
+			 "the drag mark is called %s", Ribbon_Category_Name (RIBBON_DRAG_MARK));
+
+	//
+	//	Soft ground keeps a mark, hard ground does not.  This is read off Renegade's own surface
+	//	tagging, so a level that never heard of ribbons still says where tracks belong.
+	//
+	Check (Ribbon_Surface_Takes_Marks (SURFACE_TYPE_DIRT), "dirt keeps no track");
+	Check (Ribbon_Surface_Takes_Marks (SURFACE_TYPE_SAND), "sand keeps no track");
+	Check (Ribbon_Surface_Takes_Marks (SURFACE_TYPE_MUD), "mud keeps no track");
+	Check (Ribbon_Surface_Takes_Marks (SURFACE_TYPE_SNOW), "snow keeps no track");
+	Check (!Ribbon_Surface_Takes_Marks (SURFACE_TYPE_CONCRETE), "concrete takes a tread mark");
+	Check (!Ribbon_Surface_Takes_Marks (SURFACE_TYPE_HEAVY_METAL), "steel plate takes a tread mark");
+	Check (!Ribbon_Surface_Takes_Marks (SURFACE_TYPE_WATER), "water takes a tread mark");
+
+	SurfaceRibbonSystem::Init ();
+
+	//
+	//	The pool exists before anything asks for it, and it is the only allocation there is.
+	//
+	const int pool = SurfaceRibbonSystem::Get_Pool_Size ();
+	Check (pool > 0, "the pool is %d ribbons", pool);
+	Check (SurfaceRibbonSystem::Get_Active_Ribbon_Count () == 0, "a fresh pool is already busy");
+	Check (SurfaceRibbonSystem::Get_Edge_Count () == 0, "a fresh pool already has marks in it");
+
+	SurfaceRibbonSystem::Define_Default_Ribbons ();
+	Check (SurfaceRibbonSystem::Get_Definition_Count () == 5,
+			 "there are %d kinds of mark, not five", SurfaceRibbonSystem::Get_Definition_Count ());
+
+	int tank = SurfaceRibbonSystem::Find_Definition_Index ("ow_ribbon_tank_track");
+	Check (tank >= 0, "the tank track is not defined");
+	if (tank < 0) {
+		SurfaceRibbonSystem::Shutdown ();
+		return ;
+	}
+
+	const SurfaceRibbonDefinitionClass & tank_def = SurfaceRibbonSystem::Peek_Definition (tank);
+	Check (tank_def.Get_Category () == RIBBON_TANK_TRACK, "the tank track is not a tank track");
+	Check (!tank_def.Names_A_Texture (), "the tank track names art that does not exist");
+	Check (SurfaceRibbonSystem::Find_Definition_By_Category (RIBBON_TANK_TRACK) == tank,
+			 "asking for a tank track by category finds something else");
+
+	//
+	//	A ribbon cannot hold more edges than its kind allows, and no kind may exceed the buffer
+	//	it lives in.  This is the cap, checked rather than trusted.
+	//
+	Check (tank_def.Get_Max_Edges () <= SURFACE_RIBBON_MAX_EDGES,
+			 "a kind claims %d edges out of a buffer of %d",
+			 tank_def.Get_Max_Edges (), SURFACE_RIBBON_MAX_EDGES);
+
+	//
+	//	Bind one, drive it in a straight line, and watch the ring fill and then stop filling.
+	//
+	int handle = SurfaceRibbonSystem::Bind (tank, 1234);
+	Check (handle >= 0, "a fresh pool would not give out a ribbon");
+	Check (SurfaceRibbonSystem::Is_Bound (handle), "the ribbon handed out is not bound");
+	Check (SurfaceRibbonSystem::Find_Bound (1234) == handle, "the owner cannot find its own ribbon");
+
+	const Vector3 forward (1.0f, 0.0f, 0.0f);
+	const Vector3 up (0.0f, 0.0f, 1.0f);
+	const float segment = tank_def.Get_Segment_Length ();
+
+	bool laid = SurfaceRibbonSystem::Add_Point (handle, Vector3 (0.0f,0.0f,0.0f), forward, up, SURFACE_TYPE_DIRT);
+	Check (laid, "the first contact laid no mark");
+	Check (SurfaceRibbonSystem::Get_Edge_Count () == 1,
+			 "the first contact laid %d marks", SurfaceRibbonSystem::Get_Edge_Count ());
+
+	//	A vehicle that has barely moved does not lay another; this is what keeps a parked tank
+	//	from spending its whole ring buffer standing still.
+	laid = SurfaceRibbonSystem::Add_Point (handle, Vector3 (segment * 0.1f,0.0f,0.0f), forward, up, SURFACE_TYPE_DIRT);
+	Check (!laid, "a mark was laid without the emitter moving a segment");
+	Check (SurfaceRibbonSystem::Get_Edge_Count () == 1, "standing still spent the ring buffer");
+
+	laid = SurfaceRibbonSystem::Add_Point (handle, Vector3 (segment,0.0f,0.0f), forward, up, SURFACE_TYPE_DIRT);
+	Check (laid, "moving a full segment laid no mark");
+	Check (SurfaceRibbonSystem::Get_Edge_Count () == 2, "moving a full segment laid the wrong number of marks");
+
+	//	The strip is as wide as its kind says, across the direction of travel.
+	const SurfaceRibbonClass * ribbon = SurfaceRibbonSystem::Peek_Ribbon (handle);
+	Check (ribbon != nullptr, "a bound ribbon cannot be read");
+	if (ribbon != nullptr) {
+		float width = (ribbon->Peek_Edge (0).Left - ribbon->Peek_Edge (0).Right).Length ();
+		Check (Near (width, tank_def.Get_Width (), 0.01f),
+				 "the strip is %f wide and its kind says %f", width, tank_def.Get_Width ());
+		Check (ribbon->Peek_Edge (0).StartsRun, "the first mark of a ribbon does not start its strip");
+		Check (!ribbon->Peek_Edge (1).StartsRun, "the second mark started a new strip for no reason");
+	}
+
+	//	Drive a long way.  Far more contacts than the ring can hold, and the ring holds its cap.
+	for (int step = 2; step < 400; step++) {
+		SurfaceRibbonSystem::Add_Point (handle, Vector3 (segment * (float)step,0.0f,0.0f), forward, up, SURFACE_TYPE_DIRT);
+	}
+	int held = SurfaceRibbonSystem::Get_Edge_Count ();
+	Check (held == tank_def.Get_Max_Edges (),
+			 "four hundred contacts left %d marks in a ring of %d", held, tank_def.Get_Max_Edges ());
+	Check (SurfaceRibbonSystem::Get_Pool_Size () == pool,
+			 "driving grew the pool from %d to %d", pool, SurfaceRibbonSystem::Get_Pool_Size ());
+
+	//
+	//	Hard ground ends the run without ending the ribbon: the marks stay, and the next soft
+	//	contact starts a fresh strip rather than being joined across the concrete.
+	//
+	laid = SurfaceRibbonSystem::Add_Point (handle, Vector3 (segment * 400.0f,0.0f,0.0f), forward, up, SURFACE_TYPE_CONCRETE);
+	Check (!laid, "concrete took a tread mark");
+	Check (SurfaceRibbonSystem::Get_Edge_Count () == held, "driving onto concrete erased the marks behind it");
+
+	laid = SurfaceRibbonSystem::Add_Point (handle, Vector3 (segment * 401.0f,0.0f,0.0f), forward, up, SURFACE_TYPE_DIRT);
+	Check (laid, "coming off concrete onto dirt laid no mark");
+	ribbon = SurfaceRibbonSystem::Peek_Ribbon (handle);
+	if (ribbon != nullptr) {
+		Check (ribbon->Peek_Edge (ribbon->Get_Edge_Count () - 1).StartsRun,
+				 "the mark after the concrete was joined to the one before it");
+	}
+
+	//
+	//	A teleport is a jump larger than the kind allows, and needs nothing from the thing that
+	//	jumped: the same Add_Point call decides it.
+	//
+	laid = SurfaceRibbonSystem::Add_Point (handle, Vector3 (5000.0f,5000.0f,0.0f), forward, up, SURFACE_TYPE_DIRT);
+	Check (laid, "the mark at the far end of a teleport was never laid");
+	ribbon = SurfaceRibbonSystem::Peek_Ribbon (handle);
+	if (ribbon != nullptr) {
+		Check (ribbon->Peek_Edge (ribbon->Get_Edge_Count () - 1).StartsRun,
+				 "a teleport dragged a strip across the whole map");
+	}
+
+	//
+	//	The acceptance in two numbers: many marks, and no object per mark.  There is no scene
+	//	here, so nothing is drawn -- and the marks are still all there and still all bounded.
+	//
+	Check (SurfaceRibbonSystem::Get_Edge_Count () > 40,
+			 "only %d marks exist to compare against the object count", SurfaceRibbonSystem::Get_Edge_Count ());
+	Check (!SurfaceRibbonSystem::Build_Geometry (), "geometry was built with no scene to put it in");
+	Check (SurfaceRibbonSystem::Get_Object_Count () == 0,
+			 "%d objects exist in a scene that is not there", SurfaceRibbonSystem::Get_Object_Count ());
+	Check (SurfaceRibbonSystem::Get_Missing_Texture_Count () == 1,
+			 "%d kinds report missing art and one kind is laying marks",
+			 SurfaceRibbonSystem::Get_Missing_Texture_Count ());
+
+	//
+	//	The pool cannot grow.  Take every slot, then ask for one more.
+	//
+	int failures_before = SurfaceRibbonSystem::Get_Bind_Failure_Count ();
+	int taken = 0;
+	for (int i = 0; i < pool + 8; i++) {
+		int extra = SurfaceRibbonSystem::Bind (tank, 9000 + i);
+		if (extra >= 0) {
+			taken++;
+		}
+	}
+	Check (SurfaceRibbonSystem::Get_Pool_Size () == pool,
+			 "asking for %d ribbons out of a pool of %d grew it to %d",
+			 pool + 8, pool, SurfaceRibbonSystem::Get_Pool_Size ());
+	Check (taken <= pool, "the pool of %d handed out %d ribbons", pool, taken);
+	Check (SurfaceRibbonSystem::Get_Bind_Failure_Count () > failures_before,
+			 "the pool ran out and never said so");
+
+	//
+	//	Fade and lifetime.  One step past the end of a kind's life empties every ribbon of it,
+	//	and an unbound ribbon that has emptied gives its slot back.
+	//
+	SurfaceRibbonSystem::Unbind (handle);
+	Check (!SurfaceRibbonSystem::Is_Bound (handle), "an unbound ribbon is still bound");
+
+	SurfaceRibbonSystem::Timestep (tank_def.Get_Lifetime () + 1.0f);
+	Check (SurfaceRibbonSystem::Get_Edge_Count () == 0,
+			 "%d marks outlived their kind", SurfaceRibbonSystem::Get_Edge_Count ());
+
+	//
+	//	Nothing outlives the world it marked.
+	//
+	SurfaceRibbonSystem::Shutdown ();
+	Check (SurfaceRibbonSystem::Get_Pool_Size () == 0, "the pool outlived the service");
+	Check (SurfaceRibbonSystem::Get_Definition_Count () == 0, "the kinds outlived the service");
+	Check (SurfaceRibbonSystem::Get_Edge_Count () == 0, "the marks outlived the service");
+}
+
+
 }	// anonymous namespace
 
 
@@ -2175,6 +2373,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "water") == 0)) {
 		Check_Water ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "ribbons") == 0)) {
+		Check_Ribbons ();
 	}
 
 	if (_Failures == 0) {

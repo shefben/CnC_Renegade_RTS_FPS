@@ -83,7 +83,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P18: Terrain tracks / surface ribbons (roadmap Section 23)
 
-- [ ] Acceptance: Vehicles can leave stable marks without unbounded allocations or per-mark heavyweight objects.
 
 ## P19: Surface smudge / decal manager (roadmap Section 35)
 

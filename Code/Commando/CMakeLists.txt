@@ -585,6 +585,9 @@ if(BUILD_TESTING AND TARGET renegade)
 
     #	Reflective water / river system -- roadmap Section 22.  See terrainselfcheck.h.
     add_test(NAME terrain_water  COMMAND renegade -terrainselfcheck water)
+
+    #	Terrain tracks / surface ribbons -- roadmap Section 23.  See terrainselfcheck.h.
+    add_test(NAME terrain_ribbons  COMMAND renegade -terrainselfcheck ribbons)
 endif()
 
 #
@@ -610,6 +613,7 @@ if(BUILD_TESTING AND TARGET renegadeserver)
     add_test(NAME fds_terrain_bridges  COMMAND renegadeserver -terrainselfcheck bridges)
     add_test(NAME fds_terrain_foliage  COMMAND renegadeserver -terrainselfcheck foliage)
     add_test(NAME fds_terrain_water    COMMAND renegadeserver -terrainselfcheck water)
+    add_test(NAME fds_terrain_ribbons  COMMAND renegadeserver -terrainselfcheck ribbons)
     add_test(NAME fds_terrain_rays     COMMAND renegadeserver -terrainselfcheck rays)
     add_test(NAME fds_terrain_shaping  COMMAND renegadeserver -terrainselfcheck shaping)
     add_test(NAME fds_terrain_service  COMMAND renegadeserver -terrainselfcheck service)

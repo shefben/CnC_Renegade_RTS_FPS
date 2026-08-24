@@ -41,6 +41,7 @@
 
 #include "rbody.h"
 #include "simplevec.h"
+#include "wwstring.h"
 
 class VehiclePhysDefClass;
 class SuspensionElementClass;
@@ -104,6 +105,19 @@ public:
 	** update the wheels when there is no physics scene or processing happening.
 	*/
 	void									Non_Physical_Wheel_Update(float suspension_fraction,float rotation);
+
+	/*
+	** Marks on the ground.  Every vehicle lays a left and a right ribbon from the contact
+	** points its own wheels already report, so nothing about a track is decided or stored
+	** anywhere else -- see surfaceribbonsystem.h.  A vehicle that wants a different kind of
+	** mark than its class default (a harvester, say) names one here and the system resolves
+	** it; naming nothing, or naming something that does not exist, means the class default.
+	*/
+	void									Set_Ribbon_Definition(const char * name);
+	const char *						Get_Ribbon_Definition(void) const	{ return RibbonDefinitionName.Peek_Buffer(); }
+	virtual int							Get_Default_Ribbon_Category(void) const;
+	void									Update_Surface_Ribbons(void);
+	void									Release_Surface_Ribbons(void);
 
 	/*
 	** Teleport to the last good position.  This is used when vehicles get flipped over or stuck somehow.
@@ -183,6 +197,11 @@ protected:
 	Matrix3D								LastGoodPosition;		// last state where all wheels were on the ground
 
 	float									ExpireTimer;			// time left before blowing up when rolled over
+
+	StringClass							RibbonDefinitionName;	// optional override; empty means the class default
+	int									RibbonDefinition;		// resolved definition index, -1 until first use
+	int									RibbonLeft;				// pooled ribbon handles, -1 when not laying
+	int									RibbonRight;
 
 	static bool							_DisableVehicleSimulation;
 	static bool							_DisableVehicleRendering;

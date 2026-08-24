@@ -261,3 +261,16 @@ reflection, and no naval/amphibious unit yet asks `Get_Water_Depth`/`Is_Navigabl
 action is a manual one for the user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a
 level, then `water_test 20 <a texture name from that level>` at the console, and report whether the
 pond carved into the ground, whether the shoreline looked blended, and whether it drew.
+
+## P18 -- every vehicle is laying tracks and nobody has seen one
+
+`SurfaceRibbonSystem` is in and checked (P18-A in `completed_features.md`,
+`docs/zerohour/SurfaceRibbonSystem.md`, twenty-two green terrain ctest entries). This entry carries
+the absorbed acceptance line *Vehicles can leave stable marks without unbounded allocations or
+per-mark heavyweight objects*: the cost half is proved by construction and by the checks (fixed
+pool, fixed ring, one object per kind), but no mark has ever been drawn because no kind names a
+texture, only vehicles emit (scorch trails and drag marks are defined and unwired), the harvester
+kind has no harvester, and marks do not cull by distance within their mesh. Next exact action is a
+manual one for the user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then
+`ribbon_texture <a texture name from that level>` at the console, drive a vehicle over dirt, and
+report whether tracks appear behind it and what `ribbon_status` prints for marks against objects.

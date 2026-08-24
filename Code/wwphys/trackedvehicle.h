@@ -73,6 +73,9 @@ public:
 	float								Get_Left_Track_Movement(void)		{ return LeftTrackMovement; }
 	float								Get_Right_Track_Movement(void)	{ return RightTrackMovement; }
 
+	//	Treads, not tires.  See surfaceribbonsystem.h.
+	virtual int						Get_Default_Ribbon_Category(void) const override;
+
 	/*
 	** Save-Load System
 	*/

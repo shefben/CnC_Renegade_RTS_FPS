@@ -48,6 +48,7 @@
 #include "pscene.h"
 #include "wwprofile.h"
 #include "vehicledazzle.h"
+#include "surfaceribbonsystem.h"
 
 // Vehicles will sit rolled over for this long before exploding!
 const float		EXPIRE_SECONDS								= 4.0f;
@@ -110,7 +111,11 @@ VehiclePhysClass::VehiclePhysClass(void) :
 	DriveWheelCount(0),
 	EngineFlameBones(MAX_CAPTURED_BONE_COUNT),
 	LastGoodPosition(1),
-	ExpireTimer(EXPIRE_SECONDS)
+	ExpireTimer(EXPIRE_SECONDS),
+	RibbonDefinitionName(""),
+	RibbonDefinition(-1),
+	RibbonLeft(-1),
+	RibbonRight(-1)
 {
 	for (int i=0; i<MAX_CAPTURED_BONE_COUNT; i++) {
 		EngineFlameBones[i] = -1;
@@ -141,6 +146,7 @@ void VehiclePhysClass::Definition_Changed(void)
 
 VehiclePhysClass::~VehiclePhysClass(void)
 {
+	Release_Surface_Ribbons();
 	Release_Wheels();
 	Release_Auxiliary_Bones();
 	Release_Dazzles();
@@ -299,11 +305,163 @@ void VehiclePhysClass::Timestep(float dt)
 			ExpireTimer = EXPIRE_SECONDS;
 		}
 	}
+
+	/*
+	** Leave marks.  Last, so the wheels have already reported this step's contacts.
+	*/
+	Update_Surface_Ribbons();
 }
 
 SuspensionElementClass * VehiclePhysClass::Peek_Wheel(int wheel_index)
 {
 	return Wheels[wheel_index];
+}
+
+
+/***********************************************************************************************
+ * VehiclePhysClass::Get_Default_Ribbon_Category -- what kind of mark this vehicle leaves        *
+ *                                                                                             *
+ * A wheel is a tire unless a derived class says otherwise, which TrackedVehicleClass does.     *
+ *=============================================================================================*/
+int VehiclePhysClass::Get_Default_Ribbon_Category(void) const
+{
+	return RIBBON_TIRE_TRACK;
+}
+
+
+void VehiclePhysClass::Set_Ribbon_Definition(const char * name)
+{
+	RibbonDefinitionName = (name != nullptr) ? name : "";
+
+	//	Whatever was being laid belongs to the old kind.  Let it fade and start again.
+	Release_Surface_Ribbons();
+	RibbonDefinition = -1;
+	return ;
+}
+
+
+void VehiclePhysClass::Release_Surface_Ribbons(void)
+{
+	if (RibbonLeft >= 0) {
+		SurfaceRibbonSystem::Unbind(RibbonLeft);
+		RibbonLeft = -1;
+	}
+	if (RibbonRight >= 0) {
+		SurfaceRibbonSystem::Unbind(RibbonRight);
+		RibbonRight = -1;
+	}
+	return ;
+}
+
+
+/***********************************************************************************************
+ * VehiclePhysClass::Update_Surface_Ribbons -- leave marks where the wheels touched             *
+ *                                                                                             *
+ * Everything this needs was already computed for the suspension: which wheels are on the       *
+ * ground, exactly where each one touched, the normal there, and what the ground is made of.    *
+ * So laying a track costs one pass over the wheel array and no new physics at all -- no extra  *
+ * ray, no ground query, no guess about where the vehicle "probably" is.  The contact point is  *
+ * already conformed to whatever it landed on, which is why terrain, a road and a bridge deck   *
+ * all work without this knowing which one it is.                                               *
+ *                                                                                             *
+ * A vehicle lays two ribbons, not one per wheel: a left and a right, averaged across the       *
+ * wheels on that side.  A six-wheeled truck therefore costs the same two pool slots a jeep     *
+ * does, and a tank's two treads read as two treads.                                            *
+ *                                                                                             *
+ * Nothing here is networked.  Every machine runs this same code over the same replicated       *
+ * vehicle state and so lays the same marks; sending them would be sending a function of        *
+ * something already sent.                                                                      *
+ *=============================================================================================*/
+void VehiclePhysClass::Update_Surface_Ribbons(void)
+{
+	if (Wheels.Length() == 0) {
+		return ;
+	}
+
+	/*
+	** Resolve which kind of mark this vehicle makes, once.
+	*/
+	if (RibbonDefinition < 0) {
+		if (RibbonDefinitionName.Get_Length() > 0) {
+			RibbonDefinition = SurfaceRibbonSystem::Find_Definition_Index(RibbonDefinitionName);
+		}
+		if (RibbonDefinition < 0) {
+			RibbonDefinition = SurfaceRibbonSystem::Find_Definition_By_Category(Get_Default_Ribbon_Category());
+		}
+		if (RibbonDefinition < 0) {
+			//	Nothing has defined any ribbons.  Not an error; there is simply nothing to lay.
+			return ;
+		}
+	}
+
+	const Matrix3D & tm = Get_Transform();
+	const Vector3 forward = tm.Get_X_Vector();
+	const Vector3 sideways = tm.Get_Y_Vector();
+	Vector3 centre;
+	tm.Get_Translation(&centre);
+
+	Vector3	contact[2] = { Vector3(0.0f,0.0f,0.0f), Vector3(0.0f,0.0f,0.0f) };
+	Vector3	normal[2]  = { Vector3(0.0f,0.0f,1.0f), Vector3(0.0f,0.0f,1.0f) };
+	int		surface[2] = { 0, 0 };
+	int		count[2] = { 0, 0 };
+
+	for (int i = 0; i < Wheels.Length(); i++) {
+
+		SuspensionElementClass * wheel = Wheels[i];
+		if (wheel == nullptr) {
+			continue;
+		}
+		if (wheel->Get_Flag(SuspensionElementClass::FAKE)) {
+			continue;
+		}
+		if (!wheel->Get_Flag(SuspensionElementClass::INCONTACT)) {
+			continue;
+		}
+
+		//	Left of the vehicle or right of it.  A tank's own LEFT_TRACK/RIGHT_TRACK flags say
+		//	so directly; everything else is decided by which side of the hull the wheel is on.
+		int side;
+		if (wheel->Get_Flag(SuspensionElementClass::LEFT_TRACK)) {
+			side = 0;
+		} else if (wheel->Get_Flag(SuspensionElementClass::RIGHT_TRACK)) {
+			side = 1;
+		} else {
+			side = (Vector3::Dot_Product(wheel->Get_Contact_Point() - centre,sideways) >= 0.0f) ? 0 : 1;
+		}
+
+		if (count[side] == 0) {
+			surface[side] = wheel->Get_Contact_Surface();
+			normal[side] = wheel->Get_Contact_Normal();
+		}
+		contact[side] += wheel->Get_Contact_Point();
+		count[side]++;
+	}
+
+	for (int s = 0; s < 2; s++) {
+
+		int & handle = (s == 0) ? RibbonLeft : RibbonRight;
+
+		if (count[s] == 0) {
+			//	Nothing on this side is touching the ground.  Airborne, or up on two wheels.
+			//	The marks already laid stay; the next ones start a new strip.
+			if (handle >= 0) {
+				SurfaceRibbonSystem::Break(handle);
+			}
+			continue;
+		}
+
+		if (handle < 0) {
+			handle = SurfaceRibbonSystem::Bind(RibbonDefinition,(int)Get_ID());
+			if (handle < 0) {
+				continue;
+			}
+		}
+
+		Vector3 point = contact[s] / (float)count[s];
+		SurfaceRibbonSystem::Add_Point(handle,point,forward,normal[s],surface[s]);
+	}
+
+	return ;
 }
 
 
