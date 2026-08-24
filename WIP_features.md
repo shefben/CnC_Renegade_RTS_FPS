@@ -41,8 +41,9 @@ Two things remain unproved. Nothing here has been seen on a screen: the checks r
 without a device, so whether a debug box still looks like a debug box wants one run
 with a display mask on. And the acceptance line *new donor systems share one
 state/shader management layer* needs a donor system, which debug overlays are not.
-Next exact action: nothing in P09 can move until the terrain framework can draw, so its
-pipelines wait on P11's renderer.
+Next exact action: register the terrain and terrain-detail pipelines against
+`RenegadeTerrainPatchClass`, which now has material passes to draw with (P13-A); the other
+nine still wait on their systems.
 
 ---
 
@@ -58,16 +59,29 @@ lands and calls `Query_Placement_Overlap` or `Query_Nearby_Lights` for real.
 
 ---
 
-## P11 -- the ground answers, the physics scene cannot see it
+## P11 -- built and unwalked
 
-`WorldTerrainSystem` and `HeightfieldClass` are in and checked (P11-A in
-`completed_features.md`, `docs/zerohour/WorldTerrainSystem.md`, eight green ctest
-entries). This entry absorbs the phase's acceptance line, *FPS and vehicle gameplay works
-on runtime-created heightfield terrain while arbitrary W3D geometry remains supported*,
-which is not met: `Build_Collision` refuses, so the field answers queries and nothing can
-stand on it, and nothing draws it either. Next exact action: build terrain collision --
-a `PhysClass` holding geometry from `HeightfieldClass::Get_Cell_Triangles`, registered
-with `PhysicsSceneClass` as a static object and rebuilt per dirty patch.
+The service, the heightfield and the collision are all in (P11-A and P11-B in
+`completed_features.md`; `docs/zerohour/WorldTerrainSystem.md`). This entry still carries
+the phase's acceptance line, *FPS and vehicle gameplay works on runtime-created heightfield
+terrain while arbitrary W3D geometry remains supported*: the machinery is there and nobody
+has stood on it, because the checks run device-less. Next exact action is a manual one for
+the user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then
+`terrain_test` at the console, and report whether a soldier walks on the generated ground
+and whether the level's own W3D geometry still behaves.
+
+---
+
+## P13 -- decided, undrawn
+
+`TerrainTextureSystem` is in and checked (P13-A in `completed_features.md`,
+`docs/zerohour/TerrainTextureSystem.md`, twelve green terrain ctest entries). What this
+entry carries out of the absorbed acceptance line is the half no rule can supply: the
+default layers name no textures, so a generated map has coherent material *selection* and
+nothing to put on the ground, and detail, biome and scorch have kinds and no entries.
+Next exact action: choose stock Renegade terrain texture names for the six default layers
+and pass them to `Define_Layer`, then run `terrain_test` and `terrain_dress` in a client
+and look at it.
 
 ---
 

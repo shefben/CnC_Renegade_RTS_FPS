@@ -68,7 +68,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P13: Terrain texture system (roadmap Section 18)
 
-- [ ] Acceptance: A generated heightfield can obtain coherent terrain materials entirely from runtime data/masks.
 
 ## P14: Runtime road system (roadmap Section 19)
 

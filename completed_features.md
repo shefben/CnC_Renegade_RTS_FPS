@@ -1354,3 +1354,33 @@ and river cutting over the height-region primitive, placement surface queries, L
 frustum patch selection. Terrain is additive: `Has_Terrain()` is false for every stock
 level and every query returns false there. See `docs/zerohour/WorldTerrainSystem.md`.
 Eight new ctest entries green (`terrain_*` and `fds_terrain_*`). Commit `6bf9d87a`.
+
+## P11-B: terrain the physics scene can see
+
+`Build_Collision` stops refusing: each heightfield patch becomes a
+`RenegadeTerrainPatchClass` in a `StaticPhysClass`, added to the static culling system,
+created once and refilled per dirty patch. The stock patch is reused rather than a new
+mesh type written because its `Collide_Quad` splits a cell along the same diagonal
+`Get_Cell_Triangles` does, so Section 17's *rendered terrain and terrain collision derive
+from the same source data* is kept by there being one triangulation, not by two systems
+agreeing. `Compute_Vertex_Normal` added for shading; `terrain_test` / `terrain_clear`
+generate rolling ground under the player. `terrain_collision` proves the diagonal contract
+by dropping rays on a patch's collision and matching every hit to `Sample_Height`. Commit
+`876ba19b`.
+
+## P13-A: `TerrainTextureSystem`, materials decided instead of painted
+
+Section 18's deciding half: nine `TerrainMaskClass` grids (road, river, city, Tiberium,
+cliff, moisture, biome, water distance, override) plus height, slope and the new
+`HeightfieldClass::Compute_Curvature`, feeding soft-edged window rules that produce a
+weight per layer per vertex; `Build_Patch_Materials` fills the stock patch's material
+passes in exactly the form the level editor's brush did. Deterministic throughout -- an
+integer hash, no random number generator -- so server and clients agree without sending
+anything. `Define_Default_Layers` gives ground, macro variation, rock, cliff face,
+shoreline and road with nothing painted; water distance is derived from the river mask.
+`Render_By_Texture` gained a null-material guard that stock code could always have needed.
+Absorbs the backlog acceptance line *a generated heightfield can obtain coherent terrain
+materials entirely from runtime data/masks* for everything but the art, which is carried
+in `WIP_features.md`. See `docs/zerohour/TerrainTextureSystem.md`. Twelve terrain ctest
+entries green. Commit `2a32c0ea`.
+
