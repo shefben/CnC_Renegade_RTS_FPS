@@ -44,6 +44,8 @@
 #include "pscene.h"
 #include "worldterrainsystem.h"
 #include "terraintexturesystem.h"
+#include "roadspline.h"
+#include "roadsystem.h"
 #include "playermanager.h"
 #include "ccamera.h"
 #include "debug.h"
@@ -742,6 +744,148 @@ public:
 
 		WorldTerrainSystem::Destroy_Terrain();
 		Print( "Generated terrain cleared.\n" );
+	}
+};
+
+
+/*
+**	Roads made out of the lines they were drawn as, under your feet, now.
+**
+**	Roadmap Section 19's acceptance is that road geometry can be generated at runtime from
+**	centre lines without a unique modelled mesh for every road segment.  Nothing in a stock
+**	Renegade level draws a centre line, so this draws a few: an S bend, a road crossing it, and
+**	a third road teeing into the first.  Between them they exercise every case the generator
+**	has -- a curve, a crossing, a tee, and a junction that three roads reach.
+**
+**	It works on generated heightfield terrain and on a level's own W3D geometry, because the
+**	roads find the ground by asking the terrain service and, when there is none, by dropping a
+**	ray through the physics scene.  Laying a road across the floor of a stock Renegade level is
+**	the more interesting of the two.
+*/
+class RoadTestConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "road_test"; }
+	virtual	const char * Get_Help( void ) override	{ return "ROAD_TEST <length> <width> <texture> - generates a road network around you from centre lines."; }
+	virtual	void Activate( const char * input ) override {
+
+		if ( COMBAT_STAR == nullptr ) {
+			Print( "road_test needs somewhere to put the roads; there is no player.\n" );
+			return;
+		}
+
+		float	length	= 80.0f;
+		float	width		= 8.0f;
+		char	texture[ 128 ];
+		texture[ 0 ] = 0;
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%f %f %127s", &length, &width, texture );
+		}
+
+		if ( length < 10.0f )	length = 10.0f;
+		if ( length > 2000.0f )	length = 2000.0f;
+		if ( width < 1.0f )		width = 1.0f;
+		if ( width > 64.0f )		width = 64.0f;
+
+		Vector3 star_pos;
+		COMBAT_STAR->Get_Position( &star_pos );
+
+		float cx = star_pos.X;
+		float cy = star_pos.Y;
+		float half = length * 0.5f;
+		float sway = length * 0.125f;
+
+		RoadSystem::Clear_Roads();
+
+		//	An S bend through four control points.  The curve passes through all of them, so the
+		//	road goes where it was told rather than somewhere near there.
+		{
+			RoadSplineClass road;
+			Vector3 points[ 4 ];
+			points[ 0 ].Set( cx - half,					cy,				star_pos.Z );
+			points[ 1 ].Set( cx - ( length / 6.0f ),	cy + sway,		star_pos.Z );
+			points[ 2 ].Set( cx + ( length / 6.0f ),	cy - sway,		star_pos.Z );
+			points[ 3 ].Set( cx + half,					cy,				star_pos.Z );
+			road.Set_Control_Points( points, 4 );
+			road.Set_Name( "main" );
+			road.Set_Width( width );
+			road.Set_Shoulder_Width( width * 0.5f );
+			road.Set_Road_Class( ROAD_CLASS_STREET );
+			road.Set_Material( texture );
+			RoadSystem::Add_Road( road );
+		}
+
+		//	A crossing.  Neither road is the one that ends; the junction owns the middle and both
+		//	of them stop at its edge.
+		{
+			RoadSplineClass road;
+			Vector3 points[ 2 ];
+			points[ 0 ].Set( cx, cy - half, star_pos.Z );
+			points[ 1 ].Set( cx, cy + half, star_pos.Z );
+			road.Set_Control_Points( points, 2 );
+			road.Set_Name( "cross" );
+			road.Set_Width( width );
+			road.Set_Shoulder_Width( width * 0.5f );
+			road.Set_Road_Class( ROAD_CLASS_STREET );
+			road.Set_Material( texture );
+			RoadSystem::Add_Road( road );
+		}
+
+		//	And a tee, arriving on the S bend away from the crossing.
+		{
+			RoadSplineClass road;
+			Vector3 points[ 2 ];
+			points[ 0 ].Set( cx + ( length / 3.0f ), cy,						star_pos.Z );
+			points[ 1 ].Set( cx + ( length / 3.0f ), cy - ( half * 0.75f ),	star_pos.Z );
+			road.Set_Control_Points( points, 2 );
+			road.Set_Name( "spur" );
+			road.Set_Width( width * 0.75f );
+			road.Set_Shoulder_Width( width * 0.5f );
+			road.Set_Road_Class( ROAD_CLASS_TRACK );
+			road.Set_Material( texture );
+			RoadSystem::Add_Road( road );
+		}
+
+		if ( !RoadSystem::Build_Network() ) {
+			Print( "road_test: the network would not build.\n" );
+			return;
+		}
+
+		//	The roads have written the road mask; the ground has to be re-dressed to show it.
+		if ( WorldTerrainSystem::Has_Terrain() && ( TerrainTextureSystem::Get_Layer_Count() > 0 ) ) {
+			TerrainTextureSystem::Build_All_Patch_Materials();
+		}
+
+		if ( RoadSystem::Build_Geometry() ) {
+			Print( "road_test: %d roads, %d junctions, %d batch(es) to draw.\n",
+					 RoadSystem::Get_Road_Count(), RoadSystem::Get_Junction_Count(),
+					 RoadSystem::Get_Batch_Count() );
+			if ( texture[ 0 ] == 0 ) {
+				Print( "road_test: no texture named, so the surface is untextured geometry.\n" );
+			}
+		} else {
+			Print( "road_test: %d roads and %d junctions, and no geometry was built.\n",
+					 RoadSystem::Get_Road_Count(), RoadSystem::Get_Junction_Count() );
+		}
+	}
+};
+
+
+class RoadClearConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "road_clear"; }
+	virtual	const char * Get_Help( void ) override	{ return "ROAD_CLEAR - removes generated roads and their geometry from the scene."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		if ( RoadSystem::Get_Road_Count() == 0 ) {
+			Print( "There are no generated roads to clear.\n" );
+			return;
+		}
+
+		RoadSystem::Clear_Roads();
+		Print( "Generated roads cleared.\n" );
 	}
 };
 
@@ -5163,6 +5307,8 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new TerrainTestConsoleFunctionClass() );
 	FunctionList.Add( new TerrainDressConsoleFunctionClass() );
 	FunctionList.Add( new TerrainClearConsoleFunctionClass() );
+	FunctionList.Add( new RoadTestConsoleFunctionClass() );
+	FunctionList.Add( new RoadClearConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );
 	FunctionList.Add( new ExposePrelitConsoleFunctionClass() );

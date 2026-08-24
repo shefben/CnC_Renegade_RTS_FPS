@@ -11,6 +11,8 @@
 #include "lineseg.h"
 #include "coltype.h"
 #include "renegadeterrainpatch.h"
+#include "roadspline.h"
+#include "roadsystem.h"
 #include "terrainmask.h"
 #include "terraintexturesystem.h"
 #include "worldterrainsystem.h"
@@ -800,6 +802,416 @@ void	Check_Textures (void)
 	Check (TerrainTextureSystem::Get_Layer_Count () == 0, "the layers outlived the service");
 }
 
+
+/***********************************************************************************************
+**	roads
+***********************************************************************************************/
+
+/*
+**	A field with a bump every few metres, deterministic and rough enough that a smoothed road
+**	over it is visibly not the same line as the ground under it.
+*/
+void	Build_Bumpy (int vx = 65, float cell = 1.0f)
+{
+	Check (WorldTerrainSystem::Create_Terrain (vx, vx, cell, Vector3 (0.0f, 0.0f, 0.0f)),
+			"a %dx%d field would not be created", vx, vx);
+
+	float *heights = new float[vx * vx];
+	for (int iy = 0; iy < vx; iy ++) {
+		for (int ix = 0; ix < vx; ix ++) {
+			heights[iy * vx + ix] = (float)(((ix * 7) + (iy * 3)) % 5) * 0.4f;
+		}
+	}
+
+	Check (WorldTerrainSystem::Set_Heights (heights, vx * vx), "the bumpy heights were refused");
+	delete [] heights;
+}
+
+
+int	Add_Straight_Road (float x0, float y0, float x1, float y1, float width,
+								const char *material, int grade = ROAD_GRADE_NONE)
+{
+	RoadSplineClass road;
+	Vector3 points[2];
+	points[0].Set (x0, y0, 0.0f);
+	points[1].Set (x1, y1, 0.0f);
+
+	road.Set_Control_Points (points, 2);
+	road.Set_Width (width);
+	road.Set_Shoulder_Width (width * 0.5f);
+	road.Set_Material (material);
+	road.Set_Grade_Policy (grade);
+
+	return RoadSystem::Add_Road (road);
+}
+
+
+/*
+**	Is any point of any surface run inside a junction?  That is the whole no-overlap claim: two
+**	roads crossing must not both put a triangle on the same piece of ground.
+*/
+bool	Any_Run_Point_In_A_Junction (void)
+{
+	for (int run = 0; run < RoadSystem::Get_Surface_Run_Count (); run ++) {
+
+		int count = 0;
+		RoadSystem::Get_Surface_Run (run, nullptr, &count);
+
+		for (int n = 0; n < count; n ++) {
+
+			const RoadPointClass *point = RoadSystem::Peek_Surface_Run_Point (run, n);
+			if (point == nullptr) {
+				continue;
+			}
+
+			for (int j = 0; j < RoadSystem::Get_Junction_Count (); j ++) {
+				const RoadJunctionClass *junction = RoadSystem::Peek_Junction (j);
+				float dx = point->Position.X - junction->Position.X;
+				float dy = point->Position.Y - junction->Position.Y;
+				//	A hair inside is where the boundary points land by construction, so the test
+				//	is whether a point is meaningfully inside rather than exactly on the edge.
+				if (((dx * dx) + (dy * dy)) < ((junction->Radius - 0.05f) * (junction->Radius - 0.05f))) {
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+
+void	Check_Roads (void)
+{
+	WorldTerrainSystem::Init ();
+	RoadSystem::Init ();
+
+	//
+	//	The curve passes through its control points.  A road is drawn by saying where it goes,
+	//	and a curve that merely approached those places would put the road somewhere nobody
+	//	asked for -- beside the bridge rather than on it.
+	//
+	{
+		RoadSplineClass road;
+		Vector3 points[3];
+		points[0].Set (0.0f, 0.0f, 0.0f);
+		points[1].Set (10.0f, 6.0f, 0.0f);
+		points[2].Set (20.0f, 0.0f, 0.0f);
+		road.Set_Control_Points (points, 3);
+
+		Vector3 middle = road.Evaluate (0, 1.0f);
+		Check (Near (middle.X, 10.0f) && Near (middle.Y, 6.0f),
+				"the curve misses its own control point, at %f,%f", middle.X, middle.Y);
+
+		//
+		//	Subdivision is driven by how far the chord wanders from the curve.  A straight has
+		//	nowhere to wander to, so with only the deviation test in play it stays two points;
+		//	the same settings on a bend spend many.  That is the difference between adaptive
+		//	tessellation and a fixed step, and it is why a long straight road is cheap.
+		//
+		Check (road.Tessellate (0.05f, 0.25f, 1000000.0f), "the bend would not tessellate");
+		int bend_points = road.Get_Point_Count ();
+		Check (bend_points > 8, "a bend tessellated to only %d points", bend_points);
+
+		RoadSplineClass straight;
+		Vector3 line[2];
+		line[0].Set (0.0f, 0.0f, 0.0f);
+		line[1].Set (20.0f, 0.0f, 0.0f);
+		straight.Set_Control_Points (line, 2);
+		Check (straight.Tessellate (0.05f, 0.25f, 1000000.0f), "the straight would not tessellate");
+		Check (straight.Get_Point_Count () == 2, "a straight spent %d points on being straight",
+				straight.Get_Point_Count ());
+
+		//
+		//	The other reason to subdivide is length: a straight road still needs points, because
+		//	the ground under it is not straight and there is nothing to follow between two points
+		//	that are twenty metres apart.
+		//
+		Check (straight.Tessellate (0.05f, 0.25f, 4.0f), "the straight would not re-tessellate");
+		for (int i = 1; i < straight.Get_Point_Count (); i ++) {
+			float span = straight.Get_Point (i).Distance - straight.Get_Point (i-1).Distance;
+			Check (span <= 4.001f, "a step of %f exceeds the four metres asked for", span);
+		}
+		Check (Near (straight.Get_Length (), 20.0f, 0.01f), "a twenty metre road measured %f",
+				straight.Get_Length ());
+
+		//
+		//	The frame.  Side is horizontal and to the left, because the width of a road is a
+		//	width on the map: measured up the slope it would be narrower in plan than it is.
+		//
+		const RoadPointClass &point = straight.Get_Point (1);
+		Check (Near (point.Tangent.X, 1.0f, 0.01f), "the tangent of an eastward road is %f east",
+				point.Tangent.X);
+		Check (Near (point.Side.Y, 1.0f, 0.01f), "the side of an eastward road is %f north",
+				point.Side.Y);
+		Check (Near (point.Side.Z, 0.0f, 0.001f), "the side vector leans %f out of the ground plane",
+				point.Side.Z);
+
+		//
+		//	Trimming cuts at the distance asked for rather than at the nearest existing point.
+		//	A junction and a bridge both need the road to stop exactly, or there is an overlap
+		//	that fights for depth or a gap that shows the ground through.
+		//
+		Check (straight.Trim_Start (5.0f), "a twenty metre road would not give up five");
+		Check (Near (straight.Get_Length (), 15.0f, 0.01f), "after trimming five it is %f long",
+				straight.Get_Length ());
+		Check (Near (straight.Get_Point (0).Position.X, 5.0f, 0.01f),
+				"the trimmed road starts at x=%f, not 5", straight.Get_Point (0).Position.X);
+
+		Check (straight.Trim_End (5.0f), "the road would not give up five more");
+		Check (Near (straight.Get_Length (), 10.0f, 0.01f), "after trimming both ends it is %f long",
+				straight.Get_Length ());
+
+		//
+		//	Where a point is relative to the road, measured in plan.
+		//
+		int index = 0;
+		float lateral = 0.0f;
+		float along = 0.0f;
+		Check (straight.Find_Closest_Point (Vector3 (10.0f, 3.0f, 0.0f), &index, &lateral, &along),
+				"the road could not say where a point beside it was");
+		Check (Near (lateral, 3.0f, 0.01f), "three metres to the side measured %f", lateral);
+		Check (Near (along, 5.0f, 0.01f), "halfway along the trimmed road measured %f", along);
+	}
+
+	//
+	//	A crossroads.  One junction, two arms, and each road cut into two stretches with a hole
+	//	between them -- neither road is "the one that ends", and a crossroads costs what a tee
+	//	costs.
+	//
+	RoadSystem::Clear_Roads ();
+	Add_Straight_Road (0.0f, 0.0f, 40.0f, 0.0f, 8.0f, "road_a");
+	Add_Straight_Road (20.0f, -20.0f, 20.0f, 20.0f, 8.0f, "road_a");
+	Check (RoadSystem::Build_Network (0.25f, 0.5f, 4.0f), "the crossroads network would not build");
+
+	Check (RoadSystem::Get_Junction_Count () == 1, "a crossroads made %d junctions",
+			RoadSystem::Get_Junction_Count ());
+
+	if (RoadSystem::Get_Junction_Count () == 1) {
+		const RoadJunctionClass *junction = RoadSystem::Peek_Junction (0);
+		Check (junction->ArmCount == 2, "the crossroads has %d arms", junction->ArmCount);
+		Check (Near (junction->Position.X, 20.0f, 0.5f) && Near (junction->Position.Y, 0.0f, 0.5f),
+				"the crossroads is at %f,%f", junction->Position.X, junction->Position.Y);
+		Check (junction->Radius > 4.0f, "the junction radius %f does not cover the crossing",
+				junction->Radius);
+	}
+
+	RoadSystem::Collect_Surface_Runs ();
+	Check (RoadSystem::Get_Surface_Run_Count () == 4,
+			"a crossroads left %d stretches of surface, not four",
+			RoadSystem::Get_Surface_Run_Count ());
+	Check (RoadSystem::Get_Surface_Boundary_Count () == 4,
+			"a crossroads has %d road ends meeting it, not four",
+			RoadSystem::Get_Surface_Boundary_Count ());
+	Check (Any_Run_Point_In_A_Junction () == false,
+			"road surface is being laid inside a junction, where the junction also lays some");
+
+	//
+	//	A tee.  The through road is still cut in two; the road that ends contributes one
+	//	stretch and one end.  Nothing about the code distinguishes this case from the last one.
+	//
+	RoadSystem::Clear_Roads ();
+	Add_Straight_Road (0.0f, 0.0f, 40.0f, 0.0f, 8.0f, "road_a");
+	Add_Straight_Road (20.0f, 0.0f, 20.0f, 20.0f, 8.0f, "road_a");
+	Check (RoadSystem::Build_Network (0.25f, 0.5f, 4.0f), "the tee network would not build");
+
+	Check (RoadSystem::Get_Junction_Count () == 1, "a tee made %d junctions",
+			RoadSystem::Get_Junction_Count ());
+
+	RoadSystem::Collect_Surface_Runs ();
+	Check (RoadSystem::Get_Surface_Run_Count () == 3,
+			"a tee left %d stretches of surface, not three", RoadSystem::Get_Surface_Run_Count ());
+	Check (Any_Run_Point_In_A_Junction () == false, "the tee lays surface inside its own junction");
+
+	//
+	//	Three roads meeting at one place is one junction with three arms, not three junctions
+	//	overlapping.  Pairwise crossings found within a disc of each other are the same crossing.
+	//
+	RoadSystem::Clear_Roads ();
+	Add_Straight_Road (0.0f, 0.0f, 40.0f, 0.0f, 8.0f, "road_a");
+	Add_Straight_Road (20.0f, -20.0f, 20.0f, 20.0f, 8.0f, "road_a");
+	Add_Straight_Road (20.0f, 0.0f, 40.0f, 20.0f, 8.0f, "road_a");
+	Check (RoadSystem::Build_Network (0.25f, 0.5f, 4.0f), "the three way network would not build");
+
+	Check (RoadSystem::Get_Junction_Count () == 1, "three roads at one place made %d junctions",
+			RoadSystem::Get_Junction_Count ());
+	if (RoadSystem::Get_Junction_Count () == 1) {
+		Check (RoadSystem::Peek_Junction (0)->ArmCount == 3, "the three way has %d arms",
+				RoadSystem::Peek_Junction (0)->ArmCount);
+	}
+
+	//
+	//	Two roads that never meet do not make a junction just for being on the same map.
+	//
+	RoadSystem::Clear_Roads ();
+	Add_Straight_Road (0.0f, 0.0f, 40.0f, 0.0f, 8.0f, "road_a");
+	Add_Straight_Road (0.0f, 60.0f, 40.0f, 60.0f, 8.0f, "road_a");
+	Check (RoadSystem::Build_Network (0.25f, 0.5f, 4.0f), "two parallel roads would not build");
+	Check (RoadSystem::Get_Junction_Count () == 0, "two roads sixty metres apart made %d junctions",
+			RoadSystem::Get_Junction_Count ());
+
+	//
+	//	Navigation.  Section 19 asks for path metadata; what pathing actually wants to know is
+	//	that there is a road here, which way it runs, and whether you are on it.
+	//
+	RoadNavInfoClass nav;
+	Check (RoadSystem::Find_Nearest_Road (Vector3 (10.0f, 3.0f, 0.0f), 50.0f, &nav),
+			"a point three metres off a road found no road");
+	Check (nav.RoadID == 0, "the nearer road is %d", nav.RoadID);
+	Check (nav.IsOnRoad, "three metres from the middle of an eight metre road is off it");
+	Check (Near (nav.Tangent.X, 1.0f, 0.01f), "the road runs %f east where it runs east",
+			nav.Tangent.X);
+
+	Check (RoadSystem::Is_On_Road (Vector3 (10.0f, 30.0f, 0.0f)) == false,
+			"a point thirty metres from every road is on one");
+	Check (RoadSystem::Find_Nearest_Road (Vector3 (10.0f, 200.0f, 0.0f), 20.0f, &nav) == false,
+			"a road was found two hundred metres away with a twenty metre limit");
+
+	//
+	//	Bridge handover.  Section 20 does not exist yet; what can be settled now is the seam.
+	//	The road records where it stopped and which way it was pointing, and the bridge that
+	//	arrives later reads that rather than guessing.
+	//
+	RoadSystem::Clear_Roads ();
+	{
+		int id = Add_Straight_Road (0.0f, 0.0f, 40.0f, 0.0f, 8.0f, "road_a");
+		RoadSplineClass *road = RoadSystem::Peek_Road (id);
+		Check (road != nullptr, "the road just added is not there");
+		if (road != nullptr) {
+			road->Get_End_Connection ().Type = ROAD_ENDPOINT_BRIDGE;
+			Check (RoadSystem::Build_Network (0.25f, 0.5f, 4.0f), "the bridge road would not build");
+
+			const RoadConnectionClass &end = road->Get_End_Connection ();
+			Check (Near (end.Position.X, 40.0f, 0.01f), "the road hands over at x=%f, not 40",
+					end.Position.X);
+			Check (Near (end.Direction.X, 1.0f, 0.01f),
+					"the road hands over pointing %f east, and it was going east", end.Direction.X);
+			Check (end.TargetID == -1, "a bridge nobody named has id %d", end.TargetID);
+		}
+	}
+
+	//
+	//	On the ground.  A road that does not grade takes the ground's height exactly, which is
+	//	what makes it a road on the terrain rather than a sheet floating over it.
+	//
+	RoadSystem::Clear_Roads ();
+	Build_Bumpy ();
+	Check (TerrainTextureSystem::Create_Masks (), "the masks would not be created");
+	TerrainTextureSystem::Define_Default_Layers ();
+
+	Add_Straight_Road (8.0f, 32.0f, 56.0f, 32.0f, 6.0f, "road_a");
+	Check (RoadSystem::Build_Network (0.25f, 0.5f, 2.0f), "the road on terrain would not build");
+
+	{
+		RoadSplineClass *road = RoadSystem::Peek_Road (0);
+		Check (road != nullptr, "the conformed road is missing");
+
+		if (road != nullptr) {
+			for (int i = 0; i < road->Get_Point_Count (); i ++) {
+				const RoadPointClass &point = road->Get_Point (i);
+				float ground = 0.0f;
+				Check (WorldTerrainSystem::Sample_Height (point.Position.X, point.Position.Y, &ground),
+						"the road ran off the field at %f,%f", point.Position.X, point.Position.Y);
+				Check (Near (point.Position.Z, ground, 0.001f),
+						"the road sits at %f where the ground is %f", point.Position.Z, ground);
+			}
+		}
+	}
+
+	//
+	//	And the road told the terrain where it is.  Section 18 built the road mask with nothing
+	//	to write into it; this is its writer.  The carriageway reads one, the shoulder fades,
+	//	and far away reads nothing -- which is also what settles what a soldier is standing on.
+	//
+	{
+		TerrainMaskClass *mask = TerrainTextureSystem::Peek_Mask (TERRAIN_MASK_ROAD);
+		Check (mask != nullptr, "there is no road mask to have been written");
+
+		if (mask != nullptr) {
+			Check (mask->Get (32, 32) > 0.9f, "the middle of the road reads %f in the mask",
+					mask->Get (32, 32));
+			Check (Near (mask->Get (32, 50), 0.0f, 0.01f), "the mask reached eighteen metres away");
+
+			float shoulder = mask->Get (32, 36);
+			Check ((shoulder > 0.0f) && (shoulder < 0.9f),
+					"the shoulder reads %f, and a shoulder is neither road nor not road", shoulder);
+		}
+
+		int layer = -1;
+		Check (WorldTerrainSystem::Get_Material (32.0f, 32.0f, &layer),
+				"the ground under the road is made of nothing");
+		Check (layer == TerrainTextureSystem::Find_Layer ("road"),
+				"the ground under the road is layer %d, and the road layer is %d",
+				layer, TerrainTextureSystem::Find_Layer ("road"));
+	}
+
+	//
+	//	Grading.  A road that grades takes the ground smoothed along its own length and the
+	//	ground is then brought up to that, so the road comes out smoother than the country it
+	//	crosses and there is no step at the edge of it.
+	//
+	RoadSystem::Clear_Roads ();
+	WorldTerrainSystem::Destroy_Terrain ();
+	Build_Bumpy ();
+
+	{
+		float rough = 0.0f;
+		float low = 1000.0f;
+		float high = -1000.0f;
+		for (float x = 8.0f; x <= 56.0f; x += 1.0f) {
+			float ground = 0.0f;
+			if (WorldTerrainSystem::Sample_Height (x, 32.0f, &ground)) {
+				if (ground < low)		low = ground;
+				if (ground > high)	high = ground;
+			}
+		}
+		rough = high - low;
+		Check (rough > 1.0f, "the bumpy field is only %f from its low point to its high one", rough);
+
+		Add_Straight_Road (8.0f, 32.0f, 56.0f, 32.0f, 6.0f, "road_a", ROAD_GRADE_FLATTEN);
+		Check (RoadSystem::Build_Network (0.25f, 0.5f, 2.0f), "the graded road would not build");
+
+		RoadSplineClass *road = RoadSystem::Peek_Road (0);
+		Check (road != nullptr, "the graded road is missing");
+
+		if (road != nullptr) {
+
+			float road_low = 1000.0f;
+			float road_high = -1000.0f;
+			float worst = 0.0f;
+
+			for (int i = 0; i < road->Get_Point_Count (); i ++) {
+
+				const RoadPointClass &point = road->Get_Point (i);
+				if (point.Position.Z < road_low)		road_low = point.Position.Z;
+				if (point.Position.Z > road_high)	road_high = point.Position.Z;
+
+				float ground = 0.0f;
+				if (WorldTerrainSystem::Sample_Height (point.Position.X, point.Position.Y, &ground)) {
+					float gap = WWMath::Fabs (ground - point.Position.Z);
+					if (gap > worst) worst = gap;
+				}
+			}
+
+			Check ((road_high - road_low) < (rough * 0.5f),
+					"the graded road rises and falls %f where the ground does %f",
+					road_high - road_low, rough);
+			Check (worst < 0.75f, "the graded ground is still %f from the road it was graded to",
+					worst);
+		}
+	}
+
+	//
+	//	Nothing outlives the world it described.
+	//
+	RoadSystem::Shutdown ();
+	Check (RoadSystem::Get_Road_Count () == 0, "the roads outlived the service");
+	Check (RoadSystem::Get_Junction_Count () == 0, "the junctions outlived the roads");
+
+	WorldTerrainSystem::Destroy_Terrain ();
+	WorldTerrainSystem::Shutdown ();
+}
+
 }	// anonymous namespace
 
 
@@ -824,6 +1236,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "textures") == 0)) {
 		Check_Textures ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "roads") == 0)) {
+		Check_Roads ();
 	}
 
 	if (_Failures == 0) {
