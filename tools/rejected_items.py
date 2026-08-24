@@ -248,10 +248,13 @@ PHASE_DECISIONS = [
      'array and relied on the caller outliving the draw, which holds right up until a '
      'level release happens between staging and drawing. The stages hold references.'),
     ('P09', 'Registering the listed pipelines before their systems exist',
-     'Deliberately not done. Terrain, roads, bridges, water and foliage have nothing to '
-     'draw until the terrain framework lands, and ghost tint and status markers wait on '
-     'the Commander work. Each registers itself when its system arrives; until then '
-     '`Is_Supported` is false and `Get_Pass_Count` is zero.'),
+     'Deliberately not done, with one exception. Terrain, roads, bridges, water and '
+     'foliage have nothing to draw until the terrain framework lands, and ghost tint '
+     'and status markers wait on the Commander work; each registers itself when its '
+     'system arrives, and until then `Is_Supported` is false and `Get_Pass_Count` is '
+     'zero. The exception is debug overlays, whose consumer was already in the tree: '
+     '`BoxRenderObjClass::render_box` was setting material, shader and texture stage '
+     'straight on `DX8Wrapper`, so it registers now and that path is gone.'),
     ('P08', 'The donor\'s `PrototypeClass::DeleteSelf()`',
      'Not adopted. OpenW3D prototypes are deleted with `delete`, which is what '
      '`Free_Assets` already does; adding a second destruction protocol would leave two '

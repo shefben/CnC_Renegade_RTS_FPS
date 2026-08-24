@@ -38,7 +38,9 @@
 
 #include "dx8wrapper.h"
 #include "dx8caps.h"
+#include "shader.h"
 #include "texture.h"
+#include "vertmaterial.h"
 #include "wwdebug.h"
 
 
@@ -91,6 +93,70 @@ public:
 	virtual int				Get_Pass_Count(void) const override	{ return 1; }
 	virtual void			Set_Pass(int pass) override		{ WWASSERT(pass == 0); (void)pass; }
 	virtual void			Reset(void) override				{ }
+};
+
+
+/***********************************************************************************************
+**	Debug overlays.
+**
+**	The boxes the engine draws over the world when a display mask is on: collision boxes,
+**	bounding boxes, the vis sectors.  They were the first thing in this tree to set a
+**	material, a shader and a texture stage straight on DX8Wrapper and then leave, which is
+**	precisely the arrangement Section 15 exists to replace, and they are the one pipeline in
+**	the list whose consumer was already here.
+**
+**	Emissive white with vertex alpha: the colour of a debug box is per-vertex, so one material
+**	serves every box and the program can own it.
+***********************************************************************************************/
+class DebugOverlayProgramClass : public MaterialProgramClass
+{
+public:
+	DebugOverlayProgramClass(void) : Material(nullptr) { }
+	virtual ~DebugOverlayProgramClass(void) override	{ Shutdown(); }
+
+	virtual const char *	Get_Name(void) const override		{ return _ProgramNames[MATERIAL_PROGRAM_DEBUG_OVERLAY]; }
+	virtual int				Get_Pass_Count(void) const override	{ return 1; }
+
+	virtual bool	Init(ShaderTierType) override
+	{
+		//	Fixed function is enough, and asked for: a debug box wants to be cheap and to look
+		//	the same on every machine somebody is debugging on.
+		WWASSERT(Material == nullptr);
+		Material = NEW_REF(VertexMaterialClass,());
+		Material->Set_Ambient(0,0,0);
+		Material->Set_Diffuse(0,0,0);
+		Material->Set_Specular(0,0,0);
+		Material->Set_Emissive(1,1,1);
+		Material->Set_Opacity(1.0f);		// uses vertex alpha
+		Material->Set_Shininess(0.0f);
+		return true;
+	}
+
+	virtual void	Shutdown(void) override
+	{
+		REF_PTR_RELEASE(Material);
+	}
+
+	virtual void	Set_Pass(int pass) override
+	{
+		WWASSERT(pass == 0);
+		(void)pass;
+
+		DX8Wrapper::Set_Material(Material);
+		DX8Wrapper::Set_Shader(ShaderClass::_PresetAlphaSolidShader);
+		DX8Wrapper::Set_Texture(0,nullptr);
+	}
+
+	virtual void	Reset(void) override
+	{
+		//	Only the stage.  Material and shader are set by whatever draws next -- every draw
+		//	in this renderer sets its own -- so putting a null material back would be inventing
+		//	a state nobody asked for rather than restoring one.
+		DX8Wrapper::Set_Texture(0,nullptr);
+	}
+
+private:
+	VertexMaterialClass *	Material;
 };
 
 
@@ -149,6 +215,9 @@ void	ShaderManagerClass::Init(ShaderTierType tier)
 	//	Stock content first and always.  Everything else is registered by the system that
 	//	draws it, when that system arrives.
 	Register_Program(MATERIAL_PROGRAM_LEGACY_W3D,new LegacyW3DProgramClass);
+
+	//	The one listed pipeline whose consumer was already in the tree.  See boxrobj.cpp.
+	Register_Program(MATERIAL_PROGRAM_DEBUG_OVERLAY,new DebugOverlayProgramClass);
 }
 
 

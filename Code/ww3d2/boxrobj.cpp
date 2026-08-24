@@ -98,6 +98,7 @@
 #include "coltest.h"
 #include "inttest.h"
 #include "dx8wrapper.h"
+#include "shadermgr.h"
 #include "dx8indexbuffer.h"
 #include "dx8vertexbuffer.h"
 #include "dx8fvf.h"
@@ -158,8 +159,6 @@ static Vector3						_BoxVertexNormals[NUM_BOX_VERTS] =
 
 bool										BoxRenderObjClass::IsInitted			= false;
 int										BoxRenderObjClass::DisplayMask		= 0;
-static VertexMaterialClass *		_BoxMaterial								= nullptr;
-static ShaderClass					_BoxShader;
 
 
 /*
@@ -349,18 +348,9 @@ void BoxRenderObjClass::Init(void)
 	WWASSERT(IsInitted == false);
 
 	/*
-	** Set up the materials
+	** The material and shader a box is drawn with belong to the debug overlay program
+	** now, in the one layer every pipeline goes through.  See shadermgr.cpp.
 	*/
-	WWASSERT(_BoxMaterial == nullptr);
-	_BoxMaterial = NEW_REF(VertexMaterialClass,());
-	_BoxMaterial->Set_Ambient(0,0,0);
-	_BoxMaterial->Set_Diffuse(0,0,0);
-	_BoxMaterial->Set_Specular(0,0,0);
-	_BoxMaterial->Set_Emissive(1,1,1);
-	_BoxMaterial->Set_Opacity(1.0f);		// uses vertex alpha...
-	_BoxMaterial->Set_Shininess(0.0f);
-
-	_BoxShader = ShaderClass::_PresetAlphaSolidShader; //_PresetAdditiveSolidShader;
 
 	IsInitted = true;
 }
@@ -384,7 +374,6 @@ void BoxRenderObjClass::Init(void)
 void BoxRenderObjClass::Shutdown(void)
 {
 	WWASSERT(IsInitted == true);
-	REF_PTR_RELEASE(_BoxMaterial);
 
 	IsInitted = false;
 }
@@ -502,11 +491,11 @@ void BoxRenderObjClass::render_box(RenderInfoClass & /*rinfo*/,const Vector3 & c
 		}
 
 		/*
-		** Apply the shader and material
+		** Apply the shader and material.  Through the layer rather than straight at
+		** DX8Wrapper: the state a debug box wants is the debug overlay program, and
+		** going round the manager is what would leave two ways to draw one thing.
 		*/
-		DX8Wrapper::Set_Material(_BoxMaterial);
-		DX8Wrapper::Set_Shader(_BoxShader);
-		DX8Wrapper::Set_Texture(0,nullptr);
+		ShaderManagerClass::Set_Program(MATERIAL_PROGRAM_DEBUG_OVERLAY,0);
 
 		DX8Wrapper::Set_Index_Buffer(ibaccess,0);
 		DX8Wrapper::Set_Vertex_Buffer(vbaccess);
@@ -515,6 +504,8 @@ void BoxRenderObjClass::render_box(RenderInfoClass & /*rinfo*/,const Vector3 & c
 		Get_Obj_Space_Bounding_Sphere(sphere);
 
 		DX8Wrapper::Draw_Triangles(buffer_type,0,NUM_BOX_FACES,0,NUM_BOX_VERTS);
+
+		ShaderManagerClass::Reset_Program();
 	}
 }
 

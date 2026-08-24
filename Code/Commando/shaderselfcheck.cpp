@@ -130,12 +130,23 @@ int	Run_Programs (void)
 			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_LEGACY_W3D));
 
 	//
+	//	Debug overlays are the second program, and the only listed pipeline whose consumer
+	//	was already in the tree.  It builds a material in Init, which is why registering it
+	//	here -- in a process with no device -- is worth checking rather than assuming.
+	//
+	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_DEBUG_OVERLAY),
+			"debug overlays have no program");
+	Check (ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_DEBUG_OVERLAY) == 1,
+			"debug overlays want %d passes, not 1",
+			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_DEBUG_OVERLAY));
+
+	//
 	//	Nothing else is registered yet, and an unregistered pipeline reports no passes so
 	//	that a caller which loops over them draws nothing rather than drawing it wrongly.
 	//
 	for (int i=0; i<MATERIAL_PROGRAM_COUNT; i++) {
 
-		if (i == MATERIAL_PROGRAM_LEGACY_W3D) {
+		if ((i == MATERIAL_PROGRAM_LEGACY_W3D) || (i == MATERIAL_PROGRAM_DEBUG_OVERLAY)) {
 			continue;
 		}
 
@@ -168,17 +179,17 @@ int	Run_Programs (void)
 	//	Two programs that do fit, so that the handover between them can be watched.
 	//
 	CountingProgramClass *	ghost = new CountingProgramClass ("ghost", 1, SHADER_TIER_FIXED_FUNCTION);
-	CountingProgramClass *	overlay = new CountingProgramClass ("overlay", 2, SHADER_TIER_FIXED_FUNCTION);
+	CountingProgramClass *	overlay = new CountingProgramClass ("marker", 2, SHADER_TIER_FIXED_FUNCTION);
 
 	Check (ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_GHOST_TINT, ghost),
 			"a program that fits the tier was refused");
-	Check (ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_DEBUG_OVERLAY, overlay),
+	Check (ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_STATUS_MARKER, overlay),
 			"a multipass program that fits the tier was refused");
 
 	Check (ghost->Inits == 1, "the manager called Init %d times, not once", ghost->Inits);
-	Check (ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_DEBUG_OVERLAY) == 2,
+	Check (ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_STATUS_MARKER) == 2,
 			"a two pass program reported %d passes",
-			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_DEBUG_OVERLAY));
+			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_STATUS_MARKER));
 
 	//
 	//	Nothing is current until something is set, and resetting nothing is harmless.
@@ -201,8 +212,8 @@ int	Run_Programs (void)
 	//	own second pass knows what its first one did, and making it start from nothing
 	//	every time would be the layer getting in the way of the pipeline it exists to serve.
 	//
-	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_DEBUG_OVERLAY, 0);
-	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_DEBUG_OVERLAY, 1);
+	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_STATUS_MARKER, 0);
+	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_STATUS_MARKER, 1);
 
 	Check (ghost->Resets == 1, "handing over to another program reset the old one %d times, not once",
 			ghost->Resets);
@@ -244,6 +255,8 @@ int	Run_Programs (void)
 			"re-initialising ignored the new tier");
 	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_LEGACY_W3D),
 			"stock W3D materials lost their program on re-initialisation");
+	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_DEBUG_OVERLAY),
+			"debug overlays lost their program on re-initialisation");
 	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_GHOST_TINT) == false,
 			"a program survived re-initialisation");
 	Check (ShaderManagerClass::Get_Current_Program () == MATERIAL_PROGRAM_COUNT,
@@ -254,6 +267,8 @@ int	Run_Programs (void)
 	Check (ShaderManagerClass::Is_Initialized () == false, "the manager did not go down");
 	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_LEGACY_W3D) == false,
 			"a program outlived the manager");
+	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_DEBUG_OVERLAY) == false,
+			"the debug overlay program outlived the manager");
 
 	return _Failures;
 }

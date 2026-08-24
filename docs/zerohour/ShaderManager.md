@@ -38,6 +38,28 @@ no structural answer. As it stands the answer is that the layer has nothing to s
 about it: a stock model renders in precisely the state it rendered in before this class
 existed.
 
+## Debug overlays, the first real pipeline
+
+`MATERIAL_PROGRAM_DEBUG_OVERLAY` is the boxes the engine draws over the world when a
+display mask is on — collision boxes, bounding boxes, vis sectors. It is registered
+in `ShaderManagerClass::Init` alongside stock content because, alone in the list
+Section 15 gives, its consumer was already in this tree.
+
+That consumer is `BoxRenderObjClass::render_box`, which set a material, a shader and a
+texture stage straight on `DX8Wrapper` and then left — the exact arrangement the
+layer exists to replace. The material it used was a file static built in
+`BoxRenderObjClass::Init`; the program owns it now, and the static is gone rather than
+kept beside it, which is directive 0.4 applied to a path this project wrote itself.
+
+The program is worth having as more than a demonstration: it proves the layer works
+against something that really draws, and it is the first program that builds a device
+resource in its `Init`, which is why the check below registers it in a process with no
+device rather than assuming that is safe.
+
+Its `Reset` clears the texture stage and nothing else. Restoring a null material would
+be inventing a state nobody asked for: every draw in this renderer sets its own
+material and shader, so what the next pipeline needs is a stage it did not inherit.
+
 ## Tiers instead of a card table
 
 The donor chose implementations from a table of chipsets, vendor IDs and driver
@@ -65,6 +87,7 @@ anything about either.
 | --- | --- |
 | `Code/ww3d2/dx8wrapper.cpp`, `Do_Onetime_Device_Dependent_Inits` | `ShaderManagerClass::Init()` after `Compute_Caps` and the subsystem inits |
 | `Code/ww3d2/dx8wrapper.cpp`, `Do_Onetime_Device_Dependent_Shutdowns` | `ShaderManagerClass::Shutdown()` before the texture manager goes |
+| `Code/ww3d2/boxrobj.cpp`, `render_box` | `Set_Program(MATERIAL_PROGRAM_DEBUG_OVERLAY,0)` and `Reset_Program()` around the draw |
 
 The device lifecycle already owns the other ww3d2 subsystems, so the layer comes up and
 goes down with the device rather than with the process. Coming up again after a device
@@ -94,15 +117,22 @@ them would mean tripping an assert in the build that has them.
 
 ## What is left
 
-The pipelines Section 15 lists are enumerated and unregistered: terrain, terrain
-detail, roads, bridges, water, foliage, projected shadows, particles, tracers and
-beams, status markers, ghost building tint, debug overlays. `Is_Supported` reports
-false for each and `Get_Pass_Count` returns zero, so a caller that loops over them
-draws nothing rather than drawing them wrongly.
+Eleven of the pipelines Section 15 lists are enumerated and unregistered: terrain,
+terrain detail, roads, bridges, water, foliage, projected shadows, particles, tracers
+and beams, status markers, ghost building tint. `Is_Supported` reports false for each
+and `Get_Pass_Count` returns zero, so a caller that loops over them draws nothing
+rather than drawing them wrongly.
 
-They are unregistered because most of them have nothing to draw yet. Terrain, terrain
+They are unregistered because none of them has anything to draw yet. Terrain, terrain
 detail, roads, bridges and water arrive with the terrain framework (roadmap Sections 17
 and 18); foliage, ghost tint and status markers arrive with the Commander work. Each
 one registers itself when the system that draws it lands, which is the order Section 15
 asks for -- the layer first, because it is a dependency of the systems, not the other
 way round.
+
+What is not yet proved is the acceptance line *new donor systems share one
+state/shader management layer*. Debug overlays are an existing system moved onto the
+layer rather than a donor one, so the claim needs the second real pipeline to arrive
+before it means anything. Nor has any of this been seen on a screen: the checks run
+without a device, and whether a debug box still looks like a debug box is a question
+only a run with a display mask on can answer.
