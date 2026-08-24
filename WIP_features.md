@@ -30,21 +30,20 @@ unchanged across the change and the live prototype count drops back.
 ## P09 -- the layer exists, the pipelines do not
 
 `ShaderManagerClass` is in place and checked (see `docs/zerohour/ShaderManager.md`),
-with stock W3D content registered as a program rather than bypassing the layer. What
-is left of Section 15 is the pipeline list itself: terrain, terrain detail, roads,
-bridges, water, foliage, projected shadows, particles, tracers and beams, status
-markers, ghost building tint, debug overlays. They are enumerated and unregistered
-because most of them have nothing to draw yet -- the first five wait on the terrain
-framework, foliage and ghost tint and status markers on the Commander work -- and each
-registers itself when its system lands.
+with stock W3D content registered as a program and debug overlays registered against a
+real consumer, `BoxRenderObjClass::render_box`. Eleven pipelines are left enumerated
+and unregistered -- terrain, terrain detail, roads, bridges, water, foliage, projected
+shadows, particles, tracers and beams, status markers, ghost building tint -- because
+none of them has anything to draw until the terrain framework (P11, P13 to P15, P17)
+and the Commander work land. Each registers itself when its system arrives.
 
-Two things are true structurally but unverified at runtime: that existing Renegade
-materials render unchanged through the layer, and the acceptance line *new donor
-systems share one state/shader management layer*, which needs a second system to share
-it. Next exact action: register `MATERIAL_PROGRAM_DEBUG_OVERLAY` against the existing
-debug drawing in `Code/ww3d2/ww3d.cpp` (`Render_Debug_Resources`), which is the one
-listed pipeline whose consumer already exists, giving the layer a second program and
-the first evidence that handover works against a real device.
+Two things remain unproved. Nothing here has been seen on a screen: the checks run
+without a device, so whether a debug box still looks like a debug box wants one run
+with a display mask on. And the acceptance line *new donor systems share one
+state/shader management layer* needs a donor system, which debug overlays are not.
+Next exact action: nothing in P09 can move until P11 brings the terrain framework, so
+the next work is P10, the spatial query layer, starting with `WorldSpatialIndex` over
+the existing `CullSystemClass` and `PhysicsSceneClass`.
 
 ---
 
@@ -52,20 +51,17 @@ the first evidence that handover works against a real device.
 
 P05, P06 and P07 are all closed (see `completed_features.md`, and
 `docs/tt484/TTPhase5Audit.md`, `docs/tt484/TTPhase6Gate.md` and the four
-`docs/zerohour/` documents). Five things they named for later work must not be
-lost, each already written down where the work will happen: `ssurl`/`sshot`,
-the remote-screenshot pair, which is a policy question about a player's screen
-leaving their machine before it is an engineering one; `mapch`, which needs a
-client-to-server reply channel and belongs with the map transition and download
-work; `tag`, a custom player name tag whose field wants adding to `cPlayer`
-once; the **client/server map transition** manual step, which stays manual
-until there is a harness that can run two processes against real game data; and
-`NavalFactoryGameObj`, which remains reassigned to Zero Hour Feature 7.
+`docs/zerohour/` documents). Of the five things they named for later work, three
+are done -- `ssurl`/`sshot`, `mapch` and `tag`, all in `completed_features.md`
+under P05-Z -- as is the `cGameData` constructor fault they recorded rather than
+fixed. Two are left, neither of them blocked on code: the **client/server map
+transition** manual step, which stays manual until there is a harness that can
+run two processes against real game data, and `NavalFactoryGameObj`, which
+remains reassigned to Zero Hour Feature 7.
 
-One latent fault is recorded rather than fixed: `cGameData`'s constructor ends
-with `TRANSLATE(IDS_SERVER_SAVELOAD_CUSTOM_DEFAULT)`, so constructing one before
-`Init` has loaded `STRINGS.TDB` asserts in `translatedb.h:259`. The engine's own
-order never does that; it only bites something built outside startup order.
+The remote screenshot pair carries one thing that is done but unexercised: it has
+never run against a real client and a real endpoint, which needs two processes and
+a web server. Same shape of manual check as the map transition one.
 
 Three capabilities in the port matrix carry an `EAValidation` note, meaning EA's
 archival tree must actually be consulted before they are implemented: ZH-04 if

@@ -1302,3 +1302,27 @@ DLL and no second rendering backend*. New `shader_programs`/`fds_shader_programs
 `Get_Pixel_Shader_Majon_Version` and `Get_Pixel_Shader_Minor_Version` read
 `VertexShaderVersion`. Nothing called them until the shader tier detection became
 the first caller.
+
+**P05-Z: the four commands P05 wrote down and left.** `tag` adds `CustomTag` to
+`cPlayer` rare state, drawn under the multiplayer HUD name; `mapch` is a real
+client-to-server reply channel (`cScMapQueryEvent`/`cCsMapQueryResponseEvent`) rather
+than a chat message with an opcode in it; `ssurl`/`sshot` are the remote screenshots,
+implemented once the policy question had an answer written into the design -- game
+window only, player always told, URL held in memory so the feature is off after every
+restart, every request answered including refusals. 53 of 65 TT console commands are
+now ported, 6 deliberately not. `docs/tt484/RemoteScreenshots.md`. Absorbs the three
+carried-forward WIP items `ssurl`/`sshot`, `mapch` and `tag`.
+
+**Fixed on the way: `cGameData`'s constructor.** It ended in
+`TRANSLATE(IDS_SERVER_SAVELOAD_CUSTOM_DEFAULT)`, so constructing one before `Init`
+loaded `STRINGS.TDB` asserted in `translatedb.h:259`. The default resolves in
+`Get_Settings_Description` now. Absorbs the carried-forward WIP entry recording it as
+a latent fault.
+
+**P09-B: debug overlays, the first pipeline that draws.** `MATERIAL_PROGRAM_DEBUG_OVERLAY`
+is registered in `ShaderManagerClass::Init` and owns the material that was a file
+static in `boxrobj.cpp`; `BoxRenderObjClass::render_box` sets the program instead of
+reaching into `DX8Wrapper`, and the superseded static is gone. First program that
+builds a device resource in its `Init`, so the self-check registers it with no device
+present. Covers the *debug overlays* part of the P09 pipeline backlog line; the other
+five on that line still wait on their systems. 27/27 ctest.

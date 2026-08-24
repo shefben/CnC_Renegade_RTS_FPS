@@ -20,6 +20,17 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Resolved
 
+- **Q-007 (resolved by decision, reversible)** What a player is told before a
+  picture of their game window leaves their machine. P05 held `ssurl`/`sshot`
+  back as a policy question; it is answered and implemented. The capture is the
+  game window and there is no path that captures anything else; the player is
+  always told, naming the destination host, before the upload starts; the URL is
+  held in memory only, so the feature is off after every restart until an operator
+  turns it on; and every request is answered, refusals and failures included. No
+  client-side opt-out was added, on the grounds that a silent refusal removes the
+  only reason the feature exists while leaving the appearance of it. Say the word
+  and any of the four moves. See `docs/tt484/RemoteScreenshots.md`.
+
 - **Q-011 (resolved by decision, reversible)** Where the tech level and the
  mine limit live. Taken as recommended: both are `SSGMSettingsClass`
  settings read from `ssgm.ini`, which is where 4.8.4 kept them. The tech
