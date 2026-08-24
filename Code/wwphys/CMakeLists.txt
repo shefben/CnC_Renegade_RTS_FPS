@@ -46,9 +46,11 @@ set(WWPHYS_SRC
     physstaticsavesystem.cpp
     phystexproject.cpp
     progcall.cpp
+    heightfield.cpp
     projectile.cpp
     projectormanager.cpp
     pscene.cpp
+    worldterrainsystem.cpp
     pscene_collision.cpp
     pscene_decal.cpp
     pscene_lighting.cpp
@@ -141,9 +143,11 @@ set(WWPHYS_SRC
     physstaticsavesystem.h
     phystexproject.h
     progcall.h
+    heightfield.h
     projectile.h
     projectormanager.h
     pscene.h
+    worldterrainsystem.h
     rbody.h
     renderobjphys.h
     renegadeterrainmaterialpass.h

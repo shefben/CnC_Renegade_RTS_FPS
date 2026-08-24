@@ -107,6 +107,7 @@
 #include "ProcessManager.h"
 #include "assetselfcheck.h"
 #include "shaderselfcheck.h"
+#include "terrainselfcheck.h"
 #include "scriptcatalogcheck.h"
 #include "ttselfcheck.h"
 
@@ -188,6 +189,13 @@ int main(int argc, char *argv[])
 	//
 	if ((argc > 1) && (::strcmp(argv[1], "-shaderselfcheck") == 0)) {
 		return ShaderSelfCheck::Run((argc > 2) ? argv[2] : nullptr);
+	}
+
+	//
+	//	The terrain service -- roadmap Section 17, same arrangement.
+	//
+	if ((argc > 1) && (::strcmp(argv[1], "-terrainselfcheck") == 0)) {
+		return TerrainSelfCheck::Run((argc > 2) ? argv[2] : nullptr);
 	}
 
 	WWMemoryLogClass::Init();	// This switches memlog from static to dynamic allocations mode

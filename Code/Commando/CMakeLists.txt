@@ -416,6 +416,8 @@ set(COMMANDO_SRC
     assetselfcheck.h
     shaderselfcheck.cpp
     shaderselfcheck.h
+    terrainselfcheck.cpp
+    terrainselfcheck.h
     scriptcatalogcheck.cpp
     scriptcatalogcheck.h
     sctextobj.cpp
@@ -565,6 +567,12 @@ if(BUILD_TESTING AND TARGET renegade)
 
     #	The shader and state management layer -- roadmap Section 15.  See shaderselfcheck.h.
     add_test(NAME shader_programs COMMAND renegade -shaderselfcheck programs)
+
+    #	The terrain service -- roadmap Section 17.  See terrainselfcheck.h.
+    add_test(NAME terrain_sampling COMMAND renegade -terrainselfcheck sampling)
+    add_test(NAME terrain_rays     COMMAND renegade -terrainselfcheck rays)
+    add_test(NAME terrain_shaping  COMMAND renegade -terrainselfcheck shaping)
+    add_test(NAME terrain_service  COMMAND renegade -terrainselfcheck service)
 endif()
 
 #
@@ -586,4 +594,8 @@ if(BUILD_TESTING AND TARGET renegadeserver)
     add_test(NAME fds_asset_exclusion  COMMAND renegadeserver -assetselfcheck exclusion)
     add_test(NAME fds_asset_residency  COMMAND renegadeserver -assetselfcheck residency)
     add_test(NAME fds_shader_programs  COMMAND renegadeserver -shaderselfcheck programs)
+    add_test(NAME fds_terrain_sampling COMMAND renegadeserver -terrainselfcheck sampling)
+    add_test(NAME fds_terrain_rays     COMMAND renegadeserver -terrainselfcheck rays)
+    add_test(NAME fds_terrain_shaping  COMMAND renegadeserver -terrainselfcheck shaping)
+    add_test(NAME fds_terrain_service  COMMAND renegadeserver -terrainselfcheck service)
 endif()
