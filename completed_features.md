@@ -1384,3 +1384,27 @@ materials entirely from runtime data/masks* for everything but the art, which is
 in `WIP_features.md`. See `docs/zerohour/TerrainTextureSystem.md`. Twelve terrain ctest
 entries green. Commit `2a32c0ea`.
 
+## P14-A: `RoadSystem`, roads generated from centre lines
+
+Section 19's representation and everything derived from it: `RoadSplineClass` (Catmull-Rom
+through the control points, tessellation adaptive on chord deviation and capped on segment
+length, exact trimming) and `RoadSystem` (conforming to generated terrain or, by ray cast, to a
+level's own W3D geometry; optional grading that smooths the ground along the road and brings the
+terrain up to it; junctions as polygons built from the arms that reach them rather than the
+donor's atlas of authored corner pieces; one `DynamicMeshClass` per material; the road mask
+stamped at carriageway width and feathered across the shoulder, which is Section 18's road mask
+finally getting a writer; bridge and tunnel connections recorded for Section 20; navigation
+answered as a query). Roads do not collide, deliberately -- the ground under them does.
+`Build_Network` needs no device, so a dedicated server runs it and stops. Absorbs the backlog
+acceptance line *road geometry can be generated at runtime from centerlines without a unique
+modeled mesh for every road segment* for everything but the looking, which is carried in
+`WIP_features.md`. See `docs/zerohour/RoadSystem.md`. Fourteen terrain ctest entries green.
+Commit `706a9a8e`.
+
+## P13-B: `Stamp_Polyline` measures instead of accumulating
+
+A polyline stamped as a row of overlapping discs pushed every point in the feathered rim to full
+strength, because each disc moved it part of the way again; the soft edge survived a short line
+and vanished on a long one. It measures the distance to the whole line and applies the falloff
+once now. Found by P14's shoulder check. Commit `65915368`.
+

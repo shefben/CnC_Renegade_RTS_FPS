@@ -72,6 +72,18 @@ and whether the level's own W3D geometry still behaves.
 
 ---
 
+## P14 -- generated, unseen
+
+`RoadSplineClass` and `RoadSystem` are in and checked (P14-A in `completed_features.md`,
+`docs/zerohour/RoadSystem.md`, fourteen green terrain ctest entries). What this entry carries out
+of the absorbed acceptance line is that no screen has shown a road: the checks run device-less and
+the default roads name no texture. Next exact action is a manual one for the user: run
+`renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then `road_test` at the console
+-- it works on a stock level's own floor, and takes an optional texture name -- and report whether
+the S bend, the crossing and the tee look like roads.
+
+---
+
 ## P13 -- decided, undrawn
 
 `TerrainTextureSystem` is in and checked (P13-A in `completed_features.md`,

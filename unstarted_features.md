@@ -71,7 +71,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P14: Runtime road system (roadmap Section 19)
 
-- [ ] Acceptance: Road geometry can be generated at runtime from centerlines without a unique modeled mesh for every road segment.
 
 ## P15: Sectional bridge system (roadmap Section 20)
 
