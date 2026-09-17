@@ -115,6 +115,7 @@
 #include "surfaceribbonsystem.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldlightmanager.h"
+#include "worldterrainsystem.h"
 #include "worldshadowmanager.h"
 #include "lightenvironment.h"
 #include "dx8wrapper.h"
@@ -1160,6 +1161,14 @@ void PhysicsSceneClass::Pre_Render_Processing(CameraClass & camera)
 	**	list is flushed, so they are recycled here and nowhere else.  Roadmap Section 25.
 	*/
 	WorldLightManager::Begin_Frame();
+
+	/*
+	**	Terrain decides which of its two representations draws which ground, from where the
+	**	camera is.  Here rather than in the timestep because that is where the camera is, and
+	**	before the visible set is collected because it changes what is hidden.  Costs nothing on
+	**	a level with no heightfield, which is every stock level.  Roadmap Section 34.
+	*/
+	WorldTerrainSystem::Update_Terrain_LOD(camera.Get_Position());
 
 	DecalSystem->Update_Decal_Fade_Distances(camera);
 

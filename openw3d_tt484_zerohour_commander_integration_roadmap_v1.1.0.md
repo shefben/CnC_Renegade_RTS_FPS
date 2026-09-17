@@ -5179,6 +5179,753 @@ The project described by this roadmap is complete only when all of the following
 
 ---
 
+# 52A. NATIVE VISUAL-FIDELITY PROGRAM — PHASES 46-62
+
+## Why this program exists
+
+Every phase in Sections 14-38 either replaces a subsystem or adds one the stock engine
+lacked. None of them changes how the stock game *looks* on stock content: a stock level
+loaded today renders with the lighting it was solved with in 2002, a sky set once at load,
+constant static lights, no wind response, and fixed-function sampler defaults.
+
+This program is the separate, deliberately-scoped body of work that changes appearance on
+existing content. It is not a graphics rewrite and it does not belong to the Commander
+stack.
+
+## Program-wide constraints
+
+These bind every phase P46-P62 and are as non-negotiable as Section 0's directives.
+
+- **No new authored art is required for any phase to land.** Where a phase wants a mask,
+  ramp, LUT or environment map, it is generated procedurally at load or at runtime.
+  Purpose-made replacements may be recorded in `docs/assets/VisualFidelity.md` as
+  improvements, never as prerequisites.
+- **No re-export.** No phase may require a `.w3d` to be re-exported, a level to be
+  re-solved in LevelEdit, or a map to be recompiled before its effect is visible.
+- **Every phase degrades to today's appearance.** Each is a runtime switch defaulting to
+  the current look until validated, and disabling it must restore stock rendering exactly,
+  not approximately.
+- **Appearance is not intelligence.** Section 30's firewall applies: darkness, fog,
+  weather and wetness are client presentation. None may reveal, conceal, or alter what a
+  player or the server knows. Anything that changes what is *knowable* is a Section 30/31
+  change, not a Section 52A change.
+- **Shared state is server-owned.** Where clients must agree — the sky clock, the wind
+  field, the wetness scalar — the value is authoritative on the server and replicated as a
+  small scalar set, never as per-object state.
+- **These extend existing owners; they do not fork them.** Each phase names the canonical
+  owner it modifies. No phase may introduce a second lighting path, a second sky, or a
+  parallel render pipeline selected by a flag.
+
+## Ordering inside the program
+
+P46-P47 depend on nothing and can run at any time. P48 gates P49-P55, because a moving sun
+is the input every one of them consumes. P56-P57 are one post-processing chain and share a
+render-target owner. P58-P62 are independent of the sky work and of each other.
+
+The program as a whole depends on Section 15 (shader manager) and Sections 24, 25 and 34
+being complete, and is independent of Sections 39-45. It may interleave with the Commander
+stack.
+
+---
+
+## P46 — Sampler, filtering and antialias quality defaults
+
+### Goal
+
+Stock textures get sharper without anything being re-authored.
+
+### Owner
+
+```text
+ww3d2/dx8wrapper.cpp
+ww3d2/texture.cpp
+ww3d2/shadermgr.cpp
+```
+
+### Implement
+
+Anisotropic filtering to device capability; trilinear as the default minification path;
+tuned mip LOD bias; multisample selection where the device reports support; texture
+reduction defaulted off. Every value is a setting with a stock-equivalent value, and the
+device capability query decides what is offered rather than what is forced.
+
+### Acceptance
+
+Ground and wall textures at grazing angles resolve visibly further into the distance on an
+unmodified stock level, and forcing every setting to its stock-equivalent value reproduces
+the current image.
+
+---
+
+## P47 — Level-of-detail and far-terrain cross-fade
+
+### Goal
+
+Remove the hard switch that is the most visible artifact the terrain work can produce.
+
+### Owner
+
+```text
+ww3d2/distlod.cpp
+wwphys/worldterrainsystem.cpp
+```
+
+### Implement
+
+Dissolve between adjacent LOD levels across a short distance band rather than swapping at a
+threshold, and apply the same blend at the far/near terrain block handover added in
+Section 34, where blocks already share seam vertices exactly.
+
+### Acceptance
+
+Walking or driving toward a distant model or terrain block shows no single-frame pop, and
+the far/near handover is not locatable by eye.
+
+---
+
+## P48 — Server-authoritative sky clock with moving sun and moon
+
+### Goal
+
+Time of day advances during a match, and the whole world's lighting follows it.
+
+### Owner
+
+```text
+Combat/backgroundmgr.cpp   (SkyClass::Set_Time_Of_Day, Set_Light_Direction, Set_Moon_Type)
+wwphys/worldshadowmanager.cpp
+wwphys/worldlightmanager.cpp
+ww3d2/lightenvironment.cpp
+```
+
+### Implement
+
+`SkyClass::Set_Time_Of_Day` and `Set_Light_Direction` already exist and are called once at
+level load. Put a clock behind them: rate, start hour and pause state are server state,
+replicated as a single value clients interpolate; the sun and moon arcs, the starfield
+fade, the haze and sky-glow colours and the moon phase all derive from it.
+
+The part that matters is that the *same* sun vector reaches the scene light environment and
+`WorldShadowManager`'s caster direction, so shadows rotate and lengthen with the sun instead
+of pointing wherever the level was authored. Levels that want a fixed hour keep one by
+setting the rate to zero, which is the stock behaviour exactly.
+
+### Acceptance
+
+Over one match the sun visibly crosses the sky, shadows rotate and lengthen with it, night
+falls with stars and a moon, every client agrees on the hour, and a zero rate reproduces the
+level's authored appearance.
+
+---
+
+## P49 — Time-of-day relighting of baked static lighting
+
+### Goal
+
+A moving sun changes the world's baked lighting without re-solving it.
+
+### Owner
+
+```text
+wwphys/lightsolve.cpp
+wwphys/lightsolvecontext.cpp
+ww3d2/mesh.cpp
+```
+
+### Implement
+
+The static solve bakes vertex colours once, which is why a level is locked to the hour it
+was solved at. Bake a second per-vertex scalar beside it — sun visibility — and at runtime
+compose the stored colour with that scalar times the current sun colour and intensity.
+Interiors, which see no sun, keep their baked appearance untouched; exteriors follow the
+clock.
+
+The scalar is computed by the existing solver from the existing geometry. Meshes that carry
+no scalar — everything shipped — get one derived at load from the surface normal against
+the level's authored sun, so the feature works on stock content and improves when a level is
+re-solved rather than requiring it.
+
+### Acceptance
+
+An outdoor stock level's baked lighting tracks the sun through a full day, indoor lighting
+does not change, no `.w3d` is re-exported, and a level with the clock stopped renders as it
+does today.
+
+---
+
+## P50 — Animated static lights
+
+### Goal
+
+Static lights stop being constant forever.
+
+### Owner
+
+```text
+wwphys/lightphys.cpp
+wwphys/worldlightmanager.cpp
+ww3d2/light.cpp
+```
+
+### Implement
+
+A small set of intensity/colour curves per light — steady, flicker, pulse, warm-up, and
+hard fail — evaluated on the light rather than on anything that draws. Wire the fail case
+to the building power and damage state Section 40 owns, so a base losing power browns out
+and a damaged building's lights stutter.
+
+Curve selection is a light property with a default of steady, which is current behaviour.
+
+### Acceptance
+
+A powered-down or destroyed building's lights go out through the same power state the
+Section 40 grid already computes, flicker and pulse are visible on lights configured for
+them, and every light left on steady renders as it does today.
+
+---
+
+## P51 — Height fog tied to the horizon colour
+
+### Goal
+
+Distance fades into the sky that is actually being drawn.
+
+### Owner
+
+```text
+Combat/backgroundmgr.cpp   (HazeClass::Get_Horizon_Color)
+ww3d2/dx8wrapper.cpp
+wwphys/pscene.cpp
+```
+
+### Implement
+
+Only linear distance fog is used, in a colour the level author fixed. Add a height-based
+term, and take the fog colour from `HazeClass::Get_Horizon_Color()` so it moves with the sky
+clock. Fog then reads as atmosphere rather than as a grey wall, and the far/near terrain
+boundary from Section 34 is additionally hidden by it.
+
+### Acceptance
+
+Distant geometry fades into the current horizon colour at every hour of the sky clock, low
+ground holds fog that high ground does not, and disabling the height term restores the
+level's authored linear fog.
+
+---
+
+## P52 — Terrain and contact ambient occlusion
+
+### Goal
+
+Ground creases darken, and objects stop looking like they hover.
+
+### Owner
+
+```text
+wwphys/heightfield.cpp
+wwphys/worldterrainsystem.cpp
+wwphys/worldshadowmanager.cpp
+```
+
+### Implement
+
+The heightfield already carries normals: compute per-vertex sky occlusion at generation and
+fold it into the vertex colour the patch already writes, costing nothing at draw time. For
+dynamic objects, a cheap contact-darkening term under the object, registered through the
+caster path Section 24 exposed rather than as a second shadow system.
+
+### Acceptance
+
+Valleys, cuts and the insides of slopes are visibly darker than open ground on generated
+terrain, every soldier and vehicle is visually anchored to the surface it stands on, and no
+second shadow implementation exists.
+
+---
+
+## P53 — Moving cloud shadows
+
+### Goal
+
+The clouds that are already drawn cast something.
+
+### Owner
+
+```text
+Combat/backgroundmgr.cpp   (CloudLayerClass)
+ww3d2/texproject.cpp
+wwphys/phystexproject.cpp
+```
+
+### Implement
+
+Scroll a cloud density mask through the existing projector path onto the ground, driven by
+the same wind field as P58 so clouds and their shadows move together. The mask is generated
+procedurally at load from the cloud layer's own parameters; an authored one is an
+improvement, never a prerequisite.
+
+### Acceptance
+
+Broad patches of shade cross open terrain in the wind direction and under the drawn clouds,
+at a cost that does not scale with the number of objects shaded.
+
+---
+
+## P54 — Sky-driven environment reflections
+
+### Goal
+
+Vehicles reflect the sky that exists rather than a fixed noon chrome map.
+
+### Owner
+
+```text
+ww3d2/metalmap.cpp
+ww3d2/mapper.cpp
+Combat/backgroundmgr.cpp
+```
+
+### Implement
+
+Environment mapping already exists and consumes a static map. Regenerate a small environment
+map at a low rate from the current sky, haze, sun and cloud colours, and feed it to the
+existing mapper. Metal picks up sunset, overcast and night automatically, and no material
+changes.
+
+### Acceptance
+
+A parked vehicle's reflections change colour across the sky clock, regeneration cost is
+bounded and independent of how many objects use the map, and a build with regeneration off
+uses the stock map.
+
+---
+
+## P55 — Sun shafts
+
+### Goal
+
+The sun's position on screen does something to the air.
+
+### Owner
+
+```text
+Combat/backgroundmgr.cpp   (SkyGlowClass)
+ww3d2/shadermgr.cpp
+```
+
+### Implement
+
+`SkyGlowClass` already knows where the sun is on screen. Radially blur bright pixels away
+from that point, occluded by scene depth, as one screen-space pass in the Section 15
+pipeline set. Strongest exactly where it should be — through windows, doorways and tree
+canopy.
+
+### Acceptance
+
+Facing the sun through an occluder produces shafts that move with the sky clock, and nothing
+is drawn when the sun is below the horizon or off screen.
+
+---
+
+## P56 — Tonemapping and eye adaptation
+
+### Goal
+
+Outdoors and a dark interior stop rendering at the same perceptual range.
+
+### Owner
+
+```text
+ww3d2/shadermgr.cpp
+ww3d2/dx8wrapper.cpp
+```
+
+### Implement
+
+The fixed-function path clamps at 1.0, so bright sky and lit interior share the top of the
+range and both flatten. Add a full-screen tonemap with slow automatic exposure through the
+Section 15 shader layer, plus a colour-grading ramp evaluated in the same pass. The grading
+ramp is generated in code from the sky clock; a per-level authored one is optional.
+
+This is the largest change in perceived image quality available without touching content,
+and it is also the one most able to make the game look wrong, so it lands behind a setting
+and is judged on a screen before it becomes the default.
+
+### Acceptance
+
+Stepping from sunlight into an unlit interior adapts over a short interval rather than
+showing a black hole, bright outdoor scenes hold detail in the sky and in shadow at once,
+and the feature disabled is pixel-identical to today.
+
+---
+
+## P57 — Bloom on emissive and dazzle sources
+
+### Goal
+
+Lights, flashes and glare bleed.
+
+### Owner
+
+```text
+ww3d2/dazzle.cpp
+ww3d2/shadermgr.cpp
+```
+
+### Implement
+
+`dazzle.cpp` already marks glare sources. Threshold, blur and add, sharing the render-target
+owner with P56 as one post chain rather than two. Muzzle flashes, lamps, the sun, Tiberium
+and beam weapons all pick it up with no per-effect work.
+
+### Acceptance
+
+Muzzle flashes and lamps bleed into surrounding pixels at night, the chain allocates its
+targets once, and bloom disabled leaves the image unchanged.
+
+---
+
+## P58 — Wind field applied to geometry
+
+### Goal
+
+`WindClass` stops being precipitation-only.
+
+### Owner
+
+```text
+Combat/WeatherMgr.cpp   (WindClass)
+wwphys/foliagesystem.cpp
+ww3d2/mesh.cpp
+```
+
+### Implement
+
+One replicated wind vector with gusts. Feed it to a vertex sway offset keyed on height
+above the instance origin, so foliage, foliage impostors, flags and cloth lean and gust
+together, and to particle drift and the cloud scroll of P53 so the whole scene agrees about
+which way the wind blows. Sway amplitude derives from vertex position; no vertex colours
+need authoring.
+
+Foliage sway must not disturb the merged collision posts Section 21 builds — the wind moves
+the picture, not the blocker.
+
+### Acceptance
+
+Trees, flags and precipitation all move with one wind direction that gusts, foliage
+collision is unaffected, and zero wind is the current static appearance.
+
+---
+
+## P59 — Wetness response
+
+### Goal
+
+Rain makes the world look wet, not just add falling sprites.
+
+### Owner
+
+```text
+Combat/WeatherMgr.cpp
+wwphys/terraintexturesystem.cpp
+wwphys/materialeffect.cpp
+```
+
+### Implement
+
+One replicated wetness scalar that rises while precipitation falls and dries over a minute
+after it stops, with sheltered objects rising more slowly. It darkens albedo and lifts
+specular on soldier, vehicle and building materials, and biases terrain layer weights toward
+the wet variants on low-slope ground. This is a material parameter ramp: it needs no new
+textures, and gains from them where a wet variant exists.
+
+This is distinct from Section 36, which owns the falling particles themselves. Section 36
+produces the precipitation; this phase is the world's response to it.
+
+### Acceptance
+
+A rainstorm visibly darkens ground, vehicles and soldiers, they dry out afterwards, indoor
+and sheltered surfaces stay dry, and wetness at zero is the current appearance.
+
+---
+
+## P60 — Surface marks age with the weather
+
+### Goal
+
+Scorch marks wash away.
+
+### Owner
+
+```text
+wwphys/worldsurfacemarkmanager.cpp
+wwphys/surfaceribbonsystem.cpp
+```
+
+### Implement
+
+Scale each mark's fade rate by the P59 wetness scalar, so rain clears a battlefield's
+scorch and tyre tracks over minutes instead of them fading on a fixed timer. Eviction policy
+and pool sizes from Section 35 are unchanged — only the fade rate is a function of weather.
+
+### Acceptance
+
+Marks laid before a storm are gone sooner than marks laid in dry weather, the mark pool
+never grows, and zero wetness reproduces the current fade timing.
+
+---
+
+## P61 — Progressive damage appearance
+
+### Goal
+
+A building at 20% health looks like it.
+
+### Owner
+
+```text
+wwphys/materialeffect.cpp
+wwphys/transitioneffect.cpp
+Combat/buildinggameobj.cpp
+```
+
+### Implement
+
+Drive a soot and char tint ramp from the health fraction the object already replicates,
+plus an emissive ember term visible at night, through the material effect list that already
+exists for stealth and transitions. Tint only: no damage-state models, no damage textures,
+nothing to author.
+
+### Acceptance
+
+Damaged buildings and vehicles darken and scorch progressively as health falls, burning
+ones glow at night, repair reverses it, and no new model or texture is required for any of
+it.
+
+---
+
+## P62 — Weapon-fire camera response
+
+### Goal
+
+Firing feels like it moves the camera, not the crosshair.
+
+### Owner
+
+```text
+wwphys/camerashakesystem.cpp
+Combat/ccamera.cpp
+```
+
+### Implement
+
+The shake system exists and is used for explosions. Add a small per-shot field-of-view kick
+and roll with a fast recovery curve, scaled per weapon, kept strictly cosmetic — aim
+direction, spread and hit registration are untouched, since the server owns them.
+
+### Acceptance
+
+Firing produces a visible camera response that recovers quickly, weapon accuracy and hit
+registration are provably unchanged, and the response scaled to zero is current behaviour.
+
+---
+
+# 52B. PROCEDURAL-WORLD PREREQUISITES — PHASES 63-65
+
+## Why this program exists
+
+Section 3A.5 states what a generated world must provide — infantry cover, alternate and
+flanking routes, chokepoints, vehicle lanes, bridge crossings, elevation variation,
+meaningful destinations at human-scale intervals — and Section 17 forbids implementing the
+generator itself here. Between those two positions sit three capabilities that do not exist
+in the tree and that no amount of generator code can supply for itself.
+
+Without them a generator has to invent its own idea of how tall a soldier is, cannot express
+a cliff at all, and cannot tell whether the world it just built is connected. That produces
+out-of-scale terrain, and it produces it silently.
+
+These three phases are the prerequisites. They are useful on their own — hand placement,
+LevelEdit validation, Commander building placement and AI pathing all consume them — and
+they are what a later generator phase would be built on.
+
+## Scope boundary
+
+**This section still does not implement the procedural world generator.** Section 17's
+prohibition stands. These phases build the queries and representations a generator needs and
+that current systems already want. When a generator phase is eventually specified, it
+depends on all three and adds no new world vocabulary of its own.
+
+The fourth gap identified alongside these — `BridgeSystem` having no clearance, deck-height,
+pier or abutment concept — is carried by **P64**, whose scope is vertical world structure the
+heightfield cannot express. It is named here so it is not lost.
+
+---
+
+## P63 — World metrics service
+
+### Goal
+
+One authoritative answer to "how big is a soldier, what can it climb, how wide is a tank",
+derived from the definitions that already own those facts.
+
+### Problem
+
+Nothing exposes body and locomotion dimensions in one place. `STEP_HEIGHT` is a file-scope
+constant in `phys3.cpp` and a per-definition value on `Phys3DefClass`; soldier and vehicle
+extents live in collision boxes reachable only through an instance; building footprints
+arrive with the Section 39 descriptor; maximum climbable slope is implicit in the physics and
+written down nowhere. Every consumer that needs a dimension re-derives it, and a generator
+would invent its own numbers — the exact failure that produces out-of-scale terrain.
+
+### Owner
+
+```text
+wwphys/phys3.cpp            (Phys3DefClass::StepHeight)
+wwphys/humanphys.cpp
+wwphys/vehiclephys.cpp
+wwphys/wheelvehicle.cpp, trackedvehicle.cpp
+Combat definitions + Section 39 BuildingModelDescriptor.Footprint
+```
+
+### Implement
+
+A `WorldMetricsClass` service answering, per locomotion class and per definition rather than
+per live instance:
+
+```text
+stand height / crouch height / prone height
+collision radius and envelope extents
+step height
+maximum climbable slope
+minimum traversable corridor width
+minimum overhead clearance
+turning radius where the locomotor has one
+building footprint radius and height
+```
+
+Values are **read from the existing definitions**, not restated as new constants. Where a
+value is genuinely implicit in the physics — maximum climbable slope is the clear case — it
+is computed once from the locomotor's own parameters and cached, not typed in.
+
+The service answers by class as well as by definition, so a caller can ask for the widest
+vehicle, the tallest vehicle, or the most restrictive infantry envelope in play, which is the
+form terrain shaping and route validation actually need.
+
+### Acceptance
+
+Terrain shaping, Commander placement validation, AI route checks and any later generator all
+obtain body and vehicle dimensions from this one service; no consumer carries its own copy of
+a step height, a slope limit or a corridor width; and changing a definition changes every
+consumer's answer with no other edit.
+
+---
+
+## P64 — Vertical world structure
+
+### Goal
+
+Express what a heightfield cannot: cliff faces, escarpments, retaining walls, and bridge
+structure.
+
+### Problem
+
+`HeightfieldClass` is a function of x and y. It cannot represent a vertical face, an
+overhang, or an undercut. Steep cells approximate a cliff and read as stretched texture,
+and the slope query correctly reports them as unwalkable without them ever looking like
+rock. Separately, `BridgeSystem` has width, length and conform but no deck height, no
+clearance and no piers — a bridge is currently tall enough only because
+`Apply_River_Cut` happened to cut deep enough first, which means clearance is an accident of
+the terrain rather than a property of the crossing.
+
+### Owner
+
+```text
+wwphys/worldterrainsystem.cpp
+wwphys/heightfield.cpp
+wwphys/bridgesystem.cpp
+wwphys/bridgesection.cpp
+wwphys/terraintexturesystem.cpp
+```
+
+### Implement
+
+An escarpment representation that sits beside the heightfield rather than inside it: a
+polyline with an upper and a lower height, generating wall geometry and its own collision,
+dressed by the existing terrain layer table so a cliff is rock and not stretched ground
+texture. The heightfield remains the single authority for ground height on both benches; the
+escarpment owns only the face between them.
+
+`BridgeSystem` gains the matching structural vocabulary — deck height, required clearance
+under the span, abutment heights taken from the terrain at each bank, and piers where the
+span demands them. Clearance becomes a property the crossing states and the terrain must
+satisfy, so a crossing can report that a ravine is too shallow for the traffic it is meant
+to carry instead of producing a bridge a vehicle cannot pass under.
+
+Missing art degrades the same way every world system in Sections 17-23 degrades: the face
+and the piers exist as collision and geometry with nothing drawn on them, never as a crash
+or a stand-in file. Asset names recorded in `docs/assets/`.
+
+### Acceptance
+
+A vertical cliff face is representable, walkable ground above and below it stays one
+canonical heightfield query, infantry and vehicles collide with the face correctly, and a
+bridge states a clearance that can be checked against the terrain under it rather than
+inferred from it.
+
+---
+
+## P65 — Traversability and connectivity graph
+
+### Goal
+
+Answer whether one place can be reached from another, by what, and through where.
+
+### Problem
+
+`Query_Placement_Surface` is a disc test. Nothing in the tree can answer "is B reachable from
+A on foot but not by tank", which is the question that decides whether a world satisfies
+Section 3A.5's alternate routes, flanking routes and chokepoints — and the question a
+generator must be able to ask about its own output before it is allowed to ship it.
+
+### Owner
+
+```text
+wwphys/worldterrainsystem.cpp
+wwphys/worldspatialindex (Section 16 service)
+wwphys/roadsystem.cpp, bridgesystem.cpp
+wwphys/Pathfind.cpp
+```
+
+### Implement
+
+A coarse traversability graph built from the terrain, the roads, the bridges, the water areas
+and the escarpments of P64, parameterised by a P63 locomotion class so the same world yields
+a different graph for infantry and for tracked vehicles. Crossings carry the clearance and
+width constraints of P64 and P63, so a tunnel or a bridge that a tank cannot fit through is
+simply not an edge in the tank's graph.
+
+Queries the graph answers:
+
+```text
+is B reachable from A for this locomotion class
+what are the distinct routes between A and B
+which edges are chokepoints (removal disconnects, or the only route within a width class)
+which routes exist for infantry that do not exist for vehicles
+what is unreachable
+```
+
+This is an analysis structure, not a replacement pathfinder: `Pathfind` stays the authority
+for how a unit actually moves. The graph exists to answer questions about the shape of the
+world, which the pathfinder is the wrong tool for.
+
+### Acceptance
+
+The graph answers reachability, distinct-route and chokepoint queries per locomotion class on
+both authored stock levels and runtime-generated terrain, a vehicle-impassable crossing is
+absent from the vehicle graph while present in the infantry graph, and `Pathfind` remains the
+only thing that moves a unit.
+
+---
+
 # 53. IMPLEMENTATION ORDER SUMMARY
 
 Execute in this dependency order.
@@ -5193,6 +5940,8 @@ The ordering is deliberate:
 - placement exists before construction;
 - construction exists before Commander-created production buildings participate in AI production;
 - persistence/network/dedicated-server/regression passes happen after the gameplay stack exists.
+- the Section 52A visual-fidelity phases extend world systems that must already exist, and are otherwise independent of the Commander stack.
+- the Section 52B procedural-world prerequisites are world-representation work that current systems already want, and are not the generator itself.
 
 ```text
 0   Freeze/test latest OpenW3D
@@ -5244,7 +5993,39 @@ The ordering is deliberate:
 43  Performance/regression pass
 44  Remove migration/donor-version scaffolding
 45  Final provenance/documentation/state-file reconciliation
+
+46  Sampler/filtering/antialias quality defaults
+47  Level-of-detail and far-terrain cross-fade
+48  Server-authoritative sky clock with moving sun and moon
+49  Time-of-day relighting of baked static lighting
+50  Animated static lights
+51  Height fog tied to the horizon colour
+52  Terrain and contact ambient occlusion
+53  Moving cloud shadows
+54  Sky-driven environment reflections
+55  Sun shafts
+56  Tonemapping and eye adaptation
+57  Bloom on emissive and dazzle sources
+58  Wind field applied to geometry
+59  Wetness response
+60  Surface marks age with the weather
+61  Progressive damage appearance
+62  Weapon-fire camera response
+
+63  World metrics service
+64  Vertical world structure (cliffs/escarpments/bridge structure)
+65  Traversability and connectivity graph
 ```
+
+Phases 46-62 are the Section 52A visual-fidelity program. They depend on Sections 15, 24, 25
+and 34 and on nothing in Sections 39-45, so they may interleave with the Commander stack rather
+than waiting behind it. Inside the program, 46 and 47 depend on nothing, 48 gates 49-55, 56 and
+57 are one post-processing chain, and 58-62 are independent of each other.
+
+Phases 63-65 are the Section 52B procedural-world prerequisites. 63 gates 64 and 65, since both
+consume its dimensions; 64 gates 65, since a crossing's clearance and a cliff's impassability are
+edges in the graph. They depend on Sections 16, 17, 19, 20 and 22 and on nothing in Sections 39-45.
+They are not the procedural world generator, which Section 17 still forbids implementing here.
 
 No later phase may be used as an excuse to leave an earlier phase knowingly architecturally broken.
 

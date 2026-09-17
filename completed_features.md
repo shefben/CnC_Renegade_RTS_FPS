@@ -1327,6 +1327,27 @@ builds a device resource in its `Init`, so the self-check registers it with no d
 present. Covers the *debug overlays* part of the P09 pipeline backlog line; the other
 five on that line still wait on their systems. 27/27 ctest.
 
+## P09-C: six pipelines, one file, and the systems stopped answering for themselves
+
+`MATERIAL_PROGRAM_TERRAIN`, `ROAD`, `BRIDGE`, `WATER`, `FOLIAGE` and `PROJECTED_SHADOW` are
+registered in `ShaderManagerClass::Init` as `FixedFunctionProgramClass` pipelines -- a
+shader, a material, a stage count -- so the state each system used to decide privately now
+sits in one file where water and foliage can be read against each other. Terrain gave up
+four per-patch members and a draw-time material mutation for two passes and a
+`Set_Program_Variant`; `renegadeterrainpatch.cpp` and `pscene_projectors.cpp` set the
+program, and roads, bridges, water and foliage take the same stored state onto their mesh
+through the new `Get_Pass_State`, which brings the manager up on its own so the FDS can ask.
+`Water_Shader()` and `Foliage_Shader()` are gone rather than kept beside it. Absorbs the two
+P09 pipeline backlog lines for *terrain, roads, bridges, water, foliage* and *projected
+shadows*, and the P09 acceptance line; terrain detail, particles, tracers, status markers
+and ghost tint stay in WIP with no consumer. New `shader_pipelines`/`fds_shader_pipelines`;
+4/4 shader and 30/30 terrain ctest. `docs/zerohour/ShaderManager.md`.
+
+**Fixed on the way: `Get_Preset` on a server.** `VertexMaterialClass::Get_Preset`
+dereferences a null until `VertexMaterialClass::Init` runs, which a dedicated server never
+reaches. Four systems called it while building geometry the FDS also builds; the pipelines
+construct their materials instead.
+
 ## P10-A: `WorldSpatialIndex`, the one place to ask what is near something
 
 Query service over the culling systems `PhysicsSceneClass` already owns -- point, AABox,
@@ -1521,3 +1542,20 @@ actually reach the object, returning the same pointer untouched when none do. Ab
 `terrain_lights` proves as a number: the same question over a full sixty-four-light table examines no
 more lights than it does over eight. Evidence: `docs/zerohour/WorldLightManager.md`; twenty-eight
 green terrain ctest entries including the new `terrain_lights` and `fds_terrain_lights`.
+
+## P12-A: The far layer is the near field seen coarsely, and it cannot answer a question
+
+`WorldTerrainSystem` grew the far/background representation Section 34 asks for, as a view of the one
+heightfield rather than a second terrain database: blocks of four-by-four near patches sampled every
+fourth grid point into the same `RenegadeTerrainPatchClass`, dressed by the same layer table through
+one `Build_Sampled_Materials` that takes the stride as a parameter, carrying `Set_Collision_Type(0)`
+so the patch class's own `Cast_Ray` refuses every ray and the near representation stays the only
+thing that can be asked about the ground. Blocks share their seam vertices exactly, the whole layer
+is lowered by the largest measured amount the coarse surface rides above the real one -- so far is
+nowhere above near and a boundary can show a step, never a hole -- and `Update_Terrain_LOD`, called
+from `Pre_Render_Processing`, hands ground between the two per block so nothing is drawn twice.
+Absorbs three of P12's four acceptance clauses: *far terrain uses substantially fewer
+vertices/draw submissions* (sixteen to one, both), *terrain edits invalidate the correct background
+regions*, and *one canonical terrain query/collision representation remains authoritative*.
+Evidence: `docs/zerohour/FarTerrainLOD.md`; thirty green terrain ctest entries including the new
+`terrain_far` and `fds_terrain_far`.

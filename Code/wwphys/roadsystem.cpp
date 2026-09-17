@@ -46,6 +46,7 @@
 #include "physcoltest.h"
 #include "pscene.h"
 #include "shader.h"
+#include "shadermgr.h"
 #include "staticphys.h"
 #include "terrainmask.h"
 #include "terraintexturesystem.h"
@@ -1039,13 +1040,19 @@ bool RoadSystem::Build_Geometry(void)
 			continue;
 		}
 
-		mesh->Set_Shader(ShaderClass::_PresetOpaqueShader);
-
-		VertexMaterialClass * vmat = VertexMaterialClass::Get_Preset(VertexMaterialClass::PRELIT_DIFFUSE);
-		if (vmat != nullptr) {
-			mesh->Set_Vertex_Material(vmat,true);
-			vmat->Release_Ref();
+		//	The road pipeline decides how a road surface is drawn; this asks it rather than
+		//	answering privately, so the answer is one line in ww3d2/shadermgr.cpp next to the
+		//	bridge and water it has to look right beside.  A mesh carries its state instead of
+		//	setting the device, which is why this is Get_Pass_State and not Set_Program.
+		ShaderClass shader;
+		VertexMaterialClass * vmat = nullptr;
+		if (ShaderManagerClass::Get_Pass_State(MATERIAL_PROGRAM_ROAD,0,&shader,&vmat)) {
+			mesh->Set_Shader(shader);
+			if (vmat != nullptr) {
+				mesh->Set_Vertex_Material(vmat,true);
+			}
 		}
+		REF_PTR_RELEASE(vmat);
 
 		//	A road with no texture named is a road whose art has not been chosen, which is the
 		//	state a generator is in before anybody dresses it and the state a check is in

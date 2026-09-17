@@ -21,6 +21,7 @@
 #include "pscene.h"
 #include "rendobj.h"
 #include "shader.h"
+#include "shadermgr.h"
 #include "staticphys.h"
 #include "texture.h"
 #include "vector2.h"
@@ -96,20 +97,6 @@ static int Foliage_Collision_Bits(unsigned blocking)
 	}
 
 	return bits;
-}
-
-
-/*
-**	Foliage is cut-out art: a leaf sheet is mostly transparent and both of its faces are seen,
-**	so the batches are alpha tested and not culled.  Not culling is also what makes the far
-**	level's crossed quads work from every side without emitting each of them twice.
-*/
-static ShaderClass Foliage_Shader(void)
-{
-	ShaderClass shader = ShaderClass::_PresetOpaqueShader;
-	shader.Set_Alpha_Test(ShaderClass::ALPHATEST_ENABLE);
-	shader.Set_Cull_Mode(ShaderClass::CULL_MODE_DISABLE);
-	return shader;
 }
 
 
@@ -1197,13 +1184,17 @@ bool FoliageSystem::Build_Batch_Geometry(FoliageBatchClass & batch)
 		return false;
 	}
 
-	mesh->Set_Shader(Foliage_Shader());
-
-	VertexMaterialClass * vmat = VertexMaterialClass::Get_Preset(VertexMaterialClass::PRELIT_DIFFUSE);
-	if (vmat != nullptr) {
-		mesh->Set_Vertex_Material(vmat,true);
-		vmat->Release_Ref();
+	//	What a foliage batch is drawn in, asked of the layer that owns it.  See
+	//	ww3d2/shadermgr.cpp.
+	ShaderClass shader;
+	VertexMaterialClass * vmat = nullptr;
+	if (ShaderManagerClass::Get_Pass_State(MATERIAL_PROGRAM_FOLIAGE,0,&shader,&vmat)) {
+		mesh->Set_Shader(shader);
+		if (vmat != nullptr) {
+			mesh->Set_Vertex_Material(vmat,true);
+		}
 	}
+	REF_PTR_RELEASE(vmat);
 
 	if ((batch.Material.Get_Length() > 0) && (WW3DAssetManager::Get_Instance() != nullptr)) {
 		TextureClass * texture = WW3DAssetManager::Get_Instance()->Get_Texture(batch.Material.Peek_Buffer());

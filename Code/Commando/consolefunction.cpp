@@ -701,6 +701,67 @@ public:
 		} else {
 			Print( "terrain_test: the field exists but its collision would not build.\n" );
 		}
+
+		//	And the background layer over the same ground, so that walking away from the field
+		//	shows the thing Section 34 is for rather than the field switching off.
+		if ( WorldTerrainSystem::Build_Far_Terrain_Representation() ) {
+			Print( "terrain_test: far layer %d x %d blocks, %d vertices against %d near.\n",
+					 WorldTerrainSystem::Get_Far_Block_Count_X(),
+					 WorldTerrainSystem::Get_Far_Block_Count_Y(),
+					 WorldTerrainSystem::Get_Far_Vertex_Count(),
+					 WorldTerrainSystem::Get_Near_Vertex_Count() );
+		}
+	}
+};
+
+
+/*
+**	What the two terrain representations are doing right now.
+**
+**	Roadmap Section 34's acceptance is mostly arithmetic -- fewer vertices, fewer submissions,
+**	the right regions rebuilt -- and the rest of it is whether the boundary looks like anything.
+**	This prints the arithmetic so that the person looking at the boundary knows which side of it
+**	they are standing on.
+*/
+class FarTerrainConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "far_terrain"; }
+	virtual	const char * Get_Help( void ) override	{ return "FAR_TERRAIN - reports the near/far terrain split, and builds the far layer if there is none."; }
+	virtual	void Activate( const char * input ) override {
+
+		(void)input;
+
+		if ( !WorldTerrainSystem::Has_Terrain() ) {
+			Print( "far_terrain: there is no heightfield; try terrain_test first.\n" );
+			return;
+		}
+
+		if ( WorldTerrainSystem::Get_Far_Block_Built_Count() == 0 ) {
+			if ( !WorldTerrainSystem::Build_Far_Terrain_Representation() ) {
+				Print( "far_terrain: the far layer would not build.\n" );
+				return;
+			}
+		}
+
+		int near_vertices	= WorldTerrainSystem::Get_Near_Vertex_Count();
+		int far_vertices	= WorldTerrainSystem::Get_Far_Vertex_Count();
+		int blocks			= WorldTerrainSystem::Get_Far_Block_Built_Count();
+
+		Print( "far_terrain: %d block(s) of %d vertices against %d patch(es) of %d.\n",
+				 blocks, far_vertices,
+				 WorldTerrainSystem::Get_Collision_Patch_Count(), near_vertices );
+
+		if ( far_vertices > 0 ) {
+			Print( "far_terrain: %.1f near vertices per far vertex, layer dropped %.3fm.\n",
+					 (float)near_vertices / (float)far_vertices,
+					 WorldTerrainSystem::Get_Far_Terrain_Drop() );
+		}
+
+		Print( "far_terrain: drawing %d near patch(es) and %d far block(s), %d refill(s) so far.\n",
+				 WorldTerrainSystem::Get_Visible_Near_Patch_Count(),
+				 WorldTerrainSystem::Get_Visible_Far_Block_Count(),
+				 WorldTerrainSystem::Get_Far_Refill_Count() );
 	}
 };
 
@@ -6216,6 +6277,7 @@ void	ConsoleFunctionManager::Init( void )
    FunctionList.Add( new DonateConsoleFunctionClass() );
 	FunctionList.Add( new DoStuffConsoleFunctionClass() );
 	FunctionList.Add( new TerrainTestConsoleFunctionClass() );
+	FunctionList.Add( new FarTerrainConsoleFunctionClass() );
 	FunctionList.Add( new TerrainDressConsoleFunctionClass() );
 	FunctionList.Add( new TerrainClearConsoleFunctionClass() );
 	FunctionList.Add( new RoadTestConsoleFunctionClass() );

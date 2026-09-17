@@ -21,6 +21,7 @@
 #include "pscene.h"
 #include "rendobj.h"
 #include "shader.h"
+#include "shadermgr.h"
 #include "staticphys.h"
 #include "terraintexturesystem.h"
 #include "terrainmask.h"
@@ -45,23 +46,6 @@ int					WaterSystem::MissingTextures	= 0;
 //	terrain edits.
 static const float	WATER_MIN_CARVE_SPACING	= 4.0f;
 static const int		WATER_MAX_CARVE_ROWS		= 256;
-
-
-/***********************************************************************************************
- *	The shader.  Water is translucent and moving, which is a different thing from foliage's      *
- *	alpha-tested cutout: there is no edge to cut around, only a surface to blend over whatever    *
- *	is beneath it.                                                                                *
- * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-static ShaderClass Water_Shader(void)
-{
-	ShaderClass shader = ShaderClass::_PresetOpaqueShader;
-	shader.Set_Alpha_Test(ShaderClass::ALPHATEST_DISABLE);
-	shader.Set_Depth_Mask(ShaderClass::DEPTH_WRITE_DISABLE);
-	shader.Set_Src_Blend_Func(ShaderClass::SRCBLEND_SRC_ALPHA);
-	shader.Set_Dst_Blend_Func(ShaderClass::DSTBLEND_ONE_MINUS_SRC_ALPHA);
-	shader.Set_Cull_Mode(ShaderClass::CULL_MODE_DISABLE);
-	return shader;
-}
 
 
 /***********************************************************************************************
@@ -469,13 +453,18 @@ bool WaterSystem::Build_Area_Geometry(WaterAreaClass & area,const WaterDefinitio
 	DynamicMeshClass * mesh = builder.Detach_Mesh();
 	if (mesh == nullptr) { return false; }
 
-	mesh->Set_Shader(Water_Shader());
-
-	VertexMaterialClass * vmat = VertexMaterialClass::Get_Preset(VertexMaterialClass::PRELIT_DIFFUSE);
-	if (vmat != nullptr) {
-		mesh->Set_Vertex_Material(vmat,true);
-		vmat->Release_Ref();
+	//	What a water surface is drawn in, asked of the layer that owns it.  See
+	//	ww3d2/shadermgr.cpp, where the reason water blends and foliage cuts out is two
+	//	pipelines apart in one file.
+	ShaderClass shader;
+	VertexMaterialClass * vmat = nullptr;
+	if (ShaderManagerClass::Get_Pass_State(MATERIAL_PROGRAM_WATER,0,&shader,&vmat)) {
+		mesh->Set_Shader(shader);
+		if (vmat != nullptr) {
+			mesh->Set_Vertex_Material(vmat,true);
+		}
 	}
+	REF_PTR_RELEASE(vmat);
 
 	if ((def.Get_Surface_Texture()[0] != 0) && (WW3DAssetManager::Get_Instance() != nullptr)) {
 		TextureClass * texture = WW3DAssetManager::Get_Instance()->Get_Texture(def.Get_Surface_Texture());

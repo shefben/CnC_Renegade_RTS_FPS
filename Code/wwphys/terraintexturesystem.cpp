@@ -576,9 +576,26 @@ bool TerrainTextureSystem::Get_Surface_Type_At(float x,float y,int * surface_typ
  * Building                                                                                    *
  *=============================================================================================*/
 
-bool TerrainTextureSystem::Build_Patch_Materials(RenegadeTerrainPatchClass * model,int px,int py)
+/***********************************************************************************************
+ * TerrainTextureSystem::Build_Sampled_Materials -- dress a grid of samples off the field        *
+ *                                                                                              *
+ * A near patch reads every grid point; a far block (Section 34) reads every stride-th one.      *
+ * Nothing else about dressing differs between them, so there is one builder and the stride is   *
+ * a parameter -- which is also what keeps Section 34's "shared material/texture selection"      *
+ * true by construction rather than by two implementations agreeing.                             *
+ *                                                                                              *
+ * Sample indices are clamped to the last grid line, so a block hanging off the edge of the      *
+ * field repeats its edge rather than reading past it.  The repeated column is a zero-area quad, *
+ * which draws nothing and leaves no gap.                                                        *
+ *=============================================================================================*/
+bool TerrainTextureSystem::Build_Sampled_Materials(RenegadeTerrainPatchClass * model,
+																  int ix0,int iy0,int stride,
+																  int points_x,int points_y)
 {
 	if ((model == nullptr) || (Layers.Count() == 0)) {
+		return false;
+	}
+	if ((stride < 1) || (points_x < 2) || (points_y < 2)) {
 		return false;
 	}
 
@@ -586,20 +603,13 @@ bool TerrainTextureSystem::Build_Patch_Materials(RenegadeTerrainPatchClass * mod
 	if ((field == nullptr) || !field->Is_Valid()) {
 		return false;
 	}
-	if ((px < 0) || (py < 0) ||
-		 (px >= field->Get_Patch_Count_X()) || (py >= field->Get_Patch_Count_Y())) {
+
+	int last_x = field->Get_Vertex_Count_X() - 1;
+	int last_y = field->Get_Vertex_Count_Y() - 1;
+	if ((ix0 < 0) || (iy0 < 0) || (ix0 > last_x) || (iy0 > last_y)) {
 		return false;
 	}
 
-	int ix0 = px * HeightfieldClass::PATCH_CELLS;
-	int iy0 = py * HeightfieldClass::PATCH_CELLS;
-	int ix1 = ix0 + HeightfieldClass::PATCH_CELLS;
-	int iy1 = iy0 + HeightfieldClass::PATCH_CELLS;
-	if (ix1 > field->Get_Vertex_Count_X() - 1) ix1 = field->Get_Vertex_Count_X() - 1;
-	if (iy1 > field->Get_Vertex_Count_Y() - 1) iy1 = field->Get_Vertex_Count_Y() - 1;
-
-	int points_x = ix1 - ix0 + 1;
-	int points_y = iy1 - iy0 + 1;
 	int vertex_count = points_x * points_y;
 	int layer_count = Layers.Count();
 
@@ -608,9 +618,17 @@ bool TerrainTextureSystem::Build_Patch_Materials(RenegadeTerrainPatchClass * mod
 	//	quad would evaluate the whole table four times per vertex.
 	float * weights = new float[vertex_count * layer_count];
 
-	for (int iy = iy0; iy <= iy1; iy++) {
-		for (int ix = ix0; ix <= ix1; ix++) {
-			int local = ((iy - iy0) * points_x) + (ix - ix0);
+	for (int py_index = 0; py_index < points_y; py_index++) {
+
+		int iy = iy0 + py_index * stride;
+		if (iy > last_y) iy = last_y;
+
+		for (int px_index = 0; px_index < points_x; px_index++) {
+
+			int ix = ix0 + px_index * stride;
+			if (ix > last_x) ix = last_x;
+
+			int local = (py_index * points_x) + px_index;
 			Compute_Weights(ix,iy,&weights[local * layer_count],layer_count);
 		}
 	}
@@ -681,6 +699,36 @@ bool TerrainTextureSystem::Build_Patch_Materials(RenegadeTerrainPatchClass * mod
 	model->Update_Vertex_Render_Lists();
 	model->Update_UVs();
 	return true;
+}
+
+
+bool TerrainTextureSystem::Build_Patch_Materials(RenegadeTerrainPatchClass * model,int px,int py)
+{
+	HeightfieldClass * field = WorldTerrainSystem::Peek_Heightfield();
+	if ((field == nullptr) || !field->Is_Valid()) {
+		return false;
+	}
+	if ((px < 0) || (py < 0) ||
+		 (px >= field->Get_Patch_Count_X()) || (py >= field->Get_Patch_Count_Y())) {
+		return false;
+	}
+
+	int ix0 = px * HeightfieldClass::PATCH_CELLS;
+	int iy0 = py * HeightfieldClass::PATCH_CELLS;
+	int ix1 = ix0 + HeightfieldClass::PATCH_CELLS;
+	int iy1 = iy0 + HeightfieldClass::PATCH_CELLS;
+	if (ix1 > field->Get_Vertex_Count_X() - 1) ix1 = field->Get_Vertex_Count_X() - 1;
+	if (iy1 > field->Get_Vertex_Count_Y() - 1) iy1 = field->Get_Vertex_Count_Y() - 1;
+
+	return Build_Sampled_Materials(model,ix0,iy0,1,ix1 - ix0 + 1,iy1 - iy0 + 1);
+}
+
+
+bool TerrainTextureSystem::Build_Far_Block_Materials(RenegadeTerrainPatchClass * model,
+																	 int ix0,int iy0,int stride,
+																	 int points_x,int points_y)
+{
+	return Build_Sampled_Materials(model,ix0,iy0,stride,points_x,points_y);
 }
 
 

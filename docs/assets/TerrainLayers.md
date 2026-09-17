@@ -37,6 +37,14 @@ draw over it with their share of the total, which is stock Renegade's own compos
 So the five above the ground are blended over what is under them, and their edges are
 feathered by the rules rather than by their alpha.
 
+**The same six are read again, coarsely, at distance.** The far/background terrain layer
+(`docs/zerohour/FarTerrainLOD.md`) dresses itself from this table at every fourth grid
+point, so the same texture covers a quad four times wider than it does up close. It is the
+same UV rule and the same `metres_per_tile`, so the world-space scale of the pattern does
+not change — but the *sampling* of it does, and a pattern whose legibility depends on
+near-spacing detail will read as noise once the far layer is what is drawing it. Judge each
+texture at both spacings, not only at the near one.
+
 ## The six
 
 ### `ow_ter_ground.tga`

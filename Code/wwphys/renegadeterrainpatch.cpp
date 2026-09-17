@@ -51,6 +51,7 @@
 #include "wwhack.h"
 #include "inttest.h"
 #include "matpass.h"
+#include "shadermgr.h"
 #include <algorithm>
 
 
@@ -108,10 +109,6 @@ RenegadeTerrainPatchClass::RenegadeTerrainPatchClass (void)	:
 	GridNormals (nullptr),
 	VertexColors (nullptr),
 	QuadFlags (nullptr),
-	BaseMaterial (nullptr),
-	LayerMaterial (nullptr),
-	BaseShader (0),
-	LayerShader (0),
 	BoundingBoxMin (0, 0, 0),
 	BoundingBoxMax (0, 0, 0),
 	AreBuffersDirty (true),
@@ -136,10 +133,6 @@ RenegadeTerrainPatchClass::RenegadeTerrainPatchClass (const RenegadeTerrainPatch
 	GridNormals (nullptr),
 	VertexColors (nullptr),
 	QuadFlags (nullptr),
-	BaseMaterial (nullptr),
-	LayerMaterial (nullptr),
-	BaseShader (0),
-	LayerShader (0),
 	BoundingBoxMin (0, 0, 0),
 	BoundingBoxMax (0, 0, 0),
 	AreBuffersDirty (true),
@@ -159,9 +152,6 @@ RenegadeTerrainPatchClass::RenegadeTerrainPatchClass (const RenegadeTerrainPatch
 //////////////////////////////////////////////////////////////////////
 RenegadeTerrainPatchClass::~RenegadeTerrainPatchClass (void)
 {
-	REF_PTR_RELEASE (BaseMaterial);
-	REF_PTR_RELEASE (LayerMaterial);
-
 	Free_Rendering_Buffers ();
 	Free_Grid ();
 	Free_Materials ();
@@ -191,11 +181,6 @@ void
 RenegadeTerrainPatchClass::Initialize (void)
 {
 	Set_Collision_Type (COLLISION_TYPE_PHYSICAL | COLLISION_TYPE_PROJECTILE | COLLISION_TYPE_CAMERA);
-
-	//
-	//	Initialize the material settings
-	//
-	Initialize_Material ();
 	return ;
 }
 
@@ -316,6 +301,16 @@ void
 RenegadeTerrainPatchClass::Render (RenderInfoClass &rinfo)
 {
 	//
+	//	A hidden patch draws nothing, the same way every other render object in ww3d2 reads the
+	//	flag.  Terrain never used it while every patch was always drawn; the far/background layer
+	//	(roadmap Section 34) is what needs it, since near and far hand ground to each other by
+	//	hiding one of the two.
+	//
+	if (Is_Not_Hidden_At_All () == false) {
+		return ;
+	}
+
+	//
 	//	Make sure our vertex and index buffers are up to date.
 	//
 	if (AreBuffersDirty) {
@@ -323,10 +318,14 @@ RenegadeTerrainPatchClass::Render (RenderInfoClass &rinfo)
 		AreBuffersDirty = false;
 	}
 
-	if (IsPreLit) {
-		BaseMaterial->Set_Ambient_Color_Source (VertexMaterialClass::COLOR1);
-		BaseMaterial->Set_Diffuse_Color_Source (VertexMaterialClass::COLOR1);
-	}
+	//
+	//	Tell the terrain pipeline where this patch's colour comes from.  A patch the lighting
+	//	solve has baked carries it on the vertex; every other patch is lit by the environment.
+	//	This used to be a mutation of the patch's own material during Render, which nothing put
+	//	back and which every patch paid for a private copy of.
+	//
+	ShaderManagerClass::Set_Program_Variant (MATERIAL_PROGRAM_TERRAIN,
+		IsPreLit ? TERRAIN_VARIANT_VERTEX_LIT : TERRAIN_VARIANT_LIT);
 
 	//
 	// Install the mesh'es transform.  NOTE, this could go wrong if someone changes the
@@ -364,6 +363,13 @@ RenegadeTerrainPatchClass::Render (RenderInfoClass &rinfo)
 		for (index = 0; index < MaterialPassList.Count (); index ++) {
 			Render_By_Texture (index, RenegadeTerrainMaterialPassClass::PASS_ALPHA);
 		}
+
+		//
+		//	Give the device back before the procedural passes below, which draw through their
+		//	own material passes rather than through this pipeline.  It also unstages the layer
+		//	texture, which would otherwise be held alive here past the terrain that named it.
+		//
+		ShaderManagerClass::Reset_Program ();
 	}
 
 	//
@@ -569,21 +575,19 @@ RenegadeTerrainPatchClass::Render_By_Texture (int texture_index, int pass_type)
 	Submit_Rendering_Buffers (texture_index, pass_type);
 
 	//
-	//	Configure the texture
+	//	Stage this layer's texture, then hand the ground to the terrain pipeline.  The
+	//	distinction between the two passes is the one the material pass list already makes:
+	//	the base draws opaque and a layer blends over it, which is what the pipeline's two
+	//	passes are.  The state itself lives in ww3d2/shadermgr.cpp with every other pipeline's,
+	//	so terrain cannot quietly stop matching the roads and water drawn beside it.
 	//
-	DX8Wrapper::Set_Texture (0, MaterialPassList[texture_index]->Material->Peek_Texture ());
-	DX8Wrapper::Set_Texture (1, nullptr);
+	ShaderManagerClass::Set_Texture (0, MaterialPassList[texture_index]->Material->Peek_Texture ());
+	ShaderManagerClass::Set_Texture (1, nullptr);
 
-	//
-	//	Configure the material and shader
-	//
-	if (pass_type == RenegadeTerrainMaterialPassClass::PASS_BASE) {
-		DX8Wrapper::Set_Material (BaseMaterial);
-		DX8Wrapper::Set_Shader (BaseShader);
-	} else {
-		DX8Wrapper::Set_Material (LayerMaterial);
-		DX8Wrapper::Set_Shader (LayerShader);
-	}
+	const int program_pass =
+		(pass_type == RenegadeTerrainMaterialPassClass::PASS_BASE) ? TERRAIN_PASS_BASE : TERRAIN_PASS_LAYER;
+
+	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_TERRAIN, program_pass);
 
 	//
 	//	Alias some data
@@ -792,51 +796,6 @@ RenegadeTerrainPatchClass::Build_Rendering_Buffers (int texture_index, int pass_
 			}
 		}
 	}
-
-	return ;
-}
-
-
-//////////////////////////////////////////////////////////////////////
-//
-//	Initialize_Material
-//
-//////////////////////////////////////////////////////////////////////
-void
-RenegadeTerrainPatchClass::Initialize_Material (void)
-{
-	//
-	//	Allocate the vertex material
-	//
-	WWASSERT (BaseMaterial == nullptr);
-	BaseMaterial = NEW_REF(VertexMaterialClass, ());
-	BaseMaterial->Set_Ambient (1.0F, 1.0F, 1.0F);
-	BaseMaterial->Set_Diffuse (1.0F, 1.0F, 1.0F);
-	BaseMaterial->Set_Specular (0, 0, 0);
-	BaseMaterial->Set_Emissive (0.0F, 0.0F, 0.0F);
-	BaseMaterial->Set_Opacity (1.0F);
-	BaseMaterial->Set_Shininess (0.0F);
-	BaseMaterial->Set_Lighting (true);
-
-	LayerMaterial = NEW_REF(VertexMaterialClass, ());
-	LayerMaterial->Set_Ambient (1.0F, 1.0F, 1.0F);
-	LayerMaterial->Set_Diffuse (1.0F, 1.0F, 1.0F);
-	LayerMaterial->Set_Specular (0, 0, 0);
-	LayerMaterial->Set_Emissive (0.0F, 0.0F, 0.0F);
-	LayerMaterial->Set_Opacity (1.0F);
-	LayerMaterial->Set_Shininess (0.0F);
-	LayerMaterial->Set_Lighting (true);
-	LayerMaterial->Set_Ambient_Color_Source (VertexMaterialClass::COLOR1);
-	LayerMaterial->Set_Diffuse_Color_Source (VertexMaterialClass::COLOR1);
-
-	//
-	//	Initialize the shader
-	//
-	BaseShader	= ShaderClass::_PresetOpaqueShader;
-	LayerShader	= ShaderClass::_PresetAlphaShader;
-
-	BaseShader.Set_Fog_Func(ShaderClass::FOG_ENABLE);
-	LayerShader.Set_Fog_Func(ShaderClass::FOG_ENABLE);
 
 	return ;
 }

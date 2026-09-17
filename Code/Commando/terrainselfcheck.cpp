@@ -3081,6 +3081,282 @@ void	Check_Lights (void)
 }
 
 
+/*
+**	The coarse surface over one sampled cell, read the way the far mesh draws it.
+**
+**	Written out here rather than borrowed from the service on purpose: the whole claim being
+**	checked is that the service's measured drop is enough, and a check that reuses the service's
+**	own arithmetic to decide that would only be checking it against itself.
+*/
+float	Coarse_Height (const HeightfieldClass &field, int ix, int iy, int stride)
+{
+	int last_x = field.Get_Vertex_Count_X () - 1;
+	int last_y = field.Get_Vertex_Count_Y () - 1;
+
+	int cx0 = (ix / stride) * stride;
+	int cy0 = (iy / stride) * stride;
+	if (cx0 >= last_x) cx0 = ((last_x - 1) / stride) * stride;
+	if (cy0 >= last_y) cy0 = ((last_y - 1) / stride) * stride;
+
+	int cx1 = cx0 + stride;
+	int cy1 = cy0 + stride;
+	if (cx1 > last_x) cx1 = last_x;
+	if (cy1 > last_y) cy1 = last_y;
+
+	float h00 = field.Get_Height (cx0, cy0);
+	float h10 = field.Get_Height (cx1, cy0);
+	float h01 = field.Get_Height (cx0, cy1);
+	float h11 = field.Get_Height (cx1, cy1);
+
+	float tx = (float)(ix - cx0) / (float)(cx1 - cx0);
+	float ty = (float)(iy - cy0) / (float)(cy1 - cy0);
+
+	return ((h00 * (1.0f - tx)) + (h10 * tx)) * (1.0f - ty) +
+			 ((h01 * (1.0f - tx)) + (h11 * tx)) * ty;
+}
+
+
+/*
+**	Roadmap Section 34: the far / background terrain layer.
+**
+**	Four things are claimed and all four are arithmetic, so all four are checkable with no
+**	device: the far layer is derived from the one heightfield rather than being a second terrain
+**	database, it costs far fewer vertices and submissions than the near patches over the same
+**	ground, an edit dirties exactly the blocks over it, and the surface it draws is never above
+**	the surface the near patches draw -- which is what turns a boundary into a step rather than
+**	a hole.
+*/
+void	Check_Far_Terrain (void)
+{
+	WorldTerrainSystem::Init ();
+
+	//
+	//	With no field there is no layer and nothing pretends otherwise.
+	//
+	Check (WorldTerrainSystem::Has_Far_Terrain () == false,
+			 "a far layer exists for a field that does not");
+	Check (WorldTerrainSystem::Build_Far_Terrain_Representation () == false,
+			 "the far layer built itself over no terrain");
+
+	//
+	//	A field of eight patches each way: two far blocks each way, with the shared block seam in
+	//	the middle where a crack would show.  The heights are bumpy and non-planar, because a
+	//	plane decimates exactly and would prove nothing about the drop.
+	//
+	const int	VERTICES	= 129;
+	const int	STRIDE	= WorldTerrainSystem::FAR_STRIDE;
+
+	Check (WorldTerrainSystem::Create_Terrain (VERTICES, VERTICES, 1.0f, Vector3 (0.0f, 0.0f, 0.0f)),
+			 "the service would not create a field for the far layer");
+
+	{
+		float *heights = new float[VERTICES * VERTICES];
+		for (int iy = 0; iy < VERTICES; iy ++) {
+			for (int ix = 0; ix < VERTICES; ix ++) {
+				heights[iy * VERTICES + ix] =
+					3.0f * ::sinf ((float)ix * 0.37f) * ::cosf ((float)iy * 0.29f) +
+					(float)(((ix * 7) + (iy * 13)) % 5);
+			}
+		}
+		Check (WorldTerrainSystem::Set_Heights (heights, VERTICES * VERTICES),
+				 "the far layer's heights were refused");
+		delete [] heights;
+	}
+
+	//
+	//	The layout is known before anything is built, because a system that changes the ground
+	//	has to be able to name a block before a scene exists to draw one in.
+	//
+	Check (WorldTerrainSystem::Get_Patch_Count_X () == 8, "a 128 cell field is %d patches across",
+			 WorldTerrainSystem::Get_Patch_Count_X ());
+	Check (WorldTerrainSystem::Get_Far_Block_Count_X () == 2,
+			 "eight patches make %d far blocks across, not two",
+			 WorldTerrainSystem::Get_Far_Block_Count_X ());
+	Check (WorldTerrainSystem::Has_Far_Terrain (),
+			 "a created field has no far block table");
+	Check (WorldTerrainSystem::Get_Far_Block_Built_Count () == 0,
+			 "%d far block(s) were built with no scene to put them in",
+			 WorldTerrainSystem::Get_Far_Block_Built_Count ());
+
+	HeightfieldClass *field = WorldTerrainSystem::Peek_Heightfield ();
+	Check (field != nullptr, "the field the far layer is cut from is not there");
+
+	RenegadeTerrainPatchClass *block = WorldTerrainSystem::Create_Far_Block_Model (0, 0);
+	RenegadeTerrainPatchClass *right = WorldTerrainSystem::Create_Far_Block_Model (1, 0);
+	Check (block != nullptr, "the first far block would not build");
+	Check (right != nullptr, "the second far block would not build");
+
+	if ((block != nullptr) && (right != nullptr) && (field != nullptr)) {
+
+		//
+		//	Cost.  A block covers sixteen near patches and keeps every fourth grid point, so it
+		//	is one submission of 17x17 against sixteen submissions of 17x17.
+		//
+		int block_vertices = block->Get_Vertex_Count ();
+		Check (block_vertices == 17 * 17, "a far block has %d vertices, not 289", block_vertices);
+
+		int near_vertices = 0;
+		for (int py = 0; py < WorldTerrainSystem::FAR_BLOCK_PATCHES; py ++) {
+			for (int px = 0; px < WorldTerrainSystem::FAR_BLOCK_PATCHES; px ++) {
+				RenegadeTerrainPatchClass *patch = WorldTerrainSystem::Create_Patch_Model (px, py);
+				if (patch != nullptr) {
+					near_vertices += patch->Get_Vertex_Count ();
+					patch->Release_Ref ();
+				}
+			}
+		}
+
+		Check (near_vertices >= block_vertices * 8,
+				 "a far block saves only %d vertices against %d, which is not substantially fewer",
+				 near_vertices, block_vertices);
+
+		//
+		//	Derivation.  Every far vertex is a grid point of the one heightfield, moved down by
+		//	the layer's drop and by nothing else.  There is no second source of heights.
+		//
+		float drop = WorldTerrainSystem::Get_Far_Terrain_Drop ();
+		Check (drop >= 0.0f, "the far layer was raised by %f rather than lowered", drop);
+		Check (drop > 0.0f, "a field with hills in it decimated with no error at all");
+
+		const Vector3 *vertices = block->Get_Vertex_Array ();
+		bool matched = true;
+		for (int py = 0; py < 17; py ++) {
+			for (int px = 0; px < 17; px ++) {
+				const Vector3 &v = vertices[py * 17 + px];
+				if (!Near (v.X, (float)(px * STRIDE), 0.001f) ||
+					 !Near (v.Y, (float)(py * STRIDE), 0.001f) ||
+					 !Near (v.Z, field->Get_Height (px * STRIDE, py * STRIDE) - drop, 0.001f)) {
+					matched = false;
+				}
+			}
+		}
+		Check (matched, "a far vertex is not a grid point of the field lowered by the drop");
+
+		//
+		//	Seams.  Two blocks meet on a sampled grid line and keep the same points on it, so the
+		//	far surface is continuous across the whole field however many blocks it is cut into.
+		//
+		const Vector3 *right_vertices = right->Get_Vertex_Array ();
+		bool seam_matched = true;
+		for (int py = 0; py < 17; py ++) {
+			const Vector3 &mine = vertices[py * 17 + 16];
+			const Vector3 &theirs = right_vertices[py * 17 + 0];
+			if (!Near (mine.X, theirs.X, 0.0001f) ||
+				 !Near (mine.Y, theirs.Y, 0.0001f) ||
+				 !Near (mine.Z, theirs.Z, 0.0001f)) {
+				seam_matched = false;
+			}
+		}
+		Check (seam_matched, "two far blocks disagree about the vertices on the line they share");
+
+		//
+		//	The invariant the boundary rests on: the coarse surface, lowered by the drop, is
+		//	nowhere above the real ground.  Checked at every grid point of the field, against
+		//	arithmetic written independently of the service's own.
+		//
+		float worst = 0.0f;
+		for (int iy = 0; iy < VERTICES; iy ++) {
+			for (int ix = 0; ix < VERTICES; ix ++) {
+				float excess = (Coarse_Height (*field, ix, iy, STRIDE) - drop) - field->Get_Height (ix, iy);
+				if (excess > worst) {
+					worst = excess;
+				}
+			}
+		}
+		Check (worst <= 0.001f,
+				 "the far surface stands %fm above the real ground, so it can poke through it",
+				 worst);
+
+		//
+		//	And nothing collides with it.  Not by convention -- the model refuses every ray it is
+		//	given, so the near representation remains the only thing that can answer a question
+		//	about the ground.
+		//
+		float hit_z = 0.0f;
+		Check (Drop_Ray_On_Model (block, 8.0f, 8.0f, &hit_z) == false,
+				 "a ray hit the far layer, which is a second terrain collision representation");
+
+		block->Release_Ref ();
+		right->Release_Ref ();
+	}
+
+	//
+	//	Editing.  A field that nothing has changed has nothing to rebuild, and a named region
+	//	dirties the blocks over it and no others.  Each block spans 64 metres, so a box at 16,16
+	//	is inside the first one and must not reach any of the other three.
+	//
+	{
+		Check (WorldTerrainSystem::Is_Far_Block_Dirty (0, 0) == false,
+				 "a field nobody has edited already needs its far layer rebuilt");
+
+		AABoxClass inside_first (Vector3 (16.0f, 16.0f, 0.0f), Vector3 (4.0f, 4.0f, 100.0f));
+		WorldTerrainSystem::Invalidate_Far_Terrain_Region (inside_first);
+
+		Check (WorldTerrainSystem::Is_Far_Block_Dirty (0, 0),
+				 "an edit inside the first block did not dirty it");
+		Check (WorldTerrainSystem::Is_Far_Block_Dirty (1, 0) == false,
+				 "an edit in the first block dirtied the one beside it");
+		Check (WorldTerrainSystem::Is_Far_Block_Dirty (0, 1) == false,
+				 "an edit in the first block dirtied the one above it");
+		Check (WorldTerrainSystem::Is_Far_Block_Dirty (1, 1) == false,
+				 "an edit in the first block dirtied the far corner");
+	}
+
+	//
+	//	Shaping the ground through the service reaches the far layer too, so a system that never
+	//	heard of far terrain still gets a correct one -- and it reaches only what it touched.
+	//
+	{
+		WorldTerrainSystem::Modify_Height_Region (Vector3 (100.0f, 100.0f, 0.0f), 6.0f, 5.0f);
+		Check (WorldTerrainSystem::Is_Far_Block_Dirty (1, 1),
+				 "raising the ground in the last block did not dirty it");
+		Check (WorldTerrainSystem::Is_Far_Block_Dirty (1, 0) == false,
+				 "raising the ground at 100,100 dirtied a block it does not touch");
+	}
+
+	//
+	//	A box off the end of the field names no block at all rather than being clamped onto the
+	//	nearest one, which would rebuild ground nothing happened to.
+	//
+	Check (WorldTerrainSystem::Create_Terrain (VERTICES, VERTICES, 1.0f, Vector3 (0.0f, 0.0f, 0.0f)),
+			 "the service would not create a field to check the edge case on");
+	{
+		AABoxClass off_the_field (Vector3 (1000.0f, 1000.0f, 0.0f), Vector3 (4.0f, 4.0f, 4.0f));
+		WorldTerrainSystem::Invalidate_Far_Terrain_Region (off_the_field);
+
+		bool any_dirty = false;
+		for (int by = 0; by < WorldTerrainSystem::Get_Far_Block_Count_Y (); by ++) {
+			for (int bx = 0; bx < WorldTerrainSystem::Get_Far_Block_Count_X (); bx ++) {
+				if (WorldTerrainSystem::Is_Far_Block_Dirty (bx, by)) {
+					any_dirty = true;
+				}
+			}
+		}
+		Check (any_dirty == false, "an edit off the end of the field dirtied a block anyway");
+	}
+
+	//
+	//	The layer belongs to the field.  A new field is a new layout, and no block of the old one
+	//	survives into it.
+	//
+	Check (WorldTerrainSystem::Create_Terrain (65, 65, 1.0f, Vector3 (0.0f, 0.0f, 0.0f)),
+			 "the service would not create a second field");
+	Check (WorldTerrainSystem::Get_Far_Block_Count_X () == 1,
+			 "a four patch field makes %d far blocks across, not one",
+			 WorldTerrainSystem::Get_Far_Block_Count_X ());
+	Check (WorldTerrainSystem::Get_Far_Block_Built_Count () == 0,
+			 "far blocks survived into a field of a different shape");
+
+	WorldTerrainSystem::Destroy_Terrain ();
+	Check (WorldTerrainSystem::Has_Far_Terrain () == false,
+			 "the far layer outlived the field it was cut from");
+	Check (WorldTerrainSystem::Get_Far_Terrain_Drop () == 0.0f,
+			 "the far layer's drop outlived the field it was measured on");
+
+	WorldTerrainSystem::Shutdown ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -3129,6 +3405,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "lights") == 0)) {
 		Check_Lights ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "far") == 0)) {
+		Check_Far_Terrain ();
 	}
 
 	if (_Failures == 0) {

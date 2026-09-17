@@ -161,6 +161,357 @@ private:
 
 
 /***********************************************************************************************
+**	A pipeline that is a shader, a material and a set of texture stages.
+**
+**	Every surface in this engine is drawn by fixed-function state: a ShaderClass, a
+**	VertexMaterialClass and what is in the stages.  Six of Section 15's pipelines differ from
+**	each other only in what those are, so they differ from each other here only in what their
+**	Init sets, and the answer to "why is water not culled and foliage is" is two lines apart in
+**	one file instead of two systems apart in two.
+**
+**	It holds the state rather than computing it at draw time, which is what lets Get_Pass_State
+**	hand out the identical thing Set_Pass installs.  A road mesh and a terrain draw therefore
+**	cannot disagree about what their pipeline is, because there is only one of it.
+***********************************************************************************************/
+class FixedFunctionProgramClass : public MaterialProgramClass
+{
+public:
+
+	enum { MAX_PASSES = 2 };
+
+	FixedFunctionProgramClass(MaterialProgramType type,int pass_count,int stage_count) :
+		Type(type), PassCount(pass_count), StageCount(stage_count)
+	{
+		WWASSERT(pass_count >= 1 && pass_count <= MAX_PASSES);
+		for (int i=0; i<MAX_PASSES; i++) {
+			Materials[i] = nullptr;
+		}
+	}
+
+	virtual ~FixedFunctionProgramClass(void) override		{ FixedFunctionProgramClass::Shutdown(); }
+
+	virtual const char *	Get_Name(void) const override		{ return _ProgramNames[Type]; }
+	virtual int				Get_Pass_Count(void) const override	{ return PassCount; }
+
+	virtual void	Shutdown(void) override
+	{
+		for (int i=0; i<MAX_PASSES; i++) {
+			REF_PTR_RELEASE(Materials[i]);
+		}
+	}
+
+	virtual void	Set_Pass(int pass) override
+	{
+		WWASSERT(pass >= 0 && pass < PassCount);
+
+		DX8Wrapper::Set_Shader(Shaders[pass]);
+
+		//	A pipeline with no material of its own leaves the current one alone.  The projected
+		//	shadow pass is drawn that way and always has been; inventing a material for it here
+		//	would be this layer changing a picture rather than owning the state behind it.
+		if (Materials[pass] != nullptr) {
+			DX8Wrapper::Set_Material(Materials[pass]);
+		}
+
+		//	What the caller staged, including the stages it deliberately left empty.
+		for (int stage=0; stage<StageCount; stage++) {
+			DX8Wrapper::Set_Texture(stage,ShaderManagerClass::Peek_Texture(stage));
+		}
+	}
+
+	virtual void	Reset(void) override
+	{
+		//	Only the stages, for the reason the debug overlay program gives: every draw in this
+		//	renderer sets its own material and shader, so what the next pipeline needs back is a
+		//	stage it did not inherit.
+		for (int stage=0; stage<StageCount; stage++) {
+			DX8Wrapper::Set_Texture(stage,nullptr);
+		}
+
+		//	And the staging area with them, so the next pipeline has to say what it draws with
+		//	rather than inheriting what the last one happened to leave -- and so a texture is
+		//	not held alive here by a system that has since been torn down.
+		ShaderManagerClass::Reset_Textures();
+	}
+
+	virtual bool	Get_Pass_State(int pass,ShaderClass * shader_out,VertexMaterialClass ** material_out) const override
+	{
+		if ((pass < 0) || (pass >= PassCount)) {
+			return false;
+		}
+
+		if (shader_out != nullptr) {
+			*shader_out = Shaders[pass];
+		}
+
+		if (material_out != nullptr) {
+			*material_out = Materials[pass];
+			if (Materials[pass] != nullptr) {
+				Materials[pass]->Add_Ref();
+			}
+		}
+
+		return true;
+	}
+
+protected:
+
+	void	Set_Pass_Shader(int pass,const ShaderClass & shader)
+	{
+		WWASSERT(pass >= 0 && pass < PassCount);
+		Shaders[pass] = shader;
+	}
+
+	void	Set_Pass_Material(int pass,VertexMaterialClass * material)
+	{
+		WWASSERT(pass >= 0 && pass < PassCount);
+		REF_PTR_SET(Materials[pass],material);
+	}
+
+	MaterialProgramType		Type;
+	int							PassCount;
+	int							StageCount;
+	ShaderClass					Shaders[MAX_PASSES];
+	VertexMaterialClass *	Materials[MAX_PASSES];
+};
+
+
+/*
+**	The material the generated world's surfaces are lit by.  Ambient and diffuse full, nothing
+**	specular or emissive, lighting on: the light environment decides what the ground looks like.
+*/
+static VertexMaterialClass *	Make_World_Surface_Material(bool colour_from_vertex)
+{
+	VertexMaterialClass * material = NEW_REF(VertexMaterialClass,());
+	material->Set_Ambient(1.0f,1.0f,1.0f);
+	material->Set_Diffuse(1.0f,1.0f,1.0f);
+	material->Set_Specular(0,0,0);
+	material->Set_Emissive(0.0f,0.0f,0.0f);
+	material->Set_Opacity(1.0f);
+	material->Set_Shininess(0.0f);
+	material->Set_Lighting(true);
+
+	if (colour_from_vertex) {
+		material->Set_Ambient_Color_Source(VertexMaterialClass::COLOR1);
+		material->Set_Diffuse_Color_Source(VertexMaterialClass::COLOR1);
+	}
+
+	return material;
+}
+
+
+/*
+**	Geometry whose lighting is already in its vertices: roads, bridges, water, foliage.
+**
+**	This is VertexMaterialClass::PRELIT_DIFFUSE, built rather than fetched.  The presets are
+**	created by VertexMaterialClass::Init, which a dedicated server never reaches -- Get_Preset
+**	dereferences a null pointer there -- and this class has to answer on a server, because the
+**	FDS builds the same road and water geometry a client does.  Building it also means no
+**	pipeline can reach through Get_Preset and change a material every mesh in the engine shares.
+*/
+static VertexMaterialClass *	Make_Prelit_Diffuse_Material(void)
+{
+	VertexMaterialClass * material = NEW_REF(VertexMaterialClass,());
+	material->Set_Diffuse_Color_Source(VertexMaterialClass::COLOR1);
+	material->Set_Lighting(false);
+	return material;
+}
+
+
+/***********************************************************************************************
+**	Terrain.
+**
+**	Two passes, because that is how the ground is composited and always has been: the first
+**	layer with any influence on a quad draws opaque, and the rest blend over it.  Pass zero is
+**	that base and pass one is a layer, which is why they differ in exactly one thing -- opaque
+**	against alpha -- and agree about everything else including fog.
+**
+**	The base pass has two materials and the caller picks between them, because whether the
+**	ground's colour comes from the light environment or from the vertex is a fact about the
+**	patch, not about terrain.  The layer pass always takes it from the vertex: that is where
+**	the layer's own blend weight lives.
+**
+**	This state used to be four members on every RenegadeTerrainPatchClass, rebuilt per patch and
+**	mutated during Render when the patch turned out to be prelit.  A thousand patches meant a
+**	thousand copies of two materials that were always identical, and a draw-time mutation that
+**	nothing put back.
+***********************************************************************************************/
+class TerrainProgramClass : public FixedFunctionProgramClass
+{
+public:
+
+	enum { PASS_BASE = TERRAIN_PASS_BASE, PASS_LAYER = TERRAIN_PASS_LAYER, STAGE_COUNT = 2 };
+
+	TerrainProgramClass(void) :
+		FixedFunctionProgramClass(MATERIAL_PROGRAM_TERRAIN,2,STAGE_COUNT),
+		LitMaterial(nullptr), VertexLitMaterial(nullptr) { }
+
+	virtual ~TerrainProgramClass(void) override	{ TerrainProgramClass::Shutdown(); }
+
+	virtual bool	Init(ShaderTierType) override
+	{
+		LitMaterial			= Make_World_Surface_Material(false);
+		VertexLitMaterial	= Make_World_Surface_Material(true);
+
+		Set_Pass_Material(PASS_LAYER,VertexLitMaterial);
+
+		ShaderClass base = ShaderClass::_PresetOpaqueShader;
+		base.Set_Fog_Func(ShaderClass::FOG_ENABLE);
+
+		ShaderClass layer = ShaderClass::_PresetAlphaShader;
+		layer.Set_Fog_Func(ShaderClass::FOG_ENABLE);
+
+		Set_Pass_Shader(PASS_BASE,base);
+		Set_Pass_Shader(PASS_LAYER,layer);
+
+		Set_Variant(TERRAIN_VARIANT_LIT);
+		return true;
+	}
+
+	virtual void	Shutdown(void) override
+	{
+		REF_PTR_RELEASE(LitMaterial);
+		REF_PTR_RELEASE(VertexLitMaterial);
+		FixedFunctionProgramClass::Shutdown();
+	}
+
+	virtual void	Set_Variant(int variant) override
+	{
+		Set_Pass_Material(PASS_BASE,
+			(variant == TERRAIN_VARIANT_VERTEX_LIT) ? VertexLitMaterial : LitMaterial);
+	}
+
+private:
+
+	VertexMaterialClass *	LitMaterial;
+	VertexMaterialClass *	VertexLitMaterial;
+};
+
+
+/***********************************************************************************************
+**	Roads and bridges.
+**
+**	Opaque, lit off the vertex.  They are two programs rather than one because they are two
+**	entries in Section 15's list and because the moment either grows a wet-road sheen or a
+**	damaged-span decal it stops matching the other -- and the point of the layer is that such a
+**	change happens in one place and is visible next to what it is no longer the same as.
+***********************************************************************************************/
+class OpaqueVertexLitProgramClass : public FixedFunctionProgramClass
+{
+public:
+
+	OpaqueVertexLitProgramClass(MaterialProgramType type) :
+		FixedFunctionProgramClass(type,1,1) { }
+
+	virtual bool	Init(ShaderTierType) override
+	{
+		VertexMaterialClass * material = Make_Prelit_Diffuse_Material();
+		Set_Pass_Material(0,material);
+		REF_PTR_RELEASE(material);
+
+		Set_Pass_Shader(0,ShaderClass::_PresetOpaqueShader);
+		return true;
+	}
+};
+
+
+/***********************************************************************************************
+**	Water.
+**
+**	Translucent and two-sided, and no depth write, because a surface that blends over what is
+**	beneath it must not stop the things beneath it from being drawn.  That is a different thing
+**	from foliage's alpha-tested cutout: there is no edge to cut around here, only a surface.
+***********************************************************************************************/
+class WaterProgramClass : public FixedFunctionProgramClass
+{
+public:
+
+	WaterProgramClass(void) : FixedFunctionProgramClass(MATERIAL_PROGRAM_WATER,1,1) { }
+
+	virtual bool	Init(ShaderTierType) override
+	{
+		VertexMaterialClass * material = Make_Prelit_Diffuse_Material();
+		Set_Pass_Material(0,material);
+		REF_PTR_RELEASE(material);
+
+		ShaderClass shader = ShaderClass::_PresetOpaqueShader;
+		shader.Set_Alpha_Test(ShaderClass::ALPHATEST_DISABLE);
+		shader.Set_Depth_Mask(ShaderClass::DEPTH_WRITE_DISABLE);
+		shader.Set_Src_Blend_Func(ShaderClass::SRCBLEND_SRC_ALPHA);
+		shader.Set_Dst_Blend_Func(ShaderClass::DSTBLEND_ONE_MINUS_SRC_ALPHA);
+		shader.Set_Cull_Mode(ShaderClass::CULL_MODE_DISABLE);
+
+		Set_Pass_Shader(0,shader);
+		return true;
+	}
+};
+
+
+/***********************************************************************************************
+**	Foliage.
+**
+**	Cut-out art: a leaf sheet is mostly transparent and both of its faces are seen, so alpha
+**	tested and not culled.  Not culling is also what makes the far level's crossed quads work
+**	from every side without emitting each of them twice.
+***********************************************************************************************/
+class FoliageProgramClass : public FixedFunctionProgramClass
+{
+public:
+
+	FoliageProgramClass(void) : FixedFunctionProgramClass(MATERIAL_PROGRAM_FOLIAGE,1,1) { }
+
+	virtual bool	Init(ShaderTierType) override
+	{
+		VertexMaterialClass * material = Make_Prelit_Diffuse_Material();
+		Set_Pass_Material(0,material);
+		REF_PTR_RELEASE(material);
+
+		ShaderClass shader = ShaderClass::_PresetOpaqueShader;
+		shader.Set_Alpha_Test(ShaderClass::ALPHATEST_ENABLE);
+		shader.Set_Cull_Mode(ShaderClass::CULL_MODE_DISABLE);
+
+		Set_Pass_Shader(0,shader);
+		return true;
+	}
+};
+
+
+/***********************************************************************************************
+**	Projected shadows.
+**
+**	The pass that accumulates a caster into a shadow render target, not the pass that projects
+**	the result onto the world.  Additive, untextured, depth ignored in both directions: what is
+**	being built is coverage, and every triangle of the caster contributes to it wherever it
+**	lands regardless of what else already did.
+**
+**	No material.  This pass never set one, so this program does not set one either -- see the
+**	note in FixedFunctionProgramClass::Set_Pass.
+***********************************************************************************************/
+class ProjectedShadowProgramClass : public FixedFunctionProgramClass
+{
+public:
+
+	ProjectedShadowProgramClass(void) : FixedFunctionProgramClass(MATERIAL_PROGRAM_PROJECTED_SHADOW,1,1) { }
+
+	virtual bool	Init(ShaderTierType) override
+	{
+		ShaderClass shader;
+		shader.Set_Cull_Mode(ShaderClass::CULL_MODE_DISABLE);
+		shader.Set_Depth_Mask(ShaderClass::DEPTH_WRITE_DISABLE);
+		shader.Set_Depth_Compare(ShaderClass::PASS_ALWAYS);
+		shader.Set_Dst_Blend_Func(ShaderClass::DSTBLEND_ONE);
+		shader.Set_Src_Blend_Func(ShaderClass::SRCBLEND_ONE);
+		shader.Set_Fog_Func(ShaderClass::FOG_DISABLE);
+		shader.Set_Primary_Gradient(ShaderClass::GRADIENT_MODULATE);
+		shader.Set_Texturing(ShaderClass::TEXTURING_DISABLE);
+
+		Set_Pass_Shader(0,shader);
+		return true;
+	}
+};
+
+
+/***********************************************************************************************
  * ShaderManagerClass::Detect_Tier -- ask the device what it can do                            *
  *                                                                                             *
  * There is no device on a dedicated server and none before the renderer comes up, and         *
@@ -212,12 +563,29 @@ void	ShaderManagerClass::Init(ShaderTierType tier)
 	CurrentProgram = MATERIAL_PROGRAM_COUNT;
 	CurrentPass = 0;
 
-	//	Stock content first and always.  Everything else is registered by the system that
-	//	draws it, when that system arrives.
+	//	Stock content first and always.
 	Register_Program(MATERIAL_PROGRAM_LEGACY_W3D,new LegacyW3DProgramClass);
 
-	//	The one listed pipeline whose consumer was already in the tree.  See boxrobj.cpp.
+	//	The pipelines whose consumers exist.  They are built here, in one file, rather than by
+	//	the systems that draw them: a pipeline is a description of device state in this
+	//	library's own vocabulary, its lifetime is this class's, and having the six of them
+	//	side by side is the whole point -- a road and a bridge that draw the same way say so by
+	//	sitting next to each other, and water and foliage that differ show what they differ in.
+	//	The dependency runs the way Section 15 asks: the systems know about the layer and the
+	//	layer knows nothing about the systems.
+	Register_Program(MATERIAL_PROGRAM_TERRAIN,new TerrainProgramClass);
+	Register_Program(MATERIAL_PROGRAM_ROAD,new OpaqueVertexLitProgramClass(MATERIAL_PROGRAM_ROAD));
+	Register_Program(MATERIAL_PROGRAM_BRIDGE,new OpaqueVertexLitProgramClass(MATERIAL_PROGRAM_BRIDGE));
+	Register_Program(MATERIAL_PROGRAM_WATER,new WaterProgramClass);
+	Register_Program(MATERIAL_PROGRAM_FOLIAGE,new FoliageProgramClass);
+	Register_Program(MATERIAL_PROGRAM_PROJECTED_SHADOW,new ProjectedShadowProgramClass);
 	Register_Program(MATERIAL_PROGRAM_DEBUG_OVERLAY,new DebugOverlayProgramClass);
+
+	//	Deliberately not registered: terrain detail, particles, tracers and beams, status
+	//	markers and the ghost building tint.  Nothing draws any of them yet, and a registered
+	//	program is a claim that a pipeline exists -- Is_Supported is how a caller asks.  Terrain
+	//	detail is the one that looks ready and is not: it needs a second UV rate on a single
+	//	layer, which the terrain pass cannot carry, and it has no layer table entry to draw.
 }
 
 
@@ -384,6 +752,50 @@ MaterialProgramType	ShaderManagerClass::Get_Current_Program(void)
 int	ShaderManagerClass::Get_Current_Pass(void)
 {
 	return CurrentPass;
+}
+
+
+/***********************************************************************************************
+ * ShaderManagerClass::Get_Pass_State -- what state a pipeline draws in                        *
+ *                                                                                             *
+ * Brings the manager up if it is not up, which is what makes this usable from a dedicated     *
+ * server: the FDS builds the same road, bridge, water and foliage geometry a client does --    *
+ * it is the same code and the same collision -- and it never reaches the device init that      *
+ * normally starts this class.  Nothing here is a device resource, and Detect_Tier answers      *
+ * fixed function with no device, so coming up early is correct rather than merely safe.        *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+bool	ShaderManagerClass::Get_Pass_State(MaterialProgramType type,int pass,ShaderClass * shader_out,VertexMaterialClass ** material_out)
+{
+	WWASSERT(type >= 0 && type < MATERIAL_PROGRAM_COUNT);
+
+	if (material_out != nullptr) {
+		*material_out = nullptr;
+	}
+
+	if (!Initialized) {
+		Init();
+	}
+
+	MaterialProgramClass * program = Programs[type];
+	if (program == nullptr) {
+		return false;
+	}
+
+	return program->Get_Pass_State(pass,shader_out,material_out);
+}
+
+
+/***********************************************************************************************
+ * ShaderManagerClass::Set_Program_Variant -- choose which way a pipeline draws                 *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+void	ShaderManagerClass::Set_Program_Variant(MaterialProgramType type,int variant)
+{
+	WWASSERT(type >= 0 && type < MATERIAL_PROGRAM_COUNT);
+
+	MaterialProgramClass * program = Programs[type];
+	if (program != nullptr) {
+		program->Set_Variant(variant);
+	}
 }
 
 

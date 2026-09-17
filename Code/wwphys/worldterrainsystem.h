@@ -162,6 +162,22 @@ public:
 	static void			Get_Visible_Terrain_Patches(const FrustumClass & frustum,DynamicVectorClass<int> & patch_indices);
 
 	/*
+	**	Which representation draws which ground, this frame.
+	**
+	**	The decision is per far block rather than per patch, and that is the whole trick: if a
+	**	block and its own near patches could disagree, the two surfaces would be drawn over the
+	**	same ground and fight.  One decision per block means every square metre of the field is
+	**	drawn by exactly one representation, always.
+	**
+	**	Called once per frame from PhysicsSceneClass::Pre_Render_Processing, which is where the
+	**	camera is.  With no far layer built it shows every near patch and returns, so a level that
+	**	never asked for the far layer is unaffected.
+	*/
+	static void			Update_Terrain_LOD(const Vector3 & viewer_position);
+	static int			Get_Visible_Near_Patch_Count(void);
+	static int			Get_Visible_Far_Block_Count(void);
+
+	/*
 	**	Collision: the heightfield's triangles, as geometry the physics scene can see.
 	**
 	**	One RenegadeTerrainPatchClass per heightfield patch, each wrapped in a StaticPhysClass
@@ -195,16 +211,75 @@ public:
 	static bool			Fill_Patch_Model(RenegadeTerrainPatchClass * model,int px,int py);
 
 	/*
-	**	The far/background layer.  Declared because Section 17 names it and callers should be
-	**	written against the final shape; it refuses for now and says why once, because it is
-	**	Section 34's own phase.
+	**	The far/background layer.  Roadmap Section 34.
+	**
+	**	Not a second terrain database.  A far block is a decimated view of the one heightfield
+	**	this class already owns: every FAR_STRIDE-th grid point, over FAR_BLOCK_PATCHES near
+	**	patches each way, as one render object with no collision at all.  Everything that asks
+	**	the ground a question still asks the near representation, which is Section 34's
+	**	requirement that one terrain query/collision representation stay authoritative -- kept
+	**	here by the far layer being physically unable to answer, not by convention.
+	**
+	**	Seams.  Far blocks meet on sampled grid lines and share those vertices exactly, so the
+	**	far surface is continuous across the whole field.  Where it meets near terrain the two
+	**	agree only at the sampled points, and between them the far chord can ride above the true
+	**	ground; so the whole far layer is lowered by FarTerrainDrop, the largest amount by which
+	**	the decimated surface anywhere exceeds the real one.  That makes far <= near everywhere,
+	**	which is the invariant that matters: a boundary can show a small step down, never a hole
+	**	through to the sky, and never far ground poking through near ground.
 	*/
+	enum {
+		FAR_BLOCK_PATCHES	= 4,		// near patches per far block, each way
+		FAR_STRIDE			= 4,		// grid vertices per far vertex; must divide PATCH_CELLS
+	};
+
 	static bool			Build_Far_Terrain_Representation(void);
+	static void			Update_Far_Terrain(void);
+	static void			Destroy_Far_Terrain(void);
+
+	/*
+	**	Has_Far_Terrain is about the block table, which a field gets when it is created, so that
+	**	an edit made before anything was drawn is still recorded.  The blocks themselves need a
+	**	physics scene to live in; Get_Far_Block_Built_Count is how many exist.
+	*/
+	static bool			Has_Far_Terrain(void);
+	static int			Get_Far_Block_Built_Count(void);
+
+	/*
+	**	Editing.  A system that changes the ground -- a road grade, a river cut, the Commander's
+	**	construction -- says which box it changed and the blocks over that box are refilled on
+	**	the next Update_Far_Terrain.  Nothing reloads and nothing else is touched, which is
+	**	Section 34's runtime/generated-terrain requirement.
+	*/
 	static void			Invalidate_Far_Terrain_Region(const AABoxClass & region);
+	static void			Invalidate_Far_Block(int bx,int by);
+	static bool			Is_Far_Block_Dirty(int bx,int by);
+
+	static int			Get_Far_Block_Count_X(void);
+	static int			Get_Far_Block_Count_Y(void);
+	static bool			Get_Far_Block_Bounds(int bx,int by,AABoxClass * bounds_out);
+	static StaticPhysClass *	Peek_Far_Block(int bx,int by);
+	static RenegadeTerrainPatchClass *	Peek_Far_Block_Model(int bx,int by);
+	static RenegadeTerrainPatchClass *	Create_Far_Block_Model(int bx,int by);
+
+	/*
+	**	What the layer cost and what it bought, as numbers a check can compare.
+	*/
+	static float		Get_Far_Terrain_Drop(void);
+	static int			Get_Far_Vertex_Count(void);
+	static int			Get_Near_Vertex_Count(void);
+	static int			Get_Far_Refill_Count(void);
 
 private:
 
 	static bool			Build_Collision_Patch(int px,int py);
+
+	static void			Create_Far_Block_Table(void);
+	static bool			Fill_Far_Block_Model(RenegadeTerrainPatchClass * model,int bx,int by);
+	static bool			Build_Far_Block(int bx,int by);
+	static void			Far_Block_Point_Counts(int bx,int by,int * points_x_out,int * points_y_out);
+	static float		Compute_Far_Terrain_Drop(void);
+	static void			Fold_Dirty_Patches_Into_Far_Blocks(void);
 
 	static HeightfieldClass *	Heightfield;
 	static bool						ReportedNoCollision;
@@ -213,6 +288,15 @@ private:
 	static StaticPhysClass **	CollisionPatches;
 	static int						CollisionPatchCountX;
 	static int						CollisionPatchCountY;
+
+	static StaticPhysClass **	FarBlocks;
+	static bool *					FarBlockDirty;
+	static int						FarBlockCountX;
+	static int						FarBlockCountY;
+	static float					FarTerrainDrop;
+	static int						FarRefillCount;
+	static int						VisibleNearPatchCount;
+	static int						VisibleFarBlockCount;
 };
 
 #endif	// WORLDTERRAINSYSTEM_H

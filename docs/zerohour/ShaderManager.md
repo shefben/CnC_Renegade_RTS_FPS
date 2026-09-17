@@ -60,6 +60,78 @@ Its `Reset` clears the texture stage and nothing else. Restoring a null material
 be inventing a state nobody asked for: every draw in this renderer sets its own
 material and shader, so what the next pipeline needs is a stage it did not inherit.
 
+## The pipelines, and why they are all in one file
+
+Six more programs are registered, each with a consumer that already draws: terrain, roads,
+bridges, water, foliage and projected shadows. They are all `FixedFunctionProgramClass` —
+a shader, a material and a count of texture stages — because that is genuinely all any
+surface in this engine is drawn by, and it is what lets them be compared.
+
+They are built in `ShaderManagerClass::Init` rather than by the systems that draw them.
+The earlier sketch had each system register its own on the way up, and that was the wrong
+shape once there were six of them: a pipeline is a description of device state in ww3d2's
+own vocabulary, its lifetime is the manager's rather than any system's, and splitting the
+six across six files in wwphys reproduces exactly the scatter this layer exists to remove
+— it would only be scatter that called `Register_Program` on the way past. The dependency
+still runs the way Section 15 asks: the systems know about the layer, and the layer knows
+nothing about the systems.
+
+Having them side by side is the point rather than a tidiness. Water blends and does not
+write depth; foliage alpha-tests and does. Both disable culling, for different reasons —
+a lake seen from underneath, a leaf sheet seen from behind. Those two facts are eleven
+lines apart in `shadermgr.cpp`, and were previously in two files that had never been read
+together.
+
+## Two ways to consume a pipeline
+
+This renderer submits geometry two ways, and a pipeline has to serve both.
+
+Terrain, the debug overlays and the projected shadow pass set device state and then draw.
+That is `Set_Program`/`Reset_Program`, which is what the class was built around.
+
+Roads, bridges, water and foliage build a `DynamicMeshClass` and carry the state on it;
+what the device ends up in is set by the mesh as it draws, long after any call this class
+could make. They ask `Get_Pass_State`, which hands out the identical `ShaderClass` and
+`VertexMaterialClass` that `Set_Pass` would have installed — the same stored objects, not
+a second description of them. A road mesh and a terrain draw therefore cannot disagree
+about what their pipeline is, because there is only one of it.
+
+`Get_Pass_State` is also the one accessor that brings the manager up on its own. Nothing
+in the table is a device resource, and the dedicated server builds the same road, bridge,
+water and foliage geometry a client does — it is the same code and the same collision —
+while never reaching the device init that normally starts this class. `Detect_Tier`
+answers fixed function with no device, so coming up early is correct and not merely safe;
+a device arriving afterwards re-detects the tier and rebuilds the table, which is what it
+already did when a device changed.
+
+For the same reason the materials are built here rather than fetched from
+`VertexMaterialClass::Get_Preset`. The presets are created by `VertexMaterialClass::Init`,
+which the server never reaches, and `Get_Preset` dereferences a null pointer there. It
+also means no pipeline can reach through a preset and change a material every mesh in the
+engine shares.
+
+## What terrain gave up
+
+`RenegadeTerrainPatchClass` used to carry four members — two `VertexMaterialClass` and two
+`ShaderClass` — built per patch in `Initialize_Material`. Every patch on a map held its own
+copy of two materials that were always identical, and `Render` mutated one of them in place
+when the patch turned out to be prelit, which nothing put back.
+
+That is now the terrain program's two passes: base and layer, differing in exactly one
+thing, opaque against alpha, and agreeing about everything else including fog — a hillside
+that stopped being fogged where its second layer started would be a visible seam. Whether
+the base pass's colour comes from the light environment or from a vertex the lighting solve
+baked is a fact about the patch and not about terrain, so the caller says which with
+`Set_Program_Variant`, staged the way a texture is. The layer pass always takes colour from
+the vertex; that is where its blend weight lives, which is why the vertex-lit base turns out
+to be the same material object the layer draws with.
+
+The patch stages its layer texture through `Set_Texture` rather than setting stage zero
+itself, so the staging API this class was written with finally has a consumer. `Reset` gives
+the stages back *and* clears the staging area, so the next pipeline has to say what it draws
+with rather than inheriting what the last one left — and so a level's texture is not held
+alive here by a system that has since been torn down.
+
 ## Tiers instead of a card table
 
 The donor chose implementations from a table of chipsets, vendor IDs and driver
@@ -88,6 +160,9 @@ anything about either.
 | `Code/ww3d2/dx8wrapper.cpp`, `Do_Onetime_Device_Dependent_Inits` | `ShaderManagerClass::Init()` after `Compute_Caps` and the subsystem inits |
 | `Code/ww3d2/dx8wrapper.cpp`, `Do_Onetime_Device_Dependent_Shutdowns` | `ShaderManagerClass::Shutdown()` before the texture manager goes |
 | `Code/ww3d2/boxrobj.cpp`, `render_box` | `Set_Program(MATERIAL_PROGRAM_DEBUG_OVERLAY,0)` and `Reset_Program()` around the draw |
+| `Code/wwphys/renegadeterrainpatch.cpp`, `Render_By_Texture` | stages the layer texture, then `Set_Program(MATERIAL_PROGRAM_TERRAIN,pass)`; `Set_Program_Variant` from `Render` |
+| `Code/wwphys/pscene_projectors.cpp` | `Set_Program(MATERIAL_PROGRAM_PROJECTED_SHADOW,0)` around the coverage draw |
+| `Code/wwphys/roadsystem.cpp`, `bridgesystem.cpp`, `watersystem.cpp`, `foliagesystem.cpp` | `Get_Pass_State` onto the batch mesh as it is built |
 
 The device lifecycle already owns the other ww3d2 subsystems, so the layer comes up and
 goes down with the device rather than with the process. Coming up again after a device
@@ -106,33 +181,58 @@ became the first caller. Fixed with them.
 `fds_shader_programs`. Registration, tier refusal and destruction of a refused program,
 pass counts, which program is current, that handing over resets the previous program
 exactly once, that moving between passes does not, that giving the device back is
-idempotent, and that re-initialising leaves nothing alive behind it.
+idempotent, and that re-initialising leaves nothing alive behind it. It also checks that
+*exactly* the pipelines with consumers are registered and no others — both halves matter,
+since a missing one means a system draws in whatever state it inherits, and an early one
+is a claim that something draws it.
+
+`renegade -shaderselfcheck pipelines`, registered as `shader_pipelines` and
+`fds_shader_pipelines`, pins what each pipeline actually draws in. That the manager comes
+up on its own when a pipeline is asked with no device. That the material comes back
+referenced, and twice asking gives the same object. That an unregistered pipeline and an
+out-of-range pass both answer no without leaving a material behind. That terrain is two
+passes, opaque then alpha, both fogged; that the variant switch changes the base material
+and switches back; and that the vertex-lit base is the object the layer uses. That water
+and foliage still differ in the way the design says they do. That roads and bridges are
+solid and write depth. That the shadow pass is additive, untextured, depth ignored, and
+has no material. And that stock W3D content has no pipeline state of its own, because a
+Renegade material carries its own.
+
+That last group is worth having rather than merely counting programs: the whole claim of
+this layer is that "how is a road surface drawn" has one answer, and a check that only
+asked whether the road program existed would pass just as happily if that answer quietly
+became foliage's.
 
 None of it needs a device, which is the point: those are decisions the manager makes on
 its own, and every pipeline added later inherits whatever they get wrong.
 
 The checks deliberately avoid every path that ends in `WWASSERT` -- asking for an
 unregistered program, registering twice over. Those are caller mistakes, and proving
-them would mean tripping an assert in the build that has them.
+them would mean tripping an assert in the build that has them. The refused-tier program is
+offered into `MATERIAL_PROGRAM_PARTICLE` for that reason: a slot nothing claims.
 
 ## What is left
 
-Eleven of the pipelines Section 15 lists are enumerated and unregistered: terrain,
-terrain detail, roads, bridges, water, foliage, projected shadows, particles, tracers
-and beams, status markers, ghost building tint. `Is_Supported` reports false for each
-and `Get_Pass_Count` returns zero, so a caller that loops over them draws nothing
-rather than drawing them wrongly.
+Five of the pipelines Section 15 lists are still enumerated and unregistered: terrain
+detail, particles, tracers and beams, status markers, ghost building tint. `Is_Supported`
+reports false for each and `Get_Pass_Count` returns zero, so a caller that loops over them
+draws nothing rather than drawing them wrongly.
 
-They are unregistered because none of them has anything to draw yet. Terrain, terrain
-detail, roads, bridges and water arrive with the terrain framework (roadmap Sections 17
-and 18); foliage, ghost tint and status markers arrive with the Commander work. Each
-one registers itself when the system that draws it lands, which is the order Section 15
-asks for -- the layer first, because it is a dependency of the systems, not the other
-way round.
+They are unregistered because none of them has anything to draw. Particles, tracers,
+status markers and the ghost tint arrive with roadmap Sections 26, 27 and the Commander
+work. Terrain detail is the one that looks ready and is not: it needs a second UV rate on
+a single layer, which the terrain pass cannot carry, and there is no detail entry in the
+layer table for it to draw.
 
-What is not yet proved is the acceptance line *new donor systems share one
-state/shader management layer*. Debug overlays are an existing system moved onto the
-layer rather than a donor one, so the claim needs the second real pipeline to arrive
-before it means anything. Nor has any of this been seen on a screen: the checks run
-without a device, and whether a debug box still looks like a debug box is a question
-only a run with a display mask on can answer.
+The acceptance line *new donor systems share one state/shader management layer* is now met
+in substance — six donor-derived systems draw through one layer and no longer decide their
+own state — but the layer has still never been seen. The checks run without a device, so
+whether terrain, water, foliage and the shadows still look the way they looked before this
+change is a question only a run with a display can answer. That is the same manual step
+already recorded against those systems.
+
+Ground decals are a deliberate omission rather than an oversight. `SurfaceRibbonSystem` and
+`WorldSurfaceMarkManager` each keep a private shader function of the same shape the six
+above gave up, and the two are near enough identical to each other to be a real duplicate.
+Section 15 enumerates no decal pipeline, and the program enum is a contract; adding one is a
+design change belonging to whichever section owns decals, not something to slip in here.

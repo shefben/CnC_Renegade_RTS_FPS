@@ -54,6 +54,8 @@
 #endif
 
 class TextureClass;
+class ShaderClass;
+class VertexMaterialClass;
 
 
 /*
@@ -100,6 +102,31 @@ enum ShaderTierType
 };
 
 
+/*
+**	Terrain draws its ground in one of two ways and the choice is per patch, not per pipeline:
+**	ordinary ground is lit by the light environment, and a patch the lighting solve has baked
+**	takes its colour from the vertex instead.  It is a program parameter, staged the way a
+**	texture is -- see Set_Program_Variant.
+*/
+enum TerrainProgramVariant
+{
+	TERRAIN_VARIANT_LIT = 0,		// colour comes from the light environment
+	TERRAIN_VARIANT_VERTEX_LIT,	// colour comes from the vertex, baked by the lighting solve
+};
+
+
+/*
+**	Terrain's two passes, named because its caller has to say which it is drawing.  The ground
+**	is composited the way stock Renegade composites it: the first layer with any influence on a
+**	quad draws opaque and the rest blend over it.
+*/
+enum TerrainProgramPass
+{
+	TERRAIN_PASS_BASE = 0,
+	TERRAIN_PASS_LAYER,
+};
+
+
 /***********************************************************************************************
 **	One way of drawing a surface.
 ***********************************************************************************************/
@@ -143,6 +170,31 @@ public:
 	**	which is the failure this layer exists to prevent.
 	*/
 	virtual void			Reset(void) = 0;
+
+	/*
+	**	The same state Set_Pass would install, handed out instead of applied.
+	**
+	**	This renderer submits geometry two ways.  Terrain and the debug overlays set device
+	**	state and then draw, which is what Set_Pass is for.  Roads, bridges, water and foliage
+	**	build a render object and carry the state on it, and the device state they end up
+	**	drawing in is set by the mesh, not by anything this class could do at draw time.  Both
+	**	read the one definition here, so a pipeline cannot mean one thing to a mesh and another
+	**	to a direct draw.
+	**
+	**	The material comes back with a reference held; release it.  Null is a real answer for a
+	**	pipeline that has no opinion about the material, and false for a pass that does not
+	**	exist.
+	*/
+	virtual bool			Get_Pass_State(int pass,ShaderClass * shader_out,VertexMaterialClass ** material_out) const
+									{ (void)pass; (void)shader_out; (void)material_out; return false; }
+
+	/*
+	**	Choose between the ways this pipeline can draw, when the choice belongs to the caller
+	**	rather than to the pipeline.  Staged like a texture is, and for the same reason: what
+	**	the value means is the program's business, and a call signature that carried every
+	**	program's parameters would be a signature that changes whenever a program does.
+	*/
+	virtual void			Set_Variant(int variant)	{ (void)variant; }
 };
 
 
@@ -206,6 +258,25 @@ public:
 
 	static MaterialProgramType	Get_Current_Program(void);
 	static int						Get_Current_Pass(void);
+
+	/*
+	**	Ask a pipeline what state it draws in, for a consumer that carries state on a render
+	**	object rather than setting the device.  False when the program is not registered or the
+	**	pass does not exist, and the material comes back referenced.
+	**
+	**	This is the one accessor that brings the manager up on its own if it is not up already.
+	**	The pipeline table is a description of device state and not a device resource, so it is
+	**	as valid on a dedicated server -- which builds the same road and water geometry it will
+	**	never draw -- as it is on a client.  A device arriving later re-detects the tier and
+	**	rebuilds the table, which is what it already does when a device changes.
+	*/
+	static bool						Get_Pass_State(MaterialProgramType type,int pass,ShaderClass * shader_out,VertexMaterialClass ** material_out);
+
+	/*
+	**	Choose which way a pipeline draws.  Applies until it is changed; a program that has
+	**	only one way of drawing ignores it.
+	*/
+	static void						Set_Program_Variant(MaterialProgramType type,int variant);
 
 	/*
 	**	The textures a program draws with.  Staged here rather than passed through

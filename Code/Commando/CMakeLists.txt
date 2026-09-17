@@ -567,6 +567,7 @@ if(BUILD_TESTING AND TARGET renegade)
 
     #	The shader and state management layer -- roadmap Section 15.  See shaderselfcheck.h.
     add_test(NAME shader_programs COMMAND renegade -shaderselfcheck programs)
+    add_test(NAME shader_pipelines COMMAND renegade -shaderselfcheck pipelines)
 
     #	The terrain service -- roadmap Section 17.  See terrainselfcheck.h.
     add_test(NAME terrain_sampling COMMAND renegade -terrainselfcheck sampling)
@@ -591,6 +592,7 @@ if(BUILD_TESTING AND TARGET renegade)
 add_test(NAME terrain_marks  COMMAND renegade -terrainselfcheck marks)
 add_test(NAME terrain_shadows  COMMAND renegade -terrainselfcheck shadows)
 add_test(NAME terrain_lights   COMMAND renegade -terrainselfcheck lights)
+add_test(NAME terrain_far      COMMAND renegade -terrainselfcheck far)
 endif()
 
 #
@@ -612,6 +614,7 @@ if(BUILD_TESTING AND TARGET renegadeserver)
     add_test(NAME fds_asset_exclusion  COMMAND renegadeserver -assetselfcheck exclusion)
     add_test(NAME fds_asset_residency  COMMAND renegadeserver -assetselfcheck residency)
     add_test(NAME fds_shader_programs  COMMAND renegadeserver -shaderselfcheck programs)
+    add_test(NAME fds_shader_pipelines COMMAND renegadeserver -shaderselfcheck pipelines)
     add_test(NAME fds_terrain_sampling COMMAND renegadeserver -terrainselfcheck sampling)
     add_test(NAME fds_terrain_bridges  COMMAND renegadeserver -terrainselfcheck bridges)
     add_test(NAME fds_terrain_foliage  COMMAND renegadeserver -terrainselfcheck foliage)
@@ -620,6 +623,7 @@ if(BUILD_TESTING AND TARGET renegadeserver)
 add_test(NAME fds_terrain_marks  COMMAND renegadeserver -terrainselfcheck marks)
 add_test(NAME fds_terrain_shadows  COMMAND renegadeserver -terrainselfcheck shadows)
 add_test(NAME fds_terrain_lights   COMMAND renegadeserver -terrainselfcheck lights)
+add_test(NAME fds_terrain_far      COMMAND renegadeserver -terrainselfcheck far)
     add_test(NAME fds_terrain_rays     COMMAND renegadeserver -terrainselfcheck rays)
     add_test(NAME fds_terrain_shaping  COMMAND renegadeserver -terrainselfcheck shaping)
     add_test(NAME fds_terrain_service  COMMAND renegadeserver -terrainselfcheck service)

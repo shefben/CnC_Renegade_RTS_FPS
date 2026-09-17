@@ -7,6 +7,10 @@
 
 #include "shadermgr.h"
 
+#include "refcount.h"
+#include "shader.h"
+#include "vertmaterial.h"
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -130,9 +134,8 @@ int	Run_Programs (void)
 			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_LEGACY_W3D));
 
 	//
-	//	Debug overlays are the second program, and the only listed pipeline whose consumer
-	//	was already in the tree.  It builds a material in Init, which is why registering it
-	//	here -- in a process with no device -- is worth checking rather than assuming.
+	//	Debug overlays build a material in Init, which is why registering them here -- in a
+	//	process with no device -- is worth checking rather than assuming.
 	//
 	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_DEBUG_OVERLAY),
 			"debug overlays have no program");
@@ -141,35 +144,59 @@ int	Run_Programs (void)
 			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_DEBUG_OVERLAY));
 
 	//
-	//	Nothing else is registered yet, and an unregistered pipeline reports no passes so
-	//	that a caller which loops over them draws nothing rather than drawing it wrongly.
+	//	Exactly the pipelines whose consumers exist are registered, and no others.  Both
+	//	halves matter: a pipeline missing means a system draws in whatever state it inherits,
+	//	and a pipeline registered early is a claim that something draws it, which Is_Supported
+	//	is how a caller asks.  An unregistered one reports no passes so that a caller looping
+	//	over them draws nothing rather than drawing it wrongly.
 	//
+	static const MaterialProgramType	_expected[] = {
+		MATERIAL_PROGRAM_LEGACY_W3D,
+		MATERIAL_PROGRAM_TERRAIN,
+		MATERIAL_PROGRAM_ROAD,
+		MATERIAL_PROGRAM_BRIDGE,
+		MATERIAL_PROGRAM_WATER,
+		MATERIAL_PROGRAM_FOLIAGE,
+		MATERIAL_PROGRAM_PROJECTED_SHADOW,
+		MATERIAL_PROGRAM_DEBUG_OVERLAY,
+	};
+
 	for (int i=0; i<MATERIAL_PROGRAM_COUNT; i++) {
 
-		if ((i == MATERIAL_PROGRAM_LEGACY_W3D) || (i == MATERIAL_PROGRAM_DEBUG_OVERLAY)) {
-			continue;
+		bool expected = false;
+		for (int e=0; e<(int)(sizeof(_expected)/sizeof(_expected[0])); e++) {
+			if (_expected[e] == i) { expected = true; break; }
 		}
 
-		Check (ShaderManagerClass::Is_Supported ((MaterialProgramType)i) == false,
-				"%s is registered and nothing draws it yet",
-				ShaderManagerClass::Get_Program_Name ((MaterialProgramType)i));
-		Check (ShaderManagerClass::Get_Pass_Count ((MaterialProgramType)i) == 0,
-				"%s reports passes without being registered",
-				ShaderManagerClass::Get_Program_Name ((MaterialProgramType)i));
+		const char *name = ShaderManagerClass::Get_Program_Name ((MaterialProgramType)i);
+
+		if (expected) {
+			Check (ShaderManagerClass::Is_Supported ((MaterialProgramType)i),
+					"%s has a consumer and no program", name);
+			Check (ShaderManagerClass::Get_Pass_Count ((MaterialProgramType)i) >= 1,
+					"%s is registered and reports no passes", name);
+		} else {
+			Check (ShaderManagerClass::Is_Supported ((MaterialProgramType)i) == false,
+					"%s is registered and nothing draws it yet", name);
+			Check (ShaderManagerClass::Get_Pass_Count ((MaterialProgramType)i) == 0,
+					"%s reports passes without being registered", name);
+		}
 	}
 
 	//
 	//	A program that wants hardware this tier does not have declines, and declining is a
 	//	normal answer: it is not registered, and the manager destroys it rather than leaving
-	//	the caller holding something it was told to hand over.
+	//	the caller holding something it was told to hand over.  Offered into a slot nothing
+	//	claims, because registering over a registered pipeline is a caller mistake the manager
+	//	asserts on rather than a case worth proving.
 	//
 	const int	live_before = CountingProgramClass::Live;
 
 	CountingProgramClass *	wants_shaders = new CountingProgramClass ("wants_shaders", 1, SHADER_TIER_PROGRAMMABLE);
-	const bool					kept = ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_WATER, wants_shaders);
+	const bool					kept = ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_PARTICLE, wants_shaders);
 
 	Check (kept == false, "a program that declined the tier was registered anyway");
-	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_WATER) == false,
+	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_PARTICLE) == false,
 			"a declined program is still supported");
 	Check (CountingProgramClass::Live == live_before,
 			"a declined program was not destroyed: %d live, expected %d",
@@ -273,6 +300,235 @@ int	Run_Programs (void)
 	return _Failures;
 }
 
+
+/***********************************************************************************************
+**	pipelines -- what each registered pipeline actually draws in
+**
+**	The pipelines are worth pinning rather than merely counting.  The whole claim of this layer
+**	is that "how is a road surface drawn" has one answer; a check that only asked whether the
+**	road program existed would pass just as happily if that answer quietly became foliage's.
+***********************************************************************************************/
+
+int	Run_Pipelines (void)
+{
+	//
+	//	The manager is down when this starts, which is the state a dedicated server is in: it
+	//	builds the same road, bridge, water and foliage geometry a client does and never
+	//	reaches the device init that normally starts this class.  Asking for pipeline state
+	//	must therefore bring it up, because nothing here is a device resource.
+	//
+	ShaderManagerClass::Shutdown ();
+	Check (ShaderManagerClass::Is_Initialized () == false, "the manager did not go down before this check");
+
+	ShaderClass				shader;
+	VertexMaterialClass *	material = nullptr;
+
+	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_ROAD, 0, &shader, &material),
+			"a pipeline could not be asked for its state with the manager down");
+	Check (ShaderManagerClass::Is_Initialized (),
+			"asking a pipeline for its state did not bring the manager up");
+	Check (material != nullptr, "the road pipeline has no material");
+	REF_PTR_RELEASE (material);
+
+	//
+	//	The material comes back referenced.  A pipeline that handed out a borrowed pointer
+	//	would be handing out something a re-initialisation can delete underneath a mesh that
+	//	is still drawing with it.
+	//
+	VertexMaterialClass *	first = nullptr;
+	VertexMaterialClass *	second = nullptr;
+
+	ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_ROAD, 0, nullptr, &first);
+	Check (first != nullptr, "the road pipeline stopped having a material");
+
+	if (first != nullptr) {
+		const int	refs_before = first->Num_Refs ();
+		ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_ROAD, 0, nullptr, &second);
+		Check (second == first, "the road pipeline handed out two different materials");
+		Check (first->Num_Refs () == refs_before + 1,
+				"asking for pipeline state took %d references, not one",
+				first->Num_Refs () - refs_before);
+	}
+
+	REF_PTR_RELEASE (second);
+	REF_PTR_RELEASE (first);
+
+	//
+	//	An unregistered pipeline answers no, and says so without leaving a material behind for
+	//	the caller to release.  A pass that does not exist answers no as well.
+	//
+	material = nullptr;
+	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_GHOST_TINT, 0, &shader, &material) == false,
+			"an unregistered pipeline answered with state");
+	Check (material == nullptr, "an unregistered pipeline handed out a material");
+
+	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_ROAD, 1, &shader, &material) == false,
+			"a one pass pipeline answered for a second pass");
+	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_ROAD, -1, &shader, &material) == false,
+			"a pipeline answered for a negative pass");
+
+	//
+	//	Terrain is two passes and they differ in exactly one thing.  That is how stock Renegade
+	//	composites ground and it is why the two exist: the first layer with any influence on a
+	//	quad draws opaque and the rest blend over it.  Both are fogged, because a hillside that
+	//	stopped being fogged where its second layer started would be a visible seam.
+	//
+	Check (ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_TERRAIN) == 2,
+			"terrain wants %d passes, not 2", ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_TERRAIN));
+
+	ShaderClass	base_shader, layer_shader;
+	ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TERRAIN, TERRAIN_PASS_BASE, &base_shader, nullptr);
+	ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TERRAIN, TERRAIN_PASS_LAYER, &layer_shader, nullptr);
+
+	Check (base_shader.Get_Fog_Func () == ShaderClass::FOG_ENABLE, "the terrain base pass is not fogged");
+	Check (layer_shader.Get_Fog_Func () == ShaderClass::FOG_ENABLE, "the terrain layer pass is not fogged");
+	Check (base_shader.Get_Dst_Blend_Func () == ShaderClass::DSTBLEND_ZERO,
+			"the terrain base pass blends instead of drawing opaque");
+	Check (layer_shader.Get_Dst_Blend_Func () == ShaderClass::DSTBLEND_ONE_MINUS_SRC_ALPHA,
+			"the terrain layer pass does not blend over what is under it");
+
+	//
+	//	And the base pass has two materials, because whether the ground's colour comes from the
+	//	light environment or from a baked vertex is a fact about the patch and not about
+	//	terrain.  The layer pass always takes it from the vertex -- that is where its blend
+	//	weight lives -- so the vertex-lit base is the same material the layer uses.
+	//
+	VertexMaterialClass *	lit_base = nullptr;
+	VertexMaterialClass *	vertex_base = nullptr;
+	VertexMaterialClass *	layer = nullptr;
+
+	ShaderManagerClass::Set_Program_Variant (MATERIAL_PROGRAM_TERRAIN, TERRAIN_VARIANT_LIT);
+	ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TERRAIN, TERRAIN_PASS_BASE, nullptr, &lit_base);
+
+	ShaderManagerClass::Set_Program_Variant (MATERIAL_PROGRAM_TERRAIN, TERRAIN_VARIANT_VERTEX_LIT);
+	ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TERRAIN, TERRAIN_PASS_BASE, nullptr, &vertex_base);
+
+	ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TERRAIN, TERRAIN_PASS_LAYER, nullptr, &layer);
+
+	Check (lit_base != nullptr && vertex_base != nullptr && layer != nullptr,
+			"a terrain pass has no material");
+	Check (lit_base != vertex_base, "the terrain variant switch changed nothing");
+	Check (vertex_base == layer, "the vertex-lit base is not the material the layer draws with");
+
+	//	And back, so a later caller does not inherit this check's choice.
+	ShaderManagerClass::Set_Program_Variant (MATERIAL_PROGRAM_TERRAIN, TERRAIN_VARIANT_LIT);
+
+	VertexMaterialClass *	restored = nullptr;
+	ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TERRAIN, TERRAIN_PASS_BASE, nullptr, &restored);
+	Check (restored == lit_base, "the terrain variant did not switch back");
+	REF_PTR_RELEASE (restored);
+
+	REF_PTR_RELEASE (layer);
+	REF_PTR_RELEASE (vertex_base);
+	REF_PTR_RELEASE (lit_base);
+
+	//
+	//	Water and foliage are the pair the design contrasts, and they must not converge.  Water
+	//	is a translucent surface that blends over what is beneath it and must not write depth,
+	//	or it stops the things beneath it being drawn.  Foliage is cut-out art: it has an edge
+	//	to cut around rather than a surface to blend, so it alpha tests and does write depth.
+	//	Both are two-sided, for different reasons -- a lake seen from below, a leaf sheet seen
+	//	from behind.
+	//
+	ShaderClass	water_shader, foliage_shader;
+	ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_WATER, 0, &water_shader, nullptr);
+	ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_FOLIAGE, 0, &foliage_shader, nullptr);
+
+	Check (water_shader.Get_Alpha_Test () == ShaderClass::ALPHATEST_DISABLE, "water alpha tests");
+	Check (water_shader.Get_Depth_Mask () == ShaderClass::DEPTH_WRITE_DISABLE, "water writes depth");
+	Check (water_shader.Get_Src_Blend_Func () == ShaderClass::SRCBLEND_SRC_ALPHA,
+			"water does not blend by its own alpha");
+	Check (water_shader.Get_Dst_Blend_Func () == ShaderClass::DSTBLEND_ONE_MINUS_SRC_ALPHA,
+			"water does not blend over what is beneath it");
+	Check (water_shader.Get_Cull_Mode () == ShaderClass::CULL_MODE_DISABLE, "water is one-sided");
+
+	Check (foliage_shader.Get_Alpha_Test () == ShaderClass::ALPHATEST_ENABLE, "foliage does not alpha test");
+	Check (foliage_shader.Get_Depth_Mask () == ShaderClass::DEPTH_WRITE_ENABLE, "foliage does not write depth");
+	Check (foliage_shader.Get_Cull_Mode () == ShaderClass::CULL_MODE_DISABLE, "foliage is one-sided");
+
+	//
+	//	Roads and bridges are solid ground with the light baked in.  Nothing blends, nothing is
+	//	cut around, and both write depth, because a vehicle behind a bridge pier is behind it.
+	//
+	const MaterialProgramType	_solid[] = { MATERIAL_PROGRAM_ROAD, MATERIAL_PROGRAM_BRIDGE };
+
+	for (int i=0; i<2; i++) {
+
+		ShaderClass	solid;
+		VertexMaterialClass *	solid_material = nullptr;
+		const char *name = ShaderManagerClass::Get_Program_Name (_solid[i]);
+
+		Check (ShaderManagerClass::Get_Pass_State (_solid[i], 0, &solid, &solid_material),
+				"%s has no pass state", name);
+		Check (solid.Get_Alpha_Test () == ShaderClass::ALPHATEST_DISABLE, "%s alpha tests", name);
+		Check (solid.Get_Depth_Mask () == ShaderClass::DEPTH_WRITE_ENABLE, "%s does not write depth", name);
+		Check (solid.Get_Dst_Blend_Func () == ShaderClass::DSTBLEND_ZERO, "%s blends", name);
+		Check (solid_material != nullptr, "%s has no material", name);
+
+		REF_PTR_RELEASE (solid_material);
+	}
+
+	//
+	//	The projected shadow accumulation pass builds coverage, not a picture: every triangle
+	//	of a caster contributes wherever it lands, regardless of what already did, so it is
+	//	additive with depth ignored in both directions and no texture.  It sets no material,
+	//	which is a real answer and not an oversight -- this pass never set one, and inventing
+	//	one here would be the layer changing a picture rather than owning the state behind it.
+	//
+	ShaderClass	shadow_shader;
+	VertexMaterialClass *	shadow_material = nullptr;
+
+	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_PROJECTED_SHADOW, 0, &shadow_shader, &shadow_material),
+			"the projected shadow pipeline has no pass state");
+	Check (shadow_material == nullptr, "the projected shadow pass acquired a material");
+	Check (shadow_shader.Get_Src_Blend_Func () == ShaderClass::SRCBLEND_ONE, "shadow coverage is not additive");
+	Check (shadow_shader.Get_Dst_Blend_Func () == ShaderClass::DSTBLEND_ONE, "shadow coverage is not additive");
+	Check (shadow_shader.Get_Depth_Mask () == ShaderClass::DEPTH_WRITE_DISABLE, "shadow coverage writes depth");
+	Check (shadow_shader.Get_Depth_Compare () == ShaderClass::PASS_ALWAYS, "shadow coverage tests depth");
+	Check (shadow_shader.Get_Fog_Func () == ShaderClass::FOG_DISABLE, "shadow coverage is fogged");
+	Check (shadow_shader.Get_Texturing () == ShaderClass::TEXTURING_DISABLE, "shadow coverage is textured");
+	Check (shadow_shader.Get_Cull_Mode () == ShaderClass::CULL_MODE_DISABLE, "shadow coverage is one-sided");
+
+	//
+	//	Stock W3D content is the one registered program with nothing to hand out.  A Renegade
+	//	material carries its own shader and its own vertex material and the renderer applies
+	//	them as it draws, so a pipeline state for it would be this layer inventing an opinion
+	//	about a model exported in 2002.
+	//
+	material = nullptr;
+	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_LEGACY_W3D, 0, &shader, &material) == false,
+			"stock W3D content was given a pipeline state of its own");
+	Check (material == nullptr, "stock W3D content handed out a material");
+
+	//
+	//	Every pipeline answers for every pass it claims, and for none beyond them.
+	//
+	for (int i=0; i<MATERIAL_PROGRAM_COUNT; i++) {
+
+		const MaterialProgramType	type = (MaterialProgramType)i;
+		const int						passes = ShaderManagerClass::Get_Pass_Count (type);
+
+		if ((passes == 0) || (type == MATERIAL_PROGRAM_LEGACY_W3D) || (type == MATERIAL_PROGRAM_DEBUG_OVERLAY)) {
+			continue;
+		}
+
+		for (int pass=0; pass<passes; pass++) {
+			VertexMaterialClass *	any = nullptr;
+			Check (ShaderManagerClass::Get_Pass_State (type, pass, nullptr, &any),
+					"%s could not answer for pass %d of %d",
+					ShaderManagerClass::Get_Program_Name (type), pass, passes);
+			REF_PTR_RELEASE (any);
+		}
+
+		Check (ShaderManagerClass::Get_Pass_State (type, passes, nullptr, nullptr) == false,
+				"%s answered for one pass more than it claims",
+				ShaderManagerClass::Get_Program_Name (type));
+	}
+
+	ShaderManagerClass::Shutdown ();
+	return _Failures;
+}
+
 }	// namespace
 
 
@@ -282,9 +538,19 @@ int	ShaderSelfCheck::Run (const char *which)
 		which = "programs";
 	}
 
-	if (::strcmp (which, "programs") == 0) {
+	bool	ran = false;
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "programs") == 0)) {
 		Run_Programs ();
-	} else {
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "pipelines") == 0)) {
+		Run_Pipelines ();
+		ran = true;
+	}
+
+	if (!ran) {
 		::fprintf (stderr, "unknown self check '%s'\n", which);
 		return 2;
 	}

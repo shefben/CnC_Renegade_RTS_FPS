@@ -27,23 +27,30 @@ unchanged across the change and the live prototype count drops back.
 
 ---
 
-## P09 -- the layer exists, the pipelines do not
+## P09 -- eight pipelines drawing, five with nothing to draw
 
-`ShaderManagerClass` is in place and checked (see `docs/zerohour/ShaderManager.md`),
-with stock W3D content registered as a program and debug overlays registered against a
-real consumer, `BoxRenderObjClass::render_box`. Eleven pipelines are left enumerated
-and unregistered -- terrain, terrain detail, roads, bridges, water, foliage, projected
-shadows, particles, tracers and beams, status markers, ghost building tint -- because
-none of them has anything to draw until the terrain framework (P11, P13 to P15, P17)
-and the Commander work land. Each registers itself when its system arrives.
+`ShaderManagerClass` and eight programs are in and checked (P09-A, P09-B and P09-C in
+`completed_features.md`, `docs/zerohour/ShaderManager.md`, four green shader ctest entries).
+Five of Section 15's pipelines are left enumerated and unregistered, and this entry carries
+them: **terrain detail, particles, tracers and beams, status markers, ghost building tint**.
+Terrain detail is the one that looks ready and is not -- it needs a second UV rate on one
+layer, which the terrain pass cannot carry, and there is no detail entry in the layer table;
+the other four arrive with Sections 26, 27 and the Commander work. This entry also still
+carries the backlog line *stock-asset compatibility: existing Renegade W3D materials,
+shaders and texture formats render unchanged through the new layer*, which is structural
+today (`MATERIAL_PROGRAM_LEGACY_W3D` has nothing to say about a stock model) and unseen.
 
-Two things remain unproved. Nothing here has been seen on a screen: the checks run
-without a device, so whether a debug box still looks like a debug box wants one run
-with a display mask on. And the acceptance line *new donor systems share one
-state/shader management layer* needs a donor system, which debug overlays are not.
-Next exact action: register the terrain and terrain-detail pipelines against
-`RenegadeTerrainPatchClass`, which now has material passes to draw with (P13-A); the other
-nine still wait on their systems.
+Nothing here has been on a screen: the checks run without a device, so whether terrain,
+water, foliage, the roads and the shadows still look the way they looked before they were
+moved onto the layer wants one run with a display. Next exact action is that manual run,
+folded into the checks already recorded against P11 and P13 to P20 -- there is no separate
+console command for this, because the layer has no appearance of its own.
+
+One deliberate omission, recorded so it is not mistaken for a miss: `SurfaceRibbonSystem`
+and `WorldSurfaceMarkManager` each keep a private shader function of the shape the six new
+pipelines gave up, and are near enough identical to each other to be a real duplicate.
+Section 15 enumerates no decal pipeline and the program enum is a contract, so adding one
+belongs to whichever section owns decals.
 
 ---
 
@@ -299,6 +306,19 @@ exact action is a manual one for the user: run `renegade --gamedir "C:\Westwood\
 load a level, then `shadow_mode 3` and `shadow_status` at the console while standing still, and
 `shadow_status` again while running and turning, and report whether shadows still look right and
 whether the render count drops to the cache-hit count when nothing is moving.
+
+## P12 -- the boundary is safe by arithmetic and nobody has stood at one
+
+The far layer is in and checked (P12-A in `completed_features.md`, `docs/zerohour/FarTerrainLOD.md`,
+thirty green terrain ctest entries). What this entry carries out of the absorbed acceptance line is
+the clause a check cannot settle, *no visible cracks at near/far boundaries under normal camera
+ranges*: far-to-far seams are exact and far is proved nowhere above near, so a boundary can only
+show a bounded step down, but no boundary has been looked at, `LOD_MEDIUM` is enumerated and
+treated as near because no field here is big enough for a third tier to be worth switching to, and
+nothing streams. Next exact action is a manual one for the user: run
+`renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then `terrain_test 256 2` and
+`far_terrain` at the console, walk away from the field until the numbers show far blocks drawing,
+and report whether the boundary shows anything.
 
 ## P21 -- the lights are filtered and nothing has switched one on
 

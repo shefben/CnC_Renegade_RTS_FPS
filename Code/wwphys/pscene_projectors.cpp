@@ -60,6 +60,7 @@
 #include "TARGA.H"
 #include "bitmaphandler.h"
 #include "dx8caps.h"
+#include "shadermgr.h"
 #include "vertmaterial.h"
 
 
@@ -680,20 +681,14 @@ static void Create_Render_Target_Test(TextureClass* render_target)
 		}
 	}
 
-	ShaderClass shader;
-	shader.Set_Cull_Mode( ShaderClass::CULL_MODE_DISABLE );
-	shader.Set_Depth_Mask( ShaderClass::DEPTH_WRITE_DISABLE );
-	shader.Set_Depth_Compare( ShaderClass::PASS_ALWAYS );
-	shader.Set_Dst_Blend_Func( ShaderClass::DSTBLEND_ONE );
-	shader.Set_Src_Blend_Func( ShaderClass::SRCBLEND_ONE );
-	shader.Set_Fog_Func( ShaderClass::FOG_DISABLE );
-	shader.Set_Primary_Gradient( ShaderClass::GRADIENT_MODULATE );
-	shader.Set_Texturing( ShaderClass::TEXTURING_DISABLE );
-
 	DX8Wrapper::Set_Index_Buffer(ib_access,0);
-	DX8Wrapper::Set_Shader(shader);
-	DX8Wrapper::Set_Texture(0,nullptr);
+
+	//	The state this accumulation pass draws in belongs to the projected shadow pipeline, and
+	//	lives with every other pipeline's in ww3d2/shadermgr.cpp.  Nothing is staged, so the
+	//	program's single stage is set empty, which is what the untextured shader wants.
+	ShaderManagerClass::Set_Program(MATERIAL_PROGRAM_PROJECTED_SHADOW,0);
 	DX8Wrapper::Draw_Triangles(0,polygon_count,0,vertex_count);
+	ShaderManagerClass::Reset_Program();
 
 //	WW3D::Render(*model,*context);
 	WW3D::End_Render(false);

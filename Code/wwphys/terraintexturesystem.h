@@ -248,7 +248,20 @@ public:
 	static bool			Build_Patch_Materials(RenegadeTerrainPatchClass * model,int px,int py);
 	static bool			Build_All_Patch_Materials(void);
 
+	/*
+	**	The same dressing, read at a stride.  Section 34's far/background blocks keep every
+	**	stride-th grid point, and must pick their materials from this table rather than from a
+	**	second scheme, or a hill would change colour as it crossed the LOD boundary.
+	*/
+	static bool			Build_Far_Block_Materials(RenegadeTerrainPatchClass * model,
+															  int ix0,int iy0,int stride,
+															  int points_x,int points_y);
+
 private:
+
+	static bool			Build_Sampled_Materials(RenegadeTerrainPatchClass * model,
+															 int ix0,int iy0,int stride,
+															 int points_x,int points_y);
 
 	static float		Evaluate_Window(float value,float min_value,float max_value,float feather);
 	static float		Evaluate_Rule(const TerrainLayerRuleClass & rule,int ix,int iy);

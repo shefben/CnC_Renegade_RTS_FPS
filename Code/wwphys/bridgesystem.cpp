@@ -31,6 +31,7 @@
 #include "roadspline.h"
 #include "roadsystem.h"
 #include "shader.h"
+#include "shadermgr.h"
 #include "staticphys.h"
 #include "texture.h"
 #include "vertmaterial.h"
@@ -756,13 +757,17 @@ bool BridgeSystem::Build_Section_Geometry(BridgeSectionClass & section,
 			return false;
 		}
 
-		mesh->Set_Shader(ShaderClass::_PresetOpaqueShader);
-
-		VertexMaterialClass * vmat = VertexMaterialClass::Get_Preset(VertexMaterialClass::PRELIT_DIFFUSE);
-		if (vmat != nullptr) {
-			mesh->Set_Vertex_Material(vmat,true);
-			vmat->Release_Ref();
+		//	What a bridge surface is drawn in, asked of the layer that owns it rather than
+		//	decided here.  See ww3d2/shadermgr.cpp.
+		ShaderClass shader;
+		VertexMaterialClass * vmat = nullptr;
+		if (ShaderManagerClass::Get_Pass_State(MATERIAL_PROGRAM_BRIDGE,0,&shader,&vmat)) {
+			mesh->Set_Shader(shader);
+			if (vmat != nullptr) {
+				mesh->Set_Vertex_Material(vmat,true);
+			}
 		}
+		REF_PTR_RELEASE(vmat);
 
 		mesh->Set_Dirty();
 		model = mesh;

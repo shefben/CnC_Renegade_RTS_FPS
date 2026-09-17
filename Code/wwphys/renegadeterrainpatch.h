@@ -191,7 +191,6 @@ protected:
 	//
 	void						Free_Grid (void);
 	void						Free_Materials (void);
-	void						Initialize_Material (void);
 	void						Initialize (void);
 	void						Allocate_Grid (void);
 
@@ -235,10 +234,6 @@ protected:
 	int									GridPointsY;
 	int									GridPointCount;
 	float									Density;
-	VertexMaterialClass *			BaseMaterial;
-	ShaderClass							BaseShader;
-	VertexMaterialClass *			LayerMaterial;
-	ShaderClass							LayerShader;
 	Vector3								BoundingBoxMin;
 	Vector3								BoundingBoxMax;
 	bool									AreBuffersDirty;

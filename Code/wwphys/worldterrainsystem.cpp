@@ -46,6 +46,15 @@ StaticPhysClass **	WorldTerrainSystem::CollisionPatches			= nullptr;
 int						WorldTerrainSystem::CollisionPatchCountX	= 0;
 int						WorldTerrainSystem::CollisionPatchCountY	= 0;
 
+StaticPhysClass **	WorldTerrainSystem::FarBlocks					= nullptr;
+bool *					WorldTerrainSystem::FarBlockDirty			= nullptr;
+int						WorldTerrainSystem::FarBlockCountX			= 0;
+int						WorldTerrainSystem::FarBlockCountY			= 0;
+float						WorldTerrainSystem::FarTerrainDrop			= 0.0f;
+int						WorldTerrainSystem::FarRefillCount			= 0;
+int						WorldTerrainSystem::VisibleNearPatchCount	= 0;
+int						WorldTerrainSystem::VisibleFarBlockCount	= 0;
+
 
 /*
 **	The vertex range one patch covers.
@@ -75,6 +84,9 @@ void WorldTerrainSystem::Init(void)
 	TerrainTextureSystem::Init();
 	ReportedNoCollision = false;
 	ReportedNoFarTerrain = false;
+	FarRefillCount = 0;
+	VisibleNearPatchCount = 0;
+	VisibleFarBlockCount = 0;
 }
 
 
@@ -94,6 +106,12 @@ bool WorldTerrainSystem::Create_Terrain(int vertex_count_x,int vertex_count_y,fl
 		Destroy_Terrain();
 		return false;
 	}
+
+	//	The far layer's block table belongs to the field, not to the renderer: something that
+	//	changes the ground has to be able to say so before anything has been drawn, and a table
+	//	that only appeared once a scene existed would silently drop those edits.  The blocks
+	//	themselves are built later, by a caller that has a scene to put them in.
+	Create_Far_Block_Table();
 
 	WWDEBUG_SAY(("WorldTerrainSystem: terrain %dx%d vertices, %.2f cell\r\n",
 					 vertex_count_x,vertex_count_y,cell_size));
@@ -116,6 +134,7 @@ void WorldTerrainSystem::Destroy_Terrain(void)
 	//	field they were cut from is still there to describe them.  The masks go with them: a mask
 	//	is one value per grid point of *this* field, and keeping them across a new field of a
 	//	different size would read the wrong ground.
+	Destroy_Far_Terrain();
 	Destroy_Collision();
 	TerrainTextureSystem::Destroy_Masks();
 
@@ -234,6 +253,11 @@ void WorldTerrainSystem::Invalidate_Patch(int px,int py)
 		return;
 	}
 	Heightfield->Invalidate_Patch(px,py);
+
+	//	The far block over this patch is now describing ground that has moved.  Marking it here
+	//	rather than only in Update_Far_Terrain means the far layer hears about an edit even if
+	//	collision is rebuilt first and clears the field's own dirty flag on the way past.
+	Invalidate_Far_Block(px / FAR_BLOCK_PATCHES,py / FAR_BLOCK_PATCHES);
 }
 
 
@@ -258,6 +282,33 @@ void WorldTerrainSystem::Modify_Height_Region(const Vector3 & center,float radiu
 		return;
 	}
 	Heightfield->Modify_Height_Region(center,radius,delta);
+
+	//	The background layer is a picture of ground that has just moved.  Told here, where the
+	//	footprint is known, rather than left for something to notice later.
+	Invalidate_Far_Terrain_Region(AABoxClass(Vector3(center.X,center.Y,center.Z),
+														 Vector3(radius,radius,WWMath::Fabs(delta) + radius)));
+}
+
+
+/*
+**	The box a polyline of a given width covers, for telling the far layer what moved.
+*/
+static void Polyline_Region(const Vector3 * points,int count,float radius,AABoxClass * box_out)
+{
+	Vector3 lo = points[0];
+	Vector3 hi = points[0];
+
+	for (int i = 1; i < count; i++) {
+		if (points[i].X < lo.X) lo.X = points[i].X;
+		if (points[i].Y < lo.Y) lo.Y = points[i].Y;
+		if (points[i].Z < lo.Z) lo.Z = points[i].Z;
+		if (points[i].X > hi.X) hi.X = points[i].X;
+		if (points[i].Y > hi.Y) hi.Y = points[i].Y;
+		if (points[i].Z > hi.Z) hi.Z = points[i].Z;
+	}
+
+	box_out->Center = (lo + hi) * 0.5f;
+	box_out->Extent = ((hi - lo) * 0.5f) + Vector3(radius,radius,radius);
 }
 
 
@@ -303,6 +354,10 @@ void WorldTerrainSystem::Apply_Road_Grade(const Vector3 * points,int count,float
 			Heightfield->Blend_Height_Region(at,radius,at.Z - Heightfield->Get_Origin().Z,blend);
 		}
 	}
+
+	AABoxClass region;
+	Polyline_Region(points,count,radius,&region);
+	Invalidate_Far_Terrain_Region(region);
 }
 
 
@@ -343,6 +398,11 @@ void WorldTerrainSystem::Apply_River_Cut(const Vector3 * points,int count,float 
 			Heightfield->Modify_Height_Region(at,radius,-depth);
 		}
 	}
+
+	AABoxClass region;
+	Polyline_Region(points,count,radius,&region);
+	region.Extent.Z += WWMath::Fabs(depth);
+	Invalidate_Far_Terrain_Region(region);
 }
 
 
@@ -600,6 +660,9 @@ bool WorldTerrainSystem::Build_Collision_Patch(int px,int py)
 		if ((model == nullptr) || !Fill_Patch_Model(model,px,py)) {
 			return false;
 		}
+
+		//	Same ground, coarser copy: the far block over a patch that just moved has to move too.
+		Invalidate_Far_Block(px / FAR_BLOCK_PATCHES,py / FAR_BLOCK_PATCHES);
 	}
 
 	phys->Update_Cull_Box();
@@ -747,20 +810,724 @@ RenegadeTerrainPatchClass * WorldTerrainSystem::Peek_Patch_Model(int px,int py)
 }
 
 
-bool WorldTerrainSystem::Build_Far_Terrain_Representation(void)
+/***********************************************************************************************
+ * The far / background layer -- roadmap Section 34                                             *
+ *                                                                                              *
+ * The donor calls this backup terrain and draws it at lower resolution behind the near work.    *
+ * Here it is one decimated copy of the heightfield this class already owns, cut into blocks of  *
+ * FAR_BLOCK_PATCHES near patches and sampled every FAR_STRIDE grid points.  Because FAR_STRIDE  *
+ * divides PATCH_CELLS, every near-patch boundary line is also a sampled line, and because       *
+ * neighbouring blocks end and start on the same sampled line they share those vertices exactly. *
+ *                                                                                              *
+ * It has no collision -- Set_Collision_Type(0) means its Cast_Ray refuses every ray outright -- *
+ * so the near representation stays the only thing that can answer a question about the ground.  *
+ *=============================================================================================*/
+
+/*
+**	How many sampled points a block has, in each direction.
+**
+**	The last block of a row is short whenever the field is not a whole number of blocks across.
+**	Rather than give it a different spacing -- which would make its quads non-square and its
+**	shared edge disagree with its neighbour -- it keeps the full point count and clamps the
+**	samples that fall off the end to the last grid line.  Those repeated points make zero-area
+**	quads, which draw nothing.
+*/
+void WorldTerrainSystem::Far_Block_Point_Counts(int bx,int by,int * points_x_out,int * points_y_out)
 {
-	if (!ReportedNoFarTerrain) {
-		ReportedNoFarTerrain = true;
-		WWDEBUG_SAY(("WorldTerrainSystem: far terrain arrives with its own phase (roadmap Section 34).\r\n"));
-	}
-	return false;
+	(void)bx;
+	(void)by;
+
+	const int cells = FAR_BLOCK_PATCHES * HeightfieldClass::PATCH_CELLS;
+	*points_x_out = (cells / FAR_STRIDE) + 1;
+	*points_y_out = (cells / FAR_STRIDE) + 1;
 }
 
 
+/***********************************************************************************************
+ * WorldTerrainSystem::Compute_Far_Terrain_Drop -- how far the coarse surface may ride high      *
+ *                                                                                              *
+ * Over one sampled cell the drawn far surface is a pair of triangles through the four sampled   *
+ * corners.  Between those corners it can be above the real ground -- a hilltop sampled away is  *
+ * the obvious case in reverse, a valley floor is the case that matters -- and where it is, far  *
+ * terrain would poke through near terrain at the boundary.                                      *
+ *                                                                                              *
+ * So measure it: for every grid point, how much higher is the coarse surface than the real one. *
+ * The largest answer over the whole field is what the far layer is lowered by.  Both diagonals  *
+ * and the bilinear surface are tested, so the bound holds whichever way the renderer splits a   *
+ * quad and whatever a later reader assumes.                                                     *
+ *                                                                                              *
+ * One number for the whole field rather than one per block, deliberately: a per-block drop      *
+ * would move two neighbours' shared edge by different amounts and tear the far layer open       *
+ * along every block seam, which is the crack this phase exists to not have.                     *
+ *=============================================================================================*/
+float WorldTerrainSystem::Compute_Far_Terrain_Drop(void)
+{
+	if (!Has_Terrain()) {
+		return 0.0f;
+	}
+
+	int last_x = Heightfield->Get_Vertex_Count_X() - 1;
+	int last_y = Heightfield->Get_Vertex_Count_Y() - 1;
+	float max_excess = 0.0f;
+
+	for (int cy0 = 0; cy0 < last_y; cy0 += FAR_STRIDE) {
+
+		int cy1 = cy0 + FAR_STRIDE;
+		if (cy1 > last_y) cy1 = last_y;
+
+		for (int cx0 = 0; cx0 < last_x; cx0 += FAR_STRIDE) {
+
+			int cx1 = cx0 + FAR_STRIDE;
+			if (cx1 > last_x) cx1 = last_x;
+
+			float h00 = Heightfield->Get_Height(cx0,cy0);
+			float h10 = Heightfield->Get_Height(cx1,cy0);
+			float h01 = Heightfield->Get_Height(cx0,cy1);
+			float h11 = Heightfield->Get_Height(cx1,cy1);
+
+			float inv_dx = 1.0f / (float)(cx1 - cx0);
+			float inv_dy = 1.0f / (float)(cy1 - cy0);
+
+			for (int iy = cy0; iy <= cy1; iy++) {
+
+				float ty = (float)(iy - cy0) * inv_dy;
+
+				for (int ix = cx0; ix <= cx1; ix++) {
+
+					float tx = (float)(ix - cx0) * inv_dx;
+
+					//	Bilinear, and both triangulations of the same four corners.
+					float coarse = ((h00 * (1.0f - tx)) + (h10 * tx)) * (1.0f - ty) +
+										((h01 * (1.0f - tx)) + (h11 * tx)) * ty;
+
+					float diag_a = (tx >= ty) ? (h00 + tx * (h10 - h00) + ty * (h11 - h10))
+														: (h00 + ty * (h01 - h00) + tx * (h11 - h01));
+					if (diag_a > coarse) coarse = diag_a;
+
+					float diag_b = ((tx + ty) <= 1.0f)
+											? (h00 + tx * (h10 - h00) + ty * (h01 - h00))
+											: (h11 + (1.0f - tx) * (h01 - h11) + (1.0f - ty) * (h10 - h11));
+					if (diag_b > coarse) coarse = diag_b;
+
+					float excess = coarse - Heightfield->Get_Height(ix,iy);
+					if (excess > max_excess) {
+						max_excess = excess;
+					}
+				}
+			}
+		}
+	}
+
+	return max_excess;
+}
+
+
+bool WorldTerrainSystem::Fill_Far_Block_Model(RenegadeTerrainPatchClass * model,int bx,int by)
+{
+	if ((model == nullptr) || !Has_Terrain()) {
+		return false;
+	}
+	if ((bx < 0) || (by < 0) ||
+		 (bx >= Get_Far_Block_Count_X()) || (by >= Get_Far_Block_Count_Y())) {
+		return false;
+	}
+
+	int points_x,points_y;
+	Far_Block_Point_Counts(bx,by,&points_x,&points_y);
+
+	int ix0 = bx * FAR_BLOCK_PATCHES * HeightfieldClass::PATCH_CELLS;
+	int iy0 = by * FAR_BLOCK_PATCHES * HeightfieldClass::PATCH_CELLS;
+	int last_x = Heightfield->Get_Vertex_Count_X() - 1;
+	int last_y = Heightfield->Get_Vertex_Count_Y() - 1;
+
+	const Vector3 & origin = Heightfield->Get_Origin();
+	float cell = Heightfield->Get_Cell_Size();
+
+	//	The box is set before any vertex is written, because Set_Vertex_Pos only ever pushes the
+	//	Z range outwards -- a block refilled after the ground fell would otherwise keep the old
+	//	floor forever.  Sweep the samples once for the range rather than trusting the near
+	//	patches' ranges, which cover the same ground but not the same points.
+	float min_z = 0.0f;
+	float max_z = 0.0f;
+	bool first = true;
+
+	for (int py_index = 0; py_index < points_y; py_index++) {
+
+		int iy = iy0 + py_index * FAR_STRIDE;
+		if (iy > last_y) iy = last_y;
+
+		for (int px_index = 0; px_index < points_x; px_index++) {
+
+			int ix = ix0 + px_index * FAR_STRIDE;
+			if (ix > last_x) ix = last_x;
+
+			float z = Heightfield->Get_Height(ix,iy) - FarTerrainDrop;
+			if (first || (z < min_z)) min_z = z;
+			if (first || (z > max_z)) max_z = z;
+			first = false;
+		}
+	}
+
+	int ix_last = ix0 + (points_x - 1) * FAR_STRIDE;
+	int iy_last = iy0 + (points_y - 1) * FAR_STRIDE;
+	if (ix_last > last_x) ix_last = last_x;
+	if (iy_last > last_y) iy_last = last_y;
+
+	model->Set_Bounding_Box_Min(Vector3(origin.X + ix0 * cell,origin.Y + iy0 * cell,origin.Z + min_z));
+	model->Set_Bounding_Box_Max(Vector3(origin.X + ix_last * cell,origin.Y + iy_last * cell,origin.Z + max_z));
+
+	for (int py_index = 0; py_index < points_y; py_index++) {
+
+		int iy = iy0 + py_index * FAR_STRIDE;
+		if (iy > last_y) iy = last_y;
+
+		for (int px_index = 0; px_index < points_x; px_index++) {
+
+			int ix = ix0 + px_index * FAR_STRIDE;
+			if (ix > last_x) ix = last_x;
+
+			Vector3 pos(origin.X + ix * cell,
+							origin.Y + iy * cell,
+							origin.Z + Heightfield->Get_Height(ix,iy) - FarTerrainDrop);
+
+			model->Set_Vertex_Pos(px_index,py_index,pos);
+			model->Set_Vertex_Normal(px_index,py_index,Heightfield->Compute_Vertex_Normal(ix,iy));
+		}
+	}
+
+	//	Dressed off the same rule table the near patches read, at the same points this block
+	//	sampled, so a slope does not change colour when it crosses the LOD boundary.
+	if (TerrainTextureSystem::Get_Layer_Count() > 0) {
+		TerrainTextureSystem::Build_Far_Block_Materials(model,ix0,iy0,FAR_STRIDE,points_x,points_y);
+	}
+
+	model->Update_UVs();
+	model->Update_Vertex_Render_Lists();
+
+	FarRefillCount++;
+	return true;
+}
+
+
+/***********************************************************************************************
+ * WorldTerrainSystem::Create_Far_Block_Model -- one block's geometry, on its own                *
+ *                                                                                              *
+ * Public for the same reason Create_Patch_Model is: the layer builder is not the only caller    *
+ * that wants a block's mesh, and a check with no physics scene has nowhere to put one.          *
+ *=============================================================================================*/
+RenegadeTerrainPatchClass * WorldTerrainSystem::Create_Far_Block_Model(int bx,int by)
+{
+	if (!Has_Terrain()) {
+		return nullptr;
+	}
+	if ((bx < 0) || (by < 0) ||
+		 (bx >= Get_Far_Block_Count_X()) || (by >= Get_Far_Block_Count_Y())) {
+		return nullptr;
+	}
+
+	//	With no block built nothing has measured the drop yet, and a block placed at the wrong
+	//	height would not meet its neighbours.  Measuring it here costs one pass over the field
+	//	per block, which only a caller building blocks by hand ever pays -- the layer builder
+	//	measures once before it starts.
+	if (Get_Far_Block_Built_Count() == 0) {
+		FarTerrainDrop = Compute_Far_Terrain_Drop();
+	}
+
+	int points_x,points_y;
+	Far_Block_Point_Counts(bx,by,&points_x,&points_y);
+
+	RenegadeTerrainPatchClass * model = NEW_REF(RenegadeTerrainPatchClass,());
+	model->Allocate(points_x,points_y,Heightfield->Get_Cell_Size() * (float)FAR_STRIDE);
+
+	//	Nothing collides with the far layer.  It is a picture of ground the near patches already
+	//	own, and a second surface that answers rays would be a second terrain representation --
+	//	the one thing Section 34 says not to end up with.
+	model->Set_Collision_Type(0);
+
+	if (!Fill_Far_Block_Model(model,bx,by)) {
+		model->Release_Ref();
+		return nullptr;
+	}
+
+	return model;
+}
+
+
+bool WorldTerrainSystem::Build_Far_Block(int bx,int by)
+{
+	int index = by * FarBlockCountX + bx;
+	StaticPhysClass * phys = FarBlocks[index];
+
+	if (phys == nullptr) {
+
+		RenegadeTerrainPatchClass * model = Create_Far_Block_Model(bx,by);
+		if (model == nullptr) {
+			return false;
+		}
+
+		phys = new StaticPhysClass;
+		phys->Set_Model(model);
+		phys->Set_Transform(Matrix3D(1));
+		model->Release_Ref();				// the physics object holds it now
+
+		PhysicsSceneClass::Get_Instance()->Add_Static_Object(phys);
+		FarBlocks[index] = phys;
+
+	} else {
+
+		RenegadeTerrainPatchClass * model = (RenegadeTerrainPatchClass *)phys->Peek_Model();
+		if ((model == nullptr) || !Fill_Far_Block_Model(model,bx,by)) {
+			return false;
+		}
+	}
+
+	phys->Update_Cull_Box();
+	FarBlockDirty[index] = false;
+	return true;
+}
+
+
+void WorldTerrainSystem::Create_Far_Block_Table(void)
+{
+	Destroy_Far_Terrain();
+
+	int count_x = Get_Far_Block_Count_X();
+	int count_y = Get_Far_Block_Count_Y();
+	if ((count_x < 1) || (count_y < 1)) {
+		return;
+	}
+
+	FarBlockCountX = count_x;
+	FarBlockCountY = count_y;
+	FarBlocks = new StaticPhysClass *[count_x * count_y];
+	FarBlockDirty = new bool[count_x * count_y];
+
+	//	Clean, not dirty.  Dirty means "the block that is built is out of date", and there is no
+	//	block yet; the first build creates every one of them whatever the flags say.  Starting
+	//	clean is what lets a caller ask which regions an edit actually touched.
+	for (int index = 0; index < count_x * count_y; index++) {
+		FarBlocks[index] = nullptr;
+		FarBlockDirty[index] = false;
+	}
+}
+
+
+bool WorldTerrainSystem::Build_Far_Terrain_Representation(void)
+{
+	if (!Has_Terrain()) {
+		Destroy_Far_Terrain();
+		return false;
+	}
+
+	PhysicsSceneClass * scene = PhysicsSceneClass::Get_Instance();
+	if (scene == nullptr) {
+		if (!ReportedNoFarTerrain) {
+			ReportedNoFarTerrain = true;
+			WWDEBUG_SAY(("WorldTerrainSystem: no physics scene to put far terrain in.\r\n"));
+		}
+		return false;
+	}
+
+	if (FarBlocks == nullptr) {
+		Create_Far_Block_Table();
+		if (FarBlocks == nullptr) {
+			return false;
+		}
+	}
+
+	bool first_build = (Get_Far_Block_Built_Count() == 0);
+
+	//	The drop is one number for the whole layer, so a change to it moves every block and
+	//	every block has to be refilled.  That is the price of blocks that share their edges.
+	float drop = Compute_Far_Terrain_Drop();
+	if (drop != FarTerrainDrop) {
+		FarTerrainDrop = drop;
+		for (int index = 0; index < FarBlockCountX * FarBlockCountY; index++) {
+			FarBlockDirty[index] = true;
+		}
+	}
+
+	bool built_everything = true;
+	for (int by = 0; by < FarBlockCountY; by++) {
+		for (int bx = 0; bx < FarBlockCountX; bx++) {
+			if (!Build_Far_Block(bx,by)) {
+				built_everything = false;
+			}
+		}
+	}
+
+	if (first_build) {
+		WWDEBUG_SAY(("WorldTerrainSystem: far terrain built, %d x %d blocks, %d vertices against %d near, dropped %.3fm.\r\n",
+						 FarBlockCountX,FarBlockCountY,Get_Far_Vertex_Count(),
+						 Get_Near_Vertex_Count(),FarTerrainDrop));
+	}
+
+	return built_everything;
+}
+
+
+int WorldTerrainSystem::Get_Far_Block_Built_Count(void)
+{
+	if (FarBlocks == nullptr) {
+		return 0;
+	}
+
+	int built = 0;
+	for (int index = 0; index < FarBlockCountX * FarBlockCountY; index++) {
+		if (FarBlocks[index] != nullptr) {
+			built++;
+		}
+	}
+	return built;
+}
+
+
+/*
+**	Anything the field itself marked dirty is ground the far layer is now wrong about.  Folding
+**	the flags in here rather than relying on every editor to call Invalidate_Far_Terrain_Region
+**	means a system that shapes the ground through the heightfield still gets a correct far layer.
+*/
+void WorldTerrainSystem::Fold_Dirty_Patches_Into_Far_Blocks(void)
+{
+	if ((FarBlocks == nullptr) || !Has_Terrain()) {
+		return;
+	}
+
+	for (int py = 0; py < Heightfield->Get_Patch_Count_Y(); py++) {
+		for (int px = 0; px < Heightfield->Get_Patch_Count_X(); px++) {
+			if (Heightfield->Is_Patch_Dirty(px,py)) {
+				Invalidate_Far_Block(px / FAR_BLOCK_PATCHES,py / FAR_BLOCK_PATCHES);
+			}
+		}
+	}
+}
+
+
+void WorldTerrainSystem::Update_Far_Terrain(void)
+{
+	//	Deliberately not a build, for the same reason Update_Collision is not: a caller that
+	//	shapes the ground every frame wants what it moved refilled, not a far layer created
+	//	underneath it because it called this too early.  The block table on its own is not a
+	//	layer -- a field has one from the moment it is created -- so this refills built blocks
+	//	and creates none.
+	if ((FarBlocks == nullptr) || (Get_Far_Block_Built_Count() == 0)) {
+		return;
+	}
+	if (!Has_Terrain()) {
+		Destroy_Far_Terrain();
+		return;
+	}
+
+	Fold_Dirty_Patches_Into_Far_Blocks();
+
+	//	A change in the drop moves the whole layer, so it is checked once and, if it moved, every
+	//	block is refilled rather than leaving neighbours at two different heights.
+	float drop = Compute_Far_Terrain_Drop();
+	if (drop != FarTerrainDrop) {
+		FarTerrainDrop = drop;
+		for (int index = 0; index < FarBlockCountX * FarBlockCountY; index++) {
+			FarBlockDirty[index] = true;
+		}
+	}
+
+	for (int by = 0; by < FarBlockCountY; by++) {
+		for (int bx = 0; bx < FarBlockCountX; bx++) {
+			int index = by * FarBlockCountX + bx;
+			if (FarBlockDirty[index] && (FarBlocks[index] != nullptr)) {
+				Build_Far_Block(bx,by);
+			}
+		}
+	}
+}
+
+
+void WorldTerrainSystem::Destroy_Far_Terrain(void)
+{
+	if (FarBlocks == nullptr) {
+		FarTerrainDrop = 0.0f;
+		return;
+	}
+
+	PhysicsSceneClass * scene = PhysicsSceneClass::Get_Instance();
+	int count = FarBlockCountX * FarBlockCountY;
+
+	for (int index = 0; index < count; index++) {
+
+		StaticPhysClass * phys = FarBlocks[index];
+		if (phys == nullptr) {
+			continue;
+		}
+
+		if (scene != nullptr) {
+			scene->Remove_Object(phys);
+		}
+		phys->Release_Ref();
+		FarBlocks[index] = nullptr;
+	}
+
+	delete [] FarBlocks;
+	delete [] FarBlockDirty;
+	FarBlocks = nullptr;
+	FarBlockDirty = nullptr;
+	FarBlockCountX = 0;
+	FarBlockCountY = 0;
+	FarTerrainDrop = 0.0f;
+	VisibleFarBlockCount = 0;
+}
+
+
+bool WorldTerrainSystem::Has_Far_Terrain(void)
+{
+	return (FarBlocks != nullptr);
+}
+
+
+void WorldTerrainSystem::Invalidate_Far_Block(int bx,int by)
+{
+	if (FarBlockDirty == nullptr) {
+		return;
+	}
+	if ((bx < 0) || (by < 0) || (bx >= FarBlockCountX) || (by >= FarBlockCountY)) {
+		return;
+	}
+	FarBlockDirty[by * FarBlockCountX + bx] = true;
+}
+
+
+bool WorldTerrainSystem::Is_Far_Block_Dirty(int bx,int by)
+{
+	if (FarBlockDirty == nullptr) {
+		return false;
+	}
+	if ((bx < 0) || (by < 0) || (bx >= FarBlockCountX) || (by >= FarBlockCountY)) {
+		return false;
+	}
+	return FarBlockDirty[by * FarBlockCountX + bx];
+}
+
+
+/***********************************************************************************************
+ * WorldTerrainSystem::Invalidate_Far_Terrain_Region -- an edit, named as a box                  *
+ *                                                                                              *
+ * In grid indices rather than by testing block bounding boxes, because a block's box follows    *
+ * the ground and the ground is exactly what has just changed: a valley that was deepened is     *
+ * outside the box it had a moment ago.  The footprint in X and Y is what is asked about.        *
+ *=============================================================================================*/
 void WorldTerrainSystem::Invalidate_Far_Terrain_Region(const AABoxClass & region)
 {
-	//	Nothing to invalidate until there is a far representation to hold it.  The entry point
-	//	exists so that the systems that will change the ground -- roads, water, the Commander's
-	//	construction -- can be written to tell it now.
-	(void)region;
+	if ((FarBlockDirty == nullptr) || !Has_Terrain()) {
+		return;
+	}
+
+	const Vector3 & origin = Heightfield->Get_Origin();
+	float cell = Heightfield->Get_Cell_Size();
+	if (!(cell > 0.0f)) {
+		return;
+	}
+
+	float block_size = cell * (float)(FAR_BLOCK_PATCHES * HeightfieldClass::PATCH_CELLS);
+
+	int bx0 = (int)WWMath::Floor((region.Center.X - region.Extent.X - origin.X) / block_size);
+	int bx1 = (int)WWMath::Floor((region.Center.X + region.Extent.X - origin.X) / block_size);
+	int by0 = (int)WWMath::Floor((region.Center.Y - region.Extent.Y - origin.Y) / block_size);
+	int by1 = (int)WWMath::Floor((region.Center.Y + region.Extent.Y - origin.Y) / block_size);
+
+	if (bx0 < 0) bx0 = 0;
+	if (by0 < 0) by0 = 0;
+	if (bx1 >= FarBlockCountX) bx1 = FarBlockCountX - 1;
+	if (by1 >= FarBlockCountY) by1 = FarBlockCountY - 1;
+
+	for (int by = by0; by <= by1; by++) {
+		for (int bx = bx0; bx <= bx1; bx++) {
+			FarBlockDirty[by * FarBlockCountX + bx] = true;
+		}
+	}
+}
+
+
+/*
+**	How many blocks the field wants, not how many are built.  Derived rather than stored so that
+**	a caller can ask about the layout before anything has been created -- which is the state a
+**	device-less check is in, and the state Build_Far_Terrain_Representation is in on its way to
+**	sizing its own array.
+*/
+int WorldTerrainSystem::Get_Far_Block_Count_X(void)
+{
+	if (!Has_Terrain()) {
+		return 0;
+	}
+	return (Heightfield->Get_Patch_Count_X() + FAR_BLOCK_PATCHES - 1) / FAR_BLOCK_PATCHES;
+}
+
+
+int WorldTerrainSystem::Get_Far_Block_Count_Y(void)
+{
+	if (!Has_Terrain()) {
+		return 0;
+	}
+	return (Heightfield->Get_Patch_Count_Y() + FAR_BLOCK_PATCHES - 1) / FAR_BLOCK_PATCHES;
+}
+
+
+bool WorldTerrainSystem::Get_Far_Block_Bounds(int bx,int by,AABoxClass * bounds_out)
+{
+	RenegadeTerrainPatchClass * model = Peek_Far_Block_Model(bx,by);
+	if ((model == nullptr) || (bounds_out == nullptr)) {
+		return false;
+	}
+	model->Get_Obj_Space_Bounding_Box(*bounds_out);
+	return true;
+}
+
+
+StaticPhysClass * WorldTerrainSystem::Peek_Far_Block(int bx,int by)
+{
+	if (FarBlocks == nullptr) {
+		return nullptr;
+	}
+	if ((bx < 0) || (by < 0) || (bx >= FarBlockCountX) || (by >= FarBlockCountY)) {
+		return nullptr;
+	}
+	return FarBlocks[by * FarBlockCountX + bx];
+}
+
+
+RenegadeTerrainPatchClass * WorldTerrainSystem::Peek_Far_Block_Model(int bx,int by)
+{
+	StaticPhysClass * phys = Peek_Far_Block(bx,by);
+	if (phys == nullptr) {
+		return nullptr;
+	}
+	return (RenegadeTerrainPatchClass *)phys->Peek_Model();
+}
+
+
+float WorldTerrainSystem::Get_Far_Terrain_Drop(void)
+{
+	return FarTerrainDrop;
+}
+
+
+int WorldTerrainSystem::Get_Far_Vertex_Count(void)
+{
+	int total = 0;
+	for (int by = 0; by < FarBlockCountY; by++) {
+		for (int bx = 0; bx < FarBlockCountX; bx++) {
+			RenegadeTerrainPatchClass * model = Peek_Far_Block_Model(bx,by);
+			if (model != nullptr) {
+				total += model->Get_Vertex_Count();
+			}
+		}
+	}
+	return total;
+}
+
+
+int WorldTerrainSystem::Get_Near_Vertex_Count(void)
+{
+	int total = 0;
+	for (int py = 0; py < CollisionPatchCountY; py++) {
+		for (int px = 0; px < CollisionPatchCountX; px++) {
+			RenegadeTerrainPatchClass * model = Peek_Patch_Model(px,py);
+			if (model != nullptr) {
+				total += model->Get_Vertex_Count();
+			}
+		}
+	}
+	return total;
+}
+
+
+int WorldTerrainSystem::Get_Far_Refill_Count(void)
+{
+	return FarRefillCount;
+}
+
+
+/***********************************************************************************************
+ * WorldTerrainSystem::Update_Terrain_LOD -- which representation draws which ground             *
+ *=============================================================================================*/
+void WorldTerrainSystem::Update_Terrain_LOD(const Vector3 & viewer_position)
+{
+	VisibleNearPatchCount = 0;
+	VisibleFarBlockCount = 0;
+
+	if (!Has_Terrain() || (CollisionPatches == nullptr)) {
+		return;
+	}
+
+	//	With no far layer there is nothing to hand ground over to, so every near patch draws --
+	//	including any that a previous far layer had hidden before it was destroyed.
+	if (FarBlocks == nullptr) {
+		for (int py = 0; py < CollisionPatchCountY; py++) {
+			for (int px = 0; px < CollisionPatchCountX; px++) {
+				RenegadeTerrainPatchClass * model = Peek_Patch_Model(px,py);
+				if (model != nullptr) {
+					model->Set_Hidden(false);
+					VisibleNearPatchCount++;
+				}
+			}
+		}
+		return;
+	}
+
+	for (int by = 0; by < FarBlockCountY; by++) {
+		for (int bx = 0; bx < FarBlockCountX; bx++) {
+
+			int px0 = bx * FAR_BLOCK_PATCHES;
+			int py0 = by * FAR_BLOCK_PATCHES;
+			int px1 = px0 + FAR_BLOCK_PATCHES;
+			int py1 = py0 + FAR_BLOCK_PATCHES;
+			if (px1 > CollisionPatchCountX) px1 = CollisionPatchCountX;
+			if (py1 > CollisionPatchCountY) py1 = CollisionPatchCountY;
+
+			//	One decision for the whole block.  If any patch in it is close enough to want
+			//	detail, the block draws near; a block cannot be half one thing and half the other
+			//	without drawing two surfaces over the same ground.  A block with nothing built --
+			//	the table exists before the geometry does -- has nothing to hand ground to, so it
+			//	draws near whatever the distance says.
+			RenegadeTerrainPatchClass * far_model = Peek_Far_Block_Model(bx,by);
+
+			bool draw_near = (far_model == nullptr);
+			for (int py = py0; (py < py1) && !draw_near; py++) {
+				for (int px = px0; px < px1; px++) {
+					if (Select_Render_LOD(px,py,viewer_position) != LOD_FAR) {
+						draw_near = true;
+						break;
+					}
+				}
+			}
+
+			for (int py = py0; py < py1; py++) {
+				for (int px = px0; px < px1; px++) {
+					RenegadeTerrainPatchClass * model = Peek_Patch_Model(px,py);
+					if (model != nullptr) {
+						model->Set_Hidden(!draw_near);
+						if (draw_near) {
+							VisibleNearPatchCount++;
+						}
+					}
+				}
+			}
+
+			if (far_model != nullptr) {
+				far_model->Set_Hidden(draw_near);
+				if (!draw_near) {
+					VisibleFarBlockCount++;
+				}
+			}
+		}
+	}
+}
+
+
+int WorldTerrainSystem::Get_Visible_Near_Patch_Count(void)
+{
+	return VisibleNearPatchCount;
+}
+
+
+int WorldTerrainSystem::Get_Visible_Far_Block_Count(void)
+{
+	return VisibleFarBlockCount;
 }
