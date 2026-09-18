@@ -1559,3 +1559,22 @@ vertices/draw submissions* (sixteen to one, both), *terrain edits invalidate the
 regions*, and *one canonical terrain query/collision representation remains authoritative*.
 Evidence: `docs/zerohour/FarTerrainLOD.md`; thirty green terrain ctest entries including the new
 `terrain_far` and `fds_terrain_far`.
+
+## P22-A: The draw calls count materials now, and the pool is the budget
+
+`WorldParticleManager` (`Code/ww3d2/worldparticlemanager.*`) takes the *submission* away from
+`ParticleBufferClass` without taking the simulation: a buffer still ages its particles and reads its
+own keyframes, but hands the live ones to one of three fixed pools -- sprite, point and streak, which
+are the QUAD, TRI and LINEGRP render modes -- instead of calling `PointGroupClass::Render` itself.
+Everything sharing a texture, shader, point shape and frame layout is then one draw call at the end
+of its sort level, so sixty explosions cost one state block and one vertex-buffer lock rather than
+sixty. Whether the primary gradient is disabled is part of the batch key, because its absence is a
+shader bit and merging across it would recolour untinted particles. The five budget classes Section
+26 names are real and deterministic: contention is measured at flush rather than guessed at
+submission, so while the total fits nothing is capped at all, and under pressure a class gets its
+reserve with `CRITICAL_GAMEPLAY`'s held unconditionally. Absorbs the P22 acceptance *Large firefights
+do not explode draw calls or allocations linearly with particle count*, which `shader_particles`
+proves as arithmetic: 64 emitters sharing a material draw as one batch, and a 1024 pool offered 4096
+particles draws 1024 and accounts for every one of the rest as thinned. Evidence:
+`docs/zerohour/WorldParticleManager.md`; new `shader_particles`/`fds_shader_particles`, plus
+`particle_status`, `particle_batching` and `particle_pool` at the console.

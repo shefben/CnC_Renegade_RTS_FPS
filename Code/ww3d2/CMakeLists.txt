@@ -103,6 +103,7 @@ set(WW3D2_SRC
     w3d_dep.cpp
     w3d_util.cpp
     w3dexclusionlist.cpp
+    worldparticlemanager.cpp
     ww3d.cpp
     ww3dformat.cpp
     aabtree.h
@@ -219,6 +220,7 @@ set(WW3D2_SRC
     w3d_util.h
     w3derr.h
     w3dexclusionlist.h
+    worldparticlemanager.h
     ww3d.h
     ww3dformat.h
     ww3dids.h

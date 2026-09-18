@@ -202,6 +202,13 @@ class ParticleEmitterClass : public RenderObjClass
 
 		// Buffer control
 		ParticleBufferClass *Peek_Buffer( void )					{ return Buffer; }
+
+	/*
+	**	Which shared-pool budget pays for this emitter's particles.  Forwarded to the
+	**	buffer, which is what actually submits them.  See worldparticlemanager.h.
+	*/
+	void						Set_Particle_Budget(int budget);
+	int						Get_Particle_Budget(void) const;
 		void						Buffer_Scene_Not_Needed( void )	{ BufferSceneNeeded = false; }
 		void						Remove_Buffer_From_Scene (void)	{ Buffer->Remove (); FirstTime = true; BufferSceneNeeded = true; }
 

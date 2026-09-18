@@ -92,8 +92,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P22: Particle batching (roadmap Section 26)
 
-- [ ] Acceptance: Large firefights do not explode draw calls or allocations linearly with particle count.
-
 ## P23: Weather / environment particle layer (roadmap Section 36)
 
 - [ ] Acceptance: Weather can cover a large outdoor scene at a stable bounded particle count without creating a `GameObj` per particle.

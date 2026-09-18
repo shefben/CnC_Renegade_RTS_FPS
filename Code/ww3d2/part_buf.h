@@ -165,6 +165,14 @@ class ParticleBufferClass : public RenderObjClass
 		// buffer.
 		void Set_Emitter(ParticleEmitterClass *emitter);
 
+		// Which budget class pays for this buffer's particles when the shared
+		// pool they are drawn out of is full.  See worldparticlemanager.h.
+		// PARTICLE_BUDGET_AUTO, the default, means "decide by how far away this
+		// is from the camera", which is the only answer a .w3d emitter can give
+		// because the file format has no field for it.
+		void Set_Particle_Budget(int budget)	{ ParticleBudget = budget; }
+		int  Get_Particle_Budget(void) const	{ return ParticleBudget; }
+
 		// from RenderObj...
       virtual bool	Is_Complete(void) override		{ return IsEmitterDead && !NonNewNum && !NewNum; }
 
@@ -282,6 +290,7 @@ class ParticleBufferClass : public RenderObjClass
 		int						NewParticleQueueCount;
 
 		// State global to the entire particle buffer.
+		int				ParticleBudget;// ParticleBudgetType, or PARTICLE_BUDGET_AUTO
 		int				RenderMode;		// rendering mode being used (settings found in w3d_file.h)
 		int				FrameMode;		// frame mode (settings found in w3d_file.h - 1x1..16x16)
 		Vector3			Accel;			// Worldspace acceleration per ms^2.

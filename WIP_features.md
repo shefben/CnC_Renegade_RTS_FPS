@@ -330,3 +330,17 @@ user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then `
 and `light_status` at the console, walk into and out of the ring, and report whether the world
 actually lights up, whether the lights-per-query number stays flat after `light_test 64 15`, and what
 `light_clear` leaves behind.
+
+## P22 -- batched, unwatched, and one check unconfirmed
+
+`WorldParticleManager` is in (P22-A in `completed_features.md`,
+`docs/zerohour/WorldParticleManager.md`); `shader_particles` is green on the client. Two things are
+open. `fds_shader_particles` failed once with exit code 3 and no output while the client passed; the
+scratch arrays in the check were heap-allocated and are now static, which is the suspected cause but
+is unconfirmed because the binary has not been run since. Nothing has been on a screen either: no
+batch has been drawn, nothing sets a budget class other than AUTO, and `W3D_EMITTER_RENDER_MODE_LINE`
+is unbatched by design. Next exact action is a manual one for the user: run
+`ctest -C Debug -R shader_particles --output-on-failure` in `build/win32`, and then
+`renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, fire a weapon, and compare
+`particle_status` with `particle_batching off` against `particle_batching on` -- the emitters-per-draw-call
+number is the acceptance, and it is 1.00 when batching is off.

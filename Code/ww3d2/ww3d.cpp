@@ -78,6 +78,7 @@
 
 
 #include "ww3d.h"
+#include "worldparticlemanager.h"
 #include "rinfo.h"
 #include "assetmgr.h"
 #include "boxrobj.h"
@@ -297,6 +298,12 @@ WW3DErrorType WW3D::Init(void *hwnd, char * /*defaultpal*/, bool lite)
 	Reset_Current_Static_Sort_Lists_To_Default();
 
 	/*
+	**	Size the shared particle pools.  This touches no device -- the renderers a flush needs are
+	**	built on first use -- so it is as valid on a dedicated server as on a client.
+	*/
+	WorldParticleManager::Init();
+
+	/*
 	** Initialize the animation-triggered sound system
 	*/
 	if (!lite) {
@@ -355,6 +362,11 @@ WW3DErrorType WW3D::Shutdown(void)
 	if (!Lite) {
 		DX8Wrapper::Shutdown();
 	}
+
+	/*
+	**	Give back the shared particle pools.
+	*/
+	WorldParticleManager::Shutdown();
 
 	/*
 	** Clear the default static sort lists
@@ -1033,8 +1045,15 @@ WW3DErrorType WW3D::Render(
  *=============================================================================================*/
 void WW3D::Flush(RenderInfoClass & rinfo)
 {
+	/*
+	**	Particles that never went on a static sort list were drawn, in the stock engine, during
+	**	the scene traversal -- before the mesh renderer flushed.  Draw their batches first, so
+	**	they keep that place in the order.
+	*/
+	WorldParticleManager::Flush(rinfo);
 	TheDX8MeshRenderer.Flush();
 	WW3D::Render_And_Clear_Static_Sort_Lists(rinfo);
+	WorldParticleManager::Flush(rinfo);
 	SortingRendererClass::Flush();
 	TheDX8MeshRenderer.Clear_Pending_Delete_Lists();
 }
@@ -1891,7 +1910,10 @@ void WW3D::Render_And_Clear_Static_Sort_Lists(RenderInfoClass & rinfo)
 			robj->Render(rinfo);
 			render=true;
 		}
-		if (render) TheDX8MeshRenderer.Flush();
+		if (render) {
+			WorldParticleManager::Flush(rinfo);
+			TheDX8MeshRenderer.Flush();
+		}
 	}
 	AreStaticSortListsEnabled = old_enable;
 }

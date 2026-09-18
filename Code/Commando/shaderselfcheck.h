@@ -27,6 +27,8 @@ namespace	ShaderSelfCheck
 	//	The names `main` answers to:
 	//
 	//		programs   registration, tiers, passes, and who owns the device state
+	//		pipelines  what each registered pipeline actually draws in
+	//		particles  the shared particle pools, the batch key and the budget
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "part_emt.h"
+#include "worldparticlemanager.h"
 #include "wwdebug.h"
 #include "ww3d.h"
 #include "assetmgr.h"
@@ -305,6 +306,27 @@ RenderObjClass * ParticleEmitterClass::Clone(void) const
 {
 	return new ParticleEmitterClass(*this);
 }
+
+/*
+**	Which shared-pool budget pays for this emitter's particles.  The buffer is what submits them,
+**	so it is what holds the answer; an emitter with no buffer yet has nothing to charge.
+*/
+void ParticleEmitterClass::Set_Particle_Budget(int budget)
+{
+	if (Buffer != nullptr) {
+		Buffer->Set_Particle_Budget(budget);
+	}
+}
+
+
+int ParticleEmitterClass::Get_Particle_Budget(void) const
+{
+	if (Buffer != nullptr) {
+		return Buffer->Get_Particle_Budget();
+	}
+	return PARTICLE_BUDGET_AUTO;
+}
+
 
 void ParticleEmitterClass::Restart(void)
 {

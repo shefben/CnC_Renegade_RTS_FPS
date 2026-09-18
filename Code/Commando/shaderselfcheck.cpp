@@ -6,6 +6,12 @@
 #include "shaderselfcheck.h"
 
 #include "shadermgr.h"
+#include "worldparticlemanager.h"
+
+#include "camera.h"
+#include "rinfo.h"
+#include "vector3.h"
+#include "vector4.h"
 
 #include "refcount.h"
 #include "shader.h"
@@ -529,6 +535,286 @@ int	Run_Pipelines (void)
 	return _Failures;
 }
 
+
+
+/***********************************************************************************************
+**	particles -- the shared pools, the batch key and the budget
+**
+**	Section 26's acceptance is a claim about numbers -- that a large firefight does not explode
+**	draw calls or allocations -- and numbers are what this checks.  It never draws anything: a
+**	flush with no device does every part of its work except the draw, so the batch a submission
+**	lands in, the table its particles are gathered through and the budget that paid for them are
+**	all decided and counted here exactly as they would be on a screen.
+***********************************************************************************************/
+
+namespace {
+
+enum { PARTICLE_CHECK_MAX = 4096 };
+
+/*
+**	Fixed rather than allocated, so the check owns no heap across its own exit -- a self check
+**	that leaks is a self check that reports whatever the leak tracker decides to do about it
+**	rather than what it was asked.
+*/
+Vector3			_CheckPositions[PARTICLE_CHECK_MAX];
+Vector4			_CheckDiffuse[PARTICLE_CHECK_MAX];
+bool				_CheckArraysBuilt = false;
+
+void	Build_Check_Arrays (void)
+{
+	if (_CheckArraysBuilt) {
+		return ;
+	}
+
+	for (int i = 0; i < PARTICLE_CHECK_MAX; i++) {
+		_CheckPositions[i].Set ((float)i, 0.0f, 0.0f);
+		_CheckDiffuse[i].Set (0.5f, 0.5f, 0.5f, 1.0f);
+	}
+
+	_CheckArraysBuilt = true;
+	return ;
+}
+
+/*
+**	One emitter's worth of particles, described the way a ParticleBufferClass with no property
+**	arrays describes itself -- which is the common case in stock content and the case where the
+**	batch key has to work hardest.
+*/
+ParticleSubmissionStruct	Make_Submission (int count, int budget, float distance, bool with_diffuse)
+{
+	ParticleSubmissionStruct	submission;
+
+	submission.Texture = nullptr;
+	submission.PointMode = 1;					// PointGroupClass::QUADS
+	submission.LineMode = 0;					// LineGroupClass::TETRAHEDRON
+	submission.Position = _CheckPositions;
+	submission.TailPosition = _CheckPositions;
+	submission.Diffuse = with_diffuse ? _CheckDiffuse : nullptr;
+	submission.Count = count;
+	submission.Budget = budget;
+	submission.Center.Set (distance, 0.0f, 0.0f);
+
+	return submission;
+}
+
+}	// namespace
+
+
+int	Run_Particles (void)
+{
+	Build_Check_Arrays ();
+
+	CameraClass				camera;
+	RenderInfoClass		rinfo (camera);
+
+	WorldParticleManager::Init ();
+	WorldParticleManager::Set_Enabled (true);
+	WorldParticleManager::Set_Pool_Capacity (PARTICLE_POOL_SPRITE, 1024);
+	WorldParticleManager::Set_Pool_Capacity (PARTICLE_POOL_STREAK, 256);
+
+	int	capacity = WorldParticleManager::Get_Pool_Capacity (PARTICLE_POOL_SPRITE);
+	Check (capacity == 1024, "the sprite pool was sized to %d and not 1024", capacity);
+
+	/*
+	**	The acceptance, as a number.  Sixty-four emitters that share a material are sixty-four
+	**	draw calls in the stock engine and one here, and the ratio is the point: what a batch
+	**	counts is materials, not effects.
+	*/
+	WorldParticleManager::Reset_Statistics ();
+
+	for (int i = 0; i < 64; i++) {
+		ParticleSubmissionStruct	submission = Make_Submission (8, PARTICLE_BUDGET_COMBAT_NEAR, 0.0f, false);
+		Check (WorldParticleManager::Submit (PARTICLE_POOL_SPRITE, submission),
+				"the pool refused submission %d of a material it had already taken", i);
+	}
+
+	Check (WorldParticleManager::Get_Pending_Batches (PARTICLE_POOL_SPRITE) == 1,
+			"sixty-four emitters sharing one material opened %d batches",
+			WorldParticleManager::Get_Pending_Batches (PARTICLE_POOL_SPRITE));
+
+	WorldParticleManager::Flush (rinfo);
+
+	Check (WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_SPRITE) == 64,
+			"%d emitters submitted, not 64",
+			WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_SPRITE));
+	Check (WorldParticleManager::Get_Batch_Count (PARTICLE_POOL_SPRITE) == 1,
+			"sixty-four emitters drew as %d batches, not one",
+			WorldParticleManager::Get_Batch_Count (PARTICLE_POOL_SPRITE));
+	Check (WorldParticleManager::Get_Drawn_Particles (PARTICLE_POOL_SPRITE) == 512,
+			"%d of 512 offered particles were drawn",
+			WorldParticleManager::Get_Drawn_Particles (PARTICLE_POOL_SPRITE));
+	Check (WorldParticleManager::Get_Thinned_Particles (PARTICLE_POOL_SPRITE) == 0,
+			"a submission well inside the pool lost %d particles",
+			WorldParticleManager::Get_Thinned_Particles (PARTICLE_POOL_SPRITE));
+	Check (WorldParticleManager::Get_Pending_Particles (PARTICLE_POOL_SPRITE) == 0,
+			"the flush left %d particles staged",
+			WorldParticleManager::Get_Pending_Particles (PARTICLE_POOL_SPRITE));
+
+	/*
+	**	A shader difference is a state change, so it is a second batch.  If this ever merged,
+	**	one of the two groups of particles would be drawn in the other's blend mode.
+	*/
+	WorldParticleManager::Reset_Statistics ();
+
+	for (int i = 0; i < 32; i++) {
+		ParticleSubmissionStruct	submission = Make_Submission (4, PARTICLE_BUDGET_COMBAT_NEAR, 0.0f, false);
+		submission.Shader = ShaderClass ((unsigned int)(i & 3));
+		Check (WorldParticleManager::Submit (PARTICLE_POOL_SPRITE, submission),
+				"the pool refused a submission with shader bits %d", i & 3);
+	}
+
+	Check (WorldParticleManager::Get_Pending_Batches (PARTICLE_POOL_SPRITE) == 4,
+			"thirty-two emitters using four shaders opened %d batches",
+			WorldParticleManager::Get_Pending_Batches (PARTICLE_POOL_SPRITE));
+
+	WorldParticleManager::Flush (rinfo);
+
+	Check (WorldParticleManager::Get_Batch_Count (PARTICLE_POOL_SPRITE) == 4,
+			"four shaders drew as %d batches",
+			WorldParticleManager::Get_Batch_Count (PARTICLE_POOL_SPRITE));
+
+	/*
+	**	The other half of the acceptance: the pool is the budget.  Offer it four times what it
+	**	can hold and it holds exactly what it holds, and every particle is accounted for either
+	**	as drawn or as thinned -- a pool that quietly dropped some would still look bounded.
+	*/
+	WorldParticleManager::Reset_Statistics ();
+
+	for (int i = 0; i < 64; i++) {
+		ParticleSubmissionStruct	submission = Make_Submission (64, PARTICLE_BUDGET_AMBIENT, 0.0f, false);
+		WorldParticleManager::Submit (PARTICLE_POOL_SPRITE, submission);
+	}
+
+	unsigned int	submitted = WorldParticleManager::Get_Submitted_Particles (PARTICLE_POOL_SPRITE);
+	unsigned int	drawn = WorldParticleManager::Get_Drawn_Particles (PARTICLE_POOL_SPRITE);
+	unsigned int	thinned = WorldParticleManager::Get_Thinned_Particles (PARTICLE_POOL_SPRITE);
+
+	Check (submitted == 4096, "%u particles were offered, not 4096", submitted);
+	Check (drawn <= (unsigned int)capacity, "%u particles were staged in a pool of %d", drawn, capacity);
+	Check (drawn + thinned == submitted,
+			"%u drawn plus %u thinned is not the %u offered", drawn, thinned, submitted);
+	Check (WorldParticleManager::Get_Pool_Capacity (PARTICLE_POOL_SPRITE) == capacity,
+			"the pool grew to %d under four times its capacity",
+			WorldParticleManager::Get_Pool_Capacity (PARTICLE_POOL_SPRITE));
+
+	WorldParticleManager::Flush (rinfo);
+
+	/*
+	**	That flush saw ambient demand of four times the pool, so the next accumulation runs under
+	**	caps.  Critical gameplay asks for more than its reserve and must still get its reserve --
+	**	the whole reason a class that is never the loudest is worth having.
+	*/
+	{
+		ParticleSubmissionStruct	ambient = Make_Submission (4096, PARTICLE_BUDGET_AMBIENT, 0.0f, false);
+		WorldParticleManager::Submit (PARTICLE_POOL_SPRITE, ambient);
+
+		int	after_ambient = WorldParticleManager::Get_Pending_Particles (PARTICLE_POOL_SPRITE);
+		Check (after_ambient < capacity,
+				"a capped ambient submission took %d of a %d pool", after_ambient, capacity);
+
+		ParticleSubmissionStruct	critical = Make_Submission (512, PARTICLE_BUDGET_CRITICAL_GAMEPLAY, 0.0f, false);
+		WorldParticleManager::Submit (PARTICLE_POOL_SPRITE, critical);
+
+		int	after_critical = WorldParticleManager::Get_Pending_Particles (PARTICLE_POOL_SPRITE) - after_ambient;
+		int	reserve = capacity / 4;			// the fixed critical share
+
+		Check (after_critical >= reserve,
+				"ambient at four times the pool left critical gameplay only %d of its %d reserve",
+				after_critical, reserve);
+	}
+
+	WorldParticleManager::Flush (rinfo);
+	WorldParticleManager::Reset_Statistics ();
+
+	/*
+	**	A submission that names no budget class is placed by distance.  Same effect, same
+	**	everything, twice -- once under the camera's nose and once across the map.
+	*/
+	WorldParticleManager::Set_Camera_Position (Vector3 (0.0f, 0.0f, 0.0f));
+	WorldParticleManager::Set_Combat_Near_Distance (50.0f);
+
+	{
+		ParticleSubmissionStruct	close = Make_Submission (16, PARTICLE_BUDGET_AUTO, 10.0f, false);
+		ParticleSubmissionStruct	distant = Make_Submission (32, PARTICLE_BUDGET_AUTO, 500.0f, false);
+
+		WorldParticleManager::Submit (PARTICLE_POOL_SPRITE, close);
+		WorldParticleManager::Submit (PARTICLE_POOL_SPRITE, distant);
+	}
+
+	Check (WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE, PARTICLE_BUDGET_COMBAT_NEAR) == 16,
+			"an effect ten units away was charged %u particles to COMBAT_NEAR",
+			WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE, PARTICLE_BUDGET_COMBAT_NEAR));
+	Check (WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE, PARTICLE_BUDGET_COMBAT_FAR) == 32,
+			"an effect five hundred units away was charged %u particles to COMBAT_FAR",
+			WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE, PARTICLE_BUDGET_COMBAT_FAR));
+
+	WorldParticleManager::Flush (rinfo);
+
+	/*
+	**	The pools are separate.  A streak is not a sprite and must not be charged to one, or a
+	**	scene full of tracer trails would silently ration the smoke.
+	*/
+	WorldParticleManager::Reset_Statistics ();
+
+	{
+		ParticleSubmissionStruct	streak = Make_Submission (64, PARTICLE_BUDGET_COMBAT_NEAR, 0.0f, true);
+		Check (WorldParticleManager::Submit (PARTICLE_POOL_STREAK, streak), "the streak pool refused a streak");
+	}
+
+	Check (WorldParticleManager::Get_Pending_Particles (PARTICLE_POOL_STREAK) == 64,
+			"the streak pool staged %d of 64 streaks",
+			WorldParticleManager::Get_Pending_Particles (PARTICLE_POOL_STREAK));
+	Check (WorldParticleManager::Get_Pending_Particles (PARTICLE_POOL_SPRITE) == 0,
+			"a streak was charged to the sprite pool");
+
+	WorldParticleManager::Flush (rinfo);
+
+	Check (WorldParticleManager::Get_Batch_Count (PARTICLE_POOL_STREAK) == 1,
+			"one streak emitter drew as %d batches",
+			WorldParticleManager::Get_Batch_Count (PARTICLE_POOL_STREAK));
+	Check (WorldParticleManager::Get_Batch_Count (PARTICLE_POOL_SPRITE) == 0,
+			"the sprite pool drew %d batches with nothing in it",
+			WorldParticleManager::Get_Batch_Count (PARTICLE_POOL_SPRITE));
+
+	/*
+	**	Disabled has to mean the caller draws itself, because that is the only thing that makes
+	**	"turn it off and you have the stock image" a statement about code rather than a hope.
+	*/
+	WorldParticleManager::Set_Enabled (false);
+
+	{
+		ParticleSubmissionStruct	submission = Make_Submission (8, PARTICLE_BUDGET_COMBAT_NEAR, 0.0f, false);
+		Check (WorldParticleManager::Submit (PARTICLE_POOL_SPRITE, submission) == false,
+				"a disabled manager took a submission the emitter then would not draw");
+	}
+
+	WorldParticleManager::Set_Enabled (true);
+
+	/*
+	**	And the table of batches is bounded like everything else: a pool asked for more distinct
+	**	materials than it holds refuses the extras rather than growing or overrunning.
+	*/
+	WorldParticleManager::Reset_Statistics ();
+
+	for (int i = 0; i < 256; i++) {
+		ParticleSubmissionStruct	submission = Make_Submission (1, PARTICLE_BUDGET_COMBAT_NEAR, 0.0f, false);
+		submission.Shader = ShaderClass ((unsigned int)i);
+		WorldParticleManager::Submit (PARTICLE_POOL_SPRITE, submission);
+	}
+
+	Check (WorldParticleManager::Get_Pending_Batches (PARTICLE_POOL_SPRITE) == 64,
+			"a pool asked for 256 materials opened %d batches",
+			WorldParticleManager::Get_Pending_Batches (PARTICLE_POOL_SPRITE));
+	Check (WorldParticleManager::Get_Refused_Submission_Count (PARTICLE_POOL_SPRITE) == 192,
+			"%u of the 192 materials past the table's end were refused",
+			WorldParticleManager::Get_Refused_Submission_Count (PARTICLE_POOL_SPRITE));
+
+	WorldParticleManager::Flush (rinfo);
+	WorldParticleManager::Shutdown ();
+
+	return _Failures;
+}
+
 }	// namespace
 
 
@@ -547,6 +833,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "pipelines") == 0)) {
 		Run_Pipelines ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "particles") == 0)) {
+		Run_Particles ();
 		ran = true;
 	}
 

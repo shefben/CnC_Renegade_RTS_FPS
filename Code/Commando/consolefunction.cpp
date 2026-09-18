@@ -53,6 +53,7 @@
 #include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
 #include "worldlightmanager.h"
+#include "worldparticlemanager.h"
 #include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
 #include "ribbontype.h"
@@ -1736,6 +1737,139 @@ public:
 		}
 
 		Print( "Every cached shadow will be rendered again.\n" );
+	}
+};
+
+
+/*
+**	Roadmap Section 26.  The acceptance is a ratio -- emitters per draw call -- so the command
+**	that reports it prints that ratio and not much else.  The counters run from whenever they
+**	were last cleared, which makes the ratio meaningful over any interval and the raw totals
+**	meaningful over none; `particle_status clear` starts a fresh one.
+*/
+class ParticleStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "particle_status"; }
+	virtual	const char * Get_Help( void ) override	{ return "PARTICLE_STATUS [clear] - how many emitters the particle pools drew, and in how many draw calls."; }
+	virtual	void Activate( const char * input ) override {
+
+		if ( input != nullptr && ::strstr( input, "clear" ) != nullptr ) {
+			WorldParticleManager::Reset_Statistics();
+			Print( "particle_status: counters cleared.\n" );
+			return;
+		}
+
+		Print( "particle_status: batching is %s.\n",
+				 WorldParticleManager::Is_Enabled() ? "on" : "off" );
+
+		for ( int p = 0; p < PARTICLE_POOL_COUNT; p ++ ) {
+
+			ParticlePoolType pool = (ParticlePoolType)p;
+
+			unsigned int submissions = WorldParticleManager::Get_Submission_Count( pool );
+			unsigned int batches = WorldParticleManager::Get_Batch_Count( pool );
+			unsigned int submitted = WorldParticleManager::Get_Submitted_Particles( pool );
+			unsigned int drawn = WorldParticleManager::Get_Drawn_Particles( pool );
+			unsigned int thinned = WorldParticleManager::Get_Thinned_Particles( pool );
+			unsigned int refused = WorldParticleManager::Get_Refused_Submission_Count( pool );
+
+			if ( submissions == 0 && batches == 0 ) {
+				Print( "particle_status: %s pool idle, capacity %d.\n",
+						 WorldParticleManager::Get_Pool_Name( pool ),
+						 WorldParticleManager::Get_Pool_Capacity( pool ) );
+				continue;
+			}
+
+			//	This is the number the acceptance is about.  In the stock engine it is 1.00 by
+			//	construction, because every emitter was its own draw call.
+			float ratio = ( batches > 0 ) ? ( (float)submissions / (float)batches ) : 0.0f;
+
+			Print( "particle_status: %s -- %u emitter(s) in %u draw call(s), %.1f per call.\n",
+					 WorldParticleManager::Get_Pool_Name( pool ),
+					 submissions, batches, ratio );
+
+			Print( "particle_status: %s -- %u of %u particle(s) drawn, %u thinned, capacity %d.\n",
+					 WorldParticleManager::Get_Pool_Name( pool ),
+					 drawn, submitted, thinned,
+					 WorldParticleManager::Get_Pool_Capacity( pool ) );
+
+			if ( thinned > 0 ) {
+				for ( int b = 0; b < PARTICLE_BUDGET_COUNT; b ++ ) {
+					ParticleBudgetType budget = (ParticleBudgetType)b;
+					unsigned int charged = WorldParticleManager::Get_Budget_Particles( pool, budget );
+					if ( charged > 0 ) {
+						Print( "particle_status:   %s drew %u.\n",
+								 WorldParticleManager::Get_Budget_Name( budget ), charged );
+					}
+				}
+			}
+
+			if ( refused > 0 ) {
+				Print( "particle_status: %s -- %u submission(s) refused; more than %d materials at once.\n",
+						 WorldParticleManager::Get_Pool_Name( pool ), refused, 64 );
+			}
+		}
+	}
+};
+
+
+/*
+**	The switch that makes "this changes how it is drawn, not what is drawn" checkable by eye.
+**	Off, every particle buffer draws itself exactly as stock Renegade does.
+*/
+class ParticleBatchingConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "particle_batching"; }
+	virtual	const char * Get_Help( void ) override	{ return "PARTICLE_BATCHING [on|off] - share one draw call between emitters, or let each draw itself."; }
+	virtual	void Activate( const char * input ) override {
+
+		if ( input != nullptr && ::strstr( input, "off" ) != nullptr ) {
+			WorldParticleManager::Set_Enabled( false );
+		} else if ( input != nullptr && ::strstr( input, "on" ) != nullptr ) {
+			WorldParticleManager::Set_Enabled( true );
+		}
+
+		Print( "particle_batching: %s.\n", WorldParticleManager::Is_Enabled() ? "on" : "off" );
+	}
+};
+
+
+/*
+**	How big a pool is.  Resizing reallocates the staging arrays, so it is a thing to do once
+**	while looking for the right number and not a thing to do per frame.
+*/
+class ParticlePoolConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "particle_pool"; }
+	virtual	const char * Get_Help( void ) override	{ return "PARTICLE_POOL <sprite|point|streak> <particles> - how many particles a shared pool may draw at once."; }
+	virtual	void Activate( const char * input ) override {
+
+		char	name[ 32 ] = { 0 };
+		int	capacity = 0;
+
+		if ( input == nullptr || ::sscanf( input, "%31s %d", name, &capacity ) != 2 || capacity < 1 ) {
+			for ( int p = 0; p < PARTICLE_POOL_COUNT; p ++ ) {
+				Print( "particle_pool: %s holds %d.\n",
+						 WorldParticleManager::Get_Pool_Name( (ParticlePoolType)p ),
+						 WorldParticleManager::Get_Pool_Capacity( (ParticlePoolType)p ) );
+			}
+			return;
+		}
+
+		for ( int p = 0; p < PARTICLE_POOL_COUNT; p ++ ) {
+			if ( ::stricmp( name, WorldParticleManager::Get_Pool_Name( (ParticlePoolType)p ) ) == 0 ) {
+				WorldParticleManager::Set_Pool_Capacity( (ParticlePoolType)p, capacity );
+				Print( "particle_pool: %s now holds %d.\n",
+						 WorldParticleManager::Get_Pool_Name( (ParticlePoolType)p ),
+						 WorldParticleManager::Get_Pool_Capacity( (ParticlePoolType)p ) );
+				return;
+			}
+		}
+
+		Print( "particle_pool: there is no pool called '%s'.\n", name );
 	}
 };
 
@@ -6300,6 +6434,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new ShadowStatusConsoleFunctionClass() );
 	FunctionList.Add( new ShadowModeConsoleFunctionClass() );
 	FunctionList.Add( new ShadowInvalidateConsoleFunctionClass() );
+	FunctionList.Add( new ParticleStatusConsoleFunctionClass() );
+	FunctionList.Add( new ParticleBatchingConsoleFunctionClass() );
+	FunctionList.Add( new ParticlePoolConsoleFunctionClass() );
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );

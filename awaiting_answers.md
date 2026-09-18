@@ -16,6 +16,15 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  other work.
 
 
+- **Q-012** `fds_shader_particles` failed once with exit code 3 and no output, while
+ `shader_particles` passed on the client with the same code. The check's scratch arrays
+ were heap-allocated and never freed and are now static, which is the suspected cause, but
+ it has not been rerun since -- this session was asked not to run the game. Needs one run:
+ `ctest -C Debug -R shader_particles --output-on-failure` from `build/win32`. If it still
+ fails, the abort is in `WorldParticleManager` teardown rather than the check. Not blocking
+ any other work.
+
+
 ---
 
 ## Resolved

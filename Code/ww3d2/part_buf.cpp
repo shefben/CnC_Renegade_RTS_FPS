@@ -34,6 +34,7 @@
  * Functions:                                                              *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 #include "part_buf.h"
+#include "worldparticlemanager.h"
 #include "part_emt.h"
 #include "ww3d.h"
 #include "rinfo.h"
@@ -105,6 +106,7 @@ ParticleBufferClass::ParticleBufferClass
 	NewParticleQueueStart(0U),
 	NewParticleQueueEnd(0U),
 	NewParticleQueueCount(0U),
+	ParticleBudget(PARTICLE_BUDGET_AUTO),
 	RenderMode(render_mode),
 	FrameMode(frame_mode),
 	MaxAge(int(1000.0f * max_age)),
@@ -322,6 +324,7 @@ ParticleBufferClass::ParticleBufferClass(const ParticleBufferClass & src) :
 	NewParticleQueueStart(0U),
 	NewParticleQueueEnd(0U),
 	NewParticleQueueCount(0U),
+	ParticleBudget(src.ParticleBudget),
 	RenderMode(src.RenderMode),
 	FrameMode(src.FrameMode),
 	MaxAge(src.MaxAge),
@@ -951,9 +954,55 @@ void ParticleBufferClass::Render_Particles(RenderInfoClass & rinfo)
 	}
 
 	Combine_Color_And_Alpha();
+	Update_Bounding_Box();
+
+	/*
+	**	Offer these particles to the shared pool.  If it takes them they are drawn at the end of
+	**	this sort level together with every other emitter using the same texture and shader, and
+	**	this buffer costs no draw call of its own.  If it refuses -- the manager is off -- fall
+	**	through to the stock path below, which is the image the batched path reproduces.
+	*/
+	{
+		ParticleSubmissionStruct submission;
+
+		submission.Texture					= PointGroup->Peek_Texture();
+		submission.Shader						= PointGroup->Get_Shader();
+		submission.PointMode					= (int)PointGroup->Get_Point_Mode();
+		submission.FrameRowColumnLog2		= PointGroup->Get_Frame_Row_Column_Count_Log2();
+
+		submission.Position					= Position[pingpong]->Get_Array();
+		submission.Diffuse					= Diffuse ? Diffuse->Get_Array() : nullptr;
+		submission.Size						= Size ? Size->Get_Array() : nullptr;
+		submission.Orientation				= Orientation ? Orientation->Get_Array() : nullptr;
+		submission.Frame						= Frame ? Frame->Get_Array() : nullptr;
+
+		/*
+		**	The defaults have to be the ones the point group would have used, which are the
+		**	zeroth keyframe of each property -- and, for orientation, zero, because the absence
+		**	of the array means both the keyframes and the randomiser were absent.
+		*/
+		submission.DefaultDiffuse			= Vector4(ColorKeyFrameValues[0].X,ColorKeyFrameValues[0].Y,
+														ColorKeyFrameValues[0].Z,AlphaKeyFrameValues[0]);
+		submission.DefaultSize				= SizeKeyFrameValues[0];
+		submission.DefaultOrientation		= 0;
+		submission.DefaultFrame				= (unsigned char)(((int)(FrameKeyFrameValues[0])) & 0xFF);
+
+		submission.APT							= apt ? apt->Get_Array() : nullptr;
+		submission.Count						= (int)active_point_count;
+		submission.Center						= BoundingBox.Center;
+		submission.Budget						= ParticleBudget;
+
+		WorldParticleManager::Set_Camera_Position(rinfo.Camera.Get_Position());
+
+		ParticlePoolType pool = (RenderMode == W3D_EMITTER_RENDER_MODE_QUAD_PARTICLES)
+											? PARTICLE_POOL_SPRITE : PARTICLE_POOL_POINT;
+
+		if (WorldParticleManager::Submit(pool,submission)) {
+			return;
+		}
+	}
 
 	PointGroup->Set_Arrays(Position[pingpong], Diffuse, apt, Size, Orientation, Frame, active_point_count);
-	Update_Bounding_Box();
 	PointGroup->Render(rinfo);
 }
 
@@ -1087,8 +1136,47 @@ void ParticleBufferClass::Render_Line_Group(RenderInfoClass & rinfo)
 	if (!TailDiffuse)
 		LineGroup->Set_Tail_Diffuse(DefaultTailDiffuse);
 
-	LineGroup->Set_Arrays(Position[pingpong], TailPosition,Diffuse,TailDiffuse, apt, Size, UCoord, active_point_count);
 	Update_Bounding_Box();
+
+	/*
+	**	Offer these streaks to the shared streak pool, on the same terms as Render_Particles
+	**	offers its sprites.  The tail colour is the one property a streak has that a sprite does
+	**	not, and it is handed over the same way: the array when there is one, the default the
+	**	line group would otherwise have been set when there is not.
+	*/
+	{
+		ParticleSubmissionStruct submission;
+
+		submission.Texture					= LineGroup->Peek_Texture();
+		submission.Shader						= LineGroup->Get_Shader();
+		submission.LineMode					= (int)LineGroup->Get_Line_Mode();
+
+		submission.Position					= Position[pingpong]->Get_Array();
+		submission.TailPosition				= TailPosition ? TailPosition->Get_Array() : nullptr;
+		submission.Diffuse					= Diffuse ? Diffuse->Get_Array() : nullptr;
+		submission.TailDiffuse				= TailDiffuse ? TailDiffuse->Get_Array() : nullptr;
+		submission.Size						= Size ? Size->Get_Array() : nullptr;
+		submission.UCoord						= UCoord ? UCoord->Get_Array() : nullptr;
+
+		submission.DefaultDiffuse			= Vector4(ColorKeyFrameValues[0].X,ColorKeyFrameValues[0].Y,
+														ColorKeyFrameValues[0].Z,AlphaKeyFrameValues[0]);
+		submission.DefaultTailDiffuse		= DefaultTailDiffuse;
+		submission.DefaultSize				= SizeKeyFrameValues[0];
+		submission.DefaultUCoord			= FrameKeyFrameValues[0];
+
+		submission.APT							= apt ? apt->Get_Array() : nullptr;
+		submission.Count						= (int)active_point_count;
+		submission.Center						= BoundingBox.Center;
+		submission.Budget						= ParticleBudget;
+
+		WorldParticleManager::Set_Camera_Position(rinfo.Camera.Get_Position());
+
+		if (WorldParticleManager::Submit(PARTICLE_POOL_STREAK,submission)) {
+			return;
+		}
+	}
+
+	LineGroup->Set_Arrays(Position[pingpong], TailPosition,Diffuse,TailDiffuse, apt, Size, UCoord, active_point_count);
 	LineGroup->Render(rinfo);
 }
 
