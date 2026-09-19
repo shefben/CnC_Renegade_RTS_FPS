@@ -58,6 +58,16 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  device-less and self-contained (no file I/O, no scene, no device), so a failure in one of them is
  a real defect rather than an environment problem.
 
+ **Update, a third pass.** Phases 46-50 added three more: `shader_visualsettings`,
+ `shader_skyclock`, `shader_lightcurves` (each with an `fds_` twin), bringing the total to
+ twenty-two -- still covered by the same `"shader_|fds_shader_|terrain_shroud"` pattern above, no
+ change needed to the command. Also still needing a person in game, with no ctest family possible:
+ P47's DistLOD/terrain LOD dissolve and P48's moving sun/P49's relighting both need eyes on a running
+ client over real time (`docs/zerohour/VisualFidelityProgram.md` states plainly that nothing in that
+ doc has been seen on screen), and P50's building-power light response needs a fixture actually
+ authored with its `Group ID` set to a building's `Get_ID()`, which nothing in this codebase does yet
+ (`docs/assets/VisualFidelity.md`).
+
 
 - **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`
  "through the existing vcpkg/CMake dependency system." This machine has no `VCPKG_ROOT` and no

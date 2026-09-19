@@ -922,6 +922,32 @@ bool DX8Wrapper::Set_Render_Device(int dev, int width, int height, int bits, int
 			_PresentParameters.AutoDepthStencilFormat=D3DFMT_D16;
 		}
 	}
+
+	/*
+	**	Roadmap Section 52A, Phase 46.  0 (the default) leaves `MultiSampleType` at the NONE
+	**	already set above, so a caller who never touches `WW3D::Set_Antialias_Quality` gets
+	**	stock rendering exactly.  Multisampling is a D3DSWAPEFFECT_DISCARD-only feature in D3D9;
+	**	a level the device does not actually report support for degrades to the next one down
+	**	rather than failing device creation, and 0 remains a valid fallback for every device.
+	*/
+	if ((WW3D::Get_Antialias_Quality() > 0) && (_PresentParameters.SwapEffect == D3DSWAPEFFECT_DISCARD)) {
+
+		static const D3DMULTISAMPLE_TYPE sample_types[3] =
+			{ D3DMULTISAMPLE_NONE, D3DMULTISAMPLE_2_SAMPLES, D3DMULTISAMPLE_4_SAMPLES };
+
+		for (int level = WW3D::Get_Antialias_Quality(); level > 0; level--) {
+			DWORD quality_levels = 0;
+			HRESULT hr = D3DInterface->CheckDeviceMultiSampleType(
+				CurRenderDevice, WW3D_DEVTYPE, _PresentParameters.BackBufferFormat,
+				_PresentParameters.Windowed, sample_types[level], &quality_levels);
+			if (SUCCEEDED(hr) && (quality_levels > 0)) {
+				_PresentParameters.MultiSampleType = sample_types[level];
+				_PresentParameters.MultiSampleQuality = 0;
+				break;
+			}
+		}
+	}
+
 	return Create_Device();
 }
 

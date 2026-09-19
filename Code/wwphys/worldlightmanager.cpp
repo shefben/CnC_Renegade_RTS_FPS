@@ -78,6 +78,7 @@ unsigned int	WorldLightManager::MaxLitObjects			= WORLD_LIGHT_DEFAULT_LIT_OBJECT
 
 TypedGridCullSystemClass<LightPhysClass> *	WorldLightManager::Grid = nullptr;
 DynamicVectorClass<WorldLightManager::DynamicLightClass>	WorldLightManager::Lights;
+DynamicVectorClass<LightPhysClass *>								WorldLightManager::AllLights;
 
 AABoxClass		WorldLightManager::LightBounds(Vector3(0,0,0),Vector3(0,0,0));
 bool				WorldLightManager::BoundsDirty			= true;
@@ -495,6 +496,20 @@ void WorldLightManager::Move_Dynamic_Light(LightPhysClass * light,const Vector3 
  *=============================================================================================*/
 void WorldLightManager::Timestep(float dt)
 {
+	/*
+	**	Roadmap Section 52A, Phase 50.  Independent of Initialized/Partitioned -- a light's
+	**	curve is a property of the light itself, not of the dynamic-light grid, and a light can
+	**	exist (and animate) whether or not the grid this function's dynamic-light half needs has
+	**	ever been built.
+	*/
+	for (int i = AllLights.Count() - 1; i >= 0; i--) {
+		LightPhysClass * light = AllLights[i];
+		if ((light != nullptr) && (light->Peek_Model() != nullptr) &&
+			 (light->Peek_Model()->Class_ID() == RenderObjClass::CLASSID_LIGHT)) {
+			((LightClass *)light->Peek_Model())->Update_Light_Curve(dt);
+		}
+	}
+
 	if (!Initialized) {
 		return ;
 	}
@@ -520,6 +535,53 @@ void WorldLightManager::Timestep(float dt)
 		LightClass * light_obj = (LightClass *)record.Light->Peek_Model();
 		if (light_obj != nullptr) {
 			light_obj->Set_Intensity(record.BaseIntensity * (record.Life / record.MaxLife));
+		}
+	}
+}
+
+
+/***********************************************************************************************
+ * WorldLightManager::Register_Light / Unregister_Light -- roadmap Section 52A, Phase 50.      *
+ *=============================================================================================*/
+void WorldLightManager::Register_Light(LightPhysClass * light)
+{
+	if (light == nullptr) return;
+	if (AllLights.ID(light) == -1) {
+		AllLights.Add(light);
+	}
+}
+
+
+void WorldLightManager::Unregister_Light(LightPhysClass * light)
+{
+	if (light == nullptr) return;
+	int index = AllLights.ID(light);
+	if (index != -1) {
+		AllLights.Delete(index);
+	}
+}
+
+
+/***********************************************************************************************
+ * WorldLightManager::Set_Group_Curve -- roadmap Section 52A, Phase 50.                        *
+ *   Building power/damage (building.cpp) is the only caller.  A group id of 0 -- every light's *
+ *   default -- matches nothing, so a light nobody ever associated with a building is never     *
+ *   touched by this.                                                                           *
+ *=============================================================================================*/
+void WorldLightManager::Set_Group_Curve(uintptr_t group_id,LightClass::LightCurveType curve)
+{
+	if (group_id == 0) return;
+
+	for (int i = 0; i < AllLights.Count(); i++) {
+
+		LightPhysClass * light = AllLights[i];
+		if ((light == nullptr) || (light->Get_Group_ID() != group_id)) {
+			continue;
+		}
+
+		RenderObjClass * model = light->Peek_Model();
+		if ((model != nullptr) && (model->Class_ID() == RenderObjClass::CLASSID_LIGHT)) {
+			((LightClass *)model)->Set_Light_Curve(curve);
 		}
 	}
 }

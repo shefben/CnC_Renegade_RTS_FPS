@@ -47,6 +47,7 @@
 #include "aabox.h"
 #include "bittype.h"
 #include "gridcull.h"
+#include "light.h"
 #include "physlist.h"
 #include "vector.h"
 #include "vector3.h"
@@ -135,8 +136,25 @@ public:
 
 	/*
 	**	Fades and expires the lights with a lifetime.  Driven from PhysicsSceneClass::Update.
+	**	Also drives every registered light's curve (roadmap Section 52A, Phase 50) -- a no-op
+	**	per light unless something called LightClass::Set_Light_Curve on it.
 	*/
 	static void			Timestep(float dt);
+
+	/*
+	**	Roadmap Section 52A, Phase 50.  Every LightPhysClass registers/unregisters itself
+	**	(lightphys.cpp); nothing outside wwphys needs to call these two.
+	*/
+	static void			Register_Light(LightPhysClass * light);
+	static void			Unregister_Light(LightPhysClass * light);
+
+	/*
+	**	The building-power/damage hook (building.cpp) calls this, and only this -- wwphys has
+	**	no notion of a building, only of a group id a level author or a building assigned to a
+	**	light's LightPhysClass::Set_Group_ID.  A group id of 0 (the default) matches nothing,
+	**	which is what keeps an unassociated light untouched.
+	*/
+	static void			Set_Group_Curve(uintptr_t group_id,LightClass::LightCurveType curve);
 
 	/*
 	**	The queries.  These are what Section 25 is about: the returned set is the lights whose
@@ -215,6 +233,10 @@ private:
 	*/
 	static TypedGridCullSystemClass<LightPhysClass> *	Grid;
 	static DynamicVectorClass<DynamicLightClass>			Lights;
+
+	//	Phase 50.  Every LightPhysClass that exists, static or dynamic -- plain object, not a
+	//	pointer, so Register/Unregister are safe to call whether or not Init/Shutdown has run.
+	static DynamicVectorClass<LightPhysClass *>			AllLights;
 
 	static AABoxClass	LightBounds;			// union of every dynamic light volume
 	static bool			BoundsDirty;

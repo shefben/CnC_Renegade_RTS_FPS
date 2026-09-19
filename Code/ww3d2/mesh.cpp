@@ -174,7 +174,9 @@ MeshClass::MeshClass(void) :
 	NextVisibleSkin(nullptr),
 	IsDisabledByDebugger(false),
 	MeshDebugId(MeshDebugIdCount++),
-	UserLighting(nullptr)
+	UserLighting(nullptr),
+	SunRelightBase(nullptr),
+	SunVisibility(nullptr)
 {
 }
 
@@ -201,7 +203,9 @@ MeshClass::MeshClass(const MeshClass & that) :
 	NextVisibleSkin(nullptr),
 	IsDisabledByDebugger(false),
 	MeshDebugId(MeshDebugIdCount++),
-	UserLighting(nullptr)
+	UserLighting(nullptr),
+	SunRelightBase(nullptr),
+	SunVisibility(nullptr)
 {
 	REF_PTR_SET(Model,that.Model);					// mesh instances share models by default
 }
@@ -238,6 +242,10 @@ MeshClass & MeshClass::operator = (const MeshClass & that)
 			delete[] UserLighting;
 			UserLighting = nullptr;
 		}
+
+		Unregister_For_Sun_Relighting(this);
+		if (SunRelightBase != nullptr) { delete[] SunRelightBase; SunRelightBase = nullptr; }
+		if (SunVisibility != nullptr)  { delete[] SunVisibility;  SunVisibility  = nullptr; }
 	}
 	return * this;
 }
@@ -304,6 +312,10 @@ void MeshClass::Free(void)
 		delete[] UserLighting;
 		UserLighting = nullptr;
 	}
+
+	Unregister_For_Sun_Relighting(this);
+	if (SunRelightBase != nullptr) { delete[] SunRelightBase; SunRelightBase = nullptr; }
+	if (SunVisibility != nullptr)  { delete[] SunVisibility;  SunVisibility  = nullptr; }
 }
 
 
@@ -1526,6 +1538,85 @@ void MeshClass::Install_User_Lighting_Array(Vector4 * lighting)
 	}
 
 	setup_materials_for_user_lighting();
+}
+
+
+//	Roadmap Section 52A, Phase 49.  A file-local registry rather than a header dependency --
+//	nothing outside mesh.cpp needs to know it exists, only that Register/Unregister/Update work.
+static DynamicVectorClass<MeshClass *> _SunRelightRegistry;
+
+
+void MeshClass::Install_Sun_Relighting_Data(unsigned int * base_without_sun,unsigned char * sun_visibility)
+{
+	int vcount = Model->Get_Vertex_Count();
+
+	if (SunRelightBase == nullptr) SunRelightBase = new unsigned int[vcount];
+	if (SunVisibility  == nullptr) SunVisibility  = new unsigned char[vcount];
+
+	::memcpy(SunRelightBase,base_without_sun,vcount * sizeof(unsigned int));
+	::memcpy(SunVisibility,sun_visibility,vcount * sizeof(unsigned char));
+
+	Register_For_Sun_Relighting(this);
+}
+
+
+void MeshClass::Apply_Sun_Relighting(const Vector3 & sun_color)
+{
+	if ((SunRelightBase == nullptr) || (SunVisibility == nullptr)) {
+		return;
+	}
+
+	Get_User_Lighting_Array(true);
+
+	int vcount = Model->Get_Vertex_Count();
+	for (int vi = 0; vi < vcount; vi++) {
+
+		Vector4 base = DX8Wrapper::Convert_Color(SunRelightBase[vi]);
+		float visibility = (float)SunVisibility[vi] * (1.0f / 255.0f);
+
+		Vector4 relit (
+			base.X + visibility * sun_color.X,
+			base.Y + visibility * sun_color.Y,
+			base.Z + visibility * sun_color.Z,
+			base.W);
+
+		if (relit.X > 1.0f) relit.X = 1.0f;
+		if (relit.Y > 1.0f) relit.Y = 1.0f;
+		if (relit.Z > 1.0f) relit.Z = 1.0f;
+
+		UserLighting[vi] = DX8Wrapper::Convert_Color(relit);
+	}
+
+	//	setup_materials_for_user_lighting only needs to run once -- Install_User_Lighting_Array
+	//	already did it when this mesh's base solve was first installed -- so re-relighting just
+	//	rewrites the array the materials already point at.
+}
+
+
+void MeshClass::Register_For_Sun_Relighting(MeshClass * mesh)
+{
+	if (mesh == nullptr) return;
+	if (_SunRelightRegistry.ID(mesh) == -1) {
+		_SunRelightRegistry.Add(mesh);
+	}
+}
+
+
+void MeshClass::Unregister_For_Sun_Relighting(MeshClass * mesh)
+{
+	if (mesh == nullptr) return;
+	int index = _SunRelightRegistry.ID(mesh);
+	if (index != -1) {
+		_SunRelightRegistry.Delete(index);
+	}
+}
+
+
+void MeshClass::Update_Sun_Relighting(const Vector3 & sun_color)
+{
+	for (int i = 0; i < _SunRelightRegistry.Count(); i++) {
+		_SunRelightRegistry[i]->Apply_Sun_Relighting(sun_color);
+	}
 }
 
 void MeshClass::setup_materials_for_user_lighting(void)

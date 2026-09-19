@@ -45,7 +45,9 @@
 #include "dx8wrapper.h"
 #include "gameobjmanager.h"
 #include "gametype.h"
+#include "light.h"
 #include "matrix3d.h"
+#include "mesh.h"
 #include "phys.h"
 #include "pscene.h"
 #include "random.h"
@@ -68,6 +70,9 @@ BackgroundMgrClass _TheBackgroundMgr;
 // Static data.
 unsigned											  BackgroundMgrClass::_Hours;
 unsigned											  BackgroundMgrClass::_Minutes;
+bool												  BackgroundMgrClass::_ClockDrivesSun			= false;
+float												  BackgroundMgrClass::_ClockRateHoursPerSecond	= 0.0f;
+float												  BackgroundMgrClass::_ClockFractionalHours		= 0.0f;
 BackgroundMgrClass::LightSourceTypeEnum  BackgroundMgrClass::_LightSourceType;
 SkyClass::MoonTypeEnum						  BackgroundMgrClass::_MoonType;
 bool												  BackgroundMgrClass::_MoonIsEarth;
@@ -3819,6 +3824,60 @@ void BackgroundMgrClass::Update (PhysicsSceneClass *mainscene, CameraClass *came
 	WWASSERT (_Sky != nullptr);
 	WWASSERT (_Dazzle != nullptr);
 
+	/*
+	**	Phase 48's sky clock (roadmap Section 52A).  `_ClockDrivesSun` off is the default and
+	**	leaves this whole block unreached, so a level's authored sun is never touched.  Once
+	**	on, the server alone advances the clock (Section 47: only the server is authoritative);
+	**	both sides apply the resulting angle to the same `PhysicsSceneClass::Set_Sun_Light_Orientation`
+	**	a level author would otherwise have called, so WorldShadowManager and static lighting see
+	**	it with no change of their own -- they already re-read the sun fresh on every use.
+	*/
+	if (_ClockDrivesSun) {
+
+		float clockdt = WW3D::Get_Frame_Time() * 0.001f;
+
+		if (CombatManager::I_Am_Server() && (_ClockRateHoursPerSecond != 0.0f)) {
+
+			_ClockFractionalHours += _ClockRateHoursPerSecond * clockdt;
+			while (_ClockFractionalHours >= 24.0f) _ClockFractionalHours -= 24.0f;
+			while (_ClockFractionalHours <  0.0f)  _ClockFractionalHours += 24.0f;
+
+			unsigned new_hours	= (unsigned) _ClockFractionalHours;
+			unsigned new_minutes	= (unsigned) ((_ClockFractionalHours - (float)new_hours) * 60.0f);
+			if ((new_hours != _Hours) || (new_minutes != _Minutes)) {
+				Set_Time_Of_Day (new_hours, new_minutes);
+			}
+		}
+
+		//	A stylised day arc: azimuth sweeps once per day, elevation peaks at noon and dips
+		//	below the horizon at night.  Not astronomically exact -- nothing in Section 52A asks
+		//	for that -- just continuous and reversible.
+		float day_fraction	= ((float)_Hours + ((float)_Minutes / 60.0f)) / 24.0f;
+		float sun_yaw			= day_fraction * (2.0f * WWMATH_PI);
+		float sun_pitch		= DEG_TO_RADF (70.0f) * WWMath::Sin ((day_fraction - 0.25f) * 2.0f * WWMATH_PI);
+		mainscene->Set_Sun_Light_Orientation (sun_yaw, sun_pitch);
+
+		/*
+		**	Roadmap Section 52A, Phase 49.  Relights every mesh Phase 49's load-time bake gave
+		**	relighting data to, so outdoor baked lighting tracks the sun the clock just moved.
+		**	Throttled, not per-frame: this walks the whole registry, and the sun's position
+		**	changes slowly enough that a two-second cadence is not visible as a step.
+		*/
+		static float _RelightAccumulator = 0.0f;
+		const float RELIGHT_INTERVAL_SECONDS = 2.0f;
+		_RelightAccumulator += clockdt;
+		if (_RelightAccumulator >= RELIGHT_INTERVAL_SECONDS) {
+			_RelightAccumulator = 0.0f;
+			LightClass * sun_light = mainscene->Get_Sun_Light();
+			if (sun_light != nullptr) {
+				Vector3 sun_color;
+				sun_light->Get_Diffuse (&sun_color);
+				MeshClass::Update_Sun_Relighting (sun_color);
+				REF_PTR_RELEASE (sun_light);
+			}
+		}
+	}
+
 	if (Is_Dirty()) {
 		_Sky->Set_Time_Of_Day (_Hours, _Minutes);
 		_Sky->Set_Moon_Type (_MoonType, _MoonIsEarth);
@@ -4135,6 +4194,23 @@ object.Add (_Parameters [PARAMETER_ ## varname].NormalDuration); \
 object.Add (_Parameters [PARAMETER_ ## varname].OverrideTarget); \
 object.Add (_Parameters [PARAMETER_ ## varname].OverrideDuration)
 
+/***********************************************************************************************
+ * BackgroundMgrClass::Set_Sky_Clock_Rate --																	  *
+ *   Roadmap Section 52A, Phase 48.  Server-only: turns the sky clock on (if it was not		  *
+ *   already) and sets how fast it runs.  A rate of zero still counts as "on" -- it freezes	  *
+ *   the clock at its current hour rather than handing the sun back to the level.				  *
+ *=============================================================================================*/
+void BackgroundMgrClass::Set_Sky_Clock_Rate (float hours_per_second)
+{
+	WWASSERT (CombatManager::I_Am_Server());
+
+	_ClockDrivesSun			= true;
+	_ClockRateHoursPerSecond	= hours_per_second;
+	_ClockFractionalHours		= (float)_Hours + ((float)_Minutes / 60.0f);
+	Set_Dirty();
+}
+
+
 void BackgroundMgrClass::Export_Rare (BitStreamClass &packet)
 {
 	WWASSERT (CombatManager::I_Am_Server());
@@ -4151,6 +4227,13 @@ void BackgroundMgrClass::Export_Rare (BitStreamClass &packet)
 	packet.Add (_LightningOverrideCount);
 	packet.Add (_SkyTintOverrideCount);
 	packet.Add (_MoonIsEarth);
+
+	//	Phase 48's sky clock: the hour, and whether/how fast it is running, so a late-joining
+	//	client agrees with everyone else from its very first packet.
+	packet.Add ((unsigned)_Hours);
+	packet.Add ((unsigned)_Minutes);
+	packet.Add (_ClockDrivesSun);
+	packet.Add (_ClockRateHoursPerSecond);
 }
 
 
@@ -4195,6 +4278,26 @@ void BackgroundMgrClass::Import_Rare (BitStreamClass &packet)
 			_MoonIsEarth = earth;
 			Set_Dirty();
 		}
+	}
+
+	//	Phase 48's sky clock: told, not derived -- a client never runs its own clock, only
+	//	applies the hour and drive state the server most recently sent.
+	{
+		unsigned hours = 0, minutes = 0;
+		bool drivessun = false;
+		float rate = 0.0f;
+
+		packet.Get (hours);
+		packet.Get (minutes);
+		packet.Get (drivessun);
+		packet.Get (rate);
+
+		_ClockDrivesSun			= drivessun;
+		_ClockRateHoursPerSecond	= rate;
+		if ((hours != _Hours) || (minutes != _Minutes)) {
+			Set_Time_Of_Day (hours, minutes);
+		}
+		_ClockFractionalHours = (float)_Hours + ((float)_Minutes / 60.0f);
 	}
 }
 

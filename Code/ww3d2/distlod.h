@@ -159,6 +159,11 @@ private:
 	int								CurLod;					// which model is currently used for rendering
 	int								VpPushLod;				// which model was used for the vp->push (in CurLod changes before the pop)
 	LODNodeClass *					Lods;						// one LODNodeClass for each level
+
+	//	Roadmap Section 52A, Phase 47.  Off by default (WW3D::Get_LOD_Dissolve_Enabled), so
+	//	OverlapTimer never goes above zero and Render draws exactly what it always drew.
+	int								PrevLod;					// -1 = no handover in progress
+	float								OverlapTimer;			// seconds left that PrevLod still draws alongside CurLod
 };
 
 

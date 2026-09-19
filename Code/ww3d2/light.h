@@ -149,6 +149,24 @@ public:
 	void						Compute_Lighting(const Vector3 & pos,const Vector3 & norm, Vector3 * set_ambient, Vector3 * set_diffuse);
 
 	/////////////////////////////////////////////////////////////////////////////
+	//	Roadmap Section 52A, Phase 50.  STEADY is the default and Update_Light_Curve is a
+	//	no-op for it, so a light nobody calls Set_Light_Curve on animates exactly as it always
+	//	did.  Set_Light_Curve snapshots the light's Intensity at the moment it is called as the
+	//	100% point the curve multiplies against, so switching curves never jumps the brightness.
+	/////////////////////////////////////////////////////////////////////////////
+	enum LightCurveType {
+		LIGHT_CURVE_STEADY = 0,		// default: Update_Light_Curve does nothing
+		LIGHT_CURVE_FLICKER,			// unsteady, bulb-with-a-loose-contact style
+		LIGHT_CURVE_PULSE,				// smooth breathing between a floor and full intensity
+		LIGHT_CURVE_WARMUP,			// ramps 0 -> full once, then behaves like STEADY
+		LIGHT_CURVE_FAIL				// ramps full -> 0 once; Section 40 power/damage drives this
+	};
+
+	void						Set_Light_Curve(LightCurveType curve);
+	LightCurveType			Get_Light_Curve(void) const	{ return Curve; }
+	void						Update_Light_Curve(float dt);
+
+	/////////////////////////////////////////////////////////////////////////////
 	// Save/Load
 	/////////////////////////////////////////////////////////////////////////////
 	WW3DErrorType			Load_W3D(ChunkLoadClass & cload);
@@ -181,6 +199,14 @@ protected:
 	float						SpotAngleCos;
 	float						SpotExponent;
 	Vector3					SpotDirection;
+
+	//	Phase 50.  CurveBaseIntensity is what Intensity was the moment Set_Light_Curve was
+	//	called; CurveSeed keeps several FLICKER lights out of lockstep without any of them
+	//	needing to be told apart by a caller.
+	LightCurveType			Curve;
+	float						CurveTime;
+	float						CurveBaseIntensity;
+	float						CurveSeed;
 };
 
 #endif

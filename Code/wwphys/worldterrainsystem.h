@@ -294,6 +294,13 @@ private:
 	static int						FarBlockCountX;
 	static int						FarBlockCountY;
 	static float					FarTerrainDrop;
+
+	//	Roadmap Section 52A, Phase 47: the far/near handover dissolve.  Parallel to FarBlocks,
+	//	same lifetime, same indexing.  FarBlockLastNear is last frame's decision, so a change
+	//	is detected without needing a getter off RenegadeTerrainPatchClass; FarBlockOverlapTimer
+	//	counts down the window during which both layers stay drawn together.
+	static bool *					FarBlockLastNear;
+	static float *					FarBlockOverlapTimer;
 	static int						FarRefillCount;
 	static int						VisibleNearPatchCount;
 	static int						VisibleFarBlockCount;

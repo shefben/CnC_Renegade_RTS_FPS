@@ -100,31 +100,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P26: Modular draw components + composite attachments (roadmap Section 29)
 
-## P46: Sampler/filtering/antialias quality defaults (roadmap Section 52A)
-
-- [ ] Anisotropic/trilinear/mip-bias/multisample defaults chosen from device capability in dx8wrapper, texture reduction off.
-- [ ] Acceptance: Stock textures resolve visibly further at grazing angles, and stock-equivalent settings reproduce the current image.
-
-## P47: Level-of-detail and far-terrain cross-fade (roadmap Section 52A)
-
-- [ ] Distance-band dissolve in distlod, same blend at the Section 34 far/near terrain block handover.
-- [ ] Acceptance: No single-frame LOD pop, and the far/near handover is not locatable by eye.
-
-## P48: Server-authoritative sky clock with moving sun and moon (roadmap Section 52A)
-
-- [ ] Replicated clock behind SkyClass::Set_Time_Of_Day/Set_Light_Direction, feeding the scene light environment and WorldShadowManager caster direction.
-- [ ] Acceptance: Sun crosses the sky over a match, shadows rotate and lengthen with it, night falls, clients agree on the hour, and a zero rate reproduces authored appearance.
-
-## P49: Time-of-day relighting of baked static lighting (roadmap Section 52A)
-
-- [ ] Second per-vertex sun-visibility scalar beside the existing lightsolve bake, composed at runtime with current sun colour; derived at load for stock meshes.
-- [ ] Acceptance: Outdoor baked lighting tracks the sun, indoor lighting does not change, and no .w3d is re-exported.
-
-## P50: Animated static lights (roadmap Section 52A)
-
-- [ ] Steady/flicker/pulse/warm-up/fail curves on the light itself, fail wired to Section 40 power and damage state.
-- [ ] Acceptance: Powered-down or destroyed buildings go dark through the existing grid state, and steady lights render as they do today.
-
 ## P51: Height fog tied to the horizon colour (roadmap Section 52A)
 
 - [ ] Height-based fog term with colour taken from HazeClass::Get_Horizon_Color so it moves with the sky clock.

@@ -520,6 +520,20 @@ class	BackgroundMgrClass : public SaveLoadSubSystemClass, public NetworkObjectCl
 			minutes = _Minutes;
 		}
 
+		/*
+		**	Server-authoritative sky clock (roadmap Section 52A, Phase 48).  Calling this at
+		**	all -- even with a rate of zero -- is the runtime switch: from that call on, the
+		**	clock owns PhysicsSceneClass's sun orientation every `Update`, replicated the same
+		**	way as every other background parameter, and Section 47's server-only rule still
+		**	holds because it is the server that calls this, never a client.  Never calling it
+		**	(the default) leaves a level's authored sun untouched -- "zero rate reproduces
+		**	authored appearance" holds both when the rate is zero and when the clock was never
+		**	turned on at all.
+		*/
+		static void Set_Sky_Clock_Rate (float hours_per_second);
+		static float Get_Sky_Clock_Rate()		{ return (_ClockRateHoursPerSecond); }
+		static bool  Is_Sky_Clock_Active()		{ return (_ClockDrivesSun); }
+
 		static void	Set_Light_Source_Type (LightSourceTypeEnum lightsourcetype)
 		{
 			_LightSourceType = lightsourcetype;
@@ -652,6 +666,13 @@ class	BackgroundMgrClass : public SaveLoadSubSystemClass, public NetworkObjectCl
 
 		static unsigned							_Hours;
 		static unsigned							_Minutes;
+
+		//	Phase 48's sky clock (roadmap Section 52A). Off (both default) reproduces
+		//	whatever the level authored, byte for byte.
+		static bool									_ClockDrivesSun;
+		static float								_ClockRateHoursPerSecond;
+		static float								_ClockFractionalHours;
+
 		static LightSourceTypeEnum				_LightSourceType;
   		static SkyClass::MoonTypeEnum			_MoonType;
   		static bool									_MoonIsEarth;

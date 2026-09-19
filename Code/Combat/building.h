@@ -277,6 +277,15 @@ public:
 	bool											Is_Destroyed (void) const { return IsDestroyed; }
 	void											Set_Is_Destroyed (bool onoff);
 
+	/*
+	**	Roadmap Section 52A, Phase 50.  The other half of lightphys.h's own "the building code
+	**	uses the Group ID..." comment: any LightPhysClass whose Group ID was authored (or set)
+	**	to equal this building's own Get_ID() follows this building's power/destroyed state.
+	**	Called from Enable_Power, On_Destroyed and On_Revived -- every place IsPowerOn or
+	**	IsDestroyed actually changes -- never on a timer.
+	*/
+	void											Update_Group_Lighting (void);
+
 	//
 	//	Spy-disabled buildings are marked by gameplay scripts; the flag is
 	//	replicated and persisted, but the engine imposes no behaviour of its

@@ -179,6 +179,25 @@ public:
 	virtual void					Save_User_Lighting (ChunkSaveClass & csave) override;
 	virtual void					Load_User_Lighting (ChunkLoadClass & cload) override;
 
+	/*
+	**	Roadmap Section 52A, Phase 49.  A second, independent per-vertex bake computed
+	**	alongside the one above: the light this mesh gets from everything EXCEPT the sun, and
+	**	how visible the sun itself is at each vertex.  Installing this data changes nothing by
+	**	itself -- UserLighting stays exactly what Install_User_Lighting_Array put there -- until
+	**	something calls Apply_Sun_Relighting, so a mesh nobody ever relights renders identically
+	**	to before this phase.  Not persisted: it is cheap to regenerate at the same load-time
+	**	pass that bakes UserLighting in the first place, and Section 52A rules out a second .w3d.
+	*/
+	void								Install_Sun_Relighting_Data(unsigned int * base_without_sun,unsigned char * sun_visibility);
+	bool								Has_Sun_Relighting_Data(void) const	{ return (SunVisibility != nullptr); }
+	void								Apply_Sun_Relighting(const Vector3 & sun_color);
+
+	//	A mesh with relighting data registers itself here; Update_Sun_Relighting is the one
+	//	call P48's sky clock owner drives, so it never has to know a single mesh by name.
+	static void						Register_For_Sun_Relighting(MeshClass * mesh);
+	static void						Unregister_For_Sun_Relighting(MeshClass * mesh);
+	static void						Update_Sun_Relighting(const Vector3 & sun_color);
+
 protected:
 
 	void								Free(void);
@@ -203,6 +222,11 @@ protected:
 	bool								IsDisabledByDebugger;
 
 	unsigned int *					UserLighting;			// optional array of user lighting values
+
+	//	Phase 49. Both null unless Install_Sun_Relighting_Data was called; sized to Model's
+	//	vertex count like UserLighting itself.
+	unsigned int *					SunRelightBase;		// baked WITHOUT the sun
+	unsigned char *					SunVisibility;			// per-vertex 0..255 sun visibility
 
 	// DX8 Mesh rendering system data
 	DX8PolygonRendererList		PolygonRendererList;

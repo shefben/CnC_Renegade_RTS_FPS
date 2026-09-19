@@ -67,6 +67,7 @@ protected:
 
 	void Grow_Arrays(int new_vcount);
 	void Add_Light_To_Vertex(LightSolveContextClass & context,int idx,LightClass * light_obj);
+	float Compute_Sun_Visibility(LightSolveContextClass & context,int idx,LightClass * sun);
 
 	SimpleVecClass<Vector3>		Position;
 	SimpleVecClass<Vector3>		Normal;
@@ -76,6 +77,19 @@ protected:
 	SimpleVecClass<Vector4>		AmbientSolve;
 	SimpleVecClass<Vector4>		DiffuseSolve;
 	SimpleVecClass<Vector4>		Solve;
+
+	/*
+	**	Roadmap Section 52A, Phase 49.  SunAmbientContrib/SunDiffuseContrib are a snapshot of
+	**	exactly what the sun alone added into AmbientSolve/DiffuseSolve, taken right after
+	**	Add_Light_To_Vertex adds it and before any other light does -- that is what lets
+	**	BaseSolve be produced by subtraction instead of a second full accumulation pass.
+	**	SunVis is the geometric-only companion: how visible the sun would be here regardless of
+	**	its actual current colour.
+	*/
+	SimpleVecClass<Vector4>		SunAmbientContrib;
+	SimpleVecClass<Vector4>		SunDiffuseContrib;
+	SimpleVecClass<Vector4>		BaseSolve;
+	SimpleVecClass<unsigned char>	SunVis;
 
 };
 
@@ -195,6 +209,17 @@ void VertexSolveClass::Light_Mesh(LightSolveContextClass & context,MeshClass * m
 		Add_Light_To_Vertex(context,vi,sun);
 
 		/*
+		**	Phase 49: exactly what the sun alone just added, before any other light gets a
+		**	chance to.  AmbientSolve/DiffuseSolve started this iteration at (scene_ambient,0),
+		**	so the delta from those starting values is the sun's contribution alone.
+		*/
+		SunAmbientContrib[vi] = Vector4(AmbientSolve[vi].X - scene_ambient.X,
+													AmbientSolve[vi].Y - scene_ambient.Y,
+													AmbientSolve[vi].Z - scene_ambient.Z, 0.0f);
+		SunDiffuseContrib[vi] = Vector4(DiffuseSolve[vi].X,DiffuseSolve[vi].Y,DiffuseSolve[vi].Z,0.0f);
+		SunVis[vi] = (unsigned char) (WWMath::Clamp(Compute_Sun_Visibility(context,vi,sun),0.0f,1.0f) * 255.0f + 0.5f);
+
+		/*
 		** Other lights
 		*/
 		NonRefPhysListIterator it(&lights);
@@ -230,10 +255,40 @@ void VertexSolveClass::Light_Mesh(LightSolveContextClass & context,MeshClass * m
 		Solve[vi].Y = AmbientSolve[vi].Y * MeshAmbient[vi].Y + DiffuseSolve[vi].Y * MeshDiffuse[vi].Y;
 		Solve[vi].Z = AmbientSolve[vi].Z * MeshAmbient[vi].Z + DiffuseSolve[vi].Z * MeshDiffuse[vi].Z;
 		Solve[vi].W = DiffuseSolve[vi].W;
+
+		/*
+		**	Phase 49: the same vertex again, minus what the sun alone contributed -- an
+		**	approximation where AmbientSolve/DiffuseSolve saturated pre-clamp (multiple stacked
+		**	lights over 1.0), since the subtraction happens before Solve's own clamp above,
+		**	not after it.  Acceptable for a first cut of a cosmetic-only relighting term.
+		*/
+		BaseSolve[vi].X = (AmbientSolve[vi].X - SunAmbientContrib[vi].X) * MeshAmbient[vi].X +
+								 (DiffuseSolve[vi].X - SunDiffuseContrib[vi].X) * MeshDiffuse[vi].X;
+		BaseSolve[vi].Y = (AmbientSolve[vi].Y - SunAmbientContrib[vi].Y) * MeshAmbient[vi].Y +
+								 (DiffuseSolve[vi].Y - SunDiffuseContrib[vi].Y) * MeshDiffuse[vi].Y;
+		BaseSolve[vi].Z = (AmbientSolve[vi].Z - SunAmbientContrib[vi].Z) * MeshAmbient[vi].Z +
+								 (DiffuseSolve[vi].Z - SunDiffuseContrib[vi].Z) * MeshDiffuse[vi].Z;
+		BaseSolve[vi].W = Solve[vi].W;
 	}
 	VectorProcessorClass::Clamp(&(Solve[0]),&(Solve[0]), 0.0f, 1.0f,vcount);
+	VectorProcessorClass::Clamp(&(BaseSolve[0]),&(BaseSolve[0]), 0.0f, 1.0f,vcount);
 
 	mesh->Install_User_Lighting_Array(&(Solve[0]));
+
+	/*
+	**	Phase 49: hand off the second bake too.  Installing it changes nothing by itself -- see
+	**	MeshClass::Install_Sun_Relighting_Data -- so every stock mesh getting this data at load
+	**	time is not a visual change until something explicitly relights with it.
+	*/
+	{
+		static SimpleVecClass<unsigned int> _PackedBaseSolve;
+		_PackedBaseSolve.Uninitialised_Grow(vcount);
+		for (vi=0; vi<vcount; vi++) {
+			_PackedBaseSolve[vi] = DX8Wrapper::Convert_Color(BaseSolve[vi]);
+		}
+		mesh->Install_Sun_Relighting_Data(&(_PackedBaseSolve[0]),&(SunVis[0]));
+	}
+
 	context.Update_Observer();
 	REF_PTR_RELEASE(sun);
 }
@@ -406,6 +461,49 @@ void VertexSolveClass::Grow_Arrays(int vcount)
 	Solve.Uninitialised_Grow(vcount);
 	MeshAmbient.Uninitialised_Grow(vcount);
 	MeshDiffuse.Uninitialised_Grow(vcount);
+	SunAmbientContrib.Uninitialised_Grow(vcount);
+	SunDiffuseContrib.Uninitialised_Grow(vcount);
+	BaseSolve.Uninitialised_Grow(vcount);
+	SunVis.Uninitialised_Grow(vcount);
+}
+
+
+float VertexSolveClass::Compute_Sun_Visibility(LightSolveContextClass & context,int vi,LightClass * sun)
+{
+	if (sun == nullptr) {
+		return 0.0f;
+	}
+
+	//	Geometric only, independent of the sun's own colour/intensity, so the caller can
+	//	recolour it with whatever the sky clock says the sun is right now.
+	Vector3 sun_dir = -(sun->Get_Transform().Get_Z_Vector());
+	float ndotl = Vector3::Dot_Product(Normal[vi],sun_dir);
+	if (ndotl <= 0.0f) {
+		return 0.0f;
+	}
+
+	if (context.Is_Occlusion_Enabled()) {
+
+		CastResultStruct res;
+		Vector3 p0 = Position[vi];
+		Vector3 p1 = p0 + sun_dir * sun->Get_Attenuation_Range();
+
+		const float MOVE_AMOUNT = 0.25f;		// can't be occluded closer than this
+		Vector3 delta = p1 - p0;
+		delta.Normalize();
+		p0 += MOVE_AMOUNT * delta;
+
+		LineSegClass ray(p0,p1);
+		PhysRayCollisionTestClass raytest(ray,&res,0,COLLISION_TYPE_PROJECTILE);
+		raytest.CheckDynamicObjs = false;
+		PhysicsSceneClass::Get_Instance()->Cast_Ray(raytest);
+
+		if (res.Fraction < 1.0f) {
+			return 0.0f;
+		}
+	}
+
+	return ndotl;
 }
 
 

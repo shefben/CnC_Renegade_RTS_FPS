@@ -137,6 +137,38 @@ public:
 	static int					Get_Texture_Filter() { return TextureFilter; }
 
 	/*
+	**	Roadmap Section 52A, Phase 46.  Every one of these defaults to exactly what the engine
+	**	already did before this phase, so leaving them alone reproduces stock rendering byte
+	**	for byte; a caller (a settings menu, a level, a console command) opts into anything
+	**	stronger.  The real values applied are clamped to what `DX8Caps` reports the device can
+	**	actually do, so a request too high never crashes or refuses the device -- it degrades.
+	*/
+
+	//	Anisotropic sample count, 1..16.  2 is what `TextureClass::_Init_Filters` always hardcoded
+	//	before this phase, so 2 is the default here too.
+	static void					Set_Anisotropic_Level(int level);
+	static int					Get_Anisotropic_Level() { return AnisotropicLevel; }
+
+	//	Mip LOD bias in mip levels; negative sharpens, positive softens. 0 is what the engine
+	//	never set explicitly before -- the hardware default -- so 0 is the default here too.
+	static void					Set_Texture_LOD_Bias(float bias);
+	static float				Get_Texture_LOD_Bias() { return TextureLODBias; }
+
+	//	0 = off (D3DMULTISAMPLE_NONE, stock), 1 = 2x, 2 = 4x. Only takes effect on the next
+	//	device create/reset, the same way a resolution change does.
+	static void					Set_Antialias_Quality(int level);
+	static int					Get_Antialias_Quality() { return AntialiasQuality; }
+
+	/*
+	**	Roadmap Section 52A, Phase 47.  One switch shared by every LOD-dissolve owner
+	**	(DistLODClass, WorldTerrainSystem) so there is one place, not one per owner, that
+	**	decides whether a handover briefly overlaps its two representations or cuts instantly.
+	**	Off is the default and reproduces the old instant switch exactly.
+	*/
+	static void					Set_LOD_Dissolve_Enabled(bool enabled) { LODDissolveEnabled = enabled; }
+	static bool					Get_LOD_Dissolve_Enabled() { return LODDissolveEnabled; }
+
+	/*
 	** Rendering functions
 	** Each frame should be bracketed by a Begin_Render and End_Render call.  Between these two calls you will
 	** normally render scenes.  The render function which accepts a single render object is implemented for
@@ -352,6 +384,10 @@ private:
 	static bool							ExposePrelit;
 
 	static int							TextureFilter;
+	static int							AnisotropicLevel;
+	static float						TextureLODBias;
+	static int							AntialiasQuality;
+	static bool							LODDissolveEnabled;
 
 	static bool							SnapshotActivated;
 	static bool							ThumbnailEnabled;

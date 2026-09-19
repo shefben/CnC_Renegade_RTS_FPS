@@ -220,6 +220,12 @@ int														WW3D::LastFrameMemoryFrees;
 
 int														WW3D::TextureFilter;
 
+//	Roadmap Section 52A, Phase 46. Defaults reproduce what the engine already did.
+int														WW3D::AnisotropicLevel	= 2;	// TextureClass::_Init_Filters' old hardcoded value.
+float														WW3D::TextureLODBias	= 0.0f;	// Never set before; 0 is the hardware default.
+int														WW3D::AntialiasQuality	= 0;	// D3DMULTISAMPLE_NONE.
+bool														WW3D::LODDissolveEnabled	= false;	// Instant switch, as before.
+
 bool														WW3D::Lite = false;
 
 /**********************************************************************************
@@ -773,6 +779,33 @@ void WW3D::Set_Texture_Filter(int texture_filter)
 	if (texture_filter>TextureClass::TEXTURE_FILTER_ANISOTROPIC) texture_filter=TextureClass::TEXTURE_FILTER_ANISOTROPIC;
 	TextureFilter=texture_filter;
 	TextureClass::_Init_Filters((TextureClass::TextureFilterMode)TextureFilter);
+}
+
+
+//	Roadmap Section 52A, Phase 46.  Re-runs the same filter-preset pass `Set_Texture_Filter`
+//	does, so a new anisotropy/LOD-bias request takes hold immediately rather than waiting for
+//	the next unrelated filter-mode change.
+void WW3D::Set_Anisotropic_Level(int level)
+{
+	if (level < 1) level = 1;
+	if (level > 16) level = 16;
+	AnisotropicLevel = level;
+	TextureClass::_Init_Filters((TextureClass::TextureFilterMode)TextureFilter);
+}
+
+
+void WW3D::Set_Texture_LOD_Bias(float bias)
+{
+	TextureLODBias = bias;
+	TextureClass::_Init_Filters((TextureClass::TextureFilterMode)TextureFilter);
+}
+
+
+void WW3D::Set_Antialias_Quality(int level)
+{
+	if (level < 0) level = 0;
+	if (level > 2)	level = 2;
+	AntialiasQuality = level;
 }
 
 

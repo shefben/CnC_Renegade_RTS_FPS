@@ -95,6 +95,9 @@
 */
 DistLODLoaderClass			_DistLODLoader;
 
+//	Roadmap Section 52A, Phase 47. Only ever consulted when WW3D::Get_LOD_Dissolve_Enabled().
+static const float LOD_DISSOLVE_SECONDS = 0.35f;
+
 
 RenderObjClass * DistLODPrototypeClass::Create(void)
 {
@@ -392,6 +395,8 @@ DistLODClass::DistLODClass(const DistLODDefClass & def)
 	Set_Name(def.Get_Name());
 	LodCount = def.LodCount;
 	CurLod = 0;
+	PrevLod = -1;
+	OverlapTimer = 0.0f;
 	Lods = new LODNodeClass[LodCount];
 
 	for (int i=0; i<LodCount; i++) {
@@ -427,6 +432,8 @@ DistLODClass::DistLODClass(const DistLODClass & that) :
 {
 	LodCount = that.LodCount;
 	CurLod = VpPushLod = that.CurLod;
+	PrevLod = -1;
+	OverlapTimer = 0.0f;
 
 	Lods = new LODNodeClass[LodCount];
 	for (int i=0; i<LodCount; i++) {
@@ -530,6 +537,24 @@ void DistLODClass::Render(RenderInfoClass & rinfo)
 
 	Update_Lod(rinfo.Camera);
 	Lods[CurLod].Model->Render(rinfo);
+
+	/*
+	**	Roadmap Section 52A, Phase 47.  OverlapTimer only ever goes above zero when
+	**	WW3D::Get_LOD_Dissolve_Enabled() is true (see Increment_Lod/Decrement_Lod), so with the
+	**	feature off this block never runs and Render draws exactly what it always drew.  There
+	**	is no generic per-object alpha on RenderObjClass to cross-fade with, so for a short,
+	**	bounded window the outgoing LOD keeps drawing alongside the incoming one instead of
+	**	vanishing on the single frame of the switch.
+	*/
+	if (OverlapTimer > 0.0f) {
+		OverlapTimer -= WW3D::Get_Frame_Time() * 0.001f;
+		if ((OverlapTimer > 0.0f) && (PrevLod >= 0) && (PrevLod != CurLod) && (PrevLod < LodCount)) {
+			Lods[PrevLod].Model->Render(rinfo);
+		} else {
+			OverlapTimer = 0.0f;
+			PrevLod = -1;
+		}
+	}
 }
 
 
@@ -1130,6 +1155,10 @@ void DistLODClass::Increment_Lod(void)
 		if (Is_In_Scene()) {
 			Lods[CurLod].Model->Notify_Removed(Scene);
 		}
+		if (WW3D::Get_LOD_Dissolve_Enabled()) {
+			PrevLod = CurLod;
+			OverlapTimer = LOD_DISSOLVE_SECONDS;
+		}
 		CurLod--;
 		if (Is_In_Scene()) {
 			Lods[CurLod].Model->Notify_Added(Scene);
@@ -1155,6 +1184,10 @@ void DistLODClass::Decrement_Lod(void)
 	if (CurLod < LodCount - 1) {
 		if (Is_In_Scene()) {
 			Lods[CurLod].Model->Notify_Removed(Scene);
+		}
+		if (WW3D::Get_LOD_Dissolve_Enabled()) {
+			PrevLod = CurLod;
+			OverlapTimer = LOD_DISSOLVE_SECONDS;
 		}
 		CurLod++;
 		if (Is_In_Scene()) {

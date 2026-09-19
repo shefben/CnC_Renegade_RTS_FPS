@@ -53,6 +53,12 @@ namespace	ShaderSelfCheck
 	//		commandermode  the Commander Mode state machine: embodiment refusal/binding, pan/
 	//		           zoom/tilt/rotation bounds, the pure camera-transform math, and death
 	//		           immediately exiting Commander Mode
+	//		visualsettings the Section 52A sampler/filtering/antialias/LOD-dissolve defaults
+	//		           and their clamping, all of which default to reproducing stock rendering
+	//		skyclock       the Section 52A server-authoritative sky clock: off until asked, a
+	//		           zero rate leaving the hour alone, and a set rate reading back
+	//		lightcurves    the Section 52A light-curve state machine (steady/flicker/pulse/
+	//		           warmup/fail) and the group-id association Section 40 power/damage drives
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

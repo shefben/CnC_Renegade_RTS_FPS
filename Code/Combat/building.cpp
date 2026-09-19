@@ -45,6 +45,8 @@
 #include "wwphysids.h"
 #include "meshmdl.h"
 #include "gameobjmanager.h"
+#include "light.h"
+#include "worldlightmanager.h"
 #include "WWAudio.h"
 #include "AudibleSound.h"
 #include "Sound3D.h"
@@ -562,6 +564,7 @@ BuildingGameObj::Enable_Power (bool onoff)
 
 	IsPowerOn = onoff;
 
+	Update_Group_Lighting ();
 	Update_State ();
 
 	//
@@ -572,6 +575,25 @@ BuildingGameObj::Enable_Power (bool onoff)
 	}
 
 	return ;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+//	Update_Group_Lighting -- roadmap Section 52A, Phase 50.
+//
+//	The other half of lightphys.h's own "the building code uses the Group ID..." comment.
+//	Runs on both client and server -- Enable_Power/On_Destroyed/On_Revived all already do --
+//	so a light stays correct locally on either side without needing a network field of its
+//	own; IsPowerOn and IsDestroyed already arrive replicated through the usual building state.
+//
+/////////////////////////////////////////////////////////////////////////////
+void
+BuildingGameObj::Update_Group_Lighting (void)
+{
+	bool should_glow = IsPowerOn && !IsDestroyed;
+	WorldLightManager::Set_Group_Curve ((uintptr_t)Get_ID (),
+		should_glow ? LightClass::LIGHT_CURVE_STEADY : LightClass::LIGHT_CURVE_FAIL);
 }
 
 void BuildingGameObj::Apply_Damage( const OffenseObjectClass & damager, float scale, int alternate_skin )
@@ -1182,6 +1204,8 @@ BuildingGameObj::On_Destroyed (void)
 {
 	IsDestroyed = true;
 
+	Update_Group_Lighting ();
+
 	//
 	//	Scatter debris around the ruin -- roadmap Section 28.  Every client that sees this
 	//	call spawns its own fragments; none of them are networked, and none are GameObjs.
@@ -1240,6 +1264,8 @@ void
 BuildingGameObj::On_Revived (void)
 {
 	IsDestroyed = false;
+
+	Update_Group_Lighting ();
 
 	if (BaseController != nullptr) {
 		BaseController->On_Building_Revived (this);

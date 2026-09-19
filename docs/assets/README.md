@@ -43,6 +43,7 @@ textures load unmodified, and no name we invent may shadow one of theirs.
 | [SurfaceMarks.md](SurfaceMarks.md) | Surface mark textures -- scorches, blasts, stains, impacts (roadmap Section 35) | 7 textures |
 | [WeatherParticles.md](WeatherParticles.md) | Weather particle textures -- rain streak, dust, tiberium, generic (roadmap Section 36) | 4 textures |
 | [CommanderSidebar.md](CommanderSidebar.md) | Commander sidebar content -- air purchase page, building card icons (roadmap Section 42) | 1 purchase page, building icons |
+| [VisualFidelity.md](VisualFidelity.md) | Visual-fidelity program improvements, never prerequisites (roadmap Section 52A) | 0 required, phases 46-50 |
 
 ## Format of an entry
 

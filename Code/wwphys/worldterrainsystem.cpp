@@ -34,6 +34,7 @@
 #include "renegadeterrainpatch.h"
 #include "staticphys.h"
 #include "terraintexturesystem.h"
+#include "ww3d.h"
 #include "wwdebug.h"
 #include "wwmath.h"
 
@@ -52,6 +53,9 @@ int						WorldTerrainSystem::FarBlockCountX			= 0;
 int						WorldTerrainSystem::FarBlockCountY			= 0;
 float						WorldTerrainSystem::FarTerrainDrop			= 0.0f;
 int						WorldTerrainSystem::FarRefillCount			= 0;
+
+bool *					WorldTerrainSystem::FarBlockLastNear		= nullptr;
+float *					WorldTerrainSystem::FarBlockOverlapTimer	= nullptr;
 int						WorldTerrainSystem::VisibleNearPatchCount	= 0;
 int						WorldTerrainSystem::VisibleFarBlockCount	= 0;
 
@@ -1101,6 +1105,8 @@ void WorldTerrainSystem::Create_Far_Block_Table(void)
 	FarBlockCountY = count_y;
 	FarBlocks = new StaticPhysClass *[count_x * count_y];
 	FarBlockDirty = new bool[count_x * count_y];
+	FarBlockLastNear = new bool[count_x * count_y];
+	FarBlockOverlapTimer = new float[count_x * count_y];
 
 	//	Clean, not dirty.  Dirty means "the block that is built is out of date", and there is no
 	//	block yet; the first build creates every one of them whatever the flags say.  Starting
@@ -1108,6 +1114,11 @@ void WorldTerrainSystem::Create_Far_Block_Table(void)
 	for (int index = 0; index < count_x * count_y; index++) {
 		FarBlocks[index] = nullptr;
 		FarBlockDirty[index] = false;
+		//	True: an unbuilt block "draws near whatever the distance says" (see
+		//	Update_Terrain_LOD), so starting the edge-detector at "was near" means the very
+		//	first real decision only triggers an overlap window if it disagrees.
+		FarBlockLastNear[index] = true;
+		FarBlockOverlapTimer[index] = 0.0f;
 	}
 }
 
@@ -1267,8 +1278,12 @@ void WorldTerrainSystem::Destroy_Far_Terrain(void)
 
 	delete [] FarBlocks;
 	delete [] FarBlockDirty;
+	delete [] FarBlockLastNear;
+	delete [] FarBlockOverlapTimer;
 	FarBlocks = nullptr;
 	FarBlockDirty = nullptr;
+	FarBlockLastNear = nullptr;
+	FarBlockOverlapTimer = nullptr;
 	FarBlockCountX = 0;
 	FarBlockCountY = 0;
 	FarTerrainDrop = 0.0f;
@@ -1471,6 +1486,15 @@ void WorldTerrainSystem::Update_Terrain_LOD(const Vector3 & viewer_position)
 		return;
 	}
 
+	//	Roadmap Section 52A, Phase 47: the two layers already share exact grid vertices at the
+	//	seam (see FarTerrainDrop above), so briefly drawing both together during a handover
+	//	cannot open a gap -- it can only, for a bounded window, double-draw the same ground.
+	//	That is the whole "dissolve": no generic per-object alpha exists on RenderObjClass in
+	//	this engine to blend with instead, so an overlap window is what stands in for one, and
+	//	it is what turns an instantaneous pop into a spread-out handover.
+	const float OVERLAP_SECONDS = 0.35f;
+	float dt = WW3D::Get_Frame_Time() * 0.001f;
+
 	for (int by = 0; by < FarBlockCountY; by++) {
 		for (int bx = 0; bx < FarBlockCountX; bx++) {
 
@@ -1498,12 +1522,28 @@ void WorldTerrainSystem::Update_Terrain_LOD(const Vector3 & viewer_position)
 				}
 			}
 
+			int block_index = by * FarBlockCountX + bx;
+			bool overlapping = false;
+			if (WW3D::Get_LOD_Dissolve_Enabled()) {
+				if (draw_near != FarBlockLastNear[block_index]) {
+					FarBlockOverlapTimer[block_index] = OVERLAP_SECONDS;
+				} else if (FarBlockOverlapTimer[block_index] > 0.0f) {
+					FarBlockOverlapTimer[block_index] -= dt;
+					if (FarBlockOverlapTimer[block_index] < 0.0f) FarBlockOverlapTimer[block_index] = 0.0f;
+				}
+				overlapping = (FarBlockOverlapTimer[block_index] > 0.0f);
+			} else {
+				FarBlockOverlapTimer[block_index] = 0.0f;
+			}
+			FarBlockLastNear[block_index] = draw_near;
+
 			for (int py = py0; py < py1; py++) {
 				for (int px = px0; px < px1; px++) {
 					RenegadeTerrainPatchClass * model = Peek_Patch_Model(px,py);
 					if (model != nullptr) {
-						model->Set_Hidden(!draw_near);
-						if (draw_near) {
+						bool visible = draw_near || overlapping;
+						model->Set_Hidden(!visible);
+						if (visible) {
 							VisibleNearPatchCount++;
 						}
 					}
@@ -1511,8 +1551,9 @@ void WorldTerrainSystem::Update_Terrain_LOD(const Vector3 & viewer_position)
 			}
 
 			if (far_model != nullptr) {
-				far_model->Set_Hidden(draw_near);
-				if (!draw_near) {
+				bool visible = !draw_near || overlapping;
+				far_model->Set_Hidden(!visible);
+				if (visible) {
 					VisibleFarBlockCount++;
 				}
 			}

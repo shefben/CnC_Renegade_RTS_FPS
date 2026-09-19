@@ -103,6 +103,8 @@ enum
  * HISTORY:                                                                                    *
  *   3/21/98    GTH : Created.                                                                 *
  *=============================================================================================*/
+static unsigned int _LightCurveSeedCounter = 0;
+
 LightClass::LightClass(LightType type) :
 	Type(type),
 	Flags(0),
@@ -118,7 +120,11 @@ LightClass::LightClass(LightType type) :
 	SpotAngle(DEG_TO_RADF(45.0f)),
 	SpotAngleCos(0.707f),
 	SpotExponent(1.0f),
-	SpotDirection(0,0,1)
+	SpotDirection(0,0,1),
+	Curve(LIGHT_CURVE_STEADY),
+	CurveTime(0.0f),
+	CurveBaseIntensity(1.0f),
+	CurveSeed((float)((_LightCurveSeedCounter++ * 37u) % 997u))
 {
 	if (type == DIRECTIONAL) {
 		Set_Force_Visible(true);	// The light has no position so culling cant work.
@@ -153,7 +159,11 @@ LightClass::LightClass(const LightClass & src) :
 	SpotAngle(src.SpotAngle),
 	SpotAngleCos(src.SpotAngleCos),
 	SpotExponent(src.SpotExponent),
-	SpotDirection(src.SpotDirection)
+	SpotDirection(src.SpotDirection),
+	Curve(src.Curve),
+	CurveTime(src.CurveTime),
+	CurveBaseIntensity(src.CurveBaseIntensity),
+	CurveSeed((float)((_LightCurveSeedCounter++ * 37u) % 997u))
 {
 }
 
@@ -345,6 +355,87 @@ bool LightClass::Is_Within_Attenuation_Radius(const Vector3 & pos)
  * HISTORY:                                                                                    *
  *   2/13/2002  gth : Created.                                                                 *
  *=============================================================================================*/
+/***********************************************************************************************
+ * LightClass::Set_Light_Curve -- roadmap Section 52A, Phase 50.                               *
+ *=============================================================================================*/
+void LightClass::Set_Light_Curve(LightCurveType curve)
+{
+	if (curve == Curve) {
+		//	Already there.  Without this, a caller like BuildingGameObj::Update_Group_Lighting
+		//	-- which calls this on every Enable_Power, changed or not -- would stomp Intensity
+		//	back to CurveBaseIntensity's construction-time default the first time it ever runs,
+		//	even for a light whose authored Intensity was never 1.0 and whose curve was never
+		//	touched.  "Steady lights render as they do today" depends on this being a no-op.
+		return;
+	}
+
+	if (curve == LIGHT_CURVE_STEADY) {
+		//	Restore, don't resnapshot: Intensity may currently be mid-ramp (a FAIL curve
+		//	partway through, say), and the correct value to return to is what it was before
+		//	that ramp started, not whatever it happens to be right now.
+		Intensity = CurveBaseIntensity;
+	} else {
+		CurveBaseIntensity = Intensity;
+	}
+
+	Curve = curve;
+	CurveTime = 0.0f;
+}
+
+
+/***********************************************************************************************
+ * LightClass::Update_Light_Curve -- roadmap Section 52A, Phase 50.                            *
+ *   A no-op for LIGHT_CURVE_STEADY (the default), so a light nobody has ever called            *
+ *   Set_Light_Curve on is untouched by this function at any cost.                             *
+ *=============================================================================================*/
+void LightClass::Update_Light_Curve(float dt)
+{
+	if (Curve == LIGHT_CURVE_STEADY) {
+		return;
+	}
+
+	CurveTime += dt;
+	float multiplier = 1.0f;
+
+	switch (Curve) {
+
+		case LIGHT_CURVE_FLICKER:
+			//	Two out-of-phase sine waves, seeded per-light so several flickering lights do
+			//	not read as one light seen twice.  Floored rather than let it hit true zero --
+			//	an unsteady bulb, not a strobe.
+			multiplier = WWMath::Fabs(
+				WWMath::Sin(CurveTime * 23.1f + CurveSeed) *
+				WWMath::Sin(CurveTime * 11.7f + CurveSeed * 0.5f));
+			multiplier = 0.35f + 0.65f * WWMath::Clamp(multiplier,0.0f,1.0f);
+			break;
+
+		case LIGHT_CURVE_PULSE:
+			//	Smooth breathing between a floor and full intensity, ~2 second period.
+			multiplier = 0.4f + 0.6f * (0.5f + 0.5f * WWMath::Sin(CurveTime * WWMATH_PI));
+			break;
+
+		case LIGHT_CURVE_WARMUP: {
+			const float WARMUP_SECONDS = 2.0f;
+			multiplier = WWMath::Clamp(CurveTime / WARMUP_SECONDS,0.0f,1.0f);
+			break;
+		}
+
+		case LIGHT_CURVE_FAIL: {
+			//	Section 40 power/damage sets this curve; a bounded ramp down rather than an
+			//	instant cut reads as "failing", not as a bug.
+			const float FAIL_SECONDS = 2.5f;
+			multiplier = WWMath::Clamp(1.0f - (CurveTime / FAIL_SECONDS),0.0f,1.0f);
+			break;
+		}
+
+		default:
+			break;
+	}
+
+	Intensity = CurveBaseIntensity * multiplier;
+}
+
+
 void LightClass::Compute_Lighting(const Vector3 & pos,const Vector3 & norm, Vector3 * set_ambient, Vector3 * set_diffuse)
 {
 	Matrix3D tm = Get_Transform();

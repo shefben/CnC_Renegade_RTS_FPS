@@ -5,7 +5,9 @@
 
 #include "shaderselfcheck.h"
 
+#include "backgroundmgr.h"
 #include "buildingdescriptormanager.h"
+#include "combat.h"
 #include "commandermodecontroller.h"
 #include "commandersidebar.h"
 #include "commanderplacement.h"
@@ -32,10 +34,14 @@
 
 #include "assetmgr.h"
 #include "camera.h"
+#include "light.h"
+#include "lightphys.h"
 #include "rendobj.h"
 #include "rinfo.h"
 #include "vector3.h"
 #include "vector4.h"
+#include "worldlightmanager.h"
+#include "ww3d.h"
 
 #include "refcount.h"
 #include "shader.h"
@@ -3447,6 +3453,192 @@ int	Run_RTS_Persistence (void)
 }
 
 
+/***********************************************************************************************
+ * Run_Visual_Settings -- roadmap Section 52A, Phases 46 + 47.                                 *
+ *   Pure static state, no device: the sampler/filtering/antialias defaults and the LOD-        *
+ *   dissolve switch, and that every one of them clamps instead of trusting its caller.         *
+ *=============================================================================================*/
+int	Run_Visual_Settings (void)
+{
+	Check (WW3D::Get_Anisotropic_Level () == 2,
+			 "anisotropic level defaulted to %d, not the 2 TextureClass::_Init_Filters always hardcoded",
+			 WW3D::Get_Anisotropic_Level ());
+	Check (WW3D::Get_Texture_LOD_Bias () == 0.0f,"texture LOD bias defaulted to %f, not 0",
+			 WW3D::Get_Texture_LOD_Bias ());
+	Check (WW3D::Get_Antialias_Quality () == 0,"antialias quality defaulted to %d, not 0 (off)",
+			 WW3D::Get_Antialias_Quality ());
+	Check (!WW3D::Get_LOD_Dissolve_Enabled (),"LOD dissolve defaulted to on");
+
+	WW3D::Set_Anisotropic_Level (99);
+	Check (WW3D::Get_Anisotropic_Level () == 16,"anisotropic level 99 was not clamped to 16 (got %d)",
+			 WW3D::Get_Anisotropic_Level ());
+	WW3D::Set_Anisotropic_Level (0);
+	Check (WW3D::Get_Anisotropic_Level () == 1,"anisotropic level 0 was not clamped to 1 (got %d)",
+			 WW3D::Get_Anisotropic_Level ());
+
+	WW3D::Set_Texture_LOD_Bias (-1.5f);
+	Check (WW3D::Get_Texture_LOD_Bias () == -1.5f,"texture LOD bias did not round-trip (got %f)",
+			 WW3D::Get_Texture_LOD_Bias ());
+
+	WW3D::Set_Antialias_Quality (5);
+	Check (WW3D::Get_Antialias_Quality () == 2,"antialias quality 5 was not clamped to 2 (got %d)",
+			 WW3D::Get_Antialias_Quality ());
+	WW3D::Set_Antialias_Quality (-1);
+	Check (WW3D::Get_Antialias_Quality () == 0,"antialias quality -1 was not clamped to 0 (got %d)",
+			 WW3D::Get_Antialias_Quality ());
+
+	WW3D::Set_LOD_Dissolve_Enabled (true);
+	Check (WW3D::Get_LOD_Dissolve_Enabled (),"LOD dissolve did not turn on");
+	WW3D::Set_LOD_Dissolve_Enabled (false);
+	Check (!WW3D::Get_LOD_Dissolve_Enabled (),"LOD dissolve did not turn back off");
+
+	/*
+	**	Not covered here: DistLODClass's and WorldTerrainSystem's actual overlap-window
+	**	behaviour, both of which need real .w3d content and a scene this binary does not have.
+	**	What is proved is the one switch both owners read (WW3D::Get_LOD_Dissolve_Enabled) and
+	**	that it defaults off.
+	*/
+
+	//	Restore defaults so a later family in the same "all" run sees stock settings.
+	WW3D::Set_Anisotropic_Level (2);
+	WW3D::Set_Texture_LOD_Bias (0.0f);
+	WW3D::Set_Antialias_Quality (0);
+
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Sky_Clock -- roadmap Section 52A, Phase 48.                                             *
+ *=============================================================================================*/
+int	Run_Sky_Clock (void)
+{
+	bool was_server = CombatManager::I_Am_Server ();
+	CombatManager::Set_I_Am_Server (true);
+
+	Check (!BackgroundMgrClass::Is_Sky_Clock_Active (),
+			 "the sky clock defaulted to active before Set_Sky_Clock_Rate was ever called");
+
+	unsigned start_hours = 0, start_minutes = 0;
+	BackgroundMgrClass::Get_Time_Of_Day (start_hours,start_minutes);
+
+	BackgroundMgrClass::Set_Sky_Clock_Rate (0.0f);
+	Check (BackgroundMgrClass::Is_Sky_Clock_Active (),"Set_Sky_Clock_Rate did not turn the clock on");
+	Check (BackgroundMgrClass::Get_Sky_Clock_Rate () == 0.0f,"a rate of zero did not read back as zero");
+
+	unsigned hours = 0, minutes = 0;
+	BackgroundMgrClass::Get_Time_Of_Day (hours,minutes);
+	Check ((hours == start_hours) && (minutes == start_minutes),
+			 "turning the clock on at a rate of zero changed the hour (%u:%u -> %u:%u)",
+			 start_hours,start_minutes,hours,minutes);
+
+	BackgroundMgrClass::Set_Sky_Clock_Rate (1.5f);
+	Check (BackgroundMgrClass::Get_Sky_Clock_Rate () == 1.5f,
+			 "a rate of 1.5 did not read back (got %f)",BackgroundMgrClass::Get_Sky_Clock_Rate ());
+
+	/*
+	**	Not covered here, the same way Run_RTS_Persistence's own save/load is not: the
+	**	BitStreamClass wire round trip and the per-frame Update() clock advance both need a
+	**	running scene/network layer this binary does not have.  What is proved is the state the
+	**	rest of the phase is built on -- the switch is off until asked, a zero rate leaves the
+	**	hour exactly alone, and a set rate reads back.  See WIP_features.md.
+	*/
+
+	CombatManager::Set_I_Am_Server (was_server);
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Light_Curves -- roadmap Section 52A, Phase 50.                                          *
+ *=============================================================================================*/
+int	Run_Light_Curves (void)
+{
+	LightClass * light = NEW_REF (LightClass,());
+	light->Set_Intensity (2.0f);
+
+	Check (light->Get_Light_Curve () == LightClass::LIGHT_CURVE_STEADY,
+			 "a fresh light did not default to LIGHT_CURVE_STEADY");
+
+	//	STEADY is a no-op: Update_Light_Curve must never move a STEADY light's intensity.
+	light->Update_Light_Curve (1.0f);
+	Check (light->Get_Intensity () == 2.0f,
+			 "Update_Light_Curve moved a STEADY light's intensity to %f",light->Get_Intensity ());
+
+	//	FAIL ramps down to (and stays at) zero.
+	light->Set_Light_Curve (LightClass::LIGHT_CURVE_FAIL);
+	light->Update_Light_Curve (10.0f);		// far past the ramp's own duration
+	Check (light->Get_Intensity () == 0.0f,
+			 "a FAIL curve did not reach zero after ten seconds (got %f)",light->Get_Intensity ());
+
+	//	STEADY restores the ORIGINAL intensity, not whatever FAIL left it at -- the exact bug
+	//	Set_Light_Curve's own "restore, don't resnapshot" comment exists to prevent.
+	light->Set_Light_Curve (LightClass::LIGHT_CURVE_STEADY);
+	Check (light->Get_Intensity () == 2.0f,
+			 "restoring STEADY after a FAIL ramp gave %f, not the original 2.0",
+			 light->Get_Intensity ());
+
+	//	Setting the SAME curve twice is a no-op -- BuildingGameObj::Update_Group_Lighting calls
+	//	this on every Enable_Power, changed or not, so a redundant call must never re-snapshot.
+	light->Set_Intensity (5.0f);
+	light->Set_Light_Curve (LightClass::LIGHT_CURVE_STEADY);
+	Check (light->Get_Intensity () == 5.0f,
+			 "a redundant Set_Light_Curve(STEADY) touched Intensity (got %f)",light->Get_Intensity ());
+
+	//	PULSE stays within [0, base].
+	light->Set_Intensity (4.0f);
+	light->Set_Light_Curve (LightClass::LIGHT_CURVE_PULSE);
+	for (float t = 0.0f; t < 5.0f; t += 0.37f) {
+		light->Update_Light_Curve (0.37f);
+		Check ((light->Get_Intensity () >= 0.0f) && (light->Get_Intensity () <= 4.0f),
+				 "a PULSE curve produced %f, outside [0,4]",light->Get_Intensity ());
+	}
+
+	//	WARMUP ramps 0 -> base once, then holds.
+	light->Set_Intensity (3.0f);
+	light->Set_Light_Curve (LightClass::LIGHT_CURVE_WARMUP);
+	light->Update_Light_Curve (0.01f);
+	Check (light->Get_Intensity () < 3.0f,
+			 "a WARMUP curve reached full intensity on its very first tick");
+	light->Update_Light_Curve (10.0f);
+	Check (light->Get_Intensity () == 3.0f,
+			 "a WARMUP curve did not reach full intensity after ten seconds (got %f)",
+			 light->Get_Intensity ());
+
+	light->Release_Ref ();
+
+	//	WorldLightManager: the group-id association Section 40 power/damage drives (the other
+	//	half of lightphys.h's own long-standing "the building code uses the Group ID" comment).
+	LightPhysClass * fixture = NEW_REF (LightPhysClass,(true));
+	fixture->Set_Group_ID (777);
+
+	WorldLightManager::Set_Group_Curve (777,LightClass::LIGHT_CURVE_FAIL);
+	LightClass * fixture_light = (LightClass *) fixture->Peek_Model ();
+	Check ((fixture_light != nullptr) && (fixture_light->Get_Light_Curve () == LightClass::LIGHT_CURVE_FAIL),
+			 "Set_Group_Curve did not reach a light registered under its group id");
+
+	WorldLightManager::Set_Group_Curve (778,LightClass::LIGHT_CURVE_PULSE);
+	Check ((fixture_light != nullptr) && (fixture_light->Get_Light_Curve () == LightClass::LIGHT_CURVE_FAIL),
+			 "Set_Group_Curve touched a light registered under a different group id");
+
+	WorldLightManager::Set_Group_Curve (0,LightClass::LIGHT_CURVE_STEADY);
+	Check ((fixture_light != nullptr) && (fixture_light->Get_Light_Curve () == LightClass::LIGHT_CURVE_FAIL),
+			 "Set_Group_Curve(0, ...) touched a real light -- group id 0 must match nothing");
+
+	fixture->Release_Ref ();
+
+	/*
+	**	Not covered here: BuildingGameObj::Update_Group_Lighting itself needs a real
+	**	BuildingGameObj, and the level-authoring convention this whole phase depends on -- a
+	**	fixture's Group ID actually being set to its building's Get_ID() in LevelEdit or at
+	**	spawn time -- is data, not code (see the docs/assets/ pattern this project already uses
+	**	for exactly this kind of gap).
+	*/
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -3555,6 +3747,21 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "rtssaveload") == 0)) {
 		Run_RTS_Persistence ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "visualsettings") == 0)) {
+		Run_Visual_Settings ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "skyclock") == 0)) {
+		Run_Sky_Clock ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "lightcurves") == 0)) {
+		Run_Light_Curves ();
 		ran = true;
 	}
 

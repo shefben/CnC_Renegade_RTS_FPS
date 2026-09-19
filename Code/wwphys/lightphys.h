@@ -58,6 +58,7 @@ class LightPhysClass : public DecorationPhysClass
 public:
 
 	LightPhysClass(bool auto_allocate_light = false);
+	virtual ~LightPhysClass(void);
 	virtual LightPhysClass *				As_LightPhysClass(void) override		{ return this; }
 
 	void											Set_Model(RenderObjClass * model) override;
@@ -74,6 +75,12 @@ public:
 	** external code.  For example, the building code uses the Group ID to differentiate between
 	** lights that should be 'on' when the power to the building is 'on' and lights that should
 	** be 'on' when the power is 'off'.
+	**
+	** Roadmap Section 52A, Phase 50 is what finally implements that comment: a light whose
+	** Group ID is set to a building's Get_ID() has its curve (LightClass::Set_Light_Curve)
+	** driven by BuildingGameObj (building.cpp) whenever that building's power or destroyed
+	** state changes -- see WorldLightManager::Set_Group_Curve.  A light left at the default
+	** Group ID of 0 is never touched by that path.
 	*/
 	void											Set_Group_ID(uintptr_t new_id)			{ GroupID = new_id; }
 	uintptr_t											Get_Group_ID(void) const			{ return GroupID; }

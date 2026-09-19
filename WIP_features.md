@@ -612,3 +612,12 @@ project's own no-second-truth rule. Section 52's 110-item final Definition of Do
 still mid-flight per their own WIP entries, P46-P65 are unstarted), so scoring it now would either
 be premature or dishonest. Absorbs the backlog's P45 line. Next exact action: re-run Section 52 as
 a checklist once the phases it actually depends on are closed, not before.
+
+## P47 -- the DistLOD dissolve is real but reaches no stock content
+
+`DistLODClass::Render`'s overlap-window dissolve (`WW3D::Get_LOD_Dissolve_Enabled`) is correct
+against the class the roadmap names, but `DistLODPrototypeClass::Create` auto-converts every loaded
+W3D LOD chunk to `HLodClass` at load, so no stock asset ever reaches it. The far/near terrain half of
+P47 has no such gap. Absorbs no backlog line (P47 itself is closed in `completed_features.md`); this
+is a named follow-on, not unfinished acceptance. Next exact action: extend the same overlap-window
+technique to `HLodClass`'s own LOD switch, the path stock content actually takes.

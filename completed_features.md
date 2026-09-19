@@ -1913,3 +1913,58 @@ tables, binary patch/trampoline code, D3D8-to-D3D9 proxy architecture, legacy do
 none exist. Consistent with the project's continuous no-duplicate-implementation rule having been
 enforced every phase along the way rather than deferred. N/A: nothing found to remove.
 
+## P46: sampler/filtering/antialias defaults, all clamped to device capability (Section 52A)
+
+`WW3D::Set_Anisotropic_Level`/`Set_Texture_LOD_Bias`/`Set_Antialias_Quality`, defaulting to exactly
+what `dx8wrapper.cpp`/`texture.cpp` already did (2/0/off). AA is selected via
+`CheckDeviceMultiSampleType`, stepping down rather than failing device creation. Device-less
+`shader_visualsettings`/`fds_shader_visualsettings` cover the clamping. Evidence:
+`docs/zerohour/VisualFidelityProgram.md`.
+
+## P47: LOD and far-terrain cross-fade via a bounded overlap window (Section 52A)
+
+`DistLODClass::Render` and `WorldTerrainSystem::Update_Terrain_LOD` both draw outgoing and incoming
+representations together for 0.35s on a handover, behind the shared `WW3D::Get_LOD_Dissolve_Enabled`
+switch (default off = the old instant swap). No generic per-object alpha exists on `RenderObjClass`
+in this engine, so overlap stands in for a true cross-fade; both tiers share exact seam geometry, so
+overlap can only double-draw, never gap. `DistLODClass`'s real-world reach is nil against stock
+content (every loaded W3D LOD chunk auto-converts to `HLodClass`); recorded honestly, absorbed into
+WIP rather than hidden. Evidence: `docs/zerohour/VisualFidelityProgram.md`.
+
+## P48: server-authoritative sky clock drives the real sun (Section 52A)
+
+`BackgroundMgrClass` gained `_ClockDrivesSun`/`_ClockRateHoursPerSecond`, replicated through its
+existing `Export_Rare`/`Import_Rare`. Active, it advances `_Hours`/`_Minutes` server-side and drives
+`PhysicsSceneClass::Set_Sun_Light_Orientation` on both sides from a stylised day arc; the previously
+independent sky-dome sun position and scene lighting direction are now the same clock.
+`WorldShadowManager` and static-lighting compute already re-read the sun fresh, confirmed by source
+read, so neither needed a line changed. Off by default; a zero rate freezes the clock rather than
+handing the sun back. Device-less `shader_skyclock`/`fds_shader_skyclock` cover the state machine.
+Evidence: `docs/zerohour/VisualFidelityProgram.md`.
+
+## P49: a second per-vertex sun-visibility bake, composed at runtime (Section 52A)
+
+`lightsolve.cpp`'s `Light_Mesh` now also produces a geometric sun-visibility scalar and a base solve
+with the sun's own contribution subtracted back out, installed onto `MeshClass` without touching what
+actually renders (`UserLighting`) unless something calls the new `Apply_Sun_Relighting`.
+`BackgroundMgrClass::Update`, only while P48's clock is active, throttled every 2s, recomposes every
+registered mesh's lighting from its base plus the current sun colour. Indoor vertices have zero sun
+visibility by construction, so they are unchanged by the formula, not merely by convention. Not
+persisted -- regenerated at the same load-time bake pass, per Section 52A's "no second .w3d." No
+device-less test (needs loaded mesh content); the formula's invariants are established by source
+read. Evidence: `docs/zerohour/VisualFidelityProgram.md`.
+
+## P50: light curves, wired to the power/damage state the grid already owns (Section 52A)
+
+`LightClass` gained `LightCurveType` (steady/flicker/pulse/warmup/fail, default steady, and provably
+a no-op for steady). `WorldLightManager::Set_Group_Curve` finally implements the "the building code
+uses the Group ID..." comment `lightphys.h` has carried since before this project started.
+`BuildingGameObj::Update_Group_Lighting` (new) calls it from `Enable_Power`/`On_Destroyed`/
+`On_Revived` -- every place `IsPowerOn`/`IsDestroyed` actually changes, event-driven, both sides, no
+polling. Two real bugs (redundant `Set_Light_Curve` stomping intensity; `STEADY` resnapshotting a
+dimmed value instead of restoring the pre-curve one) were found and fixed before being trusted, both
+caught by the device-less `shader_lightcurves`/`fds_shader_lightcurves` self-check written alongside
+them. What remains is authoring, not code -- a light must have its `Group ID` set to its building's
+`Get_ID()` by a level or spawn script -- recorded in `docs/assets/VisualFidelity.md` the same way a
+missing texture would be. Evidence: `docs/zerohour/VisualFidelityProgram.md`.
+

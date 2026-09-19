@@ -53,6 +53,7 @@
 #include "dx8texman.h"
 #include "meshmatdesc.h"
 #include "texturethumbnail.h"
+#include "ww3d.h"
 
 const unsigned DEFAULT_INACTIVATION_TIME=20000;
 
@@ -944,7 +945,23 @@ void TextureClass::_Init_Filters(TextureClass::TextureFilterMode filter_type)
 		_MagTextureFilters[i][FILTER_TYPE_DEFAULT]=_MagTextureFilters[i][FILTER_TYPE_BEST];
 		_MipMapFilters[i][FILTER_TYPE_DEFAULT]=_MipMapFilters[i][FILTER_TYPE_BEST];
 
-		DX8Wrapper::Set_DX8_Texture_Sampler_State(i,D3DSAMP_MAXANISOTROPY,2);
+		/*
+		**	Roadmap Section 52A, Phase 46.  `WW3D::Get_Anisotropic_Level` defaults to 2, the
+		**	value this line always hardcoded, so a caller who never touches the new setting
+		**	gets exactly the old behaviour.  Clamped to what the device actually reports so a
+		**	request too high degrades instead of doing nothing or asserting.
+		*/
+		unsigned max_anisotropy = dx8caps.MaxAnisotropy ? dx8caps.MaxAnisotropy : 1;
+		unsigned anisotropy = (unsigned)WW3D::Get_Anisotropic_Level();
+		if (anisotropy > max_anisotropy) anisotropy = max_anisotropy;
+		if (anisotropy < 1) anisotropy = 1;
+		DX8Wrapper::Set_DX8_Texture_Sampler_State(i,D3DSAMP_MAXANISOTROPY,anisotropy);
+
+		//	Never set before this phase, so 0.0 (the default) writes back the same hardware
+		//	default that was already in effect.  D3DSAMP_MIPMAPLODBIAS takes a float bit-cast
+		//	into the DWORD value, same as the driver itself expects.
+		float lod_bias = WW3D::Get_Texture_LOD_Bias();
+		DX8Wrapper::Set_DX8_Texture_Sampler_State(i,D3DSAMP_MIPMAPLODBIAS,*(unsigned*)&lod_bias);
 	}
 
 }

@@ -45,6 +45,7 @@
 #include "lightexclude.h"
 #include "wwhack.h"
 #include "vistable.h"
+#include "worldlightmanager.h"
 
 
 DECLARE_FORCE_LINK(lightphys);
@@ -78,6 +79,16 @@ LightPhysClass::LightPhysClass(bool auto_allocate_light) :
 		Set_Model(new_light);
 		new_light->Release_Ref();
 	}
+
+	//	Roadmap Section 52A, Phase 50.  Every LightPhysClass registers, model or not yet --
+	//	WorldLightManager only ever peeks the model at the moment it needs it.
+	WorldLightManager::Register_Light(this);
+}
+
+
+LightPhysClass::~LightPhysClass(void)
+{
+	WorldLightManager::Unregister_Light(this);
 }
 
 void LightPhysClass::Set_Model(RenderObjClass * model)
