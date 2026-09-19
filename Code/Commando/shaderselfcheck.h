@@ -38,6 +38,8 @@ namespace	ShaderSelfCheck
 	//		           carry strategic radar-only/last-known information
 	//		overlays     the batched status-circle pool and its shroud/per-player visibility
 	//		           policy
+	//		guardai      the guard/retaliate state machine's seven named scenarios, stuck/replan
+	//		           budgeting, human-yield suppression, and its population bound
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

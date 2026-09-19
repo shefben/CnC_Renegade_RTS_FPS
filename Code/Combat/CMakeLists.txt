@@ -67,6 +67,7 @@ set(COMBAT_SRC
     nativescriptregistry.cpp
     gameobjmanager.cpp
     gameobjobserver.cpp
+    guardstatecontroller.cpp
     gametype.cpp
     globalsettings.cpp
     harvester.cpp
@@ -210,6 +211,7 @@ set(COMBAT_SRC
     nativescriptregistry.h
     gameobjmanager.h
     gameobjobserver.h
+    guardstatecontroller.h
     gameobjref.h
     gametype.h
     globalsettings.h

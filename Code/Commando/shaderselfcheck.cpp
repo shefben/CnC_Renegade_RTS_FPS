@@ -7,6 +7,7 @@
 
 #include "compositeattachment.h"
 #include "debrisrenderer.h"
+#include "guardstatecontroller.h"
 #include "radar.h"
 #include "shadermgr.h"
 #include "statusoverlayrenderer.h"
@@ -1621,6 +1622,219 @@ int	Run_Status_Overlays (void)
 }
 
 
+/*
+**	Guard state / retaliation -- roadmap Section 37.
+**
+**	GuardStateControllerClass is a pure state machine -- no GameObj, no ActionClass, no scene
+**	-- specifically so the seven scenarios the roadmap itself names can be driven exactly, with
+**	synthetic damage reports and positions, with no device and no live unit anywhere in sight.
+*/
+int	Run_Guard_AI (void)
+{
+	/*
+	**	guard -> retaliate -> return.
+	*/
+	{
+		GuardStateControllerClass c;
+		Check (c.Activate (Vector3 (0.0f,0.0f,0.0f),3.0f),"Activate refused with room available");
+		Check (c.Get_State () == GUARD_STATE_GUARDING,"a freshly activated controller was not GUARDING");
+
+		c.Report_Damage (100,Vector3 (5.0f,0.0f,0.0f),0.0f);
+		Check (c.Get_State () == GUARD_STATE_RETALIATING,"a damage report did not start retaliation");
+		Check (c.Get_Current_Target_Id () == 100,"retaliation engaged the wrong target id");
+
+		GuardAIIntentType intent = c.Update (0.0f,0.1f,Vector3 (5.0f,0.0f,0.0f),true,Vector3 (5.0f,0.0f,0.0f),nullptr,-1.0f);
+		Check (intent == GUARD_INTENT_ATTACK,"retaliating with a live target in range did not intend ATTACK");
+
+		c.Report_Target_Lost (0.2f);
+		Check (c.Get_State () == GUARD_STATE_REACQUIRING,"losing the only known target did not enter REACQUIRING");
+
+		intent = c.Update (0.2f,0.1f,Vector3 (5.0f,0.0f,0.0f),false,Vector3 (0.0f,0.0f,0.0f),nullptr,-1.0f);
+		Check (c.Get_State () == GUARD_STATE_RETURNING,"no threat left, outside the guard radius, did not head home");
+		Check (intent == GUARD_INTENT_GOTO,"heading home was not signalled as GOTO");
+		Check ((c.Get_Intent_Position () - Vector3 (0.0f,0.0f,0.0f)).Length () < 0.01f,
+				 "the return GOTO did not target the guard anchor");
+
+		intent = c.Update (1.3f,0.1f,Vector3 (0.0f,0.0f,0.0f),false,Vector3 (0.0f,0.0f,0.0f),nullptr,-1.0f);
+		Check (c.Get_State () == GUARD_STATE_GUARDING,"arriving back at the anchor did not return to GUARDING");
+		Check (intent == GUARD_INTENT_STAND,"arriving home was not signalled as STAND");
+
+		c.Deactivate ();
+	}
+
+	/*
+	**	multiple simultaneous threats, and guard -> lose target -> reacquire.
+	*/
+	{
+		GuardStateControllerClass c;
+		c.Activate (Vector3 (0.0f,0.0f,0.0f),50.0f);
+
+		c.Report_Damage (1,Vector3 (5.0f,0.0f,0.0f),0.0f);
+		Check (c.Get_Current_Target_Id () == 1,"the first attacker was not engaged");
+
+		c.Report_Damage (2,Vector3 (-5.0f,0.0f,0.0f),0.5f);
+		Check (c.Get_Current_Target_Id () == 1,
+				 "a second simultaneous attacker stole the target away from the one already engaged");
+
+		c.Report_Target_Lost (1.0f);
+		GuardAIIntentType intent = c.Update (1.0f,0.1f,Vector3 (0.0f,0.0f,0.0f),false,Vector3 (0.0f,0.0f,0.0f),nullptr,-1.0f);
+		Check (c.Get_State () == GUARD_STATE_RETALIATING,
+				 "losing attacker 1 with attacker 2 still fresh in memory did not reacquire");
+		Check (c.Get_Current_Target_Id () == 2,
+				 "reacquire picked target %d instead of the remembered second attacker",c.Get_Current_Target_Id ());
+		Check (intent == GUARD_INTENT_ATTACK,"reacquiring a remembered attacker did not intend ATTACK");
+
+		c.Deactivate ();
+	}
+
+	/*
+	**	invalid/dead target transition, noticed by Update itself rather than an explicit report.
+	*/
+	{
+		GuardStateControllerClass c;
+		c.Activate (Vector3 (0.0f,0.0f,0.0f),50.0f);
+		c.Report_Damage (9,Vector3 (1.0f,0.0f,0.0f),0.0f);
+		Check (c.Get_Current_Target_Id () == 9,"setup for the dead-target scenario did not engage id 9");
+
+		//	target_valid == false, with no explicit Report_Target_Lost call: Update has to
+		//	notice on its own.  With no other attacker remembered and the controller already
+		//	inside its guard radius, the same tick also resolves reacquire and settles back to
+		//	GUARDING -- proving the drop happened is the id changing and the state no longer
+		//	being RETALIATING against something that no longer exists, not a transient state
+		//	this synchronous a machine has no reason to still be in one call later.
+		GuardAIIntentType intent = c.Update (0.0f,0.1f,Vector3 (0.0f,0.0f,0.0f),false,Vector3 (0.0f,0.0f,0.0f),nullptr,-1.0f);
+		Check (c.Get_Current_Target_Id () == 0,
+				 "Update kept target id %d alive after target_valid == false",c.Get_Current_Target_Id ());
+		Check (c.Get_State () != GUARD_STATE_RETALIATING,
+				 "Update did not notice target_valid == false on its own for a RETALIATING controller");
+		Check (intent != GUARD_INTENT_ATTACK,"an intent to attack survived an invalid target");
+
+		c.Deactivate ();
+	}
+
+	/*
+	**	guard area boundary: the leash forces a return even while the target is still alive.
+	*/
+	{
+		GuardStateControllerClass c;
+		c.Activate (Vector3 (0.0f,0.0f,0.0f),3.0f);
+		c.Report_Damage (5,Vector3 (2.0f,0.0f,0.0f),0.0f);
+
+		GuardAIIntentType intent = c.Update (0.0f,0.1f,Vector3 (2.0f,0.0f,0.0f),true,Vector3 (2.0f,0.0f,0.0f),nullptr,-1.0f);
+		Check (intent == GUARD_INTENT_ATTACK,"a target still inside the leash was not attacked");
+
+		intent = c.Update (0.1f,0.1f,Vector3 (10.0f,0.0f,0.0f),true,Vector3 (10.0f,0.0f,0.0f),nullptr,-1.0f);
+		Check (c.Get_State () == GUARD_STATE_RETURNING,
+				 "chasing a live target outside the leash did not force a return");
+		Check (intent == GUARD_INTENT_GOTO,"the forced return was not signalled as GOTO");
+
+		c.Deactivate ();
+	}
+
+	/*
+	**	stuck unit recovery / path blocked -> replan, budgeted.
+	*/
+	{
+		GuardStateControllerClass c;
+		c.Activate (Vector3 (0.0f,0.0f,0.0f),3.0f);
+		c.Report_Damage (7,Vector3 (10.0f,0.0f,0.0f),0.0f);
+
+		//	Immediately outside the leash: one Update both enters RETURNING and proposes the
+		//	first GOTO.
+		c.Update (0.0f,0.1f,Vector3 (10.0f,0.0f,0.0f),true,Vector3 (10.0f,0.0f,0.0f),nullptr,-1.0f);
+		Check (c.Get_State () == GUARD_STATE_RETURNING,"setup for the stuck scenario did not reach RETURNING");
+
+		//	The position never changes across the next two thinks -- a blocked path -- until
+		//	the stuck window (two seconds of "think" time) is spent.
+		c.Update (0.1f,1.0f,Vector3 (10.0f,0.0f,0.0f),true,Vector3 (10.0f,0.0f,0.0f),nullptr,-1.0f);
+		Check (c.Get_Stuck_Count () == 0,"stuck was flagged before the stuck window elapsed");
+
+		GuardAIIntentType intent = c.Update (1.1f,1.0f,Vector3 (10.0f,0.0f,0.0f),true,Vector3 (10.0f,0.0f,0.0f),nullptr,-1.0f);
+		Check (c.Get_Stuck_Count () == 1,"a unit motionless for the whole stuck window was not flagged stuck");
+		Check (c.Get_Replan_Count () == 1,"a stuck unit with replan budget available did not replan");
+		Check (intent == GUARD_INTENT_GOTO,"a replan was not signalled as a new GOTO");
+		Check ((c.Get_Intent_Position () - Vector3 (0.0f,0.0f,0.0f)).Length () > 0.01f,
+				 "a replanned GOTO landed on exactly the same point the blocked path already failed at");
+		Check (GuardStateControllerClass::Get_Replans_This_Tick () == 1,
+				 "one replan left the shared per-tick counter at %d, not 1",
+				 GuardStateControllerClass::Get_Replans_This_Tick ());
+
+		GuardStateControllerClass::Begin_Tick ();
+		Check (GuardStateControllerClass::Get_Replans_This_Tick () == 0,
+				 "Begin_Tick did not reset the shared replan budget for the next tick");
+
+		c.Deactivate ();
+	}
+
+	/*
+	**	The same stuck scenario again, with the shared per-tick replan budget set to zero --
+	**	"expensive path replans are staggered/budgeted" has to mean something can actually be
+	**	refused by it, not just that the counter exists.
+	*/
+	{
+		GuardStateControllerClass::Set_Max_Replans_Per_Tick (0);
+
+		GuardStateControllerClass c;
+		c.Activate (Vector3 (0.0f,0.0f,0.0f),3.0f);
+		c.Report_Damage (8,Vector3 (10.0f,0.0f,0.0f),0.0f);
+		c.Update (0.0f,0.1f,Vector3 (10.0f,0.0f,0.0f),true,Vector3 (10.0f,0.0f,0.0f),nullptr,-1.0f);
+		c.Update (0.1f,1.0f,Vector3 (10.0f,0.0f,0.0f),true,Vector3 (10.0f,0.0f,0.0f),nullptr,-1.0f);
+		c.Update (1.1f,1.0f,Vector3 (10.0f,0.0f,0.0f),true,Vector3 (10.0f,0.0f,0.0f),nullptr,-1.0f);
+
+		Check (c.Get_Stuck_Count () == 1,"stuck detection itself depended on the replan budget");
+		Check (c.Get_Replan_Count () == 0,"a replan was issued despite a zero per-tick budget");
+
+		c.Deactivate ();
+		GuardStateControllerClass::Set_Max_Replans_Per_Tick (8);
+	}
+
+	/*
+	**	Human-player priority (Section 3A.4): a proposed GOTO that would land on a nearby human
+	**	is suppressed for that tick rather than issued through them.
+	*/
+	{
+		GuardStateControllerClass c;
+		c.Activate (Vector3 (0.0f,0.0f,0.0f),3.0f);
+		c.Report_Damage (3,Vector3 (10.0f,0.0f,0.0f),0.0f);
+		c.Update (0.0f,0.1f,Vector3 (10.0f,0.0f,0.0f),true,Vector3 (10.0f,0.0f,0.0f),nullptr,-1.0f);
+
+		Vector3 human_position (0.0f,0.0f,0.0f);		// standing right on the guard anchor
+		GuardAIIntentType intent = c.Update (0.2f,1.0f,Vector3 (10.0f,0.0f,0.0f),true,Vector3 (10.0f,0.0f,0.0f),
+														  &human_position,15.0f);
+		Check (intent == GUARD_INTENT_STAND,
+				 "a return-to-anchor GOTO landing on a human was issued instead of suppressed");
+		Check (c.Get_Yield_Count () == 1,"a yielded tick was not counted");
+
+		c.Deactivate ();
+	}
+
+	/*
+	**	Population bound: refuses past its ceiling, and a freed slot is reusable.
+	*/
+	{
+		GuardStateControllerClass::Set_Max_Active_Controllers (2);
+
+		GuardStateControllerClass a,b,c;
+		Check (a.Activate (Vector3 (0.0f,0.0f,0.0f),5.0f),"controller 1 of a 2-controller cap was refused");
+		Check (b.Activate (Vector3 (0.0f,0.0f,0.0f),5.0f),"controller 2 of a 2-controller cap was refused");
+
+		int refusals_before = GuardStateControllerClass::Get_Refusal_Count ();
+		Check (!c.Activate (Vector3 (0.0f,0.0f,0.0f),5.0f),"a controller past the population cap was accepted");
+		Check (GuardStateControllerClass::Get_Refusal_Count () > refusals_before,
+				 "a refused controller was not counted");
+
+		b.Deactivate ();
+		Check (c.Activate (Vector3 (0.0f,0.0f,0.0f),5.0f),"a slot freed by Deactivate was not reusable");
+
+		a.Deactivate ();
+		c.Deactivate ();
+		GuardStateControllerClass::Set_Max_Active_Controllers (64);
+	}
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -1674,6 +1888,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "overlays") == 0)) {
 		Run_Status_Overlays ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "guardai") == 0)) {
+		Run_Guard_AI ();
 		ran = true;
 	}
 
