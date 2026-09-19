@@ -108,6 +108,23 @@ static bool	Validate_Descriptor(const BuildingModelDescriptor & d,StringClass * 
 	if (d.ConstructionVisual.BlockFadeStart < 0.0f || d.ConstructionVisual.BlockFadeStart > 1.0f)
 																					FAIL ("invalid construction_visual.block_fade_start");
 
+	if (d.Build.Buildable) {
+		if (d.Build.Cost < 0)										FAIL ("negative build.cost");
+		if (!std::isfinite (d.Build.BuildTimeSeconds) || d.Build.BuildTimeSeconds < 0.0f)
+																					FAIL ("negative/non-finite build.build_time_seconds");
+		if (d.Build.TechLevel < 0)									FAIL ("negative build.tech_level");
+	}
+
+	if (d.Production.Kind != BUILDING_PRODUCTION_NONE) {
+		if (d.Production.QueueCapacity <= 0)					FAIL ("invalid production.queue_capacity");
+	}
+
+	if (!std::isfinite (d.Placement.MaxSlopeDegrees) ||
+		 d.Placement.MaxSlopeDegrees < 0.0f || d.Placement.MaxSlopeDegrees > 90.0f)
+																					FAIL ("invalid placement_rules.max_slope_degrees");
+	if (!std::isfinite (d.Placement.ExitClearance) || d.Placement.ExitClearance < 0.0f)
+																					FAIL ("negative/non-finite placement_rules.exit_clearance");
+
 	//	"incompatible capability/building role" -- the one concrete case Section 39 names that
 	//	this scope can check without a role concept of its own: a Power Plant and a
 	//	communications-capable building are mutually exclusive roles in every donor definition.
@@ -181,6 +198,39 @@ static bool	Parse_And_Validate(const char * definition_name,const char * json_te
 			d.ConstructionVisual.SourceRevealStart	= cv.value ("source_reveal_start",0.75f);
 			d.ConstructionVisual.BlockFadeStart		= cv.value ("block_fade_start",0.9f);
 			d.ConstructionVisual.MaxBlocks				= cv.value ("max_blocks",2048);
+		}
+
+		if (root.contains ("build") && root ["build"].is_object ()) {
+			auto & b = root ["build"];
+			d.Build.Buildable			= b.value ("buildable",false);
+			d.Build.Cost				= b.value ("cost",0);
+			d.Build.BuildTimeSeconds	= b.value ("build_time_seconds",0.0f);
+			d.Build.TechLevel			= b.value ("tech_level",0);
+			d.Build.Team				= b.value ("team",-1);
+			d.Build.DisplayName		= b.value ("display_name",std::string ("")).c_str ();
+			d.Build.IconTexture		= b.value ("icon_texture",std::string ("")).c_str ();
+		}
+
+		if (root.contains ("production") && root ["production"].is_object ()) {
+			auto & p = root ["production"];
+			std::string kind = p.value ("kind",std::string ("none"));
+			if (kind == "infantry")					d.Production.Kind = BUILDING_PRODUCTION_INFANTRY;
+			else if (kind == "ground_vehicle")	d.Production.Kind = BUILDING_PRODUCTION_GROUND_VEHICLE;
+			else if (kind == "air_vehicle")		d.Production.Kind = BUILDING_PRODUCTION_AIR_VEHICLE;
+			else if (kind == "none")				d.Production.Kind = BUILDING_PRODUCTION_NONE;
+			else {
+				if (error_out) *error_out = "unknown production.kind";
+				return false;
+			}
+			d.Production.QueueCapacity	= p.value ("queue_capacity",5);
+			d.Production.RequiresPower	= p.value ("requires_power",true);
+		}
+
+		if (root.contains ("placement_rules") && root ["placement_rules"].is_object ()) {
+			auto & pr = root ["placement_rules"];
+			d.Placement.MaxSlopeDegrees				= pr.value ("max_slope_degrees",15.0f);
+			d.Placement.ExitClearance					= pr.value ("exit_clearance",0.0f);
+			d.Placement.RequiresFoundationSupport	= pr.value ("requires_foundation_support",true);
 		}
 
 		if (root.contains ("anchors") && root ["anchors"].is_object ()) {
@@ -348,6 +398,12 @@ const BuildingModelDescriptor * BuildingDescriptorManager::Get_Descriptor(const 
 {
 	int index = Find_Record (definition_name);
 	if (index < 0) return nullptr;
+	return &_Records [index].Descriptor;
+}
+
+const BuildingModelDescriptor * BuildingDescriptorManager::Get_Descriptor_By_Index(int index)
+{
+	if (index < 0 || index >= _Records.Count ()) return nullptr;
 	return &_Records [index].Descriptor;
 }
 

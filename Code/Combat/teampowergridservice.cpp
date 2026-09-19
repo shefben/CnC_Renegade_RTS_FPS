@@ -303,6 +303,19 @@ void TeamPowerGridService::RecalculateTeam(int team)
 		PowerGridMember & member = _Members [i];
 		if (!member.InUse || member.Team != team) continue;
 
+		/*
+		**	A member whose DefinitionName resolves to nothing is not this service's building.
+		**	It was registered anyway -- every BuildingGameObj is, so that authoring one JSON
+		**	file is the only step needed to hand a building over -- but BaseControllerClass::
+		**	Power_Base still owns its Enable_Power calls, and Has_Resolved_Descriptor is what
+		**	tells Power_Base's own loop which ones those are.  Skipping it here is the other
+		**	half of that same rule: without it this loop would drive Enable_Power(true) on
+		**	every undescribed building on the team the next time anything on the team was
+		**	destroyed or revived, silently overriding whatever Power_Base had decided.
+		*/
+		const BuildingModelDescriptor * descriptor = Peek_Descriptor (member);
+		if (descriptor == nullptr) continue;
+
 		if (member.Building != nullptr) {
 			member.Building->Get_Position (&member.Position);
 			if (!member.Destroyed) {
@@ -310,8 +323,7 @@ void TeamPowerGridService::RecalculateTeam(int team)
 			}
 		}
 
-		const BuildingModelDescriptor * descriptor = Peek_Descriptor (member);
-		if (descriptor == nullptr || !descriptor->Communications.Enabled) continue;
+		if (!descriptor->Communications.Enabled) continue;
 
 		bool online_eligible = !member.Destroyed &&
 										(member.IsAllocated || !descriptor->Communications.RequiresBuildingOnline);
@@ -459,6 +471,30 @@ int TeamPowerGridService::Get_Consumer_Count(int team)
 		if (descriptor != nullptr && descriptor->Power.RequiresPower) count++;
 	}
 	return count;
+}
+
+bool TeamPowerGridService::Get_Member_By_Index(int index,PowerGridMemberIdType * out_member_id,int * out_team)
+{
+	int count = 0;
+	for (int i = 0; i < _Members.Count (); i++) {
+		if (!_Members [i].InUse) continue;
+		if (count == index) {
+			if (out_member_id != nullptr)	*out_member_id	= _Members [i].MemberId;
+			if (out_team != nullptr)		*out_team		= _Members [i].Team;
+			return true;
+		}
+		count++;
+	}
+	return false;
+}
+
+bool TeamPowerGridService::Get_Priority_Override(PowerGridMemberIdType member_id,int * out_priority)
+{
+	int index = Find_Member (member_id);
+	if (index < 0) return false;
+	if (!_Members [index].HasPriorityOverride) return false;
+	if (out_priority != nullptr) *out_priority = _Members [index].PriorityOverride;
+	return true;
 }
 
 int TeamPowerGridService::Get_Member_Count(void)

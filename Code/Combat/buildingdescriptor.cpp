@@ -39,6 +39,14 @@ BuildingModelDescriptor::BuildingModelDescriptor(void) :
 }
 
 
+float BuildingModelDescriptor::Get_Build_Time_Seconds(void) const
+{
+	if (Build.BuildTimeSeconds > 0.0f) {
+		return Build.BuildTimeSeconds;
+	}
+	return ConstructionVisual.DurationSeconds;
+}
+
 const char * BuildingModelDescriptor::Find_Anchor_Bone(const char * role_name) const
 {
 	if (role_name == nullptr) return nullptr;

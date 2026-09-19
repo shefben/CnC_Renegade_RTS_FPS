@@ -189,6 +189,11 @@ enum {
 	CHUNKID_GAME_OBJECT_SUPERWEAPON,
 	CHUNKID_GAME_OBJECT_DEF_SUPERWEAPON,
 
+	//	Roadmap Section 46, Phase 40 -- the one save/load subsystem for authoritative RTS
+	//	state (power grid overrides, construction, production queues, Commander orders).
+	//	Appended here, at the end of the run, for the reason the comment above states.
+	CHUNKID_RTS_PERSISTENCE,
+
 	CHUNKID_GAME_OBJECT_OBSERVERS_BEGIN		= CHUNKID_COMBAT_BEGIN + 0x200,
 	CHUNKID_SOLDIER_OBSERVER,
 	CHUNKID_BEACON_MONITOR,

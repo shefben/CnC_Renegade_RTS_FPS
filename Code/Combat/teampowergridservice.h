@@ -150,6 +150,17 @@ class TeamPowerGridService
 		static int		Get_Consumer_Count(int team);
 
 		static int		Get_Member_Count(void);
+
+		/*
+		**	Enumeration, for Phase 40's save pass.  Section 46 is explicit about what persists
+		**	from this service -- the member id, the manual enable/disable state and the priority
+		**	override -- and equally explicit that generation, demand and the shed result are
+		**	*recomputed* after load, never saved ("do not serialize a second independent
+		**	powered/unpowered truth").  So these three are all that is exposed: there is no
+		**	accessor here for a saveable allocation result, because saving one would be the bug.
+		*/
+		static bool		Get_Member_By_Index(int index,PowerGridMemberIdType * out_member_id,int * out_team);
+		static bool		Get_Priority_Override(PowerGridMemberIdType member_id,int * out_priority);
 };
 
 #endif // TEAMPOWERGRIDSERVICE_H

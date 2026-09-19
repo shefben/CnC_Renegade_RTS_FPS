@@ -7,6 +7,13 @@
 
 #include "buildingdescriptormanager.h"
 #include "commandermodecontroller.h"
+#include "commandersidebar.h"
+#include "commanderplacement.h"
+#include "commanderproduction.h"
+#include "buildingconstruction.h"
+#include "rtspersistence.h"
+#include "obbox.h"
+#include "aabox.h"
 #include "compositeattachment.h"
 #include "debrisrenderer.h"
 #include "debugrendersystem.h"
@@ -2482,6 +2489,964 @@ int	Run_Commander_Mode (void)
 }
 
 
+/***********************************************************************************************
+ * Commander sidebar, placement, construction, production (Phases 36-39) and RTS save/load (40)  *
+ *                                                                                             *
+ *	All five are device-less by construction, which is the whole reason they were built as       *
+ *	state-and-rules services with the drawing left outside them.  What cannot be checked here    *
+ *	is named in each block rather than quietly skipped.                                          *
+ *=============================================================================================*/
+
+static const char * const	SIDEBAR_FACTORY_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":20,\"depth\":30},"
+	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":100.0,\"priority\":50},"
+	"  \"production\":{\"kind\":\"ground_vehicle\",\"queue_capacity\":3,\"requires_power\":true},"
+	"  \"build\":{\"buildable\":true,\"cost\":2000,\"build_time_seconds\":10.0,\"display_name\":\"Factory\"} }";
+
+static const char * const	SIDEBAR_BARRACKS_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":15,\"depth\":15},"
+	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":50.0,\"priority\":50},"
+	"  \"production\":{\"kind\":\"infantry\",\"queue_capacity\":5,\"requires_power\":true} }";
+
+static const char * const	SIDEBAR_PLANT_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":18,\"depth\":18},"
+	"  \"power\":{\"requires_power\":false,\"generation\":300.0,\"consumption\":0.0,\"priority\":0},"
+	"  \"build\":{\"buildable\":true,\"cost\":1500,\"team\":1,\"display_name\":\"Power Plant\"},"
+	"  \"placement_rules\":{\"max_slope_degrees\":12.0,\"exit_clearance\":0.0} }";
+
+static const char * const	SIDEBAR_PLAIN_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":8,\"depth\":8},"
+	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":10.0,\"priority\":10} }";
+
+
+int	Run_Commander_Sidebar (void)
+{
+	BuildingDescriptorManager::Init ();
+	TeamPowerGridService::Init ();
+	BuildingConstructionService::Init ();
+	CommanderProductionService::Init ();
+	CommanderSidebarModel::Init ();
+
+	StringClass error ("");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_sb_factory",SIDEBAR_FACTORY_JSON,&error),
+			 "factory descriptor refused: %s",error.Peek_Buffer ());
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_sb_barracks",SIDEBAR_BARRACKS_JSON,&error),
+			 "barracks descriptor refused: %s",error.Peek_Buffer ());
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_sb_plant",SIDEBAR_PLANT_JSON,&error),
+			 "plant descriptor refused: %s",error.Peek_Buffer ());
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_sb_plain",SIDEBAR_PLAIN_JSON,&error),
+			 "plain descriptor refused: %s",error.Peek_Buffer ());
+
+	const int TEAM_GDI = 1;
+
+	//	"BUILDINGS sidebar appears on Commander entry", and it is the default mode.
+	Check (!CommanderSidebarModel::Is_Open (),"the sidebar was open before anything opened it");
+	CommanderSidebarModel::Open (TEAM_GDI);
+	Check (CommanderSidebarModel::Is_Open (),"Open did not open the sidebar");
+	Check (CommanderSidebarModel::Get_Mode () == SIDEBAR_MODE_BUILDINGS,
+			 "the sidebar opened in %s, not BUILDINGS",
+			 CommanderSidebarModel::Get_Mode_Name (CommanderSidebarModel::Get_Mode ()));
+
+	/*
+	**	Only buildable descriptors become building cards, and a card carries the descriptor's
+	**	own cost and power numbers -- Section 42's "+generation / -consumption" on the card.
+	*/
+	CommanderSidebarModel::Refresh (100000);
+	Check (CommanderSidebarModel::Get_Card_Count () == 2,
+			 "%d building card(s) from two buildable descriptors and two unbuildable ones",
+			 CommanderSidebarModel::Get_Card_Count ());
+
+	bool found_factory = false, found_plant = false;
+	for (int i = 0; i < CommanderSidebarModel::Get_Card_Count (); i++) {
+		const CommanderSidebarCard * card = CommanderSidebarModel::Get_Card (i);
+		Check (card != nullptr,"a card index inside the count returned nullptr");
+		if (card == nullptr) continue;
+		if (card->DescriptorName.Compare_No_Case ("ow_test_sb_factory") == 0) {
+			found_factory = true;
+			Check (card->Cost == 2000,"the factory card cost %d, not its descriptor's 2000",card->Cost);
+			Check (WWMath::Fabs (card->PowerConsumption - 100.0f) < 0.01f,
+					 "the factory card shows consumption %f, not 100",card->PowerConsumption);
+			Check (card->Status == CARD_AVAILABLE,"an affordable any-faction building read '%s'",
+					 CommanderSidebarModel::Get_Status_Name (card->Status));
+		}
+		if (card->DescriptorName.Compare_No_Case ("ow_test_sb_plant") == 0) {
+			found_plant = true;
+			Check (WWMath::Fabs (card->PowerGeneration - 300.0f) < 0.01f,
+					 "the plant card shows generation %f, not 300",card->PowerGeneration);
+		}
+	}
+	Check (found_factory,"the buildable factory produced no card");
+	Check (found_plant,"the buildable plant produced no card");
+
+	//	Affordability is a card status, not a missing card -- the panel has to draw the reason.
+	CommanderSidebarModel::Refresh (100);
+	Check (CommanderSidebarModel::Get_Card_Count () == 2,
+			 "a poor Commander sees %d cards instead of the same two greyed out",
+			 CommanderSidebarModel::Get_Card_Count ());
+	for (int i = 0; i < CommanderSidebarModel::Get_Card_Count (); i++) {
+		const CommanderSidebarCard * card = CommanderSidebarModel::Get_Card (i);
+		if (card == nullptr) continue;
+		Check (card->Status == CARD_INSUFFICIENT_CREDITS,
+				 "a 1500-2000 credit building with 100 credits read '%s'",
+				 CommanderSidebarModel::Get_Status_Name (card->Status));
+	}
+
+	//	A faction-locked descriptor on the wrong team: same card, a different reason -- which is
+	//	what distinguishes "cannot afford yet" from "cannot ever".
+	CommanderSidebarModel::Open (0);				// PLAYERTYPE_NOD
+	CommanderSidebarModel::Refresh (100000);
+	bool saw_wrong_faction = false;
+	for (int i = 0; i < CommanderSidebarModel::Get_Card_Count (); i++) {
+		const CommanderSidebarCard * card = CommanderSidebarModel::Get_Card (i);
+		if (card == nullptr) continue;
+		if (card->DescriptorName.Compare_No_Case ("ow_test_sb_plant") == 0) {
+			saw_wrong_faction = (card->Status == CARD_WRONG_FACTION);
+		}
+	}
+	Check (saw_wrong_faction,"a GDI-only building did not read WRONG_FACTION for Nod");
+
+	//	Paging: eight visible slots, a page count that follows the content, clamped at both ends.
+	CommanderSidebarModel::Open (TEAM_GDI);
+	CommanderSidebarModel::Refresh (100000);
+	Check (CommanderSidebarModel::PAGE_SIZE == 8,"the visible page is %d slots, not the required 2 x 4",
+			 (int)CommanderSidebarModel::PAGE_SIZE);
+	Check (CommanderSidebarModel::Get_Page_Count () == 1,
+			 "two cards produced %d pages",CommanderSidebarModel::Get_Page_Count ());
+	CommanderSidebarModel::Next_Page ();
+	Check (CommanderSidebarModel::Get_Page () == 0,"Next_Page on the only page moved to page %d",
+			 CommanderSidebarModel::Get_Page ());
+	CommanderSidebarModel::Prev_Page ();
+	Check (CommanderSidebarModel::Get_Page () == 0,"Prev_Page on page 0 moved to page %d",
+			 CommanderSidebarModel::Get_Page ());
+
+	const CommanderSidebarCard * visible [CommanderSidebarModel::PAGE_SIZE];
+	int visible_count = CommanderSidebarModel::Get_Visible_Cards (visible,CommanderSidebarModel::PAGE_SIZE);
+	Check (visible_count == 2,"a two-card page reported %d visible cards",visible_count);
+
+	//	A bind that cannot resolve a descriptor changes nothing at all.
+	Check (!CommanderSidebarModel::Bind_Facility (nullptr,0),
+			 "binding to a null building with no descriptor was accepted");
+	Check (CommanderSidebarModel::Get_Mode () == SIDEBAR_MODE_BUILDINGS,
+			 "a refused bind still changed the mode");
+
+	/*
+	**	Not covered here: Bind_Facility's success path needs a real BuildingGameObj, because the
+	**	descriptor name it binds by is read off BuildingGameObjDef.  The rules that binding
+	**	drives -- the facility gate below, and the mode each production kind maps to -- are
+	**	exercised directly instead.
+	*/
+	CommanderSidebarModel::Set_Mode (SIDEBAR_MODE_INFANTRY);
+	Check (CommanderSidebarModel::Get_Mode () == SIDEBAR_MODE_INFANTRY,"Set_Mode to INFANTRY did not take");
+	CommanderSidebarModel::Refresh (100000);
+
+	/*
+	**	"Never allow stale purchases from a dead/offline facility."  With nothing bound, no unit
+	**	card may read AVAILABLE.  (A device-less run also has no purchase-page content, so an
+	**	empty list is equally a pass; what is checked is that nothing is buyable.)
+	*/
+	for (int i = 0; i < CommanderSidebarModel::Get_Card_Count (); i++) {
+		const CommanderSidebarCard * card = CommanderSidebarModel::Get_Card (i);
+		if (card == nullptr) continue;
+		Check (card->Status != CARD_AVAILABLE,"a unit card read AVAILABLE with no facility bound");
+	}
+	Check (!CommanderSidebarModel::Get_Facility_State ().Is_Operational (),
+			 "an unbound facility state reported itself operational");
+
+	//	Return to BUILDINGS is immediate and drops the binding.
+	CommanderSidebarModel::Return_To_Buildings ();
+	Check (CommanderSidebarModel::Get_Mode () == SIDEBAR_MODE_BUILDINGS,"the return input did not reach BUILDINGS");
+	Check (!CommanderSidebarModel::Get_Facility_State ().Bound,"the return input left a facility bound");
+
+	/*
+	**	AIR_VEHICLES exists, switches and pages, and is empty because stock Renegade ships no
+	**	air purchase page.  Checked so the emptiness is a recorded fact, not a surprise.
+	*/
+	CommanderSidebarModel::Set_Mode (SIDEBAR_MODE_AIR_VEHICLES);
+	CommanderSidebarModel::Refresh (100000);
+	Check (CommanderSidebarModel::Get_Card_Count () == 0,
+			 "AIR_VEHICLES produced %d cards, but no air purchase content exists in this tree",
+			 CommanderSidebarModel::Get_Card_Count ());
+	Check (CommanderSidebarModel::Get_Page_Count () == 1,"an empty mode reported %d pages, not one empty one",
+			 CommanderSidebarModel::Get_Page_Count ());
+
+	//	Power bars read the grid, and overload is reported separately from headroom.
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM_GDI,"ow_test_sb_plant",101);
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM_GDI,"ow_test_sb_factory",102);
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM_GDI,"ow_test_sb_barracks",103);
+	TeamPowerGridService::RecalculateTeam (TEAM_GDI);
+
+	CommanderSidebarModel::Open (TEAM_GDI);
+	CommanderPowerDisplay power;
+	CommanderSidebarModel::Get_Power_Display (&power);
+	Check (WWMath::Fabs (power.Generation - 300.0f) < 0.01f,
+			 "the power bar shows generation %f, not the grid's 300",power.Generation);
+	Check (WWMath::Fabs (power.RequestedDemand - 150.0f) < 0.01f,
+			 "the power bar shows requested demand %f, not 150",power.RequestedDemand);
+	Check (!power.Overloaded,"300 generation against 150 demand read as overloaded");
+	Check (WWMath::Fabs (power.Headroom - 150.0f) < 0.01f,"headroom read %f, not 150",power.Headroom);
+
+	//	Overloaded, and the bar says so rather than showing negative headroom.
+	TeamPowerGridService::OnBuildingDestroyed (101);
+	CommanderSidebarModel::Get_Power_Display (&power);
+	Check (power.Overloaded,"demand with no generation at all did not read as overloaded");
+	Check (power.Headroom >= 0.0f,"headroom went negative (%f) instead of reporting an overload",power.Headroom);
+	Check (power.ShedCount == 2,"%d building(s) shed with no generation, not both consumers",power.ShedCount);
+
+	CommanderSidebarModel::Close ();
+	Check (!CommanderSidebarModel::Is_Open (),"Close left the sidebar open");
+	Check (CommanderSidebarModel::Get_Card_Count () == 0,"Close left cards behind");
+
+	CommanderSidebarModel::Shutdown ();
+	CommanderProductionService::Shutdown ();
+	BuildingConstructionService::Shutdown ();
+	TeamPowerGridService::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	return _Failures;
+}
+
+
+int	Run_Commander_Placement (void)
+{
+	BuildingDescriptorManager::Init ();
+	CommanderPlacementValidator::Init ();
+
+	StringClass error ("");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_pl_plant",SIDEBAR_PLANT_JSON,&error),
+			 "plant descriptor refused: %s",error.Peek_Buffer ());
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_pl_plain",SIDEBAR_PLAIN_JSON,&error),
+			 "plain descriptor refused: %s",error.Peek_Buffer ());
+
+	const int TEAM_GDI = 1;
+	const int TEAM_NOD = 0;
+
+	CommanderPlacementRequest request;
+	request.DescriptorName	= "ow_test_pl_plant";
+	request.Team				= TEAM_GDI;
+	request.Position			= Vector3 (0.0f,0.0f,0.0f);
+	request.SequenceId		= 7;
+
+	/*
+	**	With no physics scene and no heightfield, every world check is skipped and the request
+	**	is valid.  That is both the right answer and the right baseline: it means each refusal
+	**	below is caused by the one thing being tested, not by the empty world.
+	*/
+	CommanderPlacementResult result = CommanderPlacementValidator::Validate (request);
+	Check (result.Is_Valid (),"an unobstructed placement was refused: %s",
+			 CommanderPlacementValidator::Get_Result_Name (result.Result));
+	Check (result.SequenceId == 7,"the result carried sequence %d, not the request's 7",result.SequenceId);
+
+	CommanderPlacementRequest bad = request;
+	bad.DescriptorName = "ow_test_pl_nosuch";
+	Check (CommanderPlacementValidator::Validate (bad).Result == PLACEMENT_NO_DESCRIPTOR,
+			 "an unknown descriptor was not refused as NO_DESCRIPTOR");
+
+	bad = request;
+	bad.DescriptorName = "ow_test_pl_plain";
+	Check (CommanderPlacementValidator::Validate (bad).Result == PLACEMENT_NOT_BUILDABLE,
+			 "a descriptor with no build block was not refused as NOT_BUILDABLE");
+
+	bad = request;
+	bad.Team = TEAM_NOD;
+	Check (CommanderPlacementValidator::Validate (bad).Result == PLACEMENT_WRONG_FACTION,
+			 "a GDI-only building placed by Nod was not refused as WRONG_FACTION");
+
+	/*
+	**	The footprint box is the descriptor's, rotated by the request -- and it is the same box
+	**	the ghost draws, so a rotation has to change the basis, not only the number.
+	*/
+	OBBoxClass box;
+	Check (CommanderPlacementValidator::Build_Footprint_Box (request,&box),
+			 "a valid request produced no footprint box");
+	Check (WWMath::Fabs (box.Extent.X - 9.0f) < 0.01f,"the footprint half-width is %f, not the descriptor's 9",box.Extent.X);
+	Check (WWMath::Fabs (box.Extent.Y - 9.0f) < 0.01f,"the footprint half-depth is %f, not the descriptor's 9",box.Extent.Y);
+
+	CommanderPlacementRequest rotated = request;
+	rotated.RotationDegrees = 90.0f;
+	OBBoxClass rotated_box;
+	Check (CommanderPlacementValidator::Build_Footprint_Box (rotated,&rotated_box),
+			 "a rotated request produced no footprint box");
+	Vector3 x_axis = rotated_box.Basis.Get_X_Vector ();
+	Check (WWMath::Fabs (x_axis.X) < 0.01f && WWMath::Fabs (x_axis.Y - 1.0f) < 0.01f,
+			 "a 90-degree rotation left the footprint basis unrotated (X axis %f,%f)",x_axis.X,x_axis.Y);
+
+	/*
+	**	The ghost.  Section 43's "RED TRANSLUCENT" state is Is_Ghost_Valid coming back false, so
+	**	what matters is that it tracks Validate without the caller having to ask.
+	*/
+	Check (!CommanderPlacementValidator::Is_Ghost_Active (),"a ghost existed before one was begun");
+	CommanderPlacementValidator::Begin_Ghost ("ow_test_pl_plant",TEAM_GDI);
+	Check (CommanderPlacementValidator::Is_Ghost_Active (),"Begin_Ghost did not start a ghost");
+	Check (CommanderPlacementValidator::Is_Ghost_Valid (),"an unobstructed ghost read invalid");
+
+	CommanderPlacementValidator::Move_Ghost (Vector3 (50.0f,25.0f,3.0f));
+	Check (WWMath::Fabs (CommanderPlacementValidator::Get_Ghost ().Position.X - 50.0f) < 0.01f,
+			 "Move_Ghost did not move the ghost");
+
+	CommanderPlacementValidator::Rotate_Ghost (45.0f);
+	Check (WWMath::Fabs (CommanderPlacementValidator::Get_Ghost ().RotationDegrees - 45.0f) < 0.01f,
+			 "Rotate_Ghost left rotation at %f",CommanderPlacementValidator::Get_Ghost ().RotationDegrees);
+	CommanderPlacementValidator::Rotate_Ghost (-90.0f);
+	Check (WWMath::Fabs (CommanderPlacementValidator::Get_Ghost ().RotationDegrees - 315.0f) < 0.01f,
+			 "rotating past zero gave %f, not a wrapped 315",
+			 CommanderPlacementValidator::Get_Ghost ().RotationDegrees);
+
+	//	A ghost of a definition the Commander may not build is active and permanently red.
+	CommanderPlacementValidator::Begin_Ghost ("ow_test_pl_plain",TEAM_GDI);
+	Check (CommanderPlacementValidator::Is_Ghost_Active (),"an unbuildable ghost did not start");
+	Check (!CommanderPlacementValidator::Is_Ghost_Valid (),"an unbuildable ghost read valid");
+
+	CommanderPlacementValidator::Cancel_Ghost ();
+	Check (!CommanderPlacementValidator::Is_Ghost_Active (),"Cancel_Ghost left the ghost active");
+	Check (!CommanderPlacementValidator::Is_Ghost_Valid (),"a cancelled ghost still read valid");
+
+	/*
+	**	Server authority.  The server runs the identical function, so a request the client would
+	**	have drawn red is refused -- and the refusal is counted.
+	*/
+	int rejections_before = CommanderPlacementValidator::Get_Rejection_Count ();
+
+	CommanderPlacementRequest server_bad = request;
+	server_bad.Team			= TEAM_NOD;
+	server_bad.SequenceId	= 99;
+	CommanderPlacementResult server_result = CommanderPlacementValidator::Validate_Server_Request (server_bad);
+	Check (!server_result.Is_Valid (),"the server accepted a placement the client's own validator refuses");
+	Check (CommanderPlacementValidator::Get_Rejection_Count () == rejections_before + 1,
+			 "a server rejection was not counted");
+	Check (CommanderPlacementValidator::Get_Last_Accepted_Sequence () != 99,
+			 "a rejected placement was recorded as the last accepted sequence");
+
+	CommanderPlacementRequest server_good = request;
+	server_good.SequenceId = 42;
+	Check (CommanderPlacementValidator::Validate_Server_Request (server_good).Is_Valid (),
+			 "the server refused a placement its own validator calls valid");
+	Check (CommanderPlacementValidator::Get_Last_Accepted_Sequence () == 42,
+			 "an accepted placement did not record its sequence id");
+
+	/*
+	**	Not covered by any automated check: the overlap, slope, world-bounds and exit-clearance
+	**	branches all need a live PhysicsSceneClass or a generated WorldTerrainSystem heightfield,
+	**	neither of which -shaderselfcheck can stand up.  What is proved here is that the
+	**	definition-level rules hold, that the footprint box those world queries are handed is
+	**	built correctly and rotates, and that client and server reach the same verdict.
+	*/
+
+	CommanderPlacementValidator::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	return _Failures;
+}
+
+
+static const char * const	CONSTRUCTION_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":20,\"depth\":20},"
+	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":50.0,\"priority\":50},"
+	"  \"build\":{\"buildable\":true,\"cost\":1000,\"build_time_seconds\":20.0},"
+	"  \"construction_visual\":{\"duration_seconds\":15.0,\"block_width\":2.0,\"block_depth\":2.0,"
+	"     \"row_height\":1.5,\"source_reveal_start\":0.75,\"block_fade_start\":0.9,\"max_blocks\":2048} }";
+
+//	Absurdly small blocks against a small cap, so the coarsening path is exercised, not assumed.
+static const char * const	CONSTRUCTION_TINY_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":20,\"depth\":20},"
+	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":50.0,\"priority\":50},"
+	"  \"build\":{\"buildable\":true,\"cost\":1000},"
+	"  \"construction_visual\":{\"duration_seconds\":15.0,\"block_width\":0.1,\"block_depth\":0.1,"
+	"     \"row_height\":0.1,\"source_reveal_start\":0.75,\"block_fade_start\":0.9,\"max_blocks\":64} }";
+
+
+int	Run_Building_Construction (void)
+{
+	BuildingDescriptorManager::Init ();
+	BuildingConstructionService::Init ();
+
+	StringClass error ("");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_con",CONSTRUCTION_JSON,&error),
+			 "construction descriptor refused: %s",error.Peek_Buffer ());
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_con_tiny",CONSTRUCTION_TINY_JSON,&error),
+			 "tiny-block descriptor refused: %s",error.Peek_Buffer ());
+
+	//	build.build_time_seconds wins over construction_visual.duration_seconds when both exist.
+	const BuildingModelDescriptor * descriptor = BuildingDescriptorManager::Get_Descriptor ("ow_test_con");
+	Check (descriptor != nullptr,"the construction descriptor did not come back");
+	if (descriptor != nullptr) {
+		Check (WWMath::Fabs (descriptor->Get_Build_Time_Seconds () - 20.0f) < 0.01f,
+				 "build time resolved to %f, not the build block's 20",descriptor->Get_Build_Time_Seconds ());
+	}
+
+	AABoxClass bounds;
+	bounds.Center = Vector3 (0.0f,0.0f,5.0f);
+	bounds.Extent = Vector3 (10.0f,10.0f,5.0f);		// a 20 x 20 x 10 building
+
+	/*
+	**	Determinism.  The same (bounds, seed) generates the identical layout -- this is what a
+	**	client, a late joiner and a load all rest on, and it is the one property of the
+	**	generator that actually has to hold.
+	*/
+	DynamicVectorClass<BuildingConstructionBlock>	first;
+	DynamicVectorClass<BuildingConstructionBlock>	second;
+	int count_a = BuildingConstructionService::Generate_Blocks ("ow_test_con",bounds,12345,first);
+	int count_b = BuildingConstructionService::Generate_Blocks ("ow_test_con",bounds,12345,second);
+
+	Check (count_a > 0,"a 20 x 20 x 10 building generated no blocks");
+	Check (count_a == count_b,"the same seed generated %d blocks then %d",count_a,count_b);
+
+	bool identical = true;
+	for (int i = 0; i < count_a && i < count_b; i++) {
+		if (first [i].Row != second [i].Row) identical = false;
+		if (first [i].Order != second [i].Order) identical = false;
+		if (WWMath::Fabs (first [i].LocalCenter.X - second [i].LocalCenter.X) > 0.0001f) identical = false;
+		if (WWMath::Fabs (first [i].LocalCenter.Z - second [i].LocalCenter.Z) > 0.0001f) identical = false;
+		if (WWMath::Fabs (first [i].ProgressStart - second [i].ProgressStart) > 0.0001f) identical = false;
+	}
+	Check (identical,"the same seed produced two different layouts");
+
+	//	A different seed reorders the blocks but must not change the geometry: the seed is a
+	//	shuffle, not a shape.
+	DynamicVectorClass<BuildingConstructionBlock>	other_seed;
+	int count_c = BuildingConstructionService::Generate_Blocks ("ow_test_con",bounds,999,other_seed);
+	Check (count_c == count_a,"a different seed changed the block count from %d to %d",count_a,count_c);
+
+	bool order_differs = false;
+	for (int i = 0; i < count_a && i < count_c; i++) {
+		if (first [i].Order != other_seed [i].Order) { order_differs = true; break; }
+	}
+	Check (order_differs,"two different seeds produced the same within-row ordering");
+
+	/*
+	**	Rows are bottom-to-top and no block escapes its row's slice of the timeline, which is
+	**	what makes "rows activate strictly bottom-to-top" true whatever the shuffle did.
+	*/
+	int rows_seen = 0;
+	bool rows_ordered = true;
+	bool windows_sane = true;
+	bool row_separation = true;
+	for (int i = 0; i < count_a; i++) {
+		if (first [i].Row + 1 > rows_seen) rows_seen = first [i].Row + 1;
+		if (i > 0 && first [i].Row < first [i - 1].Row) rows_ordered = false;
+		if (first [i].ProgressStart < BuildingConstructionService::FOUNDATION_END - 0.0001f) windows_sane = false;
+		if (first [i].ProgressEnd > BuildingConstructionService::ROWS_END + 0.0001f) windows_sane = false;
+		if (first [i].ProgressEnd <= first [i].ProgressStart) windows_sane = false;
+		if (i > 0 && first [i].Row > first [i - 1].Row &&
+			 first [i].ProgressStart < first [i - 1].ProgressStart) row_separation = false;
+	}
+	Check (rows_ordered,"the generated block list is not ordered bottom-to-top by row");
+	Check (windows_sane,"a block's progress window falls outside the foundation/rows staging band");
+	Check (rows_seen > 1,"a 10-unit-tall building with 1.5-unit rows generated only %d row(s)",rows_seen);
+	Check (row_separation,"a higher row began before a lower one");
+
+	//	max_blocks is respected by coarsening, not by truncation: the count fits *and* the
+	//	blocks got bigger, rather than the top of the building going missing.
+	DynamicVectorClass<BuildingConstructionBlock>	capped;
+	int capped_count = BuildingConstructionService::Generate_Blocks ("ow_test_con_tiny",bounds,1,capped);
+	Check (capped_count > 0,"the capped descriptor generated nothing at all");
+	Check (capped_count <= 64,"max_blocks 64 produced %d blocks",capped_count);
+	if (capped_count > 0) {
+		Check (capped [0].HalfExtent.X > 0.05f,
+				 "the capped layout kept 0.1-wide blocks (half extent %f) instead of coarsening",
+				 capped [0].HalfExtent.X);
+	}
+
+	/*
+	**	Lifecycle and the gate.  A building is under construction until its duration has elapsed
+	**	on the *server clock*, not after some number of Update calls.
+	*/
+	Matrix3D transform (1);
+	transform.Set_Translation (Vector3 (100.0f,200.0f,0.0f));
+
+	Check (!BuildingConstructionService::Is_Under_Construction (555),
+			 "a building nobody ever started read as under construction");
+	Check (BuildingConstructionService::Begin_Construction (555,"ow_test_con",transform,bounds,1000.0f,12345),
+			 "Begin_Construction refused a valid start");
+	Check (BuildingConstructionService::Is_Under_Construction (555),"a just-started building is not under construction");
+	Check (BuildingConstructionService::Get_Block_Count (555) == count_a,
+			 "the started construction holds %d blocks, not the %d its layout generates",
+			 BuildingConstructionService::Get_Block_Count (555),count_a);
+
+	float progress = -1.0f;
+	Check (BuildingConstructionService::Get_Progress (555,&progress),"a live construction reported no progress");
+	Check (WWMath::Fabs (progress) < 0.0001f,"a construction started at progress %f, not 0",progress);
+	Check (BuildingConstructionService::Get_Stage (555) == CONSTRUCTION_STAGE_FOUNDATION,
+			 "a new construction is in stage '%s', not foundation",
+			 BuildingConstructionService::Get_Stage_Name (BuildingConstructionService::Get_Stage (555)));
+
+	BuildingConstructionService::Update (1010.0f);
+	BuildingConstructionService::Get_Progress (555,&progress);
+	Check (WWMath::Fabs (progress - 0.5f) < 0.0001f,
+			 "ten seconds into a twenty-second build reads progress %f, not 0.5",progress);
+	Check (BuildingConstructionService::Get_Stage (555) == CONSTRUCTION_STAGE_BLOCKS,
+			 "midway through the block rows the stage is '%s'",
+			 BuildingConstructionService::Get_Stage_Name (BuildingConstructionService::Get_Stage (555)));
+	Check (WWMath::Fabs (BuildingConstructionService::Get_Source_Reveal_Alpha (555)) < 0.0001f,
+			 "the real model was already revealing at half progress");
+
+	//	A frame-rate hitch changes nothing: server time is the only input.
+	BuildingConstructionService::Update (1010.0f);
+	BuildingConstructionService::Get_Progress (555,&progress);
+	Check (WWMath::Fabs (progress - 0.5f) < 0.0001f,
+			 "a second Update at the same server time moved progress to %f",progress);
+
+	BuildingConstructionService::Update (1018.0f);		// 0.90
+	Check (BuildingConstructionService::Get_Stage (555) == CONSTRUCTION_STAGE_REVEAL,
+			 "past source_reveal_start the stage is '%s', not reveal",
+			 BuildingConstructionService::Get_Stage_Name (BuildingConstructionService::Get_Stage (555)));
+	Check (BuildingConstructionService::Get_Source_Reveal_Alpha (555) > 0.0f,
+			 "the real model had not begun revealing past source_reveal_start");
+
+	//	A visible block is somewhere real; a block whose row has not started reports invisible
+	//	rather than being drawn at the origin.
+	BuildingConstructionBlockRenderState render;
+	Check (BuildingConstructionService::Get_Block_Render_State (555,0,&render),
+			 "block 0 of a live construction has no render state");
+	if (render.Visible) {
+		Vector3 position = render.Transform.Get_Translation ();
+		Check (WWMath::Fabs (position.X - 100.0f) < 60.0f && WWMath::Fabs (position.Y - 200.0f) < 60.0f,
+				 "a block landed at %f,%f, nowhere near the building's 100,200",position.X,position.Y);
+		Check (render.Alpha > 0.0f && render.Alpha <= 1.0f,"a visible block has alpha %f",render.Alpha);
+		Check (render.HalfExtent.Z > 0.0f,"a visible block has no height");
+	}
+
+	BuildingConstructionService::Update (1020.0f);
+	Check (BuildingConstructionService::Get_Completed_Count () == 1,
+			 "%d completion(s) reported when one building finished",
+			 BuildingConstructionService::Get_Completed_Count ());
+	Check (BuildingConstructionService::Get_Completed_Building (0) == 555,
+			 "the completion named building %d, not 555",BuildingConstructionService::Get_Completed_Building (0));
+	Check (!BuildingConstructionService::Is_Under_Construction (555),
+			 "a finished building still reads as under construction");
+	Check (WWMath::Fabs (BuildingConstructionService::Get_Source_Reveal_Alpha (555) - 1.0f) < 0.0001f,
+			 "a finished building's real model is not fully revealed");
+
+	BuildingConstructionService::Clear_Completed ();
+	Check (BuildingConstructionService::Get_Completed_Count () == 0,"Clear_Completed left completions behind");
+	Check (BuildingConstructionService::Get_Block_Count (555) == 0,
+			 "a consumed completion left %d temporary block(s) behind",
+			 BuildingConstructionService::Get_Block_Count (555));
+
+	/*
+	**	Cancellation leaves nothing: "cancellation/destruction leaves no temporary state", and
+	**	"no half-built object may provide power/radar/production/defense/wallet capacity" --
+	**	which is these records being the only place that state lives.
+	*/
+	Check (BuildingConstructionService::Begin_Construction (777,"ow_test_con",transform,bounds,2000.0f,7),
+			 "a second construction was refused");
+	BuildingConstructionService::Update (2005.0f);
+	Check (BuildingConstructionService::Get_Active_Count () == 1,"%d active construction(s), not 1",
+			 BuildingConstructionService::Get_Active_Count ());
+
+	BuildingConstructionService::Cancel_Construction (777);
+	Check (!BuildingConstructionService::Is_Under_Construction (777),"a cancelled construction persists");
+	Check (BuildingConstructionService::Get_Block_Count (777) == 0,"a cancelled construction kept its blocks");
+	Check (BuildingConstructionService::Get_Active_Count () == 0,"a cancelled construction is still counted active");
+	Check (BuildingConstructionService::Get_Completed_Count () == 0,
+			 "a cancelled construction reported a completion");
+
+	//	A late joiner rebuilds the identical layout from the replicated numbers alone.
+	BuildingConstructionService::Begin_Construction (888,"ow_test_con",transform,bounds,3000.0f,4242);
+	BuildingConstructionReplicationState state;
+	Check (BuildingConstructionService::Get_Replication_State (888,&state),"no replication state for a live build");
+	Check (state.Seed == 4242,"the replication state carries seed %u, not 4242",state.Seed);
+
+	int original_blocks = BuildingConstructionService::Get_Block_Count (888);
+	BuildingConstructionService::Cancel_Construction (888);
+	Check (BuildingConstructionService::Begin_Construction_From_State (state,bounds),
+			 "a late joiner could not rebuild from the replicated state");
+	Check (BuildingConstructionService::Get_Block_Count (888) == original_blocks,
+			 "a late joiner rebuilt %d blocks, not the original %d",
+			 BuildingConstructionService::Get_Block_Count (888),original_blocks);
+
+	Check (!BuildingConstructionService::Begin_Construction (999,"ow_test_nosuch",transform,bounds,0.0f,1),
+			 "a construction of an unknown descriptor was accepted");
+
+	//	Get_Active_Row is the input a batching renderer uses to split settled rows from the
+	//	animating one.  The batcher itself is not written yet.
+	BuildingConstructionService::Update (3000.0f);
+	Check (BuildingConstructionService::Get_Active_Row (888) == -1,
+			 "a construction still in its foundation stage named an active row");
+	BuildingConstructionService::Update (3010.0f);
+	int active_row = BuildingConstructionService::Get_Active_Row (888);
+	Check (active_row >= 0 && active_row < BuildingConstructionService::Get_Row_Count (888),
+			 "the active row %d is outside the building's %d rows",active_row,
+			 BuildingConstructionService::Get_Row_Count (888));
+
+	/*
+	**	Not covered by any automated check: nothing here draws a block, so the batching itself
+	**	-- one mesh for the settled rows plus one for the animating row -- is unverified, as is
+	**	how the reveal actually looks.  See docs/zerohour/BuildingConstruction.md.
+	*/
+
+	BuildingConstructionService::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	return _Failures;
+}
+
+
+int	Run_Commander_Production (void)
+{
+	CommanderProductionService::Init ();
+
+	const int TEAM_GDI	= 1;
+	const int COMMANDER	= 4242;
+	const int IMPOSTOR	= 77;
+	const int FACTORY		= 900;
+	const int BARRACKS	= 901;
+
+	CommanderFacilityContext facility;
+	facility.FacilityId				= FACTORY;
+	facility.Team						= TEAM_GDI;
+	facility.Alive						= true;
+	facility.ConstructionComplete	= true;
+	facility.Powered					= true;
+	facility.Kind						= BUILDING_PRODUCTION_GROUND_VEHICLE;
+	facility.QueueCapacity			= 3;
+	facility.ExitClear				= true;
+
+	int ticket = 0;
+
+	/*
+	**	Commander authority.  A team with no Commander produces nothing, and a player who is not
+	**	the Commander is refused even once one exists.
+	*/
+	Check (CommanderProductionService::Request_Production (COMMANDER,facility,10,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_NO_AUTHORITY,"a team with no Commander accepted a purchase");
+
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,COMMANDER);
+	Check (CommanderProductionService::Request_Production (IMPOSTOR,facility,10,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_NO_AUTHORITY,"a player who is not the Commander was allowed to purchase");
+
+	/*
+	**	"Dead/offline facilities cannot produce invalid units."  Each state refuses with its own
+	**	reason, because the sidebar has to be able to draw the reason.
+	*/
+	CommanderFacilityContext dead = facility;
+	dead.Alive = false;
+	Check (CommanderProductionService::Request_Production (COMMANDER,dead,10,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_FACILITY_DEAD,"a destroyed facility accepted a purchase");
+
+	CommanderFacilityContext building_up = facility;
+	building_up.ConstructionComplete = false;
+	Check (CommanderProductionService::Request_Production (COMMANDER,building_up,10,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_FACILITY_CONSTRUCTING,"a facility still under construction accepted a purchase");
+
+	CommanderFacilityContext dark = facility;
+	dark.Powered = false;
+	Check (CommanderProductionService::Request_Production (COMMANDER,dark,10,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_FACILITY_UNPOWERED,"an unpowered facility accepted a purchase");
+
+	CommanderFacilityContext nothing = facility;
+	nothing.Kind = BUILDING_PRODUCTION_NONE;
+	Check (CommanderProductionService::Request_Production (COMMANDER,nothing,10,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_WRONG_FACILITY_KIND,"a building that produces nothing accepted a purchase");
+
+	Check (CommanderProductionService::Request_Production (COMMANDER,facility,10,100,5.0f,50,true,&ticket)
+				== PRODUCTION_INSUFFICIENT_CREDITS,"a 100-credit unit was sold for 50 credits");
+
+	Check (CommanderProductionService::Request_Production (COMMANDER,facility,10,100,5.0f,10000,false,&ticket)
+				== PRODUCTION_UNAVAILABLE,"a disabled purchase entry was accepted");
+
+	//	The accepted path, and the per-facility queue cap.
+	Check (CommanderProductionService::Request_Production (COMMANDER,facility,10,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_ACCEPTED,"a fully valid purchase was refused");
+	Check (ticket != 0,"an accepted purchase returned no ticket");
+	Check (CommanderProductionService::Get_Queue_Length (FACTORY) == 1,
+			 "the queue holds %d item(s) after one purchase",CommanderProductionService::Get_Queue_Length (FACTORY));
+	Check (CommanderProductionService::Get_Queued_Count (FACTORY,10) == 1,
+			 "the queue reports %d of definition 10",CommanderProductionService::Get_Queued_Count (FACTORY,10));
+
+	CommanderProductionService::Request_Production (COMMANDER,facility,11,100,5.0f,10000,true,&ticket);
+	CommanderProductionService::Request_Production (COMMANDER,facility,12,100,5.0f,10000,true,&ticket);
+	Check (CommanderProductionService::Get_Queue_Length (FACTORY) == 3,"three purchases did not make a queue of three");
+	Check (CommanderProductionService::Is_Queue_Full (FACTORY,3),"a full queue did not read as full");
+	Check (CommanderProductionService::Request_Production (COMMANDER,facility,13,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_QUEUE_FULL,"a fourth purchase got past a capacity of three");
+
+	//	A second facility has its own queue -- Section 45's "do not silently redirect".
+	CommanderFacilityContext barracks = facility;
+	barracks.FacilityId		= BARRACKS;
+	barracks.Kind				= BUILDING_PRODUCTION_INFANTRY;
+	barracks.QueueCapacity	= 5;
+	Check (CommanderProductionService::Request_Production (COMMANDER,barracks,20,50,2.0f,10000,true,&ticket)
+				== PRODUCTION_ACCEPTED,"a second facility's first purchase was refused");
+	Check (CommanderProductionService::Get_Queue_Length (BARRACKS) == 1,"the second facility's queue is not its own");
+	Check (CommanderProductionService::Get_Queue_Length (FACTORY) == 3,
+			 "purchasing at one facility changed another's queue length");
+
+	//	One item at a time per facility, and the head item is the one that advances.
+	CommanderProductionService::Update (3.0f);
+	CommanderProductionItem item;
+	Check (CommanderProductionService::Get_Queue_Item (FACTORY,0,&item),"the factory queue head is unreadable");
+	Check (item.State == PRODUCTION_STATE_PRODUCING,"the head item reads '%s', not producing",
+			 CommanderProductionService::Get_Item_State_Name (item.State));
+	Check (CommanderProductionService::Get_Queue_Item (FACTORY,1,&item),"the second queue item is unreadable");
+	Check (item.State == PRODUCTION_STATE_QUEUED,"the second item reads '%s' instead of waiting its turn",
+			 CommanderProductionService::Get_Item_State_Name (item.State));
+
+	CommanderProductionService::Update (3.0f);		// the head is now past its five seconds
+	Check (CommanderProductionService::Get_Completed_Count () >= 1,"a finished item produced no completion");
+	Check (CommanderProductionService::Get_Queue_Length (FACTORY) == 2,
+			 "completing the head left a queue of %d",CommanderProductionService::Get_Queue_Length (FACTORY));
+
+	CommanderProductionItem completed;
+	Check (CommanderProductionService::Get_Completed_Item (0,&completed),"the completion is unreadable");
+	Check (completed.DefinitionId == 10,"the completion named definition %d, not the first purchase's 10",
+			 completed.DefinitionId);
+	CommanderProductionService::Clear_Completed ();
+
+	//	Power loss pauses; it does not cancel.  The queue survives and resumes where it was.
+	CommanderProductionService::Set_Facility_Runtime_State (FACTORY,true,true,false,true);
+	CommanderProductionService::Update (10.0f);
+	Check (CommanderProductionService::Get_Queue_Length (FACTORY) == 2,
+			 "a power cut cancelled the queue instead of pausing it");
+	Check (CommanderProductionService::Get_Queue_Item (FACTORY,0,&item) &&
+			 item.State == PRODUCTION_STATE_WAITING_FOR_POWER,
+			 "an unpowered facility's head item does not read 'waiting for power'");
+	Check (CommanderProductionService::Get_Completed_Count () == 0,
+			 "an unpowered facility completed an item anyway");
+
+	CommanderProductionService::Set_Facility_Runtime_State (FACTORY,true,true,true,true);
+	CommanderProductionService::Update (5.0f);
+	Check (CommanderProductionService::Get_Completed_Count () >= 1,"restoring power did not resume production");
+	CommanderProductionService::Clear_Completed ();
+
+	//	A blocked exit holds the finished unit, and the line behind it does not pass it.
+	CommanderProductionService::Set_Facility_Runtime_State (FACTORY,true,true,true,false);
+	CommanderProductionService::Update (60.0f);
+	Check (CommanderProductionService::Get_Completed_Count () == 0,"a unit was released through a blocked exit");
+	Check (CommanderProductionService::Get_Queue_Item (FACTORY,0,&item) &&
+			 item.State == PRODUCTION_STATE_BLOCKED_EXIT,
+			 "a finished item at a blocked exit does not read 'blocked exit'");
+
+	CommanderProductionService::Set_Facility_Runtime_State (FACTORY,true,true,true,true);
+	CommanderProductionService::Update (0.1f);
+	Check (CommanderProductionService::Get_Completed_Count () == 1,"clearing the exit did not release the unit");
+	CommanderProductionService::Clear_Completed ();
+
+	//	Destruction refunds the queue and leaves nothing that could complete invisibly.
+	CommanderProductionService::Request_Production (COMMANDER,barracks,21,50,2.0f,10000,true,&ticket);
+	int queued_value = 0;
+	for (int i = 0; i < CommanderProductionService::Get_Queue_Length (BARRACKS); i++) {
+		CommanderProductionItem queued;
+		if (CommanderProductionService::Get_Queue_Item (BARRACKS,i,&queued)) queued_value += queued.Cost;
+	}
+	int refund = CommanderProductionService::On_Facility_Destroyed (BARRACKS);
+	Check (refund == queued_value,"destroying a facility refunded %d against a queued value of %d",
+			 refund,queued_value);
+	Check (CommanderProductionService::Get_Queue_Length (BARRACKS) == 0,"a destroyed facility kept its queue");
+
+	/*
+	**	Population caps count the queue as well as the living, so a Commander cannot out-queue
+	**	the cap and receive them all afterwards.
+	*/
+	CommanderProductionService::Init ();
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,COMMANDER);
+	CommanderProductionService::Set_Population_Cap (BUILDING_PRODUCTION_GROUND_VEHICLE,2);
+	CommanderProductionService::Set_Population (TEAM_GDI,BUILDING_PRODUCTION_GROUND_VEHICLE,2);
+	Check (CommanderProductionService::Request_Production (COMMANDER,facility,10,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_POPULATION_CAP,"a purchase got past a reached population cap");
+
+	CommanderProductionService::Set_Population (TEAM_GDI,BUILDING_PRODUCTION_GROUND_VEHICLE,1);
+	Check (CommanderProductionService::Request_Production (COMMANDER,facility,10,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_ACCEPTED,"a purchase inside the cap was refused");
+	Check (CommanderProductionService::Request_Production (COMMANDER,facility,10,100,5.0f,10000,true,&ticket)
+				== PRODUCTION_POPULATION_CAP,"one live unit plus one queued got past a cap of two");
+
+	//	Selection, and orders a non-Commander or a human-driven unit must refuse.
+	CommanderProductionService::Clear_Selection ();
+	Check (CommanderProductionService::Get_Selection_Count () == 0,"a cleared selection is not empty");
+	Check (CommanderProductionService::Add_To_Selection (5001),"a unit could not be selected");
+	Check (CommanderProductionService::Add_To_Selection (5001),"re-selecting a selected unit failed");
+	Check (CommanderProductionService::Get_Selection_Count () == 1,"selecting the same unit twice made %d entries",
+			 CommanderProductionService::Get_Selection_Count ());
+	Check (CommanderProductionService::Is_Selected (5001),"a selected unit does not read as selected");
+	Check (CommanderProductionService::Remove_From_Selection (5001),"a selected unit could not be deselected");
+	Check (!CommanderProductionService::Is_Selected (5001),"a deselected unit still reads as selected");
+
+	Vector3 destination (10.0f,20.0f,0.0f);
+	Check (!CommanderProductionService::Issue_Order (COMMANDER,5001,TEAM_GDI,false,ORDER_MOVE,destination,0),
+			 "the Commander was allowed to order a human-controlled unit");
+	Check (!CommanderProductionService::Issue_Order (IMPOSTOR,5001,TEAM_GDI,true,ORDER_MOVE,destination,0),
+			 "a non-Commander was allowed to order AI");
+	Check (!CommanderProductionService::Issue_Order (COMMANDER,5001,0,true,ORDER_MOVE,destination,0),
+			 "the GDI Commander was allowed to order a Nod unit");
+
+	Check (CommanderProductionService::Get_Order (5001) == ORDER_HOLD_POSITION,
+			 "an unordered unit defaults to '%s', not hold position",
+			 CommanderProductionService::Get_Order_Name (CommanderProductionService::Get_Order (5001)));
+
+	Check (CommanderProductionService::Issue_Order (COMMANDER,5001,TEAM_GDI,true,ORDER_MOVE,destination,0),
+			 "the Commander could not order their own AI");
+	Check (CommanderProductionService::Get_Order (5001) == ORDER_MOVE,"the issued order did not stick");
+
+	Vector3 read_back (0.0f,0.0f,0.0f);
+	int target_id = -1;
+	Check (CommanderProductionService::Get_Order_Target (5001,&read_back,&target_id),"the order has no target");
+	Check (WWMath::Fabs (read_back.X - 10.0f) < 0.01f,"the order target read back as %f, not 10",read_back.X);
+
+	//	A second order replaces the first rather than stacking.
+	CommanderProductionService::Issue_Order (COMMANDER,5001,TEAM_GDI,true,ORDER_GUARD,destination,0);
+	Check (CommanderProductionService::Get_Order (5001) == ORDER_GUARD,"a re-order did not replace the previous one");
+	Check (CommanderProductionService::Get_Order_Count () == 1,"re-ordering one unit created %d order records",
+			 CommanderProductionService::Get_Order_Count ());
+
+	CommanderProductionService::Forget_Unit (5001);
+	Check (CommanderProductionService::Get_Order_Count () == 0,"a forgotten unit kept its order");
+	Check (!CommanderProductionService::Is_Selected (5001),"a forgotten unit stayed selected");
+
+	/*
+	**	Not covered by any automated check: nothing here creates a SoldierGameObj or a
+	**	VehicleGameObj, by design -- this service reports completions and never spawns.  That a
+	**	completion really does become a canonical AI unit which walks out of a door and holds
+	**	needs a live match, and is named in WIP_features.md.
+	*/
+
+	CommanderProductionService::Shutdown ();
+	return _Failures;
+}
+
+
+int	Run_RTS_Persistence (void)
+{
+	BuildingDescriptorManager::Init ();
+	TeamPowerGridService::Init ();
+	BuildingConstructionService::Init ();
+	CommanderProductionService::Init ();
+
+	StringClass error ("");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_ps_plant",SIDEBAR_PLANT_JSON,&error),
+			 "plant descriptor refused: %s",error.Peek_Buffer ());
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_ps_factory",SIDEBAR_FACTORY_JSON,&error),
+			 "factory descriptor refused: %s",error.Peek_Buffer ());
+
+	const int TEAM_GDI = 1;
+
+	/*
+	**	Contains_Data is what keeps an ordinary FPS save file unchanged by this phase: with
+	**	nothing registered anywhere, the subsystem writes no chunk at all.
+	*/
+	Check (!RTSPersistenceClass::Has_Data (),
+			 "an empty RTS layer still claims to have save data");
+
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM_GDI,"ow_test_ps_plant",201);
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM_GDI,"ow_test_ps_factory",202);
+	TeamPowerGridService::RecalculateTeam (TEAM_GDI);
+	Check (RTSPersistenceClass::Has_Data (),
+			 "a populated power grid reports nothing worth saving");
+
+	/*
+	**	The two facts Section 46 says persist from the grid are readable back through the
+	**	accessors the save pass uses -- and the derived allocation is *not* among them.
+	*/
+	Check (TeamPowerGridService::Set_Manual_Disabled (202,true),"a manual disable was refused");
+	Check (TeamPowerGridService::Set_Priority_Override (202,77),"a priority override was refused");
+
+	PowerGridMemberIdType read_id = 0;
+	int read_team = 0;
+	bool found_202 = false;
+	for (int i = 0; i < TeamPowerGridService::Get_Member_Count (); i++) {
+		if (!TeamPowerGridService::Get_Member_By_Index (i,&read_id,&read_team)) continue;
+		if (read_id == 202) {
+			found_202 = true;
+			Check (read_team == TEAM_GDI,"member 202 enumerated on team %d, not GDI",read_team);
+		}
+	}
+	Check (found_202,"a registered member did not appear in the save enumeration");
+
+	int read_priority = 0;
+	Check (TeamPowerGridService::Get_Priority_Override (202,&read_priority),
+			 "a set priority override did not read back");
+	Check (read_priority == 77,"the priority override read back as %d, not 77",read_priority);
+	Check (!TeamPowerGridService::Get_Priority_Override (201,&read_priority),
+			 "a member with no override reported one");
+	Check (TeamPowerGridService::Is_Manual_Disabled (202),"a manual disable did not read back");
+
+	/*
+	**	Rebuild_Derived_State is what On_Post_Load calls.  After a load the allocation must be
+	**	recomputed from the surviving members rather than restored -- so running it must leave
+	**	the grid consistent with the manual state above, not with whatever it was before.
+	*/
+	RTSPersistenceClass::Rebuild_Derived_State ();
+	Check (!TeamPowerGridService::Is_Member_Powered (202),
+			 "a manually disabled building came back powered after the post-load recalculation");
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Requested_Demand (TEAM_GDI)) < 0.01f,
+			 "a manually disabled consumer still requested %f after the recalculation",
+			 TeamPowerGridService::Get_Requested_Demand (TEAM_GDI));
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Generation (TEAM_GDI) - 300.0f) < 0.01f,
+			 "the post-load recalculation produced generation %f, not the plant's 300",
+			 TeamPowerGridService::Get_Generation (TEAM_GDI));
+
+	/*
+	**	A production queue restored out of a save keeps its identity and its elapsed time, and
+	**	is restored as QUEUED -- PRODUCING and the two blocked states are conclusions about a
+	**	world that has not been rebuilt yet.
+	*/
+	CommanderProductionItem saved;
+	saved.FacilityId			= 900;
+	saved.DefinitionId		= 10;
+	saved.Team					= TEAM_GDI;
+	saved.Cost					= 100;
+	saved.BuildTimeSeconds	= 5.0f;
+	saved.ElapsedSeconds		= 3.0f;
+	saved.Kind					= BUILDING_PRODUCTION_GROUND_VEHICLE;
+	saved.TicketId				= 4096;
+	saved.State					= PRODUCTION_STATE_QUEUED;
+
+	CommanderProductionService::Restore_Item (saved);
+	Check (CommanderProductionService::Get_Queue_Length (900) == 1,"a restored item did not reach the queue");
+
+	CommanderProductionItem restored;
+	Check (CommanderProductionService::Get_Queue_Item (900,0,&restored),"the restored item is unreadable");
+	Check (restored.TicketId == 4096,"the restored item's ticket is %d, not 4096",restored.TicketId);
+	Check (WWMath::Fabs (restored.ElapsedSeconds - 3.0f) < 0.0001f,
+			 "the restored item lost its elapsed time (%f)",restored.ElapsedSeconds);
+
+	/*
+	**	A ticket issued after the load must not collide with a restored one -- the counter is
+	**	pushed past everything restored.
+	*/
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,4242);
+	CommanderFacilityContext facility;
+	facility.FacilityId				= 900;
+	facility.Team						= TEAM_GDI;
+	facility.Alive						= true;
+	facility.ConstructionComplete	= true;
+	facility.Powered					= true;
+	facility.Kind						= BUILDING_PRODUCTION_GROUND_VEHICLE;
+	facility.QueueCapacity			= 5;
+	facility.ExitClear				= true;
+
+	int new_ticket = 0;
+	Check (CommanderProductionService::Request_Production (4242,facility,11,100,5.0f,10000,true,&new_ticket)
+				== PRODUCTION_ACCEPTED,"a purchase after a restore was refused");
+	Check (new_ticket > 4096,"a post-load ticket (%d) collided with a restored one (4096)",new_ticket);
+
+	//	A restored queue resumes rather than restarting: two more seconds finishes a five-second
+	//	item that was three seconds in when it was saved.
+	CommanderProductionService::Set_Facility_Runtime_State (900,true,true,true,true);
+	CommanderProductionService::Update (2.1f);
+	Check (CommanderProductionService::Get_Completed_Count () == 1,
+			 "a restored item three seconds into a five-second build did not finish after two more");
+
+	//	Durable orders survive, and an out-of-range order value is clamped rather than trusted.
+	CommanderProductionService::Restore_Order (6001,ORDER_PATROL,Vector3 (5.0f,6.0f,7.0f),0);
+	Check (CommanderProductionService::Get_Order (6001) == ORDER_PATROL,"a restored order did not read back");
+	Check (CommanderProductionService::Get_Order_Count () == 1,"a restored order made %d records",
+			 CommanderProductionService::Get_Order_Count ());
+	CommanderProductionService::Restore_Order (0,ORDER_MOVE,Vector3 (0.0f,0.0f,0.0f),0);
+	Check (CommanderProductionService::Get_Order_Count () == 1,"a restore of unit id 0 created a record");
+
+	/*
+	**	Not covered by any automated check: nothing here writes or reads an actual chunk, because
+	**	ChunkSaveClass wants a file and SaveLoadSystemClass wants a running game.  What is proved
+	**	is every rule the Save and Load bodies depend on -- the enumeration, the restore paths,
+	**	the ticket collision, and that the derived power state is recomputed rather than restored.
+	**	A real round trip through a save file needs a live match; see WIP_features.md.
+	*/
+
+	CommanderProductionService::Shutdown ();
+	BuildingConstructionService::Shutdown ();
+	TeamPowerGridService::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -2565,6 +3530,31 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "commandermode") == 0)) {
 		Run_Commander_Mode ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "sidebar") == 0)) {
+		Run_Commander_Sidebar ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "placement") == 0)) {
+		Run_Commander_Placement ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "construction") == 0)) {
+		Run_Building_Construction ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "production") == 0)) {
+		Run_Commander_Production ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "rtssaveload") == 0)) {
+		Run_RTS_Persistence ();
 		ran = true;
 	}
 

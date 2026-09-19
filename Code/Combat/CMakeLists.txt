@@ -74,6 +74,11 @@ set(COMBAT_SRC
     buildingdescriptormanager.cpp
     teampowergridservice.cpp
     commandermodecontroller.cpp
+    commandersidebar.cpp
+    commanderplacement.cpp
+    buildingconstruction.cpp
+    commanderproduction.cpp
+    rtspersistence.cpp
     gametype.cpp
     globalsettings.cpp
     harvester.cpp
@@ -224,6 +229,11 @@ set(COMBAT_SRC
     buildingdescriptormanager.h
     teampowergridservice.h
     commandermodecontroller.h
+    commandersidebar.h
+    commanderplacement.h
+    buildingconstruction.h
+    commanderproduction.h
+    rtspersistence.h
     gameobjref.h
     gametype.h
     globalsettings.h

@@ -80,6 +80,15 @@ class BuildingDescriptorManager
 		static int		Reload_All_Descriptors(void);
 
 		static const BuildingModelDescriptor *	Get_Descriptor(const char * definition_name);
+
+		/*
+		**	Enumeration, for the one caller that wants every descriptor rather than a named
+		**	one: Phase 36's BUILDINGS sidebar, which is a list of everything the team may
+		**	build.  Index order is load order and is not stable across a reload that removes a
+		**	descriptor, so a caller holds the pointer only for the loop that fetched it -- the
+		**	same rule Get_Descriptor's own return value already carries.
+		*/
+		static const BuildingModelDescriptor *	Get_Descriptor_By_Index(int index);
 		static int		Get_Descriptor_Count(void);
 		static bool		Is_Loaded(const char * definition_name);
 

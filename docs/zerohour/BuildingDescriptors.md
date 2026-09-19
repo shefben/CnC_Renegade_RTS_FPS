@@ -123,6 +123,57 @@ with no further code change on either side.
   JSON" holds today by construction -- there is no client-reachable path to any of this code at
   all, since nothing calls it from gameplay yet.
 
+## Three more blocks, added by Phases 36-38
+
+The schema Section 39 specifies covers power, capabilities, construction visuals and anchors. Three
+things the later Commander phases need had no home in it, and each is JSON rather than C++ for the
+same reason the power block is -- Section 39's own *"do not hard-code Power Plant output or building
+draw in C++"* applies just as much to a building's price and its slope limit as to its wattage.
+
+```json
+{
+  "build": {
+    "buildable": true,
+    "cost": 1500,
+    "build_time_seconds": 20.0,
+    "tech_level": 0,
+    "team": 1,
+    "display_name": "Power Plant",
+    "icon_texture": "ow_pt_powerplant.tga"
+  },
+  "production": {
+    "kind": "ground_vehicle",
+    "queue_capacity": 5,
+    "requires_power": true
+  },
+  "placement_rules": {
+    "max_slope_degrees": 15.0,
+    "exit_clearance": 8.0,
+    "requires_foundation_support": true
+  }
+}
+```
+
+- **`build`** is Phase 36's card: what the Commander sidebar shows and what a purchase costs.
+ `team` is a `PLAYERTYPE_*` value, or `-1` (the default) for "any faction may build this".
+ `build_time_seconds` wins over `construction_visual.duration_seconds` when both are set, resolved
+ once by `Get_Build_Time_Seconds()` so no caller has to remember which block wins. A descriptor with
+ no `build` block, or with `buildable` false, is a perfectly valid building -- it simply is not one
+ the Commander may place, which is most of them.
+- **`production`** is what Phase 36 binds the contextual sidebar to and what Phase 39 queues
+ against. One enumerated `kind` (`none`/`infantry`/`ground_vehicle`/`air_vehicle`) rather than three
+ booleans, because *"Airstrip configured as ground factory"* is a real case in the roadmap's own
+ list and it is the descriptor that decides, not the model name. An unknown `kind` string is a
+ validation failure, not a silent `none`.
+- **`placement_rules`** is Phase 37's per-definition half of the placement query -- the slope a
+ foundation tolerates and how much clear ground a production exit needs in front of it. The
+ world-side half (overlap, bounds, support) comes from `WorldSpatialIndex` and `WorldTerrainSystem`
+ and is not in JSON.
+
+All three are validated with the rest: a negative cost, a non-positive queue capacity, a slope
+outside 0-90 degrees or a negative clearance each refuse the descriptor and leave any previously
+loaded one untouched, exactly like every other field.
+
 ## Checks
 
 `renegade -shaderselfcheck buildingjson`, registered as ctest `shader_buildingjson` and

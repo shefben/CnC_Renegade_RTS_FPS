@@ -61,6 +61,22 @@ only four JSON descriptors exist) is powered exactly as before; a preset that do
 powered by this service's deterministic allocation from the moment a level places an instance of
 it, with no further code change on either side.
 
+**Correction, a later pass.** The skip above was only half the rule, and the missing half was a
+real defect rather than a refinement. `Power_Base` was taught to leave this service's buildings
+alone, but `RecalculateTeam`'s own `Enable_Power`-driving loop was *not* taught the converse: it
+called `Enable_Power` on every registered, non-destroyed member of a team, descriptor or no
+descriptor. Since registration is unconditional, that meant every undescribed building on a team
+had its power flag overwritten by this service the next time anything on that team was destroyed,
+revived or registered -- silently overriding whatever `Power_Base` had decided for it, and making
+the paragraph above false in exactly the case it claims to protect.
+
+The fix is the mirror of the `Power_Base` skip: `RecalculateTeam`'s driving loop now `continue`s on
+a member whose `Peek_Descriptor` returns null, before it touches `Enable_Power` or the shroud. The
+allocation passes above it were already correct -- an undescribed member contributes zero
+generation and zero consumption to both -- so only the write was wrong. Both halves of the rule now
+live within a few lines of each other, each with a comment naming the other, because a one-sided
+skip is exactly the shape of bug that reads as complete.
+
 ## The algorithm
 
 Per team, each `RecalculateTeam` call:

@@ -42,6 +42,7 @@ textures load unmodified, and no name we invent may shadow one of theirs.
 | [RibbonSurfaces.md](RibbonSurfaces.md) | Ground mark textures -- tracks, scorches, drag marks (roadmap Section 23) | 5 textures |
 | [SurfaceMarks.md](SurfaceMarks.md) | Surface mark textures -- scorches, blasts, stains, impacts (roadmap Section 35) | 7 textures |
 | [WeatherParticles.md](WeatherParticles.md) | Weather particle textures -- rain streak, dust, tiberium, generic (roadmap Section 36) | 4 textures |
+| [CommanderSidebar.md](CommanderSidebar.md) | Commander sidebar content -- air purchase page, building card icons (roadmap Section 42) | 1 purchase page, building icons |
 
 ## Format of an entry
 

@@ -70,6 +70,10 @@
 #include "statusoverlaysystem.h"
 #include "worlddebugdisplay.h"
 #include "commandermodecontroller.h"
+#include "commandersidebar.h"
+#include "commanderplacement.h"
+#include "buildingconstruction.h"
+#include "commanderproduction.h"
 #include "dazzle.h"
 #include "messagewindow.h"
 #include "hudinfo.h"
@@ -562,6 +566,14 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	BulletManager::Init();
 	DebrisManager::Init();
 	CommanderModeController::Init();
+
+	//	Roadmap Sections 42-46, Phases 36-40.  Each is pure state with no device dependency, so
+	//	all four come up here with the rest of the combat services and are torn down together
+	//	below -- a dedicated server initialises exactly the same set (Section 47).
+	CommanderSidebarModel::Init();
+	CommanderPlacementValidator::Init();
+	BuildingConstructionService::Init();
+	CommanderProductionService::Init();
 
 	cEncoderList::Clear_Entries();
 

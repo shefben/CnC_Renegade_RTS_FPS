@@ -103,6 +103,68 @@ struct BuildingFootprintDefinition
 	float	Depth;
 };
 
+/*
+**	Section 42's Commander sidebar needs a card's cost, icon, name and availability, and
+**	Section 44 needs a build time.  None of that lives anywhere in this codebase today:
+**	stock Renegade has no buildable-structure concept at all, so there is no canonical
+**	owner to merge with, and Section 39's own rule -- "do not hard-code Power Plant output
+**	or building draw in C++" -- applies just as much to a building's price as to its power.
+**	So it is one more JSON block, read exactly like the others.
+**
+**	`Team` is a PLAYERTYPE_* value, or -1 for "any faction may build this".  `IconTexture`
+**	names an existing Purchase Terminal image wherever one exists (Section 42, "reuse
+**	existing Renegade Purchase Terminal character/vehicle images whenever available"); a
+**	descriptor that names none gets a card with no icon, never a missing-texture crash.
+*/
+struct BuildingBuildDefinition
+{
+	BuildingBuildDefinition(void) : Buildable(false),Cost(0),BuildTimeSeconds(0.0f),TechLevel(0),
+												Team(-1),DisplayName(""),IconTexture("") { }
+	bool			Buildable;
+	int			Cost;
+	float			BuildTimeSeconds;		// <= 0 -> fall back to ConstructionVisual.DurationSeconds
+	int			TechLevel;
+	int			Team;						// PLAYERTYPE_*; -1 means any
+	StringClass	DisplayName;
+	StringClass	IconTexture;
+};
+
+/*
+**	Which contextual sidebar mode clicking this building switches to (Section 42), and
+**	which production queue Section 45 binds to it.  Deliberately one enumerated kind rather
+**	than three booleans: "Airstrip configured as ground factory" is a real case in the
+**	roadmap's own list, and it is the descriptor that decides, not the model name.
+*/
+enum BuildingProductionKindType
+{
+	BUILDING_PRODUCTION_NONE = 0,
+	BUILDING_PRODUCTION_INFANTRY,
+	BUILDING_PRODUCTION_GROUND_VEHICLE,
+	BUILDING_PRODUCTION_AIR_VEHICLE,
+};
+
+struct BuildingProductionDefinition
+{
+	BuildingProductionDefinition(void) : Kind(BUILDING_PRODUCTION_NONE),QueueCapacity(5),
+													 RequiresPower(true) { }
+	BuildingProductionKindType	Kind;
+	int								QueueCapacity;
+	bool								RequiresPower;
+};
+
+/*
+**	Section 43's placement checks that are per-definition rather than per-world: the slope a
+**	foundation tolerates, and how much clear ground a production exit needs in front of it.
+*/
+struct BuildingPlacementRules
+{
+	BuildingPlacementRules(void) : MaxSlopeDegrees(15.0f),ExitClearance(0.0f),
+											 RequiresFoundationSupport(true) { }
+	float	MaxSlopeDegrees;
+	float	ExitClearance;
+	bool	RequiresFoundationSupport;
+};
+
 struct BuildingAnchorEntry
 {
 	BuildingAnchorEntry(void) : Role(""),BoneName("") { }
@@ -129,8 +191,16 @@ class BuildingModelDescriptor
 		BuildingCommunicationsCapability			Communications;
 		BuildingSiloCapability						TiberiumSilo;
 		BuildingConstructionVisualDefinition	ConstructionVisual;
+		BuildingBuildDefinition						Build;
+		BuildingProductionDefinition				Production;
+		BuildingPlacementRules						Placement;
 
 		DynamicVectorClass<BuildingAnchorEntry>	Anchors;
+
+		//	The authoritative construction duration: the build block's own value when it sets
+		//	one, otherwise the construction visual's.  One accessor so that no caller has to
+		//	remember which of the two blocks wins.
+		float	Get_Build_Time_Seconds(void) const;
 
 		const char *	Find_Anchor_Bone(const char * role_name) const;
 
