@@ -33,6 +33,7 @@
 #include "pscene.h"
 #include "worldlightmanager.h"
 #include "worldshadowmanager.h"
+#include "worldshroudmanager.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldterrainsystem.h"
 #include "wwmath.h"
@@ -3357,6 +3358,133 @@ void	Check_Far_Terrain (void)
 }
 
 
+/*
+**	Strategic shroud -- roadmap Section 30.
+**
+**	The rule under test is the section's own: nothing here is a camera, and the only way a
+**	cell ever becomes VISIBLE or RADAR_DETECTED is a registered, online sensor source.  Two
+**	teams get independent grids from the same two sources' worth of coverage, proving the
+**	Commander/tactical layer this feeds is per-team and never a shared "reveal everything"
+**	switch.  Retention is exercised by hand: an unregistered source's cell falls to LAST_KNOWN
+**	on the very next tick and to EXPLORED only once its retention has been spent.
+*/
+void	Check_Shroud (void)
+{
+	WorldShroudManager::Init ();
+
+	//
+	//	A fresh, unpartitioned manager answers every query with UNKNOWN rather than asserting
+	//	or crashing -- the same missing-data discipline as every other service in this project.
+	//
+	Check (WorldShroudManager::Get_Shroud_State (0,Vector3 (0,0,0)) == SHROUD_UNKNOWN,
+			 "an unpartitioned manager answered something other than UNKNOWN");
+	Check (WorldShroudManager::Is_Partitioned () == false, "a fresh manager reports partitioned");
+	Check (WorldShroudManager::Get_Sensor_Source_Count () == 0,
+			 "a fresh manager already has %d sensor source(s)", WorldShroudManager::Get_Sensor_Source_Count ());
+
+	WorldShroudManager::Re_Partition (Vector3 (-5000.0f,-5000.0f,0.0f),Vector3 (5000.0f,5000.0f,0.0f));
+	Check (WorldShroudManager::Is_Partitioned (), "Re_Partition did not partition");
+	Check (WorldShroudManager::Get_Cell_Count () > 0, "a partitioned manager has no cells");
+	Check (WorldShroudManager::Get_Cell_Count () <= WORLD_SHROUD_MAX_GRID_CELLS,
+			 "the grid grew past its bound: %d cells", WorldShroudManager::Get_Cell_Count ());
+
+	//
+	//	Two teams, two sources, far enough apart that one team's coverage cannot reach the
+	//	other team's point by accident.
+	//
+	const int TEAM_A = 0;
+	const int TEAM_B = 1;
+	Vector3 point_a (0.0f,0.0f,0.0f);
+	Vector3 point_b (3000.0f,3000.0f,0.0f);
+
+	ShroudSensorHandleType source_a = WorldShroudManager::RegisterStrategicSensorSource (
+		TEAM_A,point_a,300.0f,900.0f,5.0f,true);
+	Check (source_a != 0, "registering a sensor source with room available was refused");
+	Check (WorldShroudManager::Is_Sensor_Source (source_a), "a registered source does not read back as one");
+	Check (WorldShroudManager::Get_Sensor_Source_Count () == 1,
+			 "one registered source reports a count of %d", WorldShroudManager::Get_Sensor_Source_Count ());
+
+	ShroudSensorHandleType source_b = WorldShroudManager::RegisterStrategicSensorSource (
+		TEAM_B,point_b,300.0f,900.0f,5.0f,true);
+	Check (source_b != 0, "a second team's source was refused");
+
+	WorldShroudManager::Timestep (0.1f);
+
+	Check (WorldShroudManager::Get_Shroud_State (TEAM_A,point_a) == SHROUD_VISIBLE,
+			 "team A is not VISIBLE at its own source's position");
+	Check (WorldShroudManager::Is_Visible (TEAM_A,point_a), "Is_Visible disagrees with Get_Shroud_State");
+	Check (WorldShroudManager::Get_Shroud_State (TEAM_A,point_b) == SHROUD_UNKNOWN,
+			 "team A knows about team B's point with no source anywhere near it");
+	Check (WorldShroudManager::Get_Shroud_State (TEAM_B,point_a) == SHROUD_UNKNOWN,
+			 "team B's grid was revealed by team A's source -- shroud is not per-team");
+	Check (WorldShroudManager::Get_Shroud_State (TEAM_B,point_b) == SHROUD_VISIBLE,
+			 "team B is not VISIBLE at its own source's position");
+
+	//
+	//	Radar-only coverage: a point outside the vision circle but inside the radar circle
+	//	reads RADAR_DETECTED, not VISIBLE.
+	//
+	Vector3 radar_only_point (0.0f,600.0f,0.0f);
+	Check (WorldShroudManager::Get_Shroud_State (TEAM_A,radar_only_point) == SHROUD_RADAR_DETECTED,
+			 "a point between the vision and radar radii did not read RADAR_DETECTED");
+	Check (WorldShroudManager::Is_Radar_Detected (TEAM_A,radar_only_point),
+			 "Is_Radar_Detected disagrees with Get_Shroud_State");
+
+	//
+	//	Moving the camera is not in this file at all -- there is no camera type included here,
+	//	and every state change above came from RegisterStrategicSensorSource/Timestep, never
+	//	from a viewpoint.  What this check can additionally prove is that an *offline* source
+	//	contributes nothing, which is the same code path a Commander camera would have to go
+	//	through if it ever tried to pose as a source.
+	//
+	Check (WorldShroudManager::UpdateStrategicSensorSource (source_a,point_a,300.0f,900.0f,false),
+			 "a registered source could not be taken offline");
+	WorldShroudManager::Timestep (0.1f);
+	Check (WorldShroudManager::Get_Shroud_State (TEAM_A,point_a) != SHROUD_VISIBLE,
+			 "an offline source is still contributing live coverage");
+
+	//
+	//	Retention: dropping a source (or, as above, taking it offline) does not erase what was
+	//	just seen -- it falls to LAST_KNOWN and only reaches EXPLORED once retention is spent.
+	//	This also proves LAST_KNOWN is not tracking anything live: nothing moved point_a's
+	//	record, the manager only aged a timer against a stationary cell.
+	//
+	Check (WorldShroudManager::Get_Shroud_State (TEAM_A,point_a) == SHROUD_LAST_KNOWN,
+			 "coverage lost this tick did not fall to LAST_KNOWN");
+	WorldShroudManager::Timestep (10.0f);
+	Check (WorldShroudManager::Get_Shroud_State (TEAM_A,point_a) == SHROUD_EXPLORED,
+			 "LAST_KNOWN did not decay to EXPLORED once its retention was spent");
+	Check (WorldShroudManager::Is_Explored (TEAM_A,point_a), "Is_Explored disagrees with Get_Shroud_State");
+
+	//
+	//	Dynamic add/remove, the acceptance's own words.
+	//
+	Check (WorldShroudManager::UnregisterStrategicSensorSource (source_a), "a registered source could not be removed");
+	Check (!WorldShroudManager::Is_Sensor_Source (source_a), "an unregistered source still reads as registered");
+	Check (!WorldShroudManager::UnregisterStrategicSensorSource (source_a), "a source was unregistered twice");
+	Check (WorldShroudManager::Get_Sensor_Source_Count () == 1,
+			 "removing one of two sources left a count of %d", WorldShroudManager::Get_Sensor_Source_Count ());
+
+	//
+	//	Bounds: the source table and the team table both refuse rather than grow.
+	//
+	WorldShroudManager::UnregisterStrategicSensorSource (source_b);
+	int refusals_before = WorldShroudManager::Get_Refusal_Count ();
+	int made = 0;
+	for (int i = 0; i < WORLD_SHROUD_MAX_SENSOR_SOURCES + 8; i ++) {
+		if (WorldShroudManager::RegisterStrategicSensorSource (0,point_a,10.0f,10.0f,5.0f,true) != 0) {
+			made ++;
+		}
+	}
+	Check (made == WORLD_SHROUD_MAX_SENSOR_SOURCES, "the source table let in %d, not the bound", made);
+	Check (WorldShroudManager::Get_Refusal_Count () > refusals_before, "an over-the-bound source was not counted as a refusal");
+
+	WorldShroudManager::Shutdown ();
+	Check (WorldShroudManager::Get_Sensor_Source_Count () == 0, "sensor sources outlived the service");
+	Check (WorldShroudManager::Is_Partitioned () == false, "partitioning outlived the service");
+}
+
+
 }	// anonymous namespace
 
 
@@ -3408,6 +3536,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "far") == 0)) {
 		Check_Far_Terrain ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "shroud") == 0)) {
+		Check_Shroud ();
 	}
 
 	if (_Failures == 0) {

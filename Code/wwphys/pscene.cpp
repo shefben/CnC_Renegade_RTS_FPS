@@ -115,6 +115,7 @@
 #include "surfaceribbonsystem.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldlightmanager.h"
+#include "worldshroudmanager.h"
 #include "worldterrainsystem.h"
 #include "worldshadowmanager.h"
 #include "lightenvironment.h"
@@ -439,6 +440,15 @@ void PhysicsSceneClass::Update(float dt,int frameid)
 	{
 		WWPROFILE("WorldLights");
 		WorldLightManager::Timestep(dt);
+	}
+
+	/*
+	**	Strategic shroud coverage is recomputed from registered sensor sources, and LAST_KNOWN
+	**	retention ages down.  Nothing here reads a camera.  Roadmap Section 30.
+	*/
+	{
+		WWPROFILE("WorldShroud");
+		WorldShroudManager::Timestep(dt);
 	}
 
 	/*
@@ -785,6 +795,10 @@ void PhysicsSceneClass::Remove_All(void)
 	**	go here rather than found by the loops above.  Roadmap Section 25.
 	*/
 	WorldLightManager::Release_Resources();
+
+	//	Same reasoning as the dynamic lights above: shroud memory belongs to the world it was
+	//	earned in.  Roadmap Section 30.
+	WorldShroudManager::Release_Resources();
 
 	TexProjectClass * static_proj = StaticProjectorList.Peek_Head();
 	while(static_proj) {
@@ -1768,6 +1782,9 @@ void PhysicsSceneClass::Re_Partition_Dynamic_Culling_System(void)
 
 	//	The dynamic lights live over the same world; size their grid to it too.
 	WorldLightManager::Re_Partition(wmin,wmax);
+
+	//	Same world, one strategic memory grid per team -- roadmap Section 30.
+	WorldShroudManager::Re_Partition(wmin,wmax);
 
 	Reset_Vis();
 }

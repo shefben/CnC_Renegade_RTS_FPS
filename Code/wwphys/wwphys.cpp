@@ -42,6 +42,7 @@
 #include "surfaceribbonsystem.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldlightmanager.h"
+#include "worldshroudmanager.h"
 #include "worldshadowmanager.h"
 
 
@@ -68,10 +69,15 @@ void WWPhys::Init(void)
 	//	The dynamic lights, in a grid of their own so that asking which ones reach a place costs
 	//	the place and not the world -- roadmap Section 25.
 	WorldLightManager::Init();
+
+	//	Per-team strategic memory, fed only by registered sensor sources -- never by a camera --
+	//	roadmap Section 30.
+	WorldShroudManager::Init();
 }
 
 void WWPhys::Shutdown(void)
 {
+	WorldShroudManager::Shutdown();
 	WorldLightManager::Shutdown();
 	WorldShadowManager::Shutdown();
 	WorldSurfaceMarkManager::Shutdown();

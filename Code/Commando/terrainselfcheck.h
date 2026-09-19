@@ -31,6 +31,16 @@ namespace	TerrainSelfCheck
 	//		service     the service with and without terrain under it
 	//		collision   the geometry handed to the physics scene, and that it agrees with sampling
 	//		textures    masks, layer rules, and the material passes they fill
+	//		roads       spline geometry and the runtime road system built from it
+	//		bridges     sectional spans, damage, breaks, and their collision
+	//		foliage     the batched tree/plant buffer and its submission ratio
+	//		water       carved volumes, shoreline blending, and the water surface type tag
+	//		ribbons     vehicle track marks and their bounded pools
+	//		marks       batched world surface marks and their bounded pools
+	//		shadows     the cached shadow slot table and its casters
+	//		lights      the dynamic light grid, its bounds, and its query cost
+	//		far         the far/background terrain layer and its near-field boundary
+	//		shroud      the per-team strategic shroud grid and its sensor-source API
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

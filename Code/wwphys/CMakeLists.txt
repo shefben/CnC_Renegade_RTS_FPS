@@ -85,6 +85,7 @@ set(WWPHYS_SRC
     worldlightmanager.cpp
     worldshadowmanager.cpp
     worldsurfacemarkmanager.cpp
+    worldshroudmanager.cpp
     timeddecophys.cpp
     trackedvehicle.cpp
     transitioneffect.cpp
@@ -192,6 +193,7 @@ set(WWPHYS_SRC
     worldlightmanager.h
     worldshadowmanager.h
     worldsurfacemarkmanager.h
+    worldshroudmanager.h
     timeddecophys.h
     trackedvehicle.h
     transitioneffect.h
