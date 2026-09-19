@@ -1855,3 +1855,46 @@ clearance. Each validated with the rest, so a bad value refuses the descriptor a
 previously loaded one untouched. Evidence: `docs/zerohour/BuildingDescriptors.md`, "Three more
 blocks, added by Phases 36-38".
 
+## P36/P37/P38-B: the Commander layer draws
+
+Three renderers, each a pure consumer of a service that already decided everything.
+`CommanderSidebarRenderer` (`Code/Combat/commandersidebarrenderer.{h,cpp}`) draws the panel in the
+original C&C sidebar language -- beveled metal, a vertical power bar with a sliding drain marker,
+amber readouts, cost stamped on the icon -- rebuilt only when a signature of what it shows moves,
+drawn from `HUDClass::Render`, and opened/closed by `CommanderModeController` itself.
+`CommanderGhostRenderer` puts the descriptor's real model at the cursor transform, translucent and
+tinted by `Is_Ghost_Valid()`, with each mesh made unique first so a ghost cannot tint the real
+buildings behind it. `BuildingConstructionRenderer` batches the blocks into exactly two
+`DynamicMeshClass` objects per building (settled rows / animating row), bounded at 512 blocks each
+and dropping-and-counting past that. All three no-op when initialised without a device, so a
+dedicated server allocates nothing. Evidence: `docs/zerohour/CommanderSidebar.md`,
+`CommanderPlacement.md`, `BuildingConstruction.md`.
+
+## P40-B: the Commander layer replicates
+
+One server->client mirror and three client->server requests.  `CommanderStateClass`
+(`Code/Combat/commanderstate.{h,cpp}`, `NETID_SERVER_COMMANDER_STATE`) is a static network object
+carrying per-team power figures, Commander ids, the active construction list in Section 44's compact
+form, and the server clock; dirtied on change, never per frame, with `Server_Update` noticing a
+changed figure by itself.  `cCommanderPlacementEvent`, `cCommanderProductionEvent` and
+`cCommanderOrderEvent` (`Code/Commando/`) carry nothing the server can look up -- no cost, no team,
+no verdict -- and each `Act` re-runs the same validation the client's own UI used.  A client's power
+figures arrive through the new `TeamPowerGridService::Set_Replicated_Team_State`, the one entry
+point by which a client is told rather than derives.  Construction now advances on both sides
+against `Get_Estimated_Server_Time()`.  Evidence: `docs/zerohour/RTSPersistence.md`.
+
+## P36/P37/P39-C: five console commands drive the layer in a live game
+
+`commander_sidebar` (mode/paging plus a full card dump), `commander_ghost`, `commander_place`,
+`commander_build` and `commander_rts_status` -- `Code/Commando/consolefunction.cpp`.  Each goes
+through the model and then the net event rather than reaching past them, so they exercise the real
+path rather than a test one.  Named `commander_rts_status` because P35 already owns
+`commander_status` for the camera.
+
+## N/A: building card icons -- art exists, only packaging remains
+
+The `docs/assets/CommanderSidebar.md` entry asking for building icons is closed as authored: 33
+faction-named icons exist at `models/building images/purchase_images_2/tga/`.  What remains is
+packaging them onto the asset manager's search path and resizing them to PT-card dimensions, which
+is a content-pipeline step and is recorded in `gameplay-gaps.md`, not an engine gap.
+

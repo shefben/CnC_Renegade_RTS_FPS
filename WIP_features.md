@@ -517,62 +517,62 @@ automatically.
 
 ---
 
-## P36 -- every sidebar rule is live and checked; nothing draws it
+## P36 -- the panel draws; it has no input of its own
 
-`CommanderSidebarModel` (P36-A, `docs/zerohour/CommanderSidebar.md`) answers every question Section
-42 asks -- modes, contextual binding, eight-slot paging, per-card status and reason, and the power
-generation/consumption/overload bars -- and `shader_sidebar` pins them. What is missing is the
-panel itself: no renderer reads the model, so the acceptance lines about a sidebar *appearing* on
-Commander entry and about PT icons being visibly reused are unmet, as is Section 42's per-building
-power-control surface (the four `TeamPowerGridService` calls behind it already exist). Absorbs the
-backlog's P36 acceptance line in full. Next exact action: write the Commander sidebar renderer
-against `Get_Visible_Cards`/`Get_Power_Display`, alongside P37's ghost renderer, since both only
-exist inside Commander Mode.
+`CommanderSidebarModel` (P36-A) and `CommanderSidebarRenderer` (P36-B) are both live: the panel
+appears on Commander entry in the C&C sidebar style, shows two rows of four with cost, name, power
+effect and disabled reason, pages, and drives both power bars from replicated server state
+(`docs/zerohour/CommanderSidebar.md`). What is left is input: every verb -- switch mode, page, pick
+a card -- is a console command, because mouse/key routing in Commander Mode is P35's untouched
+input-rerouting gap. Section 42's per-building power-control surface (manual on/off and priority
+override on a selected building) also has no widget, though all four service calls behind it exist.
+Absorbs the backlog's P36 acceptance line in full. Next exact action: reroute mouse and keys while
+`CommanderModeController::Is_Active()`, and hit-test the card rects the renderer already computes.
 
-## P37 -- client and server agree by construction; no ghost is drawn and no request is sent
+## P37 -- ghost and server agree and both are drawn; there is no cursor
 
-`CommanderPlacementValidator` (P37-A, `docs/zerohour/CommanderPlacement.md`) makes the acceptance's
-hard half -- "server independently rejects the same bad placement" -- true structurally, and
-`shader_placement` pins it. The two open halves: nothing draws the translucent model or the RED
-TRANSLUCENT state, and nothing puts a `CommanderPlacementRequest` on the wire (unconstrained by
-directive 0, but unwritten), so the Commander layer is single-machine. The world-query branches
-(overlap/slope/bounds/exit) are also unexercised for want of a physics scene or a heightfield in a
-device-less run. Absorbs the backlog's P37 acceptance line. Next exact action: the ghost renderer,
-drawing the descriptor's model at `Build_Placement_Transform` tinted by `Is_Ghost_Valid`.
+`CommanderPlacementValidator` (P37-A), `CommanderGhostRenderer` and `cCommanderPlacementEvent`
+(P37-B, P40-B) close the acceptance end to end *except* for aiming: the real model follows the
+requested transform, turns red exactly when the server would refuse, and the server independently
+re-runs the same function. The placement position comes from a console argument or the player's
+feet, not from a cursor ray -- `CommanderModeController::Pick_At_Cursor` exists and is deliberately
+untested (it reaches `WorldSpatialIndex::Query_Ray`, unverified with no physics scene under it).
+The world-query branches (overlap/slope/bounds/exit clearance) remain unexercised device-less.
+Absorbs the backlog's P37 acceptance line. Next exact action: verify `Pick_At_Cursor` against a
+live scene, then feed it into `Move_Ghost`.
 
-## P38 -- the layout, the clock and the gate are done; nothing batches a block and no building is created
+## P38 -- blocks build and replicate; no building exists at the end
 
-`BuildingConstructionService` (P38-A, `docs/zerohour/BuildingConstruction.md`) owns deterministic
-generation, server-time progress, staging, cancellation and `Is_Under_Construction`, all pinned by
-`shader_construction`. Still open, and all of it caller-side: no renderer batches the blocks
-(`Get_Active_Row` is the input and has no consumer), no footprint blocker is created or removed, no
-accepted placement actually creates a canonical building in `CONSTRUCTING` state, and completion
-does not run Section 44's activation list or spawn PCT/MCT at the anchors
-`Resolve_Anchor_World_Transform` already resolves. Absorbs the backlog's P38 acceptance line. Next
-exact action: the creation/activation caller -- accepted placement creates the building and calls
-`Begin_Construction`; `Get_Completed_Building` drives the activation list in the roadmap's order.
+`BuildingConstructionService` (P38-A) and `BuildingConstructionRenderer` (P38-B) produce the
+visible bottom-to-top build-up, batched, deterministic, and advancing against server time on both
+sides. The remaining half is all one thing: **nothing creates the canonical building**. An accepted
+placement starts a construction keyed by a synthetic negative id; no `BuildingGameObj` is made in
+`CONSTRUCTING` state, no footprint blocker is created or removed, completion runs none of Section
+44's activation list, and no PCT/MCT is spawned at the anchors `Resolve_Anchor_World_Transform`
+already resolves. The block layout also uses footprint-derived bounds rather than the model's real
+bounds for the same reason. Absorbs the backlog's P38 acceptance line. Next exact action: create the
+real building at accepted placement, pass its prototype bounds to `Begin_Construction`, and run the
+activation list from `Get_Completed_Building` in the roadmap's order.
 
-## P39 -- queues, caps, policies and orders are validated; no unit is ever spawned or moved
+## P39 -- queues and orders are validated and replicated; nothing spawns and nothing obeys
 
-`CommanderProductionService` (P39-A, `docs/zerohour/CommanderProduction.md`) enforces the whole
-Section 45 validation list and both documented policies (pause on power loss, full refund on
-cancel), pinned by `shader_production`. By design it creates nothing, which means the acceptance
-lines themselves -- Barracks/Hand, ground factory and Air Pad each producing an AI unit that clears
-its exit and holds -- are unmet: the consumer that turns `Get_Completed_Item` into a canonical
-`SoldierGameObj`/`VehicleGameObj`, walks it out through the descriptor's spawn/exit/staging anchors
-and feeds `Get_Order` into a Renegade AI state does not exist. Drag-box selection and control
-groups also wait on the renderer. Absorbs the backlog's P39 acceptance line. Next exact action:
-write that completion consumer, starting with infantry.
+`CommanderProductionService` (P39-A) plus `cCommanderProductionEvent` and `cCommanderOrderEvent`
+(P40-B) enforce the whole Section 45 validation list server-side, with the server looking up the
+team, the facility state and the cost rather than trusting any of them. Two gaps, both consumer-side:
+`Get_Completed_Item` is never drained into a canonical `SoldierGameObj`/`VehicleGameObj`, and
+`Get_Order` is never fed into a Renegade AI state -- so a queue completes into nothing and an ordered
+unit stands still. Drag-box selection and control groups wait on the same input work as P36.
+`ExitClear` is always reported true because no exit-occupancy query exists. Absorbs the backlog's
+P39 acceptance line. Next exact action: write the completion consumer, starting with infantry out of
+a Barracks.
 
-## P40 -- save/load is written and its rules are checked; no chunk has been round-tripped and nothing is replicated
+## P40 -- replication is live; the save-file round trip is still unverified
 
-`RTSPersistenceClass` (P40-A, `docs/zerohour/RTSPersistence.md`) persists exactly Section 46's
-authoritative list and recomputes the rest, and `shader_rtssaveload` pins every rule its `Save` and
-`Load` bodies rest on. Two gaps: `-shaderselfcheck` cannot stand up a `ChunkSaveClass`, so the
-byte-level round trip through a real save file is unverified; and there are still no network
-messages for placement, production or construction state, so "late join" is a code path
-(`Begin_Construction_From_State`) with no transport behind it. Absorbs the backlog's P40 acceptance
-line. Next exact action: add the app packet types for placement request/result and construction
-state -- free to shape however is convenient, since directive 0 removes every compatibility
-constraint.
-
+`RTSPersistenceClass` (P40-A) and the four network classes (P40-B) are both in and the whole layer
+now works across a network (`docs/zerohour/RTSPersistence.md`). What is unproven rather than
+unwritten: `-shaderselfcheck` cannot stand up a `ChunkSaveClass`, so the byte-level save/load round
+trip has never been executed, and the replication itself has never run against a second machine --
+both need a live match, not more code. Absorbs the backlog's P40 acceptance line. Next exact action
+is a manual one for the user: run a listen server and a client, enter Commander Mode on the server,
+`commander_ghost` + `commander_place`, and confirm the client sees the build-up and the same power
+figures.
