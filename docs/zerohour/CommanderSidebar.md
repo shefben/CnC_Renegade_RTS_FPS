@@ -87,8 +87,21 @@ Two facts are deliberately separate:
 
 ## What this phase does not build
 
-- **No renderer.** Nothing draws the panel yet. Every rule is live and checked; the pixels are not
-  written. This is the largest single gap in the phase and is recorded in `WIP_features.md`.
+- ~~No renderer.~~ **Built, a later pass**: `Code/Combat/commandersidebarrenderer.{h,cpp}`, drawn
+  from `HUDClass::Render` and rebuilt from `CombatManager::Think`. It is styled on the original
+  Command & Conquer sidebar -- a beveled metal strip, the signature *vertical* power bar down the
+  left edge with a sliding drain marker, amber readouts, the cost stamped on the icon, and recessed
+  build cells that dim rather than vanish when unavailable. Section 42 fixes only the content (two
+  rows of four, paging, power bars, per-card cost and reason) and asks for something "visually
+  compatible with Renegade's existing UI/purchase imagery", so the reference and the spec point the
+  same way; where they disagree -- C&C uses two *columns* of icons -- the roadmap wins.
+
+  The renderer owns no rule. It colours what the model called buyable and prints the model's own
+  status name as the disabled reason, so a greyed card and a refused purchase cannot disagree. It
+  rebuilds only when a signature of everything it displays actually moves, and draws nothing at all
+  when the panel is closed. `CommanderModeController::Enter_Commander_Mode` opens the panel and
+  `Exit_Commander_Mode` closes it and cancels any ghost, so every future way into Commander Mode
+  gets the panel without having to ask for it.
 - **Localized names.** A purchase page's name is a unicode string id resolved through the string
   table; the card keeps `DisplayName` as a fallback label and a renderer that wants the localized
   one asks the page directly with the same index. Building cards use the descriptor's own

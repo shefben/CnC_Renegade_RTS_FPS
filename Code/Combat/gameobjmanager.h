@@ -76,7 +76,11 @@ enum
 	NETID_SERVER_FPS,
 	NETID_SERVER_WEATHER,
 	NETID_SERVER_BACKGROUND,
-	NETID_SERVER_PURCHASE_AVAILABILITY
+	NETID_SERVER_PURCHASE_AVAILABILITY,
+
+	//	Roadmap Section 46, Phase 40 -- the Commander/RTS server->client mirror.  Appended at
+	//	the end of the run, like every other static id here.
+	NETID_SERVER_COMMANDER_STATE
 };
 
 

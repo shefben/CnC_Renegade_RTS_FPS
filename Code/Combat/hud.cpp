@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "hud.h"
+#include "commandersidebarrenderer.h"
 
 #include <stdio.h>
 
@@ -2836,6 +2837,15 @@ void 	HUDClass::Render()
 	if ( COMBAT_CAMERA && COMBAT_CAMERA->Draw_Sniper() ) {
 		SniperHUDClass::Render();
 	}
+
+	/*
+	**	The Commander sidebar, Section 42.  Outside Is_HUD_Displayed on purpose: the panel's own
+	**	gate is CommanderSidebarModel::Is_Open(), which is true only in Commander Mode, and
+	**	tying it to the FPS HUD's visibility rules would couple it to state it has nothing to do
+	**	with.  It draws nothing at all when closed, so "do not replace/clutter the ordinary FPS
+	**	HUD" holds by construction.
+	*/
+	CommanderSidebarRenderer::Render();
 
 	// Only render if Combat is active, and Menu is not,  and we have a star who is not sniping
 	if ( Is_HUD_Displayed() ) {

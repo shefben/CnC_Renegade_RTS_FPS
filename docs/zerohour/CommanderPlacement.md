@@ -85,13 +85,24 @@ documented behaviour, not an oversight — it is also why the self check's basel
 
 ## What this phase does not build
 
-- **No ghost renderer.** Nothing draws the translucent model or the red tint. The state, the
-  transform and the validity are all live and checked; the drawing is not written, and is recorded
-  in `WIP_features.md` alongside the sidebar renderer it belongs with.
-- **No network message.** The request struct is exactly the four fields Section 43 says the client
-  sends, and `Validate_Server_Request` is the server's entry point — but nothing yet puts the struct
-  on the wire. Because no network compatibility with other clients is required (directive 0), this
-  is a small, unconstrained addition whenever the UI that produces a placement exists.
+- ~~No ghost renderer.~~ **Built, a later pass**: `Code/Combat/commanderghostrenderer.{h,cpp}`
+  instantiates the descriptor's real model, adds it to the scene as a bare `RenderObjClass` -- no
+  `PhysClass`, so it is in no collision system and no save chunk, which is Section 43's "no gameplay
+  collision/network/save object" by construction -- places it at `Build_Placement_Transform` and
+  tints it by `Is_Ghost_Valid()`. The `RED TRANSLUCENT` state is that one switch.
+
+  Translucency is applied by making each mesh unique (`MeshClass::Make_Unique`) before overriding
+  its shader and material. "Unique" is load-bearing: a model from the asset manager shares its mesh
+  model with the prototype, so tinting in place without unsharing would turn every finished building
+  of that type in the level translucent red. The tint is re-applied only when validity changes, not
+  per frame. A descriptor naming a model the asset manager does not have draws no ghost, counts the
+  miss, and leaves every placement rule working.
+
+- ~~No network message.~~ **Built, a later pass**: `cCommanderPlacementEvent`
+  (`Code/Commando/commanderplacementevent.{h,cpp}`) carries exactly Section 43's four fields and
+  *no verdict* -- there is deliberately no "the client thinks this is valid" bit for a server to be
+  tempted by. `Act` looks the sender's team up from their own soldier, checks Commander authority,
+  re-runs `Validate_Server_Request`, charges the descriptor's cost and starts the construction.
 - **Compound footprints.** One OBB per building. A multi-part footprint would be a descriptor schema
   change and has no caller yet.
 

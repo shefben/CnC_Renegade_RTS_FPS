@@ -60,7 +60,8 @@ struct PowerGridMember
 
 struct TeamPowerState
 {
-	TeamPowerState(void) : Team(0),Generation(0.0f),RequestedDemand(0.0f),AllocatedDemand(0.0f) { }
+	TeamPowerState(void) : Team(0),Generation(0.0f),RequestedDemand(0.0f),AllocatedDemand(0.0f),
+								  IsReplicated(false),ShedCount(0),PoweredCount(0),ManualOffCount(0) { }
 	bool	operator == (const TeamPowerState &) const	{ return false; }
 	bool	operator != (const TeamPowerState &) const	{ return true; }
 
@@ -68,6 +69,17 @@ struct TeamPowerState
 	float		Generation;
 	float		RequestedDemand;
 	float		AllocatedDemand;
+
+	/*
+	**	Client mirror (Phase 40).  Set only by Set_Replicated_Team_State, and only on a client:
+	**	a client's allocator never runs, so its members carry no IsAllocated result to count and
+	**	the three counts below have to arrive from the server rather than be walked for.  A
+	**	server leaves IsReplicated false for ever and keeps counting its own members.
+	*/
+	bool		IsReplicated;
+	int		ShedCount;
+	int		PoweredCount;
+	int		ManualOffCount;
 };
 
 static DynamicVectorClass<PowerGridMember>	_Members;
@@ -420,6 +432,9 @@ float TeamPowerGridService::Get_Wallet_Capacity_Bonus(int team)
 
 int TeamPowerGridService::Get_Powered_Count(int team)
 {
+	const TeamPowerState & state = _Teams [Find_Or_Make_Team (team)];
+	if (state.IsReplicated) return state.PoweredCount;
+
 	int count = 0;
 	for (int i = 0; i < _Members.Count (); i++) {
 		if (_Members [i].InUse && _Members [i].Team == team && !_Members [i].Destroyed && _Members [i].IsAllocated) count++;
@@ -429,6 +444,9 @@ int TeamPowerGridService::Get_Powered_Count(int team)
 
 int TeamPowerGridService::Get_Shed_Count(int team)
 {
+	const TeamPowerState & state = _Teams [Find_Or_Make_Team (team)];
+	if (state.IsReplicated) return state.ShedCount;
+
 	int count = 0;
 	for (int i = 0; i < _Members.Count (); i++) {
 		PowerGridMember & member = _Members [i];
@@ -442,6 +460,9 @@ int TeamPowerGridService::Get_Shed_Count(int team)
 
 int TeamPowerGridService::Get_Manual_Off_Count(int team)
 {
+	const TeamPowerState & state = _Teams [Find_Or_Make_Team (team)];
+	if (state.IsReplicated) return state.ManualOffCount;
+
 	int count = 0;
 	for (int i = 0; i < _Members.Count (); i++) {
 		if (_Members [i].InUse && _Members [i].Team == team && _Members [i].ManualDisabled) count++;
@@ -472,6 +493,25 @@ int TeamPowerGridService::Get_Consumer_Count(int team)
 	}
 	return count;
 }
+
+void TeamPowerGridService::Set_Replicated_Team_State(int team,float generation,float requested,
+																		  float allocated,int shed_count,int powered_count,
+																		  int manual_off_count)
+{
+	TeamPowerState & state = _Teams [Find_Or_Make_Team (team)];
+	state.Generation		= generation;
+	state.RequestedDemand	= requested;
+	state.AllocatedDemand	= allocated;
+	state.ShedCount			= shed_count;
+	state.PoweredCount		= powered_count;
+	state.ManualOffCount	= manual_off_count;
+
+	//	Latching rather than a per-call flag: once a client has been told, it must never fall
+	//	back to walking its own members, or a packet-less frame would make the bars flicker to
+	//	whatever a never-run allocator left behind.
+	state.IsReplicated		= true;
+}
+
 
 bool TeamPowerGridService::Get_Member_By_Index(int index,PowerGridMemberIdType * out_member_id,int * out_team)
 {

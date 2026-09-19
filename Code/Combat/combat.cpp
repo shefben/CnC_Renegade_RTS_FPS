@@ -74,6 +74,10 @@
 #include "commanderplacement.h"
 #include "buildingconstruction.h"
 #include "commanderproduction.h"
+#include "commanderghostrenderer.h"
+#include "commanderstate.h"
+#include "commandersidebarrenderer.h"
+#include "constructionrenderer.h"
 #include "dazzle.h"
 #include "messagewindow.h"
 #include "hudinfo.h"
@@ -546,6 +550,7 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 
 	//	Every purchase entry is on offer again in a new level.
 	PurchaseAvailabilityClass::Reset();
+	CommanderStateClass::Reset();
 
 	MultiplayRenderingAllowed = true;
 	if ( !IS_MISSION && !I_Am_Server() ) {
@@ -574,6 +579,10 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	CommanderPlacementValidator::Init();
 	BuildingConstructionService::Init();
 	CommanderProductionService::Init();
+
+	CommanderSidebarRenderer::Init( render_available );
+	CommanderGhostRenderer::Init( render_available );
+	BuildingConstructionRenderer::Init( render_available );
 
 	cEncoderList::Clear_Entries();
 
@@ -1028,6 +1037,51 @@ void 	CombatManager::Think()
 }
 
 	SpawnManager::Update();
+
+	/*
+	**	The Commander/RTS layer, Sections 42-45.  Two halves, kept apart on purpose.
+	**
+	**	The authoritative half advances only on the server, and only on server time: construction
+	**	completion and production timing are gameplay, and Section 44 is explicit that "server
+	**	time/state owns completion, never client frame rate".  A client's own clock never reaches
+	**	either service.
+	**
+	**	The presentation half runs wherever there is a scene to draw into, including on a listen
+	**	server, and reads the services without writing to them.  A dedicated server reaches the
+	**	first block and not the second, which is Section 47's rule about never initialising client
+	**	rendering resources, satisfied by never calling into them.
+	*/
+	if ( CombatManager::I_Am_Server() ) {
+		CommanderProductionService::Update( TimeManager::Get_Frame_Seconds() );
+	}
+
+	/*
+	**	Construction advances on *both* sides, against the same clock.  On the server that clock
+	**	is its own; on a client it is the server's, as last replicated and advanced locally since
+	**	(CommanderStateClass::Get_Estimated_Server_Time).  That is what makes a client's build-up
+	**	animation land on the same stage the server is at without a single block crossing the
+	**	wire -- Section 44's "clients deterministically reconstruct blocks", extended to the
+	**	timeline as well as the layout.
+	**
+	**	NOTE for whoever writes Section 44's completion activation list: it belongs between this
+	**	Update and the Clear_Completed below, on the server side only.  The clear is here so the
+	**	completion list cannot grow without bound while that caller does not exist yet; a client
+	**	has no activation list to run and drains it unconditionally.
+	*/
+	BuildingConstructionService::Update( CommanderStateClass::Get_Estimated_Server_Time() );
+	BuildingConstructionService::Clear_Completed();
+
+	if ( CombatManager::I_Am_Server() ) {
+		//	Notices when anything the client mirror carries has moved, so no call site has to
+		//	remember to announce a change it caused.
+		CommanderStateClass::Server_Update();
+	}
+
+	//	Each of the three no-ops when it was initialised without a device, so a dedicated
+	//	server runs these three calls and allocates nothing.
+	CommanderGhostRenderer::Update();
+	BuildingConstructionRenderer::Update();
+	CommanderSidebarRenderer::Update();
 
 {	WWPROFILE( "Sound Environment" );
 

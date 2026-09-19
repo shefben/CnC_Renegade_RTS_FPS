@@ -115,11 +115,31 @@ file:
 
 ## What this phase does not build
 
-- **No network messages.** Nothing yet puts a placement request, a production request or a
-  construction state on the wire. Directive 0 removes every compatibility constraint on that wire
-  format, so this is an unconstrained addition — but it is not written, and until it is, the
-  Commander layer is single-machine. This is the largest remaining gap and is recorded in
-  `WIP_features.md`.
+- ~~No network messages.~~ **Built, a later pass.** Four classes, matching Section 46's authority
+  split exactly:
+
+  | Direction | Class | Carries |
+  |---|---|---|
+  | server to client | `CommanderStateClass` (`Code/Combat/commanderstate.{h,cpp}`) | per-team power figures and Commander ids, the active construction list in Section 44's compact form, and the server clock |
+  | client to server | `cCommanderPlacementEvent` | descriptor, position, rotation, sequence id |
+  | client to server | `cCommanderProductionEvent` | facility id, definition id |
+  | client to server | `cCommanderOrderEvent` | order, target, up to 64 selected unit ids |
+
+  `CommanderStateClass` is a *static* network object with a fixed id, like
+  `PurchaseAvailabilityClass`: one instance both ends already have, so only contents ever travel. It
+  is dirtied on change, never per frame -- a construction *progressing* changes nothing it carries,
+  because progress is derived from a start time the client already has. `Server_Update` notices a
+  changed figure by itself, so a missed call site cannot silently desync a client.
+
+  None of the three requests carries anything the server can look up: no cost (a client that named
+  its own price could buy anything for one credit), no team (it comes from the sender's own
+  soldier), no validity verdict. Each `Act` re-runs the same validation the client's own UI used.
+
+  The client's power figures arrive through `TeamPowerGridService::Set_Replicated_Team_State`, the
+  one entry point by which a client is *told* rather than derives -- a client's allocator never
+  runs, so without it the bars would read zero. It writes team totals only: it never touches a
+  member, never calls `Enable_Power`, and never runs the allocation. There is still exactly one
+  thing that decides, and everything else is told.
 - **No round-trip through a real file.** `Save` and `Load` are written against the same
   `ChunkSaveClass`/`ChunkLoadClass` micro-chunk pattern `MapMgrClass` uses, but `-shaderselfcheck`
   cannot stand up a save file, so the byte-level round trip is unverified. Every rule the two bodies

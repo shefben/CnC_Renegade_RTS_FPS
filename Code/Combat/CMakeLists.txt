@@ -79,6 +79,10 @@ set(COMBAT_SRC
     buildingconstruction.cpp
     commanderproduction.cpp
     rtspersistence.cpp
+    commanderghostrenderer.cpp
+    constructionrenderer.cpp
+    commandersidebarrenderer.cpp
+    commanderstate.cpp
     gametype.cpp
     globalsettings.cpp
     harvester.cpp
@@ -234,6 +238,10 @@ set(COMBAT_SRC
     buildingconstruction.h
     commanderproduction.h
     rtspersistence.h
+    commanderghostrenderer.h
+    constructionrenderer.h
+    commandersidebarrenderer.h
+    commanderstate.h
     gameobjref.h
     gametype.h
     globalsettings.h

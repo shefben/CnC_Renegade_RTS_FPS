@@ -28,6 +28,10 @@
 
 #include "commandermodecontroller.h"
 
+#include "commanderplacement.h"
+#include "commandersidebar.h"
+#include "soldier.h"
+
 #include "castres.h"
 #include "ccamera.h"
 #include "combat.h"
@@ -102,6 +106,17 @@ bool CommanderModeController::Enter_Commander_Mode(SoldierGameObj * star)
 
 	_Active	= true;
 	_Star		= star;
+
+	/*
+	**	The sidebar exists in Commander Mode and nowhere else (Section 42), so entering is the
+	**	one event that opens it and leaving is the one that closes it.  Opening it here rather
+	**	than at the console command means every future way into Commander Mode gets the panel
+	**	without having to remember to ask for it.
+	**
+	**	The team comes from the embodied star, which is the only team a Commander can command --
+	**	Section 3A's embodiment rule, showing up as a UI fact.
+	*/
+	CommanderSidebarModel::Open (star->Get_Player_Type ());
 	return true;
 }
 
@@ -109,6 +124,12 @@ void CommanderModeController::Exit_Commander_Mode(void)
 {
 	_Active	= false;
 	_Star		= nullptr;
+
+	//	Closing drops the cards and any bound facility, and cancelling the ghost makes sure a
+	//	half-placed building does not survive a death that dropped the player out of Commander
+	//	Mode mid-placement.
+	CommanderSidebarModel::Close ();
+	CommanderPlacementValidator::Cancel_Ghost ();
 }
 
 bool CommanderModeController::Is_Active(void)						{ return _Active; }

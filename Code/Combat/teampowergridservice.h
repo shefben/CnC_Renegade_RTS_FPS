@@ -160,6 +160,21 @@ class TeamPowerGridService
 		**	accessor here for a saveable allocation result, because saving one would be the bug.
 		*/
 		static bool		Get_Member_By_Index(int index,PowerGridMemberIdType * out_member_id,int * out_team);
+
+		/*
+		**	Client mirror, Phase 40.  A client's allocator never runs -- every call that drives
+		**	Enable_Power is behind CombatManager::I_Am_Server() -- so a client's team totals
+		**	would otherwise read zero and its power bars would be wrong.  This is the one entry
+		**	point by which a client is *told* the answer; it writes the team totals and nothing
+		**	else, and in particular it never touches a member, never calls Enable_Power and
+		**	never runs the allocation.  A server never calls it.  That is what keeps Section
+		**	46's "do not serialize a second independent powered/unpowered truth" honest across
+		**	the wire: there is still exactly one thing that decides, and everything else is
+		**	told.
+		*/
+		static void		Set_Replicated_Team_State(int team,float generation,float requested,
+																	float allocated,int shed_count,int powered_count,
+																	int manual_off_count);
 		static bool		Get_Priority_Override(PowerGridMemberIdType member_id,int * out_priority);
 };
 

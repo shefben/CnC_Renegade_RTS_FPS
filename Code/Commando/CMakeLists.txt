@@ -394,6 +394,12 @@ set(COMMANDO_SRC
     playerkill.h
     purchaserequestevent.cpp
     purchaserequestevent.h
+    commanderplacementevent.cpp
+    commanderplacementevent.h
+    commanderproductionevent.cpp
+    commanderproductionevent.h
+    commanderorderevent.cpp
+    commanderorderevent.h
     purchaseresponseevent.cpp
     purchaseresponseevent.h
     requestkillevent.cpp

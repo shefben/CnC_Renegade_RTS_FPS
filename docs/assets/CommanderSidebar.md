@@ -44,27 +44,45 @@ dimensions and framing as the vehicle page's images, so the two modes' cards mat
 
 ---
 
-## 2. Building icons for buildable descriptors
+## 2. Building icons for buildable descriptors — **art exists, packaging does not**
 
-**Name** — whatever a descriptor's `build.icon_texture` names. Invented names use the `ow_` prefix,
-e.g. `ow_pt_powerplant.tga`, `ow_pt_barracks.tga`.
+**Status**: the art is done. `models/building images/purchase_images_2/tga/` holds 33 building
+icons covering both factions and the neutral props, named by faction and structure:
 
-**What it is for** — the icon on a `BUILDINGS`-mode card. Stock Renegade has no buildable-structure
-concept at all, so there is no existing PT image for a *building* the way there is for a character
-or a vehicle.
+```
+gdi_power_plant   gdi_barracks      gdi_warfactory    gdi_ref          gdi_comm_center
+gdi_sil           gdi_agt           gdi_guard_tower_r gdi_repair_pad   gdi_landing_platform
+gdi_con           gdi_harvester
 
-**Where it is read** — `Add_Building_Cards`, `Code/Combat/commandersidebar.cpp`, copying
-`BuildingModelDescriptor::Build.IconTexture` onto the card. The card is then a renderer's input; no
-renderer exists yet, so nothing currently loads the texture.
+nod_power_plant   nod_hon           nod_airstrip      nod_ref          nod_comm_center
+nod_sil           nod_obe           nod_turret        nod_sam_site     nod_repair_pad
+nod_landing_platform                nod_con           nod_harvester
 
-**Without it** — a descriptor that names no icon gets a card with an empty `IconTexture` and every
-other field intact: name, cost, `+generation`, `-consumption`, and its availability reason. A
-renderer is expected to draw the card without an image rather than to skip the card or substitute a
-placeholder file. No stand-in texture is checked into the tree.
+neutral_round_bunker  neutral_square_bunker  neutral_stone_bunker  neutral_sniper_tower
+neutral_platform      neutral_czech_hedgehog neutral_barbed_wire_roll
+```
 
-**Constraints** — match the existing Purchase Terminal images so the four modes read as one panel:
-same pixel dimensions, same aspect, same framing and margin conventions as the `TYPE_VEHICLES`
-entries. The subject is the finished building, read at card size — roughly three-quarter view,
-consistent light direction across the set, and legible as a silhouette, since a card is small and a
-player picks from eight at once. A team-coloured variant is not required; the card's own faction is
-already known from `build.team`.
+**Name** — whatever a descriptor's `build.icon_texture` names. These files are already
+appropriately named, so a descriptor sets e.g. `"icon_texture": "gdi_power_plant.tga"`.
+
+**Where it is read** — `Add_Building_Cards`, `Code/Combat/commandersidebar.cpp`, onto
+`CommanderSidebarCard::IconTexture`; loaded by `Set_Icon_Texture`,
+`Code/Combat/commandersidebarrenderer.cpp`, through
+`WW3DAssetManager::Get_Texture(name, MIP_LEVELS_1)`.
+
+**Without it** — a card whose texture the asset manager cannot find draws its cell, its name, its
+cost and its status with no picture, and the miss is counted in
+`CommanderSidebarRenderer::Get_Missing_Icon_Count()`. Never a crash, never a stand-in file.
+
+**What is still missing: packaging.** `models/building images/` is not on the asset manager's
+search path, so `Get_Texture` will not find these today. They need to go where every other game
+texture lives — into `always.dat`, or the level's own mix, or the loose texture directory the
+client is run with. The files are also uncompressed TGAs of 3-6 MB each; at card size that is far
+more resolution than the panel uses, so the packaging step should also resize them to the same
+dimensions as the existing Purchase Terminal images rather than shipping them as-is.
+
+**Constraints** — match the existing Purchase Terminal images so the four sidebar modes read as
+one panel: same pixel dimensions, same aspect, same framing and margin conventions as the
+`TYPE_VEHICLES` entries. The renderer draws the icon into the upper ~60% of a cell with the cost
+stamped across the bottom of the icon, so the lower strip of each image should not carry detail
+that matters.

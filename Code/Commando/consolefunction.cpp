@@ -57,6 +57,16 @@
 #include "buildingdescriptormanager.h"
 #include "rtstelemetryservice.h"
 #include "commandermodecontroller.h"
+#include "commandersidebar.h"
+#include "commanderplacement.h"
+#include "commanderproduction.h"
+#include "commanderstate.h"
+#include "commanderghostrenderer.h"
+#include "constructionrenderer.h"
+#include "buildingconstruction.h"
+#include "commanderplacementevent.h"
+#include "commanderproductionevent.h"
+
 #include "worldparticlemanager.h"
 #include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
@@ -2087,6 +2097,268 @@ public:
 		}
 	}
 };
+
+
+/*
+**	Roadmap Sections 42-46, Phases 36-40 -- driving the Commander layer from a console.
+**
+**	These are not the Commander's real input: Section 42 wants a panel with clickable cards and
+**	Section 35's input rerouting is a later phase.  They exist because every rule underneath is
+**	live and server-authoritative now, and without a way to reach it from a running game the
+**	whole layer could only ever be exercised by a self check.  Each one goes through exactly the
+**	same path the eventual UI will -- the model, then a net event -- rather than reaching past it.
+*/
+class CommanderSidebarConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "commander_sidebar"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "COMMANDER_SIDEBAR [mode] - roadmap Section 42.  No argument prints the panel's "
+				 "state.  mode 0-3 switches to BUILDINGS/GROUND_VEHICLES/AIR_VEHICLES/INFANTRY; "
+				 "'next' and 'prev' page through the cards.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		if ( !CommanderSidebarModel::Is_Open() ) {
+			Print( "commander_sidebar: the panel is closed -- enter Commander Mode first "
+					 "(commander_mode 1).\n" );
+			return;
+		}
+
+		if ( input != nullptr && input[0] != '\0' ) {
+			if ( ::strcmp( input, "next" ) == 0 ) {
+				CommanderSidebarModel::Next_Page();
+			} else if ( ::strcmp( input, "prev" ) == 0 ) {
+				CommanderSidebarModel::Prev_Page();
+			} else {
+				int mode = ::atoi( input );
+				if ( mode >= 0 && mode < SIDEBAR_MODE_COUNT ) {
+					CommanderSidebarModel::Set_Mode( (CommanderSidebarModeType)mode );
+				} else {
+					Print( "commander_sidebar: mode must be 0-3, 'next' or 'prev'.\n" );
+					return;
+				}
+			}
+		}
+
+		//	Credits come from the local star, the same wallet a purchase would be charged to.
+		int credits = 0;
+		if ( COMBAT_STAR != nullptr && COMBAT_STAR->Get_Player_Data() != nullptr ) {
+			credits = (int)COMBAT_STAR->Get_Player_Data()->Get_Money();
+		}
+		CommanderSidebarModel::Refresh( credits );
+
+		Print( "commander_sidebar: mode %s, page %d/%d, %d card(s), %d credit(s).\n",
+				 CommanderSidebarModel::Get_Mode_Name( CommanderSidebarModel::Get_Mode() ),
+				 CommanderSidebarModel::Get_Page() + 1,
+				 CommanderSidebarModel::Get_Page_Count(),
+				 CommanderSidebarModel::Get_Card_Count(),
+				 credits );
+
+		const CommanderSidebarCard * cards[CommanderSidebarModel::PAGE_SIZE] = { nullptr };
+		int visible = CommanderSidebarModel::Get_Visible_Cards( cards, CommanderSidebarModel::PAGE_SIZE );
+		for ( int i = 0; i < visible; i++ ) {
+			if ( cards[i] == nullptr ) continue;
+			const char * name = ( cards[i]->DescriptorName.Get_Length() > 0 )
+										? cards[i]->DescriptorName.Peek_Buffer()
+										: cards[i]->DisplayName.Peek_Buffer();
+			Print( "  [%d] %-24s cost %-6d def %-6d %s\n", i,
+					 ( name[0] != '\0' ) ? name : "(unnamed)",
+					 cards[i]->Cost, cards[i]->DefinitionId,
+					 CommanderSidebarModel::Get_Status_Name( cards[i]->Status ) );
+		}
+
+		CommanderPowerDisplay power;
+		CommanderSidebarModel::Get_Power_Display( &power );
+		Print( "  power: gen %.0f, requested %.0f, allocated %.0f, headroom %.0f, %d shed%s\n",
+				 power.Generation, power.RequestedDemand, power.AllocatedDemand, power.Headroom,
+				 power.ShedCount, power.Overloaded ? ", OVERLOADED" : "" );
+	}
+};
+
+
+class CommanderGhostConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "commander_ghost"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "COMMANDER_GHOST <descriptor|off> [x y z] - roadmap Section 43.  Starts a "
+				 "placement ghost for a buildable descriptor and reports whether the spot is "
+				 "legal and why not.  With no position the ghost is placed at the star's feet.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		if ( input == nullptr || input[0] == '\0' ) {
+			Print( "commander_ghost: name a buildable descriptor, or 'off'.\n" );
+			return;
+		}
+
+		if ( ::strcmp( input, "off" ) == 0 ) {
+			CommanderPlacementValidator::Cancel_Ghost();
+			Print( "commander_ghost: cancelled.\n" );
+			return;
+		}
+
+		char name[128] = { 0 };
+		float x = 0.0f, y = 0.0f, z = 0.0f;
+		int parsed = ::sscanf( input, "%127s %f %f %f", name, &x, &y, &z );
+		if ( parsed < 1 ) {
+			Print( "commander_ghost: could not read a descriptor name.\n" );
+			return;
+		}
+
+		int team = ( COMBAT_STAR != nullptr ) ? COMBAT_STAR->Get_Player_Type() : PLAYERTYPE_NEUTRAL;
+		CommanderPlacementValidator::Begin_Ghost( name, team );
+
+		if ( parsed < 4 ) {
+			//	No position given: put it where the player is standing, which is the closest a
+			//	console command can get to "at the cursor" without the input phase that owns it.
+			Vector3 position( 0.0f, 0.0f, 0.0f );
+			if ( COMBAT_STAR != nullptr ) {
+				COMBAT_STAR->Get_Position( &position );
+			}
+			CommanderPlacementValidator::Move_Ghost( position );
+		} else {
+			CommanderPlacementValidator::Move_Ghost( Vector3( x, y, z ) );
+		}
+
+		const CommanderPlacementRequest & ghost = CommanderPlacementValidator::Get_Ghost();
+		const CommanderPlacementResult & result = CommanderPlacementValidator::Get_Ghost_Result();
+		Print( "commander_ghost: '%s' at %.1f,%.1f,%.1f rot %.0f -- %s\n",
+				 name, ghost.Position.X, ghost.Position.Y, ghost.Position.Z, ghost.RotationDegrees,
+				 CommanderPlacementValidator::Get_Result_Name( result.Result ) );
+	}
+};
+
+
+class CommanderPlaceConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "commander_place"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "COMMANDER_PLACE [rotation] - roadmap Section 43.  Sends the current ghost to the "
+				 "server as a placement request.  The server re-runs every check, so a ghost the "
+				 "client drew red will be refused there too.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		if ( !CommanderPlacementValidator::Is_Ghost_Active() ) {
+			Print( "commander_place: no ghost -- start one with commander_ghost first.\n" );
+			return;
+		}
+
+		if ( input != nullptr && input[0] != '\0' ) {
+			CommanderPlacementValidator::Set_Ghost_Rotation( (float)::atof( input ) );
+		}
+
+		const CommanderPlacementRequest & ghost = CommanderPlacementValidator::Get_Ghost();
+
+		//	Sent even when the client thinks it is invalid: "never trust client green/red state"
+		//	cuts both ways, and a refusal the server prints is worth more than one the client
+		//	swallows.
+		cCommanderPlacementEvent * event = new cCommanderPlacementEvent;
+		event->Init( ghost.DescriptorName.Peek_Buffer(), ghost.Position, ghost.RotationDegrees,
+						 ghost.SequenceId );
+
+		Print( "commander_place: sent '%s' at %.1f,%.1f,%.1f rot %.0f (client said %s).\n",
+				 ghost.DescriptorName.Peek_Buffer(), ghost.Position.X, ghost.Position.Y,
+				 ghost.Position.Z, ghost.RotationDegrees,
+				 CommanderPlacementValidator::Get_Result_Name(
+					 CommanderPlacementValidator::Get_Ghost_Result().Result ) );
+	}
+};
+
+
+class CommanderBuildConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "commander_build"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "COMMANDER_BUILD <facility_id> <definition_id> - roadmap Section 45.  Asks the "
+				 "server to queue a unit at a production building.  The server looks up the team, "
+				 "the facility's state and the cost itself.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		int facility_id = 0;
+		int definition_id = 0;
+		if ( input == nullptr || ::sscanf( input, "%d %d", &facility_id, &definition_id ) != 2 ) {
+			Print( "commander_build: need a facility network id and a definition id.\n" );
+			return;
+		}
+
+		cCommanderProductionEvent * event = new cCommanderProductionEvent;
+		event->Init( facility_id, definition_id );
+
+		Print( "commander_build: requested definition %d at facility %d; the server decides.\n",
+				 definition_id, facility_id );
+	}
+};
+
+
+class CommanderRTSStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "commander_rts_status"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "COMMANDER_RTS_STATUS - roadmap Sections 42-46.  Commander identities, live "
+				 "constructions and their stage, production queues, and what the client mirror "
+				 "has received.";
+	}
+	virtual	void Activate( const char * /* input */ ) override
+	{
+		Print( "commander_rts_status: Nod commander %d, GDI commander %d.\n",
+				 CommanderProductionService::Get_Team_Commander( PLAYERTYPE_NOD ),
+				 CommanderProductionService::Get_Team_Commander( PLAYERTYPE_GDI ) );
+
+		int active = BuildingConstructionService::Get_Active_Count();
+		Print( "  %d construction(s) in progress:\n", active );
+		for ( int i = 0; i < active; i++ ) {
+			int id = BuildingConstructionService::Get_Active_Building( i );
+			float progress = 0.0f;
+			BuildingConstructionService::Get_Progress( id, &progress );
+			Print( "    building %d: %.0f%% (%s), %d block(s), row %d of %d\n",
+					 id, progress * 100.0f,
+					 BuildingConstructionService::Get_Stage_Name(
+						 BuildingConstructionService::Get_Stage( id ) ),
+					 BuildingConstructionService::Get_Block_Count( id ),
+					 BuildingConstructionService::Get_Active_Row( id ) + 1,
+					 BuildingConstructionService::Get_Row_Count( id ) );
+		}
+
+		int items = CommanderProductionService::Get_Item_Count();
+		Print( "  %d queued production item(s):\n", items );
+		for ( int i = 0; i < items; i++ ) {
+			CommanderProductionItem item;
+			if ( !CommanderProductionService::Get_Item( i, &item ) ) continue;
+			Print( "    facility %d: definition %d, %.1f/%.1fs, %s\n",
+					 item.FacilityId, item.DefinitionId, item.ElapsedSeconds, item.BuildTimeSeconds,
+					 CommanderProductionService::Get_Item_State_Name( item.State ) );
+		}
+
+		Print( "  %d unit(s) under Commander orders, %d selected.\n",
+				 CommanderProductionService::Get_Order_Count(),
+				 CommanderProductionService::Get_Selection_Count() );
+
+		Print( "  mirror: %d packet(s) exported, %d imported; estimated server clock %.1fs.\n",
+				 CommanderStateClass::Get_Export_Count(),
+				 CommanderStateClass::Get_Import_Count(),
+				 CommanderStateClass::Get_Estimated_Server_Time() );
+
+		Print( "  renderers: %d construction batch(es), %d block(s) drawn, %d dropped; "
+				 "ghost model %s.\n",
+				 BuildingConstructionRenderer::Get_Batch_Count(),
+				 BuildingConstructionRenderer::Get_Rendered_Block_Count(),
+				 BuildingConstructionRenderer::Get_Dropped_Block_Count(),
+				 CommanderGhostRenderer::Is_Model_Loaded() ? "loaded" : "not loaded" );
+	}
+};
+
 
 class LightStatusConsoleFunctionClass : public ConsoleFunctionClass
 {
@@ -6903,6 +7175,11 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new BuildingJsonStatusConsoleFunctionClass() );
 	FunctionList.Add( new TelemetryStatusConsoleFunctionClass() );
 	FunctionList.Add( new TelemetryDumpConsoleFunctionClass() );
+	FunctionList.Add( new CommanderSidebarConsoleFunctionClass() );
+	FunctionList.Add( new CommanderGhostConsoleFunctionClass() );
+	FunctionList.Add( new CommanderPlaceConsoleFunctionClass() );
+	FunctionList.Add( new CommanderBuildConsoleFunctionClass() );
+	FunctionList.Add( new CommanderRTSStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );

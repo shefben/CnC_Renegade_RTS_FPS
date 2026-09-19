@@ -103,11 +103,25 @@ a finished building, and `Is_Under_Construction` has to stop saying yes.
 
 ## What this phase does not build
 
-- **No renderer, and therefore no batching.** `Get_Active_Row` is the input a batching renderer uses
-  to split the settled rows from the animating one — Section 44's *"completed rows batch / current
-  animated row batch"* — but nothing consumes it yet. No mesh is created anywhere in this file, which
-  is also why Section 44's *"do not create one RenderObj or physics object per block"* is satisfied
-  by construction: there is nothing to create one from.
+- ~~No renderer, and therefore no batching.~~ **Built, a later pass**:
+  `Code/Combat/constructionrenderer.{h,cpp}` keeps exactly **two** `DynamicMeshClass` objects per
+  building under construction, whatever the block count -- Section 44's own "completed rows batch /
+  current animated row batch". The settled batch holds every row below the one assembling and is
+  rebuilt only when `Get_Active_Row` advances; the active batch is rebuilt each frame. During the
+  final fade every block's alpha moves, so both rebuild together. Each batch is bounded at 512
+  blocks and drops-and-counts past that, the same discipline `DebugRenderSystem`'s line pool uses.
+  No block is ever a `RenderObjClass` and none is ever a `PhysClass`.
+
+  Blocks are drawn unlit with the tint and per-vertex alpha the service supplies, and built from the
+  block transform's own axes rather than world axes, so a rotated building's blocks are rotated too.
+  A flat per-face shade makes a block read as a solid rather than a silhouette without needing a
+  light.
+
+- **Progress now advances on both sides.** `CombatManager::Think` calls
+  `BuildingConstructionService::Update` on client and server alike, against
+  `CommanderStateClass::Get_Estimated_Server_Time()` -- the server's clock as last replicated,
+  advanced locally since. That extends "clients deterministically reconstruct blocks" to the
+  timeline as well as the layout: a client that hitched still lands on the stage the server is at.
 - **No footprint blocker.** Section 44 wants one simple authoritative construction-footprint collider
   while a building is going up, removed at completion. That is a `PhysClass` creation, which belongs
   with the caller that creates the real building — the same caller that runs the activation list.
