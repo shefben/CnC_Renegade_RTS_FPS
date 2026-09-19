@@ -73,6 +73,7 @@ set(COMBAT_SRC
     buildingdescriptor.cpp
     buildingdescriptormanager.cpp
     teampowergridservice.cpp
+    commandermodecontroller.cpp
     gametype.cpp
     globalsettings.cpp
     harvester.cpp
@@ -222,6 +223,7 @@ set(COMBAT_SRC
     buildingdescriptor.h
     buildingdescriptormanager.h
     teampowergridservice.h
+    commandermodecontroller.h
     gameobjref.h
     gametype.h
     globalsettings.h

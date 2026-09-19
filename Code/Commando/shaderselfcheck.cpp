@@ -6,6 +6,7 @@
 #include "shaderselfcheck.h"
 
 #include "buildingdescriptormanager.h"
+#include "commandermodecontroller.h"
 #include "compositeattachment.h"
 #include "debrisrenderer.h"
 #include "debugrendersystem.h"
@@ -2352,6 +2353,135 @@ int	Run_Power_Grid (void)
 }
 
 
+/*
+**	Commander Mode camera / embodied player -- roadmap Section 41.
+**
+**	Enter_Commander_Mode never dereferences the star it is handed (see the header comment), so
+**	a sentinel non-null pointer exercises embodiment/refusal logic safely with no real
+**	SoldierGameObj, no device and no scene.  Pick_At_Cursor is not called here: it reaches
+**	WorldSpatialIndex::Query_Ray, which this check has not verified is safe against a scene
+**	that does not exist -- see the design doc's "not covered" section.
+*/
+int	Run_Commander_Mode (void)
+{
+	CommanderModeController::Init ();
+
+	Check (!CommanderModeController::Is_Active (),"a freshly initialised controller is already active");
+	Check (CommanderModeController::Get_Mode () == FPS_MODE,"a freshly initialised controller is not FPS_MODE");
+
+	/*
+	**	Embodiment: refuses a null star -- there is nothing to embody -- and never spawns
+	**	anything of its own.
+	*/
+	Check (!CommanderModeController::Enter_Commander_Mode (nullptr),
+			 "entering Commander Mode with no star to embody was accepted");
+	Check (!CommanderModeController::Is_Active (),"a refused Enter_Commander_Mode left the controller active");
+
+	SoldierGameObj * sentinel_star = reinterpret_cast<SoldierGameObj *> (1);	// never dereferenced
+	Check (CommanderModeController::Enter_Commander_Mode (sentinel_star),
+			 "entering Commander Mode with a living star was refused");
+	Check (CommanderModeController::Is_Active (),"Enter_Commander_Mode succeeded but Is_Active is false");
+	Check (CommanderModeController::Get_Mode () == COMMANDER_MODE,"Get_Mode is not COMMANDER_MODE after entering");
+	Check (CommanderModeController::Get_Embodied_Star () == sentinel_star,
+			 "Get_Embodied_Star did not return the same body that entered -- \"same player body\"");
+
+	Check (!CommanderModeController::Enter_Commander_Mode (sentinel_star),
+			 "entering Commander Mode a second time while already active was accepted");
+
+	/*
+	**	Bounds: pan and zoom clamp to configured ranges; rotation wraps instead.
+	*/
+	CommanderModeController::Set_World_Bounds (Vector3 (-100.0f,-100.0f,-100.0f),Vector3 (100.0f,100.0f,100.0f));
+	CommanderModeController::Set_Focus (Vector3 (0.0f,0.0f,0.0f));
+	CommanderModeController::Pan (Vector3 (10.0f,20.0f,0.0f));
+	Check ((CommanderModeController::Get_Focus () - Vector3 (10.0f,20.0f,0.0f)).Length () < 0.01f,
+			 "a pan inside world bounds did not move the focus by the expected amount");
+
+	CommanderModeController::Pan (Vector3 (1000.0f,0.0f,0.0f));
+	Check (WWMath::Fabs (CommanderModeController::Get_Focus ().X - 100.0f) < 0.01f,
+			 "panning far past the world bounds left focus.X at %f, not clamped to 100",
+			 CommanderModeController::Get_Focus ().X);
+
+	CommanderModeController::Set_Zoom_Range (50.0f,500.0f);
+	CommanderModeController::Set_Zoom (1000.0f);
+	Check (WWMath::Fabs (CommanderModeController::Get_Zoom () - 500.0f) < 0.01f,
+			 "zoom past its maximum read back %f, not clamped to 500",CommanderModeController::Get_Zoom ());
+	CommanderModeController::Zoom (-10000.0f);
+	Check (WWMath::Fabs (CommanderModeController::Get_Zoom () - 50.0f) < 0.01f,
+			 "zoom past its minimum read back %f, not clamped to 50",CommanderModeController::Get_Zoom ());
+
+	CommanderModeController::Set_Tilt_Range (10.0f,80.0f);
+	CommanderModeController::Set_Tilt (200.0f);
+	Check (WWMath::Fabs (CommanderModeController::Get_Tilt () - 80.0f) < 0.01f,
+			 "tilt past its maximum read back %f, not clamped to 80",CommanderModeController::Get_Tilt ());
+
+	CommanderModeController::Set_Rotation (400.0f);
+	Check (WWMath::Fabs (CommanderModeController::Get_Rotation () - 40.0f) < 0.01f,
+			 "rotation of 400 degrees did not wrap to 40, read back %f",CommanderModeController::Get_Rotation ());
+	CommanderModeController::Set_Rotation (-10.0f);
+	Check (WWMath::Fabs (CommanderModeController::Get_Rotation () - 350.0f) < 0.01f,
+			 "rotation of -10 degrees did not wrap to 350, read back %f",CommanderModeController::Get_Rotation ());
+
+	/*
+	**	Compute_Camera_Transform is a pure, checkable function: the camera sits exactly Zoom
+	**	world units from Focus (the orbit-camera radius), and its three axes are an orthonormal
+	**	basis -- a real, valid transform, not merely "some matrix".
+	*/
+	CommanderModeController::Set_World_Bounds (Vector3 (-100000.0f,-100000.0f,-100000.0f),
+																 Vector3 ( 100000.0f, 100000.0f, 100000.0f));
+	CommanderModeController::Set_Focus (Vector3 (0.0f,0.0f,0.0f));
+	CommanderModeController::Set_Zoom_Range (1.0f,1000.0f);
+	CommanderModeController::Set_Zoom (100.0f);
+	CommanderModeController::Set_Tilt_Range (0.0f,90.0f);
+	CommanderModeController::Set_Tilt (45.0f);
+	CommanderModeController::Set_Rotation (0.0f);
+
+	Matrix3D transform = CommanderModeController::Compute_Camera_Transform ();
+	Vector3 translation = transform.Get_Translation ();
+
+	Check (WWMath::Fabs (translation.Length () - 100.0f) < 0.1f,
+			 "a camera at zoom 100 sits %f world units from the focus, not 100",translation.Length ());
+	Check (translation.Z > 0.0f,"a positive-tilt camera did not end up above the focus plane");
+
+	Vector3 x_axis = transform.Get_X_Vector ();
+	Vector3 y_axis = transform.Get_Y_Vector ();
+	Vector3 z_axis = transform.Get_Z_Vector ();
+	Check (WWMath::Fabs (x_axis.Length () - 1.0f) < 0.01f,"the transform's X axis is not unit length");
+	Check (WWMath::Fabs (y_axis.Length () - 1.0f) < 0.01f,"the transform's Y axis is not unit length");
+	Check (WWMath::Fabs (z_axis.Length () - 1.0f) < 0.01f,"the transform's Z axis is not unit length");
+	Check (WWMath::Fabs (Vector3::Dot_Product (x_axis,y_axis)) < 0.01f,"the transform's X and Y axes are not orthogonal");
+	Check (WWMath::Fabs (Vector3::Dot_Product (y_axis,z_axis)) < 0.01f,"the transform's Y and Z axes are not orthogonal");
+	Check (WWMath::Fabs (Vector3::Dot_Product (x_axis,z_axis)) < 0.01f,"the transform's X and Z axes are not orthogonal");
+
+	/*
+	**	Death immediately exits Commander Mode -- star_is_alive is the one fact Update needs
+	**	and does not look up itself.
+	*/
+	Check (CommanderModeController::Is_Active (),"setup before the death check was not left active");
+	CommanderModeController::Update (0.1f,true);
+	Check (CommanderModeController::Is_Active (),"Update with a living star exited Commander Mode");
+
+	CommanderModeController::Update (0.1f,false);
+	Check (!CommanderModeController::Is_Active (),
+			 "Update with star_is_alive == false did not exit Commander Mode");
+	Check (CommanderModeController::Get_Mode () == FPS_MODE,"death-exit did not return to FPS_MODE");
+	Check (CommanderModeController::Get_Embodied_Star () == nullptr,
+			 "death-exit left a stale embodied star behind");
+
+	/*
+	**	Update on an already-inactive controller is a safe no-op, not a crash -- the
+	**	"safe to call when already inactive" contract Exit_Commander_Mode's own doc promises.
+	*/
+	CommanderModeController::Update (0.1f,true);
+	Check (!CommanderModeController::Is_Active (),"Update while inactive somehow re-activated Commander Mode");
+
+	CommanderModeController::Shutdown ();
+	Check (!CommanderModeController::Is_Active (),"Commander Mode outlived Shutdown");
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -2430,6 +2560,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "powergrid") == 0)) {
 		Run_Power_Grid ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "commandermode") == 0)) {
+		Run_Commander_Mode ();
 		ran = true;
 	}
 

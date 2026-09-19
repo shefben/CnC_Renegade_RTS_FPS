@@ -55,6 +55,7 @@
 #include "worldlightmanager.h"
 #include "debugrendersystem.h"
 #include "buildingdescriptormanager.h"
+#include "commandermodecontroller.h"
 #include "worldparticlemanager.h"
 #include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
@@ -1930,6 +1931,55 @@ public:
 				 DebugRenderSystem::Get_Line_Count(),
 				 DebugRenderSystem::Get_Dropped_Count(),
 				 DebugRenderSystem::Get_Drawn_Segment_Count() );
+	}
+};
+
+class CommanderModeConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "commander_mode"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "COMMANDER_MODE <0|1> - roadmap Section 41; enter/exit the strategic camera without "
+				 "leaving the embodied soldier.  Refuses to enter with no living star.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		int onoff = -1;
+		if ( input == nullptr || ::sscanf( input,"%d",&onoff ) != 1 ) {
+			Print( "commander_mode: usage 'commander_mode <0|1>'.  Currently %s.\n",
+					 CommanderModeController::Is_Active() ? "in Commander Mode" : "in FPS mode" );
+			return;
+		}
+
+		if ( onoff != 0 ) {
+			if ( CommanderModeController::Enter_Commander_Mode( COMBAT_STAR ) ) {
+				Print( "commander_mode: entered Commander Mode.\n" );
+			} else {
+				Print( "commander_mode: refused -- no living star to embody, or already active.\n" );
+			}
+		} else {
+			CommanderModeController::Exit_Commander_Mode();
+			Print( "commander_mode: returned to FPS mode.\n" );
+		}
+	}
+};
+
+class CommanderStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "commander_status"; }
+	virtual	const char * Get_Help( void ) override	{ return "COMMANDER_STATUS - the current Commander Mode camera state."; }
+	virtual	void Activate( const char * /* input */ ) override
+	{
+		Print( "commander_status: %s.\n",CommanderModeController::Is_Active() ? "COMMANDER_MODE" : "FPS_MODE" );
+		if ( CommanderModeController::Is_Active() ) {
+			Vector3 focus = CommanderModeController::Get_Focus();
+			Print( "commander_status: focus %.1f,%.1f,%.1f  zoom %.1f  tilt %.1f  rotation %.1f\n",
+					 focus.X,focus.Y,focus.Z,
+					 CommanderModeController::Get_Zoom(),CommanderModeController::Get_Tilt(),
+					 CommanderModeController::Get_Rotation() );
+		}
 	}
 };
 
@@ -6799,6 +6849,8 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new ParticlePoolConsoleFunctionClass() );
 	FunctionList.Add( new DebugLayerConsoleFunctionClass() );
 	FunctionList.Add( new DebugStatusConsoleFunctionClass() );
+	FunctionList.Add( new CommanderModeConsoleFunctionClass() );
+	FunctionList.Add( new CommanderStatusConsoleFunctionClass() );
 	FunctionList.Add( new ReloadBuildingDescriptorsConsoleFunctionClass() );
 	FunctionList.Add( new ReloadBuildingDescriptorConsoleFunctionClass() );
 	FunctionList.Add( new BuildingJsonStatusConsoleFunctionClass() );

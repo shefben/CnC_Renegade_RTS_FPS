@@ -69,6 +69,7 @@
 #include "debrissystem.h"
 #include "statusoverlaysystem.h"
 #include "worlddebugdisplay.h"
+#include "commandermodecontroller.h"
 #include "dazzle.h"
 #include "messagewindow.h"
 #include "hudinfo.h"
@@ -560,6 +561,7 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 
 	BulletManager::Init();
 	DebrisManager::Init();
+	CommanderModeController::Init();
 
 	cEncoderList::Clear_Entries();
 
@@ -835,6 +837,9 @@ void	CombatManager::Unload_Level( void )
 	WorldDebugDisplay::Shutdown();
 	WWLOG_INTERMEDIATE("WorldDebugDisplay::Shutdown()");
 
+	CommanderModeController::Shutdown();
+	WWLOG_INTERMEDIATE("CommanderModeController::Shutdown()");
+
 	ObjectiveManager::Reset();
 	WWLOG_INTERMEDIATE("ObjectiveManager::Reset()");
 
@@ -977,7 +982,17 @@ void 	CombatManager::Think()
 	// In normal mode, the camera must think before Post_Think, since the
 	// camera update calls Set_Targeting on the star, which must feed Update_Animation
 }{	WWPROFILE( "Camera 1" );
-	if ( !MainCamera->Is_Using_Host_Model() ) {
+	//	Roadmap Section 41: while Commander Mode is active, CommanderModeController owns the
+	//	camera and CCameraClass::Update is not called at all -- not touched, not degraded, just
+	//	skipped for the duration.  star_is_alive here is the one fact CommanderModeController
+	//	needs and does not look up itself; SoldierGameObj::Get_Defense_Object matches the
+	//	dead-soldier check RadarManager/TacticalIntelligenceModel already use.
+	if ( CommanderModeController::Is_Active() ) {
+		bool star_is_alive = (COMBAT_STAR != nullptr) &&
+									 (COMBAT_STAR->Get_Defense_Object() != nullptr) &&
+									 (COMBAT_STAR->Get_Defense_Object()->Get_Health() > 0.0f);
+		CommanderModeController::Update( TimeManager::Get_Frame_Seconds(),star_is_alive );
+	} else if ( !MainCamera->Is_Using_Host_Model() ) {
 		MainCamera->Update();
 	}
 
@@ -987,7 +1002,7 @@ void 	CombatManager::Think()
 }
 	// In host_model mode, the camera must think after Post_Think, so the host model has
 	// a chance to determine where the camera should be
-	if ( MainCamera->Is_Using_Host_Model() ) {
+	if ( !CommanderModeController::Is_Active() && MainCamera->Is_Using_Host_Model() ) {
 		MainCamera->Update();
 	}
 
