@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "radar.h"
+#include "tacticalintelligence.h"
 #include "assets.h"
 #include "soldier.h"
 #include "gameobjmanager.h"
@@ -468,70 +469,26 @@ void	RadarManager::Update( const Matrix3D & player_tm, const Vector2 & center )
 	}
 
 {WWPROFILE( "Blips" );
-	// for all physicalgameobjs
-	SLNode<BaseGameObj> *objnode;
-	for (	objnode = GameObjManager::Get_Game_Obj_List()->Head(); objnode; objnode = objnode->Next()) {
-		PhysicalGameObj *obj = objnode->Data()->As_PhysicalGameObj();
-		if ( obj ) {
-			if ( obj == COMBAT_STAR ) continue;	// Don't draw the star
-			if ( obj->Peek_Physical_Object() == nullptr ) continue;
+	//
+	//	Roadmap Section 31: "existing Renegade... radar APIs feed the same model" -- this used
+	//	to be an inline scan of every PhysicalGameObj; it is now TacticalIntelligenceModel's
+	//	exact reproduction of that scan, so the same filtering rules exist in exactly one place
+	//	instead of here and in whatever Commander consumer reads the model later.  What Add_Blip
+	//	does with the result, and the write-back of the faded intensity, are unchanged.
+	//
+	static TacticalContactListClass	fps_contacts;
+	TacticalIntelligenceModel::Build_FPS_Contacts( COMBAT_STAR, (int)RadarMode, BracketObj,
+																	 star_z, RADAR_Z_RANGE, fps_contacts );
 
-			// Don't draw dead soldiers
-			if (	obj->As_SoldierGameObj() &&
-					obj->Get_Defense_Object() &&
-					obj->Get_Defense_Object()->Get_Health() <= 0.0f ) {
-				continue;
-			}
-
-			//
-			// TSS: Filter blips based on RadarMode
-			//
-			if (COMBAT_STAR != nullptr && RadarMode != RADAR_ALL) {
-				if (RadarMode == RADAR_NOBODY) {
-					continue;
-				} else {
-					WWASSERT(RadarMode == RADAR_TEAMMATES);
-					int other_pt = obj->Get_Player_Type();
-					int my_pt = COMBAT_STAR->Get_Player_Type();
-					if (my_pt != other_pt ||
-					   (my_pt != PLAYERTYPE_NOD && my_pt != PLAYERTYPE_GDI)) {
-						continue;
-					}
-				}
-			}
-
-			//
-			// gth: don't show radar blips for enemy stealthed units
-			//
-			SmartGameObj * smart_obj = obj->As_SmartGameObj();
-			if ((smart_obj != nullptr) && (smart_obj->Is_Stealthed())) {
-
-				int obj_pt = smart_obj->Get_Player_Type();
-				int my_pt = COMBAT_STAR->Get_Player_Type();
-				if (my_pt != obj_pt) {
-					continue;
-				}
-			}
-
-
-			Vector3 objpos;
-			obj->Get_Position( &objpos );
-
-			bool altitude_fade = false;
-			float z_diff = star_z - objpos.Z;
-			if ( WWMath::Fabs( z_diff ) > RADAR_Z_RANGE) {
-				altitude_fade = true;
-			}
-
-//			if ( (WWMath::Fabs( z_diff ) < RADAR_Z_RANGE) || (obj->Get_Radar_Blip_Shape_Type() == BLIP_SHAPE_TYPE_OBJECTIVE) ) {
-				float intensity = obj->Get_Radar_Blip_Intensity();
-				bool bracket = obj == BracketObj;
-				intensity = Add_Blip( objpos, obj->Get_Radar_Blip_Shape_Type(), obj->Get_Radar_Blip_Color_Type(), intensity, bracket, altitude_fade );
-	#if 0
-				intensity -= RadarSweepMove / DEG_TO_RAD( 360 ) * 0.666f;				// Drop Blip intensity
-	#endif
-				obj->Set_Radar_Blip_Intensity( WWMath::Clamp( intensity, 0, 1 ) );
-//			}
+	for ( int i = 0; i < fps_contacts.Count(); i ++ ) {
+		TacticalContactClass & contact = fps_contacts[i];
+		float intensity = Add_Blip( contact.Position, contact.BlipShapeType, contact.BlipColorType,
+											  contact.Intensity, contact.Bracketed, contact.AltitudeFade );
+#if 0
+		intensity -= RadarSweepMove / DEG_TO_RAD( 360 ) * 0.666f;				// Drop Blip intensity
+#endif
+		if ( contact.GameObj != nullptr ) {
+			contact.GameObj->Set_Radar_Blip_Intensity( WWMath::Clamp( intensity, 0, 1 ) );
 		}
 	}
 }

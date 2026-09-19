@@ -95,6 +95,7 @@ set(COMBAT_SRC
     powerup.cpp
     purchasesettings.cpp
     radar.cpp
+    tacticalintelligence.cpp
     raveshawbossgameobj.cpp
     refinerygameobj.cpp
     reflist.cpp
@@ -238,6 +239,7 @@ set(COMBAT_SRC
     powerup.h
     purchasesettings.h
     radar.h
+    tacticalintelligence.h
     raveshawbossgameobj.h
     refinerygameobj.h
     rendercomponent.h

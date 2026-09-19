@@ -146,6 +146,11 @@ public:
 	static	void	Add_Marker( const RadarMarkerClass & marker )	{ Markers.Add(marker); }
 	static	void	Change_Marker_Color( int id, int color );
 
+	//	Read-only access for TacticalIntelligenceModel (roadmap Section 31), so the shared
+	//	model can enumerate the same markers this HUD already draws without a second store.
+	static	int									Get_Marker_Count( void )			{ return Markers.Count(); }
+	static	const RadarMarkerClass &		Get_Marker( int index )				{ return Markers[index]; }
+
 	// Multiplayer support
    static	void	Set_Radar_Mode(RadarModeEnum mode)					{ RadarMode = mode; }
    static	RadarModeEnum	Get_Radar_Mode(void)							{ return RadarMode; }

@@ -7,7 +7,9 @@
 
 #include "compositeattachment.h"
 #include "debrisrenderer.h"
+#include "radar.h"
 #include "shadermgr.h"
+#include "tacticalintelligence.h"
 #include "tracerrenderer.h"
 #include "weatherenvironment.h"
 #include "worldparticlemanager.h"
@@ -1400,6 +1402,68 @@ int	Run_Attachments (void)
 }
 
 
+/*
+**	The shared tactical intelligence model -- roadmap Section 31.
+**
+**	Section 31's own rule is "do not expose strategic radar-only/last-known information as
+**	live FPS wallhacks", so what this pins is the separation: Build_FPS_Contacts never touches
+**	WorldShroudManager and can never produce a RADAR_ONLY or LAST_KNOWN contact, no matter what
+**	is registered in the shroud.  RadarManager::Init() is not called here -- it allocates a
+**	Render2DClass, which wants a device -- so this exercises the model against an empty world
+**	and RadarManager's marker store directly, the same device-less discipline as every other
+**	check in this file.
+*/
+int	Run_Tactical_Intelligence (void)
+{
+	TacticalContactListClass	contacts;
+
+	//
+	//	Nothing registered anywhere: both queries are empty, not a crash.
+	//
+	TacticalIntelligenceModel::Build_FPS_Contacts (nullptr,2 /* RADAR_ALL */,nullptr,0.0f,3.0f,contacts);
+	Check (contacts.Count () == 0,
+			 "an empty world produced %d FPS contact(s)",contacts.Count ());
+	Check (TacticalIntelligenceModel::Get_Last_FPS_Contact_Count () == 0,
+			 "the FPS contact counter disagrees with the list it built");
+
+	TacticalIntelligenceModel::Build_Strategic_Contacts (0,contacts);
+	Check (contacts.Count () == 0,
+			 "an empty world with no markers or objectives produced %d strategic contact(s)",
+			 contacts.Count ());
+
+	//
+	//	A marker is the one contact source this check can populate without a device or a
+	//	physics scene.  It has to come back as CONTACT_COMMANDER_MARKER and never be excluded
+	//	by shroud -- markers, like objectives, are mission-known already.
+	//
+	RadarMarkerClass	marker;
+	marker.ID			= 1;
+	marker.Type			= 0;
+	marker.Color		= 0;
+	marker.Position	= Vector3 (500.0f,500.0f,0.0f);
+	marker.Intensity	= 1.0f;
+	RadarManager::Add_Marker (marker);
+
+	TacticalIntelligenceModel::Build_Strategic_Contacts (0,contacts);
+	Check (contacts.Count () == 1,
+			 "one registered marker produced %d strategic contact(s)",contacts.Count ());
+	if (contacts.Count () == 1) {
+		Check (contacts[0].Type == CONTACT_COMMANDER_MARKER,
+				 "a marker did not classify as CONTACT_COMMANDER_MARKER");
+		Check (contacts[0].Shroud == SHROUD_VISIBLE,
+				 "a marker was shroud-gated even though markers are mission-known");
+		Check (contacts[0].GameObj == nullptr,
+				 "a synthetic marker contact carries a GameObj pointer");
+	}
+
+	RadarManager::Clear_Markers ();
+	TacticalIntelligenceModel::Build_Strategic_Contacts (0,contacts);
+	Check (contacts.Count () == 0,
+			 "clearing the only marker left %d contact(s) behind",contacts.Count ());
+
+	return _Failures;
+}
+
 
 }	// namespace
 
@@ -1444,6 +1508,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "attachments") == 0)) {
 		Run_Attachments ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "radar") == 0)) {
+		Run_Tactical_Intelligence ();
 		ran = true;
 	}
 

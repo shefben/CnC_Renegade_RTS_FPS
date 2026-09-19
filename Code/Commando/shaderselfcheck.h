@@ -34,6 +34,8 @@ namespace	ShaderSelfCheck
 	//		debris     the visual debris pool, its ceiling, and its share of the sprite pool
 	//		attachments  the composite attachment controller's slot bookkeeping and its
 	//		           refusal of a child model that has no art yet
+	//		radar        the shared tactical intelligence model, and that FPS contacts never
+	//		           carry strategic radar-only/last-known information
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//
