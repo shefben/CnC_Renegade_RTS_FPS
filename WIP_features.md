@@ -414,27 +414,28 @@ the building path) a live combat scene. Next exact action is a manual one for th
 `ctest -C Debug -R "shader_weather|shader_particles|shader_tracers|shader_debris|shader_attachments" --output-on-failure`
 in `build/win32`.
 
-## P27 -- shroud is real, nothing has stood in a live match to prove it
+## P27 -- shroud is real and wired end to end; no level content exercises it yet
 
 `WorldShroudManager` (P27-A in `completed_features.md`, `docs/zerohour/WorldShroudManager.md`) is
-consumed for real by two other new services this same pass: `TacticalIntelligenceModel` (P28)
-queries it, and `TeamPowerGridService` (P34) registers/unregisters sensor sources for
-communications-capable buildings. Neither path is reached by a live match yet, because no real
-`BuildingGameObj` is registered with `TeamPowerGridService` in production (see P34's own entry).
-Next exact action: none until P34's `BaseControllerClass` integration lands; after that, a manual
-check that a Communications Center's own team sees its own coverage and an enemy team does not
-until it gains real sensor coverage there too.
+now reached by a real registration path, not just a self check: every `BuildingGameObj` registers
+with `TeamPowerGridService` (P27/P33/P34-B in `completed_features.md`), which registers a sensor
+source for any building whose `DescriptorName` resolves to a `communications.enabled` descriptor.
+No preset in this tree's own content sets `DescriptorName` on a Communications Center yet -- that
+is authoring, not code. Next exact action: once a level or preset does, a manual check that its
+own team sees the resulting coverage and an enemy team does not until it gains coverage there too.
 
-## P28 -- the FPS radar refactor is live, the strategic query has no renderer
+## P28 -- the FPS radar refactor is live, the strategic query has a debug renderer only
 
 `TacticalIntelligenceModel` (P28-A, `docs/zerohour/TacticalIntelligenceModel.md`) already carries
 real weight: `RadarManager::Update` calls `Build_FPS_Contacts` every frame the HUD radar draws,
 so this is the one phase in this whole pass whose refactor is exercised by ordinary play the
 instant the game runs, not only by a self-check. What has not been confirmed is that it still
 *looks* the same -- the filtering logic did not change, but nobody has looked at a screen since.
-`Build_Strategic_Contacts` has no renderer (Commander map is Phase 36+). Next exact action is a
-manual one for the user: play a multiplayer match, confirm HUD radar blips, brackets and fading
-look exactly as before this refactor.
+`Build_Strategic_Contacts` now has `DEBUG_LAYER_RADAR_CONTACTS` (P28/P32-B in
+`completed_features.md`) but still no gameplay renderer (Commander map is Phase 36+). Next exact
+action is a manual one for the user: play a multiplayer match, confirm HUD radar blips, brackets
+and fading look exactly as before this refactor, and optionally `debug_layer radar_contacts 1` to
+see strategic contacts directly.
 
 ## P29 -- status rings are real, nothing has ever created one in game
 
@@ -450,45 +451,57 @@ Phase 39's Commander-produced AI infantry/vehicles are the intended first one. T
 script layer's own hand-authored guard behavior is untouched. Next exact action: none until
 Phase 39 lands.
 
-## P31 -- two real events are counted, nobody has read the snapshot back
+## P31 -- two real events are counted, the console can read the snapshot back now
 
 `RTSTelemetryService` (P31-A, `docs/zerohour/RTSTelemetryService.md`) counts real kills and real
-building destructions the instant either happens in a live match, but there is no console command
-to print `Get_Snapshot`'s contents -- only the self check reads it back. Next exact action: add a
-`telemetry_status`/`telemetry_dump` console command, then get a kill and destroy a building in
-game and confirm the counts move.
+building destructions the instant either happens in a live match. `telemetry_status`/
+`telemetry_dump` console commands now exist (P31-B in `completed_features.md`). Next exact
+action is a manual one for the user: get a kill and destroy a building in game and confirm
+`telemetry_dump` shows the counts moving.
 
-## P32 -- one debug layer draws something, seventeen are named and empty
+## P32 -- three debug layers draw something, fourteen are named and empty
 
 `DebugRenderSystem`/`WorldDebugDisplay` (P32-A, `docs/zerohour/DebugRenderSystem.md`) draw
-building footprints for real once `debug_layer building_footprints 1` is set; the other
-seventeen named layers toggle but draw nothing, because seven already-shipped world systems
-(`WorldTerrainSystem`, `RoadSystem`, `BridgeSystem`, `WaterSystem`, `FoliageSystem`,
-`WorldLightManager`, `WorldShadowManager`) have no public per-instance iterator to visualize, and
-four more layers await later phases (building semantic nodes, PCT/MCT anchors, the Commander
-cursor). Next exact action is a manual one for the user: `debug_layer building_footprints 1` in
-game, confirm a yellow wireframe box appears around each building.
+building footprints for real once `debug_layer building_footprints 1` is set; `radar_contacts`
+and `shroud_cells` now draw too (P28/P32-B in `completed_features.md`). The other fourteen named
+layers toggle but draw nothing: seven already-shipped world systems (`WorldTerrainSystem`,
+`RoadSystem`, `BridgeSystem`, `WaterSystem`, `FoliageSystem`, `WorldLightManager`,
+`WorldShadowManager`) have no public per-instance iterator to visualize, `spatial_index_cells`
+and `collision_bounds` were not attempted this pass either, and four more layers await later
+phases (building semantic nodes, PCT/MCT anchors, the Commander cursor). Next exact action is a
+manual one for the user: `debug_layer building_footprints 1`, `debug_layer radar_contacts 1` and
+`debug_layer shroud_cells 1` in game, confirm a yellow wireframe box appears around each
+building, coloured crosses appear at visible contacts, and coloured quad outlines follow explored/
+visible ground.
 
-## P33 -- descriptors resolve and reload for real, nothing loads one at startup
+## P33 -- descriptors resolve, reload, and are now reachable from a real building
 
 `BuildingModelDescriptor`/`BuildingDescriptorManager` (P33-A, `docs/zerohour/
-BuildingDescriptors.md`) have no production call site -- no `BuildingGameObj` carries a
-`DefinitionName`, and nothing reads `data/building_descriptors/*.json` at engine startup. Only
-four of the roadmap's twelve named GDI/Nod building categories have example content. This is also
-the blocking gap for P34's `BaseControllerClass` integration. Next exact action: give
-`BuildingGameObj` a `DefinitionName` field and a descriptor-load call at creation time, then wire
-`reload_building_descriptors` to actually matter in a running game.
+BuildingDescriptors.md`) now has a real production call site: `BuildingGameObjDef::
+DescriptorName` plus `Initialize_Building`'s registration (P27/P33/P34-B in
+`completed_features.md`) means `reload_building_descriptors` already matters in a running game
+for any building whose preset names one -- none do yet, since only four of the roadmap's twelve
+named GDI/Nod building categories have example content. Nothing reads `data/
+building_descriptors/*.json` at engine startup (still true; loading is reload/self-check driven
+only). Next exact action: author `DescriptorName` onto a real preset (or the remaining eight
+categories' JSON content), then confirm `building_json_status`/`reload_building_descriptors`
+against a live building.
 
-## P34 -- the allocator is proven, it is not yet the one deciding anything live
+## P34 -- the allocator is wired into BaseControllerClass; wallet-cap enforcement is still open
 
-`TeamPowerGridService` (P34-A, `docs/zerohour/TeamPowerGridService.md`) is not wired into
-`BaseControllerClass::Power_Base` (`basecontroller.cpp:521-552`, the exact coarse whole-base loop
-it is meant to replace) -- that surgical change was deferred rather than risked under time
-pressure this late in the pass, and needs P33's `DefinitionName`-on-`BuildingGameObj` gap closed
-first. No wallet-cap enforcement exists anywhere in this codebase to apply the Silo bonus to.
-Next exact action: after P33's gap closes, replace `Power_Base`'s uniform `Enable_Power` loop
-with `TeamPowerGridService::RecalculateTeam`, keeping `BasePowered` as a derived summary
-(`Get_Generation(team) > 0`) for whatever else still reads `Is_Base_Powered()`.
+`TeamPowerGridService` (P34-A, `docs/zerohour/TeamPowerGridService.md`) is now wired into
+`BaseControllerClass::Power_Base` (`basecontroller.cpp:521-552`, P27/P33/P34-B in
+`completed_features.md`): the coarse loop skips any building `Has_Resolved_Descriptor` answers
+true for, leaving this service the sole writer of that building's `Enable_Power`, while every
+undescribed building keeps the coarse behaviour unchanged. `BasePowered`/`Is_Base_Powered()`
+itself was left alone rather than rederived, since `Check_Base_Power`'s power-plant scan already
+covers every power plant regardless of descriptor and nothing reads it incorrectly today. What is
+still genuinely open: no wallet-cap enforcement exists anywhere in this codebase to apply the
+Silo bonus to, and the roadmap's own formula (`EffectivePlayerWalletCap = BaseWalletCap + ...`)
+assumes a "canonical existing player wallet cap" this Renegade-based codebase has never had --
+see **Q-014** in `awaiting_answers.md`. Next exact action: none until Q-014 is answered; then add
+the clamp to `PlayerDataClass::Increment_Money` reading `TeamPowerGridService::
+Get_Wallet_Capacity_Bonus`.
 
 ## P35 -- the camera state machine is proven, nothing enters it but the console command
 

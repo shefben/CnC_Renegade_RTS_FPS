@@ -38,10 +38,16 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  P32's `building_footprints` debug layer needs `debug_layer building_footprints 1` and a
  building on screen; P35's Commander Mode needs `commander_mode 1`/`commander_mode 0` and a
  death while active, and its `Pick_At_Cursor` was deliberately left untested even device-less
- (see `docs/zerohour/CommanderModeController.md`). P27/P29/P30/P33/P34 have no live-match check
+ (see `docs/zerohour/CommanderModeController.md`). P29/P30 have no live-match check
  possible yet at all -- each is documented in `WIP_features.md` as waiting on a real GameObj
- wiring step (P33's `BuildingGameObj` `DefinitionName`, P34's `BaseControllerClass`
- integration, P30/P39's Commander AI production) rather than a manual verification.
+ wiring step (P30/P39's Commander AI production) rather than a manual verification. P27/P33/P34's
+ own wiring gap (`BuildingGameObj` `DescriptorName`, `BaseControllerClass` integration) closed in
+ a later pass -- see `docs/zerohour/TeamPowerGridService.md` -- but still has no live-match check
+ possible until a preset actually sets `DescriptorName`, which is authoring, not code. That same
+ pass added two more manual-only items, neither with a new ctest family: `debug_layer
+ radar_contacts 1` and `debug_layer shroud_cells 1` (P32) need a look in game the same way
+ `building_footprints` already did, and `telemetry_status`/`telemetry_dump` (P31) need a kill and
+ a building destruction to confirm the counts move.
 
 
 - **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`
@@ -57,6 +63,23 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  directories already expose `wwlib` to every target. Say the word and this moves to real vcpkg
  once `VCPKG_ROOT` exists on the build machine; nothing about `BuildingDescriptorManager`'s own
  code would need to change, only the include path and the CMake wiring.
+
+- **Q-014** Phase 34's wallet-cap enforcement (roadmap Section 40, *"Tiberium Silo wallet
+ expansion"*) says to *"start from the canonical existing player wallet cap"* and gives
+ `EffectivePlayerWalletCap = BaseWalletCap + sum(active Silo bonuses)`. There is no
+ `MaxMoney`/`WalletCap`/`CreditCap` concept anywhere in this codebase before this phase --
+ stock Renegade's economy has no credit ceiling at all, and neither does TT 4.8.4. The
+ roadmap's phrase assumes a donor-side (SAGE/Generals) concept that does not carry over.
+ `TeamPowerGridService::Get_Wallet_Capacity_Bonus(team)` is real, computed, stacking, and
+ queryable (P34-A); what is missing is `BaseWalletCap` itself -- a live gameplay-economy
+ number, not something inferable from source. Guessing one and clamping
+ `PlayerDataClass::Increment_Money` risks a real regression ("just cant look worse") against
+ Renegade's actual, never-capped economy if picked wrong. Needs a decision: either a
+ `BaseWalletCap` value (a large "effectively uncapped" default keeps today's behavior exactly
+ unless Silos are in play, at the cost of the cap rarely mattering in practice), or a decision
+ that no base cap should exist and only Silo bonuses ever raise an otherwise-uncapped wallet
+ (which would make `BaseWalletCap` a non-value and the formula moot below the first Silo). Not
+ blocking any other work; the allocator, coverage and self-checks are unaffected either way.
 
 ---
 

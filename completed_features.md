@@ -1752,3 +1752,35 @@ acceptance *New rendering behavior can be attached without continuously expandin
 remaining Initial-components entries are unbuilt -- see `WIP_features.md`. Evidence:
 `docs/zerohour/ModularDrawComponents.md`; new `shader_attachments`/`fds_shader_attachments`
 (refusal paths only -- every success path needs real `.w3d` art the check binary has none of).
+
+## P27/P33/P34-B: every building registers with the power grid; Power_Base yields to it
+
+Closed the chain all three phases' WIP entries named as blocking. `BuildingGameObjDef` gained an
+editable, saved `DescriptorName` field (`Code/Combat/building.h`/`.cpp`); `Initialize_Building`
+now registers every `BuildingGameObj` with `TeamPowerGridService` unconditionally (safe: an
+unresolved name is a neutral no-op member), and `On_Destroyed`/`On_Revived`/the destructor drive
+the matching lifecycle calls, server-gated to match `Power_Base`'s own existing rule.
+`BaseControllerClass::Power_Base` (`basecontroller.cpp:521-552`) now calls a new
+`TeamPowerGridService::Has_Resolved_Descriptor` query and skips any building it owns, so the
+coarse loop and the deterministic allocator never fight over the same `Enable_Power` flag; every
+building naming no descriptor (still nearly all of them) is unaffected. No preset in this tree's
+content sets `DescriptorName` yet, so this is real, live-wired machinery with nothing yet to
+exercise it end to end in a level -- authoring content, not code. Evidence:
+`docs/zerohour/TeamPowerGridService.md`, `docs/zerohour/BuildingDescriptors.md`.
+
+## P28/P32-B: two more debug layers draw for real, using data this pass already built
+
+`DEBUG_LAYER_RADAR_CONTACTS` (`Code/Combat/worlddebugdisplay.cpp`) is the first renderer
+`TacticalIntelligenceModel::Build_Strategic_Contacts` has had -- a coloured cross per contact for
+the local player's own team, debug-only, not the Commander map. `DEBUG_LAYER_SHROUD_CELLS` adds
+two new read-only `WorldShroudManager` accessors (`Get_Grid_Geometry`/`Get_Cell_State_By_Index`,
+`Code/wwphys/worldshroudmanager.*`) and draws a coloured quad outline per non-`UNKNOWN` cell of
+the viewer's team grid. Both bounded by `DebugRenderSystem`'s existing line-pool drop/count
+behaviour. Evidence: `docs/zerohour/DebugRenderSystem.md`.
+
+## P31-B: telemetry_status/telemetry_dump console commands
+
+`Code/Commando/consolefunction.cpp` -- closes the gap P31's own WIP entry named: only the self
+check could read `RTSTelemetryService::Get_Snapshot` back before. `telemetry_status` prints
+enabled state, record count, refusal count; `telemetry_dump` prints every `(category, subtype)`
+with its count and running total. Evidence: `docs/zerohour/RTSTelemetryService.md`.
