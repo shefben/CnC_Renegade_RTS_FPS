@@ -20,19 +20,28 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  `shader_particles` passed on the client with the same code. The check's scratch arrays
  were heap-allocated and never freed and are now static, which is the suspected cause, but
  it has not been rerun since -- that session was asked not to run the game, and neither has
- this one. P23's `shader_weather`/`fds_shader_weather`, P24's `shader_tracers`/
- `fds_shader_tracers`, P25's `shader_debris`/`fds_shader_debris`, and P26's
- `shader_attachments`/`fds_shader_attachments` have never been run at all for the same reason.
- Needs one run covering all five:
- `ctest -C Debug -R "shader_weather|shader_particles|shader_tracers|shader_debris|shader_attachments" --output-on-failure`
+ any session since. P23 through P35 have each added a check family that has never been run at
+ all, for the same reason: `shader_weather`, `shader_tracers`, `shader_debris`,
+ `shader_attachments`, `terrain_shroud`, `shader_radar`, `shader_overlays`, `shader_guardai`,
+ `shader_telemetry`, `shader_debugrender`, `shader_buildingjson`, `shader_powergrid`,
+ `shader_commandermode` (each with an `fds_` server-side twin). Needs one run covering all
+ fourteen:
+ `ctest -C Debug -R "shader_weather|shader_particles|shader_tracers|shader_debris|shader_attachments|terrain_shroud|shader_radar|shader_overlays|shader_guardai|shader_telemetry|shader_debugrender|shader_buildingjson|shader_powergrid|shader_commandermode" --output-on-failure`
  from `build/win32`.
  If `fds_shader_particles` still fails, the abort is in `WorldParticleManager` teardown rather
- than the check. Not blocking any other work, but five phases are now resting on checks
- nobody has executed. Two gaps no automated check can close, both needing a person in game:
+ than the check. Not blocking any other work, but thirteen phases are now resting on checks
+ nobody has executed. Several gaps no automated check can close, all needing a person in game:
  P25's `DebrisManager` (the real-collision fragment tier) needs a live combat scene, so
  destroying a building and a bridge span and reporting `debris_status` is the only way to see it
- run; and P26's attachment layer has every *success* path unverified for want of real `.w3d` art,
- so `shader_attachments` pins only its refusals.
+ run; P26's attachment layer has every *success* path unverified for want of real `.w3d` art;
+ P28's HUD radar refactor needs a look to confirm it still draws the same blips it always did;
+ P32's `building_footprints` debug layer needs `debug_layer building_footprints 1` and a
+ building on screen; P35's Commander Mode needs `commander_mode 1`/`commander_mode 0` and a
+ death while active, and its `Pick_At_Cursor` was deliberately left untested even device-less
+ (see `docs/zerohour/CommanderModeController.md`). P27/P29/P30/P33/P34 have no live-match check
+ possible yet at all -- each is documented in `WIP_features.md` as waiting on a real GameObj
+ wiring step (P33's `BuildingGameObj` `DefinitionName`, P34's `BaseControllerClass`
+ integration, P30/P39's Commander AI production) rather than a manual verification.
 
 
 - **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`

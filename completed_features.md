@@ -1637,6 +1637,97 @@ neither tier ever creates one. Vehicles and future city props remain unstarted -
 check binary never brings up), plus `debris_status`, `debris_budget` and `debris_layer` at the
 console.
 
+## P27-A: Shroud is a per-team grid fed only by registered sensor sources
+
+`Code/wwphys/worldshroudmanager.*` -- UNKNOWN/EXPLORED/LAST_KNOWN/RADAR_DETECTED/VISIBLE per team
+per cell, fed only by `RegisterStrategicSensorSource`/`UpdateStrategicSensorSource`/
+`UnregisterStrategicSensorSource`. No camera/rendering/targeting header is reachable from the
+file, so "Commander camera movement alone reveals nothing" holds by construction. Absorbs the
+P27 acceptance in full. Evidence: `docs/zerohour/WorldShroudManager.md`; new
+`terrain_shroud`/`fds_terrain_shroud`.
+
+## P28-A: One radar model, fed by the loop that already existed
+
+`Code/Combat/tacticalintelligence.*`. `TacticalIntelligenceModel::Build_FPS_Contacts` is
+`RadarManager::Update`'s old inline blip scan, moved not rewritten -- HUD radar behavior is
+unchanged because the filtering code itself did not change. `Build_Strategic_Contacts` is the
+shroud-gated sibling (buildings reached via a second `BaseGameObj->As_ScriptableGameObj->
+As_BuildingGameObj` path, since a building is not a `PhysicalGameObj`); never produces a
+`RADAR_ONLY`/`LAST_KNOWN` contact the FPS path could see. Absorbs the P28 acceptance in full.
+Evidence: `docs/zerohour/TacticalIntelligenceModel.md`; new `shader_radar`/`fds_shader_radar`.
+
+## P29-A: A status ring is a kind field and a Set_Visible flag
+
+`Code/ww3d2/statusoverlayrenderer.*` (bounded batched ring pool, no team concept) +
+`Code/Combat/statusoverlaysystem.*` (team ownership, shroud-gated visibility via
+`WorldShroudManager`). Batched through `WorldParticleManager`'s existing streak pool. Absorbs
+the P29 acceptance in full. Evidence: `docs/zerohour/StatusOverlaySystem.md`; new
+`shader_overlays`/`fds_shader_overlays`.
+
+## P30-A: Guard/retaliate as one state machine, because there was no engine one
+
+`Code/Combat/guardstatecontroller.*`. Donor audit found no engine-level guard/retaliation
+concept anywhere in `Code/Combat` -- only per-mission scripts. Pure state machine (no GameObj,
+no ActionClass) implementing all seven of the roadmap's own named test scenarios, a shared
+staggered replan budget, and human-yield suppression. Absorbs the P30 acceptance in full.
+Evidence: `docs/zerohour/GuardStateController.md`; new `shader_guardai`/`fds_shader_guardai`.
+
+## P31-A: One counter table, not an Academy coaching UI
+
+`Code/Combat/rtstelemetryservice.*`. Generic `(category, subtype) -> (count, total)` table
+covering every Section 38 category by name. Two real server-only call sites wired: kills/
+infantry destruction (`GameCombatNetworkHandlerClass::On_Soldier_Kill`/`_Death`) and building
+destruction (`BuildingGameObj::On_Destroyed`, guarded by `CombatManager::I_Am_Server()`).
+Absorbs the P31 acceptance in full. Evidence: `docs/zerohour/RTSTelemetryService.md`; new
+`shader_telemetry`/`fds_shader_telemetry`.
+
+## P32-A: One debug line pool with named layers
+
+`Code/ww3d2/debugrendersystem.*` (bounded immediate-mode batched line pool, 18 named layers) +
+`Code/Combat/worlddebugdisplay.*` (turns an enabled layer into real geometry).
+`DEBUG_LAYER_BUILDING_FOOTPRINTS` wired for real (`BuildingGameObj::Get_Bounds`); the other 17
+are named/toggleable and draw nothing yet -- the systems they'd visualize have no public
+per-instance iterator, see `WIP_features.md`. `debug_layer`/`debug_status` console commands.
+Absorbs the P32 acceptance. Evidence: `docs/zerohour/DebugRenderSystem.md`; new
+`shader_debugrender`/`fds_shader_debugrender`.
+
+## P33-A: One validated descriptor, reload proved against a real file
+
+`Code/Combat/buildingdescriptor.*` + `buildingdescriptormanager.*`. JSON-resolved power/
+communications/tiberium_silo/construction_visual descriptor; anchors resolve lazily by bone
+name against the real model's `HTree`, not eagerly captured. `nlohmann-json` vendored as
+`Code/wwlib/nlohmann/json.hpp` (v3.11.3) rather than vcpkg -- no `VCPKG_ROOT` on this machine,
+see Q-013. Reload transaction (valid replaces atomically, invalid preserves last known-good)
+proved end to end against a real scratch file. `reload_building_descriptors`/
+`reload_building_descriptor`/`building_json_status` console commands; four example descriptors
+under `data/building_descriptors/`. Absorbs the P33 acceptance's load-bearing half -- eager
+hierarchy enumeration is out of scope, see `WIP_features.md`. Evidence:
+`docs/zerohour/BuildingDescriptors.md`; new `shader_buildingjson`/`fds_shader_buildingjson`.
+
+## P34-A: One deterministic allocator drives the flag that already existed
+
+`Code/Combat/teampowergridservice.*`. Replaces `BaseControllerClass::Power_Base`'s coarse
+whole-base rule (audited, not duplicated) with finite per-team generation/demand and priority-
+ordered greedy allocation, deterministic `MemberId` tie-break; every output is a call to the
+existing `BuildingGameObj::Enable_Power`. Drives `WorldShroudManager` sensor sources for
+communications coverage and computes stacking Tiberium Silo wallet bonuses live from grid
+state. Not wired into `BaseControllerClass` this pass -- see `WIP_features.md`. Evidence:
+`docs/zerohour/TeamPowerGridService.md`; new `shader_powergrid`/`fds_shader_powergrid`.
+
+## P35-A: A strategic camera that skips CCameraClass, not one that replaces it
+
+`Code/Combat/commandermodecontroller.*`. External hook at `combat.cpp`'s one
+`MainCamera->Update()` call site -- `CCameraClass` itself is untouched, so FPS behavior outside
+Commander Mode is unchanged by construction. Embodiment enforced by construction (refuses a
+null star, never constructs a GameObj, never dereferences the star it holds); death immediately
+exits Commander Mode via an explicit `star_is_alive` parameter, the same "pass in the fact"
+split `GuardStateControllerClass` uses. Pan/zoom/tilt/rotation bounded, `Compute_Camera_
+Transform` pure and orthonormal, `Pick_At_Cursor` reaches Section 16's existing
+`WorldSpatialIndex::Query_Ray`. Never calls `RegisterStrategicSensorSource`. Absorbs the P35
+acceptance in full. Evidence: `docs/zerohour/CommanderModeController.md`; new
+`shader_commandermode`/`fds_shader_commandermode`; `commander_mode`/`commander_status` console
+commands.
+
 ## P26-A: A new visual attaches to a bone, not to a new GameObj subclass
 
 Two small things, per Section 29's "do not replace `GameObj` with the SAGE `Thing` hierarchy"

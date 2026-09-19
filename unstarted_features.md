@@ -100,42 +100,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P26: Modular draw components + composite attachments (roadmap Section 29)
 
-## P27: Shroud / fog of war + sensor-source API (roadmap Section 30)
-
-- [ ] Acceptance: - Commander camera movement alone reveals nothing; - Commander/tactical intelligence is independent of normal FPS physical rendering; - strategically hidden information does not leak into ordinary FPS targeting/HUD behavior; - sensor sources can be added/removed dynamically.
-
-## P28: Shared radar / tactical intelligence (roadmap Section 31)
-
-- [ ] Acceptance: - FPS HUD radar and Commander presentation use consistent canonical intelligence state; - powered communications buildings can expand configured strategic coverage; - disabling/destroying those buildings removes their coverage; - camera movement does not create radar contacts.
-
-## P29: Waypoint / status-circle renderers (roadmap Section 32)
-
-- [ ] Acceptance: Large numbers of markers are batched and respect shroud/per-player visibility.
-
-## P30: AI state/path/guard-retaliation + human-yield hooks (roadmap Section 37)
-
-- [ ] Acceptance: AI behavior gains the selected Zero Hour state/path improvements without introducing the SAGE `Thing`/AIPlayer world model as a second game simulation.
-
-## P31: RTS telemetry / statistics instrumentation (roadmap Section 38)
-
-- [ ] Acceptance: The engine can produce a structured local/session statistics snapshot useful for tests and balancing without carrying Zero Hour's Academy UI or advice rules.
-
-## P32: Debug rendering tools (roadmap Section 33)
-
-- [ ] Acceptance: Every new world/Commander subsystem has enough visualization to diagnose placement, culling, transform, and rendering errors.
-
-## P33: Building W3D semantic JSON + live descriptor reload (roadmap Section 39)
-
-- [ ] Acceptance: - W3D + JSON resolves to one validated semantic descriptor; - power/capability values are queryable from that descriptor; - valid runtime reload changes live tuning without recompilation/restart; - invalid reload preserves last known-good values; - core Commander-buildable definitions have valid descriptors.
-
-## P34: Finite team power grid + comms/Silo capabilities (roadmap Section 40)
-
-- [ ] Acceptance: - finite JSON-defined generation/demand works; - overload deterministically sheds buildings; - new generation or reduced demand restores them; - destroying the final generator powers down every dependent building; - canonical Renegade powered-down behavior is used; - live JSON reload recalculates correctly; - communications coverage follows online state; - Silo wallet bonuses stack for every team player; - manual priority/on-off control is authoritative.
-
-## P35: Embodied Commander Mode camera/view (roadmap Section 41)
-
-- [ ] Acceptance: - FPS -> Commander -> FPS works in one runtime; - same player body remains physical/vulnerable; - death exits Commander Mode; - camera movement alone reveals no hidden enemy; - FPS behavior outside Commander Mode is unchanged.
-
 ## P36: Commander sidebar + BUILDINGS/GROUND/AIR/INFANTRY + power bars (roadmap Section 42)
 
 - [ ] Acceptance: - BUILDINGS sidebar appears on Commander entry; - visible production/building area is two rows with paging; - power bars reflect server state; - click ground factory -> GROUND_VEHICLES; - click Air Pad -> AIR_VEHICLES; - click Barracks/Hand -> INFANTRY; - return to BUILDINGS is immediate; - existing PT icons are reused where possible; - dead/offline selected facilities cannot produce.

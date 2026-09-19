@@ -413,3 +413,91 @@ visible module, and a building's bone search finding a component all need real `
 the building path) a live combat scene. Next exact action is a manual one for the user: run
 `ctest -C Debug -R "shader_weather|shader_particles|shader_tracers|shader_debris|shader_attachments" --output-on-failure`
 in `build/win32`.
+
+## P27 -- shroud is real, nothing has stood in a live match to prove it
+
+`WorldShroudManager` (P27-A in `completed_features.md`, `docs/zerohour/WorldShroudManager.md`) is
+consumed for real by two other new services this same pass: `TacticalIntelligenceModel` (P28)
+queries it, and `TeamPowerGridService` (P34) registers/unregisters sensor sources for
+communications-capable buildings. Neither path is reached by a live match yet, because no real
+`BuildingGameObj` is registered with `TeamPowerGridService` in production (see P34's own entry).
+Next exact action: none until P34's `BaseControllerClass` integration lands; after that, a manual
+check that a Communications Center's own team sees its own coverage and an enemy team does not
+until it gains real sensor coverage there too.
+
+## P28 -- the FPS radar refactor is live, the strategic query has no renderer
+
+`TacticalIntelligenceModel` (P28-A, `docs/zerohour/TacticalIntelligenceModel.md`) already carries
+real weight: `RadarManager::Update` calls `Build_FPS_Contacts` every frame the HUD radar draws,
+so this is the one phase in this whole pass whose refactor is exercised by ordinary play the
+instant the game runs, not only by a self-check. What has not been confirmed is that it still
+*looks* the same -- the filtering logic did not change, but nobody has looked at a screen since.
+`Build_Strategic_Contacts` has no renderer (Commander map is Phase 36+). Next exact action is a
+manual one for the user: play a multiplayer match, confirm HUD radar blips, brackets and fading
+look exactly as before this refactor.
+
+## P29 -- status rings are real, nothing has ever created one in game
+
+`StatusOverlayRenderer`/`StatusOverlaySystem` (P29-A, `docs/zerohour/StatusOverlaySystem.md`) have
+no gameplay call site -- unit selection and Commander orders are later phases (Commander sidebar).
+Next exact action: none until a selection/order system exists to call
+`StatusOverlaySystem::Add_Overlay`.
+
+## P30 -- the guard/retaliate state machine has no unit to guard yet
+
+`GuardStateControllerClass` (P30-A, `docs/zerohour/GuardStateController.md`) has no real caller --
+Phase 39's Commander-produced AI infantry/vehicles are the intended first one. The mission-
+script layer's own hand-authored guard behavior is untouched. Next exact action: none until
+Phase 39 lands.
+
+## P31 -- two real events are counted, nobody has read the snapshot back
+
+`RTSTelemetryService` (P31-A, `docs/zerohour/RTSTelemetryService.md`) counts real kills and real
+building destructions the instant either happens in a live match, but there is no console command
+to print `Get_Snapshot`'s contents -- only the self check reads it back. Next exact action: add a
+`telemetry_status`/`telemetry_dump` console command, then get a kill and destroy a building in
+game and confirm the counts move.
+
+## P32 -- one debug layer draws something, seventeen are named and empty
+
+`DebugRenderSystem`/`WorldDebugDisplay` (P32-A, `docs/zerohour/DebugRenderSystem.md`) draw
+building footprints for real once `debug_layer building_footprints 1` is set; the other
+seventeen named layers toggle but draw nothing, because seven already-shipped world systems
+(`WorldTerrainSystem`, `RoadSystem`, `BridgeSystem`, `WaterSystem`, `FoliageSystem`,
+`WorldLightManager`, `WorldShadowManager`) have no public per-instance iterator to visualize, and
+four more layers await later phases (building semantic nodes, PCT/MCT anchors, the Commander
+cursor). Next exact action is a manual one for the user: `debug_layer building_footprints 1` in
+game, confirm a yellow wireframe box appears around each building.
+
+## P33 -- descriptors resolve and reload for real, nothing loads one at startup
+
+`BuildingModelDescriptor`/`BuildingDescriptorManager` (P33-A, `docs/zerohour/
+BuildingDescriptors.md`) have no production call site -- no `BuildingGameObj` carries a
+`DefinitionName`, and nothing reads `data/building_descriptors/*.json` at engine startup. Only
+four of the roadmap's twelve named GDI/Nod building categories have example content. This is also
+the blocking gap for P34's `BaseControllerClass` integration. Next exact action: give
+`BuildingGameObj` a `DefinitionName` field and a descriptor-load call at creation time, then wire
+`reload_building_descriptors` to actually matter in a running game.
+
+## P34 -- the allocator is proven, it is not yet the one deciding anything live
+
+`TeamPowerGridService` (P34-A, `docs/zerohour/TeamPowerGridService.md`) is not wired into
+`BaseControllerClass::Power_Base` (`basecontroller.cpp:521-552`, the exact coarse whole-base loop
+it is meant to replace) -- that surgical change was deferred rather than risked under time
+pressure this late in the pass, and needs P33's `DefinitionName`-on-`BuildingGameObj` gap closed
+first. No wallet-cap enforcement exists anywhere in this codebase to apply the Silo bonus to.
+Next exact action: after P33's gap closes, replace `Power_Base`'s uniform `Enable_Power` loop
+with `TeamPowerGridService::RecalculateTeam`, keeping `BasePowered` as a derived summary
+(`Get_Generation(team) > 0`) for whatever else still reads `Is_Base_Powered()`.
+
+## P35 -- the camera state machine is proven, nothing enters it but the console command
+
+`CommanderModeController` (P35-A, `docs/zerohour/CommanderModeController.md`) has no production
+call site -- only the `commander_mode` console command reaches `Enter_Commander_Mode`. Input
+rerouting, Commander overlays/sidebar, and `commander_station_anchor` support are all later
+phases and untouched. `Pick_At_Cursor` is untested even device-less, deliberately, since it
+reaches `WorldSpatialIndex::Query_Ray` and this pass did not verify that call is safe with no
+physics scene under it. Next exact action is a manual one for the user: `commander_mode 1` in
+game, confirm the camera detaches from the soldier and pan/zoom/tilt work, `commander_mode 0`
+returns control to the same soldier, and that dying while in Commander Mode exits it
+automatically.
