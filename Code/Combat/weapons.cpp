@@ -42,7 +42,6 @@
 #include "soldier.h"
 #include "combat.h"
 #include "gameobjmanager.h"
-#include "line3d.h"
 #include "physcoltest.h"
 #include "pscene.h"
 #include "rendobj.h"
@@ -911,35 +910,28 @@ void	WeaponClass::Fire_Bullet( const AmmoDefinitionClass *ammo_def, bool primary
 	}
 
 	if ( ammo_def->DisplayLaser ) {
-		TimedDecorationPhysClass * laser_obj = NEW_REF( TimedDecorationPhysClass, () );
-		if ( laser_obj ) {
 
-			// Find where the laser should stop
-			Vector3 start = muzzle.Get_Translation();
-			Vector3 end = muzzle * Vector3( ammo_def->Range, 0, 0 );
-			LineSegClass ray( start, end );
-			CastResultStruct res;
-			PhysRayCollisionTestClass raytest(ray,&res,BULLET_COLLISION_GROUP,COLLISION_TYPE_PROJECTILE);
+		// Find where the laser should stop
+		Vector3 start = muzzle.Get_Translation();
+		Vector3 end = muzzle * Vector3( ammo_def->Range, 0, 0 );
+		LineSegClass ray( start, end );
+		CastResultStruct res;
+		PhysRayCollisionTestClass raytest(ray,&res,BULLET_COLLISION_GROUP,COLLISION_TYPE_PROJECTILE);
 
-			Ignore_Owner();
+		Ignore_Owner();
 
 { WWPROFILE( "Cast Ray" );
-			COMBAT_SCENE->Cast_Ray( raytest );
+		COMBAT_SCENE->Cast_Ray( raytest );
 }
 
-			Unignore_Owner();
+		Unignore_Owner();
 
-			ray.Compute_Point( raytest.Result->Fraction, &end );
+		ray.Compute_Point( raytest.Result->Fraction, &end );
 
-			// Create a laser
-			RenderObjClass * model = NEW_REF( Line3DClass, ( start, end, 0.1f,  0.8f,0,0,  0.8f ) );
-			laser_obj->Set_Model( model );
-			model->Release_Ref();
-			laser_obj->Set_Lifetime( 0.6f );
-			laser_obj->Update_Cull_Box();	// htis may be needed due to a bug in Line3DClass
-			COMBAT_SCENE->Add_Dynamic_Object( laser_obj );
-			laser_obj->Release_Ref();
-		}
+		// Pooled tracer -- see Code/ww3d2/tracerrenderer.h.  Same width, colour and duration
+		// the old Line3DClass/TimedDecorationPhysClass pair drew; it is no longer a scene
+		// object of its own.
+		BulletManager::Create_Tracer( start, end, 0.1f, 0.8f,0.0f,0.0f, 0.8f, 0.6f );
 	}
 
 	// Initiate recoil effects on our parent object.

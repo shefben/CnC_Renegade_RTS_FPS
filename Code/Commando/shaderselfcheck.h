@@ -30,6 +30,7 @@ namespace	ShaderSelfCheck
 	//		pipelines  what each registered pipeline actually draws in
 	//		particles  the shared particle pools, the batch key and the budget
 	//		weather    the weather lattice, its bounded count and who pays for it
+	//		tracers    the ballistic tracer pool, its ceiling, and its share of the streak pool
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

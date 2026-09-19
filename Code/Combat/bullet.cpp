@@ -59,6 +59,9 @@
 #include "timeddecophys.h"
 #include "simplegameobj.h"
 #include "c4.h"
+#include "camera.h"
+#include "rinfo.h"
+#include "tracerrenderer.h"
 
 
 /*
@@ -212,6 +215,58 @@ void BeamEffectManagerClass::Internal_Get_New_Beam(SegmentedLineClass ** set_bea
 		*set_beam_model = (SegmentedLineClass *)((*set_beam_wrapper)->Get_Model());
 
 	}
+}
+
+
+/**
+** TracerSystemClass
+**
+** One persistent scene object, added the first time a tracer is fired and never removed,
+** that draws every ballistic tracer currently alive in a single batch through
+** TracerRenderer -- see Code/ww3d2/tracerrenderer.h for what used to happen here instead: a
+** fresh Line3DClass and a fresh TimedDecorationPhysClass allocated and scened for every shot
+** of every hitscan weapon with DisplayLaser set.  Lazily created, like the beam manager's own
+** pool of beams, because the scene it is added to is not guaranteed to exist yet at
+** BulletManager::Init time.
+*/
+class TracerSystemClass : public RenderObjClass
+{
+public:
+	TracerSystemClass( void )		{ Set_Transform( Matrix3D(1) ); }
+
+	virtual RenderObjClass *	Clone( void ) const override	{ WWASSERT(false); return (nullptr); }
+
+	virtual void	Render( RenderInfoClass &rinfo ) override
+	{
+		TracerRenderer::Render( rinfo, rinfo.Camera.Get_Position() );
+	}
+
+	virtual void	Get_Obj_Space_Bounding_Sphere( SphereClass &sphere ) const override
+	{
+		Vector3 minimum, maximum;
+		TracerRenderer::Get_Bounds( minimum, maximum );
+		sphere.Init( (minimum + maximum) * 0.5f, ((maximum - minimum) * 0.5f).Length() );
+	}
+
+	virtual void	Get_Obj_Space_Bounding_Box( AABoxClass &box ) const override
+	{
+		Vector3 minimum, maximum;
+		TracerRenderer::Get_Bounds( minimum, maximum );
+		box.Init( (minimum + maximum) * 0.5f, (maximum - minimum) * 0.5f );
+	}
+};
+
+static TracerSystemClass *	_TheTracerSystem = nullptr;
+
+void BulletManager::Create_Tracer( const Vector3 & start, const Vector3 & end, float width,
+	float r, float g, float b, float opacity, float lifetime )
+{
+	if (_TheTracerSystem == nullptr) {
+		_TheTracerSystem = NEW_REF( TracerSystemClass, () );
+		COMBAT_SCENE->Add_Render_Object( _TheTracerSystem );
+	}
+
+	TracerRenderer::Add_Tracer( start, end, width, Vector4(r,g,b,opacity), lifetime );
 }
 
 
@@ -963,6 +1018,7 @@ MultiListClass<BulletClass>	DeadBulletList;
 void	BulletManager::Init( void )
 {
 	_TheBeamEffectManager.Init();
+	TracerRenderer::Init();
 }
 
 void	BulletManager::Shutdown( void )
@@ -975,10 +1031,21 @@ void	BulletManager::Shutdown( void )
 	}
 
 	_TheBeamEffectManager.Shutdown();
+
+	if (_TheTracerSystem != nullptr) {
+		_TheTracerSystem->Remove();
+		REF_PTR_RELEASE( _TheTracerSystem );
+	}
+	TracerRenderer::Shutdown();
 }
 
 void	BulletManager::Update( void )
 {
+	// Tracers age every simulation frame regardless of whether the tracer layer is on
+	// screen right now -- see TracerRenderer::Age for why that has to be separate from
+	// the draw call.
+	TracerRenderer::Age( TimeManager::Get_Frame_Seconds() );
+
 	MultiListIterator<BulletClass> it( &LiveBulletList );;
 	while (!it.Is_Done()) {
 		BulletClass * bullet = it.Peek_Obj();

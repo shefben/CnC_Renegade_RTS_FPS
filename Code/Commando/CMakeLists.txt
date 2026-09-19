@@ -572,6 +572,7 @@ if(BUILD_TESTING AND TARGET renegade)
     #	Particle batching -- roadmap Section 26.  See shaderselfcheck.h.
     add_test(NAME shader_particles COMMAND renegade -shaderselfcheck particles)
 add_test(NAME shader_weather COMMAND renegade -shaderselfcheck weather)
+add_test(NAME shader_tracers COMMAND renegade -shaderselfcheck tracers)
 
     #	The terrain service -- roadmap Section 17.  See terrainselfcheck.h.
     add_test(NAME terrain_sampling COMMAND renegade -terrainselfcheck sampling)
@@ -621,6 +622,7 @@ if(BUILD_TESTING AND TARGET renegadeserver)
     add_test(NAME fds_shader_pipelines COMMAND renegadeserver -shaderselfcheck pipelines)
     add_test(NAME fds_shader_particles COMMAND renegadeserver -shaderselfcheck particles)
 add_test(NAME fds_shader_weather COMMAND renegadeserver -shaderselfcheck weather)
+add_test(NAME fds_shader_tracers COMMAND renegadeserver -shaderselfcheck tracers)
     add_test(NAME fds_terrain_sampling COMMAND renegadeserver -terrainselfcheck sampling)
     add_test(NAME fds_terrain_bridges  COMMAND renegadeserver -terrainselfcheck bridges)
     add_test(NAME fds_terrain_foliage  COMMAND renegadeserver -terrainselfcheck foliage)

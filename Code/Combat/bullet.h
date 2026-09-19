@@ -63,6 +63,14 @@ public:
 
 	static	void	Create_Bullet( const AmmoDefinitionClass * def, const Vector3 & position,
 					const Vector3 & velocity, const ArmedGameObj * owner, float progress_time, const Vector3 & target, DamageableGameObj * target_object = nullptr );
+
+	/*
+	**	A ballistic tracer from 'start' to 'end', with Line3DClass's own constructor argument
+	**	order (width, then r/g/b/opacity) so the call this replaced carries over unchanged.
+	**	Pooled: see Code/ww3d2/tracerrenderer.h for what this used to allocate instead.
+	*/
+	static	void	Create_Tracer( const Vector3 & start, const Vector3 & end, float width,
+					float r, float g, float b, float opacity, float lifetime );
 };
 
 

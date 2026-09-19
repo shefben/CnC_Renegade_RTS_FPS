@@ -6,6 +6,7 @@
 #include "shaderselfcheck.h"
 
 #include "shadermgr.h"
+#include "tracerrenderer.h"
 #include "weatherenvironment.h"
 #include "worldparticlemanager.h"
 
@@ -1020,6 +1021,156 @@ int	Run_Weather (void)
 }
 
 
+/*
+**	The tracer layer, checked without a scene or a device.
+**
+**	A tracer carries no simulation of its own -- WeaponClass has already done the raycast
+**	that decides where it ends before Add_Tracer is ever called -- so everything the
+**	acceptance is about is arithmetic on a fixed pool: whether a live tracer draws, whether
+**	an expired one stops, and whether ten shots fired in one frame cost one draw call or ten.
+*/
+int	Run_Tracers (void)
+{
+	CameraClass				camera;
+	RenderInfoClass		rinfo (camera);
+
+	WorldParticleManager::Init ();
+	WorldParticleManager::Set_Enabled (true);
+
+	TracerRenderer::Init ();
+	TracerRenderer::Set_Enabled (true);
+	TracerRenderer::Set_Max_Tracers (256);
+
+	//	Straight down the default camera's own -Z, the same forward axis the weather check
+	//	relies on to put its lattice in view without aiming anything at it explicitly.
+	Vector3	muzzle (0.0f,0.0f,0.0f);
+	Vector3	target (0.0f,0.0f,-10.0f);
+	Vector4	red (0.8f,0.0f,0.0f,0.8f);
+
+	/*
+	**	One tracer, aged forward inside its lifetime, is still there and still drawn.
+	*/
+	TracerRenderer::Add_Tracer (muzzle,target,0.1f,red,0.6f);
+	TracerRenderer::Age (0.1f);
+	TracerRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+
+	Check (TracerRenderer::Get_Live_Count() == 1,
+			 "one tracer a tenth of a second into a six-tenths lifetime left %d live",
+			 TracerRenderer::Get_Live_Count());
+	Check (TracerRenderer::Get_Drawn_Particles() == 1,
+			 "one live tracer in front of the camera drew %d",
+			 TracerRenderer::Get_Drawn_Particles());
+
+	/*
+	**	Render is read-only.  Calling it again against the same clock, with no Age between,
+	**	submits the same tracer -- nothing about drawing decides what is still alive.
+	*/
+	TracerRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+	Check (TracerRenderer::Get_Drawn_Particles() == 1,
+			 "re-rendering the same clock drew %d, not the 1 it drew the first time",
+			 TracerRenderer::Get_Drawn_Particles());
+
+	/*
+	**	Ageing it past its lifetime reaps it.  This is the acceptance for a tracer in
+	**	particular: the flash has to actually go away, not linger the way an object once
+	**	allocated for it and left on a six-tenths-of-a-second timer used to.
+	*/
+	TracerRenderer::Age (0.6f);
+	TracerRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+
+	Check (TracerRenderer::Get_Live_Count() == 0,
+			 "a tracer aged past its lifetime left %d live",
+			 TracerRenderer::Get_Live_Count());
+	Check (TracerRenderer::Get_Drawn_Particles() == 0,
+			 "an expired tracer still drew %d",
+			 TracerRenderer::Get_Drawn_Particles());
+
+	TracerRenderer::Reset ();
+
+	/*
+	**	Ten shots fired in one frame are one submission, not ten -- the acceptance's own
+	**	wording, "pooled/batched render modules without script-spawned effect objects for
+	**	every tracer", read as an arithmetic count.
+	*/
+	WorldParticleManager::Reset_Statistics ();
+	for (int i = 0; i < 10; i++) {
+		TracerRenderer::Add_Tracer (muzzle,target,0.1f,red,0.6f);
+	}
+	TracerRenderer::Age (0.0f);
+	TracerRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+
+	Check (TracerRenderer::Get_Drawn_Particles() == 10,
+			 "ten shots in one frame drew %d particles",
+			 TracerRenderer::Get_Drawn_Particles());
+	Check (WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_STREAK) == 1,
+			 "ten tracers made %u submission(s) to the streak pool, not one",
+			 WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_STREAK));
+
+	/*
+	**	Charged to a combat budget, resolved from distance the way any submission that names
+	**	no class is -- and never to the environment class, which stays weather's alone even
+	**	though both draw through the same streak pool.
+	*/
+	WorldParticleManager::Flush (rinfo);
+
+	Check (WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_STREAK,PARTICLE_BUDGET_COMBAT_NEAR) > 0,
+			 "ten close tracers charged %u particles to the near-combat budget",
+			 WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_STREAK,PARTICLE_BUDGET_COMBAT_NEAR));
+	Check (WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_STREAK,PARTICLE_BUDGET_ENVIRONMENT) == 0,
+			 "tracers charged %u particles to the environment budget, which is weather's alone",
+			 WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_STREAK,PARTICLE_BUDGET_ENVIRONMENT));
+
+	TracerRenderer::Reset ();
+
+	/*
+	**	The acceptance's other half: a pool asked to hold more than its ceiling drops the
+	**	newest arrival and counts it, rather than growing without bound or evicting a tracer
+	**	already on screen to make room for a newer one.
+	*/
+	TracerRenderer::Set_Max_Tracers (4);
+	for (int i = 0; i < 6; i++) {
+		TracerRenderer::Add_Tracer (muzzle,target,0.1f,red,0.6f);
+	}
+
+	Check (TracerRenderer::Get_Live_Count() == 4,
+			 "a pool capped at 4 held %d tracers after 6 arrived",
+			 TracerRenderer::Get_Live_Count());
+	Check (TracerRenderer::Get_Dropped_Count() == 2,
+			 "a pool capped at 4 reported %d dropped after 6 arrived, not 2",
+			 TracerRenderer::Get_Dropped_Count());
+
+	TracerRenderer::Set_Max_Tracers (256);
+	TracerRenderer::Reset ();
+
+	/*
+	**	Off is off.  There is no per-shot scene object left to fall back to -- the object this
+	**	replaced is gone rather than switched away from -- so this is the only sense in which
+	**	the tracer layer can be absent.
+	*/
+	TracerRenderer::Set_Enabled (false);
+	TracerRenderer::Add_Tracer (muzzle,target,0.1f,red,0.6f);
+	TracerRenderer::Age (0.1f);
+	TracerRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+
+	Check (TracerRenderer::Get_Live_Count() == 0,
+			 "a disabled tracer layer accepted a shot anyway, leaving %d live",
+			 TracerRenderer::Get_Live_Count());
+	Check (TracerRenderer::Get_Drawn_Particles() == 0,
+			 "a disabled tracer layer drew %d particles",
+			 TracerRenderer::Get_Drawn_Particles());
+
+	TracerRenderer::Set_Enabled (true);
+	TracerRenderer::Reset ();
+	TracerRenderer::Shutdown ();
+
+	WorldParticleManager::Flush (rinfo);
+	WorldParticleManager::Shutdown ();
+
+	return _Failures;
+}
+
+
+
 }	// namespace
 
 
@@ -1048,6 +1199,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "weather") == 0)) {
 		Run_Weather ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "tracers") == 0)) {
+		Run_Tracers ();
 		ran = true;
 	}
 

@@ -362,3 +362,17 @@ Next exact action is a manual one for the user: run
 `renegade --gamedir "C:\Westwood\Renegade_full"`, load an outdoor level, type `rain 1` and then
 `snow 1` at the console, and report `weather_status` -- whether the rain looks at least as good as
 stock, and whether it still looks right standing under a roof and at the edge of one.
+
+## P24 -- the tracer is pooled, two donor visuals in its own section are not
+
+`TracerRenderer` is in and the per-shot `Line3DClass`/`TimedDecorationPhysClass` pair is deleted
+(P24-A in `completed_features.md`, `docs/zerohour/TracerRenderModule.md`). This absorbs the P24
+acceptance in full -- it names only the tracer -- but Section 27's own "Implement" list has two
+items the acceptance does not cover and this pass did not touch: **projectile trail/stream**
+(`W3DProjectileStreamDraw`; `AmmoDefinitionClass::TrailEmitter` is saved and loaded and has no
+reader anywhere) and **rope/cable strip** (conditional on a donor visual needing one; none inspected
+so far does). `shader_tracers` and `fds_shader_tracers` are written and registered but have never
+been run, for the same reason as P22's and P23's checks -- Q-012 now covers all three check
+families. Next exact action is a manual one for the user: run
+`ctest -C Debug -R "shader_weather|shader_particles|shader_tracers" --output-on-failure` in
+`build/win32`, then fire a `DisplayLaser` weapon in game and report `tracer_status`.

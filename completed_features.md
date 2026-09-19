@@ -1598,3 +1598,20 @@ static per-frame budget, so an over-asked scene gets sparser rather than truncat
 `docs/zerohour/WeatherEnvironmentRenderer.md`, `docs/assets/WeatherParticles.md`; new
 `shader_weather`/`fds_shader_weather`, plus `weather_status`, `weather_budget` and `weather_layer` at
 the console.
+
+## P24-A: A tracer is a clock and a pool slot, not a scene object
+
+`TracerRenderer` (`Code/ww3d2/tracerrenderer.*`) replaces the per-shot pair `WeaponClass::Fire_Bullet`
+used to allocate for every `DisplayLaser` hitscan weapon -- a fresh `Line3DClass` and a fresh
+`TimedDecorationPhysClass`, scened and left to a 0.6-second timer -- with a fixed 512-slot pool aged
+by one shared clock and submitted through `WorldParticleManager`'s streak pool, the same one weather's
+rain uses. `Age` (every simulation frame) and `Render` (submission only) are deliberately separate,
+matching `WeatherEnvironmentRenderer`'s own split, so a bounding volume stays true while off screen
+and re-rendering one clock is idempotent. A shot arriving over the cap is dropped and counted rather
+than evicting one already on screen. Absorbs the P24 acceptance *Weapons can use pooled/batched
+render modules without script-spawned effect objects for every tracer*; ten shots in one frame now
+make one submission, not ten. The laser/beam half of Section 27 was already done in P03-Q
+(`BeamEffectManagerClass` recycles its beams); projectile trail/stream and rope/cable strip remain
+unstarted -- see `WIP_features.md`. Evidence: `docs/zerohour/TracerRenderModule.md`; new
+`shader_tracers`/`fds_shader_tracers`, plus `tracer_status`, `tracer_budget` and `tracer_layer` at
+the console.

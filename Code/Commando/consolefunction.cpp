@@ -129,6 +129,7 @@
 #include "sortingrenderer.h"
 #include "WeatherMgr.h"
 #include "weatherenvironment.h"
+#include "tracerrenderer.h"
 #include "mapmgr.h"
 #include "Path.h"
 #include "sctextobj.h"
@@ -6338,6 +6339,71 @@ public:
 };
 
 
+/*
+**	Roadmap Section 27.  A tracer is arithmetic on a fixed pool, not a scene object, so the
+**	status command reports the pool the way weather_status reports the particle lattice: the
+**	bound, what is alive against it, and how many shots the bound has turned away.
+*/
+class TracerStatusConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("tracer_status");}
+	virtual	const char * Get_Help (void) override	{return ("TRACER_STATUS - what the tracer pool holds, and what it cost.");}
+	virtual	void Activate (const char * /* input */) override {
+
+		Print ("tracer_status: layer is %s, %d of %d tracer(s) alive, %d drawn last frame, %d dropped.\n",
+				 TracerRenderer::Is_Enabled() ? "on" : "off",
+				 TracerRenderer::Get_Live_Count(),
+				 TracerRenderer::Get_Max_Tracers(),
+				 TracerRenderer::Get_Drawn_Particles(),
+				 TracerRenderer::Get_Dropped_Count());
+	}
+};
+
+
+/*
+**	The ceiling itself.  A shot arriving over it is left undrawn rather than displacing one
+**	already on screen -- see Code/ww3d2/tracerrenderer.h for why that is the chosen direction
+**	of failure.
+*/
+class TracerBudgetConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("tracer_budget");}
+	virtual	const char * Get_Help (void) override	{return ("TRACER_BUDGET [count] - how many tracers may be alive at once.");}
+	virtual	void Activate (const char *input) override {
+
+		int	count = 0;
+		int	argcount = (input != nullptr) ? sscanf (input, "%d", &count) : 0;
+
+		if (argcount >= 1 && count >= 0) {
+			TracerRenderer::Set_Max_Tracers (count);
+		}
+
+		Print ("tracer_budget: %d tracer(s).\n", TracerRenderer::Get_Max_Tracers());
+	}
+};
+
+
+/*
+**	Off means no shot gets a tracer at all, whatever DisplayLaser says.  There is no per-shot
+**	object left to fall back to, so this is the only sense in which the layer can be absent.
+*/
+class TracerLayerConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("tracer_layer");}
+	virtual	const char * Get_Help (void) override	{return ("TRACER_LAYER [on|off] - draw ballistic tracers, or do not.");}
+	virtual	void Activate (const char *input) override {
+
+		if (input != nullptr && ::strstr (input, "off") != nullptr) {
+			TracerRenderer::Set_Enabled (false);
+		} else if (input != nullptr && ::strstr (input, "on") != nullptr) {
+			TracerRenderer::Set_Enabled (true);
+		}
+
+		Print ("tracer_layer: %s.\n", TracerRenderer::Is_Enabled() ? "on" : "off");
+	}
+};
+
+
 class AshConsoleFunctionClass : public ConsoleFunctionClass {
 public:
 	virtual	const char * Get_Name (void) override	{return ("ash");}
@@ -6491,6 +6557,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new WeatherStatusConsoleFunctionClass() );
 	FunctionList.Add( new WeatherBudgetConsoleFunctionClass() );
 	FunctionList.Add( new WeatherLayerConsoleFunctionClass() );
+	FunctionList.Add( new TracerStatusConsoleFunctionClass() );
+	FunctionList.Add( new TracerBudgetConsoleFunctionClass() );
+	FunctionList.Add( new TracerLayerConsoleFunctionClass() );
 	FunctionList.Add( new BreakExecutionConsoleFunctionClass() );
 	FunctionList.Add( new CrashExecutionConsoleFunctionClass() );
 	FunctionList.Add( new BuByeConsoleFunctionClass() );

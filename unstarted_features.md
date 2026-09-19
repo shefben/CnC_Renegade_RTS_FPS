@@ -96,8 +96,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P24: Tracer / beam / projectile render modules (roadmap Section 27)
 
-- [ ] Acceptance: Weapons can use pooled/batched render modules without script-spawned effect objects for every tracer.
-
 ## P25: Debris rendering (roadmap Section 28)
 
 - [ ] Acceptance: Large destruction events do not require every visible fragment to be a complete networked `GameObj`.
