@@ -101,6 +101,7 @@ set(WW3D2_SRC
     texturethumbnail.cpp
     tracerrenderer.cpp
     statusoverlayrenderer.cpp
+    debugrendersystem.cpp
     vertmaterial.cpp
     visrasterizer.cpp
     w3d_dep.cpp
@@ -219,6 +220,7 @@ worldparticlemanager.cpp
     texturethumbnail.h
     tracerrenderer.h
     statusoverlayrenderer.h
+    debugrendersystem.h
     vertmaterial.h
     visrasterizer.h
     w3d_dep.h

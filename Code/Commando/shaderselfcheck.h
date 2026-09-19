@@ -42,6 +42,8 @@ namespace	ShaderSelfCheck
 	//		           budgeting, human-yield suppression, and its population bound
 	//		telemetry    the RTS telemetry service's counters, running totals, snapshot, and
 	//		           its enabled/disabled and record-table bounds
+	//		debugrender  the world debug overlay layer toggles and the batched line pool's
+	//		           bookkeeping and bound
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

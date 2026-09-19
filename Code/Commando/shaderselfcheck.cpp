@@ -7,6 +7,7 @@
 
 #include "compositeattachment.h"
 #include "debrisrenderer.h"
+#include "debugrendersystem.h"
 #include "guardstatecontroller.h"
 #include "radar.h"
 #include "rtstelemetryservice.h"
@@ -1924,6 +1925,73 @@ int	Run_Telemetry (void)
 }
 
 
+/*
+**	Debug rendering tools -- roadmap Section 33.
+*/
+int	Run_Debug_Render (void)
+{
+	CameraClass				camera;
+	RenderInfoClass		rinfo (camera);
+
+	DebugRenderSystem::Init ();
+
+	Check (!DebugRenderSystem::Is_Layer_Enabled (DEBUG_LAYER_BUILDING_FOOTPRINTS),
+			 "a freshly initialised service has a layer already on");
+	Check (::strcmp (DebugRenderSystem::Get_Layer_Name (DEBUG_LAYER_BUILDING_FOOTPRINTS),"building_footprints") == 0,
+			 "DEBUG_LAYER_BUILDING_FOOTPRINTS's name is '%s', not 'building_footprints'",
+			 DebugRenderSystem::Get_Layer_Name (DEBUG_LAYER_BUILDING_FOOTPRINTS));
+	Check (::strcmp (DebugRenderSystem::Get_Layer_Name (DEBUG_LAYER_COUNT),"unknown") == 0,
+			 "an out-of-range layer did not read back 'unknown'");
+
+	DebugRenderSystem::Set_Layer_Enabled (DEBUG_LAYER_BUILDING_FOOTPRINTS,true);
+	Check (DebugRenderSystem::Is_Layer_Enabled (DEBUG_LAYER_BUILDING_FOOTPRINTS),
+			 "Set_Layer_Enabled(true) did not stick");
+	DebugRenderSystem::Disable_All_Layers ();
+	Check (!DebugRenderSystem::Is_Layer_Enabled (DEBUG_LAYER_BUILDING_FOOTPRINTS),
+			 "Disable_All_Layers left a layer on");
+
+	/*
+	**	Primitive decomposition: a box is twelve edges, a cross is three.
+	*/
+	DebugRenderSystem::Begin_Frame ();
+	Check (DebugRenderSystem::Get_Line_Count () == 0,"Begin_Frame did not clear the pool");
+
+	DebugRenderSystem::Add_Box (Vector3 (-1.0f,-1.0f,-1.0f),Vector3 (1.0f,1.0f,1.0f),Vector4 (1,1,1,1));
+	Check (DebugRenderSystem::Get_Line_Count () == 12,
+			 "one box queued %d line(s), not 12",DebugRenderSystem::Get_Line_Count ());
+
+	DebugRenderSystem::Add_Cross (Vector3 (0,0,0),1.0f,Vector4 (1,0,0,1));
+	Check (DebugRenderSystem::Get_Line_Count () == 15,
+			 "a box plus a cross queued %d line(s), not 15",DebugRenderSystem::Get_Line_Count ());
+
+	//	In front of the default camera, along its own -Z, the same placement the tracer and
+	//	overlay checks already rely on.
+	DebugRenderSystem::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+	Check (DebugRenderSystem::Get_Drawn_Segment_Count () > 0,
+			 "geometry in front of the camera drew %d segments",DebugRenderSystem::Get_Drawn_Segment_Count ());
+
+	DebugRenderSystem::Begin_Frame ();
+	Check (DebugRenderSystem::Get_Line_Count () == 0,"a second Begin_Frame did not clear the previous frame's lines");
+
+	/*
+	**	The pool refuses rather than grows.
+	*/
+	for (int i = 0; i < (DEBUG_LINE_POOL_MAX / 12) + 4; i++) {
+		DebugRenderSystem::Add_Box (Vector3 (0,0,0),Vector3 (1,1,1),Vector4 (1,1,1,1));
+	}
+	Check (DebugRenderSystem::Get_Line_Count () <= DEBUG_LINE_POOL_MAX,
+			 "the line pool grew to %d past its %d bound",DebugRenderSystem::Get_Line_Count (),(int)DEBUG_LINE_POOL_MAX);
+	Check (DebugRenderSystem::Get_Dropped_Count () > 0,
+			 "queuing well past the pool's bound reported %d dropped",DebugRenderSystem::Get_Dropped_Count ());
+
+	DebugRenderSystem::Shutdown ();
+	Check (DebugRenderSystem::Get_Line_Count () == 0,"lines outlived Shutdown");
+	Check (!DebugRenderSystem::Is_Layer_Enabled (DEBUG_LAYER_BUILDING_FOOTPRINTS),"layer state outlived Shutdown");
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -1987,6 +2055,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "telemetry") == 0)) {
 		Run_Telemetry ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "debugrender") == 0)) {
+		Run_Debug_Render ();
 		ran = true;
 	}
 

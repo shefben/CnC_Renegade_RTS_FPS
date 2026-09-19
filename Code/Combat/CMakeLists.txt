@@ -45,6 +45,7 @@ set(COMBAT_SRC
     damagezone.cpp
     debrissystem.cpp
     statusoverlaysystem.cpp
+    worlddebugdisplay.cpp
     diaglog.cpp
     dialogue.cpp
     doors.cpp
@@ -198,6 +199,7 @@ set(COMBAT_SRC
     damagezone.h
     debrissystem.h
     statusoverlaysystem.h
+    worlddebugdisplay.h
     diaglog.h
     dialogue.h
     doors.h

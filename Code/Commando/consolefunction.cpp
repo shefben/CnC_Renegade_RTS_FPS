@@ -53,6 +53,7 @@
 #include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
 #include "worldlightmanager.h"
+#include "debugrendersystem.h"
 #include "worldparticlemanager.h"
 #include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
@@ -1877,6 +1878,59 @@ public:
 	}
 };
 
+
+class DebugLayerConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "debug_layer"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "DEBUG_LAYER <name> <0|1> - roadmap Section 33; toggle one world debug overlay layer. "
+				 "With no arguments, lists every layer name and whether it is currently on.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		char	name [64] = { 0 };
+		int		onoff = -1;
+
+		if ( input == nullptr || input[0] == '\0' ||
+			  ::sscanf( input,"%63s %d",name,&onoff ) < 2 ) {
+
+			Print( "debug_layer: usage 'debug_layer <name> <0|1>'.  Layers:\n" );
+			for ( int i = 0; i < DEBUG_LAYER_COUNT; i++ ) {
+				DebugLayerType layer = (DebugLayerType)i;
+				Print( "debug_layer:   %-28s %s\n",
+						 DebugRenderSystem::Get_Layer_Name( layer ),
+						 DebugRenderSystem::Is_Layer_Enabled( layer ) ? "on" : "off" );
+			}
+			return;
+		}
+
+		for ( int i = 0; i < DEBUG_LAYER_COUNT; i++ ) {
+			DebugLayerType layer = (DebugLayerType)i;
+			if ( ::strcmp( DebugRenderSystem::Get_Layer_Name( layer ),name ) == 0 ) {
+				DebugRenderSystem::Set_Layer_Enabled( layer,onoff != 0 );
+				Print( "debug_layer: %s is now %s.\n",name,(onoff != 0) ? "on" : "off" );
+				return;
+			}
+		}
+		Print( "debug_layer: there is no layer called '%s'.\n",name );
+	}
+};
+
+class DebugStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "debug_status"; }
+	virtual	const char * Get_Help( void ) override	{ return "DEBUG_STATUS - how many debug lines are queued and how many were dropped."; }
+	virtual	void Activate( const char * /* input */ ) override
+	{
+		Print( "debug_status: %d line(s) queued this frame, %d dropped, %d drawn last submit.\n",
+				 DebugRenderSystem::Get_Line_Count(),
+				 DebugRenderSystem::Get_Dropped_Count(),
+				 DebugRenderSystem::Get_Drawn_Segment_Count() );
+	}
+};
 
 class LightStatusConsoleFunctionClass : public ConsoleFunctionClass
 {
@@ -6684,6 +6738,8 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new ParticleStatusConsoleFunctionClass() );
 	FunctionList.Add( new ParticleBatchingConsoleFunctionClass() );
 	FunctionList.Add( new ParticlePoolConsoleFunctionClass() );
+	FunctionList.Add( new DebugLayerConsoleFunctionClass() );
+	FunctionList.Add( new DebugStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );

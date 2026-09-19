@@ -68,6 +68,7 @@
 #include "bullet.h"
 #include "debrissystem.h"
 #include "statusoverlaysystem.h"
+#include "worlddebugdisplay.h"
 #include "dazzle.h"
 #include "messagewindow.h"
 #include "hudinfo.h"
@@ -831,6 +832,9 @@ void	CombatManager::Unload_Level( void )
 	StatusOverlaySystem::Shutdown();
 	WWLOG_INTERMEDIATE("StatusOverlaySystem::Shutdown()");
 
+	WorldDebugDisplay::Shutdown();
+	WWLOG_INTERMEDIATE("WorldDebugDisplay::Shutdown()");
+
 	ObjectiveManager::Reset();
 	WWLOG_INTERMEDIATE("ObjectiveManager::Reset()");
 
@@ -950,6 +954,10 @@ void 	CombatManager::Think()
 
 {	WWPROFILE( "StatusOverlays" );
 	StatusOverlaySystem::Update();
+}
+
+{	WWPROFILE( "WorldDebugDisplay" );
+	WorldDebugDisplay::Update();
 }
 
 	ObjectiveManager::Update( TimeManager::Get_Frame_Seconds() );
