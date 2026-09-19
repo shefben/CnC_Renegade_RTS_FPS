@@ -40,6 +40,8 @@ namespace	ShaderSelfCheck
 	//		           policy
 	//		guardai      the guard/retaliate state machine's seven named scenarios, stuck/replan
 	//		           budgeting, human-yield suppression, and its population bound
+	//		telemetry    the RTS telemetry service's counters, running totals, snapshot, and
+	//		           its enabled/disabled and record-table bounds
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

@@ -9,6 +9,7 @@
 #include "debrisrenderer.h"
 #include "guardstatecontroller.h"
 #include "radar.h"
+#include "rtstelemetryservice.h"
 #include "shadermgr.h"
 #include "statusoverlayrenderer.h"
 #include "statusoverlaysystem.h"
@@ -28,6 +29,7 @@
 #include "refcount.h"
 #include "shader.h"
 #include "vertmaterial.h"
+#include "wwmath.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -1835,6 +1837,93 @@ int	Run_Guard_AI (void)
 }
 
 
+/*
+**	RTS telemetry -- roadmap Section 38.
+*/
+int	Run_Telemetry (void)
+{
+	RTSTelemetryService::Init ();
+
+	Check (RTSTelemetryService::Is_Enabled (),"a freshly initialised service is not enabled");
+	Check (RTSTelemetryService::Get_Event_Count (TELEMETRY_KILL) == 0,
+			 "a fresh service already has %d kill event(s)",RTSTelemetryService::Get_Event_Count (TELEMETRY_KILL));
+
+	/*
+	**	Counting and subtype narrowing.
+	*/
+	RTSTelemetryService::Record_Event (TELEMETRY_KILL,0 /* PLAYERTYPE_NOD */,1.0f);
+	RTSTelemetryService::Record_Event (TELEMETRY_KILL,0 /* PLAYERTYPE_NOD */,1.0f);
+	RTSTelemetryService::Record_Event (TELEMETRY_KILL,1 /* PLAYERTYPE_GDI */,1.0f);
+
+	Check (RTSTelemetryService::Get_Event_Count (TELEMETRY_KILL) == 3,
+			 "three kills recorded as %d total",RTSTelemetryService::Get_Event_Count (TELEMETRY_KILL));
+	Check (RTSTelemetryService::Get_Event_Count (TELEMETRY_KILL,0) == 2,
+			 "two Nod kills narrowed to subtype 0 read back as %d",
+			 RTSTelemetryService::Get_Event_Count (TELEMETRY_KILL,0));
+	Check (RTSTelemetryService::Get_Event_Count (TELEMETRY_KILL,1) == 1,
+			 "one GDI kill narrowed to subtype 1 read back as %d",
+			 RTSTelemetryService::Get_Event_Count (TELEMETRY_KILL,1));
+	Check (RTSTelemetryService::Get_Event_Count (TELEMETRY_DAMAGE) == 0,
+			 "recording kills also recorded %d damage event(s)",RTSTelemetryService::Get_Event_Count (TELEMETRY_DAMAGE));
+
+	/*
+	**	Running totals, for categories where a number matters more than a tally.
+	*/
+	RTSTelemetryService::Record_Event (TELEMETRY_DAMAGE,0,12.5f);
+	RTSTelemetryService::Record_Event (TELEMETRY_DAMAGE,0,7.5f);
+	Check (WWMath::Fabs (RTSTelemetryService::Get_Event_Total (TELEMETRY_DAMAGE) - 20.0f) < 0.01f,
+			 "12.5 + 7.5 damage totalled %f, not 20",RTSTelemetryService::Get_Event_Total (TELEMETRY_DAMAGE));
+
+	/*
+	**	The structured snapshot the acceptance names -- walkable without knowing the category
+	**	enum in advance.
+	*/
+	DynamicVectorClass<RTSTelemetryService::SnapshotEntryClass>	snapshot;
+	int snapshot_count = RTSTelemetryService::Get_Snapshot (snapshot);
+	Check (snapshot_count == 3,		// (KILL,0) (KILL,1) (DAMAGE,0)
+			 "two kill subtypes and one damage subtype produced a snapshot of %d, not 3",snapshot_count);
+	Check (snapshot.Count () == snapshot_count,"Get_Snapshot's return value disagreed with the list it filled");
+
+	Check (::strcmp (RTSTelemetryService::Get_Category_Name (TELEMETRY_KILL),"kill") == 0,
+			 "TELEMETRY_KILL's name is '%s', not 'kill'",RTSTelemetryService::Get_Category_Name (TELEMETRY_KILL));
+	Check (::strcmp (RTSTelemetryService::Get_Category_Name (TELEMETRY_CATEGORY_COUNT),"unknown") == 0,
+			 "an out-of-range category did not read back 'unknown'");
+
+	/*
+	**	Off means Record_Event does nothing at all, not a suppressed-but-counted event.
+	*/
+	RTSTelemetryService::Reset ();
+	RTSTelemetryService::Set_Enabled (false);
+	RTSTelemetryService::Record_Event (TELEMETRY_KILL,0,1.0f);
+	Check (RTSTelemetryService::Get_Event_Count (TELEMETRY_KILL) == 0,
+			 "a disabled service still recorded %d event(s)",RTSTelemetryService::Get_Event_Count (TELEMETRY_KILL));
+	RTSTelemetryService::Set_Enabled (true);
+
+	/*
+	**	The bound refuses rather than grows: TELEMETRY_MAX_RECORDS distinct (category, subtype)
+	**	pairs is the ceiling, tested with one category and enough distinct subtypes to cross it.
+	*/
+	RTSTelemetryService::Reset ();
+	int made = 0;
+	for (int i = 0; i < TELEMETRY_MAX_RECORDS + 8; i++) {
+		int before = RTSTelemetryService::Get_Refusal_Count ();
+		RTSTelemetryService::Record_Event (TELEMETRY_AI_ORDER,i,1.0f);
+		if (RTSTelemetryService::Get_Refusal_Count () == before) made++;
+	}
+	Check (made == TELEMETRY_MAX_RECORDS,
+			 "the record table let in %d distinct subtypes, not the %d bound",made,(int)TELEMETRY_MAX_RECORDS);
+	Check (RTSTelemetryService::Get_Refusal_Count () == 8,
+			 "8 over-the-bound records produced %d refusal(s)",RTSTelemetryService::Get_Refusal_Count ());
+
+	RTSTelemetryService::Shutdown ();
+	RTSTelemetryService::Init ();
+	Check (RTSTelemetryService::Get_Event_Count (TELEMETRY_AI_ORDER) == 0,"records outlived Shutdown/Init");
+	RTSTelemetryService::Shutdown ();
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -1893,6 +1982,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "guardai") == 0)) {
 		Run_Guard_AI ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "telemetry") == 0)) {
+		Run_Telemetry ();
 		ran = true;
 	}
 

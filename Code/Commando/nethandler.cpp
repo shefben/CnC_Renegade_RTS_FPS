@@ -39,6 +39,7 @@
 #include "cnetwork.h"
 #include "playermanager.h"
 #include "playerkill.h"
+#include "rtstelemetryservice.h"
 
 //-----------------------------------------------------------------------------
 bool GameCombatNetworkHandlerClass::Can_Damage(ArmedGameObj * /* p_armed_damager */,
@@ -121,6 +122,10 @@ void GameCombatNetworkHandlerClass::On_Soldier_Kill(SoldierGameObj * p_soldier, 
 			WWASSERT(p_team != nullptr);
 			p_team->Increment_Kills();
 		}
+
+		//	Roadmap Section 38.  Already server-only (the WWASSERT above), which is the rule
+		//	telemetry itself asks for.
+		RTSTelemetryService::Record_Event(TELEMETRY_KILL,p_soldier->Get_Player_Type(),1.0f);
 	}
 }
 
@@ -142,6 +147,12 @@ void GameCombatNetworkHandlerClass::On_Soldier_Death(SoldierGameObj * p_soldier)
 		WWASSERT(p_team != nullptr);
 		p_team->Increment_Deaths();
 	}
+
+	//	Roadmap Section 38 -- "unit/vehicle/aircraft creation/destruction".  This handler is
+	//	infantry-only; vehicle and aircraft destruction have no equivalent server notification
+	//	found this pass, so TELEMETRY_VEHICLE_DESTROYED/TELEMETRY_AIRCRAFT_DESTROYED stay
+	//	unproduced until one is.
+	RTSTelemetryService::Record_Event(TELEMETRY_UNIT_DESTROYED,p_soldier->Get_Player_Type(),1.0f);
 }
 
 //-----------------------------------------------------------------------------

@@ -39,6 +39,7 @@
 #include "combatchunkid.h"
 #include "compositeattachment.h"
 #include "debrissystem.h"
+#include "rtstelemetryservice.h"
 #include "debug.h"
 #include "wwphysids.h"
 #include "meshmdl.h"
@@ -1157,6 +1158,14 @@ BuildingGameObj::On_Destroyed (void)
 	//	call spawns its own fragments; none of them are networked, and none are GameObjs.
 	//
 	DebrisManager::Spawn_Building_Debris (this);
+
+	//
+	//	Roadmap Section 38.  Server-only -- every client reaches On_Destroyed to spawn its own
+	//	debris, but only the server's count is gameplay-authoritative.
+	//
+	if (CombatManager::I_Am_Server ()) {
+		RTSTelemetryService::Record_Event (TELEMETRY_BUILDING_DESTROYED,Get_Player_Type (),1.0f);
+	}
 
 	//
 	//	Notify the controller that the building has been destroyed
