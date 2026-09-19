@@ -9,6 +9,7 @@
 #include "compositeattachment.h"
 #include "debrisrenderer.h"
 #include "debugrendersystem.h"
+#include "teampowergridservice.h"
 #include "guardstatecontroller.h"
 #include "radar.h"
 #include "rtstelemetryservice.h"
@@ -2149,6 +2150,208 @@ int	Run_Building_Descriptors (void)
 }
 
 
+/*
+**	Finite team power grid + strategic building capabilities -- roadmap Section 40.
+**
+**	Every member here is registered with a nullptr BuildingGameObj*, which is what makes the
+**	allocation algorithm itself -- the acceptance's real substance -- checkable with no device,
+**	no scene and no live GameObj.  What Enable_Power would have done to a real building is
+**	Is_Member_Powered's own bookkeeping instead.
+*/
+static const char * const	GRID_GENERATOR_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"power\":{\"requires_power\":false,\"generation\":500.0,\"consumption\":0.0,\"priority\":50} }";
+
+static const char * const	GRID_CONSUMER_HI_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":300.0,\"priority\":80} }";
+
+static const char * const	GRID_CONSUMER_LO_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":300.0,\"priority\":20} }";
+
+static const char * const	GRID_COMMS_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":50.0,\"priority\":60},"
+	"  \"capabilities\":{\"communications\":{\"enabled\":true,\"vision_radius\":100.0,\"radar_radius\":200.0,"
+	"      \"last_known_retention_seconds\":10.0,\"requires_building_online\":true}} }";
+
+static const char * const	GRID_SILO_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":10.0,\"priority\":40},"
+	"  \"capabilities\":{\"tiberium_silo\":{\"enabled\":true,\"wallet_capacity_bonus_per_player\":2500.0,"
+	"      \"requires_building_online\":true}} }";
+
+int	Run_Power_Grid (void)
+{
+	BuildingDescriptorManager::Init ();
+	TeamPowerGridService::Init ();
+	WorldShroudManager::Init ();
+	WorldShroudManager::Re_Partition (Vector3 (-1000.0f,-1000.0f,0.0f),Vector3 (1000.0f,1000.0f,0.0f));
+
+	StringClass error ("");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_grid_plant",GRID_GENERATOR_JSON,&error),"plant descriptor refused");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_grid_hi",GRID_CONSUMER_HI_JSON,&error),"hi descriptor refused");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_grid_lo",GRID_CONSUMER_LO_JSON,&error),"lo descriptor refused");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_grid_comms",GRID_COMMS_JSON,&error),"comms descriptor refused");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_grid_silo",GRID_SILO_JSON,&error),"silo descriptor refused");
+
+	const int TEAM0 = 0;
+
+	/*
+	**	Finite generation/demand, and deterministic overload shedding by priority.
+	*/
+	Check (TeamPowerGridService::RegisterBuilding (nullptr,TEAM0,"ow_test_grid_plant",1),"registering member 1 was refused");
+	TeamPowerGridService::RecalculateTeam (TEAM0);
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Generation (TEAM0) - 500.0f) < 0.01f,
+			 "one 500-generation plant reports generation %f",TeamPowerGridService::Get_Generation (TEAM0));
+	Check (TeamPowerGridService::Is_Member_Powered (1),"a lone generator with nothing shedding it was not powered");
+
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM0,"ow_test_grid_hi",2);		// priority 80, 300
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM0,"ow_test_grid_lo",3);		// priority 20, 300
+	TeamPowerGridService::RecalculateTeam (TEAM0);
+
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Requested_Demand (TEAM0) - 600.0f) < 0.01f,
+			 "two 300-consumption consumers requested %f, not 600",TeamPowerGridService::Get_Requested_Demand (TEAM0));
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Allocated_Demand (TEAM0) - 300.0f) < 0.01f,
+			 "500 available against 600 requested allocated %f, not 300",TeamPowerGridService::Get_Allocated_Demand (TEAM0));
+	Check (TeamPowerGridService::Is_Member_Powered (2),"the higher-priority consumer was shed instead of the lower one");
+	Check (!TeamPowerGridService::Is_Member_Powered (3),"the lower-priority consumer was powered past the available budget");
+	Check (TeamPowerGridService::Get_Shed_Count (TEAM0) == 1,"overload shed %d consumer(s), not 1",TeamPowerGridService::Get_Shed_Count (TEAM0));
+	Check (TeamPowerGridService::Get_Powered_Count (TEAM0) == 2,
+			 "%d member(s) powered, not the plant plus the one winning consumer",TeamPowerGridService::Get_Powered_Count (TEAM0));
+
+	/*
+	**	Reduced demand restores a previously shed consumer.
+	*/
+	TeamPowerGridService::OnBuildingDestroyed (2);
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Requested_Demand (TEAM0) - 300.0f) < 0.01f,
+			 "destroying the winning consumer left requested demand at %f, not 300",
+			 TeamPowerGridService::Get_Requested_Demand (TEAM0));
+	Check (TeamPowerGridService::Is_Member_Powered (3),
+			 "reduced demand did not restore the previously shed consumer");
+
+	/*
+	**	Destroying the final generator powers down every dependent building; reviving it
+	**	restores them.
+	*/
+	TeamPowerGridService::OnBuildingDestroyed (1);
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Generation (TEAM0)) < 0.01f,
+			 "the only generator destroyed still reports generation %f",TeamPowerGridService::Get_Generation (TEAM0));
+	Check (!TeamPowerGridService::Is_Member_Powered (3),
+			 "a consumer stayed powered after the final generator was destroyed");
+
+	TeamPowerGridService::OnBuildingRevived (1);
+	Check (TeamPowerGridService::Is_Member_Powered (3),
+			 "reviving the only generator did not restore a waiting consumer");
+
+	/*
+	**	Manual on/off is authoritative and takes effect immediately.
+	*/
+	TeamPowerGridService::Set_Manual_Disabled (3,true);
+	Check (!TeamPowerGridService::Is_Member_Powered (3),"a manually disabled consumer still reads powered");
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Requested_Demand (TEAM0)) < 0.01f,
+			 "a manually disabled consumer still counted toward requested demand: %f",
+			 TeamPowerGridService::Get_Requested_Demand (TEAM0));
+	Check (TeamPowerGridService::Get_Manual_Off_Count (TEAM0) == 1,"manual-off count read %d, not 1",
+			 TeamPowerGridService::Get_Manual_Off_Count (TEAM0));
+
+	TeamPowerGridService::Set_Manual_Disabled (3,false);
+	Check (TeamPowerGridService::Is_Member_Powered (3),"clearing manual-disable did not restore power immediately");
+
+	/*
+	**	Priority override changes allocation ordering immediately, and clearing it reverts to
+	**	the descriptor's own priority with the deterministic MemberId tie-break.
+	*/
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM0,"ow_test_grid_lo",4);		// same priority 20 as member 3
+	TeamPowerGridService::RecalculateTeam (TEAM0);
+	Check (TeamPowerGridService::Is_Member_Powered (3) && !TeamPowerGridService::Is_Member_Powered (4),
+			 "two equal-priority consumers did not break the tie by the lower MemberId");
+
+	TeamPowerGridService::Set_Priority_Override (4,100);
+	Check (TeamPowerGridService::Is_Member_Powered (4) && !TeamPowerGridService::Is_Member_Powered (3),
+			 "a priority override did not immediately change which consumer wins");
+
+	TeamPowerGridService::Clear_Priority_Override (4);
+	Check (TeamPowerGridService::Is_Member_Powered (3) && !TeamPowerGridService::Is_Member_Powered (4),
+			 "clearing a priority override did not revert to the descriptor priority and MemberId tie-break");
+
+	/*
+	**	Communications coverage follows online state -- Section 30's own sensor-source API,
+	**	not a second shroud implementation.
+	*/
+	const int TEAM1 = 1;
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM1,"ow_test_grid_plant",10);
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM1,"ow_test_grid_comms",11);
+	TeamPowerGridService::RecalculateTeam (TEAM1);
+	WorldShroudManager::Timestep (0.1f);
+
+	Vector3 comms_position (0.0f,0.0f,0.0f);		// members registered with a null Building default here
+	Check (WorldShroudManager::Get_Shroud_State (TEAM1,comms_position) == SHROUD_VISIBLE,
+			 "an online communications building did not register live shroud coverage");
+
+	TeamPowerGridService::OnBuildingDestroyed (11);
+	WorldShroudManager::Timestep (0.1f);
+	Check (WorldShroudManager::Get_Shroud_State (TEAM1,comms_position) != SHROUD_VISIBLE,
+			 "coverage stayed VISIBLE after its communications building was destroyed");
+
+	TeamPowerGridService::OnBuildingRevived (11);
+	WorldShroudManager::Timestep (0.1f);
+	Check (WorldShroudManager::Get_Shroud_State (TEAM1,comms_position) == SHROUD_VISIBLE,
+			 "reviving the communications building did not restore live shroud coverage");
+
+	/*
+	**	Silo wallet bonuses stack, and stop contributing when destroyed, manually disabled, or
+	**	powered down by the final generator's loss -- proving the bonus is a live function of
+	**	grid state, not a value fixed at registration.
+	*/
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM1,"ow_test_grid_silo",20);
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM1,"ow_test_grid_silo",21);
+	TeamPowerGridService::RecalculateTeam (TEAM1);
+
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Wallet_Capacity_Bonus (TEAM1) - 5000.0f) < 0.01f,
+			 "two stacked Silos report a wallet bonus of %f, not 5000",TeamPowerGridService::Get_Wallet_Capacity_Bonus (TEAM1));
+
+	TeamPowerGridService::Set_Manual_Disabled (20,true);
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Wallet_Capacity_Bonus (TEAM1) - 2500.0f) < 0.01f,
+			 "disabling one of two Silos left the bonus at %f, not 2500",TeamPowerGridService::Get_Wallet_Capacity_Bonus (TEAM1));
+
+	TeamPowerGridService::OnBuildingDestroyed (10);		// team 1's only generator
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Wallet_Capacity_Bonus (TEAM1)) < 0.01f,
+			 "destroying the only generator left a Silo bonus of %f, not 0",TeamPowerGridService::Get_Wallet_Capacity_Bonus (TEAM1));
+
+	/*
+	**	Live JSON reload recalculates correctly, through OnDescriptorReload.
+	*/
+	const int TEAM2 = 2;
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_grid_reload_plant",
+				"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+				"  \"power\":{\"requires_power\":false,\"generation\":200.0,\"consumption\":0.0,\"priority\":50} }",
+				&error),
+			 "the reload-test plant descriptor was refused");
+
+	TeamPowerGridService::RegisterBuilding (nullptr,TEAM2,"ow_test_grid_reload_plant",30);
+	TeamPowerGridService::RecalculateTeam (TEAM2);
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Generation (TEAM2) - 200.0f) < 0.01f,
+			 "the reload-test plant reports generation %f before any reload, not 200",TeamPowerGridService::Get_Generation (TEAM2));
+
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_grid_reload_plant",
+				"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+				"  \"power\":{\"requires_power\":false,\"generation\":999.0,\"consumption\":0.0,\"priority\":50} }",
+				&error),
+			 "the edited reload-test plant descriptor was refused");
+	TeamPowerGridService::OnDescriptorReload ("ow_test_grid_reload_plant");
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Generation (TEAM2) - 999.0f) < 0.01f,
+			 "OnDescriptorReload left generation at %f, not the edited value 999",TeamPowerGridService::Get_Generation (TEAM2));
+
+	WorldShroudManager::Shutdown ();
+	TeamPowerGridService::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -2222,6 +2425,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "buildingjson") == 0)) {
 		Run_Building_Descriptors ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "powergrid") == 0)) {
+		Run_Power_Grid ();
 		ran = true;
 	}
 

@@ -47,6 +47,9 @@ namespace	ShaderSelfCheck
 	//		buildingjson the building descriptor registry: valid resolution, rejection of bad
 	//		           JSON/values, anchor lookup, and the reload transaction end to end
 	//		           against a real scratch file
+	//		powergrid    the finite team power grid: overload shedding, restoration, the final-
+	//		           generator power-down, manual/priority control, communications coverage
+	//		           following online state, Silo wallet stacking, and live reload
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

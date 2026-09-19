@@ -72,6 +72,7 @@ set(COMBAT_SRC
     rtstelemetryservice.cpp
     buildingdescriptor.cpp
     buildingdescriptormanager.cpp
+    teampowergridservice.cpp
     gametype.cpp
     globalsettings.cpp
     harvester.cpp
@@ -220,6 +221,7 @@ set(COMBAT_SRC
     rtstelemetryservice.h
     buildingdescriptor.h
     buildingdescriptormanager.h
+    teampowergridservice.h
     gameobjref.h
     gametype.h
     globalsettings.h

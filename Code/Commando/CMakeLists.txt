@@ -581,6 +581,7 @@ add_test(NAME shader_guardai COMMAND renegade -shaderselfcheck guardai)
 add_test(NAME shader_telemetry COMMAND renegade -shaderselfcheck telemetry)
 add_test(NAME shader_debugrender COMMAND renegade -shaderselfcheck debugrender)
 add_test(NAME shader_buildingjson COMMAND renegade -shaderselfcheck buildingjson)
+add_test(NAME shader_powergrid COMMAND renegade -shaderselfcheck powergrid)
 
     #	The terrain service -- roadmap Section 17.  See terrainselfcheck.h.
     add_test(NAME terrain_sampling COMMAND renegade -terrainselfcheck sampling)
@@ -640,6 +641,7 @@ add_test(NAME fds_shader_guardai COMMAND renegadeserver -shaderselfcheck guardai
 add_test(NAME fds_shader_telemetry COMMAND renegadeserver -shaderselfcheck telemetry)
 add_test(NAME fds_shader_debugrender COMMAND renegadeserver -shaderselfcheck debugrender)
 add_test(NAME fds_shader_buildingjson COMMAND renegadeserver -shaderselfcheck buildingjson)
+add_test(NAME fds_shader_powergrid COMMAND renegadeserver -shaderselfcheck powergrid)
     add_test(NAME fds_terrain_sampling COMMAND renegadeserver -terrainselfcheck sampling)
     add_test(NAME fds_terrain_bridges  COMMAND renegadeserver -terrainselfcheck bridges)
     add_test(NAME fds_terrain_foliage  COMMAND renegadeserver -terrainselfcheck foliage)
