@@ -37,6 +37,7 @@
 #include "simpledefinitionfactory.h"
 #include "persistfactory.h"
 #include "combatchunkid.h"
+#include "debrissystem.h"
 #include "debug.h"
 #include "wwphysids.h"
 #include "meshmdl.h"
@@ -1139,6 +1140,12 @@ void
 BuildingGameObj::On_Destroyed (void)
 {
 	IsDestroyed = true;
+
+	//
+	//	Scatter debris around the ruin -- roadmap Section 28.  Every client that sees this
+	//	call spawns its own fragments; none of them are networked, and none are GameObjs.
+	//
+	DebrisManager::Spawn_Building_Debris (this);
 
 	//
 	//	Notify the controller that the building has been destroyed

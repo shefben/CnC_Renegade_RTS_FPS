@@ -5,6 +5,7 @@
 
 #include "shaderselfcheck.h"
 
+#include "debrisrenderer.h"
 #include "shadermgr.h"
 #include "tracerrenderer.h"
 #include "weatherenvironment.h"
@@ -1170,6 +1171,154 @@ int	Run_Tracers (void)
 }
 
 
+/*
+**	Section 28's device-less half: DebrisRenderer directly, the same layer the weather and
+**	tracer checks exercise their own renderer at -- not DebrisManager, whose gameplay tier
+**	needs a live combat scene this binary never brings up (see
+**	docs/zerohour/DebrisRenderModule.md).  What this pins: a chip inside its lifetime is alive
+**	and drawn; re-rendering the same clock draws the same count; an expired chip is reaped; a
+**	scatter of ten chips in one frame makes one submission to the sprite pool, not ten; those
+**	ten are charged to the near-combat budget and never to the environment budget, which stays
+**	weather's alone even though weather's own snow shares this pool; a pool capped at four
+**	holds at most four after six arrive and reports exactly two dropped; a disabled layer
+**	accepts no scatter and draws nothing.
+*/
+int	Run_Debris (void)
+{
+	CameraClass				camera;
+	RenderInfoClass		rinfo (camera);
+
+	WorldParticleManager::Init ();
+	WorldParticleManager::Set_Enabled (true);
+
+	DebrisRenderer::Init ();
+	DebrisRenderer::Set_Enabled (true);
+	DebrisRenderer::Set_Max_Debris (256);
+
+	//	Straight down the default camera's own -Z, the same forward axis the tracer and
+	//	weather checks rely on to put their content in view without aiming at it explicitly.
+	//	A scatter radius of zero makes every chip land exactly on 'center' -- Spawn still
+	//	randomises each chip's velocity, size and spin, but not where it starts, which is what
+	//	a frustum-visibility assertion needs to be deterministic.
+	Vector3	center (0.0f,0.0f,-10.0f);
+	Vector4	grey (0.42f,0.38f,0.34f,1.0f);
+
+	/*
+	**	One chip, aged forward inside its lifetime, is still there and still drawn.
+	*/
+	DebrisRenderer::Spawn (center,0.0f,1,grey,3.0f);
+	DebrisRenderer::Age (0.3f);
+	DebrisRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+
+	Check (DebrisRenderer::Get_Live_Count() == 1,
+			 "one chip three-tenths of a second into a three-second lifetime left %d live",
+			 DebrisRenderer::Get_Live_Count());
+	Check (DebrisRenderer::Get_Drawn_Particles() == 1,
+			 "one live chip in front of the camera drew %d",
+			 DebrisRenderer::Get_Drawn_Particles());
+
+	/*
+	**	Render is read-only.  Calling it again against the same clock, with no Age between,
+	**	submits the same chip -- nothing about drawing decides what is still alive.
+	*/
+	DebrisRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+	Check (DebrisRenderer::Get_Drawn_Particles() == 1,
+			 "re-rendering the same clock drew %d, not the 1 it drew the first time",
+			 DebrisRenderer::Get_Drawn_Particles());
+
+	/*
+	**	Ageing it past its lifetime reaps it -- the acceptance's own point: a piece of
+	**	lightweight, bounded-lifetime debris has to actually go away.
+	*/
+	DebrisRenderer::Age (3.0f);
+	DebrisRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+
+	Check (DebrisRenderer::Get_Live_Count() == 0,
+			 "a chip aged past its lifetime left %d live",
+			 DebrisRenderer::Get_Live_Count());
+	Check (DebrisRenderer::Get_Drawn_Particles() == 0,
+			 "an expired chip still drew %d",
+			 DebrisRenderer::Get_Drawn_Particles());
+
+	DebrisRenderer::Reset ();
+
+	/*
+	**	Ten pieces scattered in one frame are one submission, not ten -- the acceptance's own
+	**	wording, "does not require every visible fragment to be a complete networked GameObj",
+	**	read as an arithmetic count on the render side of it.
+	*/
+	WorldParticleManager::Reset_Statistics ();
+	DebrisRenderer::Spawn (center,0.0f,10,grey,3.0f);
+	DebrisRenderer::Age (0.0f);
+	DebrisRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+
+	Check (DebrisRenderer::Get_Drawn_Particles() == 10,
+			 "ten pieces in one scatter drew %d particles",
+			 DebrisRenderer::Get_Drawn_Particles());
+	Check (WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_SPRITE) == 1,
+			 "ten debris chips made %u submission(s) to the sprite pool, not one",
+			 WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_SPRITE));
+
+	/*
+	**	Charged to a combat budget, resolved from distance the way any submission that names
+	**	no class is -- and never to the environment class, which stays weather's alone even
+	**	though both draw through the sprite pool (weather's snow is the other user of it).
+	*/
+	WorldParticleManager::Flush (rinfo);
+
+	Check (WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE,PARTICLE_BUDGET_COMBAT_NEAR) > 0,
+			 "ten close debris chips charged %u particles to the near-combat budget",
+			 WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE,PARTICLE_BUDGET_COMBAT_NEAR));
+	Check (WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE,PARTICLE_BUDGET_ENVIRONMENT) == 0,
+			 "debris charged %u particles to the environment budget, which is weather's alone",
+			 WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE,PARTICLE_BUDGET_ENVIRONMENT));
+
+	DebrisRenderer::Reset ();
+
+	/*
+	**	A pool asked to hold more than its ceiling drops the newest arrivals and counts them,
+	**	rather than growing without bound or evicting a chip already on screen to make room.
+	*/
+	DebrisRenderer::Set_Max_Debris (4);
+	DebrisRenderer::Spawn (center,0.0f,6,grey,3.0f);
+
+	Check (DebrisRenderer::Get_Live_Count() == 4,
+			 "a pool capped at 4 held %d chips after 6 arrived",
+			 DebrisRenderer::Get_Live_Count());
+	Check (DebrisRenderer::Get_Dropped_Count() == 2,
+			 "a pool capped at 4 reported %d dropped after 6 arrived, not 2",
+			 DebrisRenderer::Get_Dropped_Count());
+
+	DebrisRenderer::Set_Max_Debris (256);
+	DebrisRenderer::Reset ();
+
+	/*
+	**	Off is off.  There is no per-fragment scene object left to fall back to, so this is the
+	**	only sense in which the visual debris layer can be absent.
+	*/
+	DebrisRenderer::Set_Enabled (false);
+	DebrisRenderer::Spawn (center,0.0f,1,grey,3.0f);
+	DebrisRenderer::Age (0.1f);
+	DebrisRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+
+	Check (DebrisRenderer::Get_Live_Count() == 0,
+			 "a disabled debris layer accepted a scatter anyway, leaving %d live",
+			 DebrisRenderer::Get_Live_Count());
+	Check (DebrisRenderer::Get_Drawn_Particles() == 0,
+			 "a disabled debris layer drew %d particles",
+			 DebrisRenderer::Get_Drawn_Particles());
+
+	DebrisRenderer::Set_Enabled (true);
+	DebrisRenderer::Reset ();
+	DebrisRenderer::Shutdown ();
+
+	WorldParticleManager::Flush (rinfo);
+	WorldParticleManager::Shutdown ();
+
+	return _Failures;
+}
+
+
 
 }	// namespace
 
@@ -1204,6 +1353,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "tracers") == 0)) {
 		Run_Tracers ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "debris") == 0)) {
+		Run_Debris ();
 		ran = true;
 	}
 

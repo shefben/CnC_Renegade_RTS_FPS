@@ -20,14 +20,17 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  `shader_particles` passed on the client with the same code. The check's scratch arrays
  were heap-allocated and never freed and are now static, which is the suspected cause, but
  it has not been rerun since -- that session was asked not to run the game, and neither has
- this one. P23's `shader_weather`/`fds_shader_weather` and P24's `shader_tracers`/
- `fds_shader_tracers` have never been run at all for the same reason. Needs one run covering
- all three:
- `ctest -C Debug -R "shader_weather|shader_particles|shader_tracers" --output-on-failure`
+ this one. P23's `shader_weather`/`fds_shader_weather`, P24's `shader_tracers`/
+ `fds_shader_tracers`, and P25's `shader_debris`/`fds_shader_debris` have never been run at
+ all for the same reason. Needs one run covering all four:
+ `ctest -C Debug -R "shader_weather|shader_particles|shader_tracers|shader_debris" --output-on-failure`
  from `build/win32`.
  If `fds_shader_particles` still fails, the abort is in `WorldParticleManager` teardown rather
- than the check. Not blocking any other work, but three phases are now resting on checks
- nobody has executed.
+ than the check. Not blocking any other work, but four phases are now resting on checks
+ nobody has executed. Separately, P25's `DebrisManager` (the real-collision fragment tier) is
+ not covered by any automated check at all -- it needs a live combat scene -- so destroying a
+ building and a bridge span in game and reporting `debris_status` is the only way to see it
+ run.
 
 
 ---

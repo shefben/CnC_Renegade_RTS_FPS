@@ -98,8 +98,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P25: Debris rendering (roadmap Section 28)
 
-- [ ] Acceptance: Large destruction events do not require every visible fragment to be a complete networked `GameObj`.
-
 ## P26: Modular draw components + composite attachments (roadmap Section 29)
 
 - [ ] Acceptance: New rendering behavior can be attached without continuously expanding every `GameObj` subclass.

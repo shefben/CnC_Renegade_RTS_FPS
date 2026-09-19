@@ -18,6 +18,7 @@ set(WW3D2_SRC
     composite.cpp
     dazzle.cpp
     ddsfile.cpp
+    debrisrenderer.cpp
     decalmsh.cpp
     decalsys.cpp
     distlod.cpp
@@ -128,6 +129,7 @@ worldparticlemanager.cpp
     composite.h
     dazzle.h
     ddsfile.h
+    debrisrenderer.h
     decalmsh.h
     decalsys.h
     distlod.h

@@ -66,6 +66,7 @@
 #include "objectives.h"
 #include "conversationmgr.h"
 #include "bullet.h"
+#include "debrissystem.h"
 #include "dazzle.h"
 #include "messagewindow.h"
 #include "hudinfo.h"
@@ -556,6 +557,7 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	GameObjManager::Init();
 
 	BulletManager::Init();
+	DebrisManager::Init();
 
 	cEncoderList::Clear_Entries();
 
@@ -822,6 +824,9 @@ void	CombatManager::Unload_Level( void )
 	BulletManager::Shutdown();
 	WWLOG_INTERMEDIATE("BulletManager::Shutdown()");
 
+	DebrisManager::Shutdown();
+	WWLOG_INTERMEDIATE("DebrisManager::Shutdown()");
+
 	ObjectiveManager::Reset();
 	WWLOG_INTERMEDIATE("ObjectiveManager::Reset()");
 
@@ -933,6 +938,10 @@ void 	CombatManager::Think()
 
 {	WWPROFILE( "Bullets" );
 	BulletManager::Update();
+}
+
+{	WWPROFILE( "Debris" );
+	DebrisManager::Update();
 }
 
 	ObjectiveManager::Update( TimeManager::Get_Frame_Seconds() );

@@ -130,6 +130,8 @@
 #include "WeatherMgr.h"
 #include "weatherenvironment.h"
 #include "tracerrenderer.h"
+#include "debrisrenderer.h"
+#include "debrissystem.h"
 #include "mapmgr.h"
 #include "Path.h"
 #include "sctextobj.h"
@@ -6404,6 +6406,76 @@ public:
 };
 
 
+/*
+**	Roadmap Section 28.  Two pools behind one status line: the visual chips
+**	(DebrisRenderer, ww3d2) and the real-collision fragments (DebrisManager's own gameplay
+**	pool, Code/Combat/debrissystem.h) -- see docs/zerohour/DebrisRenderModule.md for why they
+**	are separate facilities.
+*/
+class DebrisStatusConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("debris_status");}
+	virtual	const char * Get_Help (void) override	{return ("DEBRIS_STATUS - what both debris pools hold, and what they cost.");}
+	virtual	void Activate (const char * /* input */) override {
+
+		Print ("debris_status: layer is %s, visual %d/%d alive (%d drawn last frame, %d dropped), "
+				 "gameplay %d/%d alive (%d dropped).\n",
+				 DebrisManager::Is_Enabled() ? "on" : "off",
+				 DebrisRenderer::Get_Live_Count(),
+				 DebrisRenderer::Get_Max_Debris(),
+				 DebrisRenderer::Get_Drawn_Particles(),
+				 DebrisRenderer::Get_Dropped_Count(),
+				 DebrisManager::Get_Live_Gameplay_Count(),
+				 DebrisManager::Get_Max_Gameplay(),
+				 DebrisManager::Get_Dropped_Gameplay_Count());
+	}
+};
+
+
+/*
+**	The visual pool's ceiling only -- the gameplay pool is small enough (see
+**	GAMEPLAY_DEBRIS_MAX in debrissystem.cpp) that tuning it from the console has not come up.
+*/
+class DebrisBudgetConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("debris_budget");}
+	virtual	const char * Get_Help (void) override	{return ("DEBRIS_BUDGET [count] - how many visual debris chips may be alive at once.");}
+	virtual	void Activate (const char *input) override {
+
+		int	count = 0;
+		int	argcount = (input != nullptr) ? sscanf (input, "%d", &count) : 0;
+
+		if (argcount >= 1 && count >= 0) {
+			DebrisRenderer::Set_Max_Debris (count);
+		}
+
+		Print ("debris_budget: %d chip(s).\n", DebrisRenderer::Get_Max_Debris());
+	}
+};
+
+
+/*
+**	Off means a destroyed building or bridge span scatters nothing at all, in either tier --
+**	there is no per-fragment object left to fall back to, so this is the only sense in which
+**	the debris layer can be absent.
+*/
+class DebrisLayerConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("debris_layer");}
+	virtual	const char * Get_Help (void) override	{return ("DEBRIS_LAYER [on|off] - scatter destruction debris, or do not.");}
+	virtual	void Activate (const char *input) override {
+
+		if (input != nullptr && ::strstr (input, "off") != nullptr) {
+			DebrisManager::Set_Enabled (false);
+		} else if (input != nullptr && ::strstr (input, "on") != nullptr) {
+			DebrisManager::Set_Enabled (true);
+		}
+
+		Print ("debris_layer: %s.\n", DebrisManager::Is_Enabled() ? "on" : "off");
+	}
+};
+
+
 class AshConsoleFunctionClass : public ConsoleFunctionClass {
 public:
 	virtual	const char * Get_Name (void) override	{return ("ash");}
@@ -6560,6 +6632,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new TracerStatusConsoleFunctionClass() );
 	FunctionList.Add( new TracerBudgetConsoleFunctionClass() );
 	FunctionList.Add( new TracerLayerConsoleFunctionClass() );
+	FunctionList.Add( new DebrisStatusConsoleFunctionClass() );
+	FunctionList.Add( new DebrisBudgetConsoleFunctionClass() );
+	FunctionList.Add( new DebrisLayerConsoleFunctionClass() );
 	FunctionList.Add( new BreakExecutionConsoleFunctionClass() );
 	FunctionList.Add( new CrashExecutionConsoleFunctionClass() );
 	FunctionList.Add( new BuByeConsoleFunctionClass() );

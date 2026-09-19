@@ -123,9 +123,11 @@ private:
 /*
 **	One thing that came off a bridge when it changed state, waiting for somebody to draw it.
 **
-**	Section 20 lists debris emission among the things a damage state may change, and there is
-**	no effect system to hand it to yet.  Rather than drop it, the system records what came off
-**	and where; the consumer arrives with Section 35's decal and effect work and reads this.
+**	Section 20 lists debris emission among the things a damage state may change, and at the
+**	time this queue was written there was no effect system to hand it to yet.  Rather than
+**	drop it, the system records what came off and where.  Section 28 (debris rendering,
+**	Code/Combat/debrissystem.h) is the consumer: it drains this queue every simulation frame
+**	and clears it, so nothing here is read twice.
 */
 class BridgeDebrisClass
 {

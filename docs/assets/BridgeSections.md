@@ -130,15 +130,22 @@ ow_bridge_steel_truss_support     ow_bridge_steel_truss_support_damaged
 ## Debris
 
 `BridgeStateRuleClass` carries a debris model name and a count per kind per state, and
-`BridgeSystem` records what came off and where in a pending list rather than dropping it —
-there is no effect system to hand it to until Section 35. No default definition names any,
-so the list is empty on purpose. When the art exists the names follow the same pattern:
+`BridgeSystem` records what came off and where in a pending list rather than dropping it.
+Section 28 (`Code/Combat/debrissystem.h`, `docs/zerohour/DebrisRenderModule.md`) is the
+consumer: `DebrisManager::Update` drains the list every simulation frame and clears it. Each
+of the three default definitions now names its span's `BROKEN`-state rubble, so the queue is
+live, not merely wired:
 
 ```
-ow_bridge_concrete_rubble
-ow_bridge_timber_rubble
-ow_bridge_steel_truss_rubble
+ow_bridge_concrete_rubble      (4 pieces)
+ow_bridge_timber_rubble        (3 pieces)
+ow_bridge_steel_truss_rubble   (5 pieces)
 ```
+
+None of the three models exists yet. That is not a blocker the way a missing deck model is:
+`DebrisManager::Spawn` tries `WW3DAssetManager::Create_Render_Obj` for the name and, finding
+nothing, falls back to a pooled visual chip instead of a real physics fragment — the debris
+still appears, it just cannot be stood on or bounced off until the model does.
 
 Read by `BridgeSystem::Note_Debris`, drained through `Peek_Pending_Debris`.
 

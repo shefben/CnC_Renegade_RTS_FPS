@@ -269,10 +269,14 @@ void BridgeSystem::Shutdown(void)
  *                                                                                             *
  *	Section 19's three road classes are a track, a street and a highway, and a road that runs   *
  *	off a bridge is the same road on the other side of it, so the sizes here are the sizes      *
- *	those roads are drawn at.  None of them names a model: no bridge art exists, the names it   *
- *	will want are written down in docs/assets/BridgeSections.md, and until they are made every  *
- *	section here is built as a slab of the size declared below -- which collides, carries       *
- *	traffic and breaks, all of which is what Section 20 asks for.                               *
+ *	those roads are drawn at.  None of them names a deck model: no bridge art exists, the       *
+ *	names it will want are written down in docs/assets/BridgeSections.md, and until they are    *
+ *	made every section here is built as a slab of the size declared below -- which collides,    *
+ *	carries traffic and breaks, all of which is what Section 20 asks for.  Each does name a     *
+ *	rubble model for its span's broken state (Section 28 reads it; also undocumented art, also  *
+ *	in docs/assets/BridgeSections.md), because unlike a deck slab a missing rubble chunk has a   *
+ *	sane fallback -- DebrisManager draws it as a pooled visual chip instead -- so there is no    *
+ *	reason to leave the hook unused the way the deck model is.                                  *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 void BridgeSystem::Define_Default_Bridges(void)
 {
@@ -288,6 +292,7 @@ void BridgeSystem::Define_Default_Bridges(void)
 	timber.Set_Section_Length(BRIDGE_SECTION_SUPPORT,1.0f);
 	timber.Set_Support_Spacing(10.0f);
 	timber.Set_Support_Clearance(1.5f);
+	timber.Set_Debris(BRIDGE_SECTION_SPAN,BRIDGE_STATE_BROKEN,"ow_bridge_timber_rubble",3);
 	Define_Bridge(timber);
 
 	//	A concrete road bridge: the ordinary case, and the one a street runs onto.
@@ -301,6 +306,7 @@ void BridgeSystem::Define_Default_Bridges(void)
 	concrete.Set_Section_Length(BRIDGE_SECTION_SUPPORT,2.0f);
 	concrete.Set_Support_Spacing(24.0f);
 	concrete.Set_Support_Clearance(2.0f);
+	concrete.Set_Debris(BRIDGE_SECTION_SPAN,BRIDGE_STATE_BROKEN,"ow_bridge_concrete_rubble",4);
 	Define_Bridge(concrete);
 
 	//	A steel truss carrying a highway: wide, long spans, few piers.
@@ -314,6 +320,7 @@ void BridgeSystem::Define_Default_Bridges(void)
 	steel.Set_Section_Length(BRIDGE_SECTION_SUPPORT,3.0f);
 	steel.Set_Support_Spacing(48.0f);
 	steel.Set_Support_Clearance(3.0f);
+	steel.Set_Debris(BRIDGE_SECTION_SPAN,BRIDGE_STATE_BROKEN,"ow_bridge_steel_truss_rubble",5);
 	Define_Bridge(steel);
 }
 

@@ -376,3 +376,21 @@ been run, for the same reason as P22's and P23's checks -- Q-012 now covers all 
 families. Next exact action is a manual one for the user: run
 `ctest -C Debug -R "shader_weather|shader_particles|shader_tracers" --output-on-failure` in
 `build/win32`, then fire a `DisplayLaser` weapon in game and report `tracer_status`.
+
+## P25 -- buildings and bridges scatter debris, vehicles and city props do not yet
+
+`DebrisRenderer`/`DebrisManager` are in (P25-A in `completed_features.md`,
+`docs/zerohour/DebrisRenderModule.md`). This absorbs the P25 acceptance in full -- it is a general
+statement about networked `GameObj`s and neither tier ever creates one -- but Section 28 names
+buildings, bridges, vehicles and future generated city props as consumers, and only the first two
+are wired. **Vehicles**: `VehicleGameObj::Object_Expired` is server-only and drives a networked
+explosion event; the right client-side "this vehicle is now a wreck" hook was not identified this
+pass rather than guessed at. **City props**: no generated-prop system exists yet to hook into.
+Neither is a missing-art problem, both are a missing call site. The gameplay tier
+(`DebrisManager`, real `RigidBodyClass` fragments) is also entirely unchecked by automation: it
+needs `COMBAT_SCENE`, which `-shaderselfcheck` never brings up, so `shader_debris`/`fds_shader_debris`
+exercise `DebrisRenderer` (the visual tier) only, and have never been run at all, for the same
+reason as every other check family this session added -- Q-012 now covers four. Next exact action
+is a manual one for the user: run
+`ctest -C Debug -R "shader_weather|shader_particles|shader_tracers|shader_debris" --output-on-failure`
+in `build/win32`, then destroy a building and a bridge span in game and report `debris_status`.

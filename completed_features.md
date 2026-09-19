@@ -1615,3 +1615,24 @@ make one submission, not ten. The laser/beam half of Section 27 was already done
 unstarted -- see `WIP_features.md`. Evidence: `docs/zerohour/TracerRenderModule.md`; new
 `shader_tracers`/`fds_shader_tracers`, plus `tracer_status`, `tracer_budget` and `tracer_layer` at
 the console.
+
+## P25-A: A destroyed building scatters chips, a destroyed bridge span scatters real ones
+
+Two tiers, per Section 28's own split. `DebrisRenderer` (`Code/ww3d2/debrisrenderer.*`) is
+`VISUAL_DEBRIS`: a fixed pooled chip with a ballistic arc and no collision, submitted through
+`WorldParticleManager`'s sprite pool -- the same `Age`/`Render` split and drop-and-count-over-cap
+rule as `TracerRenderer`. `DebrisManager` (`Code/Combat/debrissystem.*`) is `GAMEPLAY_DEBRIS`: real
+`RigidBodyClass` fragments built and scened the same way `WeaponClass::Make_Shell_Eject` already
+adds a `ProjectileClass` shell casing, not networked and not `GameObj`s, capped at 32 and
+self-expiring; `Spawn` tries the named-model tier first and falls the rest of its count back to the
+visual tier when the model is missing or the pool is full, so a caller's count is always what
+appears. `BuildingGameObj::On_Destroyed` scatters 14 visual chips across the building's collected
+bounds; `BridgeSystem`'s pending-debris queue (recorded since P15-A, drained by nobody until now) is
+drained every frame by `DebrisManager::Update`, and all three default bridge kinds now name a
+`BROKEN`-state rubble model and count so the queue is live. Absorbs the P25 acceptance *Large
+destruction events do not require every visible fragment to be a complete networked `GameObj`* --
+neither tier ever creates one. Vehicles and future city props remain unstarted -- see
+`WIP_features.md`. Evidence: `docs/zerohour/DebrisRenderModule.md`; new
+`shader_debris`/`fds_shader_debris` (visual tier only -- the gameplay tier needs a combat scene the
+check binary never brings up), plus `debris_status`, `debris_budget` and `debris_layer` at the
+console.
