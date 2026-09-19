@@ -1784,3 +1784,74 @@ behaviour. Evidence: `docs/zerohour/DebugRenderSystem.md`.
 check could read `RTSTelemetryService::Get_Snapshot` back before. `telemetry_status` prints
 enabled state, record count, refusal count; `telemetry_dump` prints every `(category, subtype)`
 with its count and running total. Evidence: `docs/zerohour/RTSTelemetryService.md`.
+
+## P34-C: RecalculateTeam skips undescribed members (correctness fix to P27/P33/P34-B)
+
+The previous pass taught `BaseControllerClass::Power_Base` to skip buildings the allocator owns,
+but not the converse: `TeamPowerGridService::RecalculateTeam`'s `Enable_Power`-driving loop called
+`Enable_Power` on *every* registered non-destroyed member, so every undescribed building on a team
+had its power flag overwritten whenever anything on that team was destroyed, revived or registered
+-- silently overriding `Power_Base`. The driving loop now `continue`s on a null `Peek_Descriptor`
+before touching `Enable_Power` or the shroud; the allocation passes were already correct. Evidence:
+`docs/zerohour/TeamPowerGridService.md`, "Correction, a later pass".
+
+## P36-A: the Commander sidebar's whole rule set, device-less and checked
+
+`CommanderSidebarModel` (`Code/Combat/commandersidebar.{h,cpp}`) owns modes, contextual facility
+binding by descriptor `production.kind`, eight-slot paging, per-card status with an enumerated
+reason, and the full Section 42 power display. `INFANTRY`/`GROUND_VEHICLES` read the real
+`PurchaseSettingsDefClass` pages and `PurchaseAvailabilityClass` flags, so the stock PT icons,
+costs and tech levels come for free; `BUILDINGS` reads every `build.buildable` descriptor.
+`AIR_VEHICLES` is a correct empty mode -- stock Renegade ships no air purchase page (recorded in
+`docs/assets/CommanderSidebar.md`). Evidence: ctest `shader_sidebar`/`fds_shader_sidebar`,
+`docs/zerohour/CommanderSidebar.md`.
+
+## P37-A: one placement validator, called by both the ghost and the server
+
+`CommanderPlacementValidator` (`Code/Combat/commanderplacement.{h,cpp}`) makes "never trust client
+green/red state" structural: the client's ghost colour and the server's verdict are literally the
+same pure `Validate` call, so they cannot drift. Oriented footprint box through
+`WorldSpatialIndex::Query_Placement_Overlap`, slope/support/bounds through
+`WorldTerrainSystem::Query_Placement_Surface`, exit clearance from the new descriptor
+`placement_rules` block; ghost state carries no GameObj. Evidence: ctest
+`shader_placement`/`fds_shader_placement`, `docs/zerohour/CommanderPlacement.md`.
+
+## P38-A: deterministic procedural construction layout, timing and the capability gate
+
+`BuildingConstructionService` (`Code/Combat/buildingconstruction.{h,cpp}`) generates the block
+layout as a pure function of (model bounds, construction_visual, seed) using an integer hash rather
+than an RNG, so a client, a late joiner and a save all rebuild it identically from a handful of
+numbers and no block ever crosses the wire. Progress is server time, `max_blocks` is respected by
+coarsening rather than truncation, rows activate strictly bottom-to-top, and
+`Is_Under_Construction` is the gate every finished-building capability asks. Evidence: ctest
+`shader_construction`/`fds_shader_construction`, `docs/zerohour/BuildingConstruction.md`.
+
+## P39-A: server-validated production queues, refund/pause policy and Commander orders
+
+`CommanderProductionService` (`Code/Combat/commanderproduction.{h,cpp}`) owns per-facility queues
+keyed by the building's network id, the full Section 45 validation list in player-fixable order,
+population caps that count pending as well as live, and the Commander order/selection model. The
+two policies Section 45 demands be documented and singular are taken: power loss **pauses**, and
+cancellation/destruction refunds the **full** cost. It creates no GameObj at all -- completions are
+reported, never spawned, which is what keeps Commander AI off the player slots. Evidence: ctest
+`shader_production`/`fds_shader_production`, `docs/zerohour/CommanderProduction.md`.
+
+## P40-A: one RTS save/load subsystem that recomputes rather than restores derived state
+
+`RTSPersistenceClass` (`Code/Combat/rtspersistence.{h,cpp}`, `CHUNKID_RTS_PERSISTENCE`) persists
+only the authoritative facts Section 46 lists -- manual power controls and priority overrides,
+compact construction state, production queues, durable orders, Commander identity -- and rebuilds
+generation/demand/shed and the communications sensor registrations via one `RecalculateTeam` per
+team in `On_Post_Load`. `Contains_Data` is false for a match that never entered Commander Mode, so
+an ordinary FPS save file is unchanged by this phase. Evidence: ctest
+`shader_rtssaveload`/`fds_shader_rtssaveload`, `docs/zerohour/RTSPersistence.md`.
+
+## P36/P37/P38-D: three new descriptor blocks, data-driven not hard-coded
+
+`build`, `production` and `placement_rules` on `BuildingModelDescriptor`
+(`Code/Combat/buildingdescriptor.h`, parsed and validated in `buildingdescriptormanager.cpp`) --
+cost/build time/tech level/team/icon, production kind and queue capacity, slope limit and exit
+clearance. Each validated with the rest, so a bad value refuses the descriptor and leaves the
+previously loaded one untouched. Evidence: `docs/zerohour/BuildingDescriptors.md`, "Three more
+blocks, added by Phases 36-38".
+

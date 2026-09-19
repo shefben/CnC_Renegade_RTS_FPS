@@ -100,26 +100,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P26: Modular draw components + composite attachments (roadmap Section 29)
 
-## P36: Commander sidebar + BUILDINGS/GROUND/AIR/INFANTRY + power bars (roadmap Section 42)
-
-- [ ] Acceptance: - BUILDINGS sidebar appears on Commander entry; - visible production/building area is two rows with paging; - power bars reflect server state; - click ground factory -> GROUND_VEHICLES; - click Air Pad -> AIR_VEHICLES; - click Barracks/Hand -> INFANTRY; - return to BUILDINGS is immediate; - existing PT icons are reused where possible; - dead/offline selected facilities cannot produce.
-
-## P37: Ghost building + server placement validation (roadmap Section 43)
-
-- [ ] Acceptance: Real ghost follows cursor, invalid overlap turns it red, and server independently rejects the same bad placement.
-
-## P38: Authoritative construction + procedural blocks + auto PCT/MCT (roadmap Section 44)
-
-- [ ] Acceptance: - building constructs visibly from bottom-to-top procedural blocks; - no new authored construction asset is required; - blocks are batched/non-physical; - network/save/load reconstructs deterministic stage; - finished behavior remains disabled until completion; - final collision activates safely; - PCT/MCT nodes work; - completed Power Plant enters grid only at completion; - cancellation/destruction leaves no temporary state.
-
-## P39: Commander AI infantry/ground/air production + control (roadmap Section 45)
-
-- [ ] Acceptance: - Barracks/Hand produces AI infantry that exits and holds; - ground factory produces AI vehicle that clears exit and holds; - Air Pad produces AI aircraft that clears pad; - AI consumes no fake human player slots; - Commander can select/order units; - orders use canonical AI; - dead/offline facilities cannot produce invalid units; - production is bounded and does not persistently block human players.
-
-## P40: Full save/load + multiplayer pass (roadmap Section 46)
-
-- [ ] Acceptance: Save/load and late join preserve/reconstruct the complete RTS state without serializing renderer-only implementation details or granting clients gameplay authority.
-
 ## P41: Dedicated-server pass (roadmap Section 47)
 
 - [ ] Acceptance: - dedicated server can host a complete Commander/RTS match; - power, production, AI orders, construction timing, placement validation, wallet caps, and tactical intelligence remain authoritative; - no renderer/UI dependency is pulled into server code merely to support Commander Mode.

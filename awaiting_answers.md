@@ -49,6 +49,15 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  `building_footprints` already did, and `telemetry_status`/`telemetry_dump` (P31) need a kill and
  a building destruction to confirm the counts move.
 
+ **Update, a later pass.** Phases 36-40 added five more check families that have also never been
+ run, for the same standing reason: `shader_sidebar`, `shader_placement`, `shader_construction`,
+ `shader_production`, `shader_rtssaveload` (each with an `fds_` twin). The single run above should
+ therefore be:
+ `ctest -C Debug -R "shader_|fds_shader_|terrain_shroud" --output-on-failure` from `build/win32`,
+ which covers all nineteen families at once rather than a hand-maintained list. These five are
+ device-less and self-contained (no file I/O, no scene, no device), so a failure in one of them is
+ a real defect rather than an environment problem.
+
 
 - **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`
  "through the existing vcpkg/CMake dependency system." This machine has no `VCPKG_ROOT` and no
