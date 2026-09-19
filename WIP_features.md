@@ -576,3 +576,39 @@ both need a live match, not more code. Absorbs the backlog's P40 acceptance line
 is a manual one for the user: run a listen server and a client, enter Commander Mode on the server,
 `commander_ghost` + `commander_place`, and confirm the client sees the build-up and the same power
 figures.
+
+## P42 -- the test-strategy catalog exists; the "tool/editor" half of the title is unresolved
+
+`docs/zerohour/TestCoverageCatalog.md` reads every `add_test` in the tree and maps roughly ninety
+ctest families onto Section 48.2's required groups, flagging the three TT bullets ("script
+save/load", "TT network dirty state", "TT building/factory definitions") with no obvious matching
+family rather than assuming they are covered. What is genuinely unresolved, not just unwritten, is
+recorded as **Q-015**: the backlog's own phase title, "Tool/editor/descriptor-validation pass," has
+no elaborating section anywhere in the roadmap body, so whether an actual `LevelEdit`-facing
+descriptor validator is still owed is a real open question rather than a coding task. Absorbs the
+backlog's P42 line. Next exact action: resolve Q-015, then either close the phase as the catalog
+already covers it or scope the editor-tool work it would still require.
+
+## P43 -- performance requirements are understood; no baseline has been taken
+
+Section 49's metric list and the FPS-priority degrade-order are read and required no code change --
+the existing rule (never shed authoritative local combat/movement to protect distant RTS update
+frequency) is already how `CombatManager::Think`'s ordering was written in P36-P40. What cannot be
+done here is the measurement itself: frame time, draw calls, power-grid recomputation time and the
+rest all need a running client under load, and the standing "do not run the game" constraint blocks
+it the same way it blocks the nineteen self-check families **Q-012** already tracks. Absorbs the
+backlog's P43 line. Next exact action: take the initial baseline during a live session, the same
+session that clears Q-012.
+
+## P45 -- required documentation exists; the final 110-item DoD is deliberately not attempted
+
+Section 50's required-document list is satisfied: `docs/integration/THIRD_PARTY_PROVENANCE.md` is
+new (it consolidates pins that were previously scattered across three other docs), and
+`docs/RequiredDocumentationIndex.md` maps every other required path onto its actual location, since
+this project consistently used `docs/zerohour/<ClassName>.md` rather than splitting a parallel
+`docs/commander/` tree, and duplicating fifty files under a second path would itself violate the
+project's own no-second-truth rule. Section 52's 110-item final Definition of Done is explicitly
+**not** attempted this pass: most of its items depend on phases that are not done yet (P08-P26 are
+still mid-flight per their own WIP entries, P46-P65 are unstarted), so scoring it now would either
+be premature or dishonest. Absorbs the backlog's P45 line. Next exact action: re-run Section 52 as
+a checklist once the phases it actually depends on are closed, not before.

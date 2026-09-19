@@ -1898,3 +1898,18 @@ faction-named icons exist at `models/building images/purchase_images_2/tga/`.  W
 packaging them onto the asset manager's search path and resizing them to PT-card dimensions, which
 is a content-pipeline step and is recorded in `gameplay-gaps.md`, not an engine gap.
 
+## P41: dedicated server rules audited and confirmed correct (Section 47)
+
+Every Commander subsystem added in P36-P38 already threads `render_available` from
+`CombatManager::Init`/`Pre_Load_Level` (the same mechanism `HUDClass`/`BackgroundMgrClass` use) down
+to `CommanderSidebarRenderer`, `CommanderGhostRenderer` and `BuildingConstructionRenderer`, and each
+`Init` returns before any device resource is allocated when it is false. Audited directly against
+all three bodies; no code change was needed. Evidence: `docs/zerohour/DedicatedServerRules.md`.
+
+## P44: cleanup-before-acceptance audit -- nothing to remove (Section 51)
+
+Searched the tree for every artifact Section 51 lists (`scripts2.dll` fallback, TT executable-address
+tables, binary patch/trampoline code, D3D8-to-D3D9 proxy architecture, legacy donor-version toggles):
+none exist. Consistent with the project's continuous no-duplicate-implementation rule having been
+enforced every phase along the way rather than deferred. N/A: nothing found to remove.
+

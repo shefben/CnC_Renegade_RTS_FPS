@@ -90,6 +90,21 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  (which would make `BaseWalletCap` a non-value and the formula moot below the first Silo). Not
  blocking any other work; the allocator, coverage and self-checks are unaffected either way.
 
+- **Q-015** Phase 42 in `unstarted_features.md` is titled "Tool/editor/descriptor-validation
+ pass" and tagged `(roadmap Section 48)`, but Section 48 is "TEST STRATEGY" -- a cumulative
+ automated-coverage catalog, which is what Phase 42's actual body work became
+ (`docs/zerohour/TestCoverageCatalog.md`). Section 53's own implementation-order list (line
+ 5992) confirms the title, "Tool/editor/descriptor-validation pass," but no section in the
+ roadmap body elaborates it as its own phase the way Sections 42-47 do for Phases 36-41 --
+ there is no "editor" or "LevelEdit descriptor validation" requirement text anywhere the
+ phase's title would point to. Two readings: (a) the Section 48 tag is simply what the
+ phase *is*, and "tool/editor" means the `-shaderselfcheck` family itself, which already
+ exists and is the validation tool; or (b) the title is literal and a real gap remains --
+ exposing descriptor validation (`BuildingDescriptorManager`'s parse/validate path) inside
+ `LevelEdit` or another editor-facing tool, which does not exist today. Needs a decision on
+ which reading is intended before Phase 42 can be called closed rather than partial. Not
+ blocking any other work.
+
 ---
 
 ## Resolved

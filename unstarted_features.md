@@ -100,27 +100,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P26: Modular draw components + composite attachments (roadmap Section 29)
 
-## P41: Dedicated-server pass (roadmap Section 47)
-
-- [ ] Acceptance: - dedicated server can host a complete Commander/RTS match; - power, production, AI orders, construction timing, placement validation, wallet caps, and tactical intelligence remain authoritative; - no renderer/UI dependency is pulled into server code merely to support Commander Mode.
-
-## P42: Tool/editor/descriptor-validation pass (roadmap Section 48)
-
-- [ ] Implement per roadmap Section 48.
-
-## P43: Performance/regression pass (roadmap Section 49)
-
-- [ ] Implement per roadmap Section 49.
-
-## P44: Remove migration/donor-version scaffolding (roadmap Section 51)
-
-- [ ] Implement per roadmap Section 51.
-
-## P45: Final provenance/documentation/state-file reconciliation (roadmap Section 50, 52)
-
-- [ ] Implement per roadmap Section 50.
-- [ ] Implement per roadmap Section 52.
-
 ## P46: Sampler/filtering/antialias quality defaults (roadmap Section 52A)
 
 - [ ] Anisotropic/trilinear/mip-bias/multisample defaults chosen from device capability in dx8wrapper, texture reduction off.
