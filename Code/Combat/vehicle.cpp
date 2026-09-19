@@ -39,6 +39,7 @@
 **	Includes
 */
 #include "vehicle.h"
+#include "compositeattachment.h"
 #include "ttsettings.h"
 #include "weaponbag.h"
 #include "animcontrol.h"
@@ -443,6 +444,7 @@ const PersistFactoryClass & VehicleGameObj::Get_Factory (void) const
 VehicleGameObj::VehicleGameObj()	:
 	TurretBone( 0 ),
 	BarrelBone( 0 ),
+	AttachmentController( nullptr ),
 	TurretTurn( 0 ),
 	BarrelTilt( 0 ),
 	BarrelOffset( 0 ),
@@ -509,6 +511,11 @@ VehicleGameObj::~VehicleGameObj()
 	}
 
 	Release_Turret_Bones();
+
+	if (AttachmentController != nullptr) {
+		delete AttachmentController;		// its destructor detaches whatever is still attached
+		AttachmentController = nullptr;
+	}
 
 	Shutdown_Wheel_Effects();
 }
@@ -2615,6 +2622,40 @@ bool	VehicleGameObj::Scripts_Is_Team_Player( void )
 {
 	int team = Scripts_Get_Team();
 	return team == PLAYERTYPE_NOD || team == PLAYERTYPE_GDI;
+}
+
+
+//-----------------------------------------------------------------------------
+//
+//	Attach_Visual_Module / Detach_Visual_Module / Set_Visual_Module_Damaged
+//
+//	Roadmap Section 29 -- see the comment in vehicle.h.  The controller is created on first use
+//	so a vehicle that never carries an extra visual module pays nothing for the capability.
+//
+//-----------------------------------------------------------------------------
+bool	VehicleGameObj::Attach_Visual_Module( const char *slot_name,const char *bone_name,const char *model_name )
+{
+	if ( Peek_Model() == nullptr ) {
+		return false;
+	}
+	if ( AttachmentController == nullptr ) {
+		AttachmentController = new CompositeAttachmentClass;
+	}
+	return AttachmentController->Attach( Peek_Model(),slot_name,bone_name,model_name );
+}
+
+void	VehicleGameObj::Detach_Visual_Module( const char *slot_name )
+{
+	if ( AttachmentController != nullptr ) {
+		AttachmentController->Detach( slot_name );
+	}
+}
+
+void	VehicleGameObj::Set_Visual_Module_Damaged( const char *slot_name,bool damaged )
+{
+	if ( AttachmentController != nullptr ) {
+		AttachmentController->Set_Slot_Hidden( slot_name,damaged );
+	}
 }
 
 

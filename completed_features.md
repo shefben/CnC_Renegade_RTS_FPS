@@ -1636,3 +1636,28 @@ neither tier ever creates one. Vehicles and future city props remain unstarted -
 `shader_debris`/`fds_shader_debris` (visual tier only -- the gameplay tier needs a combat scene the
 check binary never brings up), plus `debris_status`, `debris_budget` and `debris_layer` at the
 console.
+
+## P26-A: A new visual attaches to a bone, not to a new GameObj subclass
+
+Two small things, per Section 29's "do not replace `GameObj` with the SAGE `Thing` hierarchy"
+rule. `Code/Combat/rendercomponent.h` declares the five composable contracts the section names
+(`IRenderComponent`, `IClientUpdateComponent`, `IRTSOverlayComponent`,
+`ISelectionVisualComponent`, `IWorldInteractionVisualComponent`) as extra inheritance only --
+no registry, factory, dispatch loop or per-object component list anywhere, since any of those
+would be the `Thing` hierarchy arriving by the back door; `TracerSystemClass` and
+`DebrisSystemClass` now declare `IRenderComponent`, so the two Initial-components-list entries
+that already existed say so in the type system. `Code/Combat/compositeattachment.*` is the one
+generalized attachment implementation: named slots each remembering their own host, runtime
+attach/detach, independent child animation and hidden-state control. Two of the section's seven
+required mechanics needed no code -- parent-relative transform propagation is the `HTree` (a
+bone-attached sub-object rides its bone with no per-tick reposition, as stock soldier weapon
+attachment has always relied on) and LOD/culling propagation is `HLodClass`'s existing
+sub-object walk. Both named consumers are wired by three forwarding methods each, not by new
+subclasses: `VehicleGameObj` has one model to attach to, `BuildingGameObj` has none, so its
+bone name alone selects the host out of the collected aggregates and exterior meshes -- which is
+what makes the layer consumable by the building semantic descriptor system. Absorbs the P26
+acceptance *New rendering behavior can be attached without continuously expanding every
+`GameObj` subclass*. Four of the five contracts have no implementer yet and Section 29's
+remaining Initial-components entries are unbuilt -- see `WIP_features.md`. Evidence:
+`docs/zerohour/ModularDrawComponents.md`; new `shader_attachments`/`fds_shader_attachments`
+(refusal paths only -- every success path needs real `.w3d` art the check binary has none of).

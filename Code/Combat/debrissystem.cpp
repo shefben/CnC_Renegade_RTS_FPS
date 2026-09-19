@@ -11,6 +11,7 @@
 #include "pscene.h"
 #include "rbody.h"
 #include "rendobj.h"
+#include "rendercomponent.h"
 #include "rinfo.h"
 #include "timemgr.h"
 #include "wwdebug.h"
@@ -42,7 +43,7 @@ static RigidBodyDefClass	_TheDebrisFragmentDef;
 ** TracerRenderer's pool.  GAMEPLAY_DEBRIS fragments do not need one of these: each is a real
 ** RigidBodyClass, its own scene object already drawn by the ordinary scene walk.
 */
-class DebrisSystemClass : public RenderObjClass
+class DebrisSystemClass : public RenderObjClass, public IRenderComponent
 {
 public:
 	DebrisSystemClass( void )		{ Set_Transform( Matrix3D(1) ); }
@@ -52,6 +53,13 @@ public:
 	virtual void	Render( RenderInfoClass &rinfo ) override
 	{
 		DebrisRenderer::Render( rinfo, rinfo.Camera.Get_Position() );
+	}
+
+	//	Section 29's IRenderComponent -- same render, reached through the shared contract instead
+	//	of only through the scene's RenderObjClass walk.
+	virtual void	Render_Component( RenderInfoClass &rinfo ) override
+	{
+		Render( rinfo );
 	}
 
 	virtual void	Get_Obj_Space_Bounding_Sphere( SphereClass &sphere ) const override

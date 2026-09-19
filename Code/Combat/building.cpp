@@ -37,6 +37,7 @@
 #include "simpledefinitionfactory.h"
 #include "persistfactory.h"
 #include "combatchunkid.h"
+#include "compositeattachment.h"
 #include "debrissystem.h"
 #include "debug.h"
 #include "wwphysids.h"
@@ -359,7 +360,8 @@ BuildingGameObj::BuildingGameObj (void)	:
 	IsSpyDisabled (false),
 	BoundingBox (Vector3 (0, 0, 0), Vector3 (0, 0, 0)),
 	BuildingMonitor (nullptr),
-	BaseController (nullptr)
+	BaseController (nullptr),
+	AttachmentController (nullptr)
 {
 	GameObjManager::Add_Building (this);
 	Update_State ();
@@ -383,6 +385,15 @@ BuildingGameObj::~BuildingGameObj (void)
 		Remove_Observer (BuildingMonitor);
 		delete BuildingMonitor;
 		BuildingMonitor = nullptr;
+	}
+
+	//
+	//	Before Reset_Components, which drops this building's hold on the very models the
+	//	attachments are hanging off.
+	//
+	if (AttachmentController != nullptr) {
+		delete AttachmentController;		// its destructor detaches whatever is still attached
+		AttachmentController = nullptr;
 	}
 
 	GameObjManager::Remove_Building( this );
@@ -1775,6 +1786,68 @@ BuildingGameObj::Find_MCT (void)
 	}
 
 	return nullptr;
+}
+
+
+////////////////////////////////////////////////////////////////////////////
+//
+//	Attach_Visual_Module / Detach_Visual_Module / Set_Visual_Module_Damaged
+//
+//	Roadmap Section 29 -- see the comment in building.h.  A building is a set of collected
+//	components, so the bone name alone decides the host: whichever aggregate or exterior mesh
+//	actually carries it wins.  Get_Bone_Index answers 0 both for "root" and for "no such bone",
+//	the same convention VehicleGameObj::Aquire_Turret_Bones already reads it by, so a module
+//	cannot be attached to a component's root -- which is the right refusal anyway, since a
+//	module with no named place on the geometry has no business being positioned by this.
+//
+/////////////////////////////////////////////////////////////////////////////
+bool
+BuildingGameObj::Attach_Visual_Module (const char *slot_name,const char *bone_name,const char *model_name)
+{
+	RenderObjClass *host = nullptr;
+
+	RefMultiListIterator<BuildingAggregateClass> agg_it (&Aggregates);
+	for (agg_it.First (); !agg_it.Is_Done () && (host == nullptr); agg_it.Next ()) {
+		RenderObjClass *model = agg_it.Peek_Obj ()->Peek_Model ();
+		if ((model != nullptr) && (model->Get_Bone_Index (bone_name) != 0)) {
+			host = model;
+		}
+	}
+
+	RefMultiListIterator<StaticPhysClass> mesh_it (&ExteriorMeshes);
+	for (mesh_it.First (); !mesh_it.Is_Done () && (host == nullptr); mesh_it.Next ()) {
+		RenderObjClass *model = mesh_it.Peek_Obj ()->Peek_Model ();
+		if ((model != nullptr) && (model->Get_Bone_Index (bone_name) != 0)) {
+			host = model;
+		}
+	}
+
+	if (host == nullptr) {
+		WWDEBUG_SAY (("BuildingGameObj::Attach_Visual_Module() : no component carries bone '%s'\n",
+			bone_name));
+		return false;
+	}
+
+	if (AttachmentController == nullptr) {
+		AttachmentController = new CompositeAttachmentClass;
+	}
+	return AttachmentController->Attach (host, slot_name, bone_name, model_name);
+}
+
+void
+BuildingGameObj::Detach_Visual_Module (const char *slot_name)
+{
+	if (AttachmentController != nullptr) {
+		AttachmentController->Detach (slot_name);
+	}
+}
+
+void
+BuildingGameObj::Set_Visual_Module_Damaged (const char *slot_name,bool damaged)
+{
+	if (AttachmentController != nullptr) {
+		AttachmentController->Set_Slot_Hidden (slot_name, damaged);
+	}
 }
 
 

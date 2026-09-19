@@ -100,8 +100,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P26: Modular draw components + composite attachments (roadmap Section 29)
 
-- [ ] Acceptance: New rendering behavior can be attached without continuously expanding every `GameObj` subclass.
-
 ## P27: Shroud / fog of war + sensor-source API (roadmap Section 30)
 
 - [ ] Acceptance: - Commander camera movement alone reveals nothing; - Commander/tactical intelligence is independent of normal FPS physical rendering; - strategically hidden information does not leak into ordinary FPS targeting/HUD behavior; - sensor sources can be added/removed dynamically.

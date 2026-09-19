@@ -66,6 +66,7 @@ class RepairBayGameObj;
 class ConstructionYardGameObj;
 class SuperweaponGameObj;
 class RayCollisionTestClass;
+class CompositeAttachmentClass;
 
 
 /**
@@ -323,6 +324,19 @@ public:
 	//
 	const AABoxClass &						Get_Bounds (void) const					{ return BoundingBox; }
 
+	//
+	//	Roadmap Section 29 -- the same generalized attachment layer vehicles use
+	//	(Code/Combat/compositeattachment.h), reached the way a building has to reach it.  A
+	//	building has no model of its own, so there is no single host to attach to: the bone
+	//	names a place on one of the collected components, and Attach_Visual_Module finds
+	//	whichever aggregate or exterior mesh actually carries that bone.  This is what makes
+	//	the layer consumable by the building semantic descriptor system, which addresses
+	//	building geometry by W3D node name rather than by model.
+	//
+	bool											Attach_Visual_Module (const char *slot_name,const char *bone_name,const char *model_name);
+	void											Detach_Visual_Module (const char *slot_name);
+	void											Set_Visual_Module_Damaged (const char *slot_name,bool damaged);
+
 protected:
 
 	/*
@@ -349,6 +363,9 @@ protected:
 	RefMultiListClass<BuildingAggregateClass>		Aggregates;
 	RefMultiListClass<LightPhysClass>				PowerOnLights;
 	RefMultiListClass<LightPhysClass>				PowerOffLights;
+
+	//	Null until the first Attach_Visual_Module call.  See compositeattachment.h.
+	CompositeAttachmentClass *							AttachmentController;
 
 	static bool									CanRepairBuildings;
 

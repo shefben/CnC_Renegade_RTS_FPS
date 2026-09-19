@@ -62,6 +62,7 @@
 #include "camera.h"
 #include "rinfo.h"
 #include "tracerrenderer.h"
+#include "rendercomponent.h"
 
 
 /*
@@ -229,7 +230,7 @@ void BeamEffectManagerClass::Internal_Get_New_Beam(SegmentedLineClass ** set_bea
 ** pool of beams, because the scene it is added to is not guaranteed to exist yet at
 ** BulletManager::Init time.
 */
-class TracerSystemClass : public RenderObjClass
+class TracerSystemClass : public RenderObjClass, public IRenderComponent
 {
 public:
 	TracerSystemClass( void )		{ Set_Transform( Matrix3D(1) ); }
@@ -239,6 +240,13 @@ public:
 	virtual void	Render( RenderInfoClass &rinfo ) override
 	{
 		TracerRenderer::Render( rinfo, rinfo.Camera.Get_Position() );
+	}
+
+	//	Section 29's IRenderComponent -- same render, reached through the shared contract instead
+	//	of only through the scene's RenderObjClass walk.
+	virtual void	Render_Component( RenderInfoClass &rinfo ) override
+	{
+		Render( rinfo );
 	}
 
 	virtual void	Get_Obj_Space_Bounding_Sphere( SphereClass &sphere ) const override

@@ -394,3 +394,22 @@ reason as every other check family this session added -- Q-012 now covers four. 
 is a manual one for the user: run
 `ctest -C Debug -R "shader_weather|shader_particles|shader_tracers|shader_debris" --output-on-failure`
 in `build/win32`, then destroy a building and a bridge span in game and report `debris_status`.
+
+## P26 -- four of the five component contracts have no implementer, and no success path is checked
+
+`rendercomponent.h` and `CompositeAttachmentClass` are in (P26-A in `completed_features.md`,
+`docs/zerohour/ModularDrawComponents.md`). This absorbs the P26 acceptance in full, but Section
+29's Initial-components list names eight components and only two exist (tracer renderer, debris
+renderer -- both pre-existing, now declaring `IRenderComponent`). The other six
+(**selection/status renderer**, **waypoint/order renderer**, **ghost-building renderer**,
+**procedural-world visual attachment**, and the RTS-overlay and selection-visual consumers
+generally) are deliberately unbuilt: each belongs to a later phase in the roadmap's own
+dependency order -- ghost placement, procedural construction, Commander sidebar -- so
+`IClientUpdateComponent`, `IRTSOverlayComponent`, `ISelectionVisualComponent` and
+`IWorldInteractionVisualComponent` are contracts awaiting their phase, not missed work. Separately,
+`shader_attachments` pins only the refusal paths; **every success path is unverified** -- attaching
+a real model to a real bone, independent child animation playing, `Set_Slot_Hidden` hiding a
+visible module, and a building's bone search finding a component all need real `.w3d` art and (for
+the building path) a live combat scene. Next exact action is a manual one for the user: run
+`ctest -C Debug -R "shader_weather|shader_particles|shader_tracers|shader_debris|shader_attachments" --output-on-failure`
+in `build/win32`.

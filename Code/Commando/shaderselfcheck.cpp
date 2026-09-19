@@ -5,13 +5,16 @@
 
 #include "shaderselfcheck.h"
 
+#include "compositeattachment.h"
 #include "debrisrenderer.h"
 #include "shadermgr.h"
 #include "tracerrenderer.h"
 #include "weatherenvironment.h"
 #include "worldparticlemanager.h"
 
+#include "assetmgr.h"
 #include "camera.h"
+#include "rendobj.h"
 #include "rinfo.h"
 #include "vector3.h"
 #include "vector4.h"
@@ -1319,6 +1322,84 @@ int	Run_Debris (void)
 }
 
 
+/*
+**	A host to hang attachments off that needs no art and no device.  RenderObjClass is
+**	abstract, so the attachment check cannot simply make one; this is the same trick
+**	TracerSystemClass and DebrisSystemClass already use to be scene objects without being
+**	models.  Its bones are whatever the base class provides, which is none -- exactly the
+**	state the refusal paths below are about.
+*/
+class NullHostRenderObjClass : public RenderObjClass
+{
+	public:
+		virtual RenderObjClass *	Clone (void) const override	{ return nullptr; }
+		virtual void				Render (RenderInfoClass &) override	{ }
+		virtual int					Class_ID (void) const override	{ return CLASSID_UNKNOWN; }
+};
+
+
+int	Run_Attachments (void)
+{
+	/*
+	**	The attachment layer resolves child models through the asset manager, so the check
+	**	needs one -- but only the object, not a device: the constructor registers prototype
+	**	loaders and allocates a hash table and touches no DirectX, and with load-on-demand off
+	**	(its own default) an unknown name is answered out of an empty prototype table.  That is
+	**	the whole of what these assertions exercise.
+	*/
+	WW3DAssetManager	assets;
+
+	NullHostRenderObjClass * host = NEW_REF (NullHostRenderObjClass, ());
+
+	CompositeAttachmentClass	controller;
+
+	Check (controller.Get_Slot_Count() == 0,
+			 "a fresh attachment controller already held %d slots",
+			 controller.Get_Slot_Count());
+	Check (controller.Is_Slot_Attached ("upgrade") == false,
+			 "a fresh attachment controller reported slot 'upgrade' attached");
+
+	/*
+	**	The missing-art rule, which is the one behaviour here worth pinning: a child model
+	**	with no art yet has to refuse the attachment and leave the controller untouched, not
+	**	crash and not occupy the slot with nothing in it.  No .w3d has ever been loaded in this
+	**	process, so every name is a missing one.
+	*/
+	bool	attached = controller.Attach (host,"upgrade","TURRETBONE","ow_no_such_model_exists");
+
+	Check (attached == false,
+			 "attaching a model that does not exist reported success");
+	Check (controller.Get_Slot_Count() == 0,
+			 "a refused attachment still left %d slots behind",
+			 controller.Get_Slot_Count());
+	Check (controller.Is_Slot_Attached ("upgrade") == false,
+			 "a refused attachment still reported its slot attached");
+
+	/*
+	**	Every accessor has to be safe against a slot that was never filled -- a caller acting
+	**	on a module whose art is missing is the ordinary case, not an error.
+	*/
+	controller.Detach ("upgrade");
+	controller.Set_Slot_Hidden ("upgrade",true);
+
+	Check (controller.Set_Slot_Animation ("upgrade","anything",true) == false,
+			 "animating a slot that was never attached reported success");
+	Check (controller.Get_Slot_Count() == 0,
+			 "operating on an unattached slot created %d slots",
+			 controller.Get_Slot_Count());
+
+	controller.Detach_All ();
+
+	Check (controller.Get_Slot_Count() == 0,
+			 "Detach_All on an empty controller left %d slots",
+			 controller.Get_Slot_Count());
+
+	host->Release_Ref ();
+
+	return _Failures;
+}
+
+
 
 }	// namespace
 
@@ -1358,6 +1439,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "debris") == 0)) {
 		Run_Debris ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "attachments") == 0)) {
+		Run_Attachments ();
 		ran = true;
 	}
 

@@ -32,6 +32,8 @@ namespace	ShaderSelfCheck
 	//		weather    the weather lattice, its bounded count and who pays for it
 	//		tracers    the ballistic tracer pool, its ceiling, and its share of the streak pool
 	//		debris     the visual debris pool, its ceiling, and its share of the sprite pool
+	//		attachments  the composite attachment controller's slot bookkeeping and its
+	//		           refusal of a child model that has no art yet
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

@@ -30,6 +30,7 @@ set(COMBAT_SRC
     combatsaveload.cpp
     combatsound.cpp
     comcentergameobj.cpp
+    compositeattachment.cpp
     control.cpp
     conversation.cpp
     conversationmgr.cpp
@@ -179,6 +180,7 @@ set(COMBAT_SRC
     combatsaveload.h
     combatsound.h
     comcentergameobj.h
+    compositeattachment.h
     control.h
     conversation.h
     conversationmgr.h
@@ -238,6 +240,7 @@ set(COMBAT_SRC
     radar.h
     raveshawbossgameobj.h
     refinerygameobj.h
+    rendercomponent.h
     repairbaygameobj.h
     sakurabossgameobj.h
     samsite.h

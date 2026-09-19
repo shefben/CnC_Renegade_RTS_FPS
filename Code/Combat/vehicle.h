@@ -67,6 +67,7 @@ class	VehiclePhysClass;
 class	SoldierGameObj;
 class	PersistantSurfaceEmitterClass;
 class PersistantSurfaceSoundClass;
+class CompositeAttachmentClass;
 
 
 /*
@@ -410,6 +411,17 @@ public:
 	bool					Scripts_Is_Teammate( const DamageableGameObj *obj );
 	bool					Scripts_Is_Team_Player( void );
 
+	//
+	//	Roadmap Section 29 -- the "special vehicle visual controller" named in the Initial
+	//	components list.  Backed by the one generalized CompositeAttachmentClass
+	//	(Code/Combat/compositeattachment.h) so an extra visual module (a Zero Hour Overlord-
+	//	style upgrade turret, a propaganda tower) attaches to a named bone at runtime without a
+	//	new VehicleGameObj subclass.  Lazily created -- most vehicles never call this.
+	//
+	bool					Attach_Visual_Module( const char *slot_name,const char *bone_name,const char *model_name );
+	void					Detach_Visual_Module( const char *slot_name );
+	void					Set_Visual_Module_Damaged( const char *slot_name,bool damaged );
+
 
 protected:
 
@@ -420,6 +432,9 @@ protected:
 
 	int						TurretBone;
 	int						BarrelBone;
+
+	//	Null until the first Attach_Visual_Module call.  See compositeattachment.h.
+	CompositeAttachmentClass *	AttachmentController;
 	float						TurretTurn;
 	float						BarrelTilt;
 	float						BarrelOffset;		// For Vehicles with offset turrets
