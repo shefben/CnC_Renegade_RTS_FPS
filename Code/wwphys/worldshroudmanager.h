@@ -156,6 +156,16 @@ public:
 	static int			Get_Explored_Cell_Count(int team);
 	static int			Get_Refusal_Count(void);
 
+	/*
+	**	Debug-overlay support (Section 33's DEBUG_LAYER_SHROUD_CELLS).  Grid geometry is one
+	**	uniform partition shared by every team (Re_Partition sizes them all at once), so a
+	**	(col,row) cell's world-space footprint does not depend on which team's state is being
+	**	read; only the per-cell state does.  Both are safe with no partition and no team
+	**	registered, matching every query above.
+	*/
+	static bool			Get_Grid_Geometry(float * cell_size,int * cols,int * rows,Vector3 * world_min);
+	static ShroudStateType	Get_Cell_State_By_Index(int team,int col,int row);
+
 private:
 
 	enum { SHROUD_CELL_TRANSIENT_NONE = 0 };	// used inside ShroudCellClass::Transient only

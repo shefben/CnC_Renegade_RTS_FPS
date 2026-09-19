@@ -106,10 +106,19 @@ than silently dropped.
   `_From_File`'s own validation and `shader_buildingjson`'s coverage, reached through the
   self-check and console commands this project already uses in place of separate CLI tool
   binaries -- consistent with every other phase this session, not a missed item.
-- **Anything that loads a descriptor at engine startup, or a `BuildingGameObj` that knows its own
-  `DefinitionName`.** No production call site exists yet; Phase 34 is the first intended real
-  caller, reading `power`/`communications`/`tiberium_silo` values, and building placement/
-  construction (Phases 37-38) are the first intended callers of `Resolve_Anchor_World_Transform`.
+- **Anything that loads a descriptor at engine startup.** No such call site exists; a descriptor
+  is only ever loaded from a `reload_building_descriptor*` console command or a self-check.
+  Building placement/construction (Phases 37-38) are the first intended callers of
+  `Resolve_Anchor_World_Transform`.
+
+**Update, a later pass**: `BuildingGameObj` *does* now know its own descriptor key. See
+`docs/zerohour/TeamPowerGridService.md`'s "Wired into `BaseControllerClass`, and into every
+`BuildingGameObj`" -- `BuildingGameObjDef::DescriptorName` (an editable, saved string, default
+empty) is the field this section originally named as missing, and `Initialize_Building` now
+registers every building with `TeamPowerGridService` using it. No preset in this tree's own
+content sets it yet -- that is authoring the twelve-building coverage list above, not code -- but
+the moment one does, `Get_Descriptor(DescriptorName)` starts resolving for a real, live building
+with no further code change on either side.
 - **Network replication of a reload.** "Clients never gain gameplay authority by editing local
   JSON" holds today by construction -- there is no client-reachable path to any of this code at
   all, since nothing calls it from gameplay yet.

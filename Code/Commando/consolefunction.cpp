@@ -55,6 +55,7 @@
 #include "worldlightmanager.h"
 #include "debugrendersystem.h"
 #include "buildingdescriptormanager.h"
+#include "rtstelemetryservice.h"
 #include "commandermodecontroller.h"
 #include "worldparticlemanager.h"
 #include "worldshadowmanager.h"
@@ -2038,6 +2039,52 @@ public:
 		Print( "building_json_status: %d descriptor(s) loaded, %d reload failure(s) total.\n",
 				 BuildingDescriptorManager::Get_Descriptor_Count(),
 				 BuildingDescriptorManager::Get_Reload_Failure_Count() );
+	}
+};
+
+class TelemetryStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "telemetry_status"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "TELEMETRY_STATUS - roadmap Section 38; whether RTSTelemetryService is on, how "
+				 "many records it holds, and how many events were dropped for want of a free slot.";
+	}
+	virtual	void Activate( const char * /* input */ ) override
+	{
+		DynamicVectorClass<RTSTelemetryService::SnapshotEntryClass> snapshot;
+		int record_count = RTSTelemetryService::Get_Snapshot( snapshot );
+		Print( "telemetry_status: %s, %d record(s), %d refusal(s) since the last reset.\n",
+				 RTSTelemetryService::Is_Enabled() ? "enabled" : "disabled",
+				 record_count,
+				 RTSTelemetryService::Get_Refusal_Count() );
+	}
+};
+
+class TelemetryDumpConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "telemetry_dump"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "TELEMETRY_DUMP - roadmap Section 38; print every category/subtype RTSTelemetryService "
+				 "has a record for, its event count and its running total.";
+	}
+	virtual	void Activate( const char * /* input */ ) override
+	{
+		DynamicVectorClass<RTSTelemetryService::SnapshotEntryClass> snapshot;
+		int record_count = RTSTelemetryService::Get_Snapshot( snapshot );
+		if ( record_count == 0 ) {
+			Print( "telemetry_dump: no records.\n" );
+			return;
+		}
+		for ( int index = 0; index < snapshot.Count(); index++ ) {
+			const RTSTelemetryService::SnapshotEntryClass & entry = snapshot[index];
+			Print( "telemetry_dump: %s subtype=%d count=%d total=%.2f\n",
+					 RTSTelemetryService::Get_Category_Name( entry.Category ),
+					 entry.Subtype, entry.Count, entry.Total );
+		}
 	}
 };
 
@@ -6854,6 +6901,8 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new ReloadBuildingDescriptorsConsoleFunctionClass() );
 	FunctionList.Add( new ReloadBuildingDescriptorConsoleFunctionClass() );
 	FunctionList.Add( new BuildingJsonStatusConsoleFunctionClass() );
+	FunctionList.Add( new TelemetryStatusConsoleFunctionClass() );
+	FunctionList.Add( new TelemetryDumpConsoleFunctionClass() );
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );

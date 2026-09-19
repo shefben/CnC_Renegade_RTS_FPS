@@ -123,6 +123,18 @@ class TeamPowerGridService
 		static bool		Is_Member_Powered(PowerGridMemberIdType member_id);
 
 		/*
+		**	True only for a registered member whose DefinitionName currently resolves to a
+		**	loaded BuildingModelDescriptor.  This is the query BaseControllerClass::Power_Base
+		**	(basecontroller.cpp, the coarse loop this service is meant to replace one building
+		**	at a time) uses to know which buildings it must leave alone, because this service
+		**	already owns their Enable_Power calls -- so the two allocators never both write the
+		**	same flag.  A member with no resolved descriptor (still most buildings, since only
+		**	a handful of definitions have JSON content yet) is untouched by this service and
+		**	stays Power_Base's alone, exactly as before this phase existed.
+		*/
+		static bool		Has_Resolved_Descriptor(PowerGridMemberIdType member_id);
+
+		/*
 		**	Tiberium Silo wallet expansion -- Section 40's own formula, computed and queryable,
 		**	stacking every active, online-eligible Silo on the team.  Applying this number to an
 		**	actual player credit cap needs a wallet-cap enforcement point this codebase does not

@@ -57,6 +57,14 @@ would be recording the wrong moment.
 - **Deterministic, queryable.** `Get_Event_Count`/`Get_Event_Total`/`Get_Snapshot` are pure reads
   over the table `Record_Event` built, which is exactly what a test or a balancing tool needs.
 
+## Console commands
+
+**Update, a later pass**: `telemetry_status` (enabled/disabled, record count, refusal count) and
+`telemetry_dump` (every recorded `(category, subtype)` with its count and running total, by
+`Get_Category_Name`) -- `Code/Commando/consolefunction.cpp`, following `building_json_status`'s
+own pattern. This closes the gap this doc originally named: only the self check could read
+`Get_Snapshot` back before; a person at a live console now can too.
+
 ## Enabled by default
 
 "Disabled or low-overhead in normal release mode unless explicitly enabled" describes a

@@ -73,13 +73,20 @@ coverage" holds because there is no code path from a viewpoint into either funct
 
 ## What this phase does not build
 
-No renderer reads `Build_Strategic_Contacts` yet -- the Commander map/sidebar presentation is
-Phase 36+, outside this pass. No communications building calls
-`WorldShroudManager::RegisterStrategicSensorSource` yet; that is Phase 34 (P34), later in this
-same pass, and it is what will make the acceptance lines *"powered communications buildings can
-expand configured strategic coverage"* and *"disabling/destroying those buildings removes their
-coverage"* concretely true rather than structurally possible. `TacticalContactClass::GameObj` is
-`nullptr` for building/objective/marker contacts -- nothing needs to mutate a building's radar
+No *gameplay* renderer reads `Build_Strategic_Contacts` yet -- the Commander map/sidebar
+presentation is still Phase 36+. **Update, a later pass**: it does have a debug one now,
+`DEBUG_LAYER_RADAR_CONTACTS` (`Code/Combat/worlddebugdisplay.cpp`'s `Draw_Radar_Contacts`, see
+`docs/zerohour/DebugRenderSystem.md`) -- a coloured cross per contact, real proof the shroud-gated
+query returns real positions, not the Commander map itself.
+
+**Update, a later pass**: communications buildings now do call
+`WorldShroudManager::RegisterStrategicSensorSource`, through Phase 34's `TeamPowerGridService`
+integration into `BuildingGameObj`/`BaseControllerClass` (see
+`docs/zerohour/TeamPowerGridService.md`) -- making the acceptance lines *"powered communications
+buildings can expand configured strategic coverage"* and *"disabling/destroying those buildings
+removes their coverage"* concretely true the moment a level places a building whose
+`DescriptorName` resolves to a `communications.enabled` descriptor. `TacticalContactClass::GameObj`
+is `nullptr` for building/objective/marker contacts -- nothing needs to mutate a building's radar
 state today, so no back-reference was added for a write path that has no caller.
 
 ## Checks

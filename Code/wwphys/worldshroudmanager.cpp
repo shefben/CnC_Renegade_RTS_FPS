@@ -569,6 +569,43 @@ bool WorldShroudManager::Is_Explored(int team,const Vector3 & world_point)
 
 
 /***********************************************************************************************
+ * Debug-overlay support -- Section 33's DEBUG_LAYER_SHROUD_CELLS                               *
+ *=============================================================================================*/
+bool WorldShroudManager::Get_Grid_Geometry(float * cell_size,int * cols,int * rows,Vector3 * world_min)
+{
+	if (!Partitioned) {
+		return false;
+	}
+	if (cell_size != nullptr) *cell_size = CellSize;
+	if (cols != nullptr) *cols = Cols;
+	if (rows != nullptr) *rows = Rows;
+	if (world_min != nullptr) *world_min = WorldMin;
+	return true;
+}
+
+ShroudStateType WorldShroudManager::Get_Cell_State_By_Index(int team,int col,int row)
+{
+	int team_slot = Find_Team_Slot(team);
+	if (team_slot < 0) {
+		return SHROUD_UNKNOWN;
+	}
+	TeamGridClass & grid = Teams[team_slot];
+	if (grid.Cells == nullptr || col < 0 || col >= Cols || row < 0 || row >= Rows) {
+		return SHROUD_UNKNOWN;
+	}
+	int idx = row * Cols + col;
+	if (idx < 0 || idx >= grid.CellCount) {
+		return SHROUD_UNKNOWN;
+	}
+	const ShroudCellClass & cell = grid.Cells[idx];
+	if (cell.Transient != SHROUD_CELL_TRANSIENT_NONE) {
+		return (ShroudStateType)cell.Transient;
+	}
+	return cell.Explored ? SHROUD_EXPLORED : SHROUD_UNKNOWN;
+}
+
+
+/***********************************************************************************************
  * Accounting                                                                                    *
  *=============================================================================================*/
 int WorldShroudManager::Get_Team_Count(void)

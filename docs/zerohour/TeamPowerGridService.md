@@ -23,18 +23,43 @@ concept of how much power anything actually draws.
 `TeamPowerGridService` is the deterministic replacement decision. It does not add a second flag --
 its entire output is a sequence of calls to the same `Enable_Power` that already exists.
 
-## Not wired into `BaseControllerClass` this pass
+## Wired into `BaseControllerClass`, and into every `BuildingGameObj`
 
-Replacing `Power_Base`'s coarse loop with a call into `TeamPowerGridService::RecalculateTeam` is
-the precise, identified next step -- but doing it needs two things this pass does not have: a
-`BuildingGameObj` that knows its own `DefinitionName` (no production code assigns one yet -- Phase
-33's own honest gap), and a careful pass through `BaseControllerClass`'s networking/save-load
-paths (`Set_Base_Powered`'s dirty-bit marking, the packet read/write at
-`basecontroller.cpp:1055-1090`) to avoid breaking a heavily-tested, already-networked class under
-time pressure this late in a long pass. What is built for real instead is the algorithm itself,
-driven and checked exactly the way production code would drive it -- registrations may simply
-carry a `nullptr` `BuildingGameObj*`, which is what makes the deterministic core testable with no
-device, no scene, and no live building.
+A follow-up pass closed both gaps named above. `BuildingGameObjDef` now carries an editable
+`DescriptorName` string (`Code/Combat/building.h`/`.cpp`, saved/loaded as its own microchunk,
+`Get_Descriptor_Name()`), the key a preset names into `data/building_descriptors/*.json`. Empty
+by default -- a preset that names none behaves exactly as it always did.
+
+`BuildingGameObj::Initialize_Building()` (called from both the server's own component-collection
+path and the client's `Import_Creation`) now calls `TeamPowerGridService::RegisterBuilding` for
+*every* building unconditionally, using `Get_ID()` (the network object id -- already stable and
+unique) as `member_id`. This is deliberately unconditional rather than gated on a descriptor
+existing: `RegisterBuilding`/`Peek_Descriptor` already treat an empty or unresolved
+`DescriptorName` as a neutral member that neither generates, consumes, nor gets shed, so
+registering everything makes every future preset's `DescriptorName` take effect immediately with
+no further code change, while changing nothing about how an undescribed building behaves today.
+The destructor calls `UnregisterBuilding` unconditionally (a safe no-op if it was never
+registered); registration/unregistration are pure bookkeeping (no `Enable_Power` call inside
+either), so they run identically on client and server.
+
+`On_Destroyed`/`On_Revived` call `TeamPowerGridService::OnBuildingDestroyed`/`OnBuildingRevived`,
+and `Initialize_Building` calls one initial `RecalculateTeam` after registering -- all three
+guarded by `CombatManager::I_Am_Server()`, matching `Power_Base`'s own existing rule that only the
+server ever decides `Enable_Power`; a client receives it mirrored through `BIT_RARE`, exactly as
+before this phase.
+
+`BaseControllerClass::Power_Base`'s coarse loop (`basecontroller.cpp:521-552`) was *not* deleted
+or replaced wholesale -- most building types still name no descriptor, so it remains their sole
+authority, unchanged. Instead the loop now calls the new
+`TeamPowerGridService::Has_Resolved_Descriptor(member_id)` query and skips any building it
+answers true for, so the two allocators never both call `Enable_Power` on the same building.
+`Check_Base_Power`'s own power-plant scan (which feeds `BasePowered`/`Is_Base_Powered()`, read
+elsewhere for HUD/announcements/production gating) is untouched and still scans every power
+plant regardless of descriptor, so that summary signal keeps meaning exactly what it always meant.
+The net effect: a building preset that names no `DescriptorName` (still nearly everything, since
+only four JSON descriptors exist) is powered exactly as before; a preset that does name one is
+powered by this service's deterministic allocation from the moment a level places an instance of
+it, with no further code change on either side.
 
 ## The algorithm
 
@@ -100,8 +125,8 @@ change in the self check, not merely asserted.
 
 ## What this phase does not build
 
-- **`BaseControllerClass` integration.** See above.
-- **Wallet-cap enforcement.** See above.
+- **Wallet-cap enforcement.** See above -- still open; needs a `BaseWalletCap` design value this
+  codebase has never had (see `awaiting_answers.md`).
 - **Live-tunable reload of anything beyond generation/consumption/priority.** `OnDescriptorReload`
   recalculates every team touched by a changed definition, which is sufficient for every numeric
   field this service reads (`power.*`, `communications.*`, `tiberium_silo.*`) since they are all

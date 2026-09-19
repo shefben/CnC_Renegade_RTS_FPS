@@ -45,7 +45,25 @@ model established, required because a `BuildingGameObj` is not a `PhysicalGameOb
 wireframe box from `BuildingGameObj::Get_Bounds()` for every building found. This is real,
 existing data with no new accessor required, chosen specifically because it needed none.
 
-Every other layer is a real, toggleable, named entry in `DebugLayerType` that draws nothing yet:
+**Update, a later pass**: two more layers draw for real now, both chosen because they needed no
+new per-instance iterator on a world system, only a debug consumer for data that already existed:
+
+- `DEBUG_LAYER_RADAR_CONTACTS` -- `Draw_Radar_Contacts` calls
+  `TacticalIntelligenceModel::Build_Strategic_Contacts` for the local player's own team (from
+  `COMBAT_STAR->Get_Player_Type()`) and draws a coloured cross at every contact's position (green
+  = own team, red = a visible enemy, white = unowned -- a resource/objective/marker; buildings
+  drawn larger). This is the first renderer `Build_Strategic_Contacts` has had at all, debug-only,
+  not the Commander map itself (Phase 36+).
+- `DEBUG_LAYER_SHROUD_CELLS` -- `Draw_Shroud_Cells` uses two new `WorldShroudManager` accessors,
+  `Get_Grid_Geometry`/`Get_Cell_State_By_Index` (`Code/wwphys/worldshroudmanager.{h,cpp}` --
+  Section 30's own doc named this overlay as the reason to add them), and draws a flat quad
+  outline per non-`SHROUD_UNKNOWN` cell of the viewer's own team grid, coloured by state
+  (green=`VISIBLE`, yellow=`RADAR_DETECTED`, orange=`LAST_KNOWN`, dim blue=`EXPLORED`). Four
+  lines per cell, not `Add_Box`'s twelve, since this is a 2D grid, not a volume; a very large
+  explored area is bounded the same way every other layer already is -- `DebugRenderSystem`'s own
+  line pool drops and counts anything past its budget rather than growing.
+
+Every other layer is a real, toggleable, named entry in `DebugLayerType` that still draws nothing:
 
 | Layer | Awaiting |
 |---|---|
@@ -62,13 +80,11 @@ Every other layer is a real, toggleable, named entry in `DebugLayerType` that dr
 | `placement_overlap` | Phase 37 (ghost placement) |
 | `purchase_terminal_anchors`, `mct_anchors` | Phase 38 (auto PCT/MCT) |
 | `commander_cursor_ray` | Phase 35/37 (Commander camera, ghost placement) |
-| `shroud_cells` | `WorldShroudManager`'s per-team grid is private; no public per-cell enumeration was added |
-| `radar_contacts` | `TacticalIntelligenceModel::Build_Strategic_Contacts` exists (Section 31) but is not yet wired to a debug draw |
 
-Adding a public per-instance iterator to seven already-shipped world systems to light up every
-remaining layer this same pass would have been a far larger change than Section 33 itself asks
-for, for overlays with no consumer to actually look at them yet. Each row above is a small, well-
-scoped follow-up once something needs to look at it.
+Adding a public per-instance iterator to the seven already-shipped world systems still listed
+above would have been a far larger change than Section 33 itself asks for, for overlays with no
+consumer to actually look at them yet. Each row above is a small, well-scoped follow-up once
+something needs to look at it.
 
 ## Console commands
 

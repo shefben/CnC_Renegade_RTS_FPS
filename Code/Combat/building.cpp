@@ -40,6 +40,7 @@
 #include "compositeattachment.h"
 #include "debrissystem.h"
 #include "rtstelemetryservice.h"
+#include "teampowergridservice.h"
 #include "debug.h"
 #include "wwphysids.h"
 #include "meshmdl.h"
@@ -127,6 +128,7 @@ BuildingGameObjDef::BuildingGameObjDef (void)	:
 	HideTeamBattlefieldInformation(false)
 {
 	EDITABLE_PARAM( BuildingGameObjDef, ParameterClass::TYPE_STRING,	MeshPrefix );
+	EDITABLE_PARAM( BuildingGameObjDef, ParameterClass::TYPE_STRING,	DescriptorName );
 	EDITABLE_PARAM( BuildingGameObjDef, ParameterClass::TYPE_BOOL,	HideTeamBattlefieldInformation );
 
 #ifdef PARAM_EDITING_ON
@@ -200,6 +202,7 @@ enum	{
 	MICROCHUNKID_DEF_GDI_DESTROY_REPORT_ID,
 	MICROCHUNKID_DEF_NOD_DESTROY_REPORT_ID,
 	MICROCHUNKID_DEF_HIDE_TEAM_BATTLEFIELD_INFORMATION,
+	MICROCHUNKID_DEF_DESCRIPTOR_NAME,
 };
 
 
@@ -224,6 +227,7 @@ BuildingGameObjDef::Save (ChunkSaveClass &csave)
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_GDI_DESTROY_REPORT_ID, GDIDestroyReportID );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_NOD_DESTROY_REPORT_ID, NodDestroyReportID );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_DEF_HIDE_TEAM_BATTLEFIELD_INFORMATION, HideTeamBattlefieldInformation );
+		WRITE_MICRO_CHUNK_WWSTRING( csave, MICROCHUNKID_DEF_DESCRIPTOR_NAME, DescriptorName );
 	csave.End_Chunk();
 
 	return true;
@@ -259,6 +263,7 @@ BuildingGameObjDef::Load (ChunkLoadClass &cload)
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_GDI_DESTROY_REPORT_ID, GDIDestroyReportID );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_NOD_DESTROY_REPORT_ID, NodDestroyReportID );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_DEF_HIDE_TEAM_BATTLEFIELD_INFORMATION, HideTeamBattlefieldInformation );
+						READ_MICRO_CHUNK_WWSTRING( cload, MICROCHUNKID_DEF_DESCRIPTOR_NAME, DescriptorName );
 
 						default:
 							Debug_Say(("Unhandled Micro Chunk:%d File:%s Line:%d\r\n",cload.Cur_Micro_Chunk_ID(),__FILE__,__LINE__));
@@ -377,6 +382,13 @@ BuildingGameObj::BuildingGameObj (void)	:
 /////////////////////////////////////////////////////////////////////////////
 BuildingGameObj::~BuildingGameObj (void)
 {
+	//
+	//	Roadmap Section 40 -- drop this building's TeamPowerGridService registration (if any;
+	//	a no-op if it was never registered).  Unconditional on client and server alike: it is
+	//	bookkeeping, not an Enable_Power decision.
+	//
+	TeamPowerGridService::UnregisterBuilding (Get_ID ());
+
 	Stop_Current_Announcement();
 
 	//
@@ -939,6 +951,23 @@ BuildingGameObj::Initialize_Building (void)
 		base->Add_Building (this);
 	}
 
+	//
+	//	Roadmap Section 40 -- register with the team power grid.  Safe and unconditional even
+	//	though almost no preset names a descriptor yet: TeamPowerGridService treats an empty or
+	//	unresolved DescriptorName as a neutral member that neither generates, consumes, nor
+	//	gets shed (see teampowergridservice.cpp, Peek_Descriptor) -- "missing config never
+	//	blocks engine work" applies here exactly as it does to missing art.  A preset that does
+	//	name one starts participating in real deterministic allocation the moment it does,
+	//	with no further code change.  Registration itself is just bookkeeping (Get_ID() is the
+	//	stable per-building member id), so it happens on both client and server; only the
+	//	Enable_Power-driving recalculation is server-authoritative, matching Power_Base's own
+	//	existing rule.
+	//
+	TeamPowerGridService::RegisterBuilding (this,Get_Player_Type (),Get_Definition ().Get_Descriptor_Name (),Get_ID ());
+	if (CombatManager::I_Am_Server ()) {
+		TeamPowerGridService::RecalculateTeam (Get_Player_Type ());
+	}
+
 	return ;
 }
 
@@ -1175,6 +1204,15 @@ BuildingGameObj::On_Destroyed (void)
 	}
 
 	//
+	//	Roadmap Section 40 -- server-only, matching Power_Base's own rule: only the server
+	//	decides Enable_Power; clients receive it mirrored through BIT_RARE like every other
+	//	building state.
+	//
+	if (CombatManager::I_Am_Server ()) {
+		TeamPowerGridService::OnBuildingDestroyed (Get_ID ());
+	}
+
+	//
 	//	Mark the object as dirty so it's state will be mirrored on the client
 	//
 	if (CombatManager::I_Am_Server ()) {
@@ -1205,6 +1243,13 @@ BuildingGameObj::On_Revived (void)
 
 	if (BaseController != nullptr) {
 		BaseController->On_Building_Revived (this);
+	}
+
+	//
+	//	Roadmap Section 40 -- server-only, matching Power_Base's own rule (see On_Destroyed).
+	//
+	if (CombatManager::I_Am_Server ()) {
+		TeamPowerGridService::OnBuildingRevived (Get_ID ());
 	}
 
 	//

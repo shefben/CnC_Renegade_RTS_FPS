@@ -57,6 +57,7 @@
 #include "WWAudio.h"
 #include "messagewindow.h"
 #include "CNCModeSettings.h"
+#include "teampowergridservice.h"
 
 ////////////////////////////////////////////////////////////////
 //	Namespaces
@@ -535,6 +536,18 @@ BaseControllerClass::Power_Base (bool onoff)
 		//
 		for (int index = 0; index < BuildingList.Count (); index ++) {
 			BuildingGameObj *building = BuildingList[index];
+
+			//
+			//	Roadmap Section 40 -- TeamPowerGridService already owns Enable_Power for any
+			//	building whose descriptor resolves (deterministic generation/demand/priority
+			//	allocation, driven by its own destroy/revive/manual-control hooks); leave those
+			//	alone here so the two allocators never fight over the same flag.  Every building
+			//	that names no descriptor -- still nearly all of them -- keeps exactly the coarse
+			//	behaviour this loop always gave it.
+			//
+			if (TeamPowerGridService::Has_Resolved_Descriptor (building->Get_ID ())) {
+				continue;
+			}
 
 			//
 			//	Only change the power state of this building if it makes sense

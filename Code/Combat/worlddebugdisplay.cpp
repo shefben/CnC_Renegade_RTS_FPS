@@ -39,6 +39,9 @@
 #include "rendobj.h"
 #include "rinfo.h"
 #include "scriptablegameobj.h"
+#include "soldier.h"
+#include "tacticalintelligence.h"
+#include "worldshroudmanager.h"
 
 
 class DebugDisplaySceneObjectClass : public RenderObjClass, public IRenderComponent
@@ -96,6 +99,99 @@ static void	Draw_Building_Footprints(void)
 }
 
 
+//
+//	Roadmap Section 33's DEBUG_LAYER_RADAR_CONTACTS, and the first renderer Section 31's
+//	Build_Strategic_Contacts has had -- a debug one, not the Commander map (Phase 36+), but a
+//	real consumer that proves the shroud-gated query returns real positions.  Colour is the
+//	viewer's own team relative to each contact (green = own team, red = a visible enemy, white
+//	= unowned -- a resource, an objective, a marker), not a second blip-colour table; size
+//	marks CONTACT_BUILDING larger than everything else so a base reads at a glance.
+//
+static void	Draw_Radar_Contacts(void)
+{
+	if (COMBAT_STAR == nullptr) {
+		return;
+	}
+	int viewing_team = COMBAT_STAR->Get_Player_Type();
+
+	static const Vector4	OWN_TEAM_COLOR	 (0.2f,1.0f,0.2f,0.9f);
+	static const Vector4	ENEMY_COLOR		 (1.0f,0.2f,0.2f,0.9f);
+	static const Vector4	NEUTRAL_COLOR	 (1.0f,1.0f,1.0f,0.9f);
+
+	TacticalContactListClass contacts;
+	TacticalIntelligenceModel::Build_Strategic_Contacts(viewing_team,contacts);
+
+	for (int i = 0; i < contacts.Count(); i++) {
+		const TacticalContactClass & contact = contacts[i];
+
+		const Vector4 * color = &NEUTRAL_COLOR;
+		if (contact.Team == viewing_team) {
+			color = &OWN_TEAM_COLOR;
+		} else if (contact.Team != -1) {
+			color = &ENEMY_COLOR;
+		}
+
+		float size = (contact.Type == CONTACT_BUILDING) ? 8.0f : 3.0f;
+		DebugRenderSystem::Add_Cross(contact.Position,size,*color);
+	}
+}
+
+
+//
+//	Roadmap Section 33's DEBUG_LAYER_SHROUD_CELLS -- Section 30 names this overlay explicitly
+//	as the reason WorldShroudManager carries Get_Grid_Geometry/Get_Cell_State_By_Index at all.
+//	A flat quad outline per non-UNKNOWN cell of the local player's own team grid (four lines,
+//	not Add_Box's twelve -- this is a 2D fog-of-war grid, not a volume), coloured by state.
+//	Bounded the same way every other layer already is: DebugRenderSystem's own line pool drops
+//	and counts anything past its budget rather than growing or asserting, so a very large
+//	explored grid is a silently-lower-fidelity overlay, never a crash.
+//
+static void	Draw_Shroud_Cells(void)
+{
+	if (COMBAT_STAR == nullptr) {
+		return;
+	}
+	int viewing_team = COMBAT_STAR->Get_Player_Type();
+
+	float cell_size;
+	int cols,rows;
+	Vector3 world_min;
+	if (!WorldShroudManager::Get_Grid_Geometry(&cell_size,&cols,&rows,&world_min)) {
+		return;
+	}
+
+	static const Vector4	VISIBLE_COLOR		(0.2f,1.0f,0.2f,0.8f);
+	static const Vector4	RADAR_COLOR			(1.0f,1.0f,0.2f,0.8f);
+	static const Vector4	LAST_KNOWN_COLOR	(1.0f,0.6f,0.1f,0.8f);
+	static const Vector4	EXPLORED_COLOR		(0.3f,0.3f,0.5f,0.5f);
+
+	for (int row = 0; row < rows; row++) {
+		for (int col = 0; col < cols; col++) {
+
+			ShroudStateType state = WorldShroudManager::Get_Cell_State_By_Index(viewing_team,col,row);
+			if (state == SHROUD_UNKNOWN) continue;
+
+			const Vector4 * color = &EXPLORED_COLOR;
+			if (state == SHROUD_VISIBLE) color = &VISIBLE_COLOR;
+			else if (state == SHROUD_RADAR_DETECTED) color = &RADAR_COLOR;
+			else if (state == SHROUD_LAST_KNOWN) color = &LAST_KNOWN_COLOR;
+
+			float x0 = world_min.X + col * cell_size;
+			float y0 = world_min.Y + row * cell_size;
+			float x1 = x0 + cell_size;
+			float y1 = y0 + cell_size;
+			float z  = world_min.Z;
+
+			Vector3 c0 (x0,y0,z), c1 (x1,y0,z), c2 (x1,y1,z), c3 (x0,y1,z);
+			DebugRenderSystem::Add_Line (c0,c1,*color);
+			DebugRenderSystem::Add_Line (c1,c2,*color);
+			DebugRenderSystem::Add_Line (c2,c3,*color);
+			DebugRenderSystem::Add_Line (c3,c0,*color);
+		}
+	}
+}
+
+
 void WorldDebugDisplay::Update(void)
 {
 	bool anything_on = false;
@@ -119,6 +215,14 @@ void WorldDebugDisplay::Update(void)
 
 	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_BUILDING_FOOTPRINTS)) {
 		Draw_Building_Footprints();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_RADAR_CONTACTS)) {
+		Draw_Radar_Contacts();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_SHROUD_CELLS)) {
+		Draw_Shroud_Cells();
 	}
 
 	//	Every other layer is enumerated and toggleable (DebugRenderSystem::Is_Layer_Enabled

@@ -127,6 +127,15 @@ public:
 
 	const StringClass &							Get_Mesh_Prefix (void) const	{ return MeshPrefix; }
 
+	//
+	//	Roadmap Section 40 -- the key into data/building_descriptors/*.json
+	//	(BuildingDescriptorManager) this preset's instances should register against with
+	//	TeamPowerGridService.  Empty by default: a preset that names none stays exactly as
+	//	powered as it always was, since TeamPowerGridService treats an unresolved name as a
+	//	neutral no-op member (see teampowergridservice.cpp).
+	//
+	const StringClass &							Get_Descriptor_Name (void) const	{ return DescriptorName; }
+
 	int Get_Damage_Report(int team) const;
 	int Get_Destroy_Report(int team) const;
 
@@ -140,6 +149,7 @@ public:
 protected:
 
 	StringClass									MeshPrefix;
+	StringClass									DescriptorName;
 	ArmorType									MCTSkin;
 	BuildingConstants::BuildingType				Type;
 

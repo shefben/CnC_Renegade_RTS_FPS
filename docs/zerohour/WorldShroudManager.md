@@ -108,12 +108,17 @@ there was nothing to merge, because nothing in TT already implements a shroud gr
 
 ## What this phase does not build
 
-No consumer yet reads shroud state — Phase 28 (radar/tactical intelligence model) is the first
-reader, and the Commander map/HUD presentation is later still. No building calls
-`RegisterStrategicSensorSource`; that arrives with Phase 34's communications buildings. That is
-the same discipline the project already applies to missing art and unimplemented component
-contracts: the service is real and checked now, and its callers arrive with the phases that need
-them.
+Phase 28's `TacticalIntelligenceModel` reads shroud state for real (`Build_Strategic_Contacts`);
+the Commander map/HUD presentation is still later. `Get_Grid_Geometry`/`Get_Cell_State_By_Index`
+were added for Section 33's `DEBUG_LAYER_SHROUD_CELLS`, now a real (debug-only) renderer — see
+`docs/zerohour/DebugRenderSystem.md`.
+
+**Update, a later pass**: buildings now do call `RegisterStrategicSensorSource` for real, through
+`TeamPowerGridService`'s Phase 34 integration into `BaseControllerClass` — see
+`docs/zerohour/TeamPowerGridService.md`. A building's `DescriptorName` has to resolve to a
+descriptor with `capabilities.communications.enabled` for that to happen; no preset in this
+tree's content sets one yet (see `BuildingDescriptors.md`'s own note), so the mechanism is wired
+end to end but not yet exercised by a real level.
 
 ## Checks
 

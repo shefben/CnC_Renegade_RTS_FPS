@@ -379,6 +379,13 @@ bool TeamPowerGridService::Is_Member_Powered(PowerGridMemberIdType member_id)
 	return (index >= 0) && _Members [index].IsAllocated;
 }
 
+bool TeamPowerGridService::Has_Resolved_Descriptor(PowerGridMemberIdType member_id)
+{
+	int index = Find_Member (member_id);
+	if (index < 0) return false;
+	return Peek_Descriptor (_Members [index]) != nullptr;
+}
+
 
 float TeamPowerGridService::Get_Wallet_Capacity_Bonus(int team)
 {
