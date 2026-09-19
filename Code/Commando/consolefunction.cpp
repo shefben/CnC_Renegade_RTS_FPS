@@ -54,6 +54,7 @@
 #include "surfaceribbonsystem.h"
 #include "worldlightmanager.h"
 #include "debugrendersystem.h"
+#include "buildingdescriptormanager.h"
 #include "worldparticlemanager.h"
 #include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
@@ -1929,6 +1930,64 @@ public:
 				 DebugRenderSystem::Get_Line_Count(),
 				 DebugRenderSystem::Get_Dropped_Count(),
 				 DebugRenderSystem::Get_Drawn_Segment_Count() );
+	}
+};
+
+class ReloadBuildingDescriptorsConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "reload_building_descriptors"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "RELOAD_BUILDING_DESCRIPTORS - roadmap Section 39; re-read every file-backed building "
+				 "descriptor.  A descriptor that fails validation keeps its last known-good values.";
+	}
+	virtual	void Activate( const char * /* input */ ) override
+	{
+		int before = BuildingDescriptorManager::Get_Descriptor_Count ();
+		int succeeded = BuildingDescriptorManager::Reload_All_Descriptors ();
+		Print( "reload_building_descriptors: %d of %d descriptor(s) reloaded successfully.\n",succeeded,before );
+		if ( BuildingDescriptorManager::Get_Last_Error()[0] != '\0' ) {
+			Print( "reload_building_descriptors: last error: %s\n",BuildingDescriptorManager::Get_Last_Error() );
+		}
+	}
+};
+
+class ReloadBuildingDescriptorConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "reload_building_descriptor"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "RELOAD_BUILDING_DESCRIPTOR <definition> - roadmap Section 39; re-read one file-backed "
+				 "building descriptor by definition name.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		if ( input == nullptr || input[0] == '\0' ) {
+			Print( "reload_building_descriptor: usage 'reload_building_descriptor <definition>'.\n" );
+			return;
+		}
+		StringClass error;
+		if ( BuildingDescriptorManager::Reload_Descriptor( input,&error ) ) {
+			Print( "reload_building_descriptor: %s reloaded.\n",input );
+		} else {
+			Print( "reload_building_descriptor: %s was NOT reloaded -- last known-good values are still "
+					 "active.  %s\n",input,error.Peek_Buffer() );
+		}
+	}
+};
+
+class BuildingJsonStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "building_json_status"; }
+	virtual	const char * Get_Help( void ) override	{ return "BUILDING_JSON_STATUS - how many building descriptors are loaded, and the reload failure count."; }
+	virtual	void Activate( const char * /* input */ ) override
+	{
+		Print( "building_json_status: %d descriptor(s) loaded, %d reload failure(s) total.\n",
+				 BuildingDescriptorManager::Get_Descriptor_Count(),
+				 BuildingDescriptorManager::Get_Reload_Failure_Count() );
 	}
 };
 
@@ -6740,6 +6799,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new ParticlePoolConsoleFunctionClass() );
 	FunctionList.Add( new DebugLayerConsoleFunctionClass() );
 	FunctionList.Add( new DebugStatusConsoleFunctionClass() );
+	FunctionList.Add( new ReloadBuildingDescriptorsConsoleFunctionClass() );
+	FunctionList.Add( new ReloadBuildingDescriptorConsoleFunctionClass() );
+	FunctionList.Add( new BuildingJsonStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );

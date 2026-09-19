@@ -44,6 +44,9 @@ namespace	ShaderSelfCheck
 	//		           its enabled/disabled and record-table bounds
 	//		debugrender  the world debug overlay layer toggles and the batched line pool's
 	//		           bookkeeping and bound
+	//		buildingjson the building descriptor registry: valid resolution, rejection of bad
+	//		           JSON/values, anchor lookup, and the reload transaction end to end
+	//		           against a real scratch file
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

@@ -35,6 +35,20 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  so `shader_attachments` pins only its refusals.
 
 
+- **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`
+ "through the existing vcpkg/CMake dependency system." This machine has no `VCPKG_ROOT` and no
+ vcpkg installation at all, and the `build/win32` tree `b.bat` actually builds has no vcpkg
+ toolchain wired into it (`vcpkg.json` at the repo root lists unrelated dependencies --
+ ffmpeg/icu/openal/sdl3/freetype/qt -- for a preset this build does not use). Bootstrapping
+ vcpkg from network mid-session was judged disproportionate to one dependency. Taken instead:
+ the standard alternative distribution, a single vendored header,
+ `Code/wwlib/nlohmann/json.hpp`, pinned to the tagged release v3.11.3 and fetched directly from
+ `raw.githubusercontent.com` (recorded here since it did not go through vcpkg or any package
+ manager). `#include "nlohmann/json.hpp"` resolves because `wwcommon`'s `INTERFACE` include
+ directories already expose `wwlib` to every target. Say the word and this moves to real vcpkg
+ once `VCPKG_ROOT` exists on the build machine; nothing about `BuildingDescriptorManager`'s own
+ code would need to change, only the include path and the CMake wiring.
+
 ---
 
 ## Resolved

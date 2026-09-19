@@ -70,6 +70,8 @@ set(COMBAT_SRC
     gameobjobserver.cpp
     guardstatecontroller.cpp
     rtstelemetryservice.cpp
+    buildingdescriptor.cpp
+    buildingdescriptormanager.cpp
     gametype.cpp
     globalsettings.cpp
     harvester.cpp
@@ -216,6 +218,8 @@ set(COMBAT_SRC
     gameobjobserver.h
     guardstatecontroller.h
     rtstelemetryservice.h
+    buildingdescriptor.h
+    buildingdescriptormanager.h
     gameobjref.h
     gametype.h
     globalsettings.h

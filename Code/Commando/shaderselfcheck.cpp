@@ -5,6 +5,7 @@
 
 #include "shaderselfcheck.h"
 
+#include "buildingdescriptormanager.h"
 #include "compositeattachment.h"
 #include "debrisrenderer.h"
 #include "debugrendersystem.h"
@@ -1992,6 +1993,162 @@ int	Run_Debug_Render (void)
 }
 
 
+/*
+**	Building model semantic JSON -- roadmap Section 39.
+**
+**	The load-bearing claim under test is the reload transaction: a valid reload atomically
+**	replaces a live descriptor, an invalid one never touches it.  That needs a real file on
+**	disk to exercise end to end, so this check writes and rewrites one small scratch JSON file
+**	rather than only ever parsing text in memory.
+*/
+static const char * const	VALID_POWER_PLANT_JSON =
+	"{"
+	" \"model_name\": \"ow_test_powerplant.w3d\","
+	" \"schema_version\": 1,"
+	" \"footprint\": { \"width\": 20.0, \"depth\": 20.0 },"
+	" \"power\": { \"requires_power\": false, \"generation\": 500.0, \"consumption\": 0.0, \"priority\": 50 }"
+	"}";
+
+static const char * const	VALID_COMM_CENTER_JSON =
+	"{"
+	" \"model_name\": \"ow_test_commcenter.w3d\","
+	" \"schema_version\": 1,"
+	" \"footprint\": { \"width\": 15.0, \"depth\": 15.0 },"
+	" \"power\": { \"requires_power\": true, \"generation\": 0.0, \"consumption\": 100.0, \"priority\": 60 },"
+	" \"capabilities\": { \"communications\": { \"enabled\": true, \"vision_radius\": 180.0,"
+	"     \"radar_radius\": 300.0, \"last_known_retention_seconds\": 20.0, \"requires_building_online\": true } },"
+	" \"anchors\": { \"mct_anchor\": \"MCT_BONE\", \"purchase_terminal_anchor\": \"PT_BONE\" }"
+	"}";
+
+static const char * const	MALFORMED_JSON = "{ this is not valid json";
+
+static const char * const	NEGATIVE_GENERATION_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"power\":{\"requires_power\":false,\"generation\":-5.0,\"consumption\":0,\"priority\":10} }";
+
+static const char * const	INCOMPATIBLE_ROLE_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"power\":{\"requires_power\":false,\"generation\":100,\"consumption\":0,\"priority\":10},"
+	"  \"capabilities\":{\"communications\":{\"enabled\":true,\"vision_radius\":10,\"radar_radius\":10}} }";
+
+int	Run_Building_Descriptors (void)
+{
+	BuildingDescriptorManager::Init ();
+
+	Check (BuildingDescriptorManager::Get_Descriptor_Count () == 0,"a fresh manager already has descriptors");
+	Check (BuildingDescriptorManager::Get_Descriptor ("nothing") == nullptr,
+			 "an unknown definition returned a descriptor instead of nullptr");
+
+	/*
+	**	A valid descriptor resolves, and its power/capability values are queryable -- the
+	**	acceptance's own first two lines.
+	*/
+	StringClass error ("");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_power_plant",VALID_POWER_PLANT_JSON,&error),
+			 "a valid Power Plant descriptor was refused: %s",error.Peek_Buffer ());
+
+	const BuildingModelDescriptor * plant = BuildingDescriptorManager::Get_Descriptor ("ow_test_power_plant");
+	Check (plant != nullptr,"a loaded descriptor could not be looked back up");
+	if (plant != nullptr) {
+		Check (plant->Power.RequiresPower == false,"a generator's requires_power did not read back false");
+		Check (WWMath::Fabs (plant->Power.Generation - 500.0f) < 0.01f,
+				 "a generator's generation read back %f, not 500",plant->Power.Generation);
+		Check (plant->Power.Priority == 50,"a generator's priority read back %d, not 50",plant->Power.Priority);
+	}
+
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_comm_center",VALID_COMM_CENTER_JSON,&error),
+			 "a valid Communications Center descriptor was refused: %s",error.Peek_Buffer ());
+	const BuildingModelDescriptor * comm = BuildingDescriptorManager::Get_Descriptor ("ow_test_comm_center");
+	Check (comm != nullptr,"a loaded communications descriptor could not be looked back up");
+	if (comm != nullptr) {
+		Check (comm->Communications.Enabled,"a communications building's capability did not read back enabled");
+		Check (WWMath::Fabs (comm->Communications.RadarRadius - 300.0f) < 0.01f,
+				 "a communications building's radar_radius read back %f, not 300",comm->Communications.RadarRadius);
+		const char * mct_bone = comm->Find_Anchor_Bone ("mct_anchor");
+		Check (mct_bone != nullptr,"mct_anchor did not resolve to a bone name at all");
+		Check (mct_bone != nullptr && ::strcmp (mct_bone,"MCT_BONE") == 0,
+				 "mct_anchor resolved to '%s', not 'MCT_BONE'",(mct_bone != nullptr) ? mct_bone : "(null)");
+		Check (comm->Find_Anchor_Bone ("no_such_role") == nullptr,
+				 "an undeclared role resolved to a bone name instead of nullptr");
+	}
+
+	/*
+	**	Rejection: malformed JSON, and a semantically invalid value, neither register a
+	**	descriptor and both report an error.
+	*/
+	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_malformed",MALFORMED_JSON,&error),
+			 "malformed JSON was accepted");
+	Check (error.Get_Length () > 0,"a rejected descriptor reported no error");
+	Check (!BuildingDescriptorManager::Is_Loaded ("ow_test_malformed"),"a rejected descriptor is still loaded");
+
+	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_negative",NEGATIVE_GENERATION_JSON,&error),
+			 "negative generation was accepted");
+	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_incompatible",INCOMPATIBLE_ROLE_JSON,&error),
+			 "a generator declaring communications capability was accepted");
+
+	/*
+	**	The reload transaction, end to end against a real file: valid replaces, invalid
+	**	preserves the last known-good descriptor and reports the error.
+	*/
+	const char *	SCRATCH_PATH = "ow_selfcheck_building_descriptor.json";
+
+	FILE * f = ::fopen (SCRATCH_PATH,"wb");
+	Check (f != nullptr,"could not create the reload scratch file");
+	if (f != nullptr) {
+		::fwrite (VALID_POWER_PLANT_JSON,1,::strlen (VALID_POWER_PLANT_JSON),f);
+		::fclose (f);
+
+		Check (BuildingDescriptorManager::Load_Descriptor_From_File ("ow_test_reload",SCRATCH_PATH,&error),
+				 "loading the reload scratch file failed: %s",error.Peek_Buffer ());
+
+		//	Rewrite it with a different, still-valid generation value and reload.
+		const char * UPDATED_JSON =
+			"{ \"model_name\":\"ow_test_powerplant.w3d\",\"schema_version\":1,"
+			"  \"footprint\":{\"width\":20,\"depth\":20},"
+			"  \"power\":{\"requires_power\":false,\"generation\":750.0,\"consumption\":0,\"priority\":50} }";
+		f = ::fopen (SCRATCH_PATH,"wb");
+		::fwrite (UPDATED_JSON,1,::strlen (UPDATED_JSON),f);
+		::fclose (f);
+
+		Check (BuildingDescriptorManager::Reload_Descriptor ("ow_test_reload",&error),
+				 "a valid reload was refused: %s",error.Peek_Buffer ());
+		const BuildingModelDescriptor * reloaded = BuildingDescriptorManager::Get_Descriptor ("ow_test_reload");
+		Check (reloaded != nullptr && WWMath::Fabs (reloaded->Power.Generation - 750.0f) < 0.01f,
+				 "a valid reload did not publish the new generation value");
+
+		//	Rewrite it with an invalid value and reload again -- this must fail and leave 750
+		//	in place, not silently fall back to 0 or crash.
+		f = ::fopen (SCRATCH_PATH,"wb");
+		::fwrite (NEGATIVE_GENERATION_JSON,1,::strlen (NEGATIVE_GENERATION_JSON),f);
+		::fclose (f);
+
+		int failures_before = BuildingDescriptorManager::Get_Reload_Failure_Count ();
+		Check (!BuildingDescriptorManager::Reload_Descriptor ("ow_test_reload",&error),
+				 "an invalid reload (negative generation) was accepted");
+		Check (BuildingDescriptorManager::Get_Reload_Failure_Count () > failures_before,
+				 "an invalid reload was not counted as a failure");
+
+		reloaded = BuildingDescriptorManager::Get_Descriptor ("ow_test_reload");
+		Check (reloaded != nullptr && WWMath::Fabs (reloaded->Power.Generation - 750.0f) < 0.01f,
+				 "an invalid reload changed the live descriptor instead of preserving the last known-good one");
+
+		::remove (SCRATCH_PATH);
+	}
+
+	//	A descriptor loaded from text, not a file, has nothing to reload from -- refused, not a
+	//	crash.
+	Check (!BuildingDescriptorManager::Reload_Descriptor ("ow_test_power_plant",&error),
+			 "reloading a text-loaded descriptor (no source file) was accepted");
+
+	BuildingDescriptorManager::Unload_All ();
+	Check (BuildingDescriptorManager::Get_Descriptor_Count () == 0,"Unload_All left descriptors behind");
+
+	BuildingDescriptorManager::Shutdown ();
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -2060,6 +2217,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "debugrender") == 0)) {
 		Run_Debug_Render ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "buildingjson") == 0)) {
+		Run_Building_Descriptors ();
 		ran = true;
 	}
 
