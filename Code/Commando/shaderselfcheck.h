@@ -29,6 +29,7 @@ namespace	ShaderSelfCheck
 	//		programs   registration, tiers, passes, and who owns the device state
 	//		pipelines  what each registered pipeline actually draws in
 	//		particles  the shared particle pools, the batch key and the budget
+	//		weather    the weather lattice, its bounded count and who pays for it
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

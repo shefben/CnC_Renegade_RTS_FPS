@@ -39,11 +39,9 @@
 
 
 // Code controlling defines.
-#define WEATHER_PARTICLE_SORT 0
-
 // Includes.
 #include "combatchunkid.h"
-#include "pointgr.h"
+#include "weatherenvironment.h"
 #include "mempool.h"
 #include "networkobject.h"
 #include "random.h"
@@ -61,12 +59,6 @@
 class ChunkLoadClass;
 class ChunkSaveClass;
 class PhysicsSceneClass;
-
-#if WEATHER_PARTICLE_SORT
-class SortingIndexBufferClass;
-#else
-class	DX8IndexBufferClass;
-#endif
 
 class AudibleSoundClass;
 
@@ -98,39 +90,50 @@ class WindClass
 };
 
 
+/*
+**	Where the ground is, answered for the weather renderer.
+**
+**	WeatherEnvironmentRenderer lives in ww3d2 and so cannot ask a physics scene anything; this
+**	is the half of that question that knows how.  The cast is the stock one, unchanged --
+**	terrain only, as a projectile -- because what counts as ground for a raindrop is a decision
+**	the original made and there is no reason to make it differently now.
+*/
+class WeatherSceneCollisionClass : public WeatherCollisionProviderClass
+{
+	public:
+
+		WeatherSceneCollisionClass (PhysicsSceneClass *scene) : Scene (scene) {}
+
+		bool Cast_Weather_Column (const Vector3 &top, const Vector3 &bottom,
+										  Vector3 &point, Vector3 &normal) override;
+
+	private:
+
+		PhysicsSceneClass *Scene;
+};
+
+
+/*
+**	One kind of weather, in the scene.
+**
+**	This used to be the whole weather implementation: a list of rays cast into the world, a
+**	linked list of pooled particles spawned along them, an index buffer, and a draw call of its
+**	own.  All of that is now arithmetic in WeatherEnvironmentRenderer, and what remains here is
+**	the part that has to be a RenderObjClass -- something the scene can hold, cull, and render
+**	in its proper place in the frame.
+**
+**	It stays a render object rather than becoming a call from the game loop for one reason
+**	worth stating: the stock system put itself on static sort list 31 and drew on the way back
+**	through, and that is where weather belongs in the draw order.  Keeping the object keeps the
+**	order.
+*/
 class WeatherSystemClass : public RenderObjClass
 {
 	public:
 
-		enum {
-			GROWTH_STEP = 256
-		};
-
-		enum RenderModeEnum {
-			RENDER_MODE_AXIS_ALIGNED,		// Render particle oriented about the particle's velocity vector (suitable for rain, for example).
-			RENDER_MODE_CAMERA_ALIGNED,	// Render particle aligned with the camera direction (suitable for snow, for example).
-			RENDER_MODE_SURFACE_ALIGNED	// Render particle such that it looks attached to the surface of an object.
-		};
-
-		 WeatherSystemClass (PhysicsSceneClass *scene,
-									float emittersize,
-								   float emitterheight,
-								   float particledensity,
-									float particlesperunitlength,
-								   float particlewidth,
-								   float particleheight,
-								   float particlespeed,
-								   const Vector2 &pageoffset,
-									const Vector2 &pagesize,
-								   unsigned pagecount,
-									bool staticpageexists,
-									float minstatictime,
-									float maxstatictime,
-									RenderModeEnum rendermode,
-									bool decayaftercollision,
-									bool prime);
-
+		 WeatherSystemClass (PhysicsSceneClass *scene, WeatherModeType mode, float density);
 		~WeatherSystemClass();
+
 		RenderObjClass *Clone() const override
 		{
 			WWASSERT (false);
@@ -144,148 +147,36 @@ class WeatherSystemClass : public RenderObjClass
 
 		virtual bool Update (WindClass *wind, const Vector3 &cameraposition);
 
+		WeatherEnvironmentRenderer &	Peek_Renderer()					{return (Renderer);}
+		int									Get_Drawn_Particles() const	{return (Renderer.Get_Drawn_Particles());}
+
 	protected:
 
-		static constexpr int VERTICES_PER_TRIANGLE = 3;
-		static constexpr int MAX_IB_PARTICLE_COUNT = 2048;
-		static constexpr int MAX_AGE					 = 1000000;
-
-		struct RayStruct : public AutoPoolClass <RayStruct, GROWTH_STEP>
-		{
-			public:
-
-				RayStruct		*Next;				  	// Next ray in list.
-				bool				 Initialized;			// Has the ray been defined?
-				bool				 RayCast;				// Does this ray need to be relocated in the emitter (and therefore needs to be raycast).
-				Vector3			 ParticleVelocity;	// Velocity of all particles spawned by this ray.
-				Vector2			 StartPosition;		// Start position of ray inside emitter.
-				Vector3			 EndPosition;			// Point of collision of ray with environment.
-				bool				 ValidSurfaceNormal;	// Does the ray intersect a phyical object?
-				Vector3			 SurfaceNormal;		// Normal of surface ray intersects (if any).
-		};
-
-		struct ParticleStruct : public AutoPoolClass <ParticleStruct, GROWTH_STEP>
-		{
-			public:
-
-				ParticleStruct *Prev;					// Previous particle in list.
-				ParticleStruct *Next;					// Next particle in list.
-				float				 CollisionTime;		// Time when particle hits something (in seconds).
-				float				 LifeTime;				// Lifetime of particle (in seconds).
-				float				 ElapsedTime;			// Time elapsed since birth of particle (in seconds).
-				Vector3			 Velocity;				// Velocity of particle (in metres per second).
-				Vector2			 UnitZVelocity;		// Velocity / Velocity.Z (precomputed for optimization purposes).
-				Vector3			 CollisionPosition;	// Position of collision.
-				Vector3			 CurrentPosition;		// Current position of particle (in world space).
-				Vector3			 SurfaceNormal;		// Normal of surface particle collides with (if any).
-
-				unsigned char	 Page;					// Texture page for this particle.
-				unsigned char	 RenderMode;
-				unsigned char	 Pad [2];				// Pad structure to 4-byte multiple.
-		};
-
-		// Utility functions.
-		float Spawn_Count (float time) {return (ParticleDensity * EmitterSize * EmitterSize * time);}
-		bool	Can_Spawn (const RayStruct *rayptr) {return (rayptr->EndPosition.Z < EmitterPosition.Z);}
-
-		bool Spawn (RayStruct *suppliedrayptr = nullptr);
-		void Kill (ParticleStruct *particleptr);
-
-		PhysicsSceneClass						*Scene;						// The scene that contains the weather system.
-		float										 Age;							// Age of this weather system (in seconds).
-		float										 EmitterSize;				// Size of square emitter (area of emitter = size * size).
-		float										 EmitterHeight;			// Height of emitter (relative to camera).
-		Vector3									 EmitterPosition;			// Centroid of emitter (in world space).
-		float										 ParticleDensity;			// Density of particles (over area of emitter).
-		float										 ParticlesPerUnitLength;
-		float										 ParticleSpeed;
-		Vector3									 ParticleVelocity;		// Dominant velocity vector of particles.
-		float										 HalfParticleWidth;
-		float										 HalfParticleHeight;
-	   RayStruct								*RayHead;
-		unsigned									 RayCount;
-	   RayStruct								*RaySpawnPtr;
-		RayStruct								*RayUpdatePtr;
-		float										 MinRayEndZ;				// Current lowest Z-value of end of any ray (used to determine a bounding box around this render object).
-		float										 SpawnCountFraction;		// Cumulative fractional spawn counts (for improved accuracy).
-		Vector3									 SceneMin, SceneMax;		// Bounding box around the scene that the particle system lives in.
-		Vector3									 ObjectMin, ObjectMax;	// Bounding box around this render object (for culling purposes).
-		ParticleStruct							*ParticleHead;				// Head of list of particles in system.
-		unsigned									 ParticleCount;			// No. of particles in system.
-
-		#if WEATHER_PARTICLE_SORT
-		SortingIndexBufferClass				*IndexBuffer;
-		#else
-		DX8IndexBufferClass					*IndexBuffer;
-		#endif
-
-		VertexMaterialClass					*Material;
-		ShaderClass								 Shader;
-		TextureClass							*Texture;
-		Vector2									*TextureArray;
-		RenderModeEnum							 RenderMode;
-		bool										 DecayAfterCollision;
-		unsigned									 PageCount;
-		bool										 StaticPageExists;
-		float										 MinStaticTime;
-		float										 MaxStaticTime;
-		Vector3									 CameraPosition;
-		bool										 CameraPositionValid;
-
-		static Random2Class					_RandomNumber;				// Random no. generator.
-		static unsigned						_GlobalParticleCount;	// Total no. of particles over all weather systems.
+		WeatherSceneCollisionClass	Collision;
+		WeatherEnvironmentRenderer	Renderer;
+		float								Density;
 };
 
 
+/*
+**	Rain, which is a weather system plus the sound of one.
+**
+**	Snow and ash needed a subclass each in the stock engine only to name their texture page and
+**	their fall speed; those are table entries now, so they have none.
+*/
 class RainSystemClass : public WeatherSystemClass
 {
 	public:
 
-					RainSystemClass (PhysicsSceneClass *scene, float particledensity, WindClass *wind, SoundEnvironmentClass *soundenvironment, bool prime);
+					RainSystemClass (PhysicsSceneClass *scene, float particledensity, SoundEnvironmentClass *soundenvironment);
 		virtual ~RainSystemClass();
 
 		bool Update (WindClass *wind, const Vector3 &cameraposition) override;
 
 	protected:
 
-		enum {
-			PAGE_COUNT = 4
-		};
-
 		AudibleSoundClass		 *Sound;					// Sound effect for rainfall.
 		SoundEnvironmentClass *SoundEnvironment;
-};
-
-
-class SnowSystemClass : public WeatherSystemClass
-{
-	public:
-
-		SnowSystemClass (PhysicsSceneClass *scene, float particledensity, WindClass *wind, bool prime);
-
-		bool Update (WindClass *wind, const Vector3 &cameraposition) override;
-
-	protected:
-
-		enum {
-			PAGE_COUNT = 4
-		};
-};
-
-
-class AshSystemClass : public WeatherSystemClass
-{
-	public:
-
-		AshSystemClass (PhysicsSceneClass *scene, float particledensity, WindClass *wind, bool prime);
-
-		bool Update (WindClass *wind, const Vector3 &cameraposition) override;
-
-	protected:
-
-		enum {
-			PAGE_COUNT = 4
-		};
 };
 
 
@@ -372,6 +263,15 @@ class	WeatherMgrClass : public SaveLoadSubSystemClass, public NetworkObjectClass
 		static bool Set_Fog_Range (float startdistance, float enddistance, float ramptime = 0.0f);
 		static void Get_Fog_Range (float &startdistance, float &enddistance);
 
+		/*
+		**	The live weather of one kind, or null when that kind is not falling.  For the
+		**	console, which reports what the weather layer cost this frame.
+		*/
+		static WeatherSystemClass *Peek_Precipitation (PrecipitationEnum precipitation)
+		{
+			return (_Precipitation [precipitation]);
+		}
+
 		static void Update (PhysicsSceneClass *scene, CameraClass *camera);
 		static void Render (const CameraClass *camera);
 
@@ -431,7 +331,6 @@ class	WeatherMgrClass : public SaveLoadSubSystemClass, public NetworkObjectClass
 
 		static SoundEnvironmentClass *_SoundEnvironment;
 		static WeatherParameterClass	_Parameters [PARAMETER_COUNT];
-		static bool							_Prime;
 		static bool							_Imported;
 		static unsigned					_WindOverrideCount;
 		static unsigned					_PrecipitationOverrideCount;

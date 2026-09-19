@@ -128,6 +128,7 @@
 #include "dx8wrapper.h"
 #include "sortingrenderer.h"
 #include "WeatherMgr.h"
+#include "weatherenvironment.h"
 #include "mapmgr.h"
 #include "Path.h"
 #include "sctextobj.h"
@@ -6238,6 +6239,105 @@ public:
 };
 
 
+/*
+**	Roadmap Section 36.  The acceptance is that weather covers a large scene at a bounded
+**	particle count, so the command that reports it prints the bound, what was drawn against it,
+**	and the two numbers that say why: how far apart the fall lines ended up, and how much of the
+**	ground under them the renderer has actually looked at.
+*/
+class WeatherStatusConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("weather_status");}
+	virtual	const char * Get_Help (void) override	{return ("WEATHER_STATUS - what the weather layer drew, and what it cost.");}
+	virtual	void Activate (const char * /* input */) override {
+
+		Print ("weather_status: layer is %s, budget %d particle(s), %d cast(s) per frame.\n",
+				 WeatherEnvironmentRenderer::Is_Enabled() ? "on" : "off",
+				 WeatherEnvironmentRenderer::Get_Max_Particles(),
+				 WeatherEnvironmentRenderer::Get_Max_Casts_Per_Frame());
+
+		int total = 0;
+
+		for (int p = WeatherMgrClass::PRECIPITATION_FIRST; p < WeatherMgrClass::PRECIPITATION_COUNT; p++) {
+
+			WeatherSystemClass *system = WeatherMgrClass::Peek_Precipitation ((WeatherMgrClass::PrecipitationEnum)p);
+			if (system == nullptr) continue;
+
+			WeatherEnvironmentRenderer &renderer = system->Peek_Renderer();
+
+			total += renderer.Get_Drawn_Particles();
+
+			Print ("weather_status: %s -- %d particle(s) on %d column(s), %.2f apart.\n",
+					 WeatherEnvironmentRenderer::Get_Mode_Name (renderer.Get_Mode()),
+					 renderer.Get_Drawn_Particles(),
+					 renderer.Get_Column_Count(),
+					 renderer.Get_Column_Spacing());
+
+			Print ("weather_status: %s -- %d cast(s), %d cache hit(s), %d column(s) deferred.\n",
+					 WeatherEnvironmentRenderer::Get_Mode_Name (renderer.Get_Mode()),
+					 renderer.Get_Casts(),
+					 renderer.Get_Cache_Hits(),
+					 renderer.Get_Deferred_Columns());
+		}
+
+		if (total == 0) {
+			Print ("weather_status: nothing is falling.\n");
+		} else {
+			Print ("weather_status: %d of %d particle(s) used this frame.\n",
+					 total, WeatherEnvironmentRenderer::Get_Max_Particles());
+		}
+	}
+};
+
+
+/*
+**	The bound itself.  Weather spends it in mode order, so lowering it coarsens the lattice of
+**	whatever is falling rather than cutting any one kind of weather off.
+*/
+class WeatherBudgetConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("weather_budget");}
+	virtual	const char * Get_Help (void) override	{return ("WEATHER_BUDGET [particles] [casts] - how many weather particles a frame may hold.");}
+	virtual	void Activate (const char *input) override {
+
+		int	particles = 0, casts = 0;
+		int	argcount = (input != nullptr) ? sscanf (input, "%d %d", &particles, &casts) : 0;
+
+		if (argcount >= 1 && particles >= 0) {
+			WeatherEnvironmentRenderer::Set_Max_Particles (particles);
+		}
+		if (argcount >= 2 && casts >= 0) {
+			WeatherEnvironmentRenderer::Set_Max_Casts_Per_Frame (casts);
+		}
+
+		Print ("weather_budget: %d particle(s), %d cast(s) per frame.\n",
+				 WeatherEnvironmentRenderer::Get_Max_Particles(),
+				 WeatherEnvironmentRenderer::Get_Max_Casts_Per_Frame());
+	}
+};
+
+
+/*
+**	Off means no weather is evaluated at all, whatever the level or a script asked for.  It is
+**	how you find out whether something you are looking at is the weather's fault.
+*/
+class WeatherLayerConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("weather_layer");}
+	virtual	const char * Get_Help (void) override	{return ("WEATHER_LAYER [on|off] - draw the weather layer, or do not.");}
+	virtual	void Activate (const char *input) override {
+
+		if (input != nullptr && ::strstr (input, "off") != nullptr) {
+			WeatherEnvironmentRenderer::Set_Enabled (false);
+		} else if (input != nullptr && ::strstr (input, "on") != nullptr) {
+			WeatherEnvironmentRenderer::Set_Enabled (true);
+		}
+
+		Print ("weather_layer: %s.\n", WeatherEnvironmentRenderer::Is_Enabled() ? "on" : "off");
+	}
+};
+
+
 class AshConsoleFunctionClass : public ConsoleFunctionClass {
 public:
 	virtual	const char * Get_Name (void) override	{return ("ash");}
@@ -6388,6 +6488,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new AmmoConsoleFunctionClass() );
 	FunctionList.Add( new AppPacketTypesResetConsoleFunctionClass() );
 	FunctionList.Add( new AshConsoleFunctionClass() );
+	FunctionList.Add( new WeatherStatusConsoleFunctionClass() );
+	FunctionList.Add( new WeatherBudgetConsoleFunctionClass() );
+	FunctionList.Add( new WeatherLayerConsoleFunctionClass() );
 	FunctionList.Add( new BreakExecutionConsoleFunctionClass() );
 	FunctionList.Add( new CrashExecutionConsoleFunctionClass() );
 	FunctionList.Add( new BuByeConsoleFunctionClass() );

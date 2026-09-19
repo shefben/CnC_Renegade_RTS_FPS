@@ -1578,3 +1578,23 @@ proves as arithmetic: 64 emitters sharing a material draw as one batch, and a 10
 particles draws 1024 and accounts for every one of the rest as thinned. Evidence:
 `docs/zerohour/WorldParticleManager.md`; new `shader_particles`/`fds_shader_particles`, plus
 `particle_status`, `particle_batching` and `particle_pool` at the console.
+
+## P23-A: Weather is a function of the clock, not a list of particles
+
+`WeatherEnvironmentRenderer` (`Code/ww3d2/weatherenvironment.*`) replaces the per-particle half of
+Renegade's own weather: the linked lists of rays and pooled `ParticleStruct`s, the per-system index
+buffer and the per-system draw call are deleted, and `WeatherMgrClass` -- its densities, wind, fog,
+save/load, network state, script and LevelEdit interface, and the `rain`/`snow`/`ash` console
+commands -- drives the new renderer unchanged. A particle's position is now evaluated from its
+column and the clock, because stock weather already had constant velocity, evenly spaced particles
+along each fall line, and one raycast per fall line rather than per particle. The lattice is indexed
+by where a particle *lands* and the cast is vertical, so wind slides the start of a fall upwind and
+a column's floor stays cacheable; 4096 columns are cached and casting is rationed per frame.
+Absorbs the P23 acceptance *Weather can cover a large outdoor scene at a stable bounded particle
+count without creating a `GameObj` per particle* -- there is no object per particle and no allocation
+at all, and the count is decided before any particle is evaluated by coarsening the lattice to fit a
+static per-frame budget, so an over-asked scene gets sparser rather than truncated. First consumer of
+`PARTICLE_BUDGET_ENVIRONMENT`, so all weather is one draw call per material. Evidence:
+`docs/zerohour/WeatherEnvironmentRenderer.md`, `docs/assets/WeatherParticles.md`; new
+`shader_weather`/`fds_shader_weather`, plus `weather_status`, `weather_budget` and `weather_layer` at
+the console.

@@ -6,6 +6,7 @@
 #include "shaderselfcheck.h"
 
 #include "shadermgr.h"
+#include "weatherenvironment.h"
 #include "worldparticlemanager.h"
 
 #include "camera.h"
@@ -815,6 +816,210 @@ int	Run_Particles (void)
 	return _Failures;
 }
 
+
+/*
+**	The weather layer, checked without any weather.
+**
+**	Everything Section 36's acceptance is about happens before a device is needed: how far
+**	apart the fall lines are put, how many particles that comes to, and what happens to that
+**	number when it is larger than the frame is allowed to hold.  The renderer decides all of
+**	it from the density, the mode's constants and the clock, so a check can ask it and then
+**	count what it handed over.
+**
+**	No collision provider is installed, which is the dedicated-server case: nothing is under
+**	the weather, so every column falls the full depth of its box and nothing lands.
+*/
+int	Run_Weather (void)
+{
+	CameraClass				camera;
+	RenderInfoClass		rinfo (camera);
+
+	//	The default camera sits at the origin looking down its own -Z, which in world terms is
+	//	straight down -- so the lattice under it is in front of it, and the per-particle frustum
+	//	rejection is exercised rather than avoided.
+	WorldParticleManager::Init ();
+	WorldParticleManager::Set_Enabled (true);
+
+	WeatherEnvironmentRenderer::Set_Enabled (true);
+	WeatherEnvironmentRenderer::Set_Max_Particles (4096);
+	WeatherEnvironmentRenderer::Set_Max_Casts_Per_Frame (256);
+
+	WeatherEnvironmentRenderer	rain (WEATHER_MODE_RAIN);
+
+	Check (rain.Get_Mode() == WEATHER_MODE_RAIN, "a renderer built for rain reports mode %d",
+			 (int)rain.Get_Mode());
+
+	/*
+	**	Weather falling at all.  Density is the stock quantity -- particles per square world
+	**	unit -- and reaches the renderer from exactly where it reached the system it replaced.
+	*/
+	rain.Set_Density (1.0f);
+	rain.Update (0.1f, Vector3 (0.0f, 0.0f, 0.0f));
+
+	WeatherEnvironmentRenderer::Begin_Frame ();
+	rain.Render (rinfo);
+
+	int	drawn_once = rain.Get_Drawn_Particles();
+	float	spacing_once = rain.Get_Column_Spacing();
+
+	Check (drawn_once > 0, "rain at a density of one drew nothing");
+	Check (drawn_once <= 4096, "rain drew %d particles against a budget of 4096", drawn_once);
+	Check (rain.Get_Column_Count() > 0, "rain drew %d particles from no columns at all", drawn_once);
+
+	/*
+	**	The same clock and the same density are the same weather.  This is what "no simulation"
+	**	buys and it is worth pinning: nothing about a particle is carried from one frame to the
+	**	next, so rendering twice without advancing anything cannot drift.
+	*/
+	WeatherEnvironmentRenderer::Begin_Frame ();
+	rain.Render (rinfo);
+
+	Check (rain.Get_Drawn_Particles() == drawn_once,
+			 "the same weather drawn twice gave %d particles and then %d",
+			 drawn_once, rain.Get_Drawn_Particles());
+
+	/*
+	**	More weather is more particles, while there is room for them.
+	*/
+	WeatherEnvironmentRenderer::Set_Max_Particles (8192);
+	rain.Set_Density (1.0f);
+	WeatherEnvironmentRenderer::Begin_Frame ();
+	rain.Render (rinfo);
+	int	drawn_light = rain.Get_Drawn_Particles();
+
+	rain.Set_Density (2.0f);
+	WeatherEnvironmentRenderer::Begin_Frame ();
+	rain.Render (rinfo);
+	int	drawn_heavy = rain.Get_Drawn_Particles();
+
+	Check (drawn_heavy > drawn_light,
+			 "doubling the density drew %d particles where half of it drew %d",
+			 drawn_heavy, drawn_light);
+
+	/*
+	**	The acceptance itself: a large scene at a bounded count.  Ten times the density of heavy
+	**	rain, against a budget of two hundred and fifty-six, must produce at most two hundred and
+	**	fifty-six -- and must do it by putting the fall lines further apart, not by drawing part
+	**	of the scene and stopping.  The spacing is how that is told apart.
+	*/
+	WeatherEnvironmentRenderer::Set_Max_Particles (256);
+	rain.Set_Density (20.0f);
+	WeatherEnvironmentRenderer::Begin_Frame ();
+	rain.Render (rinfo);
+
+	int	drawn_capped = rain.Get_Drawn_Particles();
+	float	spacing_capped = rain.Get_Column_Spacing();
+
+	Check (drawn_capped > 0, "rain under a budget of 256 drew nothing at all");
+	Check (drawn_capped <= 256, "rain drew %d particles against a budget of 256", drawn_capped);
+	Check (spacing_capped > spacing_once,
+			 "a budget of 256 left the fall lines %.2f apart, no further than the %.2f of an "
+			 "unbudgeted scene, so it truncated rather than coarsened",
+			 spacing_capped, spacing_once);
+
+	/*
+	**	The budget belongs to the frame and not to any one kind of weather.  Two kinds falling
+	**	at once must come to the bound between them; the stock engine's cap, by contrast, was
+	**	per system and three systems could each reach it.
+	*/
+	WeatherEnvironmentRenderer	snow (WEATHER_MODE_SNOW);
+
+	snow.Set_Density (20.0f);
+	snow.Update (0.1f, Vector3 (0.0f, 0.0f, 0.0f));
+
+	WeatherEnvironmentRenderer::Set_Max_Particles (1024);
+	WeatherEnvironmentRenderer::Begin_Frame ();
+	rain.Render (rinfo);
+	snow.Render (rinfo);
+
+	int	shared = rain.Get_Drawn_Particles() + snow.Get_Drawn_Particles();
+
+	Check (shared <= 1024,
+			 "rain and snow in one frame drew %d particles between them against a budget of 1024",
+			 shared);
+	Check (rain.Get_Drawn_Particles() > 0 && snow.Get_Drawn_Particles() > 0,
+			 "sharing a budget left rain with %d particles and snow with %d; one of them was "
+			 "starved rather than thinned",
+			 rain.Get_Drawn_Particles(), snow.Get_Drawn_Particles());
+
+	/*
+	**	Which pool each mode is drawn out of.  Rain is a streak because a raindrop is longer than
+	**	it is wide and a sprite has only one size; everything else is a sprite.
+	*/
+	WorldParticleManager::Reset_Statistics ();
+	WeatherEnvironmentRenderer::Set_Max_Particles (4096);
+	WeatherEnvironmentRenderer::Begin_Frame ();
+	rain.Render (rinfo);
+
+	Check (WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_STREAK) == 1,
+			 "rain made %u submission(s) to the streak pool, not one",
+			 WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_STREAK));
+	Check (WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_SPRITE) == 0,
+			 "rain made %u submission(s) to the sprite pool",
+			 WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_SPRITE));
+
+	WorldParticleManager::Reset_Statistics ();
+	WeatherEnvironmentRenderer::Begin_Frame ();
+	snow.Render (rinfo);
+
+	Check (WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_SPRITE) == 1,
+			 "snow made %u submission(s) to the sprite pool, not one",
+			 WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_SPRITE));
+
+	/*
+	**	Weather is charged to the environment class, which is what that class was reserved for
+	**	when the particle pools were built and what it has had no caller for until now.
+	*/
+	WorldParticleManager::Flush (rinfo);
+
+	Check (WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE, PARTICLE_BUDGET_ENVIRONMENT) > 0,
+			 "snow drew %u particles charged to the environment budget",
+			 WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE, PARTICLE_BUDGET_ENVIRONMENT));
+	Check (WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE, PARTICLE_BUDGET_COMBAT_NEAR) == 0,
+			 "snow charged %u particles to a combat budget",
+			 WorldParticleManager::Get_Budget_Particles (PARTICLE_POOL_SPRITE, PARTICLE_BUDGET_COMBAT_NEAR));
+
+	/*
+	**	Wind does not blow weather out of its own bounding box.  A falling particle is upwind of
+	**	where it will land by a whole fall's worth of wind, and the scene culls this object by
+	**	the box, so the box has to know that.
+	*/
+	Vector3	still_min, still_max, windy_min, windy_max;
+
+	snow.Set_Wind (Vector2 (0.0f, 0.0f));
+	snow.Update (0.1f, Vector3 (0.0f, 0.0f, 0.0f));
+	snow.Get_Bounds (still_min, still_max);
+
+	snow.Set_Wind (Vector2 (8.0f, 0.0f));
+	snow.Update (0.1f, Vector3 (0.0f, 0.0f, 0.0f));
+	snow.Get_Bounds (windy_min, windy_max);
+
+	Check (windy_max.X > still_max.X,
+			 "wind of eight units left the bounding box at %.2f, no wider than the %.2f it had "
+			 "in still air",
+			 windy_max.X, still_max.X);
+
+	/*
+	**	Off is off.  There is no stock path left to fall back to -- the per-particle system it
+	**	replaced is gone rather than switched away from -- so this is the only sense in which
+	**	weather can be absent.
+	*/
+	WeatherEnvironmentRenderer::Set_Enabled (false);
+	WeatherEnvironmentRenderer::Begin_Frame ();
+	rain.Render (rinfo);
+
+	Check (rain.Get_Drawn_Particles() == 0,
+			 "a disabled weather layer drew %d particles", rain.Get_Drawn_Particles());
+
+	WeatherEnvironmentRenderer::Set_Enabled (true);
+
+	WorldParticleManager::Flush (rinfo);
+	WorldParticleManager::Shutdown ();
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -838,6 +1043,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "particles") == 0)) {
 		Run_Particles ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "weather") == 0)) {
+		Run_Weather ();
 		ran = true;
 	}
 

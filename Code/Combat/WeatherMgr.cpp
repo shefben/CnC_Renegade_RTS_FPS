@@ -63,15 +63,8 @@ WeatherMgrClass _TheWeatherMgr;
 
 
 // Static data.
-DEFINE_AUTO_POOL(WeatherSystemClass::RayStruct, WeatherSystemClass::GROWTH_STEP);
-DEFINE_AUTO_POOL(WeatherSystemClass::ParticleStruct, WeatherSystemClass::GROWTH_STEP);
-
-Random2Class									 WeatherSystemClass::_RandomNumber (0x60486223);
-unsigned											 WeatherSystemClass::_GlobalParticleCount = 0;
-
 SoundEnvironmentClass						*WeatherMgrClass::_SoundEnvironment;
 WeatherParameterClass						 WeatherMgrClass::_Parameters [PARAMETER_COUNT];
-bool												 WeatherMgrClass::_Prime;
 bool												 WeatherMgrClass::_Imported;
 unsigned											 WeatherMgrClass::_WindOverrideCount;
 unsigned											 WeatherMgrClass::_PrecipitationOverrideCount;
@@ -80,8 +73,6 @@ WindClass										*WeatherMgrClass::_Wind;
 WeatherSystemClass							*WeatherMgrClass::_Precipitation [PRECIPITATION_COUNT];
 bool												 WeatherMgrClass::_FogEnabled;
 bool												 WeatherMgrClass::_Dirty;
-
-static constexpr float WEATHER_SURFACE_OFFSET_DISTANCE = 0.01f;
 
 
 /***********************************************************************************************
@@ -220,1057 +211,153 @@ bool WindClass::Update()
 
 
 /***********************************************************************************************
- * WeatherSystemClass::WeatherSystemClass --																	  *
+ * WeatherSceneCollisionClass::Cast_Weather_Column --                                          *
  *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
+ * The stock ray, unchanged: terrain only, treated as a projectile, from the top of the fall   *
+ * straight down.  What differs is how often it is asked.  The old system cast one ray per     *
+ * fall line and re-cast it every time that line drifted out of the emitter -- which, because  *
+ * the emitter follows the camera, is constantly.  These answers are cached against a world    *
+ * lattice instead, so walking away from a column and back again costs nothing.                *
  *=============================================================================================*/
-WeatherSystemClass::WeatherSystemClass	(PhysicsSceneClass *scene,
-													 float emittersize,
-													 float emitterheight,
-													 float particledensity,
-													 float particlesperunitlength,
-													 float particlewidth,
-													 float particleheight,
-													 float particlespeed,
-													 const Vector2 &pageoffset,
-													 const Vector2 &pagesize,
-													 unsigned pagecount,
-													 bool	staticpageexists,
-													 float minstatictime,
-													 float maxstatictime,
-													 RenderModeEnum rendermode,
-													 bool decayaftercollision,
-													 bool prime)
-	: Scene (scene),
-	  EmitterSize (emittersize),
-	  EmitterHeight (emitterheight),
-	  EmitterPosition (Vector3 (0.0f, 0.0f, 0.0f)),
-	  ParticlesPerUnitLength (particlesperunitlength),
-	  ParticleSpeed (particlespeed),
-	  HalfParticleWidth (particlewidth * 0.5f),
-	  HalfParticleHeight (particleheight * 0.5f),
-	  RayHead (nullptr),
-	  RayCount (0),
-	  RaySpawnPtr (nullptr),
-	  RayUpdatePtr (nullptr),
-	  ParticleHead (nullptr),
-	  ParticleCount (0),
-	  MinRayEndZ (FLT_MAX),
-	  SpawnCountFraction (0.0f),
-	  PageCount (pagecount),
-	  StaticPageExists (staticpageexists),
-	  MinStaticTime (minstatictime),
-	  MaxStaticTime (maxstatictime),
-	  RenderMode (rendermode),
-	  DecayAfterCollision (decayaftercollision),
-	  CameraPositionValid (false)
+bool WeatherSceneCollisionClass::Cast_Weather_Column (const Vector3 &top, const Vector3 &bottom,
+																		Vector3 &point, Vector3 &normal)
 {
-	const char								*texturename = "WeatherParticles.tga";
-	const TextureClass::MipCountType  mipcount	 = TextureClass::MIP_LEVELS_5;
-	const float								 oopagecount = 1.0f / pagecount;
-
-	WWASSERT (particlespeed >= 0.0f);
-
-	// How old is the weather system?
-	Age = prime ? MAX_AGE : 0.0f;
-
-	// Set density of system.
-	Set_Density (particledensity);
-
-	// Get the scene's bounding box.
-	scene->Get_Level_Extents (SceneMin, SceneMax);
-
-	// Expand the bounding box by a small amount so that we can distinguish between collisions with geometry and
-	// collisions with the bounding box.
-	SceneMin.Z -= 1.0f;
-	SceneMax.Z += 1.0f;
-
-	// Initialize an index buffer.
-	#if WEATHER_PARTICLE_SORT
-	IndexBuffer = NEW_REF (SortingIndexBufferClass, (MAX_IB_PARTICLE_COUNT * VERTICES_PER_TRIANGLE));
-	#else
-	IndexBuffer = NEW_REF (DX8IndexBufferClass, (MAX_IB_PARTICLE_COUNT * VERTICES_PER_TRIANGLE));
-	#endif
-	{
-		SortingIndexBufferClass::WriteLockClass lock (IndexBuffer);
-		unsigned short *indices = lock.Get_Index_Array();
-
-		for (unsigned i = 0; i < MAX_IB_PARTICLE_COUNT * VERTICES_PER_TRIANGLE; i++) {
-			*indices++ = static_cast<unsigned short>(i);
-		}
+	if (Scene == nullptr) {
+		point = bottom;
+		return (false);
 	}
 
-	// Configure material.
-	Material = VertexMaterialClass::Get_Preset (VertexMaterialClass::PRELIT_NODIFFUSE);
+	LineSegClass				  raycast (top, bottom);
+	CastResultStruct			  rayresult;
+	PhysRayCollisionTestClass raytest (raycast, &rayresult, TERRAIN_ONLY_COLLISION_GROUP, COLLISION_TYPE_PROJECTILE);
 
-	// Configure shader.
-	Shader = ShaderClass::_PresetAlphaShader;
-	Shader.Set_Primary_Gradient (ShaderClass::GRADIENT_MODULATE);
-	Shader.Set_Cull_Mode (ShaderClass::CULL_MODE_DISABLE);
-	Shader.Enable_Fog ("WeatherSystemClass");
+	Scene->Cast_Ray (raytest);
+	raycast.Compute_Point (raytest.Result->Fraction, &point);
 
-	// Configure texture.
-	Texture = WW3DAssetManager::Get_Instance()->Get_Texture (texturename, mipcount);
-	Texture->Set_U_Addr_Mode (TextureClass::TEXTURE_ADDRESS_CLAMP);
-	Texture->Set_V_Addr_Mode (TextureClass::TEXTURE_ADDRESS_CLAMP);
-	Set_Translucent (true);
-
-	// Configure texture coordinates according to given page count.
-	// NOTE: Split the texture into vertical pages.
-	WWASSERT (pagecount > 0);
-	TextureArray = new Vector2 [pagecount * VERTICES_PER_TRIANGLE];
-	WWASSERT (TextureArray != nullptr);
-	for (unsigned page = 0; page < pagecount; page++) {
-		TextureArray [page * VERTICES_PER_TRIANGLE + 0].Set (pageoffset.U + (((page + 0.5f) * oopagecount) * pagesize.U), pageoffset.V + 0.0f);
-		TextureArray [page * VERTICES_PER_TRIANGLE + 1].Set (pageoffset.U + (((page + 1.0f) * oopagecount) * pagesize.U), pageoffset.V + pagesize.V);
-		TextureArray [page * VERTICES_PER_TRIANGLE + 2].Set (pageoffset.U + (((page + 0.0f) * oopagecount) * pagesize.U), pageoffset.V + pagesize.V);
-	}
-}
-
-
-/***********************************************************************************************
- * WeatherSystemClass::WeatherSystemClass --																	  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
- *=============================================================================================*/
-WeatherSystemClass::~WeatherSystemClass()
-{
-	RayStruct		*rayptr;
-	ParticleStruct *particleptr;
-
-	// Clean-up rays.
-	rayptr = RayHead;
-	while (rayptr != nullptr) {
-
-		RayStruct *nextrayptr;
-
-		nextrayptr = rayptr->Next;
-		delete rayptr;
-		rayptr = nextrayptr;
-		RayCount--;
+	if (raytest.Result->Fraction < 1.0f) {
+		normal = raytest.Result->Normal;
+		return (true);
 	}
 
-	WWASSERT (RayCount == 0);
-
-	// Clean-up particles.
-	particleptr = ParticleHead;
-	while (particleptr != nullptr) {
-
-		ParticleStruct *nextparticleptr = particleptr->Next;
-
-		Kill (particleptr);
-		particleptr = nextparticleptr;
-	}
-
-	WWASSERT (ParticleCount == 0);
-
-	REF_PTR_RELEASE (Material);
-	delete [] TextureArray;
-	REF_PTR_RELEASE (Texture);
-	REF_PTR_RELEASE (IndexBuffer);
-}
-
-
-/***********************************************************************************************
- * WeatherSystemClass::Set_Density --																			  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
- *=============================================================================================*/
-void WeatherSystemClass::Set_Density (float density)
-{
-	unsigned   raycount;
-	int		  signedcount, r;
-	RayStruct *rayptr;
-
-	// Calculate no. of rays required.
-	ParticleDensity = density;
-	raycount			 = int(Spawn_Count (1.0f) / (ParticlesPerUnitLength * ParticleSpeed));
-
-	// Is the ray count increasing or decreasing in size?
-	signedcount = ((int) RayCount) - ((int) raycount);
-	if (signedcount < 0) {
-
-		// Add new, uninitialized rays to head of list.
-		for (r = signedcount; r < 0; r++) {
-
-			rayptr = new RayStruct;
-			WWASSERT (rayptr != nullptr);
-
-			rayptr->Next = RayHead;
-			rayptr->Initialized = false;
-			RayHead = rayptr;
-		}
-
-		// If necessary, initialize the spawn and update pointers.
-		if (RaySpawnPtr  == nullptr) RaySpawnPtr  = RayHead;
-		if (RayUpdatePtr == nullptr) RayUpdatePtr = RayHead;
-
-	} else {
-
-		// Remove rays from head of list.
-		rayptr = RayHead;
-		for (r = 0; r < signedcount; r++) {
-
-			RayStruct *nextrayptr;
-
-			if (rayptr == nullptr) break;
-
-			nextrayptr = rayptr->Next;
-
-			// If this ray is referenced by the spawn or update pointers then change them.
-			if (RaySpawnPtr  == rayptr) RaySpawnPtr  = nextrayptr;
-			if (RayUpdatePtr == rayptr) RayUpdatePtr = nextrayptr;
-
-			delete rayptr;
-			rayptr = nextrayptr;
-		}
-		RayHead = rayptr;
-	}
-
-	RayCount = raycount;
-}
-
-
-/***********************************************************************************************
- * WeatherSystemClass::Update --																					  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
- *=============================================================================================*/
-bool WeatherSystemClass::Update (WindClass *wind, const Vector3 &cameraposition)
-{
-	struct BoundingBoxStruct {
-		Vector2 Min, Max;
-	};
-
-	const unsigned randomness		= 10000;
-	const float		oorandomness	= 1.0f / randomness;
-	const float		overlapdelta	= EmitterSize * 2.0f;
-	const unsigned rayupdatecount = unsigned(std::max (RayCount * 0.018f, 1.0f));
-
-	Vector3				oldemitterposition;
-	float					ooz;
-	Vector3				emitterdirection, emitteroffset;
-	Vector3				projectedemitterposition;
-	BoundingBoxStruct emitterbounds;
-	float					deltax, deltay;
-	BoundingBoxStruct nonoverlapregions [2];
-	float					regionthreshold;
-	Vector3				sceneminoffset, scenemaxoffset;
-	Vector2				raystartoffset;
-	RayStruct		  *rayptr;
-	float					spawncountfraction;
-	float					alpha, beta;
-	Vector2				range;
-	Vector3				minrayendposition;
-	float					l, boxoffset;
-	ParticleStruct	  *particleptr;
-	float					time;
-
-	oldemitterposition = EmitterPosition;
-
-	// Calculate particle velocity based on wind.
-	if (wind != nullptr) {
-		ParticleVelocity.Set (wind->Get_Velocity().X, wind->Get_Velocity().Y, -ParticleSpeed);
-	} else {
-		ParticleVelocity.Set (0.0f, 0.0f, -ParticleSpeed);
-	}
-
-	// Calculate new emitter position.
-	ooz = 1.0f / ParticleVelocity.Z;
-	emitterdirection.Set (ParticleVelocity.X * ooz, ParticleVelocity.Y * ooz, 1.0f);
-	emitteroffset = EmitterHeight * emitterdirection;
-	EmitterPosition =	cameraposition + emitteroffset;
-
-	// Define bounding box for new emitter area.
-	emitterbounds.Min.Set (EmitterPosition.X - EmitterSize, EmitterPosition.Y - EmitterSize);
-	emitterbounds.Max.Set (EmitterPosition.X + EmitterSize, EmitterPosition.Y + EmitterSize);
-
-	// Calculate new regions that define the areas of non-overlap between the old and new emitter positions.
-
-	// Project the old emitter onto the plane of the new emitter.
-	projectedemitterposition = oldemitterposition + ((EmitterPosition.Z - oldemitterposition.Z) * emitterdirection);
-
-	// If the old and new emitters partially overlap...
-	deltax = WWMath::Fabs (EmitterPosition.X - projectedemitterposition.X);
-	deltay = WWMath::Fabs (EmitterPosition.Y - projectedemitterposition.Y);
-	if ((deltax < overlapdelta) && (deltay < overlapdelta) && (EmitterPosition != projectedemitterposition)) {
-
-		float area0, area1;
-
-		// Compare X-extents.
-		if (EmitterPosition.X < projectedemitterposition.X) {
-			nonoverlapregions [0].Min.X = emitterbounds.Min.X;
-			nonoverlapregions [0].Max.X = projectedemitterposition.X - EmitterSize;
-			nonoverlapregions [1].Min.X = nonoverlapregions [0].Max.X;
-			nonoverlapregions [1].Max.X = emitterbounds.Max.X;
-		} else {
-			nonoverlapregions [0].Min.X = projectedemitterposition.X + EmitterSize;
-			nonoverlapregions [0].Max.X = emitterbounds.Max.X;
-			nonoverlapregions [1].Min.X = emitterbounds.Min.X;
-			nonoverlapregions [1].Max.X = nonoverlapregions [0].Min.X;
-		}
-		nonoverlapregions [0].Min.Y = emitterbounds.Min.Y;
-		nonoverlapregions [0].Max.Y = emitterbounds.Max.Y;
-
-		// Compare Y-extents.
-		if (EmitterPosition.Y < projectedemitterposition.Y) {
-			nonoverlapregions [1].Min.Y = emitterbounds.Min.Y;
-			nonoverlapregions [1].Max.Y = projectedemitterposition.Y - EmitterSize;
-		} else {
-			nonoverlapregions [1].Min.Y = projectedemitterposition.Y + EmitterSize;
-			nonoverlapregions [1].Max.Y = emitterbounds.Max.Y;
-		}
-
-		area0 = (nonoverlapregions [0].Max.X - nonoverlapregions [0].Min.X) * (nonoverlapregions [0].Max.Y - nonoverlapregions [0].Min.Y);
-		area1 = (nonoverlapregions [1].Max.X - nonoverlapregions [1].Min.X) * (nonoverlapregions [1].Max.Y - nonoverlapregions [1].Min.Y);
-		if (area0 == 0.0f) {
-
-			// Always select region 1.
-			regionthreshold = -FLT_MAX;
-
-		} else {
-			if (area1 == 0.0f) {
-
-				// Always select region 0.
-				regionthreshold = +FLT_MAX;
-
-			} else {
-
-				// Select either region 0 or region 1 weighted by area.
-				regionthreshold = area0 / (area0 + area1);
-			}
-		}
-
-	} else {
-
-		// No overlap or complete overlap: region 0 is emitter area, region 1 is not used.
-		nonoverlapregions [0] = emitterbounds;
-		regionthreshold = +FLT_MAX;
-	}
-
-	// Calculate offset of projection of ray start from old to new emitter.
-	raystartoffset	= (EmitterPosition.Z - oldemitterposition.Z) * Vector2 (emitterdirection.X, emitterdirection.Y);
-
-	// Precalculate offsets to intersection with upper and lower planes of scene bounds from emitter position.
-	sceneminoffset = (SceneMin.Z - EmitterPosition.Z) * emitterdirection;
-	scenemaxoffset = (SceneMax.Z - EmitterPosition.Z) * emitterdirection;
-
-	// Iterate over all rays...
-	spawncountfraction = 0.0f;
-	rayptr = RayHead;
-	while (rayptr != nullptr) {
-
-	  	Vector3 raystartposition;
-
-		// Does this ray need to be initialized?
-		if (!rayptr->Initialized) {
-
-			// Randomly allocate a new ray start position from the entire emitter region.
-			alpha = _RandomNumber (0, randomness) * oorandomness;
-			beta  = _RandomNumber (0, randomness) * oorandomness;
-			range = emitterbounds.Max - emitterbounds.Min;
-			range.Scale (alpha, beta);
-			rayptr->StartPosition = emitterbounds.Min + range;
-			rayptr->Initialized	 = true;
-			rayptr->RayCast		 = true;
-
-		} else {
-
-		  	// Project the ray's emitter position onto the plane of the new emitter.
-			rayptr->StartPosition += raystartoffset;
-
-			// Does the ray fall outside the emitter (and therefore needs to be raycast)?
-			rayptr->RayCast = (rayptr->StartPosition.X < emitterbounds.Min.X) ||
-									(rayptr->StartPosition.X > emitterbounds.Max.X) ||
-									(rayptr->StartPosition.Y < emitterbounds.Min.Y) ||
-									(rayptr->StartPosition.Y > emitterbounds.Max.Y);
-
-			if (rayptr->RayCast) {
-
-				unsigned regionindex;
-
-				// Randomly allocate a new ray start position from one of the non-overlap regions.
-				if ((_RandomNumber (0, randomness) * oorandomness) < regionthreshold) {
-					regionindex = 0;
-				} else {
-					regionindex = 1;
-				}
-				alpha = _RandomNumber (0, randomness) * oorandomness;
-				beta  = _RandomNumber (0, randomness) * oorandomness;
-				range = nonoverlapregions [regionindex].Max - nonoverlapregions [regionindex].Min;
-				range.Scale (alpha, beta);
-				rayptr->StartPosition = nonoverlapregions [regionindex].Min + range;
-
-			} else {
-
-				// Next ray.
-				rayptr = rayptr->Next;
-				continue;
-			}
-		}
-
-		raystartposition.Set (rayptr->StartPosition.X, rayptr->StartPosition.Y, EmitterPosition.Z);
-
-		// Raycast to find the ray's collision point with the environment.
-		{
-			Vector3						  raycaststartpoint (raystartposition + scenemaxoffset);
-			Vector3						  raycastendpoint (raystartposition + sceneminoffset);
-			LineSegClass				  raycast (raycaststartpoint, raycastendpoint);
-			CastResultStruct			  rayresult;
-			PhysRayCollisionTestClass raytest (raycast, &rayresult, TERRAIN_ONLY_COLLISION_GROUP, COLLISION_TYPE_PROJECTILE);
-
-			Scene->Cast_Ray (raytest);
-			raycast.Compute_Point (raytest.Result->Fraction, &(rayptr->EndPosition));
-			if (raytest.Result->Fraction < 1.0f) {
-				rayptr->ValidSurfaceNormal = true;
-				rayptr->SurfaceNormal = raytest.Result->Normal;
-			} else {
-				rayptr->ValidSurfaceNormal = false;
-			}
-		}
-
-		rayptr->ParticleVelocity = ParticleVelocity;
-
-		if ((Age > 0.0f) && (Can_Spawn (rayptr))) {
-
-			float		s;
-			unsigned	spawncount;
-
-			// Spawn some particles along the ray.
-			// NOTE: For accuracy, accumulate fractional spawncounts so that they can be used on a later ray.
-			s = ParticlesPerUnitLength * (rayptr->EndPosition - raystartposition).Quick_Length();
-			spawncount = unsigned(WWMath::Floor (s));
-			spawncountfraction += s - spawncount;
-			if (spawncountfraction >= 1.0f) {
-				spawncountfraction -= 1.0f;
-				spawncount++;
-			}
-			for (unsigned p = 0; p < spawncount; p++) {
-				Spawn (rayptr);
-			}
-		}
-
-		// Update minimum ray end Z.
-		if (rayptr->EndPosition.Z < MinRayEndZ) {
-			MinRayEndZ = rayptr->EndPosition.Z;
-		}
-
-		// Next ray.
-		rayptr = rayptr->Next;
-	}
-
-	// Now iterate over rayupdatecount rays and randomize them so that the ray 'pattern' is
-	// not discernable to the user (because it is constantly changing) and also to take
-	// account of the new particle velocity.
-	if (RayUpdatePtr != nullptr) {
-
-		for (unsigned r = 0; r < rayupdatecount; r++) {
-
-			// NOTE: Only need to randomize those rays that have not just been relocated inside the emitter.
-			if (!RayUpdatePtr->RayCast) {
-
-				// Randomly allocate a new ray start position from the entire emitter region.
-				alpha = _RandomNumber (0, randomness) * oorandomness;
-				beta  = _RandomNumber (0, randomness) * oorandomness;
-				range = emitterbounds.Max - emitterbounds.Min;
-				range.Scale (alpha, beta);
-				RayUpdatePtr->StartPosition = emitterbounds.Min + range;
-
-				// Raycast to find the ray's collision point with the environment.
-				{
-					Vector3						  raystartposition (RayUpdatePtr->StartPosition.X, RayUpdatePtr->StartPosition.Y, EmitterPosition.Z);
-					Vector3						  raycaststartpoint (raystartposition + scenemaxoffset);
-					Vector3						  raycastendpoint (raystartposition + sceneminoffset);
-					LineSegClass				  raycast (raycaststartpoint, raycastendpoint);
-					CastResultStruct			  rayresult;
-					PhysRayCollisionTestClass raytest (raycast, &rayresult, TERRAIN_ONLY_COLLISION_GROUP, COLLISION_TYPE_PROJECTILE);
-
-					Scene->Cast_Ray (raytest);
-					raycast.Compute_Point (raytest.Result->Fraction, &(RayUpdatePtr->EndPosition));
-					if (raytest.Result->Fraction < 1.0f) {
-						RayUpdatePtr->ValidSurfaceNormal = true;
-						RayUpdatePtr->SurfaceNormal = raytest.Result->Normal;
-					} else {
-						RayUpdatePtr->ValidSurfaceNormal = false;
-					}
-				}
-
-				RayUpdatePtr->ParticleVelocity = ParticleVelocity;
-
-				// Update minimum ray end Z.
-				if (RayUpdatePtr->EndPosition.Z < MinRayEndZ) {
-					MinRayEndZ = RayUpdatePtr->EndPosition.Z;
-				}
-			}
-
-			// Next ray. If necessary, wrap around to head of list.
-			RayUpdatePtr = RayUpdatePtr->Next;
-			if (RayUpdatePtr == nullptr) RayUpdatePtr = RayHead;
-		}
-	}
-
-	// Calculate a bounding box for the render object that encompasses the rays.
-	// NOTE 0: For efficiency, calculate the parallelepiped that is generated by projecting
-	//			  the emitter area onto the plane that contains the lowest ray end point and put
-	//			  a bounding box around this.
-	// NOTE 1: Make the bounding box a little bigger to account for the particle point size.
-	minrayendposition = EmitterPosition + ((MinRayEndZ - EmitterPosition.Z) * emitterdirection);
-	l = MAX (HalfParticleWidth, HalfParticleHeight);
-	boxoffset = EmitterSize + l;
-	ObjectMax.Set (MAX (EmitterPosition.X, minrayendposition.X) + boxoffset, MAX (EmitterPosition.Y, minrayendposition.Y) + boxoffset, MAX (EmitterPosition.Z, minrayendposition.Z) + l);
-	ObjectMin.Set (MIN (EmitterPosition.X, minrayendposition.X) - boxoffset, MIN (EmitterPosition.Y, minrayendposition.Y) - boxoffset, MIN (EmitterPosition.Z, minrayendposition.Z) - l);
-
-	// Flag that the object bounding box has been modified.
-	Invalidate_Cached_Bounding_Volumes();
-
-	// Iterate over all particles...
-	time = WW3D::Get_Frame_Time() * 0.001f;
-	particleptr = ParticleHead;
-	while (particleptr != nullptr) {
-
-		Vector2 emitterposition;
-		bool	  outside;
-
-		ParticleStruct *nextparticleptr = particleptr->Next;
-
-		// Advance time.
-		particleptr->ElapsedTime += time;
-
-		// Has it expired?
-		if (particleptr->ElapsedTime >= particleptr->LifeTime) {
-
-			Kill (particleptr);
-			particleptr = nextparticleptr;
-			continue;
-		}
-
-		// Has it just collided?
-		if (particleptr->ElapsedTime >= particleptr->CollisionTime) {
-			if (particleptr->Velocity.Z != 0.0f) {
-
-				// Place the particle at the collision point.
-				particleptr->Velocity.Set (0.0f, 0.0f, 0.0f);
-				particleptr->CurrentPosition = particleptr->CollisionPosition;
-				if (StaticPageExists) particleptr->Page = static_cast<unsigned char>(PageCount - 1);
-				particleptr->RenderMode = RENDER_MODE_SURFACE_ALIGNED;
-			}
-
-		} else {
-
-			// Advance position.
-			particleptr->CurrentPosition += particleptr->Velocity * time;
-		}
-
-		// Project the particle's position onto the plane of the new emitter.
-		emitterposition = Vector2 (particleptr->CurrentPosition.X, particleptr->CurrentPosition.Y) + ((EmitterPosition.Z - particleptr->CurrentPosition.Z) * particleptr->UnitZVelocity);
-
-		// Does the particle fall outside the emitter?
-		outside = (emitterposition.X < emitterbounds.Min.X) ||
-					 (emitterposition.X > emitterbounds.Max.X) ||
-					 (emitterposition.Y < emitterbounds.Min.Y) ||
-					 (emitterposition.Y > emitterbounds.Max.Y);
-
-		if (outside) {
-			Kill (particleptr);
-		}
-
-		particleptr = nextparticleptr;
-	}
-
-
-	// Spawn any new particles that need to be spawned on this update.
-	// NOTE: For accuracy, accumulate fractional spawncounts so that they can be used on a later iteration.
-	float s = Spawn_Count (time);
-	unsigned spawncount = unsigned(WWMath::Floor (s));
-	SpawnCountFraction += s - spawncount;
-	if (SpawnCountFraction >= 1.0f) {
-		SpawnCountFraction -= 1.0f;
-		spawncount++;
-	}
-	for (unsigned p = 0; p < spawncount; p++) {
-		Spawn();
-	}
-
-	// Advance weather system age.
-	// NOTE: To prevent floating point overflow, don't advance the age past some maximum.
-	if (Age < MAX_AGE) Age += time;
-
-	// Is the weather still active (ie. it is contributing to the scene visually or audibly)?
-	return ((ParticleDensity > 0.0f) || (ParticleCount > 0));
-}
-
-
-/***********************************************************************************************
- * WeatherSystemClass::Spawn --																					  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
- *=============================================================================================*/
-bool WeatherSystemClass::Spawn (RayStruct *suppliedrayptr)
-{
-	const unsigned maxparticlecount = USHRT_MAX / (2 * VERTICES_PER_TRIANGLE);
-
-	// Due to a limitation in the underlying rendering API, there cannot be more than USHRT_MAX
-	// total vertices in the system. Conservatively restrict this to half of this to compensate
-	// for other primitives in the system.
-	if (_GlobalParticleCount < maxparticlecount) {
-
-		RayStruct *rayptr;
-
-		if (suppliedrayptr == nullptr) {
-
-			// Assign a ray to this particle.
-			// If there are no rays to assign then return failure to spawn.
-			if (RaySpawnPtr != nullptr) {
-				rayptr = RaySpawnPtr;
-				RaySpawnPtr = RaySpawnPtr->Next;
-				if (RaySpawnPtr == nullptr) RaySpawnPtr = RayHead;
-			} else {
-				return (false);
-			}
-
-		} else {
-			rayptr = suppliedrayptr;
-		}
-
-		// Ensure that this ray's endpoint lies below the emitter (otherwise there is an obstruction
-		// between the ray's source and the emitter).
-		if (Can_Spawn (rayptr)) {
-
-			const unsigned randomness	  = 1000;
-			const float		oorandomness  = 1.0f / randomness;
-			const float		ooz			  = 1.0f / rayptr->ParticleVelocity.Z;
-			const float		collisiontime = (rayptr->EndPosition.Z - EmitterPosition.Z) * ooz;
-
-			ParticleStruct *particleptr;
-
-			particleptr = new ParticleStruct;
-			WWASSERT (particleptr != nullptr);
-
-			// Add this particle to the head of the list.
-			if (ParticleHead != nullptr) {
-				ParticleHead->Prev = particleptr;
-			}
-			particleptr->Prev = nullptr;
-			particleptr->Next = ParticleHead;
-			ParticleHead		= particleptr;
-
-			// Increment the no. of particles.
-			ParticleCount++;
-
-			// Increment total no. of global weather particles.
-			_GlobalParticleCount++;
-
-			particleptr->UnitZVelocity.Set (rayptr->ParticleVelocity.X * ooz, rayptr->ParticleVelocity.Y * ooz);
-			particleptr->CollisionTime		 = collisiontime;
-			particleptr->CollisionPosition = rayptr->EndPosition;
-
-			// If the ray does not have a valid surface normal then the ray's end position intersects the level's bounding box.
-			// In this case it is not necessary to sustain the particle past the collision time.
-			if (rayptr->ValidSurfaceNormal) {
-				particleptr->LifeTime = collisiontime + WWMath::Lerp (MinStaticTime, MaxStaticTime, _RandomNumber (0, randomness) * oorandomness);
-				particleptr->SurfaceNormal = rayptr->SurfaceNormal;
-			} else {
-				particleptr->LifeTime = collisiontime;
-			}
-
-			if (suppliedrayptr == nullptr) {
-
-				// Start particle at emitter.
-				particleptr->ElapsedTime	  = 0.0f;
-				particleptr->Velocity		  = rayptr->ParticleVelocity;
-				particleptr->CurrentPosition = Vector3 (rayptr->StartPosition.X, rayptr->StartPosition.Y, EmitterPosition.Z);
-				particleptr->Page				  = static_cast<unsigned char>(_RandomNumber (0, PageCount - (StaticPageExists ? 2 : 1)));
-				particleptr->RenderMode		  = static_cast<unsigned char>(RenderMode);
-
-			} else {
-
-				float t;
-
-				// Advance the particle some random amount in time.
-				// NOTE: The particle cannot have existed longer than the weather system itself.
-				t = _RandomNumber (0, randomness) * oorandomness * particleptr->LifeTime;
-				particleptr->ElapsedTime = MIN (t, Age);
-				if (particleptr->ElapsedTime >= particleptr->CollisionTime) {
-					particleptr->Velocity.Set (0.0f, 0.0f, 0.0f);
-					particleptr->CurrentPosition = rayptr->EndPosition;
-					if (StaticPageExists) {
-						particleptr->Page	= static_cast<unsigned char>(PageCount - 1);
-					} else {
-						particleptr->Page	= static_cast<unsigned char>(_RandomNumber (0, PageCount - 1));
-					}
-					particleptr->RenderMode = RENDER_MODE_SURFACE_ALIGNED;
-
-				} else {
-					particleptr->Velocity		  = rayptr->ParticleVelocity;
-					particleptr->CurrentPosition = Vector3 (rayptr->StartPosition.X, rayptr->StartPosition.Y, EmitterPosition.Z) + (particleptr->Velocity * particleptr->ElapsedTime);
-					particleptr->Page				  = static_cast<unsigned char>(_RandomNumber (0, PageCount - (StaticPageExists ? 2 : 1)));
-					particleptr->RenderMode		  = static_cast<unsigned char>(RenderMode);
-				}
-			}
-
-			return (true);
-		}
-	}
-
+	// Nothing under this column but the bottom of the box: a particle reaching it has not
+	// landed on anything, and so does not splash, settle, or stay.
 	return (false);
 }
 
 
 /***********************************************************************************************
- * WeatherSystemClass::Kill --																					  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
+ * WeatherSystemClass::WeatherSystemClass --                                                   *
  *=============================================================================================*/
-void WeatherSystemClass::Kill (ParticleStruct *particleptr)
+WeatherSystemClass::WeatherSystemClass (PhysicsSceneClass *scene, WeatherModeType mode, float density)
+	: Collision (scene),
+	  Renderer (mode),
+	  Density (density)
 {
-	WWASSERT (ParticleCount > 0);
+	Renderer.Set_Collision_Provider (&Collision);
+	Renderer.Set_Density (density);
 
-	// Remove this particle from the list.
-	if (particleptr->Prev != nullptr) {
-		particleptr->Prev->Next = particleptr->Next;
-	} else {
-		ParticleHead = particleptr->Next;
-	}
-	if (particleptr->Next != nullptr) {
-		particleptr->Next->Prev = particleptr->Prev;
-	}
-
-	delete particleptr;
-
-	// Decrement the no. of particles.
-	ParticleCount--;
-
-	// Decrement the no. of global weather particles.
-	_GlobalParticleCount--;
+	// The weather is drawn in world space, like the particles it replaced.
+	Set_Transform (Matrix3D (1));
 }
 
 
 /***********************************************************************************************
- * WeatherSystemClass::Render --																					  *
+ * WeatherSystemClass::~WeatherSystemClass --                                                  *
+ *=============================================================================================*/
+WeatherSystemClass::~WeatherSystemClass()
+{
+}
+
+
+/***********************************************************************************************
+ * WeatherSystemClass::Set_Density --                                                          *
  *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
+ * Density means what it always meant -- particles per square world unit -- and it still       *
+ * arrives here from WeatherMgrClass's ramped parameters.  It used to resize a list of rays;   *
+ * now it only picks how far apart the fall lines are, which is decided afresh every frame, so *
+ * this stores it and nothing else happens until something is drawn.                           *
+ *=============================================================================================*/
+void WeatherSystemClass::Set_Density (float density)
+{
+	Density = density;
+	Renderer.Set_Density (density);
+}
+
+
+/***********************************************************************************************
+ * WeatherSystemClass::Update --                                                               *
+ *=============================================================================================*/
+bool WeatherSystemClass::Update (WindClass *wind, const Vector3 &cameraposition)
+{
+	float time = WW3D::Get_Frame_Time() * 0.001f;
+
+	Renderer.Set_Wind ((wind != nullptr) ? wind->Get_Velocity() : Vector2 (0.0f, 0.0f));
+	Renderer.Update (time, cameraposition);
+
+	// The box moved with the camera, so whatever the scene remembered about where this object
+	// is no longer holds.
+	Invalidate_Cached_Bounding_Volumes();
+
+	// The stock system had to keep running after its density reached zero, to let the particles
+	// already falling finish falling.  Nothing is in flight here -- a particle exists only for
+	// as long as it is being looked at -- so weather ends the moment it stops.
+	return (Density > 0.0f);
+}
+
+
+/***********************************************************************************************
+ * WeatherSystemClass::Render --                                                               *
  *=============================================================================================*/
 void WeatherSystemClass::Render (RenderInfoClass &rinfo)
 {
+	// Sort level 31, exactly as before: weather is transparent and belongs behind the sorted
+	// geometry of its level.
 	if (WW3D::Are_Static_Sort_Lists_Enabled()) {
-
-		const unsigned sortlevel = 31;
-
-		WW3D::Add_To_Static_Sort_List (this, sortlevel);
-
-	} else {
-
-		const Vector3 zero  (0.0f, 0.0f, 0.0f);
-		const Vector3 white (1.0f, 1.0f, 1.0f);
-
-		Vector3			 cameravelocity;
-		Vector3			 color;
-		unsigned			 dxcolor;
-		Matrix4			 viewmatrix (true), identitymatrix (true);
-		float				 maxalphaheight, oomaxalphaheight, deltaheight;
-		Vector3			 x, y;
-		float				 w, h;
-		Vector3			 offset [VERTICES_PER_TRIANGLE];
-		Vector3			 camerafocus;
-		ParticleStruct *particleptr;
-		unsigned			 processedparticlecount, bufferparticlecount;
-
-		if (CameraPositionValid) {
-			cameravelocity = ((rinfo.Camera.Get_Position() - CameraPosition) / (WW3D::Get_Frame_Time() * 0.001f));
-		} else {
-			cameravelocity.Set (0.0f, 0.0f, 0.0f);
-			CameraPositionValid = true;
-		}
-
-		CameraPosition = rinfo.Camera.Get_Position();
-
-		dxcolor = DX8Wrapper::Convert_Color (Vector3 (1.0f, 1.0f, 1.0f), 0.0f);
-
-		// Precalculate alpha values.
-		maxalphaheight	  = EmitterHeight * 0.2f;
-		oomaxalphaheight = 1.0f / maxalphaheight;
-		deltaheight		  = rinfo.Camera.Get_Position().Z + (EmitterHeight - maxalphaheight);
-
-		// NOTE: All particle positions are already in world space.
-		DX8Wrapper::Set_Transform (D3DTS_WORLD, identitymatrix);
-
-		DX8Wrapper::Set_Material (Material);
-		DX8Wrapper::Set_Shader (Shader);
-		DX8Wrapper::Set_Texture (0, Texture);
-
-		DX8Wrapper::Set_Index_Buffer (IndexBuffer, 0);
-
- 		camerafocus = rinfo.Camera.Get_Transform().Get_Z_Vector();
-		particleptr = ParticleHead;
-		processedparticlecount = 0;
-		bufferparticlecount = MIN (MAX_IB_PARTICLE_COUNT, ParticleCount);
-		while (processedparticlecount < ParticleCount) {
-
-			unsigned particlecount, submittedparticlecount;
-
-			#if WEATHER_PARTICLE_SORT
-			DynamicVBAccessClass dynamicvb (BUFFER_TYPE_DYNAMIC_SORTING, dynamic_fvf_type, static_cast<unsigned short>(bufferparticlecount * VERTICES_PER_TRIANGLE));
-			#else
-			DynamicVBAccessClass dynamicvb (BUFFER_TYPE_DYNAMIC_DX8, dynamic_fvf_type, static_cast<unsigned short>(bufferparticlecount * VERTICES_PER_TRIANGLE));
-			#endif
-
-			// Copy the data into the sorting vertex buffer.
-			particlecount = std::min (ParticleCount - processedparticlecount, unsigned(MAX_IB_PARTICLE_COUNT));
-			submittedparticlecount = 0;
-			{
-				DynamicVBAccessClass::WriteLockClass lock (&dynamicvb);
-
-				VertexFormatXYZNDUV2 *vertex = lock.Get_Formatted_Vertex_Array();
-
-				for (unsigned p = 0; p < particlecount; p++)	{
-
-					Vector3	position;
-
-					WWASSERT (particleptr != nullptr);
-					position = particleptr->CurrentPosition;
-
-					// Optimization: only submit this particle for rendering if it is in the view frustum.
-					if (CollisionMath::Overlap_Test (rinfo.Camera.Get_Frustum(), position) != CollisionMath::OUTSIDE) {
-
-						unsigned base;
-						float		alphaheight, alpha;
-
-						switch (particleptr->RenderMode) {
-
-							case RENDER_MODE_AXIS_ALIGNED:
-								y = particleptr->Velocity - cameravelocity;
-								y /= y.Quick_Length();
-								x = Vector3::Cross_Product (camerafocus, y);
-								x /= x.Quick_Length();
-								w = HalfParticleWidth;
-								h = HalfParticleHeight;
-								break;
-
-							case RENDER_MODE_CAMERA_ALIGNED:
-								x = rinfo.Camera.Get_Transform().Get_X_Vector();
-								y = rinfo.Camera.Get_Transform().Get_Y_Vector();
-								w = HalfParticleWidth;
-								h = HalfParticleHeight;
-								break;
-
-							case RENDER_MODE_SURFACE_ALIGNED:
-
-								// Particle has an orientation so back-face cull it.
-								if (Vector3::Dot_Product (camerafocus, particleptr->SurfaceNormal) > 0.0f) {
-
-									position += particleptr->SurfaceNormal * WEATHER_SURFACE_OFFSET_DISTANCE;
-									x = Vector3::Cross_Product (camerafocus, particleptr->SurfaceNormal);
-									x /= x.Quick_Length();
-									y = Vector3::Cross_Product (x, particleptr->SurfaceNormal);
-
-									if (DecayAfterCollision) {
-
-										float decaytime, totaldecaytime, s;
-
-										decaytime		= particleptr->ElapsedTime - particleptr->CollisionTime;
-										totaldecaytime = particleptr->LifeTime - particleptr->CollisionTime;
-										if ((decaytime >= 0.0f) && (totaldecaytime > 0.0f)) {
-											s = 1.0f - (decaytime / totaldecaytime);
-											w = HalfParticleWidth  * s;
-											h = HalfParticleHeight * s;
-										} else {
-											w = h = 0.0f;
-										}
-
-									} else {
-										w = HalfParticleWidth;
-										h = HalfParticleHeight;
-									}
-									break;
-
-								} else {
-
-				  					// Advance to next particle.
-									particleptr = particleptr->Next;
-
-									continue;
-								}
-
- 							default:
-								WWASSERT (false);
-								w = h = 0.0f;
-								break;
-						}
-
-						offset [0] = -h * y;
-						offset [1] =  h * y + w * x;
-						offset [2] =  h * y - w * x;
-
-						base = particleptr->Page * VERTICES_PER_TRIANGLE;
-
-						alphaheight = position.Z - deltaheight;
-						if (alphaheight > 0.0f) {
-							alpha = 1.0f - (alphaheight * oomaxalphaheight);
-						} else {
-							alpha = 1.0f;
-						}
-						DX8Wrapper::Set_Alpha (alpha, dxcolor);
-
-						// Vertex 0 of triangle.
-						vertex->x		 = position.X + offset [0].X;
-						vertex->y		 = position.Y + offset [0].Y;
-						vertex->z		 = position.Z + offset [0].Z;
-						vertex->diffuse = dxcolor;
-						vertex->u1		 = TextureArray [base].U;
-						vertex->v1		 = TextureArray [base].V;
-						vertex++;
-
-						// Vertex 1 of triangle.
-						vertex->x		 = position.X + offset [1].X;
-						vertex->y		 = position.Y + offset [1].Y;
-						vertex->z		 = position.Z + offset [1].Z;
-						vertex->diffuse = dxcolor;
-						vertex->u1		 = TextureArray [base + 1].U;
-						vertex->v1		 = TextureArray [base + 1].V;
-						vertex++;
-
-						// Vertex 2 of triangle.
-						vertex->x		 = position.X + offset [2].X;
-						vertex->y		 = position.Y + offset [2].Y;
-						vertex->z		 = position.Z + offset [2].Z;
-						vertex->diffuse = dxcolor;
-						vertex->u1		 = TextureArray [base + 2].U;
-						vertex->v1		 = TextureArray [base + 2].V;
-						vertex++;
-
-						submittedparticlecount++;
-					}
-
-					// Advance to next particle.
-					particleptr = particleptr->Next;
-				}
-			}
-
-			if (submittedparticlecount > 0) {
-
-				DX8Wrapper::Set_Vertex_Buffer (dynamicvb);
-
-				#if WEATHER_PARTICLE_SORT
-				SortingRendererClass::Insert_Triangles (0, static_cast<unsigned short>(submittedparticlecount), 0, static_cast<unsigned short>(submittedparticlecount * VERTICES_PER_TRIANGLE));
-				#else
-				DX8Wrapper::Draw_Triangles (0, static_cast<unsigned short>(submittedparticlecount), 0, static_cast<unsigned short>(submittedparticlecount * VERTICES_PER_TRIANGLE));
-				#endif
-			}
-
-			processedparticlecount += particlecount;
-		}
-
-		WWASSERT (particleptr == nullptr);
-
+		WW3D::Add_To_Static_Sort_List (this, 31);
+		return;
 	}
+
+	Renderer.Render (rinfo);
 }
 
 
 /***********************************************************************************************
- * WeatherSystemClass::Get_Obj_Space_Bounding_Sphere --													  *
+ * WeatherSystemClass::Get_Obj_Space_Bounding_Sphere --                                        *
  *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
+ * Object space in name only, as it was in the stock engine: the transform is identity and     *
+ * these are world coordinates.                                                                *
  *=============================================================================================*/
 void WeatherSystemClass::Get_Obj_Space_Bounding_Sphere (SphereClass &sphere) const
 {
-	sphere.Init ((ObjectMin + ObjectMax) * 0.5f, ((ObjectMax - ObjectMin) * 0.5f).Length());
+	Vector3 minimum, maximum;
+
+	Renderer.Get_Bounds (minimum, maximum);
+	sphere.Init ((minimum + maximum) * 0.5f, ((maximum - minimum) * 0.5f).Length());
 }
 
 
 /***********************************************************************************************
- * WeatherSystemClass::Get_Obj_Space_Bounding_Box --														  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
+ * WeatherSystemClass::Get_Obj_Space_Bounding_Box --                                           *
  *=============================================================================================*/
 void WeatherSystemClass::Get_Obj_Space_Bounding_Box (AABoxClass &box) const
 {
-	box.Init ((ObjectMin + ObjectMax) * 0.5f, (ObjectMax - ObjectMin) * 0.5f);
+	Vector3 minimum, maximum;
+
+	Renderer.Get_Bounds (minimum, maximum);
+	box.Init ((minimum + maximum) * 0.5f, (maximum - minimum) * 0.5f);
 }
 
 
 /***********************************************************************************************
- * RainSystemClass::RainSystemClass --																			  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
+ * RainSystemClass::RainSystemClass --                                                         *
  *=============================================================================================*/
-RainSystemClass::RainSystemClass (PhysicsSceneClass *scene, float particledensity, WindClass * /* wind */, SoundEnvironmentClass *soundenvironment, bool prime)
-	: WeatherSystemClass (scene, 20.0f, 20.0f, particledensity, 0.2f, 0.15f, 0.45f, 15.0f, Vector2 (0.0f, 0.0f), Vector2 (1.0f, 0.5f), PAGE_COUNT, true, 0.1f, 0.2f, WeatherSystemClass::RENDER_MODE_AXIS_ALIGNED, false, prime),
+RainSystemClass::RainSystemClass (PhysicsSceneClass *scene, float particledensity, SoundEnvironmentClass *soundenvironment)
+	: WeatherSystemClass (scene, WEATHER_MODE_RAIN, particledensity),
 	  SoundEnvironment (soundenvironment)
 {
 	const char *rainsamplename	= "Rainfall01";
 
 	// Create the rain sound effect.
-	// Optimization: Only add the sound effect if wind speed is non-zero.
 	Sound = WWAudioClass::Get_Instance()->Create_Sound (rainsamplename, nullptr, 0, CLASSID_2D);
 	if (Sound != nullptr) {
 		SoundEnvironment->Add_User();
@@ -1281,16 +368,7 @@ RainSystemClass::RainSystemClass (PhysicsSceneClass *scene, float particledensit
 
 
 /***********************************************************************************************
- * RainSystemClass::~RainSystemClass --																		  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
+ * RainSystemClass::~RainSystemClass --                                                        *
  *=============================================================================================*/
 RainSystemClass::~RainSystemClass()
 {
@@ -1304,16 +382,13 @@ RainSystemClass::~RainSystemClass()
 
 
 /***********************************************************************************************
- * RainSystemClass::Update --																						  *
+ * RainSystemClass::Update --                                                                  *
  *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
+ * The rainfall loop is as loud as the rain is heavy.  Stock measured that by the number of    *
+ * live particles, which is the same number this asks the renderer for -- with the difference  *
+ * that it is now the number actually drawn last frame rather than the number in existence,    *
+ * so rain that is entirely behind the camera is quieter.  That is arguably more correct and   *
+ * certainly not louder.                                                                       *
  *=============================================================================================*/
 bool RainSystemClass::Update (WindClass *wind, const Vector3 &cameraposition)
 {
@@ -1324,85 +399,10 @@ bool RainSystemClass::Update (WindClass *wind, const Vector3 &cameraposition)
 
 		float attenuation;
 
-		// Calculate sound attenuation based on no. of particles in system.
-		attenuation = MIN (ParticleCount * volumeperparticle, maxvolume) / maxvolume;
+		attenuation = MIN (Get_Drawn_Particles() * volumeperparticle, maxvolume) / maxvolume;
 		Sound->Set_Volume (SoundEnvironment->Get_Amplitude() * attenuation);
 	}
 
-	// Base class update.
-	return (WeatherSystemClass::Update (wind, cameraposition));
-}
-
-
-/***********************************************************************************************
- * SnowSystemClass::SnowSystemClass --																			  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
- *=============================================================================================*/
-SnowSystemClass::SnowSystemClass (PhysicsSceneClass *scene, float particledensity, WindClass * /* wind */, bool prime)
-	: WeatherSystemClass (scene, 40.0f, 20.0f, particledensity, 0.1f, 0.32f, 0.32f, 3.5f, Vector2 (0.0f, 0.5f), Vector2 (1.0f, 0.25f), PAGE_COUNT, false, 1.0f, 2.0f, WeatherSystemClass::RENDER_MODE_CAMERA_ALIGNED, true, prime)
-{
-}
-
-
-/***********************************************************************************************
- * SnowSystemClass::Update --																						  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
- *=============================================================================================*/
-bool SnowSystemClass::Update (WindClass *wind, const Vector3 &cameraposition)
-{
-	// Base class update.
-	return (WeatherSystemClass::Update (wind, cameraposition));
-}
-
-
-/***********************************************************************************************
- * AshSystemClass::AshSystemClass --																			  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
- *=============================================================================================*/
-AshSystemClass::AshSystemClass (PhysicsSceneClass *scene, float particledensity, WindClass * /* wind */, bool prime)
-	: WeatherSystemClass (scene, 40.0f, 20.0f, particledensity, 0.1f, 0.32f, 0.32f, 3.0f, Vector2 (0.0f, 0.75f), Vector2 (1.0f, 0.25f), PAGE_COUNT, false, 1.0f, 2.0f, WeatherSystemClass::RENDER_MODE_CAMERA_ALIGNED, true, prime)
-{
-}
-
-
-/***********************************************************************************************
- * AshSystemClass::Update --																						  *
- *                                                                                             *
- * INPUT:                                                                                      *
- *                                                                                             *
- * OUTPUT:                                                                                     *
- *                                                                                             *
- * WARNINGS:                                                                                   *
- *                                                                                             *
- * HISTORY:                                                                                    *
- *   03/06/01    IML : Created.                                                                *
- *=============================================================================================*/
-bool AshSystemClass::Update (WindClass *wind, const Vector3 &cameraposition)
-{
 	// Base class update.
 	return (WeatherSystemClass::Update (wind, cameraposition));
 }
@@ -1615,7 +615,6 @@ void WeatherMgrClass::Reset()
 	Set_Fog_Enable (false);
 	Set_Fog_Range (200.0f, 300.0f);
 
-	_Prime = true;
 	_Imported = false;
 	_WindOverrideCount = 0;
 	_PrecipitationOverrideCount = 0;
@@ -2057,15 +1056,15 @@ void WeatherMgrClass::Update (PhysicsSceneClass *scene, CameraClass *camera)
 					switch (p) {
 
 	  					case PRECIPITATION_RAIN:
-	  						_Precipitation [p] = NEW_REF (RainSystemClass, (scene, parameterptr->Value(), _Wind, _SoundEnvironment, _Prime));
+	  						_Precipitation [p] = NEW_REF (RainSystemClass, (scene, parameterptr->Value(), _SoundEnvironment));
 	  						break;
 
 	  					case PRECIPITATION_SNOW:
-	  						_Precipitation [p] = NEW_REF (SnowSystemClass, (scene, parameterptr->Value(), _Wind, _Prime));
+	  						_Precipitation [p] = NEW_REF (WeatherSystemClass, (scene, WEATHER_MODE_SNOW, parameterptr->Value()));
 	  						break;
 
 	  					case PRECIPITATION_ASH:
-	  						_Precipitation [p] = NEW_REF (AshSystemClass, (scene, parameterptr->Value(), _Wind, _Prime));
+	  						_Precipitation [p] = NEW_REF (WeatherSystemClass, (scene, WEATHER_MODE_ASH, parameterptr->Value()));
 	  						break;
 
 						default:
@@ -2083,17 +1082,6 @@ void WeatherMgrClass::Update (PhysicsSceneClass *scene, CameraClass *camera)
 	if (Is_Dirty() || fogmodified) {
 		scene->Set_Fog_Enable (_FogEnabled);
 		scene->Set_Fog_Range (_Parameters [PARAMETER_FOG_START_DISTANCE].Value(), _Parameters [PARAMETER_FOG_END_DISTANCE].Value());
-	}
-
-	if (CombatManager::I_Am_Server()) {
-
-		// Server precipitation can only be primed on the first update iteration of a level.
-		_Prime = false;
-
-	} else {
-
-		// Clients can be primed right up until the first import from the server.
-		if (_Imported) _Prime = false;
 	}
 
 	// Everything necessary has been updated. Clear the dirty flag.

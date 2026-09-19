@@ -344,3 +344,21 @@ is unbatched by design. Next exact action is a manual one for the user: run
 `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, fire a weapon, and compare
 `particle_status` with `particle_batching off` against `particle_batching on` -- the emitters-per-draw-call
 number is the acceptance, and it is 1.00 when batching is off.
+
+## P23 -- the weather is arithmetic and nobody has stood in it
+
+`WeatherEnvironmentRenderer` is in and the stock per-particle weather is deleted (P23-A in
+`completed_features.md`, `docs/zerohour/WeatherEnvironmentRenderer.md`). Three things are open.
+`shader_weather` and `fds_shader_weather` are written and registered but have never been run,
+because this session was asked not to run the game -- see Q-012, which now covers both check
+families. Nothing has been on a screen: no weather has been drawn with a device, and the one
+deliberate visual regression is that a raindrop is aligned to its own velocity rather than to its
+velocity minus the camera's, so running sideways through rain no longer slants it. And three of the
+six modes Section 36 names -- `DUST`, `TIBERIUM`, `FALLING` -- have no caller, because
+`WeatherMgrClass` only knows rain, snow and ash; four textures are missing and listed in
+`docs/assets/WeatherParticles.md`, with rain drawing untextured until `ow_weather_rain.tga` exists.
+Next exact action is a manual one for the user: run
+`ctest -C Debug -R "shader_weather|shader_particles" --output-on-failure` in `build/win32`, then
+`renegade --gamedir "C:\Westwood\Renegade_full"`, load an outdoor level, type `rain 1` and then
+`snow 1` at the console, and report `weather_status` -- whether the rain looks at least as good as
+stock, and whether it still looks right standing under a roof and at the edge of one.
