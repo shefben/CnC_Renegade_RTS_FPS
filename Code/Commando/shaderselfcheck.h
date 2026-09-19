@@ -36,6 +36,8 @@ namespace	ShaderSelfCheck
 	//		           refusal of a child model that has no art yet
 	//		radar        the shared tactical intelligence model, and that FPS contacts never
 	//		           carry strategic radar-only/last-known information
+	//		overlays     the batched status-circle pool and its shroud/per-player visibility
+	//		           policy
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

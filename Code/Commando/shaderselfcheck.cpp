@@ -9,10 +9,13 @@
 #include "debrisrenderer.h"
 #include "radar.h"
 #include "shadermgr.h"
+#include "statusoverlayrenderer.h"
+#include "statusoverlaysystem.h"
 #include "tacticalintelligence.h"
 #include "tracerrenderer.h"
 #include "weatherenvironment.h"
 #include "worldparticlemanager.h"
+#include "worldshroudmanager.h"
 
 #include "assetmgr.h"
 #include "camera.h"
@@ -1465,6 +1468,159 @@ int	Run_Tactical_Intelligence (void)
 }
 
 
+/*
+**	Waypoint / status-circle renderers -- roadmap Section 32.
+**
+**	StatusOverlayRenderer is device-less exercisable the same way TracerRenderer is: the pool,
+**	the clock and the batched streak submission all run with no real graphics device, so this
+**	pins both halves of the acceptance -- "batched" as a submission count, and "respects
+**	shroud/per-player visibility" as StatusOverlaySystem's ownership/shroud policy, which is a
+**	pure function of a handle and a team and needs neither a scene nor a device either.
+*/
+int	Run_Status_Overlays (void)
+{
+	CameraClass				camera;
+	RenderInfoClass		rinfo (camera);
+
+	WorldParticleManager::Init ();
+	WorldParticleManager::Set_Enabled (true);
+
+	StatusOverlayRenderer::Init ();
+	StatusOverlayRenderer::Set_Enabled (true);
+	StatusOverlayRenderer::Set_Max_Overlays (256);
+
+	Vector3	point (0.0f,0.0f,-10.0f);
+	Vector4	green (0.0f,0.8f,0.0f,0.8f);
+
+	/*
+	**	One persistent ring (lifetime <= 0) survives ageing and stays drawn -- a selection
+	**	ring has to outlast a single frame the way a tracer never does.
+	*/
+	StatusOverlayHandleType handle = StatusOverlayRenderer::Add_Overlay (
+		OVERLAY_SELECTION,point,2.0f,green,0.0f);
+	Check (handle != 0,"adding one overlay with room available was refused");
+	Check (StatusOverlayRenderer::Get_Live_Count () == 1,
+			 "one added overlay left %d live",StatusOverlayRenderer::Get_Live_Count ());
+
+	StatusOverlayRenderer::Age (10.0f);
+	Check (StatusOverlayRenderer::Is_Overlay (handle),
+			 "a persistent (lifetime <= 0) overlay was reaped by ageing");
+
+	StatusOverlayRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+	Check (StatusOverlayRenderer::Get_Drawn_Segment_Count () == 12,
+			 "one ring in front of the camera drew %d segments, not the 12 that approximate it",
+			 StatusOverlayRenderer::Get_Drawn_Segment_Count ());
+
+	//	Set_Visible is the one hook a viewer-team policy uses; the pool itself just obeys it.
+	StatusOverlayRenderer::Set_Visible (handle,false);
+	StatusOverlayRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+	Check (StatusOverlayRenderer::Get_Drawn_Segment_Count () == 0,
+			 "an overlay marked not visible still drew %d segments",
+			 StatusOverlayRenderer::Get_Drawn_Segment_Count ());
+	StatusOverlayRenderer::Set_Visible (handle,true);
+
+	StatusOverlayRenderer::Remove_Overlay (handle);
+	Check (!StatusOverlayRenderer::Is_Overlay (handle),"a removed overlay still reports as one");
+	Check (StatusOverlayRenderer::Get_Live_Count () == 0,
+			 "removing the only overlay left %d live",StatusOverlayRenderer::Get_Live_Count ());
+
+	StatusOverlayRenderer::Reset ();
+
+	/*
+	**	Batching: twenty rings in one frame make one streak submission, not twenty -- the same
+	**	arithmetic reading of "batched" the tracer check uses.
+	*/
+	WorldParticleManager::Reset_Statistics ();
+	for (int i = 0; i < 20; i++) {
+		StatusOverlayRenderer::Add_Overlay (OVERLAY_TARGET,point,1.0f,green,0.0f);
+	}
+	StatusOverlayRenderer::Render (rinfo,Vector3 (0.0f,0.0f,0.0f));
+
+	Check (StatusOverlayRenderer::Get_Drawn_Segment_Count () == 20 * 12,
+			 "twenty rings drew %d segments, not 240",
+			 StatusOverlayRenderer::Get_Drawn_Segment_Count ());
+	Check (WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_STREAK) == 1,
+			 "twenty rings made %u submission(s) to the streak pool, not one",
+			 WorldParticleManager::Get_Submission_Count (PARTICLE_POOL_STREAK));
+
+	WorldParticleManager::Flush (rinfo);
+	StatusOverlayRenderer::Reset ();
+
+	/*
+	**	The pool refuses rather than grows past its bound.
+	*/
+	StatusOverlayRenderer::Set_Max_Overlays (4);
+	int made = 0;
+	for (int i = 0; i < 6; i++) {
+		if (StatusOverlayRenderer::Add_Overlay (OVERLAY_TARGET,point,1.0f,green,0.0f) != 0) {
+			made++;
+		}
+	}
+	Check (made == 4,"a pool capped at 4 accepted %d overlays out of 6",made);
+	Check (StatusOverlayRenderer::Get_Dropped_Count () == 2,
+			 "a pool capped at 4 reported %d dropped after 6 arrived, not 2",
+			 StatusOverlayRenderer::Get_Dropped_Count ());
+
+	StatusOverlayRenderer::Set_Max_Overlays (256);
+	StatusOverlayRenderer::Reset ();
+	StatusOverlayRenderer::Shutdown ();
+	WorldParticleManager::Shutdown ();
+
+	/*
+	**	StatusOverlaySystem's visibility policy -- Section 32's "respects shroud/per-player
+	**	visibility" -- checked with no scene, no device and no COMBAT_STAR.  It cannot go
+	**	through StatusOverlaySystem::Add_Overlay (that lazily touches COMBAT_SCENE), so this
+	**	drives StatusOverlayRenderer directly and asks StatusOverlaySystem::Is_Overlay_Visible_To
+	**	the question the same way StatusOverlaySystem::Update() would each tick.
+	*/
+	StatusOverlayRenderer::Init ();
+
+	StatusOverlayHandleType unowned = StatusOverlayRenderer::Add_Overlay (
+		OVERLAY_CONSTRUCTION_FOOTPRINT,point,4.0f,green,0.0f);
+	Check (StatusOverlaySystem::Is_Overlay_Visible_To (unowned,0),
+			 "an unowned overlay was hidden from team 0");
+	Check (StatusOverlaySystem::Is_Overlay_Visible_To (unowned,1),
+			 "an unowned overlay was hidden from team 1");
+
+	//	A handle StatusOverlaySystem was never told about reads as unowned (Get_Overlay_Team
+	//	returns -1 for an index it has never seen) rather than wrongly gated.
+	StatusOverlayHandleType untold = StatusOverlayRenderer::Add_Overlay (
+		OVERLAY_SELECTION,Vector3 (10.0f,10.0f,0.0f),2.0f,green,0.0f);
+	Check (StatusOverlaySystem::Get_Overlay_Team (untold) == -1,
+			 "a handle StatusOverlaySystem was never told about reported team %d, not -1",
+			 StatusOverlaySystem::Get_Overlay_Team (untold));
+	Check (StatusOverlaySystem::Is_Overlay_Visible_To (untold,0),
+			 "a handle with no recorded owner was shroud-gated instead of treated as unowned");
+
+	WorldShroudManager::Init ();
+	WorldShroudManager::Re_Partition (Vector3 (-1000.0f,-1000.0f,0.0f),Vector3 (1000.0f,1000.0f,0.0f));
+
+	Vector3 enemy_point (500.0f,500.0f,0.0f);
+	StatusOverlayHandleType team1_ring = StatusOverlayRenderer::Add_Overlay (
+		OVERLAY_SELECTION,enemy_point,2.0f,green,0.0f);
+	StatusOverlaySystem::Set_Overlay_Team (team1_ring,1);
+
+	Check (StatusOverlaySystem::Is_Overlay_Visible_To (team1_ring,1),
+			 "team 1's own ring was hidden from team 1");
+	Check (!StatusOverlaySystem::Is_Overlay_Visible_To (team1_ring,0),
+			 "team 1's ring was visible to team 0 with no shroud coverage there at all");
+
+	//	Give team 0 a sensor source that actually reaches the ring's position, and only then
+	//	does the gate open -- the acceptance's own words, "respects shroud/per-player
+	//	visibility", proved as a state change rather than asserted.
+	WorldShroudManager::RegisterStrategicSensorSource (0,enemy_point,50.0f,50.0f,5.0f,true);
+	WorldShroudManager::Timestep (0.1f);
+
+	Check (StatusOverlaySystem::Is_Overlay_Visible_To (team1_ring,0),
+			 "team 1's ring stayed hidden from team 0 after team 0 gained shroud coverage there");
+
+	WorldShroudManager::Shutdown ();
+	StatusOverlayRenderer::Shutdown ();
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -1513,6 +1669,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "radar") == 0)) {
 		Run_Tactical_Intelligence ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "overlays") == 0)) {
+		Run_Status_Overlays ();
 		ran = true;
 	}
 

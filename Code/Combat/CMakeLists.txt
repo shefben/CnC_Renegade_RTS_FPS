@@ -44,6 +44,7 @@ set(COMBAT_SRC
     damageablestaticphys.cpp
     damagezone.cpp
     debrissystem.cpp
+    statusoverlaysystem.cpp
     diaglog.cpp
     dialogue.cpp
     doors.cpp
@@ -194,6 +195,7 @@ set(COMBAT_SRC
     damageablestaticphys.h
     damagezone.h
     debrissystem.h
+    statusoverlaysystem.h
     diaglog.h
     dialogue.h
     doors.h
