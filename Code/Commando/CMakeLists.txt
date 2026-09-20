@@ -402,6 +402,10 @@ set(COMMANDO_SRC
     commanderorderevent.h
     commanderuiinput.cpp
     commanderuiinput.h
+    commanderclaimevent.cpp
+    commanderclaimevent.h
+    commanderwaypointevent.cpp
+    commanderwaypointevent.h
     purchaseresponseevent.cpp
     purchaseresponseevent.h
     requestkillevent.cpp

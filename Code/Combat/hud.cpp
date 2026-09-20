@@ -65,6 +65,8 @@
 #include "weaponbag.h"
 #include "string_ids.h"
 #include "gametype.h"
+#include "commandercommandpaletterenderer.h"
+#include "commanderselectionrenderer.h"
 #include "stylemgr.h"
 
 #define INVALID_HUD_WEAPON ((WeaponClass *)(uintptr_t)-1)
@@ -2846,6 +2848,11 @@ void 	HUDClass::Render()
 	**	HUD" holds by construction.
 	*/
 	CommanderSidebarRenderer::Render();
+
+	//	Selection brackets, the rubber band and the command grid.  Each gates itself on Commander
+	//	Mode the same way the sidebar does, so an ordinary FPS frame draws none of them.
+	CommanderSelectionRenderer::Render();
+	CommanderCommandPaletteRenderer::Render();
 
 	// Only render if Combat is active, and Menu is not,  and we have a star who is not sniping
 	if ( Is_HUD_Displayed() ) {

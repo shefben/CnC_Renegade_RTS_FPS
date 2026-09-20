@@ -167,6 +167,24 @@ class CommanderProductionService
 		static void		Set_Team_Commander(int team,int player_id);
 		static int		Get_Team_Commander(int team);
 
+		/*
+		**	Vacancy.  A Commander who disconnects, is dropped, changes team or otherwise stops
+		**	having a soldier on the team they command must not keep the job -- the authority
+		**	check is by player id, and an id nobody is using any more would lock the team out of
+		**	its own production for the rest of the match with no way to elect a replacement.
+		**
+		**	Detected by polling rather than by a disconnect callback on purpose: this one test
+		**	covers a clean quit, a timeout, a crash, a kick and a team change identically, and
+		**	there is no path by which a Commander can vanish without it noticing.  The grace
+		**	period is what keeps an ordinary respawn -- during which a player briefly has no
+		**	soldier -- from being read as having left.
+		**
+		**	Server only; a client's copy is overwritten by the replicated state either way.
+		*/
+		static void		Update_Commander_Vacancy(float seconds);
+		static float	Get_Vacancy_Grace_Seconds(void);
+		static int		Get_Vacated_Count(void);
+
 		static void		Set_Population_Cap(BuildingProductionKindType kind,int cap);
 		static int		Get_Population_Cap(BuildingProductionKindType kind);
 		static void		Set_Total_AI_Budget(int budget);

@@ -74,7 +74,13 @@
 #include "commandersidebar.h"
 #include "commanderplacement.h"
 #include "buildingconstruction.h"
+#include "commandercommandpalette.h"
+#include "commandercommandpaletterenderer.h"
 #include "commanderguardai.h"
+#include "commanderselection.h"
+#include "commanderselectionrenderer.h"
+#include "commanderwaypoint.h"
+#include "commanderwaypointrenderer.h"
 #include "commanderproduction.h"
 #include "definitionmgr.h"
 #include "gameobjobserver.h"
@@ -585,10 +591,16 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	BuildingConstructionService::Init();
 	CommanderProductionService::Init();
 	CommanderGuardAI::Init();
+	CommanderSelection::Init();
+	CommanderCommandPalette::Init();
+	CommanderWaypointSystem::Init();
 
 	CommanderSidebarRenderer::Init( render_available );
 	CommanderGhostRenderer::Init( render_available );
 	BuildingConstructionRenderer::Init( render_available );
+	CommanderSelectionRenderer::Init( render_available );
+	CommanderCommandPaletteRenderer::Init( render_available );
+	CommanderWaypointRenderer::Init( render_available );
 
 	cEncoderList::Clear_Entries();
 
@@ -1210,6 +1222,11 @@ void 	CombatManager::Think()
 		//	other AI it does not control.
 		CommanderGuardAI::Update( CommanderStateClass::Get_Estimated_Server_Time(),
 											TimeManager::Get_Frame_Seconds() );
+
+		//	Roadmap Section 45.  A Commander who quit, timed out, crashed or switched team has to
+		//	give the job up, or the team is locked out of its own production for the rest of the
+		//	match with nothing able to elect a replacement.
+		CommanderProductionService::Update_Commander_Vacancy( TimeManager::Get_Frame_Seconds() );
 	}
 
 	/*
@@ -1239,6 +1256,13 @@ void 	CombatManager::Think()
 	CommanderGhostRenderer::Update();
 	BuildingConstructionRenderer::Update();
 	CommanderSidebarRenderer::Update();
+	CommanderSelectionRenderer::Update();
+	CommanderCommandPaletteRenderer::Update();
+
+	//	Waypoint markers age on both sides, so a client whose expiry never arrived still drops the
+	//	marker and a dedicated server's list does not grow for the whole match.
+	CommanderWaypointSystem::Update( TimeManager::Get_Frame_Seconds() );
+	CommanderWaypointRenderer::Update( TimeManager::Get_Frame_Seconds() );
 
 {	WWPROFILE( "Sound Environment" );
 

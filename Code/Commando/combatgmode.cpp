@@ -1314,6 +1314,17 @@ void 	CombatGameModeClass::Think()
 	**	Setting it afterwards would leave one frame of mouselook and weapon fire under a cursor
 	**	the player was using to click a card with.
 	*/
+	/*
+	**	Roadmap Section 41.  The `b` key, read before the gate below is applied for this frame so
+	**	the press that closes Commander Mode is not itself suppressed by the mode it is closing.
+	**	`Get_State` is already edge triggered for this function (FunctionKeyStates says BUTTON_HIT),
+	**	so a held key is one toggle, and the function is on `Is_Allowed_During_Commander_UI`'s
+	**	allow-list, which is what lets it be read at all while the panel is up.
+	*/
+	if ( Input::Get_State( INPUT_FUNCTION_COMMANDER_MODE_TOGGLE ) ) {
+		CommanderUIInput::Toggle_Commander_Mode();
+	}
+
 	CommanderUIInput::Update();
 
 	Combat_Keyboard();

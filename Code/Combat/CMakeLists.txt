@@ -79,6 +79,12 @@ set(COMBAT_SRC
     buildingconstruction.cpp
     commanderproduction.cpp
     commanderguardai.cpp
+    commanderselection.cpp
+    commanderselectionrenderer.cpp
+    commandercommandpalette.cpp
+    commandercommandpaletterenderer.cpp
+    commanderwaypoint.cpp
+    commanderwaypointrenderer.cpp
     rtspersistence.cpp
     commanderghostrenderer.cpp
     constructionrenderer.cpp
@@ -241,6 +247,12 @@ set(COMBAT_SRC
     buildingconstruction.h
     commanderproduction.h
     commanderguardai.h
+    commanderselection.h
+    commanderselectionrenderer.h
+    commandercommandpalette.h
+    commandercommandpaletterenderer.h
+    commanderwaypoint.h
+    commanderwaypointrenderer.h
     rtspersistence.h
     commanderghostrenderer.h
     constructionrenderer.h

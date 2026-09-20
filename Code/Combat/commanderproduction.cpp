@@ -10,7 +10,9 @@
 
 #include "commanderproduction.h"
 
+#include "gameobjmanager.h"
 #include "playertype.h"
+#include "soldier.h"
 #include "vector.h"
 
 
@@ -83,6 +85,14 @@ static DynamicVectorClass<TeamPopulation>				_Populations;
 static DynamicVectorClass<SelectedUnitEntry>			_Selection;
 
 static int		_Commanders [4];			// indexed by Team_Index; 0 means "this team has no Commander"
+
+//	How long a Commander may be soldier-less before the job is vacated.  Long enough to cover a
+//	respawn and a bad moment on the network, short enough that a team is not locked out of its
+//	own production for a noticeable part of a match after someone quits.
+static const float	COMMANDER_VACANCY_GRACE_SECONDS = 20.0f;
+
+static float	_CommanderMissingFor [4] = { 0.0f,0.0f,0.0f,0.0f };
+static int		_VacatedCount = 0;
 static int		_Caps [4];
 static int		_TotalBudget	= CommanderProductionService::DEFAULT_TOTAL_AI_BUDGET;
 static int		_NextTicket		= 1;
@@ -140,6 +150,8 @@ void CommanderProductionService::Init(void)
 	_Selection.Delete_All ();
 
 	for (int i = 0; i < 4; i++) _Commanders [i] = 0;
+	for (int i = 0; i < 4; i++) _CommanderMissingFor [i] = 0.0f;
+	_VacatedCount = 0;
 
 	_Caps [Kind_Index (BUILDING_PRODUCTION_NONE)]				= 0;
 	_Caps [Kind_Index (BUILDING_PRODUCTION_INFANTRY)]			= DEFAULT_INFANTRY_CAP;
@@ -158,8 +170,68 @@ void CommanderProductionService::Shutdown(void)
 
 void CommanderProductionService::Set_Team_Commander(int team,int player_id)
 {
-	_Commanders [Team_Index (team)] = player_id;
+	int index = Team_Index (team);
+	_Commanders [index] = player_id;
+
+	//	Any change, in either direction, restarts the clock.  A resignation followed immediately
+	//	by a new Commander must not inherit the old one's accumulated absence.
+	_CommanderMissingFor [index] = 0.0f;
 }
+
+
+/***********************************************************************************************
+ * CommanderProductionService::Update_Commander_Vacancy -- give up the job when nobody holds it   *
+ *                                                                                               *
+ *	See the header for why this polls instead of listening for a disconnect.  Two ways to fail    *
+ *	the test, and both matter: no soldier at all for that client id (quit, timeout, crash, kick), *
+ *	or a soldier that is no longer on the team being commanded (team change).  The second is      *
+ *	immediate rather than graced -- someone who switched sides should not keep command of the     *
+ *	team they left for twenty seconds, and unlike a respawn there is nothing transient about it.  *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+void CommanderProductionService::Update_Commander_Vacancy(float seconds)
+{
+	if (seconds <= 0.0f) return;
+
+	static const int	TEAMS [2] = { PLAYERTYPE_NOD,PLAYERTYPE_GDI };
+
+	for (int i = 0; i < 2; i++) {
+
+		int team		= TEAMS [i];
+		int index	= Team_Index (team);
+		int player	= _Commanders [index];
+
+		if (player == 0) {
+			_CommanderMissingFor [index] = 0.0f;
+			continue;
+		}
+
+		SoldierGameObj * soldier = GameObjManager::Find_Soldier_Of_Client_ID (player);
+
+		if ((soldier != nullptr) && (soldier->Get_Player_Type () != team)) {
+			//	Changed team.  Vacated at once; there is nothing to wait for.
+			_Commanders [index]				= 0;
+			_CommanderMissingFor [index]	= 0.0f;
+			_VacatedCount++;
+			continue;
+		}
+
+		if (soldier != nullptr) {
+			_CommanderMissingFor [index] = 0.0f;
+			continue;
+		}
+
+		_CommanderMissingFor [index] += seconds;
+		if (_CommanderMissingFor [index] < COMMANDER_VACANCY_GRACE_SECONDS) continue;
+
+		_Commanders [index]				= 0;
+		_CommanderMissingFor [index]	= 0.0f;
+		_VacatedCount++;
+	}
+}
+
+
+float	CommanderProductionService::Get_Vacancy_Grace_Seconds(void)	{ return COMMANDER_VACANCY_GRACE_SECONDS; }
+int	CommanderProductionService::Get_Vacated_Count(void)				{ return _VacatedCount; }
 
 int CommanderProductionService::Get_Team_Commander(int team)
 {

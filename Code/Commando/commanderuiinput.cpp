@@ -15,8 +15,14 @@
 #include "combat.h"
 #include "commandermodecontroller.h"
 #include "commanderplacement.h"
+#include "commanderclaimevent.h"
+#include "commandercommandpalette.h"
+#include "commandercommandpaletterenderer.h"
 #include "commanderplacementevent.h"
+#include "commanderorderevent.h"
+#include "commanderproduction.h"
 #include "commanderproductionevent.h"
+#include "commanderselection.h"
 #include "commandersidebar.h"
 #include "commandersidebarrenderer.h"
 #include "dialogmgr.h"
@@ -26,6 +32,9 @@
 #include "playerdata.h"
 #include "playertype.h"
 #include "render2d.h"
+#include "cnetwork.h"
+#include "gameobjmanager.h"
+#include "smartgameobj.h"
 #include "soldier.h"
 #include "wwmath.h"
 
@@ -36,6 +45,10 @@ static bool	_LeftWasDown		= false;
 static bool	_RightWasDown		= false;
 static int	_ClickCount			= 0;
 static int	_CardClickCount	= 0;
+
+//	True between a left-press on the world and its release.  A drag is only a box while this is
+//	set, so a press that started on the panel can never turn into a selection box.
+static bool	_WorldPressActive	= false;
 
 
 /***********************************************************************************************
@@ -136,10 +149,156 @@ static void	Begin_Card(const CommanderSidebarCard * card)
 
 
 /***********************************************************************************************
+ * Local_Team -- the team the local player is on, or neutral                                     *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+static int	Local_Team(void)
+{
+	if (COMBAT_STAR == nullptr) return PLAYERTYPE_NEUTRAL;
+	return COMBAT_STAR->Get_Player_Type ();
+}
+
+
+/***********************************************************************************************
+ * Select_In_Box -- everything of the local team inside a screen rectangle                        *
+ *                                                                                               *
+ *	Walks `GameObjManager::Get_Smart_Game_Obj_List`, which is the list of soldiers and vehicles   *
+ *	and nothing else -- `BuildingGameObj` derives from `DamageableGameObj`, not `SmartGameObj`,   *
+ *	so "a box never selects a building" holds because a building cannot appear in the list        *
+ *	being walked, not because of a test that could be forgotten.                                  *
+ *                                                                                               *
+ *	Human-driven units are included deliberately.  A Commander needs to see and count their own   *
+ *	team; what a human's unit will not do is take the order, and that refusal lives on the server *
+ *	in `cCommanderOrderEvent::Act`, where it cannot be bypassed by a client that selects anyway.  *
+ *                                                                                               *
+ *	Selection is by the unit's origin projected to screen rather than by its full bounds.  It is  *
+ *	the cheaper test and, more importantly, the predictable one: a box that catches a tank        *
+ *	because one corner of its bounding box clipped the edge is a box the player did not draw.     *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+static int	Select_In_Box(const Vector2 & minimum,const Vector2 & maximum)
+{
+	CameraClass * camera = COMBAT_CAMERA;
+	if (camera == nullptr) return 0;
+
+	const RectClass & screen = Render2DClass::Get_Screen_Resolution ();
+	int team = Local_Team ();
+	int added = 0;
+
+	for (SLNode<SmartGameObj> * node = GameObjManager::Get_Smart_Game_Obj_List ()->Head ();
+		  node != nullptr;
+		  node = node->Next ()) {
+
+		SmartGameObj * unit = node->Data ();
+		if (unit == nullptr) continue;
+		if (unit->Is_Delete_Pending ()) continue;
+		if (unit->Get_Player_Type () != team) continue;
+
+		//	A dead body is still a SmartGameObj for a while.  Ordering one is a silent no-op the
+		//	player cannot see the reason for, so it never enters the selection.
+		DamageableGameObj * damageable = (DamageableGameObj *)unit;
+		if ((damageable->Get_Defense_Object () == nullptr) ||
+			 (damageable->Get_Defense_Object ()->Get_Health () <= 0.0f)) {
+			continue;
+		}
+
+		Vector3 position (0.0f,0.0f,0.0f);
+		unit->Get_Position (&position);
+
+		Vector3 projected (0.0f,0.0f,0.0f);
+		if (camera->Project (projected,position) != CameraClass::INSIDE_FRUSTUM) continue;
+
+		float x = screen.Left + (projected.X + 1.0f) * 0.5f * screen.Width ();
+		float y = screen.Top  + (1.0f - projected.Y) * 0.5f * screen.Height ();
+
+		if ((x < minimum.X) || (x > maximum.X)) continue;
+		if ((y < minimum.Y) || (y > maximum.Y)) continue;
+
+		if (CommanderSelection::Add (unit->Get_ID ())) {
+			added++;
+		}
+	}
+
+	if (added > 0) {
+		CommanderSelection::Set_Team (team);
+	}
+	return added;
+}
+
+
+/***********************************************************************************************
+ * Issue_Order -- send the armed command to the whole selection                                  *
+ *                                                                                               *
+ *	One packet for the group rather than one per unit: the formation the server applies is a      *
+ *	property of the group, and it can only compute it from a list it received whole.              *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+static void	Issue_Order(CommanderPaletteCommandType command,const Vector3 & target_point,int target_id)
+{
+	int ids [cCommanderOrderEvent::MAX_UNITS];
+	int count = CommanderSelection::Get_Unit_Ids (ids,cCommanderOrderEvent::MAX_UNITS);
+	if (count <= 0) return;
+
+	cCommanderOrderEvent * event = new cCommanderOrderEvent;
+	event->Init ((int)CommanderCommandPalette::Get_Order (command),target_point,target_id,
+					 ids,count,(int)CommanderCommandPalette::Get_Formation (command));
+
+	CommanderCommandPalette::Note_Issued ();
+}
+
+
+/***********************************************************************************************
+ * Handle_Palette_Click -- one of the nine buttons                                               *
+ *                                                                                               *
+ *	A command that needs a point is armed and waits; one that does not is sent immediately at     *
+ *	the selection's own position, since "stand where you are" has no destination to name.         *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+static void	Handle_Palette_Click(CommanderPaletteCommandType command)
+{
+	if (CommanderCommandPalette::Needs_Target (command)) {
+		CommanderCommandPalette::Arm (command);
+		return;
+	}
+
+	//	Target point is the first selected unit's own position: HOLD and STOP are both "stay
+	//	here", and the server ignores the point for them anyway -- it is sent so the waypoint
+	//	marker the order raises lands somewhere meaningful rather than at the world origin.
+	Vector3 point (0.0f,0.0f,0.0f);
+	PhysicalGameObj * first = GameObjManager::Find_PhysicalGameObj (CommanderSelection::Get_Unit_Id (0));
+	if (first != nullptr) {
+		first->Get_Position (&point);
+	}
+
+	Issue_Order (command,point,0);
+	CommanderCommandPalette::Disarm ();
+}
+
+
+/***********************************************************************************************
  * Handle_Left_Click -- one left-button press, resolved against the panel first                  *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 static void	Handle_Left_Click(const Vector2 & cursor)
 {
+	/*
+	**	The command grid is tested before the sidebar because it is drawn over it: it sits in the
+	**	lower right, and at small resolutions its panel and the sidebar's share an edge.  Whatever
+	**	is on top has to win the click, or the player clicks a button and something behind it
+	**	responds.
+	*/
+	{
+		CommanderPaletteCommandType command = PALETTE_MOVE;
+		bool inside_panel = false;
+
+		if (CommanderCommandPaletteRenderer::Hit_Test (cursor.X,cursor.Y,&command,&inside_panel)) {
+			_ClickCount++;
+			Handle_Palette_Click (command);
+			return;
+		}
+
+		//	Inside the grid's panel but between buttons: swallowed, not passed to the world.
+		if (inside_panel) {
+			_ClickCount++;
+			return;
+		}
+	}
+
 	_ClickCount++;
 
 	int index = -1;
@@ -201,6 +360,61 @@ static void	Handle_Left_Click(const Vector2 & cursor)
 						 ghost.SequenceId);
 
 		CommanderPlacementValidator::Cancel_Ghost ();
+		return;
+	}
+
+	/*
+	**	A command armed from the grid consumes this click as its target.  Checked before the drag
+	**	does anything, because arming ATTACK and then clicking a tank must attack it rather than
+	**	start a selection box over it.
+	*/
+	if (CommanderCommandPalette::Is_Armed () && (CommanderSelection::Get_Count () > 0)) {
+
+		CommanderPaletteCommandType command = CommanderCommandPalette::Get_Armed ();
+
+		Vector3 world_point (0.0f,0.0f,0.0f);
+		if (!Pick_World_Point (cursor,&world_point)) return;
+
+		Issue_Order (command,world_point,0);
+		CommanderCommandPalette::Disarm ();
+		return;
+	}
+
+	/*
+	**	Nothing else wanted the click, so it begins a selection box.  Whether it turns out to be
+	**	a box or a bare click is decided on release: a press that never moves clears the
+	**	selection, which is what clicking empty ground means in every RTS this is modelled on.
+	*/
+	_WorldPressActive = true;
+	CommanderSelection::Begin_Drag (cursor);
+}
+
+
+/***********************************************************************************************
+ * Handle_Left_Release -- what the press turned out to be                                        *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+static void	Handle_Left_Release(const Vector2 & cursor)
+{
+	if (!_WorldPressActive) return;
+	_WorldPressActive = false;
+
+	CommanderSelection::Update_Drag (cursor);
+
+	bool was_box = CommanderSelection::Is_Drag_Significant ();
+
+	Vector2 minimum (0.0f,0.0f);
+	Vector2 maximum (0.0f,0.0f);
+	CommanderSelection::Get_Drag_Rect (&minimum,&maximum);
+
+	CommanderSelection::End_Drag ();
+
+	//	A fresh box replaces the selection rather than adding to it.  Additive selection wants a
+	//	modifier key, and the input gate this file installs suppresses every modifier that is not
+	//	on its allow-list -- so offering it here would be offering something that cannot work.
+	CommanderSelection::Clear ();
+
+	if (was_box) {
+		Select_In_Box (minimum,maximum);
 	}
 }
 
@@ -211,11 +425,94 @@ static void	Handle_Left_Click(const Vector2 & cursor)
  *	Right-click cancels the armed ghost, which is what every RTS this panel is modelled on does  *
  *	and is the only way out of a placement that does not require committing one.                  *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-static void	Handle_Right_Click(void)
+static void	Handle_Right_Click(const Vector2 & cursor)
 {
+	//	Cancelling comes first, in the order a player expects to be able to back out of things:
+	//	the ghost they are placing, then the command they armed, and only then does right click
+	//	mean anything positive.
 	if (CommanderPlacementValidator::Is_Ghost_Active ()) {
 		CommanderPlacementValidator::Cancel_Ghost ();
+		return;
 	}
+
+	if (CommanderCommandPalette::Is_Armed ()) {
+		CommanderCommandPalette::Disarm ();
+		return;
+	}
+
+	/*
+	**	The default order.  Right-clicking the ground with a selection is "go there" in every RTS
+	**	this panel is modelled on, and it is the fastest way for a Commander to set the waypoint
+	**	their AI will obey and their human teammates will see a marker for.  A right click over
+	**	the panels does nothing: those are hit-tested for the left button only, and an order
+	**	aimed at a point behind the sidebar is not a point the player chose.
+	*/
+	if (CommanderSelection::Get_Count () <= 0) return;
+
+	bool inside_panel = false;
+	CommanderPaletteCommandType ignored = PALETTE_MOVE;
+	if (CommanderCommandPaletteRenderer::Hit_Test (cursor.X,cursor.Y,&ignored,&inside_panel) ||
+		 inside_panel) {
+		return;
+	}
+	if (CommanderSidebarRenderer::Hit_Test (cursor.X,cursor.Y,nullptr) != SIDEBAR_HIT_NONE) {
+		return;
+	}
+
+	Vector3 world_point (0.0f,0.0f,0.0f);
+	if (!Pick_World_Point (cursor,&world_point)) return;
+
+	Issue_Order (PALETTE_MOVE,world_point,0);
+}
+
+
+/***********************************************************************************************
+ * CommanderUIInput::Toggle_Commander_Mode -- the `b` key                                        *
+ *                                                                                               *
+ *	Claiming before entering is the whole reason this is not a direct call to                     *
+ *	`CommanderModeController`.  Every authority gate in the Commander layer tests the sender      *
+ *	against `CommanderProductionService::Get_Team_Commander`, and until this existed nothing in   *
+ *	the tree ever set it on a live server -- so the mode opened onto a panel whose every card     *
+ *	would have been refused.                                                                      *
+ *                                                                                               *
+ *	The claim is sent every time rather than only when the team looks vacant: the client's copy   *
+ *	of who the Commander is arrives by replication and can be a frame or two stale, and the       *
+ *	server refuses a contested claim harmlessly.  Asking and being told no costs one small packet; *
+ *	not asking because of a stale local value costs the player the whole feature.                 *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+void CommanderUIInput::Toggle_Commander_Mode(void)
+{
+	if (CommanderModeController::Is_Active ()) {
+
+		CommanderModeController::Exit_Commander_Mode ();
+
+		//	Leaving the mode is not resigning.  The job is kept, so a Commander can drop back to
+		//	their body to fight and return to the panel without re-claiming -- and without the
+		//	team being briefly Commander-less every time they do.
+		return;
+	}
+
+	if (COMBAT_STAR == nullptr) return;
+
+	cCommanderClaimEvent * claim = new cCommanderClaimEvent;
+	claim->Init (true);
+
+	/*
+	**	Entered without waiting for the grant.  On a listen server or in a solo/skirmish match the
+	**	claim above has already been applied by the time this runs, and on a remote client the
+	**	camera is local state that costs nothing if the claim turns out to be refused -- whereas
+	**	blocking entry on a round trip would make the key feel broken on any real connection.
+	*/
+	CommanderModeController::Enter_Commander_Mode (COMBAT_STAR);
+}
+
+
+bool CommanderUIInput::Is_Local_Player_Commander(void)
+{
+	if (COMBAT_STAR == nullptr) return false;
+
+	int team = COMBAT_STAR->Get_Player_Type ();
+	return (CommanderProductionService::Get_Team_Commander (team) == cNetwork::Get_My_Id ());
 }
 
 
@@ -274,8 +571,16 @@ void CommanderUIInput::Update(void)
 	_PointerActive = want_pointer;
 
 	if (!want_pointer) {
-		_LeftWasDown	= false;
-		_RightWasDown	= false;
+		_LeftWasDown		= false;
+		_RightWasDown		= false;
+		_WorldPressActive	= false;
+
+		//	Leaving Commander Mode drops the selection and the grid with it.  Keeping them would
+		//	mean returning to a panel full of units that may have died in the meantime, and an
+		//	armed command waiting for a click that will now be a weapon trigger.
+		CommanderSelection::End_Drag ();
+		CommanderSelection::Clear ();
+		CommanderCommandPalette::Refresh (0);
 		return;
 	}
 
@@ -286,8 +591,10 @@ void CommanderUIInput::Update(void)
 	**	dismisses the dialog cannot read as a fresh press to the panel on the frame after.
 	*/
 	if (DialogMgrClass::Get_Dialog_Count () > 0) {
-		_LeftWasDown	= true;
-		_RightWasDown	= true;
+		_LeftWasDown		= true;
+		_RightWasDown		= true;
+		_WorldPressActive	= false;
+		CommanderSelection::End_Drag ();
 		return;
 	}
 
@@ -303,18 +610,36 @@ void CommanderUIInput::Update(void)
 		}
 	}
 
+	/*
+	**	Prune before anything reads the selection this frame, so the count on the grid and the
+	**	ids an order would carry are the same list -- a unit that died since last frame must not
+	**	be counted in one and missing from the other.
+	*/
+	CommanderSelection::Prune ();
+
 	//	Edge triggered: a held button is one click, not one per frame.
 	bool left_down = Input::Is_Button_Down (DirectInput::BUTTON_MOUSE_LEFT);
+
 	if (left_down && !_LeftWasDown) {
 		Handle_Left_Click (cursor);
+	} else if (left_down && _WorldPressActive) {
+		//	Held and dragging: the box follows the pointer.
+		CommanderSelection::Update_Drag (cursor);
+	} else if (!left_down && _LeftWasDown) {
+		Handle_Left_Release (cursor);
 	}
+
 	_LeftWasDown = left_down;
 
 	bool right_down = Input::Is_Button_Down (DirectInput::BUTTON_MOUSE_RIGHT);
 	if (right_down && !_RightWasDown) {
-		Handle_Right_Click ();
+		Handle_Right_Click (cursor);
 	}
 	_RightWasDown = right_down;
+
+	//	The grid exists exactly when there is something to command.  Driven from the selection
+	//	rather than toggled, so an emptied selection cannot leave it behind.
+	CommanderCommandPalette::Refresh (CommanderSelection::Get_Count ());
 
 	/*
 	**	Re-read the model, last, so a click handled above is already reflected in what gets drawn

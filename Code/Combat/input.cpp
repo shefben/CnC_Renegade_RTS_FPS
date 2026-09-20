@@ -431,7 +431,20 @@ StringID	Functions[ NUM_FUNCTIONS ] = {
 	{ INPUT_FUNCTION_PROFILE_ENTER_PARENT, "ProfileEnterParent" },
 	{ INPUT_FUNCTION_PROFILE_RESET, "ProfileReset" },
 
+	//	Roadmap Section 41.  The INI key, not display text -- see DEFAULT_COMMANDER_MODE_KEY
+	//	below for what this binds to when no configuration file mentions it.
+	{ INPUT_FUNCTION_COMMANDER_MODE_TOGGLE, "CommanderModeToggle" },
+
 };
+
+/*
+**	The two tables above and below are indexed by InputFunction with nothing enforcing that they
+**	are the right length -- a short one reads past its end for every function after the gap, and
+**	silently, since the values it returns are still plausible key codes.  Adding a function
+**	without adding both rows is exactly the mistake these catch.
+*/
+static_assert ((sizeof (Functions) / sizeof (Functions[0])) == INPUT_FUNCTION_COUNT,
+					"Functions[] must have one row per InputFunction, in enum order");
 
 
 /*
@@ -607,7 +620,12 @@ int	FunctionKeyStates[ NUM_FUNCTIONS ] =
 	BUTTON_HIT, //INPUT_FUNCTION_PROFILE_ENTER_CHILD9,
 	BUTTON_HIT, //INPUT_FUNCTION_PROFILE_ENTER_PARENT,
 	BUTTON_HIT, //INPUT_FUNCTION_PROFILE_RESET,
+
+	BUTTON_HIT, //INPUT_FUNCTION_COMMANDER_MODE_TOGGLE,
 };
+
+static_assert ((sizeof (FunctionKeyStates) / sizeof (FunctionKeyStates[0])) == INPUT_FUNCTION_COUNT,
+					"FunctionKeyStates[] must have one row per InputFunction, in enum order");
 
 
 /*
@@ -750,6 +768,10 @@ bool	Input::Is_Allowed_During_Commander_UI( InputFunction function )
 		case INPUT_FUNCTION_EVA_MISSION_OBJECTIVES_TOGGLE:
 		case INPUT_FUNCTION_MAKE_SCREEN_SHOT:
 		case INPUT_FUNCTION_QUICK_FULL_EXIT:
+
+		//	The key that opened Commander Mode has to be able to close it.  This allow-list is
+		//	deny-by-default, so leaving this out would strand the player in the mode.
+		case INPUT_FUNCTION_COMMANDER_MODE_TOGGLE:
 			return true;
 
 		default:
@@ -1735,6 +1757,18 @@ Input::Load_Configuration (const char *filename)
 		}
 	}
 
+	/*
+	**	Built-in defaults for functions no configuration file has ever heard of.
+	**
+	**	`DEFAULT_INPUT.CFG` ships inside `always.dat`, and a player who has customised their
+	**	controls has their own copy of it under `config/`.  Neither mentions a function added
+	**	after they were written, so a new one loads unbound for every existing installation and
+	**	the key would simply do nothing with no error anywhere.  Applied only where the file was
+	**	silent, so it can never override a binding a player chose -- including a deliberate
+	**	unbinding, which writes a key name rather than leaving the entry out.
+	*/
+	Apply_Builtin_Defaults ();
+
 	//
 	//	Load the accelerated keys from the ini
 	//
@@ -1751,6 +1785,44 @@ Input::Load_Configuration (const char *filename)
 	//	Reset the mouse sensitivity to ensure its clamped properly
 	//
 	Input::Set_Mouse_Sensitivity (MouseSensitivity);
+	return ;
+}
+
+
+/*
+**	One row per function this build added after the shipped configuration file was authored.
+**	Roadmap Section 41's Commander Mode toggle is the first; B is unbound in stock Renegade.
+*/
+struct BuiltinDefaultKeyStruct
+{
+	InputFunction	Function;
+	int				PrimaryKey;
+};
+
+static const BuiltinDefaultKeyStruct	_BuiltinDefaultKeys [] =
+{
+	{ INPUT_FUNCTION_COMMANDER_MODE_TOGGLE,	DIK_B },
+};
+
+
+void
+Input::Apply_Builtin_Defaults (void)
+{
+	const int count = (int)(sizeof (_BuiltinDefaultKeys) / sizeof (_BuiltinDefaultKeys[0]));
+
+	for (int i = 0; i < count; i++) {
+
+		int index = (int)_BuiltinDefaultKeys[i].Function;
+		if ((index < 0) || (index >= NUM_FUNCTIONS)) continue;
+
+		//	Only where nothing was read.  A zero here means the file had no entry at all, which
+		//	is not the same as a player having cleared the binding.
+		if (FunctionPrimaryKeys[index] != 0) continue;
+		if (FunctionSecondaryKeys[index] != 0) continue;
+
+		FunctionPrimaryKeys[index] = _BuiltinDefaultKeys[i].PrimaryKey;
+	}
+
 	return ;
 }
 

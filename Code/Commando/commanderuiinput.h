@@ -52,6 +52,18 @@ class CommanderUIInput
 
 		static bool		Is_Pointer_Active(void);
 
+		/*
+		**	The `b` key, and anything else that wants to open or close Commander Mode.  Unlike
+		**	calling `CommanderModeController` directly this also asks the server for the job
+		**	first: entering the mode without being the team's recorded Commander gives a camera
+		**	that cannot buy, place or order anything, since every authority gate in the layer
+		**	refuses a sender who is not the Commander.  In a solo or skirmish match the claim is
+		**	uncontested and granted the same tick, so the player is always their team's
+		**	Commander there.
+		*/
+		static void		Toggle_Commander_Mode(void);
+		static bool		Is_Local_Player_Commander(void);
+
 		//	Counters, so a self check can prove the click path without a mouse.
 		static int		Get_Click_Count(void);
 		static int		Get_Card_Click_Count(void);

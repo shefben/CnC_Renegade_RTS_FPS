@@ -40,9 +40,10 @@ class cCommanderOrderEvent : public cNetEvent
 
 		cCommanderOrderEvent(void);
 
-		//	`order` is a CommanderUnitOrderType.  `unit_ids` is the current selection.
+		//	`order` is a CommanderUnitOrderType, `formation` a CommanderFormationType.
+		//	`unit_ids` is the current selection.
 		void	Init(int order,const Vector3 & target_point,int target_id,
-					  const int * unit_ids,int unit_count);
+					  const int * unit_ids,int unit_count,int formation = 0);
 
 		virtual void	Export_Creation(BitStreamClass & packet) override;
 		virtual void	Import_Creation(BitStreamClass & packet) override;
@@ -56,6 +57,7 @@ class cCommanderOrderEvent : public cNetEvent
 
 		int		SenderId;
 		int		Order;
+		int		Formation;
 		Vector3	TargetPoint;
 		int		TargetId;
 		int		UnitCount;

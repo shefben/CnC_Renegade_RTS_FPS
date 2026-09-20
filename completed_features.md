@@ -2201,3 +2201,24 @@ panel is open, which nothing but the console command used to do. `Code/Combat/in
 `Code/Combat/commandersidebarrenderer.h/.cpp`, `Code/Commando/commanderuiinput.h/.cpp`,
 `Code/Commando/combatgmode.cpp`. Both targets build clean; behaviour on screen is manual-only
 (see Q-012).
+
+## P35/P36/P39-F: the `b` key, a real Commander claim, box selection, the command grid and waypoints
+
+Six things that only work together. `INPUT_FUNCTION_COMMANDER_MODE_TOGGLE` (default `B`, applied
+by a new built-in-defaults pass since the shipped `DEFAULT_INPUT.CFG` predates it) toggles
+Commander Mode, and `static_assert`s now catch a missing row in either of input.cpp's two
+positional tables. `cCommanderClaimEvent` closes a real hole: nothing in the tree ever called
+`Set_Team_Commander` on a live server, so every authority gate failed closed and the sidebar could
+never buy anything -- first claimant per team wins, which makes the sole player in a skirmish
+always their team's Commander without a special case. `CommanderProductionService::
+Update_Commander_Vacancy` gives the job up on quit/timeout/crash (20s grace) or team change
+(immediate). `CommanderSelection` + its renderer add drag-box selection of units and vehicles only
+(buildings cannot appear -- the walk is over `Get_Smart_Game_Obj_List`) with corner brackets.
+`CommanderCommandPalette` + its renderer add Section 45's nine-button 3x3 grid (move/a-move/attack,
+defend/hold/stop, line/wedge/scatter); formations are computed server-side from the group centroid
+so the wire format stays one point. Commander orders now reset the unit's action list and issue at
+priority 200, above every scripted command, so AI drops what it is doing. `CommanderWaypointSystem`
++ `cCommanderWaypointEvent` + `CommanderWaypointRenderer` draw a translucent yellow ring-and-column
+in the world and a radar blip for every player on the ordering team -- which is how a human, who
+Section 3A.4 forbids driving, is told rather than moved. Both targets build clean; all of it is
+manual-only (Q-012).

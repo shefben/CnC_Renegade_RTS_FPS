@@ -243,6 +243,11 @@ typedef enum {
 	INPUT_FUNCTION_PROFILE_ENTER_PARENT,
 	INPUT_FUNCTION_PROFILE_RESET,
 
+	//	Roadmap Section 41.  Appended rather than grouped with the other toggles because the
+	//	two positional tables in input.cpp are matched to this enum by index with no size check
+	//	of its own -- see the static_asserts added beside them.
+	INPUT_FUNCTION_COMMANDER_MODE_TOGGLE,
+
 	INPUT_FUNCTION_COUNT
 
 } InputFunction;
@@ -383,6 +388,9 @@ private:
 	//	Internal methods
 	//
 	static	void	Update_Sliders( void );
+
+	//	Binds functions the shipped configuration file predates.  See the definition.
+	static	void	Apply_Builtin_Defaults( void );
 
 	//
 	//	Private member data
