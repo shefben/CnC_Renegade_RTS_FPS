@@ -216,6 +216,11 @@ class CloudLayerClass : public VisibilityClass
 		**	separate, disconnected wind value.  Off by default; a stock level draws nothing new
 		**	until a caller opts in.
 		*/
+		//	Phase 58: the wind sets this, and Phase 53's ground shadows already drift along
+		//	it, so turning the wind up moves the clouds and their shade together.
+		void Set_Velocity (const Vector2 &velocity)		{ Velocity = velocity; }
+		const Vector2 & Get_Velocity (void) const			{ return Velocity; }
+
 		void Enable_Ground_Shadow (PhysicsSceneClass *scene, bool enabled);
 		bool Is_Ground_Shadow_Enabled (void) const { return GroundShadowEnabled; }
 
@@ -393,6 +398,9 @@ class	SkyClass : public RenderObjClass
 
 		//	Roadmap Section 52A, Phase 53.  Forwards to the near cloud layer, which owns the
 		//	ground-shadow projectors and the wind direction they drift with.
+		//	Phase 58: hand the wind down to both cloud layers.
+		void Set_Cloud_Velocity (const Vector2 &velocity);
+
 		void Enable_Cloud_Shadows (PhysicsSceneClass *scene, bool enabled);
 
 		void Set_Lightning (float intensity, float startdistance, float enddistance, float heading, float distribution)
@@ -584,6 +592,26 @@ class	BackgroundMgrClass : public SaveLoadSubSystemClass, public NetworkObjectCl
 		static bool Get_Sun_Shafts_Enabled()					{ return (_SunShaftsEnabled); }
 		static void Render_Sun_Shafts (void);
 
+		/*
+		**	Roadmap Section 52A, Phase 56.  Both feed PostProcessChainClass from inside
+		**	Update; public because the device-less self checks prove them and nothing else
+		**	in the class can be proved without a device.
+		*/
+		static float	Compute_Sky_View (CameraClass *camera);
+
+		/*
+		**	Roadmap Section 52A, Phase 58.  The cloud layers' own scroll velocity, set from
+		**	the one replicated wind so the sky agrees with the foliage and the rain about
+		**	which way the wind blows.  A zero vector leaves each layer with whatever its
+		**	level authored, which is the pre-Phase-58 behaviour exactly.
+		*/
+		static void		Set_Cloud_Wind (const Vector3 &wind);
+		static const Vector3 &	Get_Cloud_Wind (void);
+		static Vector3	Compute_Grading_Tint (void);
+
+		//	Phase 61: how much of the night the embers on burning things show through.
+		static float	Compute_Night_Factor (void);
+
 		static void	Set_Light_Source_Type (LightSourceTypeEnum lightsourcetype)
 		{
 			_LightSourceType = lightsourcetype;
@@ -722,9 +750,8 @@ class	BackgroundMgrClass : public SaveLoadSubSystemClass, public NetworkObjectCl
 		static bool									_ClockDrivesSun;
 		static bool									_CloudShadowsEnabled;
 		static bool									_MetalReflectionsEnabled;
+		static Vector3								_CloudWind;
 		static bool									_SunShaftsEnabled;
-		static Render2DClass						*_SunShaftRenderer;
-		static TextureClass * Build_Sun_Shaft_Glow_Texture (void);
 
 		static float								_ClockRateHoursPerSecond;
 		static float								_ClockFractionalHours;

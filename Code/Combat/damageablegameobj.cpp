@@ -35,6 +35,15 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "damageablegameobj.h"
+#include "surfacetinteffect.h"
+#include "pscene.h"
+#include "physcoltest.h"
+#include "lineseg.h"
+#include "coltype.h"
+#include "timemgr.h"
+#include "WeatherMgr.h"
+#include "physicalgameobj.h"
+#include "phys.h"
 #include "damagecontext.h"
 #include "gameeventbus.h"
 #include "debug.h"
@@ -162,7 +171,10 @@ bool	DamageableGameObjDef::Load( ChunkLoadClass &cload )
 ** DamageableGameObj
 */
 DamageableGameObj::DamageableGameObj( void ) :
-	IsHealthBarDisplayed( true )
+	IsHealthBarDisplayed( true ),
+	DamageTint( nullptr ),
+	SkyView( -1.0f ),
+	SkyViewAge( 0.0f )
 {
 	Set_Player_Type(PLAYERTYPE_NEUTRAL);
 }
@@ -300,6 +312,116 @@ bool	DamageableGameObj::Load( ChunkLoadClass &cload )
 	return true;
 }
 
+/***********************************************************************************************
+ * DamageableGameObj::Update_Damage_Tint -- roadmap Section 52A, Phase 61                      *
+ *                                                                                             *
+ *	The soot ramp follows the health fraction this object already replicates.  The effect is    *
+ *	attached lazily, on the first damage that matters, so an untouched world carries no extra   *
+ *	objects at all; and it is never attached while the feature is off, so turning it off after  *
+ *	a fight leaves the effect in place but drawing nothing (Render_Push returns immediately at  *
+ *	a zero global scale).                                                                       *
+ *                                                                                             *
+ *	An object with no physics object -- a script zone, anything not in the world -- has nothing *
+ *	to tint and is skipped rather than special-cased later.                                     *
+ *=============================================================================================*/
+void DamageableGameObj::Update_Damage_Tint( void )
+{
+	//	Phase 59 shares this effect, so the attach fires for either reason: an object that has
+	//	taken no damage at all still needs the effect once it starts raining on it.
+	if ( ( SurfaceTintEffectClass::Get_Global_Scale() <= 0.0f ) &&
+		  ( SurfaceTintEffectClass::Get_Wetness_Scale() <= 0.0f ) ) {
+		return;
+	}
+
+	PhysicalGameObj * physical = As_PhysicalGameObj();
+	if ( physical == nullptr ) {
+		return;
+	}
+
+	PhysClass * physobj = physical->Peek_Physical_Object();
+	if ( physobj == nullptr ) {
+		return;
+	}
+
+	float maximum = DefenseObject.Get_Health_Max();
+	if ( maximum <= 0.0f ) {
+		return;
+	}
+	float fraction = DefenseObject.Get_Health() / maximum;
+
+	if ( DamageTint == nullptr ) {
+		DamageTint = new SurfaceTintEffectClass;
+		physobj->Add_Effect_To_Me( DamageTint );
+		//	Add_Effect_To_Me took its own reference; this one was the constructor's.
+		DamageTint->Release_Ref();
+	}
+
+	DamageTint->Set_Health_Fraction( fraction );
+
+	/*
+	**	Roadmap Section 52A, Phase 59.  How wet this object is, which is not the world's
+	**	wetness but the world's wetness times how much sky this object can see -- a truck
+	**	parked under a bridge stays dry, and a soldier indoors stays dry, which is the
+	**	acceptance line's "sheltered surfaces stay dry" and the reason the value is per object
+	**	rather than global.
+	**
+	**	The sky view is cast rarely rather than every frame: an object does not move between
+	**	shelter and open sky often, and a raycast per object per frame would be the single
+	**	most expensive thing this phase does.
+	*/
+	if ( SurfaceTintEffectClass::Get_Wetness_Scale() > 0.0f ) {
+		DamageTint->Set_Wetness( WeatherMgrClass::Get_Sheltered_Wetness( Compute_Sky_View() ) );
+	}
+}
+
+
+/***********************************************************************************************
+ * DamageableGameObj::Compute_Sky_View -- can the rain reach this object                       *
+ *                                                                                             *
+ *	One ray, straight up, against static geometry only -- the same cast Phase 52's terrain      *
+ *	occlusion and Phase 56's camera sky view both use, for the same reason: a soldier walking   *
+ *	over a puddle must not shelter it.                                                           *
+ *                                                                                             *
+ *	Cached, and refreshed on a timer rather than every frame.  Objects move between shelter and *
+ *	open sky rarely, and paying a raycast per object per frame to notice it sooner would cost   *
+ *	far more than the effect is worth.                                                           *
+ *=============================================================================================*/
+float DamageableGameObj::Compute_Sky_View( void )
+{
+	static const float SKY_TEST_DISTANCE	= 40.0f;
+	static const float MOVE_AMOUNT			= 0.5f;
+	static const float REFRESH_SECONDS		= 2.0f;
+
+	SkyViewAge += TimeManager::Get_Frame_Seconds();
+	if ( ( SkyViewAge < REFRESH_SECONDS ) && ( SkyView >= 0.0f ) ) {
+		return SkyView;
+	}
+	SkyViewAge = 0.0f;
+
+	PhysicsSceneClass * scene = PhysicsSceneClass::Get_Instance();
+	PhysicalGameObj * physical = As_PhysicalGameObj();
+	if ( ( scene == nullptr ) || ( physical == nullptr ) ) {
+		SkyView = 1.0f;
+		return SkyView;
+	}
+
+	Vector3 position;
+	physical->Get_Position( &position );
+
+	Vector3 p0 = position + Vector3( 0.0f, 0.0f, MOVE_AMOUNT );
+	Vector3 p1 = position + Vector3( 0.0f, 0.0f, SKY_TEST_DISTANCE );
+
+	CastResultStruct res;
+	LineSegClass ray( p0, p1 );
+	PhysRayCollisionTestClass raytest( ray, &res, 0, COLLISION_TYPE_PROJECTILE );
+	raytest.CheckDynamicObjs = false;
+	scene->Cast_Ray( raytest );
+
+	SkyView = ( res.Fraction >= 1.0f ) ? 1.0f : 0.0f;
+	return SkyView;
+}
+
+
 void	DamageableGameObj::Apply_Damage( const OffenseObjectClass & damager, float scale, int alternate_skin )
 {
 	if ( DefenseObject.Get_Health() <= 0 ) {
@@ -337,6 +459,12 @@ void	DamageableGameObj::Apply_Damage( const OffenseObjectClass & damager, float 
 	float new_shield = DefenseObject.Get_Shield_Strength();
 
 	float diff = old_health + old_shield - new_health - new_shield;
+
+	//	Roadmap Section 52A, Phase 61.  One site, because health changes here for buildings,
+	//	vehicles and soldiers alike -- hooking each of them separately would be three places
+	//	to forget.  Repair comes through the same path with a negative damage, so this is also
+	//	where the tint reverses.
+	Update_Damage_Tint();
 
 	// Notify the observers
 	const GameObjObserverList & observer_list = Get_Observers();

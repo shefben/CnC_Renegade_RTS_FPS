@@ -56,6 +56,7 @@ BridgeDefinitionClass::BridgeDefinitionClass(void) :
 	DeckThickness(0.6f),
 	SupportSpacing(24.0f),
 	SupportClearance(2.0f),
+	RequiredClearance(0.0f),
 	DecorationSpacing(0.0f),
 	DecorationInset(0.9f)
 {
@@ -91,6 +92,7 @@ bool BridgeDefinitionClass::operator == (const BridgeDefinitionClass & that) con
 {
 	if ((Name != that.Name) || (Width != that.Width) || (DeckThickness != that.DeckThickness) ||
 		 (SupportSpacing != that.SupportSpacing) || (SupportClearance != that.SupportClearance) ||
+		 (RequiredClearance != that.RequiredClearance) ||
 		 (DecorationSpacing != that.DecorationSpacing) || (DecorationInset != that.DecorationInset)) {
 		return false;
 	}

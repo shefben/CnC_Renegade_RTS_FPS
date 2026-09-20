@@ -84,6 +84,10 @@ BridgeClass::BridgeClass(void) :
 	Start(0.0f,0.0f,0.0f),
 	End(0.0f,0.0f,0.0f),
 	Width(0.0f),
+	DeckHeight(0.0f),
+	StartAbutmentHeight(0.0f),
+	EndAbutmentHeight(0.0f),
+	AbutmentsConformed(false),
 	StartRoadID(-1),
 	EndRoadID(-1)
 {
@@ -95,6 +99,10 @@ BridgeClass::BridgeClass(const BridgeClass & that) :
 	Start(0.0f,0.0f,0.0f),
 	End(0.0f,0.0f,0.0f),
 	Width(0.0f),
+	DeckHeight(0.0f),
+	StartAbutmentHeight(0.0f),
+	EndAbutmentHeight(0.0f),
+	AbutmentsConformed(false),
 	StartRoadID(-1),
 	EndRoadID(-1)
 {
@@ -119,6 +127,10 @@ BridgeClass & BridgeClass::operator = (const BridgeClass & that)
 	Start			= that.Start;
 	End			= that.End;
 	Width			= that.Width;
+	DeckHeight	= that.DeckHeight;
+	StartAbutmentHeight	= that.StartAbutmentHeight;
+	EndAbutmentHeight		= that.EndAbutmentHeight;
+	AbutmentsConformed	= that.AbutmentsConformed;
 	StartRoadID	= that.StartRoadID;
 	EndRoadID	= that.EndRoadID;
 
@@ -135,6 +147,7 @@ bool BridgeClass::operator == (const BridgeClass & that) const
 {
 	if ((ID != that.ID) || (Name != that.Name) || (Definition != that.Definition) ||
 		 (Start != that.Start) || (End != that.End) || (Width != that.Width) ||
+		 (DeckHeight != that.DeckHeight) ||
 		 (StartRoadID != that.StartRoadID) || (EndRoadID != that.EndRoadID)) {
 		return false;
 	}
@@ -156,6 +169,10 @@ void BridgeClass::Reset(void)
 	Start.Set(0.0f,0.0f,0.0f);
 	End.Set(0.0f,0.0f,0.0f);
 	Width = 0.0f;
+	DeckHeight = 0.0f;
+	StartAbutmentHeight = 0.0f;
+	EndAbutmentHeight = 0.0f;
+	AbutmentsConformed = false;
 	StartRoadID = -1;
 	EndRoadID = -1;
 	Sections.Delete_All();
@@ -416,6 +433,11 @@ bool BridgeSystem::Build_Layout(void)
 {
 	Destroy_Geometry();
 
+	//	Phase 64: the banks first, because a crossing that states a deck height needs to know
+	//	how high the higher bank is before it can put a deck above it.  A bridge over ground
+	//	the terrain cannot answer for simply lays out the way it always did.
+	Conform_Abutments();
+
 	bool all = true;
 
 	for (int i = 0; i < Bridges.Count(); i++) {
@@ -450,6 +472,25 @@ bool BridgeSystem::Is_Layout_Built(void)
 }
 
 
+/*
+**	Where a point on the deck is.  Roadmap Section 52B, Phase 64.
+**
+**	A crossing that states a deck height gets a level deck at that height above its higher
+**	bank.  One that does not gets exactly what it always got: the straight line between the
+**	two endpoints the author placed.  That is the "degrades to today" rule, kept by there
+**	being one branch and the old path being the default.
+*/
+static Vector3 Deck_Point(const BridgeClass & bridge,const Vector3 & dir,float distance,
+								  bool level_deck,float deck_z)
+{
+	Vector3 point = bridge.Get_Start() + (dir * distance);
+	if (level_deck) {
+		point.Z = deck_z;
+	}
+	return point;
+}
+
+
 /***********************************************************************************************
  * BridgeSystem::Layout_Bridge -- caps, spans, piers and decoration along one line              *
  *                                                                                             *
@@ -467,6 +508,18 @@ bool BridgeSystem::Layout_Bridge(BridgeClass & bridge,const BridgeDefinitionClas
 	}
 
 	Vector3 dir = bridge.Get_Direction();
+
+	//	Phase 64: a stated deck height puts the deck a fixed distance above the higher bank,
+	//	level, rather than letting it follow wherever the endpoints happened to be dropped.
+	bool level_deck = bridge.States_Deck_Height() && bridge.Has_Abutment_Heights();
+	float deck_z = 0.0f;
+	if (level_deck) {
+		float bank = bridge.Get_Start_Abutment_Height();
+		if (bridge.Get_End_Abutment_Height() > bank) {
+			bank = bridge.Get_End_Abutment_Height();
+		}
+		deck_z = bank + bridge.Get_Deck_Height();
+	}
 
 	float width = (bridge.Get_Width() > 0.0f) ? bridge.Get_Width() : definition.Get_Width();
 	float half_width = width * 0.5f;
@@ -501,8 +554,8 @@ bool BridgeSystem::Layout_Bridge(BridgeClass & bridge,const BridgeDefinitionClas
 	float travelled = 0.0f;
 
 	if (cap_start > WWMATH_EPSILON) {
-		Vector3 a = bridge.Get_Start() + (dir * travelled);
-		Vector3 b = bridge.Get_Start() + (dir * (travelled + cap_start));
+		Vector3 a = Deck_Point(bridge,dir,travelled,level_deck,deck_z);
+		Vector3 b = Deck_Point(bridge,dir,travelled + cap_start,level_deck,deck_z);
 		Place_Section(bridge,BRIDGE_SECTION_START_CAP,0,a,b,half_width,0.0f);
 		travelled += cap_start;
 	}
@@ -510,15 +563,15 @@ bool BridgeSystem::Layout_Bridge(BridgeClass & bridge,const BridgeDefinitionClas
 	float span_start_distance = travelled;
 
 	for (int s = 0; s < span_count; s++) {
-		Vector3 a = bridge.Get_Start() + (dir * travelled);
-		Vector3 b = bridge.Get_Start() + (dir * (travelled + span_length));
+		Vector3 a = Deck_Point(bridge,dir,travelled,level_deck,deck_z);
+		Vector3 b = Deck_Point(bridge,dir,travelled + span_length,level_deck,deck_z);
 		Place_Section(bridge,BRIDGE_SECTION_SPAN,s,a,b,half_width,0.0f);
 		travelled += span_length;
 	}
 
 	if (cap_end > WWMATH_EPSILON) {
-		Vector3 a = bridge.Get_Start() + (dir * travelled);
-		Vector3 b = bridge.Get_Start() + (dir * length);
+		Vector3 a = Deck_Point(bridge,dir,travelled,level_deck,deck_z);
+		Vector3 b = Deck_Point(bridge,dir,length,level_deck,deck_z);
 		Place_Section(bridge,BRIDGE_SECTION_END_CAP,0,a,b,half_width,0.0f);
 	}
 
@@ -537,7 +590,7 @@ bool BridgeSystem::Layout_Bridge(BridgeClass & bridge,const BridgeDefinitionClas
 			}
 			since = 0.0f;
 
-			Vector3 at = bridge.Get_Start() + (dir * (span_start_distance + (joint * span_length)));
+			Vector3 at = Deck_Point(bridge,dir,span_start_distance + (joint * span_length),level_deck,deck_z);
 
 			float drop = BRIDGE_NOMINAL_PIER_DROP;
 			float ground = 0.0f;
@@ -574,7 +627,7 @@ bool BridgeSystem::Layout_Bridge(BridgeClass & bridge,const BridgeDefinitionClas
 		int ordinal = 0;
 
 		for (float d = span_start_distance; d <= (length - cap_end); d += deco_spacing) {
-			Vector3 at = bridge.Get_Start() + (dir * d);
+			Vector3 at = Deck_Point(bridge,dir,d,level_deck,deck_z);
 			Vector3 left = at + (side * inset);
 			Vector3 right = at - (side * inset);
 			Place_Section(bridge,BRIDGE_SECTION_DECORATION,ordinal++,left,left,
@@ -1120,6 +1173,154 @@ int BridgeSystem::Find_Bridge_At(const Vector3 & position,float max_height_gap)
 		return -1;
 	}
 	return id;
+}
+
+
+/***********************************************************************************************
+ * BridgeSystem::Conform_Abutments -- read each bank's height out of the terrain                *
+ *                                                                                             *
+ *	Roadmap Section 52B, Phase 64.  An abutment stands on the bank, so how high the bank is is  *
+ *	a terrain question, and the heightfield is the only thing entitled to answer it.  This      *
+ *	writes the answer onto the bridge so that layout and the clearance check can both use it    *
+ *	without asking again, and so a caller can see whether it was ever answered at all.          *
+ *                                                                                             *
+ *	A bank the terrain cannot answer for leaves that bridge unconformed rather than zeroed:     *
+ *	a bridge off the edge of the heightfield still has the endpoints its author gave it.        *
+ *=============================================================================================*/
+int BridgeSystem::Conform_Abutments(void)
+{
+	int conformed = 0;
+
+	for (int b = 0; b < Bridges.Count(); b++) {
+
+		BridgeClass & bridge = Bridges[b];
+
+		float start_height = 0.0f;
+		float end_height = 0.0f;
+
+		bool got_start = WorldTerrainSystem::Sample_Height(bridge.Start.X,bridge.Start.Y,&start_height);
+		bool got_end   = WorldTerrainSystem::Sample_Height(bridge.End.X,bridge.End.Y,&end_height);
+
+		if (!got_start || !got_end) {
+			bridge.AbutmentsConformed = false;
+			continue;
+		}
+
+		bridge.StartAbutmentHeight = start_height;
+		bridge.EndAbutmentHeight = end_height;
+		bridge.AbutmentsConformed = true;
+		conformed += 2;
+	}
+
+	return conformed;
+}
+
+
+/***********************************************************************************************
+ * BridgeSystem::Check_Clearance -- does the ground leave the headroom the crossing promised?   *
+ *                                                                                             *
+ *	Roadmap Section 52B, Phase 64's acceptance line: a bridge states a clearance that can be    *
+ *	checked against the terrain under it rather than inferred from it.  This is the check.      *
+ *                                                                                             *
+ *	Walks the span -- not the abutments, which stand on the ground by definition and have no    *
+ *	headroom under them -- sampling the terrain every `sample_spacing` metres and measuring     *
+ *	from the ground up to the underside of the deck.  The tightest sample wins, and where it    *
+ *	was is reported, because "too shallow" is only useful with a place attached.                *
+ *                                                                                             *
+ *	Three outcomes, deliberately distinct.  A crossing whose definition states no clearance is  *
+ *	not judged (Stated false) -- every definition predating this phase is in that case and      *
+ *	none of them should start failing.  A crossing over ground the terrain cannot answer for    *
+ *	is not judged either (Measured false), rather than being passed on the strength of an       *
+ *	absent ravine.  Only a crossing that stated a number and got real ground back is graded.    *
+ *=============================================================================================*/
+bool BridgeSystem::Check_Clearance(int bridge_id,BridgeClearanceReportStruct * report_out,
+											  float sample_spacing)
+{
+	if (report_out == nullptr) {
+		return false;
+	}
+	*report_out = BridgeClearanceReportStruct();
+
+	BridgeClass * bridge = Peek_Bridge(bridge_id);
+	if (bridge == nullptr) {
+		return false;
+	}
+
+	BridgeDefinitionClass * definition = Find_Definition(bridge->Get_Definition());
+	if (definition == nullptr) {
+		return false;
+	}
+
+	report_out->RequiredClearance = definition->Get_Required_Clearance();
+	report_out->Stated = definition->States_Clearance();
+
+	if (sample_spacing < 0.5f) {
+		sample_spacing = 0.5f;
+	}
+
+	float thickness = definition->Get_Deck_Thickness();
+	bool found_any = false;
+	float tightest = 0.0f;
+	Vector3 worst_position(0.0f,0.0f,0.0f);
+	float worst_distance = 0.0f;
+	int samples = 0;
+
+	for (int s = 0; s < bridge->Get_Section_Count(); s++) {
+
+		const BridgeSectionClass & section = bridge->Get_Section(s);
+		if (section.Kind != BRIDGE_SECTION_SPAN) {
+			continue;
+		}
+
+		Vector3 along = section.End - section.Start;
+		float section_length = along.Length();
+		if (section_length < WWMATH_EPSILON) {
+			continue;
+		}
+
+		int steps = (int)(section_length / sample_spacing);
+		if (steps < 1) {
+			steps = 1;
+		}
+
+		for (int i = 0; i <= steps; i++) {
+
+			float t = (float)i / (float)steps;
+			Vector3 at = section.Start + (along * t);
+
+			float ground = 0.0f;
+			if (!WorldTerrainSystem::Sample_Height(at.X,at.Y,&ground)) {
+				continue;
+			}
+
+			//	Headroom is measured to the underside of the deck, not its surface: what a
+			//	vehicle hits is the bottom of the span.
+			float clearance = (at.Z - thickness) - ground;
+			samples++;
+
+			if (!found_any || (clearance < tightest)) {
+				found_any = true;
+				tightest = clearance;
+				worst_position = at;
+				worst_position.Z = ground;
+				worst_distance = (float)s * section_length + (section_length * t);
+			}
+		}
+	}
+
+	report_out->SampleCount = samples;
+	report_out->Measured = found_any;
+
+	if (found_any) {
+		report_out->MinimumClearance = tightest;
+		report_out->WorstPosition = worst_position;
+		report_out->WorstDistanceAlong = worst_distance;
+	}
+
+	report_out->Satisfied = report_out->Stated && found_any &&
+									(tightest >= report_out->RequiredClearance);
+
+	return report_out->Stated && found_any;
 }
 
 

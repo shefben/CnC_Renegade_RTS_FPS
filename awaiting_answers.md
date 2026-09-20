@@ -79,6 +79,24 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  worth doing sooner rather than later.
 
 
+ **Update, a fifth pass.** Phases 56-65 added nine more: `shader_tonemap`, `shader_bloom`,
+ `shader_windfield`, `shader_wetness`, `shader_damagetint`, `shader_weaponkick`,
+ `shader_worldmetrics`, `shader_escarpment`, `shader_traversability` (each with an `fds_` twin),
+ bringing the total to thirty-four -- still covered by the same `"shader_|fds_shader_|terrain_shroud"`
+ pattern, no change needed to the command. This pass also **closes** two of Q-012's older
+ manual-only items by making them testable arithmetic rather than by running anything: P55's
+ streak-sprite tradeoff no longer needs a judgement call, because the streak sprites are gone and
+ the shafts are a real radial blur (`shader_bloom` proves the weights). What is new and needs a
+ person in game: P57's bloom composite and P55's reworked shafts both switch render targets
+ mid-frame, which has no precedent inside an already-rendering frame anywhere in this tree, and is
+ the single highest-risk thing in either of the two programs -- both are off by default and should
+ be turned on one at a time with eyes on the screen. Also still manual-only, for the same reasons
+ P47-P54 already are: P56's adaptation reading correctly when walking indoors, P58's sway and
+ drift agreeing on a direction, P59's wet ground and wet vehicles, P61's soot ramp and night
+ embers, and P62's kick feeling right rather than merely measuring right. Nothing in
+ `docs/zerohour/WorldStructureProgram.md` has been run against a real level either: no graph has
+ been built over real terrain and no escarpment exists in any level to look at.
+
 - **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`
  "through the existing vcpkg/CMake dependency system." This machine has no `VCPKG_ROOT` and no
  vcpkg installation at all, and the `build/win32` tree `b.bat` actually builds has no vcpkg

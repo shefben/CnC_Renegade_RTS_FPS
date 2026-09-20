@@ -335,6 +335,17 @@ public:
 		//	Editable interface requirements
 	DECLARE_EDITABLE(Phys3DefClass,MoveablePhysDefClass);
 
+	/*
+	**	Read-only access to the locomotion values this definition owns.  Roadmap Section 52B
+	**	asks for one service answering how big a thing is and what it can climb, and these
+	**	three are the definition's half of that answer; WorldMetricsClass is the caller.
+	**	Getters rather than a friend declaration, because the values are worth reading from
+	**	anywhere and worth writing from nowhere but here.
+	*/
+	float								Get_Norm_Speed(void) const				{ return NormSpeed; }
+	float								Get_Slide_Angle(void) const			{ return SlideAngle; }
+	float								Get_Step_Height(void) const			{ return StepHeight; }
+
 protected:
 
 	float								NormSpeed;			// speed to move when controller is 1.0

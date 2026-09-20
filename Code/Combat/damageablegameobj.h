@@ -150,6 +150,22 @@ public:
 
 protected:
 
+	/*
+	**	Roadmap Section 52A, Phase 61.  Attached lazily on the first damage taken while the
+	**	feature is on, and owned by the physics object's effect list from that point -- this
+	**	is a borrowed pointer, not an owning one, kept only so the health fraction can be
+	**	pushed to it without walking the list every hit.
+	*/
+	class SurfaceTintEffectClass *	DamageTint;
+
+	//	Phase 59: how much sky this object can see, cached and refreshed on a timer.  -1 means
+	//	never measured.
+	float								SkyView;
+	float								SkyViewAge;
+
+	void								Update_Damage_Tint(void);
+	float								Compute_Sky_View(void);
+
 	DefenseObjectClass	DefenseObject;
 
 	int					PlayerType;

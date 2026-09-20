@@ -36,6 +36,12 @@
 
 // Includes.
 #include "backgroundmgr.h"
+#include "postprocess.h"
+#include "surfacetinteffect.h"
+#include "physcoltest.h"
+#include "lineseg.h"
+#include "coltype.h"
+#include "timemgr.h"
 #include "apppackettypes.h"
 #include "assetmgr.h"
 #include "AudibleSound.h"
@@ -79,8 +85,8 @@ float												  BackgroundMgrClass::_ClockRateHoursPerSecond	= 0.0f;
 float												  BackgroundMgrClass::_ClockFractionalHours		= 0.0f;
 bool												  BackgroundMgrClass::_CloudShadowsEnabled		= false;
 bool												  BackgroundMgrClass::_MetalReflectionsEnabled	= false;
+Vector3				BackgroundMgrClass::_CloudWind (0.0f, 0.0f, 0.0f);
 bool												  BackgroundMgrClass::_SunShaftsEnabled			= false;
-Render2DClass									 *BackgroundMgrClass::_SunShaftRenderer			= nullptr;
 BackgroundMgrClass::LightSourceTypeEnum  BackgroundMgrClass::_LightSourceType;
 SkyClass::MoonTypeEnum						  BackgroundMgrClass::_MoonType;
 bool												  BackgroundMgrClass::_MoonIsEarth;
@@ -2910,6 +2916,25 @@ void SkyClass::Enable_Cloud_Shadows (PhysicsSceneClass *scene, bool enabled)
 
 
 /***********************************************************************************************
+ * SkyClass::Set_Cloud_Velocity -- roadmap Section 52A, Phase 58                               *
+ *                                                                                             *
+ *	Both layers take the same wind, the upper one at a fraction of it.  That ratio is what      *
+ *	gives a sky depth: two layers moving at the same rate read as one flat sheet.               *
+ *=============================================================================================*/
+void SkyClass::Set_Cloud_Velocity (const Vector2 &velocity)
+{
+	static const float UPPER_LAYER_FRACTION = 0.55f;
+
+	if (CloudLayer0 != nullptr) {
+		CloudLayer0->Set_Velocity (velocity);
+	}
+	if (CloudLayer1 != nullptr) {
+		CloudLayer1->Set_Velocity (velocity * UPPER_LAYER_FRACTION);
+	}
+}
+
+
+/***********************************************************************************************
  * SkyClass::Set_Color --																							  *
  *                                                                                             *
  * INPUT:                                                                                      *
@@ -4209,53 +4234,189 @@ void BackgroundMgrClass::Update (PhysicsSceneClass *mainscene, CameraClass *came
 	_Dazzle->Set_Dazzle_Color (dazzlecolor);
 	_Dazzle->Set_Lensflare_Intensity (lensflareintensity);
 
+	//	Roadmap Section 52A, Phase 56.  The tonemap needs to know how bright the thing the
+	//	camera is looking at actually is, and this function already holds every term: the sun's
+	//	own colour after cloud attenuation, the scene ambient, and a camera whose sky view can
+	//	be cast for.  Measuring it off the frame buffer instead would mean reading a render
+	//	target back, which costs a pipeline stall this engine has no budget for.
+	if (PostProcessChainClass::Is_Tonemap_Enabled()) {
+
+		Vector3 sun_color = _Sky->Get_Sun()->Get_Color() * intensity;
+		float sun_intensity = (sun_color.X + sun_color.Y + sun_color.Z) * (1.0f / 3.0f);
+		if (_UnitLightVector.Z <= 0.0f) {
+			sun_intensity = 0.0f;			// below the horizon, lighting nothing
+		}
+
+		Vector3 ambient = mainscene->Get_Ambient_Light();
+		float ambient_intensity = (ambient.X + ambient.Y + ambient.Z) * (1.0f / 3.0f);
+
+		PostProcessChainClass::Set_Scene_Brightness (sun_intensity,ambient_intensity,
+																	Compute_Sky_View (camera));
+		PostProcessChainClass::Set_Grading_Tint (Compute_Grading_Tint());
+		PostProcessChainClass::Update (TimeManager::Get_Frame_Seconds());
+	}
+
+	/*
+	**	Roadmap Section 52A, Phase 61.  How much of the night the embers on burning things are
+	**	allowed to show through.  The sky clock is the natural source and this function already
+	**	holds it: _UnitLightVector.Z is the sine of the sun's elevation, so it crosses zero
+	**	exactly at the horizon.  One value for the whole world, because the world has one sky.
+	*/
+	SurfaceTintEffectClass::Set_Night_Factor (Compute_Night_Factor());
+
 	// Everything necessary has been updated. Clear the dirty flag.
 	Set_Dirty (false);
 }
 
 
 /***********************************************************************************************
- * BackgroundMgrClass::Build_Sun_Shaft_Glow_Texture -- roadmap Section 52A, Phase 55           *
+ * BackgroundMgrClass::Compute_Night_Factor -- how dark it is, 0 to 1                          *
  *                                                                                             *
- *	No authored asset required: a small radial-falloff glow, generated once and kept for the    *
- *	process's lifetime.  A purpose-made replacement is recorded as an improvement, never a       *
- *	prerequisite, in docs/assets/VisualFidelity.md.                                              *
+ *	One at night, zero once the sun is properly up, and a ramp across the shallow band either   *
+ *	side of the horizon so embers come up during dusk rather than switching on at it.           *
  *=============================================================================================*/
-TextureClass * BackgroundMgrClass::Build_Sun_Shaft_Glow_Texture (void)
+float BackgroundMgrClass::Compute_Night_Factor (void)
 {
-	const int SIZE = 32;
+	//	The sun's elevation, as a sine.  Dusk is the band between the horizon and about twelve
+	//	degrees up, which is roughly where a scene stops reading as lit.
+	static const float DAYLIGHT_ELEVATION = 0.20f;
 
-	TextureClass *texture = NEW_REF (TextureClass, (SIZE, SIZE, WW3D_FORMAT_A8R8G8B8, TextureClass::MIP_LEVELS_1));
-	texture->Set_U_Addr_Mode (TextureClass::TEXTURE_ADDRESS_CLAMP);
-	texture->Set_V_Addr_Mode (TextureClass::TEXTURE_ADDRESS_CLAMP);
-	texture->Set_Texture_Name ("ow_sun_shaft_glow");
+	float elevation = _UnitLightVector.Z;
 
-	SurfaceClass *surface = texture->Get_Surface_Level (0);
-	int pitch;
-	unsigned char *map = (unsigned char *) surface->Lock (&pitch);
-	float center = (float)(SIZE - 1) * 0.5f;
-	for (int y = 0; y < SIZE; y++) {
-		for (int x = 0; x < SIZE; x++) {
-
-			float dx = ((float)x - center) / center;
-			float dy = ((float)y - center) / center;
-			float dist = WWMath::Sqrt (dx * dx + dy * dy);
-			float falloff = 1.0f - WWMath::Clamp (dist, 0.0f, 1.0f);
-			falloff = falloff * falloff;			// soften the edge
-
-			unsigned char v = (unsigned char) (falloff * 255.0f);
-			map [x * 4 + 0] = v;
-			map [x * 4 + 1] = v;
-			map [x * 4 + 2] = v;
-			map [x * 4 + 3] = v;
-		}
-		map += pitch;
+	if (elevation <= 0.0f) {
+		return 1.0f;
 	}
-	surface->Unlock();
-	REF_PTR_RELEASE (surface);
-
-	return texture;
+	if (elevation >= DAYLIGHT_ELEVATION) {
+		return 0.0f;
+	}
+	return 1.0f - (elevation / DAYLIGHT_ELEVATION);
 }
+
+
+/***********************************************************************************************
+ * BackgroundMgrClass::Compute_Sky_View -- how much sky the camera can see                     *
+ *                                                                                             *
+ *	Roadmap Section 52A, Phase 56.  This is the term that makes an interior dark: at noon,      *
+ *	indoors and outdoors have the same sun and the same ambient, and the only thing that        *
+ *	differs is the roof.                                                                        *
+ *                                                                                             *
+ *	Five rays, straight up and four leaning out, using the same cast Phase 52's terrain         *
+ *	occlusion uses -- static geometry only, projectile collision group, so a passing soldier    *
+ *	never darkens the world.  Throttled to nothing: five rays a frame is far below what a       *
+ *	single bullet costs.                                                                        *
+ *=============================================================================================*/
+float BackgroundMgrClass::Compute_Sky_View (CameraClass *camera)
+{
+	PhysicsSceneClass *scene = PhysicsSceneClass::Get_Instance();
+	if ((scene == nullptr) || (camera == nullptr)) {
+		return 1.0f;		// nothing to be enclosed by
+	}
+
+	static const float SKY_TEST_DISTANCE = 60.0f;
+	static const float MOVE_AMOUNT = 0.25f;
+	static const float LEAN = 0.4f;
+
+	static const Vector3 DIRECTIONS[5] = {
+		Vector3 ( 0.0f, 0.0f, 1.0f),
+		Vector3 ( LEAN, 0.0f, 1.0f),
+		Vector3 (-LEAN, 0.0f, 1.0f),
+		Vector3 ( 0.0f, LEAN, 1.0f),
+		Vector3 ( 0.0f,-LEAN, 1.0f),
+	};
+
+	Vector3 eye = camera->Get_Position();
+	int clear = 0;
+
+	for (int i = 0; i < 5; i++) {
+
+		Vector3 dir = DIRECTIONS[i];
+		dir.Normalize();
+
+		Vector3 p0 = eye + (dir * MOVE_AMOUNT);
+		Vector3 p1 = eye + (dir * SKY_TEST_DISTANCE);
+
+		CastResultStruct res;
+		LineSegClass ray (p0,p1);
+		PhysRayCollisionTestClass raytest (ray,&res,0,COLLISION_TYPE_PROJECTILE);
+		raytest.CheckDynamicObjs = false;
+		scene->Cast_Ray (raytest);
+
+		if (res.Fraction >= 1.0f) {
+			clear++;
+		}
+	}
+
+	return (float)clear / 5.0f;
+}
+
+
+/***********************************************************************************************
+ * BackgroundMgrClass::Compute_Grading_Tint -- the colour the sky clock is grading toward      *
+ *                                                                                             *
+ *	Roadmap Section 52A, Phase 56: "the grading ramp is generated in code from the sky clock".  *
+ *	Warm when the sun is near the horizon, neutral overhead, and cool once it has set -- which  *
+ *	is what atmospheric scattering does and what every photograph of the same scene shows.      *
+ *                                                                                             *
+ *	Deliberately gentle.  A grading ramp strong enough to notice on its own is strong enough    *
+ *	to make somebody's screenshot look wrong, and Section 52A's rule is that this may look      *
+ *	better but must never look worse.                                                           *
+ *=============================================================================================*/
+Vector3 BackgroundMgrClass::Compute_Grading_Tint (void)
+{
+	//	_UnitLightVector.Z is the sine of the sun's elevation: 1 overhead, 0 on the horizon,
+	//	negative once it has set.
+	float elevation = _UnitLightVector.Z;
+
+	if (elevation <= 0.0f) {
+		//	Night.  A slight cool cast, which is how unlit scenes read to the dark-adapted eye.
+		return Vector3 (0.94f,0.97f,1.00f);
+	}
+
+	//	Horizon to overhead.  Warm at the bottom of that range, neutral at the top.
+	float high = WWMath::Clamp (elevation,0.0f,1.0f);
+	float warm = 1.0f - high;
+
+	return Vector3 (1.00f,
+						 1.00f - (0.04f * warm),
+						 1.00f - (0.10f * warm));
+}
+
+
+/***********************************************************************************************
+ * BackgroundMgrClass::Set_Cloud_Wind -- roadmap Section 52A, Phase 58                         *
+ *                                                                                             *
+ *	The sky's scroll, driven by the same replicated wind that sways the foliage and drifts the  *
+ *	rain.  Phase 53's ground shadows already take their drift direction from CloudLayerClass's  *
+ *	own Velocity, so setting it here moves the clouds and the shade they cast together, which   *
+ *	is what "the whole scene agrees about which way the wind blows" has to mean to be worth      *
+ *	anything.                                                                                    *
+ *                                                                                             *
+ *	A zero wind leaves every layer's authored velocity alone.                                   *
+ *=============================================================================================*/
+void BackgroundMgrClass::Set_Cloud_Wind (const Vector3 &wind)
+{
+	_CloudWind = wind;
+
+	if ((wind.X == 0.0f) && (wind.Y == 0.0f)) {
+		return;
+	}
+
+	Vector2 velocity (wind.X, wind.Y);
+
+	if (_Sky != nullptr) {
+		//	The upper layer moves more slowly than the lower one, which is what gives a sky
+		//	its depth.  The ratio is the one the layers were already built with.
+		_Sky->Set_Cloud_Velocity (velocity);
+	}
+}
+
+
+const Vector3 & BackgroundMgrClass::Get_Cloud_Wind (void)
+{
+	return _CloudWind;
+}
+
+
 
 
 /***********************************************************************************************
@@ -4290,37 +4451,23 @@ void BackgroundMgrClass::Render_Sun_Shafts (void)
 		return;		// behind the camera, beyond the far clip, or outside the screen
 	}
 
-	if (_SunShaftRenderer == nullptr) {
-		_SunShaftRenderer = new Render2DClass();
-		TextureClass *glow = Build_Sun_Shaft_Glow_Texture();
-		_SunShaftRenderer->Set_Texture (glow);
-		REF_PTR_RELEASE (glow);
-		_SunShaftRenderer->Enable_Additive (true);
-	}
-
-	RectClass screen_res = Render2DClass::Get_Screen_Resolution();
-	_SunShaftRenderer->Set_Coordinate_Range (screen_res);
-	_SunShaftRenderer->Reset();
-
-	Vector2 center (screen_res.Width() * 0.5f, screen_res.Height() * 0.5f);
-	Vector2 sun_pixel (
-		(screen.X * 0.5f + 0.5f) * screen_res.Width(),
-		(1.0f - (screen.Y * 0.5f + 0.5f)) * screen_res.Height());
-
-	const int STEP_COUNT = 6;
-	for (int i = 1; i <= STEP_COUNT; i++) {
-
-		float t = (float)i / (float)STEP_COUNT;
-		Vector2 pos = sun_pixel + (center - sun_pixel) * t;
-		float size = 28.0f * (1.0f - t * 0.6f);
-		float alpha = vis * (1.0f - t) * 0.6f;
-
-		unsigned int color = DX8Wrapper::Convert_Color (Vector3 (1.0f, 0.95f, 0.85f), alpha);
-		RectClass quad (pos.X - size, pos.Y - size, pos.X + size, pos.Y + size);
-		_SunShaftRenderer->Add_Quad (quad, color);
-	}
-
-	_SunShaftRenderer->Render();
+	/*
+	**	Roadmap Section 52A, Phase 55, reimplemented on Phase 56/57's chain.
+	**
+	**	The first version of this drew a row of additive streak sprites stepping toward screen
+	**	centre, and said plainly in WIP_features.md that it was an approximation standing in for
+	**	the per-pixel radial blur the acceptance text describes, because at the time there was no
+	**	render target to blur into.  There is now, so this is the real thing: the sun is drawn
+	**	into the shared post-process target and that target is composited back over the frame
+	**	several times, each pass scaled about the sun's own screen position.
+	**
+	**	Everything that gated the old version still gates this one, and for the same reasons --
+	**	below the horizon, off screen, or fully occluded all draw nothing -- but the gating now
+	**	lives in Render_Radial_Streaks beside the drawing it controls rather than being repeated
+	**	here.
+	*/
+	PostProcessChainClass::Render_Radial_Streaks (screen, vis,
+																 Vector3 (1.0f, 0.95f, 0.85f), 0.10f);
 }
 
 

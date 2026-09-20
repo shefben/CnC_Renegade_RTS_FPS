@@ -92,6 +92,29 @@ public:
 	const BridgeSectionClass &	Get_Section(int index) const;
 	BridgeSectionClass *			Peek_Section(int index);
 
+	/*
+	**	Structural vocabulary.  Roadmap Section 52B, Phase 64.
+	**
+	**	Before this, a bridge had two endpoints and a width, and its height above the ground
+	**	was whatever the author happened to put the endpoints at.  Clearance under it was an
+	**	accident of how deep Apply_River_Cut had cut, which meant a crossing could not state
+	**	what it was for, and nothing could check whether the terrain agreed.
+	**
+	**	DeckHeight is the deck's height above the higher of the two abutments.  Zero keeps
+	**	the old behaviour exactly -- the deck follows the endpoints -- so every bridge that
+	**	predates this is unchanged.
+	**
+	**	The abutment heights are filled in by Build_Layout from the terrain at each bank.
+	**	They are an output, not an input: the ground is still the heightfield's to answer.
+	*/
+	void				Set_Deck_Height(float height)		{ DeckHeight = (height > 0.0f) ? height : 0.0f; }
+	float				Get_Deck_Height(void) const		{ return DeckHeight; }
+	bool				States_Deck_Height(void) const	{ return DeckHeight > 0.0f; }
+
+	float				Get_Start_Abutment_Height(void) const	{ return StartAbutmentHeight; }
+	float				Get_End_Abutment_Height(void) const		{ return EndAbutmentHeight; }
+	bool				Has_Abutment_Heights(void) const			{ return AbutmentsConformed; }
+
 	//	Which road, if any, arrives at each abutment.  -1 until Connect_Roads has run.
 	void				Set_Start_Road(int id)				{ StartRoadID = id; }
 	int				Get_Start_Road(void) const			{ return StartRoadID; }
@@ -112,6 +135,11 @@ private:
 	Vector3			Start;
 	Vector3			End;
 	float				Width;
+
+	float				DeckHeight;
+	float				StartAbutmentHeight;
+	float				EndAbutmentHeight;
+	bool				AbutmentsConformed;
 
 	int				StartRoadID;
 	int				EndRoadID;
@@ -146,6 +174,32 @@ public:
 	int				Count;
 	Vector3			Position;
 	StringClass		Model;
+};
+
+
+/*
+**	What Check_Clearance found under a span.  Roadmap Section 52B, Phase 64.
+**
+**	The point of returning a report rather than a bool is that "this ravine is 0.4 metres too
+**	shallow, forty metres along" is actionable and "false" is not -- by a level author, by
+**	placement validation, and by any later generator deciding whether to cut deeper.
+*/
+struct BridgeClearanceReportStruct
+{
+	BridgeClearanceReportStruct(void) :
+		Stated(false), Measured(false), Satisfied(false),
+		RequiredClearance(0.0f), MinimumClearance(0.0f),
+		WorstPosition(0.0f,0.0f,0.0f), WorstDistanceAlong(0.0f), SampleCount(0) { }
+
+	bool		Stated;					// the definition states a required clearance at all
+	bool		Measured;				// terrain answered for at least one sample
+	bool		Satisfied;				// Measured, Stated, and the terrain is deep enough everywhere
+
+	float		RequiredClearance;	// what the crossing promised
+	float		MinimumClearance;		// the tightest headroom found
+	Vector3	WorstPosition;			// where that was
+	float		WorstDistanceAlong;	// and how far along the span
+	int		SampleCount;
 };
 
 
@@ -194,6 +248,25 @@ public:
 	//	point is not over a bridge, or is over a part of one that no longer carries anything.
 	static bool			Conform_Point(float x,float y,float * height_out,int * bridge_id_out = nullptr);
 	static int			Find_Bridge_At(const Vector3 & position,float max_height_gap = 4.0f);
+
+	/*
+	**	Does the ground under this crossing actually leave the headroom the crossing says it
+	**	needs?  Roadmap Section 52B, Phase 64's acceptance line, made a function.
+	**
+	**	Samples the terrain under the span at `sample_spacing` metres and compares each one
+	**	against the deck above it.  A crossing whose definition states no clearance reports
+	**	Stated == false and is not judged; a place the terrain cannot answer for is skipped
+	**	rather than counted as infinitely deep.
+	*/
+	static bool			Check_Clearance(int bridge_id,BridgeClearanceReportStruct * report_out,
+												float sample_spacing = 4.0f);
+
+	/*
+	**	Read each abutment's height out of the terrain at its bank, for every bridge.  Called
+	**	from Build_Layout, and separately available because a caller that has just reshaped
+	**	the ground wants the bridges to notice.  Returns how many abutments were answered.
+	*/
+	static int			Conform_Abutments(void);
 
 	//	The join to Section 19's roads.
 	static int			Connect_Roads(float max_distance = 8.0f);

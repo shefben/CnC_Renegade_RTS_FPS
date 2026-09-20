@@ -2961,6 +2961,31 @@ void ParticleBufferClass::Kill_Old_Particles(void)
 }
 
 
+/*
+**	The one replicated wind, as an acceleration, in world units per millisecond squared to match
+**	ParticleBufferClass::Accel's own units.  Roadmap Section 52A, Phase 58.
+*/
+static Vector3	_GlobalWindAccel(0.0f,0.0f,0.0f);
+static bool		_HasGlobalWind = false;
+
+
+void ParticleBufferClass::Set_Global_Wind(const Vector3 & wind_acceleration)
+{
+	//	The public unit is world units per second squared, like Set_Acceleration's; the stored
+	//	one is per millisecond squared, like Accel's.
+	_GlobalWindAccel = wind_acceleration / 1000000.0f;
+	_HasGlobalWind = ((_GlobalWindAccel.X != 0.0f) ||
+							(_GlobalWindAccel.Y != 0.0f) ||
+							(_GlobalWindAccel.Z != 0.0f));
+}
+
+
+Vector3 ParticleBufferClass::Get_Global_Wind(void)
+{
+	return _GlobalWindAccel * 1000000.0f;
+}
+
+
 void ParticleBufferClass::Update_Non_New_Particles(unsigned int elapsed)
 {
 	// In the general case, a range in a circular buffer can be composed of up
@@ -2978,6 +3003,21 @@ void ParticleBufferClass::Update_Non_New_Particles(unsigned int elapsed)
 
 	float fp_elapsed_time = (float)elapsed;
 
+	/*
+	**	Roadmap Section 52A, Phase 58.  Wind drift, folded into the acceleration this loop was
+	**	already integrating, so every emitter in the world drifts with the one replicated wind
+	**	without a single effect being edited and without a second integration path.
+	**
+	**	The global term is added to the emitter's own rather than replacing it: an effect that
+	**	states a deliberate acceleration -- smoke rising, sparks falling -- keeps it, and the
+	**	wind pushes whatever it was doing sideways, which is what wind does.
+	**
+	**	Zero wind is the current appearance exactly: the sum is the emitter's own acceleration
+	**	and HasAccel is unchanged, so the same branch runs with the same value.
+	*/
+	Vector3 accel = Accel + _GlobalWindAccel;
+	bool has_accel = HasAccel || _HasGlobalWind;
+
 	// Update position and velocity for all particles.
 	if (PingPongPosition) {
 
@@ -2985,9 +3025,9 @@ void ParticleBufferClass::Update_Non_New_Particles(unsigned int elapsed)
 		Vector3 *position = Position[pingpong]->Get_Array();
 		Vector3 *prev_pos = Position[pingpong ^ 0x1]->Get_Array();
 
-		if (HasAccel) {
-			Vector3 delta_v = Accel * fp_elapsed_time;
-			Vector3 accel_p = Accel * (0.5f * fp_elapsed_time * fp_elapsed_time);
+		if (has_accel) {
+			Vector3 delta_v = accel * fp_elapsed_time;
+			Vector3 accel_p = accel * (0.5f * fp_elapsed_time * fp_elapsed_time);
 			for (i = Start; i < sub1_end; i++) {
 				position[i] = prev_pos[i] + Velocity[i] * fp_elapsed_time + accel_p;
 				Velocity[i] += delta_v;
@@ -3008,9 +3048,9 @@ void ParticleBufferClass::Update_Non_New_Particles(unsigned int elapsed)
 
 		Vector3 *position = Position[0]->Get_Array();
 
-		if (HasAccel) {
-			Vector3 delta_v = Accel * fp_elapsed_time;
-			Vector3 accel_p = Accel * (0.5f * fp_elapsed_time * fp_elapsed_time);
+		if (has_accel) {
+			Vector3 delta_v = accel * fp_elapsed_time;
+			Vector3 accel_p = accel * (0.5f * fp_elapsed_time * fp_elapsed_time);
 			for (i = Start; i < sub1_end; i++) {
 				position[i] += Velocity[i] * fp_elapsed_time + accel_p;
 				Velocity[i] += delta_v;

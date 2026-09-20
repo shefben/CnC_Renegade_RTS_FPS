@@ -1,6 +1,6 @@
-# The Section 52A visual-fidelity program: Phases 46-55
+# The Section 52A visual-fidelity program: Phases 46-62
 
-Roadmap Section 52A, the first ten phases (of seventeen). Program-wide constraints that
+Roadmap Section 52A, complete -- all seventeen phases. Program-wide constraints that
 bind every phase in the section: no new authored art required; no `.w3d` re-export or
 LevelEdit re-solve; every phase is a runtime switch defaulting to current appearance until
 enabled, and disabling it restores stock rendering exactly; appearance is not intelligence
@@ -9,11 +9,21 @@ server); shared state that must agree across a match is server-authoritative and
 as a small scalar set, never per-object; each phase extends its named canonical owner, it
 does not fork a second pipeline behind a flag.
 
-All ten phases build and link clean across `ww3d2`, `wwphys`, `combat`, `renegade` and
-`renegadeserver`. Six device-less `-shaderselfcheck` families cover the state-machine surface
-(`visualsettings`, `skyclock`, `lightcurves` for P46-50; `heightfog`, `skyocclusion`,
-`skydriventoggles` for P51-55), each with an `fds_` twin, per
+All seventeen phases build and link clean across `ww3d2`, `wwphys`, `combat`, `renegade` and
+`renegadeserver`. Twelve device-less `-shaderselfcheck` families cover the state-machine and
+arithmetic surface (`visualsettings`, `skyclock`, `lightcurves` for P46-50; `heightfog`,
+`skyocclusion`, `skydriventoggles` for P51-55; `tonemap`, `bloom`, `windfield`, `wetness`,
+`damagetint`, `weaponkick` for P56-62), each with an `fds_` twin, per
 `docs/zerohour/TestCoverageCatalog.md`'s own convention.
+
+**One correction to an assumption this document carried through P55.** The tree is Direct3D 9,
+not Direct3D 8, despite every filename saying `dx8`; and `DX8Wrapper::Create_Render_Target`,
+`Set_Render_Target` and `_Get_DX8_Back_Buffer` have existed all along -- the projected-shadow
+system in `wwphys/pscene_projectors.cpp` has been using them since Section 24. What does *not*
+exist is any programmable-shader path: `CreatePixelShader` appears nowhere in the tree, and no
+material program uses the programmable tier even on hardware whose caps report it. P55's note
+that "this codebase has no screen-space render-target post-process chain" was right about the
+chain and wrong about the primitives. P56 and P57 build the chain out of what was there.
 
 ## P46: sampler/filtering/antialias quality defaults
 
@@ -345,11 +355,307 @@ through windows, doorways and tree canopy" describes. A true per-pixel version i
 target once P56/P57's post-processing chain exists to share a render-target owner with, which
 is exactly what Section 52A's own ordering note says P56/P57 are for.
 
+## P56: tonemapping and eye adaptation
+
+**Owner.** `ww3d2/postprocess.cpp` (new, and the shared owner P57 also uses),
+`ww3d2/dx8wrapper.cpp`, `Combat/backgroundmgr.cpp`.
+
+**What the pipeline allows.** Render targets are real and usable. Pixel shaders are not
+available at all. So a per-pixel filmic tonemap operator is not on the table, and writing a
+shader pipeline as a side effect of a tonemap phase would be a far larger and riskier change
+than the phase asks for.
+
+What *is* available is the hardware gamma ramp: a 256-entry per-channel lookup the hardware
+applies to every pixel on the way out. That is a colour-grading ramp in the literal sense, and
+it is where the exposure and the grading go.
+
+**Implement.** `DX8Wrapper::Set_Gamma` was refactored to remember its arguments and to build
+its ramp through a new `Apply_Gamma_Ramp`. Alongside it, `Set_Tone_Scale(exposure, tint)` folds
+an exposure multiplier and a per-channel tint into the same ramp. An exposure of 1 and a white
+tint reproduce `Set_Gamma`'s own output bit for bit, which is what makes the feature disabled
+pixel-identical rather than approximately so; and the player's own gamma slider composes with
+the tonemap instead of fighting it.
+
+`PostProcessChainClass` owns the adaptation. Scene brightness is *not* measured off the frame
+buffer -- reading a render target back costs a pipeline stall this engine has no budget for.
+It is composed instead from three things `BackgroundMgrClass::Update` already holds: the sun's
+colour after cloud attenuation, the scene ambient, and how much sky the camera can see.
+
+That third term is what makes the phase work. At noon, indoors and outdoors have the same sun
+and the same ambient; the only thing that differs is the roof.
+`BackgroundMgrClass::Compute_Sky_View` casts five rays (straight up and four leaning out) using
+the same static-geometry, projectile-group cast P52's terrain occlusion uses, so a soldier
+walking past never darkens the world. Five rays a frame is far below what one bullet costs.
+
+Exposure then approaches its target with asymmetric time constants -- 0.45s into the light,
+2.5s into the dark -- because that asymmetry is what the eye actually has and what makes
+stepping into a building read as adaptation rather than as a brightness slider moving.
+
+The grading ramp comes from the sky clock: warm near the horizon, neutral overhead, a slight
+cool cast at night. Deliberately gentle. A grade strong enough to notice on its own is strong
+enough to make somebody's screenshot look wrong, and Section 52A's rule is that this may look
+better and must never look worse.
+
+**The shoulder, which is what makes this an operator rather than a brightness slider.** Raising
+the exposure to bring a dark interior up does not help if everything it lifts past 1.0 is then
+clipped flat: the shadows open and the sky turns into a white sheet, which is worse than the
+picture we started with. So `Tone_Curve` rolls the top of the range off instead of clipping it,
+using extended Reinhard -- `v * (1 + v/W^2) / (1 + v)`, which maps 0 to 0 and the white point to
+exactly 1, is monotonic between, and is nearly linear at the bottom so shadows are not crushed to
+buy the highlights back. That is the operator itself, not an approximation of one, and it is what
+the acceptance line's "hold detail in the sky and in shadow at once" actually asks for.
+
+A shoulder of 0 is a straight clamp, bit for bit what the ramp did before, so the default is
+still exactly today's image.
+
+**What remains global.** One curve applies to every pixel, because a gamma ramp is a per-channel
+lookup and cannot be anything else. A *local* operator -- one part of the frame on a different
+curve from another -- needs the programmable tier this build does not have. In practice the
+difference shows only in a frame containing both a deep interior and open sky at once; the global
+curve handles each well and the pair as a compromise. Recorded, not hidden.
+
+---
+
+## P57: bloom on emissive and dazzle sources
+
+**Owner.** `ww3d2/postprocess.cpp` (shared with P56, as the phase text requires),
+`ww3d2/dazzle.cpp`, `Combat/combat.cpp`.
+
+**Implement.** The threshold stage is free. `dazzle.cpp` already marks every glare source in
+the world and already computes, for its own draw, each one's screen position, visibility and
+intensity. `DazzleRenderObjClass::Render` now hands those to `PostProcessChainClass::Add_Glare`
+at the same point it submits itself to the dazzle layer -- so muzzle flashes, lamps, the sun,
+Tiberium and beam weapons pick bloom up with no per-effect work, exactly as the phase says they
+should. `Add_Glare` does its own threshold and off-screen rejection and returns immediately
+while bloom is off, which is the default.
+
+Blur and add happen together. Each source is drawn once as a soft radial sprite into the shared
+render target; the target is then composited back over the frame four times, each tap wider and
+dimmer than the last. The sum of those taps is the wide soft falloff a blur kernel would have
+produced, obtained on a pipeline with no way to run one -- bilinear filtering on the way out of
+the target does the smoothing. The chain allocates its target once, on first use, and
+`Release_Targets` drops it on shutdown.
+
+`Combat/combat.cpp` brackets it: `Begin_Glare` before the scene renders, `Render_Bloom` after
+the dazzle layer has drawn and before the HUD, so the interface does not bloom.
+
+**The chain's second customer.** Phase 55's sun shafts were implemented, in an earlier pass, as
+a row of additive streak sprites, and `WIP_features.md` recorded plainly that this was an
+approximation standing in for the per-pixel radial blur the acceptance text describes -- there
+was no render target to blur into at the time. There is now, and Phase 55 has been reimplemented
+on it: see the revision note at the end of this document. The streak-sprite path and its
+procedural glow texture were **deleted**, not left beside the new one.
+
+**Not verified on a device.** The mid-frame render-target switch follows the bracket pattern
+`pscene_projectors.cpp` already uses (set, clear, draw, restore), but unlike the projectors this
+runs inside the frame already being rendered rather than in its own `Begin_Render`/`End_Render`
+pair. That difference is the one thing about this phase -- and about the Phase 55 rework that
+shares it -- which genuinely needs a screen before it is turned on for anybody. Both are off by
+default.
+
+---
+
+## P58: wind field applied to geometry
+
+**Owner.** `Combat/WeatherMgr.cpp` (`WindClass`), `wwphys/foliagesystem.cpp`,
+`ww3d2/part_buf.cpp`, `Combat/backgroundmgr.cpp`.
+
+**The wind was already replicated.** This is the phase's most useful finding.
+`WeatherMgrClass` is a `NetworkObjectClass`; its wind heading, speed and variability go over
+`Export_Rare`; and both ends run the same two-octave gust function over them. Every client
+already agrees about which way the wind blows, to the frame. Section 52A's "shared state is
+server-owned, replicated as a small scalar set" was satisfied before this phase started, by
+something written for rain in 2002. Not one new byte goes on the wire.
+
+What was missing was consumers. `WindClass::Get_Velocity` had exactly one reader --
+`WeatherEnvironmentRenderer::Set_Wind`, for precipitation.
+
+**Implement.** `WeatherMgrClass::Update_Wind_Consumers` hands the live gusting vector to three
+systems, each behind its own scale defaulting to zero.
+
+*Foliage.* Sway is baked into the batch geometry at build time, keyed on each vertex's height
+above its own instance's base and quadratic in that fraction, so a trunk is pinned exactly and a
+crown moves most. `FoliageModelCacheClass` gained a `Height` measured once when the model is
+cached. Because the sway is baked, drawing costs exactly what it cost before: no per-frame
+vertex work, no second render path, no shader.
+
+What makes it *move* is `FoliageSystem::Update_Wind`, which rebuilds two visible cells per
+frame, round robin, and only when the wind has changed by more than a threshold. That is a
+deliberate trade: the sway lags a gust by however long a full sweep takes, and in exchange the
+cost is a hard constant that does not grow with the size of the forest.
+
+Section 21's merged collision posts cannot move even in principle. They are separate objects
+built by `Build_Proxy_Geometry` from the instance positions alone and are never touched by any
+of this -- the wind moves the picture, not the blocker, kept structurally rather than by being
+careful.
+
+*Particles.* `ParticleBufferClass::Set_Global_Wind` adds a world acceleration to the one each
+buffer already integrates. Added rather than replacing: an effect that deliberately rises or
+falls keeps doing so and simply drifts while it does, which is what wind does to smoke.
+
+*Clouds.* `SkyClass::Set_Cloud_Velocity` drives both layers from the same wind, the upper at
+55% of the lower so the sky keeps its depth. P53's ground shadows already drift along
+`CloudLayerClass::Velocity`, so the clouds and the shade they cast now move together.
+
+---
+
+## P59: wetness response
+
+**Owner.** `Combat/WeatherMgr.cpp`, `wwphys/terraintexturesystem.cpp`.
+
+**Implement.** One scalar, 0 dry to 1 soaked, integrated from the replicated rain density:
+about twelve seconds to soak, about a minute to dry. Linear rather than exponential, because a
+puddle fills and empties at a rate rather than a proportion -- and because linear actually
+*reaches* zero, which is what makes "they dry out afterwards" true rather than asymptotically
+nearly true. Like the wind, it needs no replication of its own: the input is already replicated
+and both ends run the same integrator.
+
+`Get_Sheltered_Wetness(sky_view)` is the shelter term. Rain falls downward, so how wet a surface
+gets is how much sky it can see, and callers that know their own sky view ask with it.
+
+The terrain response is the roadmap's own words made mechanical: wetness biases the layer table
+toward its wet variants on low-slope ground. `TERRAIN_LAYER_SHORELINE` is already what "wet
+ground" means in Section 18's table, so rain simply extends it inland. Water runs off anything
+steeper than twenty degrees, so the bias falls to nothing there -- and it is capped at 60% of
+the remaining dry weight, because a rained-on field is a darker field, not a beach.
+
+**The object half.** Soldiers, vehicles and buildings respond through
+`SurfaceTintEffectClass`, the same material effect Phase 61 uses -- and sharing it is the point.
+Both phases want the same two passes over the same object (something multiplicative to darken it,
+something additive on top), so giving each its own effect would mean two entries in every
+object's effect list, two material passes pushed where one would do, and the same object walked
+twice a frame. One effect carrying both terms is cheaper and more honest, which is why Phase 61's
+`DamageTintEffectClass` was renamed rather than duplicated.
+
+Two things happen to a wet surface, and both matter:
+
+- **Albedo darkens**, multiplicatively. Water fills the surface's microscopic roughness, so light
+  that would have scattered straight back out is bounced around inside the film and absorbed.
+  That is why a wet pavement is close to half the brightness of a dry one, and why this is a
+  multiply -- it takes light away rather than adding a colour. Slightly cool with it, because the
+  film is a weak blue filter.
+- **Specular lifts.** The additive pass runs with lighting *on* and its ambient and diffuse set
+  to black, so the only thing lighting can contribute through it is the specular highlight.
+  That gives a genuine view-and-light-dependent sheen that moves as the player moves. Without it
+  the surface would only darken, and a surface that only darkens reads as being in shadow rather
+  than as being wet.
+
+**Shelter is per object, and is the reason the value is not global.** A truck parked under a
+bridge stays dry; a soldier indoors stays dry.
+`DamageableGameObj::Compute_Sky_View` casts one ray straight up against static geometry only --
+the same cast Phase 52's terrain occlusion and Phase 56's camera sky view use, so a soldier
+walking over a puddle never shelters it. Cached and refreshed every two seconds rather than every
+frame: objects move between shelter and open sky rarely, and a raycast per object per frame would
+be the most expensive thing in the phase by a wide margin.
+
+Attached from `PhysicalGameObj::Post_Think`, because wetness is not a damage event and cannot
+ride the damage path the way Phase 61's soot does -- an object that has never been shot still
+gets rained on. Two compares per object per frame while the feature is off.
+
+---
+
+## P60: surface marks age with the weather
+
+**Owner.** `wwphys/worldsurfacemarkmanager.cpp`, `wwphys/surfaceribbonsystem.cpp`.
+
+**Implement.** The smallest change in the program, and the cleanest, because Section 35 had
+already put the mechanism in place without knowing it. `Mark_Alpha` already fades a mark on its
+age against its lifetime, and `Timestep` already ages it. Multiply the aging by a function of
+wetness and everything downstream follows: marks laid before a storm fade sooner, clear sooner,
+and free their slots sooner, with `Mark_Alpha` knowing nothing about weather.
+
+`Compute_Weather_Fade_Rate` is exactly 1.0 at zero wetness -- so dry weather reproduces the
+current fade timing by the multiplier being one rather than by anything being special-cased --
+and 4.0 at full soaking. Pool size, group caps and eviction policy are Section 35's and are
+untouched; a mark cleared early simply frees its slot early, which is what a mark reaching its
+lifetime has always done.
+
+`SurfaceRibbonSystem` (tyre tracks) uses the same function, so tracks and scorches wash out at
+the same rate for the same reason.
+
+---
+
+## P61: progressive damage appearance
+
+**Owner.** `wwphys/damagetinteffect.cpp` (new, beside `materialeffect.cpp` and
+`transitioneffect.cpp`), `Combat/damageablegameobj.cpp`.
+
+**The gap.** A building's entire visual response to damage today is one binary material swap at
+zero health (`BuildingGameObj::Update_State` calling `Enable_Alternate_Materials`). A structure
+one shot from collapse is pixel-identical to an untouched one.
+
+**Implement.** `SurfaceTintEffectClass` is a `MaterialEffectClass`, so it hangs on the effect
+list `PhysClass` has carried since stealth and transitions were written and needs no new
+plumbing at all. It is shared with Phase 59 -- see that phase for why one effect carries both
+terms rather than each having its own. Two passes over whatever the object already draws:
+
+- a **multiplicative** soot pass, which darkens and browns as health falls. Multiplicative
+  matters: an additive pass can only ever brighten, which is why the transition and stealth
+  effects could not be reused for this however similar they look.
+- an **additive** pass carrying the embers (as its emissive term) and Phase 59's wet sheen (as
+  its specular term). Both are additive and neither needs a pass of its own.
+
+The night factor the embers key on comes from the sky clock:
+`BackgroundMgrClass::Compute_Night_Factor` reads the sun's elevation, which is already computed
+there, and ramps across the shallow band either side of the horizon so embers come up during dusk
+rather than switching on at it.
+
+Both are untextured; their colour is the vertex material's emissive with lighting off, so the
+tint is exactly the number computed rather than that number lit. Tint only -- no damage-state
+models, no damage textures, nothing to author, which is the phase's own constraint and also why
+it works on content that shipped in 2002.
+
+The soot starts at 85% health (one bullet should not char a building) and the embers at 35%
+(a structure is scorched long before anything in it is burning). Nothing multiplies to black:
+a building reduced to a silhouette is a worse picture than the stock one.
+
+Wired at **one** site, `DamageableGameObj::Apply_Damage`, because that is where health changes
+for buildings, vehicles and soldiers alike -- hooking each separately would be three places to
+forget. Repair comes through the same path as negative damage, so the tint reverses there too,
+ramping rather than snapping so a repair gun reads as healing rather than as a strobe.
+
+The effect is attached lazily, on the first damage taken while the feature is on, so an
+untouched world carries no extra objects.
+
+---
+
+## P62: weapon-fire camera response
+
+**Owner.** `wwphys/camerashakesystem.cpp`, `Combat/ccamera.cpp`, `Combat/weapons.cpp`.
+
+**Implement.** A per-shot field-of-view kick (1.6 degrees at full scale) and roll (0.5 degrees),
+recovering along a cubed curve so most of the movement is gone almost immediately and the last
+of it eases out. A linear recovery reads as the camera being dragged back rather than springing
+back.
+
+Kept as a separate track from the positional shakers, because a shot is not an explosion
+somewhere in the world that the camera happens to be near: it has no position, no radius, and
+recovers in a fraction of the time. A second shot **restarts** the kick rather than stacking
+into it -- stacking means a machine gun walks the view off the screen, which is the exact
+failure that makes a camera response stop being cosmetic.
+
+Scaled per weapon from `WeaponDefinitionClass::RecoilScale` and `RecoilTime`, which already
+exist, are already editor-exposed, and already drive the weapon's bone recoil. A heavy weapon
+moves the view more than a pistol without anybody authoring a second set of values.
+
+Triggered from `WeaponClass::Fire_Bullet`, beside the existing `Start_Recoil` call, and only
+for the local player's own weapon -- somebody else firing across the map has no business moving
+this client's camera, and the existing shake system already covers the case where a nearby
+explosion should.
+
+**Provably cosmetic, structurally.** The shake system only ever writes the camera transform, and
+it does so in `PhysicsSceneClass::Apply_Camera_Shakes`, which runs after the simulation has
+already decided where the shot went. Aim direction, spread and hit registration are the
+server's and never see any of this -- the same guarantee the explosion shake has always had, for
+the same reason. The roll is added before the existing clamp, so it shares the ceiling the
+explosion shake has and cannot combine with one to tip the view over.
+
 ## What this pass did not attempt
 
-- **Runtime visual verification of any of the ten phases.** No screenshot, no frame capture,
-  no live match -- the standing "do not run the game" instruction covers this pass the same
-  way it already covers the twenty-two self-check families **Q-012** tracks. Everything above
+- **Runtime visual verification of any of the seventeen phases.** No screenshot, no frame
+  capture, no live match -- the standing "do not run the game" instruction covers this pass the
+  same way it already covers the thirty-four self-check families **Q-012** tracks. P57's
+  mid-frame render-target switch is the single item on this list most in need of a screen. Everything above
   that is stated as a visual outcome ("shadows rotate", "night falls", "broad patches of
   shade") is a claim about what the code does given what its consumers were read to already
   do, not a claim that has been seen on screen.
@@ -366,3 +672,36 @@ is exactly what Section 52A's own ordering note says P56/P57 are for.
 - **P55's shaft is a streak-sprite approximation**, not the per-pixel radial blur the acceptance
   text describes; recorded above with the reasoning, and the natural follow-on (P56/P57's
   post-processing render-target chain) named.
+- **Local tone mapping.** P56's curve is a real operator with a real shoulder, but one curve
+  applies to the whole frame. A local operator needs the programmable tier; recorded above under
+  P56, and the only part of that phase's acceptance not fully met.
+- **Anything on a device.** P57's composite and the P55 rework that shares it both switch render
+  targets mid-frame, which is the one construct in this program that has no precedent inside a
+  frame already being rendered. Both off by default; first thing to look at when somebody can run
+  the game.
+
+---
+
+## Revision: Phase 55's sun shafts, redone on the chain
+
+Phase 55 shipped in an earlier pass as a row of additive streak sprites stepping from the sun's
+screen position toward screen centre. That was recorded at the time, in this document and in
+`WIP_features.md`, as an approximation standing in for the per-pixel radial blur the acceptance
+text describes -- with the reason given (no render-target post-process chain existed) and the
+follow-on named (P56/P57 would build one).
+
+They did, so the follow-on has been taken.
+
+`PostProcessChainClass::Render_Radial_Streaks` draws the sun into the shared target and then
+composites that target back over the frame six times, each pass scaled *about the sun's own
+screen position*. Because the anchor is a fixed point of the transform, every bright pixel lands
+a little further from it each pass, and the sum is a streak pointing away from the source. That
+is a radial blur, built out of the one operation this pipeline has, and it is the thing the
+acceptance line asked for rather than something that resembles it.
+
+The gating is unchanged and still comes from the sun dazzle's own data -- below the horizon, off
+screen, or occluded all draw nothing -- but it now lives beside the drawing it controls.
+
+The streak-sprite path and its `ow_sun_shaft_glow` procedural texture were **deleted**. Keeping
+both would have left two implementations of one phase selected by which function the caller
+happened to reach, which is exactly what the project's own rules forbid.

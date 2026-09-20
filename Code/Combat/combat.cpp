@@ -59,6 +59,7 @@
 #include "surfaceeffects.h"
 #include "debug.h"
 #include "backgroundmgr.h"
+#include "postprocess.h"
 #include "cover.h"
 #include "spawn.h"
 #include "vehiclephys.h"
@@ -1130,6 +1131,11 @@ void CombatManager::Render()
 
 		DazzleRenderObjClass::Install_Dazzle_Visibility_Handler(&_TheCombatDazzleHandler);
 
+		//	Roadmap Section 52A, Phase 57.  Every dazzle that renders this frame marks itself
+		//	as a glare source as it goes; this opens the list they mark into.  A no-op while
+		//	bloom is off, which is the default.
+		PostProcessChainClass::Begin_Glare();
+
 		{
 			WWPROFILE( "Combat Render BG" );
 
@@ -1150,6 +1156,13 @@ void CombatManager::Render()
 		}
 
 		DazzleRenderObjClass::Install_Dazzle_Visibility_Handler(nullptr);
+
+		//	Roadmap Section 52A, Phase 57.  After the dazzles have drawn, so the sources are
+		//	this frame's, and before the HUD, so the interface does not bloom.
+		{
+			WWPROFILE( "Bloom" );
+			PostProcessChainClass::Render_Bloom();
+		}
 
 		//	Roadmap Section 52A, Phase 55.  Off by default; see BackgroundMgrClass::Render_Sun_Shafts.
 		BackgroundMgrClass::Render_Sun_Shafts();

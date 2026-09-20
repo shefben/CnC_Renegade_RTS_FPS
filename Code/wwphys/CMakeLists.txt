@@ -71,6 +71,8 @@ set(WWPHYS_SRC
     terrainmaterial.cpp
     bridgesection.cpp
     bridgesystem.cpp
+    escarpment.cpp
+    surfacetinteffect.cpp
     foliagesystem.cpp
     foliagetype.cpp
     roadspline.cpp
@@ -178,6 +180,8 @@ set(WWPHYS_SRC
     terrainmaterial.h
     bridgesection.h
     bridgesystem.h
+    escarpment.h
+    surfacetinteffect.h
     dynamicmeshbuilder.h
     foliagesystem.h
     foliagetype.h

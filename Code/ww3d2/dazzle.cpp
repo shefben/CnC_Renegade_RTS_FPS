@@ -38,6 +38,7 @@
 
 
 #include "dazzle.h"
+#include "postprocess.h"
 #include "simplevec.h"
 #include "vector2.h"
 #include "camera.h"
@@ -988,6 +989,21 @@ void DazzleRenderObjClass::Render(RenderInfoClass & rinfo)
 		if (/*visibility > 0.0f ||*/ current_dazzle_intensity>0.0f || current_halo_intensity>0.0f) {
 			WWASSERT(types[type]);
 			Set_Layer(current_dazzle_layer);
+
+			//	Roadmap Section 52A, Phase 57.  This is the point where a glare source is
+			//	marked -- everything needed for bloom has just been computed for the dazzle's
+			//	own draw, so handing it to the post chain here costs nothing and means no
+			//	effect anywhere has to be taught about bloom separately.  Add_Glare does its
+			//	own threshold and off-screen rejection, and returns immediately when bloom is
+			//	off, which is the default.
+			float glare = current_dazzle_intensity;
+			if (current_halo_intensity > glare) {
+				glare = current_halo_intensity;
+			}
+			//	Size in normalised-device units: the dazzle's own size plus what its halo
+			//	scales to, so a big soft lamp blooms wider than a pinpoint spark does.
+			float glare_size = current_dazzle_size + (ic.halo_scale_x * current_halo_intensity);
+			PostProcessChainClass::Add_Glare(current_vloc,glare,dazzle_color,glare_size);
 		}
 	}
 	else {

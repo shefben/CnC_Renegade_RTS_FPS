@@ -109,6 +109,12 @@ public:
 	/*
 	**	The clock, and the world going away.
 	*/
+	/*
+	**	Roadmap Section 52A, Phase 60.  How much faster marks age at a given wetness.  One at
+	**	zero, so dry weather is the current timing exactly.
+	*/
+	static float		Compute_Weather_Fade_Rate(float wetness);
+
 	static void			Timestep(float dt);
 	static void			Clear_Marks(void);
 

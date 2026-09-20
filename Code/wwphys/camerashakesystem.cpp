@@ -127,7 +127,10 @@ void CameraShakeSystemClass::CameraShakerClass::Compute_Rotations(const Vector3 
 ** CameraShakeSystemClass Implementation
 **
 ************************************************************************************************/
-CameraShakeSystemClass::CameraShakeSystemClass(void)
+CameraShakeSystemClass::CameraShakeSystemClass(void) :
+	WeaponKickScale(0.0f),
+	WeaponKickElapsed(0.0f),
+	WeaponKickDuration(0.0f)
 {
 }
 
@@ -160,8 +163,105 @@ void CameraShakeSystemClass::Add_Camera_Shake
 	CameraShakerList.Add(shaker);
 }
 
+/*
+**	How far a full-scale shot pushes the view.  Both are small on purpose: this has to be felt
+**	rather than seen, and anything that actually moves the crosshair off the target would be a
+**	gameplay change wearing a cosmetic label.
+*/
+static const float WEAPON_FOV_KICK	= DEG_TO_RADF(1.6f);
+static const float WEAPON_ROLL_KICK	= DEG_TO_RADF(0.5f);
+
+/*
+**	Master scale for the whole of Phase 62.  Zero is current behaviour, exactly.
+*/
+static float	_WeaponResponseScale = 0.0f;
+
+
+void CameraShakeSystemClass::Set_Weapon_Response_Scale(float scale)
+{
+	_WeaponResponseScale = WWMath::Clamp(scale,0.0f,1.0f);
+}
+
+
+float CameraShakeSystemClass::Get_Weapon_Response_Scale(void)
+{
+	return _WeaponResponseScale;
+}
+
+
+/***********************************************************************************************
+ * CameraShakeSystemClass::Compute_Recovery -- the curve a shot recovers along                 *
+ *                                                                                             *
+ * One at the instant of the shot, zero once recovered, cubed on the way down so most of the   *
+ * movement is gone almost immediately and the last of it eases out.  A linear recovery reads  *
+ * as the camera being dragged back rather than springing back.                                *
+ *=============================================================================================*/
+float CameraShakeSystemClass::Compute_Recovery(float elapsed,float duration)
+{
+	if (duration <= 0.0f) {
+		return 0.0f;
+	}
+	if (elapsed <= 0.0f) {
+		return 1.0f;
+	}
+	if (elapsed >= duration) {
+		return 0.0f;
+	}
+
+	float remaining = 1.0f - (elapsed / duration);
+	return remaining * remaining * remaining;
+}
+
+
+/***********************************************************************************************
+ * CameraShakeSystemClass::Add_Weapon_Kick --                                                  *
+ *                                                                                             *
+ * A second shot restarts the kick rather than adding to it.  Stacking would mean a machine    *
+ * gun walks the view off the screen, which is the exact failure that makes a camera response  *
+ * stop being cosmetic.                                                                         *
+ *=============================================================================================*/
+void CameraShakeSystemClass::Add_Weapon_Kick(float scale,float recovery_seconds)
+{
+	if (_WeaponResponseScale <= 0.0f) {
+		return;
+	}
+	if ((scale <= 0.0f) || (recovery_seconds <= 0.0f)) {
+		return;
+	}
+
+	WeaponKickScale = scale * _WeaponResponseScale;
+	WeaponKickElapsed = 0.0f;
+	WeaponKickDuration = recovery_seconds;
+}
+
+
+float CameraShakeSystemClass::Get_Weapon_FOV_Kick(void) const
+{
+	return WEAPON_FOV_KICK * WeaponKickScale *
+			 Compute_Recovery(WeaponKickElapsed,WeaponKickDuration);
+}
+
+
+float CameraShakeSystemClass::Get_Weapon_Roll(void) const
+{
+	return WEAPON_ROLL_KICK * WeaponKickScale *
+			 Compute_Recovery(WeaponKickElapsed,WeaponKickDuration);
+}
+
+
 void CameraShakeSystemClass::Timestep(float dt)
 {
+	//	Phase 62: the weapon kick ages here with everything else, so it recovers in wall-clock
+	//	time regardless of frame rate.
+	if (WeaponKickDuration > 0.0f) {
+		WeaponKickElapsed += dt;
+		if (WeaponKickElapsed >= WeaponKickDuration) {
+			WeaponKickScale = 0.0f;
+			WeaponKickElapsed = 0.0f;
+			WeaponKickDuration = 0.0f;
+		}
+	}
+
 	/*
 	** Allow each camera shaker to timestep.  Any that expire are added to a temporary
 	** list for deletion.
@@ -203,6 +303,10 @@ void CameraShakeSystemClass::Update_Camera(CameraClass & camera)
 	for (iterator.First(); !iterator.Is_Done(); iterator.Next()) {
 		iterator.Peek_Obj()->Compute_Rotations(camera_position,&angles);
 	}
+
+	//	Phase 62: the weapon's own roll, added before the clamp so it shares the same ceiling
+	//	the explosion shake has and cannot combine with one to tip the view over.
+	angles.Z += Get_Weapon_Roll();
 
 	/*
 	** Clamp the result

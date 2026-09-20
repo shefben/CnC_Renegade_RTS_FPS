@@ -75,6 +75,7 @@ set(WW3D2_SRC
     prim_anim.cpp
     projector.cpp
     proto.cpp
+    postprocess.cpp
     render2d.cpp
     render2dsentence.cpp
     renderobjectrecycler.cpp
@@ -193,6 +194,7 @@ worldparticlemanager.cpp
     proto.h
     proxy.h
     rddesc.h
+    postprocess.h
     render2d.h
     render2dsentence.h
     renderobjectrecycler.h

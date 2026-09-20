@@ -248,6 +248,39 @@ public:
 
 	static void Set_Gamma(float gamma,float bright,float contrast,bool calibrate=true,bool uselimit=true);
 
+	/*
+	**	Exposure and colour grading, folded into the same hardware ramp.
+	**	Roadmap Section 52A, Phase 56.
+	**
+	**	The fixed-function pipeline clamps at 1.0 and this build has no pixel shader path, so
+	**	a per-pixel tonemap operator is not available.  What *is* available is the gamma ramp
+	**	itself: a 256-entry per-channel lookup the hardware applies to every pixel on the way
+	**	out.  That is a colour-grading ramp in the literal sense, and running exposure through
+	**	it is the one way to change the image's tonal range on this pipeline without touching
+	**	a single draw call.
+	**
+	**	It composes with whatever the player set in the video options rather than replacing
+	**	it: Set_Gamma's arguments are remembered, and this re-applies them with the exposure
+	**	and tint folded in.  An exposure of 1 and a tint of white reproduce Set_Gamma's own
+	**	ramp exactly, bit for bit, which is what makes the feature disabled pixel-identical.
+	*/
+	static void Set_Tone_Scale(float exposure,const Vector3 & tint);
+
+	/*
+	**	How hard the top of the range rolls off instead of clipping.  Zero -- the default --
+	**	is a straight clamp, which is what the ramp always did.  Above zero, values the
+	**	exposure pushed past one are compressed into it rather than flattened, so raising the
+	**	exposure for a dark interior no longer turns the sky outside it into a white sheet.
+	*/
+	static void Set_Tone_Shoulder(float shoulder);
+	static float Get_Tone_Shoulder(void);
+	static float Get_Tone_Exposure(void);
+	static const Vector3 & Get_Tone_Tint(void);
+
+	//	Rebuilds and uploads the ramp from the remembered gamma plus the current tone scale.
+	//	Public because both setters above go through it and a device reset has to re-apply it.
+	static void Apply_Gamma_Ramp(void);
+
 	// Set_ and Get_Transform() functions take the matrix in Westwood convention format.
 
 	static void Set_DX8_ZBias(int zbias);

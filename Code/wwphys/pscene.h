@@ -934,6 +934,14 @@ public:
 	void							Apply_Camera_Shakes( CameraClass & camera );
 
 	/*
+	**	Roadmap Section 52A, Phase 62.  The per-shot weapon response, forwarded so the camera
+	**	and the weapon code can reach it without either of them knowing about the shake system.
+	**	Zero until somebody turns the response scale up.
+	*/
+	void							Add_Weapon_Kick( float scale, float recovery_seconds );
+	float							Get_Weapon_FOV_Kick( void ) const;
+
+	/*
 	** Temporary accessors for the level editor.
 	*/
 	bool							Is_Vis_Reset_Needed (void) const	{ return VisResetNeeded; }

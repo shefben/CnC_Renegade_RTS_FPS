@@ -974,15 +974,44 @@ namespace
 **	texture coordinates per triangle, nothing shared: the merged mesh writes every vertex of
 **	every instance anyway, so an index would be one more thing to remap.
 */
+/*
+**	The wind the sway is currently baked against, the wind that has arrived since, and how far
+**	round the round-robin rebuild has got.  Zero wind and zero scale reproduce the geometry
+**	this system built before Phase 58 existed, vertex for vertex.
+*/
+static Vector3	_FoliageWind(0.0f,0.0f,0.0f);
+static float	_FoliageSwayScale	= 0.0f;
+static int		_WindRebuildCursor	= 0;
+static int		_WindRebuildCount	= 0;
+
+/*
+**	Cells rebuilt per frame.  Two is enough that a moderate forest sweeps in a second or so,
+**	and small enough that the cost is invisible next to everything else a frame does.
+*/
+static const int WIND_CELLS_PER_FRAME = 2;
+
+/*
+**	How hard the wind has to change before a rebuild is worth doing at all.  Without this a
+**	dead-calm map would still pay the sweep forever.
+*/
+static const float WIND_REBUILD_THRESHOLD = 0.05f;
+
+static Vector3	_LastBakedWind(0.0f,0.0f,0.0f);
+
+
 class FoliageModelCacheClass
 {
 public:
 
-	FoliageModelCacheClass(void) : Type(-1), Missing(true), MultiMaterial(false) { }
+	FoliageModelCacheClass(void) : Type(-1), Missing(true), MultiMaterial(false), Height(0.0f) { }
 
 	int											Type;
 	bool											Missing;
 	bool											MultiMaterial;
+	//	Tallest vertex in the model, in model units.  Phase 58 keys its sway on this, so that
+	//	how far a vertex leans is decided by how high it sits in its own plant rather than by
+	//	an assumed height every plant would have to share.
+	float											Height;
 	DynamicVectorClass<Vector3>			Positions;
 	DynamicVectorClass<Vector2>			UVs;
 };
@@ -1061,6 +1090,14 @@ FoliageModelCacheClass * Get_Model_Cache(int type,const char * model_name)
 
 	cache->Missing = (cache->Positions.Count() == 0);
 
+	//	Phase 58: the model's own height, measured once here rather than per batch rebuild.
+	cache->Height = 0.0f;
+	for (int v = 0; v < cache->Positions.Count(); v++) {
+		if (cache->Positions[v].Z > cache->Height) {
+			cache->Height = cache->Positions[v].Z;
+		}
+	}
+
 	_ModelCache.Add(cache);
 	return cache;
 }
@@ -1135,10 +1172,14 @@ bool FoliageSystem::Build_Batch_Geometry(FoliageBatchClass & batch)
 				across[0] = Vector3(cosine * half_width,sine * half_width,0.0f);
 				across[1] = Vector3(-sine * half_width,cosine * half_width,0.0f);
 
+				//	Phase 58.  The two top vertices lean with the wind, the two bottom ones
+				//	do not -- height-keyed sway, baked, so drawing costs what it always did.
+				Vector3 sway = Compute_Sway_Offset(_FoliageWind,height,height,_FoliageSwayScale);
+
 				for (int q = 0; q < 2; q++) {
 					Vector3 low_left = offset - across[q];
 					Vector3 low_right = offset + across[q];
-					Vector3 up = Vector3(0.0f,0.0f,height);
+					Vector3 up = Vector3(0.0f,0.0f,height) + sway;
 
 					builder.Begin_Strip();
 					builder.Vertex(low_left + up,0.0f,0.0f);
@@ -1152,6 +1193,10 @@ bool FoliageSystem::Build_Batch_Geometry(FoliageBatchClass & batch)
 				FoliageModelCacheClass * cache = Get_Model_Cache(instance.Type,type.Get_Model());
 				if ((cache == nullptr) || cache->Missing) { continue; }
 
+				//	The plant's own height, for keying the sway.  Taken from the cached model
+				//	rather than from the type, because scale is per instance.
+				float model_height = cache->Height * instance.Scale;
+
 				for (int t = 0; t + 2 < cache->Positions.Count(); t += 3) {
 
 					Vector3 corner[3];
@@ -1161,6 +1206,11 @@ bool FoliageSystem::Build_Batch_Geometry(FoliageBatchClass & batch)
 						corner[v] = Vector3((cosine * scaled.X) - (sine * scaled.Y),
 													(sine * scaled.X) + (cosine * scaled.Y),
 													scaled.Z) + offset;
+
+						//	Phase 58, per vertex: how far this one leans is decided by how high
+						//	it sits in its own plant, so trunks stay put and crowns move.
+						corner[v] += Compute_Sway_Offset(_FoliageWind,scaled.Z,
+																	model_height,_FoliageSwayScale);
 					}
 
 					builder.Triangle(corner[0],corner[1],corner[2],
@@ -1469,6 +1519,104 @@ bool FoliageSystem::Destroy_Instance(int instance)
 
 	Rebuild_Cell_Geometry(Instances[instance].Cell);
 	return true;
+}
+
+
+/***********************************************************************************************
+ * FoliageSystem -- wind sway.  Roadmap Section 52A, Phase 58.                                 *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+void FoliageSystem::Set_Wind(const Vector3 & wind)
+{
+	_FoliageWind = wind;
+}
+
+
+const Vector3 & FoliageSystem::Get_Wind(void)
+{
+	return _FoliageWind;
+}
+
+
+void FoliageSystem::Set_Sway_Scale(float scale)
+{
+	_FoliageSwayScale = (scale > 0.0f) ? scale : 0.0f;
+}
+
+
+float FoliageSystem::Get_Sway_Scale(void)
+{
+	return _FoliageSwayScale;
+}
+
+
+int FoliageSystem::Get_Wind_Rebuild_Count(void)
+{
+	return _WindRebuildCount;
+}
+
+
+/***********************************************************************************************
+ * FoliageSystem::Compute_Sway_Offset -- where one vertex ends up                              *
+ *                                                                                             *
+ * Quadratic in the fraction of the instance's own height, so the base is pinned exactly at     *
+ * zero and the top moves most.  That is both what a plant does and what keeps the geometry      *
+ * from tearing away from the ground it is standing on.                                          *
+ *=============================================================================================*/
+Vector3 FoliageSystem::Compute_Sway_Offset(const Vector3 & wind,float height_above_base,
+														 float instance_height,float sway_scale)
+{
+	if ((sway_scale <= 0.0f) || (instance_height <= WWMATH_EPSILON) || (height_above_base <= 0.0f)) {
+		return Vector3(0.0f,0.0f,0.0f);
+	}
+
+	float fraction = height_above_base / instance_height;
+	if (fraction > 1.0f) {
+		fraction = 1.0f;
+	}
+
+	return wind * (sway_scale * fraction * fraction);
+}
+
+
+/***********************************************************************************************
+ * FoliageSystem::Update_Wind -- rebuild a few cells a frame so the sway actually moves        *
+ *=============================================================================================*/
+void FoliageSystem::Update_Wind(float dt)
+{
+	(void)dt;
+
+	if (!GeometryBuilt || (Cells.Count() < 1)) {
+		return;
+	}
+	if (_FoliageSwayScale <= 0.0f) {
+		return;
+	}
+
+	//	Nothing has changed enough to be worth rebuilding for.
+	Vector3 delta = _FoliageWind - _LastBakedWind;
+	if (delta.Length() < WIND_REBUILD_THRESHOLD) {
+		return;
+	}
+
+	for (int i = 0; i < WIND_CELLS_PER_FRAME; i++) {
+
+		if (_WindRebuildCursor >= Cells.Count()) {
+			//	A full sweep finished: everything now agrees with the wind at the moment the
+			//	sweep started, so that is the wind we are baked against.
+			_WindRebuildCursor = 0;
+			_LastBakedWind = _FoliageWind;
+			break;
+		}
+
+		//	Only what is on screen.  Rebuilding a cell nobody can see spends the budget where
+		//	it cannot be noticed.
+		if (Cells[_WindRebuildCursor].Visible) {
+			Rebuild_Cell_Geometry(_WindRebuildCursor);
+			_WindRebuildCount++;
+		}
+		_WindRebuildCursor++;
+	}
 }
 
 

@@ -183,6 +183,17 @@ class ParticleBufferClass : public RenderObjClass
 		NewParticleStruct * Add_Uninitialized_New_Particle(void);
 
 		//	Change the acceleration of the particles on the fly
+		/*
+		**	One wind for every emitter in the world.  Roadmap Section 52A, Phase 58.
+		**
+		**	Added to each buffer's own acceleration rather than replacing it, so an effect
+		**	that deliberately rises or falls keeps doing so and simply drifts while it does.
+		**	Units are world units per second squared, matching Set_Acceleration.  Zero -- the
+		**	default -- is the current appearance exactly.
+		*/
+		static void		Set_Global_Wind (const Vector3 &wind_acceleration);
+		static Vector3	Get_Global_Wind (void);
+
 		void Set_Acceleration (const Vector3 &acceleration)	{ Accel = acceleration;  HasAccel = ((Accel.X != 0) || (Accel.Y != 0) || (Accel.Z != 0)); }
 
 		//

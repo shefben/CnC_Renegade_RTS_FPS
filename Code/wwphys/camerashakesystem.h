@@ -69,6 +69,32 @@ public:
 											float radius = 50.0f,
 											float duration = 1.5f,
 											float power = 1.0f	);
+	/*
+	**	Per-shot weapon response.  Roadmap Section 52A, Phase 62.
+	**
+	**	A separate track from the positional shakers above, because a shot is not an explosion
+	**	somewhere in the world that the camera happens to be near -- it is the player's own
+	**	weapon, it has no position and no radius, and it recovers in a fraction of the time.
+	**
+	**	Strictly cosmetic, and structurally so: the shake system only ever touches the camera
+	**	transform, and it does so in PhysicsSceneClass::Apply_Camera_Shakes, which runs after
+	**	the simulation has already decided where the shot went.  Aim direction, spread and hit
+	**	registration are the server's and never see any of this -- the same guarantee the
+	**	explosion shake has always had, for the same reason.
+	*/
+	void		Add_Weapon_Kick(float scale,float recovery_seconds);
+	float		Get_Weapon_FOV_Kick(void) const;
+	float		Get_Weapon_Roll(void) const;
+
+	//	Master scale, 0 to 1.  Zero -- the default -- is current behaviour exactly: Add_Weapon_Kick
+	//	returns without recording anything and both getters answer zero.
+	static void		Set_Weapon_Response_Scale(float scale);
+	static float	Get_Weapon_Response_Scale(void);
+
+	//	The pure recovery curve, exposed because it is what a device-less check can prove.
+	//	One at the moment of the shot, zero once recovered, and a fast ease between.
+	static float	Compute_Recovery(float elapsed,float duration);
+
 	void		Timestep(float dt);
 	void		Update_Camera(CameraClass & camera);
 
@@ -100,6 +126,13 @@ protected:
 		Vector3				Omega;
 		Vector3				Phi;
 	};
+
+	//	Phase 62: the live weapon kick.  One value, because the player has one camera and a
+	//	second shot before the first has recovered should restart the kick rather than stack
+	//	into something that throws the view around.
+	float		WeaponKickScale;
+	float		WeaponKickElapsed;
+	float		WeaponKickDuration;
 
 	MultiListClass<CameraShakerClass>	CameraShakerList;
 

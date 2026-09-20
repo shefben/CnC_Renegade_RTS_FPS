@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "physicalgameobj.h"
+#include "surfacetinteffect.h"
 #include "damage.h"
 #include "scriptman.h"
 #include "debug.h"
@@ -740,6 +741,17 @@ void PhysicalGameObj::Teleport_To_Host_Bone( void )
 
 void PhysicalGameObj::Post_Think( void )
 {
+	//	Roadmap Section 52A, Phase 59.  Wetness is not a damage event, so it cannot ride on the
+	//	damage path the way Phase 61's soot does -- an object that has never been shot still gets
+	//	rained on.  This is the one place that runs per object per frame, so it is where the
+	//	surface tint learns how wet its object is.
+	//
+	//	Two compares while the feature is off, which is what it costs a world that never turns
+	//	it on.  The raycast behind it is throttled to once every couple of seconds per object.
+	if ( SurfaceTintEffectClass::Get_Wetness_Scale() > 0.0f ) {
+		Update_Damage_Tint();
+	}
+
 	if ( AnimControl != nullptr ) {
 		if ( AnimControl->Peek_Model() != Peek_Model() ) {
 			Debug_Say(( "Anim control doesn't match Model\n" ));

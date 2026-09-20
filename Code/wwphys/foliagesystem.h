@@ -215,6 +215,37 @@ public:
 
 	//	Geometry.  Needs a physics scene; without one the batches are still planned and still
 	//	counted, which is what makes the acceptance answerable without a device.
+	/*
+	**	Wind sway.  Roadmap Section 52A, Phase 58.
+	**
+	**	The wind is one replicated vector (WeatherMgrClass owns and replicates it), and this
+	**	is where it reaches the picture.  Sway is baked into the batch geometry at build time,
+	**	keyed on each vertex's height above its own instance's base, so a tree's crown moves
+	**	and its trunk does not -- and because it is baked, drawing costs exactly what it cost
+	**	before: no per-frame vertex work, no second render path, no shader.
+	**
+	**	What makes it move is Update_Wind, which rebuilds a small fixed number of cells per
+	**	frame, round robin.  That is a deliberate trade: the sway lags the gust by however
+	**	long a full sweep takes rather than tracking it exactly, and in exchange the cost is
+	**	a hard constant that does not grow with the size of the forest.
+	**
+	**	The collision proxies are untouched by any of this.  They are separate objects built
+	**	by Build_Proxy_Geometry from the instance positions alone, so Section 21's merged
+	**	collision posts cannot move even in principle -- the wind moves the picture, not the
+	**	blocker, and that is kept structurally rather than by being careful.
+	*/
+	static void			Set_Wind(const Vector3 & wind);
+	static const Vector3 &	Get_Wind(void);
+	static void			Set_Sway_Scale(float scale);
+	static float		Get_Sway_Scale(void);
+	static void			Update_Wind(float dt);
+	static int			Get_Wind_Rebuild_Count(void);
+
+	//	Where one vertex ends up, given how high it sits above its instance's base.  Pure, and
+	//	the whole of the sway: quadratic in height, so the base is pinned exactly.
+	static Vector3		Compute_Sway_Offset(const Vector3 & wind,float height_above_base,
+													  float instance_height,float sway_scale);
+
 	static bool			Build_Geometry(void);
 	static void			Destroy_Geometry(void);
 	static bool			Has_Geometry(void);

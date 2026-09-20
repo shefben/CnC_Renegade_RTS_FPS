@@ -25,6 +25,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "worldsurfacemarkmanager.h"
+#include "terraintexturesystem.h"
 
 #include "assetmgr.h"
 #include "decophys.h"
@@ -799,6 +800,33 @@ float WorldSurfaceMarkManager::Mark_Alpha(const SurfaceMarkClass & mark,
 }
 
 
+/*
+**	How much faster a mark ages in the rain, at full soaking.  Four times is enough that a
+**	player notices the battlefield clearing during a storm and not so much that marks vanish
+**	while they are still looking at them.
+*/
+static const float WEATHER_MAX_FADE_RATE = 4.0f;
+
+
+/***********************************************************************************************
+ * WorldSurfaceMarkManager::Compute_Weather_Fade_Rate --                                       *
+ *                                                                                             *
+ * One at zero wetness, so dry weather reproduces the current fade timing exactly -- which is  *
+ * Phase 60's acceptance line, and is true here by the multiplier being 1.0 rather than by     *
+ * anything being special-cased.                                                               *
+ *=============================================================================================*/
+float WorldSurfaceMarkManager::Compute_Weather_Fade_Rate(float wetness)
+{
+	if (wetness <= 0.0f) {
+		return 1.0f;
+	}
+	if (wetness > 1.0f) {
+		wetness = 1.0f;
+	}
+	return 1.0f + (wetness * (WEATHER_MAX_FADE_RATE - 1.0f));
+}
+
+
 void WorldSurfaceMarkManager::Timestep(float dt)
 {
 	if (Pool == nullptr) {
@@ -806,6 +834,20 @@ void WorldSurfaceMarkManager::Timestep(float dt)
 	}
 
 	if (dt > 0.0f) {
+
+		//	Roadmap Section 52A, Phase 60.  Rain washes a battlefield clean: scorch and tyre
+		//	marks laid before a storm are gone sooner than dry-weather ones.
+		//
+		//	It is the fade *rate* that is a function of weather and nothing else.  The pool
+		//	size, the group caps and the eviction policy are Section 35's and are untouched --
+		//	a mark cleared early simply frees its slot early, which the allocator already
+		//	handles because that is what a mark reaching its lifetime has always done.
+		//
+		//	Aging faster is the whole mechanism: Mark_Alpha already fades on age against
+		//	lifetime, so a mark that ages at four times the rate also fades four times as fast
+		//	without that function knowing anything about weather.
+		float aging = dt * Compute_Weather_Fade_Rate(TerrainTextureSystem::Get_Wetness());
+
 		for (int i = 0; i < PoolSize; i++) {
 
 			SurfaceMarkClass & mark = Pool[i];
@@ -818,7 +860,7 @@ void WorldSurfaceMarkManager::Timestep(float dt)
 				continue;
 			}
 
-			mark.Age += dt;
+			mark.Age += aging;
 
 			//	A mark with no lifetime ages anyway.  Nothing takes it away for being old, but
 			//	the age is what orders it against the other persistent marks when the pool

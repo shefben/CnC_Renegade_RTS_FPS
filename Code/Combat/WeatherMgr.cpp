@@ -36,6 +36,11 @@
 
 // Includes.
 #include "WeatherMgr.h"
+#include "foliagesystem.h"
+#include "part_buf.h"
+#include "backgroundmgr.h"
+#include "terraintexturesystem.h"
+#include "surfacetinteffect.h"
 #include "apppackettypes.h"
 #include "assetmgr.h"
 #include "AudibleSound.h"
@@ -71,6 +76,10 @@ unsigned											 WeatherMgrClass::_PrecipitationOverrideCount;
 
 WindClass										*WeatherMgrClass::_Wind;
 WeatherSystemClass							*WeatherMgrClass::_Precipitation [PRECIPITATION_COUNT];
+float											WeatherMgrClass::_Wetness = 0.0f;
+float											WeatherMgrClass::_WetnessResponseScale = 0.0f;
+float											WeatherMgrClass::_ParticleWindScale = 0.0f;
+float											WeatherMgrClass::_CloudWindScale = 0.0f;
 bool												 WeatherMgrClass::_FogEnabled;
 bool												 WeatherMgrClass::_Dirty;
 
@@ -968,6 +977,169 @@ void WeatherMgrClass::Get_Fog_Range (float &startdistance, float &enddistance)
 
 
 /***********************************************************************************************
+ * WeatherMgrClass::Get_Wind_Velocity -- the live gusting vector, not the parameters           *
+ *                                                                                             *
+ *	Get_Wind reports what the wind was asked to be.  This reports what it is this instant,      *
+ *	gusts included, which is what anything driven by it actually wants.                         *
+ *=============================================================================================*/
+/*
+**	How long a downpour takes to soak the world, and how long the world takes to dry once it
+**	stops.  Drying is much the slower of the two, which is both true and the thing that makes
+**	the effect readable: a shower that dried as fast as it wetted would just look like a
+**	flicker.
+*/
+static const float WETNESS_SOAK_SECONDS	= 12.0f;
+static const float WETNESS_DRY_SECONDS	= 60.0f;
+
+
+/***********************************************************************************************
+ * WeatherMgrClass::Integrate_Wetness -- one step of getting wet, or drying out                *
+ *                                                                                             *
+ *	Toward the precipitation density while it is falling, toward zero when it is not.  Linear   *
+ *	rather than exponential, because a puddle fills and empties at a rate, not a proportion --  *
+ *	and because linear actually reaches its target, which matters for "they dry out afterwards" *
+ *	being true rather than asymptotically nearly true.                                          *
+ *=============================================================================================*/
+float WeatherMgrClass::Integrate_Wetness (float current, float precipitation_density, float dt)
+{
+	if (dt <= 0.0f) {
+		return current;
+	}
+
+	float target = (precipitation_density > 0.0f) ? precipitation_density : 0.0f;
+	if (target > 1.0f) {
+		target = 1.0f;
+	}
+
+	float seconds = (target > current) ? WETNESS_SOAK_SECONDS : WETNESS_DRY_SECONDS;
+	float step = dt / seconds;
+
+	if (target > current) {
+		current += step;
+		if (current > target) { current = target; }
+	} else {
+		current -= step;
+		if (current < target) { current = target; }
+	}
+
+	if (current < 0.0f) { current = 0.0f; }
+	if (current > 1.0f) { current = 1.0f; }
+	return current;
+}
+
+
+float WeatherMgrClass::Get_Wetness (void)
+{
+	return _Wetness * _WetnessResponseScale;
+}
+
+
+/***********************************************************************************************
+ * WeatherMgrClass::Get_Sheltered_Wetness -- what the rain actually reached                    *
+ *                                                                                             *
+ *	Rain falls downward, so how wet a surface gets is how much sky it can see.  A caller that   *
+ *	knows its own sky view passes it; one that does not asks for Get_Wetness and gets the open  *
+ *	value, which is the right default for ground.                                               *
+ *=============================================================================================*/
+float WeatherMgrClass::Get_Sheltered_Wetness (float sky_view)
+{
+	if (sky_view < 0.0f) { sky_view = 0.0f; }
+	if (sky_view > 1.0f) { sky_view = 1.0f; }
+	return Get_Wetness() * sky_view;
+}
+
+
+void WeatherMgrClass::Set_Wetness (float wetness)
+{
+	if (wetness < 0.0f) { wetness = 0.0f; }
+	if (wetness > 1.0f) { wetness = 1.0f; }
+	_Wetness = wetness;
+}
+
+
+void WeatherMgrClass::Set_Wetness_Response_Scale (float scale)
+{
+	if (scale < 0.0f) { scale = 0.0f; }
+	if (scale > 1.0f) { scale = 1.0f; }
+	_WetnessResponseScale = scale;
+}
+
+
+float WeatherMgrClass::Get_Wetness_Response_Scale (void)
+{
+	return _WetnessResponseScale;
+}
+
+
+void WeatherMgrClass::Set_Foliage_Sway_Scale (float scale)
+{
+	FoliageSystem::Set_Sway_Scale (scale);
+}
+
+float WeatherMgrClass::Get_Foliage_Sway_Scale (void)
+{
+	return FoliageSystem::Get_Sway_Scale();
+}
+
+void WeatherMgrClass::Set_Particle_Wind_Scale (float scale)
+{
+	_ParticleWindScale = (scale > 0.0f) ? scale : 0.0f;
+}
+
+float WeatherMgrClass::Get_Particle_Wind_Scale (void)
+{
+	return _ParticleWindScale;
+}
+
+void WeatherMgrClass::Set_Cloud_Wind_Scale (float scale)
+{
+	_CloudWindScale = (scale > 0.0f) ? scale : 0.0f;
+}
+
+float WeatherMgrClass::Get_Cloud_Wind_Scale (void)
+{
+	return _CloudWindScale;
+}
+
+
+Vector2 WeatherMgrClass::Get_Wind_Velocity (void)
+{
+	if (_Wind == nullptr) {
+		return Vector2 (0.0f, 0.0f);
+	}
+	return _Wind->Get_Velocity();
+}
+
+
+/***********************************************************************************************
+ * WeatherMgrClass::Update_Wind_Consumers -- hand the one wind to everything it moves          *
+ *                                                                                             *
+ *	Roadmap Section 52A, Phase 58.  Each consumer is off by its own scale defaulting to zero,   *
+ *	so with nothing turned on this function computes a vector and hands it to three systems      *
+ *	that each multiply it by nothing.  Zero wind is the current static appearance, exactly.      *
+ *=============================================================================================*/
+void WeatherMgrClass::Update_Wind_Consumers (void)
+{
+	Vector2 wind = Get_Wind_Velocity();
+	Vector3 wind3 (wind.X, wind.Y, 0.0f);
+
+	//	Foliage.  Sway is baked into the batches; see FoliageSystem::Set_Wind.
+	FoliageSystem::Set_Wind (wind3);
+	FoliageSystem::Update_Wind (WW3D::Get_Frame_Time() * 0.001f);
+
+	//	Particles.  A sideways acceleration on every emitter in the world.  Scaled well down
+	//	from the wind's own speed: a particle is not a sail, and a gust that visibly shoves
+	//	smoke should not fire it across the map.
+	ParticleBufferClass::Set_Global_Wind (wind3 * _ParticleWindScale);
+
+	//	Clouds.  Phase 53 already drifts the ground shadows along CloudLayerClass::Velocity;
+	//	this makes that velocity the same wind everything else is using, which is the whole
+	//	point of the phase -- one direction, agreed on by the entire scene.
+	BackgroundMgrClass::Set_Cloud_Wind (wind3 * _CloudWindScale);
+}
+
+
+/***********************************************************************************************
  * WeatherMgrClass::Update --																						  *
  *                                                                                             *
  * INPUT:                                                                                      *
@@ -1007,6 +1179,39 @@ void WeatherMgrClass::Update (PhysicsSceneClass *scene, CameraClass *camera)
 		if (_Parameters [PARAMETER_WIND_SPEED].Value() > 0.0f) {
 			_Wind = new WindClass (_Parameters [PARAMETER_WIND_HEADING].Value(), _Parameters [PARAMETER_WIND_SPEED].Value(), _Parameters [PARAMETER_WIND_VARIABILITY].Value(), _SoundEnvironment);
 		}
+	}
+
+	/*
+	**	Roadmap Section 52A, Phase 58.  WindClass stops being precipitation-only here.
+	**
+	**	The vector is already replicated -- WeatherMgrClass is a NetworkObjectClass and its
+	**	three wind parameters go over Export_Rare, and both ends run the same two-octave gust
+	**	function over them -- so every client agrees about which way the wind blows without a
+	**	single new byte on the wire.  That is Section 52A's "shared state is server-owned"
+	**	rule satisfied by something that already existed.
+	**
+	**	Three consumers, all of which previously had their own idea of movement or none:
+	**	foliage sway, particle drift, and the Phase 53 cloud scroll.
+	*/
+	Update_Wind_Consumers();
+
+	/*
+	**	Roadmap Section 52A, Phase 59.  Rain density is already replicated and already updated
+	**	just below; the wetness it drives is integrated here so client and server reach the
+	**	same number from the same input without either sending it.
+	*/
+	{
+		float rain = 0.0f;
+		Get_Precipitation (PRECIPITATION_RAIN, rain);
+		_Wetness = Integrate_Wetness (_Wetness, rain, time);
+
+		//	The ground's response.  Terrain asks for the open value: it is the one surface in
+		//	the world that is under the sky by definition.
+		TerrainTextureSystem::Set_Wetness (Get_Wetness());
+
+		//	And everything standing on it.  Objects ask for their own sheltered value rather
+		//	than this one, so the scale is what travels here, not the wetness.
+		SurfaceTintEffectClass::Set_Wetness_Scale (_WetnessResponseScale);
 	}
 
 	for (int p = PRECIPITATION_FIRST; p < PRECIPITATION_COUNT; p++) {

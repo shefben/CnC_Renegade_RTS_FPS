@@ -425,6 +425,91 @@ float TerrainTextureSystem::Evaluate_Rule(const TerrainLayerRuleClass & rule,int
 }
 
 
+/*
+**	Roadmap Section 52A, Phase 59.  How wet the world is, 0 to 1, set by WeatherMgrClass and
+**	read here.  Zero -- the default, and what a level with no rain in it always has -- makes
+**	every function below an identity, so the layer weights come out exactly as they did before
+**	this phase existed.
+*/
+static float	_Wetness = 0.0f;
+
+/*
+**	Water runs off anything steeper than this, so wetness does not extend the shoreline up a
+**	cliff face.  Twenty degrees is about where a dirt slope stops holding a puddle.
+*/
+static const float WETNESS_MAX_SLOPE = DEG_TO_RADF(20.0f);
+
+/*
+**	How much of the remaining dry weight a full soaking is allowed to take.  Not all of it: a
+**	rained-on field is a darker field, not a beach.
+*/
+static const float WETNESS_MAX_BIAS = 0.6f;
+
+
+void TerrainTextureSystem::Set_Wetness(float wetness)
+{
+	if (wetness < 0.0f) { wetness = 0.0f; }
+	if (wetness > 1.0f) { wetness = 1.0f; }
+	_Wetness = wetness;
+}
+
+
+float TerrainTextureSystem::Get_Wetness(void)
+{
+	return _Wetness;
+}
+
+
+/***********************************************************************************************
+ * TerrainTextureSystem::Compute_Wetness_Bias -- how much wet layer this slope will hold       *
+ *                                                                                             *
+ * Pure, and the whole of the rule: full effect on the flat, nothing past the runoff angle,    *
+ * and a linear fall between them.                                                             *
+ *=============================================================================================*/
+float TerrainTextureSystem::Compute_Wetness_Bias(float wetness,float slope_radians)
+{
+	if (wetness <= 0.0f) {
+		return 0.0f;
+	}
+	if (slope_radians >= WETNESS_MAX_SLOPE) {
+		return 0.0f;
+	}
+	if (slope_radians < 0.0f) {
+		slope_radians = 0.0f;
+	}
+
+	float flatness = 1.0f - (slope_radians / WETNESS_MAX_SLOPE);
+	float bias = wetness * flatness * WETNESS_MAX_BIAS;
+
+	return (bias > 1.0f) ? 1.0f : bias;
+}
+
+
+/***********************************************************************************************
+ * TerrainTextureSystem::Apply_Wetness_Bias --                                                 *
+ *                                                                                             *
+ * Lifts a layer's weight toward one by the bias, rather than adding to it, so a layer already *
+ * at full strength is not pushed past it and the result stays a weight.                       *
+ *=============================================================================================*/
+float TerrainTextureSystem::Apply_Wetness_Bias(float weight,int ix,int iy)
+{
+	HeightfieldClass * field = WorldTerrainSystem::Peek_Heightfield();
+	if (field == nullptr) {
+		return weight;
+	}
+
+	Vector3 normal = field->Compute_Vertex_Normal(ix,iy);
+	float slope = WWMath::Acos(WWMath::Clamp(normal.Z,-1.0f,1.0f));
+
+	float bias = Compute_Wetness_Bias(_Wetness,slope);
+	if (bias <= 0.0f) {
+		return weight;
+	}
+
+	return weight + ((1.0f - weight) * bias);
+}
+
+
 int TerrainTextureSystem::Compute_Weights(int ix,int iy,float * weights_out,int max_weights)
 {
 	if ((weights_out == nullptr) || (max_weights <= 0)) {
@@ -451,6 +536,14 @@ int TerrainTextureSystem::Compute_Weights(int ix,int iy,float * weights_out,int 
 		}
 
 		weights_out[index] = Evaluate_Rule(layer->Rule,ix,iy);
+
+		//	Roadmap Section 52A, Phase 59: wetness biases the layer table toward its wet
+		//	variants on low-slope ground.  The shoreline layer is what "wet ground" already
+		//	means in this table, so rain simply extends it inland; steep ground sheds water
+		//	and is left alone, which is why the slope gate is here and not in the rule.
+		if ((_Wetness > 0.0f) && (layer->Kind == TERRAIN_LAYER_SHORELINE)) {
+			weights_out[index] = Apply_Wetness_Bias(weights_out[index],ix,iy);
+		}
 
 		if (layer->Rule.Exclusive && (weights_out[index] > strongest_exclusive)) {
 			strongest_exclusive = weights_out[index];

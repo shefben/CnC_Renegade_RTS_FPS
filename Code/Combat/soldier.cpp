@@ -36,6 +36,7 @@
 
 #include "soldier.h"
 #include "worldspatialindex.h"
+#include "worldmetrics.h"
 #include "ttsettings.h"
 #include "debug.h"
 #include "pscene.h"
@@ -3399,9 +3400,13 @@ void	SoldierGameObj::Update_Back_Gun( void )
 //------------------------------------------------------------------------------------
 float		SoldierGameObj::Get_Weapon_Height( void )
 {
-	float height = 1.62f;		// set to be at about eye level
+	//	Eye level, and how far it drops when crouched.  Both numbers used to be literals
+	//	here and nowhere else, which meant anything else needing a soldier's posture height
+	//	had to guess at them.  Roadmap Section 52B moved them to WorldMetricsClass; the
+	//	values are unchanged.
+	float height = WorldMetricsClass::Get_Soldier_Eye_Height();
 	if ( Is_Crouched() ) {
-		height -= 0.56f;
+		height -= WorldMetricsClass::Get_Soldier_Crouch_Drop();
 	}
 	return height;		// verticle offset, move to weapon
 }

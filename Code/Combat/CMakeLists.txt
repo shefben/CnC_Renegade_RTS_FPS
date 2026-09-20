@@ -163,6 +163,8 @@ set(COMBAT_SRC
     weaponview.cpp
     WeatherMgr.cpp
     worldspatialindex.cpp
+    worldmetrics.cpp
+    worldtraversability.cpp
     action.h
     actionparams.h
     activeconversation.h
@@ -326,6 +328,8 @@ set(COMBAT_SRC
     weaponview.h
     WeatherMgr.h
     worldspatialindex.h
+    worldmetrics.h
+    worldtraversability.h
     assets.cpp
     crandom.cpp
     debug.cpp

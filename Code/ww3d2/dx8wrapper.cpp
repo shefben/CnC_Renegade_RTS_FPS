@@ -2797,11 +2797,125 @@ unsigned int DX8Wrapper::Get_Free_Texture_RAM()
 // Gamma - controls the curvature of the middle of the curve
 // Bright - controls the minimum value of the curve
 // Contrast - controls the difference between the maximum and the minimum of the curve
+
+/*
+**	The last ramp the player asked for, and the exposure/tint Phase 56 folds into it.  Kept
+**	here rather than recomputed by the caller because the two arrive from different places --
+**	the video options dialog sets one, the tonemap sets the other, and neither knows about
+**	the other's value.  Defaults reproduce the stock ramp exactly.
+*/
+static float		_LastGamma		= 1.0f;
+static float		_LastBright		= 0.0f;
+static float		_LastContrast	= 1.0f;
+static bool			_LastCalibrate	= true;
+static bool			_LastUseLimit	= true;
+static float		_ToneExposure	= 1.0f;
+static Vector3		_ToneTint(1.0f,1.0f,1.0f);
+static float		_ToneShoulder	= 0.0f;
+
+
+/***********************************************************************************************
+ * Tone_Curve -- what happens to a value the exposure pushed past one                          *
+ *                                                                                             *
+ *	Roadmap Section 52A, Phase 56.  Raising the exposure to bring a dark interior up does not   *
+ *	help if everything it lifts past 1.0 is then clipped flat -- the shadows open and the sky   *
+ *	turns into a white sheet, which is worse than the picture we started with.                  *
+ *                                                                                             *
+ *	So past the shoulder the curve rolls off instead of clipping.  This is extended Reinhard:   *
+ *	v * (1 + v/W^2) / (1 + v), which maps 0 to 0 and the white point W to exactly 1, is         *
+ *	monotonic in between, and is nearly linear at the bottom so shadows are not crushed to buy  *
+ *	the highlights back.  It is the operator, not an approximation of one.                      *
+ *                                                                                             *
+ *	It is global -- one curve for every pixel -- because a gamma ramp is a per-channel lookup   *
+ *	and cannot be anything else.  A local operator, which would let one part of the frame use a *
+ *	different curve from another, needs the programmable tier this build does not have.  What   *
+ *	this does give is the part of "hold sky and shadow detail together" that a global operator  *
+ *	can: the sky stops clipping the moment the exposure rises.                                  *
+ *                                                                                             *
+ *	Shoulder 0 is a straight clamp, bit for bit what this function replaced.                    *
+ *=============================================================================================*/
+static float Tone_Curve(float value)
+{
+	if (value <= 0.0f) {
+		return 0.0f;
+	}
+
+	if (_ToneShoulder <= 0.0f) {
+		return Bound(value,0.0f,1.0f);
+	}
+
+	//	The white point: the input that should come out as pure white.  Above 1 by definition,
+	//	or there would be no headroom to roll anything off into.
+	const float WHITE_POINT = 2.2f;
+	const float W2 = WHITE_POINT * WHITE_POINT;
+
+	float rolled = (value * (1.0f + (value / W2))) / (1.0f + value);
+	rolled = Bound(rolled,0.0f,1.0f);
+
+	//	Blend between the clamp and the roll-off, so the shoulder is a dial rather than a switch
+	//	and a value that was never near one is untouched either way.
+	float clipped = Bound(value,0.0f,1.0f);
+	return clipped + ((rolled - clipped) * Bound(_ToneShoulder,0.0f,1.0f));
+}
+
+
+
 void DX8Wrapper::Set_Gamma(float gamma,float bright,float contrast,bool calibrate,bool uselimit)
 {
-	gamma=Bound(gamma,0.6f,6.0f);
-	bright=Bound(bright,-0.5f,0.5f);
-	contrast=Bound(contrast,0.5f,2.0f);
+	_LastGamma		= gamma;
+	_LastBright		= bright;
+	_LastContrast	= contrast;
+	_LastCalibrate	= calibrate;
+	_LastUseLimit	= uselimit;
+	Apply_Gamma_Ramp();
+}
+
+
+void DX8Wrapper::Set_Tone_Shoulder(float shoulder)
+{
+	_ToneShoulder = Bound(shoulder,0.0f,1.0f);
+	Apply_Gamma_Ramp();
+}
+
+
+float DX8Wrapper::Get_Tone_Shoulder(void)
+{
+	return _ToneShoulder;
+}
+
+
+void DX8Wrapper::Set_Tone_Scale(float exposure,const Vector3 & tint)
+{
+	//	An exposure at or below zero is a black screen, which is never what a caller meant.
+	_ToneExposure = (exposure > 0.01f) ? exposure : 0.01f;
+
+	_ToneTint.X = (tint.X > 0.0f) ? tint.X : 0.0f;
+	_ToneTint.Y = (tint.Y > 0.0f) ? tint.Y : 0.0f;
+	_ToneTint.Z = (tint.Z > 0.0f) ? tint.Z : 0.0f;
+
+	Apply_Gamma_Ramp();
+}
+
+
+float DX8Wrapper::Get_Tone_Exposure(void)
+{
+	return _ToneExposure;
+}
+
+
+const Vector3 & DX8Wrapper::Get_Tone_Tint(void)
+{
+	return _ToneTint;
+}
+
+
+void DX8Wrapper::Apply_Gamma_Ramp(void)
+{
+	float gamma		= Bound(_LastGamma,0.6f,6.0f);
+	float bright	= Bound(_LastBright,-0.5f,0.5f);
+	float contrast	= Bound(_LastContrast,0.5f,2.0f);
+	bool calibrate	= _LastCalibrate;
+	bool uselimit	= _LastUseLimit;
 	float oo_gamma=1.0f/gamma;
 
 	DX8_Assert();
@@ -2827,10 +2941,19 @@ void DX8Wrapper::Set_Gamma(float gamma,float bright,float contrast,bool calibrat
 		x=Bound(x,0.0f,1.0f);
 		x=powf(x,oo_gamma);
 		out=contrast*x+bright;
-		out=Bound(out,0.0f,1.0f);
-		ramp.red[i]=(WORD) (out*65535);
-		ramp.green[i]=(WORD) (out*65535);
-		ramp.blue[i]=(WORD) (out*65535);
+
+		//	Phase 56.  Exposure scales the whole curve; the tint scales each channel, which is
+		//	what makes this a grading ramp rather than just a brightness control; and the
+		//	shoulder decides whether what comes out the top is clipped or rolled off.  With the
+		//	defaults (exposure 1, white tint, shoulder 0) all three are identities and the
+		//	channels come out of Bound with exactly the value the stock ramp had.
+		float r = Tone_Curve(out * _ToneExposure * _ToneTint.X);
+		float g = Tone_Curve(out * _ToneExposure * _ToneTint.Y);
+		float b = Tone_Curve(out * _ToneExposure * _ToneTint.Z);
+
+		ramp.red[i]=(WORD) (r*65535);
+		ramp.green[i]=(WORD) (g*65535);
+		ramp.blue[i]=(WORD) (b*65535);
 	}
 
 	if (Get_Current_Caps()->Support_Gamma())	{

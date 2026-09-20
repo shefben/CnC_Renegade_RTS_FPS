@@ -235,6 +235,15 @@ public:
 	**	layer is always one because something has to be underneath.  The return value is the
 	**	number written.
 	*/
+	/*
+	**	Roadmap Section 52A, Phase 59.  How wet the world is; WeatherMgrClass sets it every
+	**	frame from the replicated rain density.  Zero is the pre-Phase-59 layer table exactly.
+	*/
+	static void			Set_Wetness(float wetness);
+	static float		Get_Wetness(void);
+	static float		Compute_Wetness_Bias(float wetness,float slope_radians);
+	static float		Apply_Wetness_Bias(float weight,int ix,int iy);
+
 	static int			Compute_Weights(int ix,int iy,float * weights_out,int max_weights);
 	static int			Get_Dominant_Layer(int ix,int iy);
 	static bool			Get_Dominant_Layer_At(float x,float y,int * layer_out);

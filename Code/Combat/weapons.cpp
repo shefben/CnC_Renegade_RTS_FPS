@@ -937,6 +937,17 @@ void	WeaponClass::Fire_Bullet( const AmmoDefinitionClass *ammo_def, bool primary
 	// Initiate recoil effects on our parent object.
 	Get_Owner()->Start_Recoil(muzzle_index,Get_Recoil_Scale(),Get_Recoil_Time());
 
+	//	Roadmap Section 52A, Phase 62.  The same two numbers that already drive the weapon's
+	//	bone recoil now also kick the camera, so a heavy weapon moves the view more than a
+	//	pistol does without anybody authoring a second set of values.
+	//
+	//	Only for the local player's own weapon: somebody else firing across the map has no
+	//	business moving this client's camera, and the existing shake system already covers
+	//	the case where a nearby explosion should.
+	if ((Get_Owner() == COMBAT_STAR) && (PhysicsSceneClass::Get_Instance() != nullptr)) {
+		PhysicsSceneClass::Get_Instance()->Add_Weapon_Kick(Get_Recoil_Scale(),Get_Recoil_Time());
+	}
+
 	TotalRoundsFired++;
 }
 

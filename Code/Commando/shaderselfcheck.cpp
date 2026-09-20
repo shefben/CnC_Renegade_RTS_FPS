@@ -37,6 +37,20 @@
 #include "light.h"
 #include "lightphys.h"
 #include "lightsolvecontext.h"
+#include "postprocess.h"
+#include "dx8wrapper.h"
+#include "foliagesystem.h"
+#include "WeatherMgr.h"
+#include "terraintexturesystem.h"
+#include "worldsurfacemarkmanager.h"
+#include "surfacetinteffect.h"
+#include "camerashakesystem.h"
+#include "worldmetrics.h"
+#include "worldtraversability.h"
+#include "escarpment.h"
+#include "bridgesystem.h"
+#include "bridgesection.h"
+
 #include "rendobj.h"
 #include "rinfo.h"
 #include "vector3.h"
@@ -3746,6 +3760,576 @@ int	Run_Sky_Driven_Toggles (void)
 }
 
 
+
+
+/***********************************************************************************************
+ * Run_Tonemap -- roadmap Section 52A, Phase 56.                                               *
+ *   The adaptation is arithmetic and the ramp upload is a device call, so the arithmetic is    *
+ *   what gets proved: brightness composition, the exposure it asks for, and that the approach  *
+ *   converges rather than overshooting.  That the ramp reaches the hardware, and that an       *
+ *   unlit interior looks right once it does, both need a screen.                               *
+ *=============================================================================================*/
+int	Run_Tonemap (void)
+{
+	Check (!PostProcessChainClass::Is_Tonemap_Enabled (),"tonemap defaulted to on");
+
+	//	Sky visibility is the whole interior/exterior distinction.
+	float outdoors = PostProcessChainClass::Compute_Scene_Brightness (1.0f,0.2f,1.0f);
+	float indoors  = PostProcessChainClass::Compute_Scene_Brightness (1.0f,0.2f,0.0f);
+	Check (outdoors > indoors,"an enclosed camera did not read darker than an open one");
+	Check (indoors > 0.0f,"a fully enclosed camera read as absolutely black");
+
+	//	Brighter scene, lower exposure.
+	float bright_exposure = PostProcessChainClass::Compute_Target_Exposure (outdoors);
+	float dark_exposure   = PostProcessChainClass::Compute_Target_Exposure (indoors);
+	Check (dark_exposure > bright_exposure,"a darker scene did not ask for more exposure");
+
+	//	Clamped at both ends, so neither a cupboard nor a white sky can run it away.
+	Check (PostProcessChainClass::Compute_Target_Exposure (0.0f) <= 2.21f,
+			 "a black scene drove the exposure past its ceiling");
+	Check (PostProcessChainClass::Compute_Target_Exposure (1000.0f) >= 0.64f,
+			 "a blinding scene drove the exposure below its floor");
+
+	//	Adaptation converges and never overshoots.
+	float value = 1.0f;
+	for (int i = 0; i < 400; i++) {
+		value = PostProcessChainClass::Adapt (value,2.0f,0.05f,0.5f);
+		Check (value <= 2.0f,"adaptation overshot its target");
+	}
+	Check (value > 1.98f,"adaptation did not converge on its target");
+
+	//	A zero-length frame must not move anything, or a paused game drifts the exposure.
+	Check (PostProcessChainClass::Adapt (1.0f,2.0f,0.0f,0.5f) == 1.0f,
+			 "a zero-length frame still adapted");
+
+	PostProcessChainClass::Enable_Tonemap (true);
+	Check (PostProcessChainClass::Is_Tonemap_Enabled (),"tonemap did not turn on");
+	PostProcessChainClass::Enable_Tonemap (false);
+	Check (!PostProcessChainClass::Is_Tonemap_Enabled (),"tonemap did not turn back off");
+
+	//	The shoulder: off by default, so the ramp clamps exactly as it always did.
+	Check (DX8Wrapper::Get_Tone_Shoulder () == 0.0f,"the tone shoulder defaulted to on");
+
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Bloom -- roadmap Section 52A, Phase 57.                                                 *
+ *   The threshold is the only part of the chain that is not a draw call.  Accumulation is      *
+ *   proved inert while the feature is off, which is the property that makes "bloom disabled    *
+ *   leaves the image unchanged" true rather than merely intended.                              *
+ *=============================================================================================*/
+int	Run_Bloom (void)
+{
+	Check (!PostProcessChainClass::Is_Bloom_Enabled (),"bloom defaulted to on");
+
+	Check (PostProcessChainClass::Passes_Threshold (0.5f,0.1f),
+			 "a bright source was rejected by the threshold");
+	Check (!PostProcessChainClass::Passes_Threshold (0.05f,0.1f),
+			 "a dim source passed the threshold");
+	Check (!PostProcessChainClass::Passes_Threshold (0.1f,0.1f),
+			 "a source exactly at the threshold passed it");
+
+	//	Off: nothing accumulates, so no target is allocated and no draw ever happens.
+	PostProcessChainClass::Begin_Glare ();
+	PostProcessChainClass::Add_Glare (Vector3 (0.0f,0.0f,0.5f),1.0f,Vector3 (1.0f,1.0f,1.0f),0.1f);
+	Check (PostProcessChainClass::Get_Glare_Count () == 0,
+			 "a glare source was accumulated while bloom was off");
+
+	PostProcessChainClass::Enable_Bloom (true);
+	Check (PostProcessChainClass::Is_Bloom_Enabled (),"bloom did not turn on");
+
+	PostProcessChainClass::Begin_Glare ();
+	PostProcessChainClass::Add_Glare (Vector3 (0.0f,0.0f,0.5f),1.0f,Vector3 (1.0f,1.0f,1.0f),0.1f);
+	Check (PostProcessChainClass::Get_Glare_Count () == 1,"a visible source was not accumulated");
+
+	//	Off screen and behind the camera are both rejected.
+	PostProcessChainClass::Add_Glare (Vector3 (3.0f,0.0f,0.5f),1.0f,Vector3 (1.0f,1.0f,1.0f),0.1f);
+	Check (PostProcessChainClass::Get_Glare_Count () == 1,"an off-screen source was accumulated");
+	PostProcessChainClass::Add_Glare (Vector3 (0.0f,0.0f,-1.0f),1.0f,Vector3 (1.0f,1.0f,1.0f),0.1f);
+	Check (PostProcessChainClass::Get_Glare_Count () == 1,
+			 "a source behind the camera was accumulated");
+
+	PostProcessChainClass::Begin_Glare ();
+	Check (PostProcessChainClass::Get_Glare_Count () == 0,"Begin_Glare did not clear the list");
+
+	PostProcessChainClass::Enable_Bloom (false);
+	Check (!PostProcessChainClass::Is_Bloom_Enabled (),"bloom did not turn back off");
+
+	/*
+	**	Phase 55's radial streaks, which now share this chain instead of being the streak-sprite
+	**	approximation they started as.  The weights are the part that is arithmetic.
+	*/
+	Check (PostProcessChainClass::Compute_Streak_Weight (0,6,0.0f) == 0.0f,
+			 "a fully occluded source still cast shafts");
+	Check (PostProcessChainClass::Compute_Streak_Weight (0,6,1.0f) > 0.0f,
+			 "a visible source cast no shafts");
+	Check (PostProcessChainClass::Compute_Streak_Weight (5,6,1.0f) <
+			 PostProcessChainClass::Compute_Streak_Weight (0,6,1.0f),
+			 "the streak did not fall off with distance from the source");
+	Check (PostProcessChainClass::Compute_Streak_Weight (6,6,1.0f) == 0.0f,
+			 "a step past the end of the streak still contributed");
+	Check (PostProcessChainClass::Compute_Streak_Weight (0,6,0.5f) <
+			 PostProcessChainClass::Compute_Streak_Weight (0,6,1.0f),
+			 "partial occlusion did not weaken the shafts");
+
+	//	Total energy must not grow with the tap count, or adding steps would brighten the sun
+	//	rather than smoothing it.
+	float few = 0.0f, many = 0.0f;
+	for (int i = 0; i < 4; i++) { few += PostProcessChainClass::Compute_Streak_Weight (i,4,1.0f); }
+	for (int i = 0; i < 16; i++) { many += PostProcessChainClass::Compute_Streak_Weight (i,16,1.0f); }
+	Check (WWMath::Fabs (few - many) < 0.1f,
+			 "the streak got brighter rather than smoother as taps were added");
+
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Wind_Field -- roadmap Section 52A, Phase 58.                                            *
+ *   Sway is baked into geometry that needs an asset manager to build, so what is proved is the *
+ *   offset function deciding where each vertex goes -- above all that a vertex at the base does *
+ *   not move, which is what keeps foliage standing on the ground it grows out of.               *
+ *=============================================================================================*/
+int	Run_Wind_Field (void)
+{
+	Vector3 wind (3.0f,1.0f,0.0f);
+
+	//	Zero scale is the pre-phase appearance, exactly.
+	Check (FoliageSystem::Compute_Sway_Offset (wind,2.0f,2.0f,0.0f).Length () == 0.0f,
+			 "a zero sway scale still moved a vertex");
+
+	//	The base is pinned.
+	Check (FoliageSystem::Compute_Sway_Offset (wind,0.0f,2.0f,1.0f).Length () == 0.0f,
+			 "a vertex at the base of a plant moved with the wind");
+
+	//	Higher moves further, and faster than linearly.
+	float half = FoliageSystem::Compute_Sway_Offset (wind,1.0f,2.0f,1.0f).Length ();
+	float top  = FoliageSystem::Compute_Sway_Offset (wind,2.0f,2.0f,1.0f).Length ();
+	Check (top > half,"the top of a plant did not move further than its middle");
+	Check (top > (half * 2.0f),"sway was linear in height rather than weighted toward the top");
+
+	//	A vertex above the stated height is clamped, not extrapolated.
+	float over = FoliageSystem::Compute_Sway_Offset (wind,10.0f,2.0f,1.0f).Length ();
+	Check (over <= (top + 0.001f),"a vertex above the model height extrapolated past full sway");
+
+	//	Sway follows the wind, and a horizontal wind does not lift anything.
+	Vector3 offset = FoliageSystem::Compute_Sway_Offset (wind,2.0f,2.0f,1.0f);
+	Check (offset.Z == 0.0f,"a horizontal wind pushed a vertex vertically");
+	Check ((offset.X > 0.0f) && (offset.Y > 0.0f),"sway did not follow the wind direction");
+
+	//	All three scales default to zero, which is what makes zero wind the current appearance.
+	Check (WeatherMgrClass::Get_Foliage_Sway_Scale () == 0.0f,"foliage sway defaulted to non-zero");
+	Check (WeatherMgrClass::Get_Particle_Wind_Scale () == 0.0f,"particle wind defaulted to non-zero");
+	Check (WeatherMgrClass::Get_Cloud_Wind_Scale () == 0.0f,"cloud wind defaulted to non-zero");
+
+	WeatherMgrClass::Set_Particle_Wind_Scale (0.5f);
+	Check (WeatherMgrClass::Get_Particle_Wind_Scale () == 0.5f,"particle wind scale did not take");
+	WeatherMgrClass::Set_Particle_Wind_Scale (-1.0f);
+	Check (WeatherMgrClass::Get_Particle_Wind_Scale () == 0.0f,
+			 "a negative particle wind scale was kept");
+	WeatherMgrClass::Set_Particle_Wind_Scale (0.0f);
+
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Wetness -- roadmap Section 52A, Phases 59 and 60.                                       *
+ *   The scalar's integration and both things it drives -- the terrain layer bias and the mark   *
+ *   fade rate -- are arithmetic, so all three are proved.  What is not proved is that a wet    *
+ *   ground texture exists to bias toward, which is art, or that it reads, which needs a screen. *
+ *=============================================================================================*/
+int	Run_Wetness (void)
+{
+	//	Soaking, then drying, and drying is much the slower of the two.
+	float wet = 0.0f;
+	for (int i = 0; i < 200; i++) {
+		wet = WeatherMgrClass::Integrate_Wetness (wet,1.0f,0.25f);
+	}
+	Check (wet > 0.99f,"a sustained downpour did not soak the world");
+
+	float soaked = wet;
+	float dried_one_second = soaked - WeatherMgrClass::Integrate_Wetness (soaked,0.0f,1.0f);
+	float wetted_one_second = WeatherMgrClass::Integrate_Wetness (0.0f,1.0f,1.0f);
+	Check (dried_one_second < wetted_one_second,
+			 "the world dried at least as fast as it wetted");
+
+	for (int i = 0; i < 500; i++) {
+		wet = WeatherMgrClass::Integrate_Wetness (wet,0.0f,0.25f);
+	}
+	Check (wet == 0.0f,"the world never finished drying out");
+
+	//	Bounded, and a zero-length frame moves nothing.
+	Check (WeatherMgrClass::Integrate_Wetness (0.5f,1.0f,0.0f) == 0.5f,
+			 "a zero-length frame still changed the wetness");
+	Check (WeatherMgrClass::Integrate_Wetness (0.0f,5.0f,1000.0f) <= 1.0f,"wetness exceeded one");
+
+	//	Phase 59's terrain bias: full on the flat, nothing on a cliff.
+	Check (TerrainTextureSystem::Compute_Wetness_Bias (0.0f,0.0f) == 0.0f,
+			 "a dry world still biased the layer table");
+	float flat = TerrainTextureSystem::Compute_Wetness_Bias (1.0f,0.0f);
+	float leaning = TerrainTextureSystem::Compute_Wetness_Bias (1.0f,DEG_TO_RADF (10.0f));
+	Check (flat > leaning,"sloped ground held as much water as flat ground");
+	Check (TerrainTextureSystem::Compute_Wetness_Bias (1.0f,DEG_TO_RADF (45.0f)) == 0.0f,
+			 "water pooled on a cliff face");
+	Check (flat < 1.0f,"a soaked field turned entirely into the wet layer");
+
+	//	Phase 60's fade rate: exactly one when dry, so dry-weather timing is unchanged.
+	Check (WorldSurfaceMarkManager::Compute_Weather_Fade_Rate (0.0f) == 1.0f,
+			 "dry weather did not reproduce the current mark fade timing");
+	Check (WorldSurfaceMarkManager::Compute_Weather_Fade_Rate (1.0f) > 1.0f,
+			 "rain did not clear marks any faster");
+	Check (WorldSurfaceMarkManager::Compute_Weather_Fade_Rate (0.5f) <
+			 WorldSurfaceMarkManager::Compute_Weather_Fade_Rate (1.0f),
+			 "the fade rate did not increase with wetness");
+
+	Check (WeatherMgrClass::Get_Wetness_Response_Scale () == 0.0f,
+			 "the wetness response defaulted to on");
+
+	/*
+	**	Phase 59's object half: wet albedo is darker and cooler, and wet surfaces are shinier.
+	**	Both ride on the same effect Phase 61 uses, so both are off by the same default.
+	*/
+	Check (SurfaceTintEffectClass::Get_Wetness_Scale () == 0.0f,
+			 "the object wetness response defaulted to on");
+
+	Vector3 dry = SurfaceTintEffectClass::Compute_Wet_Albedo (0.0f,1.0f);
+	Check ((dry.X == 1.0f) && (dry.Y == 1.0f) && (dry.Z == 1.0f),
+			 "a dry surface was not multiplied by exactly white");
+	Check (SurfaceTintEffectClass::Compute_Wet_Albedo (1.0f,0.0f).X == 1.0f,
+			 "the disabled object wetness still darkened a surface");
+
+	Vector3 soaked_albedo = SurfaceTintEffectClass::Compute_Wet_Albedo (1.0f,1.0f);
+	Check (soaked_albedo.X < 1.0f,"rain did not darken a surface");
+	Check (soaked_albedo.X > 0.0f,"a soaked surface multiplied down to a silhouette");
+	Check (soaked_albedo.Z > soaked_albedo.X,"the wet tint was not cooler than neutral");
+	Check (SurfaceTintEffectClass::Compute_Wet_Albedo (0.5f,1.0f).X > soaked_albedo.X,
+			 "a damp surface was as dark as a soaked one");
+
+	Check (SurfaceTintEffectClass::Compute_Wet_Specular (0.0f,1.0f) == 0.0f,
+			 "a dry surface had a wet sheen");
+	Check (SurfaceTintEffectClass::Compute_Wet_Specular (1.0f,0.0f) == 0.0f,
+			 "the disabled object wetness still added a sheen");
+	Check (SurfaceTintEffectClass::Compute_Wet_Specular (1.0f,1.0f) > 0.0f,
+			 "a soaked surface had no sheen, so it would read as shadow rather than as wet");
+
+	//	Shelter.  This is the acceptance line's "sheltered surfaces stay dry".
+	WeatherMgrClass::Set_Wetness (1.0f);
+	WeatherMgrClass::Set_Wetness_Response_Scale (1.0f);
+	Check (WeatherMgrClass::Get_Sheltered_Wetness (1.0f) > 0.0f,
+			 "a surface under open sky did not get wet");
+	Check (WeatherMgrClass::Get_Sheltered_Wetness (0.0f) == 0.0f,
+			 "a fully sheltered surface got wet");
+	Check (WeatherMgrClass::Get_Sheltered_Wetness (0.5f) <
+			 WeatherMgrClass::Get_Sheltered_Wetness (1.0f),
+			 "partial shelter did not keep a surface drier");
+
+	//	Put the world back the way the next family expects to find it.
+	WeatherMgrClass::Set_Wetness_Response_Scale (0.0f);
+	WeatherMgrClass::Set_Wetness (0.0f);
+
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Damage_Tint -- roadmap Section 52A, Phase 61.                                           *
+ *   The tint and ember ramps decide the whole look and are pure, so they are what is proved.   *
+ *   Whether a multiplicative material pass composites the way it should needs a device.        *
+ *=============================================================================================*/
+int	Run_Damage_Tint (void)
+{
+	Check (SurfaceTintEffectClass::Get_Global_Scale () == 0.0f,"the damage tint defaulted to on");
+
+	//	Off: the tint is exactly white, so a multiply by it is the identity.
+	Vector3 off = SurfaceTintEffectClass::Compute_Soot_Tint (0.0f,0.0f);
+	Check ((off.X == 1.0f) && (off.Y == 1.0f) && (off.Z == 1.0f),
+			 "the disabled damage tint was not exactly white");
+
+	//	Healthy objects are untinted even with the feature on.
+	Vector3 healthy = SurfaceTintEffectClass::Compute_Soot_Tint (1.0f,1.0f);
+	Check (healthy.X == 1.0f,"an undamaged object was tinted");
+
+	//	And it darkens monotonically as health falls.
+	Vector3 hurt = SurfaceTintEffectClass::Compute_Soot_Tint (0.5f,1.0f);
+	Vector3 wrecked = SurfaceTintEffectClass::Compute_Soot_Tint (0.0f,1.0f);
+	Check (hurt.X < healthy.X,"damage did not darken the surface");
+	Check (wrecked.X < hurt.X,"more damage did not darken it further");
+	Check (wrecked.X > 0.0f,"a wrecked object multiplied down to a silhouette");
+
+	//	Soot is warm: it takes more blue than red.
+	Check (wrecked.Z < wrecked.X,"the soot tint was not warmer than neutral");
+
+	//	Embers: nothing in daylight, nothing on a healthy object, something on a burning one.
+	Check (SurfaceTintEffectClass::Compute_Ember_Intensity (0.1f,0.0f,1.0f) == 0.0f,
+			 "a burning object glowed in broad daylight");
+	Check (SurfaceTintEffectClass::Compute_Ember_Intensity (1.0f,1.0f,1.0f) == 0.0f,
+			 "an undamaged object glowed at night");
+	Check (SurfaceTintEffectClass::Compute_Ember_Intensity (0.1f,1.0f,1.0f) > 0.0f,
+			 "a nearly destroyed object did not glow at night");
+	Check (SurfaceTintEffectClass::Compute_Ember_Intensity (0.1f,1.0f,0.0f) == 0.0f,
+			 "embers ignored the master scale");
+
+	//	Repair reverses it: the approach walks both ways and settles exactly.
+	float shown = 0.2f;
+	for (int i = 0; i < 100; i++) {
+		shown = SurfaceTintEffectClass::Approach (shown,1.0f,0.1f);
+	}
+	Check (shown == 1.0f,"repair did not return the tint to pristine");
+	for (int i = 0; i < 100; i++) {
+		shown = SurfaceTintEffectClass::Approach (shown,0.0f,0.1f);
+	}
+	Check (shown == 0.0f,"damage did not drive the tint fully down");
+
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Weapon_Kick -- roadmap Section 52A, Phase 62.                                           *
+ *   The recovery curve is the phase.  That it stays cosmetic is structural rather than          *
+ *   testable: the shake system only ever writes the camera transform, and it does so after the  *
+ *   shot has already been resolved by the server.                                               *
+ *=============================================================================================*/
+int	Run_Weapon_Kick (void)
+{
+	Check (CameraShakeSystemClass::Get_Weapon_Response_Scale () == 0.0f,
+			 "the weapon camera response defaulted to on");
+
+	Check (CameraShakeSystemClass::Compute_Recovery (0.0f,0.2f) == 1.0f,
+			 "the kick was not at full strength at the instant of the shot");
+	Check (CameraShakeSystemClass::Compute_Recovery (0.2f,0.2f) == 0.0f,
+			 "the kick had not recovered by the end of its duration");
+	Check (CameraShakeSystemClass::Compute_Recovery (1.0f,0.2f) == 0.0f,
+			 "the kick came back after recovering");
+	Check (CameraShakeSystemClass::Compute_Recovery (0.1f,0.2f) < 0.5f,
+			 "the recovery was not front loaded, so the kick would read as a drag");
+
+	//	Monotonic, so the view never jerks back out on the way in.
+	float previous = 1.0f;
+	for (int i = 1; i <= 20; i++) {
+		float now = CameraShakeSystemClass::Compute_Recovery ((float)i * 0.01f,0.2f);
+		Check (now <= previous,"the recovery curve went back up part way through");
+		previous = now;
+	}
+
+	//	A zero duration is a shot that never happened, not a divide by zero.
+	Check (CameraShakeSystemClass::Compute_Recovery (0.0f,0.0f) == 0.0f,
+			 "a zero-duration kick was not inert");
+
+	CameraShakeSystemClass::Set_Weapon_Response_Scale (0.5f);
+	Check (CameraShakeSystemClass::Get_Weapon_Response_Scale () == 0.5f,
+			 "the weapon response scale did not take");
+	CameraShakeSystemClass::Set_Weapon_Response_Scale (0.0f);
+	Check (CameraShakeSystemClass::Get_Weapon_Response_Scale () == 0.0f,
+			 "the weapon response scale did not turn back off");
+
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_World_Metrics -- roadmap Section 52B, Phase 63.                                         *
+ *   Reading a definition needs a definition database and reading an envelope needs an asset     *
+ *   manager, so what is proved is the derivations: slope, turning radius, corridor, clearance.  *
+ *   Those are exactly the numbers a generator would otherwise invent, which is why the service  *
+ *   exists at all.                                                                              *
+ *=============================================================================================*/
+int	Run_World_Metrics (void)
+{
+	//	Max climbable slope is the slide angle, clamped into a real quadrant.
+	Check (WorldMetricsClass::Compute_Max_Climbable_Slope (DEG_TO_RADF (45.0f)) ==
+			 DEG_TO_RADF (45.0f),"the slide angle was not reported as the climbable slope");
+	Check (WorldMetricsClass::Compute_Max_Climbable_Slope (0.0f) == 0.0f,
+			 "a zero slide angle produced a climbable slope");
+	Check (WorldMetricsClass::Compute_Max_Climbable_Slope (DEG_TO_RADF (180.0f)) <
+			 DEG_TO_RADF (90.0f),"a nonsense slide angle produced a slope past vertical");
+
+	//	Turning radius: the bicycle model, with both degenerate cases distinguishable.
+	float radius = WorldMetricsClass::Compute_Turning_Radius (4.0f,DEG_TO_RADF (30.0f));
+	Check (radius > 0.0f,"a steerable vehicle reported no turning radius");
+	Check (radius > 4.0f,"a thirty-degree steering limit produced an impossibly tight turn");
+
+	float tighter = WorldMetricsClass::Compute_Turning_Radius (4.0f,DEG_TO_RADF (45.0f));
+	Check (tighter < radius,"more steering angle did not tighten the turn");
+
+	float longer = WorldMetricsClass::Compute_Turning_Radius (8.0f,DEG_TO_RADF (30.0f));
+	Check (longer > radius,"a longer wheelbase did not widen the turn");
+
+	Check (WorldMetricsClass::Compute_Turning_Radius (4.0f,0.0f) < 0.0f,
+			 "a vehicle that cannot steer reported a finite turning radius");
+	Check (WorldMetricsClass::Compute_Turning_Radius (4.0f,DEG_TO_RADF (90.0f)) == 0.0f,
+			 "a vehicle steering at a right angle did not report turning on the spot");
+
+	//	Corridor and clearance both leave margin: a gap a body exactly fits is a gap it grinds
+	//	through.
+	Check (WorldMetricsClass::Compute_Corridor_Width (1.0f) > 2.0f,
+			 "the corridor width left no margin around the body");
+	Check (WorldMetricsClass::Compute_Corridor_Width (0.0f) == 0.0f,
+			 "a body with no radius still needed a corridor");
+
+	Check (WorldMetricsClass::Compute_Overhead_Clearance (2.0f,0.5f) > 2.0f,
+			 "the overhead clearance did not allow for the step being ridden up");
+	Check (WorldMetricsClass::Compute_Overhead_Clearance (0.0f,0.5f) == 0.0f,
+			 "a body with no height still needed headroom");
+
+	//	Postures, including the one this engine does not have.
+	Check (WorldMetricsClass::Is_Posture_Supported (POSTURE_STAND),"standing was unsupported");
+	Check (WorldMetricsClass::Is_Posture_Supported (POSTURE_CROUCH),"crouching was unsupported");
+	Check (!WorldMetricsClass::Is_Posture_Supported (POSTURE_PRONE),
+			 "prone was reported as a posture this engine has");
+
+	//	The soldier constants are the engine's own, moved rather than invented.
+	Check (WorldMetricsClass::Get_Soldier_Eye_Height () > 1.6f,"the soldier eye height changed");
+	Check (WorldMetricsClass::Get_Soldier_Crouch_Drop () > 0.0f,"the crouch drop was zero");
+	Check (WorldMetricsClass::Get_Soldier_Crouch_Drop () <
+			 WorldMetricsClass::Get_Soldier_Eye_Height (),
+			 "crouching put the soldier's eyes below the ground");
+
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Escarpment -- roadmap Section 52B, Phase 64.                                            *
+ *   Geometry and collision need a physics scene; the polyline queries that decide where a face  *
+ *   is and whether something crosses it do not, and they are what the traversability graph and  *
+ *   any later generator actually consume.                                                       *
+ *=============================================================================================*/
+int	Run_Escarpment (void)
+{
+	EscarpmentClass cliff;
+	cliff.Set_Name ("check");
+	cliff.Add_Point (Vector3 (0.0f,0.0f,0.0f),10.0f,4.0f);
+	cliff.Add_Point (Vector3 (100.0f,0.0f,0.0f),10.0f,4.0f);
+
+	Check (cliff.Get_Point_Count () == 2,"the polyline did not take its points");
+	Check (cliff.Get_Length () > 99.0f,"the polyline length was wrong");
+	Check (cliff.Get_Max_Face_Height () == 6.0f,"the face height was not upper minus lower");
+
+	//	A point beside the face samples the benches there.
+	float upper = 0.0f, lower = 0.0f, distance = 0.0f;
+	Check (cliff.Sample (50.0f,5.0f,&upper,&lower,&distance),
+			 "a point beside the cliff did not sample");
+	Check (upper == 10.0f,"the upper bench sampled wrong");
+	Check (lower == 4.0f,"the lower bench sampled wrong");
+	Check ((distance > 4.9f) && (distance < 5.1f),"the perpendicular distance was wrong");
+
+	//	A line crossing the face is blocked; one running along it is not.
+	float face = 0.0f;
+	Check (cliff.Does_Segment_Cross (Vector3 (50.0f,-5.0f,0.0f),Vector3 (50.0f,5.0f,0.0f),&face),
+			 "a segment straight across the cliff did not register as crossing it");
+	Check (face == 6.0f,"the crossed face height was wrong");
+	Check (!cliff.Does_Segment_Cross (Vector3 (10.0f,5.0f,0.0f),Vector3 (90.0f,5.0f,0.0f),&face),
+			 "a segment running alongside the cliff registered as crossing it");
+	Check (!cliff.Does_Segment_Cross (Vector3 (200.0f,-5.0f,0.0f),Vector3 (200.0f,5.0f,0.0f),&face),
+			 "a segment past the end of the cliff registered as crossing it");
+
+	//	A one-point polyline has no face and must not pretend to.
+	EscarpmentClass stub;
+	stub.Add_Point (Vector3 (0.0f,0.0f,0.0f),10.0f,4.0f);
+	Check (!stub.Sample (0.0f,0.0f,&upper,&lower,&distance),
+			 "a single-point escarpment sampled a face");
+	Check (!stub.Does_Segment_Cross (Vector3 (-1.0f,0.0f,0.0f),Vector3 (1.0f,0.0f,0.0f),&face),
+			 "a single-point escarpment blocked a segment");
+
+	//	Phase 64's bridge half: a crossing states a clearance, or states nothing.
+	BridgeDefinitionClass definition;
+	Check (!definition.States_Clearance (),
+			 "a fresh bridge definition claimed to state a clearance");
+	definition.Set_Required_Clearance (5.0f);
+	Check (definition.States_Clearance (),"a stated clearance did not take");
+	Check (definition.Get_Required_Clearance () == 5.0f,"the stated clearance was wrong");
+	definition.Set_Required_Clearance (-1.0f);
+	Check (!definition.States_Clearance (),"a negative clearance was kept");
+
+	BridgeClass bridge;
+	Check (!bridge.States_Deck_Height (),"a fresh bridge claimed a deck height");
+	Check (!bridge.Has_Abutment_Heights (),"a fresh bridge claimed conformed abutments");
+	bridge.Set_Deck_Height (8.0f);
+	Check (bridge.States_Deck_Height (),"the deck height did not take");
+	Check (bridge.Get_Deck_Height () == 8.0f,"the deck height was wrong");
+
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Traversability -- roadmap Section 52B, Phase 65.                                        *
+ *   Building the graph needs a heightfield; the rules deciding whether an edge exists do not,   *
+ *   and that is where the acceptance line lives -- a crossing a tank cannot use is absent from  *
+ *   the tank's graph because Crossing_Carries says so.                                          *
+ *=============================================================================================*/
+int	Run_Traversability (void)
+{
+	//	A small step is walkable whatever slope it implies.
+	Check (WorldTraversabilityGraph::Can_Step (0.2f,2.0f,0.25f,DEG_TO_RADF (45.0f)),
+			 "a kerb inside the step height was not walkable");
+	//	A big rise over a long run is a hill, and hills are walkable.
+	Check (WorldTraversabilityGraph::Can_Step (1.0f,4.0f,0.25f,DEG_TO_RADF (45.0f)),
+			 "a gentle hillside was not walkable");
+	//	The same rise over no run at all is a wall.
+	Check (!WorldTraversabilityGraph::Can_Step (4.0f,1.0f,0.25f,DEG_TO_RADF (45.0f)),
+			 "a wall was reported as walkable");
+	//	Down is the same as up, since falling off a cliff is not a route.
+	Check (!WorldTraversabilityGraph::Can_Step (-4.0f,1.0f,0.25f,DEG_TO_RADF (45.0f)),
+			 "a drop was treated differently from a rise");
+	Check (!WorldTraversabilityGraph::Can_Step (1.0f,4.0f,0.25f,0.0f),
+			 "something that cannot climb at all climbed a slope");
+
+	//	Crossings.  This is the acceptance line.
+	WorldMetricsStruct infantry;
+	infantry.CorridorWidth = 1.2f;
+	infantry.OverheadClearance = 2.0f;
+	infantry.StandHeight = 1.8f;
+	infantry.Valid = true;
+
+	WorldMetricsStruct tank;
+	tank.CorridorWidth = 5.0f;
+	tank.OverheadClearance = 3.5f;
+	tank.StandHeight = 3.0f;
+	tank.Valid = true;
+
+	//	A narrow footbridge: infantry only.
+	Check (WorldTraversabilityGraph::Crossing_Carries (2.0f,0.0f,infantry),
+			 "a footbridge refused infantry");
+	Check (!WorldTraversabilityGraph::Crossing_Carries (2.0f,0.0f,tank),
+			 "a footbridge carried a tank");
+
+	//	A low underpass: infantry only, for the other reason.
+	Check (WorldTraversabilityGraph::Crossing_Carries (10.0f,2.5f,infantry),
+			 "a low underpass refused infantry");
+	Check (!WorldTraversabilityGraph::Crossing_Carries (10.0f,2.5f,tank),
+			 "a tank fitted under a span lower than it is tall");
+
+	//	A crossing that states nothing carries everything, so nothing predating Phase 64 starts
+	//	refusing traffic it always carried.
+	Check (WorldTraversabilityGraph::Crossing_Carries (0.0f,0.0f,tank),
+			 "a crossing that states nothing refused a tank");
+
+	//	Wading: infantry do, ground vehicles do not, aircraft are not in the water.
+	Check (WorldTraversabilityGraph::Compute_Wade_Depth (LOCOMOTION_INFANTRY,infantry) > 0.0f,
+			 "infantry could not wade at all");
+	Check (WorldTraversabilityGraph::Compute_Wade_Depth (LOCOMOTION_INFANTRY,infantry) <
+			 infantry.StandHeight,"infantry waded over their own heads");
+	Check (WorldTraversabilityGraph::Compute_Wade_Depth (LOCOMOTION_TRACKED,tank) == 0.0f,
+			 "a tank forded a river");
+	Check (WorldTraversabilityGraph::Compute_Wade_Depth (LOCOMOTION_FLYING,tank) > 100.0f,
+			 "an aircraft was stopped by water");
+
+	//	Nothing is built, so every query must answer safely rather than crash.
+	Check (!WorldTraversabilityGraph::Is_Built (),"a graph existed before one was built");
+	Check (WorldTraversabilityGraph::Find_Node (Vector3 (0.0f,0.0f,0.0f)) == -1,
+			 "an unbuilt graph found a node");
+	Check (!WorldTraversabilityGraph::Is_Reachable_Nodes (0,1),
+			 "an unbuilt graph reported two nodes as connected");
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -3886,6 +4470,52 @@ int	ShaderSelfCheck::Run (const char *which)
 		Run_Sky_Driven_Toggles ();
 		ran = true;
 	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "tonemap") == 0)) {
+		Run_Tonemap ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "bloom") == 0)) {
+		Run_Bloom ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "windfield") == 0)) {
+		Run_Wind_Field ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "wetness") == 0)) {
+		Run_Wetness ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "damagetint") == 0)) {
+		Run_Damage_Tint ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "weaponkick") == 0)) {
+		Run_Weapon_Kick ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "worldmetrics") == 0)) {
+		Run_World_Metrics ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "escarpment") == 0)) {
+		Run_Escarpment ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "traversability") == 0)) {
+		Run_Traversability ();
+		ran = true;
+	}
+
 
 	if (!ran) {
 		::fprintf (stderr, "unknown self check '%s'\n", which);

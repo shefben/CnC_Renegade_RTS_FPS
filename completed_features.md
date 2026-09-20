@@ -2021,3 +2021,73 @@ Draws nothing below the horizon or off screen, matching the acceptance line. Off
 less `shader_skydriventoggles`/`fds_shader_skydriventoggles` cover this and P53/P54's switches.
 Evidence: `docs/zerohour/VisualFidelityProgram.md`.
 
+## P56: tonemapping and eye adaptation
+
+Exposure driven by sun, ambient and a five-ray camera sky-view cast, adapting asymmetrically
+(fast into light, slow into dark), applied through the hardware gamma ramp with an extended-
+Reinhard shoulder and a sky-clock grading tint. `docs/zerohour/VisualFidelityProgram.md`.
+
+## P57: bloom on emissive and dazzle sources
+
+Real threshold/blur/add over the sources `dazzle.cpp` already marks, on a shared render target
+allocated once; new `ww3d2/postprocess.cpp` is the chain both P56 and P57 own.
+`docs/zerohour/VisualFidelityProgram.md`.
+
+## P55-REDO: sun shafts are now a real radial blur
+
+Reimplemented on P56/P57's chain as a radial blur anchored at the sun's screen position; the
+streak-sprite path and `ow_sun_shaft_glow` were deleted, not kept alongside. Closes the P55
+follow-on that `WIP_features.md` carried. `docs/zerohour/VisualFidelityProgram.md`.
+
+## P58: wind field applied to geometry
+
+One already-replicated `WindClass` vector now drives height-keyed baked foliage sway, a global
+particle drift acceleration and the P53 cloud scroll; collision proxies are structurally
+untouched. `docs/zerohour/VisualFidelityProgram.md`.
+
+## P59: wetness response
+
+Replicated wetness scalar integrated from rain density, biasing terrain layer weights on
+low-slope ground and darkening albedo plus lifting specular on objects through
+`SurfaceTintEffectClass`, with per-object shelter from a cached sky-view raycast.
+`docs/zerohour/VisualFidelityProgram.md`.
+
+## P60: surface marks age with the weather
+
+Mark and ribbon aging scaled by a wetness fade-rate function that is exactly 1.0 when dry; pool
+sizes and eviction policy unchanged. `docs/zerohour/VisualFidelityProgram.md`.
+
+## P61: progressive damage appearance
+
+`SurfaceTintEffectClass` adds a multiplicative soot ramp and a night-gated additive ember term
+driven by the replicated health fraction, attached once at `DamageableGameObj::Apply_Damage` so
+buildings, vehicles and soldiers all get it; repair reverses it. Tint only, no new art.
+`docs/zerohour/VisualFidelityProgram.md`.
+
+## P62: weapon-fire camera response
+
+Per-shot FOV kick and roll on `CameraShakeSystemClass`, scaled from the existing
+`WeaponDefinitionClass` recoil values, local player only, restarting rather than stacking.
+Cosmetic by construction -- it writes only the camera transform, after the shot is resolved.
+`docs/zerohour/VisualFidelityProgram.md`.
+
+## P63: world metrics service
+
+`WorldMetricsClass` answers body, step, slope, corridor, clearance, turning radius and building
+footprint per definition and per locomotion class, read from the definitions rather than
+restated; `SoldierGameObj` now reads its two posture constants from it.
+`docs/zerohour/WorldStructureProgram.md`.
+
+## P64: vertical world structure
+
+New `EscarpmentSystem` gives cliff faces geometry, collision and terrain-layer dressing beside
+the heightfield, which stays the sole authority for ground height; `BridgeSystem` gained deck
+height, stated clearance, conformed abutments and a `Check_Clearance` report.
+`docs/zerohour/WorldStructureProgram.md`.
+
+## P65: traversability and connectivity graph
+
+`WorldTraversabilityGraph` answers reachability, edge-disjoint distinct routes, chokepoints and
+unreachable counts per locomotion class over terrain, water, escarpments and bridges; a crossing
+a class cannot use is simply not an edge. `Pathfind` remains the only thing that moves a unit.
+`docs/zerohour/WorldStructureProgram.md`.

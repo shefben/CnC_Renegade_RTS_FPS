@@ -2180,6 +2180,22 @@ void PhysicsSceneClass::Apply_Camera_Shakes(CameraClass & camera)
 	CameraShakeSystem->Update_Camera(camera);
 }
 
+
+void PhysicsSceneClass::Add_Weapon_Kick(float scale,float recovery_seconds)
+{
+	WWASSERT(CameraShakeSystem != nullptr);
+	CameraShakeSystem->Add_Weapon_Kick(scale,recovery_seconds);
+}
+
+
+float PhysicsSceneClass::Get_Weapon_FOV_Kick(void) const
+{
+	if (CameraShakeSystem == nullptr) {
+		return 0.0f;
+	}
+	return CameraShakeSystem->Get_Weapon_FOV_Kick();
+}
+
 float PhysicsSceneClass::Compute_Vis_Mesh_Ram(void)
 {
 	float total = 0.0f;

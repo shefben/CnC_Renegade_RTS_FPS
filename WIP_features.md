@@ -631,12 +631,22 @@ terrain/mesh rendering does not have. Absorbs no backlog line (P51 itself is clo
 action: revisit once P56/57's post-processing work establishes whether a shader path is worth
 opening generally, rather than adding one just for fog.
 
-## P55 -- sun shafts are a streak-sprite approximation, not a per-pixel radial blur
+## P56 -- the tonemap is a global operator, not a local one
 
-`BackgroundMgrClass::Render_Sun_Shafts` is real, gated correctly (horizon/off-screen/occlusion all
-checked against the sun dazzle's own data), and gives shafts today where there were none, but is
-additive glow quads, not the depth-occluded per-pixel radial blur the acceptance text describes --
-this codebase has no screen-space render-target post-process chain to build that on yet. Absorbs no
-backlog line (P55 itself is closed). Next exact action: reimplement as a real screen-space pass once
-P56/57 stand up a shared render-target chain, which is exactly what Section 52A's own ordering note
-says those two phases are for.
+`DX8Wrapper::Tone_Curve` is a real extended-Reinhard shoulder with a real auto-exposure driving it,
+so highlights roll off instead of clipping and the acceptance line is substantially met. What it
+cannot do is vary the curve across the frame: a gamma ramp is a per-channel lookup, and a local
+operator needs the programmable tier, which this build has none of (no `CreatePixelShader` anywhere).
+Shows only in a frame holding a deep interior and open sky at once. Absorbs no backlog line (P56
+itself is closed). Next exact action: nothing, unless a shader tier is opened for other reasons --
+at which point this is one of the first things worth moving onto it.
+
+## P57/P55 -- the render-target composite has never run on a device
+
+Both the bloom composite and the reworked sun shafts switch render targets mid-frame, bracketed the
+way `pscene_projectors.cpp` brackets its own (set, clear, draw, restore) -- but unlike the
+projectors, these run inside a frame that is already being rendered rather than in their own
+`Begin_Render`/`End_Render` pair. That difference has no precedent in this tree and cannot be
+checked without a screen, so both ship off by default. Absorbs no backlog line (P55 and P57 are
+both closed). Next exact action: with the game runnable, turn bloom on first, confirm the frame
+still composites and the HUD still draws, then the shafts.

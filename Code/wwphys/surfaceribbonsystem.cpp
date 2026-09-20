@@ -21,6 +21,8 @@
 //
 
 #include "surfaceribbonsystem.h"
+#include "terraintexturesystem.h"
+#include "worldsurfacemarkmanager.h"
 
 #include "assetmgr.h"
 #include "bridgesystem.h"
@@ -585,8 +587,15 @@ void SurfaceRibbonSystem::Timestep(float dt)
 
 		const SurfaceRibbonDefinitionClass & def = Definitions[ribbon.Definition];
 
+		//	Roadmap Section 52A, Phase 60.  Tyre tracks wash out in the rain the same way
+		//	scorch marks do, at the same rate and by the same mechanism: the edges age faster,
+		//	and Edge_Alpha's existing age fade does the rest.  Ring size and the drop-from-the-
+		//	head policy are Section 23's and are unchanged.
+		float aging = dt * WorldSurfaceMarkManager::Compute_Weather_Fade_Rate(
+									TerrainTextureSystem::Get_Wetness());
+
 		for (int e = 0; e < ribbon.Count; e++) {
-			ribbon.Edges[(ribbon.First + e) % SURFACE_RIBBON_MAX_EDGES].Age += dt;
+			ribbon.Edges[(ribbon.First + e) % SURFACE_RIBBON_MAX_EDGES].Age += aging;
 		}
 
 		while ((ribbon.Count > 0) && (ribbon.Edges[ribbon.First].Age >= def.Get_Lifetime())) {

@@ -125,6 +125,25 @@ public:
 	void			Set_Support_Clearance(float c)		{ SupportClearance = c; }
 	float			Get_Support_Clearance(void) const		{ return SupportClearance; }
 
+	/*
+	**	Headroom under the span, in metres, for the traffic the crossing is meant to carry.
+	**	Roadmap Section 52B, Phase 64.
+	**
+	**	This is not SupportClearance, which is a rule about when a pier is worth building.
+	**	This is a promise the crossing makes about itself, and the thing that makes it
+	**	worth stating is that it can then be checked: BridgeSystem::Check_Clearance measures
+	**	the terrain under the span and reports where the ravine is too shallow to carry what
+	**	this bridge claims to.  Before this existed, clearance was whatever Apply_River_Cut
+	**	happened to leave behind, so a bridge a tank could not drive under was indistinguish-
+	**	able from one it could.
+	**
+	**	Zero means the crossing states nothing, which is every definition that predates this
+	**	and is why the check reports "not stated" rather than failing them.
+	*/
+	void			Set_Required_Clearance(float metres)	{ RequiredClearance = (metres > 0.0f) ? metres : 0.0f; }
+	float			Get_Required_Clearance(void) const		{ return RequiredClearance; }
+	bool			States_Clearance(void) const				{ return RequiredClearance > 0.0f; }
+
 	//	Metres between decorations, on both sides.  Zero, or an unnamed model, means none.
 	void			Set_Decoration_Spacing(float s)		{ DecorationSpacing = s; }
 	float			Get_Decoration_Spacing(void) const	{ return DecorationSpacing; }
@@ -157,6 +176,7 @@ private:
 	float						SectionLength[BRIDGE_SECTION_KIND_COUNT];
 	float						SupportSpacing;
 	float						SupportClearance;
+	float						RequiredClearance;
 	float						DecorationSpacing;
 	float						DecorationInset;
 

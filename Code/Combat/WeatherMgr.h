@@ -244,6 +244,48 @@ class	WeatherMgrClass : public SaveLoadSubSystemClass, public NetworkObjectClass
 		static bool Set_Wind (float heading, float speed, float variability, float ramptime = 0.0f);
 		static bool Override_Wind (float heading, float speed, float variability, float ramptime = 0.0f);
 		static void Get_Wind (float &heading, float &speed, float &variability);
+
+		/*
+		**	The live gusting vector, and the scales that decide how hard it pushes each of
+		**	the three things Phase 58 drives.  All three default to zero, so the wind field
+		**	exists and moves nothing until somebody turns it up -- Section 52A's "zero wind
+		**	is the current static appearance" made the default rather than a special case.
+		*/
+		static Vector2	Get_Wind_Velocity (void);
+		static void		Update_Wind_Consumers (void);
+
+		static void		Set_Foliage_Sway_Scale (float scale);
+		static float	Get_Foliage_Sway_Scale (void);
+		static void		Set_Particle_Wind_Scale (float scale);
+		static float	Get_Particle_Wind_Scale (void);
+		static void		Set_Cloud_Wind_Scale (float scale);
+		static float	Get_Cloud_Wind_Scale (void);
+
+		/*
+		**	Wetness.  Roadmap Section 52A, Phase 59.
+		**
+		**	One scalar, 0 dry to 1 soaked, rising while precipitation falls and drying over
+		**	about a minute after it stops.  It is not replicated as its own value and does not
+		**	need to be: the rain density it integrates *is* replicated (Export_Rare), and both
+		**	ends run the same integrator over the same input, so they agree without a byte.
+		**
+		**	Section 36 owns the falling particles; this is the world's response to them, and
+		**	the two are deliberately separate -- turning the rain off does not instantly dry
+		**	the ground, which is the entire point.
+		**
+		**	Shelter: a surface that cannot see the sky does not get wet.  Callers that know
+		**	their own sky view (the terrain solve does; BackgroundMgrClass::Compute_Sky_View
+		**	answers for the camera) ask for the sheltered value instead of the open one.
+		*/
+		static float	Get_Wetness (void);
+		static float	Get_Sheltered_Wetness (float sky_view);
+		static void		Set_Wetness (float wetness);
+
+		static void		Set_Wetness_Response_Scale (float scale);
+		static float	Get_Wetness_Response_Scale (void);
+
+		//	The pure integrator, exposed because it is the part a device-less check can prove.
+		static float	Integrate_Wetness (float current, float precipitation_density, float dt);
 		static void Restore_Wind (float ramptime);
 
 		static bool Set_Precipitation (PrecipitationEnum precipitation, float density, float ramptime = 0.0f);
@@ -337,6 +379,10 @@ class	WeatherMgrClass : public SaveLoadSubSystemClass, public NetworkObjectClass
 
 		static WindClass				  *_Wind;
 		static WeatherSystemClass	  *_Precipitation [PRECIPITATION_COUNT];
+		static float						_Wetness;
+		static float						_WetnessResponseScale;
+		static float						_ParticleWindScale;
+		static float						_CloudWindScale;
 		static bool							_FogEnabled;
 		static bool							_Dirty;
 };

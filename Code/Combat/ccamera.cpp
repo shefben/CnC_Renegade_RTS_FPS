@@ -855,7 +855,15 @@ void CCameraClass::Update()
 		LastHeading	= Heading;
 	}
 
-	Set_View_Plane( profile.FOV );	// Apply Zoom
+	//	Roadmap Section 52A, Phase 62.  The per-shot field-of-view kick, added on top of
+	//	whatever the profile (and the sniper zoom) already decided.  Cosmetic only: this runs
+	//	after aiming, the server owns hit registration, and a zero response scale makes the
+	//	term exactly zero, so current behaviour is the default.
+	float fov_kick = 0.0f;
+	if (PhysicsSceneClass::Get_Instance() != nullptr) {
+		fov_kick = PhysicsSceneClass::Get_Instance()->Get_Weapon_FOV_Kick();
+	}
+	Set_View_Plane( profile.FOV + fov_kick );	// Apply Zoom
 
 
 	// Calculate the Camera Transform
