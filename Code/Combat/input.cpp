@@ -629,6 +629,7 @@ public:
 float	Input::Sliders[ NUM_SLIDERS ];
 bool	Input::ConsoleMode = false;
 bool	Input::MenuMode = false;
+bool	Input::CommanderUIMode = false;
 int	Input::Queue[ Input::QUEUE_MAX ];
 int	Input::QueueHead;
 int	Input::QueueTail;
@@ -676,8 +677,9 @@ int	_StatsMenu;
 */
 void	Input::Init(bool use_dinput)
 {
-	ConsoleMode	= false;
-	MenuMode		= false;
+	ConsoleMode			= false;
+	MenuMode				= false;
+	CommanderUIMode	= false;
 	if (use_dinput) {
 		DirectInput::Init();
 	}
@@ -692,6 +694,69 @@ void	Input::Init(bool use_dinput)
 
 	return ;
 }
+
+/*
+**	Commander UI mode -- roadmap Section 41/42.  See the comment on the declaration in input.h
+**	for why this is not simply Menu_Enable.
+**
+**	The held mouse buttons are eaten on both edges, the same thing Exit_Menu_Mode already does
+**	(Code/Commando/renegadedialogmgr.cpp).  Without it the click that opens the panel is still
+**	held the frame after it opens, so the first thing the panel would see is a press it never
+**	received; and the click that dismisses the panel would arrive at the weapon as a fresh
+**	trigger pull the instant the gate came down.
+*/
+void	Input::Commander_UI_Enable( bool onoff )
+{
+	if ( CommanderUIMode == onoff ) {
+		return;
+	}
+
+	CommanderUIMode = onoff;
+
+	if ( UsingDirectInput ) {
+		DirectInput::Eat_Mouse_Held_States();
+	}
+
+	//	Anything already held when the gate changes is stale by definition: the suppressed
+	//	functions must not stay latched at their last value while the panel is up, and the
+	//	unsuppressed ones must not resume mid-press when it closes.
+	::memset( FunctionValue, 0, sizeof( FunctionValue ) );
+
+	return ;
+}
+
+
+/*
+**	The allow-list.  Everything not named here reads zero while the Commander panel is up.
+**
+**	What is on it is exactly "a player's way back out, plus the things that are already
+**	deliberately usable with a menu on screen": the console, the in-game menu, chat, the EVA
+**	screens, a screenshot, and the emergency exit.  None of them aims, moves, fires or changes
+**	what the soldier is holding, so none of them can act on the world underneath the cursor.
+*/
+bool	Input::Is_Allowed_During_Commander_UI( InputFunction function )
+{
+	switch ( function ) {
+
+		case INPUT_FUNCTION_BEGIN_CONSOLE:
+		case INPUT_FUNCTION_BEGIN_PUBLIC_MESSAGE:
+		case INPUT_FUNCTION_BEGIN_TEAM_MESSAGE:
+		case INPUT_FUNCTION_BEGIN_PRIVATE_MESSAGE:
+		case INPUT_FUNCTION_MENU_TOGGLE:
+		case INPUT_FUNCTION_HELP_SCREEN:
+		case INPUT_FUNCTION_VERBOSE_HELP:
+		case INPUT_FUNCTION_EVA_OBJECTIVES_SCREEN:
+		case INPUT_FUNCTION_EVA_MAP_SCREEN:
+		case INPUT_FUNCTION_EVA_MISSION_OBJECTIVES_TOGGLE:
+		case INPUT_FUNCTION_MAKE_SCREEN_SHOT:
+		case INPUT_FUNCTION_QUICK_FULL_EXIT:
+			return true;
+
+		default:
+			return false;
+	}
+}
+
 
 void	Input::Shutdown( void )
 {

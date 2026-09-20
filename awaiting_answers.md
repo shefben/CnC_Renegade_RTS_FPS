@@ -128,6 +128,19 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  `docs/zerohour/WorldStructureProgram.md` has been run against a real level either: no graph has
  been built over real terrain and no escarpment exists in any level to look at.
 
+ **Update, a sixth pass.** The Commander pointer (`completed_features.md`, "P35/P36/P37-E") adds no
+ new ctest family -- every part of it needs a cursor, a camera and a physics scene, none of which
+ `-shaderselfcheck` has -- so it is entirely manual, and it also finally makes several older
+ Commander items checkable in one sitting rather than by typing console commands. One run covers
+ all of it: `commander_mode 1`, then confirm the arrow appears and the soldier neither turns nor
+ fires while it is up; click the four mode tabs and the page arrows; click a unit card at a bound
+ facility and confirm a unit is queued; click a building card, move the pointer over legal and
+ illegal ground and confirm the ghost follows the cursor and its red/green verdict tracks what is
+ underneath; left click to place and right click to cancel; open and close the in-game menu while
+ still in Commander Mode and confirm the pointer survives it; `commander_mode 0` and confirm FPS
+ controls come back exactly as they were. That single pass is also the live-scene exercise
+ `Pick_At_Cursor` and the placement world-query branches (overlap/slope/bounds/exit clearance) have
+ never had -- see this file's P35/P36/P37 entries in `WIP_features.md`.
 - **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`
  "through the existing vcpkg/CMake dependency system." This machine has no `VCPKG_ROOT` and no
  vcpkg installation at all, and the `build/win32` tree `b.bat` actually builds has no vcpkg

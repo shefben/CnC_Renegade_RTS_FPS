@@ -277,6 +277,24 @@ public:
 	// Menu Mode
 	static	void	Menu_Enable( bool onoff )	{ MenuMode = onoff; }
 
+	/*
+	**	Commander UI mode -- roadmap Section 41/42.  The strategic panel needs the mouse to be a
+	**	pointer rather than a look axis, but it is not a dialog: the world keeps rendering behind
+	**	it and the player stays embodied, so MenuMode is the wrong switch.  MenuMode suppresses
+	**	*every* function including BEGIN_CONSOLE and MENU_TOGGLE, which in a dialog is safe
+	**	because the dialog itself owns a way out -- Commander Mode has no such widget yet, and a
+	**	player who could neither reach the console nor the menu would be stuck until they died.
+	**
+	**	So this is a narrower gate over the same FunctionValue table: everything that aims, moves,
+	**	fires or switches a weapon reads zero while the panel is up, and the handful of system
+	**	functions that are a player's way out of it keep working.  Is_Allowed_During_Commander_UI
+	**	is an allow-list rather than a deny-list on purpose -- a gameplay function added later and
+	**	forgotten about must default to suppressed, not to firing the weapon under the cursor.
+	*/
+	static	void	Commander_UI_Enable( bool onoff );
+	static	bool	Is_Commander_UI_Enabled( void )	{ return CommanderUIMode; }
+	static	bool	Is_Allowed_During_Commander_UI( InputFunction function );
+
 	// Console Mode
 	static	void	Console_Enable()	{ ConsoleMode = true; Flush_Queue(); }
 	static	void	Console_Disable()	{ ConsoleMode = false; }
@@ -287,7 +305,12 @@ public:
 
 	// Get States
 	static	float	Get_Amount( InputFunction function );
-	static	bool	Get_State( InputFunction function )		{ return (MenuMode || ConsoleMode) ? false : Peek_State (function); }
+	static	bool	Get_State( InputFunction function )
+		{
+			if ( MenuMode || ConsoleMode ) return false;
+			if ( CommanderUIMode && !Is_Allowed_During_Commander_UI (function) ) return false;
+			return Peek_State (function);
+		}
 	static	bool	Peek_State( InputFunction function )	{ return (FunctionValue[ function ] > 0.5f); }
 
 	// Direct access
@@ -368,6 +391,7 @@ private:
 
 	static	bool	ConsoleMode;
 	static	bool	MenuMode;
+	static	bool	CommanderUIMode;
 	static	int	Queue[ QUEUE_MAX ];
 	static	int	QueueHead;
 	static	int	QueueTail;
@@ -404,7 +428,9 @@ private:
 inline float Input::Get_Amount( InputFunction function )
 {
 	WWASSERT(WWMath::Is_Valid_Float(FunctionValue[ function ]));
-	return ((MenuMode || ConsoleMode) ? 0 : FunctionValue[ function ]);
+	if ( MenuMode || ConsoleMode ) return 0;
+	if ( CommanderUIMode && !Is_Allowed_During_Commander_UI (function) ) return 0;
+	return FunctionValue[ function ];
 }
 
 #endif

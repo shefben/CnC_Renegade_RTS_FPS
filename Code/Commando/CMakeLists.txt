@@ -400,6 +400,8 @@ set(COMMANDO_SRC
     commanderproductionevent.h
     commanderorderevent.cpp
     commanderorderevent.h
+    commanderuiinput.cpp
+    commanderuiinput.h
     purchaseresponseevent.cpp
     purchaseresponseevent.h
     requestkillevent.cpp

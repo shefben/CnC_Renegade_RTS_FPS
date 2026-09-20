@@ -59,6 +59,29 @@ static Render2DSentenceClass *	_Text					= nullptr;
 
 
 /*
+**	The clickable boxes, recorded by Rebuild as it draws them -- roadmap Section 42.
+**
+**	`_HitValid` is what makes a stale record harmless: it is cleared at the top of every Rebuild
+**	and only set once the whole panel has been laid out, so a Hit_Test that lands between a close
+**	and the next rebuild reports nothing rather than reporting the boxes of a panel that is no
+**	longer on screen.
+*/
+static bool			_HitValid				= false;
+static RectClass	_HitPanel;
+static RectClass	_HitTabs  [SIDEBAR_MODE_COUNT];
+static RectClass	_HitCells [CommanderSidebarModel::PAGE_SIZE];
+static int			_HitCellCards [CommanderSidebarModel::PAGE_SIZE] = { 0 };	// 1 when the slot holds a card
+static RectClass	_HitPagePrev;
+static RectClass	_HitPageNext;
+
+
+static bool	Rect_Contains(const RectClass & rect,float x,float y)
+{
+	return (x >= rect.Left) && (x <= rect.Right) && (y >= rect.Top) && (y <= rect.Bottom);
+}
+
+
+/*
 **	The C&C sidebar palette.  Grey stamped metal, amber readouts, and a power bar that is the
 **	only saturated colour on the strip -- which is what makes an overload impossible to miss
 **	without anything having to flash.
@@ -426,6 +449,10 @@ void CommanderSidebarRenderer::Update(void)
 		if (_Icons [i] != nullptr) _Icons [i]->Reset ();
 	}
 
+	//	Any box recorded by the previous rebuild is stale from here on, whether or not this one
+	//	produces new ones.  Cleared before the early-out so a closed panel hit-tests as nothing.
+	_HitValid = false;
+
 	//	Section 42: "The sidebar exists in Commander Mode only."  Closed means no geometry at all,
 	//	so the ordinary FPS HUD is untouched -- not a hidden panel that still costs draws.
 	if (!CommanderSidebarModel::Is_Open ()) return;
@@ -443,6 +470,8 @@ void CommanderSidebarRenderer::Update(void)
 
 	RectClass panel (screen.Right - panel_width,screen.Top,screen.Right,screen.Bottom);
 	Add_Bevel (_Panel,panel,COLOR_METAL,true,3.0f);
+
+	_HitPanel = panel;
 
 	//	The power column owns the left edge of the strip; everything else lives to the right of
 	//	it.  That is the original's arrangement and it is why the bar is always in the same place
@@ -469,6 +498,8 @@ void CommanderSidebarRenderer::Update(void)
 
 			bool active = ((int)mode == m);
 			Add_Bevel (_Panel,tab,active ? COLOR_TAB_ON : COLOR_TAB_OFF,!active,2.0f);
+
+			_HitTabs [m] = tab;
 
 			//	The mode's own name, abbreviated to what fits a quarter of the strip.
 			const char * name = CommanderSidebarModel::Get_Mode_Name ((CommanderSidebarModeType)m);
@@ -536,6 +567,11 @@ void CommanderSidebarRenderer::Update(void)
 							 grid_top    + (cell_height * (float)(row + 1))  - 2.0f);
 
 		const CommanderSidebarCard * card = (slot < visible) ? cards [slot] : nullptr;
+
+		//	Recorded for every slot, filled or not.  An empty slot is still part of the strip and
+		//	must swallow a click rather than letting it fall through to the world behind it.
+		_HitCells [slot]		= cell;
+		_HitCellCards [slot]	= (card != nullptr) ? 1 : 0;
 
 		if (card == nullptr) {
 			//	An empty slot is drawn as an empty slot.  A half-full page must still read as a
@@ -634,6 +670,10 @@ void CommanderSidebarRenderer::Update(void)
 
 		Add_Bevel (_Panel,up,COLOR_TAB_OFF,true,2.0f);
 		Add_Bevel (_Panel,down,COLOR_TAB_OFF,true,2.0f);
+
+		//	"<" pages back and ">" pages forward, matching the glyphs drawn on them below.
+		_HitPagePrev	= up;
+		_HitPageNext	= down;
 		StyleMgrClass::Render_Text (U_CHAR ("<"),_Text,COLOR_AMBER,COLOR_SHADOW,up,true,true,
 											 StyleMgrClass::CENTER_JUSTIFY,true);
 		StyleMgrClass::Render_Text (U_CHAR (">"),_Text,COLOR_AMBER,COLOR_SHADOW,down,true,true,
@@ -687,6 +727,67 @@ void CommanderSidebarRenderer::Update(void)
 			Draw_Power_Column (_Panel,_Text,strip);
 		}
 	}
+
+	//	Set only now that every box above has been written.  See _HitValid's declaration.
+	_HitValid = true;
+}
+
+
+/***********************************************************************************************
+ * CommanderSidebarRenderer::Hit_Test -- which control, if any, is under a screen point          *
+ *                                                                                             *
+ *	Tested most-specific first: the controls, then the strip itself.  Falling back to            *
+ *	SIDEBAR_HIT_PANEL rather than SIDEBAR_HIT_NONE for a point inside the strip but on no         *
+ *	control is deliberate -- the caller uses it to swallow the click, so clicking the panel's     *
+ *	bezel or its power readout cannot also order a unit to walk to whatever happens to be         *
+ *	behind the strip in the world.                                                                *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+CommanderSidebarHitType	CommanderSidebarRenderer::Hit_Test(float x,float y,int * out_index)
+{
+	if (out_index != nullptr) {
+		*out_index = -1;
+	}
+
+	if (!_Available || !_HitValid) return SIDEBAR_HIT_NONE;
+	if (!CommanderSidebarModel::Is_Open ()) return SIDEBAR_HIT_NONE;
+
+	if (!Rect_Contains (_HitPanel,x,y)) return SIDEBAR_HIT_NONE;
+
+	for (int m = 0; m < SIDEBAR_MODE_COUNT; m++) {
+		if (Rect_Contains (_HitTabs [m],x,y)) {
+			if (out_index != nullptr) *out_index = m;
+			return SIDEBAR_HIT_MODE_TAB;
+		}
+	}
+
+	for (int slot = 0; slot < CommanderSidebarModel::PAGE_SIZE; slot++) {
+		if (Rect_Contains (_HitCells [slot],x,y)) {
+			//	An empty slot is a box on the strip, not a card.  Reporting it as SIDEBAR_HIT_PANEL
+			//	means the click is still swallowed while the caller never sees a slot index that
+			//	Get_Visible_Cards would hand back a null for.
+			if (_HitCellCards [slot] == 0) return SIDEBAR_HIT_PANEL;
+			if (out_index != nullptr) *out_index = slot;
+			return SIDEBAR_HIT_CARD;
+		}
+	}
+
+	if (Rect_Contains (_HitPagePrev,x,y)) return SIDEBAR_HIT_PAGE_PREV;
+	if (Rect_Contains (_HitPageNext,x,y)) return SIDEBAR_HIT_PAGE_NEXT;
+
+	return SIDEBAR_HIT_PANEL;
+}
+
+
+const CommanderSidebarCard *	CommanderSidebarRenderer::Get_Card_At(float x,float y)
+{
+	int slot = -1;
+	if (Hit_Test (x,y,&slot) != SIDEBAR_HIT_CARD) return nullptr;
+
+	const CommanderSidebarCard * cards [CommanderSidebarModel::PAGE_SIZE] = { nullptr };
+	int visible = CommanderSidebarModel::Get_Visible_Cards (cards,CommanderSidebarModel::PAGE_SIZE);
+
+	if ((slot < 0) || (slot >= visible)) return nullptr;
+	return cards [slot];
 }
 
 

@@ -103,6 +103,7 @@
 #include "AnnounceEvent.h"
 #include "FastAllocator.h"
 #include "dlgcncserverinfo.h"
+#include "commanderuiinput.h"
 #include "radiocommanddisplay.h"
 #include "hudinfo.h"
 #include "string_ids.h"
@@ -376,6 +377,13 @@ void	CombatGameModeClass::Init()
 	//
 	RadioCommandDisplayClass::Initialize ();
 
+	/*
+	**	Roadmap Sections 41-43.  The Commander pointer, which owns the cursor and the FPS input
+	**	gate while the strategic panel is up.  A dedicated server has neither, so it comes up
+	**	unavailable there for the same reason `CommanderSidebarRenderer` does.
+	*/
+	CommanderUIInput::Init ( !cNetwork::I_Am_Only_Server () );
+
 	//
 	// Notify combat about the state of the CameraLockedToTurret user option.
 	//
@@ -404,6 +412,9 @@ void 	CombatGameModeClass::Shutdown()
 	//	Shutdown the radio command display window
 	//
 	RadioCommandDisplayClass::Shutdown ();
+
+	//	Gives the cursor and the FPS input gate back, whatever state Commander Mode was in.
+	CommanderUIInput::Shutdown ();
 
 	//
 	//	The mode is going away, so its assets go with it, along with everything
@@ -1295,6 +1306,15 @@ void 	CombatGameModeClass::Think()
 	if ( !Is_Active() ) {
 		return;
 	}
+
+	/*
+	**	Roadmap Sections 41-43.  Before any of the input below is read: this is what decides
+	**	whether the mouse is a look axis or a pointer this frame, and `Combat_Keyboard` and
+	**	`Generate_Control` both consume `Input::Get_Amount`/`Get_State`, which that gate changes.
+	**	Setting it afterwards would leave one frame of mouselook and weapon fire under a cursor
+	**	the player was using to click a card with.
+	*/
+	CommanderUIInput::Update();
 
 	Combat_Keyboard();
 

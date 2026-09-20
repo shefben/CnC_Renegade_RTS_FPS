@@ -30,6 +30,28 @@
 
 #include "always.h"
 
+#include "commandersidebar.h"
+
+
+/*
+**	What the pointer is over -- roadmap Section 42's "click a card" half.
+**
+**	The hit-test lives here rather than in a new input file because this is the only code in the
+**	tree that knows where any of the panel's boxes are: every rectangle is derived from the live
+**	screen resolution inside Rebuild, so a second implementation of the layout would silently
+**	drift out of alignment with the drawn one the first time either was touched.  Rebuild simply
+**	records the boxes it has just drawn, and Hit_Test reads that record back.
+*/
+enum CommanderSidebarHitType
+{
+	SIDEBAR_HIT_NONE = 0,
+	SIDEBAR_HIT_PANEL,			// inside the strip, but not on a control -- swallows the click
+	SIDEBAR_HIT_MODE_TAB,		// index is a CommanderSidebarModeType
+	SIDEBAR_HIT_CARD,				// index is a slot 0..PAGE_SIZE-1 on the current page
+	SIDEBAR_HIT_PAGE_PREV,
+	SIDEBAR_HIT_PAGE_NEXT,
+};
+
 
 class CommanderSidebarRenderer
 {
@@ -53,6 +75,20 @@ class CommanderSidebarRenderer
 
 		static int		Get_Rebuild_Count(void);
 		static int		Get_Missing_Icon_Count(void);
+
+		/*
+		**	Screen point to control.  Returns SIDEBAR_HIT_NONE whenever the panel is closed, the
+		**	renderer is unavailable (dedicated server, device-less self check) or the point is
+		**	outside the strip entirely, which is what lets the caller pass an ordinary world click
+		**	straight through without knowing anything about the layout.
+		**
+		**	`out_index` is only written for the hit types that carry one.
+		*/
+		static CommanderSidebarHitType	Hit_Test(float x,float y,int * out_index);
+
+		//	The card the last Hit_Test found, or nullptr.  Saves the caller re-deriving the page
+		//	window from a slot index and getting a different answer than the panel drew.
+		static const CommanderSidebarCard *	Get_Card_At(float x,float y);
 };
 
 #endif // COMMANDERSIDEBARRENDERER_H

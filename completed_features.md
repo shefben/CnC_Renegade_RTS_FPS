@@ -2182,3 +2182,22 @@ whose only missing piece was exactly this caller. `Code/Combat/building.h/.cpp`,
 query) so Section 3A.4/3A.6's human-yield rule is live rather than theoretical, and damage
 routed to it from the same population observer that already watches every Commander-produced
 unit. `Code/Combat/commanderguardai.h/.cpp`.
+
+## P35/P36/P37-E: the Commander pointer -- cursor, input gate, card clicks and cursor-aimed placement
+
+Commander Mode now shows the mouse and acts on it: `CommanderUIInput`
+(`Code/Commando/commanderuiinput.h/.cpp`, ticked first in `CombatGameModeClass::Think`) owns the
+cursor via `MouseMgrClass::Show_Cursor` and a new narrow `Input::Commander_UI_Enable` gate that
+suppresses every FPS function except an allow-list of ways out (console, menu, chat, EVA,
+screenshot, quick exit) -- deliberately not `Menu_Enable`, which would also take the console away
+from a mode with no exit widget. `CommanderSidebarRenderer::Hit_Test`/`Get_Card_At` report which
+box a screen point is in from the rects `Rebuild` records as it draws them, so there is only one
+layout. Left click switches mode tab, pages, picks a card (building card arms a ghost, unit card
+sends `cCommanderProductionEvent`) or commits an armed ghost; right click cancels; clicks on the
+strip are swallowed. `CommanderModeController::Pick_At_Cursor` finally has a caller --
+`CameraClass::Device_To_World_Space` builds the ray -- so the ghost follows the pointer and places
+where it is aimed, closing Section 43's aiming gap. The model is also refreshed every frame the
+panel is open, which nothing but the console command used to do. `Code/Combat/input.h/.cpp`,
+`Code/Combat/commandersidebarrenderer.h/.cpp`, `Code/Commando/commanderuiinput.h/.cpp`,
+`Code/Commando/combatgmode.cpp`. Both targets build clean; behaviour on screen is manual-only
+(see Q-012).

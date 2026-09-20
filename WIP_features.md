@@ -509,43 +509,45 @@ see **Q-014** in `awaiting_answers.md`. Next exact action: none until Q-014 is a
 the clamp to `PlayerDataClass::Increment_Money` reading `TeamPowerGridService::
 Get_Wallet_Capacity_Bonus`.
 
-## P35 -- the camera state machine is proven, nothing enters it but the console command
+## P35 -- input rerouting is done; the way *in* is still a console command
 
-`CommanderModeController` (P35-A, `docs/zerohour/CommanderModeController.md`) has no production
-call site -- only the `commander_mode` console command reaches `Enter_Commander_Mode`. Input
-rerouting, Commander overlays/sidebar, and `commander_station_anchor` support are all later
-phases and untouched. `Pick_At_Cursor` is untested even device-less, deliberately, since it
-reaches `WorldSpatialIndex::Query_Ray` and this pass did not verify that call is safe with no
-physics scene under it. Next exact action is a manual one for the user: `commander_mode 1` in
-game, confirm the camera detaches from the soldier and pan/zoom/tilt work, `commander_mode 0`
-returns control to the same soldier, and that dying while in Commander Mode exits it
-automatically.
+`CommanderModeController` (P35-A, `docs/zerohour/CommanderModeController.md`) is entered only by
+the `commander_mode` console command: there is still no keybind, which needs a new
+`INPUT_FUNCTION_*` plus its defaults and controls-screen row, and `commander_station_anchor`
+support is untouched. The input rerouting this entry used to carry is closed
+(`completed_features.md`, "P35/P36/P37-E"): `CommanderUIInput` shows the cursor and gates FPS input
+while `Is_Active()`, and `Pick_At_Cursor` now has a real caller. Next exact action: add a bindable
+Commander Mode toggle function, or leave entry on the console and confirm the rest in game
+(`commander_mode 1`/`0`, camera detaches and returns, dying exits) -- that half is manual, see
+Q-012.
 
 ---
 
-## P36 -- the panel draws; it has no input of its own
+## P36 -- the panel is clickable; the per-building power widget still is not
 
-`CommanderSidebarModel` (P36-A) and `CommanderSidebarRenderer` (P36-B) are both live: the panel
-appears on Commander entry in the C&C sidebar style, shows two rows of four with cost, name, power
-effect and disabled reason, pages, and drives both power bars from replicated server state
-(`docs/zerohour/CommanderSidebar.md`). What is left is input: every verb -- switch mode, page, pick
-a card -- is a console command, because mouse/key routing in Commander Mode is P35's untouched
-input-rerouting gap. Section 42's per-building power-control surface (manual on/off and priority
-override on a selected building) also has no widget, though all four service calls behind it exist.
-Absorbs the backlog's P36 acceptance line in full. Next exact action: reroute mouse and keys while
-`CommanderModeController::Is_Active()`, and hit-test the card rects the renderer already computes.
+`CommanderSidebarModel` (P36-A), `CommanderSidebarRenderer` (P36-B) and now the pointer
+(`completed_features.md`, "P35/P36/P37-E") close Section 42's main surface: mode tabs, paging and
+cards all respond to the mouse through `Hit_Test`, and the model is refreshed every frame so a
+clicked tab or a spent credit shows immediately (`docs/zerohour/CommanderSidebar.md`). What is left
+is Section 42's per-building power control -- manual on/off and priority override on a *selected*
+building -- which has no widget and, more to the point, no building-selection input to hang one on;
+all four service calls behind it exist. Absorbs the backlog's P36 acceptance line in full. Next
+exact action: add click-to-select on a building in Commander Mode (the same `Pick_At_Cursor` ray
+the ghost already uses, resolving to a `BuildingGameObj` instead of a ground point), then a small
+power panel bound to that selection.
 
-## P37 -- ghost and server agree and both are drawn; there is no cursor
+## P37 -- aiming is closed; nothing here has been seen on screen
 
 `CommanderPlacementValidator` (P37-A), `CommanderGhostRenderer` and `cCommanderPlacementEvent`
-(P37-B, P40-B) close the acceptance end to end *except* for aiming: the real model follows the
-requested transform, turns red exactly when the server would refuse, and the server independently
-re-runs the same function. The placement position comes from a console argument or the player's
-feet, not from a cursor ray -- `CommanderModeController::Pick_At_Cursor` exists and is deliberately
-untested (it reaches `WorldSpatialIndex::Query_Ray`, unverified with no physics scene under it).
-The world-query branches (overlap/slope/bounds/exit clearance) remain unexercised device-less.
-Absorbs the backlog's P37 acceptance line. Next exact action: verify `Pick_At_Cursor` against a
-live scene, then feed it into `Move_Ghost`.
+(P37-B, P40-B) close the acceptance end to end, aiming included as of `completed_features.md`'s
+"P35/P36/P37-E": a building card arms a ghost, the ghost follows the pointer via `Pick_At_Cursor`
+fed by `CameraClass::Device_To_World_Space`, a left click commits it and a right click cancels.
+What remains is not code -- `Pick_At_Cursor` and the world-query branches (overlap/slope/bounds/
+exit clearance) are still unexercised, because they need a real physics scene and
+`-shaderselfcheck` has none. Absorbs the backlog's P37 acceptance line. Next exact action is a
+manual one for the user, folded into Q-012: enter Commander Mode, click a building card, move the
+ghost over legal and illegal ground, and confirm the red/green verdict tracks the pointer and that
+a click places where the ghost was drawn.
 
 ## P38 -- blocks build and replicate; no building exists at the end, and why is now a real question
 
@@ -578,9 +580,10 @@ this tree ever calls; `ExitClear` runs a real spatial query before a slot is eve
 closing P30). One honest limit remains: `ORDER_PATROL` degrades to a single-point Goto, because the
 wire format this event carries has one point, not a waypath -- a real back-and-forth patrol needs a
 second point nothing here has, and that is a protocol change, not a missing caller. Drag-box
-selection and control groups still wait on the same input work as P36. Absorbs the backlog's P39
-acceptance line. Next exact action: none on production/orders/population/exit/guard; selection
-waits on P35/36's input rerouting, and patrol waits on a wire-format decision nobody has asked for.
+selection and control groups are still unwritten. Absorbs the backlog's P39 acceptance line. Next
+exact action: none on production/orders/population/exit/guard; patrol waits on a wire-format
+decision nobody has asked for, and drag-box selection now waits only on itself -- P35/36's input
+rerouting, which it used to sit behind, is done.
 
 ## P40 -- replication is live; the save-file round trip is still unverified
 
