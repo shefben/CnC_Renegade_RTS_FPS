@@ -96,6 +96,8 @@
 #include "WeatherMgr.h"
 #include "thread.h"
 #include "savegame.h"
+#include "buildingdescriptormanager.h"
+#include "projectbuildingdefs.h"
 #include "assetdep.h"
 #include "saveloadstatus.h"
 #include <stdio.h>
@@ -664,6 +666,29 @@ public:
 		INIT_STATUS("Load definition databases");
 		SaveGameManager::Load_Definitions();
 		WWLOG_INTERMEDIATE("Load definitions");
+
+		//
+		//	Q-017.  Free_Definitions just above wiped every game object definition, including
+		//	the two project-owned building presets (Tiberium Silo, Advanced Communications
+		//	Center) that have no stock Objects.DDB entry -- re-add them every level load, not
+		//	just the first, then re-link every buildable descriptor's game_object_preset back to
+		//	the real definition it names (BuildingGameObjDef::DescriptorName), which is how
+		//	Initialize_Building's TeamPowerGridService::RegisterBuilding call finds the right
+		//	descriptor for a building created from a preset rather than a runtime-descriptor-
+		//	carrying instance.  The descriptor directory itself only needs loading once: unlike
+		//	DefinitionMgrClass, BuildingDescriptorManager's registry is not touched by
+		//	Free_Definitions.
+		//
+		{
+			static bool descriptors_loaded = false;
+			if (!descriptors_loaded) {
+				descriptors_loaded = true;
+				BuildingDescriptorManager::Init ();
+				BuildingDescriptorManager::Load_Directory ("data/building_descriptors",nullptr,nullptr);
+			}
+		}
+		ProjectBuildingDefs::Register ();
+		BuildingDescriptorManager::Resolve_Game_Object_Presets (nullptr);
 
 		CombatManager::Inc_Load_Progress();
 		//

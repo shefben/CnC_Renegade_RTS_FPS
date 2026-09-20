@@ -1,0 +1,41 @@
+{
+ "damage_visual": {
+  "intact_model": "ow_nod_silo.w3d",
+  "damaged_model": "ow_nod_silo_d.w3d",
+  "destroyed_model": "ow_nod_silo_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+  "model_name": "ow_nod_silo.w3d",
+  "game_object_preset": "ow_nod_tiberium_silo",
+  "schema_version": 1,
+  "footprint": { "width": 10.0, "depth": 10.0 },
+  "power": {
+    "requires_power": true,
+    "generation": 0.0,
+    "consumption": 20.0,
+    "priority": 40
+  },
+  "build": {
+    "buildable": true,
+    "cost": 1000,
+    "tech_level": 1,
+    "team": 0,
+    "display_name": "Tiberium Silo"
+  },
+  "capabilities": {
+    "tiberium_silo": {
+      "enabled": true,
+      "wallet_capacity_bonus_per_player": 5000.0,
+      "requires_building_online": true
+    }
+  },
+  "construction_visual": {
+    "duration_seconds": 8.0,
+    "block_width": 1.5,
+    "block_depth": 1.5,
+    "row_height": 1.0,
+    "source_reveal_start": 0.75,
+    "block_fade_start": 0.9,
+    "max_blocks": 512
+  }
+}

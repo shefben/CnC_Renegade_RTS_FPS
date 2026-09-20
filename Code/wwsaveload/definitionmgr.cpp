@@ -53,6 +53,10 @@
 //////////////////////////////////////////////////////////////////////////////////
 DefinitionMgrClass	_TheDefinitionMgr;
 
+bool						DefinitionMgrClass::Verbose_Load_Diagnostics = false;
+uint32					DefinitionMgrClass::Load_Chunk_Range_Begin = 0;
+uint32					DefinitionMgrClass::Load_Chunk_Range_End = 0;
+
 //////////////////////////////////////////////////////////////////////////////////
 //	Constants
 //////////////////////////////////////////////////////////////////////////////////
@@ -797,10 +801,28 @@ DefinitionMgrClass::Load_Objects (ChunkLoadClass &cload)
 		//
 		//	Load this definition from the chunk (if possible)
 		//
-		PersistFactoryClass *factory = SaveLoadSystemClass::Find_Persist_Factory (cload.Cur_Chunk_ID ());
+		uint32 chunk_id = cload.Cur_Chunk_ID ();
+		bool out_of_range = (Load_Chunk_Range_End != 0) &&
+									((chunk_id < Load_Chunk_Range_Begin) || (chunk_id >= Load_Chunk_Range_End));
+
+		PersistFactoryClass *factory = out_of_range ? nullptr : SaveLoadSystemClass::Find_Persist_Factory (chunk_id);
 		if (factory != nullptr) {
 
+			if (Verbose_Load_Diagnostics) {
+				WWDEBUG_SAY (("DefinitionMgrClass::Load_Objects: definition #%d, chunk 0x%08X\n",
+								  _DefinitionCount,cload.Cur_Chunk_ID ()));
+			}
+
 			DefinitionClass *definition = (DefinitionClass *)factory->Load (cload);
+
+			if (Verbose_Load_Diagnostics) {
+				if (definition != nullptr) {
+					WWDEBUG_SAY (("  -> '%s' (class 0x%08X)\n",definition->Get_Name (),definition->Get_Class_ID ()));
+				} else {
+					WWDEBUG_SAY (("  -> factory->Load returned nullptr\n"));
+				}
+			}
+
 			if (definition != nullptr) {
 
 				//

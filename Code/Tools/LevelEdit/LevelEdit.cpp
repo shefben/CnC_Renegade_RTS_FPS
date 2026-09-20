@@ -50,6 +50,7 @@
 #include "colorutils.h"
 #include "assetpackagemgr.h"
 #include "editorbuild.h"
+#include "BuildingDefinitionDump.h"
 
 
 #ifdef _DEBUG
@@ -193,6 +194,18 @@ CLevelEditApp::InitInstance (void)
 	WWPhys::Init ();
 	WWSaveLoad::Init ();
 	TranslateDBClass::Initialize ();
+
+	//
+	//	Q-017 -- "leveledit.exe -dumpbuildingdefs=<out> -datadir=<installed Data dir>" mounts the
+	//	installed game's Always.dat, loads Objects.DDB, writes every CLASSID_BUILDINGS definition
+	//	and its parameters to <out>, then terminates.  Run from here, before window/WW3D creation,
+	//	deliberately: this environment cannot open a real window (no display), and this dump does
+	//	not need one -- it only needs the file factory and the persist/definition subsystems,
+	//	both already up by this line.
+	//
+	if (BuildingDefinitionDumpClass::Maybe_Run_From_Command_Line (m_lpCmdLine)) {
+		return FALSE;
+	}
 
 	// Standard initialization
 	// If you are not using these features and wish to reduce the size

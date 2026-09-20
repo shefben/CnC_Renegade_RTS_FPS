@@ -1,0 +1,47 @@
+{
+ "damage_visual": {
+  "intact_model": "ow_nod_adv_comm_center.w3d",
+  "damaged_model": "ow_nod_adv_comm_center_d.w3d",
+  "destroyed_model": "ow_nod_adv_comm_center_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+  "model_name": "ow_nod_adv_comm_center.w3d",
+  "game_object_preset": "ow_nod_adv_comm_center",
+  "schema_version": 1,
+  "footprint": { "width": 18.0, "depth": 18.0 },
+  "power": {
+    "requires_power": true,
+    "generation": 0.0,
+    "consumption": 150.0,
+    "priority": 65
+  },
+  "build": {
+    "buildable": true,
+    "cost": 1800,
+    "tech_level": 2,
+    "team": 0,
+    "display_name": "Advanced Communications Center"
+  },
+  "capabilities": {
+    "communications": {
+      "enabled": true,
+      "vision_radius": 260.0,
+      "radar_radius": 450.0,
+      "last_known_retention_seconds": 30.0,
+      "requires_building_online": true
+    }
+  },
+  "anchors": {
+    "mct_anchor": "MCT",
+    "purchase_terminal_anchor": "PT01"
+  },
+  "construction_visual": {
+    "duration_seconds": 16.0,
+    "block_width": 2.0,
+    "block_depth": 2.0,
+    "row_height": 1.5,
+    "source_reveal_start": 0.75,
+    "block_fade_start": 0.9,
+    "max_blocks": 1536
+  }
+}

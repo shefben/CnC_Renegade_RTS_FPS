@@ -1,0 +1,34 @@
+{
+"damage_visual": {
+ "intact_model": "ow_nod_power_plant.w3d",
+ "damaged_model": "ow_nod_power_plant_d.w3d",
+ "destroyed_model": "ow_nod_power_plant_x.w3d",
+ "damaged_health_fraction": 0.5
+},
+ "model_name": "ow_nod_power_plant.w3d",
+ "game_object_preset": "mp_Nod_Power_Plant",
+ "schema_version": 1,
+ "footprint": { "width": 20.0, "depth": 20.0 },
+ "power": {
+  "requires_power": false,
+  "generation": 500.0,
+  "consumption": 0.0,
+  "priority": 50
+ },
+ "build": {
+   "buildable": true,
+   "cost": 1000,
+   "tech_level": 1,
+   "team": 0,
+   "display_name": "Power Plant"
+ },
+ "construction_visual": {
+  "duration_seconds": 15.0,
+  "block_width": 2.0,
+  "block_depth": 2.0,
+  "row_height": 1.5,
+  "source_reveal_start": 0.75,
+  "block_fade_start": 0.9,
+  "max_blocks": 2048
+ }
+}

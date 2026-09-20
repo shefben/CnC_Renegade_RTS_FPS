@@ -111,6 +111,28 @@ public:
 
 	static void						Free_Definitions (void);
 
+	/*
+	**	Opt-in, off by default (zero cost when unset beyond one bool check per definition).  When
+	**	set, Load_Objects WWDEBUG_SAY's each definition's chunk id, index and (once constructed)
+	**	name and class id as it loads.  Objects.DDB is the whole game's definition set loaded as
+	**	one undifferentiated stream; a crash partway through it is otherwise invisible as to which
+	**	definition it was on.  A caller wanting the trace also needs a message handler installed
+	**	(WWDebug_Install_Message_Handler) -- this flag only controls whether Load_Objects emits it.
+	*/
+	static bool						Verbose_Load_Diagnostics;
+
+	/*
+	**	Opt-in, off by default (Load_Chunk_Range_End == 0 means unrestricted -- identical to
+	**	today's behavior).  When End is non-zero, Load_Objects skips any definition sub-chunk
+	**	whose id falls outside [Begin, End) without even looking up its persist factory, let
+	**	alone constructing or loading it.  Objects.DDB is the whole game's definition set, and a
+	**	caller that only wants one library's definitions (say, Combat's, at CHUNKID_COMBAT_BEGIN)
+	**	should not have to bring up every other library those other chunks assume is already
+	**	running (WWAudio, WW3D, ...) just to skip past them.
+	*/
+	static uint32					Load_Chunk_Range_Begin;
+	static uint32					Load_Chunk_Range_End;
+
 protected:
 
 	/////////////////////////////////////////////////////////////////////

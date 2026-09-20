@@ -6,6 +6,7 @@ set(LEVELEDIT_SRC
     assetpackagemgr.cpp
     AttenuationSphere.cpp
     Box3D.cpp
+    BuildingDefinitionDump.cpp
     buildingchildnode.cpp
     BuildingNode.cpp
     CameraMgr.cpp
@@ -208,6 +209,7 @@ set(LEVELEDIT_SRC
     assetpackagemgr.h
     AttenuationSphere.h
     Box3D.h
+    BuildingDefinitionDump.h
     buildingchildnode.h
     BuildingNode.h
     CameraMgr.h

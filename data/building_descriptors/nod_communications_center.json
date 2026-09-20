@@ -1,0 +1,47 @@
+{
+ "damage_visual": {
+  "intact_model": "ow_nod_comm_center.w3d",
+  "damaged_model": "ow_nod_comm_center_d.w3d",
+  "destroyed_model": "ow_nod_comm_center_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+  "model_name": "ow_nod_comm_center.w3d",
+  "game_object_preset": "mp_Nod_Com_Center",
+  "schema_version": 1,
+  "footprint": { "width": 15.0, "depth": 15.0 },
+  "power": {
+    "requires_power": true,
+    "generation": 0.0,
+    "consumption": 100.0,
+    "priority": 60
+  },
+  "build": {
+    "buildable": true,
+    "cost": 800,
+    "tech_level": 1,
+    "team": 0,
+    "display_name": "Communications Center"
+  },
+  "capabilities": {
+    "communications": {
+      "enabled": true,
+      "vision_radius": 180.0,
+      "radar_radius": 300.0,
+      "last_known_retention_seconds": 20.0,
+      "requires_building_online": true
+    }
+  },
+  "anchors": {
+    "mct_anchor": "MCT",
+    "purchase_terminal_anchor": "PT01"
+  },
+  "construction_visual": {
+    "duration_seconds": 12.0,
+    "block_width": 2.0,
+    "block_depth": 2.0,
+    "row_height": 1.5,
+    "source_reveal_start": 0.75,
+    "block_fade_start": 0.9,
+    "max_blocks": 1024
+  }
+}

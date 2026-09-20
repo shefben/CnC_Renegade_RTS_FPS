@@ -28,8 +28,13 @@
 
 #include "buildingdescriptormanager.h"
 
+#include "building.h"
+#include "definition.h"
+#include "definitionclassids.h"
+#include "definitionmgr.h"
 #include "rawfile.h"
 #include "win.h"
+#include "wwdebug.h"
 
 #include <cmath>
 
@@ -157,6 +162,26 @@ static bool	Validate_Descriptor(const BuildingModelDescriptor & d,StringClass * 
 	*/
 	if (d.Build.Buildable && (d.GameObjectPreset.Get_Length () == 0)) {
 		FAIL ("build.buildable requires game_object_preset");
+	}
+
+	/*
+	**	Q-017 -- when real building definitions are loaded (the running game, or a tool run
+	**	against real data), a named preset must actually resolve to one, and it must really be
+	**	a building.  Skipped, not failed, when nothing of CLASSID_BUILDINGS is registered at
+	**	all: an editor session or most self-check runs have no Objects.DDB in reach, and cannot
+	**	tell "wrong name" from "nothing to check against" -- the same missing-data rule that
+	**	already governs every other check in this function applies here too.
+	*/
+	if ((d.GameObjectPreset.Get_Length () > 0) &&
+		 (DefinitionMgrClass::Get_First (CLASSID_BUILDINGS,DefinitionMgrClass::ID_SUPERCLASS) != nullptr))
+	{
+		DefinitionClass *preset = DefinitionMgrClass::Find_Named_Definition (d.GameObjectPreset.Peek_Buffer (),true);
+		if (preset == nullptr) {
+			FAIL ("game_object_preset does not resolve to any loaded definition");
+		}
+		if (SuperClassID_From_ClassID (preset->Get_Class_ID ()) != CLASSID_BUILDINGS) {
+			FAIL ("game_object_preset resolves to a definition that is not a building");
+		}
 	}
 
 	//	"incompatible capability/building role" -- the one concrete case Section 39 names that
@@ -711,4 +736,135 @@ int BuildingDescriptorManager::Validate_Directory(const char * directory_path,
 		*checked_out = checked;
 	}
 	return failures;
+}
+
+
+/***********************************************************************************************
+ * Load_Directory -- Q-017's production load path.  Same directory walk as Validate_Directory,  *
+ * Load_Descriptor_From_File instead of Validate_File.                                           *
+ *=============================================================================================*/
+int BuildingDescriptorManager::Load_Directory(const char * directory_path,StringClass * report_out,
+															  int * loaded_out)
+{
+	if (loaded_out != nullptr) {
+		*loaded_out = 0;
+	}
+	if ((directory_path == nullptr) || (directory_path [0] == 0)) {
+		return -1;
+	}
+
+	StringClass base (directory_path,true);
+	int length = base.Get_Length ();
+	if ((length > 0) && (base [length - 1] != '\\') && (base [length - 1] != '/')) {
+		base += "\\";
+	}
+
+	StringClass pattern (base,true);
+	pattern += "*.json";
+
+	WIN32_FIND_DATAA find_data = { 0 };
+	HANDLE handle = ::FindFirstFileA (pattern.Peek_Buffer (),&find_data);
+	if (handle == INVALID_HANDLE_VALUE) {
+		return -1;
+	}
+
+	int failures = 0;
+	int loaded = 0;
+
+	do {
+		if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+			continue;
+		}
+
+		StringClass full_path (base,true);
+		full_path += find_data.cFileName;
+
+		StringClass name ("");
+		Definition_Name_From_Path (full_path.Peek_Buffer (),&name);
+
+		StringClass error ("");
+		bool ok = Load_Descriptor_From_File (name.Peek_Buffer (),full_path.Peek_Buffer (),&error);
+
+		loaded++;
+		if (!ok) {
+			failures++;
+		}
+
+		if (report_out != nullptr) {
+			StringClass line ("");
+			if (ok) {
+				line.Format ("%s: OK\r\n",find_data.cFileName);
+			} else {
+				line.Format ("%s: FAILED -- %s\r\n",find_data.cFileName,error.Peek_Buffer ());
+			}
+			*report_out += line;
+		}
+
+	} while (::FindNextFileA (handle,&find_data));
+
+	::FindClose (handle);
+
+	if (loaded_out != nullptr) {
+		*loaded_out = loaded;
+	}
+	return failures;
+}
+
+
+/***********************************************************************************************
+ * Resolve_Game_Object_Presets                                                                   *
+ *=============================================================================================*/
+int BuildingDescriptorManager::Resolve_Game_Object_Presets(StringClass * report_out)
+{
+	int resolved = 0;
+
+	for (int index = 0; index < Get_Descriptor_Count (); index ++) {
+		const BuildingModelDescriptor *descriptor = Get_Descriptor_By_Index (index);
+		if ((descriptor == nullptr) || (descriptor->GameObjectPreset.Get_Length () == 0)) {
+			continue;			// nothing to resolve -- a map-authored descriptor, most likely
+		}
+
+		StringClass line ("");
+
+		DefinitionClass *preset =
+			DefinitionMgrClass::Find_Named_Definition (descriptor->GameObjectPreset.Peek_Buffer (),true);
+
+		if (preset == nullptr) {
+			WWDEBUG_SAY (("BuildingDescriptorManager: descriptor '%s' names preset '%s', which no loaded "
+							  "definition provides\n",descriptor->DefinitionName.Peek_Buffer (),
+							  descriptor->GameObjectPreset.Peek_Buffer ()));
+			if (report_out != nullptr) {
+				line.Format ("%s -> %s: FAILED -- no such definition\r\n",
+								 descriptor->DefinitionName.Peek_Buffer (),descriptor->GameObjectPreset.Peek_Buffer ());
+				*report_out += line;
+			}
+			continue;
+		}
+
+		if (SuperClassID_From_ClassID (preset->Get_Class_ID ()) != CLASSID_BUILDINGS) {
+			WWDEBUG_SAY (("BuildingDescriptorManager: descriptor '%s' names preset '%s', which is not a "
+							  "building definition (class 0x%08X)\n",descriptor->DefinitionName.Peek_Buffer (),
+							  descriptor->GameObjectPreset.Peek_Buffer (),preset->Get_Class_ID ()));
+			if (report_out != nullptr) {
+				line.Format ("%s -> %s: FAILED -- not a building definition\r\n",
+								 descriptor->DefinitionName.Peek_Buffer (),descriptor->GameObjectPreset.Peek_Buffer ());
+				*report_out += line;
+			}
+			continue;
+		}
+
+		//	Safe: the superclass check above is exactly the guarantee every BuildingGameObjDef
+		//	subclass shares (see RuntimeBuildingFactory::Create_Constructing_Building, the same
+		//	test).
+		((BuildingGameObjDef *)preset)->Set_Descriptor_Name (descriptor->DefinitionName.Peek_Buffer ());
+		resolved++;
+
+		if (report_out != nullptr) {
+			line.Format ("%s -> %s: OK\r\n",
+							 descriptor->DefinitionName.Peek_Buffer (),descriptor->GameObjectPreset.Peek_Buffer ());
+			*report_out += line;
+		}
+	}
+
+	return resolved;
 }

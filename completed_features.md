@@ -2247,6 +2247,30 @@ Asset names recorded in `docs/assets/BuildingDamageModels.md`. No shipped descri
 `build.buildable` yet, so nothing is placeable in game until preset names are known -- **Q-017**,
 which is data, not code.
 
+## P38 addendum -- real `game_object_preset`s resolved from installed data (Q-017 answered)
+
+`C:\Westwood\Renegade_full\Data\Objects.DDB` enumerated in full through a new permanent LevelEdit
+CLI mode (`leveledit.exe -dumpbuildingdefs=... -datadir=...`,
+`Code/Tools/LevelEdit/BuildingDefinitionDump.{h,cpp}`) rather than guessed. All 8 descriptors now
+buildable with real presets: GDI/Nod Power Plant -> `mp_GDI_Power_Plant`/`mp_Nod_Power_Plant`
+(`PowerPlantGameObjDef`), GDI/Nod Communications Center -> `mp_GDI_Com_Center`/`mp_Nod_Com_Center`
+(`ComCenterGameObjDef`); no stock Advanced Communications Center or Tiberium Silo exists (confirmed
+by exhaustive search, not assumed), so both are project-owned definitions constructed and
+registered in code (`Code/Combat/projectbuildingdefs.{h,cpp}`, `ComCenterGameObjDef` for Advanced
+Comm Center, plain `BuildingGameObjDef` for Silo -- same deliberate-not-generic reasoning as the
+real defense structures in the stock data). New `nod_*.json` descriptor files mirror the GDI four.
+`BuildingDescriptorManager::Resolve_Game_Object_Presets` wires each resolved preset's
+`DescriptorName` back-link (`BuildingGameObjDef::Set_Descriptor_Name`, new) so
+`TeamPowerGridService::RegisterBuilding` finds the right descriptor; `Validate_Descriptor` now
+fails loudly on an unresolvable or wrong-class preset whenever any `CLASSID_BUILDINGS` definition
+is loaded to check against. Also fixed a separate pre-existing gap this surfaced: nothing in
+production code ever loaded `data/building_descriptors/*.json` at real startup -- new
+`BuildingDescriptorManager::Load_Directory`, called once from `combat.cpp`. Full resolution
+record, rejected alternatives and reasoning in `docs/zerohour/BuildingPresets.md`. Evidence:
+`renegade`, `renegadeserver` and `leveledit` all build and link clean with zero warnings;
+`buildingjson` self-check gained preset-resolves / preset-missing / back-link-set cases (never
+executed -- Q-012).
+
 ## P34 -- wallet cap enforced (Q-014 answered)
 
 `EffectivePlayerWalletCap = BaseWalletCap + sum(active Silo bonuses)` is real and enforced.

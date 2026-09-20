@@ -6,17 +6,6 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
-- **Q-017** Nothing is constructible yet, and the gap is data rather than code. A
-  descriptor becomes buildable by setting `build.buildable` plus a `game_object_preset`
-  naming the `BuildingGameObjDef` preset the runtime building is created from (so a
-  Commander-built Power Plant is a real `PowerPlantGameObj`, not a bare controller wearing
-  a power-plant model). Those preset names live in `always.dat`'s definition data, which is
-  not in this repo, so guessing them would produce a descriptor that loads and then refuses
-  at placement. Needs either the exact preset names for Power Plant / Communications Center
-  / Advanced Communications Center / Tiberium Silo, or one run of the existing
-  `DefinitionMgrClass::List_Available_Definitions` console output to read them off. Not
-  blocking any other work; `WIP_features.md`'s P38 entry points here.
-
 - **Q-006** P08's acceptance -- that repeated map load and unload keeps what was
  retained and leaks nothing -- is proved as arithmetic by `asset_residency` but not
  against real game data, and it cannot be automated here: the client takes no map
@@ -137,6 +126,14 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  code would need to change, only the include path and the CMake wiring.
 
 ## Resolved
+
+- **Q-017 (resolved from installed data)** Answered: real presets resolved by enumerating
+  `C:\Westwood\Renegade_full\Data\Objects.DDB` in full through a new permanent LevelEdit CLI
+  mode, not guessed. GDI/Nod Power Plant and Communications Center use the real stock
+  `mp_GDI_*`/`mp_Nod_*` presets (`PowerPlantGameObjDef`/`ComCenterGameObjDef`); no stock
+  Advanced Communications Center or Tiberium Silo exists, so both are project-owned
+  definitions constructed in code. All 8 descriptors are now `build.buildable`. See
+  `completed_features.md`'s P38 addendum and `docs/zerohour/BuildingPresets.md`.
 
 - **Q-014 (resolved by decision)** Answered: the wallet is capped. Base 10,000;
   each Tiberium Silo adds +5,000 to the cap. A Silo destroyed reduces the cap and wipes

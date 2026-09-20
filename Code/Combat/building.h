@@ -140,6 +140,14 @@ public:
 	//
 	const StringClass &							Get_Descriptor_Name (void) const	{ return DescriptorName; }
 
+	//
+	//	Q-017 -- the reverse link.  A stock or project-owned preset loaded with no authoring
+	//	tool ever touching it has no way to set DescriptorName through the editable-parameter
+	//	system, so BuildingDescriptorManager::Resolve_Game_Object_Presets sets it directly here
+	//	once it has matched a descriptor's game_object_preset back to this definition.
+	//
+	void											Set_Descriptor_Name (const char *name)	{ DescriptorName = name; }
+
 	int Get_Damage_Report(int team) const;
 	int Get_Destroy_Report(int team) const;
 

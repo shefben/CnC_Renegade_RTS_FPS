@@ -121,6 +121,32 @@ class BuildingDescriptorManager
 		*/
 		static int		Validate_Directory(const char * directory_path,StringClass * report_out,
 													 int * checked_out);
+
+		/*
+		**	Q-017 -- the production load path.  Nothing before this called Load_Descriptor_From_File
+		**	for every file in data/building_descriptors/ at real startup; only the self-check
+		**	harness and LevelEdit's own validate command ever populated the registry.  This walks
+		**	the directory (same Win32 FindFirstFileA scan Validate_Directory already uses) and
+		**	registers each one for real, so a descriptor a level author drops in that folder is
+		**	live the next time the game starts.  Returns the number that failed to load (parse or
+		**	validation failure -- a bad file never blocks the others), or -1 if the directory could
+		**	not be read.  `report_out` and `loaded_out` mirror Validate_Directory's own shape.
+		*/
+		static int		Load_Directory(const char * directory_path,StringClass * report_out,
+												 int * loaded_out);
+
+		/*
+		**	Q-017 -- ties a descriptor's game_object_preset back to the real BuildingGameObjDef it
+		**	names, once both descriptors and definitions are loaded: DefinitionMgrClass::Find_Named_
+		**	Definition resolves the name, a superclass check refuses anything that is not really a
+		**	building, and on success BuildingGameObjDef::Set_Descriptor_Name is called so
+		**	TeamPowerGridService::RegisterBuilding (building.cpp, Initialize_Building) finds this
+		**	descriptor from the definition side too -- the direction stock/project-owned presets
+		**	need, since nothing authored their DescriptorName field.  A descriptor naming no preset
+		**	is skipped, not a failure.  Returns how many resolved.  `report_out`, when given, gets
+		**	one line per attempt ("<name> -> <preset>: OK" / "FAILED -- <reason>").
+		*/
+		static int		Resolve_Game_Object_Presets(StringClass * report_out);
 };
 
 #endif // BUILDINGDESCRIPTORMANAGER_H

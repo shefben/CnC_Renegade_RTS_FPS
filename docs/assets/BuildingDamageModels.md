@@ -35,15 +35,23 @@ Renegade asset:
 | destroyed | `ow_<building>_x.w3d` | the building has been declared destroyed |
 | extra states (optional) | `ow_<building>_s1.w3d`, `_s2.w3d`, … | between the transitions that name them |
 
-Currently declared, none of which exist yet:
+Currently declared, none of which exist yet (Q-017 gave both factions real presets, so
+both factions now have a full damage-visual declaration):
 
 - `ow_gdi_power_plant_d.w3d`, `ow_gdi_power_plant_x.w3d`
 - `ow_gdi_comm_center_d.w3d`, `ow_gdi_comm_center_x.w3d`
 - `ow_gdi_adv_comm_center_d.w3d`, `ow_gdi_adv_comm_center_x.w3d`
 - `ow_gdi_silo_d.w3d`, `ow_gdi_silo_x.w3d`
+- `ow_nod_power_plant_d.w3d`, `ow_nod_power_plant_x.w3d`
+- `ow_nod_comm_center_d.w3d`, `ow_nod_comm_center_x.w3d`
+- `ow_nod_adv_comm_center_d.w3d`, `ow_nod_adv_comm_center_x.w3d`
+- `ow_nod_silo_d.w3d`, `ow_nod_silo_x.w3d`
 
 …alongside the intact models `ow_gdi_power_plant.w3d`, `ow_gdi_comm_center.w3d`,
-`ow_gdi_adv_comm_center.w3d` and `ow_gdi_silo.w3d`, which do not exist either.
+`ow_gdi_adv_comm_center.w3d`, `ow_gdi_silo.w3d`, `ow_nod_power_plant.w3d`,
+`ow_nod_comm_center.w3d`, `ow_nod_adv_comm_center.w3d` and `ow_nod_silo.w3d`, none of
+which exist either. See `docs/zerohour/BuildingPresets.md` for which `BuildingGameObjDef`
+preset each of these eight descriptors now names.
 
 ## What happens today without them
 

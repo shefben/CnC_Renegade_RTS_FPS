@@ -6,8 +6,10 @@
 #include "shaderselfcheck.h"
 
 #include "backgroundmgr.h"
+#include "building.h"
 #include "buildingdescriptormanager.h"
 #include "combat.h"
+#include "definitionmgr.h"
 #include "commandermodecontroller.h"
 #include "commandersidebar.h"
 #include "commanderplacement.h"
@@ -2322,6 +2324,52 @@ int	Run_Building_Descriptors (void)
 
 	BuildingDescriptorManager::Unload_All ();
 	Check (BuildingDescriptorManager::Get_Descriptor_Count () == 0,"Unload_All left descriptors behind");
+
+	/*
+	**	Q-017 -- Resolve_Game_Object_Presets and the Validate_Descriptor preset-class check, both
+	**	of which only do anything once at least one CLASSID_BUILDINGS definition is registered.
+	**	A real BuildingGameObjDef is constructed and registered by hand here, exactly the way
+	**	ProjectBuildingDefs::Register does for Tiberium Silo/Advanced Comm Center in the real
+	**	game -- no always.dat needed for this to be a meaningful test.
+	*/
+	{
+		BuildingGameObjDef *	test_def = new BuildingGameObjDef;
+		test_def->Set_Name ("ow_test_resolve_building");
+		test_def->Set_ID (DefinitionMgrClass::Get_New_ID (test_def->Get_Class_ID ()));
+		DefinitionMgrClass::Register_Definition (test_def);
+
+		Check (test_def->Get_Descriptor_Name ().Get_Length () == 0,
+				 "a freshly constructed BuildingGameObjDef already had a descriptor name");
+
+		const char * RESOLVES_JSON =
+			"{ \"model_name\":\"ow_test_resolve.w3d\",\"schema_version\":1,"
+			"  \"game_object_preset\":\"ow_test_resolve_building\","
+			"  \"footprint\":{\"width\":10,\"depth\":10},"
+			"  \"power\":{\"requires_power\":false,\"generation\":0,\"consumption\":0,\"priority\":0},"
+			"  \"build\":{\"buildable\":true,\"cost\":100,\"team\":1} }";
+		Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_resolve",RESOLVES_JSON,&error),
+				 "a descriptor naming a real, registered building preset was rejected: %s",error.Peek_Buffer ());
+
+		const char * MISSING_PRESET_JSON =
+			"{ \"model_name\":\"ow_test_missing.w3d\",\"schema_version\":1,"
+			"  \"game_object_preset\":\"ow_test_no_such_preset_anywhere\","
+			"  \"footprint\":{\"width\":10,\"depth\":10},"
+			"  \"power\":{\"requires_power\":false,\"generation\":0,\"consumption\":0,\"priority\":0},"
+			"  \"build\":{\"buildable\":true,\"cost\":100,\"team\":1} }";
+		Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_missing_preset",MISSING_PRESET_JSON,&error),
+				 "a buildable descriptor naming a preset no loaded definition provides was accepted, "
+				 "now that a real building definition is registered to check against");
+
+		int resolved = BuildingDescriptorManager::Resolve_Game_Object_Presets (nullptr);
+		Check (resolved >= 1,"Resolve_Game_Object_Presets resolved nothing for a descriptor with a real preset");
+		Check (test_def->Get_Descriptor_Name () == StringClass ("ow_test_resolve",true),
+				 "Resolve_Game_Object_Presets did not set the definition's DescriptorName back-link "
+				 "(got '%s')",test_def->Get_Descriptor_Name ().Peek_Buffer ());
+
+		BuildingDescriptorManager::Unload_All ();
+		DefinitionMgrClass::Unregister_Definition (test_def);
+		delete test_def;
+	}
 
 	BuildingDescriptorManager::Shutdown ();
 

@@ -78,6 +78,7 @@ set(COMBAT_SRC
     commanderplacement.cpp
     buildingconstruction.cpp
 runtimebuildingfactory.cpp
+projectbuildingdefs.cpp
     commanderproduction.cpp
     commanderguardai.cpp
     commanderselection.cpp
@@ -247,6 +248,7 @@ runtimebuildingfactory.cpp
     commanderplacement.h
     buildingconstruction.h
 runtimebuildingfactory.h
+projectbuildingdefs.h
     commanderproduction.h
     commanderguardai.h
     commanderselection.h
