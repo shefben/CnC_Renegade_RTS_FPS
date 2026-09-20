@@ -68,6 +68,7 @@ protected:
 	void Grow_Arrays(int new_vcount);
 	void Add_Light_To_Vertex(LightSolveContextClass & context,int idx,LightClass * light_obj);
 	float Compute_Sun_Visibility(LightSolveContextClass & context,int idx,LightClass * sun);
+	float Compute_Sky_Occlusion(LightSolveContextClass & context,int idx);
 
 	SimpleVecClass<Vector3>		Position;
 	SimpleVecClass<Vector3>		Normal;
@@ -379,12 +380,16 @@ void VertexSolveClass::Light_Terrain(LightSolveContextClass & context,RenegadeTe
 	VectorProcessorClass::Clamp(&(DiffuseSolve[0]),&(DiffuseSolve[0]), 0.0f, 1.0f,vcount);
 
 	/*
-	** Modulate the accumulated light by the material properties
+	** Modulate the accumulated light by the material properties.  Roadmap Section 52A,
+	** Phase 52: when a caller has opted in, the ambient term (not the direct sun/light terms,
+	** which already have their own per-light shadow test above) is additionally scaled by
+	** each vertex's sky visibility, so creases and the insides of slopes darken.
 	*/
 	for (vi=0; vi<vcount; vi++) {
-		Solve[vi].X = AmbientSolve[vi].X * MeshAmbient[vi].X + DiffuseSolve[vi].X * MeshDiffuse[vi].X;
-		Solve[vi].Y = AmbientSolve[vi].Y * MeshAmbient[vi].Y + DiffuseSolve[vi].Y * MeshDiffuse[vi].Y;
-		Solve[vi].Z = AmbientSolve[vi].Z * MeshAmbient[vi].Z + DiffuseSolve[vi].Z * MeshDiffuse[vi].Z;
+		float sky_occlusion = context.Is_Sky_Occlusion_Enabled() ? Compute_Sky_Occlusion(context,vi) : 1.0f;
+		Solve[vi].X = AmbientSolve[vi].X * sky_occlusion * MeshAmbient[vi].X + DiffuseSolve[vi].X * MeshDiffuse[vi].X;
+		Solve[vi].Y = AmbientSolve[vi].Y * sky_occlusion * MeshAmbient[vi].Y + DiffuseSolve[vi].Y * MeshDiffuse[vi].Y;
+		Solve[vi].Z = AmbientSolve[vi].Z * sky_occlusion * MeshAmbient[vi].Z + DiffuseSolve[vi].Z * MeshDiffuse[vi].Z;
 		Solve[vi].W = DiffuseSolve[vi].W;
 	}
 	VectorProcessorClass::Clamp(&(Solve[0]),&(Solve[0]), 0.0f, 1.0f,vcount);
@@ -504,6 +509,65 @@ float VertexSolveClass::Compute_Sun_Visibility(LightSolveContextClass & context,
 	}
 
 	return ndotl;
+}
+
+
+//	Roadmap Section 52A, Phase 52.  Terrain and contact ambient occlusion.  Casts the same
+//	kind of ray Compute_Sun_Visibility already casts, in a small fixed set of directions spread
+//	cosine-weighted over the hemisphere above the vertex normal, and returns the unoccluded
+//	fraction -- 1.0 fully open sky, dropping toward 0.0 inside a crease or against a slope's
+//	own interior. Only ever called from Light_Terrain, and only when a caller has opted in via
+//	LightSolveContextClass::Enable_Sky_Occlusion, so it costs nothing on an ordinary solve.
+float VertexSolveClass::Compute_Sky_Occlusion(LightSolveContextClass & context,int vi)
+{
+	//	A local basis around the vertex normal: pick whichever world axis is least parallel to
+	//	it as the seed so the cross products stay well conditioned at any slope.
+	const Vector3 & n = Normal[vi];
+	Vector3 seed = (WWMath::Fabs(n.Z) < 0.9f) ? Vector3(0.0f,0.0f,1.0f) : Vector3(1.0f,0.0f,0.0f);
+	Vector3 tangent = Vector3::Cross_Product(seed,n);
+	tangent.Normalize();
+	Vector3 bitangent = Vector3::Cross_Product(n,tangent);
+
+	//	Six samples: straight up the normal plus five spread around it at a fixed cone angle.
+	//	Cheap and directionally representative -- this never runs at draw time, only once per
+	//	bake, so it does not need to be a high-sample-count offline-quality AO solve.
+	static const float AZIMUTHS[5] = { 0.0f, 72.0f, 144.0f, 216.0f, 288.0f };
+	const float CONE_DEG = 50.0f;
+	const float AO_TEST_DISTANCE = 6.0f;		// local-scale only; not meant to see distant terrain
+	const float MOVE_AMOUNT = 0.25f;
+
+	Vector3 directions[6];
+	directions[0] = n;
+	for (int i = 0; i < 5; i++) {
+		float az = DEG_TO_RADF(AZIMUTHS[i]);
+		float cone = DEG_TO_RADF(CONE_DEG);
+		float s = WWMath::Sin(cone);
+		directions[i+1] = (n * WWMath::Cos(cone)) + (tangent * (s * WWMath::Cos(az))) + (bitangent * (s * WWMath::Sin(az)));
+		directions[i+1].Normalize();
+	}
+
+	float open_weight = 0.0f;
+	float total_weight = 0.0f;
+	for (int i = 0; i < 6; i++) {
+		float ndotd = Vector3::Dot_Product(n,directions[i]);
+		if (ndotd <= 0.0f) continue;			// below the local horizon, never contributes
+		total_weight += ndotd;
+
+		Vector3 p0 = Position[vi] + directions[i] * MOVE_AMOUNT;
+		Vector3 p1 = Position[vi] + directions[i] * AO_TEST_DISTANCE;
+		LineSegClass ray(p0,p1);
+		CastResultStruct res;
+		PhysRayCollisionTestClass raytest(ray,&res,0,COLLISION_TYPE_PROJECTILE);
+		raytest.CheckDynamicObjs = false;
+		PhysicsSceneClass::Get_Instance()->Cast_Ray(raytest);
+
+		if (res.Fraction >= 1.0f) {
+			open_weight += ndotd;
+		}
+	}
+
+	if (total_weight <= 0.0f) return 1.0f;
+	return open_weight / total_weight;
 }
 
 

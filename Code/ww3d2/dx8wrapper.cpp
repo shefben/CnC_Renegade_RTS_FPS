@@ -1078,6 +1078,33 @@ bool DX8Wrapper::Set_Device_Resolution(int width,int height,int /*bits*/,int /*w
 	}
 }
 
+//	Roadmap Section 52A, Phase 51.  Height fog: scale the authored start/end distances toward
+//	"never reached" as the viewer rises past WW3D's configured ceiling. At scale 1.0 (height
+//	fog off, or viewer at/below the ceiling minus the falloff band) start/end pass through
+//	completely unchanged -- byte-identical to the fog this function applied before this phase.
+void DX8Wrapper::Set_Fog(bool enable, const Vector3 &color, float start, float end, float viewer_z)
+{
+	// Set global states
+	FogEnable = enable;
+	FogColor = Convert_Color(color,0.0f);
+
+	float scale = WW3D::Compute_Height_Fog_Scale(viewer_z);
+	if (scale < 1.0f) {
+		float push_out = 1.0f - scale;
+		float far_no_fog = (end > 0.0f) ? (end * 8.0f + 10000.0f) : 10000.0f;
+		start = start + push_out * (far_no_fog - start);
+		end   = end   + push_out * (far_no_fog - end);
+	}
+
+	// Invalidate the current shader (since the renderstates set by the shader
+	// depend on the global fog settings as well as the actual shader settings)
+	ShaderClass::Invalidate();
+
+	// Set renderstates which are not affected by the shader
+	Set_DX8_Render_State(D3DRS_FOGSTART, *(DWORD *)(&start));
+	Set_DX8_Render_State(D3DRS_FOGEND,   *(DWORD *)(&end));
+}
+
 void DX8Wrapper::Get_Device_Resolution(int & set_w,int & set_h,int & set_bits,bool & set_windowed)
 {
 	WWASSERT(IsInitted);

@@ -1151,6 +1151,9 @@ void CombatManager::Render()
 
 		DazzleRenderObjClass::Install_Dazzle_Visibility_Handler(nullptr);
 
+		//	Roadmap Section 52A, Phase 55.  Off by default; see BackgroundMgrClass::Render_Sun_Shafts.
+		BackgroundMgrClass::Render_Sun_Shafts();
+
 		HUDClass::Render();
 
 		ScreenFadeManager::Render();

@@ -55,6 +55,10 @@
 #include "scene.h"
 #include "SoundEnvironment.h"
 #include "texture.h"
+#include "texproject.h"
+#include "aabox.h"
+#include "metalmap.h"
+#include "render2d.h"
 #include "WWAudio.h"
 #include "wwmemlog.h"
 #include "segline.h"
@@ -73,6 +77,10 @@ unsigned											  BackgroundMgrClass::_Minutes;
 bool												  BackgroundMgrClass::_ClockDrivesSun			= false;
 float												  BackgroundMgrClass::_ClockRateHoursPerSecond	= 0.0f;
 float												  BackgroundMgrClass::_ClockFractionalHours		= 0.0f;
+bool												  BackgroundMgrClass::_CloudShadowsEnabled		= false;
+bool												  BackgroundMgrClass::_MetalReflectionsEnabled	= false;
+bool												  BackgroundMgrClass::_SunShaftsEnabled			= false;
+Render2DClass									 *BackgroundMgrClass::_SunShaftRenderer			= nullptr;
 BackgroundMgrClass::LightSourceTypeEnum  BackgroundMgrClass::_LightSourceType;
 SkyClass::MoonTypeEnum						  BackgroundMgrClass::_MoonType;
 bool												  BackgroundMgrClass::_MoonIsEarth;
@@ -1222,6 +1230,13 @@ CloudLayerClass::CloudLayerClass (float maxdistance, const char *texturename, co
 	CloudIntensity	  = 1.0f;
 	HorizonIntensity = 1.0f;
 	Configure();
+
+	GroundShadowEnabled = false;
+	GroundShadowScene   = nullptr;
+	for (int i = 0; i < GROUND_SHADOW_PATCH_COUNT; i++) {
+		GroundShadowProjector [i] = nullptr;
+		GroundShadowOffset [i]	 = Vector2 (0.0f, 0.0f);
+	}
 }
 
 
@@ -1239,6 +1254,8 @@ CloudLayerClass::CloudLayerClass (float maxdistance, const char *texturename, co
  *=============================================================================================*/
 CloudLayerClass::~CloudLayerClass()
 {
+	Enable_Ground_Shadow (GroundShadowScene, false);
+
 	delete [] DiffuseArray;
 	delete [] TexCoordArray;
 	REF_PTR_RELEASE (Texture);
@@ -1389,6 +1406,8 @@ void CloudLayerClass::Configure()
  *=============================================================================================*/
 void CloudLayerClass::Render()
 {
+	Update_Ground_Shadow();
+
 	const float wraplimit = 8.0f;
 
 	Vector2 offset;
@@ -1443,6 +1462,189 @@ void CloudLayerClass::Render()
 		DX8Wrapper::Set_Index_Buffer (IndexBuffer, 0);
 		DX8Wrapper::Set_Vertex_Buffer (dynamicvb);
 		DX8Wrapper::Draw_Triangles (0, static_cast<unsigned short>(TriangleCount), 0, static_cast<unsigned short>(VertexCount));
+	}
+}
+
+
+/***********************************************************************************************
+ * CloudLayerClass::Build_Shadow_Mask_Texture -- procedural cloud density mask                 *
+ *                                                                                             *
+ *	Roadmap Section 52A, Phase 53.  No authored asset is required for this phase to land: a     *
+ *	small tiling value-noise texture, generated once and kept for the process's lifetime, is    *
+ *	the mask every ground-shadow projector shares.  A purpose-made replacement is recorded as   *
+ *	an improvement, never a prerequisite, in docs/assets/VisualFidelity.md.                     *
+ *=============================================================================================*/
+TextureClass * CloudLayerClass::Build_Shadow_Mask_Texture (void)
+{
+	const int SIZE  = 128;
+	const int CELLS = 8;
+
+	TextureClass *texture = NEW_REF (TextureClass, (SIZE, SIZE, WW3D_FORMAT_A8R8G8B8, TextureClass::MIP_LEVELS_1));
+	texture->Set_U_Addr_Mode (TextureClass::TEXTURE_ADDRESS_REPEAT);
+	texture->Set_V_Addr_Mode (TextureClass::TEXTURE_ADDRESS_REPEAT);
+	texture->Set_Texture_Name ("ow_cloud_shadow_mask");	// procedural -- never loaded from disk
+
+	// A coarse, deterministic value grid the texels below are bilinearly interpolated between,
+	// wrapped so the 8x8 grid tiles seamlessly at the texture's own edges.
+	float cell_value [CELLS][CELLS];
+	unsigned seed = 0x9E3779B9u;
+	for (int cy = 0; cy < CELLS; cy++) {
+		for (int cx = 0; cx < CELLS; cx++) {
+			seed = seed * 1664525u + 1013904223u;
+			cell_value [cy][cx] = (float)((seed >> 8) & 0xFFFFu) / 65535.0f;
+		}
+	}
+
+	SurfaceClass *surface = texture->Get_Surface_Level (0);
+	int pitch;
+	unsigned char *map = (unsigned char *) surface->Lock (&pitch);
+	for (int y = 0; y < SIZE; y++) {
+
+		float fy  = ((float)y / (float)SIZE) * (float)CELLS;
+		int	cy0 = ((int)fy) % CELLS;
+		int	cy1 = (cy0 + 1) % CELLS;
+		float ty  = fy - WWMath::Floor (fy);
+
+		for (int x = 0; x < SIZE; x++) {
+
+			float fx  = ((float)x / (float)SIZE) * (float)CELLS;
+			int	cx0 = ((int)fx) % CELLS;
+			int	cx1 = (cx0 + 1) % CELLS;
+			float tx  = fx - WWMath::Floor (fx);
+
+			float top	 = cell_value [cy0][cx0] * (1.0f - tx) + cell_value [cy0][cx1] * tx;
+			float bottom = cell_value [cy1][cx0] * (1.0f - tx) + cell_value [cy1][cx1] * tx;
+			float value	 = top * (1.0f - ty) + bottom * ty;
+
+			// Square it so the mask reads as broken cloud cover -- mostly open, with denser
+			// patches of shade -- rather than an even grey wash over the whole area.
+			value = value * value;
+			unsigned char gray = (unsigned char) WWMath::Clamp (64.0f + value * 191.0f, 0.0f, 255.0f);
+
+			map [x * 4 + 0] = gray;
+			map [x * 4 + 1] = gray;
+			map [x * 4 + 2] = gray;
+			map [x * 4 + 3] = 0xFF;
+		}
+		map += pitch;
+	}
+	surface->Unlock();
+	REF_PTR_RELEASE (surface);
+
+	return texture;
+}
+
+
+/***********************************************************************************************
+ * CloudLayerClass::Enable_Ground_Shadow --																	  *
+ *                                                                                             *
+ *	Roadmap Section 52A, Phase 53.  Creates or tears down GROUND_SHADOW_PATCH_COUNT scrolling   *
+ *	multiplicative ground projectors.  Idempotent: calling with the state already matching does *
+ *	nothing, so BackgroundMgrClass can call this every frame without tracking a dirty flag.      *
+ *=============================================================================================*/
+void CloudLayerClass::Enable_Ground_Shadow (PhysicsSceneClass *scene, bool enabled)
+{
+	if (enabled == GroundShadowEnabled) {
+		return;
+	}
+
+	if (enabled && (scene != nullptr)) {
+
+		TextureClass *mask = Build_Shadow_Mask_Texture();
+
+		const float half_extent = 400.0f;			// one patch's world-space footprint
+		const float patch_spacing = 900.0f;		// stagger start positions along the wind
+
+		Vector2 dir = Velocity;
+		if (dir.Length() > 0.0001f) {
+			dir.Normalize();
+		} else {
+			dir.Set (1.0f, 0.0f);
+		}
+
+		for (int i = 0; i < GROUND_SHADOW_PATCH_COUNT; i++) {
+
+			TexProjectClass *projector = new TexProjectClass;
+			projector->Init_Multiplicative();
+			projector->Set_Texture (mask);
+			projector->Enable_Affect_Static_Objects (true);
+			projector->Enable_Affect_Dynamic_Objects (true);
+			projector->Enable_Attenuation (false);
+
+			GroundShadowOffset [i] = dir * (patch_spacing * (float)i);
+
+			Vector3 center (GroundShadowOffset [i].X, GroundShadowOffset [i].Y, 0.0f);
+			AABoxClass box (center, Vector3 (half_extent, half_extent, half_extent));
+			Matrix3D identity (true);
+			projector->Compute_Ortho_Projection (box, identity, Vector3 (0.0f, 0.0f, -1.0f));
+
+			scene->Add_Static_Texture_Projector (projector);
+			GroundShadowProjector [i] = projector;
+		}
+
+		REF_PTR_RELEASE (mask);
+		GroundShadowScene = scene;
+
+	} else {
+
+		for (int i = 0; i < GROUND_SHADOW_PATCH_COUNT; i++) {
+			if (GroundShadowProjector [i] != nullptr) {
+				if (GroundShadowScene != nullptr) {
+					GroundShadowScene->Remove_Static_Texture_Projector (GroundShadowProjector [i]);
+				}
+				delete GroundShadowProjector [i];
+				GroundShadowProjector [i] = nullptr;
+			}
+		}
+		GroundShadowScene = nullptr;
+	}
+
+	GroundShadowEnabled = enabled;
+}
+
+
+/***********************************************************************************************
+ * CloudLayerClass::Update_Ground_Shadow --																	  *
+ *                                                                                             *
+ *	Roadmap Section 52A, Phase 53.  Each patch drifts along this layer's own Velocity direction *
+ *	at a fixed world-space pace (decoupled from Velocity's UV-per-second scale, which has no     *
+ *	meaningful world-unit conversion) and wraps back around a fixed distance out, exactly as    *
+ *	WorldShadowManager already repositions its own projector's transform every frame -- one     *
+ *	Compute_Ortho_Projection call, no render target, no texture regeneration.                   *
+ *=============================================================================================*/
+void CloudLayerClass::Update_Ground_Shadow (void)
+{
+	if (!GroundShadowEnabled) {
+		return;
+	}
+
+	const float half_extent  = 400.0f;
+	const float drift_speed  = 15.0f;		// world units/sec; cosmetic, not gameplay-affecting
+	const float wrap_distance = 1600.0f;
+
+	Vector2 dir = Velocity;
+	if (dir.Length() > 0.0001f) {
+		dir.Normalize();
+	} else {
+		dir.Set (1.0f, 0.0f);
+	}
+	Vector2 step = dir * (drift_speed * (WW3D::Get_Frame_Time() * 0.001f));
+
+	for (int i = 0; i < GROUND_SHADOW_PATCH_COUNT; i++) {
+
+		if (GroundShadowProjector [i] == nullptr) {
+			continue;
+		}
+
+		GroundShadowOffset [i] += step;
+		if (GroundShadowOffset [i].Length() > wrap_distance) {
+			GroundShadowOffset [i] -= dir * (2.0f * wrap_distance);
+		}
+
+		Vector3 center (GroundShadowOffset [i].X, GroundShadowOffset [i].Y, 0.0f);
+		AABoxClass box (center, Vector3 (half_extent, half_extent, half_extent));
+		Matrix3D identity (true);
+		GroundShadowProjector [i]->Compute_Ortho_Projection (box, identity, Vector3 (0.0f, 0.0f, -1.0f));
 	}
 }
 
@@ -2697,6 +2899,17 @@ void SkyClass::Set_Tint_Factor (float tintfactor)
 
 
 /***********************************************************************************************
+ * SkyClass::Enable_Cloud_Shadows -- roadmap Section 52A, Phase 53                             *
+ *=============================================================================================*/
+void SkyClass::Enable_Cloud_Shadows (PhysicsSceneClass *scene, bool enabled)
+{
+	if (CloudLayer0 != nullptr) {
+		CloudLayer0->Enable_Ground_Shadow (scene, enabled);
+	}
+}
+
+
+/***********************************************************************************************
  * SkyClass::Set_Color --																							  *
  *                                                                                             *
  * INPUT:                                                                                      *
@@ -3878,6 +4091,45 @@ void BackgroundMgrClass::Update (PhysicsSceneClass *mainscene, CameraClass *came
 		}
 	}
 
+	/*
+	**	Roadmap Section 52A, Phase 54.  `MetalMapManagerClass::Update_Lighting`/`Update_Textures`
+	**	are real and already generate the metal environment maps `mapper.cpp`'s environment
+	**	mapper feeds vehicles -- they were simply never called anywhere but the standalone
+	**	W3DView tool, so every metal surface has rendered with whatever the constructor's
+	**	zero-initialized lighting left it since the day this system shipped. Off by default,
+	**	same as every other switch this phase adds: enabling it is the only thing that changes.
+	**	Independent of the sky clock above -- a level with the clock off still has a sun and an
+	**	ambient colour, and metal should still pick them up once, not stay dark forever.
+	*/
+	if (_MetalReflectionsEnabled) {
+
+		static float _MetalRefreshAccumulator = 0.0f;
+		const float METAL_REFRESH_INTERVAL_SECONDS = 2.0f;
+		_MetalRefreshAccumulator += WW3D::Get_Frame_Time() * 0.001f;
+
+		if (_MetalRefreshAccumulator >= METAL_REFRESH_INTERVAL_SECONDS) {
+			_MetalRefreshAccumulator = 0.0f;
+
+			MetalMapManagerClass * metal_mgr = WW3DAssetManager::Get_Instance()->Peek_Metal_Map_Manager();
+			if (metal_mgr != nullptr) {
+
+				Vector3 ambient = mainscene->Get_Ambient_Light();
+				Vector3 main_light_color (1.0f, 1.0f, 1.0f);
+				Vector3 main_light_dir = _UnitLightVector;
+				Vector3 camera_dir = camera->Get_Transform().Get_Z_Vector();
+
+				LightClass * sun_light = mainscene->Get_Sun_Light();
+				if (sun_light != nullptr) {
+					sun_light->Get_Diffuse (&main_light_color);
+					REF_PTR_RELEASE (sun_light);
+				}
+
+				metal_mgr->Update_Lighting (ambient, main_light_color, main_light_dir, camera_dir);
+				metal_mgr->Update_Textures();
+			}
+		}
+	}
+
 	if (Is_Dirty()) {
 		_Sky->Set_Time_Of_Day (_Hours, _Minutes);
 		_Sky->Set_Moon_Type (_MoonType, _MoonIsEarth);
@@ -3936,6 +4188,9 @@ void BackgroundMgrClass::Update (PhysicsSceneClass *mainscene, CameraClass *came
 
   	_Sky->Update (mainscene, camera->Get_Position());
 
+  	//	Roadmap Section 52A, Phase 53.  Idempotent -- see Enable_Ground_Shadow.
+  	_Sky->Enable_Cloud_Shadows (mainscene, _CloudShadowsEnabled);
+
   	// Locate the sun dazzle just inside the far clip plane.
   	camera->Get_Clip_Planes (znear, zfar);
   	_Dazzle->Set_Transform (Matrix3D (camera->Get_Position() + _UnitLightVector * (zfar - 1.0f)));
@@ -3956,6 +4211,116 @@ void BackgroundMgrClass::Update (PhysicsSceneClass *mainscene, CameraClass *came
 
 	// Everything necessary has been updated. Clear the dirty flag.
 	Set_Dirty (false);
+}
+
+
+/***********************************************************************************************
+ * BackgroundMgrClass::Build_Sun_Shaft_Glow_Texture -- roadmap Section 52A, Phase 55           *
+ *                                                                                             *
+ *	No authored asset required: a small radial-falloff glow, generated once and kept for the    *
+ *	process's lifetime.  A purpose-made replacement is recorded as an improvement, never a       *
+ *	prerequisite, in docs/assets/VisualFidelity.md.                                              *
+ *=============================================================================================*/
+TextureClass * BackgroundMgrClass::Build_Sun_Shaft_Glow_Texture (void)
+{
+	const int SIZE = 32;
+
+	TextureClass *texture = NEW_REF (TextureClass, (SIZE, SIZE, WW3D_FORMAT_A8R8G8B8, TextureClass::MIP_LEVELS_1));
+	texture->Set_U_Addr_Mode (TextureClass::TEXTURE_ADDRESS_CLAMP);
+	texture->Set_V_Addr_Mode (TextureClass::TEXTURE_ADDRESS_CLAMP);
+	texture->Set_Texture_Name ("ow_sun_shaft_glow");
+
+	SurfaceClass *surface = texture->Get_Surface_Level (0);
+	int pitch;
+	unsigned char *map = (unsigned char *) surface->Lock (&pitch);
+	float center = (float)(SIZE - 1) * 0.5f;
+	for (int y = 0; y < SIZE; y++) {
+		for (int x = 0; x < SIZE; x++) {
+
+			float dx = ((float)x - center) / center;
+			float dy = ((float)y - center) / center;
+			float dist = WWMath::Sqrt (dx * dx + dy * dy);
+			float falloff = 1.0f - WWMath::Clamp (dist, 0.0f, 1.0f);
+			falloff = falloff * falloff;			// soften the edge
+
+			unsigned char v = (unsigned char) (falloff * 255.0f);
+			map [x * 4 + 0] = v;
+			map [x * 4 + 1] = v;
+			map [x * 4 + 2] = v;
+			map [x * 4 + 3] = v;
+		}
+		map += pitch;
+	}
+	surface->Unlock();
+	REF_PTR_RELEASE (surface);
+
+	return texture;
+}
+
+
+/***********************************************************************************************
+ * BackgroundMgrClass::Render_Sun_Shafts -- roadmap Section 52A, Phase 55                      *
+ *                                                                                             *
+ *	Off by default.  Called once per frame, right after the dazzle layer renders (so _Dazzle's  *
+ *	screen position and visibility are this frame's, not last frame's).  A handful of small      *
+ *	additive glow quads step from the sun's on-screen position toward screen centre, scaled by  *
+ *	distance and by _Dazzle's own occlusion factor -- the same depth test the sun dazzle already *
+ *	uses, not a second one.  Draws nothing when the sun is below the horizon (_UnitLightVector.Z *
+ *	at or below zero) or off screen (screen position outside the view volume), matching the      *
+ *	acceptance line exactly.                                                                     *
+ *=============================================================================================*/
+void BackgroundMgrClass::Render_Sun_Shafts (void)
+{
+	if (!_SunShaftsEnabled || (_Dazzle == nullptr)) {
+		return;
+	}
+
+	if (_UnitLightVector.Z <= 0.0f) {
+		return;		// sun at or below the horizon
+	}
+
+	float vis = _Dazzle->Get_Visibility();
+	if (vis <= 0.0f) {
+		return;		// fully occluded this frame
+	}
+
+	const Vector3 &screen = _Dazzle->Get_Screen_Position();
+	if ((screen.Z <= 0.0f) || (screen.Z >= 1.0f) ||
+		 (WWMath::Fabs (screen.X) > 1.0f) || (WWMath::Fabs (screen.Y) > 1.0f)) {
+		return;		// behind the camera, beyond the far clip, or outside the screen
+	}
+
+	if (_SunShaftRenderer == nullptr) {
+		_SunShaftRenderer = new Render2DClass();
+		TextureClass *glow = Build_Sun_Shaft_Glow_Texture();
+		_SunShaftRenderer->Set_Texture (glow);
+		REF_PTR_RELEASE (glow);
+		_SunShaftRenderer->Enable_Additive (true);
+	}
+
+	RectClass screen_res = Render2DClass::Get_Screen_Resolution();
+	_SunShaftRenderer->Set_Coordinate_Range (screen_res);
+	_SunShaftRenderer->Reset();
+
+	Vector2 center (screen_res.Width() * 0.5f, screen_res.Height() * 0.5f);
+	Vector2 sun_pixel (
+		(screen.X * 0.5f + 0.5f) * screen_res.Width(),
+		(1.0f - (screen.Y * 0.5f + 0.5f)) * screen_res.Height());
+
+	const int STEP_COUNT = 6;
+	for (int i = 1; i <= STEP_COUNT; i++) {
+
+		float t = (float)i / (float)STEP_COUNT;
+		Vector2 pos = sun_pixel + (center - sun_pixel) * t;
+		float size = 28.0f * (1.0f - t * 0.6f);
+		float alpha = vis * (1.0f - t) * 0.6f;
+
+		unsigned int color = DX8Wrapper::Convert_Color (Vector3 (1.0f, 0.95f, 0.85f), alpha);
+		RectClass quad (pos.X - size, pos.Y - size, pos.X + size, pos.Y + size);
+		_SunShaftRenderer->Add_Quad (quad, color);
+	}
+
+	_SunShaftRenderer->Render();
 }
 
 

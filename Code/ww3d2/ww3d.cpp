@@ -226,6 +226,11 @@ float														WW3D::TextureLODBias	= 0.0f;	// Never set before; 0 is the ha
 int														WW3D::AntialiasQuality	= 0;	// D3DMULTISAMPLE_NONE.
 bool														WW3D::LODDissolveEnabled	= false;	// Instant switch, as before.
 
+//	Roadmap Section 52A, Phase 51. Off by default; the reference values are inert until enabled.
+bool														WW3D::HeightFogEnabled	= false;
+float														WW3D::HeightFogCeiling	= 0.0f;
+float														WW3D::HeightFogFalloff	= 500.0f;
+
 bool														WW3D::Lite = false;
 
 /**********************************************************************************
@@ -806,6 +811,28 @@ void WW3D::Set_Antialias_Quality(int level)
 	if (level < 0) level = 0;
 	if (level > 2)	level = 2;
 	AntialiasQuality = level;
+}
+
+
+//	Roadmap Section 52A, Phase 51.
+void WW3D::Set_Height_Fog_Reference(float ceiling_z, float falloff)
+{
+	HeightFogCeiling = ceiling_z;
+	HeightFogFalloff = (falloff > 1.0f) ? falloff : 1.0f;	// guard against a zero/negative band
+}
+
+
+//	1.0 (full authored fog) at or below the ceiling minus the falloff band, 0.0 (fog pushed
+//	out past the draw distance by DX8Wrapper::Set_Fog) at or above the ceiling, linear between.
+//	Pure function -- no device, no state change -- so it is exercised by shaderselfcheck without
+//	a scene or a camera.
+float WW3D::Compute_Height_Fog_Scale(float viewer_z)
+{
+	if (!HeightFogEnabled) return 1.0f;
+	float t = (HeightFogCeiling - viewer_z) / HeightFogFalloff;
+	if (t < 0.0f) t = 0.0f;
+	if (t > 1.0f) t = 1.0f;
+	return t;
 }
 
 

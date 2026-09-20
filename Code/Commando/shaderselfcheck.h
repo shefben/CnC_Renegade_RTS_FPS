@@ -59,6 +59,12 @@ namespace	ShaderSelfCheck
 	//		           zero rate leaving the hour alone, and a set rate reading back
 	//		lightcurves    the Section 52A light-curve state machine (steady/flicker/pulse/
 	//		           warmup/fail) and the group-id association Section 40 power/damage drives
+	//		heightfog      the Section 52A height-fog scale function: off by default, 1.0 below
+	//		           the falloff band, 0.0 at/above the ceiling, and a guarded falloff
+	//		skyocclusion   the Section 52A ambient sky-occlusion switch on LightSolveContextClass:
+	//		           off by default and independent of the pre-existing direct-light switch
+	//		skydriventoggles  the Section 52A cloud-shadow/metal-reflection/sun-shaft switches:
+	//		           all three off by default, all three round-trip
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

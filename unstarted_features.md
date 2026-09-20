@@ -100,31 +100,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P26: Modular draw components + composite attachments (roadmap Section 29)
 
-## P51: Height fog tied to the horizon colour (roadmap Section 52A)
-
-- [ ] Height-based fog term with colour taken from HazeClass::Get_Horizon_Color so it moves with the sky clock.
-- [ ] Acceptance: Distance fades into the current horizon colour at every hour, low ground holds fog high ground does not, and the term disabled restores authored linear fog.
-
-## P52: Terrain and contact ambient occlusion (roadmap Section 52A)
-
-- [ ] Per-vertex sky occlusion computed at heightfield generation into the existing patch vertex colour, plus contact darkening through the Section 24 caster path.
-- [ ] Acceptance: Creases and slope interiors darken, dynamic objects are visually anchored, and no second shadow implementation exists.
-
-## P53: Moving cloud shadows (roadmap Section 52A)
-
-- [ ] Procedurally generated cloud density mask scrolled through the existing texproject path, driven by the P58 wind field.
-- [ ] Acceptance: Patches of shade cross terrain in the wind direction under the drawn clouds, at a cost independent of object count.
-
-## P54: Sky-driven environment reflections (roadmap Section 52A)
-
-- [ ] Low-rate environment map regenerated from current sky/haze/sun/cloud colour and fed to the existing metalmap mapper.
-- [ ] Acceptance: Vehicle reflections change with the sky clock at bounded cost, and regeneration off uses the stock map.
-
-## P55: Sun shafts (roadmap Section 52A)
-
-- [ ] Depth-occluded radial blur from the SkyGlowClass on-screen sun position, as one Section 15 screen-space pipeline.
-- [ ] Acceptance: Shafts appear through occluders and move with the sky clock, and nothing draws with the sun below the horizon or off screen.
-
 ## P56: Tonemapping and eye adaptation (roadmap Section 52A)
 
 - [ ] Full-screen tonemap with slow automatic exposure and a code-generated grading ramp through the Section 15 layer, behind a setting.

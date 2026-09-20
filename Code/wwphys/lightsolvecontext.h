@@ -63,6 +63,14 @@ public:
 	void								Enable_Occlusion(bool onoff) { OcclusionEnabled = onoff; }
 	bool								Is_Occlusion_Enabled(void) { return OcclusionEnabled; }
 
+	//	Roadmap Section 52A, Phase 52.  Distinct from OcclusionEnabled above, which is the
+	//	pre-existing direct-light shadow-ray test and has always defaulted on. This is the new
+	//	hemisphere sky-visibility term Light_Terrain composes into baked ambient; it reuses the
+	//	same raycast the direct-light test already casts, but defaults off so an ordinary solve
+	//	reproduces today's terrain lighting exactly until a caller opts in.
+	void								Enable_Sky_Occlusion(bool onoff) { SkyOcclusionEnabled = onoff; }
+	bool								Is_Sky_Occlusion_Enabled(void) { return SkyOcclusionEnabled; }
+
 	LightSolveProgressClass &	Get_Progress(void) { return Progress; }
 
 	void								Set_Observer(LightSolveObserverClass * observer) { Observer = observer; }
@@ -74,6 +82,7 @@ protected:
 
 	bool								OcclusionEnabled;
 	bool								FilteringEnabled;
+	bool								SkyOcclusionEnabled;
 
 	LightSolveProgressClass		Progress;
 	LightSolveObserverClass	*	Observer;

@@ -287,6 +287,14 @@ public:
 	void Set_Halo_Color(const Vector3& col) { halo_color=col; }
 	void Set_Lensflare_Intensity (float intensity) {lensflare_intensity=intensity;}
 
+	//	Roadmap Section 52A, Phase 55.  current_vloc is the clip-space/NDC position Render()
+	//	already computes every frame (X/Y in [-1,1], Z in [0,1] depth); visibility is the same
+	//	occlusion factor Render() already applies to the dazzle's own intensity. Both were
+	//	private and unread outside this class; a screen-space effect keyed to the sun's on-screen
+	//	position and depth occlusion needs exactly these two, computed nowhere else.
+	const Vector3 &	Get_Screen_Position(void) const	{ return current_vloc; }
+	float					Get_Visibility(void) const			{ return visibility; }
+
 	unsigned int					Get_Dazzle_Type(void) { return type; }
 
 	// Usually, a DazzleRenderObj adds itself to the appropriate visible list

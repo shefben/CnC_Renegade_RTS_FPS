@@ -208,7 +208,7 @@ void SceneClass::Remove_Render_Object(RenderObjClass * obj)
  *=============================================================================================*/
 void SceneClass::Render(RenderInfoClass & rinfo)
 {
-	DX8Wrapper::Set_Fog(FogEnabled, FogColor, FogStart, FogEnd);
+	DX8Wrapper::Set_Fog(FogEnabled, FogColor, FogStart, FogEnd, rinfo.Camera.Get_Position().Z);
 
 	if (Get_Extra_Pass_Polygon_Mode()==EXTRA_PASS_DISABLE) {
 		Customized_Render(rinfo);

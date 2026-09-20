@@ -1,6 +1,6 @@
-# The Section 52A visual-fidelity program: Phases 46-50
+# The Section 52A visual-fidelity program: Phases 46-55
 
-Roadmap Section 52A, the first five phases (of seventeen). Program-wide constraints that
+Roadmap Section 52A, the first ten phases (of seventeen). Program-wide constraints that
 bind every phase in the section: no new authored art required; no `.w3d` re-export or
 LevelEdit re-solve; every phase is a runtime switch defaulting to current appearance until
 enabled, and disabling it restores stock rendering exactly; appearance is not intelligence
@@ -9,9 +9,10 @@ server); shared state that must agree across a match is server-authoritative and
 as a small scalar set, never per-object; each phase extends its named canonical owner, it
 does not fork a second pipeline behind a flag.
 
-All five phases build and link clean across `ww3d2`, `wwphys`, `combat`, `renegade` and
-`renegadeserver`. Three new device-less `-shaderselfcheck` families cover the state-machine
-surface (`visualsettings`, `skyclock`, `lightcurves`), each with an `fds_` twin, per
+All ten phases build and link clean across `ww3d2`, `wwphys`, `combat`, `renegade` and
+`renegadeserver`. Six device-less `-shaderselfcheck` families cover the state-machine surface
+(`visualsettings`, `skyclock`, `lightcurves` for P46-50; `heightfog`, `skyocclusion`,
+`skydriventoggles` for P51-55), each with an `fds_` twin, per
 `docs/zerohour/TestCoverageCatalog.md`'s own convention.
 
 ## P46: sampler/filtering/antialias quality defaults
@@ -194,14 +195,164 @@ without guessing a convention nothing has ever authored to; per this project's o
 documented, and the association is recorded as a data gap, not treated as a reason to leave
 the code unwritten.
 
+## P51: height fog tied to the horizon colour
+
+**Owner:** `Code/ww3d2/dx8wrapper.cpp`/`.h` (the term), `ww3d.h`/`.cpp` (the settings),
+`scene.cpp` (the one call site).
+
+The fog colour already moved with the sky clock before this phase -- `SkyClass::Update`
+calls `mainscene->Set_Fog_Color(Haze->Get_Horizon_Color() + colorsum)` every frame, and
+`Haze`'s own colour already comes from `SkyClass::Set_Time_Of_Day`'s interpolation table, so
+P48's clock was already driving it. What was missing, confirmed by reading `DX8Wrapper::
+Set_Fog` and `SceneClass::Render`, was any height term at all: fixed-function `D3DFOG_LINEAR`
+vertex fog, pure camera-space distance, one flat colour.
+
+Rather than the specular-alpha-as-explicit-fog-factor technique (the only fixed-function way
+to get true per-vertex height fog), which would mean touching every vertex format this engine
+writes, this phase uses the same *approximation* class of technique 2002-era engines without
+per-pixel shaders used: `DX8Wrapper::Set_Fog` now takes the viewer's world Z (the one call
+site, `SceneClass::Render`, already has `rinfo.Camera.Get_Position()`) and pushes the
+authored `start`/`end` distances out toward "never reached" as the viewer rises past a
+configurable ceiling, scaled by `WW3D::Compute_Height_Fog_Scale` -- a pure function, 1.0 at or
+below the ceiling minus the falloff band (byte-identical to today's fog), 0.0 at or above it.
+Low ground keeps the level's authored fog exactly; high ground pushes it out of range. This is
+camera-relative, not per-object -- a valley visible from a hilltop still reads by the camera's
+own height, not the valley floor's -- an honest limitation of not touching per-vertex data,
+not an oversight.
+
+`WW3D::Set_Height_Fog_Reference(ceiling_z, falloff)` is a plain setting, not an authored
+asset; nothing computes it from a level's actual terrain bounds this pass (a heightfield-
+derived default is a reasonable follow-on, not attempted here since the feature is off by
+default regardless of what the reference values are).
+
+## P52: terrain and contact ambient occlusion
+
+**Owner:** `Code/wwphys/lightsolve.cpp` (`VertexSolveClass::Light_Terrain`), `Code/wwphys/
+lightsolvecontext.h`/`.cpp` (the new switch), `Code/wwphys/worldshadowmanager.cpp` (already
+complete -- see below).
+
+Every heightfield-generated patch (P11-B: `Build_Collision` turns each one into a
+`RenegadeTerrainPatchClass`) and every stock, author-placed terrain patch light through the
+same `Light_Terrain` pass and the same `VertexColors` array -- one lighting path for both, so
+adding ambient occlusion here covers "generated terrain" and stock terrain identically, with
+no second implementation for either.
+
+`Compute_Sky_Occlusion` casts six rays per vertex (straight up the vertex normal, plus five
+spread at a fixed cone angle), cosine-weighted, against `PhysicsSceneClass::Cast_Ray` -- the
+same kind of ray `Compute_Sun_Visibility` (P49) already casts, just aimed at a sampled
+hemisphere instead of one sun direction, and bounded to a 6-unit local test distance (creases
+and nearby slopes, not distant terrain). The result multiplies the *ambient* term only, never
+the direct sun/light terms, which already have their own per-light shadow test.
+
+Gated by a new `LightSolveContextClass::Enable_Sky_Occlusion`/`Is_Sky_Occlusion_Enabled`,
+deliberately distinct from the pre-existing `Enable_Occlusion`/`Is_Occlusion_Enabled` (the
+direct-light shadow test, which has always defaulted **on**). Reusing that existing switch
+would have silently added a new visual term to every solve already running with it on --
+sky occlusion needed its own switch, defaulting off, so an ordinary solve reproduces today's
+terrain lighting exactly.
+
+**The dynamic-object contact-darkening half needed no new code.** `WorldShadowManager`
+already has a complete, working blob-shadow tier (`SHADOW_MODE_BLOBS`): an orthographic blob
+projected straight down under any dynamic object, affecting only static geometry
+(`Enable_Affect_Dynamic_Objects(false)`), already wired to the console, the performance
+settings dialog and `SystemSettingsClass` (`PhysicsSceneClass::Set_Shadow_Mode`). It defaults
+to `SHADOW_MODE_NONE`, which this phase leaves alone -- Section 52A's own "defaults to current
+appearance" rule means the default cannot change, only what a caller can opt into, and that
+opt-in already existed before this phase touched anything.
+
+## P53: moving cloud shadows
+
+**Owner:** `Code/Combat/backgroundmgr.cpp` (`CloudLayerClass`).
+
+`CloudLayerClass` already scrolls its own sky-dome texture by `Velocity` every frame
+(`Render()`, pre-existing). This phase gives it a second, independent capability: up to three
+`TexProjectClass` ground projectors (`GROUND_SHADOW_PATCH_COUNT`), each a multiplicative,
+depth-independent ortho projection (`Compute_Ortho_Projection`, looking straight down,
+`Init_Multiplicative`), staggered along the same `Velocity` direction and drifting at a fixed
+world-space pace, wrapping back around a bounded radius from the origin -- the same technique
+`WorldShadowManager` already uses for its own projector (`Compute_Ortho_Projection` called
+fresh every frame; no render target, no texture regeneration, only the projection matrix
+changes).
+
+No authored mask exists or is required: `Build_Shadow_Mask_Texture` generates a small (128x128)
+tiling value-noise texture once, named `ow_cloud_shadow_mask` (procedural, never loaded from
+disk -- the `ow_` prefix is kept for consistency with `docs/assets/` even though nothing here
+reads it from a file). A purpose-made replacement is recorded in `docs/assets/
+VisualFidelity.md` as an improvement, never a prerequisite, exactly as Section 52A's own text
+for this phase says.
+
+Deliberately reused `CloudLayerClass::Velocity` -- the direction its own sky texture already
+scrolls by -- rather than `WeatherMgrClass`'s separate wind (also real, also already
+replicated, and the more literal reading of the roadmap's "same wind field as P58", which
+does not exist yet). Using the cloud layer's own existing scroll keeps "the clouds that are
+already drawn cast something" true in the most direct sense: the shadow moves with the same
+value the clouds themselves do, not a second, independently-authored direction. `Enable_
+Ground_Shadow`/`Update_Ground_Shadow` are new; `BackgroundMgrClass::Set_Cloud_Shadows_Enabled`
+(default off) is the runtime switch, applied idempotently every frame from `Update()`.
+
+## P54: sky-driven environment reflections
+
+**Owner:** `Code/ww3d2/metalmap.cpp` (`MetalMapManagerClass`, unchanged), `Code/Combat/
+backgroundmgr.cpp` (the new caller).
+
+`MetalMapManagerClass::Update_Lighting`/`Update_Textures` were already complete, already
+generate real procedural environment maps (`!m%02d.tga`, already wired into every metal
+material through `WW3DAssetManager::Load_Procedural_Textures`) -- and already never called
+anywhere but the standalone `W3DView` tool. Every metal surface in the actual game has
+rendered with whatever the constructor's zero-initialized lighting left it since this system
+shipped. This phase's entire job was wiring the existing generator into the runtime: a
+2-second-throttled call from `BackgroundMgrClass::Update`, feeding `PhysicsSceneClass::
+Get_Ambient_Light()`/`Get_Sun_Light()` -- the same source `lightsolve.cpp` already uses for
+the terrain/mesh solve -- plus the camera's own forward direction as the Phong view term.
+`Set_Metal_Reflections_Enabled` (default off) gates it; enabling it is the only thing that
+changes.
+
+## P55: sun shafts
+
+**Owner:** `Code/ww3d2/dazzle.h`/`.cpp` (the sun position/visibility, extended), `Code/Combat/
+backgroundmgr.cpp` (the draw, new), `Code/Combat/combat.cpp` (the one call site).
+
+The roadmap names `SkyGlowClass` as already knowing the sun's on-screen position; reading it,
+`SkyGlowClass` is a lightning/war-blitz billboard effect with no connection to the sun at all.
+The actual owner of the sun's screen position is `_Dazzle`, a `DazzleRenderObjClass` that
+`BackgroundMgrClass` already positions at the sun's world location every frame -- its
+`Render()` already computes a clip-space position (`current_vloc`) and an occlusion factor
+(`visibility`) each frame, both previously private and unread outside the class. This phase
+adds public `Get_Screen_Position()`/`Get_Visibility()` getters, nothing else, to the owner
+that already does the work.
+
+**What this draws is a streak-sprite approximation, not a per-pixel radial blur.** A true
+depth-occluded radial blur needs a screen-space render-target chain this codebase has not
+built yet -- confirmed by reading `shadermgr.cpp`: Section 15's `ShaderManagerClass` is a
+per-surface material/shading-state registry (terrain, road, water, particle passes), not a
+post-process framework, and nothing in the tree does full-screen render-target ping-pong
+(`DX8Wrapper::Create_Render_Target` exists but is used only for shadow-projector textures).
+Building that framework from nothing, untestable without a device, was judged disproportionate
+to one phase in a five-phase batch. Instead, `BackgroundMgrClass::Render_Sun_Shafts` -- called
+once per frame from `combat.cpp`, right after the dazzle layer renders so the position/
+visibility are this frame's, not last frame's -- draws six small additive glow quads (a
+`Render2DClass`, the same 2D overlay primitive HUD elements already use) stepping from the
+sun's screen position toward screen centre, sized and faded by distance along that step and
+by `_Dazzle`'s own `Get_Visibility()` -- the same occlusion test the sun dazzle itself already
+uses, not a second one. Gated off entirely (nothing drawn) when the sun is at or below the
+horizon (`_UnitLightVector.Z <= 0`) or the screen position falls outside the view volume,
+matching the acceptance line's wording exactly. The glow texture (`ow_sun_shaft_glow`, a
+32x32 radial falloff) is generated once, procedurally, the same way P53's mask is.
+
+**Recorded, not hidden:** this is real, visible, gated correctly, and reuses the sun's actual
+occlusion test -- but it is a cheaper effect than "radially blur bright pixels... strongest
+through windows, doorways and tree canopy" describes. A true per-pixel version is the natural
+target once P56/P57's post-processing chain exists to share a render-target owner with, which
+is exactly what Section 52A's own ordering note says P56/P57 are for.
+
 ## What this pass did not attempt
 
-- **Runtime visual verification of any of the five phases.** No screenshot, no frame capture,
+- **Runtime visual verification of any of the ten phases.** No screenshot, no frame capture,
   no live match -- the standing "do not run the game" instruction covers this pass the same
-  way it already covers the nineteen self-check families **Q-012** tracks. Everything above
-  that is stated as a visual outcome ("shadows rotate", "night falls") is a claim about what
-  the code does given what its consumers were read to already do, not a claim that has been
-  seen on screen.
+  way it already covers the twenty-two self-check families **Q-012** tracks. Everything above
+  that is stated as a visual outcome ("shadows rotate", "night falls", "broad patches of
+  shade") is a claim about what the code does given what its consumers were read to already
+  do, not a claim that has been seen on screen.
 - **HLodClass mesh-LOD dissolve.** P47's DistLOD half is real and correct against the class
   the roadmap names, but does not reach the LOD system stock content actually uses
   (`HLodClass`). Extending the same overlap-window technique there is a natural follow-on,
@@ -209,3 +360,9 @@ the code unwritten.
 - **The P49 BaseSolve saturation approximation** is exactly that -- an approximation, not
   energy-conserving in scenes with several stacked over-bright lights. Acceptable for a
   cosmetic relighting term; not re-derived to be exact this pass.
+- **P51's height fog is camera-relative, not per-vertex.** True height-varying fog (a valley
+  foggy while a hilltop the camera can also see is not) needs per-vertex or per-pixel data
+  this pass did not add to every renderer; recorded above, not hidden.
+- **P55's shaft is a streak-sprite approximation**, not the per-pixel radial blur the acceptance
+  text describes; recorded above with the reasoning, and the natural follow-on (P56/P57's
+  post-processing render-target chain) named.

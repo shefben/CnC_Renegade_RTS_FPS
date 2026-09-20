@@ -1968,3 +1968,56 @@ them. What remains is authoring, not code -- a light must have its `Group ID` se
 `Get_ID()` by a level or spawn script -- recorded in `docs/assets/VisualFidelity.md` the same way a
 missing texture would be. Evidence: `docs/zerohour/VisualFidelityProgram.md`.
 
+## P51: camera-relative height fog reading the same horizon colour (Section 52A)
+
+`DX8Wrapper::Set_Fog` takes the viewer's world Z and scales the authored fog start/end distances
+toward "never reached" past a configurable ceiling, via the pure `WW3D::Compute_Height_Fog_Scale`
+(1.0 unchanged below the falloff band, 0.0 at/above the ceiling). The colour half was already done --
+`Haze->Get_Horizon_Color()` already fed the scene's fog colour every frame, already moving with P48's
+clock. Off by default; camera-relative rather than per-vertex, recorded honestly rather than adding a
+per-vertex fog channel to every renderer. Device-less `shader_heightfog`/`fds_shader_heightfog` cover
+the scale function. Evidence: `docs/zerohour/VisualFidelityProgram.md`.
+
+## P52: ambient sky occlusion on terrain, contact shadows already existed (Section 52A)
+
+`VertexSolveClass::Light_Terrain` -- the one bake path both stock and heightfield-generated terrain
+already share -- now multiplies its ambient term by a six-ray cosine-weighted hemisphere sample,
+reusing the same raycast `Compute_Sun_Visibility` already casts. Gated by a new
+`LightSolveContextClass::Enable_Sky_Occlusion`, deliberately separate from the pre-existing
+`Enable_Occlusion` (which has always defaulted on) so an ordinary solve is untouched. The dynamic-
+object contact-darkening half needed no new code: `WorldShadowManager`'s blob-shadow tier was already
+complete and already wired to the settings UI, just off by default like everything else in this
+program. Device-less `shader_skyocclusion`/`fds_shader_skyocclusion` cover the switch; the raycasts
+themselves need a real scene. Evidence: `docs/zerohour/VisualFidelityProgram.md`.
+
+## P53: cloud ground-shadows scrolling with the cloud layer's own velocity (Section 52A)
+
+`CloudLayerClass` gained up to three `TexProjectClass` ground projectors, drifting along the same
+`Velocity` its own sky texture already scrolls by, wrapping around a bounded radius -- the same
+per-frame `Compute_Ortho_Projection` re-call technique `WorldShadowManager` already uses for its own
+projector. The density mask is a procedurally generated, never-authored 128x128 tiling texture
+(`ow_cloud_shadow_mask`). Off by default (`BackgroundMgrClass::Set_Cloud_Shadows_Enabled`), applied
+idempotently every frame. Evidence: `docs/zerohour/VisualFidelityProgram.md`.
+
+## P54: the existing procedural metal-map generator, finally called (Section 52A)
+
+`MetalMapManagerClass::Update_Lighting`/`Update_Textures` were already complete and already wired
+into every metal material's texture lookup, but were never called anywhere outside the standalone
+W3DView tool. `BackgroundMgrClass::Update` now calls both, 2-second throttled, feeding the same
+`PhysicsSceneClass::Get_Ambient_Light`/`Get_Sun_Light` the terrain/mesh solve already uses. Off by
+default (`Set_Metal_Reflections_Enabled`); enabling it is the only change. Evidence:
+`docs/zerohour/VisualFidelityProgram.md`.
+
+## P55: sun shafts as a streak-sprite approximation (Section 52A)
+
+`DazzleRenderObjClass` gained public `Get_Screen_Position`/`Get_Visibility` getters onto data its own
+`Render()` already computed every frame and never exposed. `BackgroundMgrClass::Render_Sun_Shafts`
+(new, called once per frame from `combat.cpp` right after the dazzle layer renders) draws six additive
+`Render2DClass` glow quads stepping from the sun's screen position toward centre, faded by the same
+occlusion factor the sun dazzle itself already uses. Not a per-pixel radial blur -- this codebase has
+no screen-space render-target post-process chain yet (Section 15's shader manager is a per-surface
+material registry, not one) -- recorded as a follow-on for once P56/P57 build that chain, not hidden.
+Draws nothing below the horizon or off screen, matching the acceptance line. Off by default. Device-
+less `shader_skydriventoggles`/`fds_shader_skydriventoggles` cover this and P53/P54's switches.
+Evidence: `docs/zerohour/VisualFidelityProgram.md`.
+

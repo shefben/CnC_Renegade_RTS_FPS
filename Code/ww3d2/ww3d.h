@@ -169,6 +169,25 @@ public:
 	static bool					Get_LOD_Dissolve_Enabled() { return LODDissolveEnabled; }
 
 	/*
+	**	Roadmap Section 52A, Phase 51.  Height fog: a scale in [0,1] applied to the authored
+	**	fog start/end distances, 1 (full authored fog) at or below the ceiling minus the
+	**	falloff band, 0 (fog pushed out past the draw distance) at or above the ceiling.
+	**	Off by default -- `DX8Wrapper::Set_Fog` then applies scale 1.0 unconditionally, which
+	**	reproduces today's flat linear distance fog exactly. The reference height and falloff
+	**	are plain settings, not authored assets; a level or a menu may call
+	**	`Set_Height_Fog_Reference` once terrain bounds are known, or leave the generic default.
+	*/
+	static void					Set_Height_Fog_Enabled(bool enabled) { HeightFogEnabled = enabled; }
+	static bool					Get_Height_Fog_Enabled() { return HeightFogEnabled; }
+	static void					Set_Height_Fog_Reference(float ceiling_z, float falloff);
+	static float				Get_Height_Fog_Ceiling() { return HeightFogCeiling; }
+	static float				Get_Height_Fog_Falloff() { return HeightFogFalloff; }
+
+	//	Pure function of the current settings and a viewer world-space Z; no device, no state
+	//	change. Returns 1.0 unconditionally when height fog is off.
+	static float				Compute_Height_Fog_Scale(float viewer_z);
+
+	/*
 	** Rendering functions
 	** Each frame should be bracketed by a Begin_Render and End_Render call.  Between these two calls you will
 	** normally render scenes.  The render function which accepts a single render object is implemented for
@@ -388,6 +407,9 @@ private:
 	static float						TextureLODBias;
 	static int							AntialiasQuality;
 	static bool							LODDissolveEnabled;
+	static bool							HeightFogEnabled;
+	static float						HeightFogCeiling;
+	static float						HeightFogFalloff;
 
 	static bool							SnapshotActivated;
 	static bool							ThumbnailEnabled;

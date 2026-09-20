@@ -621,3 +621,22 @@ W3D LOD chunk to `HLodClass` at load, so no stock asset ever reaches it. The far
 P47 has no such gap. Absorbs no backlog line (P47 itself is closed in `completed_features.md`); this
 is a named follow-on, not unfinished acceptance. Next exact action: extend the same overlap-window
 technique to `HLodClass`'s own LOD switch, the path stock content actually takes.
+
+## P51 -- height fog is camera-relative, not per-vertex
+
+`WW3D::Compute_Height_Fog_Scale` is correct and real, but is applied once per frame from the
+viewer's own height (`DX8Wrapper::Set_Fog`), not per vertex -- true per-vertex height fog needs
+either a vertex-format change reaching every renderer or a shader path this engine's fixed-function
+terrain/mesh rendering does not have. Absorbs no backlog line (P51 itself is closed). Next exact
+action: revisit once P56/57's post-processing work establishes whether a shader path is worth
+opening generally, rather than adding one just for fog.
+
+## P55 -- sun shafts are a streak-sprite approximation, not a per-pixel radial blur
+
+`BackgroundMgrClass::Render_Sun_Shafts` is real, gated correctly (horizon/off-screen/occlusion all
+checked against the sun dazzle's own data), and gives shafts today where there were none, but is
+additive glow quads, not the depth-occluded per-pixel radial blur the acceptance text describes --
+this codebase has no screen-space render-target post-process chain to build that on yet. Absorbs no
+backlog line (P55 itself is closed). Next exact action: reimplement as a real screen-space pass once
+P56/57 stand up a shared render-target chain, which is exactly what Section 52A's own ordering note
+says those two phases are for.

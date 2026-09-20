@@ -275,7 +275,11 @@ public:
 	static void Set_DX8_Texture_Sampler_State(unsigned sampler, D3DSAMPLERSTATETYPE state, unsigned value);
 	static void Set_DX8_Texture(unsigned int stage, IDirect3DBaseTexture9* texture);
 	static void Set_Light_Environment(LightEnvironmentClass* light_env);
-	static void Set_Fog(bool enable, const Vector3 &color, float start, float end);
+	//	viewer_z: world-space Z of the current camera, roadmap Section 52A Phase 51's height-fog
+//	term. Defaults to 0.0f, which is harmless -- the term only ever applies when
+//	WW3D::Get_Height_Fog_Enabled() is true, and the one real call site (SceneClass::Render)
+//	always passes the camera's actual height.
+static void Set_Fog(bool enable, const Vector3 &color, float start, float end, float viewer_z = 0.0f);
 
 	static const D3DLIGHT9& Peek_Light(unsigned index);
 	static bool Is_Light_Enabled(unsigned index);
@@ -613,20 +617,8 @@ inline void DX8Wrapper::Set_Index_Buffer_Index_Offset(unsigned offset)
 // This function should be called rarely - once per scene would be appropriate.
 // ----------------------------------------------------------------------------
 
-inline void DX8Wrapper::Set_Fog(bool enable, const Vector3 &color, float start, float end)
-{
-	// Set global states
-	FogEnable = enable;
-	FogColor = Convert_Color(color,0.0f);
-
-	// Invalidate the current shader (since the renderstates set by the shader
-	// depend on the global fog settings as well as the actual shader settings)
-	ShaderClass::Invalidate();
-
-	// Set renderstates which are not affected by the shader
-	Set_DX8_Render_State(D3DRS_FOGSTART, *(DWORD *)(&start));
-	Set_DX8_Render_State(D3DRS_FOGEND,   *(DWORD *)(&end));
-}
+// Body moved to dx8wrapper.cpp (roadmap Section 52A, Phase 51) so it can call
+// WW3D::Compute_Height_Fog_Scale without ww3d.h needing to be pulled into this header.
 
 // ----------------------------------------------------------------------------
 //

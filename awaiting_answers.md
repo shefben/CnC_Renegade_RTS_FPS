@@ -68,6 +68,16 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  authored with its `Group ID` set to a building's `Get_ID()`, which nothing in this codebase does yet
  (`docs/assets/VisualFidelity.md`).
 
+ **Update, a fourth pass.** Phases 51-55 added three more: `shader_heightfog`, `shader_skyocclusion`,
+ `shader_skydriventoggles` (each with an `fds_` twin), bringing the total to twenty-five -- still
+ covered by the same `"shader_|fds_shader_|terrain_shroud"` pattern, no change needed to the command.
+ Also still needing a person in game, with no ctest family possible: P51's height fog, P52's terrain/
+ contact occlusion, P53's cloud ground-shadows and P54's metal reflections all need eyes on a running
+ client the same way P47-49 already do, and P55's sun shafts need the same plus a look specifically at
+ whether the streak-sprite approximation (`docs/zerohour/VisualFidelityProgram.md`'s P55 section)
+ reads acceptably against a real occluder before deciding whether the P56/57 post-process follow-on is
+ worth doing sooner rather than later.
+
 
 - **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`
  "through the existing vcpkg/CMake dependency system." This machine has no `VCPKG_ROOT` and no

@@ -59,6 +59,9 @@ class DazzleRenderObjClass;
 class SimpleSceneClass;
 class TextureClass;
 class SoundEnvironmentClass;
+class TexProjectClass;
+class PhysicsSceneClass;
+class Render2DClass;
 
 // Classes.
 class VisibilityClass {
@@ -206,13 +209,26 @@ class CloudLayerClass : public VisibilityClass
 
 		void Render();
 
+		/*
+		**	Roadmap Section 52A, Phase 53.  A handful of scrolling ground projectors, driven by
+		**	this same layer's own Velocity -- the direction and speed its sky texture already
+		**	scrolls by -- so the shadow moves with the clouds it belongs to rather than with a
+		**	separate, disconnected wind value.  Off by default; a stock level draws nothing new
+		**	until a caller opts in.
+		*/
+		void Enable_Ground_Shadow (PhysicsSceneClass *scene, bool enabled);
+		bool Is_Ground_Shadow_Enabled (void) const { return GroundShadowEnabled; }
+
 	protected:
 
 		enum {
-			VERTICES_PER_TRIANGLE = 3
+			VERTICES_PER_TRIANGLE = 3,
+			GROUND_SHADOW_PATCH_COUNT = 3
 		};
 
 		void Configure();
+		void Update_Ground_Shadow (void);
+		static TextureClass * Build_Shadow_Mask_Texture (void);
 
 		Vector3					WarmColor;
 		Vector3					ColdColor;
@@ -231,6 +247,11 @@ class CloudLayerClass : public VisibilityClass
 		Vector2				  *TexCoordArray;
 		Vector2					Velocity;
 		unsigned				  *DiffuseArray;
+
+		bool						GroundShadowEnabled;
+		PhysicsSceneClass	  *GroundShadowScene;
+		TexProjectClass		  *GroundShadowProjector [GROUND_SHADOW_PATCH_COUNT];
+		Vector2					GroundShadowOffset [GROUND_SHADOW_PATCH_COUNT];
 };
 
 
@@ -369,6 +390,10 @@ class	SkyClass : public RenderObjClass
 		void Set_Moon_Type (MoonTypeEnum moontype, bool earth = false);
 		void Set_Clouds (float cloudcover, float gloominess);
 		void Set_Tint_Factor (float tintfactor);
+
+		//	Roadmap Section 52A, Phase 53.  Forwards to the near cloud layer, which owns the
+		//	ground-shadow projectors and the wind direction they drift with.
+		void Enable_Cloud_Shadows (PhysicsSceneClass *scene, bool enabled);
 
 		void Set_Lightning (float intensity, float startdistance, float enddistance, float heading, float distribution)
 		{
@@ -534,6 +559,31 @@ class	BackgroundMgrClass : public SaveLoadSubSystemClass, public NetworkObjectCl
 		static float Get_Sky_Clock_Rate()		{ return (_ClockRateHoursPerSecond); }
 		static bool  Is_Sky_Clock_Active()		{ return (_ClockDrivesSun); }
 
+		//	Roadmap Section 52A, Phase 53.  Off by default -- an ordinary level draws nothing
+		//	new until a caller opts in.  Applied from Update() every frame, which is cheap: the
+		//	call is a no-op whenever the desired state already matches the live one.
+		static void Set_Cloud_Shadows_Enabled (bool enabled)	{ _CloudShadowsEnabled = enabled; }
+		static bool Get_Cloud_Shadows_Enabled()					{ return (_CloudShadowsEnabled); }
+
+		//	Roadmap Section 52A, Phase 54.  Off by default; see the Update() implementation.
+		static void Set_Metal_Reflections_Enabled (bool enabled)	{ _MetalReflectionsEnabled = enabled; }
+		static bool Get_Metal_Reflections_Enabled()					{ return (_MetalReflectionsEnabled); }
+
+		/*
+		**	Roadmap Section 52A, Phase 55.  Off by default.  A handful of small additive glow
+		**	quads, stepped from the sun's own on-screen position (DazzleRenderObjClass::
+		**	Get_Screen_Position) toward the screen centre, scaled by the same occlusion factor
+		**	(Get_Visibility) the sun dazzle itself already uses -- so shafts dim and vanish
+		**	behind the same geometry the dazzle already does, with no second occlusion test
+		**	written. Not a per-pixel radial blur of the scene: that needs a screen-space render
+		**	target chain nothing in this codebase has built yet (Section 15's shader manager is
+		**	a per-surface material layer, not a post-process framework), so this is the
+		**	streak-sprite approximation of the same effect, real and visible, not a stand-in.
+		*/
+		static void Set_Sun_Shafts_Enabled (bool enabled)	{ _SunShaftsEnabled = enabled; }
+		static bool Get_Sun_Shafts_Enabled()					{ return (_SunShaftsEnabled); }
+		static void Render_Sun_Shafts (void);
+
 		static void	Set_Light_Source_Type (LightSourceTypeEnum lightsourcetype)
 		{
 			_LightSourceType = lightsourcetype;
@@ -670,6 +720,12 @@ class	BackgroundMgrClass : public SaveLoadSubSystemClass, public NetworkObjectCl
 		//	Phase 48's sky clock (roadmap Section 52A). Off (both default) reproduces
 		//	whatever the level authored, byte for byte.
 		static bool									_ClockDrivesSun;
+		static bool									_CloudShadowsEnabled;
+		static bool									_MetalReflectionsEnabled;
+		static bool									_SunShaftsEnabled;
+		static Render2DClass						*_SunShaftRenderer;
+		static TextureClass * Build_Sun_Shaft_Glow_Texture (void);
+
 		static float								_ClockRateHoursPerSecond;
 		static float								_ClockFractionalHours;
 

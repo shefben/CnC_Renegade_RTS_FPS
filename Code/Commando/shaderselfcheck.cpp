@@ -36,6 +36,7 @@
 #include "camera.h"
 #include "light.h"
 #include "lightphys.h"
+#include "lightsolvecontext.h"
 #include "rendobj.h"
 #include "rinfo.h"
 #include "vector3.h"
@@ -3639,6 +3640,112 @@ int	Run_Light_Curves (void)
 }
 
 
+/***********************************************************************************************
+ * Run_Height_Fog -- roadmap Section 52A, Phase 51.                                            *
+ *   WW3D::Compute_Height_Fog_Scale is a pure function of the current settings and a viewer     *
+ *   height; no device, no scene, and it is exactly what DX8Wrapper::Set_Fog applies, so         *
+ *   exercising it here proves the term without needing a render target.                        *
+ *=============================================================================================*/
+int	Run_Height_Fog (void)
+{
+	Check (!WW3D::Get_Height_Fog_Enabled (),"height fog defaulted to on");
+	Check (WW3D::Compute_Height_Fog_Scale (-1000.0f) == 1.0f,
+			 "disabled height fog did not return scale 1.0 regardless of height (got %f)",
+			 WW3D::Compute_Height_Fog_Scale (-1000.0f));
+	Check (WW3D::Compute_Height_Fog_Scale (1000.0f) == 1.0f,
+			 "disabled height fog did not return scale 1.0 at a high viewer position (got %f)",
+			 WW3D::Compute_Height_Fog_Scale (1000.0f));
+
+	WW3D::Set_Height_Fog_Reference (0.0f,100.0f);
+	WW3D::Set_Height_Fog_Enabled (true);
+
+	Check (WW3D::Compute_Height_Fog_Scale (-100.0f) == 1.0f,
+			 "at/below the falloff band's bottom, scale was not 1.0 (got %f)",
+			 WW3D::Compute_Height_Fog_Scale (-100.0f));
+	Check (WW3D::Compute_Height_Fog_Scale (0.0f) == 0.0f,
+			 "at the ceiling, scale was not 0.0 (got %f)",WW3D::Compute_Height_Fog_Scale (0.0f));
+	Check (WW3D::Compute_Height_Fog_Scale (500.0f) == 0.0f,
+			 "well above the ceiling, scale was not clamped to 0.0 (got %f)",
+			 WW3D::Compute_Height_Fog_Scale (500.0f));
+
+	float mid = WW3D::Compute_Height_Fog_Scale (-50.0f);
+	Check ((mid > 0.0f) && (mid < 1.0f),"midway through the falloff band, scale was not between 0 and 1 (got %f)",mid);
+
+	WW3D::Set_Height_Fog_Reference (0.0f,-5.0f);
+	Check (WW3D::Get_Height_Fog_Falloff () > 0.0f,
+			 "a non-positive falloff was not guarded against (got %f)",WW3D::Get_Height_Fog_Falloff ());
+
+	/*
+	**	Not covered here: DX8Wrapper::Set_Fog's own application of this scale to the device's
+	**	FOGSTART/FOGEND render states needs a real device. What is proved is the term every
+	**	frame's one Set_Fog call reads -- off by default, and clamped both directions once on.
+	*/
+
+	WW3D::Set_Height_Fog_Enabled (false);
+	WW3D::Set_Height_Fog_Reference (0.0f,500.0f);
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Sky_Occlusion -- roadmap Section 52A, Phase 52.                                         *
+ *   The switch Light_Terrain reads before spending a raycast per vertex per sample direction   *
+ *   -- default off, so an ordinary solve costs nothing new and reproduces today's terrain      *
+ *   lighting.  The raycasts themselves need a real PhysicsSceneClass and are not covered here.  *
+ *=============================================================================================*/
+int	Run_Sky_Occlusion (void)
+{
+	LightSolveContextClass context;
+
+	Check (context.Is_Occlusion_Enabled (),
+			 "the pre-existing direct-light occlusion test changed its long-standing default");
+	Check (!context.Is_Sky_Occlusion_Enabled (),
+			 "the new ambient sky-occlusion term defaulted to on");
+
+	context.Enable_Sky_Occlusion (true);
+	Check (context.Is_Sky_Occlusion_Enabled (),"Enable_Sky_Occlusion(true) did not take");
+	Check (context.Is_Occlusion_Enabled (),
+			 "turning on sky occlusion touched the separate, pre-existing direct-light switch");
+
+	context.Enable_Sky_Occlusion (false);
+	Check (!context.Is_Sky_Occlusion_Enabled (),"Enable_Sky_Occlusion(false) did not take");
+
+	return _Failures;
+}
+
+
+/***********************************************************************************************
+ * Run_Sky_Driven_Toggles -- roadmap Section 52A, Phases 53-55.                                *
+ *   Cloud ground-shadows, metal-map reflection refresh and sun shafts all gate their real work *
+ *   -- a CloudLayerClass ground projector, MetalMapManagerClass's texture regeneration, and a  *
+ *   Render2DClass draw -- behind one static bool each, and every one of those real paths needs *
+ *   a live scene, an asset manager and a device this binary does not have.  What is proved here *
+ *   is the one thing common to all three: off by default, and the setter round-trips.           *
+ *=============================================================================================*/
+int	Run_Sky_Driven_Toggles (void)
+{
+	Check (!BackgroundMgrClass::Get_Cloud_Shadows_Enabled (),"cloud shadows defaulted to on");
+	BackgroundMgrClass::Set_Cloud_Shadows_Enabled (true);
+	Check (BackgroundMgrClass::Get_Cloud_Shadows_Enabled (),"cloud shadows did not turn on");
+	BackgroundMgrClass::Set_Cloud_Shadows_Enabled (false);
+	Check (!BackgroundMgrClass::Get_Cloud_Shadows_Enabled (),"cloud shadows did not turn back off");
+
+	Check (!BackgroundMgrClass::Get_Metal_Reflections_Enabled (),"metal reflections defaulted to on");
+	BackgroundMgrClass::Set_Metal_Reflections_Enabled (true);
+	Check (BackgroundMgrClass::Get_Metal_Reflections_Enabled (),"metal reflections did not turn on");
+	BackgroundMgrClass::Set_Metal_Reflections_Enabled (false);
+	Check (!BackgroundMgrClass::Get_Metal_Reflections_Enabled (),"metal reflections did not turn back off");
+
+	Check (!BackgroundMgrClass::Get_Sun_Shafts_Enabled (),"sun shafts defaulted to on");
+	BackgroundMgrClass::Set_Sun_Shafts_Enabled (true);
+	Check (BackgroundMgrClass::Get_Sun_Shafts_Enabled (),"sun shafts did not turn on");
+	BackgroundMgrClass::Set_Sun_Shafts_Enabled (false);
+	Check (!BackgroundMgrClass::Get_Sun_Shafts_Enabled (),"sun shafts did not turn back off");
+
+	return _Failures;
+}
+
+
 }	// namespace
 
 
@@ -3762,6 +3869,21 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "lightcurves") == 0)) {
 		Run_Light_Curves ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "heightfog") == 0)) {
+		Run_Height_Fog ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "skyocclusion") == 0)) {
+		Run_Sky_Occlusion ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "skydriventoggles") == 0)) {
+		Run_Sky_Driven_Toggles ();
 		ran = true;
 	}
 
