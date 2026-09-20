@@ -27,6 +27,7 @@
 #include "terrainmask.h"
 #include "texture.h"
 #include "vertmaterial.h"
+#include "mapper.h"
 #include "w3d_file.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
@@ -461,7 +462,39 @@ bool WaterSystem::Build_Area_Geometry(WaterAreaClass & area,const WaterDefinitio
 	if (ShaderManagerClass::Get_Pass_State(MATERIAL_PROGRAM_WATER,0,&shader,&vmat)) {
 		mesh->Set_Shader(shader);
 		if (vmat != nullptr) {
-			mesh->Set_Vertex_Material(vmat,true);
+
+			/*
+			**	Flow scroll -- flow direction and scroll speed were stored and drove no per-frame
+			**	animation.  LinearOffsetTextureMapperClass is the primitive this engine already
+			**	has for exactly this (vertmaterial.cpp's own INI material loader attaches one the
+			**	same way); it self-animates off WW3D::Get_Sync_Time every time the material is
+			**	applied, so no per-frame WaterSystem::Update needs to exist at all.
+			**
+			**	It has to go on a *clone*, never on the shared vmat Get_Pass_State just handed
+			**	back: direction and speed are both per-area (a winding river's stations do not
+			**	all flow the same way), and every water area in the level shares that one
+			**	MATERIAL_PROGRAM_WATER material.  Mutating it in place would scroll every pond
+			**	and river identically -- the same "shared with the prototype" trap
+			**	CommanderGhostRenderer::Apply_Ghost_Materials calls out for the same reason.
+			*/
+			Vector3 flow_direction (0.0f,0.0f,0.0f);
+			area.Get_Flow_Direction (origin.X,origin.Y,&flow_direction);
+			float scroll_speed = def.Get_Scroll_Speed ();
+			if (flow_direction.Length2 () < WWMATH_EPSILON) { scroll_speed = 0.0f; }
+
+			if (scroll_speed > 0.0f) {
+				VertexMaterialClass * unique_vmat = vmat->Clone ();
+				Vector2 offset_per_sec (flow_direction.X * scroll_speed * UV_SCALE,
+													 flow_direction.Y * scroll_speed * UV_SCALE);
+				LinearOffsetTextureMapperClass * mapper =
+					NEW_REF (LinearOffsetTextureMapperClass,(offset_per_sec,Vector2 (1.0f,1.0f),0));
+				unique_vmat->Set_Mapper (mapper,0);
+				REF_PTR_RELEASE (mapper);
+				mesh->Set_Vertex_Material (unique_vmat,true);
+				REF_PTR_RELEASE (unique_vmat);
+			} else {
+				mesh->Set_Vertex_Material (vmat,true);
+			}
 		}
 	}
 	REF_PTR_RELEASE(vmat);

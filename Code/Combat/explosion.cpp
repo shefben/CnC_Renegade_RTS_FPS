@@ -56,6 +56,7 @@
 #include "smartgameobj.h"
 #include "building.h"
 #include "scexplosionevent.h"
+#include "worldlightmanager.h"
 
 /*
 ** ExplosionDefinitionClass
@@ -282,6 +283,13 @@ void	ExplosionManager::Create_Explosion_At( int explosion_def_id, const Matrix3D
 														 explosion_def->DecalSize, SURFACE_MARK_BLAST );
 	}
 
+	//	Roadmap Section 25, Phase 21 -- the other named caller of WorldLightManager's dynamic
+	//	lights ("muzzle flashes and explosions"). Every explosion gets one, client and server
+	//	alike, the same as the decal above; Create_Point_Light itself is a no-op safe to call
+	//	unconditionally (it just adds a LightPhysClass, the same object every self-check already
+	//	creates device-less). A longer lifetime and bigger radius than a muzzle flash -- this is
+	//	meant to read as the fireball's own glow, not a strobe.
+	WorldLightManager::Create_Point_Light (pos,Vector3 (1.0f,0.55f,0.20f),1.5f,10.0f,2.5f,0.35f);
 
 	//
 	// Apply the damage.

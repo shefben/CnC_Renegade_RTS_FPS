@@ -60,6 +60,7 @@
 #include "sniper.h"
 #include "scopemgr.h"
 #include "rbody.h"
+#include "worldlightmanager.h"
 #include "timeddecophys.h"
 #include "wwphysids.h"
 #include "part_emt.h"
@@ -933,6 +934,16 @@ void	WeaponClass::Fire_Bullet( const AmmoDefinitionClass *ammo_def, bool primary
 		// object of its own.
 		BulletManager::Create_Tracer( start, end, 0.1f, 0.8f,0.0f,0.0f, 0.8f, 0.6f );
 	}
+
+	//	Roadmap Section 25, Phase 21.  WorldLightManager::Create_Point_Light was built with this
+	//	exact caller in mind ("what every muzzle flash in the game is going to want") and had
+	//	none until now.  A short positive lifetime fades and removes itself -- no cleanup call
+	//	needed here -- and Create_Point_Light's own cap (MaxDynamicLights) refuses rather than
+	//	growing without bound in sustained automatic fire, so this needs no rate limiting of its
+	//	own. Every shooter gets one, not just the local player: unlike the camera kick below,
+	//	this is a light every nearby player should see, not a first-person-only effect.
+	WorldLightManager::Create_Point_Light (muzzle.Get_Translation(),Vector3 (1.0f,0.75f,0.35f),
+														 0.3f,3.0f,1.5f,0.06f);
 
 	// Initiate recoil effects on our parent object.
 	Get_Owner()->Start_Recoil(muzzle_index,Get_Recoil_Scale(),Get_Recoil_Time());

@@ -57,6 +57,7 @@
 #include "WWAudio.h"
 #include "Sound3D.h"
 #include "vehiclephys.h"
+#include "debrissystem.h"
 #include "motorcycle.h"
 #include "trackedvehicle.h"
 #include "vtolvehicle.h"
@@ -2470,6 +2471,30 @@ void	VehicleGameObj::Apply_Damage( const OffenseObjectClass & damager, float sca
 				damager.Get_Owner()->As_SoldierGameObj()->Get_Player_Data()->Stats_Add_Vehicle_Destroyed();
 			}
 		}
+
+		//
+		//	Roadmap Section 28, Phase 25 -- the vehicle-wreck hook the debris pass named but did
+		//	not identify.  Apply_Damage runs identically on the server and on every client
+		//	replicating this vehicle's health, unlike Object_Expired below (server-only), which
+		//	is exactly what BuildingGameObj::On_Destroyed's "every client that sees this call
+		//	spawns its own fragments" needs -- gating this on I_Am_Server would mean only the
+		//	host ever saw a wreck.  Radius comes from the vehicle's own model, since unlike a
+		//	building a vehicle has one; a dedicated server's Peek_Model() may be null and falls
+		//	back to a fixed radius rather than skipping the debris entirely.
+		//
+		Vector3 wreck_pos (0.0f,0.0f,0.0f);
+		Get_Position (&wreck_pos);
+
+		float wreck_radius = 2.5f;
+		RenderObjClass * wreck_model = Peek_Model ();
+		if (wreck_model != nullptr) {
+			const AABoxClass & box = wreck_model->Get_Bounding_Box ();
+			wreck_radius = (box.Extent.X + box.Extent.Y) * 0.5f;
+			if (wreck_radius < 1.5f) wreck_radius = 1.5f;
+		}
+
+		static const Vector4 WRECK_COLOR (0.35f,0.33f,0.32f,1.0f);
+		DebrisManager::Spawn (wreck_pos,wreck_radius,10,0,nullptr,WRECK_COLOR,3.5f);
 	}
 
 	//

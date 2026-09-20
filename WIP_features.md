@@ -267,8 +267,9 @@ twenty green terrain ctest entries). This entry carries the absorbed acceptance 
 visually and physically without a competing collision system*: the physical half is proved by
 construction (the surface mesh is tagged into Renegade's existing water surface type rather than
 answered by a new system), but no pond has ever been drawn, nothing reads water areas out of a
-level, flow direction and scroll speed are stored but drive no per-frame animation, there is no
-reflection, and no naval/amphibious unit yet asks `Get_Water_Depth`/`Is_Navigable`. Next exact
+level, there is no reflection, and no naval/amphibious unit yet asks `Get_Water_Depth`/`Is_Navigable`.
+**Flow direction and scroll speed now drive real per-frame animation** (`completed_features.md`,
+"P17 continued") -- that clause is closed. Next exact
 action is a manual one for the user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a
 level, then `water_test 20 <a texture name from that level>` at the console, and report whether the
 pond carved into the ground, whether the shoreline looked blended, and whether it drew.
@@ -305,8 +306,13 @@ objects.
 `WorldShadowManager` is in and checked (P20-A in `completed_features.md`,
 `docs/zerohour/WorldShadowManager.md`, twenty-six green terrain ctest entries). The caching is proved
 structurally and by the device-less checks, but no shadow has been seen: the checks cannot allocate a
-render target, nothing registers a world-system caster yet, and local lights still do not cast. Next
-exact action is a manual one for the user: run `renegade --gamedir "C:\Westwood\Renegade_full"`,
+render target, and nothing registers a world-system caster yet. **"Local lights still do not cast" is
+not a gap** -- `WorldShadowManager::Update_Object_Shadow`'s own comment says why: "local shadow
+casting was disabled in stock Renegade and nothing has asked for it back", so only the sun (always
+orthographic) drives a dynamic shadow, matching stock exactly; `LightClass::CastShadows` still
+round-trips through the W3D format and LevelEdit's authoring UI, it is just correctly unread by the
+runtime shadow pipeline. Next exact action is a manual one for the user: run
+`renegade --gamedir "C:\Westwood\Renegade_full"`,
 load a level, then `shadow_mode 3` and `shadow_status` at the console while standing still, and
 `shadow_status` again while running and turning, and report whether shadows still look right and
 whether the render count drops to the cache-hit count when nothing is moving.
@@ -324,16 +330,17 @@ nothing streams. Next exact action is a manual one for the user: run
 `far_terrain` at the console, walk away from the field until the numbers show far blocks drawing,
 and report whether the boundary shows anything.
 
-## P21 -- the lights are filtered and nothing has switched one on
+## P21 -- the lights are filtered and now two gameplay sources switch them on
 
 `WorldLightManager` is in and checked (P21-A in `completed_features.md`,
-`docs/zerohour/WorldLightManager.md`, twenty-eight green terrain ctest entries). No gameplay code
-creates a dynamic light yet -- weapons, explosions and Commander feedback are later phases -- and
-particles are unlit so they have no light set to filter. Next exact action is a manual one for the
-user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then `light_test 8 15`
-and `light_status` at the console, walk into and out of the ring, and report whether the world
-actually lights up, whether the lights-per-query number stays flat after `light_test 64 15`, and what
-`light_clear` leaves behind.
+`docs/zerohour/WorldLightManager.md`, twenty-eight green terrain ctest entries). **Weapon fire and
+explosions now create real dynamic lights** (`completed_features.md`, "P21 continued") -- the two
+callers the class's own header comment named and had neither of. Commander feedback lights remain a
+later phase, and particles are still unlit so they have no light set to filter. Next exact action is
+a manual one for the user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then
+`light_test 8 15` and `light_status` at the console, walk into and out of the ring, fire a weapon and
+trigger an explosion and confirm a brief flash appears at each, and report whether the
+lights-per-query number stays flat after `light_test 64 15`, and what `light_clear` leaves behind.
 
 ## P22 -- batched, unwatched, and one check unconfirmed
 
@@ -381,16 +388,18 @@ families. Next exact action is a manual one for the user: run
 `ctest -C Debug -R "shader_weather|shader_particles|shader_tracers" --output-on-failure` in
 `build/win32`, then fire a `DisplayLaser` weapon in game and report `tracer_status`.
 
-## P25 -- buildings and bridges scatter debris, vehicles and city props do not yet
+## P25 -- buildings, bridges and vehicles scatter debris; city props do not yet
 
 `DebrisRenderer`/`DebrisManager` are in (P25-A in `completed_features.md`,
 `docs/zerohour/DebrisRenderModule.md`). This absorbs the P25 acceptance in full -- it is a general
 statement about networked `GameObj`s and neither tier ever creates one -- but Section 28 names
-buildings, bridges, vehicles and future generated city props as consumers, and only the first two
-are wired. **Vehicles**: `VehicleGameObj::Object_Expired` is server-only and drives a networked
-explosion event; the right client-side "this vehicle is now a wreck" hook was not identified this
-pass rather than guessed at. **City props**: no generated-prop system exists yet to hook into.
-Neither is a missing-art problem, both are a missing call site. The gameplay tier
+buildings, bridges, vehicles and future generated city props as consumers. **Vehicles are now wired**
+(`completed_features.md`, "P25 continued"): the hook lives in `VehicleGameObj::Apply_Damage`'s
+existing health-crossed-zero check, not in the server-only `Object_Expired`, because that check runs
+identically on the server and on every client replicating the vehicle's health -- gating it on
+`I_Am_Server()` would have meant only the host ever saw a wreck.
+**City props**: still no generated-prop system exists to hook into -- not a missing-art problem, a
+missing call site nothing has created yet. The gameplay tier
 (`DebrisManager`, real `RigidBodyClass` fragments) is also entirely unchecked by automation: it
 needs `COMBAT_SCENE`, which `-shaderselfcheck` never brings up, so `shader_debris`/`fds_shader_debris`
 exercise `DebrisRenderer` (the visual tier) only, and have never been run at all, for the same
@@ -633,9 +642,12 @@ a checklist once the phases it actually depends on are closed, not before.
 `WW3D::Compute_Height_Fog_Scale` is correct and real, but is applied once per frame from the
 viewer's own height (`DX8Wrapper::Set_Fog`), not per vertex -- true per-vertex height fog needs
 either a vertex-format change reaching every renderer or a shader path this engine's fixed-function
-terrain/mesh rendering does not have. Absorbs no backlog line (P51 itself is closed). Next exact
-action: revisit once P56/57's post-processing work establishes whether a shader path is worth
-opening generally, rather than adding one just for fog.
+terrain/mesh rendering does not have. Absorbs no backlog line (P51 itself is closed). **Answered,
+not just deferred**: Phases 56/57 built the post-process chain and confirmed what they found --
+no `CreatePixelShader`/programmable tier exists anywhere in this tree (`VisualFidelityProgram.md`).
+So a shader path was not opened, and per-vertex height fog stays a permanent limit of this
+renderer rather than a revisit-later item. Next exact action: none, unless a shader tier is opened
+for other reasons -- the same standing note P56's tonemap carries.
 
 ## P56 -- the tonemap is a global operator, not a local one
 

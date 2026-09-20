@@ -2119,3 +2119,26 @@ start a second, colliding production timer. `cCommanderOrderEvent::Act` now tran
 accepted order into a real `ActionClass::Goto`/`Attack`/`Follow_Input`/`Reset` call through the
 same `ScriptEngine` functions mission scripts use. `Code/Combat/combat.cpp`,
 `Code/Commando/commanderorderevent.cpp`.
+
+## P21 continued: dynamic lights from weapon fire and explosions
+
+`WorldLightManager::Create_Point_Light` had a header comment naming muzzle flashes and
+explosions as its intended callers and neither yet. `WeaponClass::Fire_Bullet` now creates a
+brief warm light at the muzzle per shot; `ExplosionManager::Create_Explosion_At` creates a
+larger, longer one at the blast, unconditionally on both client and server, same as the decal
+beside it. `Code/Combat/weapons.cpp`, `Code/Combat/explosion.cpp`.
+
+## P25 continued: vehicles now scatter debris on destruction
+
+`VehicleGameObj::Apply_Damage`'s existing health-crossed-zero check now calls
+`DebrisManager::Spawn`, sized from the vehicle's own model bounds -- placed there rather than in
+the server-only `Object_Expired` because it has to run on every client replicating the vehicle's
+health, the same reasoning `BuildingGameObj::On_Destroyed`'s debris call already follows.
+`Code/Combat/vehicle.cpp`.
+
+## P17 continued: water flow direction and scroll speed now animate
+
+`Build_Area_Geometry` attaches a `LinearOffsetTextureMapperClass` -- the same UV-scroll primitive
+stock W3D materials already use, self-animating off `WW3D::Get_Sync_Time` -- to a *clone* of the
+shared `MATERIAL_PROGRAM_WATER` material, never the shared instance itself, since direction and
+speed are both per-area. Stationary water (no authored flow) attaches nothing. `Code/wwphys/watersystem.cpp`.
