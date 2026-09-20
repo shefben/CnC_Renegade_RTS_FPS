@@ -1871,6 +1871,37 @@ BuildingGameObj::Find_MCT (void)
 
 ////////////////////////////////////////////////////////////////////////////
 //
+//	Get_Commander_Exit_Point -- see the comment in building.h
+//
+////////////////////////////////////////////////////////////////////////////
+void
+BuildingGameObj::Get_Commander_Exit_Point (Vector3 * out_point,float * out_radius) const
+{
+	const float MIN_STANDOFF		= 1.5f;		// floor on the footprint-derived standoff distance
+	const float EXIT_CLEARANCE	= 3.0f;		// margin added past the footprint's own edge
+	const float CHECK_RADIUS		= 2.5f;		// how wide a clear space has to be at the point itself
+
+	float standoff = (BoundingBox.Extent.X + BoundingBox.Extent.Y) * 0.5f + EXIT_CLEARANCE;
+	if (standoff < MIN_STANDOFF) {
+		standoff = MIN_STANDOFF;
+	}
+
+	Vector3 position (0.0f,0.0f,0.0f);
+	Get_Position (&position);
+
+	//	A fixed direction, not a derived facing: this legacy aggregate building has no single
+	//	orientation to read one from (Position is a point, not a transform).
+	if (out_point != nullptr) {
+		*out_point = position + Vector3 (standoff,0.0f,0.0f);
+	}
+	if (out_radius != nullptr) {
+		*out_radius = CHECK_RADIUS;
+	}
+}
+
+
+////////////////////////////////////////////////////////////////////////////
+//
 //	Attach_Visual_Module / Detach_Visual_Module / Set_Visual_Module_Damaged
 //
 //	Roadmap Section 29 -- see the comment in building.h.  A building is a set of collected

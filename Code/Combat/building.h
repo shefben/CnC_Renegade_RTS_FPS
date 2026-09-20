@@ -344,6 +344,20 @@ public:
 	const AABoxClass &						Get_Bounds (void) const					{ return BoundingBox; }
 
 	//
+	//	Roadmap Section 45 -- where a Commander purchase at this facility appears, and the
+	//	radius around that point that has to be clear before one more can.  A legacy
+	//	map-placed building (this class) has no authored exit/spawn anchor -- that is Section
+	//	44's semantic-node concept, and it needs a single runtime model this class's aggregate
+	//	of separately-placed statics does not have (see Q-016 in awaiting_answers.md).  So this
+	//	is an approximation from the one thing every building already has regardless: its own
+	//	collected bounding box, stepped outside its footprint by its circumscribing radius plus
+	//	a clearance margin.  One formula, shared by the caller that spawns a unit here
+	//	(Code/Combat/combat.cpp) and the caller that asks first whether it is clear to
+	//	(Code/Commando/commanderproductionevent.cpp) -- neither invents its own.
+	//
+	void											Get_Commander_Exit_Point (Vector3 * out_point,float * out_radius) const;
+
+	//
 	//	Roadmap Section 29 -- the same generalized attachment layer vehicles use
 	//	(Code/Combat/compositeattachment.h), reached the way a building has to reach it.  A
 	//	building has no model of its own, so there is no single host to attach to: the bone

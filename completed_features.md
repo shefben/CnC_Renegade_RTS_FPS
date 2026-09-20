@@ -297,7 +297,7 @@ blocks, two receive-loop bounds tested after the write, a server using 128 of
 its 2048 receive buffers, and three flood-detection tests that were narrower
 than they read. `wwnet` links clean; detail in `docs/tt484/NativeEventDispatch.md` 5.
 
-## P04-C: `M00_Advanced_Guard_Tower` merged from `agtfix.cpp`
+## P04-C0: `M00_Advanced_Guard_Tower` merged from `agtfix.cpp`
 
 First of the 13 script names the donor redefines. Gun mount offsets are rotated
 by the tower facing read off the MCT instead of being added unrotated to the
@@ -305,7 +305,7 @@ controller position, the height correction for a low-placed controller is taken,
 and the guns and missile emitter are destroyed with the tower instead of being
 left standing. `renegade` links clean.
 
-## P04-D: corrected the recorded blocker on the 2142 donor-only scripts
+## P04-D0: corrected the recorded blocker on the 2142 donor-only scripts
 
 The donor SDK was recorded as uniformly bound to the closed binary. It is not:
 406 of its 690 declared functions have portable C++ source, and all 284 of the
@@ -383,7 +383,7 @@ stock rule is not a correction to it; same disposition as `VehicleOwnershipPatch
 Owners identified (`dlgcncpurchasemainmenu.cpp:389` and the branch above) if it
 is ever wanted.
 
-## P04-E: Phase 4's donor half narrowed to the original TT script library
+## P04-E0: Phase 4's donor half narrowed to the original TT script library
 
 User direction: only the original TT scripts go into the engine, not the
 gameplay-mode variations. In scope is the library a stock level actually
@@ -2142,3 +2142,43 @@ health, the same reasoning `BuildingGameObj::On_Destroyed`'s debris call already
 stock W3D materials already use, self-animating off `WW3D::Get_Sync_Time` -- to a *clone* of the
 shared `MATERIAL_PROGRAM_WATER` material, never the shared instance itself, since direction and
 speed are both per-area. Stationary water (no authored flow) attaches nothing. `Code/wwphys/watersystem.cpp`.
+
+## P-VALIDATOR: feature-state bookkeeping validator
+
+`tools/validate_feature_state.py` (roadmap 0A.11): all four state files exist and are non-empty
+and titled, no heading ID repeats within a file (except the documented `N/A:` marker), no ID is
+tracked in more than one lifecycle file, every `Q-###` WIP_features.md references resolves in
+`awaiting_answers.md`. Running it found and fixed three real bookkeeping issues predating this
+tool: `P04-C`/`P04-D`/`P04-E` each named two unrelated completed entries (renamed the earlier,
+orphaned ones to `P04-C0`/`P04-D0`/`P04-E0`); `P51`/`P56` collided between a closed
+`completed_features.md` entry and a permanent-limitation `WIP_features.md` entry sharing the bare
+ID (renamed the WIP headings to `P51 limit`/`P56 limit`, matching the `P57/P55` entry's own
+disambiguation); and P10's acceptance-line bullet was left in `unstarted_features.md` after its
+content was already folded into WIP_features.md's P10 entry in a prior pass -- deleted. Does not
+and must not judge whether an item is truly complete; it catches contradictions, not gaps.
+
+## P39 continued 2: population, exit-clearance and guard orders are all real
+
+Three of P39's remaining gaps closed in one pass, sharing one new building method
+(`BuildingGameObj::Get_Commander_Exit_Point`) so the spawn point and the clearance check that
+gates it can never drift apart. `CommanderFacilityContext::ExitClear` now runs a real
+`WorldSpatialIndex::Query_Game_Objects_In_Sphere` at that point before a production slot is ever
+promised. A new `CommanderPopulationObserverClass` (combat.cpp) attaches to every spawned unit
+and decrements `CommanderProductionService::Set_Population` on `Killed()`, freeing itself on
+`Detach()` -- `Destroyed()` is declared on the same interface and, confirmed by grep, is never
+called anywhere in this tree, so population tracking rides the two calls that are. `ORDER_GUARD`
+now reaches a real `GuardStateControllerClass` per unit through new `Code/Combat/commanderguardai.*`
+(`CommanderGuardAI`), ticked once a server frame, translating its intent into the same
+`ScriptEngine::Action_Goto`/`Attack`/`Reset` calls every other order already uses -- closing P30,
+whose only missing piece was exactly this caller. `Code/Combat/building.h/.cpp`,
+`Code/Combat/combat.cpp`, `Code/Combat/commanderguardai.h/.cpp`, `Code/Commando/commanderorderevent.cpp`,
+`Code/Commando/commanderproductionevent.cpp`.
+
+## P30: guard/retaliate state machine attached to Commander-produced units
+
+`GuardStateControllerClass`'s only missing piece was a caller with a GameObj to drive -- see
+"P39 continued 2" above. `CommanderGuardAI` is that caller: one controller per unit under
+`ORDER_GUARD`, fed a nearest-human distance every tick (a bounded `WorldSpatialIndex` sphere
+query) so Section 3A.4/3A.6's human-yield rule is live rather than theoretical, and damage
+routed to it from the same population observer that already watches every Commander-produced
+unit. `Code/Combat/commanderguardai.h/.cpp`.

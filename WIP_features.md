@@ -457,13 +457,6 @@ no gameplay call site -- unit selection and Commander orders are later phases (C
 Next exact action: none until a selection/order system exists to call
 `StatusOverlaySystem::Add_Overlay`.
 
-## P30 -- the guard/retaliate state machine has no unit to guard yet
-
-`GuardStateControllerClass` (P30-A, `docs/zerohour/GuardStateController.md`) has no real caller --
-Phase 39's Commander-produced AI infantry/vehicles are the intended first one. The mission-
-script layer's own hand-authored guard behavior is untouched. Next exact action: none until
-Phase 39 lands.
-
 ## P31 -- two real events are counted, the console can read the snapshot back now
 
 `RTSTelemetryService` (P31-A, `docs/zerohour/RTSTelemetryService.md`) counts real kills and real
@@ -571,24 +564,23 @@ action: Q-016 answered, then create the real building at accepted placement, pas
 `Begin_Construction`, and run the activation list from `Get_Completed_Building` in the roadmap's
 order.
 
-## P39 -- production completes into real units and orders reach them; population and exit-clearance do not
+## P39 -- production, orders, population, exit-clearance and guard are all real; selection input is not
 
 `CommanderProductionService` (P39-A) plus `cCommanderProductionEvent` and `cCommanderOrderEvent`
-(P40-B) enforce the whole Section 45 validation list server-side. Both consumer-side gaps this
-entry used to carry are closed: `Drain_Completed_Commander_Production` (combat.cpp) spawns a real
-`SoldierGameObj`/`VehicleGameObj` at each completed item's facility, and `cCommanderOrderEvent::Act`
-turns an accepted order into a real `ActionClass` call (`completed_features.md`, "P39 continued").
-Three things are still genuinely open: **population accounting** -- `Set_Population` is never
-called, deliberately, because incrementing it at spawn with no matching decrement at death would
-only ever count up and eventually block production against a cap nothing really reached, and the
-death hook it needs does not exist yet; **`ExitClear`** is still always reported true, no
-exit-occupancy query exists; and **order fidelity** -- `ORDER_PATROL` degrades to a single-point
-Goto (the wire format carries one point, not a waypath) and `ORDER_GUARD` degrades to `Action_Reset`
-(stop) rather than reaching `GuardStateControllerClass`, which remains unattached to any unit --
-see P30 below. Drag-box selection and control groups still wait on the same input work as P36.
-Absorbs the backlog's P39 acceptance line. Next exact action: a destruction hook that decrements
-population, an exit-occupancy query for `ExitClear`, and attaching `GuardStateControllerClass` to
-Commander-produced units for `ORDER_GUARD`.
+(P40-B) enforce the whole Section 45 validation list server-side. Every consumer-side gap this
+entry used to carry is closed (`completed_features.md`, "P39 continued" and "P39 continued 2"):
+`Drain_Completed_Commander_Production` spawns a real
+`SoldierGameObj`/`VehicleGameObj` at each completed item's facility; `cCommanderOrderEvent::Act`
+turns an accepted order into a real `ActionClass` call; `Set_Population` now has a matching
+decrement, from a `Killed()`/`Detach()` observer rather than the `Destroyed()` event nothing in
+this tree ever calls; `ExitClear` runs a real spatial query before a slot is ever promised;
+`ORDER_GUARD` reaches a real `GuardStateControllerClass` per unit (`Code/Combat/commanderguardai.*`,
+closing P30). One honest limit remains: `ORDER_PATROL` degrades to a single-point Goto, because the
+wire format this event carries has one point, not a waypath -- a real back-and-forth patrol needs a
+second point nothing here has, and that is a protocol change, not a missing caller. Drag-box
+selection and control groups still wait on the same input work as P36. Absorbs the backlog's P39
+acceptance line. Next exact action: none on production/orders/population/exit/guard; selection
+waits on P35/36's input rerouting, and patrol waits on a wire-format decision nobody has asked for.
 
 ## P40 -- replication is live; the save-file round trip is still unverified
 
@@ -637,7 +629,7 @@ still mid-flight per their own WIP entries, P46-P65 are unstarted), so scoring i
 be premature or dishonest. Absorbs the backlog's P45 line. Next exact action: re-run Section 52 as
 a checklist once the phases it actually depends on are closed, not before.
 
-## P51 -- height fog is camera-relative, not per-vertex
+## P51 limit -- height fog is camera-relative, not per-vertex
 
 `WW3D::Compute_Height_Fog_Scale` is correct and real, but is applied once per frame from the
 viewer's own height (`DX8Wrapper::Set_Fog`), not per vertex -- true per-vertex height fog needs
@@ -649,7 +641,7 @@ So a shader path was not opened, and per-vertex height fog stays a permanent lim
 renderer rather than a revisit-later item. Next exact action: none, unless a shader tier is opened
 for other reasons -- the same standing note P56's tonemap carries.
 
-## P56 -- the tonemap is a global operator, not a local one
+## P56 limit -- the tonemap is a global operator, not a local one
 
 `DX8Wrapper::Tone_Curve` is a real extended-Reinhard shoulder with a real auto-exposure driving it,
 so highlights roll off instead of clipping and the acceptance line is substantially met. What it

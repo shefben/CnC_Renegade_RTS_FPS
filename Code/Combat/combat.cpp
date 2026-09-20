@@ -74,8 +74,10 @@
 #include "commandersidebar.h"
 #include "commanderplacement.h"
 #include "buildingconstruction.h"
+#include "commanderguardai.h"
 #include "commanderproduction.h"
 #include "definitionmgr.h"
+#include "gameobjobserver.h"
 #include "physicalgameobj.h"
 #include "commanderghostrenderer.h"
 #include "commanderstate.h"
@@ -582,6 +584,7 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	CommanderPlacementValidator::Init();
 	BuildingConstructionService::Init();
 	CommanderProductionService::Init();
+	CommanderGuardAI::Init();
 
 	CommanderSidebarRenderer::Init( render_available );
 	CommanderGhostRenderer::Init( render_available );
@@ -951,6 +954,69 @@ void 	CombatManager::Handle_Input()
 
 
 /*
+**	Roadmap Section 45's population accounting.  CommanderProductionService::Set_Population
+**	needs a matching decrement on death and had nothing to call it from.  A minimal
+**	GameObjObserverClass rather than a second registry: the engine already calls Killed() at
+**	the moment of death and Detach() reliably when a torn-down object's observer list is
+**	cleared.  Destroyed() is declared on the same interface and is never called anywhere in
+**	this tree (grepped) -- Detach is the hook every self-freeing observer here actually uses,
+**	see HarvesterClass::Detach's own comment for why deletion goes through the manager rather
+**	than happening in Detach itself (it runs from inside the walk over the observer list).
+*/
+class CommanderPopulationObserverClass : public GameObjObserverClass
+{
+	public:
+		CommanderPopulationObserverClass (int team,BuildingProductionKindType kind) :
+			Team (team),Kind (kind),Counted (false) { }
+
+		const char *	Get_Name (void) override	{ return "CommanderPopulationObserverClass"; }
+
+		void	Attach (GameObject *) override	{ }
+		void	Detach (GameObject *) override		{ GameObjObserverManager::Delete_Register (this); }
+
+		void	Killed (GameObject *,GameObject *) override
+		{
+			if (Counted) { return; }
+			Counted = true;
+			int current = CommanderProductionService::Get_Population (Team,Kind);
+			CommanderProductionService::Set_Population (Team,Kind,(current > 0) ? (current - 1) : 0);
+		}
+
+		void	Created (GameObject *) override							{ }
+		void	Destroyed (GameObject *) override						{ }
+
+		//	Feeds Section 37's guard/retaliate memory -- CommanderGuardAI::Report_Damage is a
+		//	no-op for a unit that is not currently guarding, so this costs nothing for every
+		//	Commander-produced unit that is not.  amount can be negative (repair rides the same
+		//	Damaged() call with negative damage, per damageablegameobj.cpp), which is not an
+		//	attack and is excluded.
+		void	Damaged (GameObject * obj,GameObject * damager,float amount) override
+		{
+			if ((amount <= 0.0f) || (damager == nullptr) || (obj == nullptr)) { return; }
+			Vector3 attacker_position;
+			damager->Get_Position (&attacker_position);
+			CommanderGuardAI::Report_Damage (obj->Get_ID (),damager->Get_ID (),attacker_position,
+														 CommanderStateClass::Get_Estimated_Server_Time ());
+		}
+
+		void	Custom (GameObject *,int,intptr_t,GameObject *) override	{ }
+		void	Sound_Heard (GameObject *,const CombatSound &) override		{ }
+		void	Enemy_Seen (GameObject *,GameObject *) override				{ }
+		void	Action_Complete (GameObject *,int,ActionCompleteReason) override	{ }
+		void	Timer_Expired (GameObject *,int) override						{ }
+		void	Animation_Complete (GameObject *,const char *) override		{ }
+		void	Poked (GameObject *,GameObject *) override						{ }
+		void	Entered (GameObject *,GameObject *) override					{ }
+		void	Exited (GameObject *,GameObject *) override						{ }
+
+	private:
+		int									Team;
+		BuildingProductionKindType	Kind;
+		bool									Counted;
+};
+
+
+/*
 **	Roadmap Section 45, Phase 39 -- the completion consumer CommanderProductionService's own
 **	header says belongs to "the caller that knows how to build a SoldierGameObj or a
 **	VehicleGameObj".  That caller owns no validation, no timing and no queue -- all of that
@@ -970,22 +1036,12 @@ void 	CombatManager::Handle_Input()
 **
 **	Placement has no semantic anchor to read: Resolve_Anchor_World_Transform needs a single
 **	RenderObjClass model, and a level-placed factory is BuildingGameObj's legacy aggregate of
-**	separately-placed statics with no model of its own (see building.h).  So the spawn point is
-**	the facility's own collected bounding box -- always present once Init has run -- stepped
-**	outside its footprint by its circumscribing radius plus a clearance margin.  Not as precise
-**	as an authored exit node, but it never spawns a unit inside the building's own collision,
-**	which is the one thing that would actually look broken.
-**
-**	Population accounting (Set_Population) is deliberately not touched here: it needs a
-**	matching decrement on death, which needs a destruction hook on every Commander-produced
-**	unit that does not exist yet.  Incrementing without it would only ever count up and
-**	eventually block production against a population cap nothing actually reached -- worse
-**	than not counting at all, so this leaves the cap unfed rather than feed it half a fact.
+**	separately-placed statics with no model of its own (see building.h) -- see
+**	BuildingGameObj::Get_Commander_Exit_Point, the one formula both this and the ExitClear
+**	check in cCommanderProductionEvent::Act share.
 */
 static void	Drain_Completed_Commander_Production (void)
 {
-	const float FACILITY_CLEARANCE = 3.0f;
-
 	int count = CommanderProductionService::Get_Completed_Count ();
 	for (int i = 0; i < count; i++) {
 
@@ -1014,13 +1070,11 @@ static void	Drain_Completed_Commander_Production (void)
 			continue;
 		}
 
-		Vector3 facility_pos;
-		facility->Get_Position (&facility_pos);
-		float radius = facility->Get_Bounds ().Extent.Length () + FACILITY_CLEARANCE;
-
-		//	A fixed direction rather than a derived facing: the legacy aggregate building has no
-		//	single orientation to read one from (Position is a point, not a transform).
-		Vector3 spawn_pos = facility_pos + Vector3 (radius,0.0f,0.0f);
+		//	Same point Request_Production's own ExitClear check tested before this item was ever
+		//	accepted into the queue -- one formula (BuildingGameObj::Get_Commander_Exit_Point),
+		//	not a second copy of it here.
+		Vector3 spawn_pos;
+		facility->Get_Commander_Exit_Point (&spawn_pos,nullptr);
 
 		PhysicalGameObj * unit = (PhysicalGameObj *)physical_def->Create ();
 		if (unit == nullptr) {
@@ -1028,6 +1082,14 @@ static void	Drain_Completed_Commander_Production (void)
 		}
 
 		unit->Set_Transform (Matrix3D (spawn_pos));
+
+		//	Counted the moment it exists, uncounted the moment CommanderPopulationObserverClass
+		//	sees it die -- see that class's own comment for why Killed()/Detach() rather than
+		//	Destroyed(), which nothing in this tree ever calls.
+		unit->Add_Observer (new CommanderPopulationObserverClass (item.Team,item.Kind));
+		CommanderProductionService::Set_Population (item.Team,item.Kind,
+			CommanderProductionService::Get_Population (item.Team,item.Kind) + 1);
+
 		unit->Start_Observers ();
 	}
 
@@ -1142,6 +1204,12 @@ void 	CombatManager::Think()
 	if ( CombatManager::I_Am_Server() ) {
 		CommanderProductionService::Update( TimeManager::Get_Frame_Seconds() );
 		Drain_Completed_Commander_Production();
+
+		//	Roadmap Section 37 -- server-authoritative, like every other Commander AI decision;
+		//	a client never sees a guarding unit do anything but move and fight, the same as any
+		//	other AI it does not control.
+		CommanderGuardAI::Update( CommanderStateClass::Get_Estimated_Server_Time(),
+											TimeManager::Get_Frame_Seconds() );
 	}
 
 	/*

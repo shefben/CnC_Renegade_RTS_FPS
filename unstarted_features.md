@@ -11,10 +11,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ---
 
-## P-VALIDATOR: feature-state bookkeeping validator (roadmap 0A.11)
-
-- [ ] Add tools/validate_feature_state.py checking all four files exist, IDs unique, no feature in two lifecycle files, Q-### references resolve, required headings present, no file accidentally empty.
-
 ## P00: Freeze/test latest OpenW3D (roadmap Section 6)
 
 - [ ] Run stock Renegade content.
@@ -50,8 +46,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 
 ## P10: Spatial query/index layer (roadmap Section 16)
-
-- [ ] Acceptance: Common large-world queries no longer require scanning the complete global object list.
 
 ## P11: Hybrid heightmap/terrain framework (roadmap Section 17)
 

@@ -27,6 +27,7 @@
 #include "scriptablegameobj.h"
 #include "soldier.h"
 #include "teampowergridservice.h"
+#include "worldspatialindex.h"
 #include "wwdebug.h"
 
 
@@ -180,7 +181,23 @@ void cCommanderProductionEvent::Act(void)
 												: true;
 	facility.Kind						= descriptor->Production.Kind;
 	facility.QueueCapacity			= descriptor->Production.QueueCapacity;
-	facility.ExitClear				= true;			// no exit-occupancy query exists yet; see WIP_features.md
+
+	//	Roadmap Section 45's own "ExitClear" -- the same point Drain_Completed_Commander_Production
+	//	(combat.cpp) will spawn a completed item at, checked now rather than promising a queue
+	//	slot for a delivery that will arrive stuck inside whatever is already standing there.
+	//	Only dynamic objects count: the facility's own static collision is not at this point by
+	//	construction (Get_Commander_Exit_Point steps outside the footprint), and a query would
+	//	never return static geometry as "blocking an exit" in the first place.
+	{
+		Vector3 exit_point;
+		float exit_radius = 0.0f;
+		building->Get_Commander_Exit_Point (&exit_point,&exit_radius);
+
+		GameObjQueryListClass occupants;
+		WorldSpatialIndex::Query_Game_Objects_In_Sphere (exit_point,exit_radius,occupants,
+																		  WorldSpatialIndex::QUERY_DYNAMIC);
+		facility.ExitClear = (occupants.Count () == 0);
+	}
 
 	PlayerDataClass * player = soldier->Get_Player_Data ();
 	int credits = (player != nullptr) ? (int)player->Get_Money () : 0;

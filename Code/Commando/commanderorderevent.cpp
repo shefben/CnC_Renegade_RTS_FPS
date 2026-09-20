@@ -14,6 +14,7 @@
 #include "actionparams.h"
 #include "apppackettypes.h"
 #include "cnetwork.h"
+#include "commanderguardai.h"
 #include "commanderproduction.h"
 #include "gameobjmanager.h"
 #include "networkobjectfactory.h"
@@ -43,10 +44,19 @@ DECLARE_NETWORKOBJECT_FACTORY (cCommanderOrderEvent,NETCLASSID_COMMANDERORDEREVE
 static void	Dispatch_Order (PhysicalGameObj * unit,CommanderUnitOrderType order,
 									  const Vector3 & target_point,int target_id)
 {
+	const float ORDER_PRIORITY = 100.0f;
+	const float GUARD_RADIUS	 = 15.0f;
+
 	SmartGameObj * smart = unit->As_SmartGameObj ();
 	if (smart == nullptr) return;		// no AI action layer on this object -- nothing to drive
 
-	const float ORDER_PRIORITY = 100.0f;
+	if (order != ORDER_NONE) {
+		//	Any fresh order, ORDER_GUARD included, starts from a clean slate: without this, a
+		//	unit given MOVE after being told to guard would keep fighting its own leftover
+		//	GuardStateControllerClass, which drives ActionClass every server tick regardless of
+		//	whatever this dispatch just set.  A no-op for a unit that was not guarding.
+		CommanderGuardAI::Stop_Guarding (unit->Get_ID ());
+	}
 
 	ActionParamsStruct params;
 	params.Set_Basic (0,ORDER_PRIORITY,0);
@@ -109,13 +119,16 @@ static void	Dispatch_Order (PhysicalGameObj * unit,CommanderUnitOrderType order,
 			break;
 
 		case ORDER_GUARD:
+			//	CommanderGuardAI (Code/Combat/commanderguardai.h) owns the state machine from
+			//	here -- Section 37's GuardStateControllerClass, activated at the clicked point,
+			//	ticked once a server frame in CombatManager::Think, translating its own intent
+			//	into the same ScriptEngine calls every other case here uses.  Nothing further to
+			//	dispatch this instant; the first Attack/Goto/Reset call comes from that tick.
+			CommanderGuardAI::Guard (unit->Get_ID (),target_point,GUARD_RADIUS);
+			break;
+
 		case ORDER_HOLD_POSITION:
 		default:
-			//	Section 37's GuardStateControllerClass (guardstatecontroller.h) is the real
-			//	guard/retaliate/leash state machine and is still genuinely unattached to any
-			//	unit -- see WIP_features.md, P30.  Until it is, both orders take the one honest
-			//	action this engine already has that is strictly better than doing nothing: stop
-			//	where they stand.
 			ScriptEngine::Action_Reset (unit,ORDER_PRIORITY);
 			break;
 	}
