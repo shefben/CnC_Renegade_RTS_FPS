@@ -136,41 +136,21 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  once `VCPKG_ROOT` exists on the build machine; nothing about `BuildingDescriptorManager`'s own
  code would need to change, only the include path and the CMake wiring.
 
-- **Q-014** Phase 34's wallet-cap enforcement (roadmap Section 40, *"Tiberium Silo wallet
- expansion"*) says to *"start from the canonical existing player wallet cap"* and gives
- `EffectivePlayerWalletCap = BaseWalletCap + sum(active Silo bonuses)`. There is no
- `MaxMoney`/`WalletCap`/`CreditCap` concept anywhere in this codebase before this phase --
- stock Renegade's economy has no credit ceiling at all, and neither does TT 4.8.4. The
- roadmap's phrase assumes a donor-side (SAGE/Generals) concept that does not carry over.
- `TeamPowerGridService::Get_Wallet_Capacity_Bonus(team)` is real, computed, stacking, and
- queryable (P34-A); what is missing is `BaseWalletCap` itself -- a live gameplay-economy
- number, not something inferable from source. Guessing one and clamping
- `PlayerDataClass::Increment_Money` risks a real regression ("just cant look worse") against
- Renegade's actual, never-capped economy if picked wrong. Needs a decision: either a
- `BaseWalletCap` value (a large "effectively uncapped" default keeps today's behavior exactly
- unless Silos are in play, at the cost of the cap rarely mattering in practice), or a decision
- that no base cap should exist and only Silo bonuses ever raise an otherwise-uncapped wallet
- (which would make `BaseWalletCap` a non-value and the formula moot below the first Silo). Not
- blocking any other work; the allocator, coverage and self-checks are unaffected either way.
-
-- **Q-015** Phase 42 in `unstarted_features.md` is titled "Tool/editor/descriptor-validation
- pass" and tagged `(roadmap Section 48)`, but Section 48 is "TEST STRATEGY" -- a cumulative
- automated-coverage catalog, which is what Phase 42's actual body work became
- (`docs/zerohour/TestCoverageCatalog.md`). Section 53's own implementation-order list (line
- 5992) confirms the title, "Tool/editor/descriptor-validation pass," but no section in the
- roadmap body elaborates it as its own phase the way Sections 42-47 do for Phases 36-41 --
- there is no "editor" or "LevelEdit descriptor validation" requirement text anywhere the
- phase's title would point to. Two readings: (a) the Section 48 tag is simply what the
- phase *is*, and "tool/editor" means the `-shaderselfcheck` family itself, which already
- exists and is the validation tool; or (b) the title is literal and a real gap remains --
- exposing descriptor validation (`BuildingDescriptorManager`'s parse/validate path) inside
- `LevelEdit` or another editor-facing tool, which does not exist today. Needs a decision on
- which reading is intended before Phase 42 can be called closed rather than partial. Not
- blocking any other work.
-
----
-
 ## Resolved
+
+- **Q-014 (resolved by decision)** Answered: the wallet is capped. Base 10,000;
+  each Tiberium Silo adds +5,000 to the cap. A Silo destroyed reduces the cap and wipes
+  any credits above the new ceiling. Implemented as
+  `TeamPowerGridService::Get_Wallet_Capacity`/`Enforce_Wallet_Cap` plus
+  `PlayerDataClass::Apply_Wallet_Cap`; base retunable with the `wallet_cap` console
+  command. See `completed_features.md` P34.
+
+- **Q-015 (resolved by decision)** Answered: reading (b) -- the Phase 42 title is literal.
+  The `-shaderselfcheck` families satisfy the test-strategy half, and Phase 42 additionally
+  required editor-facing descriptor validation reusing the existing parser/validator rather
+  than duplicating it. Implemented as `BuildingDescriptorManager::Validate_Text`/
+  `Validate_File`/`Validate_Directory` plus LevelEdit's **Report -> Validate Building
+  Descriptors...** command; P42 is now closed. See `completed_features.md` P42.
 
 - **Q-016 (resolved by decision)** Answered: option (a). Runtime-constructed
   buildings get a second `BuildingGameObj` component collection path deriving structure,

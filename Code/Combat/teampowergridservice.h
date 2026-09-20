@@ -136,11 +136,38 @@ class TeamPowerGridService
 
 		/*
 		**	Tiberium Silo wallet expansion -- Section 40's own formula, computed and queryable,
-		**	stacking every active, online-eligible Silo on the team.  Applying this number to an
-		**	actual player credit cap needs a wallet-cap enforcement point this codebase does not
-		**	have yet -- see the design doc's "what this phase does not build".
+		**	stacking every active, online-eligible Silo on the team.
 		*/
 		static float	Get_Wallet_Capacity_Bonus(int team);
+
+		/*
+		**	Q-014's answer, and the enforcement point Section 40's formula needed.
+		**
+		**	`EffectivePlayerWalletCap = BaseWalletCap + sum(active Silo bonuses)`.  Stock
+		**	Renegade has no credit ceiling of any kind, so the base is a new gameplay number
+		**	rather than something recovered from the engine: 10,000, tunable at runtime through
+		**	`Set_Base_Wallet_Cap` (the `wallet_cap` console command) so it can be balanced
+		**	without a rebuild.
+		**
+		**	A Silo lost takes its bonus with it and the cap drops immediately, which is why
+		**	enforcement is a *sweep* and not only a clamp on the way in: credits already banked
+		**	above the new ceiling are wiped, so destroying a full Silo actually costs the enemy
+		**	team the tiberium it was holding.
+		*/
+		static const float	DEFAULT_BASE_WALLET_CAP;		// 10000
+
+		static float	Get_Base_Wallet_Cap(void);
+		static void		Set_Base_Wallet_Cap(float cap);
+
+		static float	Get_Wallet_Capacity(int team);
+
+		//	Clamps every player on the team to the current cap.  Server-only; a client's wallet
+		//	is whatever the server last replicated.  Returns how many players lost credits.
+		static int		Enforce_Wallet_Cap(int team);
+
+		//	Total credits wiped by cap drops, for telemetry and the self-checks.
+		static float	Get_Credits_Wiped(int team);
+		static void		Reset_Credits_Wiped(void);
 
 		//	Debug/telemetry -- Section 40's own named list.
 		static int		Get_Powered_Count(int team);

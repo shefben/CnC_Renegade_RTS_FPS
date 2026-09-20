@@ -17,7 +17,7 @@
   "capabilities": {
     "tiberium_silo": {
       "enabled": true,
-      "wallet_capacity_bonus_per_player": 2500.0,
+      "wallet_capacity_bonus_per_player": 5000.0,
       "requires_building_online": true
     }
   },

@@ -320,6 +320,8 @@ protected:
 	afx_msg void OnUpdateCompressTextures(CCmdUI* pCmdUI);
 	afx_msg void OnExportFileUsageReport();
 	afx_msg void OnExportMissingTranslationReport();
+	//	Q-015 -- editor-facing descriptor validation (roadmap Section 39/Phase 42).
+	afx_msg void OnValidateBuildingDescriptors();
 	afx_msg void OnExportLanguage();
 	afx_msg void OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL bSysMenu);
 	afx_msg void OnAlwaysLocalExport();

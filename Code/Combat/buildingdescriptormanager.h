@@ -97,6 +97,30 @@ class BuildingDescriptorManager
 
 		static void		Unload_Descriptor(const char * definition_name);
 		static void		Unload_All(void);
+
+		/*
+		**	Q-015 -- validation without loading, for editor-facing and offline tools.
+		**
+		**	`Load_Descriptor_From_File` is a *transaction*: succeeding replaces the live
+		**	descriptor of that name.  An editor asking "is this file good?" must not have that
+		**	side effect -- validating a content author's work-in-progress file would otherwise
+		**	silently swap it into a running LevelEdit session.  So this runs the identical
+		**	parser and the identical validator and then throws the result away.  There is no
+		**	second copy of the rules anywhere; a rule added to Validate_Descriptor is enforced
+		**	here the same day.
+		*/
+		static bool		Validate_File(const char * file_path,StringClass * error_out);
+		static bool		Validate_Text(const char * definition_name,const char * json_text,
+												StringClass * error_out);
+
+		/*
+		**	Validates every `*.json` in a directory and appends one line per file to `report_out`
+		**	("<name>: OK" or "<name>: FAILED -- <reason>").  Returns the number that failed, or
+		**	-1 if the directory could not be read at all.  `checked_out` receives how many files
+		**	were looked at, so "0 failures" and "nothing found" are distinguishable.
+		*/
+		static int		Validate_Directory(const char * directory_path,StringClass * report_out,
+													 int * checked_out);
 };
 
 #endif // BUILDINGDESCRIPTORMANAGER_H

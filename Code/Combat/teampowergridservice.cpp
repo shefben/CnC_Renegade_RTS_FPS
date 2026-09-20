@@ -33,6 +33,10 @@
 #include "buildingdescriptormanager.h"
 #include "vector3.h"
 #include "worldshroudmanager.h"
+#include "combat.h"
+#include "gameobjmanager.h"
+#include "playerdata.h"
+#include "soldier.h"
 
 
 struct PowerGridMember
@@ -84,6 +88,32 @@ struct TeamPowerState
 
 static DynamicVectorClass<PowerGridMember>	_Members;
 static DynamicVectorClass<TeamPowerState>	_Teams;
+
+/*
+**	Q-014.  Stock Renegade never had a credit ceiling, so this is a new gameplay number rather
+**	than one recovered from the engine.  Held in a variable rather than as a constant so it can
+**	be balanced from the console without a rebuild.
+*/
+const float	TeamPowerGridService::DEFAULT_BASE_WALLET_CAP = 10000.0f;
+
+static float	_BaseWalletCap		= TeamPowerGridService::DEFAULT_BASE_WALLET_CAP;
+static float	_CreditsWiped [4]	= { 0.0f,0.0f,0.0f,0.0f };
+static int		_WipedTeams [4]	= { 0,0,0,0 };
+static int		_WipedTeamCount	= 0;
+
+
+//	Small fixed table rather than a per-team field, because the wipe total is debug/telemetry
+//	and must not change the replication shape of TeamPowerState.
+static int	Find_Or_Make_Wiped_Slot(int team)
+{
+	for (int i = 0; i < _WipedTeamCount; i++) {
+		if (_WipedTeams [i] == team) return i;
+	}
+	if (_WipedTeamCount >= 4) return -1;
+	_WipedTeams [_WipedTeamCount] = team;
+	_CreditsWiped [_WipedTeamCount] = 0.0f;
+	return _WipedTeamCount++;
+}
 
 
 static int	Find_Member(PowerGridMemberIdType member_id)
@@ -355,6 +385,14 @@ void TeamPowerGridService::RecalculateTeam(int team)
 			member.ShroudSensorHandle = 0;
 		}
 	}
+
+	/*
+	**	Q-014: the cap has just been recomputed along with everything else, so this is the one
+	**	place a Silo can have been lost, revived, built or shed.  Enforcing here rather than at
+	**	each of those call sites means a future way of losing a Silo cannot forget to wipe the
+	**	credits it was holding.  Server-only, and a no-op when no cap was exceeded.
+	*/
+	Enforce_Wallet_Cap (team);
 }
 
 
@@ -427,6 +465,109 @@ float TeamPowerGridService::Get_Wallet_Capacity_Bonus(int team)
 		}
 	}
 	return bonus;
+}
+
+
+float TeamPowerGridService::Get_Base_Wallet_Cap(void)		{ return _BaseWalletCap; }
+
+void TeamPowerGridService::Set_Base_Wallet_Cap(float cap)
+{
+	if (cap < 0.0f) cap = 0.0f;
+	_BaseWalletCap = cap;
+
+	//	A lowered base takes effect on the teams that already exist, the same way losing a Silo
+	//	does -- otherwise the new number would only bite the next time something was destroyed.
+	for (int i = 0; i < _Teams.Count (); i++) {
+		Enforce_Wallet_Cap (_Teams [i].Team);
+	}
+}
+
+
+/***********************************************************************************************
+ * Get_Wallet_Capacity -- Section 40's EffectivePlayerWalletCap                                  *
+ *                                                                                             *
+ *	Computed from the member list on both sides.  Only the server ever *enforces* it, so a       *
+ *	client reading a slightly stale number while a Silo is being shed changes nothing: a         *
+ *	client's wallet is whatever the server last replicated, never something it clamps itself.    *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+float TeamPowerGridService::Get_Wallet_Capacity(int team)
+{
+	float capacity = _BaseWalletCap + Get_Wallet_Capacity_Bonus (team);
+	return (capacity < 0.0f) ? 0.0f : capacity;
+}
+
+
+/***********************************************************************************************
+ * Enforce_Wallet_Cap                                                                            *
+ *                                                                                             *
+ *	The sweep.  A Silo destroyed while full does not merely stop raising the ceiling -- the      *
+ *	credits it was holding are gone, so a team that banked 20,000 behind two Silos and loses     *
+ *	one drops to 15,000 immediately.  That is what makes a Silo worth attacking.                 *
+ *                                                                                             *
+ *	Players are reached through their soldiers rather than through a player manager, because     *
+ *	cPlayerManager lives in Commando and this service is Combat -- the same route every other    *
+ *	Commander-layer sweep in this library already takes.                                         *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+int TeamPowerGridService::Enforce_Wallet_Cap(int team)
+{
+	if (!CombatManager::I_Am_Server ()) {
+		return 0;
+	}
+
+	float capacity = Get_Wallet_Capacity (team);
+	int affected = 0;
+
+	SList<SmartGameObj> * list = GameObjManager::Get_Smart_Game_Obj_List ();
+	if (list == nullptr) {
+		return 0;
+	}
+
+	for (SLNode<SmartGameObj> * node = list->Head (); node != nullptr; node = node->Next ()) {
+
+		SmartGameObj * obj = node->Data ();
+		if (obj == nullptr) continue;
+
+		SoldierGameObj * soldier = obj->As_SoldierGameObj ();
+		if (soldier == nullptr) continue;
+		if (soldier->Get_Player_Type () != team) continue;
+
+		PlayerDataClass * player = soldier->Get_Player_Data ();
+		if (player == nullptr) continue;
+
+		float money = player->Get_Money ();
+		if (money <= capacity) continue;
+
+		//	Through Set_Money rather than by writing the field, so cPlayer's override still
+		//	marks the player dirty and the loss actually reaches the client.
+		player->Set_Money (capacity);
+
+		int slot = Find_Or_Make_Wiped_Slot (team);
+		if (slot >= 0) {
+			_CreditsWiped [slot] += (money - capacity);
+		}
+		affected++;
+	}
+
+	return affected;
+}
+
+
+float TeamPowerGridService::Get_Credits_Wiped(int team)
+{
+	for (int i = 0; i < _WipedTeamCount; i++) {
+		if (_WipedTeams [i] == team) return _CreditsWiped [i];
+	}
+	return 0.0f;
+}
+
+
+void TeamPowerGridService::Reset_Credits_Wiped(void)
+{
+	for (int i = 0; i < 4; i++) {
+		_CreditsWiped [i] = 0.0f;
+		_WipedTeams [i] = 0;
+	}
+	_WipedTeamCount = 0;
 }
 
 

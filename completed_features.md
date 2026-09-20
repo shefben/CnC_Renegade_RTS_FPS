@@ -2246,3 +2246,30 @@ cases (never executed -- Q-012). Absorbs the `WIP_features.md` P38 entry and the
 Asset names recorded in `docs/assets/BuildingDamageModels.md`. No shipped descriptor sets
 `build.buildable` yet, so nothing is placeable in game until preset names are known -- **Q-017**,
 which is data, not code.
+
+## P34 -- wallet cap enforced (Q-014 answered)
+
+`EffectivePlayerWalletCap = BaseWalletCap + sum(active Silo bonuses)` is real and enforced.
+Base is 10,000 (`TeamPowerGridService::DEFAULT_BASE_WALLET_CAP`, retunable at runtime through the
+new `wallet_cap` console command); each Tiberium Silo adds its declared bonus, now 5,000 in
+`data/building_descriptors/gdi_tiberium_silo.json`. `PlayerDataClass::Apply_Wallet_Cap` is the
+single clamp both money paths run through (`Set_Money` moved out of the header for it), server-only
+so a client never fights the replicated number. `Enforce_Wallet_Cap` sweeps every player on a team
+at the end of `RecalculateTeam`, so losing a Silo drops the ceiling *and* wipes credits already
+banked above it -- destroying a full Silo costs the enemy the tiberium it held. Evidence: `powergrid`
+self-check gained base/bonus/effective-cap, Silo-loss and retune cases (never executed -- Q-012);
+`renegade`, `renegadeserver` and `leveledit` all build clean. Absorbs the `WIP_features.md` P34
+entry. Note: the cap applies to campaign play too, since `PlayerDataClass` is shared -- `wallet_cap`
+raises it if that turns out to matter.
+
+## P42 -- editor-facing descriptor validation (Q-015 answered: the title is literal)
+
+`BuildingDescriptorManager` gained `Validate_Text`/`Validate_File`/`Validate_Directory`: the same
+parser and the same `Validate_Descriptor` the game loads with, minus the commit, so validating a
+work-in-progress file cannot swap it into a live descriptor set. LevelEdit's **Report -> Validate
+Building Descriptors...** runs it over a chosen folder and reports one line per file
+(`IDM_VALIDATE_BUILDING_DESCRIPTORS`, `CMainFrame::OnValidateBuildingDescriptors`). No rule is
+duplicated anywhere. With `docs/zerohour/TestCoverageCatalog.md` already covering the
+test-strategy half, P42 is now closed rather than partial. Evidence: `leveledit` builds and links
+clean; `buildingjson` self-check gained validate-equals-load, no-side-effect and unreadable-input
+cases (never executed -- Q-012). Absorbs the `WIP_features.md` P42 entry and the backlog's P42 line.

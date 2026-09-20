@@ -29,6 +29,7 @@
 #include "buildingdescriptormanager.h"
 
 #include "rawfile.h"
+#include "win.h"
 
 #include <cmath>
 
@@ -558,4 +559,156 @@ void BuildingDescriptorManager::Unload_Descriptor(const char * definition_name)
 void BuildingDescriptorManager::Unload_All(void)
 {
 	_Records.Delete_All ();
+}
+
+
+/***********************************************************************************************
+ * Q-015 -- validation without loading                                                           *
+ *                                                                                             *
+ *	The editor-facing entry points.  Both run `Parse_And_Validate`, which is the same function  *
+ *	`Load_Descriptor_From_Text` runs, and then discard the descriptor instead of registering    *
+ *	it.  That is the whole trick: there is exactly one parser and exactly one validator in this *
+ *	file, and "validate" is "load, minus the commit".  A rule added to Validate_Descriptor is   *
+ *	enforced by the editor the same day, with nothing to keep in step.                           *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+//	The definition name a load of this path would have used: the file's stem.  Validating under
+//	the same name a load would use is what stops a name-dependent rule passing here and failing
+//	there.
+static void	Definition_Name_From_Path(const char * file_path,StringClass * out)
+{
+	*out = "";
+	if ((file_path == nullptr) || (file_path [0] == 0)) {
+		return;
+	}
+
+	const char * start = file_path;
+	for (const char * scan = file_path; *scan != 0; scan++) {
+		if ((*scan == '\\') || (*scan == '/')) {
+			start = scan + 1;
+		}
+	}
+
+	StringClass name (start,true);
+
+	int length = name.Get_Length ();
+	for (int i = length - 1; i >= 0; i--) {
+		if (name [i] == '.') {
+			name.Erase (i,length - i);
+			break;
+		}
+	}
+
+	*out = name;
+}
+
+
+bool BuildingDescriptorManager::Validate_Text(const char * definition_name,const char * json_text,
+															 StringClass * error_out)
+{
+	BuildingModelDescriptor scratch;
+	StringClass error ("");
+
+	//	A definition name is required by the validator (an unnamed descriptor is invalid), and a
+	//	caller validating loose text may not have one, so a placeholder stands in.  It never
+	//	reaches the registry, because nothing here registers anything.
+	const char * name = ((definition_name != nullptr) && (definition_name [0] != 0))
+								? definition_name : "unnamed";
+
+	bool ok = Parse_And_Validate (name,json_text,&scratch,&error);
+	if (error_out != nullptr) {
+		*error_out = error;
+	}
+	return ok;
+}
+
+
+bool BuildingDescriptorManager::Validate_File(const char * file_path,StringClass * error_out)
+{
+	if ((file_path == nullptr) || (file_path [0] == 0)) {
+		if (error_out != nullptr) *error_out = "no file path";
+		return false;
+	}
+
+	StringClass text ("");
+	if (!Read_File_To_String (file_path,&text)) {
+		if (error_out != nullptr) *error_out = "could not read the file";
+		return false;
+	}
+
+	StringClass name ("");
+	Definition_Name_From_Path (file_path,&name);
+
+	return Validate_Text (name.Peek_Buffer (),text.Peek_Buffer (),error_out);
+}
+
+
+int BuildingDescriptorManager::Validate_Directory(const char * directory_path,
+																  StringClass * report_out,int * checked_out)
+{
+	if (checked_out != nullptr) {
+		*checked_out = 0;
+	}
+	if ((directory_path == nullptr) || (directory_path [0] == 0)) {
+		return -1;
+	}
+
+	/*
+	**	Enumerated through the platform rather than through SimpleFileFactoryClass, because the
+	**	factory only finds files inside the game's own search path and a content author's
+	**	descriptor folder is exactly not there.  This is the same call MixFileCreator's own
+	**	directory walk uses.
+	*/
+	StringClass base (directory_path,true);
+	int length = base.Get_Length ();
+	if ((length > 0) && (base [length - 1] != '\\') && (base [length - 1] != '/')) {
+		base += "\\";
+	}
+
+	StringClass pattern (base,true);
+	pattern += "*.json";
+
+	WIN32_FIND_DATAA find_data = { 0 };
+	HANDLE handle = ::FindFirstFileA (pattern.Peek_Buffer (),&find_data);
+	if (handle == INVALID_HANDLE_VALUE) {
+		return -1;
+	}
+
+	int failures = 0;
+	int checked = 0;
+
+	do {
+		if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+			continue;
+		}
+
+		StringClass full_path (base,true);
+		full_path += find_data.cFileName;
+
+		StringClass error ("");
+		bool ok = Validate_File (full_path.Peek_Buffer (),&error);
+
+		checked++;
+		if (!ok) {
+			failures++;
+		}
+
+		if (report_out != nullptr) {
+			StringClass line ("");
+			if (ok) {
+				line.Format ("%s: OK\r\n",find_data.cFileName);
+			} else {
+				line.Format ("%s: FAILED -- %s\r\n",find_data.cFileName,error.Peek_Buffer ());
+			}
+			*report_out += line;
+		}
+
+	} while (::FindNextFileA (handle,&find_data));
+
+	::FindClose (handle);
+
+	if (checked_out != nullptr) {
+		*checked_out = checked;
+	}
+	return failures;
 }

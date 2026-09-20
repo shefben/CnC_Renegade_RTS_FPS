@@ -2226,6 +2226,43 @@ int	Run_Building_Descriptors (void)
 
 	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_nopreset",BUILDABLE_NO_PRESET_JSON,&error),
 			 "a buildable descriptor naming no game_object_preset was accepted");
+
+	/*
+	**	Q-015: Validate_Text is the editor's entry point, and its whole contract is that it
+	**	reaches the same verdict as a load without having the load's side effect.  Both halves
+	**	are proved: the same accept/reject answers, and nothing registered either way.
+	*/
+	Check (BuildingDescriptorManager::Validate_Text ("ow_test_validate_ok",DAMAGE_VISUAL_JSON,&error),
+			 "validation refused a descriptor that loading accepts: %s",error.Peek_Buffer ());
+	Check (!BuildingDescriptorManager::Is_Loaded ("ow_test_validate_ok"),
+			 "validating a descriptor registered it -- validation must not have a side effect");
+
+	Check (!BuildingDescriptorManager::Validate_Text ("ow_test_validate_bad",MALFORMED_JSON,&error),
+			 "validation accepted malformed JSON that loading rejects");
+	Check (error.Get_Length () > 0,"a failed validation reported no error");
+	Check (!BuildingDescriptorManager::Is_Loaded ("ow_test_validate_bad"),
+			 "a failed validation registered something");
+
+	Check (!BuildingDescriptorManager::Validate_Text ("ow_test_validate_dup",DUPLICATE_THRESHOLD_JSON,&error),
+			 "validation accepted a damage table loading rejects");
+
+	//	A descriptor already loaded stays exactly as it was after validating different text
+	//	under its own name -- the case that would bite an author validating a work in progress.
+	Check (BuildingDescriptorManager::Is_Loaded ("ow_test_dv"),"the damage_visual descriptor vanished");
+	BuildingDescriptorManager::Validate_Text ("ow_test_dv",NO_DAMAGE_VISUAL_JSON,&error);
+	const BuildingModelDescriptor * unchanged = BuildingDescriptorManager::Get_Descriptor ("ow_test_dv");
+	Check (unchanged != nullptr && unchanged->DamageVisual.States.Count () == 3,
+			 "validating replacement text under a live descriptor's name modified it");
+
+	Check (!BuildingDescriptorManager::Validate_File ("ow_no_such_descriptor_file.json",&error),
+			 "validating a file that does not exist reported success");
+
+	int checked_files = -1;
+	StringClass directory_report ("");
+	Check (BuildingDescriptorManager::Validate_Directory ("ow_no_such_directory",&directory_report,
+																		  &checked_files) == -1,
+			 "validating an unreadable directory did not report -1");
+	Check (checked_files == 0,"an unreadable directory reported %d files checked, not 0",checked_files);
 	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_duptresh",DUPLICATE_THRESHOLD_JSON,&error),
 			 "a damage table with two states at the same threshold was accepted");
 
@@ -2461,6 +2498,46 @@ int	Run_Power_Grid (void)
 	TeamPowerGridService::OnBuildingDestroyed (10);		// team 1's only generator
 	Check (WWMath::Fabs (TeamPowerGridService::Get_Wallet_Capacity_Bonus (TEAM1)) < 0.01f,
 			 "destroying the only generator left a Silo bonus of %f, not 0",TeamPowerGridService::Get_Wallet_Capacity_Bonus (TEAM1));
+
+	/*
+	**	Q-014's cap: base plus the live Silo bonus, and a base that can be retuned at runtime.
+	**	The sweep that wipes banked credits needs real players and a server, neither of which a
+	**	self check has, so what is proved here is the number every part of the sweep reads.
+	*/
+	Check (WWMath::Fabs (TeamPowerGridService::DEFAULT_BASE_WALLET_CAP - 10000.0f) < 0.01f,
+			 "the default base wallet cap is %f, not 10000",TeamPowerGridService::DEFAULT_BASE_WALLET_CAP);
+
+	TeamPowerGridService::Set_Base_Wallet_Cap (TeamPowerGridService::DEFAULT_BASE_WALLET_CAP);
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Wallet_Capacity (TEAM1) - 10000.0f) < 0.01f,
+			 "a team with no live Silo has an effective cap of %f, not the bare base 10000",
+			 TeamPowerGridService::Get_Wallet_Capacity (TEAM1));
+
+	//	Bring the generator back: both Silos power up again and the cap rises with them.
+	TeamPowerGridService::OnBuildingRevived (10);
+	TeamPowerGridService::Set_Manual_Disabled (20,false);
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Wallet_Capacity (TEAM1) - 15000.0f) < 0.01f,
+			 "two live Silos give an effective cap of %f, not 10000 + 5000",
+			 TeamPowerGridService::Get_Wallet_Capacity (TEAM1));
+
+	//	Losing one Silo drops the ceiling by exactly that Silo's declared bonus.  This is the
+	//	state change the credit wipe hangs off, so it is the one that has to be exact.
+	TeamPowerGridService::OnBuildingDestroyed (21);
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Wallet_Capacity (TEAM1) - 12500.0f) < 0.01f,
+			 "losing one of two Silos left the cap at %f, not 12500",
+			 TeamPowerGridService::Get_Wallet_Capacity (TEAM1));
+
+	TeamPowerGridService::Set_Base_Wallet_Cap (0.0f);
+	Check (WWMath::Fabs (TeamPowerGridService::Get_Wallet_Capacity (TEAM1) - 2500.0f) < 0.01f,
+			 "with the base retuned to zero the cap is %f, not the surviving Silo's 2500",
+			 TeamPowerGridService::Get_Wallet_Capacity (TEAM1));
+
+	TeamPowerGridService::Set_Base_Wallet_Cap (-1.0f);
+	Check (TeamPowerGridService::Get_Base_Wallet_Cap () == 0.0f,
+			 "a negative base wallet cap was accepted (%f)",TeamPowerGridService::Get_Base_Wallet_Cap ());
+
+	TeamPowerGridService::Set_Base_Wallet_Cap (TeamPowerGridService::DEFAULT_BASE_WALLET_CAP);
+	TeamPowerGridService::OnBuildingDestroyed (10);		// restore the state the rest expects
+	TeamPowerGridService::Set_Manual_Disabled (20,true);
 
 	/*
 	**	Live JSON reload recalculates correctly, through OnDescriptorReload.

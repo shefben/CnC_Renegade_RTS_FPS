@@ -498,6 +498,8 @@ BEGIN
     BEGIN
         MENUITEM "File Usage...",               IDM_EXPORT_FILE_USAGE_REPORT
         MENUITEM "Missing Translations...",     IDM_EXPORT_MISSING_TRANSLATION_REPORT
+        MENUITEM "Validate Building Descriptors...", 
+                                                IDM_VALIDATE_BUILDING_DESCRIPTORS
 
     END
     POPUP "&Debug"

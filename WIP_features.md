@@ -493,22 +493,6 @@ only). Next exact action: author `DescriptorName` onto a real preset (or the rem
 categories' JSON content), then confirm `building_json_status`/`reload_building_descriptors`
 against a live building.
 
-## P34 -- the allocator is wired into BaseControllerClass; wallet-cap enforcement is still open
-
-`TeamPowerGridService` (P34-A, `docs/zerohour/TeamPowerGridService.md`) is now wired into
-`BaseControllerClass::Power_Base` (`basecontroller.cpp:521-552`, P27/P33/P34-B in
-`completed_features.md`): the coarse loop skips any building `Has_Resolved_Descriptor` answers
-true for, leaving this service the sole writer of that building's `Enable_Power`, while every
-undescribed building keeps the coarse behaviour unchanged. `BasePowered`/`Is_Base_Powered()`
-itself was left alone rather than rederived, since `Check_Base_Power`'s power-plant scan already
-covers every power plant regardless of descriptor and nothing reads it incorrectly today. What is
-still genuinely open: no wallet-cap enforcement exists anywhere in this codebase to apply the
-Silo bonus to, and the roadmap's own formula (`EffectivePlayerWalletCap = BaseWalletCap + ...`)
-assumes a "canonical existing player wallet cap" this Renegade-based codebase has never had --
-see **Q-014** in `awaiting_answers.md`. Next exact action: none until Q-014 is answered; then add
-the clamp to `PlayerDataClass::Increment_Money` reading `TeamPowerGridService::
-Get_Wallet_Capacity_Bonus`.
-
 ## P35 -- input rerouting is done; the way *in* is still a console command
 
 `CommanderModeController` (P35-A, `docs/zerohour/CommanderModeController.md`) is entered only by
@@ -578,18 +562,6 @@ both need a live match, not more code. Absorbs the backlog's P40 acceptance line
 is a manual one for the user: run a listen server and a client, enter Commander Mode on the server,
 `commander_ghost` + `commander_place`, and confirm the client sees the build-up and the same power
 figures.
-
-## P42 -- the test-strategy catalog exists; the "tool/editor" half of the title is unresolved
-
-`docs/zerohour/TestCoverageCatalog.md` reads every `add_test` in the tree and maps roughly ninety
-ctest families onto Section 48.2's required groups, flagging the three TT bullets ("script
-save/load", "TT network dirty state", "TT building/factory definitions") with no obvious matching
-family rather than assuming they are covered. What is genuinely unresolved, not just unwritten, is
-recorded as **Q-015**: the backlog's own phase title, "Tool/editor/descriptor-validation pass," has
-no elaborating section anywhere in the roadmap body, so whether an actual `LevelEdit`-facing
-descriptor validator is still owed is a real open question rather than a coding task. Absorbs the
-backlog's P42 line. Next exact action: resolve Q-015, then either close the phase as the catalog
-already covers it or scope the editor-tool work it would still require.
 
 ## P43 -- performance requirements are understood; no baseline has been taken
 

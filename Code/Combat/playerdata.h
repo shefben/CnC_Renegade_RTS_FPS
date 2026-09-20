@@ -105,7 +105,17 @@ public:
 
 	// Money access
 				float	Get_Money( void ) const 		{ return (float)Money; }
-	virtual	void	Set_Money( float money )		{ Money = money; }
+	virtual	void	Set_Money( float money );
+
+	/*
+	**	Q-014 -- Section 40 EffectivePlayerWalletCap, enforced.  Both money paths run through
+	**	this, so there is exactly one place credits can exceed the ceiling and exactly one place
+	**	that has to know about Silos.  Server-only inside: a client wallet is whatever the
+	**	server last replicated, and a client clamping it against its own view of the power grid
+	**	would fight that number every time a Silo was mid-shed.
+	*/
+	void		Apply_Wallet_Cap( void );
+
 	virtual	void	Increment_Money( float add );
 	virtual	bool	Purchase_Item( int cost );
 

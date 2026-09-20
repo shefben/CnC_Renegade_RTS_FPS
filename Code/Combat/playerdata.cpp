@@ -45,6 +45,7 @@
 #include "soldier.h"
 #include "systeminfolog.h"
 #include "stackdump.h"
+#include "teampowergridservice.h"
 
 /*
 **
@@ -253,6 +254,34 @@ void	PlayerDataClass::Increment_Score( float add )
 	}
 }
 
+void	PlayerDataClass::Set_Money( float money )
+{
+	Money = money;
+	Apply_Wallet_Cap();
+}
+
+
+/***********************************************************************************************
+ * PlayerDataClass::Apply_Wallet_Cap -- Q-014                                                    *
+ *                                                                                             *
+ *	Stock Renegade has no credit ceiling at all, and neither does TT 4.8.4, so this is a new     *
+ *	rule rather than a recovered one: a 10,000 base that every Tiberium Silo on the team raises  *
+ *	by its declared bonus.  The base is tunable at runtime (`wallet_cap`), because it is a       *
+ *	balance number and nothing about the code depends on its value.                              *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+void	PlayerDataClass::Apply_Wallet_Cap( void )
+{
+	if ( !CombatManager::I_Am_Server() ) {
+		return;
+	}
+
+	float capacity = TeamPowerGridService::Get_Wallet_Capacity( Get_Player_Type() );
+	if ( (float)Money > capacity ) {
+		Money = capacity;
+	}
+}
+
+
 void	PlayerDataClass::Increment_Money( float add )
 {
 	if (add > 0 && !CombatManager::Is_Gameplay_Permitted()) {
@@ -276,6 +305,10 @@ void	PlayerDataClass::Increment_Money( float add )
 	if ( add > 0 ) {
 		Stats_Add_Credit_Grant( WWMath::Trunc(add) );
 	}
+
+	//	Q-014: the ceiling, applied after the grant is recorded -- a player who earned credits
+	//	they could not hold still earned them, and the stat is what the scoreboard reads.
+	Apply_Wallet_Cap();
 
 	//Set_Object_Dirty_Bit(NetworkObjectClass::BIT_OCCASIONAL, true);
 }

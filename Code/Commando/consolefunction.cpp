@@ -105,6 +105,7 @@
 #include "devoptions.h"
 #include "god.h"
 #include "playertype.h"
+#include "teampowergridservice.h"
 #include "systemsettings.h"
 #include "spawn.h"
 #include "input.h"
@@ -2174,6 +2175,51 @@ public:
 		Print( "  power: gen %.0f, requested %.0f, allocated %.0f, headroom %.0f, %d shed%s\n",
 				 power.Generation, power.RequestedDemand, power.AllocatedDemand, power.Headroom,
 				 power.ShedCount, power.Overloaded ? ", OVERLOADED" : "" );
+	}
+};
+
+
+/*
+**	Q-014 -- the wallet cap, inspectable and tunable.
+**
+**	The base is a balance number that stock Renegade never had (its economy is uncapped), so
+**	it is exposed rather than compiled in: an operator can find the right ceiling without a
+**	rebuild, and lowering it takes effect immediately on players who are already over it,
+**	exactly as losing a Silo does.
+*/
+class WalletCapConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "wallet_cap"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "WALLET_CAP [credits] - roadmap Section 40.  No argument prints the base cap, "
+				 "each team's Silo bonus and effective cap, and how many credits cap drops have "
+				 "wiped.  An argument sets the base cap and enforces it at once.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		if ( input != nullptr && input[0] != '\0' ) {
+			float requested = (float)::atof( input );
+			if ( requested < 0.0f ) {
+				Print( "wallet_cap: the base cap cannot be negative.\n" );
+				return;
+			}
+			TeamPowerGridService::Set_Base_Wallet_Cap( requested );
+		}
+
+		Print( "wallet_cap: base %.0f\n",TeamPowerGridService::Get_Base_Wallet_Cap() );
+
+		static const int TEAMS[2] = { PLAYERTYPE_GDI, PLAYERTYPE_NOD };
+		static const char * const NAMES[2] = { "GDI", "Nod" };
+
+		for ( int i = 0; i < 2; i++ ) {
+			Print( "  %-3s silo bonus %8.0f, effective cap %8.0f, wiped %8.0f\n",
+					 NAMES[i],
+					 TeamPowerGridService::Get_Wallet_Capacity_Bonus( TEAMS[i] ),
+					 TeamPowerGridService::Get_Wallet_Capacity( TEAMS[i] ),
+					 TeamPowerGridService::Get_Credits_Wiped( TEAMS[i] ) );
+		}
 	}
 };
 
@@ -7176,6 +7222,7 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new TelemetryStatusConsoleFunctionClass() );
 	FunctionList.Add( new TelemetryDumpConsoleFunctionClass() );
 	FunctionList.Add( new CommanderSidebarConsoleFunctionClass() );
+	FunctionList.Add( new WalletCapConsoleFunctionClass() );
 	FunctionList.Add( new CommanderGhostConsoleFunctionClass() );
 	FunctionList.Add( new CommanderPlaceConsoleFunctionClass() );
 	FunctionList.Add( new CommanderBuildConsoleFunctionClass() );

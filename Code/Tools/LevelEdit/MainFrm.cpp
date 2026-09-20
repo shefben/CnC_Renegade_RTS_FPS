@@ -48,6 +48,7 @@
 #include "camerasettingsform.h"
 #include "ww3d.h"
 #include "filemgr.h"
+#include "buildingdescriptormanager.h"	//	Q-015 -- editor-facing descriptor validation
 #include "sceneeditor.h"
 #include "editorassetmgr.h"
 #include "_assetmgr.h"
@@ -399,6 +400,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_UPDATE_COMMAND_UI(IDM_COMPRESS_TEXTURES, OnUpdateCompressTextures)
 	ON_COMMAND(IDM_EXPORT_FILE_USAGE_REPORT, OnExportFileUsageReport)
 	ON_COMMAND(IDM_EXPORT_MISSING_TRANSLATION_REPORT, OnExportMissingTranslationReport)
+	ON_COMMAND(IDM_VALIDATE_BUILDING_DESCRIPTORS, OnValidateBuildingDescriptors)
 	ON_COMMAND(IDM_EXPORT_LANGUAGE, OnExportLanguage)
 	ON_WM_INITMENUPOPUP()
 	ON_COMMAND(IDM_ALWAYS_LOCAL_EXPORT, OnAlwaysLocalExport)
@@ -6327,5 +6329,47 @@ CMainFrame::OnUpdateModeHeightEdit (CCmdUI *pCmdUI)
 		pCmdUI->SetCheck ((BOOL)::Get_Mouse_Mgr ()->Get_Mouse_Mode () == MouseMgrClass::MODE_HEIGHTFIELD_EDIT);
 	}
 
+	return ;
+}
+void
+CMainFrame::OnValidateBuildingDescriptors (void)
+{
+	CFileDialog dialog (	true,
+								".json",
+								"*.json",
+								OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_EXPLORER,
+								"Building Descriptors (*.json)|*.json||",
+								this);
+
+	if (dialog.DoModal () != IDOK) {
+		return ;
+	}
+
+	CString directory = dialog.GetPathName ();
+	int slash = directory.ReverseFind ('\\');
+	if (slash < 0) {
+		slash = directory.ReverseFind ('/');
+	}
+	if (slash >= 0) {
+		directory = directory.Left (slash);
+	}
+
+	StringClass report ("");
+	int checked = 0;
+	int failures = BuildingDescriptorManager::Validate_Directory ((const char *)directory,
+																					 &report,&checked);
+
+	CString message;
+	if (failures < 0) {
+		message.Format ("Could not read '%s'.", (const char *)directory);
+	} else if (checked == 0) {
+		message.Format ("No .json descriptors found in '%s'.", (const char *)directory);
+	} else {
+		message.Format ("%d descriptor(s) checked in '%s'.\r\n%d failed.\r\n\r\n%s",
+							 checked, (const char *)directory, failures, report.Peek_Buffer ());
+	}
+
+	::MessageBox (m_hWnd, message, "Validate Building Descriptors",
+					  (failures > 0) ? (MB_OK | MB_ICONWARNING) : (MB_OK | MB_ICONINFORMATION));
 	return ;
 }
