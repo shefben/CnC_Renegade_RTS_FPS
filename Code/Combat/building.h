@@ -413,6 +413,12 @@ public:
 	//	anchors are actually read rather than as a flag each caller has to remember.
 	bool											Resolve_Runtime_Anchor (const char *role_name,Matrix3D *out_transform) const;
 
+	//	RuntimeDoorService's one-liner: it owns the door open/close state (a component-assembly
+	//	door part is server-authoritative timed state, the same shape BuildingConstructionService
+	//	already established), but only a GameObj can dirty itself over the network, so the
+	//	service calls back into this rather than reaching into a private bit of BuildingGameObj.
+	void											Mark_Runtime_Door_State_Dirty (void);
+
 	//	The one question every capability asks: does this building do its job right now?  False
 	//	while destroyed, and false for a runtime building whose model has not been revealed yet.
 	bool											Are_Capabilities_Enabled (void) const;

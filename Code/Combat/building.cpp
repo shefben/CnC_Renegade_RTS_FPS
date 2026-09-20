@@ -65,6 +65,7 @@
 #include "coltest.h"
 #include "buildingconstruction.h"
 #include "buildingdescriptormanager.h"
+#include "runtimedoorservice.h"
 #include "pscene.h"
 #include "rendobj.h"
 #include "staticphys.h"
@@ -77,6 +78,11 @@
 //	Namespaces
 /////////////////////////////////////////////////////////////////////////////
 using namespace BuildingConstants;
+
+//	Forward declaration: defined with the rest of the runtime-construction path further down
+//	this file (Q-016), but Export_Rare/Import_Rare need it for the component-assembly door
+//	state block and are defined earlier in the file than that section.
+static const BuildingModelDescriptor * Peek_Runtime_Descriptor (const StringClass &name);
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1426,6 +1432,31 @@ BuildingGameObj::Import_Rare (BitStreamClass &packet)
 
 	packet.Get (IsSpyDisabled);
 
+	/*
+	**	Component-assembly door state.  Deterministic on both sides which (if any) of this
+	**	descriptor's assembly parts are doors -- both machines loaded the same data/
+	**	building_descriptors JSON -- so no count crosses the wire, only the two numbers per door
+	**	that are genuinely dynamic (RuntimeDoorService::Compute_Fraction derives everything
+	**	else). A map-authored building, or a runtime one with no door part, reads nothing here.
+	*/
+	if (IsRuntimeConstructed) {
+		const BuildingModelDescriptor *descriptor = Peek_Runtime_Descriptor (RuntimeDescriptorName);
+		if (descriptor != nullptr) {
+			for (int i = 0; i < descriptor->Assembly.Parts.Count (); i++) {
+				if (descriptor->Assembly.Parts [i].Kind.Compare_No_Case ("door") != 0) {
+					continue;
+				}
+				bool direction_is_opening = false;
+				float fraction_at_start = 0.0f;
+				float start_time_seconds = 0.0f;
+				packet.Get (direction_is_opening);
+				packet.Get (fraction_at_start);
+				packet.Get (start_time_seconds);
+				RuntimeDoorService::Set_State (Get_ID (),i,direction_is_opening,fraction_at_start,start_time_seconds);
+			}
+		}
+	}
+
 	return ;
 }
 
@@ -1447,6 +1478,26 @@ BuildingGameObj::Export_Rare (BitStreamClass &packet)
 	packet.Add (IsPowerOn);
 	packet.Add (CurrentState, BITPACK_BUILDING_STATE);
 	packet.Add (IsSpyDisabled);
+
+	//	Mirrors Import_Rare's door block exactly -- same descriptor, same order, no count.
+	if (IsRuntimeConstructed) {
+		const BuildingModelDescriptor *descriptor = Peek_Runtime_Descriptor (RuntimeDescriptorName);
+		if (descriptor != nullptr) {
+			for (int i = 0; i < descriptor->Assembly.Parts.Count (); i++) {
+				if (descriptor->Assembly.Parts [i].Kind.Compare_No_Case ("door") != 0) {
+					continue;
+				}
+				bool direction_is_opening = false;
+				float fraction_at_start = 0.0f;
+				float start_time_seconds = 0.0f;
+				RuntimeDoorService::Get_State (Get_ID (),i,&direction_is_opening,&fraction_at_start,&start_time_seconds);
+				packet.Add (direction_is_opening);
+				packet.Add (fraction_at_start);
+				packet.Add (start_time_seconds);
+			}
+		}
+	}
+
 	return ;
 }
 
@@ -2387,6 +2438,28 @@ BuildingGameObj::Build_Runtime_Assembly (const BuildingAssemblyDefinition &assem
 		part_local.Rotate_Z (DEG_TO_RADF (part.RotationDegrees.Z));
 		part_local.Translate (part.Position);
 
+		//	Measured from the model while this scope still owns a reference to it, before
+		//	Add_Runtime_Part hands ownership over to the StaticPhysClass it constructs -- see
+		//	docs/zerohour/BuildingComponentAssembly.md for why this is a measured vertical
+		//	retract rather than a guessed slide or a baked animation nothing in the real asset
+		//	confirms exists.  Only a "door"-kind part gets this; every other kind is unaffected.
+		bool is_door = (part.Kind.Compare_No_Case ("door") == 0);
+		Matrix3D open_local (1);
+		Vector3 trigger_position (0.0f,0.0f,0.0f);
+		float trigger_radius = 0.0f;
+		if (is_door) {
+			AABoxClass obj_bounds;
+			model->Get_Obj_Space_Bounding_Box (obj_bounds);
+
+			float rise = 2.0f * obj_bounds.Extent.Z * RuntimeDoorService::RISE_HEIGHT_MARGIN;
+			open_local = part_local;
+			open_local.Set_Translation (part_local.Get_Translation () + Vector3 (0.0f,0.0f,rise));
+
+			trigger_radius		= std::max (obj_bounds.Extent.X,obj_bounds.Extent.Y) +
+										  RuntimeDoorService::TRIGGER_RADIUS_MARGIN;
+			trigger_position	= (RuntimeTransform * part_local).Get_Translation ();
+		}
+
 		StaticPhysClass *phys = Add_Runtime_Part (this,scene,model,RuntimeTransform * part_local,RuntimeModelHidden);
 
 		RuntimeParts.Add (phys);
@@ -2398,6 +2471,10 @@ BuildingGameObj::Build_Runtime_Assembly (const BuildingAssemblyDefinition &assem
 			ExteriorMeshes.Add (phys);
 		}
 
+		if (is_door) {
+			RuntimeDoorService::Register (this,i,phys,part_local,open_local,trigger_position,trigger_radius);
+		}
+
 		any_loaded = true;
 	}
 
@@ -2407,6 +2484,12 @@ BuildingGameObj::Build_Runtime_Assembly (const BuildingAssemblyDefinition &assem
 void
 BuildingGameObj::Release_Runtime_Components (void)
 {
+	//	Unconditional and before anything else, cheap no-op when nothing is registered -- the
+	//	same "always call, never remember" pattern TeamPowerGridService::UnregisterBuilding
+	//	already uses from the destructor.  Must run before the StaticPhysClass objects below are
+	//	released, so the service is never left holding a pointer to one that no longer exists.
+	RuntimeDoorService::Unregister_Building (Get_ID ());
+
 	if (RuntimeParts.Count () == 0) {
 		RuntimeModelName = "";
 		return ;
@@ -2602,6 +2685,13 @@ BuildingGameObj::On_Runtime_Destroyed_State_Entered (void)
 	}
 
 	Update_Group_Lighting ();
+	return ;
+}
+
+void
+BuildingGameObj::Mark_Runtime_Door_State_Dirty (void)
+{
+	Set_Object_Dirty_Bit (NetworkObjectClass::BIT_RARE, true);
 	return ;
 }
 

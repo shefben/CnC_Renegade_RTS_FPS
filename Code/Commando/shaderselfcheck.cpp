@@ -15,6 +15,7 @@
 #include "commanderplacement.h"
 #include "commanderproduction.h"
 #include "buildingconstruction.h"
+#include "runtimedoorservice.h"
 #include "rtspersistence.h"
 #include "obbox.h"
 #include "aabox.h"
@@ -2433,6 +2434,56 @@ int	Run_Building_Descriptors (void)
 
 
 /*
+**	Component-assembly door open/close -- RuntimeDoorService (Code/Combat/
+**	runtimedoorservice.h). Pure arithmetic only: Compute_Fraction takes no clock, no scene, no
+**	registered door, so it is provable here exactly the way BuildingConstructionService's own
+**	block generator is proven above without a device. Register/Update/the proximity check need
+**	a real BuildingGameObj + PhysicsSceneClass + GameObjManager this harness does not set up
+**	for any runtime-building path, single-mesh or assembly (see the "component assembly" self
+**	check's own note above) -- out of reach here for the same reason, not skipped by oversight.
+*/
+int	Run_Runtime_Door_Service (void)
+{
+	const float DURATION = RuntimeDoorService::OPEN_CLOSE_DURATION_SECONDS;
+
+	//	Opening from fully closed: 0 at the start, halfway at half the duration, fully open at
+	//	the duration, and clamped at 1.0 well past it -- never overshoots.
+	Check (WWMath::Fabs (RuntimeDoorService::Compute_Fraction (true,0.0f,0.0f,0.0f,DURATION) - 0.0f) < 0.001f,
+			 "opening from closed at t=0 was not 0");
+	Check (WWMath::Fabs (RuntimeDoorService::Compute_Fraction (true,0.0f,0.0f,DURATION * 0.5f,DURATION) - 0.5f) < 0.001f,
+			 "opening at half the duration was not 0.5");
+	Check (WWMath::Fabs (RuntimeDoorService::Compute_Fraction (true,0.0f,0.0f,DURATION,DURATION) - 1.0f) < 0.001f,
+			 "opening at exactly the duration was not fully open");
+	Check (WWMath::Fabs (RuntimeDoorService::Compute_Fraction (true,0.0f,0.0f,DURATION * 5.0f,DURATION) - 1.0f) < 0.001f,
+			 "opening well past the duration overshot 1.0 instead of clamping");
+
+	//	Closing from fully open: the mirror image.
+	Check (WWMath::Fabs (RuntimeDoorService::Compute_Fraction (false,1.0f,0.0f,0.0f,DURATION) - 1.0f) < 0.001f,
+			 "closing from open at t=0 was not 1");
+	Check (WWMath::Fabs (RuntimeDoorService::Compute_Fraction (false,1.0f,0.0f,DURATION * 0.5f,DURATION) - 0.5f) < 0.001f,
+			 "closing at half the duration was not 0.5");
+	Check (RuntimeDoorService::Compute_Fraction (false,1.0f,0.0f,DURATION * 5.0f,DURATION) == 0.0f,
+			 "closing well past the duration undershot below 0.0 instead of clamping");
+
+	//	Reversal continuity: a direction change mid-motion starts from wherever the door
+	//	physically was (fraction_at_start), not from scratch -- this is what stops a door that
+	//	reverses mid-swing from visibly snapping to an endpoint first.
+	Check (WWMath::Fabs (RuntimeDoorService::Compute_Fraction (true,0.3f,10.0f,10.0f + DURATION * 0.2f,DURATION) - 0.5f) < 0.001f,
+			 "resuming an opening from 0.3 did not add the elapsed fraction on top of it");
+
+	//	No registered door: both Get_State and a building-scoped unregister are safe no-ops.
+	RuntimeDoorService::Init ();
+	bool direction = false; float fraction = 0.0f; float start_time = 0.0f;
+	Check (!RuntimeDoorService::Get_State (999,0,&direction,&fraction,&start_time),
+			 "Get_State reported success for a (building,part) nothing registered");
+	RuntimeDoorService::Unregister_Building (999);
+	RuntimeDoorService::Shutdown ();
+
+	return _Failures;
+}
+
+
+/*
 **	Finite team power grid + strategic building capabilities -- roadmap Section 40.
 **
 **	Every member here is registered with a nullptr BuildingGameObj*, which is what makes the
@@ -4696,6 +4747,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "buildingjson") == 0)) {
 		Run_Building_Descriptors ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "runtimedoors") == 0)) {
+		Run_Runtime_Door_Service ();
 		ran = true;
 	}
 

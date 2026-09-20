@@ -95,6 +95,58 @@ already ruled out. So a component-assembly building has exactly two visual state
 () > 0` before it ever reaches the single-mesh health-band table, so this is a genuinely
 separate, simpler path, not a special case bolted onto the table-driven one.
 
+## Real door behavior, not inert geometry
+
+Shipped as a follow-up in the same pass, after being asked directly: a player walking up to a
+component-assembly building's door part hit solid, permanently-closed geometry -- the building
+was not actually enterable. Fixed for real, not with a collision-group hack:
+
+**Checked whether the real asset has a usable baked animation before designing around one.**
+`data/building_models/gdi/mgpwr/mgpwr_doors.w3d` (and its Nod equivalent) were ASCII-string-
+scanned (no W3D inspector tool exists in this environment) -- 796 bytes, a hierarchy
+(`MGPWR_DOORS`, bone `ROOTTRANSFORM`, door leaf bone `MPGDR_0`) and one stray string
+(`MNHND_ELEV01`), nothing sized like real per-frame animation channel data. `AnimCollisionManagerClass`
+(`Code/wwphys/animcollisionmanager.h`), the engine's real animated-door mechanism, needs a
+named `HAnimClass` to play; there is no confirmed one here, and inventing an animation name
+to point it at would repeat Q-017's own "do not guess" rule aimed at animation data instead of
+preset names. So this is real, project-owned motion computed from the door's own measured
+geometry, not from an animation asset that cannot be confirmed to exist.
+
+**Vertical retract, not a horizontal slide.** The door's own object-space bounding box
+(`RenderObjClass::Get_Obj_Space_Bounding_Box`, the same call `runtimebuildingfactory.cpp`
+already uses for construction bounds) gives a real, measured rise distance: the panel
+retracts straight up by its own height (`2 * Extent.Z`) plus a 10% margin
+(`RuntimeDoorService::RISE_HEIGHT_MARGIN`). A horizontal direction would have to guess which
+way clears the opening versus slides into solid wall; a vertical rise clears its own footprint
+for any wall orientation and degrades to "looks like a roll-up door" at worst, never a wrong-
+direction clipping failure. Reversible later once someone inspects the real geometry or
+supplies a proper animation.
+
+**`RuntimeDoorService`** (`Code/Combat/runtimedoorservice.h/.cpp`) is the whole mechanism,
+following the exact shape `BuildingConstructionService` already established for "timed,
+server-authoritative, deterministically replayable on a client": registered per
+(building id, assembly-part index) when `Build_Runtime_Assembly` builds a `"door"`-kind part,
+advanced once a frame from `combat.cpp`'s existing Commander/RTS update block against
+`CommanderStateClass::Get_Estimated_Server_Time()` -- the same clock
+`BuildingConstructionService::Update` reads, right above it. Proximity
+(`GameObjManager::Get_Smart_Game_Obj_List`, the engine's own soldier/vehicle enumeration, no
+new spatial query invented) and the open/close decision are server-only; both sides then
+recompute every registered door's current position as a pure function of (direction,
+fraction-at-last-direction-change, time-of-last-change, now) -- `RuntimeDoorService::
+Compute_Fraction`, which needs no scene/clock/registration and is exercised directly by the
+`runtimedoors` self check. A direction reversal resumes from wherever the door physically was,
+not from an endpoint, so reversing mid-swing does not visibly snap.
+
+Only the moment a direction changes crosses the network: `BuildingGameObj::Export_Rare`/
+`Import_Rare` gained a block, present only for a runtime-constructed building, that walks its
+descriptor's `Assembly.Parts` (deterministic on both sides, same JSON, no count needs to be
+sent) and reads/writes `RuntimeDoorService::Get_State`/`Set_State` for each `"door"`-kind
+entry. `BuildingGameObj::Mark_Runtime_Door_State_Dirty` is the one-liner the service calls
+back into on a state change, since only a `GameObj` can dirty itself over the network.
+
+Collision is a consequence of the real transform, not a separate toggle: once risen, the
+panel's own collision no longer overlaps the doorway footprint.
+
 ## Asset placement
 
 The real files this pass actually uses are copied into the repo at

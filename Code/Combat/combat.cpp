@@ -98,6 +98,7 @@
 #include "savegame.h"
 #include "buildingdescriptormanager.h"
 #include "projectbuildingdefs.h"
+#include "runtimedoorservice.h"
 #include "assetdep.h"
 #include "saveloadstatus.h"
 #include <stdio.h>
@@ -592,6 +593,7 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	CommanderSidebarModel::Init();
 	CommanderPlacementValidator::Init();
 	BuildingConstructionService::Init();
+	RuntimeDoorService::Init();
 	CommanderProductionService::Init();
 	CommanderGuardAI::Init();
 	CommanderSelection::Init();
@@ -1271,6 +1273,11 @@ void 	CombatManager::Think()
 	**	RuntimeBuildingFactory itself.
 	*/
 	BuildingConstructionService::Update( CommanderStateClass::Get_Estimated_Server_Time() );
+
+	//	Component-assembly door open/close.  Same clock, same "runs on both sides, server owns
+	//	the decision" shape as construction directly above -- see Code/Combat/
+	//	runtimedoorservice.h.
+	RuntimeDoorService::Update( CommanderStateClass::Get_Estimated_Server_Time() );
 
 	{
 		int completed_count = BuildingConstructionService::Get_Completed_Count();

@@ -2300,6 +2300,33 @@ rejected cases (never executed -- Q-012, and unlike the rest of this family, exe
 `Build_Runtime_Assembly` itself needs a live scene/asset manager nothing in this harness sets
 up for any runtime-building path, single-mesh or assembly).
 
+## P38 addendum 3 -- real door open/close for component-assembly buildings
+
+Asked directly whether the door part actually worked: it did not -- inert geometry, closed
+forever, solid forever, the building was not enterable. Fixed for real. New
+`RuntimeDoorService` (`Code/Combat/runtimedoorservice.h/.cpp`) follows
+`BuildingConstructionService`'s own shape exactly: registered per (building id, assembly-part
+index), advanced once a frame from `combat.cpp`'s existing Commander/RTS block against
+`CommanderStateClass::Get_Estimated_Server_Time()`, server-authoritative proximity
+(`GameObjManager::Get_Smart_Game_Obj_List`) deciding direction changes, both sides
+deterministically recomputing every door's position from (direction, fraction-at-last-change,
+time-of-last-change, now) -- only a direction change crosses the network, never a per-frame
+position. Motion is a measured vertical retract (door's own bounding-box height + 10%
+margin), not a horizontal slide or a baked animation: checked first whether
+`mgpwr_doors.w3d`/`mnpwr_doors.w3d` carry one (ASCII-string-scanned, no W3D inspector tool
+exists here) -- they do not (796 bytes, no animation-channel-sized data), so inventing an
+animation name to drive `AnimCollisionManagerClass` with would have repeated Q-017's own "do
+not guess" rule against animation data instead of preset names. Collision is a consequence of
+the real transform, not a separate toggle. `BuildingGameObj::Export_Rare`/`Import_Rare`
+gained a door-state block, present only for a runtime-constructed building with door-kind
+parts, deterministic in shape from the shared descriptor so no count crosses the wire.
+Full reasoning: `docs/zerohour/BuildingComponentAssembly.md`. Evidence: `renegade`,
+`renegadeserver` and `leveledit` all build and link clean with zero warnings; new
+`runtimedoors` self-check proves `Compute_Fraction`'s arithmetic (open/close/clamp/reversal-
+continuity, pure, no scene needed) directly (never executed -- Q-012; live proximity+network
+round trip is out of reach of this harness for the same reason `Init_Runtime_Building` itself
+has never been exercised here).
+
 ## P34 -- wallet cap enforced (Q-014 answered)
 
 `EffectivePlayerWalletCap = BaseWalletCap + sum(active Silo bonuses)` is real and enforced.
