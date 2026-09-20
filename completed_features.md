@@ -2222,3 +2222,27 @@ priority 200, above every scripted command, so AI drops what it is doing. `Comma
 in the world and a radar blip for every player on the ordering team -- which is how a human, who
 Section 3A.4 forbids driving, is told rather than moved. Both targets build clean; all of it is
 manual-only (Q-012).
+
+## P38 -- Commander-constructed buildings are real BuildingGameObjs (Q-016 answered: option (a))
+
+A `BuildingGameObj` now has a second component collection path for runtime-constructed buildings
+that derives structure, bounds, physical components and named anchors from the attached W3D
+hierarchy (`Init_Runtime_Building`, `Build_Runtime_Components`, `Derive_Runtime_Structure`,
+`Walk_Runtime_Hierarchy`), while the map-authored proximity/prefix scan
+(`Collect_Building_Components`) is untouched and refuses to run for a runtime building. Damage
+visuals for these buildings are data-driven through `BuildingModelDescriptor::DamageVisual` --
+explicit intact/damaged/destroyed models plus optional extra health-threshold states, assembled
+from JSON transitions into one descending band table -- and a state change rebuilds the phys
+object (new collision) while the logical `BuildingGameObj`, its id, observers, base membership and
+power registration all survive. `Are_Capabilities_Enabled` and `Resolve_Runtime_Anchor` refuse
+MCT/PCT, production, repair and targeting once destroyed or while still under construction. New
+`RuntimeBuildingFactory` creates the canonical building at accepted placement from the
+descriptor's `game_object_preset`, hides its model for the build-up, passes the real model bounds
+to `Begin_Construction`, and reveals + recomputes power on completion; the creation packet now
+carries the descriptor name and full transform so clients take the same runtime path. Evidence:
+`renegade` and `renegadeserver` both build and link clean with zero warnings; `buildingjson`
+self-check gained damage-table assembly, band selection, missing-art fallback and two rejection
+cases (never executed -- Q-012). Absorbs the `WIP_features.md` P38 entry and the backlog's P38 acceptance line.
+Asset names recorded in `docs/assets/BuildingDamageModels.md`. No shipped descriptor sets
+`build.buildable` yet, so nothing is placeable in game until preset names are known -- **Q-017**,
+which is data, not code.

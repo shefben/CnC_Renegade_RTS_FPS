@@ -10,6 +10,9 @@
 
 #include "commanderplacementevent.h"
 
+#include "building.h"
+#include "runtimebuildingfactory.h"
+
 #include "apppackettypes.h"
 #include "buildingconstruction.h"
 #include "buildingdescriptormanager.h"
@@ -172,25 +175,43 @@ void cCommanderPlacementEvent::Act(void)
 							  (unsigned int)(TimeManager::Get_Total_Seconds () * 1000.0f);
 
 	/*
-	**	Model bounds for the block layout.  The descriptor's footprint gives width and depth; the
-	**	height has no home in Section 39's schema, so it is derived from the footprint.  A real
-	**	caller with the prototype resident should pass the model's own bounds instead -- this is
-	**	the honest stand-in until the creation path that instantiates the building exists, and it
-	**	is recorded in WIP_features.md rather than pretended away.
+	**	The canonical building, created now rather than at completion -- Q-016.  Section 44 wants
+	**	a real object under construction, not a puff of blocks that becomes one: the footprint is
+	**	occupied, the object is replicated, and it can be shot at and lost before it ever
+	**	finishes.  Its model is hidden until the reveal; the blocks are what the player watches.
+	**
+	**	If this refuses -- no preset, no descriptor, no structure -- the placement produces
+	**	nothing at all rather than a construction with no building behind it, and the Commander's
+	**	credits go back, because they were charged for a building they are not going to get.
 	*/
-	AABoxClass bounds;
-	bounds.Extent = Vector3 (descriptor->Footprint.Width * 0.5f,
-									 descriptor->Footprint.Depth * 0.5f,
-									 descriptor->Footprint.Width * 0.35f);
-	bounds.Center = Vector3 (0.0f,0.0f,bounds.Extent.Z);
+	BuildingGameObj * building =
+		RuntimeBuildingFactory::Create_Constructing_Building (DescriptorName.Peek_Buffer (),transform,team);
+	if (building == nullptr) {
+		if (player != nullptr) {
+			player->Increment_Money ((float)descriptor->Build.Cost);
+		}
+		return;
+	}
 
-	/*
-	**	The building id.  A real building object does not exist yet -- creating the canonical
-	**	`BuildingGameObj` in CONSTRUCTING state is the remaining half of Phase 38 -- so the
-	**	construction is keyed by the placement sequence for now.  Negative, so it can never
-	**	collide with a real network object id once that half lands.
-	*/
-	int building_id = -(SequenceId + 1);
+	//
+	//	Bounds for the block layout, read off the real model now that there is one, and derived
+	//	from the descriptor's footprint when the art is missing.
+	//
+	AABoxClass bounds;
+	if (!RuntimeBuildingFactory::Get_Construction_Bounds (building,DescriptorName.Peek_Buffer (),&bounds)) {
+		bounds.Extent = Vector3 (descriptor->Footprint.Width * 0.5f,
+										 descriptor->Footprint.Depth * 0.5f,
+										 descriptor->Footprint.Width * 0.35f);
+		bounds.Center = Vector3 (0.0f,0.0f,bounds.Extent.Z);
+	}
+
+	//
+	//	Keyed by the building's own network id, which is what makes
+	//	`BuildingGameObj::Are_Capabilities_Enabled` able to ask the construction service whether
+	//	it is still building -- the two halves now share one key instead of the placement
+	//	sequence standing in for one.
+	//
+	int building_id = building->Get_ID ();
 
 	BuildingConstructionService::Begin_Construction (building_id,DescriptorName.Peek_Buffer (),
 																	 transform,bounds,

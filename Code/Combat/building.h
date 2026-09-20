@@ -48,6 +48,8 @@
 #include "lightphys.h"
 #include "playertype.h"
 #include "aabox.h"
+#include "matrix3d.h"
+#include "wwstring.h"
 
 /*
 ** Forward declarations
@@ -67,6 +69,8 @@ class ConstructionYardGameObj;
 class SuperweaponGameObj;
 class RayCollisionTestClass;
 class CompositeAttachmentClass;
+class StaticPhysClass;
+class RenderObjClass;
 
 
 /**
@@ -366,6 +370,44 @@ public:
 	//	the layer consumable by the building semantic descriptor system, which addresses
 	//	building geometry by W3D node name rather than by model.
 	//
+	/*
+	**	Roadmap Section 44, Q-016 -- the second component collection path.
+	**
+	**	`Collect_Building_Components` above claims already-placed statics near this building by a
+	**	naming convention.  That is how every map-authored building in this engine works and it is
+	**	left exactly as it was.  A Commander-constructed building has no scatter to claim: it is a
+	**	single `.w3d` named by its descriptor, loaded at runtime and put into the scene as one
+	**	`StaticPhysClass`.  Everything the legacy path derives from a proximity scan -- bounds,
+	**	the announcement sphere, which components carry damage, where the named anchors are -- this
+	**	path derives from that model's own hierarchy instead.
+	**
+	**	The two paths never run for the same building: `Is_Runtime_Constructed` decides which one
+	**	`Import_Creation` and the damage/state machinery take, and a runtime building's collection
+	**	sphere is deliberately zero-radius so it can never claim a map static, nor be claimed.
+	*/
+	bool											Init_Runtime_Building (const char *descriptor_name,const Matrix3D &transform);
+	bool											Is_Runtime_Constructed (void) const		{ return IsRuntimeConstructed; }
+	const StringClass &						Get_Runtime_Descriptor_Name (void) const	{ return RuntimeDescriptorName; }
+	const Matrix3D &							Get_Runtime_Transform (void) const		{ return RuntimeTransform; }
+	RenderObjClass *							Peek_Runtime_Model (void) const;
+	int											Get_Runtime_Damage_State (void) const	{ return RuntimeDamageState; }
+
+	//	Section 44's "real model hidden ... real model revealed".  Hiding leaves the physics
+	//	object in the scene, because the footprint is occupied from the moment construction
+	//	starts -- only the drawing stops.
+	void											Set_Runtime_Model_Hidden (bool hidden);
+	bool											Is_Runtime_Model_Hidden (void) const	{ return RuntimeModelHidden; }
+
+	//	A named semantic anchor (`mct_anchor`, `pct_anchor`, ...) resolved against the runtime
+	//	model's own hierarchy.  Refuses every anchor once the building is destroyed, which is
+	//	Q-016's "MCT/PCT ... disabled when the destroyed state is entered" expressed where the
+	//	anchors are actually read rather than as a flag each caller has to remember.
+	bool											Resolve_Runtime_Anchor (const char *role_name,Matrix3D *out_transform) const;
+
+	//	The one question every capability asks: does this building do its job right now?  False
+	//	while destroyed, and false for a runtime building whose model has not been revealed yet.
+	bool											Are_Capabilities_Enabled (void) const;
+
 	bool											Attach_Visual_Module (const char *slot_name,const char *bone_name,const char *model_name);
 	void											Detach_Visual_Module (const char *slot_name);
 	void											Set_Visual_Module_Damaged (const char *slot_name,bool damaged);
@@ -400,6 +442,18 @@ protected:
 	//	Null until the first Attach_Visual_Module call.  See compositeattachment.h.
 	CompositeAttachmentClass *							AttachmentController;
 
+	//	"no state chosen yet", distinct from BUILDING_DAMAGE_STATE_DESTROYED which is a real one.
+	enum { RUNTIME_DAMAGE_STATE_UNSET = -2 };
+
+	//	Runtime-constructed state.  All of it is inert for a map-authored building.
+	bool											IsRuntimeConstructed;
+	bool											RuntimeModelHidden;
+	StringClass									RuntimeDescriptorName;
+	StringClass									RuntimeModelName;			// what RuntimePhys is currently wearing
+	Matrix3D										RuntimeTransform;
+	int											RuntimeDamageState;		// index into the descriptor's table
+	StaticPhysClass *							RuntimePhys;				// the one scene object holding the model
+
 	static bool									CanRepairBuildings;
 
 	void											Initialize_Building(void);
@@ -412,6 +466,15 @@ protected:
 	void											Remove_Aggregate(BuildingAggregateClass * aggregate);
 	void											Add_Light(LightPhysClass * light);
 	void											Find_Closest_Poly_For_Model (RenderObjClass *model, const Vector3 &pos, float *distance2, Vector3 *poly_pos = nullptr);
+
+	//	The runtime path's halves: put the model in the world, take it back out, derive the
+	//	structure the legacy path would have scanned for, and swap the model when the health
+	//	threshold the descriptor named is crossed.
+	bool											Build_Runtime_Components (const char *model_name);
+	void											Release_Runtime_Components (void);
+	void											Derive_Runtime_Structure (void);
+	void											Update_Runtime_Damage_Model (bool force_update);
+	void											On_Runtime_Destroyed_State_Entered (void);
 
 	void											Update_State(bool force_update = false);
 	void											Enable_Alternate_Materials(RefMultiListClass<StaticPhysClass> & models, bool onoff);

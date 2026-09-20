@@ -2050,6 +2050,45 @@ static const char * const	VALID_COMM_CENTER_JSON =
 	" \"anchors\": { \"mct_anchor\": \"MCT_BONE\", \"purchase_terminal_anchor\": \"PT_BONE\" }"
 	"}";
 
+/*
+**	Q-016's damage-visual table, in both of the shapes the schema allows: the three-name form
+**	(intact/damaged/destroyed) and the same thing with an extra threshold state wedged in.  Both
+**	must come out of the parser as one descending table ending at zero.
+*/
+static const char * const	DAMAGE_VISUAL_JSON =
+	"{"
+	" \"model_name\": \"ow_test_dv.w3d\","
+	" \"schema_version\": 1,"
+	" \"footprint\": { \"width\": 10.0, \"depth\": 10.0 },"
+	" \"game_object_preset\": \"ow_test_preset\","
+	" \"build\": { \"buildable\": true, \"cost\": 500, \"tech_level\": 1 },"
+	" \"damage_visual\": {"
+	"   \"intact_model\": \"ow_test_dv.w3d\","
+	"   \"damaged_model\": \"ow_test_dv_d.w3d\","
+	"   \"destroyed_model\": \"ow_test_dv_x.w3d\","
+	"   \"damaged_health_fraction\": 0.5,"
+	"   \"extra_states\": [ { \"health_fraction\": 0.8, \"model\": \"ow_test_dv_s1.w3d\" } ]"
+	" }"
+	"}";
+
+//	No damage_visual block at all -- the missing-art case, which must still produce a usable
+//	one-entry table rather than being refused.
+static const char * const	NO_DAMAGE_VISUAL_JSON =
+	"{ \"model_name\":\"ow_test_plain.w3d\",\"schema_version\":1,"
+	"  \"footprint\":{\"width\":10,\"depth\":10} }";
+
+//	Buildable, but names no preset: nothing could create the canonical building, so the
+//	descriptor is refused at load rather than at placement.
+static const char * const	BUILDABLE_NO_PRESET_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"build\":{\"buildable\":true,\"cost\":100} }";
+
+//	Two states claiming the same threshold: the selection scan would be ambiguous, so refused.
+static const char * const	DUPLICATE_THRESHOLD_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"damage_visual\":{\"intact_model\":\"a.w3d\",\"damaged_model\":\"b.w3d\","
+	"    \"damaged_health_fraction\":0.0} }";
+
 static const char * const	MALFORMED_JSON = "{ this is not valid json";
 
 static const char * const	NEGATIVE_GENERATION_JSON =
@@ -2115,6 +2154,80 @@ int	Run_Building_Descriptors (void)
 			 "negative generation was accepted");
 	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_incompatible",INCOMPATIBLE_ROLE_JSON,&error),
 			 "a generator declaring communications capability was accepted");
+
+	/*
+	**	Q-016's damage-visual table.  Everything here is arithmetic over data -- no scene, no
+	**	model, no device -- which is why it belongs in this family rather than in a manual pass.
+	*/
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_dv",DAMAGE_VISUAL_JSON,&error),
+			 "a valid damage_visual descriptor was refused: %s",error.Peek_Buffer ());
+
+	const BuildingModelDescriptor * dv = BuildingDescriptorManager::Get_Descriptor ("ow_test_dv");
+	Check (dv != nullptr,"a loaded damage_visual descriptor could not be looked back up");
+	if (dv != nullptr) {
+
+		Check (dv->GameObjectPreset.Compare_No_Case ("ow_test_preset") == 0,
+				 "game_object_preset read back '%s', not 'ow_test_preset'",dv->GameObjectPreset.Peek_Buffer ());
+
+		//	Transitions 0.8 (into the extra state) and 0.5 (into damaged) become three bands:
+		//	intact down to 0.8, the extra state down to 0.5, damaged down to 0.
+		Check (dv->DamageVisual.States.Count () == 3,
+				 "the damage table has %d states, not the three the file named",dv->DamageVisual.States.Count ());
+
+		if (dv->DamageVisual.States.Count () == 3) {
+			Check (WWMath::Fabs (dv->DamageVisual.States[0].MinHealthFraction - 0.8f) < 0.001f,
+					 "the first state's threshold is %f, not the extra state's 0.8",
+					 dv->DamageVisual.States[0].MinHealthFraction);
+			Check (WWMath::Fabs (dv->DamageVisual.States[1].MinHealthFraction - 0.5f) < 0.001f,
+					 "the second state's threshold is %f, not the intact 0.5",
+					 dv->DamageVisual.States[1].MinHealthFraction);
+			Check (dv->DamageVisual.States[2].MinHealthFraction == 0.0f,
+					 "the last state's threshold is %f, not 0",dv->DamageVisual.States[2].MinHealthFraction);
+		}
+
+		//	Selection, at and across every boundary.  A threshold is inclusive at its own value.
+		Check (dv->DamageVisual.Find_State_Index (1.0f) == 0,"full health did not select the top state");
+		Check (dv->DamageVisual.Find_State_Index (0.8f) == 0,"health exactly at a threshold selected the state below it");
+		Check (dv->DamageVisual.Find_State_Index (0.79f) == 1,"health just under a threshold did not drop a state");
+		Check (dv->DamageVisual.Find_State_Index (0.5f) == 1,"health exactly at the damaged threshold selected the wrong state");
+		Check (dv->DamageVisual.Find_State_Index (0.49f) == 2,"health under the damaged threshold did not select the damaged state");
+		Check (dv->DamageVisual.Find_State_Index (0.0f) == 2,"zero health did not select the last living state");
+
+		//	And the model each of those means, including the destroyed one, which is not a
+		//	threshold and is only reached by asking for it.
+		Check (::strcmp (dv->Get_Damage_Model (1.0f,false),"ow_test_dv.w3d") == 0,
+				 "full health chose '%s', not the intact model",dv->Get_Damage_Model (1.0f,false));
+		Check (::strcmp (dv->Get_Damage_Model (0.6f,false),"ow_test_dv_s1.w3d") == 0,
+				 "mid health chose '%s', not the extra state's model",dv->Get_Damage_Model (0.6f,false));
+		Check (::strcmp (dv->Get_Damage_Model (0.1f,false),"ow_test_dv_d.w3d") == 0,
+				 "low health chose '%s', not the damaged model",dv->Get_Damage_Model (0.1f,false));
+		Check (::strcmp (dv->Get_Damage_Model (0.0f,true),"ow_test_dv_x.w3d") == 0,
+				 "a destroyed building chose '%s', not the destroyed model",dv->Get_Damage_Model (0.0f,true));
+
+		//	Destroyed overrides the table whatever the health says, which is what makes a
+		//	building killed at full health by a script still show rubble.
+		Check (::strcmp (dv->Get_Damage_Model (1.0f,true),"ow_test_dv_x.w3d") == 0,
+				 "destroyed at full health chose '%s', not the destroyed model",dv->Get_Damage_Model (1.0f,true));
+	}
+
+	//	Missing art: no damage_visual block at all still yields a usable one-entry table.
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_plain_dv",NO_DAMAGE_VISUAL_JSON,&error),
+			 "a descriptor with no damage_visual block was refused: %s",error.Peek_Buffer ());
+	const BuildingModelDescriptor * plain_dv = BuildingDescriptorManager::Get_Descriptor ("ow_test_plain_dv");
+	Check (plain_dv != nullptr,"a descriptor with no damage_visual could not be looked back up");
+	if (plain_dv != nullptr) {
+		Check (plain_dv->DamageVisual.States.Count () == 1,
+				 "an absent damage_visual produced %d states, not one",plain_dv->DamageVisual.States.Count ());
+		Check (::strcmp (plain_dv->Get_Damage_Model (1.0f,false),"ow_test_plain.w3d") == 0,
+				 "an absent damage_visual did not fall back to model_name");
+		Check (::strcmp (plain_dv->Get_Damage_Model (0.0f,true),"ow_test_plain.w3d") == 0,
+				 "an absent destroyed model did not keep the last living model");
+	}
+
+	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_nopreset",BUILDABLE_NO_PRESET_JSON,&error),
+			 "a buildable descriptor naming no game_object_preset was accepted");
+	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_duptresh",DUPLICATE_THRESHOLD_JSON,&error),
+			 "a damage table with two states at the same threshold was accepted");
 
 	/*
 	**	The reload transaction, end to end against a real file: valid replaces, invalid

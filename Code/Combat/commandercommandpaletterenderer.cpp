@@ -127,10 +127,11 @@ void CommanderCommandPaletteRenderer::Update(void)
 	const float margin	= 8.0f;
 	const float header	= 18.0f;
 
-	float grid_width	= (button * CommanderCommandPalette::COLUMNS) +
-								(padding * (CommanderCommandPalette::COLUMNS + 1));
-	float grid_height	= (button * CommanderCommandPalette::ROWS) +
-								(padding * (CommanderCommandPalette::ROWS + 1));
+	const float columns	= (float)(int)CommanderCommandPalette::COLUMNS;
+	const float rows		= (float)(int)CommanderCommandPalette::ROWS;
+
+	float grid_width	= (button * columns) + (padding * (columns + 1.0f));
+	float grid_height	= (button * rows)    + (padding * (rows    + 1.0f));
 
 	RectClass panel (screen.Right - sidebar_width - margin - grid_width,
 						  screen.Bottom - margin - grid_height - header - padding,

@@ -519,6 +519,15 @@ void	GameObjManager::Update_Building_Collection_Spheres( void )
 		if (obj != nullptr) {
 
 			//
+			//	Q-016: a runtime-constructed building's collection sphere is deliberately empty --
+			//	it owns its own model and must never claim a map static.  Sizing it here against
+			//	its neighbours would hand it a 50m radius and undo that.
+			//
+			if (obj->Is_Runtime_Constructed ()) {
+				continue;
+			}
+
+			//
 			//	Get some information about the current building
 			//
 			const char *prefix	= obj->Get_Name_Prefix ();

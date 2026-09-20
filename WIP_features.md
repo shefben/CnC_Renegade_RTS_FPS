@@ -549,23 +549,6 @@ manual one for the user, folded into Q-012: enter Commander Mode, click a buildi
 ghost over legal and illegal ground, and confirm the red/green verdict tracks the pointer and that
 a click places where the ghost was drawn.
 
-## P38 -- blocks build and replicate; no building exists at the end, and why is now a real question
-
-`BuildingConstructionService` (P38-A) and `BuildingConstructionRenderer` (P38-B) produce the
-visible bottom-to-top build-up, batched, deterministic, and advancing against server time on both
-sides. The remaining half is still **nothing creates the canonical building**, but investigating
-the next exact action this pass turned it from a missing function into an architecture question:
-`BuildingGameObj::Init` claims already-placed static meshes near its position by a naming
-convention, which is how every map-authored building works and has no path that instead derives
-that structure from a single runtime-loaded model's own hierarchy -- which is what Section 44's
-"real model hidden/revealed" and `BuildingModelDescriptor::ModelName` (already loaded for the
-ghost preview) both assume. Calling `Init` for a Commander-placed building today would not
-partially work, it would silently produce an aggregate with no meshes, no bounds and no MCT.
-See **Q-016** for the two ways to close it. Absorbs the backlog's P38 acceptance line. Next exact
-action: Q-016 answered, then create the real building at accepted placement, pass its bounds to
-`Begin_Construction`, and run the activation list from `Get_Completed_Building` in the roadmap's
-order.
-
 ## P39 -- production, orders, population, exit-clearance and guard are all real; selection input is not
 
 `CommanderProductionService` (P39-A) plus `cCommanderProductionEvent` and `cCommanderOrderEvent`

@@ -43,6 +43,7 @@ textures load unmodified, and no name we invent may shadow one of theirs.
 | [SurfaceMarks.md](SurfaceMarks.md) | Surface mark textures -- scorches, blasts, stains, impacts (roadmap Section 35) | 7 textures |
 | [WeatherParticles.md](WeatherParticles.md) | Weather particle textures -- rain streak, dust, tiberium, generic (roadmap Section 36) | 4 textures |
 | [CommanderSidebar.md](CommanderSidebar.md) | Commander sidebar content -- air purchase page, building card icons (roadmap Section 42) | 1 purchase page, building icons |
+| [BuildingDamageModels.md](BuildingDamageModels.md) | Whole-model damage states for Commander-constructed buildings -- intact, damaged, destroyed (roadmap Section 44, Q-016) | 8 models declared, 4 intact models |
 | [VisualFidelity.md](VisualFidelity.md) | Visual-fidelity and world-structure improvements, never prerequisites (roadmap Sections 52A, 52B) | 0 required, 2 procedural, phases 46-65 |
 
 ## Format of an entry

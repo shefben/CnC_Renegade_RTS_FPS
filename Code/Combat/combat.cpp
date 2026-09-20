@@ -74,6 +74,7 @@
 #include "commandersidebar.h"
 #include "commanderplacement.h"
 #include "buildingconstruction.h"
+#include "runtimebuildingfactory.h"
 #include "commandercommandpalette.h"
 #include "commandercommandpaletterenderer.h"
 #include "commanderguardai.h"
@@ -1237,12 +1238,23 @@ void 	CombatManager::Think()
 	**	wire -- Section 44's "clients deterministically reconstruct blocks", extended to the
 	**	timeline as well as the layout.
 	**
-	**	NOTE for whoever writes Section 44's completion activation list: it belongs between this
-	**	Update and the Clear_Completed below, on the server side only.  The clear is here so the
-	**	completion list cannot grow without bound while that caller does not exist yet; a client
-	**	has no activation list to run and drains it unconditionally.
+	**	Section 44's completion activation runs between the Update and the Clear below.  It runs
+	**	on both sides, not only the server: a client's own copy of the building is hidden by the
+	**	same rule the server hid it by, so if only the server revealed it the building would
+	**	finish building and stay invisible on every other machine.  Everything inside the
+	**	activation that is a *decision* rather than a reveal is guarded server-side within
+	**	RuntimeBuildingFactory itself.
 	*/
 	BuildingConstructionService::Update( CommanderStateClass::Get_Estimated_Server_Time() );
+
+	{
+		int completed_count = BuildingConstructionService::Get_Completed_Count();
+		for ( int index = 0; index < completed_count; index ++ ) {
+			RuntimeBuildingFactory::Activate_Completed_Building(
+				BuildingConstructionService::Get_Completed_Building( index ) );
+		}
+	}
+
 	BuildingConstructionService::Clear_Completed();
 
 	if ( CombatManager::I_Am_Server() ) {

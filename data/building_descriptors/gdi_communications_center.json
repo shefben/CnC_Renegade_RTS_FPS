@@ -1,4 +1,10 @@
 {
+ "damage_visual": {
+  "intact_model": "ow_gdi_comm_center.w3d",
+  "damaged_model": "ow_gdi_comm_center_d.w3d",
+  "destroyed_model": "ow_gdi_comm_center_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
   "model_name": "ow_gdi_comm_center.w3d",
   "schema_version": 1,
   "footprint": { "width": 15.0, "depth": 15.0 },

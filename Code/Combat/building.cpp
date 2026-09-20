@@ -63,6 +63,12 @@
 #include "apppackettypes.h"
 #include "wwprofile.h"
 #include "coltest.h"
+#include "buildingconstruction.h"
+#include "buildingdescriptormanager.h"
+#include "pscene.h"
+#include "rendobj.h"
+#include "staticphys.h"
+#include "assetmgr.h"
 #include <algorithm>
 
 
@@ -369,7 +375,14 @@ BuildingGameObj::BuildingGameObj (void)	:
 	BoundingBox (Vector3 (0, 0, 0), Vector3 (0, 0, 0)),
 	BuildingMonitor (nullptr),
 	BaseController (nullptr),
-	AttachmentController (nullptr)
+	AttachmentController (nullptr),
+	IsRuntimeConstructed (false),
+	RuntimeModelHidden (false),
+	RuntimeDescriptorName (""),
+	RuntimeModelName (""),
+	RuntimeTransform (1),
+	RuntimeDamageState (RUNTIME_DAMAGE_STATE_UNSET),
+	RuntimePhys (nullptr)
 {
 	GameObjManager::Add_Building (this);
 	Update_State ();
@@ -410,6 +423,12 @@ BuildingGameObj::~BuildingGameObj (void)
 		delete AttachmentController;		// its destructor detaches whatever is still attached
 		AttachmentController = nullptr;
 	}
+
+	//
+	//	Before Reset_Components, which would clear this building's hold on the runtime phys
+	//	object without ever taking it back out of the scene.
+	//
+	Release_Runtime_Components ();
 
 	GameObjManager::Remove_Building( this );
 	Reset_Components();
@@ -782,6 +801,14 @@ void
 BuildingGameObj::Update_State (bool force_update)
 {
 	/*
+	**	Q-016's model swap, asked every time rather than only when CurrentState changes: the
+	**	descriptor's health thresholds are data and can be finer than BuildingStateClass's four
+	**	coarse bands, so a swap gated on the coarse state would silently never happen.  The call
+	**	is a no-op for a map-authored building and compares one integer for a runtime one.
+	*/
+	Update_Runtime_Damage_Model (force_update);
+
+	/*
 	** Evaluate our current state
 	*/
 	float health_percentage = 100.0f * DefenseObject.Get_Health()/DefenseObject.Get_Health_Max();
@@ -825,16 +852,26 @@ BuildingGameObj::Update_State (bool force_update)
 		}
 
 		/*
-		** Interior meshes: switch to alternate materials if either the power is out or
-		** the building is at zero health
+		**	Q-016: a runtime-constructed building expresses damage by swapping whole models named
+		**	by its descriptor, so the legacy alternate-material swap is not merely unnecessary for
+		**	it, it is wrong -- the loaded model has no second material set to switch to, and the
+		**	call would quietly do nothing while looking like it had done something.  Map-authored
+		**	buildings keep the legacy behaviour untouched, which is the whole point of the split.
 		*/
-		Enable_Alternate_Materials(InteriorMeshes,((health_state == BuildingStateClass::HEALTH_0) || (!IsPowerOn)));
+		if (!IsRuntimeConstructed) {
+
+			/*
+			** Interior meshes: switch to alternate materials if either the power is out or
+			** the building is at zero health
+			*/
+			Enable_Alternate_Materials(InteriorMeshes,((health_state == BuildingStateClass::HEALTH_0) || (!IsPowerOn)));
 
 
-		/*
-		** Exterior meshes: use alternate materials if the building is destroyed
-		*/
-		Enable_Alternate_Materials(ExteriorMeshes,(health_state == BuildingStateClass::HEALTH_0));
+			/*
+			** Exterior meshes: use alternate materials if the building is destroyed
+			*/
+			Enable_Alternate_Materials(ExteriorMeshes,(health_state == BuildingStateClass::HEALTH_0));
+		}
 
 		/*
 		** Lights: enable the lights which match the current power status, invalidate all
@@ -961,9 +998,14 @@ BuildingGameObj::Initialize_Building (void)
 	//	Turn the bounding box into a sphere that we can use to play building
 	// announcement sound effects in
 	//
-	AnnouncementSphere.Center	= bounding_box.Center;
-	AnnouncementSphere.Radius	= std::max (bounding_box.Extent.X, bounding_box.Extent.Y);
-	AnnouncementSphere.Radius	= std::max (AnnouncementSphere.Radius, bounding_box.Extent.Z);
+	//	Q-016: a runtime building has no InteriorMeshes to measure -- Derive_Runtime_Structure
+	//	already computed this sphere from the loaded model's own hierarchy, so overwriting it
+	//	here with the degenerate box above would silence its announcements entirely.
+	if (!IsRuntimeConstructed) {
+		AnnouncementSphere.Center	= bounding_box.Center;
+		AnnouncementSphere.Radius	= std::max (bounding_box.Extent.X, bounding_box.Extent.Y);
+		AnnouncementSphere.Radius	= std::max (AnnouncementSphere.Radius, bounding_box.Extent.Z);
+	}
 
 	//
 	//	If we can find a base for our team, then add ourselves to it.
@@ -1429,6 +1471,16 @@ BuildingGameObj::Set_Precision (void)
 void
 BuildingGameObj::Collect_Building_Components (void)
 {
+	/*
+	**	Q-016: the legacy proximity/prefix scan and the runtime hierarchy path are alternatives,
+	**	never stages of one another.  Running this for a runtime building would tear down the
+	**	model it is holding (Reset_Components) and then claim whatever map statics happened to sit
+	**	near where the Commander put it -- so it refuses outright rather than being made to cope.
+	*/
+	if (IsRuntimeConstructed) {
+		return ;
+	}
+
 	Reset_Components ();
 
 	//
@@ -1652,6 +1704,25 @@ BuildingGameObj::Export_Creation (BitStreamClass &packet)
 	packet.Add (CollectionSphere.Center.Y,		BITPACK_WORLD_POSITION_Y);
 	packet.Add (CollectionSphere.Center.Z,		BITPACK_WORLD_POSITION_Z);
 	packet.Add (CollectionSphere.Radius,		BITPACK_BUILDING_RADIUS);
+
+	/*
+	**	Q-016: which of the two collection paths the receiving client must take, and everything
+	**	that path needs.  A map-authored building sends one bit and nothing else, exactly as it
+	**	always did.  A runtime building sends its descriptor name and its full transform, because
+	**	a client cannot derive either: the descriptor chooses the model and the damage table, and
+	**	the transform is a placement the client never saw validated.  The whole 4x3 goes on the
+	**	wire rather than a yaw, because Build_Placement_Transform may tilt a building to its
+	**	ground slope and a re-derived yaw-only transform would sink one corner into the terrain.
+	*/
+	packet.Add (IsRuntimeConstructed);
+	if (IsRuntimeConstructed) {
+		packet.Add_Terminated_String (RuntimeDescriptorName.Peek_Buffer (),true);
+		for (int row = 0; row < 3; row ++) {
+			for (int col = 0; col < 4; col ++) {
+				packet.Add (RuntimeTransform [row][col]);
+			}
+		}
+	}
 	return ;
 }
 
@@ -1682,6 +1753,29 @@ BuildingGameObj::Import_Creation (BitStreamClass &packet)
 	packet.Get (CollectionSphere.Center.Y,		BITPACK_WORLD_POSITION_Y);
 	packet.Get (CollectionSphere.Center.Z,		BITPACK_WORLD_POSITION_Z);
 	packet.Get (CollectionSphere.Radius,		BITPACK_BUILDING_RADIUS);
+
+	bool is_runtime = false;
+	packet.Get (is_runtime);
+
+	if (is_runtime) {
+
+		char descriptor_name [256] = { 0 };
+		packet.Get_Terminated_String (descriptor_name,sizeof (descriptor_name),true);
+
+		Matrix3D transform (1);
+		for (int row = 0; row < 3; row ++) {
+			for (int col = 0; col < 4; col ++) {
+				packet.Get (transform [row][col]);
+			}
+		}
+
+		//
+		//	The runtime collection path, in place of the proximity scan below.  It loads the
+		//	model, derives the structure from it and leaves the building ready for Update_State.
+		//
+		Init_Runtime_Building (descriptor_name,transform);
+		return ;
+	}
 
 	//
 	//	Now initialize the object
@@ -1888,6 +1982,34 @@ BuildingGameObj::Get_Commander_Exit_Point (Vector3 * out_point,float * out_radiu
 
 	Vector3 position (0.0f,0.0f,0.0f);
 	Get_Position (&position);
+
+	/*
+	**	Q-016: a runtime-constructed building does have an orientation, and may name an
+	**	`exit_anchor` bone on its own model.  Asked in that order -- the anchor is the artist's
+	**	answer and beats anything derived -- and only then does this fall back to the fixed
+	**	direction a legacy aggregate building has no choice but to use.
+	*/
+	if (IsRuntimeConstructed) {
+
+		Matrix3D anchor (1);
+		if (Resolve_Runtime_Anchor ("exit_anchor",&anchor)) {
+			if (out_point != nullptr) {
+				*out_point = anchor.Get_Translation ();
+			}
+			if (out_radius != nullptr) {
+				*out_radius = CHECK_RADIUS;
+			}
+			return ;
+		}
+
+		if (out_point != nullptr) {
+			*out_point = position + RuntimeTransform.Get_X_Vector () * standoff;
+		}
+		if (out_radius != nullptr) {
+			*out_radius = CHECK_RADIUS;
+		}
+		return ;
+	}
 
 	//	A fixed direction, not a derived facing: this legacy aggregate building has no single
 	//	orientation to read one from (Position is a point, not a transform).
@@ -2106,4 +2228,296 @@ BuildingGameObj::Cast_Ray (RayCollisionTestClass &raytest)
 	}
 
 	return hit;
+}
+/***********************************************************************************************
+ ***                                                                                         ***
+ ***	Roadmap Section 44 / Q-016 -- the runtime component collection path.                    ***
+ ***                                                                                         ***
+ ***	Everything below this line runs only for a Commander-constructed building.  Nothing      ***
+ ***	above it changed shape for their sake: the map-authored proximity/prefix scan, the       ***
+ ***	aggregate state machine and the alternate-material damage visuals are exactly what they  ***
+ ***	were, and a building created by a level keeps taking that path start to finish.          ***
+ ***                                                                                         ***
+ ***********************************************************************************************/
+
+static const BuildingModelDescriptor *
+Peek_Runtime_Descriptor (const StringClass &name)
+{
+	if (name.Get_Length () == 0) {
+		return nullptr;
+	}
+	return BuildingDescriptorManager::Get_Descriptor (name.Peek_Buffer ());
+}
+
+static void
+Walk_Runtime_Hierarchy (RenderObjClass *obj, MinMaxAABoxClass *interior_bounds,
+								int *interior_count, int *exterior_count)
+{
+	if (obj == nullptr) {
+		return ;
+	}
+
+	const char *name = obj->Get_Name ();
+	if (name != nullptr) {
+		if (BuildingGameObj::Is_Interior_Mesh_Name (name)) {
+			interior_bounds->Add_Box (obj->Get_Bounding_Box ());
+			(*interior_count) ++;
+		} else if (BuildingGameObj::Is_Exterior_Mesh_Name (name)) {
+			(*exterior_count) ++;
+		}
+	}
+
+	int count = obj->Get_Num_Sub_Objects ();
+	for (int index = 0; index < count; index ++) {
+		RenderObjClass *sub_object = obj->Get_Sub_Object (index);
+		Walk_Runtime_Hierarchy (sub_object,interior_bounds,interior_count,exterior_count);
+		REF_PTR_RELEASE (sub_object);
+	}
+
+	return ;
+}
+
+RenderObjClass *
+BuildingGameObj::Peek_Runtime_Model (void) const
+{
+	if (RuntimePhys == nullptr) {
+		return nullptr;
+	}
+	return RuntimePhys->Peek_Model ();
+}
+
+bool
+BuildingGameObj::Build_Runtime_Components (const char *model_name)
+{
+	if ((model_name == nullptr) || (model_name[0] == 0)) {
+		return false;
+	}
+
+	PhysicsSceneClass *scene = PhysicsSceneClass::Get_Instance ();
+	if (scene == nullptr) {
+		return false;
+	}
+
+	WW3DAssetManager *assets = WW3DAssetManager::Get_Instance ();
+	if (assets == nullptr) {
+		return false;
+	}
+
+	RenderObjClass *model = assets->Create_Render_Obj (model_name);
+	if (model == nullptr) {
+		WWDEBUG_SAY (("BuildingGameObj: no model %s for runtime descriptor %s; the building "
+						  "is real but will not draw\n",model_name,RuntimeDescriptorName.Peek_Buffer ()));
+		return false;
+	}
+
+	StaticPhysClass *phys = new StaticPhysClass;
+	phys->Set_Model (model);
+	phys->Set_Transform (RuntimeTransform);
+	model->Release_Ref ();
+
+	scene->Add_Static_Object (phys);
+
+	RuntimePhys			= phys;
+	RuntimeModelName	= model_name;
+
+	ExteriorMeshes.Add (phys);
+	phys->Set_Observer (this);
+
+	if (RuntimeModelHidden && (phys->Peek_Model () != nullptr)) {
+		phys->Peek_Model ()->Set_Hidden (true);
+	}
+
+	return true;
+}
+
+void
+BuildingGameObj::Release_Runtime_Components (void)
+{
+	if (RuntimePhys == nullptr) {
+		RuntimeModelName = "";
+		return ;
+	}
+
+	if (RuntimePhys->Get_Observer () == this) {
+		RuntimePhys->Set_Observer (nullptr);
+	}
+	ExteriorMeshes.Remove (RuntimePhys);
+
+	PhysicsSceneClass *scene = PhysicsSceneClass::Get_Instance ();
+	if (scene != nullptr) {
+		scene->Remove_Object (RuntimePhys);
+	}
+
+	RuntimePhys->Release_Ref ();
+	RuntimePhys			= nullptr;
+	RuntimeModelName	= "";
+	return ;
+}
+
+void
+BuildingGameObj::Derive_Runtime_Structure (void)
+{
+	Update_Bounding_Box ();
+
+	MinMaxAABoxClass interior_bounds;
+	interior_bounds.Init_Empty ();
+	int interior_count = 0;
+	int exterior_count = 0;
+
+	Walk_Runtime_Hierarchy (Peek_Runtime_Model (),&interior_bounds,&interior_count,&exterior_count);
+
+	AABoxClass source = BoundingBox;
+	if (interior_count > 0) {
+		source.Init (interior_bounds);
+	}
+
+	AnnouncementSphere.Center	= source.Center;
+	AnnouncementSphere.Radius	= std::max (source.Extent.X,source.Extent.Y);
+	AnnouncementSphere.Radius	= std::max (AnnouncementSphere.Radius,source.Extent.Z);
+	if (AnnouncementSphere.Radius <= 0.0f) {
+		AnnouncementSphere.Radius = 1.0f;
+	}
+
+	return ;
+}
+
+bool
+BuildingGameObj::Init_Runtime_Building (const char *descriptor_name,const Matrix3D &transform)
+{
+	if ((descriptor_name == nullptr) || (descriptor_name[0] == 0)) {
+		return false;
+	}
+
+	StringClass wanted (descriptor_name,true);
+	const BuildingModelDescriptor *descriptor = Peek_Runtime_Descriptor (wanted);
+	if (descriptor == nullptr) {
+		WWDEBUG_SAY (("BuildingGameObj: no descriptor %s; refusing to create a runtime "
+						  "building with no model, damage table or capabilities\n",descriptor_name));
+		return false;
+	}
+
+	Release_Runtime_Components ();
+
+	IsRuntimeConstructed		= true;
+	RuntimeDescriptorName	= wanted;
+	RuntimeTransform			= transform;
+	RuntimeDamageState		= RUNTIME_DAMAGE_STATE_UNSET;
+
+	Set_Position (transform.Get_Translation ());
+
+	CollectionSphere.Center	= Position;
+	CollectionSphere.Radius	= 0.0f;
+
+	Update_Runtime_Damage_Model (true);
+
+	//
+	//	The same two calls Collect_Building_Components ends with, for the same reasons: the
+	//	building joins its base and the power grid, and its state machine runs once from a known
+	//	starting point.  Keeping the tail identical is what makes the two paths interchangeable
+	//	from every caller's point of view.
+	//
+	Initialize_Building ();
+	Update_State (true);
+
+	return true;
+}
+
+void
+BuildingGameObj::Update_Runtime_Damage_Model (bool force_update)
+{
+	if (!IsRuntimeConstructed) {
+		return ;
+	}
+
+	const BuildingModelDescriptor *descriptor = Peek_Runtime_Descriptor (RuntimeDescriptorName);
+	if (descriptor == nullptr) {
+		return ;
+	}
+
+	float health_max = DefenseObject.Get_Health_Max ();
+	float normalized = (health_max > 0.0f) ? (DefenseObject.Get_Health () / health_max) : 0.0f;
+
+	int wanted_state = IsDestroyed ? (int)BUILDING_DAMAGE_STATE_DESTROYED
+											 : descriptor->DamageVisual.Find_State_Index (normalized);
+
+	if (!force_update && (wanted_state == RuntimeDamageState)) {
+		return ;
+	}
+
+	bool entering_destroyed = (wanted_state == (int)BUILDING_DAMAGE_STATE_DESTROYED) &&
+									  (RuntimeDamageState != (int)BUILDING_DAMAGE_STATE_DESTROYED);
+
+	RuntimeDamageState = wanted_state;
+
+	StringClass wanted_model (descriptor->Get_Damage_Model (normalized,IsDestroyed),true);
+
+	if (force_update || (wanted_model.Compare_No_Case (RuntimeModelName) != 0)) {
+		Release_Runtime_Components ();
+		Build_Runtime_Components (wanted_model.Peek_Buffer ());
+		Derive_Runtime_Structure ();
+	}
+
+	if (entering_destroyed || (force_update && IsDestroyed)) {
+		On_Runtime_Destroyed_State_Entered ();
+	}
+
+	return ;
+}
+
+void
+BuildingGameObj::On_Runtime_Destroyed_State_Entered (void)
+{
+	if (CombatManager::I_Am_Server ()) {
+		TeamPowerGridService::OnBuildingDestroyed (Get_ID ());
+	}
+
+	Update_Group_Lighting ();
+	return ;
+}
+
+void
+BuildingGameObj::Set_Runtime_Model_Hidden (bool hidden)
+{
+	RuntimeModelHidden = hidden;
+
+	RenderObjClass *model = Peek_Runtime_Model ();
+	if (model != nullptr) {
+		model->Set_Hidden (hidden);
+	}
+
+	return ;
+}
+
+bool
+BuildingGameObj::Resolve_Runtime_Anchor (const char *role_name,Matrix3D *out_transform) const
+{
+	if (!IsRuntimeConstructed || (out_transform == nullptr)) {
+		return false;
+	}
+
+	if (IsDestroyed) {
+		return false;
+	}
+
+	const BuildingModelDescriptor *descriptor = Peek_Runtime_Descriptor (RuntimeDescriptorName);
+	if (descriptor == nullptr) {
+		return false;
+	}
+
+	return descriptor->Resolve_Anchor_World_Transform (Peek_Runtime_Model (),RuntimeTransform,
+																		 role_name,out_transform);
+}
+
+bool
+BuildingGameObj::Are_Capabilities_Enabled (void) const
+{
+	if (IsDestroyed) {
+		return false;
+	}
+
+	if (BuildingConstructionService::Is_Under_Construction (Get_ID ())) {
+		return false;
+	}
+
+	return true;
 }

@@ -165,6 +165,51 @@ struct BuildingPlacementRules
 	bool	RequiresFoundationSupport;
 };
 
+/*
+**	Roadmap Section 44 / Q-016 -- damage visuals for a *runtime-constructed* building.
+**
+**	A map-authored building expresses damage by swapping alternate materials across the
+**	scattered statics `Collect_Building_Components` claimed (see building.cpp,
+**	`Enable_Alternate_Materials`).  A Commander-constructed building has no such scatter: it is
+**	one loaded model, so its damage states are whole models named by data, not a material flag.
+**	That is the whole reason this table exists rather than the legacy path being reused.
+**
+**	`States` is the living table, sorted descending by MinHealthFraction, and its last entry is
+**	always 0.0 so a living building always resolves to something.  `MinHealthFraction` is the
+**	bottom of that state's band: a state holds while health is at or above it and no earlier
+**	state's band applies.  `DestroyedModel` is separate because "destroyed" is not a health
+**	threshold -- a building sitting at exactly zero health that has not yet been declared
+**	destroyed is still the last living state, and a building a script kills outright at full
+**	health is rubble regardless of what the table says.
+*/
+struct BuildingDamageStateEntry
+{
+	BuildingDamageStateEntry(void) : ModelName(""),MinHealthFraction(0.0f) { }
+	bool	operator == (const BuildingDamageStateEntry &) const	{ return false; }
+	bool	operator != (const BuildingDamageStateEntry &) const	{ return true; }
+
+	StringClass	ModelName;
+	float			MinHealthFraction;	// this state holds while normalized health >= this
+};
+
+struct BuildingDamageVisualDefinition
+{
+	BuildingDamageVisualDefinition(void) : DestroyedModel("") { }
+
+	DynamicVectorClass<BuildingDamageStateEntry>	States;
+	StringClass												DestroyedModel;		// empty -> keep the last living model
+
+	//	-1 when the table is empty.  Never returns an index for a destroyed building; that case
+	//	is DESTROYED_STATE_INDEX and is asked for explicitly.
+	int				Find_State_Index(float normalized_health) const;
+
+	const char *	Get_State_Model(int index) const;
+};
+
+//	The sentinel BuildingGameObj stores in place of a state index once the building is destroyed.
+enum { BUILDING_DAMAGE_STATE_DESTROYED = -1 };
+
+
 struct BuildingAnchorEntry
 {
 	BuildingAnchorEntry(void) : Role(""),BoneName("") { }
@@ -186,6 +231,15 @@ class BuildingModelDescriptor
 		StringClass		ModelName;
 		unsigned int	SchemaVersion;
 
+		/*
+		**	The `BuildingGameObjDef` preset a runtime-constructed instance of this descriptor is
+		**	created from -- how a Commander-built Power Plant becomes a real `PowerPlantGameObj`
+		**	with the capabilities its class carries, rather than a bare controller.  Empty means
+		**	this descriptor describes a building nobody constructs at runtime (every map-authored
+		**	building), which is why it is only required when `build.buildable` is set.
+		*/
+		StringClass		GameObjectPreset;
+
 		BuildingFootprintDefinition				Footprint;
 		BuildingPowerDefinition						Power;
 		BuildingCommunicationsCapability			Communications;
@@ -194,6 +248,7 @@ class BuildingModelDescriptor
 		BuildingBuildDefinition						Build;
 		BuildingProductionDefinition				Production;
 		BuildingPlacementRules						Placement;
+		BuildingDamageVisualDefinition			DamageVisual;
 
 		DynamicVectorClass<BuildingAnchorEntry>	Anchors;
 
@@ -203,6 +258,11 @@ class BuildingModelDescriptor
 		float	Get_Build_Time_Seconds(void) const;
 
 		const char *	Find_Anchor_Bone(const char * role_name) const;
+
+		//	The model a runtime instance should be wearing right now.  Falls back to ModelName
+		//	whenever the table cannot answer, so an absent damage_visual block is a building that
+		//	simply never changes model -- the project's standard missing-art degradation.
+		const char *	Get_Damage_Model(float normalized_health,bool destroyed) const;
 
 		/*
 		**	worldTransform = buildingWorldTransform * nodeModelTransform -- Section 39's own

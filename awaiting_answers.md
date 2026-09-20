@@ -6,36 +6,16 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
-- **Q-016** P38's real gap ("nothing creates the canonical building") turns out to be an
- architecture conflict, not a missing function. `BuildingGameObj::Init`/
- `Collect_Building_Components` (`building.cpp`) is a proximity/prefix scan: it claims
- whichever already-placed `StaticPhysClass` meshes near its position match its
- `MeshPrefix` naming convention (`#interior`/`^exterior`), which is how every map-authored
- building in this engine has always worked, and it has no code path that accepts a single
- loaded model and derives that structure from the model's own sub-object hierarchy
- instead. Section 44 assumes the opposite: "real model hidden" / "real model reveals" at
- completion, and `BuildingModelDescriptor::ModelName` already names a single loadable
- `.w3d` per building type -- `CommanderGhostRenderer` already loads it for the placement
- preview (`commanderghostrenderer.cpp:169-186`). A Commander-placed building has no
- pre-existing scattered statics to collect at all, so calling the existing
- `BuildingGameObj::Init` for one would produce an aggregate with empty mesh/aggregate
- lists, no bounding box, and no `Find_MCT` -- silently broken, not merely incomplete.
-
- Two ways to close it, and guessing wrong either way is a real regression risk against
- "just cant look worse":
- (a) give `BuildingGameObj::Init` a second collection mode that walks a runtime-attached
- model's own sub-objects (by the same `#`/`^` naming convention) instead of scanning the
- scene by proximity, used only when a construction-spawned building carries one, leaving
- every map-authored building's existing Init path completely untouched; or
- (b) decide Commander-constructed buildings deliberately do not get the legacy aggregate
- machinery (interior/exterior material swap, `Find_MCT`-style aggregate lookup) at all,
- and Section 44's "PCT/MCT nodes work" is satisfied some other way for them --
- `Resolve_Anchor_World_Transform` plus a lighter capability set, accepting up front that
- Commander-built buildings and map-placed ones are not visually/structurally identical
- under damage.
- Not blocking any other work -- P39's production and order dispatch do not depend on it,
- since Commander unit production reads from existing map-placed factories, not from
- buildings the Commander constructs. `WIP_features.md`'s P38 entry points here.
+- **Q-017** Nothing is constructible yet, and the gap is data rather than code. A
+  descriptor becomes buildable by setting `build.buildable` plus a `game_object_preset`
+  naming the `BuildingGameObjDef` preset the runtime building is created from (so a
+  Commander-built Power Plant is a real `PowerPlantGameObj`, not a bare controller wearing
+  a power-plant model). Those preset names live in `always.dat`'s definition data, which is
+  not in this repo, so guessing them would produce a descriptor that loads and then refuses
+  at placement. Needs either the exact preset names for Power Plant / Communications Center
+  / Advanced Communications Center / Tiberium Silo, or one run of the existing
+  `DefinitionMgrClass::List_Available_Definitions` console output to read them off. Not
+  blocking any other work; `WIP_features.md`'s P38 entry points here.
 
 - **Q-006** P08's acceptance -- that repeated map load and unload keeps what was
  retained and leaks nothing -- is proved as arithmetic by `asset_residency` but not
@@ -141,6 +121,7 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  controls come back exactly as they were. That single pass is also the live-scene exercise
  `Pick_At_Cursor` and the placement world-query branches (overlap/slope/bounds/exit clearance) have
  never had -- see this file's P35/P36/P37 entries in `WIP_features.md`.
+
 - **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`
  "through the existing vcpkg/CMake dependency system." This machine has no `VCPKG_ROOT` and no
  vcpkg installation at all, and the `build/win32` tree `b.bat` actually builds has no vcpkg
@@ -190,6 +171,17 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 ---
 
 ## Resolved
+
+- **Q-016 (resolved by decision)** Answered: option (a). Runtime-constructed
+  buildings get a second `BuildingGameObj` component collection path deriving structure,
+  bounds, physical components and named anchors from the attached W3D hierarchy, leaving
+  the map-authored proximity/prefix path unaltered. Damage visuals for them are
+  data-driven through `BuildingModelDescriptor` with explicit intact/damaged/destroyed
+  models and optional extra health-threshold states; a model transition rebuilds the
+  state-dependent collision/physical components while preserving the logical
+  `BuildingGameObj`; MCT/PCT, production, repair and targeting are disabled once destroyed.
+  Existing map-authored buildings keep their legacy aggregate behaviour unchanged.
+  Implemented; see `completed_features.md` P38.
 
 - **Q-007 (resolved by decision, reversible)** What a player is told before a
   picture of their game window leaves their machine. P05 held `ssurl`/`sshot`

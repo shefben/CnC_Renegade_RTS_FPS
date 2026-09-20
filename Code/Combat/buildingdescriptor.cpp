@@ -83,3 +83,58 @@ bool BuildingModelDescriptor::Resolve_Anchor_World_Transform(RenderObjClass * bu
 	*out_transform = building_world_transform * node_model_transform;
 	return true;
 }
+
+
+/***********************************************************************************************
+ * BuildingDamageVisualDefinition -- which model a given health means                            *
+ *                                                                                             *
+ *	The table is built already sorted (see buildingdescriptormanager.cpp), so selection is a     *
+ *	single forward scan: the first entry whose threshold the building still meets wins.  A       *
+ *	linear scan rather than a binary search because the table is three or four entries long and  *
+ *	is read once per state change, not once per frame.                                           *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+int BuildingDamageVisualDefinition::Find_State_Index(float normalized_health) const
+{
+	if (States.Count () == 0) {
+		return BUILDING_DAMAGE_STATE_DESTROYED;		// nothing to choose from; caller falls back
+	}
+
+	if (normalized_health < 0.0f) normalized_health = 0.0f;
+	if (normalized_health > 1.0f) normalized_health = 1.0f;
+
+	for (int i = 0; i < States.Count (); i++) {
+		if (normalized_health >= States [i].MinHealthFraction) {
+			return i;
+		}
+	}
+
+	//	Unreachable while the table is valid (the last threshold is always 0.0), but a descriptor
+	//	that somehow got here still answers with a model rather than with nothing.
+	return States.Count () - 1;
+}
+
+
+const char * BuildingDamageVisualDefinition::Get_State_Model(int index) const
+{
+	if ((index < 0) || (index >= States.Count ())) {
+		return nullptr;
+	}
+	return States [index].ModelName.Peek_Buffer ();
+}
+
+
+const char * BuildingModelDescriptor::Get_Damage_Model(float normalized_health,bool destroyed) const
+{
+	if (destroyed && (DamageVisual.DestroyedModel.Get_Length () > 0)) {
+		return DamageVisual.DestroyedModel.Peek_Buffer ();
+	}
+
+	const char * model = DamageVisual.Get_State_Model (DamageVisual.Find_State_Index (normalized_health));
+	if ((model != nullptr) && (model [0] != '\0')) {
+		return model;
+	}
+
+	//	No table, or a table whose chosen entry names nothing: the descriptor's own model is the
+	//	honest answer, and a building that never changes model is a missing-art case, not a fault.
+	return ModelName.Peek_Buffer ();
+}

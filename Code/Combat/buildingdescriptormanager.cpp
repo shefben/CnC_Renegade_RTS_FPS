@@ -125,6 +125,39 @@ static bool	Validate_Descriptor(const BuildingModelDescriptor & d,StringClass * 
 	if (!std::isfinite (d.Placement.ExitClearance) || d.Placement.ExitClearance < 0.0f)
 																					FAIL ("negative/non-finite placement_rules.exit_clearance");
 
+	/*
+	**	Q-016's damage-visual table.  Validated as a table rather than as three names because the
+	**	schema allows extra health-threshold states between intact and damaged, and the selection
+	**	scan in Find_State_Index is only correct if the table really is sorted, really is free of
+	**	duplicate thresholds, and really does reach 0.0.  Checking that here means the runtime
+	**	never has to.
+	*/
+	if (d.DamageVisual.States.Count () == 0)			FAIL ("empty damage_visual state table");
+	{
+		float previous = 2.0f;
+		for (int i = 0; i < d.DamageVisual.States.Count (); i++) {
+			const BuildingDamageStateEntry & entry = d.DamageVisual.States [i];
+			if (entry.ModelName.Get_Length () == 0)	FAIL ("damage_visual state with no model");
+			if (!std::isfinite (entry.MinHealthFraction) ||
+				 entry.MinHealthFraction < 0.0f || entry.MinHealthFraction > 1.0f)
+																		FAIL ("damage_visual health_fraction outside 0..1");
+			if (entry.MinHealthFraction >= previous)	FAIL ("damage_visual thresholds not strictly descending");
+			previous = entry.MinHealthFraction;
+		}
+		if (d.DamageVisual.States [d.DamageVisual.States.Count () - 1].MinHealthFraction != 0.0f) {
+			FAIL ("damage_visual table does not reach health_fraction 0");
+		}
+	}
+
+	/*
+	**	Only a buildable descriptor needs a preset: that is the one case where something has to
+	**	create the canonical BuildingGameObj at runtime.  Every map-authored descriptor names no
+	**	preset because the level already placed the object.
+	*/
+	if (d.Build.Buildable && (d.GameObjectPreset.Get_Length () == 0)) {
+		FAIL ("build.buildable requires game_object_preset");
+	}
+
 	//	"incompatible capability/building role" -- the one concrete case Section 39 names that
 	//	this scope can check without a role concept of its own: a Power Plant and a
 	//	communications-capable building are mutually exclusive roles in every donor definition.
@@ -231,6 +264,93 @@ static bool	Parse_And_Validate(const char * definition_name,const char * json_te
 			d.Placement.MaxSlopeDegrees				= pr.value ("max_slope_degrees",15.0f);
 			d.Placement.ExitClearance					= pr.value ("exit_clearance",0.0f);
 			d.Placement.RequiresFoundationSupport	= pr.value ("requires_foundation_support",true);
+		}
+
+		d.GameObjectPreset = root.value ("game_object_preset",std::string ("")).c_str ();
+
+		/*
+		**	damage_visual -- Q-016.
+		**
+		**	A declared fraction is a *transition*: the health you fall below to enter the state it
+		**	names.  So "damaged_health_fraction: 0.5 with damaged_model X" means X takes over below
+		**	half health, and an extra state declaring 0.8 means that state takes over below 80%.
+		**	The intact model is whatever is worn above the highest transition, which is why it has
+		**	no fraction of its own to declare and cannot be accidentally outranked by an extra
+		**	state -- a table where the pristine model showed at medium health and a battered one at
+		**	full health would be the obvious way to get this wrong.
+		**
+		**	The stored table turns those transitions into the bottom of each state's band, so every
+		**	reader does one descending scan and never has to know any of the above.
+		*/
+		{
+			float damaged_fraction = 0.5f;
+			StringClass intact_model	= d.ModelName;
+			StringClass damaged_model ("");
+
+			//	Transitions, before sorting: (fraction you fall below, the model you fall into).
+			DynamicVectorClass<BuildingDamageStateEntry>	transitions;
+
+			if (root.contains ("damage_visual") && root ["damage_visual"].is_object ()) {
+				auto & dv = root ["damage_visual"];
+
+				damaged_fraction	= dv.value ("damaged_health_fraction",0.5f);
+				intact_model		= dv.value ("intact_model",std::string (d.ModelName.Peek_Buffer ())).c_str ();
+				damaged_model		= dv.value ("damaged_model",std::string ("")).c_str ();
+				d.DamageVisual.DestroyedModel = dv.value ("destroyed_model",std::string ("")).c_str ();
+
+				if (dv.contains ("extra_states") && dv ["extra_states"].is_array ()) {
+					for (auto & element : dv ["extra_states"]) {
+						if (!element.is_object ()) continue;
+						BuildingDamageStateEntry entry;
+						entry.ModelName			= element.value ("model",std::string ("")).c_str ();
+						entry.MinHealthFraction	= element.value ("health_fraction",0.0f);
+						transitions.Add (entry);
+					}
+				}
+			}
+
+			if (intact_model.Get_Length () == 0) {
+				intact_model = d.ModelName;
+			}
+
+			if (damaged_model.Get_Length () > 0) {
+				BuildingDamageStateEntry damaged;
+				damaged.ModelName			= damaged_model;
+				damaged.MinHealthFraction	= damaged_fraction;
+				transitions.Add (damaged);
+			}
+
+			//	Descending by the health each transition happens at.  Insertion sort: the table is
+			//	three or four entries long and this runs once per descriptor load.
+			for (int i = 1; i < transitions.Count (); i++) {
+				BuildingDamageStateEntry key = transitions [i];
+				int j = i - 1;
+				while ((j >= 0) && (transitions [j].MinHealthFraction < key.MinHealthFraction)) {
+					transitions [j + 1] = transitions [j];
+					j--;
+				}
+				transitions [j + 1] = key;
+			}
+
+			/*
+			**	Transitions to bands.  The intact model's band starts at the first transition; each
+			**	transition's model holds from the next transition down; the last one reaches zero.
+			**	Built this way the table is descending and terminates at 0.0 by construction, and
+			**	Validate_Descriptor then re-checks both because a malformed file can still produce
+			**	duplicate transitions that this arithmetic cannot repair.
+			*/
+			BuildingDamageStateEntry intact;
+			intact.ModelName			= intact_model;
+			intact.MinHealthFraction	= (transitions.Count () > 0) ? transitions [0].MinHealthFraction : 0.0f;
+			d.DamageVisual.States.Add (intact);
+
+			for (int i = 0; i < transitions.Count (); i++) {
+				BuildingDamageStateEntry state;
+				state.ModelName			= transitions [i].ModelName;
+				state.MinHealthFraction	= (i + 1 < transitions.Count ())
+												  ? transitions [i + 1].MinHealthFraction : 0.0f;
+				d.DamageVisual.States.Add (state);
+			}
 		}
 
 		if (root.contains ("anchors") && root ["anchors"].is_object ()) {
