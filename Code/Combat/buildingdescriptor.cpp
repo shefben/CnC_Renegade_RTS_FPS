@@ -59,11 +59,11 @@ const char * BuildingModelDescriptor::Find_Anchor_Bone(const char * role_name) c
 }
 
 
-bool BuildingModelDescriptor::Resolve_Anchor_World_Transform(RenderObjClass * building_model,
+bool BuildingModelDescriptor::Resolve_Anchor_World_Transform(const DynamicVectorClass<RenderObjClass *> & part_models,
 																					const Matrix3D & building_world_transform,
 																					const char * role_name,Matrix3D * out_transform) const
 {
-	if (building_model == nullptr || out_transform == nullptr) {
+	if (out_transform == nullptr) {
 		return false;
 	}
 
@@ -72,16 +72,27 @@ bool BuildingModelDescriptor::Resolve_Anchor_World_Transform(RenderObjClass * bu
 		return false;			// this descriptor names no anchor for that role
 	}
 
-	//	Get_Bone_Index answers 0 both for "root" and "no such bone" -- the same convention
-	//	VehicleGameObj::Aquire_Turret_Bones and CompositeAttachmentClass::Attach already read
-	//	it by, and the same refusal: a role cannot resolve to a component's root.
-	if (building_model->Get_Bone_Index (bone_name) == 0) {
-		return false;
+	for (int i = 0; i < part_models.Count (); i++) {
+		RenderObjClass * building_model = part_models [i];
+		if (building_model == nullptr) {
+			continue;
+		}
+
+		//	Get_Bone_Index answers 0 both for "root" and "no such bone" -- the same convention
+		//	VehicleGameObj::Aquire_Turret_Bones and CompositeAttachmentClass::Attach already read
+		//	it by, and the same refusal: a role cannot resolve to a component's root.  Not a
+		//	match on this part -- try the next one rather than failing outright, which is the
+		//	whole point of taking a list instead of one model.
+		if (building_model->Get_Bone_Index (bone_name) == 0) {
+			continue;
+		}
+
+		const Matrix3D & node_model_transform = building_model->Get_Bone_Transform (bone_name);
+		*out_transform = building_world_transform * node_model_transform;
+		return true;
 	}
 
-	const Matrix3D & node_model_transform = building_model->Get_Bone_Transform (bone_name);
-	*out_transform = building_world_transform * node_model_transform;
-	return true;
+	return false;
 }
 
 

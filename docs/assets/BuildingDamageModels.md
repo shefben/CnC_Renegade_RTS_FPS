@@ -35,8 +35,14 @@ Renegade asset:
 | destroyed | `ow_<building>_x.w3d` | the building has been declared destroyed |
 | extra states (optional) | `ow_<building>_s1.w3d`, `_s2.w3d`, … | between the transitions that name them |
 
-Currently declared, none of which exist yet (Q-017 gave both factions real presets, so
-both factions now have a full damage-visual declaration):
+Currently declared. A follow-up pass (`docs/zerohour/BuildingComponentAssembly.md`) found
+real assets for three of these eight buildings' **intact** state -- GDI/Nod Power Plant now
+component-assemble from several real parts instead of naming a single placeholder, and GDI
+Comm Center points its single-mesh path at a real merged model. **Damaged and destroyed
+states still have no real art for anything, including those three** (the real asset drop
+has no damaged/destroyed variant for any part of any building), so all of the below is still
+missing and still degrades exactly as this file already describes -- draws nothing, not a
+crash, not a stand-in:
 
 - `ow_gdi_power_plant_d.w3d`, `ow_gdi_power_plant_x.w3d`
 - `ow_gdi_comm_center_d.w3d`, `ow_gdi_comm_center_x.w3d`
@@ -47,11 +53,18 @@ both factions now have a full damage-visual declaration):
 - `ow_nod_adv_comm_center_d.w3d`, `ow_nod_adv_comm_center_x.w3d`
 - `ow_nod_silo_d.w3d`, `ow_nod_silo_x.w3d`
 
-…alongside the intact models `ow_gdi_power_plant.w3d`, `ow_gdi_comm_center.w3d`,
-`ow_gdi_adv_comm_center.w3d`, `ow_gdi_silo.w3d`, `ow_nod_power_plant.w3d`,
-`ow_nod_comm_center.w3d`, `ow_nod_adv_comm_center.w3d` and `ow_nod_silo.w3d`, none of
-which exist either. See `docs/zerohour/BuildingPresets.md` for which `BuildingGameObjDef`
-preset each of these eight descriptors now names.
+Intact models, of which three now exist for real and five still do not:
+
+- **Real, not placeholder:** GDI Power Plant (`mgpwr_ext.w3d` + component assembly), Nod
+  Power Plant (`mnpwr_ext.w3d` + component assembly), GDI Comm Center (`G_Comcntr.w3d`) --
+  see `docs/zerohour/BuildingComponentAssembly.md` for exactly what each is built from.
+- **Still missing:** `ow_gdi_adv_comm_center.w3d`, `ow_gdi_silo.w3d`,
+  `ow_nod_comm_center.w3d` (real, uncurated parts exist but nobody has sorted shell from
+  aggregate from authoring scratch yet -- see `docs/zerohour/BuildingComponentAssembly.md`'s
+  Nod Comm Center entry), `ow_nod_adv_comm_center.w3d`, `ow_nod_silo.w3d`.
+
+See `docs/zerohour/BuildingPresets.md` for which `BuildingGameObjDef` preset each of these
+eight descriptors names.
 
 ## What happens today without them
 

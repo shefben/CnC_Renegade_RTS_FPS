@@ -2091,6 +2091,26 @@ static const char * const	DUPLICATE_THRESHOLD_JSON =
 	"  \"damage_visual\":{\"intact_model\":\"a.w3d\",\"damaged_model\":\"b.w3d\","
 	"    \"damaged_health_fraction\":0.0} }";
 
+//	Q-017 follow-up -- component assembly.  Mirrors the real gdi_power_plant.json shape: a
+//	shell part plus an aggregate, one of them not loaded by default (the manifest's own
+//	"night variant"/"authoring source" convention).
+static const char * const	ASSEMBLY_JSON =
+	"{ \"model_name\":\"x_ext.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"assembly\":{\"parts\":["
+	"    {\"id\":\"exterior\",\"kind\":\"exterior\",\"model\":\"x_ext.w3d\","
+	"     \"position\":[0,0,0],\"rotation_degrees\":[0,0,0],\"load_by_default\":true},"
+	"    {\"id\":\"aggregate_1\",\"kind\":\"aggregate\",\"model\":\"x_ag_1.w3d\","
+	"     \"position\":[0,0,0],\"rotation_degrees\":[0,0,0],\"load_by_default\":true},"
+	"    {\"id\":\"exterior_night\",\"kind\":\"exterior\",\"model\":\"x_ext_n.w3d\","
+	"     \"position\":[0,0,0],\"rotation_degrees\":[0,0,0],\"load_by_default\":false}"
+	"  ]} }";
+
+//	An assembly part missing its model name -- refused at load, same rule ModelName/damage
+//	model names already get, applied per part instead of per building.
+static const char * const	ASSEMBLY_MISSING_MODEL_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"assembly\":{\"parts\":[ {\"id\":\"exterior\",\"kind\":\"exterior\"} ]} }";
+
 static const char * const	MALFORMED_JSON = "{ this is not valid json";
 
 static const char * const	NEGATIVE_GENERATION_JSON =
@@ -2228,6 +2248,41 @@ int	Run_Building_Descriptors (void)
 
 	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_nopreset",BUILDABLE_NO_PRESET_JSON,&error),
 			 "a buildable descriptor naming no game_object_preset was accepted");
+
+	/*
+	**	Q-017 follow-up -- component assembly.  Pure data, same as the damage_visual table
+	**	above: no scene, no model, no device, so it belongs here rather than in a manual pass.
+	**	Constructing a real BuildingGameObj to exercise Build_Runtime_Assembly itself needs a
+	**	live PhysicsSceneClass/WW3DAssetManager that nothing in this self-check family sets up
+	**	(Init_Runtime_Building has no test anywhere, single-mesh or assembly) -- the parser and
+	**	validator are what this pass can honestly prove without a device.
+	*/
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_assembly",ASSEMBLY_JSON,&error),
+			 "a valid assembly descriptor was refused: %s",error.Peek_Buffer ());
+	const BuildingModelDescriptor * assembled = BuildingDescriptorManager::Get_Descriptor ("ow_test_assembly");
+	Check (assembled != nullptr,"a loaded assembly descriptor could not be looked back up");
+	if (assembled != nullptr) {
+		Check (assembled->Assembly.Parts.Count () == 3,
+				 "the assembly table has %d parts, not the three the file named",assembled->Assembly.Parts.Count ());
+		if (assembled->Assembly.Parts.Count () == 3) {
+			Check (assembled->Assembly.Parts [0].Kind.Compare_No_Case ("exterior") == 0,
+					 "the first part's kind read back '%s', not 'exterior'",
+					 assembled->Assembly.Parts [0].Kind.Peek_Buffer ());
+			Check (::strcmp (assembled->Assembly.Parts [1].ModelName.Peek_Buffer (),"x_ag_1.w3d") == 0,
+					 "the aggregate part's model read back '%s', not 'x_ag_1.w3d'",
+					 assembled->Assembly.Parts [1].ModelName.Peek_Buffer ());
+			Check (assembled->Assembly.Parts [2].LoadByDefault == false,
+					 "the night-variant part's load_by_default read back true, not false");
+		}
+	}
+
+	//	A descriptor with no assembly block at all -- every descriptor before this session --
+	//	keeps behaving exactly as it always did: an empty table, not a refusal.
+	Check (plain_dv != nullptr && plain_dv->Assembly.Parts.Count () == 0,
+			 "a descriptor with no assembly block produced a non-empty assembly table");
+
+	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_assembly_bad",ASSEMBLY_MISSING_MODEL_JSON,&error),
+			 "an assembly part with no model name was accepted");
 
 	/*
 	**	Q-015: Validate_Text is the editor's entry point, and its whole contract is that it

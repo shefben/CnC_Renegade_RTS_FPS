@@ -71,6 +71,7 @@ class RayCollisionTestClass;
 class CompositeAttachmentClass;
 class StaticPhysClass;
 class RenderObjClass;
+struct BuildingAssemblyDefinition;
 
 
 /**
@@ -457,10 +458,22 @@ protected:
 	bool											IsRuntimeConstructed;
 	bool											RuntimeModelHidden;
 	StringClass									RuntimeDescriptorName;
-	StringClass									RuntimeModelName;			// what RuntimePhys is currently wearing
+	StringClass									RuntimeModelName;			// single-mesh path: what is currently worn
 	Matrix3D										RuntimeTransform;
 	int											RuntimeDamageState;		// index into the descriptor's table
-	StaticPhysClass *							RuntimePhys;				// the one scene object holding the model
+
+	//	Q-017 follow-up -- every scene object this runtime building currently owns, single-mesh
+	//	path or component assembly alike: one entry for the former, one per loaded part for the
+	//	latter.  ExteriorMeshes/InteriorMeshes (above) categorize the same objects by kind for
+	//	every other consumer that already reads those lists (Update_Bounding_Box,
+	//	Enable_Alternate_Materials); this is the ownership list Release_Runtime_Components tears
+	//	down and Peek_Runtime_Model/Resolve_Runtime_Anchor read from.
+	DynamicVectorClass<StaticPhysClass *>	RuntimeParts;
+
+	//	Component-assembly buildings only (BuildingModelDescriptor::Assembly non-empty): whether
+	//	the currently-built parts are the assembly or the single DamageVisual.DestroyedModel
+	//	substitute -- see Update_Runtime_Damage_Model's assembly branch.
+	bool											RuntimeAssemblyDestroyed;
 
 	static bool									CanRepairBuildings;
 
@@ -479,6 +492,12 @@ protected:
 	//	structure the legacy path would have scanned for, and swap the model when the health
 	//	threshold the descriptor named is crossed.
 	bool											Build_Runtime_Components (const char *model_name);
+
+	//	Q-017 follow-up -- the component-assembly sibling of Build_Runtime_Components above:
+	//	one call per BuildingModelDescriptor::Assembly part instead of one call total.  Shares
+	//	Release_Runtime_Components with the single-mesh path -- both populate the same
+	//	RuntimeParts ownership list, so tearing either down is one function.
+	bool											Build_Runtime_Assembly (const BuildingAssemblyDefinition &assembly);
 	void											Release_Runtime_Components (void);
 	void											Derive_Runtime_Structure (void);
 	void											Update_Runtime_Damage_Model (bool force_update);

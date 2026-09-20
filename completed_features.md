@@ -2271,6 +2271,35 @@ record, rejected alternatives and reasoning in `docs/zerohour/BuildingPresets.md
 `buildingjson` self-check gained preset-resolves / preset-missing / back-link-set cases (never
 executed -- Q-012).
 
+## P38 addendum 2 -- real multi-part building models, component assembly
+
+GDI/Nod Power Plant now component-assemble from real art (`models/mp buildings/c&c_mode`,
+copied to `data/building_models/`) instead of naming a single placeholder: shell
+(exterior/interior) + 4 building aggregates + a door part per faction, each its own
+`StaticPhysClass`, positioned at `RuntimeTransform * part_local_transform`. New
+`BuildingModelDescriptor::Assembly` (`Code/Combat/buildingdescriptor.h`, empty by default --
+every other descriptor unaffected); new `BuildingGameObj::Build_Runtime_Assembly`
+(`Code/Combat/building.cpp`), sharing the renamed `RuntimeParts` ownership list (was one
+`RuntimePhys` pointer) with the single-mesh path, so `Release_Runtime_Components`,
+`Peek_Runtime_Model`, `Derive_Runtime_Structure` and `Resolve_Runtime_Anchor` handle both
+uniformly. `Resolve_Anchor_World_Transform` now searches every loaded part's model for the
+named bone instead of one, which is what actually finds the real MCT/PT proxies the asset
+carries. Deliberately static geometry only -- no `BuildingAggregateClass`/`DoorPhysClass` per
+part, since both need authored animation-frame/trigger-zone data nothing in the asset drop
+provides, and guessing it would repeat Q-017's own mistake against animation data instead of
+preset names. Damage states: assembled or destroyed, nothing in between -- no part of the
+real asset drop has a damaged-state variant for anything, so a health-band swap would be
+invented, not real. GDI Comm Center pointed at its one real merged file (`G_Comcntr.w3d`),
+no assembly needed. Nod Comm Center's raw ~25-file asset dump is uncurated (no shell/
+aggregate split done by anyone) and deliberately left alone rather than guessed at. Full
+record, including why each of the 4 non-Silo/non-Advanced-Comm-Center required buildings did
+or did not get this treatment: `docs/zerohour/BuildingComponentAssembly.md`. Evidence:
+`renegade`, `renegadeserver` and `leveledit` all build and link clean with zero warnings;
+`buildingjson` self-check gained assembly-parses / part-fields-round-trip / missing-model-
+rejected cases (never executed -- Q-012, and unlike the rest of this family, exercising
+`Build_Runtime_Assembly` itself needs a live scene/asset manager nothing in this harness sets
+up for any runtime-building path, single-mesh or assembly).
+
 ## P34 -- wallet cap enforced (Q-014 answered)
 
 `EffectivePlayerWalletCap = BaseWalletCap + sum(active Silo bonuses)` is real and enforced.

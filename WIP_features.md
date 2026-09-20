@@ -480,18 +480,26 @@ manual one for the user: `debug_layer building_footprints 1`, `debug_layer radar
 building, coloured crosses appear at visible contacts, and coloured quad outlines follow explored/
 visible ground.
 
-## P33 -- descriptors resolve, reload, and are now reachable from a real building
+## P33 -- 8 of 12 GDI/Nod building categories have descriptors; the other 8 do not
 
 `BuildingModelDescriptor`/`BuildingDescriptorManager` (P33-A, `docs/zerohour/
-BuildingDescriptors.md`) now has a real production call site: `BuildingGameObjDef::
-DescriptorName` plus `Initialize_Building`'s registration (P27/P33/P34-B in
-`completed_features.md`) means `reload_building_descriptors` already matters in a running game
-for any building whose preset names one -- none do yet, since only four of the roadmap's twelve
-named GDI/Nod building categories have example content. Nothing reads `data/
-building_descriptors/*.json` at engine startup (still true; loading is reload/self-check driven
-only). Next exact action: author `DescriptorName` onto a real preset (or the remaining eight
-categories' JSON content), then confirm `building_json_status`/`reload_building_descriptors`
-against a live building.
+BuildingDescriptors.md`) now has a real production call site, and both gaps this entry used to
+track are closed (see `completed_features.md`'s Q-017 addenda): `data/building_descriptors/
+*.json` **is** read at real engine startup now (`BuildingDescriptorManager::Load_Directory`,
+called once from `combat.cpp`), and `DescriptorName` **is** authored automatically onto every
+real preset a buildable descriptor names (`Resolve_Game_Object_Presets`, also called from
+`combat.cpp` every level load). Power Plant, Communications Center, Advanced Communications
+Center and Tiberium Silo (GDI + Nod, 8 descriptors) are buildable with real presets; three of
+those eight now use real art instead of an `ow_` placeholder
+(`docs/zerohour/BuildingComponentAssembly.md`). The remaining eight of the roadmap's twelve
+named categories (Barracks/Hand of Nod, Refinery, Repair Bay, War/Vehicle Factory, Airstrip,
+Construction Yard, defense structures) have real assets in `models/mp buildings/c&c_mode`
+(catalogued into `building.json` manifests for most of them already) but no `data/
+building_descriptors/*.json` at all yet. Next exact action: author a descriptor for one of
+the remaining eight categories, following `gdi_power_plant.json`'s shape (assembly block from
+its real `building.json` manifest, real `game_object_preset` from `docs/zerohour/
+BuildingPresets.md`'s method if not already known), then confirm `building_json_status`/
+`reload_building_descriptors` against a live building.
 
 ## P35 -- input rerouting is done; the way *in* is still a console command
 

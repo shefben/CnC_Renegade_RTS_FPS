@@ -1,11 +1,12 @@
 {
+ "_comment_model": "Real GDI Comm Center asset (models/mp buildings/c&c_mode/gdi/GDI comm/current/G_Comcntr.w3d -- one already-compiled model, no separate parts to assemble, copied to data/building_models/gdi/gdi_comm). See docs/zerohour/BuildingComponentAssembly.md. anchors below (MCT/PT01) predate this and are NOT verified against G_Comcntr.w3d's real bone names -- nobody has opened the model to check, and guessing would be exactly what Q-017 forbade. If wrong, Resolve_Runtime_Anchor just returns false (no MCT/PT placement), not a crash; verifying them is a separate follow-up.",
  "damage_visual": {
-  "intact_model": "ow_gdi_comm_center.w3d",
+  "intact_model": "G_Comcntr.w3d",
   "damaged_model": "ow_gdi_comm_center_d.w3d",
   "destroyed_model": "ow_gdi_comm_center_x.w3d",
   "damaged_health_fraction": 0.5
  },
-  "model_name": "ow_gdi_comm_center.w3d",
+  "model_name": "G_Comcntr.w3d",
   "game_object_preset": "mp_GDI_Com_Center",
   "schema_version": 1,
   "footprint": { "width": 15.0, "depth": 15.0 },

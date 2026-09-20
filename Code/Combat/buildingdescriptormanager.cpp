@@ -191,6 +191,15 @@ static bool	Validate_Descriptor(const BuildingModelDescriptor & d,StringClass * 
 		FAIL ("a generator (requires_power=false) cannot also be a communications building");
 	}
 
+	//	Q-017 follow-up -- component assembly.  Every part needs an id and a model name; a part
+	//	naming no model would silently mean "nothing loads here", which is indistinguishable
+	//	from a typo and worth catching at author time rather than as a quiet missing-art gap.
+	for (int i = 0; i < d.Assembly.Parts.Count (); i++) {
+		const BuildingAssemblyPart & part = d.Assembly.Parts [i];
+		if (part.Id.Get_Length () == 0)			FAIL ("assembly part with no id");
+		if (part.ModelName.Get_Length () == 0)	FAIL ("assembly part with no model");
+	}
+
 	#undef FAIL
 	return true;
 }
@@ -386,6 +395,41 @@ static bool	Parse_And_Validate(const char * definition_name,const char * json_te
 				entry.Role		= element.key ().c_str ();
 				entry.BoneName	= element.value ().get<std::string> ().c_str ();
 				d.Anchors.Add (entry);
+			}
+		}
+
+		/*
+		**	assembly -- Q-017 follow-up.  Optional; absent (every descriptor but the ones with a
+		**	real curated manifest) means the single-mesh path above is the whole of this
+		**	descriptor's visual, exactly as before this block existed.
+		*/
+		if (root.contains ("assembly") && root ["assembly"].is_object ()) {
+			auto & asm_root = root ["assembly"];
+			if (asm_root.contains ("parts") && asm_root ["parts"].is_array ()) {
+				for (auto & element : asm_root ["parts"]) {
+					if (!element.is_object ()) continue;
+
+					BuildingAssemblyPart part;
+					part.Id				= element.value ("id",std::string ("")).c_str ();
+					part.Kind			= element.value ("kind",std::string ("")).c_str ();
+					part.ModelName		= element.value ("model",std::string ("")).c_str ();
+					part.LoadByDefault	= element.value ("load_by_default",true);
+
+					if (element.contains ("position") && element ["position"].is_array () &&
+						 (element ["position"].size () == 3)) {
+						part.Position.X = element ["position"] [0].get<float> ();
+						part.Position.Y = element ["position"] [1].get<float> ();
+						part.Position.Z = element ["position"] [2].get<float> ();
+					}
+					if (element.contains ("rotation_degrees") && element ["rotation_degrees"].is_array () &&
+						 (element ["rotation_degrees"].size () == 3)) {
+						part.RotationDegrees.X = element ["rotation_degrees"] [0].get<float> ();
+						part.RotationDegrees.Y = element ["rotation_degrees"] [1].get<float> ();
+						part.RotationDegrees.Z = element ["rotation_degrees"] [2].get<float> ();
+					}
+
+					d.Assembly.Parts.Add (part);
+				}
 			}
 		}
 

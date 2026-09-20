@@ -1,11 +1,23 @@
 {
+ "_comment_assembly": "Real Nod Power Plant assets (models/mp buildings/c&c_mode/nod/mnpwr, copied to data/building_models/nod/mnpwr) -- see docs/zerohour/BuildingComponentAssembly.md. While 'assembly' is present, the building is component-assembled from it for every state except destroyed; damage_visual.intact_model/damaged_model below are the generic single-mesh fallback only and are never what a Commander-built instance actually shows while intact.",
+ "assembly": {
+  "parts": [
+   { "id": "exterior",    "kind": "exterior",  "model": "mnpwr_ext.w3d",   "position": [0,0,0], "rotation_degrees": [0,0,0], "load_by_default": true },
+   { "id": "interior",    "kind": "interior",  "model": "mnpwr_int.w3d",   "position": [0,0,0], "rotation_degrees": [0,0,0], "load_by_default": true },
+   { "id": "aggregate_1", "kind": "aggregate", "model": "MNpwr_ag_1.w3d",  "position": [0,0,0], "rotation_degrees": [0,0,0], "load_by_default": true },
+   { "id": "aggregate_2", "kind": "aggregate", "model": "MNpwr_ag_2.w3d",  "position": [0,0,0], "rotation_degrees": [0,0,0], "load_by_default": true },
+   { "id": "aggregate_3", "kind": "aggregate", "model": "MNpwr_ag_3.w3d",  "position": [0,0,0], "rotation_degrees": [0,0,0], "load_by_default": true },
+   { "id": "aggregate_4", "kind": "aggregate", "model": "MNpwr_ag_4.w3d",  "position": [0,0,0], "rotation_degrees": [0,0,0], "load_by_default": true },
+   { "id": "doors",       "kind": "door",      "model": "mnpwr_doors.w3d", "position": [0,0,0], "rotation_degrees": [0,0,0], "load_by_default": true }
+  ]
+ },
 "damage_visual": {
- "intact_model": "ow_nod_power_plant.w3d",
+ "intact_model": "mnpwr_ext.w3d",
  "damaged_model": "ow_nod_power_plant_d.w3d",
  "destroyed_model": "ow_nod_power_plant_x.w3d",
  "damaged_health_fraction": 0.5
 },
- "model_name": "ow_nod_power_plant.w3d",
+ "model_name": "mnpwr_ext.w3d",
  "game_object_preset": "mp_Nod_Power_Plant",
  "schema_version": 1,
  "footprint": { "width": 20.0, "depth": 20.0 },

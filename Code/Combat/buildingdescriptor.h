@@ -221,6 +221,50 @@ struct BuildingAnchorEntry
 };
 
 
+/*
+**	Q-017 follow-up -- component assembly.
+**
+**	Every Commander-constructed building so far has been one `.w3d` in, one `StaticPhysClass`
+**	out.  Real Renegade buildings are not built that way: a map-authored building is a shell
+**	(exterior/interior statics) plus several separately-placed building aggregates, exactly what
+**	`Collect_Building_Components` claims by proximity.  When a real, hand-curated asset manifest
+**	is available for a building (see docs/zerohour/BuildingComponentAssembly.md), this table lets
+**	a runtime-constructed instance be put together the same way: several parts, each its own
+**	physics object, instead of one merged mesh standing in for the whole building.
+**
+**	Deliberately NOT a `BuildingAggregateClass`/`DoorPhysClass` per part.  Both of those need
+**	authored data this project does not have for any of these parts -- per-state animation frame
+**	ranges (`BuildingAggregateDefClass::Frame0/Frame1`) and door trigger zones/sounds
+**	(`DoorPhysDefClass`) respectively -- and guessing either would be exactly the mistake Q-017's
+**	own instructions forbade for preset names, applied to animation/trigger data instead.  So
+**	every part is plain static geometry: correct positioning and collision, no per-part
+**	animation.  `Kind` is informational plus routing (Code/Combat/building.cpp files each part
+**	into InteriorMeshes or ExteriorMeshes by it), not a promise of aggregate/door behavior.
+*/
+struct BuildingAssemblyPart
+{
+	BuildingAssemblyPart(void) : Id(""),Kind(""),ModelName(""),Position(0.0f,0.0f,0.0f),
+											RotationDegrees(0.0f,0.0f,0.0f),LoadByDefault(true) { }
+	bool	operator == (const BuildingAssemblyPart &) const	{ return false; }
+	bool	operator != (const BuildingAssemblyPart &) const	{ return true; }
+
+	StringClass	Id;					// the manifest's own part id, for diagnostics only
+	StringClass	Kind;					// "exterior" | "interior" | "aggregate" | "door" -- see routing above
+	StringClass	ModelName;
+	Vector3		Position;			// building-local offset; every part authored so far is (0,0,0)
+	Vector3		RotationDegrees;	// building-local rotation; every part authored so far is (0,0,0)
+	bool			LoadByDefault;		// false = a night variant or authoring-only source; never loaded
+};
+
+struct BuildingAssemblyDefinition
+{
+	//	Empty (the default, and true for every descriptor except the ones with a real curated
+	//	manifest) means "no assembly" -- the single-mesh runtime path is exactly what it always
+	//	was, unchanged.
+	DynamicVectorClass<BuildingAssemblyPart>	Parts;
+};
+
+
 class BuildingModelDescriptor
 {
 	public:
@@ -249,6 +293,7 @@ class BuildingModelDescriptor
 		BuildingProductionDefinition				Production;
 		BuildingPlacementRules						Placement;
 		BuildingDamageVisualDefinition			DamageVisual;
+		BuildingAssemblyDefinition					Assembly;
 
 		DynamicVectorClass<BuildingAnchorEntry>	Anchors;
 
@@ -268,11 +313,20 @@ class BuildingModelDescriptor
 		**	worldTransform = buildingWorldTransform * nodeModelTransform -- Section 39's own
 		**	formula, minus the optional JSON offset this pass does not implement (no descriptor
 		**	loaded this pass declares one).  Returns false, and leaves *out_transform
-		**	untouched, when the role has no anchor entry or the bone does not exist on the
-		**	instantiated model -- the same missing-anchor refusal
+		**	untouched, when the role has no anchor entry or the bone does not exist on any of
+		**	the instantiated parts -- the same missing-anchor refusal
 		**	CompositeAttachmentClass::Attach uses for a missing bone.
+		**
+		**	Takes every currently-loaded part's render object, not one model: a single-mesh
+		**	runtime building passes a one-element list, and a component-assembly building
+		**	(BuildingModelDescriptor::Assembly) passes every part it built, tried in the order
+		**	they were built.  The real asset drop's own manifest notes which parts carry the
+		**	real MCT/PT bone proxies (interior and most aggregates, per
+		**	docs/zerohour/BuildingComponentAssembly.md); trying every part in build order finds
+		**	them without this function having to know the convention itself.
 		*/
-		bool	Resolve_Anchor_World_Transform(RenderObjClass * building_model,const Matrix3D & building_world_transform,
+		bool	Resolve_Anchor_World_Transform(const DynamicVectorClass<RenderObjClass *> & part_models,
+															 const Matrix3D & building_world_transform,
 															 const char * role_name,Matrix3D * out_transform) const;
 };
 

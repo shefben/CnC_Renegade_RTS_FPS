@@ -69,6 +69,7 @@
 #include "rendobj.h"
 #include "staticphys.h"
 #include "assetmgr.h"
+#include "wwmath.h"
 #include <algorithm>
 
 
@@ -382,7 +383,7 @@ BuildingGameObj::BuildingGameObj (void)	:
 	RuntimeModelName (""),
 	RuntimeTransform (1),
 	RuntimeDamageState (RUNTIME_DAMAGE_STATE_UNSET),
-	RuntimePhys (nullptr)
+	RuntimeAssemblyDestroyed (false)
 {
 	GameObjManager::Add_Building (this);
 	Update_State ();
@@ -2280,10 +2281,36 @@ Walk_Runtime_Hierarchy (RenderObjClass *obj, MinMaxAABoxClass *interior_bounds,
 RenderObjClass *
 BuildingGameObj::Peek_Runtime_Model (void) const
 {
-	if (RuntimePhys == nullptr) {
+	if (RuntimeParts.Count () == 0) {
 		return nullptr;
 	}
-	return RuntimePhys->Peek_Model ();
+	StaticPhysClass *phys = RuntimeParts [0];
+	return (phys != nullptr) ? phys->Peek_Model () : nullptr;
+}
+
+//
+//	Q-017 follow-up -- shared by Build_Runtime_Components and Build_Runtime_Assembly below: put
+//	one already-loaded model into the scene as its own StaticPhysClass, at a given transform, and
+//	record it in RuntimeParts.  Neither caller's own bookkeeping (RuntimeModelName, which of
+//	Exterior/InteriorMeshes) belongs here -- only what every part construction has in common.
+//
+static StaticPhysClass *
+Add_Runtime_Part (BuildingGameObj *building,PhysicsSceneClass *scene,RenderObjClass *model,
+						 const Matrix3D &world_transform,bool hidden)
+{
+	StaticPhysClass *phys = new StaticPhysClass;
+	phys->Set_Model (model);
+	phys->Set_Transform (world_transform);
+	model->Release_Ref ();
+
+	scene->Add_Static_Object (phys);
+	phys->Set_Observer (building);
+
+	if (hidden && (phys->Peek_Model () != nullptr)) {
+		phys->Peek_Model ()->Set_Hidden (true);
+	}
+
+	return phys;
 }
 
 bool
@@ -2310,46 +2337,105 @@ BuildingGameObj::Build_Runtime_Components (const char *model_name)
 		return false;
 	}
 
-	StaticPhysClass *phys = new StaticPhysClass;
-	phys->Set_Model (model);
-	phys->Set_Transform (RuntimeTransform);
-	model->Release_Ref ();
+	StaticPhysClass *phys = Add_Runtime_Part (this,scene,model,RuntimeTransform,RuntimeModelHidden);
 
-	scene->Add_Static_Object (phys);
-
-	RuntimePhys			= phys;
-	RuntimeModelName	= model_name;
-
+	RuntimeModelName = model_name;
 	ExteriorMeshes.Add (phys);
-	phys->Set_Observer (this);
-
-	if (RuntimeModelHidden && (phys->Peek_Model () != nullptr)) {
-		phys->Peek_Model ()->Set_Hidden (true);
-	}
+	RuntimeParts.Add (phys);
 
 	return true;
+}
+
+bool
+BuildingGameObj::Build_Runtime_Assembly (const BuildingAssemblyDefinition &assembly)
+{
+	PhysicsSceneClass *scene = PhysicsSceneClass::Get_Instance ();
+	if (scene == nullptr) {
+		return false;
+	}
+
+	WW3DAssetManager *assets = WW3DAssetManager::Get_Instance ();
+	if (assets == nullptr) {
+		return false;
+	}
+
+	bool any_loaded = false;
+
+	for (int i = 0; i < assembly.Parts.Count (); i++) {
+		const BuildingAssemblyPart &part = assembly.Parts [i];
+		if (!part.LoadByDefault) {
+			continue;			// a night variant or authoring-only source -- never loaded at runtime
+		}
+		if (part.ModelName.Get_Length () == 0) {
+			continue;
+		}
+
+		RenderObjClass *model = assets->Create_Render_Obj (part.ModelName.Peek_Buffer ());
+		if (model == nullptr) {
+			//	One missing part is a missing-art gap for that part, not a reason to abandon the
+			//	rest of the building -- the same "behave sanely when absent" rule
+			//	docs/assets/README.md states, applied per part instead of per building.
+			WWDEBUG_SAY (("BuildingGameObj: no model %s for assembly part '%s' of runtime descriptor "
+							  "%s; that part will not draw\n",part.ModelName.Peek_Buffer (),
+							  part.Id.Peek_Buffer (),RuntimeDescriptorName.Peek_Buffer ()));
+			continue;
+		}
+
+		Matrix3D part_local (1);
+		part_local.Rotate_X (DEG_TO_RADF (part.RotationDegrees.X));
+		part_local.Rotate_Y (DEG_TO_RADF (part.RotationDegrees.Y));
+		part_local.Rotate_Z (DEG_TO_RADF (part.RotationDegrees.Z));
+		part_local.Translate (part.Position);
+
+		StaticPhysClass *phys = Add_Runtime_Part (this,scene,model,RuntimeTransform * part_local,RuntimeModelHidden);
+
+		RuntimeParts.Add (phys);
+		if (part.Kind.Compare_No_Case ("interior") == 0) {
+			InteriorMeshes.Add (phys);
+		} else {
+			//	"exterior", "aggregate", "door", or anything else the manifest names -- every one
+			//	of them is exterior-collision geometry by default, same as the single-mesh path.
+			ExteriorMeshes.Add (phys);
+		}
+
+		any_loaded = true;
+	}
+
+	return any_loaded;
 }
 
 void
 BuildingGameObj::Release_Runtime_Components (void)
 {
-	if (RuntimePhys == nullptr) {
+	if (RuntimeParts.Count () == 0) {
 		RuntimeModelName = "";
 		return ;
 	}
 
-	if (RuntimePhys->Get_Observer () == this) {
-		RuntimePhys->Set_Observer (nullptr);
-	}
-	ExteriorMeshes.Remove (RuntimePhys);
-
 	PhysicsSceneClass *scene = PhysicsSceneClass::Get_Instance ();
-	if (scene != nullptr) {
-		scene->Remove_Object (RuntimePhys);
+
+	for (int i = 0; i < RuntimeParts.Count (); i++) {
+		StaticPhysClass *phys = RuntimeParts [i];
+		if (phys == nullptr) {
+			continue;
+		}
+
+		if (phys->Get_Observer () == this) {
+			phys->Set_Observer (nullptr);
+		}
+		//	A part is a member of exactly one of these two lists; Remove on the other is a safe
+		//	no-op (RefMultiListClass::Remove only releases a reference when it actually removed
+		//	something), so trying both avoids this function having to remember which.
+		ExteriorMeshes.Remove (phys);
+		InteriorMeshes.Remove (phys);
+
+		if (scene != nullptr) {
+			scene->Remove_Object (phys);
+		}
+		phys->Release_Ref ();
 	}
 
-	RuntimePhys->Release_Ref ();
-	RuntimePhys			= nullptr;
+	RuntimeParts.Delete_All ();
 	RuntimeModelName	= "";
 	return ;
 }
@@ -2364,7 +2450,13 @@ BuildingGameObj::Derive_Runtime_Structure (void)
 	int interior_count = 0;
 	int exterior_count = 0;
 
-	Walk_Runtime_Hierarchy (Peek_Runtime_Model (),&interior_bounds,&interior_count,&exterior_count);
+	//	Every currently-loaded part, not just one -- a component-assembly building's interior
+	//	proxy and its aggregates are each their own hierarchy, and the announcement sphere has to
+	//	be sized from all of them the same way the single-mesh path always sized it from one.
+	for (int i = 0; i < RuntimeParts.Count (); i++) {
+		RenderObjClass *model = (RuntimeParts [i] != nullptr) ? RuntimeParts [i]->Peek_Model () : nullptr;
+		Walk_Runtime_Hierarchy (model,&interior_bounds,&interior_count,&exterior_count);
+	}
 
 	AABoxClass source = BoundingBox;
 	if (interior_count > 0) {
@@ -2402,6 +2494,7 @@ BuildingGameObj::Init_Runtime_Building (const char *descriptor_name,const Matrix
 	RuntimeDescriptorName	= wanted;
 	RuntimeTransform			= transform;
 	RuntimeDamageState		= RUNTIME_DAMAGE_STATE_UNSET;
+	RuntimeAssemblyDestroyed = false;
 
 	Set_Position (transform.Get_Translation ());
 
@@ -2431,6 +2524,43 @@ BuildingGameObj::Update_Runtime_Damage_Model (bool force_update)
 
 	const BuildingModelDescriptor *descriptor = Peek_Runtime_Descriptor (RuntimeDescriptorName);
 	if (descriptor == nullptr) {
+		return ;
+	}
+
+	/*
+	**	Q-017 follow-up -- component-assembly buildings (BuildingModelDescriptor::Assembly
+	**	non-empty) take a different, simpler path than the single-mesh health-band table below.
+	**	Nothing in the real asset drop the assembly blocks were built from has a damaged-state
+	**	variant for any individual part -- only night variants, a different axis entirely -- so
+	**	there is no honest health-band swap to make.  An assembly building therefore has exactly
+	**	two visual states: assembled (built once, kept for the building's life) and destroyed,
+	**	which reuses the single-mesh DamageVisual.DestroyedModel path (Build_Runtime_Components)
+	**	unchanged -- "destroyed" was already a single whole-building model, assembly or not.
+	*/
+	if (descriptor->Assembly.Parts.Count () > 0) {
+		bool wants_destroyed = IsDestroyed;
+
+		if (force_update || (wants_destroyed != RuntimeAssemblyDestroyed)) {
+			bool entering_destroyed = wants_destroyed && !RuntimeAssemblyDestroyed;
+
+			Release_Runtime_Components ();
+			if (wants_destroyed) {
+				if (descriptor->DamageVisual.DestroyedModel.Get_Length () > 0) {
+					Build_Runtime_Components (descriptor->DamageVisual.DestroyedModel.Peek_Buffer ());
+				}
+			} else {
+				Build_Runtime_Assembly (descriptor->Assembly);
+			}
+			Derive_Runtime_Structure ();
+
+			RuntimeAssemblyDestroyed = wants_destroyed;
+
+			if (entering_destroyed || (force_update && wants_destroyed)) {
+				On_Runtime_Destroyed_State_Entered ();
+			}
+		}
+
+		RuntimeDamageState = wants_destroyed ? (int)BUILDING_DAMAGE_STATE_DESTROYED : 0;
 		return ;
 	}
 
@@ -2480,9 +2610,13 @@ BuildingGameObj::Set_Runtime_Model_Hidden (bool hidden)
 {
 	RuntimeModelHidden = hidden;
 
-	RenderObjClass *model = Peek_Runtime_Model ();
-	if (model != nullptr) {
-		model->Set_Hidden (hidden);
+	//	Every part, not just the first -- a component-assembly building under construction has
+	//	to hide its whole shell, not just whichever part happens to be RuntimeParts[0].
+	for (int i = 0; i < RuntimeParts.Count (); i++) {
+		RenderObjClass *model = (RuntimeParts [i] != nullptr) ? RuntimeParts [i]->Peek_Model () : nullptr;
+		if (model != nullptr) {
+			model->Set_Hidden (hidden);
+		}
 	}
 
 	return ;
@@ -2504,7 +2638,18 @@ BuildingGameObj::Resolve_Runtime_Anchor (const char *role_name,Matrix3D *out_tra
 		return false;
 	}
 
-	return descriptor->Resolve_Anchor_World_Transform (Peek_Runtime_Model (),RuntimeTransform,
+	//	Every currently-loaded part's model, in build order -- a single-mesh building passes a
+	//	one-element list, a component-assembly building passes every part, and the resolver
+	//	tries each in turn until one of them actually carries the named bone.
+	DynamicVectorClass<RenderObjClass *> part_models;
+	for (int i = 0; i < RuntimeParts.Count (); i++) {
+		RenderObjClass *model = (RuntimeParts [i] != nullptr) ? RuntimeParts [i]->Peek_Model () : nullptr;
+		if (model != nullptr) {
+			part_models.Add (model);
+		}
+	}
+
+	return descriptor->Resolve_Anchor_World_Transform (part_models,RuntimeTransform,
 																		 role_name,out_transform);
 }
 
