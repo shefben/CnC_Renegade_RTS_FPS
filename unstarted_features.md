@@ -35,9 +35,6 @@ P01-P06 gate everything after them (directive 0.3).
 ## P01: Import + inventory TT 4.8.4 (roadmap Section 7)
 
 
-## P02: Reconcile TT public engine classes into canonical OpenW3D classes (roadmap Section 8)
-
-
 ## P04: Native stock + TT script registry (roadmap Section 10)
 
 
