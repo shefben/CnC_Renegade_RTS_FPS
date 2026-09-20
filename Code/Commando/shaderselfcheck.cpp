@@ -3508,10 +3508,10 @@ int	Run_Visual_Settings (void)
 	Check (!WW3D::Get_LOD_Dissolve_Enabled (),"LOD dissolve did not turn back off");
 
 	/*
-	**	Not covered here: DistLODClass's and WorldTerrainSystem's actual overlap-window
-	**	behaviour, both of which need real .w3d content and a scene this binary does not have.
-	**	What is proved is the one switch both owners read (WW3D::Get_LOD_Dissolve_Enabled) and
-	**	that it defaults off.
+	**	Not covered here: DistLODClass's, HLodClass's and WorldTerrainSystem's actual
+	**	overlap-window behaviour, all three of which need real .w3d content and a scene this
+	**	binary does not have.  What is proved is the one switch all three owners read
+	**	(WW3D::Get_LOD_Dissolve_Enabled) and that it defaults off.
 	*/
 
 	//	Restore defaults so a later family in the same "all" run sees stock settings.

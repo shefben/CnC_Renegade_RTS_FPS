@@ -103,10 +103,25 @@ Two behaviour notes, both deliberate:
 - **`c4.cpp` `Maintain_C4_Limit`**, radar, team change, console listings and the
   scriptcommands that enumerate by type are not spatial questions. They want every
   object, and the object list is the right answer to that.
-- **Terrain, foliage, roads/bridges/water, procedural generation** have nothing to query
-  yet. They arrive with P11 and after, and `Query_AABox` / `Query_Frustum` are waiting.
-- **Commander building placement** is what `Query_Placement_Overlap` exists for; the
-  caller arrives with the Commander phase.
+- **Foliage cells** have nothing to query yet. `FoliageSystem` builds and searches its own
+  dense grid (`Find_Instances_Near`) with no reference to `WorldSpatialIndex` in either
+  direction, and nothing outside foliage rendering has ever needed to ask "what plants are
+  near this point". The one required consumer this section still owes.
+- **Procedural world generation** does not exist — Section 17's own prohibition — so there
+  is nothing to route through the service yet, deliberately.
+
+Three of the five required consumers are now real, added after this document was first
+written:
+
+- **Commander building placement** — `CommanderPlacementValidator::Validate`
+  (`commanderplacement.cpp:193,222`) calls `Query_Placement_Overlap` twice, once for the
+  footprint and once for the exit-clearance box, against `COLLISION_GROUP_WORLD`.
+- **Roads/bridges/water** — none of the three ever queries the index directly, but none
+  needs to: `RoadSystem`, `BridgeSystem` and `WaterSystem` each register their built
+  geometry as real `StaticPhysClass` objects (`scene->Add_Static_Object`) in the same
+  `COLLISION_GROUP_WORLD` the placement check above already tests. A Commander-placed
+  building overlapping a road, a bridge deck or a carved pond is refused by the same call
+  that refuses overlapping another building — one query, not three.
 - **Nearby lights**: `Query_Nearby_Lights` wraps `Collect_Lights`, which was static
   lights only — dynamic lights were not in a culling system, as the physics scene said
   at the `// TODO: Dynamic lights!!` where it collected them. P21 closed that: the

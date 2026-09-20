@@ -279,6 +279,14 @@ protected:
 
 	// Current LOD Bias (affects recalculation of the Value array)
 	float								LODBias;
+
+	//	Roadmap Section 52A, Phase 47 follow-on.  Real content is auto-upgraded from DistLOD to
+	//	HLod at load (DistLODPrototypeClass::Create), so DistLODClass's own dissolve never runs
+	//	against anything a level actually ships -- this is the same overlap-window technique
+	//	ported to the class real content takes.  Off by default (WW3D::Get_LOD_Dissolve_Enabled),
+	//	so OverlapTimer never goes above zero and Render draws exactly what it always drew.
+	int								PrevLod;					// -1 = no handover in progress
+	float								OverlapTimer;			// seconds left that PrevLod still draws alongside CurLod
 };
 
 

@@ -54,15 +54,19 @@ belongs to whichever section owns decals.
 
 ---
 
-## P10 -- the service is there, the later consumers are not
+## P10 -- one named consumer left unwired, the acceptance line still unmeasured
 
-`WorldSpatialIndex` and the consumers that existed are done (see `completed_features.md`
-P10-A and P10-B, and `docs/zerohour/WorldSpatialIndex.md`). Two backlog lines are left in
-`unstarted_features.md` rather than here because neither is blocked on this phase: the
-second consumer line (Commander placement, nearby lights, foliage cells, roads/bridges/
-water, procedural generation) waits on systems that do not exist, and the acceptance line
-is structural today and unmeasured. Next exact action: nothing, until one of those systems
-lands and calls `Query_Placement_Overlap` or `Query_Nearby_Lights` for real.
+`WorldSpatialIndex` and the consumers that existed are done (P10-A/B in `completed_features.md`),
+and three of the five later-named consumers are now confirmed real (P10 continued, same file):
+Commander placement, nearby lights, roads/bridges/water. **Foliage cells** is the one genuine gap
+left: `FoliageSystem` keeps its own private grid with no reference to `WorldSpatialIndex` either
+way, and nothing outside foliage rendering has ever needed to ask what plants are near a point, so
+there is no caller to write this for yet. Procedural world generation is not a gap, it is
+permanently out of scope by Section 17's own prohibition. The acceptance line itself -- common
+queries no longer scan the full object list -- is still structural and unmeasured, the same status
+it has always carried; nothing this pass did changes that. Next exact action: nothing on foliage
+cells until something wants to ask that question of the world; the acceptance line waits on the
+same live-profile run every other device-less phase in this file does.
 
 ---
 
@@ -541,30 +545,41 @@ The world-query branches (overlap/slope/bounds/exit clearance) remain unexercise
 Absorbs the backlog's P37 acceptance line. Next exact action: verify `Pick_At_Cursor` against a
 live scene, then feed it into `Move_Ghost`.
 
-## P38 -- blocks build and replicate; no building exists at the end
+## P38 -- blocks build and replicate; no building exists at the end, and why is now a real question
 
 `BuildingConstructionService` (P38-A) and `BuildingConstructionRenderer` (P38-B) produce the
 visible bottom-to-top build-up, batched, deterministic, and advancing against server time on both
-sides. The remaining half is all one thing: **nothing creates the canonical building**. An accepted
-placement starts a construction keyed by a synthetic negative id; no `BuildingGameObj` is made in
-`CONSTRUCTING` state, no footprint blocker is created or removed, completion runs none of Section
-44's activation list, and no PCT/MCT is spawned at the anchors `Resolve_Anchor_World_Transform`
-already resolves. The block layout also uses footprint-derived bounds rather than the model's real
-bounds for the same reason. Absorbs the backlog's P38 acceptance line. Next exact action: create the
-real building at accepted placement, pass its prototype bounds to `Begin_Construction`, and run the
-activation list from `Get_Completed_Building` in the roadmap's order.
+sides. The remaining half is still **nothing creates the canonical building**, but investigating
+the next exact action this pass turned it from a missing function into an architecture question:
+`BuildingGameObj::Init` claims already-placed static meshes near its position by a naming
+convention, which is how every map-authored building works and has no path that instead derives
+that structure from a single runtime-loaded model's own hierarchy -- which is what Section 44's
+"real model hidden/revealed" and `BuildingModelDescriptor::ModelName` (already loaded for the
+ghost preview) both assume. Calling `Init` for a Commander-placed building today would not
+partially work, it would silently produce an aggregate with no meshes, no bounds and no MCT.
+See **Q-016** for the two ways to close it. Absorbs the backlog's P38 acceptance line. Next exact
+action: Q-016 answered, then create the real building at accepted placement, pass its bounds to
+`Begin_Construction`, and run the activation list from `Get_Completed_Building` in the roadmap's
+order.
 
-## P39 -- queues and orders are validated and replicated; nothing spawns and nothing obeys
+## P39 -- production completes into real units and orders reach them; population and exit-clearance do not
 
 `CommanderProductionService` (P39-A) plus `cCommanderProductionEvent` and `cCommanderOrderEvent`
-(P40-B) enforce the whole Section 45 validation list server-side, with the server looking up the
-team, the facility state and the cost rather than trusting any of them. Two gaps, both consumer-side:
-`Get_Completed_Item` is never drained into a canonical `SoldierGameObj`/`VehicleGameObj`, and
-`Get_Order` is never fed into a Renegade AI state -- so a queue completes into nothing and an ordered
-unit stands still. Drag-box selection and control groups wait on the same input work as P36.
-`ExitClear` is always reported true because no exit-occupancy query exists. Absorbs the backlog's
-P39 acceptance line. Next exact action: write the completion consumer, starting with infantry out of
-a Barracks.
+(P40-B) enforce the whole Section 45 validation list server-side. Both consumer-side gaps this
+entry used to carry are closed: `Drain_Completed_Commander_Production` (combat.cpp) spawns a real
+`SoldierGameObj`/`VehicleGameObj` at each completed item's facility, and `cCommanderOrderEvent::Act`
+turns an accepted order into a real `ActionClass` call (`completed_features.md`, "P39 continued").
+Three things are still genuinely open: **population accounting** -- `Set_Population` is never
+called, deliberately, because incrementing it at spawn with no matching decrement at death would
+only ever count up and eventually block production against a cap nothing really reached, and the
+death hook it needs does not exist yet; **`ExitClear`** is still always reported true, no
+exit-occupancy query exists; and **order fidelity** -- `ORDER_PATROL` degrades to a single-point
+Goto (the wire format carries one point, not a waypath) and `ORDER_GUARD` degrades to `Action_Reset`
+(stop) rather than reaching `GuardStateControllerClass`, which remains unattached to any unit --
+see P30 below. Drag-box selection and control groups still wait on the same input work as P36.
+Absorbs the backlog's P39 acceptance line. Next exact action: a destruction hook that decrements
+population, an exit-occupancy query for `ExitClear`, and attaching `GuardStateControllerClass` to
+Commander-produced units for `ORDER_GUARD`.
 
 ## P40 -- replication is live; the save-file round trip is still unverified
 
@@ -612,15 +627,6 @@ project's own no-second-truth rule. Section 52's 110-item final Definition of Do
 still mid-flight per their own WIP entries, P46-P65 are unstarted), so scoring it now would either
 be premature or dishonest. Absorbs the backlog's P45 line. Next exact action: re-run Section 52 as
 a checklist once the phases it actually depends on are closed, not before.
-
-## P47 -- the DistLOD dissolve is real but reaches no stock content
-
-`DistLODClass::Render`'s overlap-window dissolve (`WW3D::Get_LOD_Dissolve_Enabled`) is correct
-against the class the roadmap names, but `DistLODPrototypeClass::Create` auto-converts every loaded
-W3D LOD chunk to `HLodClass` at load, so no stock asset ever reaches it. The far/near terrain half of
-P47 has no such gap. Absorbs no backlog line (P47 itself is closed in `completed_features.md`); this
-is a named follow-on, not unfinished acceptance. Next exact action: extend the same overlap-window
-technique to `HLodClass`'s own LOD switch, the path stock content actually takes.
 
 ## P51 -- height fog is camera-relative, not per-vertex
 

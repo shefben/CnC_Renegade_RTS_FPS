@@ -75,6 +75,8 @@
 #include "commanderplacement.h"
 #include "buildingconstruction.h"
 #include "commanderproduction.h"
+#include "definitionmgr.h"
+#include "physicalgameobj.h"
 #include "commanderghostrenderer.h"
 #include "commanderstate.h"
 #include "commandersidebarrenderer.h"
@@ -949,6 +951,91 @@ void 	CombatManager::Handle_Input()
 
 
 /*
+**	Roadmap Section 45, Phase 39 -- the completion consumer CommanderProductionService's own
+**	header says belongs to "the caller that knows how to build a SoldierGameObj or a
+**	VehicleGameObj".  That caller owns no validation, no timing and no queue -- all of that
+**	already happened -- it does exactly two things: create the canonical Renegade object
+**	Section 45 requires ("normal AI SoldierGameObj paths... normal canonical VehicleGameObj"),
+**	and place it somewhere that is not inside the facility's own collision.
+**
+**	Deliberately *not* routed through VehicleFactoryGameObj::Request_Vehicle: that call starts
+**	the factory's own IsBusy timer and its own GeneratingVehicleID, which is the machinery a
+**	human's PT purchase drives, and Section 45 keeps Commander production as its own
+**	independent queue on purpose ("multiple facilities may have independent queues").  Feeding
+**	an already-elapsed Commander item through a second timer would either double the wait or
+**	collide with a human purchase in progress at the same building.  So this creates the unit
+**	the same way SpawnerClass::Create_Spawned_Object does -- DefinitionMgrClass::Find_Definition
+**	plus Create() -- which is the one production primitive every path in this codebase already
+**	shares, Commander or human.
+**
+**	Placement has no semantic anchor to read: Resolve_Anchor_World_Transform needs a single
+**	RenderObjClass model, and a level-placed factory is BuildingGameObj's legacy aggregate of
+**	separately-placed statics with no model of its own (see building.h).  So the spawn point is
+**	the facility's own collected bounding box -- always present once Init has run -- stepped
+**	outside its footprint by its circumscribing radius plus a clearance margin.  Not as precise
+**	as an authored exit node, but it never spawns a unit inside the building's own collision,
+**	which is the one thing that would actually look broken.
+**
+**	Population accounting (Set_Population) is deliberately not touched here: it needs a
+**	matching decrement on death, which needs a destruction hook on every Commander-produced
+**	unit that does not exist yet.  Incrementing without it would only ever count up and
+**	eventually block production against a population cap nothing actually reached -- worse
+**	than not counting at all, so this leaves the cap unfed rather than feed it half a fact.
+*/
+static void	Drain_Completed_Commander_Production (void)
+{
+	const float FACILITY_CLEARANCE = 3.0f;
+
+	int count = CommanderProductionService::Get_Completed_Count ();
+	for (int i = 0; i < count; i++) {
+
+		CommanderProductionItem item;
+		if (!CommanderProductionService::Get_Completed_Item (i,&item)) {
+			continue;
+		}
+
+		//	PhysicalGameObj multiply-inherits As_BuildingGameObj from both DamageableGameObj and
+		//	CombatPhysObserverClass, which is ambiguous called directly on a PhysicalGameObj*.
+		//	Narrowing the pointer itself to the single DamageableGameObj base first (a plain
+		//	upcast, not a virtual call) is what the rest of this codebase does to resolve it.
+		PhysicalGameObj * facility_obj = GameObjManager::Find_PhysicalGameObj (item.FacilityId);
+		DamageableGameObj * facility_damageable = (facility_obj != nullptr) ? (DamageableGameObj *)facility_obj : nullptr;
+		BuildingGameObj * facility = (facility_damageable != nullptr) ? facility_damageable->As_BuildingGameObj () : nullptr;
+		if (facility == nullptr) {
+			//	The facility died between completion and this drain (On_Facility_Destroyed
+			//	should already have cancelled it, but a destroyed-this-frame race is cheap to
+			//	guard against here too) -- nothing to deliver into.
+			continue;
+		}
+
+		DefinitionClass * def = DefinitionMgrClass::Find_Definition ((uint32)item.DefinitionId);
+		PhysicalGameObjDef * physical_def = (def != nullptr) ? (PhysicalGameObjDef *)def : nullptr;
+		if (physical_def == nullptr) {
+			continue;
+		}
+
+		Vector3 facility_pos;
+		facility->Get_Position (&facility_pos);
+		float radius = facility->Get_Bounds ().Extent.Length () + FACILITY_CLEARANCE;
+
+		//	A fixed direction rather than a derived facing: the legacy aggregate building has no
+		//	single orientation to read one from (Position is a point, not a transform).
+		Vector3 spawn_pos = facility_pos + Vector3 (radius,0.0f,0.0f);
+
+		PhysicalGameObj * unit = (PhysicalGameObj *)physical_def->Create ();
+		if (unit == nullptr) {
+			continue;
+		}
+
+		unit->Set_Transform (Matrix3D (spawn_pos));
+		unit->Start_Observers ();
+	}
+
+	CommanderProductionService::Clear_Completed ();
+}
+
+
+/*
 **
 */
 void 	CombatManager::Think()
@@ -1054,6 +1141,7 @@ void 	CombatManager::Think()
 	*/
 	if ( CombatManager::I_Am_Server() ) {
 		CommanderProductionService::Update( TimeManager::Get_Frame_Seconds() );
+		Drain_Completed_Commander_Production();
 	}
 
 	/*

@@ -10,6 +10,8 @@
 
 #include "commanderorderevent.h"
 
+#include "action.h"
+#include "actionparams.h"
 #include "apppackettypes.h"
 #include "cnetwork.h"
 #include "commanderproduction.h"
@@ -17,12 +19,107 @@
 #include "networkobjectfactory.h"
 #include "networkobjectmgr.h"
 #include "physicalgameobj.h"
+#include "scriptcommands.h"
+#include "smartgameobj.h"
 #include "soldier.h"
 
 #include <string.h>
 
 
 DECLARE_NETWORKOBJECT_FACTORY (cCommanderOrderEvent,NETCLASSID_COMMANDERORDEREVENT);
+
+
+/*
+**	Section 45's own translation of an accepted order into canonical Renegade AI, so
+**	"Commander-purchased infantry are normal AI SoldierGameObj paths" holds all the way
+**	through: CommanderProductionService only records that an order was issued, and this is
+**	the one place that turns the recorded verb into an ActionClass call, using the exact
+**	same free functions Code/Combat/scriptcommands.cpp gives mission scripts.  Priority 100
+**	matches every scripted command in this tree (Mission00.cpp, DrMobius.cpp, ...) -- high
+**	enough to override a unit's own idle/innate behaviour, which is the entire point of a
+**	Commander order.  Observer id 0 means nothing is listening for completion, which
+**	ActionClass::Notify_Completed already treats as a safe no-op.
+*/
+static void	Dispatch_Order (PhysicalGameObj * unit,CommanderUnitOrderType order,
+									  const Vector3 & target_point,int target_id)
+{
+	SmartGameObj * smart = unit->As_SmartGameObj ();
+	if (smart == nullptr) return;		// no AI action layer on this object -- nothing to drive
+
+	const float ORDER_PRIORITY = 100.0f;
+
+	ActionParamsStruct params;
+	params.Set_Basic (0,ORDER_PRIORITY,0);
+
+	switch (order) {
+
+		case ORDER_NONE:
+			//	Not a command -- nothing to dispatch.  Leaves whatever the unit was already
+			//	doing alone, rather than stopping it.
+			return;
+
+		case ORDER_MOVE:
+		case ORDER_ATTACK_MOVE:
+			//	Attack-move relies on this engine's own perception/threat response -- a
+			//	SmartGameObj already breaks off to engage a target it perceives regardless of
+			//	its current action -- rather than a second attack-move state machine this
+			//	codebase has never had.
+			params.Set_Movement (target_point,1.0f,1.5f,false);
+			ScriptEngine::Action_Goto (unit,params);
+			break;
+
+		case ORDER_ATTACK_TARGET: {
+			ScriptableGameObj * target = (target_id != 0) ? GameObjManager::Find_ScriptableGameObj (target_id) : nullptr;
+			if (target != nullptr) {
+				params.Set_Attack (target,40.0f,0.0f,true);
+			} else {
+				params.Set_Attack (target_point,40.0f,0.0f,true);
+			}
+			ScriptEngine::Action_Attack (unit,params);
+			break;
+		}
+
+		case ORDER_FOLLOW: {
+			ScriptableGameObj * target = (target_id != 0) ? GameObjManager::Find_ScriptableGameObj (target_id) : nullptr;
+			if (target != nullptr) {
+				params.Set_Movement (target,1.0f,3.0f,false);
+				ScriptEngine::Action_Follow_Input (unit,params);
+			} else {
+				ScriptEngine::Action_Reset (unit,ORDER_PRIORITY);
+			}
+			break;
+		}
+
+		case ORDER_PATROL:
+			//	The wire format this event carries (Section 45's own struct) has one point, not
+			//	a waypath -- a real back-and-forth patrol needs a second point nothing here has.
+			//	Walking to the one point given is strictly more than the nothing this order did
+			//	before; recorded as a limit, not silently upgraded into a loop it cannot run.
+			params.Set_Movement (target_point,1.0f,1.5f,false);
+			ScriptEngine::Action_Goto (unit,params);
+			break;
+
+		case ORDER_REPAIR_TARGET:
+		case ORDER_RETREAT_TO_REPAIR:
+			//	Neither is a distinct AI action in this codebase -- RepairBayGameObj repairs by
+			//	proximity once a vehicle sits inside it -- so both orders walk to the named
+			//	point rather than inventing a canonical "repair" primitive that does not exist.
+			params.Set_Movement (target_point,1.0f,1.5f,false);
+			ScriptEngine::Action_Goto (unit,params);
+			break;
+
+		case ORDER_GUARD:
+		case ORDER_HOLD_POSITION:
+		default:
+			//	Section 37's GuardStateControllerClass (guardstatecontroller.h) is the real
+			//	guard/retaliate/leash state machine and is still genuinely unattached to any
+			//	unit -- see WIP_features.md, P30.  Until it is, both orders take the one honest
+			//	action this engine already has that is strictly better than doing nothing: stop
+			//	where they stand.
+			ScriptEngine::Action_Reset (unit,ORDER_PRIORITY);
+			break;
+	}
+}
 
 
 cCommanderOrderEvent::cCommanderOrderEvent(void) :
@@ -150,9 +247,16 @@ void cCommanderOrderEvent::Act(void)
 			is_commander_ai = false;
 		}
 
-		CommanderProductionService::Issue_Order (SenderId,unit_id,unit->Get_Player_Type (),
-																 is_commander_ai,
-																 (CommanderUnitOrderType)Order,
-																 TargetPoint,TargetId);
+		bool accepted = CommanderProductionService::Issue_Order (SenderId,unit_id,unit->Get_Player_Type (),
+																					is_commander_ai,
+																					(CommanderUnitOrderType)Order,
+																					TargetPoint,TargetId);
+
+		//	The service records the order regardless of caller; only an *accepted* one drives
+		//	the actual AI -- refused orders (wrong team, human-driven unit) must change nothing
+		//	about what the unit is doing, the same as if the packet had never arrived.
+		if (accepted) {
+			Dispatch_Order (unit,(CommanderUnitOrderType)Order,TargetPoint,TargetId);
+		}
 	}
 }

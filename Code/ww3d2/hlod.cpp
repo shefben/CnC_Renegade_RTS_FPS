@@ -133,6 +133,7 @@
 #include "chunkio.h"
 #include "predlod.h"
 #include "rinfo.h"
+#include "ww3d.h"
 #include <string.h>
 #include <win.h>
 #include "sphere.h"
@@ -143,6 +144,12 @@
 ** Loader Instance
 */
 HLodLoaderClass			_HLodLoader;
+
+//	Roadmap Section 52A, Phase 47 follow-on.  Same window DistLODClass uses (distlod.cpp);
+//	kept as its own constant rather than shared across the two files because nothing else
+//	about the two dissolves is shared either -- Lod[] here can hold more than one model per
+//	level, DistLOD's Lods[] cannot.
+static const float		HLOD_DISSOLVE_SECONDS = 0.35f;
 
 
 /**
@@ -926,7 +933,9 @@ HLodClass::HLodClass(void) :
 	AdditionalModels(),
 	SnapPoints(nullptr),
 	ProxyArray(nullptr),
-	LODBias(1.0f)
+	LODBias(1.0f),
+	PrevLod(-1),
+	OverlapTimer(0.0f)
 {
 }
 
@@ -954,7 +963,9 @@ HLodClass::HLodClass(const HLodClass & src) :
 	AdditionalModels(),
 	SnapPoints(nullptr),
 	ProxyArray(nullptr),
-	LODBias(1.0f)
+	LODBias(1.0f),
+	PrevLod(-1),
+	OverlapTimer(0.0f)
 {
 	*this = src;
 }
@@ -986,7 +997,9 @@ HLodClass::HLodClass(const char * name,RenderObjClass ** lods,int count) :
 	AdditionalModels(),
 	SnapPoints(nullptr),
 	ProxyArray(nullptr),
-	LODBias(1.0f)
+	LODBias(1.0f),
+	PrevLod(-1),
+	OverlapTimer(0.0f)
 {
 	// enforce parameters
 	WWASSERT(name != nullptr);
@@ -1088,7 +1101,9 @@ HLodClass::HLodClass(const HLodDefClass & def) :
 	AdditionalModels(),
 	SnapPoints(nullptr),
 	ProxyArray(nullptr),
-	LODBias(1.0f)
+	LODBias(1.0f),
+	PrevLod(-1),
+	OverlapTimer(0.0f)
 {
 	// Set the name
 	Set_Name(def.Get_Name());
@@ -1176,7 +1191,9 @@ HLodClass::HLodClass(const HModelDefClass & def) :
 	AdditionalModels(),
 	SnapPoints(nullptr),
 	ProxyArray(nullptr),
-	LODBias(1.0f)
+	LODBias(1.0f),
+	PrevLod(-1),
+	OverlapTimer(0.0f)
 {
 	// Set the name
 	Set_Name(def.Get_Name());
@@ -1291,6 +1308,12 @@ HLodClass & HLodClass::operator = (const HLodClass & that)
 		}
 
 		LODBias = that.LODBias;
+
+		//	Transient dissolve state is never copied -- an assignment starts with no handover in
+		//	progress, the same way Free() below leaves it, and the same way DistLODClass's own
+		//	copy constructor resets it rather than copying `that`'s.
+		PrevLod = -1;
+		OverlapTimer = 0.0f;
 	}
 
 	Recalculate_Static_LOD_Factors();
@@ -1366,6 +1389,8 @@ void HLodClass::Free(void)
 		Lod = nullptr;
 	}
 	LodCount = 0;
+	PrevLod = -1;
+	OverlapTimer = 0.0f;
 
 	if (Cost != nullptr) {
 		delete[] Cost;
@@ -2148,6 +2173,27 @@ void HLodClass::Render(RenderInfoClass & rinfo)
 
 	for (i = 0; i < Lod[CurLod].Count(); i++) {
 		Lod[CurLod][i].Model->Render(rinfo);
+	}
+
+	/*
+	**	Roadmap Section 52A, Phase 47 follow-on.  OverlapTimer only ever goes above zero when
+	**	WW3D::Get_LOD_Dissolve_Enabled() is true (see Increment_LOD/Decrement_LOD/Set_LOD_Level),
+	**	so with the feature off this block never runs and Render draws exactly what it always
+	**	drew.  There is no generic per-object alpha to cross-fade with here either, so for a
+	**	short, bounded window the outgoing LOD keeps drawing alongside the incoming one instead
+	**	of vanishing on the single frame of the switch -- the same technique DistLODClass uses,
+	**	extended to the class real content actually reaches.
+	*/
+	if (OverlapTimer > 0.0f) {
+		OverlapTimer -= WW3D::Get_Frame_Time() * 0.001f;
+		if ((OverlapTimer > 0.0f) && (PrevLod >= 0) && (PrevLod != CurLod) && (PrevLod < LodCount)) {
+			for (i = 0; i < Lod[PrevLod].Count(); i++) {
+				Lod[PrevLod][i].Model->Render(rinfo);
+			}
+		} else {
+			OverlapTimer = 0.0f;
+			PrevLod = -1;
+		}
 	}
 
 	if (Is_Sub_Objects_Match_LOD_Enabled()) {
@@ -2963,6 +3009,11 @@ void HLodClass::Increment_LOD(void)
 		}
 	}
 
+	if (WW3D::Get_LOD_Dissolve_Enabled()) {
+		PrevLod = CurLod;
+		OverlapTimer = HLOD_DISSOLVE_SECONDS;
+	}
+
 	CurLod++;
 
 	if (Is_In_Scene()) {
@@ -2995,6 +3046,11 @@ void HLodClass::Decrement_LOD(void)
 		for (int i = 0; i < model_count; i++) {
 			Lod[CurLod][i].Model->Notify_Removed(Scene);
 		}
+	}
+
+	if (WW3D::Get_LOD_Dissolve_Enabled()) {
+		PrevLod = CurLod;
+		OverlapTimer = HLOD_DISSOLVE_SECONDS;
 	}
 
 	CurLod--;

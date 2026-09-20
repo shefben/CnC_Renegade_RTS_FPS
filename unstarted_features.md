@@ -51,7 +51,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P10: Spatial query/index layer (roadmap Section 16)
 
-- [ ] Consumers moved onto the service: Commander building placement, nearby lights, foliage cells, roads/bridges/water, future procedural world generation.
 - [ ] Acceptance: Common large-world queries no longer require scanning the complete global object list.
 
 ## P11: Hybrid heightmap/terrain framework (roadmap Section 17)

@@ -2091,3 +2091,31 @@ height, stated clearance, conformed abutments and a `Check_Clearance` report.
 unreachable counts per locomotion class over terrain, water, escarpments and bridges; a crossing
 a class cannot use is simply not an edge. `Pathfind` remains the only thing that moves a unit.
 `docs/zerohour/WorldStructureProgram.md`.
+
+## P47 continued: LOD dissolve ported to HLodClass
+
+Real content is auto-upgraded from DistLOD to HLod at load, so the Phase 47 dissolve never ran
+against anything a level actually ships. `PrevLod`/`OverlapTimer` and the same overlap-window
+technique are now on `HLodClass` itself (`Increment_LOD`/`Decrement_LOD`/`Render`), off by
+default, bit-for-bit unchanged when disabled. `Code/ww3d2/hlod.h`, `hlod.cpp`.
+
+## P10 continued: three of five WorldSpatialIndex consumers confirmed real
+
+Commander building placement (`CommanderPlacementValidator::Validate`) calls
+`Query_Placement_Overlap` for real; nearby lights already delegated correctly to
+`WorldLightManager`'s own grid (P21); roads/bridges/water need no call of their own because
+`RoadSystem`/`BridgeSystem`/`WaterSystem` register real `StaticPhysClass` objects in the same
+`COLLISION_GROUP_WORLD` the placement check already tests. Absorbs the "Consumers moved" line
+from `unstarted_features.md`'s P10 header. Foliage cells remain unwired -- carried forward in
+`WIP_features.md`. `docs/zerohour/WorldSpatialIndex.md`.
+
+## P39 continued: production completes into real units, orders reach them
+
+`Drain_Completed_Commander_Production` (combat.cpp, server-only) spawns a real
+`SoldierGameObj`/`VehicleGameObj` from each completed queue item via
+`DefinitionMgrClass::Find_Definition`, at the facility's own collected bounds stepped outside
+its footprint -- deliberately not through `VehicleFactoryGameObj::Request_Vehicle`, which would
+start a second, colliding production timer. `cCommanderOrderEvent::Act` now translates an
+accepted order into a real `ActionClass::Goto`/`Attack`/`Follow_Input`/`Reset` call through the
+same `ScriptEngine` functions mission scripts use. `Code/Combat/combat.cpp`,
+`Code/Commando/commanderorderevent.cpp`.
