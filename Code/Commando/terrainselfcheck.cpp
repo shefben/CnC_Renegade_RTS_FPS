@@ -5,6 +5,7 @@
 
 #include "terrainselfcheck.h"
 
+#include "bridgeplanner.h"
 #include "bridgesection.h"
 #include "bridgesystem.h"
 #include "castres.h"
@@ -4235,6 +4236,138 @@ void	Check_Road_Graph (void)
 }
 
 
+/***********************************************************************************************
+**	bridgeplan
+**
+**	Roadmap Section 34 Phase 9.  Device-less: BridgePlanner reads RoadGraphGenerator's own
+**	unresolved-crossing lists and writes to BridgeSystem through Add_Bridge/Build_Layout/
+**	Build_Geometry, none of which needs a physics scene.
+**
+**	Whether this particular seed's road graph crosses any water at all is not something this
+**	check can honestly guarantee by construction the way Check_Hydrology guarantees a river --
+**	Dijkstra routes around an obstruction whenever a clear path exists, so a real hydrology
+**	feature carved into the same terrain a road graph is planned over may simply be routed
+**	around rather than crossed.  What is checked is what holds regardless of how many bridges
+**	that produces: every structural diagnostic passes for whatever BridgePlanner actually built,
+**	zero bridges included.
+***********************************************************************************************/
+void	Check_Bridge_Plan (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+
+	//
+	//	Refusals.
+	//
+	{
+		StringClass error ("");
+		BridgePlannerParams bad;
+		Check (!BridgePlanner::Generate (bad,&error), "generation ran with no road graph at all");
+		Check (error.Get_Length () > 0, "a refused generation carried no reason");
+		Check (!BridgePlanner::Has_Plan (), "a refused generation left state behind");
+	}
+
+	//
+	//	A real chain: terrain, hydrology, a strategic plan, and a road graph, over a large
+	//	uniform ramp -- then bridge planning over whatever the road graph left unresolved.
+	//
+	unsigned int first_checksum = 0;
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 41u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 3.0f;
+		hydro_params.MaxRiverCount				= 2;
+
+		StringClass error ("");
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+		//	Chunks hydrology carved into water are no longer Buildable, so the chunk registry has
+		//	to see that before the strategic plan reads it.
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed							= 909u;
+		plan_params.MinApproachCount			= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 2;
+		plan_params.MinBaseSeparation			= 80.0f;
+		plan_params.MaxTiberiumCandidates		= 4;
+		plan_params.MaxSettlementCandidates	= 3;
+		plan_params.MaxPoiCandidates			= 3;
+		plan_params.MaxExpansionCandidates	= 2;
+		plan_params.MaxEconomicRange			= 1000.0f;
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 55u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		Check (RoadGraphGenerator::Generate (road_params,&error),
+				 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+		BridgePlannerParams params;
+		params.Seed							= 77u;
+		params.WaterClearanceMargin		= 2.0f;
+		params.MaxSpanLength				= 200.0f;
+
+		Check (BridgePlanner::Generate (params,&error),
+				 "generation refused a real road graph: %s",error.Peek_Buffer ());
+		Check (BridgePlanner::Has_Plan (), "a successful generation reported no plan built");
+
+		StringClass report ("");
+		Check (BridgePlanner::Check_Traversable_States_Pass (&report) == 0,
+				 "a non-broken bridge was not traversable: %s",report.Peek_Buffer ());
+		Check (BridgePlanner::Check_Broken_States_Block (&report) == 0,
+				 "a broken bridge still reported traversable: %s",report.Peek_Buffer ());
+		Check (BridgePlanner::Check_No_Required_Connectivity_Lost (&report) == 0,
+				 "a bridge's connectivity flag disagreed with its own state: %s",report.Peek_Buffer ());
+
+		for (int i = 0; i < BridgePlanner::Get_Bridge_Count (); i++) {
+			ResolvedBridge bridge;
+			if (!BridgePlanner::Get_Bridge (i,&bridge)) continue;
+			Check (BridgeSystem::Peek_Bridge (bridge.BridgeId) != nullptr,
+					 "resolved bridge '%s' names a bridge id BridgeSystem does not have",bridge.Id.Peek_Buffer ());
+			Check ((bridge.InitialState >= BRIDGE_STATE_PRISTINE) && (bridge.InitialState <= BRIDGE_STATE_BROKEN),
+					 "resolved bridge '%s' carries an out-of-range initial state",bridge.Id.Peek_Buffer ());
+		}
+
+		first_checksum = BridgePlanner::Get_Checksum ();
+
+		Check (BridgePlanner::Generate (params,&error), "regenerating the same bridge plan failed");
+		Check (BridgePlanner::Get_Checksum () == first_checksum,
+				 "the same seed, terrain, plan and road graph produced a different bridge plan checksum");
+	}
+
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -4304,6 +4437,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "roadgraph") == 0)) {
 		Check_Road_Graph ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "bridgeplan") == 0)) {
+		Check_Bridge_Plan ();
 	}
 
 	if (_Failures == 0) {

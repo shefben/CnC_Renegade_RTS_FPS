@@ -2887,3 +2887,64 @@ Phase 8 carries the same reachability gap every phase since 4 does, now gated on
 this generator only runs when the strategic plan itself ran, which only ever happens when macro
 terrain ran, which today is never, since the one caller that exists always requests
 `fit_to_level`.
+
+## V2 Phase 9 -- bridge planning, realized through the one bridge system
+
+`BridgePlanner` (`Code/Combat/bridgeplanner.h/.cpp`) consumes exactly `RoadGraphGenerator`'s own
+`UnresolvedCrossingIds` per edge -- never re-deriving which roads need a crossing -- and calls
+`BridgeSystem::Add_Bridge`/`Build_Layout`/`Build_Geometry`/`Set_Damage_State`/`Connect_Roads`,
+the same entry points the console command and self check already used. No bridge geometry of its
+own; `BridgeSystem` (v1, complete) owns all of it, including the three default bridge kinds
+already sized to v1's three road classes (`Define_Default_Bridges`, called automatically by
+`BridgeSystem::Init`), so no new bridge definition was authored.
+
+**Finding the banks is a real walk, not a guessed width.** `Find_Bridge_Banks` steps outward
+from a crossing point along the perpendicular of the nearest road's own local tangent, testing
+at each step whether the obstruction (`WaterSystem::Is_Point_In_Water` for water,
+`EscarpmentSystem::Sample_Face` for an interior cliff -- re-derived from the point itself, since
+neither Phase 5 nor Phase 6 tags a crossing candidate's own source generator) is still there.
+Bounded, so a crossing whose obstruction never clears is step 3's own "reject impossible
+bridges" -- left unresolved rather than forced.
+
+**Deck height is Section 11A.2's real formula where real data exists for it.** For a water
+crossing, `deck_height = max(0, water_height + clearance_margin + deck_depth - higher_abutment)`
+using a real `WaterSystem::Get_Water_Height` -- the lowest elevation that actually clears the
+water, never more. For an interior-cliff crossing, `deck_height` stays 0: the two banks are
+already the toe/rim heights the cliff itself was built at. 11A.2's own iterative fallback chain
+(shift the crossing, lengthen approaches, lower the deck, alternate candidate) is not
+implemented -- a rejected span stays unresolved.
+
+Initial damage state is one deterministic hashed draw per bridge, weighted heavily toward
+`PRISTINE` (fixed cumulative thresholds, no profile field for this exists). Step 10's "unless an
+alternate route exists" is read conservatively: `CountsAsConnectivity` is simply false for every
+initially-`BROKEN` bridge, since real alternate-route detection needs the same route-
+independence analysis (17A.2) Phase 8 already deferred. Step 11's nav/damage hook is free --
+`WorldTraversabilityGraph` (Phase 65) already reads live `BridgeSystem` state every time it is
+built, the same "ask the one shared system" integration Phase 5's interior cliffs get for free
+from the same graph.
+
+**What is honestly not resolved: step 6, road-to-bridge handoff.** The road a bridge crosses
+under still runs through as one continuous Phase-8 centre line rather than being split and
+re-terminated at the bridge's own abutments -- `RoadSystem` has no way to remove/split an
+already-added road, and rebuilding Phase 8's roads to pre-split at every crossing is scope this
+phase does not take on. The bridge itself is real and correctly placed; what is missing is a
+caller at that exact point knowing to prefer `BridgeClass::Conform_Point` over the ground.
+`Connect_Roads` is still called (correct, forward-compatible) but currently finds nothing to
+bind. Strategic importance (step 12) is storage-only, no AI Commander consumer yet.
+
+No new profile fields, no schema bump. `WorldGenerationManifest::BridgePlanChecksum` (new) and
+`SelectedBridgeCandidateIds` (populated for real, same as Phase 8's road edges -- a resolved
+bridge is a real object, not a proposal). `terrain_bridgeplan`/`fds_terrain_bridgeplan`
+(`-terrainselfcheck bridgeplan`) prove, against a real chain (hydrology, strategic plan and road
+graph all run for real over the same large synthetic terrain earlier checks use): parameter
+refusal; every structural diagnostic holds for whatever gets resolved; every resolved bridge
+names a real `BridgeSystem` id; determinism. Deliberately not asserted: that any bridge gets
+built at all -- Dijkstra routes around an obstruction whenever a clear path exists, so this check
+cannot honestly guarantee a crossing occurs the way `Check_Hydrology` guarantees a river. `ctest
+-N` now lists 147 (was 145). `renegade`, `renegadeserver` and `leveledit` all build clean, 0
+warnings. Docs: `docs/procedural_world/BridgePlanning.md` (new), Phase-9 section in
+`GeneratorDeterminism.md`.
+
+Phase 9 carries the same reachability gap every phase since 4 does, now four generators deep:
+this planner only runs when the road graph itself ran, which only ever happens when the
+strategic plan ran, which only ever happens when macro terrain ran, which today is never.

@@ -149,6 +149,10 @@ class ProceduralWorldManager
 		//	it shares that gate too, not just terrain_built.
 		static bool		Build_Road_Graph(const ProceduralWorldProfile & profile,StringClass * error_out);
 
+		//	Roadmap Section 34 Phase 9.  Requires the road graph -- every candidate comes from an
+		//	edge's own unresolved-crossing list -- so it shares that gate.
+		static bool		Build_Bridge_Plan(const ProceduralWorldProfile & profile,StringClass * error_out);
+
 		static bool		Requested;
 		static bool		WorldActive;
 

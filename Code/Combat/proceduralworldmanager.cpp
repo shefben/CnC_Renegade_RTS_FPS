@@ -27,6 +27,7 @@
 #include "proceduralworldmanager.h"
 
 #include "boundarycliffgenerator.h"
+#include "bridgeplanner.h"
 #include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "macroterraingenerator.h"
@@ -374,6 +375,19 @@ bool ProceduralWorldManager::Build_Road_Graph(const ProceduralWorldProfile & pro
 }
 
 
+/***********************************************************************************************
+ * Build_Bridge_Plan -- roadmap Section 34 Phase 9                                               *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Bridge_Plan(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	BridgePlannerParams params;
+	params.Seed							= WorldSeedService::Derive_Subsystem_Seed (
+													profile.Seed,WorldSeedService::SEED_DOMAIN_BRIDGES);
+
+	return BridgePlanner::Generate (params,error_out);
+}
+
+
 bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 {
 	//	Directive 1.10.  No request, no procedural anything: this is every hand-authored map.
@@ -479,6 +493,18 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 		}
 	}
 
+	//	Bridge plan, Phase 9.  Needs the road graph -- every candidate comes from an edge's own
+	//	unresolved-crossing list.
+	bool bridge_plan_built = false;
+	StringClass bridge_plan_error;
+	if (road_graph_built) {
+		bridge_plan_built = Build_Bridge_Plan (profile,&bridge_plan_error);
+		if (!bridge_plan_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: bridge plan failed (%s); the road graph itself is unaffected\r\n",
+							  bridge_plan_error.Peek_Buffer ()));
+		}
+	}
+
 	ActiveProfile = profile;
 
 	/*
@@ -503,6 +529,18 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 			RoadGraphEdge edge;
 			if (RoadGraphGenerator::Get_Edge (i,&edge)) {
 				Manifest.SelectedRoadGraphEdgeIds.Add (edge.Id);
+			}
+		}
+	}
+
+	//	Phase 9 -- a resolved bridge, like a road graph edge, is a real object BridgeSystem
+	//	actually built, not a candidate, so it belongs in SelectedBridgeCandidateIds for real.
+	Manifest.BridgePlanChecksum = bridge_plan_built ? BridgePlanner::Get_Checksum () : 0;
+	if (bridge_plan_built) {
+		for (int i = 0; i < BridgePlanner::Get_Bridge_Count (); i++) {
+			ResolvedBridge bridge;
+			if (BridgePlanner::Get_Bridge (i,&bridge)) {
+				Manifest.SelectedBridgeCandidateIds.Add (bridge.Id);
 			}
 		}
 	}
@@ -535,6 +573,10 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 					  road_graph_built ? "built" : (strategic_plan_built ? "NOT BUILT" : "skipped (no strategic plan)"),
 					  RoadGraphGenerator::Get_Edge_Count (),
 					  RoadGraphGenerator::Get_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: bridge plan %s -- %d bridge(s), checksum 0x%08X\r\n",
+					  bridge_plan_built ? "built" : (road_graph_built ? "NOT BUILT" : "skipped (no road graph)"),
+					  BridgePlanner::Get_Bridge_Count (),
+					  BridgePlanner::Get_Checksum ()));
 
 	return true;
 }
@@ -542,10 +584,11 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 
 void ProceduralWorldManager::Destroy_World(void)
 {
-	//	Reverse build order.  RoadGraphGenerator and StrategicPlanner each only remove their own
-	//	work (roads, or nothing shared at all -- StrategicPlanner is pure data); hydrology and
-	//	interior cliffs each only ever remove their own IDs from their own shared collection (see
-	//	each generator's own Clear).
+	//	Reverse build order.  BridgePlanner, RoadGraphGenerator and StrategicPlanner each only
+	//	remove their own work (bridges, roads, or nothing shared at all -- StrategicPlanner is
+	//	pure data); hydrology and interior cliffs each only ever remove their own IDs from their
+	//	own shared collection (see each generator's own Clear).
+	BridgePlanner::Clear ();
 	RoadGraphGenerator::Clear ();
 	StrategicPlanner::Clear ();
 	HydrologyGenerator::Clear ();

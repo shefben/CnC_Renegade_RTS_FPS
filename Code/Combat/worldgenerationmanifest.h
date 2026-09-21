@@ -104,6 +104,11 @@ struct WorldGenerationManifest
 	unsigned int	StrategicPlanChecksum;
 
 	unsigned int	RoadGraphChecksum;		// 0 until Phase 8 exists
+
+	//	Phase 9.  BridgePlanner::Get_Checksum -- a CRC over every resolved bridge's own initial
+	//	state, connectivity flag and strategic importance.  0 under the same conditions
+	//	RoadGraphChecksum can be 0 for.
+	unsigned int	BridgePlanChecksum;
 	unsigned int	NavigationRevision;		// 0 until Phase 16 exists
 };
 

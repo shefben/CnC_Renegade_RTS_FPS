@@ -332,3 +332,27 @@ dishonest for Phase 7's own candidate pool.
 `ProceduralWorldManager::Build_Road_Graph` runs only when `Build_Strategic_Plan` itself
 succeeded — a stricter gate than `terrain_built` alone, because a road graph connects strategic
 nodes and there is nothing to connect without them.
+
+## Phase 9 additions
+
+### `SEED_DOMAIN_BRIDGES`, and the one place this generator actually draws from it
+
+Bank-finding and deck-height are both pure functions of the terrain, water and road graph; the
+seed's one job is the deterministic initial-damage-state draw per bridge (cumulative thresholds
+against `TerrainMaskClass::Hash_Value`), which is the only place `BridgePlanner`'s own output
+depends on the seed rather than on data earlier phases already computed.
+
+### The bridge plan checksum, and a second "selected" that means it
+
+`BridgePlanner::Get_Checksum` is a CRC over every resolved bridge's own initial state,
+connectivity flag and strategic importance, computed with no physics scene.
+`WorldGenerationManifest::BridgePlanChecksum` carries it, `0` under the same conditions
+`RoadGraphChecksum` can be 0 for. `SelectedBridgeCandidateIds` is populated the same way Phase
+8's `SelectedRoadGraphEdgeIds` is, for the same reason: a resolved bridge is a real
+`BridgeSystem::Add_Bridge` object, not a proposal, so "selected" is honest here.
+
+### Gated behind the road graph, four generators deep
+
+`ProceduralWorldManager::Build_Bridge_Plan` runs only when `Build_Road_Graph` itself succeeded.
+The gate chain is now terrain → strategic plan → road graph → bridge plan, each link only as
+reachable as the one before it, and the first link is the one no live caller has ever asked for.

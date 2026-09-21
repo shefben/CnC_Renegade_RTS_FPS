@@ -45,6 +45,7 @@ WorldGenerationManifest::WorldGenerationManifest(void) :
 	HydrologyChecksum (0),
 	StrategicPlanChecksum (0),
 	RoadGraphChecksum (0),
+	BridgePlanChecksum (0),
 	NavigationRevision (0)
 {
 }
@@ -196,6 +197,7 @@ bool WorldGenerationManifestService::Serialize(const WorldGenerationManifest & m
 	root ["hydrology_checksum"]			= m.HydrologyChecksum;
 	root ["strategic_plan_checksum"]	= m.StrategicPlanChecksum;
 	root ["road_graph_checksum"]			= m.RoadGraphChecksum;
+	root ["bridge_plan_checksum"]		= m.BridgePlanChecksum;
 	root ["navigation_revision"]			= m.NavigationRevision;
 
 	Write_String_Array (root,"selected_base_candidate_ids",m.SelectedBaseCandidateIds);
@@ -235,6 +237,7 @@ bool WorldGenerationManifestService::Deserialize(const char * json_text,WorldGen
 		m.HydrologyChecksum		= root.value ("hydrology_checksum",0u);
 		m.StrategicPlanChecksum	= root.value ("strategic_plan_checksum",0u);
 		m.RoadGraphChecksum		= root.value ("road_graph_checksum",0u);
+		m.BridgePlanChecksum		= root.value ("bridge_plan_checksum",0u);
 		m.NavigationRevision		= root.value ("navigation_revision",0u);
 
 		Read_String_Array (root,"selected_base_candidate_ids",&m.SelectedBaseCandidateIds);

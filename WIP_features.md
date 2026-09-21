@@ -673,33 +673,35 @@ Skirmish** on the main menu, and report what the log's `ProceduralWorldManager: 
 line says, whether cliffs appear around the map, and what `debug_layer boundary_cliffs 1` and
 `debug_layer world_bounds 1` show -- in particular whether any riser draws red.
 
-## Five generators deep into the chunk registry and nothing has asked for any of them live
+## Seven generators deep into the chunk registry and nothing has asked for any of them live
 
 `MacroTerrainGenerator`, `WorldTerrainSystem`'s chunk registry, `InteriorCliffGenerator`,
-`HydrologyGenerator`, `StrategicPlanner` and now `RoadGraphGenerator` are all in (see
-`completed_features.md`, "V2 Phase 4" through "V2 Phase 8", and each phase's own doc under
+`HydrologyGenerator`, `StrategicPlanner`, `RoadGraphGenerator` and now `BridgePlanner` are all in
+(see `completed_features.md`, "V2 Phase 4" through "V2 Phase 9", and each phase's own doc under
 `docs/procedural_world/`). The open design question Phase 3's own planning note carried forward
 -- replace the host level's ground or coexist with it -- is resolved: coexist, by never running
 the terrain generator at all when `world.fit_to_level` is true. That resolution has a sharper
 consequence than Phase 3's "built but unseen": the "Procedural Skirmish" menu button's own
-default profile is `fit_to_level: true`, so **none of the five has ever run through any live
-caller, not merely never been looked at** -- interior cliffs, hydrology and the strategic
-planner all read Phase 4's chunk registry, and the road graph reads the strategic plan on top of
-that, so each carries the exact same gap one, two or three levels further down the chain. All
-five are proven correct by their own device-less self checks (`-terrainselfcheck macro`,
-`interior`, `hydrology`, `strategic`, `roadgraph`; the latter four against synthetic terrain
-built specifically so a feature/candidate/edge is certain to exist, since a real generated
-seed's relief gives no such guarantee to check against), none of it against a display.
+default profile is `fit_to_level: true`, so **none of the six generators past macro terrain has
+ever run through any live caller, not merely never been looked at** -- each one reads the output
+of the one before it (interior cliffs and hydrology read Phase 4's chunk registry directly; the
+strategic planner, road graph and bridge planner form a straight dependency chain on top of
+that), so each carries the exact same gap one further level down. All are proven correct by
+their own device-less self checks (`-terrainselfcheck macro`, `interior`, `hydrology`,
+`strategic`, `roadgraph`, `bridgeplan`; most of them against synthetic terrain built specifically
+so a feature/candidate/edge is certain to exist, since a real generated seed's relief gives no
+such guarantee to check against -- `bridgeplan`'s own check goes one step further and does not
+even assert a bridge gets built, since Dijkstra may simply route around whatever obstruction the
+check carves), none of it against a display.
 
-**Phase 7 was the point an earlier note here expected this gap to resolve itself, and Phase 8 --
-the first phase to actually build real geometry through a v1 system again since Phase 6 -- did
-not resolve it either**, for the same reason: `RoadGraphGenerator` is gated behind
-`StrategicPlanner`'s own success, which is gated behind `terrain_built`, so it inherits the whole
-chain's gate rather than forcing its own way past it. The next phase that plausibly forces the
-issue is whichever v2 phase actually *selects* final bases from Phase 7's pool and needs to
-build/place something real there -- not yet reached.
+**Phases 7, 8 and 9 were each, in turn, a plausible point for this gap to resolve itself, and
+none of them did**, for the same structural reason repeated three times: each new generator is
+gated behind the previous stage's own success, which traces back to `terrain_built`, so
+producing candidates, roads or bridges never by itself forces a live, host-level-free world into
+existence. The chain is now `terrain_built` → strategic plan → road graph → bridge plan, four
+links, the first of which no live caller has ever satisfied.
 
-Reaching any of the five live needs either (a) a profile with `fit_to_level: false` plus
+Reaching any of the six live needs either (a) a profile with `fit_to_level: false` plus
 something that requests one -- `ProceduralWorldManager.h`'s own doc comment claims a
 `procedural_world` console command exists; it does not, checked directly, and building one is
 out of any of these phases' own scope -- or (b) waiting for whichever later phase first needs to
@@ -714,7 +716,8 @@ whether the generated relief looks like terrain rather than noise, whether the i
 walk produces something that reads as a canyon or escarpment rather than an arbitrary scatter of
 steep chunks, whether the generated rivers/lakes look like hydrology rather than a chunk-grid
 scatter of blue rectangles, whether `StrategicPlanner`'s own base/resource candidates land
-somewhere a person would actually put a base, and whether the roads `RoadGraphGenerator` builds
-between them look like roads rather than a chunk-to-chunk zigzag (`road_test` in
-`Code/Commando/consolefunction.cpp` can render one directly if that is faster than a full
+somewhere a person would actually put a base, whether the roads `RoadGraphGenerator` builds
+between them look like roads rather than a chunk-to-chunk zigzag, and whether `BridgePlanner`
+ever actually resolves a crossing on a real generated seed at all (`road_test`/`bridge_test` in
+`Code/Commando/consolefunction.cpp` can render either directly if that is faster than a full
 procedural-world run).
