@@ -54,6 +54,7 @@ set(WWPHYS_SRC
     worldboundsservice.cpp
     boundarycliffgenerator.cpp
     macroterraingenerator.cpp
+    interiorcliffgenerator.cpp
     pscene_collision.cpp
     pscene_decal.cpp
     pscene_lighting.cpp
@@ -173,6 +174,7 @@ set(WWPHYS_SRC
     worldboundsservice.h
     boundarycliffgenerator.h
     macroterraingenerator.h
+    interiorcliffgenerator.h
     rbody.h
     renderobjphys.h
     renegadeterrainmaterialpass.h

@@ -41,6 +41,7 @@ WorldGenerationManifest::WorldGenerationManifest(void) :
 	ContentManifestHash (0),
 	CliffRingChecksum (0),
 	TerrainChecksum (0),
+	InteriorCliffChecksum (0),
 	RoadGraphChecksum (0),
 	NavigationRevision (0)
 {
@@ -188,6 +189,7 @@ bool WorldGenerationManifestService::Serialize(const WorldGenerationManifest & m
 	root ["content_manifest_hash"]		= m.ContentManifestHash;
 	root ["cliff_ring_checksum"]			= m.CliffRingChecksum;
 	root ["terrain_checksum"]				= m.TerrainChecksum;
+	root ["interior_cliff_checksum"]		= m.InteriorCliffChecksum;
 	root ["road_graph_checksum"]			= m.RoadGraphChecksum;
 	root ["navigation_revision"]			= m.NavigationRevision;
 
@@ -224,7 +226,8 @@ bool WorldGenerationManifestService::Deserialize(const char * json_text,WorldGen
 		m.ContentManifestHash	= root.value ("content_manifest_hash",0u);
 		m.CliffRingChecksum		= root.value ("cliff_ring_checksum",0u);
 		m.TerrainChecksum			= root.value ("terrain_checksum",0u);
-	m.RoadGraphChecksum		= root.value ("road_graph_checksum",0u);
+		m.InteriorCliffChecksum	= root.value ("interior_cliff_checksum",0u);
+		m.RoadGraphChecksum		= root.value ("road_graph_checksum",0u);
 		m.NavigationRevision		= root.value ("navigation_revision",0u);
 
 		Read_String_Array (root,"selected_base_candidate_ids",&m.SelectedBaseCandidateIds);

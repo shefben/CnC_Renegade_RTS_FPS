@@ -12,6 +12,7 @@
 #include "foliagetype.h"
 #include "coltest.h"
 #include "heightfield.h"
+#include "interiorcliffgenerator.h"
 #include "lineseg.h"
 #include "coltype.h"
 #include "macroterraingenerator.h"
@@ -3661,6 +3662,206 @@ void	Check_Macro_Terrain (void)
 }
 
 
+/***********************************************************************************************
+**	interior
+**
+**	Roadmap Section 34 Phase 5.  Device-less for the same reason macro's own check is: the
+**	generator reads WorldTerrainSystem's chunk registry and WorldBoundsService and writes to
+**	EscarpmentSystem and the chunk registry, none of which needs a physics scene.
+**
+**	A uniform-slope synthetic ramp, not MacroTerrainGenerator's own noise, is the terrain under
+**	test here.  MacroTerrainGenerator's relaxation pass leaves no arithmetic guarantee of how
+**	close any particular seed's chunks land to the buildable-slope cap, so a check built on it
+**	could not honestly assert a feature gets built at all.  A field whose slope is the same,
+**	known value everywhere removes that uncertainty by construction: every chunk qualifies as a
+**	candidate and at least one feature is a mathematical certainty, not a hope about a seed.
+***********************************************************************************************/
+static void
+Build_Uniform_Ramp_Terrain (int patches_per_side,float cell_size,float degrees_slope,const Vector3 & origin)
+{
+	int vcount = (patches_per_side * HeightfieldClass::PATCH_CELLS) + 1;
+
+	WorldTerrainSystem::Destroy_Terrain ();
+	WorldTerrainSystem::Create_Terrain (vcount,vcount,cell_size,origin);
+
+	float rise_per_vertex = cell_size * WWMath::Tan (DEG_TO_RADF (degrees_slope));
+
+	float * heights = new float [vcount * vcount];
+	for (int iy = 0; iy < vcount; iy++) {
+		for (int ix = 0; ix < vcount; ix++) {
+			heights [iy * vcount + ix] = (float)ix * rise_per_vertex;
+		}
+	}
+	WorldTerrainSystem::Set_Heights (heights,vcount * vcount);
+	delete [] heights;
+}
+
+
+void	Check_Interior_Cliffs (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	InteriorCliffGenerator::Init ();
+
+	//	~28.6 degrees, the same order Check_Macro_Terrain's own test uses for MaxBuildableSlopeRadians.
+	static const float CHUNK_SLOPE_CAP = 0.5f;
+
+	//
+	//	Refusals.  No chunk registry at all, an out-of-range slope threshold fraction, a
+	//	negative density and too short a run length all refuse and leave nothing behind.
+	//
+	{
+		StringClass error ("");
+		InteriorCliffParams bad;
+		Check (!InteriorCliffGenerator::Generate (bad,&error), "generation ran with no chunk registry at all");
+		Check (error.Get_Length () > 0, "a refused generation carried no reason");
+		Check (!InteriorCliffGenerator::Has_Cliffs (), "a refused generation left state behind");
+
+		Build_Uniform_Ramp_Terrain (2,4.0f,40.0f,Vector3 (0.0f,0.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (CHUNK_SLOPE_CAP);
+
+		bad.MaxBuildableSlopeRadians	= CHUNK_SLOPE_CAP;
+		bad.SlopeThresholdFraction		= 0.0f;
+		Check (!InteriorCliffGenerator::Generate (bad,&error), "a zero slope threshold fraction was accepted");
+
+		bad.SlopeThresholdFraction	= 0.5f;
+		bad.Density							= -0.1f;
+		Check (!InteriorCliffGenerator::Generate (bad,&error), "a negative density was accepted");
+
+		bad.Density			= 0.5f;
+		bad.MaxRunLength	= 1;
+		Check (!InteriorCliffGenerator::Generate (bad,&error), "a run length of 1 chunk was accepted");
+	}
+
+	//
+	//	A uniformly steep 3x3-chunk field, every chunk a candidate (density 1.0): at least one
+	//	feature is certain, and every one of Phase 5's own structural diagnostics must hold.
+	//
+	unsigned int first_checksum = 0;
+	{
+		Build_Uniform_Ramp_Terrain (3,4.0f,40.0f,Vector3 (-96.0f,-96.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (CHUNK_SLOPE_CAP);
+
+		InteriorCliffParams params;
+		params.Seed							= 4242u;
+		params.MaxBuildableSlopeRadians	= CHUNK_SLOPE_CAP;
+		params.SlopeThresholdFraction	= 0.5f;
+		params.Density							= 1.0f;
+		params.MaxRunLength					= 10;
+		params.Batter							= 0.1f;
+		params.ToeWidth						= 4.0f;
+		params.LayerIndex						= -1;
+
+		StringClass error ("");
+		Check (InteriorCliffGenerator::Generate (params,&error),
+				 "generation refused a uniformly steep field: %s",error.Peek_Buffer ());
+		Check (InteriorCliffGenerator::Has_Cliffs (), "a successful generation reported no cliffs built");
+		Check (InteriorCliffGenerator::Get_Feature_Count () >= 1,
+				 "a uniformly steep 3x3-chunk field produced no interior cliff feature");
+
+		StringClass report ("");
+		Check (InteriorCliffGenerator::Check_No_Cliff_Band_Overlap (&report) == 0,
+				 "an interior cliff station lay in the cliff band with no boundary configured: %s",report.Peek_Buffer ());
+		Check (InteriorCliffGenerator::Check_No_Single_Chunk_Spikes (&report) == 0,
+				 "a feature had fewer than two stations: %s",report.Peek_Buffer ());
+		Check (InteriorCliffGenerator::Check_Bypass_Candidates_Present (&report) == 0,
+				 "a bypass-kind feature carried no bypass point: %s",report.Peek_Buffer ());
+		Check (InteriorCliffGenerator::Check_No_Inverted_Faces (&report) == 0,
+				 "a station's rim was at or below its toe: %s",report.Peek_Buffer ());
+
+		for (int py = 0; py < WorldTerrainSystem::Get_Chunk_Count_Y (); py++) {
+			for (int px = 0; px < WorldTerrainSystem::Get_Chunk_Count_X (); px++) {
+				TerrainChunkInfoClass info;
+				if (WorldTerrainSystem::Get_Chunk_Info (px,py,&info) && info.InteriorCliff) {
+					Check (!info.Buildable,"an interior-cliff chunk (%d,%d) was still marked buildable",px,py);
+				}
+			}
+		}
+
+		first_checksum = InteriorCliffGenerator::Get_Checksum ();
+		Check (first_checksum != 0, "a built set of interior cliffs carried no checksum");
+
+		Check (InteriorCliffGenerator::Generate (params,&error), "regenerating the same interior cliffs failed");
+		Check (InteriorCliffGenerator::Get_Checksum () == first_checksum,
+				 "the same seed and terrain produced a different interior cliff checksum");
+	}
+
+	//
+	//	A different seed.  Density 1.0 makes the candidate set, and so the walk itself, seed-
+	//	independent -- what changes is each feature's own type/traversability draw, which is
+	//	enough to move the checksum.
+	//
+	{
+		InteriorCliffParams other;
+		other.Seed							= 4243u;
+		other.MaxBuildableSlopeRadians	= CHUNK_SLOPE_CAP;
+		other.SlopeThresholdFraction	= 0.5f;
+		other.Density							= 1.0f;
+		other.MaxRunLength					= 10;
+		other.Batter							= 0.1f;
+		other.ToeWidth						= 4.0f;
+		other.LayerIndex						= -1;
+
+		StringClass error ("");
+		Check (InteriorCliffGenerator::Generate (other,&error), "generating a second seed failed");
+		Check (InteriorCliffGenerator::Get_Checksum () != first_checksum,
+				 "two different interior cliff seeds produced an identical checksum");
+	}
+
+	//
+	//	The same field, with a boundary configured: chunks the boundary classifies cliff band or
+	//	past it must never become a candidate however steep they are.
+	//
+	{
+		Build_Uniform_Ramp_Terrain (3,4.0f,40.0f,Vector3 (-96.0f,-96.0f,0.0f));
+
+		DynamicVectorClass<Vector2> polygon;
+		polygon.Add (Vector2 (-40.0f,-40.0f));
+		polygon.Add (Vector2 (-40.0f, 40.0f));
+		polygon.Add (Vector2 ( 40.0f, 40.0f));
+		polygon.Add (Vector2 ( 40.0f,-40.0f));
+
+		StringClass error ("");
+		Check (WorldBoundsService::Configure (polygon,15.0f,5.0f,300.0f,&error),
+				 "the test boundary would not configure: %s",error.Peek_Buffer ());
+
+		WorldTerrainSystem::Build_Chunk_Registry (CHUNK_SLOPE_CAP);
+
+		bool any_cliff_band = false;
+		for (int py = 0; py < WorldTerrainSystem::Get_Chunk_Count_Y (); py++) {
+			for (int px = 0; px < WorldTerrainSystem::Get_Chunk_Count_X (); px++) {
+				TerrainChunkInfoClass info;
+				if (WorldTerrainSystem::Get_Chunk_Info (px,py,&info) && info.CliffBand) any_cliff_band = true;
+			}
+		}
+		Check (any_cliff_band,"a 3x3-chunk field around a boundary square produced no cliff-band chunk");
+
+		InteriorCliffParams params;
+		params.Seed							= 99u;
+		params.MaxBuildableSlopeRadians	= CHUNK_SLOPE_CAP;
+		params.SlopeThresholdFraction	= 0.5f;
+		params.Density							= 1.0f;
+		params.MaxRunLength					= 10;
+		params.Batter							= 0.1f;
+		params.ToeWidth						= 4.0f;
+		params.LayerIndex						= -1;
+
+		Check (InteriorCliffGenerator::Generate (params,&error),
+				 "generation with a boundary configured failed: %s",error.Peek_Buffer ());
+
+		StringClass report ("");
+		Check (InteriorCliffGenerator::Check_No_Cliff_Band_Overlap (&report) == 0,
+				 "an interior cliff crossed into the cliff band: %s",report.Peek_Buffer ());
+
+		WorldBoundsService::Clear ();
+	}
+
+	InteriorCliffGenerator::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -3718,6 +3919,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "macro") == 0)) {
 		Check_Macro_Terrain ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "interior") == 0)) {
+		Check_Interior_Cliffs ();
 	}
 
 	if (_Failures == 0) {

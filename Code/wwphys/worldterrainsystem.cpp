@@ -852,6 +852,27 @@ StaticPhysClass * WorldTerrainSystem::Peek_Collision_Patch(int px,int py)
 static const float CHUNK_CHECKSUM_QUANTUM = 1000.0f;
 
 
+unsigned int WorldTerrainSystem::Compute_Chunk_Checksum(const TerrainChunkInfoClass & info)
+{
+	CRCEngine crc;
+	int q_min			= (int)(info.MinHeight * CHUNK_CHECKSUM_QUANTUM);
+	int q_max			= (int)(info.MaxHeight * CHUNK_CHECKSUM_QUANTUM);
+	int q_min_slope	= (int)(info.MinSlopeRadians * CHUNK_CHECKSUM_QUANTUM);
+	int q_max_slope	= (int)(info.MaxSlopeRadians * CHUNK_CHECKSUM_QUANTUM);
+	int q_buildable	= info.Buildable ? 1 : 0;
+	int q_cliff			= info.CliffBand ? 1 : 0;
+	int q_interior		= info.InteriorCliff ? 1 : 0;
+	crc (&q_min,sizeof(q_min));
+	crc (&q_max,sizeof(q_max));
+	crc (&q_min_slope,sizeof(q_min_slope));
+	crc (&q_max_slope,sizeof(q_max_slope));
+	crc (&q_buildable,sizeof(q_buildable));
+	crc (&q_cliff,sizeof(q_cliff));
+	crc (&q_interior,sizeof(q_interior));
+	return (unsigned int)crc;
+}
+
+
 bool WorldTerrainSystem::Build_Chunk_Registry_Entry(int px,int py)
 {
 	int index = py * ChunkRegistryCountX + px;
@@ -898,26 +919,34 @@ bool WorldTerrainSystem::Build_Chunk_Registry_Entry(int px,int py)
 	}
 
 	//	Coarse and slope-only, deliberately -- see TerrainChunkInfoClass's own comment on why
-	//	this is not Section 18C's canonical buildability query.
-	info.Buildable = !info.CliffBand && (info.MaxSlopeRadians <= ChunkMaxBuildableSlopeRadians);
+	//	this is not Section 18C's canonical buildability query.  A patch this entry is
+	//	recomputing for (heightfield dirty) drops any earlier InteriorCliff tag along with it --
+	//	the ground under that tag moved, so whatever InteriorCliffGenerator built there needs
+	//	its own regeneration pass to still be true, the same "dirty invalidates" rule every other
+	//	derived field in this entry already follows.
+	info.InteriorCliff = false;
+	info.Buildable = !info.CliffBand && !info.InteriorCliff && (info.MaxSlopeRadians <= ChunkMaxBuildableSlopeRadians);
 
-	{
-		CRCEngine crc;
-		int q_min			= (int)(info.MinHeight * CHUNK_CHECKSUM_QUANTUM);
-		int q_max			= (int)(info.MaxHeight * CHUNK_CHECKSUM_QUANTUM);
-		int q_min_slope	= (int)(info.MinSlopeRadians * CHUNK_CHECKSUM_QUANTUM);
-		int q_max_slope	= (int)(info.MaxSlopeRadians * CHUNK_CHECKSUM_QUANTUM);
-		int q_buildable	= info.Buildable ? 1 : 0;
-		int q_cliff			= info.CliffBand ? 1 : 0;
-		crc (&q_min,sizeof(q_min));
-		crc (&q_max,sizeof(q_max));
-		crc (&q_min_slope,sizeof(q_min_slope));
-		crc (&q_max_slope,sizeof(q_max_slope));
-		crc (&q_buildable,sizeof(q_buildable));
-		crc (&q_cliff,sizeof(q_cliff));
-		info.Checksum = (unsigned int)crc;
+	info.Checksum = Compute_Chunk_Checksum(info);
+	info.Revision++;
+	return true;
+}
+
+
+bool WorldTerrainSystem::Mark_Chunk_Interior_Cliff(int px,int py)
+{
+	if (ChunkRegistry == nullptr) {
+		return false;
+	}
+	if ((px < 0) || (px >= ChunkRegistryCountX) || (py < 0) || (py >= ChunkRegistryCountY)) {
+		return false;
 	}
 
+	TerrainChunkInfoClass & info = ChunkRegistry[py * ChunkRegistryCountX + px];
+	info.InteriorCliff = true;
+	info.Buildable = false;		// an interior cliff chunk is never buildable, same rule as CliffBand
+
+	info.Checksum = Compute_Chunk_Checksum(info);
 	info.Revision++;
 	return true;
 }

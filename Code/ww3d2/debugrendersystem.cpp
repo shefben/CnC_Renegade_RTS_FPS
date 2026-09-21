@@ -62,6 +62,7 @@ static const char * const	_LayerNames [DEBUG_LAYER_COUNT] =
 	"radar_contacts",
 	"world_bounds",
 	"boundary_cliffs",
+	"interior_cliffs",
 };
 
 

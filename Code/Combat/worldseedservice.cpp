@@ -32,6 +32,7 @@
 const char * const WorldSeedService::SEED_DOMAIN_BOUNDARY				= "boundary";
 const char * const WorldSeedService::SEED_DOMAIN_BOUNDARY_CLIFFS	= "boundary_cliffs";
 const char * const WorldSeedService::SEED_DOMAIN_TERRAIN				= "terrain";
+const char * const WorldSeedService::SEED_DOMAIN_INTERIOR_CLIFFS	= "interior_cliffs";
 const char * const WorldSeedService::SEED_DOMAIN_HYDROLOGY				= "hydrology";
 const char * const WorldSeedService::SEED_DOMAIN_ROADS					= "roads";
 const char * const WorldSeedService::SEED_DOMAIN_BRIDGES				= "bridges";

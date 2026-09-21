@@ -87,6 +87,14 @@ class WorldSeedService
 		//	per-subsystem derivation exists for.
 		static const char * const SEED_DOMAIN_BOUNDARY_CLIFFS;
 		static const char * const SEED_DOMAIN_TERRAIN;
+
+		//	Added with Phase 5's interior cliffs.  Its own domain rather than sharing "terrain"
+		//	for the same reason boundary_cliffs is not "boundary": interior cliff placement reads
+		//	the terrain's own chunk registry, and drawing its type/traversability/candidate-gate
+		//	noise from the same stream that shaped the terrain would correlate the two, the exact
+		//	fault SEED_DOMAIN_BOUNDARY_CLIFFS's own comment already names.
+		static const char * const SEED_DOMAIN_INTERIOR_CLIFFS;
+
 		static const char * const SEED_DOMAIN_HYDROLOGY;
 		static const char * const SEED_DOMAIN_ROADS;
 		static const char * const SEED_DOMAIN_BRIDGES;

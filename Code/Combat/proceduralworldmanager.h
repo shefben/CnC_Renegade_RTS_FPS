@@ -131,6 +131,11 @@ class ProceduralWorldManager
 		//	why a fitted world's ground is never touched.
 		static bool		Build_Macro_Terrain(const ProceduralWorldProfile & profile,bool * built_out,StringClass * error_out);
 
+		//	Roadmap Section 34 Phase 5.  Only meaningful once macro terrain stands, so this is a
+		//	no-op (not a failure) whenever Build_Macro_Terrain itself was -- a `fit_to_level`
+		//	world has no chunk registry to read candidates from, same reasoning as Phase 4's own.
+		static bool		Build_Interior_Cliffs(const ProceduralWorldProfile & profile,StringClass * error_out);
+
 		static bool		Requested;
 		static bool		WorldActive;
 

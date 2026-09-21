@@ -107,7 +107,7 @@ public:
 	TerrainChunkInfoClass(void) :
 		MinHeight(0.0f), MaxHeight(0.0f),
 		MinSlopeRadians(0.0f), MaxSlopeRadians(0.0f),
-		Buildable(false), CliffBand(false),
+		Buildable(false), CliffBand(false), InteriorCliff(false),
 		Revision(0), Checksum(0) { }
 
 	float				MinHeight;
@@ -116,6 +116,13 @@ public:
 	float				MaxSlopeRadians;
 	bool				Buildable;		// slope-only, coarse -- see class comment
 	bool				CliffBand;		// any sampled point in the chunk classified cliff band or past it
+
+	//	Roadmap Section 34 Phase 5 step 12.  Set by Mark_Chunk_Interior_Cliff, never computed by
+	//	Build_Chunk_Registry_Entry itself -- the chunk registry has no idea an interior cliff
+	//	generator exists, the same layering InteriorCliffGenerator's own header documents.  A
+	//	chunk an interior cliff run occupies is never buildable, same rule as CliffBand.
+	bool				InteriorCliff;
+
 	unsigned int	Revision;		// bumped every time this entry is (re)computed; 0 means never
 	unsigned int	Checksum;		// Section 3B.4-quantized CRC over the fields above
 };
@@ -327,6 +334,16 @@ public:
 	static bool			Get_Chunk_Info(int px,int py,TerrainChunkInfoClass * info_out);
 	static unsigned int	Get_Chunk_Checksum(int px,int py);
 
+	/*
+	**	Roadmap Section 34 Phase 5 step 12.  The one door InteriorCliffGenerator (or any later
+	**	feature placer) uses to record that a chunk is occupied by non-heightfield relief --
+	**	never a direct field write, per Section 3D.1's ownership rule that no subsystem mutates
+	**	another owner's authoritative state through a private backdoor.  Sets InteriorCliff and
+	**	Buildable false, recomputes the checksum, bumps Revision.  Returns false if there is no
+	**	registry or the coordinates are out of range.
+	*/
+	static bool			Mark_Chunk_Interior_Cliff(int px,int py);
+
 	//	A CRC over every chunk's own checksum, in row-major order -- the one number Phase 4
 	//	step 17's manifest checksum and a device-less self check both mean by "the terrain".
 	static unsigned int	Get_World_Chunk_Checksum(void);
@@ -335,6 +352,7 @@ private:
 
 	static bool			Build_Collision_Patch(int px,int py);
 	static bool			Build_Chunk_Registry_Entry(int px,int py);
+	static unsigned int	Compute_Chunk_Checksum(const TerrainChunkInfoClass & info);
 
 	static void			Create_Far_Block_Table(void);
 	static bool			Fill_Far_Block_Model(RenegadeTerrainPatchClass * model,int bx,int by);

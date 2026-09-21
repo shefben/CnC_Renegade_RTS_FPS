@@ -82,6 +82,13 @@ struct WorldGenerationManifest
 	//	stands and Phase 4's generator never runs (see ProceduralWorldManager::Build_Macro_Terrain).
 	unsigned int	TerrainChecksum;
 
+	//	Phase 5.  InteriorCliffGenerator::Get_Checksum -- a CRC over every generated interior
+	//	cliff feature's own type, traversability, length, tallest station and bypass point.  0
+	//	until interior cliffs are built, same three reasons TerrainChecksum can be 0: no macro
+	//	terrain to read candidates from (`fit_to_level`), macro terrain failed, or interior cliff
+	//	generation itself failed.
+	unsigned int	InteriorCliffChecksum;
+
 	unsigned int	RoadGraphChecksum;		// 0 until Phase 8 exists
 	unsigned int	NavigationRevision;		// 0 until Phase 16 exists
 };

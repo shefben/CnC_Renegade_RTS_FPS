@@ -71,6 +71,16 @@ requirement, with this overlay as its first consumer. `Draw_Terrain_Chunks` draw
 chunk at the chunk's own top, coloured green (buildable), yellow (ordinary but too steep) or red
 (cliff band) -- see `docs/procedural_world/MacroTerrainGeneration.md`.
 
+**Update, V2 roadmap Section 34 Phase 5**: `DEBUG_LAYER_INTERIOR_CLIFFS` is new this phase and
+draws for real from the moment it exists -- `Draw_Interior_Cliffs` walks
+`InteriorCliffGenerator`'s own feature list and, for each one, the `EscarpmentClass` it built
+(`Code/wwphys/interiorcliffgenerator.{h,cpp}`), drawing rim, toe and a riser per station
+coloured green (non-traversable wall) or orange (names a ramp/tunnel/bridge bypass candidate),
+plus a cross at any feature's bypass point. Kept separate from `boundary_cliffs` on purpose: two
+different generators feed the one shared `EscarpmentSystem`, and seeing which cliffs came from
+which is exactly how a generator writing into the wrong owner's chunks would be spotted. See
+`docs/procedural_world/InteriorCliffs.md`.
+
 Every other layer is a real, toggleable, named entry in `DebugLayerType` that still draws nothing:
 
 | Layer | Awaiting |

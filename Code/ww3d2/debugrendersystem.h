@@ -93,6 +93,13 @@ enum DebugLayerType
 	//	without the other is exactly how a mismatch between them would be spotted.
 	DEBUG_LAYER_BOUNDARY_CLIFFS,
 
+	//	V2 roadmap Section 34 Phase 5 step 13.  Interior cliffs, ravines and canyon walls --
+	//	separate from boundary_cliffs for the reason that layer is separate from world_bounds:
+	//	two different generators feed the one shared EscarpmentSystem, and seeing which cliffs
+	//	came from which is exactly how a generator writing into the wrong owner's chunks would
+	//	be spotted.
+	DEBUG_LAYER_INTERIOR_CLIFFS,
+
 	DEBUG_LAYER_COUNT		// sentinel
 };
 

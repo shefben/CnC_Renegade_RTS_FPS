@@ -673,27 +673,33 @@ Skirmish** on the main menu, and report what the log's `ProceduralWorldManager: 
 line says, whether cliffs appear around the map, and what `debug_layer boundary_cliffs 1` and
 `debug_layer world_bounds 1` show -- in particular whether any riser draws red.
 
-## The macro terrain generator is built and nothing has asked for it yet
+## The macro terrain and interior cliff generators are built and nothing has asked for either
 
-`MacroTerrainGenerator` and `WorldTerrainSystem`'s chunk registry are both in (see
-`completed_features.md`, "V2 Phase 4", and `docs/procedural_world/MacroTerrainGeneration.md`).
+`MacroTerrainGenerator`, `WorldTerrainSystem`'s chunk registry, and now `InteriorCliffGenerator`
+are all in (see `completed_features.md`, "V2 Phase 4" and "V2 Phase 5",
+`docs/procedural_world/MacroTerrainGeneration.md`, `docs/procedural_world/InteriorCliffs.md`).
 The open design question Phase 3's own planning note carried forward -- replace the host level's
-ground or coexist with it -- is resolved: coexist, by never running the generator at all when
-`world.fit_to_level` is true. That resolution has a sharper consequence than Phase 3's "built but
-unseen": the "Procedural Skirmish" menu button's own default profile is `fit_to_level: true`, so
-**this phase's generator has never run through any live caller, not merely never been looked at**.
-It is proven correct by `-terrainselfcheck macro` (determinism, height-range/slope enforcement,
-cliff-band immutability, chunk arithmetic), all device-less, none of it against a display.
+ground or coexist with it -- is resolved: coexist, by never running the terrain generator at all
+when `world.fit_to_level` is true. That resolution has a sharper consequence than Phase 3's
+"built but unseen": the "Procedural Skirmish" menu button's own default profile is
+`fit_to_level: true`, so **neither generator has ever run through any live caller, not merely
+never been looked at** -- Phase 5's interior cliffs read Phase 4's chunk registry, so they carry
+the exact same gap one level further down the chain. Both are proven correct by their own
+device-less self checks (`-terrainselfcheck macro`, `-terrainselfcheck interior`; the latter
+against a synthetic uniform-slope terrain built specifically so a feature is certain to exist,
+since a real generated seed's relief gives no such guarantee to check against), none of it
+against a display.
 
-Reaching it live needs either (a) a profile with `fit_to_level: false` plus something that
+Reaching either live needs either (a) a profile with `fit_to_level: false` plus something that
 requests one -- `ProceduralWorldManager.h`'s own doc comment claims a `procedural_world` console
-command exists; it does not, checked directly, and building one is out of this phase's scope --
+command exists; it does not, checked directly, and building one is out of either phase's scope --
 or (b) waiting for Phase 7+ (candidate bases / initial layout selection), which is the first
 later phase that actually needs a world with no host level under it. Next exact action is one of
 those two, at the user's direction: add a minimal `procedural_world <seed> <profile>` console
 command so a non-fitted profile can be driven through `Request_World`/`Generate_World` in a live
 client, then run `renegade --gamedir "C:\Westwood\Renegade_full"`, use it with a profile whose
-`world.fit_to_level` is `false`, and report what `debug_layer terrain_chunks 1` shows -- in
-particular whether any chunk reads yellow (generated, but too steep to build on) where the
-profile did not intend one, and whether the generated relief looks like terrain rather than
-noise.
+`world.fit_to_level` is `false`, and report what `debug_layer terrain_chunks 1` and
+`debug_layer interior_cliffs 1` show -- in particular whether any chunk reads yellow (generated,
+but too steep to build on) where the profile did not intend one, whether the generated relief
+looks like terrain rather than noise, and whether the interior cliff walk produces something
+that reads as a canyon or escarpment rather than an arbitrary scatter of steep chunks.

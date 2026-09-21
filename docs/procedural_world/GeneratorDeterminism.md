@@ -197,3 +197,50 @@ returns success having done nothing. `WorldGenerationManifest::TerrainChecksum` 
 every world produced by the one caller that exists today, which is the correct, non-degenerate
 value for "the generator did not run", not a sign of a broken checksum. See
 `docs/procedural_world/MacroTerrainGeneration.md`.
+
+## Phase 5 additions
+
+### A new seed domain, deliberately
+
+`InteriorCliffGenerator` uses its own domain, `SEED_DOMAIN_INTERIOR_CLIFFS`, rather than
+reusing `terrain`. Interior cliff placement reads the terrain's own chunk registry as input, so
+drawing its candidate-density gate, its type pick and its traversability pick from the same
+stream that shaped the terrain in the first place would correlate the two — the exact fault
+`SEED_DOMAIN_BOUNDARY_CLIFFS`'s own reasoning already names for the boundary ring versus the
+boundary polygon.
+
+### Two hash draws per feature, on their own offsets
+
+`InteriorCliffType` and `InteriorCliffTraversabilityType` are each one `TerrainMaskClass::
+Hash_Value` draw off the feature's own starting chunk coordinates, offset by `+5001` and
+`+6007` respectively — far enough from `MacroTerrainGenerator`'s own small per-octave offsets
+(`+1013`, `+2027`, ...) and from each other that neither draw, nor the candidate-density gate
+above, correlates with either of the others.
+
+### The interior cliff checksum
+
+`InteriorCliffGenerator::Get_Checksum` is a CRC over every built feature's own type,
+traversability, length, tallest station and bypass point, quantized per Section 3B.4, computed
+with no physics scene the same way the ring and chunk-registry checksums are. `WorldGeneration
+Manifest::InteriorCliffChecksum` carries it into the manifest, `0` under the same three
+conditions `TerrainChecksum` can be `0` for: no chunk registry to read (`fit_to_level`), macro
+terrain itself failed, or interior cliff generation itself failed.
+
+### The walk is deterministic; the noise realism claim is not
+
+Given the same candidate set, the greedy chunk-to-chunk walk `InteriorCliffGenerator` uses has
+no random input of its own — same candidates in, same walk out, on any platform. What is *not*
+claimed is that the walk finds the best or most natural-looking wall through a given terrain;
+see `docs/procedural_world/InteriorCliffs.md` for why ridge-line extraction was deliberately not
+attempted. The self check proves determinism and structural correctness (no cliff-band overlap,
+no single-chunk spikes, no inverted faces) against a synthetic uniform-slope terrain built
+specifically to remove all doubt about whether a candidate exists at all — it does not, and
+cannot without a display, prove that a real generated seed's interior cliffs look right.
+
+### `fit_to_level`, and terrain failure, both skip this generator too
+
+`ProceduralWorldManager::Build_Interior_Cliffs` only runs when `Build_Macro_Terrain` itself
+reported `terrain_built`, which already folds in both the `fit_to_level` skip and any macro
+terrain failure — there is exactly one place that decides whether a chunk registry exists this
+run, and interior cliffs reads that decision rather than re-deriving it. See
+`docs/procedural_world/InteriorCliffs.md`.

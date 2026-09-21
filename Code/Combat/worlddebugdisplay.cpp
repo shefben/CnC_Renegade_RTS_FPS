@@ -42,6 +42,8 @@
 #include "soldier.h"
 #include "worldboundsservice.h"
 #include "boundarycliffgenerator.h"
+#include "escarpment.h"
+#include "interiorcliffgenerator.h"
 #include "tacticalintelligence.h"
 #include "worldshroudmanager.h"
 #include "worldterrainsystem.h"
@@ -348,6 +350,59 @@ static void	Draw_Terrain_Chunks(void)
 }
 
 
+/***********************************************************************************************
+ * Draw_Interior_Cliffs -- V2 roadmap Section 34 Phase 5 step 13                                 *
+ *                                                                                             *
+ *	One open polyline per feature -- rim, toe, and a riser per station coloured by that           *
+ *	feature's own Section 8.3 traversability, plus a cross at the bypass point of any feature      *
+ *	that names one.  Deliberately separate from Draw_Boundary_Cliffs even though both walk an      *
+ *	EscarpmentClass: the ring is closed and always a wall, an interior feature is open and its      *
+ *	whole point is that some of them are not.                                                        *
+ *=============================================================================================*/
+static void	Draw_Interior_Cliffs(void)
+{
+	static const Vector4	RIM_COLOR			(0.55f,0.45f,0.35f,0.9f);
+	static const Vector4	TOE_COLOR			(0.35f,0.28f,0.22f,0.8f);
+	static const Vector4	WALL_COLOR			(0.2f,0.9f,0.3f,0.75f);		// non-traversable
+	static const Vector4	BYPASS_COLOR		(1.0f,0.6f,0.1f,1.0f);		// names a ramp/tunnel/bridge candidate
+	static const Vector4	BYPASS_POINT_COLOR(1.0f,0.9f,0.2f,1.0f);
+
+	int count = InteriorCliffGenerator::Get_Feature_Count();
+	for (int f = 0; f < count; f++) {
+
+		InteriorCliffFeature feature;
+		if (!InteriorCliffGenerator::Get_Feature (f,&feature)) continue;
+
+		EscarpmentClass * e = EscarpmentSystem::Peek_Escarpment (feature.EscarpmentId);
+		if (e == nullptr) continue;
+
+		const Vector4 & riser_color =
+			(feature.Traversability == INTERIOR_CLIFF_NON_TRAVERSABLE) ? WALL_COLOR : BYPASS_COLOR;
+
+		int point_count = e->Get_Point_Count();
+		for (int p = 0; p < point_count; p++) {
+
+			const EscarpmentPointClass & point = e->Get_Point (p);
+			Vector3 toe (point.Position.X,point.Position.Y,point.LowerHeight);
+			Vector3 rim (point.Position.X,point.Position.Y,point.UpperHeight);
+			DebugRenderSystem::Add_Line (toe,rim,riser_color);
+
+			if (p > 0) {
+				const EscarpmentPointClass & prev = e->Get_Point (p - 1);
+				Vector3 prev_toe (prev.Position.X,prev.Position.Y,prev.LowerHeight);
+				Vector3 prev_rim (prev.Position.X,prev.Position.Y,prev.UpperHeight);
+				DebugRenderSystem::Add_Line (prev_rim,rim,RIM_COLOR);
+				DebugRenderSystem::Add_Line (prev_toe,toe,TOE_COLOR);
+			}
+		}
+
+		if (feature.HasBypassPoint) {
+			DebugRenderSystem::Add_Cross (feature.BypassPoint,4.0f,BYPASS_POINT_COLOR);
+		}
+	}
+}
+
+
 void WorldDebugDisplay::Update(void)
 {
 	bool anything_on = false;
@@ -392,6 +447,10 @@ void WorldDebugDisplay::Update(void)
 
 	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_TERRAIN_CHUNKS)) {
 		Draw_Terrain_Chunks();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_INTERIOR_CLIFFS)) {
+		Draw_Interior_Cliffs();
 	}
 
 	//	Every other layer is enumerated and toggleable (DebugRenderSystem::Is_Layer_Enabled

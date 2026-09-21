@@ -27,6 +27,7 @@
 #include "proceduralworldmanager.h"
 
 #include "boundarycliffgenerator.h"
+#include "interiorcliffgenerator.h"
 #include "macroterraingenerator.h"
 #include "proceduralboundsbuilder.h"
 #include "phys.h"
@@ -78,6 +79,16 @@ static const float CLIFF_BATTER = 0.08f;
 **	single object -- and the profile's authored dimensions are used instead.
 */
 static const float MINIMUM_FITTED_EXTENT = 50.0f;
+
+/*
+**	Phase 5's own tuning, not exposed on the profile -- InteriorCliffDensity (the one field
+**	Phase 1 already reserved for this phase) is the caller-facing knob; these are the fixed
+**	shape decisions BoundaryCliffParams' own CLIFF_BATTER etc. are for the boundary ring.
+*/
+static const float INTERIOR_CLIFF_SLOPE_THRESHOLD_FRACTION	= 0.92f;
+static const int	  INTERIOR_CLIFF_MAX_RUN_LENGTH				= 10;
+static const float INTERIOR_CLIFF_BATTER							= 0.1f;
+static const float INTERIOR_CLIFF_TOE_WIDTH						= 6.0f;
 
 
 void ProceduralWorldManager::Init(void)
@@ -288,6 +299,30 @@ bool ProceduralWorldManager::Build_Macro_Terrain(const ProceduralWorldProfile & 
 }
 
 
+/***********************************************************************************************
+ * Build_Interior_Cliffs -- roadmap Section 34 Phase 5                                           *
+ *                                                                                             *
+ *	Candidates come from the chunk registry Build_Macro_Terrain just built, so this simply has     *
+ *	nothing to read when that step was skipped or failed -- the caller passes terrain_built        *
+ *	rather than this function re-deriving the same `fit_to_level` check a second place.             *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Interior_Cliffs(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	InteriorCliffParams params;
+	params.Seed = WorldSeedService::Derive_Subsystem_Seed (
+							profile.Seed,WorldSeedService::SEED_DOMAIN_INTERIOR_CLIFFS);
+	params.SlopeThresholdFraction	= INTERIOR_CLIFF_SLOPE_THRESHOLD_FRACTION;
+	params.MaxBuildableSlopeRadians	= (float)DEG_TO_RAD (profile.Terrain.MaxBuildableSlopeDegrees);
+	params.Density							= profile.Terrain.InteriorCliffDensity;
+	params.MaxRunLength					= INTERIOR_CLIFF_MAX_RUN_LENGTH;
+	params.Batter							= INTERIOR_CLIFF_BATTER;
+	params.ToeWidth						= INTERIOR_CLIFF_TOE_WIDTH;
+	params.LayerIndex						= -1;		// the first cliff-kind terrain layer
+
+	return InteriorCliffGenerator::Generate (params,error_out);
+}
+
+
 bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 {
 	//	Directive 1.10.  No request, no procedural anything: this is every hand-authored map.
@@ -342,6 +377,20 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 						  terrain_error.Peek_Buffer ()));
 	}
 
+	//	Interior cliffs, Phase 5.  Reads the chunk registry Build_Macro_Terrain just built, so it
+	//	only runs when that step actually produced one -- terrain_built already carries both the
+	//	`fit_to_level` skip and any macro terrain failure, so there is exactly one place that
+	//	decides whether a chunk registry exists this run.
+	bool interior_cliffs_built = false;
+	StringClass interior_cliff_error;
+	if (terrain_built) {
+		interior_cliffs_built = Build_Interior_Cliffs (profile,&interior_cliff_error);
+		if (!interior_cliffs_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: interior cliffs failed (%s); the terrain itself is unaffected\r\n",
+							  interior_cliff_error.Peek_Buffer ()));
+		}
+	}
+
 	ActiveProfile = profile;
 
 	/*
@@ -351,8 +400,9 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 	*/
 	DynamicVectorClass<StringClass> content_identifiers;
 	Manifest = WorldGenerationManifestService::Create_Empty_World_Manifest (profile,content_identifiers);
-	Manifest.CliffRingChecksum = BoundaryCliffGenerator::Get_Ring_Checksum ();
-	Manifest.TerrainChecksum	= terrain_built ? MacroTerrainGenerator::Get_Terrain_Checksum () : 0;
+	Manifest.CliffRingChecksum			= BoundaryCliffGenerator::Get_Ring_Checksum ();
+	Manifest.TerrainChecksum			= terrain_built ? MacroTerrainGenerator::Get_Terrain_Checksum () : 0;
+	Manifest.InteriorCliffChecksum	= interior_cliffs_built ? InteriorCliffGenerator::Get_Checksum () : 0;
 
 	WorldActive = true;
 
@@ -366,6 +416,10 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 	WWDEBUG_SAY (("ProceduralWorldManager: macro terrain %s -- %s\r\n",
 					  terrain_built ? "built" : "skipped (fit_to_level)",
 					  terrain_built ? "" : "the level's own ground stands"));
+	WWDEBUG_SAY (("ProceduralWorldManager: interior cliffs %s -- %d feature(s), checksum 0x%08X\r\n",
+					  interior_cliffs_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
+					  InteriorCliffGenerator::Get_Feature_Count (),
+					  InteriorCliffGenerator::Get_Checksum ()));
 
 	return true;
 }
@@ -373,6 +427,11 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 
 void ProceduralWorldManager::Destroy_World(void)
 {
+	//	Interior cliffs before the boundary ring -- both only ever remove their own escarpment
+	//	IDs from the shared collection (see each generator's own Clear), so the order between
+	//	them does not matter; it is written this way only because interior cliffs depend on the
+	//	terrain the ring does not, so tearing down in roughly reverse build order reads clearly.
+	InteriorCliffGenerator::Clear ();
 	BoundaryCliffGenerator::Clear_Ring ();
 	WorldBoundsService::Clear ();
 
