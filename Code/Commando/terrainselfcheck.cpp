@@ -14,6 +14,7 @@
 #include "heightfield.h"
 #include "lineseg.h"
 #include "coltype.h"
+#include "macroterraingenerator.h"
 #include "renegadeterrainpatch.h"
 #include "ribbontype.h"
 #include "roadspline.h"
@@ -31,6 +32,7 @@
 #include "lightphys.h"
 #include "physlist.h"
 #include "pscene.h"
+#include "worldboundsservice.h"
 #include "worldlightmanager.h"
 #include "worldshadowmanager.h"
 #include "worldshroudmanager.h"
@@ -3485,6 +3487,180 @@ void	Check_Shroud (void)
 }
 
 
+/***********************************************************************************************
+**	macro
+**
+**	Roadmap Section 34 Phase 4.  Device-less, same reasoning as everything else in this file:
+**	MacroTerrainGenerator writes to a heightfield and reads WorldBoundsService, neither of which
+**	needs a physics scene, so determinism, height-range enforcement, ordinary-slope enforcement
+**	and cliff-band immutability are all provable before anything is rendered or collided with.
+***********************************************************************************************/
+static void
+Make_Macro_Terrain_Test_Params (MacroTerrainParams *out)
+{
+	out->Seed							= 777u;
+	out->WorldWidth					= 256.0f;
+	out->WorldHeight					= 256.0f;
+	out->ChunkSize						= 64.0f;
+	out->CenterX						= 0.0f;
+	out->CenterY						= 0.0f;
+	out->SeaLevel						= 0.0f;
+	out->MinElevation					= -20.0f;
+	out->MaxElevation					= 40.0f;
+	out->MaxBuildableSlopeRadians	= 0.5f;
+	out->FeatureScale					= 80.0f;
+	out->MacroRelief					= 0.6f;
+	out->HillDensity					= 0.4f;
+	out->MountainDensity				= 0.2f;
+	out->ValleyDensity					= 0.3f;
+	out->RidgeSharpness				= 0.5f;
+	out->PlateauChance					= 0.1f;
+	out->BoundaryApproachFlattening	= 0.6f;
+}
+
+
+void	Check_Macro_Terrain (void)
+{
+	WorldTerrainSystem::Init ();
+	MacroTerrainGenerator::Init ();
+	WorldBoundsService::Init ();
+
+	//
+	//	Every parameter rule refuses on its own, and refusing leaves nothing behind -- the same
+	//	"refuse whole, not half" contract Phase 3's cliff ring has.
+	//
+	{
+		StringClass error ("");
+		MacroTerrainParams bad;
+		Make_Macro_Terrain_Test_Params (&bad);
+		bad.WorldWidth = 0.0f;
+		Check (!MacroTerrainGenerator::Generate (bad, &error), "a zero world width was accepted");
+		Check (error.Get_Length () > 0, "a refused generation carried no reason");
+		Check (!MacroTerrainGenerator::Has_Generated (), "a refused generation left state behind");
+		Check (!WorldTerrainSystem::Has_Terrain (), "a refused generation left terrain behind");
+
+		Make_Macro_Terrain_Test_Params (&bad);
+		bad.MaxBuildableSlopeRadians = 0.0f;
+		Check (!MacroTerrainGenerator::Generate (bad, &error), "a zero slope limit was accepted");
+
+		Make_Macro_Terrain_Test_Params (&bad);
+		bad.MaxElevation = bad.MinElevation - 1.0f;
+		Check (!MacroTerrainGenerator::Generate (bad, &error), "a max elevation below min elevation was accepted");
+	}
+
+	//
+	//	No boundary configured: every chunk is ordinary interior, exactly what a hand-authored
+	//	heightfield with no procedural world ever gets.
+	//
+	MacroTerrainParams params;
+	Make_Macro_Terrain_Test_Params (&params);
+	{
+		StringClass error ("");
+		Check (MacroTerrainGenerator::Generate (params, &error),
+				 "generation refused a valid profile: %s", error.Peek_Buffer ());
+		Check (MacroTerrainGenerator::Has_Generated (), "a successful generation reported no terrain");
+		Check (WorldTerrainSystem::Has_Terrain (), "a successful generation left no heightfield");
+
+		//	A 256-unit field at 64/16=4-unit cells is 65 vertices across, which is 4 chunks --
+		//	stated as the arithmetic it is so a change to either input shows up here as a wrong
+		//	expectation rather than a silently different field, same convention Check_Far_Terrain
+		//	uses next door.
+		Check (MacroTerrainGenerator::Get_Vertex_Count_X () == 65,
+				 "a 256-unit field at 4-unit cells is %d vertices across, not 65",
+				 MacroTerrainGenerator::Get_Vertex_Count_X ());
+		Check (WorldTerrainSystem::Get_Chunk_Count_X () == 4,
+				 "a 64-vertex-wide field is %d chunks across, not 4", WorldTerrainSystem::Get_Chunk_Count_X ());
+		Check (WorldTerrainSystem::Get_Chunk_Count_Y () == 4,
+				 "a 64-vertex-tall field is %d chunks down, not 4", WorldTerrainSystem::Get_Chunk_Count_Y ());
+
+		StringClass report ("");
+		Check (MacroTerrainGenerator::Check_Height_Range (params, &report) == 0,
+				 "unconfigured terrain left its own height range: %s", report.Peek_Buffer ());
+		Check (MacroTerrainGenerator::Check_Ordinary_Slope_Limit (params, &report) == 0,
+				 "unconfigured terrain exceeded its own slope limit: %s", report.Peek_Buffer ());
+		Check (MacroTerrainGenerator::Check_Cliff_Band_Untouched (&report) == 0,
+				 "unconfigured terrain reported a cliff-band violation with no boundary configured");
+
+		bool any_cliff_band = false;
+		for (int py = 0; py < WorldTerrainSystem::Get_Chunk_Count_Y (); py++) {
+			for (int px = 0; px < WorldTerrainSystem::Get_Chunk_Count_X (); px++) {
+				TerrainChunkInfoClass info;
+				if (WorldTerrainSystem::Get_Chunk_Info (px, py, &info) && info.CliffBand) {
+					any_cliff_band = true;
+				}
+			}
+		}
+		Check (!any_cliff_band, "a chunk was tagged cliff band with no boundary configured");
+	}
+
+	//
+	//	Section 3B determinism: the same seed and profile produce the same terrain, a different
+	//	seed produces a different one.
+	//
+	{
+		StringClass error ("");
+		unsigned int first = MacroTerrainGenerator::Get_Terrain_Checksum ();
+		Check (first != 0, "a generated terrain carried no checksum");
+
+		Check (MacroTerrainGenerator::Generate (params, &error), "regenerating the same terrain failed");
+		Check (MacroTerrainGenerator::Get_Terrain_Checksum () == first,
+				 "the same seed and profile produced a different terrain checksum");
+
+		MacroTerrainParams other = params;
+		other.Seed = params.Seed + 1u;
+		Check (MacroTerrainGenerator::Generate (other, &error), "generating a second seed failed");
+		Check (MacroTerrainGenerator::Get_Terrain_Checksum () != first,
+				 "two different terrain seeds produced an identical terrain checksum");
+	}
+
+	//
+	//	With a boundary configured, the immutable cliff band -- and only the cliff band -- comes
+	//	back flat.  A 60-unit boundary square sits well inside the 256-unit field, leaving both a
+	//	cliff-band ring and an ordinary interior for the check to find.
+	//
+	{
+		DynamicVectorClass<Vector2> polygon;
+		polygon.Add (Vector2 (-60.0f,-60.0f));
+		polygon.Add (Vector2 (-60.0f, 60.0f));
+		polygon.Add (Vector2 ( 60.0f, 60.0f));
+		polygon.Add (Vector2 ( 60.0f,-60.0f));
+
+		StringClass error ("");
+		Check (WorldBoundsService::Configure (polygon,15.0f,5.0f,200.0f,&error),
+				 "the test boundary would not configure: %s", error.Peek_Buffer ());
+
+		Check (MacroTerrainGenerator::Generate (params, &error),
+				 "generation with a boundary configured failed: %s", error.Peek_Buffer ());
+
+		StringClass report ("");
+		Check (MacroTerrainGenerator::Check_Cliff_Band_Untouched (&report) == 0,
+				 "a cliff-band chunk was not flat at sea level: %s", report.Peek_Buffer ());
+		Check (MacroTerrainGenerator::Check_Height_Range (params, &report) == 0,
+				 "terrain with a boundary left its own height range: %s", report.Peek_Buffer ());
+		Check (MacroTerrainGenerator::Check_Ordinary_Slope_Limit (params, &report) == 0,
+				 "terrain with a boundary exceeded its own slope limit: %s", report.Peek_Buffer ());
+
+		bool any_cliff_band = false;
+		bool any_interior = false;
+		for (int py = 0; py < WorldTerrainSystem::Get_Chunk_Count_Y (); py++) {
+			for (int px = 0; px < WorldTerrainSystem::Get_Chunk_Count_X (); px++) {
+				TerrainChunkInfoClass info;
+				if (!WorldTerrainSystem::Get_Chunk_Info (px, py, &info)) continue;
+				if (info.CliffBand) any_cliff_band = true; else any_interior = true;
+			}
+		}
+		Check (any_cliff_band, "a 256-unit field around a 120-unit boundary square produced no cliff-band chunk");
+		Check (any_interior, "a boundary square inside a larger field left no ordinary interior chunk");
+
+		WorldBoundsService::Clear ();
+	}
+
+	WorldTerrainSystem::Shutdown ();
+	MacroTerrainGenerator::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -3539,6 +3715,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "shroud") == 0)) {
 		Check_Shroud ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "macro") == 0)) {
+		Check_Macro_Terrain ();
 	}
 
 	if (_Failures == 0) {

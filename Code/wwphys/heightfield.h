@@ -71,15 +71,28 @@ class LineSegClass;
 class TerrainPatchClass
 {
 public:
-	TerrainPatchClass(void) : MinHeight(0.0f), MaxHeight(0.0f), Dirty(true) { }
+	TerrainPatchClass(void) :
+		MinHeight(0.0f), MaxHeight(0.0f),
+		MinSlopeRadians(0.0f), MaxSlopeRadians(0.0f),
+		Dirty(true) { }
 
 	float		MinHeight;
 	float		MaxHeight;
+
+	//	Roadmap Section 34 Phase 4 step 14's slope statistics, computed alongside the height
+	//	extent for the same reason MinHeight/MaxHeight are: a chunk registry built later reads
+	//	these off the patch rather than re-walking the vertices a second time.  Same convention
+	//	as HeightfieldClass::Sample_Slope -- radians from vertical, acos of the vertex normal's Z.
+	float		MinSlopeRadians;
+	float		MaxSlopeRadians;
+
 	bool		Dirty;
 
 	bool		operator == (const TerrainPatchClass & that) const
 	{
-		return (MinHeight == that.MinHeight) && (MaxHeight == that.MaxHeight) && (Dirty == that.Dirty);
+		return (MinHeight == that.MinHeight) && (MaxHeight == that.MaxHeight) &&
+				 (MinSlopeRadians == that.MinSlopeRadians) && (MaxSlopeRadians == that.MaxSlopeRadians) &&
+				 (Dirty == that.Dirty);
 	}
 	bool		operator != (const TerrainPatchClass & that) const	{ return !(*this == that); }
 };

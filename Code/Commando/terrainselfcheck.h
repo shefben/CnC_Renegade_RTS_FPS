@@ -41,6 +41,7 @@ namespace	TerrainSelfCheck
 	//		lights      the dynamic light grid, its bounds, and its query cost
 	//		far         the far/background terrain layer and its near-field boundary
 	//		shroud      the per-team strategic shroud grid and its sensor-source API
+	//		macro       the procedural macro terrain generator and its chunk registry
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

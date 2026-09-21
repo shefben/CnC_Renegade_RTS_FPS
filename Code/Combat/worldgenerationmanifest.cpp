@@ -40,6 +40,7 @@ WorldGenerationManifest::WorldGenerationManifest(void) :
 	ProfileHash (0),
 	ContentManifestHash (0),
 	CliffRingChecksum (0),
+	TerrainChecksum (0),
 	RoadGraphChecksum (0),
 	NavigationRevision (0)
 {
@@ -65,6 +66,7 @@ Format_Canonical_Profile_String(const ProceduralWorldProfile & p)
 		"b.shape=%s b.band=%.4f b.cmin=%.4f b.cmax=%.4f b.hard=%.4f b.ceil=%.4f "
 		"b.rimrough=%.4f b.facerough=%.4f b.toe=%.4f b.colsimp=%d "
 		"t.relief=%.4f t.hill=%.4f t.mtn=%.4f t.icliff=%.4f t.valley=%.4f "
+		"t.minelev=%.4f t.maxelev=%.4f t.slope=%.4f t.scale=%.4f t.ridge=%.4f t.plateau=%.4f t.approach=%.4f "
 		"wa.riv=%d wa.lake=%d wa.pond=%d wa.coast=%d "
 		"f.forest=%d f.settle=%d f.tunnel=%d f.hwy=%d f.tib=%d "
 		"r.local=%d r.alt=%d "
@@ -79,6 +81,8 @@ Format_Canonical_Profile_String(const ProceduralWorldProfile & p)
 			p.Boundary.CollisionSimplification,
 		p.Terrain.MacroRelief,p.Terrain.HillDensity,p.Terrain.MountainDensity,
 			p.Terrain.InteriorCliffDensity,p.Terrain.ValleyDensity,
+		p.Terrain.MinElevation,p.Terrain.MaxElevation,p.Terrain.MaxBuildableSlopeDegrees,p.Terrain.FeatureScale,
+			p.Terrain.RidgeSharpness,p.Terrain.PlateauChance,p.Terrain.BoundaryApproachFlattening,
 		p.Water.Rivers ? 1 : 0,p.Water.Lakes ? 1 : 0,p.Water.Ponds ? 1 : 0,p.Water.Coastline ? 1 : 0,
 		p.Features.Forests ? 1 : 0,p.Features.Settlements ? 1 : 0,p.Features.Tunnels ? 1 : 0,
 			p.Features.Highways ? 1 : 0,p.Features.TiberiumFields ? 1 : 0,
@@ -183,6 +187,7 @@ bool WorldGenerationManifestService::Serialize(const WorldGenerationManifest & m
 	root ["profile_hash"]					= m.ProfileHash;
 	root ["content_manifest_hash"]		= m.ContentManifestHash;
 	root ["cliff_ring_checksum"]			= m.CliffRingChecksum;
+	root ["terrain_checksum"]				= m.TerrainChecksum;
 	root ["road_graph_checksum"]			= m.RoadGraphChecksum;
 	root ["navigation_revision"]			= m.NavigationRevision;
 
@@ -218,6 +223,7 @@ bool WorldGenerationManifestService::Deserialize(const char * json_text,WorldGen
 		m.ProfileHash				= root.value ("profile_hash",0u);
 		m.ContentManifestHash	= root.value ("content_manifest_hash",0u);
 		m.CliffRingChecksum		= root.value ("cliff_ring_checksum",0u);
+		m.TerrainChecksum			= root.value ("terrain_checksum",0u);
 	m.RoadGraphChecksum		= root.value ("road_graph_checksum",0u);
 		m.NavigationRevision		= root.value ("navigation_revision",0u);
 

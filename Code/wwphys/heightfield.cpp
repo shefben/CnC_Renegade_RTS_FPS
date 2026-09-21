@@ -790,17 +790,34 @@ void HeightfieldClass::Update_Patch_Extents(int px,int py)
 	float min_height = Get_Height(ix0,iy0);
 	float max_height = min_height;
 
+	Vector3 first_normal = Compute_Vertex_Normal(ix0,iy0);
+	float first_cosine = WWMath::Clamp(first_normal.Z,-1.0f,1.0f);
+	float min_slope = WWMath::Acos(first_cosine);
+	float max_slope = min_slope;
+
 	for (int iy = iy0; iy <= iy1; iy++) {
 		for (int ix = ix0; ix <= ix1; ix++) {
 			float height = Get_Height(ix,iy);
 			if (height < min_height) min_height = height;
 			if (height > max_height) max_height = height;
+
+			//	Vertex normals, not per-triangle ones: Phase 4's chunk registry wants "how steep
+			//	does this patch get anywhere in it", and a vertex normal already blends the
+			//	triangles that meet there the same way Compute_Vertex_Normal's own seam-agreement
+			//	guarantee does for lighting.
+			Vector3 normal = Compute_Vertex_Normal(ix,iy);
+			float cosine = WWMath::Clamp(normal.Z,-1.0f,1.0f);
+			float slope = WWMath::Acos(cosine);
+			if (slope < min_slope) min_slope = slope;
+			if (slope > max_slope) max_slope = slope;
 		}
 	}
 
 	TerrainPatchClass & patch = Patches[py * PatchCountX + px];
 	patch.MinHeight = min_height;
 	patch.MaxHeight = max_height;
+	patch.MinSlopeRadians = min_slope;
+	patch.MaxSlopeRadians = max_slope;
 }
 
 

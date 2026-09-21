@@ -148,3 +148,52 @@ manifest that describes a different world than the one it came from.
 hash and `MinBaseExpansionArea` was hashed twice. Fixed in Phase 3. Any profile hash recorded
 before this point is not comparable with one recorded after; the generator version bump to 2
 covers that.
+
+## Phase 4 additions
+
+### No new seed domain
+
+Macro terrain uses the existing `terrain` domain (`SEED_DOMAIN_TERRAIN`), reserved by Phase 1
+for exactly this purpose and unused until now. No new domain was needed.
+
+### Noise channel offsets are not separate streams
+
+`MacroTerrainGenerator`'s four noise channels (macro, ridge, hill, valley) do not each derive a
+separate subsystem seed. `Derive_Subsystem_Seed` is called once, for the whole terrain domain;
+each channel then offsets that one integer seed by a small, fixed, documented constant
+(`seed + 1013`, `+ 2027`, `+ 3041`, ...) before sampling `TerrainMaskClass::Hash_Value`. This is
+deliberately narrower than Section 3B.1's per-subsystem derivation contract, which governs
+separate *subsystems* (terrain, hydrology, roads, ...) rather than internal channels of one
+generator's own noise. Two subsystems drawing correlated noise is the fault that contract
+prevents (see `SEED_DOMAIN_BOUNDARY_CLIFFS`'s own reasoning); four channels of the same
+subsystem sampling the same deterministic hash at different fixed offsets is not a new source
+of correlation risk, since all four are already coupled by construction (they describe one
+landform).
+
+### The chunk registry checksum
+
+`WorldTerrainSystem::Get_World_Chunk_Checksum` (Phase 4 step 17) is a CRC over every chunk's
+own checksum, in row-major order; each chunk's checksum is itself a CRC over its height/slope
+extent and its `Buildable`/`CliffBand` flags, quantized to a thousandth of a world unit or
+radian per Section 3B.4. It is computed by `Build_Chunk_Registry`, which needs no physics
+scene, so — like `BoundaryCliffGenerator`'s ring checksum — it exists in a device-less process
+and is what `terrain_macro`'s determinism check actually compares.
+
+### Bounded, not proven, slope relaxation
+
+The generation-time slope cap (`terrain.max_buildable_slope_degrees`) is enforced by a fixed
+number of relaxation passes (`SLOPE_RELAXATION_PASSES = 4`), not iterated until the limit is
+satisfied everywhere. This is consistent with Section 3C.1's bounded-retry philosophy, but it
+means the enforcement is *reduces toward the limit*, not *guarantees the limit*, for a profile
+aggressive enough to defeat four passes. `MacroTerrainGenerator::Check_Ordinary_Slope_Limit`
+reports the worst violation it finds rather than asserting there are none, which keeps the
+check honest about what a bounded pass count actually proves.
+
+### `fit_to_level` skips the generator entirely
+
+Unlike the cliff ring, which still builds around a fitted world, macro terrain generation does
+not run at all when `world.fit_to_level` is true — `ProceduralWorldManager::Build_Macro_Terrain`
+returns success having done nothing. `WorldGenerationManifest::TerrainChecksum` is `0` for
+every world produced by the one caller that exists today, which is the correct, non-degenerate
+value for "the generator did not run", not a sign of a broken checksum. See
+`docs/procedural_world/MacroTerrainGeneration.md`.

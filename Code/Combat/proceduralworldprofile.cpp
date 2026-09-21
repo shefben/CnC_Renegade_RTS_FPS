@@ -127,6 +127,16 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			p.Terrain.MountainDensity			= t.value ("mountain_density",p.Terrain.MountainDensity);
 			p.Terrain.InteriorCliffDensity	= t.value ("interior_cliff_density",p.Terrain.InteriorCliffDensity);
 			p.Terrain.ValleyDensity			= t.value ("valley_density",p.Terrain.ValleyDensity);
+
+			//	Schema 3.  Absent in a schema-1/2 profile, which is why each default comes from
+			//	the value already in p rather than from a literal repeated here.
+			p.Terrain.MinElevation					= t.value ("min_elevation",p.Terrain.MinElevation);
+			p.Terrain.MaxElevation					= t.value ("max_elevation",p.Terrain.MaxElevation);
+			p.Terrain.MaxBuildableSlopeDegrees	= t.value ("max_buildable_slope_degrees",p.Terrain.MaxBuildableSlopeDegrees);
+			p.Terrain.FeatureScale					= t.value ("feature_scale",p.Terrain.FeatureScale);
+			p.Terrain.RidgeSharpness				= t.value ("ridge_sharpness",p.Terrain.RidgeSharpness);
+			p.Terrain.PlateauChance					= t.value ("plateau_chance",p.Terrain.PlateauChance);
+			p.Terrain.BoundaryApproachFlattening	= t.value ("boundary_approach_flattening",p.Terrain.BoundaryApproachFlattening);
 		}
 
 		if (root.contains ("water") && root ["water"].is_object ()) {
@@ -273,6 +283,31 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	NEED_NONNEGATIVE (p.Terrain.MountainDensity,"negative/non-finite terrain.mountain_density");
 	NEED_NONNEGATIVE (p.Terrain.InteriorCliffDensity,"negative/non-finite terrain.interior_cliff_density");
 	NEED_NONNEGATIVE (p.Terrain.ValleyDensity,"negative/non-finite terrain.valley_density");
+
+	//	Schema 3's macro terrain fields (Phase 4).
+	NEED_FINITE (p.Terrain.MinElevation,"non-finite terrain.min_elevation");
+	NEED_FINITE (p.Terrain.MaxElevation,"non-finite terrain.max_elevation");
+	if (p.Terrain.MaxElevation < p.Terrain.MinElevation)	FAIL ("terrain.max_elevation below min_elevation");
+
+	//	Section 1.5's aircraft rule extends naturally to generated ground: nothing the terrain
+	//	generator can produce may reach as high as where aircraft are allowed to fly.
+	if (p.Terrain.MaxElevation >= p.Boundary.AirCeiling)	FAIL ("terrain.max_elevation must clear boundary.air_ceiling");
+
+	NEED_FINITE (p.Terrain.MaxBuildableSlopeDegrees,"non-finite terrain.max_buildable_slope_degrees");
+	if ((p.Terrain.MaxBuildableSlopeDegrees <= 0.0f) || (p.Terrain.MaxBuildableSlopeDegrees >= 90.0f))
+																				FAIL ("terrain.max_buildable_slope_degrees must be between 0 and 90");
+
+	NEED_FINITE (p.Terrain.FeatureScale,"non-finite terrain.feature_scale");
+	if (p.Terrain.FeatureScale <= 0.0f)						FAIL ("terrain.feature_scale must be positive");
+
+	//	Normalized weights, same rule as the boundary block's roughness fields: a value above 1
+	//	is a profile author misunderstanding the unit, not "more variation" to silently clamp.
+	NEED_NONNEGATIVE (p.Terrain.RidgeSharpness,"negative/non-finite terrain.ridge_sharpness");
+	NEED_NONNEGATIVE (p.Terrain.PlateauChance,"negative/non-finite terrain.plateau_chance");
+	NEED_NONNEGATIVE (p.Terrain.BoundaryApproachFlattening,"negative/non-finite terrain.boundary_approach_flattening");
+	if (p.Terrain.RidgeSharpness > 1.0f)						FAIL ("terrain.ridge_sharpness above 1");
+	if (p.Terrain.PlateauChance > 1.0f)						FAIL ("terrain.plateau_chance above 1");
+	if (p.Terrain.BoundaryApproachFlattening > 1.0f)		FAIL ("terrain.boundary_approach_flattening above 1");
 
 	//	Bounded retry counts.
 	if (p.Retry.MaxLocalRetriesPerStage <= 0)				FAIL ("retry.max_local_retries_per_stage must be positive");

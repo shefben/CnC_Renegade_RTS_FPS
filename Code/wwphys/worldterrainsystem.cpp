@@ -29,6 +29,7 @@
 #include "worldboundsservice.h"
 
 #include "colmath.h"
+#include "crc.h"
 #include "frustum.h"
 #include "lineseg.h"
 #include "matrix3d.h"
@@ -60,6 +61,11 @@ bool *					WorldTerrainSystem::FarBlockLastNear		= nullptr;
 float *					WorldTerrainSystem::FarBlockOverlapTimer	= nullptr;
 int						WorldTerrainSystem::VisibleNearPatchCount	= 0;
 int						WorldTerrainSystem::VisibleFarBlockCount	= 0;
+
+TerrainChunkInfoClass *	WorldTerrainSystem::ChunkRegistry				= nullptr;
+int								WorldTerrainSystem::ChunkRegistryCountX	= 0;
+int								WorldTerrainSystem::ChunkRegistryCountY	= 0;
+float							WorldTerrainSystem::ChunkMaxBuildableSlopeRadians	= 0.0f;
 
 
 /*
@@ -142,6 +148,7 @@ void WorldTerrainSystem::Destroy_Terrain(void)
 	//	different size would read the wrong ground.
 	Destroy_Far_Terrain();
 	Destroy_Collision();
+	Destroy_Chunk_Registry();
 	TerrainTextureSystem::Destroy_Masks();
 
 	if (Heightfield != nullptr) {
@@ -831,6 +838,206 @@ StaticPhysClass * WorldTerrainSystem::Peek_Collision_Patch(int px,int py)
 		return nullptr;
 	}
 	return CollisionPatches[py * CollisionPatchCountX + px];
+}
+
+
+/***********************************************************************************************
+**	The chunk registry -- roadmap Section 34 Phase 4 steps 13-16.  See TerrainChunkInfoClass and
+**	the header's own comment on Build_Chunk_Registry for what "chunk" means here.
+***********************************************************************************************/
+
+//	Quantization for the per-chunk checksum, same convention as Phase 3's cliff ring checksum
+//	(Section 3B.4: never hash a raw float) -- a thousandth of a world unit and a thousandth of
+//	a radian are both far finer than anything a generator or an edit could disagree about.
+static const float CHUNK_CHECKSUM_QUANTUM = 1000.0f;
+
+
+bool WorldTerrainSystem::Build_Chunk_Registry_Entry(int px,int py)
+{
+	int index = py * ChunkRegistryCountX + px;
+	TerrainChunkInfoClass & info = ChunkRegistry[index];
+
+	//	Revision 0 means "never computed", which first build always is; after that, only a
+	//	patch the heightfield itself still calls dirty needs redoing.  This is the same test
+	//	Build_Collision_Patch makes of the same flag, read here rather than cleared -- clearing
+	//	it is collision's job, so an edit still reaches collision after the registry has looked.
+	if ((info.Revision != 0) && !Heightfield->Is_Patch_Dirty(px,py)) {
+		return true;
+	}
+
+	TerrainPatchClass patch;
+	if (!Heightfield->Get_Patch(px,py,&patch)) {
+		return false;
+	}
+	info.MinHeight			= patch.MinHeight;
+	info.MaxHeight			= patch.MaxHeight;
+	info.MinSlopeRadians	= patch.MinSlopeRadians;
+	info.MaxSlopeRadians	= patch.MaxSlopeRadians;
+
+	//	A chunk is cliff band the moment any point of it is -- half a chunk inside the immutable
+	//	band and half outside is still not a chunk anything may build on or walk a road through.
+	//	Permissive when unconfigured, same as every other WorldBoundsService query: a hand-
+	//	authored heightfield with no procedural boundary has no cliff-band chunks at all.
+	info.CliffBand = false;
+	if (WorldBoundsService::Is_Configured()) {
+		AABoxClass bounds;
+		if (Heightfield->Get_Patch_Bounds(px,py,&bounds)) {
+			Vector2 corners[5];
+			corners[0] = Vector2(bounds.Center.X,bounds.Center.Y);
+			corners[1] = Vector2(bounds.Center.X - bounds.Extent.X,bounds.Center.Y - bounds.Extent.Y);
+			corners[2] = Vector2(bounds.Center.X + bounds.Extent.X,bounds.Center.Y - bounds.Extent.Y);
+			corners[3] = Vector2(bounds.Center.X - bounds.Extent.X,bounds.Center.Y + bounds.Extent.Y);
+			corners[4] = Vector2(bounds.Center.X + bounds.Extent.X,bounds.Center.Y + bounds.Extent.Y);
+			for (int i = 0; i < 5; i++) {
+				if (WorldBoundsService::Classify_Point(corners[i]) >= WORLD_ZONE_CLIFF_BAND) {
+					info.CliffBand = true;
+					break;
+				}
+			}
+		}
+	}
+
+	//	Coarse and slope-only, deliberately -- see TerrainChunkInfoClass's own comment on why
+	//	this is not Section 18C's canonical buildability query.
+	info.Buildable = !info.CliffBand && (info.MaxSlopeRadians <= ChunkMaxBuildableSlopeRadians);
+
+	{
+		CRCEngine crc;
+		int q_min			= (int)(info.MinHeight * CHUNK_CHECKSUM_QUANTUM);
+		int q_max			= (int)(info.MaxHeight * CHUNK_CHECKSUM_QUANTUM);
+		int q_min_slope	= (int)(info.MinSlopeRadians * CHUNK_CHECKSUM_QUANTUM);
+		int q_max_slope	= (int)(info.MaxSlopeRadians * CHUNK_CHECKSUM_QUANTUM);
+		int q_buildable	= info.Buildable ? 1 : 0;
+		int q_cliff			= info.CliffBand ? 1 : 0;
+		crc (&q_min,sizeof(q_min));
+		crc (&q_max,sizeof(q_max));
+		crc (&q_min_slope,sizeof(q_min_slope));
+		crc (&q_max_slope,sizeof(q_max_slope));
+		crc (&q_buildable,sizeof(q_buildable));
+		crc (&q_cliff,sizeof(q_cliff));
+		info.Checksum = (unsigned int)crc;
+	}
+
+	info.Revision++;
+	return true;
+}
+
+
+bool WorldTerrainSystem::Build_Chunk_Registry(float max_buildable_slope_radians)
+{
+	if (!Has_Terrain()) {
+		Destroy_Chunk_Registry();
+		return false;
+	}
+
+	int count_x = Heightfield->Get_Patch_Count_X();
+	int count_y = Heightfield->Get_Patch_Count_Y();
+
+	//	A field of a different shape is a different set of chunks -- same rule Build_Collision
+	//	follows for the same reason.
+	if ((ChunkRegistry != nullptr) &&
+		 ((count_x != ChunkRegistryCountX) || (count_y != ChunkRegistryCountY))) {
+		Destroy_Chunk_Registry();
+	}
+
+	if (ChunkRegistry == nullptr) {
+		ChunkRegistryCountX = count_x;
+		ChunkRegistryCountY = count_y;
+		ChunkRegistry = new TerrainChunkInfoClass[count_x * count_y];
+	}
+
+	//	A threshold change invalidates every entry -- Revision reset to 0 makes the entry loop
+	//	below recompute all of them regardless of the heightfield's own dirty flags, because
+	//	"buildable" depends on the new number, not on whether the ground moved.
+	if (ChunkMaxBuildableSlopeRadians != max_buildable_slope_radians) {
+		ChunkMaxBuildableSlopeRadians = max_buildable_slope_radians;
+		for (int index = 0; index < count_x * count_y; index++) {
+			ChunkRegistry[index].Revision = 0;
+		}
+	}
+
+	bool built_everything = true;
+	for (int py = 0; py < count_y; py++) {
+		for (int px = 0; px < count_x; px++) {
+			if (!Build_Chunk_Registry_Entry(px,py)) {
+				built_everything = false;
+			}
+		}
+	}
+
+	return built_everything;
+}
+
+
+void WorldTerrainSystem::Destroy_Chunk_Registry(void)
+{
+	if (ChunkRegistry != nullptr) {
+		delete [] ChunkRegistry;
+		ChunkRegistry = nullptr;
+	}
+	ChunkRegistryCountX = 0;
+	ChunkRegistryCountY = 0;
+	ChunkMaxBuildableSlopeRadians = 0.0f;
+}
+
+
+bool WorldTerrainSystem::Has_Chunk_Registry(void)
+{
+	return (ChunkRegistry != nullptr);
+}
+
+
+int WorldTerrainSystem::Get_Chunk_Count_X(void)
+{
+	return ChunkRegistryCountX;
+}
+
+
+int WorldTerrainSystem::Get_Chunk_Count_Y(void)
+{
+	return ChunkRegistryCountY;
+}
+
+
+bool WorldTerrainSystem::Get_Chunk_Info(int px,int py,TerrainChunkInfoClass * info_out)
+{
+	if ((ChunkRegistry == nullptr) || (info_out == nullptr)) {
+		return false;
+	}
+	if ((px < 0) || (py < 0) || (px >= ChunkRegistryCountX) || (py >= ChunkRegistryCountY)) {
+		return false;
+	}
+	*info_out = ChunkRegistry[py * ChunkRegistryCountX + px];
+	return true;
+}
+
+
+unsigned int WorldTerrainSystem::Get_Chunk_Checksum(int px,int py)
+{
+	TerrainChunkInfoClass info;
+	if (!Get_Chunk_Info(px,py,&info)) {
+		return 0;
+	}
+	return info.Checksum;
+}
+
+
+unsigned int WorldTerrainSystem::Get_World_Chunk_Checksum(void)
+{
+	if (ChunkRegistry == nullptr) {
+		return 0;
+	}
+
+	//	Row-major, fixed order -- Section 3B.2: never depend on caller-supplied or iteration
+	//	order for an authoritative result, and there is no caller-supplied order here to depend
+	//	on in the first place.
+	CRCEngine crc;
+	int count = ChunkRegistryCountX * ChunkRegistryCountY;
+	for (int index = 0; index < count; index++) {
+		unsigned int checksum = ChunkRegistry[index].Checksum;
+		crc (&checksum,sizeof(checksum));
+	}
+	return (unsigned int)crc;
 }
 
 

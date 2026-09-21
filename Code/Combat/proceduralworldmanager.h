@@ -125,6 +125,12 @@ class ProceduralWorldManager
 		static bool		Fit_Profile_To_Level(ProceduralWorldProfile * profile);
 		static bool		Build_Cliff_Ring(const ProceduralWorldProfile & profile,StringClass * error_out);
 
+		//	Roadmap Section 34 Phase 4.  `built_out` is set to whether generation actually ran --
+		//	false and a true return together mean "correctly skipped", which is what a
+		//	`fit_to_level` world always does; see macroterraingenerator.h's own class comment for
+		//	why a fitted world's ground is never touched.
+		static bool		Build_Macro_Terrain(const ProceduralWorldProfile & profile,bool * built_out,StringClass * error_out);
+
 		static bool		Requested;
 		static bool		WorldActive;
 

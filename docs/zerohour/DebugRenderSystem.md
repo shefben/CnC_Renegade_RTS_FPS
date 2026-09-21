@@ -63,11 +63,19 @@ new per-instance iterator on a world system, only a debug consumer for data that
   explored area is bounded the same way every other layer already is -- `DebugRenderSystem`'s own
   line pool drops and counts anything past its budget rather than growing.
 
+**Update, V2 roadmap Section 34 Phase 4**: `DEBUG_LAYER_TERRAIN_CHUNKS` draws for real now, and
+unlike the two above it needed the new per-chunk iterator the row below once said was missing --
+`WorldTerrainSystem::Build_Chunk_Registry`/`Get_Chunk_Info`
+(`Code/wwphys/worldterrainsystem.{h,cpp}`), added by that same phase for its own chunk-metadata
+requirement, with this overlay as its first consumer. `Draw_Terrain_Chunks` draws one box per
+chunk at the chunk's own top, coloured green (buildable), yellow (ordinary but too steep) or red
+(cliff band) -- see `docs/procedural_world/MacroTerrainGeneration.md`.
+
 Every other layer is a real, toggleable, named entry in `DebugLayerType` that still draws nothing:
 
 | Layer | Awaiting |
 |---|---|
-| `terrain_chunks`, `terrain_materials` | `WorldTerrainSystem` has no public per-chunk/per-material iterator today |
+| `terrain_materials` | `WorldTerrainSystem` has no public per-material iterator today |
 | `road_splines`, `road_triangles` | `RoadSystem` has no public per-spline/per-triangle iterator today |
 | `bridge_sections` | `BridgeSystem` has no public per-section iterator today |
 | `water_volumes` | `WaterSystem` has no public per-volume iterator today |

@@ -128,12 +128,37 @@ struct ProceduralWorldBoundarySettings
 struct ProceduralWorldTerrainSettings
 {
 	ProceduralWorldTerrainSettings(void) : MacroRelief(0.6f),HillDensity(0.45f),MountainDensity(0.18f),
-														 InteriorCliffDensity(0.16f),ValleyDensity(0.30f) { }
+														 InteriorCliffDensity(0.16f),ValleyDensity(0.30f),
+														 MinElevation(-30.0f),MaxElevation(160.0f),
+														 MaxBuildableSlopeDegrees(28.0f),FeatureScale(900.0f),
+														 RidgeSharpness(0.55f),PlateauChance(0.15f),
+														 BoundaryApproachFlattening(0.6f) { }
 	float	MacroRelief;				// normalized weight, 0..1
 	float	HillDensity;				// normalized weight, 0..1
 	float	MountainDensity;			// normalized weight, 0..1
-	float	InteriorCliffDensity;	// normalized weight, 0..1
+	float	InteriorCliffDensity;	// normalized weight, 0..1 -- Phase 5's own concern; parsed and
+												//	hashed since Phase 1, not consumed by Phase 4's heightfield
+												//	generator (Section 8.1's vertical-faced replacement does
+												//	not exist yet)
 	float	ValleyDensity;				// normalized weight, 0..1
+
+	//	Schema 3, added when Phase 4 built the macro terrain generator these five densities
+	//	above were parsed-but-unconsumed placeholders for.
+	float	MinElevation;				// world units relative to world.sea_level, may be negative -- the relief floor
+	float	MaxElevation;				// world units relative to world.sea_level, must clear boundary.cliff_min_height -- the relief ceiling
+	float	MaxBuildableSlopeDegrees;	// degrees, (0,90) -- both the generation-time ordinary-slope cap
+												//	and the chunk registry's buildability threshold.  One number
+												//	serves both deliberately: two separate definitions of "too
+												//	steep" that could silently disagree is worse than one that
+												//	is slightly conservative for either use.
+	float	FeatureScale;				// world units, > 0 -- the approximate wavelength of a macro landform
+	float	RidgeSharpness;			// normalized weight, 0..1
+	float	PlateauChance;				// normalized weight, 0..1 -- 0 means the generator never terraces
+												//	a rise into a mesa; see docs/procedural_world/MacroTerrainGeneration.md
+												//	for why this is a heightfield approximation, not Phase 5's
+												//	vertical-faced mesa
+	float	BoundaryApproachFlattening;	// normalized weight, 0..1 -- how strongly relief is pulled toward
+												//	the flat cliff band as the approach zone nears it
 };
 
 
@@ -227,7 +252,16 @@ class ProceduralWorldProfile
 		//	it now where before it produced only an invisible boundary, so the algorithm
 		//	identity had to move with it.  A schema-1 profile still loads -- the four new fields
 		//	take their documented defaults -- which is the point of versioning them separately.
-		enum { CURRENT_SCHEMA_VERSION = 2, CURRENT_GENERATOR_VERSION = 2 };
+		//
+		//	Schema 3 added the terrain block's elevation range, buildable-slope cap, feature
+		//	scale, ridge sharpness, plateau chance and boundary-approach flattening (Phase 4).
+		//	Generator 3 is the macro terrain generator: a world with `world.fit_to_level` false
+		//	now stands on a generated landform instead of the flat plane a heightfield-less
+		//	world always was.  A schema-1 or schema-2 profile still loads; the six new fields
+		//	take their documented defaults.  A `fit_to_level` world's own ground is unaffected
+		//	either way -- see ProceduralWorldManager::Build_Macro_Terrain for why terrain
+		//	generation is skipped there entirely.
+		enum { CURRENT_SCHEMA_VERSION = 3, CURRENT_GENERATOR_VERSION = 3 };
 
 		ProceduralWorldProfile(void);
 

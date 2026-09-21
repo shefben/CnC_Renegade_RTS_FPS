@@ -2562,3 +2562,68 @@ as planned), plus schema-2 and determinism sections in `WorldProfileSchema.md` a
 `GeneratorDeterminism.md`. Phase 3 gate is met structurally -- the ring closes, its seams share
 canonical stations, no station is climbable and collision is the rendered geometry -- but **no
 cliff has been drawn or collided with**, which is the live half Q-012 carries.
+
+## V2 Phase 4 -- macro terrain generation and the chunk registry
+
+`MacroTerrainGenerator` (`Code/wwphys/macroterraingenerator.h/.cpp`) is the "`ProceduralHeightSource`
+or equivalent" Phase 4 asks for. Near/far render, collision, LOD and patches were already v1
+`WorldTerrainSystem`; the only genuinely new thing is a generator that fills a `Heights[]` array
+and hands it to `Create_Terrain`/`Set_Heights`, the one entry point every caller already uses --
+so "generated terrain bypasses WorldTerrainSystem" and "procedural terrain has a separate
+collision truth" are both structurally impossible, not merely avoided.
+
+**Resolved the open design question Phase 3's planning note carried forward** (replace vs.
+coexist): neither, in the usual sense -- `ProceduralWorldManager::Build_Macro_Terrain` never
+calls the generator at all when `world.fit_to_level` is true, because `HeightfieldClass` is one
+grid with no holes and painting anything there -- even flat -- would stand a second collidable
+ground under the host level's real one. Consequence stated honestly: the "Procedural Skirmish"
+button's own profile is `fit_to_level: true`, so **Phase 4 generates no terrain via the one
+caller that exists today**; it is proven correct and safe by a device-less self check and wired
+to run the moment a `fit_to_level: false` request exists (Phase 7+ territory). No console command
+for that was ever built despite a stale doc comment implying one -- checked and noted honestly.
+
+Elevation is four independent fractal-noise channels (macro/ridge/hill/valley), each a
+multi-octave sum of `TerrainMaskClass::Hash_Value` -- the deterministic seeded lattice hash
+`terraintexturesystem.cpp` already used, reused rather than duplicated. Every vertex is
+classified against `WorldBoundsService` first: anything at or past `WORLD_ZONE_CLIFF_BAND` is
+written flat at sea level and locked, so the immutable face stays immutable by construction (it
+is never a term in either the generation formula or the bounded slope-relaxation pass), never by
+a check a future edit could defeat. `world.terrain.plateau_chance` optionally terraces a rise
+into a heightfield-approximated mesa (Phase 5's vertical-faced one needs interior cliffs first).
+
+`terrain.max_buildable_slope_degrees` deliberately does two jobs -- the generation-time ordinary-
+slope cap and the chunk registry's buildability threshold -- one number rather than two that
+could silently disagree about "too steep". Enforcement is a bounded (4-pass), deterministic local
+relaxation; `Check_Ordinary_Slope_Limit` reports what is actually left rather than asserting
+there is nothing, honest about what a bounded pass count proves for an aggressive profile.
+
+`WorldTerrainSystem` gained the chunk registry (Phase 4 steps 13-16): `TerrainChunkInfoClass`
+per patch (one chunk = one patch = `world.chunk_size` world units, by construction --
+`cell_size = chunk_size / PATCH_CELLS`, so chunk seams share the same guarantee the render/
+collision grid already has) carries height/slope extent (new `HeightfieldClass::TerrainPatchClass`
+fields, computed alongside `MinHeight`/`MaxHeight`), a coarse `Buildable` flag (**explicitly not**
+Section 18C's canonical `EvaluateBuildability` -- that needs road/tunnel/bridge/resource
+exclusions that do not exist until Phases 7-10), a `CliffBand` tag, and a `Revision`/`Checksum`
+pair that only recomputes a chunk `HeightfieldClass::Is_Patch_Dirty` still calls dirty, read
+non-destructively so collision's own consumer of that flag still sees the edit. Device-less, like
+Phase 3's `Plan_Ring`. `Get_World_Chunk_Checksum` feeds the new
+`WorldGenerationManifest::TerrainChecksum` (0 for every world produced today, correctly, since
+the generator never ran).
+
+Schema moved to version 3: seven new `terrain` fields (elevation range, buildable-slope cap,
+feature scale, ridge sharpness, plateau chance, boundary-approach flattening); generator moved to
+3 independently. `debug_layer terrain_chunks 1` draws for real now -- `DEBUG_LAYER_TERRAIN_CHUNKS`
+was one of Section 33's original eighteen names with no renderer behind it; this phase is its
+first consumer, colouring each chunk green/yellow/red by what the registry says rather than by
+the visible ground, so a disagreement is the bug the layer exists to catch.
+
+`terrain_macro`/`fds_terrain_macro` (`Code/Commando/terrainselfcheck.cpp`,
+`-terrainselfcheck macro`) prove determinism, parameter refusal, chunk/vertex arithmetic, height-
+range and ordinary-slope enforcement, and that a configured boundary produces both a flat
+cliff-band chunk and an untouched interior one. `ctest -N` now lists 137 (was 135). `renegade`,
+`renegadeserver` and `leveledit` all build clean, 0 warnings. Docs:
+`docs/procedural_world/MacroTerrainGeneration.md` (new), schema-3/Phase-4 sections in
+`WorldProfileSchema.md`/`GeneratorDeterminism.md`, and `docs/zerohour/DebugRenderSystem.md`
+updated for the new `terrain_chunks` consumer. Phase 4 gate is met structurally for a world with
+no host level -- but, unlike Phase 3, **nothing generated by this phase is reachable through the
+one caller that exists**, which is a stronger gap than "unseen" and is recorded as such.

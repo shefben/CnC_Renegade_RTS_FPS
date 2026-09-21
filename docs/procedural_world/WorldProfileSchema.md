@@ -156,12 +156,38 @@ not a number a profile author should have to know — which is why `fit_to_level
 than a documented "typical Renegade map size". The values actually used are recorded in the
 generation manifest, so a fitted world stays reproducible.
 
+## Schema version 3 (Phase 4)
+
+Seven fields were added to the `terrain` block when Phase 4 built the macro terrain generator
+Section 18B's density weights were parsed-but-unconsumed placeholders for. A schema-1 or
+schema-2 profile still loads; each new field takes the default below. See
+`docs/procedural_world/MacroTerrainGeneration.md` for what the generator actually does with
+them.
+
+| Field | Type | Default | Rule | Meaning |
+| --- | --- | --- | --- | --- |
+| `min_elevation` | float | `-30.0` | finite, `<= max_elevation` | World units relative to `world.sea_level` — the relief floor a basin can reach. |
+| `max_elevation` | float | `160.0` | finite, `< boundary.air_ceiling` | World units relative to `world.sea_level` — the relief ceiling a hill/ridge can reach. Section 1.5's aircraft rule extends naturally: nothing generated may reach where aircraft fly. |
+| `max_buildable_slope_degrees` | float | `28.0` | `(0, 90)` exclusive | Both the generation-time ordinary-slope cap (step 9) and the chunk registry's buildability threshold. One number serves both deliberately — see `MacroTerrainGeneration.md`. |
+| `feature_scale` | float | `900.0` | `> 0` | World units — the approximate wavelength of a macro landform. |
+| `ridge_sharpness` | float | `0.55` | `0..1` | How sharply mountain-density noise peaks along its own ridge line. |
+| `plateau_chance` | float | `0.15` | `0..1` | How much of the elevated area gets terraced into a flat-topped rise. `0` means the generator never does. A heightfield approximation of a mesa, not Phase 5's vertical-faced one. |
+| `boundary_approach_flattening` | float | `0.6` | `0..1` | How strongly relief is pulled toward the flat cliff band as the boundary-approach zone nears it. |
+
+Values above 1 for the three normalized weights are **rejected**, not clamped, the same rule
+`rim_roughness`/`face_roughness` already established: a value above 1 is a profile author
+misunderstanding the unit, not "more variation" to silently allow.
+
 ### Version semantics
 
-`CURRENT_SCHEMA_VERSION` and `CURRENT_GENERATOR_VERSION` both moved to 2, independently and for
-different reasons: the schema gained fields, and the algorithm changed — the same seed and the
-same schema-1 profile now produce a world with cliffs in it where before it produced only an
-invisible boundary.
+`CURRENT_SCHEMA_VERSION` and `CURRENT_GENERATOR_VERSION` moved to 2 with Phase 3 and to 3 with
+Phase 4, independently each time and for the same two reasons: the schema gained fields, and
+the algorithm changed. Schema 2 / generator 2: the same seed and the same schema-1 profile now
+produce a world with cliffs in it where before it produced only an invisible boundary. Schema 3
+/ generator 3: a world with `world.fit_to_level` false now stands on generated macro terrain
+instead of the flat plane a heightfield-less world always was. A `fit_to_level` world's own
+ground is unaffected by the generator-3 change either way — it never calls the generator; see
+`MacroTerrainGeneration.md`'s "Coexist, not replace" section.
 
 The shipped profile is `data/procedural_world/default.json`, loaded by
 `ProceduralWorldManager::DEFAULT_PROFILE_PATH`.

@@ -44,6 +44,7 @@
 #include "boundarycliffgenerator.h"
 #include "tacticalintelligence.h"
 #include "worldshroudmanager.h"
+#include "worldterrainsystem.h"
 
 
 class DebugDisplaySceneObjectClass : public RenderObjClass, public IRenderComponent
@@ -296,6 +297,57 @@ static void	Draw_Boundary_Cliffs(void)
 }
 
 
+/***********************************************************************************************
+ * Draw_Terrain_Chunks -- V2 roadmap Section 34 Phase 4 step 17                                  *
+ *                                                                                             *
+ *	One box per chunk, at the chunk's own top -- coloured by what the registry says rather than   *
+ *	by anything read off the ground, so a chunk whose colour disagrees with its own visible        *
+ *	terrain is the tagging/seam bug this layer exists to catch, not merely a repeat of what is      *
+ *	already visible.  Cliff band is red regardless of slope -- Buildable is never true there, but   *
+ *	giving it its own colour makes the immutable face's own footprint legible on its own, the        *
+ *	same reason world_bounds draws the cliff band as its own ring rather than folding it into         *
+ *	hard_boundary.                                                                                    *
+ *=============================================================================================*/
+static void	Draw_Terrain_Chunks(void)
+{
+	if (!WorldTerrainSystem::Has_Chunk_Registry()) {
+		return;
+	}
+
+	static const Vector4	BUILDABLE_COLOR	(0.2f,0.9f,0.3f,0.6f);		// ordinary, buildable
+	static const Vector4	STEEP_COLOR			(0.95f,0.85f,0.1f,0.6f);	// ordinary, too steep to build on
+	static const Vector4	CLIFF_COLOR			(1.0f,0.15f,0.15f,0.7f);	// cliff band -- the immutable face
+
+	int count_x = WorldTerrainSystem::Get_Chunk_Count_X();
+	int count_y = WorldTerrainSystem::Get_Chunk_Count_Y();
+
+	for (int py = 0; py < count_y; py++) {
+		for (int px = 0; px < count_x; px++) {
+
+			TerrainChunkInfoClass info;
+			if (!WorldTerrainSystem::Get_Chunk_Info (px,py,&info)) continue;
+
+			AABoxClass bounds;
+			if (!WorldTerrainSystem::Get_Patch_Bounds (px,py,&bounds)) continue;
+
+			const Vector4 & color = info.CliffBand ? CLIFF_COLOR : (info.Buildable ? BUILDABLE_COLOR : STEEP_COLOR);
+
+			float x0 = bounds.Center.X - bounds.Extent.X;
+			float x1 = bounds.Center.X + bounds.Extent.X;
+			float y0 = bounds.Center.Y - bounds.Extent.Y;
+			float y1 = bounds.Center.Y + bounds.Extent.Y;
+			float z  = bounds.Center.Z + bounds.Extent.Z;		// the chunk's own top, so the box reads over the ground
+
+			Vector3 a (x0,y0,z), b (x1,y0,z), c (x1,y1,z), d (x0,y1,z);
+			DebugRenderSystem::Add_Line (a,b,color);
+			DebugRenderSystem::Add_Line (b,c,color);
+			DebugRenderSystem::Add_Line (c,d,color);
+			DebugRenderSystem::Add_Line (d,a,color);
+		}
+	}
+}
+
+
 void WorldDebugDisplay::Update(void)
 {
 	bool anything_on = false;
@@ -336,6 +388,10 @@ void WorldDebugDisplay::Update(void)
 
 	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_WORLD_BOUNDS)) {
 		Draw_World_Bounds();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_TERRAIN_CHUNKS)) {
+		Draw_Terrain_Chunks();
 	}
 
 	//	Every other layer is enumerated and toggleable (DebugRenderSystem::Is_Layer_Enabled

@@ -658,6 +658,9 @@ add_test(NAME terrain_shadows  COMMAND renegade -terrainselfcheck shadows)
 add_test(NAME terrain_lights   COMMAND renegade -terrainselfcheck lights)
 add_test(NAME terrain_far      COMMAND renegade -terrainselfcheck far)
 add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
+
+    #	Procedural macro terrain -- roadmap Section 34 Phase 4.  See terrainselfcheck.h.
+    add_test(NAME terrain_macro   COMMAND renegade -terrainselfcheck macro)
 endif()
 
 #
@@ -733,4 +736,5 @@ add_test(NAME fds_terrain_shroud   COMMAND renegadeserver -terrainselfcheck shro
     add_test(NAME fds_terrain_collision  COMMAND renegadeserver -terrainselfcheck collision)
     add_test(NAME fds_terrain_textures  COMMAND renegadeserver -terrainselfcheck textures)
     add_test(NAME fds_terrain_roads  COMMAND renegadeserver -terrainselfcheck roads)
+    add_test(NAME fds_terrain_macro   COMMAND renegadeserver -terrainselfcheck macro)
 endif()

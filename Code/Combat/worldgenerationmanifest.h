@@ -76,6 +76,12 @@ struct WorldGenerationManifest
 	//	the same ring rather than merely asserted to have.  0 until a cliff ring is built.
 	unsigned int	CliffRingChecksum;
 
+	//	Phase 4 step 17.  WorldTerrainSystem::Get_World_Chunk_Checksum -- a CRC over every
+	//	generated chunk's own checksum, in row-major order.  0 either until macro terrain is
+	//	built, or permanently for a `fit_to_level` world, where the host level's own ground
+	//	stands and Phase 4's generator never runs (see ProceduralWorldManager::Build_Macro_Terrain).
+	unsigned int	TerrainChecksum;
+
 	unsigned int	RoadGraphChecksum;		// 0 until Phase 8 exists
 	unsigned int	NavigationRevision;		// 0 until Phase 16 exists
 };

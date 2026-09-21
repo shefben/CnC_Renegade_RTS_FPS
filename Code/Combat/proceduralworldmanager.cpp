@@ -27,11 +27,13 @@
 #include "proceduralworldmanager.h"
 
 #include "boundarycliffgenerator.h"
+#include "macroterraingenerator.h"
 #include "proceduralboundsbuilder.h"
 #include "phys.h"
 #include "pscene.h"
 #include "worldboundsservice.h"
 #include "worldseedservice.h"
+#include "worldterrainsystem.h"
 #include "wwdebug.h"
 #include "wwmath.h"
 
@@ -232,6 +234,60 @@ bool ProceduralWorldManager::Build_Cliff_Ring(const ProceduralWorldProfile & pro
 }
 
 
+/***********************************************************************************************
+ * Build_Macro_Terrain -- roadmap Section 34 Phase 4                                             *
+ *                                                                                             *
+ *	A world fitted to a hand-authored level already has ground: the level's own W3D geometry,     *
+ *	the one a player has always stood on there.  WorldTerrainSystem's heightfield is one           *
+ *	rectangular grid with no holes, so generating terrain anywhere in a fitted world -- even a      *
+ *	flat plane nobody would notice -- would stand a second, collidable ground under or through       *
+ *	the level's real one.  That is exactly Phase 4's own "procedural terrain has a separate           *
+ *	collision truth" do-not-proceed condition, so this function refuses to run for one, and does       *
+ *	not treat refusing as a failure: it is the correct answer for every world this integration          *
+ *	can currently produce, since the only caller of Request_World (the main menu's procedural           *
+ *	button) always requests a `fit_to_level` profile.  This is the resolution to the design                *
+ *	question Phase 3's own planning note carried forward: coexist by never touching the level's             *
+ *	ground, and only paint ground for a world that does not have any yet.                                   *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Macro_Terrain(const ProceduralWorldProfile & profile,
+																  bool * built_out,StringClass * error_out)
+{
+	if (built_out != nullptr) *built_out = false;
+
+	if (profile.World.FitToLevel) {
+		return true;
+	}
+
+	MacroTerrainParams params;
+	params.Seed							= WorldSeedService::Derive_Subsystem_Seed (
+													profile.Seed,WorldSeedService::SEED_DOMAIN_TERRAIN);
+	params.WorldWidth					= profile.World.Width;
+	params.WorldHeight					= profile.World.Height;
+	params.ChunkSize						= profile.World.ChunkSize;
+	params.CenterX							= profile.World.CenterX;
+	params.CenterY							= profile.World.CenterY;
+	params.SeaLevel						= profile.World.SeaLevel;
+	params.MinElevation					= profile.Terrain.MinElevation;
+	params.MaxElevation					= profile.Terrain.MaxElevation;
+	params.MaxBuildableSlopeRadians	= (float)DEG_TO_RAD (profile.Terrain.MaxBuildableSlopeDegrees);
+	params.FeatureScale					= profile.Terrain.FeatureScale;
+	params.MacroRelief					= profile.Terrain.MacroRelief;
+	params.HillDensity					= profile.Terrain.HillDensity;
+	params.MountainDensity				= profile.Terrain.MountainDensity;
+	params.ValleyDensity					= profile.Terrain.ValleyDensity;
+	params.RidgeSharpness				= profile.Terrain.RidgeSharpness;
+	params.PlateauChance					= profile.Terrain.PlateauChance;
+	params.BoundaryApproachFlattening	= profile.Terrain.BoundaryApproachFlattening;
+
+	if (!MacroTerrainGenerator::Generate (params,error_out)) {
+		return false;
+	}
+
+	if (built_out != nullptr) *built_out = true;
+	return true;
+}
+
+
 bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 {
 	//	Directive 1.10.  No request, no procedural anything: this is every hand-authored map.
@@ -275,6 +331,17 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 						  cliff_error.Peek_Buffer ()));
 	}
 
+	//	Macro terrain, Phase 4.  Runs after the boundary and the cliff ring for the same reason
+	//	they run in that order: the terrain generator reads WorldBoundsService to keep the cliff
+	//	band flat, so the boundary has to exist first.  Skipped entirely -- not a failure -- for
+	//	a `fit_to_level` world; see Build_Macro_Terrain's own comment.
+	bool terrain_built = false;
+	StringClass terrain_error;
+	if (!Build_Macro_Terrain (profile,&terrain_built,&terrain_error)) {
+		WWDEBUG_SAY (("ProceduralWorldManager: macro terrain failed (%s); the world's own ground is unaffected\r\n",
+						  terrain_error.Peek_Buffer ()));
+	}
+
 	ActiveProfile = profile;
 
 	/*
@@ -285,6 +352,7 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 	DynamicVectorClass<StringClass> content_identifiers;
 	Manifest = WorldGenerationManifestService::Create_Empty_World_Manifest (profile,content_identifiers);
 	Manifest.CliffRingChecksum = BoundaryCliffGenerator::Get_Ring_Checksum ();
+	Manifest.TerrainChecksum	= terrain_built ? MacroTerrainGenerator::Get_Terrain_Checksum () : 0;
 
 	WorldActive = true;
 
@@ -295,6 +363,9 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 					  BoundaryCliffGenerator::Get_Station_Count (),
 					  BoundaryCliffGenerator::Get_Chunk_Count (),
 					  BoundaryCliffGenerator::Get_Ring_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: macro terrain %s -- %s\r\n",
+					  terrain_built ? "built" : "skipped (fit_to_level)",
+					  terrain_built ? "" : "the level's own ground stands"));
 
 	return true;
 }
@@ -304,6 +375,13 @@ void ProceduralWorldManager::Destroy_World(void)
 {
 	BoundaryCliffGenerator::Clear_Ring ();
 	WorldBoundsService::Clear ();
+
+	//	A `fit_to_level` world never had a heightfield in the first place (Build_Macro_Terrain
+	//	skipped it), so this is a no-op then -- WorldTerrainSystem::Destroy_Terrain is always
+	//	safe to call with no terrain.  A generated world's terrain goes with everything else a
+	//	procedural world owns.
+	WorldTerrainSystem::Destroy_Terrain ();
+	MacroTerrainGenerator::Init ();
 
 	ActiveProfile	= ProceduralWorldProfile ();
 	Manifest			= WorldGenerationManifest ();

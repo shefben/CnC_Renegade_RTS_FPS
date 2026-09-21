@@ -86,6 +86,41 @@ public:
 };
 
 
+/*
+**	Roadmap Section 34 Phase 4 steps 13-16 -- the chunk registry.
+**
+**	"Chunk" is not a second unit alongside the patch this class already tracks; it is this one
+**	under Phase 4's name for it.  A generated world's `ProceduralWorldDimensions::ChunkSize` is
+**	chosen so that one heightfield patch (PATCH_CELLS cells) covers exactly one chunk, so the
+**	seam guarantee Phase 4 step 15 asks for -- chunk seams use shared height samples -- is the
+**	same guarantee the render/collision patch grid already has, not a second one to prove.
+**
+**	Buildable is a coarse slope-only signal, not Section 18C's canonical
+**	`EvaluateBuildability` query -- that contract also needs road/corridor/tunnel/bridge/
+**	resource exclusions that do not exist yet.  This field exists so a chunk can be ruled out
+**	cheaply and early; it must never be read as the final word on whether something may be
+**	built there once 18C's real query exists.
+*/
+class TerrainChunkInfoClass
+{
+public:
+	TerrainChunkInfoClass(void) :
+		MinHeight(0.0f), MaxHeight(0.0f),
+		MinSlopeRadians(0.0f), MaxSlopeRadians(0.0f),
+		Buildable(false), CliffBand(false),
+		Revision(0), Checksum(0) { }
+
+	float				MinHeight;
+	float				MaxHeight;
+	float				MinSlopeRadians;
+	float				MaxSlopeRadians;
+	bool				Buildable;		// slope-only, coarse -- see class comment
+	bool				CliffBand;		// any sampled point in the chunk classified cliff band or past it
+	unsigned int	Revision;		// bumped every time this entry is (re)computed; 0 means never
+	unsigned int	Checksum;		// Section 3B.4-quantized CRC over the fields above
+};
+
+
 class WorldTerrainSystem
 {
 public:
@@ -270,9 +305,36 @@ public:
 	static int			Get_Near_Vertex_Count(void);
 	static int			Get_Far_Refill_Count(void);
 
+	/*
+	**	The chunk registry.  Roadmap Section 34 Phase 4 steps 13-16.  See TerrainChunkInfoClass.
+	**
+	**	Device-less: every input is the heightfield's own patch data plus WorldBoundsService,
+	**	neither of which needs a physics scene, so the registry can be built and checked before
+	**	anything is rendered or collided with -- the same Plan/Realize split Phase 3's cliff
+	**	ring uses, except here the "plan" is the whole thing a generator needs.
+	**
+	**	Build_Chunk_Registry allocates the table if it is missing or the wrong shape (mirrors
+	**	Build_Collision's "different shape, start over") and (re)computes every entry that is
+	**	new or whose patch is dirty; an entry nobody has touched since the last call is left
+	**	alone.  `max_buildable_slope_radians` is remembered, so a caller that only wants to
+	**	pick up edits made since the last generation calls it again with the same value.
+	*/
+	static bool			Build_Chunk_Registry(float max_buildable_slope_radians);
+	static void			Destroy_Chunk_Registry(void);
+	static bool			Has_Chunk_Registry(void);
+	static int			Get_Chunk_Count_X(void);
+	static int			Get_Chunk_Count_Y(void);
+	static bool			Get_Chunk_Info(int px,int py,TerrainChunkInfoClass * info_out);
+	static unsigned int	Get_Chunk_Checksum(int px,int py);
+
+	//	A CRC over every chunk's own checksum, in row-major order -- the one number Phase 4
+	//	step 17's manifest checksum and a device-less self check both mean by "the terrain".
+	static unsigned int	Get_World_Chunk_Checksum(void);
+
 private:
 
 	static bool			Build_Collision_Patch(int px,int py);
+	static bool			Build_Chunk_Registry_Entry(int px,int py);
 
 	static void			Create_Far_Block_Table(void);
 	static bool			Fill_Far_Block_Model(RenegadeTerrainPatchClass * model,int bx,int by);
@@ -304,6 +366,11 @@ private:
 	static int						FarRefillCount;
 	static int						VisibleNearPatchCount;
 	static int						VisibleFarBlockCount;
+
+	static TerrainChunkInfoClass *	ChunkRegistry;
+	static int							ChunkRegistryCountX;
+	static int							ChunkRegistryCountY;
+	static float						ChunkMaxBuildableSlopeRadians;
 };
 
 #endif	// WORLDTERRAINSYSTEM_H

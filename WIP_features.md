@@ -673,17 +673,27 @@ Skirmish** on the main menu, and report what the log's `ProceduralWorldManager: 
 line says, whether cliffs appear around the map, and what `debug_layer boundary_cliffs 1` and
 `debug_layer world_bounds 1` show -- in particular whether any riser draws red.
 
-## V2 Phase 4 -- macro terrain generation and chunk ownership (not started)
+## The macro terrain generator is built and nothing has asked for it yet
 
-Phase: 4. Status: not started. Prerequisites: Phase 3 (complete), v1 `WorldTerrainSystem`, v1
-far/background terrain -- all present. The work is the bounded playable landform *inside* the
-immutable perimeter Phase 3 just built; today a procedural world still stands on whatever ground
-its host level brought with it. Canonical owners already located: `WorldTerrainSystem`
-(`Code/wwphys/worldterrainsystem.h`, with `Create_Terrain`/`Set_Heights`/`Build_Collision` and a
-`PATCH_CELLS = 16` chunk grid already keyed by `py * CollisionPatchCountX + px`), `HeightfieldClass`
-(`Code/wwphys/heightfield.h`), and `ProceduralWorldManager::Generate_World` as the sequencing
-point. Note that the cliff band is already immutable to every `WorldTerrainSystem` mutator, so a
-terrain generator cannot damage the perimeter by accident. Exact next action: read the Phase 4
-section of the roadmap and Sections 18/18B, then decide whether generated terrain replaces the
-host level's ground or coexists with it -- which is a real design question Phase 3 did not have
-to answer and Phase 4 cannot avoid.
+`MacroTerrainGenerator` and `WorldTerrainSystem`'s chunk registry are both in (see
+`completed_features.md`, "V2 Phase 4", and `docs/procedural_world/MacroTerrainGeneration.md`).
+The open design question Phase 3's own planning note carried forward -- replace the host level's
+ground or coexist with it -- is resolved: coexist, by never running the generator at all when
+`world.fit_to_level` is true. That resolution has a sharper consequence than Phase 3's "built but
+unseen": the "Procedural Skirmish" menu button's own default profile is `fit_to_level: true`, so
+**this phase's generator has never run through any live caller, not merely never been looked at**.
+It is proven correct by `-terrainselfcheck macro` (determinism, height-range/slope enforcement,
+cliff-band immutability, chunk arithmetic), all device-less, none of it against a display.
+
+Reaching it live needs either (a) a profile with `fit_to_level: false` plus something that
+requests one -- `ProceduralWorldManager.h`'s own doc comment claims a `procedural_world` console
+command exists; it does not, checked directly, and building one is out of this phase's scope --
+or (b) waiting for Phase 7+ (candidate bases / initial layout selection), which is the first
+later phase that actually needs a world with no host level under it. Next exact action is one of
+those two, at the user's direction: add a minimal `procedural_world <seed> <profile>` console
+command so a non-fitted profile can be driven through `Request_World`/`Generate_World` in a live
+client, then run `renegade --gamedir "C:\Westwood\Renegade_full"`, use it with a profile whose
+`world.fit_to_level` is `false`, and report what `debug_layer terrain_chunks 1` shows -- in
+particular whether any chunk reads yellow (generated, but too steep to build on) where the
+profile did not intend one, and whether the generated relief looks like terrain rather than
+noise.
