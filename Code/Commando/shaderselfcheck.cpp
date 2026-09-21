@@ -16,6 +16,11 @@
 #include "commanderproduction.h"
 #include "buildingconstruction.h"
 #include "runtimedoorservice.h"
+#include "proceduralworldprofile.h"
+#include "worldseedservice.h"
+#include "worldgenerationmanifest.h"
+#include "proceduralboundsbuilder.h"
+#include "worldboundsservice.h"
 #include "rtspersistence.h"
 #include "obbox.h"
 #include "aabox.h"
@@ -2484,6 +2489,541 @@ int	Run_Runtime_Door_Service (void)
 
 
 /*
+**	V2 roadmap Section 34 Phase 1 -- world profile schema, deterministic seed service, and the
+**	generation manifest.  All of it is pure data/arithmetic (JSON parse/validate, CRC-based seed
+**	derivation, CRC-based hashing) -- no scene, no device, no clock -- so the phase's own
+**	"Targeted validation" list is checkable here exactly, not merely approximated:
+**		same profile + seed -> identical derived seed set
+**		changing one seed-domain consumer does not change another's seed
+**		save/reload manifest preserves exact values
+**		invalid profile is rejected with an actionable reason
+*/
+int	Run_World_Seed_And_Profile (void)
+{
+	//	A default-constructed profile (Section 4's own suggested schema, unchanged) must be
+	//	valid on its own -- every one of its default field values already satisfies every rule
+	//	Validate_Profile checks.
+	{
+		ProceduralWorldProfile p;
+		StringClass error ("");
+		Check (ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "default-constructed profile was rejected");
+	}
+
+	//	Invalid profile is rejected with an actionable reason -- one case per named Phase 1
+	//	step-3 rule, each mutated from an otherwise-valid profile so exactly one rule fires.
+	{
+		ProceduralWorldProfile p;
+		p.World.Width = 0.0f;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "zero world.width was accepted");
+		Check (error.Get_Length () > 0,"rejection carried no reason");
+	}
+	{
+		ProceduralWorldProfile p;
+		p.World.ChunkSize = p.World.Width * 2.0f;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "chunk_size larger than the world was accepted");
+	}
+	{
+		ProceduralWorldProfile p;
+		p.Boundary.CliffBandWidth = p.World.Width;		// two bands would consume the whole world
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "cliff_band_width leaving no playable interior was accepted");
+	}
+	{
+		ProceduralWorldProfile p;
+		p.Boundary.CliffMaxHeight = p.Boundary.CliffMinHeight - 1.0f;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "cliff_max_height below cliff_min_height was accepted");
+	}
+	{
+		ProceduralWorldProfile p;
+		p.Boundary.AirCeiling = p.Boundary.CliffMaxHeight - 1.0f;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "air_ceiling below cliff_max_height was accepted");
+	}
+	{
+		ProceduralWorldProfile p;
+		p.Terrain.HillDensity = -0.1f;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "negative hill_density was accepted");
+	}
+	{
+		ProceduralWorldProfile p;
+		p.Retry.MaxLocalRetriesPerStage = 0;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "zero max_local_retries_per_stage was accepted");
+	}
+	{
+		ProceduralWorldProfile p;
+		p.Fairness.MinVehicleApproachCount = 0;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "zero min_vehicle_approach_count was accepted");
+	}
+
+	//	Round trip through JSON text preserves every value Validate_Profile itself checks.
+	{
+		static const char * const PROFILE_JSON =
+			"{ \"schema_version\":1,\"generator_version\":1,\"seed\":424242,\"name\":\"test\","
+			"  \"world\":{\"width\":2048.0,\"height\":3072.0,\"chunk_size\":64.0,\"sea_level\":5.0},"
+			"  \"boundary\":{\"shape\":\"square_ring\",\"cliff_band_width\":120.0,\"cliff_min_height\":80.0,"
+			"      \"cliff_max_height\":150.0,\"hard_barrier_offset\":15.0,\"air_ceiling\":220.0},"
+			"  \"terrain\":{\"hill_density\":0.5} }";
+
+		ProceduralWorldProfile p;
+		StringClass error ("");
+		Check (ProceduralWorldProfileManager::Load_Profile_From_Text (PROFILE_JSON,&p,&error),
+				 "authored profile text was rejected");
+		Check (p.Seed == 424242u,"seed did not round-trip");
+		Check (WWMath::Fabs (p.World.Width - 2048.0f) < 0.001f,"world.width did not round-trip");
+		Check (WWMath::Fabs (p.World.Height - 3072.0f) < 0.001f,"world.height did not round-trip");
+		Check (WWMath::Fabs (p.Boundary.CliffMaxHeight - 150.0f) < 0.001f,"boundary.cliff_max_height did not round-trip");
+		Check (WWMath::Fabs (p.Terrain.HillDensity - 0.5f) < 0.001f,"terrain.hill_density did not round-trip");
+		//	A field the JSON left unset keeps the struct's own documented default.
+		Check (WWMath::Fabs (p.Terrain.MacroRelief - 0.6f) < 0.001f,"unset terrain.macro_relief lost its default");
+	}
+
+	//	Malformed JSON is rejected with a reason, never silently defaulted.
+	{
+		ProceduralWorldProfile p;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Load_Profile_From_Text ("{ not json",&p,&error),
+				 "malformed JSON text was accepted");
+		Check (error.Get_Length () > 0,"malformed-JSON rejection carried no reason");
+	}
+
+	//	Same profile + seed -> identical derived seed set, on repeated calls.
+	{
+		unsigned int seed = 12345u;
+		unsigned int terrain_1 = WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_TERRAIN);
+		unsigned int terrain_2 = WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_TERRAIN);
+		Check (terrain_1 == terrain_2,"the same (seed,domain) produced two different subsystem seeds");
+
+		//	Changing one domain's consumer does not change another domain's derived seed --
+		//	Phase 1's own "changing RoadSeed consumer does not change TerrainSeed" case,
+		//	generalized across every pair of the twelve canonical domains.
+		unsigned int road = WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_ROADS);
+		unsigned int terrain_before = WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_TERRAIN);
+		(void)road;		// stands in for "a RoadSeed consumer ran and drew numbers from it"
+		unsigned int terrain_after = WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_TERRAIN);
+		Check (terrain_before == terrain_after,"deriving RoadSeed changed TerrainSeed's own derived value");
+
+		//	Different domains from the same seed do not collide with each other.
+		unsigned int bridges = WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_BRIDGES);
+		Check (terrain_1 != road,"terrain and roads derived the same subsystem seed");
+		Check (road != bridges,"roads and bridges derived the same subsystem seed");
+
+		//	A different world seed changes every derived subsystem seed.
+		unsigned int terrain_other_seed = WorldSeedService::Derive_Subsystem_Seed (seed + 1,WorldSeedService::SEED_DOMAIN_TERRAIN);
+		Check (terrain_other_seed != terrain_1,"two different world seeds derived the same terrain seed");
+
+		//	Normalize_Seed: 0 is remapped to a fixed nonzero value; every other seed passes
+		//	through unchanged and normalizing twice is a no-op.
+		Check (WorldSeedService::Normalize_Seed (0u) != 0u,"a zero world seed normalized to zero");
+		Check (WorldSeedService::Normalize_Seed (777u) == 777u,"a nonzero world seed was altered by normalization");
+		Check (WorldSeedService::Normalize_Seed (WorldSeedService::Normalize_Seed (0u)) == WorldSeedService::Normalize_Seed (0u),
+				 "normalizing an already-normalized seed was not a no-op");
+	}
+
+	//	Profile hash: deterministic and field-sensitive.
+	{
+		ProceduralWorldProfile a;
+		ProceduralWorldProfile b;
+		Check (WorldGenerationManifestService::Compute_Profile_Hash (a) == WorldGenerationManifestService::Compute_Profile_Hash (b),
+				 "two identical profiles hashed differently");
+
+		b.Terrain.HillDensity = a.Terrain.HillDensity + 0.01f;
+		Check (WorldGenerationManifestService::Compute_Profile_Hash (a) != WorldGenerationManifestService::Compute_Profile_Hash (b),
+				 "changing one field did not change the profile hash");
+	}
+
+	//	Content-manifest hash: order-independent (Section 3B.2), and sensitive to real content.
+	{
+		DynamicVectorClass<StringClass> empty;
+		unsigned int empty_hash = WorldGenerationManifestService::Compute_Content_Manifest_Hash (empty);
+
+		DynamicVectorClass<StringClass> forward;
+		forward.Add (StringClass ("alpha"));
+		forward.Add (StringClass ("beta"));
+
+		DynamicVectorClass<StringClass> reversed;
+		reversed.Add (StringClass ("beta"));
+		reversed.Add (StringClass ("alpha"));
+
+		unsigned int forward_hash	= WorldGenerationManifestService::Compute_Content_Manifest_Hash (forward);
+		unsigned int reversed_hash	= WorldGenerationManifestService::Compute_Content_Manifest_Hash (reversed);
+		Check (forward_hash == reversed_hash,"content-manifest hash depended on caller-supplied order");
+		Check (forward_hash != empty_hash,"a non-empty content list hashed the same as an empty one");
+	}
+
+	//	Save/reload manifest preserves exact values -- Phase 1's own required case, through a
+	//	real serialize/deserialize round trip, not merely an in-memory copy.
+	{
+		ProceduralWorldProfile p;
+		p.Seed = 909090u;
+		DynamicVectorClass<StringClass> content;
+		content.Add (StringClass ("some_asset.w3d"));
+
+		WorldGenerationManifest original = WorldGenerationManifestService::Create_Empty_World_Manifest (p,content);
+		original.SelectedBaseCandidateIds.Add (StringClass ("base:gdi"));
+		original.SelectedBaseCandidateIds.Add (StringClass ("base:nod"));
+		original.RoadGraphChecksum	= 4242u;
+		original.NavigationRevision	= 7u;
+
+		StringClass json ("");
+		Check (WorldGenerationManifestService::Serialize (original,&json),"manifest serialization failed");
+		Check (json.Get_Length () > 0,"serialized manifest was empty");
+
+		WorldGenerationManifest reloaded;
+		StringClass error ("");
+		Check (WorldGenerationManifestService::Deserialize (json.Peek_Buffer (),&reloaded,&error),
+				 "manifest deserialization failed");
+
+		Check (reloaded.GeneratorVersion == original.GeneratorVersion,"generator_version did not survive round trip");
+		Check (reloaded.Seed == original.Seed,"seed did not survive round trip");
+		Check (reloaded.ProfileHash == original.ProfileHash,"profile_hash did not survive round trip");
+		Check (reloaded.ContentManifestHash == original.ContentManifestHash,"content_manifest_hash did not survive round trip");
+		Check (reloaded.RoadGraphChecksum == original.RoadGraphChecksum,"road_graph_checksum did not survive round trip");
+		Check (reloaded.NavigationRevision == original.NavigationRevision,"navigation_revision did not survive round trip");
+		Check (reloaded.SelectedBaseCandidateIds.Count () == original.SelectedBaseCandidateIds.Count (),
+				 "selected_base_candidate_ids count did not survive round trip");
+		if (reloaded.SelectedBaseCandidateIds.Count () == original.SelectedBaseCandidateIds.Count ()) {
+			for (int i = 0; i < original.SelectedBaseCandidateIds.Count (); i++) {
+				Check (::strcmp (reloaded.SelectedBaseCandidateIds [i].Peek_Buffer (),
+									  original.SelectedBaseCandidateIds [i].Peek_Buffer ()) == 0,
+						 "a selected_base_candidate_ids entry did not survive round trip");
+			}
+		}
+
+		//	The reproduction string is exactly Phase 1 step 12's format and matches the
+		//	manifest it was formatted from.
+		StringClass repro = WorldGenerationManifestService::Format_Reproduction_String (original);
+		StringClass expected (64u,true);
+		expected.Format ("generator_version=%u seed=%u profile=%u content_manifest=%u",
+								original.GeneratorVersion,original.Seed,original.ProfileHash,original.ContentManifestHash);
+		Check (::strcmp (repro.Peek_Buffer (),expected.Peek_Buffer ()) == 0,
+				 "reproduction string did not match the required format");
+	}
+
+	return _Failures;
+}
+
+
+/*
+**	V2 roadmap Section 34 Phase 2 -- the authoritative finite world boundary.
+**
+**	What is provable with no device, no scene and no actors: all of the boundary geometry and
+**	every decision built on it -- polygon validation, zone classification, the containment and
+**	placement queries, the air volume, the camera clamp, the escape-recovery decision including
+**	its server-authority gate, and the deterministic polygon build from a Phase 1 profile.
+**	Phase 2's own targeted-validation list is phrased as live-world statements ("infantry cannot
+**	cross", "server recovers intentionally teleported out-of-bounds actor"); the arithmetic each
+**	one reduces to is checked here, and the live half needs a real physics scene the same way
+**	every other Commander/RTS live check in this file already does (Q-012).
+*/
+static ProceduralWorldProfile	Make_Bounds_Test_Profile (void)
+{
+	ProceduralWorldProfile p;
+	p.Seed							= 777u;
+	p.Boundary.Shape				= "rectangle";
+	p.World.Width					= 1000.0f;
+	p.World.Height					= 1000.0f;
+	p.Boundary.CliffBandWidth	= 100.0f;
+	p.Boundary.HardBarrierOffset	= 20.0f;
+	p.Boundary.AirCeiling		= 300.0f;
+	return p;
+}
+
+int	Run_World_Bounds (void)
+{
+	WorldBoundsService::Init ();
+
+	//	Unconfigured -- a hand-authored Renegade map.  Every query must answer permissively, or
+	//	directive 1.10 is broken and stock maps start rejecting their own gameplay.
+	{
+		Check (!WorldBoundsService::Is_Configured (),"a freshly initialised service claimed to be configured");
+		Check (WorldBoundsService::Contains_Horizontal_Point (Vector2 (1.0e6f,1.0e6f)),
+				 "unconfigured service refused a point");
+		Check (WorldBoundsService::Contains_Gameplay_Point (Vector3 (1.0e6f,1.0e6f,1.0e6f)),
+				 "unconfigured service refused a gameplay point");
+		Check (WorldBoundsService::Classify_Point (Vector2 (1.0e6f,1.0e6f)) == WORLD_ZONE_PLAYABLE_INTERIOR,
+				 "unconfigured service did not classify everything as playable interior");
+		Check (WorldBoundsService::Can_Place_In_Region (Vector2 (1.0e6f,1.0e6f),50.0f),
+				 "unconfigured service refused a placement");
+		Vector3 far_away (1.0e6f,1.0e6f,1.0e6f);
+		Check (WorldBoundsService::Closest_Valid_Point (far_away) == far_away,
+				 "unconfigured service moved a point");
+	}
+
+	//	Phase 2 step 3's four named validation rules, each failing on its own.
+	{
+		StringClass error ("");
+		DynamicVectorClass<Vector2> too_few;
+		too_few.Add (Vector2 (0.0f,0.0f));
+		too_few.Add (Vector2 (100.0f,0.0f));
+		Check (!WorldBoundsService::Configure (too_few,10.0f,2.0f,100.0f,&error),
+				 "a two-vertex boundary was accepted");
+		Check (error.Get_Length () > 0,"rejection carried no reason");
+
+		//	Minimum vertex spacing: a duplicated vertex, which is what a caller that closed its
+		//	own ring by repeating the first point produces.
+		DynamicVectorClass<Vector2> duplicated;
+		duplicated.Add (Vector2 (0.0f,0.0f));
+		duplicated.Add (Vector2 (100.0f,0.0f));
+		duplicated.Add (Vector2 (100.0f,100.0f));
+		duplicated.Add (Vector2 (0.0f,0.0f));		// same as the first
+		Check (!WorldBoundsService::Configure (duplicated,10.0f,2.0f,100.0f,&error),
+				 "a boundary with a duplicated vertex was accepted");
+
+		//	Self-intersecting: the classic bow tie.
+		DynamicVectorClass<Vector2> bowtie;
+		bowtie.Add (Vector2 (0.0f,0.0f));
+		bowtie.Add (Vector2 (100.0f,100.0f));
+		bowtie.Add (Vector2 (100.0f,0.0f));
+		bowtie.Add (Vector2 (0.0f,100.0f));
+		Check (!WorldBoundsService::Configure (bowtie,10.0f,2.0f,100.0f,&error),
+				 "a self-intersecting boundary was accepted");
+
+		//	Degenerate area: three collinear points enclose nothing.
+		DynamicVectorClass<Vector2> collinear;
+		collinear.Add (Vector2 (0.0f,0.0f));
+		collinear.Add (Vector2 (100.0f,0.0f));
+		collinear.Add (Vector2 (200.0f,0.0f));
+		Check (!WorldBoundsService::Configure (collinear,10.0f,2.0f,100.0f,&error),
+				 "a zero-area boundary was accepted");
+
+		//	None of those failures may have installed anything.
+		Check (!WorldBoundsService::Is_Configured (),
+				 "a rejected boundary was installed anyway");
+	}
+
+	//	Build a real boundary from a Phase 1 profile and check every zone boundary lands where
+	//	the band widths say it should.  A 1000x1000 rectangle with a 20-unit hard barrier and a
+	//	100-unit cliff band puts the zone edges at inward distances 20 / 120 / 220.
+	{
+		ProceduralWorldProfile profile = Make_Bounds_Test_Profile ();
+		StringClass error ("");
+		Check (ProceduralBoundsBuilder::Configure_World_Bounds (profile,&error),
+				 "building bounds from a valid profile failed");
+		Check (WorldBoundsService::Is_Configured (),"service did not report itself configured");
+
+		//	Inward distance, from the centre of a 1000-wide world, is 500 to the nearest edge.
+		Check (WWMath::Fabs (WorldBoundsService::Get_Inward_Distance (Vector2 (0.0f,0.0f)) - 500.0f) < 0.5f,
+				 "inward distance at the world centre was not half the world width");
+
+		Check (WorldBoundsService::Classify_Point (Vector2 (0.0f,0.0f)) == WORLD_ZONE_PLAYABLE_INTERIOR,
+				 "the world centre was not playable interior");
+		Check (WorldBoundsService::Classify_Point (Vector2 (350.0f,0.0f)) == WORLD_ZONE_BOUNDARY_APPROACH,
+				 "a point 150 inward was not the boundary approach band");
+		Check (WorldBoundsService::Classify_Point (Vector2 (430.0f,0.0f)) == WORLD_ZONE_CLIFF_BAND,
+				 "a point 70 inward was not the cliff band");
+		Check (WorldBoundsService::Classify_Point (Vector2 (490.0f,0.0f)) == WORLD_ZONE_HARD_BOUNDARY,
+				 "a point 10 inward was not the hard boundary band");
+		Check (WorldBoundsService::Classify_Point (Vector2 (600.0f,0.0f)) == WORLD_ZONE_OUTSIDE_WORLD,
+				 "a point beyond the world edge was not outside the world");
+
+		//	Actor legality: everything from the cliff band inward is legal ground; the hard
+		//	band and beyond are not.  This is the arithmetic "infantry/ground vehicle cannot
+		//	cross" reduces to once the movement hook has a position to test.
+		Check (WorldBoundsService::Contains_Horizontal_Point (Vector2 (0.0f,0.0f)),
+				 "the world centre was refused");
+		Check (WorldBoundsService::Contains_Horizontal_Point (Vector2 (430.0f,0.0f)),
+				 "a point inside the cliff band was refused as actor-illegal");
+		Check (!WorldBoundsService::Contains_Horizontal_Point (Vector2 (490.0f,0.0f)),
+				 "a point inside the hard boundary band was accepted");
+		Check (!WorldBoundsService::Contains_Horizontal_Point (Vector2 (600.0f,0.0f)),
+				 "a point outside the world was accepted");
+
+		//	Construction legality is strictly stricter: nothing may be built in the cliff band
+		//	(Section 5.9), and a footprint radius must not reach into it either.
+		Check (WorldBoundsService::Can_Place_In_Region (Vector2 (0.0f,0.0f),10.0f),
+				 "a building at the world centre was refused");
+		Check (!WorldBoundsService::Can_Place_In_Region (Vector2 (430.0f,0.0f),0.0f),
+				 "a building in the cliff band was accepted");
+		Check (!WorldBoundsService::Can_Place_In_Region (Vector2 (490.0f,0.0f),0.0f),
+				 "a building in the hard boundary band was accepted");
+		//	Centre is legal on its own (inward 250 >= 120) but a 200-unit radius reaches in.
+		Check (WorldBoundsService::Can_Place_In_Region (Vector2 (250.0f,0.0f),0.0f),
+				 "a building whose centre clears every band was refused");
+		Check (!WorldBoundsService::Can_Place_In_Region (Vector2 (250.0f,0.0f),200.0f),
+				 "a building whose footprint reached into the cliff band was accepted");
+
+		//	Air volume: the same horizontal polygon plus the configured ceiling, never an
+		//	unrelated volume.
+		Check (WorldBoundsService::Is_Inside_Air_Volume (Vector3 (0.0f,0.0f,299.0f)),
+				 "an aircraft below the ceiling was refused");
+		Check (!WorldBoundsService::Is_Inside_Air_Volume (Vector3 (0.0f,0.0f,301.0f)),
+				 "an aircraft above the ceiling was accepted");
+		Check (!WorldBoundsService::Is_Inside_Air_Volume (Vector3 (600.0f,0.0f,100.0f)),
+				 "an aircraft outside the horizontal boundary was accepted");
+		Check (WWMath::Fabs (WorldBoundsService::Get_Air_Ceiling () - 300.0f) < 0.001f,
+				 "the air ceiling was not the configured value");
+
+		//	Closest valid point returns something actually legal, not merely nearer.
+		{
+			Vector3 escaped (900.0f,0.0f,50.0f);
+			Vector3 recovered = WorldBoundsService::Closest_Valid_Point (escaped);
+			Check (WorldBoundsService::Contains_Gameplay_Point (recovered),
+					 "closest-valid-point returned a point that is still illegal");
+
+			//	A point already legal is returned untouched.
+			Vector3 legal (0.0f,0.0f,50.0f);
+			Check (WorldBoundsService::Closest_Valid_Point (legal) == legal,
+					 "closest-valid-point moved an already legal point");
+
+			//	An over-ceiling point comes back at or below the ceiling.
+			Vector3 too_high (0.0f,0.0f,10000.0f);
+			Check (WorldBoundsService::Closest_Valid_Point (too_high).Z <= WorldBoundsService::Get_Air_Ceiling () + 0.001f,
+					 "closest-valid-point left a point above the air ceiling");
+		}
+
+		//	Commander camera (Section 5.8): clamped by the same boundary, so it cannot be panned
+		//	out past the cliff ring to look at the world from behind.
+		{
+			Vector3 inside (100.0f,100.0f,50.0f);
+			Check (WorldBoundsService::Clamp_Commander_Camera (inside) == inside,
+					 "the camera was moved while already inside the world");
+
+			Vector3 outside (5000.0f,0.0f,50.0f);
+			Vector3 clamped = WorldBoundsService::Clamp_Commander_Camera (outside);
+			Check (WorldBoundsService::Contains_Gameplay_Point (clamped),
+					 "the camera clamp left the focus outside the world");
+		}
+
+		//	Segment crossing, for the road/bridge/tunnel planners of later phases.
+		Check (!WorldBoundsService::Segment_Crosses_Hard_Boundary (Vector2 (-100.0f,0.0f),Vector2 (100.0f,0.0f)),
+				 "a segment wholly inside the world was reported as crossing");
+		Check (WorldBoundsService::Segment_Crosses_Hard_Boundary (Vector2 (0.0f,0.0f),Vector2 (900.0f,0.0f)),
+				 "a segment leaving the world was not reported as crossing");
+
+		//	Escape recovery (steps 15-17), and its server-authority gate.  A client must never
+		//	correct its own position -- it receives the corrected one.
+		{
+			Vector3 attempted (900.0f,0.0f,50.0f);
+			Vector3 last_safe (0.0f,0.0f,50.0f);
+			Vector3 out (0.0f,0.0f,0.0f);
+
+			WorldBoundsService::Set_Server_Authoritative (false);
+			Check (!WorldBoundsService::Recover_Out_Of_Bounds_Actor (attempted,last_safe,true,"test actor",&out),
+					 "a non-authoritative process recovered an actor");
+
+			WorldBoundsService::Set_Server_Authoritative (true);
+			int before = WorldBoundsService::Get_Violation_Count ();
+
+			Check (WorldBoundsService::Recover_Out_Of_Bounds_Actor (attempted,last_safe,true,"test actor",&out),
+					 "the server did not recover an out-of-bounds actor");
+			Check (out == last_safe,
+					 "recovery did not restore the actor's own last safe position");
+			Check (WorldBoundsService::Get_Violation_Count () == before + 1,
+					 "the violation was not counted");
+
+			//	A legal position is not a violation and must not be touched.
+			Check (!WorldBoundsService::Recover_Out_Of_Bounds_Actor (last_safe,last_safe,true,"test actor",&out),
+					 "an in-bounds actor was treated as a violation");
+
+			//	No last-safe yet (spawned out of bounds): falls back to the geometric closest
+			//	valid point rather than refusing to act.
+			Check (WorldBoundsService::Recover_Out_Of_Bounds_Actor (attempted,Vector3 (0.0f,0.0f,0.0f),false,"test actor",&out),
+					 "an actor with no last-safe position was not recovered");
+			Check (WorldBoundsService::Contains_Gameplay_Point (out),
+					 "the fallback recovery point was itself illegal");
+
+			WorldBoundsService::Set_Server_Authoritative (false);
+		}
+
+		//	Debug rings exist for every band that has one (step 18 / Section 5.10).
+		{
+			DynamicVectorClass<Vector2> ring;
+			Check (WorldBoundsService::Get_Zone_Ring (WORLD_ZONE_OUTSIDE_WORLD,&ring) && (ring.Count () >= 3),
+					 "the outer boundary ring could not be produced for debug drawing");
+			Check (WorldBoundsService::Get_Zone_Ring (WORLD_ZONE_CLIFF_BAND,&ring) && (ring.Count () >= 3),
+					 "the cliff band ring could not be produced for debug drawing");
+			Check (!WorldBoundsService::Get_Zone_Ring (WORLD_ZONE_PLAYABLE_INTERIOR,&ring),
+					 "the playable interior reported a ring of its own");
+		}
+	}
+
+	//	Deterministic generation (Section 3B): the same profile always builds the same polygon,
+	//	and an irregular ring actually varies with its seed rather than ignoring it.
+	{
+		ProceduralWorldProfile profile = Make_Bounds_Test_Profile ();
+		profile.Boundary.Shape = "irregular_ring";
+
+		StringClass error ("");
+		DynamicVectorClass<Vector2> first;
+		DynamicVectorClass<Vector2> second;
+		Check (ProceduralBoundsBuilder::Build_Boundary_Polygon (profile,&first,&error),
+				 "building an irregular ring failed");
+		Check (ProceduralBoundsBuilder::Build_Boundary_Polygon (profile,&second,&error),
+				 "rebuilding an irregular ring failed");
+		Check (first.Count () == second.Count (),"two builds of one profile produced different vertex counts");
+
+		bool identical = (first.Count () == second.Count ());
+		for (int i = 0; identical && (i < first.Count ()); i++) {
+			if ((WWMath::Fabs (first [i].X - second [i].X) > 0.0001f) ||
+				 (WWMath::Fabs (first [i].Y - second [i].Y) > 0.0001f)) {
+				identical = false;
+			}
+		}
+		Check (identical,"two builds of the same profile produced different polygons");
+
+		//	A different seed produces a different ring -- otherwise the boundary seed is being
+		//	ignored and every world would share one perimeter.
+		ProceduralWorldProfile other = profile;
+		other.Seed = profile.Seed + 1;
+		DynamicVectorClass<Vector2> third;
+		Check (ProceduralBoundsBuilder::Build_Boundary_Polygon (other,&third,&error),
+				 "building an irregular ring for a second seed failed");
+
+		bool any_difference = (third.Count () != first.Count ());
+		for (int i = 0; !any_difference && (i < first.Count ()); i++) {
+			if ((WWMath::Fabs (first [i].X - third [i].X) > 0.0001f) ||
+				 (WWMath::Fabs (first [i].Y - third [i].Y) > 0.0001f)) {
+				any_difference = true;
+			}
+		}
+		Check (any_difference,"two different world seeds produced an identical boundary");
+
+		//	The jitter only ever pulls inward, so no vertex may escape the profile's own
+		//	declared world extent.
+		bool inside_extent = true;
+		for (int i = 0; i < first.Count (); i++) {
+			if ((WWMath::Fabs (first [i].X) > (profile.World.Width  * 0.5f) + 0.001f) ||
+				 (WWMath::Fabs (first [i].Y) > (profile.World.Height * 0.5f) + 0.001f)) {
+				inside_extent = false;
+			}
+		}
+		Check (inside_extent,"an irregular ring vertex fell outside the declared world extent");
+
+		//	An unknown shape tag is refused rather than silently producing a different world.
+		ProceduralWorldProfile bad_shape = profile;
+		bad_shape.Boundary.Shape = "definitely_not_a_shape";
+		DynamicVectorClass<Vector2> ignored;
+		Check (!ProceduralBoundsBuilder::Build_Boundary_Polygon (bad_shape,&ignored,&error),
+				 "an unknown boundary.shape was accepted");
+	}
+
+	//	Clearing returns the service to its legacy-map behaviour.
+	WorldBoundsService::Clear ();
+	Check (!WorldBoundsService::Is_Configured (),"clearing did not unconfigure the service");
+	Check (WorldBoundsService::Contains_Horizontal_Point (Vector2 (1.0e6f,1.0e6f)),
+			 "a cleared service still refused a point");
+
+	WorldBoundsService::Shutdown ();
+	return _Failures;
+}
+
+
+/*
 **	Finite team power grid + strategic building capabilities -- roadmap Section 40.
 **
 **	Every member here is registered with a nullptr BuildingGameObj*, which is what makes the
@@ -4752,6 +5292,16 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "runtimedoors") == 0)) {
 		Run_Runtime_Door_Service ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "worldprofile") == 0)) {
+		Run_World_Seed_And_Profile ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "worldbounds") == 0)) {
+		Run_World_Bounds ();
 		ran = true;
 	}
 

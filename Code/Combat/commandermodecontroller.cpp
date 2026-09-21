@@ -39,6 +39,7 @@
 #include "phys.h"
 #include "physcoltest.h"
 #include "rendobj.h"
+#include "worldboundsservice.h"
 #include "worldspatialindex.h"
 #include "wwmath.h"
 
@@ -166,6 +167,19 @@ void CommanderModeController::Set_Focus(const Vector3 & world_point)
 	_Focus.X = Clamp (world_point.X,_WorldMin.X,_WorldMax.X);
 	_Focus.Y = Clamp (world_point.Y,_WorldMin.Y,_WorldMax.Y);
 	_Focus.Z = Clamp (world_point.Z,_WorldMin.Z,_WorldMax.Z);
+
+	/*
+	**	V2 roadmap Section 34 Phase 2 step 11 / Section 5.8 -- the strategic camera obeys the
+	**	same authoritative boundary every actor does, so it cannot pan outside the cliff ring
+	**	and look at the terrain from behind the world.
+	**
+	**	Applied after the existing box clamp rather than instead of it: the box is what a
+	**	hand-authored map configures through Set_World_Bounds and it keeps working exactly as
+	**	before, while a procedural world adds the real polygon on top.  Clamp_Commander_Camera
+	**	returns its argument untouched when no boundary is configured, so this is a no-op on
+	**	every legacy map (directive 1.10).
+	*/
+	_Focus = WorldBoundsService::Clamp_Commander_Camera (_Focus);
 }
 
 void CommanderModeController::Pan(const Vector3 & delta)

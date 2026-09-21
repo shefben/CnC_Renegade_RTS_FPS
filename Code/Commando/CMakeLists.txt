@@ -616,6 +616,19 @@ add_test(NAME shader_worldmetrics COMMAND renegade -shaderselfcheck worldmetrics
 add_test(NAME shader_escarpment COMMAND renegade -shaderselfcheck escarpment)
 add_test(NAME shader_traversability COMMAND renegade -shaderselfcheck traversability)
 
+#	Component-assembly door open/close -- Q-017 follow-up.  Registered here rather than left
+#	out; the check itself has existed since that pass, but the earlier session that wrote it
+#	never added it to this list.
+add_test(NAME shader_runtimedoors COMMAND renegade -shaderselfcheck runtimedoors)
+
+#	V2 roadmap Section 34 Phase 1 -- world profile schema, deterministic seed service,
+#	generation manifest.  See proceduralworldprofile.h/worldseedservice.h/worldgenerationmanifest.h.
+add_test(NAME shader_worldprofile COMMAND renegade -shaderselfcheck worldprofile)
+
+#	V2 roadmap Section 34 Phase 2 -- the authoritative finite world boundary.
+#	See Code/wwphys/worldboundsservice.h.
+add_test(NAME shader_worldbounds COMMAND renegade -shaderselfcheck worldbounds)
+
     #	The terrain service -- roadmap Section 17.  See terrainselfcheck.h.
     add_test(NAME terrain_sampling COMMAND renegade -terrainselfcheck sampling)
     add_test(NAME terrain_rays     COMMAND renegade -terrainselfcheck rays)
@@ -696,6 +709,9 @@ add_test(NAME fds_shader_weaponkick COMMAND renegadeserver -shaderselfcheck weap
 add_test(NAME fds_shader_worldmetrics COMMAND renegadeserver -shaderselfcheck worldmetrics)
 add_test(NAME fds_shader_escarpment COMMAND renegadeserver -shaderselfcheck escarpment)
 add_test(NAME fds_shader_traversability COMMAND renegadeserver -shaderselfcheck traversability)
+add_test(NAME fds_shader_runtimedoors COMMAND renegadeserver -shaderselfcheck runtimedoors)
+add_test(NAME fds_shader_worldprofile COMMAND renegadeserver -shaderselfcheck worldprofile)
+add_test(NAME fds_shader_worldbounds COMMAND renegadeserver -shaderselfcheck worldbounds)
     add_test(NAME fds_terrain_sampling COMMAND renegadeserver -terrainselfcheck sampling)
     add_test(NAME fds_terrain_bridges  COMMAND renegadeserver -terrainselfcheck bridges)
     add_test(NAME fds_terrain_foliage  COMMAND renegadeserver -terrainselfcheck foliage)

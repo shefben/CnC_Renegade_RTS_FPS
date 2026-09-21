@@ -82,6 +82,11 @@ enum DebugLayerType
 	DEBUG_LAYER_SHROUD_CELLS,
 	DEBUG_LAYER_RADAR_CONTACTS,
 
+	//	V2 roadmap Section 34 Phase 2 step 18 / Section 5.10 -- the authoritative world boundary
+	//	and every protected band derived from it, so a seam or a mis-sized band can be seen
+	//	rather than inferred from a query result.
+	DEBUG_LAYER_WORLD_BOUNDS,
+
 	DEBUG_LAYER_COUNT		// sentinel
 };
 

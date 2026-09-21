@@ -40,6 +40,7 @@
 #include "rinfo.h"
 #include "scriptablegameobj.h"
 #include "soldier.h"
+#include "worldboundsservice.h"
 #include "tacticalintelligence.h"
 #include "worldshroudmanager.h"
 
@@ -192,6 +193,55 @@ static void	Draw_Shroud_Cells(void)
 }
 
 
+/***********************************************************************************************
+ * Draw_World_Bounds -- V2 roadmap Section 34 Phase 2 step 18 / Section 5.10                     *
+ *                                                                                             *
+ *	Every protected band as its own closed ring in its own colour, so the thing a boundary bug   *
+ *	actually looks like -- a band that collapsed, a ring that pinches, geometry sitting in the   *
+ *	cliff band -- is visible rather than inferred from a query answering no.                     *
+ *                                                                                             *
+ *	Drawn at the configured air ceiling rather than on the ground: the rings are a topological   *
+ *	fact about the world, there is no terrain height to follow (this layer runs before any       *
+ *	terrain exists in an empty test world), and the ceiling is itself one of the values worth    *
+ *	seeing.  Nothing is drawn at all when no boundary is configured, which is every legacy map.  *
+ *=============================================================================================*/
+static void	Draw_World_Bounds(void)
+{
+	if (!WorldBoundsService::Is_Configured()) {
+		return;
+	}
+
+	static const Vector4	HARD_BOUNDARY_COLOR	(1.0f,0.15f,0.15f,0.9f);	// the non-crossable line
+	static const Vector4	CLIFF_BAND_COLOR		(1.0f,0.55f,0.1f,0.85f);	// no roads/buildings/tunnels/resources
+	static const Vector4	APPROACH_COLOR			(0.9f,0.9f,0.2f,0.7f);		// terrain rises toward the perimeter
+	static const Vector4	OUTER_COLOR				(0.6f,0.1f,0.6f,0.9f);		// the world edge itself
+
+	const WorldBoundsZoneType	ZONES []	= { WORLD_ZONE_OUTSIDE_WORLD,WORLD_ZONE_HARD_BOUNDARY,
+														 WORLD_ZONE_CLIFF_BAND,WORLD_ZONE_BOUNDARY_APPROACH };
+	const Vector4 * const		COLORS []	= { &OUTER_COLOR,&HARD_BOUNDARY_COLOR,
+														 &CLIFF_BAND_COLOR,&APPROACH_COLOR };
+
+	float z = WorldBoundsService::Get_Air_Ceiling();
+
+	for (int zone = 0; zone < 4; zone++) {
+
+		DynamicVectorClass<Vector2> ring;
+		if (!WorldBoundsService::Get_Zone_Ring (ZONES [zone],&ring)) {
+			//	This band collapsed for this world -- worth seeing as an absence rather than
+			//	papered over with an approximation.
+			continue;
+		}
+
+		int count = ring.Count();
+		for (int i = 0, j = count - 1; i < count; j = i++) {
+			Vector3 a (ring [j].X,ring [j].Y,z);
+			Vector3 b (ring [i].X,ring [i].Y,z);
+			DebugRenderSystem::Add_Line (a,b,*COLORS [zone]);
+		}
+	}
+}
+
+
 void WorldDebugDisplay::Update(void)
 {
 	bool anything_on = false;
@@ -223,6 +273,10 @@ void WorldDebugDisplay::Update(void)
 
 	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_SHROUD_CELLS)) {
 		Draw_Shroud_Cells();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_WORLD_BOUNDS)) {
+		Draw_World_Bounds();
 	}
 
 	//	Every other layer is enumerated and toggleable (DebugRenderSystem::Is_Layer_Enabled

@@ -626,3 +626,33 @@ projectors, these run inside a frame that is already being rendered rather than 
 checked without a screen, so both ship off by default. Absorbs no backlog line (P55 and P57 are
 both closed). Next exact action: with the game runnable, turn bloom on first, confirm the frame
 still composites and the HUD still draws, then the shafts.
+
+## Gameplay gap backlog -- ordered, nothing in it started
+
+`docs/GameplayGapResolutionReport.md` (full detail) and the rewritten `gameplay-gaps.md` (13
+entries) are the current source of truth for what a player would still notice broken in the
+Commander/RTS layer. Nothing in that report's backlog was implemented this pass -- it is
+findings plus a dependency-ordered backlog, not code. Highest-value next actions per that
+backlog's own ordering: wire `CommanderProductionService::On_Facility_Destroyed` into wherever
+`BuildingGameObj` actually transitions to destroyed (currently uncalled outside a self-check
+test, so a destroyed production facility's queue is lost instead of refunded); clear
+`CommanderProductionService::Get_Team_Commander` on player disconnect (currently never cleared,
+so a disconnected Commander locks their team's role for the rest of the match); then the 8
+missing building-descriptor categories, which the Decision Log gives recommended starting
+numbers for.
+
+## V2 Phase 3 -- continuous procedural boundary cliff ring (not started)
+
+Phase: 3. Status: not started. Prerequisites: Phase 2 (complete), v1 terrain/material/shader
+system, WWPhys/OpenW3D collision -- all present. Design sections to read: 5.3-5.5, 5.9, 28.
+Canonical owners already located and usable: `WorldBoundsService`
+(`Code/wwphys/worldboundsservice.h`, whose `Get_Zone_Ring`/`Get_Inward_Distance` are exactly what
+a cliff generator needs to place its rim and toe, and whose ring is already normalized to
+clockwise so per-edge outward normals are well defined), `WorldTerrainSystem`
+(`Code/wwphys/worldterrainsystem.h`), and the v1 material/shader path. The work is real geometry
+this time -- a dedicated procedural cliff mesh path, since Section 5.3 states plainly that a
+heightfield cannot represent a vertical/overhanging cliff cleanly -- plus collision and a
+triplanar rock material, with the hard rule that no seam may create a walkable crack, vehicle
+ramp, physics hole, AI path leak or camera escape. Exact next action: read Sections 5.3-5.5 and
+28, then the locate-in-source pass for the terrain mesh/collision builders the cliff path should
+reuse rather than duplicate.

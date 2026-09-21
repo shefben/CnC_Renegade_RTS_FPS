@@ -2353,3 +2353,113 @@ duplicated anywhere. With `docs/zerohour/TestCoverageCatalog.md` already coverin
 test-strategy half, P42 is now closed rather than partial. Evidence: `leveledit` builds and links
 clean; `buildingjson` self-check gained validate-equals-load, no-side-effect and unreadable-input
 cases (never executed -- Q-012). Absorbs the `WIP_features.md` P42 entry and the backlog's P42 line.
+
+## Gameplay Gap Resolution Pass -- gameplay-gaps.md audited and reconciled against source
+
+Every entry in `gameplay-gaps.md` cross-checked against current code (`GAMEPLAY_GAPS_AGENT_TASK.md`'s
+work order). Six entries were confirmed obsolete and deleted outright (placement cursor, unit
+production, orders-obeyed for every type but PATROL, wallet cap, "nothing appears when placed" --
+each already resolved by prior work this pass re-verified by reading the actual call sites, not
+by trusting the tracker's own wording): real mouse-driven placement/selection/drag-box/command-
+palette input (`Code/Commando/commanderuiinput.cpp`), a real `cCommanderClaimEvent` one-per-team
+claim gate behind the working `B`-key toggle (`commanderclaimevent.cpp`,
+`INPUT_FUNCTION_COMMANDER_MODE_TOGGLE` bound to `DIK_B`), and real unit production
+(`Drain_Completed_Commander_Production`, `combat.cpp`) were all found already working and had
+never been reflected in the tracker. Two concrete, previously-undocumented live bugs were found
+by reading the actual code paths rather than trusting either the tracker or `WIP_features.md`:
+`CommanderProductionService::On_Facility_Destroyed` (the queue-refund-on-facility-death function)
+has no caller anywhere except a self-check test, so a destroyed production facility currently
+forfeits its whole queue instead of refunding it; and nothing clears
+`CommanderProductionService::Get_Team_Commander` on player disconnect, so a disconnected Commander
+locks their team's role for the rest of the match. Full findings, evidence, recommended fixes,
+a decision log and a dependency-ordered implementation backlog are in
+`docs/GameplayGapResolutionReport.md`. `gameplay-gaps.md` itself was rewritten to the 13 entries
+that survived the audit (down from 19), each narrowed to precisely what remains true.
+
+## V2 Phase 0 -- v1.1.0 prerequisite verified, v2 baseline established
+
+Roadmap `openw3d_commander_procedural_runtime_world_roadmap_v2.2.0_claude.md` Section 34 Phase 0.
+`unstarted_features.md` carries no remaining bullet items anywhere in the 66-phase (`P00`-`P65`)
+v1.1.0 roadmap except `P00`'s own already-non-blocking manual runtime checklist (`Q-004`); every
+other phase including `P46`-`P65` (visual fidelity + the explicitly-named "procedural-world
+prerequisites") is recorded complete. v1's final phase is therefore complete and V2's own gate
+("v1.1.0 MUST be complete before this roadmap begins") is satisfied. Every v1 canonical owner v2
+depends on (`WorldTerrainSystem`, `WorldSpatialIndex`, road/bridge/water/foliage systems,
+shroud/radar, Commander camera/sidebar/production/construction/orders, building descriptors,
+team power grid, save/load, network, `renegade`/`renegadeserver` targets) was located by source
+search, not guessed, and recorded with real paths in `docs/procedural_world/V2Baseline.md`.
+Both baseline targets (`renegade`, `renegadeserver`) build clean at commit `e44783fd`. No v1
+architecture was modified. Known-relevant open issues from the immediately-preceding gameplay-gap
+audit (missing building categories, missing prerequisite schema, unwired production refund,
+Commander-disconnect bug, no population weight, no air roster) are cross-referenced in
+`V2Baseline.md` so later v2 phases (11, 16A, 23, 24, 25) do not rediscover them mid-phase.
+
+## V2 Phase 1 -- world profile schema, deterministic seed service, generator version, generation manifest
+
+Roadmap Section 34 Phase 1. `ProceduralWorldProfile`/`ProceduralWorldProfileManager`
+(`Code/Combat/proceduralworldprofile.h/.cpp`) is the versioned world-profile schema (Section 4's
+example schema plus Section 17A.1's fairness thresholds, parsed and validated now so later
+phases never have to re-touch this file), JSON-loaded through the same nlohmann::json /
+`RawFileClass` idiom `BuildingDescriptorManager` already established. `WorldSeedService`
+(`worldseedservice.h/.cpp`) documents and implements Section 3B.1's RNG contract for real:
+`Random4Class` (existing from-scratch MT19937 in `Code/wwlib/random.h`) is the canonical RNG,
+32-bit seed width, `Derive_Subsystem_Seed = CRC::String(domain, Normalize_Seed(world_seed))`
+(existing `CRC` utility, `Code/wwlib/crc.h`) is the seed hashing algorithm, and the twelve
+`SEED_DOMAIN_*` constants are the only legal domains. `WorldGenerationManifest`/
+`WorldGenerationManifestService` (`worldgenerationmanifest.h/.cpp`) carries Section 29A.3's
+consequential-decision fields (empty until later phases populate them), computes a
+quantization-safe profile hash and an order-independent content-manifest hash, and
+serializes/deserializes through the same JSON stack. `docs/procedural_world/WorldProfileSchema.md`
+and `docs/procedural_world/GeneratorDeterminism.md` are the two required-output docs. New
+`worldprofile` self check (`shaderselfcheck.cpp`, `Run_World_Seed_And_Profile`) proves every
+item on Phase 1's own targeted-validation list as pure arithmetic -- profile round-trip through
+JSON, invalid-profile rejection with reasons, same-seed-same-derived-seed, cross-domain seed
+independence, profile/content hashing, and a real manifest serialize/deserialize round trip --
+registered as `shader_worldprofile`/`fds_shader_worldprofile` in `Code/Commando/CMakeLists.txt`
+(never executed this session, standing rule). While registering it, also registered the prior
+session's `shader_runtimedoors`/`fds_shader_runtimedoors`, which existed as a check but had never
+been added to the ctest list -- a gap left by that earlier pass, closed here. `ctest -N` now
+lists 131 tests (was 127). `renegade` and `renegadeserver` both build clean, 0 warnings. Phase 1
+gate satisfied: an empty procedural-world description can be created, saved, loaded, hashed, and
+reproduced exactly from its manifest.
+
+## V2 Phase 2 -- WorldBoundsService and immutable boundary topology
+
+Roadmap Section 34 Phase 2, all 18 numbered steps. `WorldBoundsService`
+(`Code/wwphys/worldboundsservice.h/.cpp`) is the single authoritative finite world boundary:
+a validated closed clockwise polygon (Phase 2 step 3's four rules -- closed, non-self-intersecting,
+minimum vertex spacing, minimum interior area -- with nothing installed unless all pass), Section
+5.2's five protected zones derived from one inward-distance primitive, and every query Section 5.6
+names (`Contains_Horizontal_Point`, `Contains_Gameplay_Point`, `Classify_Point`,
+`Closest_Valid_Point`, `Segment_Crosses_Hard_Boundary`, `Can_Place_In_Region`,
+`Clamp_Commander_Camera`, `Is_Inside_Air_Volume`, `Recover_Out_Of_Bounds_Actor`). It lives in
+wwphys rather than Combat because step 14's canonical movement layer
+(`MoveablePhysClass::Post_Timestep_Process`) is below Combat and cannot include it; generation
+stays in Combat as `ProceduralBoundsBuilder` (`Code/Combat/proceduralboundsbuilder.h/.cpp`), which
+builds the ring deterministically from a Phase 1 profile plus its `BoundarySeed`. One boundary
+handed across a layer edge, never two representations.
+
+Integrated at exactly five places: the movement hook (one call covering infantry, ground vehicles
+and aircraft, since all three derive from `MoveablePhysClass` -- which is what makes Phase 2's own
+forbidden outcomes "different subsystems maintain different boundary polygons" and "aircraft uses
+unrelated bounds" impossible by construction), `CommanderModeController::Set_Focus` (Section 5.8
+camera clamp), `CommanderPlacementValidator::Validate` (Section 5.9 cliff-band construction ban,
+reported through the already-existing `PLACEMENT_OUT_OF_BOUNDS`), `CombatManager` init (which also
+sets server authority, since wwphys cannot ask `I_Am_Server` itself), and a new
+`debug_layer world_bounds` overlay drawing every band ring (step 18). Escape recovery is
+server-only and restores rather than kills (Section 5.6), zeroing velocity so an exploit cannot
+re-eject the actor every frame, and logging actor/prior/attempted/restored per step 17.
+`MoveablePhysClass` gained two non-persisted members for the last-safe transform (step 15).
+
+Directive 1.10 is preserved by construction: the service is inactive until `Configure` is called,
+nothing in the stock game calls it, and every query answers permissively while inactive -- so a
+hand-authored Renegade map pays one bool test per moving actor per frame and behaves exactly as
+before. The `worldbounds` self check asserts that permissive behaviour directly rather than
+leaving it to review, alongside zone-edge placement, actor-vs-construction legality, the air
+ceiling, camera clamping, segment crossing, recovery including its server-authority refusal, and
+builder determinism/seed-sensitivity/extent-safety/unknown-shape rejection. Registered as
+`shader_worldbounds`/`fds_shader_worldbounds`; `ctest -N` now lists 133 (was 131). `renegade`,
+`renegadeserver` and `leveledit` all build clean, 0 warnings. Docs:
+`docs/procedural_world/WorldBoundsAndBoundaryCliffs.md` (boundary half; Phase 3 appends the cliff
+half to the same file). Phase 2 gate satisfied: every gameplay actor and the strategic camera are
+constrained by the same authoritative finite world boundary.

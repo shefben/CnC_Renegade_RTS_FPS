@@ -48,6 +48,7 @@
 
 
 #include "movephys.h"
+#include "worldboundsservice.h"
 #include "colmathaabox.h"
 #include "pscene.h"
 #include "dyntexproject.h"
@@ -107,7 +108,9 @@ MoveablePhysClass::MoveablePhysClass(void) :
 	Controller(nullptr),
 	Carrier(nullptr),
 	CarrierSubObject(nullptr),
-	ShadowManager(*this)
+	ShadowManager(*this),
+	LastSafePosition(0.0f,0.0f,0.0f),
+	HasLastSafePosition(false)
 {
 }
 
@@ -189,6 +192,47 @@ void MoveablePhysClass::Definition_Changed(void)
 void MoveablePhysClass::Post_Timestep_Process(void)
 {
 	ShadowManager.Update_Shadow();
+
+	/*
+	**	V2 roadmap Section 34 Phase 2, steps 14-17 -- the authoritative world boundary, applied
+	**	at the one layer every moving gameplay actor already passes through.
+	**
+	**	This is deliberately the ONLY actor-side boundary check in the engine.  Infantry
+	**	(HumanPhysClass -> Phys3Class), ground vehicles (MotorVehicleClass -> VehiclePhysClass ->
+	**	RigidBodyClass) and aircraft (VTOLVehicleClass -> VehiclePhysClass -> RigidBodyClass) all
+	**	derive from MoveablePhysClass, so one call here is what makes "aircraft uses unrelated
+	**	bounds" and "different subsystems maintain different boundary polygons" -- both named on
+	**	Phase 2's own do-not-proceed list -- impossible by construction rather than by review.
+	**
+	**	Costs nothing on a hand-authored Renegade map: nothing calls WorldBoundsService::Configure
+	**	outside procedural world creation, so Is_Configured() is false and this is one bool test
+	**	per moving object per frame (directive 1.10 -- legacy maps keep working untouched).
+	**
+	**	Recovery is server-authoritative: Recover_Out_Of_Bounds_Actor refuses to act unless
+	**	Combat has marked this process authoritative, so a client never corrects its own
+	**	position -- it receives the corrected one through the normal replication it already uses.
+	*/
+	if (WorldBoundsService::Is_Configured()) {
+
+		Vector3 position = Get_Transform().Get_Translation();
+		Vector3 recovered(0.0f,0.0f,0.0f);
+
+		if (WorldBoundsService::Recover_Out_Of_Bounds_Actor(position,LastSafePosition,
+																			 HasLastSafePosition,Get_Name(),&recovered)) {
+
+			Set_Position(recovered);
+
+			//	Zero the velocity that carried it out, or an actor pushed outward by a physics
+			//	exploit is simply recovered again next frame, and the frame after that.  The
+			//	virtual is declared on MoveablePhysClass itself and overridden by both
+			//	Phys3Class and RigidBodyClass, so this reaches every real actor type.
+			Set_Velocity(Vector3(0.0f,0.0f,0.0f));
+
+		} else if (WorldBoundsService::Contains_Gameplay_Point(position)) {
+			LastSafePosition		= position;
+			HasLastSafePosition	= true;
+		}
+	}
 }
 
 

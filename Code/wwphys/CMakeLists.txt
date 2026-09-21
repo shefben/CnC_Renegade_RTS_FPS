@@ -51,6 +51,7 @@ set(WWPHYS_SRC
     projectormanager.cpp
     pscene.cpp
     worldterrainsystem.cpp
+    worldboundsservice.cpp
     pscene_collision.cpp
     pscene_decal.cpp
     pscene_lighting.cpp
@@ -167,6 +168,7 @@ set(WWPHYS_SRC
     projectormanager.h
     pscene.h
     worldterrainsystem.h
+    worldboundsservice.h
     rbody.h
     renderobjphys.h
     renegadeterrainmaterialpass.h

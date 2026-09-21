@@ -14,6 +14,7 @@
 #include "obbox.h"
 #include "phys.h"
 #include "pscene.h"
+#include "worldboundsservice.h"
 #include "worldspatialindex.h"
 #include "worldterrainsystem.h"
 #include "wwmath.h"
@@ -131,6 +132,28 @@ CommanderPlacementResult CommanderPlacementValidator::Validate(const CommanderPl
 	if (descriptor == nullptr) {
 		result.Result = reason;
 		return result;
+	}
+
+	/*
+	**	V2 roadmap Section 34 Phase 2 step 10 / Section 5.9 -- the authoritative world boundary,
+	**	asked before any terrain question, because "no building in the cliff band" is a rule about
+	**	the world's topology rather than about the ground under this particular spot.
+	**
+	**	`Can_Place_In_Region` is stricter than the actor-legality test on purpose: an actor may
+	**	stand anywhere inward of the hard barrier, but nothing may be BUILT in the protected cliff
+	**	band, and passing the footprint radius is what stops a building whose centre clears the
+	**	band from putting a corner inside it.
+	**
+	**	No-op on every hand-authored map -- `WorldBoundsService` is unconfigured there and answers
+	**	true (directive 1.10).
+	*/
+	{
+		float footprint_radius = Footprint_Sample_Radius (*descriptor);
+		if (!WorldBoundsService::Can_Place_In_Region (Vector2 (request.Position.X,request.Position.Y),
+																	 footprint_radius)) {
+			result.Result = PLACEMENT_OUT_OF_BOUNDS;
+			return result;
+		}
 	}
 
 	/*

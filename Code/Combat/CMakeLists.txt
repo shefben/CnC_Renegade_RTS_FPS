@@ -79,6 +79,10 @@ set(COMBAT_SRC
     buildingconstruction.cpp
 runtimebuildingfactory.cpp
 runtimedoorservice.cpp
+proceduralworldprofile.cpp
+worldseedservice.cpp
+worldgenerationmanifest.cpp
+proceduralboundsbuilder.cpp
 projectbuildingdefs.cpp
     commanderproduction.cpp
     commanderguardai.cpp
@@ -250,6 +254,10 @@ projectbuildingdefs.cpp
     buildingconstruction.h
 runtimebuildingfactory.h
 runtimedoorservice.h
+proceduralworldprofile.h
+worldseedservice.h
+worldgenerationmanifest.h
+proceduralboundsbuilder.h
 projectbuildingdefs.h
     commanderproduction.h
     commanderguardai.h

@@ -99,6 +99,7 @@
 #include "buildingdescriptormanager.h"
 #include "projectbuildingdefs.h"
 #include "runtimedoorservice.h"
+#include "worldboundsservice.h"
 #include "assetdep.h"
 #include "saveloadstatus.h"
 #include <stdio.h>
@@ -594,6 +595,20 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	CommanderPlacementValidator::Init();
 	BuildingConstructionService::Init();
 	RuntimeDoorService::Init();
+
+	/*
+	**	V2 roadmap Section 34 Phase 2.  The boundary itself is installed only when a procedural
+	**	world is created (ProceduralBoundsBuilder::Configure_World_Bounds), so Init here just
+	**	clears it -- a hand-authored map runs with no boundary configured and every boundary
+	**	query answers permissively, exactly as before v2 (directive 1.10).
+	**
+	**	Enforcement authority is set from here because WorldBoundsService lives in wwphys and
+	**	cannot ask CombatManager which side it is running on.  Without this the movement layer
+	**	would never recover an escaped actor; with it, only the server ever does -- a client
+	**	receives the corrected position through normal replication rather than correcting itself.
+	*/
+	WorldBoundsService::Init();
+	WorldBoundsService::Set_Server_Authoritative( CombatManager::I_Am_Server() );
 	CommanderProductionService::Init();
 	CommanderGuardAI::Init();
 	CommanderSelection::Init();

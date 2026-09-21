@@ -111,6 +111,26 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  `Pick_At_Cursor` and the placement world-query branches (overlap/slope/bounds/exit clearance) have
  never had -- see this file's P35/P36/P37 entries in `WIP_features.md`.
 
+**Update, a seventh pass.** Two more device-less families exist and are registered for the first
+time: `shader_runtimedoors` (the check itself was written during the door-service pass, but never
+added to `Code/Commando/CMakeLists.txt`'s `add_test` list until now -- a gap in that earlier
+session, not a new check) and `shader_worldprofile` (V2 roadmap Phase 1 -- world profile schema,
+deterministic seed derivation, generation manifest; `docs/procedural_world/GeneratorDeterminism.md`
+lists exactly what it proves). Both have `fds_` twins. Neither has been run, same standing reason
+as every other family here; both are covered by the same `"shader_|fds_shader_|terrain_shroud"`
+sweep, bringing the total to 36 (was 34 as of the fifth pass; `shader_runtimedoors` was never
+counted there because it was never registered, `shader_worldprofile` is new this pass).
+
+**Update, an eighth pass.** `shader_worldbounds` (V2 roadmap Phase 2 -- the authoritative finite
+world boundary) added, with its `fds_` twin, bringing the total to 37; still the same
+`"shader_|fds_shader_|terrain_shroud"` sweep. What it proves and what it cannot is listed in
+`docs/procedural_world/WorldBoundsAndBoundaryCliffs.md`. New manual-only items, none with a ctest
+family possible, all needing a live physics scene: infantry, a ground vehicle and an aircraft each
+failing to cross the perimeter; the Commander camera refusing to pan outside it; a deliberately
+teleported actor being restored by a live server; and `debug_layer world_bounds 1` drawing the
+band rings. All six are one sitting in a procedural world, which cannot exist until Phase 3+ puts
+terrain in one -- so this is genuinely blocked on later v2 phases rather than merely unrun.
+
 - **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`
  "through the existing vcpkg/CMake dependency system." This machine has no `VCPKG_ROOT` and no
  vcpkg installation at all, and the `build/win32` tree `b.bat` actually builds has no vcpkg

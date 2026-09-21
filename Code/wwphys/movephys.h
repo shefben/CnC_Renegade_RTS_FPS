@@ -149,6 +149,20 @@ protected:
 	RenderObjClass *				CarrierSubObject;
 	DynamicShadowManagerClass	ShadowManager;
 
+	/*
+	** V2 roadmap Section 34 Phase 2 step 15 -- the last position this actor occupied that the
+	** authoritative world boundary accepted, used to put it back when it escapes (step 16).
+	** Kept on the actor rather than in a map inside WorldBoundsService so the overwhelmingly
+	** common case -- still inside, just remember where -- costs no lookup at all.
+	**
+	** Deliberately NOT persisted by Save/Load: it is pure runtime recovery state with no
+	** gameplay meaning of its own, it re-seeds on the actor's first legal frame after a load,
+	** and adding it to the chunk format would change the save layout for something a loaded
+	** actor standing in a legal place regenerates immediately anyway.
+	*/
+	Vector3							LastSafePosition;
+	bool								HasLastSafePosition;
+
 	// Not Implemented:
 	MoveablePhysClass(const MoveablePhysClass &);
 	MoveablePhysClass & operator = (const MoveablePhysClass &);
