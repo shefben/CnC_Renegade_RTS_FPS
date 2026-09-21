@@ -83,6 +83,7 @@ proceduralworldprofile.cpp
 worldseedservice.cpp
 worldgenerationmanifest.cpp
 proceduralboundsbuilder.cpp
+proceduralworldmanager.cpp
 projectbuildingdefs.cpp
     commanderproduction.cpp
     commanderguardai.cpp
@@ -258,6 +259,7 @@ proceduralworldprofile.h
 worldseedservice.h
 worldgenerationmanifest.h
 proceduralboundsbuilder.h
+proceduralworldmanager.h
 projectbuildingdefs.h
     commanderproduction.h
     commanderguardai.h

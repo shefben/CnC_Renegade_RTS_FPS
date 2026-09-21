@@ -629,6 +629,10 @@ add_test(NAME shader_worldprofile COMMAND renegade -shaderselfcheck worldprofile
 #	See Code/wwphys/worldboundsservice.h.
 add_test(NAME shader_worldbounds COMMAND renegade -shaderselfcheck worldbounds)
 
+#	V2 roadmap Section 34 Phase 3 -- the procedural boundary cliff ring.
+#	See Code/wwphys/boundarycliffgenerator.h.
+add_test(NAME shader_worldcliffs COMMAND renegade -shaderselfcheck worldcliffs)
+
     #	The terrain service -- roadmap Section 17.  See terrainselfcheck.h.
     add_test(NAME terrain_sampling COMMAND renegade -terrainselfcheck sampling)
     add_test(NAME terrain_rays     COMMAND renegade -terrainselfcheck rays)
@@ -712,6 +716,7 @@ add_test(NAME fds_shader_traversability COMMAND renegadeserver -shaderselfcheck 
 add_test(NAME fds_shader_runtimedoors COMMAND renegadeserver -shaderselfcheck runtimedoors)
 add_test(NAME fds_shader_worldprofile COMMAND renegadeserver -shaderselfcheck worldprofile)
 add_test(NAME fds_shader_worldbounds COMMAND renegadeserver -shaderselfcheck worldbounds)
+add_test(NAME fds_shader_worldcliffs COMMAND renegadeserver -shaderselfcheck worldcliffs)
     add_test(NAME fds_terrain_sampling COMMAND renegadeserver -terrainselfcheck sampling)
     add_test(NAME fds_terrain_bridges  COMMAND renegadeserver -terrainselfcheck bridges)
     add_test(NAME fds_terrain_foliage  COMMAND renegadeserver -terrainselfcheck foliage)

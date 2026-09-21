@@ -131,6 +131,24 @@ teleported actor being restored by a live server; and `debug_layer world_bounds 
 band rings. All six are one sitting in a procedural world, which cannot exist until Phase 3+ puts
 terrain in one -- so this is genuinely blocked on later v2 phases rather than merely unrun.
 
+**Update, a ninth pass.** `shader_worldcliffs` (V2 roadmap Phase 3 -- the procedural boundary
+cliff ring) added, with its `fds_` twin, bringing the total to 38; still the same
+`"shader_|fds_shader_|terrain_shroud"` sweep, and `ctest -N` now lists 135. What it proves and
+what it cannot is listed in `docs/procedural_world/WorldBoundsAndBoundaryCliffs.md`.
+
+The eighth pass said the six manual boundary items were blocked until a procedural world could
+exist. **That block is now lifted**: the "Procedural Skirmish" button on the main menu creates
+one over a stock skirmish map, so all six of those items plus this pass's new ones are reachable
+in a single sitting. They are no longer blocked on later phases, only unrun.
+
+New manual-only items, all needing a display: whether the cliff ring renders at all and whether
+it renders as rock rather than untextured (the default `TERRAIN_LAYER_CLIFF` layer names no
+texture, the same gap P13 carries); whether a vehicle can crest it; whether the toe apron reads
+as scree; whether `debug_layer boundary_cliffs 1` shows any red riser, which would mean a
+climbable station; and whether the menu button's whole path -- request, skirmish map choice,
+fit-to-level against a real map's extents, generation inside `Post_Load_Level` -- works at all.
+It has never been clicked.
+
 - **Q-013 (resolved by decision, reversible)** Roadmap Section 39 asks for `nlohmann-json`
  "through the existing vcpkg/CMake dependency system." This machine has no `VCPKG_ROOT` and no
  vcpkg installation at all, and the `build/win32` tree `b.bat` actually builds has no vcpkg

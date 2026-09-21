@@ -100,6 +100,7 @@
 #include "projectbuildingdefs.h"
 #include "runtimedoorservice.h"
 #include "worldboundsservice.h"
+#include "proceduralworldmanager.h"
 #include "assetdep.h"
 #include "saveloadstatus.h"
 #include <stdio.h>
@@ -609,6 +610,16 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	*/
 	WorldBoundsService::Init();
 	WorldBoundsService::Set_Server_Authoritative( CombatManager::I_Am_Server() );
+
+	/*
+	**	V2 roadmap Section 34 Phase 3.  The previous level's generated world goes here; the
+	**	new one is not built until Post_Load_Level, and then only if something explicitly
+	**	requested it (directive 1.10).  An outstanding request deliberately survives this --
+	**	it is made from the menu, before the level starts loading, so clearing it here would
+	**	discard the very thing the player asked for, which is why this is Destroy_World and
+	**	not Init.
+	*/
+	ProceduralWorldManager::Destroy_World();
 	CommanderProductionService::Init();
 	CommanderGuardAI::Init();
 	CommanderSelection::Init();
@@ -845,6 +856,20 @@ void	CombatManager::Post_Load_Level( void )
 	//
 	//	The level is complete and playable from here.
 	//
+	/*
+	**	V2 roadmap Section 34 Phase 3.  The procedural world is generated here, after the level
+	**	is otherwise complete, for two reasons: a world fitted to its host level cannot be sized
+	**	until that level's extents exist, and the cliff ring needs a physics scene to put its
+	**	geometry into.  With no world requested this returns immediately and a hand-authored map
+	**	is untouched.
+	*/
+	{
+		StringClass world_error;
+		if (!ProceduralWorldManager::Generate_World( &world_error )) {
+			WWDEBUG_SAY(( "Procedural world generation failed: %s\r\n",world_error.Peek_Buffer() ));
+		}
+	}
+
 	GameEventBus::Raise_Level_Loaded( _load_map_name );
 	return ;
 }

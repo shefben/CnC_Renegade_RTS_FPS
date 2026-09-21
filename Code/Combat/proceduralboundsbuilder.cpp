@@ -155,6 +155,21 @@ bool ProceduralBoundsBuilder::Build_Boundary_Polygon(const ProceduralWorldProfil
 		return false;
 	}
 
+	/*
+	**	Every shape above is built about the origin, because the jitter and the rectangle walk
+	**	both read more clearly that way.  The profile's centre is applied once, here, afterwards
+	**	-- rather than threaded through three builders that would each have to remember it.  A
+	**	world generated from nothing leaves the centre at the origin and this loop changes
+	**	nothing; a world fitted over a hand-authored level moves the whole ring onto that
+	**	level's own ground, which is not built around the origin.
+	*/
+	if ((profile.World.CenterX != 0.0f) || (profile.World.CenterY != 0.0f)) {
+		Vector2 centre (profile.World.CenterX,profile.World.CenterY);
+		for (int i = 0; i < out_vertices->Count (); i++) {
+			(*out_vertices) [i] = (*out_vertices) [i] + centre;
+		}
+	}
+
 	return true;
 }
 

@@ -39,6 +39,7 @@ WorldGenerationManifest::WorldGenerationManifest(void) :
 	Seed (0),
 	ProfileHash (0),
 	ContentManifestHash (0),
+	CliffRingChecksum (0),
 	RoadGraphChecksum (0),
 	NavigationRevision (0)
 {
@@ -60,8 +61,9 @@ Format_Canonical_Profile_String(const ProceduralWorldProfile & p)
 	StringClass s (256u,true);
 	s.Format (
 		"schema=%u gen=%u seed=%u "
-		"w.width=%.4f w.height=%.4f w.chunk=%.4f w.sea=%.4f "
+		"w.width=%.4f w.height=%.4f w.chunk=%.4f w.sea=%.4f w.fit=%d w.cx=%.4f w.cy=%.4f "
 		"b.shape=%s b.band=%.4f b.cmin=%.4f b.cmax=%.4f b.hard=%.4f b.ceil=%.4f "
+		"b.rimrough=%.4f b.facerough=%.4f b.toe=%.4f b.colsimp=%d "
 		"t.relief=%.4f t.hill=%.4f t.mtn=%.4f t.icliff=%.4f t.valley=%.4f "
 		"wa.riv=%d wa.lake=%d wa.pond=%d wa.coast=%d "
 		"f.forest=%d f.settle=%d f.tunnel=%d f.hwy=%d f.tib=%d "
@@ -70,16 +72,18 @@ Format_Canonical_Profile_String(const ProceduralWorldProfile & p)
 		"fa.minveh=%d fa.mininf=%d fa.minexp=%.4f fa.bridgeok=%d "
 		"fa.rundist=%.4f fa.runtime=%.4f fa.cover=%.4f fa.laneclear=%.4f",
 		p.SchemaVersion,p.GeneratorVersion,p.Seed,
-		p.World.Width,p.World.Height,p.World.ChunkSize,p.World.SeaLevel,
+		p.World.Width,p.World.Height,p.World.ChunkSize,p.World.SeaLevel,p.World.FitToLevel ? 1 : 0,p.World.CenterX,p.World.CenterY,
 		p.Boundary.Shape.Peek_Buffer (),p.Boundary.CliffBandWidth,p.Boundary.CliffMinHeight,
 			p.Boundary.CliffMaxHeight,p.Boundary.HardBarrierOffset,p.Boundary.AirCeiling,
+		p.Boundary.RimRoughness,p.Boundary.FaceRoughness,p.Boundary.ToeWidth,
+			p.Boundary.CollisionSimplification,
 		p.Terrain.MacroRelief,p.Terrain.HillDensity,p.Terrain.MountainDensity,
 			p.Terrain.InteriorCliffDensity,p.Terrain.ValleyDensity,
 		p.Water.Rivers ? 1 : 0,p.Water.Lakes ? 1 : 0,p.Water.Ponds ? 1 : 0,p.Water.Coastline ? 1 : 0,
 		p.Features.Forests ? 1 : 0,p.Features.Settlements ? 1 : 0,p.Features.Tunnels ? 1 : 0,
 			p.Features.Highways ? 1 : 0,p.Features.TiberiumFields ? 1 : 0,
 		p.Retry.MaxLocalRetriesPerStage,p.Retry.MaxAlternateCandidatesPerFeature,
-		p.Fairness.MinBaseExpansionArea,p.Fairness.MaxProjectedInitialIncomeDifferencePercent,
+		p.Fairness.MaxInitialResourceTravelTimeDifferenceSeconds,p.Fairness.MaxProjectedInitialIncomeDifferencePercent,
 			p.Fairness.MaxBaseToFrontTravelTimeDifferenceSeconds,p.Fairness.MaxBaseToBaseTravelTimeDifferenceSeconds,
 		p.Fairness.MinVehicleApproachCount,p.Fairness.MinInfantryApproachCount,
 			p.Fairness.MinBaseExpansionArea,p.Fairness.AllowSingleBridgeDependency ? 1 : 0,
@@ -178,6 +182,7 @@ bool WorldGenerationManifestService::Serialize(const WorldGenerationManifest & m
 	root ["seed"]								= m.Seed;
 	root ["profile_hash"]					= m.ProfileHash;
 	root ["content_manifest_hash"]		= m.ContentManifestHash;
+	root ["cliff_ring_checksum"]			= m.CliffRingChecksum;
 	root ["road_graph_checksum"]			= m.RoadGraphChecksum;
 	root ["navigation_revision"]			= m.NavigationRevision;
 
@@ -212,7 +217,8 @@ bool WorldGenerationManifestService::Deserialize(const char * json_text,WorldGen
 		m.Seed						= root.value ("seed",0u);
 		m.ProfileHash				= root.value ("profile_hash",0u);
 		m.ContentManifestHash	= root.value ("content_manifest_hash",0u);
-		m.RoadGraphChecksum		= root.value ("road_graph_checksum",0u);
+		m.CliffRingChecksum		= root.value ("cliff_ring_checksum",0u);
+	m.RoadGraphChecksum		= root.value ("road_graph_checksum",0u);
 		m.NavigationRevision		= root.value ("navigation_revision",0u);
 
 		Read_String_Array (root,"selected_base_candidate_ids",&m.SelectedBaseCandidateIds);

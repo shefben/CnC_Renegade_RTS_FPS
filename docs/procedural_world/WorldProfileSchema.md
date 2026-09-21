@@ -125,3 +125,43 @@ actionable reason string (`"world.width must be positive"`, never a bare `false`
 See `docs/procedural_world/GeneratorDeterminism.md` for `ComputeProfileHash`,
 `ComputeGenerationContentHash`, `WorldGenerationManifest`, and the RNG/seed-derivation contract
 every later phase consumes.
+
+
+## Schema version 2 (Phase 3)
+
+Six fields were added when Phase 3 built the cliff geometry that consumes them. A schema-1
+profile still loads; each new field takes the default below.
+
+### `boundary` — the rest of Section 5.5's named controls
+
+| Field | Type | Default | Rule | Meaning |
+| --- | --- | --- | --- | --- |
+| `rim_roughness` | float | `0.35` | 0..1 | How far the cliff rim wanders inside the min/max height band. 0 puts every station on the **midpoint** of that band, not on the minimum, so turning roughness off gives a level rim of sensible height. 1 is the generator's own maximum. |
+| `face_roughness` | float | `0.45` | 0..1 | How much the face inflects between toe and rim. 0 builds the face as a single row of quads, which is exactly the geometry an escarpment produced before Phase 3. |
+| `toe_width` | float | `14.0` | `>= 0`, `< cliff_band_width` | World units of scree apron at the foot of the face. Wider than the band would put scree in the playable interior, which Section 5.9 forbids as firmly as it forbids building there. |
+| `collision_simplification` | int | `2` | `>= 1` | Render stations per collision station. **Parsed, validated and hashed; not consumed** — see `WorldBoundsAndBoundaryCliffs.md` for why an escarpment's collider being the mesh it draws makes this unimplementable without introducing a second answer to "is there a wall here". |
+
+Values above 1 for either roughness are **rejected**, not clamped: a value above 1 is not "more
+variation", it is a profile author misunderstanding the unit, and clamping would hide that.
+
+### `world` — placing a world over a hand-authored level
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `fit_to_level` | bool | `false` | Take `width`, `height`, `sea_level` and the centre from the host level's own measured extents (`PhysicsSceneClass::Get_Level_Extents`) instead of from this file. The fields above then act only as the fallback for a level reporting no usable extent. |
+| `center_x`, `center_y` | float | `0.0` | Where the world sits. The origin is right for a world generated from nothing; a stock Renegade map is not built around the origin, so a ring centred there would enclose the wrong ground. |
+
+The right size for a ring enclosing a hand-authored map is a **measurable property of that map**,
+not a number a profile author should have to know — which is why `fit_to_level` exists rather
+than a documented "typical Renegade map size". The values actually used are recorded in the
+generation manifest, so a fitted world stays reproducible.
+
+### Version semantics
+
+`CURRENT_SCHEMA_VERSION` and `CURRENT_GENERATOR_VERSION` both moved to 2, independently and for
+different reasons: the schema gained fields, and the algorithm changed — the same seed and the
+same schema-1 profile now produce a world with cliffs in it where before it produced only an
+invisible boundary.
+
+The shipped profile is `data/procedural_world/default.json`, loaded by
+`ProceduralWorldManager::DEFAULT_PROFILE_PATH`.

@@ -87,6 +87,12 @@ enum DebugLayerType
 	//	rather than inferred from a query result.
 	DEBUG_LAYER_WORLD_BOUNDS,
 
+	//	V2 roadmap Section 34 Phase 3 step 16.  The generated cliff ring: its stations, its
+	//	rim line and the face between them.  Separate from world_bounds because the boundary is
+	//	a topological fact and the ring is geometry that is supposed to explain it -- seeing one
+	//	without the other is exactly how a mismatch between them would be spotted.
+	DEBUG_LAYER_BOUNDARY_CLIFFS,
+
 	DEBUG_LAYER_COUNT		// sentinel
 };
 

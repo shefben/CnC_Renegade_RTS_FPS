@@ -205,7 +205,7 @@ MainMenuTransitionClass::On_Frame_Update (void)
 void
 MainMenuTransitionClass::Update_Controls (void)
 {
-	const int ENTRIES = 6;
+	const int ENTRIES = 7;
 
 	const int ControlIDArray[ENTRIES] =
 	{
@@ -214,6 +214,7 @@ MainMenuTransitionClass::Update_Controls (void)
 		IDC_MENU_MP_INTERNET_GAME_BUTTON,
 		IDC_MENU_MP_LAN_GAME_BUTTON,
 		IDC_MENU_START_PRACTICE_GAME_BUTTON,
+		IDC_MENU_START_PROCEDURAL_GAME_BUTTON,
 		IDC_MENU_OPTIONS_BUTTON,
 		IDC_MENU_QUIT_BUTTON
 	};

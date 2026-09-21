@@ -1,0 +1,71 @@
+{
+	"schema_version": 2,
+	"generator_version": 2,
+	"name": "Default procedural world",
+
+	"seed": 1,
+
+	"world": {
+		"fit_to_level": true,
+		"width": 1200.0,
+		"height": 1200.0,
+		"chunk_size": 60.0,
+		"sea_level": 0.0
+	},
+
+	"boundary": {
+		"shape": "irregular_ring",
+		"cliff_band_width": 120.0,
+		"cliff_min_height": 60.0,
+		"cliff_max_height": 110.0,
+		"hard_barrier_offset": 20.0,
+		"air_ceiling": 200.0,
+		"rim_roughness": 0.35,
+		"face_roughness": 0.45,
+		"toe_width": 12.0,
+		"collision_simplification": 2
+	},
+
+	"terrain": {
+		"macro_relief": 0.6,
+		"hill_density": 0.45,
+		"mountain_density": 0.18,
+		"interior_cliff_density": 0.16,
+		"valley_density": 0.30
+	},
+
+	"water": {
+		"rivers": true,
+		"lakes": true,
+		"ponds": true,
+		"coastline": true
+	},
+
+	"world_features": {
+		"forests": true,
+		"settlements": true,
+		"tunnels": true,
+		"highways": true,
+		"tiberium_fields": true
+	},
+
+	"retry": {
+		"max_local_retries_per_stage": 8,
+		"max_alternate_candidates_per_feature": 6
+	},
+
+	"fairness": {
+		"max_initial_resource_travel_time_difference_seconds": 15.0,
+		"max_projected_initial_income_difference_percent": 10.0,
+		"max_base_to_front_travel_time_difference_seconds": 20.0,
+		"max_base_to_base_travel_time_difference_seconds": 20.0,
+		"min_vehicle_approach_count": 2,
+		"min_infantry_approach_count": 2,
+		"min_base_expansion_area": 4096.0,
+		"allow_single_bridge_dependency": false,
+		"max_mandatory_exposed_infantry_run_distance": 60.0,
+		"max_mandatory_exposed_infantry_run_time_seconds": 12.0,
+		"preferred_cover_interval": 25.0,
+		"min_vehicle_lane_clearance": 1.0
+	}
+}

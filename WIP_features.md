@@ -641,18 +641,49 @@ so a disconnected Commander locks their team's role for the rest of the match); 
 missing building-descriptor categories, which the Decision Log gives recommended starting
 numbers for.
 
-## V2 Phase 3 -- continuous procedural boundary cliff ring (not started)
+## The boundary cliff ring is built and nobody has seen a cliff
 
-Phase: 3. Status: not started. Prerequisites: Phase 2 (complete), v1 terrain/material/shader
-system, WWPhys/OpenW3D collision -- all present. Design sections to read: 5.3-5.5, 5.9, 28.
-Canonical owners already located and usable: `WorldBoundsService`
-(`Code/wwphys/worldboundsservice.h`, whose `Get_Zone_Ring`/`Get_Inward_Distance` are exactly what
-a cliff generator needs to place its rim and toe, and whose ring is already normalized to
-clockwise so per-edge outward normals are well defined), `WorldTerrainSystem`
-(`Code/wwphys/worldterrainsystem.h`), and the v1 material/shader path. The work is real geometry
-this time -- a dedicated procedural cliff mesh path, since Section 5.3 states plainly that a
-heightfield cannot represent a vertical/overhanging cliff cleanly -- plus collision and a
-triplanar rock material, with the hard rule that no seam may create a walkable crack, vehicle
-ramp, physics hole, AI path leak or camera escape. Exact next action: read Sections 5.3-5.5 and
-28, then the locate-in-source pass for the terrain mesh/collision builders the cliff path should
-reuse rather than duplicate.
+`BoundaryCliffGenerator`, `ProceduralWorldManager` and the "Procedural Skirmish" menu button are
+all in (see `completed_features.md`, "V2 Phase 3", and
+`docs/procedural_world/WorldBoundsAndBoundaryCliffs.md`). What this entry carries is the half no
+device-less check can settle: **nothing has been on a screen.** The ring's plan is proven
+deterministic, closed, seam-exact and unclimbable by `shader_worldcliffs`, and the triangles are a
+function of that plan -- but no cliff has ever been rendered or walked into.
+
+Three specific unknowns, in the order they would bite:
+
+1. **The face will probably draw untextured.** It is dressed by the first `TERRAIN_LAYER_CLIFF`
+   layer, and `Define_Default_Layers`' cliff layer names no texture -- the same gap P13 already
+   carries. Escarpments degrade to untextured rather than crashing, so this is a look problem,
+   not a failure, and it is fixed by pointing the cliff layer at a stock texture name
+   (`docs/assets/TerrainLayers.md`).
+2. **Whether the toe apron and the face inflection earn their triangles** is a judgement nobody
+   can make from arithmetic.
+3. **Whether a vehicle can crest the ring** is the acceptance clause that matters most and the one
+   that needs a real physics scene.
+
+Also unexercised: the menu button has never been clicked, so the whole path -- request, skirmish
+map choice, fit-to-level against a real stock map's extents, generation inside `Post_Load_Level`
+-- has run zero times.
+
+Next exact action is a manual one for the user: run
+`ctest -C Debug -R "shader_worldbounds|shader_worldcliffs|shader_worldprofile" --output-on-failure`
+in `build/win32`, then `renegade --gamedir "C:\Westwood\Renegade_full"`, click **Procedural
+Skirmish** on the main menu, and report what the log's `ProceduralWorldManager: world generated`
+line says, whether cliffs appear around the map, and what `debug_layer boundary_cliffs 1` and
+`debug_layer world_bounds 1` show -- in particular whether any riser draws red.
+
+## V2 Phase 4 -- macro terrain generation and chunk ownership (not started)
+
+Phase: 4. Status: not started. Prerequisites: Phase 3 (complete), v1 `WorldTerrainSystem`, v1
+far/background terrain -- all present. The work is the bounded playable landform *inside* the
+immutable perimeter Phase 3 just built; today a procedural world still stands on whatever ground
+its host level brought with it. Canonical owners already located: `WorldTerrainSystem`
+(`Code/wwphys/worldterrainsystem.h`, with `Create_Terrain`/`Set_Heights`/`Build_Collision` and a
+`PATCH_CELLS = 16` chunk grid already keyed by `py * CollisionPatchCountX + px`), `HeightfieldClass`
+(`Code/wwphys/heightfield.h`), and `ProceduralWorldManager::Generate_World` as the sequencing
+point. Note that the cliff band is already immutable to every `WorldTerrainSystem` mutator, so a
+terrain generator cannot damage the perimeter by accident. Exact next action: read the Phase 4
+section of the roadmap and Sections 18/18B, then decide whether generated terrain replaces the
+host level's ground or coexists with it -- which is a real design question Phase 3 did not have
+to answer and Phase 4 cannot avoid.

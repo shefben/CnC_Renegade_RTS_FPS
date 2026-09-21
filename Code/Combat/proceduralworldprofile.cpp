@@ -98,6 +98,9 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			p.World.Height			= w.value ("height",p.World.Height);
 			p.World.ChunkSize	= w.value ("chunk_size",p.World.ChunkSize);
 			p.World.SeaLevel		= w.value ("sea_level",p.World.SeaLevel);
+			p.World.FitToLevel	= w.value ("fit_to_level",p.World.FitToLevel);	// schema 2
+			p.World.CenterX		= w.value ("center_x",p.World.CenterX);
+			p.World.CenterY		= w.value ("center_y",p.World.CenterY);
 		}
 
 		if (root.contains ("boundary") && root ["boundary"].is_object ()) {
@@ -108,6 +111,13 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			p.Boundary.CliffMaxHeight		= b.value ("cliff_max_height",p.Boundary.CliffMaxHeight);
 			p.Boundary.HardBarrierOffset	= b.value ("hard_barrier_offset",p.Boundary.HardBarrierOffset);
 			p.Boundary.AirCeiling			= b.value ("air_ceiling",p.Boundary.AirCeiling);
+
+			//	Schema 2.  Absent in a schema-1 profile, which is why each default comes from
+			//	the value already in p rather than from a literal repeated here.
+			p.Boundary.RimRoughness				= b.value ("rim_roughness",p.Boundary.RimRoughness);
+			p.Boundary.FaceRoughness			= b.value ("face_roughness",p.Boundary.FaceRoughness);
+			p.Boundary.ToeWidth					= b.value ("toe_width",p.Boundary.ToeWidth);
+			p.Boundary.CollisionSimplification	= b.value ("collision_simplification",p.Boundary.CollisionSimplification);
 		}
 
 		if (root.contains ("terrain") && root ["terrain"].is_object ()) {
@@ -211,6 +221,8 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	if (p.World.ChunkSize > p.World.Width)				FAIL ("world.chunk_size larger than world.width");
 	if (p.World.ChunkSize > p.World.Height)				FAIL ("world.chunk_size larger than world.height");
 	NEED_FINITE (p.World.SeaLevel,"non-finite world.sea_level");
+	NEED_FINITE (p.World.CenterX,"non-finite world.center_x");
+	NEED_FINITE (p.World.CenterY,"non-finite world.center_y");
 
 	//	Cliff band smaller than the usable world -- two bands (one per side) must still leave a
 	//	positive playable interior on the shorter axis.
@@ -236,6 +248,24 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	NEED_FINITE (p.Boundary.AirCeiling,"non-finite boundary.air_ceiling");
 	if (p.Boundary.AirCeiling <= p.Boundary.CliffMaxHeight)
 																				FAIL ("boundary.air_ceiling must clear cliff_max_height");
+
+	//	Section 5.5's cliff shaping controls (schema 2).  The roughness weights are normalized,
+	//	so unlike the density weights they have a real upper bound to enforce: a value above 1
+	//	is not "more variation", it is a profile author misunderstanding the unit, and silently
+	//	clamping it would hide that.
+	NEED_NONNEGATIVE (p.Boundary.RimRoughness,"negative/non-finite boundary.rim_roughness");
+	NEED_NONNEGATIVE (p.Boundary.FaceRoughness,"negative/non-finite boundary.face_roughness");
+	if (p.Boundary.RimRoughness > 1.0f)						FAIL ("boundary.rim_roughness above 1");
+	if (p.Boundary.FaceRoughness > 1.0f)					FAIL ("boundary.face_roughness above 1");
+
+	//	The toe is a skirt at the base of the face and lives inside the cliff band, so a toe
+	//	wider than the band would put scree in the playable interior -- which Section 5.9
+	//	forbids just as firmly as it forbids building in the band.
+	NEED_NONNEGATIVE (p.Boundary.ToeWidth,"negative/non-finite boundary.toe_width");
+	if (p.Boundary.ToeWidth >= p.Boundary.CliffBandWidth)
+																				FAIL ("boundary.toe_width must be narrower than cliff_band_width");
+
+	if (p.Boundary.CollisionSimplification < 1)			FAIL ("boundary.collision_simplification must be at least 1");
 
 	//	Nonnegative densities.
 	NEED_NONNEGATIVE (p.Terrain.MacroRelief,"negative/non-finite terrain.macro_relief");

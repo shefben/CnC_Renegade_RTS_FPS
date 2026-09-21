@@ -41,6 +41,7 @@
 #include "scriptablegameobj.h"
 #include "soldier.h"
 #include "worldboundsservice.h"
+#include "boundarycliffgenerator.h"
 #include "tacticalintelligence.h"
 #include "worldshroudmanager.h"
 
@@ -242,6 +243,59 @@ static void	Draw_World_Bounds(void)
 }
 
 
+/***********************************************************************************************
+ * Draw_Boundary_Cliffs -- V2 roadmap Section 34 Phase 3 step 16 / Section 5.10                  *
+ *                                                                                             *
+ *	Three things, because three different faults look different:                                 *
+ *                                                                                             *
+ *	  the rim line   -- closed, so a gap in it is a gap in the ring;                             *
+ *	  the toe line   -- closed likewise, and drawn separately because a ring whose rim closes    *
+ *	                    while its toe does not is a real and otherwise invisible fault;          *
+ *	  a riser per station, toe to rim, whose colour reports whether that station's face is tall  *
+ *	    enough to be a wall: green for a wall, red for a face short enough to walk up.           *
+ *                                                                                             *
+ *	The riser colouring is the same question Check_Traversable_Ramps answers numerically.  Having *
+ *	it on screen matters because a single short station in a ring of hundreds is a way out of     *
+ *	the world, and a count does not say where it is.                                              *
+ *=============================================================================================*/
+static void	Draw_Boundary_Cliffs(void)
+{
+	if (!BoundaryCliffGenerator::Has_Ring()) {
+		return;
+	}
+
+	static const Vector4	RIM_COLOR		(0.55f,0.45f,0.35f,0.9f);	// rock, lit
+	static const Vector4	TOE_COLOR		(0.35f,0.28f,0.22f,0.8f);	// rock, in shadow
+	static const Vector4	WALL_COLOR		(0.2f,0.9f,0.3f,0.75f);		// this station is a wall
+	static const Vector4	RAMP_COLOR		(1.0f,0.1f,0.1f,1.0f);		// this station can be walked up
+
+	/*
+	**	What counts as climbable.  Nothing in this tree publishes a single locomotor climb limit
+	**	reachable from here, so this is a debug-only threshold for colouring risers -- it decides
+	**	nothing and gates nothing.  Two metres is taller than any step a soldier takes and far
+	**	shorter than the shortest cliff a valid profile can ask for, so a red riser means a real
+	**	generation fault rather than a borderline judgement.
+	*/
+	static const float DEBUG_CLIMBABLE_HEIGHT = 2.0f;
+
+	int count = BoundaryCliffGenerator::Get_Station_Count();
+
+	for (int i = 0, j = count - 1; i < count; j = i++) {
+
+		Vector3 toe_a,rim_a,toe_b,rim_b;
+		if (!BoundaryCliffGenerator::Get_Ring_Station (j,&toe_a,&rim_a)) continue;
+		if (!BoundaryCliffGenerator::Get_Ring_Station (i,&toe_b,&rim_b)) continue;
+
+		DebugRenderSystem::Add_Line (rim_a,rim_b,RIM_COLOR);
+		DebugRenderSystem::Add_Line (toe_a,toe_b,TOE_COLOR);
+
+		float face = rim_b.Z - toe_b.Z;
+		DebugRenderSystem::Add_Line (toe_b,rim_b,
+											  (face > DEBUG_CLIMBABLE_HEIGHT) ? WALL_COLOR : RAMP_COLOR);
+	}
+}
+
+
 void WorldDebugDisplay::Update(void)
 {
 	bool anything_on = false;
@@ -273,6 +327,11 @@ void WorldDebugDisplay::Update(void)
 
 	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_SHROUD_CELLS)) {
 		Draw_Shroud_Cells();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_BOUNDARY_CLIFFS)) {
+		Draw_Boundary_Cliffs();
+		anything_on = true;
 	}
 
 	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_WORLD_BOUNDS)) {

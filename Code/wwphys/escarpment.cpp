@@ -93,7 +93,9 @@ static EscarpmentPointClass	_EmptyPoint;
 EscarpmentClass::EscarpmentClass(void) :
 	ID(-1),
 	Batter(0.0f),
-	LayerIndex(-1)
+	LayerIndex(-1),
+	FaceRowCount(1),
+	ToeWidth(0.0f)
 {
 }
 
@@ -101,7 +103,9 @@ EscarpmentClass::EscarpmentClass(void) :
 EscarpmentClass::EscarpmentClass(const EscarpmentClass & that) :
 	ID(-1),
 	Batter(0.0f),
-	LayerIndex(-1)
+	LayerIndex(-1),
+	FaceRowCount(1),
+	ToeWidth(0.0f)
 {
 	*this = that;
 }
@@ -125,6 +129,8 @@ EscarpmentClass & EscarpmentClass::operator = (const EscarpmentClass & that)
 	Name			= that.Name;
 	Batter		= that.Batter;
 	LayerIndex	= that.LayerIndex;
+	FaceRowCount= that.FaceRowCount;
+	ToeWidth		= that.ToeWidth;
 
 	Points.Delete_All();
 	for (int i = 0; i < that.Points.Count(); i++) {
@@ -140,7 +146,8 @@ EscarpmentClass & EscarpmentClass::operator = (const EscarpmentClass & that)
 
 bool EscarpmentClass::operator == (const EscarpmentClass & that) const
 {
-	if ((ID != that.ID) || (Batter != that.Batter) || (LayerIndex != that.LayerIndex)) {
+	if ((ID != that.ID) || (Batter != that.Batter) || (LayerIndex != that.LayerIndex) ||
+		 (FaceRowCount != that.FaceRowCount) || (ToeWidth != that.ToeWidth)) {
 		return false;
 	}
 	if (Points.Count() != that.Points.Count()) {
@@ -161,6 +168,8 @@ void EscarpmentClass::Reset(void)
 	Name = "";
 	Batter = 0.0f;
 	LayerIndex = -1;
+	FaceRowCount = 1;
+	ToeWidth = 0.0f;
 	Points.Delete_All();
 	Faces.Delete_All();
 }
@@ -572,6 +581,27 @@ bool EscarpmentSystem::Find_Cliff_Texture(const EscarpmentClass & escarpment,
  * identity transform -- the same thing the road and bridge builders do, and for the same      *
  * reason: a polyline is not at any one place, so there is no sensible local origin for it.    *
  *=============================================================================================*/
+/***********************************************************************************************
+ * Face_Point -- where a station's face sits at fraction t of the way from toe to rim            *
+ *                                                                                             *
+ *	The straight batter line from base to top, plus this station's own inflection pushed out     *
+ *	over the drop by a bulge that is zero at both ends.  With a single face row, where the only  *
+ *	samples are t=0 and t=1, the inflection term vanishes entirely -- which is what makes a      *
+ *	default escarpment come out exactly as it did before rows and inflection existed.            *
+ *=============================================================================================*/
+static void
+Face_Point(float meters_per_tile,const Vector3 & right,const Vector3 & base,const Vector3 & top,
+			  const EscarpmentPointClass & pt,float t,Vector3 * pos_out,float * v_out)
+{
+	float bulge = 4.0f * t * (1.0f - t);
+	Vector3 xy = base + ((top - base) * t) + (right * (pt.FaceInflection * bulge));
+	float height = pt.Get_Face_Height();
+
+	*pos_out = Vector3 (xy.X,xy.Y,pt.LowerHeight + (height * t));
+	*v_out   = (height * t) / meters_per_tile;
+}
+
+
 bool EscarpmentSystem::Build_Escarpment_Geometry(EscarpmentClass & escarpment)
 {
 	Destroy_Escarpment_Geometry(escarpment);
@@ -594,6 +624,8 @@ bool EscarpmentSystem::Build_Escarpment_Geometry(EscarpmentClass & escarpment)
 	}
 
 	float batter = escarpment.Get_Batter();
+	int	row_count = escarpment.Get_Face_Row_Count();
+	float toe_width = escarpment.Get_Toe_Width();
 
 	//	Two passes over the same geometry: the builder counts first, then fills.
 	DynamicMeshBuilderClass builder;
@@ -640,20 +672,56 @@ bool EscarpmentSystem::Build_Escarpment_Geometry(EscarpmentClass & escarpment)
 			Vector3 top0 = base0 - (right * (batter * h0));
 			Vector3 top1 = base1 - (right * (batter * h1));
 
-			Vector3 low0(base0.X,base0.Y,p0.LowerHeight);
-			Vector3 low1(base1.X,base1.Y,p1.LowerHeight);
-			Vector3 high0(top0.X,top0.Y,p0.UpperHeight);
-			Vector3 high1(top1.X,top1.Y,p1.UpperHeight);
-
 			float u0 = travelled / meters_per_tile;
 			float u1 = (travelled + segment_length) / meters_per_tile;
-			float v0 = h0 / meters_per_tile;
-			float v1 = h1 / meters_per_tile;
 
-			//	Wound so the outward normal faces the low side, which is the side anything
-			//	looking at a cliff is standing on.
-			builder.Triangle(low0,low1,high0, u0,0.0f, u1,0.0f, u0,v0);
-			builder.Triangle(high0,low1,high1, u0,v0, u1,0.0f, u1,v1);
+			/*
+			**	The face is walked as `row_count` bands from toe to rim.  A station's position
+			**	at fraction t of the way up is the straight batter line from its base to its
+			**	top, plus its own inflection pushed out over the drop by a bulge that is zero
+			**	at both ends -- so with one row, where the only samples are t=0 and t=1, the
+			**	inflection term vanishes and the two triangles below are exactly the pair this
+			**	function emitted before rows existed.
+			*/
+
+			for (int row = 0; row < row_count; row++) {
+
+				float t_low  = (float)row / (float)row_count;
+				float t_high = (float)(row + 1) / (float)row_count;
+
+				Vector3 a0,a1,b0,b1;
+				float va0,va1,vb0,vb1;
+				Face_Point(meters_per_tile,right,base0,top0,p0,t_low, &a0,&va0);
+				Face_Point(meters_per_tile,right,base1,top1,p1,t_low, &a1,&va1);
+				Face_Point(meters_per_tile,right,base0,top0,p0,t_high,&b0,&vb0);
+				Face_Point(meters_per_tile,right,base1,top1,p1,t_high,&b1,&vb1);
+
+				//	Wound so the outward normal faces the low side, which is the side anything
+				//	looking at a cliff is standing on.
+				builder.Triangle(a0,a1,b0, u0,va0, u1,va1, u0,vb0);
+				builder.Triangle(b0,a1,b1, u0,vb0, u1,va1, u1,vb1);
+			}
+
+			/*
+			**	The scree apron, flat on the lower bench and flaring out over the drop.  It is
+			**	drawn, never collided: it sits on ground that already stops everything it would
+			**	stop, and a second surface a few centimetres above the first is how z-fighting
+			**	and "standing on nothing" bugs start.
+			*/
+			if (toe_width > 0.0f) {
+
+				Vector3 foot0(base0.X,base0.Y,p0.LowerHeight);
+				Vector3 foot1(base1.X,base1.Y,p1.LowerHeight);
+				Vector3 skirt0 = foot0 + (right * toe_width);
+				Vector3 skirt1 = foot1 + (right * toe_width);
+				skirt0.Z = p0.LowerHeight;
+				skirt1.Z = p1.LowerHeight;
+
+				float v_skirt = -(toe_width / meters_per_tile);
+
+				builder.Triangle(skirt0,skirt1,foot0, u0,v_skirt, u1,v_skirt, u0,0.0f);
+				builder.Triangle(foot0,skirt1,foot1, u0,0.0f, u1,v_skirt, u1,0.0f);
+			}
 
 			travelled += segment_length;
 		}

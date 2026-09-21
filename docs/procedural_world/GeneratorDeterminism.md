@@ -102,3 +102,49 @@ in this environment this session (standing rule: no `ctest -R`, no launching `re
 `Code/Commando/CMakeLists.txt` and covered by the same `ctest -C Debug -R
 "shader_|fds_shader_|terrain_shroud" --output-on-failure` sweep Q-012 already names for every
 other family.
+
+
+## Phase 3 additions
+
+### A new seed domain
+
+`boundary_cliffs` joins the twelve domains above. It is deliberately **not** shared with
+`boundary`: the cliff rim noise would otherwise be drawn from the stream that already shaped the
+boundary polygon, correlating the two so that a bump in the outline always arrived with a
+matching bump in the cliff height. Keeping generators from interfering with each other is the
+entire point of per-subsystem derivation, and two features of the same subsystem are no
+exception.
+
+Nothing about the derivation itself changed: `Derive_Subsystem_Seed(seed, "boundary_cliffs")` is
+the same `CRC::String(domain, normalized_seed)` every other domain uses.
+
+### Ordering and smoothing
+
+Cliff rim noise is drawn from `Random4Class` in **station order** — a fixed traversal of an array,
+never a hash-table walk — and then smoothed three times circularly. The smoothing is part of the
+contract, not a filter applied afterwards: it is applied identically on every run, and its
+circular wrap is what lets the ring close without a seam in the noise.
+
+### The cliff ring checksum
+
+`WorldGenerationManifest::CliffRingChecksum` (Phase 3 step 17) is a CRC over the canonical station
+array — each station's position and both bench heights, quantized to a thousandth of a world unit
+per Section 3B.4's never-hash-a-raw-float rule — taken in station order.
+
+It is what turns "the same seed produced the same ring" from an assumption into something two
+processes can compare. `Plan_Ring` computes it, so it exists in a device-less process with no
+physics scene.
+
+### The profile hash covers the fitted profile
+
+A world built with `fit_to_level` hashes the profile **as used**, including the width, height,
+centre and sea level taken from the host level. Hashing the profile as authored would produce a
+manifest that describes a different world than the one it came from.
+
+### One correction to Phase 1
+
+`Format_Canonical_Profile_String` fed `MinBaseExpansionArea` to the `fa.resdiff` slot instead of
+`MaxInitialResourceTravelTimeDifferenceSeconds`, so that threshold never affected the profile
+hash and `MinBaseExpansionArea` was hashed twice. Fixed in Phase 3. Any profile hash recorded
+before this point is not comparable with one recorded after; the generator version bump to 2
+covers that.

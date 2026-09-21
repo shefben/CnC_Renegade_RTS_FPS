@@ -67,6 +67,7 @@
 #include "translatedb.h"
 #include "string_ids.h"
 #include "gamespyadmin.h"
+#include "proceduralworldmanager.h"
 
 ////////////////////////////////////////////////////////////////
 //	Static member initialization
@@ -398,6 +399,55 @@ MainMenuDialogClass::On_Command (int ctrl_id, int message_id, unsigned int param
 				GameInitMgrClass::Start_Game(mapname, -1, 0);
 				IsStartingPractice = false;
 			}
+			break;
+		}
+
+		case IDC_MENU_START_PROCEDURAL_GAME_BUTTON:
+		{
+			/*
+			**	V2 roadmap Section 34.  A procedural world is laid over a real level rather than
+			**	replacing one: the generator owns the boundary and the cliff ring that encloses
+			**	the map, and everything else a match needs -- lighting, spawners, presets, the
+			**	physics scene itself -- still comes from the level being loaded.  Generating a
+			**	whole level from nothing is later phases' work; this is the entry point that
+			**	exists from the first phase that has anything to show.
+			**
+			**	So the same skirmish map the Practice button picks is used as the host, and the
+			**	only difference is the request placed before the load.  A seed of zero asks the
+			**	manager to choose one and log it, so a world worth revisiting can be asked for
+			**	again by number.
+			*/
+			StringClass mapname = Choose_Skirmish_Map();
+
+			if (mapname.Is_Empty()) {
+				DlgMsgBox::DoDialog(
+					TRANSLATE(IDS_MENU_TEXT513),
+					TRANSLATE(IDS_MP_NO_LAN_IP_ADDRESSES_FOUND));
+				allow_default = false;
+				break;
+			}
+
+			StringClass world_error;
+			if (!ProceduralWorldManager::Request_World(0,nullptr,&world_error)) {
+				//	Refused before anything loads, which is the point of validating the profile
+				//	at request time: the player finds out now rather than after a level load.
+				WideStringClass message;
+				message.Convert_From(world_error.Peek_Buffer());
+				DlgMsgBox::DoDialog(TRANSLATE(IDS_MENU_TEXT513),message);
+				allow_default = false;
+				break;
+			}
+
+			IsStartingPractice = true;
+			const int SKIRMISH_LOAD_MENU_NUMBER	= 96;
+			CampaignManager::Select_Backdrop_Number(SKIRMISH_LOAD_MENU_NUMBER);
+			GameInitMgrClass::Initialize_Skirmish();
+
+			WWASSERT(The_Game() != nullptr);
+			The_Game()->Set_Map_Cycle(0, mapname);
+
+			GameInitMgrClass::Start_Game(mapname, -1, 0);
+			IsStartingPractice = false;
 			break;
 		}
 

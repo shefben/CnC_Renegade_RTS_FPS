@@ -59,11 +59,29 @@
 */
 struct ProceduralWorldDimensions
 {
-	ProceduralWorldDimensions(void) : Width(4096.0f),Height(4096.0f),ChunkSize(128.0f),SeaLevel(0.0f) { }
+	ProceduralWorldDimensions(void) : Width(4096.0f),Height(4096.0f),ChunkSize(128.0f),SeaLevel(0.0f),
+												 FitToLevel(false),CenterX(0.0f),CenterY(0.0f) { }
 	float	Width;			// world units, > 0
 	float	Height;			// world units, > 0
 	float	ChunkSize;		// world units, > 0, must divide Width/Height for a whole chunk grid
 	float	SeaLevel;		// world units, the water-plane height every hydrology/terrain height is relative to
+
+	//	Schema 2.  When true, a procedural world laid over an existing hand-authored level takes
+	//	Width/Height/SeaLevel from that level's own measured extents
+	//	(PhysicsSceneClass::Get_Level_Extents) instead of from the fields above, which then act
+	//	only as the fallback for a level that reports no usable extent.  This exists because the
+	//	right size for a ring enclosing a stock Renegade map is a measurable property of that
+	//	map, not a number a profile author should have to know; the values actually used are
+	//	recorded in the generation manifest, so the world stays reproducible either way.
+	bool	FitToLevel;
+
+	//	Schema 2.  Where the world's centre sits, in world units.  The origin -- the default --
+	//	is what a world generated from nothing uses.  A world laid over a hand-authored level
+	//	needs the level's own centre instead, because a stock Renegade map is not built around
+	//	the origin and a ring centred there would enclose the wrong ground.  FitToLevel fills
+	//	this in from the level's measured extents.
+	float	CenterX;
+	float	CenterY;
 };
 
 
@@ -76,13 +94,26 @@ struct ProceduralWorldBoundarySettings
 {
 	ProceduralWorldBoundarySettings(void) : Shape("irregular_ring"),CliffBandWidth(180.0f),
 														  CliffMinHeight(90.0f),CliffMaxHeight(180.0f),
-														  HardBarrierOffset(20.0f),AirCeiling(260.0f) { }
+														  HardBarrierOffset(20.0f),AirCeiling(260.0f),
+														  RimRoughness(0.35f),FaceRoughness(0.45f),
+														  ToeWidth(14.0f),CollisionSimplification(2) { }
 	StringClass	Shape;					// generator style tag; Phase 2 defines the legal set, not this schema
 	float			CliffBandWidth;		// world units, > 0, must fit inside the world without consuming the playable interior
 	float			CliffMinHeight;		// world units, > 0
 	float			CliffMaxHeight;		// world units, >= CliffMinHeight
 	float			HardBarrierOffset;	// world units past the cliff band where actors/geometry are hard-rejected
 	float			AirCeiling;				// world units above sea level; must clear CliffMaxHeight (Section 1.5's aircraft rule)
+
+	//	Section 5.5's remaining named profile controls, added in schema version 2 when Phase 3
+	//	built the cliff geometry that consumes them.  Roughness values are normalized 0..1
+	//	amplitude weights, exactly like Section 18B's density weights: 0 means "perfectly smooth,
+	//	the generator applies no variation at all", 1 means "the generator's own maximum
+	//	variation for that feature".  The mapping from weight to world units is the cliff
+	//	generator's concern, not this schema's.
+	float			RimRoughness;				// normalized weight, 0..1 -- how much the rim height wanders between min/max
+	float			FaceRoughness;				// normalized weight, 0..1 -- how much the face inflects between rim and toe
+	float			ToeWidth;					// world units, >= 0 -- the scree/blend skirt at the cliff base, inside the band
+	int			CollisionSimplification;// >= 1 -- render stations per collision station; 1 means collision matches render exactly
 };
 
 
@@ -190,7 +221,13 @@ class ProceduralWorldProfile
 		//	2 onward changes what a given seed+profile produces).  The two are independent: a
 		//	schema can gain an optional field without the generator output changing, and a
 		//	generator algorithm change does not by itself require a new schema field.
-		enum { CURRENT_SCHEMA_VERSION = 1, CURRENT_GENERATOR_VERSION = 1 };
+		//	Schema 2 added Section 5.5's rim/face roughness, toe width and collision
+		//	simplification to the boundary block (Phase 3).  Generator 2 is the cliff ring
+		//	itself: the same seed and the same schema-1 profile produce a world with cliffs in
+		//	it now where before it produced only an invisible boundary, so the algorithm
+		//	identity had to move with it.  A schema-1 profile still loads -- the four new fields
+		//	take their documented defaults -- which is the point of versioning them separately.
+		enum { CURRENT_SCHEMA_VERSION = 2, CURRENT_GENERATOR_VERSION = 2 };
 
 		ProceduralWorldProfile(void);
 

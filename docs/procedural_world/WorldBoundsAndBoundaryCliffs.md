@@ -1,8 +1,7 @@
 # World Bounds and Boundary Cliffs (V2)
 
-Required output of roadmap Section 34 Phase 2. This document currently covers the **boundary**
-half only; the **cliff geometry** half is Phase 3 and appends to this same file rather than
-starting a second one.
+Required output of roadmap Section 34 Phases 2 and 3. The **boundary** half is Phase 2 and runs
+to "Debug drawing"; the **cliff geometry** half is Phase 3 and starts at "The cliff ring".
 
 Design sources: Sections 1.3-1.6 (one finite map, one absolute boundary; the skybox is not the
 boundary; boundary cliffs are mandatory), 5.1 (topology), 5.2 (protected zones), 5.6 (physics
@@ -206,9 +205,305 @@ to is checked above; the integration call sites are single-line and reviewed, bu
 executed. Registered as `shader_worldbounds` / `fds_shader_worldbounds` and covered by the same
 `ctest -C Debug -R "shader_|fds_shader_|terrain_shroud" --output-on-failure` sweep Q-012 names.
 
-## Phase 3 (not started)
+## The cliff ring
 
-The cliff **geometry** — `BoundaryCliffGenerator`, cliff spline, segment mesh, collision, and the
-triplanar rock material — is Phase 3 and is what makes the boundary visible and physically
-explained (Sections 5.3-5.5). Phase 2 deliberately stops at the authoritative topology: the cliff
-band is reserved and protected, but nothing renders in it yet.
+Phase 3. Design sources: Sections 5.3 (cliff geometry), 5.4 (cliff material), 5.5 (dimensions),
+5.9 (feature interaction), 28 (asset reuse).
+
+### Four of the five named components already existed
+
+Phase 3's text names `BoundaryCliffGenerator`, `CliffSpline`, `CliffSegmentMeshBuilder`,
+`CliffCollisionBuilder` and `CliffMaterialProjector`, and says to *create or adapt something
+equivalent*. Adapting was the right half of that instruction, because this tree already had a
+system whose header opens "the vertical face a heightfield cannot hold":
+
+| Phase 3 component | What actually does it |
+| --- | --- |
+| cliff spline | `EscarpmentClass`'s polyline of `EscarpmentPointClass` stations |
+| segment mesh builder | `EscarpmentSystem::Build_Escarpment_Geometry`, on `DynamicMeshBuilderClass` — the shared runtime-mesh helper the road, bridge, foliage and water systems all already use |
+| collision builder | the `StaticPhysClass` that same function adds to the physics scene, carrying `ESCARPMENT_COLLISION_BITS` |
+| material projector | `TERRAIN_LAYER_CLIFF` plus `MATERIAL_PROGRAM_TERRAIN`, which escarpments already resolve |
+
+So `BoundaryCliffGenerator` (`Code/wwphys/boundarycliffgenerator.h/.cpp`) is one generator and
+nothing else. A second cliff mesh path beside the existing one would have been the parallel
+implementation this project's rules forbid, and would have produced two answers to "is there a
+wall at x,y".
+
+**There is no triplanar material.** Section 5.4 *prefers* triplanar rock projection; grepping the
+whole of `Code/` finds no triplanar path anywhere, and this renderer has no programmable shader
+tier to add one on (the same finding `docs/zerohour/VisualFidelityProgram.md` records — no
+`CreatePixelShader` exists in this tree). The face is therefore dressed by the existing cliff
+terrain layer, which is Section 5.4's other instruction — *use the v1 terrain/material/shader
+system* — satisfied in full. Scree material near the toe is geometry here rather than a second
+material, for the same reason.
+
+### Why the ring is many escarpments
+
+Phase 3 refuses to proceed if "the ring depends on one monolithic unbounded mesh", and
+`EscarpmentSystem` builds exactly one mesh and one `StaticPhysClass` per escarpment. Handing the
+whole perimeter over as a single escarpment would have been precisely that monolith: one draw
+call and one collider the size of the world, culled all-or-nothing.
+
+The ring is cut into chunks of `StationsPerChunk` segments, each its own escarpment. The seam
+between two chunks is not "close enough" — chunk *k*'s last station is the **same array entry**
+as chunk *k+1*'s first, read out of one canonical station array built once. Two chunks cannot
+drift apart because neither owns the number. The last chunk closes onto station 0, which is why
+the station array is deliberately left open rather than carrying a duplicate of its first entry:
+a duplicate is a second copy of a number that must never differ from the first.
+
+### Which way the face points
+
+An escarpment drops to the **right of its direction of travel**. `WorldBoundsService` normalizes
+its polygon to clockwise, and the interior of a clockwise polygon lies to the right of every
+edge — so walking the ring in polygon order drops the face inward, leaving the high ground
+outboard and the playable interior at the foot of the cliff looking up at it. Walking it the
+other way would build the map as a mesa to fall off rather than a basin to be contained by. The
+direction is load-bearing, not incidental.
+
+### Plan, then realize
+
+`Build_Ring` is `Plan_Ring` followed by `Realize_Ring`, and the split is what makes the ring
+checkable:
+
+- **`Plan_Ring`** decides what the ring *is* — the canonical stations, the chunk division, the
+  escarpments carrying them, the checksum. It touches no render object and no physics scene.
+- **`Realize_Ring`** turns that into meshes and colliders, and needs a `PhysicsSceneClass`.
+
+Every property Phase 3 actually cares about — same seed means same ring, seams share stations, no
+station is climbable, no face is inverted — is a property of the plan. The triangles are a
+function of the plan and cannot introduce a fault the plan does not already contain. So a
+device-less check can hold the ring to all four, which is why the `worldcliffs` self check is
+worth more than its lack of a scene costs it.
+
+Realization failing leaves **no** ring: `Realize_Ring` clears on failure. Half a cliff ring is
+worse than none, because the gap is exactly the traversal leak this phase exists to prevent and
+it would be invisible from inside the world.
+
+### Determinism
+
+The rim height at each station is `mid ± half_range * rim_roughness * noise`, where noise is
+`Random4Class` seeded from `WorldSeedService::Derive_Subsystem_Seed(seed, "boundary_cliffs")`,
+drawn in station order and then smoothed three times circularly.
+
+`boundary_cliffs` is a **new seed domain**, deliberately not shared with `boundary`. Sharing would
+have drawn the rim noise from the stream that already shaped the polygon, correlating the two so
+that a bump in the outline always arrived with a matching bump in the cliff height. Separate
+domains is what per-subsystem derivation is for.
+
+The smoothing is not cosmetic. Raw per-station white noise puts a tall station directly beside a
+short one, which is the shape a climbable notch has; three circular passes give the rim a
+wavelength of several stations instead.
+
+A `rim_roughness` of 0 puts every station on the **midpoint** of the min/max band rather than on
+the minimum, so turning roughness off yields a level rim of sensible height rather than the
+shortest cliff the profile permits.
+
+### Schema version 2
+
+Section 5.5 names seven profile controls. Three already existed; Phase 3 added the other four to
+`ProceduralWorldBoundarySettings`, plus two fields the fitted-world path needs:
+
+| Field | Meaning |
+| --- | --- |
+| `rim_roughness` | 0..1, how far the rim wanders inside the min/max band |
+| `face_roughness` | 0..1, how much the face inflects between toe and rim |
+| `toe_width` | world units of scree apron at the cliff foot, must be narrower than the band |
+| `collision_simplification` | see below |
+| `world.fit_to_level` | size the world from the host level's measured extents |
+| `world.center_x` / `center_y` | where the world sits; a stock map is not built around the origin |
+
+A schema-1 profile still loads — the new fields take their documented defaults. The generator
+version moved to 2 at the same time, and independently: the same seed and the same schema-1
+profile now produce a world with cliffs in it where before it produced an invisible boundary, so
+the algorithm identity had to move even though a profile need not.
+
+`collision_simplification` is **parsed, validated, hashed into the profile identity, and not
+consumed.** Being honest about that is better than a fake use: an escarpment's collider *is* the
+mesh it draws, so there is no separate collision representation to simplify. Simplifying it would
+mean building a second, coarser geometry — and then "is there a wall here" would have two answers
+that could disagree, which is the exact failure mode this phase's component reuse avoided. The
+field stays because Section 5.5 names it and a later phase that introduces a real collision LOD
+should find it already in the schema rather than having to bump it again.
+
+### Escarpment extensions
+
+`EscarpmentClass` gained three things, all additive and all defaulting to exactly its previous
+behaviour:
+
+- `FaceRowCount` (default 1) — how many bands of quads the face is built from. The generator asks
+  for 3 only when face roughness is non-zero.
+- `EscarpmentPointClass::FaceInflection` (default 0) — how far the middle of that station's face
+  bulges out from the straight batter line, scaled by a bulge that is zero at both ends. With one
+  row the only samples are t=0 and t=1, so the term vanishes and the geometry is byte-identical
+  to what the class built before.
+- `ToeWidth` (default 0) — the scree apron, drawn as part of the face so it shares the face's
+  material. It is deliberately **not** a separate collision surface: it lies flat on the lower
+  bench, the ground under it already stops everything it would stop, and a second surface a few
+  centimetres above the first is how z-fighting and "standing on nothing" bugs start.
+
+An existing map with hand-placed escarpments is unaffected, and `Clear_Ring` preserves them —
+a procedural ring appearing is not a reason for an authored cliff to disappear.
+
+### The cliff band is now immutable
+
+Step 11. `WorldTerrainSystem`'s three mutation entry points — `Modify_Height_Region`,
+`Apply_Road_Grade`, `Apply_River_Cut` — now refuse edits that fall in the cliff band, asking
+`WorldBoundsService::Can_Place_In_Region`, the same question building placement asks, rather than
+inventing a second notion of where the band is. Ground that can be raised inside the band is a
+ramp waiting to be built.
+
+The two polyline mutators skip the offending **stamps** rather than rejecting the whole call, so
+a river approaching the perimeter simply stops at the band — which is Section 5.9's "terminate it
+naturally" rather than a hard error.
+
+With no boundary configured this always answers yes, so terrain editing on a hand-authored map
+behaves exactly as it did before.
+
+Steps 12 and 13 were already satisfied by Phase 2: `Can_Place_In_Region` has excluded the band
+from construction since then, and `EscarpmentSystem::Is_Segment_Blocked` answers the navigation
+question against the same faces. **Step 14 has nothing to reject yet** — procedural roads,
+tunnels and bridges arrive in Phases 8 to 10, and `WorldBoundsService::Segment_Crosses_Hard_Boundary`
+is already the query they will be refused with.
+
+### Seam diagnostics
+
+Step 15, all on the canonical stations rather than on the built mesh, because the stations are
+what the mesh is a function of: a fault there *explains* a bad triangle where finding it in the
+mesh only reports one.
+
+- `Check_Seam_Continuity` — every chunk boundary shares a station, position and both benches, and
+  the last chunk closes onto station 0.
+- `Check_Inverted_Triangles` — no station's rim is at or below its own toe.
+- `Check_Traversable_Ramps` — no station's face is short enough to climb.
+
+**Render gap and collision gap are the same question**, asked once, because an escarpment's
+collider is the mesh it draws. There is no third geometry that could disagree with either. That
+is a property worth having, not a corner cut.
+
+`Check_Traversable_Ramps` is about the world *looking and behaving* as though it were enclosed,
+not about whether it is — Phase 2's hard boundary still stops an actor that gets past the
+geometry, which is exactly why Phase 3's own do-not-proceed list forbids cliff geometry being the
+only boundary enforcement.
+
+### Debug drawing
+
+`debug_layer boundary_cliffs 1` draws the rim line, the toe line, and one riser per station.
+Rim and toe are drawn separately because a ring whose rim closes while its toe does not is a real
+and otherwise invisible fault. Each riser is coloured green for a wall and red for a face short
+enough to walk up — the same question `Check_Traversable_Ramps` answers numerically, on screen,
+because a single short station in a ring of hundreds is a way out of the world and a count does
+not say where it is.
+
+Kept separate from `world_bounds` on purpose: the boundary is a topological fact and the ring is
+geometry that is supposed to explain it, and seeing one without the other is how a mismatch
+between them would be spotted.
+
+## The procedural world owner
+
+Phases 0 to 2 produced services and no one thing that decides a world exists and drives them in
+order. Phase 3 step 1 asks for a cliff component "under the procedural-world/terrain owner",
+which is the first time that owner is actually needed: `ProceduralWorldManager`
+(`Code/Combat/proceduralworldmanager.h/.cpp`).
+
+| Call | When |
+| --- | --- |
+| `Request_World(seed, profile, error)` | before a level load, from the menu button |
+| `Generate_World(error)` | `CombatManager::Post_Load_Level`, once |
+| `Destroy_World()` | `CombatManager::Pre_Load_Level`, dropping the previous world |
+
+Directive 1.10 is the whole shape of it. With no request outstanding `Generate_World` returns
+immediately having configured nothing, which is every hand-authored map.
+
+Generation runs in `Post_Load_Level` rather than before the load for two reasons: a world fitted
+to its host level cannot be sized until that level's extents exist, and the cliff ring needs a
+physics scene to put geometry into.
+
+**Boundary first, then cliffs.** Not cosmetic: the ring's purpose is to explain a boundary that is
+already authoritative. If the cliff build fails, the boundary stays configured and the world is
+still correctly closed — invisible, but closed.
+
+**Generation is not replicated**, because Section 3B exists so it does not have to be. Every
+client deriving the same world from the same seed and profile is the determinism contract
+working. What must agree is the seed and the profile; the manifest is what makes disagreement
+detectable rather than silent.
+
+### Fitting a world to a hand-authored level
+
+`world.fit_to_level` takes the world's size from `PhysicsSceneClass::Get_Level_Extents` — the
+existing answer to "how big is this level", not a second extent computed here.
+
+The world is made **larger** than the level, not fitted to it. Every band is measured inward from
+the boundary polygon, so a ring drawn on the level's own outline would stand its cliffs on the
+outermost ground a player can already walk on. Growing outward by the full inset instead leaves
+the entire authored level inside `PLAYABLE_INTERIOR` and puts the cliffs on the empty ground
+beyond it. The inset is two cliff-band widths plus the hard barrier, because Phase 2 derives the
+approach band as one more cliff-band width — if that derivation ever becomes a real profile
+field, `Fit_Profile_To_Level` is the second place that has to learn about it.
+
+The cliff foot is set to the level's own floor (`min.Z`), not to an abstract sea level, or a ring
+fitted to a map whose ground sits well above or below zero would float or be buried.
+
+The manifest records the profile **as used**, fit-to-level included. Recording it as authored
+would produce a manifest describing a different world than the one it came from.
+
+## The main menu button
+
+"Procedural Skirmish", between Practice and Options on the main menu
+(`IDC_MENU_START_PROCEDURAL_GAME_BUTTON`). It takes the same skirmish map the Practice button
+picks and places a world request before starting it.
+
+A procedural world is laid **over** a real level rather than replacing one. The generator owns
+the boundary and the ring that encloses the map; everything else a match needs — lighting,
+spawners, presets, the physics scene itself — still comes from the level being loaded. Generating
+a whole level from nothing is later phases' work.
+
+Two details worth recording:
+
+- The button's label is a **literal string**, not an `IDS_` id. `DialogBaseClass`'s
+  `TranslateDialogString` only translates text containing `IDS_` and passes anything else through
+  untouched, so a new label needs no new string-table entry. The cost is that this one label is
+  not localized — the string table ships inside the game data and this project does not author
+  new entries into it. A real `IDS_` id is the fix if that data is ever regenerated.
+- A seed of 0 means "choose one". The chosen value is fixed immediately, logged, and carried into
+  the manifest, so a world worth revisiting can be asked for again by number rather than being
+  unrepeatable.
+
+The profile is loaded and validated at the moment of the **request**, before the level starts
+loading, so a bad profile is refused while the player is still looking at a menu rather than
+after a load with the reason only in a log. It is read again at generation time, so a profile
+edited between the click and the load is still picked up.
+
+## What is proven, and what is not
+
+Proven by the `worldcliffs` self check (`Run_World_Cliffs`), all on the ring plan, no device or
+scene:
+
+- an uninitialised generator claims no ring, no plan, no stations and no checksum;
+- each parameter rule refuses on its own, with a reason, leaving no stations behind;
+- station count and chunk count match the perimeter and the requested spacing exactly;
+- the ring is divided into more than one chunk — Phase 3's own monolith condition;
+- all three seam diagnostics report zero faults on a valid ring;
+- every station's face height lands inside the profile's own min/max band;
+- the same seed and polygon give the same checksum, a different seed gives a different one;
+- a rim roughness of zero gives a level rim at the mid height;
+- realizing with no physics scene **refuses** and leaves no ring behind;
+- clearing returns the generator to its legacy-map state.
+
+Not proven, and needing a display and a running match — the same reason every other check family
+in this tree carries (`awaiting_answers.md` Q-012). Phase 3's targeted-validation list is phrased
+as live statements, and the arithmetic each reduces to is checked above, but nothing here has
+been on a screen: **no cliff has ever been drawn or collided with.** Specifically unseen are
+whether the ring actually renders as rock rather than as untextured geometry (it depends on a
+`TERRAIN_LAYER_CLIFF` layer naming a real texture, and the default layers name none — see
+`docs/assets/TerrainLayers.md`), whether a vehicle can crest it, whether the toe apron reads as
+scree or as a visible skirt, and whether the face inflection improves the look or merely costs
+triangles. The menu button itself has never been clicked.
+
+Registered as `shader_worldcliffs` / `fds_shader_worldcliffs` and covered by the same
+`ctest -C Debug -R "shader_|fds_shader_|terrain_shroud" --output-on-failure` sweep Q-012 names.
+
+## Phase 4 (not started)
+
+Macro terrain generation and chunk ownership: the bounded playable landform *inside* this
+immutable perimeter. Phase 3 deliberately stops at the rim — the band is reserved, protected and
+now visible, and the ground it encloses is still whatever the host level brought with it.

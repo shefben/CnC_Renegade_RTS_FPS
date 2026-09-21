@@ -78,12 +78,23 @@ class EscarpmentPointClass
 {
 public:
 
-	EscarpmentPointClass(void) : Position(0.0f,0.0f,0.0f), UpperHeight(0.0f), LowerHeight(0.0f) { }
+	EscarpmentPointClass(void) : Position(0.0f,0.0f,0.0f), UpperHeight(0.0f), LowerHeight(0.0f),
+										  FaceInflection(0.0f) { }
 
 	//	Only X and Y of Position are used.  Z is ignored; the two height fields are the answer.
 	Vector3	Position;
 	float		UpperHeight;
 	float		LowerHeight;
+
+	/*
+	**	How far the middle of the face at this station bulges out from the straight line
+	**	between its own toe and rim, in metres, positive being out over the drop.  Zero -- the
+	**	default -- is the flat batter-only face this class built before, so an escarpment that
+	**	says nothing about inflection comes out byte-identical to one built previously.  It is
+	**	only read when the owning escarpment asks for more than one face row; with a single
+	**	row there is no middle to move.
+	*/
+	float		FaceInflection;
 
 	float		Get_Face_Height(void) const
 	{
@@ -95,7 +106,8 @@ public:
 	{
 		return (Position == that.Position) &&
 				 (UpperHeight == that.UpperHeight) &&
-				 (LowerHeight == that.LowerHeight);
+				 (LowerHeight == that.LowerHeight) &&
+				 (FaceInflection == that.FaceInflection);
 	}
 	bool	operator != (const EscarpmentPointClass & that) const	{ return !(*this == that); }
 };
@@ -151,6 +163,29 @@ public:
 	int				Get_Layer_Index(void) const		{ return LayerIndex; }
 
 	/*
+	**	How many rows of quads the face is built from between toe and rim.  One -- the default
+	**	-- is the single quad per segment this class has always produced.  More rows exist so
+	**	a face can inflect between its ends instead of being a flat plane; they cost geometry
+	**	and buy nothing on a face whose stations all have zero FaceInflection, so a caller
+	**	that does not want shaping should leave this alone.
+	*/
+	void				Set_Face_Row_Count(int rows)		{ FaceRowCount = (rows > 1) ? rows : 1; }
+	int				Get_Face_Row_Count(void) const	{ return FaceRowCount; }
+
+	/*
+	**	An apron of ground flaring out from the bottom of the face, in metres measured
+	**	horizontally away from the high side.  This is the scree/debris skirt real rock piles
+	**	up at its own base; it is drawn as part of the face so it shares the face's material
+	**	and needs no second system.  Zero -- the default -- builds no apron at all.
+	**
+	**	It is deliberately drawn but NOT a separate collision surface: it lies flat on the
+	**	lower bench, so the ground under it already stops everything it would stop, and giving
+	**	it its own collider would put a second surface a few centimetres above the first.
+	*/
+	void				Set_Toe_Width(float width)			{ ToeWidth = (width > 0.0f) ? width : 0.0f; }
+	float				Get_Toe_Width(void) const			{ return ToeWidth; }
+
+	/*
 	**	Total length along the polyline, and the tallest face on it.
 	*/
 	float				Get_Length(void) const;
@@ -179,6 +214,8 @@ private:
 	StringClass		Name;
 	float				Batter;
 	int				LayerIndex;
+	int				FaceRowCount;
+	float				ToeWidth;
 
 	DynamicVectorClass<EscarpmentPointClass>	Points;
 

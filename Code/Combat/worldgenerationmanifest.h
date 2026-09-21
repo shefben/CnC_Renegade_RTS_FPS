@@ -71,6 +71,11 @@ struct WorldGenerationManifest
 	DynamicVectorClass<StringClass>	LocalRepairOperationIds;
 	DynamicVectorClass<StringClass>	InitialBaseLayoutIds;
 
+	//	Phase 3 step 17.  A checksum over the generated boundary cliff ring's own canonical
+	//	geometry, so two runs that claim the same seed/profile can be shown to have produced
+	//	the same ring rather than merely asserted to have.  0 until a cliff ring is built.
+	unsigned int	CliffRingChecksum;
+
 	unsigned int	RoadGraphChecksum;		// 0 until Phase 8 exists
 	unsigned int	NavigationRevision;		// 0 until Phase 16 exists
 };

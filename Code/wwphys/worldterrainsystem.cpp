@@ -26,6 +26,8 @@
 
 #include "worldterrainsystem.h"
 
+#include "worldboundsservice.h"
+
 #include "colmath.h"
 #include "frustum.h"
 #include "lineseg.h"
@@ -278,11 +280,33 @@ int WorldTerrainSystem::Get_Patch_Count_Y(void)
 
 
 /***********************************************************************************************
+ * Terrain_Edit_Allowed -- V2 roadmap Section 34 Phase 3 step 11, the immutable cliff band       *
+ *                                                                                             *
+ *	The boundary cliff band is reserved geometry.  Section 5.9 forbids a terrain brush from      *
+ *	modifying it for the same reason it forbids a road or a base in it: the cliff ring's whole   *
+ *	job is to be the one thing a player cannot get past, and ground that can be raised inside    *
+ *	the band is a ramp waiting to be built.                                                      *
+ *                                                                                             *
+ *	This asks WorldBoundsService the same question building placement asks -- may something of   *
+ *	this radius exist centred here -- rather than inventing a second notion of where the band    *
+ *	is.  With no boundary configured, which is every hand-authored map, it always answers yes    *
+ *	and terrain editing behaves exactly as it did before v2.                                     *
+ *=============================================================================================*/
+static bool
+Terrain_Edit_Allowed(const Vector3 & center,float radius)
+{
+	return WorldBoundsService::Can_Place_In_Region(Vector2(center.X,center.Y),radius);
+}
+
+/***********************************************************************************************
  * Shaping                                                                                     *
  *=============================================================================================*/
 void WorldTerrainSystem::Modify_Height_Region(const Vector3 & center,float radius,float delta)
 {
 	if (!Has_Terrain()) {
+		return;
+	}
+	if (!Terrain_Edit_Allowed(center,radius)) {
 		return;
 	}
 	Heightfield->Modify_Height_Region(center,radius,delta);
@@ -355,6 +379,9 @@ void WorldTerrainSystem::Apply_Road_Grade(const Vector3 * points,int count,float
 		for (int s = 0; s <= steps; s++) {
 			float t = (float)s / (float)steps;
 			Vector3 at = a + t * span;
+			if (!Terrain_Edit_Allowed(at,radius)) {
+				continue;
+			}
 			Heightfield->Blend_Height_Region(at,radius,at.Z - Heightfield->Get_Origin().Z,blend);
 		}
 	}
@@ -398,6 +425,9 @@ void WorldTerrainSystem::Apply_River_Cut(const Vector3 * points,int count,float 
 			//	Level the channel to the water line first, then cut down from it.  Cutting alone
 			//	would carry the terrain's own bumps down with it and leave a river bed that is
 			//	deeper in some places than the water is.
+			if (!Terrain_Edit_Allowed(at,radius)) {
+				continue;
+			}
 			Heightfield->Blend_Height_Region(at,radius,at.Z - Heightfield->Get_Origin().Z,1.0f);
 			Heightfield->Modify_Height_Region(at,radius,-depth);
 		}

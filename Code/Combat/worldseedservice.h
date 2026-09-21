@@ -79,6 +79,13 @@ class WorldSeedService
 
 		//	Section 4's eleven domains plus Phase 1 step 6's twelfth (combat-space repair).
 		static const char * const SEED_DOMAIN_BOUNDARY;
+
+		//	Added with the Phase 3 cliff ring.  Deliberately its own domain rather than sharing
+		//	"boundary": the ring's rim noise would otherwise be drawn from the same stream that
+		//	already shaped the polygon, correlating the two so that a bump in the outline always
+		//	arrived with a matching bump in the cliff height.  Separate domains is what the
+		//	per-subsystem derivation exists for.
+		static const char * const SEED_DOMAIN_BOUNDARY_CLIFFS;
 		static const char * const SEED_DOMAIN_TERRAIN;
 		static const char * const SEED_DOMAIN_HYDROLOGY;
 		static const char * const SEED_DOMAIN_ROADS;

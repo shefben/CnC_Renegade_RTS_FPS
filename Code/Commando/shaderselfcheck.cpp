@@ -21,6 +21,7 @@
 #include "worldgenerationmanifest.h"
 #include "proceduralboundsbuilder.h"
 #include "worldboundsservice.h"
+#include "boundarycliffgenerator.h"
 #include "rtspersistence.h"
 #include "obbox.h"
 #include "aabox.h"
@@ -3024,6 +3025,196 @@ int	Run_World_Bounds (void)
 
 
 /*
+**	The boundary cliff ring -- V2 roadmap Section 34 Phase 3, Sections 5.3 to 5.5.
+**
+**	Everything below is a property of the ring's PLAN: its canonical station array and the
+**	division of that array into bounded chunks.  That is deliberate and not a shortcut.  The
+**	faults Phase 3 names -- a seam that does not share a station, a face short enough to walk
+**	up, a face turned inside out, a ring that does not close -- are all decided when the plan
+**	is made; the triangles are a function of the plan and cannot introduce a fault the plan
+**	does not already contain.  Realizing the plan needs a PhysicsSceneClass, which
+**	-shaderselfcheck has none of, exactly as every other world-geometry check in this file
+**	(Q-012).
+*/
+static BoundaryCliffParams	Make_Cliff_Test_Params (void)
+{
+	BoundaryCliffParams p;
+	p.Seed						= 4242u;
+	p.CliffMinHeight			= 60.0f;
+	p.CliffMaxHeight			= 110.0f;
+	p.CliffBandWidth			= 100.0f;
+	p.ToeWidth					= 10.0f;
+	p.RimRoughness				= 0.5f;
+	p.FaceRoughness			= 0.4f;
+	p.BaseHeight				= 0.0f;
+	p.StationSpacing			= 25.0f;
+	p.StationsPerChunk		= 8;
+	return p;
+}
+
+static void	Make_Cliff_Test_Polygon (DynamicVectorClass<Vector2> * out)
+{
+	//	A clockwise square, which is the winding WorldBoundsService normalizes to and therefore
+	//	the winding the generator is entitled to assume.
+	out->Delete_All ();
+	out->Add (Vector2 (-500.0f,-500.0f));
+	out->Add (Vector2 (-500.0f, 500.0f));
+	out->Add (Vector2 ( 500.0f, 500.0f));
+	out->Add (Vector2 ( 500.0f,-500.0f));
+}
+
+int	Run_World_Cliffs (void)
+{
+	BoundaryCliffGenerator::Init ();
+
+	//	Nothing planned -- the state a hand-authored map stays in for its whole life.
+	Check (!BoundaryCliffGenerator::Has_Ring (),"a freshly initialised generator claimed a ring");
+	Check (!BoundaryCliffGenerator::Is_Planned (),"a freshly initialised generator claimed a plan");
+	Check (BoundaryCliffGenerator::Get_Ring_Checksum () == 0,"an unplanned ring carried a checksum");
+	Check (BoundaryCliffGenerator::Get_Station_Count () == 0,"an unplanned ring carried stations");
+
+	DynamicVectorClass<Vector2> polygon;
+	Make_Cliff_Test_Polygon (&polygon);
+	BoundaryCliffParams params = Make_Cliff_Test_Params ();
+
+	//	Every parameter rule refuses on its own, and refusing leaves nothing behind.
+	{
+		StringClass error ("");
+		DynamicVectorClass<Vector2> too_few;
+		too_few.Add (Vector2 (0.0f,0.0f));
+		too_few.Add (Vector2 (10.0f,0.0f));
+		Check (!BoundaryCliffGenerator::Plan_Ring (too_few,params,&error),
+				 "a two-vertex boundary was accepted as a cliff ring");
+		Check (error.Get_Length () > 0,"a refused cliff ring carried no reason");
+
+		BoundaryCliffParams bad = params;
+		bad.StationSpacing = 0.0f;
+		Check (!BoundaryCliffGenerator::Plan_Ring (polygon,bad,&error),
+				 "a zero station spacing was accepted");
+
+		bad = params;
+		bad.StationsPerChunk = 1;
+		Check (!BoundaryCliffGenerator::Plan_Ring (polygon,bad,&error),
+				 "a one-station chunk was accepted");
+
+		bad = params;
+		bad.CliffMaxHeight = bad.CliffMinHeight - 1.0f;
+		Check (!BoundaryCliffGenerator::Plan_Ring (polygon,bad,&error),
+				 "a maximum cliff height below the minimum was accepted");
+
+		bad = params;
+		bad.ToeWidth = bad.CliffBandWidth;
+		Check (!BoundaryCliffGenerator::Plan_Ring (polygon,bad,&error),
+				 "a toe as wide as the whole cliff band was accepted");
+
+		Check (!BoundaryCliffGenerator::Is_Planned (),"a refused plan left stations behind");
+	}
+
+	//	The ring itself.
+	{
+		StringClass error ("");
+		Check (BoundaryCliffGenerator::Plan_Ring (polygon,params,&error),
+				 "planning a cliff ring for a valid square failed");
+		Check (BoundaryCliffGenerator::Is_Planned (),"a successful plan reported no stations");
+
+		//	A 4000-unit perimeter at 25 units a station is 160 stations, and eight to a chunk is
+		//	20 chunks.  Stated as arithmetic rather than as a magic number so a change to either
+		//	input shows up here as a wrong expectation rather than as a silently different ring.
+		int expected_stations = (int)((4.0f * 1000.0f) / params.StationSpacing);
+		Check (BoundaryCliffGenerator::Get_Station_Count () == expected_stations,
+				 "the ring did not resample the perimeter at the requested spacing");
+
+		int expected_chunks = (expected_stations + params.StationsPerChunk - 1) / params.StationsPerChunk;
+		Check (BoundaryCliffGenerator::Get_Chunk_Count () == expected_chunks,
+				 "the ring was not divided into the expected number of bounded chunks");
+
+		//	No chunk may be unbounded: that is Phase 3's own do-not-proceed condition, and it is
+		//	the reason the ring is chunked at all.
+		Check (BoundaryCliffGenerator::Get_Chunk_Count () > 1,
+				 "the whole ring was built as a single monolithic escarpment");
+	}
+
+	//	Phase 3 step 15's three diagnostics, on a ring that should pass all of them.
+	{
+		StringClass report ("");
+		Check (BoundaryCliffGenerator::Check_Seam_Continuity (&report) == 0,
+				 "a freshly planned ring reported a seam that does not share a station");
+		Check (BoundaryCliffGenerator::Check_Inverted_Triangles (&report) == 0,
+				 "a freshly planned ring reported an inverted face");
+
+		//	Every station must be taller than anything can climb.  A profile whose minimum
+		//	cliff height is 60 cannot produce a face of 2, so a fault here is a generator bug
+		//	rather than a tuning question.
+		Check (BoundaryCliffGenerator::Check_Traversable_Ramps (2.0f,&report) == 0,
+				 "a freshly planned ring reported a climbable face");
+	}
+
+	//	Every station's rim lands inside the profile's own min/max band.
+	{
+		bool within = true;
+		for (int i = 0; i < BoundaryCliffGenerator::Get_Station_Count (); i++) {
+			Vector3 toe,rim;
+			if (!BoundaryCliffGenerator::Get_Ring_Station (i,&toe,&rim)) { within = false; break; }
+			float face = rim.Z - toe.Z;
+			if ((face < params.CliffMinHeight - 0.001f) || (face > params.CliffMaxHeight + 0.001f)) {
+				within = false;
+				break;
+			}
+		}
+		Check (within,"a cliff station fell outside the profile's own min/max height band");
+	}
+
+	//	Section 3B determinism: the same seed and polygon produce the same ring, a different
+	//	seed produces a different one, and a roughness of zero produces a level rim.
+	{
+		StringClass error ("");
+		unsigned int first = BoundaryCliffGenerator::Get_Ring_Checksum ();
+		Check (first != 0,"a planned ring carried no checksum");
+
+		Check (BoundaryCliffGenerator::Plan_Ring (polygon,params,&error),"replanning the same ring failed");
+		Check (BoundaryCliffGenerator::Get_Ring_Checksum () == first,
+				 "the same seed and polygon produced a different cliff ring");
+
+		BoundaryCliffParams other = params;
+		other.Seed = params.Seed + 1u;
+		Check (BoundaryCliffGenerator::Plan_Ring (polygon,other,&error),"planning for a second seed failed");
+		Check (BoundaryCliffGenerator::Get_Ring_Checksum () != first,
+				 "two different cliff seeds produced an identical ring");
+
+		BoundaryCliffParams smooth = params;
+		smooth.RimRoughness = 0.0f;
+		Check (BoundaryCliffGenerator::Plan_Ring (polygon,smooth,&error),"planning a smooth ring failed");
+
+		bool level = true;
+		float expected = (params.CliffMinHeight + params.CliffMaxHeight) * 0.5f;
+		for (int i = 0; i < BoundaryCliffGenerator::Get_Station_Count (); i++) {
+			Vector3 toe,rim;
+			BoundaryCliffGenerator::Get_Ring_Station (i,&toe,&rim);
+			if (WWMath::Fabs ((rim.Z - toe.Z) - expected) > 0.001f) { level = false; break; }
+		}
+		Check (level,"a rim roughness of zero did not produce a level rim at the mid height");
+	}
+
+	//	Realizing a plan with no physics scene must refuse rather than half-build: a partial ring
+	//	is a gap in the world, which is the one failure the whole phase exists to prevent.
+	{
+		StringClass error ("");
+		Check (!BoundaryCliffGenerator::Realize_Ring (&error),
+				 "a cliff ring claimed to be realized with no physics scene");
+		Check (!BoundaryCliffGenerator::Has_Ring (),"a failed realization left a ring behind");
+	}
+
+	//	Clearing returns the generator to its legacy-map state.
+	BoundaryCliffGenerator::Clear_Ring ();
+	Check (!BoundaryCliffGenerator::Is_Planned (),"clearing left a plan behind");
+	Check (BoundaryCliffGenerator::Get_Ring_Checksum () == 0,"clearing left a checksum behind");
+
+	BoundaryCliffGenerator::Shutdown ();
+	return _Failures;
+}
+
+
+/*
 **	Finite team power grid + strategic building capabilities -- roadmap Section 40.
 **
 **	Every member here is registered with a nullptr BuildingGameObj*, which is what makes the
@@ -5302,6 +5493,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "worldbounds") == 0)) {
 		Run_World_Bounds ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "worldcliffs") == 0)) {
+		Run_World_Cliffs ();
 		ran = true;
 	}
 

@@ -780,6 +780,10 @@ enum class RenegadeDialogID {
 #define IDC_GAME_TIME_MINS_TEXT         1561
 #define IDC_GAME_TIME_SECS_TEXT         1562
 #define IDC_MENU_START_PRACTICE_GAME_BUTTON 1563
+//	V2 roadmap Section 34 Phase 3.  Not in the DIALOG_LINK_FIRST..LAST range: those are the
+//	buttons whose only job is to open another dialog, and this one starts a game.  1660 is the
+//	first number above every literal control ID this file already assigns.
+#define IDC_MENU_START_PROCEDURAL_GAME_BUTTON 1660
 #define IDC_CHEAT_WARNING_TEXT          1564
 #define IDC_CHEAT_BUTTON                1565
 #define IDC_COST_X2_TEXT                1566
