@@ -178,16 +178,39 @@ Values above 1 for the three normalized weights are **rejected**, not clamped, t
 `rim_roughness`/`face_roughness` already established: a value above 1 is a profile author
 misunderstanding the unit, not "more variation" to silently allow.
 
+## Schema version 4 (Phase 6)
+
+Four fields were added to the `water` block when Phase 6 built the hydrology generator
+Rivers/Lakes/Ponds/Coastline were flags for since Phase 1 with nothing to size them. A
+schema-1/2/3 profile still loads; each new field takes the default below. See
+`docs/procedural_world/Hydrology.md` for what the generator actually does with them.
+
+| Field | Type | Default | Rule | Meaning |
+| --- | --- | --- | --- | --- |
+| `river_width` | float | `6.0` | `> 0` | World units — the width a channel reaches once its own accumulated drainage meets `river_accumulation_chunks`. |
+| `stream_width` | float | `2.5` | `> 0`, `<= river_width` | World units — the width at a channel's own source, before accumulation has grown it. |
+| `river_accumulation_chunks` | float | `6.0` | `> 0` | Chunks of upstream drainage a channel needs before it counts as a river rather than a stream/tributary (Section 9.2). |
+| `max_river_count` | int | `4` | `> 0` | Bounded count of distinct channel systems generated, same bounded-output discipline every other generator in this schema already follows. |
+
+Depth is deliberately not a profile field: `WaterDefinitionClass::BedDepth`, already set per
+water category by `WaterSystem::Define_Default_Water`, is carve depth's one source of truth. A
+second depth number here could only ever disagree with it.
+
 ### Version semantics
 
-`CURRENT_SCHEMA_VERSION` and `CURRENT_GENERATOR_VERSION` moved to 2 with Phase 3 and to 3 with
-Phase 4, independently each time and for the same two reasons: the schema gained fields, and
-the algorithm changed. Schema 2 / generator 2: the same seed and the same schema-1 profile now
-produce a world with cliffs in it where before it produced only an invisible boundary. Schema 3
-/ generator 3: a world with `world.fit_to_level` false now stands on generated macro terrain
-instead of the flat plane a heightfield-less world always was. A `fit_to_level` world's own
-ground is unaffected by the generator-3 change either way — it never calls the generator; see
-`MacroTerrainGeneration.md`'s "Coexist, not replace" section.
+`CURRENT_SCHEMA_VERSION` and `CURRENT_GENERATOR_VERSION` moved to 2 with Phase 3, to 3 with
+Phase 4, and to 4 with Phase 6, independently each time and for the same two reasons: the schema
+gained fields, and the algorithm changed. (Phase 5's interior cliffs moved neither number — it
+added no profile field, reusing `terrain.interior_cliff_density`, reserved since Phase 1.)
+Schema 2 / generator 2: the same seed and the same schema-1 profile now produce a world with
+cliffs in it where before it produced only an invisible boundary. Schema 3 / generator 3: a
+world with `world.fit_to_level` false now stands on generated macro terrain instead of the flat
+plane a heightfield-less world always was. Schema 4 / generator 4: that same world may now carve
+rivers, streams, lakes and ponds into its own generated terrain where before it stood dry. A
+`fit_to_level` world's own ground is unaffected by either the generator-3 or generator-4 change
+— it never calls either generator; see `MacroTerrainGeneration.md`'s "Coexist, not replace"
+section, which `Hydrology.md` follows for the same reason (hydrology reads the chunk registry
+only macro terrain builds).
 
 The shipped profile is `data/procedural_world/default.json`, loaded by
 `ProceduralWorldManager::DEFAULT_PROFILE_PATH`.

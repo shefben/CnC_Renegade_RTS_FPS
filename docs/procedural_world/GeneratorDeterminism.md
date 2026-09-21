@@ -244,3 +244,39 @@ reported `terrain_built`, which already folds in both the `fit_to_level` skip an
 terrain failure — there is exactly one place that decides whether a chunk registry exists this
 run, and interior cliffs reads that decision rather than re-deriving it. See
 `docs/procedural_world/InteriorCliffs.md`.
+
+## Phase 6 additions
+
+### No new seed domain
+
+`HydrologyGenerator` uses `SEED_DOMAIN_HYDROLOGY`, reserved by Phase 1 for exactly this purpose
+and unused until now — the same situation Phase 4 found `SEED_DOMAIN_TERRAIN` in.
+
+### The drainage walk has no random input of its own
+
+Flow direction and accumulation are pure functions of the chunk registry's own height data —
+no hash draw anywhere in that computation. Given the same terrain, the same candidate/headwater
+set and the same chunk-to-chunk walk happen on any platform. What determinism actually has to
+answer for is narrower than in the other two generators: there is no per-feature hashed
+type/traversability pick here at all (unlike `InteriorCliffGenerator`'s two), because shore
+classification and crossing kind are both computed from real, measured slope and width rather
+than drawn from the seed. The seed's only role in this generator's own output is indirect, via
+whichever seed shaped the terrain being drained — `HydrologyGenerator` reads that terrain, it
+does not draw its own noise from `params.Seed`.
+
+### The hydrology checksum
+
+`HydrologyGenerator::Get_Checksum` is a CRC over every built feature's own type, shore
+classification, enclosed flag, length and crossing candidates, quantized per Section 3B.4,
+computed with no physics scene. `WorldGenerationManifest::HydrologyChecksum` carries it into the
+manifest, `0` under the same three conditions `InteriorCliffChecksum` can be `0` for: no chunk
+registry to read (`fit_to_level`), macro terrain itself failed, or hydrology generation itself
+failed.
+
+### `fit_to_level`, and terrain failure, both skip this generator too
+
+`ProceduralWorldManager::Build_Hydrology` only runs when `Build_Macro_Terrain` reported
+`terrain_built`, the same single gate `Build_Interior_Cliffs` reads. It runs whether or not
+interior cliffs themselves succeeded — an interior cliff feature failing to build says nothing
+about whether the chunk registry's own height data (all hydrology actually reads) is wrong. See
+`docs/procedural_world/Hydrology.md`.

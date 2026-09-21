@@ -12,6 +12,7 @@
 #include "foliagetype.h"
 #include "coltest.h"
 #include "heightfield.h"
+#include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "lineseg.h"
 #include "coltype.h"
@@ -3862,6 +3863,162 @@ void	Check_Interior_Cliffs (void)
 }
 
 
+/***********************************************************************************************
+**	hydrology
+**
+**	Roadmap Section 34 Phase 6.  Device-less for the same reason interior's own check is:
+**	HydrologyGenerator reads the chunk registry and WorldBoundsService and writes to WaterSystem
+**	and the chunk registry, none of which needs a physics scene.
+**
+**	The same synthetic uniform-slope ramp `Check_Interior_Cliffs` uses, reused here for the same
+**	reason: MacroTerrainGenerator's own noise gives no arithmetic guarantee a channel or a basin
+**	exists for a given seed. A ramp whose height depends only on the X grid index gives every row
+**	an identical, guaranteed drainage pattern -- each row's own westernmost chunk is a sink
+**	(nothing further west, and its same-row neighbour at any other Y is equal height, never
+**	lower), and every chunk east of it flows one step west toward it.
+***********************************************************************************************/
+void	Check_Hydrology (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	HydrologyGenerator::Init ();
+
+	//
+	//	Refusals.  No chunk registry at all, a zero river width, a stream wider than its own
+	//	river, a zero accumulation threshold and a zero river-count cap all refuse and leave
+	//	nothing behind.
+	//
+	{
+		StringClass error ("");
+		HydrologyParams bad;
+		Check (!HydrologyGenerator::Generate (bad,&error), "generation ran with no chunk registry at all");
+		Check (error.Get_Length () > 0, "a refused generation carried no reason");
+		Check (!HydrologyGenerator::Has_Hydrology (), "a refused generation left state behind");
+
+		Build_Uniform_Ramp_Terrain (3,4.0f,10.0f,Vector3 (-96.0f,-96.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		bad.RiverWidth = 0.0f;
+		Check (!HydrologyGenerator::Generate (bad,&error), "a zero river width was accepted");
+
+		bad.RiverWidth		= 6.0f;
+		bad.StreamWidth	= 8.0f;
+		Check (!HydrologyGenerator::Generate (bad,&error), "a stream width above river width was accepted");
+
+		bad.StreamWidth = 2.5f;
+		bad.RiverAccumulationChunks = 0.0f;
+		Check (!HydrologyGenerator::Generate (bad,&error), "a zero accumulation threshold was accepted");
+
+		bad.RiverAccumulationChunks	= 2.5f;
+		bad.MaxRiverCount					= 0;
+		Check (!HydrologyGenerator::Generate (bad,&error), "a zero max river count was accepted");
+	}
+
+	//
+	//	A uniform ramp, three chunks per row: every row drains west into its own sink.  Peak
+	//	accumulation at each sink is 3 (all three chunks in that row), comfortably above a 2.5
+	//	river threshold, so every row's channel classifies as a river and every sink becomes a
+	//	lake.
+	//
+	unsigned int first_checksum = 0;
+	{
+		Build_Uniform_Ramp_Terrain (3,4.0f,10.0f,Vector3 (-96.0f,-96.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams params;
+		params.Seed							= 55u;
+		params.GenerateRivers				= true;
+		params.GenerateLakes				= true;
+		params.GeneratePonds				= true;
+		params.RiverWidth					= 6.0f;
+		params.StreamWidth					= 2.5f;
+		params.RiverAccumulationChunks	= 2.5f;
+		params.MaxRiverCount				= 4;
+
+		StringClass error ("");
+		Check (HydrologyGenerator::Generate (params,&error),
+				 "generation refused a uniform ramp: %s",error.Peek_Buffer ());
+		Check (HydrologyGenerator::Has_Hydrology (), "a successful generation reported no hydrology built");
+		Check (HydrologyGenerator::Get_Feature_Count () >= 2,
+				 "a uniform 3-row ramp produced fewer than one channel and one basin");
+
+		bool any_river = false;
+		bool any_basin = false;
+		for (int i = 0; i < HydrologyGenerator::Get_Feature_Count (); i++) {
+			HydrologyFeature f;
+			if (!HydrologyGenerator::Get_Feature (i,&f)) continue;
+			if (!f.Enclosed && (f.Type == HYDRO_FEATURE_RIVER)) any_river = true;
+			if (f.Enclosed) any_basin = true;
+		}
+		Check (any_river, "a uniform ramp with 3 chunks of drainage per row produced no river");
+		Check (any_basin, "a uniform ramp's own sinks produced no lake/pond");
+
+		StringClass report ("");
+		Check (HydrologyGenerator::Check_No_Cliff_Band_Overlap (&report) == 0,
+				 "a hydrology feature lay in the cliff band with no boundary configured: %s",report.Peek_Buffer ());
+		Check (HydrologyGenerator::Check_River_Never_Climbs (&report) == 0,
+				 "a river/stream station climbed uphill: %s",report.Peek_Buffer ());
+		Check (HydrologyGenerator::Check_Lake_Within_Basin (&report) == 0,
+				 "a lake/pond surface stood above its own basin rim: %s",report.Peek_Buffer ());
+		Check (HydrologyGenerator::Check_Crossing_Candidates_Present (&report) == 0,
+				 "a hydrology feature carried no crossing candidate: %s",report.Peek_Buffer ());
+
+		first_checksum = HydrologyGenerator::Get_Checksum ();
+		Check (first_checksum != 0, "a built set of hydrology features carried no checksum");
+
+		Check (HydrologyGenerator::Generate (params,&error), "regenerating the same hydrology failed");
+		Check (HydrologyGenerator::Get_Checksum () == first_checksum,
+				 "the same seed and terrain produced a different hydrology checksum");
+	}
+
+	//
+	//	Section 5.9: a boundary configured close enough that a channel's downstream chunk would
+	//	otherwise be cliff band must never let that channel, or its own terminal basin, cross
+	//	into it.
+	//
+	{
+		Build_Uniform_Ramp_Terrain (3,4.0f,10.0f,Vector3 (-96.0f,-96.0f,0.0f));
+
+		DynamicVectorClass<Vector2> polygon;
+		polygon.Add (Vector2 (-40.0f,-40.0f));
+		polygon.Add (Vector2 (-40.0f, 40.0f));
+		polygon.Add (Vector2 ( 40.0f, 40.0f));
+		polygon.Add (Vector2 ( 40.0f,-40.0f));
+
+		StringClass error ("");
+		Check (WorldBoundsService::Configure (polygon,15.0f,5.0f,300.0f,&error),
+				 "the test boundary would not configure: %s",error.Peek_Buffer ());
+
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams params;
+		params.Seed							= 77u;
+		params.GenerateRivers				= true;
+		params.GenerateLakes				= true;
+		params.GeneratePonds				= true;
+		params.RiverWidth					= 6.0f;
+		params.StreamWidth					= 2.5f;
+		params.RiverAccumulationChunks	= 2.5f;
+		params.MaxRiverCount				= 4;
+
+		Check (HydrologyGenerator::Generate (params,&error),
+				 "generation with a boundary configured failed: %s",error.Peek_Buffer ());
+
+		StringClass report ("");
+		Check (HydrologyGenerator::Check_No_Cliff_Band_Overlap (&report) == 0,
+				 "a hydrology feature crossed into the cliff band: %s",report.Peek_Buffer ());
+
+		WorldBoundsService::Clear ();
+	}
+
+	HydrologyGenerator::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -3922,6 +4079,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "interior") == 0)) {
 		Check_Interior_Cliffs ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hydrology") == 0)) {
+		Check_Hydrology ();
 	}
 
 	if (_Failures == 0) {

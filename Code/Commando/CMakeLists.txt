@@ -664,6 +664,9 @@ add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
 
     #	Procedural interior cliffs -- roadmap Section 34 Phase 5.  See terrainselfcheck.h.
     add_test(NAME terrain_interior_cliffs   COMMAND renegade -terrainselfcheck interior)
+
+    #	Procedural hydrology -- roadmap Section 34 Phase 6.  See terrainselfcheck.h.
+    add_test(NAME terrain_hydrology   COMMAND renegade -terrainselfcheck hydrology)
 endif()
 
 #
@@ -741,4 +744,5 @@ add_test(NAME fds_terrain_shroud   COMMAND renegadeserver -terrainselfcheck shro
     add_test(NAME fds_terrain_roads  COMMAND renegadeserver -terrainselfcheck roads)
     add_test(NAME fds_terrain_macro   COMMAND renegadeserver -terrainselfcheck macro)
     add_test(NAME fds_terrain_interior_cliffs   COMMAND renegadeserver -terrainselfcheck interior)
+    add_test(NAME fds_terrain_hydrology   COMMAND renegadeserver -terrainselfcheck hydrology)
 endif()

@@ -1,6 +1,6 @@
 {
-	"schema_version": 3,
-	"generator_version": 3,
+	"schema_version": 4,
+	"generator_version": 4,
 	"name": "Default procedural world",
 
 	"seed": 1,
@@ -46,7 +46,12 @@
 		"rivers": true,
 		"lakes": true,
 		"ponds": true,
-		"coastline": true
+		"coastline": true,
+
+		"river_width": 6.0,
+		"stream_width": 2.5,
+		"river_accumulation_chunks": 6.0,
+		"max_river_count": 4
 	},
 
 	"world_features": {

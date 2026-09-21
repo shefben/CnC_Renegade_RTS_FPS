@@ -89,6 +89,13 @@ struct WorldGenerationManifest
 	//	generation itself failed.
 	unsigned int	InteriorCliffChecksum;
 
+	//	Phase 6.  HydrologyGenerator::Get_Checksum -- a CRC over every generated river/stream/
+	//	lake/pond's own type, shore classification, enclosed flag, length and crossing
+	//	candidates.  0 under the same conditions InteriorCliffChecksum can be 0 for: no chunk
+	//	registry to read (`fit_to_level`), macro terrain failed, or hydrology generation itself
+	//	failed.
+	unsigned int	HydrologyChecksum;
+
 	unsigned int	RoadGraphChecksum;		// 0 until Phase 8 exists
 	unsigned int	NavigationRevision;		// 0 until Phase 16 exists
 };

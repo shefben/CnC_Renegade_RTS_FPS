@@ -136,6 +136,10 @@ class ProceduralWorldManager
 		//	world has no chunk registry to read candidates from, same reasoning as Phase 4's own.
 		static bool		Build_Interior_Cliffs(const ProceduralWorldProfile & profile,StringClass * error_out);
 
+		//	Roadmap Section 34 Phase 6.  Reads the chunk registry the same way interior cliffs
+		//	does, so it shares the same "only when terrain_built" gate.
+		static bool		Build_Hydrology(const ProceduralWorldProfile & profile,StringClass * error_out);
+
 		static bool		Requested;
 		static bool		WorldActive;
 

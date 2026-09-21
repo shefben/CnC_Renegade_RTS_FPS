@@ -27,6 +27,7 @@
 #include "proceduralworldmanager.h"
 
 #include "boundarycliffgenerator.h"
+#include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "macroterraingenerator.h"
 #include "proceduralboundsbuilder.h"
@@ -323,6 +324,26 @@ bool ProceduralWorldManager::Build_Interior_Cliffs(const ProceduralWorldProfile 
 }
 
 
+/***********************************************************************************************
+ * Build_Hydrology -- roadmap Section 34 Phase 6                                                 *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Hydrology(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	HydrologyParams params;
+	params.Seed							= WorldSeedService::Derive_Subsystem_Seed (
+													profile.Seed,WorldSeedService::SEED_DOMAIN_HYDROLOGY);
+	params.GenerateRivers				= profile.Water.Rivers;
+	params.GenerateLakes					= profile.Water.Lakes;
+	params.GeneratePonds					= profile.Water.Ponds;
+	params.RiverWidth					= profile.Water.RiverWidth;
+	params.StreamWidth					= profile.Water.StreamWidth;
+	params.RiverAccumulationChunks	= profile.Water.RiverAccumulationChunks;
+	params.MaxRiverCount					= profile.Water.MaxRiverCount;
+
+	return HydrologyGenerator::Generate (params,error_out);
+}
+
+
 bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 {
 	//	Directive 1.10.  No request, no procedural anything: this is every hand-authored map.
@@ -391,6 +412,19 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 		}
 	}
 
+	//	Hydrology, Phase 6.  Reads the same chunk registry interior cliffs does, so it shares the
+	//	same gate; runs whether or not interior cliffs themselves succeeded, since a cliff feature
+	//	failing does not mean the terrain the chunk registry describes is wrong.
+	bool hydrology_built = false;
+	StringClass hydrology_error;
+	if (terrain_built) {
+		hydrology_built = Build_Hydrology (profile,&hydrology_error);
+		if (!hydrology_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: hydrology failed (%s); the terrain itself is unaffected\r\n",
+							  hydrology_error.Peek_Buffer ()));
+		}
+	}
+
 	ActiveProfile = profile;
 
 	/*
@@ -403,6 +437,7 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 	Manifest.CliffRingChecksum			= BoundaryCliffGenerator::Get_Ring_Checksum ();
 	Manifest.TerrainChecksum			= terrain_built ? MacroTerrainGenerator::Get_Terrain_Checksum () : 0;
 	Manifest.InteriorCliffChecksum	= interior_cliffs_built ? InteriorCliffGenerator::Get_Checksum () : 0;
+	Manifest.HydrologyChecksum		= hydrology_built ? HydrologyGenerator::Get_Checksum () : 0;
 
 	WorldActive = true;
 
@@ -420,6 +455,10 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 					  interior_cliffs_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
 					  InteriorCliffGenerator::Get_Feature_Count (),
 					  InteriorCliffGenerator::Get_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: hydrology %s -- %d feature(s), checksum 0x%08X\r\n",
+					  hydrology_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
+					  HydrologyGenerator::Get_Feature_Count (),
+					  HydrologyGenerator::Get_Checksum ()));
 
 	return true;
 }
@@ -427,10 +466,11 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 
 void ProceduralWorldManager::Destroy_World(void)
 {
-	//	Interior cliffs before the boundary ring -- both only ever remove their own escarpment
-	//	IDs from the shared collection (see each generator's own Clear), so the order between
-	//	them does not matter; it is written this way only because interior cliffs depend on the
-	//	terrain the ring does not, so tearing down in roughly reverse build order reads clearly.
+	//	Hydrology and interior cliffs before the boundary ring -- each only ever removes its own
+	//	IDs from its own shared collection (see each generator's own Clear), so the order between
+	//	them does not matter; it is written this way only because both depend on terrain the ring
+	//	does not, so tearing down in roughly reverse build order reads clearly.
+	HydrologyGenerator::Clear ();
 	InteriorCliffGenerator::Clear ();
 	BoundaryCliffGenerator::Clear_Ring ();
 	WorldBoundsService::Clear ();

@@ -81,6 +81,13 @@ different generators feed the one shared `EscarpmentSystem`, and seeing which cl
 which is exactly how a generator writing into the wrong owner's chunks would be spotted. See
 `docs/procedural_world/InteriorCliffs.md`.
 
+**Update, V2 roadmap Section 34 Phase 6**: `DEBUG_LAYER_HYDROLOGY` is new this phase and draws
+for real from the moment it exists -- `Draw_Hydrology` walks `HydrologyGenerator`'s own feature
+list and, for each one, the `WaterAreaClass` it placed (found by name, `WaterSystem::Find_Area`),
+drawing a river/stream's own centre line or a lake/pond's own closed ring, plus a cross at every
+feature's own crossing candidate coloured by kind (yellow ford, orange bridge, magenta
+route-around). See `docs/procedural_world/Hydrology.md`.
+
 Every other layer is a real, toggleable, named entry in `DebugLayerType` that still draws nothing:
 
 | Layer | Awaiting |

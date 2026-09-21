@@ -100,6 +100,10 @@ enum DebugLayerType
 	//	be spotted.
 	DEBUG_LAYER_INTERIOR_CLIFFS,
 
+	//	V2 roadmap Section 34 Phase 6 step 15.  Rivers/streams as their own centre line, lakes/
+	//	ponds as their own ring, and a cross at every crossing candidate.
+	DEBUG_LAYER_HYDROLOGY,
+
 	DEBUG_LAYER_COUNT		// sentinel
 };
 

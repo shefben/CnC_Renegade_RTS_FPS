@@ -43,6 +43,7 @@ namespace	TerrainSelfCheck
 	//		shroud      the per-team strategic shroud grid and its sensor-source API
 	//		macro       the procedural macro terrain generator and its chunk registry
 	//		interior    the procedural interior cliff generator and its bypass candidates
+	//		hydrology   the procedural hydrology generator and its crossing candidates
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

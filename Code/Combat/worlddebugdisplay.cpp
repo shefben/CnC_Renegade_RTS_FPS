@@ -43,8 +43,11 @@
 #include "worldboundsservice.h"
 #include "boundarycliffgenerator.h"
 #include "escarpment.h"
+#include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "tacticalintelligence.h"
+#include "watersystem.h"
+#include "watertype.h"
 #include "worldshroudmanager.h"
 #include "worldterrainsystem.h"
 
@@ -403,6 +406,56 @@ static void	Draw_Interior_Cliffs(void)
 }
 
 
+/***********************************************************************************************
+ * Draw_Hydrology -- V2 roadmap Section 34 Phase 6 step 15                                       *
+ *                                                                                             *
+ *	A river/stream draws its own centre line; a lake/pond draws its own closed ring.  Every        *
+ *	feature draws a cross at each of its own crossing candidates, coloured by kind -- the same       *
+ *	"debug layer shows exactly the plan data a later phase will consume" idea Draw_Interior_          *
+ *	Cliffs already follows for its own bypass points.                                                  *
+ *=============================================================================================*/
+static void	Draw_Hydrology(void)
+{
+	static const Vector4	RIVER_COLOR			(0.2f,0.5f,0.95f,0.9f);
+	static const Vector4	STREAM_COLOR		(0.4f,0.8f,0.95f,0.85f);
+	static const Vector4	LAKE_COLOR			(0.15f,0.35f,0.75f,0.8f);
+	static const Vector4	POND_COLOR			(0.3f,0.55f,0.8f,0.8f);
+	static const Vector4	FORD_COLOR			(0.9f,0.85f,0.1f,1.0f);
+	static const Vector4	BRIDGE_COLOR		(1.0f,0.5f,0.1f,1.0f);
+	static const Vector4	ROUTE_AROUND_COLOR(0.8f,0.2f,0.9f,1.0f);
+
+	int count = HydrologyGenerator::Get_Feature_Count ();
+	for (int f = 0; f < count; f++) {
+
+		HydrologyFeature feature;
+		if (!HydrologyGenerator::Get_Feature (f,&feature)) continue;
+
+		const WaterAreaClass * area = WaterSystem::Find_Area (feature.Name.Peek_Buffer ());
+		if (area != nullptr) {
+
+			const Vector4 & color =
+				feature.Enclosed ? ((feature.Type == HYDRO_FEATURE_LAKE) ? LAKE_COLOR : POND_COLOR)
+										: ((feature.Type == HYDRO_FEATURE_RIVER) ? RIVER_COLOR : STREAM_COLOR);
+
+			int station_count = area->Get_Station_Count ();
+			int edge_count = feature.Enclosed ? station_count : (station_count - 1);
+			for (int s = 0; s < edge_count; s++) {
+				const WaterStationClass & a = area->Get_Station (s);
+				const WaterStationClass & b = area->Get_Station ((s + 1) % station_count);
+				DebugRenderSystem::Add_Line (a.Position,b.Position,color);
+			}
+		}
+
+		for (int c = 0; c < feature.Crossings.Count (); c++) {
+			const Vector4 & color =
+				(feature.Crossings[c].Kind == HYDRO_CROSSING_ROUTE_AROUND) ? ROUTE_AROUND_COLOR :
+				(feature.Crossings[c].Kind == HYDRO_CROSSING_FORD) ? FORD_COLOR : BRIDGE_COLOR;
+			DebugRenderSystem::Add_Cross (feature.Crossings[c].Position,4.0f,color);
+		}
+	}
+}
+
+
 void WorldDebugDisplay::Update(void)
 {
 	bool anything_on = false;
@@ -451,6 +504,10 @@ void WorldDebugDisplay::Update(void)
 
 	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_INTERIOR_CLIFFS)) {
 		Draw_Interior_Cliffs();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_HYDROLOGY)) {
+		Draw_Hydrology();
 	}
 
 	//	Every other layer is enumerated and toggleable (DebugRenderSystem::Is_Layer_Enabled

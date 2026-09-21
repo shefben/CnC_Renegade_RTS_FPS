@@ -145,6 +145,13 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			p.Water.Lakes		= w.value ("lakes",p.Water.Lakes);
 			p.Water.Ponds		= w.value ("ponds",p.Water.Ponds);
 			p.Water.Coastline	= w.value ("coastline",p.Water.Coastline);
+
+			//	Schema 4.  Absent in a schema-1/2/3 profile, which is why each default comes from
+			//	the value already in p rather than from a literal repeated here.
+			p.Water.RiverWidth					= w.value ("river_width",p.Water.RiverWidth);
+			p.Water.StreamWidth					= w.value ("stream_width",p.Water.StreamWidth);
+			p.Water.RiverAccumulationChunks	= w.value ("river_accumulation_chunks",p.Water.RiverAccumulationChunks);
+			p.Water.MaxRiverCount				= w.value ("max_river_count",p.Water.MaxRiverCount);
 		}
 
 		if (root.contains ("world_features") && root ["world_features"].is_object ()) {
@@ -308,6 +315,16 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	if (p.Terrain.RidgeSharpness > 1.0f)						FAIL ("terrain.ridge_sharpness above 1");
 	if (p.Terrain.PlateauChance > 1.0f)						FAIL ("terrain.plateau_chance above 1");
 	if (p.Terrain.BoundaryApproachFlattening > 1.0f)		FAIL ("terrain.boundary_approach_flattening above 1");
+
+	//	Schema 4's water fields (Phase 6).
+	NEED_FINITE (p.Water.RiverWidth,"non-finite water.river_width");
+	NEED_FINITE (p.Water.StreamWidth,"non-finite water.stream_width");
+	if (p.Water.RiverWidth <= 0.0f)							FAIL ("water.river_width must be positive");
+	if (p.Water.StreamWidth <= 0.0f)						FAIL ("water.stream_width must be positive");
+	if (p.Water.StreamWidth > p.Water.RiverWidth)			FAIL ("water.stream_width must not exceed water.river_width");
+	NEED_FINITE (p.Water.RiverAccumulationChunks,"non-finite water.river_accumulation_chunks");
+	if (p.Water.RiverAccumulationChunks <= 0.0f)			FAIL ("water.river_accumulation_chunks must be positive");
+	if (p.Water.MaxRiverCount <= 0)							FAIL ("water.max_river_count must be positive");
 
 	//	Bounded retry counts.
 	if (p.Retry.MaxLocalRetriesPerStage <= 0)				FAIL ("retry.max_local_retries_per_stage must be positive");

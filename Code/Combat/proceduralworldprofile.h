@@ -162,13 +162,33 @@ struct ProceduralWorldTerrainSettings
 };
 
 
+/*
+**	Section 9, Section 18A.  Rivers/Lakes/Ponds/Coastline gate whether that category generates
+**	at all; the four numeric fields below are Schema 4's addition when Phase 6 built the
+**	generator these were reserved for.  Section 18A asks for full width/depth *ranges* per
+**	category; this schema carries single representative widths instead (a river's own width
+**	still grows with its accumulated drainage as it runs downhill -- see
+**	docs/procedural_world/Hydrology.md -- so a fixed number is a floor/ceiling pair's practical
+**	midpoint, not a claim that every river is a constant width). Depth is not a profile field at
+**	all: WaterDefinitionClass::BedDepth, already set per category by
+**	WaterSystem::Define_Default_Water, is the single source of truth for carve depth, and a
+**	second depth number on this schema could only ever disagree with it.
+*/
 struct ProceduralWorldWaterSettings
 {
-	ProceduralWorldWaterSettings(void) : Rivers(true),Lakes(true),Ponds(true),Coastline(true) { }
+	ProceduralWorldWaterSettings(void) : Rivers(true),Lakes(true),Ponds(true),Coastline(true),
+														RiverWidth(6.0f),StreamWidth(2.5f),
+														RiverAccumulationChunks(6.0f),MaxRiverCount(4) { }
 	bool	Rivers;
 	bool	Lakes;
 	bool	Ponds;
 	bool	Coastline;
+
+	float	RiverWidth;					// world units, > 0 -- width a channel reaches at full accumulation
+	float	StreamWidth;				// world units, > 0, <= RiverWidth -- width at a channel's own source
+	float	RiverAccumulationChunks;	// > 0 -- chunks of drainage a channel needs before it counts as a
+												//	river rather than a stream/tributary (Section 9.2)
+	int	MaxRiverCount;				// > 0 -- bounded count of distinct channel systems generated
 };
 
 
@@ -261,7 +281,15 @@ class ProceduralWorldProfile
 		//	take their documented defaults.  A `fit_to_level` world's own ground is unaffected
 		//	either way -- see ProceduralWorldManager::Build_Macro_Terrain for why terrain
 		//	generation is skipped there entirely.
-		enum { CURRENT_SCHEMA_VERSION = 3, CURRENT_GENERATOR_VERSION = 3 };
+		//
+		//	Schema 4 added the water block's river/stream width, accumulation threshold and
+		//	channel-count cap (Phase 6).  Generator 4 is the hydrology generator: a world with
+		//	`world.fit_to_level` false may now carve rivers/streams/lakes/ponds into its own
+		//	generated terrain where before it stood dry. A schema-1/2/3 profile still loads; the
+		//	four new fields take their documented defaults.  Phase 5's interior cliffs did not
+		//	move either number -- it added no profile field, reusing `terrain.
+		//	interior_cliff_density`, reserved since Phase 1.
+		enum { CURRENT_SCHEMA_VERSION = 4, CURRENT_GENERATOR_VERSION = 4 };
 
 		ProceduralWorldProfile(void);
 

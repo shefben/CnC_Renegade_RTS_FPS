@@ -2695,3 +2695,84 @@ generator only ever runs when macro terrain itself ran, which today is never, si
 caller that exists always requests a `fit_to_level` profile. Proven correct and safe by a
 device-less self check against synthetic terrain; never yet run against `MacroTerrainGenerator`'s
 own noise, let alone seen.
+
+## V2 Phase 6 -- hydrology, and the one water renderer used a second way
+
+`HydrologyGenerator` (`Code/wwphys/hydrologygenerator.h/.cpp`) is the missing caller
+`WaterSystem`'s own documentation named and left for later: "nothing plants anything... reading
+water areas out of a level's own data is a level-format question, not this one." This generator
+computes drainage and hands the result to `WaterSystem::Add_Area`/`Shape_Terrain`/`Stamp_Mask`/
+`Build_Geometry` -- the same entry points the console command and self check already used. No
+second carving primitive exists; `WorldTerrainSystem::Apply_River_Cut` (used internally by
+`Shape_Terrain`) is untouched.
+
+Drainage is computed at chunk resolution, not vertex resolution -- a real per-vertex D8
+simulation was not attempted, the same honest scoping choice Phase 5 makes about ridge-line
+extraction. One representative height per chunk; steepest-descent flow direction among four
+neighbours, never toward a `CliffBand` chunk (Phase 6 step 2, kept structurally: a cliff-band
+neighbour is never a candidate flow target at all); accumulation summed in one height-descending
+pass, the standard sorted-list D8 algorithm. A chunk with no lower non-cliff-band neighbour is a
+sink/basin. A channel-eligible chunk nothing else channel-eligible flows into is a headwater;
+headwaters are walked chunk-to-chunk in accumulation-descending order, bounded at
+`water.max_river_count`, until each reaches a sink or joins an already-built channel. Peak
+accumulation along the path decides river versus stream (Section 9.2 treats both as one network,
+gated by one `water.rivers` flag); width grows with accumulation per station
+(`lerp(stream_width, river_width, accumulation/river_accumulation_chunks)`); station height is a
+real `WorldTerrainSystem::Sample_Height`, clamped non-increasing against the previous station as
+a defensive backstop, so the guarantee `Check_River_Never_Climbs` proves is one `Generate`
+actually keeps.
+
+**Section 5.9, kept structurally, not by a check.** A channel can never reach the cliff band
+because a cliff-band chunk is never a flow target in the first place; the chunk whose only lower
+neighbours were cliff-band becomes an ordinary sink instead, and the channel terminates there as
+a real, visible enclosed lake/pond -- one of Section 5.9's own four named options. With both
+`water.lakes` and `water.ponds` disabled, the channel simply stops carving at the sink with
+nothing built past it, satisfying "no unexplained traversable hole" because there is no channel
+there to have left one. A lake/pond's own carve deliberately overlaps a river's terminal station
+(the river runs into the lake's own shore rather than stopping short of it) -- one accepted,
+documented consequence: a point query exactly at that overlap currently favours whichever area
+was placed first.
+
+A sink's own accumulated inflow decides lake versus pond, the same threshold already meaningful
+for river/stream, not a second arbitrary number. A basin is a closed ring matching its own
+chunk's square footprint, at its own sampled minimum height plus a small margin -- a coarse,
+documented approximation of a basin's true shape, the same per-chunk granularity Phase 5's own
+stations already accept. Depth is deliberately not a new profile field:
+`WaterDefinitionClass::BedDepth`, already set per category by `WaterSystem::Define_Default_
+Water`, is carve depth's one source of truth, so a second number could only ever disagree with
+it.
+
+Shore classification (`WALKABLE_BANK`/`STEEP_BANK`/`CLIFF_SHORE`/`VEHICLE_CROSSABLE`/
+`NON_CROSSABLE`, Section 9.3/9.5) is one real `WorldTerrainSystem::Sample_Slope` measurement per
+feature against two fixed thresholds, overridden by width for the vehicle/non-crossable cases --
+measured, not hashed, unlike Phase 5's per-feature traversability draw, since real slope/width
+data is available here. Every feature records exactly one crossing candidate: `FORD`/`BRIDGE`
+for a channel by width, `ROUTE_AROUND` for an enclosed basin. `TUNNEL` stays a legal value this
+generator never picks -- that judgement is explicitly Phase 10's, not a hydrology pass's.
+Building the actual crossing infrastructure is out of scope here too (Phases 8-10).
+
+Schema moved to version 4: four new `water` fields (`river_width`, `stream_width`,
+`river_accumulation_chunks`, `max_river_count`); generator moved to 4 independently.
+`water.coastline` (Section 9.4, optional) is parsed since Phase 1 and still unconsumed -- the
+same "reserved, unconsumed" state `interior_cliff_density` was in before Phase 5; true watershed
+boundary delineation was not attempted either. New debug layer `DEBUG_LAYER_HYDROLOGY`/
+`debug_layer hydrology 1`, drawing for real from the moment it exists. New
+`WorldGenerationManifest::HydrologyChecksum`. No new seed domain -- `SEED_DOMAIN_HYDROLOGY` was
+already reserved.
+
+`terrain_hydrology`/`fds_terrain_hydrology` (`-terrainselfcheck hydrology`) prove, against the
+same synthetic uniform-slope ramp `Check_Interior_Cliffs` uses (for the identical reason: a real
+generated seed's relief gives no arithmetic guarantee a channel or basin exists to check
+against): parameter refusal; a river and a lake both built with every structural diagnostic (no
+cliff-band overlap, no climbing river station, no lake above its own basin rim, every feature
+carries a crossing candidate) holding; same seed reproduces the same checksum; and a configured
+boundary's cliff-band chunks are never reached by a channel or its terminal basin. `ctest -N` now
+lists 141 (was 139). `renegade`, `renegadeserver` and `leveledit` all build clean, 0 warnings.
+Docs: `docs/procedural_world/Hydrology.md` (new), Phase-6 sections in
+`GeneratorDeterminism.md`/`WorldProfileSchema.md`, `docs/zerohour/DebugRenderSystem.md` updated
+for the new `hydrology` consumer.
+
+Phase 6 carries the same reachability gap Phases 4 and 5 both do: this generator only ever runs
+when macro terrain itself ran, which today is never, since the one caller that exists always
+requests a `fit_to_level` profile. Proven correct and safe by a device-less self check against
+synthetic terrain; never yet run against `MacroTerrainGenerator`'s own noise, let alone seen.
