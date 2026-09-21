@@ -140,6 +140,11 @@ class ProceduralWorldManager
 		//	does, so it shares the same "only when terrain_built" gate.
 		static bool		Build_Hydrology(const ProceduralWorldProfile & profile,StringClass * error_out);
 
+		//	Roadmap Section 34 Phase 7.  Reads the same chunk registry, plus whatever interior
+		//	cliff/hydrology candidates already exist (optional -- it degrades to zero of each
+		//	rather than failing when either did not build).
+		static bool		Build_Strategic_Plan(const ProceduralWorldProfile & profile,StringClass * error_out);
+
 		static bool		Requested;
 		static bool		WorldActive;
 

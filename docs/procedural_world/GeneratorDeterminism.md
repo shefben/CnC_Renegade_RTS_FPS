@@ -280,3 +280,31 @@ failed.
 interior cliffs themselves succeeded — an interior cliff feature failing to build says nothing
 about whether the chunk registry's own height data (all hydrology actually reads) is wrong. See
 `docs/procedural_world/Hydrology.md`.
+
+## Phase 7 additions
+
+### No new seed domain, narrowly consumed
+
+`StrategicPlanner` uses `SEED_DOMAIN_BASES`, reserved since Phase 1. Unlike every other
+generator so far, almost nothing here is drawn from the seed at all: every ranking is a pure
+function of the terrain and of what earlier phases already placed. The seed's one job is a
+small per-chunk score jitter (`TERRAIN_SCORE_JITTER_WEIGHT = 0.05`) that resolves ties between
+otherwise-equal candidates differently per seed, so a large regular field does not rank
+identically regardless of which world it is. See `docs/procedural_world/StrategicPlanning.md`.
+
+### The strategic plan checksum
+
+`StrategicPlanner::Get_Checksum` is a CRC over every node's own id, type, faction, position and
+suitability, quantized per Section 3B.4, computed with no physics scene. `WorldGeneration
+Manifest::StrategicPlanChecksum` carries it into the manifest, `0` under the same conditions
+`HydrologyChecksum` can be 0 for. This is deliberately not what `SelectedBaseCandidateIds` and
+its four siblings mean — those stay empty; a checksum over the full candidate pool is not a
+claim that anything has been selected from it.
+
+### `fit_to_level`, and terrain failure, both skip this generator too
+
+`ProceduralWorldManager::Build_Strategic_Plan` only runs when `Build_Macro_Terrain` reported
+`terrain_built`, the same gate every generator downstream of macro terrain shares. It runs
+whether or not interior cliffs or hydrology themselves succeeded, reading whatever candidates
+either left behind (zero, if a stage did not build) rather than failing over a sibling's own
+failure.

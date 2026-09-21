@@ -15,12 +15,14 @@
 #include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "lineseg.h"
+#include "playertype.h"
 #include "coltype.h"
 #include "macroterraingenerator.h"
 #include "renegadeterrainpatch.h"
 #include "ribbontype.h"
 #include "roadspline.h"
 #include "roadsystem.h"
+#include "strategicplanner.h"
 #include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
 #include "terrainmask.h"
@@ -4019,6 +4021,118 @@ void	Check_Hydrology (void)
 }
 
 
+/***********************************************************************************************
+**	strategic
+**
+**	Roadmap Section 34 Phase 7.  Device-less: StrategicPlanner reads the chunk registry,
+**	WorldBoundsService and WaterSystem's own headless queries, none of which needs a physics
+**	scene.
+**
+**	A large uniform-slope ramp -- six chunks per side rather than the three Check_Interior_
+**	Cliffs and Check_Hydrology use -- gives the planner a big, entirely-buildable field with no
+**	water and no boundary, so there is room for every candidate category at once without the
+**	separation/economic-range parameters having to be tuned to the edge of failing.
+***********************************************************************************************/
+void	Check_Strategic_Plan (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+
+	//
+	//	Refusals.
+	//
+	{
+		StringClass error ("");
+		StrategicPlannerParams bad;
+		Check (!StrategicPlanner::Generate (bad,&error), "generation ran with no chunk registry at all");
+		Check (error.Get_Length () > 0, "a refused generation carried no reason");
+		Check (!StrategicPlanner::Has_Plan (), "a refused generation left state behind");
+
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		bad.MinApproachCount = 0;
+		Check (!StrategicPlanner::Generate (bad,&error), "a zero min approach count was accepted");
+
+		bad.MinApproachCount = 2;
+		bad.MinBaseSeparation = 0.0f;
+		Check (!StrategicPlanner::Generate (bad,&error), "a zero min base separation was accepted");
+
+		bad.MinBaseSeparation = 80.0f;
+		bad.MaxEconomicRange = 0.0f;
+		Check (!StrategicPlanner::Generate (bad,&error), "a zero max economic range was accepted");
+	}
+
+	//
+	//	A large, entirely-buildable, unconfigured-boundary field.
+	//
+	unsigned int first_checksum = 0;
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams params;
+		params.Seed							= 909u;
+		params.MinApproachCount			= 2;
+		params.MinBaseCandidatesPerFaction	= 2;
+		params.MinBaseSeparation			= 80.0f;
+		params.MaxTiberiumCandidates		= 4;
+		params.MaxSettlementCandidates	= 3;
+		params.MaxPoiCandidates			= 3;
+		params.MaxExpansionCandidates	= 2;
+		params.MaxEconomicRange			= 1000.0f;
+
+		StringClass error ("");
+		Check (StrategicPlanner::Generate (params,&error),
+				 "generation refused a large uniform field: %s",error.Peek_Buffer ());
+		Check (StrategicPlanner::Has_Plan (), "a successful generation reported no plan built");
+
+		StringClass report ("");
+		Check (StrategicPlanner::Check_Faction_Base_Minimum (2,&report) == 0,
+				 "a large uniform field did not offer each faction 2 base candidates: %s",report.Peek_Buffer ());
+		Check (StrategicPlanner::Check_Tiberium_Minimum (1,&report) == 0,
+				 "a large uniform field offered no viable Tiberium candidate: %s",report.Peek_Buffer ());
+		Check (StrategicPlanner::Check_No_Cliff_Or_Water_Overlap (&report) == 0,
+				 "a strategic node overlapped water or the cliff band with neither configured: %s",report.Peek_Buffer ());
+		Check (StrategicPlanner::Check_No_Economically_Disconnected_Resource (params.MaxEconomicRange,&report) == 0,
+				 "a resource candidate had no base within economic range: %s",report.Peek_Buffer ());
+
+		//	Every base candidate is tagged for a real faction -- neither PLAYERTYPE_NEUTRAL nor
+		//	anything else leaked through.
+		for (int i = 0; i < StrategicPlanner::Get_Node_Count (); i++) {
+			StrategicNode node;
+			if (!StrategicPlanner::Get_Node (i,&node)) continue;
+			if (node.Type != STRATEGIC_NODE_BASE_CANDIDATE) continue;
+			Check ((node.Faction == PLAYERTYPE_GDI) || (node.Faction == PLAYERTYPE_NOD),
+					 "base candidate '%s' carries faction %d, neither GDI nor Nod",node.Id.Peek_Buffer (),node.Faction);
+		}
+
+		//	Travel cost is symmetric and zero to self, the two properties a straight-line
+		//	distance matrix is trivially certain to have regardless of what got placed.
+		int count = StrategicPlanner::Get_Node_Count ();
+		if (count >= 2) {
+			Check (StrategicPlanner::Get_Travel_Cost (0,0) == 0.0f, "a node's travel cost to itself was nonzero");
+			Check (StrategicPlanner::Get_Travel_Cost (0,1) == StrategicPlanner::Get_Travel_Cost (1,0),
+					 "travel cost was not symmetric");
+		}
+
+		first_checksum = StrategicPlanner::Get_Checksum ();
+		Check (first_checksum != 0, "a built strategic plan carried no checksum");
+
+		Check (StrategicPlanner::Generate (params,&error), "regenerating the same strategic plan failed");
+		Check (StrategicPlanner::Get_Checksum () == first_checksum,
+				 "the same seed and terrain produced a different strategic plan checksum");
+	}
+
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -4082,6 +4196,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "hydrology") == 0)) {
 		Check_Hydrology ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "strategic") == 0)) {
+		Check_Strategic_Plan ();
 	}
 
 	if (_Failures == 0) {

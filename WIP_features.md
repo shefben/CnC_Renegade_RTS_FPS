@@ -673,36 +673,47 @@ Skirmish** on the main menu, and report what the log's `ProceduralWorldManager: 
 line says, whether cliffs appear around the map, and what `debug_layer boundary_cliffs 1` and
 `debug_layer world_bounds 1` show -- in particular whether any riser draws red.
 
-## The macro terrain, interior cliff and hydrology generators are built and nothing has asked
+## Four generators deep into the chunk registry and nothing has asked for any of them live
 
-`MacroTerrainGenerator`, `WorldTerrainSystem`'s chunk registry, `InteriorCliffGenerator` and now
-`HydrologyGenerator` are all in (see `completed_features.md`, "V2 Phase 4", "V2 Phase 5" and
-"V2 Phase 6", `docs/procedural_world/MacroTerrainGeneration.md`,
-`docs/procedural_world/InteriorCliffs.md`, `docs/procedural_world/Hydrology.md`). The open design
-question Phase 3's own planning note carried forward -- replace the host level's ground or
-coexist with it -- is resolved: coexist, by never running the terrain generator at all when
-`world.fit_to_level` is true. That resolution has a sharper consequence than Phase 3's "built but
-unseen": the "Procedural Skirmish" menu button's own default profile is `fit_to_level: true`, so
-**none of the three has ever run through any live caller, not merely never been looked at** --
-interior cliffs and hydrology both read Phase 4's chunk registry, so each carries the exact same
-gap one level further down the chain. All three are proven correct by their own device-less self
-checks (`-terrainselfcheck macro`, `-terrainselfcheck interior`, `-terrainselfcheck hydrology`;
-the latter two against a synthetic uniform-slope terrain built specifically so a feature is
-certain to exist, since a real generated seed's relief gives no such guarantee to check against),
-none of it against a display.
+`MacroTerrainGenerator`, `WorldTerrainSystem`'s chunk registry, `InteriorCliffGenerator`,
+`HydrologyGenerator` and now `StrategicPlanner` are all in (see `completed_features.md`,
+"V2 Phase 4" through "V2 Phase 7", and each phase's own doc under `docs/procedural_world/`). The
+open design question Phase 3's own planning note carried forward -- replace the host level's
+ground or coexist with it -- is resolved: coexist, by never running the terrain generator at all
+when `world.fit_to_level` is true. That resolution has a sharper consequence than Phase 3's
+"built but unseen": the "Procedural Skirmish" menu button's own default profile is
+`fit_to_level: true`, so **none of the four has ever run through any live caller, not merely
+never been looked at** -- interior cliffs, hydrology and the strategic planner all read Phase 4's
+chunk registry (the planner also optionally reads interior cliffs' and hydrology's own
+candidates), so each carries the exact same gap one or two levels further down the chain. All
+four are proven correct by their own device-less self checks (`-terrainselfcheck macro`,
+`interior`, `hydrology`, `strategic`; the latter three against synthetic terrain built
+specifically so a feature/candidate is certain to exist, since a real generated seed's relief
+gives no such guarantee to check against), none of it against a display.
 
-Reaching any of them live needs either (a) a profile with `fit_to_level: false` plus something
-that requests one -- `ProceduralWorldManager.h`'s own doc comment claims a `procedural_world`
-console command exists; it does not, checked directly, and building one is out of any of these
-phases' scope -- or (b) waiting for Phase 7+ (candidate bases / initial layout selection), which
-is the first later phase that actually needs a world with no host level under it. Next exact
-action is one of those two, at the user's direction: add a minimal
-`procedural_world <seed> <profile>` console command so a non-fitted profile can be driven through
-`Request_World`/`Generate_World` in a live client, then run
-`renegade --gamedir "C:\Westwood\Renegade_full"`, use it with a profile whose `world.fit_to_level`
-is `false`, and report what `debug_layer terrain_chunks 1`, `debug_layer interior_cliffs 1` and
-`debug_layer hydrology 1` show -- in particular whether any chunk reads yellow (generated, but
-too steep to build on) where the profile did not intend one, whether the generated relief looks
-like terrain rather than noise, whether the interior cliff walk produces something that reads as
-a canyon or escarpment rather than an arbitrary scatter of steep chunks, and whether the
-generated rivers/lakes look like hydrology rather than a chunk-grid scatter of blue rectangles.
+**Phase 7 was the point an earlier note here expected this gap to resolve itself** ("candidate
+bases / initial layout selection... the first later phase that actually needs a world with no
+host level under it") -- it did not. `StrategicPlanner` is pure data (a candidate pool, Phase 7
+step 12 forbids choosing from it yet), so it still only ever runs inside `Generate_World`,
+behind the same `fit_to_level` gate every earlier stage shares, and nothing about producing
+candidates itself demands a live, host-level-free world any more than producing terrain or
+water did. The next phase that plausibly forces the issue is whichever v2 phase actually
+*selects* final bases from this pool and needs to build/place something real there -- not yet
+reached.
+
+Reaching any of the four live needs either (a) a profile with `fit_to_level: false` plus
+something that requests one -- `ProceduralWorldManager.h`'s own doc comment claims a
+`procedural_world` console command exists; it does not, checked directly, and building one is
+out of any of these phases' own scope -- or (b) waiting for whichever later phase first needs to
+act on this data against a real, unfitted world. Next exact action is one of those two, at the
+user's direction: add a minimal `procedural_world <seed> <profile>` console command so a
+non-fitted profile can be driven through `Request_World`/`Generate_World` in a live client, then
+run `renegade --gamedir "C:\Westwood\Renegade_full"`, use it with a profile whose
+`world.fit_to_level` is `false`, and report what `debug_layer terrain_chunks 1`,
+`debug_layer interior_cliffs 1` and `debug_layer hydrology 1` show -- in particular whether any
+chunk reads yellow (generated, but too steep to build on) where the profile did not intend one,
+whether the generated relief looks like terrain rather than noise, whether the interior cliff
+walk produces something that reads as a canyon or escarpment rather than an arbitrary scatter of
+steep chunks, whether the generated rivers/lakes look like hydrology rather than a chunk-grid
+scatter of blue rectangles, and whether `StrategicPlanner`'s own base/resource candidates land
+somewhere a person would actually put a base.

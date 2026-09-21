@@ -30,6 +30,7 @@
 #include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "macroterraingenerator.h"
+#include "strategicplanner.h"
 #include "proceduralboundsbuilder.h"
 #include "phys.h"
 #include "pscene.h"
@@ -344,6 +345,20 @@ bool ProceduralWorldManager::Build_Hydrology(const ProceduralWorldProfile & prof
 }
 
 
+/***********************************************************************************************
+ * Build_Strategic_Plan -- roadmap Section 34 Phase 7                                            *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Strategic_Plan(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	StrategicPlannerParams params;
+	params.Seed							= WorldSeedService::Derive_Subsystem_Seed (
+													profile.Seed,WorldSeedService::SEED_DOMAIN_BASES);
+	params.MinApproachCount			= profile.Fairness.MinVehicleApproachCount;
+
+	return StrategicPlanner::Generate (params,error_out);
+}
+
+
 bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 {
 	//	Directive 1.10.  No request, no procedural anything: this is every hand-authored map.
@@ -425,6 +440,19 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 		}
 	}
 
+	//	Strategic plan, Phase 7.  Reads the same chunk registry; also reads whatever interior
+	//	cliff/hydrology candidates exist, optionally, so it runs whether or not either of those
+	//	stages themselves succeeded.
+	bool strategic_plan_built = false;
+	StringClass strategic_plan_error;
+	if (terrain_built) {
+		strategic_plan_built = Build_Strategic_Plan (profile,&strategic_plan_error);
+		if (!strategic_plan_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: strategic plan failed (%s); the terrain itself is unaffected\r\n",
+							  strategic_plan_error.Peek_Buffer ()));
+		}
+	}
+
 	ActiveProfile = profile;
 
 	/*
@@ -438,6 +466,7 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 	Manifest.TerrainChecksum			= terrain_built ? MacroTerrainGenerator::Get_Terrain_Checksum () : 0;
 	Manifest.InteriorCliffChecksum	= interior_cliffs_built ? InteriorCliffGenerator::Get_Checksum () : 0;
 	Manifest.HydrologyChecksum		= hydrology_built ? HydrologyGenerator::Get_Checksum () : 0;
+	Manifest.StrategicPlanChecksum	= strategic_plan_built ? StrategicPlanner::Get_Checksum () : 0;
 
 	WorldActive = true;
 
@@ -459,6 +488,10 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 					  hydrology_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
 					  HydrologyGenerator::Get_Feature_Count (),
 					  HydrologyGenerator::Get_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: strategic plan %s -- %d node(s), checksum 0x%08X\r\n",
+					  strategic_plan_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
+					  StrategicPlanner::Get_Node_Count (),
+					  StrategicPlanner::Get_Checksum ()));
 
 	return true;
 }
@@ -466,10 +499,11 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 
 void ProceduralWorldManager::Destroy_World(void)
 {
-	//	Hydrology and interior cliffs before the boundary ring -- each only ever removes its own
-	//	IDs from its own shared collection (see each generator's own Clear), so the order between
-	//	them does not matter; it is written this way only because both depend on terrain the ring
-	//	does not, so tearing down in roughly reverse build order reads clearly.
+	//	Reverse build order.  StrategicPlanner owns no shared collection of its own (it is pure
+	//	data, no render/collision object), so its Clear only has to run before the terrain it
+	//	read goes away; hydrology and interior cliffs each only ever remove their own IDs from
+	//	their own shared collection (see each generator's own Clear).
+	StrategicPlanner::Clear ();
 	HydrologyGenerator::Clear ();
 	InteriorCliffGenerator::Clear ();
 	BoundaryCliffGenerator::Clear_Ring ();

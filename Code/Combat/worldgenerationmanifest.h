@@ -96,6 +96,13 @@ struct WorldGenerationManifest
 	//	failed.
 	unsigned int	HydrologyChecksum;
 
+	//	Phase 7.  StrategicPlanner::Get_Checksum -- a CRC over every candidate node's own id,
+	//	type, faction, position and suitability.  0 under the same conditions HydrologyChecksum
+	//	can be 0 for.  Deliberately not what SelectedBaseCandidateIds and its four siblings mean
+	//	below -- those stay empty until a later phase actually selects from this plan; nothing
+	//	here has selected anything (Phase 7 step 12).
+	unsigned int	StrategicPlanChecksum;
+
 	unsigned int	RoadGraphChecksum;		// 0 until Phase 8 exists
 	unsigned int	NavigationRevision;		// 0 until Phase 16 exists
 };

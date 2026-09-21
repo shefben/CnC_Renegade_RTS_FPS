@@ -43,6 +43,7 @@ WorldGenerationManifest::WorldGenerationManifest(void) :
 	TerrainChecksum (0),
 	InteriorCliffChecksum (0),
 	HydrologyChecksum (0),
+	StrategicPlanChecksum (0),
 	RoadGraphChecksum (0),
 	NavigationRevision (0)
 {
@@ -193,6 +194,7 @@ bool WorldGenerationManifestService::Serialize(const WorldGenerationManifest & m
 	root ["terrain_checksum"]				= m.TerrainChecksum;
 	root ["interior_cliff_checksum"]		= m.InteriorCliffChecksum;
 	root ["hydrology_checksum"]			= m.HydrologyChecksum;
+	root ["strategic_plan_checksum"]	= m.StrategicPlanChecksum;
 	root ["road_graph_checksum"]			= m.RoadGraphChecksum;
 	root ["navigation_revision"]			= m.NavigationRevision;
 
@@ -231,6 +233,7 @@ bool WorldGenerationManifestService::Deserialize(const char * json_text,WorldGen
 		m.TerrainChecksum			= root.value ("terrain_checksum",0u);
 		m.InteriorCliffChecksum	= root.value ("interior_cliff_checksum",0u);
 		m.HydrologyChecksum		= root.value ("hydrology_checksum",0u);
+		m.StrategicPlanChecksum	= root.value ("strategic_plan_checksum",0u);
 		m.RoadGraphChecksum		= root.value ("road_graph_checksum",0u);
 		m.NavigationRevision		= root.value ("navigation_revision",0u);
 

@@ -2776,3 +2776,64 @@ Phase 6 carries the same reachability gap Phases 4 and 5 both do: this generator
 when macro terrain itself ran, which today is never, since the one caller that exists always
 requests a `fit_to_level` profile. Proven correct and safe by a device-less self check against
 synthetic terrain; never yet run against `MacroTerrainGenerator`'s own noise, let alone seen.
+
+## V2 Phase 7 -- strategic planning, a candidate pool that chooses nothing
+
+`StrategicPlanner` (`Code/Combat/strategicplanner.h/.cpp`) produces Phase 7 step 9's abstract
+node graph -- `BASE_CANDIDATE`/`RESOURCE_CANDIDATE`/`SETTLEMENT_CANDIDATE`/`POI_CANDIDATE`/
+`CROSSING_CANDIDATE`/`TUNNEL_CANDIDATE` -- as a scored pool for a later phase to choose from.
+Step 12 is explicit that nothing gets chosen yet, and `WorldGenerationManifest::
+SelectedBaseCandidateIds` and its four siblings (named "Selected") stay empty from this phase,
+kept honestly distinct from the new `StrategicPlanChecksum` field, which is a checksum over the
+full candidate pool, not a claim anything was picked from it.
+
+**Reuse, not rediscovery.** Phase 5's interior cliff bypass candidates and Phase 6's hydrology
+crossing candidates fold straight into this graph -- `BRIDGE_CROSSING`/`TUNNEL_BYPASS` interior
+cliff features and `FORD`/`BRIDGE` hydrology crossings become `CROSSING_CANDIDATE`/
+`TUNNEL_CANDIDATE` nodes, never re-derived from the terrain a second time; a hydrology
+`ROUTE_AROUND` candidate is a routing hint, not infrastructure, and gets no node. Water/cliff
+exclusion (step 1) reads `WaterSystem::Is_Point_In_Water` and the chunk registry's own
+`Buildable` flag directly rather than testing either fact twice.
+
+Suitability collapses step 1's six named inputs into what is actually measurable: `Buildable` +
+`Is_Point_In_Water` as a hard eligibility gate; `WorldBoundsService::Get_Inward_Distance`,
+normalized, for boundary distance; how many of a chunk's own four neighbours are themselves
+eligible as one proxy for reachable-area/expansion-room/roadability, which doubles as step 4's
+own approach-count rejection test (threshold sourced from `fairness.min_vehicle_approach_count`,
+already validated, never a second invented number); and, for base candidates only, a proximity
+bonus toward the nearest Tiberium candidate. A small deterministic hash jitter (weight 0.05) is
+the seed's only real job here -- every ranking is otherwise a pure function of the terrain, and
+without it two seeds over similar terrain would break every tie identically.
+
+**The step 1/5/11 ordering problem, resolved explicitly.** Suitability wants resource proximity
+as a base-scoring input; step 5 places Tiberium after bases; step 11 wants Tiberium checked for
+a nearby base after bases exist. Resolution: Tiberium *candidate positions* are chosen first (by
+terrain score alone, not yet nodes); bases are scored against those positions and accepted
+alternating GDI/Nod (a faction that reaches its own target yields its slot to the other rather
+than wasting a candidate); only then does a Tiberium position become a real `RESOURCE_CANDIDATE`
+node, and only if a base landed within `max_economic_range` of it -- step 11's "eliminate
+candidate combinations that are obviously economically disconnected", made concrete. Settlement
+and POI candidates use plain terrain score on whatever remains claimed; forward expansion/
+outpost candidates (step 8) are their own pass scored by *distance from the nearest base*
+instead, filed as `POI_CANDIDATE` since step 9's own closed vocabulary has no separate slot for
+them -- stated here rather than silently assumed. Step 10's travel-cost graph is exactly what it
+says: an N×N straight-line distance matrix, not a routed cost, which needs Phase 8's road graph
+to compute.
+
+No new profile fields and no schema bump -- `fairness.min_vehicle_approach_count` was already
+there and already validated. `terrain_strategic`/`fds_terrain_strategic`
+(`-terrainselfcheck strategic`) prove, against a large synthetic uniform-slope ramp built with
+plenty of eligible, dry, unconfigured-boundary room for every category at once: parameter
+refusal; each faction reaches the targeted validation's own floor of 2 base candidates; at least
+1 Tiberium candidate survives the economic-range filter; no node overlaps water or the cliff
+band; no resource candidate is economically disconnected; every base candidate carries a real
+`PLAYERTYPE_GDI`/`PLAYERTYPE_NOD` faction; the travel-cost matrix is symmetric and zero to
+itself; and the same seed and terrain reproduce the same checksum. `ctest -N` now lists 143 (was
+141). `renegade`, `renegadeserver` and `leveledit` all build clean, 0 warnings. Docs:
+`docs/procedural_world/StrategicPlanning.md` (new), Phase-7 section in `GeneratorDeterminism.md`.
+
+Phase 7 carries the same reachability gap Phases 4-6 all do: this generator only runs when macro
+terrain itself ran, which today is never, since the one caller that exists always requests a
+`fit_to_level` profile. What is additionally not proven here, beyond that gap: whether a real
+generated seed's own uneven terrain still offers each faction a comparably fair pair of sites --
+Section 17A.2's real route-independence metric needs Phase 8's road graph and was not attempted.
