@@ -20,6 +20,7 @@
 #include "macroterraingenerator.h"
 #include "renegadeterrainpatch.h"
 #include "ribbontype.h"
+#include "roadgraphgenerator.h"
 #include "roadspline.h"
 #include "roadsystem.h"
 #include "strategicplanner.h"
@@ -4133,6 +4134,107 @@ void	Check_Strategic_Plan (void)
 }
 
 
+/***********************************************************************************************
+**	roadgraph
+**
+**	Roadmap Section 34 Phase 8.  Device-less: RoadGraphGenerator reads the chunk registry,
+**	StrategicPlanner's own node list, WorldBoundsService and WaterSystem, and writes to
+**	RoadSystem through Add_Road/Build_Network, none of which needs a physics scene
+**	(Build_Geometry, the one road-system call that does, is never reached here).
+**
+**	The same large uniform-slope ramp Check_Strategic_Plan uses, so the planner it depends on
+**	has somewhere real to place base/resource candidates for this generator to connect.
+***********************************************************************************************/
+void	Check_Road_Graph (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+
+	//
+	//	Refusals.
+	//
+	{
+		StringClass error ("");
+		RoadGraphParams bad;
+		Check (!RoadGraphGenerator::Generate (bad,&error), "generation ran with no chunk registry or strategic plan at all");
+		Check (error.Get_Length () > 0, "a refused generation carried no reason");
+		Check (!RoadGraphGenerator::Has_Graph (), "a refused generation left state behind");
+
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		bad.MaxBuildableSlopeRadians = 0.0f;
+		Check (!RoadGraphGenerator::Generate (bad,&error), "a zero max buildable slope was accepted");
+
+		bad.MaxBuildableSlopeRadians = 0.5f;
+		bad.SlopeCostWeight = -1.0f;
+		Check (!RoadGraphGenerator::Generate (bad,&error), "a negative slope cost weight was accepted");
+	}
+
+	//
+	//	A real plan over the large uniform ramp, then a road graph connecting it.
+	//
+	unsigned int first_checksum = 0;
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed							= 909u;
+		plan_params.MinApproachCount			= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 2;
+		plan_params.MinBaseSeparation			= 80.0f;
+		plan_params.MaxTiberiumCandidates		= 4;
+		plan_params.MaxSettlementCandidates	= 3;
+		plan_params.MaxPoiCandidates			= 3;
+		plan_params.MaxExpansionCandidates	= 2;
+		plan_params.MaxEconomicRange			= 1000.0f;
+
+		StringClass error ("");
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		RoadGraphParams params;
+		params.Seed							= 55u;
+		params.MaxBuildableSlopeRadians	= 0.5f;
+		params.SlopeCostWeight				= 3.0f;
+		params.CrossingCostPenalty			= 8.0f;
+		params.BoundaryApproachCostWeight	= 1.5f;
+
+		Check (RoadGraphGenerator::Generate (params,&error),
+				 "generation refused a real strategic plan: %s",error.Peek_Buffer ());
+		Check (RoadGraphGenerator::Has_Graph (), "a successful generation reported no graph built");
+
+		StringClass report ("");
+		Check (RoadGraphGenerator::Check_Required_Nodes_Connected (&report) == 0,
+				 "the anchor nodes were not spanned by the road graph: %s",report.Peek_Buffer ());
+		Check (RoadGraphGenerator::Check_No_Cliff_Band_Crossing (&report) == 0,
+				 "a road edge crossed the cliff band with none configured: %s",report.Peek_Buffer ());
+		Check (RoadGraphGenerator::Check_No_Unresolved_Water_Or_Cliff_Passage (&report) == 0,
+				 "a road edge passed through water with no crossing candidate: %s",report.Peek_Buffer ());
+
+		Check (RoadSystem::Is_Network_Built (), "a built road graph left the road network unbuilt");
+
+		first_checksum = RoadGraphGenerator::Get_Checksum ();
+
+		Check (RoadGraphGenerator::Generate (params,&error), "regenerating the same road graph failed");
+		Check (RoadGraphGenerator::Get_Checksum () == first_checksum,
+				 "the same seed, terrain and plan produced a different road graph checksum");
+	}
+
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -4199,6 +4301,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "strategic") == 0)) {
 		Check_Strategic_Plan ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "roadgraph") == 0)) {
+		Check_Road_Graph ();
 	}
 
 	if (_Failures == 0) {

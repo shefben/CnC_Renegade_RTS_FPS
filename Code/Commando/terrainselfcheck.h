@@ -45,6 +45,7 @@ namespace	TerrainSelfCheck
 	//		interior    the procedural interior cliff generator and its bypass candidates
 	//		hydrology   the procedural hydrology generator and its crossing candidates
 	//		strategic   the procedural strategic planner and its candidate node graph
+	//		roadgraph   the procedural road graph generator and its realized road edges
 	//
 	//	Returns a process exit code: zero when everything asked for is true.
 	//

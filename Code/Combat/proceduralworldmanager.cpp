@@ -30,6 +30,7 @@
 #include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "macroterraingenerator.h"
+#include "roadgraphgenerator.h"
 #include "strategicplanner.h"
 #include "proceduralboundsbuilder.h"
 #include "phys.h"
@@ -359,6 +360,20 @@ bool ProceduralWorldManager::Build_Strategic_Plan(const ProceduralWorldProfile &
 }
 
 
+/***********************************************************************************************
+ * Build_Road_Graph -- roadmap Section 34 Phase 8                                                *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Road_Graph(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	RoadGraphParams params;
+	params.Seed							= WorldSeedService::Derive_Subsystem_Seed (
+													profile.Seed,WorldSeedService::SEED_DOMAIN_ROADS);
+	params.MaxBuildableSlopeRadians	= (float)DEG_TO_RAD (profile.Terrain.MaxBuildableSlopeDegrees);
+
+	return RoadGraphGenerator::Generate (params,error_out);
+}
+
+
 bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 {
 	//	Directive 1.10.  No request, no procedural anything: this is every hand-authored map.
@@ -453,6 +468,17 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 		}
 	}
 
+	//	Road graph, Phase 8.  Needs the strategic plan to connect, not merely the terrain.
+	bool road_graph_built = false;
+	StringClass road_graph_error;
+	if (strategic_plan_built) {
+		road_graph_built = Build_Road_Graph (profile,&road_graph_error);
+		if (!road_graph_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: road graph failed (%s); the strategic plan itself is unaffected\r\n",
+							  road_graph_error.Peek_Buffer ()));
+		}
+	}
+
 	ActiveProfile = profile;
 
 	/*
@@ -467,6 +493,19 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 	Manifest.InteriorCliffChecksum	= interior_cliffs_built ? InteriorCliffGenerator::Get_Checksum () : 0;
 	Manifest.HydrologyChecksum		= hydrology_built ? HydrologyGenerator::Get_Checksum () : 0;
 	Manifest.StrategicPlanChecksum	= strategic_plan_built ? StrategicPlanner::Get_Checksum () : 0;
+	Manifest.RoadGraphChecksum		= road_graph_built ? RoadGraphGenerator::Get_Checksum () : 0;
+
+	//	Unlike Phase 7's candidate ids, a road graph edge is a road this generator actually
+	//	built through RoadSystem -- realized, not merely proposed -- so SelectedRoadGraphEdgeIds
+	//	genuinely means "selected" here.
+	if (road_graph_built) {
+		for (int i = 0; i < RoadGraphGenerator::Get_Edge_Count (); i++) {
+			RoadGraphEdge edge;
+			if (RoadGraphGenerator::Get_Edge (i,&edge)) {
+				Manifest.SelectedRoadGraphEdgeIds.Add (edge.Id);
+			}
+		}
+	}
 
 	WorldActive = true;
 
@@ -492,6 +531,10 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 					  strategic_plan_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
 					  StrategicPlanner::Get_Node_Count (),
 					  StrategicPlanner::Get_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: road graph %s -- %d edge(s), checksum 0x%08X\r\n",
+					  road_graph_built ? "built" : (strategic_plan_built ? "NOT BUILT" : "skipped (no strategic plan)"),
+					  RoadGraphGenerator::Get_Edge_Count (),
+					  RoadGraphGenerator::Get_Checksum ()));
 
 	return true;
 }
@@ -499,10 +542,11 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 
 void ProceduralWorldManager::Destroy_World(void)
 {
-	//	Reverse build order.  StrategicPlanner owns no shared collection of its own (it is pure
-	//	data, no render/collision object), so its Clear only has to run before the terrain it
-	//	read goes away; hydrology and interior cliffs each only ever remove their own IDs from
-	//	their own shared collection (see each generator's own Clear).
+	//	Reverse build order.  RoadGraphGenerator and StrategicPlanner each only remove their own
+	//	work (roads, or nothing shared at all -- StrategicPlanner is pure data); hydrology and
+	//	interior cliffs each only ever remove their own IDs from their own shared collection (see
+	//	each generator's own Clear).
+	RoadGraphGenerator::Clear ();
 	StrategicPlanner::Clear ();
 	HydrologyGenerator::Clear ();
 	InteriorCliffGenerator::Clear ();

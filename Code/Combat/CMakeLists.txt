@@ -85,6 +85,7 @@ worldgenerationmanifest.cpp
 proceduralboundsbuilder.cpp
 proceduralworldmanager.cpp
 strategicplanner.cpp
+roadgraphgenerator.cpp
 projectbuildingdefs.cpp
     commanderproduction.cpp
     commanderguardai.cpp
@@ -262,6 +263,7 @@ worldgenerationmanifest.h
 proceduralboundsbuilder.h
 proceduralworldmanager.h
 strategicplanner.h
+roadgraphgenerator.h
 projectbuildingdefs.h
     commanderproduction.h
     commanderguardai.h

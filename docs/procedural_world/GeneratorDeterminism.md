@@ -308,3 +308,27 @@ claim that anything has been selected from it.
 whether or not interior cliffs or hydrology themselves succeeded, reading whatever candidates
 either left behind (zero, if a stage did not build) rather than failing over a sibling's own
 failure.
+
+## Phase 8 additions
+
+### `SEED_DOMAIN_ROADS`, narrowly consumed, same as Phase 7
+
+The routing cost field and the minimum spanning tree are both pure functions of the terrain and
+the strategic plan; the seed's one job is `RoadGraphGenerator`'s own small per-edge cost jitter
+during Dijkstra, resolving ties between otherwise-equal paths differently per seed.
+
+### The road graph checksum, and what "selected" means here
+
+`RoadGraphGenerator::Get_Checksum` is a CRC over every built edge's own class, endpoints, length
+and unresolved-crossing count, computed with no physics scene (`Build_Geometry` is never
+called). `WorldGenerationManifest::RoadGraphChecksum` — reserved since Phase 1, `0` until this
+phase — now carries it. Unlike Phase 7's candidate ids, `SelectedRoadGraphEdgeIds` genuinely
+means "selected" from this phase on: a road graph edge is a road `RoadSystem::Add_Road` actually
+built, not a proposal, so populating that list here is correct where it would have been
+dishonest for Phase 7's own candidate pool.
+
+### Gated behind the strategic plan, not merely the terrain
+
+`ProceduralWorldManager::Build_Road_Graph` runs only when `Build_Strategic_Plan` itself
+succeeded — a stricter gate than `terrain_built` alone, because a road graph connects strategic
+nodes and there is nothing to connect without them.

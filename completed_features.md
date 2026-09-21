@@ -2837,3 +2837,53 @@ terrain itself ran, which today is never, since the one caller that exists alway
 `fit_to_level` profile. What is additionally not proven here, beyond that gap: whether a real
 generated seed's own uneven terrain still offers each faction a comparably fair pair of sites --
 Section 17A.2's real route-independence metric needs Phase 8's road graph and was not attempted.
+
+## V2 Phase 8 -- road graph, realized through the one road system
+
+`RoadGraphGenerator` (`Code/Combat/roadgraphgenerator.h/.cpp`) decides which strategic anchors
+(`BASE_CANDIDATE`/`RESOURCE_CANDIDATE` nodes) need a road between them -- a minimum spanning
+tree over `StrategicPlanner`'s own straight-line travel costs, bounded at N-1 edges -- then finds
+a real, terrain-costed route for each via Dijkstra over the chunk grid and hands it to
+`RoadSystem::Add_Road`/`Build_Network`, the same entry points the console command and self check
+already used. No road geometry of its own; `RoadSystem` (v1, complete) owns all of it.
+
+**Six conceptual classes, three physical ones.** Section 10.1 names six road classes; v1's
+`RoadClassType` has three, already tested, and extending it purely to grow a name list would
+touch `BridgeSystem`'s own default class mapping for no reason this phase needs.
+`RoadGraphClassType` is Section 10.1's own six names, used only for this file's own cost-field
+weighting and default width; mapped down to `RoadClassType`'s three for the question
+`RoadSystem` actually asks. Default widths are fixed constants, not Section 10A.1's real
+Humvee-derived formula -- that needs naming a specific vehicle definition, the kind of
+enumerable identifier this project does not guess.
+
+The routing cost field reuses Phase 7's own exclusion tests directly: a `CliffBand` chunk is
+always blocked; an `InteriorCliff` or wet (`WaterSystem::Is_Point_In_Water`) chunk is blocked
+*unless* a `CROSSING_CANDIDATE`/`TUNNEL_CANDIDATE` `StrategicNode` sits there, in which case it
+costs extra rather than being impassable -- Section 10.3's "bridge/tunnel candidate cost," made
+concrete. Every chunk that lifted its block this way is recorded on the edge's own
+`UnresolvedCrossingIds` (Phase 8 step 15), per edge rather than one global bag, so Phases 9/10
+know which road needs which crossing. An MST edge that cannot route under this cost field is
+simply not built rather than silently forced through -- do-not-proceed's "required nodes
+disconnected without an explicit pending edge" is kept by counting, not by hoping.
+
+Intersections cost nothing extra: `RoadSystem::Build_Network` already finds and builds junction
+polygons for any roads that meet. Not attempted: parallel infantry corridors (step 12), lane-level
+modelling (`RoadSplineClass` has no lane-count field to model with), off-road traversal
+classification (10A.8), and real route independence (17A.2) -- a spanning tree gives each anchor
+exactly one path by construction, never an alternate one.
+
+No new profile fields, no schema bump. `WorldGenerationManifest::RoadGraphChecksum` (reserved
+since Phase 1, "0 until Phase 8 exists") is populated now; unlike Phase 7's candidate ids,
+`SelectedRoadGraphEdgeIds` genuinely means selected here, since a road graph edge is a road
+`RoadSystem` actually built, not a proposal. `terrain_roadgraph`/`fds_terrain_roadgraph`
+(`-terrainselfcheck roadgraph`) prove, against a real strategic plan built over the same large
+synthetic uniform-slope terrain Phase 7's own check uses: parameter refusal; the anchor nodes
+spanned (edge count meets the N-1 floor); no cliff-band crossing; no unresolved water passage;
+`RoadSystem::Is_Network_Built` true; and determinism. `ctest -N` now lists 145 (was 143).
+`renegade`, `renegadeserver` and `leveledit` all build clean, 0 warnings. Docs:
+`docs/procedural_world/RoadGraph.md` (new), Phase-8 section in `GeneratorDeterminism.md`.
+
+Phase 8 carries the same reachability gap every phase since 4 does, now gated one step further:
+this generator only runs when the strategic plan itself ran, which only ever happens when macro
+terrain ran, which today is never, since the one caller that exists always requests
+`fit_to_level`.

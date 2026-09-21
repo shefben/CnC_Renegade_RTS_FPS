@@ -670,6 +670,9 @@ add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
 
     #	Procedural strategic planner -- roadmap Section 34 Phase 7.  See terrainselfcheck.h.
     add_test(NAME terrain_strategic   COMMAND renegade -terrainselfcheck strategic)
+
+    #	Procedural road graph -- roadmap Section 34 Phase 8.  See terrainselfcheck.h.
+    add_test(NAME terrain_roadgraph   COMMAND renegade -terrainselfcheck roadgraph)
 endif()
 
 #
@@ -749,4 +752,5 @@ add_test(NAME fds_terrain_shroud   COMMAND renegadeserver -terrainselfcheck shro
     add_test(NAME fds_terrain_interior_cliffs   COMMAND renegadeserver -terrainselfcheck interior)
     add_test(NAME fds_terrain_hydrology   COMMAND renegadeserver -terrainselfcheck hydrology)
     add_test(NAME fds_terrain_strategic   COMMAND renegadeserver -terrainselfcheck strategic)
+    add_test(NAME fds_terrain_roadgraph   COMMAND renegadeserver -terrainselfcheck roadgraph)
 endif()

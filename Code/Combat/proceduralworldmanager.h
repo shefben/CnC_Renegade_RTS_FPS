@@ -145,6 +145,10 @@ class ProceduralWorldManager
 		//	rather than failing when either did not build).
 		static bool		Build_Strategic_Plan(const ProceduralWorldProfile & profile,StringClass * error_out);
 
+		//	Roadmap Section 34 Phase 8.  Requires the strategic plan the previous step builds, so
+		//	it shares that gate too, not just terrain_built.
+		static bool		Build_Road_Graph(const ProceduralWorldProfile & profile,StringClass * error_out);
+
 		static bool		Requested;
 		static bool		WorldActive;
 
