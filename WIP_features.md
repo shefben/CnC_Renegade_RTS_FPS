@@ -698,15 +698,93 @@ ctest) proves a bridge actually gets built where the alternative is provably imp
 merely permitted, closing the gap `bridgeplan`'s own honest "Dijkstra may route around it" test
 could not.
 
-Not closed by this pass: item 4's real per-definition road/bridge width generation (still the
-same deferred Humvee-derived-formula gap `RoadGraphGenerator`'s own header names, now only
-*validated* against by the transportation network check, not generated from); item 5's fallback
-chain when a bridge cannot be legally placed (still left unresolved rather than retried at an
-adjusted position); and item 7's own live pass -- multiple fixed seeds through the real
-Procedural Skirmish button, someone watching whether the roads and bridges look right and join
-without a gap. Next exact action is that live pass: run `renegade --gamedir
+Item 4 closed too, same pass: `RoadGraphGenerator`'s own widths are Section 10A.1's real
+Humvee-derived formula now, `GDI_HUMVEE_WIDTH` read directly from `Data/always.dat`'s own
+`v_gdi_humvee.w3d` (MIX1 archive format plus the W3D box-chunk layout, both read straight from
+this codebase's own `Code/wwlib/mixfile.cpp`/`Code/ww3d2/w3d_file.h`) rather than a live GameObj
+lookup this project would otherwise have had to guess a preset name for. See
+`completed_features.md`'s own Phase 10 addendum for the full derivation.
+
+Item 5 closed in a later pass, same session: `BridgePlanner` no longer gives up on the first
+illegal candidate. `Resolve_Crossing_Position` tries the original crossing, then a bounded,
+deterministic reposition along the obstacle (stage 1), then -- for a grade failure specifically
+-- a bounded search widening the assumed approach run (stage 2); `RoadGraphGenerator::
+Reroute_Edge_Avoiding` (stage 4, a new primitive, backed by two new `RoadSystem` ones,
+`Remove_Road` and `Integrate_New_Road`, so a reroute can replace one road without re-tessellating
+any road a bridge has already split) asks for an alternate path around the obstruction when
+every position/approach at the current one fails; `ProceduralWorldManager::Generate_World` itself
+now retries the *whole world* with a deterministically bumped seed, bounded at
+`MAX_WORLD_GENERATION_ATTEMPTS` (3), when `TransportationNetworkValidator`'s own required-base-
+routes check comes back broken. Stage 3 (alternate crossing type) is an honest no-op -- no
+tunnel system exists in this codebase to fall back to, documented rather than fabricated.
+Every candidate check (span, abutment, bounds, grade, water clearance, road-width match,
+bridge-to-bridge collision) runs before anything is committed to `BridgeSystem`/`RoadSystem`,
+since neither has a cheap per-object undo to try-then-discard a candidate with. Failure reasons
+are the gap report's own eight named categories (`Crossing_Failure_Reason_Name`), recorded per
+crossing in a new `BridgePlanner::Diagnostics` list regardless of whether the crossing resolved,
+so a failed seed's own story reads from that list rather than a bare "bridge failed". New
+`-terrainselfcheck bridgefallback` (`terrain_bridgefallback`/`fds_terrain_bridgefallback`) proves:
+every fallback refused still returns promptly with the crossing explicitly recorded unresolved,
+not hung or silently dropped (bounded termination); the same seed/terrain/params reproduce the
+same diagnostic, not only the same checksum (determinism); a tightened span limit that the
+divided terrain's own genuinely-uniform crossing cannot satisfy anywhere within stage 1's own
+search radius is honestly reported `SPAN_TOO_LONG` rather than a false resolution (stage 1's own
+mechanism exercised and proven correct, even though this particular terrain has no narrower spot
+for it to find -- a real, disclosed limit of the terrain built for this check, not of the
+fallback itself); and `Reroute_Edge_Avoiding` itself, called directly against open terrain with
+real room to detour, replaces a real edge's own road and keeps the network coherent (the old
+road retired, the new one tessellated and folded in without disturbing anything else).
+
+Not closed: item 5's own true stage-1-succeeds and stage-2-succeeds cases (a nearby reposition or
+a longer approach actually turning a failure into a resolution) are exercised device-less as far
+as this session had time to construct precise terrain for, but not proven on a scenario built
+specifically to need them -- see `terrain_bridgefallback`'s own comments for exactly what each
+block does and does not establish. Item 7's own live pass remains open: multiple fixed seeds
+through the real Procedural Skirmish button, someone watching whether the roads and bridges look
+right and join without a gap, and now also which fallback cases (if any) a given seed actually
+exercised. Next exact action is that live pass: run `renegade --gamedir
 "C:\Westwood\Renegade_full"`, click **Procedural Skirmish**, and report what the log's per-pass
 status lines (`ProceduralWorldManager: fitted terrain sampled`, `... transportation network
-validation`) say, and whether the roads/bridges a person can actually walk look believable --
-covering at minimum a flat seed, a seed with a river crossing, and a seed with multiple
-crossings, per the gap report's own seed list.
+validation`, and now any `attempt N (seed ...)` retry lines) say, and whether the roads/bridges a
+person can actually walk look believable -- covering at minimum a flat seed, a seed with a river
+crossing, a seed with multiple crossings, and if reachable, a seed whose first attempt actually
+needed a retry, per the gap report's own seed list.
+
+## V2 Phases 11-15 -- five real, tested, self-checked generators; item 7's own live pass now covers all of them, not just bridges
+
+`BaseSelectionPlanner`, `TiberiumFieldGenerator`, `ProceduralAssetRegistry`/`SettlementGenerator`,
+`BiomeDecorationGenerator` and `CombatSpaceValidator` are each real, built clean, and proven by
+their own `-terrainselfcheck` family (`baseselection`, `tiberiumfields`, `settlements`,
+`biomedecoration`, `combatspace` -- `ctest -N` now 161, was 149 before this block of work). See
+each phase's own `docs/procedural_world/*.md` for what is proven headless and what genuinely
+needs a live client (item 7's own distinction, upheld the same way for these five as for the
+bridge work above -- never pretended complete until it has actually been run).
+
+**Genuine, disclosed content/scope gaps, not implementation shortfalls:**
+- Section 16A's own base-layout contract (initial building transforms, spawn sets, match
+  bootstrap) is not attempted -- `BaseSelectionPlanner` selects a site and reserves a region only.
+- `MaxBaseToFrontTravelTimeDifferenceSeconds` is not checked -- it needs a "front" concept
+  (Section 17's own contested-area idea) this chain does not establish.
+- No caller spawns a live Harvester for a generated world -- `TiberiumFieldGenerator` produces
+  real field/route data; `HarvesterClass` already knows what to do with it once something wires
+  the two together.
+- Section 28A's own connector metadata (entrance/door/pedestrian anchors) is confirmed absent
+  (by direct W3D bone-name inspection, not assumed) from every real building asset this tree
+  ships -- Phase 13's own step 5 (entrances facing streets) is not merely unattempted, it is
+  unsatisfiable with today's asset pool. Only three real building kinds exist at all
+  (`gdi_communications_center`, `gdi_power_plant`, `nod_power_plant`); no house/ruin/industrial-
+  decoration/POI/street-lamp asset exists anywhere in this tree.
+- Object/foliage-aware sightline occlusion (Phase 15) is not attempted -- terrain-only.
+- No generator in Phases 11-15 performs repair *after* an earlier phase has already committed
+  state (a road, a bridge, a placed structure) -- each phase's own real repair happens during its
+  own generation, where undo is still cheap, the same safety boundary `BridgePlanner`'s own
+  fallback chain already established. Phase 15's own step 12 ("reject rather than silently
+  accept") is answered by folding a hard combat-space failure into `Generate_World`'s existing
+  bounded seed-retry loop instead.
+
+**Next exact action, same live pass as above, now covering five more per-generation log lines**:
+`ProceduralWorldManager: base selection`, `... Tiberium fields`, `... settlements`,
+`... biome decoration`, `... combat space validation` -- report whether each says `built`/`PASS`
+or `NOT BUILT`/`FAIL` for a real Procedural Skirmish seed, and whether a selected base site,
+placed Tiberium field, and placed settlement/structure look right to someone standing at them,
+the same "someone watching" standard the bridge work above has always required.

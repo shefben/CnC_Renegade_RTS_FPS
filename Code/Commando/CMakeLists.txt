@@ -677,9 +677,27 @@ add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
     #	Procedural bridge planner -- roadmap Section 34 Phase 9.  See terrainselfcheck.h.
     add_test(NAME terrain_bridgeplan   COMMAND renegade -terrainselfcheck bridgeplan)
 
+    #	Procedural base selection -- roadmap Section 34 Phase 11.  See Check_Base_Selection.
+    add_test(NAME terrain_baseselection   COMMAND renegade -terrainselfcheck baseselection)
+
+    #	Procedural Tiberium fields -- roadmap Section 34 Phase 12.  See Check_Tiberium_Fields.
+    add_test(NAME terrain_tiberiumfields   COMMAND renegade -terrainselfcheck tiberiumfields)
+
+    #	Procedural settlements/POIs -- roadmap Section 34 Phase 13.  See Check_Settlements.
+    add_test(NAME terrain_settlements   COMMAND renegade -terrainselfcheck settlements)
+
+    #	Procedural biome decoration -- roadmap Section 34 Phase 14.  See Check_Biome_Decoration.
+    add_test(NAME terrain_biomedecoration   COMMAND renegade -terrainselfcheck biomedecoration)
+
+    #	Procedural combat-space validation -- roadmap Section 34 Phase 15.  See Check_Combat_Space.
+    add_test(NAME terrain_combatspace   COMMAND renegade -terrainselfcheck combatspace)
+
     #	Gap report item 2 -- a bridge-required test, distinct from terrain_bridgeplan's own
     #	route-around-permitted one.  See terrainselfcheck.h and Check_Bridge_Required.
     add_test(NAME terrain_bridgerequired   COMMAND renegade -terrainselfcheck bridgerequired)
+
+    #	Gap report item 5 -- the bridge/crossing fallback chain.  See Check_Bridge_Fallback.
+    add_test(NAME terrain_bridgefallback   COMMAND renegade -terrainselfcheck bridgefallback)
 endif()
 
 #
@@ -761,5 +779,11 @@ add_test(NAME fds_terrain_shroud   COMMAND renegadeserver -terrainselfcheck shro
     add_test(NAME fds_terrain_strategic   COMMAND renegadeserver -terrainselfcheck strategic)
     add_test(NAME fds_terrain_roadgraph   COMMAND renegadeserver -terrainselfcheck roadgraph)
     add_test(NAME fds_terrain_bridgeplan   COMMAND renegadeserver -terrainselfcheck bridgeplan)
+    add_test(NAME fds_terrain_baseselection   COMMAND renegadeserver -terrainselfcheck baseselection)
+    add_test(NAME fds_terrain_tiberiumfields   COMMAND renegadeserver -terrainselfcheck tiberiumfields)
+    add_test(NAME fds_terrain_settlements   COMMAND renegadeserver -terrainselfcheck settlements)
+    add_test(NAME fds_terrain_biomedecoration   COMMAND renegadeserver -terrainselfcheck biomedecoration)
+    add_test(NAME fds_terrain_combatspace   COMMAND renegadeserver -terrainselfcheck combatspace)
     add_test(NAME fds_terrain_bridgerequired   COMMAND renegadeserver -terrainselfcheck bridgerequired)
+    add_test(NAME fds_terrain_bridgefallback   COMMAND renegadeserver -terrainselfcheck bridgefallback)
 endif()

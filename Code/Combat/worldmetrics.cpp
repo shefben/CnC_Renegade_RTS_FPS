@@ -65,6 +65,10 @@ static const Vector3	DEFAULT_ENVELOPE_CENTER(0.0f,0.0f,1.0f);
 static const float	SOLDIER_EYE_HEIGHT		= 1.62f;
 static const float	SOLDIER_CROUCH_DROP		= 0.56f;
 
+//	Roadmap Section 3A.1.  See Get_World_Units_Per_Meter's own header comment for why 1:1 is
+//	the resolved value rather than an unset placeholder.
+static const float	WORLD_UNITS_PER_METER	= 1.0f;
+
 //	A body has to fit between two walls without touching both, or the physics grinds it to a
 //	halt in a gap it nominally fits.  Half a step height of air either side is the margin
 //	Phys3Class's own stepping already assumes it has.
@@ -159,6 +163,12 @@ float WorldMetricsClass::Get_Soldier_Eye_Height(void)
 float WorldMetricsClass::Get_Soldier_Crouch_Drop(void)
 {
 	return SOLDIER_CROUCH_DROP;
+}
+
+
+float WorldMetricsClass::Get_World_Units_Per_Meter(void)
+{
+	return WORLD_UNITS_PER_METER;
 }
 
 

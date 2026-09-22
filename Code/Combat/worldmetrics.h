@@ -223,6 +223,19 @@ public:
 	static float	Get_Soldier_Eye_Height(void);
 	static float	Get_Soldier_Crouch_Drop(void);
 
+	/*
+	**	Roadmap Section 3A.1's own WORLD_UNITS_PER_METER, resolved rather than left unset:
+	**	Get_Soldier_Eye_Height's own 1.62 already matches the ordinary real-world adult standing
+	**	eye height of ~1.62 metres almost exactly, and that literal predates this file -- it is
+	**	the engine's own long-standing value, not one Section 3A.1 or this method introduces. One
+	**	independently-plausible match is not proof by itself, but this project's own W3D engine
+	**	lineage is independently documented elsewhere as using metres as its base unit, which
+	**	this literal is consistent with. World units and metres are therefore taken as 1:1 --
+	**	see this method's own definition for how any caller that later finds firmer evidence for
+	**	a different ratio changes it in exactly one place.
+	*/
+	static float	Get_World_Units_Per_Meter(void);
+
 private:
 
 	static bool		Resolve(PhysDefClass * def,WorldMetricsStruct * out);

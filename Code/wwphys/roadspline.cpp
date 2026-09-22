@@ -588,3 +588,37 @@ bool RoadSplineClass::Find_Closest_Point(const Vector3 & position,int * index_ou
 	if (along_out != nullptr)		*along_out = best_along;
 	return true;
 }
+
+
+/***********************************************************************************************
+ * RoadSplineClass::Position_At_Distance -- where the centre line is at a given distance         *
+ *=============================================================================================*/
+bool RoadSplineClass::Position_At_Distance(float distance,Vector3 * position_out) const
+{
+	int count = Points.Count();
+	if (count < 2) {
+		return false;
+	}
+	if (distance <= 0.0f) {
+		*position_out = Points[0].Position;
+		return true;
+	}
+	if (distance >= Length) {
+		*position_out = Points[count - 1].Position;
+		return true;
+	}
+
+	for (int i = 1; i < count; i++) {
+		if (Points[i].Distance >= distance) {
+			const RoadPointClass & a = Points[i - 1];
+			const RoadPointClass & b = Points[i];
+			float span = b.Distance - a.Distance;
+			float t = (span > WWMATH_EPSILON) ? ((distance - a.Distance) / span) : 0.0f;
+			*position_out = a.Position + ((b.Position - a.Position) * t);
+			return true;
+		}
+	}
+
+	*position_out = Points[count - 1].Position;
+	return true;
+}

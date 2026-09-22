@@ -144,6 +144,18 @@ int StrategicPlanner::Get_Node_Count_By_Type(StrategicNodeType type)
 }
 
 
+bool StrategicPlanner::Find_Node_By_Id(const StringClass & id,int * index_out)
+{
+	for (int i = 0; i < Nodes.Count(); i++) {
+		if (Nodes[i].Id == id) {
+			if (index_out != nullptr) *index_out = i;
+			return true;
+		}
+	}
+	return false;
+}
+
+
 float StrategicPlanner::Get_Travel_Cost(int index_a,int index_b)
 {
 	int n = Nodes.Count();

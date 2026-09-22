@@ -148,6 +148,11 @@ public:
 	static bool			Get_Node(int index,StrategicNode * out);
 	static int			Get_Node_Count_By_Type(StrategicNodeType type);
 
+	//	Linear id lookup -- the canonical way a caller holding a stable id (Section 3B.5) rather
+	//	than an index gets back to a node.  Small and shared rather than reinvented per caller;
+	//	BaseSelectionPlanner and TiberiumFieldGenerator both need exactly this.
+	static bool			Find_Node_By_Id(const StringClass & id,int * index_out);
+
 	//	Step 10: approximate straight-line travel cost between two nodes, world units, -1 for an
 	//	out-of-range index.  "Approximate" and "straight" per the step's own wording -- a real
 	//	topographic/routed cost is Phase 8's job, once a road graph exists to measure one on.

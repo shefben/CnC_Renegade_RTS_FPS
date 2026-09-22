@@ -162,11 +162,55 @@ class ProceduralWorldManager
 		//	edge's own unresolved-crossing list -- so it shares that gate.
 		static bool		Build_Bridge_Plan(const ProceduralWorldProfile & profile,StringClass * error_out);
 
+		//	Roadmap Section 34 Phase 11.  Requires the road graph and the bridge plan -- Phase
+		//	11's own purpose line: choose bases only once roads, bridges and terrain constraints
+		//	are known.  Runs whether or not the bridge plan itself resolved every crossing, since
+		//	an unresolved crossing is already visible on the road-graph tree this reads.
+		static bool		Build_Base_Selection(const ProceduralWorldProfile & profile,StringClass * error_out);
+
+		//	Roadmap Section 34 Phase 12.  Requires the base selection -- step 1's own "initial
+		//	per-team field" needs a selected base to be initial for -- so it shares that gate.
+		static bool		Build_Tiberium_Fields(const ProceduralWorldProfile & profile,StringClass * error_out);
+
+		//	Roadmap Section 34 Phase 13.  Requires the road graph (for road-connectivity
+		//	classification) and the base/Tiberium reservations, so it shares the road-graph gate
+		//	but reads Phase 11/12's own state directly rather than needing a further boolean.
+		static bool		Build_Settlements(const ProceduralWorldProfile & profile,StringClass * error_out);
+
+		//	Roadmap Section 34 Phase 14.  Needs only the chunk registry, so it shares
+		//	terrain_built's own gate; it reads Phase 11/12/13's own reserved regions when they
+		//	exist and simply excludes nothing extra when they do not.
+		static bool		Build_Biome_Decoration(const ProceduralWorldProfile & profile,StringClass * error_out);
+
+		//	Roadmap Section 34 Phase 15.  A validator, the same shape as
+		//	Validate_Transportation_Network below; runs after everything else and never blocks
+		//	generation on its own -- its own hard-failure verdict folds into
+		//	*required_connectivity_ok_out below instead, the same retry trigger item 6's own
+		//	required-base-routes flag already is.
+		static bool		Validate_Combat_Space(const ProceduralWorldProfile & profile);
+
 		//	The gap report's item 6.  Runs after every generator above has had its turn, whether
 		//	or not each one individually succeeded -- a validator that only ran on a clean chain
 		//	could never report the chain being broken.  Never a reason to refuse the world; see
 		//	transportationnetworkvalidator.h's own comment for why.
 		static bool		Validate_Transportation_Network(const ProceduralWorldProfile & profile);
+
+		//	One full pass of everything above, over one already-fitted, already-validated
+		//	profile.  Returns false only for the one failure this pipeline has always treated as
+		//	fatal (the boundary itself refusing to configure); every generator failure short of
+		//	that is logged and the pass still completes, exactly as it always has.
+		//	`*required_connectivity_ok_out` is gap report item 5's own retry trigger: whether
+		//	TransportationNetworkValidator's own required-base-routes check, if it applied at
+		//	all, actually held for this attempt.
+		static bool		Generate_World_Attempt(const ProceduralWorldProfile & profile,StringClass * error_out,
+															 bool * required_connectivity_ok_out);
+
+		//	Gap report item 5's own "bounded deterministic retry policy" at the level that
+		//	actually owns a whole world: how many times Generate_World tries a fresh,
+		//	deterministically different seed before accepting whatever the last attempt produced
+		//	rather than looping forever chasing a fully-connected layout that may not exist for
+		//	this profile at all.
+		static const int	MAX_WORLD_GENERATION_ATTEMPTS = 3;
 
 		static bool		Requested;
 		static bool		WorldActive;

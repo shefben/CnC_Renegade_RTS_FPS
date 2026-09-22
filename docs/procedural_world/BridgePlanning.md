@@ -47,10 +47,19 @@ bank) is `max(0, water_height + water_clearance_margin + deck_structural_depth -
 higher_abutment)` -- the lowest elevation that actually clears the water, never more. For an
 interior-cliff crossing, `deck_height` stays 0: the two banks a cliff crossing spans are already
 the toe/rim heights the cliff itself was built at, so the deck following the straight line
-between them is the natural case, not a gap. Section 11A.2's own fallback chain (shift the
-crossing, lengthen approaches, lower the deck further, choose an alternate candidate) is not
-implemented; a span this simpler check rejects is left unresolved rather than iteratively
-repaired.
+between them is the natural case, not a gap.
+
+**Gap report item 5's own fallback chain, closed in V2 Phase 10.** A span this formula alone
+cannot satisfy is no longer simply left unresolved. `BridgePlanner::Resolve_Crossing_Position`
+tries the crossing's own original position, then a bounded, deterministic reposition along the
+obstacle (perpendicular to the road, the axis the obstacle itself runs along), then -- for a
+grade failure specifically -- a bounded search widening the assumed approach run.
+`RoadGraphGenerator::Reroute_Edge_Avoiding` asks for an alternate path around the obstruction
+when nothing at the current crossing works at all, and `ProceduralWorldManager::Generate_World`
+retries the whole world with a deterministically bumped seed, bounded, when required base-to-
+base connectivity still does not hold after every per-crossing recovery. See
+`completed_features.md`'s own Phase 10 addendum and `WIP_features.md` for what is proven by
+`-terrainselfcheck bridgefallback` and what is not.
 
 ## Bridge kind, and initial damage state
 

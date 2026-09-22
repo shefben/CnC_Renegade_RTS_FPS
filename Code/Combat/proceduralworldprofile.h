@@ -192,6 +192,39 @@ struct ProceduralWorldWaterSettings
 };
 
 
+/*
+**	Section 15, Section 17A.6.  Schema 5's addition when Phase 12 built the field generator
+**	these were reserved for -- Section 17A.6 requires field/profile data to "define or derive"
+**	exactly this list.  No canonical v1 data source exists for a Tiberium field's own game-scale
+**	yield or crystal density (unlike, say, the Humvee's own W3D-measured width), so these are
+**	fixed, documented, tunable defaults rather than a guess dressed up as a measurement.
+*/
+struct ProceduralWorldResourceSettings
+{
+	ProceduralWorldResourceSettings(void) :
+		FieldRadiusMin(20.0f),FieldRadiusMax(60.0f),
+		InitialYieldMin(1500.0f),InitialYieldMax(4000.0f),
+		CrystalDensity(0.15f),HarvestAnchorCount(3),
+		HarvesterLoadAmount(600.0f),
+		GrowthEnabled(false),GrowthRatePerSecond(0.0f)
+		{ }
+
+	float	FieldRadiusMin;			// world units, > 0 -- Section 17A.6's own "field area/radius range"
+	float	FieldRadiusMax;			// world units, >= FieldRadiusMin
+	float	InitialYieldMin;			// credit-equivalent value, >= 0 -- Section 17A.6's own "initial yield range"
+	float	InitialYieldMax;			// >= InitialYieldMin
+	float	CrystalDensity;			// 0..1 -- Section 17A.6's own "crystal density/harvest density"
+	int	HarvestAnchorCount;		// >= 1 -- Section 17A.6's own "harvest anchor count"
+	float	HarvesterLoadAmount;		// >= 0 -- Section 17A.6's own "Harvester load amount"
+
+	//	Step 11: "optional regeneration/growth only if profile enables it".  Off by default --
+	//	no generator this schema has ever shipped relies on a field growing back, so a profile
+	//	that never mentions this stays exactly as it always has.
+	bool		GrowthEnabled;
+	float		GrowthRatePerSecond;		// >= 0, meaningful only when GrowthEnabled
+};
+
+
 struct ProceduralWorldFeatureFlags
 {
 	ProceduralWorldFeatureFlags(void) : Forests(true),Settlements(true),Tunnels(true),
@@ -289,7 +322,16 @@ class ProceduralWorldProfile
 		//	four new fields take their documented defaults.  Phase 5's interior cliffs did not
 		//	move either number -- it added no profile field, reusing `terrain.
 		//	interior_cliff_density`, reserved since Phase 1.
-		enum { CURRENT_SCHEMA_VERSION = 4, CURRENT_GENERATOR_VERSION = 4 };
+		//
+		//	Schema 5 added the resource block's field radius range, initial yield range, crystal
+		//	density, harvest anchor count, Harvester load amount and growth fields (Phase 12).
+		//	Generator 5 is the Tiberium field generator: a world with `features.tiberium_fields`
+		//	true and a strategic plan's own resource candidates may now carry real, harvestable
+		//	fields where before a resource candidate was only a scored point. A schema-1/2/3/4
+		//	profile still loads; the eight new fields take their documented defaults. Phases 7-11
+		//	moved no schema number -- each reused fields Phase 1 had already reserved for it
+		//	(Fairness, Retry) rather than needing a new one.
+		enum { CURRENT_SCHEMA_VERSION = 5, CURRENT_GENERATOR_VERSION = 5 };
 
 		ProceduralWorldProfile(void);
 
@@ -306,6 +348,7 @@ class ProceduralWorldProfile
 		ProceduralWorldBoundarySettings		Boundary;
 		ProceduralWorldTerrainSettings		Terrain;
 		ProceduralWorldWaterSettings			Water;
+		ProceduralWorldResourceSettings		Resource;
 		ProceduralWorldFeatureFlags			Features;
 		ProceduralWorldRetryLimits				Retry;
 		ProceduralWorldFairnessThresholds	Fairness;

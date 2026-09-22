@@ -43,11 +43,13 @@
  *	actually asks, which physical rendering/grading tier a road belongs to.  Two different                     *
  *	questions, one real owner for the second one.                                                              *
  *                                                                                             *
- *	Real widths, not Humvee-derived ones.  Section 10A.1's lane-width formula needs the                          *
- *	authoritative GDI Humvee collision envelope, which means naming a specific vehicle definition                *
- *	-- exactly the kind of enumerable content identifier this project does not guess.  Default                    *
- *	widths below are fixed, documented constants standing in for that derivation until a real                      *
- *	definition name is confirmed; see docs/procedural_world/RoadGraph.md.                                          *
+ *	Real widths, Humvee-derived for real.  Section 10A.1's lane-width formula needs the                           *
+ *	authoritative GDI Humvee collision envelope; rather than name a live GameObj definition and                    *
+ *	guess at a preset identifier this project does not enumerate, the width is read directly out                   *
+ *	of the shipped `Data/always.dat` -- the MIX1 archive format and the `V_GDI_HUMVEE.WORLDBOX`                     *
+ *	sub-object's own W3D box chunk, the same canonical physics collision source                                     *
+ *	`WorldMetricsClass::Resolve_Extents` reads at runtime.  See this file's own .cpp for the                         *
+ *	exact derivation and docs/procedural_world/RoadGraph.md for the summary.                                         *
  *                                                                                             *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
@@ -63,6 +65,7 @@
 #endif
 
 #include "vector.h"
+#include "vector3.h"
 #include "wwstring.h"
 
 
@@ -149,6 +152,33 @@ public:
 	static int			Get_Edge_Count(void)	{ return Edges.Count(); }
 	static bool			Get_Edge(int index,RoadGraphEdge * out);
 
+	/*
+	**	The unique path between two StrategicPlanner node indices through this generator's own
+	**	minimum spanning tree.  Appends edge indices in path order to `edge_indices_out` when
+	**	given (not cleared first, matching Find_Chokepoints' own idiom -- pass nullptr to ask for
+	**	the length alone), writes the summed real road length to `length_out`, and returns false,
+	**	unchanged, when the two nodes are not connected in this graph (should not happen once
+	**	Generate succeeded with >= 2 anchors, since every anchor lands in one tree).
+	*/
+	static bool			Find_Anchor_Path(int from_node,int to_node,
+													  DynamicVectorClass<int> * edge_indices_out,float * length_out);
+
+	/*
+	**	Gap report item 5, fallback stage 4: ask for an alternate route for one edge, having
+	**	given up on a crossing near `avoid_position`.  Blocks the chunk nearest that position,
+	**	plus every chunk already excluded by an earlier call for this same edge (so a second,
+	**	third... failed crossing on the same edge keeps every previous exclusion in force rather
+	**	than re-discovering the same dead end), and re-solves Dijkstra between this edge's own
+	**	two anchors with the same seed/cost field `Generate` itself used.  On success, replaces
+	**	the edge's own road (`RoadSystem::Remove_Road` the old id, `RoadSystem::Add_Road` plus
+	**	`RoadSystem::Integrate_New_Road` for the new one, which folds it into the built network
+	**	without re-tessellating any road a bridge plan has already split) and rewrites the edge's
+	**	own RoadId/Length/UnresolvedCrossingIds in place.  Returns false, unchanged, when no
+	**	alternate route exists at all -- the caller's own final fallback.
+	*/
+	static bool			Reroute_Edge_Avoiding(const StringClass & edge_id,const Vector3 & avoid_position,
+														  StringClass * error_out);
+
 	static unsigned int	Get_Checksum(void)		{ return Checksum; }
 
 	static int			Check_No_Cliff_Band_Crossing(StringClass * report);
@@ -162,6 +192,17 @@ private:
 
 	static DynamicVectorClass<int>				OwnedRoadIds;
 	static DynamicVectorClass<RoadGraphEdge>	Edges;
+
+	//	The params the last real Generate() call used, so Reroute_Edge_Avoiding can rebuild the
+	//	identical cost field rather than asking a caller to remember and resupply them.
+	static RoadGraphParams	LastParams;
+
+	//	Gap report item 5: every chunk a reroute has been told to avoid, parallel arrays keyed by
+	//	which edge asked -- one edge can accumulate several as repeated crossings on it each fail
+	//	in turn.  Forgotten on the next Generate/Clear, along with everything else this generator
+	//	owns.
+	static DynamicVectorClass<StringClass>	ExclusionEdgeIds;
+	static DynamicVectorClass<int>				ExclusionChunkIndices;
 };
 
 #endif	// ROADGRAPHGENERATOR_H

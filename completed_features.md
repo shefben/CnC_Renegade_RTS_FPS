@@ -3050,18 +3050,417 @@ resolved bridge names one of the road graph edge's own unresolved crossing ids, 
 `TransportationNetworkValidator` finds zero unbound abutments and zero unconnected bridges on
 this terrain's own real network.
 
-**What is honestly not resolved this phase.** Item 4's road/bridge width is still fixed
-per-class constants (`RoadGraphGenerator`'s own already-documented Humvee-formula gap), now only
-validated against real vehicle metrics rather than generated from them; a mismatch is reported,
-never corrected by widening either side or inserting a transition segment. Item 5's fallback
-chain -- reposition the crossing, lengthen the approach, try another crossing type, reject and
-regenerate -- is still not implemented; a bridge that cannot be legally placed stays unresolved,
-same as before this phase. Item 7's own live pass, multiple fixed seeds through the real
-"Procedural Skirmish" button with a person watching the result, has not been run; see
-`WIP_features.md`.
+**What is honestly not resolved this phase.** Item 5's fallback chain -- reposition the crossing,
+lengthen the approach, try another crossing type, reject and regenerate -- is still not
+implemented; a bridge that cannot be legally placed stays unresolved, same as before this phase.
+Item 7's own live pass, multiple fixed seeds through the real "Procedural Skirmish" button with a
+person watching the result, has not been run; see `WIP_features.md`.
+
+**Addendum: item 4's road width closed too, same pass.** `RoadGraphGenerator`'s own placeholder
+widths are Section 10A.1's real derivation now. `GDI_HUMVEE_WIDTH` (2.556 world units) is read
+directly out of the shipped `Data/always.dat` -- not a live GameObj definition lookup (which
+would need naming a specific preset identifier this project does not guess) but the same
+underlying data that lookup would eventually resolve to: `Code/wwlib/mixfile.cpp`'s own MIX1
+archive format locates `v_gdi_humvee.w3d` by `CRC_Stringi` of its uppercased filename, and
+`Code/ww3d2/w3d_file.h`'s own W3D box-chunk layout (`W3D_CHUNK_BOX`/`W3dBoxStruct`) reads the
+`V_GDI_HUMVEE.WORLDBOX` sub-object's own Y extent -- the exact sub-object
+`WorldMetricsClass::Resolve_Extents` already reads at runtime for the same purpose, per its own
+comment ("where Phys3Class itself gets its collision box"), just read offline here instead of
+from a live session. The axis this project reads as "width" (Y, not X) is confirmed against two
+other vehicles' own WORLDBOX chunks (`v_nod_buggy.w3d`, `v_gdi_apc_m.w3d`), all three showing the
+same length > width > height ordering, so the local +X axis is this engine's own consistent
+vehicle-forward convention independent of which vehicle is measured.
+
+A new `WorldMetricsClass::Get_World_Units_Per_Meter` resolves Section 3A.1's own open
+WORLD_UNITS_PER_METER as 1:1, from `Get_Soldier_Eye_Height`'s own pre-existing 1.62 already
+matching ordinary adult standing eye height in metres. `ROAD_GRAPH_NORMAL_LANE_WIDTH` then
+applies Section 10A.1's own formula verbatim (`C = max(0.35m, H*0.15)`,
+`NormalLaneWidth = max(H+2C, H*1.30)`), and each `RoadGraphClassType`'s width is that times
+Section 10A.3's own default lane count (4 for highway, 2 for primary/secondary/city street/
+service, 1 for dirt track) -- all fixed, deterministic constants computed once from measured
+data, no live vehicle lookup needed at generation time, so every existing self check (none of
+which load any vehicle content) is unaffected: the same 11 pre-existing, unrelated failures, both
+before and after, confirmed by full-suite comparison the same way the bank-search fix above was.
+Not resolved: Section 10A.2's full cross-section descriptor beyond width and the already-existing
+separate shoulder array, lane-level `RoadSplineClass` geometry, and 10A.1's own traversal-
+envelope validation requirement.
+
+**Second addendum, same session: item 5's fallback chain, and item 4's own width check corrected
+along the way.** `BridgePlanner` no longer accepts or rejects a crossing on one try.
+`Resolve_Crossing_Position` runs the gap report's own stages in order: stage 0 (the original
+position), stage 1 (a bounded, deterministic reposition along the obstacle -- perpendicular to
+the road, the axis a riverbank or a cliff face actually runs along, smallest displacement first),
+stage 2 (only after a grade failure specifically: a bounded search widening the assumed approach
+run, since nothing about that fixes a span/abutment/bounds/width/collision problem). Stage 3
+(alternate crossing type) is an honest no-op -- `BridgePlanner` already builds a bridge for a
+`TUNNEL_CANDIDATE` node exactly as it does a `CROSSING_CANDIDATE` one, since no tunnel system
+exists in this codebase for either to actually use, so there is nothing to fall back *to*, and
+fabricating one was refused rather than attempted. Stage 4 (reroute) is a new
+`RoadGraphGenerator::Reroute_Edge_Avoiding`, backed by two new `RoadSystem` primitives --
+`Remove_Road` (the same tombstone idiom `Trim_Road_Range` already established, so an id already
+held elsewhere never dangles) and `Integrate_New_Road` (tessellates and conforms only the one new
+road, then reruns the network-wide junction-finding and mask passes, which only ever read
+already-tessellated points rather than re-deriving them -- the surgical alternative to calling
+`Build_Network` again, which would have silently thrown away any split `Trim_Road_Range` had
+already performed on an unrelated road this same pass). A reroute is refused outright once any
+crossing on the same edge has already committed a real bridge/split, since replacing that edge's
+road out from under an already-spliced bridge would orphan it and neither system can undo a
+commit -- documented as a real, deliberate scope boundary, not silently skipped. Stage 6
+(reject) records why, using the gap report's own eight failure categories
+(`Crossing_Failure_Reason_Name`), in a new `BridgePlanner::Diagnostics` list kept for every
+crossing whether it resolved or not, so a failed seed's own story reads from that list rather
+than a bare "bridge failed". Every check (span, abutment, world bounds, approach grade, water
+clearance against a resampled span rather than only the two end heights, road-width match,
+bridge-to-bridge collision against everything this same pass already committed) runs before
+anything is committed to `BridgeSystem`/`RoadSystem`, since neither owns a cheap per-object undo
+to try-then-discard a candidate with. `ProceduralWorldManager::Generate_World` itself gained the
+world-level half of the same policy: a new `Generate_World_Attempt` is one full pass over one
+already-fitted profile, and `Generate_World` retries it with a deterministically bumped seed
+(attempt 0 keeps the requested seed exactly) up to `MAX_WORLD_GENERATION_ATTEMPTS` (3) whenever
+`TransportationNetworkValidator`'s own required-base-routes check comes back broken -- distinct
+from that validator's own broader PASS/FAIL, since a narrow shoulder is a real finding but not
+worth a whole world's own retry, only a required pair actually left unreachable is.
+
+Building the fallback's own width check surfaced a real bug in the item-4 addendum above, fixed
+in the same pass: comparing a bridge's deck width against `RoadSplineClass::Get_Total_Width`
+(carriageway plus both shoulders) rather than `Get_Width` (carriageway alone) meant Section
+10A.1's own real highway width, plus its own shoulders, now exceeded every default bridge kind's
+stated width, so a bridge that should have been legal was rejected as `ROAD_WIDTH_MISMATCH` --
+caught by `terrain_bridgerequired` regressing the moment the fallback chain's own width check
+went in. Fixed in both `BridgePlanner`'s new check and `TransportationNetworkValidator`'s
+existing one, which had carried the identical mistake since the first addendum without a test
+that happened to exercise it.
+
+New `-terrainselfcheck bridgefallback` (`terrain_bridgefallback`/`fds_terrain_bridgefallback`)
+proves: every fallback refused (a `MaxRerouteAttemptsPerEdge` of 0 plus a span limit nothing on
+the divided terrain can ever satisfy) still returns promptly with the crossing explicitly
+recorded unresolved rather than hung or silently dropped, within a provably bounded attempt count
+(stage 6 plus bounded termination); the same seed/terrain/params reproduce the same diagnostic --
+resolved-or-not, failure reason, attempt count -- not only the same checksum (determinism); a
+span limit tightened below the divided terrain's own real (probed, not guessed) span is honestly
+reported `SPAN_TOO_LONG` when stage 1's own bounded search finds no narrower point anywhere on
+this particular, genuinely-uniform-width terrain -- a real, disclosed limit of the terrain this
+check reuses from `Check_Bridge_Required` rather than of the fallback mechanism itself, checked
+adaptively so a future terrain change that does introduce a narrower spot would be recognized and
+asserted on rather than silently passing either way; and `Reroute_Edge_Avoiding`, called directly
+against open, uniform-ramp terrain with real room to detour (not the divided terrain's own single
+corridor, which has none, by construction), replaces a real edge's own road, retires the old one,
+and folds the new one into the network correctly.
+
+Not resolved: a terrain scenario built specifically to make stage 1 or stage 2 *succeed* (find a
+genuinely narrower crossing point, or a genuinely legal longer approach) rather than exercise the
+mechanism honestly against terrain that happens not to have one -- the divided terrain's own
+crossing turned out to be uniform in width by construction, which `terrain_bridgefallback` itself
+discovered and correctly reports rather than assumes around. Item 7's live pass remains open,
+now also covering which fallback stage (if any) a given seed's own generation actually needed;
+see `WIP_features.md`.
 
 `renegade`, `renegadeserver` and `leveledit` all build clean, 0 warnings. Full
 `-terrainselfcheck` (all families, no `which` filter) shows the same 11 pre-existing failures
 with this phase's changes staged and with them stashed out via `git stash` -- debris
 origin/count/position, team shroud visibility (twice), two macro-terrain edge cases, and one
-hydrology determinism case, none of them touched by this phase, none of them new.
+hydrology determinism case, none of them touched by this phase, none of them new. `ctest -N` now
+lists 151 (was 149).
+
+## V2 Phase 11 -- final base selection, from every candidate the road graph and bridge plan already know about
+
+`BaseSelectionPlanner` (`Code/Combat/baseselectionplanner.h/.cpp`) chooses one GDI/Nod
+`BASE_CANDIDATE` pair from `StrategicPlanner`'s own candidate list, scored and gated using real
+data `RoadGraphGenerator` (Phase 8) and `BridgePlanner` (Phase 9/10) already built rather than
+re-deriving terrain, roads or bridges a second time. Because the road graph is a minimum spanning
+tree, the route between any two candidates is unique; a bounded breadth-first walk over the edge
+list (`Find_Tree_Path`, file-local) finds it, giving a real road distance in place of Phase 7's
+own straight-line `Get_Travel_Cost` stand-in now that a real graph exists to measure one on.
+
+Every candidate pair is ranked by a composite site score (buildable-area fraction at a footprint
+radius derived from `Fairness.MinBaseExpansionArea`, the same fraction at twice that radius for
+expansion room, a high-ground exposure ring, air-operating clearance to
+`WorldBoundsService::Get_Air_Ceiling`, boundary distance), then gated by Section 17A.1's own named
+thresholds -- already parsed onto `ProceduralWorldProfile::Fairness` since Phase 1, unconsumed
+until now: both sides reach a resource candidate at all, their resource-travel-time difference
+stays under `MaxInitialResourceTravelTimeDifferenceSeconds`, the base-to-base route stays under
+`MaxBaseToBaseTravelTimeDifferenceSeconds`, and the route does not cross a bridge at all unless
+`AllowSingleBridgeDependency` is true. The site score only decides which pair is tried first; a
+failed threshold is never overridden by a good score.
+
+**Real, bounded repair for two of step 4's six named operations; the other four honestly refused.**
+`BASE_REPAIR_MOVE_RESOURCE_CANDIDATE` substitutes the next-nearest resource candidate already in
+the plan when resource access is the failure; `BASE_REPAIR_MOVE_BASE` substitutes the
+lower-scoring side's own next-ranked same-faction candidate, holding the better-scoring side
+fixed, when a bridge-dependency or travel-time failure is. `BASE_REPAIR_ADJUST_ROAD_EDGE`,
+`BASE_REPAIR_ADD_RAMP`, `BASE_REPAIR_ADD_TUNNEL_CANDIDATE` and `BASE_REPAIR_ADJUST_LOCAL_TERRAIN`
+are named for diagnostic completeness -- the same reason `CrossingFallbackStageType`'s own
+alternate-crossing-type stage is named despite never being reachable -- but never attempted:
+rerouting a road edge that may already carry a committed bridge is exactly the scope boundary
+`BridgePlanner`'s own fallback chain already refuses, and no ramp, tunnel or arbitrary-terrain-edit
+owner exists at this layer. Bounded by `Fairness`'s own `Retry.MaxLocalRetriesPerStage`, the same
+shared ceiling every other bounded local-repair loop in this chain already answers to, per
+candidate pair; the outer search is bounded by the finite GDI x Nod combination count.
+
+**Step 8's reserved region, not Section 16A's real base layout.** `SelectedBaseSite::
+ProtectedRadius` is a conservative circle sized from the same footprint radius the site score's
+own buildable-area term used, locking ground against Phase 12/13 placement. Section 16A's own
+contract -- initial building transforms, factory-exit corridors, spawn sets, match bootstrap --
+is a distinct, larger piece of work this generator does not attempt;
+`WorldGenerationManifest::InitialBaseLayoutIds` stays empty, the same "reserved, unconsumed" state
+several earlier fields in this chain were in before their own consumer arrived.
+`SelectedBaseCandidateIds` is populated for real: the actual chosen pair, not every pair
+considered.
+
+`ProceduralWorldManager::Generate_World_Attempt` calls this after the bridge plan and before
+`TransportationNetworkValidator`, so the validator's own connectivity checks continue to run over
+the same state they always have; nothing about final network validation changed this phase.
+
+**One profile field reading documented rather than guessed past.** `MaxBaseToBaseTravelTimeDifferenceSeconds`
+is named "difference" in Section 17A.1's own list, but exactly one GDI/Nod pair has exactly one
+physical route -- there is no second measurement for a literal difference. Read here as a direct
+cap on that one route's own travel time. `MaxBaseToFrontTravelTimeDifferenceSeconds` needs a
+defined "front" this phase does not establish (Phase 11's own "Targeted validation" block never
+names one) and is not attempted -- a scoped, documented omission; see
+`docs/procedural_world/BaseSelection.md`.
+
+New `-terrainselfcheck baseselection` (`terrain_baseselection`/`fds_terrain_baseselection`)
+chains the same terrain/hydrology/strategic-plan/road-graph/bridge-plan setup
+`terrain_bridgeplan` already proves sufficient, then asserts: both refusal paths report a reason
+and leave no state; a real chain selects a real GDI/Nod pair with a non-empty reserved region
+each; the selected pair independently re-passes its own four named threshold checks; every repair
+log entry names a recognised operation; and the same inputs reproduce the same checksum and the
+same GDI selection a second time. Not proven: a scenario engineered so a repair genuinely changes
+the outcome (the terrain this check reuses gives the first-ranked pair a clean pass), and Section
+16A's own building-placement contract, which exists in no file yet.
+
+`renegade`, `renegadeserver` and `leveledit` all build clean, 0 warnings. Full
+`-terrainselfcheck` (all families, no `which` filter) shows the same 11 pre-existing failures,
+none of them touched by this phase, none of them new.
+
+## V2 Phase 12 -- Tiberium fields, resolved from every resource candidate the base selection already knows about
+
+`TiberiumFieldGenerator` (`Code/Combat/tiberiumfieldgenerator.h/.cpp`) turns
+`StrategicPlanner`'s own `RESOURCE_CANDIDATE` nodes into real fields, using real road distance
+from `RoadGraphGenerator::Find_Anchor_Path` -- a new public method, promoted out of
+`BaseSelectionPlanner`'s own file-local breadth-first walk once this phase needed the identical
+question (the unique path between two anchor nodes) answered a second time, rather than a
+second copy of it drifting from the first. `BaseSelectionPlanner` was updated in the same pass to
+call the promoted method too.
+
+**Schema 5.** Section 17A.6 requires field/profile data to "define or derive" a field radius
+range, initial yield range, crystal density, harvest anchor count, Harvester load amount and
+growth rate -- none of which any prior schema reserved. `ProceduralWorldResourceSettings` is new
+this phase (`proceduralworldprofile.h`), `CURRENT_SCHEMA_VERSION`/`CURRENT_GENERATOR_VERSION` now
+5; a schema-1..4 profile still loads with documented defaults.
+`WorldGenerationManifestService::Compute_Profile_Hash`'s own canonical string was extended in the
+same pass so the new block actually participates in the hash, not merely parses.
+
+**Real footprint legality, not a fixed circle.** `Resolve_Footprint_Radius` shrinks from
+`FieldRadiusMax` toward `FieldRadiusMin` over a bounded number of steps; `Is_Footprint_Legal`
+checks the whole disc against `WorldTerrainSystem::Query_Placement_Surface`'s own slope/on-terrain
+measurement, both selected bases' own `BaseSelectionPlanner::ProtectedRadius` reserved regions,
+and -- ring-sampled -- water and the existing road mask. Cliff band and excessive slope at the
+anchor itself need no separate test: every `RESOURCE_CANDIDATE` already survived
+`StrategicPlanner`'s own `Buildable && !water` gate in Phase 7.
+
+**`TERRAIN_MASK_TIBERIUM`'s first writer.** The mask has existed in `terraintexturesystem.h`
+since its own enum was authored; nothing ever wrote to it before this phase (confirmed by grep --
+zero prior callers). Every resolved field now stamps it via `TerrainMaskClass::Stamp_Disc`, the
+same primitive `RoadSystem`/`WaterSystem` already use for their own masks.
+
+**Crystal scatter without a model.** `Scatter_Point` draws a deterministic, uniform-over-area
+point per crystal from two `TerrainMaskClass::Hash_Value` draws (angle, and a square-rooted
+second draw for radius, so points do not cluster at the centre). No live W3D crystal model is
+resolved -- missing art never blocks engine implementation; a real `ow_tiberium_crystal` asset
+family is the open request this leaves, documented rather than guessed at.
+
+**Harvester routes, and the phase's own real gate.** Each field's route is a real
+`Find_Anchor_Path` distance from its owning base, converted to an expected travel time and
+income-per-minute using the same fairness-estimate reference vehicle speed
+`BaseSelectionPlanner` already documents. `CountsAsEarlyField` is true only for a non-contested
+field with a resolved route; `Check_Both_Factions_Have_Early_Field` proves this holds for real on
+a real terrain, not merely structurally.
+
+**Real repair for one of step 10's three named operations.** `RESOURCE_REPAIR_ADJUST_FIELD_EDGE`
+is the radius shrink, logged when one was actually needed.
+`RESOURCE_REPAIR_ALTERNATE_FIELD_CANDIDATE` retries the next-nearest resource candidate for an
+*initial* field specifically when the nearest is illegal at every radius, bounded by the same
+`Retry.MaxLocalRetriesPerStage` ceiling every other bounded repair loop in this chain answers to.
+`RESOURCE_REPAIR_REPAIR_ROAD_LOCALLY` is named for diagnostic completeness and never attempted --
+the same scope boundary `BaseSelectionPlanner`'s own refused road-edit repair already documents.
+
+**What is honestly not resolved this phase.** No caller in this codebase spawns a Harvester for a
+generated world yet -- `HarvesterClass::Set_Tiberium_Region`/`Set_Dock_Location`/
+`Set_Dock_Entrance` already exist and already drive the canonical economy once given real data,
+but nothing wires a generated field to a live Harvester instance; that gap belongs to whichever
+later phase actually instantiates starting units. Growth/regeneration fields are parsed and
+validated but not simulated (nothing advances time in this generation path). Debug overlay/route
+visualization is not attempted -- a rendering concern with no device here.
+
+New `-terrainselfcheck tiberiumfields` (`terrain_tiberiumfields`/`fds_terrain_tiberiumfields`)
+chains the same terrain/hydrology/strategic-plan/road-graph/bridge-plan/base-selection setup
+`terrain_baseselection` already proves, then asserts: refusal reports a reason and leaves no
+state; a real chain resolves at least one field, every field's footprint is legal and scatters at
+least one crystal; **both factions actually have a viable early field on this terrain** (the
+phase's own real gate); every owned field has a resolved route; every repair log entry names a
+recognised operation; and the same inputs reproduce the same checksum. Not proven: a scenario
+that actually exercises `RESOURCE_REPAIR_ALTERNATE_FIELD_CANDIDATE` (this terrain's own nearest
+candidate per team already resolves cleanly), and everything named as not resolved above. See
+`docs/procedural_world/TiberiumFields.md`.
+
+`renegade`, `renegadeserver` and `leveledit` all build clean, 0 warnings. Full
+`-terrainselfcheck` (all families, no `which` filter) shows the same 11 pre-existing failures,
+none of them touched by this phase, none of them new. `ctest -N` now lists 155 (was 153).
+
+## V2 Phase 13 -- settlements/POIs, and Section 28A's asset registry built for real
+
+Investigated first: building real settlement/POI placement needs Section 28A's own asset
+metadata registry (real footprint/collision/connector data per building, "must not independently
+reverse-engineer W3D geometry through bounding-box guesses"), which did not exist anywhere in
+this tree. Confirmed by direct offline inspection (`Code/ww3d2/w3d_file.h`'s own
+`W3D_CHUNK_HIERARCHY`/`W3D_CHUNK_PIVOTS` layout, the same technique item 4 already used for the
+Humvee) rather than assumed: this tree currently ships real W3D geometry for exactly three
+building kinds (`G_Comcntr.w3d`, `mgpwr_ext.w3d`, `mnpwr_ext.w3d`), and **none of the three
+carries a bone named for an entrance, door, or pedestrian approach** -- confirmed, not guessed;
+`gdi_communications_center.json`'s own `mct_anchor`/`purchase_terminal_anchor` anchors were
+already flagged unverified in that file's own comment, and the dump confirms they are also simply
+absent from the real model's 93 pivots.
+
+`ProceduralAssetRegistry` (`Code/Combat/proceduralassetregistry.h/.cpp`) reuses Section 39's
+existing `BuildingModelDescriptor`/`BuildingDescriptorManager`/`WorldMetricsClass::
+Get_Building_Footprint` rather than a parallel descriptor format, adding only Section 28A.4's own
+settlement-specific fields (category, cover classification, neighbour spacing, nav-obstacle flag)
+on top. Populated with exactly the three real, verified entries; every other
+`data/building_descriptors/*.json` entry names a model this tree has no files for yet and is not
+registered. `Resolve_Entrance_Anchor` honestly returns false for all three.
+
+`SettlementGenerator` (`Code/Combat/settlementgenerator.h/.cpp`) resolves
+`StrategicPlanner`'s own `SETTLEMENT_CANDIDATE`/`POI_CANDIDATE` nodes for real: step 1's conflict
+list against `WorldBoundsService`/`BaseSelectionPlanner`'s own reserved regions/
+`TiberiumFieldGenerator`'s own field radii; step 2's layout-type classification (six named types,
+deterministic hash draw); step 3's road-connectivity classification (real nearest-distance to an
+already-tessellated `RoadSplineClass`, not a fabricated new connector -- see the doc for why a new
+one is not built this pass); step 4's real structure placement (ring-arranged, collision-checked
+against terrain/reservations/neighbour spacing, cycling through every eligible real asset so
+duplicate-adjacent is avoided by construction); and step 9's POI-kind classification (six named
+kinds, `HasRealAsset` honestly false for all, since no `ASSET_CATEGORY_POI` entry exists).
+
+**What is honestly not resolved.** Steps 5-8 (entrances facing streets, interior access, alleys,
+vehicle clearance) depend on connector data this tree's own real geometry does not carry -- not
+merely unattempted, structurally unsatisfiable with today's asset pool. Live instantiation and nav
+registration (steps 10-11) are data-only, the same split `TiberiumFieldGenerator` already draws
+for a Harvester. See `docs/procedural_world/Settlements.md` for the full account.
+
+New `-terrainselfcheck settlements` (`terrain_settlements`/`fds_terrain_settlements`) chains the
+same terrain/hydrology/strategic-plan/road-graph/bridge-plan/base-selection/Tiberium-field setup
+`terrain_tiberiumfields` already proves, registers the three real descriptors via
+`BuildingDescriptorManager::Load_Descriptor_From_Text` (the same "no file on disk" pattern that
+class's own header already documents for a self check) with the real, verbatim footprint values
+copied from `data/building_descriptors/*.json`, then asserts: refusal reports a reason and leaves
+no state; a real chain resolves at least one settlement with a real reserved region and a
+recognised layout type; no placed structure has an illegal footprint or overlaps another; every
+POI names a recognised kind and honestly claims no real asset; and the same inputs reproduce the
+same checksum.
+
+`renegade`, `renegadeserver` and `leveledit` all build clean, 0 warnings. Full
+`-terrainselfcheck` (all families, no `which` filter) shows the same 11 pre-existing failures,
+none of them touched by this phase, none of them new. `ctest -N` now lists 157 (was 155).
+
+## V2 Phase 14 -- biome decoration, real placement of the five foliage types already defined and waiting
+
+`FoliageSystem::Define_Default_Foliage` already defined five real, working types --
+`ow_tree_conifer`, `ow_bush_scrub`, `ow_tree_dead`, `ow_grass_clump`, `ow_rock_boulder` -- with
+real blocking/destructible/LOD/scale data, honestly undrawn until there is art (that file's own
+comment already says so). `BiomeDecorationGenerator` (`Code/Combat/biomedecorationgenerator.h/.cpp`)
+is the first real caller of `FoliageSystem::Add_Instance` for a whole generated world: it decides
+where those five real types belong (a real water-distance-mask-derived "moisture" signal, folded
+with a deterministic hash; a real slope-derived forest-vs-rock differentiation) and places
+instances individually, legality-checked per point (on terrain, dry, clear of the real road/
+Tiberium masks and every Phase 11-13 reserved region), never through `FoliageSystem::Scatter`
+(read directly -- its own uniform-disc placement checks no terrain legality at all).
+
+Reuses three already-real terrain masks rather than re-deriving any of them:
+`TERRAIN_MASK_ROAD` (`RoadSystem`), `TERRAIN_MASK_TIBERIUM` (Phase 12), and
+`TERRAIN_MASK_WATER_DISTANCE` (`WaterSystem::Update_Water_Distance`, already called elsewhere).
+Step 13's own real LOD/budget acceptance is `FoliageSystem::Build_Cells`/`Build_Batches`, called
+for real after placement, not a new system.
+
+**Two real density-truncation bugs found and fixed by the self check.** `(int)(TREES_PER_CHUNK *
+density)` and the same for rocks both truncate to 0 whenever `density` alone was not large enough
+to clear 1.0 -- `RockDensity = 0.3` against a per-chunk ceiling of 2 produced `(int)0.6 == 0`
+regardless of how many chunks were eligible, and the forest-suitability threshold was originally
+set above the maximum value the formula's own jitter term could reach when no water-distance mask
+existed yet on a level with no terrain-texture masks built at all, making forest placement
+structurally impossible rather than merely rare. Both caught by `terrain_biomedecoration` itself
+asserting `FoliageSystem::Get_Instance_Count() > 0`, not merely a green generation flag.
+
+**What is honestly not resolved.** Street lamps (steps 9-10) are not placed -- no
+`ow_streetlamp`-equivalent asset exists anywhere in this tree, the same missing-art gap Phase
+13's own entrance-anchor problem already documents. Terrain-material layer assignment (step 2) is
+not authored here -- this generator populates real mask data for `TerrainTextureSystem`'s own
+layer rules to read, once layers exist to read it. See `docs/procedural_world/BiomeDecoration.md`.
+
+New `-terrainselfcheck biomedecoration` (`terrain_biomedecoration`/`fds_terrain_biomedecoration`)
+proves the generator's own documented optional-dependency design for real -- it runs over nothing
+but terrain and hydrology, no strategic plan/road graph/base selection required -- then asserts:
+refusal reports a reason and leaves no state; a real chain places at least one instance and the
+generator's own counts add up to exactly what `FoliageSystem` holds; no instance sits in the road
+mask or off terrain; `Build_Cells`/`Build_Batches` both report built afterward; and the same
+inputs reproduce the same checksum.
+
+`renegade`, `renegadeserver` and `leveledit` all build clean, 0 warnings. Full
+`-terrainselfcheck` (all families, no `which` filter) shows the same 11 pre-existing failures,
+none of them touched by this phase, none of them new. `ctest -N` now lists 159 (was 157).
+
+## V2 Phase 15 -- combat-space validation, a real sightline analysis and five re-derived hard failures
+
+`CombatSpaceValidator` (`Code/Combat/combatspacevalidator.h/.cpp`) is a validator the same shape
+as item 6's `TransportationNetworkValidator`: reads state every earlier phase already produced,
+reports, never mutates. Section 17A.1's own thresholds were already parsed onto
+`ProceduralWorldProfile::Fairness` in Phase 1 for exactly this phase, so no schema change was
+needed.
+
+**Real sightline analysis (Section 17A.4).** Every one of that section's five required
+documentation items is answered for real: eye height is `WorldMetricsClass`'s own real 1.62m
+value; eight compass directions per sample; a 250-unit max distance;
+`WorldTerrainSystem::Ray_Intersect_Terrain` is the occluder test (terrain only -- placed
+structures and foliage are not tested, a disclosed simplification). P50/P90/max are reported from
+real sorted samples at every selected base and every resolved settlement, never a single averaged
+number, per that section's own explicit instruction.
+
+**Hard failures re-derived, not trusted.** Disconnected base and impossible choke both re-walk
+`RoadGraphGenerator::Find_Anchor_Path`/read `BaseSelectionPlanner`'s own real
+`SingleBridgeDependency` flag rather than assuming a prior phase's own success flag still holds;
+no resource path scans every `TiberiumFieldGenerator` field with a real owner and no route;
+exposed infantry march is a real base-to-base road distance divided by a documented reference
+infantry speed (the same undefined-physical-quantity treatment `BaseSelectionPlanner`'s own
+reference vehicle speed already gets); unusable vehicle lane compares every real
+`RoadSplineClass::Get_Width` against the real profile threshold.
+
+**Repair honestly not attempted; step 12 answered a different way.** All eight named repair
+operations are recognised in the diagnostics vocabulary and never attempted -- retrofitting a
+repair pass after every generator in the chain has already committed roads/bridges/structures is
+exactly the unsafe case `BridgePlanner`'s and `BaseSelectionPlanner`'s own refused repair
+operations already document. Step 12's own "reject... rather than silently accepting" instead
+folds `CombatSpaceValidator::Passed()` into `ProceduralWorldManager::Generate_World`'s existing
+bounded seed-retry loop (gap report item 5) alongside `TransportationNetworkValidator`'s own
+required-base-routes flag -- a hard combat-space failure now asks for a fresh seed the same way a
+broken required route already does.
+
+New `-terrainselfcheck combatspace` (`terrain_combatspace`/`fds_terrain_combatspace`) asserts: an
+empty world validates trivially; a real chain (the same setup `terrain_settlements` already
+proves) samples a real, correctly-ordered sightline distribution; every failure names a
+recognised type; every one of the eight repair operations resolves a real name even though none
+is ever produced; and the same seed/world reproduce the same verdict and failure count.
+
+`renegade`, `renegadeserver` and `leveledit` all build clean, 0 warnings. Full
+`-terrainselfcheck` (all families, no `which` filter) shows the same 11 pre-existing failures,
+none of them touched by this phase, none of them new. `ctest -N` now lists 161 (was 159).
+
+---
+
+**All five requested phases (11-15) closed this session.** Base selection, Tiberium fields,
+settlements/the Section 28A asset registry, biome decoration, and combat-space validation are
+each real, built, self-checked, and documented -- with every genuine content/scope gap disclosed
+in its own doc rather than silently accepted: Section 16A's own base-layout contract (Phase 11),
+`MaxBaseToFrontTravelTimeDifferenceSeconds`'s undefined "front" (Phase 11), live Harvester
+spawning (Phase 12), real settlement/POI/street-lamp art and entrance connector data (Phase 13),
+object-aware foliage placement and terrain-material layer authoring (Phase 14), and repair
+mutation after generation has already committed (Phase 15). See each phase's own
+`docs/procedural_world/*.md` for the full account.

@@ -72,6 +72,8 @@ Format_Canonical_Profile_String(const ProceduralWorldProfile & p)
 		"t.relief=%.4f t.hill=%.4f t.mtn=%.4f t.icliff=%.4f t.valley=%.4f "
 		"t.minelev=%.4f t.maxelev=%.4f t.slope=%.4f t.scale=%.4f t.ridge=%.4f t.plateau=%.4f t.approach=%.4f "
 		"wa.riv=%d wa.lake=%d wa.pond=%d wa.coast=%d wa.rwidth=%.4f wa.swidth=%.4f wa.raccum=%.4f wa.rcount=%d "
+		"rs.rmin=%.4f rs.rmax=%.4f rs.ymin=%.4f rs.ymax=%.4f rs.density=%.4f rs.anchors=%d rs.load=%.4f "
+			"rs.grow=%d rs.growrate=%.4f "
 		"f.forest=%d f.settle=%d f.tunnel=%d f.hwy=%d f.tib=%d "
 		"r.local=%d r.alt=%d "
 		"fa.resdiff=%.4f fa.incdiff=%.4f fa.frontdiff=%.4f fa.b2bdiff=%.4f "
@@ -89,6 +91,9 @@ Format_Canonical_Profile_String(const ProceduralWorldProfile & p)
 			p.Terrain.RidgeSharpness,p.Terrain.PlateauChance,p.Terrain.BoundaryApproachFlattening,
 		p.Water.Rivers ? 1 : 0,p.Water.Lakes ? 1 : 0,p.Water.Ponds ? 1 : 0,p.Water.Coastline ? 1 : 0,
 			p.Water.RiverWidth,p.Water.StreamWidth,p.Water.RiverAccumulationChunks,p.Water.MaxRiverCount,
+		p.Resource.FieldRadiusMin,p.Resource.FieldRadiusMax,p.Resource.InitialYieldMin,p.Resource.InitialYieldMax,
+			p.Resource.CrystalDensity,p.Resource.HarvestAnchorCount,p.Resource.HarvesterLoadAmount,
+			p.Resource.GrowthEnabled ? 1 : 0,p.Resource.GrowthRatePerSecond,
 		p.Features.Forests ? 1 : 0,p.Features.Settlements ? 1 : 0,p.Features.Tunnels ? 1 : 0,
 			p.Features.Highways ? 1 : 0,p.Features.TiberiumFields ? 1 : 0,
 		p.Retry.MaxLocalRetriesPerStage,p.Retry.MaxAlternateCandidatesPerFeature,

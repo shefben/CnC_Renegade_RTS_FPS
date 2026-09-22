@@ -22,10 +22,27 @@ weighting and default width -- a question of how important a route is. `Road_Gra
 Road_Class` maps it down to `RoadClassType`'s three for the question `RoadSystem` actually asks:
 which physical rendering/grading tier a road belongs to.
 
-Default widths are fixed, documented constants (16m highway down to 4m dirt track), not Section
-10A.1's real Humvee-derived formula. That formula needs a specific vehicle definition name --
-exactly the kind of enumerable content identifier this project does not guess -- so the real
-derivation waits for one to be confirmed.
+Default widths are Section 10A.1's own real derivation now, not fixed placeholders. Rather than
+name a live GameObj definition and guess at a preset identifier, `GDI_HUMVEE_WIDTH` (2.556 world
+units) is read directly out of the shipped `Data/always.dat`: the MIX1 archive format
+(`Code/wwlib/mixfile.cpp`) locates `v_gdi_humvee.w3d` by CRC without guessing an offset, and the
+W3D box chunk format (`Code/ww3d2/w3d_file.h`) reads the `V_GDI_HUMVEE.WORLDBOX` sub-object's own
+Y extent -- the same canonical physics collision envelope `WorldMetricsClass::Resolve_Extents`
+would load at runtime, just read offline instead of from a live session. The axis (Y is lateral
+width, not X) is confirmed against two other vehicles' own WORLDBOX chunks
+(`v_nod_buggy.w3d`, `v_gdi_apc_m.w3d`), both showing the same length > width > height ordering.
+`ROAD_GRAPH_NORMAL_LANE_WIDTH` applies 10A.1's own formula (`C = max(0.35m, H*0.15)`,
+`NormalLaneWidth = max(H+2C, H*1.30)`) using `WorldMetricsClass::Get_World_Units_Per_Meter`
+(resolved 1:1 -- see that method's own comment) for the metre term, and each class's width is
+that times Section 10A.3's own default lane count (4/2/2/2/2/1). See
+`Code/Combat/roadgraphgenerator.cpp`'s own header comment above `GDI_HUMVEE_WIDTH` for the full
+derivation, byte layout included.
+
+Not resolved by this: Section 10A.2's full `RoadCrossSection` descriptor (shoulder/median/
+sidewalk fields beyond the existing separate `ROAD_GRAPH_CLASS_SHOULDER` array), lane-level
+geometry (`RoadSplineClass` has no lane-count field, unchanged from Phase 8), and per-class
+turning-radius/traversal-envelope validation (10A.1's own "required routes must also pass
+traversal-envelope validation" is not implemented).
 
 ## The routing cost field
 

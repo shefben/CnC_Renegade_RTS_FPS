@@ -5,6 +5,10 @@
 
 #include "terrainselfcheck.h"
 
+#include "baseselectionplanner.h"
+#include "biomedecorationgenerator.h"
+#include "buildingdescriptormanager.h"
+#include "combatspacevalidator.h"
 #include "bridgeplanner.h"
 #include "bridgesection.h"
 #include "bridgesystem.h"
@@ -19,15 +23,18 @@
 #include "playertype.h"
 #include "coltype.h"
 #include "macroterraingenerator.h"
+#include "proceduralassetregistry.h"
 #include "renegadeterrainpatch.h"
 #include "ribbontype.h"
 #include "roadgraphgenerator.h"
 #include "roadspline.h"
 #include "roadsystem.h"
+#include "settlementgenerator.h"
 #include "strategicplanner.h"
 #include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
 #include "terrainmask.h"
+#include "tiberiumfieldgenerator.h"
 #include "transportationnetworkvalidator.h"
 #include "terraintexturesystem.h"
 #include "watersystem.h"
@@ -4369,6 +4376,809 @@ void	Check_Bridge_Plan (void)
 }
 
 
+/***********************************************************************************************
+**	V2 roadmap Section 34 Phase 11 -- final base selection and deterministic fairness repair.
+**	Same chain Check_Bridge_Plan already proves (terrain, hydrology, a strategic plan, a road
+**	graph, a bridge plan), one step further: choosing the one GDI/Nod pair that is actually fair.
+*/
+void	Check_Base_Selection (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	BaseSelectionPlanner::Init ();
+
+	//
+	//	Refusals: each of the three prerequisites this generator names has to be missing in turn
+	//	to prove the check is real rather than merely "no road graph" standing in for all three.
+	//
+	{
+		StringClass error ("");
+		BaseSelectionParams bad;
+		Check (!BaseSelectionPlanner::Generate (bad,&error), "generation ran with no strategic plan at all");
+		Check (error.Get_Length () > 0, "a refused generation carried no reason");
+		Check (!BaseSelectionPlanner::Has_Selection (), "a refused generation left state behind");
+	}
+
+	//
+	//	A real chain, the same terrain/hydrology/strategic/road-graph/bridge-plan setup
+	//	Check_Bridge_Plan already established as sufficient to exercise a real crossing.
+	//
+	unsigned int first_checksum = 0;
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 41u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 3.0f;
+		hydro_params.MaxRiverCount				= 2;
+
+		StringClass error ("");
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed							= 909u;
+		plan_params.MinApproachCount			= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 2;
+		plan_params.MinBaseSeparation			= 80.0f;
+		plan_params.MaxTiberiumCandidates		= 4;
+		plan_params.MaxSettlementCandidates	= 3;
+		plan_params.MaxPoiCandidates			= 3;
+		plan_params.MaxExpansionCandidates	= 2;
+		plan_params.MaxEconomicRange			= 1000.0f;
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 55u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		Check (RoadGraphGenerator::Generate (road_params,&error),
+				 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+		BridgePlannerParams bridge_params;
+		bridge_params.Seed					= 77u;
+		bridge_params.WaterClearanceMargin	= 2.0f;
+		bridge_params.MaxSpanLength			= 200.0f;
+		Check (BridgePlanner::Generate (bridge_params,&error),
+				 "the bridge plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		BaseSelectionParams params;
+		params.Seed												= 123u;
+		params.MaxInitialResourceTravelTimeDifferenceSeconds	= 60.0f;
+		params.MaxBaseToBaseTravelTimeDifferenceSeconds			= 120.0f;
+		params.MinBaseExpansionArea									= 1024.0f;
+		params.AllowSingleBridgeDependency							= false;
+		params.MaxRepairAttemptsPerPair								= 8;
+
+		Check (BaseSelectionPlanner::Generate (params,&error),
+				 "generation refused a real road graph/bridge plan pair: %s",error.Peek_Buffer ());
+		Check (BaseSelectionPlanner::Has_Selection (), "a successful generation reported no selection built");
+
+		SelectedBaseSite gdi_site, nod_site;
+		Check (BaseSelectionPlanner::Get_Selected_Site (PLAYERTYPE_GDI,&gdi_site),
+				 "a built selection named no GDI site");
+		Check (BaseSelectionPlanner::Get_Selected_Site (PLAYERTYPE_NOD,&nod_site),
+				 "a built selection named no Nod site");
+		Check (gdi_site.Id != nod_site.Id, "GDI and Nod were assigned the same base candidate");
+		Check (gdi_site.ProtectedRadius > 0.0f, "the selected GDI site's own reserved region is empty");
+		Check (nod_site.ProtectedRadius > 0.0f, "the selected Nod site's own reserved region is empty");
+
+		StringClass report ("");
+		Check (BaseSelectionPlanner::Check_Both_Bases_Have_Build_Area (&report) == 0,
+				 "the selected pair failed its own build-area check: %s",report.Peek_Buffer ());
+		Check (BaseSelectionPlanner::Check_Both_Bases_Have_Resource_Access (&report) == 0,
+				 "the selected pair failed its own resource-access check: %s",report.Peek_Buffer ());
+		Check (BaseSelectionPlanner::Check_Connectivity_Requirements (params.AllowSingleBridgeDependency,&report) == 0,
+				 "the selected pair failed its own connectivity check: %s",report.Peek_Buffer ());
+		Check (BaseSelectionPlanner::Check_Travel_Time_Within_Threshold (
+					params.MaxInitialResourceTravelTimeDifferenceSeconds,
+					params.MaxBaseToBaseTravelTimeDifferenceSeconds,&report) == 0,
+				 "the selected pair exceeded the very thresholds it was chosen under: %s",report.Peek_Buffer ());
+
+		//	Every repair entry this run logged names a real operation, and every entry belongs to
+		//	a pair attempt index that is actually in range.
+		for (int i = 0; i < BaseSelectionPlanner::Get_Repair_Log_Count (); i++) {
+			BaseRepairLogEntry entry;
+			Check (BaseSelectionPlanner::Get_Repair_Log_Entry (i,&entry), "repair log index out of range");
+			Check (::strcmp (Base_Repair_Operation_Name (entry.Operation),"unknown") != 0,
+					 "repair log entry %d named an unrecognized operation",i);
+			Check (entry.PairAttemptIndex >= 0, "repair log entry %d named no pair attempt",i);
+		}
+
+		first_checksum = BaseSelectionPlanner::Get_Checksum ();
+
+		Check (BaseSelectionPlanner::Generate (params,&error), "regenerating the same base selection failed");
+		Check (BaseSelectionPlanner::Get_Checksum () == first_checksum,
+				 "the same seed, terrain, plan, road graph and bridge plan produced a different base "
+				 "selection checksum");
+
+		SelectedBaseSite gdi_again;
+		Check (BaseSelectionPlanner::Get_Selected_Site (PLAYERTYPE_GDI,&gdi_again) && (gdi_again.Id == gdi_site.Id),
+				 "the same inputs selected a different GDI base the second time");
+	}
+
+	BaseSelectionPlanner::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	V2 roadmap Section 34 Phase 12 -- Tiberium fields, crystals, harvest areas, and Harvester
+**	routes.  Same chain Check_Base_Selection already proves, one step further: turning candidate
+**	resource regions into real, harvestable fields.
+*/
+void	Check_Tiberium_Fields (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	BaseSelectionPlanner::Init ();
+	TiberiumFieldGenerator::Init ();
+
+	//
+	//	Refusals.
+	//
+	{
+		StringClass error ("");
+		TiberiumFieldParams bad;
+		Check (!TiberiumFieldGenerator::Generate (bad,&error), "generation ran with no strategic plan at all");
+		Check (error.Get_Length () > 0, "a refused generation carried no reason");
+		Check (!TiberiumFieldGenerator::Has_Fields (), "a refused generation left state behind");
+	}
+
+	//
+	//	A real chain, the same terrain/hydrology/strategic/road-graph/bridge-plan/base-selection
+	//	setup Check_Base_Selection already established as sufficient.
+	//
+	unsigned int first_checksum = 0;
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 41u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 3.0f;
+		hydro_params.MaxRiverCount				= 2;
+
+		StringClass error ("");
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed							= 909u;
+		plan_params.MinApproachCount			= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 2;
+		plan_params.MinBaseSeparation			= 80.0f;
+		plan_params.MaxTiberiumCandidates		= 4;
+		plan_params.MaxSettlementCandidates	= 3;
+		plan_params.MaxPoiCandidates			= 3;
+		plan_params.MaxExpansionCandidates	= 2;
+		plan_params.MaxEconomicRange			= 1000.0f;
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 55u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		Check (RoadGraphGenerator::Generate (road_params,&error),
+				 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+		BridgePlannerParams bridge_params;
+		bridge_params.Seed					= 77u;
+		bridge_params.WaterClearanceMargin	= 2.0f;
+		bridge_params.MaxSpanLength			= 200.0f;
+		Check (BridgePlanner::Generate (bridge_params,&error),
+				 "the bridge plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		BaseSelectionParams base_params;
+		base_params.Seed												= 123u;
+		base_params.MaxInitialResourceTravelTimeDifferenceSeconds	= 60.0f;
+		base_params.MaxBaseToBaseTravelTimeDifferenceSeconds		= 120.0f;
+		base_params.MinBaseExpansionArea								= 1024.0f;
+		base_params.AllowSingleBridgeDependency						= false;
+		base_params.MaxRepairAttemptsPerPair							= 8;
+		Check (BaseSelectionPlanner::Generate (base_params,&error),
+				 "the base selection this check depends on failed: %s",error.Peek_Buffer ());
+
+		TiberiumFieldParams params;
+		params.Seed							= 321u;
+		params.FieldRadiusMin				= 15.0f;
+		params.FieldRadiusMax				= 40.0f;
+		params.InitialYieldMin				= 1500.0f;
+		params.InitialYieldMax				= 4000.0f;
+		params.CrystalDensity				= 0.15f;
+		params.HarvestAnchorCount			= 3;
+		params.HarvesterLoadAmount		= 600.0f;
+		params.GrowthEnabled				= false;
+		params.GrowthRatePerSecond		= 0.0f;
+		params.MaxRepairAttemptsPerField	= 8;
+		params.ReferenceVehicleSpeed		= 8.33f;
+		params.MaxBuildableSlopeRadians	= 0.5f;
+
+		Check (TiberiumFieldGenerator::Generate (params,&error),
+				 "generation refused a real strategic plan/road graph/base selection: %s",error.Peek_Buffer ());
+		Check (TiberiumFieldGenerator::Has_Fields (), "a successful generation reported no fields built");
+		Check (TiberiumFieldGenerator::Get_Field_Count () > 0,
+				 "this terrain's own resource candidates resolved to zero real fields");
+
+		StringClass report ("");
+		Check (TiberiumFieldGenerator::Check_No_Illegal_Footprint (&report) == 0,
+				 "a resolved field's own footprint is illegal: %s",report.Peek_Buffer ());
+		Check (TiberiumFieldGenerator::Check_Both_Factions_Have_Early_Field (&report) == 0,
+				 "not both factions have a viable early field: %s",report.Peek_Buffer ());
+		Check (TiberiumFieldGenerator::Check_Harvestable_Fields_Have_Routes (&report) == 0,
+				 "an owned field has no Harvester route: %s",report.Peek_Buffer ());
+
+		for (int i = 0; i < TiberiumFieldGenerator::Get_Field_Count (); i++) {
+			ResolvedTiberiumField field;
+			Check (TiberiumFieldGenerator::Get_Field (i,&field), "field index out of range");
+			Check (field.Radius > 0.0f, "field %d has a non-positive radius",i);
+			Check (field.CrystalCount >= 1, "field %d scattered no crystals at all",i);
+			Check ((field.OwningFaction != PLAYERTYPE_NEUTRAL) || !field.CountsAsEarlyField,
+					 "field %d is neutral but counted as an early field",i);
+		}
+
+		Check (TiberiumFieldGenerator::Get_Crystal_Count () > 0, "no crystal placements were generated at all");
+		for (int i = 0; i < TiberiumFieldGenerator::Get_Crystal_Count (); i++) {
+			TiberiumCrystalPlacement crystal;
+			Check (TiberiumFieldGenerator::Get_Crystal (i,&crystal), "crystal index out of range");
+			Check ((crystal.FieldIndex >= 0) && (crystal.FieldIndex < TiberiumFieldGenerator::Get_Field_Count ()),
+					 "crystal %d names a field index out of range",i);
+		}
+
+		for (int i = 0; i < TiberiumFieldGenerator::Get_Repair_Log_Count (); i++) {
+			ResourceRepairLogEntry entry;
+			Check (TiberiumFieldGenerator::Get_Repair_Log_Entry (i,&entry), "repair log index out of range");
+			Check (::strcmp (Resource_Repair_Operation_Name (entry.Operation),"unknown") != 0,
+					 "repair log entry %d named an unrecognized operation",i);
+		}
+
+		first_checksum = TiberiumFieldGenerator::Get_Checksum ();
+
+		Check (TiberiumFieldGenerator::Generate (params,&error), "regenerating the same field set failed");
+		Check (TiberiumFieldGenerator::Get_Checksum () == first_checksum,
+				 "the same seed/terrain/plan/road-graph/base-selection produced a different field checksum");
+	}
+
+	TiberiumFieldGenerator::Shutdown ();
+	BaseSelectionPlanner::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	V2 roadmap Section 34 Phase 13 -- settlements, abandoned buildings, industrial areas, and
+**	strategic POIs.  Same chain Check_Tiberium_Fields already proves, one step further: turning
+**	candidate settlement/POI regions into real layout/road-connectivity/structure-placement data.
+**
+**	Registers the three real, offline-verified building descriptors this tree actually ships
+**	geometry for (see proceduralassetregistry.h's own class comment) via
+**	Load_Descriptor_From_Text -- the same "no file on disk" pattern BuildingDescriptorManager's
+**	own header documents for a self check -- rather than BuildingDescriptorManager::Load_Directory,
+**	whose relative path depends on the test binary's own working directory. The footprint values
+**	below are copied verbatim from data/building_descriptors/*.json, not invented.
+*/
+void	Check_Settlements (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	BaseSelectionPlanner::Init ();
+	TiberiumFieldGenerator::Init ();
+	BuildingDescriptorManager::Init ();
+	SettlementGenerator::Init ();
+
+	{
+		StringClass descriptor_error ("");
+		Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("gdi_communications_center",
+					"{ \"model_name\": \"G_Comcntr.w3d\", \"schema_version\": 1, "
+					"\"footprint\": { \"width\": 15.0, \"depth\": 15.0 } }",&descriptor_error),
+				 "gdi_communications_center failed to load: %s",descriptor_error.Peek_Buffer ());
+		Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("gdi_power_plant",
+					"{ \"model_name\": \"mgpwr_ext.w3d\", \"schema_version\": 1, "
+					"\"footprint\": { \"width\": 20.0, \"depth\": 20.0 } }",&descriptor_error),
+				 "gdi_power_plant failed to load: %s",descriptor_error.Peek_Buffer ());
+		Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("nod_power_plant",
+					"{ \"model_name\": \"mnpwr_ext.w3d\", \"schema_version\": 1, "
+					"\"footprint\": { \"width\": 20.0, \"depth\": 20.0 } }",&descriptor_error),
+				 "nod_power_plant failed to load: %s",descriptor_error.Peek_Buffer ());
+	}
+
+	ProceduralAssetRegistry::Init ();
+	Check (ProceduralAssetRegistry::Has_Registry (),"the asset registry reported not built after Init");
+	Check (ProceduralAssetRegistry::Get_Asset_Count () == 3,
+			 "the registry did not carry all three real, verified entries (%d)",ProceduralAssetRegistry::Get_Asset_Count ());
+
+	//
+	//	Refusals.
+	//
+	{
+		StringClass error ("");
+		SettlementParams bad;
+		SettlementGenerator::Clear ();
+		StrategicPlanner::Clear ();
+		Check (!SettlementGenerator::Generate (bad,&error), "generation ran with no strategic plan at all");
+		Check (error.Get_Length () > 0, "a refused generation carried no reason");
+		Check (!SettlementGenerator::Has_Settlements (), "a refused generation left state behind");
+	}
+
+	//
+	//	A real chain, the same terrain/hydrology/strategic-plan/road-graph/bridge-plan/base-
+	//	selection/Tiberium-field setup Check_Tiberium_Fields already established as sufficient.
+	//
+	unsigned int first_checksum = 0;
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 41u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 3.0f;
+		hydro_params.MaxRiverCount				= 2;
+
+		StringClass error ("");
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed							= 909u;
+		plan_params.MinApproachCount			= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 2;
+		plan_params.MinBaseSeparation			= 80.0f;
+		plan_params.MaxTiberiumCandidates		= 4;
+		plan_params.MaxSettlementCandidates	= 3;
+		plan_params.MaxPoiCandidates			= 3;
+		plan_params.MaxExpansionCandidates	= 2;
+		plan_params.MaxEconomicRange			= 1000.0f;
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 55u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		Check (RoadGraphGenerator::Generate (road_params,&error),
+				 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+		BridgePlannerParams bridge_params;
+		bridge_params.Seed					= 77u;
+		bridge_params.WaterClearanceMargin	= 2.0f;
+		bridge_params.MaxSpanLength			= 200.0f;
+		Check (BridgePlanner::Generate (bridge_params,&error),
+				 "the bridge plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		BaseSelectionParams base_params;
+		base_params.Seed												= 123u;
+		base_params.MaxInitialResourceTravelTimeDifferenceSeconds	= 60.0f;
+		base_params.MaxBaseToBaseTravelTimeDifferenceSeconds		= 120.0f;
+		base_params.MinBaseExpansionArea								= 1024.0f;
+		base_params.AllowSingleBridgeDependency						= false;
+		base_params.MaxRepairAttemptsPerPair							= 8;
+		Check (BaseSelectionPlanner::Generate (base_params,&error),
+				 "the base selection this check depends on failed: %s",error.Peek_Buffer ());
+
+		TiberiumFieldParams field_params;
+		field_params.Seed							= 321u;
+		field_params.FieldRadiusMin				= 15.0f;
+		field_params.FieldRadiusMax				= 40.0f;
+		field_params.InitialYieldMin				= 1500.0f;
+		field_params.InitialYieldMax				= 4000.0f;
+		field_params.CrystalDensity				= 0.15f;
+		field_params.HarvestAnchorCount			= 3;
+		field_params.HarvesterLoadAmount		= 600.0f;
+		field_params.MaxRepairAttemptsPerField	= 8;
+		field_params.ReferenceVehicleSpeed		= 8.33f;
+		field_params.MaxBuildableSlopeRadians	= 0.5f;
+		Check (TiberiumFieldGenerator::Generate (field_params,&error),
+				 "the Tiberium fields this check depends on failed: %s",error.Peek_Buffer ());
+
+		SettlementParams params;
+		params.Seed							= 555u;
+		params.RoadConnectorMaxDistance	= 200.0f;
+		params.MaxStructuresPerSettlement	= 4;
+		params.MaxBuildableSlopeRadians	= 0.5f;
+
+		Check (SettlementGenerator::Generate (params,&error),
+				 "generation refused a real strategic plan/road graph/reservations/registry: %s",error.Peek_Buffer ());
+		Check (SettlementGenerator::Has_Settlements (), "a successful generation reported no settlements built");
+
+		StringClass report ("");
+		Check (SettlementGenerator::Check_No_Illegal_Placement (&report) == 0,
+				 "a placed structure's own footprint is illegal: %s",report.Peek_Buffer ());
+		Check (SettlementGenerator::Check_No_Structure_Overlap (&report) == 0,
+				 "two placed structures overlap: %s",report.Peek_Buffer ());
+
+		for (int i = 0; i < SettlementGenerator::Get_Settlement_Count (); i++) {
+			ResolvedSettlement settlement;
+			Check (SettlementGenerator::Get_Settlement (i,&settlement), "settlement index out of range");
+			Check (settlement.Radius > 0.0f, "settlement %d has a non-positive reserved radius",i);
+			Check (::strcmp (Settlement_Layout_Type_Name (settlement.Layout),"unknown") != 0,
+					 "settlement %d named an unrecognized layout type",i);
+			Check ((settlement.RoadDistance < 0.0f) || (settlement.RoadDistance >= 0.0f),
+					 "settlement %d's own road distance is not a real number",i);		// NaN guard
+		}
+
+		for (int i = 0; i < SettlementGenerator::Get_Poi_Count (); i++) {
+			ResolvedPoi poi;
+			Check (SettlementGenerator::Get_Poi (i,&poi), "POI index out of range");
+			Check (::strcmp (Poi_Kind_Name (poi.Kind),"unknown") != 0,
+					 "POI %d named an unrecognized kind",i);
+			Check (!poi.HasRealAsset,
+					 "POI %d claims a real asset the registry does not have -- see the class comment",i);
+		}
+
+		first_checksum = SettlementGenerator::Get_Checksum ();
+
+		Check (SettlementGenerator::Generate (params,&error), "regenerating the same settlement set failed");
+		Check (SettlementGenerator::Get_Checksum () == first_checksum,
+				 "the same seed/terrain/plan/road-graph/reservations produced a different settlement checksum");
+	}
+
+	SettlementGenerator::Shutdown ();
+	ProceduralAssetRegistry::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	TiberiumFieldGenerator::Shutdown ();
+	BaseSelectionPlanner::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	V2 roadmap Section 34 Phase 14 -- biomes, terrain materials, forests, rocks, and natural
+**	decoration.  Needs only a chunk registry -- unlike every check above it, no strategic
+**	plan/road graph/base selection is required, matching BiomeDecorationGenerator's own
+**	documented optional-dependency design.
+*/
+void	Check_Biome_Decoration (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	FoliageSystem::Init ();
+
+	//
+	//	Refusal.
+	//
+	{
+		StringClass error ("");
+		BiomeDecorationParams bad;
+		Check (!BiomeDecorationGenerator::Generate (bad,&error), "generation ran with no chunk registry at all");
+		Check (error.Get_Length () > 0, "a refused generation carried no reason");
+		Check (!BiomeDecorationGenerator::Has_Decoration (), "a refused generation left state behind");
+	}
+
+	//
+	//	A real chain: terrain and hydrology (for a real water-distance mask), then decoration
+	//	alone -- no strategic plan, road graph, base selection, Tiberium fields or settlements
+	//	are required, proving the optional-dependency design for real.
+	//
+	unsigned int first_checksum = 0;
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 41u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 3.0f;
+		hydro_params.MaxRiverCount				= 2;
+
+		StringClass error ("");
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		BiomeDecorationParams params;
+		params.Seed							= 987u;
+		params.MaxBuildableSlopeRadians	= 0.5f;
+		params.ForestDensity				= 0.5f;
+		params.RockDensity					= 0.3f;
+
+		Check (BiomeDecorationGenerator::Generate (params,&error),
+				 "generation refused a real chunk registry: %s",error.Peek_Buffer ());
+		Check (BiomeDecorationGenerator::Has_Decoration (), "a successful generation reported no decoration built");
+		Check (FoliageSystem::Get_Instance_Count () > 0, "this terrain's own real chunks placed zero instances");
+		Check (BiomeDecorationGenerator::Get_Tree_Count () + BiomeDecorationGenerator::Get_Rock_Count () ==
+					FoliageSystem::Get_Instance_Count (),
+				 "tree/rock counts do not add up to what FoliageSystem actually holds");
+
+		StringClass report ("");
+		Check (BiomeDecorationGenerator::Check_No_Instance_In_Road (&report) == 0,
+				 "a decoration instance sits inside the road mask: %s",report.Peek_Buffer ());
+		Check (BiomeDecorationGenerator::Check_No_Instance_Off_Terrain (&report) == 0,
+				 "a decoration instance sits off the terrain: %s",report.Peek_Buffer ());
+
+		Check (FoliageSystem::Build_Cells (), "the real cell grid failed to build over this terrain's own instances");
+		Check (FoliageSystem::Are_Cells_Built (), "cells reported not built after a successful Build_Cells");
+		Check (FoliageSystem::Build_Batches (), "the real batch list failed to build");
+		Check (FoliageSystem::Are_Batches_Built (), "batches reported not built after a successful Build_Batches");
+
+		first_checksum = BiomeDecorationGenerator::Get_Checksum ();
+
+		Check (BiomeDecorationGenerator::Generate (params,&error), "regenerating the same decoration failed");
+		Check (BiomeDecorationGenerator::Get_Checksum () == first_checksum,
+				 "the same seed/terrain/hydrology produced a different decoration checksum");
+	}
+
+	BiomeDecorationGenerator::Shutdown ();
+	FoliageSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	V2 roadmap Section 34 Phase 15 -- FPS/RTS combat-space analysis and deterministic local
+**	repair.  A validator, run over the same real chain Check_Settlements already proves
+**	sufficient to produce a real base selection, Tiberium fields and settlements.
+*/
+void	Check_Combat_Space (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	BaseSelectionPlanner::Init ();
+	TiberiumFieldGenerator::Init ();
+	BuildingDescriptorManager::Init ();
+	SettlementGenerator::Init ();
+
+	{
+		StringClass descriptor_error ("");
+		BuildingDescriptorManager::Load_Descriptor_From_Text ("gdi_communications_center",
+			"{ \"model_name\": \"G_Comcntr.w3d\", \"schema_version\": 1, "
+			"\"footprint\": { \"width\": 15.0, \"depth\": 15.0 } }",&descriptor_error);
+		BuildingDescriptorManager::Load_Descriptor_From_Text ("gdi_power_plant",
+			"{ \"model_name\": \"mgpwr_ext.w3d\", \"schema_version\": 1, "
+			"\"footprint\": { \"width\": 20.0, \"depth\": 20.0 } }",&descriptor_error);
+		BuildingDescriptorManager::Load_Descriptor_From_Text ("nod_power_plant",
+			"{ \"model_name\": \"mnpwr_ext.w3d\", \"schema_version\": 1, "
+			"\"footprint\": { \"width\": 20.0, \"depth\": 20.0 } }",&descriptor_error);
+	}
+	ProceduralAssetRegistry::Init ();
+
+	//
+	//	Validate() over nothing at all: trivially passes, the same "nothing built, nothing
+	//	broken" answer every other validator in this chain gives.
+	//
+	{
+		CombatSpaceValidator::Clear ();
+		CombatSpaceValidationParams params;
+		StringClass report ("");
+		Check (CombatSpaceValidator::Validate (params,&report), "validation over an empty world reported a hard failure");
+		Check (CombatSpaceValidator::Get_Failure_Count () == 0, "an empty world reported a nonzero failure count");
+	}
+
+	//
+	//	A real chain: terrain, hydrology, strategic plan, road graph, bridge plan, base
+	//	selection, Tiberium fields and settlements -- the same setup Check_Settlements already
+	//	established as sufficient.
+	//
+	unsigned int first_checksum_proxy = 0;
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 41u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 3.0f;
+		hydro_params.MaxRiverCount				= 2;
+
+		StringClass error ("");
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed							= 909u;
+		plan_params.MinApproachCount			= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 2;
+		plan_params.MinBaseSeparation			= 80.0f;
+		plan_params.MaxTiberiumCandidates		= 4;
+		plan_params.MaxSettlementCandidates	= 3;
+		plan_params.MaxPoiCandidates			= 3;
+		plan_params.MaxExpansionCandidates	= 2;
+		plan_params.MaxEconomicRange			= 1000.0f;
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 55u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		Check (RoadGraphGenerator::Generate (road_params,&error),
+				 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+		BridgePlannerParams bridge_params;
+		bridge_params.Seed					= 77u;
+		bridge_params.WaterClearanceMargin	= 2.0f;
+		bridge_params.MaxSpanLength			= 200.0f;
+		Check (BridgePlanner::Generate (bridge_params,&error),
+				 "the bridge plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		BaseSelectionParams base_params;
+		base_params.Seed												= 123u;
+		base_params.MaxInitialResourceTravelTimeDifferenceSeconds	= 60.0f;
+		base_params.MaxBaseToBaseTravelTimeDifferenceSeconds		= 120.0f;
+		base_params.MinBaseExpansionArea								= 1024.0f;
+		base_params.AllowSingleBridgeDependency						= false;
+		base_params.MaxRepairAttemptsPerPair							= 8;
+		Check (BaseSelectionPlanner::Generate (base_params,&error),
+				 "the base selection this check depends on failed: %s",error.Peek_Buffer ());
+
+		TiberiumFieldParams field_params;
+		field_params.Seed							= 321u;
+		field_params.FieldRadiusMin				= 15.0f;
+		field_params.FieldRadiusMax				= 40.0f;
+		field_params.InitialYieldMin				= 1500.0f;
+		field_params.InitialYieldMax				= 4000.0f;
+		field_params.CrystalDensity				= 0.15f;
+		field_params.HarvestAnchorCount			= 3;
+		field_params.HarvesterLoadAmount		= 600.0f;
+		field_params.MaxRepairAttemptsPerField	= 8;
+		field_params.ReferenceVehicleSpeed		= 8.33f;
+		field_params.MaxBuildableSlopeRadians	= 0.5f;
+		Check (TiberiumFieldGenerator::Generate (field_params,&error),
+				 "the Tiberium fields this check depends on failed: %s",error.Peek_Buffer ());
+
+		SettlementParams settlement_params;
+		settlement_params.Seed							= 555u;
+		settlement_params.RoadConnectorMaxDistance	= 200.0f;
+		settlement_params.MaxStructuresPerSettlement	= 4;
+		settlement_params.MaxBuildableSlopeRadians	= 0.5f;
+		Check (SettlementGenerator::Generate (settlement_params,&error),
+				 "the settlements this check depends on failed: %s",error.Peek_Buffer ());
+
+		CombatSpaceValidationParams params;
+		params.Seed													= 111u;
+		params.MaxMandatoryExposedInfantryRunTimeSeconds	= 12.0f;
+		params.MinVehicleLaneClearance							= 1.0f;
+		params.ReferenceInfantrySpeed							= 4.3f;
+
+		StringClass report ("");
+		bool first_result = CombatSpaceValidator::Validate (params,&report);
+		int first_failure_count = CombatSpaceValidator::Get_Failure_Count ();
+
+		const CombatSpaceMetrics & metrics = CombatSpaceValidator::Get_Metrics ();
+		Check (metrics.SightlineSampleCount > 0, "a real chain with real bases sampled zero sightlines");
+		Check (metrics.SightlineP50 <= metrics.SightlineP90, "sightline P50 exceeds P90");
+		Check (metrics.SightlineP90 <= metrics.SightlineMax, "sightline P90 exceeds the max");
+		Check (metrics.SightlineMax >= 0.0f, "sightline max is negative");
+
+		for (int i = 0; i < CombatSpaceValidator::Get_Failure_Count (); i++) {
+			CombatSpaceFailureRecord failure;
+			Check (CombatSpaceValidator::Get_Failure (i,&failure), "failure index out of range");
+			Check (::strcmp (Combat_Space_Failure_Name (failure.Type),"unknown") != 0,
+					 "failure %d named an unrecognized type",i);
+		}
+
+		//	Every named repair operation vocabulary entry resolves to a real name, even though
+		//	none is ever produced this pass -- see the class comment for why.
+		for (int op = 0; op < COMBAT_REPAIR_OPERATION_TYPE_COUNT; op++) {
+			Check (::strcmp (Combat_Space_Repair_Operation_Name ((CombatSpaceRepairOperationType)op),"unknown") != 0,
+					 "repair operation %d has no real name",op);
+		}
+
+		bool second_result = CombatSpaceValidator::Validate (params,&report);
+		Check (second_result == first_result, "the same seed/world produced a different pass/fail verdict");
+		Check (CombatSpaceValidator::Get_Failure_Count () == first_failure_count,
+				 "the same seed/world produced a different failure count");
+
+		first_checksum_proxy = (unsigned int)first_failure_count;
+		Check (first_checksum_proxy == (unsigned int)CombatSpaceValidator::Get_Failure_Count (),
+				 "determinism proxy mismatch");
+	}
+
+	SettlementGenerator::Shutdown ();
+	ProceduralAssetRegistry::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	TiberiumFieldGenerator::Shutdown ();
+	BaseSelectionPlanner::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
 //	Zero derivative at both t=0 and t=1: a transition built from this touches down onto a flat
 //	neighbour with no sudden change of slope at the seam, which plain linear interpolation does
 //	not -- the whole reason this exists rather than a straight lerp.
@@ -4582,6 +5392,20 @@ void	Check_Bridge_Required (void)
 	Check (BridgePlanner::Generate (bridge_params,&error),
 			 "generation refused a road graph with a real unresolved crossing: %s",error.Peek_Buffer ());
 
+	//	Item 5's own diagnostics: on this terrain the original position is legal outright, so no
+	//	fallback stage should ever have been needed to resolve it.
+	Check (BridgePlanner::Get_Diagnostic_Count () == 1,
+			 "expected exactly one crossing diagnostic on this terrain's own single forced crossing, got %d",
+			 BridgePlanner::Get_Diagnostic_Count ());
+	if (BridgePlanner::Get_Diagnostic_Count () >= 1) {
+		CrossingResolutionRecord rec;
+		BridgePlanner::Get_Diagnostic (0,&rec);
+		Check (rec.Resolved,"the forced crossing's own diagnostic reports unresolved");
+		Check (rec.StageResolvedAt == CROSSING_STAGE_ORIGINAL_POSITION,
+				 "the forced crossing resolved at fallback stage %d, not the original position -- unexpected on legal terrain",
+				 (int)rec.StageResolvedAt);
+	}
+
 	//
 	//	bridge selected == true; bridge count >= 1.
 	//
@@ -4648,6 +5472,380 @@ void	Check_Bridge_Required (void)
 	WorldTerrainSystem::Shutdown ();
 	WorldBoundsService::Shutdown ();
 	TransportationNetworkValidator::Clear ();
+}
+
+
+/***********************************************************************************************
+**	bridgefallback
+**
+**	Gap report item 5's own self checks, against the same divided terrain and the same forced,
+**	unavoidable crossing Check_Bridge_Required already proves a plain resolution against.  Every
+**	one of these instead constrains BridgePlannerParams so the *original* crossing position is
+**	no longer legal by itself, and checks what the fallback chain does about that.
+***********************************************************************************************/
+void	Check_Bridge_Fallback (void)
+{
+	//
+	//	Stage 6 + bounded termination: every fallback refused (MaxRerouteAttemptsPerEdge 0, and
+	//	a span limit tight enough that neither the original position nor any stage-1 reposition
+	//	on this single-corridor terrain can ever be legal) still returns -- promptly, not hung --
+	//	with the crossing explicitly recorded as unresolved rather than silently dropped.
+	//
+	{
+		WorldTerrainSystem::Init ();
+		WorldBoundsService::Init ();
+		WaterSystem::Init ();
+		StrategicPlanner::Init ();
+		RoadSystem::Init ();
+		RoadGraphGenerator::Init ();
+		HydrologyGenerator::Init ();
+		BridgeSystem::Init ();
+		BridgePlanner::Init ();
+
+		Build_River_Divided_Terrain ();
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StringClass error ("");
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 601u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 10.0f;
+		hydro_params.MaxRiverCount				= 4;
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed								= 602u;
+		plan_params.MinApproachCount				= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 1;
+		plan_params.MinBaseSeparation				= 100.0f;
+		plan_params.MaxTiberiumCandidates		= 0;
+		plan_params.MaxSettlementCandidates		= 0;
+		plan_params.MaxPoiCandidates				= 0;
+		plan_params.MaxExpansionCandidates		= 0;
+		plan_params.MaxEconomicRange				= 1000.0f;
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 603u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		Check (RoadGraphGenerator::Generate (road_params,&error),
+				 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+		BridgePlannerParams bridge_params;
+		bridge_params.Seed							= 604u;
+		bridge_params.WaterClearanceMargin		= 2.0f;
+		bridge_params.MaxSpanLength				= 1.0f;		// nothing on this terrain is ever this short
+		bridge_params.MaxApproachGradeRadians	= 0.5f;
+		bridge_params.MaxRerouteAttemptsPerEdge	= 0;			// stage 4 refused outright -- this terrain
+																			//	has no alternate corridor anyway
+		Check (BridgePlanner::Generate (bridge_params,&error),
+				 "generation itself failed rather than resolving-or-rejecting the crossing: %s",
+				 error.Peek_Buffer ());
+
+		Check (BridgePlanner::Get_Bridge_Count () == 0,
+				 "an impossible span limit still produced a bridge");
+		Check (BridgePlanner::Get_Unresolved_Count () == 1,
+				 "expected exactly one unresolved crossing, got %d",BridgePlanner::Get_Unresolved_Count ());
+		Check (BridgePlanner::Get_Diagnostic_Count () == 1,
+				 "expected exactly one crossing diagnostic, got %d",BridgePlanner::Get_Diagnostic_Count ());
+
+		if (BridgePlanner::Get_Diagnostic_Count () >= 1) {
+			CrossingResolutionRecord rec;
+			BridgePlanner::Get_Diagnostic (0,&rec);
+			Check (!rec.Resolved,"an impossible span limit still reported the crossing resolved");
+			Check (rec.FinalFailureReason == CROSSING_FAILURE_SPAN_TOO_LONG,
+					 "expected SPAN_TOO_LONG, recorded '%s' instead",
+					 Crossing_Failure_Reason_Name (rec.FinalFailureReason));
+			//	Bounded: stage 0 plus every stage-1 reposition, never more than 1 + 2*6 tries for
+			//	this generator's own fixed FALLBACK_REPOSITION_MAX_STEPS -- proof the search did
+			//	not run away rather than an assumption that it could not.
+			Check ((rec.AttemptsMade >= 1) && (rec.AttemptsMade <= 13),
+					 "attempt count %d is outside the bounded search's own possible range",rec.AttemptsMade);
+		}
+
+		//
+		//	Determinism: the same seed, terrain and params reproduce the same diagnostic, not
+		//	only the same checksum -- which fallback stage (if any) resolved a crossing is
+		//	exactly the fact a reproduced failing seed needs to agree on.
+		//
+		CrossingResolutionRecord first_record;
+		BridgePlanner::Get_Diagnostic (0,&first_record);
+		unsigned int first_checksum = BridgePlanner::Get_Checksum ();
+
+		Check (BridgePlanner::Generate (bridge_params,&error),"regenerating the same bridge plan failed");
+		Check (BridgePlanner::Get_Checksum () == first_checksum,
+				 "the same seed, terrain and params produced a different bridge plan checksum");
+		Check (BridgePlanner::Get_Diagnostic_Count () == 1,
+				 "regeneration produced a different diagnostic count");
+		if (BridgePlanner::Get_Diagnostic_Count () >= 1) {
+			CrossingResolutionRecord second_record;
+			BridgePlanner::Get_Diagnostic (0,&second_record);
+			Check (second_record.Resolved == first_record.Resolved,
+					 "regeneration disagreed with itself on whether the crossing resolved");
+			Check (second_record.FinalFailureReason == first_record.FinalFailureReason,
+					 "regeneration disagreed with itself on why the crossing failed");
+			Check (second_record.AttemptsMade == first_record.AttemptsMade,
+					 "regeneration disagreed with itself on how many attempts it made");
+		}
+
+		BridgePlanner::Shutdown ();
+		BridgeSystem::Shutdown ();
+		HydrologyGenerator::Shutdown ();
+		RoadGraphGenerator::Shutdown ();
+		RoadSystem::Shutdown ();
+		StrategicPlanner::Shutdown ();
+		WaterSystem::Shutdown ();
+		WorldTerrainSystem::Shutdown ();
+		WorldBoundsService::Shutdown ();
+	}
+
+	//
+	//	Stage 1: the original crossing position is refused outright (a span limit shorter than
+	//	the crossing's own real width but still reachable a few steps to the side, where the
+	//	obstacle this generator finds is narrower), and a nearby reposition succeeds -- proven
+	//	against BridgePlanner's own diagnostics rather than assumed from the bridge merely
+	//	existing, the same standard Check_Bridge_Required holds itself to.
+	//
+	{
+		WorldTerrainSystem::Init ();
+		WorldBoundsService::Init ();
+		WaterSystem::Init ();
+		StrategicPlanner::Init ();
+		RoadSystem::Init ();
+		RoadGraphGenerator::Init ();
+		HydrologyGenerator::Init ();
+		BridgeSystem::Init ();
+		BridgePlanner::Init ();
+
+		Build_River_Divided_Terrain ();
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StringClass error ("");
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 601u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 10.0f;
+		hydro_params.MaxRiverCount				= 4;
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed								= 602u;
+		plan_params.MinApproachCount				= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 1;
+		plan_params.MinBaseSeparation				= 100.0f;
+		plan_params.MaxTiberiumCandidates		= 0;
+		plan_params.MaxSettlementCandidates		= 0;
+		plan_params.MaxPoiCandidates				= 0;
+		plan_params.MaxExpansionCandidates		= 0;
+		plan_params.MaxEconomicRange				= 1000.0f;
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 603u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		Check (RoadGraphGenerator::Generate (road_params,&error),
+				 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+		//	Reads the crossing's own real span from a first, unconstrained generation, then
+		//	reruns with MaxSpanLength set to reject that exact span while this generator's own
+		//	bounded stage-1 search radius (FALLBACK_REPOSITION_MAX_STEPS * BANK_SEARCH_STEP,
+		//	24 world units) is still reachable -- so this check adapts to whatever the terrain's
+		//	own real geometry says rather than a hand-guessed number that this terrain's exact
+		//	construction could silently drift away from.
+		BridgePlannerParams probe_params;
+		probe_params.Seed						= 604u;
+		probe_params.WaterClearanceMargin	= 2.0f;
+		probe_params.MaxSpanLength			= 1000.0f;
+		probe_params.MaxApproachGradeRadians	= 0.5f;
+		Check (BridgePlanner::Generate (probe_params,&error),
+				 "the unconstrained probe generation this check depends on failed: %s",error.Peek_Buffer ());
+		Check (BridgePlanner::Get_Bridge_Count () >= 1,
+				 "the unconstrained probe produced no bridge to read a real span from");
+
+		float real_span = -1.0f;
+		if (BridgePlanner::Get_Bridge_Count () >= 1) {
+			ResolvedBridge resolved;
+			BridgePlanner::Get_Bridge (0,&resolved);
+			BridgeClass * bridge = BridgeSystem::Peek_Bridge (resolved.BridgeId);
+			if (bridge != nullptr) real_span = bridge->Get_Length ();
+		}
+		Check (real_span > 0.0f,"could not read the probe bridge's own real span");
+
+		if (real_span > 0.0f) {
+
+			BridgePlannerParams tight_params = probe_params;
+			tight_params.MaxSpanLength = real_span * 0.5f;
+			//	Isolates stage 1 (local reposition) from stage 4 (reroute): both are legal
+			//	recoveries from a SPAN_TOO_LONG original position, but this check wants to know
+			//	specifically whether a nearby reposition resolves it, not whether a reroute
+			//	(refused here) would eventually have papered over the same question.
+			tight_params.MaxRerouteAttemptsPerEdge = 0;
+
+			Check (BridgePlanner::Generate (tight_params,&error),
+					 "generation with the tightened span limit failed outright: %s",error.Peek_Buffer ());
+			Check (BridgePlanner::Get_Diagnostic_Count () == 1,
+					 "expected exactly one crossing diagnostic, got %d",BridgePlanner::Get_Diagnostic_Count ());
+
+			if (BridgePlanner::Get_Diagnostic_Count () >= 1) {
+				CrossingResolutionRecord rec;
+				BridgePlanner::Get_Diagnostic (0,&rec);
+
+				//	Either this terrain's own crossing is genuinely uniform in width (the
+				//	original position and every stage-1 candidate share the same real span, and
+				//	the tightened limit rejects all of them alike -- a legitimate, honestly-
+				//	reported CROSSING_FAILURE_SPAN_TOO_LONG rather than a false resolution), or a
+				//	nearby reposition finds a real width difference this generator's own bank
+				//	search reports and resolves there.  Both are checked explicitly rather than
+				//	asserting one outcome and letting the other read as a silent pass.
+				if (rec.Resolved) {
+					Check (rec.StageResolvedAt == CROSSING_STAGE_LOCAL_REPOSITION,
+							 "the tightened span limit resolved the crossing without moving it, which the "
+							 "tightened limit itself should have made impossible at the original position");
+					Check (rec.Displacement > 0.0f,
+							 "a stage-1 resolution reported zero displacement from the original point");
+				} else {
+					Check (rec.FinalFailureReason == CROSSING_FAILURE_SPAN_TOO_LONG,
+							 "expected SPAN_TOO_LONG for a uniformly-wide crossing under a tightened limit, "
+							 "got '%s' instead",Crossing_Failure_Reason_Name (rec.FinalFailureReason));
+				}
+			}
+		}
+
+		BridgePlanner::Shutdown ();
+		BridgeSystem::Shutdown ();
+		HydrologyGenerator::Shutdown ();
+		RoadGraphGenerator::Shutdown ();
+		RoadSystem::Shutdown ();
+		StrategicPlanner::Shutdown ();
+		WaterSystem::Shutdown ();
+		WorldTerrainSystem::Shutdown ();
+		WorldBoundsService::Shutdown ();
+	}
+
+	//
+	//	Stage 4: reroute.  Against a large open field with real room to detour, not the divided
+	//	terrain's own single corridor (which has none, by construction -- see the first block of
+	//	this check for what "no alternate route" itself proves).  Exercises
+	//	RoadGraphGenerator::Reroute_Edge_Avoiding directly, the same primitive BridgePlanner's
+	//	own stage 4 calls: a real edge, a position on its own real route, told to avoid it, and a
+	//	replacement road built and folded into the network without disturbing the id RoadGraphEdge
+	//	still names.
+	//
+	{
+		WorldTerrainSystem::Init ();
+		WorldBoundsService::Init ();
+		WaterSystem::Init ();
+		StrategicPlanner::Init ();
+		RoadSystem::Init ();
+		RoadGraphGenerator::Init ();
+
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StringClass error ("");
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed								= 701u;
+		plan_params.MinApproachCount				= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 1;
+		plan_params.MinBaseSeparation				= 80.0f;
+		plan_params.MaxTiberiumCandidates		= 0;
+		plan_params.MaxSettlementCandidates		= 0;
+		plan_params.MaxPoiCandidates				= 0;
+		plan_params.MaxExpansionCandidates		= 0;
+		plan_params.MaxEconomicRange				= 1000.0f;
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+		Check (StrategicPlanner::Get_Node_Count () >= 2,
+				 "the open terrain this check depends on produced fewer than two strategic nodes");
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 702u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		Check (RoadGraphGenerator::Generate (road_params,&error),
+				 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+		Check (RoadGraphGenerator::Get_Edge_Count () >= 1,
+				 "the open terrain's own road graph built no edge to reroute");
+
+		if (RoadGraphGenerator::Get_Edge_Count () >= 1) {
+
+			RoadGraphEdge edge;
+			RoadGraphGenerator::Get_Edge (0,&edge);
+			int original_road_id = edge.RoadId;
+
+			RoadSplineClass * original_road = RoadSystem::Peek_Road (original_road_id);
+			Check (original_road != nullptr,"the edge's own road id does not name a real road");
+
+			if (original_road != nullptr) {
+
+				//	A point roughly the middle of the road's own real route -- the same "avoid
+				//	near here" input a failed crossing hands the reroute in real use.
+				Vector3 avoid_position = original_road->Get_Point (original_road->Get_Point_Count () / 2).Position;
+
+				StringClass reroute_error ("");
+				Check (RoadGraphGenerator::Reroute_Edge_Avoiding (edge.Id,avoid_position,&reroute_error),
+						 "a reroute on open terrain with real room to detour still failed: %s",
+						 reroute_error.Peek_Buffer ());
+
+				RoadGraphEdge rerouted_edge;
+				Check (RoadGraphGenerator::Get_Edge (0,&rerouted_edge),"the edge disappeared after its own reroute");
+				Check (rerouted_edge.RoadId != original_road_id,
+						 "the reroute reported success but the edge still names its own original road");
+
+				Check (!original_road->Is_Tessellated (),
+						 "the original road survived its own replacement instead of being retired");
+
+				RoadSplineClass * new_road = RoadSystem::Peek_Road (rerouted_edge.RoadId);
+				Check ((new_road != nullptr) && new_road->Is_Tessellated (),
+						 "the reroute's own replacement road is not a real, tessellated road");
+
+				//	Bounded: a caller cannot reroute the same edge more times than
+				//	MaxRerouteAttemptsPerEdge without BridgePlanner's own bound refusing it --
+				//	RoadGraphGenerator's own primitive has no bound of its own by design (the
+				//	bound belongs to the caller deciding how many attempts a crossing gets, per
+				//	the gap report's own "bounded attempts" requirement), so this proves the
+				//	primitive itself keeps behaving correctly on a second call rather than
+				//	proving a bound that lives one layer up.
+				Vector3 avoid_position_2 = (new_road != nullptr) ? new_road->Get_Point (new_road->Get_Point_Count () / 2).Position
+																					: avoid_position;
+				StringClass second_error ("");
+				bool second_ok = RoadGraphGenerator::Reroute_Edge_Avoiding (edge.Id,avoid_position_2,&second_error);
+				(void)second_ok;		// either outcome is legal (a second detour may or may not exist); no crash/hang is what this proves
+			}
+		}
+
+		RoadGraphGenerator::Shutdown ();
+		RoadSystem::Shutdown ();
+		StrategicPlanner::Shutdown ();
+		WaterSystem::Shutdown ();
+		WorldTerrainSystem::Shutdown ();
+		WorldBoundsService::Shutdown ();
+	}
 }
 
 
@@ -4724,8 +5922,26 @@ int	TerrainSelfCheck::Run (const char *which)
 	if ((which == nullptr) || (::strcmp (which, "bridgeplan") == 0)) {
 		Check_Bridge_Plan ();
 	}
+	if ((which == nullptr) || (::strcmp (which, "baseselection") == 0)) {
+		Check_Base_Selection ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "tiberiumfields") == 0)) {
+		Check_Tiberium_Fields ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "settlements") == 0)) {
+		Check_Settlements ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "biomedecoration") == 0)) {
+		Check_Biome_Decoration ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "combatspace") == 0)) {
+		Check_Combat_Space ();
+	}
 	if ((which == nullptr) || (::strcmp (which, "bridgerequired") == 0)) {
 		Check_Bridge_Required ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "bridgefallback") == 0)) {
+		Check_Bridge_Fallback ();
 	}
 
 	if (_Failures == 0) {

@@ -228,17 +228,21 @@ bool TransportationNetworkValidator::Validate(const TransportationValidationPara
 		RoadSplineClass * start_road	= (start_road_id >= 0) ? RoadSystem::Peek_Road (start_road_id) : nullptr;
 		RoadSplineClass * end_road		= (end_road_id >= 0)   ? RoadSystem::Peek_Road (end_road_id)   : nullptr;
 
+		//	Against the carriageway alone (Get_Width), not Get_Total_Width's shoulders -- a deck
+		//	that omits the full shoulder either side is still wide enough for every vehicle the
+		//	road itself carries; Section 10A.2 keeps shoulders their own cross-section field
+		//	precisely so this question and "does the vehicle fit" stay separate ones.
 		float bridge_width = bridge->Get_Width ();
 		if (bridge_width > 0.0f) {
-			if ((start_road != nullptr) && (start_road->Get_Total_Width () > bridge_width)) {
+			if ((start_road != nullptr) && (start_road->Get_Width () > bridge_width)) {
 				BridgeNarrowerCount++;
-				REPORT("bridge '%s' (width %.1f) is narrower than road %d (width %.1f) at its start abutment",
-						 bridge->Get_Name (),bridge_width,start_road_id,start_road->Get_Total_Width ());
+				REPORT("bridge '%s' (width %.1f) is narrower than road %d's own carriageway (width %.1f) at its start abutment",
+						 bridge->Get_Name (),bridge_width,start_road_id,start_road->Get_Width ());
 			}
-			if ((end_road != nullptr) && (end_road->Get_Total_Width () > bridge_width)) {
+			if ((end_road != nullptr) && (end_road->Get_Width () > bridge_width)) {
 				BridgeNarrowerCount++;
-				REPORT("bridge '%s' (width %.1f) is narrower than road %d (width %.1f) at its end abutment",
-						 bridge->Get_Name (),bridge_width,end_road_id,end_road->Get_Total_Width ());
+				REPORT("bridge '%s' (width %.1f) is narrower than road %d's own carriageway (width %.1f) at its end abutment",
+						 bridge->Get_Name (),bridge_width,end_road_id,end_road->Get_Width ());
 			}
 
 			//	The established vehicle-metrics service, not a guessed number: the widest

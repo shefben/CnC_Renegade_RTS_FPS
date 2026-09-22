@@ -154,6 +154,22 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			p.Water.MaxRiverCount				= w.value ("max_river_count",p.Water.MaxRiverCount);
 		}
 
+		if (root.contains ("resource") && root ["resource"].is_object ()) {
+			auto & rs = root ["resource"];
+
+			//	Schema 5.  Absent in a schema-1/2/3/4 profile, which is why each default comes
+			//	from the value already in p rather than from a literal repeated here.
+			p.Resource.FieldRadiusMin			= rs.value ("field_radius_min",p.Resource.FieldRadiusMin);
+			p.Resource.FieldRadiusMax			= rs.value ("field_radius_max",p.Resource.FieldRadiusMax);
+			p.Resource.InitialYieldMin			= rs.value ("initial_yield_min",p.Resource.InitialYieldMin);
+			p.Resource.InitialYieldMax			= rs.value ("initial_yield_max",p.Resource.InitialYieldMax);
+			p.Resource.CrystalDensity			= rs.value ("crystal_density",p.Resource.CrystalDensity);
+			p.Resource.HarvestAnchorCount		= rs.value ("harvest_anchor_count",p.Resource.HarvestAnchorCount);
+			p.Resource.HarvesterLoadAmount		= rs.value ("harvester_load_amount",p.Resource.HarvesterLoadAmount);
+			p.Resource.GrowthEnabled			= rs.value ("growth_enabled",p.Resource.GrowthEnabled);
+			p.Resource.GrowthRatePerSecond	= rs.value ("growth_rate_per_second",p.Resource.GrowthRatePerSecond);
+		}
+
 		if (root.contains ("world_features") && root ["world_features"].is_object ()) {
 			auto & f = root ["world_features"];
 			p.Features.Forests			= f.value ("forests",p.Features.Forests);
@@ -325,6 +341,22 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	NEED_FINITE (p.Water.RiverAccumulationChunks,"non-finite water.river_accumulation_chunks");
 	if (p.Water.RiverAccumulationChunks <= 0.0f)			FAIL ("water.river_accumulation_chunks must be positive");
 	if (p.Water.MaxRiverCount <= 0)							FAIL ("water.max_river_count must be positive");
+
+	//	Schema 5's resource fields (Phase 12).
+	NEED_FINITE (p.Resource.FieldRadiusMin,"non-finite resource.field_radius_min");
+	NEED_FINITE (p.Resource.FieldRadiusMax,"non-finite resource.field_radius_max");
+	if (p.Resource.FieldRadiusMin <= 0.0f)					FAIL ("resource.field_radius_min must be positive");
+	if (p.Resource.FieldRadiusMax < p.Resource.FieldRadiusMin)
+																			FAIL ("resource.field_radius_max must not be less than resource.field_radius_min");
+	NEED_NONNEGATIVE (p.Resource.InitialYieldMin,"negative/non-finite resource.initial_yield_min");
+	NEED_NONNEGATIVE (p.Resource.InitialYieldMax,"negative/non-finite resource.initial_yield_max");
+	if (p.Resource.InitialYieldMax < p.Resource.InitialYieldMin)
+																			FAIL ("resource.initial_yield_max must not be less than resource.initial_yield_min");
+	NEED_NONNEGATIVE (p.Resource.CrystalDensity,"negative/non-finite resource.crystal_density");
+	if (p.Resource.CrystalDensity > 1.0f)					FAIL ("resource.crystal_density above 1");
+	if (p.Resource.HarvestAnchorCount <= 0)					FAIL ("resource.harvest_anchor_count must be positive");
+	NEED_NONNEGATIVE (p.Resource.HarvesterLoadAmount,"negative/non-finite resource.harvester_load_amount");
+	NEED_NONNEGATIVE (p.Resource.GrowthRatePerSecond,"negative/non-finite resource.growth_rate_per_second");
 
 	//	Bounded retry counts.
 	if (p.Retry.MaxLocalRetriesPerStage <= 0)				FAIL ("retry.max_local_retries_per_stage must be positive");

@@ -253,6 +253,15 @@ public:
 													float * lateral_out,float * along_out) const;
 
 	/*
+	**	Where the centre line actually is at a given distance along it -- linear interpolation
+	**	between the two tessellated points either side, the same walk Trim_Start/Trim_End use to
+	**	leave a point exactly at a cut, exposed read-only here for a caller that wants to look
+	**	without cutting.  Clamps to the two ends rather than failing on an out-of-range distance.
+	**	Returns false only when the road has not been tessellated.
+	*/
+	bool					Position_At_Distance(float distance,Vector3 * position_out) const;
+
+	/*
 	**	The widest the road reaches, carriageway plus both shoulders.  Everything that asks
 	**	"does this road affect that place" wants this rather than the carriageway.
 	*/

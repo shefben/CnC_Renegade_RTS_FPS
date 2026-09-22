@@ -26,16 +26,23 @@
 
 #include "proceduralworldmanager.h"
 
+#include "baseselectionplanner.h"
+#include "biomedecorationgenerator.h"
 #include "boundarycliffgenerator.h"
 #include "bridgeplanner.h"
 #include "castres.h"
+#include "combatspacevalidator.h"
 #include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "lineseg.h"
 #include "macroterraingenerator.h"
 #include "physcoltest.h"
+#include "playertype.h"
 #include "roadgraphgenerator.h"
+#include "proceduralassetregistry.h"
+#include "settlementgenerator.h"
 #include "strategicplanner.h"
+#include "tiberiumfieldgenerator.h"
 #include "transportationnetworkvalidator.h"
 #include "proceduralboundsbuilder.h"
 #include "phys.h"
@@ -541,6 +548,107 @@ bool ProceduralWorldManager::Build_Bridge_Plan(const ProceduralWorldProfile & pr
 
 
 /***********************************************************************************************
+ * Build_Base_Selection -- roadmap Section 34 Phase 11                                           *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Base_Selection(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	BaseSelectionParams params;
+	//	Same domain Phase 7's own candidate generation already answers to -- Section 4/Phase 1
+	//	step 6 closed the seed-domain list at twelve entries, "bases" among them, covering both
+	//	the candidates and the selection made from them rather than splitting one concern in two.
+	params.Seed											= WorldSeedService::Derive_Subsystem_Seed (
+																profile.Seed,WorldSeedService::SEED_DOMAIN_BASES);
+	params.MaxInitialResourceTravelTimeDifferenceSeconds	= profile.Fairness.MaxInitialResourceTravelTimeDifferenceSeconds;
+	params.MaxBaseToBaseTravelTimeDifferenceSeconds			= profile.Fairness.MaxBaseToBaseTravelTimeDifferenceSeconds;
+	params.MinBaseExpansionArea									= profile.Fairness.MinBaseExpansionArea;
+	params.AllowSingleBridgeDependency							= profile.Fairness.AllowSingleBridgeDependency;
+	params.MaxRepairAttemptsPerPair								= profile.Retry.MaxLocalRetriesPerStage;
+
+	return BaseSelectionPlanner::Generate (params,error_out);
+}
+
+
+/***********************************************************************************************
+ * Build_Tiberium_Fields -- roadmap Section 34 Phase 12                                          *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Tiberium_Fields(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	if (!profile.Features.TiberiumFields) {
+		return true;		// Directive-1.10-flavoured: an explicit opt-out is not a failure
+	}
+
+	TiberiumFieldParams params;
+	params.Seed							= WorldSeedService::Derive_Subsystem_Seed (
+													profile.Seed,WorldSeedService::SEED_DOMAIN_TIBERIUM);
+	params.FieldRadiusMin				= profile.Resource.FieldRadiusMin;
+	params.FieldRadiusMax				= profile.Resource.FieldRadiusMax;
+	params.InitialYieldMin				= profile.Resource.InitialYieldMin;
+	params.InitialYieldMax				= profile.Resource.InitialYieldMax;
+	params.CrystalDensity				= profile.Resource.CrystalDensity;
+	params.HarvestAnchorCount			= profile.Resource.HarvestAnchorCount;
+	params.HarvesterLoadAmount		= profile.Resource.HarvesterLoadAmount;
+	params.GrowthEnabled				= profile.Resource.GrowthEnabled;
+	params.GrowthRatePerSecond		= profile.Resource.GrowthRatePerSecond;
+	params.MaxRepairAttemptsPerField	= profile.Retry.MaxLocalRetriesPerStage;
+	params.MaxBuildableSlopeRadians	= (float)DEG_TO_RAD (profile.Terrain.MaxBuildableSlopeDegrees);
+
+	return TiberiumFieldGenerator::Generate (params,error_out);
+}
+
+
+/***********************************************************************************************
+ * Build_Settlements -- roadmap Section 34 Phase 13                                              *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Settlements(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	if (!profile.Features.Settlements) {
+		return true;		// Directive-1.10-flavoured: an explicit opt-out is not a failure
+	}
+
+	ProceduralAssetRegistry::Init ();
+
+	SettlementParams params;
+	params.Seed									= WorldSeedService::Derive_Subsystem_Seed (
+														profile.Seed,WorldSeedService::SEED_DOMAIN_SETTLEMENTS);
+	params.MaxBuildableSlopeRadians		= (float)DEG_TO_RAD (profile.Terrain.MaxBuildableSlopeDegrees);
+
+	return SettlementGenerator::Generate (params,error_out);
+}
+
+
+/***********************************************************************************************
+ * Build_Biome_Decoration -- roadmap Section 34 Phase 14                                         *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Biome_Decoration(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	if (!profile.Features.Forests) {
+		return true;		// Directive-1.10-flavoured: an explicit opt-out is not a failure
+	}
+
+	BiomeDecorationParams params;
+	params.Seed							= WorldSeedService::Derive_Subsystem_Seed (
+													profile.Seed,WorldSeedService::SEED_DOMAIN_BIOMES);
+	params.MaxBuildableSlopeRadians	= (float)DEG_TO_RAD (profile.Terrain.MaxBuildableSlopeDegrees);
+
+	return BiomeDecorationGenerator::Generate (params,error_out);
+}
+
+
+/***********************************************************************************************
+ * Validate_Combat_Space -- roadmap Section 34 Phase 15                                          *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Validate_Combat_Space(const ProceduralWorldProfile & profile)
+{
+	CombatSpaceValidationParams params;
+	params.Seed												= profile.Seed;
+	params.MaxMandatoryExposedInfantryRunTimeSeconds	= profile.Fairness.MaxMandatoryExposedInfantryRunTimeSeconds;
+	params.MinVehicleLaneClearance							= profile.Fairness.MinVehicleLaneClearance;
+
+	return CombatSpaceValidator::Validate (params,nullptr);
+}
+
+
+/***********************************************************************************************
  * Validate_Transportation_Network -- the gap report's item 6                                    *
  *=============================================================================================*/
 bool ProceduralWorldManager::Validate_Transportation_Network(const ProceduralWorldProfile & profile)
@@ -559,23 +667,82 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 		return true;
 	}
 
-	ProceduralWorldProfile profile;
-	if (!ProceduralWorldProfileManager::Load_Profile_From_File (RequestedProfilePath.Peek_Buffer (),
-																				  &profile,error_out)) {
+	//	Gap report item 5's own world-level retry policy.  Attempt 0 always uses the requested
+	//	seed exactly -- a player who never needed a retry sees the same world this profile has
+	//	always produced for that seed -- and only a genuine failure (required connectivity
+	//	broken, or a generation attempt failing outright) ever asks for a different one,
+	//	deterministically derived from the same base rather than reaching for the clock.  Bounded
+	//	by MAX_WORLD_GENERATION_ATTEMPTS; never loops looking for a connected layout that may not
+	//	exist for this profile at all.
+	unsigned int base_seed = WorldSeedService::Normalize_Seed (RequestedSeed);
+	bool any_attempt_completed = false;
+	StringClass last_error;
+
+	for (int attempt = 0; attempt < MAX_WORLD_GENERATION_ATTEMPTS; attempt++) {
+
+		ProceduralWorldProfile profile;
+		if (!ProceduralWorldProfileManager::Load_Profile_From_File (RequestedProfilePath.Peek_Buffer (),
+																					  &profile,error_out)) {
+			return false;			// the profile itself never loads -- no seed changes that
+		}
+
+		profile.Seed = WorldSeedService::Normalize_Seed (base_seed + (unsigned int)attempt);
+
+		if (profile.World.FitToLevel) {
+			Fit_Profile_To_Level (&profile);		// falls back to the profile's own dimensions
+		}
+
+		StringClass validate_error;
+		if (!ProceduralWorldProfileManager::Validate_Profile (profile,&validate_error)) {
+			if (error_out != nullptr) *error_out = validate_error;
+			return false;			// a profile that fails validation fails it on every seed alike
+		}
+
+		StringClass attempt_error;
+		bool required_connectivity_ok = false;
+		if (!Generate_World_Attempt (profile,&attempt_error,&required_connectivity_ok)) {
+			last_error = attempt_error;
+			WWDEBUG_SAY (("ProceduralWorldManager: attempt %d (seed %u) failed outright (%s)%s\r\n",
+							  attempt,profile.Seed,attempt_error.Peek_Buffer (),
+							  (attempt + 1 < MAX_WORLD_GENERATION_ATTEMPTS) ? "; retrying" : "; no attempts left"));
+			continue;
+		}
+		any_attempt_completed = true;
+
+		if (required_connectivity_ok) {
+			if (attempt > 0) {
+				WWDEBUG_SAY (("ProceduralWorldManager: required connectivity achieved on retry attempt %d (seed %u)\r\n",
+								  attempt,profile.Seed));
+			}
+			return true;
+		}
+
+		WWDEBUG_SAY (("ProceduralWorldManager: attempt %d (seed %u) left a required route disconnected%s\r\n",
+						  attempt,profile.Seed,
+						  (attempt + 1 < MAX_WORLD_GENERATION_ATTEMPTS) ? "; retrying with a new seed" : "; no attempts left"));
+	}
+
+	//	Every bounded attempt either failed outright or left required connectivity broken.  The
+	//	world left active is whichever attempt last completed -- Generate_World_Attempt commits
+	//	ActiveProfile/Manifest/WorldActive itself, for the attempt it just ran -- never silently
+	//	presented as fully connected: the log above already said so for every attempt, plainly,
+	//	and TransportationNetworkValidator's own PASS/FAIL line says so again for the one that
+	//	stands.
+	if (!any_attempt_completed) {
+		if (error_out != nullptr) *error_out = last_error;
 		return false;
 	}
 
-	//	The requested seed overrides whatever the profile file carries; the profile describes a
-	//	kind of world, the request picks which one.
-	profile.Seed = WorldSeedService::Normalize_Seed (RequestedSeed);
+	WWDEBUG_SAY (("ProceduralWorldManager: exhausted %d attempt(s) without achieving required connectivity; "
+					  "the last attempt's world stands, not fully connected\r\n",MAX_WORLD_GENERATION_ATTEMPTS));
+	return true;
+}
 
-	if (profile.World.FitToLevel) {
-		Fit_Profile_To_Level (&profile);		// falls back to the profile's own dimensions
-	}
 
-	if (!ProceduralWorldProfileManager::Validate_Profile (profile,error_out)) {
-		return false;
-	}
+bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile & profile,StringClass * error_out,
+																	  bool * required_connectivity_ok_out)
+{
+	if (required_connectivity_ok_out != nullptr) *required_connectivity_ok_out = false;
 
 	/*
 	**	Boundary first, then cliffs.  The order is not cosmetic: the cliff ring's whole purpose
@@ -669,11 +836,75 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 		}
 	}
 
+	//	Base selection, Phase 11.  Needs the road graph and the bridge plan -- Phase 11's own
+	//	purpose line: choose bases only once roads, bridges and terrain constraints are known.
+	bool base_selection_built = false;
+	StringClass base_selection_error;
+	if (bridge_plan_built) {
+		base_selection_built = Build_Base_Selection (profile,&base_selection_error);
+		if (!base_selection_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: base selection failed (%s); the bridge plan itself is unaffected\r\n",
+							  base_selection_error.Peek_Buffer ()));
+		}
+	}
+
+	//	Tiberium fields, Phase 12.  Needs the base selection -- step 1's own "initial per-team
+	//	field" needs a selected base to be initial for.
+	bool tiberium_fields_built = false;
+	StringClass tiberium_fields_error;
+	if (base_selection_built) {
+		tiberium_fields_built = Build_Tiberium_Fields (profile,&tiberium_fields_error);
+		if (!tiberium_fields_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: Tiberium fields failed (%s); the base selection itself is unaffected\r\n",
+							  tiberium_fields_error.Peek_Buffer ()));
+		}
+	}
+
+	//	Settlements, Phase 13.  Reads Phase 11/12's own reserved regions directly, so it shares
+	//	the road-graph gate rather than needing a further one.
+	bool settlements_built = false;
+	StringClass settlements_error;
+	if (tiberium_fields_built || base_selection_built) {
+		settlements_built = Build_Settlements (profile,&settlements_error);
+		if (!settlements_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: settlements failed (%s); the base selection itself is unaffected\r\n",
+							  settlements_error.Peek_Buffer ()));
+		}
+	}
+
+	//	Biome decoration, Phase 14.  Needs only the chunk registry.
+	bool biome_decoration_built = false;
+	StringClass biome_decoration_error;
+	if (terrain_built) {
+		biome_decoration_built = Build_Biome_Decoration (profile,&biome_decoration_error);
+		if (!biome_decoration_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: biome decoration failed (%s); the terrain itself is unaffected\r\n",
+							  biome_decoration_error.Peek_Buffer ()));
+		}
+	}
+
 	//	Final network validation, item 6.  Runs regardless of which of the steps above actually
 	//	built anything -- with nothing built it trivially passes (0 roads, 0 bridges, nothing to
 	//	be broken), which is the correct answer for a hand-authored map with no procedural roads
 	//	at all, not a special case to skip around.
 	bool network_valid = Validate_Transportation_Network (profile);
+
+	//	Phase 15.  Runs after transportation validation over the same finished world; its own
+	//	hard-failure verdict is step 12's own "reject... rather than silently accepting", folded
+	//	into the retry trigger below rather than refusing the world directly -- see
+	//	CombatSpaceValidator's own class comment for why a second repair pass this late is unsafe.
+	bool combat_space_valid = Validate_Combat_Space (profile);
+
+	//	Gap report item 5's own retry trigger, distinct from network_valid above: a narrow
+	//	shoulder or an unbound abutment is a real finding but not worth a whole world's own
+	//	seed-bumped retry over, while a required base pair actually left unreachable -- or a
+	//	Phase 15 hard combat-space failure -- is exactly what item 5/step 12 say must never be
+	//	silently accepted.
+	if (required_connectivity_ok_out != nullptr) {
+		*required_connectivity_ok_out = (!TransportationNetworkValidator::Did_Check_Required_Base_Routes () ||
+													 TransportationNetworkValidator::Has_Required_Base_Routes ()) &&
+													combat_space_valid;
+	}
 
 	ActiveProfile = profile;
 
@@ -718,6 +949,47 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 		}
 	}
 
+	//	Phase 11 -- unlike Phase 7's own full candidate list, these two ids are an actual
+	//	decision: the pair BaseSelectionPlanner chose, not every pair it considered.
+	//	InitialBaseLayoutIds stays empty -- Section 16A's own building-transform contract is not
+	//	this generator's job; see baseselectionplanner.h's own class comment.
+	if (base_selection_built && BaseSelectionPlanner::Has_Selection ()) {
+		SelectedBaseSite gdi_site, nod_site;
+		if (BaseSelectionPlanner::Get_Selected_Site (PLAYERTYPE_GDI,&gdi_site)) {
+			Manifest.SelectedBaseCandidateIds.Add (gdi_site.Id);
+		}
+		if (BaseSelectionPlanner::Get_Selected_Site (PLAYERTYPE_NOD,&nod_site)) {
+			Manifest.SelectedBaseCandidateIds.Add (nod_site.Id);
+		}
+	}
+
+	//	Phase 12 -- a resolved field, like a resolved bridge, is real: it has a real footprint and
+	//	a real Tiberium-mask stamp, not merely a candidate StrategicPlanner already listed.
+	if (tiberium_fields_built) {
+		for (int i = 0; i < TiberiumFieldGenerator::Get_Field_Count (); i++) {
+			ResolvedTiberiumField field;
+			if (TiberiumFieldGenerator::Get_Field (i,&field)) {
+				Manifest.SelectedResourceFieldIds.Add (field.Id);
+			}
+		}
+	}
+
+	//	Phase 13.
+	if (settlements_built) {
+		for (int i = 0; i < SettlementGenerator::Get_Settlement_Count (); i++) {
+			ResolvedSettlement settlement;
+			if (SettlementGenerator::Get_Settlement (i,&settlement)) {
+				Manifest.SettlementLayoutIds.Add (settlement.Id);
+			}
+		}
+		for (int i = 0; i < SettlementGenerator::Get_Poi_Count (); i++) {
+			ResolvedPoi poi;
+			if (SettlementGenerator::Get_Poi (i,&poi)) {
+				Manifest.ImportantPoiIds.Add (poi.Id);
+			}
+		}
+	}
+
 	WorldActive = true;
 
 	StringClass reproduction = WorldGenerationManifestService::Format_Reproduction_String (Manifest);
@@ -752,10 +1024,38 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 					  bridge_plan_built ? "built" : (road_graph_built ? "NOT BUILT" : "skipped (no road graph)"),
 					  BridgePlanner::Get_Bridge_Count (),
 					  BridgePlanner::Get_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: base selection %s -- %d pair(s) rejected, %d repair(s), checksum 0x%08X\r\n",
+					  (base_selection_built && BaseSelectionPlanner::Has_Selection ()) ? "built" :
+						 (bridge_plan_built ? "NOT BUILT" : "skipped (no bridge plan)"),
+					  BaseSelectionPlanner::Get_Rejected_Pair_Count (),
+					  BaseSelectionPlanner::Get_Repair_Log_Count (),
+					  BaseSelectionPlanner::Get_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: Tiberium fields %s -- %d field(s), %d crystal(s), checksum 0x%08X\r\n",
+					  tiberium_fields_built ? "built" : (base_selection_built ? "NOT BUILT" : "skipped (no base selection)"),
+					  TiberiumFieldGenerator::Get_Field_Count (),
+					  TiberiumFieldGenerator::Get_Crystal_Count (),
+					  TiberiumFieldGenerator::Get_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: settlements %s -- %d settlement(s), %d structure(s), %d POI(s), checksum 0x%08X\r\n",
+					  settlements_built ? "built" : ((tiberium_fields_built || base_selection_built) ? "NOT BUILT" : "skipped"),
+					  SettlementGenerator::Get_Settlement_Count (),
+					  SettlementGenerator::Get_Structure_Count (),
+					  SettlementGenerator::Get_Poi_Count (),
+					  SettlementGenerator::Get_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: biome decoration %s -- %d forest chunk(s), %d tree(s), %d rock(s), checksum 0x%08X\r\n",
+					  biome_decoration_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
+					  BiomeDecorationGenerator::Get_Forest_Chunk_Count (),
+					  BiomeDecorationGenerator::Get_Tree_Count (),
+					  BiomeDecorationGenerator::Get_Rock_Count (),
+					  BiomeDecorationGenerator::Get_Checksum ()));
 	//	TransportationNetworkValidator::Validate already logged its own per-finding lines above
 	//	this one; this is the single-line summary item 1's own per-pass status list asks for.
 	WWDEBUG_SAY (("ProceduralWorldManager: transportation network validation %s\r\n",
 					  network_valid ? "PASS" : "FAIL -- see TransportationNetworkValidator lines above"));
+	WWDEBUG_SAY (("ProceduralWorldManager: combat space validation %s -- %d hard failure(s), sightline P50=%.1f P90=%.1f\r\n",
+					  combat_space_valid ? "PASS" : "FAIL -- see CombatSpaceValidator lines above",
+					  CombatSpaceValidator::Get_Failure_Count (),
+					  CombatSpaceValidator::Get_Metrics ().SightlineP50,
+					  CombatSpaceValidator::Get_Metrics ().SightlineP90));
 
 	return true;
 }
@@ -767,6 +1067,11 @@ void ProceduralWorldManager::Destroy_World(void)
 	//	remove their own work (bridges, roads, or nothing shared at all -- StrategicPlanner is
 	//	pure data); hydrology and interior cliffs each only ever remove their own IDs from their
 	//	own shared collection (see each generator's own Clear).
+	BiomeDecorationGenerator::Clear ();
+	SettlementGenerator::Clear ();
+	ProceduralAssetRegistry::Shutdown ();
+	TiberiumFieldGenerator::Clear ();
+	BaseSelectionPlanner::Clear ();
 	BridgePlanner::Clear ();
 	RoadGraphGenerator::Clear ();
 	StrategicPlanner::Clear ();

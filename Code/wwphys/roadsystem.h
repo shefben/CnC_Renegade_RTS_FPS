@@ -259,6 +259,36 @@ public:
 	static bool			Trim_Road_Range(int road_id,float distance_a,float distance_b,
 													 int * segment_a_id_out,int * segment_b_id_out);
 
+	/*
+	**	Gap report item 5, fallback stage 4/5: a road a reroute has replaced is retired, not
+	**	deleted -- the same tombstone idiom Trim_Road_Range already uses for a segment that does
+	**	not survive its own cut, kept for the same reason: removing the slot would renumber every
+	**	id after it, and other owners (RoadGraphEdge::RoadId, a road's own place in a caller's
+	**	OwnedRoadIds sweep) hold this id by value.  Clears the road's points and control points
+	**	(Is_Tessellated becomes false, so Build_Network's own per-road loop and Peek_Road's own
+	**	callers both already treat it as nothing), and repoints/drops any junction arm that named
+	**	it, the same way Trim_Road_Range's own junction fix-up does.
+	*/
+	static bool			Remove_Road(int road_id);
+
+	/*
+	**	Gap report item 5, fallback stage 4/5: fold one freshly `Add_Road`-ed road into an
+	**	already-built network without re-tessellating every other road in it.  Build_Network's
+	**	own per-road loop calls `Tessellate` on all of `Roads`, which would silently throw away
+	**	any split `Trim_Road_Range` had already performed on an unrelated road this same
+	**	generation pass, since a split only ever edits `Points`, never the stale `ControlPoints`
+	**	Tessellate re-derives from.  This tessellates and conforms only `road_id`, then reruns the
+	**	network-wide passes that only ever read the tessellated points already sitting in `Roads`
+	**	-- junction-finding and the road mask -- so the new road becomes a real, junctioned part
+	**	of the network and nothing already split is disturbed.  Grading is the one process-wide
+	**	step: if the new road itself grades, `Apply_Grades` and the reconform after it run exactly
+	**	as `Build_Network`'s own tail already does, since a grade change can move the ground under
+	**	a road that does not grade itself.  Returns false, unchanged, if the road failed to
+	**	tessellate at all (a control-point list too short to make a road from).
+	*/
+	static bool			Integrate_New_Road(int road_id,float max_deviation = 0.25f,
+													 float min_segment = 0.5f,float max_segment = 4.0f);
+
 private:
 
 	static void			Conform_Road(RoadSplineClass & road);

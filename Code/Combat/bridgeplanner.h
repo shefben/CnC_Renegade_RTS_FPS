@@ -90,6 +90,70 @@ public:
 };
 
 
+/*
+**	Gap report item 5.  Why a crossing candidate could not be resolved at all, once every
+**	permitted fallback has been tried -- named exactly the categories the gap report itself
+**	lists, so a failed seed's own diagnostics read the same vocabulary the report does.
+*/
+enum CrossingFailureReasonType
+{
+	CROSSING_FAILURE_NONE = 0,
+	CROSSING_FAILURE_SPAN_TOO_LONG,
+	CROSSING_FAILURE_APPROACH_GRADE_TOO_HIGH,
+	CROSSING_FAILURE_NO_VALID_ABUTMENT,
+	CROSSING_FAILURE_INSUFFICIENT_CLEARANCE,
+	CROSSING_FAILURE_ROAD_WIDTH_MISMATCH,
+	CROSSING_FAILURE_COLLISION,
+	CROSSING_FAILURE_OUT_OF_BOUNDS,
+	CROSSING_FAILURE_NO_ALTERNATE_ROUTE,
+	CROSSING_FAILURE_TYPE_COUNT
+};
+
+const char *	Crossing_Failure_Reason_Name(CrossingFailureReasonType reason);
+
+
+/*
+**	Which fallback stage actually resolved a crossing -- gap report item 5's own numbered list.
+**	Stage 3 (alternate crossing type) is named for completeness even though no resolution can
+**	ever report it today; see bridgeplanner.cpp's own comment on why no tunnel system exists
+**	yet to fall back to.
+*/
+enum CrossingFallbackStageType
+{
+	CROSSING_STAGE_ORIGINAL_POSITION = 0,
+	CROSSING_STAGE_LOCAL_REPOSITION,
+	CROSSING_STAGE_EXTENDED_APPROACH,
+	CROSSING_STAGE_ALTERNATE_CROSSING_TYPE,
+	CROSSING_STAGE_REROUTE,
+	CROSSING_STAGE_COUNT
+};
+
+
+/*
+**	One crossing's own resolution record -- gap report item 5's own "expose these in the
+**	procedural-generation diagnostics so a failed seed can be reproduced and understood" ask.
+**	Kept for every crossing this generator was ever asked to resolve, on the edge it started on
+**	or its replacement after a reroute, whether it finally succeeded or not, so a failed seed's
+**	own story is readable from this list alone rather than a bare "bridge failed".
+*/
+class CrossingResolutionRecord
+{
+public:
+	CrossingResolutionRecord(void);
+
+	bool	operator == (const CrossingResolutionRecord & that) const;
+	bool	operator != (const CrossingResolutionRecord & that) const	{ return !(*this == that); }
+
+	StringClass						CrossingNodeId;
+	StringClass						RoadEdgeId;
+	bool								Resolved;
+	int								AttemptsMade;
+	CrossingFallbackStageType	StageResolvedAt;		// meaningful only when Resolved
+	float								Displacement;				// world units off the original point, stage 1 only
+	CrossingFailureReasonType	FinalFailureReason;	// meaningful only when !Resolved
+};
+
+
 struct BridgePlannerParams
 {
 	BridgePlannerParams(void);
@@ -101,6 +165,15 @@ struct BridgePlannerParams
 
 	float	WaterClearanceMargin;	// world units, > 0 -- Section 11A.3's flood/visual/gameplay margin
 	float	MaxSpanLength;				// world units, > 0 -- step 3's own "reject impossible bridges" bound
+
+	//	Gap report item 5.  The same shared slope cap every terrain-reading generator in this
+	//	chain already uses, applied here to the approach either abutment makes.
+	float	MaxApproachGradeRadians;
+
+	//	Gap report item 5's own "bounded attempts... must not be capable of looping indefinitely",
+	//	made a real number rather than an assumption: how many times fallback stage 4/5 (reroute)
+	//	may retry one edge before that edge's own remaining crossings are declared unresolved.
+	int	MaxRerouteAttemptsPerEdge;
 };
 
 
@@ -128,6 +201,15 @@ public:
 
 	static unsigned int	Get_Checksum(void)		{ return Checksum; }
 
+	/*
+	**	Gap report item 5's own diagnostics.  One record per crossing this generator was asked
+	**	to resolve, in the order it attempted them; a crossing that moved to a different edge
+	**	after a reroute is still one record, naming whichever edge it finally settled on.
+	*/
+	static int			Get_Diagnostic_Count(void)	{ return Diagnostics.Count(); }
+	static bool			Get_Diagnostic(int index,CrossingResolutionRecord * out);
+	static int			Get_Unresolved_Count(void);
+
 	static int			Check_Traversable_States_Pass(StringClass * report);
 	static int			Check_Broken_States_Block(StringClass * report);
 	static int			Check_No_Required_Connectivity_Lost(StringClass * report);
@@ -137,8 +219,9 @@ private:
 	static bool			Built;
 	static unsigned int	Checksum;
 
-	static DynamicVectorClass<int>					OwnedBridgeIds;
-	static DynamicVectorClass<ResolvedBridge>	Bridges;
+	static DynamicVectorClass<int>								OwnedBridgeIds;
+	static DynamicVectorClass<ResolvedBridge>				Bridges;
+	static DynamicVectorClass<CrossingResolutionRecord>	Diagnostics;
 };
 
 #endif	// BRIDGEPLANNER_H

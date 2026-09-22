@@ -33,6 +33,7 @@
 #include "terrainmask.h"
 #include "watersystem.h"
 #include "worldboundsservice.h"
+#include "worldmetrics.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
 #include "wwmath.h"
@@ -44,18 +45,61 @@ unsigned int	RoadGraphGenerator::Checksum		= 0;
 DynamicVectorClass<int>				RoadGraphGenerator::OwnedRoadIds;
 DynamicVectorClass<RoadGraphEdge>	RoadGraphGenerator::Edges;
 
+RoadGraphParams	RoadGraphGenerator::LastParams;
 
-//	Section 10A.1's real Humvee-derived formula needs a specific vehicle definition name this
-//	project does not guess (see this file's header comment); these stand in for it until one is
-//	confirmed, in the same descending order Section 10A.3's default lane counts imply.
+DynamicVectorClass<StringClass>	RoadGraphGenerator::ExclusionEdgeIds;
+DynamicVectorClass<int>				RoadGraphGenerator::ExclusionChunkIndices;
+
+
+/*
+**	Section 3A.1/10A.1's authoritative GDI Humvee collision width, in world units.  Measured,
+**	not guessed and not taken from real-world HMMWV dimensions -- 10A.1 explicitly rules real-
+**	world dimensions out, and this project does not guess an enumerable content identifier
+**	either, so the number comes from actually reading the shipped `Data/always.dat`.
+**
+**	Method: `Code/wwlib/mixfile.cpp`'s own MIX1 format (4-byte "MIX1" signature, a header-
+**	offset table of CRC32/offset/size entries keyed by `CRC_Stringi` of the *uppercased*
+**	filename -- `Code/wwlib/realcrc.cpp`'s own standard reflected CRC-32 -- and a names-offset
+**	table of the plain filenames) locates `v_gdi_humvee.w3d` inside the mix without guessing an
+**	offset, the same file `WorldMetricsClass::Resolve_Extents` would load at runtime.
+**	`Code/ww3d2/w3d_file.h`'s own `W3D_CHUNK_BOX` (0x740) / `W3dBoxStruct` layout (Version,
+**	Attributes, Name, Color, Center, Extent) then reads the `V_GDI_HUMVEE.WORLDBOX` sub-object
+**	directly -- the same sub-object `Resolve_Extents` itself looks up by name, and which its
+**	own comment already identifies as "where Phys3Class itself gets its collision box".
+**
+**	The box's own extents are X=4.723, Y=2.556, Z=1.548 -- length, width, height, in that
+**	order, confirmed by the same ordering (length > width > height) independently holding for
+**	`v_nod_buggy.w3d`'s and `v_gdi_apc_m.w3d`'s own WORLDBOX chunks too, so the local +X axis is
+**	this engine's own consistent vehicle-forward convention and +Y is the lateral axis a road
+**	lane actually has to admit.  GDI_HUMVEE_WIDTH is therefore the box's own full Y extent.
+*/
+static const float GDI_HUMVEE_WIDTH = 2.556f;
+
+/*
+**	Section 10A.1's own derivation, verbatim, using the measured width above and
+**	WorldMetricsClass's own resolved WORLD_UNITS_PER_METER (Section 3A.1).
+**
+**		C = max(0.35 metres converted to world units, H * 0.15)
+**		NormalLaneWidth = max(H + 2*C, H * 1.30)
+*/
+static const float ROAD_GRAPH_LANE_CLEARANCE = WWMath::Max (
+	0.35f * WorldMetricsClass::Get_World_Units_Per_Meter (),
+	GDI_HUMVEE_WIDTH * 0.15f);
+static const float ROAD_GRAPH_NORMAL_LANE_WIDTH = WWMath::Max (
+	GDI_HUMVEE_WIDTH + (2.0f * ROAD_GRAPH_LANE_CLEARANCE),
+	GDI_HUMVEE_WIDTH * 1.30f);
+
+//	Section 10A.3's own default lane counts.  CITY_STREET and SERVICE both name a possible
+//	profile-driven exception (arterial CITY_STREET up to 4 lanes; SERVICE down to 1 wide lane)
+//	that no profile field exists to express yet, so both use their own stated default here.
 static const float ROAD_GRAPH_CLASS_WIDTH[ROAD_GRAPH_CLASS_COUNT] =
 {
-	16.0f,	// HIGHWAY
-	10.0f,	// PRIMARY
-	8.0f,		// SECONDARY
-	8.0f,		// CITY_STREET
-	6.0f,		// SERVICE
-	4.0f,		// DIRT_TRACK
+	ROAD_GRAPH_NORMAL_LANE_WIDTH * 4.0f,	// HIGHWAY -- 4 lanes, 2 each direction
+	ROAD_GRAPH_NORMAL_LANE_WIDTH * 2.0f,	// PRIMARY -- 2 lanes
+	ROAD_GRAPH_NORMAL_LANE_WIDTH * 2.0f,	// SECONDARY -- 2 lanes
+	ROAD_GRAPH_NORMAL_LANE_WIDTH * 2.0f,	// CITY_STREET -- 2 lanes by default
+	ROAD_GRAPH_NORMAL_LANE_WIDTH * 2.0f,	// SERVICE -- 2 lanes by default
+	ROAD_GRAPH_NORMAL_LANE_WIDTH * 1.0f,	// DIRT_TRACK -- 1 wide lane
 };
 
 static const float ROAD_GRAPH_CLASS_SHOULDER[ROAD_GRAPH_CLASS_COUNT] =
@@ -177,6 +221,8 @@ void RoadGraphGenerator::Clear(void)
 
 	OwnedRoadIds.Delete_All();
 	Edges.Delete_All();
+	ExclusionEdgeIds.Delete_All();
+	ExclusionChunkIndices.Delete_All();
 
 	Built		= false;
 	Checksum	= 0;
@@ -189,6 +235,85 @@ bool RoadGraphGenerator::Get_Edge(int index,RoadGraphEdge * out)
 		return false;
 	}
 	*out = Edges[index];
+	return true;
+}
+
+
+/*
+**	The unique path between two anchor nodes through this generator's own minimum spanning
+**	tree -- real road distance for a caller (BaseSelectionPlanner, TiberiumFieldGenerator, ...)
+**	that needs to measure one between two StrategicPlanner node indices, rather than each caller
+**	re-deriving the same breadth-first walk over Edges.  A tree has at most (anchor_count - 1)
+**	edges, always far smaller than any world's own chunk count, so this cannot loop.
+*/
+bool RoadGraphGenerator::Find_Anchor_Path(int from_node,int to_node,
+														 DynamicVectorClass<int> * edge_indices_out,float * length_out)
+{
+	if (length_out != nullptr) *length_out = 0.0f;
+
+	if (from_node == to_node) return true;
+
+	DynamicVectorClass<int>	visited_nodes;
+	DynamicVectorClass<int>	parent_edge;
+
+	visited_nodes.Add(from_node);
+	parent_edge.Add(-1);
+
+	int head = 0;
+	while (head < visited_nodes.Count()) {
+		int current = visited_nodes[head];
+		if (current == to_node) break;
+
+		for (int e = 0; e < Edges.Count(); e++) {
+			const RoadGraphEdge & edge = Edges[e];
+
+			int other = -1;
+			if (edge.FromNodeIndex == current)			other = edge.ToNodeIndex;
+			else if (edge.ToNodeIndex == current)		other = edge.FromNodeIndex;
+			if (other < 0) continue;
+
+			bool already = false;
+			for (int v = 0; v < visited_nodes.Count(); v++) {
+				if (visited_nodes[v] == other) { already = true; break; }
+			}
+			if (already) continue;
+
+			visited_nodes.Add(other);
+			parent_edge.Add(e);
+		}
+
+		head++;
+	}
+
+	int idx = -1;
+	for (int v = 0; v < visited_nodes.Count(); v++) {
+		if (visited_nodes[v] == to_node) { idx = v; break; }
+	}
+	if (idx < 0) return false;		// not reachable in the tree
+
+	DynamicVectorClass<int> reversed;
+	int walk = idx;
+	while (parent_edge[walk] >= 0) {
+		int e = parent_edge[walk];
+		reversed.Add(e);
+
+		const RoadGraphEdge & edge = Edges[e];
+		int parent_node = (edge.FromNodeIndex == visited_nodes[walk]) ? edge.ToNodeIndex : edge.FromNodeIndex;
+
+		int parent_walk_index = -1;
+		for (int v = 0; v < visited_nodes.Count(); v++) {
+			if (visited_nodes[v] == parent_node) { parent_walk_index = v; break; }
+		}
+		if (parent_walk_index < 0) break;		// defensive; a well-formed tree never hits this
+		walk = parent_walk_index;
+	}
+
+	float length = 0.0f;
+	for (int i = reversed.Count() - 1; i >= 0; i--) {
+		if (edge_indices_out != nullptr) edge_indices_out->Add(reversed[i]);
+		length += Edges[reversed[i]].Length;
+	}
+	if (length_out != nullptr) *length_out = length;
 	return true;
 }
 
@@ -407,6 +532,10 @@ bool RoadGraphGenerator::Generate(const RoadGraphParams & params,StringClass * e
 	int count_y = WorldTerrainSystem::Get_Chunk_Count_Y();
 	if ((count_x <= 0) || (count_y <= 0))					FAIL("chunk registry is empty");
 
+	//	Remembered so Reroute_Edge_Avoiding can rebuild the identical cost field later without a
+	//	caller having to resupply it.
+	LastParams = params;
+
 	DynamicVectorClass<RouteChunk> chunks;
 	Compute_Route_Chunks(count_x,count_y,params,&chunks);
 
@@ -559,6 +688,108 @@ bool RoadGraphGenerator::Generate(const RoadGraphParams & params,StringClass * e
 
 	#undef FAIL
 	return true;
+}
+
+
+/***********************************************************************************************
+ * Reroute_Edge_Avoiding -- gap report item 5's own fallback stage 4                             *
+ *=============================================================================================*/
+bool RoadGraphGenerator::Reroute_Edge_Avoiding(const StringClass & edge_id,const Vector3 & avoid_position,
+																StringClass * error_out)
+{
+	#define RFAIL(msg) { if (error_out) *error_out = msg; return false; }
+
+	if (!Built)		RFAIL("no road graph built yet");
+
+	int edge_index = -1;
+	for (int i = 0; i < Edges.Count(); i++) {
+		if (Edges[i].Id == edge_id) { edge_index = i; break; }
+	}
+	if (edge_index < 0)		RFAIL("no such edge");
+
+	int count_x = WorldTerrainSystem::Get_Chunk_Count_X();
+	int count_y = WorldTerrainSystem::Get_Chunk_Count_Y();
+	if ((count_x <= 0) || (count_y <= 0))		RFAIL("chunk registry is empty");
+
+	DynamicVectorClass<RouteChunk> chunks;
+	Compute_Route_Chunks(count_x,count_y,LastParams,&chunks);
+
+	//	Block the chunk nearest the position that just failed, plus every chunk already excluded
+	//	by an earlier reroute of this same edge -- so a second failed crossing on the same edge
+	//	does not lead Dijkstra straight back through the first one's own dead end.
+	int avoid_index = Nearest_Chunk(avoid_position,count_x,count_y,chunks);
+	if (avoid_index >= 0) {
+		bool already = false;
+		for (int i = 0; i < ExclusionEdgeIds.Count(); i++) {
+			if ((ExclusionEdgeIds[i] == edge_id) && (ExclusionChunkIndices[i] == avoid_index)) { already = true; break; }
+		}
+		if (!already) {
+			ExclusionEdgeIds.Add(edge_id);
+			ExclusionChunkIndices.Add(avoid_index);
+		}
+	}
+	for (int i = 0; i < ExclusionEdgeIds.Count(); i++) {
+		if (ExclusionEdgeIds[i] == edge_id) {
+			chunks[ExclusionChunkIndices[i]].Blocked = true;
+		}
+	}
+
+	RoadGraphEdge & edge = Edges[edge_index];
+
+	StrategicNode from_node,to_node;
+	if (!StrategicPlanner::Get_Node(edge.FromNodeIndex,&from_node) ||
+		 !StrategicPlanner::Get_Node(edge.ToNodeIndex,&to_node))		RFAIL("edge names a strategic node that no longer exists");
+
+	int from_chunk = Nearest_Chunk(from_node.Position,count_x,count_y,chunks);
+	int to_chunk	= Nearest_Chunk(to_node.Position,count_x,count_y,chunks);
+	if ((from_chunk < 0) || (to_chunk < 0))		RFAIL("no passable chunk remains near one of this edge's own anchors");
+
+	DynamicVectorClass<int> path;
+	Route_Path(from_chunk,to_chunk,count_x,count_y,chunks,LastParams.Seed,&path);
+	if (path.Count() < 2)		RFAIL("no alternate route exists");
+
+	RoadSplineClass spline;
+	spline.Add_Control_Point(from_node.Position);
+	for (int i = 0; i < path.Count(); i++) {
+		spline.Add_Control_Point(chunks[path[i]].Position);
+	}
+	spline.Add_Control_Point(to_node.Position);
+	spline.Set_Width(ROAD_GRAPH_CLASS_WIDTH[edge.Class]);
+	spline.Set_Shoulder_Width(ROAD_GRAPH_CLASS_SHOULDER[edge.Class]);
+	spline.Set_Road_Class(Road_Graph_Class_To_Road_Class(edge.Class));
+	spline.Set_Grade_Policy(ROAD_GRADE_BLEND);
+
+	int new_road_id = RoadSystem::Add_Road(spline);
+	if (!RoadSystem::Integrate_New_Road(new_road_id)) {
+		RoadSystem::Remove_Road(new_road_id);
+		RFAIL("the alternate route's own road failed to tessellate");
+	}
+
+	int old_road_id = edge.RoadId;
+	RoadSystem::Remove_Road(old_road_id);
+	Adopt_Owned_Road_Id(new_road_id);
+
+	edge.RoadId	= new_road_id;
+	edge.Length	= (from_node.Position - to_node.Position).Length();
+	edge.UnresolvedCrossingIds.Delete_All();
+	for (int i = 0; i < path.Count(); i++) {
+		if (chunks[path[i]].HasCrossing) {
+			bool already = false;
+			for (int c = 0; c < edge.UnresolvedCrossingIds.Count(); c++) {
+				if (edge.UnresolvedCrossingIds[c] == chunks[path[i]].CrossingId) { already = true; break; }
+			}
+			if (!already) edge.UnresolvedCrossingIds.Add(chunks[path[i]].CrossingId);
+		}
+	}
+
+	WWDEBUG_SAY(("RoadGraphGenerator: edge '%s' rerouted (avoided chunk near %.1f,%.1f) -- road %d replaces road %d, "
+					 "%d unresolved crossing(s) on the new route\r\n",
+					 edge_id.Peek_Buffer(),avoid_position.X,avoid_position.Y,
+					 new_road_id,old_road_id,edge.UnresolvedCrossingIds.Count()));
+
+	return true;
+
+	#undef RFAIL
 }
 
 

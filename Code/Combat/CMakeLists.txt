@@ -88,6 +88,12 @@ strategicplanner.cpp
 roadgraphgenerator.cpp
 bridgeplanner.cpp
 transportationnetworkvalidator.cpp
+baseselectionplanner.cpp
+tiberiumfieldgenerator.cpp
+proceduralassetregistry.cpp
+settlementgenerator.cpp
+biomedecorationgenerator.cpp
+combatspacevalidator.cpp
 projectbuildingdefs.cpp
     commanderproduction.cpp
     commanderguardai.cpp
@@ -268,6 +274,12 @@ strategicplanner.h
 roadgraphgenerator.h
 bridgeplanner.h
 transportationnetworkvalidator.h
+baseselectionplanner.h
+tiberiumfieldgenerator.h
+proceduralassetregistry.h
+settlementgenerator.h
+biomedecorationgenerator.h
+combatspacevalidator.h
 projectbuildingdefs.h
     commanderproduction.h
     commanderguardai.h

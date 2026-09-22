@@ -513,6 +513,81 @@ bool RoadSystem::Trim_Road_Range(int road_id,float distance_a,float distance_b,
 
 
 /***********************************************************************************************
+ * RoadSystem::Remove_Road -- retire a road a reroute has replaced                               *
+ *=============================================================================================*/
+bool RoadSystem::Remove_Road(int road_id)
+{
+	if ((road_id < 0) || (road_id >= Roads.Count())) {
+		return false;
+	}
+
+	Roads[road_id].Reset();
+
+	for (int j = 0; j < Junctions.Count(); j++) {
+		RoadJunctionClass & junction = Junctions[j];
+		for (int a = 0; a < junction.ArmCount; a++) {
+			if (junction.Arms[a] != road_id) continue;
+			for (int k = a; k < junction.ArmCount - 1; k++) {
+				junction.Arms[k] = junction.Arms[k+1];
+			}
+			junction.ArmCount--;
+			junction.Arms[junction.ArmCount] = -1;
+			a--;
+		}
+	}
+
+	Destroy_Geometry();
+	return true;
+}
+
+
+/***********************************************************************************************
+ * RoadSystem::Integrate_New_Road -- fold one freshly added road into a built network            *
+ *=============================================================================================*/
+bool RoadSystem::Integrate_New_Road(int road_id,float max_deviation,float min_segment,float max_segment)
+{
+	if ((road_id < 0) || (road_id >= Roads.Count())) {
+		return false;
+	}
+
+	if (!Roads[road_id].Tessellate(max_deviation,min_segment,max_segment)) {
+		return false;
+	}
+
+	Conform_Road(Roads[road_id]);
+	Apply_Connection_Trims(Roads[road_id]);
+
+	if (Roads[road_id].Get_Grade_Policy() != ROAD_GRADE_NONE) {
+		Apply_Grades();
+
+		//	The ground moved -- the same reconform Build_Network's own tail performs after
+		//	grading, for the same reason: every already-tessellated road that does not grade
+		//	itself is still sitting where the ground used to be.
+		for (int r = 0; r < Roads.Count(); r++) {
+			if (Roads[r].Get_Grade_Policy() != ROAD_GRADE_NONE) continue;
+			if (!Roads[r].Is_Tessellated()) continue;
+			Conform_Road(Roads[r]);
+		}
+
+		if (WorldTerrainSystem::Has_Collision()) {
+			WorldTerrainSystem::Update_Collision();
+		}
+	}
+
+	//	Junction-finding and the mask only ever read the tessellated points already sitting in
+	//	Roads, never re-tessellate anything, so rerunning them across the whole network is safe
+	//	regardless of how any other road's own points got to be what they currently are (built by
+	//	Build_Network, or since split by Trim_Road_Range).
+	Find_Junctions();
+	Stamp_Road_Mask();
+
+	NetworkBuilt = true;
+	Destroy_Geometry();
+	return true;
+}
+
+
+/***********************************************************************************************
  * RoadSystem::Merge_Junction -- one crossing, or one more arm on a crossing already found      *
  *                                                                                             *
  * Three roads meeting at a point produce three pairwise crossings within a metre or two of     *
