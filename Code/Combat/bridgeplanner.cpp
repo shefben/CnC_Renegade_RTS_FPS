@@ -174,10 +174,19 @@ static bool On_Obstruction(const Vector3 & point,bool is_water)
 }
 
 
-//	Walk outward from the crossing point along the nearest road's own local perpendicular until
-//	the obstruction clears on each side, bounded.  Returns false if the search never clears
-//	within BANK_SEARCH_MAX_STEPS on either side (an obstruction wider than this bridge planner
-//	will consider spanning).
+//	Walk outward from the crossing point along the nearest road's own local tangent -- the
+//	direction the road is actually travelling through the obstruction, not across it -- until
+//	the obstruction clears on each side, bounded.  A road that meets an obstruction usually
+//	meets it roughly head-on, so this is the axis the obstruction is actually narrow along; the
+//	perpendicular this used to walk is the axis the obstruction typically runs *parallel* to
+//	(a riverbank, a cliff face), which stays inside the obstruction for a long way, or forever,
+//	rather than finding a bank at all -- and even where it does clear, the two points it finds
+//	sit off to the side of the road rather than ahead of and behind the crossing, which is why a
+//	road cut at their own along-road position lands at the same distance for both (see item 3's
+//	Trim_Road_Range: a zero-width interval never satisfies `distance_b > distance_a`, so the
+//	road was never actually split).  Returns false if the search never clears within
+//	BANK_SEARCH_MAX_STEPS on either side (an obstruction wider than this bridge planner will
+//	consider spanning).
 static bool Find_Bridge_Banks(const Vector3 & crossing_position,int road_id,bool is_water,
 										 Vector3 * start_out,Vector3 * end_out,float * span_out)
 {
@@ -193,26 +202,28 @@ static bool Find_Bridge_Banks(const Vector3 & crossing_position,int road_id,bool
 		if (best >= 0) tangent = road->Get_Point(best).Tangent;
 	}
 
-	Vector3 perp(-tangent.Y,tangent.X,0.0f);
-	float perp_length = perp.Length();
-	perp = (perp_length > 0.0001f) ? (perp / perp_length) : Vector3(0.0f,1.0f,0.0f);
+	//	Flattened to the plan, the same as the perpendicular this replaces always was: a bridge's
+	//	own span is a question in X/Y, and Z comes from the terrain sample below.
+	Vector3 walk (tangent.X,tangent.Y,0.0f);
+	float walk_length = walk.Length();
+	walk = (walk_length > 0.0001f) ? (walk / walk_length) : Vector3(1.0f,0.0f,0.0f);
 
 	float extent_pos = -1.0f;
 	for (int i = 1; i <= BANK_SEARCH_MAX_STEPS; i++) {
-		Vector3 p = crossing_position + (perp * (BANK_SEARCH_STEP * (float)i));
+		Vector3 p = crossing_position + (walk * (BANK_SEARCH_STEP * (float)i));
 		if (!On_Obstruction(p,is_water)) { extent_pos = BANK_SEARCH_STEP * (float)i; break; }
 	}
 
 	float extent_neg = -1.0f;
 	for (int i = 1; i <= BANK_SEARCH_MAX_STEPS; i++) {
-		Vector3 p = crossing_position - (perp * (BANK_SEARCH_STEP * (float)i));
+		Vector3 p = crossing_position - (walk * (BANK_SEARCH_STEP * (float)i));
 		if (!On_Obstruction(p,is_water)) { extent_neg = BANK_SEARCH_STEP * (float)i; break; }
 	}
 
 	if ((extent_pos < 0.0f) || (extent_neg < 0.0f)) return false;
 
-	Vector3 start = crossing_position - (perp * extent_neg);
-	Vector3 end   = crossing_position + (perp * extent_pos);
+	Vector3 start = crossing_position - (walk * extent_neg);
+	Vector3 end   = crossing_position + (walk * extent_pos);
 	float h;
 	if (WorldTerrainSystem::Sample_Height(start.X,start.Y,&h)) start.Z = h;
 	if (WorldTerrainSystem::Sample_Height(end.X,end.Y,&h))   end.Z   = h;
@@ -238,10 +249,20 @@ bool BridgePlanner::Generate(const BridgePlannerParams & params,StringClass * er
 	if (params.MaxSpanLength <= 0.0f)					FAIL("max span length must be positive");
 
 	int bridge_index = 0;
+	int road_splits  = 0;
 
 	for (int e = 0; e < RoadGraphGenerator::Get_Edge_Count(); e++) {
 		RoadGraphEdge edge;
 		if (!RoadGraphGenerator::Get_Edge(e,&edge)) continue;
+
+		//	Which road id a crossing further along this same edge should be cut from.  Starts as
+		//	the edge's own road; after a split it becomes whichever new segment carries the far
+		//	side (Trim_Road_Range's segment_b), since UnresolvedCrossingIds is recorded in route-
+		//	walk order (Phase 8 step 15) and every later crossing on this edge is further along
+		//	than the one just resolved.  A crossing this function cannot re-locate on the current
+		//	segment (the split changed course, or the search order assumption did not hold) is
+		//	left with its bridge built but unspliced -- logged, not silently wrong.
+		int current_road_id = edge.RoadId;
 
 		for (int c = 0; c < edge.UnresolvedCrossingIds.Count(); c++) {
 
@@ -297,6 +318,72 @@ bool BridgePlanner::Generate(const BridgePlannerParams & params,StringClass * er
 			int bridge_id = BridgeSystem::Add_Bridge(bridge);
 			OwnedBridgeIds.Add(bridge_id);
 
+			//	Item 3 of the gap report, Phase 8 reopened: split the road this bridge crosses at
+			//	the two abutments, so the original centre line stops being one unbroken road that
+			//	happens to have a bridge standing on top of it.  Located against whichever segment
+			//	is still live for this edge (see current_road_id's own comment above), not against
+			//	`edge.RoadId` directly, so a second crossing on the same edge lands on the right
+			//	remainder.
+			RoadSplineClass * live_road = RoadSystem::Peek_Road(current_road_id);
+			if (live_road != nullptr) {
+				int index_a,index_b;
+				float lateral_a,lateral_b,along_a,along_b;
+				if (live_road->Find_Closest_Point(start,&index_a,&lateral_a,&along_a) &&
+					 live_road->Find_Closest_Point(end,&index_b,&lateral_b,&along_b)) {
+
+					float distance_a = (along_a < along_b) ? along_a : along_b;
+					float distance_b = (along_a < along_b) ? along_b : along_a;
+
+					int segment_a_id,segment_b_id;
+					if (RoadSystem::Trim_Road_Range(current_road_id,distance_a,distance_b,
+																&segment_a_id,&segment_b_id)) {
+
+						if (segment_a_id != -1) {
+							RoadSplineClass * a = RoadSystem::Peek_Road(segment_a_id);
+							if (a != nullptr) {
+								int last = a->Get_Point_Count() - 1;
+								RoadConnectionClass & connection = a->Get_End_Connection();
+								connection.Type		= ROAD_ENDPOINT_BRIDGE;
+								connection.TargetID	= bridge_id;
+								if (last >= 0) {
+									connection.Position		= a->Get_Point(last).Position;
+									connection.Direction	= a->Get_Point(last).Tangent;
+								}
+							}
+						}
+						if (segment_b_id != -1) {
+							RoadSplineClass * b = RoadSystem::Peek_Road(segment_b_id);
+							if (b != nullptr) {
+								RoadConnectionClass & connection = b->Get_Start_Connection();
+								connection.Type		= ROAD_ENDPOINT_BRIDGE;
+								connection.TargetID	= bridge_id;
+								if (b->Get_Point_Count() > 0) {
+									connection.Position		= b->Get_Point(0).Position;
+									connection.Direction	= -b->Get_Point(0).Tangent;
+								}
+							}
+						}
+
+						//	The road that used to be at `current_road_id` may now be represented by
+						//	two ids; RoadGraphGenerator's own OwnedRoadIds sweep (its Clear) only
+						//	knows about the one it originally added via Add_Road.  Segment A always
+						//	keeps that original id (Trim_Road_Range's own contract), so only a real
+						//	new segment B id needs adopting here.
+						if (segment_b_id != -1) {
+							RoadGraphGenerator::Adopt_Owned_Road_Id(segment_b_id);
+						}
+
+						road_splits++;
+						current_road_id = (segment_b_id != -1) ? segment_b_id : current_road_id;
+
+					} else {
+						WWDEBUG_SAY(("BridgePlanner: bridge %d placed but road %d could not be split "
+										 "at it (interval %.1f-%.1f of %.1f) -- road runs through unsplit\r\n",
+										 bridge_id,current_road_id,distance_a,distance_b,live_road->Get_Length()));
+					}
+				}
+			}
+
 			ResolvedBridge resolved;
 			resolved.Id					= name;
 			resolved.BridgeId			= bridge_id;
@@ -325,7 +412,16 @@ bool BridgePlanner::Generate(const BridgePlannerParams & params,StringClass * er
 	if (OwnedBridgeIds.Count() > 0) {
 		BridgeSystem::Build_Layout();
 		BridgeSystem::Conform_Abutments();
-		BridgeSystem::Connect_Roads();
+
+		//	Connect_Roads' own default tolerance (8 units) assumes a road that already runs
+		//	straight into the bridge's own abutment.  Find_Bridge_Banks instead finds the two
+		//	banks along the *perpendicular* to the nearest road, so a bridge's own Start/End can
+		//	sit well off to the side of where Trim_Road_Range actually cut that road -- both
+		//	correct, on the terrain each one reasons about, but not necessarily within 8 units of
+		//	each other.  The bound this search itself can produce is exactly the bank search's
+		//	own reach, so that is the tolerance Connect_Roads is given: it can bind anything this
+		//	generator itself could have placed a bridge for.
+		BridgeSystem::Connect_Roads(BANK_SEARCH_STEP * (float)BANK_SEARCH_MAX_STEPS);
 		BridgeSystem::Build_Geometry();
 
 		for (int i = 0; i < Bridges.Count(); i++) {
@@ -349,7 +445,9 @@ bool BridgePlanner::Generate(const BridgePlannerParams & params,StringClass * er
 
 	Built = true;
 
-	WWDEBUG_SAY(("BridgePlanner: %d bridge(s), checksum 0x%08X\r\n",Bridges.Count(),Checksum));
+	WWDEBUG_SAY(("BridgePlanner: %d bridge(s), %d road split at its own crossing, %d unsplit, "
+					 "checksum 0x%08X\r\n",
+					 Bridges.Count(),road_splits,Bridges.Count() - road_splits,Checksum));
 
 	#undef FAIL
 	return true;

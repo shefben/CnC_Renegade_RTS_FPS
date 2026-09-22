@@ -676,6 +676,10 @@ add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
 
     #	Procedural bridge planner -- roadmap Section 34 Phase 9.  See terrainselfcheck.h.
     add_test(NAME terrain_bridgeplan   COMMAND renegade -terrainselfcheck bridgeplan)
+
+    #	Gap report item 2 -- a bridge-required test, distinct from terrain_bridgeplan's own
+    #	route-around-permitted one.  See terrainselfcheck.h and Check_Bridge_Required.
+    add_test(NAME terrain_bridgerequired   COMMAND renegade -terrainselfcheck bridgerequired)
 endif()
 
 #
@@ -757,4 +761,5 @@ add_test(NAME fds_terrain_shroud   COMMAND renegadeserver -terrainselfcheck shro
     add_test(NAME fds_terrain_strategic   COMMAND renegadeserver -terrainselfcheck strategic)
     add_test(NAME fds_terrain_roadgraph   COMMAND renegadeserver -terrainselfcheck roadgraph)
     add_test(NAME fds_terrain_bridgeplan   COMMAND renegadeserver -terrainselfcheck bridgeplan)
+    add_test(NAME fds_terrain_bridgerequired   COMMAND renegadeserver -terrainselfcheck bridgerequired)
 endif()

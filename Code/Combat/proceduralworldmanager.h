@@ -125,11 +125,20 @@ class ProceduralWorldManager
 		static bool		Fit_Profile_To_Level(ProceduralWorldProfile * profile);
 		static bool		Build_Cliff_Ring(const ProceduralWorldProfile & profile,StringClass * error_out);
 
-		//	Roadmap Section 34 Phase 4.  `built_out` is set to whether generation actually ran --
-		//	false and a true return together mean "correctly skipped", which is what a
-		//	`fit_to_level` world always does; see macroterraingenerator.h's own class comment for
-		//	why a fitted world's ground is never touched.
+		//	Roadmap Section 34 Phase 4.  `built_out` is set to whether a chunk registry now exists
+		//	for Phases 5-9 to read -- false and a true return together mean "correctly skipped",
+		//	which only ever happens when neither generation nor fitting produced one.  A
+		//	`fit_to_level` world never gets a second collidable ground (see
+		//	macroterraingenerator.h's own class comment and Build_Fitted_Terrain's below), but it
+		//	does get a real chunk registry now, sampled from the level itself.
 		static bool		Build_Macro_Terrain(const ProceduralWorldProfile & profile,bool * built_out,StringClass * error_out);
+
+		//	The fitted-world half of Phase 4.  Populates WorldTerrainSystem's heightfield and
+		//	chunk registry by sampling the host level's own real geometry, never by generating one,
+		//	and never calls Build_Collision/Build_Far_Terrain_Representation -- so the level's own
+		//	ground stays the only collidable ground, and Phases 5-9 stop being permanently gated
+		//	off for the one profile ("Procedural Skirmish") that ever actually requests a world.
+		static bool		Build_Fitted_Terrain(const ProceduralWorldProfile & profile,StringClass * error_out);
 
 		//	Roadmap Section 34 Phase 5.  Only meaningful once macro terrain stands, so this is a
 		//	no-op (not a failure) whenever Build_Macro_Terrain itself was -- a `fit_to_level`
@@ -152,6 +161,12 @@ class ProceduralWorldManager
 		//	Roadmap Section 34 Phase 9.  Requires the road graph -- every candidate comes from an
 		//	edge's own unresolved-crossing list -- so it shares that gate.
 		static bool		Build_Bridge_Plan(const ProceduralWorldProfile & profile,StringClass * error_out);
+
+		//	The gap report's item 6.  Runs after every generator above has had its turn, whether
+		//	or not each one individually succeeded -- a validator that only ran on a clean chain
+		//	could never report the chain being broken.  Never a reason to refuse the world; see
+		//	transportationnetworkvalidator.h's own comment for why.
+		static bool		Validate_Transportation_Network(const ProceduralWorldProfile & profile);
 
 		static bool		Requested;
 		static bool		WorldActive;

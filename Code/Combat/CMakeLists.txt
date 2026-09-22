@@ -87,6 +87,7 @@ proceduralworldmanager.cpp
 strategicplanner.cpp
 roadgraphgenerator.cpp
 bridgeplanner.cpp
+transportationnetworkvalidator.cpp
 projectbuildingdefs.cpp
     commanderproduction.cpp
     commanderguardai.cpp
@@ -266,6 +267,7 @@ proceduralworldmanager.h
 strategicplanner.h
 roadgraphgenerator.h
 bridgeplanner.h
+transportationnetworkvalidator.h
 projectbuildingdefs.h
     commanderproduction.h
     commanderguardai.h

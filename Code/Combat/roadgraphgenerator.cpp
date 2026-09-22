@@ -135,6 +135,20 @@ void RoadGraphGenerator::Shutdown(void)
 }
 
 
+void RoadGraphGenerator::Adopt_Owned_Road_Id(int road_id)
+{
+	if ((road_id < 0) || (road_id >= RoadSystem::Get_Road_Count())) {
+		return;
+	}
+	for (int i = 0; i < OwnedRoadIds.Count(); i++) {
+		if (OwnedRoadIds[i] == road_id) {
+			return;
+		}
+	}
+	OwnedRoadIds.Add(road_id);
+}
+
+
 void RoadGraphGenerator::Clear(void)
 {
 	if (OwnedRoadIds.Count() > 0) {

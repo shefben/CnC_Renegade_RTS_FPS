@@ -80,6 +80,13 @@ static const float ROAD_GRADE_SMOOTHING			= 12.0f;
 static const float ROAD_CONFORM_RAY_ABOVE		= 200.0f;
 static const float ROAD_CONFORM_RAY_BELOW		= 200.0f;
 
+/*
+**	Trim_Road_Range's own floor.  A survivor shorter than this is a stub nobody would drive on
+**	and a ribbon that would be nearly a single quad; treated as not surviving the cut at all,
+**	the same as a distance of exactly zero would be.
+*/
+static const float ROAD_SPLIT_MIN_SEGMENT_LENGTH	= 0.5f;
+
 
 /*
 **	Where a road crosses the edge of a junction disc.
@@ -378,6 +385,130 @@ void RoadSystem::Apply_Connection_Trims(RoadSplineClass & road)
 		end.Position = road.Get_Point(last).Position;
 		end.Direction = road.Get_Point(last).Tangent;
 	}
+}
+
+
+/***********************************************************************************************
+ * RoadSystem::Trim_Road_Range -- cut a built road apart for a crossing to stand in the middle   *
+ *                                                                                             *
+ * The road/bridge handoff contract Phase 9 shipped without: a bridge crosses a road somewhere   *
+ * in the *middle* of a route Build_Network already tessellated, conformed and junctioned, not   *
+ * at either of the two ends Trim_Start/Trim_End and Apply_Connection_Trims already handle.      *
+ * Cutting the already-tessellated points directly -- rather than re-deriving control points and *
+ * calling Build_Network again -- is deliberate: Build_Network re-tessellates every road in the   *
+ * network from its own ControlPoints, which for a road just cut in two would throw the cut away  *
+ * and regenerate the original, uncut curve.  So this is a surgical edit to the one road that     *
+ * changed, patching the junction table in place rather than rebuilding it, and it leaves         *
+ * NetworkBuilt exactly as it was -- true if it was, since the rest of the network did not move.  *
+ *=============================================================================================*/
+bool RoadSystem::Trim_Road_Range(int road_id,float distance_a,float distance_b,
+											 int * segment_a_id_out,int * segment_b_id_out)
+{
+	if (segment_a_id_out != nullptr) *segment_a_id_out = -1;
+	if (segment_b_id_out != nullptr) *segment_b_id_out = -1;
+
+	if ((road_id < 0) || (road_id >= Roads.Count())) {
+		return false;
+	}
+	if (!Roads[road_id].Is_Tessellated()) {
+		return false;
+	}
+
+	float length = Roads[road_id].Get_Length();
+	if (!WWMath::Is_Valid_Float(distance_a) || !WWMath::Is_Valid_Float(distance_b)) {
+		return false;
+	}
+	if (!((distance_a >= 0.0f) && (distance_b > distance_a) && (distance_b <= length))) {
+		return false;
+	}
+
+	//	Everything this function needs from the pre-cut road, captured by value before anything
+	//	below mutates Roads[road_id] or reallocates the Roads array out from under a reference
+	//	into it.
+	RoadSplineClass original(Roads[road_id]);
+
+	RoadSplineClass segment_a(original);
+	bool has_a = (distance_a > ROAD_SPLIT_MIN_SEGMENT_LENGTH) &&
+					 segment_a.Trim_End(length - distance_a);
+
+	RoadSplineClass segment_b(original);
+	bool has_b = ((length - distance_b) > ROAD_SPLIT_MIN_SEGMENT_LENGTH) &&
+					 segment_b.Trim_Start(distance_b);
+
+	if (!has_a && !has_b) {
+		//	The whole interval, plus whatever ROAD_SPLIT_MIN_SEGMENT_LENGTH trims off either
+		//	remainder, covers the entire road.  Refuse rather than silently delete it.
+		return false;
+	}
+
+	int new_a_id = -1;
+	int new_b_id = -1;
+
+	if (has_a) {
+		Roads[road_id] = segment_a;
+		Roads[road_id].Set_ID(road_id);
+		new_a_id = road_id;
+		if (has_b) {
+			new_b_id = Roads.Count();
+			Roads.Add(segment_b);
+			Roads[new_b_id].Set_ID(new_b_id);
+		}
+	} else {
+		//	Nothing of segment A survives -- the crossing starts at, or before, the road's own
+		//	beginning -- so segment B takes over the original id outright instead of leaving it
+		//	empty and spending a second one.
+		Roads[road_id] = segment_b;
+		Roads[road_id].Set_ID(road_id);
+		new_b_id = road_id;
+	}
+
+	//	Repoint whatever junction this road used to be an arm of.  A junction's own Position is
+	//	world space, not road-relative, so which new segment (if either) still passes through it
+	//	is decided by where that position falls on the *original*, pre-cut road's own
+	//	distance-along -- measured from the snapshot taken above, not from either Roads[] entry
+	//	this function has already overwritten.
+	for (int j = 0; j < Junctions.Count(); j++) {
+		RoadJunctionClass & junction = Junctions[j];
+		for (int a = 0; a < junction.ArmCount; a++) {
+			if (junction.Arms[a] != road_id) {
+				continue;
+			}
+
+			int index; float lateral; float along;
+			int replacement = -1;
+			if (original.Find_Closest_Point(junction.Position,&index,&lateral,&along)) {
+				if ((along <= distance_a) && (new_a_id != -1)) {
+					replacement = new_a_id;
+				} else if ((along >= distance_b) && (new_b_id != -1)) {
+					replacement = new_b_id;
+				}
+			}
+
+			if (replacement != -1) {
+				junction.Arms[a] = replacement;
+			} else {
+				//	The junction sat inside the removed span, or on a remainder too short to
+				//	keep.  A real crossing should never produce this -- RoadGraphGenerator does
+				//	not route a junction through a chunk a bridge plan also claims -- but a
+				//	caller handing in a bad interval still must not leave a dangling arm.
+				for (int k = a; k < junction.ArmCount - 1; k++) {
+					junction.Arms[k] = junction.Arms[k+1];
+				}
+				junction.ArmCount--;
+				junction.Arms[junction.ArmCount] = -1;
+				a--;
+			}
+		}
+	}
+
+	//	The batched meshes and the surface-run cache describe a road layout that no longer
+	//	exists; Build_Geometry/Collect_Surface_Runs rebuild both correctly from the Roads array
+	//	as it stands now, whenever a caller next asks for either.
+	Destroy_Geometry();
+
+	if (segment_a_id_out != nullptr) *segment_a_id_out = new_a_id;
+	if (segment_b_id_out != nullptr) *segment_b_id_out = new_b_id;
+	return true;
 }
 
 

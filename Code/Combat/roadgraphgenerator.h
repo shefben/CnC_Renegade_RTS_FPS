@@ -137,6 +137,14 @@ public:
 	//	outright.
 	static void			Clear(void);
 
+	//	BridgePlanner (Phase 9) calls this after RoadSystem::Trim_Road_Range hands back a new
+	//	road id -- the far segment of a road this generator built, once a bridge has cut it in
+	//	two.  A split segment is still this generator's own road, just under a second id, and
+	//	Clear's own owned-id sweep has to know about it or it survives every future Clear as a
+	//	road nobody added but nobody ever removes either.  A no-op for an id already owned or out
+	//	of range, so a caller does not have to check first.
+	static void			Adopt_Owned_Road_Id(int road_id);
+
 	static bool			Has_Graph(void)			{ return Built; }
 	static int			Get_Edge_Count(void)	{ return Edges.Count(); }
 	static bool			Get_Edge(int index,RoadGraphEdge * out);

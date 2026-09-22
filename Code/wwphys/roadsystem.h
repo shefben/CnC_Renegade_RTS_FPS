@@ -232,6 +232,33 @@ public:
 	static void			Stamp_Road_Mask(void);
 	static void			Apply_Grades(void);
 
+	/*
+	**	The road/crossing handoff primitive.  A road already built by Build_Network can be
+	**	subdivided at two distances along its own tessellated centre line -- `distance_a` nearer
+	**	the start, `distance_b` nearer the end -- leaving the span between them (a bridge deck or
+	**	a tunnel bore) with no road surface at all, and everything before/after it as two
+	**	independent roads with their own ids.  This is deliberately the whole of what it does:
+	**	no bridge, no tunnel, no connection type is named here, because the road system stays
+	**	responsible for road geometry and nothing else -- a caller that just identified a
+	**	crossing (BridgePlanner, a tunnel planner later) supplies the interval, performs the cut,
+	**	and then sets whichever segment's Get_End_Connection/Get_Start_Connection its own crossing
+	**	belongs to itself.
+	**
+	**	Whichever segment keeps material on both sides of a distance keeps that road's original
+	**	id (segment A when both survive, otherwise whichever one does); the other segment, if it
+	**	also survives, is a new id at the end of the road list.  `*_id_out` is -1 for whichever
+	**	side did not survive the cut (the crossing sat at, or past, that end of the road).
+	**	Returns false and changes nothing if the road is not tessellated, the interval is not a
+	**	real sub-range of it, or nothing at all survives the cut.
+	**
+	**	Any existing junction this road was an arm of is repointed to whichever new segment still
+	**	passes through that junction's own position, or drops the arm if neither does (the
+	**	junction sat inside the removed span, which a real crossing never should but a caller
+	**	handing in a bad interval could still produce).
+	*/
+	static bool			Trim_Road_Range(int road_id,float distance_a,float distance_b,
+													 int * segment_a_id_out,int * segment_b_id_out);
+
 private:
 
 	static void			Conform_Road(RoadSplineClass & road);

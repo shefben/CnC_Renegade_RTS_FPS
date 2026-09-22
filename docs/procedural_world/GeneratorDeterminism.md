@@ -192,11 +192,20 @@ check honest about what a bounded pass count actually proves.
 ### `fit_to_level` skips the generator entirely
 
 Unlike the cliff ring, which still builds around a fitted world, macro terrain generation does
-not run at all when `world.fit_to_level` is true — `ProceduralWorldManager::Build_Macro_Terrain`
-returns success having done nothing. `WorldGenerationManifest::TerrainChecksum` is `0` for
-every world produced by the one caller that exists today, which is the correct, non-degenerate
-value for "the generator did not run", not a sign of a broken checksum. See
-`docs/procedural_world/MacroTerrainGeneration.md`.
+not run at all when `world.fit_to_level` is true — `MacroTerrainGenerator::Generate` is never
+called, exactly as before. See `docs/procedural_world/MacroTerrainGeneration.md`.
+
+**V2 Phase 10 correction.** `Build_Macro_Terrain` no longer merely returns success having done
+nothing for a fitted world: it now calls a new `Build_Fitted_Terrain`, which populates
+`WorldTerrainSystem`'s chunk registry by sampling the host level's own real geometry (never by
+generating one, and never touching collision), so `terrain_built` is true and Phases 5-9 run for
+real. `WorldGenerationManifest::TerrainChecksum` is populated for a fitted world too now, read
+directly from `WorldTerrainSystem::Get_World_Chunk_Checksum` rather than from
+`MacroTerrainGenerator::Get_Terrain_Checksum` (which only ever reflects the generated path) --
+the one change needed so the same manifest field means the same thing regardless of which path
+built the registry. `0` is still correct, and still means exactly "no chunk registry exists this
+run", for the one remaining case that produces it: the fitting or sampling itself failed. See
+`completed_features.md`, "V2 Phase 10".
 
 ## Phase 5 additions
 

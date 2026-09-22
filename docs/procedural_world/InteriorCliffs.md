@@ -149,7 +149,8 @@ never become a candidate however steep the synthetic ramp makes them.
 What is not proven, because nothing here runs with a display or against `MacroTerrainGenerator`'s
 own noise: whether a real generated seed's terrain produces interior cliffs that read as
 canyons/escarpments/mountain faces rather than as an arbitrary scatter; whether the walk's
-chunk-to-chunk path looks like a wall from inside the world; and the same reachability gap Phase
-4 already carries -- this generator only ever runs when macro terrain itself ran, which today is
-never, because the one caller that exists always requests a `fit_to_level` profile. See
-`WIP_features.md` for the exact next action that gap is waiting on.
+chunk-to-chunk path looks like a wall from inside the world. The reachability gap Phase 4
+carried -- this generator only running when macro terrain itself ran, which the one real
+caller's `fit_to_level` profile made never -- is closed by V2 Phase 10's fitted-terrain
+sampling; see `completed_features.md` and `GeneratorDeterminism.md`. What remains is a live pass
+with a person watching, per `WIP_features.md`.

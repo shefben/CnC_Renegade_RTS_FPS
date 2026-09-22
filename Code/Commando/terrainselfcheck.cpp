@@ -28,6 +28,7 @@
 #include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
 #include "terrainmask.h"
+#include "transportationnetworkvalidator.h"
 #include "terraintexturesystem.h"
 #include "watersystem.h"
 #include "watertype.h"
@@ -4368,6 +4369,288 @@ void	Check_Bridge_Plan (void)
 }
 
 
+//	Zero derivative at both t=0 and t=1: a transition built from this touches down onto a flat
+//	neighbour with no sudden change of slope at the seam, which plain linear interpolation does
+//	not -- the whole reason this exists rather than a straight lerp.
+static float Smoothstep_01 (float t)
+{
+	if (t < 0.0f) t = 0.0f;
+	if (t > 1.0f) t = 1.0f;
+	return t * t * (3.0f - (2.0f * t));
+}
+
+
+/***********************************************************************************************
+**	Terrain for Check_Bridge_Required: two flat, buildable plateaus (chunk rows 0 and 4)
+**	separated by a valley (chunk row 2) with a transition row on each side (rows 1 and 3).
+**
+**	The transitions exist so the plateaus stay flat where it matters.  A slope reading at a
+**	shared seam vertex is a central difference across both patches on either side of it
+**	(HeightfieldClass::Get_Normal), so a valley dropped directly at a plateau's own edge would
+**	read as an enormous slope *for the plateau's own patch*, not only the valley's -- the
+**	seam-contamination failure this shape is built to avoid.  Smoothstep_01 gives every
+**	transition a flat tangent at both of its own seams, so rows 0 and 4 read as slope zero
+**	everywhere a plateau chunk's own registry entry looks, while the transition's real drop
+**	happens in its own interior, steep enough there that rows 1 and 3 are never buildable
+**	themselves -- which does not matter, since nothing here relies on them being either way.
+**
+**	HydrologyGenerator's own flow-accumulation model (see Generate, "steps 3-4") then carves
+**	water across the valley: every row-2 chunk's own average height decreases from east to
+**	west, so the channel runs west along row 2 exactly the way Build_Uniform_Ramp_Terrain's own
+**	proven per-row channels do, and every row-1/row-3 chunk drains toward row 2 rather than
+**	back toward its own plateau, because row 2 is the lower neighbour on both sides.  Neither
+**	plateau (row 0 or row 4) is ever a channel's own flow target, and a plateau chunk's own
+**	self-accumulation (1, itself alone) never reaches the stream threshold, so neither plateau
+**	is ever carved.  The valley is therefore the sole route between a base in row 0 and a base
+**	in row 4 by construction: there is no row this terrain's own bounds let a path detour
+**	through instead.
+***********************************************************************************************/
+static void
+Build_River_Divided_Terrain (void)
+{
+	static const int	COLUMN_PATCHES	= 3;
+	static const int	ROW_PATCHES		= 5;
+	static const float	CELL_SIZE			= 4.0f;
+
+	int cells = HeightfieldClass::PATCH_CELLS;
+	int vx = (COLUMN_PATCHES * cells) + 1;
+	int vy = (ROW_PATCHES * cells) + 1;
+
+	WorldTerrainSystem::Destroy_Terrain ();
+	WorldTerrainSystem::Create_Terrain (vx,vy,CELL_SIZE,Vector3 (-96.0f,-96.0f,0.0f));
+
+	float * heights = new float [vx * vy];
+	for (int iy = 0; iy < vy; iy++) {
+		for (int ix = 0; ix < vx; ix++) {
+
+			//	West-decreasing, so the valley's own chunk-average flow model drains west --
+			//	Build_Uniform_Ramp_Terrain's own proven mechanism, reused for the same reason.
+			float valley_depth = -80.0f + ((float)ix * 0.5f);
+			float h;
+
+			if (iy <= cells) {
+				h = 0.0f;																		// row 0, the south plateau
+			} else if (iy < (2 * cells)) {
+				float t = (float)(iy - cells) / (float)cells;
+				h = valley_depth * Smoothstep_01 (t);									// row 1, south transition
+			} else if (iy <= (3 * cells)) {
+				h = valley_depth;															// row 2, the valley itself
+			} else if (iy < (4 * cells)) {
+				float t = (float)(iy - (3 * cells)) / (float)cells;
+				h = valley_depth * Smoothstep_01 (1.0f - t);							// row 3, north transition
+			} else {
+				h = 0.0f;																		// row 4, the north plateau
+			}
+
+			heights[(iy * vx) + ix] = h;
+		}
+	}
+	WorldTerrainSystem::Set_Heights (heights,vx * vy);
+	delete [] heights;
+}
+
+
+/***********************************************************************************************
+**	bridgerequired
+**
+**	Gap report item 2.  Check_Bridge_Plan (above) proves BridgePlanner's own structural
+**	guarantees against whatever a real road graph happens to produce -- honestly, zero bridges
+**	included, since Dijkstra is free to route around any obstruction a clear path exists past.
+**	That is route-finding, not bridge generation.
+**
+**	This check is what the gap report asks for on top of it: terrain built so a crossing is not
+**	merely likely but structurally unavoidable.  Build_River_Divided_Terrain's own row 1 is the
+**	sole path between the only two base candidates the terrain admits at all (every other chunk
+**	either fails the approach-count floor for having row 1 as an ineligible neighbour, or is row
+**	1 itself), so the real chain -- strategic plan, road graph, bridge plan -- is forced through
+**	BridgePlanner's own bridge-*building* path, not merely its crossing-*detection* one.
+***********************************************************************************************/
+void	Check_Bridge_Required (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+
+	Build_River_Divided_Terrain ();
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+	StringClass error ("");
+
+	HydrologyParams hydro_params;
+	hydro_params.Seed							= 501u;
+	hydro_params.GenerateRivers				= true;
+	hydro_params.GenerateLakes				= true;
+	hydro_params.GeneratePonds				= true;
+	hydro_params.RiverWidth					= 6.0f;
+	hydro_params.StreamWidth					= 2.5f;
+	//	Above 2 (self plus one plateau chunk's own contribution) and below 5 (the valley row's
+	//	own per-column total): high enough that rows 1/3 individually never cross the stream
+	//	threshold and stay uncarved, low enough that the valley row itself still does.
+	hydro_params.RiverAccumulationChunks	= 10.0f;
+	hydro_params.MaxRiverCount				= 4;
+	Check (HydrologyGenerator::Generate (hydro_params,&error),
+			 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+	Check (HydrologyGenerator::Get_Feature_Count () >= 1,
+			 "the divided terrain produced no hydrology feature -- the terrain shape itself is wrong");
+
+	//	Chunks hydrology carved into water are no longer Buildable, so the chunk registry has to
+	//	see that before the strategic plan reads it -- Check_Bridge_Plan's own established idiom.
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+	//	Exactly two eligible base positions exist on this terrain by construction: row 0's own
+	//	middle chunk and row 4's own middle chunk are the only ones with two Eligible orthogonal
+	//	neighbours (their east and west row-mates); every edge-column chunk in either row has
+	//	only one, and rows 1-3 are never Eligible at all (row 2 is water; rows 1 and 3 fail
+	//	Buildable on their own steep interior slope -- see Build_River_Divided_Terrain).  Every
+	//	other candidate category is zeroed so nothing else can compete for either slot, and
+	//	separation is set well below the gap between the two so neither is rejected as too close.
+	StrategicPlannerParams plan_params;
+	plan_params.Seed								= 502u;
+	plan_params.MinApproachCount				= 2;
+	plan_params.MinBaseCandidatesPerFaction	= 1;
+	plan_params.MinBaseSeparation				= 100.0f;
+	plan_params.MaxTiberiumCandidates		= 0;
+	plan_params.MaxSettlementCandidates		= 0;
+	plan_params.MaxPoiCandidates				= 0;
+	plan_params.MaxExpansionCandidates		= 0;
+	plan_params.MaxEconomicRange				= 1000.0f;
+	Check (StrategicPlanner::Generate (plan_params,&error),
+			 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+	int gdi_bases = 0, nod_bases = 0, crossing_candidates = 0;
+	for (int n = 0; n < StrategicPlanner::Get_Node_Count (); n++) {
+		StrategicNode node;
+		if (!StrategicPlanner::Get_Node (n,&node)) continue;
+		if (node.Type == STRATEGIC_NODE_BASE_CANDIDATE) {
+			if (node.Faction == PLAYERTYPE_GDI) gdi_bases++;
+			else if (node.Faction == PLAYERTYPE_NOD) nod_bases++;
+		}
+		if (node.Type == STRATEGIC_NODE_CROSSING_CANDIDATE) crossing_candidates++;
+	}
+	Check (gdi_bases == 1, "the divided terrain produced %d GDI base candidate(s), not the one it was built for",gdi_bases);
+	Check (nod_bases == 1, "the divided terrain produced %d Nod base candidate(s), not the one it was built for",nod_bases);
+	Check (crossing_candidates >= 1,
+			 "the divided terrain's own river produced no water crossing candidate for the strategic plan to see");
+
+	RoadGraphParams road_params;
+	road_params.Seed							= 503u;
+	road_params.MaxBuildableSlopeRadians	= 0.5f;
+	road_params.SlopeCostWeight				= 3.0f;
+	road_params.CrossingCostPenalty			= 8.0f;
+	road_params.BoundaryApproachCostWeight	= 1.5f;
+	Check (RoadGraphGenerator::Generate (road_params,&error),
+			 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+	Check (RoadGraphGenerator::Get_Edge_Count () >= 1,
+			 "the road graph found no edge between the only two base candidates this terrain admits");
+
+	//
+	//	required crossing detected == true.  Row 1 is the only route between the two bases, so
+	//	the single edge the MST built must itself carry an unresolved crossing -- not a hope,
+	//	a structural consequence of there being no other chunk row to route through.
+	//
+	int unresolved_crossings = 0;
+	RoadGraphEdge the_edge;
+	bool found_edge = false;
+	for (int e = 0; e < RoadGraphGenerator::Get_Edge_Count (); e++) {
+		RoadGraphEdge edge;
+		if (!RoadGraphGenerator::Get_Edge (e,&edge)) continue;
+		unresolved_crossings += edge.UnresolvedCrossingIds.Count ();
+		if (edge.UnresolvedCrossingIds.Count () > 0) { the_edge = edge; found_edge = true; }
+	}
+	Check (unresolved_crossings >= 1,
+			 "required crossing detected == false -- the road graph routed between the two bases without "
+			 "ever touching the river this terrain forces it through");
+
+	StringClass roadgraph_report ("");
+	Check (RoadGraphGenerator::Check_Required_Nodes_Connected (&roadgraph_report) == 0,
+			 "the road graph itself does not connect the only two required bases: %s",roadgraph_report.Peek_Buffer ());
+
+	BridgePlannerParams bridge_params;
+	bridge_params.Seed						= 504u;
+	bridge_params.WaterClearanceMargin	= 2.0f;
+	//	Find_Bridge_Banks searches perpendicular to the road rather than along the river, so the
+	//	measured span on this terrain covers close to the whole channel width rather than just
+	//	the carriageway -- generous on purpose so that pre-existing search behaviour, unrelated
+	//	to what this check exists to prove, cannot itself reject the crossing.
+	bridge_params.MaxSpanLength			= 400.0f;
+	Check (BridgePlanner::Generate (bridge_params,&error),
+			 "generation refused a road graph with a real unresolved crossing: %s",error.Peek_Buffer ());
+
+	//
+	//	bridge selected == true; bridge count >= 1.
+	//
+	Check (BridgePlanner::Has_Plan (), "a successful generation over a forced crossing reported no plan built");
+	Check (BridgePlanner::Get_Bridge_Count () >= 1,
+			 "bridge count >= 1 failed -- a crossing this terrain cannot be routed around produced zero bridges");
+
+	//
+	//	The resulting bridge connects the intended road components (both abutments bound to a
+	//	real road -- this check's own regression net on item 3's road split, not only item 2's
+	//	own bridge-gets-built claim), and the crossing it resolves is one of the edge's own
+	//	unresolved ids -- represented in the final transportation graph, not a bridge that merely
+	//	happens to stand near the crossing without being its actual resolution.
+	//
+	bool resolves_real_crossing = false;
+	for (int i = 0; i < BridgePlanner::Get_Bridge_Count (); i++) {
+		ResolvedBridge resolved;
+		if (!BridgePlanner::Get_Bridge (i,&resolved)) continue;
+
+		BridgeClass * bridge = BridgeSystem::Peek_Bridge (resolved.BridgeId);
+		Check (bridge != nullptr,
+				 "resolved bridge '%s' names a bridge id BridgeSystem does not have",resolved.Id.Peek_Buffer ());
+		if (bridge == nullptr) continue;
+
+		Check (bridge->Get_Start_Road () >= 0,
+				 "bridge '%s' has no road connected at its start abutment",resolved.Id.Peek_Buffer ());
+		Check (bridge->Get_End_Road () >= 0,
+				 "bridge '%s' has no road connected at its end abutment",resolved.Id.Peek_Buffer ());
+
+		if (found_edge) {
+			for (int c = 0; c < the_edge.UnresolvedCrossingIds.Count (); c++) {
+				if (the_edge.UnresolvedCrossingIds[c] == resolved.CrossingNodeId) { resolves_real_crossing = true; break; }
+			}
+		}
+	}
+	Check (resolves_real_crossing,
+			 "no resolved bridge names the crossing id the road graph's own edge actually carried");
+
+	//
+	//	road graph remains connected == true, checked the same structural way item 6's own
+	//	validator checks it: no unbound abutment, no bridge with no connected road, and the two
+	//	required bases mutually reachable, all on this terrain's own real network.
+	//
+	TransportationValidationParams validation_params;
+	validation_params.MaxBuildableSlopeRadians = 0.5f;
+	StringClass validation_report ("");
+	TransportationNetworkValidator::Validate (validation_params,&validation_report);
+	Check (TransportationNetworkValidator::Get_Unbound_Abutment_Count () == 0,
+			 "the forced crossing's own road split left an unbound abutment: %s",validation_report.Peek_Buffer ());
+	Check (TransportationNetworkValidator::Get_Bridge_With_No_Road_Count () == 0,
+			 "the forced crossing's own bridge has no connected road: %s",validation_report.Peek_Buffer ());
+	Check (!TransportationNetworkValidator::Did_Check_Required_Base_Routes () ||
+			 TransportationNetworkValidator::Has_Required_Base_Routes (),
+			 "the only two required bases this terrain admits are not mutually reachable: %s",
+			 validation_report.Peek_Buffer ());
+
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+	TransportationNetworkValidator::Clear ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -4440,6 +4723,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "bridgeplan") == 0)) {
 		Check_Bridge_Plan ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "bridgerequired") == 0)) {
+		Check_Bridge_Required ();
 	}
 
 	if (_Failures == 0) {

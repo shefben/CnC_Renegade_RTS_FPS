@@ -105,7 +105,9 @@ checksum.
 
 What is not proven, because nothing here runs with a display or against a real generated seed's
 own uneven terrain: whether a routed road looks like a road rather than a chunk-to-chunk zigzag;
-whether the width/class choices read right once art exists; and the same reachability gap every
-phase since 4 carries -- this generator only runs when the strategic plan itself ran, which only
-ever happens when macro terrain ran, which today is never, since the one caller that exists
-always requests a `fit_to_level` profile.
+whether the width/class choices read right once art exists. The reachability gap every phase
+since 4 carried -- this generator only running when the strategic plan itself ran, which only
+ever happened when macro terrain ran, which the one real caller's `fit_to_level` profile made
+never -- is closed by V2 Phase 10's fitted-terrain sampling; see `completed_features.md` and
+`GeneratorDeterminism.md`. The road-to-bridge handoff this file's own edges feed into
+`BridgePlanner` for is likewise closed -- see `BridgePlanning.md`.

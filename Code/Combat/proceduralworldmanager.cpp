@@ -28,16 +28,21 @@
 
 #include "boundarycliffgenerator.h"
 #include "bridgeplanner.h"
+#include "castres.h"
 #include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
+#include "lineseg.h"
 #include "macroterraingenerator.h"
+#include "physcoltest.h"
 #include "roadgraphgenerator.h"
 #include "strategicplanner.h"
+#include "transportationnetworkvalidator.h"
 #include "proceduralboundsbuilder.h"
 #include "phys.h"
 #include "pscene.h"
 #include "worldboundsservice.h"
 #include "worldseedservice.h"
+#include "worldspatialindex.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
 #include "wwmath.h"
@@ -93,6 +98,14 @@ static const float INTERIOR_CLIFF_SLOPE_THRESHOLD_FRACTION	= 0.92f;
 static const int	  INTERIOR_CLIFF_MAX_RUN_LENGTH				= 10;
 static const float INTERIOR_CLIFF_BATTER							= 0.1f;
 static const float INTERIOR_CLIFF_TOE_WIDTH						= 6.0f;
+
+/*
+**	Build_Fitted_Terrain's own tuning.  How far above the level's own measured ceiling and below
+**	its own measured floor the sampling ray reaches -- generous on purpose, so a tall interior or
+**	ground that dips below the level's reported floor is still inside the cast rather than reading
+**	as open sky.
+*/
+static const float FITTED_TERRAIN_RAY_MARGIN = 500.0f;
 
 
 void ProceduralWorldManager::Init(void)
@@ -270,6 +283,13 @@ bool ProceduralWorldManager::Build_Macro_Terrain(const ProceduralWorldProfile & 
 	if (built_out != nullptr) *built_out = false;
 
 	if (profile.World.FitToLevel) {
+		//	No second collidable ground -- see Build_Fitted_Terrain's own comment -- but Phases
+		//	5-9 gate on WorldTerrainSystem::Has_Chunk_Registry, not on whether MacroTerrainGenerator
+		//	itself ran, so sampling the level into a chunk registry is what actually unblocks them.
+		if (!Build_Fitted_Terrain (profile,error_out)) {
+			return false;
+		}
+		if (built_out != nullptr) *built_out = true;
 		return true;
 	}
 
@@ -300,6 +320,138 @@ bool ProceduralWorldManager::Build_Macro_Terrain(const ProceduralWorldProfile & 
 
 	if (built_out != nullptr) *built_out = true;
 	return true;
+}
+
+
+/***********************************************************************************************
+ * Build_Fitted_Terrain -- populate the chunk registry for a `fit_to_level` world                *
+ *                                                                                             *
+ *	Macro terrain never runs for a fitted world -- the level's own W3D geometry stays the only    *
+ *	collidable ground there is, per Build_Macro_Terrain's and macroterraingenerator.h's own        *
+ *	comments.  But Phases 5-9 never actually read MacroTerrainGenerator; every one of them gates    *
+ *	on WorldTerrainSystem::Has_Chunk_Registry, and the registry itself is built purely from          *
+ *	HeightfieldClass's own height/slope data (WorldTerrainSystem::Build_Chunk_Registry_Entry reads    *
+ *	Heightfield->Get_Patch, nothing else -- no collision patch is ever consulted).  So a heightfield   *
+ *	can exist purely as bookkeeping: created, filled with the level's own real sampled heights,          *
+ *	registered into a chunk registry, with Build_Collision and Build_Far_Terrain_Representation           *
+ *	never called on it.  Nothing about the level's actual collidable ground changes.  This is what           *
+ *	closes the fitted-world gap: the one caller that exists (the "Procedural Skirmish" menu button)          *
+ *	always requests `fit_to_level`, so this is what makes Phases 5-9 run on a real request instead of          *
+ *	only ever behind a synthetic self check.                                                                    *
+ *                                                                                             *
+ *	Sampling.  One straight-down ray per heightfield vertex, cast through WorldSpatialIndex -- the      *
+ *	one canonical spatial query owner (Section 16), the same entry point CommanderModeController's       *
+ *	own ground pick already uses -- from above the level's own measured ceiling to below its own          *
+ *	measured floor.  The topmost hit is the ground a player standing at that point would actually be       *
+ *	on.  A vertex with no hit at all is off the level's own footprint -- Fit_Profile_To_Level always        *
+ *	makes the fitted world larger than the level by the boundary inset -- and is written flat at sea         *
+ *	level, the same value a cliff-band vertex gets, below.                                                     *
+ *                                                                                             *
+ *	The immutable cliff band stays immutable the same way MacroTerrainGenerator keeps it that way: any   *
+ *	vertex WorldBoundsService classifies at or past WORLD_ZONE_CLIFF_BAND is written flat at sea level     *
+ *	and never sampled, so MacroTerrainGenerator::Check_Cliff_Band_Untouched -- which reads only              *
+ *	WorldTerrainSystem's own data, never which generator built it -- proves this path the same way it        *
+ *	proves the generated-terrain one.                                                                          *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Fitted_Terrain(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	#define FITFAIL(msg) { if (error_out) *error_out = msg; WorldTerrainSystem::Destroy_Terrain (); return false; }
+
+	PhysicsSceneClass * scene = PhysicsSceneClass::Get_Instance ();
+	if (scene == nullptr)								FITFAIL ("no physics scene to sample the level from");
+	if (profile.World.ChunkSize <= 0.0f)			FITFAIL ("chunk size must be positive");
+	if (!WWMath::Is_Valid_Float (profile.World.Width) || (profile.World.Width <= 0.0f))
+																			FITFAIL ("world width must be positive");
+	if (!WWMath::Is_Valid_Float (profile.World.Height) || (profile.World.Height <= 0.0f))
+																			FITFAIL ("world height must be positive");
+
+	Vector3 level_min (0.0f,0.0f,0.0f);
+	Vector3 level_max (0.0f,0.0f,0.0f);
+	scene->Get_Level_Extents (level_min,level_max);
+
+	float cast_top		= level_max.Z + FITTED_TERRAIN_RAY_MARGIN;
+	float cast_bottom	= level_min.Z - FITTED_TERRAIN_RAY_MARGIN;
+
+	float cell_size = profile.World.ChunkSize / (float)HeightfieldClass::PATCH_CELLS;
+
+	int vx = (int)WWMath::Ceil (profile.World.Width  / cell_size) + 1;
+	int vy = (int)WWMath::Ceil (profile.World.Height / cell_size) + 1;
+	if (vx < 2) vx = 2;
+	if (vy < 2) vy = 2;
+
+	Vector3 origin (profile.World.CenterX - ((float)(vx - 1) * cell_size * 0.5f),
+						 profile.World.CenterY - ((float)(vy - 1) * cell_size * 0.5f),
+						 profile.World.SeaLevel);
+
+	if (!WorldTerrainSystem::Create_Terrain (vx,vy,cell_size,origin)) {
+		FITFAIL ("WorldTerrainSystem refused to create the fitted terrain");
+	}
+
+	bool configured = WorldBoundsService::Is_Configured ();
+
+	float * heights = new float[vx * vy];
+	int sampled_count = 0;
+	int flat_count		= 0;
+
+	for (int iy = 0; iy < vy; iy++) {
+		for (int ix = 0; ix < vx; ix++) {
+
+			int idx = (iy * vx) + ix;
+			float wx = origin.X + ((float)ix * cell_size);
+			float wy = origin.Y + ((float)iy * cell_size);
+
+			WorldBoundsZoneType zone = configured
+				? WorldBoundsService::Classify_Point (Vector2 (wx,wy))
+				: WORLD_ZONE_PLAYABLE_INTERIOR;
+
+			if (zone >= WORLD_ZONE_CLIFF_BAND) {
+				//	The immutable band's own foot -- see this function's own comment.
+				heights[idx] = 0.0f;
+				flat_count++;
+				continue;
+			}
+
+			LineSegClass ray (Vector3 (wx,wy,cast_top),Vector3 (wx,wy,cast_bottom));
+			CastResultStruct result;
+			PhysRayCollisionTestClass raytest (ray,&result,0);
+
+			if (WorldSpatialIndex::Query_Ray (raytest)) {
+				float world_z = cast_top + ((cast_bottom - cast_top) * result.Fraction);
+				heights[idx] = world_z - origin.Z;
+				sampled_count++;
+			} else {
+				//	No level geometry under this vertex -- outside the level's own footprint, in
+				//	the fitted world's own boundary inset.  Flat at sea level, same as the cliff
+				//	band, is correct here for the same reason: there is no real ground to record.
+				heights[idx] = 0.0f;
+				flat_count++;
+			}
+		}
+	}
+
+	bool set_ok = WorldTerrainSystem::Set_Heights (heights,vx * vy);
+	delete [] heights;
+
+	if (!set_ok) {
+		FITFAIL ("WorldTerrainSystem refused the sampled heights");
+	}
+
+	//	Device-less from here down, same as MacroTerrainGenerator's own Generate: the chunk
+	//	registry needs only the heightfield just filled and WorldBoundsService, no collision, no
+	//	scene render state.  Build_Collision/Build_Far_Terrain_Representation are deliberately
+	//	never called -- that is exactly the second-collidable-ground failure this function exists
+	//	to avoid.
+	WorldTerrainSystem::Build_Chunk_Registry ((float)DEG_TO_RAD (profile.Terrain.MaxBuildableSlopeDegrees));
+
+	WWDEBUG_SAY (("ProceduralWorldManager: fitted terrain sampled -- %d x %d vertices (%d sampled, %d flat), "
+					  "%d x %d chunks, checksum 0x%08X\r\n",
+					  vx,vy,sampled_count,flat_count,
+					  WorldTerrainSystem::Get_Chunk_Count_X (),WorldTerrainSystem::Get_Chunk_Count_Y (),
+					  WorldTerrainSystem::Get_World_Chunk_Checksum ()));
+
+	return true;
+
+	#undef FITFAIL
 }
 
 
@@ -385,6 +537,18 @@ bool ProceduralWorldManager::Build_Bridge_Plan(const ProceduralWorldProfile & pr
 													profile.Seed,WorldSeedService::SEED_DOMAIN_BRIDGES);
 
 	return BridgePlanner::Generate (params,error_out);
+}
+
+
+/***********************************************************************************************
+ * Validate_Transportation_Network -- the gap report's item 6                                    *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Validate_Transportation_Network(const ProceduralWorldProfile & profile)
+{
+	TransportationValidationParams params;
+	params.MaxBuildableSlopeRadians	= (float)DEG_TO_RAD (profile.Terrain.MaxBuildableSlopeDegrees);
+
+	return TransportationNetworkValidator::Validate (params,nullptr);
 }
 
 
@@ -505,6 +669,12 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 		}
 	}
 
+	//	Final network validation, item 6.  Runs regardless of which of the steps above actually
+	//	built anything -- with nothing built it trivially passes (0 roads, 0 bridges, nothing to
+	//	be broken), which is the correct answer for a hand-authored map with no procedural roads
+	//	at all, not a special case to skip around.
+	bool network_valid = Validate_Transportation_Network (profile);
+
 	ActiveProfile = profile;
 
 	/*
@@ -515,7 +685,10 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 	DynamicVectorClass<StringClass> content_identifiers;
 	Manifest = WorldGenerationManifestService::Create_Empty_World_Manifest (profile,content_identifiers);
 	Manifest.CliffRingChecksum			= BoundaryCliffGenerator::Get_Ring_Checksum ();
-	Manifest.TerrainChecksum			= terrain_built ? MacroTerrainGenerator::Get_Terrain_Checksum () : 0;
+	//	Read from WorldTerrainSystem directly rather than MacroTerrainGenerator's own cache -- the
+	//	registry has exactly one owner regardless of which path built it (generated or fitted),
+	//	and Get_Terrain_Checksum() only ever reflects the generated path.
+	Manifest.TerrainChecksum			= terrain_built ? WorldTerrainSystem::Get_World_Chunk_Checksum () : 0;
 	Manifest.InteriorCliffChecksum	= interior_cliffs_built ? InteriorCliffGenerator::Get_Checksum () : 0;
 	Manifest.HydrologyChecksum		= hydrology_built ? HydrologyGenerator::Get_Checksum () : 0;
 	Manifest.StrategicPlanChecksum	= strategic_plan_built ? StrategicPlanner::Get_Checksum () : 0;
@@ -554,9 +727,11 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 					  BoundaryCliffGenerator::Get_Station_Count (),
 					  BoundaryCliffGenerator::Get_Chunk_Count (),
 					  BoundaryCliffGenerator::Get_Ring_Checksum ()));
-	WWDEBUG_SAY (("ProceduralWorldManager: macro terrain %s -- %s\r\n",
-					  terrain_built ? "built" : "skipped (fit_to_level)",
-					  terrain_built ? "" : "the level's own ground stands"));
+	WWDEBUG_SAY (("ProceduralWorldManager: macro terrain %s (%s) -- %s\r\n",
+					  terrain_built ? "built" : "NOT BUILT",
+					  profile.World.FitToLevel ? "fitted, sampled from the level" : "generated",
+					  profile.World.FitToLevel ? "the level's own ground stands; chunk registry only"
+														  : (terrain_built ? "" : "the world's own ground is unaffected")));
 	WWDEBUG_SAY (("ProceduralWorldManager: interior cliffs %s -- %d feature(s), checksum 0x%08X\r\n",
 					  interior_cliffs_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
 					  InteriorCliffGenerator::Get_Feature_Count (),
@@ -577,6 +752,10 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 					  bridge_plan_built ? "built" : (road_graph_built ? "NOT BUILT" : "skipped (no road graph)"),
 					  BridgePlanner::Get_Bridge_Count (),
 					  BridgePlanner::Get_Checksum ()));
+	//	TransportationNetworkValidator::Validate already logged its own per-finding lines above
+	//	this one; this is the single-line summary item 1's own per-pass status list asks for.
+	WWDEBUG_SAY (("ProceduralWorldManager: transportation network validation %s\r\n",
+					  network_valid ? "PASS" : "FAIL -- see TransportationNetworkValidator lines above"));
 
 	return true;
 }
@@ -596,10 +775,10 @@ void ProceduralWorldManager::Destroy_World(void)
 	BoundaryCliffGenerator::Clear_Ring ();
 	WorldBoundsService::Clear ();
 
-	//	A `fit_to_level` world never had a heightfield in the first place (Build_Macro_Terrain
-	//	skipped it), so this is a no-op then -- WorldTerrainSystem::Destroy_Terrain is always
-	//	safe to call with no terrain.  A generated world's terrain goes with everything else a
-	//	procedural world owns.
+	//	A `fit_to_level` world now has its own heightfield too -- bookkeeping only, sampled by
+	//	Build_Fitted_Terrain, never collidable -- and it goes with everything else a procedural
+	//	world owns, the same as a generated world's terrain.  Safe to call with no terrain at all
+	//	(a world whose fitting itself failed), since Destroy_Terrain always is.
 	WorldTerrainSystem::Destroy_Terrain ();
 	MacroTerrainGenerator::Init ();
 

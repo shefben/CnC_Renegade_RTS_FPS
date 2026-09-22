@@ -158,6 +158,7 @@ configured boundary's cliff-band chunks are never reached by a channel or its te
 What is not proven, because nothing here runs with a display or against `MacroTerrainGenerator`'s
 own noise: whether a real generated seed's rivers read as rivers rather than an arbitrary set of
 chunk-to-chunk lines; whether a lake sitting exactly on its own chunk's square footprint looks
-like a lake rather than a tile; and the same reachability gap Phase 4 and Phase 5 both carry --
-this generator only runs when macro terrain itself ran, which today is never, since the one
-caller that exists always requests a `fit_to_level` profile.
+like a lake rather than a tile. The reachability gap Phase 4 and Phase 5 both carried -- this
+generator only running when macro terrain itself ran, which the one real caller's `fit_to_level`
+profile made never -- is closed by V2 Phase 10's fitted-terrain sampling; see
+`completed_features.md` and `GeneratorDeterminism.md`.

@@ -113,6 +113,7 @@ water already carved into it) still offers each faction a comparable pair of sit
 targeted validation's own "at least 2 plausible approach directions across candidate
 combinations" is not separately checked, since route independence in the sense Section 17A.2
 means (two paths that do not immediately merge into the same choke) needs a road graph that does
-not exist until Phase 8; and the same reachability gap every phase since 4 carries -- this
-generator only runs when macro terrain itself ran, which today is never, since the one caller
-that exists always requests a `fit_to_level` profile.
+not exist until Phase 8. The reachability gap every phase since 4 carried -- this generator only
+running when macro terrain itself ran, which the one real caller's `fit_to_level` profile made
+never -- is closed by V2 Phase 10's fitted-terrain sampling; see `completed_features.md` and
+`GeneratorDeterminism.md`.

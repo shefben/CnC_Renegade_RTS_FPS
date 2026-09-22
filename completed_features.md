@@ -2948,3 +2948,120 @@ warnings. Docs: `docs/procedural_world/BridgePlanning.md` (new), Phase-9 section
 Phase 9 carries the same reachability gap every phase since 4 does, now four generators deep:
 this planner only runs when the road graph itself ran, which only ever happens when the
 strategic plan ran, which only ever happens when macro terrain ran, which today is never.
+**Closed by V2 Phase 10, below.**
+
+## V2 Phase 10 -- fitted-world integration, road/bridge handoff, and network validation
+
+Closes the gap report's items 1, 2, 3 and 6, and the width/clearance half of items 4 and 5.
+
+**Item 1: the fitted-world gap.** `ProceduralWorldManager::Build_Macro_Terrain` no longer just
+skips for a `fit_to_level` world; it calls a new `Build_Fitted_Terrain`, which populates
+`WorldTerrainSystem`'s heightfield and chunk registry by sampling the host level's own real
+geometry -- one straight-down ray per heightfield vertex, cast through `WorldSpatialIndex`
+(Section 16's own canonical query owner, the same entry point `CommanderModeController`'s ground
+pick already uses), from above the level's own measured ceiling to below its own measured floor.
+Any vertex `WorldBoundsService` classifies at or past `WORLD_ZONE_CLIFF_BAND`, or that no ray
+hits at all (outside the level's own footprint, inside the fitted world's own boundary inset),
+is written flat at sea level -- the same value `MacroTerrainGenerator`'s own generated path
+already uses for the same band, so `MacroTerrainGenerator::Check_Cliff_Band_Untouched` proves
+this path too, having no idea which generator built the data it reads. `Build_Collision` and
+`Build_Far_Terrain_Representation` are never called on this heightfield -- deliberately, the
+whole reason a second collidable ground was never on the table -- so the level's own W3D
+geometry stays the only thing a player, a vehicle or a physics query ever actually touches; the
+sampled heightfield exists purely so `WorldTerrainSystem::Has_Chunk_Registry` is true and
+`Sample_Height`/`Sample_Slope` answer real questions with real data. `terrain_built` now means
+"a chunk registry exists," not "macro terrain ran," so Phases 5 through 9 read `Manifest.
+TerrainChecksum` from `WorldTerrainSystem::Get_World_Chunk_Checksum` directly (the one value
+both paths already agreed on) and run for real the first time a player clicks "Procedural
+Skirmish" -- the only caller `Request_World` has ever had, and it has always requested
+`fit_to_level: true`.
+
+**Item 3 (Phase 8 reopened): the road/bridge handoff.** `RoadSystem::Trim_Road_Range` is the
+missing primitive `BridgePlanner`'s own header already admitted did not exist: given a road id
+and two distances along its own tessellated centre line, it cuts the road into two independent
+roads (reusing the original id for whichever survives on the low side, a new id for the other)
+and repoints any junction arm that referenced the original id to whichever survivor still passes
+through it. `RoadSystem` still owns road geometry exclusively; the primitive is bridge-agnostic
+by design, per the gap report's own instruction. `BridgePlanner::Generate` calls it once per
+resolved bridge, against whichever segment is still live for that edge (a second crossing on the
+same original road lands on the correct remainder, tracked per edge as the split walks forward),
+sets `ROAD_ENDPOINT_BRIDGE` and the cut position/direction on both new segments'
+`RoadConnectionClass`, and registers a new segment's id with `RoadGraphGenerator::
+Adopt_Owned_Road_Id` so a later `Clear` sweeps it up too instead of leaking it across world
+regenerations. `BridgeSystem::Connect_Roads` -- already written, never previously given anything
+to bind -- now finds a real match, called with a tolerance the size of `BridgePlanner`'s own bank
+search rather than its 8-unit default, since that search can legitimately place a bridge's
+abutment well away from where a straight cut lands.
+
+**A real, load-bearing bug found and fixed along the way.** `Find_Bridge_Banks` was walking
+outward from a crossing along the *perpendicular* to the nearest road, not along it -- discovered
+because the new bridge-required test (below) produced a road cut whose two candidate distances
+were numerically identical, which `Trim_Road_Range` correctly refuses (`distance_b > distance_a`
+failed). A road meets an obstruction travelling roughly head-on, not sideways to it; walking the
+tangent instead finds the two banks ahead of and behind the crossing, which is what a bridge
+spanning the road's own direction of travel needs. `Check_Bridge_Plan`'s own existing assertions
+never depended on the search direction (no test previously looked at `Get_Start`/`Get_End`'s
+relationship to the road), so this is a pure fix, proven by full-suite comparison: an identical
+11 pre-existing, unrelated failures (debris origin/count, shroud visibility, two macro-terrain
+edge cases, one hydrology determinism case -- none of them touched by this phase) both with and
+without this change staged, via `git stash`.
+
+**Item 6: final network validation.** A new `TransportationNetworkValidator`
+(`Code/Combat/transportationnetworkvalidator.h/.cpp`) runs once per `Generate_World`, after
+bridge planning, reading only state `RoadSystem`, `BridgeSystem`, `StrategicPlanner` and
+`WorldTraversabilityGraph` already own. It reports: a road end naming a crossing connection with
+no bridge/tunnel actually bound (`Connect_Roads` ran and could not match it); a bridge with no
+road connected at either abutment; a bridge narrower than a connected road's own total width, or
+than the widest currently-loaded wheeled vehicle's own corridor (`WorldMetricsClass::
+Get_Class_Metrics`, the project's real vehicle-derived clearance service -- not a guessed
+Humvee number, and correctly reports "not checked" rather than a false pass when no wheeled
+definition is loaded); a road other than a bridge's own two still running through that bridge's
+own footprint (the exact "unsplit road under a bridge" failure item 3 exists to prevent, kept as
+a live regression net rather than an assumption); an approach grade over the same shared
+`MaxBuildableSlopeRadians` cap every other terrain-reading generator in this chain already uses;
+a bridge whose own stated clearance (`BridgeSystem::Check_Clearance`, Phase 64) is not met; and
+whether every `StrategicPlanner` `BASE_CANDIDATE` pair across factions is mutually reachable for
+a wheeled-vehicle `WorldTraversabilityGraph` (Phase 65), when the terrain admits one to build at
+all. Never blocks generation -- every other generator in this chain already treats its own
+failure as "logged, world still stands," and a validator that refused the world over its own
+report would be the one inconsistent piece -- but it is what makes a broken network *visible*
+now instead of accepted because every subsystem individually returned true. `ProceduralWorldManager
+::Generate_World` logs one aggregate PASS/FAIL line per generation alongside its existing
+per-pass status lines.
+
+**Item 2: a bridge-required test that actually requires a bridge.** `Check_Bridge_Plan`'s own
+test remains untouched -- it proves the structural contract holds for whatever a real road graph
+produces, zero bridges included, which is route-finding, not bridge generation, exactly as its
+own comment already said. A new `Check_Bridge_Required` (`-terrainselfcheck bridgerequired`,
+ctest `terrain_bridgerequired`/`fds_terrain_bridgerequired`) builds a bespoke terrain -- two flat
+plateaus five chunk-rows apart, `Smoothstep_01`-eased transitions on each side so the plateaus
+themselves read as slope zero to `WorldTerrainSystem` (a linear ramp dropped straight at a
+patch's own seam reads as an enormous slope *for that patch*, since a slope sample at a shared
+vertex is a central difference across both patches either side of it -- discovered the same way
+as the bank-search bug, by running the check and reading why it failed) -- where exactly two
+`StrategicPlanner` base candidates can ever exist (every other chunk fails the approach-count
+floor or is the valley itself) and a real `HydrologyGenerator` river spans the valley's full
+width by construction, with `RiverAccumulationChunks` tuned so the transition rows never
+individually cross the stream threshold and only the valley row itself is ever carved. The check
+asserts, on the real chain (hydrology, strategic plan, road graph, bridge plan, exactly as
+`Generate_World` calls them): required crossing detected, bridge selected, bridge count >= 1,
+both abutments bound to a real road (item 3's own regression net, not only item 2's), the
+resolved bridge names one of the road graph edge's own unresolved crossing ids, and
+`TransportationNetworkValidator` finds zero unbound abutments and zero unconnected bridges on
+this terrain's own real network.
+
+**What is honestly not resolved this phase.** Item 4's road/bridge width is still fixed
+per-class constants (`RoadGraphGenerator`'s own already-documented Humvee-formula gap), now only
+validated against real vehicle metrics rather than generated from them; a mismatch is reported,
+never corrected by widening either side or inserting a transition segment. Item 5's fallback
+chain -- reposition the crossing, lengthen the approach, try another crossing type, reject and
+regenerate -- is still not implemented; a bridge that cannot be legally placed stays unresolved,
+same as before this phase. Item 7's own live pass, multiple fixed seeds through the real
+"Procedural Skirmish" button with a person watching the result, has not been run; see
+`WIP_features.md`.
+
+`renegade`, `renegadeserver` and `leveledit` all build clean, 0 warnings. Full
+`-terrainselfcheck` (all families, no `which` filter) shows the same 11 pre-existing failures
+with this phase's changes staged and with them stashed out via `git stash` -- debris
+origin/count/position, team shroud visibility (twice), two macro-terrain edge cases, and one
+hydrology determinism case, none of them touched by this phase, none of them new.
