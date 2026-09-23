@@ -5528,6 +5528,85 @@ int	Run_Procedural_World_Tools (void)
 }
 
 
+/***********************************************************************************************
+**	Phase 29 -- performance, scaling, and soak hardening (roadmap Section 30).  Step 1's three
+**	representative profiles, mirrored here byte-for-field against the real
+**	data/procedural_world/{small,default,large_supported}.json this build actually ships (the
+**	self check embeds the same JSON `Load_Profile_From_Text` already tests everything else with,
+**	rather than depending on a working directory -- no self check in this file loads a profile
+**	from a real file path; see proceduralworldtools.h's own disclosed real-walk exception for
+**	the same reason).  Everything else Section 30/Phase 29 asks for that already exists
+**	(GuardStateControllerClass's per-tick replan budget, WorldSnapshotCompactionPolicy, the AI
+**	Commander's per-difficulty planning interval) is exercised by its own owning phase's self
+**	check already and is not duplicated here.  See docs/procedural_world/PerformanceBudgets.md.
+***********************************************************************************************/
+static const char * const	PERF_PROFILE_SMALL_JSON =
+	"{ \"schema_version\":8,\"generator_version\":6,\"name\":\"SMALL\",\"seed\":1,"
+	"  \"world\":{\"fit_to_level\":true,\"width\":600.0,\"height\":600.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
+	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
+	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"
+	"  \"terrain\":{\"min_elevation\":-15.0,\"max_elevation\":90.0,\"max_buildable_slope_degrees\":25.0,"
+	"               \"feature_scale\":300.0} }";
+
+static const char * const	PERF_PROFILE_MEDIUM_JSON =
+	"{ \"schema_version\":8,\"generator_version\":6,\"name\":\"MEDIUM\",\"seed\":1,"
+	"  \"world\":{\"fit_to_level\":true,\"width\":1200.0,\"height\":1200.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
+	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
+	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"
+	"  \"terrain\":{\"min_elevation\":-15.0,\"max_elevation\":90.0,\"max_buildable_slope_degrees\":25.0,"
+	"               \"feature_scale\":300.0} }";
+
+static const char * const	PERF_PROFILE_LARGE_SUPPORTED_JSON =
+	"{ \"schema_version\":8,\"generator_version\":6,\"name\":\"LARGE_SUPPORTED\",\"seed\":1,"
+	"  \"world\":{\"fit_to_level\":true,\"width\":2400.0,\"height\":2400.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
+	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
+	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"
+	"  \"terrain\":{\"min_elevation\":-15.0,\"max_elevation\":90.0,\"max_buildable_slope_degrees\":25.0,"
+	"               \"feature_scale\":300.0} }";
+
+
+int	Run_Performance_Budgets (void)
+{
+	StringClass error;
+
+	ProceduralWorldProfile small_profile;
+	Check (ProceduralWorldProfileManager::Load_Profile_From_Text (PERF_PROFILE_SMALL_JSON,&small_profile,&error),
+			 "the SMALL representative profile did not parse -- %s",(const char *)error);
+	Check (ProceduralWorldProfileManager::Validate_Profile (small_profile,&error),
+			 "the SMALL representative profile failed validation -- %s",(const char *)error);
+
+	ProceduralWorldProfile medium_profile;
+	Check (ProceduralWorldProfileManager::Load_Profile_From_Text (PERF_PROFILE_MEDIUM_JSON,&medium_profile,&error),
+			 "the MEDIUM representative profile did not parse -- %s",(const char *)error);
+	Check (ProceduralWorldProfileManager::Validate_Profile (medium_profile,&error),
+			 "the MEDIUM representative profile failed validation -- %s",(const char *)error);
+
+	ProceduralWorldProfile large_profile;
+	Check (ProceduralWorldProfileManager::Load_Profile_From_Text (PERF_PROFILE_LARGE_SUPPORTED_JSON,&large_profile,&error),
+			 "the LARGE_SUPPORTED representative profile did not parse -- %s",(const char *)error);
+	Check (ProceduralWorldProfileManager::Validate_Profile (large_profile,&error),
+			 "the LARGE_SUPPORTED representative profile failed validation -- %s",(const char *)error);
+
+	//	Step 1's own point: three genuinely different, strictly ordered world sizes, not the same
+	//	profile renamed three times.
+	Check (small_profile.World.Width < medium_profile.World.Width,
+			 "SMALL was not narrower than MEDIUM");
+	Check (medium_profile.World.Width < large_profile.World.Width,
+			 "MEDIUM was not narrower than LARGE_SUPPORTED");
+	Check (small_profile.World.Height < medium_profile.World.Height,
+			 "SMALL was not shorter than MEDIUM");
+	Check (medium_profile.World.Height < large_profile.World.Height,
+			 "MEDIUM was not shorter than LARGE_SUPPORTED");
+
+	//	MEDIUM is deliberately the same size as the shipped default profile -- not a fourth,
+	//	competing "default" world.
+	Check ((medium_profile.World.Width == 1200.0f) && (medium_profile.World.Height == 1200.0f),
+			 "MEDIUM drifted from the shipped default.json's own 1200x1200 world size");
+
+	return _Failures;
+}
+
+
 int	Run_RTS_Persistence (void)
 {
 	BuildingDescriptorManager::Init ();
@@ -6684,6 +6763,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "worldtools") == 0)) {
 		Run_Procedural_World_Tools ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "perfbudgets") == 0)) {
+		Run_Performance_Budgets ();
 		ran = true;
 	}
 

@@ -1303,3 +1303,26 @@ Phase28IntegrationGate.md` ends with: start a dedicated server, connect a client
 mutate terrain, destroy a bridge, late-join a second client, save/restart/reload, disconnect/
 reconnect one client -- and report back whatever breaks, which becomes the next real, narrowly-
 scoped fix pass rather than something guessed at here.
+
+---
+
+## V2 Phase 29 -- representative profiles and a budget/LOD audit are real; no performance/soak numbers exist yet
+
+Same structural limit as Phase 28: baseline metrics, frame-time/server-tick measurement and soak
+testing all need a live client this session cannot drive. See `docs/procedural_world/
+PerformanceBudgets.md` for the full account, including a real blocking defect found and fixed
+(`data/procedural_world/default.json`'s `schema_version` was four revisions stale and would have
+been rejected outright by `Validate_Profile` the first time anything actually generated a world
+from it).
+
+**What is not proven:** any actual generation-time, frame-time, server-tick, memory or soak number
+for `SMALL`/`MEDIUM`/`LARGE_SUPPORTED` -- none was measured, none was invented. Multi-tier chunk
+LOD and foliage LOD/culling remain genuinely unbuilt (disclosed, not fabricated) because their
+tuning thresholds need measured frame-time data this session has none of.
+
+**Next exact action** is a manual one for the user, on a machine that can run a real client and
+server, for each of the three profiles in `data/procedural_world/`: time actual generation
+(`ProceduralWorldManager: world generated -- ...` log line), watch client frame time and server
+tick during a normal match, and soak-test `large_supported.json` specifically for memory growth,
+stale chunk resources, leaked nav objects and runaway operation-journal growth (Section 30 step
+10's own list). Report the numbers back -- that becomes this phase's real baseline.

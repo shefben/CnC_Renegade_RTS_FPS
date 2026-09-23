@@ -4317,3 +4317,36 @@ already-broad integration gate.
 
 **Regression status:** full suite 191 tests, 24 failing -- six fewer than before this phase, zero
 new failures.
+
+---
+
+## V2 Phase 29 -- performance, scaling, and soak hardening (roadmap Section 30)
+
+Same live-play limit Phase 28 disclosed applies to nearly all of this phase's own steps (baseline
+capture, frame time, server tick, soak testing) -- no fabricated numbers invented for any of it.
+Full account: `docs/procedural_world/PerformanceBudgets.md`.
+
+**Step 1's three representative profiles are real**: `data/procedural_world/small.json` (600x600),
+`default.json` (1200x1200, unchanged), `large_supported.json` (2400x2400), each varying only world
+size against the shipped default's own terrain/water/fairness settings. `shader_perfbudgets`/
+`fds_shader_perfbudgets` (two new tests) assert all three parse, validate and are strictly ordered.
+
+**A real, previously-unknown, blocking defect was found and fixed while building them:**
+`data/procedural_world/default.json` -- the file `ProceduralWorldManager::DEFAULT_PROFILE_PATH`
+actually points at -- still said `schema_version:4`/`generator_version:4` while
+`ProceduralWorldProfile::CURRENT_SCHEMA_VERSION` is `8` (`CURRENT_GENERATOR_VERSION` `6`), and
+`Validate_Profile` requires exact equality with no migration path. The shipped default profile
+would have been rejected outright by the one validator that gates every real
+`Generate_World` attempt. Fixed by bumping both version numbers (every field four schema
+revisions added already defaults safely via the loader's own `json::value` pattern). Undetected
+until now because, per Phase 28's own finding, nothing in this repository has ever actually driven
+`Generate_World` against a live level.
+
+**Budget/LOD audit, not new duplicate code**: catalogued `CommanderAIService`'s per-difficulty
+planning interval, `GuardStateControllerClass`'s per-tick replan budget, `WorldSnapshotCompaction
+Policy`, and `WorldOperationJournal`'s crater-specific rate limit as the real, already-built
+answers to most of Section 30.2/30.3 -- none duplicated. Multi-tier chunk/foliage LOD and a
+general (non-crater) world-operation rate limit are real, disclosed, unbuilt gaps, not fabricated.
+
+**Regression status:** full suite 193 tests, 24 failing -- same as before this phase, zero
+regressions; the two new tests both pass.
