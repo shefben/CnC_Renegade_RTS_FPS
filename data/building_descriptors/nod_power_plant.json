@@ -17,6 +17,11 @@
  "destroyed_model": "ow_nod_power_plant_x.w3d",
  "damaged_health_fraction": 0.5
 },
+"_comment_subcomponents": "Phase 20 (roadmap Section 21). anchor_bone verified by direct ASCII string scan of the real mnpwr_int.w3d (docs/procedural_world/BuildingFunctionalSubcomponents.md) -- same real MCT bone the GDI Power Plant's own MNPWR_MCT/MGPWR_MCT pair both carry, mirrored across factions the same way the rest of this file already is.",
+"subcomponents": [
+ { "role": "power_generator_module", "anchor_bone": "MNPWR_MCT",
+   "full_function_health_fraction": 0.75, "disabled_health_fraction": 0.0 }
+],
  "model_name": "mnpwr_ext.w3d",
  "game_object_preset": "mp_Nod_Power_Plant",
  "schema_version": 1,

@@ -222,6 +222,72 @@ struct BuildingAnchorEntry
 
 
 /*
+**	Roadmap Section 21, Phase 20 -- optional functional subcomponents.
+**
+**	Exactly Section 21.1's own ten example role names, spelled as an enum so a typo in JSON is
+**	a load-time refusal rather than a role that silently never matches anything.  Not every role
+**	has a defined effect (21.2 gives examples for the first six; tiberium_storage has none) and
+**	not every role that does has a real building to attach it to in this tree yet -- see
+**	docs/procedural_world/BuildingFunctionalSubcomponents.md for exactly which of the ten are
+**	wired this phase and why the rest are not: Phase 20's own step 5, "do not implement an
+**	effect when the model lacks a coherent semantic part", applies as much to "no buildable
+**	descriptor of that category exists at all" as it does to "no bone represents it".
+*/
+enum BuildingSubcomponentRoleType
+{
+	SUBCOMPONENT_POWER_GENERATOR_MODULE = 0,
+	SUBCOMPONENT_COMMUNICATIONS_ARRAY,
+	SUBCOMPONENT_RADAR_DISH,
+	SUBCOMPONENT_REFINERY_PROCESSOR,
+	SUBCOMPONENT_TIBERIUM_STORAGE,
+	SUBCOMPONENT_FACTORY_PRODUCTION_MODULE,
+	SUBCOMPONENT_FACTORY_EXIT_MECHANISM,
+	SUBCOMPONENT_REPAIR_MODULE,
+	SUBCOMPONENT_DEFENSE_TARGETING_MODULE,
+	SUBCOMPONENT_DEFENSE_WEAPON_MODULE,
+	SUBCOMPONENT_ROLE_COUNT
+};
+
+//	Canonical string <-> enum, shared by the JSON parser and anything that reports a role by
+//	name (the debug status command).  Returns nullptr / false rather than guessing on an unknown
+//	name -- the same refusal Production.Kind's own "unknown production.kind" already uses.
+const char *	Subcomponent_Role_Name(BuildingSubcomponentRoleType role);
+bool				Subcomponent_Role_From_Name(const char * name,BuildingSubcomponentRoleType * out_role);
+
+
+/*
+**	The gate this phase exists for -- "functional damage exists without a second building
+**	health/state system" -- is why this entry carries no health of its own.  `FullFunctionHealthFraction`
+**	and `DisabledHealthFraction` are two points on the *building's own* normalized health, read
+**	from the one place that number already lives (DamageableGameObj::Get_Health/Get_Health_Max,
+**	the same field DamageVisual's table already reads); the function this part contributes scales
+**	linearly between them and is clamped 0..1 outside that range.  A role with no entry in a
+**	descriptor's Subcomponents list is simply not tracked -- full function always, exactly the
+**	behavior every descriptor had before this list existed, which is what "remains optional per
+**	descriptor" means in practice.
+**
+**	`AnchorBoneName` is resolved the same way BuildingAnchorEntry already is (Get_Bone_Index
+**	against every currently-loaded runtime part, first match wins) and degrades the same way on a
+**	miss -- not found is "no visual anchor for this part", never a crash and never a reason the
+**	numeric effect stops applying.  Empty means the descriptor names no anchor at all, which is a
+**	legitimate authored choice, not an error: the capability still degrades with health, there is
+**	simply nothing to point a future visual at yet.
+*/
+struct BuildingSubcomponentDefinition
+{
+	BuildingSubcomponentDefinition(void) : Role(SUBCOMPONENT_POWER_GENERATOR_MODULE),AnchorBoneName(""),
+														 FullFunctionHealthFraction(0.75f),DisabledHealthFraction(0.0f) { }
+	bool	operator == (const BuildingSubcomponentDefinition &) const	{ return false; }
+	bool	operator != (const BuildingSubcomponentDefinition &) const	{ return true; }
+
+	BuildingSubcomponentRoleType	Role;
+	StringClass							AnchorBoneName;
+	float									FullFunctionHealthFraction;	// >= this building health fraction -> 1.0
+	float									DisabledHealthFraction;		// <= this building health fraction -> 0.0
+};
+
+
+/*
 **	Q-017 follow-up -- component assembly.
 **
 **	Every Commander-constructed building so far has been one `.w3d` in, one `StaticPhysClass`
@@ -297,12 +363,26 @@ class BuildingModelDescriptor
 
 		DynamicVectorClass<BuildingAnchorEntry>	Anchors;
 
+		//	Phase 20.  Empty for every descriptor but the handful this phase actually authors --
+		//	see BuildingSubcomponentDefinition above for why empty is a real, supported, zero-
+		//	behavior-change state rather than a placeholder.
+		DynamicVectorClass<BuildingSubcomponentDefinition>	Subcomponents;
+
 		//	The authoritative construction duration: the build block's own value when it sets
 		//	one, otherwise the construction visual's.  One accessor so that no caller has to
 		//	remember which of the two blocks wins.
 		float	Get_Build_Time_Seconds(void) const;
 
 		const char *	Find_Anchor_Bone(const char * role_name) const;
+
+		//	Phase 20.  -1.0f means this descriptor tracks no subcomponent for that role -- the
+		//	caller's own signal to leave its capability value unmodified.  Otherwise 0..1, linearly
+		//	interpolated between the declared entry's two health thresholds and clamped; see
+		//	BuildingSubcomponentDefinition for why building health is the only input.
+		float				Get_Subcomponent_Function_Fraction(BuildingSubcomponentRoleType role,
+																				 float building_health_fraction) const;
+		bool				Has_Subcomponent(BuildingSubcomponentRoleType role) const;
+		const char *	Find_Subcomponent_Anchor_Bone(BuildingSubcomponentRoleType role) const;
 
 		//	The model a runtime instance should be wearing right now.  Falls back to ModelName
 		//	whenever the table cannot answer, so an absent damage_visual block is a building that

@@ -427,6 +427,27 @@ public:
 	void											Detach_Visual_Module (const char *slot_name);
 	void											Set_Visual_Module_Damaged (const char *slot_name,bool damaged);
 
+	/*
+	**	Roadmap Section 21, Phase 20 -- functional subcomponents.  Each returns the descriptor's
+	**	own numeric value scaled by that role's function fraction (BuildingSubcomponentDefinition,
+	**	buildingdescriptor.h), which is itself a pure function of this building's own canonical
+	**	Health/HealthMax -- no second health pool, per the phase's own gate.  A map-authored
+	**	building, a building with no resolved descriptor, or a descriptor that tracks no
+	**	subcomponent for the role all return the descriptor's raw value unmodified (1.0 function
+	**	fraction), which is exactly today's behavior -- these calls change nothing for any building
+	**	that does not opt in.  TeamPowerGridService reads these instead of the descriptor's raw
+	**	Power.Generation/Communications fields whenever a real BuildingGameObj is registered.
+	*/
+	float											Get_Effective_Power_Generation (void) const;
+	float											Get_Effective_Vision_Radius (void) const;
+	float											Get_Effective_Radar_Radius (void) const;
+
+	//	The debug/status report Phase 20 step 10 asks for.  String-keyed rather than the enum so
+	//	no caller outside Code/Combat needs buildingdescriptor.h's role type just to print a report.
+	int											Get_Subcomponent_Count (void) const;
+	bool											Get_Subcomponent_Status (int index,StringClass *role_name_out,
+																						float *function_fraction_out,bool *anchor_resolves_out) const;
+
 protected:
 
 	/*

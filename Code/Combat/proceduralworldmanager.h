@@ -189,6 +189,45 @@ class ProceduralWorldManager
 		//	required-base-routes flag already is.
 		static bool		Validate_Combat_Space(const ProceduralWorldProfile & profile);
 
+		//	Roadmap Section 34 Phase 16 steps 1-2.  Real collision/render/culling registration for
+		//	Phase 13's own settlement structures, the one generated-object type that reached this
+		//	point still data-only.  Requires settlements/the asset registry; a world with no
+		//	settlements built is still a real, correct 0-record pass.
+		static bool		Build_World_Integration(const ProceduralWorldProfile & profile,StringClass * error_out);
+
+		//	Roadmap Section 34 Phase 16 steps 3-8.  Real infantry/ground-vehicle sector navigation
+		//	plus a real flight volume, registered into the one canonical PathfindClass singleton
+		//	action.cpp's own AI movement code already consults.  Requires the chunk registry, so it
+		//	shares terrain_built's own gate.
+		static bool		Build_Navigation(const ProceduralWorldProfile & profile,StringClass * error_out);
+
+		//	Roadmap Section 34 Phase 16 step 12.  A real, currently-unconsumed minimap/tactical-map
+		//	base layer built from the same chunk registry and the same resolved generator state
+		//	every earlier phase already produced.
+		static bool		Build_Minimap_Layer(const ProceduralWorldProfile & profile,StringClass * error_out);
+
+		//	Roadmap Section 34 Phase 16 step 13.  WorldShroudManager is already fully world-
+		//	coordinate based, but its per-team grid has to be told where the world is, and the one
+		//	existing caller of WorldShroudManager::Re_Partition (PhysicsSceneClass::Re_Partition_
+		//	Dynamic_Culling_System) is documented editor-only and also resets vis.  So a generated
+		//	world sizes the shroud grid itself, from the chunk registry's own real patch bounds --
+		//	the same bounds NavMeshGenerator and MinimapBaseLayer already read.  Shares
+		//	terrain_built's own gate.
+		static bool		Build_Shroud_Coverage(const ProceduralWorldProfile & profile,StringClass * error_out);
+
+		/*
+		**	Roadmap Section 34 Phase 17 steps 1-2, 5 and 10-13.  Not a generator: the Commander's
+		**	expansion rules decide what may be done to this world from now on, and arming them is
+		**	pushing the profile's grading limits into `FoundationGradingService`, deriving the
+		**	chokepoint set from the navigation just built, and starting the expansion registry
+		**	empty.
+		**
+		**	Runs unconditionally rather than under terrain_built, because the rules must be armed
+		**	for a world whose terrain failed too -- a validator that silently keeps the previous
+		**	world's limits is worse than one that reports having no chokepoint data.
+		*/
+		static bool		Arm_Expansion_Rules(const ProceduralWorldProfile & profile);
+
 		//	The gap report's item 6.  Runs after every generator above has had its turn, whether
 		//	or not each one individually succeeded -- a validator that only ran on a clean chain
 		//	could never report the chain being broken.  Never a reason to refuse the world; see

@@ -59,6 +59,8 @@
 #include "commandermodecontroller.h"
 #include "commandersidebar.h"
 #include "commanderplacement.h"
+#include "worldoperationjournal.h"
+#include "logisticsgraphservice.h"
 #include "commanderproduction.h"
 #include "commanderstate.h"
 #include "commanderghostrenderer.h"
@@ -7004,6 +7006,232 @@ public:
 };
 
 
+/*
+**	V2 roadmap Section 34 Phase 18 step 16 -- the operation debug/replay command.
+**
+**	One command rather than a family, because everything it does is one question about one object:
+**	what does the journal hold, and does replaying it reproduce the ground it produced?  The
+**	`replay` verb is the whole point -- it prints the terrain checksum before and after replaying
+**	every journalled operation from the base snapshot, which is the phase's own "save/replay
+**	produces same checksum" acceptance line, made runnable by a person.
+*/
+class WorldOperationConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("worldop");}
+	virtual	const char * Get_Help (void) override	{
+		return ("WORLDOP <status|begin|replay|crater X Y RADIUS DEPTH|restore X Y RADIUS> - world operation journal.");
+	}
+	virtual	void Activate (const char *input) override {
+
+		char verb[32];
+		verb[0] = '\0';
+		float arg0 = 0.0f, arg1 = 0.0f, arg2 = 0.0f, arg3 = 0.0f;
+		int argcount = sscanf (input,"%31s %f %f %f %f",verb,&arg0,&arg1,&arg2,&arg3);
+
+		if (argcount < 1) {
+			Print ("%s\n",Get_Help ());
+			return;
+		}
+
+		if (::stricmp (verb,"status") == 0) {
+			Print ("world operation journal: %s, revision %u, %d operation(s)\n",
+					 WorldOperationJournal::Is_Open () ? "open" : "closed",
+					 WorldOperationJournal::Get_Revision (),
+					 WorldOperationJournal::Get_Operation_Count ());
+			Print ("  applied %d, rejected %d, nav rebuilds %d\n",
+					 WorldOperationJournal::Get_Applied_Count (),
+					 WorldOperationJournal::Get_Rejected_Count (),
+					 WorldOperationJournal::Get_Navigation_Rebuild_Count ());
+			Print ("  journal checksum 0x%08X, terrain checksum 0x%08X\n",
+					 WorldOperationJournal::Get_Journal_Checksum (),
+					 WorldOperationJournal::Get_Terrain_Checksum ());
+
+			//	The last few operations, so that "what just happened to the ground" is answerable
+			//	without a debugger.
+			int count = WorldOperationJournal::Get_Operation_Count ();
+			int first = (count > 8) ? (count - 8) : 0;
+			for (int i = first; i < count; i++) {
+				WorldOperationClass operation;
+				if (!WorldOperationJournal::Get_Operation (i,&operation)) continue;
+				Print ("  #%u %s at %.1f,%.1f r=%.1f rev=%u crc=0x%08X\n",
+						 operation.OperationId,World_Operation_Type_Name (operation.Type),
+						 operation.Center.X,operation.Center.Y,operation.Radius,
+						 operation.BaseRevision,operation.Compute_Checksum ());
+			}
+			return;
+		}
+
+		if (::stricmp (verb,"begin") == 0) {
+			StringClass error ("");
+			if (WorldOperationJournal::Begin (&error)) {
+				Print ("world operation journal opened at revision %u\n",
+						 WorldOperationJournal::Get_Revision ());
+			} else {
+				Print ("could not open a journal: %s\n",error.Peek_Buffer ());
+			}
+			return;
+		}
+
+		if (::stricmp (verb,"replay") == 0) {
+			unsigned int before = WorldOperationJournal::Get_Terrain_Checksum ();
+
+			StringClass report ("");
+			bool ok = WorldOperationJournal::Replay (&report);
+
+			unsigned int after = WorldOperationJournal::Get_Terrain_Checksum ();
+
+			Print ("replay %s: %s\n",ok ? "complete" : "INCOMPLETE",report.Peek_Buffer ());
+			Print ("  terrain checksum before 0x%08X, after 0x%08X -- %s\n",
+					 before,after,(before == after) ? "MATCH" : "MISMATCH");
+			return;
+		}
+
+		if (::stricmp (verb,"crater") == 0) {
+			if (argcount < 5) { Print ("%s\n",Get_Help ()); return; }
+
+			WorldOperationClass operation;
+			operation.Type			= WORLD_OP_CREATE_CRATER;
+			operation.BaseRevision	= WorldOperationJournal::Get_Revision ();
+			operation.Center		= Vector3 (arg0,arg1,0.0f);
+			operation.Radius		= arg2;
+			operation.Depth		= arg3;
+			operation.TimeSeconds	= (float)(TimeManager::Get_Total_Seconds ());
+
+			WorldOperationApplyResult result = WorldOperationJournal::Submit (operation);
+			Print ("crater: %s%s (revision %u) %s\n",
+					 World_Operation_Result_Name (result.Result),
+					 result.Committed ? ", committed" : "",
+					 result.Revision,result.Detail.Peek_Buffer ());
+			return;
+		}
+
+		if (::stricmp (verb,"restore") == 0) {
+			if (argcount < 4) { Print ("%s\n",Get_Help ()); return; }
+
+			WorldOperationClass operation;
+			operation.Type			= WORLD_OP_RESTORE_REGION;
+			operation.BaseRevision	= WorldOperationJournal::Get_Revision ();
+			operation.Center		= Vector3 (arg0,arg1,0.0f);
+			operation.Radius		= arg2;
+			operation.TimeSeconds	= (float)(TimeManager::Get_Total_Seconds ());
+
+			WorldOperationApplyResult result = WorldOperationJournal::Submit (operation);
+			Print ("restore: %s%s (revision %u) %s\n",
+					 World_Operation_Result_Name (result.Result),
+					 result.Committed ? ", committed" : "",
+					 result.Revision,result.Detail.Peek_Buffer ());
+			return;
+		}
+
+		Print ("%s\n",Get_Help ());
+	}
+};
+
+
+/*
+**	Roadmap Section 21, Phase 20 step 10 -- the debug/status report for functional subcomponents.
+**
+**	Walks every building rather than taking an id: Commander building selection (P36's own WIP
+**	entry) does not exist yet, so "the building nearest the cursor" has nothing to bind to, and a
+**	report over every building with at least one declared subcomponent is small in practice --
+**	Phase 20 wires two of them (the two Power Plants, one Communications Center) and nothing
+**	else declares any yet.  Same GameObjManager -> ScriptableGameObj -> As_BuildingGameObj cast
+**	worlddebugdisplay.cpp's building-footprints layer already uses, for the same reason its own
+**	comment gives: a BuildingGameObj is not a PhysicalGameObj, and the cast is ambiguous straight
+**	off a BaseGameObj* without the ScriptableGameObj step in between.
+*/
+class BuildingSubcomponentsConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("building_subcomponents");}
+	virtual	const char * Get_Help (void) override	{
+		return ("BUILDING_SUBCOMPONENTS - functional subcomponent status for every building that declares one.");
+	}
+	virtual	void Activate (const char * /* input */) override {
+
+		int buildings_reported = 0;
+
+		SLNode<BaseGameObj> * objnode;
+		for (objnode = GameObjManager::Get_Game_Obj_List ()->Head (); objnode; objnode = objnode->Next ()) {
+
+			BaseGameObj * base = objnode->Data ();
+			if (base == nullptr) continue;
+
+			ScriptableGameObj * script_obj = base->As_ScriptableGameObj ();
+			BuildingGameObj * building = (script_obj != nullptr) ? script_obj->As_BuildingGameObj () : nullptr;
+			if (building == nullptr) continue;
+
+			int count = building->Get_Subcomponent_Count ();
+			if (count == 0) continue;
+
+			buildings_reported++;
+			Print ("building %d (%s):\n",building->Get_ID (),
+					 building->Get_Definition ().Get_Descriptor_Name ().Peek_Buffer ());
+
+			for (int i = 0; i < count; i++) {
+				StringClass role_name ("");
+				float function_fraction = 0.0f;
+				bool anchor_resolves = false;
+				if (!building->Get_Subcomponent_Status (i,&role_name,&function_fraction,&anchor_resolves)) continue;
+
+				Print ("  %-28s function %.2f  anchor %s\n",
+						 role_name.Peek_Buffer (),function_fraction,
+						 anchor_resolves ? "resolved" : "not resolved");
+			}
+		}
+
+		if (buildings_reported == 0) {
+			Print ("no building in the world declares a functional subcomponent\n");
+		}
+	}
+};
+
+
+/*
+**	Roadmap Section 22, Phase 21 -- the status report for the logistics graph.  Node and route
+**	lists only, the same "no per-object selection exists yet" reasoning
+**	BuildingSubcomponentsConsoleFunctionClass's own comment gives -- a report over the whole
+**	graph is small in practice (bounded by the same generator candidate caps StrategicPlanner
+**	already enforces).
+*/
+class LogisticsStatusConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("logistics_status");}
+	virtual	const char * Get_Help (void) override	{
+		return ("LOGISTICS_STATUS - node/route status for the Commander logistics graph.");
+	}
+	virtual	void Activate (const char * /* input */) override {
+
+		if (!LogisticsGraphService::Has_Graph ()) {
+			Print ("no logistics graph exists (profile.logistics.enabled is false, or no world is generated)\n");
+			return;
+		}
+
+		Print ("logistics graph: %d node(s), %d route(s), checksum 0x%08X\n",
+				 LogisticsGraphService::Get_Node_Count (),LogisticsGraphService::Get_Route_Count (),
+				 LogisticsGraphService::Get_Checksum ());
+
+		for (int i = 0; i < LogisticsGraphService::Get_Node_Count (); i++) {
+			LogisticsNode node;
+			if (!LogisticsGraphService::Get_Node (i,&node)) continue;
+
+			Print ("  node %-3d %-15s team %-2d %s  (%.1f, %.1f, %.1f)\n",
+					 i,Logistics_Node_Kind_Name (node.Kind),node.Team,
+					 node.Operational ? "operational" : "not operational",
+					 node.Position.X,node.Position.Y,node.Position.Z);
+		}
+
+		for (int i = 0; i < LogisticsGraphService::Get_Route_Count (); i++) {
+			LogisticsRoute route;
+			if (!LogisticsGraphService::Get_Route (i,&route)) continue;
+
+			Print ("  route %-3d node %d <-> node %d  %-14s length %.1f\n",
+					 i,route.FromNodeIndex,route.ToNodeIndex,
+					 Logistics_Route_Status_Name (route.Status),route.Length);
+		}
+	}
+};
+
+
 class AshConsoleFunctionClass : public ConsoleFunctionClass {
 public:
 	virtual	const char * Get_Name (void) override	{return ("ash");}
@@ -7154,6 +7382,9 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new AmmoConsoleFunctionClass() );
 	FunctionList.Add( new AppPacketTypesResetConsoleFunctionClass() );
 	FunctionList.Add( new AshConsoleFunctionClass() );
+	FunctionList.Add( new WorldOperationConsoleFunctionClass() );
+	FunctionList.Add( new BuildingSubcomponentsConsoleFunctionClass() );
+	FunctionList.Add( new LogisticsStatusConsoleFunctionClass() );
 	FunctionList.Add( new WeatherStatusConsoleFunctionClass() );
 	FunctionList.Add( new WeatherBudgetConsoleFunctionClass() );
 	FunctionList.Add( new WeatherLayerConsoleFunctionClass() );

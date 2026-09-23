@@ -184,6 +184,50 @@ public:
 	static void			Apply_River_Cut(const Vector3 * points,int count,float width,float depth);
 
 	/*
+	**	Roadmap Section 34 Phase 17 step 7 -- the Commander levelling ground for a building.
+	**
+	**	Here with the road grade and the river cut, and for the same stated reason: the ground has
+	**	one owner, and a system that wants it changed asks.  The bounded/limits half of the
+	**	operation is not here -- `FoundationGradingService` (Code/Combat/foundationgrading.h)
+	**	measures a request against its profile limits and the protected features before anything
+	**	reaches this function, which is the same split `Apply_Road_Grade` has from the road
+	**	generator that decides where a road may go.
+	**
+	**	Obeys Terrain_Edit_Allowed like every other edit here, and tells the far layer what moved.
+	*/
+	static void			Apply_Foundation_Grade(const Vector3 & center,float flat_radius,
+															 float apron_radius,float target_height);
+
+	/*
+	**	Roadmap Section 34 Phase 18's FLATTEN and SMOOTH operations, here for the same reason
+	**	every other shaping call is: the ground has one owner.
+	**
+	**	Flatten pulls a circular region towards an absolute height -- `blend` 1 sets it exactly,
+	**	less is a partial pull -- with the usual falloff to nothing at the radius.  Smooth moves
+	**	each vertex towards the mean of its neighbours instead, which is a different operation
+	**	and not a weaker flatten: it removes noise without deciding what the ground's height
+	**	should be.
+	*/
+	static void			Apply_Flatten(const Vector3 & center,float radius,float target_height,float blend);
+	static void			Apply_Smooth(const Vector3 & center,float radius,float strength);
+
+	/*
+	**	Roadmap Section 34 Phase 18's RESTORE_REGION.  Put the ground inside a circle back to the
+	**	heights a caller recorded earlier, and leave everything outside it alone.
+	**
+	**	`heights` is a whole field in this heightfield's own stored form -- relative to the origin,
+	**	row-major, `count_x` by `count_y` -- and must match this field's current dimensions, or the
+	**	call is refused rather than reinterpreting every row.  A caller passes a snapshot it took
+	**	of this same field; `WorldOperationJournal` is the one that does.
+	**
+	**	Here rather than in the journal for the usual reason: this writes ground, and the ground
+	**	has one owner.  Obeys Terrain_Edit_Allowed and tells the far layer what moved, which a
+	**	caller reaching for `Peek_Heightfield` and writing samples itself would not.
+	*/
+	static bool			Apply_Height_Patch(const Vector3 & center,float radius,
+														const float * heights,int count_x,int count_y);
+
+	/*
 	**	Is this footprint flat enough and on the ground?
 	*/
 	static bool			Query_Placement_Surface(const Vector3 & center,float radius,TerrainPlacementInfoClass * info_out);
@@ -332,6 +376,15 @@ public:
 	static int			Get_Chunk_Count_X(void);
 	static int			Get_Chunk_Count_Y(void);
 	static bool			Get_Chunk_Info(int px,int py,TerrainChunkInfoClass * info_out);
+
+	/*
+	**	The slope cap the registry's Buildable flags were computed against.  Exposed because
+	**	anything that reshapes the ground has to rebuild the registry afterwards and must rebuild
+	**	it against the same cap -- Section 34 Phase 17's foundation grading is the first such
+	**	caller.  Rebuilding with a different number would silently reclassify chunks nobody
+	**	touched.  Zero when no registry has been built.
+	*/
+	static float		Get_Chunk_Max_Buildable_Slope(void)	{ return ChunkMaxBuildableSlopeRadians; }
 	static unsigned int	Get_Chunk_Checksum(int px,int py);
 
 	/*

@@ -659,8 +659,13 @@ int	Run_Particles (void)
 {
 	Build_Check_Arrays ();
 
-	CameraClass				camera;
-	RenderInfoClass		rinfo (camera);
+	//	A CameraClass is a RenderObjClass, which is a RefCountClass: its constructor starts the
+	//	object at one reference and its destructor asserts that reference is gone (refcount.h's
+	//	own "you MUST Release_Ref() it" rule).  An automatic-storage one therefore trips that
+	//	assert at scope exit, every run.  RenderInfoClass keeps a plain reference and never
+	//	add-refs, so releasing after the last use that reads it is correct.
+	CameraClass *			camera = NEW_REF (CameraClass,());
+	RenderInfoClass		rinfo (*camera);
 
 	WorldParticleManager::Init ();
 	WorldParticleManager::Set_Enabled (true);
@@ -867,6 +872,7 @@ int	Run_Particles (void)
 	WorldParticleManager::Flush (rinfo);
 	WorldParticleManager::Shutdown ();
 
+	camera->Release_Ref ();
 	return _Failures;
 }
 
@@ -885,8 +891,13 @@ int	Run_Particles (void)
 */
 int	Run_Weather (void)
 {
-	CameraClass				camera;
-	RenderInfoClass		rinfo (camera);
+	//	A CameraClass is a RenderObjClass, which is a RefCountClass: its constructor starts the
+	//	object at one reference and its destructor asserts that reference is gone (refcount.h's
+	//	own "you MUST Release_Ref() it" rule).  An automatic-storage one therefore trips that
+	//	assert at scope exit, every run.  RenderInfoClass keeps a plain reference and never
+	//	add-refs, so releasing after the last use that reads it is correct.
+	CameraClass *			camera = NEW_REF (CameraClass,());
+	RenderInfoClass		rinfo (*camera);
 
 	//	The default camera sits at the origin looking down its own -Z, which in world terms is
 	//	straight down -- so the lattice under it is in front of it, and the per-particle frustum
@@ -1070,6 +1081,7 @@ int	Run_Weather (void)
 	WorldParticleManager::Flush (rinfo);
 	WorldParticleManager::Shutdown ();
 
+	camera->Release_Ref ();
 	return _Failures;
 }
 
@@ -1084,8 +1096,13 @@ int	Run_Weather (void)
 */
 int	Run_Tracers (void)
 {
-	CameraClass				camera;
-	RenderInfoClass		rinfo (camera);
+	//	A CameraClass is a RenderObjClass, which is a RefCountClass: its constructor starts the
+	//	object at one reference and its destructor asserts that reference is gone (refcount.h's
+	//	own "you MUST Release_Ref() it" rule).  An automatic-storage one therefore trips that
+	//	assert at scope exit, every run.  RenderInfoClass keeps a plain reference and never
+	//	add-refs, so releasing after the last use that reads it is correct.
+	CameraClass *			camera = NEW_REF (CameraClass,());
+	RenderInfoClass		rinfo (*camera);
 
 	WorldParticleManager::Init ();
 	WorldParticleManager::Set_Enabled (true);
@@ -1219,6 +1236,7 @@ int	Run_Tracers (void)
 	WorldParticleManager::Flush (rinfo);
 	WorldParticleManager::Shutdown ();
 
+	camera->Release_Ref ();
 	return _Failures;
 }
 
@@ -1237,8 +1255,13 @@ int	Run_Tracers (void)
 */
 int	Run_Debris (void)
 {
-	CameraClass				camera;
-	RenderInfoClass		rinfo (camera);
+	//	A CameraClass is a RenderObjClass, which is a RefCountClass: its constructor starts the
+	//	object at one reference and its destructor asserts that reference is gone (refcount.h's
+	//	own "you MUST Release_Ref() it" rule).  An automatic-storage one therefore trips that
+	//	assert at scope exit, every run.  RenderInfoClass keeps a plain reference and never
+	//	add-refs, so releasing after the last use that reads it is correct.
+	CameraClass *			camera = NEW_REF (CameraClass,());
+	RenderInfoClass		rinfo (*camera);
 
 	WorldParticleManager::Init ();
 	WorldParticleManager::Set_Enabled (true);
@@ -1367,6 +1390,7 @@ int	Run_Debris (void)
 	WorldParticleManager::Flush (rinfo);
 	WorldParticleManager::Shutdown ();
 
+	camera->Release_Ref ();
 	return _Failures;
 }
 
@@ -1523,8 +1547,13 @@ int	Run_Tactical_Intelligence (void)
 */
 int	Run_Status_Overlays (void)
 {
-	CameraClass				camera;
-	RenderInfoClass		rinfo (camera);
+	//	A CameraClass is a RenderObjClass, which is a RefCountClass: its constructor starts the
+	//	object at one reference and its destructor asserts that reference is gone (refcount.h's
+	//	own "you MUST Release_Ref() it" rule).  An automatic-storage one therefore trips that
+	//	assert at scope exit, every run.  RenderInfoClass keeps a plain reference and never
+	//	add-refs, so releasing after the last use that reads it is correct.
+	CameraClass *			camera = NEW_REF (CameraClass,());
+	RenderInfoClass		rinfo (*camera);
 
 	WorldParticleManager::Init ();
 	WorldParticleManager::Set_Enabled (true);
@@ -1661,6 +1690,7 @@ int	Run_Status_Overlays (void)
 	WorldShroudManager::Shutdown ();
 	StatusOverlayRenderer::Shutdown ();
 
+	camera->Release_Ref ();
 	return _Failures;
 }
 
@@ -1970,8 +2000,13 @@ int	Run_Telemetry (void)
 */
 int	Run_Debug_Render (void)
 {
-	CameraClass				camera;
-	RenderInfoClass		rinfo (camera);
+	//	A CameraClass is a RenderObjClass, which is a RefCountClass: its constructor starts the
+	//	object at one reference and its destructor asserts that reference is gone (refcount.h's
+	//	own "you MUST Release_Ref() it" rule).  An automatic-storage one therefore trips that
+	//	assert at scope exit, every run.  RenderInfoClass keeps a plain reference and never
+	//	add-refs, so releasing after the last use that reads it is correct.
+	CameraClass *			camera = NEW_REF (CameraClass,());
+	RenderInfoClass		rinfo (*camera);
 
 	DebugRenderSystem::Init ();
 
@@ -2028,6 +2063,7 @@ int	Run_Debug_Render (void)
 	Check (DebugRenderSystem::Get_Line_Count () == 0,"lines outlived Shutdown");
 	Check (!DebugRenderSystem::Is_Layer_Enabled (DEBUG_LAYER_BUILDING_FOOTPRINTS),"layer state outlived Shutdown");
 
+	camera->Release_Ref ();
 	return _Failures;
 }
 
@@ -2484,6 +2520,159 @@ int	Run_Runtime_Door_Service (void)
 			 "Get_State reported success for a (building,part) nothing registered");
 	RuntimeDoorService::Unregister_Building (999);
 	RuntimeDoorService::Shutdown ();
+
+	return _Failures;
+}
+
+
+/*
+**	Roadmap Section 21, Phase 20 -- functional subcomponents.  Three roles, one descriptor: a
+**	generator-style role with a named anchor and a zero floor, a comms-style role with a named
+**	anchor and a non-zero floor (exercising the disabled_health_fraction > 0 case), and a role
+**	with no anchor_bone at all (the legitimate "tracked, no visual yet" authored choice).
+*/
+static const char * const	SUBCOMPONENT_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"subcomponents\":["
+	"    {\"role\":\"power_generator_module\",\"anchor_bone\":\"GEN_BONE\","
+	"     \"full_function_health_fraction\":0.75,\"disabled_health_fraction\":0.0},"
+	"    {\"role\":\"communications_array\",\"anchor_bone\":\"COMM_BONE\","
+	"     \"full_function_health_fraction\":0.6,\"disabled_health_fraction\":0.1},"
+	"    {\"role\":\"radar_dish\","
+	"     \"full_function_health_fraction\":0.5,\"disabled_health_fraction\":0.2}"
+	"  ] }";
+
+static const char * const	SUBCOMPONENT_UNKNOWN_ROLE_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"subcomponents\":[ {\"role\":\"warp_drive\"} ] }";
+
+static const char * const	SUBCOMPONENT_DUPLICATE_ROLE_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"subcomponents\":[ {\"role\":\"power_generator_module\"},{\"role\":\"power_generator_module\"} ] }";
+
+//	full_function_health_fraction must exceed disabled_health_fraction -- here they are equal.
+static const char * const	SUBCOMPONENT_BAD_THRESHOLD_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"subcomponents\":[ {\"role\":\"power_generator_module\","
+	"     \"full_function_health_fraction\":0.3,\"disabled_health_fraction\":0.3} ] }";
+
+static const char * const	SUBCOMPONENT_OUT_OF_RANGE_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"subcomponents\":[ {\"role\":\"power_generator_module\","
+	"     \"full_function_health_fraction\":1.5,\"disabled_health_fraction\":0.0} ] }";
+
+int	Run_Building_Subcomponents (void)
+{
+	BuildingDescriptorManager::Init ();
+
+	/*
+	**	The schema, the pure health-to-function arithmetic, and the "remains optional per
+	**	descriptor" gate are all provable here exactly the way Phase 18's SMOOTH and Phase 19's
+	**	quantizer were -- no scene, no device, pure data plus arithmetic.  What cannot be proven
+	**	here is a real BuildingGameObj's own health driving these numbers end to end through
+	**	TeamPowerGridService -- see Run_Runtime_Door_Service's own note just above; the same
+	**	harness gap (no PhysicsSceneClass/GameObjManager scene) applies to every runtime-building
+	**	construction path in this file, not only this one.
+	*/
+	StringClass error ("");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_subcomponents",SUBCOMPONENT_JSON,&error),
+			 "a valid subcomponents descriptor was refused: %s",error.Peek_Buffer ());
+
+	const BuildingModelDescriptor * d = BuildingDescriptorManager::Get_Descriptor ("ow_test_subcomponents");
+	Check (d != nullptr,"a loaded subcomponents descriptor could not be looked back up");
+	if (d != nullptr) {
+
+		Check (d->Subcomponents.Count () == 3,
+				 "the descriptor has %d subcomponents, not the three the file named",d->Subcomponents.Count ());
+
+		Check (d->Has_Subcomponent (SUBCOMPONENT_POWER_GENERATOR_MODULE),
+				 "power_generator_module did not register as declared");
+		Check (d->Has_Subcomponent (SUBCOMPONENT_COMMUNICATIONS_ARRAY),
+				 "communications_array did not register as declared");
+		Check (d->Has_Subcomponent (SUBCOMPONENT_RADAR_DISH),
+				 "radar_dish did not register as declared");
+		Check (!d->Has_Subcomponent (SUBCOMPONENT_REPAIR_MODULE),
+				 "repair_module registered as declared when the file named no such role");
+
+		const char * gen_bone = d->Find_Subcomponent_Anchor_Bone (SUBCOMPONENT_POWER_GENERATOR_MODULE);
+		Check (gen_bone != nullptr && ::strcmp (gen_bone,"GEN_BONE") == 0,
+				 "power_generator_module's anchor read back '%s', not 'GEN_BONE'",
+				 (gen_bone != nullptr) ? gen_bone : "(null)");
+
+		//	radar_dish named no anchor_bone at all -- a legitimate authored choice, not an error.
+		Check (d->Find_Subcomponent_Anchor_Bone (SUBCOMPONENT_RADAR_DISH) == nullptr,
+				 "radar_dish resolved an anchor bone when the file named none");
+
+		//	power_generator_module: full at 0.75, disabled at 0.0 -- full health, exactly at the
+		//	full threshold, the exact midpoint, and zero health.
+		Check (WWMath::Fabs (d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_POWER_GENERATOR_MODULE,1.0f) - 1.0f) < 0.001f,
+				 "full health did not read as full function");
+		Check (WWMath::Fabs (d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_POWER_GENERATOR_MODULE,0.75f) - 1.0f) < 0.001f,
+				 "health exactly at full_function_health_fraction did not read as full function");
+		Check (WWMath::Fabs (d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_POWER_GENERATOR_MODULE,0.375f) - 0.5f) < 0.001f,
+				 "health at the midpoint between full and disabled did not read as half function, read %f",
+				 d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_POWER_GENERATOR_MODULE,0.375f));
+		Check (WWMath::Fabs (d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_POWER_GENERATOR_MODULE,0.0f) - 0.0f) < 0.001f,
+				 "zero health did not read as zero function");
+
+		//	communications_array: full at 0.6, disabled at 0.1 -- exercises a non-zero floor.
+		Check (WWMath::Fabs (d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_COMMUNICATIONS_ARRAY,0.1f) - 0.0f) < 0.001f,
+				 "health exactly at communications_array's own disabled threshold did not read as zero function");
+		Check (WWMath::Fabs (d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_COMMUNICATIONS_ARRAY,0.05f) - 0.0f) < 0.001f,
+				 "health below communications_array's own disabled threshold read as nonzero function");
+
+		//	A role this descriptor never declared: the -1 sentinel, not zero and not a crash.
+		Check (d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_REPAIR_MODULE,0.5f) == -1.0f,
+				 "an undeclared role's function fraction was %f, not the -1 not-tracked sentinel",
+				 d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_REPAIR_MODULE,0.5f));
+
+		//	Out-of-range health is clamped, never extrapolated past 0..1.
+		Check (d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_POWER_GENERATOR_MODULE,-1.0f) == 0.0f,
+				 "negative health produced a function fraction outside 0..1");
+		Check (WWMath::Fabs (d->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_POWER_GENERATOR_MODULE,2.0f) - 1.0f) < 0.001f,
+				 "health above 1.0 produced a function fraction outside 0..1");
+	}
+
+	//	No subcomponents block at all -- every descriptor before this phase, and most after it --
+	//	tracks nothing, at zero behavior change.  This is the "remains optional per descriptor"
+	//	gate, proven rather than merely asserted.
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_no_subcomponents",NO_DAMAGE_VISUAL_JSON,&error),
+			 "a plain descriptor with no subcomponents block was refused: %s",error.Peek_Buffer ());
+	const BuildingModelDescriptor * plain = BuildingDescriptorManager::Get_Descriptor ("ow_test_no_subcomponents");
+	Check (plain != nullptr,"the plain descriptor could not be looked back up");
+	if (plain != nullptr) {
+		Check (plain->Subcomponents.Count () == 0,"a descriptor naming no subcomponents block has some anyway");
+		Check (!plain->Has_Subcomponent (SUBCOMPONENT_POWER_GENERATOR_MODULE),
+				 "an undeclared role registered as present on a descriptor with no subcomponents block");
+		Check (plain->Get_Subcomponent_Function_Fraction (SUBCOMPONENT_POWER_GENERATOR_MODULE,0.1f) == -1.0f,
+				 "a descriptor with no subcomponents block returned a tracked function fraction");
+	}
+
+	//	Rejections: unknown role, duplicate role, and thresholds out of range or not strictly
+	//	ordered -- all author-typo classes, refused at load rather than clamped or silently
+	//	resolved into something that quietly tracks the wrong thing (or the first of two entries).
+	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_sub_unknown",SUBCOMPONENT_UNKNOWN_ROLE_JSON,&error),
+			 "an unknown subcomponents role was accepted");
+	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_sub_dup",SUBCOMPONENT_DUPLICATE_ROLE_JSON,&error),
+			 "a duplicate subcomponents role was accepted");
+	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_sub_bad_threshold",SUBCOMPONENT_BAD_THRESHOLD_JSON,&error),
+			 "full_function_health_fraction <= disabled_health_fraction was accepted");
+	Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_sub_range",SUBCOMPONENT_OUT_OF_RANGE_JSON,&error),
+			 "a subcomponent threshold outside 0..1 was accepted");
+
+	//	Role name <-> enum, the one table both the parser and the debug status command read.
+	BuildingSubcomponentRoleType role;
+	Check (Subcomponent_Role_From_Name ("power_generator_module",&role) && (role == SUBCOMPONENT_POWER_GENERATOR_MODULE),
+			 "power_generator_module did not round-trip through the name table");
+	Check (Subcomponent_Role_From_Name ("defense_weapon_module",&role) && (role == SUBCOMPONENT_DEFENSE_WEAPON_MODULE),
+			 "defense_weapon_module did not round-trip through the name table");
+	Check (!Subcomponent_Role_From_Name ("no_such_role",&role),
+			 "an unknown role name resolved instead of being refused");
+	Check (::strcmp (Subcomponent_Role_Name (SUBCOMPONENT_RADAR_DISH),"radar_dish") == 0,
+			 "SUBCOMPONENT_RADAR_DISH's name read back '%s', not 'radar_dish'",
+			 Subcomponent_Role_Name (SUBCOMPONENT_RADAR_DISH));
+
+	BuildingDescriptorManager::Shutdown ();
 
 	return _Failures;
 }
@@ -5483,6 +5672,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "runtimedoors") == 0)) {
 		Run_Runtime_Door_Service ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "subcomponents") == 0)) {
+		Run_Building_Subcomponents ();
 		ran = true;
 	}
 

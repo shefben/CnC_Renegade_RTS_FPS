@@ -17,6 +17,11 @@
   "destroyed_model": "ow_gdi_power_plant_x.w3d",
   "damaged_health_fraction": 0.5
  },
+ "_comment_subcomponents": "Phase 20 (roadmap Section 21). anchor_bone verified by direct ASCII string scan of the real mgpwr_int.w3d (docs/procedural_world/BuildingFunctionalSubcomponents.md), not guessed -- unlike this file family's mct_anchor/purchase_terminal_anchor entries elsewhere in this tree. Uses the plant's own MCT as the power_generator_module anchor: generation is this building's entire function, so its one real, confirmed control node doubles as the semantic anchor for it rather than guessing which of four undifferentiated aggregates is 'the generator'.",
+ "subcomponents": [
+  { "role": "power_generator_module", "anchor_bone": "MGPWR_MCT",
+    "full_function_health_fraction": 0.75, "disabled_health_fraction": 0.0 }
+ ],
   "model_name": "mgpwr_ext.w3d",
   "game_object_preset": "mp_GDI_Power_Plant",
   "schema_version": 1,

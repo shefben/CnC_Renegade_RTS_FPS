@@ -200,6 +200,30 @@ static bool	Validate_Descriptor(const BuildingModelDescriptor & d,StringClass * 
 		if (part.ModelName.Get_Length () == 0)	FAIL ("assembly part with no model");
 	}
 
+	/*
+	**	Phase 20 -- functional subcomponents.  Every entry's two thresholds have to be finite,
+	**	inside 0..1, and strictly ordered (Full > Disabled) or Get_Subcomponent_Function_Fraction's
+	**	linear interpolation divides by zero; and a role named twice in one descriptor would leave
+	**	Get_Subcomponent_Function_Fraction's first-match scan silently ignoring the second entry,
+	**	which is exactly the kind of author error worth refusing rather than quietly resolving.
+	*/
+	for (int i = 0; i < d.Subcomponents.Count (); i++) {
+		const BuildingSubcomponentDefinition & sub = d.Subcomponents [i];
+
+		if (!std::isfinite (sub.FullFunctionHealthFraction) ||
+			 sub.FullFunctionHealthFraction < 0.0f || sub.FullFunctionHealthFraction > 1.0f)
+																				FAIL ("subcomponent full_function_health_fraction outside 0..1");
+		if (!std::isfinite (sub.DisabledHealthFraction) ||
+			 sub.DisabledHealthFraction < 0.0f || sub.DisabledHealthFraction > 1.0f)
+																				FAIL ("subcomponent disabled_health_fraction outside 0..1");
+		if (sub.FullFunctionHealthFraction <= sub.DisabledHealthFraction)
+																				FAIL ("subcomponent full_function_health_fraction must exceed disabled_health_fraction");
+
+		for (int j = i + 1; j < d.Subcomponents.Count (); j++) {
+			if (d.Subcomponents [j].Role == sub.Role) FAIL ("duplicate subcomponent role");
+		}
+	}
+
 	#undef FAIL
 	return true;
 }
@@ -395,6 +419,33 @@ static bool	Parse_And_Validate(const char * definition_name,const char * json_te
 				entry.Role		= element.key ().c_str ();
 				entry.BoneName	= element.value ().get<std::string> ().c_str ();
 				d.Anchors.Add (entry);
+			}
+		}
+
+		/*
+		**	subcomponents -- Phase 20.  An array, not a map keyed by role like anchors: each entry
+		**	carries two more numbers than a bone name, and "array of objects" is what every other
+		**	multi-field table in this schema (extra_states, assembly.parts) already uses.  An
+		**	unknown role name is a parse failure, the same refusal production.kind already gives an
+		**	unknown kind -- catching an authoring typo here beats it silently tracking nothing.
+		*/
+		if (root.contains ("subcomponents") && root ["subcomponents"].is_array ()) {
+			for (auto & element : root ["subcomponents"]) {
+				if (!element.is_object ()) continue;
+
+				std::string role_name = element.value ("role",std::string (""));
+				BuildingSubcomponentRoleType role;
+				if (!Subcomponent_Role_From_Name (role_name.c_str (),&role)) {
+					if (error_out) *error_out = "unknown subcomponents role";
+					return false;
+				}
+
+				BuildingSubcomponentDefinition entry;
+				entry.Role								= role;
+				entry.AnchorBoneName					= element.value ("anchor_bone",std::string ("")).c_str ();
+				entry.FullFunctionHealthFraction	= element.value ("full_function_health_fraction",0.75f);
+				entry.DisabledHealthFraction			= element.value ("disabled_health_fraction",0.0f);
+				d.Subcomponents.Add (entry);
 			}
 		}
 

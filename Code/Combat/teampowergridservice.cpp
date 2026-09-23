@@ -101,6 +101,19 @@ static float	_CreditsWiped [4]	= { 0.0f,0.0f,0.0f,0.0f };
 static int		_WipedTeams [4]	= { 0,0,0,0 };
 static int		_WipedTeamCount	= 0;
 
+/*
+**	Phase 20's re-entrancy guard.  RecalculateTeam drives Enable_Power on every member, and
+**	Enable_Power calls BuildingGameObj::Update_State, which (as of Phase 20) can itself ask to
+**	recalculate the same team when the building tracks a grid-facing subcomponent -- a plain
+**	nested call would stack-overflow.  Safe to just skip the nested call rather than queue or
+**	defer it: the in-progress outer pass reads every member's *current* effective generation/
+**	radius right now, health included, so it already reflects whatever triggered the nested call
+**	by the time it gets there.  Fixed-size and small on purpose -- team ids are a tiny enumerated
+**	range, not something to heap-allocate for.
+*/
+static int		_RecalculatingTeams [8];
+static int		_RecalculatingTeamCount = 0;
+
 
 //	Small fixed table rather than a per-team field, because the wipe total is debug/telemetry
 //	and must not change the replication shape of TeamPowerState.
@@ -259,6 +272,13 @@ void TeamPowerGridService::OnDescriptorReload(const char * definition_name)
 
 void TeamPowerGridService::RecalculateTeam(int team)
 {
+	for (int i = 0; i < _RecalculatingTeamCount; i++) {
+		if (_RecalculatingTeams [i] == team) return;		// see the re-entrancy note above
+	}
+	if (_RecalculatingTeamCount < 8) {
+		_RecalculatingTeams [_RecalculatingTeamCount++] = team;
+	}
+
 	int team_index = Find_Or_Make_Team (team);
 
 	float available = 0.0f;
@@ -279,7 +299,15 @@ void TeamPowerGridService::RecalculateTeam(int team)
 		bool operational = !member.Destroyed && !member.ManualDisabled;
 		member.IsAllocated = operational;
 		if (operational) {
-			available += descriptor->Power.Generation;
+			/*
+			**	Phase 20 -- a real BuildingGameObj reports its own health-scaled generation
+			**	(descriptor->Power.Generation unmodified for a member with no power_generator_module
+			**	subcomponent, or for the self check's synthetic null-building members); "is this
+			**	building a generator at all" above still reads the descriptor's raw, undamaged
+			**	figure, deliberately -- generator classification is structural, not health-dependent.
+			*/
+			available += (member.Building != nullptr) ? member.Building->Get_Effective_Power_Generation ()
+																	  : descriptor->Power.Generation;
 		}
 	}
 
@@ -370,15 +398,28 @@ void TeamPowerGridService::RecalculateTeam(int team)
 		bool online_eligible = !member.Destroyed &&
 										(member.IsAllocated || !descriptor->Communications.RequiresBuildingOnline);
 
+		/*
+		**	Phase 20 -- "damaged communications array -> reduced radius" and "destroyed radar dish
+		**	-> radar disabled while the building may remain alive" (Section 21.2) both fall straight
+		**	out of scaling the two radii independently: a vision-only communications_array entry
+		**	shrinks VisionRadius while RadarRadius holds, and a radar_dish entry can reach zero
+		**	(radar off) well before the building itself is destroyed.  Unmodified for a member with
+		**	no such subcomponent, or for the self check's synthetic null-building members.
+		*/
+		float vision_radius = (member.Building != nullptr) ? member.Building->Get_Effective_Vision_Radius ()
+																			  : descriptor->Communications.VisionRadius;
+		float radar_radius  = (member.Building != nullptr) ? member.Building->Get_Effective_Radar_Radius ()
+																			  : descriptor->Communications.RadarRadius;
+
 		if (online_eligible) {
 			if (member.ShroudSensorHandle == 0) {
 				member.ShroudSensorHandle = WorldShroudManager::RegisterStrategicSensorSource (
-					team,member.Position,descriptor->Communications.VisionRadius,
-					descriptor->Communications.RadarRadius,descriptor->Communications.LastKnownRetentionSeconds,true);
+					team,member.Position,vision_radius,
+					radar_radius,descriptor->Communications.LastKnownRetentionSeconds,true);
 			} else {
 				WorldShroudManager::UpdateStrategicSensorSource (
-					member.ShroudSensorHandle,member.Position,descriptor->Communications.VisionRadius,
-					descriptor->Communications.RadarRadius,true);
+					member.ShroudSensorHandle,member.Position,vision_radius,
+					radar_radius,true);
 			}
 		} else if (member.ShroudSensorHandle != 0) {
 			WorldShroudManager::UnregisterStrategicSensorSource (member.ShroudSensorHandle);
@@ -393,6 +434,14 @@ void TeamPowerGridService::RecalculateTeam(int team)
 	**	credits it was holding.  Server-only, and a no-op when no cap was exceeded.
 	*/
 	Enforce_Wallet_Cap (team);
+
+	for (int i = 0; i < _RecalculatingTeamCount; i++) {
+		if (_RecalculatingTeams [i] == team) {
+			_RecalculatingTeams [i] = _RecalculatingTeams [_RecalculatingTeamCount - 1];
+			_RecalculatingTeamCount--;
+			break;
+		}
+	}
 }
 
 

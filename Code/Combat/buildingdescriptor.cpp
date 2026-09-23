@@ -47,6 +47,90 @@ float BuildingModelDescriptor::Get_Build_Time_Seconds(void) const
 	return ConstructionVisual.DurationSeconds;
 }
 
+/*
+**	Phase 20's canonical role table.  One place both the JSON parser and the debug status
+**	report read, so the two can never disagree about what a role is called.
+*/
+static const char * const _SubcomponentRoleNames [SUBCOMPONENT_ROLE_COUNT] =
+{
+	"power_generator_module",
+	"communications_array",
+	"radar_dish",
+	"refinery_processor",
+	"tiberium_storage",
+	"factory_production_module",
+	"factory_exit_mechanism",
+	"repair_module",
+	"defense_targeting_module",
+	"defense_weapon_module",
+};
+
+const char * Subcomponent_Role_Name(BuildingSubcomponentRoleType role)
+{
+	if ((role < 0) || (role >= SUBCOMPONENT_ROLE_COUNT)) return nullptr;
+	return _SubcomponentRoleNames [role];
+}
+
+bool Subcomponent_Role_From_Name(const char * name,BuildingSubcomponentRoleType * out_role)
+{
+	if ((name == nullptr) || (out_role == nullptr)) return false;
+	for (int i = 0; i < SUBCOMPONENT_ROLE_COUNT; i++) {
+		if (::stricmp (name,_SubcomponentRoleNames [i]) == 0) {
+			*out_role = (BuildingSubcomponentRoleType)i;
+			return true;
+		}
+	}
+	return false;
+}
+
+
+float BuildingModelDescriptor::Get_Subcomponent_Function_Fraction(BuildingSubcomponentRoleType role,
+																						  float building_health_fraction) const
+{
+	for (int i = 0; i < Subcomponents.Count (); i++) {
+		if (Subcomponents [i].Role != role) continue;
+
+		float health = building_health_fraction;
+		if (health < 0.0f) health = 0.0f;
+		if (health > 1.0f) health = 1.0f;
+
+		float full		= Subcomponents [i].FullFunctionHealthFraction;
+		float disabled	= Subcomponents [i].DisabledHealthFraction;
+
+		//	Validate_Descriptor refuses full <= disabled at load time; this is a defensive floor
+		//	for a descriptor built by hand (a self check, say) rather than parsed, so it degrades
+		//	to a step function instead of dividing by zero.
+		if (full <= disabled) {
+			return (health > disabled) ? 1.0f : 0.0f;
+		}
+
+		float t = (health - disabled) / (full - disabled);
+		if (t < 0.0f) t = 0.0f;
+		if (t > 1.0f) t = 1.0f;
+		return t;
+	}
+	return -1.0f;		// not tracked -- the caller's cue to leave its value alone
+}
+
+bool BuildingModelDescriptor::Has_Subcomponent(BuildingSubcomponentRoleType role) const
+{
+	for (int i = 0; i < Subcomponents.Count (); i++) {
+		if (Subcomponents [i].Role == role) return true;
+	}
+	return false;
+}
+
+const char * BuildingModelDescriptor::Find_Subcomponent_Anchor_Bone(BuildingSubcomponentRoleType role) const
+{
+	for (int i = 0; i < Subcomponents.Count (); i++) {
+		if (Subcomponents [i].Role != role) continue;
+		if (Subcomponents [i].AnchorBoneName.Get_Length () == 0) return nullptr;
+		return Subcomponents [i].AnchorBoneName.Peek_Buffer ();
+	}
+	return nullptr;
+}
+
+
 const char * BuildingModelDescriptor::Find_Anchor_Bone(const char * role_name) const
 {
 	if (role_name == nullptr) return nullptr;

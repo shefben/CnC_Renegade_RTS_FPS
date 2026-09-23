@@ -109,6 +109,7 @@
 #include "shaderselfcheck.h"
 #include "terrainselfcheck.h"
 #include "scriptcatalogcheck.h"
+#include "wwdebug.h"
 #include "ttselfcheck.h"
 
 //----------------------------------------------------------------------------
@@ -157,8 +158,42 @@ int Top_Level_Exception_Filter(EXCEPTION_POINTERS *e_info)
  * HISTORY:                                                                                    *
  *   07/18/1997 GH  : Created.                                                                 *
  *=============================================================================================*/
+/***********************************************************************************************
+ * Self_Check_Assert_Handler -- report an engine assert to the test log, not to a dialog        *
+ *                                                                                             *
+ * WWDebug_Assert_Fail falls back to a modal Abort/Retry/Ignore box when no handler is          *
+ * installed.  The game installs one in Init (init.cpp), and every other test harness in this   *
+ * tree installs one of its own (Code/Tests/PhysTest, MeshTest, movietest); the -*selfcheck     *
+ * paths return long before Init runs and were the only harnesses left without one, so an       *
+ * engine assert under ctest opened a dialog on whoever's desktop happened to be there and      *
+ * waited -- forever, and again on every Ignore, since the caller just carries on and asserts   *
+ * again.  The assert text is the actual diagnostic, so print it and fail the run with it.      *
+ *=============================================================================================*/
+static void Self_Check_Assert_Handler(const char * message)
+{
+	::fprintf(stderr,"ENGINE ASSERT: %s",(message != nullptr) ? message : "(no message)\n");
+	::fflush(stderr);
+
+	//	Never return: WWASSERT's callers all carry on as though the asserted condition held, so
+	//	returning here would run the very code the assert says is unsafe.
+	::exit(3);
+}
+
+
 int main(int argc, char *argv[])
 {
+	//
+	//	Every -*selfcheck below is headless and unattended -- see Self_Check_Assert_Handler.
+	//
+	if ((argc > 1) &&
+		 ((::strcmp(argv[1],"-scriptcatalogcheck") == 0) ||
+		  (::strcmp(argv[1],"-ttselfcheck") == 0) ||
+		  (::strcmp(argv[1],"-assetselfcheck") == 0) ||
+		  (::strcmp(argv[1],"-shaderselfcheck") == 0) ||
+		  (::strcmp(argv[1],"-terrainselfcheck") == 0))) {
+		WWDebug_Install_Assert_Handler(Self_Check_Assert_Handler);
+	}
+
 	//
 	//	The built-in script catalog check, taken before anything else starts.
 	//	Static initialization has already filled the registry by the time this

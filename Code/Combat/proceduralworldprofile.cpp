@@ -32,6 +32,7 @@
 #include "proceduralworldprofile.h"
 
 #include "rawfile.h"
+#include "wwmath.h"
 
 #include <cmath>
 
@@ -185,6 +186,17 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			p.Retry.MaxAlternateCandidatesPerFeature	= r.value ("max_alternate_candidates_per_feature",p.Retry.MaxAlternateCandidatesPerFeature);
 		}
 
+		if (root.contains ("grading") && root ["grading"].is_object ()) {
+			auto & g = root ["grading"];
+
+			//	Schema 6.  Absent in a schema-1..5 profile, which is why each default comes from
+			//	the value already in p rather than from a literal repeated here.
+			p.Grading.MaxCutDepth				= g.value ("max_cut_depth",p.Grading.MaxCutDepth);
+			p.Grading.MaxFillHeight				= g.value ("max_fill_height",p.Grading.MaxFillHeight);
+			p.Grading.MaxSlopeChangeRadians	= g.value ("max_slope_change_radians",p.Grading.MaxSlopeChangeRadians);
+			p.Grading.MaxAffectedArea			= g.value ("max_affected_area",p.Grading.MaxAffectedArea);
+		}
+
 		if (root.contains ("fairness") && root ["fairness"].is_object ()) {
 			auto & fa = root ["fairness"];
 			p.Fairness.MaxInitialResourceTravelTimeDifferenceSeconds
@@ -205,6 +217,17 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 				= fa.value ("max_mandatory_exposed_infantry_run_time_seconds",p.Fairness.MaxMandatoryExposedInfantryRunTimeSeconds);
 			p.Fairness.PreferredCoverInterval			= fa.value ("preferred_cover_interval",p.Fairness.PreferredCoverInterval);
 			p.Fairness.MinVehicleLaneClearance			= fa.value ("min_vehicle_lane_clearance",p.Fairness.MinVehicleLaneClearance);
+		}
+
+		if (root.contains ("logistics") && root ["logistics"].is_object ()) {
+			auto & lg = root ["logistics"];
+
+			//	Schema 7.  Absent in a schema-1..6 profile, which is why each default comes from
+			//	the value already in p (Section 22.1's own inert-by-default philosophy) rather
+			//	than from a literal repeated here.
+			p.Logistics.Enabled						= lg.value ("enabled",p.Logistics.Enabled);
+			p.Logistics.ConvoyEnabled				= lg.value ("convoy_enabled",p.Logistics.ConvoyEnabled);
+			p.Logistics.ConstructionSupportRadius	= lg.value ("construction_support_radius",p.Logistics.ConstructionSupportRadius);
 		}
 
 		*out_profile = p;
@@ -376,6 +399,25 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	if (!std::isfinite (p.Fairness.PreferredCoverInterval) || p.Fairness.PreferredCoverInterval <= 0.0f)
 																				FAIL ("fairness.preferred_cover_interval must be positive");
 	NEED_NONNEGATIVE (p.Fairness.MinVehicleLaneClearance,"negative/non-finite fairness.min_vehicle_lane_clearance");
+
+	//	Grading limits.  All four strictly positive: a zero limit does not mean "no grading", it
+	//	means every grading including a no-op one is refused, which is a broken profile rather
+	//	than a strict one.  A profile that wants no grading turns the Commander off, not this.
+	if (!std::isfinite (p.Grading.MaxCutDepth) || p.Grading.MaxCutDepth <= 0.0f)
+																				FAIL ("grading.max_cut_depth must be positive");
+	if (!std::isfinite (p.Grading.MaxFillHeight) || p.Grading.MaxFillHeight <= 0.0f)
+																				FAIL ("grading.max_fill_height must be positive");
+	if (!std::isfinite (p.Grading.MaxSlopeChangeRadians) || p.Grading.MaxSlopeChangeRadians <= 0.0f)
+																				FAIL ("grading.max_slope_change_radians must be positive");
+	if (p.Grading.MaxSlopeChangeRadians >= (WWMATH_PI * 0.5f))
+																				FAIL ("grading.max_slope_change_radians must be below a vertical face");
+	if (!std::isfinite (p.Grading.MaxAffectedArea) || p.Grading.MaxAffectedArea <= 0.0f)
+																				FAIL ("grading.max_affected_area must be positive");
+
+	//	Logistics toggles (schema 7).  ConstructionSupportRadius may legally be 0 -- that is the
+	//	documented "no bonus" default, not an error -- so this only rejects negative/non-finite,
+	//	the same treatment every other optional-bonus field in this file gets.
+	NEED_NONNEGATIVE (p.Logistics.ConstructionSupportRadius,"negative/non-finite logistics.construction_support_radius");
 
 	#undef FAIL
 	#undef NEED_FINITE

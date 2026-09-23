@@ -32,10 +32,17 @@
 #include "bridgeplanner.h"
 #include "castres.h"
 #include "combatspacevalidator.h"
+#include "generatedworldintegrator.h"
 #include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "lineseg.h"
+#include "logisticsgraphservice.h"
 #include "macroterraingenerator.h"
+#include "expansionregionregistry.h"
+#include "foundationgrading.h"
+#include "generatedworldplacementrules.h"
+#include "minimapbaselayer.h"
+#include "navmeshgenerator.h"
 #include "physcoltest.h"
 #include "playertype.h"
 #include "roadgraphgenerator.h"
@@ -49,6 +56,7 @@
 #include "pscene.h"
 #include "worldboundsservice.h"
 #include "worldseedservice.h"
+#include "worldshroudmanager.h"
 #include "worldspatialindex.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
@@ -649,6 +657,83 @@ bool ProceduralWorldManager::Validate_Combat_Space(const ProceduralWorldProfile 
 
 
 /***********************************************************************************************
+ * Build_World_Integration -- roadmap Section 34 Phase 16 steps 1-2                              *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_World_Integration(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	(void)profile;
+	return GeneratedWorldIntegrator::Build (error_out);
+}
+
+
+/***********************************************************************************************
+ * Build_Navigation -- roadmap Section 34 Phase 16 steps 3-8                                     *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Navigation(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	(void)profile;
+	NavMeshParams params;
+	return NavMeshGenerator::Build (params,error_out);
+}
+
+
+/***********************************************************************************************
+ * Build_Minimap_Layer -- roadmap Section 34 Phase 16 step 12                                    *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Minimap_Layer(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	(void)profile;
+	return MinimapBaseLayer::Build (error_out);
+}
+
+
+/***********************************************************************************************
+ * Build_Shroud_Coverage -- roadmap Section 34 Phase 16 step 13                                  *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Shroud_Coverage(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	(void)profile;
+	return GeneratedWorldIntegrator::Partition_Shroud_Over_World (error_out);
+}
+
+
+/***********************************************************************************************
+ * Arm_Expansion_Rules -- roadmap Section 34 Phase 17 steps 1-2, 5 and 10-13                      *
+ *                                                                                               *
+ * The Commander's expansion rules do not generate anything; they decide what the Commander may   *
+ * do to the world for the rest of the match.  Arming them is three things: the profile's own     *
+ * grading limits, the chokepoint set derived from the navigation just built, and an empty        *
+ * expansion registry.                                                                            *
+ *                                                                                               *
+ * Returns false when the chokepoint set could not be derived -- which is exactly the case where  *
+ * navigation did not build -- and that is reported rather than hidden: a world whose chokepoints *
+ * are unknown is a world where one exclusion is silently not enforced, and a log line saying so  *
+ * is worth more than a true this function did not earn.                                          *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Arm_Expansion_Rules(const ProceduralWorldProfile & profile)
+{
+	FoundationGradingLimits limits;
+	limits.MaxCutDepth				= profile.Grading.MaxCutDepth;
+	limits.MaxFillHeight				= profile.Grading.MaxFillHeight;
+	limits.MaxSlopeChangeRadians	= profile.Grading.MaxSlopeChangeRadians;
+	limits.MaxAffectedArea			= profile.Grading.MaxAffectedArea;
+	FoundationGradingService::Set_Limits (limits);
+
+	ExpansionRegionRegistry::Clear ();
+
+	StringClass chokepoint_error;
+	if (!GeneratedWorldPlacementRules::Build_Chokepoints (&chokepoint_error)) {
+		WWDEBUG_SAY (("ProceduralWorldManager: chokepoint analysis failed (%s); the nav-chokepoint "
+						  "placement exclusion has no data to enforce\r\n",
+						  chokepoint_error.Peek_Buffer ()));
+		return false;
+	}
+
+	return true;
+}
+
+
+/***********************************************************************************************
  * Validate_Transportation_Network -- the gap report's item 6                                    *
  *=============================================================================================*/
 bool ProceduralWorldManager::Validate_Transportation_Network(const ProceduralWorldProfile & profile)
@@ -895,6 +980,94 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	//	CombatSpaceValidator's own class comment for why a second repair pass this late is unsafe.
 	bool combat_space_valid = Validate_Combat_Space (profile);
 
+	//	Phase 16.  Final generated-world integration, over the same finished, validated world --
+	//	never a reason to retry with a fresh seed (a collision/nav/minimap build failure is not a
+	//	layout problem a different seed would fix), so these three run for their own side effects
+	//	only and are not folded into required_connectivity_ok_out below.
+	bool world_integration_built = false;
+	StringClass world_integration_error;
+	if (settlements_built) {
+		world_integration_built = Build_World_Integration (profile,&world_integration_error);
+		if (!world_integration_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: world integration failed (%s); settlement structures stay data-only\r\n",
+							  world_integration_error.Peek_Buffer ()));
+		}
+	}
+
+	bool navigation_built = false;
+	StringClass navigation_error;
+	if (terrain_built) {
+		navigation_built = Build_Navigation (profile,&navigation_error);
+		if (!navigation_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: navigation failed (%s); PathfindClass has no sectors for this world\r\n",
+							  navigation_error.Peek_Buffer ()));
+		}
+	}
+
+	bool minimap_built = false;
+	StringClass minimap_error;
+	if (terrain_built) {
+		minimap_built = Build_Minimap_Layer (profile,&minimap_error);
+		if (!minimap_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: minimap base layer failed (%s)\r\n",
+							  minimap_error.Peek_Buffer ()));
+		}
+	}
+
+	bool shroud_coverage_built = false;
+	StringClass shroud_coverage_error;
+	if (terrain_built) {
+		shroud_coverage_built = Build_Shroud_Coverage (profile,&shroud_coverage_error);
+		if (!shroud_coverage_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: shroud coverage failed (%s); the shroud grid still "
+							  "covers whatever world it was last partitioned over\r\n",
+							  shroud_coverage_error.Peek_Buffer ()));
+		}
+	}
+
+	/*
+	**	Phase 17 steps 1-2/5/10-13.  The Commander's own expansion rules, armed over the world
+	**	that has just been accepted.
+	**
+	**	Nothing is built here in the sense the four blocks above build things: this arms the rules
+	**	a placement will be judged by for the rest of the match.  The grading limits come from the
+	**	profile (step 5), the chokepoint set is derived from the navigation that was just built
+	**	(step 2's last exclusion), and the expansion registry starts empty because no Commander has
+	**	built anything yet.
+	**
+	**	Not folded into required_connectivity_ok_out for the same reason the Phase 16 blocks are
+	**	not: a world with no chokepoints, or one whose nav did not build, is not a world a
+	**	different seed would fix.
+	*/
+	bool expansion_rules_armed = Arm_Expansion_Rules (profile);
+
+	/*
+	**	V2 roadmap Phase 21 (Section 22).  Section 22.1's own default is inert: with
+	**	profile.Logistics.Enabled false (the schema default), nothing here runs and the graph
+	**	stays empty, exactly the "no mandatory micromanagement" contract Section 22.1 states.
+	**	When armed, the graph is built from data this pass has already produced for real -- the
+	**	selected bases, the resolved Tiberium fields and the resolved POIs -- using
+	**	RoadGraphGenerator's own real path search for route length and reachability rather than a
+	**	second distance estimate.  REFINERY/FACTORY/REPAIR nodes are not added here: those come
+	**	from live buildings, which do not exist until a match is actually played, so
+	**	LogisticsGraphService::Rebuild_Building_Nodes is a live/console-triggered follow-up, not a
+	**	generation-time step.
+	*/
+	bool logistics_built = false;
+	if (profile.Logistics.Enabled) {
+		StringClass logistics_error;
+		logistics_built = LogisticsGraphService::Rebuild_Nodes (profile.Logistics.ConvoyEnabled,
+																				profile.Logistics.ConstructionSupportRadius,
+																				&logistics_error);
+		if (logistics_built) {
+			logistics_built = LogisticsGraphService::Rebuild_Routes (&logistics_error);
+		}
+		if (!logistics_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: logistics graph failed (%s); no Commander logistics "
+							  "data exists for this world\r\n",logistics_error.Peek_Buffer ()));
+		}
+	}
+
 	//	Gap report item 5's own retry trigger, distinct from network_valid above: a narrow
 	//	shoulder or an unbound abutment is a real finding but not worth a whole world's own
 	//	seed-bumped retry over, while a required base pair actually left unreachable -- or a
@@ -948,6 +1121,10 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 			}
 		}
 	}
+
+	//	Phase 16 step 8.  0 until navigation is built; the field's own pre-existing comment
+	//	("0 until Phase 16 exists") is finally answered.
+	Manifest.NavigationRevision = navigation_built ? NavMeshGenerator::Get_Revision () : 0;
 
 	//	Phase 11 -- unlike Phase 7's own full candidate list, these two ids are an actual
 	//	decision: the pair BaseSelectionPlanner chose, not every pair it considered.
@@ -1056,6 +1233,48 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 					  CombatSpaceValidator::Get_Failure_Count (),
 					  CombatSpaceValidator::Get_Metrics ().SightlineP50,
 					  CombatSpaceValidator::Get_Metrics ().SightlineP90));
+	WWDEBUG_SAY (("ProceduralWorldManager: world integration %s -- %d structure(s) collidable, %d missing model\r\n",
+					  world_integration_built ? "built" : (settlements_built ? "NOT BUILT" : "skipped (no settlements)"),
+					  GeneratedWorldIntegrator::Get_Collision_Count (),
+					  GeneratedWorldIntegrator::Get_Missing_Model_Count ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: navigation %s -- %d sector(s), %d portal(s) (%d bridge), ground-vehicle=%s, revision %u, checksum 0x%08X\r\n",
+					  navigation_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
+					  NavMeshGenerator::Get_Sector_Count (),
+					  NavMeshGenerator::Get_Portal_Count (),
+					  NavMeshGenerator::Get_Bridge_Portal_Count (),
+					  NavMeshGenerator::Is_Ground_Vehicle_Navigable () ? "yes" : "infantry-only",
+					  NavMeshGenerator::Get_Revision (),
+					  NavMeshGenerator::Get_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: minimap base layer %s -- %d x %d cell(s), %d marker(s), checksum 0x%08X\r\n",
+					  minimap_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
+					  MinimapBaseLayer::Get_Cell_Count_X (),
+					  MinimapBaseLayer::Get_Cell_Count_Y (),
+					  MinimapBaseLayer::Get_Marker_Count (),
+					  MinimapBaseLayer::Get_Checksum ()));
+	{
+		float	shroud_cell_size	= 0.0f;
+		int	shroud_cols			= 0;
+		int	shroud_rows			= 0;
+		Vector3 shroud_min (0.0f,0.0f,0.0f);
+		WorldShroudManager::Get_Grid_Geometry (&shroud_cell_size,&shroud_cols,&shroud_rows,&shroud_min);
+		WWDEBUG_SAY (("ProceduralWorldManager: shroud coverage %s -- %d x %d cell(s) of %.1f over the generated world\r\n",
+						  shroud_coverage_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
+						  shroud_cols,shroud_rows,shroud_cell_size));
+	}
+	WWDEBUG_SAY (("ProceduralWorldManager: expansion rules %s -- %d chokepoint(s), grading limits "
+					  "cut %.1f / fill %.1f / slope %.2frad / area %.0f, checksum 0x%08X\r\n",
+					  expansion_rules_armed ? "armed" : "NOT ARMED",
+					  GeneratedWorldPlacementRules::Get_Chokepoint_Count (),
+					  FoundationGradingService::Get_Limits ().MaxCutDepth,
+					  FoundationGradingService::Get_Limits ().MaxFillHeight,
+					  FoundationGradingService::Get_Limits ().MaxSlopeChangeRadians,
+					  FoundationGradingService::Get_Limits ().MaxAffectedArea,
+					  GeneratedWorldPlacementRules::Get_Chokepoint_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: logistics graph %s -- %d node(s), %d route(s), checksum 0x%08X\r\n",
+					  profile.Logistics.Enabled ? (logistics_built ? "built" : "NOT BUILT") : "disabled",
+					  LogisticsGraphService::Get_Node_Count (),
+					  LogisticsGraphService::Get_Route_Count (),
+					  LogisticsGraphService::Get_Checksum ()));
 
 	return true;
 }
@@ -1067,6 +1286,10 @@ void ProceduralWorldManager::Destroy_World(void)
 	//	remove their own work (bridges, roads, or nothing shared at all -- StrategicPlanner is
 	//	pure data); hydrology and interior cliffs each only ever remove their own IDs from their
 	//	own shared collection (see each generator's own Clear).
+	LogisticsGraphService::Clear ();
+	MinimapBaseLayer::Clear ();
+	NavMeshGenerator::Clear ();
+	GeneratedWorldIntegrator::Clear ();
 	BiomeDecorationGenerator::Clear ();
 	SettlementGenerator::Clear ();
 	ProceduralAssetRegistry::Shutdown ();

@@ -279,6 +279,166 @@ void HeightfieldClass::Blend_Height_Region(const Vector3 & center,float radius,f
 
 
 /***********************************************************************************************
+ * HeightfieldClass::Grade_Foundation -- a flat plateau with a ramp around it                   *
+ *=============================================================================================*/
+void HeightfieldClass::Grade_Foundation(const Vector3 & center,float flat_radius,float apron_radius,
+													 float target_height)
+{
+	if ((Heights == nullptr) || !(flat_radius > 0.0f)) {
+		return;
+	}
+	if (apron_radius < flat_radius) {
+		apron_radius = flat_radius;
+	}
+
+	int min_x = (int)WWMath::Floor((center.X - apron_radius - Origin.X) / CellSize);
+	int min_y = (int)WWMath::Floor((center.Y - apron_radius - Origin.Y) / CellSize);
+	int max_x = (int)WWMath::Ceil((center.X + apron_radius - Origin.X) / CellSize);
+	int max_y = (int)WWMath::Ceil((center.Y + apron_radius - Origin.Y) / CellSize);
+
+	if (min_x < 0) min_x = 0;
+	if (min_y < 0) min_y = 0;
+	if (max_x > VertexCountX - 1) max_x = VertexCountX - 1;
+	if (max_y > VertexCountY - 1) max_y = VertexCountY - 1;
+
+	float ramp = apron_radius - flat_radius;
+
+	for (int iy = min_y; iy <= max_y; iy++) {
+		for (int ix = min_x; ix <= max_x; ix++) {
+
+			float dx = (Origin.X + ix * CellSize) - center.X;
+			float dy = (Origin.Y + iy * CellSize) - center.Y;
+			float dist = WWMath::Sqrt(dx*dx + dy*dy);
+			if (dist >= apron_radius) {
+				continue;
+			}
+
+			float & height = Heights[iy * VertexCountX + ix];
+
+			if (dist <= flat_radius) {
+				height = target_height;
+				continue;
+			}
+
+			if (!(ramp > 0.0f)) {
+				continue;
+			}
+
+			//	1 at the plateau edge, 0 at the apron rim, smoothstepped so the ramp meets the
+			//	untouched ground with no crease -- the same weighting the two region primitives
+			//	above already use, applied across the ring rather than from the centre.
+			float t = 1.0f - ((dist - flat_radius) / ramp);
+			float weight = t * t * (3.0f - 2.0f * t);
+
+			height = height + (target_height - height) * weight;
+		}
+	}
+
+	int p_min_x = min_x / PATCH_CELLS;
+	int p_min_y = min_y / PATCH_CELLS;
+	int p_max_x = max_x / PATCH_CELLS;
+	int p_max_y = max_y / PATCH_CELLS;
+	for (int py = p_min_y; py <= p_max_y; py++) {
+		for (int px = p_min_x; px <= p_max_x; px++) {
+			Invalidate_Patch(px,py);
+			Update_Patch_Extents(px,py);
+		}
+	}
+	Update_Bounds();
+}
+
+
+/***********************************************************************************************
+ * HeightfieldClass::Smooth_Height_Region -- average a circular region with itself              *
+ *=============================================================================================*/
+void HeightfieldClass::Smooth_Height_Region(const Vector3 & center,float radius,float strength)
+{
+	if ((Heights == nullptr) || !(radius > 0.0f)) {
+		return;
+	}
+	if (strength <= 0.0f) {
+		return;
+	}
+	if (strength > 1.0f) strength = 1.0f;
+
+	int min_x = (int)WWMath::Floor((center.X - radius - Origin.X) / CellSize);
+	int min_y = (int)WWMath::Floor((center.Y - radius - Origin.Y) / CellSize);
+	int max_x = (int)WWMath::Ceil((center.X + radius - Origin.X) / CellSize);
+	int max_y = (int)WWMath::Ceil((center.Y + radius - Origin.Y) / CellSize);
+
+	if (min_x < 0) min_x = 0;
+	if (min_y < 0) min_y = 0;
+	if (max_x > VertexCountX - 1) max_x = VertexCountX - 1;
+	if (max_y > VertexCountY - 1) max_y = VertexCountY - 1;
+
+	int span_x = (max_x - min_x) + 1;
+	int span_y = (max_y - min_y) + 1;
+	if ((span_x <= 0) || (span_y <= 0)) {
+		return;
+	}
+
+	//	Every neighbour average is taken from the heights as they were before this operation
+	//	began.  Filtering in place would make each vertex's result depend on the sweep order,
+	//	which is the one thing a replicated, replayable operation cannot afford.
+	float * before = new float [span_x * span_y];
+	for (int iy = min_y; iy <= max_y; iy++) {
+		for (int ix = min_x; ix <= max_x; ix++) {
+			before[((iy - min_y) * span_x) + (ix - min_x)] = Heights[iy * VertexCountX + ix];
+		}
+	}
+
+	for (int iy = min_y; iy <= max_y; iy++) {
+		for (int ix = min_x; ix <= max_x; ix++) {
+
+			float dx = (Origin.X + ix * CellSize) - center.X;
+			float dy = (Origin.Y + iy * CellSize) - center.Y;
+			float dist = WWMath::Sqrt(dx*dx + dy*dy);
+			if (dist >= radius) {
+				continue;
+			}
+
+			//	The four-neighbour mean, from the pre-operation heights.  A neighbour outside the
+			//	sampled window is skipped rather than clamped: borrowing the edge vertex twice
+			//	would pull the rim of the region towards itself and leave a lip.
+			float sum = 0.0f;
+			int   count = 0;
+
+			if (ix > min_x)	{ sum += before[((iy - min_y) * span_x) + (ix - 1 - min_x)]; count++; }
+			if (ix < max_x)	{ sum += before[((iy - min_y) * span_x) + (ix + 1 - min_x)]; count++; }
+			if (iy > min_y)	{ sum += before[((iy - 1 - min_y) * span_x) + (ix - min_x)]; count++; }
+			if (iy < max_y)	{ sum += before[((iy + 1 - min_y) * span_x) + (ix - min_x)]; count++; }
+
+			if (count == 0) {
+				continue;
+			}
+
+			float mean = sum / (float)count;
+
+			float t = 1.0f - (dist / radius);
+			float weight = t * t * (3.0f - 2.0f * t) * strength;
+
+			float & height = Heights[iy * VertexCountX + ix];
+			height = height + (mean - height) * weight;
+		}
+	}
+
+	delete [] before;
+
+	int p_min_x = min_x / PATCH_CELLS;
+	int p_min_y = min_y / PATCH_CELLS;
+	int p_max_x = max_x / PATCH_CELLS;
+	int p_max_y = max_y / PATCH_CELLS;
+	for (int py = p_min_y; py <= p_max_y; py++) {
+		for (int px = p_min_x; px <= p_max_x; px++) {
+			Invalidate_Patch(px,py);
+			Update_Patch_Extents(px,py);
+		}
+	}
+	Update_Bounds();
+}
+
+
+/***********************************************************************************************
  * HeightfieldClass::Cell_From_World -- which cell a world point is over                        *
  *=============================================================================================*/
 bool HeightfieldClass::Cell_From_World(float x,float y,int * cx_out,int * cy_out) const

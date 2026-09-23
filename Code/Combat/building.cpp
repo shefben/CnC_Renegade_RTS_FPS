@@ -816,6 +816,29 @@ BuildingGameObj::Update_State (bool force_update)
 	Update_Runtime_Damage_Model (force_update);
 
 	/*
+	**	Phase 20 -- a building whose descriptor tracks a grid-facing subcomponent
+	**	(power_generator_module/communications_array/radar_dish) generates a genuinely different
+	**	number every time its health does, so the grid has to be told on the same event that
+	**	already tells it about destruction (On_Runtime_Destroyed_State_Entered, below).  Gated on
+	**	actually having one of those three roles declared so the overwhelming majority of
+	**	buildings -- every descriptor before this phase, and every one after it that does not opt
+	**	in -- take no extra RecalculateTeam call on every hit, honoring the header's own "call on
+	**	relevant state/config changes, never every frame".
+	*/
+	if (CombatManager::I_Am_Server ()) {
+		const StringClass & descriptor_name = Get_Definition ().Get_Descriptor_Name ();
+		const BuildingModelDescriptor *descriptor = (descriptor_name.Get_Length () > 0)
+			? BuildingDescriptorManager::Get_Descriptor (descriptor_name.Peek_Buffer ()) : nullptr;
+		if ((descriptor != nullptr) &&
+			 (descriptor->Has_Subcomponent (SUBCOMPONENT_POWER_GENERATOR_MODULE) ||
+			  descriptor->Has_Subcomponent (SUBCOMPONENT_COMMUNICATIONS_ARRAY) ||
+			  descriptor->Has_Subcomponent (SUBCOMPONENT_RADAR_DISH)))
+		{
+			TeamPowerGridService::RecalculateTeam (Get_Player_Type ());
+		}
+	}
+
+	/*
 	** Evaluate our current state
 	*/
 	float health_percentage = 100.0f * DefenseObject.Get_Health()/DefenseObject.Get_Health_Max();
@@ -2742,6 +2765,129 @@ BuildingGameObj::Resolve_Runtime_Anchor (const char *role_name,Matrix3D *out_tra
 	return descriptor->Resolve_Anchor_World_Transform (part_models,RuntimeTransform,
 																		 role_name,out_transform);
 }
+
+
+/*
+**	Roadmap Section 21, Phase 20 -- functional subcomponents.
+**
+**	Deliberately looked up by Get_Definition().Get_Descriptor_Name() rather than
+**	RuntimeDescriptorName/Peek_Runtime_Descriptor: that pair is "inert for a map-authored
+**	building" by design (see the header's own comment on the runtime-constructed state block),
+**	but DescriptorName is the definition's own back-link (Resolve_Game_Object_Presets, Q-017) and
+**	resolves for *any* instance of a described definition, map-placed or Commander-built alike --
+**	the same resolution TeamPowerGridService::Peek_Descriptor already performs from the member's
+**	own copy of this same name.  Health-driven degradation is not a runtime-construction-only
+**	concept; only the anchor/bone status report below is, because only a runtime building's parts
+**	live in RuntimeParts.
+*/
+static float
+Effective_Subcomponent_Fraction (const BuildingModelDescriptor *descriptor,
+											 BuildingSubcomponentRoleType role,float health_fraction)
+{
+	if (descriptor == nullptr) return 1.0f;
+	float fraction = descriptor->Get_Subcomponent_Function_Fraction (role,health_fraction);
+	return (fraction < 0.0f) ? 1.0f : fraction;		// not tracked -- unmodified, same as before Phase 20
+}
+
+float
+BuildingGameObj::Get_Effective_Power_Generation (void) const
+{
+	const BuildingModelDescriptor *descriptor =
+		BuildingDescriptorManager::Get_Descriptor (Get_Definition ().Get_Descriptor_Name ().Peek_Buffer ());
+	if (descriptor == nullptr) return 0.0f;
+
+	float health_max = DefenseObject.Get_Health_Max ();
+	float normalized = (health_max > 0.0f) ? (DefenseObject.Get_Health () / health_max) : 0.0f;
+
+	return descriptor->Power.Generation *
+			 Effective_Subcomponent_Fraction (descriptor,SUBCOMPONENT_POWER_GENERATOR_MODULE,normalized);
+}
+
+float
+BuildingGameObj::Get_Effective_Vision_Radius (void) const
+{
+	const BuildingModelDescriptor *descriptor =
+		BuildingDescriptorManager::Get_Descriptor (Get_Definition ().Get_Descriptor_Name ().Peek_Buffer ());
+	if (descriptor == nullptr) return 0.0f;
+
+	float health_max = DefenseObject.Get_Health_Max ();
+	float normalized = (health_max > 0.0f) ? (DefenseObject.Get_Health () / health_max) : 0.0f;
+
+	return descriptor->Communications.VisionRadius *
+			 Effective_Subcomponent_Fraction (descriptor,SUBCOMPONENT_COMMUNICATIONS_ARRAY,normalized);
+}
+
+float
+BuildingGameObj::Get_Effective_Radar_Radius (void) const
+{
+	const BuildingModelDescriptor *descriptor =
+		BuildingDescriptorManager::Get_Descriptor (Get_Definition ().Get_Descriptor_Name ().Peek_Buffer ());
+	if (descriptor == nullptr) return 0.0f;
+
+	float health_max = DefenseObject.Get_Health_Max ();
+	float normalized = (health_max > 0.0f) ? (DefenseObject.Get_Health () / health_max) : 0.0f;
+
+	//	"destroyed radar dish -> radar capability disabled while building may remain alive" --
+	//	the linear fraction reaching 0 at the descriptor's own disabled_health_fraction already is
+	//	that disable, expressed as a zero-radius sensor rather than a second boolean to keep in
+	//	sync with it.
+	return descriptor->Communications.RadarRadius *
+			 Effective_Subcomponent_Fraction (descriptor,SUBCOMPONENT_RADAR_DISH,normalized);
+}
+
+int
+BuildingGameObj::Get_Subcomponent_Count (void) const
+{
+	if (!IsRuntimeConstructed) return 0;
+	const BuildingModelDescriptor *descriptor = Peek_Runtime_Descriptor (RuntimeDescriptorName);
+	if (descriptor == nullptr) return 0;
+	return descriptor->Subcomponents.Count ();
+}
+
+bool
+BuildingGameObj::Get_Subcomponent_Status (int index,StringClass *role_name_out,
+														 float *function_fraction_out,bool *anchor_resolves_out) const
+{
+	if (!IsRuntimeConstructed) return false;
+	const BuildingModelDescriptor *descriptor = Peek_Runtime_Descriptor (RuntimeDescriptorName);
+	if (descriptor == nullptr) return false;
+	if ((index < 0) || (index >= descriptor->Subcomponents.Count ())) return false;
+
+	const BuildingSubcomponentDefinition & sub = descriptor->Subcomponents [index];
+
+	if (role_name_out != nullptr) {
+		const char *name = Subcomponent_Role_Name (sub.Role);
+		*role_name_out = (name != nullptr) ? name : "(unknown)";
+	}
+
+	if (function_fraction_out != nullptr) {
+		float health_max = DefenseObject.Get_Health_Max ();
+		float normalized = (health_max > 0.0f) ? (DefenseObject.Get_Health () / health_max) : 0.0f;
+		*function_fraction_out = Effective_Subcomponent_Fraction (descriptor,sub.Role,normalized);
+	}
+
+	if (anchor_resolves_out != nullptr) {
+		/*
+		**	Direct bone lookup, not Resolve_Runtime_Anchor: a subcomponent's AnchorBoneName is
+		**	already the W3D bone name itself, not an Anchors-table role that indirects to one --
+		**	the same Get_Bone_Index scan Resolve_Anchor_World_Transform runs, done here against
+		**	the one name in hand instead of a role lookup that would never find it.
+		*/
+		bool resolved = false;
+		if (sub.AnchorBoneName.Get_Length () > 0) {
+			for (int i = 0; (i < RuntimeParts.Count ()) && !resolved; i++) {
+				RenderObjClass *model = (RuntimeParts [i] != nullptr) ? RuntimeParts [i]->Peek_Model () : nullptr;
+				if ((model != nullptr) && (model->Get_Bone_Index (sub.AnchorBoneName.Peek_Buffer ()) != 0)) {
+					resolved = true;
+				}
+			}
+		}
+		*anchor_resolves_out = resolved;
+	}
+
+	return true;
+}
+
 
 bool
 BuildingGameObj::Are_Capabilities_Enabled (void) const

@@ -251,6 +251,52 @@ struct ProceduralWorldRetryLimits
 
 
 /*
+**	Section 34 Phase 17 step 5's four grading limits, named exactly as that step lists them.
+**
+**	Every one of them is a ceiling on what the Commander may do to ground that a generator
+**	already produced and that Phase 15's combat-space validation already accepted, which is why
+**	they belong to the profile rather than to a building descriptor: a descriptor can say how
+**	steep a foundation tolerates, but only the world can say how much of itself may be moved.
+**
+**	MaxSlopeChangeRadians defaults to the same 0.5 rad buildable-slope cap every terrain-reading
+**	generator in this chain already shares, so a grading operation can never leave ground steeper
+**	than ground a generator would have been willing to make.
+*/
+struct ProceduralWorldGradingSettings
+{
+	ProceduralWorldGradingSettings(void) :
+		MaxCutDepth(6.0f),MaxFillHeight(6.0f),
+		MaxSlopeChangeRadians(0.5f),MaxAffectedArea(4096.0f) { }
+
+	float	MaxCutDepth;				// world units, > 0
+	float	MaxFillHeight;				// world units, > 0
+	float	MaxSlopeChangeRadians;	// > 0
+	float	MaxAffectedArea;			// world units^2, > 0
+};
+
+
+/*
+**	V2 roadmap Section 34 Phase 21 step 1's own "logistics profile toggles".  Section 22.1's own
+**	default philosophy -- "keep core player purchases simple... default gameplay must remain
+**	viable without mandatory micromanagement" -- is why every field here defaults to leaving
+**	logistics observable but inert: `Enabled` builds the graph (routes/blockage status a
+**	Commander UI or an AI can read), `ConvoyEnabled` is the separate, further-opt-in step that
+**	lets anything actually issue a convoy order, and `ConstructionSupportRadius` at 0 means
+**	Section 22.2's "construction support radius" grants no bonus at all until a profile author
+**	explicitly sets one.
+*/
+struct ProceduralWorldLogisticsSettings
+{
+	ProceduralWorldLogisticsSettings(void) :
+		Enabled(false),ConvoyEnabled(false),ConstructionSupportRadius(0.0f) { }
+
+	bool		Enabled;
+	bool		ConvoyEnabled;
+	float		ConstructionSupportRadius;	// world units, >= 0; 0 disables the bonus (Section 22.2 step 5)
+};
+
+
+/*
 **	Section 17A.1's required profile thresholds, named exactly as that section lists them.
 **	Parsed and validated starting this phase even though no generator/analyzer consumes them
 **	yet (Phase 15/17A's own job) -- Phase 1's purpose is the whole schema contract, and
@@ -331,7 +377,23 @@ class ProceduralWorldProfile
 		//	profile still loads; the eight new fields take their documented defaults. Phases 7-11
 		//	moved no schema number -- each reused fields Phase 1 had already reserved for it
 		//	(Fairness, Retry) rather than needing a new one.
-		enum { CURRENT_SCHEMA_VERSION = 5, CURRENT_GENERATOR_VERSION = 5 };
+		//	Schema 6 added the grading block's four Phase 17 limits.  Generator 6 is the
+		//	Commander's foundation grading itself: a world built by generator 5 was terrain no
+		//	runtime actor could reshape, and one built by generator 6 is terrain the Commander may
+		//	level within those limits, so two worlds from the same seed are no longer the same
+		//	world once a match has been played in them.  A schema-1..5 profile still loads; the
+		//	four new fields take their documented defaults.  Phase 16 moved neither number -- it
+		//	added no profile field, reading everything it needed from the chunk registry.
+		//	Phases 18-20 moved neither number either, for the same reason: journal/snapshot/
+		//	subcomponent state all derive from data the schema already describes.
+		//	Schema 7 added the logistics block's three Phase 21 toggles.  Generator stays at 6:
+		//	`LogisticsGraphService` only reads terrain/road/building state generator 6 already
+		//	produced, the same way Phase 16's world integration and Phase 18's operation journal
+		//	do, so the same seed and the same schema-1..6 profile still produce byte-identical
+		//	terrain -- a schema field can be added with no generator output change, exactly the
+		//	independence this comment block has documented since schema 2.  A schema-1..6 profile
+		//	still loads; the three new fields take their documented (inert-by-default) values.
+		enum { CURRENT_SCHEMA_VERSION = 7, CURRENT_GENERATOR_VERSION = 6 };
 
 		ProceduralWorldProfile(void);
 
@@ -352,6 +414,8 @@ class ProceduralWorldProfile
 		ProceduralWorldFeatureFlags			Features;
 		ProceduralWorldRetryLimits				Retry;
 		ProceduralWorldFairnessThresholds	Fairness;
+		ProceduralWorldGradingSettings		Grading;
+		ProceduralWorldLogisticsSettings	Logistics;
 };
 
 

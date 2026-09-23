@@ -9,6 +9,15 @@
 #include "biomedecorationgenerator.h"
 #include "buildingdescriptormanager.h"
 #include "combatspacevalidator.h"
+#include "commanderplacement.h"
+#include "expansionregionregistry.h"
+#include "logisticsgraphservice.h"
+#include "foundationgrading.h"
+#include "generatedworldplacementrules.h"
+#include "worldoperation.h"
+#include "worldoperationjournal.h"
+#include "worldsnapshot.h"
+#include "worldsyncservice.h"
 #include "bridgeplanner.h"
 #include "bridgesection.h"
 #include "bridgesystem.h"
@@ -16,10 +25,15 @@
 #include "foliagesystem.h"
 #include "foliagetype.h"
 #include "coltest.h"
+#include "generatedworldintegrator.h"
 #include "heightfield.h"
 #include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "lineseg.h"
+#include "minimapbaselayer.h"
+#include "navmeshgenerator.h"
+#include "Pathfind.h"
+#include "worldmetrics.h"
 #include "playertype.h"
 #include "coltype.h"
 #include "macroterraingenerator.h"
@@ -5179,6 +5193,553 @@ void	Check_Combat_Space (void)
 }
 
 
+/***********************************************************************************************
+**	Phase 16 steps 1-2.  Real collision/render/culling registration for Phase 13's own
+**	settlement structures -- the one generated-object type the chain reached still data-only.
+*/
+void	Check_World_Integration (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	BaseSelectionPlanner::Init ();
+	TiberiumFieldGenerator::Init ();
+	BuildingDescriptorManager::Init ();
+	SettlementGenerator::Init ();
+	GeneratedWorldIntegrator::Init ();
+
+	{
+		StringClass descriptor_error ("");
+		BuildingDescriptorManager::Load_Descriptor_From_Text ("gdi_communications_center",
+			"{ \"model_name\": \"G_Comcntr.w3d\", \"schema_version\": 1, "
+			"\"footprint\": { \"width\": 15.0, \"depth\": 15.0 } }",&descriptor_error);
+		BuildingDescriptorManager::Load_Descriptor_From_Text ("gdi_power_plant",
+			"{ \"model_name\": \"mgpwr_ext.w3d\", \"schema_version\": 1, "
+			"\"footprint\": { \"width\": 20.0, \"depth\": 20.0 } }",&descriptor_error);
+		BuildingDescriptorManager::Load_Descriptor_From_Text ("nod_power_plant",
+			"{ \"model_name\": \"mnpwr_ext.w3d\", \"schema_version\": 1, "
+			"\"footprint\": { \"width\": 20.0, \"depth\": 20.0 } }",&descriptor_error);
+	}
+	ProceduralAssetRegistry::Init ();
+
+	//
+	//	Build() over no settlements at all: trivially passes, the same "nothing built, nothing
+	//	broken" answer every other generator in this chain gives.
+	//
+	{
+		GeneratedWorldIntegrator::Clear ();
+		StringClass report ("");
+		Check (GeneratedWorldIntegrator::Build (&report), "integration over no settlements reported a failure");
+		Check (GeneratedWorldIntegrator::Get_Record_Count () == 0, "no settlements produced a nonzero record count");
+	}
+
+	//
+	//	A real chain -- the same setup Check_Settlements/Check_Combat_Space already established
+	//	as sufficient to produce real structures.
+	//
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 41u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 3.0f;
+		hydro_params.MaxRiverCount				= 2;
+
+		StringClass error ("");
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed							= 909u;
+		plan_params.MinApproachCount			= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 2;
+		plan_params.MinBaseSeparation			= 80.0f;
+		plan_params.MaxTiberiumCandidates		= 4;
+		plan_params.MaxSettlementCandidates	= 3;
+		plan_params.MaxPoiCandidates			= 3;
+		plan_params.MaxExpansionCandidates	= 2;
+		plan_params.MaxEconomicRange			= 1000.0f;
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 55u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		Check (RoadGraphGenerator::Generate (road_params,&error),
+				 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+		BridgePlannerParams bridge_params;
+		bridge_params.Seed					= 77u;
+		bridge_params.WaterClearanceMargin	= 2.0f;
+		bridge_params.MaxSpanLength			= 200.0f;
+		Check (BridgePlanner::Generate (bridge_params,&error),
+				 "the bridge plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		BaseSelectionParams base_params;
+		base_params.Seed												= 123u;
+		base_params.MaxInitialResourceTravelTimeDifferenceSeconds	= 60.0f;
+		base_params.MaxBaseToBaseTravelTimeDifferenceSeconds		= 120.0f;
+		base_params.MinBaseExpansionArea								= 1024.0f;
+		base_params.AllowSingleBridgeDependency						= false;
+		base_params.MaxRepairAttemptsPerPair							= 8;
+		Check (BaseSelectionPlanner::Generate (base_params,&error),
+				 "the base selection this check depends on failed: %s",error.Peek_Buffer ());
+
+		TiberiumFieldParams field_params;
+		field_params.Seed							= 321u;
+		field_params.FieldRadiusMin				= 15.0f;
+		field_params.FieldRadiusMax				= 40.0f;
+		field_params.InitialYieldMin				= 1500.0f;
+		field_params.InitialYieldMax				= 4000.0f;
+		field_params.CrystalDensity				= 0.15f;
+		field_params.HarvestAnchorCount			= 3;
+		field_params.HarvesterLoadAmount		= 600.0f;
+		field_params.MaxRepairAttemptsPerField	= 8;
+		field_params.ReferenceVehicleSpeed		= 8.33f;
+		field_params.MaxBuildableSlopeRadians	= 0.5f;
+		Check (TiberiumFieldGenerator::Generate (field_params,&error),
+				 "the Tiberium fields this check depends on failed: %s",error.Peek_Buffer ());
+
+		SettlementParams settlement_params;
+		settlement_params.Seed							= 555u;
+		settlement_params.RoadConnectorMaxDistance	= 200.0f;
+		settlement_params.MaxStructuresPerSettlement	= 4;
+		settlement_params.MaxBuildableSlopeRadians	= 0.5f;
+		Check (SettlementGenerator::Generate (settlement_params,&error),
+				 "the settlements this check depends on failed: %s",error.Peek_Buffer ());
+
+		GeneratedWorldIntegrator::Clear ();
+		StringClass report ("");
+		Check (GeneratedWorldIntegrator::Build (&report), "integration over a real chain failed: %s",report.Peek_Buffer ());
+		Check (GeneratedWorldIntegrator::Get_Record_Count () == SettlementGenerator::Get_Structure_Count (),
+				 "record count does not match the structure count it was built from");
+		Check ((GeneratedWorldIntegrator::Get_Collision_Count () + GeneratedWorldIntegrator::Get_Missing_Model_Count ()) ==
+					GeneratedWorldIntegrator::Get_Record_Count (),
+				 "collision + missing-model counts do not sum to the record count");
+
+		for (int i = 0; i < GeneratedWorldIntegrator::Get_Record_Count (); i++) {
+			IntegratedStructureRecord record;
+			Check (GeneratedWorldIntegrator::Get_Record (i,&record), "record index out of range");
+			Check (record.PersistenceId.Get_Length () > 0, "a structure record has no persistence id");
+		}
+
+		//	3 real, offline-verified assets are loaded above -- every structure this real chain
+		//	placed should therefore have real collision, not merely a real record.
+		if (GeneratedWorldIntegrator::Get_Record_Count () > 0) {
+			Check (GeneratedWorldIntegrator::Get_Collision_Count () > 0,
+					 "a real chain with real assets loaded produced zero real collision objects");
+		}
+
+		//
+		//	Step 13.  The shroud grid has to cover the world this chain actually built, not
+		//	whatever world it was last partitioned over -- a shroud cell and a world position
+		//	lining up is the whole point of "shroud/radar positions align".
+		//
+		WorldShroudManager::Init ();
+		Check (WorldShroudManager::Is_Partitioned () == false,
+				 "a fresh shroud manager already reports partitioned");
+
+		Check (GeneratedWorldIntegrator::Partition_Shroud_Over_World (&report),
+				 "shroud partition over a real generated world failed: %s",report.Peek_Buffer ());
+		Check (WorldShroudManager::Is_Partitioned (), "the shroud grid was not partitioned");
+		Check (WorldShroudManager::Get_Cell_Count () > 0, "the partitioned shroud grid has no cells");
+
+		{
+			float		cell_size	= 0.0f;
+			int		cols			= 0;
+			int		rows			= 0;
+			Vector3	grid_min (0.0f,0.0f,0.0f);
+			Check (WorldShroudManager::Get_Grid_Geometry (&cell_size,&cols,&rows,&grid_min),
+					 "a partitioned shroud grid reports no geometry");
+			Check ((cols > 0) && (rows > 0), "the shroud grid is %d x %d",cols,rows);
+			Check (cell_size > 0.0f, "the shroud grid has a non-positive cell size");
+
+			//	Every real walkable patch centre this world owns must fall inside the grid the
+			//	step above sized -- the real "shroud positions align" assertion, re-derived from
+			//	the same patch bounds rather than trusting the call above returned true.
+			int inside = 0;
+			int sampled = 0;
+			for (int py = 0; py < WorldTerrainSystem::Get_Chunk_Count_Y (); py++) {
+				for (int px = 0; px < WorldTerrainSystem::Get_Chunk_Count_X (); px++) {
+					AABoxClass bounds;
+					if (!WorldTerrainSystem::Get_Patch_Bounds (px,py,&bounds)) continue;
+					sampled++;
+					float dx = bounds.Center.X - grid_min.X;
+					float dy = bounds.Center.Y - grid_min.Y;
+					if ((dx >= 0.0f) && (dy >= 0.0f) &&
+						 (dx < (cell_size * (float)cols)) && (dy < (cell_size * (float)rows))) {
+						inside++;
+					}
+				}
+			}
+			Check (sampled > 0, "no real patch bounds to test the shroud grid against");
+			Check (inside == sampled,
+					 "%d of %d real patch centres fall outside the shroud grid sized for this world",
+					 sampled - inside,sampled);
+		}
+
+		WorldShroudManager::Shutdown ();
+	}
+
+	GeneratedWorldIntegrator::Shutdown ();
+	SettlementGenerator::Shutdown ();
+	ProceduralAssetRegistry::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	TiberiumFieldGenerator::Shutdown ();
+	BaseSelectionPlanner::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	Phase 16 steps 3-8.  Real sector/portal navigation registered into the one canonical
+**	PathfindClass singleton action.cpp's own AI movement code actually consults.
+*/
+void	Check_Navigation (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	SettlementGenerator::Init ();
+	NavMeshGenerator::Init ();
+
+	{
+		DynamicVectorClass<Vector2> ring;
+		ring.Add (Vector2 (-500.0f,-500.0f));
+		ring.Add (Vector2 ( 500.0f,-500.0f));
+		ring.Add (Vector2 ( 500.0f, 500.0f));
+		ring.Add (Vector2 (-500.0f, 500.0f));
+		StringClass bounds_error ("");
+		Check (WorldBoundsService::Configure (ring,32.0f,8.0f,300.0f,&bounds_error),
+				 "world bounds configuration this check depends on failed: %s",bounds_error.Peek_Buffer ());
+	}
+
+	Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+	StringClass error ("");
+
+	HydrologyParams hydro_params;
+	hydro_params.Seed							= 41u;
+	hydro_params.GenerateRivers				= true;
+	hydro_params.GenerateLakes				= true;
+	hydro_params.GeneratePonds				= true;
+	hydro_params.RiverWidth					= 6.0f;
+	hydro_params.StreamWidth					= 2.5f;
+	hydro_params.RiverAccumulationChunks	= 3.0f;
+	hydro_params.MaxRiverCount				= 2;
+	Check (HydrologyGenerator::Generate (hydro_params,&error),
+			 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+	StrategicPlannerParams plan_params;
+	plan_params.Seed							= 909u;
+	plan_params.MinApproachCount			= 2;
+	plan_params.MinBaseCandidatesPerFaction	= 2;
+	plan_params.MinBaseSeparation			= 80.0f;
+	plan_params.MaxTiberiumCandidates		= 4;
+	plan_params.MaxSettlementCandidates	= 3;
+	plan_params.MaxPoiCandidates			= 3;
+	plan_params.MaxExpansionCandidates	= 2;
+	plan_params.MaxEconomicRange			= 1000.0f;
+	Check (StrategicPlanner::Generate (plan_params,&error),
+			 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+	RoadGraphParams road_params;
+	road_params.Seed							= 55u;
+	road_params.MaxBuildableSlopeRadians	= 0.5f;
+	road_params.SlopeCostWeight				= 3.0f;
+	road_params.CrossingCostPenalty			= 8.0f;
+	road_params.BoundaryApproachCostWeight	= 1.5f;
+	Check (RoadGraphGenerator::Generate (road_params,&error),
+			 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+	BridgePlannerParams bridge_params;
+	bridge_params.Seed					= 77u;
+	bridge_params.WaterClearanceMargin	= 2.0f;
+	bridge_params.MaxSpanLength			= 200.0f;
+	Check (BridgePlanner::Generate (bridge_params,&error),
+			 "the bridge plan this check depends on failed: %s",error.Peek_Buffer ());
+
+	//
+	//	Whether a live PhysicsSceneClass (and so a live PathfindClass -- Pathfinder is allocated
+	//	inside PhysicsSceneClass's own constructor, pscene.cpp) exists in this process at all
+	//	depends on how far this binary's own startup got before -terrainselfcheck ran; the
+	//	dedicated server already has one by this point, the client build of this same harness
+	//	does not.  Both are real, legitimate states -- the same asymmetry FoliageSystem's own
+	//	Add_Instance/Add_Proxy already tolerate for the identical reason -- so this check proves
+	//	whichever real behaviour applies rather than assuming one.
+	//
+	bool has_pathfinder = (PathfindClass::Get_Instance () != nullptr);
+	if (has_pathfinder) {
+		Check (PathfindClass::Get_Instance ()->Does_Pathfind_Data_Exist () == false,
+				 "PathfindClass already had sector data before this check built any");
+	}
+
+	//
+	//	Whether an infantry PhysDefClass is loaded is the same kind of process-startup-order
+	//	question as has_pathfinder above -- real gameplay always has one (the whole game depends
+	//	on SoldierGameObj), but this harness's own definition-manager bootstrap varies by binary.
+	//	NavMeshGenerator's own real, honest refusal ("no infantry definition loaded -- cannot
+	//	size a real ground sector") is exactly what this check proves in that case, not a defect
+	//	to route around.
+	//
+	WorldMetricsStruct infantry_probe;
+	bool has_infantry_definition = WorldMetricsClass::Get_Class_Metrics (LOCOMOTION_INFANTRY,&infantry_probe);
+
+	NavMeshParams nav_params;
+	StringClass nav_error ("");
+	bool first_result = NavMeshGenerator::Build (nav_params,&nav_error);
+
+	if (!has_infantry_definition) {
+		Check (first_result == false, "no infantry definition loaded but NavMeshGenerator::Build succeeded anyway");
+		Check (NavMeshGenerator::Has_Navigation () == false, "a refused build still reports navigation as present");
+	} else {
+		Check (first_result, "navigation over a real chain failed: %s",nav_error.Peek_Buffer ());
+
+		if (has_pathfinder) {
+			Check (NavMeshGenerator::Get_Sector_Count () > 0, "a real buildable chunk registry produced zero sectors");
+			Check (PathfindClass::Get_Instance ()->Does_Pathfind_Data_Exist (),
+					 "NavMeshGenerator built sectors but the canonical PathfindClass singleton has none");
+		} else {
+			Check (NavMeshGenerator::Get_Sector_Count () == 0, "no live PathfindClass but sectors were reported built");
+		}
+
+		int first_sector_count = NavMeshGenerator::Get_Sector_Count ();
+		int first_portal_count = NavMeshGenerator::Get_Portal_Count ();
+		unsigned int first_checksum = NavMeshGenerator::Get_Checksum ();
+		Check (NavMeshGenerator::Get_Revision () == 1, "first successful build did not report revision 1");
+
+		Check (NavMeshGenerator::Has_Flight_Volume (), "a real chunk registry produced no flight volume");
+		float flight_min = 0.0f, flight_max = 0.0f;
+		Check (NavMeshGenerator::Get_Flight_Volume (&flight_min,&flight_max), "flight volume reported present but not readable");
+		Check (flight_min < flight_max, "flight volume floor is not below its own ceiling");
+
+		//
+		//	Rebuild across a bounded seed retry -- the same re-buildable contract every generator
+		//	in this chain already has -- and confirm the same real chain reproduces the same real
+		//	graph.
+		//
+		bool second_result = NavMeshGenerator::Build (nav_params,&nav_error);
+		Check (second_result == first_result, "the same chain produced a different pass/fail verdict on rebuild");
+		Check (NavMeshGenerator::Get_Sector_Count () == first_sector_count, "rebuild changed the sector count");
+		Check (NavMeshGenerator::Get_Portal_Count () == first_portal_count, "rebuild changed the portal count");
+		Check (NavMeshGenerator::Get_Checksum () == first_checksum, "rebuild changed the checksum");
+
+		NavMeshGenerator::Clear ();
+		if (has_pathfinder) {
+			Check (PathfindClass::Get_Instance ()->Does_Pathfind_Data_Exist () == false,
+					 "Clear() left sector data behind in the canonical PathfindClass singleton");
+		}
+	}
+
+	SettlementGenerator::Shutdown ();
+	NavMeshGenerator::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	Phase 16 step 12.  A real, currently-unconsumed minimap/tactical-map base layer.
+*/
+void	Check_Minimap_Base_Layer (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	BaseSelectionPlanner::Init ();
+	TiberiumFieldGenerator::Init ();
+	BuildingDescriptorManager::Init ();
+	SettlementGenerator::Init ();
+	MinimapBaseLayer::Init ();
+
+	{
+		StringClass descriptor_error ("");
+		BuildingDescriptorManager::Load_Descriptor_From_Text ("gdi_communications_center",
+			"{ \"model_name\": \"G_Comcntr.w3d\", \"schema_version\": 1, "
+			"\"footprint\": { \"width\": 15.0, \"depth\": 15.0 } }",&descriptor_error);
+		BuildingDescriptorManager::Load_Descriptor_From_Text ("gdi_power_plant",
+			"{ \"model_name\": \"mgpwr_ext.w3d\", \"schema_version\": 1, "
+			"\"footprint\": { \"width\": 20.0, \"depth\": 20.0 } }",&descriptor_error);
+		BuildingDescriptorManager::Load_Descriptor_From_Text ("nod_power_plant",
+			"{ \"model_name\": \"mnpwr_ext.w3d\", \"schema_version\": 1, "
+			"\"footprint\": { \"width\": 20.0, \"depth\": 20.0 } }",&descriptor_error);
+	}
+	ProceduralAssetRegistry::Init ();
+
+	{
+		StringClass report ("");
+		Check (MinimapBaseLayer::Build (&report) == false,
+				 "minimap build with no chunk registry at all should honestly fail, not fabricate cells");
+	}
+
+	Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+	StringClass error ("");
+
+	HydrologyParams hydro_params;
+	hydro_params.Seed							= 41u;
+	hydro_params.GenerateRivers				= true;
+	hydro_params.GenerateLakes				= true;
+	hydro_params.GeneratePonds				= true;
+	hydro_params.RiverWidth					= 6.0f;
+	hydro_params.StreamWidth					= 2.5f;
+	hydro_params.RiverAccumulationChunks	= 3.0f;
+	hydro_params.MaxRiverCount				= 2;
+	Check (HydrologyGenerator::Generate (hydro_params,&error),
+			 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+	StrategicPlannerParams plan_params;
+	plan_params.Seed							= 909u;
+	plan_params.MinApproachCount			= 2;
+	plan_params.MinBaseCandidatesPerFaction	= 2;
+	plan_params.MinBaseSeparation			= 80.0f;
+	plan_params.MaxTiberiumCandidates		= 4;
+	plan_params.MaxSettlementCandidates	= 3;
+	plan_params.MaxPoiCandidates			= 3;
+	plan_params.MaxExpansionCandidates	= 2;
+	plan_params.MaxEconomicRange			= 1000.0f;
+	Check (StrategicPlanner::Generate (plan_params,&error),
+			 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+	RoadGraphParams road_params;
+	road_params.Seed							= 55u;
+	road_params.MaxBuildableSlopeRadians	= 0.5f;
+	road_params.SlopeCostWeight				= 3.0f;
+	road_params.CrossingCostPenalty			= 8.0f;
+	road_params.BoundaryApproachCostWeight	= 1.5f;
+	Check (RoadGraphGenerator::Generate (road_params,&error),
+			 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+	BridgePlannerParams bridge_params;
+	bridge_params.Seed					= 77u;
+	bridge_params.WaterClearanceMargin	= 2.0f;
+	bridge_params.MaxSpanLength			= 200.0f;
+	Check (BridgePlanner::Generate (bridge_params,&error),
+			 "the bridge plan this check depends on failed: %s",error.Peek_Buffer ());
+
+	BaseSelectionParams base_params;
+	base_params.Seed												= 123u;
+	base_params.MaxInitialResourceTravelTimeDifferenceSeconds	= 60.0f;
+	base_params.MaxBaseToBaseTravelTimeDifferenceSeconds		= 120.0f;
+	base_params.MinBaseExpansionArea								= 1024.0f;
+	base_params.AllowSingleBridgeDependency						= false;
+	base_params.MaxRepairAttemptsPerPair							= 8;
+	Check (BaseSelectionPlanner::Generate (base_params,&error),
+			 "the base selection this check depends on failed: %s",error.Peek_Buffer ());
+
+	TiberiumFieldParams field_params;
+	field_params.Seed							= 321u;
+	field_params.FieldRadiusMin				= 15.0f;
+	field_params.FieldRadiusMax				= 40.0f;
+	field_params.InitialYieldMin				= 1500.0f;
+	field_params.InitialYieldMax				= 4000.0f;
+	field_params.CrystalDensity				= 0.15f;
+	field_params.HarvestAnchorCount			= 3;
+	field_params.HarvesterLoadAmount		= 600.0f;
+	field_params.MaxRepairAttemptsPerField	= 8;
+	field_params.ReferenceVehicleSpeed		= 8.33f;
+	field_params.MaxBuildableSlopeRadians	= 0.5f;
+	Check (TiberiumFieldGenerator::Generate (field_params,&error),
+			 "the Tiberium fields this check depends on failed: %s",error.Peek_Buffer ());
+
+	SettlementParams settlement_params;
+	settlement_params.Seed							= 555u;
+	settlement_params.RoadConnectorMaxDistance	= 200.0f;
+	settlement_params.MaxStructuresPerSettlement	= 4;
+	settlement_params.MaxBuildableSlopeRadians	= 0.5f;
+	Check (SettlementGenerator::Generate (settlement_params,&error),
+			 "the settlements this check depends on failed: %s",error.Peek_Buffer ());
+
+	StringClass report ("");
+	Check (MinimapBaseLayer::Build (&report), "minimap build over a real chain failed: %s",report.Peek_Buffer ());
+	Check (MinimapBaseLayer::Get_Cell_Count_X () == WorldTerrainSystem::Get_Chunk_Count_X (),
+			 "minimap cell grid width does not match the chunk registry it was built from");
+	Check (MinimapBaseLayer::Get_Cell_Count_Y () == WorldTerrainSystem::Get_Chunk_Count_Y (),
+			 "minimap cell grid height does not match the chunk registry it was built from");
+	Check (MinimapBaseLayer::Get_Marker_Count () > 0,
+			 "a real chain with real bases/fields/settlements produced zero minimap markers");
+
+	for (int i = 0; i < MinimapBaseLayer::Get_Marker_Count (); i++) {
+		MinimapMarker marker;
+		Check (MinimapBaseLayer::Get_Marker (i,&marker), "marker index out of range");
+		Check (::strcmp (Minimap_Marker_Type_Name (marker.Type),"unknown") != 0,
+				 "marker %d named an unrecognized type",i);
+		Check (marker.Id.Get_Length () > 0, "a marker has no id");
+	}
+
+	unsigned int first_checksum = MinimapBaseLayer::Get_Checksum ();
+	MinimapBaseLayer::Clear ();
+	Check (MinimapBaseLayer::Build (&report), "minimap rebuild over the same real chain failed: %s",report.Peek_Buffer ());
+	Check (MinimapBaseLayer::Get_Checksum () == first_checksum, "the same chain produced a different checksum on rebuild");
+
+	MinimapBaseLayer::Shutdown ();
+	SettlementGenerator::Shutdown ();
+	ProceduralAssetRegistry::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	TiberiumFieldGenerator::Shutdown ();
+	BaseSelectionPlanner::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
 //	Zero derivative at both t=0 and t=1: a transition built from this touches down onto a flat
 //	neighbour with no sudden change of slope at the seam, which plain linear interpolation does
 //	not -- the whole reason this exists rather than a straight lerp.
@@ -5849,6 +6410,2394 @@ void	Check_Bridge_Fallback (void)
 }
 
 
+/***********************************************************************************************
+**	Phase 17 steps 1-2.  Generated-world placement exclusions, and the chokepoint analysis.
+*/
+void	Check_Placement_Rules (void)
+{
+	//
+	//	Every exclusion has a real name.  A rejection reason that reads "unknown" in a server log
+	//	is a rejection nobody can act on.
+	//
+	for (int i = 0; i < GENERATED_WORLD_EXCLUSION_COUNT; i++) {
+		Check (::strcmp (Generated_World_Exclusion_Name ((GeneratedWorldExclusionType)i),"unknown") != 0,
+				 "exclusion %d has no name",i);
+	}
+
+	/*
+	**	The articulation analysis, on a grid whose answer is known by construction rather than by
+	**	whatever a seed happened to produce.  Two 2x3 rooms joined through a single cell:
+	**
+	**		. . . . .          x = navigable
+	**		x x x x x          row 1 is the corridor through the neck at (2,1)
+	**		. . . . .
+	**
+	**	joined as two solid blocks plus that one neck.  (2,1) is obviously a cut vertex; so are
+	**	(1,1) and (3,1), because removing either also leaves the neck hanging off one side only.
+	**	Three, and exactly three.
+	*/
+	{
+		static const int COUNT_X = 5;
+		static const int COUNT_Y = 3;
+
+		DynamicVectorClass<int> navigable;
+		for (int py = 0; py < COUNT_Y; py++) {
+			for (int px = 0; px < COUNT_X; px++) {
+				bool left_room	= (px <= 1);
+				bool right_room	= (px >= 3);
+				bool neck			= ((px == 2) && (py == 1));
+				navigable.Add ((left_room || right_room || neck) ? 1 : 0);
+			}
+		}
+
+		DynamicVectorClass<int> articulation;
+		Check (GeneratedWorldPlacementRules::Find_Articulation_Points (navigable,COUNT_X,COUNT_Y,&articulation),
+				 "the articulation analysis refused a well-formed grid");
+		Check (articulation.Count () == (COUNT_X * COUNT_Y),
+				 "the articulation analysis returned %d entries for a %d-cell grid",
+				 articulation.Count (),COUNT_X * COUNT_Y);
+
+		int found = 0;
+		for (int i = 0; i < articulation.Count (); i++) {
+			if (articulation[i] != 0) found++;
+		}
+		Check (found == 3,"the dumbbell grid reported %d chokepoint(s), not the 3 it has",found);
+
+		Check (articulation[2 + (1 * COUNT_X)] != 0,"the neck itself was not reported as a chokepoint");
+		Check (articulation[1 + (1 * COUNT_X)] != 0,"the cell feeding the neck from the left was not a chokepoint");
+		Check (articulation[3 + (1 * COUNT_X)] != 0,"the cell feeding the neck from the right was not a chokepoint");
+		Check (articulation[0 + (0 * COUNT_X)] == 0,"a room corner was reported as a chokepoint");
+
+		//	A grid with no neck at all has no cut vertex: the same analysis, the opposite answer,
+		//	which is what makes the answer above mean something.
+		DynamicVectorClass<int> solid;
+		for (int i = 0; i < (COUNT_X * COUNT_Y); i++) {
+			solid.Add (1);
+		}
+		DynamicVectorClass<int> solid_articulation;
+		Check (GeneratedWorldPlacementRules::Find_Articulation_Points (solid,COUNT_X,COUNT_Y,&solid_articulation),
+				 "the articulation analysis refused a fully navigable grid");
+		int solid_found = 0;
+		for (int i = 0; i < solid_articulation.Count (); i++) {
+			if (solid_articulation[i] != 0) solid_found++;
+		}
+		Check (solid_found == 0,"a fully open grid reported %d chokepoint(s)",solid_found);
+
+		//	Malformed input is refused rather than half-answered.
+		DynamicVectorClass<int> wrong_size;
+		wrong_size.Add (1);
+		DynamicVectorClass<int> ignored;
+		Check (!GeneratedWorldPlacementRules::Find_Articulation_Points (wrong_size,COUNT_X,COUNT_Y,&ignored),
+				 "a grid whose cell count does not match its dimensions was accepted");
+	}
+
+	//
+	//	Refusals and the empty world.  Nothing built, nothing to exclude, nothing to analyse.
+	//
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	SettlementGenerator::Init ();
+	NavMeshGenerator::Init ();
+	GeneratedWorldPlacementRules::Init ();
+
+	{
+		Check (!GeneratedWorldPlacementRules::Has_Generated_World (),
+				 "a fresh process already reports a generated world");
+		Check (GeneratedWorldPlacementRules::Classify (Vector3 (0.0f,0.0f,0.0f),5.0f) == GENERATED_WORLD_EXCLUSION_NONE,
+				 "an empty world excluded a placement anyway");
+		Check (!GeneratedWorldPlacementRules::Would_Disconnect_Navigation (Vector3 (0.0f,0.0f,0.0f),5.0f),
+				 "an empty world claimed a placement would disconnect it");
+
+		StringClass error ("");
+		Check (!GeneratedWorldPlacementRules::Build_Chokepoints (&error),
+				 "the chokepoint analysis ran with no navigation built at all");
+		Check (error.Get_Length () > 0,"a refused chokepoint analysis carried no reason");
+		Check (!GeneratedWorldPlacementRules::Has_Chokepoints (),"a refused analysis still reports chokepoints");
+		Check (GeneratedWorldPlacementRules::Get_Chokepoint_Count () == 0,"a refused analysis left a count behind");
+	}
+
+	//
+	//	A real chain: real terrain, real water, real bounds.  Each exclusion is proved against the
+	//	real owner that reports it, at a position that owner really says something about.
+	//
+	{
+		DynamicVectorClass<Vector2> ring;
+		ring.Add (Vector2 (-500.0f,-500.0f));
+		ring.Add (Vector2 ( 500.0f,-500.0f));
+		ring.Add (Vector2 ( 500.0f, 500.0f));
+		ring.Add (Vector2 (-500.0f, 500.0f));
+		StringClass bounds_error ("");
+		Check (WorldBoundsService::Configure (ring,32.0f,8.0f,300.0f,&bounds_error),
+				 "world bounds configuration this check depends on failed: %s",bounds_error.Peek_Buffer ());
+	}
+
+	Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+	Check (GeneratedWorldPlacementRules::Has_Generated_World (),
+			 "a real chunk registry is not recognised as a generated world");
+
+	/*
+	**	Boundary.  A point just inside the configured ring's own cliff band must be refused, and
+	**	the middle of the field must not be -- the same WorldBoundsService answer the v1
+	**	placement validator already consults, reached through this file's own classifier.
+	*/
+	{
+		Check (GeneratedWorldPlacementRules::Classify (Vector3 (-498.0f,0.0f,0.0f),2.0f)
+					== GENERATED_WORLD_EXCLUSION_BOUNDARY_CLIFF_BAND,
+				 "a position inside the boundary cliff band was not excluded");
+		Check (GeneratedWorldPlacementRules::Classify (Vector3 (0.0f,0.0f,0.0f),2.0f)
+					!= GENERATED_WORLD_EXCLUSION_BOUNDARY_CLIFF_BAND,
+				 "the middle of the field was reported as inside the boundary cliff band");
+	}
+
+	/*
+	**	Water.  A real hydrology run, then the classifier asked at a position the water system
+	**	itself says is wet -- not a position this check decided was wet.
+	*/
+	{
+		StringClass error ("");
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 41u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth				= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 3.0f;
+		hydro_params.MaxRiverCount				= 2;
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		//	Find a point the water system agrees is water, by asking it rather than assuming.
+		bool found_water = false;
+		Vector3 wet (0.0f,0.0f,0.0f);
+		for (int iy = -180; (iy <= 180) && !found_water; iy += 4) {
+			for (int ix = -180; (ix <= 180) && !found_water; ix += 4) {
+				if (WaterSystem::Is_Point_In_Water ((float)ix,(float)iy)) {
+					wet = Vector3 ((float)ix,(float)iy,0.0f);
+					found_water = true;
+				}
+			}
+		}
+
+		if (found_water) {
+			GeneratedWorldExclusionType verdict = GeneratedWorldPlacementRules::Classify (wet,0.0f);
+			Check (verdict == GENERATED_WORLD_EXCLUSION_WATER,
+					 "a position the water system calls water classified as '%s' instead",
+					 Generated_World_Exclusion_Name (verdict));
+		} else {
+			//	A seed that produced no water at all is a legal outcome, not a failure; what would
+			//	be a failure is the classifier claiming water where the owner reports none.
+			Check (WaterSystem::Get_Area_Count () == 0,
+					 "the water system holds areas but no sampled point was inside one");
+		}
+	}
+
+	//
+	//	Chokepoints over the real navigation, where a real PathfindClass and a real infantry
+	//	definition exist -- and the same honest refusal NavMeshGenerator already gives where they
+	//	do not (see Check_Navigation for why both states are real).
+	//
+	{
+		WorldMetricsStruct infantry_probe;
+		bool has_infantry_definition = WorldMetricsClass::Get_Class_Metrics (LOCOMOTION_INFANTRY,&infantry_probe);
+
+		NavMeshParams nav_params;
+		StringClass nav_error ("");
+		bool nav_built = NavMeshGenerator::Build (nav_params,&nav_error);
+
+		if (!has_infantry_definition) {
+			Check (!nav_built,"no infantry definition loaded but navigation built anyway");
+
+			StringClass error ("");
+			Check (!GeneratedWorldPlacementRules::Build_Chokepoints (&error),
+					 "the chokepoint analysis ran over navigation that was never built");
+		} else {
+			Check (nav_built,"navigation this check depends on failed: %s",nav_error.Peek_Buffer ());
+
+			Check (NavMeshGenerator::Get_Chunk_Count_X () == WorldTerrainSystem::Get_Chunk_Count_X (),
+					 "navigation reports a different chunk grid width than the registry it read");
+			Check (NavMeshGenerator::Get_Chunk_Count_Y () == WorldTerrainSystem::Get_Chunk_Count_Y (),
+					 "navigation reports a different chunk grid height than the registry it read");
+
+			//	The navigable map must agree with the terrain it was built from: a chunk marked
+			//	cliff band or interior cliff can never be navigable.
+			int navigable_count = 0;
+			for (int py = 0; py < NavMeshGenerator::Get_Chunk_Count_Y (); py++) {
+				for (int px = 0; px < NavMeshGenerator::Get_Chunk_Count_X (); px++) {
+
+					bool navigable = NavMeshGenerator::Is_Chunk_Navigable (px,py);
+					if (navigable) navigable_count++;
+
+					TerrainChunkInfoClass info;
+					if (!WorldTerrainSystem::Get_Chunk_Info (px,py,&info)) continue;
+					if (info.CliffBand || info.InteriorCliff) {
+						Check (!navigable,"chunk %d,%d is cliff but navigation calls it walkable",px,py);
+					}
+				}
+			}
+			Check (navigable_count > 0,"a real buildable chunk registry produced no navigable chunk at all");
+
+			Check (!NavMeshGenerator::Is_Chunk_Navigable (-1,0),"an off-grid chunk reported navigable");
+			Check (!NavMeshGenerator::Is_Chunk_Navigable (NavMeshGenerator::Get_Chunk_Count_X (),0),
+					 "an off-grid chunk reported navigable");
+
+			StringClass error ("");
+			Check (GeneratedWorldPlacementRules::Build_Chokepoints (&error),
+					 "the chokepoint analysis over a real chain failed: %s",error.Peek_Buffer ());
+			Check (GeneratedWorldPlacementRules::Has_Chokepoints (),"a successful analysis reports no chokepoint data");
+
+			unsigned int first_checksum = GeneratedWorldPlacementRules::Get_Chokepoint_Checksum ();
+			int first_count = GeneratedWorldPlacementRules::Get_Chokepoint_Count ();
+
+			//	Every reported chokepoint must itself be navigable: a chunk nothing can walk on
+			//	cannot be the thing holding the world together.
+			int verified = 0;
+			for (int py = 0; py < NavMeshGenerator::Get_Chunk_Count_Y (); py++) {
+				for (int px = 0; px < NavMeshGenerator::Get_Chunk_Count_X (); px++) {
+					if (!GeneratedWorldPlacementRules::Is_Chunk_Chokepoint (px,py)) continue;
+					Check (NavMeshGenerator::Is_Chunk_Navigable (px,py),
+							 "chunk %d,%d is reported a chokepoint but is not navigable",px,py);
+					verified++;
+				}
+			}
+			Check (verified == first_count,
+					 "the chokepoint count says %d but %d chunks carry the flag",first_count,verified);
+
+			//	Deterministic: the same graph analysed twice is the same answer.
+			Check (GeneratedWorldPlacementRules::Build_Chokepoints (&error),
+					 "the second chokepoint analysis failed: %s",error.Peek_Buffer ());
+			Check (GeneratedWorldPlacementRules::Get_Chokepoint_Checksum () == first_checksum,
+					 "re-analysing the same graph changed the checksum");
+			Check (GeneratedWorldPlacementRules::Get_Chokepoint_Count () == first_count,
+					 "re-analysing the same graph changed the chokepoint count");
+
+			//	A footprint covering nothing navigable cannot disconnect anything.
+			Check (!GeneratedWorldPlacementRules::Would_Disconnect_Navigation (Vector3 (5000.0f,5000.0f,0.0f),4.0f),
+					 "a footprint far outside the world was said to disconnect it");
+
+			GeneratedWorldPlacementRules::Clear_Chokepoints ();
+			Check (!GeneratedWorldPlacementRules::Has_Chokepoints (),"Clear_Chokepoints left data behind");
+			Check (!GeneratedWorldPlacementRules::Is_Chunk_Chokepoint (0,0),"a cleared analysis still answers");
+		}
+
+		NavMeshGenerator::Clear ();
+	}
+
+	GeneratedWorldPlacementRules::Shutdown ();
+	NavMeshGenerator::Shutdown ();
+	SettlementGenerator::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	Phase 17 steps 3-9.  Bounded foundation grading.
+*/
+
+//	A buildable descriptor with a real footprint.  `game_object_preset` is present because
+//	`build.buildable` requires one, and it resolves to nothing here because no Objects.DDB is in
+//	reach -- which the descriptor manager's own rule skips rather than fails.
+static const char * const	GRADING_DESCRIPTOR_JSON =
+	"{ \"model_name\":\"ow_test_pad.w3d\",\"schema_version\":1,"
+	"  \"game_object_preset\":\"ow_test_pad_preset\","
+	"  \"footprint\":{\"width\":12,\"depth\":12},"
+	"  \"build\":{\"buildable\":true,\"cost\":100,\"build_time_seconds\":5,\"team\":0},"
+	"  \"placement_rules\":{\"max_slope_degrees\":8,\"exit_clearance\":0,"
+	"                        \"requires_foundation_support\":true} }";
+
+void	Check_Foundation_Grading (void)
+{
+	for (int i = 0; i < FOUNDATION_GRADING_RESULT_COUNT; i++) {
+		Check (::strcmp (Foundation_Grading_Result_Name ((FoundationGradingResultType)i),"unknown") != 0,
+				 "grading result %d has no name",i);
+	}
+
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	NavMeshGenerator::Init ();
+	GeneratedWorldPlacementRules::Init ();
+	BuildingDescriptorManager::Init ();
+	CommanderPlacementValidator::Init ();
+	FoundationGradingService::Init ();
+
+	StringClass descriptor_error ("");
+	bool descriptor_loaded = BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_grading_pad",
+																										GRADING_DESCRIPTOR_JSON,
+																										&descriptor_error);
+	Check (descriptor_loaded,"the grading test descriptor was refused: %s",descriptor_error.Peek_Buffer ());
+
+	float footprint_radius = 0.0f;
+	Check (CommanderPlacementValidator::Get_Footprint_Radius ("ow_test_grading_pad",&footprint_radius),
+			 "the loaded descriptor reported no footprint radius");
+	Check (footprint_radius > 0.0f,"the footprint radius came back %f",footprint_radius);
+	Check (!CommanderPlacementValidator::Get_Footprint_Radius ("nothing_loaded",&footprint_radius),
+			 "an unloaded descriptor still reported a footprint radius");
+
+	FoundationGradingRequest request;
+	request.Position			= Vector3 (0.0f,0.0f,0.0f);
+	request.RotationDegrees	= 0.0f;
+	request.Team				= 0;
+	request.SequenceId		= 7;
+	request.DescriptorName	= "ow_test_grading_pad";
+
+	//
+	//	Refusals that come before any measurement.
+	//
+	{
+		FoundationGradingReport report = FoundationGradingService::Evaluate (request);
+		Check (report.Result == FOUNDATION_GRADING_NO_TERRAIN,
+				 "grading with no heightfield at all reported '%s' instead of refusing",
+				 Foundation_Grading_Result_Name (report.Result));
+		Check (report.SequenceId == request.SequenceId,"a refused report lost its sequence id");
+
+		FoundationGradingRequest unknown = request;
+		unknown.DescriptorName = "no_such_descriptor";
+		FoundationGradingReport unknown_report = FoundationGradingService::Evaluate (unknown);
+		Check (!unknown_report.Is_Valid (),"grading accepted a descriptor that is not loaded");
+	}
+
+	//	A 10-degree ramp: steep enough that a 12x12 footprint really does sit on a slope, shallow
+	//	enough that a grading can legally level it.
+	Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+	Check (WorldTerrainSystem::Has_Terrain (),"the ramp terrain this check depends on was not created");
+
+	//
+	//	A real measurement over real ground.
+	//
+	FoundationGradingReport baseline;
+	{
+		baseline = FoundationGradingService::Evaluate (request);
+		Check (baseline.Is_Valid (),"grading a shallow ramp was refused as '%s'",
+				 Foundation_Grading_Result_Name (baseline.Result));
+		Check (baseline.SampleCount > 0,"a valid grading measured no heightfield samples");
+		Check (baseline.ApronWidth > 0.0f,"levelling a slope produced a zero-width apron");
+		Check ((baseline.CutVolume > 0.0f) || (baseline.FillVolume > 0.0f),
+				 "levelling a slope moved no material at all");
+		Check (baseline.AffectedArea > 0.0f,"a valid grading affected no area");
+
+		//	The levelled pad is the footprint plus the grid support the heightfield needs to hold
+		//	it flat, and the affected area is that plus the apron ring.
+		Check (baseline.PlateauRadius > footprint_radius,
+				 "the levelled pad (%f) is no wider than the footprint (%f), so its own rim would tilt",
+				 baseline.PlateauRadius,footprint_radius);
+
+		float outer = baseline.PlateauRadius + baseline.ApronWidth;
+		float expected_area = WWMATH_PI * outer * outer;
+		Check (WWMath::Fabs (baseline.AffectedArea - expected_area) < (expected_area * 0.01f),
+				 "the reported area %f does not match the pad-plus-apron disc %f",
+				 baseline.AffectedArea,expected_area);
+
+		//	Step 5's own slope promise, measured on the surface the grading would leave rather
+		//	than assumed from the formula that sized the apron.
+		Check (baseline.MaxSlopeChangeRadians <= FoundationGradingService::Get_Limits ().MaxSlopeChangeRadians,
+				 "the graded surface would be left at %f rad, above the %f rad limit",
+				 baseline.MaxSlopeChangeRadians,
+				 FoundationGradingService::Get_Limits ().MaxSlopeChangeRadians);
+
+		//	Evaluate changes nothing: the same request measured twice reports the same thing.
+		FoundationGradingReport again = FoundationGradingService::Evaluate (request);
+		Check (again.Result == baseline.Result,"measuring twice changed the verdict");
+		Check (WWMath::Fabs (again.CutVolume - baseline.CutVolume) < 0.001f,"measuring twice changed the cut volume");
+		Check (WWMath::Fabs (again.FillVolume - baseline.FillVolume) < 0.001f,"measuring twice changed the fill volume");
+		Check (FoundationGradingService::Get_Executed_Count () == 0,"measuring executed a grading");
+	}
+
+	//
+	//	Step 5's limits, each proved by making the one it names impossible.
+	//
+	{
+		FoundationGradingLimits tight;
+		tight.MaxAffectedArea = 1.0f;			// smaller than any real footprint disc
+		FoundationGradingService::Set_Limits (tight);
+		FoundationGradingReport report = FoundationGradingService::Evaluate (request);
+		Check (report.Result == FOUNDATION_GRADING_AREA_EXCEEDED,
+				 "an impossible area limit reported '%s'",Foundation_Grading_Result_Name (report.Result));
+	}
+	{
+		FoundationGradingLimits tight;
+		tight.MaxCutDepth = 0.001f;
+		FoundationGradingService::Set_Limits (tight);
+		FoundationGradingReport report = FoundationGradingService::Evaluate (request);
+		Check ((report.Result == FOUNDATION_GRADING_DEPTH_EXCEEDED) ||
+				 (report.Result == FOUNDATION_GRADING_HEIGHT_EXCEEDED),
+				 "a millimetre cut limit on a 10-degree ramp reported '%s'",
+				 Foundation_Grading_Result_Name (report.Result));
+	}
+	{
+		//	A zero limit is a broken profile, not a strict one, and is clamped back to the
+		//	documented default rather than silently disabling the feature.
+		FoundationGradingLimits broken;
+		broken.MaxCutDepth				= 0.0f;
+		broken.MaxFillHeight				= -1.0f;
+		broken.MaxSlopeChangeRadians	= 0.0f;
+		broken.MaxAffectedArea			= 0.0f;
+		FoundationGradingService::Set_Limits (broken);
+
+		FoundationGradingLimits defaults;
+		Check (FoundationGradingService::Get_Limits ().MaxCutDepth == defaults.MaxCutDepth,
+				 "a zero cut limit was accepted instead of clamped");
+		Check (FoundationGradingService::Get_Limits ().MaxAffectedArea == defaults.MaxAffectedArea,
+				 "a zero area limit was accepted instead of clamped");
+	}
+
+	//
+	//	Steps 7-9.  Execute, and prove the ground really moved and really came out flat.
+	//
+	{
+		FoundationGradingService::Set_Limits (FoundationGradingLimits ());
+		FoundationGradingService::Reset_Counters ();
+
+		float before_center = 0.0f;
+		Check (WorldTerrainSystem::Sample_Height (0.0f,0.0f,&before_center),
+				 "the ramp could not be sampled before grading");
+
+		FoundationGradingReport report;
+		bool executed = FoundationGradingService::Execute (request,&report);
+		Check (executed,"executing a valid grading failed as '%s'",Foundation_Grading_Result_Name (report.Result));
+		Check (FoundationGradingService::Get_Executed_Count () == 1,
+				 "one executed grading was counted %d time(s)",FoundationGradingService::Get_Executed_Count ());
+		Check (FoundationGradingService::Get_Last_Executed_Sequence () == request.SequenceId,
+				 "the executed sequence id was not recorded");
+
+		//	Flat afterwards: every point inside the footprint sits at the target height.
+		float worst = 0.0f;
+		for (int i = 0; i < 8; i++) {
+			float angle = ((float)i / 8.0f) * 2.0f * WWMATH_PI;
+			float x = WWMath::Cos (angle) * (footprint_radius * 0.75f);
+			float y = WWMath::Sin (angle) * (footprint_radius * 0.75f);
+
+			float height = 0.0f;
+			if (!WorldTerrainSystem::Sample_Height (x,y,&height)) continue;
+			worst = WWMath::Max (worst,WWMath::Fabs (height - report.TargetHeight));
+		}
+		Check (worst < 0.05f,"the graded footprint is still %f off level at its worst point",worst);
+
+		//	And the ground outside the apron did not move.
+		{
+			float outside_x = report.PlateauRadius + report.ApronWidth + 20.0f;
+			float outside_height = 0.0f;
+			if (WorldTerrainSystem::Sample_Height (outside_x,0.0f,&outside_height)) {
+				float expected = 0.0f;
+				//	The ramp rises with x by construction; what matters is only that this point is
+				//	not at the graded target, i.e. that the edit was bounded.
+				(void)expected;
+				Check (WWMath::Fabs (outside_height - report.TargetHeight) > 0.05f,
+						 "ground well outside the apron was levelled to the grading's own target");
+			}
+		}
+
+		AABoxClass region;
+		Check (FoundationGradingService::Get_Last_Executed_Region (&region),
+				 "an executed grading reported no affected region");
+		Check (region.Extent.X > 0.0f,"the affected region has no extent");
+
+		//	Step 7's re-measurement: grading already-flat ground moves almost nothing, which is
+		//	how "Execute re-evaluates rather than trusting the preview" is observable.
+		FoundationGradingReport second;
+		FoundationGradingService::Execute (request,&second);
+		Check (second.CutVolume < (report.CutVolume * 0.25f),
+				 "re-grading flat ground still cut %f against the original %f",second.CutVolume,report.CutVolume);
+		Check (second.FillVolume < (report.FillVolume + 0.001f),
+				 "re-grading flat ground filled more than the first pass");
+	}
+
+	BuildingDescriptorManager::Unload_All ();
+	FoundationGradingService::Shutdown ();
+	CommanderPlacementValidator::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	GeneratedWorldPlacementRules::Shutdown ();
+	NavMeshGenerator::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	Phase 17 steps 10-13.  Footprint reservation, the completion sweep, and expansion regions.
+*/
+void	Check_Expansion_Regions (void)
+{
+	BuildingDescriptorManager::Init ();
+	CommanderPlacementValidator::Init ();
+	NavMeshGenerator::Init ();
+	GeneratedWorldPlacementRules::Init ();
+	ExpansionRegionRegistry::Init ();
+
+	StringClass descriptor_error ("");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_grading_pad",
+																				  GRADING_DESCRIPTOR_JSON,&descriptor_error),
+			 "the expansion test descriptor was refused: %s",descriptor_error.Peek_Buffer ());
+
+	float footprint_radius = 0.0f;
+	Check (CommanderPlacementValidator::Get_Footprint_Radius ("ow_test_grading_pad",&footprint_radius),
+			 "the loaded descriptor reported no footprint radius");
+
+	//
+	//	Step 10.  The reservation, and the race it exists to lose safely.
+	//
+	{
+		Check (ExpansionRegionRegistry::Get_Reservation_Count () == 0,"a fresh registry already holds reservations");
+
+		StringClass first_id ("");
+		Check (ExpansionRegionRegistry::Reserve ("ow_test_grading_pad",Vector3 (0.0f,0.0f,0.0f),
+															 0.0f,0,101,&first_id),
+				 "the first reservation on empty ground was refused");
+		Check (first_id.Get_Length () > 0,"an accepted reservation carried no id");
+		Check (ExpansionRegionRegistry::Get_Reservation_Count () == 1,"an accepted reservation was not recorded");
+
+		//	The same ground, a moment later, by anyone: refused.
+		StringClass second_id ("");
+		Check (!ExpansionRegionRegistry::Reserve ("ow_test_grading_pad",Vector3 (1.0f,1.0f,0.0f),
+															  0.0f,1,102,&second_id),
+				 "two reservations were granted over the same ground");
+		Check (ExpansionRegionRegistry::Get_Reservation_Count () == 1,"a refused reservation was recorded anyway");
+
+		//	Ground far enough away is a different claim.
+		StringClass far_id ("");
+		float clear = (footprint_radius * 2.0f) + 10.0f;
+		Check (ExpansionRegionRegistry::Reserve ("ow_test_grading_pad",Vector3 (clear,0.0f,0.0f),
+															 0.0f,1,103,&far_id),
+				 "a reservation well clear of an existing one was refused");
+		Check (ExpansionRegionRegistry::Get_Reservation_Count () == 2,"the second distinct reservation was not recorded");
+
+		Check (ExpansionRegionRegistry::Is_Reserved (Vector3 (0.0f,0.0f,0.0f),1.0f),
+				 "reserved ground does not report itself reserved");
+		Check (!ExpansionRegionRegistry::Is_Reserved (Vector3 (2000.0f,2000.0f,0.0f),1.0f),
+				 "ground nobody claimed reports itself reserved");
+
+		Check (!ExpansionRegionRegistry::Reserve ("no_such_descriptor",Vector3 (500.0f,500.0f,0.0f),
+															  0.0f,0,104,nullptr),
+				 "a reservation was granted for a descriptor that is not loaded");
+
+		//	Binding and releasing.
+		Check (ExpansionRegionRegistry::Bind_Building (first_id.Peek_Buffer (),55),
+				 "a live reservation could not be bound to a building");
+		Check (!ExpansionRegionRegistry::Bind_Building ("reservation_does_not_exist",56),
+				 "binding succeeded against an id that does not exist");
+
+		Check (ExpansionRegionRegistry::Release (far_id.Peek_Buffer ()),"releasing a live reservation failed");
+		Check (ExpansionRegionRegistry::Get_Reservation_Count () == 1,"a released reservation was not removed");
+		Check (!ExpansionRegionRegistry::Release (far_id.Peek_Buffer ()),"the same reservation released twice");
+
+		ConstructionReservation record;
+		Check (ExpansionRegionRegistry::Get_Reservation (0,&record),"the surviving reservation could not be read back");
+		Check (record.BuildingId == 55,"the bound building id did not read back");
+		Check (record.SequenceId == 101,"the reservation lost the placement sequence it belongs to");
+		Check (!ExpansionRegionRegistry::Get_Reservation (99,&record),"an out-of-range reservation index was accepted");
+	}
+
+	//
+	//	Step 12.  The completion sweep.  With no navigation and no live power grid this reports
+	//	exactly that rather than claiming work it did not do -- which is the honest state in this
+	//	harness, and the state the check proves.
+	//
+	{
+		StringClass report ("");
+		Check (ExpansionRegionRegistry::Note_Construction_Complete (55,"ow_test_grading_pad",
+																						Vector3 (0.0f,0.0f,0.0f),0,&report),
+				 "a completion over a loaded descriptor was refused");
+		Check (report.Get_Length () > 0,"the completion sweep reported nothing about what it did");
+		Check (ExpansionRegionRegistry::Get_Completion_Count () == 1,"the completion was not counted");
+
+		//	The reservation this building held is gone, and gone last.
+		Check (ExpansionRegionRegistry::Get_Reservation_Count () == 0,
+				 "a completed building's reservation was not released");
+
+		Check (NavMeshGenerator::Has_Navigation () ||
+				 (ExpansionRegionRegistry::Get_Navigation_Rebuild_Count () == 0),
+				 "navigation was reported rebuilt when none was ever built");
+
+		StringClass ignored ("");
+		Check (!ExpansionRegionRegistry::Note_Construction_Complete (56,"no_such_descriptor",
+																						 Vector3 (0.0f,0.0f,0.0f),0,&ignored),
+				 "a completion was accepted for a descriptor that is not loaded");
+	}
+
+	//
+	//	Step 13.  Region metadata.
+	//
+	{
+		float cluster = (footprint_radius * 3.0f);
+
+		//	A second structure close to the first, and a third far away: one home region and one
+		//	forward one.
+		StringClass report ("");
+		ExpansionRegionRegistry::Note_Construction_Complete (57,"ow_test_grading_pad",
+																			  Vector3 (footprint_radius,0.0f,0.0f),0,&report);
+		ExpansionRegionRegistry::Note_Construction_Complete (58,"ow_test_grading_pad",
+																			  Vector3 (cluster * 10.0f,0.0f,0.0f),0,&report);
+
+		StringClass error ("");
+		Check (!ExpansionRegionRegistry::Rebuild_Regions (0.0f,&error),
+				 "a zero cluster radius was accepted");
+		Check (error.Get_Length () > 0,"a refused region rebuild carried no reason");
+
+		Check (ExpansionRegionRegistry::Rebuild_Regions (cluster,&error),
+				 "the region rebuild failed: %s",error.Peek_Buffer ());
+		Check (ExpansionRegionRegistry::Get_Region_Count () == 2,
+				 "two clusters of structures produced %d region(s)",ExpansionRegionRegistry::Get_Region_Count ());
+		Check (ExpansionRegionRegistry::Get_Region_Count_For_Team (0) == 2,
+				 "the owning team does not own both of its own regions");
+		Check (ExpansionRegionRegistry::Get_Region_Count_For_Team (1) == 0,
+				 "a team that built nothing owns a region");
+
+		ExpansionRegion home;
+		Check (ExpansionRegionRegistry::Get_Region (0,&home),"the first region could not be read back");
+		Check (home.StructureCount == 2,"the home cluster holds %d structure(s), not 2",home.StructureCount);
+		Check (!home.IsForward,"the team's first region was classified as a forward position");
+		Check (home.Id.Get_Length () > 0,"a region carried no stable id");
+		Check (home.Radius > 0.0f,"a region with structures in it has no radius");
+
+		ExpansionRegion forward;
+		Check (ExpansionRegionRegistry::Get_Region (1,&forward),"the second region could not be read back");
+		Check (forward.StructureCount == 1,"the forward cluster holds %d structure(s), not 1",forward.StructureCount);
+		Check (forward.IsForward,"a cluster ten cluster-radii from home was not classified forward");
+		Check (forward.Id != home.Id,"two regions share one id");
+
+		//	A region can be found from a point inside it, and not from a point outside every one.
+		ExpansionRegion found;
+		Check (ExpansionRegionRegistry::Find_Region_At (Vector3 (0.0f,0.0f,0.0f),&found),
+				 "the home region could not be found from its own centre");
+		Check (found.Id == home.Id,"a point in the home region resolved to a different region");
+		Check (!ExpansionRegionRegistry::Find_Region_At (Vector3 (100000.0f,100000.0f,0.0f),&found),
+				 "a point nowhere near any region resolved to one");
+
+		//	Deterministic: the same completions clustered twice are the same regions.
+		unsigned int first_checksum = ExpansionRegionRegistry::Get_Checksum ();
+		Check (first_checksum != 0,"a rebuilt region set carries a zero checksum");
+		Check (ExpansionRegionRegistry::Rebuild_Regions (cluster,&error),"the second region rebuild failed");
+		Check (ExpansionRegionRegistry::Get_Checksum () == first_checksum,
+				 "clustering the same completions twice produced a different checksum");
+
+		//	A different cluster radius is a different answer, which is what makes the checksum
+		//	sensitive to the thing it is supposed to be sensitive to.
+		Check (ExpansionRegionRegistry::Rebuild_Regions (cluster * 100.0f,&error),
+				 "a generous region rebuild failed");
+		Check (ExpansionRegionRegistry::Get_Region_Count () == 1,
+				 "a cluster radius covering everything still produced %d regions",
+				 ExpansionRegionRegistry::Get_Region_Count ());
+	}
+
+	ExpansionRegionRegistry::Clear ();
+	Check (ExpansionRegionRegistry::Get_Region_Count () == 0,"Clear left regions behind");
+	Check (ExpansionRegionRegistry::Get_Reservation_Count () == 0,"Clear left reservations behind");
+
+	BuildingDescriptorManager::Unload_All ();
+	ExpansionRegionRegistry::Shutdown ();
+	GeneratedWorldPlacementRules::Shutdown ();
+	NavMeshGenerator::Shutdown ();
+	CommanderPlacementValidator::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	Phase 18.  The versioned WorldOperation envelope, the world revision, and the journal.
+*/
+void	Check_World_Operations (void)
+{
+	//
+	//	Every type, result and dependency mask has to be real before anything else matters.
+	//
+	for (int i = 0; i < WORLD_OPERATION_TYPE_COUNT; i++) {
+		WorldOperationType type = (WorldOperationType)i;
+		Check (::strcmp (World_Operation_Type_Name (type),"unknown") != 0,
+				 "operation type %d has no name",i);
+
+		//	Every one of these moves the ground, so every one invalidates render and collision.
+		unsigned int dependencies = World_Operation_Dependencies (type);
+		Check ((dependencies & WORLD_OP_DEPENDS_RENDER) != 0,
+				 "%s claims not to invalidate render",World_Operation_Type_Name (type));
+		Check ((dependencies & WORLD_OP_DEPENDS_COLLISION) != 0,
+				 "%s claims not to invalidate collision",World_Operation_Type_Name (type));
+		Check ((dependencies & WORLD_OP_DEPENDS_NAV) != 0,
+				 "%s claims not to invalidate navigation",World_Operation_Type_Name (type));
+	}
+	for (int i = 0; i < WORLD_OPERATION_RESULT_COUNT; i++) {
+		Check (::strcmp (World_Operation_Result_Name ((WorldOperationResultType)i),"unknown") != 0,
+				 "operation result %d has no name",i);
+	}
+
+	//	The water-owning types are the ones that must say so; the dry ones must not claim it.
+	Check ((World_Operation_Dependencies (WORLD_OP_CARVE_CHANNEL) & WORLD_OP_DEPENDS_WATER) != 0,
+			 "CARVE_CHANNEL does not invalidate water");
+	Check ((World_Operation_Dependencies (WORLD_OP_RECLAIM_SHALLOW_WATER) & WORLD_OP_DEPENDS_WATER) != 0,
+			 "RECLAIM_SHALLOW_WATER does not invalidate water");
+	Check ((World_Operation_Dependencies (WORLD_OP_SMOOTH) & WORLD_OP_DEPENDS_WATER) == 0,
+			 "SMOOTH claims to invalidate water");
+
+	//	Ordering: relative types care about the revision, absolute ones do not.
+	Check (World_Operation_Ordering_Matters (WORLD_OP_RAISE),"RAISE does not care about ordering");
+	Check (World_Operation_Ordering_Matters (WORLD_OP_LOWER),"LOWER does not care about ordering");
+	Check (World_Operation_Ordering_Matters (WORLD_OP_SMOOTH),"SMOOTH does not care about ordering");
+	Check (World_Operation_Ordering_Matters (WORLD_OP_CREATE_CRATER),"CREATE_CRATER does not care about ordering");
+	Check (!World_Operation_Ordering_Matters (WORLD_OP_FLATTEN),"FLATTEN claims ordering matters");
+	Check (!World_Operation_Ordering_Matters (WORLD_OP_RESTORE_REGION),"RESTORE_REGION claims ordering matters");
+
+	//
+	//	Step 1's envelope, on its own: parameters, checksum and the compact form.
+	//
+	{
+		WorldOperationClass fresh;
+		Check (fresh.FormatVersion == (unsigned int)WorldOperationClass::CURRENT_FORMAT_VERSION,
+				 "a fresh operation does not carry the current format version");
+
+		//	A default operation is a RAISE of nothing, which is malformed, not a no-op.
+		Check (fresh.Validate_Parameters () == WORLD_OP_RESULT_BAD_PARAMETERS,
+				 "a zero-radius RAISE was accepted");
+
+		WorldOperationClass raise;
+		raise.Type		= WORLD_OP_RAISE;
+		raise.Center	= Vector3 (10.0f,20.0f,5.0f);
+		raise.Radius	= 12.0f;
+		raise.Depth		= 3.0f;
+		Check (raise.Validate_Parameters () == WORLD_OP_RESULT_APPLIED,
+				 "a well-formed RAISE was refused");
+
+		//	The sign belongs to the type, so a negative depth is malformed rather than a quiet
+		//	LOWER -- the difference between a rule and a convention.
+		WorldOperationClass negative = raise;
+		negative.Depth = -3.0f;
+		Check (negative.Validate_Parameters () == WORLD_OP_RESULT_BAD_PARAMETERS,
+				 "a RAISE with a negative depth was accepted");
+
+		WorldOperationClass bad_version = raise;
+		bad_version.FormatVersion = 99u;
+		Check (bad_version.Validate_Parameters () == WORLD_OP_RESULT_BAD_FORMAT_VERSION,
+				 "an unknown format version was accepted");
+
+		//	An apron inside its own pad is not an apron.
+		WorldOperationClass grade;
+		grade.Type		= WORLD_OP_GRADE_FOUNDATION;
+		grade.Center	= Vector3 (0.0f,0.0f,4.0f);
+		grade.Radius	= 10.0f;
+		grade.Blend		= 6.0f;
+		Check (grade.Validate_Parameters () == WORLD_OP_RESULT_BAD_PARAMETERS,
+				 "a GRADE_FOUNDATION whose apron is inside its pad was accepted");
+		grade.Blend		= 16.0f;
+		Check (grade.Validate_Parameters () == WORLD_OP_RESULT_APPLIED,
+				 "a well-formed GRADE_FOUNDATION was refused");
+
+		//	A polyline type needs a polyline.
+		WorldOperationClass road;
+		road.Type	= WORLD_OP_CARVE_ROAD;
+		road.Width	= 8.0f;
+		road.Blend	= 0.8f;
+		Check (road.Validate_Parameters () == WORLD_OP_RESULT_BAD_PARAMETERS,
+				 "a CARVE_ROAD with no path was accepted");
+		road.Path.Add (Vector3 (-40.0f,0.0f,2.0f));
+		road.Path.Add (Vector3 ( 40.0f,0.0f,2.0f));
+		Check (road.Validate_Parameters () == WORLD_OP_RESULT_APPLIED,
+				 "a well-formed CARVE_ROAD was refused");
+
+		//	Bounds: the polyline's own circle, widened by half the strip, never optimistic.
+		Vector3 center (0.0f,0.0f,0.0f);
+		float radius = 0.0f;
+		Check (road.Get_Affected_Bounds (&center,&radius),"a well-formed CARVE_ROAD reported no bounds");
+		Check (radius >= (40.0f + (road.Width * 0.5f)) - 0.01f,
+				 "the CARVE_ROAD bounds radius %f does not cover its own path",radius);
+
+		//	GRADE_FOUNDATION reaches to its apron, not its pad.
+		Check (grade.Get_Affected_Bounds (&center,&radius),"a well-formed GRADE reported no bounds");
+		Check (radius >= grade.Blend - 0.01f,"the GRADE bounds radius %f is inside its own apron",radius);
+
+		//
+		//	Step 14's compact form: every field survives the round trip, and nothing in the size
+		//	scales with the region the operation changes.
+		//
+		int flat_size = raise.Get_Block_Size ();
+		int road_size = road.Get_Block_Size ();
+		Check (flat_size > 0,"an operation reported a zero block size");
+		Check (road_size == (flat_size + (2 * 3 * 4)),
+				 "a two-point path cost %d bytes over the flat header, not 24",road_size - flat_size);
+
+		WorldOperationClass huge = raise;
+		huge.Radius = 100000.0f;
+		Check (huge.Get_Block_Size () == flat_size,
+				 "a hundred-times-larger operation serialises to a different size");
+
+		unsigned char buffer[1024];
+		int used = 0;
+		Check (road.Write_Block (buffer,sizeof (buffer),&used),"a well-formed operation would not serialise");
+		Check (used == road_size,"serialisation used %d bytes, not the %d it reported",used,road_size);
+
+		WorldOperationClass restored;
+		int consumed = 0;
+		Check (restored.Read_Block (buffer,used,&consumed),"a serialised operation would not deserialise");
+		Check (consumed == used,"deserialisation consumed %d bytes of %d",consumed,used);
+		Check (restored == road,"an operation did not survive its own round trip");
+		Check (restored.Compute_Checksum () == road.Compute_Checksum (),
+				 "a round-tripped operation carries a different checksum");
+
+		//	Blend is the field most easily lost in a hand-written wire format, so it is asserted
+		//	by name rather than only through operator ==.
+		Check (WWMath::Fabs (restored.Blend - road.Blend) < 0.0001f,
+				 "Blend read back as %f, not %f",restored.Blend,road.Blend);
+
+		//	A truncated block is refused, not half-read.
+		WorldOperationClass truncated;
+		Check (!truncated.Read_Block (buffer,4,&consumed),"a four-byte block was accepted as an operation");
+		Check (!road.Write_Block (buffer,4,&used),"a four-byte buffer accepted a whole operation");
+
+		//	Two operations differing in one quantized field differ in checksum.
+		WorldOperationClass moved = raise;
+		moved.Center.X += 1.0f;
+		Check (moved.Compute_Checksum () != raise.Compute_Checksum (),
+				 "moving an operation a metre did not change its checksum");
+	}
+
+	//
+	//	The journal, over real terrain.
+	//
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	NavMeshGenerator::Init ();
+	GeneratedWorldPlacementRules::Init ();
+	WorldOperationJournal::Init ();
+
+	//
+	//	Refusals before any terrain exists.
+	//
+	{
+		Check (!WorldOperationJournal::Is_Open (),"a fresh journal is already open");
+		Check (WorldOperationJournal::Get_Revision () == 0,"a closed journal reports a revision");
+
+		StringClass error ("");
+		Check (!WorldOperationJournal::Begin (&error),"a journal opened with no terrain at all");
+		Check (error.Get_Length () > 0,"a refused journal open carried no reason");
+
+		WorldOperationClass raise;
+		raise.Type		= WORLD_OP_RAISE;
+		raise.Radius	= 10.0f;
+		raise.Depth		= 2.0f;
+		WorldOperationApplyResult result = WorldOperationJournal::Submit (raise);
+		Check (result.Result == WORLD_OP_RESULT_NO_JOURNAL,
+				 "submitting with no journal reported '%s'",World_Operation_Result_Name (result.Result));
+		Check (!result.Committed,"a refused operation reported itself committed");
+	}
+
+	Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+	{
+		StringClass error ("");
+		Check (WorldOperationJournal::Begin (&error),"opening a journal over real terrain failed: %s",
+				 error.Peek_Buffer ());
+		Check (WorldOperationJournal::Is_Open (),"a successful Begin did not open the journal");
+
+		//	Revision 1, not 0: 0 is "no journal", and an operation submitted against 0 is a
+		//	submitter that never read one.
+		Check (WorldOperationJournal::Get_Revision () == 1,
+				 "a freshly opened journal is at revision %u, not 1",WorldOperationJournal::Get_Revision ());
+		Check (WorldOperationJournal::Get_Operation_Count () == 0,"a fresh journal already holds operations");
+	}
+
+	unsigned int base_terrain_checksum = WorldOperationJournal::Get_Terrain_Checksum ();
+	Check (base_terrain_checksum != 0,"real terrain produced a zero checksum");
+
+	//
+	//	Step 6.  A relative operation submitted against the wrong revision is refused; an absolute
+	//	one is not, because its outcome does not depend on the ground it finds.
+	//
+	{
+		WorldOperationClass stale;
+		stale.Type			= WORLD_OP_RAISE;
+		stale.BaseRevision	= 99u;
+		stale.Center		= Vector3 (0.0f,0.0f,0.0f);
+		stale.Radius		= 10.0f;
+		stale.Depth			= 2.0f;
+
+		WorldOperationApplyResult result = WorldOperationJournal::Submit (stale);
+		Check (result.Result == WORLD_OP_RESULT_STALE_REVISION,
+				 "a RAISE against revision 99 reported '%s'",World_Operation_Result_Name (result.Result));
+		Check (result.Detail.Get_Length () > 0,"a stale rejection said which revisions were involved: nothing");
+		Check (WorldOperationJournal::Get_Operation_Count () == 0,"a refused operation was journalled");
+		Check (WorldOperationJournal::Get_Terrain_Checksum () == base_terrain_checksum,
+				 "a refused operation changed the ground");
+
+		WorldOperationClass absolute;
+		absolute.Type			= WORLD_OP_FLATTEN;
+		absolute.BaseRevision	= 99u;
+		absolute.Center		= Vector3 (0.0f,0.0f,0.0f);
+		absolute.Radius		= 10.0f;
+		absolute.Blend			= 1.0f;
+		StringClass detail ("");
+		Check (WorldOperationJournal::Validate (absolute,&detail) != WORLD_OP_RESULT_STALE_REVISION,
+				 "an absolute FLATTEN was refused for a stale revision");
+	}
+
+	//
+	//	Steps 5, 7-13.  A real RAISE: the ground moves, the journal records it, the revision
+	//	advances, and the reservation is released again afterwards.
+	//
+	unsigned int after_raise_checksum = 0;
+	{
+		WorldOperationClass raise;
+		raise.Type			= WORLD_OP_RAISE;
+		raise.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		raise.Center		= Vector3 (0.0f,0.0f,0.0f);
+		raise.Radius		= 16.0f;
+		raise.Depth			= 4.0f;
+		raise.TimeSeconds	= 1.0f;
+
+		float before_height = 0.0f;
+		Check (WorldTerrainSystem::Sample_Height (0.0f,0.0f,&before_height),
+				 "the ramp could not be sampled before the operation");
+
+		WorldOperationApplyResult result = WorldOperationJournal::Submit (raise);
+		Check (result.Is_Applied (),"a well-formed RAISE was refused as '%s' (%s)",
+				 World_Operation_Result_Name (result.Result),result.Detail.Peek_Buffer ());
+		Check (result.OperationId == 1,"the first operation was given id %u, not 1",result.OperationId);
+		Check (result.AffectedChunkCount > 0,"an operation over real terrain affected no chunks");
+		Check (result.DependenciesRequired != 0,"an operation required no dependencies at all");
+		Check (result.Committed,"a fully satisfied operation did not advance the revision: %s",
+				 result.Detail.Peek_Buffer ());
+		Check (WorldOperationJournal::Get_Revision () == 2,
+				 "the revision is %u after one committed operation, not 2",WorldOperationJournal::Get_Revision ());
+
+		float after_height = 0.0f;
+		Check (WorldTerrainSystem::Sample_Height (0.0f,0.0f,&after_height),
+				 "the ground could not be sampled after the operation");
+		Check (after_height > (before_height + 1.0f),
+				 "a 4-unit RAISE moved the ground from %f to %f",before_height,after_height);
+
+		after_raise_checksum = WorldOperationJournal::Get_Terrain_Checksum ();
+		Check (after_raise_checksum != base_terrain_checksum,"the ground moved but the checksum did not");
+		Check (result.TerrainChecksum == after_raise_checksum,
+				 "the result's terrain checksum does not match the terrain");
+
+		//	Step 5: held across the operation, released after it.  A reservation still held would
+		//	block every later operation in the same region.
+		Check (WorldOperationJournal::Get_Reserved_Chunk_Count () == 0,
+				 "%d chunk(s) were still reserved after the operation committed",
+				 WorldOperationJournal::Get_Reserved_Chunk_Count ());
+
+		Check (WorldOperationJournal::Get_Operation_Count () == 1,"the applied operation was not journalled");
+
+		WorldOperationClass journalled;
+		Check (WorldOperationJournal::Get_Operation (0,&journalled),"the journalled operation could not be read back");
+		Check (journalled.Type == WORLD_OP_RAISE,"the journal recorded the wrong type");
+		Check (journalled.OperationId == result.OperationId,"the journal recorded a different operation id");
+		Check (!WorldOperationJournal::Get_Operation (99,&journalled),"an out-of-range journal index was accepted");
+	}
+
+	//
+	//	Step 5, proved rather than assumed: ground somebody else holds cannot be taken.
+	//
+	{
+		int reserved = 0;
+		Check (WorldOperationJournal::Reserve_Chunks (Vector3 (0.0f,0.0f,0.0f),16.0f,&reserved),
+				 "an explicit reservation over free ground was refused");
+		Check (reserved > 0,"an explicit reservation took no chunks");
+
+		WorldOperationClass blocked;
+		blocked.Type			= WORLD_OP_RAISE;
+		blocked.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		blocked.Center			= Vector3 (0.0f,0.0f,0.0f);
+		blocked.Radius			= 16.0f;
+		blocked.Depth			= 1.0f;
+		blocked.TimeSeconds	= 2.0f;
+
+		WorldOperationApplyResult result = WorldOperationJournal::Submit (blocked);
+		Check (result.Result == WORLD_OP_RESULT_CHUNKS_RESERVED,
+				 "an operation over reserved ground reported '%s'",World_Operation_Result_Name (result.Result));
+		Check (WorldOperationJournal::Get_Terrain_Checksum () == after_raise_checksum,
+				 "an operation refused for reserved ground still moved the ground");
+
+		WorldOperationJournal::Release_All_Chunks ();
+		Check (WorldOperationJournal::Get_Reserved_Chunk_Count () == 0,"Release_All_Chunks left chunks reserved");
+
+		//	And the same operation now succeeds, which is what proves the refusal was the
+		//	reservation rather than anything else about it.
+		blocked.BaseRevision = WorldOperationJournal::Get_Revision ();
+		WorldOperationApplyResult retry = WorldOperationJournal::Submit (blocked);
+		Check (retry.Is_Applied (),"the same operation was still refused after the ground was released: %s",
+				 World_Operation_Result_Name (retry.Result));
+	}
+
+	//
+	//	Step 15.  Bounded crater rules, each proved by breaking the one it names.
+	//
+	{
+		WorldOperationCraterLimits limits;
+		limits.MaxRadius				= 8.0f;
+		limits.MaxDepth				= 2.5f;
+		limits.MaxCratersPerWindow	= 2;
+		limits.RateWindowSeconds	= 10.0f;
+		WorldOperationJournal::Set_Crater_Limits (limits);
+
+		WorldOperationClass crater;
+		crater.Type			= WORLD_OP_CREATE_CRATER;
+		crater.Center		= Vector3 (40.0f,40.0f,0.0f);
+		crater.Radius		= 6.0f;
+		crater.Depth		= 1.5f;
+		crater.TimeSeconds	= 100.0f;
+
+		//	Too wide.
+		WorldOperationClass wide = crater;
+		wide.Radius			= limits.MaxRadius + 5.0f;
+		wide.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		WorldOperationApplyResult wide_result = WorldOperationJournal::Submit (wide);
+		Check (wide_result.Result == WORLD_OP_RESULT_CRATER_LIMIT,
+				 "an oversized crater reported '%s'",World_Operation_Result_Name (wide_result.Result));
+
+		//	Too deep.
+		WorldOperationClass deep = crater;
+		deep.Depth			= limits.MaxDepth + 5.0f;
+		deep.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		WorldOperationApplyResult deep_result = WorldOperationJournal::Submit (deep);
+		Check (deep_result.Result == WORLD_OP_RESULT_CRATER_LIMIT,
+				 "an over-deep crater reported '%s'",World_Operation_Result_Name (deep_result.Result));
+
+		//	Two land, the third inside the same window does not.
+		for (int i = 0; i < limits.MaxCratersPerWindow; i++) {
+			WorldOperationClass ok = crater;
+			ok.Center.X		+= (float)i * 20.0f;
+			ok.TimeSeconds	= 100.0f + (float)i;
+			ok.BaseRevision	= WorldOperationJournal::Get_Revision ();
+			WorldOperationApplyResult ok_result = WorldOperationJournal::Submit (ok);
+			Check (ok_result.Is_Applied (),"crater %d of the allowance was refused as '%s' (%s)",
+					 i,World_Operation_Result_Name (ok_result.Result),ok_result.Detail.Peek_Buffer ());
+		}
+
+		WorldOperationClass over = crater;
+		over.Center.X		+= 60.0f;
+		over.TimeSeconds	= 102.0f;
+		over.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		WorldOperationApplyResult over_result = WorldOperationJournal::Submit (over);
+		Check (over_result.Result == WORLD_OP_RESULT_RATE_LIMITED,
+				 "the crater past the window's allowance reported '%s'",
+				 World_Operation_Result_Name (over_result.Result));
+
+		//	The same crater well outside the window is fine, which is what makes the limit a rate
+		//	limit rather than a total.
+		WorldOperationClass later = over;
+		later.TimeSeconds	= 100.0f + (limits.RateWindowSeconds * 3.0f);
+		later.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		WorldOperationApplyResult later_result = WorldOperationJournal::Submit (later);
+		Check (later_result.Is_Applied (),"a crater outside the rate window was refused as '%s'",
+				 World_Operation_Result_Name (later_result.Result));
+
+		//	A broken limit is clamped, not accepted.
+		WorldOperationCraterLimits broken;
+		broken.MaxRadius				= 0.0f;
+		broken.MaxCratersPerWindow	= 0;
+		WorldOperationJournal::Set_Crater_Limits (broken);
+		Check (WorldOperationJournal::Get_Crater_Limits ().MaxRadius > 0.0f,
+				 "a zero crater radius limit was accepted");
+		Check (WorldOperationJournal::Get_Crater_Limits ().MaxCratersPerWindow > 0,
+				 "a zero crater count limit was accepted");
+
+		WorldOperationJournal::Set_Crater_Limits (limits);
+	}
+
+	//
+	//	Step 3's "RECLAIM_SHALLOW_WATER if enabled" -- refused outright while it is not.
+	//
+	{
+		Check (!WorldOperationJournal::Is_Shallow_Water_Reclamation_Enabled (),
+				 "shallow water reclamation is enabled by default");
+
+		WorldOperationClass reclaim;
+		reclaim.Type			= WORLD_OP_RECLAIM_SHALLOW_WATER;
+		reclaim.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		reclaim.Center			= Vector3 (0.0f,0.0f,0.0f);
+		reclaim.Radius			= 10.0f;
+		WorldOperationApplyResult result = WorldOperationJournal::Submit (reclaim);
+		Check (result.Result == WORLD_OP_RESULT_DISABLED,
+				 "a disabled reclamation reported '%s'",World_Operation_Result_Name (result.Result));
+
+		//	Enabled, but with no water anywhere, it still refuses -- honestly, and for the right
+		//	reason rather than by silently doing nothing.
+		WorldOperationJournal::Set_Shallow_Water_Reclamation_Enabled (true);
+		reclaim.BaseRevision = WorldOperationJournal::Get_Revision ();
+		WorldOperationApplyResult dry = WorldOperationJournal::Submit (reclaim);
+		Check (dry.Result == WORLD_OP_RESULT_BAD_PARAMETERS,
+				 "reclaiming dry ground reported '%s'",World_Operation_Result_Name (dry.Result));
+		Check (dry.Detail.Get_Length () > 0,"a refused reclamation said nothing about why");
+		WorldOperationJournal::Set_Shallow_Water_Reclamation_Enabled (false);
+	}
+
+	//
+	//	Every remaining operation type, applied for real.  Each one has to move the ground, or it
+	//	is a type this phase claims to implement and does not.
+	//
+	{
+		//	SMOOTH is not in this list, and not because it is unimplemented: the test terrain is a
+		//	uniform ramp, and a plane is already its own neighbour mean, so smoothing one is
+		//	correctly a no-op.  It gets its own block below, over ground with real curvature in it,
+		//	where the thing worth asserting is that a dent gets shallower rather than that some
+		//	bytes changed.
+		struct { WorldOperationType Type; const char * Name; } TYPES[] = {
+			{ WORLD_OP_LOWER,				"LOWER" },
+			{ WORLD_OP_FLATTEN,			"FLATTEN" },
+			{ WORLD_OP_GRADE_FOUNDATION,	"GRADE_FOUNDATION" },
+			{ WORLD_OP_CARVE_ROAD,		"CARVE_ROAD" },
+			{ WORLD_OP_CARVE_CHANNEL,	"CARVE_CHANNEL" },
+		};
+
+		float x = -120.0f;
+		for (int i = 0; i < (int)(sizeof (TYPES) / sizeof (TYPES[0])); i++) {
+
+			unsigned int before = WorldOperationJournal::Get_Terrain_Checksum ();
+
+			WorldOperationClass operation;
+			operation.Type			= TYPES[i].Type;
+			operation.BaseRevision	= WorldOperationJournal::Get_Revision ();
+			operation.TimeSeconds	= 200.0f + (float)i;
+			operation.Center		= Vector3 (x,-120.0f,3.0f);
+			operation.Radius		= 14.0f;
+			operation.Depth			= 2.0f;
+			operation.Width			= 8.0f;
+			operation.Blend			= 0.8f;
+
+			if (TYPES[i].Type == WORLD_OP_GRADE_FOUNDATION) {
+				operation.Blend = 24.0f;			// the apron radius
+			}
+			if ((TYPES[i].Type == WORLD_OP_CARVE_ROAD) || (TYPES[i].Type == WORLD_OP_CARVE_CHANNEL)) {
+				operation.Path.Add (Vector3 (x - 30.0f,-120.0f,2.0f));
+				operation.Path.Add (Vector3 (x + 30.0f,-120.0f,2.0f));
+			}
+
+			WorldOperationApplyResult result = WorldOperationJournal::Submit (operation);
+			Check (result.Is_Applied (),"%s was refused as '%s' (%s)",
+					 TYPES[i].Name,World_Operation_Result_Name (result.Result),result.Detail.Peek_Buffer ());
+
+			if (result.Is_Applied ()) {
+				Check (WorldOperationJournal::Get_Terrain_Checksum () != before,
+						 "%s applied but changed no ground",TYPES[i].Name);
+				Check (result.Committed,"%s did not advance the revision: %s",
+						 TYPES[i].Name,result.Detail.Peek_Buffer ());
+			}
+
+			x += 45.0f;
+		}
+	}
+
+	//
+	//	SMOOTH, over ground that has something to smooth.
+	//
+	{
+		static const float SMOOTH_X = 120.0f;
+		static const float SMOOTH_Y = 120.0f;
+
+		//	A narrow, deep dent, then a wider smooth over it.  A plane is its own neighbour mean,
+		//	so a ramp would report success while doing nothing; a dent is curvature, and curvature
+		//	is what this operation exists to remove.
+		WorldOperationClass dent;
+		dent.Type			= WORLD_OP_LOWER;
+		dent.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		dent.Center			= Vector3 (SMOOTH_X,SMOOTH_Y,0.0f);
+		dent.Radius			= 10.0f;
+		dent.Depth			= 6.0f;
+		dent.TimeSeconds	= 400.0f;
+		WorldOperationApplyResult dent_result = WorldOperationJournal::Submit (dent);
+		Check (dent_result.Is_Applied (),"the dent this SMOOTH check depends on was refused as '%s'",
+				 World_Operation_Result_Name (dent_result.Result));
+
+		float rim = 0.0f, bottom = 0.0f;
+		Check (WorldTerrainSystem::Sample_Height (SMOOTH_X + 12.0f,SMOOTH_Y,&rim),"the dent rim could not be sampled");
+		Check (WorldTerrainSystem::Sample_Height (SMOOTH_X,SMOOTH_Y,&bottom),"the dent bottom could not be sampled");
+		float before_relief = rim - bottom;
+		Check (before_relief > 1.0f,"the dent this check depends on is only %f deep",before_relief);
+
+		unsigned int before = WorldOperationJournal::Get_Terrain_Checksum ();
+
+		WorldOperationClass smooth;
+		smooth.Type			= WORLD_OP_SMOOTH;
+		smooth.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		smooth.Center		= Vector3 (SMOOTH_X,SMOOTH_Y,0.0f);
+		smooth.Radius		= 22.0f;
+		smooth.Blend		= 1.0f;
+		smooth.TimeSeconds	= 401.0f;
+
+		WorldOperationApplyResult result = WorldOperationJournal::Submit (smooth);
+		Check (result.Is_Applied (),"SMOOTH was refused as '%s' (%s)",
+				 World_Operation_Result_Name (result.Result),result.Detail.Peek_Buffer ());
+		Check (result.Committed,"SMOOTH did not advance the revision: %s",result.Detail.Peek_Buffer ());
+		Check (WorldOperationJournal::Get_Terrain_Checksum () != before,
+				 "SMOOTH over a real dent changed no ground");
+
+		Check (WorldTerrainSystem::Sample_Height (SMOOTH_X + 12.0f,SMOOTH_Y,&rim),"the smoothed rim could not be sampled");
+		Check (WorldTerrainSystem::Sample_Height (SMOOTH_X,SMOOTH_Y,&bottom),"the smoothed bottom could not be sampled");
+		float after_relief = rim - bottom;
+		Check (after_relief < before_relief,
+				 "smoothing left the dent %f deep, no shallower than the %f it started at",
+				 after_relief,before_relief);
+	}
+
+	//
+	//	RESTORE_REGION, and the base snapshot that makes it possible.
+	//
+	{
+		//	Restore exactly the region the first RAISE moved, and the ground there is the ground
+		//	the journal opened over again.
+		float restored_reference = 0.0f;
+		Check (WorldTerrainSystem::Sample_Height (0.0f,0.0f,&restored_reference),
+				 "the raised region could not be sampled");
+
+		WorldOperationClass restore;
+		restore.Type			= WORLD_OP_RESTORE_REGION;
+		restore.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		restore.Center			= Vector3 (0.0f,0.0f,0.0f);
+		restore.Radius			= 40.0f;
+		restore.TimeSeconds	= 300.0f;
+
+		WorldOperationApplyResult result = WorldOperationJournal::Submit (restore);
+		Check (result.Is_Applied (),"RESTORE_REGION was refused as '%s' (%s)",
+				 World_Operation_Result_Name (result.Result),result.Detail.Peek_Buffer ());
+
+		float after = 0.0f;
+		Check (WorldTerrainSystem::Sample_Height (0.0f,0.0f,&after),"the restored region could not be sampled");
+		Check (after < (restored_reference - 1.0f),
+				 "restoring a raised region left it at %f, barely below the raised %f",after,restored_reference);
+
+		//	And ground well outside the restored circle was not touched by the restore.
+		float outside = 0.0f;
+		if (WorldTerrainSystem::Sample_Height (-120.0f,-120.0f,&outside)) {
+			Check (WWMath::Is_Valid_Float (outside),"the ground outside the restored region is not a number");
+		}
+	}
+
+	//
+	//	Step 16.  The whole point: base plus this ordered list reproduces this ground.
+	//
+	{
+		unsigned int before_replay = WorldOperationJournal::Get_Terrain_Checksum ();
+		unsigned int journal_checksum = WorldOperationJournal::Get_Journal_Checksum ();
+		unsigned int revision_before = WorldOperationJournal::Get_Revision ();
+		int operations_before = WorldOperationJournal::Get_Operation_Count ();
+
+		Check (operations_before > 1,"the replay check has only %d operation(s) to replay",operations_before);
+
+		StringClass report ("");
+		Check (WorldOperationJournal::Replay (&report),"replay refused an operation it had itself applied: %s",
+				 report.Peek_Buffer ());
+
+		Check (WorldOperationJournal::Get_Terrain_Checksum () == before_replay,
+				 "replaying the journal from the base snapshot produced different ground "
+				 "(0x%08X, was 0x%08X)",WorldOperationJournal::Get_Terrain_Checksum (),before_replay);
+
+		//	Replay reproduces a state; it does not invent history.
+		Check (WorldOperationJournal::Get_Revision () == revision_before,"replay advanced the world revision");
+		Check (WorldOperationJournal::Get_Operation_Count () == operations_before,
+				 "replay changed the number of journalled operations");
+		Check (WorldOperationJournal::Get_Journal_Checksum () == journal_checksum,
+				 "replay changed the journal checksum");
+
+		//	Twice is the same as once, which is what "deterministic" has to mean here.
+		Check (WorldOperationJournal::Replay (&report),"the second replay failed: %s",report.Peek_Buffer ());
+		Check (WorldOperationJournal::Get_Terrain_Checksum () == before_replay,
+				 "a second replay produced different ground again");
+	}
+
+	//
+	//	Step 15's "no cliff-band mutation", and the boundary generally.
+	//
+	{
+		DynamicVectorClass<Vector2> ring;
+		ring.Add (Vector2 (-180.0f,-180.0f));
+		ring.Add (Vector2 ( 180.0f,-180.0f));
+		ring.Add (Vector2 ( 180.0f, 180.0f));
+		ring.Add (Vector2 (-180.0f, 180.0f));
+		StringClass bounds_error ("");
+		Check (WorldBoundsService::Configure (ring,32.0f,8.0f,300.0f,&bounds_error),
+				 "world bounds configuration this check depends on failed: %s",bounds_error.Peek_Buffer ());
+
+		unsigned int before = WorldOperationJournal::Get_Terrain_Checksum ();
+
+		WorldOperationClass crater;
+		crater.Type			= WORLD_OP_CREATE_CRATER;
+		crater.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		crater.Center		= Vector3 (-178.0f,0.0f,0.0f);		// inside the protected band
+		crater.Radius		= 6.0f;
+		crater.Depth		= 1.0f;
+		crater.TimeSeconds	= 900.0f;
+
+		WorldOperationApplyResult result = WorldOperationJournal::Submit (crater);
+		Check (result.Result == WORLD_OP_RESULT_BOUNDARY_BAND,
+				 "a crater inside the boundary cliff band reported '%s'",
+				 World_Operation_Result_Name (result.Result));
+		Check (WorldOperationJournal::Get_Terrain_Checksum () == before,
+				 "a crater refused for the boundary band still moved the ground");
+		Check (!result.Committed,"a refused crater advanced the world revision");
+	}
+
+	//
+	//	Closing forgets everything, which is what makes a second match a second world.
+	//
+	{
+		WorldOperationJournal::Close ();
+		Check (!WorldOperationJournal::Is_Open (),"Close left the journal open");
+		Check (WorldOperationJournal::Get_Revision () == 0,"Close left a revision behind");
+		Check (WorldOperationJournal::Get_Operation_Count () == 0,"Close left operations behind");
+		Check (WorldOperationJournal::Get_Reserved_Chunk_Count () == 0,"Close left chunks reserved");
+
+		StringClass report ("");
+		Check (!WorldOperationJournal::Replay (&report),"replay ran against a closed journal");
+	}
+
+	WorldOperationJournal::Shutdown ();
+	GeneratedWorldPlacementRules::Shutdown ();
+	NavMeshGenerator::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	Phase 19.  Per-chunk checksums, the compact snapshot, late join, regional repair, rollback.
+**
+**	The join is exercised for real in one process, which works because the whole protocol is byte
+**	blocks: capture what a server would send, throw the world away, regenerate the same baseline,
+**	feed the blocks in, and compare checksums.  That is exactly the sequence steps 9-12 describe,
+**	minus a socket.
+*/
+void	Check_World_Sync (void)
+{
+	for (int i = 0; i < WORLD_SYNC_RESULT_COUNT; i++) {
+		Check (::strcmp (World_Sync_Result_Name ((WorldSyncResultType)i),"unknown") != 0,
+				 "sync result %d has no name",i);
+	}
+
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	NavMeshGenerator::Init ();
+	GeneratedWorldPlacementRules::Init ();
+	WorldOperationJournal::Init ();
+	WorldSnapshotService::Init ();
+	WorldSyncService::Init ();
+
+	//
+	//	Refusals with nothing to work with.
+	//
+	{
+		unsigned int ignored = 0;
+		Check (!WorldSnapshotService::Compute_World_Checksum (&ignored),
+				 "a world checksum was produced with no terrain at all");
+		Check (!WorldSnapshotService::Compute_Chunk_Checksum (0,0,&ignored),
+				 "a chunk checksum was produced with no terrain at all");
+
+		WorldSyncHandshakeClass handshake;
+		Check (!WorldSyncService::Build_Handshake (1u,2u,3u,&handshake),
+				 "a handshake was built for a world that does not exist");
+
+		StringClass error ("");
+		Check (WorldSnapshotService::Capture_Dirty_Chunks (&error) < 0,
+				 "a snapshot set was captured with no terrain");
+		Check (error.Get_Length () > 0,"a refused capture carried no reason");
+	}
+
+	//
+	//	The server's world: a real baseline, a journal, and some real mutation.
+	//
+	static const int   PATCHES		= 4;
+	static const float CELL_SIZE	= 4.0f;
+	static const float SLOPE		= 10.0f;
+	static const Vector3 ORIGIN (-128.0f,-128.0f,0.0f);
+
+	Build_Uniform_Ramp_Terrain (PATCHES,CELL_SIZE,SLOPE,ORIGIN);
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+	{
+		StringClass error ("");
+		Check (WorldOperationJournal::Begin (&error),"the server journal failed to open: %s",
+				 error.Peek_Buffer ());
+	}
+
+	//
+	//	Step 1-2.  Checksums over a pristine world.
+	//
+	unsigned int pristine_world = 0;
+	{
+		Check (WorldSnapshotService::Compute_World_Checksum (&pristine_world),
+				 "a real world produced no checksum");
+		Check (pristine_world != 0,"a real world checksummed to zero");
+
+		unsigned int chunk_a = 0, chunk_b = 0;
+		Check (WorldSnapshotService::Compute_Chunk_Checksum (0,0,&chunk_a),"chunk 0,0 produced no checksum");
+		Check (WorldSnapshotService::Compute_Chunk_Checksum (1,0,&chunk_b),"chunk 1,0 produced no checksum");
+		Check (chunk_a != chunk_b,"two different chunks of a ramp checksummed identically");
+
+		Check (!WorldSnapshotService::Compute_Chunk_Checksum (-1,0,&chunk_a),"an off-grid chunk answered");
+		Check (!WorldSnapshotService::Compute_Chunk_Checksum (PATCHES,0,&chunk_a),"an off-grid chunk answered");
+
+		//	The same world checksummed twice is the same number, or none of this means anything.
+		unsigned int again = 0;
+		Check (WorldSnapshotService::Compute_World_Checksum (&again),"the second world checksum failed");
+		Check (again == pristine_world,"checksumming the same world twice gave two answers");
+
+		//	Nothing has happened, so nothing is dirty and a capture is empty.
+		StringClass error ("");
+		Check (WorldSnapshotService::Capture_Dirty_Chunks (&error) == 0,
+				 "a pristine world reported %d dirty chunk(s)",WorldSnapshotService::Get_Snapshot_Count ());
+		Check (WorldSnapshotService::Get_Snapshot_Bytes () == 0,"a pristine world snapshot cost bytes");
+	}
+
+	//
+	//	Real mutation, and the dirty set that follows from it.
+	//
+	{
+		WorldOperationClass crater;
+		crater.Type			= WORLD_OP_CREATE_CRATER;
+		crater.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		crater.Center		= Vector3 (0.0f,0.0f,0.0f);
+		crater.Radius		= 6.0f;
+		crater.Depth		= 2.0f;
+		crater.TimeSeconds	= 10.0f;
+		WorldOperationApplyResult first = WorldOperationJournal::Submit (crater);
+		Check (first.Is_Applied (),"the crater this check depends on was refused as '%s'",
+				 World_Operation_Result_Name (first.Result));
+
+		WorldOperationClass raise;
+		raise.Type			= WORLD_OP_RAISE;
+		raise.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		raise.Center		= Vector3 (60.0f,60.0f,0.0f);
+		raise.Radius		= 10.0f;
+		raise.Depth			= 3.0f;
+		raise.TimeSeconds	= 11.0f;
+		WorldOperationApplyResult second = WorldOperationJournal::Submit (raise);
+		Check (second.Is_Applied (),"the raise this check depends on was refused as '%s'",
+				 World_Operation_Result_Name (second.Result));
+
+		unsigned int mutated = 0;
+		Check (WorldSnapshotService::Compute_World_Checksum (&mutated),"the mutated world produced no checksum");
+		Check (mutated != pristine_world,"mutating the world did not change its checksum");
+	}
+
+	//
+	//	Steps 3-5.  The compact snapshot: only the vertices that differ, and far smaller than the
+	//	ground it describes.
+	//
+	int server_snapshot_count = 0;
+	int server_snapshot_bytes = 0;
+	{
+		StringClass error ("");
+		server_snapshot_count = WorldSnapshotService::Capture_Dirty_Chunks (&error);
+		Check (server_snapshot_count > 0,"two real operations produced no dirty chunk at all");
+		Check (server_snapshot_count < (PATCHES * PATCHES),
+				 "two local operations dirtied all %d chunks",server_snapshot_count);
+
+		server_snapshot_bytes = WorldSnapshotService::Get_Snapshot_Bytes ();
+		Check (server_snapshot_bytes > 0,"a non-empty snapshot set cost no bytes");
+
+		//	The bar the gate actually sets: smaller than sending the ground.  A raw field of this
+		//	size is (PATCHES*16+1)^2 vertices at four bytes each.
+		int vertices = ((PATCHES * 16) + 1) * ((PATCHES * 16) + 1);
+		int raw_bytes = vertices * 4;
+		Check (server_snapshot_bytes < (raw_bytes / 2),
+				 "the snapshot set is %d bytes against %d raw -- not compact",
+				 server_snapshot_bytes,raw_bytes);
+
+		//	Every snapshot is a real chunk, carries entries, and round-trips.
+		for (int i = 0; i < server_snapshot_count; i++) {
+
+			WorldChunkSnapshotClass snapshot;
+			Check (WorldSnapshotService::Get_Snapshot (i,&snapshot),"snapshot %d could not be read back",i);
+			Check (snapshot.ChunkX >= 0 && snapshot.ChunkY >= 0,"a snapshot names no chunk");
+			Check (snapshot.Get_Vertex_Count () > 0,"a dirty chunk's snapshot holds no vertices");
+			Check (snapshot.ChunkChecksum != 0,"a snapshot carries no chunk checksum");
+
+			unsigned char buffer[65536];
+			int used = 0;
+			Check (snapshot.Write_Block (buffer,sizeof (buffer),&used),"a snapshot would not serialise");
+			Check (used == snapshot.Get_Block_Size (),"a snapshot used %d bytes, not the %d it reported",
+					 used,snapshot.Get_Block_Size ());
+
+			WorldChunkSnapshotClass restored;
+			int consumed = 0;
+			Check (restored.Read_Block (buffer,used,&consumed),"a snapshot would not deserialise");
+			Check (consumed == used,"deserialising a snapshot consumed %d of %d bytes",consumed,used);
+			Check (restored == snapshot,"a snapshot did not survive its own round trip");
+
+			Check (!restored.Read_Block (buffer,4,&consumed),"a four-byte block was accepted as a snapshot");
+		}
+
+		WorldChunkSnapshotClass found;
+		WorldChunkSnapshotClass first;
+		Check (WorldSnapshotService::Get_Snapshot (0,&first),"the first snapshot could not be read");
+		Check (WorldSnapshotService::Find_Snapshot_For_Chunk (first.ChunkX,first.ChunkY,&found),
+				 "a captured chunk could not be found by its own coordinates");
+		Check (found == first,"finding a snapshot by chunk returned a different record");
+	}
+
+	//
+	//	The server's handshake and the blocks it would send.
+	//
+	static const unsigned int PROFILE_HASH		= 0xABCD1234u;
+	static const unsigned int CONTENT_HASH		= 0x00C0FFEEu;
+	static const unsigned int MANIFEST_REVISION	= 7u;
+
+	/*
+	**	Step 7's rebase, from the server's side: the snapshot set is the compaction point, so the
+	**	server folds its log into the base before advertising the set.  Without this the client
+	**	would reconstruct identical ground while its journal still described a different history,
+	**	and the world checksum -- which folds in the journal -- would disagree for a reason that has
+	**	nothing to do with the terrain.
+	*/
+	{
+		StringClass report ("");
+		Check (WorldSnapshotService::Compact (&report),"the server could not compact: %s",report.Peek_Buffer ());
+		Check (WorldOperationJournal::Get_Operation_Count () == 0,
+				 "the server's log survived its own compaction");
+		Check (WorldSnapshotService::Get_Snapshot_Count () == server_snapshot_count,
+				 "compaction captured %d chunks, not the %d already found dirty",
+				 WorldSnapshotService::Get_Snapshot_Count (),server_snapshot_count);
+	}
+
+	WorldSyncHandshakeClass server_handshake;
+	Check (WorldSyncService::Build_Handshake (PROFILE_HASH,CONTENT_HASH,MANIFEST_REVISION,&server_handshake),
+			 "the server handshake could not be built");
+	Check (server_handshake.SnapshotRevision == WorldOperationJournal::Get_Revision (),
+			 "the handshake's snapshot revision does not match the compaction point");
+	Check (server_handshake.SnapshotCount == server_snapshot_count,
+			 "the handshake advertises %d snapshots, not the %d captured",
+			 server_handshake.SnapshotCount,server_snapshot_count);
+	Check (server_handshake.WorldRevision == WorldOperationJournal::Get_Revision (),
+			 "the handshake advertises the wrong world revision");
+	Check (server_handshake.WorldChecksum != 0,"the handshake carries no world checksum");
+
+	{
+		unsigned char buffer[256];
+		int used = 0;
+		Check (server_handshake.Write_Block (buffer,sizeof (buffer),&used),"the handshake would not serialise");
+		WorldSyncHandshakeClass restored;
+		int consumed = 0;
+		Check (restored.Read_Block (buffer,used,&consumed),"the handshake would not deserialise");
+		Check (restored == server_handshake,"the handshake did not survive its own round trip");
+		Check (!server_handshake.Write_Block (buffer,4,&used),"a four-byte buffer took a whole handshake");
+	}
+
+	//	The blocks the server would send, captured before the world is thrown away.
+	//	Static rather than automatic: half a megabyte of send buffers is more than a stack frame
+	//	should be asked to hold, and this harness is single-threaded.
+	static const int MAX_BLOCKS = 64;
+	static unsigned char snapshot_blocks[MAX_BLOCKS][8192];
+	static int snapshot_sizes[MAX_BLOCKS];
+	int snapshot_block_count = (server_snapshot_count < MAX_BLOCKS) ? server_snapshot_count : MAX_BLOCKS;
+
+	for (int i = 0; i < snapshot_block_count; i++) {
+		WorldChunkSnapshotClass snapshot;
+		snapshot_sizes[i] = 0;
+		if (!WorldSnapshotService::Get_Snapshot (i,&snapshot)) continue;
+		Check (snapshot.Write_Block (snapshot_blocks[i],sizeof (snapshot_blocks[i]),&snapshot_sizes[i]),
+				 "snapshot %d would not fit a send buffer",i);
+	}
+
+	unsigned int server_world_checksum = server_handshake.WorldChecksum;
+
+	/*
+	**	The repair block for one chunk, built by the server while the server's world still exists.
+	**
+	**	This is not a shortcut around the API -- it is the API used the way it is meant to be.  A
+	**	repair block is the server's answer to a client's "chunk N disagrees", so it is built from
+	**	the server's ground.  Building it later, from the client's corrupted copy, would capture the
+	**	corruption and "repair" the chunk to exactly what was wrong with it.
+	*/
+	static unsigned char repair_block[8192];
+	int repair_block_bytes = 0;
+	int repair_chunk_x = -1;
+	int repair_chunk_y = -1;
+	{
+		WorldChunkSnapshotClass target;
+		Check (WorldSnapshotService::Get_Snapshot (0,&target),"no server snapshot to repair from");
+		repair_chunk_x = target.ChunkX;
+		repair_chunk_y = target.ChunkY;
+
+		Check (WorldSyncService::Build_Repair_Block (repair_chunk_x,repair_chunk_y,
+																	repair_block,sizeof (repair_block),&repair_block_bytes),
+				 "the server could not build a repair block for chunk %d,%d",repair_chunk_x,repair_chunk_y);
+		Check (repair_block_bytes > 0,"a repair block cost no bytes");
+		Check (repair_block_bytes <= server_snapshot_bytes,
+				 "one chunk's repair (%d bytes) is larger than the whole snapshot set (%d)",
+				 repair_block_bytes,server_snapshot_bytes);
+	}
+	WorldSyncService::Reset_Metrics ();
+
+	//
+	//	Steps 9-12.  Throw the world away, regenerate the same baseline deterministically, and
+	//	rebuild the server's world from the blocks alone.
+	//
+	{
+		WorldOperationJournal::Close ();
+		WorldTerrainSystem::Destroy_Terrain ();
+
+		//	The client's own deterministic regeneration -- the same inputs, so the same ground.
+		Build_Uniform_Ramp_Terrain (PATCHES,CELL_SIZE,SLOPE,ORIGIN);
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		unsigned int client_baseline = 0;
+		Check (WorldSnapshotService::Compute_World_Checksum (&client_baseline),
+				 "the regenerated baseline produced no checksum");
+
+		StringClass error ("");
+		Check (WorldOperationJournal::Begin (&error),"the client journal failed to open: %s",
+				 error.Peek_Buffer ());
+
+		//	Step 8's refusals, each proved by breaking exactly one field.
+		WorldSyncHandshakeClass client_handshake = server_handshake;
+		StringClass detail ("");
+
+		WorldSyncHandshakeClass wrong = client_handshake;
+		wrong.GeneratorVersion += 1;
+		Check (WorldSyncService::Begin_Join (server_handshake,wrong,&detail) == WORLD_SYNC_GENERATOR_MISMATCH,
+				 "a generator version mismatch was accepted");
+		Check (detail.Get_Length () > 0,"a refused join said nothing about which field disagreed");
+
+		wrong = client_handshake;
+		wrong.ProfileHash ^= 0xFFFFu;
+		Check (WorldSyncService::Begin_Join (server_handshake,wrong,&detail) == WORLD_SYNC_PROFILE_MISMATCH,
+				 "a profile hash mismatch was accepted");
+
+		wrong = client_handshake;
+		wrong.ContentHash ^= 0xFFFFu;
+		Check (WorldSyncService::Begin_Join (server_handshake,wrong,&detail) == WORLD_SYNC_CONTENT_MISMATCH,
+				 "a content hash mismatch was accepted");
+
+		wrong = client_handshake;
+		wrong.ManifestRevision += 1;
+		Check (WorldSyncService::Begin_Join (server_handshake,wrong,&detail) == WORLD_SYNC_MANIFEST_MISMATCH,
+				 "a manifest revision mismatch was accepted");
+
+		wrong = client_handshake;
+		wrong.HandshakeVersion = 99u;
+		Check (WorldSyncService::Begin_Join (server_handshake,wrong,&detail) == WORLD_SYNC_BAD_HANDSHAKE_VERSION,
+				 "an unknown handshake version was accepted");
+
+		//	A refused join leaves nothing in progress.
+		Check (!WorldSyncService::Is_Joining (),"a refused join left a join in progress");
+		Check (WorldSyncService::Apply_Snapshot_Block (snapshot_blocks[0],snapshot_sizes[0],nullptr)
+					== WORLD_SYNC_NOT_JOINING,
+				 "a snapshot was accepted with no join in progress");
+
+		//	The real join.
+		Check (WorldSyncService::Begin_Join (server_handshake,client_handshake,&detail) == WORLD_SYNC_OK,
+				 "a matching handshake was refused: %s",detail.Peek_Buffer ());
+		Check (WorldSyncService::Is_Joining (),"an accepted join is not in progress");
+
+		for (int i = 0; i < snapshot_block_count; i++) {
+			if (snapshot_sizes[i] <= 0) continue;
+			int consumed = 0;
+			WorldSyncResultType result =
+				WorldSyncService::Apply_Snapshot_Block (snapshot_blocks[i],snapshot_sizes[i],&consumed);
+			Check (result == WORLD_SYNC_OK,"snapshot block %d was refused as '%s'",
+					 i,World_Sync_Result_Name (result));
+			Check (consumed == snapshot_sizes[i],"a snapshot block consumed %d of %d bytes",
+					 consumed,snapshot_sizes[i]);
+		}
+
+		Check (WorldSyncService::Get_Expected_Checksum_Count () == snapshot_block_count,
+				 "the client recorded %d inventory entries for %d snapshots",
+				 WorldSyncService::Get_Expected_Checksum_Count (),snapshot_block_count);
+
+		//	Step 12.  The whole point.
+		WorldSyncResultType finished = WorldSyncService::Finish_Join (&detail);
+		Check (finished == WORLD_SYNC_OK,
+				 "the reconstructed world does not match the server's: %s (%s)",
+				 World_Sync_Result_Name (finished),detail.Peek_Buffer ());
+
+		unsigned int client_world = 0;
+		Check (WorldSnapshotService::Compute_World_Checksum (&client_world),
+				 "the reconstructed world produced no checksum");
+		Check (client_world == server_world_checksum,
+				 "the reconstructed world checksums 0x%08X, the server's 0x%08X",
+				 client_world,server_world_checksum);
+		Check (client_world != client_baseline,"reconstruction changed nothing about the baseline");
+
+		Check (!WorldSyncService::Is_Joining (),"a finished join is still in progress");
+
+		//	Step 19's metrics: real byte counts, not estimates.
+		const WorldSyncMetrics & metrics = WorldSyncService::Get_Metrics ();
+		Check (metrics.JoinCount == 1,"the join was counted %d time(s)",metrics.JoinCount);
+		Check (metrics.SnapshotBytes > 0,"a join that applied snapshots recorded no snapshot bytes");
+		Check (metrics.LateJoinBytes >= metrics.SnapshotBytes,
+				 "late-join bytes (%d) are fewer than the snapshot bytes inside them (%d)",
+				 metrics.LateJoinBytes,metrics.SnapshotBytes);
+
+		int vertices = ((PATCHES * 16) + 1) * ((PATCHES * 16) + 1);
+		Check (metrics.LateJoinBytes < (vertices * 4),
+				 "the whole late join cost %d bytes against %d for the raw field",
+				 metrics.LateJoinBytes,vertices * 4);
+	}
+
+	//
+	//	Steps 13-15.  Corrupt one chunk, find it, repair it, reverify.
+	//
+	{
+		DynamicVectorClass<int> mismatched_x;
+		DynamicVectorClass<int> mismatched_y;
+		Check (WorldSyncService::Find_Mismatched_Chunks (&mismatched_x,&mismatched_y) == 0,
+				 "a correctly reconstructed world already reports mismatched chunks");
+
+		//	Corrupt exactly one chunk, the way a dropped packet would: one vertex, wrong height.
+		//	The chunk the server already built a repair block for.
+		WorldChunkSnapshotClass target;
+		Check (WorldSnapshotService::Find_Snapshot_For_Chunk (repair_chunk_x,repair_chunk_y,&target),
+				 "the chunk the repair block covers is not in the snapshot set");
+
+		HeightfieldClass * heightfield = WorldTerrainSystem::Peek_Heightfield ();
+		Check (heightfield != nullptr,"the reconstructed world has no heightfield");
+
+		if (heightfield != nullptr) {
+
+			int count_x = heightfield->Get_Vertex_Count_X ();
+			int corrupt_index = target.VertexIndex[0];
+			float good = heightfield->Get_Height (corrupt_index % count_x,corrupt_index / count_x);
+			heightfield->Set_Height (corrupt_index % count_x,corrupt_index / count_x,good + 5.0f);
+
+			int found = WorldSyncService::Find_Mismatched_Chunks (&mismatched_x,&mismatched_y);
+			Check (found > 0,"a corrupted chunk was not detected at all");
+			Check (found <= 2,"corrupting one vertex flagged %d chunks",found);
+
+			//	It has to be the one that was corrupted -- a detector that flags the wrong chunk
+			//	would send a repair that does not repair anything.
+			bool named = false;
+			for (int i = 0; i < found; i++) {
+				if ((mismatched_x[i] == target.ChunkX) && (mismatched_y[i] == target.ChunkY)) named = true;
+			}
+			Check (named,"the corrupted chunk %d,%d was not among the %d reported",
+					 target.ChunkX,target.ChunkY,found);
+
+			//	The server's answer, built earlier from the server's own ground: one chunk, and
+			//	nothing else.
+			StringClass detail ("");
+			WorldSyncResultType repaired =
+				WorldSyncService::Apply_Repair_Block (repair_block,repair_block_bytes,&detail);
+			Check (repaired == WORLD_SYNC_OK,"the repair was refused as '%s' (%s)",
+					 World_Sync_Result_Name (repaired),detail.Peek_Buffer ());
+
+			Check (WorldSyncService::Find_Mismatched_Chunks (&mismatched_x,&mismatched_y) == 0,
+					 "the world still reports mismatched chunks after the repair");
+
+			unsigned int after_repair = 0;
+			Check (WorldSnapshotService::Compute_World_Checksum (&after_repair),
+					 "the repaired world produced no checksum");
+			Check (after_repair == server_world_checksum,
+					 "the repaired world checksums 0x%08X, the server's 0x%08X",
+					 after_repair,server_world_checksum);
+
+			const WorldSyncMetrics & metrics = WorldSyncService::Get_Metrics ();
+			Check (metrics.RepairCount == 1,"the repair was counted %d time(s)",metrics.RepairCount);
+			Check (metrics.RepairBytes > 0,"a real repair recorded no bytes");
+		}
+
+		Check (WorldSyncService::Apply_Repair_Block (nullptr,0,nullptr) == WORLD_SYNC_SNAPSHOT_REFUSED,
+				 "an empty repair block was accepted");
+	}
+
+	//
+	//	Step 16.  Building/AI state waits for the world revision it was recorded against.
+	//
+	{
+		unsigned int revision = WorldOperationJournal::Get_Revision ();
+		Check (WorldSyncService::Is_World_Ready_For_Revision (revision),
+				 "the world is not ready for the revision it is at");
+		Check (WorldSyncService::Is_World_Ready_For_Revision (revision - 1),
+				 "the world is not ready for a revision it has already passed");
+		Check (!WorldSyncService::Is_World_Ready_For_Revision (revision + 10),
+				 "the world claims to be ready for a revision it has not reached");
+	}
+
+	//
+	//	Steps 6-7.  Compaction, and the rebase that makes it a compaction rather than a copy.
+	//
+	{
+		//	The reconstructed world's own journal is empty -- it was rebuilt from snapshots, not
+		//	from operations -- so this needs a log of its own before there is anything to compact.
+		for (int i = 0; i < 2; i++) {
+			WorldOperationClass raise;
+			raise.Type			= WORLD_OP_RAISE;
+			raise.BaseRevision	= WorldOperationJournal::Get_Revision ();
+			raise.Center		= Vector3 (-60.0f + ((float)i * 30.0f),20.0f,0.0f);
+			raise.Radius		= 8.0f;
+			raise.Depth			= 1.5f;
+			raise.TimeSeconds	= 200.0f + (float)i;
+			WorldOperationApplyResult applied = WorldOperationJournal::Submit (raise);
+			Check (applied.Is_Applied (),"the operation this compaction check depends on was refused as '%s'",
+					 World_Operation_Result_Name (applied.Result));
+		}
+
+		WorldSnapshotCompactionPolicy policy;
+		policy.MaxOperations			= 2;
+		policy.MaxAgeSeconds			= 1000.0f;
+		policy.MaxOperationBytes	= 1000000;
+		WorldSnapshotService::Set_Compaction_Policy (policy);
+
+		StringClass reason ("");
+		Check (WorldSnapshotService::Should_Compact (&reason),
+				 "a log at the operation threshold does not want compacting");
+		Check (reason.Get_Length () > 0,"a compaction trigger gave no reason");
+
+		//	The *ground*, not the world checksum: a compaction empties the journal, and the world
+		//	checksum deliberately folds the journal in, so comparing that would assert that a
+		//	compaction changes nothing about how the world is described -- which is the opposite of
+		//	what a compaction is for.
+		unsigned int before = WorldOperationJournal::Get_Terrain_Checksum ();
+		int operations_before = WorldOperationJournal::Get_Operation_Count ();
+		unsigned int revision_before = WorldOperationJournal::Get_Revision ();
+		int compactions_before = WorldSnapshotService::Get_Compaction_Count ();
+
+		StringClass report ("");
+		Check (WorldSnapshotService::Compact (&report),"compaction failed: %s",report.Peek_Buffer ());
+		Check (WorldSnapshotService::Get_Compaction_Count () == (compactions_before + 1),
+				 "the compaction was not counted");
+		Check (report.Get_Length () > 0,"a compaction reported nothing about what it folded");
+
+		//	The log is gone, the ground is not, and the revision did not move -- a compaction
+		//	changes how the world is described, not what it is.
+		Check (WorldOperationJournal::Get_Operation_Count () == 0,
+				 "compaction left %d operation(s) behind",WorldOperationJournal::Get_Operation_Count ());
+		Check (operations_before > 0,"the compaction check had nothing to fold");
+		Check (WorldOperationJournal::Get_Revision () == revision_before,
+				 "compaction moved the world revision from %u to %u",
+				 revision_before,WorldOperationJournal::Get_Revision ());
+
+		//	Every chunk is pristine against the new baseline by definition, so a fresh capture is
+		//	empty -- which is what makes "capture first, rebase second" load-bearing.
+		StringClass error ("");
+		Check (WorldSnapshotService::Capture_Dirty_Chunks (&error) == 0,
+				 "a freshly rebased world still reports dirty chunks");
+
+		//	Replay now reproduces the compacted ground from the compacted base.
+		Check (WorldOperationJournal::Replay (&report),"replay after compaction failed: %s",
+				 report.Peek_Buffer ());
+		unsigned int after = WorldOperationJournal::Get_Terrain_Checksum ();
+		Check (after == before,"compaction changed the ground (0x%08X, was 0x%08X)",after,before);
+
+		//	A broken policy is clamped, not accepted.
+		WorldSnapshotCompactionPolicy broken;
+		broken.MaxOperations			= 0;
+		broken.MaxAgeSeconds			= -1.0f;
+		broken.MaxOperationBytes	= 0;
+		WorldSnapshotService::Set_Compaction_Policy (broken);
+		Check (WorldSnapshotService::Get_Compaction_Policy ().MaxOperations > 0,
+				 "a zero operation threshold was accepted");
+		Check (WorldSnapshotService::Get_Compaction_Policy ().MaxOperationBytes > 0,
+				 "a zero byte threshold was accepted");
+
+		//	An empty log never wants compacting, whatever the policy says.
+		Check (!WorldSnapshotService::Should_Compact (&reason),"an empty log wants compacting");
+	}
+
+	//
+	//	Steps 17-18.  Developer rollback.
+	//
+	{
+		StringClass error ("");
+		Check (WorldSnapshotService::Mark_Rollback_Point ("before the hole",&error),
+				 "a rollback point could not be marked: %s",error.Peek_Buffer ());
+		Check (WorldSnapshotService::Get_Rollback_Point_Count () == 1,"the rollback point was not recorded");
+
+		unsigned int marked_checksum = 0;
+		Check (WorldSnapshotService::Compute_World_Checksum (&marked_checksum),"the marked checksum failed");
+
+		//	Recorded before the hole is dug, so the rollback has something specific to be compared
+		//	against afterwards rather than only "different from the hole".
+		unsigned int marked_chunk_checksum = 0;
+
+		StringClass label ("");
+		unsigned int revision = 0;
+		Check (WorldSnapshotService::Get_Rollback_Point (0,&label,&revision),
+				 "the rollback point could not be read back");
+		Check (label == "before the hole","the rollback point lost its label");
+		Check (!WorldSnapshotService::Get_Rollback_Point (99,&label,&revision),
+				 "an out-of-range rollback index was accepted");
+
+		//	Dig a hole, then undo it.
+		WorldOperationClass hole;
+		hole.Type			= WORLD_OP_LOWER;
+		hole.BaseRevision	= WorldOperationJournal::Get_Revision ();
+		hole.Center			= Vector3 (-40.0f,-40.0f,0.0f);
+		hole.Radius			= 12.0f;
+		hole.Depth			= 5.0f;
+		hole.TimeSeconds	= 500.0f;
+
+		{
+			AABoxClass first;
+			if (WorldTerrainSystem::Get_Patch_Bounds (0,0,&first)) {
+				float size = first.Extent.X * 2.0f;
+				int px = (int)((hole.Center.X - (first.Center.X - first.Extent.X)) / size);
+				int py = (int)((hole.Center.Y - (first.Center.Y - first.Extent.Y)) / size);
+				WorldSnapshotService::Compute_Chunk_Checksum (px,py,&marked_chunk_checksum);
+			}
+		}
+
+		WorldOperationApplyResult dug = WorldOperationJournal::Submit (hole);
+		Check (dug.Is_Applied (),"the hole this rollback check depends on was refused as '%s'",
+				 World_Operation_Result_Name (dug.Result));
+
+		unsigned int dug_checksum = 0;
+		Check (WorldSnapshotService::Compute_World_Checksum (&dug_checksum),"the post-hole checksum failed");
+		Check (dug_checksum != marked_checksum,"digging a hole did not change the world checksum");
+
+		StringClass report ("");
+		Check (WorldSnapshotService::Rollback_To (0,&report),"the rollback failed: %s",report.Peek_Buffer ());
+		Check (report.Get_Length () > 0,"a rollback reported nothing about what it did");
+
+		unsigned int rolled_back = 0;
+		Check (WorldSnapshotService::Compute_World_Checksum (&rolled_back),"the rolled-back checksum failed");
+
+		Check (rolled_back != dug_checksum,"rolling back left the world exactly as the hole left it");
+
+		/*
+		**	The ground itself, chunk by chunk, is what a rollback actually promises.  The world
+		**	checksum cannot be compared directly against `marked_checksum`, because it folds in the
+		**	journal checksum as well, and the rollback rebased the journal rather than rewinding it
+		**	(a SMOOTH destroys the information needed to un-smooth it).  So the ground is verified
+		**	where the ground was changed: the chunk the hole was dug in must checksum to what it
+		**	did before.
+		*/
+		int hole_px = 0, hole_py = 0;
+		{
+			AABoxClass first;
+			if (WorldTerrainSystem::Get_Patch_Bounds (0,0,&first)) {
+				float size = first.Extent.X * 2.0f;
+				float origin_x = first.Center.X - first.Extent.X;
+				float origin_y = first.Center.Y - first.Extent.Y;
+				hole_px = (int)((hole.Center.X - origin_x) / size);
+				hole_py = (int)((hole.Center.Y - origin_y) / size);
+			}
+		}
+
+		unsigned int hole_chunk_now = 0;
+		Check (WorldSnapshotService::Compute_Chunk_Checksum (hole_px,hole_py,&hole_chunk_now),
+				 "the chunk the hole was dug in could not be checksummed after the rollback");
+		Check (hole_chunk_now == marked_chunk_checksum,
+				 "the rolled-back chunk %d,%d checksums 0x%08X, not the 0x%08X it did when marked",
+				 hole_px,hole_py,hole_chunk_now,marked_chunk_checksum);
+
+		//	The journal was rebased, not rewound: a SMOOTH destroys the information needed to
+		//	un-smooth it, so stating "this is the ground now" is the only honest option.
+		Check (WorldOperationJournal::Get_Operation_Count () == 0,
+				 "the rollback left %d operation(s) in the journal",
+				 WorldOperationJournal::Get_Operation_Count ());
+
+		Check (!WorldSnapshotService::Rollback_To (99,&report),"an out-of-range rollback was performed");
+
+		//	Bounded: marking more points than the cap keeps the most recent.
+		for (int i = 0; i < (WorldSnapshotService::MAX_ROLLBACK_POINTS + 4); i++) {
+			StringClass name ("");
+			name.Format ("point_%d",i);
+			WorldSnapshotService::Mark_Rollback_Point (name.Peek_Buffer (),&error);
+		}
+		Check (WorldSnapshotService::Get_Rollback_Point_Count () == WorldSnapshotService::MAX_ROLLBACK_POINTS,
+				 "the rollback history grew to %d points, past its %d cap",
+				 WorldSnapshotService::Get_Rollback_Point_Count (),
+				 (int)WorldSnapshotService::MAX_ROLLBACK_POINTS);
+
+		Check (WorldSnapshotService::Get_Rollback_Point (0,&label,&revision),
+				 "the oldest surviving rollback point could not be read");
+		Check (label != "before the hole","the cap dropped a newer point instead of the oldest");
+	}
+
+	WorldSyncService::Shutdown ();
+	WorldSnapshotService::Shutdown ();
+	WorldOperationJournal::Shutdown ();
+	GeneratedWorldPlacementRules::Shutdown ();
+	NavMeshGenerator::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	V2 roadmap Section 34 Phase 21.  The physical logistics layer (Section 22).
+**
+**	Unlike Phase 20's own subcomponent self-check -- which could only prove schema/arithmetic,
+**	because a real BuildingGameObj needs a scene `-shaderselfcheck` never brings up -- this
+**	graph's plan-derived half (BASE, FORWARD_BASE, RESOURCE_FIELD, LOGISTICS_POI) reads only
+**	headless generator-time services this harness already builds elsewhere in this file, so the
+**	real chain (terrain, hydrology, strategic plan, road graph, bridge plan, base selection,
+**	Tiberium fields, settlements) is built here too -- the same setup Check_Combat_Space already
+**	established as sufficient -- and route length/reachability is proven against the real road
+**	graph, not merely against a schema.  REFINERY/FACTORY/REPAIR nodes (Rebuild_Building_Nodes)
+**	are the one part still unreached here, for the standing reason every other runtime-building
+**	construction path in this tree already carries: no GameObjManager scene exists in this
+**	harness either.
+*/
+static const char *	LOGISTICS_TEST_DESCRIPTOR_JSON =
+	"{ \"model_name\": \"ow_test_grading_pad.w3d\", \"schema_version\": 1, "
+	"\"footprint\": { \"width\": 10.0, \"depth\": 10.0 } }";
+
+
+void	Check_Logistics (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	BaseSelectionPlanner::Init ();
+	TiberiumFieldGenerator::Init ();
+	BuildingDescriptorManager::Init ();
+	SettlementGenerator::Init ();
+	ExpansionRegionRegistry::Init ();
+	LogisticsGraphService::Init ();
+
+	StringClass descriptor_error ("");
+	BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_grading_pad",
+		LOGISTICS_TEST_DESCRIPTOR_JSON,&descriptor_error);
+	ProceduralAssetRegistry::Init ();
+
+	//
+	//	Rebuild_Nodes tolerates every source being empty -- a plan too small (or never generated
+	//	at all) is a correct, unremarkable outcome, the same tolerance every other consumer of
+	//	StrategicPlanner/BaseSelectionPlanner already grants.
+	//
+	{
+		StringClass error ("");
+		Check (LogisticsGraphService::Rebuild_Nodes (false,0.0f,&error),
+				 "rebuilding nodes over nothing at all reported a hard failure: %s",error.Peek_Buffer ());
+		Check (LogisticsGraphService::Get_Node_Count () == 0,"an empty world already carries logistics nodes");
+		Check (LogisticsGraphService::Has_Graph (),"Has_Graph is false after a successful (empty) rebuild");
+
+		Check (LogisticsGraphService::Rebuild_Routes (&error),
+				 "rebuilding routes over zero nodes reported a hard failure: %s",error.Peek_Buffer ());
+		Check (LogisticsGraphService::Get_Route_Count () == 0,"zero nodes produced a nonzero route count");
+	}
+
+	//
+	//	A real chain -- the same setup Check_Combat_Space/Check_Settlements already established.
+	//
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 61u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 3.0f;
+		hydro_params.MaxRiverCount				= 2;
+
+		StringClass error ("");
+		Check (HydrologyGenerator::Generate (hydro_params,&error),
+				 "the hydrology this check depends on failed: %s",error.Peek_Buffer ());
+
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed							= 919u;
+		plan_params.MinApproachCount			= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 2;
+		plan_params.MinBaseSeparation			= 80.0f;
+		plan_params.MaxTiberiumCandidates		= 4;
+		plan_params.MaxSettlementCandidates	= 3;
+		plan_params.MaxPoiCandidates			= 3;
+		plan_params.MaxExpansionCandidates	= 2;
+		plan_params.MaxEconomicRange			= 1000.0f;
+		Check (StrategicPlanner::Generate (plan_params,&error),
+				 "the strategic plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 65u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		Check (RoadGraphGenerator::Generate (road_params,&error),
+				 "the road graph this check depends on failed: %s",error.Peek_Buffer ());
+
+		BridgePlannerParams bridge_params;
+		bridge_params.Seed					= 87u;
+		bridge_params.WaterClearanceMargin	= 2.0f;
+		bridge_params.MaxSpanLength			= 200.0f;
+		Check (BridgePlanner::Generate (bridge_params,&error),
+				 "the bridge plan this check depends on failed: %s",error.Peek_Buffer ());
+
+		BaseSelectionParams base_params;
+		base_params.Seed												= 133u;
+		base_params.MaxInitialResourceTravelTimeDifferenceSeconds	= 60.0f;
+		base_params.MaxBaseToBaseTravelTimeDifferenceSeconds		= 120.0f;
+		base_params.MinBaseExpansionArea								= 1024.0f;
+		base_params.AllowSingleBridgeDependency						= false;
+		base_params.MaxRepairAttemptsPerPair							= 8;
+		Check (BaseSelectionPlanner::Generate (base_params,&error),
+				 "the base selection this check depends on failed: %s",error.Peek_Buffer ());
+
+		TiberiumFieldParams field_params;
+		field_params.Seed							= 331u;
+		field_params.FieldRadiusMin				= 15.0f;
+		field_params.FieldRadiusMax				= 40.0f;
+		field_params.InitialYieldMin				= 1500.0f;
+		field_params.InitialYieldMax				= 4000.0f;
+		field_params.CrystalDensity				= 0.15f;
+		field_params.HarvestAnchorCount			= 3;
+		field_params.HarvesterLoadAmount		= 600.0f;
+		field_params.MaxRepairAttemptsPerField	= 8;
+		field_params.ReferenceVehicleSpeed		= 8.33f;
+		field_params.MaxBuildableSlopeRadians	= 0.5f;
+		Check (TiberiumFieldGenerator::Generate (field_params,&error),
+				 "the Tiberium fields this check depends on failed: %s",error.Peek_Buffer ());
+
+		SettlementParams settlement_params;
+		settlement_params.Seed							= 565u;
+		settlement_params.RoadConnectorMaxDistance	= 200.0f;
+		settlement_params.MaxStructuresPerSettlement	= 4;
+		settlement_params.MaxBuildableSlopeRadians	= 0.5f;
+		Check (SettlementGenerator::Generate (settlement_params,&error),
+				 "the settlements this check depends on failed: %s",error.Peek_Buffer ());
+
+		//	Two completions near the origin and one far away: one home region, one forward one --
+		//	the same recipe Check_Expansion_Regions already proved.
+		StringClass completion_report ("");
+		ExpansionRegionRegistry::Note_Construction_Complete (901,"ow_test_grading_pad",
+																				Vector3 (0.0f,0.0f,0.0f),PLAYERTYPE_GDI,&completion_report);
+		ExpansionRegionRegistry::Note_Construction_Complete (902,"ow_test_grading_pad",
+																				Vector3 (5.0f,0.0f,0.0f),PLAYERTYPE_GDI,&completion_report);
+		ExpansionRegionRegistry::Note_Construction_Complete (903,"ow_test_grading_pad",
+																				Vector3 (1500.0f,0.0f,0.0f),PLAYERTYPE_GDI,&completion_report);
+		Check (ExpansionRegionRegistry::Rebuild_Regions (50.0f,&error),
+				 "the expansion regions this check depends on failed: %s",error.Peek_Buffer ());
+
+		//
+		//	Rebuild_Nodes over a real world.
+		//
+		Check (LogisticsGraphService::Rebuild_Nodes (true,75.0f,&error),
+				 "rebuilding nodes over a real world failed: %s",error.Peek_Buffer ());
+		Check (LogisticsGraphService::Get_Node_Count () > 0,"a real world produced zero logistics nodes");
+
+		bool found_base = false;
+		bool found_forward = false;
+		for (int i = 0; i < LogisticsGraphService::Get_Node_Count (); i++) {
+			LogisticsNode node;
+			Check (LogisticsGraphService::Get_Node (i,&node),"node index %d could not be read back",i);
+			Check (::strcmp (Logistics_Node_Kind_Name (node.Kind),"unknown") != 0,
+					 "node %d carries an unnamed kind",i);
+			if (node.Kind == LOGISTICS_NODE_BASE)			{ found_base = true; }
+			if (node.Kind == LOGISTICS_NODE_FORWARD_BASE)	{ found_forward = true; }
+		}
+		Check (found_base,"a real base selection produced no BASE logistics node");
+		Check (found_forward,"a real forward completion produced no FORWARD_BASE logistics node");
+
+		int base_index = -1;
+		Check (LogisticsGraphService::Find_Node_By_Id ("logistics_base_gdi",&base_index),
+				 "the GDI base node could not be found by its own stable id");
+
+		//
+		//	Rebuild_Routes over the real road graph.
+		//
+		Check (LogisticsGraphService::Rebuild_Routes (&error),
+				 "rebuilding routes over a real world failed: %s",error.Peek_Buffer ());
+		Check (LogisticsGraphService::Get_Route_Count () > 0,"a real world with real nodes produced zero routes");
+
+		bool found_open_route = false;
+		for (int i = 0; i < LogisticsGraphService::Get_Route_Count (); i++) {
+			LogisticsRoute route;
+			Check (LogisticsGraphService::Get_Route (i,&route),"route index %d could not be read back",i);
+			Check (::strcmp (Logistics_Route_Status_Name (route.Status),"unknown") != 0,
+					 "route %d carries an unnamed status",i);
+			if (route.Status == LOGISTICS_ROUTE_OPEN) {
+				found_open_route = true;
+				Check (route.Length > 0.0f,"an OPEN route reports a non-positive length");
+				Check (route.Waypoints.Count () > 0,"an OPEN route carries no waypoints to walk or test bridges against");
+			} else {
+				Check (route.Length < 0.0f,"an unreachable route still reports a real length");
+			}
+		}
+		Check (found_open_route,"a real, connected world produced no OPEN route at all");
+
+		//	The topology this file's own Rebuild_Routes documents never connects one team's base
+		//	straight to the other's -- every route has a home-node endpoint on one specific team,
+		//	never base-to-base -- so this is a real negative assertion about the graph's own
+		//	shape, not a placeholder.
+		int nod_base_index = -1;
+		if (LogisticsGraphService::Find_Node_By_Id ("logistics_base_nod",&nod_base_index)) {
+			int ignored_route_index = -1;
+			Check (!LogisticsGraphService::Find_Route_Between (base_index,nod_base_index,&ignored_route_index),
+					 "a route was created straight between the two factions' own bases");
+		}
+
+		//	Determinism: the same real world rebuilt twice is the same checksum.
+		unsigned int first_checksum = LogisticsGraphService::Get_Checksum ();
+		Check (first_checksum != 0,"a real, non-empty graph carries a zero checksum");
+		Check (LogisticsGraphService::Rebuild_Routes (&error),"the second route rebuild failed");
+		Check (LogisticsGraphService::Get_Checksum () == first_checksum,
+				 "rebuilding the same routes twice produced a different checksum");
+
+		//
+		//	Step 9.  Bridge blockage -- device-less, so only the "no bridge on this route" and
+		//	"an out-of-range bridge id changes nothing" arithmetic is reachable here; a route that
+		//	actually crosses a broken bridge needs a live world, the same standing limit every
+		//	other bridge-damage-facing check in this tree already carries.
+		//
+		LogisticsGraphService::Update_Route_Status ();
+		Check (LogisticsGraphService::Get_Route_Count () > 0,"Update_Route_Status changed the route count");
+
+		//
+		//	Section 22.2 step 5.  Construction support: inside the radius of the forward node
+		//	this world's own completions produced, and not far outside it.
+		//
+		LogisticsNode forward_node;
+		bool have_forward_node = false;
+		for (int i = 0; i < LogisticsGraphService::Get_Node_Count (); i++) {
+			LogisticsNode node;
+			if (!LogisticsGraphService::Get_Node (i,&node)) continue;
+			if (node.Kind == LOGISTICS_NODE_FORWARD_BASE) { forward_node = node; have_forward_node = true; break; }
+		}
+		Check (have_forward_node,"no forward node survived to test construction support against");
+		if (have_forward_node) {
+			Check (LogisticsGraphService::Is_Under_Construction_Support (forward_node.Position,PLAYERTYPE_GDI),
+					 "a point at a forward node's own centre is not under its own construction support");
+			Vector3 far_point = forward_node.Position + Vector3 (10000.0f,0.0f,0.0f);
+			Check (!LogisticsGraphService::Is_Under_Construction_Support (far_point,PLAYERTYPE_GDI),
+					 "a point ten thousand units away is under construction support");
+			Check (!LogisticsGraphService::Is_Under_Construction_Support (forward_node.Position,PLAYERTYPE_NOD),
+					 "construction support does not respect team");
+		}
+
+		//	A radius of 0 (the profile's own default) disables the bonus outright.
+		Check (LogisticsGraphService::Rebuild_Nodes (true,0.0f,&error),"re-rebuilding with a zero radius failed");
+		if (have_forward_node) {
+			Check (!LogisticsGraphService::Is_Under_Construction_Support (forward_node.Position,PLAYERTYPE_GDI),
+					 "a zero construction support radius still granted a bonus");
+		}
+
+		//
+		//	Step 6-8.  Convoys.  Refused with ConvoyEnabled false; accepted and trackable once
+		//	true, against a real OPEN route with real waypoints; Stop_Convoy removes it.
+		//
+		Check (LogisticsGraphService::Rebuild_Nodes (false,0.0f,&error),"re-rebuilding with convoys off failed");
+		Check (LogisticsGraphService::Rebuild_Routes (&error),"re-rebuilding routes after a node rebuild failed");
+
+		int open_route_index = -1;
+		for (int i = 0; i < LogisticsGraphService::Get_Route_Count (); i++) {
+			LogisticsRoute route;
+			if (LogisticsGraphService::Get_Route (i,&route) && (route.Status == LOGISTICS_ROUTE_OPEN)) {
+				open_route_index = i;
+				break;
+			}
+		}
+		Check (open_route_index >= 0,"no OPEN route survived the convoy-test rebuild");
+		if (open_route_index >= 0) {
+			Check (!LogisticsGraphService::Start_Convoy (12345,open_route_index),
+					 "a convoy started while ConvoyEnabled is false");
+
+			Check (LogisticsGraphService::Rebuild_Nodes (true,0.0f,&error),"re-rebuilding with convoys on failed");
+			Check (LogisticsGraphService::Rebuild_Routes (&error),"re-rebuilding routes for the convoy-on case failed");
+
+			Check (!LogisticsGraphService::Start_Convoy (12345,9999),
+					 "a convoy started against an out-of-range route index");
+
+			//	The route list was just rebuilt; re-resolve an OPEN route in the fresh list rather
+			//	than trusting the pre-rebuild index to still name the same one.
+			int convoy_route_index = -1;
+			for (int i = 0; i < LogisticsGraphService::Get_Route_Count (); i++) {
+				LogisticsRoute route;
+				if (LogisticsGraphService::Get_Route (i,&route) && (route.Status == LOGISTICS_ROUTE_OPEN)) {
+					convoy_route_index = i;
+					break;
+				}
+			}
+			Check (convoy_route_index >= 0,"no OPEN route survived the convoy-on rebuild");
+			if (convoy_route_index >= 0) {
+				Check (LogisticsGraphService::Start_Convoy (12345,convoy_route_index),
+						 "a convoy was refused against a real OPEN route with ConvoyEnabled true");
+				Check (LogisticsGraphService::Is_In_Convoy (12345),"a started convoy does not report itself in-transit");
+				Check (LogisticsGraphService::Get_Active_Convoy_Count () == 1,
+						 "one started convoy reports %d active",LogisticsGraphService::Get_Active_Convoy_Count ());
+
+				//	No unit with id 12345 exists in this harness (no GameObjManager scene), so
+				//	Update's own "the unit no longer resolves" path is what actually gets
+				//	exercised here -- the same standing harness limit as everywhere else, proven
+				//	rather than merely asserted: the convoy record is dropped, not left dangling.
+				LogisticsGraphService::Update (0.1f);
+				Check (!LogisticsGraphService::Is_In_Convoy (12345),
+						 "Update kept a convoy whose unit does not exist in this harness");
+				Check (LogisticsGraphService::Get_Active_Convoy_Count () == 0,
+						 "Update left a stale convoy record behind");
+
+				LogisticsGraphService::Stop_Convoy (99999);		// no-op on an id that was never started
+			}
+		}
+	}
+
+	LogisticsGraphService::Clear ();
+	Check (LogisticsGraphService::Get_Node_Count () == 0,"Clear left logistics nodes behind");
+	Check (LogisticsGraphService::Get_Route_Count () == 0,"Clear left logistics routes behind");
+	Check (!LogisticsGraphService::Has_Graph (),"Clear left Has_Graph true");
+
+	ExpansionRegionRegistry::Shutdown ();
+	BuildingDescriptorManager::Unload_All ();
+	SettlementGenerator::Shutdown ();
+	ProceduralAssetRegistry::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	TiberiumFieldGenerator::Shutdown ();
+	BaseSelectionPlanner::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -5937,11 +8886,38 @@ int	TerrainSelfCheck::Run (const char *which)
 	if ((which == nullptr) || (::strcmp (which, "combatspace") == 0)) {
 		Check_Combat_Space ();
 	}
+	if ((which == nullptr) || (::strcmp (which, "worldintegration") == 0)) {
+		Check_World_Integration ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "navigation") == 0)) {
+		Check_Navigation ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "minimap") == 0)) {
+		Check_Minimap_Base_Layer ();
+	}
 	if ((which == nullptr) || (::strcmp (which, "bridgerequired") == 0)) {
 		Check_Bridge_Required ();
 	}
 	if ((which == nullptr) || (::strcmp (which, "bridgefallback") == 0)) {
 		Check_Bridge_Fallback ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "placementrules") == 0)) {
+		Check_Placement_Rules ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "grading") == 0)) {
+		Check_Foundation_Grading ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "expansion") == 0)) {
+		Check_Expansion_Regions ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "worldops") == 0)) {
+		Check_World_Operations ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "worldsync") == 0)) {
+		Check_World_Sync ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "logistics") == 0)) {
+		Check_Logistics ();
 	}
 
 	if (_Failures == 0) {

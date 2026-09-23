@@ -196,6 +196,58 @@ Depth is deliberately not a profile field: `WaterDefinitionClass::BedDepth`, alr
 water category by `WaterSystem::Define_Default_Water`, is carve depth's one source of truth. A
 second depth number here could only ever disagree with it.
 
+## Schema version 5 (Phase 12)
+
+The `resource` block gained the Tiberium field generator's own controls — field radius range,
+initial yield range, crystal density, harvest anchor count, Harvester load amount and the two
+growth fields. See `docs/procedural_world/TiberiumFields.md`; the fields are listed in
+`ProceduralWorldResourceSettings` (`Code/Combat/proceduralworldprofile.h`) with their defaults.
+
+## Schema version 6 (Phase 17)
+
+### `grading` — what the Commander may do to ground a generator already made
+
+Section 34 Phase 17 step 5's four limits, named exactly as that step lists them. Absent in a
+schema-1..5 profile, which still loads; each field takes the default below.
+
+Every one of these is a ceiling on changes to terrain that a generator produced and that Phase 15's
+combat-space validation already accepted, which is why they belong to the profile rather than to a
+building descriptor: a descriptor can say how steep a foundation *tolerates*, but only the world can
+say how much of itself may be *moved*.
+
+| Field | Type | Default | Rule | Meaning |
+| --- | --- | --- | --- | --- |
+| `max_cut_depth` | float | `6.0` | `> 0` | World units — how far below the original ground a single foundation may dig. |
+| `max_fill_height` | float | `6.0` | `> 0` | World units — how far above it a single foundation may build up. |
+| `max_slope_change_radians` | float | `0.5` | `> 0`, `< π/2` | The steepest face the transition apron may be left at. Defaults to the same buildable-slope cap every terrain-reading generator in this chain already shares, so a grading can never leave ground steeper than ground a generator would have been willing to make. |
+| `max_affected_area` | float | `4096.0` | `> 0` | World units², in plan — the levelled pad plus its apron. The one limit that bounds how much of the map a single building can reshape. |
+
+All four are validated strictly positive. A zero limit does not mean "no grading" — it would refuse
+every grading including a no-op one — so it is a broken profile rather than a strict one, and
+`FoundationGradingService::Set_Limits` clamps it back to the documented default. A profile that
+wants no grading turns the Commander off, not this.
+
+See `docs/procedural_world/CommanderExpansion.md` for what the service actually does with them,
+including why sizing the apron is a bounded fixed-point solve against a measurement rather than a
+formula.
+
+## Schema version 7 (Phase 21)
+
+### `logistics` — Section 22.1's own profile toggles
+
+Absent in a schema-1..6 profile, which still loads; each field takes the default below, and the
+defaults are chosen so an absent block leaves the logistics graph observable-but-inert per
+Section 22.1's own "default gameplay must remain viable without mandatory micromanagement".
+
+| Field | Type | Default | Rule | Meaning |
+| --- | --- | --- | --- | --- |
+| `enabled` | bool | `false` | — | Whether `ProceduralWorldManager::Generate_World` builds the logistics graph (`LogisticsGraphService`) at all. |
+| `convoy_enabled` | bool | `false` | — | A further, separate opt-in: whether `LogisticsGraphService::Start_Convoy` accepts any order at all. |
+| `construction_support_radius` | float | `0.0` | `>= 0` | World units. `0` means no bonus (Section 22.2 step 5); `LogisticsGraphService::Is_Under_Construction_Support` reads this back. |
+
+See `docs/procedural_world/LogisticsLayer.md` for what the graph actually is and which of Section
+22's seven named node kinds have a real source in this tree today.
+
 ### Version semantics
 
 `CURRENT_SCHEMA_VERSION` and `CURRENT_GENERATOR_VERSION` moved to 2 with Phase 3, to 3 with
@@ -212,5 +264,20 @@ rivers, streams, lakes and ponds into its own generated terrain where before it 
 section, which `Hydrology.md` follows for the same reason (hydrology reads the chunk registry
 only macro terrain builds).
 
+Schema 5 / generator 5 (Phase 12): a world with `features.tiberium_fields` true and a strategic
+plan's own resource candidates may now carry real, harvestable fields where before a resource
+candidate was only a scored point. Schema 6 / generator 6 (Phase 17): the Commander may now level
+terrain within the `grading` limits, so two worlds from the same seed are no longer the same world
+once a match has been played in them — which is exactly what a generator version is for. Phases
+7-11 and Phase 16 moved neither number: each reused fields Phase 1 had already reserved, or (Phase
+16) read everything it needed from the chunk registry and added no profile field at all. Schema 7
+(Phase 21) moved only the schema number: `LogisticsGraphService` reads terrain/road/building state
+generator 6 already produces and writes none of it back, so the same seed and the same
+schema-1..6 profile still produce a byte-identical world — a schema field added with no generator
+output change, the same independence this file has documented since schema 2.
+
 The shipped profile is `data/procedural_world/default.json`, loaded by
-`ProceduralWorldManager::DEFAULT_PROFILE_PATH`.
+`ProceduralWorldManager::DEFAULT_PROFILE_PATH`. It still declares `schema_version` 4 and carries
+neither the schema-5 `resource` fields, the schema-6 `grading` block, nor the schema-7 `logistics`
+block; all three take their documented defaults, which is the whole point of versioning them
+separately, and is why an older shipped profile is not a bug to fix here.

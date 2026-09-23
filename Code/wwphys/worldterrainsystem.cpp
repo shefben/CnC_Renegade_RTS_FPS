@@ -448,6 +448,154 @@ void WorldTerrainSystem::Apply_River_Cut(const Vector3 * points,int count,float 
 
 
 /***********************************************************************************************
+ * WorldTerrainSystem::Apply_Foundation_Grade -- level ground for a building                    *
+ *                                                                                             *
+ * A plateau with a ramp, not a dish: see HeightfieldClass::Grade_Foundation on why neither of  *
+ * the two region primitives can make this shape.                                               *
+ *=============================================================================================*/
+void WorldTerrainSystem::Apply_Foundation_Grade(const Vector3 & center,float flat_radius,
+																float apron_radius,float target_height)
+{
+	if (!Has_Terrain() || !(flat_radius > 0.0f)) {
+		return;
+	}
+	if (apron_radius < flat_radius) {
+		apron_radius = flat_radius;
+	}
+	if (!Terrain_Edit_Allowed(center,apron_radius)) {
+		return;
+	}
+
+	//	The heightfield stores heights relative to its own origin, which is what the road grade
+	//	already accounts for when it hands Blend_Height_Region a target.
+	Heightfield->Grade_Foundation(center,flat_radius,apron_radius,
+											target_height - Heightfield->Get_Origin().Z);
+
+	float moved = WWMath::Fabs(target_height - center.Z);
+	Invalidate_Far_Terrain_Region(AABoxClass(Vector3(center.X,center.Y,center.Z),
+														 Vector3(apron_radius,apron_radius,moved + apron_radius)));
+}
+
+
+/***********************************************************************************************
+ * WorldTerrainSystem::Apply_Flatten -- pull a region towards an absolute height                *
+ *=============================================================================================*/
+void WorldTerrainSystem::Apply_Flatten(const Vector3 & center,float radius,float target_height,float blend)
+{
+	if (!Has_Terrain() || !(radius > 0.0f)) {
+		return;
+	}
+	if (!Terrain_Edit_Allowed(center,radius)) {
+		return;
+	}
+
+	//	Heights are stored relative to the field's own origin, the same conversion Apply_Road_Grade
+	//	already makes when it hands this primitive a world height.
+	Heightfield->Blend_Height_Region(center,radius,target_height - Heightfield->Get_Origin().Z,blend);
+
+	float moved = WWMath::Fabs(target_height - center.Z);
+	Invalidate_Far_Terrain_Region(AABoxClass(Vector3(center.X,center.Y,center.Z),
+														 Vector3(radius,radius,moved + radius)));
+}
+
+
+/***********************************************************************************************
+ * WorldTerrainSystem::Apply_Smooth -- average a region with itself                             *
+ *=============================================================================================*/
+void WorldTerrainSystem::Apply_Smooth(const Vector3 & center,float radius,float strength)
+{
+	if (!Has_Terrain() || !(radius > 0.0f)) {
+		return;
+	}
+	if (!Terrain_Edit_Allowed(center,radius)) {
+		return;
+	}
+
+	Heightfield->Smooth_Height_Region(center,radius,strength);
+
+	Invalidate_Far_Terrain_Region(AABoxClass(Vector3(center.X,center.Y,center.Z),
+														 Vector3(radius,radius,radius)));
+}
+
+
+/***********************************************************************************************
+ * WorldTerrainSystem::Apply_Height_Patch -- put a circle of ground back as it was              *
+ *=============================================================================================*/
+bool WorldTerrainSystem::Apply_Height_Patch(const Vector3 & center,float radius,
+														  const float * heights,int count_x,int count_y)
+{
+	if (!Has_Terrain() || (heights == nullptr) || !(radius > 0.0f)) {
+		return false;
+	}
+	if ((count_x != Heightfield->Get_Vertex_Count_X()) ||
+		 (count_y != Heightfield->Get_Vertex_Count_Y())) {
+		return false;
+	}
+	if (!Terrain_Edit_Allowed(center,radius)) {
+		return false;
+	}
+
+	float cell_size = Heightfield->Get_Cell_Size();
+	if (!(cell_size > 0.0f)) {
+		return false;
+	}
+
+	const Vector3 & origin = Heightfield->Get_Origin();
+
+	int min_x = (int)WWMath::Floor((center.X - radius - origin.X) / cell_size);
+	int min_y = (int)WWMath::Floor((center.Y - radius - origin.Y) / cell_size);
+	int max_x = (int)WWMath::Ceil ((center.X + radius - origin.X) / cell_size);
+	int max_y = (int)WWMath::Ceil ((center.Y + radius - origin.Y) / cell_size);
+
+	if (min_x < 0) min_x = 0;
+	if (min_y < 0) min_y = 0;
+	if (max_x > count_x - 1) max_x = count_x - 1;
+	if (max_y > count_y - 1) max_y = count_y - 1;
+
+	//	A hard edge at the radius, not a falloff.  Restoring is not blending: a vertex is either
+	//	being put back to what it was or being left exactly as it is, and a partial restore would
+	//	leave ground that matches neither the snapshot nor the operation it was undoing.
+	float lowest = 0.0f;
+	float highest = 0.0f;
+	bool  touched = false;
+
+	for (int iy = min_y; iy <= max_y; iy++) {
+		for (int ix = min_x; ix <= max_x; ix++) {
+
+			float dx = (origin.X + ix * cell_size) - center.X;
+			float dy = (origin.Y + iy * cell_size) - center.Y;
+			if (((dx * dx) + (dy * dy)) > (radius * radius)) {
+				continue;
+			}
+
+			float restored = heights[(iy * count_x) + ix];
+			float current  = Heightfield->Get_Height(ix,iy);
+
+			if (!touched) {
+				lowest	= WWMath::Min(restored,current);
+				highest	= WWMath::Max(restored,current);
+				touched	= true;
+			} else {
+				lowest	= WWMath::Min(lowest,WWMath::Min(restored,current));
+				highest	= WWMath::Max(highest,WWMath::Max(restored,current));
+			}
+
+			Heightfield->Set_Height(ix,iy,restored);
+		}
+	}
+
+	if (!touched) {
+		return true;			// entirely off the field: nothing to restore, and not a failure
+	}
+
+	float half_height = ((highest - lowest) * 0.5f) + radius;
+	Invalidate_Far_Terrain_Region(AABoxClass(Vector3(center.X,center.Y,origin.Z + ((highest + lowest) * 0.5f)),
+														 Vector3(radius,radius,half_height)));
+	return true;
+}
+
+
+/***********************************************************************************************
  * WorldTerrainSystem::Query_Placement_Surface -- is this footprint standable                   *
  *                                                                                             *
  * Nine samples: the centre, the four axes and the four diagonals at the radius.  A footprint   *

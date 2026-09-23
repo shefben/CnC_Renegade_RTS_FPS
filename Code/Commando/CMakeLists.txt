@@ -621,6 +621,10 @@ add_test(NAME shader_traversability COMMAND renegade -shaderselfcheck traversabi
 #	never added it to this list.
 add_test(NAME shader_runtimedoors COMMAND renegade -shaderselfcheck runtimedoors)
 
+#	Roadmap Section 21, V2 Phase 20 -- functional subcomponent schema, the health-to-function
+#	arithmetic, and the role name table.  See buildingdescriptor.h/buildingdescriptormanager.cpp.
+add_test(NAME shader_subcomponents COMMAND renegade -shaderselfcheck subcomponents)
+
 #	V2 roadmap Section 34 Phase 1 -- world profile schema, deterministic seed service,
 #	generation manifest.  See proceduralworldprofile.h/worldseedservice.h/worldgenerationmanifest.h.
 add_test(NAME shader_worldprofile COMMAND renegade -shaderselfcheck worldprofile)
@@ -692,12 +696,23 @@ add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
     #	Procedural combat-space validation -- roadmap Section 34 Phase 15.  See Check_Combat_Space.
     add_test(NAME terrain_combatspace   COMMAND renegade -terrainselfcheck combatspace)
 
+    #	Final generated-world integration -- roadmap Section 34 Phase 16.
+    add_test(NAME terrain_worldintegration   COMMAND renegade -terrainselfcheck worldintegration)
+    add_test(NAME terrain_navigation   COMMAND renegade -terrainselfcheck navigation)
+    add_test(NAME terrain_minimap   COMMAND renegade -terrainselfcheck minimap)
+
     #	Gap report item 2 -- a bridge-required test, distinct from terrain_bridgeplan's own
     #	route-around-permitted one.  See terrainselfcheck.h and Check_Bridge_Required.
     add_test(NAME terrain_bridgerequired   COMMAND renegade -terrainselfcheck bridgerequired)
 
     #	Gap report item 5 -- the bridge/crossing fallback chain.  See Check_Bridge_Fallback.
     add_test(NAME terrain_bridgefallback   COMMAND renegade -terrainselfcheck bridgefallback)
+    add_test(NAME terrain_placementrules   COMMAND renegade -terrainselfcheck placementrules)
+    add_test(NAME terrain_grading   COMMAND renegade -terrainselfcheck grading)
+    add_test(NAME terrain_expansion   COMMAND renegade -terrainselfcheck expansion)
+    add_test(NAME terrain_worldops   COMMAND renegade -terrainselfcheck worldops)
+    add_test(NAME terrain_worldsync   COMMAND renegade -terrainselfcheck worldsync)
+    add_test(NAME terrain_logistics   COMMAND renegade -terrainselfcheck logistics)
 endif()
 
 #
@@ -754,6 +769,7 @@ add_test(NAME fds_shader_worldmetrics COMMAND renegadeserver -shaderselfcheck wo
 add_test(NAME fds_shader_escarpment COMMAND renegadeserver -shaderselfcheck escarpment)
 add_test(NAME fds_shader_traversability COMMAND renegadeserver -shaderselfcheck traversability)
 add_test(NAME fds_shader_runtimedoors COMMAND renegadeserver -shaderselfcheck runtimedoors)
+add_test(NAME fds_shader_subcomponents COMMAND renegadeserver -shaderselfcheck subcomponents)
 add_test(NAME fds_shader_worldprofile COMMAND renegadeserver -shaderselfcheck worldprofile)
 add_test(NAME fds_shader_worldbounds COMMAND renegadeserver -shaderselfcheck worldbounds)
 add_test(NAME fds_shader_worldcliffs COMMAND renegadeserver -shaderselfcheck worldcliffs)
@@ -784,6 +800,15 @@ add_test(NAME fds_terrain_shroud   COMMAND renegadeserver -terrainselfcheck shro
     add_test(NAME fds_terrain_settlements   COMMAND renegadeserver -terrainselfcheck settlements)
     add_test(NAME fds_terrain_biomedecoration   COMMAND renegadeserver -terrainselfcheck biomedecoration)
     add_test(NAME fds_terrain_combatspace   COMMAND renegadeserver -terrainselfcheck combatspace)
+    add_test(NAME fds_terrain_worldintegration   COMMAND renegadeserver -terrainselfcheck worldintegration)
+    add_test(NAME fds_terrain_navigation   COMMAND renegadeserver -terrainselfcheck navigation)
+    add_test(NAME fds_terrain_minimap   COMMAND renegadeserver -terrainselfcheck minimap)
     add_test(NAME fds_terrain_bridgerequired   COMMAND renegadeserver -terrainselfcheck bridgerequired)
     add_test(NAME fds_terrain_bridgefallback   COMMAND renegadeserver -terrainselfcheck bridgefallback)
+    add_test(NAME fds_terrain_placementrules   COMMAND renegadeserver -terrainselfcheck placementrules)
+    add_test(NAME fds_terrain_grading   COMMAND renegadeserver -terrainselfcheck grading)
+    add_test(NAME fds_terrain_expansion   COMMAND renegadeserver -terrainselfcheck expansion)
+    add_test(NAME fds_terrain_worldops   COMMAND renegadeserver -terrainselfcheck worldops)
+    add_test(NAME fds_terrain_worldsync   COMMAND renegadeserver -terrainselfcheck worldsync)
+    add_test(NAME fds_terrain_logistics   COMMAND renegadeserver -terrainselfcheck logistics)
 endif()

@@ -788,3 +788,254 @@ bridge work above -- never pretended complete until it has actually been run).
 or `NOT BUILT`/`FAIL` for a real Procedural Skirmish seed, and whether a selected base site,
 placed Tiberium field, and placed settlement/structure look right to someone standing at them,
 the same "someone watching" standard the bridge work above has always required.
+
+## V2 Phase 16 -- built, self-checked, documented; the live pass is now the whole gate
+
+`GeneratedWorldIntegrator`, `NavMeshGenerator` and `MinimapBaseLayer` are real, built clean on
+both binaries, and proven by `terrain_worldintegration`/`navigation`/`minimap` plus their `fds_`
+variants (`ctest -N` now 167, was 161). Step 13's shroud-grid gap was found by verification and
+fixed for real rather than recorded as a caveat. See
+`docs/procedural_world/FinalWorldIntegration.md`.
+
+**Genuine, disclosed gaps -- none of them implementation shortfalls:**
+- One sector graph, not the three steps 3/4 name. `PathfindSectorClass` carries no locomotion-
+  class tag and `PathfindClass` is one global singleton, so "walkable for infantry, not for a
+  tank" cannot be two answers about the same point without a parallel sector format. Sized by
+  the most restrictive loaded locomotion class, per `WorldMetricsClass`'s own documented rule.
+- Sector granularity is the chunk registry's, not a per-cell physics floodfill's.
+- Naval navigation (step 6) skipped -- no canonical naval locomotor exists in this tree, which
+  that step's own "only where canonical support exists" wording allows.
+- Tunnel portals and building-interior transitions (steps 7, 12) not produced -- no tunnel
+  system exists anywhere in this tree, and no building in this asset pool has an interior
+  (Phase 13's own connector-metadata gap).
+- The minimap base layer has no renderer to consume it; none exists in this tree yet.
+- Step 9's per-chunk incomplete-nav guard reduces to step 15's whole-world barrier: there is no
+  incremental nav rebuild here, so no partial state is ever observable.
+
+**Two real runtime conditions found and tolerated rather than crashed through:**
+`PathfindClass::Get_Instance()` is legitimately null on the client self-check context (it is
+constructed inside `PhysicsSceneClass`'s own constructor -- the same asymmetry `FoliageSystem`
+already null-guards everywhere), and with no infantry definition loaded `NavMeshGenerator`
+refuses honestly rather than guessing a sector envelope.
+
+**Unattended `ctest` now works** (was previously blocked by a modal assert dialog). Two real
+pre-existing defects fixed: six stack-allocated `CameraClass` objects in `shaderselfcheck.cpp`
+(a `RefCountClass` whose destructor asserts its reference is gone -- automatic storage trips it
+every time), and the missing assert handler on the `-*selfcheck` entry points (every other
+harness in this tree installs one; these five did not, so `WWDebug_Assert_Fail` fell back to a
+message box). Full suite: 167 tests, 30 failing, all reported as text.
+
+**The 30 remaining failures are pre-existing and now visible** -- worth their own work item, not
+Phase 16's. Two clusters: descriptor `game_object_preset` resolution (`shader_sidebar`,
+`placement`, `construction`, `production`, `powergrid`, `rtssaveload`, `visualsettings`), and
+shroud visibility (`terrain_shroud` "team A is not VISIBLE at its own source's position",
+`shader_overlays`, `shader_powergrid`) -- the shroud cluster looks like one root cause across
+three test families.
+
+**Next exact action:** rolled into the Phase 17 block below -- one live pass now covers both
+phases' log lines.
+
+## V2 Phase 17 -- the Commander can expand; nobody has watched one do it
+
+All thirteen steps built for real, both binaries clean, six new ctest entries green
+(`ctest -N` now 173, was 167). `GeneratedWorldPlacementRules` (steps 1-2), `FoundationGradingService`
+(steps 3-9) and `ExpansionRegionRegistry` (steps 10-13), plus `HeightfieldClass::Grade_Foundation`
+and `WorldTerrainSystem::Apply_Foundation_Grade` as the one canonical terrain primitive. Profile
+schema/generator version 6 adds the `grading` block. See
+`docs/procedural_world/CommanderExpansion.md`.
+
+**Two real defects the self-checks caught and that are now fixed** -- worth recording because both
+were wrong in the dangerous direction: a pad levelled only to the footprint disc left the building's
+own rim tilted (0.14 world units off level, because interpolation pulls from grid vertices outside
+the disc), and sizing the apron from the height difference *under* the footprint produced a graded
+face measured at 0.684 rad against a 0.5 rad limit on a 10 degree ramp. Apron sizing is now a
+bounded fixed-point solve against the measured surface.
+
+**Genuine, disclosed gaps -- none of them implementation shortfalls:**
+- The tunnel exclusion covers ground a `TUNNEL_CANDIDATE` was planned on, not a tunnel. No tunnel
+  system exists anywhere in this tree (the same absence Phase 16 steps 7/12 and
+  `bridgeplanner.cpp`'s stage-3 fallback already record). When one arrives it owns that test.
+- Nav rebuild after a construction is whole-world, not incremental -- inherited from Phase 16's own
+  disclosed gap, not added here.
+- `ExpansionRegion::IsForward` is decided by distance from the team's first region, the only real
+  "home" signal available without a base-ownership concept this tree does not have.
+- Chokepoint granularity is the sector graph's, which is the chunk registry's.
+- Nothing renders the expansion regions or the grading report. The exclusions do reach the player,
+  through the ghost the existing validator already colours.
+
+**One disclosed interpretation, not a silent one:** step 3 defines a grading request "from a valid
+ghost placement", and `PLACEMENT_SLOPE_TOO_STEEP` is treated as gradeable rather than fatal. A
+grading that could only ever level ground already flat enough to build on would change no outcome,
+and Phase 17's purpose line is letting the Commander build on generated terrain. Every other
+refusal, including all seven generated-world exclusions, still stands.
+
+**Next exact action:** rolled into the Phase 18 block below -- one live pass now covers all three.
+
+## V2 Phase 18 -- the journal is deterministic in one process; two processes have never compared
+
+All sixteen steps built for real, all three binaries clean, `terrain_worldops` green on both
+(`ctest -N` now 175, was 173). `WorldOperationClass` is the versioned envelope,
+`WorldOperationJournal` owns the monotonic revision, the ordered operation list and the base terrain
+snapshot, and three new canonical primitives live in `Code/wwphys/` beside the existing ones. The
+`worldop` console command is step 16. See `docs/procedural_world/WorldOperationJournal.md`.
+
+**Genuine, disclosed gaps -- none of them implementation shortfalls:**
+- **Replication is the format, not the transport.** `Write_Block`/`Read_Block` produce and consume
+  the compact operation and are proven by round trip; no packet type sends one yet. Wiring it
+  belongs with Phase 19, where the snapshot and late-join formats it must sit beside are defined.
+- **The journal lives in memory.** Persisting it is Phase 19 territory; what exists here is the
+  ordered, checksummed, replayable structure a save format would write.
+- RECLAIM_SHALLOW_WATER is off by default (step 3's own "if enabled") and refuses a partly dry disc
+  rather than levelling it -- raising a partly dry region to the waterline would *lower* the dry
+  part, which is FLATTEN by another name and without FLATTEN's checks.
+- Nav rebuild is whole-world, inherited from Phase 16, not added here.
+- The crater limits are not a profile block. The roadmap does not ask for one at this phase, and
+  inventing a schema field ahead of its own phase is what Section 34.0's discipline exists to avoid.
+
+**The half of Phase 18's targeted validation that a single process cannot reach.** That validation
+asks for "server applies, client reconstructs, collision matches" per operation. The self-check runs
+one journal in one process, so what is proven is determinism under replay -- base snapshot plus the
+ordered journal reproduces the identical terrain checksum, twice. The cross-peer half needs two
+processes and a transport, and is carried forward rather than claimed.
+
+**One thing worth keeping:** smoothing a plane is correctly a no-op, and the first version of the
+SMOOTH check asserted otherwise. A linear ramp is already its own four-neighbour mean. The check now
+digs a dent and asserts it gets shallower -- an assertion that "some bytes changed" would have
+passed on a smoother that did the wrong thing.
+
+**Next exact action:** one live Procedural Skirmish pass covering Phases 16, 17 and 18 together.
+1. Read six per-generation log lines -- `ProceduralWorldManager: world integration`,
+   `... navigation`, `... minimap base layer`, `... shroud coverage`, `... expansion rules`, and for
+   each report whether it says `built`/`armed` or `NOT BUILT`/`NOT ARMED`, and whether the sector,
+   portal and chokepoint counts are non-zero for a real seed.
+2. Confirm a human and an AI can each cross the world (Phase 16's gate).
+3. Place and construct a Power Plant, a ground factory, a defence and a communications building on
+   generated terrain and confirm no boundary or nav corruption (Phase 17's targeted validation).
+4. Run `worldop begin`, a few `worldop crater X Y R D` at real coordinates, then `worldop replay`,
+   and report whether it prints `MATCH` (Phase 18's acceptance line).
+
+Phase 20 is built and self-checked (see its own entry below); the live pass above is what closes
+16-18, and Phase 20 has its own, separate live pass.
+
+## V2 Phase 19 -- a world reconstructs exactly, in one process, over no wire at all
+
+All nineteen steps built for real, all three binaries clean, `terrain_worldsync` green on both
+(`ctest -N` now 177, was 175). `WorldSnapshotService` owns per-chunk/world checksums, the compact
+chunk snapshot, compaction and developer rollback; `WorldSyncService` owns the handshake, the join
+state machine, regional repair and the metrics. See `docs/procedural_world/SnapshotsAndLateJoin.md`.
+
+**Three real defects the self-check caught, each a design error rather than a typo**, and all three
+worth remembering because they are the kind that would have shipped silently:
+- A **derived value in a checksum is fragility without information**. The chunk checksum folded in
+  the chunk-registry entry, which is derived from the same heights but truncates float-derived
+  slopes at 1e-3 -- so sub-millimetre reconstruction noise flipped it while the ground agreed. The
+  repair protocol cannot tell that from real corruption.
+- The **quantizer has to round-trip exactly**. Truncation breaks it (`2.999f * 1000.0f` is
+  2998.9998 in float); rounding with the division in double does not.
+- A **late joiner has to adopt the authority's revision**, because its ground reaches the server's
+  without one operation passing through its journal, and step 16 gates building/AI state on that
+  number.
+
+**Genuine, disclosed gaps -- none of them implementation shortfalls:**
+- **Still a protocol, not a transport.** Every message is a byte block a caller writes and reads;
+  nothing opens a socket. This is what lets the whole join/verify/repair sequence be exercised end
+  to end without a network, and binding the blocks to the existing packet types is a networking work
+  item rather than a generation one. Phase 18's replication gap resolves the same way and to the
+  same place.
+- Snapshots cover terrain heights. Buildings, vehicles and AI state each already have their own
+  replication path; step 16's readiness gate is what this phase owed them, and it is implemented.
+- Generation time is recorded rather than measured here, and the profile/content hashes come from
+  their real owners rather than being invented.
+
+**The half a single process cannot reach:** two peers on a real network. The self-check throws the
+server's world away, regenerates the baseline deterministically, reconstructs from the blocks alone
+and gets a byte-identical world checksum -- steps 9-12 exactly, minus a socket.
+
+**Next exact action:** unchanged from the Phase 18 block above -- one live Procedural Skirmish pass,
+now also running `worldop status` before and after a few craters to confirm the revision advances and
+the journal checksum moves.
+
+## V2 Phase 20 -- functional subcomponents are real; a real building's own health has never driven one
+
+All ten steps built for real (roadmap Section 21), all three binaries clean, `shader_subcomponents`
+green on both (`ctest -N` now 179, was 177). `BuildingSubcomponentDefinition`
+(`Code/Combat/buildingdescriptor.h`) adds ten canonical roles with no second health pool -- function
+is a pure linear read of the building's own existing health, exactly the phase's own gate. See
+`docs/procedural_world/BuildingFunctionalSubcomponents.md` for the full account, including why real
+W3D bone names were scanned rather than guessed and which two of Section 21's six effect groups
+actually have a real building to attach to (`power_generator_module` on both Power Plants,
+`communications_array`/`radar_dish` on the GDI Communications Center only). **Correction, a later
+pass:** this entry previously said Phase 20 closed the roadmap under roadmap v2.1.0's own 20-phase
+count; the roadmap was extended to v2.2.0 (30 phases, Sections 22-30) before that claim was ever
+acted on, so Phase 20 is not the last phase -- see the V2 Phase 21 entry below.
+
+**Genuine, disclosed gaps -- none of them implementation shortfalls:**
+- Four of Section 21's six effect groups (refinery, factory, repair, defense) have no buildable
+  descriptor of that category anywhere in this tree yet -- P33's own backlog entry in this file,
+  not a new gap Phase 20 introduces.
+- Nod Communications Center and both factions' Advanced Communications Center carry no
+  `subcomponents` block -- confirmed, not assumed, that none of their model names exist as real
+  files anywhere in this tree, so there is no geometry to verify an anchor bone against.
+- `tiberium_storage` is unimplemented: no worked effect in the roadmap's own 21.2 and no real Silo
+  asset either.
+- Anchor-resolution *status* only works for a runtime-constructed building (`RuntimeParts` is empty
+  for a map-authored one); the numeric health-driven degradation itself is not runtime-construction-
+  specific and is unaffected by this limit.
+
+**What is not proven:** the same standing harness gap every runtime-building construction path in
+`-shaderselfcheck` already carries (no `PhysicsSceneClass`/`GameObjManager` scene -- see
+`Run_Runtime_Door_Service`'s own note) applies here too: a real building's own health has never
+actually driven `Get_Effective_Power_Generation`/`Get_Effective_Vision_Radius`/
+`Get_Effective_Radar_Radius` through a live `TeamPowerGridService` recalculation, and
+`building_subcomponents` has never printed a real `resolved` anchor against a real loaded model.
+
+**Next exact action** is a manual one for the user: run
+`renegade --gamedir "C:\Westwood\Renegade_full"`, enter Commander Mode, construct a Power Plant and
+a Communications Center on generated terrain, damage each below its own subcomponent's health
+threshold (0.75) and confirm at the console (`building_subcomponents`, `worldop status`-adjacent
+power/shroud figures) that generation and vision/radar radius drop proportionally and that the
+anchor bones report `resolved`; repair each back above threshold and confirm the numbers recover.
+
+## V2 Phase 21 -- the logistics graph is real; nothing has driven a convoy on screen
+
+All steps built for real (roadmap Section 22), both binaries clean, `terrain_logistics`/
+`fds_terrain_logistics` green (`ctest -N` now 181, was 179). `LogisticsGraphService`
+(`Code/Combat/logisticsgraphservice.h/.cpp`) builds a real node/route graph from
+`BaseSelectionPlanner`/`ExpansionRegionRegistry`/`TiberiumFieldGenerator`/`SettlementGenerator`
+plus live buildings, with real road-network distance/reachability from `RoadGraphGenerator`. Off
+by default (`ProceduralWorldProfile::Logistics.Enabled`, schema 7). See
+`docs/procedural_world/LogisticsLayer.md`.
+
+**Genuine, disclosed gaps -- none of them implementation shortfalls:**
+- `REFINERY`/`FACTORY`/`REPAIR` nodes are a real, working mechanism with nothing to find yet --
+  same P33 backlog gap Phase 20 already carries, not new to this phase.
+- Section 22's third named blockage cause ("enemy obstruction") is not attempted -- no
+  logistics-facing threat model exists; that is Phase 25's own recon/defense planner territory.
+- Section 22.2 step 5's construction-support radius is a real, tested predicate
+  (`Is_Under_Construction_Support`) with no caller applying a bonus from it yet -- an
+  unrequested balance number was not invented to fill that gap.
+- Section 22.5's Commander tactical-map visualization (routes/blockage/coverage on a real map) is
+  not attempted -- `logistics_status` is a console status report, not a rendering consumer, and no
+  such consumer exists in this tree yet for any of the several other systems carrying the same gap
+  (`DebugRenderSystem`'s own fourteen empty layers).
+
+**A real, pre-existing Phase 17 wiring gap found and fixed as part of this phase:**
+`ExpansionRegionRegistry::Note_Construction_Complete`/`Rebuild_Regions` had no caller anywhere in
+this tree outside their own self-check -- confirmed by grep, not assumed -- so the `IsForward`
+metadata Phase 21's own `FORWARD_BASE` node kind depends on could never have existed at runtime.
+Now wired into `combat.cpp`'s own construction-completion loop, server-only. `Reserve`/
+`Bind_Building` (step 10) deliberately left unwired -- Q-016's own design already closes the
+placement race that pair exists for; see the doc for why.
+
+**What is not proven:** `Rebuild_Building_Nodes` (the three live-building node kinds) has never
+run against a real `GameObjManager` scene -- the same standing harness gap every runtime-building
+path in this tree already carries. Bridge blockage has never been tested against a bridge that
+actually breaks mid-route. A convoy has never driven a real vehicle on screen.
+
+**Next exact action** is a manual one for the user: run
+`renegade --gamedir "C:\Westwood\Renegade_full"` with a profile that sets `logistics.enabled` (and
+`logistics.convoy_enabled` to see convoys) true, click **Procedural Skirmish**, read the
+`ProceduralWorldManager: logistics graph ...` log line, then `logistics_status` at the console and
+confirm the node/route counts look right for the seed; construct a forward base and confirm a
+`forward_base` node appears; if a Refinery/Factory/Repair Bay descriptor exists by then, confirm
+those node kinds populate too.

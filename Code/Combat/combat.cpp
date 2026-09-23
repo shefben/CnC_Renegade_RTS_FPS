@@ -78,6 +78,9 @@
 #include "commandercommandpalette.h"
 #include "commandercommandpaletterenderer.h"
 #include "commanderguardai.h"
+#include "expansionregionregistry.h"
+#include "logisticsgraphservice.h"
+#include "scriptablegameobj.h"
 #include "commanderselection.h"
 #include "commanderselectionrenderer.h"
 #include "commanderwaypoint.h"
@@ -1295,6 +1298,16 @@ void 	CombatManager::Think()
 		//	give the job up, or the team is locked out of its own production for the rest of the
 		//	match with nothing able to elect a replacement.
 		CommanderProductionService::Update_Commander_Vacancy( TimeManager::Get_Frame_Seconds() );
+
+		//	Roadmap Section 22, Phase 21.  Bridge health changes far more often than the
+		//	logistics graph's own topology does, so route status is re-tested every server tick
+		//	rather than only when the graph is rebuilt; convoys advance on the same clock every
+		//	other authoritative Commander AI system in this block already uses.  Both are cheap
+		//	no-ops with no graph built (the common case -- Section 22.1's own default is off).
+		if ( LogisticsGraphService::Has_Graph() ) {
+			LogisticsGraphService::Update_Route_Status();
+			LogisticsGraphService::Update( TimeManager::Get_Frame_Seconds() );
+		}
 	}
 
 	/*
@@ -1322,8 +1335,47 @@ void 	CombatManager::Think()
 	{
 		int completed_count = BuildingConstructionService::Get_Completed_Count();
 		for ( int index = 0; index < completed_count; index ++ ) {
-			RuntimeBuildingFactory::Activate_Completed_Building(
-				BuildingConstructionService::Get_Completed_Building( index ) );
+
+			int completed_building_id = BuildingConstructionService::Get_Completed_Building( index );
+			RuntimeBuildingFactory::Activate_Completed_Building( completed_building_id );
+
+			/*
+			**	Roadmap Section 34 Phase 17 steps 12-13 -- what a completed construction changes.
+			**	This is the one real "a construction just finished" event on the whole server, and
+			**	nothing called it before Phase 21: ExpansionRegionRegistry::Note_Construction_Complete/
+			**	Rebuild_Regions had no caller anywhere outside their own self-check, so the
+			**	FORWARD_BASE expansion-region metadata Phase 17 defined never actually existed at
+			**	runtime.  Wired here rather than left for Phase 21 to work around, because Phase 21's
+			**	own FORWARD_BASE logistics node kind depends on it being real.  Server-only: the
+			**	registry is authoritative bookkeeping, not presentation, the same authority split
+			**	every other block in this function already draws.
+			**
+			**	Deliberately not also wiring step 10's Reserve/Bind_Building: Q-016's own design
+			**	already creates the real BuildingGameObj (and its real spatial-index collision) the
+			**	instant a placement is accepted, which is what CommanderPlacementValidator's own
+			**	Query_Placement_Overlap sees on the very next placement -- the placement race
+			**	Reserve was designed to close looks already closed by that, and wiring a second,
+			**	redundant reservation on top of it is outside what Phase 21 actually needs.
+			*/
+			if ( CombatManager::I_Am_Server() ) {
+				ScriptableGameObj * completed_scriptable = GameObjManager::Find_ScriptableGameObj( completed_building_id );
+				BuildingGameObj * completed_building = ( completed_scriptable != nullptr )
+																		  ? completed_scriptable->As_BuildingGameObj() : nullptr;
+				if ( completed_building != nullptr ) {
+					const float FORWARD_BASE_CLUSTER_RADIUS = 50.0f;		// world units -- Section 21's own judgement call
+
+					Vector3 completed_position;
+					completed_building->Get_Position( &completed_position );
+
+					StringClass completion_report;
+					ExpansionRegionRegistry::Note_Construction_Complete( completed_building_id,
+						completed_building->Get_Definition().Get_Descriptor_Name().Peek_Buffer(),
+						completed_position,completed_building->Get_Player_Type(),&completion_report );
+
+					StringClass region_error;
+					ExpansionRegionRegistry::Rebuild_Regions( FORWARD_BASE_CLUSTER_RADIUS,&region_error );
+				}
+			}
 		}
 	}
 

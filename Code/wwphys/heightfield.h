@@ -156,6 +156,38 @@ public:
 	void					Blend_Height_Region(const Vector3 & center,float radius,float target_height,float blend);
 
 	/*
+	**	A building foundation: a flat plateau with a ramp around it.  Roadmap Section 34 Phase 17
+	**	step 7 -- the Commander flattening ground a structure will stand on.
+	**
+	**	Neither of the two primitives above can make this shape.  Both fall off smoothly from the
+	**	centre, so a building graded with either stands on a dome; what a foundation needs is the
+	**	footprint set exactly level and the difference paid off across a ring outside it.  Inside
+	**	`flat_radius` the ground becomes `target_height` exactly.  Between there and
+	**	`apron_radius` it interpolates back to whatever it already was, so nothing outside the
+	**	apron moves and there is no wall at either edge.
+	**
+	**	`apron_radius` <= `flat_radius` degenerates to a bare plateau with a vertical edge, which
+	**	is a legal thing to ask for and a poor thing to build; the caller that sizes the apron
+	**	from a slope limit (foundationgrading.cpp) never does.
+	*/
+	void					Grade_Foundation(const Vector3 & center,float flat_radius,float apron_radius,
+														float target_height);
+
+	/*
+	**	Average a circular region with itself.  Roadmap Section 34 Phase 18's SMOOTH operation.
+	**
+	**	Neither raising, lowering nor flattening: every vertex moves towards the mean of its four
+	**	neighbours, weighted by `strength` (0 changes nothing, 1 replaces it with that mean) and
+	**	by the same radial falloff the other region primitives use, so a smoothed patch blends
+	**	into the ground around it rather than ending at a seam.
+	**
+	**	Reads the heights before any of them move, so the result does not depend on which vertex
+	**	the sweep reached first -- the difference between a filter and a smear, and the difference
+	**	between an operation that replays identically on every peer and one that does not.
+	*/
+	void					Smooth_Height_Region(const Vector3 & center,float radius,float strength);
+
+	/*
 	**	Sampling.  World x and y in, ground in out.  False when the point is outside the field,
 	**	in which case nothing is written -- a caller over the void needs to know it is over the
 	**	void, not to be handed the nearest edge and told it is standing on it.

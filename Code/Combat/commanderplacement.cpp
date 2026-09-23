@@ -11,6 +11,7 @@
 #include "commanderplacement.h"
 
 #include "buildingdescriptormanager.h"
+#include "generatedworldplacementrules.h"
 #include "obbox.h"
 #include "phys.h"
 #include "pscene.h"
@@ -122,6 +123,18 @@ bool CommanderPlacementValidator::Build_Footprint_Box(const CommanderPlacementRe
 }
 
 
+bool CommanderPlacementValidator::Get_Footprint_Radius(const char * descriptor_name,float * radius_out)
+{
+	if ((descriptor_name == nullptr) || (descriptor_name [0] == '\0')) return false;
+
+	const BuildingModelDescriptor * descriptor = BuildingDescriptorManager::Get_Descriptor (descriptor_name);
+	if (descriptor == nullptr) return false;
+
+	if (radius_out != nullptr) *radius_out = Footprint_Sample_Radius (*descriptor);
+	return true;
+}
+
+
 CommanderPlacementResult CommanderPlacementValidator::Validate(const CommanderPlacementRequest & request)
 {
 	CommanderPlacementResult result;
@@ -191,6 +204,41 @@ CommanderPlacementResult CommanderPlacementValidator::Validate(const CommanderPl
 	} else {
 		result.GroundHeight	= request.Position.Z;
 		result.SlopeDegrees	= 0.0f;
+	}
+
+	/*
+	**	V2 roadmap Section 34 Phase 17 steps 1-2 -- the generated world's own exclusions, asked
+	**	of the one owner that knows about water, cliffs, bridges, resource routes and the sector
+	**	graph.  Asked after the surface query because the surface query is what resolves the
+	**	ground height this file goes on to use, and before the overlap test because "in the
+	**	river" is a better answer than "overlaps something" for a placement that is both.
+	**
+	**	Silent on every hand-authored map: none of the generated-world owners is configured
+	**	there, so Classify answers GENERATED_WORLD_EXCLUSION_NONE everywhere (directive 1.10).
+	*/
+	{
+		float exclusion_radius = Footprint_Sample_Radius (*descriptor);
+		GeneratedWorldExclusionType exclusion =
+			GeneratedWorldPlacementRules::Classify (request.Position,exclusion_radius);
+
+		switch (exclusion) {
+			case GENERATED_WORLD_EXCLUSION_BOUNDARY_CLIFF_BAND:
+				result.Result = PLACEMENT_OUT_OF_BOUNDS;			return result;
+			case GENERATED_WORLD_EXCLUSION_WATER:
+				result.Result = PLACEMENT_ON_WATER;					return result;
+			case GENERATED_WORLD_EXCLUSION_IMMUTABLE_CLIFF:
+				result.Result = PLACEMENT_ON_IMMUTABLE_CLIFF;		return result;
+			case GENERATED_WORLD_EXCLUSION_TUNNEL:
+				result.Result = PLACEMENT_ON_TUNNEL;				return result;
+			case GENERATED_WORLD_EXCLUSION_BRIDGE:
+				result.Result = PLACEMENT_ON_BRIDGE;				return result;
+			case GENERATED_WORLD_EXCLUSION_RESOURCE_ROUTE:
+				result.Result = PLACEMENT_ON_RESOURCE_ROUTE;		return result;
+			case GENERATED_WORLD_EXCLUSION_NAV_CHOKEPOINT:
+				result.Result = PLACEMENT_BLOCKS_NAV_CHOKEPOINT;	return result;
+			default:
+				break;
+		}
 	}
 
 	/*
@@ -357,6 +405,12 @@ const char * CommanderPlacementValidator::Get_Result_Name(CommanderPlacementResu
 		case PLACEMENT_BLOCKED_GEOMETRY:		return "blocked by geometry";
 		case PLACEMENT_UNSUPPORTED_SURFACE:	return "unsupported surface";
 		case PLACEMENT_SLOPE_TOO_STEEP:		return "slope too steep";
+		case PLACEMENT_ON_WATER:				return "on water";
+		case PLACEMENT_ON_IMMUTABLE_CLIFF:	return "on an immutable cliff";
+		case PLACEMENT_ON_TUNNEL:				return "on a tunnel portal";
+		case PLACEMENT_ON_BRIDGE:				return "on a bridge or its approach";
+		case PLACEMENT_ON_RESOURCE_ROUTE:	return "on a protected resource route";
+		case PLACEMENT_BLOCKS_NAV_CHOKEPOINT:	return "blocks a navigation chokepoint";
 		case PLACEMENT_EXIT_BLOCKED:			return "production exit blocked";
 		case PLACEMENT_WRONG_FACTION:			return "wrong faction";
 		default:										return "unknown";

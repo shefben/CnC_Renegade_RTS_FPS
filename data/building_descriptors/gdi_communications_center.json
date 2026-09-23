@@ -36,6 +36,13 @@
     "mct_anchor": "MCT",
     "purchase_terminal_anchor": "PT01"
   },
+  "_comment_subcomponents": "Phase 20 (roadmap Section 21). Unlike this file's own mct_anchor/purchase_terminal_anchor above (this comment block's own header admits those are unverified guesses), the two anchor_bone values below are confirmed by direct ASCII string scan of the real G_Comcntr.w3d: COM_ANTEN000-005 (a six-piece antenna array) and COM_EXT-ANT/COM_EXT-FRM/COM_EXT-JAM/COM_EXT-LOGO/COM_EXT-STRC/COM_EXT-TWR (an exterior structure group whose own TWR suffix reads as 'tower'). communications_array anchors to the antenna array (the vision/radar-gathering function); radar_dish anchors to the tower (the taller, more exposed structure, plausibly the first thing knocked out). See docs/procedural_world/BuildingFunctionalSubcomponents.md.",
+  "subcomponents": [
+    { "role": "communications_array", "anchor_bone": "COM_ANTEN000",
+      "full_function_health_fraction": 0.75, "disabled_health_fraction": 0.0 },
+    { "role": "radar_dish", "anchor_bone": "COM_EXT-TWR",
+      "full_function_health_fraction": 0.75, "disabled_health_fraction": 0.0 }
+  ],
   "construction_visual": {
     "duration_seconds": 12.0,
     "block_width": 2.0,

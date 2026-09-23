@@ -3453,6 +3453,465 @@ is ever produced; and the same seed/world reproduce the same verdict and failure
 `-terrainselfcheck` (all families, no `which` filter) shows the same 11 pre-existing failures,
 none of them touched by this phase, none of them new. `ctest -N` now lists 161 (was 159).
 
+## V2 Phase 16 -- final generated-world integration: collision, navigation, shroud, minimap
+
+Three new generators plus one real fix to a gap that verification turned up.
+
+**Steps 1-2, collision/render registration.** `GeneratedWorldIntegrator`
+(`Code/Combat/generatedworldintegrator.h/.cpp`) closes the one loop Phase 1-15 left open:
+`SettlementGenerator`'s own header says outright it does not instantiate a live
+`StaticPhysClass`, and settlement structures were the only generated-object type still data-only
+(RoadSystem, EscarpmentSystem, BridgeSystem and FoliageSystem each already call
+`PhysicsSceneClass::Add_Static_Object` themselves). Every structure resolves through the real
+`ProceduralAssetRegistry` -> `BuildingDescriptorManager` -> `WW3DAssetManager` chain, the same
+one `BuildingGameObj::Build_Runtime_Components` already uses; a missing model leaves that
+structure's `HasCollision` honestly false rather than fabricating a box. Each gets a real
+persistence id (`<settlement node id>:structure:<index>`). Steps 10-11 (culling, lighting) need
+no new code: every object added this way goes through the same v1 spatial-partition and
+static-lighting path a hand-placed level object does.
+
+**Steps 3-8, real navigation.** `NavMeshGenerator` (`Code/Combat/navmeshgenerator.h/.cpp`)
+populates `PathfindClass`'s own real, live, AI-consulted sector/portal database -- the singleton
+`action.cpp`'s `Does_Pathfind_Data_Exist`/`Find_Waypath` actually query. An earlier recon read
+said no builder API existed; that was wrong about `Add_Sector`/`Add_Portal`, and right that no
+automatic sector-from-geometry builder exists (`wwphys/PathfindSectorBuilder.cpp` looks like one
+but is confirmed dead: absent from `wwphys/CMakeLists.txt`, calls `PathfindClass` methods that do
+not exist on the class as checked in, wired to LevelEdit UI). One sector graph is built, not
+three, sized by the tightest `MaxClimbableSlope` across every loaded locomotion class --
+`WorldMetricsClass`'s own documented "most restrictive member" answer, since `PathfindSectorClass`
+carries no locomotion tag and a parallel sector format is exactly what Section 28A's reuse
+discipline forbids. Sectors come from the chunk registry rather than a physics floodfill (a
+disclosed coarser granularity, reusing the terrain generators' already-deterministic answer).
+Bridges get real off-mesh portals via their own road-edge endpoints. Flight is a real bounded
+volume, not a fabricated air sector graph nothing would query. Naval is skipped outright -- no
+canonical naval locomotor exists in this tree, which step 6's own wording allows.
+
+**Step 12, minimap base layer.** `MinimapBaseLayer` (`Code/Combat/minimapbaselayer.h/.cpp`) reuses
+the same chunk registry as its cell grid and the same real masks/queries every earlier phase
+established, with markers naming real resolved objects by their owners' own stable ids. It is
+real output with no renderer to hand it to yet -- grepping this tree finds no minimap/tactical-map
+renderer at all -- stated plainly rather than papered over.
+
+**Step 13, a real gap found and fixed.** `WorldShroudManager` is already fully world-coordinate
+based, so the expected answer was "works unchanged." Verification found otherwise: its per-team
+grid does not exist until `Re_Partition` is called, it does not auto-partition on first use the
+way `WorldLightManager` does, and its one existing caller
+(`PhysicsSceneClass::Re_Partition_Dynamic_Culling_System`, `pscene.cpp:1787`) is documented
+editor-only and also resets vis. Nothing at game runtime would ever have sized the shroud grid to
+a generated world. `GeneratedWorldIntegrator::Partition_Shroud_Over_World` now derives the real
+AABB from the chunk registry's own patch bounds and calls the same `Re_Partition` without the vis
+reset. Step 14 needs no new enforcement -- this phase adds no fog-of-war bypass and no
+intelligence source, only static collision objects and a static map background.
+
+**Steps 15-16.** The completion barrier is real and needed no new synchronization primitive:
+with all four Phase 16 builds sequenced inside `Generate_World_Attempt` before `WorldActive` is
+set, the pre-existing `Is_World_Active()` already means "collision/nav/shroud/minimap have run to
+completion." `WorldGenerationManifest::NavigationRevision` -- carrying the comment "0 until Phase
+16 exists" since Phase 1 -- is finally populated.
+
+Six new self-checks (`terrain_worldintegration`/`navigation`/`minimap` plus `fds_` variants), all
+passing on both binaries. Each proves its honest-refusal path as well as its real-chain path; the
+step-13 check re-derives every patch centre against the resulting grid rather than trusting the
+partition call's return value. Two real, tolerated-not-crashed conditions were found and handled:
+`PathfindClass::Get_Instance()` is legitimately null on the client self-check context (it is
+constructed inside `PhysicsSceneClass`'s constructor, the same asymmetry `FoliageSystem` already
+null-guards), and with no infantry definition loaded `NavMeshGenerator` refuses honestly rather
+than guessing an envelope.
+
+`renegade` and `renegadeserver` both build clean, 0 warnings. `ctest -N` now lists 167 (was 161).
+
+## Unattended ctest unblocked -- two real defects behind the modal assert dialog
+
+A full-suite `ctest` run used to stop dead on a modal Abort/Retry/Ignore box that no test runner
+can answer and that re-opened on every Ignore. Both causes were real and are fixed.
+
+**Refcounted objects with automatic storage.** `shaderselfcheck.cpp` declared `CameraClass
+camera;` on the stack in six checks. `CameraClass` is a `RenderObjClass`, which is a
+`RefCountClass`: the constructor starts the object at one reference and the destructor asserts
+that reference is gone, so every one of those tripped `refcount.h:185 (NumRefs == 0)` at scope
+exit. The engine itself never stack-allocates one -- a grep of the whole tree finds these six and
+nothing else. Now `NEW_REF`'d and released before return, per refcount.h's own stated ownership
+rules (`RenderInfoClass` keeps a plain reference and never add-refs, so releasing after its last
+read is correct). That alone restored `shader_particles`, `shader_weather`, `shader_tracers` and
+`shader_debris` on both binaries.
+
+**No assert handler on the self-check entry points.** `WWDebug_Assert_Fail` falls back to a modal
+message box when no handler is installed. The game installs one in `init.cpp`, and every other
+harness in this tree (`Code/Tests/PhysTest`, `MeshTest`, `movietest`) installs its own; the five
+`-*selfcheck` paths return long before `Init` runs and were the only harnesses left without one.
+They now install a handler that prints `ENGINE ASSERT: <file> (<line>) Assert: <expr>` to stderr
+and exits non-zero -- an engine assert now fails the test loudly, with the diagnostic in the log,
+instead of blocking on human input. It deliberately never returns, since `WWASSERT`'s callers all
+carry on as though the asserted condition held.
+
+Full suite now runs unattended end to end: 167 tests, 30 failing, every failure reported as text.
+Those 30 (22 `shader_*`, 8 `terrain_*`, both binaries) are pre-existing logic failures untouched
+by Phase 16 -- descriptor `game_object_preset` resolution across the sidebar/placement/
+construction/production/powergrid family, and shroud visibility across `terrain_shroud`/
+`shader_overlays`/`shader_powergrid`. They are now *visible* rather than hidden behind a dialog;
+fixing them is separate work.
+
+---
+
+## V2 Phase 17 -- Commander expansion on generated terrain and bounded foundation grading
+
+All thirteen steps built for real. Three new owners, one extended, one new terrain primitive;
+`renegade` and `renegadeserver` both build clean with zero warnings; six new ctest entries
+(`terrain_placementrules`, `terrain_grading`, `terrain_expansion` plus `fds_` variants) all pass
+and `ctest -N` is now 173, was 167. Full account: `docs/procedural_world/CommanderExpansion.md`.
+
+**Steps 1-2 -- generated-world placement exclusions** (`Code/Combat/generatedworldplacementrules.*`).
+`GeneratedWorldPlacementRules::Classify` answers one question with the reason rather than a bool,
+over the real owner of each feature: boundary/cliff band (`WorldBoundsService` plus the chunk
+registry's own `CliffBand`), water (`WaterSystem`, centre plus four rim samples), immutable major
+cliff (`InteriorCliff` plus `EscarpmentSystem::Sample_Face`), tunnel portal, bridge structure and
+approach, protected resource route, and invalid nav chokepoint. Six new
+`CommanderPlacementResultType` values carry them through the existing v1 validator, which gained
+one call rather than nine includes. No distance in the file is a named constant -- the bridge
+approach is one bridge-width because that is the only length a bridge states, the resource corridor
+is the road spline's own half-width, the water rim samples are the caller's footprint radius. Every
+rule is silent on a hand-authored map (directive 1.10).
+
+The chokepoint rule is the exact connectivity test, not an approximation: remove every navigable
+chunk the footprint covers, flood fill, compare. The cached articulation-point set
+(`Build_Chokepoints`, iterative Tarjan) is exposed as real map metadata for the Commander and AI but
+deliberately does *not* accelerate `Classify`, because it cannot -- covering an articulation point
+and everything it separated leaves a connected remainder, so the cache would produce false
+rejections. `NavMeshGenerator` gained `Is_Chunk_Navigable`/`Get_Chunk_Count_X`/`_Y`, recording
+walkability separately from sector registration so the one judgement is shared rather than
+re-derived.
+
+**Steps 3-9 -- bounded foundation grading** (`Code/Combat/foundationgrading.*`, plus
+`HeightfieldClass::Grade_Foundation` and `WorldTerrainSystem::Apply_Foundation_Grade`). Two phases,
+never one: `Evaluate` measures against the real heightfield and reports every number plus the first
+limit broken; `Execute` re-evaluates before touching anything, grades through the canonical terrain
+owner, rebuilds only the dirty collision patches and the chunk registry (against the same slope cap
+it was built with), then revalidates server-side on the ground as it now is. Nothing in
+`Code/Combat/` writes a height sample. Profile schema/generator version 6 adds the `grading` block;
+a schema-1..5 profile still loads on defaults.
+
+**Two real defects found by the self-checks rather than reasoned about in advance, and fixed:**
+(1) a pad levelled only to the footprint disc leaves the building's own rim tilted, because
+interpolation pulls from grid vertices outside it -- measured 0.14 world units off level; the pad is
+now one heightfield cell diagonal wider, derived from the cell size. (2) Sizing the apron from the
+height difference under the footprint is wrong on any real slope and wrong in the dangerous
+direction -- the ramp pays off the difference at its own outer rim, which moves as the ramp grows.
+On a 10 degree ramp the naive formula produced a graded face measured at 0.684 rad against a 0.5 rad
+limit. Apron sizing is now a bounded fixed-point solve (8 attempts, Section 3C.1's own retry
+discipline) against the measured surface, so the reported slope is a measurement and never a
+restatement of the number used to size it.
+
+**Steps 10-13 -- reservation, completion sweep, expansion regions**
+(`Code/Combat/expansionregionregistry.*`). Step 10 closes the window between a placement being
+accepted and the building existing, in which two Commanders clicking the same hillside both get a
+valid answer. Step 12 rebuilds navigation and the chokepoint set, recalculates the owning team's
+power through `TeamPowerGridService`, and releases the reservation last; it returns a written report
+so "nav was rebuilt" is observable rather than claimed. Spatial registration is deliberately left to
+`BuildingGameObj::Build_Runtime_Components`, the one canonical path. Step 13's expansion regions are
+deterministic proximity clusters with stable ids and a quantized CRC.
+
+**Disclosed gaps, none of them implementation shortfalls:** the tunnel exclusion covers planned
+`TUNNEL_CANDIDATE` ground only, because no tunnel system exists anywhere in this tree; nav rebuild
+after a construction is whole-world, inheriting Phase 16's disclosed absence of an incremental
+rebuild; `IsForward` is decided by distance from a team's first region, the only real home signal
+without a base-ownership concept; chokepoint granularity is the sector graph's; and nothing renders
+the expansion regions or the grading report yet.
+
+**One disclosed interpretation:** step 3 says a grading request comes "from a valid ghost
+placement". `PLACEMENT_SLOPE_TOO_STEEP` is treated as gradeable rather than fatal, because a grading
+that could only ever level ground already flat enough to build on would change no outcome at all,
+and Phase 17's own purpose line is letting the Commander build on generated terrain. Every other
+refusal, including all seven generated-world exclusions, still stands.
+
+**Regression status:** full suite 173 tests, 30 failing -- the same 30 names as before this phase,
+so zero regressions. Phase 17's own gate ("Commander can expand a base on generated terrain using
+only canonical v1 building systems plus safe bounded terrain grading") still needs the live pass;
+generation now logs one more line for it, `ProceduralWorldManager: expansion rules armed`.
+
+---
+
+## V2 Phase 18 -- runtime terrain mutation and the ordered WorldOperation journal
+
+All sixteen steps built for real. `renegade`, `renegadeserver` and `leveledit` all build clean with
+zero warnings; `terrain_worldops` and `fds_terrain_worldops` pass and `ctest -N` is now 175, was
+173. Full account: `docs/procedural_world/WorldOperationJournal.md`.
+
+**Step 1 -- the versioned envelope** (`Code/Combat/worldoperation.*`). `WorldOperationClass` carries
+a format version, a monotonic operation id, the base revision the submitter measured against, the
+type, the team, a server timestamp, one region, and a bounded polyline for the two types that carve
+along one. Parameter validation is per type and contains no terrain code at all, so a client can
+reject a malformed envelope it will never apply. The wire format is written field by field,
+little-endian -- a memcpy of the class would tie the format to one compiler's padding.
+
+**Step 2 -- the world revision.** Owned by `WorldOperationJournal`, which also owns the ordered
+operation list and the base terrain snapshot, because splitting them would allow a revision no list
+explains or a list no base can be replayed from. `Begin` sets revision 1, not 0: zero means "no
+journal", so an operation submitted against 0 is a submitter that never read one.
+
+**The design decision the whole phase rests on:** operations travel, heights never do. A peer
+receives the request that produced the terrain and performs it itself; a crater is a fixed ~56 bytes
+whatever its radius. One base snapshot at `Begin` pays for three separate features at once --
+RESTORE_REGION gets something real to restore from with no per-operation undo blob, replay gets a
+defined starting point, and replication stays compact.
+
+**Steps 3-4 -- ten types with per-type dependency masks and per-type protected-region rules.** Every
+type invalidates render, collision and nav because every type moves ground; water, roads and
+materials differ by type. LOWER and CREATE_CRATER are deliberately the same arithmetic -- a crater
+*is* a bounded lowering, and what makes it a crater is step 15's rules, not a second falloff to keep
+in step with the first. Protected-region rules had to become per-type because carving a channel is
+*supposed* to move water while still being forbidden a bridge abutment, which is why
+`GeneratedWorldPlacementRules` gained `Get_Static_Feature_Mask`; `Classify_Static_Features` is now
+the lowest set bit of that mask, so the two can never disagree about what is present.
+
+**Steps 5-13 -- reserve, apply, invalidate, commit, journal.** Chunk reservation is all-or-nothing
+and is held from before the mutation until after the last dependency commits. Stale-revision
+rejection is applied only to the four relative types, which is the roadmap's own "where ordering
+matters". Every dependency is driven through the system that owns it and nothing is recomputed in
+the journal; a dependency whose system is absent reaches its commit point trivially and says so
+rather than pretending work was done. The revision advances last, because a peer that sees revision
+N+1 is entitled to ask the pathfinder about revision N+1's ground.
+
+**Step 15 -- bounded crater rules.** Max radius, max depth, a rate limit that reads the journal
+rather than a counter (a counter would not survive a replay, and a replay that hit the limit
+differently would not be a replay), and no cliff-band mutation -- applied to every type, not only
+craters, and refused with a readable answer rather than the terrain owner's silent no-op.
+
+**Step 16 -- `worldop` console command.** `status`, `begin`, `replay`, `crater` and `restore`.
+`worldop replay` prints the terrain checksum before and after replaying the journal from the base
+snapshot and whether they MATCH, which is the phase's own acceptance line made runnable by a person.
+
+**Three new canonical terrain primitives**, all in `Code/wwphys/` beside the existing ones because
+the ground has one owner: `HeightfieldClass::Smooth_Height_Region` (+ `WorldTerrainSystem::
+Apply_Smooth`), `WorldTerrainSystem::Apply_Flatten`, and `WorldTerrainSystem::Apply_Height_Patch`
+for RESTORE_REGION. The smoother reads every neighbour from the heights as they were before the
+operation began -- filtering in place would make each vertex depend on the sweep order, which is the
+difference between an operation that replays identically on every peer and one that does not.
+
+**One thing the self-check taught:** smoothing a plane is correctly a no-op. The first version of
+the check ran SMOOTH over the uniform test ramp and asserted the ground changed; it did not, and the
+code was right -- a linear ramp is already its own four-neighbour mean. The check now digs a real
+dent and asserts it gets *shallower*, which is what the operation promises; an assertion that some
+bytes changed would have passed on a smoother that did the wrong thing.
+
+**Disclosed gaps:** replication is the format, not the transport -- `Write_Block`/`Read_Block` are
+proven by round trip but no packet type sends one yet, which is Phase 19's business where the
+snapshot and late-join formats it must sit beside are defined; the journal lives in memory, with
+persistence likewise Phase 19's; nav rebuild is whole-world, inherited from Phase 16; and the crater
+limits are not yet a profile block, because the roadmap does not ask for one at this phase.
+
+**What is not proven:** that two processes agreed. The self-check runs one journal in one process,
+so it demonstrates determinism under replay -- the necessary half. "Server applies, client
+reconstructs, collision matches" needs two peers and a transport, and that half is carried forward
+to Phase 19 and stated as such rather than claimed.
+
+**Regression status:** full suite 175 tests, 30 failing -- the same 30 names as before Phases 17 and
+18, so zero regressions from either.
+
+---
+
+## V2 Phase 19 -- snapshots, checksums, late join, regional repair, developer rollback
+
+All nineteen steps built for real. All three binaries build clean with zero warnings;
+`terrain_worldsync` and `fds_terrain_worldsync` pass and `ctest -N` is now 177, was 175. Full
+account: `docs/procedural_world/SnapshotsAndLateJoin.md`.
+
+**Steps 1-7** (`Code/Combat/worldsnapshot.*`). A chunk snapshot holds the difference between a chunk
+and the chunk a client can already regenerate for itself -- step 3's own wording read literally,
+which is both the simplest thing to implement and the smallest thing to send. Per-chunk and
+world-level checksums, dirty-chunk detection against the journal's baseline, a three-threshold
+compaction policy (count/age/bytes), and `WorldOperationJournal::Rebase` as the fold. `Compact`
+captures before it rebases, because rebasing makes every chunk pristine by definition and a capture
+taken afterwards would be empty with the world's history gone.
+
+**Steps 8-16 and 19** (`Code/Combat/worldsyncservice.*`). The handshake carries generator version,
+profile hash, content hash, manifest revision, snapshot inventory, snapshot revision, world revision
+and world checksum, and refuses the join on any of the first four before a snapshot byte moves. The
+join is an explicit state machine rather than one call, because "the baseline did not match" and "a
+snapshot was refused" need different recoveries. Regional repair returns one chunk's snapshot and
+reverifies it rather than trusting it. Metrics are counted bytes, never estimates.
+
+**Steps 17-18.** Developer rollback, bounded at eight points. The journal is rebased onto the
+rolled-back ground rather than rewound -- rewinding would need every operation since the point to be
+individually invertible, and a SMOOTH destroys the information needed to un-smooth it.
+
+**Three real defects found by the self-check and fixed, each a genuine design error rather than a
+typo:**
+
+1. **A derived value in a checksum is fragility without information.** The chunk checksum folded in
+   the chunk registry's entry. That entry is derived from the same heights, so it added nothing --
+   but it added sensitivity to sub-millimetre noise, because a client rebuilds from quantized
+   heights and the registry truncates float-derived slopes at 1e-3. The ground agreed, the entry did
+   not, and the repair protocol cannot tell that from real corruption. Removed; the checksum is
+   heights only.
+2. **The quantizer has to round-trip exactly.** `Quantize(Dequantize(q))` must equal `q`, and
+   truncation breaks it: `2.999f * 1000.0f` is 2998.9998 in float. Rounded, with the division in
+   double.
+3. **A late joiner has to adopt the authority's revision.** Its ground reaches the server's without
+   one operation passing through its journal, so its revision would sit at 1 while its ground was at
+   the server's N -- and step 16 gates building and AI state on exactly that number.
+
+**One design correction the roadmap's own wording pointed at:** step 14 says the server "returns only
+affected chunk snapshot", and the definite article is load-bearing. `Build_Repair_Block` returns the
+*retained* snapshot, not a fresh capture: after a compaction every chunk is pristine against the new
+baseline, so a fresh capture comes back empty -- a repair block that repairs nothing.
+
+**Disclosed gaps:** still a protocol rather than a transport (every message is a byte block; binding
+them to packet types is a networking work item, and it is what lets the whole sequence be exercised
+end to end without a network); snapshots cover terrain heights, because buildings, vehicles and AI
+state each already have their own replication path and step 16's readiness gate is what this phase
+owes them; generation time is recorded rather than measured here; and the profile and content hashes
+come from their real owners rather than being invented.
+
+**What is not proven:** two processes on a real network. The self-check throws the server's world
+away, regenerates the baseline deterministically, reconstructs from the blocks alone and compares
+checksums -- exactly steps 9-12 minus a socket. The wire itself is stated as outstanding rather than
+claimed.
+
+**Regression status:** full suite 177 tests, 30 failing -- the same 30 names as before Phases 17, 18
+and 19, so zero regressions from any of them.
+
+---
+
+## V2 Phase 20 -- advanced building functional subcomponents (roadmap Section 21)
+
+All ten steps built for real, all three binaries (`renegade`, `renegadeserver`, `leveledit`) build
+clean with zero warnings; `shader_subcomponents` and `fds_shader_subcomponents` pass and `ctest -N`
+is now 179, was 177. Full account: `docs/procedural_world/BuildingFunctionalSubcomponents.md`.
+This is the last roadmap phase.
+
+**The phase's own gate -- "functional damage exists without a second building health/state system"
+-- is satisfied structurally, not by discipline.** `BuildingSubcomponentDefinition`
+(`Code/Combat/buildingdescriptor.h`) carries two health-fraction thresholds, not a health pool; the
+function a subcomponent contributes is a pure linear read of the building's own existing
+`DefenseObject.Get_Health()/Get_Health_Max()`. Ten canonical roles (Section 21.1's own list),
+resolved by role-name enum so an authoring typo is a load refusal, not a silently-untracked role.
+An undeclared role returns a `-1.0f` sentinel every caller reads as "leave my value alone" --
+proven directly by the self-check: a descriptor with no `subcomponents` block, which is every
+descriptor before this phase, is provably unaffected by it.
+
+**Anchor bones were verified by direct W3D string scan, not guessed.** No inspector tool exists in
+this environment, so real bone/pivot names were recovered the same way Q-017's door work already
+did for `mgpwr_doors.w3d`. Confirmed real: `MGPWR_MCT`/`MNPWR_MCT` (both Power Plants' actual MCT
+nodes) and `COM_ANTEN000`-`005`/`COM_EXT-TWR` (the GDI Communications Center's real antenna array
+and exterior tower group) -- the same scan also confirmed that file's own pre-existing
+`mct_anchor`/`purchase_terminal_anchor` entries resolve to nothing in the real asset, independently
+proving their own comment's admission that they were unverified guesses (left alone; out of scope).
+
+**Only two of Section 21's six named effect groups are wired with real data, and the doc says
+exactly why the other four are not:** this tree has real buildable descriptors for Power Plant and
+(GDI only) Communications Center -- Refinery, Factory, Repair Bay and every defense structure have
+real art but no `data/building_descriptors/*.json` at all yet (`WIP_features.md`'s own P33 entry),
+so a subcomponent effect for any of them would modify a building nothing can construct. `TiberiumSilo`
+is skipped for the same asset reason plus 21.2 naming no worked effect for it at all.
+`gdi_power_plant.json`/`nod_power_plant.json` each gained a `power_generator_module` entry anchored
+to the plant's own real MCT; `gdi_communications_center.json` gained `communications_array`
+(antenna array) and `radar_dish` (tower group) entries. Nod Comm Center and both factions' Advanced
+Comm Center stay unwired -- confirmed, not assumed, that none of their `ow_*` model names exist
+anywhere in this tree.
+
+**A real recursion this pass found and fixed:** `TeamPowerGridService::RecalculateTeam` drives
+`Enable_Power` on every member, and `Enable_Power` calls `BuildingGameObj::Update_State`, which (as
+of this phase) can itself ask to recalculate the same team. A naive nested call would
+stack-overflow; `RecalculateTeam` now guards against re-entering a team already mid-recalculation,
+safe because the in-progress outer pass already reads every member's current, health-scaled
+generation/radius by the time it reaches that member.
+
+**Save/network (step 9) needed no new code.** Subcomponent function derives entirely from health,
+which already saves and replicates -- a parallel field would be the "second independent truth"
+`TeamPowerGridService.h`'s own Section 46 note already forbids for the power grid, applied here
+without modification.
+
+`building_subcomponents` (console, both binaries) is the step-10 status report: walks every
+`BuildingGameObj` in the world (no per-building selection exists yet -- P36's own gap) and prints
+role/function-fraction/anchor-resolution status for each one that declares a subcomponent.
+
+**Disclosed gaps, none of them implementation shortfalls:** the four unwired effect groups (no
+buildable descriptor of that category exists); three of four Communications-capable descriptors
+carry no `subcomponents` block (no real geometry to verify a bone against); `tiberium_storage` has
+no defined effect and no real asset either; anchor *status* reporting only works for a
+runtime-constructed building (a map-authored building's parts never populate `RuntimeParts`), though
+the numeric health-driven degradation itself is not runtime-construction-specific and applies to
+either kind.
+
+**What is not proven:** a real `BuildingGameObj`'s own health actually driving these numbers end to
+end through `TeamPowerGridService` and `WorldShroudManager` -- `-shaderselfcheck` has no
+`PhysicsSceneClass`/`GameObjManager` scene, the same standing harness gap `Run_Runtime_Door_Service`'s
+own note already records for every runtime-building construction path in this file, not a new one.
+
+**Regression status:** full suite 179 tests, 30 failing -- the same 30 names as before this phase,
+so zero regressions.
+
+---
+
+## V2 Phase 21 -- physical logistics layer (roadmap Section 22)
+
+`LogisticsGraphService` (`Code/Combat/logisticsgraphservice.h/.cpp`) is real, both binaries build
+clean with zero warnings, and `terrain_logistics`/`fds_terrain_logistics` pass (`ctest -N` now
+181, was 179). Full account: `docs/procedural_world/LogisticsLayer.md`.
+
+**Inert by default, exactly Section 22.1's own contract.** `ProceduralWorldProfile::Logistics`
+(schema version 7 -- `SchemaVersion` moved, `GeneratorVersion` did not, since the graph reads
+already-generated state and writes none of it back) adds `enabled`/`convoy_enabled`/
+`construction_support_radius`, all defaulting to off/zero; with the profile's own default,
+`ProceduralWorldManager::Generate_World` never builds the graph and nothing else in this tree
+changes behavior.
+
+**Seven canonical node kinds (Section 22's own list), four real today.** `BASE`
+(`BaseSelectionPlanner`), `FORWARD_BASE` (`ExpansionRegionRegistry` regions), `RESOURCE_FIELD`
+(`TiberiumFieldGenerator`) and `LOGISTICS_POI` (`SettlementGenerator`) each produce real nodes
+from a real generator-time source. `REFINERY`/`FACTORY`/`REPAIR` (`Rebuild_Building_Nodes`, a
+live `GameObjManager` scan reusing Phase 20's own `SUBCOMPONENT_REFINERY_PROCESSOR` role, the
+descriptor's `Production.Kind`, and `As_RepairBayGameObj()` respectively) are equally real
+mechanisms, empty today for the same disclosed reason as Phase 20's own four unwired effect
+groups: no buildable Refinery/Factory/Repair Bay descriptor exists yet (P33's own gap).
+
+**Routes are real road distance, never a guess.** `Rebuild_Routes` asks
+`RoadGraphGenerator::Find_Anchor_Path` -- the same Dijkstra search over `RoadSystem`'s real built
+network `BaseSelectionPlanner`'s own fairness metrics already use -- for length and reachability;
+a node with no `StrategicPlanner` origin of its own routes from the nearest real strategic node to
+its position (documented proxy). Topology is hub-and-spoke from each team's own `BASE`/
+`FORWARD_BASE`: harvester routes, forward-position routes, staging/repair routes to that team's
+own facilities, and POI routes open to either team -- never base-to-base, never facility-to-
+facility, both proven as negative assertions in the self-check.
+
+**Step 9 (blockage) is real; "enemy obstruction" is honestly not attempted.**
+`Update_Route_Status` re-tests every route's own sampled waypoints against
+`BridgeSystem::Is_Traversable` every server tick (a no-op with no graph built). No logistics-
+facing threat model exists to detect an enemy obstruction -- that is Phase 25's own recon/defense
+planner territory, named rather than silently skipped.
+
+**A real, pre-existing Phase 17 wiring gap found and fixed.** Building `FORWARD_BASE` exposed
+that `ExpansionRegionRegistry::Note_Construction_Complete`/`Rebuild_Regions` (steps 12-13) had no
+caller anywhere in this tree outside their own self-check -- confirmed by grep. Wired into
+`combat.cpp`'s own real construction-completion loop, server-only. Deliberately *not* also wiring
+step 10's `Reserve`/`Bind_Building`: Q-016's own design already creates the real `BuildingGameObj`
+(with real spatial-index collision) the instant a placement is accepted, which is what
+`CommanderPlacementValidator`'s own overlap query already sees on the next placement -- the race
+`Reserve` was designed to close looks already closed by that, confirmed by reading both call
+sites.
+
+**Step 5 (construction support) and steps 6-8 (convoys) are real, tested primitives.**
+`Is_Under_Construction_Support` is proven by radius/team in the self-check; no caller applies a
+bonus from it yet, the same "toggles but nothing consumes it yet" precedent
+`StatusOverlaySystem`/several `DebugRenderSystem` layers already established, rather than
+inventing an unrequested balance number. Convoys (`Start_Convoy`/`Update`) reuse
+`CommanderGuardAI`'s own "controller ticked once a server frame, translating intent into
+`ScriptEngine::Action_Goto`" shape over a route's real waypoints; no cargo/inventory abstraction
+invented (Section 22.4/step 7's own instruction).
+
+`logistics_status` (console, both binaries) is the status report, mirroring
+`building_subcomponents`'s own shape.
+
+**What is not proven:** `Rebuild_Building_Nodes` has never run against a real `GameObjManager`
+scene, the same standing harness gap every runtime-building construction path in this tree already
+carries. A convoy has never driven a real vehicle on screen. Section 22.5's Commander tactical-map
+visualization is not attempted -- a rendering consumer nothing in this tree has built yet.
+
+**Regression status:** full suite 181 tests, 30 failing -- the same 30 names as before this
+phase (confirmed both by an exact count match and by tracing each failing self-check's own entry
+point: none reaches `combat.cpp`'s modified `Think` block or `consolefunction.cpp`'s `FunctionList`
+registration), so zero regressions.
+
 ---
 
 **All five requested phases (11-15) closed this session.** Base selection, Tiberium fields,

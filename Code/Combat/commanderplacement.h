@@ -54,6 +54,23 @@ enum CommanderPlacementResultType
 	PLACEMENT_EXIT_BLOCKED,
 	PLACEMENT_WRONG_FACTION,
 
+	/*
+	**	V2 roadmap Section 34 Phase 17 step 2 -- the generated world's own exclusions.
+	**
+	**	One value per feature rather than one "generated world says no", because Section 43's
+	**	whole point is that the reason a ghost greys out and the reason a server logs are the
+	**	same word, and "you cannot build on a bridge" and "you cannot build in the river" are
+	**	not the same word.  Each is answered by `GeneratedWorldPlacementRules`, and every one of
+	**	them is silent on a hand-authored map, where none of those systems is configured
+	**	(directive 1.10).
+	*/
+	PLACEMENT_ON_WATER,
+	PLACEMENT_ON_IMMUTABLE_CLIFF,
+	PLACEMENT_ON_TUNNEL,
+	PLACEMENT_ON_BRIDGE,
+	PLACEMENT_ON_RESOURCE_ROUTE,
+	PLACEMENT_BLOCKS_NAV_CHOKEPOINT,
+
 	PLACEMENT_RESULT_COUNT
 };
 
@@ -124,6 +141,17 @@ class CommanderPlacementValidator
 		**	not the validator's box and a second one drawn near it.
 		*/
 		static bool		Build_Footprint_Box(const CommanderPlacementRequest & request,OBBoxClass * out_box);
+
+		/*
+		**	The disc radius every footprint question in this file is asked over: half the
+		**	footprint diagonal, so the whole footprint is inside the disc whatever its rotation.
+		**
+		**	Public because Phase 17's foundation grading has to measure the same disc this
+		**	validator tested.  Two radii for one footprint would be two different buildings --
+		**	one the validator accepted and a differently-sized one the ground was levelled for.
+		**	False when the name resolves to no loaded descriptor.
+		*/
+		static bool		Get_Footprint_Radius(const char * descriptor_name,float * radius_out);
 
 		//	The transform the real building would get if this placement were accepted.  The
 		//	ghost draws at exactly this, so what a player sees is where the building lands.
