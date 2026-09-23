@@ -4644,6 +4644,185 @@ int	Run_Commander_Production (void)
 }
 
 
+/*
+**	Roadmap Section 25.1 -- Phase 23 multiplayer Commander governance.
+**
+**	`Call_Commander_Vote`/`Cast_Commander_Vote`/`Update_Commander_Vote`/`Transfer_Commander` are
+**	pure functions of plain ids, bools and a team -- exactly `Request_Production`'s own
+**	`available_credits` split -- so every rule is exercised here with no soldier, no scene and
+**	no net event.  Not covered: `Count_Connected_Teammates`/`Is_Client_Connected_On_Team`, the
+**	one real `GameObjManager` roster walk, which needs a live SoldierGameObj this harness has no
+**	way to construct -- the same gap Phase 22's `Govern_Subsystem_Speed` documents, named in
+**	WIP_features.md.
+*/
+int	Run_Commander_Governance (void)
+{
+	CommanderProductionService::Init ();
+
+	const int TEAM_NOD	= 0;
+	const int TEAM_GDI	= 1;
+	const int ALICE		= 101;
+	const int BOB			= 102;
+	const int CAROL		= 103;
+
+	/*
+	**	Call_Commander_Vote refusals: no candidate for ELECT, a seated team re-elected instead
+	**	of challenged, an unseated team REMOVEd, the sitting Commander REMOVE-ing themself, and
+	**	a caller with no roster to speak of.
+	*/
+	Check (!CommanderProductionService::Call_Commander_Vote (TEAM_GDI,ALICE,COMMANDER_VOTE_ELECT,0,3),
+			 "an ELECT vote with candidate id 0 was accepted");
+	Check (!CommanderProductionService::Call_Commander_Vote (TEAM_GDI,ALICE,COMMANDER_VOTE_ELECT,ALICE,0),
+			 "an ELECT vote with zero eligible voters was accepted");
+	Check (!CommanderProductionService::Call_Commander_Vote (TEAM_GDI,ALICE,COMMANDER_VOTE_REMOVE,0,3),
+			 "a REMOVE vote against a vacant seat was accepted");
+	Check (!CommanderProductionService::Is_Vote_Active (TEAM_GDI),"a refused Call_Commander_Vote left a vote active");
+
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,ALICE);
+	Check (!CommanderProductionService::Call_Commander_Vote (TEAM_GDI,BOB,COMMANDER_VOTE_ELECT,BOB,3),
+			 "an ELECT vote was accepted against an already-seated team");
+	Check (!CommanderProductionService::Call_Commander_Vote (TEAM_GDI,ALICE,COMMANDER_VOTE_REMOVE,0,3),
+			 "the sitting Commander was allowed to open a REMOVE vote against themself");
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,0);		// back to vacant
+
+	//	The accepted ELECT path: caller becomes the first (yes) ballot.
+	Check (CommanderProductionService::Call_Commander_Vote (TEAM_GDI,ALICE,COMMANDER_VOTE_ELECT,ALICE,3),
+			 "a valid ELECT vote was refused");
+	Check (CommanderProductionService::Is_Vote_Active (TEAM_GDI),"Call_Commander_Vote succeeded but no vote reads active");
+	Check (CommanderProductionService::Get_Vote_Type (TEAM_GDI) == COMMANDER_VOTE_ELECT,"Get_Vote_Type is not ELECT");
+	Check (CommanderProductionService::Get_Vote_Candidate (TEAM_GDI) == ALICE,"Get_Vote_Candidate is not the caller");
+	Check (CommanderProductionService::Get_Vote_Initiator (TEAM_GDI) == ALICE,"Get_Vote_Initiator is not the caller");
+	Check (CommanderProductionService::Get_Vote_Yes_Count (TEAM_GDI) == 1,"the caller's own ballot was not counted as yes");
+	Check (CommanderProductionService::Get_Vote_No_Count (TEAM_GDI) == 0,"a fresh vote already has a no ballot");
+
+	//	One vote at a time per team; NOD is untouched by GDI's vote.
+	Check (!CommanderProductionService::Call_Commander_Vote (TEAM_GDI,BOB,COMMANDER_VOTE_ELECT,BOB,3),
+			 "a second vote was allowed to open while one was already active");
+	Check (!CommanderProductionService::Is_Vote_Active (TEAM_NOD),"NOD reads an active vote it was never given");
+
+	//	Cast_Commander_Vote: the initiator's own ballot cannot be re-cast, and a real second
+	//	ballot from a different voter is counted.
+	Check (!CommanderProductionService::Cast_Commander_Vote (TEAM_GDI,ALICE,false),
+			 "the initiator was allowed to cast a second ballot");
+	Check (CommanderProductionService::Cast_Commander_Vote (TEAM_GDI,BOB,true),"a fresh voter's ballot was refused");
+	Check (!CommanderProductionService::Cast_Commander_Vote (TEAM_GDI,BOB,false),
+			 "a voter was allowed to cast a second ballot after already casting one");
+	Check (CommanderProductionService::Get_Vote_Yes_Count (TEAM_GDI) == 2,
+			 "two yes ballots read back as %d",CommanderProductionService::Get_Vote_Yes_Count (TEAM_GDI));
+
+	//	Before the window elapses, nothing resolves even with a clear majority already cast.
+	CommanderProductionService::Update_Commander_Vote (TEAM_GDI,1.0f,true);
+	Check (CommanderProductionService::Is_Vote_Active (TEAM_GDI),"a vote resolved before its window elapsed");
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == 0,
+			 "a team was seated before its ELECT vote's window elapsed");
+
+	//	The window elapsing with yes > no grants the seat and clears the vote.
+	CommanderProductionService::Update_Commander_Vote (TEAM_GDI,CommanderProductionService::Get_Vote_Window_Seconds (),true);
+	Check (!CommanderProductionService::Is_Vote_Active (TEAM_GDI),"a resolved vote is still reading active");
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == ALICE,
+			 "an ELECT vote with 2 yes / 0 no did not seat its candidate");
+
+	/*
+	**	ELECT candidate disconnecting mid-vote cancels rather than resolves -- and does not
+	**	seat a ghost.  Fresh team (NOD) so GDI's already-seated Commander above is untouched.
+	*/
+	Check (CommanderProductionService::Call_Commander_Vote (TEAM_NOD,BOB,COMMANDER_VOTE_ELECT,BOB,2),
+			 "a valid NOD ELECT vote was refused");
+	CommanderProductionService::Update_Commander_Vote (TEAM_NOD,
+		CommanderProductionService::Get_Vote_Window_Seconds () + 1.0f,false /* candidate gone */);
+	Check (!CommanderProductionService::Is_Vote_Active (TEAM_NOD),"a vote whose candidate vanished is still active");
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_NOD) == 0,
+			 "a cancelled ELECT vote seated someone anyway");
+
+	//	ELECT with no votes beyond the caller's own still passes -- silence defaults to
+	//	granting the lone candidate, after a real window rather than instantly.
+	Check (CommanderProductionService::Call_Commander_Vote (TEAM_NOD,CAROL,COMMANDER_VOTE_ELECT,CAROL,1),
+			 "a solo ELECT vote was refused");
+	CommanderProductionService::Update_Commander_Vote (TEAM_NOD,
+		CommanderProductionService::Get_Vote_Window_Seconds () + 1.0f,true);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_NOD) == CAROL,
+			 "an uncontested ELECT vote did not seat its only candidate after its window");
+
+	/*
+	**	REMOVE needs a strict majority of the whole eligible team, not merely of who bothered
+	**	to vote -- one unopposed initiator and silence from everyone else must not unseat GDI's
+	**	Commander (still ALICE from above).
+	*/
+	Check (CommanderProductionService::Call_Commander_Vote (TEAM_GDI,BOB,COMMANDER_VOTE_REMOVE,0,5),
+			 "a valid REMOVE vote was refused");
+	Check (CommanderProductionService::Get_Vote_Candidate (TEAM_GDI) == ALICE,
+			 "a REMOVE vote's candidate is not the actual sitting Commander");
+	CommanderProductionService::Update_Commander_Vote (TEAM_GDI,
+		CommanderProductionService::Get_Vote_Window_Seconds () + 1.0f,true);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == ALICE,
+			 "an unopposed REMOVE vote with silence from the rest of a 5-person team unseated the Commander");
+
+	//	A real majority (3 of 5 eligible) does unseat.
+	Check (CommanderProductionService::Call_Commander_Vote (TEAM_GDI,BOB,COMMANDER_VOTE_REMOVE,0,5),
+			 "a second valid REMOVE vote was refused");
+	Check (!CommanderProductionService::Cast_Commander_Vote (TEAM_GDI,ALICE,true),
+			 "the Commander being challenged was allowed a ballot on their own removal");
+	CommanderProductionService::Cast_Commander_Vote (TEAM_GDI,CAROL,true);
+	CommanderProductionService::Cast_Commander_Vote (TEAM_GDI,999,true);
+	CommanderProductionService::Update_Commander_Vote (TEAM_GDI,
+		CommanderProductionService::Get_Vote_Window_Seconds () + 1.0f,true);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == 0,
+			 "a REMOVE vote with 3 of 5 eligible voting yes did not unseat the Commander");
+
+	//	A REMOVE vote whose seat changes hands mid-window (resignation, another vote, a
+	//	vacancy) is cancelled internally -- no roster walk needed to catch this case.
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,ALICE);
+	Check (CommanderProductionService::Call_Commander_Vote (TEAM_GDI,BOB,COMMANDER_VOTE_REMOVE,0,5),
+			 "a third valid REMOVE vote was refused");
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,0);		// resigned mid-vote
+	CommanderProductionService::Update_Commander_Vote (TEAM_GDI,
+		CommanderProductionService::Get_Vote_Window_Seconds () + 1.0f,true);
+	Check (!CommanderProductionService::Is_Vote_Active (TEAM_GDI),
+			 "a REMOVE vote survived its target resigning mid-window");
+
+	/*
+	**	Transfer_Commander: refuses a non-Commander sender, a same-id transfer, and a target the
+	**	caller supplies as ineligible; accepts a valid handoff.
+	*/
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,ALICE);
+	Check (!CommanderProductionService::Transfer_Commander (TEAM_GDI,BOB,CAROL,true),
+			 "a transfer from a non-Commander sender was accepted");
+	Check (!CommanderProductionService::Transfer_Commander (TEAM_GDI,ALICE,ALICE,true),
+			 "a transfer to the sender's own id was accepted");
+	Check (!CommanderProductionService::Transfer_Commander (TEAM_GDI,ALICE,CAROL,false),
+			 "a transfer to an ineligible target was accepted");
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == ALICE,
+			 "a refused transfer changed the Commander anyway");
+	Check (CommanderProductionService::Transfer_Commander (TEAM_GDI,ALICE,CAROL,true),
+			 "a valid transfer was refused");
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == CAROL,
+			 "a valid transfer did not change the Commander");
+
+	/*
+	**	Section 25.1's "disconnect recovery" -- `Handle_Player_Reconnect` is the pure remap
+	**	`cGod::Create_Player` (Code/Commando/god.cpp) calls once a rejoining player is given a
+	**	new client id.  GDI's seat is CAROL's from the transfer above.  NOD is explicitly seated
+	**	with a different id first -- NOD's own commander was left as CAROL by an earlier ELECT
+	**	test above, which would make "NOD is untouched" true for the wrong reason.
+	*/
+	CommanderProductionService::Set_Team_Commander (TEAM_NOD,BOB);
+	CommanderProductionService::Handle_Player_Reconnect (CAROL,777);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == 777,
+			 "a reconnecting seated Commander did not carry their seat to the new id");
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_NOD) == BOB,
+			 "Handle_Player_Reconnect touched a team the reconnecting id never held");
+
+	CommanderProductionService::Handle_Player_Reconnect (0,778);
+	CommanderProductionService::Handle_Player_Reconnect (777,0);
+	CommanderProductionService::Handle_Player_Reconnect (777,777);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == 777,
+			 "a degenerate Handle_Player_Reconnect call (zero id or old==new) altered a real seat");
+
+	CommanderProductionService::Shutdown ();
+	return _Failures;
+}
+
+
 int	Run_RTS_Persistence (void)
 {
 	BuildingDescriptorManager::Init ();
@@ -5780,6 +5959,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "production") == 0)) {
 		Run_Commander_Production ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "governance") == 0)) {
+		Run_Commander_Governance ();
 		ran = true;
 	}
 

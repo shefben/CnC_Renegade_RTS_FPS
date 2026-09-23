@@ -70,6 +70,9 @@
 #include "buildingconstruction.h"
 #include "commanderplacementevent.h"
 #include "commanderproductionevent.h"
+#include "commandervotecallevent.h"
+#include "commandervotecastevent.h"
+#include "commandertransferevent.h"
 
 #include "worldparticlemanager.h"
 #include "worldshadowmanager.h"
@@ -2366,6 +2369,22 @@ public:
 				 CommanderProductionService::Get_Team_Commander( PLAYERTYPE_NOD ),
 				 CommanderProductionService::Get_Team_Commander( PLAYERTYPE_GDI ) );
 
+		//	Roadmap Section 25.1.  'commander_vote status' gives one team's own detail; this is
+		//	the both-teams summary line, the same split commander_status/commander_rts_status
+		//	already has for the camera layer.
+		static const int GOVERNANCE_TEAMS [2] = { PLAYERTYPE_NOD,PLAYERTYPE_GDI };
+		for ( int i = 0; i < 2; i++ ) {
+			int team = GOVERNANCE_TEAMS [i];
+			if ( !CommanderProductionService::Is_Vote_Active( team ) ) continue;
+			Print( "  %s vote in progress: %s, candidate %d, %.1fs left, %d yes / %d no.\n",
+					 ( team == PLAYERTYPE_NOD ) ? "Nod" : "GDI",
+					 ( CommanderProductionService::Get_Vote_Type( team ) == COMMANDER_VOTE_ELECT ) ? "ELECT" : "REMOVE",
+					 CommanderProductionService::Get_Vote_Candidate( team ),
+					 CommanderProductionService::Get_Vote_Time_Remaining( team ),
+					 CommanderProductionService::Get_Vote_Yes_Count( team ),
+					 CommanderProductionService::Get_Vote_No_Count( team ) );
+		}
+
 		int active = BuildingConstructionService::Get_Active_Count();
 		Print( "  %d construction(s) in progress:\n", active );
 		for ( int i = 0; i < active; i++ ) {
@@ -2406,6 +2425,100 @@ public:
 				 BuildingConstructionRenderer::Get_Rendered_Block_Count(),
 				 BuildingConstructionRenderer::Get_Dropped_Block_Count(),
 				 CommanderGhostRenderer::Is_Model_Loaded() ? "loaded" : "not loaded" );
+	}
+};
+
+
+/*
+**	Roadmap Section 25.1 -- Phase 23 multiplayer Commander governance from a console, the same
+**	"goes through exactly the same path the eventual UI will" discipline the block above this
+**	one already documents: each of these sends the real net event and lets the server decide.
+*/
+class CommanderVoteConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "commander_vote"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "COMMANDER_VOTE <elect [client_id]|remove|yes|no|status> - roadmap Section 25.1.  "
+				 "'elect' with no id nominates yourself for a vacant seat; 'remove' challenges "
+				 "whoever holds it now.  'yes'/'no' cast a ballot on the team's active vote.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		char verb[32] = { 0 };
+		int candidate = 0;
+		int parsed = ( input != nullptr ) ? ::sscanf( input,"%31s %d",verb,&candidate ) : 0;
+		if ( parsed < 1 ) {
+			Print( "commander_vote: usage 'commander_vote <elect [client_id]|remove|yes|no|status>'.\n" );
+			return;
+		}
+
+		int team = ( COMBAT_STAR != nullptr ) ? COMBAT_STAR->Get_Player_Type() : PLAYERTYPE_NEUTRAL;
+
+		if ( ::_stricmp( verb,"status" ) == 0 ) {
+			if ( !CommanderProductionService::Is_Vote_Active( team ) ) {
+				Print( "commander_vote: no active vote for this team.\n" );
+				return;
+			}
+			Print( "commander_vote: %s vote, candidate %d, called by %d, %.1fs left, %d yes / %d no.\n",
+					 ( CommanderProductionService::Get_Vote_Type( team ) == COMMANDER_VOTE_ELECT ) ? "ELECT" : "REMOVE",
+					 CommanderProductionService::Get_Vote_Candidate( team ),
+					 CommanderProductionService::Get_Vote_Initiator( team ),
+					 CommanderProductionService::Get_Vote_Time_Remaining( team ),
+					 CommanderProductionService::Get_Vote_Yes_Count( team ),
+					 CommanderProductionService::Get_Vote_No_Count( team ) );
+			return;
+		}
+
+		if ( ::_stricmp( verb,"elect" ) == 0 ) {
+			int target = ( parsed >= 2 ) ? candidate : cNetwork::Get_My_Id();
+			cCommanderVoteCallEvent * event = new cCommanderVoteCallEvent;
+			event->Init( false,target );
+			Print( "commander_vote: asked to open an ELECT vote for client %d; the server decides.\n",target );
+			return;
+		}
+
+		if ( ::_stricmp( verb,"remove" ) == 0 ) {
+			cCommanderVoteCallEvent * event = new cCommanderVoteCallEvent;
+			event->Init( true,0 );
+			Print( "commander_vote: asked to open a REMOVE vote; the server decides.\n" );
+			return;
+		}
+
+		if ( ( ::_stricmp( verb,"yes" ) == 0 ) || ( ::_stricmp( verb,"no" ) == 0 ) ) {
+			bool yes_vote = ( ::_stricmp( verb,"yes" ) == 0 );
+			cCommanderVoteCastEvent * event = new cCommanderVoteCastEvent;
+			event->Init( yes_vote );
+			Print( "commander_vote: cast '%s'; the server decides whether it counted.\n",verb );
+			return;
+		}
+
+		Print( "commander_vote: unrecognised '%s' -- usage 'commander_vote <elect [client_id]|remove|yes|no|status>'.\n",verb );
+	}
+};
+
+
+class CommanderTransferConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "commander_transfer"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "COMMANDER_TRANSFER <client_id> - roadmap Section 25.1; the sitting Commander hands "
+				 "the job directly to a named teammate, no vote.  Refused if you do not hold it.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		int target = 0;
+		if ( input == nullptr || ::sscanf( input,"%d",&target ) != 1 ) {
+			Print( "commander_transfer: usage 'commander_transfer <client_id>'.\n" );
+			return;
+		}
+
+		cCommanderTransferEvent * event = new cCommanderTransferEvent;
+		event->Init( target );
+		Print( "commander_transfer: asked to hand command to client %d; the server decides.\n",target );
 	}
 };
 
@@ -7533,6 +7646,8 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new CommanderPlaceConsoleFunctionClass() );
 	FunctionList.Add( new CommanderBuildConsoleFunctionClass() );
 	FunctionList.Add( new CommanderRTSStatusConsoleFunctionClass() );
+	FunctionList.Add( new CommanderVoteConsoleFunctionClass() );
+	FunctionList.Add( new CommanderTransferConsoleFunctionClass() );
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );

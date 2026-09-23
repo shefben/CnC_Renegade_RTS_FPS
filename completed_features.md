@@ -4023,3 +4023,73 @@ spawning (Phase 12), real settlement/POI/street-lamp art and entrance connector 
 object-aware foliage placement and terrain-material layer authoring (Phase 14), and repair
 mutation after generation has already committed (Phase 15). See each phase's own
 `docs/procedural_world/*.md` for the full account.
+
+## V2 Phase 23 -- multiplayer Commander governance (roadmap Section 25)
+
+Real on `CommanderProductionService` (`Code/Combat/commanderproduction.{h,cpp}`), extending the
+existing claim/vacancy state rather than adding a parallel one. All three binaries build clean
+with zero warnings, and `shader_governance`/`fds_shader_governance` pass (`ctest -N` now 185, was
+183). Full account: `docs/zerohour/CommanderProduction.md`'s new "Governance" section.
+
+**"No first-player-wins permanent rule" — the one real behavior change.** Before this phase, a
+claim against a vacant seat granted instantly no matter how many teammates were connected. Now: a
+vacant seat with zero other connected teammates still grants instantly (there is no one to
+contest, and it is what keeps solo/skirmish assignment at zero latency); a vacant seat with a real
+teammate instead opens an `ELECT` vote and gives the team `Get_Vote_Window_Seconds()` (15s) to
+object before granting. A seated Commander is challenged by a `REMOVE` vote, never re-elected
+over. Resignation and re-claiming a seat already held remain instant, unchanged.
+
+**The vote engine is a pure function of ids, bools and a team.** `Call_Commander_Vote` /
+`Cast_Commander_Vote` / `Update_Commander_Vote` / `Transfer_Commander` read no `GameObj`, no scene
+and no `cPlayer` -- the same `available_credits`-style split `Request_Production` already uses.
+The one real roster walk, `Count_Connected_Teammates`/`Is_Client_Connected_On_Team`, reuses
+`Find_Soldier_Of_Client_ID`'s own `Get_Control_Owner` test and filters `Is_Human_Controlled` first,
+because every bot on a team shares one `SERVER_CONTROL_OWNER` sentinel and would otherwise
+collapse into a single phantom voter.
+
+**Resolution is deliberately asymmetric.** `ELECT` passes on any plurality of cast ballots
+(silence defaults to seating the lone candidate, after a real wait instead of instantly).
+`REMOVE` needs a strict majority of the *whole eligible team*, not just of who voted -- proven by
+a self-check case where one unopposed initiator and silence from the rest of a 5-person team does
+**not** unseat the Commander, and a real 3-of-5 majority does. A `REMOVE` vote whose target
+resigns mid-window is cancelled by comparing `Get_Team_Commander` against the vote's captured
+target every tick -- no roster walk needed for that case, only an `ELECT` candidate disconnecting
+needs the real check, computed once per active vote per server tick in `combat.cpp`, not every
+tick regardless.
+
+**`Transfer_Commander`** is a direct handoff by the sitting Commander, Section 25.1's own item
+distinct from a vote -- no ballot, server-refused unless the sender holds the seat and the target
+is real, different and connected.
+
+**Net path and console.** `cCommanderVoteCallEvent`/`cCommanderVoteCastEvent`/
+`cCommanderTransferEvent` (`Code/Commando/`) match `cCommanderClaimEvent`'s exact
+client-request/server-`Act()` shape; sender's team is always read from their own soldier.
+`commander_vote <elect [id]|remove|yes|no|status>`, `commander_transfer <id>`, and a summary line
+folded into `commander_rts_status`.
+
+**Section 25.1's "disconnect recovery" is real, not just the existing vacancy grace.**
+`_Commanders[]` is keyed by network client id, and `cGod::Create_Player`
+(`Code/Commando/god.cpp`) hands a rejoining, name-matched `cPlayer` a brand-new one even when it
+recognises them as the same player -- so without more, a Commander who drops and reconnects was
+only ever a race against `COMMANDER_VACANCY_GRACE_SECONDS` (20s), and once past it, an ordinary
+vacancy with no way back except re-winning a vote. `CommanderProductionService::Handle_Player_Reconnect(old_id,new_id)`
+is called from that exact reassignment point in `god.cpp` and remaps a held seat across the id
+change; a no-op for anyone who was not actually seated. Disclosed, not fixed: a ballot cast on an
+active vote under the old id is not migrated to the new one (a full disconnect/rejoin landing
+inside one vote's 15s window is rare, and one stray extra ballot cannot flip a majority/plurality
+outcome by itself).
+
+**Section 25.2 (skirmish)** falls out of the general rule: a skirmish team's one connected human
+is the `eligible <= 1` fast path. "Enemy receives AI Commander" is explicitly not built -- there is
+no AI Commander yet (V2 Phase 24), and this claim/vote layer is not the mechanism a bot Commander
+will use to hold its seat.
+
+**Section 25.3 (Commander death)** was already correct and is unchanged: death exits the strategic
+camera without touching `CommanderProductionService`, confirmed by re-reading
+`CommanderModeController::Update` rather than assumed.
+
+**`CanDrive`/`CanFire` non-consumption remains its own separate WIP item, per instruction, and was
+not touched or folded into this phase.**
+
+**Regression status:** full suite 185 tests, 30 failing -- the same 30 names as before this phase,
+so zero regressions; the two new tests both pass.

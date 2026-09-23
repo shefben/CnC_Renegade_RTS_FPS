@@ -93,6 +93,39 @@ static const float	COMMANDER_VACANCY_GRACE_SECONDS = 20.0f;
 
 static float	_CommanderMissingFor [4] = { 0.0f,0.0f,0.0f,0.0f };
 static int		_VacatedCount = 0;
+
+/*
+**	Roadmap Section 25.1 -- one governance vote per team.  `MAX_VOTE_BALLOTS` is a generous
+**	bound on one team's connected human roster: `CommanderSelection::MAX_SELECTED` already
+**	assumes a busier match than this (64 *units*), and a team's human player count is a small
+**	fraction of that.  A ballot past the bound is refused by `Cast_Commander_Vote` rather than
+**	overflowing anything -- the same "bounded, not crashing" shape every list in this file uses.
+*/
+enum { MAX_VOTE_BALLOTS = 32 };
+
+//	Long enough for a scattered team to notice and react, short enough that a contested claim
+//	or a removal attempt does not stall the match for a minute over one decision.
+static const float	COMMANDER_VOTE_WINDOW_SECONDS = 15.0f;
+
+struct CommanderVoteRecord
+{
+	CommanderVoteRecord(void) : Type(COMMANDER_VOTE_NONE),Candidate(0),Initiator(0),
+										  EligibleVoters(0),Elapsed(0.0f),BallotCount(0)
+	{
+		for (int i = 0; i < MAX_VOTE_BALLOTS; i++) { VoterIds [i] = 0; VoterYes [i] = false; }
+	}
+
+	CommanderVoteType	Type;
+	int						Candidate;
+	int						Initiator;
+	int						EligibleVoters;
+	float					Elapsed;
+	int						VoterIds [MAX_VOTE_BALLOTS];
+	bool					VoterYes [MAX_VOTE_BALLOTS];
+	int						BallotCount;
+};
+
+static CommanderVoteRecord	_Votes [4];
 static int		_Caps [4];
 static int		_TotalBudget	= CommanderProductionService::DEFAULT_TOTAL_AI_BUDGET;
 static int		_NextTicket		= 1;
@@ -152,6 +185,8 @@ void CommanderProductionService::Init(void)
 	for (int i = 0; i < 4; i++) _Commanders [i] = 0;
 	for (int i = 0; i < 4; i++) _CommanderMissingFor [i] = 0.0f;
 	_VacatedCount = 0;
+
+	for (int i = 0; i < 4; i++) _Votes [i] = CommanderVoteRecord ();
 
 	_Caps [Kind_Index (BUILDING_PRODUCTION_NONE)]				= 0;
 	_Caps [Kind_Index (BUILDING_PRODUCTION_INFANTRY)]			= DEFAULT_INFANTRY_CAP;
@@ -233,9 +268,253 @@ void CommanderProductionService::Update_Commander_Vacancy(float seconds)
 float	CommanderProductionService::Get_Vacancy_Grace_Seconds(void)	{ return COMMANDER_VACANCY_GRACE_SECONDS; }
 int	CommanderProductionService::Get_Vacated_Count(void)				{ return _VacatedCount; }
 
+
+/***********************************************************************************************
+ * CommanderProductionService::Handle_Player_Reconnect -- carry a held seat across a new id       *
+ *                                                                                               *
+ *	See the header for the full rule.  Walks every team slot rather than assuming which team      *
+ *	the reconnecting player is on, because at the one call site (`cGod::Create_Player`) the        *
+ *	`cPlayer`'s team is already known to the caller but not worth plumbing through just to save     *
+ *	three integer comparisons.  Resets the grace clock the same way `Set_Team_Commander` does --   *
+ *	the seat did not just become vacant, so nothing should read as newly absent.                   *
+ *=============================================================================================*/
+void CommanderProductionService::Handle_Player_Reconnect(int old_id,int new_id)
+{
+	if ((old_id == 0) || (new_id == 0) || (old_id == new_id)) return;
+
+	for (int i = 0; i < 4; i++) {
+		if (_Commanders [i] == old_id) {
+			_Commanders [i]				= new_id;
+			_CommanderMissingFor [i]	= 0.0f;
+		}
+	}
+}
+
+
 int CommanderProductionService::Get_Team_Commander(int team)
 {
 	return _Commanders [Team_Index (team)];
+}
+
+
+/***********************************************************************************************
+ * CommanderProductionService::Call_Commander_Vote -- start an ELECT or REMOVE vote              *
+ *                                                                                               *
+ *	See the header for the full rule set.  `candidate_id` is only meaningful for ELECT; REMOVE   *
+ *	overwrites it with whoever `Get_Team_Commander` names right now, so a stale or lying client   *
+ *	value can never make the vote target the wrong person.                                       *
+ *=============================================================================================*/
+bool CommanderProductionService::Call_Commander_Vote(int team,int caller_id,CommanderVoteType type,
+																		int candidate_id,int eligible_voters)
+{
+	if ((caller_id == 0) || (eligible_voters <= 0)) return false;
+
+	int index = Team_Index (team);
+	if (_Votes [index].Type != COMMANDER_VOTE_NONE) return false;		// one vote at a time per team
+
+	int current = Get_Team_Commander (team);
+
+	if (type == COMMANDER_VOTE_ELECT) {
+
+		if (candidate_id == 0) return false;
+		if (current != 0) return false;			// a seated Commander is challenged by REMOVE, not re-elected over
+
+	} else if (type == COMMANDER_VOTE_REMOVE) {
+
+		if (current == 0) return false;			// nothing seated to remove
+		if (current == caller_id) return false;	// resignation already covers "I want out", instantly
+		candidate_id = current;
+
+	} else {
+
+		return false;
+	}
+
+	CommanderVoteRecord vote;
+	vote.Type				= type;
+	vote.Candidate			= candidate_id;
+	vote.Initiator			= caller_id;
+	vote.EligibleVoters	= eligible_voters;
+	vote.VoterIds [0]	= caller_id;
+	vote.VoterYes [0]	= true;
+	vote.BallotCount		= 1;
+
+	_Votes [index] = vote;
+	return true;
+}
+
+
+bool CommanderProductionService::Cast_Commander_Vote(int team,int voter_id,bool yes_vote)
+{
+	if (voter_id == 0) return false;
+
+	int index = Team_Index (team);
+	CommanderVoteRecord & vote = _Votes [index];
+	if (vote.Type == COMMANDER_VOTE_NONE) return false;
+
+	//	A Commander does not get a ballot on their own removal -- resignation is the door
+	//	already open to them, and a self-"no" would be indistinguishable from spam.
+	if ((vote.Type == COMMANDER_VOTE_REMOVE) && (voter_id == vote.Candidate)) return false;
+
+	for (int i = 0; i < vote.BallotCount; i++) {
+		if (vote.VoterIds [i] == voter_id) return false;		// one ballot per player
+	}
+	if (vote.BallotCount >= MAX_VOTE_BALLOTS) return false;
+
+	vote.VoterIds [vote.BallotCount] = voter_id;
+	vote.VoterYes [vote.BallotCount] = yes_vote;
+	vote.BallotCount++;
+	return true;
+}
+
+
+/***********************************************************************************************
+ * CommanderProductionService::Update_Commander_Vote -- advance the clock, tally, resolve        *
+ *                                                                                               *
+ *	See the header for the ELECT/REMOVE resolution rules.  The REMOVE seat check is internal --  *
+ *	`Get_Team_Commander` is this service's own state -- so a REMOVE vote whose target resigned,   *
+ *	was vacated for absence, or was replaced by another vote mid-window is caught here with no    *
+ *	roster walk at all; `subject_still_eligible` exists for the case that check cannot see, an    *
+ *	ELECT candidate (who never held the seat) disconnecting before the window closes.             *
+ *=============================================================================================*/
+void CommanderProductionService::Update_Commander_Vote(int team,float seconds,bool subject_still_eligible)
+{
+	int index = Team_Index (team);
+	CommanderVoteRecord & vote = _Votes [index];
+	if (vote.Type == COMMANDER_VOTE_NONE) return;
+
+	bool subject_ok = subject_still_eligible;
+	if (subject_ok && (vote.Type == COMMANDER_VOTE_REMOVE) && (Get_Team_Commander (team) != vote.Candidate)) {
+		subject_ok = false;
+	}
+	if (!subject_ok) {
+		_Votes [index] = CommanderVoteRecord ();
+		return;
+	}
+
+	if (seconds > 0.0f) vote.Elapsed += seconds;
+	if (vote.Elapsed < COMMANDER_VOTE_WINDOW_SECONDS) return;
+
+	int yes = 0;
+	int no  = 0;
+	for (int i = 0; i < vote.BallotCount; i++) {
+		if (vote.VoterYes [i]) yes++; else no++;
+	}
+
+	if (vote.Type == COMMANDER_VOTE_ELECT) {
+		if (yes > no) Set_Team_Commander (team,vote.Candidate);
+	} else {
+		if ((yes > no) && ((yes * 2) > vote.EligibleVoters)) Set_Team_Commander (team,0);
+	}
+
+	_Votes [index] = CommanderVoteRecord ();
+}
+
+
+bool CommanderProductionService::Is_Vote_Active(int team)
+{
+	return _Votes [Team_Index (team)].Type != COMMANDER_VOTE_NONE;
+}
+
+CommanderVoteType CommanderProductionService::Get_Vote_Type(int team)
+{
+	return _Votes [Team_Index (team)].Type;
+}
+
+int CommanderProductionService::Get_Vote_Candidate(int team)
+{
+	return _Votes [Team_Index (team)].Candidate;
+}
+
+int CommanderProductionService::Get_Vote_Initiator(int team)
+{
+	return _Votes [Team_Index (team)].Initiator;
+}
+
+float CommanderProductionService::Get_Vote_Time_Remaining(int team)
+{
+	const CommanderVoteRecord & vote = _Votes [Team_Index (team)];
+	if (vote.Type == COMMANDER_VOTE_NONE) return 0.0f;
+	float remaining = COMMANDER_VOTE_WINDOW_SECONDS - vote.Elapsed;
+	return (remaining > 0.0f) ? remaining : 0.0f;
+}
+
+int CommanderProductionService::Get_Vote_Yes_Count(int team)
+{
+	const CommanderVoteRecord & vote = _Votes [Team_Index (team)];
+	int yes = 0;
+	for (int i = 0; i < vote.BallotCount; i++) { if (vote.VoterYes [i]) yes++; }
+	return yes;
+}
+
+int CommanderProductionService::Get_Vote_No_Count(int team)
+{
+	const CommanderVoteRecord & vote = _Votes [Team_Index (team)];
+	int no = 0;
+	for (int i = 0; i < vote.BallotCount; i++) { if (!vote.VoterYes [i]) no++; }
+	return no;
+}
+
+float CommanderProductionService::Get_Vote_Window_Seconds(void)
+{
+	return COMMANDER_VOTE_WINDOW_SECONDS;
+}
+
+
+bool CommanderProductionService::Transfer_Commander(int team,int current_id,int target_id,
+																	  bool target_still_eligible)
+{
+	if ((current_id == 0) || (target_id == 0) || (current_id == target_id)) return false;
+	if (!target_still_eligible) return false;
+	if (Get_Team_Commander (team) != current_id) return false;
+
+	Set_Team_Commander (team,target_id);
+	return true;
+}
+
+
+/***********************************************************************************************
+ * CommanderProductionService::Count_Connected_Teammates -- distinct human players on a team     *
+ *                                                                                               *
+ *	The one real roster walk this service does.  Mirrors `Find_Soldier_Of_Client_ID`'s own test   *
+ *	(`Get_Control_Owner`) rather than inventing a second one, and filters `Is_Human_Controlled`   *
+ *	first -- every bot on a team shares the same `SERVER_CONTROL_OWNER` sentinel, so skipping     *
+ *	that filter would collapse an entire bot roster into one phantom "voter".                     *
+ *=============================================================================================*/
+int CommanderProductionService::Count_Connected_Teammates(int team)
+{
+	int seen_ids [MAX_VOTE_BALLOTS];
+	int seen_count = 0;
+
+	for (SLNode<SmartGameObj> * objnode = GameObjManager::Get_Smart_Game_Obj_List ()->Head ();
+		  objnode; objnode = objnode->Next ()) {
+
+		SoldierGameObj * soldier = objnode->Data ()->As_SoldierGameObj ();
+		if ((soldier == nullptr) || soldier->Is_Delete_Pending ()) continue;
+		if (!soldier->Is_Human_Controlled ()) continue;
+		if (soldier->Get_Player_Type () != team) continue;
+
+		int owner = soldier->Get_Control_Owner ();
+
+		bool already_seen = false;
+		for (int i = 0; i < seen_count; i++) {
+			if (seen_ids [i] == owner) { already_seen = true; break; }
+		}
+		if (already_seen) continue;
+
+		if (seen_count < MAX_VOTE_BALLOTS) seen_ids [seen_count++] = owner;
+	}
+
+	return seen_count;
+}
+
+
+bool CommanderProductionService::Is_Client_Connected_On_Team(int client_id,int team)
+{
+	if (client_id == 0) return false;
+
+	SoldierGameObj * soldier = GameObjManager::Find_Soldier_Of_Client_ID (client_id);
+	return (soldier != nullptr) && (soldier->Get_Player_Type () == team);
 }
 
 

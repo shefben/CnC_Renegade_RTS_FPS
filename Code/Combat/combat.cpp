@@ -87,6 +87,7 @@
 #include "commanderwaypointrenderer.h"
 #include "commanderproduction.h"
 #include "definitionmgr.h"
+#include "playertype.h"
 #include "gameobjobserver.h"
 #include "physicalgameobj.h"
 #include "commanderghostrenderer.h"
@@ -1298,6 +1299,23 @@ void 	CombatManager::Think()
 		//	give the job up, or the team is locked out of its own production for the rest of the
 		//	match with nothing able to elect a replacement.
 		CommanderProductionService::Update_Commander_Vacancy( TimeManager::Get_Frame_Seconds() );
+
+		/*
+		**	Roadmap Section 25.1 -- advance whichever team has an active Commander governance
+		**	vote.  Skipped entirely for a team with no vote active, so the ordinary case (no one
+		**	is contesting command) costs nothing beyond the `Is_Vote_Active` check -- no roster
+		**	walk runs unless a vote is actually open.
+		*/
+		{
+			static const int GOVERNANCE_TEAMS [2] = { PLAYERTYPE_NOD,PLAYERTYPE_GDI };
+			for ( int i = 0; i < 2; i++ ) {
+				int team = GOVERNANCE_TEAMS [i];
+				if ( !CommanderProductionService::Is_Vote_Active( team ) ) continue;
+				int candidate = CommanderProductionService::Get_Vote_Candidate( team );
+				bool still_eligible = CommanderProductionService::Is_Client_Connected_On_Team( candidate,team );
+				CommanderProductionService::Update_Commander_Vote( team,TimeManager::Get_Frame_Seconds(),still_eligible );
+			}
+		}
 
 		//	Roadmap Section 22, Phase 21.  Bridge health changes far more often than the
 		//	logistics graph's own topology does, so route status is re-tested every server tick

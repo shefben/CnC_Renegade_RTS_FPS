@@ -74,18 +74,26 @@ void cCommanderClaimEvent::Import_Creation(BitStreamClass & packet)
 
 
 /***********************************************************************************************
- * cCommanderClaimEvent::Act -- grant, refuse or release, on the server                          *
+ * cCommanderClaimEvent::Act -- grant, refuse, vote or release, on the server                    *
  *                                                                                               *
  *	The sender's team is looked up from their soldier rather than taken from the packet, for the  *
  *	same reason `cCommanderOrderEvent::Act` does it: a value a client supplies about which team   *
  *	it is on is a value a client can lie about, and this one decides who may spend the team's      *
  *	money.                                                                                         *
  *                                                                                               *
- *	First claimant wins.  A second player asking while someone else holds the job is refused and  *
- *	nothing changes -- deliberately silent rather than an error, because the client re-asks every  *
- *	time it opens Commander Mode and a refusal is the ordinary case, not a fault.  Releasing only  *
- *	clears the slot if the sender is the one holding it, so a player who never had it cannot take  *
- *	it away from whoever does.                                                                     *
+ *	Roadmap Section 25.1: "No first-player-wins permanent rule."  A vacant seat with exactly one  *
+ *	connected teammate still grants instantly -- that is not a rule so much as the absence of a    *
+ *	contest, and it is what keeps a solo or skirmish match's Commander assignment costing zero     *
+ *	latency, the invariant this class's own header documents.  A vacant seat with more than one     *
+ *	connected teammate instead opens a real Section 25.1 "initial volunteer/candidate period":      *
+ *	the claimant becomes an ELECT candidate and the team gets `COMMANDER_VOTE_WINDOW_SECONDS` to    *
+ *	object via `commander_vote`, not an instant, undisputable grant.  A second claim arriving       *
+ *	while that vote is already open is silently ignored, same as the old "someone already holds     *
+ *	it" refusal -- the right response to a live vote is to vote on it, not to file a second claim.  *
+ *                                                                                               *
+ *	Releasing only clears the slot if the sender is the one holding it, so a player who never had   *
+ *	it cannot take it away from whoever does -- unchanged, and still the only way to give the job    *
+ *	up instantly; removing someone else's command now goes through `commander_vote remove`.         *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 void cCommanderClaimEvent::Act(void)
 {
@@ -99,9 +107,22 @@ void cCommanderClaimEvent::Act(void)
 
 	if (WantCommand != 0) {
 
-		if ((current == 0) || (current == SenderId)) {
-			CommanderProductionService::Set_Team_Commander (team,SenderId);
+		if (current == SenderId) {
+			//	Already the Commander; nothing to do.  Kept as its own branch rather than
+			//	folding into the block below so a re-claim of a seat already held never starts
+			//	a pointless vote of one.
+
+		} else if (current == 0) {
+
+			int eligible = CommanderProductionService::Count_Connected_Teammates (team);
+			if (eligible <= 1) {
+				CommanderProductionService::Set_Team_Commander (team,SenderId);
+			} else {
+				CommanderProductionService::Call_Commander_Vote (
+					team,SenderId,COMMANDER_VOTE_ELECT,SenderId,eligible);
+			}
 		}
+		//	else: seat is held by someone else -- refused, silently, as before.
 
 	} else if (current == SenderId) {
 		CommanderProductionService::Set_Team_Commander (team,0);

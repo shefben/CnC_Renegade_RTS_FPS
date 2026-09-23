@@ -14,11 +14,14 @@
  *	closed.  The sidebar could be opened and nothing it offered could ever be bought.               *
  *                                                                                             *
  *	This is the missing half: the one client->server message that asks for the job, and the        *
- *	server-side rule that grants or refuses it.  First claimant per team wins and holds it until    *
- *	they release it, which is the least surprising rule and the only one that needs no lobby        *
- *	support.  A solo or skirmish match has exactly one claimant, so the player is always their      *
- *	team's Commander there without a special case -- that falls out of "first wins" rather than     *
- *	being written into it.                                                                          *
+ *	server-side rule that grants or refuses it.  A vacant seat with no other connected teammate     *
+ *	grants instantly -- there is no one to contest it, which is also why a solo or skirmish match   *
+ *	has exactly one claimant and the player is always their team's Commander there without a       *
+ *	special case.  A vacant seat with a real teammate on the same team instead opens a Roadmap      *
+ *	Section 25.1 governance vote (`CommanderProductionService::Call_Commander_Vote`, see            *
+ *	commanderproduction.h) rather than granting on the spot -- Section 25.1's own "no                *
+ *	first-player-wins permanent rule."  Releasing, and re-claiming a seat already held, remain      *
+ *	instant; removing someone else's held command goes through `cCommanderVoteCallEvent`.           *
  *                                                                                             *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 

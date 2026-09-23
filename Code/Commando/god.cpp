@@ -26,6 +26,7 @@
 #include "god.h"
 
 #include "cnetwork.h"
+#include "commanderproduction.h"
 #include "playermanager.h"
 #include "gameobjmanager.h"
 #include "spawn.h"
@@ -232,9 +233,15 @@ cPlayer * cGod::Create_Player(int client_id, const WideStringClass & name,
 		int player_type = The_Game()->Choose_Player_Type(p_player, team_choice, false);
 		p_player->Set_Player_Type(player_type);
 	} else {
+		//	Roadmap Section 25.1 "disconnect recovery" -- a reused `cPlayer` (matched above by
+		//	name, whether from an inactive-player rejoin or the crash-and-rejoin race the
+		//	comment above describes) is about to lose whatever client id it held command under.
+		//	Captured before Set_Id overwrites it, carried across if it was actually seated.
+		int old_id = p_player->Get_Id();
 		p_player->Set_Id(client_id);
 		p_player->Set_Is_In_Game(true);
 		p_player->Set_Is_Waiting_For_Intermission(false);
+		CommanderProductionService::Handle_Player_Reconnect(old_id,client_id);
 	}
 
 	p_player->Reset_Join_Time();

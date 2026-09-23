@@ -406,6 +406,12 @@ set(COMMANDO_SRC
     commanderclaimevent.h
     commanderwaypointevent.cpp
     commanderwaypointevent.h
+    commandervotecallevent.cpp
+    commandervotecallevent.h
+    commandervotecastevent.cpp
+    commandervotecastevent.h
+    commandertransferevent.cpp
+    commandertransferevent.h
     purchaseresponseevent.cpp
     purchaseresponseevent.h
     requestkillevent.cpp
@@ -599,6 +605,7 @@ add_test(NAME shader_sidebar COMMAND renegade -shaderselfcheck sidebar)
 add_test(NAME shader_placement COMMAND renegade -shaderselfcheck placement)
 add_test(NAME shader_construction COMMAND renegade -shaderselfcheck construction)
 add_test(NAME shader_production COMMAND renegade -shaderselfcheck production)
+add_test(NAME shader_governance COMMAND renegade -shaderselfcheck governance)
 add_test(NAME shader_rtssaveload COMMAND renegade -shaderselfcheck rtssaveload)
 add_test(NAME shader_visualsettings COMMAND renegade -shaderselfcheck visualsettings)
 add_test(NAME shader_skyclock COMMAND renegade -shaderselfcheck skyclock)
@@ -753,6 +760,7 @@ add_test(NAME fds_shader_sidebar COMMAND renegadeserver -shaderselfcheck sidebar
 add_test(NAME fds_shader_placement COMMAND renegadeserver -shaderselfcheck placement)
 add_test(NAME fds_shader_construction COMMAND renegadeserver -shaderselfcheck construction)
 add_test(NAME fds_shader_production COMMAND renegadeserver -shaderselfcheck production)
+add_test(NAME fds_shader_governance COMMAND renegadeserver -shaderselfcheck governance)
 add_test(NAME fds_shader_rtssaveload COMMAND renegadeserver -shaderselfcheck rtssaveload)
 add_test(NAME fds_shader_visualsettings COMMAND renegadeserver -shaderselfcheck visualsettings)
 add_test(NAME fds_shader_skyclock COMMAND renegadeserver -shaderselfcheck skyclock)

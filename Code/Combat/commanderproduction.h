@@ -74,6 +74,21 @@ enum CommanderProductionItemStateType
 
 
 /*
+**	Roadmap Section 25.1 -- what a Commander governance vote is deciding.  ELECT fills a
+**	currently vacant seat with a proposed candidate; REMOVE challenges whoever already holds
+**	it.  There is no third "transfer" type here because a transfer is not a vote at all --
+**	Section 25.1 lists it as its own separate item, and `Transfer_Commander` below is the
+**	sitting Commander directly handing the job to a named teammate with no ballot involved.
+*/
+enum CommanderVoteType
+{
+	COMMANDER_VOTE_NONE = 0,
+	COMMANDER_VOTE_ELECT,
+	COMMANDER_VOTE_REMOVE,
+};
+
+
+/*
 **	Section 45's own order list.  No SAGE order model is introduced -- these names are what a
 **	canonical Renegade/TT AI state is asked to do, and Phase 37's GuardStateController already
 **	owns the guard/retaliation half of that.
@@ -184,6 +199,92 @@ class CommanderProductionService
 		static void		Update_Commander_Vacancy(float seconds);
 		static float	Get_Vacancy_Grace_Seconds(void);
 		static int		Get_Vacated_Count(void);
+
+		/*
+		**	Roadmap Section 25.1's "disconnect recovery".  `_Commanders[]` is keyed by network
+		**	client id, and `cGod::Create_Player` (Code/Commando/god.cpp) assigns a rejoining
+		**	player a brand-new client id even when it recognises them as the same `cPlayer` by
+		**	name -- so without this, a Commander who drops and reconnects is just an ordinary
+		**	vacancy once `COMMANDER_VACANCY_GRACE_SECONDS` elapses, indistinguishable from
+		**	someone who quit for good.  Called once, from that exact reassignment point, with the
+		**	id the reused `cPlayer` is losing and the one it is gaining.  A no-op unless
+		**	`old_id` is actually seated as a team's Commander right now -- an ordinary player
+		**	reconnecting is not touched.  Deliberately does not migrate an in-progress vote's
+		**	ballots: a ballot cast under the old id stays recorded as cast, and the reconnected
+		**	player may cast a second one under the new id.  A real, disclosed, minor edge case,
+		**	not fixed here -- a full disconnect/rejoin cycle landing inside one vote's
+		**	`COMMANDER_VOTE_WINDOW_SECONDS` window is rare, and double-counting one ballot out of
+		**	a team's worth cannot flip a majority/plurality outcome on its own.
+		*/
+		static void		Handle_Player_Reconnect(int old_id,int new_id);
+
+		/*
+		**	Roadmap Section 25.1 -- multiplayer Commander governance.  One vote active per team
+		**	at a time.  `eligible_voters` and `*_still_eligible` are supplied by the caller
+		**	rather than read from a roster this service keeps itself -- the same split
+		**	`Request_Production` uses for `available_credits` -- so the vote math (who wins, on
+		**	what quorum, after how long) is checkable with plain integers and no GameObj, no
+		**	scene, and no cPlayer, while the one real roster walk lives in
+		**	`Count_Connected_Teammates`/`Is_Client_Connected_On_Team` below where it is simple
+		**	enough to be correct by inspection.
+		**
+		**	Call_Commander_Vote:  starts a vote for `team`.  ELECT proposes `candidate_id` for a
+		**	seat that must currently be vacant (a seated Commander is challenged by REMOVE, not
+		**	unseated by a second election).  REMOVE needs a seated Commander and ignores
+		**	`candidate_id`, capturing whoever holds the job right now instead -- a client cannot
+		**	name who gets removed.  REMOVE also refuses the sitting Commander as its own caller;
+		**	resignation (the existing `Set_Team_Commander(team,0)` release path) is the door
+		**	already open to "I want out", instantly, with no vote.  Refuses if a vote is already
+		**	active for the team.  The caller is recorded as the vote's first (yes) ballot.
+		*/
+		static bool		Call_Commander_Vote(int team,int caller_id,CommanderVoteType type,
+														 int candidate_id,int eligible_voters);
+
+		//	One ballot per player.  A second call from the same voter_id is refused, not
+		//	overwritten -- spamming Cast is not a way to change your own vote's weight.  On a
+		//	REMOVE vote the Commander being challenged may not vote on their own removal.
+		static bool		Cast_Commander_Vote(int team,int voter_id,bool yes_vote);
+
+		/*
+		**	Advances the active vote's clock; once the window elapses, tallies and applies it.
+		**	ELECT passes on any plurality of cast ballots (yes > no) -- silence defaults to
+		**	granting the lone candidate, the same "the only claimant just gets it" spirit the
+		**	solo/skirmish fast path already relies on, just after a real waiting period instead
+		**	of instantly.  REMOVE needs a strict majority of the whole eligible team, not just of
+		**	who bothered to vote -- unseating an incumbent must not be one unopposed caller and
+		**	silence from everyone else.  `subject_still_eligible` is the caller's answer to "is
+		**	the ELECT candidate (or, redundantly but harmlessly, the REMOVE target) still a
+		**	connected teammate right now" -- false cancels the vote outright rather than
+		**	resolving it against someone who is gone.  A REMOVE vote whose seat changes hands for
+		**	any other reason mid-vote (resignation, vacancy timeout) is detected internally and
+		**	cancelled the same way, with no roster walk needed for that case.
+		*/
+		static void		Update_Commander_Vote(int team,float seconds,bool subject_still_eligible);
+
+		static bool						Is_Vote_Active(int team);
+		static CommanderVoteType	Get_Vote_Type(int team);
+		static int						Get_Vote_Candidate(int team);
+		static int						Get_Vote_Initiator(int team);
+		static float					Get_Vote_Time_Remaining(int team);
+		static int						Get_Vote_Yes_Count(int team);
+		static int						Get_Vote_No_Count(int team);
+		static float					Get_Vote_Window_Seconds(void);
+
+		/*
+		**	Direct handoff by the sitting Commander -- Section 25.1's own separate item, not a
+		**	vote.  Refuses unless `current_id` really is this team's Commander right now and the
+		**	target is a real, different, still-connected teammate.
+		*/
+		static bool		Transfer_Commander(int team,int current_id,int target_id,
+													  bool target_still_eligible);
+
+		//	The one real roster walk.  `Count_Connected_Teammates` is distinct human
+		//	control-owning soldiers on the team, deduplicated by client id and never counting a
+		//	bot (`Is_Human_Controlled`); `Is_Client_Connected_On_Team` is the same lookup
+		//	`Find_Soldier_Of_Client_ID`/`Update_Commander_Vacancy` already use, exposed so a net
+		//	event handler and the per-tick vote update are not each writing their own copy of it.
+		static int		Count_Connected_Teammates(int team);
+		static bool		Is_Client_Connected_On_Team(int client_id,int team);
 
 		static void		Set_Population_Cap(BuildingProductionKindType kind,int cap);
 		static int		Get_Population_Cap(BuildingProductionKindType kind);

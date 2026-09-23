@@ -1101,3 +1101,50 @@ factor `vehicle_subsystems` reports at the console; (5) confirm an infantry weap
 is unaffected at any vehicle health. Immobilization needs `allow_immobilize` true and the weapon
 cut-off needs `weapon_disable_fraction` above 0; AI retreat-to-repair cannot be exercised until a
 buildable Repair Bay descriptor exists.
+
+---
+
+## V2 Phase 23 -- Commander governance's vote math is real and tested; no live match has run it
+
+All implementable steps built for real (roadmap Section 25), all three binaries clean,
+`shader_governance`/`fds_shader_governance` green (`ctest -N` now 185, was 183). The vote engine
+(`Call_Commander_Vote`/`Cast_Commander_Vote`/`Update_Commander_Vote`/`Get_Vote_*`) and
+`Transfer_Commander` are real on `CommanderProductionService`; `cCommanderClaimEvent::Act` opens a
+vote instead of an instant grant against a contested vacant seat.
+`CommanderProductionService::Handle_Player_Reconnect`, called from `cGod::Create_Player`
+(`Code/Commando/god.cpp`), carries a held seat across the new client id a rejoining player is
+assigned -- Section 25.1's "disconnect recovery" bullet, not just the pre-existing 20s vacancy
+grace. See `docs/zerohour/CommanderProduction.md`'s "Governance" section.
+
+**What is not proven:** no real multiplayer session has exercised any of this. The self check
+covers the vote math and the reconnect remap as pure functions of ids/bools/a team --
+deliberately, the same "no `GameObj` in this harness" limit every Commander-layer check already
+carries -- but never sends `cCommanderVoteCallEvent`/`cCommanderVoteCastEvent`/
+`cCommanderTransferEvent` over a real connection, never exercises
+`Count_Connected_Teammates`/`Is_Client_Connected_On_Team` against a live roster, never drives an
+actual `cGod::Create_Player` reconnect, and never renders the `commander_vote`/`commander_transfer`
+console output for a human to read. No player has seen a vote actually open, watched its
+countdown, had a claim refused because a teammate beat them to it, or dropped and reconnected to
+find they still hold command.
+
+**Next exact action** is a manual one for the user, and needs at least two human clients on one
+team: (1) with two players connected to the same team and neither holding command, have player A
+claim (`b` key or `commander_mode 1`) and confirm `commander_vote status` shows an active `ELECT`
+vote rather than an instant grant; (2) have player B cast `commander_vote no` and confirm the seat
+stays vacant once the window elapses; (3) repeat with B either voting yes or not voting at all and
+confirm A is seated; (4) once seated, have a third player call `commander_vote remove` alone and
+confirm the Commander survives an unopposed removal attempt, then have a real majority of the team
+vote yes and confirm they are unseated; (5) have the sitting Commander run
+`commander_transfer <id>` naming a real teammate and confirm command moves with no vote; (6) have
+the Commander die and confirm Commander Mode exits but `commander_rts_status` still names them,
+then confirm they can re-enter with no new vote; (7) have the seated Commander disconnect and
+reconnect within the 20s grace window under the same player name and confirm
+`commander_rts_status` still names them as Commander with no new claim or vote needed.
+
+**No UI beyond console exists**, matching Phase 22's own precedent (console + self-check, no HUD
+art) -- Section 25's candidate list, vote countdown and ballot buttons are sidebar/panel work for
+whichever phase builds Commander Mode's real UI, not this one.
+
+**`CanDrive`/`CanFire` non-consumption is unchanged from Phase 22's own entry above** -- not
+re-investigated, not touched, and still not this phase's to fix; recorded there, not duplicated
+here.
