@@ -15,6 +15,7 @@
 #include "commanderplacement.h"
 #include "commanderproduction.h"
 #include "commanderai.h"
+#include "persistentcampaign.h"
 #include "buildingconstruction.h"
 #include "runtimedoorservice.h"
 #include "proceduralworldprofile.h"
@@ -5194,6 +5195,227 @@ int	Run_Commander_AI (void)
 }
 
 
+/***********************************************************************************************
+**	Phase 26 -- persistent campaign foundation (roadmap Section 26).  Save_To_File/Load_From_File
+**	themselves are not exercised here -- they are thin RawFileClass wrappers around
+**	Serialize/Deserialize, which this covers directly, and no other self check in this file
+**	touches real disk I/O either.
+***********************************************************************************************/
+int	Run_Persistent_Campaign (void)
+{
+	const int TEAM_NOD = 0;
+	const int TEAM_GDI = 1;
+
+	PersistentCampaignService::Init ();
+
+	Check (!PersistentCampaignService::Is_Campaign_Active (),
+			 "a freshly initialised campaign service reads active");
+
+	StringClass error;
+	Check (!PersistentCampaignService::Create_Campaign ("",&error),
+			 "Create_Campaign accepted an empty name");
+	Check (!PersistentCampaignService::Is_Campaign_Active (),
+			 "a refused Create_Campaign left the service active");
+
+	Check (PersistentCampaignService::Create_Campaign ("Tiberium Wars",&error),
+			 "Create_Campaign refused a real name -- %s",(const char *)error);
+	Check (PersistentCampaignService::Is_Campaign_Active (),"Create_Campaign did not activate the service");
+	Check (PersistentCampaignService::Get_Territory_Count () == 0,
+			 "a new campaign did not start with zero territories");
+
+	/*
+	**	Territory add/find/owner.  Duplicate ids are refused; an unknown id is refused everywhere
+	**	it is looked up rather than silently doing nothing.
+	*/
+	CampaignTerritoryDescriptor field_north;
+	field_north.TerritoryId = 1;
+	field_north.Name = "Field North";
+	field_north.Seed = 4242u;
+	field_north.ProfileHash = 99u;
+	field_north.StrategicValue = 0.75f;
+	Check (PersistentCampaignService::Add_Territory (field_north,&error),
+			 "Add_Territory refused a fresh territory -- %s",(const char *)error);
+	Check (PersistentCampaignService::Get_Territory_Count () == 1,"territory count did not reach 1");
+
+	CampaignTerritoryDescriptor duplicate = field_north;
+	Check (!PersistentCampaignService::Add_Territory (duplicate,&error),
+			 "Add_Territory accepted a duplicate territory id");
+	Check (PersistentCampaignService::Get_Territory_Count () == 1,
+			 "a refused duplicate add still changed the territory count");
+
+	CampaignTerritoryDescriptor field_south;
+	field_south.TerritoryId = 2;
+	field_south.Name = "Field South";
+	field_south.Seed = 777u;
+	field_south.OwnerFaction = TEAM_NOD;
+	Check (PersistentCampaignService::Add_Territory (field_south,&error),
+			 "Add_Territory refused a second fresh territory -- %s",(const char *)error);
+
+	CampaignTerritoryDescriptor lookup;
+	Check (PersistentCampaignService::Find_Territory_By_Id (2,&lookup),
+			 "Find_Territory_By_Id could not find territory 2");
+	Check (lookup.OwnerFaction == TEAM_NOD,"Find_Territory_By_Id returned the wrong owner");
+	Check (!PersistentCampaignService::Find_Territory_By_Id (999,&lookup),
+			 "Find_Territory_By_Id found a territory id that was never added");
+
+	Check (!PersistentCampaignService::Set_Territory_Owner (999,TEAM_GDI),
+			 "Set_Territory_Owner accepted an unknown territory id");
+	Check (PersistentCampaignService::Set_Territory_Owner (1,TEAM_GDI),
+			 "Set_Territory_Owner refused a known territory id");
+	Check (PersistentCampaignService::Find_Territory_By_Id (1,&lookup) && (lookup.OwnerFaction == TEAM_GDI),
+			 "Set_Territory_Owner did not actually change ownership");
+
+	/*
+	**	Faction state.  Bounds are enforced (MAX_FACTIONS), and a round trip through Set/Get
+	**	returns exactly what was written.
+	*/
+	CampaignFactionState bad_faction;
+	bad_faction.FactionId = 99;
+	Check (!PersistentCampaignService::Set_Faction_State (bad_faction),
+			 "Set_Faction_State accepted an out-of-range faction id");
+
+	CampaignFactionState nod_state;
+	nod_state.FactionId = TEAM_NOD;
+	nod_state.CampaignResources = 500.0f;
+	nod_state.UnlockedBuildingMask = 0x3u;
+	Check (PersistentCampaignService::Set_Faction_State (nod_state),
+			 "Set_Faction_State refused a valid faction state");
+
+	CampaignFactionState read_back;
+	Check (PersistentCampaignService::Get_Faction_State (TEAM_NOD,&read_back) &&
+				(read_back.CampaignResources == 500.0f) && (read_back.UnlockedBuildingMask == 0x3u),
+			 "Get_Faction_State did not return what Set_Faction_State wrote");
+
+	/*
+	**	Build_Battle_Launch_Contract is pure: a neutral territory (owner -1) produces a
+	**	HOLD_TERRITORY objective, an owned one produces DESTROY_BASE, and the contract carries
+	**	the territory's own seed/profile and the attacker's unlocked options verbatim.
+	*/
+	CampaignBattleLaunchContract neutral_contract = PersistentCampaignService::Build_Battle_Launch_Contract (
+		field_north,TEAM_GDI,TEAM_NOD,nod_state);
+	Check (neutral_contract.Objective == CAMPAIGN_OBJECTIVE_HOLD_TERRITORY,
+			 "a neutral territory did not produce a HOLD_TERRITORY objective");
+	Check (neutral_contract.Seed == field_north.Seed,"the contract did not carry the territory's seed");
+	Check (neutral_contract.AllowedBuildingMask == nod_state.UnlockedBuildingMask,
+			 "the contract did not carry the attacker's unlocked building mask");
+
+	CampaignBattleLaunchContract owned_contract = PersistentCampaignService::Build_Battle_Launch_Contract (
+		field_south,TEAM_GDI,TEAM_NOD,nod_state);
+	Check (owned_contract.Objective == CAMPAIGN_OBJECTIVE_DESTROY_BASE,
+			 "an owned territory did not produce a DESTROY_BASE objective");
+
+	StringClass repro = PersistentCampaignService::Format_Battle_Reproduction_String (neutral_contract);
+	Check (::strstr ((const char *)repro,"territory=1") != nullptr,
+			 "the reproduction string did not name its territory");
+
+	/*
+	**	Apply_Battle_Result_To_Territory/_Faction are pure: a real winner transfers ownership and
+	**	credits the winner; a draw (-1) changes neither.
+	*/
+	CampaignBattleResult win_result;
+	win_result.TerritoryId = 2;
+	win_result.WinningFaction = TEAM_GDI;
+	win_result.ResourcesCaptured = 150.0f;
+
+	CampaignTerritoryDescriptor won_territory = PersistentCampaignService::Apply_Battle_Result_To_Territory (
+		field_south,win_result);
+	Check (won_territory.OwnerFaction == TEAM_GDI,"a real winner did not transfer ownership");
+
+	CampaignBattleResult draw_result;
+	draw_result.TerritoryId = 2;
+	draw_result.WinningFaction = -1;
+	CampaignTerritoryDescriptor draw_territory = PersistentCampaignService::Apply_Battle_Result_To_Territory (
+		field_south,draw_result);
+	Check (draw_territory.OwnerFaction == field_south.OwnerFaction,
+			 "a draw result (-1) changed territory ownership");
+
+	CampaignFactionState gdi_before;
+	gdi_before.FactionId = TEAM_GDI;
+	gdi_before.CampaignResources = 100.0f;
+	gdi_before.TerritoriesOwned = 3;
+	CampaignFactionState gdi_won = PersistentCampaignService::Apply_Battle_Result_To_Faction (
+		gdi_before,win_result,true);
+	Check (gdi_won.CampaignResources == 250.0f,"a winning faction did not gain the captured resources");
+	Check (gdi_won.TerritoriesOwned == 4,"a winning faction's territory count did not increase");
+
+	CampaignFactionState gdi_lost = PersistentCampaignService::Apply_Battle_Result_To_Faction (
+		gdi_before,win_result,false);
+	Check (gdi_lost.CampaignResources == 100.0f,"a non-winning faction gained resources anyway");
+
+	/*
+	**	Apply_Battle_Result is the real walk: it looks up live territory/faction state, applies
+	**	the pure functions above, and writes the result back -- including debiting the previous
+	**	owner's territory count, never below zero.
+	*/
+	CampaignFactionState gdi_live;
+	gdi_live.FactionId = TEAM_GDI;
+	gdi_live.TerritoriesOwned = 0;
+	PersistentCampaignService::Set_Faction_State (gdi_live);
+	CampaignFactionState nod_live;
+	nod_live.FactionId = TEAM_NOD;
+	nod_live.TerritoriesOwned = 1;
+	PersistentCampaignService::Set_Faction_State (nod_live);
+
+	Check (PersistentCampaignService::Apply_Battle_Result (win_result,&error),
+			 "Apply_Battle_Result refused a valid result -- %s",(const char *)error);
+	Check (PersistentCampaignService::Find_Territory_By_Id (2,&lookup) && (lookup.OwnerFaction == TEAM_GDI),
+			 "Apply_Battle_Result did not transfer live territory ownership");
+
+	CampaignFactionState gdi_after;
+	PersistentCampaignService::Get_Faction_State (TEAM_GDI,&gdi_after);
+	Check (gdi_after.TerritoriesOwned == 1,"Apply_Battle_Result did not credit the winner's territory count");
+
+	CampaignFactionState nod_after;
+	PersistentCampaignService::Get_Faction_State (TEAM_NOD,&nod_after);
+	Check (nod_after.TerritoriesOwned == 0,"Apply_Battle_Result did not debit the previous owner's territory count");
+
+	CampaignBattleResult unknown_result;
+	unknown_result.TerritoryId = 999;
+	Check (!PersistentCampaignService::Apply_Battle_Result (unknown_result,&error),
+			 "Apply_Battle_Result accepted an unknown territory id");
+
+	/*
+	**	Serialize/Deserialize round trip, and the explicit schema-migration mechanism: a newer-
+	**	than-supported schema_version is refused outright; an older one is accepted (every field
+	**	already defaults through json::value).
+	*/
+	CampaignFactionState nod_expected;
+	PersistentCampaignService::Get_Faction_State (TEAM_NOD,&nod_expected);
+
+	StringClass saved_json;
+	Check (PersistentCampaignService::Serialize (&saved_json),"Serialize failed on a populated campaign");
+
+	int territory_count_before = PersistentCampaignService::Get_Territory_Count ();
+	PersistentCampaignService::Init ();
+	Check (PersistentCampaignService::Get_Territory_Count () == 0,"Init did not clear campaign state");
+
+	Check (PersistentCampaignService::Deserialize ((const char *)saved_json,&error),
+			 "Deserialize refused its own Serialize output -- %s",(const char *)error);
+	Check (PersistentCampaignService::Get_Territory_Count () == territory_count_before,
+			 "Deserialize did not restore the same territory count Serialize saved");
+	Check (PersistentCampaignService::Find_Territory_By_Id (1,&lookup) && (lookup.OwnerFaction == TEAM_GDI),
+			 "Deserialize did not restore territory 1's ownership");
+	CampaignFactionState nod_restored;
+	Check (PersistentCampaignService::Get_Faction_State (TEAM_NOD,&nod_restored) &&
+				(nod_restored.CampaignResources == nod_expected.CampaignResources) &&
+				(nod_restored.TerritoriesOwned == nod_expected.TerritoriesOwned),
+			 "Deserialize did not restore faction state Serialize saved");
+
+	StringClass future_json (128u,true);
+	future_json.Format ("{\"schema_version\":%u}",PersistentCampaignService::CURRENT_SCHEMA_VERSION + 1);
+	Check (!PersistentCampaignService::Deserialize ((const char *)future_json,&error),
+			 "Deserialize accepted a schema_version newer than this build supports");
+
+	StringClass older_json (128u,true);
+	older_json.Format ("{\"schema_version\":0,\"active\":true}");
+	Check (PersistentCampaignService::Deserialize ((const char *)older_json,&error),
+			 "Deserialize refused a schema_version older than current");
+
+	PersistentCampaignService::Shutdown ();
+	return _Failures;
+}
+
+
 int	Run_RTS_Persistence (void)
 {
 	BuildingDescriptorManager::Init ();
@@ -6340,6 +6562,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "commanderai") == 0)) {
 		Run_Commander_AI ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "campaign") == 0)) {
+		Run_Persistent_Campaign ();
 		ran = true;
 	}
 

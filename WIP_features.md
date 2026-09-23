@@ -1234,3 +1234,26 @@ here rather than silently assumed.
 **`CanDrive`/`CanFire` non-consumption is unchanged from Phase 22's own entry above** -- not
 re-investigated, not touched, and still not this phase's to fix; recorded there, not duplicated
 here.
+
+---
+
+## V2 Phase 26 -- persistent campaign foundation is real and unit-tested; never run against a live level load
+
+Schema, territory graph, faction state, battle-launch/result contract, and save/schema-migration
+mechanism are all real (roadmap Section 26), all three binaries clean, `shader_campaign`/
+`fds_shader_campaign` green. See `docs/procedural_world/PersistentCampaign.md` for the full
+account, including a "not exercised by the self check" list (`Save_To_File`/`Load_From_File`'s
+real disk I/O).
+
+**What is not proven:** `Launch_Territory_Battle` has never been followed by an actual level load
+-- it calls the real `ProceduralWorldManager::Request_World`, but nothing in this phase or its
+self check starts a level, so no one has observed a campaign-launched battle actually generate a
+world with the requested seed, be played to completion, and have `Apply_Battle_Result` update a
+real save file that survives a restart.
+
+**Next exact action** is a manual one for the user: `campaign create demo`,
+`campaign territory 1 12345 0 1.0`, `campaign launch 1 nod gdi` (confirm the printed reproduction
+string names seed 12345), trigger the level load the menu's procedural button normally starts and
+confirm the generated world matches; then `campaign result 1 nod 100`, `campaign save <path>`,
+restart the process, `campaign load <path>`, and confirm `campaign status` shows territory 1 owned
+by Nod.

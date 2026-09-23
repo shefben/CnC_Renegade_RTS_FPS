@@ -4202,3 +4202,43 @@ stage/force-size/target. `commander_ai difficulty <nod|gdi> <easy|normal|hard>` 
 
 **Regression status:** full suite 187 tests, 30 failing -- the same 30 names as before this
 phase, so zero regressions.
+
+---
+
+## V2 Phase 26 -- persistent campaign foundation (roadmap Section 26)
+
+New service, `Code/Combat/persistentcampaign.{h,cpp}`, not a parallel world-generation path --
+`Launch_Territory_Battle` hands its seed/profile to `ProceduralWorldManager::Request_World`, the
+same one request queue the menu's procedural button and `procedural_world` console command
+already use. All three binaries build clean with zero warnings; `shader_campaign`/
+`fds_shader_campaign` (two new tests) pass. Full account: `docs/procedural_world/PersistentCampaign.md`.
+
+**Territory graph (26.1)/faction state (26.2)**: `CampaignTerritoryDescriptor` (id, adjacency,
+owner, procedural profile hash/seed, strategic value, tech/resource modifiers) and
+`CampaignFactionState` (campaign resources, unlocked building/unit masks over the existing
+`PurchaseAvailabilityClass` descriptor indices, territories owned). Duplicate territory ids and
+out-of-range faction ids are refused, not silently ignored.
+
+**Battle launch/result contract (26.3)**: `Build_Battle_Launch_Contract` and
+`Apply_Battle_Result_To_Territory`/`_To_Faction` are pure functions, the same split every
+Commander AI phase has used since Phase 24 -- self-check-covered including the neutral-vs-owned
+objective distinction and the draw (`WinningFaction == -1`) no-op case. `Launch_Territory_Battle`
+and `Apply_Battle_Result` are the real walks against live campaign state and the live procedural-
+world request queue.
+
+**Save/schema (26.4)**: JSON via the same `nlohmann::json`/`RawFileClass` idiom
+`proceduralworldprofile.cpp` already established. `CURRENT_SCHEMA_VERSION` is checked on every
+load; a newer-than-supported version is refused, an older one accepted (every field already
+defaults through `json::value`). Schema 1 is the first version ever written, so the migration
+mechanism is proven with synthetic version numbers rather than a fabricated historical schema.
+
+**Console**: `campaign <create|territory|owner|launch|result|save|load|status>`
+(`CampaignConsoleFunctionClass`).
+
+**Not exercised by the self check**: `Save_To_File`/`Load_From_File`'s real disk I/O (thin
+wrappers around the directly-tested `Serialize`/`Deserialize`) and `Launch_Territory_Battle`
+actually producing a real generated world -- both disclosed in the doc, the same category of gap
+every AI Commander phase's real walk has carried since Phase 24.
+
+**Regression status:** full suite 189 tests, 30 failing -- the same 30 names as before this
+phase, so zero regressions; the two new tests both pass.

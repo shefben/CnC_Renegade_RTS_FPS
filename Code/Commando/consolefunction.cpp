@@ -72,6 +72,7 @@
 #include "commanderproductionevent.h"
 #include "commandervotecallevent.h"
 #include "commanderai.h"
+#include "persistentcampaign.h"
 #include "commandervotecastevent.h"
 #include "commandertransferevent.h"
 
@@ -2640,6 +2641,171 @@ public:
 		}
 
 		Print( "commander_ai: unrecognised '%s' -- usage 'commander_ai <activate <nod|gdi>|deactivate <nod|gdi>|status>'.\n",verb );
+	}
+};
+
+
+class CampaignConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "campaign"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "CAMPAIGN <create <name>|territory <id> <seed> <profile_hash> <value>|"
+				 "owner <id> <nod|gdi>|launch <id> <nod|gdi> <nod|gdi>|"
+				 "result <id> <nod|gdi|none> <resources>|save <path>|load <path>|status> - "
+				 "roadmap Phase 26 persistent campaign foundation.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		char verb [32] = { 0 };
+		int parsed_verb = ( input != nullptr ) ? ::sscanf( input,"%31s",verb ) : 0;
+		if ( parsed_verb < 1 ) {
+			Print( "%s\n",Get_Help() );
+			return;
+		}
+		const char * rest = input + ::strlen( verb );
+		while ( ( *rest == ' ' ) || ( *rest == '\t' ) ) rest++;
+
+		if ( ::_stricmp( verb,"status" ) == 0 ) {
+			if ( !PersistentCampaignService::Is_Campaign_Active() ) {
+				Print( "campaign: no active campaign.\n" );
+				return;
+			}
+			Print( "campaign: active, %d territor%s.\n",
+					 PersistentCampaignService::Get_Territory_Count(),
+					 ( PersistentCampaignService::Get_Territory_Count() == 1 ) ? "y" : "ies" );
+			for ( int i = 0; i < PersistentCampaignService::Get_Territory_Count(); i++ ) {
+				CampaignTerritoryDescriptor t;
+				if ( !PersistentCampaignService::Get_Territory( i,&t ) ) continue;
+				const char * owner = "neutral";
+				if ( t.OwnerFaction == PLAYERTYPE_GDI ) owner = "GDI";
+				else if ( t.OwnerFaction == PLAYERTYPE_NOD ) owner = "Nod";
+				Print( "  territory %d: owner %s, seed %u, value %.2f.\n",
+						 t.TerritoryId,owner,t.Seed,t.StrategicValue );
+			}
+			return;
+		}
+
+		if ( ::_stricmp( verb,"create" ) == 0 ) {
+			if ( rest [0] == '\0' ) {
+				Print( "campaign: usage 'campaign create <name>'.\n" );
+				return;
+			}
+			StringClass error;
+			if ( PersistentCampaignService::Create_Campaign( rest,&error ) ) {
+				Print( "campaign: created '%s'.\n",rest );
+			} else {
+				Print( "campaign: create failed -- %s.\n",(const char *)error );
+			}
+			return;
+		}
+
+		if ( ::_stricmp( verb,"territory" ) == 0 ) {
+			int id = -1; unsigned int seed = 1; unsigned int profile_hash = 0; float value = 0.0f;
+			int n = ::sscanf( rest,"%d %u %u %f",&id,&seed,&profile_hash,&value );
+			if ( n < 4 ) {
+				Print( "campaign: usage 'campaign territory <id> <seed> <profile_hash> <value>'.\n" );
+				return;
+			}
+			CampaignTerritoryDescriptor t;
+			t.TerritoryId = id;
+			t.Seed = seed;
+			t.ProfileHash = profile_hash;
+			t.StrategicValue = value;
+			StringClass error;
+			if ( PersistentCampaignService::Add_Territory( t,&error ) ) {
+				Print( "campaign: territory %d added.\n",id );
+			} else {
+				Print( "campaign: territory add failed -- %s.\n",(const char *)error );
+			}
+			return;
+		}
+
+		if ( ::_stricmp( verb,"owner" ) == 0 ) {
+			int id = -1; char team_name [16] = { 0 };
+			int n = ::sscanf( rest,"%d %15s",&id,team_name );
+			if ( n < 2 ) {
+				Print( "campaign: usage 'campaign owner <id> <nod|gdi>'.\n" );
+				return;
+			}
+			int faction = ( ::_stricmp( team_name,"gdi" ) == 0 ) ? PLAYERTYPE_GDI : PLAYERTYPE_NOD;
+			if ( PersistentCampaignService::Set_Territory_Owner( id,faction ) ) {
+				Print( "campaign: territory %d owner set to %s.\n",id,team_name );
+			} else {
+				Print( "campaign: unknown territory %d.\n",id );
+			}
+			return;
+		}
+
+		if ( ::_stricmp( verb,"launch" ) == 0 ) {
+			int id = -1; char att_name [16] = { 0 }; char def_name [16] = { 0 };
+			int n = ::sscanf( rest,"%d %15s %15s",&id,att_name,def_name );
+			if ( n < 3 ) {
+				Print( "campaign: usage 'campaign launch <id> <nod|gdi> <nod|gdi>'.\n" );
+				return;
+			}
+			CampaignTerritoryDescriptor territory;
+			if ( !PersistentCampaignService::Find_Territory_By_Id( id,&territory ) ) {
+				Print( "campaign: unknown territory %d.\n",id );
+				return;
+			}
+			int attacker = ( ::_stricmp( att_name,"gdi" ) == 0 ) ? PLAYERTYPE_GDI : PLAYERTYPE_NOD;
+			int defender = ( ::_stricmp( def_name,"gdi" ) == 0 ) ? PLAYERTYPE_GDI : PLAYERTYPE_NOD;
+			CampaignFactionState attacker_state;
+			PersistentCampaignService::Get_Faction_State( attacker,&attacker_state );
+			CampaignBattleLaunchContract contract = PersistentCampaignService::Build_Battle_Launch_Contract(
+				territory,attacker,defender,attacker_state );
+			StringClass error;
+			if ( PersistentCampaignService::Launch_Territory_Battle( contract,&error ) ) {
+				Print( "campaign: launch requested -- %s\n",
+						 (const char *)PersistentCampaignService::Format_Battle_Reproduction_String( contract ) );
+			} else {
+				Print( "campaign: launch failed -- %s.\n",(const char *)error );
+			}
+			return;
+		}
+
+		if ( ::_stricmp( verb,"result" ) == 0 ) {
+			int id = -1; char winner_name [16] = { 0 }; float resources = 0.0f;
+			int n = ::sscanf( rest,"%d %15s %f",&id,winner_name,&resources );
+			if ( n < 3 ) {
+				Print( "campaign: usage 'campaign result <id> <nod|gdi|none> <resources>'.\n" );
+				return;
+			}
+			CampaignBattleResult result;
+			result.TerritoryId = id;
+			result.ResourcesCaptured = resources;
+			if ( ::_stricmp( winner_name,"gdi" ) == 0 ) result.WinningFaction = PLAYERTYPE_GDI;
+			else if ( ::_stricmp( winner_name,"nod" ) == 0 ) result.WinningFaction = PLAYERTYPE_NOD;
+			else result.WinningFaction = -1;
+			StringClass error;
+			if ( PersistentCampaignService::Apply_Battle_Result( result,&error ) ) {
+				Print( "campaign: result applied to territory %d.\n",id );
+			} else {
+				Print( "campaign: result failed -- %s.\n",(const char *)error );
+			}
+			return;
+		}
+
+		if ( ( ::_stricmp( verb,"save" ) == 0 ) || ( ::_stricmp( verb,"load" ) == 0 ) ) {
+			if ( rest [0] == '\0' ) {
+				Print( "campaign: usage 'campaign %s <path>'.\n",verb );
+				return;
+			}
+			StringClass error;
+			bool ok = ( ::_stricmp( verb,"save" ) == 0 ) ?
+				PersistentCampaignService::Save_To_File( rest,&error ) :
+				PersistentCampaignService::Load_From_File( rest,&error );
+			if ( ok ) {
+				Print( "campaign: %s '%s' ok.\n",verb,rest );
+			} else {
+				Print( "campaign: %s failed -- %s.\n",verb,(const char *)error );
+			}
+			return;
+		}
+
+		Print( "%s\n",Get_Help() );
 	}
 };
 
@@ -7770,6 +7936,7 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new CommanderVoteConsoleFunctionClass() );
 	FunctionList.Add( new CommanderTransferConsoleFunctionClass() );
 	FunctionList.Add( new CommanderAIConsoleFunctionClass() );
+	FunctionList.Add( new CampaignConsoleFunctionClass() );
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );

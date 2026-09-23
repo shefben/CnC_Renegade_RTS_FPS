@@ -108,6 +108,7 @@ logisticsgraphservice.cpp
 projectbuildingdefs.cpp
     commanderproduction.cpp
     commanderai.cpp
+    persistentcampaign.cpp
     commanderguardai.cpp
     commanderselection.cpp
     commanderselectionrenderer.cpp
@@ -306,6 +307,7 @@ logisticsgraphservice.h
 projectbuildingdefs.h
     commanderproduction.h
     commanderai.h
+    persistentcampaign.h
     commanderguardai.h
     commanderselection.h
     commanderselectionrenderer.h
