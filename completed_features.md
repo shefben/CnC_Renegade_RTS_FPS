@@ -4145,3 +4145,60 @@ requires, exposed today for Section 24.9 diagnostics.
 
 **Regression status:** full suite 187 tests, 30 failing -- the same 30 names as before this phase,
 so zero regressions; the two new tests both pass.
+
+---
+
+## V2 Phase 25 -- autonomous AI Commander production/defense/offense/recon/repair/logistics (roadmap Section 24.5-24.9)
+
+Real on the same `CommanderAIService` Phase 24 built (`Code/Combat/commanderai.{h,cpp}`) -- one
+service, not a parallel one; Section 24.1's own role list is one AI Commander with many
+responsibilities. All three binaries build clean with zero warnings, and `shader_commanderai`/
+`fds_shader_commanderai` (the same two tests, substantially extended) pass. Full account:
+`docs/zerohour/CommanderAI.md`.
+
+**Update was refactored into four independent planners** (`Update_Economy`, `Update_Production`,
+`Update_Defense`, `Update_Attack`), each with its own real early-return "nothing to do" outcomes
+that no longer suppress one another -- before this phase, an economy-planner refusal partway
+through building would have silently skipped every planner after it, since they were all one
+function with early returns.
+
+**Production planner (24.5)**: `Decide_Production_Mix` is pure (enemy vehicle composition
+overrides an infantry/vehicle ratio, `NONE` once both are satisfied). The real purchase reuses
+exactly what a human Commander's sidebar reads from (`PurchaseSettingsDefClass`/
+`PurchaseAvailabilityClass`), the identical lookup `cCommanderProductionEvent`'s own
+`Find_Purchase_Entry` performs. Air is never proposed -- inherits that file's own disclosed "no
+purchase page" gap rather than working around it. Population caps and the difficulty's own
+treasury reserve are checked as real gates, the same split the economy planner already uses.
+
+**Defense planner (24.6)**: closes a real Phase 9 gap outright -- `BridgePlanner::
+ResolvedBridge::StrategicImportance` has said *"no AI Commander consumer exists yet"* in its own
+comment since it was written; it is that consumer now. Chokepoints (bridges) and high-value
+points (this team's own Power/Silo buildings) are scored by a pure weighted function and the
+winner is defended by calling `CommanderGuardAI::Guard` directly -- no guard-state reimplementation.
+
+**Attack planner (24.7)**: a real seven-stage machine (`IDLE/RECON/ASSEMBLE/ROUTE/ENGAGE/
+RETREAT/EXPLOIT`), Section 24.7's own explicit "not merely ATTACK_MOVE" instruction. The
+transition function is pure and self-check-covered stage by stage. Target selection prefers the
+shroud-explored enemy building reachable by the shortest real road distance
+(`LogisticsGraphService`) over merely nearest straight-line -- "choose route" without inventing a
+waypoint-following primitive this codebase has never had. Real order dispatch
+(`Dispatch_AI_Goto`/`Dispatch_AI_Attack`) mirrors `Code/Commando/commanderorderevent.cpp`'s own
+`Dispatch_Order` rather than sharing it -- that function is file-static in Commando, and Combat
+(where this file lives) is the lower layer Commando links against, so sharing it is architecturally
+impossible, not merely inconvenient; `CommanderGuardAI` already established the same reimplement-
+rather-than-share precedent for the identical reason.
+
+**Difficulty (24.8)**: `CommanderAIDifficultySettings` has exactly three fields (planning
+interval, min force size, treasury reserve fraction) and nothing else -- "no omniscience, no
+impossible resources" is true by construction, since the struct has no field that could touch
+treasury income, shroud visibility, or any validator. Three presets, self-check-proven strictly
+ordered Easy-more-cautious-than-Normal-more-cautious-than-Hard on all three fields.
+
+**Diagnostics (24.9)**: `commander_ai status` extended with friendly/known-enemy infantry/vehicle
+counts, the production-mix decision, defense point/defender counts, and attack
+stage/force-size/target. `commander_ai difficulty <nod|gdi> <easy|normal|hard>` sets it live.
+
+**`CanDrive`/`CanFire` non-consumption remains its own separate WIP item, untouched by this phase.**
+
+**Regression status:** full suite 187 tests, 30 failing -- the same 30 names as before this
+phase, so zero regressions.

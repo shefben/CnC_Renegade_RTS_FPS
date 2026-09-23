@@ -1,7 +1,12 @@
-# Commander AI — Roadmap Section 24.1-24.4 (V2 Phase 24)
+# Commander AI — Roadmap Section 24.1-24.9 (V2 Phases 24-25)
 
 Autonomous AI Commander: seat reservation, the strategic world snapshot, the economy planner,
-and base-expansion site scoring. `Code/Combat/commanderai.h` / `commanderai.cpp`.
+base-expansion site scoring (Phase 24, Section 24.1-24.4), and the production planner, defense
+planner, attack planner, difficulty and diagnostics (Phase 25, Section 24.5-24.9). One service,
+`CommanderAIService` (`Code/Combat/commanderai.h` / `commanderai.cpp`), not two — Section 24.1's
+own role list is one AI Commander with many responsibilities, and splitting the file at the
+Phase 24/25 boundary would be exactly the parallel-system split the project rules warn against
+for no real seam in the domain.
 
 ## The v1 human Commander API is the only action surface this uses
 
@@ -128,30 +133,128 @@ today for Section 24.9 diagnostics and ready for whichever later phase decides t
 Empty (`count 0`) whenever `StrategicPlanner::Has_Plan()` is false — a legacy/static map has no
 candidate graph to read, and that is a correct, unremarkable empty result, not a failure.
 
+## Why the attack planner writes its own order dispatch
+
+Section 24.7's attack planner is the one place this file issues real unit orders, and it does so
+the same way `Code/Commando/commanderorderevent.cpp`'s own `Dispatch_Order` does for a human
+Commander's click — `ScriptEngine::Action_Goto`/`Action_Attack` over an `ActionParamsStruct` —
+rather than sharing that function directly. `Dispatch_Order` is `static` to
+`commanderorderevent.cpp`, and Combat (where this file lives) is the lower layer Commando links
+against, so Combat code cannot call into Commando code regardless of linkage visibility.
+`CommanderGuardAI` already reimplements the identical small dispatch for the same reason — this
+file's own `Dispatch_AI_Goto`/`Dispatch_AI_Attack` follow that established precedent rather than
+inventing a third shape. Section 24.6's defense planner does not reimplement guard behaviour at
+all: it calls `CommanderGuardAI::Guard` directly, the same real entry point a human Commander's
+own `ORDER_GUARD` click reaches.
+
+## Production planner — Section 24.5
+
+`Decide_Production_Mix(friendly_infantry, friendly_vehicle, known_enemy_vehicle, policy)` is
+pure: the enemy's own known vehicle count (shroud-explored, Section 24.2's rule again) overrides
+an `InfantryPerVehicle` ratio (default 2) whenever this team's vehicles are behind it; the ratio
+governs otherwise; `AI_PRODUCTION_NONE` only once both are satisfied — genuinely nothing needed,
+not a treasury or population-cap question.
+
+The real purchase reuses exactly what a human Commander's sidebar reads from —
+`PurchaseSettingsDefClass`/`PurchaseAvailabilityClass` — through `Find_Purchasable_Unit`, the same
+page/entry lookup `cCommanderProductionEvent`'s own `Find_Purchase_Entry` performs, re-read
+directly rather than guessed at. **Air is never proposed**: `commanderproductionevent.cpp`'s own
+comment says why — "Air has no purchase page in this tree's content" — and this planner inherits
+that disclosed gap rather than working around it. `Find_Team_Production_Facility` mirrors every
+readiness check a human's own click passes through `cCommanderProductionEvent::Act` — alive,
+construction complete, powered, exit clear (`WorldSpatialIndex::Query_Game_Objects_In_Sphere` at
+the facility's own `Get_Commander_Exit_Point`) — so a facility this function accepts is one a
+human's click would accept too. Population caps (`CommanderProductionService::Get_Population_Cap`)
+and the difficulty's own treasury reserve fraction are checked as real gates in `Update_Production`,
+the same "pure decision, then can-we-actually-do-it" split `Update_Economy` already uses.
+
+## Defense planner — Section 24.6
+
+`Score_Defense_Point(point, weights)` is a pure weighted sum (chokepoint 0.5 / value 0.35 / power
+0.15 by default) of three 0..1-clamped terms. The real points behind it
+(`Refresh_Defense_Points`) come from two sources, neither invented: every `BridgePlanner::
+ResolvedBridge` that `CountsAsConnectivity`, scored by its own `StrategicImportance` — Phase 9's
+own field, whose header has said *"no AI Commander consumer exists yet"* since it was written, and
+is that consumer now — and every one of this team's own Power Plants/Silos (already known from the
+snapshot's building walk), maximal `ValueProximity` by definition. `PowerVulnerability` is one real
+per-team headroom number applied identically to every point this tick: a short grid raises the
+priority of defending everything, not any one place more than another.
+
+`Update_Defense` picks the single highest-scored point and calls `CommanderGuardAI::Guard` on up
+to `difficulty.MinForceSize` real, unassigned, non-human units — never a human's own unit (Section
+3A.4's rule, enforced by never issuing the order in the first place, not by relying on a refusal).
+
+## Attack planner — Section 24.7
+
+A real seven-stage machine (`IDLE → RECON → ASSEMBLE → ROUTE → ENGAGE → RETREAT/EXPLOIT`), not a
+single `ATTACK_MOVE` — Section 24.7's own explicit instruction.
+`Decide_Attack_Transition` is a pure function of the stage plus seven real signals
+(`known_enemy_buildings`, `assembled_force_size`, `force_losses`, `force_size_at_engage_start`,
+`arrived`, `target_destroyed`, `force_spent`) and the policy, so the whole machine is checkable
+with no scene:
+
+- **RECON → ASSEMBLE** once `known_enemy_buildings >= ReconBuildingThreshold` — a real target must
+  exist before a force is gathered, not "attack blind".
+- **ASSEMBLE → ROUTE** once `assembled_force_size >= MinForceSize` (difficulty-scaled).
+- **ROUTE → ENGAGE** on arrival; **→ EXPLOIT** if the target died en route; **→ RETREAT** if the
+  force was wiped out getting there.
+- **ENGAGE → EXPLOIT** on `target_destroyed`; **→ RETREAT** once losses reach
+  `RetreatLossFraction` (default 0.5) of the force `ENGAGE` actually started with — a fraction of
+  what was sent, not an absolute count, so one policy scales with whatever `MinForceSize` produced.
+- **EXPLOIT/RETREAT → IDLE** once the force is spent; **EXPLOIT → ROUTE** otherwise, for
+  `Update_Attack`'s own real code to pick the next target the identical way `ROUTE`'s own entry
+  already does — a genuine "nothing left to press toward" is folded into `force_spent` by that
+  same caller rather than adding an eighth pure-function parameter used nowhere else.
+
+`Pick_Attack_Target` is Section 24.7's *"choose route"* made concrete without a waypoint-following
+primitive this codebase has never had (every AI-issued order in this tree, human or bot, relies on
+the engine's own navigation between click and destination): it prefers the shroud-*explored* enemy
+building reachable by the shortest real `LogisticsGraphService` road distance over the merely
+nearest straight-line one, falling back to straight-line distance with no road graph built — a
+real, not fabricated, choice either way. Orders are real `ScriptEngine::Action_Goto`/`Action_Attack`
+dispatch to a tracked, bounded force (`MAX_ATTACK_FORCE = 8`), pruned every tick of anything no
+longer live or on-team.
+
+## Difficulty — Section 24.8
+
+`Get_Difficulty_Settings(difficulty)` returns exactly three fields — `PlanningIntervalSeconds`,
+`MinForceSize`, `ReserveFraction` — and nothing else, which is what makes *"do not simply grant
+omniscience or impossible resources"* true by construction rather than by promise: the struct has
+no field that could touch `AITreasury` income, `WorldShroudManager` visibility, or any validator.
+Easy is slower and more cautious (10s planning interval, wants 5 units before committing, holds
+back a quarter of its treasury); Hard is faster and leaner (2.5s, 3 units, no reserve); Normal sits
+between (5s — `AI_PLANNING_INTERVAL_SECONDS`, the difficulty-independent default — 4 units, a 10%
+reserve). `Set_Difficulty`/`Get_Difficulty` are per-team; `commander_ai difficulty <nod|gdi>
+<easy|normal|hard>` sets it live.
+
 ## Console
 
-`commander_ai <activate <nod|gdi>|deactivate <nod|gdi>|status>` — real calls into
-`CommanderAIService`, not a display-only mock. `activate` seats the same `AI_COMMANDER_ID`
-`Update` would and is subject to the identical "never displaces a real Commander" refusal;
-`status` prints both teams' seat state, treasury, last decision, build counts, the current
-snapshot, and the expansion-candidate count.
+`commander_ai <activate <nod|gdi>|deactivate <nod|gdi>|difficulty <nod|gdi> <easy|normal|hard>|
+status>` — real calls into `CommanderAIService`, not a display-only mock. `status` prints both
+teams' seat state, difficulty, treasury, last economy decision, build counts, the current snapshot
+(now including friendly/known-enemy infantry/vehicle counts), the expansion-candidate count, the
+production-mix decision, the defense point/defender counts, and the attack stage/force
+size/target position.
 
 ## Self-check coverage
 
 `renegade -shaderselfcheck commanderai`, registered as ctest `shader_commanderai` and
-`fds_shader_commanderai`. Device-less. Pins: `Activate` refusing to seat over a real Commander and
-never touching the other team; `Deactivate` never clearing a seat this AI no longer holds, and
-always clearing one it does; treasury get/set/increment, clamped at zero, per-team isolated;
-`Decide_Economy_Priority`'s full priority table (healthy economy, zero generation with and without
-real demand, demand past the headroom fraction, a missing Silo, power prioritised over a missing
-Silo); `Find_Buildable_Descriptor` matching this team's faction or "any", skipping the other real
-faction, and returning null once nothing matching is loaded; `Score_Expansion_Candidate`'s zero
-floor for an unbuildable site, near-1.0 for a maximal one, near-0 for a minimal-but-buildable one,
-and closer-beats-farther on one varied term with every other term held fixed.
+`fds_shader_commanderai`. Device-less. Phase 24's own coverage (seat rules, treasury, economy
+priority table, descriptor search, expansion scoring) is unchanged; Phase 25 adds:
+`Decide_Production_Mix`'s enemy-override and ratio rules and its `NONE` floor; `Score_Defense_Point`'s
+weighted sum, zero floor and out-of-range clamping; `Decide_Attack_Transition`'s full stage cycle,
+one real signal at a time (RECON's threshold, ASSEMBLE's force size, ROUTE's three exits, ENGAGE's
+loss-fraction threshold and target-destroyed exit, RETREAT/EXPLOIT's force-spent exits); the three
+difficulty presets being genuinely distinct and strictly ordered (Easy more cautious than Normal
+more cautious than Hard) on all three of their fields; and every new diagnostic reading a real,
+correct empty/idle state before `Update` has ever run.
 
-**Not covered by any automated check**: `Update` itself — the one real building/roster/site-search
-walk needs a live scene this harness has no way to construct, the same gap Phase 22's
-`Govern_Subsystem_Speed` and Phase 23's `Count_Connected_Teammates` document. Also not covered:
-`Refresh_Expansion_Candidates`'s own real inputs (`StrategicPlanner`, `TiberiumFieldGenerator`,
-`LogisticsGraphService`, `WorldBoundsService`) against real generated-world data, and the console
-command's output formatting. Both named in `WIP_features.md`.
+**Not covered by any automated check**: `Update` itself, and every real sub-planner it calls
+(`Update_Economy`, `Update_Production`, `Update_Defense`, `Update_Attack`) — the one real
+building/unit roster walk, purchase-page lookup, `CommanderGuardAI::Guard` call and
+`ScriptEngine::Action_Goto`/`Action_Attack` dispatch each needs a live scene this harness has no
+way to construct, the same gap Phase 22's `Govern_Subsystem_Speed` and Phase 23's
+`Count_Connected_Teammates` document. Also not covered: `Refresh_Expansion_Candidates`'s and
+`Refresh_Defense_Points`'s own real inputs (`StrategicPlanner`, `TiberiumFieldGenerator`,
+`LogisticsGraphService`, `WorldBoundsService`, `BridgePlanner`) against real generated-world data,
+and the console command's output formatting. All named in `WIP_features.md`.

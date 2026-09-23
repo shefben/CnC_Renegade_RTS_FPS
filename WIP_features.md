@@ -1183,8 +1183,53 @@ player, open `commander_vote remove` against the AI-held seat, get a real majori
 `commander_ai status` shows the AI stood down (`Is_Active` false) rather than continuing to spend
 from a treasury it no longer has authority over.
 
-**No production/defense/offense/recon/repair/logistics behavior exists yet** -- Section 24.5-24.9
-is V2 Phase 25, not built here.
+**Section 24.5-24.9 is now V2 Phase 25's own entry below, not this one.**
+
+**`CanDrive`/`CanFire` non-consumption is unchanged from Phase 22's own entry above** -- not
+re-investigated, not touched, and still not this phase's to fix; recorded there, not duplicated
+here.
+
+---
+
+## V2 Phase 25 -- production/defense/attack planners are real and unit-tested; none has run live
+
+All implementable steps built for real (roadmap Section 24.5-24.9), all three binaries clean,
+`shader_commanderai`/`fds_shader_commanderai` still green with substantially extended coverage.
+`Decide_Production_Mix`, `Score_Defense_Point`, `Decide_Attack_Transition` and the three
+`Get_Difficulty_Settings` presets are real and self-check-covered as pure functions. See
+`docs/zerohour/CommanderAI.md`'s Phase 25 sections for the full account.
+
+**What is not proven:** `Update_Production`, `Update_Defense` and `Update_Attack` -- the real
+purchase-page lookup, facility readiness walk, `BridgePlanner`/`CommanderGuardAI` defense
+assignment, and `ScriptEngine::Action_Goto`/`Action_Attack` order dispatch -- have never run
+against a live scene, the same limit Phase 24's own `Update_Economy` still carries. None of the
+following has been observed for real: an AI Commander actually purchasing an infantry or vehicle
+unit and having it appear; a defender actually walking to and guarding a real bridge or Power
+Plant; an attack force actually assembling at a rally point, marching on a real enemy building,
+attacking it, and retreating or exploiting based on real losses; or difficulty actually changing
+how fast/cautious/aggressive an AI Commander behaves in a real match.
+
+**Next exact action** is a manual one for the user, on a generated map with both an AI Commander
+active (`commander_ai activate nod`, credited via whatever debug treasury path exists) and at
+least one enemy building explored: (1) confirm `commander_ai status` eventually shows a
+production-mix decision other than 'none' and that a real infantry or vehicle unit appears near a
+factory; (2) confirm the status line's defense point/defender counts become nonzero once a bridge
+or Power Plant exists, and that the assigned unit(s) are visibly standing guard near it; (3)
+confirm the attack stage advances from 'recon' through 'assemble'/'route'/'engage' as real
+conditions are met, that units visibly march toward and attack a real enemy building, and that the
+stage reaches 'retreat' or 'exploit' appropriately; (4) set `commander_ai difficulty nod hard` and
+confirm the AI plans and commits to an attack noticeably faster/with a smaller force than
+`commander_ai difficulty nod easy` does in a repeat match.
+
+**No recon/repair/logistics behavior beyond what 24.5-24.7 already cover exists as a distinct
+system** -- Section 24.9's "recon" is satisfied by the existing shroud-explored world snapshot
+(Section 24.2) feeding the attack planner's own RECON stage; "repair" for an AI-controlled vehicle
+is Phase 22's own `Think_Subsystem_Retreat`, unchanged and already team-agnostic; "logistics" is
+the existing `LogisticsGraphService` road-distance measurement the attack planner's own target
+selection already reads. No new dedicated recon/repair/logistics module was built, because the
+roadmap's own listed capabilities under those names were already real, existing systems this
+phase reused rather than duplicated -- a real design decision, not an oversight, and disclosed
+here rather than silently assumed.
 
 **`CanDrive`/`CanFire` non-consumption is unchanged from Phase 22's own entry above** -- not
 re-investigated, not touched, and still not this phase's to fix; recorded there, not duplicated

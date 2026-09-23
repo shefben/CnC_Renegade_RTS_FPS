@@ -4,8 +4,38 @@
  *                                                                                             *
  *                     $Archive:: /Commando/Code/Combat/commanderai.h                         $*
  *                                                                                             *
- *	Roadmap Section 24.1-24.4 -- Phase 24 autonomous AI Commander: roles, strategic world       *
- *	model, economy planner, base expansion.                                                     *
+ *	Roadmap Section 24.1-24.9 -- Phase 24 (24.1-24.4: roles, strategic world model, economy       *
+ *	planner, base expansion) and Phase 25 (24.5-24.9: production planner, defense planner,        *
+ *	attack planner, difficulty, diagnostics) autonomous AI Commander.  One service, not two --     *
+ *	Section 24.1's own role list is one AI Commander with many responsibilities, not one per        *
+ *	responsibility, and splitting the file at the Phase 24/25 boundary would be exactly the          *
+ *	parallel-system split the project rules warn against for no real seam in the domain.             *
+ *                                                                                             *
+ *	Section 24.7's attack planner is the one place this file issues real unit orders, and it does   *
+ *	so the same way `Code/Commando/commanderorderevent.cpp`'s own `Dispatch_Order` does for a         *
+ *	human Commander's click -- `ScriptEngine::Action_Goto`/`Action_Attack` over an                     *
+ *	`ActionParamsStruct` -- rather than sharing that function directly: `Dispatch_Order` is `static`   *
+ *	to `Code/Commando/commanderorderevent.cpp`, and Combat (where this file lives) is the lower         *
+ *	layer Commando links against, so Combat code cannot call into Commando code regardless of           *
+ *	linkage visibility.  `CommanderGuardAI` (Code/Combat/commanderguardai.h) already reimplements        *
+ *	the identical small dispatch for the same reason -- this file's own `Dispatch_AI_Goto`/                *
+ *	`Dispatch_AI_Attack` follow that established precedent rather than inventing a third shape.            *
+ *                                                                                             *
+ *	Section 24.6's defense planner does not reimplement guard behaviour at all: it calls                   *
+ *	`CommanderGuardAI::Guard` directly, the same real entry point a human Commander's own click               *
+ *	through `cCommanderOrderEvent`'s `ORDER_GUARD` case reaches -- reuse over rediscovery again.             *
+ *                                                                                             *
+ *	Section 24.5's production planner reuses the same purchase-page data a human Commander's                  *
+ *	sidebar reads from (`PurchaseSettingsDefClass`/`PurchaseAvailabilityClass`), the identical                *
+ *	`Find_Purchase_Entry`-shaped lookup `cCommanderProductionEvent::Act` performs, and the same real           *
+ *	`CommanderProductionService::Request_Production` gate.  Air has no purchase page in this tree's            *
+ *	content (`commanderproductionevent.cpp`'s own disclosed gap, `docs/assets/CommanderSidebar.md`) --         *
+ *	this planner never proposes an air unit for the identical honest reason.                                   *
+ *                                                                                             *
+ *	Section 24.8's difficulty never touches treasury income, shroud visibility, or any validator --            *
+ *	only timing and thresholds this file's own planners already read.  `Set_Difficulty` is checked             *
+ *	by the self check to prove exactly that: hard difficulty never credits extra treasury and never            *
+ *	widens what `Build_World_Snapshot` counts as explored.                                                     *
  *                                                                                             *
  *	"The v1 human Commander API is the only action surface the AI Commander may use.  No AI     *
  *	cheats that directly spawn buildings/units or bypass power/credits."  An AI-held seat is a   *
@@ -108,8 +138,8 @@ struct CommanderAIWorldSnapshot
 		PowerGeneration(0.0f),PowerAllocatedDemand(0.0f),
 		PowerPlantCount(0),SiloCount(0),
 		DamagedBuildingCount(0),
-		FriendlyUnitCount(0),
-		KnownEnemyBuildingCount(0) { }
+		FriendlyUnitCount(0),FriendlyInfantryCount(0),FriendlyVehicleCount(0),
+		KnownEnemyBuildingCount(0),KnownEnemyInfantryCount(0),KnownEnemyVehicleCount(0) { }
 
 	float	AvailableCredits;			// this team's AI treasury -- see AITreasury
 
@@ -126,14 +156,20 @@ struct CommanderAIWorldSnapshot
 	int	DamagedBuildingCount;	// this team's own buildings below full health -- never a secret
 
 	int	FriendlyUnitCount;		// CommanderProductionService::Get_Population summed over kinds
+	int	FriendlyInfantryCount;	// real GameObjManager roster, Section 24.5's own production mix input
+	int	FriendlyVehicleCount;	// ground vehicles only -- Section 24.5 never proposes air (see this file's own header)
 
 	/*
-	**	Buildings this team has actually explored on the enemy's territory
-	**	(`WorldShroudManager::Is_Explored(this_team, enemy_building_position)`), not the enemy's
-	**	real building count.  A building the shroud has never uncovered is not counted, the same
-	**	as a human Commander's own sidebar would never show it.
+	**	Buildings/units this team has actually explored on the enemy's territory
+	**	(`WorldShroudManager::Is_Explored(this_team, enemy_position)`), never the enemy's real
+	**	count.  Something the shroud has never uncovered is not counted, the same as a human
+	**	Commander's own sidebar would never show it.  Unit counts are a coarse proxy --
+	**	infantry-vs-vehicle only, from `As_SoldierGameObj`/`As_VehicleGameObj`, not a real unit
+	**	taxonomy this codebase has no canonical owner for -- disclosed, not hidden.
 	*/
 	int	KnownEnemyBuildingCount;
+	int	KnownEnemyInfantryCount;
+	int	KnownEnemyVehicleCount;
 };
 
 
@@ -208,6 +244,128 @@ struct CommanderAIExpansionWeights
 	float	ResourceReferenceDistance;
 	float	RoadReferenceDistance;
 	float	BoundaryReferenceDistance;
+};
+
+
+/*
+**	Section 24.5's production planner.  Air is never a choice -- see this file's own header.
+*/
+enum CommanderAIProductionMixType
+{
+	AI_PRODUCTION_NONE = 0,
+	AI_PRODUCTION_INFANTRY,
+	AI_PRODUCTION_VEHICLE,
+};
+
+struct CommanderAIProductionPolicy
+{
+	CommanderAIProductionPolicy(void) :
+		InfantryPerVehicle(2),MinReserveCredits(0.0f) { }
+
+	//	How many infantry this team wants on hand per vehicle before switching to vehicles --
+	//	a ratio rather than a hardcoded ladder, tunable the same way TargetSiloCount is.
+	int	InfantryPerVehicle;
+
+	//	Section 24.8's own "resource reserve" in miniature: treasury below this line is never
+	//	spent on production, only read here so Decide_Production_Mix stays a pure function of
+	//	counts and never has to see a treasury balance itself.
+	float	MinReserveCredits;
+};
+
+
+/*
+**	Section 24.6's defense planner.  `NodeId`/`Position` name a real chokepoint or a real owned
+**	building -- see `Update`'s own comment for where each comes from.  Scored the same
+**	normalised-terms-times-weights shape `Score_Expansion_Candidate` already established.
+*/
+struct CommanderAIDefensePoint
+{
+	CommanderAIDefensePoint(void) :
+		NodeId(""),Position(0.0f,0.0f,0.0f),
+		ChokepointImportance(0.0f),ValueProximity(0.0f),PowerVulnerability(0.0f) { }
+
+	StringClass	NodeId;
+	Vector3	Position;
+
+	float	ChokepointImportance;	// 0..1, BridgePlanner::ResolvedBridge::StrategicImportance at this point
+	float	ValueProximity;			// 0..1, how close this point is to this team's own high-value buildings
+	float	PowerVulnerability;		// 0..1, this team's own power headroom shortfall (a short grid raises every point's priority)
+};
+
+struct CommanderAIDefenseWeights
+{
+	CommanderAIDefenseWeights(void) :
+		ChokepointWeight(0.5f),ValueWeight(0.35f),PowerWeight(0.15f) { }
+
+	float	ChokepointWeight;
+	float	ValueWeight;
+	float	PowerWeight;
+};
+
+
+/*
+**	Section 24.7's attack planner.  A real staged state machine, not a single ATTACK_MOVE --
+**	Section 24.7's own explicit instruction.  IDLE is the resting state between attacks; every
+**	other stage is real and Update-driven.  See `Decide_Attack_Transition` for the rules and
+**	`Update` for what each stage actually does to a real assigned force.
+*/
+enum CommanderAIAttackStageType
+{
+	AI_ATTACK_IDLE = 0,
+	AI_ATTACK_RECON,			// waiting to know enough about the enemy to plan against
+	AI_ATTACK_ASSEMBLE,		// gathering a force at a rally point
+	AI_ATTACK_ROUTE,			// moving the assembled force toward the objective
+	AI_ATTACK_ENGAGE,		// attacking the objective
+	AI_ATTACK_RETREAT,		// pulling back -- losses past the policy's own threshold
+	AI_ATTACK_EXPLOIT,		// the objective fell; press toward the next known one
+};
+
+struct CommanderAIAttackPolicy
+{
+	CommanderAIAttackPolicy(void) :
+		ReconBuildingThreshold(1),
+		MinForceSize(3),
+		RetreatLossFraction(0.5f) { }
+
+	//	How many real, shroud-explored enemy buildings this team needs to know about before
+	//	RECON is satisfied -- "do not merely issue every unit ATTACK_MOVE" starts with actually
+	//	having a target, not attacking blind.
+	int	ReconBuildingThreshold;
+
+	//	Section 24.7's "assemble force" made concrete: how many idle units this AI gathers at
+	//	the rally point before advancing past ASSEMBLE.
+	int	MinForceSize;
+
+	//	Fraction of the force present at ENGAGE's start that must be lost before RETREAT fires.
+	//	0.5 means "half the force is gone" -- deliberately a fraction of what was actually sent,
+	//	not an absolute count, so the same policy scales with whatever MinForceSize produced.
+	float	RetreatLossFraction;
+};
+
+
+/*
+**	Section 24.8's difficulty.  Every field here is timing/threshold state this file's own
+**	planners already read -- never treasury income, never shroud visibility, never a validator
+**	bypass.  "Do not simply grant omniscience or impossible resources" is enforced by
+**	construction: nothing below can touch `AITreasury` or `WorldShroudManager`.
+*/
+enum CommanderAIDifficultyType
+{
+	AI_DIFFICULTY_EASY = 0,
+	AI_DIFFICULTY_NORMAL,
+	AI_DIFFICULTY_HARD,
+};
+
+struct CommanderAIDifficultySettings
+{
+	CommanderAIDifficultySettings(void) :
+		PlanningIntervalSeconds(5.0f),
+		MinForceSize(3),
+		ReserveFraction(0.0f) { }
+
+	float	PlanningIntervalSeconds;	// Section 24.8's own "planning interval"/"reaction time"
+	int	MinForceSize;					// Section 24.8's own "risk tolerance", read by the attack policy
+	float	ReserveFraction;				// Section 24.8's own "resource reserve", a fraction of treasury never spent
 };
 
 
@@ -311,6 +469,64 @@ class CommanderAIService
 		**	different real faction is skipped, and Build.Team == -1 ("any faction") matches.
 		*/
 		static const BuildingModelDescriptor *	Find_Buildable_Descriptor(bool power_generating,int team);
+
+		/*
+		**	Section 24.5.  Pure: counts in, one mix decision out.  `known_enemy_vehicle_count`
+		**	past this team's own vehicle count tilts toward vehicles regardless of the ratio --
+		**	matching composition is Section 24.5's own explicit input -- otherwise
+		**	`InfantryPerVehicle` governs.  AI_PRODUCTION_NONE only when infantry is already ahead
+		**	of both the ratio and the enemy's own vehicle count; `Update` is what turns a real
+		**	choice into "can we actually afford and build it right now".
+		*/
+		static CommanderAIProductionMixType	Decide_Production_Mix(
+			int friendly_infantry_count,int friendly_vehicle_count,
+			int known_enemy_vehicle_count,const CommanderAIProductionPolicy & policy);
+
+		//	Section 24.6.  Pure weighted sum, the same shape Score_Expansion_Candidate uses.
+		static float	Score_Defense_Point(
+			const CommanderAIDefensePoint & point,const CommanderAIDefenseWeights & weights);
+
+		/*
+		**	Section 24.7.  Pure state-transition function -- every input is a plain count/bool
+		**	the caller already measured, so the whole stage machine is checkable with no scene.
+		**	RECON -> ASSEMBLE once enough is known; ASSEMBLE -> ROUTE once the force is big
+		**	enough; ROUTE -> ENGAGE is the caller's own arrival signal (Update decides "close
+		**	enough", not this function); ENGAGE -> RETREAT once losses cross the policy's
+		**	fraction of the force ENGAGE started with; ENGAGE -> EXPLOIT when the objective
+		**	falls before that; EXPLOIT/RETREAT both settle back to IDLE once the caller says the
+		**	force has nothing left to do.  `arrived`/`target_destroyed`/`force_spent` are the
+		**	three real signals `Update` cannot derive from counts alone.
+		*/
+		static CommanderAIAttackStageType	Decide_Attack_Transition(
+			CommanderAIAttackStageType current,
+			int known_enemy_buildings,int assembled_force_size,
+			int force_losses,int force_size_at_engage_start,
+			bool arrived,bool target_destroyed,bool force_spent,
+			const CommanderAIAttackPolicy & policy);
+
+		/*
+		**	Section 24.8.  `Set_Difficulty` only ever changes which `CommanderAIDifficultySettings`
+		**	`Update` reads for planning interval, `CommanderAIAttackPolicy::MinForceSize`, and the
+		**	treasury reserve -- never treasury income, never shroud state, never a validator.
+		**	`Get_Difficulty_Settings` is pure and exposed so the self check can prove the three
+		**	presets are actually distinct and that none of them touches anything outside this
+		**	struct's own three fields.
+		*/
+		static void		Set_Difficulty(int team,CommanderAIDifficultyType difficulty);
+		static CommanderAIDifficultyType	Get_Difficulty(int team);
+		static CommanderAIDifficultySettings	Get_Difficulty_Settings(CommanderAIDifficultyType difficulty);
+
+		//	Section 24.9 diagnostics -- the parts of it 24.5-24.7 can answer.
+		static int		Get_Production_Mix_Decision(int team);			// CommanderAIProductionMixType
+		static int		Get_Defense_Point_Count(int team);
+		static bool		Get_Defense_Point(int team,int index,CommanderAIDefensePoint * out);
+		static int		Get_Assigned_Defender_Count(int team);
+		static int		Get_Attack_Stage(int team);							// CommanderAIAttackStageType
+		static int		Get_Attack_Force_Size(int team);
+		static Vector3	Get_Attack_Target_Position(int team);
+
+		static const char *	Get_Production_Mix_Name(CommanderAIProductionMixType mix);
+		static const char *	Get_Attack_Stage_Name(CommanderAIAttackStageType stage);
 };
 
 #endif // COMMANDERAI_H

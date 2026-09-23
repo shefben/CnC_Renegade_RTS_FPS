@@ -2537,16 +2537,19 @@ public:
 	virtual	const char * Get_Name( void ) override	{ return "commander_ai"; }
 	virtual	const char * Get_Help( void ) override
 	{
-		return "COMMANDER_AI <activate <nod|gdi>|deactivate <nod|gdi>|status> - roadmap Section "
-				 "24.1-24.9; server-side AI Commander control and diagnostics.";
+		return "COMMANDER_AI <activate <nod|gdi>|deactivate <nod|gdi>|difficulty <nod|gdi> "
+				 "<easy|normal|hard>|status> - roadmap Section 24.1-24.9; server-side AI "
+				 "Commander control and diagnostics.";
 	}
 	virtual	void Activate( const char * input ) override
 	{
 		char verb [32] = { 0 };
 		char team_name [16] = { 0 };
-		int parsed = ( input != nullptr ) ? ::sscanf( input,"%31s %15s",verb,team_name ) : 0;
+		char third [16] = { 0 };
+		int parsed = ( input != nullptr ) ? ::sscanf( input,"%31s %15s %15s",verb,team_name,third ) : 0;
 		if ( parsed < 1 ) {
-			Print( "commander_ai: usage 'commander_ai <activate <nod|gdi>|deactivate <nod|gdi>|status>'.\n" );
+			Print( "commander_ai: usage 'commander_ai <activate <nod|gdi>|deactivate <nod|gdi>|"
+					 "difficulty <nod|gdi> <easy|normal|hard>|status>'.\n" );
 			return;
 		}
 
@@ -2560,18 +2563,37 @@ public:
 					continue;
 				}
 				const CommanderAIWorldSnapshot & snapshot = CommanderAIService::Get_Last_Snapshot( team );
-				Print( "  %s: AI seated, treasury %.0f, last decision '%s', %d/%d builds attempted/succeeded.\n",
-						 team_label,CommanderAIService::Get_Treasury( team ),
+				const char * difficulty_name = "normal";
+				switch ( CommanderAIService::Get_Difficulty( team ) ) {
+					case AI_DIFFICULTY_EASY:	difficulty_name = "easy";	break;
+					case AI_DIFFICULTY_HARD:	difficulty_name = "hard";	break;
+					default:							difficulty_name = "normal";	break;
+				}
+				Print( "  %s: AI seated (%s), treasury %.0f, last decision '%s', %d/%d builds attempted/succeeded.\n",
+						 team_label,difficulty_name,CommanderAIService::Get_Treasury( team ),
 						 CommanderAIService::Get_Economy_Action_Name(
 							 (CommanderAIEconomyActionType)CommanderAIService::Get_Last_Decision( team ) ),
 						 CommanderAIService::Get_Succeeded_Build_Count( team ),
 						 CommanderAIService::Get_Attempted_Build_Count( team ) );
-				Print( "      power %.0f/%.0f, %d plant(s), %d silo(s), %d damaged, %d unit(s), %d known enemy building(s).\n",
+				Print( "      power %.0f/%.0f, %d plant(s), %d silo(s), %d damaged, %d unit(s) (%d inf/%d veh), "
+						 "%d known enemy building(s) (%d inf/%d veh).\n",
 						 snapshot.PowerAllocatedDemand,snapshot.PowerGeneration,
 						 snapshot.PowerPlantCount,snapshot.SiloCount,snapshot.DamagedBuildingCount,
-						 snapshot.FriendlyUnitCount,snapshot.KnownEnemyBuildingCount );
-				Print( "      %d expansion candidate(s) scored this planning tick.\n",
-						 CommanderAIService::Get_Expansion_Candidate_Count( team ) );
+						 snapshot.FriendlyUnitCount,snapshot.FriendlyInfantryCount,snapshot.FriendlyVehicleCount,
+						 snapshot.KnownEnemyBuildingCount,snapshot.KnownEnemyInfantryCount,snapshot.KnownEnemyVehicleCount );
+				Print( "      %d expansion candidate(s) scored; production wants '%s'; "
+						 "%d point(s) defended by %d unit(s).\n",
+						 CommanderAIService::Get_Expansion_Candidate_Count( team ),
+						 CommanderAIService::Get_Production_Mix_Name(
+							 (CommanderAIProductionMixType)CommanderAIService::Get_Production_Mix_Decision( team ) ),
+						 CommanderAIService::Get_Defense_Point_Count( team ),
+						 CommanderAIService::Get_Assigned_Defender_Count( team ) );
+				Vector3 attack_target = CommanderAIService::Get_Attack_Target_Position( team );
+				Print( "      attack stage '%s', force size %d, target (%.0f, %.0f, %.0f).\n",
+						 CommanderAIService::Get_Attack_Stage_Name(
+							 (CommanderAIAttackStageType)CommanderAIService::Get_Attack_Stage( team ) ),
+						 CommanderAIService::Get_Attack_Force_Size( team ),
+						 attack_target.X,attack_target.Y,attack_target.Z );
 			}
 			return;
 		}
@@ -2585,6 +2607,20 @@ public:
 		else if ( ::_stricmp( team_name,"nod" ) == 0 ) team = PLAYERTYPE_NOD;
 		else {
 			Print( "commander_ai: unrecognised team '%s' -- use 'nod' or 'gdi'.\n",team_name );
+			return;
+		}
+
+		if ( ::_stricmp( verb,"difficulty" ) == 0 ) {
+			CommanderAIDifficultyType difficulty;
+			if ( ::_stricmp( third,"easy" ) == 0 ) difficulty = AI_DIFFICULTY_EASY;
+			else if ( ::_stricmp( third,"hard" ) == 0 ) difficulty = AI_DIFFICULTY_HARD;
+			else if ( ::_stricmp( third,"normal" ) == 0 ) difficulty = AI_DIFFICULTY_NORMAL;
+			else {
+				Print( "commander_ai: unrecognised difficulty '%s' -- use 'easy', 'normal' or 'hard'.\n",third );
+				return;
+			}
+			CommanderAIService::Set_Difficulty( team,difficulty );
+			Print( "commander_ai: %s difficulty set to '%s'.\n",team_name,third );
 			return;
 		}
 

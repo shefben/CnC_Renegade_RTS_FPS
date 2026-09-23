@@ -5041,6 +5041,152 @@ int	Run_Commander_AI (void)
 	Check (CommanderAIService::Get_Expansion_Candidate_Count (TEAM_NOD) == 0,
 			 "expansion candidates exist before Update ever ran");
 
+	/*
+	**	Section 24.5's Decide_Production_Mix: enemy vehicle composition overrides the ratio,
+	**	the ratio governs otherwise, and NONE only once both are satisfied.
+	*/
+	CommanderAIProductionPolicy production_policy;		// InfantryPerVehicle = 2
+
+	Check (CommanderAIService::Decide_Production_Mix (0,0,3,production_policy) == AI_PRODUCTION_VEHICLE,
+			 "a real enemy vehicle lead did not ask for a vehicle");
+	Check (CommanderAIService::Decide_Production_Mix (1,2,3,production_policy) == AI_PRODUCTION_VEHICLE,
+			 "a friendly vehicle count behind the enemy's own asked for infantry instead");
+	Check (CommanderAIService::Decide_Production_Mix (0,2,1,production_policy) == AI_PRODUCTION_INFANTRY,
+			 "infantry behind the ratio (0 for 2 vehicles) did not ask for infantry");
+	Check (CommanderAIService::Decide_Production_Mix (4,2,1,production_policy) == AI_PRODUCTION_NONE,
+			 "a mix already at ratio and ahead of the enemy's vehicles still asked for something");
+
+	/*
+	**	Section 24.6's Score_Defense_Point: the default weights sum to 1.0 across three terms,
+	**	so a maximal point scores near 1.0 and a minimal one scores exactly 0; inputs outside
+	**	0..1 are clamped rather than allowed to invert a term's own contribution.
+	*/
+	CommanderAIDefenseWeights defense_weights;		// 0.5 / 0.35 / 0.15
+
+	CommanderAIDefensePoint max_defense_point;
+	max_defense_point.ChokepointImportance	= 1.0f;
+	max_defense_point.ValueProximity			= 1.0f;
+	max_defense_point.PowerVulnerability		= 1.0f;
+	float max_defense_score = CommanderAIService::Score_Defense_Point (max_defense_point,defense_weights);
+	Check ((max_defense_score > 0.99f) && (max_defense_score <= 1.001f),
+			 "a maximal defense point did not score near 1.0 (got %.4f)",max_defense_score);
+
+	CommanderAIDefensePoint zero_defense_point;		// every term defaults to 0.0f
+	Check (CommanderAIService::Score_Defense_Point (zero_defense_point,defense_weights) == 0.0f,
+			 "a zero-importance defense point scored above zero");
+
+	CommanderAIDefensePoint clamped_defense_point;
+	clamped_defense_point.ChokepointImportance	= 5.0f;		// out of range, must clamp to 1.0
+	clamped_defense_point.ValueProximity			= -3.0f;	// out of range, must clamp to 0.0
+	clamped_defense_point.PowerVulnerability		= 0.0f;
+	//	ChokepointWeight (0.5) times a clamped 1.0, plus two exactly-zero terms -- no compounded
+	//	float rounding on this path, so the literal is safe to compare against directly.
+	Check (CommanderAIService::Score_Defense_Point (clamped_defense_point,defense_weights) == 0.5f,
+			 "an out-of-range chokepoint importance was not clamped to 1.0 before weighting");
+
+	/*
+	**	Section 24.7's Decide_Attack_Transition: the full stage cycle, one real signal at a
+	**	time, everything else held at "nothing has happened yet".
+	*/
+	CommanderAIAttackPolicy attack_policy;		// ReconBuildingThreshold=1, MinForceSize=3, RetreatLossFraction=0.5
+
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_IDLE,0,0,0,0,false,false,false,attack_policy) == AI_ATTACK_RECON,
+			 "IDLE did not advance to RECON");
+
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_RECON,0,0,0,0,false,false,false,attack_policy) == AI_ATTACK_RECON,
+			 "RECON advanced with nothing known yet");
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_RECON,1,0,0,0,false,false,false,attack_policy) == AI_ATTACK_ASSEMBLE,
+			 "RECON did not advance to ASSEMBLE once the threshold was met");
+
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_ASSEMBLE,1,2,0,0,false,false,false,attack_policy) == AI_ATTACK_ASSEMBLE,
+			 "ASSEMBLE advanced before the force was big enough");
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_ASSEMBLE,1,3,0,0,false,false,false,attack_policy) == AI_ATTACK_ROUTE,
+			 "ASSEMBLE did not advance to ROUTE once the force was big enough");
+
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_ROUTE,1,3,0,0,false,false,false,attack_policy) == AI_ATTACK_ROUTE,
+			 "ROUTE advanced with none of its own real signals set");
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_ROUTE,1,3,0,0,false,true,false,attack_policy) == AI_ATTACK_EXPLOIT,
+			 "ROUTE did not treat a destroyed target as EXPLOIT");
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_ROUTE,1,3,0,0,false,false,true,attack_policy) == AI_ATTACK_RETREAT,
+			 "ROUTE did not RETREAT once the force was spent");
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_ROUTE,1,3,0,0,true,false,false,attack_policy) == AI_ATTACK_ENGAGE,
+			 "ROUTE did not advance to ENGAGE on arrival");
+
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_ENGAGE,1,3,0,6,false,false,false,attack_policy) == AI_ATTACK_ENGAGE,
+			 "ENGAGE retreated with losses below its own threshold");
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_ENGAGE,1,3,3,6,false,false,false,attack_policy) == AI_ATTACK_RETREAT,
+			 "ENGAGE did not RETREAT once losses (3 of 6, 50%%) reached the policy's own fraction");
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_ENGAGE,1,3,0,6,false,true,false,attack_policy) == AI_ATTACK_EXPLOIT,
+			 "ENGAGE did not treat a destroyed target as EXPLOIT even with losses below threshold");
+
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_RETREAT,1,3,0,0,false,false,false,attack_policy) == AI_ATTACK_RETREAT,
+			 "RETREAT advanced before the force was spent");
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_RETREAT,1,3,0,0,false,false,true,attack_policy) == AI_ATTACK_IDLE,
+			 "RETREAT did not return to IDLE once the force was spent");
+
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_EXPLOIT,1,3,0,0,false,false,false,attack_policy) == AI_ATTACK_ROUTE,
+			 "EXPLOIT did not return to ROUTE with force remaining");
+	Check (CommanderAIService::Decide_Attack_Transition (
+				AI_ATTACK_EXPLOIT,1,3,0,0,false,false,true,attack_policy) == AI_ATTACK_IDLE,
+			 "EXPLOIT did not settle to IDLE once the force was spent");
+
+	/*
+	**	Section 24.8's difficulty.  Set/Get round-trips per team, defaults to NORMAL, and the
+	**	three presets are genuinely distinct on every field -- Easy more cautious (longer
+	**	interval, bigger force, bigger reserve) than Hard on all three, Normal strictly between.
+	*/
+	Check (CommanderAIService::Get_Difficulty (TEAM_GDI) == AI_DIFFICULTY_NORMAL,
+			 "a freshly initialised team's difficulty is not NORMAL");
+	CommanderAIService::Set_Difficulty (TEAM_GDI,AI_DIFFICULTY_HARD);
+	Check (CommanderAIService::Get_Difficulty (TEAM_GDI) == AI_DIFFICULTY_HARD,"Set_Difficulty did not take");
+	Check (CommanderAIService::Get_Difficulty (TEAM_NOD) == AI_DIFFICULTY_NORMAL,
+			 "setting GDI's difficulty changed NOD's too");
+
+	CommanderAIDifficultySettings easy		= CommanderAIService::Get_Difficulty_Settings (AI_DIFFICULTY_EASY);
+	CommanderAIDifficultySettings normal	= CommanderAIService::Get_Difficulty_Settings (AI_DIFFICULTY_NORMAL);
+	CommanderAIDifficultySettings hard		= CommanderAIService::Get_Difficulty_Settings (AI_DIFFICULTY_HARD);
+
+	Check ((easy.PlanningIntervalSeconds > normal.PlanningIntervalSeconds) &&
+			 (normal.PlanningIntervalSeconds > hard.PlanningIntervalSeconds),
+			 "difficulty planning intervals are not Easy > Normal > Hard");
+	Check ((easy.MinForceSize > normal.MinForceSize) && (normal.MinForceSize > hard.MinForceSize),
+			 "difficulty min force sizes are not Easy > Normal > Hard");
+	Check ((easy.ReserveFraction > normal.ReserveFraction) && (normal.ReserveFraction > hard.ReserveFraction),
+			 "difficulty reserve fractions are not Easy > Normal > Hard");
+
+	Check (CommanderAIService::Get_Production_Mix_Name (AI_PRODUCTION_NONE) != nullptr,"AI_PRODUCTION_NONE has no name");
+	Check (CommanderAIService::Get_Production_Mix_Name (AI_PRODUCTION_INFANTRY) != nullptr,"AI_PRODUCTION_INFANTRY has no name");
+	Check (CommanderAIService::Get_Production_Mix_Name (AI_PRODUCTION_VEHICLE) != nullptr,"AI_PRODUCTION_VEHICLE has no name");
+	Check (CommanderAIService::Get_Attack_Stage_Name (AI_ATTACK_IDLE) != nullptr,"AI_ATTACK_IDLE has no name");
+	Check (CommanderAIService::Get_Attack_Stage_Name (AI_ATTACK_ENGAGE) != nullptr,"AI_ATTACK_ENGAGE has no name");
+
+	//	Production/defense/attack diagnostics are only ever filled by Update, which never ran here.
+	Check (CommanderAIService::Get_Production_Mix_Decision (TEAM_NOD) == AI_PRODUCTION_NONE,
+			 "a production mix decision exists before Update ever ran");
+	Check (CommanderAIService::Get_Defense_Point_Count (TEAM_NOD) == 0,
+			 "defense points exist before Update ever ran");
+	Check (CommanderAIService::Get_Assigned_Defender_Count (TEAM_NOD) == 0,
+			 "assigned defenders exist before Update ever ran");
+	Check (CommanderAIService::Get_Attack_Stage (TEAM_NOD) == AI_ATTACK_IDLE,
+			 "the attack stage is not IDLE before Update ever ran");
+	Check (CommanderAIService::Get_Attack_Force_Size (TEAM_NOD) == 0,
+			 "an attack force exists before Update ever ran");
+
 	CommanderAIService::Shutdown ();
 	CommanderProductionService::Shutdown ();
 	BuildingDescriptorManager::Shutdown ();
