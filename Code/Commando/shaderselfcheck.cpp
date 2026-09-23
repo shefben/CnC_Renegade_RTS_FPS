@@ -14,6 +14,7 @@
 #include "commandersidebar.h"
 #include "commanderplacement.h"
 #include "commanderproduction.h"
+#include "commanderai.h"
 #include "buildingconstruction.h"
 #include "runtimedoorservice.h"
 #include "proceduralworldprofile.h"
@@ -4823,6 +4824,230 @@ int	Run_Commander_Governance (void)
 }
 
 
+static const char * const	AI_TEST_PLANT_NOD_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":18,\"depth\":18},"
+	"  \"game_object_preset\":\"ow_test_ai_plant_preset\","
+	"  \"power\":{\"requires_power\":false,\"generation\":300.0,\"consumption\":0.0,\"priority\":0},"
+	"  \"build\":{\"buildable\":true,\"cost\":1500,\"team\":0,\"display_name\":\"AI Power Plant\"} }";
+
+static const char * const	AI_TEST_PLANT_GDI_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":18,\"depth\":18},"
+	"  \"game_object_preset\":\"ow_test_ai_plant_preset\","
+	"  \"power\":{\"requires_power\":false,\"generation\":300.0,\"consumption\":0.0,\"priority\":0},"
+	"  \"build\":{\"buildable\":true,\"cost\":1500,\"team\":1,\"display_name\":\"GDI Power Plant\"} }";
+
+static const char * const	AI_TEST_SILO_ANY_JSON =
+	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":10,\"depth\":10},"
+	"  \"game_object_preset\":\"ow_test_ai_silo_preset\","
+	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":10.0,\"priority\":40},"
+	"  \"capabilities\":{\"tiberium_silo\":{\"enabled\":true,\"wallet_capacity_bonus_per_player\":2500.0}},"
+	"  \"build\":{\"buildable\":true,\"cost\":800,\"display_name\":\"AI Silo\"} }";
+
+
+/*
+**	Roadmap Section 24.1-24.4 -- Phase 24 autonomous AI Commander.
+**
+**	Activate/Deactivate/treasury, Decide_Economy_Priority, Score_Expansion_Candidate and
+**	Find_Buildable_Descriptor are exercised here with no GameObj, no scene and no net event --
+**	the same split every Commander-layer self check already uses.  Not covered: Update itself,
+**	the one real building/roster/site-search walk -- it needs a live scene this harness has no
+**	way to construct, the same gap Phase 22's Govern_Subsystem_Speed and Phase 23's
+**	Count_Connected_Teammates document.
+*/
+int	Run_Commander_AI (void)
+{
+	BuildingDescriptorManager::Init ();
+	CommanderProductionService::Init ();
+	CommanderAIService::Init ();
+
+	const int TEAM_NOD = 0;
+	const int TEAM_GDI = 1;
+
+	/*
+	**	Activate/Deactivate/Is_Active, and the seat itself.  An AI never displaces a real
+	**	Commander, and Deactivate never clears a seat someone else now holds.
+	*/
+	Check (!CommanderAIService::Is_Active (TEAM_NOD),"a freshly initialised AI reads active");
+
+	CommanderProductionService::Set_Team_Commander (TEAM_NOD,555);
+	Check (!CommanderAIService::Activate (TEAM_NOD),"Activate seated an AI over a real Commander");
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_NOD) == 555,
+			 "a refused Activate changed the seated Commander anyway");
+	CommanderProductionService::Set_Team_Commander (TEAM_NOD,0);
+
+	Check (CommanderAIService::Activate (TEAM_NOD),"Activate over a vacant seat was refused");
+	Check (CommanderAIService::Is_Active (TEAM_NOD),"Activate succeeded but Is_Active reads false");
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_NOD) == AI_COMMANDER_ID,
+			 "Activate did not seat the reserved AI_COMMANDER_ID");
+	Check (!CommanderAIService::Is_Active (TEAM_GDI),"activating NOD activated GDI too");
+	Check (CommanderAIService::Activate (TEAM_NOD),"re-Activating an already-active AI was refused");
+
+	//	A human claiming the seat out from under the AI (Section 25.1) -- Deactivate must not
+	//	clobber someone else's seat just because this AI used to hold it.
+	CommanderProductionService::Set_Team_Commander (TEAM_NOD,777);
+	CommanderAIService::Deactivate (TEAM_NOD);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_NOD) == 777,
+			 "Deactivate cleared a seat this AI no longer held");
+
+	CommanderAIService::Activate (TEAM_GDI);
+	CommanderAIService::Deactivate (TEAM_GDI);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == 0,
+			 "Deactivate did not release a seat this AI actually held");
+	Check (!CommanderAIService::Is_Active (TEAM_GDI),"Deactivate left Is_Active true");
+
+	//	Treasury: starts and stays at zero until an income path exists, adds and subtracts for
+	//	real, and never reads negative.
+	Check (CommanderAIService::Get_Treasury (TEAM_GDI) == 0.0f,"a fresh AI treasury is not zero");
+	CommanderAIService::Set_Treasury (TEAM_GDI,500.0f);
+	Check (CommanderAIService::Get_Treasury (TEAM_GDI) == 500.0f,"Set_Treasury did not take");
+	CommanderAIService::Increment_Treasury (TEAM_GDI,250.0f);
+	Check (CommanderAIService::Get_Treasury (TEAM_GDI) == 750.0f,"Increment_Treasury did not add");
+	CommanderAIService::Increment_Treasury (TEAM_GDI,-10000.0f);
+	Check (CommanderAIService::Get_Treasury (TEAM_GDI) == 0.0f,"Increment_Treasury went negative");
+	Check (CommanderAIService::Get_Treasury (TEAM_NOD) == 0.0f,"crediting GDI credited NOD too");
+
+	/*
+	**	Decide_Economy_Priority: power first (even over a missing Silo), a headroom fraction
+	**	rather than 1.0, and zero generation with zero demand is not itself a shortfall.
+	*/
+	CommanderAIEconomyPolicy policy;		// TargetSiloCount = 1, PowerHeadroomFraction = 0.85
+
+	CommanderAIWorldSnapshot none_needed;
+	none_needed.PowerGeneration = 1000.0f;
+	none_needed.PowerAllocatedDemand = 100.0f;
+	none_needed.SiloCount = 1;
+	Check (CommanderAIService::Decide_Economy_Priority (none_needed,policy) == AI_ECONOMY_NONE,
+			 "a healthy economy still asked for something");
+
+	CommanderAIWorldSnapshot zero_power;
+	zero_power.PowerGeneration = 0.0f;
+	zero_power.PowerAllocatedDemand = 50.0f;
+	Check (CommanderAIService::Decide_Economy_Priority (zero_power,policy) == AI_ECONOMY_BUILD_POWER_PLANT,
+			 "zero generation with real demand did not ask for a Power Plant");
+
+	CommanderAIWorldSnapshot zero_power_no_demand;
+	zero_power_no_demand.PowerGeneration = 0.0f;
+	zero_power_no_demand.PowerAllocatedDemand = 0.0f;
+	zero_power_no_demand.SiloCount = 1;
+	Check (CommanderAIService::Decide_Economy_Priority (zero_power_no_demand,policy) == AI_ECONOMY_NONE,
+			 "zero generation with zero demand still asked for a Power Plant");
+
+	CommanderAIWorldSnapshot short_power;
+	short_power.PowerGeneration = 100.0f;
+	short_power.PowerAllocatedDemand = 90.0f;		// > 0.85 * 100
+	short_power.SiloCount = 1;
+	Check (CommanderAIService::Decide_Economy_Priority (short_power,policy) == AI_ECONOMY_BUILD_POWER_PLANT,
+			 "demand past the headroom fraction did not ask for a Power Plant");
+
+	CommanderAIWorldSnapshot needs_silo;
+	needs_silo.PowerGeneration = 1000.0f;
+	needs_silo.PowerAllocatedDemand = 100.0f;
+	needs_silo.SiloCount = 0;
+	Check (CommanderAIService::Decide_Economy_Priority (needs_silo,policy) == AI_ECONOMY_BUILD_SILO,
+			 "a healthy grid with no Silo did not ask for one");
+
+	CommanderAIWorldSnapshot both_short;
+	both_short.PowerGeneration = 0.0f;
+	both_short.PowerAllocatedDemand = 10.0f;
+	both_short.SiloCount = 0;
+	Check (CommanderAIService::Decide_Economy_Priority (both_short,policy) == AI_ECONOMY_BUILD_POWER_PLANT,
+			 "power was not prioritised over a missing Silo");
+
+	/*
+	**	Find_Buildable_Descriptor: matches this team's own faction or "any" (Build.Team == -1),
+	**	skips the other real faction regardless of load order, and a real "nothing loaded"
+	**	returns null rather than a stale pointer.
+	*/
+	StringClass error ("");
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_ai_plant_nod",AI_TEST_PLANT_NOD_JSON,&error),
+			 "AI plant (NOD) descriptor refused: %s",error.Peek_Buffer ());
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_ai_plant_gdi",AI_TEST_PLANT_GDI_JSON,&error),
+			 "AI plant (GDI) descriptor refused: %s",error.Peek_Buffer ());
+	Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("ow_test_ai_silo_any",AI_TEST_SILO_ANY_JSON,&error),
+			 "AI silo descriptor refused: %s",error.Peek_Buffer ());
+
+	const BuildingModelDescriptor * nod_plant = CommanderAIService::Find_Buildable_Descriptor (true,TEAM_NOD);
+	Check (nod_plant != nullptr,"no buildable Power Plant found for NOD");
+	Check ((nod_plant != nullptr) && (nod_plant->Build.Team == TEAM_NOD),
+			 "Find_Buildable_Descriptor returned the wrong faction's Power Plant for NOD");
+
+	const BuildingModelDescriptor * gdi_silo = CommanderAIService::Find_Buildable_Descriptor (false,TEAM_GDI);
+	Check (gdi_silo != nullptr,"a team-agnostic Silo descriptor was not found for GDI");
+	Check ((gdi_silo != nullptr) && gdi_silo->TiberiumSilo.Enabled,
+			 "Find_Buildable_Descriptor(false,...) returned something that is not a Silo");
+
+	BuildingDescriptorManager::Unload_Descriptor ("ow_test_ai_plant_nod");
+	BuildingDescriptorManager::Unload_Descriptor ("ow_test_ai_plant_gdi");
+	Check (CommanderAIService::Find_Buildable_Descriptor (true,TEAM_NOD) == nullptr,
+			 "Find_Buildable_Descriptor still found a Power Plant after both were unloaded");
+	BuildingDescriptorManager::Unload_Descriptor ("ow_test_ai_silo_any");
+
+	/*
+	**	Score_Expansion_Candidate: an unbuildable site always scores zero regardless of every
+	**	other term; every term is 0..1 normalised and weighted, so a maximal candidate scores
+	**	near the weights' own sum (1.0) and a minimal-but-buildable one scores near zero; closer
+	**	beats farther on the one term being varied, holding every other term fixed.
+	*/
+	CommanderAIExpansionWeights weights;		// defaults sum to 1.0 across five terms
+
+	CommanderAIExpansionCandidate not_buildable;
+	not_buildable.BuildableAreaOk = false;
+	not_buildable.PowerOk = true;
+	Check (CommanderAIService::Score_Expansion_Candidate (not_buildable,weights) == 0.0f,
+			 "an unbuildable candidate scored above zero");
+
+	CommanderAIExpansionCandidate perfect;
+	perfect.ResourceDistance		= 0.0f;
+	perfect.RoadAccessDistance	= 0.0f;
+	perfect.EnemyPressure			= 0.0f;
+	perfect.PowerOk					= true;
+	perfect.BuildableAreaOk			= true;
+	perfect.DistanceFromBoundary	= weights.BoundaryReferenceDistance * 2.0f;
+	float perfect_score = CommanderAIService::Score_Expansion_Candidate (perfect,weights);
+	Check ((perfect_score > 0.99f) && (perfect_score <= 1.001f),
+			 "a maximal candidate did not score near 1.0 (got %.4f)",perfect_score);
+
+	CommanderAIExpansionCandidate worst;
+	worst.ResourceDistance		= -1.0f;
+	worst.RoadAccessDistance	= -1.0f;
+	worst.EnemyPressure			= 1.0f;
+	worst.PowerOk					= false;
+	worst.BuildableAreaOk			= true;
+	worst.DistanceFromBoundary	= 0.0f;
+	float worst_score = CommanderAIService::Score_Expansion_Candidate (worst,weights);
+	Check (worst_score < 0.01f,"a minimal-but-buildable candidate did not score near 0 (got %.4f)",worst_score);
+	Check (worst_score < perfect_score,"the worst candidate did not score below the best one");
+
+	CommanderAIExpansionCandidate closer;
+	closer.ResourceDistance		= 100.0f;
+	closer.RoadAccessDistance	= 0.0f;
+	closer.PowerOk					= true;
+	closer.BuildableAreaOk			= true;
+	closer.DistanceFromBoundary	= weights.BoundaryReferenceDistance * 2.0f;
+	CommanderAIExpansionCandidate farther = closer;
+	farther.ResourceDistance = 900.0f;
+	Check (CommanderAIService::Score_Expansion_Candidate (closer,weights) >
+			 CommanderAIService::Score_Expansion_Candidate (farther,weights),
+			 "a candidate closer to a resource scored no better than a farther one");
+
+	Check (CommanderAIService::Get_Economy_Action_Name (AI_ECONOMY_NONE) != nullptr,"AI_ECONOMY_NONE has no name");
+	Check (CommanderAIService::Get_Economy_Action_Name (AI_ECONOMY_BUILD_POWER_PLANT) != nullptr,
+			 "AI_ECONOMY_BUILD_POWER_PLANT has no name");
+	Check (CommanderAIService::Get_Economy_Action_Name (AI_ECONOMY_BUILD_SILO) != nullptr,
+			 "AI_ECONOMY_BUILD_SILO has no name");
+	Check (CommanderAIService::Get_Economy_Action_Name (AI_ECONOMY_PAUSE) != nullptr,"AI_ECONOMY_PAUSE has no name");
+
+	//	Expansion-candidate diagnostics are only ever filled by Update, which never ran here.
+	Check (CommanderAIService::Get_Expansion_Candidate_Count (TEAM_NOD) == 0,
+			 "expansion candidates exist before Update ever ran");
+
+	CommanderAIService::Shutdown ();
+	CommanderProductionService::Shutdown ();
+	BuildingDescriptorManager::Shutdown ();
+	return _Failures;
+}
+
+
 int	Run_RTS_Persistence (void)
 {
 	BuildingDescriptorManager::Init ();
@@ -5964,6 +6189,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "governance") == 0)) {
 		Run_Commander_Governance ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "commanderai") == 0)) {
+		Run_Commander_AI ();
 		ran = true;
 	}
 

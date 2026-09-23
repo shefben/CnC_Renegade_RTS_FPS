@@ -85,6 +85,7 @@
 #include "commanderselectionrenderer.h"
 #include "commanderwaypoint.h"
 #include "commanderwaypointrenderer.h"
+#include "commanderai.h"
 #include "commanderproduction.h"
 #include "definitionmgr.h"
 #include "playertype.h"
@@ -625,6 +626,7 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	*/
 	ProceduralWorldManager::Destroy_World();
 	CommanderProductionService::Init();
+	CommanderAIService::Init();
 	CommanderGuardAI::Init();
 	CommanderSelection::Init();
 	CommanderCommandPalette::Init();
@@ -1314,6 +1316,19 @@ void 	CombatManager::Think()
 				int candidate = CommanderProductionService::Get_Vote_Candidate( team );
 				bool still_eligible = CommanderProductionService::Is_Client_Connected_On_Team( candidate,team );
 				CommanderProductionService::Update_Commander_Vote( team,TimeManager::Get_Frame_Seconds(),still_eligible );
+			}
+		}
+
+		/*
+		**	Roadmap Section 24.1-24.4 -- Phase 24 autonomous AI Commander.  A cheap no-op for a
+		**	team with no AI Commander seated (`Is_Active` is a plain array read) and, even for an
+		**	active one, a no-op between `Get_Planning_Interval_Seconds()` -- the roster/shroud
+		**	walk and site search only run once every real planning tick, not every frame.
+		*/
+		{
+			static const int AI_COMMANDER_TEAMS [2] = { PLAYERTYPE_NOD,PLAYERTYPE_GDI };
+			for ( int i = 0; i < 2; i++ ) {
+				CommanderAIService::Update( AI_COMMANDER_TEAMS [i],TimeManager::Get_Frame_Seconds() );
 			}
 		}
 

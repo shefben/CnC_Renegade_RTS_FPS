@@ -71,6 +71,7 @@
 #include "commanderplacementevent.h"
 #include "commanderproductionevent.h"
 #include "commandervotecallevent.h"
+#include "commanderai.h"
 #include "commandervotecastevent.h"
 #include "commandertransferevent.h"
 
@@ -2519,6 +2520,90 @@ public:
 		cCommanderTransferEvent * event = new cCommanderTransferEvent;
 		event->Init( target );
 		Print( "commander_transfer: asked to hand command to client %d; the server decides.\n",target );
+	}
+};
+
+
+/*
+**	Roadmap Section 24.1-24.4 -- Phase 24 autonomous AI Commander diagnostics and manual
+**	activation, the server-side equivalent of `commander_mode` for a human.  Real calls into
+**	`CommanderAIService`, not a display-only mock -- activating from here seats the same
+**	`AI_COMMANDER_ID` `CommanderAIService::Update` would, and is subject to the identical
+**	"never displaces a real Commander" refusal.
+*/
+class CommanderAIConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "commander_ai"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "COMMANDER_AI <activate <nod|gdi>|deactivate <nod|gdi>|status> - roadmap Section "
+				 "24.1-24.9; server-side AI Commander control and diagnostics.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		char verb [32] = { 0 };
+		char team_name [16] = { 0 };
+		int parsed = ( input != nullptr ) ? ::sscanf( input,"%31s %15s",verb,team_name ) : 0;
+		if ( parsed < 1 ) {
+			Print( "commander_ai: usage 'commander_ai <activate <nod|gdi>|deactivate <nod|gdi>|status>'.\n" );
+			return;
+		}
+
+		if ( ::_stricmp( verb,"status" ) == 0 ) {
+			static const int TEAMS [2] = { PLAYERTYPE_NOD,PLAYERTYPE_GDI };
+			for ( int i = 0; i < 2; i++ ) {
+				int team = TEAMS [i];
+				const char * team_label = ( team == PLAYERTYPE_GDI ) ? "GDI" : "Nod";
+				if ( !CommanderAIService::Is_Active( team ) ) {
+					Print( "  %s: no AI Commander seated.\n",team_label );
+					continue;
+				}
+				const CommanderAIWorldSnapshot & snapshot = CommanderAIService::Get_Last_Snapshot( team );
+				Print( "  %s: AI seated, treasury %.0f, last decision '%s', %d/%d builds attempted/succeeded.\n",
+						 team_label,CommanderAIService::Get_Treasury( team ),
+						 CommanderAIService::Get_Economy_Action_Name(
+							 (CommanderAIEconomyActionType)CommanderAIService::Get_Last_Decision( team ) ),
+						 CommanderAIService::Get_Succeeded_Build_Count( team ),
+						 CommanderAIService::Get_Attempted_Build_Count( team ) );
+				Print( "      power %.0f/%.0f, %d plant(s), %d silo(s), %d damaged, %d unit(s), %d known enemy building(s).\n",
+						 snapshot.PowerAllocatedDemand,snapshot.PowerGeneration,
+						 snapshot.PowerPlantCount,snapshot.SiloCount,snapshot.DamagedBuildingCount,
+						 snapshot.FriendlyUnitCount,snapshot.KnownEnemyBuildingCount );
+				Print( "      %d expansion candidate(s) scored this planning tick.\n",
+						 CommanderAIService::Get_Expansion_Candidate_Count( team ) );
+			}
+			return;
+		}
+
+		if ( parsed < 2 ) {
+			Print( "commander_ai: '%s' needs a team -- 'commander_ai %s <nod|gdi>'.\n",verb,verb );
+			return;
+		}
+		int team = 0;
+		if ( ::_stricmp( team_name,"gdi" ) == 0 ) team = PLAYERTYPE_GDI;
+		else if ( ::_stricmp( team_name,"nod" ) == 0 ) team = PLAYERTYPE_NOD;
+		else {
+			Print( "commander_ai: unrecognised team '%s' -- use 'nod' or 'gdi'.\n",team_name );
+			return;
+		}
+
+		if ( ::_stricmp( verb,"activate" ) == 0 ) {
+			if ( CommanderAIService::Activate( team ) ) {
+				Print( "commander_ai: activated for %s.\n",team_name );
+			} else {
+				Print( "commander_ai: refused -- %s already has a Commander.\n",team_name );
+			}
+			return;
+		}
+
+		if ( ::_stricmp( verb,"deactivate" ) == 0 ) {
+			CommanderAIService::Deactivate( team );
+			Print( "commander_ai: deactivated for %s.\n",team_name );
+			return;
+		}
+
+		Print( "commander_ai: unrecognised '%s' -- usage 'commander_ai <activate <nod|gdi>|deactivate <nod|gdi>|status>'.\n",verb );
 	}
 };
 
@@ -7648,6 +7733,7 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new CommanderRTSStatusConsoleFunctionClass() );
 	FunctionList.Add( new CommanderVoteConsoleFunctionClass() );
 	FunctionList.Add( new CommanderTransferConsoleFunctionClass() );
+	FunctionList.Add( new CommanderAIConsoleFunctionClass() );
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );

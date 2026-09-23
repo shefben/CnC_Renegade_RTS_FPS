@@ -4093,3 +4093,55 @@ not touched or folded into this phase.**
 
 **Regression status:** full suite 185 tests, 30 failing -- the same 30 names as before this phase,
 so zero regressions; the two new tests both pass.
+
+---
+
+## V2 Phase 24 -- autonomous AI Commander economy/power/base construction (roadmap Section 24.1-24.4)
+
+Real on `Code/Combat/commanderai.{h,cpp}` (`CommanderAIService`). All three binaries build clean
+with zero warnings, and `shader_commanderai`/`fds_shader_commanderai` pass (`ctest -N` now 187,
+was 185). Full account: `docs/zerohour/CommanderAI.md`.
+
+**The v1 human Commander API is the only action surface used.** An AI-held seat is a real entry
+in `CommanderProductionService::_Commanders[]` (`AI_COMMANDER_ID = -1`), and every building an AI
+Commander creates goes through the identical `CommanderPlacementValidator::Validate` ->
+`RuntimeBuildingFactory` -> `BuildingConstructionService::Begin_Construction` pipeline a human's
+placement uses, read directly from `cCommanderPlacementEvent::Act` rather than re-derived. The one
+necessary divergence: no `PlayerDataClass` exists to charge, so the AI spends from its own
+per-team treasury, which starts at and stays at zero (no Harvester income path exists yet) until
+a real income path is built.
+
+**Section 25.1 governance was extended to cover an AI seat, not bypassed.** A human contests it
+with `commander_vote remove` exactly as they would a human Commander (the `ELECT` path only opens
+against a vacant seat, and an AI-held seat is a real nonzero id). `CommanderProductionService::Update_Commander_Vacancy`
+needed one real fix (`player <= 0` in place of `player == 0`): it polls for a soldier holding each
+seat, and an AI seat by design has none, so unfixed it would have vacated a working AI Commander
+after one `COMMANDER_VACANCY_GRACE_SECONDS`.
+
+**Strategic world model (24.2)** is one real per-tick building/unit roster walk classifying every
+real building by its own resolved descriptor (never a model or preset name), plus
+`WorldShroudManager::Is_Explored` for every counted enemy building -- an unexplored enemy
+structure is invisible to this file exactly as to a human Commander's own sidebar, which is the
+whole proof for "does not inspect hidden enemy truth."
+
+**Economy planner (24.3)** is a pure priority function (power first, then Silo headroom) plus a
+real, data-driven descriptor search matching `Build.Team`/`Build.Buildable` -- never a guessed
+descriptor name. "More Refinery/resource infrastructure" is explicitly not decided: nothing in
+`BuildingModelDescriptor` distinguishes a Refinery from any other buildable building, and Tiberium
+income has no path to a Commander's wallet yet regardless.
+
+**Base expansion (24.4)** reuses Phase 7's own `StrategicPlanner` node graph for real candidate
+sites -- "reuse over rediscovery" is that file's own stated rule -- rather than inventing a second
+ring-search graph. `Score_Expansion_Candidate` is a real, pure, weighted scoring function, and
+`Refresh_Expansion_Candidates` builds real candidates from `TiberiumFieldGenerator`,
+`LogisticsGraphService`, shroud-explored enemy positions, current power headroom and
+`WorldBoundsService`. Deliberately not acted on: `Update` scores and stops, it does not found a
+second base on the winner -- a materially larger behavior than "evaluate candidate sites"
+requires, exposed today for Section 24.9 diagnostics.
+
+**Console**: `commander_ai <activate <nod|gdi>|deactivate <nod|gdi>|status>`.
+
+**`CanDrive`/`CanFire` non-consumption remains its own separate WIP item, untouched by this phase.**
+
+**Regression status:** full suite 187 tests, 30 failing -- the same 30 names as before this phase,
+so zero regressions; the two new tests both pass.

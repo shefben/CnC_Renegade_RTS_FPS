@@ -222,6 +222,12 @@ void CommanderProductionService::Set_Team_Commander(int team,int player_id)
  *	or a soldier that is no longer on the team being commanded (team change).  The second is      *
  *	immediate rather than graced -- someone who switched sides should not keep command of the     *
  *	team they left for twenty seconds, and unlike a respawn there is nothing transient about it.  *
+ *                                                                                               *
+ *	Roadmap Section 24.1 -- a negative id is `CommanderAIService::AI_COMMANDER_ID`, an AI-held      *
+ *	seat with no soldier by design.  This poll would otherwise read that as "no soldier found"      *
+ *	and vacate a working AI Commander after one `COMMANDER_VACANCY_GRACE_SECONDS`, so it is          *
+ *	excluded the same way an empty seat already is -- `CommanderAIService::Update` is what          *
+ *	notices an AI seat has been taken away (a Section 25.1 REMOVE vote, a direct claim), not this.   *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 void CommanderProductionService::Update_Commander_Vacancy(float seconds)
 {
@@ -235,7 +241,7 @@ void CommanderProductionService::Update_Commander_Vacancy(float seconds)
 		int index	= Team_Index (team);
 		int player	= _Commanders [index];
 
-		if (player == 0) {
+		if (player <= 0) {
 			_CommanderMissingFor [index] = 0.0f;
 			continue;
 		}

@@ -1148,3 +1148,44 @@ whichever phase builds Commander Mode's real UI, not this one.
 **`CanDrive`/`CanFire` non-consumption is unchanged from Phase 22's own entry above** -- not
 re-investigated, not touched, and still not this phase's to fix; recorded there, not duplicated
 here.
+
+---
+
+## V2 Phase 24 -- autonomous AI Commander's real behavior is unproven live
+
+All implementable steps built for real (roadmap Section 24.1-24.4), all three binaries clean,
+`shader_commanderai`/`fds_shader_commanderai` green (`ctest -N` now 187, was 185).
+`CommanderAIService::Activate`/`Deactivate`/treasury, `Decide_Economy_Priority`,
+`Find_Buildable_Descriptor` and `Score_Expansion_Candidate` are real and self-check-covered as
+pure functions. See `docs/zerohour/CommanderAI.md`'s full account.
+
+**What is not proven:** `Update` -- the one real building/roster/site-search walk, and
+`Refresh_Expansion_Candidates` -- have never run against a live scene. No self check can construct
+one (the same limit Phase 22's `Govern_Subsystem_Speed` and Phase 23's
+`Count_Connected_Teammates` already document), so none of the following has been observed for
+real: an AI Commander actually seating itself and building a Power Plant or Silo when one is
+needed; the ring search around a team's own buildings actually finding and using a valid site;
+charging its own treasury rather than a player's wallet; standing down cleanly when a human wins a
+Section 25.1 `REMOVE` vote against it; or `Refresh_Expansion_Candidates` producing a sane-looking
+list against a real generated world's `StrategicPlanner`/`TiberiumFieldGenerator`/
+`LogisticsGraphService` data.
+
+**Next exact action** is a manual one for the user, on a generated (not legacy/static) multiplayer
+or skirmish map with at least one standing building per faction: (1) `commander_ai activate nod`
+(or `gdi`) from the server console and confirm `commander_rts_status`/`commander_ai status` both
+show the seat as AI-held; (2) set a nonzero treasury with a debug path if one exists, or confirm
+via `commander_ai status` that the AI reads `AI_ECONOMY_PAUSE` when a real need exists but the
+treasury cannot afford it; (3) credit enough treasury and wait one `Get_Planning_Interval_Seconds()`
+(5s) tick, then confirm a real Power Plant or Silo appears under construction near the team's
+existing base and the treasury was actually debited; (4) confirm `commander_ai status`'s
+expansion-candidate count is nonzero on a generated map and zero on a legacy one; (5) as a second
+player, open `commander_vote remove` against the AI-held seat, get a real majority, and confirm
+`commander_ai status` shows the AI stood down (`Is_Active` false) rather than continuing to spend
+from a treasury it no longer has authority over.
+
+**No production/defense/offense/recon/repair/logistics behavior exists yet** -- Section 24.5-24.9
+is V2 Phase 25, not built here.
+
+**`CanDrive`/`CanFire` non-consumption is unchanged from Phase 22's own entry above** -- not
+re-investigated, not touched, and still not this phase's to fix; recorded there, not duplicated
+here.

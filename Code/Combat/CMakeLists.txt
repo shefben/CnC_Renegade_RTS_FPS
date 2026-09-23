@@ -107,6 +107,7 @@ worldsyncservice.cpp
 logisticsgraphservice.cpp
 projectbuildingdefs.cpp
     commanderproduction.cpp
+    commanderai.cpp
     commanderguardai.cpp
     commanderselection.cpp
     commanderselectionrenderer.cpp
@@ -304,6 +305,7 @@ worldsyncservice.h
 logisticsgraphservice.h
 projectbuildingdefs.h
     commanderproduction.h
+    commanderai.h
     commanderguardai.h
     commanderselection.h
     commanderselectionrenderer.h
