@@ -3850,6 +3850,7 @@ static const char * const	SIDEBAR_FACTORY_JSON =
 	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":20,\"depth\":30},"
 	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":100.0,\"priority\":50},"
 	"  \"production\":{\"kind\":\"ground_vehicle\",\"queue_capacity\":3,\"requires_power\":true},"
+	"  \"game_object_preset\":\"ow_test_sb_factory_preset\","
 	"  \"build\":{\"buildable\":true,\"cost\":2000,\"build_time_seconds\":10.0,\"display_name\":\"Factory\"} }";
 
 static const char * const	SIDEBAR_BARRACKS_JSON =
@@ -3860,6 +3861,7 @@ static const char * const	SIDEBAR_BARRACKS_JSON =
 static const char * const	SIDEBAR_PLANT_JSON =
 	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":18,\"depth\":18},"
 	"  \"power\":{\"requires_power\":false,\"generation\":300.0,\"consumption\":0.0,\"priority\":0},"
+	"  \"game_object_preset\":\"ow_test_sb_plant_preset\","
 	"  \"build\":{\"buildable\":true,\"cost\":1500,\"team\":1,\"display_name\":\"Power Plant\"},"
 	"  \"placement_rules\":{\"max_slope_degrees\":12.0,\"exit_clearance\":0.0} }";
 

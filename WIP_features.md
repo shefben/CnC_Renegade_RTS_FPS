@@ -1280,3 +1280,26 @@ validate report.json` and open the file to confirm valid JSON matching the print
 `world_tools preview preview.ppm` and open it in any PPM-capable viewer (or convert it, e.g. with
 ImageMagick) to confirm it actually resembles the generated world; then `world_tools seed_batch 1
 5` and confirm it reports 5 rows or stops early naming a real hard failure.
+
+---
+
+## V2 Phase 28 -- integration gate cannot be closed without a human; six real defects found and fixed along the way
+
+This is the one phase whose own gate this session structurally cannot complete alone: every
+interactive step (join a client, exercise movement/vehicles/Commander Mode, mutate terrain,
+destroy a bridge, late-join a second client, disconnect/reconnect, save/restart/reload against a
+live match) needs a real game-client window, and no game-automation tool exists in this session's
+toolset. Full account, what was verified for real vs. what needs a human, and the exact manual
+procedure: `docs/integration/Phase28IntegrationGate.md`.
+
+**What was real:** running the long-flagged-but-never-run `shader_sidebar`/`shader_placement`/
+`shader_rtssaveload` self checks (`awaiting_answers.md`'s own Q-012) found and fixed a real
+`game_object_preset` fixture bug, clearing six previously-failing tests with zero new failures
+(191 tests, 30 to 24 failing). Also found, and deliberately left unfixed as out of this gate's own
+scope, two more real but unrelated defects in `shader_construction`/`shader_production`.
+
+**Next exact action** is the manual multiplayer procedure `docs/integration/
+Phase28IntegrationGate.md` ends with: start a dedicated server, connect a client, play normally,
+mutate terrain, destroy a bridge, late-join a second client, save/restart/reload, disconnect/
+reconnect one client -- and report back whatever breaks, which becomes the next real, narrowly-
+scoped fix pass rather than something guessed at here.

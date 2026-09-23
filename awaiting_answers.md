@@ -58,6 +58,16 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  device-less and self-contained (no file I/O, no scene, no device), so a failure in one of them is
  a real defect rather than an environment problem.
 
+ **Resolved for three of the five, V2 Phase 28.** `shader_sidebar`, `shader_placement` and
+ `shader_rtssaveload` (+ their `fds_` twins) were finally run and were indeed failing for a real
+ reason: `shaderselfcheck.cpp`'s own `SIDEBAR_PLANT_JSON`/`SIDEBAR_FACTORY_JSON` fixtures were
+ missing `game_object_preset`. Fixed; all six now pass. See
+ `docs/integration/Phase28IntegrationGate.md`. The other two, `shader_construction`/
+ `shader_production` (+ `fds_` twins), were also run and are also real defects, but a *different*
+ one each (construction: footprint half-width/half-depth reading as uninitialized garbage;
+ production: one completion-id mismatch) -- left unfixed as out of Phase 28's own multiplayer/
+ save-load/late-join scope; still open, still needing their own focused investigation.
+
  **Update, a third pass.** Phases 46-50 added three more: `shader_visualsettings`,
  `shader_skyclock`, `shader_lightcurves` (each with an `fds_` twin), bringing the total to
  twenty-two -- still covered by the same `"shader_|fds_shader_|terrain_shroud"` pattern above, no

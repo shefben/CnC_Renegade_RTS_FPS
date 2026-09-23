@@ -4284,3 +4284,36 @@ run before -- no existing code anywhere exercised this loop.
 
 **Regression status:** full suite 191 tests, 30 failing -- the same 30 names as before this
 phase, so zero regressions; the two new tests both pass.
+
+---
+
+## V2 Phase 28 -- multiplayer/save-load/late-join/dedicated-server integration gate (roadmap Section 28)
+
+The one phase in this whole V2 sequence whose own gate is fundamentally a live, multi-client,
+interactive procedure this session cannot execute (no game-client automation tool exists here).
+Full account, including exactly what was and was not verified and the manual procedure for the
+rest: `docs/integration/Phase28IntegrationGate.md`.
+
+**A real, demonstrated defect was found and fixed.** `awaiting_answers.md`'s own Q-012 flagged
+`shader_rtssaveload` as never having actually been run despite being self-contained and
+device-less. Running it found `shaderselfcheck.cpp`'s `SIDEBAR_PLANT_JSON`/`SIDEBAR_FACTORY_JSON`
+test fixtures missing `game_object_preset` (`BuildingDescriptorManager` correctly refuses a
+buildable descriptor without one). Fixed -- same pattern as Phase 24's own fixture fix. Since both
+fixtures are shared, this cleared `shader_rtssaveload`, `shader_sidebar` and `shader_placement`
+(each with its `fds_` twin) -- six previously-failing tests, zero new failures. Full suite: 191
+tests, down from 30 known failures to 24.
+
+**Dedicated-server dependency confirmation**: verified for real -- `renegadeserver` links the same
+`commando`/`combat` libraries `renegade` does, with client-only/render/UI code compiled out via
+`FREEDEDICATEDSERVER` (30 gated files), and this whole project's own repeated use of
+`renegadeserver.exe -shaderselfcheck` is running proof it starts/runs/exits with no display and no
+device.
+
+**Two distinct, unrelated pre-existing defects were found but deliberately left unfixed**, out of
+this gate's own multiplayer/save-load/late-join theme: `shader_construction`'s footprint
+half-width/half-depth reading as uninitialized-looking garbage, and one `shader_production`
+completion-id mismatch. Documented for a future focused pass rather than pulled into an
+already-broad integration gate.
+
+**Regression status:** full suite 191 tests, 24 failing -- six fewer than before this phase, zero
+new failures.
