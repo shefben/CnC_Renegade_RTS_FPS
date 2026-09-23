@@ -109,6 +109,7 @@ projectbuildingdefs.cpp
     commanderproduction.cpp
     commanderai.cpp
     persistentcampaign.cpp
+    proceduralworldtools.cpp
     commanderguardai.cpp
     commanderselection.cpp
     commanderselectionrenderer.cpp
@@ -308,6 +309,7 @@ projectbuildingdefs.h
     commanderproduction.h
     commanderai.h
     persistentcampaign.h
+    proceduralworldtools.h
     commanderguardai.h
     commanderselection.h
     commanderselectionrenderer.h

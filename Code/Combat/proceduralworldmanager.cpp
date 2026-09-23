@@ -745,6 +745,27 @@ bool ProceduralWorldManager::Validate_Transportation_Network(const ProceduralWor
 }
 
 
+/*
+**	Section 27.5.  "Every procedural-world crash/validation failure should log a concise
+**	reproduction string."  Built straight from `profile` rather than `Manifest` -- a failed
+**	attempt may never have reached the point where `Manifest` itself gets committed, but the
+**	profile that attempt actually used to derive its own seed/hash is always in hand right here.
+**	`ContentManifestHash` is always 0 today (see worldgenerationmanifest.h's own comment: no
+**	generator/asset registry exists yet), the same honest value `Create_Empty_World_Manifest`
+**	would compute for it.
+*/
+static StringClass
+Format_Attempt_Reproduction_String(const ProceduralWorldProfile & profile)
+{
+	WorldGenerationManifest temp;
+	temp.GeneratorVersion	= profile.GeneratorVersion;
+	temp.Seed					= profile.Seed;
+	temp.ProfileHash			= WorldGenerationManifestService::Compute_Profile_Hash (profile);
+	temp.ContentManifestHash	= 0;
+	return WorldGenerationManifestService::Format_Reproduction_String (temp);
+}
+
+
 bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 {
 	//	Directive 1.10.  No request, no procedural anything: this is every hand-authored map.
@@ -787,9 +808,10 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 		bool required_connectivity_ok = false;
 		if (!Generate_World_Attempt (profile,&attempt_error,&required_connectivity_ok)) {
 			last_error = attempt_error;
-			WWDEBUG_SAY (("ProceduralWorldManager: attempt %d (seed %u) failed outright (%s)%s\r\n",
+			WWDEBUG_SAY (("ProceduralWorldManager: attempt %d (seed %u) failed outright (%s)%s -- %s\r\n",
 							  attempt,profile.Seed,attempt_error.Peek_Buffer (),
-							  (attempt + 1 < MAX_WORLD_GENERATION_ATTEMPTS) ? "; retrying" : "; no attempts left"));
+							  (attempt + 1 < MAX_WORLD_GENERATION_ATTEMPTS) ? "; retrying" : "; no attempts left",
+							  Format_Attempt_Reproduction_String (profile).Peek_Buffer ()));
 			continue;
 		}
 		any_attempt_completed = true;
@@ -802,9 +824,10 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 			return true;
 		}
 
-		WWDEBUG_SAY (("ProceduralWorldManager: attempt %d (seed %u) left a required route disconnected%s\r\n",
+		WWDEBUG_SAY (("ProceduralWorldManager: attempt %d (seed %u) left a required route disconnected%s -- %s\r\n",
 						  attempt,profile.Seed,
-						  (attempt + 1 < MAX_WORLD_GENERATION_ATTEMPTS) ? "; retrying with a new seed" : "; no attempts left"));
+						  (attempt + 1 < MAX_WORLD_GENERATION_ATTEMPTS) ? "; retrying with a new seed" : "; no attempts left",
+						  Format_Attempt_Reproduction_String (profile).Peek_Buffer ()));
 	}
 
 	//	Every bounded attempt either failed outright or left required connectivity broken.  The
@@ -819,7 +842,8 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 	}
 
 	WWDEBUG_SAY (("ProceduralWorldManager: exhausted %d attempt(s) without achieving required connectivity; "
-					  "the last attempt's world stands, not fully connected\r\n",MAX_WORLD_GENERATION_ATTEMPTS));
+					  "the last attempt's world stands, not fully connected -- %s\r\n",MAX_WORLD_GENERATION_ATTEMPTS,
+					  WorldGenerationManifestService::Format_Reproduction_String (Manifest).Peek_Buffer ()));
 	return true;
 }
 

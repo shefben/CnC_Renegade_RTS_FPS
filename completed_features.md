@@ -4242,3 +4242,45 @@ every AI Commander phase's real walk has carried since Phase 24.
 
 **Regression status:** full suite 189 tests, 30 failing -- the same 30 names as before this
 phase, so zero regressions; the two new tests both pass.
+
+---
+
+## V2 Phase 27 -- procedural-world toolchain and reproducibility tools (roadmap Section 27)
+
+New `ProceduralWorldToolsService`, `Code/Combat/proceduralworldtools.{h,cpp}`, plus a small
+reproduction-string logging addition to the three existing failure log sites in
+`Code/Combat/proceduralworldmanager.cpp::Generate_World`. All three binaries build clean with zero
+warnings; `shader_worldtools`/`fds_shader_worldtools` (two new tests) pass. Full account:
+`docs/tools/ProceduralWorldTools.md`.
+
+**One raster tool covers 27.1/27.2/27.4** (seed preview, step viewer, runtime debug overlays):
+`Write_Top_Down_Preview`'s `layer_mask` both selects what shows and satisfies "viewing after a
+given stage," since every stage's own data survives to the end of generation. No live debug-draw
+hook existed anywhere in this codebase (confirmed absent before this phase), so this is a
+deterministic PPM image file rather than an in-engine HUD toggle -- disclosed honestly, not
+presented as the live overlay the roadmap's own wording could also be read as. Height/cliffs from
+`WorldTerrainSystem`, water from `WaterSystem::Is_Point_In_Water`, roads/bridges/bases/Tiberium/
+settlements from their own generators' real position accessors (`StrategicPlanner`,
+`RoadGraphGenerator`, `BridgePlanner`, `BaseSelectionPlanner`, `TiberiumFieldGenerator`,
+`SettlementGenerator`). The pixel-math primitives (`World_To_Pixel`, `Plot_*`, `Fill_Buffer`) are
+pure and self-check-covered; the real walk against live generator singletons is not, the same
+disclosed limit every real walk has carried since Phase 24.
+
+**Validation report (27.3)** re-derives nothing: `CombatSpaceValidator`/
+`TransportationNetworkValidator` already keep their last `Validate()` call's metrics/failure
+counts as queryable static state; `Build_Validation_Report` only reads it into one struct, with
+JSON and human-readable views.
+
+**Reproduction command (27.5)**: `WorldGenerationManifestService::Format_Reproduction_String`
+already existed (Phase 1) and already logged on generation success; this phase adds the missing
+half -- all three existing failure/degraded log lines in `Generate_World` now include it too, via
+a small helper built from the failed attempt's own profile.
+
+**Seed batch runner**: real `Destroy_World`/`Request_World`/`Generate_World` loop, confirmed
+architecturally sound (`Destroy_World` never touches the level/physics scene) but genuinely never
+run before -- no existing code anywhere exercised this loop.
+
+**Console**: `world_tools <repro|validate|preview|seed_batch>`.
+
+**Regression status:** full suite 191 tests, 30 failing -- the same 30 names as before this
+phase, so zero regressions; the two new tests both pass.

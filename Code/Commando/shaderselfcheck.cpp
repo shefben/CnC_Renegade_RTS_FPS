@@ -16,6 +16,10 @@
 #include "commanderproduction.h"
 #include "commanderai.h"
 #include "persistentcampaign.h"
+#include "proceduralworldtools.h"
+#include "proceduralworldmanager.h"
+#include "combatspacevalidator.h"
+#include "transportationnetworkvalidator.h"
 #include "buildingconstruction.h"
 #include "runtimedoorservice.h"
 #include "proceduralworldprofile.h"
@@ -5416,6 +5420,112 @@ int	Run_Persistent_Campaign (void)
 }
 
 
+/***********************************************************************************************
+**	Phase 27 -- procedural-world toolchain and reproducibility tools (roadmap Section 27).
+**	Write_Top_Down_Preview/Write_PPM_Buffer_To_File/Write_Validation_Report_To_File/Run_Seed_Batch
+**	themselves are not exercised here -- real disk I/O and/or a live physics scene (see
+**	proceduralworldtools.h's own class comment).  This covers the pure pixel-math primitives and
+**	Build_Validation_Report/Serialize_Validation_Report/Format_Validation_Report_Text against
+**	validator state this test populates directly.
+***********************************************************************************************/
+int	Run_Procedural_World_Tools (void)
+{
+	//	World_To_Pixel: a 200x200 world centred on the origin, mapped onto a 100x100 raster.
+	AABoxClass bounds (Vector3 (0.0f,0.0f,0.0f),Vector3 (100.0f,100.0f,10.0f));
+	int px = -1, py = -1;
+
+	Check (ProceduralWorldToolsService::World_To_Pixel (bounds,0.0f,0.0f,100,100,&px,&py),
+			 "the world origin was refused by a bounds centred on the origin");
+	Check ((px >= 49) && (px <= 50) && (py >= 49) && (py <= 50),
+			 "the world origin did not map near the raster centre");
+
+	Check (!ProceduralWorldToolsService::World_To_Pixel (bounds,500.0f,0.0f,100,100,&px,&py),
+			 "a point far outside the bounds was accepted");
+
+	AABoxClass degenerate (Vector3 (0.0f,0.0f,0.0f),Vector3 (0.0f,0.0f,0.0f));
+	Check (!ProceduralWorldToolsService::World_To_Pixel (degenerate,0.0f,0.0f,100,100,&px,&py),
+			 "a zero-extent bounds was accepted rather than refused as degenerate");
+
+	//	+Y is "up the map": a point at the bounds' north edge maps to a smaller py than a point at
+	//	the south edge, the standard top-down-image convention this tool documents.
+	int north_px,north_py,south_px,south_py;
+	ProceduralWorldToolsService::World_To_Pixel (bounds,0.0f,90.0f,100,100,&north_px,&north_py);
+	ProceduralWorldToolsService::World_To_Pixel (bounds,0.0f,-90.0f,100,100,&south_px,&south_py);
+	Check (north_py < south_py,"north did not map above south in the raster");
+
+	//	Pixel-buffer primitives on a small 4x4 canvas.
+	const int W = 4, H = 4;
+	unsigned char canvas [W * H * 3];
+	ProceduralWorldToolsService::Fill_Buffer (canvas,W,H,10,20,30);
+	Check ((canvas [0] == 10) && (canvas [1] == 20) && (canvas [2] == 30),
+			 "Fill_Buffer did not set the first pixel");
+	int last = ((W * H) - 1) * 3;
+	Check ((canvas [last] == 10) && (canvas [last + 1] == 20) && (canvas [last + 2] == 30),
+			 "Fill_Buffer did not reach the last pixel");
+
+	ProceduralWorldToolsService::Plot_Point (canvas,W,H,1,1,200,0,0);
+	int at_1_1 = ((1 * W) + 1) * 3;
+	Check ((canvas [at_1_1] == 200) && (canvas [at_1_1 + 1] == 0),"Plot_Point did not set the requested pixel");
+	Check (canvas [0] == 10,"Plot_Point changed a pixel it was not asked to");
+
+	ProceduralWorldToolsService::Plot_Point (canvas,W,H,-1,0,0,0,0);
+	ProceduralWorldToolsService::Plot_Point (canvas,W,H,W,0,0,0,0);
+	Check (canvas [0] == 10,"an out-of-bounds Plot_Point corrupted an in-bounds pixel");
+
+	ProceduralWorldToolsService::Fill_Buffer (canvas,W,H,0,0,0);
+	ProceduralWorldToolsService::Plot_Line (canvas,W,H,0,0,3,0,255,255,255);
+	int at_3_0 = 3 * 3;
+	Check ((canvas [0] == 255) && (canvas [at_3_0] == 255),
+			 "Plot_Line did not reach both of its own endpoints");
+
+	//	Validation report: populate both validators' own static state for real via their own
+	//	Validate(), with nothing generated -- the same "flat/empty world, zero features, no
+	//	failure" outcome this generation chain's other validators already treat as correct and
+	//	unremarkable (see hydrologygenerator.h's own comment).
+	CombatSpaceValidator::Clear ();
+	TransportationNetworkValidator::Clear ();
+
+	CombatSpaceValidationParams cs_params;
+	CombatSpaceValidator::Validate (cs_params,nullptr);
+	TransportationValidationParams tn_params;
+	TransportationNetworkValidator::Validate (tn_params,nullptr);
+
+	Check (CombatSpaceValidator::Passed (),"an empty world failed combat-space validation");
+	Check (TransportationNetworkValidator::Passed (),"an empty world failed transportation validation");
+
+	ProceduralWorldValidationReport report = ProceduralWorldToolsService::Build_Validation_Report ();
+	Check (report.CombatSpacePassed == CombatSpaceValidator::Passed (),
+			 "Build_Validation_Report's combat-space pass flag did not match the validator's own");
+	Check (report.TransportPassed == TransportationNetworkValidator::Passed (),
+			 "Build_Validation_Report's transport pass flag did not match the validator's own");
+	Check (report.UnboundAbutmentCount == TransportationNetworkValidator::Get_Unbound_Abutment_Count (),
+			 "Build_Validation_Report did not carry the transportation validator's own abutment count");
+
+	StringClass json_text;
+	Check (ProceduralWorldToolsService::Serialize_Validation_Report (report,&json_text),
+			 "Serialize_Validation_Report failed on a real report");
+	Check (::strstr ((const char *)json_text,"combat_space") != nullptr,
+			 "the serialized validation report did not name its own combat_space section");
+	Check (::strstr ((const char *)json_text,"transportation_network") != nullptr,
+			 "the serialized validation report did not name its own transportation_network section");
+
+	StringClass text_report = ProceduralWorldToolsService::Format_Validation_Report_Text (report);
+	Check (::strstr ((const char *)text_report,"PASS") != nullptr,
+			 "a passing validation report's text form did not say PASS anywhere");
+
+	//	Reproduction string: trivially self-consistent with the manifest layer it wraps.
+	StringClass wrapped = ProceduralWorldToolsService::Get_Reproduction_String ();
+	StringClass direct = WorldGenerationManifestService::Format_Reproduction_String (ProceduralWorldManager::Get_Manifest ());
+	Check (::strcmp ((const char *)wrapped,(const char *)direct) == 0,
+			 "Get_Reproduction_String did not match Format_Reproduction_String on the same manifest");
+
+	CombatSpaceValidator::Clear ();
+	TransportationNetworkValidator::Clear ();
+
+	return _Failures;
+}
+
+
 int	Run_RTS_Persistence (void)
 {
 	BuildingDescriptorManager::Init ();
@@ -6567,6 +6677,11 @@ int	ShaderSelfCheck::Run (const char *which)
 
 	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "campaign") == 0)) {
 		Run_Persistent_Campaign ();
+		ran = true;
+	}
+
+	if ((::strcmp (which, "all") == 0) || (::strcmp (which, "worldtools") == 0)) {
+		Run_Procedural_World_Tools ();
 		ran = true;
 	}
 

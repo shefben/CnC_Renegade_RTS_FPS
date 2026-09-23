@@ -73,6 +73,7 @@
 #include "commandervotecallevent.h"
 #include "commanderai.h"
 #include "persistentcampaign.h"
+#include "proceduralworldtools.h"
 #include "commandervotecastevent.h"
 #include "commandertransferevent.h"
 
@@ -2802,6 +2803,92 @@ public:
 			} else {
 				Print( "campaign: %s failed -- %s.\n",verb,(const char *)error );
 			}
+			return;
+		}
+
+		Print( "%s\n",Get_Help() );
+	}
+};
+
+
+class WorldToolsConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "world_tools"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "WORLD_TOOLS <repro|validate [json_path]|preview <path> [layer_mask] [resolution]|"
+				 "seed_batch <start_seed> <count> [profile_path]> - roadmap Phase 27 procedural-world "
+				 "toolchain and reproducibility tools.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		char verb [32] = { 0 };
+		int parsed_verb = ( input != nullptr ) ? ::sscanf( input,"%31s",verb ) : 0;
+		if ( parsed_verb < 1 ) {
+			Print( "%s\n",Get_Help() );
+			return;
+		}
+		const char * rest = input + ::strlen( verb );
+		while ( ( *rest == ' ' ) || ( *rest == '\t' ) ) rest++;
+
+		if ( ::_stricmp( verb,"repro" ) == 0 ) {
+			Print( "world_tools: %s\n",(const char *)ProceduralWorldToolsService::Get_Reproduction_String() );
+			return;
+		}
+
+		if ( ::_stricmp( verb,"validate" ) == 0 ) {
+			ProceduralWorldValidationReport report = ProceduralWorldToolsService::Build_Validation_Report();
+			Print( "%s",(const char *)ProceduralWorldToolsService::Format_Validation_Report_Text( report ) );
+			if ( rest [0] != '\0' ) {
+				StringClass error;
+				if ( ProceduralWorldToolsService::Write_Validation_Report_To_File( rest,&error ) ) {
+					Print( "world_tools: validation report written to '%s'.\n",rest );
+				} else {
+					Print( "world_tools: could not write '%s' -- %s.\n",rest,(const char *)error );
+				}
+			}
+			return;
+		}
+
+		if ( ::_stricmp( verb,"preview" ) == 0 ) {
+			char path [260] = { 0 };
+			unsigned int layer_mask = PREVIEW_LAYER_ALL;
+			int resolution = 512;
+			int n = ::sscanf( rest,"%259s %u %d",path,&layer_mask,&resolution );
+			if ( n < 1 ) {
+				Print( "world_tools: usage 'world_tools preview <path> [layer_mask] [resolution]'.\n" );
+				return;
+			}
+			StringClass error;
+			if ( ProceduralWorldToolsService::Write_Top_Down_Preview( path,layer_mask,resolution,&error ) ) {
+				Print( "world_tools: preview written to '%s'.\n",path );
+			} else {
+				Print( "world_tools: preview failed -- %s.\n",(const char *)error );
+			}
+			return;
+		}
+
+		if ( ::_stricmp( verb,"seed_batch" ) == 0 ) {
+			unsigned int start_seed = 1; int count = 0; char profile [260] = { 0 };
+			int n = ::sscanf( rest,"%u %d %259s",&start_seed,&count,profile );
+			if ( n < 2 ) {
+				Print( "world_tools: usage 'world_tools seed_batch <start_seed> <count> [profile_path]'.\n" );
+				return;
+			}
+			ProceduralWorldSeedBatchResult results [ProceduralWorldToolsService::MAX_SEED_BATCH_RESULTS];
+			StringClass error;
+			int written = ProceduralWorldToolsService::Run_Seed_Batch(
+				start_seed,count,( n >= 3 ) ? profile : nullptr,results,&error );
+			for ( int i = 0; i < written; i++ ) {
+				Print( "  seed %u: generate=%s combat_space=%s transport=%s\n",
+						 results [i].Seed,results [i].GenerateSucceeded ? "ok" : "FAIL",
+						 results [i].CombatSpacePassed ? "pass" : "fail",
+						 results [i].TransportPassed ? "pass" : "fail" );
+			}
+			Print( "world_tools: seed batch ran %d of %d requested seed(s)%s%s.\n",
+					 written,count,( written < count ) ? " -- stopped early on a hard failure" : "",
+					 ( error.Get_Length() > 0 ) ? (StringClass(" (") + error + ")").Peek_Buffer() : "" );
 			return;
 		}
 
@@ -7937,6 +8024,7 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new CommanderTransferConsoleFunctionClass() );
 	FunctionList.Add( new CommanderAIConsoleFunctionClass() );
 	FunctionList.Add( new CampaignConsoleFunctionClass() );
+	FunctionList.Add( new WorldToolsConsoleFunctionClass() );
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );

@@ -1257,3 +1257,26 @@ string names seed 12345), trigger the level load the menu's procedural button no
 confirm the generated world matches; then `campaign result 1 nod 100`, `campaign save <path>`,
 restart the process, `campaign load <path>`, and confirm `campaign status` shows territory 1 owned
 by Nod.
+
+---
+
+## V2 Phase 27 -- procedural-world toolchain is real and unit-tested; the raster/batch tools have never touched a live generated world
+
+Validation report, reproduction-string auto-logging, and the pixel-math primitives are all real
+and self-check-covered (roadmap Section 27), all three binaries clean, `shader_worldtools`/
+`fds_shader_worldtools` green. See `docs/tools/ProceduralWorldTools.md` for the full account,
+including the known water-layer simplification (per-point query, not a polygon read).
+
+**What is not proven:** `Write_Top_Down_Preview` and `Run_Seed_Batch` have never run against a
+real generated world -- both need `WorldTerrainSystem::Has_Chunk_Registry()` true, which the
+self-check harness's lack of a physics scene cannot provide. No one has observed an actual PPM
+preview file open correctly and visually resemble a generated world's terrain/roads/bases, and no
+one has observed `world_tools seed_batch` actually loop across multiple seeds against one loaded
+level.
+
+**Next exact action** is a manual one for the user, on a generated map: `world_tools repro` and
+confirm it matches the `ProceduralWorldManager: world generated -- ...` log line; `world_tools
+validate report.json` and open the file to confirm valid JSON matching the printed text;
+`world_tools preview preview.ppm` and open it in any PPM-capable viewer (or convert it, e.g. with
+ImageMagick) to confirm it actually resembles the generated world; then `world_tools seed_batch 1
+5` and confirm it reports 5 rows or stops early naming a real hard failure.
