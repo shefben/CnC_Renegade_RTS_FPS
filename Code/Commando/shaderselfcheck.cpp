@@ -2760,6 +2760,23 @@ int	Run_World_Seed_And_Profile (void)
 				 "zero min_vehicle_approach_count was accepted");
 	}
 
+	//	Schema 8 (Phase 22).  A health *fraction* above 1 is a profile author using the wrong
+	//	unit, not "more of something" -- rejected rather than silently clamped.
+	{
+		ProceduralWorldProfile p;
+		p.VehicleSubsystems.EngineDamageStartFraction = 1.5f;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "vehicle_subsystems.engine_damage_start_fraction above 1 was accepted");
+	}
+	{
+		ProceduralWorldProfile p;
+		p.VehicleSubsystems.RetreatToRepairFraction = -0.1f;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (p,&error),
+				 "negative vehicle_subsystems.retreat_to_repair_fraction was accepted");
+	}
+
 	//	Round trip through JSON text preserves every value Validate_Profile itself checks.
 	{
 		static const char * const PROFILE_JSON =
@@ -2780,6 +2797,47 @@ int	Run_World_Seed_And_Profile (void)
 		Check (WWMath::Fabs (p.Terrain.HillDensity - 0.5f) < 0.001f,"terrain.hill_density did not round-trip");
 		//	A field the JSON left unset keeps the struct's own documented default.
 		Check (WWMath::Fabs (p.Terrain.MacroRelief - 0.6f) < 0.001f,"unset terrain.macro_relief lost its default");
+
+		//	The same profile text predates schema 8 entirely and never mentions vehicle
+		//	subsystems -- Phase 22's own "do not alter default Renegade vehicle handling unless
+		//	enabled by game profile" must therefore survive loading it.
+		Check (!p.VehicleSubsystems.Enabled,"a profile that never mentioned vehicle_subsystems enabled them");
+		Check (!p.VehicleSubsystems.AllowImmobilize,"a profile that never mentioned vehicle_subsystems allowed immobilizing");
+	}
+
+	//	Schema 8's own block round-trips, and `enabled` alone does not imply `allow_immobilize`.
+	{
+		static const char * const SUBSYSTEM_JSON =
+			"{ \"schema_version\":1,\"generator_version\":1,\"seed\":7,\"name\":\"subsystems\","
+			"  \"vehicle_subsystems\":{\"enabled\":true,\"engine_damage_start_fraction\":0.8,"
+			"      \"min_engine_factor\":0.4,\"weapon_damage_start_fraction\":0.55,"
+			"      \"min_weapon_factor\":0.15,\"retreat_to_repair_fraction\":0.35} }";
+
+		ProceduralWorldProfile p;
+		StringClass error ("");
+		Check (ProceduralWorldProfileManager::Load_Profile_From_Text (SUBSYSTEM_JSON,&p,&error),
+				 "authored vehicle_subsystems profile text was rejected: %s",error.Peek_Buffer ());
+		Check (p.VehicleSubsystems.Enabled,"vehicle_subsystems.enabled did not round-trip");
+		Check (WWMath::Fabs (p.VehicleSubsystems.EngineDamageStartFraction - 0.8f) < 0.001f,
+				 "vehicle_subsystems.engine_damage_start_fraction did not round-trip");
+		Check (WWMath::Fabs (p.VehicleSubsystems.MinEngineFactor - 0.4f) < 0.001f,
+				 "vehicle_subsystems.min_engine_factor did not round-trip");
+		Check (WWMath::Fabs (p.VehicleSubsystems.WeaponDamageStartFraction - 0.55f) < 0.001f,
+				 "vehicle_subsystems.weapon_damage_start_fraction did not round-trip");
+		Check (WWMath::Fabs (p.VehicleSubsystems.MinWeaponFactor - 0.15f) < 0.001f,
+				 "vehicle_subsystems.min_weapon_factor did not round-trip");
+		Check (WWMath::Fabs (p.VehicleSubsystems.RetreatToRepairFraction - 0.35f) < 0.001f,
+				 "vehicle_subsystems.retreat_to_repair_fraction did not round-trip");
+		//	Section 23 step 5's own rule, proven rather than asserted: turning the feature on
+		//	does not by itself authorize taking basic drivability away.
+		Check (!p.VehicleSubsystems.AllowImmobilize,
+				 "enabling vehicle_subsystems implicitly allowed immobilizing");
+		//	Nor does it authorize silencing a weapon outright -- that cut-off stays off until a
+		//	profile author sets it, so the continuous rate-of-fire curve is the default outcome.
+		Check (p.VehicleSubsystems.WeaponDisableFraction == 0.0f,
+				 "enabling vehicle_subsystems implicitly armed the weapon cut-off");
+		Check (WWMath::Fabs (p.VehicleSubsystems.MobilityDamageStartFraction - 0.5f) < 0.001f,
+				 "unset vehicle_subsystems.mobility_damage_start_fraction lost its default");
 	}
 
 	//	Malformed JSON is rejected with a reason, never silently defaulted.

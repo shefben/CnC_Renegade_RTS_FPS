@@ -85,6 +85,15 @@
 #include "specialbuilds.h"
 #include <algorithm>
 
+//	Roadmap Section 23 -- Phase 22 optional vehicle subsystem damage/AI retreat-to-repair.
+#include "actionparams.h"
+#include "building.h"
+#include "proceduralworldmanager.h"
+#include "proceduralworldprofile.h"
+#include "repairbaygameobj.h"
+#include "scriptablegameobj.h"
+#include "scriptcommands.h"
+
 /*
 ** Local prototypes
 */
@@ -467,7 +476,9 @@ VehicleGameObj::VehicleGameObj()	:
 	DamageMeshesUpdate( false ),
 	DamageMeshesNetworkUpdate( false ),
 	LockTeam( LOCK_TEAM_ANY ),
-	LastTeam( SCRIPTS_TEAM_UNSET )
+	LastTeam( SCRIPTS_TEAM_UNSET ),
+	SubsystemRetreating( false ),
+	SubsystemPeakSpeed( 0.0f )
 {
 	DriverIsGunner = DefaultDriverIsGunner;
 	Set_App_Packet_Type(APPPACKETTYPE_VEHICLE);
@@ -1405,6 +1416,263 @@ int	VehicleGameObj::Get_Weapon_Control_Owner(void)
 }
 
 
+/***********************************************************************************************
+ * VehicleGameObj::Get_Subsystem_* -- Roadmap Section 23, Phase 22's optional subsystem damage   *
+ *                                                                                                *
+ *	Every one of these is a pure read of DefenseObject's own already-saved/networked health --    *
+ *	no new state, the same "repair just works, zero new code" story Phase 20's building           *
+ *	subcomponents already established.  With VehicleSubsystems.Enabled false (the default,        *
+ *	every legacy/stock map included -- ProceduralWorldManager::Get_Active_Profile stays default-  *
+ *	constructed unless a profile was actually loaded) every one of these returns the canonical    *
+ *	"off" answer, so a caller never has to check the toggle itself.                                *
+ *=============================================================================================*/
+float VehicleGameObj::Compute_Subsystem_Engine_Factor (const ProceduralWorldVehicleSubsystemSettings & settings,
+																		float health_fraction)
+{
+	//	A threshold of 0 turns this subsystem's degradation off outright -- nothing is *below*
+	//	zero health -- which is why that case needs no separate guard: the comparison below
+	//	already returns full effectiveness for it at every reachable health fraction.
+	if (!settings.Enabled) return 1.0f;
+	if (health_fraction >= settings.EngineDamageStartFraction) return 1.0f;
+
+	//	Linear from full effectiveness at the start threshold down to the floor at zero health.
+	//	A floor rather than zero is step 5's own rule in numeric form: engine damage alone never
+	//	takes a vehicle's last bit of movement away -- only AllowImmobilize does that.
+	float t = health_fraction / settings.EngineDamageStartFraction;
+	return settings.MinEngineFactor + (1.0f - settings.MinEngineFactor) * t;
+}
+
+float VehicleGameObj::Compute_Subsystem_Mobility_Factor (const ProceduralWorldVehicleSubsystemSettings & settings,
+																			float health_fraction)
+{
+	//	Threshold 0 disables this subsystem's degradation, same as the engine's above.
+	if (!settings.Enabled) return 1.0f;
+	if (health_fraction >= settings.MobilityDamageStartFraction) return 1.0f;
+
+	float t = health_fraction / settings.MobilityDamageStartFraction;
+	return settings.MinMobilityFactor + (1.0f - settings.MinMobilityFactor) * t;
+}
+
+float VehicleGameObj::Compute_Subsystem_Weapon_Efficiency (const ProceduralWorldVehicleSubsystemSettings & settings,
+																			  float health_fraction)
+{
+	//	Threshold 0 disables weapon degradation, same convention as the engine/mobility curves.
+	if (!settings.Enabled) return 1.0f;
+	if (health_fraction >= settings.WeaponDamageStartFraction) return 1.0f;
+
+	float t = health_fraction / settings.WeaponDamageStartFraction;
+	return settings.MinWeaponFactor + (1.0f - settings.MinWeaponFactor) * t;
+}
+
+bool VehicleGameObj::Compute_Subsystem_Weapon_Enabled (const ProceduralWorldVehicleSubsystemSettings & settings,
+																		 float health_fraction)
+{
+	//	The hard cut-off is opt-in and off by default (WeaponDisableFraction 0), following this
+	//	schema's own "0 turns this rule off" convention -- so a damaged weapon's normal fate is
+	//	to fire ever more slowly via the efficiency curve above, never to fall silent.
+	if (!settings.Enabled) return true;
+	if (settings.WeaponDisableFraction <= 0.0f) return true;
+
+	return health_fraction > settings.WeaponDisableFraction;
+}
+
+bool VehicleGameObj::Compute_Subsystem_Immobilized (const ProceduralWorldVehicleSubsystemSettings & settings,
+																	 float health_fraction)
+{
+	//	Step 5's own rule: never remove basic drivability without an explicit configured rule.
+	//	AllowImmobilize is that rule; while it is false (the default even with the profile
+	//	otherwise enabled) this always returns false, so the engine factor floor above is the
+	//	worst a driver ever sees.
+	if (!settings.Enabled || !settings.AllowImmobilize) return false;
+
+	return health_fraction <= settings.ImmobilizeFraction;
+}
+
+
+float VehicleGameObj::Get_Subsystem_Health_Fraction (void) const
+{
+	if (DefenseObject.Get_Health_Max () <= 0.0f) return 1.0f;
+	float fraction = DefenseObject.Get_Health () / DefenseObject.Get_Health_Max ();
+	return WWMath::Clamp (fraction,0.0f,1.0f);
+}
+
+float VehicleGameObj::Get_Subsystem_Engine_Factor (void) const
+{
+	return Compute_Subsystem_Engine_Factor (ProceduralWorldManager::Get_Active_Profile ().VehicleSubsystems,
+														 Get_Subsystem_Health_Fraction ());
+}
+
+float VehicleGameObj::Get_Subsystem_Mobility_Factor (void) const
+{
+	return Compute_Subsystem_Mobility_Factor (ProceduralWorldManager::Get_Active_Profile ().VehicleSubsystems,
+															Get_Subsystem_Health_Fraction ());
+}
+
+float VehicleGameObj::Get_Subsystem_Weapon_Efficiency (void) const
+{
+	return Compute_Subsystem_Weapon_Efficiency (ProceduralWorldManager::Get_Active_Profile ().VehicleSubsystems,
+															  Get_Subsystem_Health_Fraction ());
+}
+
+bool VehicleGameObj::Get_Subsystem_Weapon_Enabled (void) const
+{
+	return Compute_Subsystem_Weapon_Enabled (ProceduralWorldManager::Get_Active_Profile ().VehicleSubsystems,
+														  Get_Subsystem_Health_Fraction ());
+}
+
+bool VehicleGameObj::Get_Subsystem_Immobilized (void) const
+{
+	return Compute_Subsystem_Immobilized (ProceduralWorldManager::Get_Active_Profile ().VehicleSubsystems,
+													  Get_Subsystem_Health_Fraction ());
+}
+
+
+/***********************************************************************************************
+ * VehicleGameObj::Govern_Subsystem_Speed -- make engine damage cost real top speed, not just    *
+ *                                            a smaller input number                              *
+ *                                                                                                *
+ *	See the header for why this exists: throttle scaling alone genuinely reduces a tracked         *
+ *	vehicle's terminal velocity, but leaves a wheeled vehicle's almost untouched, because its top  *
+ *	speed is set by a throttle-independent redline rather than by a drag balance.                   *
+ *                                                                                                *
+ *	Nothing here touches the physics.  While the engine is undamaged this only watches, recording  *
+ *	the fastest ground speed this vehicle has actually reached; once damaged it withholds          *
+ *	propulsion above the corresponding fraction of that speed, so the stock integrator does all    *
+ *	the deceleration itself.  Reverse and braking input is deliberately left alone -- the governor *
+ *	removes propulsion, never control.                                                             *
+ *=============================================================================================*/
+void VehicleGameObj::Govern_Subsystem_Speed (float engine_factor)
+{
+	VehiclePhysClass * phys = Peek_Vehicle_Phys ();
+	if (phys == nullptr) return;
+
+	//	Ground speed: a vehicle falling or driving down a slope should not have its throttle cut
+	//	for vertical motion it did not ask for.
+	Vector3 velocity;
+	phys->Get_Velocity (&velocity);
+	velocity.Z = 0.0f;
+	float speed = velocity.Length ();
+
+	if (engine_factor >= 1.0f) {
+		//	Undamaged: learn this vehicle's own healthy top speed, the only reference available
+		//	that does not mean re-deriving the integrator's model here.
+		if (speed > SubsystemPeakSpeed) {
+			SubsystemPeakSpeed = speed;
+		}
+		return;
+	}
+
+	//	Damaged before ever being seen at speed (spawned hurt, or hit while still stationary):
+	//	there is no reference to govern against, so the throttle scaling already applied stands
+	//	on its own rather than a fabricated cap being invented.  A real, reachable case.
+	if (SubsystemPeakSpeed <= 0.0f) return;
+
+	float speed_cap = engine_factor * SubsystemPeakSpeed;
+	if (speed <= speed_cap) return;
+
+	//	Over the cap: withhold propulsion only.  A negative value here is the driver reversing or
+	//	braking, which must keep working -- Section 23 step 5 again.
+	float forward = Control.Get_Analog (ControlClass::ANALOG_MOVE_FORWARD);
+	if (forward > 0.0f) {
+		Control.Set_Analog (ControlClass::ANALOG_MOVE_FORWARD,0.0f);
+	}
+}
+
+
+/***********************************************************************************************
+ * VehicleGameObj::Find_Nearest_Repair_Bay -- Phase 22 step 8's own repair-bay lookup            *
+ *                                                                                                *
+ *	The same two-step BaseGameObj -> ScriptableGameObj -> BuildingGameObj walk Phase 20's own      *
+ *	building_subcomponents console command and Phase 21's LogisticsGraphService::                 *
+ *	Rebuild_Building_Nodes already established, kept independent of LogisticsGraphService itself   *
+ *	-- that service's own REPAIR node kind is documented as never yet rebuilt at runtime, and an   *
+ *	AI response this codebase actually calls every server frame for a low-health vehicle should    *
+ *	not depend on a pipeline stage the roadmap already discloses as not yet wired.                 *
+ *=============================================================================================*/
+bool VehicleGameObj::Find_Nearest_Repair_Bay (Vector3 * out_position) const
+{
+	if (out_position == nullptr) return false;
+
+	Vector3 self_position;
+	Get_Position (&self_position);
+	int my_team = Get_Player_Type ();
+
+	bool found = false;
+	float best_distance2 = 0.0f;
+
+	SLNode<BaseGameObj> * objnode;
+	for (objnode = GameObjManager::Get_Game_Obj_List ()->Head (); objnode; objnode = objnode->Next ()) {
+
+		BaseGameObj * base = objnode->Data ();
+		if (base == nullptr) continue;
+
+		ScriptableGameObj * scriptable = base->As_ScriptableGameObj ();
+		BuildingGameObj * building = (scriptable != nullptr) ? scriptable->As_BuildingGameObj () : nullptr;
+		if ((building == nullptr) || (building->As_RepairBayGameObj () == nullptr)) continue;
+		if (building->Get_Player_Type () != my_team) continue;
+		if (!building->Are_Capabilities_Enabled ()) continue;
+
+		Vector3 building_position;
+		building->Get_Position (&building_position);
+		float distance2 = (building_position - self_position).Length2 ();
+		if (!found || (distance2 < best_distance2)) {
+			found = true;
+			best_distance2 = distance2;
+			*out_position = building_position;
+		}
+	}
+
+	return found;
+}
+
+
+/***********************************************************************************************
+ * VehicleGameObj::Think_Subsystem_Retreat -- Phase 22 step 8's "AI RETREAT_TO_REPAIR response"  *
+ *                                                                                                *
+ *	Server-only, ticked once a Think.  A human driver's own choices are never overridden (step    *
+ *	5's rule again) -- this only ever acts on a vehicle with no human at the wheel.  Reuses the    *
+ *	exact ScriptEngine::Action_Goto call commanderorderevent.cpp's own ORDER_RETREAT_TO_REPAIR     *
+ *	case already makes for a human Commander's click, just triggered by this vehicle's own health  *
+ *	instead of a Commander order, and aimed at the nearest same-team repair bay instead of a       *
+ *	Commander-supplied point.                                                                      *
+ *=============================================================================================*/
+void VehicleGameObj::Think_Subsystem_Retreat (void)
+{
+	if (!CombatManager::I_Am_Server ()) return;
+
+	const ProceduralWorldVehicleSubsystemSettings & settings = ProceduralWorldManager::Get_Active_Profile ().VehicleSubsystems;
+	if (!settings.Enabled) {
+		SubsystemRetreating = false;
+		return;
+	}
+
+	SoldierGameObj * driver = Get_Driver ();
+	if ((driver != nullptr) && driver->Is_Human_Controlled ()) {
+		SubsystemRetreating = false;		// never drive off from under a human
+		return;
+	}
+
+	if (Get_Subsystem_Health_Fraction () > settings.RetreatToRepairFraction) {
+		SubsystemRetreating = false;		// healthy enough -- repaired, or never was low
+		return;
+	}
+
+	if (SubsystemRetreating) return;		// already on the way; ScriptEngine owns the goto from here
+
+	Vector3 repair_position;
+	if (!Find_Nearest_Repair_Bay (&repair_position)) return;	// no repair bay exists yet -- disclosed content gap
+
+	static const float RETREAT_ORDER_PRIORITY = 100.0f;		// matches CommanderGuardAI's own background-AI priority
+
+	ActionParamsStruct params;
+	params.Set_Basic (0,RETREAT_ORDER_PRIORITY,0);
+	params.Set_Movement (repair_position,1.0f,3.0f,false);
+	ScriptEngine::Action_Goto (this,params);
+
+	SubsystemRetreating = true;
+}
+
+
 /*
 void VehicleGameObj::Apply_Control( void )
 {
@@ -1562,6 +1830,47 @@ void VehicleGameObj::Apply_Control( void )
 	Control.Set_Analog( ControlClass::ANALOG_TURN_LEFT,
 		WWMath::Clamp( Control.Get_Analog( ControlClass::ANALOG_TURN_LEFT ), -1.0F, 1.0F ) );
 
+	//
+	//	Roadmap Section 23 -- Phase 22 optional vehicle subsystem damage.  A pure scale/gate
+	//	layered on top of whatever control the driver/gunner/AI already produced above; it never
+	//	touches CanDrive/CanFire (those stay script-owned).  Gated on the profile's own master
+	//	toggle here rather than only inside each accessor, so a match with the feature off -- the
+	//	default, and every legacy/stock map -- provably does no extra work at all and canonical
+	//	Renegade vehicle handling is untouched.
+	//
+	if ( ProceduralWorldManager::Get_Active_Profile().VehicleSubsystems.Enabled ) {
+
+		if ( Get_Subsystem_Immobilized() ) {
+			Control.Set_Analog( ControlClass::ANALOG_MOVE_FORWARD, 0.0f );
+			Control.Set_Analog( ControlClass::ANALOG_MOVE_LEFT, 0.0f );
+			Control.Set_Analog( ControlClass::ANALOG_MOVE_UP, 0.0f );
+			Control.Set_Analog( ControlClass::ANALOG_TURN_LEFT, 0.0f );
+		} else {
+			float engine_factor = Get_Subsystem_Engine_Factor();
+			if ( engine_factor < 1.0f ) {
+				Control.Set_Analog( ControlClass::ANALOG_MOVE_FORWARD, engine_factor * Control.Get_Analog( ControlClass::ANALOG_MOVE_FORWARD ) );
+				Control.Set_Analog( ControlClass::ANALOG_MOVE_LEFT, engine_factor * Control.Get_Analog( ControlClass::ANALOG_MOVE_LEFT ) );
+			}
+
+			//	Reduced throttle alone does not cost a wheeled vehicle its top speed; the
+			//	governor is what makes engine damage bite on sustained propulsion as well as on
+			//	acceleration.  Also runs while undamaged, where it only observes.
+			Govern_Subsystem_Speed( engine_factor );
+
+			float mobility_factor = Get_Subsystem_Mobility_Factor();
+			if ( mobility_factor < 1.0f ) {
+				Control.Set_Analog( ControlClass::ANALOG_TURN_LEFT, mobility_factor * Control.Get_Analog( ControlClass::ANALOG_TURN_LEFT ) );
+			}
+		}
+
+		//	Rate of fire is degraded continuously in WeaponClass::Set_State; this is only the
+		//	separate, opt-in hard cut-off, inert unless a profile author sets it.
+		if ( !Get_Subsystem_Weapon_Enabled() ) {
+			Control.Set_Boolean( ControlClass::BOOLEAN_WEAPON_FIRE_PRIMARY, false );
+			Control.Set_Boolean( ControlClass::BOOLEAN_WEAPON_FIRE_SECONDARY, false );
+		}
+	}
+
 	SmartGameObj::Apply_Control();
 }
 
@@ -1572,6 +1881,8 @@ void	VehicleGameObj::Think( void )
 {	WWPROFILE( _profile_name );
 
 	Apply_Control();	// ????
+
+	Think_Subsystem_Retreat();
 
 	Update_Transitions();
 

@@ -68,6 +68,7 @@ class	SoldierGameObj;
 class	PersistantSurfaceEmitterClass;
 class PersistantSurfaceSoundClass;
 class CompositeAttachmentClass;
+struct ProceduralWorldVehicleSubsystemSettings;
 
 
 /*
@@ -333,6 +334,39 @@ public:
 	bool					Can_Drive( void )							{ return CanDrive; }
 
 	//
+	//	Roadmap Section 23 -- Phase 22 optional vehicle subsystem damage.  Pure derived reads of
+	//	this vehicle's own DefenseObject health, the same health-fraction-threshold pattern
+	//	Phase 20 used for buildings (BuildingGameObj::Get_Effective_Power_Generation and
+	//	siblings) -- no second health pool, no separate save/network state, because there is
+	//	nothing here Health() does not already carry.  Deliberately independent of CanFire/
+	//	CanDrive above: those remain script-owned (Set_Scripts_Can_Fire/Set_Can_Drive, real TT
+	//	mission-script state), and layering an automatic health-driven write onto the same fields
+	//	would fight a script's own intent the instant health changed.  All four return the
+	//	canonical "feature off" answer (1, 1, true, false) whenever the active world profile's
+	//	VehicleSubsystems.Enabled is false -- the default -- so disabling the profile provably
+	//	restores canonical Renegade vehicle behavior byte-for-byte.
+	//
+	float					Get_Subsystem_Engine_Factor( void ) const;
+	float					Get_Subsystem_Mobility_Factor( void ) const;
+	float					Get_Subsystem_Weapon_Efficiency( void ) const;
+	bool					Get_Subsystem_Weapon_Enabled( void ) const;
+	bool					Get_Subsystem_Immobilized( void ) const;
+
+	//
+	//	The same four answers as pure functions of (settings, health fraction).  The instance
+	//	accessors above are one-line forwards to these, so there is exactly one implementation of
+	//	the response curve -- these exist because a headless self-check can build a settings
+	//	struct and a health fraction but cannot instantiate a real VehicleGameObj (that needs
+	//	definitions/physics a -selfcheck run has no way to produce), and Phase 22's curve would
+	//	otherwise ship with no test of its own behavior at all.
+	//
+	static float		Compute_Subsystem_Engine_Factor( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
+	static float		Compute_Subsystem_Mobility_Factor( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
+	static float		Compute_Subsystem_Weapon_Efficiency( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
+	static bool			Compute_Subsystem_Weapon_Enabled( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
+	static bool			Compute_Subsystem_Immobilized( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
+
+	//
 	//	Normally a vehicle loses its stealth as soon as the last occupant
 	//	leaves; this keeps it stealthed while empty.
 	//
@@ -424,6 +458,46 @@ public:
 
 
 protected:
+
+	//
+	//	Phase 22 step 8's "AI RETREAT_TO_REPAIR response".  Ticked from Think, server-only: a
+	//	driverless/AI-driven vehicle (never a human's own -- step 5's own rule) whose health has
+	//	fallen to VehicleSubsystems.RetreatToRepairFraction walks itself to the nearest same-team
+	//	repair bay via the same ScriptEngine::Action_Goto every other order in this tree already
+	//	uses.  SubsystemRetreating only suppresses re-issuing the order every tick; it is not
+	//	save/network state -- worst case after a load is one extra frame deciding again, the same
+	//	transient-AI-state treatment CommanderGuardAI's own registry already gets.
+	//
+	void					Think_Subsystem_Retreat( void );
+	bool					Find_Nearest_Repair_Bay( Vector3 * out_position ) const;
+	float					Get_Subsystem_Health_Fraction( void ) const;
+	bool					SubsystemRetreating;
+
+	//
+	//	Phase 22's speed governor.  Scaling the throttle alone is not enough on every vehicle:
+	//	a tracked vehicle's track resistance is linear in speed (wheel.cpp) so its terminal
+	//	velocity really is proportional to throttle, but a wheeled vehicle's top speed is set by
+	//	where its engine torque curve falls off at redline -- a throttle-independent RPM -- and
+	//	the quadratic drag term that would otherwise cap it defaults to zero.  A damaged wheeled
+	//	vehicle would therefore accelerate worse but still reach essentially its normal top
+	//	speed, making "engine damage" cosmetic exactly where it should bite hardest.
+	//
+	//	The governor closes that at the control layer, per Section 1.9's no-replacement-physics
+	//	rule: the integrator keeps receiving ordinary control values and running the stock model,
+	//	and this only decides what this one damaged vehicle's effective throttle is first.
+	//
+	//	SubsystemPeakSpeed is the reference it governs against: the fastest ground speed this
+	//	vehicle instance has been observed to reach while its own engine was undamaged.  It is
+	//	learned rather than derived because no authoritative per-vehicle top speed exists to read
+	//	-- SmartGameObj::Get_Max_Speed is a hardcoded placeholder that VehicleGameObj never
+	//	overrides, and everything the physics uses to determine top speed (gear ratios, torque
+	//	curve, redline) is owned by the shared definition.  Re-deriving top speed from those here
+	//	would put a second copy of the integrator's own model in Combat, free to silently
+	//	disagree with it.  Not saved or networked: after a load the reference simply re-learns,
+	//	the same transient treatment SubsystemRetreating gets.
+	//
+	void					Govern_Subsystem_Speed( float engine_factor );
+	float					SubsystemPeakSpeed;
 
 	Sound3DClass			*Sound;
 

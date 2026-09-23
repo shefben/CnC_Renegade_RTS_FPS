@@ -3914,6 +3914,106 @@ registration), so zero regressions.
 
 ---
 
+## V2 Phase 22 -- optional vehicle subsystem damage (roadmap Section 23)
+
+Real on `VehicleGameObj` (`Code/Combat/vehicle.h/.cpp`), all three binaries build clean with zero
+warnings, and `terrain_vehiclesubsystems`/`fds_terrain_vehiclesubsystems` pass (`ctest -N` now
+183, was 181). Full account: `docs/procedural_world/VehicleSubsystemDamage.md`.
+
+**Behaviorally absent when disabled, which is stronger than off-by-default.**
+`ProceduralWorldProfile::VehicleSubsystems` (schema version 8 -- `SchemaVersion` moved,
+`GeneratorVersion` did not, since this reads already-generated health and writes no world state)
+adds nine fields, `enabled` defaulting false. The toggle lives on the world profile rather than
+`SSGMSettingsClass` deliberately: `ssgm.ini` is read for every map, a profile only for a generated
+world, so "a legacy/stock match is untouched" is a property of which object owns the value rather
+than a rule to remember. `terrain_vehiclesubsystems` walks six health fractions down to zero and
+proves all four accessors return the canonical answer at every one of them.
+
+**Three of Section 23.1's four subsystems are real, one is a disclosed gap.** Engine
+(acceleration and sustained propulsion), mobility (turning) and weapon (rate of fire) all degrade
+continuously on one shared curve shape: untouched above a per-subsystem threshold, then linear to
+a configured floor. **Sensor damage is not implemented at all**: no sensor, perception or
+detection-radius concept exists anywhere in `Code/Combat` (confirmed by searching the tree), so
+"reduced AI targeting" would mean inventing a targeting system rather than degrading one. No
+`sensor_*` field is offered, rather than shipping a field nothing reads.
+
+**Applied to control input, not to physics.** `MotorVehicleClass`'s torque/RPM simulation is the
+more literal home for "engine damage" and was rejected: Section 1.9 forbids replacement physics,
+and putting an optional gameplay toggle inside the integrator every vehicle in the game runs
+through is the wrong blast radius. The integrator keeps receiving ordinary control values and
+running the stock model.
+
+**A speed governor, because scaling throttle alone is not the same as reducing performance.**
+Tracked vehicles degrade correctly on throttle scaling (track resistance is linear in speed, so
+terminal velocity is proportional to throttle), but wheeled vehicles do not: their top speed is set
+by where the engine torque curve falls off at a throttle-independent redline, and the quadratic
+drag term that would otherwise cap it defaults to `0.0f`. A damaged wheeled vehicle would have
+accelerated worse while still reaching nearly its normal top speed -- cosmetic exactly where it
+should bite hardest. `Govern_Subsystem_Speed` withholds propulsion above `engine_factor` x the
+fastest ground speed that vehicle has been seen to reach while undamaged, letting the stock physics
+decelerate it. Reverse and braking are never touched, and vertical velocity is excluded. The
+reference is learned rather than derived because no authoritative per-vehicle top speed exists to
+read (`SmartGameObj::Get_Max_Speed` is a hardcoded placeholder `VehicleGameObj` never overrides)
+and re-deriving it from gear ratios/torque curve/redline would put a second copy of the
+integrator's own model in Combat, free to disagree with it.
+
+**Weapon damage is continuous and strictly per-instance.** `WeaponClass::Set_State` divides the
+freshly computed `StateTimer` by the owning vehicle's efficiency -- the same per-instance,
+owner-conditional multiply the adjacent `WEAPON_RATE_CHEAT` block already performs. The shared
+`AmmoDefinitionClass::RateOfFire` is never written, so one damaged tank cannot slow that weapon for
+every other object using the preset, and the modifier is owner-gated on `As_VehicleGameObj()` so
+infantry weapons are untouched. Only the two firing states are affected; reload and switch speeds
+belong to whoever carries the weapon. No new state: the efficiency is a derived read taken at the
+moment the timer is set. The old binary cut-off survives as `weapon_disable_fraction` but now
+defaults to `0` (off), making it the weapon-side counterpart of `allow_immobilize`.
+
+**`CanDrive`/`CanFire` deliberately left alone.** Both are real, saved, network-replicated fields
+with real TT script callers, and the commented-out `Apply_Control` at `vehicle.cpp:1604-1667`
+shows the original intended consumption -- but they are script-owned state, and an automatic
+health-driven write would fight a mission script's intent with no way to tell who wrote last.
+Phase 22's answers own no state, so the two mechanisms compose instead of colliding. That the live
+`Apply_Control` reads neither field is a real pre-existing gap, recorded in `WIP_features.md`
+rather than opportunistically repaired: no bug was demonstrated by this phase's own work.
+
+**Repair integration (steps 6-7) needed zero new code.** Every answer is a pure derived read of
+`DefenseObject` health -- the same health-fraction-threshold pattern Phase 20 used for building
+subcomponents -- so `RepairBayGameObj::Repair_Vehicle` and handheld repair-gun healing both
+already restore subsystems by restoring health. No second health pool, no new save/network state.
+
+**Step 5's rule ("never remove basic drivability without an explicit configured rule") has two
+independent guards.** The curves bottom out at configured floors rather than zero, so engine
+damage alone always leaves a vehicle moving; and full immobilization additionally requires
+`allow_immobilize`, a separate opt-in that stays false even when `enabled` is true. Proven both
+ways, including that `allow_immobilize` with `enabled` false stays inert -- so disabling the
+profile is the total bypass step 11 requires.
+
+**Step 8 (AI retreat-to-repair) is real.** `Think_Subsystem_Retreat`, server-only, sends a
+low-health vehicle to the nearest same-team repair bay via the same `ScriptEngine::Action_Goto`
+`commanderorderevent.cpp`'s own `ORDER_RETREAT_TO_REPAIR` already uses. Never acts on a vehicle a
+human is driving. Uses a direct `GameObjManager` walk rather than a `LogisticsGraphService` REPAIR
+node, because Phase 21's own doc records that `Rebuild_Building_Nodes` has never run at runtime.
+
+`vehicle_subsystems` (console, both binaries) reports the active settings and each live vehicle's
+derived factors.
+
+**What is not proven:** no real `VehicleGameObj` has ever executed this code -- a
+`-terrainselfcheck` run brings up no `GameObjManager` or physics scene, the same standing harness
+limit Phase 20 and Phase 21 already carry, which is why the response curves were made testable as
+pure functions instead of left untested behind an un-constructible object. No vehicle has been seen
+slowing down or firing more slowly on screen. The speed governor especially wants a live pass: its
+argument rests on a reading of the tracked/wheeled physics paths and its reference is learned at
+runtime, so "a damaged wheeled vehicle now genuinely tops out lower" and "the governor does not
+visibly judder at the cap" are the two things to confirm by hand.
+`Find_Nearest_Repair_Bay` has never found anything, because no buildable Repair Bay descriptor
+exists yet (P33's gap). Section 23.3's repair/recovery/escort vehicles are not built: step 9
+requires them "only through normal vehicle/AI APIs", which needs a real preset that does not exist
+yet.
+
+**Regression status:** full suite 183 tests, 30 failing -- the same 30 names as before this phase,
+so zero regressions; the two new tests both pass.
+
+---
+
 **All five requested phases (11-15) closed this session.** Base selection, Tiberium fields,
 settlements/the Section 28A asset registry, biome decoration, and combat-space validation are
 each real, built, self-checked, and documented -- with every genuine content/scope gap disclosed

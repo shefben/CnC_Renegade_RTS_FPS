@@ -1429,6 +1429,34 @@ void	WeaponClass::Set_State( WeaponStateType new_state )
 	}
 #endif
 
+	//
+	//	Roadmap Section 23 -- Phase 22's continuous weapon subsystem damage.  Lengthens this one
+	//	weapon instance's own refire interval in proportion to its vehicle's damage, so a damaged
+	//	turret fires progressively more slowly rather than either working perfectly or not at all.
+	//
+	//	Applied here, to the per-instance StateTimer, rather than to the AmmoDefinitionClass's own
+	//	RateOfFire: that definition is shared by every weapon of the type on every object in the
+	//	world, so scaling it would slow a preset's weapon everywhere at once.  StateTimer is where
+	//	the shared rate has already become this instance's own interval -- the same per-instance,
+	//	owner-conditional multiply the WEAPON_RATE_CHEAT block immediately above performs.
+	//
+	//	Only the two firing states are touched.  Reloading and weapon switching are handling
+	//	speeds belonging to whoever carries the weapon, not to the vehicle's damaged turret.
+	//
+	if ( State == STATE_FIRE_PRIMARY || State == STATE_FIRE_SECONDARY ) {
+		//	Owner-gated: WeaponClass is shared by soldiers and vehicles alike, and nothing here
+		//	may touch an infantry weapon's rate of fire.
+		ArmedGameObj * owner = Get_Owner();
+		VehicleGameObj * vehicle = ( owner != nullptr ) ? owner->As_VehicleGameObj() : nullptr;
+		if ( vehicle != nullptr ) {
+			float efficiency = vehicle->Get_Subsystem_Weapon_Efficiency();
+			//	A profile may legally floor the efficiency at 0; dividing by it would be an
+			//	infinite interval, so that case is left to the separate hard cut-off rule.
+			if ( efficiency > 0.0f && efficiency < 1.0f ) {
+				StateTimer /= efficiency;
+			}
+		}
+	}
 }
 
 void	WeaponClass::Update_State( float pending_time )

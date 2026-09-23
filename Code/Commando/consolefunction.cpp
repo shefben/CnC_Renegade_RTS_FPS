@@ -61,6 +61,8 @@
 #include "commanderplacement.h"
 #include "worldoperationjournal.h"
 #include "logisticsgraphservice.h"
+#include "proceduralworldmanager.h"
+#include "proceduralworldprofile.h"
 #include "commanderproduction.h"
 #include "commanderstate.h"
 #include "commanderghostrenderer.h"
@@ -7232,6 +7234,78 @@ public:
 };
 
 
+/*
+**	V2 roadmap Section 23, Phase 22 -- what the optional vehicle subsystem damage feature is
+**	currently doing, if anything.  Prints the active profile's own settings and then the derived
+**	response at the health fraction each live vehicle actually has, so "is this on, and what is
+**	it doing to that tank right now" is one command rather than a guess.
+*/
+class VehicleSubsystemsConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("vehicle_subsystems");}
+	virtual	const char * Get_Help (void) override	{
+		return ("VEHICLE_SUBSYSTEMS - optional vehicle subsystem damage settings and per-vehicle effect.");
+	}
+	virtual	void Activate (const char * /* input */) override {
+
+		const ProceduralWorldVehicleSubsystemSettings & settings =
+			ProceduralWorldManager::Get_Active_Profile ().VehicleSubsystems;
+
+		if (!settings.Enabled) {
+			Print ("vehicle subsystems: disabled (profile.vehicle_subsystems.enabled is false)\n");
+			Print ("  canonical Renegade vehicle handling is in effect; nothing below applies\n");
+			return;
+		}
+
+		Print ("vehicle subsystems: enabled, immobilize %s\n",
+				 settings.AllowImmobilize ? "allowed" : "not allowed");
+		Print ("  engine   degrades below %.2f health, floor %.2f\n",
+				 settings.EngineDamageStartFraction,settings.MinEngineFactor);
+		Print ("  mobility degrades below %.2f health, floor %.2f\n",
+				 settings.MobilityDamageStartFraction,settings.MinMobilityFactor);
+		Print ("  weapon   slows below %.2f health, rate floor %.2f\n",
+				 settings.WeaponDamageStartFraction,settings.MinWeaponFactor);
+		if (settings.WeaponDisableFraction > 0.0f) {
+			Print ("  weapon cut-off at or below %.2f health\n",settings.WeaponDisableFraction);
+		} else {
+			Print ("  weapon cut-off off -- a damaged weapon slows but never falls silent\n");
+		}
+		Print ("  immobilize at or below %.2f health, AI retreats to repair at or below %.2f\n",
+				 settings.ImmobilizeFraction,settings.RetreatToRepairFraction);
+
+		int reported = 0;
+		SLNode<BaseGameObj> * objnode;
+		for (objnode = GameObjManager::Get_Game_Obj_List ()->Head (); objnode; objnode = objnode->Next ()) {
+
+			BaseGameObj * base = objnode->Data ();
+			if (base == nullptr) continue;
+
+			ScriptableGameObj * scriptable = base->As_ScriptableGameObj ();
+			PhysicalGameObj * physical = (scriptable != nullptr) ? scriptable->As_PhysicalGameObj () : nullptr;
+			VehicleGameObj * vehicle = (physical != nullptr) ? physical->As_VehicleGameObj () : nullptr;
+			if (vehicle == nullptr) continue;
+
+			DefenseObjectClass * defense = vehicle->Get_Defense_Object ();
+			float health_fraction = ((defense != nullptr) && (defense->Get_Health_Max () > 0.0f))
+											 ? (defense->Get_Health () / defense->Get_Health_Max ()) : 1.0f;
+
+			Print ("  vehicle %-6d health %.2f  engine %.2f  mobility %.2f  fire rate %.2f%s%s\n",
+					 vehicle->Get_ID (),health_fraction,
+					 vehicle->Get_Subsystem_Engine_Factor (),
+					 vehicle->Get_Subsystem_Mobility_Factor (),
+					 vehicle->Get_Subsystem_Weapon_Efficiency (),
+					 vehicle->Get_Subsystem_Weapon_Enabled () ? "" : "  WEAPON CUT",
+					 vehicle->Get_Subsystem_Immobilized () ? "  IMMOBILIZED" : "");
+			reported ++;
+		}
+
+		if (reported == 0) {
+			Print ("  no vehicles exist right now\n");
+		}
+	}
+};
+
+
 class AshConsoleFunctionClass : public ConsoleFunctionClass {
 public:
 	virtual	const char * Get_Name (void) override	{return ("ash");}
@@ -7385,6 +7459,7 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new WorldOperationConsoleFunctionClass() );
 	FunctionList.Add( new BuildingSubcomponentsConsoleFunctionClass() );
 	FunctionList.Add( new LogisticsStatusConsoleFunctionClass() );
+	FunctionList.Add( new VehicleSubsystemsConsoleFunctionClass() );
 	FunctionList.Add( new WeatherStatusConsoleFunctionClass() );
 	FunctionList.Add( new WeatherBudgetConsoleFunctionClass() );
 	FunctionList.Add( new WeatherLayerConsoleFunctionClass() );

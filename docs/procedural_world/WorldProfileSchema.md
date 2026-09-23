@@ -248,6 +248,61 @@ Section 22.1's own "default gameplay must remain viable without mandatory microm
 See `docs/procedural_world/LogisticsLayer.md` for what the graph actually is and which of Section
 22's seven named node kinds have a real source in this tree today.
 
+## Schema version 8 (Phase 22)
+
+### `vehicle_subsystems` — Section 23's own optional vehicle damage toggles
+
+Absent in a schema-1..7 profile, which still loads. Section 23's opening rule — "Do not alter
+default Renegade vehicle handling unless enabled by game profile" — is the whole design of this
+block: `enabled` defaults to `false`, and a legacy or stock map never loads a profile at all, so
+`VehicleGameObj::Apply_Control`'s live control path is provably byte-for-byte what it has always
+been unless a profile author asks otherwise.
+
+| Field | Type | Default | Rule | Meaning |
+| --- | --- | --- | --- | --- |
+| `enabled` | bool | `false` | — | Master toggle. While false every accessor returns its canonical answer at every health, so the feature is behaviorally absent rather than merely quiet. |
+| `allow_immobilize` | bool | `false` | — | Section 23 step 5's own separate opt-in. While false, health alone never removes basic drivability — the engine floor below is the worst any driver sees. Ignored entirely when `enabled` is false. |
+| `engine_damage_start_fraction` | float | `0.66` | `0..1` | Health fraction *below which* acceleration and sustained propulsion begin to degrade. `0` switches engine degradation off without touching the others. |
+| `mobility_damage_start_fraction` | float | `0.5` | `0..1` | Health fraction *below which* turning begins to degrade. `0` switches mobility degradation off without touching the others. |
+| `weapon_damage_start_fraction` | float | `0.66` | `0..1` | Health fraction *below which* rate of fire begins to degrade. `0` switches weapon degradation off without touching the others. |
+| `min_engine_factor` | float | `0.25` | `0..1` | The engine factor at zero health. A floor rather than zero, so engine damage alone never fully immobilizes. |
+| `min_mobility_factor` | float | `0.35` | `0..1` | The mobility factor at zero health. |
+| `min_weapon_factor` | float | `0.3` | `0..1` | The rate-of-fire factor at zero health. At `0.3` a wrecked turret takes ~3.3× as long between shots. |
+| `immobilize_fraction` | float | `0.05` | `0..1` | Consulted only when `allow_immobilize` is true: health fraction at or below which all movement input is zeroed. |
+| `weapon_disable_fraction` | float | `0.0` | `0..1` | Optional hard cut-off: health at or below which the weapon stops entirely. `0` (the default) turns this rule off, so a damaged weapon slows but never falls silent. |
+| `retreat_to_repair_fraction` | float | `0.3` | `0..1` | Health fraction at or below which a vehicle with **no human driver** walks itself to the nearest same-team repair bay. A human driver's own choices are never overridden. |
+
+All three subsystems share one response shape: untouched above the start threshold, then linear
+down to the configured floor at zero health. `terrain_vehiclesubsystems` proves each curve is
+bounded, monotonic (taking damage can never make a vehicle faster or its weapon quicker), lands
+exactly on the configured floor, that switching one subsystem's threshold to `0` leaves the other
+two alone, and that every answer is canonical at every health while `enabled` is false.
+
+**Engine damage costs real top speed, not just a smaller input number.** Scaling the throttle is
+enough for a tracked vehicle — its track resistance is linear in speed, so terminal velocity is
+genuinely proportional to throttle — but not for a wheeled one, whose top speed is set by where
+its engine torque curve falls off at a throttle-independent redline, with the quadratic drag term
+that would otherwise cap it defaulting to zero. A damaged wheeled vehicle would therefore
+accelerate worse and still reach nearly its normal top speed. `VehicleGameObj::
+Govern_Subsystem_Speed` closes that at the control layer, withholding propulsion above
+`engine_factor` × the fastest ground speed that vehicle has been observed to reach while
+undamaged. The physics integrator is not modified, per Section 1.9.
+
+**Rate of fire degrades per weapon instance.** `WeaponClass::Set_State` divides the freshly
+computed `StateTimer` by the owning vehicle's weapon efficiency — the same per-instance,
+owner-conditional multiply the adjacent `WEAPON_RATE_CHEAT` block already performs. The shared
+`AmmoDefinitionClass::RateOfFire` is never written, so one damaged tank does not slow that
+weapon's rate for every other object using the same preset, and the modifier is owner-gated so
+infantry weapons are untouched.
+
+**One honest gap remains.** Section 23.1 lists `sensor damage -> reduced AI targeting`, but no
+sensor, perception or detection-radius concept exists anywhere in `Code/Combat` to hook into —
+implementing it would mean inventing a targeting system, not wiring an existing one, so no
+`sensor_*` field is offered rather than shipping one nothing reads. Accuracy is likewise not
+degraded: the only per-shot spread value (`SprayAngle`) is definition-owned, and while it could be
+scaled at point of use the same way the fire rate is, nothing asked for it and it was left rather
+than added speculatively.
+
 ### Version semantics
 
 `CURRENT_SCHEMA_VERSION` and `CURRENT_GENERATOR_VERSION` moved to 2 with Phase 3, to 3 with
@@ -274,10 +329,14 @@ once a match has been played in them — which is exactly what a generator versi
 (Phase 21) moved only the schema number: `LogisticsGraphService` reads terrain/road/building state
 generator 6 already produces and writes none of it back, so the same seed and the same
 schema-1..6 profile still produce a byte-identical world — a schema field added with no generator
-output change, the same independence this file has documented since schema 2.
+output change, the same independence this file has documented since schema 2. Schema 8 (Phase 22)
+moved only the schema number for the same reason: `VehicleGameObj` reads its own already-generated
+`DefenseObject` health at control time and writes no world state at all, so terrain from a given
+seed is untouched by it.
 
 The shipped profile is `data/procedural_world/default.json`, loaded by
 `ProceduralWorldManager::DEFAULT_PROFILE_PATH`. It still declares `schema_version` 4 and carries
-neither the schema-5 `resource` fields, the schema-6 `grading` block, nor the schema-7 `logistics`
-block; all three take their documented defaults, which is the whole point of versioning them
-separately, and is why an older shipped profile is not a bug to fix here.
+none of the schema-5 `resource` fields, the schema-6 `grading` block, the schema-7 `logistics`
+block, or the schema-8 `vehicle_subsystems` block; all four take their documented defaults, which
+is the whole point of versioning them separately, and is why an older shipped profile is not a bug
+to fix here.

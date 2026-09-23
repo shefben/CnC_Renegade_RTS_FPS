@@ -38,7 +38,9 @@
 #include "coltype.h"
 #include "macroterraingenerator.h"
 #include "proceduralassetregistry.h"
+#include "proceduralworldprofile.h"
 #include "renegadeterrainpatch.h"
+#include "vehicle.h"
 #include "ribbontype.h"
 #include "roadgraphgenerator.h"
 #include "roadspline.h"
@@ -8798,6 +8800,192 @@ void	Check_Logistics (void)
 }
 
 
+/***********************************************************************************************
+ * Check_Vehicle_Subsystems -- V2 Phase 22, Roadmap Section 23                                   *
+ *                                                                                                *
+ *	Exercises VehicleGameObj's own subsystem response curve directly, through the static form     *
+ *	the instance accessors forward to.  A real VehicleGameObj cannot be built device-less (it     *
+ *	needs definitions and a physics scene a -terrainselfcheck run never brings up -- the same     *
+ *	standing harness limit Phase 20's building subcomponents and Phase 21's                        *
+ *	Rebuild_Building_Nodes already carry), so what is proven here is the curve and every gate      *
+ *	around it, not a vehicle actually slowing down on screen.  That remains a live-pass item.      *
+ *=============================================================================================*/
+void	Check_Vehicle_Subsystems (void)
+{
+	//	The gate that matters most: with the profile off -- the default, and what every legacy/
+	//	stock map runs with -- every answer is the canonical one at every health, including
+	//	dead-flat zero.  This is Phase 22's own gate ("behaviorally absent when disabled") and
+	//	Section 23's opening rule, proven rather than asserted.
+	{
+		ProceduralWorldVehicleSubsystemSettings off;		// default-constructed: Enabled false
+		const float fractions [] = { 1.0f,0.75f,0.5f,0.25f,0.1f,0.0f };
+		for (int i = 0; i < (int)(sizeof (fractions) / sizeof (fractions [0])); i ++) {
+			float f = fractions [i];
+			Check (VehicleGameObj::Compute_Subsystem_Engine_Factor (off,f) == 1.0f,
+					 "disabled profile scaled the engine at health fraction %.2f",f);
+			Check (VehicleGameObj::Compute_Subsystem_Mobility_Factor (off,f) == 1.0f,
+					 "disabled profile scaled mobility at health fraction %.2f",f);
+			Check (VehicleGameObj::Compute_Subsystem_Weapon_Enabled (off,f),
+					 "disabled profile disabled the weapon at health fraction %.2f",f);
+			Check (VehicleGameObj::Compute_Subsystem_Weapon_Efficiency (off,f) == 1.0f,
+					 "disabled profile slowed the weapon at health fraction %.2f",f);
+			Check (!VehicleGameObj::Compute_Subsystem_Immobilized (off,f),
+					 "disabled profile immobilized the vehicle at health fraction %.2f",f);
+		}
+	}
+
+	ProceduralWorldVehicleSubsystemSettings on;
+	on.Enabled = true;
+
+	//	Above the start threshold nothing is scaled at all, so a lightly damaged vehicle drives
+	//	exactly as it always did -- the degradation has a real onset, it is not a curve that
+	//	starts biting the instant a vehicle takes its first scratch.
+	{
+		Check (VehicleGameObj::Compute_Subsystem_Engine_Factor (on,1.0f) == 1.0f,
+				 "a full-health vehicle had its engine scaled");
+		Check (VehicleGameObj::Compute_Subsystem_Engine_Factor (on,on.EngineDamageStartFraction) == 1.0f,
+				 "a vehicle exactly at the engine threshold was already degraded");
+		Check (VehicleGameObj::Compute_Subsystem_Mobility_Factor (on,1.0f) == 1.0f,
+				 "a full-health vehicle had its mobility scaled");
+		Check (VehicleGameObj::Compute_Subsystem_Mobility_Factor (on,on.MobilityDamageStartFraction) == 1.0f,
+				 "a vehicle exactly at the mobility threshold was already degraded");
+	}
+
+	//	Below the threshold the response is real, monotonic, and bounded by the configured floor
+	//	-- never zero, never above 1, and never non-monotonic (which would mean taking damage
+	//	could make a vehicle faster).
+	{
+		float previous_engine = 1.0f;
+		float previous_mobility = 1.0f;
+		for (int step = 0; step <= 20; step ++) {
+			float f = 1.0f - ((float)step / 20.0f);		// 1.0 down to 0.0
+
+			float engine = VehicleGameObj::Compute_Subsystem_Engine_Factor (on,f);
+			Check ((engine >= on.MinEngineFactor) && (engine <= 1.0f),
+					 "engine factor %.4f out of bounds at health fraction %.2f",engine,f);
+			Check (engine <= previous_engine + 0.0001f,
+					 "engine factor rose as health fell (%.4f then %.4f at %.2f)",previous_engine,engine,f);
+			previous_engine = engine;
+
+			float mobility = VehicleGameObj::Compute_Subsystem_Mobility_Factor (on,f);
+			Check ((mobility >= on.MinMobilityFactor) && (mobility <= 1.0f),
+					 "mobility factor %.4f out of bounds at health fraction %.2f",mobility,f);
+			Check (mobility <= previous_mobility + 0.0001f,
+					 "mobility factor rose as health fell (%.4f then %.4f at %.2f)",previous_mobility,mobility,f);
+			previous_mobility = mobility;
+		}
+
+		//	At zero health the floor is exactly what a profile asked for, so "how slow can this
+		//	get" is a number an author sets rather than one this curve invents.
+		Check (WWMath::Fabs (VehicleGameObj::Compute_Subsystem_Engine_Factor (on,0.0f) - on.MinEngineFactor) < 0.0001f,
+				 "engine factor at zero health did not reach exactly min_engine_factor");
+		Check (WWMath::Fabs (VehicleGameObj::Compute_Subsystem_Mobility_Factor (on,0.0f) - on.MinMobilityFactor) < 0.0001f,
+				 "mobility factor at zero health did not reach exactly min_mobility_factor");
+	}
+
+	//	Rate of fire degrades continuously, on the same shape as the engine and mobility curves:
+	//	untouched above the threshold, then monotonic down to the configured floor.  A damaged
+	//	turret firing more slowly is the normal outcome; falling silent is not.
+	{
+		Check (VehicleGameObj::Compute_Subsystem_Weapon_Efficiency (on,1.0f) == 1.0f,
+				 "a full-health vehicle had its rate of fire reduced");
+		Check (VehicleGameObj::Compute_Subsystem_Weapon_Efficiency (on,on.WeaponDamageStartFraction) == 1.0f,
+				 "a vehicle exactly at the weapon threshold was already slowed");
+
+		float previous_weapon = 1.0f;
+		for (int step = 0; step <= 20; step ++) {
+			float f = 1.0f - ((float)step / 20.0f);
+			float efficiency = VehicleGameObj::Compute_Subsystem_Weapon_Efficiency (on,f);
+			Check ((efficiency >= on.MinWeaponFactor) && (efficiency <= 1.0f),
+					 "weapon efficiency %.4f out of bounds at health fraction %.2f",efficiency,f);
+			Check (efficiency <= previous_weapon + 0.0001f,
+					 "weapon efficiency rose as health fell (%.4f then %.4f at %.2f)",previous_weapon,efficiency,f);
+			previous_weapon = efficiency;
+		}
+		Check (WWMath::Fabs (VehicleGameObj::Compute_Subsystem_Weapon_Efficiency (on,0.0f) - on.MinWeaponFactor) < 0.0001f,
+				 "weapon efficiency at zero health did not reach exactly min_weapon_factor");
+
+		//	The efficiency must stay strictly positive across the whole default curve, because
+		//	WeaponClass::Set_State divides the refire interval by it.
+		Check (VehicleGameObj::Compute_Subsystem_Weapon_Efficiency (on,0.0f) > 0.0f,
+				 "the default weapon curve reached zero efficiency, which would be an infinite refire interval");
+	}
+
+	//	The hard cut-off is a separate, opt-in rule and is off by default, so an enabled profile
+	//	that never mentions it leaves a wrecked vehicle still firing (slowly) rather than silent.
+	{
+		Check (VehicleGameObj::Compute_Subsystem_Weapon_Enabled (on,0.0f),
+				 "the default profile silenced a zero-health vehicle instead of only slowing it");
+
+		ProceduralWorldVehicleSubsystemSettings disable = on;
+		disable.WeaponDisableFraction = 0.25f;
+		Check (VehicleGameObj::Compute_Subsystem_Weapon_Enabled (disable,1.0f),
+				 "a full-health vehicle could not fire");
+		Check (VehicleGameObj::Compute_Subsystem_Weapon_Enabled (disable,disable.WeaponDisableFraction + 0.01f),
+				 "a vehicle just above the weapon cut-off could not fire");
+		Check (!VehicleGameObj::Compute_Subsystem_Weapon_Enabled (disable,disable.WeaponDisableFraction),
+				 "a vehicle exactly at the weapon cut-off could still fire");
+
+		//	And the master toggle still wins, the same as it does for immobilizing.
+		ProceduralWorldVehicleSubsystemSettings disable_but_off;
+		disable_but_off.WeaponDisableFraction = 0.25f;		// Enabled deliberately left false
+		Check (VehicleGameObj::Compute_Subsystem_Weapon_Enabled (disable_but_off,0.0f),
+				 "the weapon cut-off took effect with the feature itself disabled");
+	}
+
+	//	Section 23 step 5, the rule this phase most needed to not get wrong: enabling the feature
+	//	never by itself removes basic drivability.  Immobilizing takes its own separate opt-in.
+	{
+		Check (!VehicleGameObj::Compute_Subsystem_Immobilized (on,0.0f),
+				 "an enabled-but-not-allow_immobilize profile immobilized a zero-health vehicle");
+
+		ProceduralWorldVehicleSubsystemSettings immobilize = on;
+		immobilize.AllowImmobilize = true;
+		Check (!VehicleGameObj::Compute_Subsystem_Immobilized (immobilize,1.0f),
+				 "allow_immobilize immobilized a full-health vehicle");
+		Check (!VehicleGameObj::Compute_Subsystem_Immobilized (immobilize,immobilize.ImmobilizeFraction + 0.01f),
+				 "allow_immobilize immobilized a vehicle above the immobilize threshold");
+		Check (VehicleGameObj::Compute_Subsystem_Immobilized (immobilize,immobilize.ImmobilizeFraction),
+				 "allow_immobilize did not immobilize a vehicle at the immobilize threshold");
+
+		//	And the master toggle still wins over the sub-toggle: allow_immobilize with the
+		//	feature itself off must stay inert, or "disable the profile" would not be the total
+		//	bypass Phase 22 step 11 requires.
+		ProceduralWorldVehicleSubsystemSettings allow_but_off;
+		allow_but_off.AllowImmobilize = true;			// Enabled deliberately left false
+		Check (!VehicleGameObj::Compute_Subsystem_Immobilized (allow_but_off,0.0f),
+				 "allow_immobilize took effect with the feature itself disabled");
+	}
+
+	//	A threshold of zero turns that one subsystem's degradation off, because these fields are
+	//	documented as the fraction *below which* degradation begins and nothing is below zero
+	//	health.  Proven at zero health, the only place the two readings could differ, and proven
+	//	per-subsystem so one being switched off never quietly switches the other off too.
+	{
+		ProceduralWorldVehicleSubsystemSettings engine_off = on;
+		engine_off.EngineDamageStartFraction = 0.0f;
+		Check (VehicleGameObj::Compute_Subsystem_Engine_Factor (engine_off,0.0f) == 1.0f,
+				 "a zero engine threshold still degraded the engine");
+		Check (VehicleGameObj::Compute_Subsystem_Mobility_Factor (engine_off,0.0f) < 1.0f,
+				 "switching the engine threshold off also switched mobility off");
+
+		ProceduralWorldVehicleSubsystemSettings mobility_off = on;
+		mobility_off.MobilityDamageStartFraction = 0.0f;
+		Check (VehicleGameObj::Compute_Subsystem_Mobility_Factor (mobility_off,0.0f) == 1.0f,
+				 "a zero mobility threshold still degraded mobility");
+		Check (VehicleGameObj::Compute_Subsystem_Engine_Factor (mobility_off,0.0f) < 1.0f,
+				 "switching the mobility threshold off also switched the engine off");
+
+		ProceduralWorldVehicleSubsystemSettings weapon_off = on;
+		weapon_off.WeaponDamageStartFraction = 0.0f;
+		Check (VehicleGameObj::Compute_Subsystem_Weapon_Efficiency (weapon_off,0.0f) == 1.0f,
+				 "a zero weapon threshold still degraded the rate of fire");
+		Check (VehicleGameObj::Compute_Subsystem_Engine_Factor (weapon_off,0.0f) < 1.0f,
+				 "switching the weapon threshold off also switched the engine off");
+	}
+}
+
+
 }	// anonymous namespace
 
 
@@ -8918,6 +9106,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "logistics") == 0)) {
 		Check_Logistics ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "vehiclesubsystems") == 0)) {
+		Check_Vehicle_Subsystems ();
 	}
 
 	if (_Failures == 0) {

@@ -297,6 +297,62 @@ struct ProceduralWorldLogisticsSettings
 
 
 /*
+**	V2 roadmap Section 34 Phase 22 step 1's own "explicit world/game-profile toggle... default is
+**	OFF unless user later changes policy".  Section 23's opening line -- "Do not alter default
+**	Renegade vehicle handling unless enabled by game profile" -- is why every field defaults to
+**	leaving VehicleGameObj::Apply_Control's live control path byte-for-byte what it always was:
+**	`Enabled` is the only field that path reads before doing anything else, and a legacy/stock
+**	map never loads a profile at all (ProceduralWorldManager::Get_Active_Profile stays default-
+**	constructed), so it is provably unaffected -- a stronger guarantee than gating through
+**	ssgm.ini's own donor-parity SSGMSettingsClass would give, since that file is read for every
+**	map, procedural or not.  `AllowImmobilize` is step 5's own further, explicit opt-in: a human
+**	driver's basic drivability is never removed by health alone unless a profile author asks for
+**	that specifically.
+*/
+struct ProceduralWorldVehicleSubsystemSettings
+{
+	ProceduralWorldVehicleSubsystemSettings(void) :
+		Enabled(false),AllowImmobilize(false),
+		EngineDamageStartFraction(0.66f),MobilityDamageStartFraction(0.5f),
+		WeaponDamageStartFraction(0.66f),
+		MinEngineFactor(0.25f),MinMobilityFactor(0.35f),MinWeaponFactor(0.3f),
+		ImmobilizeFraction(0.05f),WeaponDisableFraction(0.0f),
+		RetreatToRepairFraction(0.3f) { }
+
+	bool	Enabled;						// master toggle; OFF (default) leaves canonical vehicle behavior untouched
+	bool	AllowImmobilize;				// Section 23 step 5's explicit sub-toggle; OFF means health alone never forces a stop
+
+	//	Each is the 0..1 health fraction *below which* that subsystem begins to degrade, so 0
+	//	switches that one subsystem's degradation off entirely (nothing is below zero health)
+	//	while leaving the others alone -- a per-subsystem off switch, distinct from `Enabled`,
+	//	which turns the whole feature off.  Proven every way in terrain_vehiclesubsystems.
+	float	EngineDamageStartFraction;	// engine: acceleration and sustained propulsion
+	float	MobilityDamageStartFraction;	// track/wheel: turning
+	float	WeaponDamageStartFraction;		// turret/weapon module: rate of fire
+
+	//	Where each subsystem's own efficiency bottoms out at zero health.  A floor rather than
+	//	zero is Section 23 step 5 in numeric form: degradation alone never removes a capability
+	//	outright -- only the two explicit cut-off rules below do that.
+	float	MinEngineFactor;				// 0..1 engine factor floor at zero health
+	float	MinMobilityFactor;			// 0..1 mobility factor floor at zero health
+	float	MinWeaponFactor;				// 0..1 rate-of-fire factor floor at zero health
+
+	//	The two capability cut-offs, each opt-in and each inert by default.  ImmobilizeFraction is
+	//	consulted only when AllowImmobilize is true; WeaponDisableFraction follows this file's own
+	//	"0 turns this rule off" convention, since nothing is below zero health -- so by default a
+	//	damaged weapon fires ever more slowly rather than ever falling silent.
+	float	ImmobilizeFraction;			// 0..1, requires AllowImmobilize: health at/below which movement is zeroed
+	float	WeaponDisableFraction;			// 0..1, 0 turns this rule off: health at/below which the weapon stops entirely
+
+	//	Section 23.3/Phase 22 step 8's "AI RETREAT_TO_REPAIR response": the health fraction at or
+	//	below which a vehicle with no human driver walks itself to the nearest same-team repair
+	//	bay, via the same ScriptEngine::Action_Goto every other order in this tree already uses.
+	//	A human driver's own choices are never overridden.
+	float	RetreatToRepairFraction;
+};
+
+
+/*
 **	Section 17A.1's required profile thresholds, named exactly as that section lists them.
 **	Parsed and validated starting this phase even though no generator/analyzer consumes them
 **	yet (Phase 15/17A's own job) -- Phase 1's purpose is the whole schema contract, and
@@ -393,7 +449,13 @@ class ProceduralWorldProfile
 		//	terrain -- a schema field can be added with no generator output change, exactly the
 		//	independence this comment block has documented since schema 2.  A schema-1..6 profile
 		//	still loads; the three new fields take their documented (inert-by-default) values.
-		enum { CURRENT_SCHEMA_VERSION = 7, CURRENT_GENERATOR_VERSION = 6 };
+		//	Schema 8 added the vehicle_subsystems block's nine Phase 22 fields.  Generator stays
+		//	at 6 for the same reason schema 7 did not move it: VehicleGameObj reads its own
+		//	already-generated DefenseObject health at control time, the same "derived read of
+		//	data the schema already describes" every schema-only phase since 16 has been.  A
+		//	schema-1..7 profile still loads; the nine new fields take their documented
+		//	(canonical-behavior-preserving) defaults.
+		enum { CURRENT_SCHEMA_VERSION = 8, CURRENT_GENERATOR_VERSION = 6 };
 
 		ProceduralWorldProfile(void);
 
@@ -416,6 +478,7 @@ class ProceduralWorldProfile
 		ProceduralWorldFairnessThresholds	Fairness;
 		ProceduralWorldGradingSettings		Grading;
 		ProceduralWorldLogisticsSettings	Logistics;
+		ProceduralWorldVehicleSubsystemSettings	VehicleSubsystems;
 };
 
 

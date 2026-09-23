@@ -1039,3 +1039,65 @@ actually breaks mid-route. A convoy has never driven a real vehicle on screen.
 confirm the node/route counts look right for the seed; construct a forward base and confirm a
 `forward_base` node appears; if a Refinery/Factory/Repair Bay descriptor exists by then, confirm
 those node kinds populate too.
+
+---
+
+## V2 Phase 22 -- the subsystem curve is real and tested; no vehicle has run it on screen
+
+All implementable steps built for real (roadmap Section 23), all three binaries clean,
+`terrain_vehiclesubsystems`/`fds_terrain_vehiclesubsystems` green (`ctest -N` now 183, was 181).
+Engine/mobility scale the live control channels in `VehicleGameObj::Apply_Control`, a speed
+governor makes engine damage cost real top speed, weapon rate of fire degrades continuously in
+`WeaponClass::Set_State`, and AI retreat-to-repair is wired into `Think`. Off by default
+(`ProceduralWorldProfile::VehicleSubsystems.Enabled`, schema 8). See
+`docs/procedural_world/VehicleSubsystemDamage.md`.
+
+**Genuine, disclosed gaps -- none of them implementation shortfalls:**
+- **Sensor damage (Section 23.1's fourth subsystem) is not implemented at all.** No sensor,
+  perception or detection-radius concept exists anywhere in `Code/Combat` -- searched, not
+  assumed. "Reduced AI targeting" would mean inventing a targeting-range system first. No
+  `sensor_*` profile field is offered rather than shipping one nothing reads.
+- **Accuracy is not degraded.** The only per-shot spread value (`SprayAngle`) is definition-owned;
+  it could be scaled at point of use the same way the fire rate now is, but nothing asked for it
+  and it was left rather than added speculatively.
+- **Section 23.3's repair/recovery/escort vehicles are not built.** Step 9 requires them "only
+  through normal vehicle/AI APIs", which needs a real vehicle preset; none exists yet (P33's
+  backlog). Retreat-to-repair, the fourth item on that list, *is* built.
+- **Fuel is not implemented**, per Section 23's own closing line; nothing asked for optional fuel
+  either.
+
+**A real pre-existing gap found but deliberately NOT fixed:** the live
+`VehicleGameObj::Apply_Control` reads neither `CanDrive` nor `CanFire`, although both are real,
+saved, network-replicated fields that TT scripts actively set, and the commented-out
+`Apply_Control` at `vehicle.cpp:1604-1667` shows the intended consumption. Left alone on purpose:
+Phase 22's own work demonstrated no bug from it (this phase deliberately does not use those fields
+-- they are script-owned state that an automatic health-driven write would fight), the scripts
+setting them are TT donor content whose intended behavior is not this phase's to decide, and
+Section 0 permits an out-of-scope fix only for a *demonstrated* incompatibility. Recorded here so
+it is not lost; a future phase that actually needs those fields consumed should fix it then.
+
+**What is not proven:** no real `VehicleGameObj` has ever executed any of this. A
+`-terrainselfcheck` run brings up no `GameObjManager` or physics scene -- the same standing
+harness limit Phases 20 and 21 already carry -- which is why the response curves were deliberately
+made testable as pure functions (`Compute_Subsystem_*`) instead of being left untested behind an
+un-constructible object. No vehicle has been observed slowing down, firing more slowly, or driving
+itself to a repair bay. `Find_Nearest_Repair_Bay` has never found anything, because no buildable
+Repair Bay descriptor exists yet.
+
+**The speed governor is the piece most wanting a live pass.** Its correctness argument rests on a
+source reading of the tracked vs wheeled physics paths (tracked terminal velocity is proportional
+to throttle; wheeled top speed is set by a throttle-independent redline with drag defaulting to
+zero), and its reference speed is learned at runtime rather than derived. Two things to confirm by
+hand: that a damaged *wheeled* vehicle now genuinely tops out lower rather than merely accelerating
+worse, and that holding a vehicle at its cap does not visibly oscillate or judder.
+
+**Next exact action** is a manual one for the user: run
+`renegade --gamedir "C:\Westwood\Renegade_full"` with a profile setting
+`vehicle_subsystems.enabled` true, click **Procedural Skirmish**, then (1) note a wheeled vehicle's
+healthy top speed on a straight, damage it to ~half health and confirm it now tops out lower;
+(2) repeat in a tracked vehicle; (3) confirm turning is worse but reverse/braking still respond;
+(4) fire while damaged, confirm the gap between shots grew, and compare against the fire-rate
+factor `vehicle_subsystems` reports at the console; (5) confirm an infantry weapon's rate of fire
+is unaffected at any vehicle health. Immobilization needs `allow_immobilize` true and the weapon
+cut-off needs `weapon_disable_fraction` above 0; AI retreat-to-repair cannot be exercised until a
+buildable Repair Bay descriptor exists.

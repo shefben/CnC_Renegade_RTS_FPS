@@ -230,6 +230,25 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			p.Logistics.ConstructionSupportRadius	= lg.value ("construction_support_radius",p.Logistics.ConstructionSupportRadius);
 		}
 
+		if (root.contains ("vehicle_subsystems") && root ["vehicle_subsystems"].is_object ()) {
+			auto & vs = root ["vehicle_subsystems"];
+
+			//	Schema 8.  Absent in a schema-1..7 profile, which is why each default comes from
+			//	the value already in p (Section 23's own "do not alter default Renegade vehicle
+			//	handling unless enabled by game profile") rather than from a literal repeated here.
+			p.VehicleSubsystems.Enabled							= vs.value ("enabled",p.VehicleSubsystems.Enabled);
+			p.VehicleSubsystems.AllowImmobilize					= vs.value ("allow_immobilize",p.VehicleSubsystems.AllowImmobilize);
+			p.VehicleSubsystems.EngineDamageStartFraction		= vs.value ("engine_damage_start_fraction",p.VehicleSubsystems.EngineDamageStartFraction);
+			p.VehicleSubsystems.MobilityDamageStartFraction	= vs.value ("mobility_damage_start_fraction",p.VehicleSubsystems.MobilityDamageStartFraction);
+			p.VehicleSubsystems.WeaponDamageStartFraction		= vs.value ("weapon_damage_start_fraction",p.VehicleSubsystems.WeaponDamageStartFraction);
+			p.VehicleSubsystems.MinEngineFactor					= vs.value ("min_engine_factor",p.VehicleSubsystems.MinEngineFactor);
+			p.VehicleSubsystems.MinMobilityFactor				= vs.value ("min_mobility_factor",p.VehicleSubsystems.MinMobilityFactor);
+			p.VehicleSubsystems.MinWeaponFactor					= vs.value ("min_weapon_factor",p.VehicleSubsystems.MinWeaponFactor);
+			p.VehicleSubsystems.ImmobilizeFraction				= vs.value ("immobilize_fraction",p.VehicleSubsystems.ImmobilizeFraction);
+			p.VehicleSubsystems.WeaponDisableFraction			= vs.value ("weapon_disable_fraction",p.VehicleSubsystems.WeaponDisableFraction);
+			p.VehicleSubsystems.RetreatToRepairFraction			= vs.value ("retreat_to_repair_fraction",p.VehicleSubsystems.RetreatToRepairFraction);
+		}
+
 		*out_profile = p;
 
 	} catch (json::exception & e) {
@@ -418,6 +437,29 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	//	documented "no bonus" default, not an error -- so this only rejects negative/non-finite,
 	//	the same treatment every other optional-bonus field in this file gets.
 	NEED_NONNEGATIVE (p.Logistics.ConstructionSupportRadius,"negative/non-finite logistics.construction_support_radius");
+
+	//	Vehicle subsystem fractions (schema 8).  All seven are normalized 0..1 health
+	//	fractions/factors -- the same "a value above 1 is a profile author misunderstanding the
+	//	unit, not more of something to silently clamp" rule the boundary/terrain roughness
+	//	weights already get in this file.
+	NEED_NONNEGATIVE (p.VehicleSubsystems.EngineDamageStartFraction,"negative/non-finite vehicle_subsystems.engine_damage_start_fraction");
+	NEED_NONNEGATIVE (p.VehicleSubsystems.MobilityDamageStartFraction,"negative/non-finite vehicle_subsystems.mobility_damage_start_fraction");
+	NEED_NONNEGATIVE (p.VehicleSubsystems.WeaponDamageStartFraction,"negative/non-finite vehicle_subsystems.weapon_damage_start_fraction");
+	NEED_NONNEGATIVE (p.VehicleSubsystems.MinEngineFactor,"negative/non-finite vehicle_subsystems.min_engine_factor");
+	NEED_NONNEGATIVE (p.VehicleSubsystems.MinMobilityFactor,"negative/non-finite vehicle_subsystems.min_mobility_factor");
+	NEED_NONNEGATIVE (p.VehicleSubsystems.MinWeaponFactor,"negative/non-finite vehicle_subsystems.min_weapon_factor");
+	NEED_NONNEGATIVE (p.VehicleSubsystems.ImmobilizeFraction,"negative/non-finite vehicle_subsystems.immobilize_fraction");
+	NEED_NONNEGATIVE (p.VehicleSubsystems.WeaponDisableFraction,"negative/non-finite vehicle_subsystems.weapon_disable_fraction");
+	NEED_NONNEGATIVE (p.VehicleSubsystems.RetreatToRepairFraction,"negative/non-finite vehicle_subsystems.retreat_to_repair_fraction");
+	if (p.VehicleSubsystems.EngineDamageStartFraction > 1.0f)		FAIL ("vehicle_subsystems.engine_damage_start_fraction above 1");
+	if (p.VehicleSubsystems.MobilityDamageStartFraction > 1.0f)	FAIL ("vehicle_subsystems.mobility_damage_start_fraction above 1");
+	if (p.VehicleSubsystems.WeaponDamageStartFraction > 1.0f)		FAIL ("vehicle_subsystems.weapon_damage_start_fraction above 1");
+	if (p.VehicleSubsystems.MinEngineFactor > 1.0f)					FAIL ("vehicle_subsystems.min_engine_factor above 1");
+	if (p.VehicleSubsystems.MinMobilityFactor > 1.0f)				FAIL ("vehicle_subsystems.min_mobility_factor above 1");
+	if (p.VehicleSubsystems.MinWeaponFactor > 1.0f)					FAIL ("vehicle_subsystems.min_weapon_factor above 1");
+	if (p.VehicleSubsystems.ImmobilizeFraction > 1.0f)				FAIL ("vehicle_subsystems.immobilize_fraction above 1");
+	if (p.VehicleSubsystems.WeaponDisableFraction > 1.0f)			FAIL ("vehicle_subsystems.weapon_disable_fraction above 1");
+	if (p.VehicleSubsystems.RetreatToRepairFraction > 1.0f)			FAIL ("vehicle_subsystems.retreat_to_repair_fraction above 1");
 
 	#undef FAIL
 	#undef NEED_FINITE
