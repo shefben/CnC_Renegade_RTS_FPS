@@ -420,26 +420,36 @@ int MacroTerrainGenerator::Check_Ordinary_Slope_Limit(const MacroTerrainParams &
 }
 
 
+/*
+**	Per vertex, because that is the unit the invariant is kept in: generation locks and writes
+**	flat exactly the vertices WorldBoundsService classifies at or past the cliff band.  A chunk's
+**	own CliffBand flag is deliberately coarser -- set when any point of the chunk touches the band,
+**	so nothing builds on or routes through a chunk half in it -- which means a straddling chunk
+**	legitimately holds ordinary, unflattened vertices too.  Judging flatness per chunk asserted
+**	an invariant no generator promises.
+*/
 int MacroTerrainGenerator::Check_Cliff_Band_Untouched(StringClass * report)
 {
 	int failures = 0;
-	int count_x = WorldTerrainSystem::Get_Chunk_Count_X ();
-	int count_y = WorldTerrainSystem::Get_Chunk_Count_Y ();
+	HeightfieldClass * field = WorldTerrainSystem::Peek_Heightfield ();
+	if ((field == nullptr) || !WorldBoundsService::Is_Configured ()) {
+		return 0;
+	}
 
-	for (int py = 0; py < count_y; py++) {
-		for (int px = 0; px < count_x; px++) {
-			TerrainChunkInfoClass info;
-			if (!WorldTerrainSystem::Get_Chunk_Info (px,py,&info)) {
+	const Vector3 & origin = field->Get_Origin ();
+	float cell = field->Get_Cell_Size ();
+	for (int iy = 0; iy < field->Get_Vertex_Count_Y (); iy++) {
+		for (int ix = 0; ix < field->Get_Vertex_Count_X (); ix++) {
+			Vector2 p (origin.X + ((float)ix * cell),origin.Y + ((float)iy * cell));
+			if (WorldBoundsService::Classify_Point (p) < WORLD_ZONE_CLIFF_BAND) {
 				continue;
 			}
-			if (!info.CliffBand) {
-				continue;
-			}
-			if ((WWMath::Fabs (info.MinHeight) > 0.01f) || (WWMath::Fabs (info.MaxHeight) > 0.01f)) {
+			float h = origin.Z + field->Get_Height (ix,iy);
+			if (WWMath::Fabs (h) > 0.01f) {
 				failures++;
 				if ((report != nullptr) && (failures == 1)) {
-					report->Format ("cliff-band chunk (%d,%d) height [%.2f,%.2f] is not flat at sea level",
-										  px,py,info.MinHeight,info.MaxHeight);
+					report->Format ("cliff-band vertex (%d,%d) at (%.1f,%.1f) height %.2f is not flat at sea level",
+										  ix,iy,p.X,p.Y,h);
 				}
 			}
 		}

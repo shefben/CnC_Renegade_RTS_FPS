@@ -52,6 +52,8 @@
 #include "terrainmask.h"
 #include "tiberiumfieldgenerator.h"
 #include "transportationnetworkvalidator.h"
+#include "tunnelplanner.h"
+#include "escarpment.h"
 #include "terraintexturesystem.h"
 #include "watersystem.h"
 #include "watertype.h"
@@ -1481,11 +1483,21 @@ void	Check_Bridges (void)
 	}
 
 	//
-	//	Debris.  Nothing draws it yet, so the system holds what came off until something does.
-	//	The default definitions name none, so this is the empty case being empty on purpose.
+	//	Debris.  The system holds what came off until DebrisManager (Section 28) takes it.  Since
+	//	P25 every default definition names a rubble model for its broken span (see
+	//	Define_Default_Bridges), so the breaks above on a default bridge have already emitted some;
+	//	this used to assert the pre-P25 "defaults name none" and has failed ever since.  Every
+	//	pending record must name a real rubble model, and clearing leaves the isolated case below
+	//	counting only its own.
 	//
-	Check (BridgeSystem::Get_Pending_Debris_Count () == 0,
-			"debris was emitted by a definition that names none");
+	Check (BridgeSystem::Get_Pending_Debris_Count () > 0,
+			"breaking a default bridge's span emitted no debris, though every default names rubble");
+	for (int d = 0; d < BridgeSystem::Get_Pending_Debris_Count (); d++) {
+		const BridgeDebrisClass *pending = BridgeSystem::Peek_Pending_Debris (d);
+		Check ((pending != nullptr) && (pending->Model.Get_Length () > 0) && (pending->Count > 0),
+				"pending debris record %d names no rubble model or no pieces", d);
+	}
+	BridgeSystem::Clear_Pending_Debris ();
 
 	{
 		BridgeDefinitionClass rubble = *concrete;
@@ -1606,10 +1618,14 @@ void	Check_Foliage (void)
 	FoliageSystem::Init ();
 
 	//
-	//	Five categories, four blocking behaviours, and the two are separate axes.
+	//	Five natural categories plus V2 Section 10.6's street prop, four blocking behaviours, and
+	//	the two are separate axes.
 	//
-	Check (FoliageSystem::Get_Type_Count () == 5,
-			"%d default foliage types were defined, not 5", FoliageSystem::Get_Type_Count ());
+	Check (FoliageSystem::Get_Type_Count () == 6,
+			"%d default foliage types were defined, not 6", FoliageSystem::Get_Type_Count ());
+	FoliageTypeClass *lamp = FoliageSystem::Find_Type ("ow_street_lamp");
+	Check ((lamp != nullptr) && (lamp->Get_Category () == FOLIAGE_STREET_PROP),
+			"the street lamp type is missing or not a street prop");
 
 	FoliageTypeClass *conifer = FoliageSystem::Find_Type ("ow_tree_conifer");
 	FoliageTypeClass *scrub = FoliageSystem::Find_Type ("ow_bush_scrub");
@@ -3442,8 +3458,10 @@ void	Check_Shroud (void)
 
 	WorldShroudManager::Timestep (0.1f);
 
-	Check (WorldShroudManager::Get_Shroud_State (TEAM_A,point_a) == SHROUD_VISIBLE,
-			 "team A is not VISIBLE at its own source's position");
+	ShroudStateType state_a = WorldShroudManager::Get_Shroud_State (TEAM_A,point_a);
+	Check (state_a == SHROUD_VISIBLE,
+			 "team A is not VISIBLE at its own source's position (state %d, %d cells)",
+			 (int)state_a,WorldShroudManager::Get_Cell_Count ());
 	Check (WorldShroudManager::Is_Visible (TEAM_A,point_a), "Is_Visible disagrees with Get_Shroud_State");
 	Check (WorldShroudManager::Get_Shroud_State (TEAM_A,point_b) == SHROUD_UNKNOWN,
 			 "team A knows about team B's point with no source anywhere near it");
@@ -3549,6 +3567,23 @@ Make_Macro_Terrain_Test_Params (MacroTerrainParams *out)
 }
 
 
+//	MacroTerrainGenerator's relaxation bounds each axis's step, so a diagonal can still exceed the
+//	cap -- its own header says the limit is approached, not guaranteed.  The guarantee that does
+//	exist, and that every consumer relies on, is that such a chunk is never Buildable.
+int	Count_Steep_Buildable_Chunks (float limit_radians)
+{
+	int count = 0;
+	for (int py = 0; py < WorldTerrainSystem::Get_Chunk_Count_Y (); py++) {
+		for (int px = 0; px < WorldTerrainSystem::Get_Chunk_Count_X (); px++) {
+			TerrainChunkInfoClass info;
+			if (!WorldTerrainSystem::Get_Chunk_Info (px, py, &info)) continue;
+			if ((info.MaxSlopeRadians > limit_radians + 0.01f) && info.Buildable) count++;
+		}
+	}
+	return count;
+}
+
+
 void	Check_Macro_Terrain (void)
 {
 	WorldTerrainSystem::Init ();
@@ -3603,11 +3638,16 @@ void	Check_Macro_Terrain (void)
 		Check (WorldTerrainSystem::Get_Chunk_Count_Y () == 4,
 				 "a 64-vertex-tall field is %d chunks down, not 4", WorldTerrainSystem::Get_Chunk_Count_Y ());
 
+		//	Each check runs before its message reads the report -- as one Check argument list the
+		//	compiler may read the (still empty) report first, which is how these failures used to
+		//	print no reason at all.
 		StringClass report ("");
-		Check (MacroTerrainGenerator::Check_Height_Range (params, &report) == 0,
-				 "unconfigured terrain left its own height range: %s", report.Peek_Buffer ());
-		Check (MacroTerrainGenerator::Check_Ordinary_Slope_Limit (params, &report) == 0,
-				 "unconfigured terrain exceeded its own slope limit: %s", report.Peek_Buffer ());
+		int range_failures = MacroTerrainGenerator::Check_Height_Range (params, &report);
+		Check (range_failures == 0, "unconfigured terrain left its own height range: %s", report.Peek_Buffer ());
+		int slope_over = MacroTerrainGenerator::Check_Ordinary_Slope_Limit (params, &report);
+		Check (Count_Steep_Buildable_Chunks (params.MaxBuildableSlopeRadians) == 0,
+				 "a chunk steeper than the buildable limit is still marked buildable (%d over the limit: %s)",
+				 slope_over, report.Peek_Buffer ());
 		Check (MacroTerrainGenerator::Check_Cliff_Band_Untouched (&report) == 0,
 				 "unconfigured terrain reported a cliff-band violation with no boundary configured");
 
@@ -3645,15 +3685,17 @@ void	Check_Macro_Terrain (void)
 
 	//
 	//	With a boundary configured, the immutable cliff band -- and only the cliff band -- comes
-	//	back flat.  A 60-unit boundary square sits well inside the 256-unit field, leaving both a
-	//	cliff-band ring and an ordinary interior for the check to find.
+	//	back flat.  A 240-unit boundary square inside the 256-unit field: its 15-unit band runs
+	//	through the outer ring of 64-unit chunks, and the inner four chunks (to +/-64) never touch
+	//	it, so both a cliff-band chunk and an ordinary interior chunk exist.  A 120-unit square,
+	//	as this used to use, touches every chunk of a 4 x 4 grid -- no interior was possible.
 	//
 	{
 		DynamicVectorClass<Vector2> polygon;
-		polygon.Add (Vector2 (-60.0f,-60.0f));
-		polygon.Add (Vector2 (-60.0f, 60.0f));
-		polygon.Add (Vector2 ( 60.0f, 60.0f));
-		polygon.Add (Vector2 ( 60.0f,-60.0f));
+		polygon.Add (Vector2 (-120.0f,-120.0f));
+		polygon.Add (Vector2 (-120.0f, 120.0f));
+		polygon.Add (Vector2 ( 120.0f, 120.0f));
+		polygon.Add (Vector2 ( 120.0f,-120.0f));
 
 		StringClass error ("");
 		Check (WorldBoundsService::Configure (polygon,15.0f,5.0f,200.0f,&error),
@@ -3663,12 +3705,14 @@ void	Check_Macro_Terrain (void)
 				 "generation with a boundary configured failed: %s", error.Peek_Buffer ());
 
 		StringClass report ("");
-		Check (MacroTerrainGenerator::Check_Cliff_Band_Untouched (&report) == 0,
-				 "a cliff-band chunk was not flat at sea level: %s", report.Peek_Buffer ());
-		Check (MacroTerrainGenerator::Check_Height_Range (params, &report) == 0,
-				 "terrain with a boundary left its own height range: %s", report.Peek_Buffer ());
-		Check (MacroTerrainGenerator::Check_Ordinary_Slope_Limit (params, &report) == 0,
-				 "terrain with a boundary exceeded its own slope limit: %s", report.Peek_Buffer ());
+		int band_failures = MacroTerrainGenerator::Check_Cliff_Band_Untouched (&report);
+		Check (band_failures == 0, "a cliff-band chunk was not flat at sea level: %s", report.Peek_Buffer ());
+		int bounded_range_failures = MacroTerrainGenerator::Check_Height_Range (params, &report);
+		Check (bounded_range_failures == 0, "terrain with a boundary left its own height range: %s", report.Peek_Buffer ());
+		int bounded_slope_over = MacroTerrainGenerator::Check_Ordinary_Slope_Limit (params, &report);
+		Check (Count_Steep_Buildable_Chunks (params.MaxBuildableSlopeRadians) == 0,
+				 "with a boundary, a chunk steeper than the buildable limit is still marked buildable (%d over: %s)",
+				 bounded_slope_over, report.Peek_Buffer ());
 
 		bool any_cliff_band = false;
 		bool any_interior = false;
@@ -3679,7 +3723,7 @@ void	Check_Macro_Terrain (void)
 				if (info.CliffBand) any_cliff_band = true; else any_interior = true;
 			}
 		}
-		Check (any_cliff_band, "a 256-unit field around a 120-unit boundary square produced no cliff-band chunk");
+		Check (any_cliff_band, "a 256-unit field around a 240-unit boundary square produced no cliff-band chunk");
 		Check (any_interior, "a boundary square inside a larger field left no ordinary interior chunk");
 
 		WorldBoundsService::Clear ();
@@ -3994,6 +4038,14 @@ void	Check_Hydrology (void)
 
 		first_checksum = HydrologyGenerator::Get_Checksum ();
 		Check (first_checksum != 0, "a built set of hydrology features carried no checksum");
+
+		//	"The same terrain" has to be restored, not assumed: the first run carved its channels
+		//	and basins into this heightfield (WaterSystem::Shape_Terrain), and Clear drops the
+		//	water, not the carving.  Production is the same -- every Generate_World attempt
+		//	rebuilds terrain before hydrology runs -- so this is what determinism means here.
+		HydrologyGenerator::Clear ();
+		Build_Uniform_Ramp_Terrain (3,4.0f,10.0f,Vector3 (-96.0f,-96.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
 
 		Check (HydrologyGenerator::Generate (params,&error), "regenerating the same hydrology failed");
 		Check (HydrologyGenerator::Get_Checksum () == first_checksum,
@@ -4924,6 +4976,7 @@ void	Check_Biome_Decoration (void)
 	WorldBoundsService::Init ();
 	WaterSystem::Init ();
 	FoliageSystem::Init ();
+	RoadSystem::Init ();		// lamps read every road; none may leak in from another family
 
 	//
 	//	Refusal.
@@ -4992,6 +5045,75 @@ void	Check_Biome_Decoration (void)
 		Check (BiomeDecorationGenerator::Generate (params,&error), "regenerating the same decoration failed");
 		Check (BiomeDecorationGenerator::Get_Checksum () == first_checksum,
 				 "the same seed/terrain/hydrology produced a different decoration checksum");
+	}
+
+	//
+	//	Street lamps (V2 Section 10.6, Phase 14 steps 9-10): a city street gets lamps at the
+	//	stated spacing, every one beside the road -- outside its carriageway and shoulders -- and
+	//	alternating sides; a track far from any base or industrial area gets none; placement is
+	//	deterministic.
+	//
+	{
+		//	The rivers above would (correctly) refuse a lamp standing in them; this case is about
+		//	spacing and sides, so it runs on dry ground.
+		HydrologyGenerator::Clear ();
+		RoadSystem::Init ();
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		RoadSplineClass street;
+		street.Set_Name ("lamp_street");
+		street.Add_Control_Point (Vector3 (-150.0f,40.0f,0.0f));
+		street.Add_Control_Point (Vector3 (   0.0f,40.0f,0.0f));
+		street.Add_Control_Point (Vector3 ( 150.0f,40.0f,0.0f));
+		street.Set_Width (6.0f);
+		street.Set_Shoulder_Width (1.0f);
+		street.Set_Road_Class (ROAD_CLASS_STREET);
+		int street_id = RoadSystem::Add_Road (street);
+
+		RoadSplineClass track;
+		track.Set_Name ("lamp_track");
+		track.Add_Control_Point (Vector3 (-150.0f,-80.0f,0.0f));
+		track.Add_Control_Point (Vector3 ( 150.0f,-80.0f,0.0f));
+		track.Set_Width (4.0f);
+		track.Set_Road_Class (ROAD_CLASS_TRACK);
+		RoadSystem::Add_Road (track);
+
+		Check (RoadSystem::Build_Network (0.25f,0.5f,4.0f),"the lamp test roads would not build");
+
+		BiomeDecorationParams lamp_params;
+		lamp_params.Seed					= 991u;
+		lamp_params.ForestDensity		= 0.0f;
+		lamp_params.RockDensity			= 0.0f;
+		lamp_params.StreetLampSpacing	= 30.0f;
+
+		StringClass error ("");
+		Check (BiomeDecorationGenerator::Generate (lamp_params,&error),"decoration with lamps failed: %s",error.Peek_Buffer ());
+
+		RoadSplineClass * built = RoadSystem::Peek_Road (street_id);
+		int expected = (built != nullptr) ? (int)((built->Get_Length () - 15.0f) / 30.0f) + 1 : 0;
+		Check (BiomeDecorationGenerator::Get_Street_Lamp_Count () == expected,
+				 "a %.0f-unit street at 30-unit spacing got %d lamp(s), not %d",
+				 (built != nullptr) ? built->Get_Length () : 0.0f,BiomeDecorationGenerator::Get_Street_Lamp_Count (),expected);
+
+		int left = 0, right = 0;
+		for (int i = 0; i < FoliageSystem::Get_Instance_Count (); i++) {
+			const FoliageInstanceClass * instance = FoliageSystem::Peek_Instance (i);
+			if (instance == nullptr) continue;
+			float dy = instance->Position.Y - 40.0f;
+			Check (WWMath::Fabs (dy) >= 4.0f,
+				 "a lamp stands %.2f from the street's centre line, inside its 8-unit total width",WWMath::Fabs (dy));
+			Check (WWMath::Fabs (instance->Position.Y + 80.0f) > 20.0f,"a lamp stands on the plain track");
+			if (dy > 0.0f) left++; else right++;
+		}
+		Check ((left > 0) && (right > 0) && (WWMath::Fabs ((float)(left - right)) <= 1.0f),
+				 "lamps did not alternate sides (%d left, %d right)",left,right);
+
+		unsigned int lamp_checksum = BiomeDecorationGenerator::Get_Checksum ();
+		Check (BiomeDecorationGenerator::Generate (lamp_params,&error),"regenerating lamps failed");
+		Check (BiomeDecorationGenerator::Get_Checksum () == lamp_checksum,"the same roads produced different lamps");
+
+		RoadSystem::Clear_Roads ();
 	}
 
 	BiomeDecorationGenerator::Shutdown ();
@@ -8986,6 +9108,456 @@ void	Check_Vehicle_Subsystems (void)
 }
 
 
+/***********************************************************************************************
+**	coastline
+**
+**	V2 Section 9.4.  A 5 x 5-chunk field (64-unit chunks) whose west column lies at -10, below a
+**	sea level of 0, and whose chunk (3,2) is a -5 hollow walled in by +10 ground.  The coast must
+**	flood exactly the west column -- connected to the field's edge -- and leave the hollow dry,
+**	because a low spot the sea cannot reach is a basin's business, not the sea's.  Off, it floods
+**	nothing; the result is deterministic.
+***********************************************************************************************/
+void	Build_Coast_Terrain (void)
+{
+	const int vx = 81;
+	const int vy = 81;
+	const float cell = 4.0f;
+
+	WorldTerrainSystem::Destroy_Terrain ();
+	WorldTerrainSystem::Create_Terrain (vx,vy,cell,Vector3 (0.0f,0.0f,0.0f));
+
+	float * heights = new float [vx * vy];
+	for (int iy = 0; iy < vy; iy++) {
+		for (int ix = 0; ix < vx; ix++) {
+			float x = (float)ix * cell;
+			float y = (float)iy * cell;
+			float h = 10.0f;
+			if (x <= 64.0f) h = -10.0f;
+			if ((x >= 192.0f) && (x <= 256.0f) && (y >= 128.0f) && (y <= 192.0f)) h = -5.0f;
+			heights[(iy * vx) + ix] = h;
+		}
+	}
+	WorldTerrainSystem::Set_Heights (heights,vx * vy);
+	delete [] heights;
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+}
+
+
+void	Check_Coastline (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	HydrologyGenerator::Init ();
+
+	HydrologyParams params;
+	params.Seed						= 77u;
+	params.GenerateRivers			= false;
+	params.GenerateLakes			= false;
+	params.GeneratePonds			= false;
+	params.GenerateCoastline	= true;
+	params.SeaLevel				= 0.0f;
+
+	Build_Coast_Terrain ();
+	StringClass error ("");
+	Check (HydrologyGenerator::Generate (params,&error),"coastline generation failed: %s",error.Peek_Buffer ());
+
+	int coast = 0, hollow_flooded = 0, off_column = 0;
+	for (int i = 0; i < HydrologyGenerator::Get_Feature_Count (); i++) {
+		HydrologyFeature f;
+		if (!HydrologyGenerator::Get_Feature (i,&f) || (f.Type != HYDRO_FEATURE_COAST)) continue;
+		coast++;
+		const WaterAreaClass * area = WaterSystem::Find_Area (f.Name.Peek_Buffer ());
+		Check (area != nullptr,"coast feature '%s' has no water area",f.Name.Peek_Buffer ());
+		if (area == nullptr) continue;
+		AABoxClass bounds;
+		area->Get_Bounds (&bounds);
+		if ((bounds.Center.X > 192.0f) && (bounds.Center.X < 256.0f) && (bounds.Center.Y > 128.0f) && (bounds.Center.Y < 192.0f)) hollow_flooded++;
+		if (bounds.Center.X > 64.0f) off_column++;
+		Check (WWMath::Fabs (area->Get_Height () - 0.0f) < 0.01f,"a coastal area stands at %.2f, not sea level",area->Get_Height ());
+	}
+	Check (coast == 5,"the coast flooded %d chunk(s), not the 5 of the west column (%d feature(s), %d x %d chunks, %d water area(s))",
+			 coast,HydrologyGenerator::Get_Feature_Count (),WorldTerrainSystem::Get_Chunk_Count_X (),
+			 WorldTerrainSystem::Get_Chunk_Count_Y (),WaterSystem::Get_Area_Count ());
+	Check (hollow_flooded == 0,"the walled-in hollow was flooded by a sea that cannot reach it");
+	Check (off_column == 0,"%d coastal chunk(s) lie outside the below-sea-level west column",off_column);
+
+	StringClass report ("");
+	int cliff_faults = HydrologyGenerator::Check_No_Cliff_Band_Overlap (&report);
+	Check (cliff_faults == 0,"a coastal area reached the cliff band: %s",report.Peek_Buffer ());
+	int crossing_faults = HydrologyGenerator::Check_Crossing_Candidates_Present (&report);
+	Check (crossing_faults == 0,"a coastal feature carried no crossing candidate: %s",report.Peek_Buffer ());
+
+	unsigned int first = HydrologyGenerator::Get_Checksum ();
+	HydrologyGenerator::Clear ();
+	Build_Coast_Terrain ();
+	Check (HydrologyGenerator::Generate (params,&error),"regenerating the coast failed");
+	Check (HydrologyGenerator::Get_Checksum () == first,"the same terrain produced a different coast");
+
+	HydrologyGenerator::Clear ();
+	Build_Coast_Terrain ();
+	params.GenerateCoastline = false;
+	Check (HydrologyGenerator::Generate (params,&error),"generation with the coast off failed");
+	Check (HydrologyGenerator::Get_Feature_Count () == 0,"with the coast off, %d feature(s) were still built",
+			 HydrologyGenerator::Get_Feature_Count ());
+
+	HydrologyGenerator::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Destroy_Terrain ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	tunnels
+**
+**	V2 Phase 10.  A 192 x 128 field with a ridge running north-south down the middle (a 16-unit
+**	flat crest at 20 units, 45-degree flanks) and a separate step terrain, both built so the
+**	answer is known.  Proves: open ground is found either side of a ridge (never on its crest),
+**	the bore goes under real cover, a step gets a long ramp on its high side, refusals carry the
+**	right reason, the module chain is joined socket to socket, the portal cuts open exactly the
+**	approach ground (not the cover) and a hole neither collides nor survives removal, a cliff
+**	face the bore crosses is cut, the plan is deterministic, a bore crossing the world boundary
+**	is refused, and a road tunnel splits its road and binds both new ends to itself.
+***********************************************************************************************/
+void	Build_Tunnel_Ridge_Terrain (bool step)
+{
+	const int vx = 97;
+	const int vy = 65;
+	const float cell = 2.0f;
+
+	WorldTerrainSystem::Destroy_Terrain ();
+	WorldTerrainSystem::Create_Terrain (vx,vy,cell,Vector3 (0.0f,0.0f,0.0f));
+
+	float * heights = new float [vx * vy];
+	for (int iy = 0; iy < vy; iy++) {
+		for (int ix = 0; ix < vx; ix++) {
+			float x = (float)ix * cell;
+			float h;
+			if (step) {
+				//	0 west of x=92, 20 east of x=100, a steep face between.
+				h = WWMath::Clamp ((x - 92.0f) / 8.0f,0.0f,1.0f) * 20.0f;
+			} else {
+				float d = WWMath::Fabs (x - 96.0f);
+				h = (d <= 8.0f) ? 20.0f : WWMath::Max (0.0f,20.0f - (d - 8.0f));
+			}
+			heights[(iy * vx) + ix] = h;
+		}
+	}
+	WorldTerrainSystem::Set_Heights (heights,vx * vy);
+	delete [] heights;
+}
+
+
+TunnelPlannerParams	Tunnel_Test_Params (void)
+{
+	TunnelPlannerParams params;
+	params.Seed				= 1001u;
+	params.MaxBoreLength	= 200.0f;
+	params.MinCover		= 1.0f;
+	params.WallThickness	= 0.5f;
+
+	TunnelClearanceClass infantry;
+	infantry.InternalWidth		= 2.0f;
+	infantry.InternalHeight		= 2.5f;
+	infantry.LateralSafety		= 0.5f;
+	infantry.VerticalSafety		= 0.3f;
+	infantry.MaxGradeRadians	= 0.5f;
+	infantry.MinPortalStraight	= 2.0f;
+	params.ClassClearance[TUNNEL_CLASS_INFANTRY_ONLY]	= infantry;
+	params.ClassClearance[TUNNEL_CLASS_CAVE_SHORTCUT]	= infantry;
+
+	TunnelClearanceClass vehicle;
+	vehicle.InternalWidth		= 4.0f;
+	vehicle.InternalHeight		= 3.5f;
+	vehicle.LateralSafety		= 1.0f;
+	vehicle.VerticalSafety		= 1.0f;
+	vehicle.MaxGradeRadians		= 0.3f;
+	vehicle.MinPortalStraight	= 4.0f;
+	params.ClassClearance[TUNNEL_CLASS_VEHICLE]		= vehicle;
+	params.ClassClearance[TUNNEL_CLASS_UNDERPASS]	= vehicle;
+	params.ClassClearance[TUNNEL_CLASS_MIXED]			= vehicle;
+	return params;
+}
+
+
+TunnelCandidate	Tunnel_Test_Candidate (float x,float y)
+{
+	TunnelCandidate c;
+	c.Id			= "tunnel_test";
+	c.Source		= TUNNEL_SOURCE_INFANTRY_FLANK;
+	c.Class		= TUNNEL_CLASS_INFANTRY_ONLY;
+	c.Position	= Vector3 (x,y,0.0f);
+	c.Axis		= Vector3 (1.0f,0.0f,0.0f);
+	return c;
+}
+
+
+void	Check_Tunnels (void)
+{
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	EscarpmentSystem::Init ();
+	TunnelSystem::Init ();
+	TunnelPlanner::Init ();
+
+	Build_Tunnel_Ridge_Terrain (false);
+
+	TunnelPlannerParams params = Tunnel_Test_Params ();
+	TunnelCandidate candidate = Tunnel_Test_Candidate (96.0f,64.0f);
+
+	//
+	//	A ridge: open ground on both flanks, never on the crest, and real cover over the bore.
+	//
+	TunnelClass planned;
+	TunnelFailureReasonType reason = TUNNEL_FAILURE_NONE;
+	bool ok = TunnelPlanner::Plan_Bore (candidate,params,&planned,&reason);
+	Check (ok,"a bore straight through a 20-unit ridge was refused: %s",Tunnel_Failure_Reason_Name (reason));
+	if (ok) {
+		Check (planned.Start.X <= 70.0f,"the west portal is at x=%.1f, up on the ridge rather than in the valley",planned.Start.X);
+		Check (planned.End.X >= 122.0f,"the east portal is at x=%.1f, up on the ridge rather than in the valley",planned.End.X);
+		Check (WWMath::Fabs (planned.Start.Z) < 0.5f && WWMath::Fabs (planned.End.Z) < 0.5f,
+				 "the portals are not on the valley floor (%.2f, %.2f)",planned.Start.Z,planned.End.Z);
+		Check (planned.Get_Grade_Radians () <= params.ClassClearance[TUNNEL_CLASS_INFANTRY_ONLY].MaxGradeRadians,
+				 "the bore's grade %.3f exceeds its class limit",planned.Get_Grade_Radians ());
+		Check (planned.Clearance.Get_Bore_Width () == 3.0f,
+				 "the bore is %.2f wide, not the class envelope plus both safety margins",planned.Clearance.Get_Bore_Width ());
+		Check (::strcmp (planned.ModuleName.Peek_Buffer (),"tunnel_lined") == 0,
+				 "an infantry tunnel picked module family '%s'",planned.ModuleName.Peek_Buffer ());
+
+		Vector3 mid ((planned.Start.X + planned.End.X) * 0.5f,64.0f,planned.Get_Floor_Height_At (planned.Get_Plan_Length () * 0.5f) + 1.0f);
+		Check (planned.Is_Point_Inside (mid),"a point in the middle of the bore is not inside it");
+		Check (!planned.Is_Point_Inside (Vector3 (96.0f,64.0f,20.5f)),"a point on the ridge crest counts as inside the bore");
+	}
+
+	//
+	//	Refusals, each for the right reason.
+	//
+	{
+		TunnelPlannerParams no_metrics = params;
+		no_metrics.ClassClearance[TUNNEL_CLASS_INFANTRY_ONLY] = TunnelClearanceClass ();
+		Check (!TunnelPlanner::Plan_Bore (candidate,no_metrics,nullptr,&reason) && (reason == TUNNEL_FAILURE_NO_CLEARANCE_DATA),
+				 "a class with no measured clearance was not refused as no_clearance_data (%s)",Tunnel_Failure_Reason_Name (reason));
+
+		TunnelCandidate flat = Tunnel_Test_Candidate (20.0f,64.0f);
+		Check (!TunnelPlanner::Plan_Bore (flat,params,nullptr,&reason) && (reason == TUNNEL_FAILURE_NO_OVERBURDEN),
+				 "a bore on open flat ground was not refused as no_overburden (%s)",Tunnel_Failure_Reason_Name (reason));
+
+		TunnelPlannerParams short_bore = params;
+		short_bore.MaxBoreLength = 20.0f;
+		Check (!TunnelPlanner::Plan_Bore (candidate,short_bore,nullptr,&reason),
+				 "a 20-unit bore limit still accepted a ridge that needs about 56 units");
+	}
+
+	//
+	//	A step: the low portal at the toe, the ramp lengthened on the high side until it fits.
+	//
+	{
+		Build_Tunnel_Ridge_Terrain (true);
+		TunnelCandidate step = Tunnel_Test_Candidate (96.0f,64.0f);
+		TunnelClass step_bore;
+		bool step_ok = TunnelPlanner::Plan_Bore (step,params,&step_bore,&reason);
+		Check (step_ok,"a bore through a 20-unit step was refused: %s",Tunnel_Failure_Reason_Name (reason));
+		if (step_ok) {
+			float tan_limit = tanf (params.ClassClearance[TUNNEL_CLASS_INFANTRY_ONLY].MaxGradeRadians);
+			Check (step_bore.Get_Grade_Radians () <= (params.ClassClearance[TUNNEL_CLASS_INFANTRY_ONLY].MaxGradeRadians + 0.001f),
+					 "the step bore climbs at %.3f rad, over its class limit",step_bore.Get_Grade_Radians ());
+			Check (step_bore.Get_Plan_Length () >= (20.0f / tan_limit) - 1.0f,
+					 "the step bore is %.1f long, too short for a 20-unit climb at the class grade",step_bore.Get_Plan_Length ());
+			Check (step_bore.Start.X < 96.0f && step_bore.Start.Z < 1.0f,"the step bore's low portal is not on the low bench");
+			Check (step_bore.End.Z > 19.0f,"the step bore's high portal is not on the high bench (z=%.1f)",step_bore.End.Z);
+		}
+		Build_Tunnel_Ridge_Terrain (false);
+	}
+
+	//
+	//	Realize: module chain, socket continuity, portal stations, light anchors.
+	//
+	Check (TunnelPlanner::Resolve_Candidate (candidate,params),"a legal ridge bore was not realized");
+	Check (TunnelSystem::Get_Tunnel_Count () == 1,"%d tunnels exist after one was realized",TunnelSystem::Get_Tunnel_Count ());
+	Check (TunnelSystem::Build_Layout (),"the realized tunnel would not lay out");
+
+	const TunnelClass * tunnel = TunnelSystem::Peek_Tunnel (0);
+	Check (tunnel != nullptr,"the realized tunnel is not there");
+	if (tunnel != nullptr) {
+		const TunnelModuleDefinitionClass * def = TunnelSystem::Peek_Module (tunnel->Modules.Count () > 0 ? tunnel->Modules[0].DefinitionIndex : -1);
+		Check (def != nullptr,"the tunnel's module definition is missing");
+		int expected = (def != nullptr) ? (int)ceilf (tunnel->Get_Length () / def->Length) : 0;
+		Check (tunnel->Modules.Count () == expected,
+				 "a %.1f-unit bore laid %d modules, not %d",tunnel->Get_Length (),tunnel->Modules.Count (),expected);
+
+		for (int m = 1; m < tunnel->Modules.Count (); m++) {
+			Vector3 prev = tunnel->Modules[m - 1].Transform.Get_Translation ();
+			Vector3 here = tunnel->Modules[m].Transform.Get_Translation ();
+			Check (WWMath::Fabs ((here - prev).Length () - tunnel->Modules[m - 1].Length) < 0.01f,
+					 "module %d does not start at module %d's exit socket",m,m - 1);
+		}
+		if (tunnel->Modules.Count () > 0) {
+			const TunnelModuleInstanceClass & last = tunnel->Modules[tunnel->Modules.Count () - 1];
+			Vector3 chain_end = last.Transform * Vector3 (last.Length,0.0f,0.0f);
+			Check ((chain_end - tunnel->End).Length () < 0.01f,"the module chain ends %.3f from the far portal",
+					 (chain_end - tunnel->End).Length ());
+			Check (!tunnel->Modules[0].UsesModel,"a module with no declared clearance claimed an authored model");
+		}
+
+		Check (tunnel->PortalStationA > 0.0f && tunnel->PortalStationA < tunnel->PortalStationB &&
+				 tunnel->PortalStationB < tunnel->Get_Plan_Length (),
+				 "portal stations %.1f/%.1f are not inside the %.1f-unit bore in order",
+				 tunnel->PortalStationA,tunnel->PortalStationB,tunnel->Get_Plan_Length ());
+		Check (tunnel->LightAnchors.Count () >= 1 && tunnel->LightAnchors.Count () <= 4,
+				 "the tunnel has %d light anchors",tunnel->LightAnchors.Count ());
+		Check (tunnel->HeadwallTopA > tunnel->Get_Floor_Height_At (tunnel->PortalStationA) + tunnel->Clearance.Get_Bore_Height (),
+				 "the west headwall does not reach above the roof");
+
+		//	The placement/mutation footprint covers the mouths and the covered bore, and nothing wide of it.
+		Check (TunnelSystem::Overlaps_Footprint (tunnel->Start,1.0f,nullptr),"a building at the west mouth is not refused");
+		Check (TunnelSystem::Overlaps_Footprint (Vector3 (96.0f,64.0f,20.0f),1.0f,nullptr),
+				 "a building on the ridge right over the bore is not refused");
+		Check (!TunnelSystem::Overlaps_Footprint (Vector3 (96.0f,100.0f,20.0f),1.0f,nullptr),
+				 "a building 36 units beside the bore is refused");
+
+		//	A cliff face across the bore is cut; one beside it is not.
+		EscarpmentClass across;
+		across.Add_Point (Vector3 (100.0f,0.0f,0.0f),20.0f,0.0f);
+		across.Add_Point (Vector3 (100.0f,128.0f,0.0f),20.0f,0.0f);
+		EscarpmentSystem::Add_Escarpment (across);
+		EscarpmentClass beside;
+		beside.Add_Point (Vector3 (20.0f,0.0f,0.0f),20.0f,0.0f);
+		beside.Add_Point (Vector3 (20.0f,40.0f,0.0f),20.0f,0.0f);
+		EscarpmentSystem::Add_Escarpment (beside);
+
+		//
+		//	Portal cuts: the approach ground opens, the cover over the bore and the ground beside it
+		//	do not, and a hole neither collides nor survives removal.
+		//
+		int opened = TunnelSystem::Apply_Portal_Cuts ();
+		Check (opened > 0,"the portal cuts opened no ground at all");
+		Check (WorldTerrainSystem::Get_Cell_Hole_Count () == opened,
+				 "the field reports %d holes, the tunnel opened %d",WorldTerrainSystem::Get_Cell_Hole_Count (),opened);
+		Check (EscarpmentSystem::Get_Portal_Cut_Count () == 1,
+				 "%d cliff cuts, not the one face the bore crosses",EscarpmentSystem::Get_Portal_Cut_Count ());
+
+		int crest_x,crest_y,side_x,side_y,approach_x,approach_y;
+		WorldTerrainSystem::World_To_Cell (96.0f,64.0f,&crest_x,&crest_y);
+		WorldTerrainSystem::World_To_Cell (96.0f,20.0f,&side_x,&side_y);
+		WorldTerrainSystem::World_To_Cell (tunnel->Start.X + 3.0f,64.0f,&approach_x,&approach_y);
+		Check (!WorldTerrainSystem::Is_Cell_Hole (crest_x,crest_y),"the ridge crest over the bore was opened");
+		Check (!WorldTerrainSystem::Is_Cell_Hole (side_x,side_y),"ground well beside the bore was opened");
+		Check (WorldTerrainSystem::Is_Cell_Hole (approach_x,approach_y),"the approach ground inside the west mouth is still closed");
+
+		int px = approach_x / HeightfieldClass::PATCH_CELLS;
+		int py = approach_y / HeightfieldClass::PATCH_CELLS;
+		RenegadeTerrainPatchClass * patch = WorldTerrainSystem::Create_Patch_Model (px,py);
+		Check (patch != nullptr,"the patch holding the approach would not build");
+		if (patch != nullptr) {
+			int quads_x = HeightfieldClass::PATCH_CELLS;
+			int quad = ((approach_y - (py * quads_x)) * quads_x) + (approach_x - (px * quads_x));
+			Check (patch->Is_Quad_Hidden (quad),"the approach hole did not reach the patch as QF_HIDDEN");
+
+			Vector3 hole_centre,solid_centre;
+			WorldTerrainSystem::Get_Cell_Center (approach_x,approach_y,&hole_centre);
+			//	Same patch, 16 units off the bore's centre line: closed ground the ray must hit.
+			WorldTerrainSystem::Get_Cell_Center (approach_x,approach_y + 8,&solid_centre);
+			float z = 0.0f;
+			Check (!Drop_Ray_On_Model (patch,hole_centre.X,hole_centre.Y,&z),"a ray dropped through a hole hit ground at %.2f",z);
+			Check (Drop_Ray_On_Model (patch,solid_centre.X,solid_centre.Y,&z),"a ray dropped on closed ground beside the hole missed");
+			patch->Release_Ref ();
+		}
+
+		unsigned int first_checksum = TunnelSystem::Get_Checksum ();
+
+		TunnelSystem::Remove_Portal_Cuts ();
+		Check (WorldTerrainSystem::Get_Cell_Hole_Count () == 0,"%d holes survive removing the cuts",WorldTerrainSystem::Get_Cell_Hole_Count ());
+		Check (EscarpmentSystem::Get_Portal_Cut_Count () == 0,"a cliff cut survives removing the cuts");
+
+		//	Deterministic: the same candidate on the same ground realizes the same tunnel.
+		TunnelPlanner::Clear ();
+		TunnelPlanner::Resolve_Candidate (candidate,params);
+		TunnelSystem::Build_Layout ();
+		TunnelSystem::Apply_Portal_Cuts ();
+		Check (TunnelSystem::Get_Checksum () == first_checksum,
+				 "the same candidate realized a different tunnel (0x%08X vs 0x%08X)",TunnelSystem::Get_Checksum (),first_checksum);
+
+		StringClass report ("");
+		Check (TunnelPlanner::Check_No_Boundary_Breach (&report) == 0,"%s",report.Peek_Buffer ());
+
+		EscarpmentSystem::Clear_Escarpments ();
+	}
+
+	//
+	//	The world boundary: a bore whose west mouth sits in the cliff band is refused.
+	//
+	TunnelPlanner::Clear ();
+	{
+		DynamicVectorClass<Vector2> polygon;
+		polygon.Add (Vector2 ( 60.0f,  0.0f));
+		polygon.Add (Vector2 ( 60.0f,128.0f));
+		polygon.Add (Vector2 (192.0f,128.0f));
+		polygon.Add (Vector2 (192.0f,  0.0f));
+		StringClass error ("");
+		Check (WorldBoundsService::Configure (polygon,15.0f,5.0f,200.0f,&error),
+				 "the tunnel test boundary would not configure: %s",error.Peek_Buffer ());
+		Check (!TunnelPlanner::Plan_Bore (candidate,params,nullptr,&reason) && (reason == TUNNEL_FAILURE_BOUNDARY),
+				 "a bore whose mouth sits in the cliff band was not refused as boundary (%s)",Tunnel_Failure_Reason_Name (reason));
+		WorldBoundsService::Clear ();
+	}
+
+	//
+	//	A road tunnel: the road over the ridge is split at both portals and both new ends hand
+	//	over to the tunnel.
+	//
+	{
+		RoadSplineClass road;
+		road.Set_Name ("ridge_road");
+		road.Add_Control_Point (Vector3 ( 20.0f,64.0f,0.0f));
+		road.Add_Control_Point (Vector3 ( 96.0f,64.0f,20.0f));
+		road.Add_Control_Point (Vector3 (172.0f,64.0f,0.0f));
+		road.Set_Width (6.0f);
+		int road_id = RoadSystem::Add_Road (road);
+		Check (RoadSystem::Build_Network (0.25f,0.5f,4.0f),"the ridge road would not build");
+
+		TunnelCandidate road_candidate = candidate;
+		road_candidate.Id				= "crossing_road_test";
+		road_candidate.Source		= TUNNEL_SOURCE_UNRESOLVED_ROAD_EDGE;
+		road_candidate.Class			= TUNNEL_CLASS_VEHICLE;
+		road_candidate.RoadId		= road_id;
+		road_candidate.RoadEdgeId	= "edge_test";
+		road_candidate.RoadWidth	= 6.0f;
+
+		Check (TunnelPlanner::Resolve_Candidate (road_candidate,params),"a legal road bore was not realized");
+		ResolvedTunnel resolved;
+		Check (TunnelPlanner::Get_Tunnel (0,&resolved),"the road tunnel is not recorded");
+		Check (resolved.RoadSplit,"the road over the ridge was not split at the tunnel's portals");
+
+		const TunnelClass * road_tunnel = TunnelSystem::Find_Tunnel (resolved.TunnelId);
+		Check ((road_tunnel != nullptr) && (road_tunnel->Clearance.InternalWidth >= 6.0f),
+				 "the road bore is narrower than the road it carries");
+
+		StringClass report ("");
+		Check (TunnelPlanner::Check_Road_Tunnels_Bound (&report) == 0,"%s",report.Peek_Buffer ());
+
+		int ends_bound = 0;
+		for (int r = 0; r < RoadSystem::Get_Road_Count (); r++) {
+			RoadSplineClass * spline = RoadSystem::Peek_Road (r);
+			if (spline == nullptr) continue;
+			if ((spline->Get_End_Connection ().Type == ROAD_ENDPOINT_TUNNEL) &&
+				 (spline->Get_End_Connection ().TargetID == resolved.TunnelId)) ends_bound++;
+			if ((spline->Get_Start_Connection ().Type == ROAD_ENDPOINT_TUNNEL) &&
+				 (spline->Get_Start_Connection ().TargetID == resolved.TunnelId)) ends_bound++;
+		}
+		Check (ends_bound == 2,"%d road ends hand over to the tunnel, not the two either side of it",ends_bound);
+	}
+
+	TunnelPlanner::Clear ();
+	RoadSystem::Clear_Roads ();
+	TunnelSystem::Shutdown ();
+	WorldTerrainSystem::Destroy_Terrain ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -9085,6 +9657,12 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "bridgerequired") == 0)) {
 		Check_Bridge_Required ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "tunnels") == 0)) {
+		Check_Tunnels ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "coastline") == 0)) {
+		Check_Coastline ();
 	}
 	if ((which == nullptr) || (::strcmp (which, "bridgefallback") == 0)) {
 		Check_Bridge_Fallback ();

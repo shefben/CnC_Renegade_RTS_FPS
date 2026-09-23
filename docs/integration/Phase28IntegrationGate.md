@@ -129,8 +129,10 @@ introduced.
 This is the one Phase in this whole V2 sequence whose own gate cannot be closed by an agent alone.
 A person needs to, on two machines or two processes on one machine:
 
-1. Start `renegadeserver.exe` hosting a procedural-world match (`procedural_world` console
-	request, or whatever the normal listen-server startup flow is for this build).
+1. Start `renegadeserver.exe`, run `procedural_world request` (optionally `<seed> <profile_path>`)
+	on its console, then start or rotate to the next map. The request builds on that level load.
+	`procedural_world status` confirms the request and, once built, prints the reproduction string.
+	The console command was added at V2 close; before that, this step named it without it existing.
 2. Connect a `renegade.exe` client, confirm manifest/version negotiation succeeds and the world
 	matches what the server generated (`world_tools repro` on both ends, compare).
 3. Play normally for a few minutes: move, drive a vehicle, enter Commander Mode, place a

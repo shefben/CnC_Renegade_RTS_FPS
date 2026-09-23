@@ -193,11 +193,10 @@ whole set carries a Section 3B.4-quantized CRC.
 
 ## Disclosed gaps — none of them implementation shortfalls
 
-- **The tunnel exclusion is thin, and honestly so.** No tunnel system exists anywhere in this tree
-  (`bridgeplanner.cpp` says the same about its own stage-3 fallback; Phase 16's steps 7 and 12 are
-  unimplemented for the same reason). There is no portal geometry and no interior volume to test.
-  What exists is the strategic plan's own `TUNNEL_CANDIDATE` positions, so the ground a tunnel
-  mouth was *planned* on is excluded. When a tunnel system arrives it owns this test.
+- **The tunnel exclusion is real (V2 Phase 10).** It was the strategic plan's `TUNNEL_CANDIDATE`
+  positions until a tunnel system existed; it is now `TunnelSystem::Overlaps_Footprint` -- every
+  accepted bore's mouths, opened approaches and covered bore, so grading or a crater can never open
+  a tunnel's roof. See `RoadsBridgesTunnels.md`.
 - **Nav rebuild after a construction is whole-world, not incremental.** There is no incremental nav
   rebuild anywhere in this tree — Phase 16's own disclosed gap. A stale graph that says a unit can
   walk through a Power Plant is worse than the cost of rebuilding.

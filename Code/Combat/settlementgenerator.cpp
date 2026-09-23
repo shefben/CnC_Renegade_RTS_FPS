@@ -36,6 +36,7 @@
 #include "strategicplanner.h"
 #include "terrainmask.h"
 #include "tiberiumfieldgenerator.h"
+#include "tunnelsystem.h"
 #include "worldboundsservice.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
@@ -155,9 +156,9 @@ static float Nearest_Road_Distance(const Vector3 & position)
 //	Step 1's own conflict list, made concrete with what this chain already reserved: the
 //	boundary/cliff band (WorldBoundsService, the one authoritative owner), both selected bases'
 //	own protected regions (Phase 11), and every resolved Tiberium field's own footprint (Phase
-//	12).  Bridge approaches and tunnel portals are not checked -- no tunnel system exists (see
-//	BridgePlanner's own honest gap), and a bridge approach corridor has no queryable region of
-//	its own outside RoadSystem's own geometry this generator would have to re-derive.
+//	12), and every tunnel's footprint (V2 Phase 10 -- mouths, approaches and the covered bore,
+//	Section 12A.3's build exclusion).  Bridge approaches are not checked: a bridge approach
+//	corridor has no queryable region of its own outside RoadSystem's own geometry.
 static bool Conflicts_With_Reserved_Ground(const Vector3 & position,float radius)
 {
 	if (!WorldBoundsService::Can_Place_In_Region(Vector2(position.X,position.Y),radius)) return true;
@@ -175,6 +176,8 @@ static bool Conflicts_With_Reserved_Ground(const Vector3 & position,float radius
 		if (!TiberiumFieldGenerator::Get_Field(i,&field)) continue;
 		if ((position - field.Position).Length() < (radius + field.Radius)) return true;
 	}
+
+	if (TunnelSystem::Overlaps_Footprint(position,radius,nullptr)) return true;
 
 	return false;
 }

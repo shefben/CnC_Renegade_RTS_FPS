@@ -1722,13 +1722,16 @@ int	Run_Guard_AI (void)
 		Check (c.Get_State () == GUARD_STATE_RETALIATING,"a damage report did not start retaliation");
 		Check (c.Get_Current_Target_Id () == 100,"retaliation engaged the wrong target id");
 
-		GuardAIIntentType intent = c.Update (0.0f,0.1f,Vector3 (5.0f,0.0f,0.0f),true,Vector3 (5.0f,0.0f,0.0f),nullptr,-1.0f);
+		//	The unit stands at 4: outside its 3-unit guard radius, inside its 4.5-unit leash
+		//	(radius x GUARD_LEASH_MULTIPLIER 1.5).  This used to stand it at 5, past its own leash,
+		//	where the controller correctly heads home instead of attacking.
+		GuardAIIntentType intent = c.Update (0.0f,0.1f,Vector3 (4.0f,0.0f,0.0f),true,Vector3 (5.0f,0.0f,0.0f),nullptr,-1.0f);
 		Check (intent == GUARD_INTENT_ATTACK,"retaliating with a live target in range did not intend ATTACK");
 
 		c.Report_Target_Lost (0.2f);
 		Check (c.Get_State () == GUARD_STATE_REACQUIRING,"losing the only known target did not enter REACQUIRING");
 
-		intent = c.Update (0.2f,0.1f,Vector3 (5.0f,0.0f,0.0f),false,Vector3 (0.0f,0.0f,0.0f),nullptr,-1.0f);
+		intent = c.Update (0.2f,0.1f,Vector3 (4.0f,0.0f,0.0f),false,Vector3 (0.0f,0.0f,0.0f),nullptr,-1.0f);
 		Check (c.Get_State () == GUARD_STATE_RETURNING,"no threat left, outside the guard radius, did not head home");
 		Check (intent == GUARD_INTENT_GOTO,"heading home was not signalled as GOTO");
 		Check ((c.Get_Intent_Position () - Vector3 (0.0f,0.0f,0.0f)).Length () < 0.01f,
@@ -2037,11 +2040,13 @@ int	Run_Debug_Render (void)
 	DebugRenderSystem::Begin_Frame ();
 	Check (DebugRenderSystem::Get_Line_Count () == 0,"Begin_Frame did not clear the pool");
 
-	DebugRenderSystem::Add_Box (Vector3 (-1.0f,-1.0f,-1.0f),Vector3 (1.0f,1.0f,1.0f),Vector4 (1,1,1,1));
+	//	Ten units down -Z, where the render check below says it is.  This used to sit around the
+	//	camera's own origin, straddling the near plane, so nothing was ever in front of it to draw.
+	DebugRenderSystem::Add_Box (Vector3 (-1.0f,-1.0f,-11.0f),Vector3 (1.0f,1.0f,-9.0f),Vector4 (1,1,1,1));
 	Check (DebugRenderSystem::Get_Line_Count () == 12,
 			 "one box queued %d line(s), not 12",DebugRenderSystem::Get_Line_Count ());
 
-	DebugRenderSystem::Add_Cross (Vector3 (0,0,0),1.0f,Vector4 (1,0,0,1));
+	DebugRenderSystem::Add_Cross (Vector3 (0,0,-10.0f),1.0f,Vector4 (1,0,0,1));
 	Check (DebugRenderSystem::Get_Line_Count () == 15,
 			 "a box plus a cross queued %d line(s), not 15",DebugRenderSystem::Get_Line_Count ());
 
@@ -2809,6 +2814,36 @@ int	Run_World_Seed_And_Profile (void)
 		//	enabled by game profile" must therefore survive loading it.
 		Check (!p.VehicleSubsystems.Enabled,"a profile that never mentioned vehicle_subsystems enabled them");
 		Check (!p.VehicleSubsystems.AllowImmobilize,"a profile that never mentioned vehicle_subsystems allowed immobilizing");
+	}
+
+	//	V2 Phase 30 compatibility rules: any schema up to this build's validates with defaults
+	//	for what it predates, a newer one is refused, and the generator must be this build's own.
+	{
+		for (unsigned int schema = 1; schema <= (unsigned int)ProceduralWorldProfile::CURRENT_SCHEMA_VERSION; schema++) {
+			ProceduralWorldProfile p;
+			p.SchemaVersion = schema;
+			StringClass error ("");
+			Check (ProceduralWorldProfileManager::Validate_Profile (p,&error),
+					 "an older schema_version %u was refused: %s",schema,error.Peek_Buffer ());
+		}
+
+		ProceduralWorldProfile newer;
+		newer.SchemaVersion = ProceduralWorldProfile::CURRENT_SCHEMA_VERSION + 1;
+		StringClass error ("");
+		Check (!ProceduralWorldProfileManager::Validate_Profile (newer,&error),"a newer schema_version was accepted");
+
+		ProceduralWorldProfile zero;
+		zero.SchemaVersion = 0;
+		Check (!ProceduralWorldProfileManager::Validate_Profile (zero,&error),"schema_version 0 was accepted");
+
+		ProceduralWorldProfile old_generator;
+		old_generator.GeneratorVersion = ProceduralWorldProfile::CURRENT_GENERATOR_VERSION - 1;
+		Check (!ProceduralWorldProfileManager::Validate_Profile (old_generator,&error),
+				 "a profile naming an older generator was accepted -- its world cannot be reproduced");
+
+		ProceduralWorldProfile current;
+		Check (ProceduralWorldProfileManager::Validate_Profile (current,&error),
+				 "the default profile at the current schema and generator was refused: %s",error.Peek_Buffer ());
 	}
 
 	//	Schema 8's own block round-trips, and `enabled` alone does not imply `allow_immobilize`.
@@ -4189,6 +4224,7 @@ int	Run_Commander_Placement (void)
 
 static const char * const	CONSTRUCTION_JSON =
 	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":20,\"depth\":20},"
+	"  \"game_object_preset\":\"ow_test_con_preset\","
 	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":50.0,\"priority\":50},"
 	"  \"build\":{\"buildable\":true,\"cost\":1000,\"build_time_seconds\":20.0},"
 	"  \"construction_visual\":{\"duration_seconds\":15.0,\"block_width\":2.0,\"block_depth\":2.0,"
@@ -4197,6 +4233,7 @@ static const char * const	CONSTRUCTION_JSON =
 //	Absurdly small blocks against a small cap, so the coarsening path is exercised, not assumed.
 static const char * const	CONSTRUCTION_TINY_JSON =
 	"{ \"model_name\":\"x.w3d\",\"schema_version\":1,\"footprint\":{\"width\":20,\"depth\":20},"
+	"  \"game_object_preset\":\"ow_test_con_tiny_preset\","
 	"  \"power\":{\"requires_power\":true,\"generation\":0.0,\"consumption\":50.0,\"priority\":50},"
 	"  \"build\":{\"buildable\":true,\"cost\":1000},"
 	"  \"construction_visual\":{\"duration_seconds\":15.0,\"block_width\":0.1,\"block_depth\":0.1,"
@@ -4534,10 +4571,27 @@ int	Run_Commander_Production (void)
 	Check (CommanderProductionService::Get_Queue_Length (FACTORY) == 2,
 			 "completing the head left a queue of %d",CommanderProductionService::Get_Queue_Length (FACTORY));
 
-	CommanderProductionItem completed;
-	Check (CommanderProductionService::Get_Completed_Item (0,&completed),"the completion is unreadable");
-	Check (completed.DefinitionId == 10,"the completion named definition %d, not the first purchase's 10",
-			 completed.DefinitionId);
+	//	Queues run in parallel, one per facility, so the barracks' 2-second item (definition 20)
+	//	finishes during the first Update and the factory's 5-second head (definition 10) during
+	//	the second: both complete, each named by its own facility.  This used to read completion
+	//	0 and expect the factory's, which only holds if facilities ran serially -- they do not.
+	bool factory_done = false, barracks_done = false;
+	for (int c = 0; c < CommanderProductionService::Get_Completed_Count (); c++) {
+		CommanderProductionItem completed;
+		Check (CommanderProductionService::Get_Completed_Item (c,&completed),"completion %d is unreadable",c);
+		if (completed.FacilityId == FACTORY) {
+			Check (completed.DefinitionId == 10,"the factory completed definition %d, not its first purchase's 10",
+					 completed.DefinitionId);
+			factory_done = true;
+		}
+		if (completed.FacilityId == BARRACKS) {
+			Check (completed.DefinitionId == 20,"the barracks completed definition %d, not its purchase's 20",
+					 completed.DefinitionId);
+			barracks_done = true;
+		}
+	}
+	Check (factory_done,"the factory's head item finished its five seconds but reported no completion");
+	Check (barracks_done,"the barracks' two-second item reported no completion");
 	CommanderProductionService::Clear_Completed ();
 
 	//	Power loss pauses; it does not cancel.  The queue survives and resumes where it was.
@@ -5541,7 +5595,7 @@ int	Run_Procedural_World_Tools (void)
 **	check already and is not duplicated here.  See docs/procedural_world/PerformanceBudgets.md.
 ***********************************************************************************************/
 static const char * const	PERF_PROFILE_SMALL_JSON =
-	"{ \"schema_version\":8,\"generator_version\":6,\"name\":\"SMALL\",\"seed\":1,"
+	"{ \"schema_version\":8,\"generator_version\":7,\"name\":\"SMALL\",\"seed\":1,"
 	"  \"world\":{\"fit_to_level\":true,\"width\":600.0,\"height\":600.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
 	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
 	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"
@@ -5549,7 +5603,7 @@ static const char * const	PERF_PROFILE_SMALL_JSON =
 	"               \"feature_scale\":300.0} }";
 
 static const char * const	PERF_PROFILE_MEDIUM_JSON =
-	"{ \"schema_version\":8,\"generator_version\":6,\"name\":\"MEDIUM\",\"seed\":1,"
+	"{ \"schema_version\":8,\"generator_version\":7,\"name\":\"MEDIUM\",\"seed\":1,"
 	"  \"world\":{\"fit_to_level\":true,\"width\":1200.0,\"height\":1200.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
 	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
 	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"
@@ -5557,7 +5611,7 @@ static const char * const	PERF_PROFILE_MEDIUM_JSON =
 	"               \"feature_scale\":300.0} }";
 
 static const char * const	PERF_PROFILE_LARGE_SUPPORTED_JSON =
-	"{ \"schema_version\":8,\"generator_version\":6,\"name\":\"LARGE_SUPPORTED\",\"seed\":1,"
+	"{ \"schema_version\":8,\"generator_version\":7,\"name\":\"LARGE_SUPPORTED\",\"seed\":1,"
 	"  \"world\":{\"fit_to_level\":true,\"width\":2400.0,\"height\":2400.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
 	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
 	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"

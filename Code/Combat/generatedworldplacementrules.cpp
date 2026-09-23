@@ -36,6 +36,7 @@
 #include "roadspline.h"
 #include "roadsystem.h"
 #include "strategicplanner.h"
+#include "tunnelsystem.h"
 #include "watersystem.h"
 #include "worldboundsservice.h"
 #include "worldterrainsystem.h"
@@ -641,23 +642,13 @@ unsigned int	GeneratedWorldPlacementRules::Get_Static_Feature_Mask(const Vector3
 	}
 
 	/*
-	**	Tunnel portal.  See this file's header: no tunnel system exists in this tree, so the only
-	**	real tunnel data anywhere is the strategic plan's own candidate positions.  The ground a
-	**	tunnel mouth was planned on is excluded; there is no interior to exclude.
+	**	Tunnels (Section 12A.3's spawn/build/decoration exclusion).  TunnelSystem owns the test:
+	**	the mouths, the opened approaches and the covered bore.  The bore is included because
+	**	everything this mask gates -- a building's foundation grading, a crater -- reshapes the
+	**	ground, and ground reshaped over a bore can open its roof.
 	*/
-	if (StrategicPlanner::Has_Plan()) {
-		for (int n = 0; n < StrategicPlanner::Get_Node_Count(); n++) {
-			StrategicNode node;
-			if (!StrategicPlanner::Get_Node(n,&node)) continue;
-			if (node.Type != STRATEGIC_NODE_TUNNEL_CANDIDATE) continue;
-
-			float dx = position.X - node.Position.X;
-			float dy = position.Y - node.Position.Y;
-			if ((dx * dx + dy * dy) <= (footprint_radius * footprint_radius)) {
-				mask |= (1u << GENERATED_WORLD_EXCLUSION_TUNNEL);
-				break;
-			}
-		}
+	if (TunnelSystem::Overlaps_Footprint(position,footprint_radius,nullptr)) {
+		mask |= (1u << GENERATED_WORLD_EXCLUSION_TUNNEL);
 	}
 
 	if (Is_On_Bridge_Or_Approach(position,footprint_radius)) {

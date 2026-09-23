@@ -128,11 +128,39 @@ infrastructure).
 
 ## What is deliberately not attempted this phase
 
-**Ocean/coast (Section 9.4).** `water.coastline` is parsed since Phase 1 and still unconsumed --
-the same "reserved, unconsumed" state `terrain.interior_cliff_density` was in before Phase 5.
-Placing a coastal body correctly (which edge, staying well inside the cliff boundary, not
-overlapping the approach zone) is real additional design work this generator does not attempt;
-Section 9.4's own text calls a coastline optional.
+**Ocean/coast (Section 9.4), added at V2 close (generator 7).** `water.coastline` is now consumed.
+
+- **Which chunks.** After drainage and before any channel or basin, `Generate` floods a sea set.
+  It seeds on every non-cliff chunk whose ground lies below `world.sea_level` at the edge of the
+  playable interior (the field's edge, or next to a cliff-band chunk), then takes every connected
+  below-sea-level chunk.
+- **What it builds.** Each sea chunk becomes one `ow_water_coast` area at sea level
+  (`HYDRO_FEATURE_COAST`, crossing kind `ROUTE_AROUND`).
+- **Precedence.**
+  - A river reaching the sea ends at its mouth.
+  - No basin forms inside the sea.
+  - A below-sea-level hollow walled off from the edge stays dry; that is a basin's business.
+- **Bounds.** Cliff-band chunks are never flooded, so the coast is always inside the ring and
+  never replaces it.
+- **Coast off.** The sea set is empty and output is byte-identical to before.
+- **Fitted worlds.** A `fit_to_level` world sets sea level to its level's own floor, so it gets no
+  coast.
+
+`-terrainselfcheck coastline` (`terrain_coastline`) proves:
+
+- the connected west column floods;
+- the walled hollow does not;
+- coastal areas sit at sea level and never reach the cliff band;
+- every coast feature carries a crossing;
+- the result is deterministic;
+- off builds nothing.
+
+**Found and fixed along the way:** the standalone-basin loop marked a sink claimed even when
+`Build_Basin_Feature` declined to build it (lakes and ponds off). Harmless before, since nothing
+read `claimed` after it; the sea set now decides precedence instead.
+
+Beach, rocky shore, coastal cliff and harbour shoreline dressing (Section 9.4's list) are
+material and asset work on top of this body. They are not built here.
 
 **True watershed delineation.** A basin's own accumulation stands in for "how much drains here";
 no watershed boundary polygon is computed or stored.

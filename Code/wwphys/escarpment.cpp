@@ -81,6 +81,8 @@ static const float DEFAULT_METERS_PER_TILE = 10.0f;
 
 
 DynamicVectorClass<EscarpmentClass>	EscarpmentSystem::Escarpments;
+DynamicVectorClass<Vector3>			EscarpmentSystem::PortalCutCenters;
+DynamicVectorClass<float>				EscarpmentSystem::PortalCutRadii;
 bool	EscarpmentSystem::GeometryBuilt	= false;
 int	EscarpmentSystem::UntexturedFaces	= 0;
 
@@ -399,6 +401,8 @@ bool EscarpmentClass::Does_Segment_Cross(const Vector3 & a,const Vector3 & b,flo
 void EscarpmentSystem::Init(void)
 {
 	Escarpments.Delete_All();
+	PortalCutCenters.Delete_All();
+	PortalCutRadii.Delete_All();
 	GeometryBuilt = false;
 	UntexturedFaces = 0;
 }
@@ -408,6 +412,25 @@ void EscarpmentSystem::Shutdown(void)
 {
 	Destroy_Geometry();
 	Escarpments.Delete_All();
+	PortalCutCenters.Delete_All();
+	PortalCutRadii.Delete_All();
+}
+
+
+void EscarpmentSystem::Add_Portal_Cut(const Vector3 & center,float radius)
+{
+	if (radius <= 0.0f) {
+		return;
+	}
+	PortalCutCenters.Add(Vector3(center.X,center.Y,0.0f));
+	PortalCutRadii.Add(radius);
+}
+
+
+void EscarpmentSystem::Clear_Portal_Cuts(void)
+{
+	PortalCutCenters.Delete_All();
+	PortalCutRadii.Delete_All();
 }
 
 
@@ -665,15 +688,86 @@ bool EscarpmentSystem::Build_Escarpment_Geometry(EscarpmentClass & escarpment)
 			//	Right of travel is downhill; push the face that way to clear the very steep
 			//	heightfield cells usually standing right behind it.
 			Vector3 right(dir.Y,-dir.X,0.0f);
-			Vector3 base0 = p0.Position + (right * FACE_OFFSET);
-			Vector3 base1 = p1.Position + (right * FACE_OFFSET);
+
+			/*
+			**	V2 Phase 10 portal cuts.  The stretches of this segment inside any cut disc are
+			**	removed and the rest emitted as up to MAX_SPANS spans, each with its stations
+			**	interpolated from the segment's own two -- so an uncut segment is exactly one span
+			**	over [0,1], identical to what this loop emitted before cuts existed.
+			*/
+			enum { MAX_SPANS = 8 };
+			float span_lo[MAX_SPANS];
+			float span_hi[MAX_SPANS];
+			int span_count = 1;
+			span_lo[0] = 0.0f;
+			span_hi[0] = 1.0f;
+
+			for (int c = 0; c < PortalCutCenters.Count(); c++) {
+
+				//	|p0 + t*(p1-p0) - centre|^2 = r^2 solved for t, in plan.
+				Vector3 d = p1.Position - p0.Position;
+				Vector3 f = p0.Position - PortalCutCenters[c];
+				float qa = (d.X * d.X) + (d.Y * d.Y);
+				float qb = 2.0f * ((f.X * d.X) + (f.Y * d.Y));
+				float qc = (f.X * f.X) + (f.Y * f.Y) - (PortalCutRadii[c] * PortalCutRadii[c]);
+				float disc = (qb * qb) - (4.0f * qa * qc);
+				if ((qa <= WWMATH_EPSILON) || (disc <= 0.0f)) {
+					continue;
+				}
+				float root = WWMath::Sqrt(disc);
+				float cut_lo = (-qb - root) / (2.0f * qa);
+				float cut_hi = (-qb + root) / (2.0f * qa);
+				if ((cut_hi <= 0.0f) || (cut_lo >= 1.0f)) {
+					continue;
+				}
+
+				float new_lo[MAX_SPANS];
+				float new_hi[MAX_SPANS];
+				int new_count = 0;
+				for (int k = 0; k < span_count; k++) {
+					if ((cut_hi <= span_lo[k]) || (cut_lo >= span_hi[k])) {
+						if (new_count < MAX_SPANS) { new_lo[new_count] = span_lo[k]; new_hi[new_count] = span_hi[k]; new_count++; }
+						continue;
+					}
+					if ((cut_lo > span_lo[k]) && (new_count < MAX_SPANS)) {
+						new_lo[new_count] = span_lo[k]; new_hi[new_count] = cut_lo; new_count++;
+					}
+					if ((cut_hi < span_hi[k]) && (new_count < MAX_SPANS)) {
+						new_lo[new_count] = cut_hi; new_hi[new_count] = span_hi[k]; new_count++;
+					}
+				}
+				for (int k = 0; k < new_count; k++) { span_lo[k] = new_lo[k]; span_hi[k] = new_hi[k]; }
+				span_count = new_count;
+			}
+
+			for (int span = 0; span < span_count; span++) {
+
+			float t_a = span_lo[span];
+			float t_b = span_hi[span];
+			if (((t_b - t_a) * segment_length) < WWMATH_EPSILON) {
+				continue;
+			}
+
+			EscarpmentPointClass q0 = p0;
+			EscarpmentPointClass q1 = p0;
+			q0.Position			= p0.Position + ((p1.Position - p0.Position) * t_a);
+			q0.UpperHeight		= p0.UpperHeight + ((p1.UpperHeight - p0.UpperHeight) * t_a);
+			q0.LowerHeight		= p0.LowerHeight + ((p1.LowerHeight - p0.LowerHeight) * t_a);
+			q0.FaceInflection	= p0.FaceInflection + ((p1.FaceInflection - p0.FaceInflection) * t_a);
+			q1.Position			= p0.Position + ((p1.Position - p0.Position) * t_b);
+			q1.UpperHeight		= p0.UpperHeight + ((p1.UpperHeight - p0.UpperHeight) * t_b);
+			q1.LowerHeight		= p0.LowerHeight + ((p1.LowerHeight - p0.LowerHeight) * t_b);
+			q1.FaceInflection	= p0.FaceInflection + ((p1.FaceInflection - p0.FaceInflection) * t_b);
+
+			Vector3 base0 = q0.Position + (right * FACE_OFFSET);
+			Vector3 base1 = q1.Position + (right * FACE_OFFSET);
 
 			//	The top leans back into the hill by the batter, which is away from the drop.
-			Vector3 top0 = base0 - (right * (batter * h0));
-			Vector3 top1 = base1 - (right * (batter * h1));
+			Vector3 top0 = base0 - (right * (batter * q0.Get_Face_Height()));
+			Vector3 top1 = base1 - (right * (batter * q1.Get_Face_Height()));
 
-			float u0 = travelled / meters_per_tile;
-			float u1 = (travelled + segment_length) / meters_per_tile;
+			float u0 = (travelled + (t_a * segment_length)) / meters_per_tile;
+			float u1 = (travelled + (t_b * segment_length)) / meters_per_tile;
 
 			/*
 			**	The face is walked as `row_count` bands from toe to rim.  A station's position
@@ -691,10 +785,10 @@ bool EscarpmentSystem::Build_Escarpment_Geometry(EscarpmentClass & escarpment)
 
 				Vector3 a0,a1,b0,b1;
 				float va0,va1,vb0,vb1;
-				Face_Point(meters_per_tile,right,base0,top0,p0,t_low, &a0,&va0);
-				Face_Point(meters_per_tile,right,base1,top1,p1,t_low, &a1,&va1);
-				Face_Point(meters_per_tile,right,base0,top0,p0,t_high,&b0,&vb0);
-				Face_Point(meters_per_tile,right,base1,top1,p1,t_high,&b1,&vb1);
+				Face_Point(meters_per_tile,right,base0,top0,q0,t_low, &a0,&va0);
+				Face_Point(meters_per_tile,right,base1,top1,q1,t_low, &a1,&va1);
+				Face_Point(meters_per_tile,right,base0,top0,q0,t_high,&b0,&vb0);
+				Face_Point(meters_per_tile,right,base1,top1,q1,t_high,&b1,&vb1);
 
 				//	Wound so the outward normal faces the low side, which is the side anything
 				//	looking at a cliff is standing on.
@@ -710,18 +804,20 @@ bool EscarpmentSystem::Build_Escarpment_Geometry(EscarpmentClass & escarpment)
 			*/
 			if (toe_width > 0.0f) {
 
-				Vector3 foot0(base0.X,base0.Y,p0.LowerHeight);
-				Vector3 foot1(base1.X,base1.Y,p1.LowerHeight);
+				Vector3 foot0(base0.X,base0.Y,q0.LowerHeight);
+				Vector3 foot1(base1.X,base1.Y,q1.LowerHeight);
 				Vector3 skirt0 = foot0 + (right * toe_width);
 				Vector3 skirt1 = foot1 + (right * toe_width);
-				skirt0.Z = p0.LowerHeight;
-				skirt1.Z = p1.LowerHeight;
+				skirt0.Z = q0.LowerHeight;
+				skirt1.Z = q1.LowerHeight;
 
 				float v_skirt = -(toe_width / meters_per_tile);
 
 				builder.Triangle(skirt0,skirt1,foot0, u0,v_skirt, u1,v_skirt, u0,0.0f);
 				builder.Triangle(foot0,skirt1,foot1, u0,0.0f, u1,v_skirt, u1,0.0f);
 			}
+
+			}	// span
 
 			travelled += segment_length;
 		}

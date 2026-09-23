@@ -739,6 +739,12 @@ bool TerrainTextureSystem::Build_Sampled_Materials(RenegadeTerrainPatchClass * m
 
 			int quad_index = (quad_y * col_count) + quad_x;
 
+			//	A heightfield hole (a tunnel portal cut) draws nothing, the way LevelEdit's own
+			//	hidden quads never reach a material pass.
+			if (model->Is_Quad_Hidden(quad_index)) {
+				continue;
+			}
+
 			int v0 = (quad_y * points_x) + quad_x;
 			int v1 = v0 + 1;
 			int v2 = v0 + points_x + 1;

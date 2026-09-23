@@ -162,6 +162,10 @@ class ProceduralWorldManager
 		//	edge's own unresolved-crossing list -- so it shares that gate.
 		static bool		Build_Bridge_Plan(const ProceduralWorldProfile & profile,StringClass * error_out);
 
+		//	Roadmap Section 34 Phase 10.  After the bridge plan: a road crossing no bridge could
+		//	resolve is a tunnel candidate, and so is every cliff bypass no road passes through.
+		static bool		Build_Tunnel_Plan(const ProceduralWorldProfile & profile,StringClass * error_out);
+
 		//	Roadmap Section 34 Phase 11.  Requires the road graph and the bridge plan -- Phase
 		//	11's own purpose line: choose bases only once roads, bridges and terrain constraints
 		//	are known.  Runs whether or not the bridge plan itself resolved every crossing, since

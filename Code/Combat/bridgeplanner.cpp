@@ -621,12 +621,11 @@ bool BridgePlanner::Generate(const BridgePlannerParams & params,StringClass * er
 
 			if (!resolved) {
 
-				//	Stage 3: alternate crossing type.  No tunnel system exists in this codebase
-				//	to fall back to -- BridgePlanner already builds a bridge for a
-				//	TUNNEL_CANDIDATE node exactly as it does for a CROSSING_CANDIDATE one, since
-				//	nothing else exists that could -- so this stage is honestly a no-op rather
-				//	than a fabricated crossing type, and the chain proceeds to stage 4 carrying
-				//	whichever failure reason stages 0-2 last produced.
+				//	Stage 3: alternate crossing type.  Not taken here: TunnelPlanner (V2 Phase 10)
+				//	runs after this whole plan and takes every crossing this chain finally leaves
+				//	unresolved as a tunnel candidate, recording its own outcome in its own
+				//	diagnostics.  Deciding a tunnel inline would need the bridge chain to own bore
+				//	geometry it does not, so the chain proceeds to stage 4 as before.
 
 				//	Stage 4: reroute.  Refused, not merely skipped, once this edge has already
 				//	committed a real bridge and road split for an earlier crossing -- replacing

@@ -412,6 +412,15 @@ void WorldShroudManager::Stamp_Circle(bool * coverage,float cx,float cy,float ra
 			}
 		}
 	}
+
+	//	A source always covers the cell it stands in.  The centre test above misses it whenever
+	//	the radius is smaller than the distance from the source to that cell's own centre -- a
+	//	source on a cell corner with a radius under half the cell's diagonal would otherwise not
+	//	see where it is standing, which a coarse grid on a large map makes routine.
+	int own_col,own_row;
+	if (World_To_Cell(cx,cy,&own_col,&own_row)) {
+		coverage[own_row * Cols + own_col] = true;
+	}
 }
 
 

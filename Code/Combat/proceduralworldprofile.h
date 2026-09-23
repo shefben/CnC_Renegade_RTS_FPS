@@ -455,7 +455,19 @@ class ProceduralWorldProfile
 		//	data the schema already describes" every schema-only phase since 16 has been.  A
 		//	schema-1..7 profile still loads; the nine new fields take their documented
 		//	(canonical-behavior-preserving) defaults.
-		enum { CURRENT_SCHEMA_VERSION = 8, CURRENT_GENERATOR_VERSION = 6 };
+		//	Generator 7 (V2 close) adds tunnels (Phase 10: bores, portal cuts in the ground and
+		//	cliff faces, road splits at tunnel mouths), the Section 9.4 coastline (water.coastline,
+		//	parsed since schema 1, finally consumed) and Section 10.6 street lamps, so the same seed
+		//	and profile now produce a different world than generator 6 did.  Schema stays 8 --
+		//	every one of the three reads a field or switch the schema already carried.
+		//
+		//	Compatibility rules (V2 Phase 30; docs/procedural_world/NetworkingAndPersistence.md):
+		//	a profile of any schema 1..CURRENT loads, every field it predates taking its documented
+		//	default; a newer schema is refused.  generator_version, when a profile states one, must
+		//	equal CURRENT_GENERATOR_VERSION -- no older generator is kept (one canonical
+		//	implementation), so a profile naming another one names a world this build cannot
+		//	reproduce, and is refused rather than silently generating a different one.
+		enum { CURRENT_SCHEMA_VERSION = 8, CURRENT_GENERATOR_VERSION = 7 };
 
 		ProceduralWorldProfile(void);
 

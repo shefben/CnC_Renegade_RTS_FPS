@@ -43,9 +43,41 @@ report built afterward.
 
 ## What is NOT resolved this phase
 
-Street lamps (steps 9-10) are not placed -- no `ow_streetlamp`-equivalent asset exists in
-`FoliageSystem`'s own registered types or `ProceduralAssetRegistry`, the same "missing art never
-blocks engine implementation" gap Phase 13's own entrance-anchor problem already documents.
+**Street lamps (steps 9-10), added at V2 close.** The original note here left lamps unplaced
+for want of art. That contradicts `PROJECT_RULES.md` section 16, which says missing art never blocks
+engine code, so the system has now been built.
+
+- **Type.** `FoliageSystem` gained a sixth default type, `ow_street_lamp`, in a new
+  `FOLIAGE_STREET_PROP` category. The asset requirement is in `docs/assets/FoliageModels.md`.
+- **Placement.** `Place_Street_Lamps` walks every tessellated road at `StreetLampSpacing` (30
+  units, a decoration-density default like forest and rock density), with the first lamp half a
+  spacing in. Stations are eligible on:
+  - every city street;
+  - every other station of a highway;
+  - any other road only within one spacing of a selected base's protected region (an approach
+    road) or inside an `INDUSTRIAL_LOOP` settlement.
+- **Position (step 10).** A lamp stands 0.5 units outside the road's total width (carriageway plus
+  shoulders), alternating sides, facing the road.
+- **Legality.** A lamp stands only where it is legal:
+  - on terrain and inside the placeable region;
+  - not in water, the road mask or the Tiberium mask;
+  - not in a tunnel mouth;
+  - not inside a base's protected region;
+  - not inside a non-industrial settlement, and never on a settlement structure (measured with the
+    structure's own placement radius).
+- **Rendering and collision.** Lamps batch, cull and collide with the rest of the foliage.
+
+The `terrain_biomedecoration` check covers:
+
+- the lamp count on a 305-unit street is exact at 30-unit spacing;
+- every lamp stands outside the street's 8-unit total width;
+- the sides alternate;
+- a plain track far from bases and industry gets none;
+- placement is deterministic.
+
+Not done: **night-light integration** (Section 10.6 says "if used"). A light per lamp would
+exhaust `WorldLightManager`'s 64-light dynamic budget on any real road network, and no static
+night-lighting path exists to feed instead.
 Terrain-material assignment through the v1 texture layer system (step 2) is not driven here --
 `TerrainTextureSystem`'s own layer rules already read these same masks once layers are defined for
 a level; this generator's job is populating real mask data, not authoring layer rules. Runtime

@@ -59,3 +59,48 @@ naming real gaps, and `gameplay-gaps.md` tracks the player-facing consequences. 
 52's 110-item final-acceptance checklist is a separate, later gate; most of its items
 depend on phases (P08-P40 mid-flight, P46-P65 unstarted) that are not done, so it is not
 attempted here. This file only answers "where is the doc Section 50 asked for."
+
+---
+
+# V2 Section 33 required paths (V2 Phase 30)
+
+The same resolution, applied to the V2 roadmap's Section 33 list. V2's phase docs were written
+under `docs/procedural_world/` and `docs/zerohour/`, one file per system and named after it, just
+as V1's were. Where a Section 33 path's content already lives in such a file, it is mapped here,
+not duplicated. Where no file held the content (architecture, the pipeline, versions and
+compatibility, roads/bridges/tunnels), the file was written at the required path.
+
+| Required path | Actual location | Note |
+| --- | --- | --- |
+| `docs/procedural_world/Architecture.md` | same path | written at V2 close |
+| `docs/procedural_world/GenerationPipeline.md` | same path | written at V2 close |
+| `docs/procedural_world/WorldProfileSchema.md` | same path | matches exactly |
+| `docs/procedural_world/WorldBoundsAndBoundaryCliffs.md` | same path | matches exactly |
+| `docs/procedural_world/TerrainGeneration.md` | `docs/procedural_world/MacroTerrainGeneration.md` + `docs/procedural_world/InteriorCliffs.md` | macro terrain/chunks (Phase 4) and interior cliffs/ravines (Phase 5), one doc each |
+| `docs/procedural_world/Hydrology.md` | same path | matches exactly |
+| `docs/procedural_world/RoadsBridgesTunnels.md` | same path | tunnels in full; roads and bridges point to `RoadGraph.md` and `BridgePlanning.md` |
+| `docs/procedural_world/BiomesAndFoliage.md` | `docs/procedural_world/BiomeDecoration.md` | Phase 14; foliage batching itself is `docs/zerohour/FoliageSystem.md` |
+| `docs/procedural_world/SettlementsAndPOIs.md` | `docs/procedural_world/Settlements.md` + `docs/procedural_world/StrategicPlanning.md` | settlements/POIs (Phase 13) and POI/strategic candidates (Phase 7) |
+| `docs/procedural_world/TiberiumGeneration.md` | `docs/procedural_world/TiberiumFields.md` | Phase 12 |
+| `docs/procedural_world/CombatSpaceValidation.md` | same path | matches exactly |
+| `docs/procedural_world/RuntimeMutation.md` | `docs/procedural_world/WorldOperationJournal.md` + `docs/procedural_world/CommanderExpansion.md` | the journal (Phase 18) and foundation grading (Phase 17) |
+| `docs/procedural_world/Navigation.md` | `docs/procedural_world/FinalWorldIntegration.md` (sector graph, bridge links, flight volume) + `docs/procedural_world/RoadsBridgesTunnels.md` (tunnel entrance/interior/exit) | `WorldTraversabilityGraph` per-locomotion reachability is documented in both |
+| `docs/procedural_world/NetworkingAndPersistence.md` | same path | written at V2 close: final version table, compatibility rules, wire/save matrix; mechanisms in `SnapshotsAndLateJoin.md` and `WorldOperationJournal.md` |
+| `docs/procedural_world/GeneratorDeterminism.md` | same path | matches exactly |
+| `docs/ai_commander/Architecture.md` | `docs/zerohour/CommanderAI.md` sections "The v1 human Commander API is the only action surface this uses" and "Section 25.1 governance applies to an AI seat too" | one doc for Phases 24-25, sectioned by roadmap subsection |
+| `docs/ai_commander/StrategicWorldModel.md` | `docs/zerohour/CommanderAI.md` "Strategic world model — Section 24.2" | |
+| `docs/ai_commander/EconomyAndPower.md` | `docs/zerohour/CommanderAI.md` "Economy planner — Section 24.3" + "Site search" | |
+| `docs/ai_commander/BaseExpansion.md` | `docs/zerohour/CommanderAI.md` "Base expansion — Section 24.4" | |
+| `docs/ai_commander/ProductionAndCombat.md` | `docs/zerohour/CommanderAI.md` "Production planner", "Defense planner", "Attack planner", "Difficulty" | |
+| `docs/gameplay/AdvancedBuildingCapabilities.md` | `docs/procedural_world/BuildingFunctionalSubcomponents.md` | Phase 20 |
+| `docs/gameplay/Logistics.md` | `docs/procedural_world/LogisticsLayer.md` | Phase 21 |
+| `docs/tools/ProceduralWorldTools.md` | same path | matches exactly |
+
+V2 docs outside Section 33's list, for completeness:
+
+- `V2Baseline.md` (Phase 0)
+- `VehicleSubsystemDamage.md` (Phase 22)
+- `PersistentCampaign.md` (Phase 26)
+- `PerformanceBudgets.md` (Phase 29)
+- `docs/integration/Phase28IntegrationGate.md` (Phase 28)
+- `docs/procedural_world/V2Completion.md` (Phase 30's Section 38 audit and baseline)

@@ -104,6 +104,10 @@ enum DebugLayerType
 	//	ponds as their own ring, and a cross at every crossing candidate.
 	DEBUG_LAYER_HYDROLOGY,
 
+	//	V2 roadmap Section 34 Phase 10 step 15.  Each bore's outline, its two mouths, its portal
+	//	stations and its light anchors.
+	DEBUG_LAYER_TUNNELS,
+
 	DEBUG_LAYER_COUNT		// sentinel
 };
 

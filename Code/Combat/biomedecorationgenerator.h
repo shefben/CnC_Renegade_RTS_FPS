@@ -72,6 +72,10 @@ struct BiomeDecorationParams
 	//	already is.  0..1; 0 disables that category outright.
 	float	ForestDensity;
 	float	RockDensity;
+
+	//	Section 10.6 / Phase 14 step 9: world units between lamps along an eligible road.  A
+	//	decoration density default like the two above, not a gameplay constant; 0 places none.
+	float	StreetLampSpacing;
 };
 
 
@@ -101,6 +105,7 @@ public:
 	static int			Get_Tree_Count(void)		{ return TreeCount; }
 	static int			Get_Rock_Count(void)		{ return RockCount; }
 	static int			Get_Forest_Chunk_Count(void)	{ return ForestChunkCount; }
+	static int			Get_Street_Lamp_Count(void)	{ return StreetLampCount; }
 
 	static unsigned int	Get_Checksum(void)		{ return Checksum; }
 
@@ -115,6 +120,9 @@ private:
 	static int				TreeCount;
 	static int				RockCount;
 	static int				ForestChunkCount;
+	static int				StreetLampCount;
+
+	static void			Place_Street_Lamps(const BiomeDecorationParams & params);
 };
 
 #endif	// BIOMEDECORATIONGENERATOR_H

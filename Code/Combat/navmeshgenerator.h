@@ -132,6 +132,8 @@ public:
 	static int		Get_Sector_Count(void)			{ return SectorCount; }
 	static int		Get_Portal_Count(void)			{ return PortalCount; }
 	static int		Get_Bridge_Portal_Count(void)	{ return BridgePortalCount; }
+		//	V2 Phase 10: entrance + exit links, two per nav-linked tunnel.
+		static int		Get_Tunnel_Portal_Count(void)	{ return TunnelPortalCount; }
 
 	//	True when at least one of LOCOMOTION_WHEELED/LOCOMOTION_TRACKED had a loaded definition,
 	//	so the one sector graph's own slope cap is genuinely a ground-vehicle answer and not
@@ -172,6 +174,7 @@ private:
 	static int			SectorCount;
 	static int			PortalCount;
 	static int			BridgePortalCount;
+		static int			TunnelPortalCount;
 	static bool			GroundVehicleIncluded;
 	static float		MaxClimbableSlopeRadians;
 	static bool			HasFlightVolume;

@@ -53,10 +53,10 @@ step 5's "air navigation/flight volume" is built as exactly that: a real bounded
 **Bridges get off-mesh portals** (step 7): each real `BridgePlanner` bridge's own road-edge
 endpoint `StrategicNode` positions are resolved via `RoadGraphGenerator`, and the nearest walkable
 sector within `BridgeLinkSearchRadius` on each side is linked directly -- bridge-deck geometry is
-never modeled as its own sector set. Tunnels and building-interior transitions are not produced;
-no tunnel system exists anywhere in this tree (confirmed by the same grep step 12 relies on
-below), and no building in this asset pool has an interior to transition into (Phase 13's own
-disclosed connector-metadata gap).
+never modeled as its own sector set. **Tunnels (added by V2 Phase 10):** each accepted bore gets
+an interior sector linked by an entrance portal and an exit portal (`Get_Tunnel_Portal_Count`); see
+`RoadsBridgesTunnels.md`. Building-interior transitions are still not produced -- no building in
+this asset pool has an interior to transition into (Phase 13's own disclosed connector-metadata gap).
 
 **Step 8** (`Get_Revision`) is 0 until the first successful `Build`, 1 after -- real and
 meaningful today as "this world's nav was built once"; Phase 18/19's own monotonic world revision
@@ -93,8 +93,8 @@ real, already-established data: `TERRAIN_MASK_ROAD` (threshold 0.5), `WaterSyste
 Water`, `TerrainChunkInfoClass::CliffBand`. Markers name real, already-resolved objects by their
 owners' own stable ids: `BaseSelectionPlanner` (bases), `SettlementGenerator` (settlements and
 POIs), `TiberiumFieldGenerator` (fields), `BridgePlanner`+`RoadGraphGenerator`
-(`Find_Node_By_Id` for bridge position). Tunnel portals, named in step 12's own list, are not
-produced -- no tunnel system exists anywhere in this tree.
+(`Find_Node_By_Id` for bridge position), and `TunnelPlanner` (one `MINIMAP_MARKER_TUNNEL_PORTAL`
+per mouth, added by V2 Phase 10).
 
 **Real, currently unconsumed.** Grepping this tree for a minimap/tactical-map renderer turns up
 nothing; `WorldShroudManager` (live per-team coverage) and `TacticalIntelligenceModel` (live

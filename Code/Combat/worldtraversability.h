@@ -82,6 +82,7 @@ enum TraversabilityEdgeKind
 	TRAVERSE_EDGE_GROUND	= 0,	// adjacent cells of walkable terrain
 	TRAVERSE_EDGE_BRIDGE,			// a crossing that states it carries this class
 	TRAVERSE_EDGE_ROAD,				// a road surface joining two cells the raw ground would not
+	TRAVERSE_EDGE_TUNNEL,			// a bore (V2 Phase 10) whose class and clearance carry this body
 
 	TRAVERSE_EDGE_KIND_COUNT,
 };
@@ -95,7 +96,7 @@ struct TraversabilityEdgeStruct
 	int		NodeB;
 	int		Kind;
 	float		Width;		// narrowest point of the edge, metres; 0 means "the cell size"
-	int		SourceID;	// bridge or road id for the crossing kinds, -1 otherwise
+	int		SourceID;	// bridge, road or tunnel id for the crossing kinds, -1 otherwise
 
 	bool	operator == (const TraversabilityEdgeStruct & that) const
 	{

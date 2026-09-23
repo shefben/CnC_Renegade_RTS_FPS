@@ -282,7 +282,12 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	#define NEED_FINITE(v,msg) { if (!std::isfinite (v)) FAIL (msg); }
 	#define NEED_NONNEGATIVE(v,msg) { NEED_FINITE (v,msg); if ((v) < 0.0f) FAIL (msg); }
 
-	if (p.SchemaVersion != ProceduralWorldProfile::CURRENT_SCHEMA_VERSION)		FAIL ("unsupported schema_version");
+	//	See ProceduralWorldProfile's own compatibility rules: any schema up to this build's
+	//	loads with defaults for what it predates; the generator must be this build's own.
+	if ((p.SchemaVersion == 0) || (p.SchemaVersion > ProceduralWorldProfile::CURRENT_SCHEMA_VERSION))
+		FAIL ("unsupported schema_version (newer than this build)");
+	if (p.GeneratorVersion != ProceduralWorldProfile::CURRENT_GENERATOR_VERSION)
+		FAIL ("generator_version is not this build's generator -- the world it names cannot be reproduced");
 
 	//	Finite positive world dimensions.
 	NEED_FINITE (p.World.Width,"non-finite world.width");

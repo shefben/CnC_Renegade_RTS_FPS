@@ -164,3 +164,24 @@ neither is an asset request until something can move a plant. See
 
 **Stumps and debris.** Felling a plant removes it. There is nothing left behind, so there is
 nothing to model, until the effect system of Section 35 exists to be handed one.
+
+## Street lamp (V2 Section 10.6, added at V2 close)
+
+A sixth default type is `ow_street_lamp`, category `FOLIAGE_STREET_PROP`. Like the five natural
+types it names no model yet, so it plans batches, collides and draws nothing.
+`BiomeDecorationGenerator::Place_Street_Lamps` places it along city streets, every other station
+of highways, base approach roads and industrial settlements. See
+`docs/procedural_world/BiomeDecoration.md`.
+
+| Name the model should carry | Category | Proxy (radius, height) | Blocking | Destructible |
+| --- | --- | --- | --- | --- |
+| `ow_street_lamp` | STREET_PROP | 0.15, 6.0 | infantry and vehicles | yes, 60 health |
+
+Constraints:
+
+- The pivot sits at the foot of the pole on the ground.
+- +Y faces the road it lights. The generator yaws each lamp to face its road.
+- The collision post must stay within the 0.15-unit proxy radius. The generator stands lamps only
+  0.5 units outside a road's total width, so a wider base would reach the shoulder.
+- The model must not be scaled; the scale range is 1-1.
+- Light is not part of the model. No lamp emits light today (see the biome doc's night-light note).

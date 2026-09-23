@@ -28,6 +28,7 @@
 
 #include "aabox.h"
 #include "bridgeplanner.h"
+#include "tunnelplanner.h"
 #include "crc.h"
 #include "Pathfind.h"
 #include "PathfindPortal.h"
@@ -56,6 +57,7 @@ bool				NavMeshGenerator::Built						= false;
 int				NavMeshGenerator::SectorCount				= 0;
 int				NavMeshGenerator::PortalCount				= 0;
 int				NavMeshGenerator::BridgePortalCount		= 0;
+int				NavMeshGenerator::TunnelPortalCount		= 0;
 bool				NavMeshGenerator::GroundVehicleIncluded	= false;
 float				NavMeshGenerator::MaxClimbableSlopeRadians	= 0.0f;
 bool				NavMeshGenerator::HasFlightVolume		= false;
@@ -92,6 +94,7 @@ void NavMeshGenerator::Clear(void)
 	SectorCount				= 0;
 	PortalCount				= 0;
 	BridgePortalCount		= 0;
+	TunnelPortalCount		= 0;
 	GroundVehicleIncluded	= false;
 	MaxClimbableSlopeRadians	= 0.0f;
 	HasFlightVolume			= false;
@@ -396,6 +399,72 @@ bool NavMeshGenerator::Build(const NavMeshParams & params,StringClass * error_ou
 		}
 	}
 
+	/*
+	**	V2 Phase 10 / Section 12.5 -- tunnels, explicitly: an entrance, an interior and an exit.
+	**	Each accepted bore gets its own interior sector (its real interior bounds) linked by one
+	**	portal at each mouth to the nearest walkable chunk outside it.  One sector graph serves
+	**	every class it was sized for (see the header), so an infantry-only bore is linked only
+	**	when that graph is not also carrying ground vehicles -- otherwise a tank would be routed
+	**	through a passage it does not fit, which is worse than no link.  Eligibility and the chunk
+	**	slots are recorded on the tunnel either way, pathfinder or not.
+	*/
+	int tunnel_portal_count = 0;
+	for (int t = 0; t < TunnelPlanner::Get_Tunnel_Count(); t++) {
+		ResolvedTunnel resolved;
+		if (!TunnelPlanner::Get_Tunnel(t,&resolved)) continue;
+		const TunnelClass * tunnel = TunnelSystem::Find_Tunnel(resolved.TunnelId);
+		if (tunnel == nullptr) continue;
+
+		if (ground_vehicle_included && !Tunnel_Class_Carries_Vehicles(tunnel->Class)) {
+			TunnelPlanner::Set_Nav_Links(t,-1,-1,-1);
+			continue;
+		}
+
+		int mouth_slot[2] = { -1, -1 };
+		float mouth_dist[2] = { params.BridgeLinkSearchRadius, params.BridgeLinkSearchRadius };
+		const Vector3 * mouth[2] = { &tunnel->Start, &tunnel->End };
+		for (int py = 0; py < count_y; py++) {
+			for (int px = 0; px < count_x; px++) {
+				int slot = px + (py * count_x);
+				if (ChunkNavigable[slot] == 0) continue;
+				AABoxClass bounds;
+				if (!WorldTerrainSystem::Get_Patch_Bounds(px,py,&bounds)) continue;
+				for (int m = 0; m < 2; m++) {
+					float dx = bounds.Center.X - mouth[m]->X;
+					float dy = bounds.Center.Y - mouth[m]->Y;
+					float d = WWMath::Sqrt((dx * dx) + (dy * dy));
+					if (d < mouth_dist[m]) { mouth_dist[m] = d; mouth_slot[m] = slot; }
+				}
+			}
+		}
+
+		int interior_index = -1;
+		if (has_pathfinder && (mouth_slot[0] >= 0) && (mouth_slot[1] >= 0) &&
+			 (sector_index[mouth_slot[0]] >= 0) && (sector_index[mouth_slot[1]] >= 0)) {
+
+			AABoxClass interior;
+			tunnel->Get_Interior_Bounds(&interior);
+
+			PathfindSectorClass * sector = new PathfindSectorClass;
+			sector->Set_Bounding_Box(interior);
+			PathfindClass::Get_Instance()->Add_Sector(sector);
+			interior_index = PathfindClass::Get_Instance()->Get_Sector_Index(sector);
+
+			float half = tunnel->Clearance.Get_Bore_Width() * 0.5f;
+			float h = tunnel->Clearance.Get_Bore_Height() * 0.5f;
+			for (int m = 0; m < 2; m++) {
+				AABoxClass portal_box(*mouth[m] + Vector3(0.0f,0.0f,h),Vector3(half,half,h));
+				Link_Sectors(sector_ptr[mouth_slot[m]],sector_index[mouth_slot[m]],sector,interior_index,portal_box);
+				tunnel_portal_count++;
+				portal_count++;
+			}
+			sector_count++;
+			sector->Release_Ref();
+		}
+
+		TunnelPlanner::Set_Nav_Links(t,mouth_slot[0],interior_index,mouth_slot[1]);
+	}
+
 	//	Step 5 -- flight volume.  A real bound, not a sector graph; see the header comment.
 	bool has_flight_volume = false;
 	float flight_min = 0.0f, flight_max = 0.0f;
@@ -410,6 +479,7 @@ bool NavMeshGenerator::Build(const NavMeshParams & params,StringClass * error_ou
 		crc(&sector_count,sizeof(sector_count));
 		crc(&portal_count,sizeof(portal_count));
 		crc(&bridge_portal_count,sizeof(bridge_portal_count));
+		crc(&tunnel_portal_count,sizeof(tunnel_portal_count));
 		int q_slope = (int)(max_climbable_slope * 100000.0f);
 		crc(&q_slope,sizeof(q_slope));
 		int q_ground = ground_vehicle_included ? 1 : 0;
@@ -420,6 +490,7 @@ bool NavMeshGenerator::Build(const NavMeshParams & params,StringClass * error_ou
 	SectorCount					= sector_count;
 	PortalCount					= portal_count;
 	BridgePortalCount			= bridge_portal_count;
+	TunnelPortalCount			= tunnel_portal_count;
 	GroundVehicleIncluded	= ground_vehicle_included;
 	MaxClimbableSlopeRadians	= max_climbable_slope;
 	HasFlightVolume			= has_flight_volume;

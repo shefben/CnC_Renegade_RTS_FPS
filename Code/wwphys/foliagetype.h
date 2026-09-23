@@ -47,6 +47,11 @@ enum FoliageCategoryType
 	FOLIAGE_GRASS_CLUMP,
 	FOLIAGE_DECORATIVE_ROCK,
 
+	//	V2 roadmap Section 10.6: street furniture (lamps) placed along roads.  Batched, culled
+	//	and collided exactly like the five natural categories -- it is a static prop, and this is
+	//	the one static-prop placer -- but kept its own category so nothing treats a lamp as cover.
+	FOLIAGE_STREET_PROP,
+
 	FOLIAGE_CATEGORY_COUNT
 };
 

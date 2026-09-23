@@ -43,6 +43,8 @@
 
 
 HeightfieldClass *	WorldTerrainSystem::Heightfield				= nullptr;
+unsigned char *		WorldTerrainSystem::CellHoles					= nullptr;
+int						WorldTerrainSystem::CellHoleCount			= 0;
 bool						WorldTerrainSystem::ReportedNoCollision		= false;
 bool						WorldTerrainSystem::ReportedNoFarTerrain	= false;
 
@@ -151,6 +153,11 @@ void WorldTerrainSystem::Destroy_Terrain(void)
 	Destroy_Chunk_Registry();
 	TerrainTextureSystem::Destroy_Masks();
 
+	//	One byte per cell of *this* field, so it goes with the field for the same reason the masks do.
+	delete [] CellHoles;
+	CellHoles = nullptr;
+	CellHoleCount = 0;
+
 	if (Heightfield != nullptr) {
 		delete Heightfield;
 		Heightfield = nullptr;
@@ -257,6 +264,140 @@ bool WorldTerrainSystem::Get_Patch_Bounds(int px,int py,AABoxClass * bounds_out)
 		return false;
 	}
 	return Heightfield->Get_Patch_Bounds(px,py,bounds_out);
+}
+
+
+/***********************************************************************************************
+ * Cells and holes -- V2 Phase 10                                                              *
+ *=============================================================================================*/
+int WorldTerrainSystem::Get_Cell_Count_X(void)
+{
+	return Has_Terrain() ? (Heightfield->Get_Vertex_Count_X() - 1) : 0;
+}
+
+
+int WorldTerrainSystem::Get_Cell_Count_Y(void)
+{
+	return Has_Terrain() ? (Heightfield->Get_Vertex_Count_Y() - 1) : 0;
+}
+
+
+bool WorldTerrainSystem::World_To_Cell(float x,float y,int * cell_x_out,int * cell_y_out)
+{
+	if (!Has_Terrain()) {
+		return false;
+	}
+	const Vector3 & origin = Heightfield->Get_Origin();
+	float cell = Heightfield->Get_Cell_Size();
+	float fx = (x - origin.X) / cell;
+	float fy = (y - origin.Y) / cell;
+	if ((fx < 0.0f) || (fy < 0.0f)) {
+		return false;
+	}
+	int cx = (int)fx;
+	int cy = (int)fy;
+	if ((cx >= Get_Cell_Count_X()) || (cy >= Get_Cell_Count_Y())) {
+		return false;
+	}
+	if (cell_x_out != nullptr) *cell_x_out = cx;
+	if (cell_y_out != nullptr) *cell_y_out = cy;
+	return true;
+}
+
+
+bool WorldTerrainSystem::Get_Cell_Center(int cell_x,int cell_y,Vector3 * center_out)
+{
+	float lo,hi;
+	if (!Get_Cell_Height_Range(cell_x,cell_y,&lo,&hi) || (center_out == nullptr)) {
+		return false;
+	}
+	const Vector3 & origin = Heightfield->Get_Origin();
+	float cell = Heightfield->Get_Cell_Size();
+	center_out->Set(origin.X + (cell_x + 0.5f) * cell,origin.Y + (cell_y + 0.5f) * cell,(lo + hi) * 0.5f);
+	return true;
+}
+
+
+bool WorldTerrainSystem::Get_Cell_Height_Range(int cell_x,int cell_y,float * min_out,float * max_out)
+{
+	if ((cell_x < 0) || (cell_y < 0) || (cell_x >= Get_Cell_Count_X()) || (cell_y >= Get_Cell_Count_Y())) {
+		return false;
+	}
+	float z = Heightfield->Get_Origin().Z;
+	float h[4] = {
+		Heightfield->Get_Height(cell_x,cell_y),		Heightfield->Get_Height(cell_x + 1,cell_y),
+		Heightfield->Get_Height(cell_x,cell_y + 1),	Heightfield->Get_Height(cell_x + 1,cell_y + 1)
+	};
+	float lo = h[0], hi = h[0];
+	for (int i = 1; i < 4; i++) {
+		lo = WWMath::Min(lo,h[i]);
+		hi = WWMath::Max(hi,h[i]);
+	}
+	if (min_out != nullptr) *min_out = z + lo;
+	if (max_out != nullptr) *max_out = z + hi;
+	return true;
+}
+
+
+bool WorldTerrainSystem::Set_Cell_Hole(int cell_x,int cell_y,bool hole)
+{
+	int count_x = Get_Cell_Count_X();
+	int count_y = Get_Cell_Count_Y();
+	if ((cell_x < 0) || (cell_y < 0) || (cell_x >= count_x) || (cell_y >= count_y)) {
+		return false;
+	}
+
+	if (CellHoles == nullptr) {
+		if (!hole) {
+			return true;
+		}
+		CellHoles = new unsigned char[count_x * count_y];
+		::memset(CellHoles,0,count_x * count_y);
+	}
+
+	unsigned char & slot = CellHoles[(cell_y * count_x) + cell_x];
+	unsigned char wanted = hole ? 1 : 0;
+	if (slot == wanted) {
+		return true;
+	}
+	slot = wanted;
+	CellHoleCount += hole ? 1 : -1;
+
+	Invalidate_Patch(cell_x / HeightfieldClass::PATCH_CELLS,cell_y / HeightfieldClass::PATCH_CELLS);
+	return true;
+}
+
+
+bool WorldTerrainSystem::Is_Cell_Hole(int cell_x,int cell_y)
+{
+	if (CellHoles == nullptr) {
+		return false;
+	}
+	int count_x = Get_Cell_Count_X();
+	if ((cell_x < 0) || (cell_y < 0) || (cell_x >= count_x) || (cell_y >= Get_Cell_Count_Y())) {
+		return false;
+	}
+	return (CellHoles[(cell_y * count_x) + cell_x] != 0);
+}
+
+
+void WorldTerrainSystem::Clear_Cell_Holes(void)
+{
+	if (CellHoles == nullptr) {
+		return;
+	}
+	int count_x = Get_Cell_Count_X();
+	int count_y = Get_Cell_Count_Y();
+	for (int cy = 0; cy < count_y; cy++) {
+		for (int cx = 0; cx < count_x; cx++) {
+			if (CellHoles[(cy * count_x) + cx] != 0) {
+				Set_Cell_Hole(cx,cy,false);
+			}
+		}
+	}
+	delete [] CellHoles;
+	CellHoles = nullptr;
+	CellHoleCount = 0;
 }
 
 
@@ -780,6 +921,15 @@ bool WorldTerrainSystem::Fill_Patch_Model(RenegadeTerrainPatchClass * model,int 
 
 			model->Set_Vertex_Pos(ix - ix0,iy - iy0,pos);
 			model->Set_Vertex_Normal(ix - ix0,iy - iy0,Heightfield->Compute_Vertex_Normal(ix,iy));
+		}
+	}
+
+	//	Holes (V2 Phase 10) ride the stock QF_HIDDEN flag, which the patch's own collision and
+	//	the terrain texture builder already skip.  Written for every quad so a cleared hole closes.
+	int quads_x = ix1 - ix0;
+	for (int qy = iy0; qy < iy1; qy++) {
+		for (int qx = ix0; qx < ix1; qx++) {
+			model->Set_Quad_Hidden(((qy - iy0) * quads_x) + (qx - ix0),Is_Cell_Hole(qx,qy));
 		}
 	}
 

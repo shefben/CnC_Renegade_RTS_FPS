@@ -81,7 +81,9 @@ HydrologyParams::HydrologyParams(void) :
 	RiverWidth (6.0f),
 	StreamWidth (2.5f),
 	RiverAccumulationChunks (6.0f),
-	MaxRiverCount (4)
+	MaxRiverCount (4),
+	GenerateCoastline (false),
+	SeaLevel (0.0f)
 {
 }
 
@@ -277,6 +279,60 @@ bool HydrologyGenerator::Build_Basin_Feature(int px,int py,float accumulation,co
 }
 
 
+//	One coastal chunk: a closed ow_water_coast area at sea level over the chunk's own square, the
+//	same shape and pipeline a basin uses, so the one water system draws, masks and shapes it.
+bool HydrologyGenerator::Build_Coast_Feature(int px,int py,const HydrologyParams & params)
+{
+	AABoxClass bounds;
+	if (!WorldTerrainSystem::Get_Patch_Bounds(px,py,&bounds)) return false;
+
+	TerrainChunkInfoClass info;
+	if (!WorldTerrainSystem::Get_Chunk_Info(px,py,&info)) return false;
+	if (info.CliffBand) return false;		// structural: the sea never reaches into the ring
+
+	float x0 = bounds.Center.X - bounds.Extent.X;
+	float x1 = bounds.Center.X + bounds.Extent.X;
+	float y0 = bounds.Center.Y - bounds.Extent.Y;
+	float y1 = bounds.Center.Y + bounds.Extent.Y;
+
+	WaterAreaClass area;
+	StringClass name;
+	name.Format("hydrology_coast_%d_%d",px,py);
+	area.Set_Name(name.Peek_Buffer());
+	area.Set_Definition("ow_water_coast");
+	area.Set_Closed(true);
+	area.Set_Height(params.SeaLevel);
+	area.Add_Station(Vector3(x0,y0,0.0f),0.0f);
+	area.Add_Station(Vector3(x0,y1,0.0f),0.0f);
+	area.Add_Station(Vector3(x1,y1,0.0f),0.0f);
+	area.Add_Station(Vector3(x1,y0,0.0f),0.0f);
+
+	int id = WaterSystem::Add_Area(area);
+	int index = WaterSystem::Get_Area_Count() - 1;
+	OwnedWaterAreaIds.Add(id);
+	WaterSystem::Shape_Terrain(index);
+	WaterSystem::Stamp_Mask(index);
+	WaterSystem::Build_Geometry(index);
+
+	HydrologyFeature feature;
+	feature.WaterAreaId	= id;
+	feature.Name			= name;
+	feature.Type			= HYDRO_FEATURE_COAST;
+	feature.Enclosed		= true;
+	feature.Length			= 0.0f;
+	feature.Shore			= Classify_Shore(bounds.Center.X,y0,0.0f,0.0f);
+
+	//	The sea is gone around, never bridged or forded -- Section 9.5's "long route around".
+	HydrologyCrossingCandidate crossing;
+	crossing.Position	= Vector3(bounds.Center.X,bounds.Center.Y,params.SeaLevel);
+	crossing.Kind			= HYDRO_CROSSING_ROUTE_AROUND;
+	feature.Crossings.Add(crossing);
+
+	Features.Add(feature);
+	return true;
+}
+
+
 static bool Height_Order_Before(int index_a,int index_b,const DynamicVectorClass<float> & height,int count_x)
 {
 	if (height[index_a] != height[index_b]) return (height[index_a] > height[index_b]);
@@ -391,6 +447,45 @@ bool HydrologyGenerator::Generate(const HydrologyParams & params,StringClass * e
 		}
 	}
 
+	/*
+	**	Section 9.4 coastline, decided before any channel or basin so the sea takes precedence
+	**	over both: a river reaching it ends at its mouth, and no basin forms inside it.  Seeds are
+	**	the non-cliff chunks lying below sea level at the edge of the playable interior -- the
+	**	field's own edge, or beside a cliff-band chunk.  A breadth-first flood (fixed neighbour
+	**	order, so deterministic) then takes every connected below-sea-level chunk.  A low hollow
+	**	cut off from the edge by higher ground stays dry: a basin's business, not the sea's.  With
+	**	the coastline off this set is empty and everything below is exactly what it always was.
+	*/
+	DynamicVectorClass<bool> sea;
+	for (int i = 0; i < total; i++) sea.Add(false);
+	if (params.GenerateCoastline) {
+		DynamicVectorClass<int> queue;
+		for (int i = 0; i < total; i++) {
+			if (cliff_band[i] || (height[i] >= params.SeaLevel)) continue;
+			int px = i % count_x, py = i / count_x;
+			bool at_edge = (px == 0) || (py == 0) || (px == count_x - 1) || (py == count_y - 1);
+			for (int d = 0; (d < 4) && !at_edge; d++) {
+				int nx = px + NEIGHBOR_DX[d], ny = py + NEIGHBOR_DY[d];
+				if ((nx >= 0) && (nx < count_x) && (ny >= 0) && (ny < count_y) && cliff_band[(ny * count_x) + nx]) {
+					at_edge = true;
+				}
+			}
+			if (at_edge) { queue.Add(i); sea[i] = true; }
+		}
+		for (int head = 0; head < queue.Count(); head++) {
+			int i = queue[head];
+			int px = i % count_x, py = i / count_x;
+			for (int d = 0; d < 4; d++) {
+				int nx = px + NEIGHBOR_DX[d], ny = py + NEIGHBOR_DY[d];
+				if ((nx < 0) || (nx >= count_x) || (ny < 0) || (ny >= count_y)) continue;
+				int n = (ny * count_x) + nx;
+				if (sea[n] || cliff_band[n] || (height[n] >= params.SeaLevel)) continue;
+				queue.Add(n);
+				sea[n] = true;
+			}
+		}
+	}
+
 	//
 	//	Steps 3-4: river/stream sources.  A channel-eligible chunk that nothing else channel-
 	//	eligible flows into is a headwater; sources are taken in accumulation-descending order,
@@ -433,7 +528,7 @@ bool HydrologyGenerator::Generate(const HydrologyParams & params,StringClass * e
 	for (int si = 0; (si < sources.Count()) && (river_count < params.MaxRiverCount); si++) {
 
 		int start = sources[si];
-		if (claimed[start]) continue;
+		if (claimed[start] || sea[start]) continue;
 
 		DynamicVectorClass<int> path;
 		path.Add(start);
@@ -445,6 +540,7 @@ bool HydrologyGenerator::Generate(const HydrologyParams & params,StringClass * e
 			int target = flow_target[cur];
 			if (target < 0) { ended_at_sink = true; break; }
 			if (claimed[target]) break;		// joins an already-built channel; stop, no duplicate coverage
+			if (sea[target]) break;				// Section 9.4 river mouth: the channel ends at the coast
 			path.Add(target);
 			claimed[target] = true;
 			cur = target;
@@ -549,12 +645,20 @@ bool HydrologyGenerator::Generate(const HydrologyParams & params,StringClass * e
 	//	river's own terminus.
 	//
 	for (int i = 0; i < total; i++) {
-		if (cliff_band[i] || claimed[i]) continue;
+		if (cliff_band[i] || claimed[i] || sea[i]) continue;
 		if (flow_target[i] >= 0) continue;
 		if (accumulation[i] < stream_threshold) continue;
 
 		Build_Basin_Feature(i % count_x,i / count_x,accumulation[i],params);
 		claimed[i] = true;
+	}
+
+	//	The coast itself, one area per sea chunk in index order.
+	for (int i = 0; i < total; i++) {
+		if (!sea[i]) continue;
+		if (Build_Coast_Feature(i % count_x,i / count_x,params)) {
+			claimed[i] = true;
+		}
 	}
 
 	//
@@ -667,6 +771,8 @@ int HydrologyGenerator::Check_Lake_Within_Basin(StringClass * report)
 	int faults = 0;
 	for (int i = 0; i < Features.Count(); i++) {
 		if (!Features[i].Enclosed) continue;
+		//	A coastal chunk is held at sea level by the sea it belongs to, not by its own rim.
+		if (Features[i].Type == HYDRO_FEATURE_COAST) continue;
 
 		const WaterAreaClass * area = WaterSystem::Find_Area(Features[i].Name.Peek_Buffer());
 		if (area == nullptr) continue;

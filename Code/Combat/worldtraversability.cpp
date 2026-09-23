@@ -38,6 +38,7 @@
 #include "bridgesystem.h"
 #include "bridgesection.h"
 #include "escarpment.h"
+#include "tunnelsystem.h"
 #include "heightfield.h"
 #include "watersystem.h"
 #include "worldterrainsystem.h"
@@ -411,6 +412,50 @@ void WorldTraversabilityGraph::Build_Crossing_Edges(const WorldMetricsStruct & m
 		}
 
 		Add_Edge(start_node,end_node,TRAVERSE_EDGE_BRIDGE,width,bridge->Get_ID());
+	}
+
+	/*
+	**	V2 Phase 10.  A tunnel joins the open ground at its two mouths the way a bridge joins its
+	**	two banks: one edge, if the body is a class the bore admits and fits its clearance.  The
+	**	mouth cells are searched outward a little for the same reason a bridge end is.
+	*/
+	for (int t = 0; t < TunnelSystem::Get_Tunnel_Count(); t++) {
+
+		const TunnelClass * tunnel = TunnelSystem::Peek_Tunnel(t);
+		if (tunnel == nullptr) {
+			continue;
+		}
+		if (_Loco == LOCOMOTION_FLYING) {
+			continue;
+		}
+		if ((_Loco != LOCOMOTION_INFANTRY) && !Tunnel_Class_Carries_Vehicles(tunnel->Class)) {
+			continue;
+		}
+		if (!Crossing_Carries(tunnel->Clearance.Get_Bore_Width(),tunnel->Clearance.Get_Bore_Height(),metrics)) {
+			continue;
+		}
+
+		int mouth_node[2] = { -1, -1 };
+		const Vector3 * mouth[2] = { &tunnel->Start, &tunnel->End };
+		int reach = (int)(snap / _CellSize);
+		if (reach < 1) { reach = 1; }
+		for (int m = 0; m < 2; m++) {
+			mouth_node[m] = Find_Node(*mouth[m]);
+			if (mouth_node[m] >= 0) continue;
+			int gx = (int)((mouth[m]->X - _Origin.X) / _CellSize);
+			int gy = (int)((mouth[m]->Y - _Origin.Y) / _CellSize);
+			for (int dy = -reach; (dy <= reach) && (mouth_node[m] < 0); dy++) {
+				for (int dx = -reach; (dx <= reach) && (mouth_node[m] < 0); dx++) {
+					mouth_node[m] = Node_At(gx + dx,gy + dy);
+				}
+			}
+		}
+
+		if ((mouth_node[0] < 0) || (mouth_node[1] < 0) || (mouth_node[0] == mouth_node[1])) {
+			continue;
+		}
+
+		Add_Edge(mouth_node[0],mouth_node[1],TRAVERSE_EDGE_TUNNEL,tunnel->Clearance.Get_Bore_Width(),tunnel->Get_ID());
 	}
 }
 

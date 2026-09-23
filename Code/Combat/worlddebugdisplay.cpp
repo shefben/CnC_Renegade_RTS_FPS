@@ -46,6 +46,7 @@
 #include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
 #include "tacticalintelligence.h"
+#include "tunnelsystem.h"
 #include "watersystem.h"
 #include "watertype.h"
 #include "worldshroudmanager.h"
@@ -433,7 +434,9 @@ static void	Draw_Hydrology(void)
 		const WaterAreaClass * area = WaterSystem::Find_Area (feature.Name.Peek_Buffer ());
 		if (area != nullptr) {
 
+			static const Vector4	COAST_COLOR (0.05f,0.25f,0.6f,0.85f);
 			const Vector4 & color =
+				(feature.Type == HYDRO_FEATURE_COAST) ? COAST_COLOR :
 				feature.Enclosed ? ((feature.Type == HYDRO_FEATURE_LAKE) ? LAKE_COLOR : POND_COLOR)
 										: ((feature.Type == HYDRO_FEATURE_RIVER) ? RIVER_COLOR : STREAM_COLOR);
 
@@ -451,6 +454,54 @@ static void	Draw_Hydrology(void)
 				(feature.Crossings[c].Kind == HYDRO_CROSSING_ROUTE_AROUND) ? ROUTE_AROUND_COLOR :
 				(feature.Crossings[c].Kind == HYDRO_CROSSING_FORD) ? FORD_COLOR : BRIDGE_COLOR;
 			DebugRenderSystem::Add_Cross (feature.Crossings[c].Position,4.0f,color);
+		}
+	}
+}
+
+
+/***********************************************************************************************
+ * Draw_Tunnels -- V2 roadmap Section 34 Phase 10 step 15                                        *
+ *                                                                                             *
+ *	Each bore's floor outline and roof line, a cross at both mouths, a riser at each portal        *
+ *	station (where cover begins), and a small cross at every light anchor.  Vehicle-rated bores     *
+ *	and infantry-only bores are coloured apart, because which one the AI may use is the question    *
+ *	this layer most often has to answer.                                                             *
+ *=============================================================================================*/
+static void	Draw_Tunnels(void)
+{
+	static const Vector4	VEHICLE_COLOR		(0.2f,0.8f,1.0f,0.9f);
+	static const Vector4	INFANTRY_COLOR		(0.9f,0.8f,0.2f,0.9f);
+	static const Vector4	MOUTH_COLOR			(1.0f,1.0f,1.0f,1.0f);
+	static const Vector4	PORTAL_COLOR		(1.0f,0.3f,0.3f,1.0f);
+	static const Vector4	LIGHT_COLOR			(1.0f,0.9f,0.6f,0.8f);
+
+	for (int i = 0; i < TunnelSystem::Get_Tunnel_Count (); i++) {
+
+		const TunnelClass * t = TunnelSystem::Peek_Tunnel (i);
+		if (t == nullptr) continue;
+
+		const Vector4 & color = Tunnel_Class_Carries_Vehicles (t->Class) ? VEHICLE_COLOR : INFANTRY_COLOR;
+		Vector3 axis = t->Get_Plan_Axis ();
+		float half = t->Clearance.Get_Bore_Width () * 0.5f;
+		float height = t->Clearance.Get_Bore_Height ();
+		Vector3 side (-axis.Y * half,axis.X * half,0.0f);
+		Vector3 up (0.0f,0.0f,height);
+
+		DebugRenderSystem::Add_Line (t->Start + side,t->End + side,color);
+		DebugRenderSystem::Add_Line (t->Start - side,t->End - side,color);
+		DebugRenderSystem::Add_Line (t->Start + up,t->End + up,color);
+		DebugRenderSystem::Add_Cross (t->Start,3.0f,MOUTH_COLOR);
+		DebugRenderSystem::Add_Cross (t->End,3.0f,MOUTH_COLOR);
+
+		float stations[2] = { t->PortalStationA,t->PortalStationB };
+		for (int s = 0; s < 2; s++) {
+			Vector3 p (t->Start.X + axis.X * stations[s],t->Start.Y + axis.Y * stations[s],
+						  t->Get_Floor_Height_At (stations[s]));
+			DebugRenderSystem::Add_Line (p,p + up,PORTAL_COLOR);
+		}
+
+		for (int l = 0; l < t->LightAnchors.Count (); l++) {
+			DebugRenderSystem::Add_Cross (t->LightAnchors[l],1.0f,LIGHT_COLOR);
 		}
 	}
 }
@@ -508,6 +559,10 @@ void WorldDebugDisplay::Update(void)
 
 	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_HYDROLOGY)) {
 		Draw_Hydrology();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_TUNNELS)) {
+		Draw_Tunnels();
 	}
 
 	//	Every other layer is enumerated and toggleable (DebugRenderSystem::Is_Layer_Enabled

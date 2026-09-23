@@ -40,8 +40,7 @@
  *	(`TERRAIN_MASK_ROAD`, `WaterSystem::Is_Point_In_Water`, `TerrainChunkInfoClass::CliffBand`).                 *
  *	Markers name real, already-resolved objects (`BaseSelectionPlanner`, `TiberiumFieldGenerator`,               *
  *	`SettlementGenerator`, `BridgePlanner`) by the same stable ids their own owners already assign.               *
- *	Tunnel portals, named in step 12's own list, are not produced -- no tunnel system exists                      *
- *	anywhere in this tree (Phase 16's own recon; see docs/procedural_world/FinalWorldIntegration.md).             *
+ *	Tunnel portals (step 12's own list) are one marker per mouth of every accepted bore (V2 Phase 10).            *
  *                                                                                             *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
@@ -68,6 +67,7 @@ enum MinimapMarkerType
 	MINIMAP_MARKER_POI,
 	MINIMAP_MARKER_TIBERIUM_FIELD,
 	MINIMAP_MARKER_BRIDGE,
+	MINIMAP_MARKER_TUNNEL_PORTAL,
 	MINIMAP_MARKER_TYPE_COUNT
 };
 

@@ -175,6 +175,24 @@ public:
 	static int			Get_Patch_Count_Y(void);
 
 	/*
+	**	V2 Phase 10.  Heightfield holes: stock Renegade's QF_HIDDEN quad flag, held per field
+	**	cell here and copied into each patch model on fill, so a tunnel portal can open the
+	**	ground.  A hole neither collides nor draws.  The analytic Sample_Height/Ray_Intersect_
+	**	Terrain queries deliberately still describe the surface -- that surface is what every
+	**	generator reads -- so only physics and rendering see the opening.  Setting or clearing a
+	**	hole dirties the patch it sits in; Update_Collision refills and re-dresses it.
+	*/
+	static int			Get_Cell_Count_X(void);
+	static int			Get_Cell_Count_Y(void);
+	static bool			World_To_Cell(float x,float y,int * cell_x_out,int * cell_y_out);
+	static bool			Get_Cell_Center(int cell_x,int cell_y,Vector3 * center_out);
+	static bool			Get_Cell_Height_Range(int cell_x,int cell_y,float * min_out,float * max_out);
+	static bool			Set_Cell_Hole(int cell_x,int cell_y,bool hole);
+	static bool			Is_Cell_Hole(int cell_x,int cell_y);
+	static void			Clear_Cell_Holes(void);
+	static int			Get_Cell_Hole_Count(void)	{ return CellHoleCount; }
+
+	/*
 	**	Shaping the ground.  ModifyHeightRegion is the primitive; a road grade and a river cut
 	**	are polylines walked with it, which is why they are here rather than in the road and
 	**	water systems -- the ground has one owner, and they ask it to change.
@@ -415,6 +433,8 @@ private:
 	static void			Fold_Dirty_Patches_Into_Far_Blocks(void);
 
 	static HeightfieldClass *	Heightfield;
+	static unsigned char *		CellHoles;
+	static int						CellHoleCount;
 	static bool						ReportedNoCollision;
 	static bool						ReportedNoFarTerrain;
 

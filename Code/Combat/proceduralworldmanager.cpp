@@ -50,6 +50,8 @@
 #include "settlementgenerator.h"
 #include "strategicplanner.h"
 #include "tiberiumfieldgenerator.h"
+#include "tunnelplanner.h"
+#include "worldmetrics.h"
 #include "transportationnetworkvalidator.h"
 #include "proceduralboundsbuilder.h"
 #include "phys.h"
@@ -509,6 +511,9 @@ bool ProceduralWorldManager::Build_Hydrology(const ProceduralWorldProfile & prof
 	params.StreamWidth					= profile.Water.StreamWidth;
 	params.RiverAccumulationChunks	= profile.Water.RiverAccumulationChunks;
 	params.MaxRiverCount					= profile.Water.MaxRiverCount;
+	//	water.coastline has been parsed since schema 1 and is consumed from generator 7 on.
+	params.GenerateCoastline			= profile.Water.Coastline;
+	params.SeaLevel						= profile.World.SeaLevel;
 
 	return HydrologyGenerator::Generate (params,error_out);
 }
@@ -552,6 +557,94 @@ bool ProceduralWorldManager::Build_Bridge_Plan(const ProceduralWorldProfile & pr
 													profile.Seed,WorldSeedService::SEED_DOMAIN_BRIDGES);
 
 	return BridgePlanner::Generate (params,error_out);
+}
+
+
+/***********************************************************************************************
+ * Build_Tunnel_Plan -- roadmap Section 34 Phase 10                                              *
+ *                                                                                             *
+ *	Section 12A.1's class envelopes, sized from WorldMetricsClass (the loaded definitions' own    *
+ *	measured bodies) and the profile's own lane clearance -- nothing is guessed.  A class whose     *
+ *	locomotion metrics did not resolve is left invalid, and TunnelPlanner refuses its candidates    *
+ *	with "no_clearance_data" rather than building a bore to an invented size.                        *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Tunnel_Plan(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	if (!profile.Features.Tunnels) {
+		return true;		// an explicit opt-out is not a failure
+	}
+
+	TunnelPlannerParams params;
+	params.Seed							= WorldSeedService::Derive_Subsystem_Seed (
+													profile.Seed,WorldSeedService::SEED_DOMAIN_TUNNELS);
+	params.BaseProtectedRadius		= WWMath::Sqrt (profile.Fairness.MinBaseExpansionArea / WWMATH_PI);
+	params.MaxRepositionAttempts	= profile.Retry.MaxAlternateCandidatesPerFeature;
+
+	float max_buildable = (float)DEG_TO_RAD (profile.Terrain.MaxBuildableSlopeDegrees);
+	float lane = profile.Fairness.MinVehicleLaneClearance;
+
+	WorldMetricsStruct infantry;
+	bool has_infantry = WorldMetricsClass::Get_Class_Metrics (LOCOMOTION_INFANTRY,&infantry);
+
+	WorldMetricsStruct wheeled, tracked;
+	bool has_wheeled = WorldMetricsClass::Get_Class_Metrics (LOCOMOTION_WHEELED,&wheeled);
+	bool has_tracked = WorldMetricsClass::Get_Class_Metrics (LOCOMOTION_TRACKED,&tracked);
+
+	if (has_infantry) {
+		//	Two abreast is the passing/fighting clearance 12A.1 asks for; a body's own radius
+		//	either side is the lateral safety, its own step the vertical one.
+		TunnelClearanceClass c;
+		c.InternalWidth		= 2.0f * infantry.CorridorWidth;
+		c.InternalHeight		= infantry.OverheadClearance;
+		c.LateralSafety		= infantry.CollisionRadius;
+		c.VerticalSafety		= infantry.StepHeight;
+		c.MaxGradeRadians		= WWMath::Min (infantry.MaxClimbableSlope,max_buildable);
+		c.MinPortalStraight	= 2.0f * infantry.CorridorWidth;
+		params.ClassClearance[TUNNEL_CLASS_INFANTRY_ONLY]	= c;
+		params.ClassClearance[TUNNEL_CLASS_CAVE_SHORTCUT]	= c;
+	}
+
+	if (has_wheeled || has_tracked) {
+		//	The widest and tallest loaded ground vehicle, the lane clearance the profile states,
+		//	and the gentlest of their climb limits.
+		TunnelClearanceClass c;
+		float grade = max_buildable;
+		if (has_wheeled) {
+			c.InternalWidth	= WWMath::Max (c.InternalWidth,wheeled.CorridorWidth);
+			c.InternalHeight	= WWMath::Max (c.InternalHeight,wheeled.OverheadClearance);
+			grade					= WWMath::Min (grade,wheeled.MaxClimbableSlope);
+			if (wheeled.HasTurningRadius) c.MinBendRadius = WWMath::Max (c.MinBendRadius,wheeled.TurningRadius);
+		}
+		if (has_tracked) {
+			c.InternalWidth	= WWMath::Max (c.InternalWidth,tracked.CorridorWidth);
+			c.InternalHeight	= WWMath::Max (c.InternalHeight,tracked.OverheadClearance);
+			grade					= WWMath::Min (grade,tracked.MaxClimbableSlope);
+			if (tracked.HasTurningRadius) c.MinBendRadius = WWMath::Max (c.MinBendRadius,tracked.TurningRadius);
+		}
+		c.LateralSafety		= lane;
+		c.VerticalSafety		= lane;
+		c.MaxGradeRadians		= grade;
+		c.MinPortalStraight	= WWMath::Max (c.MinBendRadius,c.InternalWidth);
+		params.ClassClearance[TUNNEL_CLASS_VEHICLE]		= c;
+		params.ClassClearance[TUNNEL_CLASS_UNDERPASS]	= c;
+
+		if (has_infantry) {
+			//	The vehicle envelope plus an explicit infantry lane beside it.
+			TunnelClearanceClass m = c;
+			m.InternalWidth		= c.InternalWidth + infantry.CorridorWidth;
+			m.InternalHeight		= WWMath::Max (c.InternalHeight,infantry.OverheadClearance);
+			m.MaxGradeRadians		= WWMath::Min (c.MaxGradeRadians,infantry.MaxClimbableSlope);
+			params.ClassClearance[TUNNEL_CLASS_MIXED] = m;
+		}
+	}
+
+	if (!has_infantry || (!has_wheeled && !has_tracked)) {
+		WWDEBUG_SAY (("ProceduralWorldManager: tunnel clearance -- infantry metrics %s, vehicle metrics %s; "
+						  "classes without metrics are refused, not guessed\r\n",
+						  has_infantry ? "resolved" : "MISSING",(has_wheeled || has_tracked) ? "resolved" : "MISSING"));
+	}
+
+	return TunnelPlanner::Generate (params,error_out);
 }
 
 
@@ -945,6 +1038,18 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 		}
 	}
 
+	//	Tunnels, Phase 10.  After the bridge plan, whose unresolved crossings are one of its two
+	//	candidate sources; the other (cliff bypasses) needs only the strategic plan and terrain.
+	bool tunnel_plan_built = false;
+	StringClass tunnel_plan_error;
+	if (terrain_built) {
+		tunnel_plan_built = Build_Tunnel_Plan (profile,&tunnel_plan_error);
+		if (!tunnel_plan_built) {
+			WWDEBUG_SAY (("ProceduralWorldManager: tunnel plan failed (%s); the bridge plan itself is unaffected\r\n",
+							  tunnel_plan_error.Peek_Buffer ()));
+		}
+	}
+
 	//	Base selection, Phase 11.  Needs the road graph and the bridge plan -- Phase 11's own
 	//	purpose line: choose bases only once roads, bridges and terrain constraints are known.
 	bool base_selection_built = false;
@@ -1146,6 +1251,17 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 		}
 	}
 
+	//	Phase 10 -- the candidates a real tunnel was built for, the same "real object, not a
+	//	candidate" standard the bridge list above holds to.
+	if (tunnel_plan_built) {
+		for (int i = 0; i < TunnelPlanner::Get_Tunnel_Count (); i++) {
+			ResolvedTunnel tunnel;
+			if (TunnelPlanner::Get_Tunnel (i,&tunnel)) {
+				Manifest.SelectedTunnelCandidateIds.Add (tunnel.CandidateId);
+			}
+		}
+	}
+
 	//	Phase 16 step 8.  0 until navigation is built; the field's own pre-existing comment
 	//	("0 until Phase 16 exists") is finally answered.
 	Manifest.NavigationRevision = navigation_built ? NavMeshGenerator::Get_Revision () : 0;
@@ -1225,6 +1341,12 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 					  bridge_plan_built ? "built" : (road_graph_built ? "NOT BUILT" : "skipped (no road graph)"),
 					  BridgePlanner::Get_Bridge_Count (),
 					  BridgePlanner::Get_Checksum ()));
+	WWDEBUG_SAY (("ProceduralWorldManager: tunnel plan %s -- %d tunnel(s) of %d candidate(s), %d cell(s) opened, checksum 0x%08X\r\n",
+					  tunnel_plan_built ? "built" : (terrain_built ? "NOT BUILT" : "skipped (no terrain)"),
+					  TunnelPlanner::Get_Tunnel_Count (),
+					  TunnelPlanner::Get_Diagnostic_Count (),
+					  TunnelSystem::Get_Opened_Cell_Count (),
+					  TunnelPlanner::Get_Checksum ()));
 	WWDEBUG_SAY (("ProceduralWorldManager: base selection %s -- %d pair(s) rejected, %d repair(s), checksum 0x%08X\r\n",
 					  (base_selection_built && BaseSelectionPlanner::Has_Selection ()) ? "built" :
 						 (bridge_plan_built ? "NOT BUILT" : "skipped (no bridge plan)"),
@@ -1319,6 +1441,7 @@ void ProceduralWorldManager::Destroy_World(void)
 	ProceduralAssetRegistry::Shutdown ();
 	TiberiumFieldGenerator::Clear ();
 	BaseSelectionPlanner::Clear ();
+	TunnelPlanner::Clear ();
 	BridgePlanner::Clear ();
 	RoadGraphGenerator::Clear ();
 	StrategicPlanner::Clear ();

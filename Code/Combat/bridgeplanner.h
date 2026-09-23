@@ -114,9 +114,8 @@ const char *	Crossing_Failure_Reason_Name(CrossingFailureReasonType reason);
 
 /*
 **	Which fallback stage actually resolved a crossing -- gap report item 5's own numbered list.
-**	Stage 3 (alternate crossing type) is named for completeness even though no resolution can
-**	ever report it today; see bridgeplanner.cpp's own comment on why no tunnel system exists
-**	yet to fall back to.
+**	Stage 3 (alternate crossing type) is never reported here: an unresolved crossing becomes a
+**	TunnelPlanner candidate after this plan completes (V2 Phase 10), with its own diagnostics.
 */
 enum CrossingFallbackStageType
 {

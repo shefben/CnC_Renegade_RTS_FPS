@@ -4350,3 +4350,63 @@ general (non-crater) world-operation rate limit are real, disclosed, unbuilt gap
 
 **Regression status:** full suite 193 tests, 24 failing -- same as before this phase, zero
 regressions; the two new tests both pass.
+
+## V2 Phase 10 (roadmap proper) -- tunnels, caves, underpasses and portal integration (Sections 12, 12A)
+
+The entry above headed "V2 Phase 10" was gap-closure work done under that number: fitted-world
+terrain, the road/bridge handoff, transportation validation. The roadmap's own Phase 10 (tunnels)
+was never built. Every consumer said so: bridge stage 3, placement's tunnel exclusion, nav steps
+7/12, the minimap. It is built now.
+
+- **Owners.** `TunnelSystem` (wwphys) owns tunnel data, the socket-joined module chain, geometry
+  and headwalls, lights, portal cuts and interior bounds. `TunnelPlanner` (Combat) owns the
+  decisions: candidates, class sizing from `WorldMetricsClass` plus the profile, legality, bounded
+  retries, the road split.
+- **Terrain holes.** Stock `QF_HIDDEN` holes via `WorldTerrainSystem::Set_Cell_Hole`. The three
+  patch collision paths that ignored the flag now honour it.
+- **Cliff cuts.** `EscarpmentSystem::Add_Portal_Cut`.
+- **Nav and traversability.** An interior sector plus entrance and exit portals in
+  `NavMeshGenerator`; `TRAVERSE_EDGE_TUNNEL` in `WorldTraversabilityGraph`.
+- **Other consumers.**
+  - `debug_layer tunnels`;
+  - minimap portal markers;
+  - the `tunnel_status` console command;
+  - `SelectedTunnelCandidateIds` in the manifest;
+  - real footprint exclusions for Commander placement, world operations, settlements and
+    decoration.
+- **Validation.** `terrain_tunnels`/`fds_terrain_tunnels` pass.
+- **Docs.** `docs/procedural_world/RoadsBridgesTunnels.md` and `docs/assets/TunnelModules.md`.
+  Underpass and strategic-alternate candidate sources produce nothing, which is disclosed there.
+
+## V2 Phase 30 -- final cleanup, documentation, provenance, state reconciliation
+
+- **Section 38 gaps closed.**
+  - Street lamps (item 20): `ow_street_lamp`, `BiomeDecorationGenerator::Place_Street_Lamps`.
+  - Coastlines (item 18): `water.coastline` consumed, with river mouths.
+  - Both covered by `terrain_biomedecoration` and the new `terrain_coastline`.
+- **Generator 6 → 7** for tunnels, coast and lamps.
+- **Profile compatibility fixed.** Strict schema equality had contradicted the header's own
+  documented rule. Schemas 1..8 now load, a newer schema is refused, and a generator other than 7
+  is refused (asserted in `shader_worldprofile`).
+- **New `procedural_world request|clear|status` console command.** Earlier docs had named it
+  without it existing, and it is the dedicated server's request path.
+- **Docs.**
+  - New: `Architecture.md`, `GenerationPipeline.md`, `NetworkingAndPersistence.md` (final version
+    table and compatibility rules), `V2Completion.md` (Section 38 item by item).
+  - The Section 33 crosswalk is in `docs/RequiredDocumentationIndex.md`.
+- **Regression failures 24 → 4.**
+  - Real engine fixes:
+    - shroud: a sensor now always sees its own cell;
+    - hydrology: the sea decides coastal precedence.
+  - Test corrections:
+    - hydrology determinism now restores its terrain;
+    - macro terrain uses a per-vertex cliff-band check and asserts steep chunks are never
+      buildable;
+    - bridge debris matches the post-P25 default definitions;
+    - construction fixtures gained their missing preset;
+    - production checks for parallel queues;
+    - guardai stands inside its leash;
+    - debugrender draws in front of the camera.
+  - Still failing, with root causes in `V2Completion.md`: `shader_commandermode` (a sentinel
+    pointer is dereferenced since P42) and `shader_visualsettings` (needs a D3D device), each with
+    its `fds_` twin.

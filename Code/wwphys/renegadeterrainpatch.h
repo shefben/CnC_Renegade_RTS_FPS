@@ -100,6 +100,10 @@ public:
 	//
 	void					Set_Quad_Flags (int quad_index, uint8 flags)		{ QuadFlags[quad_index] = flags; }
 
+	//	Stock QF_HIDDEN: a quad that neither draws nor collides (a hole in the heightfield).
+	void					Set_Quad_Hidden (int quad_index, bool hidden)	{ if (hidden) QuadFlags[quad_index] |= QF_HIDDEN; else QuadFlags[quad_index] &= ~QF_HIDDEN; AreBuffersDirty = true; }
+	bool					Is_Quad_Hidden (int quad_index) const				{ return (QuadFlags != nullptr) && ((QuadFlags[quad_index] & QF_HIDDEN) != 0); }
+
 	//
 	//	UV access
 	//
@@ -256,6 +260,10 @@ RenegadeTerrainPatchClass::Collide_Quad
 )
 {
 	bool retval = false;
+
+	if (QuadFlags[cell_y * (GridPointsX - 1) + cell_x] & QF_HIDDEN) {
+		return false;
+	}
 
 	//
 	//	Calculate the four indices into the grid that define the four

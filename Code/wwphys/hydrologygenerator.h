@@ -83,6 +83,7 @@ enum HydrologyFeatureType
 	HYDRO_FEATURE_STREAM,
 	HYDRO_FEATURE_LAKE,
 	HYDRO_FEATURE_POND,
+	HYDRO_FEATURE_COAST,			// Section 9.4: coastal water inside the cliff ring, one per coastal chunk
 	HYDRO_FEATURE_TYPE_COUNT
 };
 
@@ -166,6 +167,13 @@ struct HydrologyParams
 	float	StreamWidth;					// world units, > 0, <= RiverWidth -- width at a channel's own source
 	float	RiverAccumulationChunks;	// > 0 -- chunks of drainage before a channel counts as a river
 	int	MaxRiverCount;					// > 0 -- bounded count of distinct channel systems
+
+	//	Section 9.4.  Coastal water: every chunk whose ground lies below SeaLevel and connects,
+	//	through other such chunks, to the edge of the playable interior -- the cliff band, or the
+	//	edge of the field with no boundary -- is flooded to SeaLevel.  Inside the cliff ring by
+	//	construction (cliff-band chunks are never flooded), so it never replaces the ring.
+	bool	GenerateCoastline;
+	float	SeaLevel;						// world units -- the profile's own world.sea_level
 };
 
 
@@ -209,6 +217,7 @@ private:
 	//	Shared by the standalone basin pass and a river's own Section-5.9 terminal pond -- both
 	//	go through one place that decides lake-vs-pond and one place that calls WaterSystem.
 	static bool			Build_Basin_Feature(int px,int py,float accumulation,const HydrologyParams & params);
+	static bool			Build_Coast_Feature(int px,int py,const HydrologyParams & params);
 
 	static bool			Built;
 	static unsigned int	Checksum;

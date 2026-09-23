@@ -264,6 +264,20 @@ void FoliageSystem::Define_Default_Foliage(void)
 		Define_Type(type);
 	}
 
+	//	V2 Section 10.6: a street lamp.  A thin pole that stops a soldier and a vehicle, and that a
+	//	vehicle can knock down; never scaled, because lamp posts are one height.
+	{
+		FoliageTypeClass type;
+		type.Set_Name("ow_street_lamp");
+		type.Set_Category(FOLIAGE_STREET_PROP);
+		type.Set_Blocking(FOLIAGE_BLOCKS_INFANTRY | FOLIAGE_BLOCKS_VEHICLES);
+		type.Set_Destructible(true,60.0f);
+		type.Set_Proxy(0.15f,6.0f);
+		type.Set_Distances(80.0f,400.0f);
+		type.Set_Scale_Range(1.0f,1.0f);
+		Define_Type(type);
+	}
+
 	return ;
 }
 

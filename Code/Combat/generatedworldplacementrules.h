@@ -49,12 +49,8 @@
  *	no generator agreed to is a rule that will disagree with the world the first time a profile           *
  *	changes.                                                                                                *
  *                                                                                             *
- *	The tunnel exclusion is real but thin, and deliberately so.  No tunnel system exists anywhere      *
- *	in this tree (`bridgeplanner.cpp` says the same thing about its own stage-3 fallback, and         *
- *	Phase 16's steps 7/12 are unimplemented for the same reason), so there is no portal geometry     *
- *	and no interior volume to test against.  What does exist is the strategic plan's own             *
- *	`STRATEGIC_NODE_TUNNEL_CANDIDATE` positions, so that is what is excluded: the ground a          *
- *	tunnel mouth was planned on, not a tunnel.  When a tunnel system arrives it owns this test.        *
+ *	The tunnel exclusion is TunnelSystem::Overlaps_Footprint (V2 Phase 10): the mouths, the opened      *
+ *	approaches and the covered bore of every accepted tunnel, measured against the real geometry.       *
  *                                                                                             *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 

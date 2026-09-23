@@ -74,6 +74,9 @@
 #include "commanderai.h"
 #include "persistentcampaign.h"
 #include "proceduralworldtools.h"
+#include "tunnelplanner.h"
+#include "proceduralworldmanager.h"
+#include "escarpment.h"
 #include "commandervotecastevent.h"
 #include "commandertransferevent.h"
 
@@ -2807,6 +2810,103 @@ public:
 		}
 
 		Print( "%s\n",Get_Help() );
+	}
+};
+
+
+class ProceduralWorldConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "procedural_world"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "PROCEDURAL_WORLD <request [seed] [profile_path]|clear|status> - ask for the next level load "
+				 "to build a procedural world over itself (seed 0 = choose one; no path = the shipped "
+				 "default profile), drop that request, or report the request/active world.";
+	}
+	virtual	void Activate( const char * input ) override
+	{
+		char verb [32] = { 0 };
+		int parsed_verb = ( input != nullptr ) ? ::sscanf( input,"%31s",verb ) : 0;
+		if ( parsed_verb < 1 ) {
+			Print( "%s\n",Get_Help() );
+			return;
+		}
+
+		if ( ::_stricmp( verb,"request" ) == 0 ) {
+			unsigned int seed = 0;
+			char path [256] = { 0 };
+			int parsed = ::sscanf( input,"%*s %u %255s",&seed,path );
+			StringClass error;
+			if ( ProceduralWorldManager::Request_World( seed,( parsed >= 2 ) ? path : nullptr,&error ) ) {
+				Print( "procedural_world: requested (seed %u, profile '%s'); the next level load builds it.\n",
+						 seed,( parsed >= 2 ) ? path : ProceduralWorldManager::DEFAULT_PROFILE_PATH );
+			} else {
+				Print( "procedural_world: refused -- %s\n",(const char *)error );
+			}
+			return;
+		}
+
+		if ( ::_stricmp( verb,"clear" ) == 0 ) {
+			ProceduralWorldManager::Clear_Request();
+			Print( "procedural_world: request dropped; the next level load is an ordinary one.\n" );
+			return;
+		}
+
+		if ( ::_stricmp( verb,"status" ) == 0 ) {
+			Print( "procedural_world: %s, %s\n",
+					 ProceduralWorldManager::Is_Requested() ? "a request is pending" : "no request pending",
+					 ProceduralWorldManager::Is_World_Active() ? "a generated world is active" : "no generated world active" );
+			if ( ProceduralWorldManager::Is_World_Active() ) {
+				Print( "procedural_world: %s\n",(const char *)ProceduralWorldToolsService::Get_Reproduction_String() );
+			}
+			return;
+		}
+
+		Print( "%s\n",Get_Help() );
+	}
+};
+
+
+class TunnelStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "tunnel_status"; }
+	virtual	const char * Get_Help( void ) override
+	{
+		return "TUNNEL_STATUS - V2 Phase 10: every accepted tunnel (class, portals, clearance, modules, "
+				 "nav links), every candidate outcome, opened ground cells and geometry counts.";
+	}
+	virtual	void Activate( const char * ) override
+	{
+		Print( "tunnel_status: %d tunnel(s), %d candidate(s), %d cell(s) opened, %d cliff cut(s), "
+				 "%d piece(s), %d light(s), %d missing model(s), checksum 0x%08X\n",
+				 TunnelSystem::Get_Tunnel_Count(),TunnelPlanner::Get_Diagnostic_Count(),
+				 TunnelSystem::Get_Opened_Cell_Count(),EscarpmentSystem::Get_Portal_Cut_Count(),
+				 TunnelSystem::Get_Piece_Count(),TunnelSystem::Get_Light_Count(),
+				 TunnelSystem::Get_Missing_Model_Count(),TunnelPlanner::Get_Checksum() );
+
+		for ( int i = 0; i < TunnelPlanner::Get_Tunnel_Count(); i++ ) {
+			ResolvedTunnel resolved;
+			if ( !TunnelPlanner::Get_Tunnel( i,&resolved ) ) continue;
+			const TunnelClass * t = TunnelSystem::Find_Tunnel( resolved.TunnelId );
+			if ( t == nullptr ) continue;
+			Print( "  %s [%s, %s] (%.1f,%.1f,%.1f)->(%.1f,%.1f,%.1f) bore %.2fx%.2f grade %.1fdeg "
+					 "%d module(s) road '%s'%s nav %s\n",
+					 resolved.Id.Peek_Buffer(),Tunnel_Class_Name( t->Class ),Tunnel_Source_Name( resolved.Source ),
+					 t->Start.X,t->Start.Y,t->Start.Z,t->End.X,t->End.Y,t->End.Z,
+					 t->Clearance.Get_Bore_Width(),t->Clearance.Get_Bore_Height(),
+					 RAD_TO_DEGF( t->Get_Grade_Radians() ),t->Modules.Count(),
+					 resolved.RoadEdgeId.Peek_Buffer(),resolved.RoadSplit ? " split" : "",
+					 resolved.NavLinked ? "linked" : "NOT linked" );
+		}
+		for ( int i = 0; i < TunnelPlanner::Get_Diagnostic_Count(); i++ ) {
+			TunnelResolutionRecord rec;
+			if ( !TunnelPlanner::Get_Diagnostic( i,&rec ) || rec.Resolved ) continue;
+			Print( "  candidate '%s' (%s) refused after %d attempt(s): %s\n",
+					 rec.CandidateId.Peek_Buffer(),Tunnel_Source_Name( rec.Source ),rec.AttemptsMade,
+					 Tunnel_Failure_Reason_Name( rec.FinalFailureReason ) );
+		}
 	}
 };
 
@@ -8025,6 +8125,8 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new CommanderAIConsoleFunctionClass() );
 	FunctionList.Add( new CampaignConsoleFunctionClass() );
 	FunctionList.Add( new WorldToolsConsoleFunctionClass() );
+	FunctionList.Add( new TunnelStatusConsoleFunctionClass() );
+	FunctionList.Add( new ProceduralWorldConsoleFunctionClass() );
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );

@@ -28,6 +28,14 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  fourteen:
  `ctest -C Debug -R "shader_weather|shader_particles|shader_tracers|shader_debris|shader_attachments|terrain_shroud|shader_radar|shader_overlays|shader_guardai|shader_telemetry|shader_debugrender|shader_buildingjson|shader_powergrid|shader_commandermode" --output-on-failure`
  from `build/win32`.
+ **Automated half answered at V2 close (2026-09-23).** Every check listed here now runs in the
+ full suite: 197 entries, 193 passing, `fds_shader_particles` included. `terrain_shroud`,
+ `shader_overlays`, `shader_guardai`, `shader_debugrender` and `shader_powergrid` failed on their
+ first real runs; each was diagnosed and fixed (see `completed_features.md`, V2 Phase 30). Only
+ `shader_commandermode` (a sentinel pointer the engine has dereferenced since P42) and
+ `shader_visualsettings` (needs a D3D device) still fail; root causes are in
+ `docs/procedural_world/V2Completion.md`. What follows -- the in-game checks no automated run can
+ close -- is still open.
  If `fds_shader_particles` still fails, the abort is in `WorldParticleManager` teardown rather
  than the check. Not blocking any other work, but thirteen phases are now resting on checks
  nobody has executed. Several gaps no automated check can close, all needing a person in game:

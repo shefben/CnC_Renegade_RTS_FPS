@@ -5,6 +5,16 @@ Detail lives in `docs/`.
 
 ---
 
+## V2 close -- everything built, the live half unverified
+
+All V2 roadmap phases (0-30) are built; `docs/procedural_world/V2Completion.md` walks Section 38's
+67 items. The rows marked "◐ live" are left, along with the Phase 28 multiplayer/late-join
+procedure and the Phase 29 soak measurement, none of which this environment can drive. **Next
+exact action:** run `renegade --gamedir "C:\Westwood\Renegade_full"`, click **Procedural
+Skirmish**, check `tunnel_status` and `debug_layer tunnels 1`, then walk and drive a tunnel, a
+street with lamps and the coast. Then follow `docs/integration/Phase28IntegrationGate.md`'s
+seven-step procedure.
+
 ## P08 -- one scope left, and a check only a person can run
 
 `PERMANENT`, `GAME_MODE` and `WORLD` all have callers now (see
@@ -805,9 +815,9 @@ fixed for real rather than recorded as a caveat. See
 - Sector granularity is the chunk registry's, not a per-cell physics floodfill's.
 - Naval navigation (step 6) skipped -- no canonical naval locomotor exists in this tree, which
   that step's own "only where canonical support exists" wording allows.
-- Tunnel portals and building-interior transitions (steps 7, 12) not produced -- no tunnel
-  system exists anywhere in this tree, and no building in this asset pool has an interior
-  (Phase 13's own connector-metadata gap).
+- Tunnel portals (steps 7, 12): produced since V2 Phase 10 proper (interior sector plus
+  entrance/exit portals; see `completed_features.md`). Building-interior transitions are still not
+  produced -- no building in this asset pool has an interior (Phase 13's own connector-metadata gap).
 - The minimap base layer has no renderer to consume it; none exists in this tree yet.
 - Step 9's per-chunk incomplete-nav guard reduces to step 15's whole-world barrier: there is no
   incremental nav rebuild here, so no partial state is ever observable.

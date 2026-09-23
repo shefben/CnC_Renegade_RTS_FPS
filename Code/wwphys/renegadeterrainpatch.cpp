@@ -939,6 +939,10 @@ RenegadeTerrainPatchClass::Cast_OBBox (OBBoxCollisionTestClass &boxtest)
 
 			int start_index = Grid_Index (x_pos, y_pos);
 
+			if (QuadFlags[y_pos * (GridPointsX - 1) + x_pos] & QF_HIDDEN) {
+				continue;
+			}
+
 			int v0_index = start_index;
 			int v1_index = start_index + 1;
 			int v2_index = start_index + GridPointsX + 1;
@@ -1151,6 +1155,10 @@ RenegadeTerrainPatchClass::Intersect_OBBox (OBBoxIntersectionTestClass &boxtest)
 		for (int x_pos = min_x; x_pos <= max_x; x_pos ++) {
 
 			int start_index = Grid_Index (x_pos, y_pos);
+
+			if (QuadFlags[y_pos * (GridPointsX - 1) + x_pos] & QF_HIDDEN) {
+				continue;
+			}
 
 			int v0_index = start_index;
 			int v1_index = start_index + 1;

@@ -45,9 +45,9 @@ Real `ow_`-prefixed settlement/decoration content is the open request this leave
 - **Step 1's conflict list**, via `Conflicts_With_Reserved_Ground`: `WorldBoundsService::
   Can_Place_In_Region` (boundary/cliff band, the one authoritative owner), both selected bases'
   own `BaseSelectionPlanner::ProtectedRadius` (Phase 11), and every resolved
-  `TiberiumFieldGenerator` field's own radius (Phase 12). Bridge approaches and tunnel portals are
-  not checked -- no tunnel system exists, and a bridge approach has no queryable region of its own
-  this generator would have to re-derive from `RoadSystem` geometry.
+  `TiberiumFieldGenerator` field's own radius (Phase 12), and every tunnel's footprint (V2 Phase 10,
+  `TunnelSystem::Overlaps_Footprint`). Bridge approaches are not checked -- a bridge approach has no
+  queryable region of its own this generator would have to re-derive from `RoadSystem` geometry.
 - **Step 2**, layout type: a deterministic hash draw (`TerrainMaskClass::Hash_Value`) over the six
   named `SettlementLayoutType` values, stored for real per settlement.
 - **Step 3**, road connectivity: `Nearest_Road_Distance` walks every already-tessellated

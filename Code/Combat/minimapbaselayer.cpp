@@ -36,6 +36,7 @@
 #include "terraintexturesystem.h"
 #include "terrainmask.h"
 #include "tiberiumfieldgenerator.h"
+#include "tunnelplanner.h"
 #include "watersystem.h"
 #include "worldterrainsystem.h"
 
@@ -51,6 +52,7 @@ const char * Minimap_Marker_Type_Name(MinimapMarkerType type)
 		case MINIMAP_MARKER_POI:					return "poi";
 		case MINIMAP_MARKER_TIBERIUM_FIELD:		return "tiberium_field";
 		case MINIMAP_MARKER_BRIDGE:				return "bridge";
+		case MINIMAP_MARKER_TUNNEL_PORTAL:		return "tunnel_portal";
 		default:											return "unknown";
 	}
 }
@@ -230,6 +232,20 @@ bool MinimapBaseLayer::Build(StringClass * error_out)
 		marker.Position	= node.Position;
 		marker.Radius		= 0.0f;
 		Markers.Add(marker);
+	}
+
+	//	Tunnel portals (real, resolved -- Phase 10), one per mouth, at the bore's own floor ends.
+	for (int i = 0; i < TunnelPlanner::Get_Tunnel_Count(); i++) {
+		ResolvedTunnel tunnel;
+		if (!TunnelPlanner::Get_Tunnel(i,&tunnel)) continue;
+		for (int m = 0; m < 2; m++) {
+			MinimapMarker marker;
+			marker.Id.Format("%s_%c",tunnel.Id.Peek_Buffer(),(m == 0) ? 'a' : 'b');
+			marker.Type			= MINIMAP_MARKER_TUNNEL_PORTAL;
+			marker.Position	= (m == 0) ? tunnel.PortalA : tunnel.PortalB;
+			marker.Radius		= 0.0f;
+			Markers.Add(marker);
+		}
 	}
 
 	{

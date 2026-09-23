@@ -23,6 +23,7 @@ const char * Foliage_Category_Name(int category)
 		case FOLIAGE_DEAD_TREE:				return "DEAD_TREE";
 		case FOLIAGE_GRASS_CLUMP:			return "GRASS_CLUMP";
 		case FOLIAGE_DECORATIVE_ROCK:		return "DECORATIVE_ROCK";
+		case FOLIAGE_STREET_PROP:			return "STREET_PROP";
 		default:									break;
 	}
 	return "UNKNOWN";

@@ -31,10 +31,15 @@
 #include "foliagesystem.h"
 #include "foliagetype.h"
 #include "playertype.h"
+#include "proceduralassetregistry.h"
+#include "roadspline.h"
+#include "roadsystem.h"
 #include "settlementgenerator.h"
 #include "terrainmask.h"
 #include "terraintexturesystem.h"
+#include "tunnelsystem.h"
 #include "watersystem.h"
+#include "worldboundsservice.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
 #include "wwmath.h"
@@ -46,6 +51,7 @@ unsigned int	BiomeDecorationGenerator::Checksum	= 0;
 int	BiomeDecorationGenerator::TreeCount			= 0;
 int	BiomeDecorationGenerator::RockCount			= 0;
 int	BiomeDecorationGenerator::ForestChunkCount	= 0;
+int	BiomeDecorationGenerator::StreetLampCount	= 0;
 
 
 static const float CHECKSUM_QUANTUM = 1000.0f;
@@ -64,8 +70,12 @@ static const int ROCKS_PER_CHUNK_AT_FULL_DENSITY				= 2;
 
 
 BiomeDecorationParams::BiomeDecorationParams(void) :
-	Seed(1), MaxBuildableSlopeRadians(0.5f), ForestDensity(0.5f), RockDensity(0.2f)
+	Seed(1), MaxBuildableSlopeRadians(0.5f), ForestDensity(0.5f), RockDensity(0.2f), StreetLampSpacing(30.0f)
 { }
+
+//	How far outside a road's own total width (carriageway plus both shoulders) a lamp stands, so
+//	the pole never sits on a lane or a shoulder (Phase 14 step 10).
+static const float STREET_LAMP_SETBACK = 0.5f;
 
 
 /***********************************************************************************************
@@ -109,6 +119,8 @@ static bool Is_Legal_Decoration_Point(const Vector3 & position)
 	if (Reads_As_Occupied(TERRAIN_MASK_ROAD,position.X,position.Y)) return false;
 	if (Reads_As_Occupied(TERRAIN_MASK_TIBERIUM,position.X,position.Y)) return false;
 	if (Conflicts_With_Reservations(position)) return false;
+	//	Section 12A.3: nothing grows in a tunnel mouth or its opened approach.
+	if (TunnelSystem::Overlaps_Opening(position,0.0f,nullptr)) return false;
 	return true;
 }
 
@@ -126,6 +138,7 @@ void BiomeDecorationGenerator::Clear(void)
 	TreeCount = 0;
 	RockCount = 0;
 	ForestChunkCount = 0;
+	StreetLampCount = 0;
 	FoliageSystem::Clear_Instances();
 }
 
@@ -244,6 +257,9 @@ bool BiomeDecorationGenerator::Generate(const BiomeDecorationParams & params,Str
 		}
 	}
 
+	//	Steps 9-10: street lamps, before batching so they batch and cull with everything else.
+	Place_Street_Lamps(params);
+
 	//	Step 13's own real LOD/batching acceptance -- already-built primitives, not fabricated.
 	FoliageSystem::Build_Cells();
 	FoliageSystem::Build_Batches();
@@ -265,11 +281,149 @@ bool BiomeDecorationGenerator::Generate(const BiomeDecorationParams & params,Str
 
 	Built = true;
 
-	WWDEBUG_SAY(("BiomeDecorationGenerator: %d forest chunk(s), %d tree(s), %d rock(s), checksum 0x%08X\r\n",
-					 ForestChunkCount,TreeCount,RockCount,Checksum));
+	WWDEBUG_SAY(("BiomeDecorationGenerator: %d forest chunk(s), %d tree(s), %d rock(s), %d street lamp(s), checksum 0x%08X\r\n",
+					 ForestChunkCount,TreeCount,RockCount,StreetLampCount,Checksum));
 
 	#undef FAIL
 	return true;
+}
+
+
+/***********************************************************************************************
+ * Place_Street_Lamps -- Phase 14 steps 9-10, Section 10.6                                       *
+ *                                                                                             *
+ *	Section 10.6 lists four places for lamps:                                                    *
+ *	  - city streets, at the full spacing;                                                        *
+ *	  - "selected" highways, at double the spacing;                                               *
+ *	  - base approach roads: any road's stretch within one spacing of a selected base's           *
+ *	    protected region;                                                                          *
+ *	  - industrial areas: any road's stretch inside an INDUSTRIAL_LOOP settlement.                *
+ *	Lamps stand beside the road, outside its total width (carriageway plus shoulders), and         *
+ *	alternate sides.  They stand only where ordinary decoration may stand, and clear of every      *
+ *	settlement structure, so they never block a lane, a shoulder, a structure or a tunnel mouth.   *
+ *	The spacing walk is deterministic: stations fall at fixed distances along each road's own      *
+ *	tessellated centre line.                                                                       *
+ *=============================================================================================*/
+static bool Near_Selected_Base(const Vector3 & p,float reach)
+{
+	SelectedBaseSite site;
+	int factions[2] = { PLAYERTYPE_GDI, PLAYERTYPE_NOD };
+	for (int f = 0; f < 2; f++) {
+		if (!BaseSelectionPlanner::Get_Selected_Site(factions[f],&site)) continue;
+		if ((p - site.Position).Length() < (site.ProtectedRadius + reach)) return true;
+	}
+	return false;
+}
+
+
+static bool In_Industrial_Settlement(const Vector3 & p)
+{
+	for (int i = 0; i < SettlementGenerator::Get_Settlement_Count(); i++) {
+		ResolvedSettlement settlement;
+		if (!SettlementGenerator::Get_Settlement(i,&settlement)) continue;
+		if (settlement.Layout != SETTLEMENT_LAYOUT_INDUSTRIAL_LOOP) continue;
+		if ((p - settlement.Position).Length() < settlement.Radius) return true;
+	}
+	return false;
+}
+
+
+static bool Is_Legal_Lamp_Point(const Vector3 & p)
+{
+	float height = 0.0f;
+	if (!WorldTerrainSystem::Sample_Height(p.X,p.Y,&height)) return false;
+	if (!WorldBoundsService::Can_Place_In_Region(Vector2(p.X,p.Y),0.5f)) return false;
+	if (WaterSystem::Is_Point_In_Water(p.X,p.Y)) return false;
+	if (Reads_As_Occupied(TERRAIN_MASK_ROAD,p.X,p.Y)) return false;
+	if (Reads_As_Occupied(TERRAIN_MASK_TIBERIUM,p.X,p.Y)) return false;
+	if (TunnelSystem::Overlaps_Opening(p,0.5f,nullptr)) return false;
+
+	//	Inside a base's own protected region the base layout decides what stands; lamps line the
+	//	approach to it, not the yard.
+	SelectedBaseSite site;
+	int factions[2] = { PLAYERTYPE_GDI, PLAYERTYPE_NOD };
+	for (int f = 0; f < 2; f++) {
+		if (BaseSelectionPlanner::Get_Selected_Site(factions[f],&site) &&
+			 ((p - site.Position).Length() < site.ProtectedRadius)) return false;
+	}
+
+	//	Inside a settlement only an industrial one takes lamps, and never on a structure.
+	for (int i = 0; i < SettlementGenerator::Get_Settlement_Count(); i++) {
+		ResolvedSettlement settlement;
+		if (!SettlementGenerator::Get_Settlement(i,&settlement)) continue;
+		if ((p - settlement.Position).Length() >= settlement.Radius) continue;
+		if (settlement.Layout != SETTLEMENT_LAYOUT_INDUSTRIAL_LOOP) return false;
+	}
+	for (int i = 0; i < SettlementGenerator::Get_Structure_Count(); i++) {
+		PlacedStructureInstance structure;
+		if (!SettlementGenerator::Get_Structure(i,&structure)) continue;
+		float radius = 0.0f, height_unused = 0.0f;
+		ProceduralAssetDescriptor asset;
+		if (!ProceduralAssetRegistry::Get_Asset_By_Id(structure.AssetId,&asset) ||
+			 !asset.Resolve_Placement_Radius(&radius,&height_unused)) {
+			radius = 0.0f;
+		}
+		if ((p - structure.Position).Length() < (radius + 1.0f)) return false;
+	}
+	return true;
+}
+
+
+void BiomeDecorationGenerator::Place_Street_Lamps(const BiomeDecorationParams & params)
+{
+	if (params.StreetLampSpacing <= 0.0f) {
+		return;
+	}
+
+	for (int r = 0; r < RoadSystem::Get_Road_Count(); r++) {
+
+		RoadSplineClass * road = RoadSystem::Peek_Road(r);
+		if ((road == nullptr) || !road->Is_Tessellated()) continue;
+
+		int road_class = road->Get_Road_Class();
+		float offset = (road->Get_Total_Width() * 0.5f) + STREET_LAMP_SETBACK;
+		float next = params.StreetLampSpacing * 0.5f;		// the first lamp half a spacing in
+		int station = 0;
+		int placed_on_road = 0;
+
+		for (int i = 1; i < road->Get_Point_Count(); i++) {
+
+			const RoadPointClass & a = road->Get_Point(i - 1);
+			const RoadPointClass & b = road->Get_Point(i);
+			float run = b.Distance - a.Distance;
+
+			while (next <= b.Distance) {
+
+				float t = (run > WWMATH_EPSILON) ? WWMath::Clamp((next - a.Distance) / run,0.0f,1.0f) : 0.0f;
+				Vector3 centre = a.Position + ((b.Position - a.Position) * t);
+
+				bool eligible;
+				if (road_class == ROAD_CLASS_STREET) {
+					eligible = true;
+				} else if (road_class == ROAD_CLASS_HIGHWAY) {
+					eligible = ((station % 2) == 0);
+				} else {
+					eligible = In_Industrial_Settlement(centre) || Near_Selected_Base(centre,params.StreetLampSpacing);
+				}
+
+				if (eligible) {
+					float sign = ((placed_on_road % 2) == 0) ? 1.0f : -1.0f;
+					Vector3 lamp = centre + (a.Side * (sign * offset));
+					if (Is_Legal_Lamp_Point(lamp)) {
+						//	Facing the road it lights.
+						float yaw = WWMath::Atan2(-a.Side.Y * sign,-a.Side.X * sign);
+						if (FoliageSystem::Add_Instance("ow_street_lamp",lamp,yaw,1.0f) >= 0) {
+							StreetLampCount++;
+							placed_on_road++;
+						}
+					}
+				}
+
+				station++;
+				next += params.StreetLampSpacing;
+			}
+		}
+	}
 }
 
 

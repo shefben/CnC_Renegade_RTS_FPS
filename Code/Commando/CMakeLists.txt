@@ -715,6 +715,8 @@ add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
     #	Gap report item 2 -- a bridge-required test, distinct from terrain_bridgeplan's own
     #	route-around-permitted one.  See terrainselfcheck.h and Check_Bridge_Required.
     add_test(NAME terrain_bridgerequired   COMMAND renegade -terrainselfcheck bridgerequired)
+    add_test(NAME terrain_tunnels   COMMAND renegade -terrainselfcheck tunnels)
+    add_test(NAME terrain_coastline   COMMAND renegade -terrainselfcheck coastline)
 
     #	Gap report item 5 -- the bridge/crossing fallback chain.  See Check_Bridge_Fallback.
     add_test(NAME terrain_bridgefallback   COMMAND renegade -terrainselfcheck bridgefallback)
@@ -821,6 +823,8 @@ add_test(NAME fds_terrain_shroud   COMMAND renegadeserver -terrainselfcheck shro
     add_test(NAME fds_terrain_navigation   COMMAND renegadeserver -terrainselfcheck navigation)
     add_test(NAME fds_terrain_minimap   COMMAND renegadeserver -terrainselfcheck minimap)
     add_test(NAME fds_terrain_bridgerequired   COMMAND renegadeserver -terrainselfcheck bridgerequired)
+    add_test(NAME fds_terrain_tunnels   COMMAND renegadeserver -terrainselfcheck tunnels)
+    add_test(NAME fds_terrain_coastline   COMMAND renegadeserver -terrainselfcheck coastline)
     add_test(NAME fds_terrain_bridgefallback   COMMAND renegadeserver -terrainselfcheck bridgefallback)
     add_test(NAME fds_terrain_placementrules   COMMAND renegadeserver -terrainselfcheck placementrules)
     add_test(NAME fds_terrain_grading   COMMAND renegadeserver -terrainselfcheck grading)

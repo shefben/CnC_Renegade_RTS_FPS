@@ -276,6 +276,17 @@ public:
 	static bool			Is_Segment_Blocked(const Vector3 & a,const Vector3 & b,
 													float max_climbable_height,int * id_out = nullptr);
 
+	/*
+	**	V2 Phase 10.  A tunnel portal through a cliff: the face is not built inside any cut
+	**	disc (plan-view centre, radius), so the bore's own portal geometry is what stands there.
+	**	Takes effect at the next Build_Geometry.  Is_Segment_Blocked is deliberately unchanged --
+	**	the heightfield behind the face is still too steep to walk, and the tunnel supplies its
+	**	own traversal edge.
+	*/
+	static void			Add_Portal_Cut(const Vector3 & center,float radius);
+	static void			Clear_Portal_Cuts(void);
+	static int			Get_Portal_Cut_Count(void)	{ return PortalCutCenters.Count(); }
+
 private:
 
 	static bool			Build_Escarpment_Geometry(EscarpmentClass & escarpment);
@@ -284,6 +295,8 @@ private:
 													class TextureClass ** texture_out,float * meters_per_tile_out);
 
 	static DynamicVectorClass<EscarpmentClass>	Escarpments;
+	static DynamicVectorClass<Vector3>			PortalCutCenters;
+	static DynamicVectorClass<float>				PortalCutRadii;
 	static bool			GeometryBuilt;
 	static int			UntexturedFaces;
 };

@@ -87,6 +87,7 @@ proceduralworldmanager.cpp
 strategicplanner.cpp
 roadgraphgenerator.cpp
 bridgeplanner.cpp
+tunnelplanner.cpp
 transportationnetworkvalidator.cpp
 baseselectionplanner.cpp
 tiberiumfieldgenerator.cpp
@@ -287,6 +288,7 @@ proceduralworldmanager.h
 strategicplanner.h
 roadgraphgenerator.h
 bridgeplanner.h
+tunnelplanner.h
 transportationnetworkvalidator.h
 baseselectionplanner.h
 tiberiumfieldgenerator.h

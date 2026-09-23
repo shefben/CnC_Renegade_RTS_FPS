@@ -53,6 +53,11 @@ schema revisions added -- `Logistics`, `VehicleSubsystems`, and others -- alread
 via the same `json::value(key, default)` pattern every field in this loader uses, so only the two
 version numbers needed to change, not new content).
 
+**Later, at V2 close.** The root cause was also fixed. `Validate_Profile` now accepts any schema
+1..8, as `proceduralworldprofile.h` had always said it should, and refuses only newer ones. The
+generator moved to 7 (tunnels, coastline, street lamps). All three shipped profiles are at 8 / 7.
+See `NetworkingAndPersistence.md`.
+
 ## Budget/LOD mechanisms already built (Section 30.2/30.3) -- reused, not duplicated
 
 Per this phase's own scope check (`PROJECT_RULES.md`: search before creating), the following
