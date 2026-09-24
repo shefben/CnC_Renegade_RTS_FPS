@@ -4576,3 +4576,17 @@ Details are in the docs named per item.
   - `terrain_worldsynctransport` does the same for the procedural world package and checks the restored ground and revision.
   - Fix found: the world save now falls back to the requested seed when no manifest exists.
 - **Suite.** 201/201.
+
+## Missing texture set (`docs/assets/MissingAssets.md` section 1)
+
+All 42 `ow_*` textures generated and checked in at `data/textures/`, with lossless
+2x-supersampled masters at `art/procedural_textures/<category>/`, a reusable
+generator (`tools/texture_gen/`, tileable gradient/Worley noise + a palette measured
+from retail `always.dat` references pulled via new `tools/always_dat_extract.py`),
+and an automated validator (42/42 pass: file/dimension/mode/alpha, seam-vs-interior
+tiling check, `ow_ter_detail` luminance gate). One real tiling bug found and fixed
+during validation (`ow_ter_shore` baked a non-tileable directional gradient). Full
+inventory, references, and validation output: `docs/assets/GeneratedTextureReport.md`.
+No engine-side code was touched -- every consuming system (P13/P14/P17/P18/P19/P23/P16)
+was already fully wired and waiting on art only. Not done: in-engine visual check
+(no build/launch performed this pass, see report's "Engine tests performed").
