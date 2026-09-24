@@ -41,6 +41,7 @@
 #include "debrissystem.h"
 #include "rtstelemetryservice.h"
 #include "teampowergridservice.h"
+#include "commanderproduction.h"
 #include "debug.h"
 #include "wwphysids.h"
 #include "meshmdl.h"
@@ -1306,6 +1307,15 @@ BuildingGameObj::On_Destroyed (void)
 	//
 	if (CombatManager::I_Am_Server ()) {
 		TeamPowerGridService::OnBuildingDestroyed (Get_ID ());
+
+		//
+		//	Roadmap Section 45: a dead factory's queue is cancelled and every item refunded in
+		//	full to whoever paid for it, and nothing it had finished is delivered afterwards.
+		//	Here because this is the one death transition every path reaches (damage and
+		//	Set_Is_Destroyed alike); the runtime destroyed-model state is derived from the
+		//	IsDestroyed this sets, so it never needs a second call.
+		//
+		CommanderProductionService::Resolve_Facility_Destroyed (Get_ID ());
 	}
 
 	//

@@ -1,0 +1,252 @@
+{
+ "_comment_assembly": "Real retail assets (Data/buildings/gdi/mgwep/building.json in the installed game; every loadByDefault part, copied to data/building_models/gdi/mgwep) -- see docs/zerohour/BuildingComponentAssembly.md. Not loaded (loadByDefault false in the manifest): mgwep_ext_n.w3d (nightVariant), MGwep_ag_3n.w3d (nightVariant), mgwep_int_temp.w3d (temporarySource), mgwep_vis.w3d (visibilityHelper), mgwep_visx.w3d (visibilityHelper).",
+ "assembly": {
+  "parts": [
+   {
+    "id": "exterior",
+    "kind": "exterior",
+    "model": "mgwep_ext.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "interior",
+    "kind": "interior",
+    "model": "mgwep_int.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_1",
+    "kind": "aggregate",
+    "model": "MGwep_ag_1.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_2",
+    "kind": "aggregate",
+    "model": "MGwep_ag_2.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_3",
+    "kind": "aggregate",
+    "model": "MGwep_ag_3.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_4",
+    "kind": "aggregate",
+    "model": "MGwep_ag_4.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "doors",
+    "kind": "door",
+    "model": "mgwep_doors.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "construction_animation",
+    "kind": "productionAnimation",
+    "model": "wep#construct.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "shunt_animation",
+    "kind": "productionAnimation",
+    "model": "wep#shunt.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "production_pad",
+    "kind": "vehicleProductionPad",
+    "model": "mgwep_pad.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "production_pad_lights",
+    "kind": "lights",
+    "model": "pad_lts.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "production_warning_area",
+    "kind": "warningEffect",
+    "model": "wep_area_warn.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   }
+  ]
+ },
+ "damage_visual": {
+  "intact_model": "mgwep_ext.w3d",
+  "damaged_model": "ow_gdi_weapons_factory_d.w3d",
+  "destroyed_model": "ow_gdi_weapons_factory_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+ "_comment_anchors": "MGWEP_MCT~ is the exact hierarchy pivot name in mgwep_int.w3d; the trailing ~ is part of the name, and HTreeClass::Get_Bone_Index matches exactly.",
+ "anchors": {
+  "mct_anchor": "MGWEP_MCT~"
+ },
+ "subcomponents": [
+  {
+   "role": "factory_production_module",
+   "anchor_bone": "MGWEP_MCT~",
+   "full_function_health_fraction": 0.75,
+   "disabled_health_fraction": 0.0
+  }
+ ],
+ "model_name": "mgwep_ext.w3d",
+ "game_object_preset": "mp_GDI_War_Factory",
+ "schema_version": 1,
+ "_comment_footprint": "Measured: twice the largest |X| and |Y| of the exterior and production pad/strip mesh bounds, rounded up (the footprint is centred on the building origin).",
+ "footprint": {
+  "width": 48.0,
+  "depth": 42.0
+ },
+ "power": {
+  "requires_power": true,
+  "generation": 0.0,
+  "consumption": 200.0,
+  "priority": 60
+ },
+ "build": {
+  "buildable": true,
+  "cost": 2000,
+  "tech_level": 2,
+  "team": 1,
+  "display_name": "Weapons Factory"
+ },
+ "production": {
+  "kind": "ground_vehicle",
+  "queue_capacity": 5,
+  "requires_power": true
+ },
+ "construction_visual": {
+  "duration_seconds": 20.0,
+  "block_width": 2.0,
+  "block_depth": 2.0,
+  "row_height": 1.5,
+  "source_reveal_start": 0.75,
+  "block_fade_start": 0.9,
+  "max_blocks": 2048
+ }
+}

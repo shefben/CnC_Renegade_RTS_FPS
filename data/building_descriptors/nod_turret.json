@@ -1,0 +1,75 @@
+{
+ "_comment_assembly": "Real retail assets (Data/buildings/nod/mntur/building.json in the installed game; every loadByDefault part, copied to data/building_models/nod/mntur) -- see docs/zerohour/BuildingComponentAssembly.md. Not loaded (loadByDefault false in the manifest): mntur_visx.w3d (visibilityHelper).",
+ "assembly": {
+  "parts": [
+   {
+    "id": "exterior",
+    "kind": "exterior",
+    "model": "mntur_ext.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_1",
+    "kind": "aggregate",
+    "model": "MNtur_ag_1.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   }
+  ]
+ },
+ "damage_visual": {
+  "intact_model": "mntur_ext.w3d",
+  "damaged_model": "ow_nod_turret_d.w3d",
+  "destroyed_model": "ow_nod_turret_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+ "model_name": "mntur_ext.w3d",
+ "game_object_preset": "mp_Nod_Turret",
+ "schema_version": 1,
+ "_comment_footprint": "Measured: twice the largest |X| and |Y| of the exterior mesh bounds, rounded up (the footprint is centred on the building origin).",
+ "footprint": {
+  "width": 5.0,
+  "depth": 5.0
+ },
+ "power": {
+  "requires_power": false,
+  "generation": 0.0,
+  "consumption": 0.0,
+  "priority": 70
+ },
+ "build": {
+  "buildable": true,
+  "cost": 600,
+  "tech_level": 1,
+  "team": 0,
+  "display_name": "Turret"
+ },
+ "construction_visual": {
+  "duration_seconds": 10.0,
+  "block_width": 1.5,
+  "block_depth": 1.5,
+  "row_height": 1.0,
+  "source_reveal_start": 0.75,
+  "block_fade_start": 0.9,
+  "max_blocks": 512
+ }
+}

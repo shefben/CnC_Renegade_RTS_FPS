@@ -2176,6 +2176,109 @@ static const char * const	INCOMPATIBLE_ROLE_JSON =
 	"  \"power\":{\"requires_power\":false,\"generation\":100,\"consumption\":0,\"priority\":10},"
 	"  \"capabilities\":{\"communications\":{\"enabled\":true,\"vision_radius\":10,\"radar_radius\":10}} }";
 
+/*
+**	The shipped descriptors themselves, not fixtures: every file in the repository's
+**	data/building_descriptors loads and validates, and every model a component-assembled one
+**	names is really in data/building_models (P33 -- descriptors are authored from the retail
+**	manifests, and a typo there would otherwise only show up as a building with a missing part
+**	in a live client).  The check runs from the build tree, so the repository is found by
+**	walking up from the working directory.
+*/
+static bool	Find_Repository_Data (StringClass * out_root)
+{
+	StringClass prefix ("");
+	for (int depth = 0; depth < 8; depth++) {
+		StringClass probe = prefix;
+		probe += "data/building_descriptors";
+		DWORD attributes = ::GetFileAttributesA (probe.Peek_Buffer ());
+		if ((attributes != INVALID_FILE_ATTRIBUTES) && ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)) {
+			*out_root = prefix;
+			return true;
+		}
+		prefix += "../";
+	}
+	return false;
+}
+
+static bool	Find_Model_Under (const StringClass & directory,const char * model_name)
+{
+	StringClass direct = directory;
+	direct += "/";
+	direct += model_name;
+	if (::GetFileAttributesA (direct.Peek_Buffer ()) != INVALID_FILE_ATTRIBUTES) {
+		return true;
+	}
+
+	StringClass pattern = directory;
+	pattern += "/*";
+	WIN32_FIND_DATAA found;
+	HANDLE handle = ::FindFirstFileA (pattern.Peek_Buffer (),&found);
+	if (handle == INVALID_HANDLE_VALUE) {
+		return false;
+	}
+
+	bool present = false;
+	do {
+		if ((found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) continue;
+		if (found.cFileName [0] == '.') continue;
+		StringClass child = directory;
+		child += "/";
+		child += found.cFileName;
+		present = Find_Model_Under (child,model_name);
+	} while (!present && ::FindNextFileA (handle,&found));
+
+	::FindClose (handle);
+	return present;
+}
+
+static void	Check_Shipped_Building_Descriptors (void)
+{
+	StringClass root ("");
+	if (!Find_Repository_Data (&root)) {
+		Check (false,"could not find the repository's data/building_descriptors from the working directory");
+		return;
+	}
+
+	StringClass descriptors = root;
+	descriptors += "data/building_descriptors";
+	StringClass models = root;
+	models += "data/building_models";
+
+	StringClass report ("");
+	int checked = 0;
+	int failures = BuildingDescriptorManager::Validate_Directory (descriptors.Peek_Buffer (),&report,&checked);
+	Check (failures == 0,"%d shipped building descriptors failed validation: %s",failures,report.Peek_Buffer ());
+	Check (checked >= 22,"only %d shipped building descriptors were found; P33 ships 22",checked);
+
+	int loaded = 0;
+	BuildingDescriptorManager::Unload_All ();
+	BuildingDescriptorManager::Load_Directory (descriptors.Peek_Buffer (),&report,&loaded);
+
+	static const char * const	ASSEMBLED [] = {
+		"gdi_power_plant","nod_power_plant","gdi_barracks","gdi_weapons_factory","gdi_refinery",
+		"gdi_repair_facility","gdi_construction_yard","gdi_advanced_guard_tower","nod_hand_of_nod",
+		"nod_airstrip","nod_refinery","nod_repair_facility","nod_construction_yard","nod_obelisk",
+		"nod_turret","nod_sam_site"
+	};
+
+	for (int i = 0; i < (int)(sizeof (ASSEMBLED) / sizeof (ASSEMBLED [0])); i++) {
+		const BuildingModelDescriptor * descriptor = BuildingDescriptorManager::Get_Descriptor (ASSEMBLED [i]);
+		Check (descriptor != nullptr,"shipped descriptor '%s' did not load",ASSEMBLED [i]);
+		if (descriptor == nullptr) continue;
+
+		Check (descriptor->Assembly.Parts.Count () > 0,"'%s' names no assembly parts",ASSEMBLED [i]);
+		Check (descriptor->GameObjectPreset.Get_Length () > 0,"'%s' names no game object preset",ASSEMBLED [i]);
+		for (int p = 0; p < descriptor->Assembly.Parts.Count (); p++) {
+			const char * model = descriptor->Assembly.Parts [p].ModelName.Peek_Buffer ();
+			Check (Find_Model_Under (models,model),"'%s' part '%s' is not in data/building_models",
+					 ASSEMBLED [i],model);
+		}
+	}
+
+	BuildingDescriptorManager::Unload_All ();
+}
+
+
 int	Run_Building_Descriptors (void)
 {
 	BuildingDescriptorManager::Init ();
@@ -2479,6 +2582,8 @@ int	Run_Building_Descriptors (void)
 		DefinitionMgrClass::Unregister_Definition (test_def);
 		delete test_def;
 	}
+
+	Check_Shipped_Building_Descriptors ();
 
 	BuildingDescriptorManager::Shutdown ();
 
@@ -3768,15 +3873,21 @@ int	Run_Commander_Mode (void)
 			 "entering Commander Mode with no star to embody was accepted");
 	Check (!CommanderModeController::Is_Active (),"a refused Enter_Commander_Mode left the controller active");
 
+	/*
+	**	A real soldier needs the definition database this harness does not load, so the star is
+	**	a sentinel and the team is given explicitly: the two-argument entry never dereferences
+	**	the star.  The one-argument form reads Get_Player_Type from it and is exercised by the
+	**	console command and the Commander Mode input in a live client.
+	*/
 	SoldierGameObj * sentinel_star = reinterpret_cast<SoldierGameObj *> (1);	// never dereferenced
-	Check (CommanderModeController::Enter_Commander_Mode (sentinel_star),
+	Check (CommanderModeController::Enter_Commander_Mode (sentinel_star,0),
 			 "entering Commander Mode with a living star was refused");
 	Check (CommanderModeController::Is_Active (),"Enter_Commander_Mode succeeded but Is_Active is false");
 	Check (CommanderModeController::Get_Mode () == COMMANDER_MODE,"Get_Mode is not COMMANDER_MODE after entering");
 	Check (CommanderModeController::Get_Embodied_Star () == sentinel_star,
 			 "Get_Embodied_Star did not return the same body that entered -- \"same player body\"");
 
-	Check (!CommanderModeController::Enter_Commander_Mode (sentinel_star),
+	Check (!CommanderModeController::Enter_Commander_Mode (sentinel_star,0),
 			 "entering Commander Mode a second time while already active was accepted");
 
 	/*
@@ -4630,10 +4741,41 @@ int	Run_Commander_Production (void)
 		CommanderProductionItem queued;
 		if (CommanderProductionService::Get_Queue_Item (BARRACKS,i,&queued)) queued_value += queued.Cost;
 	}
-	int refund = CommanderProductionService::On_Facility_Destroyed (BARRACKS);
+	DynamicVectorClass<CommanderProductionRefund> refunds;
+	int refund = CommanderProductionService::On_Facility_Destroyed (BARRACKS,&refunds);
 	Check (refund == queued_value,"destroying a facility refunded %d against a queued value of %d",
 			 refund,queued_value);
 	Check (CommanderProductionService::Get_Queue_Length (BARRACKS) == 0,"a destroyed facility kept its queue");
+
+	int listed_value = 0;
+	for (int i = 0; i < refunds.Count (); i++) {
+		listed_value += refunds [i].Credits;
+		Check (refunds [i].RequesterId == COMMANDER,
+				 "a destroyed facility's refund names requester %d, not the Commander who paid",
+				 refunds [i].RequesterId);
+	}
+	Check (listed_value == refund,"the per-payer refunds sum to %d, not the %d total",listed_value,refund);
+
+	/*
+	**	The server's death path (BuildingGameObj::On_Destroyed) credits each payer.  The AI
+	**	Commander's wallet is its treasury, so an AI item refunds there -- and a second death
+	**	notification for the same facility finds nothing left to refund.
+	*/
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,AI_COMMANDER_ID);
+	CommanderProductionService::Set_Facility_Runtime_State (BARRACKS,true,true,true,true);
+	float treasury_before = CommanderAIService::Get_Treasury (TEAM_GDI);
+	Check (CommanderProductionService::Request_Production (AI_COMMANDER_ID,barracks,21,75,30.0f,10000,true,&ticket)
+				== PRODUCTION_ACCEPTED,"the AI Commander's purchase at the barracks was refused");
+	CommanderProductionService::Set_Facility_Runtime_State (BARRACKS,true,true,true,true);
+	int ai_refund = CommanderProductionService::Resolve_Facility_Destroyed (BARRACKS);
+	Check (ai_refund == 75,"the AI Commander's destroyed item refunded %d, not its cost of 75",ai_refund);
+	Check (WWMath::Fabs (CommanderAIService::Get_Treasury (TEAM_GDI) - (treasury_before + 75.0f)) < 0.01f,
+			 "the AI treasury read %f after the refund, not %f",
+			 CommanderAIService::Get_Treasury (TEAM_GDI),treasury_before + 75.0f);
+	Check (CommanderProductionService::Resolve_Facility_Destroyed (BARRACKS) == 0,
+			 "a second death notification for the same facility refunded again");
+	CommanderAIService::Set_Treasury (TEAM_GDI,treasury_before);
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,COMMANDER);
 
 	/*
 	**	Population caps count the queue as well as the living, so a Commander cannot out-queue
@@ -4879,6 +5021,39 @@ int	Run_Commander_Governance (void)
 	CommanderProductionService::Handle_Player_Reconnect (777,777);
 	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == 777,
 			 "a degenerate Handle_Player_Reconnect call (zero id or old==new) altered a real seat");
+
+	/*
+	**	A disconnected Commander's seat is reserved for the grace period, not cleared at once:
+	**	no client id here has a soldier, which is exactly what a disconnect looks like to
+	**	Update_Commander_Vacancy.  Reconnecting inside the grace keeps the seat and restarts
+	**	the clock; staying away past it frees the seat for the team to fill again.
+	*/
+	float grace = CommanderProductionService::Get_Vacancy_Grace_Seconds ();
+	int vacated_before = CommanderProductionService::Get_Vacated_Count ();
+
+	CommanderProductionService::Update_Commander_Vacancy (grace * 0.75f);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == 777,
+			 "a disconnected Commander lost the seat before the %f second grace ran out",grace);
+
+	CommanderProductionService::Handle_Player_Reconnect (777,779);
+	CommanderProductionService::Update_Commander_Vacancy (grace * 0.75f);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == 779,
+			 "reconnecting inside the grace did not restart it -- the seat expired on the old clock");
+
+	CommanderProductionService::Update_Commander_Vacancy (grace * 0.5f);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == 0,
+			 "a Commander gone longer than the grace still holds the seat (id %d)",
+			 CommanderProductionService::Get_Team_Commander (TEAM_GDI));
+	Check (CommanderProductionService::Get_Vacated_Count () > vacated_before,
+			 "an expired seat was cleared without counting a vacancy");
+
+	CommanderProductionService::Handle_Player_Reconnect (779,780);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == 0,
+			 "reconnecting after the grace expired took back a seat that had been freed");
+
+	CommanderProductionService::Set_Team_Commander (TEAM_GDI,ALICE);
+	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == ALICE,
+			 "the team could not seat a new Commander after the old one's grace expired");
 
 	CommanderProductionService::Shutdown ();
 	return _Failures;

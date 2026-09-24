@@ -87,6 +87,10 @@ class CommanderModeController
 		*/
 		static bool		Enter_Commander_Mode(SoldierGameObj * star);
 
+		//	The same entry with the team given rather than read from the star.  The one-argument
+		//	form is this with star->Get_Player_Type (); the star itself is never dereferenced here.
+		static bool		Enter_Commander_Mode(SoldierGameObj * star,int team);
+
 		//	Returning to FPS restores camera/input to the same surviving soldier because this
 		//	class never altered anything about that soldier in the first place -- it only
 		//	stopped being the thing driving the camera.  Safe to call when already inactive.

@@ -10,7 +10,10 @@
 
 #include "commanderproduction.h"
 
+#include "commanderai.h"
 #include "gameobjmanager.h"
+#include "playerdata.h"
+#include "playerroster.h"
 #include "playertype.h"
 #include "soldier.h"
 #include "vector.h"
@@ -652,6 +655,7 @@ CommanderProductionResultType CommanderProductionService::Request_Production(int
 	item.State					= PRODUCTION_STATE_QUEUED;
 	item.Kind					= facility.Kind;
 	item.TicketId				= _NextTicket++;
+	item.RequesterId			= requesting_player_id;
 
 	_Queue.Add (item);
 
@@ -810,34 +814,51 @@ bool CommanderProductionService::Get_Queue_Item(int facility_id,int index,Comman
 }
 
 
-int CommanderProductionService::Cancel_Item(int facility_id,int ticket_id)
+static void	Note_Refund(DynamicVectorClass<CommanderProductionRefund> * refunds,
+								 const CommanderProductionItem & item)
+{
+	if (refunds == nullptr) return;
+
+	CommanderProductionRefund refund;
+	refund.RequesterId	= item.RequesterId;
+	refund.Team				= item.Team;
+	refund.Credits			= item.Cost;
+	refunds->Add (refund);
+}
+
+int CommanderProductionService::Cancel_Item(int facility_id,int ticket_id,
+														  DynamicVectorClass<CommanderProductionRefund> * refunds)
 {
 	for (int i = 0; i < _Queue.Count (); i++) {
 		if (_Queue [i].FacilityId != facility_id) continue;
 		if (_Queue [i].TicketId != ticket_id) continue;
 
 		int refund = _Queue [i].Cost;
+		Note_Refund (refunds,_Queue [i]);
 		_Queue.Delete (i);
 		return refund;
 	}
 	return 0;
 }
 
-int CommanderProductionService::Cancel_Facility_Queue(int facility_id)
+int CommanderProductionService::Cancel_Facility_Queue(int facility_id,
+																		DynamicVectorClass<CommanderProductionRefund> * refunds)
 {
 	int refund = 0;
 	for (int i = 0; i < _Queue.Count (); i++) {
 		if (_Queue [i].FacilityId != facility_id) continue;
 		refund += _Queue [i].Cost;
+		Note_Refund (refunds,_Queue [i]);
 		_Queue.Delete (i);
 		i--;
 	}
 	return refund;
 }
 
-int CommanderProductionService::On_Facility_Destroyed(int facility_id)
+int CommanderProductionService::On_Facility_Destroyed(int facility_id,
+																		DynamicVectorClass<CommanderProductionRefund> * refunds)
 {
-	int refund = Cancel_Facility_Queue (facility_id);
+	int refund = Cancel_Facility_Queue (facility_id,refunds);
 
 	/*
 	**	A completed-but-undelivered item belonging to a dead facility is dropped too, and
@@ -848,6 +869,7 @@ int CommanderProductionService::On_Facility_Destroyed(int facility_id)
 	for (int i = 0; i < _Completed.Count (); i++) {
 		if (_Completed [i].FacilityId != facility_id) continue;
 		refund += _Completed [i].Cost;
+		Note_Refund (refunds,_Completed [i]);
 		_Completed.Delete (i);
 		i--;
 	}
@@ -858,6 +880,41 @@ int CommanderProductionService::On_Facility_Destroyed(int facility_id)
 	}
 
 	return refund;
+}
+
+
+void CommanderProductionService::Credit_Refund(const CommanderProductionRefund & refund)
+{
+	if (refund.Credits <= 0) return;
+
+	if (refund.RequesterId == AI_COMMANDER_ID) {
+		CommanderAIService::Increment_Treasury (refund.Team,(float)refund.Credits);
+		return;
+	}
+
+	//	The same PlayerDataClass cCommanderProductionEvent::Act debited.  Reached through the
+	//	player's live soldier as a fallback only when no roster is installed (a headless check).
+	PlayerRosterInterfaceClass * roster = PlayerRosterClass::Peek_Interface ();
+	if (roster != nullptr) {
+		roster->Grant_Money (refund.RequesterId,(float)refund.Credits);
+		return;
+	}
+
+	SoldierGameObj * soldier = GameObjManager::Find_Soldier_Of_Client_ID (refund.RequesterId);
+	PlayerDataClass * player = (soldier != nullptr) ? soldier->Get_Player_Data () : nullptr;
+	if (player != nullptr) {
+		player->Increment_Money ((float)refund.Credits);
+	}
+}
+
+int CommanderProductionService::Resolve_Facility_Destroyed(int facility_id)
+{
+	DynamicVectorClass<CommanderProductionRefund> refunds;
+	int total = On_Facility_Destroyed (facility_id,&refunds);
+	for (int i = 0; i < refunds.Count (); i++) {
+		Credit_Refund (refunds [i]);
+	}
+	return total;
 }
 
 

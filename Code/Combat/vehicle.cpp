@@ -1831,6 +1831,15 @@ void VehicleGameObj::Apply_Control( void )
 		WWMath::Clamp( Control.Get_Analog( ControlClass::ANALOG_TURN_LEFT ), -1.0F, 1.0F ) );
 
 	//
+	//	Script-owned gates (Set_Can_Drive / Set_Scripts_Can_Fire), saved and replicated but
+	//	read by nothing since this function was rewritten -- the commented-out version above
+	//	still applied them.  Restored with the same semantics: driving and firing are
+	//	suppressed independently, so a disabled engine still leaves the turret live and vice
+	//	versa.  Nothing but scripts writes either flag; subsystem damage below is separate.
+	//
+	Apply_Script_Control_Gates( Control, CanDrive, CanFire );
+
+	//
 	//	Roadmap Section 23 -- Phase 22 optional vehicle subsystem damage.  A pure scale/gate
 	//	layered on top of whatever control the driver/gunner/AI already produced above; it never
 	//	touches CanDrive/CanFire (those stay script-owned).  Gated on the profile's own master
@@ -1872,6 +1881,21 @@ void VehicleGameObj::Apply_Control( void )
 	}
 
 	SmartGameObj::Apply_Control();
+}
+
+void VehicleGameObj::Apply_Script_Control_Gates( ControlClass & control, bool can_drive, bool can_fire )
+{
+	if ( !can_drive ) {
+		control.Set_Analog( ControlClass::ANALOG_MOVE_FORWARD, 0 );
+		control.Set_Analog( ControlClass::ANALOG_MOVE_LEFT, 0 );
+		control.Set_Analog( ControlClass::ANALOG_MOVE_UP, 0 );
+		control.Set_Analog( ControlClass::ANALOG_TURN_LEFT, 0 );
+	}
+
+	if ( !can_fire ) {
+		control.Set_Boolean( ControlClass::BOOLEAN_WEAPON_FIRE_PRIMARY, false );
+		control.Set_Boolean( ControlClass::BOOLEAN_WEAPON_FIRE_SECONDARY, false );
+	}
 }
 
 static const char * _profile_name = "Vehicle Think";

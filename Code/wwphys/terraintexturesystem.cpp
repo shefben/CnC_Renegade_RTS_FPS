@@ -24,6 +24,10 @@
 #include "renegadeterrainpatch.h"
 #include "terrainmaterial.h"
 #include "worldterrainsystem.h"
+#include "ffactory.h"
+#include "wwfile.h"
+#include "w3d_file.h"
+#include "wwstring.h"
 #include "wwdebug.h"
 #include "wwmath.h"
 
@@ -268,14 +272,57 @@ int TerrainTextureSystem::Find_Layer(const char * name)
 }
 
 
+/*
+**	docs/assets/TerrainLayers.md: the purpose-made ow_ter_* texture when it has been shipped,
+**	otherwise a stock Renegade texture from always.dat as a stand-in.  Every stand-in name was
+**	enumerated from the retail always.dat and looked at, not guessed.  The engine resolves a .tga
+**	name to the .dds always.dat actually holds, so both spellings count as present.
+*/
+static bool	Texture_File_Exists(const char * name)
+{
+	if (_TheFileFactory == nullptr) {
+		return false;
+	}
+
+	StringClass candidates [2];
+	candidates [0] = name;
+	candidates [1] = name;
+	int length = candidates [1].Get_Length ();
+	if (length > 4) {
+		candidates [1].Erase (length - 4,4);
+		candidates [1] += ".dds";
+	}
+
+	for (int index = 0; index < 2; index++) {
+		FileClass * file = _TheFileFactory->Get_File (candidates [index]);
+		if (file == nullptr) {
+			continue;
+		}
+		bool available = file->Is_Available ();
+		_TheFileFactory->Return_File (file);
+		if (available) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static const char *	Pick_Layer_Texture(const char * preferred,const char * stock_stand_in)
+{
+	return Texture_File_Exists (preferred) ? preferred : stock_stand_in;
+}
+
+
 void TerrainTextureSystem::Define_Default_Layers(void)
 {
 	Clear_Layers();
 
-	//	Ground.  No rule, so it is everywhere, which is what being the ground means.
+	//	Ground.  No rule, so it is everywhere, which is what being the ground means.  Stand-in:
+	//	cc_grass1, the multiplayer grass, which tiles cleanly.
 	{
 		TerrainLayerRuleClass rule;
-		Define_Layer("ground",TERRAIN_LAYER_BASE,rule);
+		Define_Layer("ground",TERRAIN_LAYER_BASE,rule,
+						 Pick_Layer_Texture ("ow_ter_ground.tga","cc_grass1.tga"),8.0f,SURFACE_TYPE_GRASS);
 	}
 
 	//	Macro variation: the same ground, broken up over tens of metres so that a plain is not
@@ -285,7 +332,8 @@ void TerrainTextureSystem::Define_Default_Layers(void)
 		TerrainLayerRuleClass rule;
 		rule.Set_Noise(1.0f,0.03f,7);
 		rule.Strength = 0.5f;
-		Define_Layer("macro",TERRAIN_LAYER_MACRO,rule);
+		Define_Layer("macro",TERRAIN_LAYER_MACRO,rule,
+						 Pick_Layer_Texture ("ow_ter_macro.tga","l05_grass.tga"),64.0f,SURFACE_TYPE_GRASS);
 	}
 
 	//	Rock on anything steeper than about twenty degrees, fading in over the ten degrees below
@@ -293,7 +341,8 @@ void TerrainTextureSystem::Define_Default_Layers(void)
 	{
 		TerrainLayerRuleClass rule;
 		rule.Set_Slope_Range(DEG_TO_RADF(20.0f),DEG_TO_RADF(90.0f),DEG_TO_RADF(10.0f));
-		Define_Layer("rock",TERRAIN_LAYER_CLIFF,rule);
+		Define_Layer("rock",TERRAIN_LAYER_CLIFF,rule,
+						 Pick_Layer_Texture ("ow_ter_rock.tga","l01-rock2.tga"),4.0f,SURFACE_TYPE_ROCK);
 	}
 
 	//	Cliff face: steeper still, and convex, which is what separates the lip of a cliff from
@@ -302,14 +351,16 @@ void TerrainTextureSystem::Define_Default_Layers(void)
 		TerrainLayerRuleClass rule;
 		rule.Set_Slope_Range(DEG_TO_RADF(45.0f),DEG_TO_RADF(90.0f),DEG_TO_RADF(10.0f));
 		rule.Set_Curvature_Range(0.05f,1000.0f,0.04f);
-		Define_Layer("cliff",TERRAIN_LAYER_CLIFF,rule);
+		Define_Layer("cliff",TERRAIN_LAYER_CLIFF,rule,
+						 Pick_Layer_Texture ("ow_ter_cliff.tga","l03_mossrock.tga"),6.0f,SURFACE_TYPE_ROCK);
 	}
 
 	//	Wet ground within a few metres of water.
 	{
 		TerrainLayerRuleClass rule;
 		rule.Set_Mask_Range(TERRAIN_MASK_WATER_DISTANCE,0.0f,4.0f,4.0f);
-		Define_Layer("shore",TERRAIN_LAYER_SHORELINE,rule);
+		Define_Layer("shore",TERRAIN_LAYER_SHORELINE,rule,
+						 Pick_Layer_Texture ("ow_ter_shore.tga","lv8_sand3.tga"),4.0f,SURFACE_TYPE_SAND);
 	}
 
 	//	Road, wherever the road mask says so, and over everything else there: a road that let the
@@ -318,7 +369,8 @@ void TerrainTextureSystem::Define_Default_Layers(void)
 		TerrainLayerRuleClass rule;
 		rule.Set_Mask_Range(TERRAIN_MASK_ROAD,0.5f,1.0f,0.3f);
 		rule.Exclusive = true;
-		Define_Layer("road",TERRAIN_LAYER_ROAD,rule);
+		Define_Layer("road",TERRAIN_LAYER_ROAD,rule,
+						 Pick_Layer_Texture ("ow_ter_road.tga","l11_gravel.tga"),4.0f,SURFACE_TYPE_DIRT);
 	}
 }
 

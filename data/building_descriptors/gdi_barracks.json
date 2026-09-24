@@ -1,0 +1,156 @@
+{
+ "_comment_assembly": "Real retail assets (Data/buildings/gdi/mgbar/building.json in the installed game; every loadByDefault part, copied to data/building_models/gdi/mgbar) -- see docs/zerohour/BuildingComponentAssembly.md. Not loaded (loadByDefault false in the manifest): mgbar_ext_n.w3d (nightVariant), mgbar_ag_3n.w3d (nightVariant), mgbar_int_temp.w3d (temporarySource), mgbar_vis.w3d (visibilityHelper), mgbar_visx.w3d (visibilityHelper).",
+ "assembly": {
+  "parts": [
+   {
+    "id": "exterior",
+    "kind": "exterior",
+    "model": "mgbar_ext.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "interior",
+    "kind": "interior",
+    "model": "mgbar_int.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_1",
+    "kind": "aggregate",
+    "model": "mgbar_ag_1.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_2",
+    "kind": "aggregate",
+    "model": "mgbar_ag_2.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_3",
+    "kind": "aggregate",
+    "model": "mgbar_ag_3.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "doors",
+    "kind": "door",
+    "model": "mgbar_doors.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   }
+  ]
+ },
+ "damage_visual": {
+  "intact_model": "mgbar_ext.w3d",
+  "damaged_model": "ow_gdi_barracks_d.w3d",
+  "destroyed_model": "ow_gdi_barracks_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+ "_comment_anchors": "MGBAR_MCT~ is the exact hierarchy pivot name in mgbar_int.w3d; the trailing ~ is part of the name, and HTreeClass::Get_Bone_Index matches exactly.",
+ "anchors": {
+  "mct_anchor": "MGBAR_MCT~"
+ },
+ "subcomponents": [
+  {
+   "role": "factory_production_module",
+   "anchor_bone": "MGBAR_MCT~",
+   "full_function_health_fraction": 0.75,
+   "disabled_health_fraction": 0.0
+  }
+ ],
+ "model_name": "mgbar_ext.w3d",
+ "game_object_preset": "mp_GDI_Barracks",
+ "schema_version": 1,
+ "_comment_footprint": "Measured: twice the largest |X| and |Y| of the exterior mesh bounds, rounded up (the footprint is centred on the building origin).",
+ "footprint": {
+  "width": 25.0,
+  "depth": 43.0
+ },
+ "power": {
+  "requires_power": true,
+  "generation": 0.0,
+  "consumption": 100.0,
+  "priority": 60
+ },
+ "build": {
+  "buildable": true,
+  "cost": 500,
+  "tech_level": 1,
+  "team": 1,
+  "display_name": "Barracks"
+ },
+ "production": {
+  "kind": "infantry",
+  "queue_capacity": 5,
+  "requires_power": true
+ },
+ "construction_visual": {
+  "duration_seconds": 12.0,
+  "block_width": 2.0,
+  "block_depth": 2.0,
+  "row_height": 1.5,
+  "source_reveal_start": 0.75,
+  "block_fade_start": 0.9,
+  "max_blocks": 2048
+ }
+}

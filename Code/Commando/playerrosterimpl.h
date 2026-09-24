@@ -24,6 +24,7 @@ public:
 	int							Get_Player_Type (int player_id) override;
 	int							Get_Player_Count (void) override;
 	int							Get_Player_ID_By_Index (int index) override;
+	bool							Grant_Money (int player_id,float amount) override;
 };
 
 #endif	// __PLAYERROSTERIMPL_H__

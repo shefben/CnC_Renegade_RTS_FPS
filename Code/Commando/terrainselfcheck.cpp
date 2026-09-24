@@ -723,6 +723,18 @@ void	Check_Textures (void)
 	Check (TerrainTextureSystem::Find_Layer ("ground") == 0, "the ground is not the first layer");
 
 	//
+	//	P13: every default layer carries a texture -- the ow_ter_* one when it ships, the
+	//	stock always.dat stand-in until then -- so a generated world is never drawn bare.
+	//
+	for (int layer_index = 0; layer_index < TerrainTextureSystem::Get_Layer_Count (); layer_index ++) {
+		TerrainLayerClass *layer = TerrainTextureSystem::Peek_Layer (layer_index);
+		const char *texture = ((layer != nullptr) && (layer->Material != nullptr))
+									 ? layer->Material->Get_Texture_Name () : nullptr;
+		Check ((texture != nullptr) && (texture [0] != 0),"default layer %d ('%s') names no texture",
+				 layer_index,(layer != nullptr) ? (const char *)layer->Name : "?");
+	}
+
+	//
 	//	The base is always fully there.  If its weight fell wherever another layer was strong,
 	//	two weak layers at the same point would leave a hole in the world.
 	//
@@ -9104,6 +9116,36 @@ void	Check_Vehicle_Subsystems (void)
 				 "a zero weapon threshold still degraded the rate of fire");
 		Check (VehicleGameObj::Compute_Subsystem_Engine_Factor (weapon_off,0.0f) < 1.0f,
 				 "switching the weapon threshold off also switched the engine off");
+	}
+
+	/*
+	**	CanDrive/CanFire, the TT script gates (Set_Can_Drive, Set_Scripts_Can_Fire), are
+	**	separate from subsystem damage and independent of each other: a disabled engine leaves
+	**	the gun live, a blocked gun leaves the vehicle drivable, and both on changes nothing.
+	*/
+	{
+		ControlClass control;
+		struct { bool drive; bool fire; } cases [] = { { true,true },{ false,true },{ true,false },{ false,false } };
+		for (int i = 0; i < 4; i ++) {
+			control.Set_Analog (ControlClass::ANALOG_MOVE_FORWARD,1.0f);
+			control.Set_Analog (ControlClass::ANALOG_TURN_LEFT,0.5f);
+			control.Set_Boolean (ControlClass::BOOLEAN_WEAPON_FIRE_PRIMARY,true);
+			control.Set_Boolean (ControlClass::BOOLEAN_WEAPON_FIRE_SECONDARY,true);
+
+			VehicleGameObj::Apply_Script_Control_Gates (control,cases [i].drive,cases [i].fire);
+
+			bool moving = (control.Get_Analog (ControlClass::ANALOG_MOVE_FORWARD) != 0.0f) &&
+							  (control.Get_Analog (ControlClass::ANALOG_TURN_LEFT) != 0.0f);
+			bool firing = control.Get_Boolean (ControlClass::BOOLEAN_WEAPON_FIRE_PRIMARY) &&
+							  control.Get_Boolean (ControlClass::BOOLEAN_WEAPON_FIRE_SECONDARY);
+			bool not_firing = !control.Get_Boolean (ControlClass::BOOLEAN_WEAPON_FIRE_PRIMARY) &&
+									!control.Get_Boolean (ControlClass::BOOLEAN_WEAPON_FIRE_SECONDARY);
+
+			Check (moving == cases [i].drive,"CanDrive=%d CanFire=%d left the vehicle %s",
+					 (int)cases [i].drive,(int)cases [i].fire,moving ? "driving" : "stopped");
+			Check (cases [i].fire ? firing : not_firing,"CanDrive=%d CanFire=%d left the guns %s",
+					 (int)cases [i].drive,(int)cases [i].fire,firing ? "firing" : "not in the expected state");
+		}
 	}
 }
 

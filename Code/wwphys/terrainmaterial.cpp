@@ -114,7 +114,11 @@ TerrainMaterialClass::Set_Texture (const char *texture_name)
 	}
 #endif
 
-	Texture = WW3DAssetManager::Get_Instance ()->Get_Texture (TextureName);
+	//	A device-less check keeps the name with nothing loaded behind it; the texture is
+	//	resolved by whoever has an asset manager (Load re-runs this).
+	if (WW3DAssetManager::Get_Instance () != nullptr) {
+		Texture = WW3DAssetManager::Get_Instance ()->Get_Texture (TextureName);
+	}
 	return ;
 }
 

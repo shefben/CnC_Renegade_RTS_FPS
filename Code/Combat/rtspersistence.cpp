@@ -64,6 +64,8 @@ enum
 
 	VARID_COMMANDER_TEAM,
 	VARID_COMMANDER_PLAYER,
+
+	VARID_REQUESTER_ID,		// appended: a save written before it restores RequesterId 0 (no refund owed)
 };
 
 static int	_LoadFailures		= 0;
@@ -174,6 +176,7 @@ bool RTSPersistenceClass::Save(ChunkSaveClass & csave)
 			int kind = (int)item.Kind;
 			WRITE_MICRO_CHUNK (csave,VARID_KIND,				kind);
 			WRITE_MICRO_CHUNK (csave,VARID_TICKET_ID,			item.TicketId);
+			WRITE_MICRO_CHUNK (csave,VARID_REQUESTER_ID,		item.RequesterId);
 		csave.End_Chunk ();
 	}
 
@@ -310,6 +313,7 @@ bool RTSPersistenceClass::Load(ChunkLoadClass & cload)
 						READ_MICRO_CHUNK (cload,VARID_ELAPSED,			item.ElapsedSeconds);
 						READ_MICRO_CHUNK (cload,VARID_KIND,				kind);
 						READ_MICRO_CHUNK (cload,VARID_TICKET_ID,		item.TicketId);
+						READ_MICRO_CHUNK (cload,VARID_REQUESTER_ID,	item.RequesterId);
 					}
 					cload.Close_Micro_Chunk ();
 				}

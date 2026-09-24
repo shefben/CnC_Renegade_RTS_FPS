@@ -35,6 +35,7 @@
 
 #include "always.h"
 #include "buildingdescriptor.h"
+#include "vector.h"
 #include "vector3.h"
 #include "wwstring.h"
 
@@ -115,7 +116,7 @@ struct CommanderProductionItem
 	CommanderProductionItem(void) : FacilityId(0),DefinitionId(0),Team(-1),Cost(0),
 											  BuildTimeSeconds(0.0f),ElapsedSeconds(0.0f),
 											  State(PRODUCTION_STATE_QUEUED),
-											  Kind(BUILDING_PRODUCTION_NONE),TicketId(0) { }
+											  Kind(BUILDING_PRODUCTION_NONE),TicketId(0),RequesterId(0) { }
 
 	bool	operator == (const CommanderProductionItem &) const	{ return false; }
 	bool	operator != (const CommanderProductionItem &) const	{ return true; }
@@ -129,6 +130,22 @@ struct CommanderProductionItem
 	CommanderProductionItemStateType	State;
 	BuildingProductionKindType			Kind;
 	int									TicketId;		// unique, so a completion names exactly one request
+	int									RequesterId;	// whose wallet paid: a client id, or AI_COMMANDER_ID
+};
+
+
+//	One refund owed by a cancellation or a destroyed facility: the full cost back to the same
+//	wallet Request_Production's caller debited.
+struct CommanderProductionRefund
+{
+	CommanderProductionRefund(void) : RequesterId(0),Team(-1),Credits(0) { }
+
+	bool	operator == (const CommanderProductionRefund &) const	{ return false; }
+	bool	operator != (const CommanderProductionRefund &) const	{ return true; }
+
+	int	RequesterId;
+	int	Team;
+	int	Credits;
 };
 
 
@@ -365,9 +382,23 @@ class CommanderProductionService
 		**	partially-built-unit concept this game does not have.  The refunded total is
 		**	returned so the caller can credit it back to the same wallet it debited.
 		*/
-		static int		Cancel_Item(int facility_id,int ticket_id);
-		static int		Cancel_Facility_Queue(int facility_id);
-		static int		On_Facility_Destroyed(int facility_id);
+		//	Each optionally lists the refunds it owes, one per dropped item, so a caller can
+		//	credit every payer rather than one lump sum.
+		static int		Cancel_Item(int facility_id,int ticket_id,
+										  DynamicVectorClass<CommanderProductionRefund> * refunds = nullptr);
+		static int		Cancel_Facility_Queue(int facility_id,
+													 DynamicVectorClass<CommanderProductionRefund> * refunds = nullptr);
+		static int		On_Facility_Destroyed(int facility_id,
+													 DynamicVectorClass<CommanderProductionRefund> * refunds = nullptr);
+
+		/*
+		**	The server's building-death path (BuildingGameObj::On_Destroyed): On_Facility_Destroyed
+		**	plus the credit.  A human requester is paid through PlayerRosterClass (their player
+		**	record outlives their soldier, so a dead Commander is still refunded); the AI Commander
+		**	through its treasury.  Safe to call twice -- the second call finds nothing queued.
+		*/
+		static int		Resolve_Facility_Destroyed(int facility_id);
+		static void		Credit_Refund(const CommanderProductionRefund & refund);
 
 		/*
 		**	Commander selection and orders.  Selection is a bounded set of network object ids --

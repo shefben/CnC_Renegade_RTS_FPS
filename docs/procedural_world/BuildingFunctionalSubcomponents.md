@@ -63,6 +63,11 @@ work already recorded), so bone/pivot names were recovered the same way that pas
 - `data/building_models/gdi/mgpwr/mgpwr_int.w3d` contains the literal string `MGPWR_MCT`
   (material `mct_gdi`) -- the GDI Power Plant's real, confirmed MCT node.
 - `data/building_models/nod/mnpwr/mnpwr_int.w3d` contains `MNPWR_MCT` the same way.
+- **Correction (P33):** a string scan finds the mesh name, not the bone. Each file's hierarchy
+  pivot is `MGPWR_MCT~` / `MNPWR_MCT~` (the `~` is part of the pivot name), and
+  `HTreeClass::Get_Bone_Index` matches pivot names exactly, so the anchors as first authored
+  could not resolve. Both descriptors now name the pivot. Anchor names for every later
+  descriptor are read from the pivot chunk itself (`docs/zerohour/BuildingPresets.md`).
 - `data/building_models/gdi/gdi_comm/G_Comcntr.w3d` contains `COM_ANTEN000` through
   `COM_ANTEN005` (a six-piece antenna array) and `COM_EXT-ANT`/`COM_EXT-FRM`/`COM_EXT-JAM`/
   `COM_EXT-LOGO`/`COM_EXT-STRC`/`COM_EXT-TWR` (an exterior structure group; `TWR` reads as

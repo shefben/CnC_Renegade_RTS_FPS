@@ -23,6 +23,7 @@
 #include "projectbuildingdefs.h"
 
 #include "comcentergameobj.h"
+#include "constructionyardgameobj.h"
 #include "definitionmgr.h"
 
 
@@ -63,6 +64,15 @@ void ProjectBuildingDefs::Register(void)
 	//
 	REGISTER_IF_ABSENT (new ComCenterGameObjDef,"ow_gdi_adv_comm_center",BuildingConstants::TYPE_COM_CENTER);
 	REGISTER_IF_ABSENT (new ComCenterGameObjDef,"ow_nod_adv_comm_center",BuildingConstants::TYPE_COM_CENTER);
+
+	//
+	//	Construction Yard -- ConstructionYardGameObjDef, the class this engine already has for it.
+	//	The retail definition database has no Construction Yard building definition: the
+	//	mp_GDI_Construction_Yard / mp_Nod_Construction_Yard names in objects.ddb sit outside
+	//	its building-definition chunks (docs/zerohour/BuildingPresets.md), so the preset is ours.
+	//
+	REGISTER_IF_ABSENT (new ConstructionYardGameObjDef,"ow_gdi_construction_yard",BuildingConstants::TYPE_CONYARD);
+	REGISTER_IF_ABSENT (new ConstructionYardGameObjDef,"ow_nod_construction_yard",BuildingConstants::TYPE_CONYARD);
 
 	#undef REGISTER_IF_ABSENT
 

@@ -1,0 +1,75 @@
+{
+ "_comment_assembly": "Real retail assets (Data/buildings/nod/mnrep/building.json in the installed game; every loadByDefault part, copied to data/building_models/nod/mnrep) -- see docs/zerohour/BuildingComponentAssembly.md. Not loaded (loadByDefault false in the manifest): mnrep_visx.w3d (visibilityHelper).",
+ "assembly": {
+  "parts": [
+   {
+    "id": "repair_pad",
+    "kind": "exterior",
+    "model": "mnrep.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_1",
+    "kind": "aggregate",
+    "model": "MNrep_ag_1.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   }
+  ]
+ },
+ "damage_visual": {
+  "intact_model": "mnrep.w3d",
+  "damaged_model": "ow_nod_repair_facility_d.w3d",
+  "destroyed_model": "ow_nod_repair_facility_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+ "model_name": "mnrep.w3d",
+ "game_object_preset": "mp_Nod_Repair_Bay",
+ "schema_version": 1,
+ "_comment_footprint": "Measured: twice the largest |X| and |Y| of the exterior mesh bounds, rounded up (the footprint is centred on the building origin).",
+ "footprint": {
+  "width": 21.0,
+  "depth": 21.0
+ },
+ "power": {
+  "requires_power": true,
+  "generation": 0.0,
+  "consumption": 100.0,
+  "priority": 40
+ },
+ "build": {
+  "buildable": true,
+  "cost": 1200,
+  "tech_level": 2,
+  "team": 0,
+  "display_name": "Repair Facility"
+ },
+ "construction_visual": {
+  "duration_seconds": 12.0,
+  "block_width": 2.0,
+  "block_depth": 2.0,
+  "row_height": 1.5,
+  "source_reveal_start": 0.75,
+  "block_fade_start": 0.9,
+  "max_blocks": 2048
+ }
+}

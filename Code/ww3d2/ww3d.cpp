@@ -789,20 +789,26 @@ void WW3D::Set_Texture_Filter(int texture_filter)
 
 //	Roadmap Section 52A, Phase 46.  Re-runs the same filter-preset pass `Set_Texture_Filter`
 //	does, so a new anisotropy/LOD-bias request takes hold immediately rather than waiting for
-//	the next unrelated filter-mode change.
+//	the next unrelated filter-mode change.  Before a device exists there are no caps to build
+//	the presets from; the stored value is picked up by the filter pass device creation runs
+//	(DX8Wrapper::Do_Onetime_Device_Dependent_Inits), so settings may load before the device.
 void WW3D::Set_Anisotropic_Level(int level)
 {
 	if (level < 1) level = 1;
 	if (level > 16) level = 16;
 	AnisotropicLevel = level;
-	TextureClass::_Init_Filters((TextureClass::TextureFilterMode)TextureFilter);
+	if (DX8Wrapper::Has_Current_Caps ()) {
+		TextureClass::_Init_Filters((TextureClass::TextureFilterMode)TextureFilter);
+	}
 }
 
 
 void WW3D::Set_Texture_LOD_Bias(float bias)
 {
 	TextureLODBias = bias;
-	TextureClass::_Init_Filters((TextureClass::TextureFilterMode)TextureFilter);
+	if (DX8Wrapper::Has_Current_Caps ()) {
+		TextureClass::_Init_Filters((TextureClass::TextureFilterMode)TextureFilter);
+	}
 }
 
 

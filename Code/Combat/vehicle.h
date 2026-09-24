@@ -366,6 +366,11 @@ public:
 	static bool			Compute_Subsystem_Weapon_Enabled( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
 	static bool			Compute_Subsystem_Immobilized( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
 
+	//	The script-owned CanDrive/CanFire gates Apply_Control applies, as the static form a
+	//	device-less check can reach.  Zeroes drive/turn when driving is off and the two fire
+	//	buttons when firing is off; each leaves the other half of the control untouched.
+	static void			Apply_Script_Control_Gates( ControlClass & control, bool can_drive, bool can_fire );
+
 	//
 	//	Normally a vehicle loses its stealth as soon as the last occupant
 	//	leaves; this keeps it stealthed while empty.

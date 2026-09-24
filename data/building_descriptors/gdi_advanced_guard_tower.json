@@ -1,0 +1,159 @@
+{
+ "_comment_assembly": "Real retail assets (Data/buildings/gdi/mgagd/building.json in the installed game; every loadByDefault part, copied to data/building_models/gdi/mgagd) -- see docs/zerohour/BuildingComponentAssembly.md. Not loaded (loadByDefault false in the manifest): mgagd_ext_n.w3d (nightVariant), mgagd_ag_3n.w3d (nightVariant), mgagd_int_temp.w3d (temporarySource), mgagd_vis.w3d (visibilityHelper), mgagd_visx.w3d (visibilityHelper).",
+ "assembly": {
+  "parts": [
+   {
+    "id": "exterior",
+    "kind": "exterior",
+    "model": "mgagd_ext.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "interior",
+    "kind": "interior",
+    "model": "mgagd_int.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_1",
+    "kind": "aggregate",
+    "model": "mgagd_ag_1.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_2",
+    "kind": "aggregate",
+    "model": "mgagd_ag_2.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_3",
+    "kind": "aggregate",
+    "model": "mgagd_ag_3.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "doors",
+    "kind": "door",
+    "model": "mgagd_doors.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "elevator",
+    "kind": "elevator",
+    "model": "mgagd_elev.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   }
+  ]
+ },
+ "damage_visual": {
+  "intact_model": "mgagd_ext.w3d",
+  "damaged_model": "ow_gdi_advanced_guard_tower_d.w3d",
+  "destroyed_model": "ow_gdi_advanced_guard_tower_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+ "_comment_anchors": "MGAGD_MCT~ is the exact hierarchy pivot name in mgagd_int.w3d; the trailing ~ is part of the name, and HTreeClass::Get_Bone_Index matches exactly.",
+ "anchors": {
+  "mct_anchor": "MGAGD_MCT~"
+ },
+ "model_name": "mgagd_ext.w3d",
+ "game_object_preset": "mp_GDI_Advanced_Guard_Tower",
+ "schema_version": 1,
+ "_comment_footprint": "Measured: twice the largest |X| and |Y| of the exterior mesh bounds, rounded up (the footprint is centred on the building origin).",
+ "footprint": {
+  "width": 19.0,
+  "depth": 17.0
+ },
+ "power": {
+  "requires_power": true,
+  "generation": 0.0,
+  "consumption": 200.0,
+  "priority": 70
+ },
+ "build": {
+  "buildable": true,
+  "cost": 1500,
+  "tech_level": 3,
+  "team": 1,
+  "display_name": "Advanced Guard Tower"
+ },
+ "construction_visual": {
+  "duration_seconds": 15.0,
+  "block_width": 2.0,
+  "block_depth": 2.0,
+  "row_height": 1.5,
+  "source_reveal_start": 0.75,
+  "block_fade_start": 0.9,
+  "max_blocks": 2048
+ }
+}

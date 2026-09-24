@@ -103,6 +103,12 @@ void CommanderModeController::Shutdown(void)
 bool CommanderModeController::Enter_Commander_Mode(SoldierGameObj * star)
 {
 	if (star == nullptr) return false;
+	return Enter_Commander_Mode (star,star->Get_Player_Type ());
+}
+
+bool CommanderModeController::Enter_Commander_Mode(SoldierGameObj * star,int team)
+{
+	if (star == nullptr) return false;
 	if (_Active) return false;
 
 	_Active	= true;
@@ -117,7 +123,7 @@ bool CommanderModeController::Enter_Commander_Mode(SoldierGameObj * star)
 	**	The team comes from the embodied star, which is the only team a Commander can command --
 	**	Section 3A's embodiment rule, showing up as a UI fact.
 	*/
-	CommanderSidebarModel::Open (star->Get_Player_Type ());
+	CommanderSidebarModel::Open (team);
 	return true;
 }
 

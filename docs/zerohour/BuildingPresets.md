@@ -28,8 +28,87 @@ Commander-buildable.
 | `nod_advanced_communications_center` | `ow_nod_adv_comm_center` | `ComCenterGameObjDef`, project-owned | Nod |
 | `gdi_tiberium_silo` | `ow_gdi_tiberium_silo` | `BuildingGameObjDef` (base), project-owned | GDI |
 | `nod_tiberium_silo` | `ow_nod_tiberium_silo` | `BuildingGameObjDef` (base), project-owned | Nod |
+| `gdi_barracks` | `mp_GDI_Barracks` | `SoldierFactoryGameObjDef` | GDI |
+| `nod_hand_of_nod` | `mp_Hand_of_Nod` | `SoldierFactoryGameObjDef` | Nod |
+| `gdi_weapons_factory` | `mp_GDI_War_Factory` | `WarFactoryGameObjDef` | GDI |
+| `nod_airstrip` | `mp_Nod_Airstrip` | `AirStripGameObjDef` | Nod |
+| `gdi_refinery` | `mp_GDI_Refinery` | `RefineryGameObjDef` | GDI |
+| `nod_refinery` | `mp_Nod_Refinery` | `RefineryGameObjDef` | Nod |
+| `gdi_repair_facility` | `mp_GDI_Repair_Bay` | `RepairBayGameObjDef` | GDI |
+| `nod_repair_facility` | `mp_Nod_Repair_Bay` | `RepairBayGameObjDef` | Nod |
+| `gdi_construction_yard` | `ow_gdi_construction_yard` | `ConstructionYardGameObjDef`, project-owned | GDI |
+| `nod_construction_yard` | `ow_nod_construction_yard` | `ConstructionYardGameObjDef`, project-owned | Nod |
+| `gdi_advanced_guard_tower` | `mp_GDI_Advanced_Guard_Tower` | `BuildingGameObjDef` (base) | GDI |
+| `nod_obelisk` | `mp_Nod_Obelisk` | `BuildingGameObjDef` (base) | Nod |
+| `nod_turret` | `mp_Nod_Turret` | `BuildingGameObjDef` (base) | Nod |
+| `nod_sam_site` | `mp_Nod_Sam_Site` | `BuildingGameObjDef` (base) | Nod |
 
 GDI and Nod do not share a preset for anything -- confirmed by the dump, not assumed.
+
+## The second batch (P33): how it was verified
+
+The last 14 rows above were added when P33 authored every remaining category that has both a
+real curated asset manifest and a real preset. The LevelEdit `-dumpbuildingdefs` mode hung in
+both Debug and Release builds that session, so the definitions were read another way that
+does not depend on the editor:
+
+- The installed game's definitions are `objects.ddb` inside `Data\always.dbs` (a MIX archive,
+  not `always.dat`). Walking its chunk tree gives each preset name together with the chunk it
+  sits in, and a game-object definition's chunk id is its factory's
+  `CHUNKID_GAME_OBJECT_DEF_*` (`Code/Combat/combatchunkid.h`):
+  `0x4013C` soldier factory (`mp_GDI_Barracks`, `mp_Hand_of_Nod`), `0x40142` war factory
+  (`mp_GDI_War_Factory`), `0x40140` airstrip (`mp_Nod_Airstrip`), `0x40138` refinery,
+  `0x40146` repair bay, `0x40134` base building (`mp_GDI_Advanced_Guard_Tower`, `mp_Nod_Obelisk`,
+  `mp_Nod_Turret`, `mp_Nod_Sam_Site`, both helipads), and `0x4013A` power plant -- which
+  independently reproduces the first batch's power plant result.
+- **Rejected:** `mp_Nod_Hand_of_Nod`, `mp_Nod_Air_Strip`, `mp_Nod_Air_Tower`,
+  `mp_GDI_Construction_Yard`, `mp_Nod_Construction_Yard`, `mp_GDI_Repair_Pad`,
+  `mp_Nod_Repair_Pad` and `mp_Nod_Temple_of_Nod` appear only under chunk `0x50000`, which is
+  not a game-object definition. They name-match; they are not buildings.
+- **Construction Yard has no retail building definition at all**, so, like the Silo, its preset
+  is project-owned and registered by `ProjectBuildingDefs::Register` -- with the
+  `ConstructionYardGameObjDef` class this engine already has for it.
+- **Not authored:** the Nod Shrine (manifest exists, but no building definition does -- the
+  only candidate is the rejected `mp_Nod_Temple_of_Nod`), the helipads (real base-class
+  definitions, but no model manifest to assemble), and the neutral props.
+
+**Models:** each descriptor's `assembly.parts` is every `loadByDefault` part of the retail
+`Data\buildings\<team>\<prefix>\building.json` manifest, copied to
+`data/building_models/<team>/<prefix>/`; night variants, authoring-only sources and vis
+helpers are listed in each file's `_comment_assembly` as not loaded.
+
+**Footprints are measured,** not chosen: twice the largest |X| and |Y| of the exterior mesh
+bounds (plus the production pad / runway for the two vehicle factories), rounded up, because
+placement centres the footprint on the building origin. The Nod Repair Bay's exterior also
+holds a 108 m `TMP_LAND` scratch plane, which is excluded. The Airstrip's runway makes it
+31 x 153 m.
+
+**MCT anchors are exact hierarchy pivot names** (`MGBAR_MCT~` and so on) read from the
+`*_int.w3d` pivot chunk. The trailing `~` is part of the pivot name and
+`HTreeClass::Get_Bone_Index` is an exact comparison, so the two power plants' earlier
+`MGPWR_MCT`/`MNPWR_MCT` (found by string scan, which strips the `~`) could never resolve; they
+were corrected to `MGPWR_MCT~`/`MNPWR_MCT~`. The Repair Bays, Turret and SAM Site have no
+interior and no MCT.
+
+**First-pass balance** (cost / tech / power draw / sidebar):
+
+| Building | Cost | Tech | Power | Buildable |
+| --- | --- | --- | --- | --- |
+| Construction Yard | 3000 | 1 | none | no -- the initial base building |
+| Barracks / Hand of Nod | 500 | 1 | 100 | yes, infantry queue 5 |
+| Weapons Factory / Airstrip | 2000 | 2 | 200 | yes, ground-vehicle queue 5 |
+| Refinery | 2000 | 1 | 100 (priority 80) | yes |
+| Repair Facility | 1200 | 2 | 100 (priority 40) | yes |
+| Advanced Guard Tower | 1500 | 3 | 200 | yes |
+| Obelisk of Light | 1500 | 3 | 250 | yes |
+| Turret | 600 | 1 | none | yes |
+| SAM Site | 750 | 2 | 50 | yes |
+
+These sit on the scale the first batch set (Power Plant 1000 / +500, Communications Center
+1800 / 150). They are a starting point for balance, not a tuned result.
+
+`shader_buildingjson` now validates every shipped descriptor file and checks that every
+assembly part it names is present under `data/building_models`.
 `mp_GDI_Power_Plant` and `mp_Nod_Power_Plant` are two separate definitions, both class
 `CLASSID_GAME_OBJECT_DEF_POWERPLANT`, same as every other faction pair the dump showed
 (`mp_GDI_Barracks`/`mp_Hand_of_Nod` both `SOLDIER_FACTORY`, `mp_GDI_Repair_Bay`/

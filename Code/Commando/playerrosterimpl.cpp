@@ -46,6 +46,19 @@ PlayerRosterImplClass::Get_Player_Type (int player_id)
 }
 
 
+bool
+PlayerRosterImplClass::Grant_Money (int player_id,float amount)
+{
+	cPlayer *player = cPlayerManager::Find_Player (player_id);
+	if (player == nullptr) {
+		return false;
+	}
+
+	player->Increment_Money (amount);
+	return true;
+}
+
+
 int
 PlayerRosterImplClass::Get_Player_Count (void)
 {

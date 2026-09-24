@@ -449,6 +449,7 @@ static void Set_Fog(bool enable, const Vector3 &color, float start, float end, f
 	static IDirect3D9* _Get_D3D8() { return D3DInterface; }
 
 	static const DX8Caps*	Get_Current_Caps() { WWASSERT(CurrentCaps); return CurrentCaps; }
+	static bool					Has_Current_Caps() { return CurrentCaps != nullptr; }
 
 	static bool Registry_Save_Render_Device( const char * sub_key );
 	static bool Registry_Load_Render_Device( const char * sub_key, bool resize_window );

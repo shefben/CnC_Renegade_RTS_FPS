@@ -1,0 +1,252 @@
+{
+ "_comment_assembly": "Real retail assets (Data/buildings/nod/mnatr/building.json in the installed game; every loadByDefault part, copied to data/building_models/nod/mnatr) -- see docs/zerohour/BuildingComponentAssembly.md. Not loaded (loadByDefault false in the manifest): mnatr_int_tmp.w3d (temporarySource).",
+ "assembly": {
+  "parts": [
+   {
+    "id": "exterior",
+    "kind": "exterior",
+    "model": "mnatr_ext.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "interior",
+    "kind": "interior",
+    "model": "mnatr_int.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_1",
+    "kind": "aggregate",
+    "model": "MNatr_ag_1.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_2",
+    "kind": "aggregate",
+    "model": "MNatr_ag_2.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_3",
+    "kind": "aggregate",
+    "model": "MNatr_ag_3.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_4",
+    "kind": "aggregate",
+    "model": "MNatr_ag_4.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "doors",
+    "kind": "door",
+    "model": "mnatr_doors.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "lift",
+    "kind": "elevator",
+    "model": "mnatr_lift.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "production_strip",
+    "kind": "vehicleProductionAnimation",
+    "model": "mnatr_strip.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "strip_visual",
+    "kind": "productionVisual",
+    "model": "strip_vis.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "tower_lights",
+    "kind": "lights",
+    "model": "tower_lghts.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "tower_visual",
+    "kind": "towerVisual",
+    "model": "tower_vis.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   }
+  ]
+ },
+ "damage_visual": {
+  "intact_model": "mnatr_ext.w3d",
+  "damaged_model": "ow_nod_airstrip_d.w3d",
+  "destroyed_model": "ow_nod_airstrip_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+ "_comment_anchors": "MNATR_MCT~ is the exact hierarchy pivot name in mnatr_int.w3d; the trailing ~ is part of the name, and HTreeClass::Get_Bone_Index matches exactly.",
+ "anchors": {
+  "mct_anchor": "MNATR_MCT~"
+ },
+ "subcomponents": [
+  {
+   "role": "factory_production_module",
+   "anchor_bone": "MNATR_MCT~",
+   "full_function_health_fraction": 0.75,
+   "disabled_health_fraction": 0.0
+  }
+ ],
+ "model_name": "mnatr_ext.w3d",
+ "game_object_preset": "mp_Nod_Airstrip",
+ "schema_version": 1,
+ "_comment_footprint": "Measured: twice the largest |X| and |Y| of the exterior and production pad/strip mesh bounds, rounded up (the footprint is centred on the building origin).",
+ "footprint": {
+  "width": 31.0,
+  "depth": 153.0
+ },
+ "power": {
+  "requires_power": true,
+  "generation": 0.0,
+  "consumption": 200.0,
+  "priority": 60
+ },
+ "build": {
+  "buildable": true,
+  "cost": 2000,
+  "tech_level": 2,
+  "team": 0,
+  "display_name": "Airstrip"
+ },
+ "production": {
+  "kind": "ground_vehicle",
+  "queue_capacity": 5,
+  "requires_power": true
+ },
+ "construction_visual": {
+  "duration_seconds": 20.0,
+  "block_width": 2.0,
+  "block_depth": 2.0,
+  "row_height": 1.5,
+  "source_reveal_start": 0.75,
+  "block_fade_start": 0.9,
+  "max_blocks": 2048
+ }
+}

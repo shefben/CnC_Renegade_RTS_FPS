@@ -45,6 +45,12 @@ public:
 	//
 	virtual int							Get_Player_Count (void) = 0;
 	virtual int							Get_Player_ID_By_Index (int index) = 0;
+
+	//
+	//	Credits a player's wallet, whether or not they have a living soldier.
+	//	Answers false for an ID that no longer belongs to anybody.
+	//
+	virtual bool						Grant_Money (int player_id,float amount) = 0;
 };
 
 

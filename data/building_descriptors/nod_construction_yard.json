@@ -1,0 +1,143 @@
+{
+ "_comment_assembly": "Real retail assets (Data/buildings/nod/mncon/building.json in the installed game; every loadByDefault part, copied to data/building_models/nod/mncon) -- see docs/zerohour/BuildingComponentAssembly.md. Not loaded (loadByDefault false in the manifest): mncon_ext_n.w3d (nightVariant), mncon_int_n.w3d (nightVariant), MNcon_ag_3n.w3d (nightVariant), mncon_vis.w3d (visibilityHelper), mncon_visx.w3d (visibilityHelper), tmp_ground.w3d (temporarySource).",
+ "assembly": {
+  "parts": [
+   {
+    "id": "exterior",
+    "kind": "exterior",
+    "model": "mncon_ext.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "interior",
+    "kind": "interior",
+    "model": "mncon_int.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_1",
+    "kind": "aggregate",
+    "model": "MNcon_ag_1.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_2",
+    "kind": "aggregate",
+    "model": "MNcon_ag_2.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_3",
+    "kind": "aggregate",
+    "model": "MNcon_ag_3.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "doors",
+    "kind": "door",
+    "model": "mncon_doors.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   }
+  ]
+ },
+ "damage_visual": {
+  "intact_model": "mncon_ext.w3d",
+  "damaged_model": "ow_nod_construction_yard_d.w3d",
+  "destroyed_model": "ow_nod_construction_yard_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+ "_comment_anchors": "MNCON_MCT~ is the exact hierarchy pivot name in mncon_int.w3d; the trailing ~ is part of the name, and HTreeClass::Get_Bone_Index matches exactly.",
+ "anchors": {
+  "mct_anchor": "MNCON_MCT~"
+ },
+ "model_name": "mncon_ext.w3d",
+ "game_object_preset": "ow_nod_construction_yard",
+ "schema_version": 1,
+ "_comment_footprint": "Measured: twice the largest |X| and |Y| of the exterior mesh bounds, rounded up (the footprint is centred on the building origin).",
+ "footprint": {
+  "width": 57.0,
+  "depth": 69.0
+ },
+ "power": {
+  "requires_power": false,
+  "generation": 0.0,
+  "consumption": 0.0,
+  "priority": 100
+ },
+ "build": {
+  "buildable": false,
+  "cost": 3000,
+  "tech_level": 1,
+  "team": 0,
+  "display_name": "Construction Yard"
+ },
+ "construction_visual": {
+  "duration_seconds": 15.0,
+  "block_width": 2.0,
+  "block_depth": 2.0,
+  "row_height": 1.5,
+  "source_reveal_start": 0.75,
+  "block_fade_start": 0.9,
+  "max_blocks": 2048
+ }
+}

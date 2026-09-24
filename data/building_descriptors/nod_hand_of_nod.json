@@ -1,0 +1,220 @@
+{
+ "_comment_assembly": "Real retail assets (Data/buildings/nod/mnhnd/building.json in the installed game; every loadByDefault part, copied to data/building_models/nod/mnhnd) -- see docs/zerohour/BuildingComponentAssembly.md. Not loaded (loadByDefault false in the manifest): mnhnd_ext_n.w3d (nightVariant), MNhnd_ag_3n.w3d (nightVariant), mnhnd_blow.w3d (damageVariant), mnhnd_blow2.w3d (damageVariant), mnhnd_int_tmp.w3d (temporarySource), mnhnd_vis.w3d (visibilityHelper), mnhnd_visx.w3d (visibilityHelper).",
+ "assembly": {
+  "parts": [
+   {
+    "id": "exterior",
+    "kind": "exterior",
+    "model": "mnhnd_ext.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "interior",
+    "kind": "interior",
+    "model": "mnhnd_int.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_1",
+    "kind": "aggregate",
+    "model": "MNhnd_ag_1.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_2",
+    "kind": "aggregate",
+    "model": "MNhnd_ag_2.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "aggregate_3",
+    "kind": "aggregate",
+    "model": "MNhnd_ag_3.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "doors",
+    "kind": "door",
+    "model": "mnhnd_doors.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "elevator_01",
+    "kind": "elevator",
+    "model": "mnhnd_elev01.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "elevator_02",
+    "kind": "elevator",
+    "model": "mnhnd_elev02.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "monitor",
+    "kind": "monitor",
+    "model": "mnhnd_monitor.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   },
+   {
+    "id": "shaft",
+    "kind": "elevatorShaft",
+    "model": "shaft.w3d",
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "load_by_default": true
+   }
+  ]
+ },
+ "damage_visual": {
+  "intact_model": "mnhnd_ext.w3d",
+  "damaged_model": "ow_nod_hand_of_nod_d.w3d",
+  "destroyed_model": "ow_nod_hand_of_nod_x.w3d",
+  "damaged_health_fraction": 0.5
+ },
+ "_comment_anchors": "MNHND_MCT~ is the exact hierarchy pivot name in mnhnd_int.w3d; the trailing ~ is part of the name, and HTreeClass::Get_Bone_Index matches exactly.",
+ "anchors": {
+  "mct_anchor": "MNHND_MCT~"
+ },
+ "subcomponents": [
+  {
+   "role": "factory_production_module",
+   "anchor_bone": "MNHND_MCT~",
+   "full_function_health_fraction": 0.75,
+   "disabled_health_fraction": 0.0
+  }
+ ],
+ "model_name": "mnhnd_ext.w3d",
+ "game_object_preset": "mp_Hand_of_Nod",
+ "schema_version": 1,
+ "_comment_footprint": "Measured: twice the largest |X| and |Y| of the exterior mesh bounds, rounded up (the footprint is centred on the building origin).",
+ "footprint": {
+  "width": 19.0,
+  "depth": 58.0
+ },
+ "power": {
+  "requires_power": true,
+  "generation": 0.0,
+  "consumption": 100.0,
+  "priority": 60
+ },
+ "build": {
+  "buildable": true,
+  "cost": 500,
+  "tech_level": 1,
+  "team": 0,
+  "display_name": "Hand of Nod"
+ },
+ "production": {
+  "kind": "infantry",
+  "queue_capacity": 5,
+  "requires_power": true
+ },
+ "construction_visual": {
+  "duration_seconds": 12.0,
+  "block_width": 2.0,
+  "block_depth": 2.0,
+  "row_height": 1.5,
+  "source_reveal_start": 0.75,
+  "block_fade_start": 0.9,
+  "max_blocks": 2048
+ }
+}

@@ -133,6 +133,27 @@ which is the opposite of the rule.
 So: stock names to look at it, `ow_` names to ship it. When the six textures above exist,
 they replace the stand-ins and nothing else changes.
 
+### The stand-ins in use (P13)
+
+`Define_Default_Layers` now gives every layer its texture, tiling and surface type. For each it
+uses the `ow_ter_*` file when the file factory can find it (as `.tga` or `.dds`), and otherwise
+the stock texture below. Every stock name was listed from the retail `always.dat` and looked at
+before it was chosen. The engine loads the `.dds` that `always.dat` actually holds for a `.tga`
+name.
+
+| Layer | Preferred | Stock stand-in | Tiling | Surface |
+| --- | --- | --- | --- | --- |
+| ground | `ow_ter_ground.tga` | `cc_grass1` (multiplayer grass, tiles cleanly) | 8 m | grass |
+| macro | `ow_ter_macro.tga` | `l05_grass` (darker grass, for broad patches) | 64 m | grass |
+| rock | `ow_ter_rock.tga` | `l01-rock2` (worn grey-brown rock, no direction) | 4 m | rock |
+| cliff | `ow_ter_cliff.tga` | `l03_mossrock` (mossy stone) | 6 m | rock |
+| shore | `ow_ter_shore.tga` | `lv8_sand3` (fine sand) | 4 m | sand |
+| road | `ow_ter_road.tga` | `l11_gravel` (worn dirt and gravel) | 4 m | dirt |
+
+The boundary cliff face is dressed by the first `TERRAIN_LAYER_CLIFF` layer, which is `rock`,
+so the cliff ring is no longer untextured either. `terrain_textures` asserts that every default
+layer names a texture. Whether they look right together is a live check.
+
 ## Not listed here, and why
 
 **Detail, biome and scorch** have layer kinds in the system and no entries in the default
