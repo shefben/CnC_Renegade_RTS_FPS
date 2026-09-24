@@ -52,6 +52,10 @@ class CommanderSelection
 			//	the order.  Kept as its own constant rather than including the network header,
 			//	because this class has no business knowing a packet exists.
 			MAX_SELECTED = 64,
+
+			//	Control groups 1..9, the digit keys.  Group 0 is not used, so a group number is
+			//	the digit the player pressed.
+			MAX_CONTROL_GROUPS = 10,
 		};
 
 		static void		Init(void);
@@ -97,6 +101,30 @@ class CommanderSelection
 		static bool		Is_Drag_Significant(void);
 
 		static int		Get_Selection_Change_Count(void);
+
+		/*
+		**	The selected building -- one at a time, and exclusive with the unit selection: a
+		**	building is picked by clicking it (`CommanderUIInput`), which clears the units, and
+		**	selecting units clears it.  This is what the power panel and the selection overlay
+		**	read.  Held as a network id for the same reason units are.  Prune drops it once the
+		**	building is gone or destroyed.
+		*/
+		static void		Select_Building(int building_id);
+		static int		Get_Selected_Building(void);
+		static void		Clear_Selected_Building(void);
+
+		/*
+		**	Control groups: local client state, never replicated -- an order issued to a recalled
+		**	group travels as an ordinary order.  Assign copies the current unit selection into
+		**	the group (an empty selection empties it); Recall replaces the selection with the
+		**	group's members and returns how many it restored.  Prune removes dead members from
+		**	every group as well as from the selection.
+		*/
+		static bool		Assign_Group(int group);
+		static int		Recall_Group(int group);
+		static int		Get_Group_Count(int group);
+		static int		Get_Group_Unit_Id(int group,int index);
+		static void		Clear_Groups(void);
 };
 
 #endif // COMMANDERSELECTION_H

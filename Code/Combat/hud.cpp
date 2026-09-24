@@ -66,6 +66,8 @@
 #include "string_ids.h"
 #include "gametype.h"
 #include "commandercommandpaletterenderer.h"
+#include "commanderpowerpanel.h"
+#include "commandergovernancepanel.h"
 #include "commanderselectionrenderer.h"
 #include "stylemgr.h"
 
@@ -2853,6 +2855,8 @@ void 	HUDClass::Render()
 	//	Mode the same way the sidebar does, so an ordinary FPS frame draws none of them.
 	CommanderSelectionRenderer::Render();
 	CommanderCommandPaletteRenderer::Render();
+	CommanderPowerPanelRenderer::Render();
+	CommanderGovernancePanelRenderer::Render();
 
 	// Only render if Combat is active, and Menu is not,  and we have a star who is not sniping
 	if ( Is_HUD_Displayed() ) {

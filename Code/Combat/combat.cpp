@@ -77,6 +77,10 @@
 #include "runtimebuildingfactory.h"
 #include "commandercommandpalette.h"
 #include "commandercommandpaletterenderer.h"
+#include "commanderpowerpanel.h"
+#include "commanderpatrolai.h"
+#include "commanderselectionoverlays.h"
+#include "commandergovernancepanel.h"
 #include "commanderguardai.h"
 #include "expansionregionregistry.h"
 #include "logisticsgraphservice.h"
@@ -628,6 +632,7 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	CommanderProductionService::Init();
 	CommanderAIService::Init();
 	CommanderGuardAI::Init();
+	CommanderPatrolAI::Init();
 	CommanderSelection::Init();
 	CommanderCommandPalette::Init();
 	CommanderWaypointSystem::Init();
@@ -637,6 +642,8 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	BuildingConstructionRenderer::Init( render_available );
 	CommanderSelectionRenderer::Init( render_available );
 	CommanderCommandPaletteRenderer::Init( render_available );
+	CommanderPowerPanelRenderer::Init( render_available );
+	CommanderGovernancePanelRenderer::Init( render_available );
 	CommanderWaypointRenderer::Init( render_available );
 
 	cEncoderList::Clear_Entries();
@@ -944,6 +951,7 @@ void	CombatManager::Unload_Level( void )
 	DebrisManager::Shutdown();
 	WWLOG_INTERMEDIATE("DebrisManager::Shutdown()");
 
+	CommanderSelectionOverlays::Shutdown();		// its rings are handles into the system below
 	StatusOverlaySystem::Shutdown();
 	WWLOG_INTERMEDIATE("StatusOverlaySystem::Shutdown()");
 
@@ -1296,6 +1304,7 @@ void 	CombatManager::Think()
 		//	other AI it does not control.
 		CommanderGuardAI::Update( CommanderStateClass::Get_Estimated_Server_Time(),
 											TimeManager::Get_Frame_Seconds() );
+		CommanderPatrolAI::Update( TimeManager::Get_Frame_Seconds() );
 
 		//	Roadmap Section 45.  A Commander who quit, timed out, crashed or switched team has to
 		//	give the job up, or the team is locked out of its own production for the rest of the
@@ -1427,6 +1436,9 @@ void 	CombatManager::Think()
 	CommanderSidebarRenderer::Update();
 	CommanderSelectionRenderer::Update();
 	CommanderCommandPaletteRenderer::Update();
+	CommanderPowerPanelRenderer::Update();
+	CommanderSelectionOverlays::Update();
+	CommanderGovernancePanelRenderer::Update();
 
 	//	Waypoint markers age on both sides, so a client whose expiry never arrived still drops the
 	//	marker and a dedicated server's list does not grow for the whole match.

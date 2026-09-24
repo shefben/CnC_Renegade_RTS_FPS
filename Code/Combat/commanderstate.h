@@ -85,6 +85,13 @@ class CommanderStateClass : public NetworkObjectClass
 		*/
 		static float	Get_Estimated_Server_Time(void);
 
+		/*
+		**	Seconds left on a team's Commander vote, on either side.  The server answers from its
+		**	own vote record; a client from the vote's end time on the server clock, which it was
+		**	sent, against Get_Estimated_Server_Time -- so the countdown runs between packets.
+		*/
+		static float	Get_Vote_Time_Remaining(int team);
+
 		static int		Get_Import_Count(void);
 		static int		Get_Export_Count(void);
 };

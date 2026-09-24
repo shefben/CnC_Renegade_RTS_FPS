@@ -22,11 +22,18 @@
 #include "commanderorderevent.h"
 #include "commanderproduction.h"
 #include "commanderproductionevent.h"
+#include "commanderpowerevent.h"
+#include "commanderpowerpanel.h"
+#include "commandergovernancepanel.h"
+#include "commandertransferevent.h"
+#include "commandervotecallevent.h"
+#include "commandervotecastevent.h"
 #include "commanderselection.h"
 #include "commandersidebar.h"
 #include "commandersidebarrenderer.h"
 #include "dialogmgr.h"
 #include "directinput.h"
+#include <dinput.h>
 #include "input.h"
 #include "mousemgr.h"
 #include "playerdata.h"
@@ -34,6 +41,7 @@
 #include "render2d.h"
 #include "cnetwork.h"
 #include "gameobjmanager.h"
+#include "building.h"
 #include "smartgameobj.h"
 #include "soldier.h"
 #include "wwmath.h"
@@ -92,6 +100,20 @@ static bool	Pick_World_Point(const Vector2 & cursor,Vector3 * out_world_point)
 	Vector3 direction = view_plane_point - origin;
 
 	return CommanderModeController::Pick_At_Cursor (origin,direction,out_world_point);
+}
+
+
+//	The same camera ray, resolved to the object it strikes (0 for ground or sky).
+static int	Pick_Object(const Vector2 & cursor,bool * out_is_building)
+{
+	CameraClass * camera = COMBAT_CAMERA;
+	if (camera == nullptr) return 0;
+
+	Vector3 view_plane_point (0.0f,0.0f,0.0f);
+	camera->Device_To_World_Space (cursor,&view_plane_point);
+
+	Vector3 origin = camera->Get_Position ();
+	return CommanderModeController::Pick_Object_At_Cursor (origin,view_plane_point - origin,out_is_building);
 }
 
 
@@ -236,9 +258,27 @@ static void	Issue_Order(CommanderPaletteCommandType command,const Vector3 & targ
 	int count = CommanderSelection::Get_Unit_Ids (ids,cCommanderOrderEvent::MAX_UNITS);
 	if (count <= 0) return;
 
+	//	A patrol runs from where the group stands now to the clicked point and back, so its
+	//	other end is the selection's own centre at the moment of ordering.
+	CommanderUnitOrderType order = CommanderCommandPalette::Get_Order (command);
+	Vector3 second_point = target_point;
+	if (order == ORDER_PATROL) {
+		Vector3 sum (0.0f,0.0f,0.0f);
+		int counted = 0;
+		for (int i = 0; i < count; i++) {
+			PhysicalGameObj * unit = GameObjManager::Find_PhysicalGameObj (ids [i]);
+			if (unit == nullptr) continue;
+			Vector3 position;
+			unit->Get_Position (&position);
+			sum += position;
+			counted++;
+		}
+		if (counted > 0) second_point = sum / (float)counted;
+	}
+
 	cCommanderOrderEvent * event = new cCommanderOrderEvent;
-	event->Init ((int)CommanderCommandPalette::Get_Order (command),target_point,target_id,
-					 ids,count,(int)CommanderCommandPalette::Get_Formation (command));
+	event->Init ((int)order,target_point,target_id,ids,count,
+					 (int)CommanderCommandPalette::Get_Formation (command),&second_point);
 
 	CommanderCommandPalette::Note_Issued ();
 }
@@ -293,6 +333,79 @@ static void	Handle_Left_Click(const Vector2 & cursor)
 		}
 
 		//	Inside the grid's panel but between buttons: swallowed, not passed to the world.
+		if (inside_panel) {
+			_ClickCount++;
+			return;
+		}
+	}
+
+	/*
+	**	The governance panel (top left): each button is one of the existing governance events,
+	**	so a click here and the matching console command reach the server the same way.
+	*/
+	{
+		CommanderGovernanceButton button;
+		bool inside_panel = false;
+
+		if (CommanderGovernancePanelRenderer::Hit_Test (cursor.X,cursor.Y,&button,&inside_panel)) {
+			_ClickCount++;
+			switch (button.Action) {
+				case GOVERNANCE_ACTION_VOTE_YES:
+				case GOVERNANCE_ACTION_VOTE_NO: {
+					cCommanderVoteCastEvent * event = new cCommanderVoteCastEvent;
+					event->Init (button.Action == GOVERNANCE_ACTION_VOTE_YES);
+					CommanderGovernancePanel::Note_Local_Vote (Local_Team ());
+					break;
+				}
+				case GOVERNANCE_ACTION_CALL_REMOVE: {
+					cCommanderVoteCallEvent * event = new cCommanderVoteCallEvent;
+					event->Init (true,button.TargetId);
+					break;
+				}
+				case GOVERNANCE_ACTION_CLAIM: {
+					cCommanderClaimEvent * event = new cCommanderClaimEvent;
+					event->Init (true);
+					break;
+				}
+				case GOVERNANCE_ACTION_TRANSFER: {
+					cCommanderTransferEvent * event = new cCommanderTransferEvent;
+					event->Init (button.TargetId);
+					break;
+				}
+				default:
+					break;
+			}
+			return;
+		}
+
+		if (inside_panel) {
+			_ClickCount++;
+			return;
+		}
+	}
+
+	/*
+	**	The selected building's power panel, which occupies the grid's corner while a building
+	**	rather than units is selected.  A click becomes a request; what the panel shows next is
+	**	whatever the server answers through the Commander mirror.
+	*/
+	{
+		CommanderPowerPanelButtonType button = POWER_PANEL_TOGGLE;
+		bool inside_panel = false;
+
+		if (CommanderPowerPanelRenderer::Hit_Test (cursor.X,cursor.Y,&button,&inside_panel)) {
+			_ClickCount++;
+
+			CommanderPowerPanelState state;
+			int action = 0, value = 0;
+			if (CommanderPowerPanel::Build_State (CommanderSelection::Get_Selected_Building (),&state) &&
+				 CommanderPowerPanel::Get_Request (button,state,&action,&value)) {
+				cCommanderPowerEvent * event = new cCommanderPowerEvent;
+				event->Init (state.BuildingId,action,value);
+			}
+			return;
+		}
+
 		if (inside_panel) {
 			_ClickCount++;
 			return;
@@ -412,9 +525,46 @@ static void	Handle_Left_Release(const Vector2 & cursor)
 	//	modifier key, and the input gate this file installs suppresses every modifier that is not
 	//	on its allow-list -- so offering it here would be offering something that cannot work.
 	CommanderSelection::Clear ();
+	CommanderSelection::Clear_Selected_Building ();
 
 	if (was_box) {
 		Select_In_Box (minimum,maximum);
+		return;
+	}
+
+	/*
+	**	A click, not a box: whatever of the player's own team is under the pointer.  A building
+	**	opens its power panel; a living unit becomes a one-unit selection.  Anything else --
+	**	ground, an enemy, a corpse -- leaves the selection empty, which is what clicking empty
+	**	ground means.
+	*/
+	bool is_building = false;
+	int picked = Pick_Object (cursor,&is_building);
+	if (picked == 0) return;
+
+	int team = Local_Team ();
+
+	if (is_building) {
+		ScriptableGameObj * scriptable = GameObjManager::Find_ScriptableGameObj (picked);
+		BuildingGameObj * building = (scriptable != nullptr) ? scriptable->As_BuildingGameObj () : nullptr;
+		if ((building != nullptr) && (building->Get_Player_Type () == team) && !building->Is_Destroyed ()) {
+			CommanderSelection::Select_Building (picked);
+		}
+		return;
+	}
+
+	PhysicalGameObj * unit = GameObjManager::Find_PhysicalGameObj (picked);
+	if ((unit == nullptr) || (unit->Get_Player_Type () != team)) return;
+	if (unit->As_SmartGameObj () == nullptr) return;		// a unit, not a crate or a prop
+
+	DamageableGameObj * damageable = (DamageableGameObj *)unit;
+	if ((damageable->Get_Defense_Object () == nullptr) ||
+		 (damageable->Get_Defense_Object ()->Get_Health () <= 0.0f)) {
+		return;
+	}
+
+	if (CommanderSelection::Add (picked)) {
+		CommanderSelection::Set_Team (team);
 	}
 }
 
@@ -455,6 +605,12 @@ static void	Handle_Right_Click(const Vector2 & cursor)
 		 inside_panel) {
 		return;
 	}
+	{
+		bool inside_power = false, inside_governance = false;
+		CommanderPowerPanelRenderer::Hit_Test (cursor.X,cursor.Y,nullptr,&inside_power);
+		CommanderGovernancePanelRenderer::Hit_Test (cursor.X,cursor.Y,nullptr,&inside_governance);
+		if (inside_power || inside_governance) return;
+	}
 	if (CommanderSidebarRenderer::Hit_Test (cursor.X,cursor.Y,nullptr) != SIDEBAR_HIT_NONE) {
 		return;
 	}
@@ -492,7 +648,14 @@ void CommanderUIInput::Toggle_Commander_Mode(void)
 		return;
 	}
 
-	if (COMBAT_STAR == nullptr) return;
+	Enter_Commander_Mode ();
+}
+
+
+bool CommanderUIInput::Enter_Commander_Mode(void)
+{
+	if (CommanderModeController::Is_Active ()) return false;
+	if (COMBAT_STAR == nullptr) return false;
 
 	cCommanderClaimEvent * claim = new cCommanderClaimEvent;
 	claim->Init (true);
@@ -503,7 +666,7 @@ void CommanderUIInput::Toggle_Commander_Mode(void)
 	**	camera is local state that costs nothing if the claim turns out to be refused -- whereas
 	**	blocking entry on a round trip would make the key feel broken on any real connection.
 	*/
-	CommanderModeController::Enter_Commander_Mode (COMBAT_STAR);
+	return CommanderModeController::Enter_Commander_Mode (COMBAT_STAR);
 }
 
 
@@ -636,6 +799,32 @@ void CommanderUIInput::Update(void)
 		Handle_Right_Click (cursor);
 	}
 	_RightWasDown = right_down;
+
+	/*
+	**	Control groups, the conventional way: Ctrl+digit stores the selection as that group, a
+	**	bare digit recalls it.  Read straight from the keyboard state rather than through an
+	**	input function: the digits are the weapon-select functions, which the Commander UI gate
+	**	suppresses, and that suppression is exactly why they are free to mean something here.
+	**	Local only -- a recalled group is ordered like any other selection.
+	*/
+	{
+		static const int DIGIT_KEYS [CommanderSelection::MAX_CONTROL_GROUPS] =
+			{ DIK_0,DIK_1,DIK_2,DIK_3,DIK_4,DIK_5,DIK_6,DIK_7,DIK_8,DIK_9 };
+
+		bool control_held = ((DirectInput::Get_Keyboard_Button (DIK_LCONTROL) & DirectInput::DI_BUTTON_HELD) != 0) ||
+								  ((DirectInput::Get_Keyboard_Button (DIK_RCONTROL) & DirectInput::DI_BUTTON_HELD) != 0);
+
+		for (int group = 1; group < CommanderSelection::MAX_CONTROL_GROUPS; group++) {
+			if ((DirectInput::Get_Keyboard_Button (DIGIT_KEYS [group]) & DirectInput::DI_BUTTON_HIT) == 0) continue;
+
+			if (control_held) {
+				CommanderSelection::Assign_Group (group);
+			} else if (CommanderSelection::Recall_Group (group) > 0) {
+				CommanderSelection::Set_Team (Local_Team ());
+				CommanderSelection::Prune ();
+			}
+		}
+	}
 
 	//	The grid exists exactly when there is something to command.  Driven from the selection
 	//	rather than toggled, so an emptied selection cannot leave it behind.

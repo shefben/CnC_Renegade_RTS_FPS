@@ -10,6 +10,7 @@
 
 #include "commanderselection.h"
 
+#include "building.h"
 #include "damage.h"
 #include "gameobjmanager.h"
 #include "playertype.h"
@@ -32,6 +33,11 @@ static int		_Count			= 0;
 static int		_Team				= PLAYERTYPE_NEUTRAL;
 static int		_ChangeCount	= 0;
 
+static int		_SelectedBuilding	= 0;
+
+static int		_GroupIds [CommanderSelection::MAX_CONTROL_GROUPS][CommanderSelection::MAX_SELECTED];
+static int		_GroupCounts [CommanderSelection::MAX_CONTROL_GROUPS];
+
 static bool		_Dragging		= false;
 static Vector2	_DragAnchor (0.0f,0.0f);
 static Vector2	_DragCorner (0.0f,0.0f);
@@ -40,6 +46,8 @@ static Vector2	_DragCorner (0.0f,0.0f);
 void CommanderSelection::Init(void)
 {
 	Clear ();
+	Clear_Selected_Building ();
+	Clear_Groups ();
 	_ChangeCount	= 0;
 	_Dragging		= false;
 }
@@ -48,6 +56,8 @@ void CommanderSelection::Init(void)
 void CommanderSelection::Shutdown(void)
 {
 	Clear ();
+	Clear_Selected_Building ();
+	Clear_Groups ();
 	_Dragging = false;
 }
 
@@ -77,6 +87,10 @@ bool CommanderSelection::Add(int unit_id)
 	if (unit_id == 0) return false;
 	if (_Count >= MAX_SELECTED) return false;
 	if (Contains (unit_id)) return true;			// already in: not a failure
+
+	//	Units and a building are never selected together: the panel shown is either orders or
+	//	the building's power, never both.
+	_SelectedBuilding = 0;
 
 	_Ids [_Count++] = unit_id;
 	_ChangeCount++;
@@ -120,23 +134,44 @@ void	CommanderSelection::Set_Team(int team)		{ _Team = team; }
  *	after it stops being a unit, and ordering it would be a silent no-op the player could not     *
  *	see the reason for.                                                                            *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+static bool	Is_Live_Unit(int unit_id)
+{
+	PhysicalGameObj * unit = GameObjManager::Find_PhysicalGameObj (unit_id);
+	if ((unit == nullptr) || unit->Is_Delete_Pending ()) return false;
+
+	DamageableGameObj * damageable = (DamageableGameObj *)unit;
+	return (damageable->Get_Defense_Object () != nullptr) &&
+			 (damageable->Get_Defense_Object ()->Get_Health () > 0.0f);
+}
+
+
 void CommanderSelection::Prune(void)
 {
-	for (int i = _Count - 1; i >= 0; i--) {
-
-		bool keep = false;
-
-		PhysicalGameObj * unit = GameObjManager::Find_PhysicalGameObj (_Ids [i]);
-		if ((unit != nullptr) && !unit->Is_Delete_Pending ()) {
-
-			DamageableGameObj * damageable = (DamageableGameObj *)unit;
-			if ((damageable->Get_Defense_Object () != nullptr) &&
-				 (damageable->Get_Defense_Object ()->Get_Health () > 0.0f)) {
-				keep = true;
+	for (int group = 1; group < MAX_CONTROL_GROUPS; group++) {
+		int kept = 0;
+		for (int i = 0; i < _GroupCounts [group]; i++) {
+			if (Is_Live_Unit (_GroupIds [group][i])) {
+				_GroupIds [group][kept++] = _GroupIds [group][i];
 			}
 		}
+		for (int i = kept; i < _GroupCounts [group]; i++) {
+			_GroupIds [group][i] = 0;
+		}
+		_GroupCounts [group] = kept;
+	}
 
-		if (keep) continue;
+	if (_SelectedBuilding != 0) {
+		ScriptableGameObj * scriptable = GameObjManager::Find_ScriptableGameObj (_SelectedBuilding);
+		BuildingGameObj * building = (scriptable != nullptr) ? scriptable->As_BuildingGameObj () : nullptr;
+		if ((building == nullptr) || building->Is_Destroyed () || building->Is_Delete_Pending ()) {
+			_SelectedBuilding = 0;
+			_ChangeCount++;
+		}
+	}
+
+	for (int i = _Count - 1; i >= 0; i--) {
+
+		if (Is_Live_Unit (_Ids [i])) continue;
 
 		for (int shift = i; shift < (_Count - 1); shift++) {
 			_Ids [shift] = _Ids [shift + 1];
@@ -198,3 +233,73 @@ bool CommanderSelection::Is_Drag_Significant(void)
 
 
 int CommanderSelection::Get_Selection_Change_Count(void)	{ return _ChangeCount; }
+
+
+void CommanderSelection::Select_Building(int building_id)
+{
+	Clear ();
+	if (_SelectedBuilding != building_id) {
+		_SelectedBuilding = building_id;
+		_ChangeCount++;
+	}
+}
+
+int	CommanderSelection::Get_Selected_Building(void)	{ return _SelectedBuilding; }
+
+void CommanderSelection::Clear_Selected_Building(void)
+{
+	if (_SelectedBuilding != 0) {
+		_SelectedBuilding = 0;
+		_ChangeCount++;
+	}
+}
+
+
+static bool	Valid_Group(int group)
+{
+	return (group >= 1) && (group < CommanderSelection::MAX_CONTROL_GROUPS);
+}
+
+bool CommanderSelection::Assign_Group(int group)
+{
+	if (!Valid_Group (group)) return false;
+
+	::memset (_GroupIds [group],0,sizeof (_GroupIds [group]));
+	_GroupCounts [group] = 0;
+	for (int i = 0; i < _Count; i++) {
+		if (_Ids [i] != 0) {
+			_GroupIds [group][_GroupCounts [group]++] = _Ids [i];
+		}
+	}
+	return true;
+}
+
+int CommanderSelection::Recall_Group(int group)
+{
+	if (!Valid_Group (group)) return 0;
+	if (_GroupCounts [group] <= 0) return 0;		// an empty group leaves the selection alone
+
+	Clear ();
+	for (int i = 0; i < _GroupCounts [group]; i++) {
+		Add (_GroupIds [group][i]);
+	}
+	return _Count;
+}
+
+int CommanderSelection::Get_Group_Count(int group)
+{
+	return Valid_Group (group) ? _GroupCounts [group] : 0;
+}
+
+int CommanderSelection::Get_Group_Unit_Id(int group,int index)
+{
+	if (!Valid_Group (group)) return 0;
+	if ((index < 0) || (index >= _GroupCounts [group])) return 0;
+	return _GroupIds [group][index];
+}
+
+void CommanderSelection::Clear_Groups(void)
+{
+	::memset (_GroupIds,0,sizeof (_GroupIds));
+	::memset (_GroupCounts,0,sizeof (_GroupCounts));
+}

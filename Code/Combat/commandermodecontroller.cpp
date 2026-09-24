@@ -40,6 +40,11 @@
 #include "physcoltest.h"
 #include "rendobj.h"
 #include "worldboundsservice.h"
+#include "baseselectionplanner.h"
+#include "basecontroller.h"
+#include "building.h"
+#include "combatphysobserver.h"
+#include "physicalgameobj.h"
 #include "worldspatialindex.h"
 #include "wwmath.h"
 
@@ -62,6 +67,7 @@ static float						_TiltMin			= COMMANDER_DEFAULT_TILT_MIN;
 static float						_TiltMax			= COMMANDER_DEFAULT_TILT_MAX;
 
 static Vector3						_Focus (0.0f,0.0f,0.0f);
+static bool							_FocusPlaced	= false;		// the entry anchor has been applied this match
 static float						_Zoom				= 400.0f;
 static float						_Tilt				= 55.0f;
 static float						_Rotation		= 0.0f;
@@ -88,6 +94,7 @@ void CommanderModeController::Init(void)
 	_TiltMax = COMMANDER_DEFAULT_TILT_MAX;
 
 	_Focus.Set (0.0f,0.0f,0.0f);
+	_FocusPlaced = false;
 	_Zoom		= 400.0f;
 	_Tilt		= 55.0f;
 	_Rotation= 0.0f;
@@ -103,7 +110,45 @@ void CommanderModeController::Shutdown(void)
 bool CommanderModeController::Enter_Commander_Mode(SoldierGameObj * star)
 {
 	if (star == nullptr) return false;
-	return Enter_Commander_Mode (star,star->Get_Player_Type ());
+
+	int team = star->Get_Player_Type ();
+	if (!Enter_Commander_Mode (star,team)) return false;
+
+	if (!_FocusPlaced) {
+		Vector3 star_position;
+		star->Get_Position (&star_position);
+		Set_Focus (Resolve_Entry_Focus (team,star_position));
+		_FocusPlaced = true;
+	}
+	return true;
+}
+
+
+Vector3 CommanderModeController::Resolve_Entry_Focus(int team,const Vector3 & star_position)
+{
+	SelectedBaseSite site;
+	if (BaseSelectionPlanner::Has_Selection () && BaseSelectionPlanner::Get_Selected_Site (team,&site)) {
+		return site.Position;
+	}
+
+	BaseControllerClass * base = BaseControllerClass::Find_Base (team);
+	if ((base != nullptr) && (base->Get_Building_Count () > 0)) {
+		Vector3 sum (0.0f,0.0f,0.0f);
+		int counted = 0;
+		for (int index = 0; index < base->Get_Building_Count (); index++) {
+			BuildingGameObj * building = base->Peek_Building (index);
+			if (building == nullptr) continue;
+			Vector3 position;
+			building->Get_Position (&position);
+			sum += position;
+			counted++;
+		}
+		if (counted > 0) {
+			return sum / (float)counted;
+		}
+	}
+
+	return star_position;
 }
 
 bool CommanderModeController::Enter_Commander_Mode(SoldierGameObj * star,int team)
@@ -273,6 +318,37 @@ bool CommanderModeController::Pick_At_Cursor(const Vector3 & ray_origin,const Ve
 
 	*out_world_point = ray_origin + direction * (result.Fraction * COMMANDER_PICK_RAY_LENGTH);
 	return true;
+}
+
+
+int CommanderModeController::Pick_Object_At_Cursor(const Vector3 & ray_origin,const Vector3 & ray_direction,
+																	bool * out_is_building)
+{
+	if (out_is_building != nullptr) *out_is_building = false;
+
+	float length = ray_direction.Length ();
+	if (length < 0.0001f) return 0;
+	Vector3 direction = ray_direction * (1.0f / length);
+
+	LineSegClass ray (ray_origin,ray_origin + direction * COMMANDER_PICK_RAY_LENGTH);
+	CastResultStruct result;
+	PhysRayCollisionTestClass raytest (ray,&result,0);
+
+	if (!WorldSpatialIndex::Query_Ray (raytest)) return 0;
+	if ((raytest.CollidedPhysObj == nullptr) || (raytest.CollidedPhysObj->Get_Observer () == nullptr)) return 0;
+
+	//	The same observer cast the bullet and camera code use to name what a ray struck.  A
+	//	building's meshes observe the building itself, so a click anywhere on its shell resolves.
+	CombatPhysObserverClass * observer = (CombatPhysObserverClass *)raytest.CollidedPhysObj->Get_Observer ();
+
+	BuildingGameObj * building = observer->As_BuildingGameObj ();
+	if (building != nullptr) {
+		if (out_is_building != nullptr) *out_is_building = true;
+		return building->Get_ID ();
+	}
+
+	PhysicalGameObj * physical = observer->As_PhysicalGameObj ();
+	return (physical != nullptr) ? physical->Get_ID () : 0;
 }
 
 

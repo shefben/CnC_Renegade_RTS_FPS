@@ -203,6 +203,16 @@ class TeamPowerGridService
 																	float allocated,int shed_count,int powered_count,
 																	int manual_off_count);
 		static bool		Get_Priority_Override(PowerGridMemberIdType member_id,int * out_priority);
+
+		/*
+		**	The per-building half of the same client mirror: the Commander's manual on/off and
+		**	priority override, as the server holds them, so a client's power panel shows the
+		**	server's truth.  Writes the two fields only -- no RecalculateTeam, no Enable_Power --
+		**	exactly like Set_Replicated_Team_State.  False for a member this client has not
+		**	registered.
+		*/
+		static bool		Set_Replicated_Member_State(PowerGridMemberIdType member_id,bool manual_disabled,
+																	  bool has_priority_override,int priority_override);
 };
 
 #endif // TEAMPOWERGRIDSERVICE_H

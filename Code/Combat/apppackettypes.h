@@ -135,6 +135,9 @@ enum
 	APPPACKETTYPE_COMMANDERVOTECASTEVENT,
 	APPPACKETTYPE_COMMANDERTRANSFEREVENT,
 
+	//	Roadmap Section 42 -- the Commander's per-building power panel.
+	APPPACKETTYPE_COMMANDERPOWEREVENT,
+
 	//
 	// Summation
 	//

@@ -64,6 +64,11 @@ class CommanderUIInput
 		static void		Toggle_Commander_Mode(void);
 		static bool		Is_Local_Player_Commander(void);
 
+		//	The entering half of the toggle, for the `commander_mode 1` console command, so the
+		//	key and the command claim and enter identically.  False with no living star or when
+		//	already in Commander Mode.
+		static bool		Enter_Commander_Mode(void);
+
 		//	Counters, so a self check can prove the click path without a mouse.
 		static int		Get_Click_Count(void);
 		static int		Get_Card_Click_Count(void);

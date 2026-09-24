@@ -412,6 +412,8 @@ set(COMMANDO_SRC
     commandervotecastevent.h
     commandertransferevent.cpp
     commandertransferevent.h
+    commanderpowerevent.cpp
+    commanderpowerevent.h
     purchaseresponseevent.cpp
     purchaseresponseevent.h
     requestkillevent.cpp

@@ -11,6 +11,11 @@
 #include "combat.h"
 #include "definitionmgr.h"
 #include "commandermodecontroller.h"
+#include "commanderselection.h"
+#include "commanderpowerpanel.h"
+#include "commanderpowerevent.h"
+#include "commanderpatrolai.h"
+#include "commandergovernancepanel.h"
 #include "commandersidebar.h"
 #include "commanderplacement.h"
 #include "commanderproduction.h"
@@ -3887,6 +3892,11 @@ int	Run_Commander_Mode (void)
 	Check (CommanderModeController::Get_Embodied_Star () == sentinel_star,
 			 "Get_Embodied_Star did not return the same body that entered -- \"same player body\"");
 
+	//	The camera anchor with nothing generated and no base registered falls back to the soldier.
+	Check ((CommanderModeController::Resolve_Entry_Focus (0,Vector3 (12.0f,-7.0f,3.0f)) -
+			  Vector3 (12.0f,-7.0f,3.0f)).Length () < 0.001f,
+			 "with no base site and no base, the Commander camera did not open on the soldier");
+
 	Check (!CommanderModeController::Enter_Commander_Mode (sentinel_star,0),
 			 "entering Commander Mode a second time while already active was accepted");
 
@@ -3979,6 +3989,99 @@ int	Run_Commander_Mode (void)
 
 	CommanderModeController::Shutdown ();
 	Check (!CommanderModeController::Is_Active (),"Commander Mode outlived Shutdown");
+
+	/*
+	**	Selection state behind the Commander UI (P36/P39): control groups store and recall a
+	**	selection, an empty group leaves the selection alone, and a selected building and a unit
+	**	selection exclude each other.  Ids only -- nothing here is pruned, since pruning asks the
+	**	object manager about live units and this harness has none.
+	*/
+	CommanderSelection::Init ();
+	CommanderSelection::Add (101);
+	CommanderSelection::Add (102);
+	Check (CommanderSelection::Assign_Group (3),"assigning control group 3 was refused");
+	Check (!CommanderSelection::Assign_Group (0) && !CommanderSelection::Assign_Group (10),
+			 "a control group outside 1..9 was accepted");
+	Check (CommanderSelection::Get_Group_Count (3) == 2,"group 3 holds %d units, not 2",
+			 CommanderSelection::Get_Group_Count (3));
+
+	CommanderSelection::Clear ();
+	CommanderSelection::Add (205);
+	Check (CommanderSelection::Recall_Group (4) == 0 && CommanderSelection::Contains (205),
+			 "recalling an empty group changed the selection");
+	Check (CommanderSelection::Recall_Group (3) == 2,"recalling group 3 restored %d units, not 2",
+			 CommanderSelection::Get_Count ());
+	Check (CommanderSelection::Contains (101) && CommanderSelection::Contains (102) &&
+			 !CommanderSelection::Contains (205),"recalling group 3 did not replace the selection with its members");
+
+	CommanderSelection::Select_Building (500);
+	Check (CommanderSelection::Get_Selected_Building () == 500 && CommanderSelection::Get_Count () == 0,
+			 "selecting a building did not clear the unit selection");
+	CommanderSelection::Add (101);
+	Check (CommanderSelection::Get_Selected_Building () == 0,"selecting a unit left a building selected");
+	Check (CommanderSelection::Get_Group_Count (3) == 2,"changing the selection altered a stored group");
+	CommanderSelection::Shutdown ();
+	Check (CommanderSelection::Get_Group_Count (3) == 0,"control groups outlived Shutdown");
+
+	/*
+	**	The power panel's buttons (Section 42) turn the displayed state into exactly the request
+	**	cCommanderPowerEvent carries, in that event's own action numbering.
+	*/
+	{
+		CommanderPowerPanelState state;
+		int action = -1, value = -1;
+		Check (!CommanderPowerPanel::Get_Request (POWER_PANEL_TOGGLE,state,&action,&value),
+				 "an empty power panel produced a request");
+
+		state.Valid = true;
+		state.BuildingId = 900;
+		state.HasDescriptor = true;
+		state.DescriptorPriority = 50;
+		state.EffectivePriority = 50;
+
+		Check (CommanderPowerPanel::Get_Request (POWER_PANEL_TOGGLE,state,&action,&value) &&
+				 action == cCommanderPowerEvent::ACTION_SET_ENABLED && value == 0,
+				 "the toggle on a running building did not ask to switch it off (action %d value %d)",action,value);
+		state.ManualDisabled = true;
+		Check (CommanderPowerPanel::Get_Request (POWER_PANEL_TOGGLE,state,&action,&value) && value == 1,
+				 "the toggle on a switched-off building did not ask to switch it on");
+
+		Check (CommanderPowerPanel::Get_Request (POWER_PANEL_PRIORITY_UP,state,&action,&value) &&
+				 action == cCommanderPowerEvent::ACTION_SET_PRIORITY && value == 50 + CommanderPowerPanel::PRIORITY_STEP,
+				 "priority + asked for %d, not one step above 50",value);
+		state.EffectivePriority = 5;
+		Check (CommanderPowerPanel::Get_Request (POWER_PANEL_PRIORITY_DOWN,state,&action,&value) && value == 0,
+				 "priority - went below zero (%d)",value);
+
+		Check (!CommanderPowerPanel::Get_Request (POWER_PANEL_PRIORITY_RESET,state,&action,&value),
+				 "reset was offered with no override to clear");
+		state.HasPriorityOverride = true;
+		Check (CommanderPowerPanel::Get_Request (POWER_PANEL_PRIORITY_RESET,state,&action,&value) &&
+				 action == cCommanderPowerEvent::ACTION_CLEAR_PRIORITY,"reset did not ask to clear the override");
+
+		state.HasDescriptor = false;
+		Check (!CommanderPowerPanel::Get_Request (POWER_PANEL_TOGGLE,state,&action,&value),
+				 "a building off the Commander grid offered a power request");
+	}
+
+	/*
+	**	Two-point patrol (P39): a unit turns around on arriving within ARRIVE_RADIUS of its leg's
+	**	end (ground plane only), or after LEG_TIMEOUT_SECONDS on a leg it cannot finish, and
+	**	otherwise keeps its leg.
+	*/
+	{
+		Vector3 a (0.0f,0.0f,0.0f);
+		Vector3 b (40.0f,0.0f,0.0f);
+		Check (CommanderPatrolAI::Next_Leg (Vector3 (20.0f,0.0f,0.0f),a,b,1,1.0f) == 1,
+				 "a patrolling unit halfway along its leg turned around");
+		Check (CommanderPatrolAI::Next_Leg (Vector3 (39.0f,1.0f,12.0f),a,b,1,1.0f) == 0,
+				 "a unit at B (height aside) did not turn back towards A");
+		Check (CommanderPatrolAI::Next_Leg (Vector3 (1.0f,0.0f,0.0f),a,b,0,1.0f) == 1,
+				 "a unit back at A did not head for B again");
+		Check (CommanderPatrolAI::Next_Leg (Vector3 (20.0f,0.0f,0.0f),a,b,1,
+														CommanderPatrolAI::LEG_TIMEOUT_SECONDS) == 0,
+				 "a leg past its timeout was not abandoned");
+	}
 
 	return _Failures;
 }
@@ -4832,6 +4935,20 @@ int	Run_Commander_Production (void)
 	Check (CommanderProductionService::Get_Order_Count () == 1,"re-ordering one unit created %d order records",
 			 CommanderProductionService::Get_Order_Count ());
 
+	//	A patrol records both ends, and the durable record hands both back (what a save writes).
+	{
+		Vector3 patrol_start (-30.0f,5.0f,0.0f);
+		CommanderProductionService::Issue_Order (COMMANDER,5001,TEAM_GDI,true,ORDER_PATROL,destination,0,&patrol_start);
+		int record_unit = 0;
+		CommanderUnitOrderType record_order = ORDER_NONE;
+		Vector3 record_point (0.0f,0.0f,0.0f), record_second (0.0f,0.0f,0.0f);
+		int record_target = 0;
+		Check (CommanderProductionService::Get_Order_Record (0,&record_unit,&record_order,&record_point,
+																			  &record_target,&record_second) &&
+				 record_order == ORDER_PATROL && (record_second - patrol_start).Length () < 0.01f,
+				 "a patrol order did not keep its second point in the durable record");
+	}
+
 	CommanderProductionService::Forget_Unit (5001);
 	Check (CommanderProductionService::Get_Order_Count () == 0,"a forgotten unit kept its order");
 	Check (!CommanderProductionService::Is_Selected (5001),"a forgotten unit stayed selected");
@@ -5054,6 +5171,47 @@ int	Run_Commander_Governance (void)
 	CommanderProductionService::Set_Team_Commander (TEAM_GDI,ALICE);
 	Check (CommanderProductionService::Get_Team_Commander (TEAM_GDI) == ALICE,
 			 "the team could not seat a new Commander after the old one's grace expired");
+
+	/*
+	**	The governance panel (P23 UI) offers exactly the buttons the state allows.  No roster is
+	**	installed here, so the sitting Commander's per-teammate hand-off list is not built -- that
+	**	half needs real players.
+	*/
+	{
+		CommanderGovernanceState panel;
+		CommanderGovernancePanel::Reset ();
+
+		CommanderGovernancePanel::Build_State (TEAM_GDI,BOB,&panel);
+		Check (panel.CommanderId == ALICE && panel.ButtonCount == 1 &&
+				 panel.Buttons [0].Action == GOVERNANCE_ACTION_CALL_REMOVE && panel.Buttons [0].TargetId == ALICE,
+				 "a teammate of a sitting Commander was not offered exactly a removal vote against them");
+
+		CommanderProductionService::Set_Team_Commander (TEAM_GDI,0);
+		CommanderGovernancePanel::Build_State (TEAM_GDI,BOB,&panel);
+		Check (panel.ButtonCount == 1 && panel.Buttons [0].Action == GOVERNANCE_ACTION_CLAIM,
+				 "a vacant seat was not offered as TAKE COMMAND");
+
+		Check (CommanderProductionService::Call_Commander_Vote (TEAM_GDI,BOB,COMMANDER_VOTE_ELECT,BOB,3),
+				 "setting up an election for the panel check was refused");
+		CommanderGovernancePanel::Build_State (TEAM_GDI,CAROL,&panel);
+		Check (panel.VoteType == (int)COMMANDER_VOTE_ELECT && panel.VoteCandidate == BOB && panel.VoteYes == 1 &&
+				 panel.ButtonCount == 2 && panel.Buttons [0].Action == GOVERNANCE_ACTION_VOTE_YES &&
+				 panel.Buttons [1].Action == GOVERNANCE_ACTION_VOTE_NO,
+				 "an open election did not show its candidate, its caller's yes and the two vote buttons");
+
+		CommanderGovernancePanel::Note_Local_Vote (TEAM_GDI);
+		CommanderGovernancePanel::Build_State (TEAM_GDI,CAROL,&panel);
+		Check (panel.ButtonCount == 0,"the vote buttons stayed up after the local player voted");
+
+		//	A client's copy: counts arrive without ballots and still read back.
+		CommanderProductionService::Set_Replicated_Vote_State (TEAM_NOD,COMMANDER_VOTE_REMOVE,BOB,CAROL,2,1);
+		Check (CommanderProductionService::Is_Vote_Active (TEAM_NOD) &&
+				 CommanderProductionService::Get_Vote_Yes_Count (TEAM_NOD) == 2 &&
+				 CommanderProductionService::Get_Vote_No_Count (TEAM_NOD) == 1,
+				 "a replicated vote did not read back its counts");
+		CommanderProductionService::Set_Replicated_Vote_State (TEAM_NOD,COMMANDER_VOTE_NONE,0,0,0,0);
+		Check (!CommanderProductionService::Is_Vote_Active (TEAM_NOD),"a replicated end of vote left it open");
+	}
 
 	CommanderProductionService::Shutdown ();
 	return _Failures;

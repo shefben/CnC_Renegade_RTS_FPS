@@ -92,7 +92,11 @@ const INPUT_FUNCTION_NAME FUNCTION_NAMES[] =
 	{ INPUT_FUNCTION_BEGIN_PUBLIC_MESSAGE,		IDS_FUNCTION_BEGIN_PUBLIC_MESSAGE },
 	{ INPUT_FUNCTION_BEGIN_TEAM_MESSAGE,		IDS_FUNCTION_BEGIN_TEAM_MESSAGE },
 	{ INPUT_FUNCTION_TEAM_INFO_TOGGLE,			IDS_FUNCTION_TEAM_INFO_TOGGLE },
-	{ INPUT_FUNCTION_BATTLE_INFO_TOGGLE,		IDS_FUNCTION_BATTLE_INFO_TOGGLE }
+	{ INPUT_FUNCTION_BATTLE_INFO_TOGGLE,		IDS_FUNCTION_BATTLE_INFO_TOGGLE },
+
+	//	No string table entry exists for a function retail never had; name_id 0 is answered by
+	//	Get_Function_Name with a literal.  Listed so a key already bound to it counts as taken.
+	{ INPUT_FUNCTION_COMMANDER_MODE_TOGGLE,	0 }
 };
 
 const int INPUT_NAME_COUNT	= sizeof (FUNCTION_NAMES) / sizeof (FUNCTION_NAMES[0]);
@@ -552,7 +556,11 @@ ControlsListTabClass::Get_Function_Name (int function_id)
 		//	Is this the function we're looking for?
 		//
 		if (FUNCTION_NAMES[index].function_id == function_id) {
-			retval = TRANSLATE (FUNCTION_NAMES[index].name_id);
+			if (FUNCTION_NAMES[index].name_id == 0) {
+				retval = U_CHAR ("Commander Mode");
+			} else {
+				retval = TRANSLATE (FUNCTION_NAMES[index].name_id);
+			}
 			break;
 		}
 	}

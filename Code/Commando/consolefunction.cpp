@@ -57,6 +57,7 @@
 #include "buildingdescriptormanager.h"
 #include "rtstelemetryservice.h"
 #include "commandermodecontroller.h"
+#include "commanderuiinput.h"
 #include "commandersidebar.h"
 #include "commanderplacement.h"
 #include "worldoperationjournal.h"
@@ -1978,7 +1979,9 @@ public:
 		}
 
 		if ( onoff != 0 ) {
-			if ( CommanderModeController::Enter_Commander_Mode( COMBAT_STAR ) ) {
+			//	The same claim-then-enter the Commander Mode key runs, so the command and the
+			//	key leave the player in the same state.
+			if ( CommanderUIInput::Enter_Commander_Mode() ) {
 				Print( "commander_mode: entered Commander Mode.\n" );
 			} else {
 				Print( "commander_mode: refused -- no living star to embody, or already active.\n" );

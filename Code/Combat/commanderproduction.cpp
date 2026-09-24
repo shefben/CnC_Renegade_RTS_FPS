@@ -38,7 +38,7 @@ struct FacilityRuntimeState
 struct UnitOrderRecord
 {
 	UnitOrderRecord(void) : InUse(false),UnitId(0),Order(ORDER_NONE),
-									TargetPoint(0.0f,0.0f,0.0f),TargetId(0) { }
+									TargetPoint(0.0f,0.0f,0.0f),SecondPoint(0.0f,0.0f,0.0f),TargetId(0) { }
 
 	bool	operator == (const UnitOrderRecord &) const	{ return false; }
 	bool	operator != (const UnitOrderRecord &) const	{ return true; }
@@ -47,6 +47,7 @@ struct UnitOrderRecord
 	int						UnitId;
 	CommanderUnitOrderType	Order;
 	Vector3					TargetPoint;
+	Vector3					SecondPoint;		// ORDER_PATROL's other end; the target itself otherwise
 	int						TargetId;
 };
 
@@ -439,6 +440,25 @@ int CommanderProductionService::Get_Vote_Initiator(int team)
 {
 	return _Votes [Team_Index (team)].Initiator;
 }
+
+void CommanderProductionService::Set_Replicated_Vote_State(int team,CommanderVoteType type,int candidate,
+																			  int initiator,int yes_count,int no_count)
+{
+	CommanderVoteRecord & vote = _Votes [Team_Index (team)];
+	vote = CommanderVoteRecord ();
+	if ((type <= COMMANDER_VOTE_NONE) || (type > COMMANDER_VOTE_REMOVE)) return;
+
+	vote.Type		= type;
+	vote.Candidate	= candidate;
+	vote.Initiator	= initiator;
+
+	if (yes_count < 0) yes_count = 0;
+	if (no_count < 0)  no_count = 0;
+	for (int i = 0; (i < yes_count + no_count) && (vote.BallotCount < MAX_VOTE_BALLOTS); i++) {
+		vote.VoterYes [vote.BallotCount++] = (i < yes_count);
+	}
+}
+
 
 float CommanderProductionService::Get_Vote_Time_Remaining(int team)
 {
@@ -972,8 +992,11 @@ bool CommanderProductionService::Can_Order_Unit(int requesting_player_id,int uni
 
 bool CommanderProductionService::Issue_Order(int requesting_player_id,int unit_id,int unit_team,
 															bool is_commander_ai,CommanderUnitOrderType order,
-															const Vector3 & target_point,int target_id)
+															const Vector3 & target_point,int target_id,
+															const Vector3 * second_point)
 {
+	Vector3 second = (second_point != nullptr) ? *second_point : target_point;
+
 	if (unit_id == 0) return false;
 	if (order < 0 || order >= ORDER_COUNT) return false;
 	if (!Can_Order_Unit (requesting_player_id,unit_team,is_commander_ai)) return false;
@@ -982,6 +1005,7 @@ bool CommanderProductionService::Issue_Order(int requesting_player_id,int unit_i
 		if (!_Orders [i].InUse || _Orders [i].UnitId != unit_id) continue;
 		_Orders [i].Order			= order;
 		_Orders [i].TargetPoint	= target_point;
+		_Orders [i].SecondPoint	= second;
 		_Orders [i].TargetId		= target_id;
 		return true;
 	}
@@ -991,6 +1015,7 @@ bool CommanderProductionService::Issue_Order(int requesting_player_id,int unit_i
 	record.UnitId			= unit_id;
 	record.Order			= order;
 	record.TargetPoint	= target_point;
+	record.SecondPoint	= second;
 	record.TargetId		= target_id;
 	_Orders.Add (record);
 	return true;
@@ -1063,7 +1088,8 @@ void CommanderProductionService::Restore_Item(const CommanderProductionItem & it
 
 bool CommanderProductionService::Get_Order_Record(int index,int * out_unit_id,
 																  CommanderUnitOrderType * out_order,
-																  Vector3 * out_point,int * out_target_id)
+																  Vector3 * out_point,int * out_target_id,
+																  Vector3 * out_second_point)
 {
 	int seen = 0;
 	for (int i = 0; i < _Orders.Count (); i++) {
@@ -1073,6 +1099,7 @@ bool CommanderProductionService::Get_Order_Record(int index,int * out_unit_id,
 			if (out_order != nullptr)		*out_order		= _Orders [i].Order;
 			if (out_point != nullptr)		*out_point		= _Orders [i].TargetPoint;
 			if (out_target_id != nullptr)	*out_target_id	= _Orders [i].TargetId;
+			if (out_second_point != nullptr) *out_second_point = _Orders [i].SecondPoint;
 			return true;
 		}
 		seen++;
@@ -1081,7 +1108,8 @@ bool CommanderProductionService::Get_Order_Record(int index,int * out_unit_id,
 }
 
 void CommanderProductionService::Restore_Order(int unit_id,CommanderUnitOrderType order,
-															  const Vector3 & target_point,int target_id)
+															  const Vector3 & target_point,int target_id,
+															  const Vector3 * second_point)
 {
 	if (unit_id == 0) return;
 	if (order < 0 || order >= ORDER_COUNT) return;
@@ -1091,6 +1119,7 @@ void CommanderProductionService::Restore_Order(int unit_id,CommanderUnitOrderTyp
 	record.UnitId			= unit_id;
 	record.Order			= order;
 	record.TargetPoint	= target_point;
+	record.SecondPoint	= (second_point != nullptr) ? *second_point : target_point;
 	record.TargetId		= target_id;
 	_Orders.Add (record);
 }

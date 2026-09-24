@@ -18,6 +18,7 @@
 #include "commanderguardai.h"
 #include "commanderproduction.h"
 #include "commanderwaypoint.h"
+#include "commanderpatrolai.h"
 #include "commanderwaypointevent.h"
 #include "gameobjmanager.h"
 #include "networkobjectfactory.h"
@@ -45,7 +46,7 @@ DECLARE_NETWORKOBJECT_FACTORY (cCommanderOrderEvent,NETCLASSID_COMMANDERORDEREVE
 **	ActionClass::Notify_Completed already treats as a safe no-op.
 */
 static void	Dispatch_Order (PhysicalGameObj * unit,CommanderUnitOrderType order,
-									  const Vector3 & target_point,int target_id)
+									  const Vector3 & target_point,const Vector3 & second_point,int target_id)
 {
 	/*
 	**	Above every scripted command in this tree.  Mission scripts issue at 100
@@ -66,6 +67,7 @@ static void	Dispatch_Order (PhysicalGameObj * unit,CommanderUnitOrderType order,
 		//	GuardStateControllerClass, which drives ActionClass every server tick regardless of
 		//	whatever this dispatch just set.  A no-op for a unit that was not guarding.
 		CommanderGuardAI::Stop_Guarding (unit->Get_ID ());
+		CommanderPatrolAI::Stop_Patrolling (unit->Get_ID ());
 
 		//	Drop whatever it was doing before the new action is pushed.  Without this the unit
 		//	finishes its current action first whenever the two are compatible, which is exactly
@@ -116,12 +118,9 @@ static void	Dispatch_Order (PhysicalGameObj * unit,CommanderUnitOrderType order,
 		}
 
 		case ORDER_PATROL:
-			//	The wire format this event carries (Section 45's own struct) has one point, not
-			//	a waypath -- a real back-and-forth patrol needs a second point nothing here has.
-			//	Walking to the one point given is strictly more than the nothing this order did
-			//	before; recorded as a limit, not silently upgraded into a loop it cannot run.
-			params.Set_Movement (target_point,1.0f,1.5f,false);
-			ScriptEngine::Action_Goto (unit,params);
+			//	Back and forth between the two points until another order replaces it --
+			//	CommanderPatrolAI sends each leg, starting with the ordered point.
+			CommanderPatrolAI::Patrol (unit->Get_ID (),second_point,target_point);
 			break;
 
 		case ORDER_REPAIR_TARGET:
@@ -224,6 +223,7 @@ cCommanderOrderEvent::cCommanderOrderEvent(void) :
 	Order(0),
 	Formation(0),
 	TargetPoint(0.0f,0.0f,0.0f),
+	SecondPoint(0.0f,0.0f,0.0f),
 	TargetId(0),
 	UnitCount(0)
 {
@@ -233,7 +233,8 @@ cCommanderOrderEvent::cCommanderOrderEvent(void) :
 
 
 void cCommanderOrderEvent::Init(int order,const Vector3 & target_point,int target_id,
-										  const int * unit_ids,int unit_count,int formation)
+										  const int * unit_ids,int unit_count,int formation,
+										  const Vector3 * second_point)
 {
 	WWASSERT (cNetwork::I_Am_Client ());
 
@@ -241,6 +242,7 @@ void cCommanderOrderEvent::Init(int order,const Vector3 & target_point,int targe
 	Order			= order;
 	Formation	= formation;
 	TargetPoint	= target_point;
+	SecondPoint	= (second_point != nullptr) ? *second_point : target_point;
 	TargetId		= target_id;
 
 	if (unit_count < 0) unit_count = 0;
@@ -273,6 +275,9 @@ void cCommanderOrderEvent::Export_Creation(BitStreamClass & packet)
 	packet.Add (TargetPoint.X);
 	packet.Add (TargetPoint.Y);
 	packet.Add (TargetPoint.Z);
+	packet.Add (SecondPoint.X);
+	packet.Add (SecondPoint.Y);
+	packet.Add (SecondPoint.Z);
 	packet.Add (TargetId);
 	packet.Add (UnitCount);
 	for (int i = 0; i < UnitCount; i++) {
@@ -295,6 +300,9 @@ void cCommanderOrderEvent::Import_Creation(BitStreamClass & packet)
 	packet.Get (TargetPoint.X);
 	packet.Get (TargetPoint.Y);
 	packet.Get (TargetPoint.Z);
+	packet.Get (SecondPoint.X);
+	packet.Get (SecondPoint.Y);
+	packet.Get (SecondPoint.Z);
 	packet.Get (TargetId);
 	packet.Get (UnitCount);
 
@@ -379,7 +387,7 @@ void cCommanderOrderEvent::Act(void)
 		bool accepted = CommanderProductionService::Issue_Order (SenderId,unit_id,unit->Get_Player_Type (),
 																					is_commander_ai,
 																					(CommanderUnitOrderType)Order,
-																					TargetPoint,TargetId);
+																					TargetPoint,TargetId,&SecondPoint);
 
 		/*
 		**	A human-driven unit is refused here and always will be -- Section 3A.4 -- but refusing
@@ -398,12 +406,11 @@ void cCommanderOrderEvent::Act(void)
 		//	about what the unit is doing, the same as if the packet had never arrived.
 		if (!accepted) continue;
 
-		Vector3 destination = TargetPoint +
-									 Formation_Offset (Formation,formation_slot,(alive > 0) ? alive : 1,
-																group_forward);
+		Vector3 offset = Formation_Offset (Formation,formation_slot,(alive > 0) ? alive : 1,group_forward);
 		formation_slot++;
 
-		Dispatch_Order (unit,(CommanderUnitOrderType)Order,destination,TargetId);
+		//	A patrol keeps its formation at both ends, so the group turns around as a group.
+		Dispatch_Order (unit,(CommanderUnitOrderType)Order,TargetPoint + offset,SecondPoint + offset,TargetId);
 	}
 
 	/*

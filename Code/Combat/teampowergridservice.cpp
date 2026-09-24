@@ -684,6 +684,18 @@ int TeamPowerGridService::Get_Consumer_Count(int team)
 	return count;
 }
 
+bool TeamPowerGridService::Set_Replicated_Member_State(PowerGridMemberIdType member_id,bool manual_disabled,
+																		  bool has_priority_override,int priority_override)
+{
+	int index = Find_Member (member_id);
+	if (index < 0) return false;
+	_Members [index].ManualDisabled			= manual_disabled;
+	_Members [index].HasPriorityOverride	= has_priority_override;
+	_Members [index].PriorityOverride		= has_priority_override ? priority_override : 0;
+	return true;
+}
+
+
 void TeamPowerGridService::Set_Replicated_Team_State(int team,float generation,float requested,
 																		  float allocated,int shed_count,int powered_count,
 																		  int manual_off_count)

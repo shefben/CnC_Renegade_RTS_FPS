@@ -57,7 +57,8 @@ static const int	TEAMS [2] = { PLAYERTYPE_NOD,PLAYERTYPE_GDI };
 struct TeamMirror
 {
 	TeamMirror(void) : Generation(-1.0f),Requested(-1.0f),Allocated(-1.0f),
-							 Shed(-1),Powered(-1),ManualOff(-1),Commander(-1) { }
+							 Shed(-1),Powered(-1),ManualOff(-1),Commander(-1),
+							 VoteType(-1),VoteCandidate(-1),VoteYes(-1),VoteNo(-1) { }
 	float	Generation;
 	float	Requested;
 	float	Allocated;
@@ -65,10 +66,46 @@ struct TeamMirror
 	int	Powered;
 	int	ManualOff;
 	int	Commander;
+	int	VoteType;
+	int	VoteCandidate;
+	int	VoteYes;
+	int	VoteNo;
 };
+
+//	A client's vote clock: each team's vote end, on the server's clock, as last told.
+static float		_VoteEndServerTime [2] = { 0.0f,0.0f };
 
 static TeamMirror	_LastSent [2];
 static int			_LastSentConstructionCount = -1;
+static unsigned int	_LastSentOverrideSignature = 0;
+
+/*
+**	The Commander's per-building overrides -- manual off and priority -- for the power panel.
+**	Only members that carry one are sent; a member absent from the list has none.  Bounded like
+**	the construction list, and for the same reason: one rare packet must stay one packet.
+*/
+static const int	MAX_REPLICATED_OVERRIDES = 64;
+
+static unsigned int	Override_Signature(void)
+{
+	unsigned int signature = 2166136261u;
+	int member_count = TeamPowerGridService::Get_Member_Count ();
+	for (int i = 0; i < member_count; i++) {
+		PowerGridMemberIdType member_id = 0;
+		int team = 0;
+		if (!TeamPowerGridService::Get_Member_By_Index (i,&member_id,&team)) continue;
+		int priority = 0;
+		bool has_override = TeamPowerGridService::Get_Priority_Override (member_id,&priority);
+		bool manual = TeamPowerGridService::Is_Manual_Disabled (member_id);
+		if (!has_override && !manual) continue;
+		unsigned int words [4] = { (unsigned int)member_id,(unsigned int)manual,(unsigned int)has_override,
+											(unsigned int)priority };
+		for (int w = 0; w < 4; w++) {
+			signature = (signature ^ words [w]) * 16777619u;
+		}
+	}
+	return signature;
+}
 
 
 CommanderStateClass::CommanderStateClass(void)
@@ -82,6 +119,7 @@ void CommanderStateClass::Reset(void)
 {
 	for (int i = 0; i < 2; i++) _LastSent [i] = TeamMirror ();
 	_LastSentConstructionCount	= -1;
+	_LastSentOverrideSignature	= 0;
 	_ServerTimeAtImport			= 0.0f;
 	_LocalTimeAtImport			= 0.0f;
 	_HaveServerTime				= false;
@@ -114,6 +152,10 @@ void CommanderStateClass::Server_Update(void)
 		current.Powered		= TeamPowerGridService::Get_Powered_Count (team);
 		current.ManualOff		= TeamPowerGridService::Get_Manual_Off_Count (team);
 		current.Commander		= CommanderProductionService::Get_Team_Commander (team);
+		current.VoteType		= (int)CommanderProductionService::Get_Vote_Type (team);
+		current.VoteCandidate= CommanderProductionService::Get_Vote_Candidate (team);
+		current.VoteYes		= CommanderProductionService::Get_Vote_Yes_Count (team);
+		current.VoteNo			= CommanderProductionService::Get_Vote_No_Count (team);
 
 		if ((WWMath::Fabs (current.Generation - _LastSent [i].Generation) > 0.01f) ||
 			 (WWMath::Fabs (current.Requested  - _LastSent [i].Requested)  > 0.01f) ||
@@ -121,7 +163,11 @@ void CommanderStateClass::Server_Update(void)
 			 (current.Shed      != _LastSent [i].Shed) ||
 			 (current.Powered   != _LastSent [i].Powered) ||
 			 (current.ManualOff != _LastSent [i].ManualOff) ||
-			 (current.Commander != _LastSent [i].Commander)) {
+			 (current.Commander != _LastSent [i].Commander) ||
+			 (current.VoteType != _LastSent [i].VoteType) ||
+			 (current.VoteCandidate != _LastSent [i].VoteCandidate) ||
+			 (current.VoteYes != _LastSent [i].VoteYes) ||
+			 (current.VoteNo != _LastSent [i].VoteNo)) {
 			changed = true;
 		}
 		_LastSent [i] = current;
@@ -135,6 +181,12 @@ void CommanderStateClass::Server_Update(void)
 	int construction_count = BuildingConstructionService::Get_Active_Count ();
 	if (construction_count != _LastSentConstructionCount) {
 		_LastSentConstructionCount = construction_count;
+		changed = true;
+	}
+
+	unsigned int override_signature = Override_Signature ();
+	if (override_signature != _LastSentOverrideSignature) {
+		_LastSentOverrideSignature = override_signature;
 		changed = true;
 	}
 
@@ -158,6 +210,16 @@ void CommanderStateClass::Export_Rare(BitStreamClass & packet)
 		packet.Add ((int)  TeamPowerGridService::Get_Powered_Count (team));
 		packet.Add ((int)  TeamPowerGridService::Get_Manual_Off_Count (team));
 		packet.Add ((int)  CommanderProductionService::Get_Team_Commander (team));
+
+		//	The team's Commander vote: counts only, never who voted how.  The time left goes as an
+		//	end time on the server clock, so a client can count it down between packets.
+		packet.Add ((int)  CommanderProductionService::Get_Vote_Type (team));
+		packet.Add ((int)  CommanderProductionService::Get_Vote_Candidate (team));
+		packet.Add ((int)  CommanderProductionService::Get_Vote_Initiator (team));
+		packet.Add ((int)  CommanderProductionService::Get_Vote_Yes_Count (team));
+		packet.Add ((int)  CommanderProductionService::Get_Vote_No_Count (team));
+		packet.Add ((float)(TimeManager::Get_Total_Seconds () +
+								  CommanderProductionService::Get_Vote_Time_Remaining (team)));
 	}
 
 	/*
@@ -208,6 +270,34 @@ void CommanderStateClass::Export_Rare(BitStreamClass & packet)
 		packet.Add ((float)bounds.Extent.Y);
 		packet.Add ((float)bounds.Extent.Z);
 	}
+
+	//	Appended after the construction list: the per-building overrides.
+	int override_ids [MAX_REPLICATED_OVERRIDES];
+	int override_flags [MAX_REPLICATED_OVERRIDES];
+	int override_priorities [MAX_REPLICATED_OVERRIDES];
+	int override_count = 0;
+
+	int member_count = TeamPowerGridService::Get_Member_Count ();
+	for (int i = 0; (i < member_count) && (override_count < MAX_REPLICATED_OVERRIDES); i++) {
+		PowerGridMemberIdType member_id = 0;
+		int team = 0;
+		if (!TeamPowerGridService::Get_Member_By_Index (i,&member_id,&team)) continue;
+		int priority = 0;
+		bool has_override = TeamPowerGridService::Get_Priority_Override (member_id,&priority);
+		bool manual = TeamPowerGridService::Is_Manual_Disabled (member_id);
+		if (!has_override && !manual) continue;
+		override_ids [override_count]			= member_id;
+		override_flags [override_count]		= (manual ? 1 : 0) | (has_override ? 2 : 0);
+		override_priorities [override_count]	= priority;
+		override_count++;
+	}
+
+	packet.Add ((int)override_count);
+	for (int i = 0; i < override_count; i++) {
+		packet.Add ((int)override_ids [i]);
+		packet.Add ((int)override_flags [i]);
+		packet.Add ((int)override_priorities [i]);
+	}
 }
 
 
@@ -243,6 +333,19 @@ void CommanderStateClass::Import_Rare(BitStreamClass & packet)
 		TeamPowerGridService::Set_Replicated_Team_State (TEAMS [i],generation,requested,allocated,
 																		 shed,powered,manual_off);
 		CommanderProductionService::Set_Team_Commander (TEAMS [i],commander);
+
+		int vote_type = 0, vote_candidate = 0, vote_initiator = 0, vote_yes = 0, vote_no = 0;
+		float vote_end = 0.0f;
+		packet.Get (vote_type);
+		packet.Get (vote_candidate);
+		packet.Get (vote_initiator);
+		packet.Get (vote_yes);
+		packet.Get (vote_no);
+		packet.Get (vote_end);
+
+		CommanderProductionService::Set_Replicated_Vote_State (TEAMS [i],(CommanderVoteType)vote_type,vote_candidate,
+																				  vote_initiator,vote_yes,vote_no);
+		_VoteEndServerTime [i] = vote_end;
 	}
 
 	int active = 0;
@@ -324,6 +427,48 @@ void CommanderStateClass::Import_Rare(BitStreamClass & packet)
 			BuildingConstructionService::Cancel_Construction (building_id);
 		}
 	}
+
+	/*
+	**	The per-building overrides.  Every member is reset first and then told what the server
+	**	holds, so an override the Commander cleared since the last packet is cleared here too.
+	*/
+	int override_count = 0;
+	packet.Get (override_count);
+	if (override_count < 0) override_count = 0;
+	if (override_count > MAX_REPLICATED_OVERRIDES) override_count = MAX_REPLICATED_OVERRIDES;
+
+	int member_count = TeamPowerGridService::Get_Member_Count ();
+	for (int i = 0; i < member_count; i++) {
+		PowerGridMemberIdType member_id = 0;
+		int team = 0;
+		if (TeamPowerGridService::Get_Member_By_Index (i,&member_id,&team)) {
+			TeamPowerGridService::Set_Replicated_Member_State (member_id,false,false,0);
+		}
+	}
+
+	for (int i = 0; i < override_count; i++) {
+		int member_id = 0, flags = 0, priority = 0;
+		packet.Get (member_id);
+		packet.Get (flags);
+		packet.Get (priority);
+		TeamPowerGridService::Set_Replicated_Member_State (member_id,(flags & 1) != 0,(flags & 2) != 0,priority);
+	}
+}
+
+
+float CommanderStateClass::Get_Vote_Time_Remaining(int team)
+{
+	if (!CommanderProductionService::Is_Vote_Active (team)) return 0.0f;
+	if (CombatManager::I_Am_Server ()) {
+		return CommanderProductionService::Get_Vote_Time_Remaining (team);
+	}
+
+	for (int i = 0; i < 2; i++) {
+		if (TEAMS [i] != team) continue;
+		float remaining = _VoteEndServerTime [i] - Get_Estimated_Server_Time ();
+		return (remaining > 0.0f) ? remaining : 0.0f;
+	}
+	return 0.0f;
 }
 
 

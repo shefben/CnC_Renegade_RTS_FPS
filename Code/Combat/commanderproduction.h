@@ -288,6 +288,16 @@ class CommanderProductionService
 		static float					Get_Vote_Window_Seconds(void);
 
 		/*
+		**	A client's copy of its team's vote, told by CommanderStateClass (the server never
+		**	calls it).  Ballots are not sent -- only their counts -- so the record holds that many
+		**	anonymous ballots, which is all Get_Vote_Yes_Count / Get_Vote_No_Count read.  The time
+		**	left is CommanderStateClass::Get_Vote_Time_Remaining's business, since only it knows the
+		**	server clock.
+		*/
+		static void		Set_Replicated_Vote_State(int team,CommanderVoteType type,int candidate,int initiator,
+															 int yes_count,int no_count);
+
+		/*
 		**	Direct handoff by the sitting Commander -- Section 25.1's own separate item, not a
 		**	vote.  Refuses unless `current_id` really is this team's Commander right now and the
 		**	target is a real, different, still-connected teammate.
@@ -422,8 +432,10 @@ class CommanderProductionService
 		*/
 		static bool		Can_Order_Unit(int requesting_player_id,int unit_team,bool is_commander_ai);
 
+		//	`second_point` is ORDER_PATROL's other end (null: the target itself).
 		static bool		Issue_Order(int requesting_player_id,int unit_id,int unit_team,bool is_commander_ai,
-											 CommanderUnitOrderType order,const Vector3 & target_point,int target_id);
+											 CommanderUnitOrderType order,const Vector3 & target_point,int target_id,
+											 const Vector3 * second_point = nullptr);
 
 		static CommanderUnitOrderType	Get_Order(int unit_id);
 		static bool		Get_Order_Target(int unit_id,Vector3 * out_point,int * out_target_id);
@@ -443,9 +455,11 @@ class CommanderProductionService
 		static void		Restore_Item(const CommanderProductionItem & item);
 
 		static bool		Get_Order_Record(int index,int * out_unit_id,CommanderUnitOrderType * out_order,
-													 Vector3 * out_point,int * out_target_id);
+													 Vector3 * out_point,int * out_target_id,
+													 Vector3 * out_second_point = nullptr);
 		static void		Restore_Order(int unit_id,CommanderUnitOrderType order,
-												const Vector3 & target_point,int target_id);
+												const Vector3 & target_point,int target_id,
+												const Vector3 * second_point = nullptr);
 
 		static const char *	Get_Result_Name(CommanderProductionResultType result);
 		static const char *	Get_Order_Name(CommanderUnitOrderType order);

@@ -18,6 +18,7 @@
 #include "buildingdescriptor.h"
 #include "buildingdescriptormanager.h"
 #include "commanderguardai.h"
+#include "commanderpatrolai.h"
 #include "commanderplacement.h"
 #include "commanderproduction.h"
 #include "commanderstate.h"
@@ -1082,6 +1083,7 @@ static void	Dispatch_AI_Goto(int unit_id,const Vector3 & position)
 	if (unit == nullptr) return;
 
 	CommanderGuardAI::Stop_Guarding (unit_id);
+	CommanderPatrolAI::Stop_Patrolling (unit_id);
 	ScriptEngine::Action_Reset (unit,AI_ORDER_PRIORITY);
 
 	ActionParamsStruct params;
@@ -1096,6 +1098,7 @@ static void	Dispatch_AI_Attack(int unit_id,int target_building_id,const Vector3 
 	if (unit == nullptr) return;
 
 	CommanderGuardAI::Stop_Guarding (unit_id);
+	CommanderPatrolAI::Stop_Patrolling (unit_id);
 	ScriptEngine::Action_Reset (unit,AI_ORDER_PRIORITY);
 
 	ActionParamsStruct params;

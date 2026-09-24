@@ -116,6 +116,10 @@ projectbuildingdefs.cpp
     commanderselectionrenderer.cpp
     commandercommandpalette.cpp
     commandercommandpaletterenderer.cpp
+commanderpowerpanel.cpp
+commanderpatrolai.cpp
+commanderselectionoverlays.cpp
+commandergovernancepanel.cpp
     commanderwaypoint.cpp
     commanderwaypointrenderer.cpp
     rtspersistence.cpp
@@ -317,6 +321,10 @@ projectbuildingdefs.h
     commanderselectionrenderer.h
     commandercommandpalette.h
     commandercommandpaletterenderer.h
+commanderpowerpanel.h
+commanderpatrolai.h
+commanderselectionoverlays.h
+commandergovernancepanel.h
     commanderwaypoint.h
     commanderwaypointrenderer.h
     rtspersistence.h

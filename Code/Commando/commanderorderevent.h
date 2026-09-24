@@ -42,8 +42,11 @@ class cCommanderOrderEvent : public cNetEvent
 
 		//	`order` is a CommanderUnitOrderType, `formation` a CommanderFormationType.
 		//	`unit_ids` is the current selection.
+		//	`second_point` is ORDER_PATROL's other end: a patrol runs between it and the target,
+		//	target first.  Every other order ignores it; null means the target itself.
 		void	Init(int order,const Vector3 & target_point,int target_id,
-					  const int * unit_ids,int unit_count,int formation = 0);
+					  const int * unit_ids,int unit_count,int formation = 0,
+					  const Vector3 * second_point = nullptr);
 
 		virtual void	Export_Creation(BitStreamClass & packet) override;
 		virtual void	Import_Creation(BitStreamClass & packet) override;
@@ -59,6 +62,7 @@ class cCommanderOrderEvent : public cNetEvent
 		int		Order;
 		int		Formation;
 		Vector3	TargetPoint;
+		Vector3	SecondPoint;
 		int		TargetId;
 		int		UnitCount;
 		int		UnitIds [MAX_UNITS];

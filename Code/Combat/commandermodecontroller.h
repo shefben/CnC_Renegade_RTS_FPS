@@ -91,6 +91,21 @@ class CommanderModeController
 		//	form is this with star->Get_Player_Type (); the star itself is never dereferenced here.
 		static bool		Enter_Commander_Mode(SoldierGameObj * star,int team);
 
+		/*
+		**	Where the strategic camera opens.  No building carries a Commander-station bone, so the
+		**	anchor is derived, never required: the team's generated base site when a procedural
+		**	world selected one, else the centre of the team's registered buildings on a
+		**	map-authored level, else the embodied soldier.  The one-argument entry applies it on the
+		**	first entry of a match only, so leaving and coming back keeps wherever the player panned.
+		*/
+		static Vector3	Resolve_Entry_Focus(int team,const Vector3 & star_position);
+
+		//	The game object under the cursor ray -- a unit or a building -- by network id, or 0 for
+		//	ground/sky.  The same ray Pick_At_Cursor casts, resolved to what it struck rather than
+		//	where.
+		static int		Pick_Object_At_Cursor(const Vector3 & ray_origin,const Vector3 & ray_direction,
+														 bool * out_is_building);
+
 		//	Returning to FPS restores camera/input to the same surviving soldier because this
 		//	class never altered anything about that soldier in the first place -- it only
 		//	stopped being the thing driving the camera.  Safe to call when already inactive.

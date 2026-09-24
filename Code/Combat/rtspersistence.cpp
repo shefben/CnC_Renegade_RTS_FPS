@@ -66,6 +66,7 @@ enum
 	VARID_COMMANDER_PLAYER,
 
 	VARID_REQUESTER_ID,		// appended: a save written before it restores RequesterId 0 (no refund owed)
+	VARID_SECOND_POINT,		// appended: an older save's patrol restores with both ends at its target
 };
 
 static int	_LoadFailures		= 0;
@@ -188,7 +189,8 @@ bool RTSPersistenceClass::Save(ChunkSaveClass & csave)
 		CommanderUnitOrderType order = ORDER_NONE;
 		Vector3 point (0.0f,0.0f,0.0f);
 		int target_id = 0;
-		if (!CommanderProductionService::Get_Order_Record (i,&unit_id,&order,&point,&target_id)) continue;
+		Vector3 second_point (0.0f,0.0f,0.0f);
+		if (!CommanderProductionService::Get_Order_Record (i,&unit_id,&order,&point,&target_id,&second_point)) continue;
 
 		csave.Begin_Chunk (CHUNKID_COMMANDER_ORDERS);
 			WRITE_MICRO_CHUNK (csave,VARID_UNIT_ID,		unit_id);
@@ -196,6 +198,7 @@ bool RTSPersistenceClass::Save(ChunkSaveClass & csave)
 			WRITE_MICRO_CHUNK (csave,VARID_ORDER,			order_value);
 			WRITE_MICRO_CHUNK (csave,VARID_TARGET_POINT,	point);
 			WRITE_MICRO_CHUNK (csave,VARID_TARGET_ID,		target_id);
+			WRITE_MICRO_CHUNK (csave,VARID_SECOND_POINT,	second_point);
 		csave.End_Chunk ();
 	}
 
@@ -336,6 +339,8 @@ bool RTSPersistenceClass::Load(ChunkLoadClass & cload)
 				int order_value = 0;
 				Vector3 point (0.0f,0.0f,0.0f);
 				int target_id = 0;
+				bool have_second_point = false;
+				Vector3 second_point (0.0f,0.0f,0.0f);
 
 				while (cload.Open_Micro_Chunk ()) {
 					switch (cload.Cur_Micro_Chunk_ID ()) {
@@ -343,6 +348,10 @@ bool RTSPersistenceClass::Load(ChunkLoadClass & cload)
 						READ_MICRO_CHUNK (cload,VARID_ORDER,			order_value);
 						READ_MICRO_CHUNK (cload,VARID_TARGET_POINT,	point);
 						READ_MICRO_CHUNK (cload,VARID_TARGET_ID,		target_id);
+						case VARID_SECOND_POINT:
+							cload.Read (&second_point,sizeof (second_point));
+							have_second_point = true;
+							break;
 					}
 					cload.Close_Micro_Chunk ();
 				}
@@ -356,7 +365,8 @@ bool RTSPersistenceClass::Load(ChunkLoadClass & cload)
 				**	be a stale handle, and the AI replans from the order the first time it runs.
 				*/
 				CommanderProductionService::Restore_Order (unit_id,(CommanderUnitOrderType)order_value,
-																			point,target_id);
+																			point,target_id,
+																			have_second_point ? &second_point : nullptr);
 				break;
 			}
 
