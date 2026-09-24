@@ -6,6 +6,14 @@
 #include "terrainselfcheck.h"
 
 #include "baseselectionplanner.h"
+#include "proceduralbaselayout.h"
+#include "proceduralworldpersistence.h"
+#include "crc.h"
+#include "proceduralworldmanager.h"
+#include "rawfile.h"
+#include "chunkio.h"
+#include "commanderminimap.h"
+#include "proceduralworldprofile.h"
 #include "biomedecorationgenerator.h"
 #include "buildingdescriptormanager.h"
 #include "combatspacevalidator.h"
@@ -52,6 +60,7 @@
 #include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
 #include "terrainmask.h"
+#include "WeatherMgr.h"
 #include "tiberiumfieldgenerator.h"
 #include "transportationnetworkvalidator.h"
 #include "tunnelplanner.h"
@@ -1776,6 +1785,35 @@ void	Check_Foliage (void)
 			"two different seeds grew the same forest");
 
 	//
+	//	D-001 P10: the sightline query.  A conifer trunk (0.7 m proxy, 9 m tall) across the line
+	//	blocks it where the trunk begins; grass on the line and a trunk beside it do not; a line
+	//	passing over the trunk's top does not.  Only the crossed cells are read.
+	//
+	{
+		FoliageSystem::Clear_Instances ();
+		FoliageSystem::Add_Instance ("ow_tree_conifer", Vector3 (50.0f, 0.0f, 0.0f));
+		FoliageSystem::Add_Instance ("ow_grass_clump", Vector3 (20.0f, 0.0f, 0.0f));
+		FoliageSystem::Add_Instance ("ow_tree_conifer", Vector3 (70.0f, 5.0f, 0.0f));
+		Check (FoliageSystem::Build_Cells (), "the occlusion scene's cells did not build");
+
+		float fraction = 1.0f;
+		Check (FoliageSystem::Query_Segment_Occlusion (Vector3 (0.0f, 0.0f, 1.6f), Vector3 (100.0f, 0.0f, 1.6f), &fraction),
+				"a tree across the line of sight did not block it");
+		Check (WWMath::Fabs (fraction - 0.493f) < 0.002f,
+				"the tree blocked at %f of the line, not where its trunk begins (0.493)", fraction);
+
+		fraction = 1.0f;
+		Check (!FoliageSystem::Query_Segment_Occlusion (Vector3 (0.0f, 0.0f, 1.6f), Vector3 (40.0f, 0.0f, 1.6f), &fraction),
+				"grass blocked a line of sight");
+		Check (!FoliageSystem::Query_Segment_Occlusion (Vector3 (0.0f, 2.0f, 1.6f), Vector3 (100.0f, 2.0f, 1.6f), &fraction),
+				"a line passing beside the trunks was blocked");
+		Check (!FoliageSystem::Query_Segment_Occlusion (Vector3 (0.0f, 0.0f, 12.0f), Vector3 (100.0f, 0.0f, 12.0f), &fraction),
+				"a line passing over the tree top was blocked");
+
+		FoliageSystem::Clear_Instances ();
+	}
+
+	//
 	//	Cells.  Every tree is in one, the grid finds the one a point is in, and the lists add up.
 	//
 	FoliageSystem::Clear_Instances ();
@@ -2336,7 +2374,14 @@ void	Check_Ribbons (void)
 
 	const SurfaceRibbonDefinitionClass & tank_def = SurfaceRibbonSystem::Peek_Definition (tank);
 	Check (tank_def.Get_Category () == RIBBON_TANK_TRACK, "the tank track is not a tank track");
-	Check (!tank_def.Names_A_Texture (), "the tank track names art that does not exist");
+	//	D-001 P18: the tank track draws with Renegade's own tread print until ow_ribbon_tank_track
+	//	ships; tires have no stock print and name nothing.
+	Check (tank_def.Names_A_Texture (), "the tank track names no texture; d_tk_dirt is its stock stand-in");
+	{
+		int tire = SurfaceRibbonSystem::Find_Definition_Index ("ow_ribbon_tire_track");
+		Check ((tire >= 0) && !SurfaceRibbonSystem::Peek_Definition (tire).Names_A_Texture (),
+				 "the tire track names art no archive holds");
+	}
 	Check (SurfaceRibbonSystem::Find_Definition_By_Category (RIBBON_TANK_TRACK) == tank,
 			 "asking for a tank track by category finds something else");
 
@@ -2433,8 +2478,9 @@ void	Check_Ribbons (void)
 	Check (!SurfaceRibbonSystem::Build_Geometry (), "geometry was built with no scene to put it in");
 	Check (SurfaceRibbonSystem::Get_Object_Count () == 0,
 			 "%d objects exist in a scene that is not there", SurfaceRibbonSystem::Get_Object_Count ());
-	Check (SurfaceRibbonSystem::Get_Missing_Texture_Count () == 1,
-			 "%d kinds report missing art and one kind is laying marks",
+	//	The one kind laying marks names its texture, and with no scene nothing is fetched to miss.
+	Check (SurfaceRibbonSystem::Get_Missing_Texture_Count () == 0,
+			 "%d kinds report missing art though the one laying marks names its texture",
 			 SurfaceRibbonSystem::Get_Missing_Texture_Count ());
 
 	//
@@ -4830,7 +4876,248 @@ void	Check_Tiberium_Fields (void)
 				 "the same seed/terrain/plan/road-graph/base-selection produced a different field checksum");
 	}
 
+	//	D-001 P23: the Tiberium haze follows the generated fields -- the profile density inside a
+	//	field, nothing two radii from every field, nothing at all with the density off.
+	{
+		ResolvedTiberiumField field;
+		if (TiberiumFieldGenerator::Get_Field (0,&field)) {
+			Check (WWMath::Fabs (WeatherMgrClass::Compute_Tiberium_Haze (field.Position,0.2f) - 0.2f) < 0.0001f,
+					 "the haze inside a Tiberium field is not the profile density");
+			Check (WeatherMgrClass::Compute_Tiberium_Haze (field.Position,0.0f) == 0.0f,
+					 "a profile with the haze off drew haze anyway");
+			Check (WeatherMgrClass::Compute_Tiberium_Haze (field.Position + Vector3 (100000.0f,0.0f,0.0f),0.2f) == 0.0f,
+					 "the haze reached far from every field");
+		}
+	}
+
 	TiberiumFieldGenerator::Shutdown ();
+	BaseSelectionPlanner::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
+
+/***********************************************************************************************
+**	V2 roadmap Section 16A -- a selected base site becomes a playable base (D-001 priority 5).
+**
+**	The same real chain Check_Base_Selection proves, then ProceduralBaseLayoutService over it:
+**	the profile's base block, the candidate order (behind the base first, the same every run),
+**	Plan_And_Place's records (every wanted building is accounted for -- placed, or refused with a
+**	named reason), the spawn pool (inside the protected region, off water and exclusions) and the
+**	runtime choice among it.  No device and no preset database here, so the buildings themselves
+**	are not created: that is the live check.  Descriptors are registered from text.
+***********************************************************************************************/
+void	Check_Base_Layout (void)
+{
+	//	The profile block (schema 9).
+	{
+		ProceduralWorldProfile profile;
+		StringClass error ("");
+		Check (ProceduralWorldProfileManager::Load_Profile_From_Text (
+					"{ \"schema_version\": 9, \"seed\": 5, \"base\": { "
+					"\"gdi_initial_buildings\": [\"gdi_construction_yard\", \"gdi_power_plant\"], "
+					"\"nod_initial_buildings\": [\"nod_construction_yard\"], "
+					"\"spawn_candidate_count\": 6, \"spawn_zone_radius\": 20.0 } }",&profile,&error),
+				"a profile with a base block was refused: %s",error.Peek_Buffer ());
+		Check (profile.Base.GdiInitialBuildings.Count () == 2 && profile.Base.NodInitialBuildings.Count () == 1,
+				"the base block's building lists did not parse (%d, %d)",
+				profile.Base.GdiInitialBuildings.Count (),profile.Base.NodInitialBuildings.Count ());
+		Check (profile.Base.SpawnCandidateCount == 6,"spawn_candidate_count read as %d",profile.Base.SpawnCandidateCount);
+
+		ProceduralWorldProfile old_profile;
+		Check (ProceduralWorldProfileManager::Load_Profile_From_Text ("{ \"schema_version\": 8, \"seed\": 5 }",&old_profile,&error),
+				"a schema-8 profile no longer loads: %s",error.Peek_Buffer ());
+		Check (old_profile.Base.GdiInitialBuildings.Count () == 0 && old_profile.Base.NodInitialBuildings.Count () == 0,
+				"a profile with no base block starts with buildings");
+
+		ProceduralWorldProfile bad;
+		ProceduralWorldProfileManager::Load_Profile_From_Text (
+			"{ \"schema_version\": 9, \"seed\": 5, \"base\": { \"spawn_zone_radius\": -1.0 } }",&bad,&error);
+		Check (!ProceduralWorldProfileManager::Validate_Profile (bad,&error),
+				"a negative spawn zone radius was accepted");
+	}
+
+	//	Candidate order: the first spot is directly behind the base, and the order is stable.
+	{
+		DynamicVectorClass<Vector3> first, second;
+		Vector3 center (10.0f,20.0f,0.0f);
+		Vector3 toward (1.0f,0.0f,0.0f);
+		int count = ProceduralBaseLayoutService::Get_Candidate_Positions (center,toward,6.0f,30.0f,&first);
+		ProceduralBaseLayoutService::Get_Candidate_Positions (center,toward,6.0f,30.0f,&second);
+		Check (count > 0 && count == first.Count (),"no candidate positions came back");
+		Check ((first.Count () > 0) && Near (first [0].X,4.0f) && Near (first [0].Y,20.0f),
+				"the first candidate is not directly behind the base (%f, %f)",
+				(first.Count () > 0) ? first [0].X : 0.0f,(first.Count () > 0) ? first [0].Y : 0.0f);
+		bool same = (first.Count () == second.Count ());
+		bool inside = true;
+		for (int i = 0; same && i < first.Count (); i++) {
+			same = (first [i] == second [i]);
+			float dx = first [i].X - center.X;
+			float dy = first [i].Y - center.Y;
+			if (((dx * dx) + (dy * dy)) > (30.01f * 30.01f)) inside = false;
+		}
+		Check (same,"the same site gave two different candidate orders");
+		Check (inside,"a candidate lies outside the radius it was asked for");
+	}
+
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	HydrologyGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	BaseSelectionPlanner::Init ();
+	BuildingDescriptorManager::Init ();
+	ProceduralBaseLayoutService::Reset ();
+
+	{
+		StringClass error ("");
+		Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("gdi_construction_yard",
+					"{ \"model_name\": \"mgcon_ext.w3d\", \"schema_version\": 1, "
+					"\"footprint\": { \"width\": 40.0, \"depth\": 40.0 }, \"build\": { \"buildable\": false, \"team\": 1 } }",&error),
+				"gdi_construction_yard failed to load: %s",error.Peek_Buffer ());
+		Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("nod_construction_yard",
+					"{ \"model_name\": \"mncon_ext.w3d\", \"schema_version\": 1, "
+					"\"footprint\": { \"width\": 40.0, \"depth\": 40.0 }, \"build\": { \"buildable\": false, \"team\": 0 } }",&error),
+				"nod_construction_yard failed to load: %s",error.Peek_Buffer ());
+		Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("gdi_power_plant",
+					"{ \"model_name\": \"mgpwr_ext.w3d\", \"schema_version\": 1, "
+					"\"footprint\": { \"width\": 36.0, \"depth\": 30.0 }, \"build\": { \"team\": 1 } }",&error),
+				"gdi_power_plant failed to load: %s",error.Peek_Buffer ());
+	}
+
+	{
+		Build_Uniform_Ramp_Terrain (6,4.0f,10.0f,Vector3 (-192.0f,-192.0f,0.0f));
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		HydrologyParams hydro_params;
+		hydro_params.Seed							= 41u;
+		hydro_params.GenerateRivers				= true;
+		hydro_params.GenerateLakes				= true;
+		hydro_params.GeneratePonds				= true;
+		hydro_params.RiverWidth					= 6.0f;
+		hydro_params.StreamWidth					= 2.5f;
+		hydro_params.RiverAccumulationChunks	= 3.0f;
+		hydro_params.MaxRiverCount				= 2;
+		StringClass error ("");
+		HydrologyGenerator::Generate (hydro_params,&error);
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+		StrategicPlannerParams plan_params;
+		plan_params.Seed							= 909u;
+		plan_params.MinApproachCount			= 2;
+		plan_params.MinBaseCandidatesPerFaction	= 2;
+		plan_params.MinBaseSeparation			= 80.0f;
+		plan_params.MaxTiberiumCandidates		= 4;
+		plan_params.MaxSettlementCandidates	= 3;
+		plan_params.MaxPoiCandidates			= 3;
+		plan_params.MaxExpansionCandidates	= 2;
+		plan_params.MaxEconomicRange			= 1000.0f;
+		StrategicPlanner::Generate (plan_params,&error);
+
+		RoadGraphParams road_params;
+		road_params.Seed							= 55u;
+		road_params.MaxBuildableSlopeRadians	= 0.5f;
+		road_params.SlopeCostWeight				= 3.0f;
+		road_params.CrossingCostPenalty			= 8.0f;
+		road_params.BoundaryApproachCostWeight	= 1.5f;
+		RoadGraphGenerator::Generate (road_params,&error);
+
+		BridgePlannerParams bridge_params;
+		bridge_params.Seed					= 77u;
+		bridge_params.WaterClearanceMargin	= 2.0f;
+		bridge_params.MaxSpanLength			= 200.0f;
+		BridgePlanner::Generate (bridge_params,&error);
+
+		BaseSelectionParams params;
+		params.Seed												= 123u;
+		params.MaxInitialResourceTravelTimeDifferenceSeconds	= 60.0f;
+		params.MaxBaseToBaseTravelTimeDifferenceSeconds			= 120.0f;
+		params.MinBaseExpansionArea									= 1024.0f;
+		params.AllowSingleBridgeDependency							= false;
+		params.MaxRepairAttemptsPerPair								= 8;
+		Check (BaseSelectionPlanner::Generate (params,&error),
+				"the base selection this check depends on failed: %s",error.Peek_Buffer ());
+	}
+
+	ProceduralWorldProfile profile;
+	profile.Base.GdiInitialBuildings.Add (StringClass ("gdi_construction_yard"));
+	profile.Base.GdiInitialBuildings.Add (StringClass ("gdi_power_plant"));
+	profile.Base.GdiInitialBuildings.Add (StringClass ("no_such_building"));
+	profile.Base.NodInitialBuildings.Add (StringClass ("nod_construction_yard"));
+	profile.Base.SpawnCandidateCount = 8;
+	profile.Base.SpawnZoneRadius = 25.0f;
+
+	StringClass report ("");
+	Check (ProceduralBaseLayoutService::Plan_And_Place (profile,&report),
+			"a real base selection produced no base layout");
+	Check (ProceduralBaseLayoutService::Has_Base (PLAYERTYPE_GDI) && ProceduralBaseLayoutService::Has_Base (PLAYERTYPE_NOD),
+			"a faction with a selected site has no base");
+	Check (ProceduralBaseLayoutService::Get_Building_Count (PLAYERTYPE_GDI) == 3,
+			"%d GDI buildings were accounted for, not the 3 the profile named",
+			ProceduralBaseLayoutService::Get_Building_Count (PLAYERTYPE_GDI));
+	Check (ProceduralBaseLayoutService::Get_Building_Count (PLAYERTYPE_NOD) == 1,
+			"%d Nod buildings were accounted for, not 1",ProceduralBaseLayoutService::Get_Building_Count (PLAYERTYPE_NOD));
+
+	ProceduralBaseBuildingRecord unknown;
+	Check (ProceduralBaseLayoutService::Get_Building (PLAYERTYPE_GDI,2,&unknown) &&
+			 (unknown.BuildingId == 0) && (unknown.Refusal == PLACEMENT_NO_DESCRIPTOR),
+			"a building with no descriptor was not refused as one");
+
+	for (int faction = 0; faction < 2; faction++) {
+		SelectedBaseSite site;
+		BaseSelectionPlanner::Get_Selected_Site (faction,&site);
+
+		int spawns = ProceduralBaseLayoutService::Get_Spawn_Candidate_Count (faction);
+		Check (spawns > 0 && spawns <= 8,"faction %d has %d spawn candidates, not 1..8",faction,spawns);
+
+		for (int i = 0; i < spawns; i++) {
+			ProceduralSpawnCandidate spawn;
+			ProceduralBaseLayoutService::Get_Spawn_Candidate (faction,i,&spawn);
+			float dx = spawn.Position.X - site.Position.X;
+			float dy = spawn.Position.Y - site.Position.Y;
+			Check (((dx * dx) + (dy * dy)) <= (site.ProtectedRadius * site.ProtectedRadius) + 0.01f,
+					"faction %d spawn %d is outside the base's protected region",faction,i);
+			Check (GeneratedWorldPlacementRules::Classify (spawn.Position,1.0f) == GENERATED_WORLD_EXCLUSION_NONE,
+					"faction %d spawn %d stands in an exclusion",faction,i);
+		}
+
+		Vector3 zone_center;
+		float zone_radius = 0.0f;
+		Check (ProceduralBaseLayoutService::Get_Spawn_Zone (faction,&zone_center,&zone_radius) && Near (zone_radius,25.0f),
+				"faction %d has no fallback spawn zone of the profile's radius",faction);
+
+		Matrix3D chosen (1);
+		Check (ProceduralBaseLayoutService::Choose_Respawn_Point (faction,nullptr,&chosen),
+				"faction %d with a base had no respawn point",faction);
+		bool from_pool = false;
+		for (int i = 0; i < spawns; i++) {
+			ProceduralSpawnCandidate spawn;
+			ProceduralBaseLayoutService::Get_Spawn_Candidate (faction,i,&spawn);
+			if (spawn.Position == chosen.Get_Translation ()) from_pool = true;
+		}
+		Check (from_pool,"faction %d respawned somewhere not in its own pool",faction);
+	}
+
+	Matrix3D none (1);
+	Check (!ProceduralBaseLayoutService::Choose_Respawn_Point (PLAYERTYPE_NEUTRAL,nullptr,&none),
+			"a faction with no generated base was given a generated respawn point");
+
+	ProceduralBaseLayoutService::Reset ();
+	Check (!ProceduralBaseLayoutService::Choose_Respawn_Point (PLAYERTYPE_GDI,nullptr,&none),
+			"a reset layout still answers respawns; a stock map would lose its own spawners");
+
+	BuildingDescriptorManager::Unload_All ();
 	BaseSelectionPlanner::Shutdown ();
 	BridgePlanner::Shutdown ();
 	BridgeSystem::Shutdown ();
@@ -5926,6 +6213,48 @@ void	Check_Minimap_Base_Layer (void)
 	Check (MinimapBaseLayer::Build (&report), "minimap rebuild over the same real chain failed: %s",report.Peek_Buffer ());
 	Check (MinimapBaseLayer::Get_Checksum () == first_checksum, "the same chain produced a different checksum on rebuild");
 
+	//
+	//	D-001: the renderer's model.  The world extent covers every marker; world -> panel ->
+	//	world returns the same point; north is up; and water, cliff and road cells each draw in
+	//	their own colour.
+	//
+	{
+		float min_x = 0.0f, min_y = 0.0f, max_x = 0.0f, max_y = 0.0f;
+		Check (CommanderMinimap::Get_World_Extent (&min_x,&min_y,&max_x,&max_y),"the minimap has no world extent");
+
+		RectClass panel (10.0f,100.0f,210.0f,300.0f);
+		for (int i = 0; i < MinimapBaseLayer::Get_Marker_Count (); i++) {
+			MinimapMarker marker;
+			MinimapBaseLayer::Get_Marker (i,&marker);
+			float x = 0.0f, y = 0.0f;
+			Check (CommanderMinimap::World_To_Panel (marker.Position,panel,&x,&y),"marker %d did not map",i);
+			Check ((x >= panel.Left - 0.01f) && (x <= panel.Right + 0.01f) && (y >= panel.Top - 0.01f) && (y <= panel.Bottom + 0.01f),
+					 "marker %d maps outside the map panel",i);
+			Vector3 back;
+			Check (CommanderMinimap::Panel_To_World (x,y,panel,&back) &&
+					 (WWMath::Fabs (back.X - marker.Position.X) < 0.05f) && (WWMath::Fabs (back.Y - marker.Position.Y) < 0.05f),
+					 "marker %d did not survive world -> panel -> world",i);
+		}
+
+		float south_x = 0.0f, south_y = 0.0f, north_x = 0.0f, north_y = 0.0f;
+		CommanderMinimap::World_To_Panel (Vector3 (min_x,min_y,0.0f),panel,&south_x,&south_y);
+		CommanderMinimap::World_To_Panel (Vector3 (min_x,max_y,0.0f),panel,&north_x,&north_y);
+		Check (north_y < south_y,"north is not up on the minimap");
+
+		MinimapCellClass water, cliff, road, ground;
+		water.IsWater = true;
+		cliff.IsCliffBand = true;
+		road.HasRoad = true;
+		ground.AverageHeight = 5.0f;
+		unsigned int colors [4] = {
+			CommanderMinimap::Cell_Color (water,0.0f,10.0f),CommanderMinimap::Cell_Color (cliff,0.0f,10.0f),
+			CommanderMinimap::Cell_Color (road,0.0f,10.0f),CommanderMinimap::Cell_Color (ground,0.0f,10.0f)
+		};
+		bool distinct = true;
+		for (int a = 0; a < 4; a++) for (int b = a + 1; b < 4; b++) if (colors [a] == colors [b]) distinct = false;
+		Check (distinct,"two kinds of minimap cell draw in the same colour");
+	}
+
 	MinimapBaseLayer::Shutdown ();
 	SettlementGenerator::Shutdown ();
 	ProceduralAssetRegistry::Shutdown ();
@@ -6362,6 +6691,88 @@ void	Check_Bridge_Fallback (void)
 					 "regeneration disagreed with itself on why the crossing failed");
 			Check (second_record.AttemptsMade == first_record.AttemptsMade,
 					 "regeneration disagreed with itself on how many attempts it made");
+		}
+
+		//
+		//	D-001 priority 6: stages 1 and 2 actually resolving a crossing, on this same real,
+		//	deterministic terrain.  The plan is regenerated across a descending sweep of one limit;
+		//	the first setting at which the original position is refused but the named stage finds a
+		//	legal bridge is the case.  The sweep is the same every run, so so is the answer.
+		//
+		{
+			//	Stage 2 -- the original approach is too steep, a longer one is not.
+			BridgePlannerParams approach_params = bridge_params;
+			approach_params.MaxSpanLength				= 200.0f;	// span out of the way
+			approach_params.MaxRerouteAttemptsPerEdge	= 0;
+			bool stage_two = false;
+			for (float grade = 1.2f; (grade >= 0.01f) && !stage_two; grade -= 0.01f) {
+				approach_params.MaxApproachGradeRadians = grade;
+				if (!BridgePlanner::Generate (approach_params,&error)) break;
+				CrossingResolutionRecord rec;
+				if ((BridgePlanner::Get_Diagnostic_Count () >= 1) && BridgePlanner::Get_Diagnostic (0,&rec) &&
+					 rec.Resolved && (rec.StageResolvedAt == CROSSING_STAGE_EXTENDED_APPROACH)) {
+					stage_two = true;
+					Check (rec.Displacement == 0.0f,"an extended approach moved the crossing; stage 2 never does");
+					Check (BridgePlanner::Get_Bridge_Count () == 1,"a stage-2 resolution built %d bridges, not 1",
+							 BridgePlanner::Get_Bridge_Count ());
+				}
+			}
+			Check (stage_two,"no grade limit on this terrain made a longer approach resolve the crossing");
+
+			//	Stage 1 -- the original span is too long, a nearby reposition's is not.  This river is
+			//	the same width all along, so the case is built: a small pond is laid against the far
+			//	abutment of the original crossing, on the road's own line and no wider than one
+			//	reposition step, so the original crossing now has to span river and pond while one
+			//	a step to either side spans the river alone.  Last, because WaterSystem has no way to
+			//	take one area back out.
+			BridgePlannerParams reposition_params = bridge_params;
+			reposition_params.MaxSpanLength				= 200.0f;
+			reposition_params.MaxApproachGradeRadians	= 1.5f;		// grade out of the way
+			reposition_params.MaxRerouteAttemptsPerEdge	= 0;
+			Check (BridgePlanner::Generate (reposition_params,&error),"the unconstrained plan failed: %s",error.Peek_Buffer ());
+
+			ResolvedBridge original;
+			BridgeClass * original_bridge = nullptr;
+			if ((BridgePlanner::Get_Bridge_Count () == 1) && BridgePlanner::Get_Bridge (0,&original)) {
+				original_bridge = BridgeSystem::Peek_Bridge (original.BridgeId);
+			}
+			Check (original_bridge != nullptr,"the unconstrained plan built no bridge to constrain");
+
+			if (original_bridge != nullptr) {
+				Vector3 start_point = original_bridge->Get_Start ();
+				Vector3 end_point = original_bridge->Get_End ();
+				Vector3 along = end_point - start_point;
+				along.Z = 0.0f;
+				float span = along.Length ();
+				along /= span;
+				Vector3 across (-along.Y,along.X,0.0f);
+
+				Vector3 center = end_point + (along * 3.0f);		// reaching back over the abutment, so the bank search walks on into it
+				WaterAreaClass pond;
+				pond.Set_Name ("fallback_stage1_pond");
+				pond.Set_Definition ("ow_water_pond");
+				pond.Set_Closed (true);
+				pond.Set_Height (end_point.Z);
+				pond.Add_Station (center - (along * 5.0f) - (across * 3.0f),0.0f);
+				pond.Add_Station (center + (along * 5.0f) - (across * 3.0f),0.0f);
+				pond.Add_Station (center + (along * 5.0f) + (across * 3.0f),0.0f);
+				pond.Add_Station (center - (along * 5.0f) + (across * 3.0f),0.0f);
+				WaterSystem::Add_Area (pond);
+
+				reposition_params.MaxSpanLength = span + 2.0f;
+				Check (BridgePlanner::Generate (reposition_params,&error),"the constrained plan failed: %s",error.Peek_Buffer ());
+
+				CrossingResolutionRecord rec;
+				bool have = (BridgePlanner::Get_Diagnostic_Count () >= 1) && BridgePlanner::Get_Diagnostic (0,&rec);
+				Check (have && rec.Resolved,"the crossing did not resolve once the pond lengthened its original span");
+				Check (have && (rec.StageResolvedAt == CROSSING_STAGE_LOCAL_REPOSITION),
+						 "the crossing resolved at stage %d, not by a local reposition",have ? (int)rec.StageResolvedAt : -1);
+				Check (have && (rec.Displacement > 0.0f) && (rec.AttemptsMade >= 2),
+						 "a stage-1 resolution reported %.1f displacement over %d attempt(s)",
+						 have ? rec.Displacement : 0.0f,have ? rec.AttemptsMade : 0);
+				Check (BridgePlanner::Get_Bridge_Count () == 1,"a stage-1 resolution built %d bridges, not 1",
+						 BridgePlanner::Get_Bridge_Count ());
+			}
 		}
 
 		BridgePlanner::Shutdown ();
@@ -6851,6 +7262,39 @@ void	Check_Placement_Rules (void)
 				}
 			}
 			Check (navigable_count > 0,"a real buildable chunk registry produced no navigable chunk at all");
+
+			//	D-001 locomotion masks: one topology, a capability mask per chunk.  The sector graph's
+			//	walkable set is exactly the chunks every loaded class can cross; a chunk no class can
+			//	cross has no mask; an edge admits only what both its chunks admit; and a chunk reaches
+			//	itself for any class it admits.
+			{
+				unsigned loaded = NavMeshGenerator::Get_Loaded_Capabilities ();
+				Check ((loaded & NAV_CAPABILITY_INFANTRY) != 0,"infantry is not among the loaded capabilities");
+				int agreeing = 0;
+				int infantry_only_or_more = 0;
+				for (int py = 0; py < NavMeshGenerator::Get_Chunk_Count_Y (); py++) {
+					for (int px = 0; px < NavMeshGenerator::Get_Chunk_Count_X (); px++) {
+						unsigned mask = NavMeshGenerator::Get_Chunk_Capability (px,py);
+						unsigned every = loaded & (NAV_CAPABILITY_INFANTRY | NAV_CAPABILITY_WHEELED | NAV_CAPABILITY_TRACKED);
+						bool all_classes = ((mask & every) == every) &&
+												 (((loaded & NAV_CAPABILITY_HEAVY) == 0) || ((mask & NAV_CAPABILITY_HEAVY) != 0));
+						if (all_classes == NavMeshGenerator::Is_Chunk_Navigable (px,py)) agreeing++;
+						if ((mask & NAV_CAPABILITY_INFANTRY) != 0) infantry_only_or_more++;
+						Check ((mask & ~loaded) == 0,"chunk %d,%d admits a class this world has no envelope for",px,py);
+						unsigned east = NavMeshGenerator::Get_Edge_Capability (px,py,NAV_EDGE_EAST);
+						Check ((east & ~mask) == 0,"the edge east of %d,%d admits what its own chunk does not",px,py);
+						if ((mask & NAV_CAPABILITY_INFANTRY) != 0) {
+							Check (NavMeshGenerator::Is_Reachable (NAV_CAPABILITY_INFANTRY,px,py,px,py),
+									 "infantry cannot reach the chunk it stands on at %d,%d",px,py);
+						}
+					}
+				}
+				Check (agreeing == NavMeshGenerator::Get_Chunk_Count_X () * NavMeshGenerator::Get_Chunk_Count_Y (),
+						 "the sector graph's walkable chunks disagree with the capability masks on %d chunks",
+						 (NavMeshGenerator::Get_Chunk_Count_X () * NavMeshGenerator::Get_Chunk_Count_Y ()) - agreeing);
+				Check (infantry_only_or_more >= navigable_count,
+						 "fewer chunks admit infantry than admit every class at once");
+			}
 
 			Check (!NavMeshGenerator::Is_Chunk_Navigable (-1,0),"an off-grid chunk reported navigable");
 			Check (!NavMeshGenerator::Is_Chunk_Navigable (NavMeshGenerator::Get_Chunk_Count_X (),0),
@@ -8699,6 +9143,21 @@ static int	Captured_Message_Kinds (int first,int * kinds_out,int max_kinds)
 	return count;
 }
 
+//	The ground alone, chunk by chunk -- the world checksum with the journal left out, for a restore
+//	that compacts the journal on purpose (ProceduralWorldPersistenceClass::Apply_Pending).
+static unsigned int	Ground_Checksum (void)
+{
+	CRCEngine crc;
+	for (int py = 0; py < WorldTerrainSystem::Get_Patch_Count_Y (); py++) {
+		for (int px = 0; px < WorldTerrainSystem::Get_Patch_Count_X (); px++) {
+			unsigned int chunk = 0;
+			if (WorldSnapshotService::Compute_Chunk_Checksum (px,py,&chunk)) crc (&chunk,sizeof (chunk));
+		}
+	}
+	return (unsigned int)crc;
+}
+
+
 void	Check_World_Sync_Transport (void)
 {
 	bool was_server = CombatManager::I_Am_Server ();
@@ -8928,11 +9387,49 @@ void	Check_World_Sync_Transport (void)
 		Check (WorldSyncTransport::Build_Join_Package (&kinds_saved,&sizes_saved,&bytes_saved),
 				 "the world's save package could not be built");
 
+		//	D-001 priority 6: the same world, written through the save subsystem to a real file now,
+		//	while it is still the server's own; read back and restored further down.
+		StringClass error ("");
+		StringClass disk_path;
+		bool disk_written = false;
+		unsigned int server_ground = Ground_Checksum ();
+		unsigned int server_revision = WorldOperationJournal::Get_Revision ();
+		{
+			StringClass profile_path ("");
+			bool have_profile = false;
+			for (int depth = 0; (depth < 8) && !have_profile; depth++) {
+				StringClass probe ("");
+				for (int up = 0; up < depth; up++) probe += "../";
+				probe += "data/procedural_world/default.json";
+				if (::GetFileAttributesA (probe.Peek_Buffer ()) != INVALID_FILE_ATTRIBUTES) {
+					profile_path = probe;
+					have_profile = true;
+				}
+			}
+			Check (have_profile,"could not find data/procedural_world/default.json from the working directory");
+			if (have_profile) {
+				Check (ProceduralWorldManager::Request_World_Exact (41u,profile_path.Peek_Buffer (),&error),
+						 "the shipped default profile could not be requested: %s",error.Peek_Buffer ());
+
+				char temp_dir [MAX_PATH] = { 0 };
+				::GetTempPathA (sizeof (temp_dir),temp_dir);
+				disk_path.Format ("%sow_world_roundtrip_%u.bin",temp_dir,(unsigned int)::GetCurrentProcessId ());
+
+				RawFileClass out_file (disk_path.Peek_Buffer ());
+				disk_written = (out_file.Open (RawFileClass::WRITE) != 0);
+				if (disk_written) {
+					ChunkSaveClass csave (&out_file);
+					disk_written = _TheProceduralWorldPersistence.Save (csave);
+					out_file.Close ();
+				}
+				Check (disk_written,"the world package could not be written to disk");
+			}
+		}
+
 		WorldOperationJournal::Close ();
 		WorldTerrainSystem::Destroy_Terrain ();
 		Build_Uniform_Ramp_Terrain (PATCHES,CELL_SIZE,SLOPE,ORIGIN);
 		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
-		StringClass error ("");
 		Check (WorldOperationJournal::Begin (&error),"the restored world's journal did not open: %s",error.Peek_Buffer ());
 
 		Check (WorldSyncTransport::Apply_Local_Package (kinds_saved,sizes_saved,bytes_saved,&error),
@@ -8940,6 +9437,48 @@ void	Check_World_Sync_Transport (void)
 		unsigned int restored = 0;
 		WorldSnapshotService::Compute_World_Checksum (&restored);
 		Check (restored == server_world,"the restored world checksums 0x%08X, the saved one 0x%08X",restored,server_world);
+
+		/*
+		**	D-001 priority 6: the same restore through the save subsystem and the file written
+		**	above, from the server's own world.  The subsystem names the world by profile path and
+		**	seed; its load re-requests that world and holds the package, and applying it to a
+		**	regenerated world arrives at the saved one again.
+		*/
+		{
+			if (disk_written) {
+				const StringClass & path = disk_path;
+
+				WorldOperationJournal::Close ();
+				WorldTerrainSystem::Destroy_Terrain ();
+				Build_Uniform_Ramp_Terrain (PATCHES,CELL_SIZE,SLOPE,ORIGIN);
+				WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+				Check (WorldOperationJournal::Begin (&error),"the disk-restored world's journal did not open: %s",error.Peek_Buffer ());
+
+				RawFileClass in_file (path.Peek_Buffer ());
+				bool read = (in_file.Open (RawFileClass::READ) != 0);
+				if (read) {
+					ChunkLoadClass cload (&in_file);
+					read = _TheProceduralWorldPersistence.Load (cload);
+					in_file.Close ();
+				}
+				::DeleteFileA (path.Peek_Buffer ());
+				Check (read && ProceduralWorldPersistenceClass::Has_Pending (),
+						 "the world package did not come back from disk as a pending restore");
+
+				Check (ProceduralWorldPersistenceClass::Apply_Pending (&error),
+						 "the disk package did not apply: %s",error.Peek_Buffer ());
+				//	The ground and the revision, not the whole-world checksum: Apply_Pending compacts the
+				//	journal after applying, on purpose, and the world checksum includes the journal.
+				unsigned int from_disk = Ground_Checksum ();
+				Check (from_disk == server_ground,"the ground restored from disk checksums 0x%08X, the saved ground 0x%08X",
+						 from_disk,server_ground);
+				Check (WorldOperationJournal::Get_Revision () == server_revision,
+						 "the world restored from disk is at revision %u, the saved one at %u",
+						 WorldOperationJournal::Get_Revision (),server_revision);
+
+				ProceduralWorldManager::Clear_Request ();
+			}
+		}
 
 		DynamicVectorClass<int> truncated_sizes = sizes_saved;
 		truncated_sizes [truncated_sizes.Count () - 1] = 1000000;
@@ -9114,14 +9653,25 @@ void	Check_Logistics (void)
 				 "the settlements this check depends on failed: %s",error.Peek_Buffer ());
 
 		//	Two completions near the origin and one far away: one home region, one forward one --
-		//	the same recipe Check_Expansion_Regions already proved.
+		//	the same recipe Check_Expansion_Regions already proved.  With a generated front
+		//	(D-001: the contested fields), forward means pushed toward it, so the far completion
+		//	goes on a contested field when this world has one out of the home cluster.
+		Vector3 far_point (1500.0f,0.0f,0.0f);
+		for (int f = 0; f < TiberiumFieldGenerator::Get_Field_Count (); f++) {
+			ResolvedTiberiumField field;
+			if (TiberiumFieldGenerator::Get_Field (f,&field) && (field.OwningFaction == PLAYERTYPE_NEUTRAL) &&
+				 (field.Position.Length () > 100.0f)) {
+				far_point = field.Position;
+				break;
+			}
+		}
 		StringClass completion_report ("");
 		ExpansionRegionRegistry::Note_Construction_Complete (901,"ow_test_grading_pad",
 																				Vector3 (0.0f,0.0f,0.0f),PLAYERTYPE_GDI,&completion_report);
 		ExpansionRegionRegistry::Note_Construction_Complete (902,"ow_test_grading_pad",
 																				Vector3 (5.0f,0.0f,0.0f),PLAYERTYPE_GDI,&completion_report);
 		ExpansionRegionRegistry::Note_Construction_Complete (903,"ow_test_grading_pad",
-																				Vector3 (1500.0f,0.0f,0.0f),PLAYERTYPE_GDI,&completion_report);
+																				far_point,PLAYERTYPE_GDI,&completion_report);
 		Check (ExpansionRegionRegistry::Rebuild_Regions (50.0f,&error),
 				 "the expansion regions this check depends on failed: %s",error.Peek_Buffer ());
 
@@ -9198,6 +9748,43 @@ void	Check_Logistics (void)
 		//
 		LogisticsGraphService::Update_Route_Status ();
 		Check (LogisticsGraphService::Get_Route_Count () > 0,"Update_Route_Status changed the route count");
+
+		//
+		//	D-001 enemy obstruction.  An enemy the team knows of standing on an open route closes it
+		//	to that team alone; with the radius at 0 nothing is ever closed.
+		//
+		{
+			int open_route = -1;
+			LogisticsRoute route;
+			for (int i = 0; (i < LogisticsGraphService::Get_Route_Count ()) && (open_route < 0); i++) {
+				if (LogisticsGraphService::Get_Route (i,&route) && (route.Status == LOGISTICS_ROUTE_OPEN) &&
+					 (route.Waypoints.Count () > 0)) {
+					open_route = i;
+				}
+			}
+			if (open_route >= 0) {
+				DynamicVectorClass<Vector3> on_route;
+				on_route.Add (route.Waypoints [route.Waypoints.Count () / 2] + Vector3 (3.0f,0.0f,0.0f));
+				DynamicVectorClass<Vector3> nobody;
+
+				LogisticsGraphService::Set_Enemy_Threat_Radius (0.0f);
+				LogisticsGraphService::Apply_Route_Threats (PLAYERTYPE_GDI,on_route);
+				Check (LogisticsGraphService::Is_Route_Open_For (open_route,PLAYERTYPE_GDI),
+						 "with the threat radius off an enemy still closed a route");
+
+				LogisticsGraphService::Set_Enemy_Threat_Radius (10.0f);
+				LogisticsGraphService::Apply_Route_Threats (PLAYERTYPE_GDI,on_route);
+				LogisticsGraphService::Apply_Route_Threats (PLAYERTYPE_NOD,nobody);
+				Check (!LogisticsGraphService::Is_Route_Open_For (open_route,PLAYERTYPE_GDI),
+						 "an enemy 3 units off the route did not close it to the team that knows of it");
+				Check (LogisticsGraphService::Is_Route_Open_For (open_route,PLAYERTYPE_NOD),
+						 "one team's known enemy closed the route to the other team");
+
+				LogisticsGraphService::Set_Enemy_Threat_Radius (0.0f);
+				Check (LogisticsGraphService::Is_Route_Open_For (open_route,PLAYERTYPE_GDI),
+						 "turning the threat radius off did not reopen the route");
+			}
+		}
 
 		//
 		//	Section 22.2 step 5.  Construction support: inside the radius of the forward node
@@ -9346,6 +9933,26 @@ void	Check_Vehicle_Subsystems (void)
 
 	ProceduralWorldVehicleSubsystemSettings on;
 	on.Enabled = true;
+
+	//	D-001 sensor module: off does nothing; on, full health sees at full range, the curve only
+	//	falls, and zero health lands exactly on the configured floor.
+	{
+		ProceduralWorldVehicleSubsystemSettings off;
+		Check (VehicleGameObj::Compute_Subsystem_Sensor_Factor (off,0.0f) == 1.0f,
+				 "a disabled profile shrank an AI vehicle's sight range");
+		Check (VehicleGameObj::Compute_Subsystem_Sensor_Factor (on,1.0f) == 1.0f,
+				 "a full-health vehicle's sight range was shrunk");
+		float previous = 1.0f;
+		for (int step = 0; step <= 20; step ++) {
+			float f = 1.0f - ((float)step / 20.0f);
+			float sensor = VehicleGameObj::Compute_Subsystem_Sensor_Factor (on,f);
+			Check ((sensor >= on.MinSensorFactor) && (sensor <= previous + 0.0001f),
+					 "sensor factor %.4f out of bounds or rising at health fraction %.2f",sensor,f);
+			previous = sensor;
+		}
+		Check (WWMath::Fabs (VehicleGameObj::Compute_Subsystem_Sensor_Factor (on,0.0f) - on.MinSensorFactor) < 0.0001f,
+				 "at zero health the sensor factor is not the configured floor");
+	}
 
 	//	Above the start threshold nothing is scaled at all, so a lightly damaged vehicle drives
 	//	exactly as it always did -- the degradation has a real onset, it is not a curve that
@@ -10006,6 +10613,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "bridges") == 0)) {
 		Check_Bridges ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "baselayout") == 0)) {
+		Check_Base_Layout ();
 	}
 	if ((which == nullptr) || (::strcmp (which, "foliage") == 0)) {
 		Check_Foliage ();

@@ -366,6 +366,41 @@ MainMenuDialogClass::Choose_Skirmish_Map (void)
 
 ////////////////////////////////////////////////////////////////
 //
+//	Start_Procedural_Skirmish
+//
+////////////////////////////////////////////////////////////////
+bool
+MainMenuDialogClass::Start_Procedural_Skirmish (unsigned int seed, const char *profile_path, StringClass *error_out)
+{
+	if (GameInitMgrClass::Is_Game_In_Progress ()) {
+		if (error_out != nullptr) *error_out = "a game is running; end it first";
+		return false;
+	}
+
+	StringClass mapname = Choose_Skirmish_Map ();
+	if (mapname.Is_Empty ()) {
+		if (error_out != nullptr) *error_out = "no skirmish map found to host the world";
+		return false;
+	}
+
+	if (!ProceduralWorldManager::Request_World (seed, profile_path, error_out)) {
+		return false;
+	}
+
+	const int SKIRMISH_LOAD_MENU_NUMBER	= 96;
+	CampaignManager::Select_Backdrop_Number (SKIRMISH_LOAD_MENU_NUMBER);
+	GameInitMgrClass::Initialize_Skirmish ();
+
+	WWASSERT (The_Game () != nullptr);
+	The_Game ()->Set_Map_Cycle (0, mapname);
+
+	GameInitMgrClass::Start_Game (mapname, -1, 0);
+	return true;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
 //	On_Command
 //
 ////////////////////////////////////////////////////////////////
@@ -417,37 +452,19 @@ MainMenuDialogClass::On_Command (int ctrl_id, int message_id, unsigned int param
 			**	manager to choose one and log it, so a world worth revisiting can be asked for
 			**	again by number.
 			*/
-			StringClass mapname = Choose_Skirmish_Map();
-
-			if (mapname.Is_Empty()) {
-				DlgMsgBox::DoDialog(
-					TRANSLATE(IDS_MENU_TEXT513),
-					TRANSLATE(IDS_MP_NO_LAN_IP_ADDRESSES_FOUND));
-				allow_default = false;
-				break;
-			}
-
+			IsStartingPractice = true;
 			StringClass world_error;
-			if (!ProceduralWorldManager::Request_World(0,nullptr,&world_error)) {
+			bool started = Start_Procedural_Skirmish(0,nullptr,&world_error);
+			IsStartingPractice = false;
+
+			if (!started) {
 				//	Refused before anything loads, which is the point of validating the profile
 				//	at request time: the player finds out now rather than after a level load.
 				WideStringClass message;
 				message.Convert_From(world_error.Peek_Buffer());
 				DlgMsgBox::DoDialog(TRANSLATE(IDS_MENU_TEXT513),message);
 				allow_default = false;
-				break;
 			}
-
-			IsStartingPractice = true;
-			const int SKIRMISH_LOAD_MENU_NUMBER	= 96;
-			CampaignManager::Select_Backdrop_Number(SKIRMISH_LOAD_MENU_NUMBER);
-			GameInitMgrClass::Initialize_Skirmish();
-
-			WWASSERT(The_Game() != nullptr);
-			The_Game()->Set_Map_Cycle(0, mapname);
-
-			GameInitMgrClass::Start_Game(mapname, -1, 0);
-			IsStartingPractice = false;
 			break;
 		}
 

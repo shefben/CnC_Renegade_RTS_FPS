@@ -540,6 +540,12 @@ public:
 	void		Shutdown( void );
 	void		Think( void );
 
+	//	D-001 P24: the ammo definition's TrailEmitter, the data path Westwood authored for nine
+	//	retail rounds (rockets, grenades, pulse rings) and never read.  Started with the bullet,
+	//	carried along with it, stopped at impact so what it already emitted fades on its own.
+	void		Start_Trail( void );
+	void		Stop_Trail( void );
+
 	// Save / Load
 	virtual	bool	Save( ChunkSaveClass & csave );
 	virtual	bool	Load( ChunkLoadClass & cload );
@@ -558,6 +564,7 @@ private:
 	float								TrackingErrorTimer;
 	Vector3							TrackingError;
 	int								ModelNameCRC;
+	ParticleEmitterClass *		Trail;
 
 	BulletClass( void );
 
@@ -571,7 +578,8 @@ BulletClass::BulletClass( void ) :
 	TargetVector( 0,0,0 ),
 	TrackingErrorTimer( 0 ),
 	TrackingError( 0,0,0 ),
-	ModelNameCRC( 0 )
+	ModelNameCRC( 0 ),
+	Trail( nullptr )
 {
 	WWASSERT( Projectile == nullptr );
 	Projectile = NEW_REF( ProjectileClass, () );
@@ -580,6 +588,7 @@ BulletClass::BulletClass( void ) :
 
 BulletClass::~BulletClass( void )
 {
+	Stop_Trail();
 	if ( Projectile != nullptr ) {
 		Projectile->Set_Observer(nullptr);
 		Projectile->Release_Ref();
@@ -677,10 +686,53 @@ void BulletClass::Init( const BulletDataClass & data, float progress_time, const
 		data.Get_Owner()->Peek_Physical_Object()->Dec_Ignore_Counter();
 	}
 
+	Start_Trail();
+}
+
+
+void	BulletClass::Start_Trail( void )
+{
+	Stop_Trail();
+
+	//	A trail is something to look at; a dedicated server has nobody looking.
+	if ( !CombatManager::I_Am_Client() || BulletData.AmmoDefinition == nullptr ||
+		  BulletData.AmmoDefinition->TrailEmitter.Is_Empty() || PhysicsSceneClass::Get_Instance() == nullptr ) {
+		return;
+	}
+
+	RenderObjClass * renderobj = Create_Render_Obj_From_Filename( BulletData.AmmoDefinition->TrailEmitter );
+	if ( renderobj == nullptr ) {
+		return;
+	}
+	if ( renderobj->Class_ID() != RenderObjClass::CLASSID_PARTICLEEMITTER ) {
+		renderobj->Release_Ref();
+		return;
+	}
+
+	Trail = (ParticleEmitterClass *)renderobj;
+	Trail->Set_Transform( Projectile->Get_Transform() );
+	Trail->Enable_Remove_On_Complete( true );
+	Trail->Start();
+	PhysicsSceneClass::Get_Instance()->Add_Render_Object( Trail );
+}
+
+
+void	BulletClass::Stop_Trail( void )
+{
+	if ( Trail == nullptr ) {
+		return;
+	}
+
+	//	Stopped, not removed: the scene keeps it until its last particle has faded, and then it
+	//	removes itself (remove-on-complete).  Pulling it now would cut the trail off mid-air.
+	Trail->Stop();
+	Trail->Release_Ref();
+	Trail = nullptr;
 }
 
 void	BulletClass::Shutdown( void )
 {
+	Stop_Trail();
 	if ( Projectile != nullptr ) {
 		COMBAT_SCENE->Remove_Object( Projectile );
 		Projectile->Set_Observer( nullptr );
@@ -838,6 +890,10 @@ ExpirationReactionType	BulletClass::Object_Expired(PhysClass * /* observed_obj *
 void	BulletClass::Think( void )
 {
 	WWPROFILE( "Bullet Think" );
+
+	if ( Trail != nullptr ) {
+		Trail->Set_Transform( Projectile->Get_Transform() );
+	}
 
 	// Count down safety timer
 	BulletData.GrenadeSafetyTimer -= TimeManager::Get_Frame_Seconds();

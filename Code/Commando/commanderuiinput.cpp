@@ -23,6 +23,7 @@
 #include "commanderproduction.h"
 #include "commanderproductionevent.h"
 #include "commanderpowerevent.h"
+#include "commanderminimap.h"
 #include "commanderpowerpanel.h"
 #include "commandergovernancepanel.h"
 #include "commandertransferevent.h"
@@ -385,6 +386,24 @@ static void	Handle_Left_Click(const Vector2 & cursor)
 	}
 
 	/*
+	**	The minimap (V2 Phase 16): a click on the map moves the Commander camera there; a click on
+	**	its frame is swallowed like any other panel's.
+	*/
+	{
+		Vector3 world (0.0f,0.0f,0.0f);
+		bool inside_panel = false;
+		if (CommanderMinimapRenderer::Hit_Test (cursor.X,cursor.Y,&world,&inside_panel)) {
+			_ClickCount++;
+			CommanderModeController::Set_Focus (world);
+			return;
+		}
+		if (inside_panel) {
+			_ClickCount++;
+			return;
+		}
+	}
+
+	/*
 	**	The selected building's power panel, which occupies the grid's corner while a building
 	**	rather than units is selected.  A click becomes a request; what the panel shows next is
 	**	whatever the server answers through the Commander mirror.
@@ -606,10 +625,11 @@ static void	Handle_Right_Click(const Vector2 & cursor)
 		return;
 	}
 	{
-		bool inside_power = false, inside_governance = false;
+		bool inside_power = false, inside_governance = false, inside_minimap = false;
 		CommanderPowerPanelRenderer::Hit_Test (cursor.X,cursor.Y,nullptr,&inside_power);
 		CommanderGovernancePanelRenderer::Hit_Test (cursor.X,cursor.Y,nullptr,&inside_governance);
-		if (inside_power || inside_governance) return;
+		CommanderMinimapRenderer::Hit_Test (cursor.X,cursor.Y,nullptr,&inside_minimap);
+		if (inside_power || inside_governance || inside_minimap) return;
 	}
 	if (CommanderSidebarRenderer::Hit_Test (cursor.X,cursor.Y,nullptr) != SIDEBAR_HIT_NONE) {
 		return;

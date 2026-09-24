@@ -122,6 +122,8 @@ commanderselectionoverlays.cpp
 commandergovernancepanel.cpp
 worldsynctransport.cpp
 proceduralworldpersistence.cpp
+proceduralbaselayout.cpp
+commanderminimap.cpp
 bridgedamageservice.cpp
     commanderwaypoint.cpp
     commanderwaypointrenderer.cpp
@@ -330,6 +332,8 @@ commanderselectionoverlays.h
 commandergovernancepanel.h
 worldsynctransport.h
 proceduralworldpersistence.h
+proceduralbaselayout.h
+commanderminimap.h
 bridgedamageservice.h
     commanderwaypoint.h
     commanderwaypointrenderer.h

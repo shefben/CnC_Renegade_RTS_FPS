@@ -171,3 +171,12 @@ Each contract now has a real implementer, adopted once the feature it was writte
 The success-path attachment test is still open: a real model attached to a real bone, a child
 animation playing, `Set_Slot_Hidden`, and a building's bone search. It is listed under D-001
 priority 6 in `WIP_features.md`.
+
+## Success path on real art (D-001 priority 6)
+
+`shader_attachments` now also loads the retail Barracks interior (`mgbar_int.w3d`, hierarchy with
+the `MGBAR_MCT~` pivot) and doors (`mgbar_doors.w3d`, its own embedded animation) from
+`data/building_models`, headless, and checks: the doors attach on the MCT bone and appear among
+the host's sub-objects; their animation plays and a missing one is refused; hiding and showing the
+slot hides and shows the model; a descriptor's `mct_anchor` role resolves through the same
+hierarchy to the bone's transform; and detaching removes the model from the host.

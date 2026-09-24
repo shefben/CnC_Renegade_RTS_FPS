@@ -27,6 +27,9 @@
 #include "persistentcampaign.h"
 
 #include "proceduralworldmanager.h"
+#include "gameeventbus.h"
+#include "playertype.h"
+#include "wwdebug.h"
 #include "rawfile.h"
 
 #include "nlohmann/json.hpp"
@@ -90,6 +93,14 @@ CampaignTerritoryDescriptor	PersistentCampaignService::Territories [PersistentCa
 int								PersistentCampaignService::TerritoryCount = 0;
 CampaignFactionState			PersistentCampaignService::Factions [PersistentCampaignService::MAX_FACTIONS];
 
+//	The launched battle a match's end resolves (D-001), and who starts that match.
+static PersistentCampaignService::BattleLauncherFunc	_BattleLauncher		= nullptr;
+static CampaignBattleLaunchContract							_PendingBattle;
+static bool															_HasPendingBattle	= false;
+static int															_GameOverToken		= 0;
+
+static void	On_Game_Over(GameOverEventClass & event,void * data);
+
 
 void PersistentCampaignService::Init(void)
 {
@@ -110,6 +121,11 @@ void PersistentCampaignService::Shutdown(void)
 {
 	Active = false;
 	TerritoryCount = 0;
+	Clear_Pending_Battle ();
+	if (_GameOverToken != 0) {
+		GameEventBus::GameOver.Unregister (_GameOverToken);
+		_GameOverToken = 0;
+	}
 }
 
 
@@ -252,7 +268,75 @@ bool PersistentCampaignService::Launch_Territory_Battle(const CampaignBattleLaun
 	}
 
 	const char * profile_path = contract.ProfilePath.Is_Empty () ? nullptr : (const char *)contract.ProfilePath;
-	return ProceduralWorldManager::Request_World (contract.Seed,profile_path,error_out);
+
+	bool launched = (_BattleLauncher != nullptr)
+		? _BattleLauncher (contract.Seed,profile_path,error_out)
+		: ProceduralWorldManager::Request_World (contract.Seed,profile_path,error_out);
+
+	if (launched) {
+		_PendingBattle		= contract;
+		_HasPendingBattle	= true;
+		if (_GameOverToken == 0) {
+			_GameOverToken = GameEventBus::GameOver.Register (On_Game_Over);
+		}
+	}
+	return launched;
+}
+
+
+void PersistentCampaignService::Set_Battle_Launcher(BattleLauncherFunc launcher)
+{
+	_BattleLauncher = launcher;
+}
+
+
+bool PersistentCampaignService::Has_Pending_Battle(void)
+{
+	return _HasPendingBattle;
+}
+
+
+bool PersistentCampaignService::Get_Pending_Battle(CampaignBattleLaunchContract * out)
+{
+	if (!_HasPendingBattle) return false;
+	if (out != nullptr) *out = _PendingBattle;
+	return true;
+}
+
+
+void PersistentCampaignService::Clear_Pending_Battle(void)
+{
+	_HasPendingBattle = false;
+	_PendingBattle = CampaignBattleLaunchContract ();
+}
+
+
+bool PersistentCampaignService::Resolve_Pending_Battle(int winning_team,StringClass * error_out)
+{
+	if (!_HasPendingBattle) {
+		if (error_out != nullptr) *error_out = "no pending campaign battle";
+		return false;
+	}
+
+	CampaignBattleResult result;
+	result.TerritoryId			= _PendingBattle.TerritoryId;
+	result.WinningFaction		= ((winning_team == PLAYERTYPE_GDI) || (winning_team == PLAYERTYPE_NOD)) ? winning_team : -1;
+	result.ResourcesCaptured	= 0.0f;
+
+	//	Cleared first, so a result that fails to apply is not applied again by a later game over.
+	Clear_Pending_Battle ();
+	return Apply_Battle_Result (result,error_out);
+}
+
+
+static void	On_Game_Over(GameOverEventClass & event,void * /* data */)
+{
+	if (!PersistentCampaignService::Has_Pending_Battle ()) return;
+
+	StringClass error;
+	if (!PersistentCampaignService::Resolve_Pending_Battle (event.WinnerTeam,&error)) {
+		WWDEBUG_SAY (("PersistentCampaignService: the finished battle did not apply: %s\n",error.Peek_Buffer ()));
+	}
 }
 
 

@@ -489,6 +489,12 @@ protected:
 	Matrix3D										RuntimeTransform;
 	int											RuntimeDamageState;		// index into the descriptor's table
 
+	//	What a save said this building was, until Collect_Building_Components turns it back into
+	//	a runtime building (D-001 priority 6).  Empty for a map-authored building and for every
+	//	building that did not come out of a save.
+	StringClass									LoadedRuntimeDescriptorName;
+	Matrix3D										LoadedRuntimeTransform;
+
 	//	Q-017 follow-up -- every scene object this runtime building currently owns, single-mesh
 	//	path or component assembly alike: one entry for the former, one per loaded part for the
 	//	latter.  ExteriorMeshes/InteriorMeshes (above) categorize the same objects by kind for

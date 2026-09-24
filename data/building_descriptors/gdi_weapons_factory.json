@@ -248,5 +248,32 @@
   "source_reveal_start": 0.75,
   "block_fade_start": 0.9,
   "max_blocks": 2048
+ },
+ "_comment_semantic_anchors": "Local-frame points read from the retail model data, not guessed. mct: MGWEP_MCT~ pivot in mgwep_int.w3d; pct: WEP#PCT1_H1A pivot in MGwep_ag_2.w3d; vehicle_exit: centre of the MGWEP^PAD_AREA mesh in mgwep_ext.w3d, which lies on the +X side, so the exit faces +X. Roles not listed have no source in the model data and are left out.",
+ "semantic_anchors": {
+  "mct": {
+   "position": [
+    3.95,
+    19.98,
+    -8.73
+   ],
+   "yaw_degrees": 0.0
+  },
+  "pct": {
+   "position": [
+    13.57,
+    18.25,
+    1.97
+   ],
+   "yaw_degrees": 0.0
+  },
+  "vehicle_exit": {
+   "position": [
+    15.68,
+    -0.68,
+    0.0
+   ],
+   "yaw_degrees": 0.0
+  }
  }
 }

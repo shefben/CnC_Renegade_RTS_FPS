@@ -21,6 +21,7 @@
 #include "commanderproduction.h"
 #include "commanderai.h"
 #include "persistentcampaign.h"
+#include "gameeventbus.h"
 #include "proceduralworldtools.h"
 #include "proceduralworldmanager.h"
 #include "combatspacevalidator.h"
@@ -34,6 +35,9 @@
 #include "worldboundsservice.h"
 #include "boundarycliffgenerator.h"
 #include "rtspersistence.h"
+#include "rawfile.h"
+#include "chunkio.h"
+#include "saveload.h"
 #include "obbox.h"
 #include "aabox.h"
 #include "compositeattachment.h"
@@ -1476,6 +1480,8 @@ class NullHostRenderObjClass : public RenderObjClass
 };
 
 
+static bool	Find_Repository_Data (StringClass * out_root);
+
 int	Run_Attachments (void)
 {
 	/*
@@ -1531,6 +1537,88 @@ int	Run_Attachments (void)
 	Check (controller.Get_Slot_Count() == 0,
 			 "Detach_All on an empty controller left %d slots",
 			 controller.Get_Slot_Count());
+
+
+	/*
+	**	D-001 priority 6: the success path, on real retail art (data/building_models, the
+	**	Barracks).  The interior's hierarchy carries the MCT pivot MGBAR_MCT~; the doors are a
+	**	separate HLod with their own embedded animation MGBAR_DOORS.MGBAR_DOORS.  So: a model
+	**	attached on a bone, its animation played, the slot hidden and shown, the descriptor's
+	**	building-bone search resolved against the same host, and the slot detached again.  No
+	**	device -- loading a W3D builds meshes in memory; nothing here is drawn.
+	*/
+	{
+		StringClass root ("");
+		bool have_data = Find_Repository_Data (&root);
+		Check (have_data,"could not find the repository's data from the working directory");
+
+		StringClass interior_path = root;
+		interior_path += "data/building_models/gdi/mgbar/mgbar_int.w3d";
+		StringClass doors_path = root;
+		doors_path += "data/building_models/gdi/mgbar/mgbar_doors.w3d";
+
+		bool loaded = have_data && assets.Load_3D_Assets (interior_path.Peek_Buffer ()) &&
+						  assets.Load_3D_Assets (doors_path.Peek_Buffer ());
+		Check (loaded,"the Barracks interior and doors did not load");
+
+		RenderObjClass * barracks = loaded ? assets.Create_Render_Obj ("MGBAR_INT") : nullptr;
+		Check (barracks != nullptr,"MGBAR_INT did not instantiate from its own file");
+
+		if (barracks != nullptr) {
+			Check (barracks->Get_Bone_Index ("MGBAR_MCT~") != 0,"the Barracks interior has no MGBAR_MCT~ bone");
+
+			CompositeAttachmentClass modules;
+			Check (modules.Attach (barracks,"doors","MGBAR_MCT~","MGBAR_DOORS"),
+					 "attaching a real model to a real bone failed");
+			Check (modules.Is_Slot_Attached ("doors") && (modules.Get_Slot_Count () == 1),
+					 "a successful attachment is not in its slot");
+
+			RenderObjClass * child = barracks->Get_Sub_Object_By_Name ("MGBAR_DOORS");
+			Check (child != nullptr,"the attached model is not among the host's sub-objects");
+
+			Check (modules.Set_Slot_Animation ("doors","MGBAR_DOORS.MGBAR_DOORS",false),
+					 "the attached model's own animation would not play");
+			Check (!modules.Set_Slot_Animation ("doors","MGBAR_DOORS.NO_SUCH_ANIM",false),
+					 "an animation the model does not have reported playing");
+
+			modules.Set_Slot_Hidden ("doors",true);
+			Check ((child != nullptr) && (child->Is_Hidden () != 0),"hiding the slot did not hide its model");
+			modules.Set_Slot_Hidden ("doors",false);
+			Check ((child != nullptr) && (child->Is_Hidden () == 0),"showing the slot did not show its model");
+			if (child != nullptr) child->Release_Ref ();
+
+			//	The building bone search: a descriptor anchor role resolved against this host.
+			StringClass error ("");
+			Check (BuildingDescriptorManager::Load_Descriptor_From_Text ("attachment_check_barracks",
+						"{ \"model_name\": \"mgbar_int.w3d\", \"schema_version\": 1, "
+						"\"footprint\": { \"width\": 30.0, \"depth\": 30.0 }, "
+						"\"anchors\": { \"mct_anchor\": \"MGBAR_MCT~\" } }",&error),
+					 "the anchor descriptor did not load: %s",error.Peek_Buffer ());
+			const BuildingModelDescriptor * descriptor =
+				BuildingDescriptorManager::Get_Descriptor ("attachment_check_barracks");
+			if (descriptor != nullptr) {
+				DynamicVectorClass<RenderObjClass *> parts;
+				parts.Add (barracks);
+				Matrix3D placed (1);
+				placed.Set_Translation (Vector3 (100.0f,200.0f,0.0f));
+				Matrix3D anchor (1);
+				Check (descriptor->Resolve_Anchor_World_Transform (parts,placed,"mct_anchor",&anchor),
+						 "the MCT anchor did not resolve against the real hierarchy");
+				Matrix3D expected = placed * barracks->Get_Bone_Transform ("MGBAR_MCT~");
+				Check ((anchor.Get_Translation () - expected.Get_Translation ()).Length () < 0.01f,
+						 "the MCT anchor resolved somewhere other than its bone");
+			}
+
+			modules.Detach ("doors");
+			Check (!modules.Is_Slot_Attached ("doors") && (modules.Get_Slot_Count () == 0),
+					 "detaching left the slot behind");
+			RenderObjClass * gone = barracks->Get_Sub_Object_By_Name ("MGBAR_DOORS");
+			Check (gone == nullptr,"the detached model is still hanging off the host");
+			if (gone != nullptr) gone->Release_Ref ();
+
+			barracks->Release_Ref ();
+		}
+	}
 
 	host->Release_Ref ();
 
@@ -2312,6 +2400,42 @@ static void	Check_Shipped_Building_Descriptors (void)
 	int loaded = 0;
 	BuildingDescriptorManager::Unload_All ();
 	BuildingDescriptorManager::Load_Directory (descriptors.Peek_Buffer (),&report,&loaded);
+
+	//
+	//	D-001 sidecar semantic anchors: authored from the retail model data, resolved through the
+	//	placed building's transform, and refused when the role is not one of the eight.
+	//
+	{
+		const BuildingModelDescriptor * factory = BuildingDescriptorManager::Get_Descriptor ("gdi_weapons_factory");
+		BuildingSemanticAnchor exit_anchor;
+		Check ((factory != nullptr) && factory->Find_Semantic_Anchor ("vehicle_exit",&exit_anchor),
+				"the Weapons Factory has no vehicle_exit anchor");
+		if (factory != nullptr) {
+			Matrix3D placed (1);
+			placed.Rotate_Z (DEG_TO_RADF (90.0f));
+			placed.Set_Translation (Vector3 (100.0f,0.0f,0.0f));
+			Matrix3D world (1);
+			Check (factory->Resolve_Semantic_Anchor ("vehicle_exit",placed,&world),"the vehicle exit did not resolve");
+			Vector3 at = world.Get_Translation ();
+			Check ((WWMath::Fabs (at.X - 100.68f) < 0.01f) && (WWMath::Fabs (at.Y - 15.68f) < 0.01f),
+					"the vehicle exit resolved to (%f, %f), not (100.68, 15.68) through a 90 degree turn",at.X,at.Y);
+			Check (!factory->Resolve_Semantic_Anchor ("entrance",placed,&world),
+					"an anchor the descriptor does not author resolved anyway");
+		}
+
+		static const char * const REFINERIES [] = { "gdi_refinery","nod_refinery" };
+		for (int i = 0; i < 2; i++) {
+			const BuildingModelDescriptor * refinery = BuildingDescriptorManager::Get_Descriptor (REFINERIES [i]);
+			Check ((refinery != nullptr) && refinery->Find_Semantic_Anchor ("harvester_dock",nullptr),
+					"%s has no harvester_dock anchor",REFINERIES [i]);
+		}
+
+		StringClass error ("");
+		Check (!BuildingDescriptorManager::Load_Descriptor_From_Text ("anchor_typo",
+					"{ \"model_name\": \"x.w3d\", \"schema_version\": 1, \"footprint\": { \"width\": 4.0, \"depth\": 4.0 }, "
+					"\"semantic_anchors\": { \"vehicle_exti\": { \"position\": [0, 0, 0] } } }",&error),
+				"an unknown semantic anchor role was accepted");
+	}
 
 	static const char * const	ASSEMBLED [] = {
 		"gdi_power_plant","nod_power_plant","gdi_barracks","gdi_weapons_factory","gdi_refinery",
@@ -5653,6 +5777,16 @@ int	Run_Commander_AI (void)
 **	Serialize/Deserialize, which this covers directly, and no other self check in this file
 **	touches real disk I/O either.
 ***********************************************************************************************/
+//	D-001: stands in for the Procedural Skirmish start, recording what the campaign handed it.
+static unsigned int	_LaunchedSeed = 0;
+static int				_LaunchCount = 0;
+static bool	Record_Campaign_Launch (unsigned int seed,const char * /* profile_path */,StringClass * /* error_out */)
+{
+	_LaunchedSeed = seed;
+	_LaunchCount++;
+	return true;
+}
+
 int	Run_Persistent_Campaign (void)
 {
 	const int TEAM_NOD = 0;
@@ -5825,6 +5959,41 @@ int	Run_Persistent_Campaign (void)
 	unknown_result.TerritoryId = 999;
 	Check (!PersistentCampaignService::Apply_Battle_Result (unknown_result,&error),
 			 "Apply_Battle_Result accepted an unknown territory id");
+
+	/*
+	**	D-001: the launch reaches a match and the match's end reaches Apply_Battle_Result.  The
+	**	launcher is the Procedural Skirmish start in the game; here it records what it was handed.
+	**	GameOver resolves the pending battle once, with the winning team.
+	*/
+	{
+		_LaunchedSeed = 0;
+		_LaunchCount = 0;
+		PersistentCampaignService::Set_Battle_Launcher (Record_Campaign_Launch);
+
+		CampaignTerritoryDescriptor contested;
+		Check (PersistentCampaignService::Find_Territory_By_Id (2,&contested),"territory 2 vanished");
+		CampaignFactionState nod_state;
+		PersistentCampaignService::Get_Faction_State (TEAM_NOD,&nod_state);
+		CampaignBattleLaunchContract contract =
+			PersistentCampaignService::Build_Battle_Launch_Contract (contested,TEAM_NOD,TEAM_GDI,nod_state);
+
+		Check (PersistentCampaignService::Launch_Territory_Battle (contract,&error),
+				 "the campaign launch was refused -- %s",(const char *)error);
+		Check ((_LaunchCount == 1) && (_LaunchedSeed == contested.Seed),
+				 "the launch did not start the battle through the launcher with the territory's seed");
+		Check (PersistentCampaignService::Has_Pending_Battle (),"a launched battle is not pending");
+
+		GameEventBus::Raise_Game_Over (TEAM_NOD);
+		Check (!PersistentCampaignService::Has_Pending_Battle (),"the match's end did not resolve the pending battle");
+		Check (PersistentCampaignService::Find_Territory_By_Id (2,&lookup) && (lookup.OwnerFaction == TEAM_NOD),
+				 "the match's winner did not take the territory");
+
+		GameEventBus::Raise_Game_Over (TEAM_GDI);
+		Check (PersistentCampaignService::Find_Territory_By_Id (2,&lookup) && (lookup.OwnerFaction == TEAM_NOD),
+				 "a second game over re-applied a battle already resolved");
+
+		PersistentCampaignService::Set_Battle_Launcher (nullptr);
+	}
 
 	/*
 	**	Serialize/Deserialize round trip, and the explicit schema-migration mechanism: a newer-
@@ -6113,6 +6282,45 @@ int	Run_RTS_Persistence (void)
 	**	recomputed from the surviving members rather than restored -- so running it must leave
 	**	the grid consistent with the manual state above, not with whatever it was before.
 	*/
+	/*
+	**	D-001 priority 6: a real disk round trip of the subsystem the save system calls -- written
+	**	to a file, the overrides wiped, read back from the file.  What comes back is what was set.
+	*/
+	{
+		char temp_dir [MAX_PATH] = { 0 };
+		::GetTempPathA (sizeof (temp_dir),temp_dir);
+		StringClass path;
+		path.Format ("%sow_rts_roundtrip_%u.bin",temp_dir,(unsigned int)::GetCurrentProcessId ());
+
+		RawFileClass out_file (path.Peek_Buffer ());
+		bool wrote = (out_file.Open (RawFileClass::WRITE) != 0);
+		if (wrote) {
+			ChunkSaveClass csave (&out_file);
+			wrote = SaveLoadSystemClass::Save (csave,_TheRTSPersistenceSaveSystem);
+			out_file.Close ();
+		}
+		Check (wrote,"the RTS state could not be written to %s",path.Peek_Buffer ());
+
+		TeamPowerGridService::Set_Manual_Disabled (202,false);
+		TeamPowerGridService::Clear_Priority_Override (202);
+		Check (!TeamPowerGridService::Is_Manual_Disabled (202),"wiping the override before the reload did nothing");
+
+		RawFileClass in_file (path.Peek_Buffer ());
+		bool read = (in_file.Open (RawFileClass::READ) != 0);
+		if (read) {
+			ChunkLoadClass cload (&in_file);
+			read = SaveLoadSystemClass::Load (cload,false);
+			in_file.Close ();
+		}
+		::DeleteFileA (path.Peek_Buffer ());
+		Check (read,"the RTS state could not be read back from disk");
+
+		int disk_priority = 0;
+		Check (TeamPowerGridService::Is_Manual_Disabled (202),"the manual disable did not survive the disk");
+		Check (TeamPowerGridService::Get_Priority_Override (202,&disk_priority) && (disk_priority == 77),
+				 "the priority override came back from disk as %d, not 77",disk_priority);
+	}
+
 	RTSPersistenceClass::Rebuild_Derived_State ();
 	Check (!TeamPowerGridService::Is_Member_Powered (202),
 			 "a manually disabled building came back powered after the post-load recalculation");

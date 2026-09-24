@@ -391,7 +391,9 @@ BuildingGameObj::BuildingGameObj (void)	:
 	RuntimeModelName (""),
 	RuntimeTransform (1),
 	RuntimeDamageState (RUNTIME_DAMAGE_STATE_UNSET),
-	RuntimeAssemblyDestroyed (false)
+	RuntimeAssemblyDestroyed (false),
+	LoadedRuntimeDescriptorName (""),
+	LoadedRuntimeTransform (1)
 {
 	GameObjManager::Add_Building (this);
 	Update_State ();
@@ -491,7 +493,9 @@ enum	{
 	MICROCHUNKID_POSITION				=	1,
 	MICROCHUNKID_ISPOWERON,
 	MICROCHUNKID_COLLECTION_SPHERE,
-	MICROCHUNKID_IS_SPY_DISABLED
+	MICROCHUNKID_IS_SPY_DISABLED,
+	MICROCHUNKID_RUNTIME_DESCRIPTOR,
+	MICROCHUNKID_RUNTIME_TRANSFORM,
 };
 
 
@@ -512,6 +516,16 @@ BuildingGameObj::Save (ChunkSaveClass &csave)
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_ISPOWERON,				IsPowerOn);
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_COLLECTION_SPHERE,	CollectionSphere);
 		WRITE_MICRO_CHUNK (csave, MICROCHUNKID_IS_SPY_DISABLED,	IsSpyDisabled);
+
+		//
+		//	A runtime building (Commander-built, or placed by a generated world's base layout)
+		//	is a descriptor and a transform; without them a load would bring it back as a map
+		//	building with nothing to collect.  A map-authored building writes neither.
+		//
+		if (IsRuntimeConstructed) {
+			WRITE_MICRO_CHUNK_WWSTRING (csave, MICROCHUNKID_RUNTIME_DESCRIPTOR,	RuntimeDescriptorName);
+			WRITE_MICRO_CHUNK (csave, MICROCHUNKID_RUNTIME_TRANSFORM,			RuntimeTransform);
+		}
 	csave.End_Chunk ();
 
 	return true;
@@ -541,6 +555,8 @@ BuildingGameObj::Load (ChunkLoadClass &cload)
 						READ_MICRO_CHUNK (cload, MICROCHUNKID_ISPOWERON,			IsPowerOn);
 						READ_MICRO_CHUNK (cload, MICROCHUNKID_COLLECTION_SPHERE,	CollectionSphere);
 						READ_MICRO_CHUNK (cload, MICROCHUNKID_IS_SPY_DISABLED,	IsSpyDisabled);
+						READ_MICRO_CHUNK_WWSTRING (cload, MICROCHUNKID_RUNTIME_DESCRIPTOR,	LoadedRuntimeDescriptorName);
+						READ_MICRO_CHUNK (cload, MICROCHUNKID_RUNTIME_TRANSFORM,			LoadedRuntimeTransform);
 
 						default:
 							Debug_Say(("Unhandled Micro Chunk:%d File:%s Line:%d\r\n",cload.Cur_Micro_Chunk_ID(),__FILE__,__LINE__));
@@ -1565,6 +1581,18 @@ BuildingGameObj::Collect_Building_Components (void)
 	*/
 	if (IsRuntimeConstructed) {
 		return ;
+	}
+
+	//
+	//	A runtime building coming back from a save takes the runtime path it was built by, not
+	//	the proximity scan, which would claim whatever map statics sat where it stands.
+	//
+	if (LoadedRuntimeDescriptorName.Get_Length () > 0) {
+		StringClass descriptor_name = LoadedRuntimeDescriptorName;
+		LoadedRuntimeDescriptorName = "";
+		if (Init_Runtime_Building (descriptor_name.Peek_Buffer (),LoadedRuntimeTransform)) {
+			return ;
+		}
 	}
 
 	Reset_Components ();
@@ -2852,11 +2880,31 @@ BuildingGameObj::Get_Effective_Radar_Radius (void) const
 			 Effective_Subcomponent_Fraction (descriptor,SUBCOMPONENT_RADAR_DISH,normalized);
 }
 
+/*
+**	D-001 / V2 Phase 20: which descriptor describes this building's parts.  A runtime building
+**	names its own; a map-authored one is described through its definition's DescriptorName, the
+**	same name every other descriptor consumer (power, comms) already reads for it.
+*/
+static const BuildingModelDescriptor *
+Peek_Subcomponent_Descriptor (bool runtime,const StringClass &runtime_name,const StringClass &definition_name)
+{
+	if (runtime) return Peek_Runtime_Descriptor (runtime_name);
+	if (definition_name.Get_Length () == 0) return nullptr;
+	return BuildingDescriptorManager::Get_Descriptor (definition_name.Peek_Buffer ());
+}
+
+static bool
+Model_Has_Bone (StaticPhysClass *phys,const char *bone_name)
+{
+	RenderObjClass *model = (phys != nullptr) ? phys->Peek_Model () : nullptr;
+	return (model != nullptr) && (model->Get_Bone_Index (bone_name) != 0);
+}
+
 int
 BuildingGameObj::Get_Subcomponent_Count (void) const
 {
-	if (!IsRuntimeConstructed) return 0;
-	const BuildingModelDescriptor *descriptor = Peek_Runtime_Descriptor (RuntimeDescriptorName);
+	const BuildingModelDescriptor *descriptor =
+		Peek_Subcomponent_Descriptor (IsRuntimeConstructed,RuntimeDescriptorName,Get_Definition ().Get_Descriptor_Name ());
 	if (descriptor == nullptr) return 0;
 	return descriptor->Subcomponents.Count ();
 }
@@ -2865,8 +2913,8 @@ bool
 BuildingGameObj::Get_Subcomponent_Status (int index,StringClass *role_name_out,
 														 float *function_fraction_out,bool *anchor_resolves_out) const
 {
-	if (!IsRuntimeConstructed) return false;
-	const BuildingModelDescriptor *descriptor = Peek_Runtime_Descriptor (RuntimeDescriptorName);
+	const BuildingModelDescriptor *descriptor =
+		Peek_Subcomponent_Descriptor (IsRuntimeConstructed,RuntimeDescriptorName,Get_Definition ().Get_Descriptor_Name ());
 	if (descriptor == nullptr) return false;
 	if ((index < 0) || (index >= descriptor->Subcomponents.Count ())) return false;
 
@@ -2891,11 +2939,27 @@ BuildingGameObj::Get_Subcomponent_Status (int index,StringClass *role_name_out,
 		**	the one name in hand instead of a role lookup that would never find it.
 		*/
 		bool resolved = false;
+		const char *bone = sub.AnchorBoneName.Peek_Buffer ();
 		if (sub.AnchorBoneName.Get_Length () > 0) {
-			for (int i = 0; (i < RuntimeParts.Count ()) && !resolved; i++) {
-				RenderObjClass *model = (RuntimeParts [i] != nullptr) ? RuntimeParts [i]->Peek_Model () : nullptr;
-				if ((model != nullptr) && (model->Get_Bone_Index (sub.AnchorBoneName.Peek_Buffer ()) != 0)) {
-					resolved = true;
+			if (IsRuntimeConstructed) {
+				for (int i = 0; (i < RuntimeParts.Count ()) && !resolved; i++) {
+					resolved = Model_Has_Bone (RuntimeParts [i],bone);
+				}
+			} else {
+				//	A map-authored building has no RuntimeParts: its hierarchy is whatever
+				//	Collect_Building_Components claimed from the level -- interior and exterior
+				//	statics and the aggregates -- so the bone is looked for there.
+				RefMultiListIterator<StaticPhysClass> interior (const_cast<RefMultiListClass<StaticPhysClass> *> (&InteriorMeshes));
+				for (interior.First (); !interior.Is_Done () && !resolved; interior.Next ()) {
+					resolved = Model_Has_Bone (interior.Peek_Obj (),bone);
+				}
+				RefMultiListIterator<StaticPhysClass> exterior (const_cast<RefMultiListClass<StaticPhysClass> *> (&ExteriorMeshes));
+				for (exterior.First (); !exterior.Is_Done () && !resolved; exterior.Next ()) {
+					resolved = Model_Has_Bone (exterior.Peek_Obj (),bone);
+				}
+				RefMultiListIterator<BuildingAggregateClass> aggregates (const_cast<RefMultiListClass<BuildingAggregateClass> *> (&Aggregates));
+				for (aggregates.First (); !aggregates.Is_Done () && !resolved; aggregates.Next ()) {
+					resolved = Model_Has_Bone (aggregates.Peek_Obj (),bone);
 				}
 			}
 		}

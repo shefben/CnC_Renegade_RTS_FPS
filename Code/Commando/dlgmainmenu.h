@@ -87,6 +87,14 @@ public:
 	static void							Display (void);
 	static MainMenuDialogClass *	Get_Instance (void)	{ return _TheInstance; }
 
+	//
+	//	The Procedural Skirmish start: a host skirmish map, the world request, and the skirmish
+	//	game start.  The menu button and the campaign's launch verb
+	//	(PersistentCampaignService::Set_Battle_Launcher) both come through here, so a campaign
+	//	battle loads exactly the way a Procedural Skirmish does.  Refuses while a game is running.
+	//
+	static bool							Start_Procedural_Skirmish (unsigned int seed, const char *profile_path, StringClass *error_out);
+
 protected:
 
 	////////////////////////////////////////////////////////////////
@@ -95,7 +103,7 @@ protected:
 	void			On_Init_Dialog (void) override;
 	void			On_Menu_Activate (bool onoff) override;
 	void			Update_Version_Number (void);
-	StringClass	Choose_Skirmish_Map (void);
+	static StringClass	Choose_Skirmish_Map (void);
 
 private:
 

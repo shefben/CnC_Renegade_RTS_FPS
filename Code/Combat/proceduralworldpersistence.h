@@ -47,4 +47,6 @@ class ProceduralWorldPersistenceClass : public SaveLoadSubSystemClass
 		static void		Clear_Pending(void);
 };
 
+extern ProceduralWorldPersistenceClass	_TheProceduralWorldPersistence;
+
 #endif // PROCEDURALWORLDPERSISTENCE_H

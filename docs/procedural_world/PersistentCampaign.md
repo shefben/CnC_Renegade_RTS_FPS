@@ -95,3 +95,13 @@ self-check harness has no live level.
 the menu's procedural button normally starts and confirm the world that generates uses seed
 `12345`. Then `campaign result 1 nod 100`, `campaign save <path>`, restart, `campaign load <path>`,
 and confirm `campaign status` shows territory 1 owned by Nod with the file round-tripped.
+
+## Launch integration (D-001)
+
+`campaign launch` now starts the battle: `Launch_Territory_Battle` calls the launcher Commando
+installs at startup, `MainMenuDialogClass::Start_Procedural_Skirmish` -- the same host-map
+choice, world request (the territory's seed and profile) and skirmish start the Procedural
+Skirmish button uses. It refuses while a game is running. The launched contract is kept as the
+pending battle, and the match's `GameOver` resolves it once into `Apply_Battle_Result` with the
+winning team. `ResourcesCaptured` is 0: no per-match figure for it exists. Checked in
+`shader_campaign`; a real launch is a live check.

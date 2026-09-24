@@ -114,6 +114,25 @@ public:
 	static bool		Query_Ray(PhysRayCollisionTestClass & raytest);
 
 	/*
+	**	Sightline (D-001 / V2 roadmap Section 17A.3): what first stops a line of sight from eye to
+	**	target, and how far along it.  Three owners are asked, each through its own spatial
+	**	structure and none by scanning every object: the generated heightfield's ray, the physics
+	**	scene's ray (buildings, settlement structures, rock and every other collidable static, at
+	**	projectile collision), and FoliageSystem's cell-walking segment query (trees).  The nearest
+	**	answer wins.  False when the line is clear, with the fraction left at 1.
+	*/
+	enum SightlineOccluderType
+	{
+		SIGHTLINE_CLEAR = 0,
+		SIGHTLINE_TERRAIN,
+		SIGHTLINE_OBJECT,
+		SIGHTLINE_FOLIAGE,
+	};
+
+	static bool		Query_Sightline(const Vector3 & eye,const Vector3 & target,
+											 float * fraction_out,int * occluder_out = nullptr);
+
+	/*
 	**	Would a building placed here be standing in something?  The Commander's ghost
 	**	placement is the caller Section 16 names; the box is the footprint in world space.
 	*/

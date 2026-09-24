@@ -81,6 +81,8 @@
 #include "commanderpatrolai.h"
 #include "worldsynctransport.h"
 #include "proceduralworldpersistence.h"
+#include "proceduralbaselayout.h"
+#include "commanderminimap.h"
 #include "bridgedamageservice.h"
 #include "foliagesystem.h"
 #include "commanderselectionoverlays.h"
@@ -649,6 +651,7 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	CommanderSelectionRenderer::Init( render_available );
 	CommanderCommandPaletteRenderer::Init( render_available );
 	CommanderPowerPanelRenderer::Init( render_available );
+	CommanderMinimapRenderer::Init( render_available );
 	CommanderGovernancePanelRenderer::Init( render_available );
 	CommanderWaypointRenderer::Init( render_available );
 
@@ -895,6 +898,20 @@ void	CombatManager::Post_Load_Level( void )
 			WWDEBUG_SAY(( "Procedural world generation failed: %s\r\n",world_error.Peek_Buffer() ));
 		} else if ( ProceduralWorldManager::Is_World_Active() ) {
 			WorldSyncTransport::On_World_Generated();
+
+			//	Section 16A: the generated bases.  A fresh world's starting buildings are placed and
+			//	created here, on the server; a loaded save already brought them back as runtime
+			//	buildings, so only the spawn pools are rebuilt around them.
+			if ( I_Am_Server() ) {
+				const ProceduralWorldProfile & profile = ProceduralWorldManager::Get_Active_Profile();
+				if ( ProceduralWorldPersistenceClass::Has_Pending() ) {
+					ProceduralBaseLayoutService::Generate_Base_Spawn_Set( PLAYERTYPE_GDI, profile );
+					ProceduralBaseLayoutService::Generate_Base_Spawn_Set( PLAYERTYPE_NOD, profile );
+				} else {
+					StringClass base_report;
+					ProceduralBaseLayoutService::Plan_And_Place( profile, &base_report );
+				}
+			}
 
 			//	A loaded save's changes to its world, applied once that world exists again.
 			StringClass restore_error;
@@ -1458,6 +1475,7 @@ void 	CombatManager::Think()
 	CommanderSelectionRenderer::Update();
 	CommanderCommandPaletteRenderer::Update();
 	CommanderPowerPanelRenderer::Update();
+	CommanderMinimapRenderer::Update();
 	CommanderSelectionOverlays::Get_Update_Component().Update_Component( TimeManager::Get_Frame_Seconds() );
 	CommanderGovernancePanelRenderer::Update();
 

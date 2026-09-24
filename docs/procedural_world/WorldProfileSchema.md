@@ -340,3 +340,24 @@ none of the schema-5 `resource` fields, the schema-6 `grading` block, the schema
 block, or the schema-8 `vehicle_subsystems` block; all four take their documented defaults, which
 is the whole point of versioning them separately, and is why an older shipped profile is not a bug
 to fix here.
+
+## Schema version 9 (D-001 priority 5)
+
+Four additions, each defaulting to exactly what a schema-8 profile did. Generator stays 7: none of
+them changes the terrain a seed produces. None is part of the profile hash, like the other
+gameplay blocks (logistics, vehicle subsystems).
+
+| Field | Default | Limits | Meaning |
+| --- | --- | --- | --- |
+| `base.gdi_initial_buildings`, `base.nod_initial_buildings` | empty | descriptor names | Section 16A.2: the starting base, in placement order; the first is the anchor on the selected site. Empty places nothing. |
+| `base.spawn_candidate_count` | 12 | 0..64 | Section 16A.6's spawn pool size per faction. |
+| `base.spawn_zone_radius` | 30 | >= 0 | Section 16A.5's fallback team spawn zone. |
+| `logistics.enemy_threat_radius` | 0 | >= 0 | A known enemy this close to a route closes it to that team's convoys; 0 is off. |
+| `vehicle_subsystems.sensor_damage_start_fraction` | 0.66 | >= 0 | Where an AI vehicle's sight range starts to shrink with health. |
+| `vehicle_subsystems.min_sensor_factor` | 0.3 | 0..1 | Its floor at zero health. |
+| `weather.dust_density` | 0 | >= 0 | Dust, scaled by dryness. |
+| `weather.tiberium_density` | 0 | >= 0 | Tiberium haze near generated fields. |
+
+The three shipped profiles move to schema 9 and name a full starting base for each faction
+(Construction Yard, power plant, refinery, infantry and vehicle production, base defence). They
+leave dust, haze and enemy obstruction off. A schema-1..8 profile still loads.

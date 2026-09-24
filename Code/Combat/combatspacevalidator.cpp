@@ -25,6 +25,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "combatspacevalidator.h"
+#include "worldspatialindex.h"
 
 #include "baseselectionplanner.h"
 #include "lineseg.h"
@@ -50,10 +51,10 @@ static const float SIGHTLINE_EYE_HEIGHT			= 1.62f;	// WorldMetricsClass::SOLDIER
 static const int	SIGHTLINE_DIRECTION_COUNT		= 8;			// compass directions, evenly spaced
 static const float SIGHTLINE_MAX_DISTANCE			= 250.0f;	// world units
 
-//	Section 17A.3's own "which terrain/objects count as occluders": terrain only.  Placed
-//	structures (Phase 13) and foliage (Phase 14) are not tested against a sightline here -- a
-//	real, disclosed simplification; see the class comment and docs/procedural_world/
-//	CombatSpaceValidation.md for what this does and does not establish.
+//	Section 17A.3's own "which terrain/objects count as occluders": terrain, every collidable
+//	object in the physics scene (placed structures included) and solid foliage, through
+//	WorldSpatialIndex::Query_Sightline (D-001).  Each is asked through its own spatial structure;
+//	nothing scans every object.
 
 
 CombatSpaceFailureRecord::CombatSpaceFailureRecord(void) : Type(COMBAT_FAILURE_DISCONNECTED_BASE) { }
@@ -109,16 +110,14 @@ const char * Combat_Space_Repair_Operation_Name(CombatSpaceRepairOperationType o
  * local helpers                                                                                 *
  *=============================================================================================*/
 
-//	Distance along one ray before terrain occludes it -- SIGHTLINE_MAX_DISTANCE itself when
-//	nothing occludes within range.
+//	Distance along one ray before terrain, an object or foliage occludes it --
+//	SIGHTLINE_MAX_DISTANCE itself when nothing occludes within range.
 static float Sightline_Distance(const Vector3 & eye,const Vector3 & direction)
 {
 	Vector3 end = eye + (direction * SIGHTLINE_MAX_DISTANCE);
-	LineSegClass ray(eye,end);
 
 	float fraction = 1.0f;
-	Vector3 normal;
-	if (WorldTerrainSystem::Ray_Intersect_Terrain(ray,&fraction,&normal)) {
+	if (WorldSpatialIndex::Query_Sightline(eye,end,&fraction)) {
 		return SIGHTLINE_MAX_DISTANCE * WWMath::Clamp(fraction,0.0f,1.0f);
 	}
 	return SIGHTLINE_MAX_DISTANCE;

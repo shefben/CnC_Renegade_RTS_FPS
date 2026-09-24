@@ -57,6 +57,7 @@
 #include "combatmaterialeffectmanager.h"
 #include "transitioneffect.h"
 #include "humanphys.h"
+#include "proceduralbaselayout.h"
 
 
 //
@@ -870,6 +871,18 @@ Matrix3D SpawnManager::Get_Multiplayer_Spawn_Location( int player_type, SoldierG
 		// Use renegade spawner
 		//
 		player_type = PLAYERTYPE_RENEGADE;
+	}
+
+	//
+	// A generated world's base (V2 roadmap Section 16A.6): the server scores its
+	// spawn pool at the moment of respawn.  Declines on every other map, which
+	// leaves the level's own spawners below as the answer.
+	//
+	{
+		Matrix3D generated_tm (1);
+		if ( ProceduralBaseLayoutService::Choose_Respawn_Point( player_type, soldier, &generated_tm ) ) {
+			return generated_tm;
+		}
 	}
 
 	//

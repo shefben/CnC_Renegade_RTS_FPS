@@ -205,6 +205,17 @@ public:
 	static int			Check_Both_Factions_Have_Early_Field(StringClass * report);
 	static int			Check_Harvestable_Fields_Have_Routes(StringClass * report);
 
+		/*
+		**	D-001 / Section 17A.1 MaxBaseToFrontTravelTimeDifferenceSeconds.  The front is the
+		**	contested fields -- the neutral Tiberium both selected bases can reach by road, which is
+		**	what the two sides expand toward and fight over.  Each base's front time is its road
+		**	travel time to the nearest of them at the reference vehicle speed; one violation when the
+		**	two differ by more than the limit.  With no contested field reachable from both bases
+		**	there is no front, the check is not applied, and *difference_out is -1.
+		*/
+		static int			Check_Front_Travel_Time_Within_Threshold(float max_difference_seconds,
+																			  StringClass * report,float * difference_out);
+
 private:
 
 	//	Shared body for both initial-field resolution and every contested candidate: legalizes
@@ -219,6 +230,7 @@ private:
 													  int * crystal_index_io);
 
 	static bool			Built;
+		static float			LastReferenceVehicleSpeed;
 	static unsigned int	Checksum;
 
 	static DynamicVectorClass<ResolvedTiberiumField>		Fields;

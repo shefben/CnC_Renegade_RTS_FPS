@@ -83,13 +83,18 @@ enum CommanderPlacementResultType
 struct CommanderPlacementRequest
 {
 	CommanderPlacementRequest(void) : Position(0.0f,0.0f,0.0f),RotationDegrees(0.0f),
-												 Team(-1),SequenceId(0),DescriptorName("") { }
+												 Team(-1),SequenceId(0),DescriptorName(""),InitialBase(false) { }
 
 	Vector3		Position;
 	float			RotationDegrees;
 	int			Team;
 	int			SequenceId;
 	StringClass	DescriptorName;
+
+	//	Section 16A: a generated world's starting base may place a structure the Commander may
+	//	not build (the Construction Yard).  Every other check still applies.  Server-side only --
+	//	no event carries it, so a client can never ask for it.
+	bool			InitialBase;
 };
 
 

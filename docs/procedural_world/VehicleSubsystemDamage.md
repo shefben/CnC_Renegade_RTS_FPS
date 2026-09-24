@@ -254,3 +254,14 @@ setting `vehicle_subsystems.enabled` true, then:
 Immobilization needs `allow_immobilize` true, the weapon cut-off needs `weapon_disable_fraction`
 set above 0, and AI retreat needs a repair bay — the last is blocked on P33's descriptor backlog,
 a content gap rather than a bug to chase.
+
+## D-001 updates
+
+- **Weapon accuracy.** At fire time a damaged vehicle's spray angle is multiplied by the inverse
+  of the same weapon efficiency that already slows its rate of fire (`WeaponClass` bullet loop).
+  The shared `AmmoDefinitionClass` is never touched. A weapon with no spray stays exact.
+- **Sensor.** `SmartGameObj::Get_Sensor_Range_Factor` scales the sight range the AI's enemy
+  acquisition uses. It is 1 for everything but an AI-driven vehicle, whose factor follows the
+  weapon module's curve over `vehicle_subsystems.sensor_damage_start_fraction` /
+  `min_sensor_factor` (schema 9, defaults 0.66 / 0.3, like the weapon module's). A vehicle a player
+  drives is never impaired. Checked in `terrain_vehiclesubsystems`.

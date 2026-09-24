@@ -222,6 +222,35 @@ struct BuildingAnchorEntry
 
 
 /*
+**	D-001 / V2 roadmap Sections 16A.3 and 28A -- building semantics as sidecar data.
+**
+**	A point in the building's own frame, with a facing, named by what it is for: where the
+**	harvester docks, where vehicles leave the factory, which way the building faces the street.
+**	Bone anchors (above) need a bone in the hierarchy; most of these have none, and re-exporting
+**	retail W3Ds to add one is exactly what the project may not do.  So they are data beside the
+**	model, transformed through the placed building's transform.  Every authored value names its
+**	source in the descriptor's _comment_semantic_anchors.  A role a descriptor leaves out has no
+**	answer, never a guessed one.
+**
+**	Roles: entrance, vehicle_exit, infantry_exit, street_side, door, pct, mct, harvester_dock.
+**	An unknown role is a load-time refusal.  The destroyed model is not an anchor: it is
+**	DamageVisual.DestroyedModel.
+*/
+struct BuildingSemanticAnchor
+{
+	BuildingSemanticAnchor(void) : Role(""),LocalPosition(0.0f,0.0f,0.0f),LocalYawDegrees(0.0f) { }
+	bool	operator == (const BuildingSemanticAnchor &) const	{ return false; }
+	bool	operator != (const BuildingSemanticAnchor &) const	{ return true; }
+
+	StringClass	Role;
+	Vector3		LocalPosition;		// in the building's own frame
+	float			LocalYawDegrees;	// facing about local Z, from local +X
+};
+
+bool	Semantic_Anchor_Role_Is_Known(const char * role);
+
+
+/*
 **	Roadmap Section 21, Phase 20 -- optional functional subcomponents.
 **
 **	Exactly Section 21.1's own ten example role names, spelled as an enum so a typo in JSON is
@@ -362,6 +391,7 @@ class BuildingModelDescriptor
 		BuildingAssemblyDefinition					Assembly;
 
 		DynamicVectorClass<BuildingAnchorEntry>	Anchors;
+		DynamicVectorClass<BuildingSemanticAnchor>	SemanticAnchors;
 
 		//	Phase 20.  Empty for every descriptor but the handful this phase actually authors --
 		//	see BuildingSubcomponentDefinition above for why empty is a real, supported, zero-
@@ -374,6 +404,12 @@ class BuildingModelDescriptor
 		float	Get_Build_Time_Seconds(void) const;
 
 		const char *	Find_Anchor_Bone(const char * role_name) const;
+
+		//	Sidecar semantic anchors.  Resolve composes the anchor's local frame with the placed
+		//	building's transform; both return false for a role this descriptor does not author.
+		bool				Find_Semantic_Anchor(const char * role_name,BuildingSemanticAnchor * out) const;
+		bool				Resolve_Semantic_Anchor(const char * role_name,const Matrix3D & building_world_transform,
+															Matrix3D * out_transform) const;
 
 		//	Phase 20.  -1.0f means this descriptor tracks no subcomponent for that role -- the
 		//	caller's own signal to leave its capability value unmodified.  Otherwise 0..1, linearly

@@ -50,6 +50,7 @@
 
 #include "always.h"
 #include "wwstring.h"
+#include "vector.h"
 
 
 /*
@@ -288,11 +289,16 @@ struct ProceduralWorldGradingSettings
 struct ProceduralWorldLogisticsSettings
 {
 	ProceduralWorldLogisticsSettings(void) :
-		Enabled(false),ConvoyEnabled(false),ConstructionSupportRadius(0.0f) { }
+		Enabled(false),ConvoyEnabled(false),ConstructionSupportRadius(0.0f),EnemyThreatRadius(0.0f) { }
 
 	bool		Enabled;
 	bool		ConvoyEnabled;
 	float		ConstructionSupportRadius;	// world units, >= 0; 0 disables the bonus (Section 22.2 step 5)
+
+	//	Schema 9 (D-001, Section 22 enemy obstruction): a known enemy contact within this many world
+	//	units of a route closes it to that team's convoys.  0, the default, is off -- the same
+	//	inert-unless-asked default as the rest of this block.
+	float		EnemyThreatRadius;
 };
 
 
@@ -309,6 +315,44 @@ struct ProceduralWorldLogisticsSettings
 **	driver's basic drivability is never removed by health alone unless a profile author asks for
 **	that specifically.
 */
+/*
+**	V2 roadmap Section 16A.2 -- which structures a generated base starts with, declared by the
+**	profile rather than inferred from a faction name.  Each list names building descriptors
+**	(data/building_descriptors file stems) in placement order; the first is the base's anchor
+**	and goes on the selected site itself.  Empty lists place nothing, which is also what every
+**	world fitted to a hand-authored level gets: that level brings its own base, and base
+**	selection never runs over it.  Schema 9.
+**
+**	Everything else Section 16A.8 lists -- credits, wallet cap, starting units, the Commander
+**	role, the shroud policy, AI state -- stays the game mode's, exactly as on a stock map, until
+**	a profile field is added for it.  Nothing here overrides them.
+*/
+struct ProceduralWorldBaseSettings
+{
+	ProceduralWorldBaseSettings(void) : SpawnCandidateCount(12),SpawnZoneRadius(30.0f) { }
+
+	DynamicVectorClass<StringClass>	GdiInitialBuildings;
+	DynamicVectorClass<StringClass>	NodInitialBuildings;
+	int										SpawnCandidateCount;		// Section 16A.6's spawn pool size, per faction
+	float										SpawnZoneRadius;			// Section 16A.5's fallback zone, world units
+};
+
+
+/*
+**	Schema 9 (D-001 P23): environment weather a generated world asks for.  Densities are the
+**	weather renderer's own unit (particles per square world unit, the same the rain/snow/ash
+**	console commands take).  Both 0 by default: no world is dusty or Tiberium-hazed unless its
+**	profile says so.  The Tiberium haze is also only drawn near a generated field.
+*/
+struct ProceduralWorldWeatherSettings
+{
+	ProceduralWorldWeatherSettings(void) : DustDensity(0.0f),TiberiumDensity(0.0f) { }
+
+	float	DustDensity;			// scaled down by wetness: rain settles dust
+	float	TiberiumDensity;		// full inside a field, fading to nothing one radius beyond it
+};
+
+
 struct ProceduralWorldVehicleSubsystemSettings
 {
 	ProceduralWorldVehicleSubsystemSettings(void) :
@@ -317,7 +361,8 @@ struct ProceduralWorldVehicleSubsystemSettings
 		WeaponDamageStartFraction(0.66f),
 		MinEngineFactor(0.25f),MinMobilityFactor(0.35f),MinWeaponFactor(0.3f),
 		ImmobilizeFraction(0.05f),WeaponDisableFraction(0.0f),
-		RetreatToRepairFraction(0.3f) { }
+		RetreatToRepairFraction(0.3f),
+		SensorDamageStartFraction(0.66f),MinSensorFactor(0.3f) { }
 
 	bool	Enabled;						// master toggle; OFF (default) leaves canonical vehicle behavior untouched
 	bool	AllowImmobilize;				// Section 23 step 5's explicit sub-toggle; OFF means health alone never forces a stop
@@ -349,6 +394,12 @@ struct ProceduralWorldVehicleSubsystemSettings
 	//	bay, via the same ScriptEngine::Action_Goto every other order in this tree already uses.
 	//	A human driver's own choices are never overridden.
 	float	RetreatToRepairFraction;
+
+	//	Schema 9 (D-001, Section 23 sensor module): an AI-driven vehicle's sight range shrinks with
+	//	its health on the same curve as the weapon module, with the same defaults.  Never a human's:
+	//	a player-driven vehicle's sensor factor is always 1.
+	float	SensorDamageStartFraction;
+	float	MinSensorFactor;				// 0..1 sight-range factor floor at zero health
 };
 
 
@@ -467,7 +518,7 @@ class ProceduralWorldProfile
 		//	equal CURRENT_GENERATOR_VERSION -- no older generator is kept (one canonical
 		//	implementation), so a profile naming another one names a world this build cannot
 		//	reproduce, and is refused rather than silently generating a different one.
-		enum { CURRENT_SCHEMA_VERSION = 8, CURRENT_GENERATOR_VERSION = 7 };
+		enum { CURRENT_SCHEMA_VERSION = 9, CURRENT_GENERATOR_VERSION = 7 };
 
 		ProceduralWorldProfile(void);
 
@@ -491,6 +542,8 @@ class ProceduralWorldProfile
 		ProceduralWorldGradingSettings		Grading;
 		ProceduralWorldLogisticsSettings	Logistics;
 		ProceduralWorldVehicleSubsystemSettings	VehicleSubsystems;
+		ProceduralWorldBaseSettings			Base;
+		ProceduralWorldWeatherSettings		Weather;
 };
 
 

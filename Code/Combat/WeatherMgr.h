@@ -233,6 +233,17 @@ class	WeatherMgrClass : public SaveLoadSubSystemClass, public NetworkObjectClass
 		void Export_Rare (BitStreamClass &packet) override;
 		void Import_Rare (BitStreamClass &packet) override;
 
+		/*
+		**	D-001 P23: the three environment modes WeatherMgrClass had no caller for.  Tiberium haze
+		**	and dust come from the generated world (its fields and its profile); falling particles
+		**	are scripted (console `weather_falling`, or Set_Falling_Density from code).  All three are
+		**	derived per client from state every client already has, so none of them is saved or
+		**	sent: the generated world regenerates them, and a script re-asks for its own.
+		*/
+		static void		Set_Falling_Density (float density);
+		static float	Get_Environment_Density (int mode);
+		static float	Compute_Tiberium_Haze (const Vector3 &position, float base_density);
+
 		static void Init (SoundEnvironmentClass *soundenvironment);
 		static void	Reset();
 		static void Shutdown();
@@ -379,6 +390,9 @@ class	WeatherMgrClass : public SaveLoadSubSystemClass, public NetworkObjectClass
 
 		static WindClass				  *_Wind;
 		static WeatherSystemClass	  *_Precipitation [PRECIPITATION_COUNT];
+		static WeatherSystemClass	  *_Environment [3];			// dust, Tiberium, falling (D-001 P23)
+		static float					_EnvironmentDensity [3];
+		static float					_FallingDensity;
 		static float						_Wetness;
 		static float						_WetnessResponseScale;
 		static float						_ParticleWindScale;

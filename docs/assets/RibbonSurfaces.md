@@ -100,3 +100,10 @@ how many objects are drawing them. `ribbon_texture` with no argument puts it bac
   nothing in the engine reports that.
 - **Nothing for water.** A wake is `SurfaceEffectsManager`'s job and already exists; see
   [WaterModels.md](WaterModels.md).
+
+## Stock stand-in (D-001 P18)
+
+The tank and harvester tracks draw with `d_tk_dirt` until their `ow_ribbon_*` art ships -- Renegade's
+own tank-tread print (two rows of tread bars on alpha), enumerated from always.dat and looked at.
+Tires, scorch and drag have no stock print and still name nothing; they lay, fade and pool and draw
+nothing until their art ships. Vehicle tracks were already wired in `VehiclePhysClass`.

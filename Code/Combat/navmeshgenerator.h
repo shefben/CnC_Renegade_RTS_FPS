@@ -88,6 +88,33 @@
 #include "wwstring.h"
 
 
+/*
+**	D-001 / V2 Phase 16: locomotion capability, one topology.  Every chunk carries a mask of the
+**	ground classes that can cross it, judged against each class's own real MaxClimbableSlope, and
+**	every edge between two chunks carries the AND of theirs.  Traversal is filtered by the class
+**	asking.  NAV_CAPABILITY_HEAVY is the worst-case ground vehicle -- every loaded ground-vehicle
+**	class at once -- which is exactly what the one PathfindClass sector graph is still built from,
+**	so the engine's own AI pathing is unchanged while a caller that knows it is infantry, or
+**	wheeled, can ask a truer question.
+*/
+enum NavCapabilityBits
+{
+	NAV_CAPABILITY_INFANTRY	= 0x01,
+	NAV_CAPABILITY_WHEELED	= 0x02,
+	NAV_CAPABILITY_TRACKED	= 0x04,
+	NAV_CAPABILITY_HEAVY		= 0x08,
+};
+
+enum NavEdgeDirection
+{
+	NAV_EDGE_EAST = 0,		// +X
+	NAV_EDGE_NORTH,			// +Y
+	NAV_EDGE_WEST,			// -X
+	NAV_EDGE_SOUTH,			// -Y
+	NAV_EDGE_DIRECTION_COUNT
+};
+
+
 struct NavMeshParams
 {
 	NavMeshParams(void);
@@ -168,6 +195,16 @@ public:
 	static int		Get_Chunk_Count_Y(void)	{ return ChunkCountY; }
 	static bool		Is_Chunk_Navigable(int px,int py);
 
+	//	Capability masks (NavCapabilityBits).  0 for a chunk no ground class crosses, or out of range.
+	static unsigned	Get_Chunk_Capability(int px,int py);
+	static unsigned	Get_Edge_Capability(int px,int py,int direction);
+	static unsigned	Get_Loaded_Capabilities(void)	{ return LoadedCapabilities; }
+
+	//	Can a mover with these capability bits get from one chunk to the other over chunk edges
+	//	that admit it?  A breadth-first walk over the chunk grid; bridges and tunnels are the
+	//	sector graph's portals and are not walked here.
+	static bool		Is_Reachable(unsigned capability,int from_px,int from_py,int to_px,int to_py);
+
 private:
 
 	static bool		Built;
@@ -186,6 +223,8 @@ private:
 	static int			ChunkCountX;
 	static int			ChunkCountY;
 	static DynamicVectorClass<int>	ChunkNavigable;		// px + py*ChunkCountX, 0 or 1
+	static DynamicVectorClass<unsigned>	ChunkCapability;	// same indexing, NavCapabilityBits
+	static unsigned			LoadedCapabilities;
 };
 
 #endif	// NAVMESHGENERATOR_H

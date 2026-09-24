@@ -69,6 +69,8 @@ unsigned int	NavMeshGenerator::Revision					= 0;
 int				NavMeshGenerator::ChunkCountX				= 0;
 int				NavMeshGenerator::ChunkCountY				= 0;
 DynamicVectorClass<int>	NavMeshGenerator::ChunkNavigable;
+DynamicVectorClass<unsigned>	NavMeshGenerator::ChunkCapability;
+unsigned				NavMeshGenerator::LoadedCapabilities	= 0;
 
 
 void NavMeshGenerator::Init(void)
@@ -106,6 +108,8 @@ void NavMeshGenerator::Clear(void)
 	ChunkCountX				= 0;
 	ChunkCountY				= 0;
 	ChunkNavigable.Delete_All();
+	ChunkCapability.Delete_All();
+	LoadedCapabilities		= 0;
 }
 
 
@@ -113,6 +117,59 @@ bool NavMeshGenerator::Is_Chunk_Navigable(int px,int py)
 {
 	if ((px < 0) || (py < 0) || (px >= ChunkCountX) || (py >= ChunkCountY)) return false;
 	return ChunkNavigable[px + (py * ChunkCountX)] != 0;
+}
+
+
+unsigned NavMeshGenerator::Get_Chunk_Capability(int px,int py)
+{
+	if ((px < 0) || (py < 0) || (px >= ChunkCountX) || (py >= ChunkCountY)) return 0;
+	if (ChunkCapability.Count() != (ChunkCountX * ChunkCountY)) return 0;
+	return ChunkCapability[px + (py * ChunkCountX)];
+}
+
+
+static const int	_EdgeDX [NAV_EDGE_DIRECTION_COUNT] = { 1,0,-1,0 };
+static const int	_EdgeDY [NAV_EDGE_DIRECTION_COUNT] = { 0,1,0,-1 };
+
+
+unsigned NavMeshGenerator::Get_Edge_Capability(int px,int py,int direction)
+{
+	if ((direction < 0) || (direction >= NAV_EDGE_DIRECTION_COUNT)) return 0;
+	return Get_Chunk_Capability(px,py) & Get_Chunk_Capability(px + _EdgeDX[direction],py + _EdgeDY[direction]);
+}
+
+
+bool NavMeshGenerator::Is_Reachable(unsigned capability,int from_px,int from_py,int to_px,int to_py)
+{
+	if (capability == 0) return false;
+	if ((Get_Chunk_Capability(from_px,from_py) & capability) != capability) return false;
+	if ((Get_Chunk_Capability(to_px,to_py) & capability) != capability) return false;
+	if ((from_px == to_px) && (from_py == to_py)) return true;
+
+	int count = ChunkCountX * ChunkCountY;
+	DynamicVectorClass<char> seen;
+	seen.Resize(count);
+	for (int i = 0; i < count; i++) seen.Add(0);
+
+	DynamicVectorClass<int> queue;
+	queue.Add(from_px + (from_py * ChunkCountX));
+	seen[queue[0]] = 1;
+
+	for (int head = 0; head < queue.Count(); head++) {
+		int px = queue[head] % ChunkCountX;
+		int py = queue[head] / ChunkCountX;
+		for (int d = 0; d < NAV_EDGE_DIRECTION_COUNT; d++) {
+			if ((Get_Edge_Capability(px,py,d) & capability) != capability) continue;
+			int nx = px + _EdgeDX[d];
+			int ny = py + _EdgeDY[d];
+			int slot = nx + (ny * ChunkCountX);
+			if (seen[slot] != 0) continue;
+			if ((nx == to_px) && (ny == to_py)) return true;
+			seen[slot] = 1;
+			queue.Add(slot);
+		}
+	}
+	return false;
 }
 
 
@@ -268,9 +325,21 @@ bool NavMeshGenerator::Build(const NavMeshParams & params,StringClass * error_ou
 	ChunkCountX = count_x;
 	ChunkCountY = count_y;
 	ChunkNavigable.Resize(count_x * count_y);
+	ChunkCapability.Resize(count_x * count_y);
 	for (int i = 0; i < (count_x * count_y); i++) {
 		ChunkNavigable.Add(0);
+		ChunkCapability.Add(0);
 	}
+
+	//	Which classes this world has a real envelope for.  Heavy only exists when some ground
+	//	vehicle does: it is their intersection.
+	LoadedCapabilities = NAV_CAPABILITY_INFANTRY;
+	WorldMetricsStruct probe;
+	bool has_wheeled = WorldMetricsClass::Get_Class_Metrics(LOCOMOTION_WHEELED,&probe);
+	bool has_tracked = WorldMetricsClass::Get_Class_Metrics(LOCOMOTION_TRACKED,&probe);
+	if (has_wheeled) LoadedCapabilities |= NAV_CAPABILITY_WHEELED;
+	if (has_tracked) LoadedCapabilities |= NAV_CAPABILITY_TRACKED;
+	if (has_wheeled || has_tracked) LoadedCapabilities |= NAV_CAPABILITY_HEAVY;
 
 	float highest_chunk_z = -100000.0f;
 	int sector_count = 0;
@@ -283,13 +352,24 @@ bool NavMeshGenerator::Build(const NavMeshParams & params,StringClass * error_ou
 			highest_chunk_z = WWMath::Max(highest_chunk_z,info.MaxHeight);
 
 			if (info.CliffBand || info.InteriorCliff) continue;
-			if (info.MaxSlopeRadians > max_climbable_slope) continue;
 
 			AABoxClass bounds;
 			if (!WorldTerrainSystem::Get_Patch_Bounds(px,py,&bounds)) continue;
 
 			if (WaterSystem::Is_Point_In_Water(bounds.Center.X,bounds.Center.Y)) continue;
 			if (Overlaps_Any_Exclusion(exclusions,bounds.Center,params.StructureClearanceMargin)) continue;
+
+			//	Each class against its own slope limit, so a hillside a soldier climbs and a truck
+			//	cannot is recorded as exactly that.
+			unsigned capability = 0;
+			if (info.MaxSlopeRadians <= infantry.MaxClimbableSlope) capability |= NAV_CAPABILITY_INFANTRY;
+			if (has_wheeled && (info.MaxSlopeRadians <= wheeled.MaxClimbableSlope)) capability |= NAV_CAPABILITY_WHEELED;
+			if (has_tracked && (info.MaxSlopeRadians <= tracked.MaxClimbableSlope)) capability |= NAV_CAPABILITY_TRACKED;
+			if (ground_vehicle_included && (info.MaxSlopeRadians <= max_climbable_slope)) capability |= NAV_CAPABILITY_HEAVY;
+			ChunkCapability[px + (py * count_x)] = capability;
+
+			//	The sector graph keeps its worst-case answer: every loaded class at once.
+			if (info.MaxSlopeRadians > max_climbable_slope) continue;
 
 			//	Walkable.  Recorded before the pathfinder question, because that is what it is.
 			ChunkNavigable[px + (py * count_x)] = 1;

@@ -179,5 +179,32 @@
   "source_reveal_start": 0.75,
   "block_fade_start": 0.9,
   "max_blocks": 2048
+ },
+ "_comment_semantic_anchors": "Local-frame points read from the retail model data, not guessed. mct: MGREF_MCT~ pivot in mgref_int.w3d; pct: MGREF#PCT_H1A01 pivot in MGref_ag_2.w3d; harvester_dock: the REF_TIB_DUMP~ proxy in mgref_ext.w3d and the ref_Tib_dump.w3d part both sit at the building origin, and the hidden drive-through block HIDE_MGREF_BLK runs along local X. Roles not listed have no source in the model data and are left out.",
+ "semantic_anchors": {
+  "mct": {
+   "position": [
+    -3.59,
+    7.62,
+    -8.85
+   ],
+   "yaw_degrees": 0.0
+  },
+  "pct": {
+   "position": [
+    -14.46,
+    3.06,
+    1.91
+   ],
+   "yaw_degrees": 0.0
+  },
+  "harvester_dock": {
+   "position": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "yaw_degrees": 0.0
+  }
  }
 }

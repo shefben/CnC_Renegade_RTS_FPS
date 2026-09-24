@@ -30,16 +30,20 @@
 #include "strategicplanner.h"
 #include "teampowergridservice.h"
 #include "tiberiumfieldgenerator.h"
+#include "tacticalintelligence.h"
 
 static const float	CHECKSUM_QUANTUM		= 1000.0f;
 static const float	CONVOY_ARRIVAL_RADIUS	= 5.0f;
 static const float	BRIDGE_SAMPLE_HEIGHT_GAP	= 6.0f;
+static const float	THREAT_INTERVAL_SECONDS	= 2.0f;
 static const float	ORDER_PRIORITY			= 100.0f;		// matches Dispatch_Order/CommanderGuardAI's own
 
 
 bool				LogisticsGraphService::Built						= false;
 bool				LogisticsGraphService::ConvoyEnabled			= false;
 float				LogisticsGraphService::ConstructionSupportRadius	= 0.0f;
+float				LogisticsGraphService::EnemyThreatRadius		= 0.0f;
+float				LogisticsGraphService::ThreatTimer				= 0.0f;
 unsigned int	LogisticsGraphService::Checksum					= 0;
 
 DynamicVectorClass<LogisticsNode>								LogisticsGraphService::Nodes;
@@ -471,13 +475,117 @@ bool LogisticsGraphService::Is_Under_Construction_Support(const Vector3 & positi
 }
 
 
+void LogisticsGraphService::Set_Enemy_Threat_Radius(float radius)
+{
+	EnemyThreatRadius = (radius > 0.0f) ? radius : 0.0f;
+	ThreatTimer = 0.0f;
+	for (int i = 0; i < Routes.Count(); i++) {
+		Routes[i].EnemyContactCount[0] = Routes[i].EnemyContactCount[1] = 0;
+	}
+}
+
+
+//	Horizontal distance from a point to a route's polyline.
+static float	Distance_To_Route(const LogisticsRoute & route,const Vector3 & point)
+{
+	float best = 1.0e30f;
+	for (int p = 0; p + 1 < route.Waypoints.Count(); p++) {
+		const Vector3 & a = route.Waypoints[p];
+		const Vector3 & b = route.Waypoints[p + 1];
+		float dx = b.X - a.X;
+		float dy = b.Y - a.Y;
+		float len2 = (dx * dx) + (dy * dy);
+		float t = (len2 > 0.0001f) ? (((point.X - a.X) * dx) + ((point.Y - a.Y) * dy)) / len2 : 0.0f;
+		if (t < 0.0f) t = 0.0f;
+		if (t > 1.0f) t = 1.0f;
+		float cx = a.X + (dx * t) - point.X;
+		float cy = a.Y + (dy * t) - point.Y;
+		float d = WWMath::Sqrt((cx * cx) + (cy * cy));
+		if (d < best) best = d;
+	}
+	if ((route.Waypoints.Count() == 1)) {
+		float cx = route.Waypoints[0].X - point.X;
+		float cy = route.Waypoints[0].Y - point.Y;
+		best = WWMath::Sqrt((cx * cx) + (cy * cy));
+	}
+	return best;
+}
+
+
+void LogisticsGraphService::Apply_Route_Threats(int team,const DynamicVectorClass<Vector3> & enemy_positions)
+{
+	if ((team != PLAYERTYPE_NOD) && (team != PLAYERTYPE_GDI)) return;
+
+	for (int r = 0; r < Routes.Count(); r++) {
+		LogisticsRoute & route = Routes[r];
+		int count = 0;
+		if ((EnemyThreatRadius > 0.0f) && (route.Waypoints.Count() > 0)) {
+			for (int e = 0; e < enemy_positions.Count(); e++) {
+				if (Distance_To_Route(route,enemy_positions[e]) <= EnemyThreatRadius) count++;
+			}
+		}
+		route.EnemyContactCount[team] = count;
+	}
+}
+
+
+void LogisticsGraphService::Update_Route_Threats(void)
+{
+	for (int team = PLAYERTYPE_NOD; team <= PLAYERTYPE_GDI; team++) {
+
+		DynamicVectorClass<Vector3> enemies;
+		if (EnemyThreatRadius > 0.0f) {
+			TacticalContactListClass contacts;
+			TacticalIntelligenceModel::Build_Strategic_Contacts(team,contacts);
+			for (int c = 0; c < contacts.Count(); c++) {
+				const TacticalContactClass & contact = contacts[c];
+				if ((contact.Team != PLAYERTYPE_NOD) && (contact.Team != PLAYERTYPE_GDI)) continue;
+				if (contact.Team == team) continue;
+				switch (contact.Type) {
+					case CONTACT_INFANTRY:
+					case CONTACT_VEHICLE:
+					case CONTACT_BUILDING:
+					case CONTACT_RADAR_ONLY:
+					case CONTACT_LAST_KNOWN:
+						enemies.Add(contact.Position);
+						break;
+					default:
+						break;
+				}
+			}
+		}
+		Apply_Route_Threats(team,enemies);
+	}
+}
+
+
+bool LogisticsGraphService::Is_Route_Open_For(int route_index,int team)
+{
+	if ((route_index < 0) || (route_index >= Routes.Count())) return false;
+	const LogisticsRoute & route = Routes[route_index];
+	if (route.Status != LOGISTICS_ROUTE_OPEN) return false;
+	if ((team == PLAYERTYPE_NOD) || (team == PLAYERTYPE_GDI)) {
+		if (route.EnemyContactCount[team] > 0) return false;
+	}
+	return true;
+}
+
+
+//	The team a convoy unit drives for.
+static int	Unit_Team(int unit_id)
+{
+	PhysicalGameObj * unit = GameObjManager::Find_PhysicalGameObj(unit_id);
+	return (unit != nullptr) ? unit->Get_Player_Type() : -1;
+}
+
+
 bool LogisticsGraphService::Start_Convoy(int unit_id,int route_index)
 {
 	if (!ConvoyEnabled) { return false; }
 	if ((route_index < 0) || (route_index >= Routes.Count())) { return false; }
 
 	const LogisticsRoute & route = Routes[route_index];
-	if ((route.Status != LOGISTICS_ROUTE_OPEN) || (route.Waypoints.Count() == 0)) { return false; }
+	if (!Is_Route_Open_For(route_index,Unit_Team(unit_id)) || (route.Waypoints.Count() == 0)) { return false; }
 
 	Stop_Convoy(unit_id);
 
@@ -520,7 +628,14 @@ int LogisticsGraphService::Get_Active_Convoy_Count(void)
 
 void LogisticsGraphService::Update(float seconds)
 {
-	(void)seconds;
+	if ((EnemyThreatRadius > 0.0f) && (Routes.Count() > 0)) {
+		ThreatTimer -= seconds;
+		if (ThreatTimer <= 0.0f) {
+			ThreatTimer = THREAT_INTERVAL_SECONDS;
+			Update_Route_Threats();
+		}
+	}
+
 	if (Convoys.Count() == 0) { return; }
 
 	for (int i = Convoys.Count() - 1; i >= 0; i--) {
@@ -534,8 +649,9 @@ void LogisticsGraphService::Update(float seconds)
 		}
 
 		const LogisticsRoute & route = Routes[record->RouteIndex];
-		if ((route.Status != LOGISTICS_ROUTE_OPEN) || (record->WaypointIndex >= route.Waypoints.Count())) {
-			//	Blocked mid-transit, or already arrived -- either way, nothing further to drive.
+		if (!Is_Route_Open_For(record->RouteIndex,unit->Get_Player_Type()) || (record->WaypointIndex >= route.Waypoints.Count())) {
+			//	Blocked mid-transit (a fallen bridge, or the enemy now on it), or already arrived --
+			//	either way, nothing further to drive.
 			delete record;
 			Convoys.Delete(i);
 			continue;

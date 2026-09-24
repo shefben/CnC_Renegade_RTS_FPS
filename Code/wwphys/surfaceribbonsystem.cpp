@@ -39,6 +39,8 @@
 #include "vector4.h"
 #include "wwdebug.h"
 #include "wwmath.h"
+#include "ffactory.h"
+#include "wwfile.h"
 
 #include <string.h>
 
@@ -133,10 +135,35 @@ void SurfaceRibbonSystem::Shutdown(void)
 /***********************************************************************************************
  *	SurfaceRibbonSystem::Define_Default_Ribbons -- the five kinds Section 23 names               *
  *                                                                                             *
- *	None of them names a texture, so none of them draws anything yet, and every number below is  *
- *	still real: a tank still lays edges, they still fade on schedule, the pool still fills and    *
- *	empties.  What is missing is art, which is recorded in docs/assets/RibbonSurfaces.md.        *
+ *	D-001 P18: each kind draws with its purpose-made ow_ribbon_<kind>.tga once that ships, and   *
+ *	until then with a stock stand-in where always.dat has one.  It does for tracks: d_tk_dirt is  *
+ *	Renegade's own tank-tread print, two rows of tread bars on alpha, enumerated from the archive *
+ *	and looked at before it was chosen.  Tires, scorch and drag have no stock print, so they name *
+ *	no texture until their art ships -- they still lay, fade and pool, and draw nothing.  See     *
+ *	docs/assets/RibbonSurfaces.md.                                                               *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+static bool	Ribbon_Texture_Exists(const char * name)
+{
+	if ((_TheFileFactory == nullptr) || (name == nullptr)) return false;
+
+	StringClass tga (name);
+	StringClass dds (name);
+	if (dds.Get_Length () > 4) {
+		dds.Erase (dds.Get_Length () - 4,4);
+		dds += ".dds";
+	}
+
+	const StringClass * candidates [2] = { &tga,&dds };
+	for (int i = 0; i < 2; i++) {
+		FileClass * file = _TheFileFactory->Get_File (*candidates [i]);
+		if (file == nullptr) continue;
+		bool available = file->Is_Available ();
+		_TheFileFactory->Return_File (file);
+		if (available) return true;
+	}
+	return false;
+}
+
 void SurfaceRibbonSystem::Define_Default_Ribbons(void)
 {
 	struct DefaultRow
@@ -148,17 +175,18 @@ void SurfaceRibbonSystem::Define_Default_Ribbons(void)
 		int				MaxEdges;
 		float				Lifetime;
 		float				TextureLength;
+		const char *	StockTexture;		// verified always.dat stand-in, or null where none exists
 	};
 
 	//	Segment length is the one number worth reading twice.  A tank track laid every half metre
 	//	follows a turning tank; forty-eight of them is twenty-four metres of visible track, which
 	//	is about what a tank leaves before the head of it has faded anyway.
 	static const DefaultRow rows[] = {
-		{ "ow_ribbon_tank_track",		RIBBON_TANK_TRACK,			0.90f,	0.50f,	48,	25.0f,	2.0f },
-		{ "ow_ribbon_tire_track",		RIBBON_TIRE_TRACK,			0.30f,	0.60f,	40,	18.0f,	2.0f },
-		{ "ow_ribbon_harvester_track",RIBBON_HARVESTER_TRACK,		1.40f,	0.70f,	48,	30.0f,	3.0f },
-		{ "ow_ribbon_scorch_trail",	RIBBON_SCORCH_TRAIL,			1.20f,	1.00f,	24,	12.0f,	4.0f },
-		{ "ow_ribbon_drag_mark",		RIBBON_DRAG_MARK,				0.50f,	0.40f,	32,	15.0f,	2.0f },
+		{ "ow_ribbon_tank_track",		RIBBON_TANK_TRACK,			0.90f,	0.50f,	48,	25.0f,	2.0f,	"d_tk_dirt.tga" },
+		{ "ow_ribbon_tire_track",		RIBBON_TIRE_TRACK,			0.30f,	0.60f,	40,	18.0f,	2.0f,	nullptr },
+		{ "ow_ribbon_harvester_track",RIBBON_HARVESTER_TRACK,		1.40f,	0.70f,	48,	30.0f,	3.0f,	"d_tk_dirt.tga" },
+		{ "ow_ribbon_scorch_trail",	RIBBON_SCORCH_TRAIL,			1.20f,	1.00f,	24,	12.0f,	4.0f,	nullptr },
+		{ "ow_ribbon_drag_mark",		RIBBON_DRAG_MARK,				0.50f,	0.40f,	32,	15.0f,	2.0f,	nullptr },
 	};
 
 	for (int i = 0; i < (int)(sizeof(rows) / sizeof(rows[0])); i++) {
@@ -174,6 +202,14 @@ void SurfaceRibbonSystem::Define_Default_Ribbons(void)
 		def.Set_Opaque_Edges(rows[i].MaxEdges / 2);
 		def.Set_Lifetime(rows[i].Lifetime);
 		def.Set_Texture_Length(rows[i].TextureLength);
+
+		StringClass preferred (rows[i].Name);
+		preferred += ".tga";
+		if (Ribbon_Texture_Exists(preferred.Peek_Buffer())) {
+			def.Set_Texture(preferred.Peek_Buffer());
+		} else if (rows[i].StockTexture != nullptr) {
+			def.Set_Texture(rows[i].StockTexture);
+		}
 		Define_Definition(def);
 	}
 	return ;

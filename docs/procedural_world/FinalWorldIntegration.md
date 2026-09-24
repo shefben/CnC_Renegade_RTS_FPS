@@ -191,3 +191,17 @@ modal assertion dialog. Two real, pre-existing defects caused it, both now fixed
 
 `ctest` now runs the whole suite unattended, on both binaries, with every failure reported as
 text.
+
+## D-001 updates
+
+- **Locomotion capability.** One topology, a capability mask per chunk
+  (`NAV_CAPABILITY_INFANTRY`/`WHEELED`/`TRACKED`/`HEAVY`), each class judged against its own
+  `MaxClimbableSlope`; an edge admits what both its chunks admit (`Get_Edge_Capability`), and
+  `Is_Reachable` walks the grid for one class. `HEAVY` is every loaded ground-vehicle class at
+  once -- which is what the PathfindClass sector graph is still built from, so stock AI pathing is
+  unchanged. Checked in `terrain_navigation`.
+- **Minimap renderer.** `CommanderMinimapRenderer` (`Code/Combat/commanderminimap.*`) draws the
+  base layer in Commander Mode's bottom-left corner: a quad per cell (water, cliff, road, ground
+  shaded by height), a square per marker, the camera focus as a cross. A click on the map moves the
+  Commander camera there. The mapping and colours are pinned in `terrain_minimap`; drawing is a
+  live check.

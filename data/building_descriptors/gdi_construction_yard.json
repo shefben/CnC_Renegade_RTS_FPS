@@ -139,5 +139,24 @@
   "source_reveal_start": 0.75,
   "block_fade_start": 0.9,
   "max_blocks": 2048
+ },
+ "_comment_semantic_anchors": "Local-frame points read from the retail model data, not guessed. mct: MGCON_MCT~ pivot in mgcon_int.w3d; pct: MGCON#PCT_H1A01 pivot in MGcon_ag_2.w3d. Roles not listed have no source in the model data and are left out.",
+ "semantic_anchors": {
+  "mct": {
+   "position": [
+    10.13,
+    -11.08,
+    -8.72
+   ],
+   "yaw_degrees": 0.0
+  },
+  "pct": {
+   "position": [
+    -3.38,
+    12.7,
+    1.78
+   ],
+   "yaw_degrees": 0.0
+  }
  }
 }

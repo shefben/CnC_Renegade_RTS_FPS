@@ -117,3 +117,10 @@ vote prompt. They can press `B` to open the panel and vote, or use the console.
 - the power panel against a real grid, including a second client seeing the override;
 - a patrol walking back and forth;
 - a vote seen and cast from a second client, and a transfer.
+
+## D-001 priority 5 additions
+
+- **Minimap.** Bottom-left in Commander Mode (`CommanderMinimapRenderer`); click the map to move
+  the camera there. Only on a generated world, which is where `MinimapBaseLayer` exists.
+- **AI treasury.** `commander_ai treasury <nod|gdi> <credits>` sets an AI Commander's treasury on
+  the server, for testing the AI economy deterministically.

@@ -1467,6 +1467,17 @@ float VehicleGameObj::Compute_Subsystem_Weapon_Efficiency (const ProceduralWorld
 	return settings.MinWeaponFactor + (1.0f - settings.MinWeaponFactor) * t;
 }
 
+float VehicleGameObj::Compute_Subsystem_Sensor_Factor (const ProceduralWorldVehicleSubsystemSettings & settings,
+																		  float health_fraction)
+{
+	//	The weapon module's curve, over the sensor module's own two numbers.
+	if (!settings.Enabled) return 1.0f;
+	if ((settings.SensorDamageStartFraction <= 0.0f) || (health_fraction >= settings.SensorDamageStartFraction)) return 1.0f;
+
+	float t = health_fraction / settings.SensorDamageStartFraction;
+	return settings.MinSensorFactor + (1.0f - settings.MinSensorFactor) * t;
+}
+
 bool VehicleGameObj::Compute_Subsystem_Weapon_Enabled (const ProceduralWorldVehicleSubsystemSettings & settings,
 																		 float health_fraction)
 {
@@ -1515,6 +1526,23 @@ float VehicleGameObj::Get_Subsystem_Weapon_Efficiency (void) const
 {
 	return Compute_Subsystem_Weapon_Efficiency (ProceduralWorldManager::Get_Active_Profile ().VehicleSubsystems,
 															  Get_Subsystem_Health_Fraction ());
+}
+
+float VehicleGameObj::Get_Subsystem_Sensor_Factor (void) const
+{
+	return Compute_Subsystem_Sensor_Factor (ProceduralWorldManager::Get_Active_Profile ().VehicleSubsystems,
+														 Get_Subsystem_Health_Fraction ());
+}
+
+/*
+**	D-001 / Section 23: what the AI's acquisition reads.  A vehicle a player is driving is never
+**	impaired -- its sensor factor is 1 whatever its health -- so a human's view and targeting stay
+**	exactly the stock game's.
+*/
+float VehicleGameObj::Get_Sensor_Range_Factor (void) const
+{
+	if (const_cast<VehicleGameObj *> (this)->Has_Player ()) return 1.0f;
+	return Get_Subsystem_Sensor_Factor ();
 }
 
 bool VehicleGameObj::Get_Subsystem_Weapon_Enabled (void) const

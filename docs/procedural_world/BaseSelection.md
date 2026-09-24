@@ -107,3 +107,36 @@ second time. **Not proven**: a scenario engineered so a repair genuinely changes
 terrain this check reuses gives the first-ranked pair a clean pass), and the real Section 16A
 building-placement contract, which does not exist yet in any file. Both are open, honestly, the
 same way item 5's true stage-1-succeeds case was left open in `docs/procedural_world/BridgePlanning.md`.
+
+## Base layout, spawns and bootstrap (Section 16A, D-001 priority 5)
+
+Section 16A is implemented by `ProceduralBaseLayoutService` (`Code/Combat/proceduralbaselayout.*`),
+on the server, right after a generated world is accepted (`CombatManager::Post_Load_Level`):
+
+- **Initial composition is profile data** (schema 9, `base.gdi_initial_buildings` /
+  `base.nod_initial_buildings`, descriptor names in placement order). The shipped profiles name
+  Construction Yard, power plant, refinery, infantry production, vehicle production and the
+  faction's base defence. The first entry is the anchor and stands on the selected site.
+- **Placement** tries the site, then rings outward starting behind the base, and judges every
+  spot with `CommanderPlacementValidator::Validate` -- the same rules a Commander's build obeys
+  (bounds, slope, water, cliffs, bridges, tunnels, resource routes, chokepoints, overlap, the
+  production exit). `CommanderPlacementRequest::InitialBase` lets the non-buildable Construction
+  Yard through and nothing else. Buildings face the enemy base; one with a `vehicle_exit`
+  semantic anchor is turned so that exit faces it. A building with no legal spot is refused and
+  logged by name, never forced.
+- **Creation** is `RuntimeBuildingFactory::Create_Constructing_Building` followed at once by
+  `Activate_Completed_Building`: a finished building, on its team's power grid and base.
+- **Spawn pool** (`Generate_Base_Spawn_Set`): up to `base.spawn_candidate_count` points inside the
+  protected circle, behind the base first, each on walkable ground (slope <= 30 degrees), inside
+  the bounds, clear of the generated world's exclusions and of every building footprint and
+  production exit the faction has standing. The fallback zone (`base.spawn_zone_radius`) is centred
+  on the pool.
+- **Respawn** (`Choose_Respawn_Point`): `SpawnManager::Get_Multiplayer_Spawn_Location` asks it
+  first; it picks the clear point farthest from any living enemy. On every map without a generated
+  base it declines and the level's own spawners answer.
+- **Saves**: runtime buildings now save their descriptor and transform (`BuildingGameObj`), so a
+  loaded save brings the base back itself; only the spawn pools are rebuilt around it.
+
+Everything else in 16A.8 (credits, wallet cap, starting units, Commander role, shroud policy, AI
+state) stays the game mode's, as on a stock map. Checked by `terrain_baselayout` (+ `fds_`);
+creating the buildings needs the preset database and is a live check.

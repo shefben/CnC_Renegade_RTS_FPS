@@ -69,6 +69,10 @@ bool ProceduralWorldPersistenceClass::Save(ChunkSaveClass & csave)
 	}
 
 	unsigned int seed			= ProceduralWorldManager::Get_Manifest ().Seed;
+	if (seed == 0) {
+		//	No manifest yet (nothing generated): the request is the only seed there is.
+		seed = ProceduralWorldManager::Get_Requested_Seed ();
+	}
 	unsigned int generator	= (unsigned int)ProceduralWorldProfile::CURRENT_GENERATOR_VERSION;
 	StringClass path (ProceduralWorldManager::Get_Profile_Path (),true);
 

@@ -423,6 +423,32 @@ static bool	Parse_And_Validate(const char * definition_name,const char * json_te
 		}
 
 		/*
+		**	semantic_anchors -- D-001 sidecar semantics.  role -> { "position": [x,y,z],
+		**	"yaw_degrees": d }.  An unknown role or a malformed position refuses the descriptor.
+		*/
+		if (root.contains ("semantic_anchors") && root ["semantic_anchors"].is_object ()) {
+			for (auto & element : root ["semantic_anchors"].items ()) {
+				if (!Semantic_Anchor_Role_Is_Known (element.key ().c_str ())) {
+					if (error_out) error_out->Format ("unknown semantic anchor role '%s'",element.key ().c_str ());
+					return false;
+				}
+				auto & value = element.value ();
+				if (!value.is_object () || !value.contains ("position") || !value ["position"].is_array () ||
+					 (value ["position"].size () != 3)) {
+					if (error_out) error_out->Format ("semantic anchor '%s' needs a three-number position",element.key ().c_str ());
+					return false;
+				}
+				BuildingSemanticAnchor anchor;
+				anchor.Role					= element.key ().c_str ();
+				anchor.LocalPosition.Set (value ["position"][0].get<float> (),
+												  value ["position"][1].get<float> (),
+												  value ["position"][2].get<float> ());
+				anchor.LocalYawDegrees	= value.value ("yaw_degrees",0.0f);
+				d.SemanticAnchors.Add (anchor);
+			}
+		}
+
+		/*
 		**	subcomponents -- Phase 20.  An array, not a map keyed by role like anchors: each entry
 		**	carries two more numbers than a bone name, and "array of objects" is what every other
 		**	multi-field table in this schema (extra_states, assembly.parts) already uses.  An

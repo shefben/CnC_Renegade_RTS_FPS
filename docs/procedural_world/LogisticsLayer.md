@@ -160,3 +160,12 @@ the console and confirm the node/route counts look right for the seed. Because n
 Refinery/Factory/Repair Bay descriptor exists yet, `REFINERY`/`FACTORY`/`REPAIR` nodes will not
 appear in that live pass either, until P33's own backlog closes -- a content gap, not a bug to
 chase.
+
+## Enemy obstruction (D-001)
+
+Re-audited against Phase 25 as D-001 asked: no second threat model. A team's known enemies are
+`TacticalIntelligenceModel::Build_Strategic_Contacts` for that team (visible, radar-only or
+last-known enemy infantry, vehicles and buildings). A route with one within
+`logistics.enemy_threat_radius` (schema 9, default 0 = off) of its polyline is closed to that
+team's convoys (`Is_Route_Open_For`); `Start_Convoy` refuses it and a convoy on it stops. The other
+team is unaffected. Re-evaluated every 2 seconds in `Update`. Checked in `terrain_logistics`.

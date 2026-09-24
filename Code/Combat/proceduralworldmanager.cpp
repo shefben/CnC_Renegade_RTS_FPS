@@ -50,6 +50,7 @@
 #include "proceduralassetregistry.h"
 #include "settlementgenerator.h"
 #include "strategicplanner.h"
+#include "proceduralbaselayout.h"
 #include "tiberiumfieldgenerator.h"
 #include "tunnelplanner.h"
 #include "worldmetrics.h"
@@ -1210,6 +1211,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 																				profile.Logistics.ConstructionSupportRadius,
 																				&logistics_error);
 		if (logistics_built) {
+			LogisticsGraphService::Set_Enemy_Threat_Radius (profile.Logistics.EnemyThreatRadius);
 			logistics_built = LogisticsGraphService::Rebuild_Routes (&logistics_error);
 		}
 		if (!logistics_built) {
@@ -1223,10 +1225,26 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	//	seed-bumped retry over, while a required base pair actually left unreachable -- or a
 	//	Phase 15 hard combat-space failure -- is exactly what item 5/step 12 say must never be
 	//	silently accepted.
+	//	D-001 / Section 17A.1: base-to-front fairness, over the contested fields both bases can
+	//	reach.  An unfair front is a layout a different seed can fix, so it joins the retry trigger;
+	//	a world with no front is not checked, and says so.
+	bool front_fair = true;
+	if (tiberium_fields_built) {
+		float front_difference = -1.0f;
+		StringClass front_report;
+		front_fair = (TiberiumFieldGenerator::Check_Front_Travel_Time_Within_Threshold (
+							  profile.Fairness.MaxBaseToFrontTravelTimeDifferenceSeconds,&front_report,&front_difference) == 0);
+		if (front_difference < 0.0f) {
+			WWDEBUG_SAY (("ProceduralWorldManager: no contested field reachable from both bases; the base-to-front limit is not applied\r\n"));
+		} else if (!front_fair) {
+			WWDEBUG_SAY (("ProceduralWorldManager: %s",front_report.Peek_Buffer ()));
+		}
+	}
+
 	if (required_connectivity_ok_out != nullptr) {
 		*required_connectivity_ok_out = (!TransportationNetworkValidator::Did_Check_Required_Base_Routes () ||
 													 TransportationNetworkValidator::Has_Required_Base_Routes ()) &&
-													combat_space_valid;
+													combat_space_valid && front_fair;
 	}
 
 	ActiveProfile = profile;
@@ -1455,6 +1473,7 @@ void ProceduralWorldManager::Destroy_World(void)
 	//	own shared collection (see each generator's own Clear).
 	LogisticsGraphService::Clear ();
 	BridgeDamageService::Reset ();			// span damage belongs to the bridges about to go
+	ProceduralBaseLayoutService::Reset ();	// the level's own objects go with the level; this is bookkeeping
 	MinimapBaseLayer::Clear ();
 	NavMeshGenerator::Clear ();
 	GeneratedWorldIntegrator::Clear ();

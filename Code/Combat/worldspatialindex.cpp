@@ -34,6 +34,9 @@
 #include "physlist.h"
 #include "pscene.h"
 #include "wwdebug.h"
+#include "foliagesystem.h"
+#include "worldterrainsystem.h"
+#include "coltype.h"
 
 
 /***********************************************************************************************
@@ -130,6 +133,48 @@ bool WorldSpatialIndex::Query_Ray(PhysRayCollisionTestClass & raytest)
 	}
 
 	return scene->Cast_Ray(raytest);
+}
+
+
+/***********************************************************************************************
+ * WorldSpatialIndex::Query_Sightline -- what first blocks a line of sight                       *
+ *=============================================================================================*/
+bool WorldSpatialIndex::Query_Sightline(const Vector3 & eye,const Vector3 & target,
+													 float * fraction_out,int * occluder_out)
+{
+	float nearest = 1.0f;
+	int occluder = SIGHTLINE_CLEAR;
+
+	LineSegClass segment (eye,target);
+
+	float terrain_fraction = 1.0f;
+	Vector3 normal;
+	if (WorldTerrainSystem::Has_Terrain () &&
+		 WorldTerrainSystem::Ray_Intersect_Terrain (segment,&terrain_fraction,&normal) &&
+		 (terrain_fraction < nearest)) {
+		nearest = terrain_fraction;
+		occluder = SIGHTLINE_TERRAIN;
+	}
+
+	PhysicsSceneClass * scene = PhysicsSceneClass::Get_Instance ();
+	if (scene != nullptr) {
+		CastResultStruct result;
+		PhysRayCollisionTestClass raytest (segment,&result,0,COLLISION_TYPE_PROJECTILE);
+		if (scene->Cast_Ray (raytest) && (result.Fraction < nearest)) {
+			nearest = result.Fraction;
+			occluder = SIGHTLINE_OBJECT;
+		}
+	}
+
+	float foliage_fraction = 1.0f;
+	if (FoliageSystem::Query_Segment_Occlusion (eye,target,&foliage_fraction) && (foliage_fraction < nearest)) {
+		nearest = foliage_fraction;
+		occluder = SIGHTLINE_FOLIAGE;
+	}
+
+	if (fraction_out != nullptr) *fraction_out = nearest;
+	if (occluder_out != nullptr) *occluder_out = occluder;
+	return occluder != SIGHTLINE_CLEAR;
 }
 
 

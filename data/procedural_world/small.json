@@ -1,5 +1,5 @@
 {
-	"schema_version": 8,
+	"schema_version": 9,
 	"generator_version": 7,
 	"name": "SMALL procedural world (Phase 29 representative profile)",
 
@@ -65,6 +65,13 @@
 	"retry": {
 		"max_local_retries_per_stage": 8,
 		"max_alternate_candidates_per_feature": 6
+	},
+
+	"base": {
+		"gdi_initial_buildings": ["gdi_construction_yard", "gdi_power_plant", "gdi_refinery", "gdi_barracks", "gdi_weapons_factory", "gdi_advanced_guard_tower"],
+		"nod_initial_buildings": ["nod_construction_yard", "nod_power_plant", "nod_refinery", "nod_hand_of_nod", "nod_airstrip", "nod_obelisk"],
+		"spawn_candidate_count": 12,
+		"spawn_zone_radius": 30.0
 	},
 
 	"fairness": {

@@ -123,3 +123,11 @@ names a recognised operation; and the same inputs reproduce the same checksum. N
 scenario where the `RESOURCE_REPAIR_ALTERNATE_FIELD_CANDIDATE` path is actually exercised (this
 terrain's own nearest candidate per team already resolves cleanly), and everything named under
 "What is NOT resolved" above.
+
+## Base-to-front fairness (D-001)
+
+`Check_Front_Travel_Time_Within_Threshold` measures Section 17A.1's
+`MaxBaseToFrontTravelTimeDifferenceSeconds`. The front is the contested fields both selected bases
+can reach by road; each base's front time is its road time to the nearest of them at the reference
+vehicle speed. An unfair front joins the world's retry trigger. A world with no such field is not
+checked, and the manager logs that it was not.

@@ -143,3 +143,11 @@ What it pins:
 - a pool capped at four holds at most four after six arrive, and reports exactly two
   dropped;
 - a disabled layer accepts no shots and draws nothing.
+
+## Projectile trails (D-001 P24)
+
+`AmmoDefinitionClass::TrailEmitter` is read now. Nine retail ammo definitions name one (rocket,
+grenade and smoke trails, pulse rings -- enumerated from `objects.ddb`). A client starts the
+emitter with the bullet, moves it with the projectile every think, and stops it at impact with
+remove-on-complete, so the trail already in the air fades on its own. A dedicated server creates
+none. Rope and cable strips stay deferred: nothing in the donor or the content asks for them.

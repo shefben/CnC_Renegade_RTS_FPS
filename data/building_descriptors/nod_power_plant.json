@@ -47,5 +47,10 @@
   "source_reveal_start": 0.75,
   "block_fade_start": 0.9,
   "max_blocks": 2048
+ },
+ "_comment_semantic_anchors": "Local-frame points read from the retail model data, not guessed. mct: MNPWR_MCT~ pivot in mnpwr_int.w3d; pct: MNPWR#PCT_H1A01 pivot in MNpwr_ag_2.w3d. Roles not listed have no source in the model data and are left out.",
+ "semantic_anchors": {
+  "mct": { "position": [4.08, -5.68, -8.86], "yaw_degrees": 0.0 },
+  "pct": { "position": [-5.25, 3.38, 1.75], "yaw_degrees": 0.0 }
  }
 }

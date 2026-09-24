@@ -248,5 +248,24 @@
   "source_reveal_start": 0.75,
   "block_fade_start": 0.9,
   "max_blocks": 2048
+ },
+ "_comment_semantic_anchors": "Local-frame points read from the retail model data, not guessed. mct: MNATR_MCT~ pivot in mnatr_int.w3d; pct: MNATR#PCT_H1A01 pivot in MNatr_ag_2.w3d. No vehicle_exit: which point on the strip the delivery ends at is not in the model data. Roles not listed have no source in the model data and are left out.",
+ "semantic_anchors": {
+  "mct": {
+   "position": [
+    1.68,
+    -3.56,
+    1.14
+   ],
+   "yaw_degrees": 0.0
+  },
+  "pct": {
+   "position": [
+    8.1,
+    0.05,
+    1.79
+   ],
+   "yaw_degrees": 0.0
+  }
  }
 }

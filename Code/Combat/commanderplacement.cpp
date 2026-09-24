@@ -64,7 +64,7 @@ static const BuildingModelDescriptor *	Peek_Buildable(const CommanderPlacementRe
 		return nullptr;
 	}
 
-	if (!descriptor->Build.Buildable) {
+	if (!descriptor->Build.Buildable && !request.InitialBase) {
 		*reason = PLACEMENT_NOT_BUILDABLE;
 		return nullptr;
 	}
@@ -282,7 +282,22 @@ CommanderPlacementResult CommanderPlacementValidator::Validate(const CommanderPl
 		basis.Rotate_Z (DEG_TO_RADF (request.RotationDegrees));
 
 		Vector3 forward = basis.Get_Y_Vector ();
-		Vector3 exit_center = grounded.Position + (forward * (half_depth + clearance_half));
+		Vector3 exit_origin = grounded.Position + (forward * half_depth);
+
+		//	A descriptor that authors a vehicle_exit anchor says where the exit really is and which
+		//	way it faces, which the +Y convention above only assumes (the Weapons Factory's pad is on
+		//	its +X side).  The box is then rotated so its own +Y is the exit's facing.
+		BuildingSemanticAnchor exit_anchor;
+		if (descriptor->Find_Semantic_Anchor ("vehicle_exit",&exit_anchor)) {
+			Vector3 local = exit_anchor.LocalPosition;
+			local.Z = 0.0f;
+			exit_origin = grounded.Position + (basis * local);
+			basis.Make_Identity ();
+			basis.Rotate_Z (DEG_TO_RADF (request.RotationDegrees + exit_anchor.LocalYawDegrees - 90.0f));
+			forward = basis.Get_Y_Vector ();
+		}
+
+		Vector3 exit_center = exit_origin + (forward * clearance_half);
 		exit_center.Z += FOOTPRINT_TEST_HEIGHT * 0.5f;
 
 		OBBoxClass exit_box (exit_center,

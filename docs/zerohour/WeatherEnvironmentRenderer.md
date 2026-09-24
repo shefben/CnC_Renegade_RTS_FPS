@@ -172,9 +172,9 @@ texture. Untextured weather is a plain coloured particle.
   sky before it looked like weather; a freshly cast ray was filled with back-dated particles.
   Every fall line is full at every instant now, so there is nothing to prime and the flag is
   gone.
-- **Camera-relative streak alignment.** Stock aligned a raindrop to its velocity *minus the
-  camera's velocity*, so running sideways through rain slanted it. Rain is aligned to its own
-  velocity here. This is a real, if small, loss and is recorded in `WIP_features.md`.
+- **Camera-relative streak alignment** is kept (restored by D-001 P23). `Update` measures the
+  camera's velocity from its last position (a jump above 200 units/s is a teleport and ignored),
+  and a streak is aligned to its fall velocity minus that, as stock rain was.
 - **The `WEATHER_PARTICLE_SORT` switch**, which selected a sorted index buffer and was compiled
   to 0.
 
@@ -208,10 +208,17 @@ to make weather happen.
 ## What is not done here
 
 - **Nothing has been drawn on a screen.** The checks run without a device.
-- `TIBERIUM_ATMOSPHERIC_PARTICLES`, `DUST` and `GENERIC_FALLING_PARTICLES` have no caller:
-  `WeatherMgrClass` exposes rain, snow and ash because those are what its saved state, its
-  network variables and LevelEdit know about. The three new modes are reachable only from code
-  until something is given a way to ask for them.
+- `TIBERIUM_ATMOSPHERIC_PARTICLES`, `DUST` and `GENERIC_FALLING_PARTICLES` have callers now
+  (D-001 P23), in `WeatherMgrClass::Update`, each derived per client and so neither saved nor sent:
+  - **Tiberium haze** -- the profile's `weather.tiberium_density`, full inside a generated
+    Tiberium field and fading to nothing one field radius beyond it (`Compute_Tiberium_Haze`,
+    checked in `terrain_tiberiumfields`);
+  - **dust** -- the profile's `weather.dust_density`, scaled by dryness (`1 - wetness`), so rain
+    settles it;
+  - **falling** -- scripted: console `weather_falling <density>` or `Set_Falling_Density`.
+  Both profile densities default to 0; no shipped profile turns them on. Their art is still
+  missing (`ow_weather_dust`, `ow_weather_tiberium`, `ow_weather_falling`), so they draw
+  untextured until it ships.
 - No weather is lit. Section 25's `WorldLightManager` has nothing to filter for it.
 - Weather does not affect gameplay — no traction, no visibility, no sound but the stock rain
   loop.

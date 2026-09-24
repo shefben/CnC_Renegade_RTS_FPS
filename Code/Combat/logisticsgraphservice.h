@@ -118,7 +118,7 @@ class LogisticsRoute
 {
 public:
 	LogisticsRoute(void) : FromNodeIndex(-1),ToNodeIndex(-1),Length(-1.0f),
-		Status(LOGISTICS_ROUTE_UNREACHABLE),BlockingBridgeId(-1) { }
+		Status(LOGISTICS_ROUTE_UNREACHABLE),BlockingBridgeId(-1) { EnemyContactCount [0] = EnemyContactCount [1] = 0; }
 
 	bool	operator == (const LogisticsRoute &) const	{ return false; }
 	bool	operator != (const LogisticsRoute &) const	{ return true; }
@@ -129,6 +129,11 @@ public:
 	float								Length;				// real road length from RoadGraphGenerator; -1 when unreachable
 	LogisticsRouteStatusType	Status;
 	int								BlockingBridgeId;	// -1 unless Status == LOGISTICS_ROUTE_BLOCKED_BRIDGE
+
+	//	Enemy obstruction (D-001): how many enemy contacts each team knows of within the threat
+	//	radius of this route, indexed by PLAYERTYPE_NOD/PLAYERTYPE_GDI.  Per team, because what
+	//	blocks GDI's convoy is what Nod has put there and what GDI can see of it.
+	int								EnemyContactCount [2];
 
 	//	The route's own real polyline, sampled once at Rebuild_Routes time from the RoadGraphEdge
 	//	chain RoadGraphGenerator::Find_Anchor_Path returned -- what a convoy order (step 6) walks
@@ -157,6 +162,21 @@ public:
 	*/
 	static bool			Rebuild_Nodes(bool convoy_enabled,float construction_support_radius,
 												 StringClass * error_out);
+
+	/*
+	**	Enemy obstruction (D-001, V2 Phase 21 re-audited against Phase 25).  No second threat
+	**	model: each team's known enemies are exactly TacticalIntelligenceModel::
+	**	Build_Strategic_Contacts' answer for it -- visible, radar-detected or last-known enemy
+	**	infantry, vehicles and buildings, shroud-aware.  A route with one inside the radius is closed
+	**	to that team's convoys (Is_Route_Open_For); the other team's are unaffected.  Radius 0
+	**	turns it off.  Update re-evaluates every THREAT_INTERVAL_SECONDS on the server.
+	*/
+	static void			Set_Enemy_Threat_Radius(float radius);
+	static float		Get_Enemy_Threat_Radius(void)	{ return EnemyThreatRadius; }
+	static void			Update_Route_Threats(void);
+	static bool			Is_Route_Open_For(int route_index,int team);
+	//	Contacts counted directly, for the self-check: team's view of these enemy positions.
+	static void			Apply_Route_Threats(int team,const DynamicVectorClass<Vector3> & enemy_positions);
 
 	/*
 	**	REFINERY/FACTORY/REPAIR -- live BuildingGameObj instances, found by walking
@@ -245,6 +265,8 @@ private:
 	static bool			Built;
 	static bool			ConvoyEnabled;
 	static float		ConstructionSupportRadius;
+	static float		EnemyThreatRadius;
+	static float		ThreatTimer;
 	static unsigned int	Checksum;
 
 	static DynamicVectorClass<LogisticsNode>			Nodes;

@@ -101,7 +101,8 @@ class ProceduralWorldManager
 		static bool		Request_World_Exact(unsigned int seed,const char * profile_path,StringClass * error_out);
 
 		//	The profile the current request (and so the active world) was built from.
-		static const char *	Get_Profile_Path(void)	{ return RequestedProfilePath.Peek_Buffer (); }
+		static unsigned int	Get_Requested_Seed(void)	{ return RequestedSeed; }
+	static const char *	Get_Profile_Path(void)	{ return RequestedProfilePath.Peek_Buffer (); }
 
 		//	Drop any outstanding request.  The next level load is an ordinary one.
 		static void		Clear_Request(void);

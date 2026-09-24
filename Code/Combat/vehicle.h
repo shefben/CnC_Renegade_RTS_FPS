@@ -349,6 +349,8 @@ public:
 	float					Get_Subsystem_Engine_Factor( void ) const;
 	float					Get_Subsystem_Mobility_Factor( void ) const;
 	float					Get_Subsystem_Weapon_Efficiency( void ) const;
+	float					Get_Subsystem_Sensor_Factor( void ) const;
+	virtual float		Get_Sensor_Range_Factor( void ) const override;
 	bool					Get_Subsystem_Weapon_Enabled( void ) const;
 	bool					Get_Subsystem_Immobilized( void ) const;
 
@@ -363,6 +365,7 @@ public:
 	static float		Compute_Subsystem_Engine_Factor( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
 	static float		Compute_Subsystem_Mobility_Factor( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
 	static float		Compute_Subsystem_Weapon_Efficiency( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
+	static float		Compute_Subsystem_Sensor_Factor( const ProceduralWorldVehicleSubsystemSettings & settings, float health_fraction );
 	static bool			Compute_Subsystem_Weapon_Enabled( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
 	static bool			Compute_Subsystem_Immobilized( const ProceduralWorldVehicleSubsystemSettings & settings,float health_fraction );
 

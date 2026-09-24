@@ -66,6 +66,7 @@
 #include "string_ids.h"
 #include "gametype.h"
 #include "commandercommandpaletterenderer.h"
+#include "commanderminimap.h"
 #include "commanderpowerpanel.h"
 #include "commandergovernancepanel.h"
 #include "rinfo.h"
@@ -2863,6 +2864,7 @@ void 	HUDClass::Render()
 		IRTSOverlayComponent * overlays[] = {
 			&CommanderCommandPaletteRenderer::Get_Overlay_Component(),
 			&CommanderPowerPanelRenderer::Get_Overlay_Component(),
+			&CommanderMinimapRenderer::Get_Overlay_Component(),
 			&CommanderGovernancePanelRenderer::Get_Overlay_Component(),
 		};
 		RenderInfoClass overlay_rinfo( *COMBAT_CAMERA );

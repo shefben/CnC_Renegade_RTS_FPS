@@ -2547,8 +2547,8 @@ public:
 	virtual	const char * Get_Help( void ) override
 	{
 		return "COMMANDER_AI <activate <nod|gdi>|deactivate <nod|gdi>|difficulty <nod|gdi> "
-				 "<easy|normal|hard>|status> - roadmap Section 24.1-24.9; server-side AI "
-				 "Commander control and diagnostics.";
+				 "<easy|normal|hard>|treasury <nod|gdi> <credits>|status> - roadmap Section 24.1-24.9; "
+				 "server-side AI Commander control and diagnostics.";
 	}
 	virtual	void Activate( const char * input ) override
 	{
@@ -2630,6 +2630,23 @@ public:
 			}
 			CommanderAIService::Set_Difficulty( team,difficulty );
 			Print( "commander_ai: %s difficulty set to '%s'.\n",team_name,third );
+			return;
+		}
+
+		//	D-001 / V2 Phase 24: a deterministic treasury for testing the AI economy -- the exact
+		//	amount given, server only, since the treasury is server state the AI spends from.
+		if ( ::_stricmp( verb,"treasury" ) == 0 ) {
+			if ( !CombatManager::I_Am_Server() ) {
+				Print( "commander_ai: the treasury is server state; run this on the server.\n" );
+				return;
+			}
+			float credits = 0.0f;
+			if ( ( parsed < 3 ) || ( ::sscanf( third,"%f",&credits ) != 1 ) || ( credits < 0.0f ) ) {
+				Print( "commander_ai: usage 'commander_ai treasury <nod|gdi> <credits>' (credits >= 0).\n" );
+				return;
+			}
+			CommanderAIService::Set_Treasury( team,credits );
+			Print( "commander_ai: %s treasury set to %.0f.\n",team_name,CommanderAIService::Get_Treasury( team ) );
 			return;
 		}
 
@@ -7474,6 +7491,31 @@ public:
 
 
 /*
+**	D-001 P23: the scripted environment mode.  Generic falling particles (leaves, embers, debris
+**	motes) have no level, network or save state of their own; a script or an operator asks for
+**	them here and gets them on this machine.  With no argument, reports all three environment
+**	modes as this client is drawing them.
+*/
+class WeatherFallingConsoleFunctionClass : public ConsoleFunctionClass {
+public:
+	virtual	const char * Get_Name (void) override	{return ("weather_falling");}
+	virtual	const char * Get_Help (void) override	{return ("WEATHER_FALLING [density] - scripted falling particles (0 stops them); no argument reports dust, Tiberium haze and falling.");}
+	virtual	void Activate (const char *input) override {
+
+		float density = 0.0f;
+		if (input != nullptr && ::sscanf (input, "%f", &density) == 1) {
+			WeatherMgrClass::Set_Falling_Density (density);
+		}
+
+		Print ("weather_falling: dust %.3f, tiberium %.3f, falling %.3f.\n",
+				 WeatherMgrClass::Get_Environment_Density (WEATHER_MODE_DUST),
+				 WeatherMgrClass::Get_Environment_Density (WEATHER_MODE_TIBERIUM),
+				 WeatherMgrClass::Get_Environment_Density (WEATHER_MODE_FALLING));
+	}
+};
+
+
+/*
 **	Roadmap Section 27.  A tracer is arithmetic on a fixed pool, not a scene object, so the
 **	status command reports the pool the way weather_status reports the particle lattice: the
 **	bound, what is alive against it, and how many shots the bound has turned away.
@@ -8063,6 +8105,7 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new WeatherStatusConsoleFunctionClass() );
 	FunctionList.Add( new WeatherBudgetConsoleFunctionClass() );
 	FunctionList.Add( new WeatherLayerConsoleFunctionClass() );
+	FunctionList.Add( new WeatherFallingConsoleFunctionClass() );
 	FunctionList.Add( new TracerStatusConsoleFunctionClass() );
 	FunctionList.Add( new TracerBudgetConsoleFunctionClass() );
 	FunctionList.Add( new TracerLayerConsoleFunctionClass() );

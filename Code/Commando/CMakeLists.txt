@@ -710,6 +710,7 @@ add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
 
     #	Procedural combat-space validation -- roadmap Section 34 Phase 15.  See Check_Combat_Space.
     add_test(NAME terrain_combatspace   COMMAND renegade -terrainselfcheck combatspace)
+    add_test(NAME terrain_baselayout   COMMAND renegade -terrainselfcheck baselayout)
 
     #	Final generated-world integration -- roadmap Section 34 Phase 16.
     add_test(NAME terrain_worldintegration   COMMAND renegade -terrainselfcheck worldintegration)
@@ -824,6 +825,7 @@ add_test(NAME fds_terrain_shroud   COMMAND renegadeserver -terrainselfcheck shro
     add_test(NAME fds_terrain_settlements   COMMAND renegadeserver -terrainselfcheck settlements)
     add_test(NAME fds_terrain_biomedecoration   COMMAND renegadeserver -terrainselfcheck biomedecoration)
     add_test(NAME fds_terrain_combatspace   COMMAND renegadeserver -terrainselfcheck combatspace)
+    add_test(NAME fds_terrain_baselayout   COMMAND renegadeserver -terrainselfcheck baselayout)
     add_test(NAME fds_terrain_worldintegration   COMMAND renegadeserver -terrainselfcheck worldintegration)
     add_test(NAME fds_terrain_navigation   COMMAND renegadeserver -terrainselfcheck navigation)
     add_test(NAME fds_terrain_minimap   COMMAND renegadeserver -terrainselfcheck minimap)

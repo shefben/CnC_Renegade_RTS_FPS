@@ -154,6 +154,10 @@ public:
 	void Set_Player_Data( PlayerDataClass * player_data );
 
    bool Has_Player(void);
+
+	//	D-001 / Section 23: a multiplier on this object's sight range for AI acquisition.  1 for
+	//	everything but a damaged, AI-driven vehicle.
+	virtual float	Get_Sensor_Range_Factor( void ) const	{ return 1.0f; }
    bool Is_Human_Controlled(void);
 	bool Is_Controlled_By_Me(void);
 

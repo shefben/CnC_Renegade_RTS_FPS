@@ -51,6 +51,9 @@
 #include "AudibleSound.h"
 #include "soldier.h"
 #include "playertype.h"
+#include "tiberiumfieldgenerator.h"
+#include "buildingdescriptor.h"
+#include "buildingdescriptormanager.h"
 //#include "building.h"
 #include <algorithm>
 
@@ -473,6 +476,57 @@ RefineryGameObj::CnC_Initialize (BaseControllerClass *base)
 		//
 		if (zone->Get_Observers ().Count () == 0) {
 			zone->Set_Delete_Pending();
+		}
+
+	} else if (TiberiumFieldGenerator::Has_Fields ()) {
+
+		//
+		//	A generated world has no script zones; its fields are TiberiumFieldGenerator's
+		//	(V2 Phase 12).  The same preference the zones get: this team's own initial field, then
+		//	the nearest harvestable one.  The region is the square inside the field's circle, so
+		//	every point the harvester picks in it is on Tiberium.
+		//
+		int best_index = -1;
+		float best_dist2 = 0.0F;
+		for (int pass = 0; pass < 2 && best_index < 0; pass ++) {
+			for (int index = 0; index < TiberiumFieldGenerator::Get_Field_Count (); index ++) {
+				ResolvedTiberiumField field;
+				if (!TiberiumFieldGenerator::Get_Field (index, &field)) {
+					continue;
+				}
+				if (pass == 0 && field.OwningFaction != Get_Player_Type ()) {
+					continue;
+				}
+				if (field.HasHarvesterRoute == false) {
+					continue;
+				}
+				float dist2 = (field.Position - pos).Length2 ();
+				if (best_index < 0 || dist2 < best_dist2) {
+					best_index = index;
+					best_dist2 = dist2;
+				}
+			}
+		}
+
+		ResolvedTiberiumField field;
+		if (best_index >= 0 && TiberiumFieldGenerator::Get_Field (best_index, &field)) {
+			float half = field.Radius * 0.7071F;
+			TiberiumField = OBBoxClass (field.Position + Vector3 (0.0F, 0.0F, 2.0F),
+												 Vector3 (half, half, 4.0F), Matrix3 (1));
+		}
+	}
+
+	//
+	//	A Commander- or base-layout-built refinery has no LevelEdit dock node to be handed.  Its
+	//	descriptor's harvester_dock semantic anchor says where the dump is in the building's own
+	//	frame (docs/procedural_world/BuildingFunctionalSubcomponents.md); the dock entrance below is
+	//	taken along that anchor's X axis, the drive-through direction.
+	//
+	if (Is_Runtime_Constructed () && DockTM == Matrix3D (1)) {
+		const BuildingModelDescriptor *descriptor =
+			BuildingDescriptorManager::Get_Descriptor (Get_Runtime_Descriptor_Name ().Peek_Buffer ());
+		if (descriptor != nullptr) {
+			descriptor->Resolve_Semantic_Anchor ("harvester_dock", Get_Runtime_Transform (), &DockTM);
 		}
 	}
 

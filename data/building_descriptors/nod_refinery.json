@@ -179,5 +179,32 @@
   "source_reveal_start": 0.75,
   "block_fade_start": 0.9,
   "max_blocks": 2048
+ },
+ "_comment_semantic_anchors": "Local-frame points read from the retail model data, not guessed. mct: MNREF_MCT~ pivot in mnref_int.w3d; pct: MNREF#PCT_H1A01 pivot in MNref_ag_2.w3d; harvester_dock: the ref_Tib_dump.w3d part sits at the building origin (the same dump model and layout as the GDI refinery), drive-through along local X. Roles not listed have no source in the model data and are left out.",
+ "semantic_anchors": {
+  "mct": {
+   "position": [
+    -3.59,
+    7.63,
+    -8.86
+   ],
+   "yaw_degrees": 0.0
+  },
+  "pct": {
+   "position": [
+    -14.44,
+    3.02,
+    1.92
+   ],
+   "yaw_degrees": 0.0
+  },
+  "harvester_dock": {
+   "position": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "yaw_degrees": 0.0
+  }
  }
 }

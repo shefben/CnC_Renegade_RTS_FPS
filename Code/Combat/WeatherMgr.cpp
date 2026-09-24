@@ -35,6 +35,9 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 // Includes.
+#include "proceduralworldmanager.h"
+#include "proceduralworldprofile.h"
+#include "tiberiumfieldgenerator.h"
 #include "WeatherMgr.h"
 #include "foliagesystem.h"
 #include "part_buf.h"
@@ -76,6 +79,9 @@ unsigned											 WeatherMgrClass::_PrecipitationOverrideCount;
 
 WindClass										*WeatherMgrClass::_Wind;
 WeatherSystemClass							*WeatherMgrClass::_Precipitation [PRECIPITATION_COUNT];
+WeatherSystemClass	  *WeatherMgrClass::_Environment [3] = { nullptr, nullptr, nullptr };
+float					WeatherMgrClass::_EnvironmentDensity [3] = { 0.0f, 0.0f, 0.0f };
+float					WeatherMgrClass::_FallingDensity = 0.0f;
 float											WeatherMgrClass::_Wetness = 0.0f;
 float											WeatherMgrClass::_WetnessResponseScale = 0.0f;
 float											WeatherMgrClass::_ParticleWindScale = 0.0f;
@@ -621,6 +627,14 @@ void WeatherMgrClass::Reset()
 			Set_Precipitation ((PrecipitationEnum) p, 0.0f, 0.0f, false);
 		}
 	}
+	for (p = 0; p < 3; p++) {
+		if (_Environment [p] != nullptr) {
+			_Environment [p]->Remove();
+			REF_PTR_RELEASE (_Environment [p]);
+		}
+		_EnvironmentDensity [p] = 0.0f;
+	}
+	_FallingDensity = 0.0f;
 	Set_Fog_Enable (false);
 	Set_Fog_Range (200.0f, 300.0f);
 
@@ -644,6 +658,48 @@ void WeatherMgrClass::Reset()
  * HISTORY:                                                                                    *
  *   03/06/01    IML : Created.                                                                *
  *=============================================================================================*/
+void WeatherMgrClass::Set_Falling_Density (float density)
+{
+	_FallingDensity = (density > 0.0f) ? density : 0.0f;
+}
+
+
+float WeatherMgrClass::Get_Environment_Density (int mode)
+{
+	switch (mode) {
+		case WEATHER_MODE_DUST:			return _EnvironmentDensity [0];
+		case WEATHER_MODE_TIBERIUM:	return _EnvironmentDensity [1];
+		case WEATHER_MODE_FALLING:		return _EnvironmentDensity [2];
+		default:								return 0.0f;
+	}
+}
+
+
+/*
+**	Tiberium haze at a point: the full profile density inside a generated field, fading linearly
+**	to nothing one field radius beyond its edge, strongest field wins.  Zero on a world with no
+**	generated fields.
+*/
+float WeatherMgrClass::Compute_Tiberium_Haze (const Vector3 &position, float base_density)
+{
+	if ((base_density <= 0.0f) || !TiberiumFieldGenerator::Has_Fields ()) {
+		return 0.0f;
+	}
+
+	float strongest = 0.0f;
+	for (int i = 0; i < TiberiumFieldGenerator::Get_Field_Count (); i++) {
+		ResolvedTiberiumField field;
+		if (!TiberiumFieldGenerator::Get_Field (i, &field) || (field.Radius <= 0.0f)) continue;
+		float dx = position.X - field.Position.X;
+		float dy = position.Y - field.Position.Y;
+		float distance = WWMath::Sqrt ((dx * dx) + (dy * dy));
+		float strength = (distance <= field.Radius) ? 1.0f : 1.0f - ((distance - field.Radius) / field.Radius);
+		if (strength > strongest) strongest = strength;
+	}
+	return base_density * WWMath::Clamp (strongest, 0.0f, 1.0f);
+}
+
+
 void WeatherMgrClass::Shutdown()
 {
 	Reset();
@@ -1278,6 +1334,34 @@ void WeatherMgrClass::Update (PhysicsSceneClass *scene, CameraClass *camera)
 					}
 					scene->Add_Render_Object (_Precipitation [p]);
 				}
+			}
+		}
+	}
+
+	/*
+	**	D-001 P23: the environment modes.  Each one's density is worked out here, every frame,
+	**	from what this client already knows; a system exists only while its density is above zero.
+	*/
+	{
+		static const WeatherModeType MODES [3] = { WEATHER_MODE_DUST, WEATHER_MODE_TIBERIUM, WEATHER_MODE_FALLING };
+		const ProceduralWorldProfile & profile = ProceduralWorldManager::Get_Active_Profile ();
+		Vector3 camera_position = camera->Get_Position ();
+
+		_EnvironmentDensity [0] = profile.Weather.DustDensity * (1.0f - Get_Wetness ());
+		_EnvironmentDensity [1] = Compute_Tiberium_Haze (camera_position, profile.Weather.TiberiumDensity);
+		_EnvironmentDensity [2] = _FallingDensity;
+
+		for (int e = 0; e < 3; e++) {
+			float density = _EnvironmentDensity [e];
+			if (_Environment [e] != nullptr) {
+				_Environment [e]->Set_Density (density);
+				if ((density <= 0.0f) || !_Environment [e]->Update (_Wind, camera_position)) {
+					_Environment [e]->Remove ();
+					REF_PTR_RELEASE (_Environment [e]);
+				}
+			} else if ((density > 0.0f) && !CombatManager::I_Am_Only_Server ()) {
+				_Environment [e] = NEW_REF (WeatherSystemClass, (scene, MODES [e], density));
+				scene->Add_Render_Object (_Environment [e]);
 			}
 		}
 	}

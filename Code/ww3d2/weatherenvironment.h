@@ -233,6 +233,7 @@ public:
 	float					Get_Column_Spacing(void) const		{ return ColumnSpacing; }
 	int						Get_Deferred_Columns(void) const	{ return DeferredColumns; }
 	int						Get_Casts(void) const				{ return Casts; }
+	const Vector3 &			Get_Camera_Velocity(void) const		{ return CameraVelocity; }
 	int						Get_Cache_Hits(void) const			{ return CacheHits; }
 
 	/*
@@ -311,6 +312,8 @@ private:
 	float					Density;
 	Vector2					Wind;
 	Vector3					CameraPosition;
+	Vector3					CameraVelocity;		// D-001 P23: for camera-relative streaks
+	bool						HasCameraSample;
 	Vector3					BoundsMin;
 	Vector3					BoundsMax;
 	float					Phase;					// seconds since it started falling

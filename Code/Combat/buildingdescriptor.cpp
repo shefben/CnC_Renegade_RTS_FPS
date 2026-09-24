@@ -131,6 +131,49 @@ const char * BuildingModelDescriptor::Find_Subcomponent_Anchor_Bone(BuildingSubc
 }
 
 
+static const char * const _SemanticAnchorRoles [] = {
+	"entrance","vehicle_exit","infantry_exit","street_side","door","pct","mct","harvester_dock",
+};
+
+
+bool Semantic_Anchor_Role_Is_Known(const char * role)
+{
+	if (role == nullptr) return false;
+	for (int i = 0; i < (int)(sizeof (_SemanticAnchorRoles) / sizeof (_SemanticAnchorRoles [0])); i++) {
+		if (::stricmp (role,_SemanticAnchorRoles [i]) == 0) return true;
+	}
+	return false;
+}
+
+
+bool BuildingModelDescriptor::Find_Semantic_Anchor(const char * role_name,BuildingSemanticAnchor * out) const
+{
+	if (role_name == nullptr) return false;
+	for (int i = 0; i < SemanticAnchors.Count (); i++) {
+		if (SemanticAnchors [i].Role.Compare_No_Case (role_name) == 0) {
+			if (out != nullptr) *out = SemanticAnchors [i];
+			return true;
+		}
+	}
+	return false;
+}
+
+
+bool BuildingModelDescriptor::Resolve_Semantic_Anchor(const char * role_name,const Matrix3D & building_world_transform,
+																		Matrix3D * out_transform) const
+{
+	BuildingSemanticAnchor anchor;
+	if ((out_transform == nullptr) || !Find_Semantic_Anchor (role_name,&anchor)) return false;
+
+	Matrix3D local (1);
+	local.Rotate_Z (DEG_TO_RADF (anchor.LocalYawDegrees));
+	local.Set_Translation (anchor.LocalPosition);
+
+	Matrix3D::Multiply (building_world_transform,local,out_transform);
+	return true;
+}
+
+
 const char * BuildingModelDescriptor::Find_Anchor_Bone(const char * role_name) const
 {
 	if (role_name == nullptr) return nullptr;

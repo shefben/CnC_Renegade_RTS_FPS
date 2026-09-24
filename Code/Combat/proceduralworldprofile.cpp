@@ -228,6 +228,33 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			p.Logistics.Enabled						= lg.value ("enabled",p.Logistics.Enabled);
 			p.Logistics.ConvoyEnabled				= lg.value ("convoy_enabled",p.Logistics.ConvoyEnabled);
 			p.Logistics.ConstructionSupportRadius	= lg.value ("construction_support_radius",p.Logistics.ConstructionSupportRadius);
+			p.Logistics.EnemyThreatRadius			= lg.value ("enemy_threat_radius",p.Logistics.EnemyThreatRadius);		// schema 9
+		}
+
+		if (root.contains ("weather") && root ["weather"].is_object ()) {
+			auto & wt = root ["weather"];
+			p.Weather.DustDensity		= wt.value ("dust_density",p.Weather.DustDensity);			// schema 9
+			p.Weather.TiberiumDensity	= wt.value ("tiberium_density",p.Weather.TiberiumDensity);	// schema 9
+		}
+
+		if (root.contains ("base") && root ["base"].is_object ()) {
+			auto & bs = root ["base"];
+
+			//	Schema 9 (Section 16A.2).  Absent in a schema-1..8 profile: no initial buildings,
+			//	which is what every world before this block had.
+			const char * list_keys [2] = { "gdi_initial_buildings","nod_initial_buildings" };
+			DynamicVectorClass<StringClass> * lists [2] = { &p.Base.GdiInitialBuildings,&p.Base.NodInitialBuildings };
+			for (int k = 0; k < 2; k++) {
+				if (bs.contains (list_keys [k]) && bs [list_keys [k]].is_array ()) {
+					for (auto & entry : bs [list_keys [k]]) {
+						if (entry.is_string ()) {
+							lists [k]->Add (StringClass (entry.get<std::string> ().c_str ()));
+						}
+					}
+				}
+			}
+			p.Base.SpawnCandidateCount	= bs.value ("spawn_candidate_count",p.Base.SpawnCandidateCount);
+			p.Base.SpawnZoneRadius		= bs.value ("spawn_zone_radius",p.Base.SpawnZoneRadius);
 		}
 
 		if (root.contains ("vehicle_subsystems") && root ["vehicle_subsystems"].is_object ()) {
@@ -244,6 +271,8 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			p.VehicleSubsystems.MinEngineFactor					= vs.value ("min_engine_factor",p.VehicleSubsystems.MinEngineFactor);
 			p.VehicleSubsystems.MinMobilityFactor				= vs.value ("min_mobility_factor",p.VehicleSubsystems.MinMobilityFactor);
 			p.VehicleSubsystems.MinWeaponFactor					= vs.value ("min_weapon_factor",p.VehicleSubsystems.MinWeaponFactor);
+			p.VehicleSubsystems.SensorDamageStartFraction	= vs.value ("sensor_damage_start_fraction",p.VehicleSubsystems.SensorDamageStartFraction);	// schema 9
+			p.VehicleSubsystems.MinSensorFactor				= vs.value ("min_sensor_factor",p.VehicleSubsystems.MinSensorFactor);	// schema 9
 			p.VehicleSubsystems.ImmobilizeFraction				= vs.value ("immobilize_fraction",p.VehicleSubsystems.ImmobilizeFraction);
 			p.VehicleSubsystems.WeaponDisableFraction			= vs.value ("weapon_disable_fraction",p.VehicleSubsystems.WeaponDisableFraction);
 			p.VehicleSubsystems.RetreatToRepairFraction			= vs.value ("retreat_to_repair_fraction",p.VehicleSubsystems.RetreatToRepairFraction);
@@ -442,6 +471,17 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	//	documented "no bonus" default, not an error -- so this only rejects negative/non-finite,
 	//	the same treatment every other optional-bonus field in this file gets.
 	NEED_NONNEGATIVE (p.Logistics.ConstructionSupportRadius,"negative/non-finite logistics.construction_support_radius");
+	NEED_NONNEGATIVE (p.Logistics.EnemyThreatRadius,"negative/non-finite logistics.enemy_threat_radius");
+
+	//	Base bootstrap (schema 9).  A pool of zero spawn candidates is legal -- the fallback zone
+	//	is what Section 16A.5 requires regardless -- but a negative one is not.
+	NEED_NONNEGATIVE (p.Base.SpawnZoneRadius,"negative/non-finite base.spawn_zone_radius");
+	NEED_NONNEGATIVE (p.Weather.DustDensity,"negative/non-finite weather.dust_density");
+	NEED_NONNEGATIVE (p.Weather.TiberiumDensity,"negative/non-finite weather.tiberium_density");
+	if ((p.Base.SpawnCandidateCount < 0) || (p.Base.SpawnCandidateCount > 64)) {
+		if (error_out) *error_out = "base.spawn_candidate_count outside 0..64";
+		return false;
+	}
 
 	//	Vehicle subsystem fractions (schema 8).  All seven are normalized 0..1 health
 	//	fractions/factors -- the same "a value above 1 is a profile author misunderstanding the
@@ -453,6 +493,9 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	NEED_NONNEGATIVE (p.VehicleSubsystems.MinEngineFactor,"negative/non-finite vehicle_subsystems.min_engine_factor");
 	NEED_NONNEGATIVE (p.VehicleSubsystems.MinMobilityFactor,"negative/non-finite vehicle_subsystems.min_mobility_factor");
 	NEED_NONNEGATIVE (p.VehicleSubsystems.MinWeaponFactor,"negative/non-finite vehicle_subsystems.min_weapon_factor");
+	NEED_NONNEGATIVE (p.VehicleSubsystems.SensorDamageStartFraction,"negative/non-finite vehicle_subsystems.sensor_damage_start_fraction");
+	NEED_NONNEGATIVE (p.VehicleSubsystems.MinSensorFactor,"negative/non-finite vehicle_subsystems.min_sensor_factor");
+	if (p.VehicleSubsystems.MinSensorFactor > 1.0f) FAIL ("vehicle_subsystems.min_sensor_factor above 1");
 	NEED_NONNEGATIVE (p.VehicleSubsystems.ImmobilizeFraction,"negative/non-finite vehicle_subsystems.immobilize_fraction");
 	NEED_NONNEGATIVE (p.VehicleSubsystems.WeaponDisableFraction,"negative/non-finite vehicle_subsystems.weapon_disable_fraction");
 	NEED_NONNEGATIVE (p.VehicleSubsystems.RetreatToRepairFraction,"negative/non-finite vehicle_subsystems.retreat_to_repair_fraction");

@@ -231,3 +231,23 @@ Communications Center's vision/radar radius and confirm the shroud actually shri
 run `building_subcomponents` at the console throughout and confirm the printed function fractions
 track what damage/repair actually did, and that `anchor MGPWR_MCT`/`COM_ANTEN000`/`COM_EXT-TWR`
 report `resolved` against the real loaded models rather than `not resolved`.
+
+## D-001 updates
+
+- **Map-authored buildings** resolve their subcomponents too. The descriptor comes from the
+  definition's `DescriptorName` (what power and comms already read), and an anchor bone is looked
+  for in the hierarchy `Collect_Building_Components` claimed -- interior and exterior statics and
+  the aggregates -- instead of `RuntimeParts`, which only a runtime building has.
+- **Semantic anchors as sidecar data.** `semantic_anchors` in a descriptor maps a role
+  (`entrance`, `vehicle_exit`, `infantry_exit`, `street_side`, `door`, `pct`, `mct`,
+  `harvester_dock`) to a local position and yaw, resolved through the placed building's transform
+  (`Resolve_Semantic_Anchor`). An unknown role refuses the descriptor. Twelve shipped descriptors
+  carry anchors read from the retail models: every MCT from its `*_MCT~` pivot, every PCT from its
+  first `#PCT_H1A01` pivot, the Weapons Factory's vehicle exit from its `MGWEP^PAD_AREA` mesh, and
+  both refineries' harvester dock from the dump proxy at the building origin. Entrances, infantry
+  exits, street sides and the Airstrip's vehicle exit have no source in the model data and are left
+  out. The destroyed model is `damage_visual.destroyed_model`, not an anchor.
+- **Harvesters.** A runtime refinery takes its dock from `harvester_dock`, and a refinery on a
+  generated world with no Tiberium script zone takes its field from `TiberiumFieldGenerator` (its
+  own team's field first, then the nearest one with a harvester route). The harvester itself is
+  the stock one, requested from the team's vehicle factory as always.

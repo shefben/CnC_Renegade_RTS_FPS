@@ -112,9 +112,13 @@ Every self check now passes. The two that failed at V2 close were fixed under D-
 - `shader_visualsettings` exposed a real bug: the anisotropy and LOD-bias setters asserted when
   called before a device existed.
 
-## Regression baseline (after D-001 priorities 1-4)
+## Regression baseline (after D-001 priorities 1-6)
 
-- 199 ctest entries, all passing. This adds `terrain_worldsynctransport` and its `fds_` twin.
+- 201 ctest entries, all passing. D-001 priorities 5 and 6 add `terrain_baselayout` and its `fds_`
+  twin, and extend `shader_pipelines`, `terrain_foliage`, `terrain_navigation`, `terrain_minimap`,
+  `terrain_logistics`, `terrain_bridgefallback`, `terrain_tiberiumfields`, `terrain_worldsynctransport`,
+  `shader_attachments`, `shader_rtssaveload` and `shader_campaign`.
+- After D-001 priorities 1-4 there were 199, adding `terrain_worldsynctransport` and its `fds_` twin.
 - At V2 close there were 197 entries, of which 4 failed; at the start of that stretch, 24 failed.
 - Builds: `renegade`, `renegadeserver` and `leveledit`, with zero warnings.
 

@@ -237,3 +237,9 @@ building systems plus safe bounded terrain grading", and the last word of that s
 one a test can reach. The live pass reads one new log line per generation —
 `ProceduralWorldManager: expansion rules armed -- N chokepoint(s), grading limits ...` — alongside
 Phase 16's four.
+
+## IsForward from the real front (D-001)
+
+Where a generated world has a front -- its contested Tiberium fields -- a region is forward when it
+is out of its home cluster and nearer that front than the team's selected base site is. A
+hand-authored map has neither and keeps the distance-from-first-region answer.

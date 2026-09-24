@@ -28,6 +28,9 @@
 
 #include "commanderplacement.h"
 #include "crc.h"
+#include "baseselectionplanner.h"
+#include "playertype.h"
+#include "tiberiumfieldgenerator.h"
 #include "generatedworldplacementrules.h"
 #include "navmeshgenerator.h"
 #include "teampowergridservice.h"
@@ -444,6 +447,35 @@ bool ExpansionRegionRegistry::Rebuild_Regions(float cluster_radius,StringClass *
 		float dx = Regions[r].Center.X - Regions[home].Center.X;
 		float dy = Regions[r].Center.Y - Regions[home].Center.Y;
 		Regions[r].IsForward = ((dx * dx + dy * dy) > (cluster_radius * cluster_radius));
+
+		/*
+		**	D-001: a real front, where the generated world has one.  Home is the team's selected
+		**	base site and the front is the contested Tiberium (TiberiumFieldGenerator's neutral
+		**	fields, the same front the base-to-front fairness check measures).  A region is forward
+		**	when it is out of its home cluster and nearer that front than home is -- pushed toward
+		**	the fight, not merely away from the first building.  A hand-authored map has neither,
+		**	and keeps the distance-from-first-region answer above.
+		*/
+		SelectedBaseSite site;
+		if (Regions[r].IsForward && BaseSelectionPlanner::Get_Selected_Site(Regions[r].Team,&site)) {
+			float home_to_front = -1.0f;
+			float region_to_front = -1.0f;
+			for (int f = 0; f < TiberiumFieldGenerator::Get_Field_Count(); f++) {
+				ResolvedTiberiumField field;
+				if (!TiberiumFieldGenerator::Get_Field(f,&field) || (field.OwningFaction != PLAYERTYPE_NEUTRAL)) continue;
+				float hx = field.Position.X - site.Position.X;
+				float hy = field.Position.Y - site.Position.Y;
+				float rx = field.Position.X - Regions[r].Center.X;
+				float ry = field.Position.Y - Regions[r].Center.Y;
+				float home_distance = WWMath::Sqrt((hx * hx) + (hy * hy));
+				float region_distance = WWMath::Sqrt((rx * rx) + (ry * ry));
+				if ((home_to_front < 0.0f) || (home_distance < home_to_front)) home_to_front = home_distance;
+				if ((region_to_front < 0.0f) || (region_distance < region_to_front)) region_to_front = region_distance;
+			}
+			if (home_to_front >= 0.0f) {
+				Regions[r].IsForward = (region_to_front < home_to_front);
+			}
+		}
 	}
 
 	{

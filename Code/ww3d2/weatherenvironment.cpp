@@ -205,6 +205,8 @@ WeatherEnvironmentRenderer::WeatherEnvironmentRenderer(WeatherModeType mode) :
 	Density(0.0f),
 	Wind(0.0f,0.0f),
 	CameraPosition(0.0f,0.0f,0.0f),
+	CameraVelocity(0.0f,0.0f,0.0f),
+	HasCameraSample(false),
 	BoundsMin(0.0f,0.0f,0.0f),
 	BoundsMax(0.0f,0.0f,0.0f),
 	Phase(0.0f),
@@ -321,6 +323,21 @@ void WeatherEnvironmentRenderer::Set_Collision_Provider(WeatherCollisionProvider
 
 void WeatherEnvironmentRenderer::Update(float seconds,const Vector3 & camera_position)
 {
+	/*
+	**	D-001 P23: the camera's own velocity, from where it was last frame, so rain can be slanted
+	**	by it the way stock rain was.  A jump faster than anything that moves (a respawn, a
+	**	camera cut) is a teleport, not a velocity, and leaves the streaks upright.
+	*/
+	const float TELEPORT_SPEED = 200.0f;
+	CameraVelocity.Set(0.0f,0.0f,0.0f);
+	if (HasCameraSample && (seconds > 0.0f)) {
+		Vector3 velocity = (camera_position - CameraPosition) / seconds;
+		if (velocity.Length() < TELEPORT_SPEED) {
+			CameraVelocity = velocity;
+		}
+	}
+	HasCameraSample = true;
+
 	CameraPosition = camera_position;
 	Phase += seconds;
 
@@ -553,13 +570,15 @@ void WeatherEnvironmentRenderer::Render(RenderInfoClass & rinfo)
 	const FrustumClass & frustum = rinfo.Camera.Get_Frustum();
 
 	/*
-	**	Which way a particle appears to be going, for the streak modes.  Stock rain aligned
-	**	itself to velocity minus the camera's own velocity, so that running sideways through
-	**	rain slants it; the camera's velocity is not available here, and the rain is aligned to
-	**	its own velocity alone.  See docs/zerohour/WeatherEnvironmentRenderer.md.
+	**	Which way a particle appears to be going, for the streak modes: its velocity minus the
+	**	camera's own, as stock rain did, so that running sideways through rain slants it
+	**	(D-001 P23).  The camera's velocity is measured in Update.
 	*/
 	Vector3 fall_velocity(Wind.X,Wind.Y,-Parms.FallSpeed);
-	Vector3 fall_direction = fall_velocity;
+	Vector3 fall_direction = fall_velocity - CameraVelocity;
+	if (fall_direction.Length2() < 0.0001f) {
+		fall_direction = fall_velocity;
+	}
 	fall_direction.Normalize();
 
 	float half_width = Parms.ParticleWidth * 0.5f;

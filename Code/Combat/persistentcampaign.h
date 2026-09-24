@@ -183,6 +183,24 @@ class PersistentCampaignService
 		//	harness for the same disclosed reason CommanderAIService::Update is (Phase 24).
 		static bool		Launch_Territory_Battle(const CampaignBattleLaunchContract & contract,StringClass * error_out);
 
+		/*
+		**	D-001 / V2 Phase 26: the launch reaches a match.  The launcher is Commando's Procedural
+		**	Skirmish path -- the same host-map choice, world request and skirmish start the main
+		**	menu button uses -- installed at startup, since Combat cannot start a game itself.  With
+		**	none installed (a self-check, a dedicated tool) a launch only places the world request.
+		**
+		**	The launched contract is kept as the pending battle -- territory, factions, seed and
+		**	profile -- so the match's end resolves it: GameOver's winning team becomes the
+		**	CampaignBattleResult Apply_Battle_Result takes, once.  ResourcesCaptured is 0: no
+		**	per-match figure for it exists in the engine.
+		*/
+		typedef bool (*BattleLauncherFunc)(unsigned int seed,const char * profile_path,StringClass * error_out);
+		static void		Set_Battle_Launcher(BattleLauncherFunc launcher);
+		static bool		Has_Pending_Battle(void);
+		static bool		Get_Pending_Battle(CampaignBattleLaunchContract * out);
+		static void		Clear_Pending_Battle(void);
+		static bool		Resolve_Pending_Battle(int winning_team,StringClass * error_out);
+
 		//	Pure.  Applies one battle result onto a territory/faction snapshot and returns the
 		//	updated copy; does not touch live campaign state.
 		static CampaignTerritoryDescriptor	Apply_Battle_Result_To_Territory(

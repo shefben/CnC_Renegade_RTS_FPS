@@ -40,6 +40,7 @@
 
 
 bool				TiberiumFieldGenerator::Built		= false;
+float				TiberiumFieldGenerator::LastReferenceVehicleSpeed	= 0.0f;
 unsigned int	TiberiumFieldGenerator::Checksum	= 0;
 
 DynamicVectorClass<ResolvedTiberiumField>		TiberiumFieldGenerator::Fields;
@@ -333,6 +334,7 @@ bool TiberiumFieldGenerator::Generate(const TiberiumFieldParams & params,StringC
 	if (!StrategicPlanner::Has_Plan())				FAIL("no strategic plan -- generate resource candidates first");
 	if (!RoadGraphGenerator::Has_Graph())			FAIL("no road graph -- connect the candidates first");
 	if (!BaseSelectionPlanner::Has_Selection())	FAIL("no base selection -- choose bases first");
+	LastReferenceVehicleSpeed = params.ReferenceVehicleSpeed;
 	if (params.FieldRadiusMin <= 0.0f)				FAIL("field radius min must be positive");
 	if (params.FieldRadiusMax < params.FieldRadiusMin)	FAIL("field radius max must not be less than field radius min");
 	if (params.CrystalDensity < 0.0f)				FAIL("crystal density must not be negative");
@@ -600,6 +602,54 @@ int TiberiumFieldGenerator::Check_Both_Factions_Have_Early_Field(StringClass * r
 	}
 	return violations;
 }
+
+int TiberiumFieldGenerator::Check_Front_Travel_Time_Within_Threshold(float max_difference_seconds,
+																							StringClass * report,float * difference_out)
+{
+	if (difference_out != nullptr) *difference_out = -1.0f;
+	if (!Built || (LastReferenceVehicleSpeed <= 0.0f)) return 0;
+
+	SelectedBaseSite gdi_site, nod_site;
+	if (!BaseSelectionPlanner::Get_Selected_Site(PLAYERTYPE_GDI,&gdi_site)) return 0;
+	if (!BaseSelectionPlanner::Get_Selected_Site(PLAYERTYPE_NOD,&nod_site)) return 0;
+
+	int gdi_node = -1, nod_node = -1;
+	if (!StrategicPlanner::Find_Node_By_Id(gdi_site.Id,&gdi_node)) return 0;
+	if (!StrategicPlanner::Find_Node_By_Id(nod_site.Id,&nod_node)) return 0;
+
+	float gdi_best = -1.0f, nod_best = -1.0f;
+	for (int i = 0; i < Fields.Count(); i++) {
+		const ResolvedTiberiumField & f = Fields[i];
+		if (f.OwningFaction != PLAYERTYPE_NEUTRAL) continue;
+
+		int field_node = -1;
+		if (!StrategicPlanner::Find_Node_By_Id(f.ResourceNodeId,&field_node)) continue;
+
+		float gdi_length = -1.0f, nod_length = -1.0f;
+		if (!RoadGraphGenerator::Find_Anchor_Path(gdi_node,field_node,nullptr,&gdi_length)) continue;
+		if (!RoadGraphGenerator::Find_Anchor_Path(nod_node,field_node,nullptr,&nod_length)) continue;
+
+		//	Only a field both sides can reach is a front.
+		if ((gdi_best < 0.0f) || (gdi_length < gdi_best)) gdi_best = gdi_length;
+		if ((nod_best < 0.0f) || (nod_length < nod_best)) nod_best = nod_length;
+	}
+
+	if ((gdi_best < 0.0f) || (nod_best < 0.0f)) return 0;
+
+	float difference = WWMath::Fabs(gdi_best - nod_best) / LastReferenceVehicleSpeed;
+	if (difference_out != nullptr) *difference_out = difference;
+
+	if (difference > max_difference_seconds) {
+		if (report != nullptr) {
+			StringClass line;
+			line.Format("base-to-front travel times differ by %.1f s (limit %.1f s)\n",difference,max_difference_seconds);
+			*report += line;
+		}
+		return 1;
+	}
+	return 0;
+}
+
 
 int TiberiumFieldGenerator::Check_Harvestable_Fields_Have_Routes(StringClass * report)
 {

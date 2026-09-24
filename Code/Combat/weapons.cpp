@@ -838,6 +838,18 @@ void	WeaponClass::Fire_Bullet( const AmmoDefinitionClass *ammo_def, bool primary
 		}
 	}
 
+	float spray_scale = 1.0f;
+	{
+		ArmedGameObj * spray_owner = Get_Owner();
+		VehicleGameObj * spray_vehicle = ( spray_owner != nullptr ) ? spray_owner->As_VehicleGameObj() : nullptr;
+		if ( spray_vehicle != nullptr ) {
+			float efficiency = spray_vehicle->Get_Subsystem_Weapon_Efficiency();
+			if ( efficiency > 0.0f && efficiency < 1.0f ) {
+				spray_scale = 1.0f / efficiency;
+			}
+		}
+	}
+
 	for ( int count = 0; count < spray_count; count++ ) {
 
 		Vector3 velocity = muzzle.Get_X_Vector() * ammo_def->Velocity;
@@ -871,6 +883,12 @@ void	WeaponClass::Fire_Bullet( const AmmoDefinitionClass *ammo_def, bool primary
 #else
 		float error_angle = ammo_def->SprayAngle;
 #endif
+		//	D-001 / Section 23 weapon accuracy: a damaged vehicle's weapon module sprays wider,
+		//	by the inverse of the same efficiency that slows its rate of fire.  Scaled here, at
+		//	the point of use, never on the shared AmmoDefinitionClass.
+		if ( spray_scale > 1.0f ) {
+			error_angle *= spray_scale;
+		}
 		float rand_angle = FreeRandom.Get_Float() * error_angle;
 		VelTM.Rotate_Y( rand_angle );
 		velocity = VelTM.Get_Z_Vector();

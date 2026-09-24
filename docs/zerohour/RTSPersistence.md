@@ -161,3 +161,15 @@ restored order reading back, with a unit id of zero refused.
 **Not covered by any automated check**: nothing here writes or reads an actual chunk, because
 `ChunkSaveClass` wants a file and `SaveLoadSystemClass` wants a running game. A real round trip needs
 a live match.
+
+## D-001 updates
+
+- **Runtime buildings survive a save.** `BuildingGameObj::Save` now writes a runtime building's
+  descriptor name and transform; on load `Collect_Building_Components` rebuilds it through
+  `Init_Runtime_Building` instead of the proximity scan (which would have claimed whatever map
+  statics stood there). Before this a Commander-built or base-layout building came back from a
+  save with no model. A map-authored building writes neither field.
+- **Disk round trips.** `shader_rtssaveload` writes this subsystem through
+  `SaveLoadSystemClass::Save` to a real file, wipes the overrides, and reads them back through
+  `SaveLoadSystemClass::Load`; `terrain_worldsync` does the same for the procedural world
+  package (`_TheProceduralWorldPersistence`) and checks the world it restores checksums the same.

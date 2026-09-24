@@ -595,6 +595,93 @@ int FoliageSystem::Find_Cell(float x,float y)
 }
 
 
+bool FoliageSystem::Query_Segment_Occlusion(const Vector3 & start,const Vector3 & end,float * fraction_out)
+{
+	if (!CellsBuilt || (GridWidth <= 0) || (GridHeight <= 0)) {
+		return false;
+	}
+
+	Vector3 delta = end - start;
+	float horizontal2 = (delta.X * delta.X) + (delta.Y * delta.Y);
+	float horizontal = WWMath::Sqrt(horizontal2);
+
+	//	The cells under the segment, sampled at half a cell so none is stepped over, each read once.
+	DynamicVectorClass<int> cells;
+	int steps = (int)(horizontal / (CellSize * 0.5f)) + 1;
+	for (int s = 0; s <= steps; s++) {
+		float t = (float)s / (float)steps;
+		int cell = Find_Cell(start.X + (delta.X * t),start.Y + (delta.Y * t));
+		if ((cell >= 0) && (cells.ID(cell) == -1)) {
+			cells.Add(cell);
+		}
+	}
+
+	bool blocked = false;
+	float nearest = 1.0f;
+
+	for (int c = 0; c < cells.Count(); c++) {
+
+		const FoliageCellClass & cell = Cells[cells[c]];
+
+		for (int n = 0; n < cell.Count; n++) {
+
+			const FoliageInstanceClass & instance = Instances[CellInstances[cell.First + n]];
+			if (!instance.Alive || (instance.Type < 0) || (instance.Type >= Types.Count())) {
+				continue;
+			}
+
+			const FoliageTypeClass & type = Types[instance.Type];
+			if (type.Is_Visual_Only() || (type.Get_Proxy_Radius() <= 0.0f)) {
+				continue;
+			}
+
+			float radius = type.Get_Proxy_Radius() * instance.Scale;
+			float height = type.Get_Proxy_Height() * instance.Scale;
+
+			//	Where the segment's horizontal projection first enters the trunk's circle.
+			float t_entry = 0.0f;
+			if (horizontal2 > 0.0001f) {
+				float cx = instance.Position.X - start.X;
+				float cy = instance.Position.Y - start.Y;
+				float t_close = ((cx * delta.X) + (cy * delta.Y)) / horizontal2;
+				if (t_close < 0.0f) t_close = 0.0f;
+				if (t_close > 1.0f) t_close = 1.0f;
+				float px = (delta.X * t_close) - cx;
+				float py = (delta.Y * t_close) - cy;
+				float miss2 = (px * px) + (py * py);
+				if (miss2 > (radius * radius)) {
+					continue;
+				}
+				t_entry = t_close - (WWMath::Sqrt((radius * radius) - miss2) / horizontal);
+				if (t_entry < 0.0f) t_entry = 0.0f;
+			} else {
+				float dx = instance.Position.X - start.X;
+				float dy = instance.Position.Y - start.Y;
+				if (((dx * dx) + (dy * dy)) > (radius * radius)) {
+					continue;
+				}
+			}
+
+			//	And whether it is inside the trunk's height there.
+			float z = start.Z + (delta.Z * t_entry);
+			if ((z < instance.Position.Z) || (z > (instance.Position.Z + height))) {
+				continue;
+			}
+
+			if (!blocked || (t_entry < nearest)) {
+				nearest = t_entry;
+				blocked = true;
+			}
+		}
+	}
+
+	if (blocked && (fraction_out != nullptr)) {
+		*fraction_out = nearest;
+	}
+	return blocked;
+}
+
+
 int FoliageSystem::Get_Cell_Instance(int cell,int n)
 {
 	if ((cell < 0) || (cell >= Cells.Count())) {

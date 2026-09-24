@@ -120,6 +120,8 @@
 #include "specialbuilds.h"
 #include "wwdialog.h"
 #include "debugbreak.h"
+#include "persistentcampaign.h"
+#include "dlgmainmenu.h"
 #include "worldsyncevent.h"
 #include <cstdio>
 
@@ -1020,6 +1022,9 @@ bool Game_Init(void)
 
 	//	The procedural world's transport sends its fragments as network events.
 	WorldSyncTransport::Set_Sender( cWorldSyncEvent::Send );
+
+	//	D-001 / V2 Phase 26: a campaign battle starts the way the Procedural Skirmish button does.
+	PersistentCampaignService::Set_Battle_Launcher( MainMenuDialogClass::Start_Procedural_Skirmish );
 
 	//
 	//	And the same for what a script may ask about the running match, which

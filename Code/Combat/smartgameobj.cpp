@@ -750,7 +750,7 @@ void SmartGameObj::Think()
 				// exactly, so ask the world for that sphere rather than for everything in
 				// it.  Every unit in the level used to walk every object in the level, once
 				// or twice a second each.
-				float sight_range = Get_Definition().SightRange * GlobalSightRangeScale;
+				float sight_range = Get_Definition().SightRange * GlobalSightRangeScale * Get_Sensor_Range_Factor();
 				Vector3 eye_pos = Get_Look_Transform().Get_Translation();
 
 				GameObjQueryListClass seen_candidates;
@@ -853,7 +853,7 @@ bool	SmartGameObj::Is_Obj_Visible( PhysicalGameObj *obj )
 	Matrix3D::Inverse_Transform_Vector( look_tm, diff, &diff );
 
 	float dist = diff.Length();
-	if ( dist < Get_Definition().SightRange * GlobalSightRangeScale) {
+	if ( dist < Get_Definition().SightRange * GlobalSightRangeScale * Get_Sensor_Range_Factor()) {
 		// find view angle
 		diff.Z = 0;
 		diff.Normalize();

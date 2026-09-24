@@ -20,9 +20,12 @@ Section 17A.4 requires documenting: representative eye height, sample interval, 
 sample count, max analysis distance, and which terrain/objects count as occluders. This generator
 answers all five for real: eye height is `WorldMetricsClass::Get_Soldier_Eye_Height`'s own real
 value (1.62m); eight compass directions per sample point; 250-world-unit max distance;
-`WorldTerrainSystem::Ray_Intersect_Terrain` is the occlusion test. **Placed structures (Phase 13)
-and foliage instances (Phase 14) are not tested against a sightline** -- a real, disclosed
-simplification, not a hidden one. P50/P90/max are reported from real sorted samples at every
+`WorldSpatialIndex::Query_Sightline` is the occlusion test (D-001). It asks three owners, each
+through its own spatial structure: the heightfield's ray (`WorldTerrainSystem::Ray_Intersect_Terrain`),
+the physics scene's ray at projectile collision (placed structures, settlement buildings, every
+collidable static), and `FoliageSystem::Query_Segment_Occlusion`, which walks only the foliage
+cells the segment crosses and treats each live, blocking tree with a proxy as a vertical cylinder
+(grass never occludes). The nearest hit wins. No query scans every object. P50/P90/max are reported from real sorted samples at every
 selected base and every resolved settlement, never a single averaged number (Section 17A.4's own
 explicit "do not rely on one average sightline number").
 
@@ -70,5 +73,6 @@ already proves) samples a real, ordered (P50 <= P90 <= max) sightline distributi
 failure names a recognised type; every one of the eight named repair operations resolves a real
 diagnostic name even though none is ever produced; and the same seed/world reproduce the same
 pass/fail verdict and the same failure count. Not proven: a scenario engineered so a specific hard
-failure actually fires (this terrain's own real chain passes cleanly), and object/foliage-aware
-sightline occlusion, named above as a disclosed simplification rather than attempted.
+failure actually fires (this terrain's own real chain passes cleanly). The foliage occlusion query
+has its own check in `terrain_foliage` (a trunk across the segment blocks, grass and a trunk
+beside it do not).

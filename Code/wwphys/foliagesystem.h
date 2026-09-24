@@ -195,6 +195,16 @@ public:
 	static int			Find_Cell(float x,float y);
 	static int			Get_Cell_Instance(int cell,int n);
 
+	/*
+	**	D-001 P10: the first foliage spatial query with a real consumer (sightline occlusion,
+	**	WorldSpatialIndex::Query_Sightline).  Does anything solid stand across this segment?
+	**	Only the cells the segment crosses are read -- never the whole instance list -- and only
+	**	live instances of a type that blocks something and has a proxy count: each is a vertical
+	**	cylinder of its proxy radius and height, scaled.  Grass (visual-only, no proxy) never
+	**	occludes.  Returns false with no cells built.
+	*/
+	static bool			Query_Segment_Occlusion(const Vector3 & start,const Vector3 & end,float * fraction_out);
+
 	//	The batches.  This is the acceptance: how many things the forest is to draw.
 	static bool			Build_Batches(void);
 	static bool			Are_Batches_Built(void);
