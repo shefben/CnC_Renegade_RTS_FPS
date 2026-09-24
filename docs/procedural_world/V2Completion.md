@@ -105,18 +105,17 @@ play:
 - The Phase 29 performance and soak measurement (`PerformanceBudgets.md`).
 - Q-006 and Q-012 in `awaiting_answers.md`.
 
-Two self checks still fail. Neither bears on an item above.
+Every self check now passes. The two that failed at V2 close were fixed under D-001 priority 1
+(`completed_features.md`):
 
-| Check | Why it fails | What fixes it |
-| --- | --- | --- |
-| `shader_commandermode` and its `fds_` twin (segfault) | The check hands `Enter_Commander_Mode` a sentinel pointer `(SoldierGameObj *)1`. `Enter_Commander_Mode` has dereferenced its star (`Get_Player_Type`, to open the sidebar) since V1 P42. | The check needs a real soldier, which needs definitions this harness does not load. The engine behaviour is correct. |
-| `shader_visualsettings` and its `fds_` twin | Asserts `CurrentCaps`: it needs a real Direct3D device, and the headless harness has none. | Running it in a real client environment. |
+- `shader_commandermode` now uses a team-taking entry that never dereferences its sentinel star.
+- `shader_visualsettings` exposed a real bug: the anisotropy and LOD-bias setters asserted when
+  called before a device existed.
 
-## Final regression baseline (V2 close)
+## Regression baseline (after D-001 priorities 1-4)
 
-- 197 ctest entries. 193 pass; the 4 failures are the two checks above, each with its `fds_` twin.
-- At the start of this stretch there were 24 failures. 20 were fixed by the corrections in
-  `completed_features.md`'s V2 Phase 30 entry.
+- 199 ctest entries, all passing. This adds `terrain_worldsynctransport` and its `fds_` twin.
+- At V2 close there were 197 entries, of which 4 failed; at the start of that stretch, 24 failed.
 - Builds: `renegade`, `renegadeserver` and `leveledit`, with zero warnings.
 
 ## Baseline identity

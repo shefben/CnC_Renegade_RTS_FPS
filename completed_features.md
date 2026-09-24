@@ -4351,7 +4351,7 @@ general (non-crater) world-operation rate limit are real, disclosed, unbuilt gap
 **Regression status:** full suite 193 tests, 24 failing -- same as before this phase, zero
 regressions; the two new tests both pass.
 
-## V2 Phase 10 (roadmap proper) -- tunnels, caves, underpasses and portal integration (Sections 12, 12A)
+## V2 Phase 10 roadmap proper -- tunnels, caves, underpasses and portal integration (Sections 12, 12A)
 
 The entry above headed "V2 Phase 10" was gap-closure work done under that number: fitted-world
 terrain, the road/bridge handoff, transportation validation. The roadmap's own Phase 10 (tunnels)
@@ -4410,3 +4410,67 @@ was never built. Every consumer said so: bridge stage 3, placement's tunnel excl
   - Still failing, with root causes in `V2Completion.md`: `shader_commandermode` (a sentinel
     pointer is dereferenced since P42) and `shader_visualsettings` (needs a D3D device), each with
     its `fds_` twin.
+## D-001 priority 1: correctness blockers (`7b8b2438`)
+
+The user's WIP rulings, recorded as `DECISIONS.md` D-001, were worked through in their stated priority order.
+
+- **Test suite 197/197** (was 193/197).
+ - `shader_commandermode` handed `Enter_Commander_Mode` a sentinel soldier that the code dereferences. The controller now has a team-taking overload that never touches the star.
+ - `shader_visualsettings` exposed a real engine bug: `WW3D::Set_Anisotropic_Level` and `Set_Texture_LOD_Bias` asserted when called before a device existed. They now rebuild the filter presets only when caps exist.
+- **A destroyed facility refunds its queue.** The server's `BuildingGameObj::On_Destroyed` calls `CommanderProductionService::Resolve_Facility_Destroyed`, which pays each item back to whoever paid for it:
+ - a human, through the new `PlayerRosterInterfaceClass::Grant_Money`;
+ - the AI Commander, through its treasury.
+ - Items now record `RequesterId`, saved as an appended micro chunk.
+- **Commander disconnect grace:** already correct (`Update_Commander_Vacancy` plus `Handle_Player_Reconnect`). `shader_governance` now proves reserve, reconnect, expiry and re-seat.
+- **`CanDrive`/`CanFire`:** the live `VehicleGameObj::Apply_Control` gates on them again (`Apply_Script_Control_Gates`, checked headlessly). Subsystem damage never writes them.
+- **P33: 14 new building descriptors** built from the retail manifests.
+ - Presets and classes were verified from the chunk tree of `objects.ddb` inside `always.dbs` (`docs/zerohour/BuildingPresets.md`).
+ - Construction yards get project-owned `ConstructionYardGameObjDef` presets.
+ - Footprints are measured from the models.
+ - MCT anchors are exact pivot names, which also fixes the power plants: their `MGPWR_MCT`/`MNPWR_MCT` anchors could never resolve.
+ - `shader_buildingjson` now validates every shipped descriptor and its models.
+- **P13:** every default terrain layer is textured. It uses `ow_ter_*` when that file ships, otherwise a stock stand-in enumerated from `always.dat` and looked at (`docs/assets/TerrainLayers.md`). This also textures the boundary cliff.
+
+## D-001 priority 2: the Commander interaction layer (`73900e05`)
+
+See `docs/zerohour/CommanderInteraction.md`.
+
+- **P35:**
+ - The Commander Mode key (B) already existed. It now has a Controls > Multiplayer row and a remap-table entry.
+ - `commander_mode 1` claims then enters, exactly like the key.
+ - The camera opens on a derived anchor instead of the world origin.
+- **P36/P39:**
+ - Clicking picks a unit or a building (`Pick_Object_At_Cursor`).
+ - Control groups: Ctrl+digit stores, digit recalls.
+ - A power panel sends `cCommanderPowerEvent`. Per-building overrides are mirrored to clients through `Set_Replicated_Member_State`, which never runs the allocator on a client.
+- **P39 patrol:** alternates between two points (`CommanderPatrolAI`). The second point is carried by the order event, the durable order record and the save.
+- **P29:** selection rings under selected units and the selected building (`CommanderSelectionOverlays`).
+- **P23 governance panel:** Commander name, the open vote, and vote / claim / remove / give-to buttons that send the existing events. Votes are mirrored to clients: counts, plus an end time on the server clock.
+
+## D-001 priority 3: procedural world transport and save persistence (`750e1e54`)
+
+See `docs/procedural_world/NetworkingAndPersistence.md`, section "The transport".
+
+- **`WorldSyncTransport` and `cWorldSyncEvent`** move world identity, the late-join package, live operations, regional repair and join results over Renegade's reliable ordered event channel, in 384-byte fragments.
+- **Pure clients** regenerate the server's world with `Request_World_Exact`: the same seed, one attempt, no retries.
+- **The journal** opens on generation. Its new commit listener broadcasts every committed operation to clients. A gap in the stream makes the client rejoin.
+- **`ProceduralWorldPersistenceClass`** saves the world's identity plus the join package. On load, the package is applied through the join state machine (checksum verified), then compacted.
+- **Protocol bug fixed:** with no snapshot set, `Build_Handshake` used the current revision, so every joining client refused the log's first operation. The journal now tracks its base revision.
+- **New check:** `terrain_worldsynctransport` (plus its `fds_` twin).
+
+## P15: bridges take gameplay damage (`7fc7d3c4`)
+
+- **Damage:** `BridgeDamageService` takes every server explosion from the existing explosion damage pass. Each span moves damaged → critical → broken, never backwards, and falls exactly once.
+- **Collision** follows `Set_Section_State`'s geometry rebuild.
+- **A fall** rebuilds navigation and chokepoints and re-evaluates logistics routes.
+- **Replication:** the bridge state block goes out through the world-sync transport (live broadcast, the join package, and so saves). No bridge became a replicated object.
+- **Tests:** `terrain_bridges` covers range, the progression, the single fall and the loss of traversability.
+
+## D-001 priority 4: stale renderer and world WIP (`9f1df2ba`)
+
+- **P16:** `FoliageSystem::Update_Visibility` runs every client frame (distance LOD only). The generator already fed foliage.
+- **P17:** water kinds get the retail `water_texture` stand-in, or `ow_water_*` when shipped. Hydrology already fed water.
+- **P19:** construction starts stamp `hnd_pad` construction marks; vehicle wrecks stamp `oil-2` stains. Scorch and dirt have no distinct event.
+- **P20:** runtime building shells and bridge sections register as shadow casters.
+- **P27:** the stale premise is closed. `Resolve_Game_Object_Presets` runs every level load and back-links `mp_*_Com_Center` to descriptors with `communications.enabled`, so map-placed Comm Centers register shroud sensors. Only the team-visibility check in a live client remains.
+- **P32:** drawers for roads, bridge sections, foliage batches, shadow casters, MCT/PT anchors, the Commander cursor ray, and a new `expansion_regions` layer.
