@@ -112,7 +112,8 @@ RenegadeTerrainPatchClass::RenegadeTerrainPatchClass (void)	:
 	BoundingBoxMin (0, 0, 0),
 	BoundingBoxMax (0, 0, 0),
 	AreBuffersDirty (true),
-	IsPreLit (false)
+	IsPreLit (false),
+	DetailMaterial (nullptr)
 {
 	Initialize ();
 	return ;
@@ -137,6 +138,7 @@ RenegadeTerrainPatchClass::RenegadeTerrainPatchClass (const RenegadeTerrainPatch
 	BoundingBoxMax (0, 0, 0),
 	AreBuffersDirty (true),
 	IsPreLit (false),
+	DetailMaterial (nullptr),
 	RenderObjClass (src)
 {
 	Initialize ();
@@ -155,7 +157,44 @@ RenegadeTerrainPatchClass::~RenegadeTerrainPatchClass (void)
 	Free_Rendering_Buffers ();
 	Free_Grid ();
 	Free_Materials ();
+	REF_PTR_RELEASE (DetailMaterial);
 	return ;
+}
+
+
+//////////////////////////////////////////////////////////////////////
+//
+//	Set_Detail_Material
+//
+//////////////////////////////////////////////////////////////////////
+void
+RenegadeTerrainPatchClass::Set_Detail_Material (TerrainMaterialClass *material)
+{
+	if (material == DetailMaterial) {
+		return ;
+	}
+
+	//
+	//	The vertex format follows: a second UV set exists only while there is something to read
+	//	it, so a patch with no detail keeps stock Renegade's buffers byte for byte.
+	//
+	REF_PTR_SET (DetailMaterial, material);
+	AreBuffersDirty = true;
+	return ;
+}
+
+
+//////////////////////////////////////////////////////////////////////
+//
+//	Has_Detail
+//
+//////////////////////////////////////////////////////////////////////
+bool
+RenegadeTerrainPatchClass::Has_Detail (void) const
+{
+	return	(DetailMaterial != nullptr) &&
+				(DetailMaterial->Peek_Texture () != nullptr) &&
+				(DetailMaterial->Get_Meters_Per_Tile () > 0.0F);
 }
 
 
@@ -325,6 +364,8 @@ RenegadeTerrainPatchClass::Render (RenderInfoClass &rinfo)
 	//	back and which every patch paid for a private copy of.
 	//
 	ShaderManagerClass::Set_Program_Variant (MATERIAL_PROGRAM_TERRAIN,
+		IsPreLit ? TERRAIN_VARIANT_VERTEX_LIT : TERRAIN_VARIANT_LIT);
+	ShaderManagerClass::Set_Program_Variant (MATERIAL_PROGRAM_TERRAIN_DETAIL,
 		IsPreLit ? TERRAIN_VARIANT_VERTEX_LIT : TERRAIN_VARIANT_LIT);
 
 	//
@@ -581,13 +622,18 @@ RenegadeTerrainPatchClass::Render_By_Texture (int texture_index, int pass_type)
 	//	passes are.  The state itself lives in ww3d2/shadermgr.cpp with every other pipeline's,
 	//	so terrain cannot quietly stop matching the roads and water drawn beside it.
 	//
+	//	With a detail texture the second stage carries it, read through the buffers' second UV
+	//	set; the detail program is the terrain program plus that stage and nothing else.
+	//
+	const bool detail = Has_Detail () && ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_TERRAIN_DETAIL);
+
 	ShaderManagerClass::Set_Texture (0, MaterialPassList[texture_index]->Material->Peek_Texture ());
-	ShaderManagerClass::Set_Texture (1, nullptr);
+	ShaderManagerClass::Set_Texture (1, detail ? DetailMaterial->Peek_Texture () : nullptr);
 
 	const int program_pass =
 		(pass_type == RenegadeTerrainMaterialPassClass::PASS_BASE) ? TERRAIN_PASS_BASE : TERRAIN_PASS_LAYER;
 
-	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_TERRAIN, program_pass);
+	ShaderManagerClass::Set_Program (detail ? MATERIAL_PROGRAM_TERRAIN_DETAIL : MATERIAL_PROGRAM_TERRAIN, program_pass);
 
 	//
 	//	Alias some data
@@ -688,7 +734,9 @@ RenegadeTerrainPatchClass::Build_Rendering_Buffers (int texture_index, int pass_
 	//	Allocate the vertex and index buffers
 	//
 	material_pass->IndexBuffers[pass_type]		= new DX8IndexBufferClass (static_cast<unsigned short>(poly_count * 3));
-	material_pass->VertexBuffers[pass_type]	= new DX8VertexBufferClass (DX8_FVF_XYZNDUV1, static_cast<unsigned short>(vert_count));
+	const bool detail = Has_Detail ();
+	material_pass->VertexBuffers[pass_type]	= new DX8VertexBufferClass (detail ? DX8_FVF_XYZNDUV2 : DX8_FVF_XYZNDUV1,
+																							static_cast<unsigned short>(vert_count));
 
 	//
 	// Write index data to index buffers
@@ -750,7 +798,15 @@ RenegadeTerrainPatchClass::Build_Rendering_Buffers (int texture_index, int pass_
 		//	Lock the vertex buffer
 		//
 		VertexBufferClass::WriteLockClass lock (material_pass->VertexBuffers[pass_type]);
-		VertexFormatXYZNDUV1 *vertices = (VertexFormatXYZNDUV1 *)lock.Get_Vertex_Array ();
+		VertexFormatXYZNDUV1 *vertices = detail ? nullptr : (VertexFormatXYZNDUV1 *)lock.Get_Vertex_Array ();
+		VertexFormatXYZNDUV2 *detail_vertices = detail ? (VertexFormatXYZNDUV2 *)lock.Get_Vertex_Array () : nullptr;
+
+		//
+		//	The detail rate is in world metres, so the grain runs on across patch seams rather
+		//	than restarting at every patch's corner.
+		//
+		const Matrix3D &tm			= Get_Transform ();
+		const float detail_scale	= detail ? (1.0F / DetailMaterial->Get_Meters_Per_Tile ()) : 0.0F;
 
 		//
 		//	Specify some default values
@@ -764,6 +820,26 @@ RenegadeTerrainPatchClass::Build_Rendering_Buffers (int texture_index, int pass_
 		for (int index = 0; index < vert_count; index ++) {
 
 			int vert_index = vert_list[index];
+
+			if (detail) {
+				VertexFormatXYZNDUV2 &vertex = detail_vertices[index];
+				vertex.x		= Grid[vert_index].X;
+				vertex.y		= Grid[vert_index].Y;
+				vertex.z		= Grid[vert_index].Z;
+				vertex.nx	= GridNormals[vert_index].X;
+				vertex.ny	= GridNormals[vert_index].Y;
+				vertex.nz	= GridNormals[vert_index].Z;
+				vertex.u1	= material_pass->GridUVs[vert_index].X;
+				vertex.v1	= material_pass->GridUVs[vert_index].Y;
+
+				Vector3 world = tm * Grid[vert_index];
+				vertex.u2	= world.X * detail_scale;
+				vertex.v2	= world.Y * detail_scale;
+
+				float alpha = (pass_type == RenegadeTerrainMaterialPassClass::PASS_BASE) ? 1.0F : material_pass->VertexAlpha[vert_index];
+				vertex.diffuse = DX8Wrapper::Convert_Color (VertexColors[vert_index], alpha);
+				continue;
+			}
 
 			//
 			//	Set the vertex position and normal

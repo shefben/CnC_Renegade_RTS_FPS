@@ -64,10 +64,8 @@ texture at both spacings, not only at the near one.
 - **Suggested tiling:** 64 m or more. It is the one layer that should be obviously bigger
   than everything else.
 - **Without it:** the ground is uniform at large scale.
-- **Note:** the stock terrain pass carries one UV rate per material, which is enough for
-  this because the rate is per layer. What it cannot yet do is a *second* rate on the same
-  layer, which is what a close-up detail layer would need. Detail is a separate, unlisted
-  layer for that reason.
+- **Note:** the rate is per layer, so macro variation needs nothing beyond one UV set. The
+  close-up detail layer below is the one that needs a second rate, and has it.
 
 ### `ow_ter_rock.tga`
 
@@ -156,8 +154,21 @@ layer names a texture. Whether they look right together is a live check.
 
 ## Not listed here, and why
 
-**Detail, biome and scorch** have layer kinds in the system and no entries in the default
-table, so nothing asks for their art yet. Detail wants a second UV rate on one layer that
-the stock pass does not carry; biome wants a generator to write the biome mask; scorch
+### `ow_ter_detail.tga` (D-001 P09)
+
+- **For:** close-range grain -- soil speckle, pebbles, blade noise -- multiplied over every
+  ground layer so the ground reads as a surface at a player's feet rather than a smeared
+  photograph.
+- **Rule:** none. It is not a layer that goes somewhere; it is how every layer is drawn. It
+  never becomes a material pass: the patch carries it as a second texture stage through a
+  second UV set.
+- **Tiling:** 2 m (the layer's `meters_per_tile`).
+- **Authoring constraint:** the stage *multiplies* (`DETAILCOLOR_SCALE`, not 2x), so keep it
+  near white -- mean around 230 of 255, greyscale, low contrast -- or it darkens all ground.
+- **Without it:** no detail layer is defined and the ground draws exactly as before. There is
+  no stock stand-in: always.dat has no ground detail texture.
+
+**Biome and scorch** have layer kinds in the system and no entries in the default
+table, so nothing asks for their art yet. Biome wants a generator to write the biome mask; scorch
 wants damage events to stamp it, which is Section 35's decal work. They get entries in this
 folder when the code that names them exists.

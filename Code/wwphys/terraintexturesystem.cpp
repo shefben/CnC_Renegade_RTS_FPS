@@ -372,6 +372,28 @@ void TerrainTextureSystem::Define_Default_Layers(void)
 		Define_Layer("road",TERRAIN_LAYER_ROAD,rule,
 						 Pick_Layer_Texture ("ow_ter_road.tga","l11_gravel.tga"),4.0f,SURFACE_TYPE_DIRT);
 	}
+
+	//	Detail (D-001 P09): close-range grain multiplied over every layer at a two metre rate
+	//	through the patch's second UV set.  Unlike the rest it has no stock stand-in -- nothing in
+	//	always.dat is a ground detail texture (nod_detail is a Nod wall panel) -- so it exists
+	//	only once the purpose-made ow_ter_detail has been shipped, and until then the ground
+	//	draws exactly as it did.  Its rule is not read: detail is how every layer is drawn, not
+	//	where one goes.
+	if (Texture_File_Exists ("ow_ter_detail.tga")) {
+		TerrainLayerRuleClass rule;
+		Define_Layer("detail",TERRAIN_LAYER_DETAIL,rule,"ow_ter_detail.tga",2.0f,SURFACE_TYPE_GRASS);
+	}
+}
+
+
+TerrainMaterialClass * TerrainTextureSystem::Peek_Detail_Material(void)
+{
+	for (int index = 0; index < Layers.Count(); index++) {
+		if ((Layers[index]->Kind == TERRAIN_LAYER_DETAIL) && (Layers[index]->Material != nullptr)) {
+			return Layers[index]->Material;
+		}
+	}
+	return nullptr;
 }
 
 
@@ -810,6 +832,11 @@ bool TerrainTextureSystem::Build_Sampled_Materials(RenegadeTerrainPatchClass * m
 
 			for (int layer = 0; layer < layer_count; layer++) {
 
+				//	Detail is a second stage over every pass, never a pass of its own.
+				if (Layers[layer]->Kind == TERRAIN_LAYER_DETAIL) {
+					continue;
+				}
+
 				float w0 = weights[v0 * layer_count + layer];
 				float w1 = weights[v1 * layer_count + layer];
 				float w2 = weights[v2 * layer_count + layer];
@@ -847,6 +874,7 @@ bool TerrainTextureSystem::Build_Sampled_Materials(RenegadeTerrainPatchClass * m
 
 	delete [] weights;
 
+	model->Set_Detail_Material(Peek_Detail_Material());
 	model->Update_Vertex_Render_Lists();
 	model->Update_UVs();
 	return true;

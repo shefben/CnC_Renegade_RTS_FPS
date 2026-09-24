@@ -226,17 +226,24 @@ Each renderer now takes its state from `Get_Pass_State` and adds only its own fo
 program answers with exactly the state its renderer used to build for itself, and
 `shader_pipelines` asserts that bit for bit, so the move changes no picture.
 
-Two pipelines remain unregistered, each for a reason:
+One pipeline remains unregistered:
 
 - **Particles are retired, not faked.** Every emitter carries the shader its W3D definition
   authored (additive, alpha, screen...), so no single program can describe them. They keep the
-  stock per-emitter path.
-- **Terrain detail** is the one that looks ready and is not. It needs a second UV rate on a
-  single layer, which the terrain pass cannot carry, and there is no detail entry in the layer
-  table for it to draw.
+  stock per-emitter path. `Is_Supported` reports false and `Get_Pass_Count` returns zero, so a
+  caller that loops over it draws nothing rather than drawing it wrongly.
 
-`Is_Supported` reports false for both and `Get_Pass_Count` returns zero, so a caller that
-loops over them draws nothing rather than drawing them wrongly.
+**Terrain detail** is registered (D-001 P09). It is the terrain program's two passes plus a
+second stage: the detail texture multiplied over the layer (`DETAILCOLOR_SCALE`), read through
+the vertex's second UV set (`Set_UV_Source(1,1)`), with alpha left to the first stage so a
+layer's blend weight is untouched. A patch draws through it only when it has a detail material
+(`RenegadeTerrainPatchClass::Set_Detail_Material`, fed by the first `TERRAIN_LAYER_DETAIL`
+layer); only then do its buffers carry `VertexFormatXYZNDUV2`, with the second UV set in world
+metres at the detail layer's own rate, so the grain runs across patch seams. A patch without
+one keeps stock Renegade's one-UV buffers byte for byte. `shader_pipelines` asserts each detail
+pass differs from terrain's in the second stage alone. The default layer table adds the detail
+layer only when `ow_ter_detail.tga` ships: always.dat has no ground detail texture to stand in
+(`nod_detail` is a Nod wall panel). Whether it looks right is a live check.
 
 The acceptance line *new donor systems share one state/shader management layer* is now met
 in substance — six donor-derived systems draw through one layer and no longer decide their

@@ -342,9 +342,9 @@ public:
 
 	enum { PASS_BASE = TERRAIN_PASS_BASE, PASS_LAYER = TERRAIN_PASS_LAYER, STAGE_COUNT = 2 };
 
-	TerrainProgramClass(void) :
-		FixedFunctionProgramClass(MATERIAL_PROGRAM_TERRAIN,2,STAGE_COUNT),
-		LitMaterial(nullptr), VertexLitMaterial(nullptr) { }
+	TerrainProgramClass(MaterialProgramType type = MATERIAL_PROGRAM_TERRAIN,bool detail = false) :
+		FixedFunctionProgramClass(type,2,STAGE_COUNT),
+		Detail(detail), LitMaterial(nullptr), VertexLitMaterial(nullptr) { }
 
 	virtual ~TerrainProgramClass(void) override	{ TerrainProgramClass::Shutdown(); }
 
@@ -353,13 +353,24 @@ public:
 		LitMaterial			= Make_World_Surface_Material(false);
 		VertexLitMaterial	= Make_World_Surface_Material(true);
 
-		Set_Pass_Material(PASS_LAYER,VertexLitMaterial);
-
 		ShaderClass base = ShaderClass::_PresetOpaqueShader;
 		base.Set_Fog_Func(ShaderClass::FOG_ENABLE);
 
 		ShaderClass layer = ShaderClass::_PresetAlphaShader;
 		layer.Set_Fog_Func(ShaderClass::FOG_ENABLE);
+
+		//	D-001 P09 terrain detail: the same two passes with a second texture multiplied over
+		//	the first, read through the vertex's second UV set -- the detail rate, which repeats
+		//	far more often than the layer's own.  Alpha stays the first stage's, so a layer's
+		//	blend weight is untouched by the grain laid over it.
+		if (Detail) {
+			LitMaterial->Set_UV_Source(1,1);
+			VertexLitMaterial->Set_UV_Source(1,1);
+			base.Set_Post_Detail_Color_Func(ShaderClass::DETAILCOLOR_SCALE);
+			layer.Set_Post_Detail_Color_Func(ShaderClass::DETAILCOLOR_SCALE);
+		}
+
+		Set_Pass_Material(PASS_LAYER,VertexLitMaterial);
 
 		Set_Pass_Shader(PASS_BASE,base);
 		Set_Pass_Shader(PASS_LAYER,layer);
@@ -383,6 +394,7 @@ public:
 
 private:
 
+	bool							Detail;
 	VertexMaterialClass *	LitMaterial;
 	VertexMaterialClass *	VertexLitMaterial;
 };
@@ -623,6 +635,7 @@ void	ShaderManagerClass::Init(ShaderTierType tier)
 	//	The dependency runs the way Section 15 asks: the systems know about the layer and the
 	//	layer knows nothing about the systems.
 	Register_Program(MATERIAL_PROGRAM_TERRAIN,new TerrainProgramClass);
+	Register_Program(MATERIAL_PROGRAM_TERRAIN_DETAIL,new TerrainProgramClass(MATERIAL_PROGRAM_TERRAIN_DETAIL,true));
 	Register_Program(MATERIAL_PROGRAM_ROAD,new OpaqueVertexLitProgramClass(MATERIAL_PROGRAM_ROAD));
 	Register_Program(MATERIAL_PROGRAM_BRIDGE,new OpaqueVertexLitProgramClass(MATERIAL_PROGRAM_BRIDGE));
 	Register_Program(MATERIAL_PROGRAM_WATER,new WaterProgramClass);

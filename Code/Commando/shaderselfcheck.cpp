@@ -225,6 +225,7 @@ int	Run_Programs (void)
 	static const MaterialProgramType	_expected[] = {
 		MATERIAL_PROGRAM_LEGACY_W3D,
 		MATERIAL_PROGRAM_TERRAIN,
+		MATERIAL_PROGRAM_TERRAIN_DETAIL,		// D-001 P09: RenegadeTerrainPatchClass with a detail layer
 		MATERIAL_PROGRAM_ROAD,
 		MATERIAL_PROGRAM_BRIDGE,
 		MATERIAL_PROGRAM_WATER,
@@ -278,20 +279,19 @@ int	Run_Programs (void)
 			CountingProgramClass::Live, live_before);
 
 	//
-	//	Two programs that do fit, so that the handover between them can be watched.
+	//	A program that does fit, so that the handover between it and a real pipeline can be
+	//	watched.  PARTICLE is the one slot nothing registers (D-001 P09 retired it), so the
+	//	two-pass test program goes there and the program handed over to is a stock one.
 	//
-	CountingProgramClass *	ghost = new CountingProgramClass ("ghost", 1, SHADER_TIER_FIXED_FUNCTION);
 	CountingProgramClass *	overlay = new CountingProgramClass ("marker", 2, SHADER_TIER_FIXED_FUNCTION);
 
-	Check (ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_PARTICLE, ghost),
-			"a program that fits the tier was refused");
-	Check (ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_TERRAIN_DETAIL, overlay),
+	Check (ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_PARTICLE, overlay),
 			"a multipass program that fits the tier was refused");
 
-	Check (ghost->Inits == 1, "the manager called Init %d times, not once", ghost->Inits);
-	Check (ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_TERRAIN_DETAIL) == 2,
+	Check (overlay->Inits == 1, "the manager called Init %d times, not once", overlay->Inits);
+	Check (ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_PARTICLE) == 2,
 			"a two pass program reported %d passes",
-			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_TERRAIN_DETAIL));
+			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_PARTICLE));
 
 	//
 	//	Nothing is current until something is set, and resetting nothing is harmless.
@@ -299,38 +299,43 @@ int	Run_Programs (void)
 	Check (ShaderManagerClass::Get_Current_Program () == MATERIAL_PROGRAM_COUNT,
 			"something was current before anything was set");
 	ShaderManagerClass::Reset_Program ();
-	Check (ghost->Resets == 0, "resetting nothing reset a program");
+	Check (overlay->Resets == 0, "resetting nothing reset a program");
 
 	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_PARTICLE, 0);
 
 	Check (ShaderManagerClass::Get_Current_Program () == MATERIAL_PROGRAM_PARTICLE,
 			"the program that was set is not the current one");
 	Check (ShaderManagerClass::Get_Current_Pass () == 0, "the current pass is not the one that was set");
-	Check (ghost->Sets == 1, "Set_Pass ran %d times for one pass", ghost->Sets);
-	Check (ghost->Resets == 0, "setting a program reset it");
+	Check (overlay->Sets == 1, "Set_Pass ran %d times for one pass", overlay->Sets);
+	Check (overlay->Resets == 0, "setting a program reset it");
 
 	//
 	//	Moving between passes of one program does not reset it.  A program setting up its
 	//	own second pass knows what its first one did, and making it start from nothing
 	//	every time would be the layer getting in the way of the pipeline it exists to serve.
 	//
-	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_TERRAIN_DETAIL, 0);
-	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_TERRAIN_DETAIL, 1);
+	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_PARTICLE, 1);
 
-	Check (ghost->Resets == 1, "handing over to another program reset the old one %d times, not once",
-			ghost->Resets);
 	Check (overlay->Sets == 2, "two passes ran Set_Pass %d times", overlay->Sets);
 	Check (overlay->Resets == 0, "moving between passes of one program reset it");
 	Check (overlay->LastPass == 1, "the second pass arrived as pass %d", overlay->LastPass);
 	Check (ShaderManagerClass::Get_Current_Pass () == 1, "the current pass is not the second one");
 
 	//
+	//	Handing over to another program resets the old one exactly once.
+	//
+	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_DEBUG_OVERLAY, 0);
+	Check (overlay->Resets == 1, "handing over to another program reset the old one %d times, not once",
+			overlay->Resets);
+
+	//
 	//	And giving the device back resets exactly once, however often it is asked.
 	//
+	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_PARTICLE, 0);
 	ShaderManagerClass::Reset_Program ();
 	ShaderManagerClass::Reset_Program ();
 
-	Check (overlay->Resets == 1, "giving the device back reset %d times, not once", overlay->Resets);
+	Check (overlay->Resets == 2, "giving the device back reset %d times, not once", overlay->Resets - 1);
 	Check (ShaderManagerClass::Get_Current_Program () == MATERIAL_PROGRAM_COUNT,
 			"a program is still current after the device was given back");
 
@@ -433,7 +438,7 @@ int	Run_Pipelines (void)
 	//	the caller to release.  A pass that does not exist answers no as well.
 	//
 	material = nullptr;
-	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TERRAIN_DETAIL, 0, &shader, &material) == false,
+	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_PARTICLE, 0, &shader, &material) == false,
 			"an unregistered pipeline answered with state");
 	Check (material == nullptr, "an unregistered pipeline handed out a material");
 
@@ -514,6 +519,34 @@ int	Run_Pipelines (void)
 	REF_PTR_RELEASE (layer);
 	REF_PTR_RELEASE (vertex_base);
 	REF_PTR_RELEASE (lit_base);
+
+	//
+	//	D-001 P09 terrain detail is terrain plus a second stage, and nothing else: each pass's
+	//	shader differs from terrain's only in the detail colour function, alpha stays the first
+	//	stage's so a layer's blend weight survives, and the second stage reads the second UV set.
+	//
+	{
+		Check (ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_TERRAIN_DETAIL) == 2,
+				"terrain detail wants %d passes, not 2", ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_TERRAIN_DETAIL));
+
+		for (int pass = TERRAIN_PASS_BASE; pass <= TERRAIN_PASS_LAYER; pass++) {
+			ShaderClass plain, detail;
+			VertexMaterialClass * detail_material = nullptr;
+			ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TERRAIN, pass, &plain, nullptr);
+			ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TERRAIN_DETAIL, pass, &detail, &detail_material);
+
+			Check (detail.Get_Post_Detail_Color_Func () == ShaderClass::DETAILCOLOR_SCALE,
+					"terrain detail pass %d does not multiply its second stage", pass);
+			Check (detail.Get_Post_Detail_Alpha_Func () == ShaderClass::DETAILALPHA_DISABLE,
+					"terrain detail pass %d lets the detail stage touch the blend weight", pass);
+			plain.Set_Post_Detail_Color_Func (ShaderClass::DETAILCOLOR_SCALE);
+			Check (plain.Get_Bits () == detail.Get_Bits (),
+					"terrain detail pass %d differs from terrain in more than its second stage", pass);
+			Check ((detail_material != nullptr) && (detail_material->Get_UV_Source (1) == 1),
+					"terrain detail pass %d does not read its second stage from the second UV set", pass);
+			REF_PTR_RELEASE (detail_material);
+		}
+	}
 
 	//
 	//	Water and foliage are the pair the design contrasts, and they must not converge.  Water

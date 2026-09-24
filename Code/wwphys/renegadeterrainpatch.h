@@ -153,6 +153,15 @@ public:
 	RenegadeTerrainMaterialPassClass *	Peek_Material_Pass (int index)	{ return MaterialPassList[index]; }
 
 	//
+	//	D-001 P09 terrain detail: one texture multiplied over every layer at its own, finer rate,
+	//	through a second UV set.  Null (the default, and what a missing detail texture gives)
+	//	draws exactly as before, with one UV set.
+	//
+	void											Set_Detail_Material (TerrainMaterialClass *material);
+	TerrainMaterialClass *					Peek_Detail_Material (void) const	{ return DetailMaterial; }
+	bool											Has_Detail (void) const;
+
+	//
 	// Access to internal mesh data
 	//
 	int					Get_Vertex_Count (void) const				{ return GridPointCount; }
@@ -242,6 +251,7 @@ protected:
 	Vector3								BoundingBoxMax;
 	bool									AreBuffersDirty;
 	bool									IsPreLit;
+	TerrainMaterialClass *			DetailMaterial;
 
 	DynamicVectorClass<RenegadeTerrainMaterialPassClass *>	MaterialPassList;
 };

@@ -231,6 +231,13 @@ public:
 	static void			Define_Default_Layers(void);
 
 	/*
+	**	The first TERRAIN_LAYER_DETAIL layer's material, or null.  A detail layer never becomes a
+	**	material pass: Build_Patch_Materials hands it to the patch, which multiplies it over every
+	**	pass at the layer's own rate through a second UV set (D-001 P09).
+	*/
+	static TerrainMaterialClass *	Peek_Detail_Material(void);
+
+	/*
 	**	Evaluation.  Weights are per layer, in layer order, each between zero and one; the base
 	**	layer is always one because something has to be underneath.  The return value is the
 	**	number written.
