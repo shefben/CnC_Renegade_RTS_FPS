@@ -2510,7 +2510,12 @@ int	Run_Building_Descriptors (void)
 	**	The reload transaction, end to end against a real file: valid replaces, invalid
 	**	preserves the last known-good descriptor and reports the error.
 	*/
-	const char *	SCRATCH_PATH = "ow_selfcheck_building_descriptor.json";
+	//	Per process: the client and dedicated-server twins of this check run in the same working
+	//	directory, and under a parallel ctest a shared name let one delete the other's file.
+	char scratch_name [64];
+	::snprintf (scratch_name,sizeof (scratch_name),"ow_selfcheck_building_descriptor_%lu.json",
+					(unsigned long)::GetCurrentProcessId ());
+	const char *	SCRATCH_PATH = scratch_name;
 
 	FILE * f = ::fopen (SCRATCH_PATH,"wb");
 	Check (f != nullptr,"could not create the reload scratch file");

@@ -25,6 +25,7 @@
 #define COMMANDERPOWERPANEL_H
 
 #include "always.h"
+#include "rendercomponent.h"
 #include "wwstring.h"
 
 enum CommanderPowerPanelButtonType
@@ -101,6 +102,10 @@ class CommanderPowerPanelRenderer
 
 		static void		Update(void);
 		static void		Render(void);
+
+		//	This panel as Section 29's RTS overlay component (D-001 P26); the HUD draws it
+		//	through the interface.
+		static IRTSOverlayComponent &	Get_Overlay_Component(void);
 
 		//	Same contract as CommanderCommandPaletteRenderer::Hit_Test: a point inside the panel
 		//	but between buttons reports inside and no button, and must still swallow the click.

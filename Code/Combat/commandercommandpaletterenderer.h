@@ -22,6 +22,7 @@
 #define COMMANDERCOMMANDPALETTERENDERER_H
 
 #include "always.h"
+#include "rendercomponent.h"
 
 #include "commandercommandpalette.h"
 
@@ -34,6 +35,10 @@ class CommanderCommandPaletteRenderer
 
 		static void		Update(void);
 		static void		Render(void);
+
+		//	This panel as Section 29's RTS overlay component (D-001 P26); the HUD draws it
+		//	through the interface.
+		static IRTSOverlayComponent &	Get_Overlay_Component(void);
 
 		/*
 		**	Which button is under a screen point.  Returns false when the palette is closed, the

@@ -10,8 +10,8 @@ work is in `completed_features.md`, and detail is in `docs/`.
 - Priority 4 is done except the P09 routing and P26 audit below.
 - 199/199 ctest entries pass, and `renegade`, `renegadeserver` and `leveledit` build with no warnings.
 
-**Next exact action:** finish priority 4 with the P26 audit below (the P09 routing is done),
-then work through priority 5 in the order listed.
+**Next exact action:** priority 4 is done except terrain detail (P09 below). Work through
+priority 5 in the order listed.
 
 ---
 
@@ -23,13 +23,6 @@ Tracers, status markers and the ghost tint now draw through registered programs,
 are retired with a documented reason (`docs/zerohour/ShaderManager.md`). What remains is
 **terrain detail**, a real gap: it needs a second UV rate on one layer plus a detail layer entry.
 Do not fake it with the base UVs.
-
-### P26: modular draw components (D-001 priority 4)
-
-Audit each component contract against the consumers that exist now: selection and status visuals,
-waypoint and order visuals, ghost buildings, RTS overlays, and procedural-world attachments. Give
-each consumer that exists a concrete component. Add the strongest success-path attachment test a
-real known W3D asset allows.
 
 ### D-001 priority 5: procedural-world gameplay gaps
 
@@ -68,7 +61,7 @@ real known W3D asset allows.
 - **Bridge fallback (V2 Phase 10):** deterministic headless terrain for:
  - stage 1: the original crossing fails and a nearby reposition succeeds;
  - stage 2: the original approach fails on grade and a longer approach succeeds.
-- **Attachments:** real attachment success cases, where headless testing permits.
+- **Attachments (P26):** real attachment success cases (a model on a bone, a child animation, `Set_Slot_Hidden`, a building bone search), where headless testing permits. All four draw-component contracts now have implementers (`docs/zerohour/ModularDrawComponents.md`).
 - **Save/load to disk:** disk round trips for RTS state and the procedural world package, where headless testing permits.
 
 ---

@@ -33,6 +33,7 @@
 #define COMMANDERGHOSTRENDERER_H
 
 #include "always.h"
+#include "rendercomponent.h"
 
 
 class CommanderGhostRenderer
@@ -58,6 +59,9 @@ class CommanderGhostRenderer
 
 		static bool		Is_Model_Loaded(void);
 		static int		Get_Missing_Model_Count(void);
+
+		//	The ghost's valid/invalid tint as Section 29's world-interaction visual (D-001 P26).
+		static IWorldInteractionVisualComponent &	Get_Interaction_Component(void);
 };
 
 #endif // COMMANDERGHOSTRENDERER_H

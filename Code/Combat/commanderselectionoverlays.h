@@ -24,6 +24,8 @@
 
 #include "always.h"
 
+class IClientUpdateComponent;
+
 class CommanderSelectionOverlays
 {
 	public:
@@ -32,6 +34,9 @@ class CommanderSelectionOverlays
 		static void		Shutdown(void);
 
 		static int		Get_Ring_Count(void);
+
+		//	This manager as Section 29's client update component (D-001 P26).
+		static IClientUpdateComponent &	Get_Update_Component(void);
 };
 
 #endif // COMMANDERSELECTIONOVERLAYS_H

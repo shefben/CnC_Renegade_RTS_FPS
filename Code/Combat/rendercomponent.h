@@ -55,11 +55,11 @@
  *	                                into the FPS world; the ghost-building and waypoint/order       *
  *	                                renderers named in the same list implement this.                *
  *                                                                                             *
- *	The last three have no implementer yet on purpose -- the systems that would supply one         *
- *	(Commander sidebar, shroud/radar, ghost placement) are later phases in the roadmap's own       *
- *	dependency order.  Writing their contract now and leaving it unimplemented until the           *
- *	feature that needs it arrives follows the same rule the project already applies to missing     *
- *	art: an absent case has to behave sanely, not be invented early to look finished.               *
+ *	Implementers (D-001 P26, once each consumer existed): IClientUpdateComponent --                *
+ *	CommanderSelectionOverlays' ring manager; IRTSOverlayComponent -- the command palette, the      *
+ *	power panel and the governance panel, drawn by the HUD through the interface;                  *
+ *	ISelectionVisualComponent -- each selected object's status ring; IWorldInteractionVisual-      *
+ *	Component -- the placement ghost's valid/invalid tint.                                          *
  *                                                                                             *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 

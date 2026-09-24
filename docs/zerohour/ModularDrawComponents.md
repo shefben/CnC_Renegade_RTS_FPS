@@ -156,3 +156,18 @@ live combat scene with collected components -- neither of which `-shaderselfchec
 follows the verified stock precedent for each (`soldier.cpp`'s `Add_Sub_Object_To_Bone` +
 `Remove_Sub_Object` + `Release_Ref` sequence for attach/detach, `explosion.cpp`'s
 `Get_HAnim`/`Set_Animation`/`Release_Ref` sequence for animation), but none of it has run.
+
+## D-001 P26: the contracts now have implementers
+
+Each contract now has a real implementer, adopted once the feature it was written for existed:
+
+| Contract | Implementer | Reached from |
+| --- | --- | --- |
+| `IClientUpdateComponent` | `CommanderSelectionOverlays`' ring manager | `CombatManager`'s frame, through `Get_Update_Component()` |
+| `IRTSOverlayComponent` | The command palette, the power panel and the governance panel | `HUDClass::Render`, which draws each only when `Is_RTS_Overlay_Visible` |
+| `ISelectionVisualComponent` | One status ring per selected unit or building | The ring manager; `Set_Selected` creates or removes the ring |
+| `IWorldInteractionVisualComponent` | The placement ghost's valid/invalid tint | `CommanderGhostRenderer::Update` |
+
+The success-path attachment test is still open: a real model attached to a real bone, a child
+animation playing, `Set_Slot_Hidden`, and a building's bone search. It is listed under D-001
+priority 6 in `WIP_features.md`.

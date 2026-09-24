@@ -25,6 +25,7 @@
 #define COMMANDERGOVERNANCEPANEL_H
 
 #include "always.h"
+#include "rendercomponent.h"
 #include "widestring.h"
 
 enum CommanderGovernanceActionType
@@ -93,9 +94,15 @@ class CommanderGovernancePanelRenderer
 		static void		Update(void);
 		static void		Render(void);
 
+		//	This panel as Section 29's RTS overlay component (D-001 P26); the HUD draws it
+		//	through the interface.
+		static IRTSOverlayComponent &	Get_Overlay_Component(void);
+
 		//	The button under a point, as the action and its target.  Same inside/between-buttons
 		//	contract as the other Commander panels.
 		static bool		Hit_Test(float x,float y,CommanderGovernanceButton * out_button,bool * out_inside_panel);
+
+		static bool		Is_Open(void);
 };
 
 #endif // COMMANDERGOVERNANCEPANEL_H

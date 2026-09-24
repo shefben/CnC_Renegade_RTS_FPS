@@ -221,9 +221,30 @@ void CommanderGhostRenderer::Update(void)
 	**	allocate a VertexMaterialClass per mesh per frame, and the tint is a two-state thing --
 	**	it changes when the cursor crosses into or out of a legal spot, not continuously.
 	*/
-	int valid_now = CommanderPlacementValidator::Is_Ghost_Valid () ? 1 : 0;
-	if (valid_now != _LastTintValid) {
+	CommanderGhostRenderer::Get_Interaction_Component ().Set_Interaction_Highlight (
+		CommanderPlacementValidator::Is_Ghost_Valid ());
+}
+
+
+/*
+**	D-001 P26: the ghost's valid/invalid tint is Section 29's world-interaction visual -- a binary
+**	highlight on world-space feedback that is not an object's own body.
+*/
+class GhostInteractionComponentClass : public IWorldInteractionVisualComponent
+{
+public:
+	virtual void	Set_Interaction_Highlight(bool valid) override
+	{
+		int valid_now = valid ? 1 : 0;
+		if ((_Ghost == nullptr) || (valid_now == _LastTintValid)) return;
 		Apply_Ghost_Materials (_Ghost,valid_now ? GHOST_TINT_VALID : GHOST_TINT_INVALID);
 		_LastTintValid = valid_now;
 	}
+};
+
+static GhostInteractionComponentClass	_GhostInteraction;
+
+IWorldInteractionVisualComponent & CommanderGhostRenderer::Get_Interaction_Component(void)
+{
+	return _GhostInteraction;
 }

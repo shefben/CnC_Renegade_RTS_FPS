@@ -225,3 +225,14 @@ bool CommanderCommandPaletteRenderer::Hit_Test(float x,float y,
 
 
 int CommanderCommandPaletteRenderer::Get_Rebuild_Count(void)	{ return _RebuildCount; }
+
+class CommanderCommandPaletteRendererOverlayClass : public IRTSOverlayComponent
+{
+public:
+	virtual void	Render_RTS_Overlay(RenderInfoClass & /* rinfo */) override	{ CommanderCommandPaletteRenderer::Render (); }
+	virtual bool	Is_RTS_Overlay_Visible(void) const override				{ return CommanderCommandPalette::Is_Open (); }
+};
+
+static CommanderCommandPaletteRendererOverlayClass	_OverlayComponent;
+
+IRTSOverlayComponent & CommanderCommandPaletteRenderer::Get_Overlay_Component(void)	{ return _OverlayComponent; }

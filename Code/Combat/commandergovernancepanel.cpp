@@ -291,3 +291,17 @@ bool CommanderGovernancePanelRenderer::Hit_Test(float x,float y,CommanderGoverna
 	}
 	return false;
 }
+
+
+bool CommanderGovernancePanelRenderer::Is_Open(void)	{ return _Open; }
+
+class CommanderGovernancePanelRendererOverlayClass : public IRTSOverlayComponent
+{
+public:
+	virtual void	Render_RTS_Overlay(RenderInfoClass & /* rinfo */) override	{ CommanderGovernancePanelRenderer::Render (); }
+	virtual bool	Is_RTS_Overlay_Visible(void) const override				{ return CommanderGovernancePanelRenderer::Is_Open (); }
+};
+
+static CommanderGovernancePanelRendererOverlayClass	_OverlayComponent;
+
+IRTSOverlayComponent & CommanderGovernancePanelRenderer::Get_Overlay_Component(void)	{ return _OverlayComponent; }

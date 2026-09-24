@@ -9,6 +9,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "commanderselectionoverlays.h"
+#include "rendercomponent.h"
 
 #include "building.h"
 #include "buildingdescriptor.h"
@@ -25,16 +26,51 @@
 
 enum { MAX_RINGS = CommanderSelection::MAX_SELECTED + 1 };
 
-struct SelectionRing
+static const Vector4	RING_COLOR (0.35f,1.0f,0.35f,0.9f);
+
+static bool	Ring_Placement(int object_id,Vector3 * out_position,float * out_radius);
+
+/*
+**	D-001 P26: one selected object's ring is Section 29's selection visual.  Set_Selected is the
+**	whole lifecycle -- on creates the status ring under the object, off removes it.
+*/
+class SelectionRingClass : public ISelectionVisualComponent
 {
+public:
+	SelectionRingClass(void) : ObjectId(0),Handle(-1),Selected(false) { }
+
+	virtual void	Set_Selected(bool onoff) override
+	{
+		if (onoff == Selected) return;
+		if (onoff) {
+			Vector3 position;
+			float radius = 0.0f;
+			if (!Ring_Placement (ObjectId,&position,&radius)) return;
+			Handle = StatusOverlaySystem::Add_Overlay (OVERLAY_SELECTION,position,radius,RING_COLOR,-1,0.0f);
+		} else {
+			StatusOverlaySystem::Remove_Overlay (Handle);
+			Handle = -1;
+		}
+		Selected = onoff;
+	}
+	virtual bool	Is_Selected(void) const override	{ return Selected; }
+
+	//	Follow the object; false once it is gone or the ring was lost with the overlay system.
+	bool	Follow(void)
+	{
+		Vector3 position;
+		float radius = 0.0f;
+		return Selected && Ring_Placement (ObjectId,&position,&radius) &&
+				 StatusOverlaySystem::Update_Overlay (Handle,position,radius,RING_COLOR);
+	}
+
 	int							ObjectId;
 	StatusOverlayHandleType	Handle;
+	bool							Selected;
 };
 
-static SelectionRing	_Rings [MAX_RINGS];
-static int				_RingCount = 0;
-
-static const Vector4	RING_COLOR (0.35f,1.0f,0.35f,0.9f);
+static SelectionRingClass	_Rings [MAX_RINGS];
+static int						_RingCount = 0;
 static const float	UNIT_RING_MIN_RADIUS			= 1.0f;
 static const float	BUILDING_RING_FALLBACK		= 10.0f;
 
@@ -81,10 +117,25 @@ static bool	Ring_Placement(int object_id,Vector3 * out_position,float * out_radi
 
 static void	Remove_Ring(int index)
 {
-	StatusOverlaySystem::Remove_Overlay (_Rings [index].Handle);
+	_Rings [index].Set_Selected (false);
 	_Rings [index] = _Rings [_RingCount - 1];
 	_RingCount--;
 }
+
+
+/*
+**	D-001 P26: the ring manager is Section 29's client update component -- a per-frame tick with
+**	no gameplay authority, reached from CombatManager's frame through the interface.
+*/
+class SelectionOverlayUpdateClass : public IClientUpdateComponent
+{
+public:
+	virtual void	Update_Component(float /* seconds */) override	{ CommanderSelectionOverlays::Update (); }
+};
+
+static SelectionOverlayUpdateClass	_UpdateComponent;
+
+IClientUpdateComponent & CommanderSelectionOverlays::Get_Update_Component(void)	{ return _UpdateComponent; }
 
 
 void CommanderSelectionOverlays::Update(void)
@@ -110,10 +161,7 @@ void CommanderSelectionOverlays::Update(void)
 			if (wanted [w] == _Rings [r].ObjectId) { keep = true; break; }
 		}
 
-		Vector3 position;
-		float radius = 0.0f;
-		if (keep && Ring_Placement (_Rings [r].ObjectId,&position,&radius) &&
-			 StatusOverlaySystem::Update_Overlay (_Rings [r].Handle,position,radius,RING_COLOR)) {
+		if (keep && _Rings [r].Follow ()) {
 			continue;
 		}
 		Remove_Ring (r);
@@ -127,15 +175,12 @@ void CommanderSelectionOverlays::Update(void)
 		}
 		if (present || (_RingCount >= MAX_RINGS)) continue;
 
-		Vector3 position;
-		float radius = 0.0f;
-		if (!Ring_Placement (wanted [w],&position,&radius)) continue;
-
-		//	Owned by the selection's own team, so it is never someone else's secret; a lifetime of
-		//	zero is permanent -- this file removes it.
-		_Rings [_RingCount].ObjectId	= wanted [w];
-		_Rings [_RingCount].Handle		= StatusOverlaySystem::Add_Overlay (OVERLAY_SELECTION,position,radius,RING_COLOR,-1,0.0f);
-		_RingCount++;
+		//	Unowned (always visible to its own viewer) and permanent -- Set_Selected (false) removes it.
+		SelectionRingClass ring;
+		ring.ObjectId = wanted [w];
+		ring.Set_Selected (true);
+		if (!ring.Is_Selected ()) continue;
+		_Rings [_RingCount++] = ring;
 	}
 }
 

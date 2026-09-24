@@ -68,6 +68,7 @@
 #include "commandercommandpaletterenderer.h"
 #include "commanderpowerpanel.h"
 #include "commandergovernancepanel.h"
+#include "rinfo.h"
 #include "commanderselectionrenderer.h"
 #include "stylemgr.h"
 
@@ -2854,9 +2855,23 @@ void 	HUDClass::Render()
 	//	Selection brackets, the rubber band and the command grid.  Each gates itself on Commander
 	//	Mode the same way the sidebar does, so an ordinary FPS frame draws none of them.
 	CommanderSelectionRenderer::Render();
-	CommanderCommandPaletteRenderer::Render();
-	CommanderPowerPanelRenderer::Render();
-	CommanderGovernancePanelRenderer::Render();
+
+	//	The Commander panels, drawn as Section 29's RTS overlay components (D-001 P26): each says
+	//	whether it is up, and draws only if so.  They are screen-space 2D, so the render info the
+	//	contract carries is built from the combat camera and otherwise unused by them.
+	if ( COMBAT_CAMERA != nullptr ) {
+		IRTSOverlayComponent * overlays[] = {
+			&CommanderCommandPaletteRenderer::Get_Overlay_Component(),
+			&CommanderPowerPanelRenderer::Get_Overlay_Component(),
+			&CommanderGovernancePanelRenderer::Get_Overlay_Component(),
+		};
+		RenderInfoClass overlay_rinfo( *COMBAT_CAMERA );
+		for ( int i = 0; i < (int)( sizeof( overlays ) / sizeof( overlays[0] ) ); i++ ) {
+			if ( overlays[i]->Is_RTS_Overlay_Visible() ) {
+				overlays[i]->Render_RTS_Overlay( overlay_rinfo );
+			}
+		}
+	}
 
 	// Only render if Combat is active, and Menu is not,  and we have a star who is not sniping
 	if ( Is_HUD_Displayed() ) {

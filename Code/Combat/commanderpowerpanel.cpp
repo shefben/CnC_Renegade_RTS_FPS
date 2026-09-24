@@ -336,3 +336,14 @@ bool CommanderPowerPanelRenderer::Hit_Test(float x,float y,CommanderPowerPanelBu
 
 
 bool CommanderPowerPanelRenderer::Is_Open(void)	{ return _Open; }
+
+class CommanderPowerPanelRendererOverlayClass : public IRTSOverlayComponent
+{
+public:
+	virtual void	Render_RTS_Overlay(RenderInfoClass & /* rinfo */) override	{ CommanderPowerPanelRenderer::Render (); }
+	virtual bool	Is_RTS_Overlay_Visible(void) const override				{ return CommanderPowerPanelRenderer::Is_Open (); }
+};
+
+static CommanderPowerPanelRendererOverlayClass	_OverlayComponent;
+
+IRTSOverlayComponent & CommanderPowerPanelRenderer::Get_Overlay_Component(void)	{ return _OverlayComponent; }

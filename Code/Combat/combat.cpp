@@ -1458,7 +1458,7 @@ void 	CombatManager::Think()
 	CommanderSelectionRenderer::Update();
 	CommanderCommandPaletteRenderer::Update();
 	CommanderPowerPanelRenderer::Update();
-	CommanderSelectionOverlays::Update();
+	CommanderSelectionOverlays::Get_Update_Component().Update_Component( TimeManager::Get_Frame_Seconds() );
 	CommanderGovernancePanelRenderer::Update();
 
 	//	Waypoint markers age on both sides, so a client whose expiry never arrived still drops the
