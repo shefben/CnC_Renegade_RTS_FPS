@@ -10,29 +10,19 @@ work is in `completed_features.md`, and detail is in `docs/`.
 - Priority 4 is done except the P09 routing and P26 audit below.
 - 199/199 ctest entries pass, and `renegade`, `renegadeserver` and `leveledit` build with no warnings.
 
-**Next exact action:** finish priority 4. Route tracers, status markers and the ghost-building
-tint through `ShaderManagerClass`; the particle retirement is written up under P09 below. Then
-work through priority 5 in the order listed.
+**Next exact action:** finish priority 4 with the P26 audit below (the P09 routing is done),
+then work through priority 5 in the order listed.
 
 ---
 
 ## IMPLEMENT NOW
 
-### P09: renderers outside the pipeline layer (D-001 priority 4)
+### P09: terrain detail (D-001 priority 4)
 
-`ShaderManagerClass` registers eight programs. Four later renderers build their own device state
-instead of using it.
-
-- **Tracers** (`Code/ww3d2/tracerrenderer.cpp`), **status markers**
- (`Code/ww3d2/statusoverlayrenderer.cpp`) and the **ghost building tint**
- (`Code/Combat/commanderghostrenderer.cpp`) each draw with one fixed shader. Register
- `MATERIAL_PROGRAM_TRACER`, `_STATUS_MARKER` and `_GHOST_TINT` with that exact state, and have each
- renderer take its state from `Get_Pass_State`.
-- **Particles** carry per-emitter W3D shaders authored in their definitions, so one program cannot
- describe them. Retire `MATERIAL_PROGRAM_PARTICLE` and write the reason in
- `docs/zerohour/ShaderManager.md`.
-- **Terrain detail** remains a real gap. It needs a second UV rate on one layer plus a detail
- layer entry. Do not fake it with the base UVs.
+Tracers, status markers and the ghost tint now draw through registered programs, and particles
+are retired with a documented reason (`docs/zerohour/ShaderManager.md`). What remains is
+**terrain detail**, a real gap: it needs a second UV rate on one layer plus a detail layer entry.
+Do not fake it with the base UVs.
 
 ### P26: modular draw components (D-001 priority 4)
 
