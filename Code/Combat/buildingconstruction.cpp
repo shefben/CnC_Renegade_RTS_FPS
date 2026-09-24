@@ -11,6 +11,9 @@
 #include "buildingconstruction.h"
 
 #include "buildingdescriptormanager.h"
+#include "combat.h"
+#include "surfacemarktype.h"
+#include "worldsurfacemarkmanager.h"
 #include "wwmath.h"
 
 #include <math.h>
@@ -240,6 +243,7 @@ static bool	Start_Record(const BuildingConstructionReplicationState & state,cons
 	if (descriptor == nullptr) return false;
 
 	int index = Find_Record (state.BuildingId);
+	bool fresh = (index < 0);
 	if (index < 0) {
 		//	Reuse a freed slot before growing: construction records are created and destroyed
 		//	all match long, and the id list a caller iterates stays short.
@@ -268,6 +272,21 @@ static bool	Start_Record(const BuildingConstructionReplicationState & state,cons
 	record.RowCount = 0;
 	for (int i = 0; i < record.Blocks.Count (); i++) {
 		if ((record.Blocks [i].Row + 1) > record.RowCount) record.RowCount = record.Blocks [i].Row + 1;
+	}
+
+	/*
+	**	P19: the ground under a new building is marked as a construction pad the moment work
+	**	starts -- SURFACE_MARK_CONSTRUCTION's own event, on every client including a late joiner
+	**	(all three start paths come through here).  hnd_pad is the retail concrete pad texture from
+	**	always.dat.  Construction marks persist rather than fade (Surface_Mark_Type rules).
+	*/
+	if (fresh && CombatManager::I_Am_Client ()) {
+		Vector3 center = state.Transform.Get_Translation ();
+		Matrix3D pad_tm;
+		pad_tm.Look_At (center + Vector3 (0.0f,0.0f,2.0f),center - Vector3 (0.0f,0.0f,1.0f),0.0f);
+		float radius = 0.5f * WWMath::Sqrt ((descriptor->Footprint.Width * descriptor->Footprint.Width) +
+														(descriptor->Footprint.Depth * descriptor->Footprint.Depth));
+		WorldSurfaceMarkManager::Create_Mark (pad_tm,"hnd_pad.tga",radius,SURFACE_MARK_CONSTRUCTION);
 	}
 
 	return true;

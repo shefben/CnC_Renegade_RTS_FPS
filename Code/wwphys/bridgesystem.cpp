@@ -21,6 +21,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "bridgesystem.h"
+#include "worldshadowmanager.h"
 
 #include "assetmgr.h"
 #include "coltype.h"
@@ -843,6 +844,10 @@ bool BridgeSystem::Build_Section_Geometry(BridgeSectionClass & section,
 	scene->Add_Static_Object(phys);
 	section.Phys = phys;
 
+	//	P20: a generated span has no baked lighting and no stock shadow of its own; it casts
+	//	through the world shadow manager, cached until the section changes.
+	WorldShadowManager::Register_Caster(phys);
+
 	return true;
 }
 
@@ -852,6 +857,8 @@ void BridgeSystem::Destroy_Section_Geometry(BridgeSectionClass & section)
 	if (section.Phys == nullptr) {
 		return;
 	}
+
+	WorldShadowManager::Unregister_Caster(section.Phys);
 
 	PhysicsSceneClass * scene = PhysicsSceneClass::Get_Instance();
 	if (scene != nullptr) {

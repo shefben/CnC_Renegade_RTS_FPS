@@ -68,6 +68,11 @@ static float						_TiltMax			= COMMANDER_DEFAULT_TILT_MAX;
 
 static Vector3						_Focus (0.0f,0.0f,0.0f);
 static bool							_FocusPlaced	= false;		// the entry anchor has been applied this match
+
+static bool							_HavePickRay	= false;
+static bool							_PickRayHit		= false;
+static Vector3						_PickRayOrigin (0.0f,0.0f,0.0f);
+static Vector3						_PickRayEnd (0.0f,0.0f,0.0f);
 static float						_Zoom				= 400.0f;
 static float						_Tilt				= 55.0f;
 static float						_Rotation		= 0.0f;
@@ -312,11 +317,28 @@ bool CommanderModeController::Pick_At_Cursor(const Vector3 & ray_origin,const Ve
 	//	here", not making a gameplay/team-filtered damage query, so no group restricts it.
 	PhysRayCollisionTestClass raytest (ray,&result,0);
 
+	_HavePickRay	= true;
+	_PickRayOrigin	= ray_origin;
+
 	if (!WorldSpatialIndex::Query_Ray (raytest)) {
+		_PickRayHit	= false;
+		_PickRayEnd	= far_point;
 		return false;
 	}
 
 	*out_world_point = ray_origin + direction * (result.Fraction * COMMANDER_PICK_RAY_LENGTH);
+	_PickRayHit	= true;
+	_PickRayEnd	= *out_world_point;
+	return true;
+}
+
+
+bool CommanderModeController::Get_Last_Pick_Ray(Vector3 * origin_out,Vector3 * end_out,bool * hit_out)
+{
+	if (!_HavePickRay) return false;
+	if (origin_out != nullptr)	*origin_out = _PickRayOrigin;
+	if (end_out != nullptr)		*end_out = _PickRayEnd;
+	if (hit_out != nullptr)		*hit_out = _PickRayHit;
 	return true;
 }
 

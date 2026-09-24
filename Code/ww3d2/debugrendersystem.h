@@ -108,6 +108,9 @@ enum DebugLayerType
 	//	stations and its light anchors.
 	DEBUG_LAYER_TUNNELS,
 
+	//	D-001 P32.  Each Commander expansion region as its ring, team-coloured.
+	DEBUG_LAYER_EXPANSION_REGIONS,
+
 	DEBUG_LAYER_COUNT		// sentinel
 };
 

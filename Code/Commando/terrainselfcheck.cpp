@@ -2104,7 +2104,9 @@ void	Check_Water (void)
 
 	if (lake_def != nullptr) {
 		Check (lake_def->Get_Category () == WATER_LAKE, "the lake definition is not a lake");
-		Check (!lake_def->Names_Any_Texture (), "the lake definition names art that does not exist");
+		//	P17: every default kind carries a surface -- the ow_water_* file when shipped, else
+		//	the retail water_texture stand-in.
+		Check (lake_def->Names_Any_Texture (), "the lake definition names no surface texture");
 	}
 
 	//
@@ -2249,6 +2251,11 @@ void	Check_Water (void)
 	//	No device, no scene -- but the missing-texture count still tells a caller which of its
 	//	kinds have nothing to draw, exactly as FoliageSystem's does.
 	//
+	//	The missing-art path, taken deliberately: a kind stripped of its texture.
+	WaterDefinitionClass *pond_def = WaterSystem::Find_Definition ("ow_water_pond");
+	if (pond_def != nullptr) {
+		pond_def->Set_Surface_Texture ("");
+	}
 	Check (!WaterSystem::Build_Geometry (pond_index), "geometry was built for a kind naming no art");
 	Check (WaterSystem::Get_Missing_Texture_Count () == 1,
 			"%d missing textures reported after one attempt", WaterSystem::Get_Missing_Texture_Count ());

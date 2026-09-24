@@ -29,6 +29,8 @@
 #include "vertmaterial.h"
 #include "mapper.h"
 #include "w3d_file.h"
+#include "ffactory.h"
+#include "wwfile.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
 #include "wwmath.h"
@@ -68,8 +70,38 @@ void WaterSystem::Shutdown(void)
 }
 
 
+/*
+**	P17 / D-001: the purpose-made ow_water_<kind>.tga when it has been shipped, otherwise the
+**	retail water_texture from always.dat -- a tiling teal water surface, enumerated from the
+**	archive and looked at before it was chosen.  A .tga name resolves to the .dds the archive
+**	holds.
+*/
+static const char *	STOCK_WATER_TEXTURE = "water_texture.tga";
+
+static bool	Water_Texture_Exists(const StringClass & name)
+{
+	if (_TheFileFactory == nullptr) return false;
+
+	StringClass dds = name;
+	if (dds.Get_Length () > 4) {
+		dds.Erase (dds.Get_Length () - 4,4);
+		dds += ".dds";
+	}
+
+	const StringClass * candidates [2] = { &name,&dds };
+	for (int i = 0; i < 2; i++) {
+		FileClass * file = _TheFileFactory->Get_File (*candidates [i]);
+		if (file == nullptr) continue;
+		bool available = file->Is_Available ();
+		_TheFileFactory->Return_File (file);
+		if (available) return true;
+	}
+	return false;
+}
+
+
 /***********************************************************************************************
- * WaterSystem::Define_Default_Water -- one kind per category, none of them naming any art      *
+ * WaterSystem::Define_Default_Water -- one kind per category, each with a surface texture      *
  *=============================================================================================*/
 void WaterSystem::Define_Default_Water(void)
 {
@@ -93,6 +125,10 @@ void WaterSystem::Define_Default_Water(void)
 		def.Set_Wave_Amplitude(rows[i].wave);
 		def.Set_Shore_Feather(rows[i].feather);
 		def.Set_Bed_Depth(rows[i].depth);
+
+		StringClass preferred (rows[i].name,true);
+		preferred += ".tga";
+		def.Set_Surface_Texture(Water_Texture_Exists(preferred) ? preferred.Peek_Buffer() : STOCK_WATER_TEXTURE);
 		Define_Definition(def);
 	}
 }

@@ -82,6 +82,7 @@
 #include "worldsynctransport.h"
 #include "proceduralworldpersistence.h"
 #include "bridgedamageservice.h"
+#include "foliagesystem.h"
 #include "commanderselectionoverlays.h"
 #include "commandergovernancepanel.h"
 #include "commanderguardai.h"
@@ -1521,6 +1522,17 @@ void CombatManager::Render()
 			WWPROFILE( "Combat Render BG" );
 
 			WW3D::Render (BackgroundScene, MainCamera);
+		}
+
+		{
+			//	P16.  Each foliage cell draws its near or its far batch, never both, and which one
+			//	is decided from the camera every frame.  Distance only -- no view cone and no far
+			//	cut-off -- until Phase 29's measurements say what culling is worth (D-001).
+			WWPROFILE( "Foliage Visibility" );
+			if ( FoliageSystem::Are_Batches_Built() ) {
+				Matrix3D view = MainCamera->Get_Transform();
+				FoliageSystem::Update_Visibility( view.Get_Translation(), -view.Get_Z_Vector() );
+			}
 		}
 
 		{

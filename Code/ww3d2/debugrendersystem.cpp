@@ -65,6 +65,7 @@ static const char * const	_LayerNames [DEBUG_LAYER_COUNT] =
 	"interior_cliffs",
 	"hydrology",
 	"tunnels",
+	"expansion_regions",
 };
 
 

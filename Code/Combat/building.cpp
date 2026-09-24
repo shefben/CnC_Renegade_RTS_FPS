@@ -42,6 +42,7 @@
 #include "rtstelemetryservice.h"
 #include "teampowergridservice.h"
 #include "commanderproduction.h"
+#include "worldshadowmanager.h"
 #include "debug.h"
 #include "wwphysids.h"
 #include "meshmdl.h"
@@ -2426,6 +2427,7 @@ BuildingGameObj::Build_Runtime_Components (const char *model_name)
 	RuntimeModelName = model_name;
 	ExteriorMeshes.Add (phys);
 	RuntimeParts.Add (phys);
+	WorldShadowManager::Register_Caster (phys);		// P20, as the assembly path does for its shell
 
 	return true;
 }
@@ -2499,6 +2501,10 @@ BuildingGameObj::Build_Runtime_Assembly (const BuildingAssemblyDefinition &assem
 		if (part.Kind.Compare_No_Case ("interior") == 0) {
 			InteriorMeshes.Add (phys);
 		} else {
+			//	P20: a runtime-built shell has no baked lighting and no stock object shadow, so
+			//	it casts through the world shadow manager -- cached, regenerated only when it
+			//	changes.  Interiors are inside the shell and would only cost a projector.
+			WorldShadowManager::Register_Caster (phys);
 			//	"exterior", "aggregate", "door", or anything else the manifest names -- every one
 			//	of them is exterior-collision geometry by default, same as the single-mesh path.
 			ExteriorMeshes.Add (phys);
@@ -2539,6 +2545,7 @@ BuildingGameObj::Release_Runtime_Components (void)
 		if (phys->Get_Observer () == this) {
 			phys->Set_Observer (nullptr);
 		}
+		WorldShadowManager::Unregister_Caster (phys);		// a no-op for a part that never cast
 		//	A part is a member of exactly one of these two lists; Remove on the other is a safe
 		//	no-op (RefMultiListClass::Remove only releases a reference when it actually removed
 		//	something), so trying both avoids this function having to remember which.

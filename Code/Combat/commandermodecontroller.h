@@ -106,6 +106,10 @@ class CommanderModeController
 		static int		Pick_Object_At_Cursor(const Vector3 & ray_origin,const Vector3 & ray_direction,
 														 bool * out_is_building);
 
+		//	The last cursor ray Pick_At_Cursor cast, for the debug layer: where it started, where it
+		//	stopped (the hit, or the end of its reach), and whether it hit anything.
+		static bool		Get_Last_Pick_Ray(Vector3 * origin_out,Vector3 * end_out,bool * hit_out);
+
 		//	Returning to FPS restores camera/input to the same surviving soldier because this
 		//	class never altered anything about that soldier in the first place -- it only
 		//	stopped being the thing driving the camera.  Safe to call when already inactive.

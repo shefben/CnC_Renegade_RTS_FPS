@@ -51,6 +51,14 @@
 #include "watertype.h"
 #include "worldshroudmanager.h"
 #include "worldterrainsystem.h"
+#include "bridgesystem.h"
+#include "commandermodecontroller.h"
+#include "expansionregionregistry.h"
+#include "foliagesystem.h"
+#include "phys.h"
+#include "roadspline.h"
+#include "roadsystem.h"
+#include "worldshadowmanager.h"
 
 
 class DebugDisplaySceneObjectClass : public RenderObjClass, public IRenderComponent
@@ -507,6 +515,106 @@ static void	Draw_Tunnels(void)
 }
 
 
+/*
+**	D-001 P32.  Each of these reads its owner through read-only accessors and nothing else.
+*/
+static void	Draw_Road_Splines(void)
+{
+	static const Vector4 ROAD_COLOR (1.0f,0.6f,0.1f,0.9f);
+	for (int r = 0; r < RoadSystem::Get_Road_Count (); r++) {
+		const RoadSplineClass * road = RoadSystem::Peek_Road (r);
+		if (road == nullptr) continue;
+		for (int p = 1; p < road->Get_Point_Count (); p++) {
+			DebugRenderSystem::Add_Line (road->Get_Point (p - 1).Position + Vector3 (0.0f,0.0f,0.3f),
+												  road->Get_Point (p).Position + Vector3 (0.0f,0.0f,0.3f),ROAD_COLOR);
+		}
+	}
+}
+
+static void	Draw_Bridge_Sections(void)
+{
+	//	Green intact, yellow damaged, orange critical, red down.
+	static const Vector4 STATE_COLOR [BRIDGE_STATE_COUNT] = {
+		Vector4 (0.2f,1.0f,0.2f,0.9f),Vector4 (1.0f,1.0f,0.2f,0.9f),
+		Vector4 (1.0f,0.5f,0.1f,0.9f),Vector4 (1.0f,0.1f,0.1f,1.0f)
+	};
+	for (int b = 0; b < BridgeSystem::Get_Bridge_Count (); b++) {
+		BridgeClass * bridge = BridgeSystem::Peek_Bridge (b);
+		if (bridge == nullptr) continue;
+		for (int s = 0; s < bridge->Get_Section_Count (); s++) {
+			const BridgeSectionClass & section = bridge->Get_Section (s);
+			int state = ((section.State >= 0) && (section.State < BRIDGE_STATE_COUNT)) ? section.State : 0;
+			DebugRenderSystem::Add_Line (section.Start,section.End,STATE_COLOR [state]);
+			DebugRenderSystem::Add_Cross (section.Get_Center (),0.75f,STATE_COLOR [state]);
+		}
+	}
+}
+
+static void	Draw_Foliage_Batches(void)
+{
+	static const Vector4 SHOWN_COLOR (0.3f,0.9f,0.3f,0.7f);
+	static const Vector4 HIDDEN_COLOR (0.3f,0.4f,0.3f,0.4f);
+	for (int b = 0; b < FoliageSystem::Get_Batch_Count (); b++) {
+		const FoliageBatchClass * batch = FoliageSystem::Peek_Batch (b);
+		if ((batch == nullptr) || (batch->Phys == nullptr) || (batch->Phys->Peek_Model () == nullptr)) continue;
+		const AABoxClass & box = batch->Phys->Peek_Model ()->Get_Bounding_Box ();
+		DebugRenderSystem::Add_Box (box.Center - box.Extent,box.Center + box.Extent,
+											 batch->Visible ? SHOWN_COLOR : HIDDEN_COLOR);
+	}
+}
+
+static void	Draw_Shadow_Casters(void)
+{
+	static const Vector4 CASTER_COLOR (0.5f,0.5f,1.0f,0.8f);
+	for (int i = 0; i < WorldShadowManager::Get_Registered_Caster_Count (); i++) {
+		PhysClass * caster = WorldShadowManager::Peek_Registered_Caster (i);
+		if ((caster == nullptr) || (caster->Peek_Model () == nullptr)) continue;
+		const AABoxClass & box = caster->Peek_Model ()->Get_Bounding_Box ();
+		DebugRenderSystem::Add_Box (box.Center - box.Extent,box.Center + box.Extent,CASTER_COLOR);
+	}
+}
+
+//	Every building that resolves the named anchor role draws a cross there.
+static void	Draw_Building_Anchors(const char * role,const Vector4 & color)
+{
+	for (SLNode<BaseGameObj> * node = GameObjManager::Get_Game_Obj_List ()->Head (); node != nullptr; node = node->Next ()) {
+		ScriptableGameObj * scriptable = node->Data ()->As_ScriptableGameObj ();
+		BuildingGameObj * building = (scriptable != nullptr) ? scriptable->As_BuildingGameObj () : nullptr;
+		if (building == nullptr) continue;
+		Matrix3D anchor (1);
+		if (building->Resolve_Runtime_Anchor (role,&anchor)) {
+			DebugRenderSystem::Add_Cross (anchor.Get_Translation (),1.5f,color);
+		}
+	}
+}
+
+static void	Draw_Commander_Ray(void)
+{
+	Vector3 origin, end;
+	bool hit = false;
+	if (!CommanderModeController::Get_Last_Pick_Ray (&origin,&end,&hit)) return;
+	DebugRenderSystem::Add_Line (origin,end,hit ? Vector4 (0.2f,1.0f,1.0f,1.0f) : Vector4 (1.0f,0.2f,0.2f,0.8f));
+	if (hit) DebugRenderSystem::Add_Cross (end,2.0f,Vector4 (0.2f,1.0f,1.0f,1.0f));
+}
+
+static void	Draw_Expansion_Regions(void)
+{
+	for (int i = 0; i < ExpansionRegionRegistry::Get_Region_Count (); i++) {
+		ExpansionRegion region;
+		if (!ExpansionRegionRegistry::Get_Region (i,&region)) continue;
+		Vector4 color = (region.Team == 1) ? Vector4 (1.0f,0.85f,0.2f,0.9f) : Vector4 (1.0f,0.25f,0.25f,0.9f);
+		Vector3 last (0.0f,0.0f,0.0f);
+		for (int k = 0; k <= 24; k++) {
+			float a = (float)k * (2.0f * WWMATH_PI / 24.0f);
+			Vector3 p = region.Center + Vector3 (WWMath::Cos (a) * region.Radius,WWMath::Sin (a) * region.Radius,1.0f);
+			if (k > 0) DebugRenderSystem::Add_Line (last,p,color);
+			last = p;
+		}
+		DebugRenderSystem::Add_Cross (region.Center,3.0f,color);
+	}
+}
+
+
 void WorldDebugDisplay::Update(void)
 {
 	bool anything_on = false;
@@ -530,6 +638,38 @@ void WorldDebugDisplay::Update(void)
 
 	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_BUILDING_FOOTPRINTS)) {
 		Draw_Building_Footprints();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_ROAD_SPLINES)) {
+		Draw_Road_Splines();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_BRIDGE_SECTIONS)) {
+		Draw_Bridge_Sections();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_FOLIAGE_CELLS)) {
+		Draw_Foliage_Batches();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_SHADOW_PROJECTORS)) {
+		Draw_Shadow_Casters();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_MCT_ANCHORS)) {
+		Draw_Building_Anchors("mct_anchor",Vector4 (1.0f,0.3f,1.0f,1.0f));
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_PURCHASE_TERMINAL_ANCHORS)) {
+		Draw_Building_Anchors("purchase_terminal_anchor",Vector4 (0.3f,1.0f,1.0f,1.0f));
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_COMMANDER_CURSOR_RAY)) {
+		Draw_Commander_Ray();
+	}
+
+	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_EXPANSION_REGIONS)) {
+		Draw_Expansion_Regions();
 	}
 
 	if (DebugRenderSystem::Is_Layer_Enabled(DEBUG_LAYER_RADAR_CONTACTS)) {

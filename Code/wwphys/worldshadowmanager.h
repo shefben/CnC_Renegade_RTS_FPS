@@ -148,6 +148,9 @@ public:
 	static bool			Is_Registered_Caster(const PhysClass * obj);
 	static int			Get_Registered_Caster_Count(void);
 
+	//	Read-only, for the shadow debug layer.  Null past the end.
+	static PhysClass *	Peek_Registered_Caster(int index);		// look, do not modify
+
 	/*
 	**	Drives the registered casters.  The embedded managers are driven by their own object's
 	**	post-timestep, which is where they have always been driven from.

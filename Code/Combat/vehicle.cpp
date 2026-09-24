@@ -63,6 +63,9 @@
 #include "vtolvehicle.h"
 #include "wheelvehicle.h"
 #include "wheel.h"
+#include "crandom.h"
+#include "surfacemarktype.h"
+#include "worldsurfacemarkmanager.h"
 #include "phys3.h"
 #include "humanphys.h"
 #include "persistfactory.h"
@@ -2830,6 +2833,16 @@ void	VehicleGameObj::Apply_Damage( const OffenseObjectClass & damager, float sca
 
 		static const Vector4 WRECK_COLOR (0.35f,0.33f,0.32f,1.0f);
 		DebrisManager::Spawn (wreck_pos,wreck_radius,10,0,nullptr,WRECK_COLOR,3.5f);
+
+		//	P19: the wreck leaks onto the ground beneath it -- the one real event this engine has
+		//	for SURFACE_MARK_OIL_OR_STAIN.  oil-2 is the retail translucent oil stain decal from
+		//	always.dat.  Drawing only, so a dedicated server skips it.
+		if ( CombatManager::I_Am_Client() ) {
+			Matrix3D stain_tm;
+			stain_tm.Look_At( wreck_pos + Vector3 (0.0f,0.0f,2.0f),wreck_pos - Vector3 (0.0f,0.0f,1.0f),
+									FreeRandom.Get_Float( 0.0f,DEG_TO_RADF( 360.0f ) ) );
+			WorldSurfaceMarkManager::Create_Mark( stain_tm,"oil-2.tga",wreck_radius,SURFACE_MARK_OIL_OR_STAIN );
+		}
 	}
 
 	//

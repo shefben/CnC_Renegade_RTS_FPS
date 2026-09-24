@@ -84,6 +84,13 @@ unsigned int	WorldShadowManager::StaticResolution	= WORLD_SHADOW_DEFAULT_RESOLUT
 
 DynamicVectorClass<WorldShadowManager::ShadowSlotClass>			WorldShadowManager::Slots;
 DynamicVectorClass<WorldShadowManager::StaticShadowTexClass>	WorldShadowManager::StaticTextures;
+PhysClass * WorldShadowManager::Peek_Registered_Caster(int index)
+{
+	if ((index < 0) || (index >= Casters.Count())) return nullptr;
+	return Casters[index].Object;
+}
+
+
 DynamicVectorClass<WorldShadowManager::RegisteredCasterClass>	WorldShadowManager::Casters;
 
 uint32		WorldShadowManager::Generation		= 1;
