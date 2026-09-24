@@ -87,6 +87,8 @@
 #include "saveload.h"
 #include "ww3dids.h"
 #include "intersec.h"
+#include "mesh.h"
+#include "dx8wrapper.h"
 
 
 
@@ -1349,7 +1351,44 @@ void RenderObjClass::Load_User_Lighting (ChunkLoadClass & cload)
 		}
 
 		cload.Close_Chunk();
-		Set_Has_User_Lighting(true);
+	}
+
+	Set_User_Lighting_Flag();
+}
+
+
+void RenderObjClass::Set_User_Lighting_Flag(void)
+{
+	bool lit = false;
+
+	if (Class_ID() == CLASSID_MESH) {
+		lit = (((MeshClass *)this)->Get_User_Lighting_Array() != nullptr);
+	}
+
+	for (int i = 0; (i < Get_Num_Sub_Objects()) && !lit; i++) {
+		RenderObjClass * sub_obj = Get_Sub_Object(i);
+		if (sub_obj != nullptr) {
+			lit = (sub_obj->Has_User_Lighting() != 0);
+			REF_PTR_RELEASE(sub_obj);
+		}
+	}
+
+	Set_Has_User_Lighting(lit);
+}
+
+
+void RenderObjClass::Register_For_Rendering(void)
+{
+	if (DX8Wrapper::_Get_D3D_Device8() == nullptr) {
+		return;
+	}
+
+	for (int i = 0; i < Get_Num_Sub_Objects(); i++) {
+		RenderObjClass * sub_obj = Get_Sub_Object(i);
+		if (sub_obj != nullptr) {
+			sub_obj->Register_For_Rendering();
+			REF_PTR_RELEASE(sub_obj);
+		}
 	}
 }
 

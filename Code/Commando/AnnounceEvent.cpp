@@ -342,7 +342,9 @@ void SCAnnouncement::Import_Creation(BitStreamClass& packet)
 	packet.Get(mToID);
 	packet.Get(mFromID);
 	packet.Get(mAnnouncementID);
-	packet.Add(mRadioCmdID);
+	//	Stock called Add here, so a client never learned the radio command (no emot icon over
+	//	the sender) and read mType out of the wrong bits.  TT's "emoticons fix" byte patch.
+	packet.Get(mRadioCmdID);
 
 	BYTE type = 0;
 	packet.Get(type);

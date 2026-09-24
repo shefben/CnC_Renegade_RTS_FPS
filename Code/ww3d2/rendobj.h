@@ -401,6 +401,17 @@ public:
 	virtual int						Has_User_Lighting(void) const												{ return Bits & HAS_USER_LIGHTING; }
 	virtual void					Set_Has_User_Lighting(bool onoff)										{ if (onoff) { Bits |= HAS_USER_LIGHTING; } else { Bits &= ~HAS_USER_LIGHTING; } }
 
+	//	Sets HAS_USER_LIGHTING from what this object actually holds: a mesh's own lighting array, or
+	//	any sub-object that has one.  Run bottom-up after a vertex solve or a solve load, so a model
+	//	with nothing lit is not saved as lit.  TT 4.8.4 declared this and never defined it.
+	void								Set_User_Lighting_Flag(void);
+
+	//	Builds this object's renderer data now instead of on the first frame it is drawn, so a
+	//	model entering view does not stall that frame.  Recurses into sub-objects; a mesh registers
+	//	with the DX8 mesh renderer exactly as MeshClass::Render would.  Does nothing without a
+	//	device.  TT 4.8.4 declared this (with a static hint) and never defined it.
+	virtual void					Register_For_Rendering(void);
+
 	virtual int						Is_Translucent(void) const													{ return Bits & IS_TRANSLUCENT; }
 	virtual void					Set_Translucent(int onoff)													{ if (onoff) { Bits |= IS_TRANSLUCENT; } else { Bits &= ~IS_TRANSLUCENT; } }
 	virtual int						Get_Collision_Type(void) const											{ return (Bits & COLLISION_TYPE_MASK); }

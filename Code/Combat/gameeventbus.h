@@ -242,6 +242,10 @@ public:
 
 //
 //	A message originating from the host/console rather than from a player.
+//	Raised by the host commands msg, ppage, tpage and tmsg before they send;
+//	clearing Allow suppresses the send.  PlayerID is whom the command names:
+//	-1 for msg, the addressed player for ppage, the team (0 Nod, 1 GDI, 2 both)
+//	for tpage, and the player spoken for with tmsg.
 //
 class	HostMessageEventClass : public GameEventClass
 {

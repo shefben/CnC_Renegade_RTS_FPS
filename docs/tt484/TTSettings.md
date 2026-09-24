@@ -85,9 +85,9 @@ yet implemented.
 | `DisableVehicleFlipKill` | bool | false | a rolled-over vehicle does not self-destruct | **merged** |
 | `Unsquishable` | bool | false | infantry cannot be run over | merged (`SoldierGameObj::Is_Squishable`) |
 | `UnsquishableArmor`…`4` | int | 0 | armour types exempt from squishing | merged (`SoldierGameObj::Is_Squishable`) |
-| `NeutralVechiclePointsFix` | bool | true | points for neutral-vehicle kills | n/a -- never read in TT 4.8.4; its mechanism is the scripts team override, and canonical `Do_Damage` already scores neutrals as zero and teammates as negative |
+| `NeutralVechiclePointsFix` | bool | true | points for neutral-vehicle kills | **merged** -- gates `VehicleGameObj::Remove_Occupant` recording the emptied vehicle's team, which `DefenseObjectClass::Do_Damage` scores it by |
 | `DrawDistance` | float | 300 | camera far clip plane | merged (`ccamera.cpp`, was the literal `CCAMERA_FARZ` 300) |
-| `ScriptsLastTeamTime` | int | -1 | last-team bookkeeping for scripts | open |
+| `ScriptsLastTeamTime` | int | -1 | last-team bookkeeping for scripts | **merged** -- seconds an emptied vehicle keeps its last team; -1 until someone gets in |
 | `NukeWeatherDisable` | bool | false | suppress nuke weather effect | **merged** |
 | `IonWeatherDisable` | bool | false | suppress ion weather effect | **merged** |
 | `MapPrefix` | string | `C&C_` | map-name prefix used by map cycling | open |
@@ -207,8 +207,6 @@ same reason:
 | `RefillLimit`, `AlternateSelectEnabled`, `SidebarRefillSound`, `SidebarInfantrySound`, `SidebarVehicleSound`, the eight `*AlternateSelectTexture` entries, the background and arrow textures | All belong to TT's own `SidebarDlg`, a hotkey purchase panel superseded by the roadmap's Commander sidebar. `SidebarSoundsEnabled` is honoured on its own: it suppresses the stock purchase sound so a server's own sounds are not doubled. |
 | `ScrollingRadarMap` | Gates receiving scrolling-radar data over the scripts text channel (`SS_RADARMAP`), declined under directive 0.5. |
 | `ModRegistryKey` | Names the registry values a client sends to server plugins over the scripts text channel, declined under directive 0.5. |
-| `NeutralVechiclePointsFix` | Declared in TT 4.8.4 and never read. Its mechanism is the scripts team override, and canonical `Do_Damage` already scores a neutral target zero and a teammate negative. |
-| `ScriptsLastTeamTime` | Unconsumed, with `NeutralVechiclePointsFix`. |
 
 **The fourteen styling colours** (`TitleColor`, `TextColor`, `BkColor`,
 `LineColor`, the disabled set, the tab pair and the two title variants) are

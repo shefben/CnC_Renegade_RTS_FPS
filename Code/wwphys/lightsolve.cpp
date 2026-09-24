@@ -694,11 +694,6 @@ void LightSolveClass::Compute_Solve(LightSolveContextClass & context,StaticPhysC
 void LightSolveClass::Compute_Solve(LightSolveContextClass & context,RenderObjClass * obj,NonRefPhysListClass & light_list)
 {
 	/*
-	** Mark this render object as containing a static lighting solve
-	*/
-	obj->Set_Has_User_Lighting(true);
-
-	/*
 	** Recurse through all sub-objects
 	*/
 	WWASSERT(obj != nullptr);
@@ -720,6 +715,14 @@ void LightSolveClass::Compute_Solve(LightSolveContextClass & context,RenderObjCl
 	} else if (obj->Class_ID() == RenderObjClass::CLASSID_RENEGADE_TERRAIN) {
 		TheVertexSolver.Light_Terrain(context,(RenegadeTerrainPatchClass *)obj,light_list);
 	}
+
+	/*
+	** Mark this render object as containing a static lighting solve if, and only if, it or one
+	** of its sub-objects (already flagged above) now holds one.  Stock marked every object it
+	** visited, so a model with nothing lit -- a terrain patch keeps its solve as vertex colours,
+	** an emitter has none -- was still written to the light-solve save.
+	*/
+	obj->Set_User_Lighting_Flag();
 }
 
 bool LightSolveClass::Does_Obj_Get_Static_Light_Solve(StaticPhysClass * obj)

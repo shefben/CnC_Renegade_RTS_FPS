@@ -1648,157 +1648,6 @@ STDMETHODIMP ChatObserver::OnLogout(HRESULT result, WOL::User* inUser)
 
 
 
-/*
-** HACK. Private game options spam control.
-*/
-class PrivateGameOptionsTrackingClass
-{
-		public:
-			char UserName[256];
-			DynamicVectorClass<unsigned int> Times;
-
-			bool operator == (PrivateGameOptionsTrackingClass const &whatever);
-			bool operator != (PrivateGameOptionsTrackingClass const &whatever);
-};
-
-DynamicVectorClass<PrivateGameOptionsTrackingClass*> OptionsTracking;
-
-bool PrivateGameOptionsTrackingClass::operator == (PrivateGameOptionsTrackingClass const &whatever)
-{
-	if (stricmp(UserName, whatever.UserName) == 0) {
-		return(true);
-	}
-	return(false);
-}
-
-bool PrivateGameOptionsTrackingClass::operator != (PrivateGameOptionsTrackingClass const &whatever)
-{
-	if (stricmp(UserName, whatever.UserName) == 0) {
-		return(false);
-	}
-	return(true);
-}
-
-
-bool Is_Options_Spammer(char *user_name, int &count)
-{
-	int index = -1;
-	count = 0;
-	for (int i=0 ; i<OptionsTracking.Count() ; i++) {
-		if (stricmp(OptionsTracking[i]->UserName, user_name) == 0) {
-			index = i;
-			break;
-		}
-	}
-
-	if (index == -1) {
-
-		/*
-		** See if there are any old ones we can remove.
-		*/
-		for (int i=OptionsTracking.Count() - 1 ; i >= 0 ; i--) {
-			if (OptionsTracking[i]->Times.Count() == 0) {
-				delete OptionsTracking[i];
-				OptionsTracking.Delete(i);
-				index = i;
-				break;
-			}
-		}
-
-
-		PrivateGameOptionsTrackingClass *options = new PrivateGameOptionsTrackingClass;
-		strncpy(options->UserName, user_name, 255);
-		options->UserName[255] = 0;
-		OptionsTracking.Add(options);
-		index = OptionsTracking.Count() - 1;
-	}
-
-	unsigned int time = TIMEGETTIME();
-	OptionsTracking[index]->Times.Add(time);
-
-	unsigned int old_time = time - 4000;
-	if (old_time < time) {
-
-		/*
-		** Remove times older than 5 secs.
-		*/
-		int c = OptionsTracking[index]->Times.Count();
-		for (int i=0 ; i<c ; i++) {
-			if (OptionsTracking[index]->Times[0] < old_time) {
-				OptionsTracking[index]->Times.Delete(0);
-			} else {
-				break;
-			}
-		}
-		count = OptionsTracking[index]->Times.Count();
-
-		if (OptionsTracking[index]->Times.Count() > 16) {
-			return(true);
-		}
-
-
-	} else {
-		while (OptionsTracking.Count()) {
-			delete OptionsTracking[0];
-			OptionsTracking.Delete(0);
-		}
-	}
-
-	return(false);
-
-}
-
-
-void ChatObserver::Kick_Spammer(WOL::User *wol_user)
-{
-	/*
-	** Get the IP of the spammer.
-	*/
-	const UserList& user_list = mOuter->GetUserList();
-	const size_t count = user_list.size();
-	unsigned int ip = 0;
-
-	for (size_t index = 0; index < count; index++) {
-		const RefPtr<UserData>& user = user_list[index];
-		if (user.IsValid()) {
-			WOL::User userdata = user->GetData();
-			if (stricmp((char*)wol_user->name, (char*)userdata.name) == 0) {
-				ip = userdata.ipaddr;
-				break;
-			}
-		}
-	}
-
-	/*
-	** Ban em, ban em all.
-	*/
-	for (size_t index = 0; index < count; index++) {
-		const RefPtr<UserData>& user = user_list[index];
-		if (user.IsValid()) {
-			WOL::User userdata = user->GetData();
-			if (userdata.ipaddr == ip) {
-				WideStringClass widey((char*)userdata.name, true);
-
-				const RefPtr<LoginInfo>& login = mOuter->GetCurrentLogin();
-
-				WideStringClass myname(U_CHAR(""), true);
-				if (login.IsValid()) {
-					myname = login->GetNickname();
-				}
-				if (widey.Compare_No_Case(myname) != 0) {
-					mOuter->BanUser(widey.Peek_Buffer(), true);
-					mOuter->KickUser(widey.Peek_Buffer());
-					WWDEBUG_SAY(("WOL: '%s' banned for options spamming\n", (char*)(char*)userdata.name));
-				}
-			}
-		}
-	}
-
-	WideStringClass widey((char*)wol_user->name, true);
-	mOuter->BanUser(widey.Peek_Buffer(), true);
-	mOuter->KickUser(widey.Peek_Buffer());
-	WWDEBUG_SAY(("WOL: '%s' banned for options spamming\n", (char*)wol_user->name));
-}
 
 
 
@@ -1842,28 +1691,12 @@ STDMETHODIMP ChatObserver::OnPrivateGameOptions(HRESULT result, WOL::User* inUse
 
 	WWDEBUG_SAY(("WOL: (time %d) PrivateGameOptions from '%s' : %s\n", TIMEGETTIME(), (char*)inUser->name, options));
 
-	if (cNetwork::I_Am_Server()) {
-
-		int count = 0;
-		bool is_spammer = Is_Options_Spammer((char*)inUser->name, count);
-		bool is_rginfo = (strstr(options, "RGINFO") == nullptr) ? false : true;
-
-		if (is_spammer) {
-			if (count > 16 && count < 19) {
-				Kick_Spammer(inUser);
-			}
-		} else {
-			if (is_rginfo && count > 2) {
-				WWDEBUG_SAY(("WOL: Ignoring RGINFO from '%s' \n", (char*)inUser->name));
-			} else {
-				GameOptionsMessage gameOptions(inUser, nullptr, options, true);
-				mOuter->NotifyObservers(gameOptions);
-			}
-		}
-	} else {
-		GameOptionsMessage gameOptions(inUser, nullptr, options, true);
-		mOuter->NotifyObservers(gameOptions);
-	}
+	//	Stock rate-limited these on the host -- more than 16 from one user in four seconds banned
+	//	them, and more than two RGINFOs were dropped -- which is exactly the burst a lobby sends
+	//	when its Start button is pressed.  TT's "start button bug fix" byte patch stopped the
+	//	counting altogether; the tracker and its ban are gone.
+	GameOptionsMessage gameOptions(inUser, nullptr, options, true);
+	mOuter->NotifyObservers(gameOptions);
 
 	return S_OK;
 	}
@@ -1938,14 +1771,6 @@ STDMETHODIMP ChatObserver::OnPublicGameOptions(HRESULT result, WOL::Channel* inC
 		{
 		WWDEBUG_SAY(("WOL: PublicGameOptions [%s] from '%s': %s\n", (char*)inChannel->name, (char*)inUser->name, options));
 
-#ifdef FREEDEDICATEDSERVER
-		int count = 0;
-		if (Is_Options_Spammer((char*)inUser->name, count)) {
-			if (count > 16 && count < 19) {
-				Kick_Spammer(inUser);
-			}
-		}
-#endif
 		GameOptionsMessage gameOptions(inUser, inChannel, options, false);
 		mOuter->NotifyObservers(gameOptions);
 		}

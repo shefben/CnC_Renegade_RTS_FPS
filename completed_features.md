@@ -129,13 +129,22 @@ Not merged. A non-virtual duplicate of `Set_Object_Dirty_Bit` existing so a DLL
 hook could reach the unhooked original; nothing overrides that virtual in OpenW3D
 and directive 0.4 forbids reintroducing the hook architecture.
 
-## N/A: `RenderObjClass::Register_For_Rendering` and `Set_User_Lighting_Flag`
+## P02-RENDER: `Register_For_Rendering` and `Set_User_Lighting_Flag` implemented
 
-Deferred, not merged. Both are declaration-only with no body anywhere in the
-donor. `Register_For_Rendering(bool hint_static)` belongs to TT's renderer
-rework, and `shaders/` is excluded by directive 0.6; `Set_User_Lighting_Flag`
-is a vertex-solve helper whose "appropriately" contract is only recoverable
-alongside the static-lighting work.
+Both are declaration-only in the donor; the bodies were derived from the stock
+code they sit beside, not taken from TT.
+- `Set_User_Lighting_Flag` sets `HAS_USER_LIGHTING` bottom-up from what an object
+  holds (a mesh's lighting array, or a flagged sub-object). The vertex solve used
+  to flag every object it visited top-down, so terrain patches (which keep their
+  solve as vertex colours) and unlit models went into the light-solve save as
+  empty chunks. `LightSolveClass::Compute_Solve` and both `Load_User_Lighting`
+  paths call it now.
+- `Register_For_Rendering` does ahead of time what `MeshClass::Render` did on a
+  mesh's first visible frame: register it with the DX8 mesh renderer. It recurses
+  sub-objects and needs a device. `GameInitMgrClass` runs it over the static
+  world after the post-load renderer invalidate, behind the load screen. TT's
+  `hint_static` parameter is dropped: the DX8 renderer already picks static or
+  dynamic buffers by the skin flag, so nothing would read it.
 
 ## P02-D: TT `SoldierGameObj` additions merged with their enforcement
 
@@ -556,12 +565,21 @@ as the unpowered build multiplier), `VehicleOwnershipDisable` (skips
 vehicle's weapon away as it empties, abandoning a reload in progress).
 `9f5e3a12`.
 
-## N/A: NeutralVehiclePointsFix
+## P03-NEUTRALPOINTS: NeutralVehiclePointsFix implemented natively
 
-The flag is declared in TT 4.8.4 and never read. Its mechanism is the scripts
-team override (`SCRIPTS_LastTeam`, set by `Set_Vehicle_Team`), declined under
-directive 0.5, and canonical `Do_Damage` already awards no points for a neutral
-target and negative points for a teammate, which is TT's non-scripts path.
+TT's mechanism was an observer that set the vehicle's `LastTeam` on exit and a
+`ScriptsLastTeamTime` timer that cleared it; `DefenseObjectClass::Do_Damage`
+scored an owning vehicle through `Scripts_Is_Teammate`/`Scripts_Is_Enemy`. That
+is gameplay, not DLL plumbing, so it is merged:
+- `VehicleGameObj::Remove_Occupant`: when a multiplayer vehicle empties, it
+  remembers its team, gated on `NeutralVechiclePointsFix` (TT default true).
+- It forgets after `ScriptsLastTeamTime` seconds (TT default -1, never), or as
+  soon as anyone gets in. TT kept it through re-entry, so a stolen vehicle
+  scored as its old team; that is not reproduced.
+- `DefenseObjectClass::Do_Damage` scores a vehicle target through that team.
+  Bailing out of a dying vehicle no longer denies the attacker damage and kill
+  points.
+- The timer is saved beside `LastTeam`.
 
 ## Q-010 answered: team defaulting stays removed
 
@@ -656,11 +674,21 @@ sidebar sound and texture names belong to TT's own `SidebarDlg`, superseded by
 the roadmap's Commander sidebar. `ScrollingRadarMap` and `ModRegistryKey` only
 move data over the scripts channel.
 
-## N/A: two byte patches with no source counterpart
+## P03-BYTEPATCHES: the two source-less byte patches, mapped and merged
 
-`emoticons fix` and `start button bug fix` are raw bytes written at stock
-addresses with nothing anywhere in TT's source to explain them. Identifying
-their canonical owners would need the shipped binary, which is out of bounds.
+Disassembling the retail `Game.exe` at TT's addresses identified both.
+- **`emoticons fix` (0x004B488C).** Its target is
+  `SCAnnouncement::Import_Creation`. That called `packet.Add(mRadioCmdID)`
+  where it should have called `Get`, so clients never learned the radio command
+  (no emot icon over the sender) and read `mType` from the wrong bits. Now
+  `packet.Get` (`AnnounceEvent.cpp`).
+- **`start button bug fix` (0x004C188C, WFDS 0x004C10FC).** It jumps over the
+  timestamp `Add` and the pruning loop in the WOL `Is_Options_Spammer`, so the
+  count stays zero. The host then never bans a user for more than 16 private
+  game options in four seconds, and never drops RGINFO after two, which is the
+  burst a lobby sends when Start is pressed. The tracker and `Kick_Spammer` are
+  deleted (`WOLChatObserver.cpp`).
+- `TTHookSites.tsv` now reads 575 merged, 111 out of scope, 74 n/a.
 
 ## N/A: TT's injection scaffolding
 
@@ -705,7 +733,10 @@ the bulk of it. `8a34cec0`.
 across the 25 files) exist so a binary plugin can install a callback into a
 running exe, which directive 0.5 forbids. Natively the same notifications come
 off `GameEventBus`; see `docs/tt484/NativeEventDispatch.md`. The five `REF_DECL`
-data bindings go the same way.
+data bindings go the same way. `AddHostHook`'s channel, `HostMessage`, was
+declared but never raised. It is now raised by `msg`, `ppage`, `tpage` and
+`tmsg`, as TT's `Host_Hook` was, and a handler can veto the send. `Dialog` still
+waits on `ScriptedDialogClass`, and `RenderNotify` on the excluded shader layer.
 
 ## P04-E: a script can address one client
 

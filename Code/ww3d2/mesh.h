@@ -93,6 +93,7 @@ public:
 	virtual void					Set_Name(const char * name) override;
 	virtual int						Get_Num_Polys(void) const override;
 	virtual void					Render(RenderInfoClass & rinfo) override;
+	virtual void					Register_For_Rendering(void) override;
 	void								Render_Material_Pass(MaterialPassClass * pass,IndexBufferClass * ib);
 	virtual void					Special_Render(SpecialRenderInfoClass & rinfo) override;
 

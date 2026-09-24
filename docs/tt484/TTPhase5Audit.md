@@ -12,7 +12,7 @@ down and the row it belongs to says so too.
 
 | Table | State at the close of P05 |
 | --- | --- |
-| `TTHookSites.tsv` | 760 rows. 573 merged, 111 out of scope, 76 n/a. **No open row.** |
+| `TTHookSites.tsv` | 760 rows. 575 merged, 111 out of scope, 74 n/a (the emoticons and start-button byte patches were mapped from the retail binary and merged after P05). **No open row.** |
 | `TTScriptApiGap.tsv` | 363 rows. 338 done, 21 n/a-plugin-hook, 3 n/a-sdk-helper, 1 n/a-data-binding. **No port-engine-work row.** |
 | `tools/tt484/readiness.py` | Every in-scope donor file at `all`, no blocked call anywhere. |
 | `tools/check_script_catalog.py` | 2498 built-in scripts, no duplicate names. |

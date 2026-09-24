@@ -30,14 +30,13 @@ lives in `unstarted_features.md` or `WIP_features.md` instead.
 
 ### Items recorded N/A in `completed_features.md`
 
-18 entries.
+16 entries.
 
 | Phase | Item | Why not |
 | --- | --- | --- |
 | P00 | fetch latest `w3dhub/OpenW3D/main` (P00, roadmap Section 6) | Not applicable — user directed freezing on the present codebase (`b970f592`) and ignoring the roadmap's audited SHA. See Q-003. |
 | P01 | obtain/verify official `source-4.8.4.zip` (P01, roadmap Section 7) | Not applicable — no official archive was supplied, so "download `source-4.8.4.zip`", "verify MD5 exactly", "preserve the untouched archive", and "extract into `third_party/tt484_source_reference/`" cannot be performed. The TT donor is identified by directory contents plus `TT_VERSION 4.8f`; recorded in `docs/tt484/TTParityMatrix.md` §1. |
 | P02 | `NetworkObjectClass::Set_Object_Dirty_Bitx` | Not merged. A non-virtual duplicate of `Set_Object_Dirty_Bit` existing so a DLL hook could reach the unhooked original; nothing overrides that virtual in OpenW3D and directive 0.4 forbids reintroducing the hook architecture. |
-| P02 | `RenderObjClass::Register_For_Rendering` and `Set_User_Lighting_Flag` | Deferred, not merged. Both are declaration-only with no body anywhere in the donor. `Register_For_Rendering(bool hint_static)` belongs to TT's renderer rework, and `shaders/` is excluded by directive 0.6; `Set_User_Lighting_Flag` is a vertex-solve helper whose "appropriately" contract is only recoverable alongside the static-lighting work. |
 | P02 | TT `ExtendedNetworkObject` | Not ported. Its stated purpose is adding virtuals to `NetworkObjectClass` without changing base-class offsets -- the class-layout ABI constraint the P02 backlog lines "Do not preserve obsolete class-layout ABI constraints" and "Do not introduce external-plugin facade headers/adapters" forbid. Its one virtual went on `NetworkObjectClass` directly (see P02-G); those two constraint lines are discharged by that decision. |
 | P02 | `VehicleGameObj::Export_Occasional` / `Import_Occasional` | Superseded. The state TT carried in the occasional tier -- `CanDrive`, `AllowStealthWhileEmpty`, `CanBeStolen`, `LockTeam`, `ScriptsVisible` -- already replicates through `Export_Rare`, and `CanFire` through the frequent tier. Matrix 5.8. |
 | P02 | `BuildingGameObjDef::Dump` and `AABTreeCullSystemClass::Collect_Branch` | `Dump` is `#ifdef DDBEDIT` in TT's own header: an editor-only preset dump with no runtime behavior and no matching OpenW3D build. `Collect_Branch` is OpenW3D's existing `Collect_Objects_Recursive(AABTreeNodeClass *)` under another name. Matrix 5.8. |
@@ -46,16 +45,15 @@ lives in `unstarted_features.md` or `WIP_features.md` instead.
 | P03 | `UDP6`/`UDP7`/`UDP8` | Land in the GameSpy query-and-reporting SDK statically linked into the stock binary, which is not part of this tree and whose master server is gone. `UDP8` is not a bounds fix at all -- it forces the `;`-prefixed remote command dispatch through `vtbl+0xFC` to be skipped unconditionally. |
 | P03 | `Do not load all .mix files at startup` | Declined with reason. `WriteJump(0x0043907C, 0x00439192)` does not trim the `data/*.mix` scan -- it jumps the whole file-factory mount block because TT substitutes its own VFS. That is TT infrastructure, not a stock fix, and OpenW3D keeps its own file factory (`Code/Commando/init.cpp:766-791`). |
 | P03 | `radar fix` | The patch is inert. `Enable_Radar_Patch` re-asserts `base->Enable_Radar(base->Is_Radar_Enabled())` through a `RENEGADE_FUNCTION` bound to stock `0x006EFD00`, which opens `cmp [esi+6D7h], al / jz` on that same `IsRadarEnabled` field -- so the value is compared against itself and the setter returns. Nothing to merge. Recorded with its evidence so the row is not reopened. |
-| P03 | NeutralVehiclePointsFix | The flag is declared in TT 4.8.4 and never read. Its mechanism is the scripts team override (`SCRIPTS_LastTeam`, set by `Set_Vehicle_Team`), declined under directive 0.5, and canonical `Do_Damage` already awards no points for a neutral target and negative points for a teammate, which is TT's non-scripts path. |
 | P03 | VehicleBuildingDisable and the TT sidebar option group | `VehicleBuildingDisable` is a second production model -- per-team rather than per-factory -- selected by a flag, which directive 0.4 forbids; its `CurrentlyBuilding` state only travels over the scripts text channel, and the roadmap's Commander production model supersedes a team-wide lock. It takes the PT "building" message with it. `RefillLimit`, `AlternateSelectEnabled` and the sidebar sound and texture names belong to TT's own `SidebarDlg`, superseded by the roadmap's Commander sidebar. `ScrollingRadarMap` and `ModRegistryKey` only move data over the scripts channel. |
-| P03 | two byte patches with no source counterpart | `emoticons fix` and `start button bug fix` are raw bytes written at stock addresses with nothing anywhere in TT's source to explain them. Identifying their canonical owners would need the shipped binary, which is out of bounds. |
 | P03 | TT's injection scaffolding | The `remove call to ...` rows, `nop out WWPhys::Shutdown call`, `stop FDS from loading at startup`, `unload level hook` and TT's `Start_Application` all exist so a DLL loaded into a running exe can re-run initialisers under its own control. Natively those initialisers stay put and read the merged settings. |
-| P04 | the plugin hook family in the in-scope donor library | `AddChatHook`, `AddPlayerJoinHook`, `AddThinkHook` and nineteen more (26 calls across the 25 files) exist so a binary plugin can install a callback into a running exe, which directive 0.5 forbids. Natively the same notifications come off `GameEventBus`; see `docs/tt484/NativeEventDispatch.md`. The five `REF_DECL` data bindings go the same way. |
+| P04 | the plugin hook family in the in-scope donor library | `AddChatHook`, `AddPlayerJoinHook`, `AddThinkHook` and nineteen more (26 calls across the 25 files) exist so a binary plugin can install a callback into a running exe, which directive 0.5 forbids. Natively the same notifications come off `GameEventBus`; see `docs/tt484/NativeEventDispatch.md`. The five `REF_DECL` data bindings go the same way. `AddHostHook`'s channel, `HostMessage`, was declared but never raised. It is now raised by `msg`, `ppage`, `tpage` and `tmsg`, as TT's `Host_Hook` was, and a handler can veto the send. `Dialog` still waits on `ScriptedDialogClass`, and `RenderNotify` on the excluded shader layer. |
 | P04 | controller behavior where supported. | There is no controller support in this tree to have broken -- `tt/Input.h` declares no member `Code/Combat/input.h` lacks, and DirectInput is declined on the roadmap's own instruction. Section 12 asks for controller behavior *where supported*; it is not supported. |
+| P40 | building card icons -- art exists, only packaging remains | The `docs/assets/CommanderSidebar.md` entry asking for building icons is closed as authored: 33 faction-named icons exist at `models/building images/purchase_images_2/tga/`. What remains is packaging them onto the asset manager's search path and resizing them to PT-card dimensions, which is a content-pipeline step and is recorded in `gameplay-gaps.md`, not an engine gap. |
 
 ### 4.8.4 patch sites not merged
 
-Of 760 hook sites in `docs/tt484/TTHookSites.tsv`, 76 were declined with a reason (`n/a`) and 111 are out of scope under a standing rule (`out-of-scope`). Grouped by what the site was for:
+Of 760 hook sites in `docs/tt484/TTHookSites.tsv`, 74 were declined with a reason (`n/a`) and 111 are out of scope under a standing rule (`out-of-scope`). Grouped by what the site was for:
 
 | Disposition | What the sites did | Sites | Donor files |
 | --- | --- | --- | --- |
@@ -74,7 +72,6 @@ Of 760 hook sites in `docs/tt484/TTHookSites.tsv`, 76 were declined with a reaso
 | n/a | vehicle game obj visible change | 2 | `tt_4.8.4/tt/tt.cpp` |
 | n/a | "purchase terminal ""building"" message change" | 1 | `tt_4.8.4/tt/tt.cpp` |
 | n/a | disable quickmatch | 1 | `tt_4.8.4/tt/tt.cpp` |
-| n/a | emoticons fix | 1 | `tt_4.8.4/tt/tt.cpp` |
 | n/a | hook DX8Wrapper::Shutdown | 1 | `tt_4.8.4/tt/tt.cpp` |
 | n/a | hook to allow you to select a favorite server | 1 | `tt_4.8.4/tt/tt.cpp` |
 | n/a | hooks for AutoPoolClass bits | 1 | `tt_4.8.4/tt/tt.cpp` |
@@ -86,7 +83,6 @@ Of 760 hook sites in `docs/tt484/TTHookSites.tsv`, 76 were declined with a reaso
 | n/a | remove call to cGameData::Onetime_Init | 1 | `tt_4.8.4/ttinit/ttinit.cpp` |
 | n/a | remove calls to ToolTipMgrClass::Initialize and MenuDialogClass::Initialize | 1 | `tt_4.8.4/ttinit/ttinit.cpp` |
 | n/a | spawner randomness fix | 1 | `tt_4.8.4/tt/tt.cpp` |
-| n/a | start button bug fix | 1 | `tt_4.8.4/tt/tt.cpp` |
 | n/a | stop FDS from loading at startup | 1 | `tt_4.8.4/tt/tt.cpp` |
 | n/a | unload level hook | 1 | `tt_4.8.4/tt/tt.cpp` |
 | out-of-scope | HUD hooks | 19 | `tt_4.8.4/ttinit/shaderhooks.cpp` |

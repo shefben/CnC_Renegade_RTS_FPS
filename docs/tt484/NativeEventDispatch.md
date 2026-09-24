@@ -46,7 +46,7 @@ client-only.
 
 ## 2. Events and their canonical owners
 
-Thirty channels. Twenty-seven are raised from a canonical owner; three are
+Thirty channels. Twenty-eight are raised from a canonical owner; two are
 declared but not yet raised, for the reasons given in §3.
 
 | Family | Event | Raised from |
@@ -60,7 +60,7 @@ declared but not yet raised, for the reasons given in §3.
 | | `PlayerLeave` | `cPlayerManager::Remove` |
 | connection acceptance | `ConnectionAccept` | `cNetwork::Application_Acceptance_Handler` |
 | chat | `Chat` | `cCsTextObj::Act` |
-| | `HostMessage` | *(declared; see §3)* |
+| | `HostMessage` | the `msg`, `ppage`, `tpage` and `tmsg` console commands, before sending |
 | radio | `Radio` | `CSAnnouncement::Act` |
 | host/server lifecycle | `ServerStartup` | `cNetwork::Init_Server` |
 | | `ServerShutdown` | `cNetwork::Cleanup_Server` |
@@ -125,7 +125,6 @@ own them is already scheduled; nothing fakes an emitter for them.
 | --- | --- |
 | `Dialog` | `ScriptedDialogClass`, which OpenW3D does not have. Matrix §5.8 assigns its 17 declaration rows to Phase 5. |
 | `RenderNotify` | The shader layer, excluded by directive 0.6. The 104 `ttinit/shaderhooks.cpp` sites are out of scope. |
-| `HostMessage` | Console-originated chat. Reaches `cScTextObj` directly rather than through `cCsTextObj::Act`; folded in with the console-command merge. |
 
 ---
 

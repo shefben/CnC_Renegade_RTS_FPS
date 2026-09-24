@@ -24,6 +24,7 @@
 #include "c4.h"
 #include "cnetwork.h"
 #include "gamedata.h"
+#include "gameeventbus.h"
 #include "gameobjmanager.h"
 #include "player.h"
 #include "playermanager.h"
@@ -576,7 +577,9 @@ public:
 			return ;
 		}
 
-		Send_Private_Text (player_id, tail, false, HOST_TEXT_SENDER);
+		if (GameEventBus::Raise_Host_Message (player_id, TEXT_MESSAGE_PRIVATE, tail)) {
+			Send_Private_Text (player_id, tail, false, HOST_TEXT_SENDER);
+		}
 	}
 };
 
@@ -612,8 +615,11 @@ public:
 			return ;
 		}
 
-		TextVisitContext context = { tail, HOST_TEXT_SENDER };
-		For_Each_Player (atoi (head), Visit_Send_Text, &context);
+		int team = atoi (head);
+		if (GameEventBus::Raise_Host_Message (team, TEXT_MESSAGE_TEAM, tail)) {
+			TextVisitContext context = { tail, HOST_TEXT_SENDER };
+			For_Each_Player (team, Visit_Send_Text, &context);
+		}
 	}
 };
 
@@ -639,6 +645,10 @@ public:
 		int		player_id	= atoi (head);
 		cPlayer *	player		= Find_Player (player_id);
 		if (player == nullptr) {
+			return ;
+		}
+
+		if (!GameEventBus::Raise_Host_Message (player_id, TEXT_MESSAGE_TMSG, tail)) {
 			return ;
 		}
 

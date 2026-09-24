@@ -243,6 +243,19 @@ GameInitMgrClass::Start_Game (const char *map_name, int teamChoice, unsigned int
 	TheDX8MeshRenderer.Invalidate ();
 
 	//
+	//	Build the static world's renderer data now, behind the load screen, instead of on the
+	//	first frame each piece comes into view.  After the invalidate above, which throws away
+	//	whatever the load registered before the light solve was installed.
+	//
+	RefPhysListIterator static_it = PhysicsSceneClass::Get_Instance()->Get_Static_Object_Iterator ();
+	for (static_it.First (); !static_it.Is_Done (); static_it.Next ()) {
+		RenderObjClass *model = static_it.Peek_Obj ()->Peek_Model ();
+		if (model != nullptr) {
+			model->Register_For_Rendering ();
+		}
+	}
+
+	//
 	// Prevent the first couple frames from rendering, so that all textures get cached.
 	//
 	GameModeManager::Hide_Render_Frames (2);

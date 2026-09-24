@@ -940,8 +940,9 @@ filter on `dest_confidence` / `confidence` rather than re-deriving them.
 Roadmap Section 11's acceptance is that this matrix carries no `UNREVIEWED` or
 unexplained `MISSING` entry. It does not.
 
-- `TTHookSites.tsv`: 760 rows, **no open row** (573 merged, 111 out of scope,
-  76 n/a). The last two -- the C4/repair-bay arc fix and TT's ghost/DEFAULT
+- `TTHookSites.tsv`: 760 rows, **no open row** (575 merged, 111 out of scope,
+  74 n/a). The emoticons and start-button byte patches were mapped from the retail
+  binary and merged after P05. Before them, the last two -- the C4/repair-bay arc fix and TT's ghost/DEFAULT
   collision change -- were merged in P05.
 - `TTScriptApiGap.tsv`: **no `port-engine-work` row** (338 done, 25 n/a).
   `Do_Objectives_Dlg`, the last one, is now

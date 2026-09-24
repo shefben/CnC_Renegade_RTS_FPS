@@ -444,10 +444,12 @@ public:
 	bool					Is_Immovable( void )						{ return Peek_Physical_Object()->Is_Immovable(); }
 
 	//
-	//	Team a script has forced this vehicle to be treated as belonging to.
-	//	LOCK_TEAM_NONE means "use the real player type".
+	//	Team this vehicle is treated as belonging to for scoring and scripts.
+	//	SCRIPTS_TEAM_UNSET means "use the real player type".  Remove_Occupant
+	//	sets it to the last occupant's team when the vehicle empties, for
+	//	tt.ini ScriptsLastTeamTime seconds (negative: until someone gets in).
 	//
-	void					Set_Scripts_Last_Team( char team )	{ LastTeam = team; }
+	void					Set_Scripts_Last_Team( char team )	{ LastTeam = team; LastTeamTimer = -1.0f; }
 	int					Scripts_Get_Team( void ) const;
 	bool					Scripts_Is_Enemy( DamageableGameObj *obj );
 	bool					Scripts_Is_Teammate( const DamageableGameObj *obj );
@@ -534,6 +536,7 @@ protected:
 	bool						DamageMeshesNetworkUpdate;	// ... and tell the clients to do the same
 	char						LockTeam;
 	char						LastTeam;						// PLAYERTYPE, or SCRIPTS_TEAM_UNSET
+	float						LastTeamTimer;					// seconds until LastTeam lapses; negative never
 	GameObjReference		Owner;							// Only this soldier may enter
 	GameObjReference		Claimant;						// and this one says it is theirs
 

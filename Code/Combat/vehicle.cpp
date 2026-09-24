@@ -480,6 +480,7 @@ VehicleGameObj::VehicleGameObj()	:
 	DamageMeshesNetworkUpdate( false ),
 	LockTeam( LOCK_TEAM_ANY ),
 	LastTeam( SCRIPTS_TEAM_UNSET ),
+	LastTeamTimer( -1.0f ),
 	SubsystemRetreating( false ),
 	SubsystemPeakSpeed( 0.0f )
 {
@@ -604,6 +605,7 @@ enum	{
 	MICROCHUNKID_CAN_BE_STOLEN,
 	MICROCHUNKID_LOCK_TEAM,
 	MICROCHUNKID_LAST_TEAM,
+	MICROCHUNKID_LAST_TEAM_TIMER,
 };
 
 bool	VehicleGameObj::Save( ChunkSaveClass & csave )
@@ -629,6 +631,7 @@ bool	VehicleGameObj::Save( ChunkSaveClass & csave )
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_CAN_BE_STOLEN, CanBeStolen );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_LOCK_TEAM, LockTeam );
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_LAST_TEAM, LastTeam );
+		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_LAST_TEAM_TIMER, LastTeamTimer );
 		int num_seats = SeatOccupants.Length();
 		WRITE_MICRO_CHUNK( csave, MICROCHUNKID_NUM_SEATS, num_seats );
 	csave.End_Chunk();
@@ -673,6 +676,7 @@ bool	VehicleGameObj::Load( ChunkLoadClass &cload )
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_CAN_BE_STOLEN, CanBeStolen );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_LOCK_TEAM, LockTeam );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_LAST_TEAM, LastTeam );
+						READ_MICRO_CHUNK( cload, MICROCHUNKID_LAST_TEAM_TIMER, LastTeamTimer );
 						READ_MICRO_CHUNK( cload, MICROCHUNKID_NUM_SEATS, num_seats );
 
 						default:
@@ -1957,6 +1961,15 @@ void	VehicleGameObj::Think( void )
 
 	Update_Wheel_Effects();
 
+	//	The last occupant's team lapses after tt.ini ScriptsLastTeamTime.  See Remove_Occupant.
+	if ( LastTeamTimer > 0.0f ) {
+		LastTeamTimer -= TimeManager::Get_Frame_Seconds();
+		if ( LastTeamTimer <= 0.0f ) {
+			LastTeam = SCRIPTS_TEAM_UNSET;
+			LastTeamTimer = -1.0f;
+		}
+	}
+
 	// Update the lock status
 	if (LockTimer > 0.0f) {
 		LockTimer -= TimeManager::Get_Frame_Seconds();
@@ -2420,6 +2433,12 @@ void	VehicleGameObj::Add_Occupant( SoldierGameObj * occupant, int seat_id )
 		Debug_Say(( "Adding to extra seat %d\n", seat_id ));
 	}
 
+	//
+	//	Whoever gets in decides the team from now on.  See Remove_Occupant.
+	//
+	LastTeam = SCRIPTS_TEAM_UNSET;
+	LastTeamTimer = -1.0f;
+
 	SeatOccupants[seat_id] = occupant;
 	OccupiedSeats++;
 	Set_Object_Dirty_Bit( NetworkObjectClass::BIT_RARE, true );
@@ -2506,6 +2525,22 @@ void	VehicleGameObj::Remove_Occupant( SoldierGameObj * occupant )
 
 	// in MP, empty vehicles are neutral
 	if ( !IS_MISSION && OccupiedSeats == 0 ) {
+
+		//
+		//	...but they are scored as the team that just left them (TT's
+		//	NeutralVechiclePointsFix), so bailing out of a dying vehicle does not
+		//	deny the attacker the kill.  tt.ini ScriptsLastTeamTime bounds how long
+		//	that lasts; TT's -1 default means until someone else gets in.
+		//
+		if ( TTSettingsClass::NeutralVehiclePointsFix && Is_Team_Player() ) {
+			LastTeam = (char)Get_Player_Type();
+			LastTeamTimer = (TTSettingsClass::ScriptsLastTeamTime >= 0) ? (float)TTSettingsClass::ScriptsLastTeamTime : -1.0f;
+			if ( LastTeamTimer == 0.0f ) {
+				LastTeam = SCRIPTS_TEAM_UNSET;
+				LastTeamTimer = -1.0f;
+			}
+		}
+
 		Set_Player_Type( PLAYERTYPE_NEUTRAL );
 	}
 

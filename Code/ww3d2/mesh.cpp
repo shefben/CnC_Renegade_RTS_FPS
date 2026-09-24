@@ -736,8 +736,7 @@ void MeshClass::Render(RenderInfoClass & rinfo)
 			** If this mesh model has never been rendered, we need to generate the DX8 datastructures
 			*/
 			if (PolygonRendererList.Is_Empty()) {
-				Model->Register_For_Rendering();
-				TheDX8MeshRenderer.Register_Mesh_Type(this);
+				MeshClass::Register_For_Rendering();
 			}
 
 			/*
@@ -1509,6 +1508,14 @@ void MeshClass::Set_Sort_Level(int level)
 	}
 }
 
+void MeshClass::Register_For_Rendering(void)
+{
+	if (PolygonRendererList.Is_Empty() && (DX8Wrapper::_Get_D3D_Device8() != nullptr)) {
+		Model->Register_For_Rendering();
+		TheDX8MeshRenderer.Register_Mesh_Type(this);
+	}
+}
+
 unsigned int * MeshClass::Get_User_Lighting_Array(bool alloc)
 {
 	if (alloc && (UserLighting == nullptr)) {
@@ -1685,7 +1692,7 @@ void MeshClass::Load_User_Lighting (ChunkLoadClass & cload)
 		cload.Close_Chunk();
 	}
 
-	Set_Has_User_Lighting(true);
+	Set_User_Lighting_Flag();
 }
 
 

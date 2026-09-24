@@ -106,6 +106,7 @@
 #include "gameobjmanager.h"
 #include "surfaceeffects.h"
 #include "gamedata.h"
+#include "gameeventbus.h"
 #include "damage.h"
 #include "radar.h"
 #include "assets.h"
@@ -6087,9 +6088,11 @@ public:
 	virtual	void Activate( const char * input ) override {
 		WWASSERT(input != nullptr);
 		if (cNetwork::I_Am_Server() && ::strlen(input) > 0) {
-			WideStringClass widestring(input, true);
-			cScTextObj *event_obj = new cScTextObj;
-			event_obj->Init(widestring, TEXT_MESSAGE_PUBLIC, false, HOST_TEXT_SENDER, -1);
+			if (GameEventBus::Raise_Host_Message(-1, TEXT_MESSAGE_PUBLIC, input)) {
+				WideStringClass widestring(input, true);
+				cScTextObj *event_obj = new cScTextObj;
+				event_obj->Init(widestring, TEXT_MESSAGE_PUBLIC, false, HOST_TEXT_SENDER, -1);
+			}
 		} else {
 			Print(Get_Help());
 		}

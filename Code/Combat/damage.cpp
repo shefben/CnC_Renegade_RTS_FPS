@@ -46,6 +46,7 @@
 #include "wwpacket.h"
 #include "playerdata.h"
 #include "soldier.h"
+#include "vehicle.h"
 #include "weapons.h"
 #include "diaglog.h"
 #include "playertype.h"
@@ -1027,7 +1028,18 @@ float	DefenseObjectClass::Do_Damage( const OffenseObjectClass & offense, float s
 
 		// If same team, make the points negative
 
-		if ( Get_Owner() ) {
+		//	A vehicle is judged by the team that last drove it while it stands empty
+		//	(TT's NeutralVechiclePointsFix; see VehicleGameObj::Remove_Occupant), so
+		//	bailing out of a dying vehicle no longer denies its attacker the points.
+		VehicleGameObj *vehicle = (Get_Owner() != nullptr) ? Get_Owner()->As_VehicleGameObj() : nullptr;
+		if ( vehicle != nullptr ) {
+			if ( vehicle->Scripts_Is_Teammate( smart ) ) {
+				points_dir = -1;
+			} else if ( !vehicle->Scripts_Is_Enemy( smart ) ) {
+				// No points for neutrals
+				points_dir = 0;
+			}
+		} else if ( Get_Owner() ) {
 			if ( smart->Is_Teammate( Get_Owner() ) ) {
 				points_dir = -1;
 			} else if ( !smart->Is_Enemy( Get_Owner() ) ) {

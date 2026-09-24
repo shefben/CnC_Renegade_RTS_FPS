@@ -172,7 +172,6 @@ class ChatObserver :
 
 		void AssignSquadToUsers(const UserList& users, const RefPtr<SquadData>& squad);
 		void ProcessSquadRequest(const RefPtr<SquadData>& squad);
-		void Kick_Spammer(WOL::User *wol_user);
 
 
 	private:
