@@ -138,6 +138,9 @@ enum
 	//	Roadmap Section 42 -- the Commander's per-building power panel.
 	APPPACKETTYPE_COMMANDERPOWEREVENT,
 
+	//	D-001 priority 3 -- procedural world synchronisation.
+	APPPACKETTYPE_WORLDSYNCEVENT,
+
 	//
 	// Summation
 	//

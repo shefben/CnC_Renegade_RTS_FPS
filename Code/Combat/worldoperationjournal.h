@@ -136,6 +136,10 @@ public:
 	static bool		Is_Open(void)	{ return Open; }
 
 	static unsigned int	Get_Revision(void)			{ return Revision; }
+
+	//	The revision the base heights stand at -- where the operation log starts.  1 after Begin,
+	//	the then-current revision after Rebase.  A peer replaying the log from the base starts here.
+	static unsigned int	Get_Base_Revision(void)		{ return BaseRevision; }
 	static unsigned int	Get_Next_Operation_Id(void)	{ return NextOperationId; }
 
 	/*
@@ -245,6 +249,14 @@ public:
 	static void		Set_Max_Reclaimable_Depth(float depth);
 	static float	Get_Max_Reclaimable_Depth(void);
 
+	/*
+	**	Told about every operation Submit appends, after the append, with the record as stored
+	**	(its OperationId assigned) and the result.  One listener: WorldSyncTransport, which
+	**	broadcasts the server's operations to its clients in exactly this order.  Null clears it.
+	*/
+	typedef void (*CommitListener)(const WorldOperationClass & recorded,const WorldOperationApplyResult & result);
+	static void		Set_Commit_Listener(CommitListener listener);
+
 	//	Bookkeeping a caller can observe rather than infer.
 	static int		Get_Applied_Count(void);
 	static int		Get_Rejected_Count(void);
@@ -267,7 +279,9 @@ private:
 	static bool		Restore_Base_Heights(void);
 
 	static bool			Open;
+	static CommitListener	Listener;
 	static unsigned int	Revision;
+	static unsigned int	BaseRevision;
 	static unsigned int	NextOperationId;
 
 	static int			AppliedCount;

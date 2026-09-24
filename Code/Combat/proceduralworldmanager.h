@@ -92,6 +92,17 @@ class ProceduralWorldManager
 		*/
 		static bool		Request_World(unsigned int seed,const char * profile_path,StringClass * error_out);
 
+		/*
+		**	A client's request for the world its server already built: that exact seed, one
+		**	attempt, and the result accepted whatever its connectivity -- the server has already
+		**	decided which attempt stands, and a retry here would pick a different seed and build a
+		**	different world.  Cleared by Clear_Request like any other request.
+		*/
+		static bool		Request_World_Exact(unsigned int seed,const char * profile_path,StringClass * error_out);
+
+		//	The profile the current request (and so the active world) was built from.
+		static const char *	Get_Profile_Path(void)	{ return RequestedProfilePath.Peek_Buffer (); }
+
 		//	Drop any outstanding request.  The next level load is an ordinary one.
 		static void		Clear_Request(void);
 
@@ -256,6 +267,7 @@ class ProceduralWorldManager
 		static const int	MAX_WORLD_GENERATION_ATTEMPTS = 3;
 
 		static bool		Requested;
+		static bool		RequestedExact;
 		static bool		WorldActive;
 
 		static unsigned int		RequestedSeed;

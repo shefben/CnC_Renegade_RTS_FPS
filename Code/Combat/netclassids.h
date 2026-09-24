@@ -120,6 +120,9 @@ enum
 
 	//	Roadmap Section 42 -- the Commander's per-building power panel.
 	NETCLASSID_COMMANDERPOWEREVENT,
+
+	//	D-001 priority 3 -- procedural world identity, late join, live operations and repair.
+	NETCLASSID_WORLDSYNCEVENT,
 };
 
 

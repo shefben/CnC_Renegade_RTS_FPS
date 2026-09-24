@@ -18,6 +18,7 @@
 #include "worldoperationjournal.h"
 #include "worldsnapshot.h"
 #include "worldsyncservice.h"
+#include "worldsynctransport.h"
 #include "bridgeplanner.h"
 #include "bridgesection.h"
 #include "bridgesystem.h"
@@ -8591,6 +8592,314 @@ void	Check_World_Sync (void)
 	WorldBoundsService::Shutdown ();
 }
 
+/***********************************************************************************************
+ * Check_World_Sync_Transport -- D-001 priority 3                                                *
+ *                                                                                               *
+ *	The transport end to end, with the network replaced by a capturing sender and nothing else.  *
+ *	The server builds its real join package and live operation into fragments; the world is      *
+ *	thrown away and regenerated exactly as a client would; and those same fragments, fed back    *
+ *	through Receive_Fragment in the client role, rebuild the server's world to the byte.  What    *
+ *	this cannot prove is two processes and a socket -- that is the live gate.                    *
+ *=============================================================================================*/
+struct CapturedFragment
+{
+	int					Destination;
+	WorldSyncFragment	Fragment;
+};
+
+static CapturedFragment	_Captured [512];
+static int					_CapturedCount = 0;
+
+static void	Capture_Fragment (int destination,const WorldSyncFragment & fragment)
+{
+	if (_CapturedCount < (int)(sizeof (_Captured) / sizeof (_Captured [0]))) {
+		_Captured [_CapturedCount].Destination	= destination;
+		_Captured [_CapturedCount].Fragment		= fragment;
+		_CapturedCount++;
+	}
+}
+
+//	The kinds of the whole messages in [first, _CapturedCount), in order, one per message id.
+static int	Captured_Message_Kinds (int first,int * kinds_out,int max_kinds)
+{
+	int count = 0;
+	unsigned int last_id = 0;
+	for (int i = first; (i < _CapturedCount) && (count < max_kinds); i++) {
+		if (_Captured [i].Fragment.MessageId == last_id) continue;
+		last_id = _Captured [i].Fragment.MessageId;
+		kinds_out [count++] = _Captured [i].Fragment.Kind;
+	}
+	return count;
+}
+
+void	Check_World_Sync_Transport (void)
+{
+	bool was_server = CombatManager::I_Am_Server ();
+	bool was_client = CombatManager::I_Am_Client ();
+
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	WaterSystem::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	NavMeshGenerator::Init ();
+	GeneratedWorldPlacementRules::Init ();
+	WorldOperationJournal::Init ();
+	WorldSnapshotService::Init ();
+	WorldSyncService::Init ();
+	WorldSyncTransport::Init ();
+
+	//	Identity: what a client needs to regenerate the server's world, and a refusal of anything
+	//	that is not exactly that.
+	{
+		unsigned char buffer [256];
+		int used = WorldSyncTransport::Build_Identity_Payload (12345u,"data/procedural_world/small.json",
+																				 buffer,sizeof (buffer));
+		unsigned int seed = 0, generator = 0;
+		StringClass path ("");
+		Check (used > 0 && WorldSyncTransport::Parse_Identity_Payload (buffer,used,&seed,&path,&generator),
+				 "a world identity did not survive its own round trip");
+		Check (seed == 12345u && path == "data/procedural_world/small.json" &&
+				 generator == (unsigned int)ProceduralWorldProfile::CURRENT_GENERATOR_VERSION,
+				 "a world identity came back as seed %u, profile '%s', generator %u",seed,path.Peek_Buffer (),generator);
+		Check (!WorldSyncTransport::Parse_Identity_Payload (buffer,used - 1,&seed,&path,&generator),
+				 "a truncated world identity was accepted");
+		Check (WorldSyncTransport::Build_Identity_Payload (1u,"x",buffer,4) == 0,
+				 "a world identity was written into a buffer too small for it");
+	}
+
+	//	Nothing is sent without a network: the message is dropped and counted.
+	Check (WorldSyncTransport::Send_Message (WSYNC_TO_SERVER,WSYNC_MSG_IDENTITY_REQUEST,nullptr,0) == 0 &&
+			 WorldSyncTransport::Get_Messages_Dropped () == 1,"a message with no sender installed was not dropped");
+
+	static const int   PATCHES		= 4;
+	static const float CELL_SIZE	= 4.0f;
+	static const float SLOPE		= 10.0f;
+	static const Vector3 ORIGIN (-128.0f,-128.0f,0.0f);
+
+	//
+	//	The server.
+	//
+	CombatManager::Set_I_Am_Server (true);
+	CombatManager::Set_I_Am_Client (false);
+	_CapturedCount = 0;
+	WorldSyncTransport::Set_Sender (Capture_Fragment);
+
+	Build_Uniform_Ramp_Terrain (PATCHES,CELL_SIZE,SLOPE,ORIGIN);
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+	{
+		StringClass error ("");
+		Check (WorldOperationJournal::Begin (&error),"the server journal failed to open: %s",error.Peek_Buffer ());
+	}
+
+	WorldOperationClass crater;
+	crater.Type			= WORLD_OP_CREATE_CRATER;
+	crater.BaseRevision	= WorldOperationJournal::Get_Revision ();
+	crater.Center		= Vector3 (0.0f,0.0f,0.0f);
+	crater.Radius		= 6.0f;
+	crater.Depth		= 2.0f;
+	crater.TimeSeconds	= 10.0f;
+	Check (WorldOperationJournal::Submit (crater).Is_Applied (),"the crater this check depends on was refused");
+	Check (_CapturedCount == 0,"an operation was broadcast with no client joined");
+
+	//	Client 7 asks to join and receives the package: handshake, the operation, the end marker.
+	{
+		WorldSyncFragment request;
+		request.MessageId = 1;
+		request.Kind = WSYNC_MSG_JOIN_REQUEST;
+		request.Index = 0;
+		request.Count = 1;
+		request.Bytes = 0;
+		WorldSyncTransport::Receive_Fragment (7,request);
+	}
+
+	int kinds [32];
+	int kind_count = Captured_Message_Kinds (0,kinds,32);
+	Check (kind_count == 3 && kinds [0] == WSYNC_MSG_HANDSHAKE && kinds [1] == WSYNC_MSG_JOIN_OPERATION &&
+			 kinds [2] == WSYNC_MSG_JOIN_END,
+			 "the join package was %d messages, not handshake / operation / end",kind_count);
+	for (int i = 0; i < _CapturedCount; i++) {
+		Check (_Captured [i].Destination == 7,"a join package fragment went to %d, not the client that asked",
+				 _Captured [i].Destination);
+	}
+	Check (WorldSyncTransport::Is_Client_Synchronised (7),"a client sent its package was not put on the live stream");
+
+	//	A live operation reaches the joined client, numbered after the package.
+	int package_fragments = _CapturedCount;
+	WorldOperationClass raise;
+	raise.Type			= WORLD_OP_RAISE;
+	raise.BaseRevision	= WorldOperationJournal::Get_Revision ();
+	raise.Center		= Vector3 (60.0f,60.0f,0.0f);
+	raise.Radius		= 10.0f;
+	raise.Depth			= 3.0f;
+	raise.TimeSeconds	= 11.0f;
+	Check (WorldOperationJournal::Submit (raise).Is_Applied (),"the raise this check depends on was refused");
+	Check (_CapturedCount == package_fragments + 1 &&
+			 _Captured [package_fragments].Fragment.Kind == WSYNC_MSG_LIVE_OPERATION &&
+			 _Captured [package_fragments].Destination == 7,
+			 "the committed operation was not broadcast to the joined client");
+
+	unsigned int server_world = 0;
+	Check (WorldSnapshotService::Compute_World_Checksum (&server_world),"the server world has no checksum");
+
+	//	Keep what the server sent client 7, in order: that is the whole wire.
+	static CapturedFragment server_stream [512];
+	int server_stream_count = _CapturedCount;
+	for (int i = 0; i < server_stream_count; i++) server_stream [i] = _Captured [i];
+
+	//	A long failure report from client 9, split across fragments that arrive out of order and
+	//	once twice, is reassembled into exactly one message -- and takes 9 off the live stream.
+	{
+		WorldSyncFragment request;
+		request.MessageId = 2;
+		request.Kind = WSYNC_MSG_JOIN_REQUEST;
+		request.Count = 1;
+		WorldSyncTransport::Receive_Fragment (9,request);
+		Check (WorldSyncTransport::Is_Client_Synchronised (9),"client 9 was not joined");
+
+		unsigned char report [900];
+		report [0] = 0xFF; report [1] = 0xFF; report [2] = 0xFF; report [3] = 0xFF;	// -1: failed
+		for (int i = 4; i < (int)sizeof (report); i++) report [i] = (unsigned char)('a' + (i % 26));
+
+		WorldSyncFragment pieces [3];
+		for (int p = 0; p < 3; p++) {
+			pieces [p].MessageId	= 77;
+			pieces [p].Kind		= WSYNC_MSG_RESULT;
+			pieces [p].Index		= p;
+			pieces [p].Count		= 3;
+			int offset = p * WorldSyncFragment::MAX_PAYLOAD;
+			int size = (int)sizeof (report) - offset;
+			if (size > WorldSyncFragment::MAX_PAYLOAD) size = WorldSyncFragment::MAX_PAYLOAD;
+			pieces [p].Bytes = size;
+			::memcpy (pieces [p].Payload,report + offset,size);
+		}
+
+		int received_before = WorldSyncTransport::Get_Messages_Received ();
+		WorldSyncTransport::Receive_Fragment (9,pieces [2]);
+		WorldSyncTransport::Receive_Fragment (9,pieces [0]);
+		WorldSyncTransport::Receive_Fragment (9,pieces [0]);
+		Check (WorldSyncTransport::Is_Client_Synchronised (9),"a message was dispatched before its last fragment");
+		WorldSyncTransport::Receive_Fragment (9,pieces [1]);
+		Check (WorldSyncTransport::Get_Messages_Received () == received_before + 1,
+				 "three fragments, one duplicated, made %d messages, not 1",
+				 WorldSyncTransport::Get_Messages_Received () - received_before);
+		Check (!WorldSyncTransport::Is_Client_Synchronised (9),"a client that reported failure stayed on the live stream");
+		Check (WorldSyncTransport::Is_Client_Synchronised (7),"another client's failure took client 7 off the stream");
+	}
+
+	//
+	//	The client: the same baseline regenerated, then only what arrived on the wire.
+	//
+	WorldOperationJournal::Close ();
+	WorldTerrainSystem::Destroy_Terrain ();
+	Build_Uniform_Ramp_Terrain (PATCHES,CELL_SIZE,SLOPE,ORIGIN);
+	WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+
+	CombatManager::Set_I_Am_Server (false);
+	CombatManager::Set_I_Am_Client (true);
+	WorldSyncTransport::Init ();
+	_CapturedCount = 0;
+	WorldSyncTransport::Set_Sender (Capture_Fragment);
+
+	WorldSyncTransport::Client_Join_Generated_World ();
+	Check (_CapturedCount == 1 && _Captured [0].Fragment.Kind == WSYNC_MSG_JOIN_REQUEST &&
+			 _Captured [0].Destination == WSYNC_TO_SERVER,"the regenerated client did not ask the server to join");
+	Check (WorldSyncTransport::Get_Client_Phase () == WSYNC_CLIENT_JOINING,"the client is not joining");
+
+	for (int i = 0; i < server_stream_count; i++) {
+		WorldSyncTransport::Receive_Fragment (0,server_stream [i].Fragment);
+	}
+
+	Check (WorldSyncTransport::Get_Client_Phase () == WSYNC_CLIENT_SYNCHRONISED,
+			 "the client ended the stream %s (%s)",
+			 WorldSyncTransport::Get_Client_Phase_Name (WorldSyncTransport::Get_Client_Phase ()),
+			 WorldSyncTransport::Get_Last_Result_Detail ().Peek_Buffer ());
+
+	unsigned int client_world = 0;
+	Check (WorldSnapshotService::Compute_World_Checksum (&client_world),"the client world has no checksum");
+	Check (client_world == server_world,"the client world checksums 0x%08X, the server's 0x%08X",
+			 client_world,server_world);
+
+	int client_kinds [8];
+	int client_kind_count = Captured_Message_Kinds (1,client_kinds,8);
+	Check (client_kind_count == 1 && client_kinds [0] == WSYNC_MSG_RESULT,
+			 "the client did not report its join result to the server");
+
+	//	A live operation that skips ahead is never applied out of order: the client asks again.
+	{
+		WorldSyncFragment ahead = server_stream [server_stream_count - 1].Fragment;
+		unsigned int skipped = 999u;
+		ahead.Payload [0] = (unsigned char)(skipped & 0xFF);
+		ahead.Payload [1] = (unsigned char)((skipped >> 8) & 0xFF);
+		ahead.Payload [2] = 0;
+		ahead.Payload [3] = 0;
+		ahead.MessageId = 5000;
+
+		unsigned int before = WorldOperationJournal::Get_Revision ();
+		int sent_before = _CapturedCount;
+		WorldSyncTransport::Receive_Fragment (0,ahead);
+		Check (WorldOperationJournal::Get_Revision () == before,"an operation after a gap was applied");
+		Check (_CapturedCount > sent_before && _Captured [_CapturedCount - 1].Fragment.Kind == WSYNC_MSG_JOIN_REQUEST,
+				 "a gap in the live stream did not make the client ask to join again");
+	}
+
+	/*
+	**	A save's restore (ProceduralWorldPersistenceClass): the package this world would send a
+	**	joiner, kept, the world regenerated, and the package applied locally with no network --
+	**	arriving at the same world, verified by Finish_Join.
+	*/
+	{
+		CombatManager::Set_I_Am_Server (true);
+		CombatManager::Set_I_Am_Client (false);
+
+		DynamicVectorClass<int> kinds_saved;
+		DynamicVectorClass<int> sizes_saved;
+		DynamicVectorClass<unsigned char> bytes_saved;
+		Check (WorldSyncTransport::Build_Join_Package (&kinds_saved,&sizes_saved,&bytes_saved),
+				 "the world's save package could not be built");
+
+		WorldOperationJournal::Close ();
+		WorldTerrainSystem::Destroy_Terrain ();
+		Build_Uniform_Ramp_Terrain (PATCHES,CELL_SIZE,SLOPE,ORIGIN);
+		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+		StringClass error ("");
+		Check (WorldOperationJournal::Begin (&error),"the restored world's journal did not open: %s",error.Peek_Buffer ());
+
+		Check (WorldSyncTransport::Apply_Local_Package (kinds_saved,sizes_saved,bytes_saved,&error),
+				 "the saved package did not restore the world: %s",error.Peek_Buffer ());
+		unsigned int restored = 0;
+		WorldSnapshotService::Compute_World_Checksum (&restored);
+		Check (restored == server_world,"the restored world checksums 0x%08X, the saved one 0x%08X",restored,server_world);
+
+		DynamicVectorClass<int> truncated_sizes = sizes_saved;
+		truncated_sizes [truncated_sizes.Count () - 1] = 1000000;
+		Check (!WorldSyncTransport::Apply_Local_Package (kinds_saved,truncated_sizes,bytes_saved,&error),
+				 "a truncated save package was applied");
+	}
+
+	WorldSyncTransport::Set_Sender (nullptr);
+	WorldSyncTransport::Shutdown ();
+	CombatManager::Set_I_Am_Server (was_server);
+	CombatManager::Set_I_Am_Client (was_client);
+
+	WorldSyncService::Shutdown ();
+	WorldSnapshotService::Shutdown ();
+	WorldOperationJournal::Shutdown ();
+	GeneratedWorldPlacementRules::Shutdown ();
+	NavMeshGenerator::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	WaterSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+}
+
 
 /***********************************************************************************************
 **	V2 roadmap Section 34 Phase 21.  The physical logistics layer (Section 22).
@@ -9723,6 +10032,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "worldsync") == 0)) {
 		Check_World_Sync ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "worldsynctransport") == 0)) {
+		Check_World_Sync_Transport ();
 	}
 	if ((which == nullptr) || (::strcmp (which, "logistics") == 0)) {
 		Check_Logistics ();

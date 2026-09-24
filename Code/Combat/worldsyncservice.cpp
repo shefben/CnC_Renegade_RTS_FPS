@@ -278,7 +278,10 @@ bool WorldSyncService::Build_Handshake(unsigned int profile_hash,unsigned int co
 	**	snapshots at the older revision and the operations that followed, and a client told the
 	**	wrong starting point would arrive at the right ground with the wrong revision on it.
 	*/
-	handshake.SnapshotRevision	= WorldOperationJournal::Get_Revision();
+	//	With no snapshot set, a client rebuilds from the base and replays the whole log, so it
+	//	starts at the revision the log starts at.  Using the current revision here made the log's
+	//	first operation look stale to every joining client (found by terrain_worldsynctransport).
+	handshake.SnapshotRevision	= WorldOperationJournal::Get_Base_Revision();
 	if (WorldSnapshotService::Get_Snapshot_Count() > 0) {
 		WorldChunkSnapshotClass first;
 		if (WorldSnapshotService::Get_Snapshot(0,&first)) {

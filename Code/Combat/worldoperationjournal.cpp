@@ -42,7 +42,9 @@
 
 
 bool				WorldOperationJournal::Open						= false;
+WorldOperationJournal::CommitListener	WorldOperationJournal::Listener	= nullptr;
 unsigned int	WorldOperationJournal::Revision					= 0;
+unsigned int	WorldOperationJournal::BaseRevision				= 0;
 unsigned int	WorldOperationJournal::NextOperationId			= 1;
 
 int				WorldOperationJournal::AppliedCount				= 0;
@@ -73,6 +75,7 @@ void WorldOperationJournal::Close(void)
 {
 	Open						= false;
 	Revision					= 0;
+	BaseRevision				= 0;
 	NextOperationId		= 1;
 	AppliedCount			= 0;
 	RejectedCount			= 0;
@@ -167,6 +170,7 @@ bool WorldOperationJournal::Begin(StringClass * error_out)
 	BaseVertexCountY	= count_y;
 
 	Revision				= 1;
+	BaseRevision		= 1;
 	NextOperationId	= 1;
 	Open					= true;
 
@@ -752,7 +756,17 @@ WorldOperationApplyResult WorldOperationJournal::Submit(const WorldOperationClas
 	}
 	result.Detail = combined;
 
+	if (Listener != nullptr) {
+		Listener(recorded,result);
+	}
+
 	return result;
+}
+
+
+void WorldOperationJournal::Set_Commit_Listener(CommitListener listener)
+{
+	Listener = listener;
 }
 
 
@@ -875,6 +889,7 @@ bool WorldOperationJournal::Rebase(StringClass * error_out)
 	//	is, and a peer holding revision N must not be told the world advanced because a server
 	//	tidied its own log.
 	Operations.Delete_All();
+	BaseRevision = Revision;
 
 	return true;
 }

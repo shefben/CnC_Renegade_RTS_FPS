@@ -120,6 +120,8 @@ commanderpowerpanel.cpp
 commanderpatrolai.cpp
 commanderselectionoverlays.cpp
 commandergovernancepanel.cpp
+worldsynctransport.cpp
+proceduralworldpersistence.cpp
     commanderwaypoint.cpp
     commanderwaypointrenderer.cpp
     rtspersistence.cpp
@@ -325,6 +327,8 @@ commanderpowerpanel.h
 commanderpatrolai.h
 commanderselectionoverlays.h
 commandergovernancepanel.h
+worldsynctransport.h
+proceduralworldpersistence.h
     commanderwaypoint.h
     commanderwaypointrenderer.h
     rtspersistence.h

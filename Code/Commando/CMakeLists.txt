@@ -414,6 +414,8 @@ set(COMMANDO_SRC
     commandertransferevent.h
     commanderpowerevent.cpp
     commanderpowerevent.h
+    worldsyncevent.cpp
+    worldsyncevent.h
     purchaseresponseevent.cpp
     purchaseresponseevent.h
     requestkillevent.cpp
@@ -727,6 +729,7 @@ add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
     add_test(NAME terrain_expansion   COMMAND renegade -terrainselfcheck expansion)
     add_test(NAME terrain_worldops   COMMAND renegade -terrainselfcheck worldops)
     add_test(NAME terrain_worldsync   COMMAND renegade -terrainselfcheck worldsync)
+    add_test(NAME terrain_worldsynctransport   COMMAND renegade -terrainselfcheck worldsynctransport)
     add_test(NAME terrain_logistics   COMMAND renegade -terrainselfcheck logistics)
     add_test(NAME terrain_vehiclesubsystems   COMMAND renegade -terrainselfcheck vehiclesubsystems)
 endif()
@@ -833,6 +836,7 @@ add_test(NAME fds_terrain_shroud   COMMAND renegadeserver -terrainselfcheck shro
     add_test(NAME fds_terrain_expansion   COMMAND renegadeserver -terrainselfcheck expansion)
     add_test(NAME fds_terrain_worldops   COMMAND renegadeserver -terrainselfcheck worldops)
     add_test(NAME fds_terrain_worldsync   COMMAND renegadeserver -terrainselfcheck worldsync)
+    add_test(NAME fds_terrain_worldsynctransport   COMMAND renegadeserver -terrainselfcheck worldsynctransport)
     add_test(NAME fds_terrain_logistics   COMMAND renegadeserver -terrainselfcheck logistics)
     add_test(NAME fds_terrain_vehiclesubsystems   COMMAND renegadeserver -terrainselfcheck vehiclesubsystems)
 endif()

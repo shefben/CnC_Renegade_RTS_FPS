@@ -194,6 +194,10 @@ enum {
 	//	Appended here, at the end of the run, for the reason the comment above states.
 	CHUNKID_RTS_PERSISTENCE,
 
+	//	D-001 priority 3 -- a save's procedural world: its identity and the join package that
+	//	restores its changes.  Appended for the same reason.
+	CHUNKID_PROCEDURAL_WORLD_PERSISTENCE,
+
 	CHUNKID_GAME_OBJECT_OBSERVERS_BEGIN		= CHUNKID_COMBAT_BEGIN + 0x200,
 	CHUNKID_SOLDIER_OBSERVER,
 	CHUNKID_BEACON_MONITOR,

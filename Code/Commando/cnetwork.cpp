@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "cnetwork.h"
+#include "worldsynctransport.h"
 #include "gameeventbus.h"
 
 #include <shellapi.h>
@@ -1205,6 +1206,9 @@ void cNetwork::Server_Broken_Connection_Handler(int broken_rhost_id)
    // many attempts. The connection data has already been destroyed.
    //
    WWDEBUG_SAY(("\n***Connection to client %d broken   \n\n", broken_rhost_id));
+
+	//	No more procedural-world operations to a client that is gone; a reconnect joins afresh.
+	WorldSyncTransport::On_Client_Left(broken_rhost_id);
 
 	WideStringClass widestring;
 	widestring.Format(

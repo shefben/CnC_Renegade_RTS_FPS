@@ -58,6 +58,7 @@
 #include "rtstelemetryservice.h"
 #include "commandermodecontroller.h"
 #include "commanderuiinput.h"
+#include "worldsynctransport.h"
 #include "commandersidebar.h"
 #include "commanderplacement.h"
 #include "worldoperationjournal.h"
@@ -2863,6 +2864,15 @@ public:
 			if ( ProceduralWorldManager::Is_World_Active() ) {
 				Print( "procedural_world: %s\n",(const char *)ProceduralWorldToolsService::Get_Reproduction_String() );
 			}
+			//	The wire half (D-001 priority 3): who has joined, where this client is, and traffic.
+			Print( "procedural_world: sync -- %d client(s) on the live stream, this client %s%s%s; "
+					 "%d message(s) sent in %d fragment(s), %d received, %d dropped\n",
+					 WorldSyncTransport::Get_Joined_Client_Count(),
+					 WorldSyncTransport::Get_Client_Phase_Name( WorldSyncTransport::Get_Client_Phase() ),
+					 WorldSyncTransport::Get_Last_Result_Detail().Get_Length() ? " -- " : "",
+					 WorldSyncTransport::Get_Last_Result_Detail().Peek_Buffer(),
+					 WorldSyncTransport::Get_Messages_Sent(),WorldSyncTransport::Get_Fragments_Sent(),
+					 WorldSyncTransport::Get_Messages_Received(),WorldSyncTransport::Get_Messages_Dropped() );
 			return;
 		}
 

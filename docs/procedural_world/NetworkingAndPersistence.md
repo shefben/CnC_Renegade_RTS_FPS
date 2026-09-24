@@ -56,6 +56,77 @@ their geometry, holes, cliff cuts, nav links and road splits are all regenerated
 `SelectedTunnelCandidateIds` in the manifest records which candidates became tunnels. See
 `RoadsBridgesTunnels.md`.
 
+## The transport (D-001 priority 3)
+
+Until priority 3, the rows above described message formats that had never crossed a wire:
+
+- A client connected to a procedural server had no way to learn that a world existed.
+- The journal was opened only by the `worldop` console command.
+- Saves did not record the world.
+
+`WorldSyncTransport` (`Code/Combat/worldsynctransport.*`) now moves those messages over
+Renegade's own reliable, ordered event channel. It uses one net event, `cWorldSyncEvent`
+(`Code/Commando/worldsyncevent.*`), that carries one fragment of at most 384 bytes in either
+direction. There is no second socket.
+
+| Step | Direction | What happens |
+| --- | --- | --- |
+| Server generates the world | — | `Post_Load_Level` opens the server's journal on the world as generated (`On_World_Generated`) and sends every client the **identity**: seed, profile path and generator version. |
+| Client finishes loading a level | client → server | A pure client never generates from its own request; one left over from an earlier skirmish is dropped. It sends an identity request. The server answers with the identity, or with "no world" for an ordinary map. |
+| Client receives identity | — | `Request_World_Exact`: that exact seed, **one attempt, no retries**, so a retry cannot pick a different seed than the one the server kept. The client generates, opens a fresh journal, and sends its join request. |
+| Server receives join request | server → client | The join package: handshake, chunk snapshots, the operations after them, and an end marker carrying the last operation id. The client is then on the live stream. |
+| Client receives the package | — | `Begin_Join` (identity refusal), snapshots, operations, then `Finish_Join` (world checksum). On a mismatch the client sends a repair request naming the disagreeing chunks. Repair blocks are applied and re-verified. The client then reports its result, which the server logs. A failed client is taken off the live stream. |
+| Server commits an operation | server → joined clients | The journal's commit listener sends the operation with its server operation id. A client applies ids strictly in order. A duplicate is ignored. A gap or a refused operation makes the client ask to join again instead of applying out of order. |
+| Client connection breaks | — | The server takes it off the live stream (`Server_Broken_Connection_Handler`). |
+
+### Saves
+
+`ProceduralWorldPersistenceClass` (`CHUNKID_PROCEDURAL_WORLD_PERSISTENCE`) writes the world's
+identity and the same join package a late joiner would get.
+
+On load:
+
+1. The save subsystem runs before `Post_Load_Level`, so it only calls `Request_World_Exact`.
+2. After generation, the package is applied locally through the same join state machine. `Finish_Join` must reproduce the saved world checksum, or the restore is reported as failed.
+3. The world is compacted, so later joiners receive snapshots rather than the whole history.
+
+A save made under another generator version is not restored. It is logged, not guessed at.
+A save with no generated world writes nothing, so ordinary saves are unchanged.
+
+### A protocol bug this caught
+
+`WorldSyncService::Build_Handshake` set `SnapshotRevision` to the current revision whenever no
+snapshot set existed. A joining client adopted that revision and then refused the log's first
+operation as stale, because it was based on revision 1. The journal now records its base revision
+(`Get_Base_Revision`: 1 at `Begin`, the then-current revision at `Rebase`), and the handshake uses
+it. The single-process Phase 19 check always compacted before building a handshake, so it never
+reached this case. The new check does.
+
+### Checked
+
+`terrain_worldsynctransport` (and `fds_`) runs the protocol end to end with the network replaced
+by a capturing sender:
+
+- the identity round-trips, and a truncated one is refused;
+- a join request yields handshake / operation / end, addressed only to the asker;
+- a committed operation is broadcast to joined clients only;
+- a three-fragment message arriving out of order and with a duplicate reassembles into exactly one;
+- the regenerated "client" fed those fragments reaches the server's world checksum;
+- a live operation after a gap is not applied, and the client rejoins;
+- a save package restores the world by checksum, and a truncated one is refused.
+
+### Still needs two processes
+
+- the identity reaching a real second machine;
+- a real late join;
+- a live crater seen on both screens;
+- repair after deliberately corrupting a client;
+- save, quit, reload and compare.
+
+All of these are part of the Phase 28 procedure. Note that live gameplay still submits no
+operations of its own. The journal is fed by `worldop`, so the live test drives it from that
+console command.
+
 ## Reproduction
 
 A world, or a failed attempt, is named by

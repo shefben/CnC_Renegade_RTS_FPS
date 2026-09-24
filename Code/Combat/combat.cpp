@@ -79,6 +79,8 @@
 #include "commandercommandpaletterenderer.h"
 #include "commanderpowerpanel.h"
 #include "commanderpatrolai.h"
+#include "worldsynctransport.h"
+#include "proceduralworldpersistence.h"
 #include "commanderselectionoverlays.h"
 #include "commandergovernancepanel.h"
 #include "commanderguardai.h"
@@ -633,6 +635,7 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	CommanderAIService::Init();
 	CommanderGuardAI::Init();
 	CommanderPatrolAI::Init();
+	WorldSyncTransport::Init();
 	CommanderSelection::Init();
 	CommanderCommandPalette::Init();
 	CommanderWaypointSystem::Init();
@@ -878,8 +881,23 @@ void	CombatManager::Post_Load_Level( void )
 	*/
 	{
 		StringClass world_error;
-		if (!ProceduralWorldManager::Generate_World( &world_error )) {
+		if ( I_Am_Client() && !I_Am_Server() ) {
+			//	A pure client never generates from a request of its own: a request left over from
+			//	an earlier skirmish would build a world its server does not have.  It asks the
+			//	server instead, and regenerates the server's world from the answer
+			//	(WorldSyncTransport, D-001 priority 3).
+			ProceduralWorldManager::Clear_Request();
+			WorldSyncTransport::On_Level_Loaded();
+		} else if (!ProceduralWorldManager::Generate_World( &world_error )) {
 			WWDEBUG_SAY(( "Procedural world generation failed: %s\r\n",world_error.Peek_Buffer() ));
+		} else if ( ProceduralWorldManager::Is_World_Active() ) {
+			WorldSyncTransport::On_World_Generated();
+
+			//	A loaded save's changes to its world, applied once that world exists again.
+			StringClass restore_error;
+			if ( !ProceduralWorldPersistenceClass::Apply_Pending( &restore_error ) ) {
+				WWDEBUG_SAY(( "Procedural world restore from the save failed: %s\r\n",restore_error.Peek_Buffer() ));
+			}
 		}
 	}
 

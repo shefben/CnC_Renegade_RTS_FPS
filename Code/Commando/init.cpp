@@ -120,6 +120,7 @@
 #include "specialbuilds.h"
 #include "wwdialog.h"
 #include "debugbreak.h"
+#include "worldsyncevent.h"
 #include <cstdio>
 
 extern const char *VALUE_NAME_TEXTURE_FILTER_MODE;
@@ -1016,6 +1017,9 @@ bool Game_Init(void)
 	//	afterwards, never before.
 	//
 	GameEventListeners::Register();
+
+	//	The procedural world's transport sends its fragments as network events.
+	WorldSyncTransport::Set_Sender( cWorldSyncEvent::Send );
 
 	//
 	//	And the same for what a script may ask about the running match, which

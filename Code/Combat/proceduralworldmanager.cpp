@@ -70,6 +70,7 @@
 const char * const ProceduralWorldManager::DEFAULT_PROFILE_PATH = "data/procedural_world/default.json";
 
 bool	ProceduralWorldManager::Requested		= false;
+bool	ProceduralWorldManager::RequestedExact	= false;
 bool	ProceduralWorldManager::WorldActive	= false;
 
 unsigned int	ProceduralWorldManager::RequestedSeed	= 0;
@@ -142,8 +143,23 @@ void ProceduralWorldManager::Shutdown(void)
 void ProceduralWorldManager::Clear_Request(void)
 {
 	Requested				= false;
+	RequestedExact			= false;
 	RequestedSeed			= 0;
 	RequestedProfilePath	= "";
+}
+
+
+bool ProceduralWorldManager::Request_World_Exact(unsigned int seed,const char * profile_path,StringClass * error_out)
+{
+	if (seed == 0) {
+		if (error_out != nullptr) *error_out = "an exact world request needs the seed the server used";
+		return false;
+	}
+	if (!Request_World (seed,profile_path,error_out)) {
+		return false;
+	}
+	RequestedExact = true;
+	return true;
 }
 
 
@@ -179,6 +195,7 @@ bool ProceduralWorldManager::Request_World(unsigned int seed,const char * profil
 	}
 
 	Requested				= true;
+	RequestedExact			= false;
 	RequestedSeed			= chosen;
 	RequestedProfilePath	= path;
 
@@ -877,7 +894,10 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 	bool any_attempt_completed = false;
 	StringClass last_error;
 
-	for (int attempt = 0; attempt < MAX_WORLD_GENERATION_ATTEMPTS; attempt++) {
+	//	A client rebuilding its server's world gets that world's one attempt, never a retry.
+	int attempts = RequestedExact ? 1 : MAX_WORLD_GENERATION_ATTEMPTS;
+
+	for (int attempt = 0; attempt < attempts; attempt++) {
 
 		ProceduralWorldProfile profile;
 		if (!ProceduralWorldProfileManager::Load_Profile_From_File (RequestedProfilePath.Peek_Buffer (),
@@ -909,7 +929,7 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 		}
 		any_attempt_completed = true;
 
-		if (required_connectivity_ok) {
+		if (required_connectivity_ok || RequestedExact) {
 			if (attempt > 0) {
 				WWDEBUG_SAY (("ProceduralWorldManager: required connectivity achieved on retry attempt %d (seed %u)\r\n",
 								  attempt,profile.Seed));
