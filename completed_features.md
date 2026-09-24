@@ -4474,3 +4474,74 @@ See `docs/procedural_world/NetworkingAndPersistence.md`, section "The transport"
 - **P20:** runtime building shells and bridge sections register as shadow casters.
 - **P27:** the stale premise is closed. `Resolve_Game_Object_Presets` runs every level load and back-links `mp_*_Com_Center` to descriptors with `communications.enabled`, so map-placed Comm Centers register shroud sensors. Only the team-visibility check in a live client remains.
 - **P32:** drawers for roads, bridge sections, foliage batches, shadow casters, MCT/PT anchors, the Commander cursor ray, and a new `expansion_regions` layer.
+
+## P09: terrain detail (`10ea2ccc`)
+
+- **Detail program registered.** `MATERIAL_PROGRAM_TERRAIN_DETAIL` is the terrain program's two passes plus a second stage that multiplies a detail texture (`DETAILCOLOR_SCALE`), read through the vertex's second UV set. Alpha stays with the first stage.
+- **Patch buffers.** `RenegadeTerrainPatchClass` uses `XYZNDUV2` buffers only while it has a detail material. The second UVs are in world metres at the detail rate, so the grain runs across patch seams. Without a detail material the buffers are stock, byte for byte.
+- **Texture system.** `TerrainTextureSystem` hands the first `TERRAIN_LAYER_DETAIL` layer to each patch instead of making it a pass. The default table defines it only when `ow_ter_detail.tga` ships, because always.dat has no ground detail texture.
+- **Tests.** `shader_pipelines` pins the detail pass state.
+
+## D-001 priority 5: procedural-world gameplay gaps
+
+Details are in the docs named per item.
+
+### Bases and buildings
+
+- **Base layout, spawns and bootstrap (Section 16A)** (`BaseSelection.md`).
+  - `ProceduralBaseLayoutService` lays out the profile's starting buildings with the Commander placement validator and creates them finished.
+  - It builds a spawn pool per faction, and `SpawnManager` takes respawns from it on a generated world.
+  - Profile schema 9 adds the `base` block; the shipped profiles name full starting bases.
+  - Runtime buildings now save their descriptor and transform, so they survive a save.
+  - Test: `terrain_baselayout`.
+- **Harvesters.** A refinery on a generated world takes its field from `TiberiumFieldGenerator` and its dock from the `harvester_dock` anchor. The stock harvester and factory path is unchanged.
+- **Semantic anchors (sidecar data).**
+  - `semantic_anchors` in descriptors: eight roles, each resolved through the placed transform.
+  - Twelve shipped descriptors carry MCT and PCT anchors taken from real pivots, the Weapons Factory's vehicle exit, and the refineries' dock.
+  - The placement exit-clearance test and base orientation read `vehicle_exit`.
+- **Map-authored subcomponents.** The descriptor comes from the definition, and anchors are resolved against the collected statics and aggregates.
+
+### Navigation, sight and the minimap
+
+- **Sightline occlusion (closes P10).**
+  - `FoliageSystem::Query_Segment_Occlusion` walks only the crossed cells.
+  - `WorldSpatialIndex::Query_Sightline` combines terrain, the scene ray and foliage.
+  - Combat-space validation uses it.
+- **Locomotion capability masks.** One topology with a mask per chunk and per edge, plus per-class `Is_Reachable`. The sector graph is unchanged.
+- **Minimap renderer.** `CommanderMinimapRenderer` draws `MinimapBaseLayer` in Commander Mode; clicking it moves the camera.
+
+### Campaign, logistics and AI
+
+- **Campaign launch.**
+  - `campaign launch` starts through the Procedural Skirmish path (`MainMenuDialogClass::Start_Procedural_Skirmish`).
+  - The pending battle resolves into `Apply_Battle_Result` on `GameOver`.
+- **Logistics enemy obstruction.** Strategic contacts inside `logistics.enemy_threat_radius` close a route to that team only.
+- **Vehicle subsystems.**
+  - Weapon spray widens at fire time with weapon-module damage.
+  - AI-driven vehicles' sight range shrinks with the sensor curve (schema 9); players' vehicles never.
+- **AI treasury command.** `commander_ai treasury <team> <credits>`, server only.
+- **Front fairness.**
+  - `MaxBaseToFrontTravelTimeDifferenceSeconds` is measured over the contested fields both bases reach, and an unfair front triggers a retry.
+  - `IsForward` now follows the same front.
+
+### Effects
+
+- **P18.** Tank and harvester tracks use the stock `d_tk_dirt` print until `ow_ribbon_*` art ships. Tires, scorch and drag have no stock print.
+- **P23.**
+  - Camera-relative rain is restored.
+  - Dust (profile, times dryness), Tiberium haze (near generated fields) and scripted falling particles (`weather_falling`) have callers.
+- **P24.** `AmmoDefinitionClass::TrailEmitter` is read. Nine retail ammo definitions name trails, which follow the projectile and fade at impact.
+
+## D-001 priority 6: automated edge coverage
+
+- **Bridge fallback (`terrain_bridgefallback`).**
+  - Stage 2: on the river terrain, a grade sweep finds a crossing that only a longer approach resolves.
+  - Stage 1: a pond laid against one abutment of the original crossing makes only a local reposition resolve it.
+- **Attachments (`shader_attachments`).**
+  - The retail Barracks interior and doors load headless.
+  - Covered: attach on `MGBAR_MCT~`, the doors' own animation, hide and show, the descriptor bone search, and detach.
+- **Disk save/load.**
+  - `shader_rtssaveload` writes and reads the RTS subsystem through `SaveLoadSystemClass` and a real file.
+  - `terrain_worldsynctransport` does the same for the procedural world package and checks the restored ground and revision.
+  - Fix found: the world save now falls back to the requested seed when no manifest exists.
+- **Suite.** 201/201.

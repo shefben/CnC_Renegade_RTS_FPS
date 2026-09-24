@@ -298,3 +298,19 @@ root problem under several phases. `WIP_features.md` describes work actually ope
   an `fds_` twin.
 - A tunnel system now exists (V2 Phase 10 at V2 close). The Phase 17 tunnel exclusion is already
   wired: placement and settlements use `TunnelSystem::Overlaps_Footprint`.
+
+### Implementation state (D-001 priorities 1-6 done)
+
+- Priorities 1 to 6 are implemented, with automated checks: 201/201 ctest, and zero-warning
+  `renegade`, `renegadeserver` and `leveledit`. Per item, see `completed_features.md`.
+- `WIP_features.md` now holds only priority 7 (live verification), 8 (measurement) and 9 (the
+  final checklist), plus deferrals and accepted limits.
+- The art and content still missing are listed in `docs/assets/MissingAssets.md`.
+- Choices made where D-001 left room, each recorded in its doc:
+  - **Heavy ground:** the worst case of every loaded ground-vehicle class, which is what the
+    unchanged sector graph is built from.
+  - **The front:** the contested Tiberium fields that both bases can reach.
+  - **Environment weather:** derived per client and not replicated.
+  - **Tiberium haze, dust and enemy obstruction:** profile data, off by default.
+  - **Sensor degradation:** reuses the weapon module's curve and defaults.
+  - **Detail texture:** none exists in always.dat, so no stand-in is used.

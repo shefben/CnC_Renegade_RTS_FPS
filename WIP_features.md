@@ -1,119 +1,106 @@
 # WIP Features
 
-Only work that is actually open now, grouped by the categories in `DECISIONS.md` D-001, and worked
-in D-001's priority order. Each entry names its owning phase and its next exact action. Finished
-work is in `completed_features.md`, and detail is in `docs/`.
+Only work that is actually open now, grouped by the categories in `DECISIONS.md` D-001. Finished
+work is in `completed_features.md`, detail is in `docs/`, and every piece of art or content the
+engine asks for and does not have is in `docs/assets/MissingAssets.md`.
 
-**State at `9f1df2ba`:**
+**State:**
 
-- D-001 priorities 1 to 3 are done, and so is P15 bridge damage from priority 5.
-- Priority 4 is done except the P09 routing and P26 audit below.
-- 199/199 ctest entries pass, and `renegade`, `renegadeserver` and `leveledit` build with no warnings.
+- Every IMPLEMENT NOW and RE-AUDIT item of D-001, priorities 1 to 6, is implemented and checked.
+- 201/201 ctest entries pass, and `renegade`, `renegadeserver` and `leveledit` build with no
+  warnings.
+- What remains needs a running client and server (priority 7), live measurements (priority 8),
+  and then the final checklist (priority 9). It also needs the art listed in
+  `docs/assets/MissingAssets.md`, which never blocks the code.
 
-**Next exact action:** priority 4 is done except terrain detail (P09 below). Work through
-priority 5 in the order listed.
+**Next exact action:** D-001 priority 7. Run the manual verification list below with a client
+and a dedicated server, starting with a Procedural Skirmish on a generated-terrain profile. Then
+run the Phase 28 gate exactly as written. Every failure becomes a narrow new issue.
 
 ---
 
 ## IMPLEMENT NOW
 
-### P09: terrain detail (D-001 priority 4)
-
-Tracers, status markers and the ghost tint now draw through registered programs, and particles
-are retired with a documented reason (`docs/zerohour/ShaderManager.md`). What remains is
-**terrain detail**, a real gap: it needs a second UV rate on one layer plus a detail layer entry.
-Do not fake it with the base UVs.
-
-### D-001 priority 5: procedural-world gameplay gaps
-
-- **Initial base layout and spawn bootstrap (Section 16A):**
- - faction base transforms, the required initial buildings (the Construction Yard descriptors now exist), spawn locations, team ownership, player spawn sets, and match bootstrap;
- - all taken from `BaseSelectionPlanner`'s selected sites and the transportation layout.
-- **Harvesters:** spawn the normal Renegade harvester through the existing vehicle/AI APIs, bound to the generated field/route data. The Refinery descriptors now exist.
-- **Building semantic anchors as sidecar data:** entrance, vehicle exit, infantry exit, street-facing side, door, PCT/MCT and destroyed model, all in descriptor/manifest data.
-- **Object- and foliage-aware sightline occlusion:**
- - uses the terrain ray plus world-spatial and foliage queries;
- - closes P10's foliage-spatial gap;
- - no full object-list scans.
-- **Locomotion capability masks (V2 Phase 16):** one topology with per-sector/per-edge infantry, wheeled, tracked and heavy masks, instead of "most restrictive vehicle wins".
-- **Minimap renderer:** a real consumer for `MinimapBaseLayer`, so that logistics routes, blockages and coverage (V2 Phase 21) can be drawn over it later.
-- **Campaign launch:** `campaign launch` starts its battle through the Procedural Skirmish load path, carrying profile, seed, territory and factions. A finished match reaches `Apply_Battle_Result`.
-- **Functional subcomponents (V2 Phase 20):** resolve map-authored buildings' anchors against the loaded model hierarchy, without requiring `RuntimeParts`.
-- **Logistics enemy obstruction (V2 Phase 21):** re-audit against Phase 25's tactical intelligence and threat data.
-- **Vehicle subsystems (V2 Phase 22):**
- - a narrow health-derived sensor factor for AI acquisition and detection, which never affects a human's FPS view;
- - weapon accuracy via a spray scale at fire time.
-- **AI treasury command (V2 Phase 24):** a deterministic developer/server command to set it, if none exists.
-- **Front and travel-time fairness (V2 Phases 11-15):** re-audit `StrategicPlanner` for a meaningful front. Implement `MaxBaseToFrontTravelTimeDifferenceSeconds` if there is one; if not, keep the limit explicit.
-
-### D-001 priorities 4 and 5: effects content and wiring
-
-- **P18 surface ribbons:** give a verified default track texture, then wire vehicle tracks. Add scorch or drag ribbons only where a real event exists.
-- **P23 weather:**
- - run the checks;
- - restore camera-relative rain if practical;
- - add invocation paths for `TIBERIUM` (generated fields), `DUST` (profile/biome) and `FALLING` (scripted);
- - supply the documented weather textures.
-- **P24 projectile trails:** implement the `AmmoDefinitionClass::TrailEmitter` reader on the pooled renderer.
-
-### D-001 priority 6: automated edge coverage
-
-- **Bridge fallback (V2 Phase 10):** deterministic headless terrain for:
- - stage 1: the original crossing fails and a nearby reposition succeeds;
- - stage 2: the original approach fails on grade and a longer approach succeeds.
-- **Attachments (P26):** real attachment success cases (a model on a bone, a child animation, `Set_Slot_Hidden`, a building bone search), where headless testing permits. All four draw-component contracts now have implementers (`docs/zerohour/ModularDrawComponents.md`).
-- **Save/load to disk:** disk round trips for RTS state and the procedural world package, where headless testing permits.
+Nothing. A failure found in priority 7 comes back here as a narrow item.
 
 ---
 
 ## MANUAL VERIFICATION ONLY
 
-These need a running client and/or server. Run them as D-001 priority 7, after the implementation
-items above that affect them, and then the Phase 28 gate exactly as written.
+These need a running client and/or server. They are D-001 priority 7; after them, run the
+Phase 28 gate exactly as written.
 
-- **Procedural Skirmish:**
- - check `tunnel_status` and `debug_layer tunnels 1`;
- - walk and drive a tunnel, a lamp-lined street and the coast;
- - check the boundary cliff ring (toe apron, face, vehicle climbability, seams, bounds, riser colours);
- - check roads (S bend, crossing and tee) now that ground and verge textures exist (P14);
- - look at the terrain stand-in textures (P13) and the water surface (P17): carving, shoreline, flow, physics tagging.
+- **Procedural Skirmish (a profile with `fit_to_level: false`, so terrain is generated):**
+  - check `tunnel_status` and `debug_layer tunnels 1`;
+  - walk and drive a tunnel, a lamp-lined street and the coast;
+  - check the boundary cliff ring (toe apron, face, vehicle climbability, seams, bounds, riser
+    colours);
+  - check roads (S bend, crossing and tee) (P14);
+  - look at the terrain stand-in textures (P13), the water surface (P17: carving, shoreline,
+    flow, physics tagging) and, once `ow_ter_detail` ships, the detail layer (P09).
+- **Generated base (Section 16A):**
+  - both starting bases stand, finished and powered, facing each other;
+  - the factory exit opens toward the enemy, and no building overlaps another;
+  - players spawn from the pool, behind the base and clear of buildings, and respawn away from
+    enemies;
+  - save, quit and reload: the bases come back as runtime buildings with their models.
+- **Harvesters:** the refinery requests the stock harvester from the factory, and it drives to
+  its team's generated field, harvests, docks at the refinery's `harvester_dock` and pays out.
 - **Commander interaction** (`docs/zerohour/CommanderInteraction.md`, "Needs a live client"):
- - the controls row;
- - key and console entry;
- - click-select and control groups;
- - selection rings;
- - the power panel seen from a second client;
- - a patrol;
- - a vote cast from a second client, and a transfer.
+  - the controls row;
+  - key and console entry;
+  - click-select and control groups;
+  - selection rings;
+  - the power panel seen from a second client;
+  - a patrol;
+  - a vote cast from a second client, and a transfer;
+  - the minimap: it draws, its markers are in the right places, and a click moves the camera.
 - **World transport** (`docs/procedural_world/NetworkingAndPersistence.md`):
- - identity reaching a second machine;
- - a late join;
- - a `worldop` crater seen on both screens;
- - repair of a corrupted client;
- - save, quit, reload and compare.
- - Live gameplay submits no operations yet; `worldop` drives the journal.
-- **Bridges (P15):** walk and drive intact spans, shell one until it falls, see it fall on a second client, and fall through it.
+  - identity reaching a second machine;
+  - a late join;
+  - a `worldop` crater seen on both screens (live gameplay submits no operations yet; `worldop`
+    drives the journal);
+  - repair of a corrupted client;
+  - save, quit, reload and compare.
+- **Bridges (P15):** walk and drive intact spans, shell one until it falls, see it fall on a
+  second client, and fall through it.
+- **Campaign:** `campaign launch` from the menu console starts a Procedural Skirmish with the
+  territory's seed. Its game over moves the territory to the winner. A restart restores the
+  campaign file.
 - **Rendering:**
- - stock W3D models unchanged (P09);
- - weapon and explosion lights (P21);
- - particle batching on and off, with emitters per draw call recorded (P22);
- - debris on the live tier (P25);
- - cached shadows on runtime buildings and bridges (P20);
- - bloom first, then light shafts, on a real device: composite, HUD, no render-target state leaks (P55/P57).
+  - stock W3D models unchanged (P09);
+  - weapon and explosion lights (P21);
+  - particle batching on and off, with emitters per draw call recorded (P22);
+  - projectile trails on rockets and grenades (P24);
+  - tank and harvester tracks drawn with the `d_tk_dirt` stand-in (P18);
+  - rain slanting when you run sideways through it; dust, Tiberium haze and `weather_falling`
+    visible where turned on (P23);
+  - debris on the live tier (P25);
+  - cached shadows on runtime buildings and bridges (P20);
+  - bloom first, then light shafts, on a real device: composite, HUD, and no render-target
+    state leaks (P55/P57).
 - **Gameplay:**
- - Communications Center team visibility (P27);
- - stock FPS radar unchanged, plus the strategic-contact layer (P28);
- - telemetry after real kills and building destruction (P31);
- - placement on slope, overlap, bounds, exit clearance and grading (P37);
- - Commander save and network round trip (P40);
- - runtime terrain collision: infantry, vehicles, stock geometry, transitions (P11).
+  - Communications Center team visibility (P27);
+  - stock FPS radar unchanged, plus the strategic-contact layer (P28);
+  - telemetry after real kills and building destruction (P31);
+  - placement on slope, overlap, bounds, exit clearance and grading, including the factory's
+    +X exit (P37);
+  - Commander save and network round trip (P40);
+  - runtime terrain collision: infantry, vehicles, stock geometry, transitions (P11).
 - **AI Commander:**
- - Phase 24: seating, economy, construction, expansion, treasury debit, removal vote;
- - Phase 25: production, defence, attack. Both use the new descriptors.
-- **Carried from P05-P07:** the client/server map transition, and the remote screenshot against a real endpoint.
-- **Asset residency (P08):** the map-transition resource-retention check.
-- **World tools (V2 Phase 27):** reproduction string, JSON report, PPM preview and seed batch, on a real generated world.
-- **Phase 28 gate:** run `docs/integration/Phase28IntegrationGate.md` exactly. Every failure becomes a narrow new issue.
+  - Phase 24: seating, economy, construction, expansion, treasury debit
+    (`commander_ai treasury` to set it), removal vote;
+  - Phase 25: production, defence, attack;
+  - a damaged AI vehicle acquires at shorter range, and a player's vehicle is unaffected;
+  - convoys refuse a route an enemy is known to sit on when `logistics.enemy_threat_radius` is
+    set.
+- **Carried from P05-P07:** the client/server map transition, and the remote screenshot against
+  a real endpoint.
+- **Asset residency (P08):** the map-transition resource-retention check (Q-006).
+- **World tools (V2 Phase 27):** reproduction string, JSON report, PPM preview and seed batch, on
+  a real generated world.
+- **Phase 28 gate:** run `docs/integration/Phase28IntegrationGate.md` exactly. Every failure
+  becomes a narrow new issue.
 
 ---
 
@@ -122,34 +109,57 @@ items above that affect them, and then the Phase 28 gate exactly as written.
 | Item | Waits for |
 | --- | --- |
 | P08 `SECTOR` residency consumers | Real world streaming |
-| P10 foliage in `WorldSpatialIndex` | The sightline occlusion work above, which is its first real consumer |
-| P25 city-prop debris | Destructible prop assets or a prop system in settlements |
-| P24 rope and cable strips | Content or a feature that needs them |
+| P25 city-prop debris | Destructible prop assets, or a prop system in settlements |
+| P24 rope and cable strips | Content or a feature that needs them (nothing in the donor or content does) |
 | Naval navigation and behaviour, `NavalFactoryGameObj` | A canonical naval locomotor (Zero Hour Feature 7) |
-| Building interiors in navigation | Interior and portal metadata or assets |
+| Building interiors in navigation | Interior and portal metadata, or assets |
 | Tiberium storage gameplay effect | A design that specifies one |
 | Repair and escort vehicles | Real vehicle presets and descriptors |
-| Missing city/settlement building assets | Content |
+| Settlement building models | Content (`docs/assets/MissingAssets.md`) |
 | Incremental nav rebuild | A measured hitch (Phase 29) |
-| `IsForward` from a real front | A front concept (see fairness above) |
+| Scorch and dirt surface marks, scorch and drag ribbons | A real event that produces them |
+| Entrance, infantry-exit and street-side anchors; the Airstrip's vehicle exit | A source for them in the model data, or hand authoring |
 | ZH-04, ZH-18, ZH-24 (`EAValidation`) | Retrieving and comparing the archival EA implementation first |
 | Nod Shrine, helipads as Commander buildings | A building definition (Shrine) and model manifests (helipads) |
 | Nod Communications Center component assembly | Hand curation of its uncurated parts |
+| Commander sidebar air page and building icons | Content: a purchase page, and packaging of existing art |
+| Section 16A.8 match settings (credits, wallet cap, starting units, shroud policy) as profile data | A profile that needs different values from the game mode's |
 
 ## ACCEPTED LIMITS
 
-- **P51 height fog:** camera-relative, not per-vertex. Reopen only if a programmable shader tier arrives for another reason.
+- **P51 height fog:** camera-relative, not per-vertex. Reopen only if a programmable shader tier
+  arrives for another reason.
 - **P56 tonemap:** a global operator. Local tonemapping is a candidate if a shader tier arrives.
-- **Decal pipeline duplicate:** `SurfaceRibbonSystem` and `WorldSurfaceMarkManager` keep near-identical private shader functions. Section 15 enumerates no decal pipeline, so this belongs to whichever section owns decals.
-- **Governance voting from FPS mode:** the governance panel lives in Commander Mode, where there is a pointer. A player in FPS mode presses `B` to vote or uses the console.
-- **Loaded Commander orders:** orders are restored but not re-dispatched. Guard and patrol alike resume only when reordered.
+- **Decal pipeline duplicate:** `SurfaceRibbonSystem` and `WorldSurfaceMarkManager` keep
+  near-identical private shader functions. Section 15 names no decal pipeline, so this belongs to
+  whichever section owns decals.
+- **Governance voting from FPS mode:** the governance panel lives in Commander Mode, where there
+  is a pointer. A player in FPS mode presses `B` to vote or uses the console.
+- **Loaded Commander orders:** orders are restored but not re-dispatched. Guard and patrol alike
+  resume only when reordered.
+- **One sector graph:** the PathfindClass sector graph stays the worst-case (heavy) answer, so
+  the stock AI's pathing is unchanged. Per-class traversal is `NavMeshGenerator::Is_Reachable`
+  over the capability masks.
+- **Environment weather is per client:** dust, Tiberium haze and scripted falling particles are
+  derived on each client and are not saved or sent.
 
 ## PERFORMANCE AND FINAL CHECKLIST
 
-- **P43 / V2 Phase 29:** measure first, during the live session: frame and worst frame, server tick, draw calls, world-system and power-grid cost, generation time, memory, object and batch counts, foliage and chunk submissions, nav rebuild cost, and journal growth, at SMALL, MEDIUM and LARGE_SUPPORTED. Only then tune chunk and foliage LOD and distance culling. Run a long `large_supported` soak watching memory, stale chunks and render resources, leaked navigation data, and journal growth.
-- **P45 final Definition of Done:** the 110-item checklist runs only after the implementation and live gates are substantially complete (D-001 priority 9).
+- **P43 / V2 Phase 29 (D-001 priority 8):** measure first, during the live session:
+  - frame and worst frame, server tick, draw calls;
+  - world-system and power-grid cost, generation time, memory;
+  - object and batch counts, foliage and chunk submissions;
+  - nav rebuild cost and journal growth;
+  - at SMALL, MEDIUM and LARGE_SUPPORTED.
 
----## Working notes that cost a session each
+  Only then tune chunk and foliage LOD and distance culling. Run a long `large_supported` soak
+  watching memory, stale chunks and render resources, leaked navigation data and journal growth.
+- **P45 final Definition of Done (D-001 priority 9):** the 110-item checklist runs only after the
+  live gates are substantially complete.
+
+---
+
+## Working notes that cost a session each
 
 Assembling a generated `.cpp` from parts: write the parts with the Write tool
 and concatenate them with Python opened `newline=''`. `cat a b > c` in this

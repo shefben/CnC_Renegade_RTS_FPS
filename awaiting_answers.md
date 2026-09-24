@@ -34,7 +34,8 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
  first real runs; each was diagnosed and fixed (see `completed_features.md`, V2 Phase 30). Only
  `shader_commandermode` (a sentinel pointer the engine has dereferenced since P42) and
  `shader_visualsettings` (needs a D3D device) still fail; root causes are in
- `docs/procedural_world/V2Completion.md`. What follows -- the in-game checks no automated run can
+ `docs/procedural_world/V2Completion.md`. **Both were fixed in D-001 priority 1; every listed check
+ now passes (201/201).** What follows -- the in-game checks no automated run can
  close -- is still open.
  If `fds_shader_particles` still fails, the abort is in `WorldParticleManager` teardown rather
  than the check. Not blocking any other work, but thirteen phases are now resting on checks
