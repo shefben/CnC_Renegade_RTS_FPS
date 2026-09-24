@@ -122,6 +122,7 @@ commanderselectionoverlays.cpp
 commandergovernancepanel.cpp
 worldsynctransport.cpp
 proceduralworldpersistence.cpp
+bridgedamageservice.cpp
     commanderwaypoint.cpp
     commanderwaypointrenderer.cpp
     rtspersistence.cpp
@@ -329,6 +330,7 @@ commanderselectionoverlays.h
 commandergovernancepanel.h
 worldsynctransport.h
 proceduralworldpersistence.h
+bridgedamageservice.h
     commanderwaypoint.h
     commanderwaypointrenderer.h
     rtspersistence.h

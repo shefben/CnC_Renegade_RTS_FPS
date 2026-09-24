@@ -19,6 +19,7 @@
 #include "worldsnapshot.h"
 #include "worldsyncservice.h"
 #include "worldsynctransport.h"
+#include "bridgedamageservice.h"
 #include "bridgeplanner.h"
 #include "bridgesection.h"
 #include "bridgesystem.h"
@@ -1608,6 +1609,65 @@ void	Check_Bridges (void)
 		}
 
 		RoadSystem::Shutdown ();
+	}
+
+	//
+	//	P15: gameplay damage.  Blasts accumulate on the spans in reach, states only advance,
+	//	and a span falls exactly once -- after which the bridge no longer carries anything.
+	//	Server-side only, as the explosion pass that calls it is.
+	//
+	{
+		bool was_server = CombatManager::I_Am_Server ();
+		CombatManager::Set_I_Am_Server (true);
+		BridgeDamageService::Reset ();
+
+		//	Alone: an earlier block leaves a deliberately unlayable bridge behind, and Build_Layout
+		//	answers for the whole set.
+		BridgeSystem::Clear_Bridges ();
+
+		BridgeClass target;
+		target.Set_Name ("damage_target");
+		target.Set_Definition ("ow_bridge_concrete");
+		target.Set_Endpoints (Vector3 (0.0f, 500.0f, 10.0f), Vector3 (100.0f, 500.0f, 10.0f));
+		int target_id = BridgeSystem::Add_Bridge (target);
+		Check (BridgeSystem::Build_Layout (), "the damage target would not lay out");
+		Check (BridgeSystem::Is_Traversable (target_id), "a fresh bridge is not traversable");
+
+		Vector3 middle (50.0f, 500.0f, 10.0f);
+		float strength = BridgeDamageService::SPAN_HIT_POINTS * 0.4f;
+
+		Check (BridgeDamageService::Apply_Explosion (Vector3 (50.0f, 900.0f, 10.0f), 8.0f, strength) == 0,
+				"a blast four hundred metres away damaged the bridge");
+
+		Check (BridgeDamageService::Apply_Explosion (middle, 6.0f, strength) > 0,
+				"a blast on the deck changed no span's state");
+		int hit_section = -1;
+		BridgeClass *hit = BridgeSystem::Peek_Bridge (target_id);
+		for (int s = 0; (hit != nullptr) && (s < hit->Get_Section_Count ()); s++) {
+			if (hit->Get_Section (s).State == BRIDGE_STATE_DAMAGED) { hit_section = s; break; }
+		}
+		Check (hit_section >= 0, "the span under the blast is not DAMAGED");
+		Check (BridgeSystem::Is_Traversable (target_id), "a damaged span stopped carrying traffic");
+
+		BridgeDamageService::Apply_Explosion (middle, 6.0f, strength);
+		BridgeDamageService::Apply_Explosion (middle, 6.0f, strength);
+		Check (BridgeDamageService::Get_Break_Count () == 1, "the span fell %d times, not once",
+				BridgeDamageService::Get_Break_Count ());
+		Check (!BridgeSystem::Is_Traversable (target_id), "a fallen span still carries traffic");
+
+		//	A fallen span absorbs nothing more: it cannot fall a second time.
+		float fallen_damage = BridgeDamageService::Get_Span_Damage (target_id, hit_section);
+		BridgeDamageService::Apply_Explosion (middle, 1.0f, strength);
+		Check (BridgeDamageService::Get_Span_Damage (target_id, hit_section) == fallen_damage &&
+				BridgeSystem::Get_Section_State (target_id, hit_section) == BRIDGE_STATE_BROKEN,
+				"a fallen span took more damage");
+		Check (BridgeDamageService::Get_Break_Count () == 1, "a blast on a fallen span broke something again");
+		Check (BridgeDamageService::State_For_Damage (0.0f) == BRIDGE_STATE_PRISTINE &&
+				BridgeDamageService::State_For_Damage (BridgeDamageService::SPAN_HIT_POINTS) == BRIDGE_STATE_BROKEN,
+				"the damage thresholds are not pristine at zero and broken at full hit points");
+
+		BridgeDamageService::Reset ();
+		CombatManager::Set_I_Am_Server (was_server);
 	}
 
 	//

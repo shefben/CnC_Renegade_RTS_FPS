@@ -81,6 +81,7 @@
 #include "commanderpatrolai.h"
 #include "worldsynctransport.h"
 #include "proceduralworldpersistence.h"
+#include "bridgedamageservice.h"
 #include "commanderselectionoverlays.h"
 #include "commandergovernancepanel.h"
 #include "commanderguardai.h"
@@ -636,6 +637,7 @@ void	CombatManager::Pre_Load_Level( bool render_available )
 	CommanderGuardAI::Init();
 	CommanderPatrolAI::Init();
 	WorldSyncTransport::Init();
+	BridgeDamageService::Init();
 	CommanderSelection::Init();
 	CommanderCommandPalette::Init();
 	CommanderWaypointSystem::Init();

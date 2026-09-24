@@ -25,6 +25,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "proceduralworldmanager.h"
+#include "bridgedamageservice.h"
 
 #include "baseselectionplanner.h"
 #include "biomedecorationgenerator.h"
@@ -1453,6 +1454,7 @@ void ProceduralWorldManager::Destroy_World(void)
 	//	pure data); hydrology and interior cliffs each only ever remove their own IDs from their
 	//	own shared collection (see each generator's own Clear).
 	LogisticsGraphService::Clear ();
+	BridgeDamageService::Reset ();			// span damage belongs to the bridges about to go
 	MinimapBaseLayer::Clear ();
 	NavMeshGenerator::Clear ();
 	GeneratedWorldIntegrator::Clear ();

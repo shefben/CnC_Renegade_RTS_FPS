@@ -54,6 +54,7 @@ enum WorldSyncMessageType
 	WSYNC_MSG_REPAIR_REQUEST,			// client -> server: chunk coordinates that disagree
 	WSYNC_MSG_REPAIR,						// server -> client, one chunk's repair block
 	WSYNC_MSG_RESULT,						// client -> server: WorldSyncResultType and detail text
+	WSYNC_MSG_BRIDGE_STATE,				// server -> client: BridgeSystem's state block (P15)
 	WSYNC_MSG_COUNT
 };
 
@@ -116,6 +117,10 @@ class WorldSyncTransport
 		*/
 		static void		On_World_Generated(void);
 		static void		On_Client_Left(int client_id);
+
+		//	Every bridge section's damage state, to every synchronised client -- sent when a span's
+		//	state changes (BridgeDamageService).  Also part of every join package and save.
+		static void		Broadcast_Bridge_State(void);
 		static bool		Is_Client_Synchronised(int client_id);
 		static int		Get_Joined_Client_Count(void);
 

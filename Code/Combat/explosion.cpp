@@ -36,6 +36,7 @@
 
 
 #include "explosion.h"
+#include "bridgedamageservice.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldspatialindex.h"
 #include "debug.h"
@@ -310,6 +311,10 @@ void	ExplosionManager::Create_Explosion_At( int explosion_def_id, const Matrix3D
 
 			// Create an offense object to carry the damage information
 			OffenseObjectClass offense( explosion_def->DamageStrength, explosion_def->DamageWarhead, damager );
+
+			//	Bridges are static geometry, not game objects, so the object pass below never
+			//	reaches them; the same blast is handed to their own damage owner (P15).
+			BridgeDamageService::Apply_Explosion( pos, radius, explosion_def->DamageStrength );
 
 			// The force victim takes it all, and takes it whether or not it is close
 			// enough to be in the blast, which is why it is handled outside the query.

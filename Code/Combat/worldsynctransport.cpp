@@ -10,6 +10,7 @@
 
 #include "worldsynctransport.h"
 
+#include "bridgesystem.h"
 #include "combat.h"
 #include "proceduralworldmanager.h"
 #include "proceduralworldprofile.h"
@@ -346,6 +347,14 @@ bool WorldSyncTransport::Build_Join_Package(DynamicVectorClass<int> * kinds_out,
 		last_operation_id = operation.OperationId;
 	}
 
+	//	Bridge damage (P15), after the ground it stands on.
+	if ((BridgeSystem::Get_Bridge_Count () > 0) && BridgeSystem::Get_State_Block (block,sizeof (block),&used) &&
+		 (used > 0)) {
+		kinds_out->Add (WSYNC_MSG_BRIDGE_STATE);
+		sizes_out->Add (used);
+		for (int i = 0; i < used; i++) bytes_out->Add (block [i]);
+	}
+
 	//	The end marker carries the last operation id the package covers, so the client knows
 	//	which live operation comes next.
 	kinds_out->Add (WSYNC_MSG_JOIN_END);
@@ -396,6 +405,13 @@ bool WorldSyncTransport::Apply_Local_Package(const DynamicVectorClass<int> & kin
 			case WSYNC_MSG_JOIN_OPERATION:
 				if (!begun || (WorldSyncService::Apply_Operation_Block (block,size,nullptr) != WORLD_SYNC_OK)) {
 					if (error_out != nullptr) *error_out = "a saved world operation was refused";
+					return false;
+				}
+				break;
+
+			case WSYNC_MSG_BRIDGE_STATE:
+				if (!BridgeSystem::Apply_State_Block (block,size)) {
+					if (error_out != nullptr) *error_out = "the saved bridge state could not be applied";
 					return false;
 				}
 				break;
@@ -474,6 +490,20 @@ void WorldSyncTransport::On_World_Generated(void)
 	//	Clients already connected when the level loaded asked before the world existed and were
 	//	told there was none; tell them again now that there is.
 	Send_Identity (WSYNC_TO_ALL_CLIENTS);
+}
+
+
+void WorldSyncTransport::Broadcast_Bridge_State(void)
+{
+	if (!CombatManager::I_Am_Server () || (_JoinedCount == 0)) return;
+
+	static unsigned char block [8192];
+	int used = 0;
+	if (!BridgeSystem::Get_State_Block (block,sizeof (block),&used) || (used <= 0)) return;
+
+	for (int i = 0; i < _JoinedCount; i++) {
+		Send_Message (_JoinedClients [i],WSYNC_MSG_BRIDGE_STATE,block,used);
+	}
 }
 
 
@@ -667,6 +697,16 @@ static void	Client_Dispatch(int kind,const unsigned char * bytes,int count)
 			}
 			return;
 		}
+
+		case WSYNC_MSG_BRIDGE_STATE:
+			//	In the package (while joining) or live: either way it is the server's whole answer.
+			if ((_Phase == WSYNC_CLIENT_JOINING) || (_Phase == WSYNC_CLIENT_REPAIRING) ||
+				 (_Phase == WSYNC_CLIENT_SYNCHRONISED)) {
+				if (!BridgeSystem::Apply_State_Block (bytes,count)) {
+					WWDEBUG_SAY (("WorldSyncTransport: the server's bridge state could not be applied\r\n"));
+				}
+			}
+			return;
 
 		case WSYNC_MSG_LIVE_OPERATION: {
 			if (_Phase != WSYNC_CLIENT_SYNCHRONISED) return;
