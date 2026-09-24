@@ -231,6 +231,9 @@ int	Run_Programs (void)
 		MATERIAL_PROGRAM_FOLIAGE,
 		MATERIAL_PROGRAM_PROJECTED_SHADOW,
 		MATERIAL_PROGRAM_DEBUG_OVERLAY,
+		MATERIAL_PROGRAM_TRACER,				// D-001 P09: TracerRenderer
+		MATERIAL_PROGRAM_STATUS_MARKER,		// D-001 P09: StatusOverlayRenderer
+		MATERIAL_PROGRAM_GHOST_TINT,			// D-001 P09: CommanderGhostRenderer
 	};
 
 	for (int i=0; i<MATERIAL_PROGRAM_COUNT; i++) {
@@ -280,15 +283,15 @@ int	Run_Programs (void)
 	CountingProgramClass *	ghost = new CountingProgramClass ("ghost", 1, SHADER_TIER_FIXED_FUNCTION);
 	CountingProgramClass *	overlay = new CountingProgramClass ("marker", 2, SHADER_TIER_FIXED_FUNCTION);
 
-	Check (ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_GHOST_TINT, ghost),
+	Check (ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_PARTICLE, ghost),
 			"a program that fits the tier was refused");
-	Check (ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_STATUS_MARKER, overlay),
+	Check (ShaderManagerClass::Register_Program (MATERIAL_PROGRAM_TERRAIN_DETAIL, overlay),
 			"a multipass program that fits the tier was refused");
 
 	Check (ghost->Inits == 1, "the manager called Init %d times, not once", ghost->Inits);
-	Check (ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_STATUS_MARKER) == 2,
+	Check (ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_TERRAIN_DETAIL) == 2,
 			"a two pass program reported %d passes",
-			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_STATUS_MARKER));
+			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_TERRAIN_DETAIL));
 
 	//
 	//	Nothing is current until something is set, and resetting nothing is harmless.
@@ -298,9 +301,9 @@ int	Run_Programs (void)
 	ShaderManagerClass::Reset_Program ();
 	Check (ghost->Resets == 0, "resetting nothing reset a program");
 
-	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_GHOST_TINT, 0);
+	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_PARTICLE, 0);
 
-	Check (ShaderManagerClass::Get_Current_Program () == MATERIAL_PROGRAM_GHOST_TINT,
+	Check (ShaderManagerClass::Get_Current_Program () == MATERIAL_PROGRAM_PARTICLE,
 			"the program that was set is not the current one");
 	Check (ShaderManagerClass::Get_Current_Pass () == 0, "the current pass is not the one that was set");
 	Check (ghost->Sets == 1, "Set_Pass ran %d times for one pass", ghost->Sets);
@@ -311,8 +314,8 @@ int	Run_Programs (void)
 	//	own second pass knows what its first one did, and making it start from nothing
 	//	every time would be the layer getting in the way of the pipeline it exists to serve.
 	//
-	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_STATUS_MARKER, 0);
-	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_STATUS_MARKER, 1);
+	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_TERRAIN_DETAIL, 0);
+	ShaderManagerClass::Set_Program (MATERIAL_PROGRAM_TERRAIN_DETAIL, 1);
 
 	Check (ghost->Resets == 1, "handing over to another program reset the old one %d times, not once",
 			ghost->Resets);
@@ -356,7 +359,7 @@ int	Run_Programs (void)
 			"stock W3D materials lost their program on re-initialisation");
 	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_DEBUG_OVERLAY),
 			"debug overlays lost their program on re-initialisation");
-	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_GHOST_TINT) == false,
+	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_PARTICLE) == false,
 			"a program survived re-initialisation");
 	Check (ShaderManagerClass::Get_Current_Program () == MATERIAL_PROGRAM_COUNT,
 			"something was current after re-initialisation");
@@ -430,9 +433,27 @@ int	Run_Pipelines (void)
 	//	the caller to release.  A pass that does not exist answers no as well.
 	//
 	material = nullptr;
-	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_GHOST_TINT, 0, &shader, &material) == false,
+	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TERRAIN_DETAIL, 0, &shader, &material) == false,
 			"an unregistered pipeline answered with state");
 	Check (material == nullptr, "an unregistered pipeline handed out a material");
+
+	//	D-001 P09: moving the three later renderers onto the layer changes no picture -- each
+	//	program answers with exactly the state its renderer used to build for itself.
+	{
+		ShaderClass line_state = ShaderClass::_PresetAlphaShader;
+		line_state.Set_Primary_Gradient (ShaderClass::GRADIENT_MODULATE);
+		line_state.Set_Cull_Mode (ShaderClass::CULL_MODE_DISABLE);
+		ShaderClass ghost_state = ShaderClass::_PresetAlphaShader;
+		ghost_state.Set_Depth_Mask (ShaderClass::DEPTH_WRITE_DISABLE);
+
+		ShaderClass answer;
+		Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TRACER, 0, &answer, nullptr) &&
+				 answer.Get_Bits () == line_state.Get_Bits (), "the tracer program is not the tracer's old state");
+		Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_STATUS_MARKER, 0, &answer, nullptr) &&
+				 answer.Get_Bits () == line_state.Get_Bits (), "the status marker program is not the markers' old state");
+		Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_GHOST_TINT, 0, &answer, nullptr) &&
+				 answer.Get_Bits () == ghost_state.Get_Bits (), "the ghost tint program is not the ghost's old state");
+	}
 
 	Check (ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_ROAD, 1, &shader, &material) == false,
 			"a one pass pipeline answered for a second pass");

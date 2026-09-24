@@ -9,6 +9,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "commanderghostrenderer.h"
+#include "shadermgr.h"
 
 #include "assetmgr.h"
 #include "buildingdescriptormanager.h"
@@ -76,8 +77,12 @@ static void	Apply_Ghost_Materials(RenderObjClass * object,const Vector3 & tint)
 			material->Set_Emissive (tint.X,tint.Y,tint.Z);
 			material->Set_Opacity (GHOST_OPACITY);
 
+			//	The pipeline layer's ghost-tint program owns the blend state (D-001 P09); the
+			//	tint and opacity above change with the verdict and stay this renderer's.
 			ShaderClass shader = ShaderClass::_PresetAlphaShader;
-			shader.Set_Depth_Mask (ShaderClass::DEPTH_WRITE_DISABLE);
+			if (!ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_GHOST_TINT,0,&shader,nullptr)) {
+				shader.Set_Depth_Mask (ShaderClass::DEPTH_WRITE_DISABLE);
+			}
 
 			model->Set_Pass_Count (1);
 			model->Set_Single_Shader (shader,0);

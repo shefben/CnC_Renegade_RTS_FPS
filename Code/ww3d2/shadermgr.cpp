@@ -416,6 +416,55 @@ public:
 
 
 /***********************************************************************************************
+**	Tracers and status markers (D-001 P09).
+**
+**	Both are line strips submitted to the pooled particle batching, alpha-blended, modulated by
+**	their vertex colour and drawn from both sides -- exactly the state each renderer built for
+**	itself before this program existed, so moving onto the layer changes no picture.  No
+**	material: the particle path carries colour per vertex.  Fog is per renderer and is still
+**	switched on by the caller, because the fog name is the caller's own.
+***********************************************************************************************/
+class AlphaLineProgramClass : public FixedFunctionProgramClass
+{
+public:
+
+	AlphaLineProgramClass(MaterialProgramType type) : FixedFunctionProgramClass(type,1,1) { }
+
+	virtual bool	Init(ShaderTierType) override
+	{
+		ShaderClass shader = ShaderClass::_PresetAlphaShader;
+		shader.Set_Primary_Gradient(ShaderClass::GRADIENT_MODULATE);
+		shader.Set_Cull_Mode(ShaderClass::CULL_MODE_DISABLE);
+		Set_Pass_Shader(0,shader);
+		return true;
+	}
+};
+
+
+/***********************************************************************************************
+**	The Commander's ghost building (D-001 P09).
+**
+**	Alpha-blended with no depth write, the state CommanderGhostRenderer built before.  The
+**	emissive tint and opacity change with the placement verdict, so the material stays the
+**	caller's; this program owns the blend state it is drawn with.
+***********************************************************************************************/
+class GhostTintProgramClass : public FixedFunctionProgramClass
+{
+public:
+
+	GhostTintProgramClass(void) : FixedFunctionProgramClass(MATERIAL_PROGRAM_GHOST_TINT,1,1) { }
+
+	virtual bool	Init(ShaderTierType) override
+	{
+		ShaderClass shader = ShaderClass::_PresetAlphaShader;
+		shader.Set_Depth_Mask(ShaderClass::DEPTH_WRITE_DISABLE);
+		Set_Pass_Shader(0,shader);
+		return true;
+	}
+};
+
+
+/***********************************************************************************************
 **	Water.
 **
 **	Translucent and two-sided, and no depth write, because a surface that blends over what is
@@ -581,11 +630,18 @@ void	ShaderManagerClass::Init(ShaderTierType tier)
 	Register_Program(MATERIAL_PROGRAM_PROJECTED_SHADOW,new ProjectedShadowProgramClass);
 	Register_Program(MATERIAL_PROGRAM_DEBUG_OVERLAY,new DebugOverlayProgramClass);
 
-	//	Deliberately not registered: terrain detail, particles, tracers and beams, status
-	//	markers and the ghost building tint.  Nothing draws any of them yet, and a registered
-	//	program is a claim that a pipeline exists -- Is_Supported is how a caller asks.  Terrain
-	//	detail is the one that looks ready and is not: it needs a second UV rate on a single
-	//	layer, which the terrain pass cannot carry, and it has no layer table entry to draw.
+	//	D-001 P09: the three later renderers that draw with one fixed state.
+	Register_Program(MATERIAL_PROGRAM_TRACER,new AlphaLineProgramClass(MATERIAL_PROGRAM_TRACER));
+	Register_Program(MATERIAL_PROGRAM_STATUS_MARKER,new AlphaLineProgramClass(MATERIAL_PROGRAM_STATUS_MARKER));
+	Register_Program(MATERIAL_PROGRAM_GHOST_TINT,new GhostTintProgramClass);
+
+	//	Deliberately not registered:
+	//	  - particles: every emitter carries the shader its W3D definition authored (additive,
+	//	    alpha, screen...), so no single program can describe them; they keep the stock
+	//	    per-emitter path, and MATERIAL_PROGRAM_PARTICLE is retired rather than faked.
+	//	  - terrain detail: it needs a second UV rate on a single layer, which the terrain pass
+	//	    cannot carry, and it has no layer table entry to draw.  A registered program is a
+	//	    claim that a pipeline exists -- Is_Supported is how a caller asks.
 }
 
 

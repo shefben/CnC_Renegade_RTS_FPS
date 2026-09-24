@@ -17,6 +17,7 @@
 */
 
 #include "statusoverlayrenderer.h"
+#include "shadermgr.h"
 
 #include "camera.h"
 #include "colmath.h"
@@ -268,9 +269,12 @@ void StatusOverlayRenderer::Render(RenderInfoClass & rinfo,const Vector3 & camer
 
 	Vector3 batch_center = (ring_count > 0) ? (center_sum * (1.0f / (float)ring_count)) : camera_position;
 
+	//	The pipeline layer's status-marker program owns the blend state (D-001 P09).
 	ShaderClass shader = ShaderClass::_PresetAlphaShader;
-	shader.Set_Primary_Gradient (ShaderClass::GRADIENT_MODULATE);
-	shader.Set_Cull_Mode (ShaderClass::CULL_MODE_DISABLE);
+	if (!ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_STATUS_MARKER,0,&shader,nullptr)) {
+		shader.Set_Primary_Gradient (ShaderClass::GRADIENT_MODULATE);
+		shader.Set_Cull_Mode (ShaderClass::CULL_MODE_DISABLE);
+	}
 	shader.Enable_Fog ("StatusOverlayRenderer");
 
 	ParticleSubmissionStruct submission;

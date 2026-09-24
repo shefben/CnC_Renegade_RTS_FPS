@@ -17,6 +17,7 @@
 */
 
 #include "tracerrenderer.h"
+#include "shadermgr.h"
 
 #include "camera.h"
 #include "colmath.h"
@@ -234,9 +235,13 @@ void TracerRenderer::Render(RenderInfoClass & rinfo,const Vector3 & camera_posit
 
 	Vector3 batch_center = center_sum * (1.0f / (float)staged);
 
+	//	The pipeline layer's tracer program owns the blend state (D-001 P09); the built-in
+	//	value below is only what a manager with nothing registered would leave undrawn.
 	ShaderClass shader = ShaderClass::_PresetAlphaShader;
-	shader.Set_Primary_Gradient (ShaderClass::GRADIENT_MODULATE);
-	shader.Set_Cull_Mode (ShaderClass::CULL_MODE_DISABLE);
+	if (!ShaderManagerClass::Get_Pass_State (MATERIAL_PROGRAM_TRACER,0,&shader,nullptr)) {
+		shader.Set_Primary_Gradient (ShaderClass::GRADIENT_MODULATE);
+		shader.Set_Cull_Mode (ShaderClass::CULL_MODE_DISABLE);
+	}
 	shader.Enable_Fog ("TracerRenderer");
 
 	ParticleSubmissionStruct submission;

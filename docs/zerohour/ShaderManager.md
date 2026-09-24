@@ -213,16 +213,30 @@ offered into `MATERIAL_PROGRAM_PARTICLE` for that reason: a slot nothing claims.
 
 ## What is left
 
-Five of the pipelines Section 15 lists are still enumerated and unregistered: terrain
-detail, particles, tracers and beams, status markers, ghost building tint. `Is_Supported`
-reports false for each and `Get_Pass_Count` returns zero, so a caller that loops over them
-draws nothing rather than drawing them wrongly.
+**D-001 P09 update.** Three of the pipelines that used to be enumerated but unregistered now
+have their renderers, and are registered:
 
-They are unregistered because none of them has anything to draw. Particles, tracers,
-status markers and the ghost tint arrive with roadmap Sections 26, 27 and the Commander
-work. Terrain detail is the one that looks ready and is not: it needs a second UV rate on
-a single layer, which the terrain pass cannot carry, and there is no detail entry in the
-layer table for it to draw.
+| Program | Renderer | State |
+| --- | --- | --- |
+| `MATERIAL_PROGRAM_TRACER` | `TracerRenderer` | alpha, modulated by vertex colour, both sides |
+| `MATERIAL_PROGRAM_STATUS_MARKER` | `StatusOverlayRenderer` | the same |
+| `MATERIAL_PROGRAM_GHOST_TINT` | `CommanderGhostRenderer` | alpha, no depth write; the verdict's tint material stays the renderer's |
+
+Each renderer now takes its state from `Get_Pass_State` and adds only its own fog name. Each
+program answers with exactly the state its renderer used to build for itself, and
+`shader_pipelines` asserts that bit for bit, so the move changes no picture.
+
+Two pipelines remain unregistered, each for a reason:
+
+- **Particles are retired, not faked.** Every emitter carries the shader its W3D definition
+  authored (additive, alpha, screen...), so no single program can describe them. They keep the
+  stock per-emitter path.
+- **Terrain detail** is the one that looks ready and is not. It needs a second UV rate on a
+  single layer, which the terrain pass cannot carry, and there is no detail entry in the layer
+  table for it to draw.
+
+`Is_Supported` reports false for both and `Get_Pass_Count` returns zero, so a caller that
+loops over them draws nothing rather than drawing them wrongly.
 
 The acceptance line *new donor systems share one state/shader management layer* is now met
 in substance — six donor-derived systems draw through one layer and no longer decide their
