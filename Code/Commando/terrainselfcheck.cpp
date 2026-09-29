@@ -10,6 +10,8 @@
 #include "proceduralworldpersistence.h"
 #include "crc.h"
 #include "proceduralworldmanager.h"
+#include "proceduralboundsbuilder.h"
+#include "worldseedservice.h"
 #include "rawfile.h"
 #include "chunkio.h"
 #include "commanderminimap.h"
@@ -47,6 +49,21 @@
 #include "playertype.h"
 #include "coltype.h"
 #include "macroterraingenerator.h"
+#include "mapplangenerator.h"
+#include "hybridplanrecords.h"
+#include "hybridplanning.h"
+#include "hybridpreflight.h"
+#include "hybridmapidentity.h"
+#include "hybridstrategicgraph.h"
+#include "hybridcoarsematrix.h"
+#include "hybridlandforms.h"
+#include "hybridhydrology.h"
+#include "hybridmacroterrain.h"
+#include "hybridanchors.h"
+#include "hybridtopology.h"
+#include "hybridroutes.h"
+#include "w3d_file.h"
+#include "worldgenerationmanifest.h"
 #include "proceduralassetregistry.h"
 #include "proceduralworldprofile.h"
 #include "renegadeterrainpatch.h"
@@ -63,6 +80,7 @@
 #include "WeatherMgr.h"
 #include "tiberiumfieldgenerator.h"
 #include "transportationnetworkvalidator.h"
+#include "tunnelsystem.h"
 #include "tunnelplanner.h"
 #include "escarpment.h"
 #include "terraintexturesystem.h"
@@ -3710,6 +3728,4434 @@ int	Count_Steep_Buildable_Chunks (float limit_radians)
 }
 
 
+/***********************************************************************************************
+ * Check_Map_Plan -- D-003 Phase 3B                                                             *
+ *=============================================================================================*/
+static void Make_Map_Plan_Test_Params (MapPlanParams * p)
+{
+	*p = MapPlanParams ();
+	p->Seed = 4242u;
+	p->WorldWidth = 1200.0f;
+	p->WorldHeight = 1200.0f;
+	p->ChunkSize = 60.0f;			// 20 x 20 cells
+	p->CenterX = 0.0f;
+	p->CenterY = 0.0f;
+	p->Symmetry = MAP_PLAN_SYMMETRY_ROTATIONAL;
+	p->TierCount = 3;
+	p->TierStep = 18.0f;
+	p->LaneWidthCells = 1;
+	p->BaseRadiusCells = 2;
+	p->FlankLaneCount = 1;
+	p->WaterFraction = 0.1f;
+	p->BoundaryMarginCells = 1.0f;
+}
+
+
+/*
+**	Hybrid rewrite item I1 gate: the schema-12 plan block round-trips deterministically, old
+**	profiles still load, the native profile selects the hybrid generator, and the Section 4, 4.3,
+**	6 and 7 tables hold the plan's values.
+*/
+void	Check_Hybrid_Plan_Records (void)
+{
+	StringClass error ("");
+
+	//	Native profile: loads, is schema 12, selects the hybrid generator, and loads identically twice.
+	ProceduralWorldProfile native_a;
+	ProceduralWorldProfile native_b;
+	bool loaded_a = ProceduralWorldProfileManager::Load_Profile_From_File ("data/procedural_world/native.json",&native_a,&error);
+	Check (loaded_a,"native profile did not load: %s",error.Peek_Buffer ());
+	bool loaded_b = ProceduralWorldProfileManager::Load_Profile_From_File ("data/procedural_world/native.json",&native_b,&error);
+	Check (loaded_b,"native profile did not load a second time: %s",error.Peek_Buffer ());
+	if (loaded_a && loaded_b) {
+		Check (native_a.Uses_Hybrid_Generator (),"native profile does not select the hybrid generator");
+		Check (native_a.SchemaVersion == ProceduralWorldProfile::CURRENT_SCHEMA_VERSION,
+			"native profile is schema %d, expected %d",native_a.SchemaVersion,(int)ProceduralWorldProfile::CURRENT_SCHEMA_VERSION);
+		Check (WorldGenerationManifestService::Compute_Profile_Hash (native_a) == WorldGenerationManifestService::Compute_Profile_Hash (native_b),
+			"native profile hash differs between two loads");
+		Check (!native_a.Plan.LegacyLaneWidthCellsPresent,"native profile still writes plan.lane_width_cells");
+		Check (!native_a.Features.LegacySettlementsPresent,"native profile still writes world_features.settlements");
+		Check (native_a.Plan.RouteRedundancy >= 2 && native_a.Plan.RouteRedundancy <= 3,"native route_redundancy %d",native_a.Plan.RouteRedundancy);
+		Check (!native_a.Plan.AllowFords,"native profile enables fords without a ford capability");
+		Check (native_a.Plan.WaterFraction >= 0.03f && native_a.Plan.WaterFraction <= 0.20f,"native water_fraction %f outside 0.03..0.20",native_a.Plan.WaterFraction);
+	}
+
+	//	Old profiles: the shipped schema-11 default and a bare schema-8 profile still load and stay off the hybrid path.
+	ProceduralWorldProfile old_default;
+	Check (ProceduralWorldProfileManager::Load_Profile_From_File ("data/procedural_world/default.json",&old_default,&error),
+		"schema-11 default profile no longer loads: %s",error.Peek_Buffer ());
+	Check (!old_default.Uses_Hybrid_Generator (),"default profile unexpectedly selects the hybrid generator");
+	ProceduralWorldProfile old_bare;
+	Check (ProceduralWorldProfileManager::Load_Profile_From_Text ("{ \"schema_version\": 8, \"seed\": 5 }",&old_bare,&error),
+		"schema-8 profile no longer loads: %s",error.Peek_Buffer ());
+	Check (old_bare.Plan.Archetype == "auto" && old_bare.Plan.RouteRedundancy == 2 && old_bare.Plan.RoadDensity == 0.65f,
+		"a profile without schema-12 fields does not get the Section 4 defaults");
+
+	//	Legacy fields parse on the hybrid path and are only flagged; the hash ignores nothing here (legacy hash rule).
+	ProceduralWorldProfile legacy;
+	Check (ProceduralWorldProfileManager::Load_Profile_From_Text (
+		"{ \"schema_version\": 11, \"seed\": 5, \"plan\": { \"enabled\": true, \"lane_width_cells\": 3 }, "
+		"\"world_features\": { \"settlements\": true } }",&legacy,&error),
+		"hybrid profile carrying legacy fields was refused: %s",error.Peek_Buffer ());
+	Check (legacy.Plan.LegacyLaneWidthCellsPresent && legacy.Features.LegacySettlementsPresent,"legacy field presence not recorded");
+
+	//	Section 0.7: on the hybrid path the legacy fields are excluded from the profile hash; off it they still count.
+	ProceduralWorldProfile legacy_other = legacy;
+	legacy_other.Plan.LaneWidthCells = 1;
+	legacy_other.Features.Settlements = false;
+	Check (WorldGenerationManifestService::Compute_Profile_Hash (legacy) == WorldGenerationManifestService::Compute_Profile_Hash (legacy_other),
+		"legacy lane_width_cells/settlements still change the hybrid profile hash");
+	legacy.World.FitToLevel = true;
+	legacy_other.World.FitToLevel = true;
+	Check (WorldGenerationManifestService::Compute_Profile_Hash (legacy) != WorldGenerationManifestService::Compute_Profile_Hash (legacy_other),
+		"legacy lane_width_cells/settlements no longer hash on the legacy path");
+
+	//	Schema-12 fields parse and their ranges are enforced.
+	ProceduralWorldProfile explicit_plan;
+	Check (ProceduralWorldProfileManager::Load_Profile_From_Text (
+		"{ \"schema_version\": 12, \"seed\": 5, \"plan\": { \"enabled\": true, \"archetype\": \"canyon_crossroads\", "
+		"\"biome_mode\": \"mixed\", \"biome\": \"desert\", \"secondary_biome\": \"tiberium_wasteland\", "
+		"\"road_density\": 0.5, \"island_chance\": 0.0, \"route_redundancy\": 3, \"flank_lanes\": 0 } }",&explicit_plan,&error),
+		"explicit schema-12 plan block was refused: %s",error.Peek_Buffer ());
+	Check (explicit_plan.Plan.Archetype == "canyon_crossroads" && explicit_plan.Plan.Route_Family_Count () == 3,
+		"explicit plan fields did not parse (archetype %s, families %d)",
+		explicit_plan.Plan.Archetype.Peek_Buffer (),explicit_plan.Plan.Route_Family_Count ());
+
+	const char * const bad_plans [] =
+	{
+		"\"biome\": \"snow\", \"secondary_biome\": \"desert\"",
+		"\"biome\": \"snow\", \"secondary_biome\": \"snow\"",
+		"\"archetype\": \"volcano\"",
+		"\"biome_mode\": \"striped\"",
+		"\"route_redundancy\": 4",
+		"\"water_fraction\": 0.5",
+		"\"tier_count\": 6",
+		"\"road_density\": 1.5",
+	};
+	for (int index = 0; index < (int)(sizeof (bad_plans) / sizeof (bad_plans[0])); index ++) {
+		StringClass text;
+		text.Format ("{ \"schema_version\": 12, \"seed\": 5, \"plan\": { \"enabled\": true, %s } }",bad_plans[index]);
+		ProceduralWorldProfile bad;
+		bool ok = ProceduralWorldProfileManager::Load_Profile_From_Text (text,&bad,&error)
+				 && ProceduralWorldProfileManager::Validate_Profile (bad,&error);
+		Check (!ok,"illegal plan block accepted: %s",bad_plans[index]);
+	}
+
+	//	Section 4 route family count, 4.3 pairs, 6 order, 7 table.
+	Check (Hybrid_Route_Family_Count (2,0) == 2 && Hybrid_Route_Family_Count (2,1) == 2
+		&& Hybrid_Route_Family_Count (2,2) == 3 && Hybrid_Route_Family_Count (3,0) == 3,"route_family_count formula wrong");
+	Check (Hybrid_Is_Legal_Biome_Pair (HYBRID_BIOME_TEMPERATE,HYBRID_BIOME_SNOW)
+		&& Hybrid_Is_Legal_Biome_Pair (HYBRID_BIOME_TIBERIUM_WASTELAND,HYBRID_BIOME_DESERT)
+		&& !Hybrid_Is_Legal_Biome_Pair (HYBRID_BIOME_DESERT,HYBRID_BIOME_SNOW)
+		&& !Hybrid_Is_Legal_Biome_Pair (HYBRID_BIOME_TEMPERATE,HYBRID_BIOME_TEMPERATE),"legal biome pair table wrong");
+	HybridArchetype archetype = HYBRID_ARCHETYPE_AUTO;
+	Check (Hybrid_Archetype_From_Name ("river_valley",&archetype) && archetype == 0
+		&& Hybrid_Archetype_From_Name ("open_frontier",&archetype) && archetype == HYBRID_ARCHETYPE_COUNT - 1,"archetype stable order wrong");
+	const HybridRoadClassSpec & highway = Hybrid_Road_Class_Spec (HYBRID_ROAD_HIGHWAY_4);
+	Check (::fabsf (highway.Roadbed_Width_W () - 5.65f) < 0.001f && highway.PhysicalTier == HYBRID_ROAD_TIER_HIGHWAY,
+		"HIGHWAY_4 roadbed %.3fW",highway.Roadbed_Width_W ());
+	Check (::fabsf (Hybrid_Road_Class_Spec (HYBRID_ROAD_PRIMARY_2).Roadbed_Width_W () - 2.60f) < 0.001f
+		&& ::fabsf (Hybrid_Road_Class_Spec (HYBRID_ROAD_SECONDARY_2).Roadbed_Width_W () - 2.40f) < 0.001f
+		&& ::fabsf (Hybrid_Road_Class_Spec (HYBRID_ROAD_SERVICE_DIRT_2).Roadbed_Width_W () - 2.40f) < 0.001f
+		&& ::fabsf (Hybrid_Road_Class_Spec (HYBRID_ROAD_TRAIL_1).Roadbed_Width_W () - 1.20f) < 0.001f,
+		"Section 7 roadbed widths wrong");
+
+	//	Semantic matrix layers stay in lockstep.
+	HybridSemanticMatrix matrix;
+	Check (matrix.Resize (4,3,16.0f,0.0f,0.0f),"semantic matrix would not size");
+	Check (matrix.Get_Cell_Count () == 12 && matrix.Flags != nullptr && matrix.BiomeId != nullptr
+		&& matrix.MacroHeightBias != nullptr,"semantic matrix layers not sized CountX*CountY");
+	matrix.Set_Flag (3,2,HYBRID_FLAG_COAST | HYBRID_FLAG_NO_DECORATION);
+	Check (matrix.Has_Flag (3,2,HYBRID_FLAG_COAST) && !matrix.Has_Flag (2,2,HYBRID_FLAG_COAST),"semantic flag set/test wrong");
+}
+
+
+void Check_Hybrid_Planning (void)
+{
+	Check (Hybrid_Round_Half_Up (0.49f) == 0 && Hybrid_Round_Half_Up (0.5f) == 1 && Hybrid_Round_Half_Up (2.5f) == 3,"hybrid half-up rounding");
+	Check (Hybrid_Pick_Index (4,0) == 0 && Hybrid_Pick_Index (4,0.5f) == 2 && Hybrid_Pick_Index (4,0.999999f) == 3,"hybrid index endpoints");
+	Check (Hybrid_Pick_Sign (0.499f) == -1 && Hybrid_Pick_Sign (0.5f) == 1,"hybrid sign boundary");
+	Check (Hybrid_Quantize_To_Int (-1.2344f,HYBRID_QUANTUM_POSITION) == -1234 && Hybrid_Quantize_To_Int (1.2346f,HYBRID_QUANTUM_POSITION) == 1235,"signed position quantization");
+	Check (Hybrid_Quantize_To_Int (Hybrid_Quantize_Angle (0.1236f),HYBRID_QUANTUM_ANGLE) == 124
+		&& Hybrid_Quantize_To_Int (Hybrid_Quantize_Normalized (0.1234564f),HYBRID_QUANTUM_NORMALIZED) == 123456,"angle and normalized quantizers");
+	Check (Near (Hybrid_Range (2,4,0.25f),2.5f),"hybrid range draw");
+	for (unsigned int key = 0; key < 512; ++key) {
+		const float h = WorldSeedService::Hash01 (123,WorldSeedService::SEED_DOMAIN_MAP_PLAN,key);
+		Check (h >= 0 && h < 1 && h == WorldSeedService::Hash01 (123,WorldSeedService::SEED_DOMAIN_MAP_PLAN,key),"keyed hash range/repeatability %u",key);
+	}
+	HybridHashStream a, b, c;
+	a.Add_Length (12.0001f); b.Add_Length (12.0002f); c.Add_Length (12.001f);
+	Check (a.Get () == b.Get () && a.Get () != c.Get (),"hash must use quantized values");
+	HybridHashStream strings_a, strings_b;
+	strings_a.Add_String ("ab"); strings_a.Add_String ("c"); strings_b.Add_String ("a"); strings_b.Add_String ("bc");
+	Check (strings_a.Get () != strings_b.Get (),"hash string boundaries");
+	Check (WorldSeedService::Hash01 (123,WorldSeedService::SEED_DOMAIN_MAP_PLAN,4) != WorldSeedService::Hash01 (123,WorldSeedService::SEED_DOMAIN_ROADS,4),"independent named seed domains");
+	Check (Hybrid_World_Size_Within_Limits (2400,2400) && !Hybrid_World_Size_Within_Limits (2401,600) && !Hybrid_World_Size_Within_Limits (0,600),"interactive world size limits");
+	Check (Hybrid_Size_Class_For (899) == HYBRID_SIZE_SMALL && Hybrid_Size_Class_For (900) == HYBRID_SIZE_MEDIUM && Hybrid_Size_Class_For (1800) == HYBRID_SIZE_LARGE,"derived size class boundaries");
+	HybridConstants k;
+	Hybrid_Compute_Constants (2.556f,1,60,1200,1200,3,10000,&k);
+	Check (Near (k.W,3.3228f,0.00001f) && k.A == 15 && k.S == 30 && k.BHash == 60 && k.RBaseProtected == 180,"canonical planning constants");
+	const float widths[] = { 5.65f,2.60f,2.40f,2.40f,1.20f };
+	for (int road = 0; road < HYBRID_ROAD_CLASS_COUNT; ++road) {
+		const HybridRoadClass rc = (HybridRoadClass)road;
+		Check (Near (Hybrid_Roadbed_Width (rc,k.W),widths[road]*k.W),"roadbed width %d",road);
+		Check (Hybrid_Max_Corridor_Half_Width (rc,k.S,k.D) == Hybrid_Preferred_Corridor_Half_Width (rc,k.S,k.D)+2*k.S,"bounded corridor expansion %d",road);
+		Check (Near (Hybrid_Road_Deformation_Half_Width (rc,k.W,k.A),0.5f*widths[road]*k.W+7.5f),"road deformation envelope %d",road);
+	}
+	const HybridVerticalInterval low = Hybrid_Road_Vertical_Interval (10,2,3), high = Hybrid_Road_Vertical_Interval (17,2,3);
+	Check (low.Low == 8 && low.High == 13 && Hybrid_Interval_Gap (low,high) == 2,"road interval gap");
+	Check (Hybrid_Grade_Compatible (low,high,10,0.2f) && !Hybrid_Grade_Compatible (low,high,10,0.1f),"grade feasibility");
+	ProceduralPlanningSpatialHash spatial;
+	spatial.Init (1200,1200,k.BHash);
+	spatial.Insert (9,10,10,100,100); spatial.Insert (2,61,61,65,65); spatial.Insert (7,900,900,920,920);
+	DynamicVectorClass<unsigned int> hits;
+	spatial.Query (60,60,100,100,&hits);
+	Check (hits.Count () == 2 && hits[0] == 2 && hits[1] == 9,"spatial query sorted unique bucket hits");
+	spatial.Reset (); spatial.Query (0,0,1200,1200,&hits);
+	Check (hits.Count () == 0 && spatial.Get_Entry_Count () == 0,"spatial reset between attempts");
+	HybridWorkBudgets budget;
+	Hybrid_Get_Work_Budgets (HYBRID_SIZE_MEDIUM,6400,7,&budget);
+	Check (budget.MaxRoutedEdges == 32 && budget.AStarExpansionsPerRoute == 51200 && budget.AStarExpansionsPerAttempt == 1638400 && budget.LosRays == 2048 && budget.LocalRepairCandidates == 21 && budget.ScratchArenaBytes == 256*1024*1024,"deterministic work ceilings");
+	HybridWorkCounters counters;
+	counters.Add (HYBRID_WORK_LOS_RAYS,2048);
+	Check (!counters.Exceeds (HYBRID_WORK_LOS_RAYS,budget.LosRays),"exact work budget allowed");
+	counters.Add (HYBRID_WORK_LOS_RAYS);
+	Check (counters.Exceeds (HYBRID_WORK_LOS_RAYS,budget.LosRays),"work ceiling exceeded");
+	HybridScratchArena arena;
+	Check (arena.Reserve (128),"scratch reservation");
+	void * block = arena.Allocate (32,32);
+	Check (block != NULL && ((size_t)block % 32) == 0,"scratch address alignment");
+	const int used = arena.Get_Used ();
+	Check (arena.Allocate (129) == NULL && arena.Get_Used () == used,"scratch overflow leaves arena intact");
+	arena.Reset ();
+	Check (arena.Get_Used () == 0 && arena.Get_High_Water () == used && arena.Allocate (32,32) == block,"scratch reuse/high water");
+}
+
+
+/*
+**	Rewrite item I3 -- runtime Phase 2, MapIdentity.  Hand-filled params only: the resolver reads no
+**	profile and no registry, so Phase 2 is checked without any content loaded.
+*/
+static HybridMapIdentityParams Identity_Fixture (float world_size = 1200.0f)
+{
+	HybridMapIdentityParams params;
+	params.MapPlanSeed	= WorldSeedService::Derive_Subsystem_Seed (4242,WorldSeedService::SEED_DOMAIN_MAP_PLAN);
+	params.HydrologySeed	= WorldSeedService::Derive_Subsystem_Seed (4242,WorldSeedService::SEED_DOMAIN_HYDROLOGY);
+	params.BiomeSeed		= WorldSeedService::Derive_Subsystem_Seed (4242,WorldSeedService::SEED_DOMAIN_BIOMES);
+	Hybrid_Compute_Constants (2.555953f,1.0f,60.0f,world_size,world_size,3.0f,10000.0f,&params.Constants);
+	params.Symmetry					= HYBRID_SYMMETRY_ROTATIONAL;
+	params.ArchetypeSelector		= HYBRID_ARCHETYPE_AUTO;
+	params.BiomeModeSelector		= HYBRID_BIOME_MODE_SINGLE;
+	params.BiomeSelector				= HYBRID_BIOME_AUTO;
+	params.SecondaryBiomeSelector	= HYBRID_BIOME_AUTO;
+	return params;
+}
+
+
+void Check_Hybrid_Map_Identity (void)
+{
+	HybridMapIdentity identity;
+	HybridArchetypeIntentSet intents;
+	HybridMapIdentityResult result;
+
+	//	Step 1 -- the size class is derived from D, never drawn.
+	const float sizes[3] = { 600.0f, 1200.0f, 2400.0f };
+	const HybridSizeClass classes[3] = { HYBRID_SIZE_SMALL, HYBRID_SIZE_MEDIUM, HYBRID_SIZE_LARGE };
+	const int island_slots[3] = { 0, 1, 2 };
+	for (int i = 0; i < 3; ++i) {
+		HybridMapIdentityParams sized = Identity_Fixture (sizes[i]);
+		Check (Hybrid_Resolve_Map_Identity (sized,&identity,&intents,&result),"identity %g: %s",sizes[i],result.Detail.Peek_Buffer ());
+		Check (identity.SizeClass == classes[i] && identity.IslandSlotCount == island_slots[i],"size class and island slots at D=%g",sizes[i]);
+	}
+
+	//	The Phase 2 gate: identical params give identical records and checksum; another seed differs.
+	HybridMapIdentityParams params = Identity_Fixture ();
+	HybridMapIdentity again;
+	HybridArchetypeIntentSet again_intents;
+	Check (Hybrid_Resolve_Map_Identity (params,&identity,&intents,&result),"identity baseline: %s",result.Detail.Peek_Buffer ());
+	Check (Hybrid_Resolve_Map_Identity (params,&again,&again_intents,&result),"identity repeat: %s",result.Detail.Peek_Buffer ());
+	Check (identity.Checksum == again.Checksum && identity.Checksum == Hybrid_Map_Identity_Checksum (again,again_intents,0),
+			 "identical seed/profile gives an identical identity checksum");
+	Check (identity.Archetype == again.Archetype && identity.FlankSign == again.FlankSign
+		 && identity.Frame.AxisAngle == again.Frame.AxisAngle && intents.Intents.Count () == again_intents.Intents.Count (),
+			 "identical seed/profile gives identical identity records");
+	HybridMapIdentityParams other_seed = params;
+	other_seed.MapPlanSeed = WorldSeedService::Derive_Subsystem_Seed (99,WorldSeedService::SEED_DOMAIN_MAP_PLAN);
+	Check (Hybrid_Resolve_Map_Identity (other_seed,&again,&again_intents,&result) && again.Checksum != identity.Checksum,
+			 "a different seed changes the identity checksum");
+
+	//	Step 4 -- the strategic axis.  mirror_x keeps the literal X axis; every other symmetry draws.
+	HybridMapIdentityParams mirror = params;
+	mirror.Symmetry = HYBRID_SYMMETRY_MIRROR_X;
+	Check (Hybrid_Resolve_Map_Identity (mirror,&identity,&intents,&result) && identity.Frame.AxisAngle == 0.0f
+		 && Near (identity.Frame.AxisU.X,1.0f) && Near (identity.Frame.AxisV.Y,1.0f),"mirror_x axis is world X");
+	Check (Near (identity.Frame.Scale,600.0f),"strategic frame scale is D/2");
+	for (unsigned int seed = 1; seed <= 64; ++seed) {
+		HybridMapIdentityParams spun = params;
+		spun.MapPlanSeed = WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_MAP_PLAN);
+		Check (Hybrid_Resolve_Map_Identity (spun,&identity,&intents,&result)
+			 && identity.Frame.AxisAngle >= 0.0f && identity.Frame.AxisAngle < WWMATH_PI,"axis angle in [0,pi) for seed %u",seed);
+		const Vector2 round_trip = identity.Frame.To_Strategic (identity.Frame.To_World (-0.72f,0.31f));
+		Check (Near (round_trip.X,-0.72f,0.0001f) && Near (round_trip.Y,0.31f,0.0001f),"strategic frame round trip for seed %u",seed);
+		Check (Near (identity.Frame.AxisU.X*identity.Frame.AxisV.X + identity.Frame.AxisU.Y*identity.Frame.AxisV.Y,0.0f,0.0001f),
+				 "v axis perpendicular to u for seed %u",seed);
+	}
+
+	//	Section 6.1 -- symmetry pairing and the anchors that hang off the flank sign.
+	Check (Hybrid_Mirror_Strategic (HYBRID_SYMMETRY_ROTATIONAL,Vector2 (0.3f,0.4f)) == Vector2 (-0.3f,-0.4f)
+		 && Hybrid_Mirror_Strategic (HYBRID_SYMMETRY_MIRROR_X,Vector2 (0.3f,0.4f)) == Vector2 (-0.3f,0.4f)
+		 && Hybrid_Mirror_Strategic (HYBRID_SYMMETRY_NONE,Vector2 (0.3f,0.4f)) == Vector2 (0.3f,0.4f),"symmetry pairing rule");
+	Check (Hybrid_Resolve_Map_Identity (params,&identity,&intents,&result)
+		 && (identity.FlankSign == 1 || identity.FlankSign == -1)
+		 && Near (identity.GdiBaseGuide.X,-0.72f) && Near (identity.NodBaseGuide.X,0.72f) && identity.NodBaseGuide.Y == 0.0f
+		 && Near (identity.GdiHomeFieldGuide.Y,0.18f*identity.FlankSign) && Near (identity.NodHomeFieldGuide.Y,-0.18f*identity.FlankSign)
+		 && Near (identity.FlankGuide[0].Y,0.45f*identity.FlankSign) && Near (identity.FlankGuide[1].Y,-0.45f*identity.FlankSign),
+			 "Section 6.1 anchors follow the flank sign");
+	HybridMapIdentityParams asymmetric = params;
+	asymmetric.Symmetry = HYBRID_SYMMETRY_NONE;
+	Check (Hybrid_Resolve_Map_Identity (asymmetric,&identity,&intents,&result)
+		 && identity.NodBaseGuide.Y >= -0.18f && identity.NodBaseGuide.Y <= 0.18f,"symmetry none offsets the Nod guide");
+	Check (identity.RouteFamilyCount == Hybrid_Route_Family_Count (params.RouteRedundancy,params.FlankLanes),"route family count");
+
+	//	Step 3 -- archetype selection and the coastline filter.
+	bool coastal_seen = false;
+	for (unsigned int seed = 1; seed <= 256; ++seed) {
+		HybridMapIdentityParams spun = params;
+		spun.CoastlineEnabled = false;
+		spun.MapPlanSeed = WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_MAP_PLAN);
+		Check (Hybrid_Resolve_Map_Identity (spun,&identity,&intents,&result)
+			 && identity.Archetype != HYBRID_ARCHETYPE_COASTAL_PENINSULA,"auto archetype drops coastal_peninsula without a coastline");
+		spun.CoastlineEnabled = true;
+		Hybrid_Resolve_Map_Identity (spun,&identity,&intents,&result);
+		if (identity.Archetype == HYBRID_ARCHETYPE_COASTAL_PENINSULA) coastal_seen = true;
+	}
+	Check (coastal_seen,"auto archetype can select coastal_peninsula with a coastline");
+	HybridMapIdentityParams landlocked = params;
+	landlocked.CoastlineEnabled = false;
+	landlocked.ArchetypeSelector = HYBRID_ARCHETYPE_COASTAL_PENINSULA;
+	Check (!Hybrid_Resolve_Map_Identity (landlocked,&identity,&intents,&result)
+		 && result.Failure == HYBRID_IDENTITY_ARCHETYPE_REQUIRES_COASTLINE,"explicit coastal_peninsula needs a coastline");
+
+	//	Steps 5 to 7 -- biome mode and biomes.
+	HybridMapIdentityParams biome = params;
+	biome.BiomeModeSelector = HYBRID_BIOME_MODE_AUTO;
+	biome.MixedBiomeProbability = 0.0f;
+	Check (Hybrid_Resolve_Map_Identity (biome,&identity,&intents,&result) && identity.BiomeMode == HYBRID_BIOME_MODE_SINGLE
+		 && identity.SecondaryBiome == HYBRID_BIOME_COUNT && !intents.Divider.Present,"probability 0 never mixes");
+	biome.MixedBiomeProbability = 1.0f;
+	Check (Hybrid_Resolve_Map_Identity (biome,&identity,&intents,&result) && identity.BiomeMode == HYBRID_BIOME_MODE_MIXED
+		 && identity.SecondaryBiome != identity.PrimaryBiome
+		 && Hybrid_Is_Legal_Biome_Pair (identity.PrimaryBiome,identity.SecondaryBiome),"probability 1 always mixes legally");
+	Check (intents.Divider.Present
+		 && Near (intents.Divider.TransitionWidth,8.0f*params.Constants.W > 4.0f*params.Constants.S ? 8.0f*params.Constants.W : 4.0f*params.Constants.S)
+		 && intents.Divider.ControlU[0] >= -0.15f && intents.Divider.ControlU[0] <= 0.15f
+		 && intents.Divider.ControlU[3] >= -0.15f && intents.Divider.ControlU[3] <= 0.15f
+		 && intents.Divider.ControlU[1] >= -0.30f && intents.Divider.ControlU[1] <= 0.30f
+		 && intents.Divider.ControlU[2] >= -0.30f && intents.Divider.ControlU[2] <= 0.30f
+		 && intents.Divider.ControlV[0] == -1.0f && intents.Divider.ControlV[3] == 1.0f,"mixed divider control range");
+	HybridMapIdentityParams pair = params;
+	pair.BiomeModeSelector = HYBRID_BIOME_MODE_MIXED;
+	pair.BiomeSelector = HYBRID_BIOME_SNOW;
+	pair.SecondaryBiomeSelector = HYBRID_BIOME_DESERT;
+	Check (!Hybrid_Resolve_Map_Identity (pair,&identity,&intents,&result)
+		 && (result.Failure == HYBRID_IDENTITY_ILLEGAL_BIOME_PAIR || result.Failure == HYBRID_IDENTITY_NO_AVAILABLE_BIOME_PAIR),
+			 "snow + desert is rejected");
+	HybridMapIdentityParams unavailable = params;
+	for (int b = 0; b < HYBRID_BIOME_COUNT; ++b) unavailable.BiomeAvailable[b] = (b == HYBRID_BIOME_DESERT);
+	Check (Hybrid_Resolve_Map_Identity (unavailable,&identity,&intents,&result) && identity.PrimaryBiome == HYBRID_BIOME_DESERT,
+			 "an unavailable biome is never selected");
+	unavailable.BiomeSelector = HYBRID_BIOME_SNOW;
+	Check (!Hybrid_Resolve_Map_Identity (unavailable,&identity,&intents,&result)
+		 && result.Failure == HYBRID_IDENTITY_NO_AVAILABLE_BIOME,"an unavailable explicit biome fails");
+	for (int b = 0; b < HYBRID_BIOME_COUNT; ++b) unavailable.BiomeAvailable[b] = false;
+	unavailable.BiomeSelector = HYBRID_BIOME_AUTO;
+	Check (!Hybrid_Resolve_Map_Identity (unavailable,&identity,&intents,&result)
+		 && result.Failure == HYBRID_IDENTITY_NO_AVAILABLE_BIOME,"no available biome fails");
+
+	//	Step 8 -- island slot bits are one independent Bernoulli test per slot.
+	HybridMapIdentityParams islands = Identity_Fixture (2400.0f);
+	islands.IslandChance = 0.0f;
+	Check (Hybrid_Resolve_Map_Identity (islands,&identity,&intents,&result) && identity.IslandSlotBits == 0,"chance 0 accepts no island");
+	islands.IslandChance = 1.0f;
+	Check (Hybrid_Resolve_Map_Identity (islands,&identity,&intents,&result) && identity.IslandSlotBits == 3
+		 && identity.Island_Slot_Count_Accepted () == 2,"chance 1 accepts every slot");
+
+	/*
+	**	Step 9 -- the Section-6.10 intent table, for all eight archetypes.  Every archetype builds its
+	**	own named records and nothing another archetype owns.
+	*/
+	for (int a = 0; a < HYBRID_ARCHETYPE_COUNT; ++a) {
+		HybridMapIdentityParams each = params;
+		each.ArchetypeSelector = (HybridArchetype)a;
+		const char * name = Hybrid_Archetype_Name ((HybridArchetype)a);
+		Check (Hybrid_Resolve_Map_Identity (each,&identity,&intents,&result),"archetype %s: %s",name,result.Detail.Peek_Buffer ());
+		Check (intents.Intents.Count () > 0,"archetype %s records intents",name);
+		for (int i = 0; i < intents.Intents.Count (); ++i) {
+			Check (intents.Intents[i].StableId == (unsigned int)(i + 1),"intent StableId is creation order (%s)",name);
+		}
+		const float s = (float)identity.FlankSign;
+		const int crossings = intents.Count_Of_Kind (HYBRID_INTENT_ROUTE_FAMILY_CROSSING);
+		const float d = params.Constants.D;
+
+		switch ((HybridArchetype)a) {
+			case HYBRID_ARCHETYPE_RIVER_VALLEY:
+			{
+				const HybridArchetypeIntent * river = intents.Find_First (HYBRID_INTENT_GUIDED_RIVER);
+				Check (river != NULL && crossings == 2 && intents.RiverAdjacentContested,"river_valley intents");
+				if (river != NULL) {
+					Check (Near (river->Guide.Y,-0.90f) && Near (river->GuideEnd.Y,0.90f),"guided river endpoints");
+					Check (river->Amplitude >= 0.05f*d && river->Amplitude <= 0.12f*d
+						&& river->Wavelength >= 0.25f*d && river->Wavelength <= 0.45f*d
+						&& river->Phase >= 0.0f && river->Phase <= 2.0f*WWMATH_PI,"guided river meander parameters");
+					//	(0,-0.90) to (0,+0.90) is 1.80 * D/2 of axis, sampled every A.
+					Check (river->Points.Count () == (int)Hybrid_Round_Half_Up ((0.90f*d)/params.Constants.A) + 1,
+							 "guided river station count at spacing A");
+					bool clamped = true;
+					for (int pt = 0; pt < river->Points.Count (); ++pt) {
+						const Vector2 uv = identity.Frame.To_Strategic (river->Points[pt]);
+						if (uv.X < -0.1001f || uv.X > 0.1001f) clamped = false;
+					}
+					Check (clamped,"guided river stays within u +/- 0.10");
+				}
+				Check (intents.Intents[1].RouteFamily == 0 && Near (intents.Intents[1].Guide.X,0.0f) && Near (intents.Intents[1].Guide.Y,0.0f)
+					&& intents.Intents[2].RouteFamily == 1 && Near (intents.Intents[2].Guide.Y,-0.45f*s),"river_valley crossing guides");
+				break;
+			}
+			case HYBRID_ARCHETYPE_TWIN_LAKES:
+			{
+				Check (intents.Count_Of_Kind (HYBRID_INTENT_LAKE_GUIDE) == 2 && crossings == 2,"twin_lakes intents");
+				const HybridArchetypeIntent & lake_a = intents.Intents[0];
+				const HybridArchetypeIntent & lake_b = intents.Intents[1];
+				Check (Near (lake_a.Guide.Y,-0.38f) && Near (lake_b.Guide.Y,0.38f)
+					&& lake_a.Guide.X >= -0.05f && lake_a.Guide.X <= 0.05f && lake_b.Guide.X >= -0.05f && lake_b.Guide.X <= 0.05f,
+						 "twin lake guide centres");
+				Check (lake_a.Radius >= 0.18f*d && lake_a.Radius <= 0.25f*d
+					&& lake_b.Radius >= 0.18f*d && lake_b.Radius <= 0.25f*d,"twin lake radii");
+				Check (Near (intents.Intents[3].Guide.Y,0.78f*s),"twin_lakes family 1 guide is outside the nearer lake");
+				break;
+			}
+			case HYBRID_ARCHETYPE_CANYON_CROSSROADS:
+			case HYBRID_ARCHETYPE_RAVINE_NETWORK:
+			{
+				const bool canyon = ((HybridArchetype)a == HYBRID_ARCHETYPE_CANYON_CROSSROADS);
+				const HybridIntentKind barrier = canyon ? HYBRID_INTENT_PRINCIPAL_CANYON : HYBRID_INTENT_MAIN_RAVINE_GUIDE;
+				const float crossing_v = canyon ? 0.35f : 0.32f;
+				const HybridArchetypeIntent * principal = intents.Find_First (barrier);
+				Check (principal != NULL && crossings == 2,"%s intents",name);
+				if (principal != NULL) {
+					Check (Near (principal->Guide.X,0.0f) && Near (principal->Guide.Y,0.0f)
+						&& (principal->Flags & HYBRID_INTENT_FLAG_ALONG_STRATEGIC_V) != 0,"%s principal guide on the v axis",name);
+				}
+				Check (intents.Intents[1].RouteFamily == 0 && Near (intents.Intents[1].Guide.Y,crossing_v*s)
+					&& (intents.Intents[1].Flags & HYBRID_INTENT_FLAG_BRIDGE_REQUIRED) != 0,"%s family 0 bridge obligation",name);
+				Check (intents.Intents[2].RouteFamily == 1 && Near (intents.Intents[2].Guide.Y,-crossing_v*s)
+					&& (intents.Intents[2].Flags & HYBRID_INTENT_FLAG_DISTINCT_CROSSING_REQUIRED) != 0,
+						 "%s family 1 distinct crossing",name);
+				break;
+			}
+			case HYBRID_ARCHETYPE_HIGHLAND_PASS:
+			{
+				const HybridArchetypeIntent * ridge = intents.Find_First (HYBRID_INTENT_PRINCIPAL_RIDGE);
+				const HybridArchetypeIntent * saddle = intents.Find_First (HYBRID_INTENT_SURFACE_SADDLE);
+				Check (ridge != NULL && saddle != NULL && crossings == 1,"highland_pass intents");
+				Check (ridge != NULL && (ridge->Flags & HYBRID_INTENT_FLAG_ALONG_STRATEGIC_V) != 0,"principal ridge on the v axis");
+				Check (saddle != NULL && Near (saddle->Guide.X,0.0f) && Near (saddle->Guide.Y,0.0f),"surface saddle at the centre");
+				Check (intents.Intents[2].RouteFamily == 1 && Near (intents.Intents[2].Guide.Y,0.45f*s),"highland alternate family guide");
+				break;
+			}
+			case HYBRID_ARCHETYPE_COASTAL_PENINSULA:
+			{
+				const HybridArchetypeIntent * coast = intents.Find_First (HYBRID_INTENT_COAST_GUIDE);
+				const HybridArchetypeIntent * neck = intents.Find_First (HYBRID_INTENT_PENINSULA_NECK);
+				const HybridArchetypeIntent * river = intents.Find_First (HYBRID_INTENT_COASTAL_GUIDED_RIVER);
+				Check (coast != NULL && neck != NULL && river != NULL,"coastal_peninsula intents");
+				if ((coast != NULL) && (neck != NULL) && (river != NULL)) {
+					const float v_sign = (float)coast->VSign;
+					Check (coast->VSign == 1 || coast->VSign == -1,"coast side is a sign");
+					const float sea_v = coast->Guide.Y * v_sign;
+					Check (sea_v >= 0.55f && sea_v <= 0.70f,"sea boundary in 0.55..0.70");
+					Check (Near (neck->Guide.Y,0.35f*v_sign) && Near (neck->MinWidth,10.0f*params.Constants.W),"peninsula neck width");
+					Check (neck->VSign == coast->VSign && river->VSign == coast->VSign,"peninsula records share the sea side");
+					Check (Near (river->Guide.Y,-0.35f*v_sign) && Near (river->GuideEnd.Y,coast->Guide.Y),
+							 "coastal river runs from inland to the sea boundary");
+					Check (river->Amplitude <= 0.06f*d + 0.001f,"coastal river amplitude is halved");
+					const Vector2 last = river->Points[river->Points.Count () - 1];
+					const Vector2 end_world = identity.Frame.To_World (river->GuideEnd);
+					Check (Near (last.X,end_world.X,0.01f) && Near (last.Y,end_world.Y,0.01f),"coastal river ends at the sea boundary");
+				}
+				break;
+			}
+			case HYBRID_ARCHETYPE_PLATEAU_BASIN:
+			{
+				const HybridArchetypeIntent * basin = intents.Find_First (HYBRID_INTENT_BASIN_GUIDE);
+				Check (basin != NULL && intents.Count_Of_Kind (HYBRID_INTENT_BASIN_ENTRY) == 2,"plateau_basin intents");
+				Check (basin != NULL && Near (basin->Guide.X,0.0f) && Near (basin->Guide.Y,0.0f)
+					&& basin->Radius >= 0.22f*d && basin->Radius <= 0.32f*d,"basin guide and radius");
+				Check (Near (intents.Intents[1].Guide.Y,0.35f*s) && Near (intents.Intents[2].Guide.Y,-0.35f*s),"basin entry points");
+				break;
+			}
+			case HYBRID_ARCHETYPE_OPEN_FRONTIER:
+			{
+				Check (intents.Count_Of_Kind (HYBRID_INTENT_OPEN_MANEUVER) == 3 && crossings == 0,"open_frontier discs on MEDIUM");
+				for (int i = 0; i < intents.Intents.Count (); ++i) {
+					Check (Near (intents.Intents[i].Radius,9.0f*params.Constants.W),"OPEN_MANEUVER radius is 9W");
+				}
+				Check (Near (intents.Intents[0].Guide.Y,0.0f) && Near (intents.Intents[1].Guide.Y,0.42f)
+					&& Near (intents.Intents[2].Guide.Y,-0.42f),"OPEN_MANEUVER centres");
+				break;
+			}
+			default:
+				break;
+		}
+	}
+
+	//	Section 6.9 -- SMALL gets the centre disc only.
+	HybridMapIdentityParams small_frontier = Identity_Fixture (600.0f);
+	small_frontier.ArchetypeSelector = HYBRID_ARCHETYPE_OPEN_FRONTIER;
+	Check (Hybrid_Resolve_Map_Identity (small_frontier,&identity,&intents,&result)
+		 && intents.Count_Of_Kind (HYBRID_INTENT_OPEN_MANEUVER) == 1 && Near (intents.Intents[0].Guide.Y,0.0f),
+			 "SMALL open_frontier has only the centre disc");
+}
+
+
+/*
+**	Rewrite item I4 -- runtime Phase 3, the strategic gameplay graph.  Hand-filled params and a
+**	resolved Phase-2 identity only; the builder reads no profile and no registry, and with no world
+**	boundary configured `WorldBoundsService` answers "placeable", which is its documented
+**	unconfigured behaviour.
+**
+**	The fixtures pair each world size with a base disc a profile for that size would actually ask
+**	for -- `base_radius_cells` 1/2/3 at `chunk_size` 60 -- because the Section-6.1 guide table only
+**	has room for `R_BASE_PROTECTED + FieldRadiusMax` inside its 0.10D repair budget when the base
+**	reserve is in proportion to the world.  The archetype sweep uses the native 2400 world.
+*/
+static HybridMapIdentityParams Graph_Identity_Fixture (float world_size,float base_radius_cells)
+{
+	HybridMapIdentityParams params = Identity_Fixture (world_size);
+	Hybrid_Compute_Constants (2.555953f,1.0f,60.0f,world_size,world_size,base_radius_cells,10000.0f,&params.Constants);
+	return params;
+}
+
+static HybridStrategicGraphParams Graph_Fixture (const HybridMapIdentityParams & identity_params,float margin_cells)
+{
+	HybridStrategicGraphParams params;
+	params.MapPlanSeed		= identity_params.MapPlanSeed;
+	params.Constants			= identity_params.Constants;
+	params.BoundaryMargin	= margin_cells * 60.0f;		// boundary_margin_cells x chunk_size
+	params.FieldRadiusMax	= 60.0f;							// native resource.field_radius_max
+	params.RiverWidth			= 6.0f;							// native water.river_width
+	return params;
+}
+
+void Check_Hybrid_Strategic_Graph (void)
+{
+	HybridMapIdentity identity;
+	HybridArchetypeIntentSet intents;
+	HybridMapIdentityResult identity_result;
+	HybridStrategicGraph graph;
+	HybridStrategicGraphResult result;
+
+	//	Section 5 role counts by size class, and the Phase 3 gate for each of them.
+	const float sizes[3] = { 600.0f, 1200.0f, 2400.0f };
+	const float base_cells[3] = { 1.0f, 2.0f, 3.0f };
+	const int contested[3] = { 1, 3, 5 };
+	const int remote[3] = { 1, 1, 2 };
+
+	for (int i = 0; i < 3; ++i) {
+
+		HybridMapIdentityParams sized = Graph_Identity_Fixture (sizes[i],base_cells[i]);
+		const bool identity_ok = Hybrid_Resolve_Map_Identity (sized,&identity,&intents,&identity_result);
+		Check (identity_ok,"identity at D=%g: %s",sizes[i],identity_result.Detail.Peek_Buffer ());
+
+		HybridStrategicGraphParams params = Graph_Fixture (sized,2.0f);
+		const bool built = Hybrid_Build_Strategic_Graph (params,identity,intents,&graph,&result);
+		Check (built,"strategic graph at D=%g (%s): %s (%s)",sizes[i],Hybrid_Archetype_Name (identity.Archetype),
+				 Hybrid_Strategic_Graph_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+		if (!built) continue;
+
+		Check (Hybrid_Contested_Field_Count (identity.SizeClass) == contested[i]
+			 && Hybrid_Remote_Field_Count (identity.SizeClass) == remote[i],"Section 5 field counts at D=%g",sizes[i]);
+		Check (graph.Count_Of_Role (HYBRID_SITE_GDI_BASE) == 1 && graph.Count_Of_Role (HYBRID_SITE_NOD_BASE) == 1
+			 && graph.Count_Of_Role (HYBRID_SITE_HOME_TIBERIUM_GDI) == 1
+			 && graph.Count_Of_Role (HYBRID_SITE_HOME_TIBERIUM_NOD) == 1
+			 && graph.Count_Of_Role (HYBRID_SITE_FRONT_CENTER) == 1
+			 && graph.Count_Of_Role (HYBRID_SITE_CONTESTED_TIBERIUM) == contested[i]
+			 && graph.Count_Of_Role (HYBRID_SITE_REMOTE_TIBERIUM) == remote[i],"exact role counts at D=%g",sizes[i]);
+
+		//	The gate's own cycle requirement: distinct heavy families never leave a tree.
+		Check (graph.Has_Cycle (),"heavy families leave a cycle at D=%g",sizes[i]);
+
+		//	Every hard-validity separation rule the phase promised, measured on the accepted centers.
+		const float field_radius = params.FieldRadiusMax;
+		const float base_radius = params.Constants.RBaseProtected;
+		for (int a = 0; a < graph.Sites.Count (); ++a) {
+			for (int b = a + 1; b < graph.Sites.Count (); ++b) {
+
+				const HybridStrategicSite & sa = graph.Sites[a];
+				const HybridStrategicSite & sb = graph.Sites[b];
+				const bool a_base = (sa.Role == HYBRID_SITE_GDI_BASE) || (sa.Role == HYBRID_SITE_NOD_BASE);
+				const bool b_base = (sb.Role == HYBRID_SITE_GDI_BASE) || (sb.Role == HYBRID_SITE_NOD_BASE);
+				const bool a_field = (sa.Role == HYBRID_SITE_HOME_TIBERIUM_GDI) || (sa.Role == HYBRID_SITE_HOME_TIBERIUM_NOD)
+										 || (sa.Role == HYBRID_SITE_CONTESTED_TIBERIUM) || (sa.Role == HYBRID_SITE_REMOTE_TIBERIUM);
+				const bool b_field = (sb.Role == HYBRID_SITE_HOME_TIBERIUM_GDI) || (sb.Role == HYBRID_SITE_HOME_TIBERIUM_NOD)
+										 || (sb.Role == HYBRID_SITE_CONTESTED_TIBERIUM) || (sb.Role == HYBRID_SITE_REMOTE_TIBERIUM);
+
+				const float dx = sa.Position.X - sb.Position.X;
+				const float dy = sa.Position.Y - sb.Position.Y;
+				const float distance = WWMath::Sqrt ((dx*dx) + (dy*dy));
+
+				if (a_base && b_base) {
+					Check (distance >= (2.0f*base_radius) - 0.01f,"base protected discs overlap at D=%g",sizes[i]);
+				} else if (a_field && b_field) {
+					Check (distance >= (2.0f*field_radius) - 0.01f,"resource reserves closer than 2*FieldRadiusMax at D=%g",sizes[i]);
+				} else if ((a_base && b_field) || (a_field && b_base)) {
+					Check (distance >= (base_radius + field_radius) - 0.01f,"resource reserve inside BASE_PROTECTED at D=%g",sizes[i]);
+				}
+			}
+		}
+
+		//	Each field carries its attachment, and every non-home field its SERVICE_DIRT_2 branch.
+		for (int siteindex = 0; siteindex < graph.Sites.Count (); ++siteindex) {
+			const HybridStrategicSite & site = graph.Sites[siteindex];
+			const bool home = (site.Role == HYBRID_SITE_HOME_TIBERIUM_GDI) || (site.Role == HYBRID_SITE_HOME_TIBERIUM_NOD);
+			const bool nonhome = (site.Role == HYBRID_SITE_CONTESTED_TIBERIUM) || (site.Role == HYBRID_SITE_REMOTE_TIBERIUM);
+			if (!home && !nonhome) continue;
+
+			int attachments = 0;
+			int branches = 0;
+			for (int e = 0; e < graph.Edges.Count (); ++e) {
+				const HybridStrategicEdge & edge = graph.Edges[e];
+				if (edge.Intent != HYBRID_EDGE_RESOURCE_ROUTE) continue;
+				if ((edge.SiteA != site.StableId) && (edge.SiteB != site.StableId)) continue;
+				attachments ++;
+				if (edge.RoadClass == HYBRID_ROAD_SERVICE_DIRT_2) branches ++;
+			}
+			Check (attachments == 1 && branches == (nonhome ? 1 : 0),
+					 "field %u has %d attachment(s) and %d service branch(es) at D=%g",site.StableId,attachments,branches,sizes[i]);
+		}
+
+		//	`route_family_count` complete GDI-to-Nod intents, and nothing but base nodes shared.
+		for (int family = 0; family < identity.RouteFamilyCount; ++family) {
+			int links = 0;
+			unsigned int expected = graph.GdiBaseId;
+			for (int e = 0; e < graph.Edges.Count (); ++e) {
+				if (graph.Edges[e].RouteFamily != family) continue;
+				Check (graph.Edges[e].SiteA == expected,"family %d chain broken at D=%g",family,sizes[i]);
+				expected = graph.Edges[e].SiteB;
+				links ++;
+			}
+			Check (links >= 2 && expected == graph.NodBaseId,"family %d is not one complete GDI-to-Nod intent at D=%g",
+					 family,sizes[i]);
+		}
+		for (int w = 0; w < graph.Sites.Count (); ++w) {
+			if (graph.Sites[w].Role != HYBRID_SITE_ROUTE_WAYPOINT) continue;
+			Check (graph.Sites[w].RouteFamily >= 0 && graph.Sites[w].RouteFamily < identity.RouteFamilyCount,
+					 "waypoint %u belongs to no single family at D=%g",graph.Sites[w].StableId,sizes[i]);
+		}
+	}
+
+	//	The Phase 3 gate: identical inputs give an identical graph and checksum.
+	HybridMapIdentityParams identity_params = Graph_Identity_Fixture (2400.0f,3.0f);
+	Check (Hybrid_Resolve_Map_Identity (identity_params,&identity,&intents,&identity_result),"identity baseline");
+	HybridStrategicGraphParams params = Graph_Fixture (identity_params,2.0f);
+
+	HybridStrategicGraph again;
+	const bool first_built = Hybrid_Build_Strategic_Graph (params,identity,intents,&graph,&result);
+	const bool second_built = Hybrid_Build_Strategic_Graph (params,identity,intents,&again,&result);
+	Check (first_built && second_built,"repeat graph build: %s (%s)",
+			 Hybrid_Strategic_Graph_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+	Check (graph.Checksum == again.Checksum && graph.Checksum == Hybrid_Strategic_Graph_Checksum (again,0)
+		 && graph.Sites.Count () == again.Sites.Count () && graph.Edges.Count () == again.Edges.Count ()
+		 && graph.Obligations.Count () == again.Obligations.Count (),
+			 "identical identity/params give an identical Phase 3 checksum");
+
+	//	Section 6.1 -- no role moves further than 0.10D from its own guide.
+	const float limit = (0.10f * params.Constants.D) + 0.01f;
+	const HybridStrategicSite * gdi_base = graph.Find_Site (graph.GdiBaseId);
+	const HybridStrategicSite * nod_base = graph.Find_Site (graph.NodBaseId);
+	Check (gdi_base != NULL && nod_base != NULL,"both base sites exist");
+	if ((gdi_base != NULL) && (nod_base != NULL)) {
+		const Vector2 gdi_guide = identity.Frame.To_World (identity.GdiBaseGuide);
+		const Vector2 nod_guide = identity.Frame.To_World (identity.NodBaseGuide);
+		Check ((gdi_base->Position - gdi_guide).Length () <= limit
+			 && (nod_base->Position - nod_guide).Length () <= limit,"a base moved further than 0.10D from its guide");
+		Check (gdi_base->Team == 0 && nod_base->Team == 1 && gdi_base->Radius == nod_base->Radius
+			 && Near (gdi_base->Radius,params.Constants.RBaseProtected),"base team and reserve radius");
+	}
+
+	//	Every archetype's Section-6.10 obligations are exactly what the table tagged.
+	for (int a = 0; a < HYBRID_ARCHETYPE_COUNT; ++a) {
+
+		const HybridArchetype archetype = (HybridArchetype)a;
+		const char * name = Hybrid_Archetype_Name (archetype);
+
+		HybridMapIdentityParams archetype_params = Graph_Identity_Fixture (2400.0f,3.0f);
+		archetype_params.ArchetypeSelector = archetype;
+		const bool archetype_identity = Hybrid_Resolve_Map_Identity (archetype_params,&identity,&intents,&identity_result);
+		Check (archetype_identity,"identity for %s: %s",name,identity_result.Detail.Peek_Buffer ());
+		if (!archetype_identity) continue;
+
+		HybridStrategicGraphParams archetype_graph_params = Graph_Fixture (archetype_params,2.0f);
+		const bool archetype_built = Hybrid_Build_Strategic_Graph (archetype_graph_params,identity,intents,&graph,&result);
+
+		/*
+		**	`coastal_peninsula` is the one archetype whose fixed guide table can contradict its own
+		**	geography: the Section-6.6 sea begins at |v|=0.55..0.70 on the drawn coast side, and the
+		**	Phase-3 remote-rich guide sits at v=0.70*s.  When those two draws land on the same side and
+		**	the sea reaches far enough in, no candidate inside Section 6.1's 0.10D repair budget is dry,
+		**	and the plan's answer is a named attempt failure the manager retries with a new seed -- not
+		**	a wider search.  Every other archetype must place every role outright.
+		*/
+		if (!archetype_built) {
+			Check (archetype == HYBRID_ARCHETYPE_COASTAL_PENINSULA
+				 && result.Failure == HYBRID_GRAPH_NO_LEGAL_RESOURCE_POSITION,
+					 "strategic graph for %s: %s (%s)",name,Hybrid_Strategic_Graph_Failure_Name (result.Failure),
+					 result.Detail.Peek_Buffer ());
+			Check (graph.Sites.Count () == 0 && graph.Edges.Count () == 0 && graph.Checksum == 0,
+					 "a failed %s attempt left a partial graph",name);
+			continue;
+		}
+		Check (graph.Has_Cycle (),"%s left a tree",name);
+
+		int bridge_required = 0;
+		int distinct_required = 0;
+		int pass_required = 0;
+		for (int o = 0; o < graph.Obligations.Count (); ++o) {
+			const HybridCrossingObligation & obligation = graph.Obligations[o];
+			Check (obligation.RouteFamily >= 0 && obligation.RouteFamily < identity.RouteFamilyCount
+				 && obligation.WaypointStableId != 0 && obligation.IntentStableId != 0,
+					 "obligation %u is not bound to a family waypoint and intent",obligation.StableId);
+			if (obligation.RequiredMethod == HYBRID_CROSSING_BRIDGE) bridge_required ++;
+			if (obligation.RequiredMethod == HYBRID_CROSSING_PASS) pass_required ++;
+			if (obligation.DistinctCrossingRequired) distinct_required ++;
+		}
+
+		switch (archetype) {
+			case HYBRID_ARCHETYPE_CANYON_CROSSROADS:
+			case HYBRID_ARCHETYPE_RAVINE_NETWORK:
+				Check (bridge_required == 1 && distinct_required == 1,"%s needs one bridge and one distinct crossing",name);
+				Check (graph.Obligations.Count () == 2
+					&& graph.Obligations[0].Obstruction == ((archetype == HYBRID_ARCHETYPE_CANYON_CROSSROADS)
+							? HYBRID_OBSTRUCTION_CANYON : HYBRID_OBSTRUCTION_RAVINE),"%s obstruction kind",name);
+				break;
+
+			case HYBRID_ARCHETYPE_HIGHLAND_PASS:
+				//	The one mandatory surface saddle plus the alternate family's distinct crossing.
+				Check (pass_required == 1 && distinct_required == 1,"highland_pass saddle and alternate corridor");
+				break;
+
+			case HYBRID_ARCHETYPE_OPEN_FRONTIER:
+			case HYBRID_ARCHETYPE_TWIN_LAKES:
+			case HYBRID_ARCHETYPE_PLATEAU_BASIN:
+				Check (graph.Obligations.Count () == 0,"%s tags no crossing obligation",name);
+				break;
+
+			case HYBRID_ARCHETYPE_RIVER_VALLEY:
+			{
+				/*
+				**	Section 6.10 -- the first contested field comes from the frozen guided river, and
+				**	Section 6.2 requires its reserve edge 4W..10W from the bank.  The station offset aims
+				**	at exactly 7W; a meander bend may leave the nearest point closer, never below 4W.
+				*/
+				const HybridArchetypeIntent * river = intents.Find_First (HYBRID_INTENT_GUIDED_RIVER);
+				Check (river != NULL && river->Points.Count () > 1,"river_valley guided river spline");
+				const HybridStrategicSite * first_contested = NULL;
+				for (int siteindex = 0; (siteindex < graph.Sites.Count ()) && (first_contested == NULL); ++siteindex) {
+					if (graph.Sites[siteindex].Role == HYBRID_SITE_CONTESTED_TIBERIUM) first_contested = &graph.Sites[siteindex];
+				}
+				Check (first_contested != NULL,"river_valley first contested field exists");
+				if ((river != NULL) && (first_contested != NULL)) {
+					float nearest = 1.0e30f;
+					for (int pt = 1; pt < river->Points.Count (); ++pt) {
+						const Vector2 a0 = river->Points[pt-1];
+						const Vector2 a1 = river->Points[pt];
+						const Vector2 segment = a1 - a0;
+						const float length_squared = (segment.X*segment.X) + (segment.Y*segment.Y);
+						float t = 0.0f;
+						if (length_squared > 0.0f) {
+							t = (((first_contested->Position.X - a0.X) * segment.X)
+								 + ((first_contested->Position.Y - a0.Y) * segment.Y)) / length_squared;
+							if (t < 0.0f) t = 0.0f;
+							if (t > 1.0f) t = 1.0f;
+						}
+						const Vector2 closest (a0.X + (segment.X*t),a0.Y + (segment.Y*t));
+						const float distance = (first_contested->Position - closest).Length ();
+						if (distance < nearest) nearest = distance;
+					}
+					const float w = archetype_graph_params.Constants.W;
+					const float bank_clearance = nearest - archetype_graph_params.FieldRadiusMax
+														- (0.5f*archetype_graph_params.RiverWidth);
+					Check (bank_clearance >= (4.0f*w) - 0.5f && bank_clearance <= (10.0f*w) + 0.5f,
+							 "Section 6.2 puts the reserve edge 4W..10W from the bank, got %.3f (%.3fW)",
+							 bank_clearance,bank_clearance/w);
+				}
+				break;
+			}
+
+			default:
+				break;
+		}
+	}
+
+	/*
+	**	Section 6.1's boundary rule against the canonical placeable boundary.  Every accepted role
+	**	must clear the configured boundary by its own full reserve radius plus the profile margin,
+	**	which is what the repair search exists to guarantee.
+	*/
+	{
+		HybridMapIdentityParams bounded_identity = Graph_Identity_Fixture (1200.0f,2.0f);
+		bounded_identity.Symmetry = HYBRID_SYMMETRY_MIRROR_X;
+		Check (Hybrid_Resolve_Map_Identity (bounded_identity,&identity,&intents,&identity_result),"bounded identity");
+
+		DynamicVectorClass<Vector2> ring;
+		ring.Add (Vector2 (-600.0f,-600.0f));
+		ring.Add (Vector2 (-600.0f, 600.0f));
+		ring.Add (Vector2 ( 600.0f, 600.0f));
+		ring.Add (Vector2 ( 600.0f,-600.0f));
+
+		StringClass bounds_error ("");
+		Check (WorldBoundsService::Configure (ring,32.0f,8.0f,300.0f,&bounds_error),
+				 "the Phase 3 test boundary would not configure: %s",bounds_error.Peek_Buffer ());
+
+		HybridStrategicGraphParams bounded = Graph_Fixture (bounded_identity,1.0f);
+		const bool built = Hybrid_Build_Strategic_Graph (bounded,identity,intents,&graph,&result);
+		Check (built,"bounded strategic graph (%s): %s (%s)",Hybrid_Archetype_Name (identity.Archetype),
+				 Hybrid_Strategic_Graph_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+		if (built) {
+			for (int siteindex = 0; siteindex < graph.Sites.Count (); ++siteindex) {
+				const HybridStrategicSite & site = graph.Sites[siteindex];
+				Check (WorldBoundsService::Can_Place_In_Region (site.Position,site.Radius + bounded.BoundaryMargin),
+						 "role %u (%d) sits inside the boundary margin",site.StableId,(int)site.Role);
+			}
+		}
+
+		WorldBoundsService::Clear ();
+	}
+}
+
+/*
+**	Rewrite item I5 -- runtime Phase 4, the coarse semantic matrices.  Hand-filled params, a resolved
+**	Phase-2 identity and a built Phase-3 graph; with no world boundary configured
+**	`WorldBoundsService` answers "playable and placeable", which is its documented unconfigured
+**	behaviour and makes every cell of these fixtures land.
+*/
+static HybridCoarseMatrixParams Coarse_Fixture (const HybridMapIdentityParams & identity_params,float world_size)
+{
+	HybridCoarseMatrixParams params;
+	params.MapPlanSeed	= identity_params.MapPlanSeed;
+	params.BiomeSeed		= identity_params.BiomeSeed;
+	params.Constants		= identity_params.Constants;
+	params.WorldMinX		= -0.5f * world_size;
+	params.WorldMinY		= -0.5f * world_size;
+	params.WorldWidth		= world_size;
+	params.WorldHeight	= world_size;
+	params.BoundaryMargin	= 2.0f * 60.0f;		// boundary_margin_cells x chunk_size
+	params.FieldRadiusMin	= 20.0f;				// native resource.field_radius_min
+	params.FieldRadiusMax	= 60.0f;				// native resource.field_radius_max
+	params.RiverWidth		= 6.0f;
+	params.TierCount		= 3;
+	return params;
+}
+
+void Check_Hybrid_Coarse_Matrix (void)
+{
+	HybridMapIdentity identity;
+	HybridArchetypeIntentSet intents;
+	HybridMapIdentityResult identity_result;
+	HybridStrategicGraph graph;
+	HybridStrategicGraphResult graph_result;
+	HybridCoarseMatrices matrices;
+	HybridCoarseMatrixResult result;
+
+	//	The arena contract first: the layers come out of the block, and a block too small fails the
+	//	resize instead of growing.
+	{
+		HybridScratchArena arena;
+		Check (arena.Reserve (1 << 20),"self-check arena would not reserve");
+		HybridSemanticMatrix arena_matrix;
+		Check (arena_matrix.Resize (40,30,30.0f,0.0f,0.0f,&arena) && arena.Get_Used () >= arena_matrix.Get_Layer_Bytes (),
+				 "semantic matrix did not come out of the arena");
+		arena_matrix.Set_Flag (10,10,HYBRID_FLAG_LAND);
+		Check (arena_matrix.Has_Flag (10,10,HYBRID_FLAG_LAND) && !arena_matrix.Has_Flag (10,11,HYBRID_FLAG_LAND),
+				 "arena-backed flags are not per cell");
+
+		HybridScratchArena tiny;
+		Check (tiny.Reserve (256),"tiny arena would not reserve");
+		HybridSemanticMatrix too_big;
+		Check (!too_big.Resize (200,200,30.0f,0.0f,0.0f,&tiny),"an over-budget matrix must fail, not grow");
+	}
+
+	//	The Section-8 Phase-4 priority comparator, which crossing-window insertion reuses later.
+	{
+		HybridReservation base_disc;
+		base_disc.StableId	= 1;
+		base_disc.Priority	= HYBRID_RESERVE_BASE_PROTECTED;
+		base_disc.A.Set (0.0f,0.0f);
+		base_disc.B			= base_disc.A;
+		base_disc.Radius	= 100.0f;
+		base_disc.SiteId	= 7;
+		base_disc.Exclusive	= true;
+
+		HybridReservation field = base_disc;
+		field.StableId		= 2;
+		field.Priority		= HYBRID_RESERVE_FIELD_TIBERIUM;
+		field.A.Set (150.0f,0.0f);
+		field.B				= field.A;
+		field.Radius		= 60.0f;
+		field.SiteId		= 8;
+
+		Check (Hybrid_Reservation_Outranks (base_disc,field) && !Hybrid_Reservation_Outranks (field,base_disc),
+				 "BASE_PROTECTED must outrank a contested field");
+		HybridReservation later = base_disc;
+		later.StableId = 3;
+		Check (Hybrid_Reservation_Outranks (base_disc,later),"equal priority breaks by creation order");
+		Check (Hybrid_Reservations_Overlap (base_disc,field) && Hybrid_Reservations_Conflict (base_disc,field),
+				 "overlapping exclusive reserves must conflict");
+
+		HybridReservation corridor = field;
+		corridor.StableId	= 4;
+		corridor.Priority	= HYBRID_RESERVE_HEAVY_CORRIDOR;
+		corridor.A.Set (-400.0f,0.0f);
+		corridor.B.Set (400.0f,0.0f);
+		corridor.Radius	= 180.0f;
+		corridor.SiteId	= 0;
+		corridor.Exclusive= false;
+		Check (Hybrid_Reservations_Overlap (corridor,base_disc) && !Hybrid_Reservations_Conflict (corridor,base_disc),
+				 "a corridor through a reserve is layered intent, not a conflict");
+
+		HybridReservation same_site = field;
+		same_site.StableId	= 5;
+		same_site.A			= base_disc.A;
+		same_site.B			= base_disc.A;
+		same_site.SiteId	= base_disc.SiteId;
+		Check (!Hybrid_Reservations_Conflict (base_disc,same_site),"a role never conflicts with its own reserve");
+	}
+
+	//	One full phase, per size class, with the base disc a profile for that size would ask for.
+	const float sizes[3] = { 600.0f, 1200.0f, 2400.0f };
+	const float base_cells[3] = { 1.0f, 2.0f, 3.0f };
+
+	for (int i = 0; i < 3; ++i) {
+
+		HybridMapIdentityParams sized = Graph_Identity_Fixture (sizes[i],base_cells[i]);
+		Check (Hybrid_Resolve_Map_Identity (sized,&identity,&intents,&identity_result),"identity at D=%g: %s",
+				 sizes[i],identity_result.Detail.Peek_Buffer ());
+
+		HybridStrategicGraphParams graph_params = Graph_Fixture (sized,2.0f);
+		Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result),
+				 "strategic graph at D=%g: %s (%s)",sizes[i],Hybrid_Strategic_Graph_Failure_Name (graph_result.Failure),
+				 graph_result.Detail.Peek_Buffer ());
+
+		HybridCoarseMatrixParams params = Coarse_Fixture (sized,sizes[i]);
+		const bool built = Hybrid_Build_Coarse_Matrices (params,identity,intents,&graph,&matrices,&result);
+		Check (built,"coarse matrices at D=%g (%s): %s (%s)",sizes[i],Hybrid_Archetype_Name (identity.Archetype),
+				 Hybrid_Coarse_Matrix_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+		if (!built) continue;
+
+		const HybridSemanticMatrix & matrix = matrices.Matrix;
+		const HybridConstants & k = params.Constants;
+
+		//	Step 1 -- dimensions are exactly ceil(extent/S), row-major, origin at the minimum corner.
+		int expect_x = (int)(sizes[i] / k.S);
+		if (((float)expect_x * k.S) < sizes[i]) expect_x++;
+		Check (matrix.Get_Count_X () == expect_x && matrix.Get_Count_Y () == expect_x
+			&& Near (matrix.Get_Cell_Size (),k.S) && Near (matrix.Get_Origin_X (),-0.5f * sizes[i]),
+				 "matrix dimensions at D=%g are %dx%d",sizes[i],matrix.Get_Count_X (),matrix.Get_Count_Y ());
+		Check (matrix.Index (3,2) == (2 * matrix.Get_Count_X ()) + 3,"matrix is not row-major (y,x)");
+		Check (matrices.PlayableCells == matrix.Get_Cell_Count () && matrices.PlaceableCells == matrix.Get_Cell_Count (),
+				 "with no boundary every cell is playable and placeable");
+
+		//	Step 2 -- the middle tier, and no macro bias yet.
+		const signed char middle = (signed char)((params.TierCount - 1) / 2);
+		bool tier_ok = true;
+		for (int index = 0; index < matrix.Get_Cell_Count (); ++index) {
+			if ((matrix.BaseElevationTier[index] != middle) || (matrix.MacroHeightBias[index] != 0.0f)) tier_ok = false;
+		}
+		Check (tier_ok,"every cell starts at the middle tier with zero macro bias");
+
+		//	Steps 4, 5 and 10 -- the role reserves and their masks.
+		Check (matrices.Count_Of_Priority (HYBRID_RESERVE_BASE_PROTECTED) == 2
+			&& matrices.Count_Of_Priority (HYBRID_RESERVE_HOME_TIBERIUM) == 2,"base and home reserves");
+		Check (matrices.Count_Of_Priority (HYBRID_RESERVE_FIELD_TIBERIUM)
+				 == (Hybrid_Contested_Field_Count (identity.SizeClass) + Hybrid_Remote_Field_Count (identity.SizeClass)),
+				 "one reserve per non-home field");
+
+		for (int site_index = 0; site_index < graph.Sites.Count (); ++site_index) {
+
+			const HybridStrategicSite & site = graph.Sites[site_index];
+			int cx = 0;
+			int cy = 0;
+			if (!matrix.World_To_Cell (site.Position,&cx,&cy)) continue;
+			const int index = matrix.Index (cx,cy);
+
+			switch (site.Role) {
+				case HYBRID_SITE_GDI_BASE:
+				case HYBRID_SITE_NOD_BASE:
+					Check (matrix.Has_Flag (cx,cy,HYBRID_FLAG_BASE_CORE) && matrices.Is_Base_Protected (cx,cy),
+							 "base %u centre is BASE_CORE",site.StableId);
+					Check (matrix.ReservationMask[index] == (unsigned char)(HYBRID_RESERVE_BASE_PROTECTED + 1),
+							 "base %u centre keeps the highest-priority reservation",site.StableId);
+					Check (matrix.BaseElevationTier[index] == middle && matrix.MacroHeightBias[index] == 0.0f,
+							 "base %u forces the middle tier and zero bias",site.StableId);
+					Check (matrix.NoDecorationMask[index] == 1 && matrix.Has_Flag (cx,cy,HYBRID_FLAG_NO_DECORATION),
+							 "base %u disc is NO_DECORATION",site.StableId);
+					break;
+
+				case HYBRID_SITE_HOME_TIBERIUM_GDI:
+				case HYBRID_SITE_HOME_TIBERIUM_NOD:
+				case HYBRID_SITE_CONTESTED_TIBERIUM:
+				case HYBRID_SITE_REMOTE_TIBERIUM:
+				{
+					Check (matrix.Has_Flag (cx,cy,HYBRID_FLAG_TIBERIUM_RESERVE) && matrix.ResourceInfluence[index] > 0.0f,
+							 "field %u centre is a reserve with resource influence",site.StableId);
+					Check (matrix.NoDecorationMask[index] == 1,"field %u core is NO_DECORATION",site.StableId);
+
+					//	The core is field_radius_min, not the whole reserve: sample just outside it.
+					const Vector2 edge (site.Position.X + params.FieldRadiusMin + k.S,site.Position.Y);
+					int ex = 0;
+					int ey = 0;
+					if (matrix.World_To_Cell (edge,&ex,&ey) && !matrices.Is_Base_Protected (ex,ey)
+						&& matrix.Has_Flag (ex,ey,HYBRID_FLAG_TIBERIUM_RESERVE)) {
+						Check (matrix.NoDecorationMask[matrix.Index (ex,ey)] == 0,
+								 "the reserve outside the field core is decorable");
+					}
+					break;
+				}
+
+				default:
+					break;
+			}
+	}
+
+		//	Steps 6 and 7 -- corridor half-widths and their influence.
+		const float heavy_half = (6.0f * k.S > 0.08f * k.D) ? 6.0f * k.S : 0.08f * k.D;
+		const float service_half = (4.0f * k.S > 0.05f * k.D) ? 4.0f * k.S : 0.05f * k.D;
+		int heavy_count = 0;
+		int service_count = 0;
+		for (int r = 0; r < matrices.Reservations.Count (); ++r) {
+
+			const HybridReservation & reservation = matrices.Reservations[r];
+			if (reservation.Priority == HYBRID_RESERVE_HEAVY_CORRIDOR) {
+				heavy_count++;
+				Check (Near (reservation.Radius,heavy_half,0.01f) && !reservation.Exclusive,
+						 "heavy corridor half-width is max(6S,0.08D)");
+			} else if (reservation.Priority == HYBRID_RESERVE_OPTIONAL_CORRIDOR) {
+				service_count++;
+				Check (Near (reservation.Radius,service_half,0.01f) && !reservation.Exclusive,
+						 "service corridor half-width is max(4S,0.05D)");
+			}
+
+			if ((reservation.Priority != HYBRID_RESERVE_HEAVY_CORRIDOR)
+				&& (reservation.Priority != HYBRID_RESERVE_OPTIONAL_CORRIDOR)) continue;
+
+			const Vector2 mid (0.5f * (reservation.A.X + reservation.B.X),0.5f * (reservation.A.Y + reservation.B.Y));
+			int mx = 0;
+			int my = 0;
+			if (!matrix.World_To_Cell (mid,&mx,&my)) continue;
+			const unsigned int expect = (reservation.Priority == HYBRID_RESERVE_HEAVY_CORRIDOR) ?
+													HYBRID_FLAG_MAJOR_TRANSPORT_CORRIDOR : HYBRID_FLAG_SECONDARY_TRANSPORT_CORRIDOR;
+			Check (matrix.Has_Flag (mx,my,expect) && matrix.TransportInfluence[matrix.Index (mx,my)] > 0.0f,
+					 "corridor %u stamps its own influence at its midpoint",reservation.StableId);
+	}
+		int heavy_edges = 0;
+		int service_edges = 0;
+		for (int e = 0; e < graph.Edges.Count (); ++e) {
+			if (graph.Edges[e].RouteFamily >= 0) heavy_edges++; else service_edges++;
+	}
+		Check (heavy_count == heavy_edges && service_count == service_edges,"one corridor per strategic edge");
+
+		//	Step 9 -- a single-biome map is one owner everywhere.
+		if (identity.BiomeMode == HYBRID_BIOME_MODE_SINGLE) {
+			bool single = true;
+			for (int index = 0; index < matrix.Get_Cell_Count (); ++index) {
+				if (matrix.BiomeId[index] != (unsigned char)identity.PrimaryBiome) single = false;
+			}
+			Check (single && matrices.DividerShifts == 0,"a single-biome map owns every cell");
+	}
+
+		//	The gate's own promise, measured: no BASE_PROTECTED cell carries water or a barrier band.
+		for (int cy = 0; cy < matrix.Get_Count_Y (); ++cy) {
+			for (int cx = 0; cx < matrix.Get_Count_X (); ++cx) {
+				if (!matrices.Is_Base_Protected (cx,cy)) continue;
+				Check (matrix.LandWaterIntent[matrix.Index (cx,cy)] == 0
+					&& !matrix.Has_Flag (cx,cy,HYBRID_FLAG_CANYON_BAND | HYBRID_FLAG_RAVINE_BAND | HYBRID_FLAG_COAST
+														| HYBRID_FLAG_CLIFF_BAND),
+						 "BASE_PROTECTED cell (%d,%d) sits on hard intent",cx,cy);
+			}
+	}
+
+		//	Determinism: same inputs, same checksum, and a changed cell changes it.
+		HybridStrategicGraph again_graph;
+		Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&again_graph,&graph_result),"graph repeat");
+		HybridCoarseMatrices again;
+		const bool again_built = Hybrid_Build_Coarse_Matrices (params,identity,intents,&again_graph,&again,&result);
+		Check (again_built && again.Checksum == matrices.Checksum,"identical inputs must give an identical Phase 4");
+		if (again_built) {
+			again.Matrix.Set_Flag (0,0,HYBRID_FLAG_HILL);
+			Check (Hybrid_Coarse_Matrix_Checksum (again,0) != matrices.Checksum,"the checksum must cover every layer");
+	}
+	}
+
+	//	Section 6.9 -- `open_frontier` puts its discs in the dedicated no-immutable-barrier layer.
+	{
+		HybridMapIdentityParams frontier = Graph_Identity_Fixture (1200.0f,2.0f);
+		frontier.ArchetypeSelector = HYBRID_ARCHETYPE_OPEN_FRONTIER;
+		Check (Hybrid_Resolve_Map_Identity (frontier,&identity,&intents,&identity_result),"open_frontier identity: %s",
+				 identity_result.Detail.Peek_Buffer ());
+
+		HybridStrategicGraphParams graph_params = Graph_Fixture (frontier,2.0f);
+		Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result),"open_frontier graph: %s",
+				 graph_result.Detail.Peek_Buffer ());
+
+		HybridCoarseMatrixParams params = Coarse_Fixture (frontier,1200.0f);
+		const bool built = Hybrid_Build_Coarse_Matrices (params,identity,intents,&graph,&matrices,&result);
+		Check (built,"open_frontier coarse matrices: %s (%s)",Hybrid_Coarse_Matrix_Failure_Name (result.Failure),
+				 result.Detail.Peek_Buffer ());
+
+		if (built) {
+			Check (matrices.Count_Of_Priority (HYBRID_RESERVE_OPEN_MANEUVER) == 3,"three OPEN_MANEUVER reserves");
+			for (int r = 0; r < matrices.Reservations.Count (); ++r) {
+
+				const HybridReservation & reservation = matrices.Reservations[r];
+				if (reservation.Priority != HYBRID_RESERVE_OPEN_MANEUVER) continue;
+
+				Check (Near (reservation.Radius,9.0f * params.Constants.W,0.01f) && !reservation.Exclusive,
+						 "OPEN_MANEUVER radius is 9W and is not exclusive");
+				int cx = 0;
+				int cy = 0;
+				Check (matrices.Matrix.World_To_Cell (reservation.A,&cx,&cy)
+					&& matrices.Matrix.Has_Flag (cx,cy,HYBRID_FLAG_NO_IMMUTABLE_BARRIER),
+						 "OPEN_MANEUVER disc %u is in the no-immutable-barrier layer",reservation.StableId);
+			}
+	}
+
+		/*
+		**	The hard-reservation conflict path: drop a contested field on top of a home field and
+		**	require Phase 4 to move the lower-priority role through Section 6.1 repair, leaving the
+		**	graph -- the owner of role positions -- holding the repaired centre.
+		*/
+		unsigned int moved_id = 0;
+		Vector2 collided (0.0f,0.0f);
+		for (int site_index = 0; site_index < graph.Sites.Count (); ++site_index) {
+			if (graph.Sites[site_index].Role != HYBRID_SITE_HOME_TIBERIUM_GDI) continue;
+			collided = graph.Sites[site_index].Position;
+		}
+		for (int site_index = 0; site_index < graph.Sites.Count (); ++site_index) {
+			if (graph.Sites[site_index].Role != HYBRID_SITE_CONTESTED_TIBERIUM) continue;
+			graph.Sites[site_index].Position = collided;
+			moved_id = graph.Sites[site_index].StableId;
+			break;
+	}
+
+		if (moved_id != 0) {
+			HybridCoarseMatrices repaired;
+			const bool repaired_built = Hybrid_Build_Coarse_Matrices (params,identity,intents,&graph,&repaired,&result);
+			Check (repaired_built,"a hard-reservation conflict must repair, not fail: %s (%s)",
+					 Hybrid_Coarse_Matrix_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+			if (repaired_built) {
+				const HybridStrategicSite * site = graph.Find_Site (moved_id);
+				Check (repaired.RoleMoves >= 1,"Phase 4 recorded no Section 6.1 repair");
+				Check (site != NULL && (site->Position.X != collided.X || site->Position.Y != collided.Y),
+						 "the repaired centre was not written back into the graph");
+				const float move_x = (site != NULL) ? (site->Position.X - collided.X) : 0.0f;
+				const float move_y = (site != NULL) ? (site->Position.Y - collided.Y) : 0.0f;
+				Check (WWMath::Sqrt ((move_x * move_x) + (move_y * move_y)) <= (0.10f * params.Constants.D) + 0.001f,
+						 "a repair may move a role at most 0.10D");
+			}
+	}
+	}
+}
+
+
+/*
+**	Rewrite item I6 -- runtime Phase 5, the vector landforms.  Hand-filled params on top of the
+**	Phase-2/3/4 fixtures above; with no world boundary configured `WorldBoundsService` answers
+**	"playable and placeable", which makes every cell of these fixtures land.
+*/
+static HybridLandformParams Landform_Fixture (const HybridMapIdentityParams & identity_params,float world_size)
+{
+	HybridLandformParams params;
+	params.TerrainSeed	= WorldSeedService::Derive_Subsystem_Seed (4242,WorldSeedService::SEED_DOMAIN_TERRAIN);
+	params.Constants		= identity_params.Constants;
+	params.WorldMinX		= -0.5f * world_size;
+	params.WorldMinY		= -0.5f * world_size;
+	params.WorldWidth		= world_size;
+	params.WorldHeight	= world_size;
+	params.SeaLevel		= 0.0f;
+	params.MinElevation	= -15.0f;					// native terrain.min_elevation
+	params.MaxElevation	= 90.0f;						// native terrain.max_elevation
+	params.TierStep		= 18.0f;
+	params.TierCount		= 3;
+	params.MacroRelief	= 0.25f;						// native terrain weights
+	params.HillDensity	= 0.15f;
+	params.MountainDensity			= 0.2f;
+	params.InteriorCliffDensity	= 0.45f;
+	params.ValleyDensity				= 0.2f;
+	params.PlateauChance				= 0.12f;
+	params.MaxAlternateCandidatesPerFeature	= 32;		// native retry.max_alternate_candidates_per_feature
+	params.MinVehicleLaneClearance				= 1.0f;
+	return params;
+}
+
+
+//	A straight centerline, for the hand-built profile records below.
+static void Fill_Straight_Centerline (HybridLandform * landform,const Vector2 & a,const Vector2 & b,float spacing)
+{
+	landform->Points.Delete_All ();
+	landform->Stations.Delete_All ();
+
+	Vector2 delta = b - a;
+	const float length = delta.Length ();
+	if ((length <= 0.0f) || (spacing <= 0.0f)) return;
+	delta *= (1.0f / length);
+
+	for (float station = 0.0f; station < length; station += spacing) {
+		landform->Points.Add (a + (delta * station));
+		landform->Stations.Add (station);
+	}
+	landform->Points.Add (b);
+	landform->Stations.Add (length);
+
+	landform->Length	= length;
+	landform->Center	= a + (delta * (0.5f * length));
+	landform->Orientation = WWMath::Atan2 (delta.Y,delta.X);
+}
+
+
+//	The influence AABB of a hand-built record; the builder computes this internally for its own.
+static void Set_Landform_Bounds (HybridLandform * landform)
+{
+	const float half = landform->Influence_Half_Width ();
+	if (landform->Points.Count () == 0) {
+		landform->BoundsMin.Set (landform->Center.X - half,landform->Center.Y - half);
+		landform->BoundsMax.Set (landform->Center.X + half,landform->Center.Y + half);
+		return;
+	}
+	Vector2 low = landform->Points[0];
+	Vector2 high = landform->Points[0];
+	for (int i = 1; i < landform->Points.Count (); ++i) {
+		if (landform->Points[i].X < low.X) low.X = landform->Points[i].X;
+		if (landform->Points[i].Y < low.Y) low.Y = landform->Points[i].Y;
+		if (landform->Points[i].X > high.X) high.X = landform->Points[i].X;
+		if (landform->Points[i].Y > high.Y) high.Y = landform->Points[i].Y;
+	}
+	landform->BoundsMin.Set (low.X - half,low.Y - half);
+	landform->BoundsMax.Set (high.X + half,high.Y + half);
+}
+
+
+//	Signed lateral distance from a point to a sampled centerline.
+static float Landform_Lateral (const HybridLandform & landform,const Vector2 & point)
+{
+	float best_distance = 0.0f;
+	float best_lateral = 0.0f;
+	bool  have = false;
+
+	for (int i = 0; i + 1 < landform.Points.Count (); ++i) {
+		const Vector2 & a = landform.Points[i];
+		Vector2 delta = landform.Points[i + 1] - a;
+		const float length = delta.Length ();
+		if (length <= 0.0f) continue;
+		delta *= (1.0f / length);
+		const Vector2 rel = point - a;
+		const float along = (delta.X * rel.X) + (delta.Y * rel.Y);
+		const float clamped = (along < 0.0f) ? 0.0f : ((along > length) ? length : along);
+		const float distance = (point - (a + (delta * clamped))).Length ();
+		if (!have || (distance < best_distance)) {
+			have				= true;
+			best_distance	= distance;
+			best_lateral	= (delta.X * rel.Y) - (delta.Y * rel.X);
+		}
+	}
+	return best_lateral;
+}
+
+
+//	The sampled point closest to a given along-curve station.
+static int Landform_Station_Index (const HybridLandform & landform,float station)
+{
+	int best = 0;
+	float best_error = 0.0f;
+	for (int i = 0; i < landform.Stations.Count (); ++i) {
+		const float error = WWMath::Fabs (landform.Stations[i] - station);
+		if ((i == 0) || (error < best_error)) { best = i; best_error = error; }
+	}
+	return best;
+}
+
+
+void Check_Hybrid_Landforms (void)
+{
+	HybridMapIdentity identity;
+	HybridArchetypeIntentSet intents;
+	HybridMapIdentityResult identity_result;
+	HybridStrategicGraph graph;
+	HybridStrategicGraphResult graph_result;
+	HybridCoarseMatrices matrices;
+	HybridCoarseMatrixResult coarse_result;
+	HybridLandformSet landforms;
+	HybridLandformResult result;
+
+	//	Section 8 Phase 5's target counts, with the native terrain weights.
+	{
+		Check (Hybrid_Hill_Target_Count (HYBRID_SIZE_SMALL,0.15f) == 3
+			&& Hybrid_Hill_Target_Count (HYBRID_SIZE_MEDIUM,0.15f) == 7
+			&& Hybrid_Hill_Target_Count (HYBRID_SIZE_LARGE,0.15f) == 11,"hill targets are 3/6/10 + RoundHalfUp(density*(2/4/6))");
+		Check (Hybrid_Ridge_Target_Count (HYBRID_SIZE_SMALL,0.2f) == 1
+			&& Hybrid_Ridge_Target_Count (HYBRID_SIZE_MEDIUM,0.2f) == 2
+			&& Hybrid_Ridge_Target_Count (HYBRID_SIZE_LARGE,0.2f) == 4,"ridge targets");
+		Check (Hybrid_Cliff_Target_Count (HYBRID_SIZE_SMALL,0.45f) == 1
+			&& Hybrid_Cliff_Target_Count (HYBRID_SIZE_MEDIUM,0.45f) == 3
+			&& Hybrid_Cliff_Target_Count (HYBRID_SIZE_LARGE,0.45f) == 6,"cliff targets add to the Section 5 quota");
+		Check (Hybrid_Ravine_System_Target_Count (HYBRID_SIZE_SMALL,0.2f) == 1
+			&& Hybrid_Ravine_System_Target_Count (HYBRID_SIZE_MEDIUM,0.2f) == 1
+			&& Hybrid_Ravine_System_Target_Count (HYBRID_SIZE_LARGE,0.2f) == 2,"ravine system targets");
+		Check (Hybrid_Ravine_Branch_Count (HYBRID_SIZE_SMALL) == 2
+			&& Hybrid_Ravine_Branch_Count (HYBRID_SIZE_MEDIUM) == 3
+			&& Hybrid_Ravine_Branch_Count (HYBRID_SIZE_LARGE) == 5,"Section 6.8 branch counts are exactly 2/3/5");
+	}
+
+	//	The shared centripetal Catmull-Rom sampler: it interpolates every control at the asked spacing.
+	{
+		Vector2 controls[4];
+		controls[0].Set (-300.0f,  0.0f);
+		controls[1].Set (-100.0f, 20.0f);
+		controls[2].Set ( 100.0f,-20.0f);
+		controls[3].Set ( 300.0f,  0.0f);
+
+		DynamicVectorClass<Vector2> points;
+		DynamicVectorClass<float> stations;
+		Check (Hybrid_Sample_Centripetal_Catmull_Rom (controls,4,7.5f,&points,&stations),"the spline sampler failed");
+		Check (points.Count () == stations.Count () && points.Count () > 40,"%d spline samples",points.Count ());
+		Check (Near (points[0].X,controls[0].X) && Near (points[0].Y,controls[0].Y),"the spline misses its first control");
+		const Vector2 & tail = points[points.Count () - 1];
+		Check (Near (tail.X,controls[3].X) && Near (tail.Y,controls[3].Y),"the spline misses its last control");
+
+		bool spacing_ok = true;
+		bool monotone = true;
+		for (int i = 1; i < points.Count (); ++i) {
+			const float step = (points[i] - points[i - 1]).Length ();
+			if (step > (7.5f + 0.1f)) spacing_ok = false;
+			if (stations[i] < stations[i - 1]) monotone = false;
+		}
+		Check (spacing_ok,"a spline sample is farther than A/2 from the previous one");
+		Check (monotone,"spline stations are not monotone");
+
+		//	Determinism: identical controls, identical polyline.
+		DynamicVectorClass<Vector2> again;
+		Check (Hybrid_Sample_Centripetal_Catmull_Rom (controls,4,7.5f,&again,NULL),"second spline sample failed");
+		bool identical = (again.Count () == points.Count ());
+		for (int i = 0; (i < again.Count ()) && identical; ++i) {
+			if ((again[i].X != points[i].X) || (again[i].Y != points[i].Y)) identical = false;
+		}
+		Check (identical,"the spline sampler is not reproducible");
+	}
+
+	//	Section 10.3 / 10.4 field profiles, on hand-built records.
+	{
+		HybridLandform hill;
+		hill.StableId	= 1;
+		hill.Kind		= HYBRID_LANDFORM_HILL;
+		hill.Center.Set (0.0f,0.0f);
+		hill.RadiusX	= 200.0f;
+		hill.RadiusY	= 160.0f;
+		hill.Orientation= 0.0f;
+		hill.Amplitude	= 20.0f;
+
+		float profile = 0.0f;
+		Check (Near (Hybrid_Landform_Contribution (hill,Vector2 (0.0f,0.0f),&profile),20.0f) && Near (profile,1.0f),
+				 "a hill peaks at its centre");
+		Check (Hybrid_Landform_Contribution (hill,Vector2 (200.0f,0.0f),&profile) == 0.0f && (profile == 0.0f),
+				 "a hill field is exactly zero at its influence radius");
+		Check (Hybrid_Landform_Contribution (hill,Vector2 (260.0f,0.0f),NULL) == 0.0f,"a hill reaches past its radius");
+		const float flank = Hybrid_Landform_Contribution (hill,Vector2 (100.0f,0.0f),NULL);
+		Check ((flank > 0.0f) && (flank < 20.0f),"a hill flank is between zero and its amplitude");
+
+		//	Plateau conversion flattens the upper 35% of that same profile.
+		HybridLandform plateau = hill;
+		plateau.IsPlateau = true;
+		Check (Near (Hybrid_Landform_Contribution (plateau,Vector2 (0.0f,0.0f),NULL),20.0f),
+				 "a plateau keeps its summit height");
+		float top_profile = 0.0f;
+		Hybrid_Landform_Contribution (hill,Vector2 (60.0f,0.0f),&top_profile);
+		if (top_profile >= 0.65f) {
+			Check (Near (Hybrid_Landform_Contribution (plateau,Vector2 (60.0f,0.0f),NULL),20.0f),
+					 "the upper 35%% of a plateau profile is not flat");
+		}
+
+		//	Section 10.3: flat floor, smoothstep wall, exactly zero outside the rim.
+		HybridLandform ravine;
+		ravine.StableId		= 2;
+		ravine.Kind			= HYBRID_LANDFORM_RAVINE;
+		ravine.SystemId		= 1;
+		ravine.FloorHalfWidth	= 6.0f;
+		ravine.RimHalfWidth		= 20.0f;
+		ravine.Depth			= 15.0f;
+		Fill_Straight_Centerline (&ravine,Vector2 (0.0f,-300.0f),Vector2 (0.0f,300.0f),7.5f);
+		Set_Landform_Bounds (&ravine);
+
+		Check (Near (Hybrid_Landform_Contribution (ravine,Vector2 (0.0f,0.0f),NULL),-15.0f),
+				 "a ravine floor is at full depth");
+		Check (Near (Hybrid_Landform_Contribution (ravine,Vector2 (6.0f,0.0f),NULL),-15.0f),
+				 "the whole floor half-width is at full depth");
+		Check (Hybrid_Landform_Contribution (ravine,Vector2 (20.0f,0.0f),NULL) == 0.0f,
+				 "a ravine contributes nothing outside its rim");
+		const float wall = Hybrid_Landform_Contribution (ravine,Vector2 (13.0f,0.0f),NULL);
+		Check ((wall < 0.0f) && (wall > -15.0f),"a ravine wall smoothsteps from full depth to zero");
+
+		//	Section 10.2 cliff: the upper shelf stands a full height difference above the lower toe.
+		HybridLandform cliff;
+		cliff.StableId		= 3;
+		cliff.Kind			= HYBRID_LANDFORM_CLIFF;
+		cliff.EdgeWidth	= 4.0f;
+		cliff.TalusWidth	= 6.0f;
+		cliff.HeightDifference = 24.0f;
+		cliff.UpperSideSign	= 1;
+		Fill_Straight_Centerline (&cliff,Vector2 (-200.0f,0.0f),Vector2 (200.0f,0.0f),7.5f);
+		Set_Landform_Bounds (&cliff);
+
+		//	The centerline runs +X, so its left side (+Y) is the positive lateral side.
+		Check (Near (Hybrid_Landform_Contribution (cliff,Vector2 (0.0f,5.0f),NULL),24.0f),
+				 "the cliff upper shelf is not at full height");
+		Check (Hybrid_Landform_Contribution (cliff,Vector2 (0.0f,-9.0f),NULL) == 0.0f,
+				 "the cliff toe is not at zero");
+		Check (Hybrid_Landform_Contribution (cliff,Vector2 (0.0f,15.0f),NULL) == 0.0f,
+				 "a cliff must not lift terrain beyond its own influence polygon");
+		HybridLandform mirrored = cliff;
+		mirrored.UpperSideSign = -1;
+		Check (Near (Hybrid_Landform_Contribution (mirrored,Vector2 (0.0f,-5.0f),NULL),24.0f),
+				 "the cliff upper-side sign is ignored");
+
+		//	Branch joins take the minimum contribution plus one A-wide smooth union, never the sum.
+		HybridLandformSet system;
+		system.Hash.Init (1200.0f,1200.0f,120.0f);
+		HybridLandform branch = ravine;
+		branch.StableId = 2;
+		system.Landforms.Add (branch);
+		HybridLandform child = ravine;
+		child.StableId			= 3;
+		child.ParentStableId	= 2;
+		Fill_Straight_Centerline (&child,Vector2 (-300.0f,0.0f),Vector2 (300.0f,0.0f),7.5f);
+		Set_Landform_Bounds (&child);
+		system.Landforms.Add (child);
+
+		const float joined = Hybrid_Landform_Height (system,Vector2 (0.0f,0.0f),15.0f);
+		Check ((joined <= -15.0f) && (joined > -30.0f),"a branch join summed two depths (%g)",joined);
+
+		//	Two independent features do sum.
+		HybridLandformSet independent;
+		independent.Hash.Init (1200.0f,1200.0f,120.0f);
+		HybridLandform hill_a = hill;
+		hill_a.StableId = 1;
+		Set_Landform_Bounds (&hill_a);
+		HybridLandform hill_b = hill;
+		hill_b.StableId = 2;
+		Set_Landform_Bounds (&hill_b);
+		independent.Landforms.Add (hill_a);
+		independent.Landforms.Add (hill_b);
+		Check (Near (Hybrid_Landform_Height (independent,Vector2 (0.0f,0.0f),15.0f),40.0f),
+				 "independent hill fields must sum");
+	}
+
+	//	A full Phase-5 build at each size class, on top of a real Phase-2/3/4 chain.
+	const float sizes[3] = { 600.0f, 1200.0f, 2400.0f };
+	const float base_cells[3] = { 1.0f, 2.0f, 3.0f };
+
+	for (int i = 0; i < 3; ++i) {
+
+		HybridMapIdentityParams sized = Graph_Identity_Fixture (sizes[i],base_cells[i]);
+		Check (Hybrid_Resolve_Map_Identity (sized,&identity,&intents,&identity_result),"identity at D=%g: %s",
+				 sizes[i],identity_result.Detail.Peek_Buffer ());
+
+		HybridStrategicGraphParams graph_params = Graph_Fixture (sized,2.0f);
+		Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result),
+				 "strategic graph at D=%g: %s",sizes[i],graph_result.Detail.Peek_Buffer ());
+
+		HybridCoarseMatrixParams coarse_params = Coarse_Fixture (sized,sizes[i]);
+		Check (Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&graph,&matrices,&coarse_result),
+				 "coarse matrices at D=%g: %s",sizes[i],coarse_result.Detail.Peek_Buffer ());
+
+		HybridLandformParams params = Landform_Fixture (sized,sizes[i]);
+		const bool built = Hybrid_Build_Landforms (params,identity,intents,graph,&matrices,&landforms,&result);
+
+		/*
+		**	Section 5: a quota that cannot be met is a *named* attempt failure the manager retries with
+		**	a new whole-world seed, not a half-built world.  So a failure here has to be named, has to
+		**	explain itself and has to leave nothing behind.  Q-018 tracks the one geometry the plan
+		**	over-constrains -- the LARGE hill quota against the 25%% same-type overlap cap -- which is
+		**	why a LARGE failure is tolerated here while MEDIUM, the size class the plan sets its own
+		**	quality target on, must succeed.
+		*/
+		if (!built) {
+			Check (result.Failure != HYBRID_LANDFORM_OK,"a failed Phase 5 must name its failure");
+			Check (result.Detail.Get_Length () > 0,"a failed Phase 5 must say what refused the feature");
+			Check (landforms.Landforms.Count () == 0,"a failed Phase 5 left landforms behind");
+			Check (identity.SizeClass != HYBRID_SIZE_MEDIUM,"landforms at D=%g (%s): %s (%s)",sizes[i],
+					 Hybrid_Archetype_Name (identity.Archetype),Hybrid_Landform_Failure_Name (result.Failure),
+					 result.Detail.Peek_Buffer ());
+			continue;
+		}
+
+		const HybridConstants & k = params.Constants;
+		const HybridSemanticMatrix & matrix = matrices.Matrix;
+
+		//	The gate's own counts, recomputed here from the plan's formulas.
+		Check (landforms.Count_Of_Kind (HYBRID_LANDFORM_HILL)
+				 == Hybrid_Hill_Target_Count (identity.SizeClass,params.HillDensity),"hill count at D=%g",sizes[i]);
+		Check (landforms.Count_Of_Kind (HYBRID_LANDFORM_RIDGE)
+				 == Hybrid_Ridge_Target_Count (identity.SizeClass,params.MountainDensity),"ridge count at D=%g",sizes[i]);
+		Check (landforms.Count_Of_Kind (HYBRID_LANDFORM_CLIFF)
+				 == Hybrid_Cliff_Target_Count (identity.SizeClass,params.InteriorCliffDensity),"cliff count at D=%g",sizes[i]);
+		Check (landforms.Count_Of_Systems ()
+				 == Hybrid_Ravine_System_Target_Count (identity.SizeClass,params.ValleyDensity),
+				 "canyon/ravine system count at D=%g",sizes[i]);
+
+		for (int f = 0; f < landforms.Landforms.Count (); ++f) {
+
+			const HybridLandform & landform = landforms.Landforms[f];
+			Check (landform.StableId == (unsigned int)(f + 1),"StableIds are not creation order");
+
+			//	Section 8 Phase 5 geometry ranges, and the elevation envelope every value is clamped to.
+			switch (landform.Kind) {
+
+				case HYBRID_LANDFORM_HILL:
+					Check ((landform.RadiusX >= (0.08f * k.D) - 0.001f) && (landform.RadiusX <= (0.16f * k.D) + 0.001f),
+							 "hill %u radius %g is outside 0.08D..0.16D",landform.StableId,landform.RadiusX);
+					Check ((landform.RadiusY >= (0.75f * landform.RadiusX) - 0.01f)
+						&& (landform.RadiusY <= (1.25f * landform.RadiusX) + 0.01f),
+							 "hill %u aspect ratio is outside 0.75..1.25",landform.StableId);
+					Check ((landform.Amplitude > 0.0f) && (landform.Amplitude <= params.MaxElevation),
+							 "hill %u amplitude %g is outside the elevation envelope",landform.StableId,landform.Amplitude);
+					break;
+
+				case HYBRID_LANDFORM_RIDGE:
+					Check ((landform.Length >= (0.25f * k.D) - 0.001f) && (landform.Length <= (0.55f * k.D) + 0.001f),
+							 "ridge %u length %g is outside 0.25D..0.55D",landform.StableId,landform.Length);
+					Check ((landform.InfluenceHalfWidth >= (0.04f * k.D) - 0.001f)
+						&& (landform.InfluenceHalfWidth <= (0.09f * k.D) + 0.001f),
+							 "ridge %u half-width is outside 0.04D..0.09D",landform.StableId);
+					break;
+
+				case HYBRID_LANDFORM_CLIFF:
+					Check (landform.Centerline_Length () >= Hybrid_Cliff_Min_Length (k.W,k.D),
+							 "cliff %u is shorter than the Section 5 minimum",landform.StableId);
+					Check ((landform.EdgeWidth >= (0.5f * k.W) - 0.001f) && (landform.EdgeWidth <= (1.5f * k.W) + 0.001f),
+							 "cliff %u edge width is outside 0.5W..1.5W",landform.StableId);
+					Check ((landform.TalusWidth >= k.W - 0.001f) && (landform.TalusWidth <= (3.0f * k.W) + 0.001f),
+							 "cliff %u talus width is outside 1W..3W",landform.StableId);
+					Check ((landform.UpperSideSign == 1) || (landform.UpperSideSign == -1),
+							 "cliff %u has no upper-side sign",landform.StableId);
+					break;
+
+				case HYBRID_LANDFORM_CANYON:
+				case HYBRID_LANDFORM_RAVINE:
+					Check (landform.RimHalfWidth > landform.FloorHalfWidth,
+							 "%s %u has no wall between floor and rim",Hybrid_Landform_Kind_Name (landform.Kind),
+							 landform.StableId);
+					Check (landform.Depth >= Hybrid_Ravine_Min_Depth (params.TierStep),
+							 "%s %u is %g deep, Section 5 needs %g",Hybrid_Landform_Kind_Name (landform.Kind),
+							 landform.StableId,landform.Depth,Hybrid_Ravine_Min_Depth (params.TierStep));
+					if (landform.ParentStableId == 0) {
+						Check (landform.Centerline_Length () >= Hybrid_Ravine_Min_Length (k.W,k.D),
+								 "%s system %u is shorter than the Section 5 minimum",
+								 Hybrid_Landform_Kind_Name (landform.Kind),landform.SystemId);
+					}
+					break;
+
+				default:
+					break;
+			}
+
+			if (!Hybrid_Landform_Is_Line (landform.Kind)) continue;
+
+			//	The four controls sit at -0.50L, -0.1666667L, +0.1666667L, +0.50L along the feature axis,
+			//	with zero endpoint lateral offset and interior offsets inside +/-0.10L.
+			const float c = WWMath::Cos (landform.Orientation);
+			const float s = WWMath::Sin (landform.Orientation);
+			const float expect[4] = { -0.5f * landform.Length, -landform.Length / 6.0f,
+											  +landform.Length / 6.0f, +0.5f * landform.Length };
+			for (int control = 0; control < 4; ++control) {
+				const Vector2 rel = landform.Controls[control] - landform.Center;
+				const float along = (rel.X * c) + (rel.Y * s);
+				const float lateral = (-rel.X * s) + (rel.Y * c);
+				Check (WWMath::Fabs (along - expect[control]) <= 0.01f,
+						 "%s %u control %d sits at %g along its axis, not %g",
+						 Hybrid_Landform_Kind_Name (landform.Kind),landform.StableId,control,along,expect[control]);
+				const float allowed = ((control == 0) || (control == 3)) ? 0.01f : ((0.10f * landform.Length) + 0.01f);
+				Check (WWMath::Fabs (lateral) <= allowed,
+						 "%s %u control %d lateral offset %g exceeds %g",Hybrid_Landform_Kind_Name (landform.Kind),
+						 landform.StableId,control,lateral,allowed);
+			}
+
+			bool sampled_ok = (landform.Points.Count () == landform.Stations.Count ()) && (landform.Points.Count () >= 2);
+			for (int point = 1; sampled_ok && (point < landform.Points.Count ()); ++point) {
+				if ((landform.Points[point] - landform.Points[point - 1]).Length () > ((0.5f * k.A) + 0.1f)) sampled_ok = false;
+			}
+			Check (sampled_ok,"%s %u is not sampled at A/2",Hybrid_Landform_Kind_Name (landform.Kind),landform.StableId);
+		}
+
+		/*
+		**	The gate's two exclusions, and the two Section-2.2 layers this phase owns.  Phase 4 leaves
+		**	LandformMask and RoughnessClass clear, so anything set here came from Phase 5.
+		*/
+		int stamped_cells = 0;
+		for (int cy = 0; cy < matrix.Get_Count_Y (); ++cy) {
+			for (int cx = 0; cx < matrix.Get_Count_X (); ++cx) {
+
+				const int index = matrix.Index (cx,cy);
+				const unsigned char mask = matrix.LandformMask[index];
+				if (mask != 0) stamped_cells++;
+
+				const unsigned char immutable_mask = (unsigned char)(HYBRID_LANDFORM_MASK_CLIFF_FACE
+					| HYBRID_LANDFORM_MASK_CANYON_FLOOR | HYBRID_LANDFORM_MASK_CANYON_WALL
+					| HYBRID_LANDFORM_MASK_RAVINE_FLOOR | HYBRID_LANDFORM_MASK_RAVINE_WALL);
+				if ((mask & immutable_mask) != 0) {
+					Check (!matrices.Is_Base_Protected (cx,cy),
+							 "an immutable landform stands in BASE_PROTECTED cell %d,%d",cx,cy);
+					Check (!matrix.Has_Flag (cx,cy,HYBRID_FLAG_NO_IMMUTABLE_BARRIER),
+							 "an immutable landform stands in an OPEN_MANEUVER cell %d,%d",cx,cy);
+				}
+				if ((mask & HYBRID_LANDFORM_MASK_CLIFF_FACE) != 0) {
+					Check (matrix.RoughnessClass[index] == (unsigned char)HYBRID_ROUGHNESS_BROKEN,
+							 "a cliff face cell %d,%d is not broken ground",cx,cy);
+					Check (matrix.Has_Flag (cx,cy,HYBRID_FLAG_CLIFF_BAND),"a cliff face cell has no CLIFF_BAND flag");
+				}
+				if ((mask & HYBRID_LANDFORM_MASK_HILL) != 0) {
+					Check (matrix.Has_Flag (cx,cy,HYBRID_FLAG_HILL),"a hill cell has no HILL flag");
+					Check (matrix.RoughnessClass[index] >= (unsigned char)HYBRID_ROUGHNESS_ROLLING,
+							 "a hill cell is still flat");
+				}
+				if ((mask & HYBRID_LANDFORM_MASK_PLATEAU_TOP) != 0) {
+					Check (matrix.Has_Flag (cx,cy,HYBRID_FLAG_PLATEAU),"a plateau-top cell has no PLATEAU flag");
+				}
+			}
+		}
+		Check (stamped_cells > 0,"Phase 5 wrote no LandformMask cell at D=%g",sizes[i]);
+
+		//	Every accepted feature is in the Section-2.3 planning hash.
+		for (int f = 0; f < landforms.Landforms.Count (); ++f) {
+			const HybridLandform & landform = landforms.Landforms[f];
+			DynamicVectorClass<unsigned int> ids;
+			landforms.Hash.Query (landform.Center.X - params.WorldMinX,landform.Center.Y - params.WorldMinY,
+										 landform.Center.X - params.WorldMinX,landform.Center.Y - params.WorldMinY,&ids);
+			bool present = false;
+			for (int id = 0; id < ids.Count (); ++id) {
+				if (ids[id] == landform.StableId) present = true;
+			}
+			Check (present,"landform %u is not in the planning spatial hash",landform.StableId);
+		}
+
+		//	Determinism: the same inputs give the same checksum, a different terrain seed does not.
+		{
+			HybridCoarseMatrices again_matrices;
+			HybridStrategicGraph again_graph;
+			HybridLandformSet again;
+			Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&again_graph,&graph_result),
+					 "second strategic graph at D=%g",sizes[i]);
+			Check (Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&again_graph,&again_matrices,
+															 &coarse_result),"second coarse matrices at D=%g",sizes[i]);
+			Check (Hybrid_Build_Landforms (params,identity,intents,again_graph,&again_matrices,&again,&result),
+					 "second landform build at D=%g: %s",sizes[i],result.Detail.Peek_Buffer ());
+			Check (again.Checksum == landforms.Checksum,"Phase 5 is not reproducible at D=%g",sizes[i]);
+
+			HybridLandformParams other = params;
+			other.TerrainSeed = WorldSeedService::Derive_Subsystem_Seed (99887766,WorldSeedService::SEED_DOMAIN_TERRAIN);
+			HybridCoarseMatrices other_matrices;
+			HybridStrategicGraph other_graph;
+			HybridLandformSet other_set;
+			Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&other_graph,&graph_result),
+					 "third strategic graph at D=%g",sizes[i]);
+			Check (Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&other_graph,&other_matrices,
+															 &coarse_result),"third coarse matrices at D=%g",sizes[i]);
+			if (Hybrid_Build_Landforms (other,identity,intents,other_graph,&other_matrices,&other_set,&result)) {
+				Check (other_set.Checksum != landforms.Checksum,"a different terrain seed gave the same geography");
+			}
+		}
+	}
+
+	/*
+	**	`highland_pass`: the principal ridge carries Section 6.10's mandatory surface saddle, and its
+	**	flat zone is wide enough for a PRIMARY_2 roadbed plus 2 * min_vehicle_lane_clearance.
+	*/
+	{
+		HybridMapIdentityParams saddle_params = Graph_Identity_Fixture (1200.0f,2.0f);
+		saddle_params.ArchetypeSelector = HYBRID_ARCHETYPE_HIGHLAND_PASS;
+		Check (Hybrid_Resolve_Map_Identity (saddle_params,&identity,&intents,&identity_result),"highland_pass identity");
+
+		HybridStrategicGraphParams graph_params = Graph_Fixture (saddle_params,2.0f);
+		Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result),
+				 "highland_pass graph: %s",graph_result.Detail.Peek_Buffer ());
+		HybridCoarseMatrixParams coarse_params = Coarse_Fixture (saddle_params,1200.0f);
+		Check (Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&graph,&matrices,&coarse_result),
+				 "highland_pass matrices: %s",coarse_result.Detail.Peek_Buffer ());
+
+		HybridLandformParams params = Landform_Fixture (saddle_params,1200.0f);
+		const bool saddle_built = Hybrid_Build_Landforms (params,identity,intents,graph,&matrices,&landforms,&result);
+		Check (saddle_built,"highland_pass landforms: %s (%s)",Hybrid_Landform_Failure_Name (result.Failure),
+				 result.Detail.Peek_Buffer ());
+		if (saddle_built) {
+
+			const HybridLandform * ridge = NULL;
+			for (int f = 0; f < landforms.Landforms.Count (); ++f) {
+				if (landforms.Landforms[f].Required && (landforms.Landforms[f].Kind == HYBRID_LANDFORM_RIDGE)) {
+					ridge = &landforms.Landforms[f];
+				}
+			}
+			Check (ridge != NULL,"highland_pass built no principal ridge");
+			if (ridge != NULL) {
+				Check (ridge->SaddlePresent,"the principal ridge has no surface saddle");
+				const float required = Hybrid_Roadbed_Width (HYBRID_ROAD_PRIMARY_2,params.Constants.W)
+											+ (2.0f * params.MinVehicleLaneClearance);
+				Check ((2.0f * ridge->SaddleFlatHalfLength) >= (required - 0.01f),
+						 "the saddle footprint %g is narrower than a PRIMARY_2 roadbed plus clearance %g",
+						 2.0f * ridge->SaddleFlatHalfLength,required);
+
+				//	The amplitude multiplier is 0.15 at the pass and 1 away from it.
+				const int saddle_index = Landform_Station_Index (*ridge,ridge->SaddleStation);
+				const Vector2 at_pass = ridge->Points[saddle_index];
+				const float pass_height = WWMath::Fabs (Hybrid_Landform_Contribution (*ridge,at_pass,NULL));
+				const float crest_height = ridge->Amplitude;
+				Check (pass_height <= (0.20f * crest_height) + 0.01f,
+						 "the saddle does not drop the ridge to 0.15 of its amplitude (%g of %g)",pass_height,crest_height);
+			}
+		}
+	}
+
+	/*
+	**	`ravine_network`: the main ravine plus exactly 2/3/5 attached branches is one system.
+	*/
+	{
+		HybridMapIdentityParams network_params = Graph_Identity_Fixture (1200.0f,2.0f);
+		network_params.ArchetypeSelector = HYBRID_ARCHETYPE_RAVINE_NETWORK;
+		Check (Hybrid_Resolve_Map_Identity (network_params,&identity,&intents,&identity_result),"ravine_network identity");
+
+		HybridStrategicGraphParams graph_params = Graph_Fixture (network_params,2.0f);
+		Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result),
+				 "ravine_network graph: %s",graph_result.Detail.Peek_Buffer ());
+		HybridCoarseMatrixParams coarse_params = Coarse_Fixture (network_params,1200.0f);
+		Check (Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&graph,&matrices,&coarse_result),
+				 "ravine_network matrices: %s",coarse_result.Detail.Peek_Buffer ());
+
+		HybridLandformParams params = Landform_Fixture (network_params,1200.0f);
+		const bool network_built = Hybrid_Build_Landforms (params,identity,intents,graph,&matrices,&landforms,&result);
+		Check (network_built,"ravine_network landforms: %s (%s)",Hybrid_Landform_Failure_Name (result.Failure),
+				 result.Detail.Peek_Buffer ());
+		if (network_built) {
+
+			unsigned int main_id = 0;
+			for (int f = 0; f < landforms.Landforms.Count (); ++f) {
+				const HybridLandform & landform = landforms.Landforms[f];
+				if (landform.Required && (landform.Kind == HYBRID_LANDFORM_RAVINE) && (landform.ParentStableId == 0)) {
+					main_id = landform.StableId;
+				}
+			}
+			Check (main_id != 0,"ravine_network built no main ravine");
+
+			int branches = 0;
+			for (int f = 0; f < landforms.Landforms.Count (); ++f) {
+				const HybridLandform & landform = landforms.Landforms[f];
+				if (landform.ParentStableId != main_id) continue;
+				branches++;
+				const HybridLandform * parent = landforms.Find (main_id);
+				Check ((parent != NULL) && (landform.SystemId == parent->SystemId),
+						 "branch %u is not in its parent's system",landform.StableId);
+				//	The inner endpoint joins the main ravine, so it is on the parent's centerline.
+				if (parent != NULL) {
+					const float lateral = Landform_Lateral (*parent,landform.Points[0]);
+					Check (WWMath::Fabs (lateral) <= (0.5f * params.Constants.A),
+							 "branch %u starts %g from the main ravine centerline",landform.StableId,lateral);
+				}
+			}
+			Check (branches == Hybrid_Ravine_Branch_Count (identity.SizeClass),
+					 "%d ravine branches, Section 6.8 requires %d",branches,
+					 Hybrid_Ravine_Branch_Count (identity.SizeClass));
+			Check (landforms.Count_Of_Systems ()
+					 == Hybrid_Ravine_System_Target_Count (identity.SizeClass,params.ValleyDensity),
+					 "branches must not count as independent systems");
+		}
+	}
+}
+
+
+
+static HybridHydrologyParams Hydrology_Fixture (const HybridMapIdentityParams & identity_params,float world_size)
+{
+	HybridHydrologyParams params;
+	params.HydrologySeed	= identity_params.HydrologySeed;
+	params.Constants		= identity_params.Constants;
+	params.WorldMinX		= -0.5f * world_size;
+	params.WorldMinY		= -0.5f * world_size;
+	params.WorldWidth		= world_size;
+	params.WorldHeight	= world_size;
+	params.SeaLevel		= 0.0f;
+	params.MinElevation	= -15.0f;					// native terrain.min_elevation
+	params.MaxElevation	= 90.0f;						// native terrain.max_elevation
+	params.TierStep		= 18.0f;
+	params.TierCount		= 3;
+	params.ChunkSize		= 60.0f;						// the fixture chunk size, so A = 15 and S = 30
+	params.Rivers			= true;						// Section 5 requires all three on the hybrid path
+	params.Lakes			= true;
+	params.Coastline		= true;
+	params.RiverWidth		= 6.0f;						// native water.*
+	params.StreamWidth	= 2.5f;
+	params.RiverAccumulationChunks	= 6.0f;
+	params.MaxRiverCount					= 4;
+	params.WaterFraction					= 0.08f;
+	params.RiverBedDepth					= 2.5f;		// WaterSystem::Define_Default_Water's own depths
+	params.LakeBedDepth					= 3.0f;
+	params.MaxLocalRetriesPerStage		= 8;
+	params.MaxAlternateCandidatesPerFeature	= 32;
+	params.MinVehicleLaneClearance		= 1.0f;
+	//	WORLDBOX measurements from docs/procedural_world/VehicleCollisionMetrics.md.
+	params.HeavyVehicleWidth	= 6.801906f;
+	params.HeavyVehicleHeight	= 3.064066f;
+	params.HarvesterWidth		= 4.514225f;
+	params.BridgeMaxSpanLength	= 200.0f;
+	params.BridgeRequiredWidth	= 12.0f;
+	params.BridgeApproachLength= 30.0f;
+	params.BridgeWaterClearanceMargin = 2.0f;
+	params.TunnelsAvailable		= true;
+	params.TunnelRequiredWidth	= 9.0f;
+	params.TunnelRequiredHeight= 5.0f;
+	params.AllowFords				= false;
+	params.FordsAvailable		= false;
+	return params;
+}
+
+
+//	A straight river record with a constant width, for the evaluator tests below.
+static void Fill_Test_River (HybridRiverSystem * river,const Vector2 & a,const Vector2 & b,float width,
+										float bed_depth,float spacing)
+{
+	river->Points.Delete_All ();
+	river->Stations.Delete_All ();
+	river->Widths.Delete_All ();
+	river->Accumulation.Delete_All ();
+	river->Surfaces.Delete_All ();
+
+	Vector2 delta = b - a;
+	const float length = delta.Length ();
+	if ((length <= 0.0f) || (spacing <= 0.0f)) return;
+	delta *= (1.0f / length);
+
+	for (float station = 0.0f; station < length; station += spacing) {
+		river->Points.Add (a + (delta * station));
+		river->Stations.Add (station);
+		river->Widths.Add (width);
+		river->Accumulation.Add (100.0f);
+		river->Surfaces.Add (0.0f);
+	}
+	river->Points.Add (b);
+	river->Stations.Add (length);
+	river->Widths.Add (width);
+	river->Accumulation.Add (100.0f);
+	river->Surfaces.Add (0.0f);
+
+	river->Length	= length;
+	river->BedDepth= bed_depth;
+	river->Source	= a;
+	river->Mouth	= b;
+	river->BoundsMin.Set (((a.X < b.X) ? a.X : b.X) - width,((a.Y < b.Y) ? a.Y : b.Y) - width);
+	river->BoundsMax.Set (((a.X > b.X) ? a.X : b.X) + width,((a.Y > b.Y) ? a.Y : b.Y) + width);
+}
+
+
+//	An axis-aligned square ring, counter-clockwise, for a hand-built water body.
+static void Fill_Square_Ring (HybridWaterBody * body,const Vector2 & centre,float half)
+{
+	body->Points.Delete_All ();
+	body->Points.Add (Vector2 (centre.X - half,centre.Y - half));
+	body->Points.Add (Vector2 (centre.X + half,centre.Y - half));
+	body->Points.Add (Vector2 (centre.X + half,centre.Y + half));
+	body->Points.Add (Vector2 (centre.X - half,centre.Y + half));
+	body->Center	= centre;
+	body->Area		= 4.0f * half * half;
+	body->BoundsMin.Set (centre.X - half,centre.Y - half);
+	body->BoundsMax.Set (centre.X + half,centre.Y + half);
+}
+
+
+void Check_Hybrid_Hydrology (void)
+{
+	HybridMapIdentity identity;
+	HybridArchetypeIntentSet intents;
+	HybridMapIdentityResult identity_result;
+	HybridStrategicGraph graph;
+	HybridStrategicGraphResult graph_result;
+	HybridCoarseMatrices matrices;
+	HybridCoarseMatrixResult coarse_result;
+	HybridLandformSet landforms;
+	HybridLandformResult landform_result;
+	HybridHydrologySet hydrology;
+	HybridHydrologyResult result;
+
+	//	Section 5's quotas and qualifications, and the Section 11 formulas.
+	{
+		Check (Hybrid_Required_River_Count (HYBRID_SIZE_SMALL) == 1,"SMALL river quota");
+		Check (Hybrid_Required_River_Count (HYBRID_SIZE_MEDIUM) == 1,"MEDIUM river quota");
+		Check (Hybrid_Required_River_Count (HYBRID_SIZE_LARGE) == 2,"LARGE river quota");
+		Check (Hybrid_Required_Lake_Count (HYBRID_SIZE_SMALL) == 1,"SMALL lake quota");
+		Check (Hybrid_Required_Lake_Count (HYBRID_SIZE_LARGE) == 2,"LARGE lake quota");
+
+		//	river_threshold = max(1, RoundHalfUp(chunks * (chunk_size/A)^2)); A = 15 at chunk_size 60.
+		Check (Near (Hybrid_River_Threshold (6.0f,60.0f,15.0f),96.0f),"river threshold is %g, not 96",
+				 Hybrid_River_Threshold (6.0f,60.0f,15.0f));
+		Check (Near (Hybrid_River_Threshold (0.0f,60.0f,15.0f),1.0f),"the threshold floor is not 1");
+
+		//	width = lerp(stream, river, clamp((accum-threshold)/(3*threshold),0,1)).
+		Check (Near (Hybrid_River_Width (96.0f,96.0f,2.5f,6.0f),2.5f),"a channel at threshold is not stream width");
+		Check (Near (Hybrid_River_Width (4.0f * 96.0f,96.0f,2.5f,6.0f),6.0f),
+				 "a channel at four times threshold is not river width");
+		const float middle = Hybrid_River_Width (96.0f + (1.5f * 96.0f),96.0f,2.5f,6.0f);
+		Check (Near (middle,4.25f),"the width ramp is not linear (%g)",middle);
+
+		//	true lake >= max(4*A*A, 0.002 * world area); island >= max((16W)^2, 0.01 * world area).
+		Check (Near (Hybrid_True_Lake_Min_Area (15.0f,1200.0f * 1200.0f),2880.0f),"true lake minimum area");
+		Check (Near (Hybrid_True_Lake_Min_Area (40.0f,10000.0f),6400.0f),"the 4*A*A term must win when it is larger");
+		Check (Near (Hybrid_Island_Min_Area (10.0f,1200.0f * 1200.0f),25600.0f),"island minimum area");
+	}
+
+	//	The Phase-7 evaluators, on hand-built records.
+	{
+		HybridHydrologySet set;
+
+		HybridWaterBody lake;
+		lake.StableId		= 1;
+		lake.Kind			= HYBRID_WATER_BODY_LAKE;
+		lake.SurfaceHeight= -1.0f;
+		lake.BedDepth		= 3.0f;
+		Fill_Square_Ring (&lake,Vector2 (0.0f,0.0f),100.0f);
+		set.Bodies.Add (lake);
+
+		unsigned int body = 0;
+		float surface = 0.0f;
+		Check (Hybrid_Point_In_Standing_Water (set,Vector2 (10.0f,10.0f),&body,&surface) && (body == 1)
+				 && Near (surface,-1.0f),"a point inside a lake is not in standing water");
+		Check (!Hybrid_Point_In_Standing_Water (set,Vector2 (150.0f,0.0f),NULL,NULL),
+				 "a point outside a lake is in standing water");
+		Check (Near (Hybrid_Water_Carve_Depth (set,Vector2 (0.0f,0.0f),3.32f,6.0f),3.0f),
+				 "a lake does not carve its bed depth");
+		Check (Hybrid_Water_Carve_Depth (set,Vector2 (150.0f,150.0f),3.32f,6.0f) == 0.0f,
+				 "a lake carves outside its own polygon");
+
+		//	An island is dry land inside its host: no standing water, no carve, and a blended bias.
+		HybridWaterBody island;
+		island.StableId		= 2;
+		island.Kind				= HYBRID_WATER_BODY_ISLAND;
+		island.HostBodyId		= 1;
+		island.SurfaceHeight	= -1.0f;
+		island.HeightBias		= 9.0f;
+		island.ShoreBlend		= 6.0f;
+		Fill_Square_Ring (&island,Vector2 (0.0f,0.0f),20.0f);
+		set.Bodies.Add (island);
+
+		Check (!Hybrid_Point_In_Standing_Water (set,Vector2 (0.0f,0.0f),NULL,NULL),
+				 "an island is still standing water");
+		Check (Hybrid_Water_Carve_Depth (set,Vector2 (0.0f,0.0f),3.32f,6.0f) == 0.0f,
+				 "an island does not suppress its host's carve");
+		Check (Near (Hybrid_Island_Height_Bias (set,Vector2 (0.0f,0.0f)),9.0f),
+				 "an island's own bias is not its full value");
+		const float blended = Hybrid_Island_Height_Bias (set,Vector2 (23.0f,0.0f));
+		Check ((blended > 0.0f) && (blended < 9.0f),"the island shoreline blend is not between 0 and the bias (%g)",
+				 blended);
+		Check (Hybrid_Island_Height_Bias (set,Vector2 (40.0f,0.0f)) == 0.0f,
+				 "the island bias reaches past its 2W blend band");
+
+		//	A river carves its bed to half its width and blends out across max(river_width,2W).
+		HybridHydrologySet river_set;
+		HybridRiverSystem river;
+		river.StableId = 1;
+		Fill_Test_River (&river,Vector2 (-200.0f,0.0f),Vector2 (200.0f,0.0f),8.0f,2.5f,7.5f);
+		river_set.Rivers.Add (river);
+
+		Check (Near (Hybrid_Water_Carve_Depth (river_set,Vector2 (0.0f,0.0f),3.32f,6.0f),2.5f),
+				 "a river bed does not carve its full depth");
+		Check (Near (Hybrid_Water_Carve_Depth (river_set,Vector2 (0.0f,4.0f),3.32f,6.0f),2.5f),
+				 "the whole half width is not at full carve");
+		const float bank = Hybrid_Water_Carve_Depth (river_set,Vector2 (0.0f,7.0f),3.32f,6.0f);
+		Check ((bank > 0.0f) && (bank < 2.5f),"the river bank does not blend (%g)",bank);
+		Check (Hybrid_Water_Carve_Depth (river_set,Vector2 (0.0f,40.0f),3.32f,6.0f) == 0.0f,
+				 "a river carves beyond its bank blend");
+	}
+
+	//	A full Phase-6 build at each size class, on top of a real Phase-2/3/4/5 chain.
+	const float sizes[3] = { 600.0f, 1200.0f, 2400.0f };
+	const float base_cells[3] = { 1.0f, 2.0f, 3.0f };
+
+	for (int i = 0; i < 3; ++i) {
+
+		HybridMapIdentityParams sized = Graph_Identity_Fixture (sizes[i],base_cells[i]);
+		Check (Hybrid_Resolve_Map_Identity (sized,&identity,&intents,&identity_result),"identity at D=%g: %s",
+				 sizes[i],identity_result.Detail.Peek_Buffer ());
+
+		HybridStrategicGraphParams graph_params = Graph_Fixture (sized,2.0f);
+		Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result),
+				 "strategic graph at D=%g: %s",sizes[i],graph_result.Detail.Peek_Buffer ());
+
+		HybridCoarseMatrixParams coarse_params = Coarse_Fixture (sized,sizes[i]);
+		Check (Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&graph,&matrices,&coarse_result),
+				 "coarse matrices at D=%g: %s",sizes[i],coarse_result.Detail.Peek_Buffer ());
+
+		HybridLandformParams landform_params = Landform_Fixture (sized,sizes[i]);
+		if (!Hybrid_Build_Landforms (landform_params,identity,intents,graph,&matrices,&landforms,&landform_result)) {
+			//	Q-018: the LARGE hill quota against the 25%% same-type overlap cap.  Phase 6 needs Phase 5.
+			Check (identity.SizeClass != HYBRID_SIZE_MEDIUM,"landforms at D=%g: %s (%s)",sizes[i],
+					 Hybrid_Landform_Failure_Name (landform_result.Failure),landform_result.Detail.Peek_Buffer ());
+			continue;
+		}
+
+		HybridHydrologyParams params = Hydrology_Fixture (sized,sizes[i]);
+		const bool built = Hybrid_Build_Hydrology (params,identity,intents,graph,landforms,&matrices,&hydrology,
+																 &result);
+
+		/*
+		**	A quota Phase 6 cannot meet is a *named* attempt failure the manager retries with a new
+		**	whole-world seed, never a half-built world, so a failure here has to name itself, explain
+		**	itself and leave nothing behind.  MEDIUM is the size class the plan sets its quality target
+		**	on, so it must succeed on this fixture seed.
+		*/
+		if (!built) {
+			Check (result.Failure != HYBRID_HYDROLOGY_OK,"a failed Phase 6 must name its failure");
+			Check (result.Detail.Get_Length () > 0,"a failed Phase 6 must say what refused the water");
+			Check (hydrology.Rivers.Count () == 0,"a failed Phase 6 left rivers behind");
+			Check (hydrology.Bodies.Count () == 0,"a failed Phase 6 left water bodies behind");
+			Check (hydrology.Windows.Count () == 0,"a failed Phase 6 left windows behind");
+			Check (identity.SizeClass != HYBRID_SIZE_MEDIUM,"hydrology at D=%g (%s): %s (%s)",sizes[i],
+					 Hybrid_Archetype_Name (identity.Archetype),Hybrid_Hydrology_Failure_Name (result.Failure),
+					 result.Detail.Peek_Buffer ());
+			continue;
+		}
+
+		const HybridConstants & k = params.Constants;
+		const HybridSemanticMatrix & matrix = matrices.Matrix;
+		const float lake_minimum = Hybrid_True_Lake_Min_Area (k.A,sizes[i] * sizes[i]);
+
+		//	Section 5 quotas, recomputed here from the plan's own table.
+		Check (hydrology.Rivers.Count () >= Hybrid_Required_River_Count (identity.SizeClass),
+				 "%d rivers at D=%g, Section 5 requires %d",hydrology.Rivers.Count (),sizes[i],
+				 Hybrid_Required_River_Count (identity.SizeClass));
+		Check (hydrology.Count_Of_True_Lakes (lake_minimum) >= Hybrid_Required_Lake_Count (identity.SizeClass),
+				 "%d true lakes at D=%g, Section 5 requires %d",hydrology.Count_Of_True_Lakes (lake_minimum),
+				 sizes[i],Hybrid_Required_Lake_Count (identity.SizeClass));
+		Check (hydrology.ThresholdReductions <= 3,"%d threshold reductions, the plan allows three",
+				 hydrology.ThresholdReductions);
+
+		//	Every river record is complete, advances along its own stations and stays out of the reserves.
+		for (int r = 0; r < hydrology.Rivers.Count (); ++r) {
+
+			const HybridRiverSystem & river = hydrology.Rivers[r];
+			Check (river.Points.Count () >= 2,"river %u has %d points",river.StableId,river.Points.Count ());
+			Check ((river.Widths.Count () == river.Points.Count ()) &&
+					 (river.Surfaces.Count () == river.Points.Count ()) &&
+					 (river.Stations.Count () == river.Points.Count ()),
+					 "river %u has mismatched per-sample arrays",river.StableId);
+			Check (river.BedDepth == params.RiverBedDepth,"river %u does not carve to the water definition's bed",
+					 river.StableId);
+
+			for (int point = 0; point < river.Points.Count (); ++point) {
+
+				Check ((river.Widths[point] >= params.StreamWidth - 0.01f) &&
+						 (river.Widths[point] <= params.RiverWidth + 0.01f),
+						 "river %u sample %d is %g wide, outside stream..river width",river.StableId,point,
+						 river.Widths[point]);
+				if (point > 0) {
+					Check (river.Stations[point] > river.Stations[point - 1],
+							 "river %u station %d does not advance",river.StableId,point);
+				}
+
+				int cx = 0, cy = 0;
+				if (!matrix.World_To_Cell (river.Points[point],&cx,&cy)) continue;
+				Check (!matrices.Is_Base_Protected (cx,cy),"river %u runs through BASE_PROTECTED",river.StableId);
+				Check (!matrix.Has_Flag (cx,cy,HYBRID_FLAG_NO_IMMUTABLE_BARRIER),
+						 "river %u runs through an OPEN_MANEUVER no-water cell",river.StableId);
+				Check (matrix.LandWaterIntent[matrix.Index (cx,cy)] == 1,
+						 "river %u left a sample cell without water intent",river.StableId);
+			}
+		}
+
+		//	Every body has a simple non-degenerate ring, and a lake's surface is below its shoreline.
+		for (int body = 0; body < hydrology.Bodies.Count (); ++body) {
+
+			const HybridWaterBody & water = hydrology.Bodies[body];
+			Check (water.Points.Count () >= 3,"%s %u has %d ring points",Hybrid_Water_Body_Kind_Name (water.Kind),
+					 water.StableId,water.Points.Count ());
+			Check (water.Area > 0.0f,"%s %u has no area",Hybrid_Water_Body_Kind_Name (water.Kind),water.StableId);
+
+			if (water.Kind == HYBRID_WATER_BODY_LAKE) {
+				Check (water.BedDepth == params.LakeBedDepth,"lake %u does not carve the lake bed depth",
+						 water.StableId);
+				for (int point = 0; point < water.Points.Count (); ++point) {
+					const float shore = Hybrid_Provisional_Height (params,matrices,landforms,water.Points[point]);
+					Check (water.SurfaceHeight <= shore,"lake %u stands %g above its shoreline point %d",
+							 water.StableId,water.SurfaceHeight - shore,point);
+				}
+			}
+			if (water.Kind == HYBRID_WATER_BODY_ISLAND) {
+				Check (water.HostBodyId != 0,"island %u has no host water body",water.StableId);
+				Check (water.HeightBias > 0.0f,"island %u has no macro height bias",water.StableId);
+				Check (Near (water.ShoreBlend,2.0f * k.W),"island %u does not blend across 2W",water.StableId);
+			}
+		}
+
+		//	Windows: every one is usable, a river window is bridgeable or fordable, and step 19's merge
+		//	leaves no two windows on one obstruction closer than 4W.
+		for (int window = 0; window < hydrology.Windows.Count (); ++window) {
+
+			const HybridCrossingWindow & entry = hydrology.Windows[window];
+			Check (entry.Methods != 0,"window %u permits no method at all",entry.StableId);
+			Check (entry.ApproachLength >= (8.0f * k.W) - 0.01f,"window %u reserves %g of approach, not 8W",
+					 entry.StableId,entry.ApproachLength);
+			Check (entry.Obstruction != HYBRID_OBSTRUCTION_LAKE,"a lake must never carry a window");
+			Check (entry.Obstruction != HYBRID_OBSTRUCTION_COAST,"the coast must never carry a window");
+
+			if (entry.Obstruction == HYBRID_OBSTRUCTION_RIVER) {
+				const unsigned int usable = HYBRID_WINDOW_METHOD_BRIDGE | HYBRID_WINDOW_METHOD_FORD_LIGHT |
+													 HYBRID_WINDOW_METHOD_FORD_HARVESTER;
+				Check ((entry.Methods & usable) != 0,"river window %u is neither bridgeable nor fordable",
+						 entry.StableId);
+				Check (entry.Kind == HYBRID_WINDOW_CROSSING,"a river window is not a CROSSING_WINDOW");
+			}
+			if (entry.Obstruction == HYBRID_OBSTRUCTION_CLIFF) {
+				Check (entry.Kind == HYBRID_WINDOW_RAMP_PASS,"a cliff window is not a RAMP_PASS_WINDOW");
+			}
+			if (!params.AllowFords) {
+				Check ((entry.Methods & (HYBRID_WINDOW_METHOD_FORD_LIGHT | HYBRID_WINDOW_METHOD_FORD_HARVESTER)) == 0,
+						 "window %u carries a ford flag with allow_fords false",entry.StableId);
+			}
+
+			for (int other = window + 1; other < hydrology.Windows.Count (); ++other) {
+				const HybridCrossingWindow & second = hydrology.Windows[other];
+				if (second.ObstructionRecordId != entry.ObstructionRecordId) continue;
+				if (second.Obstruction != entry.Obstruction) continue;
+				Check (WWMath::Fabs (second.Station - entry.Station) >= (4.0f * k.W) - 0.01f,
+						 "windows %u and %u are %g apart on one obstruction, under 4W",entry.StableId,
+						 second.StableId,WWMath::Fabs (second.Station - entry.Station));
+			}
+
+			//	Step 19's NO_DECORATION stamp lands on the window's own approach.
+			int cx = 0, cy = 0;
+			if (matrix.World_To_Cell (entry.Center,&cx,&cy)) {
+				Check (matrix.NoDecorationMask[matrix.Index (cx,cy)] == 1,
+						 "window %u did not stamp NO_DECORATION over its approach",entry.StableId);
+			}
+		}
+
+		//	Step 21: every record is in the planning spatial hash.
+		DynamicVectorClass<unsigned int> found;
+		for (int r = 0; r < hydrology.Rivers.Count (); ++r) {
+			const HybridRiverSystem & river = hydrology.Rivers[r];
+			found.Delete_All ();
+			hydrology.Hash.Query (river.BoundsMin.X - params.WorldMinX,river.BoundsMin.Y - params.WorldMinY,
+										 river.BoundsMax.X - params.WorldMinX,river.BoundsMax.Y - params.WorldMinY,&found);
+			bool present = false;
+			for (int f = 0; f < found.Count (); ++f) {
+				if (found[f] == river.StableId) present = true;
+			}
+			Check (present,"river %u is not in the planning spatial hash",river.StableId);
+		}
+
+		//	StableIds are one creation order across rivers, bodies and windows, so nothing collides.
+		{
+			unsigned int highest = 0;
+			for (int r = 0; r < hydrology.Rivers.Count (); ++r) {
+				Check (hydrology.Rivers[r].StableId > highest,"river ids are not ascending creation order");
+				highest = hydrology.Rivers[r].StableId;
+			}
+			for (int body = 0; body < hydrology.Bodies.Count (); ++body) {
+				Check (hydrology.Bodies[body].StableId > highest,"body ids collide with river ids");
+				highest = hydrology.Bodies[body].StableId;
+			}
+			for (int window = 0; window < hydrology.Windows.Count (); ++window) {
+				Check (hydrology.Windows[window].StableId > highest,"window ids collide with water ids");
+				highest = hydrology.Windows[window].StableId;
+			}
+		}
+
+		//	Determinism: the same inputs give the same records, a different seed does not.
+		{
+			HybridStrategicGraph again_graph;
+			HybridCoarseMatrices again_matrices;
+			HybridLandformSet again_landforms;
+			HybridHydrologySet again;
+
+			Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&again_graph,&graph_result),
+					 "graph rebuild at D=%g",sizes[i]);
+			Check (Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&again_graph,&again_matrices,
+															 &coarse_result),"matrix rebuild at D=%g",sizes[i]);
+			Check (Hybrid_Build_Landforms (landform_params,identity,intents,again_graph,&again_matrices,
+													 &again_landforms,&landform_result),"landform rebuild at D=%g",sizes[i]);
+			Check (Hybrid_Build_Hydrology (params,identity,intents,again_graph,again_landforms,&again_matrices,
+													 &again,&result),"hydrology rebuild at D=%g: %s",sizes[i],
+					 result.Detail.Peek_Buffer ());
+			Check (again.Checksum == hydrology.Checksum,"Phase 6 is not reproducible at D=%g",sizes[i]);
+			Check (Hybrid_Hydrology_Checksum (again,identity.Checksum) == hydrology.Checksum,
+					 "the checksum does not describe the records it was built from");
+
+			HybridHydrologyParams other = params;
+			other.HydrologySeed = WorldSeedService::Derive_Subsystem_Seed (9797,
+																							  WorldSeedService::SEED_DOMAIN_HYDROLOGY);
+			HybridHydrologySet other_set;
+			if (Hybrid_Build_Hydrology (other,identity,intents,again_graph,again_landforms,&again_matrices,
+												 &other_set,&result)) {
+				//	Only the seeded draws move -- the guide polygons and the island sites -- so a different
+				//	checksum is expected only when this map actually made one of those draws.
+				const bool drew = (other_set.Count_Of_Body_Kind (HYBRID_WATER_BODY_ISLAND) > 0) ||
+										(other_set.Bodies.Count () != hydrology.Bodies.Count ());
+				if (drew) {
+					Check (other_set.Checksum != hydrology.Checksum,"a different hydrology seed changed nothing");
+				}
+			}
+		}
+	}
+
+	//	Archetype specifics: river_valley's guided river and coastal_peninsula's sea.
+	{
+		const HybridArchetype wanted[2] = { HYBRID_ARCHETYPE_RIVER_VALLEY, HYBRID_ARCHETYPE_COASTAL_PENINSULA };
+
+		for (int a = 0; a < 2; ++a) {
+
+			HybridMapIdentityParams archetype_params = Graph_Identity_Fixture (1200.0f,2.0f);
+			archetype_params.ArchetypeSelector = wanted[a];
+			Check (Hybrid_Resolve_Map_Identity (archetype_params,&identity,&intents,&identity_result),
+					 "%s identity: %s",Hybrid_Archetype_Name (wanted[a]),identity_result.Detail.Peek_Buffer ());
+
+			/*
+			**	`coastal_peninsula` is the one archetype whose fixed Section-6.6 guide table can contradict
+			**	its own sea: when the drawn coast side and the remote-rich guide land together, no dry
+			**	candidate exists inside Section 6.1's repair budget and the plan's answer is a named attempt
+			**	failure the manager retries with a new seed (Check_Hybrid_Strategic_Graph says the same).
+			*/
+			HybridStrategicGraphParams graph_params = Graph_Fixture (archetype_params,2.0f);
+			if (!Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result)) {
+				Check (wanted[a] == HYBRID_ARCHETYPE_COASTAL_PENINSULA
+					 && graph_result.Failure == HYBRID_GRAPH_NO_LEGAL_RESOURCE_POSITION,
+						 "%s graph: %s (%s)",Hybrid_Archetype_Name (wanted[a]),
+						 Hybrid_Strategic_Graph_Failure_Name (graph_result.Failure),
+						 graph_result.Detail.Peek_Buffer ());
+				continue;
+			}
+
+			HybridCoarseMatrixParams coarse_params = Coarse_Fixture (archetype_params,1200.0f);
+			Check (Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&graph,&matrices,&coarse_result),
+					 "%s matrices: %s (%s)",Hybrid_Archetype_Name (wanted[a]),
+					 Hybrid_Coarse_Matrix_Failure_Name (coarse_result.Failure),coarse_result.Detail.Peek_Buffer ());
+
+			HybridLandformParams landform_params = Landform_Fixture (archetype_params,1200.0f);
+			if (!Hybrid_Build_Landforms (landform_params,identity,intents,graph,&matrices,&landforms,
+												  &landform_result)) {
+				Check (false,"%s landforms: %s (%s)",Hybrid_Archetype_Name (wanted[a]),
+						 Hybrid_Landform_Failure_Name (landform_result.Failure),
+						 landform_result.Detail.Peek_Buffer ());
+				continue;
+			}
+
+			HybridHydrologyParams params = Hydrology_Fixture (archetype_params,1200.0f);
+			if (!Hybrid_Build_Hydrology (params,identity,intents,graph,landforms,&matrices,&hydrology,&result)) {
+				Check (false,"%s hydrology: %s (%s)",Hybrid_Archetype_Name (wanted[a]),
+						 Hybrid_Hydrology_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+				continue;
+			}
+
+			//	Step 10: the guided river is selected system 0 and keeps its frozen Section-6.10 spline.
+			Check (hydrology.Rivers.Count () > 0,"%s selected no river",Hybrid_Archetype_Name (wanted[a]));
+			if (hydrology.Rivers.Count () > 0) {
+				const HybridRiverSystem & first = hydrology.Rivers[0];
+				Check (first.Guided,"%s did not insert its guided river as system 0",
+						 Hybrid_Archetype_Name (wanted[a]));
+				Check (first.SelectionRank == 0,"the guided river is not selection rank 0");
+				Check (first.IntentStableId != 0,"the guided river is not bound to its Section-6.10 intent");
+
+				/*
+				**	Its synthetic accumulation rises linearly from the threshold at the source toward four
+				**	times the threshold at the sink.  A mouth bound to a lake or the sea ends the record at
+				**	that shoreline (step 16), so the last sample is at most the sink value, and exactly the
+				**	sink value when nothing truncated it.
+				*/
+				const int last = first.Accumulation.Count () - 1;
+				Check (Near (first.Accumulation[0],hydrology.RiverThreshold),
+						 "the guided river's source accumulation is not the threshold");
+				for (int point = 1; point <= last; ++point) {
+					Check (first.Accumulation[point] >= first.Accumulation[point - 1],
+							 "the guided river's accumulation is not monotonic at sample %d",point);
+				}
+				Check (first.Accumulation[last] <= ((4.0f * hydrology.RiverThreshold) + 0.01f),
+						 "the guided river's accumulation passes four times the threshold");
+				if (first.SinkBodyId == 0) {
+					Check (Near (first.Accumulation[last],4.0f * hydrology.RiverThreshold),
+							 "an untruncated guided river does not reach four times the threshold");
+				}
+			}
+
+			if (wanted[a] == HYBRID_ARCHETYPE_COASTAL_PENINSULA) {
+				Check (hydrology.Count_Of_Body_Kind (HYBRID_WATER_BODY_COAST) == 1,
+						 "coastal_peninsula built %d coast polygons, not one",
+						 hydrology.Count_Of_Body_Kind (HYBRID_WATER_BODY_COAST));
+				for (int body = 0; body < hydrology.Bodies.Count (); ++body) {
+					if (hydrology.Bodies[body].Kind != HYBRID_WATER_BODY_COAST) continue;
+					Check (hydrology.Bodies[body].BedDepth == 0.0f,"the coast must not carve a bed");
+					Check (Near (hydrology.Bodies[body].SurfaceHeight,params.SeaLevel),
+							 "the coast does not stand at sea level");
+				}
+			} else {
+				Check (hydrology.Count_Of_Body_Kind (HYBRID_WATER_BODY_COAST) == 0,
+						 "river_valley built exterior sea without a coast guide");
+			}
+		}
+	}
+}
+
+
+
+static HybridMacroTerrainParams Macro_Terrain_Fixture (const HybridMapIdentityParams & identity_params)
+{
+	HybridMacroTerrainParams params;
+	params.TerrainSeed	= WorldSeedService::Derive_Subsystem_Seed (4242,WorldSeedService::SEED_DOMAIN_TERRAIN);
+	params.Constants		= identity_params.Constants;
+	params.SeaLevel		= 0.0f;
+	params.MinElevation	= -15.0f;					// native terrain.min_elevation
+	params.MaxElevation	= 90.0f;						// native terrain.max_elevation
+	params.TierStep		= 18.0f;
+	params.TierCount		= 3;
+	params.DetailWeight	= 0.35f;						// native plan.detail_weight
+	params.FeatureScale	= 240.0f;					// native terrain.feature_scale
+	params.RiverWidth		= 6.0f;
+	params.MaxBuildableSlopeRadians = 0.4886f;	// ~28 degrees, the native buildable cap
+	return params;
+}
+
+
+//	The Phase-7 gate's height sampler, reading the heightfield the write actually produced.
+static bool Macro_Sample_From_Terrain (const Vector2 & world,float * height_out,void * context)
+{
+	(void)context;
+	return WorldTerrainSystem::Sample_Height (world.X,world.Y,height_out);
+}
+
+
+//	A sampler that answers with the formula itself, for testing the gate without writing terrain.
+struct MacroFormulaContext
+{
+	const HybridMacroTerrainParams *	Params;
+	const HybridCoarseMatrices *		Matrices;
+	const HybridLandformSet *			Landforms;
+	const HybridHydrologySet *			Hydrology;
+	const HybridMacroTerrainSet *		Surfaces;
+	float										Offset;		// added to every answer, to force a gate failure
+};
+
+static bool Macro_Sample_From_Formula (const Vector2 & world,float * height_out,void * context)
+{
+	MacroFormulaContext * fixture = (MacroFormulaContext *)context;
+	*height_out = Hybrid_Macro_Sample_Height (*fixture->Params,*fixture->Matrices,*fixture->Landforms,
+															*fixture->Hydrology,*fixture->Surfaces,world) + fixture->Offset;
+	return true;
+}
+
+
+void Check_Hybrid_Macro_Terrain (void)
+{
+	HybridMapIdentity identity;
+	HybridArchetypeIntentSet intents;
+	HybridMapIdentityResult identity_result;
+	HybridStrategicGraph graph;
+	HybridStrategicGraphResult graph_result;
+	HybridCoarseMatrices matrices;
+	HybridCoarseMatrixResult coarse_result;
+	HybridLandformSet landforms;
+	HybridLandformResult landform_result;
+	HybridHydrologySet hydrology;
+	HybridHydrologyResult hydrology_result;
+	HybridMacroTerrainSet surfaces;
+	HybridMacroTerrainResult result;
+
+	const unsigned int terrain_seed = WorldSeedService::Derive_Subsystem_Seed (4242,
+																								 WorldSeedService::SEED_DOMAIN_TERRAIN);
+
+	//	Section 8 Phase 7's own noise primitive.
+	{
+		const Vector2 origin (0.0f,0.0f);
+		const float length = 120.0f;
+
+		const float first = Hybrid_Value_Noise_2D (terrain_seed,Vector2 (37.5f,-12.25f),length,0);
+		const float again = Hybrid_Value_Noise_2D (terrain_seed,Vector2 (37.5f,-12.25f),length,0);
+		Check (first == again,"the detail noise is not reproducible");
+		Check ((first >= -1.0f) && (first <= 1.0f),"the detail noise left [-1,1] (%g)",first);
+		Check (Hybrid_Value_Noise_2D (terrain_seed,origin,0.0f,0) == 0.0f,
+				 "a zero wavelength must produce no noise rather than a division");
+
+		//	At a lattice point the bilinear blend is exactly that corner's own value.
+		const float corner = (2.0f * Hybrid_Hash01 (terrain_seed,Hybrid_Key ("detail_noise"),0u,0u)) - 1.0f;
+		Check (Near (Hybrid_Value_Noise_2D (terrain_seed,origin,length,0),corner),
+				 "a lattice point is not its own corner value");
+
+		//	A sample between two corners stays between them, which is what the smoothstep guarantees.
+		const float next = (2.0f * Hybrid_Hash01 (terrain_seed,Hybrid_Key ("detail_noise"),1u,0u)) - 1.0f;
+		const float middle = Hybrid_Value_Noise_2D (terrain_seed,Vector2 (0.5f * length,0.0f),length,0);
+		const float low = (corner < next) ? corner : next;
+		const float high = (corner < next) ? next : corner;
+		Check ((middle >= low - 0.001f) && (middle <= high + 0.001f),
+				 "the noise overshot its own lattice corners (%g outside %g..%g)",middle,low,high);
+
+		//	The octave is part of the key, so the two octaves the formula uses are independent.
+		Check (Hybrid_Value_Noise_2D (terrain_seed,origin,length,1) !=
+				 Hybrid_Value_Noise_2D (terrain_seed,origin,length,0),"both octaves drew the same value");
+	}
+
+	//	Step 5's river longitudinal walk, on hand-built records.
+	{
+		HybridMapIdentityParams sized = Graph_Identity_Fixture (1200.0f,2.0f);
+		HybridMacroTerrainParams params = Macro_Terrain_Fixture (sized);
+		HybridCoarseMatrices empty_matrices;
+		HybridLandformSet empty_landforms;
+
+		HybridHydrologySet set;
+		HybridRiverSystem river;
+		river.StableId	= 1;
+		river.BedDepth	= 2.5f;
+		Fill_Test_River (&river,Vector2 (-300.0f,0.0f),Vector2 (300.0f,0.0f),8.0f,2.5f,30.0f);
+
+		//	A provisional surface with one uphill step in it, and a lake at the mouth.
+		for (int i = 0; i < river.Surfaces.Count (); ++i) {
+			river.Surfaces[i] = 40.0f - (2.0f * (float)i);
+		}
+		if (river.Surfaces.Count () > 4) river.Surfaces[4] += 12.0f;		// an uphill sample
+		river.SinkBodyId = 2;
+		set.Rivers.Add (river);
+
+		HybridWaterBody lake;
+		lake.StableId		= 2;
+		lake.Kind			= HYBRID_WATER_BODY_LAKE;
+		lake.SurfaceHeight= 6.0f;
+		lake.BedDepth		= 3.0f;
+		Fill_Square_Ring (&lake,Vector2 (320.0f,0.0f),60.0f);
+		set.Bodies.Add (lake);
+
+		Check (Hybrid_Resolve_River_Surfaces (params,empty_matrices,empty_landforms,set,&surfaces,&result),
+				 "the river walk refused a legal record: %s (%s)",
+				 Hybrid_Macro_Terrain_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+
+		const HybridRiverSurface * fixed = surfaces.Find_River (1);
+		Check (fixed != NULL,"the walk produced no record for river 1");
+		if (fixed != NULL) {
+
+			Check (fixed->Surface.Count () == river.Points.Count (),"the walk lost samples");
+			for (int i = 1; i < fixed->Surface.Count (); ++i) {
+				Check (fixed->Surface[i] <= fixed->Surface[i - 1] + 0.001f,
+						 "the walk left an uphill downstream sample at %d (%g after %g)",i,fixed->Surface[i],
+						 fixed->Surface[i - 1]);
+			}
+			Check (Near (fixed->Surface[fixed->Surface.Count () - 1],lake.SurfaceHeight),
+					 "a bound mouth does not equal its sink's water level");
+			Check (Near (fixed->MouthSurface,lake.SurfaceHeight),"the recorded mouth surface is not the sink level");
+			for (int i = 0; i < fixed->Bed.Count (); ++i) {
+				Check (fixed->Bed[i] <= fixed->Surface[i] + 0.001f,"a bed stands above its own water surface");
+				const float floor_height = params.SeaLevel + params.MinElevation;
+				const float expect = (fixed->Surface[i] - river.BedDepth > floor_height)
+											? (fixed->Surface[i] - river.BedDepth) : floor_height;
+				Check (Near (fixed->Bed[i],expect),"the bed is not the surface less the definition's bed depth");
+			}
+		}
+
+		//	The elevation floor lifting a bed above its own surface is a named failure, not a clamp.
+		HybridMacroTerrainParams shallow = params;
+		shallow.MinElevation = 0.0f;			// the floor is sea level, so a surface below it cannot hold a bed
+		HybridHydrologySet low_set;
+		HybridRiverSystem low = river;
+		low.SinkBodyId = 0;
+		for (int i = 0; i < low.Surfaces.Count (); ++i) low.Surfaces[i] = -4.0f;
+		low_set.Rivers.Add (low);
+
+		HybridMacroTerrainSet refused;
+		Check (!Hybrid_Resolve_River_Surfaces (shallow,empty_matrices,empty_landforms,low_set,&refused,&result),
+				 "a bed clamped above its own surface was accepted");
+		Check (result.Failure == HYBRID_MACRO_BED_ABOVE_SURFACE,"the wrong failure was named (%s)",
+				 Hybrid_Macro_Terrain_Failure_Name (result.Failure));
+		Check (refused.Rivers.Count () == 0,"a refused walk left records behind");
+	}
+
+	//	`detail_protection_factor`, the carve and the protected-profile test, on a real Phase 2-6 chain.
+	{
+		HybridMapIdentityParams sized = Graph_Identity_Fixture (1200.0f,2.0f);
+		Check (Hybrid_Resolve_Map_Identity (sized,&identity,&intents,&identity_result),"identity: %s",
+				 identity_result.Detail.Peek_Buffer ());
+		HybridStrategicGraphParams graph_params = Graph_Fixture (sized,2.0f);
+		Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result),
+				 "strategic graph: %s",graph_result.Detail.Peek_Buffer ());
+		HybridCoarseMatrixParams coarse_params = Coarse_Fixture (sized,1200.0f);
+		Check (Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&graph,&matrices,&coarse_result),
+				 "coarse matrices: %s",coarse_result.Detail.Peek_Buffer ());
+		HybridLandformParams landform_params = Landform_Fixture (sized,1200.0f);
+		const bool landforms_built = Hybrid_Build_Landforms (landform_params,identity,intents,graph,&matrices,
+																			 &landforms,&landform_result);
+		Check (landforms_built,"landforms: %s (%s)",Hybrid_Landform_Failure_Name (landform_result.Failure),
+				 landform_result.Detail.Peek_Buffer ());
+		if (!landforms_built) return;
+
+		HybridHydrologyParams hydrology_params = Hydrology_Fixture (sized,1200.0f);
+		const bool hydrology_built = Hybrid_Build_Hydrology (hydrology_params,identity,intents,graph,landforms,
+																			  &matrices,&hydrology,&hydrology_result);
+		Check (hydrology_built,"hydrology: %s (%s)",Hybrid_Hydrology_Failure_Name (hydrology_result.Failure),
+				 hydrology_result.Detail.Peek_Buffer ());
+		if (!hydrology_built) return;
+
+		HybridMacroTerrainParams params = Macro_Terrain_Fixture (sized);
+		Check (Hybrid_Resolve_River_Surfaces (params,matrices,landforms,hydrology,&surfaces,&result),
+				 "the river walk refused the built world: %s (%s)",
+				 Hybrid_Macro_Terrain_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+
+		const HybridConstants & k = params.Constants;
+		const HybridSemanticMatrix & matrix = matrices.Matrix;
+		const float floor_height = params.SeaLevel + params.MinElevation;
+		const float ceiling = params.SeaLevel + params.MaxElevation;
+
+		//	The two semantic reserves, read straight off the Phase-4 layers.
+		bool saw_core = false;
+		bool saw_reserve = false;
+		for (int cy = 0; (cy < matrix.Get_Count_Y ()) && !(saw_core && saw_reserve); ++cy) {
+			for (int cx = 0; (cx < matrix.Get_Count_X ()) && !(saw_core && saw_reserve); ++cx) {
+
+				const Vector2 centre = matrix.Cell_Center (cx,cy);
+				const float factor = Hybrid_Detail_Protection_Factor (params,matrices,hydrology,centre);
+
+				if (!saw_core && matrix.Has_Flag (cx,cy,HYBRID_FLAG_BASE_CORE)) {
+					saw_core = true;
+					Check (factor == 0.0f,"a base core cell keeps %g of its detail, not none",factor);
+				}
+				if (!saw_reserve && matrix.Has_Flag (cx,cy,HYBRID_FLAG_TIBERIUM_RESERVE)
+					 && !matrix.Has_Flag (cx,cy,HYBRID_FLAG_BASE_CORE)) {
+					const bool wet = Hybrid_Point_In_Standing_Water (hydrology,centre,NULL,NULL);
+					if (!wet) {
+						saw_reserve = true;
+						Check (factor <= 0.25f + 0.000001f,"a Tiberium reserve cell keeps %g of its detail, over 0.25",
+								 factor);
+					}
+				}
+			}
+		}
+		Check (saw_core,"the fixture has no base core cell to test detail protection with");
+
+		//	Water: no detail on a bed, a blend across the bank, and the bed carved to its frozen height.
+		if (hydrology.Rivers.Count () > 0) {
+
+			const HybridRiverSystem & river = hydrology.Rivers[hydrology.Rivers.Count () - 1];
+			const int middle_sample = river.Points.Count () / 2;
+			const Vector2 on_channel = river.Points[middle_sample];
+			const float bank = (params.RiverWidth > (2.0f * k.W)) ? params.RiverWidth : (2.0f * k.W);
+
+			Check (Hybrid_Detail_Protection_Factor (params,matrices,hydrology,on_channel) == 0.0f,
+					 "a river bed keeps its detail noise");
+			Check (Hybrid_Macro_Is_Protected_Profile (params,landforms,hydrology,on_channel),
+					 "a river bed is not a protected profile");
+
+			float bed = 0.0f;
+			Check (surfaces.River_Sample (river.StableId,middle_sample,NULL,&bed),
+					 "the walk has no sample for river %u index %d",river.StableId,middle_sample);
+
+			//	Carving from a base height well above the bed takes the ground to the bed exactly.
+			const float base = bed + 30.0f;
+			Check (Near (Hybrid_Macro_Water_Carve (params,hydrology,surfaces,on_channel,base),30.0f),
+					 "a channel is not carved to its frozen bed height");
+
+			//	Well outside the bank nothing is carved and the detail is back.
+			Vector2 tangent = river.Points[(middle_sample + 1) % river.Points.Count ()] - on_channel;
+			if (tangent.Length () > 0.0f) {
+				tangent.Normalize ();
+				const Vector2 normal (-tangent.Y,tangent.X);
+				const Vector2 far_off = on_channel + (normal * (bank + (4.0f * k.W)));
+				if (!Hybrid_Point_In_Standing_Water (hydrology,far_off,NULL,NULL)) {
+					Check (Hybrid_Macro_Water_Carve (params,hydrology,surfaces,far_off,base) == 0.0f,
+							 "a river carves past its own bank blend");
+				}
+			}
+		}
+
+		for (int body = 0; body < hydrology.Bodies.Count (); ++body) {
+
+			const HybridWaterBody & water = hydrology.Bodies[body];
+			if (water.Kind == HYBRID_WATER_BODY_ISLAND) {
+				Check (Hybrid_Macro_Water_Carve (params,hydrology,surfaces,water.Center,100.0f) == 0.0f,
+						 "an island is carved with its host's water");
+				Check (Hybrid_Island_Height_Bias (hydrology,water.Center) > 0.0f,
+						 "an island has no macro height bias at its own centre");
+				continue;
+			}
+			Check (Hybrid_Detail_Protection_Factor (params,matrices,hydrology,water.Center) == 0.0f,
+					 "standing water keeps its detail noise");
+			const float target = water.SurfaceHeight - water.BedDepth;
+			Check (Near (Hybrid_Macro_Water_Carve (params,hydrology,surfaces,water.Center,target + 20.0f),20.0f),
+					 "%s %u is not carved to its own bed",Hybrid_Water_Body_Kind_Name (water.Kind),water.StableId);
+		}
+
+		//	An explicit wall is a protected profile; open ground away from everything is not.
+		for (int f = 0; f < landforms.Landforms.Count (); ++f) {
+			const HybridLandform & landform = landforms.Landforms[f];
+			if (!Hybrid_Landform_Is_Immutable (landform.Kind)) continue;
+			if (landform.Points.Count () == 0) continue;
+			Check (Hybrid_Macro_Is_Protected_Profile (params,landforms,hydrology,
+																  landform.Points[landform.Points.Count () / 2]),
+					 "%s %u is not a protected profile",Hybrid_Landform_Kind_Name (landform.Kind),landform.StableId);
+		}
+
+		//	The height expression: inside the envelope everywhere, and detail bounded by the plan's term.
+		const float detail_limit = params.DetailWeight * params.TierStep * 0.35f;
+		for (int cy = 0; cy < matrix.Get_Count_Y (); cy += 3) {
+			for (int cx = 0; cx < matrix.Get_Count_X (); cx += 3) {
+
+				const Vector2 centre = matrix.Cell_Center (cx,cy);
+				const float height = Hybrid_Macro_Sample_Height (params,matrices,landforms,hydrology,surfaces,centre);
+				Check ((height >= floor_height - 0.001f) && (height <= ceiling + 0.001f),
+						 "the height expression left the elevation envelope at %d,%d (%g)",cx,cy,height);
+
+				//	Terms: tier + bias + landform - carve, plus at most the detail term.
+				const int index = matrix.Index (cx,cy);
+				const int tier = (int)matrix.BaseElevationTier[index];
+				const float reference = params.SeaLevel + ((float)(tier - 1) * params.TierStep)
+											 + matrix.MacroHeightBias[index]
+											 + Hybrid_Island_Height_Bias (hydrology,centre)
+											 + Hybrid_Landform_Height (landforms,centre,k.A);
+				const float carve = Hybrid_Macro_Water_Carve (params,hydrology,surfaces,centre,reference);
+				const float expect = reference - carve;
+				if ((expect > floor_height + detail_limit) && (expect < ceiling - detail_limit)) {
+					Check (WWMath::Fabs (height - expect) <= detail_limit + 0.001f,
+							 "the height at %d,%d is %g, more than the detail term from %g",cx,cy,height,expect);
+				}
+			}
+		}
+
+		//	The gate: the formula's own ground passes, ground lifted above the water does not.
+		MacroFormulaContext fixture;
+		fixture.Params		= &params;
+		fixture.Matrices	= &matrices;
+		fixture.Landforms	= &landforms;
+		fixture.Hydrology	= &hydrology;
+		fixture.Surfaces	= &surfaces;
+		fixture.Offset		= 0.0f;
+		Check (Hybrid_Check_Macro_Terrain_Gate (params,matrices,landforms,hydrology,&surfaces,
+															 Macro_Sample_From_Formula,&fixture,&result),
+				 "the gate refused its own formula: %s (%s)",Hybrid_Macro_Terrain_Failure_Name (result.Failure),
+				 result.Detail.Peek_Buffer ());
+		Check (surfaces.Checksum != 0,"a passed gate left no checksum");
+
+		const unsigned int first_checksum = surfaces.Checksum;
+		Check (Hybrid_Macro_Terrain_Checksum (surfaces,0) == first_checksum,
+				 "the checksum does not describe the records it was built from");
+
+		if ((hydrology.Rivers.Count () > 0) || (hydrology.Bodies.Count () > 0)) {
+			fixture.Offset = 200.0f;		// every bed now stands far above its own water surface
+			Check (!Hybrid_Check_Macro_Terrain_Gate (params,matrices,landforms,hydrology,&surfaces,
+																  Macro_Sample_From_Formula,&fixture,&result),
+					 "the gate accepted ground standing above its own water");
+			Check ((result.Failure == HYBRID_MACRO_BED_ABOVE_SURFACE)
+				 || (result.Failure == HYBRID_MACRO_ELEVATION_LIMIT),
+					 "the wrong failure was named for flooded-over ground (%s)",
+					 Hybrid_Macro_Terrain_Failure_Name (result.Failure));
+		}
+
+		//	A river surface forced uphill is the gate's monotonic failure.
+		if (surfaces.Rivers.Count () > 0) {
+			HybridMacroTerrainSet broken = surfaces;
+			if (broken.Rivers[0].Surface.Count () > 2) {
+				broken.Rivers[0].Surface[1] = broken.Rivers[0].Surface[0] + 5.0f;
+				fixture.Offset		= 0.0f;
+				fixture.Surfaces	= &broken;
+				Check (!Hybrid_Check_Macro_Terrain_Gate (params,matrices,landforms,hydrology,&broken,
+																	  Macro_Sample_From_Formula,&fixture,&result),
+						 "the gate accepted a river that flows uphill");
+				Check (result.Failure == HYBRID_MACRO_RIVER_NOT_MONOTONIC,"the wrong failure was named (%s)",
+						 Hybrid_Macro_Terrain_Failure_Name (result.Failure));
+			}
+		}
+
+		/*
+		**	The realization itself: one write, through the canonical owner, with the hybrid records in
+		**	the request.  This is the whole point of item I8 -- the noise-geography channels are replaced,
+		**	not joined -- so the heightfield, its chunk registry and the phase gate all have to hold on
+		**	the ground that was actually written.
+		*/
+		WorldTerrainSystem::Init ();
+		MacroTerrainGenerator::Init ();
+
+		HybridMacroTerrainSet realized;
+		Check (Hybrid_Resolve_River_Surfaces (params,matrices,landforms,hydrology,&realized,&result),
+				 "the river walk refused the realization pass: %s",result.Detail.Peek_Buffer ());
+
+		MacroTerrainParams write;
+		write.Seed							= params.TerrainSeed;
+		write.WorldWidth					= 1200.0f;
+		write.WorldHeight					= 1200.0f;
+		write.ChunkSize					= 60.0f;
+		write.CenterX						= 0.0f;
+		write.CenterY						= 0.0f;
+		write.SeaLevel						= params.SeaLevel;
+		write.MinElevation				= params.MinElevation;
+		write.MaxElevation				= params.MaxElevation;
+		write.LandElevationBias			= 0.0f;
+		write.MaxBuildableSlopeRadians= params.MaxBuildableSlopeRadians;
+		write.FeatureScale				= params.FeatureScale;
+		write.UsePlan						= false;
+		write.UseHybrid					= true;
+		write.HybridParams				= &params;
+		write.HybridMatrices				= &matrices;
+		write.HybridLandforms			= &landforms;
+		write.HybridHydrology			= &hydrology;
+		write.HybridSurfaces				= &realized;
+
+		StringClass write_error ("");
+		const bool written = MacroTerrainGenerator::Generate (write,&write_error);
+		Check (written,"the hybrid realization was refused: %s",write_error.Peek_Buffer ());
+
+		if (written) {
+
+			Check (WorldTerrainSystem::Has_Terrain (),"the realization left no heightfield");
+			Check (WorldTerrainSystem::Has_Chunk_Registry (),"the realization left no chunk registry");
+			Check (realized.VertexCountX > 0 && realized.VertexCountY > 0,
+					 "the realization recorded no extents");
+			Check ((realized.MinHeight >= floor_height - 0.001f) && (realized.MaxHeight <= ceiling + 0.001f),
+					 "the realized heights %g..%g left the elevation envelope",realized.MinHeight,
+					 realized.MaxHeight);
+			Check (realized.ProtectedVertices > 0,
+					 "a world with rivers and explicit walls protected no vertex from slope relaxation");
+
+			StringClass report ("");
+			Check (MacroTerrainGenerator::Check_Height_Range (write,&report) == 0,
+					 "the realized terrain left its own height range: %s",report.Peek_Buffer ());
+
+			Check (Hybrid_Check_Macro_Terrain_Gate (params,matrices,landforms,hydrology,&realized,
+																 Macro_Sample_From_Terrain,NULL,&result),
+					 "the gate refused the realized terrain: %s (%s)",
+					 Hybrid_Macro_Terrain_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+
+			//	A second identical write reproduces the same ground: Phase 7 draws nothing statefully.
+			const unsigned int checksum = WorldTerrainSystem::Get_World_Chunk_Checksum ();
+			HybridMacroTerrainSet again;
+			Check (Hybrid_Resolve_River_Surfaces (params,matrices,landforms,hydrology,&again,&result),
+					 "the second river walk was refused");
+			write.HybridSurfaces = &again;
+			Check (MacroTerrainGenerator::Generate (write,&write_error),"the second realization was refused: %s",
+					 write_error.Peek_Buffer ());
+			Check (WorldTerrainSystem::Get_World_Chunk_Checksum () == checksum,
+					 "Phase 7 is not reproducible");
+			Check (again.Checksum == realized.Checksum || (again.Checksum == 0),
+					 "the same walk produced a different record");
+		}
+
+		WorldTerrainSystem::Shutdown ();
+		MacroTerrainGenerator::Init ();
+	}
+}
+
+
+
+static HybridAnchorParams Anchor_Fixture (const HybridMapIdentityParams & identity_params)
+{
+	HybridAnchorParams params;
+	params.Constants		= identity_params.Constants;
+	params.SeaLevel		= 0.0f;
+	params.MaxBuildableSlopeRadians	= 0.4886f;	// ~28 degrees, the native buildable cap
+	params.FieldRadiusMax				= 60.0f;		// native resource.field_radius_max
+	params.ReferenceVehicleSpeed		= WorldMetricsClass::Get_Reference_Vehicle_Speed ();
+	params.MaxInitialResourceTravelTimeDifferenceSeconds	= 15.0f;
+	params.MaxBaseToFrontTravelTimeDifferenceSeconds		= 20.0f;
+	params.MinBaseExpansionArea		= 4096.0f;
+	params.MinVehicleApproachCount	= 2;
+	params.MinVehicleLaneClearance	= 1.0f;
+	params.HeavyVehicleWidth			= 6.801906f;	// the Mammoth's measured WORLDBOX width
+	return params;
+}
+
+
+//	A sampler that refuses every point, for the "no realized ground" path.
+static bool Anchor_Sample_Refuses (const Vector2 & world,float * height_out,void * context)
+{
+	(void)world;
+	(void)height_out;
+	(void)context;
+	return false;
+}
+
+
+void Check_Hybrid_Anchors (void)
+{
+	HybridMapIdentity identity;
+	HybridArchetypeIntentSet intents;
+	HybridMapIdentityResult identity_result;
+	HybridStrategicGraph graph;
+	HybridStrategicGraphResult graph_result;
+	HybridCoarseMatrices matrices;
+	HybridCoarseMatrixResult coarse_result;
+	HybridLandformSet landforms;
+	HybridLandformResult landform_result;
+	HybridHydrologySet hydrology;
+	HybridHydrologyResult hydrology_result;
+	HybridMacroTerrainSet surfaces;
+	HybridMacroTerrainResult macro_result;
+	HybridAnchorSet anchors;
+	HybridAnchorResult result;
+
+	//	Section 0.10's PlanningDistance over a hand-built graph.
+	{
+		HybridStrategicGraph small;
+		HybridStrategicSite site;
+		site.StableId = 1;	site.Position.Set (0.0f,0.0f);		small.Sites.Add (site);
+		site.StableId = 2;	site.Position.Set (100.0f,0.0f);		small.Sites.Add (site);
+		site.StableId = 3;	site.Position.Set (100.0f,100.0f);	small.Sites.Add (site);
+		site.StableId = 4;	site.Position.Set (900.0f,900.0f);	small.Sites.Add (site);
+
+		HybridStrategicEdge edge;
+		edge.StableId = 1;	edge.SiteA = 1;	edge.SiteB = 2;	small.Edges.Add (edge);
+		edge.StableId = 2;	edge.SiteA = 2;	edge.SiteB = 3;	small.Edges.Add (edge);
+
+		Check (Near (Hybrid_Planning_Distance (small,1,1),0.0f),"a site is not zero from itself");
+		Check (Near (Hybrid_Planning_Distance (small,1,2),100.0f),"a single edge is not its own length");
+		Check (Near (Hybrid_Planning_Distance (small,1,3),200.0f),"a two-hop path is not the sum of its edges");
+		Check (Near (Hybrid_Planning_Distance (small,3,1),200.0f),"PlanningDistance is not symmetric");
+		Check (Hybrid_Planning_Distance (small,1,4) < 0.0f,"a disconnected site reported a distance");
+		Check (Hybrid_Planning_Distance (small,1,99) < 0.0f,"an unknown site reported a distance");
+	}
+
+	//	The exit-sector convention: ordinal 0 along strategic +u, counter-clockwise by 22.5 degrees.
+	{
+		HybridStrategicFrame frame;
+		Hybrid_Build_Strategic_Frame (0.0f,0.0f,1200.0f,0.35f,&frame);
+
+		const Vector2 first = Hybrid_Exit_Sector_Direction (frame,0);
+		Check (Near (first.X,frame.AxisU.X) && Near (first.Y,frame.AxisU.Y),
+				 "exit sector 0 does not point along strategic +u");
+
+		const Vector2 quarter = Hybrid_Exit_Sector_Direction (frame,4);
+		Check (Near (quarter.X,frame.AxisV.X,0.01f) && Near (quarter.Y,frame.AxisV.Y,0.01f),
+				 "exit sector 4 is not a quarter turn counter-clockwise");
+
+		for (int ordinal = 0; ordinal < HYBRID_EXIT_SECTOR_COUNT; ++ordinal) {
+			const Vector2 direction = Hybrid_Exit_Sector_Direction (frame,ordinal);
+			Check (Near (direction.Length (),1.0f,0.001f),"exit sector %d is not a unit direction",ordinal);
+			const Vector2 next = Hybrid_Exit_Sector_Direction (frame,(ordinal + 1) % HYBRID_EXIT_SECTOR_COUNT);
+			const float dot = (direction.X * next.X) + (direction.Y * next.Y);
+			Check (Near (dot,WWMath::Cos (22.5f * (WWMATH_PI / 180.0f)),0.001f),
+					 "exit sectors %d and %d are not 22.5 degrees apart",ordinal,ordinal + 1);
+		}
+	}
+
+	//	A full Phase-8 validation on a real Phase-2 to Phase-7 chain, sampled from the Phase-7 formula.
+	HybridMapIdentityParams sized = Graph_Identity_Fixture (1200.0f,2.0f);
+	Check (Hybrid_Resolve_Map_Identity (sized,&identity,&intents,&identity_result),"identity: %s",
+			 identity_result.Detail.Peek_Buffer ());
+
+	HybridStrategicGraphParams graph_params = Graph_Fixture (sized,2.0f);
+	Check (Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result),
+			 "strategic graph: %s",graph_result.Detail.Peek_Buffer ());
+
+	HybridCoarseMatrixParams coarse_params = Coarse_Fixture (sized,1200.0f);
+	Check (Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&graph,&matrices,&coarse_result),
+			 "coarse matrices: %s",coarse_result.Detail.Peek_Buffer ());
+
+	HybridLandformParams landform_params = Landform_Fixture (sized,1200.0f);
+	const bool landforms_built = Hybrid_Build_Landforms (landform_params,identity,intents,graph,&matrices,
+																		 &landforms,&landform_result);
+	Check (landforms_built,"landforms: %s (%s)",Hybrid_Landform_Failure_Name (landform_result.Failure),
+			 landform_result.Detail.Peek_Buffer ());
+	if (!landforms_built) return;
+
+	HybridHydrologyParams hydrology_params = Hydrology_Fixture (sized,1200.0f);
+	const bool hydrology_built = Hybrid_Build_Hydrology (hydrology_params,identity,intents,graph,landforms,
+																		  &matrices,&hydrology,&hydrology_result);
+	Check (hydrology_built,"hydrology: %s (%s)",Hybrid_Hydrology_Failure_Name (hydrology_result.Failure),
+			 hydrology_result.Detail.Peek_Buffer ());
+	if (!hydrology_built) return;
+
+	HybridMacroTerrainParams macro_params = Macro_Terrain_Fixture (sized);
+	Check (Hybrid_Resolve_River_Surfaces (macro_params,matrices,landforms,hydrology,&surfaces,&macro_result),
+			 "river surfaces: %s",macro_result.Detail.Peek_Buffer ());
+
+	MacroFormulaContext ground;
+	ground.Params		= &macro_params;
+	ground.Matrices	= &matrices;
+	ground.Landforms	= &landforms;
+	ground.Hydrology	= &hydrology;
+	ground.Surfaces	= &surfaces;
+	ground.Offset		= 0.0f;
+
+	HybridAnchorParams params = Anchor_Fixture (sized);
+	const bool validated = Hybrid_Validate_Anchors (params,identity,graph,matrices,landforms,hydrology,
+																	Macro_Sample_From_Formula,&ground,&anchors,&result);
+
+	/*
+	**	Phase 8 never moves a centre, so a realized world that fails a hard requirement is a *named*
+	**	attempt failure the manager retries with a new whole-world seed.  Either outcome is legal here;
+	**	what must hold is that a failure names itself and leaves nothing frozen.
+	*/
+	if (!validated) {
+		Check (result.Failure != HYBRID_ANCHOR_OK,"a failed Phase 8 must name its failure");
+		Check (result.Detail.Get_Length () > 0,"a failed Phase 8 must say what refused the anchor");
+		Check (anchors.Bases.Count () == 0 && anchors.Resources.Count () == 0,
+				 "a failed Phase 8 left anchors behind");
+		Check (!anchors.Frozen,"a failed Phase 8 reported frozen anchors");
+
+		/*
+		**	MEDIUM is the size class the plan sets its own quality target on, so a refusal at D=1200 on
+		**	this fixture seed is reported as the failure it is rather than tolerated: Phase 8 refusing a
+		**	world every earlier phase accepted means one of its own hard requirements is wrong, not that
+		**	the seed was unlucky.
+		*/
+		Check (identity.SizeClass != HYBRID_SIZE_MEDIUM,"anchors at D=1200 (%s): %s (%s)",
+				 Hybrid_Archetype_Name (identity.Archetype),Hybrid_Anchor_Failure_Name (result.Failure),
+				 result.Detail.Peek_Buffer ());
+	} else {
+
+		const HybridConstants & k = params.Constants;
+
+		Check (anchors.Frozen,"a passed Phase 8 did not freeze its anchors");
+		Check (anchors.Bases.Count () == 2,"%d bases were frozen, not two",anchors.Bases.Count ());
+		Check (anchors.Checksum != 0,"a passed Phase 8 left no checksum");
+
+		for (int i = 0; i < anchors.Bases.Count (); ++i) {
+
+			const HybridBaseAnchor & base = anchors.Bases[i];
+			const HybridStrategicSite * site = graph.Find_Site (base.SiteId);
+			Check (site != NULL,"base anchor %u has no site",base.SiteId);
+			Check (base.Team == i,"the frozen bases are not in team order");
+
+			//	Nothing moved: the frozen centre is the Phase-3 centre and the Phase-4 reservation radius.
+			if (site != NULL) {
+				Check ((base.Center - site->Position).Length () <= k.Q,
+						 "base %u was moved %g from its Phase-3 centre",base.SiteId,
+						 (base.Center - site->Position).Length ());
+			}
+			bool matched = false;
+			for (int r = 0; r < matrices.Reservations.Count (); ++r) {
+				const HybridReservation & reservation = matrices.Reservations[r];
+				if (reservation.Priority != HYBRID_RESERVE_BASE_PROTECTED) continue;
+				if (reservation.SiteId != base.SiteId) continue;
+				matched = true;
+				Check (Near (base.ProtectedRadius,reservation.Radius),
+						 "base %u froze radius %g, not its reservation's %g",base.SiteId,base.ProtectedRadius,
+						 reservation.Radius);
+			}
+			Check (matched,"base %u has no BASE_PROTECTED reservation to freeze",base.SiteId);
+
+			Check (Near (base.ProtectedRadius,k.RBaseProtected,0.01f),
+					 "base %u protected radius %g is not R_BASE_PROTECTED %g",base.SiteId,base.ProtectedRadius,
+					 k.RBaseProtected);
+			Check (base.ExpansionArea >= params.MinBaseExpansionArea,
+					 "base %u froze %g of expansion area, under the %g minimum",base.SiteId,base.ExpansionArea,
+					 params.MinBaseExpansionArea);
+			Check (base.MaxCoreSlopeRadians <= params.MaxBuildableSlopeRadians,
+					 "base %u proxy area is steeper than the buildable cap",base.SiteId);
+
+			const int required = (params.MinVehicleApproachCount > 2) ? params.MinVehicleApproachCount : 2;
+			Check (base.ViableSectors.Count () >= required,"base %u froze %d exit sectors, fairness needs %d",
+					 base.SiteId,base.ViableSectors.Count (),required);
+
+			for (int s = 0; s < base.ViableSectors.Count (); ++s) {
+				const int ordinal = base.ViableSectors[s];
+				Check ((ordinal >= 0) && (ordinal < HYBRID_EXIT_SECTOR_COUNT),"sector ordinal %d is out of range",
+						 ordinal);
+				Check (base.Sector_Is_Viable (ordinal),"the sector mask and the sector list disagree");
+				if (s > 0) {
+					Check (base.ViableSectors[s] > base.ViableSectors[s - 1],
+							 "the frozen exit sectors are not sorted ascending");
+				}
+			}
+		}
+
+		//	Section 5's resource roles, all frozen, none moved.
+		Check (anchors.Count_Of_Role (HYBRID_SITE_HOME_TIBERIUM_GDI) == 1,"GDI has no single HOME field");
+		Check (anchors.Count_Of_Role (HYBRID_SITE_HOME_TIBERIUM_NOD) == 1,"Nod has no single HOME field");
+		Check (anchors.Count_Of_Role (HYBRID_SITE_CONTESTED_TIBERIUM)
+				 == Hybrid_Contested_Field_Count (identity.SizeClass),"%d contested anchors, Section 5 wants %d",
+				 anchors.Count_Of_Role (HYBRID_SITE_CONTESTED_TIBERIUM),
+				 Hybrid_Contested_Field_Count (identity.SizeClass));
+		Check (anchors.Count_Of_Role (HYBRID_SITE_REMOTE_TIBERIUM)
+				 == Hybrid_Remote_Field_Count (identity.SizeClass),"%d remote anchors, Section 5 wants %d",
+				 anchors.Count_Of_Role (HYBRID_SITE_REMOTE_TIBERIUM),
+				 Hybrid_Remote_Field_Count (identity.SizeClass));
+
+		for (int i = 0; i < anchors.Resources.Count (); ++i) {
+			const HybridResourceAnchor & anchor = anchors.Resources[i];
+			const HybridStrategicSite * site = graph.Find_Site (anchor.SiteId);
+			Check (site != NULL,"resource anchor %u has no site",anchor.SiteId);
+			if (site != NULL) {
+				Check ((anchor.Center - site->Position).Length () <= params.Constants.Q,
+						 "field %u was moved from its Phase-3 centre",anchor.SiteId);
+			}
+			Check (anchor.ReserveRadius >= params.FieldRadiusMax - 0.001f,
+					 "field %u froze a reserve smaller than field_radius_max",anchor.SiteId);
+			Check (anchor.ApproachCount >= 1,"field %u froze no approach",anchor.SiteId);
+			Check (anchor.ApproachEdgeId != 0,"field %u named no approach edge",anchor.SiteId);
+		}
+
+		//	Section 0.10's provisional fairness, and only that.
+		for (int team = 0; team < 2; ++team) {
+			Check (anchors.HomeFieldDistance[team] > 0.0f,"team %d has no home-field planning distance",team);
+			Check (anchors.FrontDistance[team] > 0.0f,"team %d has no front planning distance",team);
+			Check (Near (anchors.HomeFieldTime[team],
+							 anchors.HomeFieldDistance[team] / params.ReferenceVehicleSpeed,0.01f),
+					 "team %d home time is not its distance over V_REF",team);
+		}
+		Check (anchors.BaseToBaseDistance > 0.0f,"the base-to-base planning distance is not positive");
+		Check (anchors.HomeTimeDifference <= params.MaxInitialResourceTravelTimeDifferenceSeconds,
+				 "the frozen home-time difference is over its own threshold");
+		Check (anchors.FrontTimeDifference <= params.MaxBaseToFrontTravelTimeDifferenceSeconds,
+				 "the frozen front-time difference is over its own threshold");
+
+		//	Determinism: Phase 8 draws nothing, so a second pass is identical.
+		HybridAnchorSet again;
+		Check (Hybrid_Validate_Anchors (params,identity,graph,matrices,landforms,hydrology,
+												  Macro_Sample_From_Formula,&ground,&again,&result),
+				 "the second validation was refused: %s",result.Detail.Peek_Buffer ());
+		Check (again.Checksum == anchors.Checksum,"Phase 8 is not reproducible");
+		Check (Hybrid_Anchor_Checksum (again,identity.Checksum) == anchors.Checksum,
+				 "the checksum does not describe the records it was built from");
+
+		//	Each hard gate refuses on its own, and refusing leaves nothing frozen.
+		{
+			HybridAnchorParams greedy = params;
+			greedy.MinBaseExpansionArea = 1.0e9f;
+			HybridAnchorSet refused;
+			Check (!Hybrid_Validate_Anchors (greedy,identity,graph,matrices,landforms,hydrology,
+														Macro_Sample_From_Formula,&ground,&refused,&result),
+					 "an impossible expansion area was accepted");
+			Check (result.Failure == HYBRID_ANCHOR_BASE_NO_EXPANSION,"the wrong failure was named (%s)",
+					 Hybrid_Anchor_Failure_Name (result.Failure));
+			Check (!refused.Frozen && (refused.Bases.Count () == 0),"a refused Phase 8 left anchors behind");
+
+			HybridAnchorParams many_exits = params;
+			many_exits.MinVehicleApproachCount = HYBRID_EXIT_SECTOR_COUNT + 1;
+			Check (!Hybrid_Validate_Anchors (many_exits,identity,graph,matrices,landforms,hydrology,
+														Macro_Sample_From_Formula,&ground,&refused,&result),
+					 "an impossible exit-sector count was accepted");
+			Check (result.Failure == HYBRID_ANCHOR_BASE_NO_EXITS,"the wrong failure was named (%s)",
+					 Hybrid_Anchor_Failure_Name (result.Failure));
+
+			HybridAnchorSet no_ground;
+			Check (!Hybrid_Validate_Anchors (params,identity,graph,matrices,landforms,hydrology,
+														Anchor_Sample_Refuses,NULL,&no_ground,&result),
+					 "Phase 8 validated anchors with no realized ground");
+			Check (result.Failure == HYBRID_ANCHOR_BASE_NOT_PLACEABLE,"the wrong failure was named (%s)",
+					 Hybrid_Anchor_Failure_Name (result.Failure));
+
+			//	A fairness threshold of zero refuses only when the measured difference is actually non-zero.
+			if (anchors.HomeTimeDifference > 0.0f) {
+				HybridAnchorParams strict = params;
+				strict.MaxInitialResourceTravelTimeDifferenceSeconds = 0.0f;
+				Check (!Hybrid_Validate_Anchors (strict,identity,graph,matrices,landforms,hydrology,
+															Macro_Sample_From_Formula,&ground,&refused,&result),
+						 "a zero home-time threshold accepted a %g second difference",anchors.HomeTimeDifference);
+				Check (result.Failure == HYBRID_ANCHOR_FAIRNESS_HOME,"the wrong failure was named (%s)",
+						 Hybrid_Anchor_Failure_Name (result.Failure));
+			}
+			if (anchors.FrontTimeDifference > 0.0f) {
+				HybridAnchorParams strict = params;
+				strict.MaxBaseToFrontTravelTimeDifferenceSeconds = 0.0f;
+				Check (!Hybrid_Validate_Anchors (strict,identity,graph,matrices,landforms,hydrology,
+															Macro_Sample_From_Formula,&ground,&refused,&result),
+						 "a zero front-time threshold accepted a %g second difference",anchors.FrontTimeDifference);
+				Check (result.Failure == HYBRID_ANCHOR_FAIRNESS_FRONT,"the wrong failure was named (%s)",
+						 Hybrid_Anchor_Failure_Name (result.Failure));
+			}
+		}
+	}
+}
+
+
+
+static HybridTopologyParams Topology_Fixture (const HybridMapIdentityParams & identity_params)
+{
+	HybridTopologyParams params;
+	params.Constants					= identity_params.Constants;
+	params.RoadDensity				= 0.65f;			// native plan.road_density
+	params.FieldRadiusMax			= 60.0f;			// native resource.field_radius_max
+	params.MinVehicleLaneClearance= 1.0f;
+	params.HarvesterLength			= 7.428105f;	// the measured Harvester WORLDBOX length
+	params.MaxRoutedEdges			= 32;				// R at MEDIUM
+	params.TunnelsAvailable			= true;
+	return params;
+}
+
+
+void Check_Hybrid_Topology (void)
+{
+	HybridMapIdentity identity;
+	HybridArchetypeIntentSet intents;
+	HybridMapIdentityResult identity_result;
+	HybridStrategicGraph graph;
+	HybridStrategicGraphResult graph_result;
+	HybridCoarseMatrices matrices;
+	HybridCoarseMatrixResult coarse_result;
+	HybridLandformSet landforms;
+	HybridLandformResult landform_result;
+	HybridHydrologySet hydrology;
+	HybridHydrologyResult hydrology_result;
+	HybridMacroTerrainSet surfaces;
+	HybridMacroTerrainResult macro_result;
+	HybridAnchorSet anchors;
+	HybridAnchorResult anchor_result;
+	HybridTopology topology;
+	HybridTopologyResult result;
+
+	//	Section 5's road quotas and the optional cross-link count.
+	{
+		Check (Hybrid_River_Bridge_Quota (HYBRID_SIZE_SMALL) == 1,"SMALL river bridge quota");
+		Check (Hybrid_River_Bridge_Quota (HYBRID_SIZE_MEDIUM) == 2,"MEDIUM river bridge quota");
+		Check (Hybrid_River_Bridge_Quota (HYBRID_SIZE_LARGE) == 3,"LARGE river bridge quota");
+		Check (Hybrid_Canyon_Bridge_Quota (HYBRID_SIZE_LARGE) == 2,"LARGE canyon bridge quota");
+		Check (Hybrid_Highway_Quota (HYBRID_SIZE_SMALL) == 0,"SMALL highway quota");
+		Check (Hybrid_Highway_Quota (HYBRID_SIZE_LARGE) == 2,"LARGE highway quota");
+		Check (Hybrid_Overpass_Quota (HYBRID_SIZE_MEDIUM) == 1,"MEDIUM overpass quota");
+		Check (Hybrid_Service_Branch_Quota (HYBRID_SIZE_LARGE) == 8,"LARGE service branch quota");
+		Check (Hybrid_Trail_Quota (HYBRID_SIZE_MEDIUM) == 2,"MEDIUM trail quota");
+		Check (Hybrid_Cross_Link_Cap (HYBRID_SIZE_MEDIUM) == 5,"MEDIUM cross-link cap");
+
+		//	extra_links = RoundHalfUp(road_density * cap).
+		Check (Hybrid_Extra_Cross_Link_Count (HYBRID_SIZE_MEDIUM,0.65f) == 3,"0.65 * 5 rounds to 3, not %d",
+				 Hybrid_Extra_Cross_Link_Count (HYBRID_SIZE_MEDIUM,0.65f));
+		Check (Hybrid_Extra_Cross_Link_Count (HYBRID_SIZE_LARGE,0.0f) == 0,"a zero road density buys no links");
+		Check (Hybrid_Extra_Cross_Link_Count (HYBRID_SIZE_LARGE,1.0f) == 10,"a full road density takes the cap");
+	}
+
+	//	Section 12.2's max-flow, with BASE_INTERNAL contracted, on hand-built topologies.
+	{
+		HybridTopology flow;
+		HybridTopologyNode node;
+		node.Kind = HYBRID_NODE_BASE;				node.StableId = 1;	flow.Nodes.Add (node);	// GDI base
+		node.Kind = HYBRID_NODE_BASE;				node.StableId = 2;	flow.Nodes.Add (node);	// Nod base
+		node.Kind = HYBRID_NODE_FAMILY_WAYPOINT;	node.StableId = 3;	flow.Nodes.Add (node);
+		node.Kind = HYBRID_NODE_FAMILY_WAYPOINT;	node.StableId = 4;	flow.Nodes.Add (node);
+
+		HybridTopologyEdge edge;
+		edge.Kind = HYBRID_EDGE_FAMILY_TRUNK;	edge.RoadClass = HYBRID_ROAD_PRIMARY_2;
+		edge.StableId = 1;	edge.NodeA = 1;	edge.NodeB = 3;	flow.Edges.Add (edge);
+		edge.StableId = 2;	edge.NodeA = 3;	edge.NodeB = 2;	flow.Edges.Add (edge);
+		Check (Hybrid_Topology_Max_Flow (flow,1,2) == 1,"one chain is not one unit of flow");
+
+		edge.StableId = 3;	edge.NodeA = 1;	edge.NodeB = 4;	flow.Edges.Add (edge);
+		edge.StableId = 4;	edge.NodeA = 4;	edge.NodeB = 2;	flow.Edges.Add (edge);
+		Check (Hybrid_Topology_Max_Flow (flow,1,2) == 2,"two edge-disjoint chains are not two units of flow");
+
+		//	A BASE_INTERNAL edge is free connectivity, not a route: contracting it adds no flow.
+		HybridTopology contracted;
+		for (int i = 0; i < flow.Nodes.Count (); ++i) contracted.Nodes.Add (flow.Nodes[i]);
+		node.Kind = HYBRID_NODE_BASE_ENTRANCE;	node.StableId = 5;	contracted.Nodes.Add (node);
+		for (int i = 0; i < flow.Edges.Count (); ++i) contracted.Edges.Add (flow.Edges[i]);
+		edge.Kind = HYBRID_EDGE_BASE_INTERNAL;	edge.RoadClass = HYBRID_ROAD_CLASS_COUNT;
+		edge.StableId = 5;	edge.NodeA = 1;	edge.NodeB = 5;	contracted.Edges.Add (edge);
+		Check (Hybrid_Topology_Max_Flow (contracted,1,2) == 2,"a BASE_INTERNAL edge changed the flow");
+		Check (Hybrid_Topology_Max_Flow (contracted,1,1) == 0,"a node has flow to itself");
+	}
+
+	/*
+	**	A full Phase-9 build on a real Phase-2 to Phase-8 chain.
+	**
+	**	Section 5 forbids reducing a quota to rescue a seed, so a world whose canyons and ravines happen to
+	**	lie where no heavy route crosses them cannot fill the canyon/ravine bridge quota by any route, and
+	**	that is a named attempt failure the manager retries with a new whole-world seed (Q-019 tracks how
+	**	often an `open_frontier` world can do that).  The archetype used here is `canyon_crossroads`, whose
+	**	own Section-6.10 canyon carries a crossing obligation across the strategic axis, so the quota is
+	**	satisfiable by construction and every later step gets exercised; the loop still walks seeds the way
+	**	the manager does, and a seed that fails must fail *named* and leave nothing behind.
+	*/
+	static const unsigned int TOPOLOGY_SEEDS[5] = { 4242u, 7u, 99u, 1234u, 31337u };
+	bool topology_built = false;
+	int refused_graph = 0, refused_matrix = 0, refused_landforms = 0, refused_hydrology = 0;
+	int refused_anchors = 0, refused_topology = 0;
+
+	for (int attempt = 0; (attempt < 5) && !topology_built; ++attempt) {
+
+	const unsigned int seed = TOPOLOGY_SEEDS[attempt];
+	HybridMapIdentityParams sized = Graph_Identity_Fixture (1200.0f,2.0f);
+	sized.ArchetypeSelector = HYBRID_ARCHETYPE_CANYON_CROSSROADS;
+	sized.MapPlanSeed		= WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_MAP_PLAN);
+	sized.HydrologySeed	= WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_HYDROLOGY);
+	sized.BiomeSeed		= WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_BIOMES);
+	Check (Hybrid_Resolve_Map_Identity (sized,&identity,&intents,&identity_result),"identity: %s",
+			 identity_result.Detail.Peek_Buffer ());
+
+	HybridStrategicGraphParams graph_params = Graph_Fixture (sized,2.0f);
+	if (!Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result)) {
+		refused_graph++;
+		continue;
+	}
+
+	HybridCoarseMatrixParams coarse_params = Coarse_Fixture (sized,1200.0f);
+	if (!Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&graph,&matrices,&coarse_result)) {
+		refused_matrix++;
+		continue;
+	}
+
+	HybridLandformParams landform_params = Landform_Fixture (sized,1200.0f);
+	landform_params.TerrainSeed = WorldSeedService::Derive_Subsystem_Seed (seed,
+																							WorldSeedService::SEED_DOMAIN_TERRAIN);
+	if (!Hybrid_Build_Landforms (landform_params,identity,intents,graph,&matrices,&landforms,
+										  &landform_result)) {
+		refused_landforms++;
+		continue;
+	}
+
+	HybridHydrologyParams hydrology_params = Hydrology_Fixture (sized,1200.0f);
+	hydrology_params.HydrologySeed = sized.HydrologySeed;
+	if (!Hybrid_Build_Hydrology (hydrology_params,identity,intents,graph,landforms,&matrices,&hydrology,
+										  &hydrology_result)) {
+		refused_hydrology++;
+		continue;
+	}
+
+	HybridMacroTerrainParams macro_params = Macro_Terrain_Fixture (sized);
+	Check (Hybrid_Resolve_River_Surfaces (macro_params,matrices,landforms,hydrology,&surfaces,&macro_result),
+			 "river surfaces: %s",macro_result.Detail.Peek_Buffer ());
+
+	MacroFormulaContext ground;
+	ground.Params		= &macro_params;
+	ground.Matrices	= &matrices;
+	ground.Landforms	= &landforms;
+	ground.Hydrology	= &hydrology;
+	ground.Surfaces	= &surfaces;
+	ground.Offset		= 0.0f;
+
+	HybridAnchorParams anchor_params = Anchor_Fixture (sized);
+	if (!Hybrid_Validate_Anchors (anchor_params,identity,graph,matrices,landforms,hydrology,
+											Macro_Sample_From_Formula,&ground,&anchors,&anchor_result)) {
+		refused_anchors++;
+		continue;
+	}
+
+	/*
+	**	What Phase 6 actually left for Phase 9's bridge quotas to consume.  A world with no bridge-capable
+	**	canyon window cannot fill the Section-5 canyon quota by any route, so the count is worth stating
+	**	here rather than discovering it as an unexplained quota failure.
+	*/
+	{
+		int river_windows = 0, river_bridgeable = 0, canyon_windows = 0, canyon_bridgeable = 0;
+		for (int w = 0; w < hydrology.Windows.Count (); ++w) {
+			const HybridCrossingWindow & window = hydrology.Windows[w];
+			const bool bridgeable = window.Has_Method (HYBRID_WINDOW_METHOD_BRIDGE);
+			if (window.Obstruction == HYBRID_OBSTRUCTION_RIVER) {
+				river_windows++;
+				if (bridgeable) river_bridgeable++;
+			}
+			if ((window.Obstruction == HYBRID_OBSTRUCTION_CANYON) ||
+				 (window.Obstruction == HYBRID_OBSTRUCTION_RAVINE)) {
+				canyon_windows++;
+				if (bridgeable) canyon_bridgeable++;
+			}
+		}
+		Check (river_bridgeable >= Hybrid_River_Bridge_Quota (identity.SizeClass),
+				 "%d river windows (%d bridge-capable) for a quota of %d",river_windows,river_bridgeable,
+				 Hybrid_River_Bridge_Quota (identity.SizeClass));
+		Check (canyon_bridgeable >= Hybrid_Canyon_Bridge_Quota (identity.SizeClass),
+				 "%d canyon/ravine windows (%d bridge-capable) for a quota of %d",canyon_windows,canyon_bridgeable,
+				 Hybrid_Canyon_Bridge_Quota (identity.SizeClass));
+
+	}
+
+	HybridTopologyParams params = Topology_Fixture (sized);
+	const bool built = Hybrid_Build_Topology (params,identity,graph,landforms,hydrology,anchors,&matrices,
+															Macro_Sample_From_Formula,&ground,&topology,&result);
+
+	/*
+	**	A Section-5 road quota Phase 9 cannot fill is a *named* attempt failure the manager retries with a
+	**	new whole-world seed: the plan forbids reducing a quota to rescue a seed.  Either outcome is legal
+	**	here, but a failure must name itself and leave nothing behind.
+	*/
+	if (!built) {
+		Check (result.Failure != HYBRID_TOPOLOGY_OK,"a failed Phase 9 must name its failure");
+		Check (result.Detail.Get_Length () > 0,"a failed Phase 9 must say what refused the topology");
+		Check (topology.Nodes.Count () == 0 && topology.Edges.Count () == 0,
+				 "a failed Phase 9 left a partial topology behind");
+		refused_topology++;
+		continue;					// the manager's own answer: a new whole-world seed
+	}
+	topology_built = true;
+
+	const HybridConstants & k = params.Constants;
+
+	//	Step 1: one entrance per family per base, on a frozen Phase-8 viable sector.
+	Check (topology.Entrances.Count () == (2 * identity.RouteFamilyCount),
+			 "%d entrances for %d families across two bases",topology.Entrances.Count (),
+			 identity.RouteFamilyCount);
+
+	for (int e = 0; e < topology.Entrances.Count (); ++e) {
+
+		const HybridBaseEntrance & entrance = topology.Entrances[e];
+		const HybridBaseAnchor * base = anchors.Find_Base (entrance.BaseSiteId);
+		Check (base != NULL,"entrance %u has no frozen base",entrance.NodeId);
+		if (base == NULL) continue;
+
+		Check (base->Sector_Is_Viable (entrance.SectorOrdinal),
+				 "entrance on sector %d, which Phase 8 did not freeze as viable",entrance.SectorOrdinal);
+		Check (Near ((entrance.Point - base->Center).Length (),base->ProtectedRadius + k.W,0.01f),
+				 "the entrance point is not R_BASE_PROTECTED + W from the base centre");
+		Check (Near (entrance.CorridorHalfWidth,
+						 (0.5f * Hybrid_Roadbed_Width (HYBRID_ROAD_PRIMARY_2,k.W)) + params.MinVehicleLaneClearance,
+						 0.01f),"the entrance corridor half-width is not the plan's own formula");
+
+		//	The logical base node reaches it by a BASE_INTERNAL edge, which is never realized.
+		bool internal_found = false;
+		for (int i = 0; i < topology.Edges.Count (); ++i) {
+			const HybridTopologyEdge & edge = topology.Edges[i];
+			if (edge.Kind != HYBRID_EDGE_BASE_INTERNAL) continue;
+			if ((edge.NodeA != entrance.NodeId) && (edge.NodeB != entrance.NodeId)) continue;
+			internal_found = true;
+			Check (!edge.Is_Realized (),"a BASE_INTERNAL edge reports itself as realized");
+			Check (edge.RoadClass == HYBRID_ROAD_CLASS_COUNT,"a BASE_INTERNAL edge carries a road class");
+		}
+		Check (internal_found,"entrance %u has no BASE_INTERNAL edge to its base",entrance.NodeId);
+	}
+
+	//	Step 5: exactly the Section-5 highway quota, and every other trunk is PRIMARY_2.
+	Check (topology.Highways == Hybrid_Highway_Quota (identity.SizeClass),"%d highway corridors, Section 5 wants %d",
+			 topology.Highways,Hybrid_Highway_Quota (identity.SizeClass));
+	for (int i = 0; i < topology.Edges.Count (); ++i) {
+		const HybridTopologyEdge & edge = topology.Edges[i];
+		if (edge.Kind != HYBRID_EDGE_FAMILY_TRUNK) continue;
+		Check ((edge.RoadClass == HYBRID_ROAD_HIGHWAY_4) || (edge.RoadClass == HYBRID_ROAD_PRIMARY_2),
+				 "trunk edge %u is %s, which is not a heavy class",edge.StableId,
+				 Hybrid_Road_Class_Name (edge.RoadClass));
+	}
+
+	//	Steps 2 to 4: the bridge quotas, each bound to a distinct bridge-capable window, 12W apart.
+	Check (topology.RiverBridges >= Hybrid_River_Bridge_Quota (identity.SizeClass),
+			 "%d river bridges, Section 5 wants %d",topology.RiverBridges,
+			 Hybrid_River_Bridge_Quota (identity.SizeClass));
+	Check (topology.CanyonBridges >= Hybrid_Canyon_Bridge_Quota (identity.SizeClass),
+			 "%d canyon/ravine bridges, Section 5 wants %d",topology.CanyonBridges,
+			 Hybrid_Canyon_Bridge_Quota (identity.SizeClass));
+
+	for (int i = 0; i < topology.Nodes.Count (); ++i) {
+
+		const HybridTopologyNode & node = topology.Nodes[i];
+		if (node.Kind != HYBRID_NODE_CROSSING_OBLIGATION) continue;
+
+		const HybridCrossingWindow * window = hydrology.Find_Window (node.WindowId);
+		Check (window != NULL,"crossing waypoint %u names no Phase-6 window",node.StableId);
+		if (window == NULL) continue;
+		Check (Near (node.Position.X,window->Center.X) && Near (node.Position.Y,window->Center.Y),
+				 "crossing waypoint %u is not on its own window",node.StableId);
+
+		for (int j = i + 1; j < topology.Nodes.Count (); ++j) {
+			const HybridTopologyNode & other = topology.Nodes[j];
+			if (other.Kind != HYBRID_NODE_CROSSING_OBLIGATION) continue;
+			Check (other.WindowId != node.WindowId,"window %u is bound twice",node.WindowId);
+			const HybridCrossingWindow * second = hydrology.Find_Window (other.WindowId);
+			if (second == NULL) continue;
+			//	A river and a landform each number their own records, so the obstruction *kind* is part of
+			//	the identity: window records 3 on river 3 and on ravine 3 are different obstructions.
+			if (second->Obstruction != window->Obstruction) continue;
+			if (second->ObstructionRecordId != window->ObstructionRecordId) continue;
+			Check (WWMath::Fabs (second->Station - window->Station) >= (12.0f * k.W) - 0.01f,
+					 "two selected windows on one obstruction are %g apart, under 12W",
+					 WWMath::Fabs (second->Station - window->Station));
+		}
+
+		//	Every crossing waypoint is a waypoint of some edge, never a loose node.
+		int uses = 0;
+		for (int e = 0; e < topology.Edges.Count (); ++e) {
+			for (int w = 0; w < topology.Edges[e].Waypoints.Count (); ++w) {
+				if (topology.Edges[e].Waypoints[w] == node.StableId) uses++;
+			}
+		}
+		Check (uses >= 1,"crossing waypoint %u is not on any edge",node.StableId);
+	}
+
+	//	Step 6: a field road always terminates at its FIELD_ACCESS_POINT, never at the field centre.
+	Check (topology.Count_Of_Node_Kind (HYBRID_NODE_FIELD_ACCESS) == anchors.Resources.Count (),
+			 "%d field access points for %d frozen field anchors",
+			 topology.Count_Of_Node_Kind (HYBRID_NODE_FIELD_ACCESS),anchors.Resources.Count ());
+
+	for (int i = 0; i < topology.Nodes.Count (); ++i) {
+
+		const HybridTopologyNode & node = topology.Nodes[i];
+		if (node.Kind != HYBRID_NODE_FIELD_ACCESS) continue;
+
+		const HybridResourceAnchor * anchor = anchors.Find_Resource (node.SiteId);
+		Check (anchor != NULL,"field access %u names no anchor",node.StableId);
+		if (anchor == NULL) continue;
+		Check (Near ((node.Position - anchor->Center).Length (),
+						 params.FieldRadiusMax + params.MinVehicleLaneClearance,0.01f),
+				 "field access %u is %g from its centre, not field_radius_max + clearance",node.StableId,
+				 (node.Position - anchor->Center).Length ());
+	}
+
+	for (int e = 0; e < topology.Edges.Count (); ++e) {
+
+		const HybridTopologyEdge & edge = topology.Edges[e];
+		if ((edge.Kind != HYBRID_EDGE_HOME_ROAD) && (edge.Kind != HYBRID_EDGE_FIELD_BRANCH)) continue;
+
+		const HybridTopologyNode * b_node = topology.Find_Node (edge.NodeB);
+		Check ((b_node != NULL) && (b_node->Kind == HYBRID_NODE_FIELD_ACCESS),
+				 "a field road does not end at a field access point");
+
+		if (edge.Kind == HYBRID_EDGE_FIELD_BRANCH) {
+			Check (edge.RoadClass == HYBRID_ROAD_SERVICE_DIRT_2,"a field branch is not SERVICE_DIRT_2");
+			continue;
+		}
+
+		//	Step 7: PRIMARY_2 unless the entrance and the access point are closer than 12W.
+		const HybridTopologyNode * a_node = topology.Find_Node (edge.NodeA);
+		if ((a_node == NULL) || (b_node == NULL)) continue;
+		const float distance = (b_node->Position - a_node->Position).Length ();
+		const HybridRoadClass expect = (distance < (12.0f * k.W)) ? HYBRID_ROAD_SECONDARY_2 : HYBRID_ROAD_PRIMARY_2;
+		Check (edge.RoadClass == expect,"a %g long home road is %s, not %s",distance,
+				 Hybrid_Road_Class_Name (edge.RoadClass),Hybrid_Road_Class_Name (expect));
+	}
+
+	//	Steps 8 to 11: the Section-5 counts, and the optional links inside their own cap.
+	Check (topology.ServiceBranches >= Hybrid_Service_Branch_Quota (identity.SizeClass),
+			 "%d service branches, Section 5 wants %d",topology.ServiceBranches,
+			 Hybrid_Service_Branch_Quota (identity.SizeClass));
+	Check (topology.Trails >= Hybrid_Trail_Quota (identity.SizeClass),"%d trails, Section 5 wants %d",
+			 topology.Trails,Hybrid_Trail_Quota (identity.SizeClass));
+	Check (topology.CrossLinks <= (topology.OptionalCrossLinkQuota + topology.Overpasses),
+			 "%d cross-links, over the %d the quota and the overpass fallback allow",topology.CrossLinks,
+			 topology.OptionalCrossLinkQuota + topology.Overpasses);
+
+	for (int e = 0; e < topology.Edges.Count (); ++e) {
+		const HybridTopologyEdge & edge = topology.Edges[e];
+		if (edge.Kind == HYBRID_EDGE_TRAIL) {
+			Check (edge.RoadClass == HYBRID_ROAD_TRAIL_1,"a trail is not TRAIL_1");
+			Check (edge.Length >= (8.0f * k.W) - 0.01f,"trail %u is %g long, under 8W",edge.StableId,edge.Length);
+		}
+		if (edge.Kind == HYBRID_EDGE_SERVICE_FILL) {
+			Check (edge.RoadClass == HYBRID_ROAD_SERVICE_DIRT_2,"a quota-filling service edge is not SERVICE_DIRT_2");
+		}
+	}
+
+	//	Steps 12 to 14: every overpass obligation is one waypoint shared by exactly two edges.
+	Check (topology.Overpasses >= Hybrid_Overpass_Quota (identity.SizeClass),
+			 "%d overpasses, Section 5 wants %d",topology.Overpasses,Hybrid_Overpass_Quota (identity.SizeClass));
+
+	for (int i = 0; i < topology.Nodes.Count (); ++i) {
+
+		if (topology.Nodes[i].Kind != HYBRID_NODE_OVERPASS_OBLIGATION) continue;
+		int uses = 0;
+		for (int e = 0; e < topology.Edges.Count (); ++e) {
+			for (int w = 0; w < topology.Edges[e].Waypoints.Count (); ++w) {
+				if (topology.Edges[e].Waypoints[w] == topology.Nodes[i].StableId) uses++;
+			}
+		}
+		Check (uses == 2,"overpass obligation %u is shared by %d edges, not two",topology.Nodes[i].StableId,uses);
+	}
+
+	//	The gate's own invariants.
+	Check (topology.Realized_Edge_Count () <= params.MaxRoutedEdges,"%d routed edges, R allows %d",
+			 topology.Realized_Edge_Count (),params.MaxRoutedEdges);
+	Check (topology.Has_Cycle (),"the topology is a tree, and the plan requires a cycle");
+	Check (Hybrid_Topology_Max_Flow (topology,topology.Nodes[0].StableId,topology.Nodes[0].StableId) == 0,
+			 "a node has flow to itself");
+	Check (topology.Checksum != 0,"a passed Phase 9 left no checksum");
+
+	//	Determinism: Phase 9 makes no draw at all, so a second pass over the same records is identical.
+	HybridTopology again;
+	Check (Hybrid_Build_Topology (params,identity,graph,landforms,hydrology,anchors,&matrices,
+											Macro_Sample_From_Formula,&ground,&again,&result),
+			 "the second topology build was refused: %s",result.Detail.Peek_Buffer ());
+	Check (again.Checksum == topology.Checksum,"Phase 9 is not reproducible");
+	Check (Hybrid_Topology_Checksum (again,identity.Checksum) == topology.Checksum,
+			 "the checksum does not describe the records it was built from");
+
+	//	The routed-edge budget refuses on its own, and refusing leaves nothing behind.
+	HybridTopologyParams tight = params;
+	tight.MaxRoutedEdges = 1;
+	HybridTopology refused;
+	Check (!Hybrid_Build_Topology (tight,identity,graph,landforms,hydrology,anchors,&matrices,
+											 Macro_Sample_From_Formula,&ground,&refused,&result),
+			 "a one-edge routing budget was accepted");
+	Check (result.Failure == HYBRID_TOPOLOGY_EDGE_BUDGET,"the wrong failure was named (%s)",
+			 Hybrid_Topology_Failure_Name (result.Failure));
+	Check (refused.Edges.Count () == 0,"a refused Phase 9 left edges behind");
+	}
+
+	Check (topology_built,"no seed produced a Phase-9 topology: graph %d, matrix %d, landforms %d, "
+			 "hydrology %d, anchors %d, topology %d refusals; last %s (%s) / %s / %s",refused_graph,refused_matrix,
+			 refused_landforms,refused_hydrology,refused_anchors,refused_topology,
+			 Hybrid_Topology_Failure_Name (result.Failure),result.Detail.Peek_Buffer (),
+			 Hybrid_Anchor_Failure_Name (anchor_result.Failure),
+			 Hybrid_Hydrology_Failure_Name (hydrology_result.Failure));
+}
+
+
+
+static HybridRouteParams Route_Fixture (const HybridMapIdentityParams & identity_params,float world_size)
+{
+	HybridRouteParams params;
+	params.Constants		= identity_params.Constants;
+	params.WorldMinX		= -0.5f * world_size;
+	params.WorldMinY		= -0.5f * world_size;
+	params.WorldWidth		= world_size;
+	params.WorldHeight	= world_size;
+	params.MaxCutDepth	= 6.0f;			// native grading.max_cut_depth
+	params.MaxFillHeight	= 6.0f;
+	params.RiverWidth		= 6.0f;
+	params.FieldRadiusMax= 60.0f;
+	params.MaxLocalRetriesPerStage = 8;
+
+	//	Section 16.1's own budgets for this grid, so the ceilings under test are the real ones.
+	HybridWorkBudgets budgets;
+	const int cells = (int)((world_size / params.Constants.A) + 1.0f) *
+							(int)((world_size / params.Constants.A) + 1.0f);
+	Hybrid_Get_Work_Budgets (identity_params.Constants.SizeClass,cells,32,&budgets);
+	params.AStarExpansionsPerRoute		= budgets.AStarExpansionsPerRoute;
+	params.AStarExpansionsPerAttempt	= budgets.AStarExpansionsPerAttempt;
+	return params;
+}
+
+
+void Check_Hybrid_Routes (void)
+{
+	HybridMapIdentity identity;
+	HybridArchetypeIntentSet intents;
+	HybridMapIdentityResult identity_result;
+	HybridStrategicGraph graph;
+	HybridStrategicGraphResult graph_result;
+	HybridCoarseMatrices matrices;
+	HybridCoarseMatrixResult coarse_result;
+	HybridLandformSet landforms;
+	HybridLandformResult landform_result;
+	HybridHydrologySet hydrology;
+	HybridHydrologyResult hydrology_result;
+	HybridMacroTerrainSet surfaces;
+	HybridMacroTerrainResult macro_result;
+	HybridAnchorSet anchors;
+	HybridAnchorResult anchor_result;
+	HybridTopology topology;
+	HybridTopologyResult topology_result;
+	HybridRouteSet routes;
+	HybridRouteResult result;
+
+	//	Section 8 Phase 10's cost weights, and the priority group each edge kind belongs to.
+	{
+		Check (Hybrid_Route_Cost_Weights (HYBRID_ROAD_HIGHWAY_4).Ks == 10.0f,"HIGHWAY_4 grade weight");
+		Check (Hybrid_Route_Cost_Weights (HYBRID_ROAD_HIGHWAY_4).Kt == 8.0f,"HIGHWAY_4 turn weight");
+		Check (Hybrid_Route_Cost_Weights (HYBRID_ROAD_HIGHWAY_4).Kc == 3.0f,"HIGHWAY_4 corridor weight");
+		Check (Hybrid_Route_Cost_Weights (HYBRID_ROAD_PRIMARY_2).Ks == 8.0f,"PRIMARY_2 grade weight");
+		Check (Hybrid_Route_Cost_Weights (HYBRID_ROAD_SECONDARY_2).Kt == 4.0f,"SECONDARY_2 turn weight");
+		Check (Hybrid_Route_Cost_Weights (HYBRID_ROAD_SERVICE_DIRT_2).Kc == 1.5f,"SERVICE_DIRT_2 corridor weight");
+		Check (Hybrid_Route_Cost_Weights (HYBRID_ROAD_TRAIL_1).Ks == 3.0f,"TRAIL_1 grade weight");
+
+		HybridTopology fixture;
+		HybridTopologyNode node;
+		node.Kind = HYBRID_NODE_FAMILY_WAYPOINT;		node.StableId = 1;	fixture.Nodes.Add (node);
+		node.Kind = HYBRID_NODE_FAMILY_WAYPOINT;		node.StableId = 2;	fixture.Nodes.Add (node);
+		node.Kind = HYBRID_NODE_CROSSING_OBLIGATION;	node.StableId = 3;	fixture.Nodes.Add (node);
+		node.Kind = HYBRID_NODE_OVERPASS_OBLIGATION;	node.StableId = 4;	fixture.Nodes.Add (node);
+
+		HybridTopologyEdge edge;
+		edge.NodeA = 1;	edge.NodeB = 2;
+		edge.Kind = HYBRID_EDGE_FAMILY_TRUNK;
+		Check (Hybrid_Route_Priority_Of (fixture,edge) == HYBRID_ROUTE_PRIORITY_FAMILY_TRUNK,"trunk priority");
+		edge.Kind = HYBRID_EDGE_HOME_ROAD;
+		Check (Hybrid_Route_Priority_Of (fixture,edge) == HYBRID_ROUTE_PRIORITY_HOME_ROAD,"home road priority");
+		edge.Kind = HYBRID_EDGE_FIELD_BRANCH;
+		Check (Hybrid_Route_Priority_Of (fixture,edge) == HYBRID_ROUTE_PRIORITY_FIELD_BRANCH,"branch priority");
+		edge.Kind = HYBRID_EDGE_SERVICE_FILL;
+		Check (Hybrid_Route_Priority_Of (fixture,edge) == HYBRID_ROUTE_PRIORITY_SERVICE_FILL,"service priority");
+		edge.Kind = HYBRID_EDGE_TRAIL;
+		Check (Hybrid_Route_Priority_Of (fixture,edge) == HYBRID_ROUTE_PRIORITY_TRAIL,"trail priority");
+
+		//	A cross-link's own waypoints say which group it is in.
+		edge.Kind = HYBRID_EDGE_CROSS_LINK;
+		Check (Hybrid_Route_Priority_Of (fixture,edge) == HYBRID_ROUTE_PRIORITY_OPTIONAL_LINK,
+				 "a plain cross-link is an optional link");
+		edge.Waypoints.Add (3);
+		Check (Hybrid_Route_Priority_Of (fixture,edge) == HYBRID_ROUTE_PRIORITY_BRIDGE_LINK,
+				 "a cross-link with a crossing obligation is a bridge link");
+		edge.Waypoints.Delete_All ();
+		edge.Waypoints.Add (4);
+		Check (Hybrid_Route_Priority_Of (fixture,edge) == HYBRID_ROUTE_PRIORITY_OVERPASS_LINK,
+				 "a cross-link with an overpass obligation is an overpass link");
+	}
+
+	//	A full Phase-10 build on a real Phase-2 to Phase-9 chain, seed-walked the way the manager does.
+	static const unsigned int ROUTE_SEEDS[8] = { 4242u, 7u, 99u, 1234u, 31337u, 5u, 77u, 808u };
+	bool routed = false;
+
+	for (int attempt = 0; (attempt < 8) && !routed; ++attempt) {
+
+	const unsigned int seed = ROUTE_SEEDS[attempt];
+	HybridMapIdentityParams sized = Graph_Identity_Fixture (1200.0f,2.0f);
+	sized.ArchetypeSelector = HYBRID_ARCHETYPE_CANYON_CROSSROADS;
+	sized.MapPlanSeed		= WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_MAP_PLAN);
+	sized.HydrologySeed	= WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_HYDROLOGY);
+	sized.BiomeSeed		= WorldSeedService::Derive_Subsystem_Seed (seed,WorldSeedService::SEED_DOMAIN_BIOMES);
+	Check (Hybrid_Resolve_Map_Identity (sized,&identity,&intents,&identity_result),"identity: %s",
+			 identity_result.Detail.Peek_Buffer ());
+
+	HybridStrategicGraphParams graph_params = Graph_Fixture (sized,2.0f);
+	if (!Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result)) continue;
+
+	HybridCoarseMatrixParams coarse_params = Coarse_Fixture (sized,1200.0f);
+	if (!Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&graph,&matrices,&coarse_result)) continue;
+
+	HybridLandformParams landform_params = Landform_Fixture (sized,1200.0f);
+	landform_params.TerrainSeed = WorldSeedService::Derive_Subsystem_Seed (seed,
+																							WorldSeedService::SEED_DOMAIN_TERRAIN);
+	if (!Hybrid_Build_Landforms (landform_params,identity,intents,graph,&matrices,&landforms,
+										  &landform_result)) continue;
+
+	HybridHydrologyParams hydrology_params = Hydrology_Fixture (sized,1200.0f);
+	hydrology_params.HydrologySeed = sized.HydrologySeed;
+	if (!Hybrid_Build_Hydrology (hydrology_params,identity,intents,graph,landforms,&matrices,&hydrology,
+										  &hydrology_result)) continue;
+
+	HybridMacroTerrainParams macro_params = Macro_Terrain_Fixture (sized);
+	macro_params.TerrainSeed = landform_params.TerrainSeed;
+	if (!Hybrid_Resolve_River_Surfaces (macro_params,matrices,landforms,hydrology,&surfaces,&macro_result)) continue;
+
+	MacroFormulaContext ground;
+	ground.Params		= &macro_params;
+	ground.Matrices	= &matrices;
+	ground.Landforms	= &landforms;
+	ground.Hydrology	= &hydrology;
+	ground.Surfaces	= &surfaces;
+	ground.Offset		= 0.0f;
+
+	HybridAnchorParams anchor_params = Anchor_Fixture (sized);
+	if (!Hybrid_Validate_Anchors (anchor_params,identity,graph,matrices,landforms,hydrology,
+											Macro_Sample_From_Formula,&ground,&anchors,&anchor_result)) continue;
+
+	HybridTopologyParams topology_params = Topology_Fixture (sized);
+	if (!Hybrid_Build_Topology (topology_params,identity,graph,landforms,hydrology,anchors,&matrices,
+										 Macro_Sample_From_Formula,&ground,&topology,&topology_result)) continue;
+
+	HybridRouteParams params = Route_Fixture (sized,1200.0f);
+	const bool built = Hybrid_Build_Routes (params,identity,matrices,landforms,hydrology,anchors,topology,
+														 Macro_Sample_From_Formula,&ground,&routes,&result);
+
+	/*
+	**	A mandatory edge with no legal spline inside its three envelopes is a named attempt failure the
+	**	manager retries with a new whole-world seed, so a refusal here is legal -- but it must name
+	**	itself and leave nothing behind, and the walk then tries the next seed.
+	*/
+	if (!built) {
+		Check (result.Failure != HYBRID_ROUTE_OK,"a failed Phase 10 must name its failure");
+		Check (result.Detail.Get_Length () > 0,"a failed Phase 10 must say what refused the route");
+		Check (routes.Routes.Count () == 0,"a failed Phase 10 left routes behind");
+
+		/*
+		**	A refusal here is legal -- the manager retries with a new whole-world seed -- but it is worth
+		**	saying which seed refused and why, so a walk that ends with no routable seed at all can be read
+		**	without instrumenting the router again.  `Hybrid_Route_Census` in `hybridroutes.h` answers the
+		**	cell-rule question in detail when one is needed.
+		*/
+		printf ("  Phase 10 refused identity %u: %s (%s)\r\n",identity.Checksum,
+				  Hybrid_Route_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+
+		continue;
+	}
+	routed = true;
+
+	const HybridConstants & k = params.Constants;
+
+	//	Every mandatory realized edge has exactly one route, and every route belongs to an edge.
+	for (int e = 0; e < topology.Edges.Count (); ++e) {
+
+		const HybridTopologyEdge & edge = topology.Edges[e];
+		if (!edge.Is_Realized ()) {
+			Check (routes.Find (edge.StableId) == NULL,"a BASE_INTERNAL edge was routed");
+			continue;
+		}
+		if (!edge.Required) continue;
+		Check (routes.Find (edge.StableId) != NULL,"mandatory edge %u has no route",edge.StableId);
+	}
+
+	for (int r = 0; r < routes.Routes.Count (); ++r) {
+
+		const HybridRoute & route = routes.Routes[r];
+		const HybridTopologyEdge * edge = topology.Find_Edge (route.EdgeId);
+		Check (edge != NULL,"route %u has no topology edge",route.EdgeId);
+		if (edge == NULL) continue;
+
+		Check (route.RoadClass == edge->RoadClass,"route %u is %s but its edge is %s",route.EdgeId,
+				 Hybrid_Road_Class_Name (route.RoadClass),Hybrid_Road_Class_Name (edge->RoadClass));
+		Check (route.Points.Count () >= 2,"route %u has %d samples",route.EdgeId,route.Points.Count ());
+		Check (route.Stations.Count () == route.Points.Count (),"route %u has mismatched stations",route.EdgeId);
+		Check (route.Cells.Count () >= 1,"route %u has no cell chain",route.EdgeId);
+		Check ((route.Envelope >= 0) && (route.Envelope <= 2),"route %u used envelope %d",route.EdgeId,
+				 route.Envelope);
+		Check (route.ControlInsertions <= params.MaxLocalRetriesPerStage,
+				 "route %u used %d control insertions, over the %d limit",route.EdgeId,route.ControlInsertions,
+				 params.MaxLocalRetriesPerStage);
+		Check (route.Expansions <= params.AStarExpansionsPerRoute,
+				 "route %u used %d expansions, over its 8N ceiling of %d",route.EdgeId,route.Expansions,
+				 params.AStarExpansionsPerRoute);
+
+		//	Stations advance, and the sample spacing is the plan's own min(W,A/2).
+		const float spacing = (k.W < (0.5f * k.A)) ? k.W : (0.5f * k.A);
+		for (int p = 1; p < route.Points.Count (); ++p) {
+			Check (route.Stations[p] > route.Stations[p - 1],"route %u station %d does not advance",
+					 route.EdgeId,p);
+			const float step = (route.Points[p] - route.Points[p - 1]).Length ();
+			Check (step <= (spacing + 0.01f),"route %u sample %d is %g from the last, over the %g spacing",
+					 route.EdgeId,p,step,spacing);
+		}
+
+		//	The A* chain is a chain: consecutive cells are 8-way neighbours and never repeat.
+		for (int c = 1; c < route.Cells.Count (); ++c) {
+			const int previous = route.Cells[c - 1];
+			const int current = route.Cells[c];
+			const int dx = (current % routes.AnalysisCountX) - (previous % routes.AnalysisCountX);
+			const int dy = (current / routes.AnalysisCountX) - (previous / routes.AnalysisCountX);
+			Check ((dx != 0) || (dy != 0),"route %u repeats cell %d",route.EdgeId,current);
+			Check ((dx >= -1) && (dx <= 1) && (dy >= -1) && (dy <= 1),
+					 "route %u jumps from cell %d to %d",route.EdgeId,previous,current);
+		}
+
+		/*
+		**	Every frozen waypoint is discharged: either its own cell is on the chain, or -- for a crossing
+		**	waypoint -- the route crosses that window, which it records as a structural span.  The second is the
+		**	stronger statement: the road runs through both of the window's frozen approach points, and the cell
+		**	the node's position falls in is the middle of the obstruction, which the road spans rather than
+		**	drives through.
+		*/
+		for (int w = 0; w < edge->Waypoints.Count (); ++w) {
+
+			const HybridTopologyNode * node = topology.Find_Node (edge->Waypoints[w]);
+			if (node == NULL) continue;
+
+			bool present = false;
+			for (int c = 0; (c < route.Cells.Count ()) && !present; ++c) {
+				const Vector2 centre (params.WorldMinX + (((float)(route.Cells[c] % routes.AnalysisCountX) + 0.5f) * k.A),
+											 params.WorldMinY + (((float)(route.Cells[c] / routes.AnalysisCountX) + 0.5f) * k.A));
+				if ((centre - node->Position).Length () <= (k.A * 1.5f)) present = true;
+			}
+			for (int s = 0; (s < route.Structural.Count ()) && !present; ++s) {
+				if (route.Structural[s].WindowId == node->WindowId) present = true;
+			}
+			Check (present,"route %u does not pass waypoint %u",route.EdgeId,node->StableId);
+		}
+
+		/*
+		**	No route sample stands in standing water, *except* inside one of its own structural spans.  A
+		**	crossing is a frozen straight interval across an obstruction, and the obstruction under one is
+		**	whatever Phase 6 put there -- a channel, a canyon, or the standing water a channel widens into.
+		**	Phase 11 compiles the deck or bore that carries the road over it.
+		*/
+		for (int p = 0; p < route.Points.Count (); ++p) {
+
+			bool structural = false;
+			for (int s = 0; (s < route.Structural.Count ()) && !structural; ++s) {
+				if ((p >= route.Structural[s].FirstPoint) && (p <= route.Structural[s].LastPoint)) structural = true;
+			}
+			if (structural) continue;
+
+			Check (!Hybrid_Point_In_Standing_Water (hydrology,route.Points[p],NULL,NULL),
+					 "route %u sample %d stands in a lake or the sea",route.EdgeId,p);
+		}
+
+		/*
+		**	The Section-7 minimum turn radius, measured here rather than taken on trust from the router: the
+		**	circumradius of three samples a class-radius baseline apart, at every sample of open road.
+		**
+		**	The only tolerance allowed is the project position quantum `Q`, which covers writing a coordinate
+		**	down at 0.001 and nothing else.  A curve that is short by tenths of a world unit is short.
+		**
+		**	Samples within one baseline of a structural span are not open road: the triple would straddle the
+		**	frozen crossing interval and measure the corner where the road meets its own bridge, which the
+		**	interaction phase compiles along with the deck.  That is the same exemption the router makes, and
+		**	the span itself is checked for straightness just below.
+		*/
+		{
+			const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec (route.RoadClass);
+			const float min_radius = spec.MinTurnRadiusW * k.W;
+			const float spacing = (k.W < (0.5f * k.A)) ? k.W : (0.5f * k.A);
+			const int span = (int)Hybrid_Round_Half_Up (min_radius / ((spacing > k.Q) ? spacing : k.Q));
+			const int baseline = (span > 1) ? span : 1;
+
+			for (int q = baseline; q < (route.Points.Count () - baseline); ++q) {
+
+				bool structural = false;
+				for (int s = 0; (s < route.Structural.Count ()) && !structural; ++s) {
+					if ((q >= (route.Structural[s].FirstPoint - baseline)) &&
+						 (q <= (route.Structural[s].LastPoint + baseline))) structural = true;
+				}
+				if (structural) continue;
+
+				const Vector2 & before = route.Points[q - baseline];
+				const Vector2 & here = route.Points[q];
+				const Vector2 & after = route.Points[q + baseline];
+
+				const float first = (here - before).Length ();
+				const float second = (after - here).Length ();
+				const float chord = (before - after).Length ();
+				const float cross = (((here.X - before.X) * (after.Y - before.Y)) -
+											((here.Y - before.Y) * (after.X - before.X)));
+				const float area = 0.5f * (float)fabs ((double)cross);
+				if (area <= 1.0e-4f) continue;					// a straight run turns at no radius at all
+
+				const float radius = (first * second * chord) / (4.0f * area);
+				Check (radius >= (min_radius - k.Q),
+						 "route %u (%s) turns at radius %.2f at sample %d, under the class minimum of %.2f",
+						 route.EdgeId,Hybrid_Road_Class_Name (route.RoadClass),radius,q,min_radius);
+			}
+		}
+
+		/*
+		**	And every structural span is a straight run between the two frozen approach points of the window it
+		**	names, which is the whole of what Phase 10 decides about a crossing.
+		*/
+		for (int s = 0; s < route.Structural.Count (); ++s) {
+
+			const HybridRouteStructuralSpan & span = route.Structural[s];
+			const HybridCrossingWindow * window = hydrology.Find_Window (span.WindowId);
+			Check (window != NULL,"route %u names crossing window %u, which does not exist",route.EdgeId,
+					 span.WindowId);
+			if (window == NULL) continue;
+
+			const float to_a = (span.Ingress - window->ApproachA).Length ();
+			const float to_b = (span.Ingress - window->ApproachB).Length ();
+			Check ((to_a <= k.Q) || (to_b <= k.Q),
+					 "route %u structural span %d does not start on a frozen approach point of window %u",
+					 route.EdgeId,s,span.WindowId);
+
+			Check ((span.FirstPoint >= 0) && (span.LastPoint < route.Points.Count ()) &&
+					 (span.LastPoint >= span.FirstPoint),
+					 "route %u structural span %d covers samples %d to %d of %d",route.EdgeId,s,span.FirstPoint,
+					 span.LastPoint,route.Points.Count ());
+
+			for (int q = span.FirstPoint + 1; (q < span.LastPoint) && (q < route.Points.Count ()); ++q) {
+				const Vector2 axis = span.Egress - span.Ingress;
+				const float length = axis.Length ();
+				if (length <= k.Q) continue;
+				const float across = (((route.Points[q].X - span.Ingress.X) * axis.Y) -
+											 ((route.Points[q].Y - span.Ingress.Y) * axis.X)) / length;
+				Check ((across <= (2.0f * k.Q)) && (across >= (-2.0f * k.Q)),
+						 "route %u structural span %d bows %.3f off its own axis at sample %d",route.EdgeId,s,
+						 across,q);
+			}
+		}
+	}
+
+	Check (routes.Checksum != 0,"a passed Phase 10 left no checksum");
+	Check (routes.TotalExpansions <= params.AStarExpansionsPerAttempt,
+			 "%d expansions this attempt, over the R*8N ceiling of %d",routes.TotalExpansions,
+			 params.AStarExpansionsPerAttempt);
+
+	//	Determinism: Phase 10 makes no draw, so a second pass over the same records is identical.
+	HybridRouteSet again;
+	Check (Hybrid_Build_Routes (params,identity,matrices,landforms,hydrology,anchors,topology,
+										 Macro_Sample_From_Formula,&ground,&again,&result),
+			 "the second routing pass was refused: %s",result.Detail.Peek_Buffer ());
+	Check (again.Checksum == routes.Checksum,"Phase 10 is not reproducible");
+	Check (Hybrid_Route_Checksum (again,identity.Checksum) == routes.Checksum,
+			 "the checksum does not describe the records it was built from");
+
+	//	The expansion ceiling refuses on its own, and refusing leaves nothing behind.
+	HybridRouteParams starved = params;
+	starved.AStarExpansionsPerRoute = 1;
+	starved.AStarExpansionsPerAttempt = 2;
+	HybridRouteSet refused;
+	Check (!Hybrid_Build_Routes (starved,identity,matrices,landforms,hydrology,anchors,topology,
+											Macro_Sample_From_Formula,&ground,&refused,&result),
+			 "a one-expansion A* budget was accepted");
+	Check (result.Failure == HYBRID_ROUTE_EXPANSION_BUDGET,"the wrong failure was named (%s)",
+			 Hybrid_Route_Failure_Name (result.Failure));
+	Check (refused.Routes.Count () == 0,"a refused Phase 10 left routes behind");
+	}
+
+	Check (routed,"no fixture seed produced a complete Phase-10 routing: %s (%s)",
+			 Hybrid_Route_Failure_Name (result.Failure),result.Detail.Peek_Buffer ());
+}
+
+
+// Hand-filled metadata fixture first, then one pass over the live registries.
+void Check_Hybrid_Preflight (void)
+{
+	ProceduralWorldProfile profile;
+	StringClass error;
+	if (!ProceduralWorldProfileManager::Load_Profile_From_File ("data/procedural_world/native.json",&profile,&error)) {
+		Check (false,"preflight native fixture: %s",error.Peek_Buffer ()); return;
+	}
+	profile.Plan.BiomeMode = "single"; profile.Plan.Biome = "temperate";
+	HybridPreflightInputs input;
+	input.WorldUnitsPerMeter = 1;
+	// WORLDBOX measurements from docs/procedural_world/VehicleCollisionMetrics.md.
+	const float HUMVEE[3] = { 4.722971f, 2.555953f, 1.548488f };
+	const float MAMMOTH[3] = { 10.500445f, 6.801906f, 3.064066f };
+	const float HARVESTER[2][3] = { { 7.428105f, 4.514225f, 2.754598f }, { 7.399116f, 4.514225f, 2.754598f } };
+	struct { HybridVehicleMetricInput * Out; const float * Box; int Id; } vehicles[4] = {
+		{ &input.Humvee,HUMVEE,101 }, { &input.HeavyVehicle,MAMMOTH,102 },
+		{ &input.Harvesters[0],HARVESTER[0],103 }, { &input.Harvesters[1],HARVESTER[1],104 } };
+	for (int v = 0; v < 4; ++v) {
+		vehicles[v].Out->Measured = true; vehicles[v].Out->DefinitionID = vehicles[v].Id;
+		vehicles[v].Out->Length = vehicles[v].Box[0]; vehicles[v].Out->Width = vehicles[v].Box[1]; vehicles[v].Out->Height = vehicles[v].Box[2];
+	}
+	input.ReferenceVehicleSpeed = WorldMetricsClass::Get_Reference_Vehicle_Speed ();
+	input.ReferenceInfantrySpeed = WorldMetricsClass::Get_Reference_Infantry_Speed ();
+	input.BridgeMaxSpanLength = 200; input.BridgeWaterClearanceMargin = 2; input.BridgeApproachLength = 30;
+	HybridBridgeInput bridge;
+	bridge.Name = "test_bridge"; bridge.Width = 40; bridge.DeckThickness = 2; bridge.RequiredClearance = 5;
+	input.Bridges.Add (bridge);
+	for (int team = 0; team < 2; ++team) {
+		const DynamicVectorClass<StringClass> & names = team == 0 ? profile.Base.GdiInitialBuildings : profile.Base.NodInitialBuildings;
+		for (int i = 0; i < names.Count (); ++i) {
+			HybridBuildingFootprintInput building;
+			building.Name = names[i]; building.Team = team; building.Found = true; building.Radius = 20; building.Height = 15;
+			input.Buildings.Add (building);
+		}
+	}
+	HybridTerrainLayerInput layer;
+	layer.Name = "test_grass"; layer.Kind = TERRAIN_LAYER_BASE; layer.SurfaceType = SURFACE_TYPE_GRASS; input.TerrainLayers.Add (layer);
+	layer.Name = "test_rock"; layer.Kind = TERRAIN_LAYER_CLIFF; layer.SurfaceType = SURFACE_TYPE_ROCK; input.TerrainLayers.Add (layer);
+	HybridPreflightResult result;
+	Check (Hybrid_Run_Preflight (profile,input,&result),"valid preflight: %s",result.Detail.Peek_Buffer ());
+	const unsigned int baseline = result.Metrics.PlanningInputHash;
+	Check (!result.Metrics.TunnelsAvailable && !result.Metrics.DecorationAvailable && !result.Metrics.LampsAvailable,"optional missing assets do not fail preflight");
+	const HybridMetricCache metrics = result.Metrics;
+	Check (fabsf (metrics.Constants.H - 2.555953f) < 1.0e-5f && fabsf (metrics.Constants.W - 3.322739f) < 1.0e-5f,
+		"measured Humvee drives Section 0.5 H/W: %f %f",metrics.Constants.H,metrics.Constants.W);
+	Check (metrics.HumveeHeight == HUMVEE[2] && metrics.HeavyVehicleWidth == MAMMOTH[1] && metrics.HeavyVehicleHeight == MAMMOTH[2] &&
+		metrics.HarvesterWidth == HARVESTER[0][1] && metrics.HarvesterHeight == HARVESTER[0][2],"metric cache keeps measured widths and heights");
+	Check (metrics.HumveeDefinitionID == 101 && metrics.HeavyVehicleDefinitionID == 102 &&
+		metrics.HarvesterDefinitionID[0] == 103 && metrics.HarvesterDefinitionID[1] == 104,"metric cache keeps provenance");
+	Check (metrics.ContentRevision == Hybrid_Structural_Content_Revision (input) && metrics.ContentRevision != 0,"content revision is the structural digest");
+	HybridPreflightInputs changed = input; changed.Humvee.Measured = false;
+	Check (!Hybrid_Run_Preflight (profile,changed,&result) && result.Failure == HYBRID_PREFLIGHT_MISSING_HUMVEE_COLLISION_METRIC,"missing Humvee fails preflight");
+	changed = input; changed.Humvee.Height = 0;
+	Check (!Hybrid_Run_Preflight (profile,changed,&result) && result.Failure == HYBRID_PREFLIGHT_MISSING_HUMVEE_COLLISION_METRIC,"Humvee without a height fails preflight");
+	changed = input; changed.HeavyVehicle.Measured = false;
+	Check (!Hybrid_Run_Preflight (profile,changed,&result) && result.Failure == HYBRID_PREFLIGHT_MISSING_HEAVY_VEHICLE_COLLISION_METRIC,"missing heavy vehicle fails preflight");
+	for (int team = 0; team < 2; ++team) {
+		changed = input; changed.Harvesters[team].Measured = false;
+		Check (!Hybrid_Run_Preflight (profile,changed,&result) && result.Failure == HYBRID_PREFLIGHT_MISSING_HARVESTER_COLLISION_METRIC,
+			"either team's missing Harvester fails preflight (%d)",team);
+	}
+	changed = input; changed.Harvesters[1].Width = 5.0f;
+	Check (Hybrid_Run_Preflight (profile,changed,&result) && result.Metrics.HarvesterWidth == 5.0f && result.Metrics.PlanningInputHash != baseline,
+		"wider team Harvester sizes the envelope");
+	changed = input; changed.HeavyVehicle.Height += 1.0f;
+	Check (Hybrid_Run_Preflight (profile,changed,&result) && result.Metrics.PlanningInputHash != baseline &&
+		result.Metrics.ContentRevision != metrics.ContentRevision,"vehicle height affects content and planning identity");
+	changed = input; changed.Buildings[0].Height += 5.0f;
+	Check (Hybrid_Run_Preflight (profile,changed,&result) && result.Metrics.PlanningInputHash == baseline,"render-bound building height excluded from identity");
+
+	// Oversize worlds: rejected unless the developer/offline path asks.
+	ProceduralWorldProfile oversize = profile; oversize.World.Width = 2600; oversize.World.Height = 2000;
+	Check (!Hybrid_Run_Preflight (oversize,input,&result) && result.Failure == HYBRID_PREFLIGHT_WORLD_SIZE_LIMIT_EXCEEDED,"oversize rejected at runtime");
+	changed = input; changed.AllowOversizeDevelopment = true;
+	Check (Hybrid_Run_Preflight (oversize,changed,&result),"developer path admits oversize: %s",result.Detail.Peek_Buffer ());
+	oversize.World.Width = 0;
+	Check (!Hybrid_Run_Preflight (oversize,changed,&result) && result.Failure == HYBRID_PREFLIGHT_WORLD_SIZE_LIMIT_EXCEEDED,"developer path still rejects non-positive size");
+
+	// Tunnels: a portal-compatible module whose authored bore clears the widest and tallest vehicle.
+	ProceduralWorldProfile tunnels = profile; tunnels.Features.Tunnels = true;
+	HybridTunnelModuleInput module;
+	module.Name = "tight"; module.Length = 20; module.ClearanceWidth = 6; module.ClearanceHeight = 5; module.WallThickness = 1;
+	module.MaxTurnRadians = 0.3f; module.MaxGradeRadians = 0.1f; module.PortalCompatible = true;
+	changed = input; changed.TunnelModules.Add (module);
+	Check (Hybrid_Run_Preflight (tunnels,changed,&result) && !result.Metrics.TunnelsAvailable &&
+		result.Metrics.TunnelRequiredWidth > MAMMOTH[1] && result.Metrics.TunnelRequiredHeight == MAMMOTH[2],"narrow tunnel bore leaves tunnels unavailable");
+	module.Name = "tube"; module.ClearanceWidth = 0; module.ClearanceHeight = 0; module.PortalCompatible = false; changed.TunnelModules.Add (module);
+	Check (Hybrid_Run_Preflight (tunnels,changed,&result) && !result.Metrics.TunnelsAvailable,"tunnels need a portal-compatible module");
+	module.Name = "portal"; module.PortalCompatible = true; changed.TunnelModules.Add (module);
+	Check (Hybrid_Run_Preflight (tunnels,changed,&result) && result.Metrics.TunnelsAvailable && result.Metrics.TunnelPortalModule == 2,
+		"procedural portal module makes tunnels available");
+	ProceduralWorldProfile no_tunnels = profile; no_tunnels.Features.Tunnels = false;
+	Check (Hybrid_Run_Preflight (no_tunnels,changed,&result) && !result.Metrics.TunnelsAvailable,"tunnels feature toggle off keeps tunnels unavailable");
+	Check (result.Metrics.ContentRevision != metrics.ContentRevision,"tunnel module geometry affects content revision");
+	changed = input; bridge.StructuralModels = "bridge_deck"; changed.Bridges[0] = bridge;
+	Check (Hybrid_Run_Preflight (profile,changed,&result) && result.Metrics.ContentRevision != metrics.ContentRevision,
+		"bridge structural models affect content revision");
+	bridge.StructuralModels = "";
+
+	// Collision boxes are the WORLDBOX's full extents; lateral width, never the diameter.
+	WorldMetricsStruct measured;
+	measured.Valid = measured.HasExtents = true; measured.Extents.Set (MAMMOTH[0] * 0.5f,MAMMOTH[1] * 0.5f,MAMMOTH[2] * 0.5f);
+	WorldCollisionBoxStruct box, worst;
+	Check (WorldMetricsClass::Compute_Collision_Box (measured,7,&box) && box.Width == MAMMOTH[1] && box.Length == MAMMOTH[0] &&
+		box.Height == MAMMOTH[2] && box.DefinitionID == 7 && box.MeasuredCount == 1,"collision box is full WORLDBOX extents");
+	WorldCollisionBoxStruct unmeasured;
+	measured.HasExtents = false;
+	Check (!WorldMetricsClass::Compute_Collision_Box (measured,8,&unmeasured) && unmeasured.UnmeasuredCount == 1,"fallback extents are not a measurement");
+	WorldMetricsClass::Accumulate_Collision_Box (unmeasured,&worst);
+	WorldMetricsClass::Accumulate_Collision_Box (box,&worst);
+	measured.HasExtents = true; measured.Extents.Set (6.0f,1.5f,4.0f);
+	WorldCollisionBoxStruct narrow;
+	WorldMetricsClass::Compute_Collision_Box (measured,3,&narrow);
+	WorldMetricsClass::Accumulate_Collision_Box (narrow,&worst);
+	Check (worst.Width == MAMMOTH[1] && worst.Length == 12.0f && worst.Height == 8.0f && worst.DefinitionID == 7 &&
+		worst.MeasuredCount == 2 && worst.UnmeasuredCount == 1,"class box is per-axis largest keeping the widest member");
+	changed = input; changed.Bridges.Reset_Active ();
+	Check (!Hybrid_Run_Preflight (profile,changed,&result) && result.Failure == HYBRID_PREFLIGHT_NO_HEAVY_CAPABLE_BRIDGE,"missing heavy bridge fails preflight");
+	ProceduralWorldProfile altered = profile; altered.Plan.AllowFords = true;
+	Check (!Hybrid_Run_Preflight (altered,input,&result) && result.Failure == HYBRID_PREFLIGHT_FORD_CAPABILITY_UNAVAILABLE,"missing ford capability fails preflight");
+	altered = profile; altered.Plan.BiomeMode = "mixed"; altered.Plan.Biome = "auto";
+	Check (!Hybrid_Run_Preflight (altered,input,&result) && result.Failure == HYBRID_PREFLIGHT_UNSUPPORTED_BIOME_ASSET_SET,"mixed biome preflight must reject a registry with no compatible pair");
+	altered = profile; altered.Fairness.MinVehicleLaneClearance += 1;
+	Check (Hybrid_Run_Preflight (altered,input,&result) && result.Metrics.PlanningInputHash != baseline,"fairness changes planning identity");
+	altered = profile; altered.Retry.MaxAlternateCandidatesPerFeature += 1;
+	Check (Hybrid_Run_Preflight (altered,input,&result) && result.Metrics.PlanningInputHash != baseline,"retry limits change planning identity");
+	altered = profile; altered.Plan.LaneWidthCells += 1; altered.Features.Settlements = !altered.Features.Settlements;
+	changed = input; changed.DecorationTypesAvailable = changed.LampTypeAvailable = true;
+	Check (Hybrid_Run_Preflight (altered,changed,&result) && result.Metrics.PlanningInputHash == baseline,"legacy and cosmetic inputs excluded from planning identity");
+	changed = input; bridge.Name = "alternate_bridge"; changed.Bridges.Add (bridge);
+	Check (Hybrid_Run_Preflight (profile,changed,&result) && result.Metrics.PlanningInputHash != baseline,"all bridge candidates affect planning identity");
+	changed = input; changed.TerrainLayers[0].Name = "alternate_ground";
+	Check (Hybrid_Run_Preflight (profile,changed,&result) && result.Metrics.PlanningInputHash != baseline,"resolved biome material identity affects planning identity");
+	changed = input;
+	layer.Name = "test_snow"; layer.Kind = TERRAIN_LAYER_BASE; layer.SurfaceType = SURFACE_TYPE_SNOW;
+	changed.TerrainLayers.Add (layer);
+	altered = profile; altered.Plan.BiomeMode = "mixed"; altered.Plan.SecondaryBiome = "snow";
+	Check (Hybrid_Run_Preflight (altered,changed,&result),"available legal mixed biome pair rejected");
+	altered.Plan.Biome = "snow";
+	Check (!Hybrid_Run_Preflight (altered,changed,&result) && result.Failure == HYBRID_PREFLIGHT_UNSUPPORTED_BIOME_ASSET_SET,"mixed primary and secondary must differ");
+	altered = profile; altered.Plan.BiomeMode = "auto"; altered.Plan.MixedBiomeProbability = 1;
+	Check (!Hybrid_Run_Preflight (altered,input,&result) && result.Failure == HYBRID_PREFLIGHT_UNSUPPORTED_BIOME_ASSET_SET,"guaranteed mixed mode requires compatible assets");
+	altered.Plan.MixedBiomeProbability = 0;
+	Check (Hybrid_Run_Preflight (altered,input,&result),"guaranteed single mode needs only one biome");
+	changed = input;
+	layer.Name = "later_grass"; layer.SurfaceType = SURFACE_TYPE_GRASS; changed.TerrainLayers.Add (layer);
+	Check (Hybrid_Run_Preflight (profile,changed,&result) && result.Metrics.BiomeSlotLayer[HYBRID_BIOME_TEMPERATE][HYBRID_SLOT_GROUND] == 0,
+		"material ties select lower registry StableId");
+
+	//	Section 0.8 required-feature validation: each hybrid-required feature disabled in the profile
+	//	is rejected by the menu-time request check and by the runtime preflight, before any seeded stage.
+	{
+		struct { const char * Detail; int Which; } required[4] = {
+			{ "water.rivers",0 }, { "water.lakes",1 }, { "world_features.highways",2 }, { "world_features.tiberium_fields",3 } };
+		for (int r = 0; r < 4; ++r) {
+			altered = profile;
+			switch (required[r].Which) {
+				case 0: altered.Water.Rivers = false; break;
+				case 1: altered.Water.Lakes = false; break;
+				case 2: altered.Features.Highways = false; break;
+				default: altered.Features.TiberiumFields = false; break;
+			}
+			Check (!Hybrid_Preflight_Request_Check (altered,false,&result) && result.Failure == HYBRID_PREFLIGHT_REQUIRED_FEATURE_DISABLED &&
+				::strcmp (result.Detail.Peek_Buffer (),required[r].Detail) == 0,
+				"request check rejects disabled %s (got '%s')",required[r].Detail,result.Detail.Peek_Buffer ());
+			Check (!Hybrid_Run_Preflight (altered,input,&result) && result.Failure == HYBRID_PREFLIGHT_REQUIRED_FEATURE_DISABLED,
+				"runtime preflight rejects disabled %s",required[r].Detail);
+		}
+		Check (Hybrid_Preflight_Request_Check (profile,false,&result),"request check admits the native profile: %s",result.Detail.Peek_Buffer ());
+		altered = profile; altered.World.Width = 2401; altered.World.Height = 100;
+		Check (!Hybrid_Preflight_Request_Check (altered,false,&result) && result.Failure == HYBRID_PREFLIGHT_WORLD_SIZE_LIMIT_EXCEEDED,"request check rejects an oversize extent");
+		Check (Hybrid_Preflight_Request_Check (altered,true,&result),"request check developer path admits oversize");
+		altered.World.Width = 0;
+		Check (!Hybrid_Preflight_Request_Check (altered,true,&result) && result.Failure == HYBRID_PREFLIGHT_WORLD_SIZE_LIMIT_EXCEEDED,"request check developer path still rejects non-positive size");
+		altered = profile; altered.World.Width = 2400; altered.World.Height = 2400;
+		Check (Hybrid_Preflight_Request_Check (altered,false,&result),"the 2400x2400 area limit boundary is admitted");
+	}
+
+	//	Section 0.8 remaining hard failures: every listed refusal code fires from its own input gap.
+	{
+		changed = input; changed.WorldUnitsPerMeter = 0;
+		Check (!Hybrid_Run_Preflight (profile,changed,&result) && result.Failure == HYBRID_PREFLIGHT_MISSING_WORLD_UNITS_PER_METER,"missing world units per meter fails preflight");
+		changed = input; changed.Buildings[0].Found = false;
+		Check (!Hybrid_Run_Preflight (profile,changed,&result) && result.Failure == HYBRID_PREFLIGHT_MISSING_STARTING_BUILDING_FOOTPRINT,"missing starting building footprint fails preflight");
+		changed = input; changed.Buildings[0].Radius = 0;
+		Check (!Hybrid_Run_Preflight (profile,changed,&result) && result.Failure == HYBRID_PREFLIGHT_MISSING_STARTING_BUILDING_FOOTPRINT,"zero starting building radius fails preflight");
+		changed = input; changed.ReferenceVehicleSpeed = 0;
+		Check (!Hybrid_Run_Preflight (profile,changed,&result) && result.Failure == HYBRID_PREFLIGHT_MISSING_FAIRNESS_REFERENCE_SPEED,"missing reference vehicle speed fails preflight");
+		changed = input; changed.ReferenceInfantrySpeed = 0;
+		Check (!Hybrid_Run_Preflight (profile,changed,&result) && result.Failure == HYBRID_PREFLIGHT_MISSING_FAIRNESS_REFERENCE_SPEED,"missing reference infantry speed fails preflight");
+		altered = profile; altered.Resource.HarvesterLoadAmount = 0;
+		Check (!Hybrid_Run_Preflight (altered,input,&result) && result.Failure == HYBRID_PREFLIGHT_MISSING_HARVESTER_LOAD_AMOUNT,"missing harvester load amount fails preflight");
+	}
+
+	//	Section 0.6 size class derives from D = min(width,height) and selects the heavy route class.
+	{
+		struct { float W,H; HybridSizeClass Expected; HybridRoadClass Route; } sizes[5] = {
+			{ 899,2000,HYBRID_SIZE_SMALL,HYBRID_ROAD_PRIMARY_2 }, { 900,2000,HYBRID_SIZE_MEDIUM,HYBRID_ROAD_HIGHWAY_4 },
+			{ 2000,1799,HYBRID_SIZE_MEDIUM,HYBRID_ROAD_HIGHWAY_4 }, { 1800,1800,HYBRID_SIZE_LARGE,HYBRID_ROAD_HIGHWAY_4 },
+			{ 2400,2400,HYBRID_SIZE_LARGE,HYBRID_ROAD_HIGHWAY_4 } };
+		for (int i = 0; i < 5; ++i) {
+			altered = profile; altered.World.Width = sizes[i].W; altered.World.Height = sizes[i].H;
+			Check (Hybrid_Run_Preflight (altered,input,&result) && result.Metrics.Constants.SizeClass == sizes[i].Expected &&
+				result.Metrics.HeavyRouteClass == sizes[i].Route,
+				"%gx%g derives size class %d / heavy route %d (got %d / %d: %s)",sizes[i].W,sizes[i].H,(int)sizes[i].Expected,(int)sizes[i].Route,
+				(int)result.Metrics.Constants.SizeClass,(int)result.Metrics.HeavyRouteClass,result.Detail.Peek_Buffer ());
+		}
+	}
+
+	//	Section 0.3: the manifest carries the planning identity next to the legacy profile hash, and
+	//	it survives the manifest's own serialization.
+	{
+		Check (Hybrid_Run_Preflight (profile,input,&result),"baseline preflight for manifest carry: %s",result.Detail.Peek_Buffer ());
+		DynamicVectorClass<StringClass> content;
+		WorldGenerationManifest manifest = WorldGenerationManifestService::Create_Empty_World_Manifest (profile,content);
+		Check (manifest.HybridPlanningInputHash == 0u && manifest.HybridContentRevision == 0u,"an empty manifest carries no hybrid identity");
+		manifest.HybridPlanningInputHash = result.Metrics.PlanningInputHash;
+		manifest.HybridContentRevision = result.Metrics.ContentRevision;
+		StringClass json (""), error ("");
+		WorldGenerationManifest reloaded;
+		Check (WorldGenerationManifestService::Serialize (manifest,&json) &&
+			WorldGenerationManifestService::Deserialize (json.Peek_Buffer (),&reloaded,&error) &&
+			reloaded.HybridPlanningInputHash == result.Metrics.PlanningInputHash &&
+			reloaded.HybridContentRevision == result.Metrics.ContentRevision,
+			"hybrid planning identity survives the manifest round trip: %s",error.Peek_Buffer ());
+		StringClass repro = WorldGenerationManifestService::Format_Reproduction_String (manifest);
+		StringClass suffix (64u,true);
+		suffix.Format (" hybrid_planning=%u hybrid_content=%u",result.Metrics.PlanningInputHash,result.Metrics.ContentRevision);
+		Check (::strstr (repro.Peek_Buffer (),suffix.Peek_Buffer ()) != nullptr,"reproduction string names the hybrid identity: %s",repro.Peek_Buffer ());
+	}
+
+	//	Section 0.8's other half: the runtime gathering path itself, against the live registries.
+	//	A self-check mounts no game content, so the honest outcome is that every vehicle metric
+	//	comes back unmeasured and preflight names the missing metric rather than inventing one,
+	//	while the registry-backed half -- bridges, tunnel modules, terrain layers, world units per
+	//	metre and the two fairness speeds -- still resolves.
+	{
+		BridgeSystem::Init ();
+		TunnelSystem::Init ();
+		FoliageSystem::Init ();
+
+		HybridPreflightInputs runtime;
+		runtime.Gather_From_Runtime (profile);
+
+		Check (runtime.WorldUnitsPerMeter == WorldMetricsClass::Get_World_Units_Per_Meter () && runtime.WorldUnitsPerMeter > 0.0f &&
+			runtime.ReferenceVehicleSpeed == WorldMetricsClass::Get_Reference_Vehicle_Speed () &&
+			runtime.ReferenceInfantrySpeed == WorldMetricsClass::Get_Reference_Infantry_Speed (),
+			"runtime gathering takes the scale and both fairness speeds from WorldMetricsClass");
+		Check (runtime.Bridges.Count () == BridgeSystem::Get_Definition_Count () && runtime.Bridges.Count () > 0,
+			"runtime gathering reads every registered bridge (%d of %d)",runtime.Bridges.Count (),BridgeSystem::Get_Definition_Count ());
+		Check (runtime.TunnelModules.Count () == TunnelSystem::Get_Module_Count () && runtime.TunnelModules.Count () > 0,
+			"runtime gathering reads every registered tunnel module (%d of %d)",runtime.TunnelModules.Count (),TunnelSystem::Get_Module_Count ());
+		Check (runtime.TerrainLayers.Count () == TerrainTextureSystem::Get_Layer_Count () && runtime.TerrainLayers.Count () > 0,
+			"runtime gathering reads every terrain layer (%d of %d)",runtime.TerrainLayers.Count (),TerrainTextureSystem::Get_Layer_Count ());
+		Check (runtime.Buildings.Count () == profile.Base.GdiInitialBuildings.Count () + profile.Base.NodInitialBuildings.Count (),
+			"runtime gathering asks after every starting building");
+		Check (runtime.BridgeMaxSpanLength > 0.0f && runtime.BridgeWaterClearanceMargin > 0.0f,
+			"runtime gathering takes the span and water clearance limits from BridgePlannerParams");
+		Check (!runtime.AllowOversizeDevelopment && !runtime.FordCapabilityAvailable,
+			"runtime gathering never opens the developer oversize path or claims a ford capability");
+		Check (!runtime.Humvee.Measured && !runtime.HeavyVehicle.Measured &&
+			!runtime.Harvesters[0].Measured && !runtime.Harvesters[1].Measured,
+			"with no content mounted every vehicle metric stays unmeasured");
+
+		HybridPreflightResult runtime_result;
+		Check (!Hybrid_Run_Preflight (profile,runtime,&runtime_result) &&
+			runtime_result.Failure == HYBRID_PREFLIGHT_MISSING_HUMVEE_COLLISION_METRIC,
+			"an unmeasured runtime snapshot is rejected by name rather than filled in (%s)",
+			Hybrid_Preflight_Failure_Name (runtime_result.Failure));
+
+		//	Two gatherings of one unchanged registry set must agree: the structural revision is what
+		//	the manifest records and what the join handshake compares, so a drift here would split a
+		//	host from a client that loaded the same content.
+		HybridPreflightInputs again;
+		again.Gather_From_Runtime (profile);
+		const unsigned int gathered_revision = Hybrid_Structural_Content_Revision (runtime);
+		Check (Hybrid_Structural_Content_Revision (again) == gathered_revision && gathered_revision != 0,
+			"runtime gathering is repeatable and its structural revision is non-zero");
+
+		//	The measured reference vehicles of docs/procedural_world/VehicleCollisionMetrics.md and
+		//	resolved starting footprints are the only things content would have added, so with those
+		//	filled in the gathered registry snapshot must carry a complete preflight.
+		for (int v = 0; v < 4; ++v) {
+			HybridVehicleMetricInput * out = (v == 0) ? &runtime.Humvee
+													: (v == 1) ? &runtime.HeavyVehicle : &runtime.Harvesters[v - 2];
+			*out = *vehicles[v].Out;
+		}
+		for (int i = 0; i < runtime.Buildings.Count (); ++i) {
+			runtime.Buildings[i].Found = true;
+			runtime.Buildings[i].Radius = 20;
+			runtime.Buildings[i].Height = 15;
+		}
+		Check (Hybrid_Run_Preflight (profile,runtime,&runtime_result),
+			"the gathered registry snapshot completes preflight: %s",runtime_result.Detail.Peek_Buffer ());
+		Check (runtime_result.Metrics.ContentRevision == Hybrid_Structural_Content_Revision (runtime) &&
+			runtime_result.Metrics.ContentRevision != gathered_revision,
+			"the metric cache digests the gathered structural records");
+		Check (runtime_result.Metrics.BridgeForClass[runtime_result.Metrics.HeavyRouteClass] >= 0 &&
+			runtime_result.Metrics.BridgeMaxSpanLength > 0.0f,
+			"a registered bridge definition carries the heavy route class");
+		Check (runtime_result.Metrics.TunnelPortalModule >= 0,
+			"a registered portal-compatible tunnel module clears the heavy envelope");
+		Check (runtime_result.Metrics.BiomeAvailable[HYBRID_BIOME_TEMPERATE] &&
+			runtime_result.Metrics.BiomeSlotLayer[HYBRID_BIOME_TEMPERATE][HYBRID_SLOT_GROUND] >= 0 &&
+			runtime_result.Metrics.BiomeSlotLayer[HYBRID_BIOME_TEMPERATE][HYBRID_SLOT_EXPOSED_ROCK] >= 0,
+			"the default terrain layer registry fills the temperate material slots");
+		Check (runtime_result.Metrics.PlanningInputHash != baseline,
+			"the gathered registry snapshot carries its own planning identity");
+
+		BridgeSystem::Shutdown ();
+		TunnelSystem::Shutdown ();
+		FoliageSystem::Shutdown ();
+	}
+}
+
+void	Check_Map_Plan (void)
+{
+	MapPlanGenerator::Init ();
+
+	//	Refusals leave nothing behind.
+	{
+		StringClass error ("");
+		MapPlanParams bad;
+		Make_Map_Plan_Test_Params (&bad);
+		bad.TierCount = 1;
+		Check (!MapPlanGenerator::Generate (bad, &error), "a single tier plan was accepted");
+		Check (error.Get_Length () > 0, "a refused plan carried no reason");
+		Check (!MapPlanGenerator::Has_Plan (), "a refused plan left state behind");
+
+		Make_Map_Plan_Test_Params (&bad);
+		bad.WorldWidth = 300.0f;		// 5 cells across
+		Check (!MapPlanGenerator::Generate (bad, &error), "a 5-cell-wide world was accepted");
+
+		Make_Map_Plan_Test_Params (&bad);
+		bad.FlankLaneCount = 3;
+		Check (!MapPlanGenerator::Generate (bad, &error), "three flank lanes were accepted");
+	}
+
+	MapPlanParams params;
+	Make_Map_Plan_Test_Params (&params);
+	StringClass error ("");
+	Check (MapPlanGenerator::Generate (params, &error), "a valid plan was refused: %s", error.Peek_Buffer ());
+	Check (MapPlanGenerator::Has_Plan (), "a successful plan reported none");
+	Check (MapPlanGenerator::Get_Cell_Count_X () == 20 && MapPlanGenerator::Get_Cell_Count_Y () == 20,
+			 "a 1200-unit world at 60-unit cells is %d x %d cells, not 20 x 20",
+			 MapPlanGenerator::Get_Cell_Count_X (), MapPlanGenerator::Get_Cell_Count_Y ());
+	unsigned int checksum = MapPlanGenerator::Get_Checksum ();
+	Check (checksum != 0, "a built plan has a zero checksum");
+
+	//	Layout graph: exactly one base per side, a centre field, one flank field, two chokes.
+	Check (MapPlanGenerator::Get_Site_Count_By_Kind (MAP_PLAN_SITE_BASE_GDI) == 1, "GDI base site count is not 1");
+	Check (MapPlanGenerator::Get_Site_Count_By_Kind (MAP_PLAN_SITE_BASE_NOD) == 1, "Nod base site count is not 1");
+	Check (MapPlanGenerator::Get_Site_Count_By_Kind (MAP_PLAN_SITE_FIELD_CENTER) == 1, "centre field count is not 1");
+	Check (MapPlanGenerator::Get_Site_Count_By_Kind (MAP_PLAN_SITE_FIELD_FLANK) == 1, "flank field count is not 1");
+	Check (MapPlanGenerator::Get_Site_Count_By_Kind (MAP_PLAN_SITE_CHOKE) == 2, "choke count is not 2");
+
+	//	Symmetry: Nod is GDI rotated 180 degrees about the centre, so the two are equidistant
+	//	from it and on opposite sides.  Both sit inside the margin.
+	MapPlanSite gdi, nod;
+	bool found_gdi = false, found_nod = false;
+	for (int i = 0; i < MapPlanGenerator::Get_Site_Count (); i++) {
+		MapPlanSite site;
+		MapPlanGenerator::Get_Site (i, &site);
+		if (site.Kind == MAP_PLAN_SITE_BASE_GDI) { gdi = site; found_gdi = true; }
+		if (site.Kind == MAP_PLAN_SITE_BASE_NOD) { nod = site; found_nod = true; }
+	}
+	Check (found_gdi && found_nod, "base sites missing from the site list");
+	Check ((gdi.CellX + nod.CellX == 19) && (gdi.CellY + nod.CellY == 19),
+			 "rotational symmetry broken: GDI (%d,%d) vs Nod (%d,%d)", gdi.CellX, gdi.CellY, nod.CellX, nod.CellY);
+	float gdi_d = (float)sqrt ((double)(gdi.Position.X * gdi.Position.X + gdi.Position.Y * gdi.Position.Y));
+	Check (gdi_d > 200.0f, "GDI base is only %.1f units from the centre -- bases must sit apart", gdi_d);
+
+	//	Base discs are flat on the mid tier and painted BASE; the centre field sits on tier 0.
+	{
+		int tier = -1;
+		MapPlanCellKind kind = MAP_PLAN_CELL_OPEN;
+		Check (MapPlanGenerator::Get_Cell (gdi.CellX, gdi.CellY, &tier, &kind), "GDI base cell is off-grid");
+		Check (tier == 1, "GDI base tier is %d, not the mid tier 1", tier);
+		Check (kind == MAP_PLAN_CELL_BASE, "GDI base cell kind is %d, not BASE", (int)kind);
+		Check (MapPlanGenerator::Get_Base_Site_Weight (gdi.Position.X, gdi.Position.Y) == 1.0f, "base site weight is not 1 at the GDI site");
+		Check (MapPlanGenerator::Get_Base_Site_Weight (0.0f, 0.0f) == 0.0f, "base site weight is not 0 at the world centre");
+
+		MapPlanSite center;
+		for (int i = 0; i < MapPlanGenerator::Get_Site_Count (); i++) {
+			MapPlanSite site;
+			MapPlanGenerator::Get_Site (i, &site);
+			if (site.Kind == MAP_PLAN_SITE_FIELD_CENTER) center = site;
+		}
+		MapPlanGenerator::Get_Cell (center.CellX, center.CellY, &tier, &kind);
+		Check (tier == 0, "centre field tier is %d, not 0", tier);
+		Check (kind == MAP_PLAN_CELL_FIELD, "centre field cell kind is %d, not FIELD", (int)kind);
+	}
+
+	//	Lane continuity: no LANE/RAMP/BASE/FIELD cell differs from a 4-neighbour of the same
+	//	class by more than one tier.  Every tier change somewhere on the grid is either a RAMP
+	//	(under a lane) or a CLIFF_SEAM (open ground).  Water is only on tier 0 open cells.
+	{
+		int violations = 0, seams = 0, ramps = 0, water = 0, lane_cells = 0;
+		static const int NX[4] = { 1, -1, 0, 0 };
+		static const int NY[4] = { 0, 0, 1, -1 };
+		int cx_count = MapPlanGenerator::Get_Cell_Count_X ();
+		int cy_count = MapPlanGenerator::Get_Cell_Count_Y ();
+		for (int y = 0; y < cy_count; y++) {
+			for (int x = 0; x < cx_count; x++) {
+				int tier = 0; MapPlanCellKind kind;
+				MapPlanGenerator::Get_Cell (x, y, &tier, &kind);
+				if (kind == MAP_PLAN_CELL_CLIFF_SEAM) seams++;
+				if (kind == MAP_PLAN_CELL_RAMP) ramps++;
+				if (kind == MAP_PLAN_CELL_LANE) lane_cells++;
+				if (kind == MAP_PLAN_CELL_WATER) {
+					water++;
+					if (tier != 0) violations++;
+				}
+				bool walkable = (kind == MAP_PLAN_CELL_LANE) || (kind == MAP_PLAN_CELL_RAMP) || (kind == MAP_PLAN_CELL_BASE) || (kind == MAP_PLAN_CELL_FIELD);
+				if (!walkable) continue;
+				for (int n = 0; n < 4; n++) {
+					int ntier = 0; MapPlanCellKind nkind;
+					if (!MapPlanGenerator::Get_Cell (x + NX[n], y + NY[n], &ntier, &nkind)) continue;
+					bool nwalk = (nkind == MAP_PLAN_CELL_LANE) || (nkind == MAP_PLAN_CELL_RAMP) || (nkind == MAP_PLAN_CELL_BASE) || (nkind == MAP_PLAN_CELL_FIELD);
+					if (!nwalk) continue;
+					if (abs (tier - ntier) > 1) violations++;
+				}
+			}
+		}
+		Check (violations == 0, "%d lane/water continuity violations in the plan", violations);
+		Check (lane_cells > 0, "the plan painted no lane cells");
+		Check (seams + ramps > 0, "the plan has no tier changes at all -- flat map");
+		Check (ramps > 0, "no lane crosses a tier change -- expected at least one ramp with 3 tiers");
+	}
+
+	//	Tier height realization: a base cell centre samples exactly tier * step; a point far
+	//	off-grid clamps into the tier range.
+	{
+		float h = MapPlanGenerator::Sample_Tier_Height (gdi.Position.X, gdi.Position.Y);
+		Check (fabs (h - 18.0f) < 0.01f, "GDI base centre samples %.3f, not 18.0 (tier 1 x 18)", h);
+		float h_corner = MapPlanGenerator::Sample_Tier_Height (-10000.0f, -10000.0f);
+		Check (h_corner >= 0.0f && h_corner <= 36.0f, "an off-grid sample returned %.3f, outside 0..36", h_corner);
+	}
+
+	//	Determinism: same seed and params, same checksum; different seed, different checksum.
+	{
+		Check (MapPlanGenerator::Generate (params, &error), "regeneration refused");
+		Check (MapPlanGenerator::Get_Checksum () == checksum, "the same seed produced a different plan checksum");
+		MapPlanParams other = params;
+		other.Seed = 4243u;
+		Check (MapPlanGenerator::Generate (other, &error), "second seed refused");
+		Check (MapPlanGenerator::Get_Checksum () != checksum, "a different seed produced the same plan checksum");
+	}
+
+	//	Mirror symmetry and no symmetry both build.
+	{
+		MapPlanParams m = params;
+		m.Symmetry = MAP_PLAN_SYMMETRY_MIRROR_X;
+		Check (MapPlanGenerator::Generate (m, &error), "mirror_x plan refused: %s", error.Peek_Buffer ());
+		MapPlanParams n = params;
+		n.Symmetry = MAP_PLAN_SYMMETRY_NONE;
+		Check (MapPlanGenerator::Generate (n, &error), "no-symmetry plan refused: %s", error.Peek_Buffer ());
+		Check (MapPlanGenerator::Get_Site_Count_By_Kind (MAP_PLAN_SITE_BASE_NOD) == 1, "no-symmetry plan lost the Nod base");
+	}
+
+	//	Macro terrain realizes the plan: with UsePlan the planned base centre lands near the
+	//	tier height; UsePlan without a plan is refused.
+	{
+		WorldTerrainSystem::Init ();
+		MacroTerrainGenerator::Init ();
+		WorldBoundsService::Init ();
+
+		MapPlanParams plan_params;
+		Make_Map_Plan_Test_Params (&plan_params);
+		plan_params.WorldWidth = 256.0f;
+		plan_params.WorldHeight = 256.0f;
+		plan_params.ChunkSize = 16.0f;		// 16 x 16 cells
+		plan_params.BaseRadiusCells = 2;
+		Check (MapPlanGenerator::Generate (plan_params, &error), "terrain-realization plan refused: %s", error.Peek_Buffer ());
+
+		MacroTerrainParams tp;
+		Make_Macro_Terrain_Test_Params (&tp);
+		tp.ChunkSize = 16.0f;
+		tp.MaxElevation = 60.0f;
+		tp.UsePlan = true;
+		tp.PlanDetailWeight = 0.2f;
+		Check (MacroTerrainGenerator::Generate (tp, &error), "plan-driven terrain refused: %s", error.Peek_Buffer ());
+
+		MapPlanSite base;
+		for (int i = 0; i < MapPlanGenerator::Get_Site_Count (); i++) {
+			MapPlanSite site;
+			MapPlanGenerator::Get_Site (i, &site);
+			if (site.Kind == MAP_PLAN_SITE_BASE_GDI) base = site;
+		}
+		float h = 0.0f;
+		Check (WorldTerrainSystem::Sample_Height (base.Position.X, base.Position.Y, &h), "no terrain height at the planned base");
+		Check (fabs (h - 18.0f) < 8.0f, "planned base centre realized at %.2f, expected within 8 of tier height 18", h);
+
+		//	Site weights: 1 at the site centre, 0 well outside every disc.
+		Check (MapPlanGenerator::Get_Base_Site_Weight (base.Position.X, base.Position.Y) == 1.0f, "base site weight was not 1 at the base centre");
+		Check (MapPlanGenerator::Get_Field_Site_Weight (base.Position.X, base.Position.Y) == 0.0f, "field site weight was not 0 at the base centre");
+		{
+			MapPlanSite field;
+			bool have_field = false;
+			for (int i = 0; i < MapPlanGenerator::Get_Site_Count (); i++) {
+				MapPlanSite site;
+				MapPlanGenerator::Get_Site (i, &site);
+				if (site.Kind == MAP_PLAN_SITE_FIELD_CENTER) { field = site; have_field = true; }
+			}
+			Check (have_field, "no centre field site to test the field weight against");
+			Check (MapPlanGenerator::Get_Field_Site_Weight (field.Position.X, field.Position.Y) == 1.0f, "field site weight was not 1 at the centre field");
+			Check (MapPlanGenerator::Get_Base_Site_Weight (field.Position.X, field.Position.Y) == 0.0f, "base site weight was not 0 at the centre field");
+		}
+
+		//
+		//	Plan consumers on the realized terrain (D-003 follow-on).  The strategic planner
+		//	puts a base candidate inside a planned base disc and a resource candidate inside a
+		//	planned field disc, and never spends a base disc on a resource candidate.  The
+		//	hydrology generator carves every planned WATER cell it can reach within the river
+		//	budget.
+		//
+		{
+			WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+			WaterSystem::Init ();
+			StrategicPlanner::Init ();
+			HydrologyGenerator::Init ();
+
+			StrategicPlannerParams sp;
+			sp.Seed							= 909u;
+			sp.MinApproachCount			= 1;
+			sp.MinBaseCandidatesPerFaction	= 1;
+			sp.MinBaseSeparation			= 24.0f;
+			sp.MaxTiberiumCandidates		= 4;
+			sp.MaxSettlementCandidates	= 2;
+			sp.MaxPoiCandidates			= 2;
+			sp.MaxExpansionCandidates	= 2;
+			sp.MaxEconomicRange			= 400.0f;
+			Check (StrategicPlanner::Generate (sp, &error), "strategic planner refused plan-realized terrain: %s", error.Peek_Buffer ());
+
+			int base_in_disc = 0, resource_in_field = 0, resource_in_base = 0;
+			for (int i = 0; i < StrategicPlanner::Get_Node_Count (); i++) {
+				StrategicNode node;
+				if (!StrategicPlanner::Get_Node (i, &node)) continue;
+				float bw = MapPlanGenerator::Get_Base_Site_Weight (node.Position.X, node.Position.Y);
+				float fw = MapPlanGenerator::Get_Field_Site_Weight (node.Position.X, node.Position.Y);
+				if (node.Type == STRATEGIC_NODE_BASE_CANDIDATE) {
+					if (bw > 0.0f) base_in_disc++;
+				} else if (node.Type == STRATEGIC_NODE_RESOURCE_CANDIDATE) {
+					if (fw > 0.0f) resource_in_field++;
+					if (bw > 0.0f) resource_in_base++;
+				}
+			}
+			Check (base_in_disc >= 1, "no base candidate landed inside a planned base disc");
+			Check (resource_in_field >= 1, "no resource candidate landed inside a planned field disc");
+			Check (resource_in_base == 0, "%d resource candidates were placed inside planned base discs", resource_in_base);
+
+			int planned_water = 0;
+			for (int cy = 0; cy < MapPlanGenerator::Get_Cell_Count_Y (); cy++) {
+				for (int cx = 0; cx < MapPlanGenerator::Get_Cell_Count_X (); cx++) {
+					int tier = 0;
+					MapPlanCellKind kind = MAP_PLAN_CELL_OPEN;
+					if (MapPlanGenerator::Get_Cell (cx, cy, &tier, &kind) && (kind == MAP_PLAN_CELL_WATER)) planned_water++;
+				}
+			}
+
+			HydrologyParams hp;
+			hp.Seed							= 4242u;
+			hp.GenerateRivers				= false;
+			hp.GenerateLakes				= true;
+			hp.GeneratePonds				= true;
+			hp.GenerateCoastline			= false;
+			hp.RiverWidth					= 6.0f;
+			hp.StreamWidth					= 2.5f;
+			hp.RiverAccumulationChunks	= 2.5f;
+			hp.MaxRiverCount				= 64;
+			hp.SeaLevel						= -100.0f;
+			Check (HydrologyGenerator::Generate (hp, &error), "hydrology refused plan-realized terrain: %s", error.Peek_Buffer ());
+			if (planned_water > 0) {
+				Check (HydrologyGenerator::Get_Feature_Count () >= 1,
+						 "the plan had %d WATER cells but hydrology carved no water feature", planned_water);
+			}
+			StringClass report ("");
+			Check (HydrologyGenerator::Check_No_Cliff_Band_Overlap (&report) == 0, "%s", report.Peek_Buffer ());
+			Check (HydrologyGenerator::Check_Lake_Within_Basin (&report) == 0, "%s", report.Peek_Buffer ());
+
+			HydrologyGenerator::Shutdown ();
+			StrategicPlanner::Shutdown ();
+			WaterSystem::Shutdown ();
+		}
+
+		MapPlanGenerator::Clear ();
+		Check (!MacroTerrainGenerator::Generate (tp, &error), "UsePlan without a plan was accepted");
+		tp.UsePlan = false;
+		Check (MacroTerrainGenerator::Generate (tp, &error), "plain terrain refused after plan tests: %s", error.Peek_Buffer ());
+
+		MacroTerrainGenerator::Shutdown ();
+		WorldBoundsService::Shutdown ();
+		WorldTerrainSystem::Shutdown ();
+	}
+
+	MapPlanGenerator::Shutdown ();
+}
+
+
 void	Check_Macro_Terrain (void)
 {
 	WorldTerrainSystem::Init ();
@@ -3751,6 +8197,8 @@ void	Check_Macro_Terrain (void)
 				 "generation refused a valid profile: %s", error.Peek_Buffer ());
 		Check (MacroTerrainGenerator::Has_Generated (), "a successful generation reported no terrain");
 		Check (WorldTerrainSystem::Has_Terrain (), "a successful generation left no heightfield");
+		Check (TerrainTextureSystem::Get_Layer_Count () > 0,
+			"generated terrain has no material layers and will render invisible");
 
 		//	A 256-unit field at 64/16=4-unit cells is 65 vertices across, which is 4 chunks --
 		//	stated as the arithmetic it is so a change to either input shows up here as a wrong
@@ -4123,6 +8571,7 @@ void	Check_Hydrology (void)
 	{
 		Build_Uniform_Ramp_Terrain (3,4.0f,10.0f,Vector3 (-96.0f,-96.0f,0.0f));
 		WorldTerrainSystem::Build_Chunk_Registry (0.5f);
+		Check (TerrainTextureSystem::Create_Masks (), "the hydrology test could not create terrain masks");
 
 		HydrologyParams params;
 		params.Seed							= 55u;
@@ -4138,6 +8587,16 @@ void	Check_Hydrology (void)
 		Check (HydrologyGenerator::Generate (params,&error),
 				 "generation refused a uniform ramp: %s",error.Peek_Buffer ());
 		Check (HydrologyGenerator::Has_Hydrology (), "a successful generation reported no hydrology built");
+		TerrainMaskClass * water_distance = TerrainTextureSystem::Peek_Mask (TERRAIN_MASK_WATER_DISTANCE);
+		float nearest_water = 10000.0f;
+		if (water_distance != nullptr) {
+			for (int y = 0; y < water_distance->Get_Vertex_Count_Y (); y++) {
+				for (int x = 0; x < water_distance->Get_Vertex_Count_X (); x++) {
+					nearest_water = WWMath::Min (nearest_water,water_distance->Get (x,y));
+				}
+			}
+		}
+		Check (nearest_water < 4.0f, "generated water left the shoreline distance mask empty");
 		Check (HydrologyGenerator::Get_Feature_Count () >= 2,
 				 "a uniform 3-row ramp produced fewer than one channel and one basin");
 
@@ -4222,6 +8681,294 @@ void	Check_Hydrology (void)
 	WaterSystem::Shutdown ();
 	WorldTerrainSystem::Shutdown ();
 	WorldBoundsService::Shutdown ();
+}
+
+
+// Exercise the actual native profile, whose noise and boundary can expose sparse
+// features that the small synthetic fixtures above deliberately cannot.
+bool Check_Native_Profile_Quality (unsigned int seed_override = 0,bool bridges_only = false,unsigned int * checksum_out = nullptr)
+{
+	bool usable_crossing = false;
+	WorldTerrainSystem::Init ();
+	WorldBoundsService::Init ();
+	MacroTerrainGenerator::Init ();
+	InteriorCliffGenerator::Init ();
+	WaterSystem::Init ();
+	HydrologyGenerator::Init ();
+	StrategicPlanner::Init ();
+	RoadSystem::Init ();
+	RoadGraphGenerator::Init ();
+	BridgeSystem::Init ();
+	BridgePlanner::Init ();
+	BaseSelectionPlanner::Init ();
+
+	ProceduralWorldProfile profile;
+	StringClass error ("");
+	bool loaded = ProceduralWorldProfileManager::Load_Profile_From_File (
+		"data/procedural_world/native.json",&profile,&error);
+	Check (loaded,"native procedural profile could not load: %s",error.Peek_Buffer ());
+	if (loaded) {
+		Check (!profile.World.FitToLevel,"native profile unexpectedly fits a stock level");
+		if (seed_override != 0) profile.Seed = seed_override;
+		Check (profile.World.Width >= 2400.0f && profile.World.Height >= 2400.0f,
+			"native map is smaller than the large supported FPS battlefield size");
+		Check (ProceduralBoundsBuilder::Configure_World_Bounds (profile,&error),
+			"native boundary configuration failed: %s",error.Peek_Buffer ());
+
+		MacroTerrainParams terrain;
+		terrain.Seed = WorldSeedService::Derive_Subsystem_Seed (
+			profile.Seed,WorldSeedService::SEED_DOMAIN_TERRAIN);
+		terrain.WorldWidth = profile.World.Width;
+		terrain.WorldHeight = profile.World.Height;
+		terrain.ChunkSize = profile.World.ChunkSize;
+		terrain.CenterX = profile.World.CenterX;
+		terrain.CenterY = profile.World.CenterY;
+		terrain.SeaLevel = profile.World.SeaLevel;
+		terrain.MinElevation = profile.Terrain.MinElevation;
+		terrain.MaxElevation = profile.Terrain.MaxElevation;
+		terrain.LandElevationBias = profile.Terrain.LandElevationBias;
+		terrain.MaxBuildableSlopeRadians = (float)DEG_TO_RAD (profile.Terrain.MaxBuildableSlopeDegrees);
+		terrain.FeatureScale = profile.Terrain.FeatureScale;
+		terrain.MacroRelief = profile.Terrain.MacroRelief;
+		terrain.HillDensity = profile.Terrain.HillDensity;
+		terrain.MountainDensity = profile.Terrain.MountainDensity;
+		terrain.ValleyDensity = profile.Terrain.ValleyDensity;
+		terrain.RidgeSharpness = profile.Terrain.RidgeSharpness;
+		terrain.PlateauChance = profile.Terrain.PlateauChance;
+		terrain.BoundaryApproachFlattening = profile.Terrain.BoundaryApproachFlattening;
+
+		bool ground_built = MacroTerrainGenerator::Generate (terrain,&error);
+		Check (ground_built,"native macro terrain failed: %s",error.Peek_Buffer ());
+		if (ground_built) {
+			int macro_buildable = 0;
+			for (int y = 0; y < WorldTerrainSystem::Get_Chunk_Count_Y (); y++) {
+				for (int x = 0; x < WorldTerrainSystem::Get_Chunk_Count_X (); x++) {
+					TerrainChunkInfoClass info;
+					if (WorldTerrainSystem::Get_Chunk_Info (x,y,&info) && info.Buildable) macro_buildable++;
+				}
+			}
+			InteriorCliffParams cliffs;
+			cliffs.Seed = WorldSeedService::Derive_Subsystem_Seed (
+				profile.Seed,WorldSeedService::SEED_DOMAIN_INTERIOR_CLIFFS);
+			cliffs.MaxBuildableSlopeRadians = terrain.MaxBuildableSlopeRadians;
+			cliffs.Density = profile.Terrain.InteriorCliffDensity;
+			cliffs.LayerIndex = -1;
+			Check (InteriorCliffGenerator::Generate (cliffs,&error),
+				"native interior cliffs failed: %s",error.Peek_Buffer ());
+			Check (InteriorCliffGenerator::Get_Feature_Count () > 0,
+				"native profile produced no interior cliffs");
+			int after_cliffs_buildable = 0;
+			for (int y = 0; y < WorldTerrainSystem::Get_Chunk_Count_Y (); y++) {
+				for (int x = 0; x < WorldTerrainSystem::Get_Chunk_Count_X (); x++) {
+					TerrainChunkInfoClass info;
+					if (WorldTerrainSystem::Get_Chunk_Info (x,y,&info) && info.Buildable) after_cliffs_buildable++;
+				}
+			}
+
+			HydrologyParams water;
+			water.Seed = WorldSeedService::Derive_Subsystem_Seed (
+				profile.Seed,WorldSeedService::SEED_DOMAIN_HYDROLOGY);
+			water.GenerateRivers = profile.Water.Rivers;
+			water.GenerateLakes = profile.Water.Lakes;
+			water.GeneratePonds = profile.Water.Ponds;
+			water.GenerateCoastline = profile.Water.Coastline;
+			water.RiverWidth = profile.Water.RiverWidth;
+			water.StreamWidth = profile.Water.StreamWidth;
+			water.RiverAccumulationChunks = profile.Water.RiverAccumulationChunks;
+			water.MaxRiverCount = profile.Water.MaxRiverCount;
+			water.SeaLevel = profile.World.SeaLevel;
+			Check (HydrologyGenerator::Generate (water,&error),
+				"native hydrology failed: %s",error.Peek_Buffer ());
+			Check (WorldTerrainSystem::Build_Chunk_Registry (terrain.MaxBuildableSlopeRadians),
+				"native terrain registry refresh after hydrology failed");
+			Check (InteriorCliffGenerator::Restore_Chunk_Claims (),
+				"native interior cliff exclusions were lost after hydrology");
+			int channels = 0;
+			int rivers = 0;
+			int basins = 0;
+			int coast = 0;
+			int partial_coast = 0;
+			for (int i = 0; i < HydrologyGenerator::Get_Feature_Count (); i++) {
+				HydrologyFeature feature;
+				if (!HydrologyGenerator::Get_Feature (i,&feature)) continue;
+				if (feature.Type == HYDRO_FEATURE_COAST) {
+					coast++;
+					const WaterAreaClass * area = WaterSystem::Find_Area (feature.Name.Peek_Buffer ());
+					if (area != nullptr && area->Get_Station_Count () != 4) partial_coast++;
+				}
+				else if (feature.Enclosed) basins++;
+				else {
+					channels++;
+					if (feature.Type == HYDRO_FEATURE_RIVER) rivers++;
+				}
+			}
+			Check (channels > 0,"native profile produced no rivers or streams");
+			Check (rivers > 0,"native profile produced streams but no rivers");
+			Check (basins > 0,"native profile produced no lakes or ponds");
+			TerrainMaskClass * shore = TerrainTextureSystem::Peek_Mask (TERRAIN_MASK_WATER_DISTANCE);
+			float nearest = 10000.0f;
+			if (shore != nullptr) {
+				for (int y = 0; y < shore->Get_Vertex_Count_Y (); y++) {
+					for (int x = 0; x < shore->Get_Vertex_Count_X (); x++) {
+						nearest = WWMath::Min (nearest,shore->Get (x,y));
+					}
+				}
+			}
+			Check (nearest < 4.0f,"native water left the shoreline distance mask empty");
+			int sandy_shore_samples = 0;
+			int shore_layer = TerrainTextureSystem::Find_Layer ("shore");
+			if (shore != nullptr && shore_layer >= 0) {
+				for (int y = 0; y < shore->Get_Vertex_Count_Y (); y += 4) {
+					for (int x = 0; x < shore->Get_Vertex_Count_X (); x += 4) {
+						float distance = shore->Get (x,y);
+						if (distance <= 0.0f || distance >= 4.0f) continue;
+						float weights[16];
+						int layer_count = TerrainTextureSystem::Compute_Weights (x,y,weights,16);
+						if (shore_layer < layer_count && weights[shore_layer] > 0.1f) sandy_shore_samples++;
+					}
+				}
+			}
+			Check (sandy_shore_samples > 0,"native water generated no sandy shoreline samples");
+			StrategicPlannerParams plan;
+			plan.Seed = WorldSeedService::Derive_Subsystem_Seed (
+				profile.Seed,WorldSeedService::SEED_DOMAIN_BASES);
+			plan.MinApproachCount = profile.Fairness.MinVehicleApproachCount;
+			bool planned = StrategicPlanner::Generate (plan,&error);
+			Check (planned,"native strategic plan failed: %s",error.Peek_Buffer ());
+			int buildable = 0;
+			int dry_buildable = 0;
+			int approachable = 0;
+			for (int y = 0; y < WorldTerrainSystem::Get_Chunk_Count_Y (); y++) {
+				for (int x = 0; x < WorldTerrainSystem::Get_Chunk_Count_X (); x++) {
+					TerrainChunkInfoClass info;
+					if (!WorldTerrainSystem::Get_Chunk_Info (x,y,&info) || !info.Buildable) continue;
+					buildable++;
+					AABoxClass bounds;
+					if (!WorldTerrainSystem::Get_Patch_Bounds (x,y,&bounds) ||
+						WaterSystem::Is_Point_In_Water (bounds.Center.X,bounds.Center.Y)) continue;
+					dry_buildable++;
+					int neighbors = 0;
+					const int dx[4] = { -1,1,0,0 }, dy[4] = { 0,0,-1,1 };
+					for (int d = 0; d < 4; d++) {
+						TerrainChunkInfoClass adjacent;
+						if (WorldTerrainSystem::Get_Chunk_Info (x + dx[d],y + dy[d],&adjacent) && adjacent.Buildable) neighbors++;
+					}
+					if (neighbors >= profile.Fairness.MinVehicleApproachCount) approachable++;
+				}
+			}
+			if (planned) {
+				RoadGraphParams roads;
+				roads.Seed = WorldSeedService::Derive_Subsystem_Seed (
+					profile.Seed,WorldSeedService::SEED_DOMAIN_ROADS);
+				roads.MaxBuildableSlopeRadians = terrain.MaxBuildableSlopeRadians;
+				roads.RequireBridgeCrossing = true;
+				bool roads_built = RoadGraphGenerator::Generate (roads,&error);
+				Check (bridges_only || roads_built,"native road graph failed: %s",error.Peek_Buffer ());
+				Check ((bridges_only && !roads_built) || RoadGraphGenerator::Get_Edge_Count () >= 2,"native profile produced fewer than two road edges");
+				if (roads_built) {
+					Check (WorldTerrainSystem::Build_Chunk_Registry (terrain.MaxBuildableSlopeRadians),
+						"native terrain registry refresh after roads failed");
+					Check (InteriorCliffGenerator::Restore_Chunk_Claims (),
+						"native cliffs were lost after road grading");
+					BridgePlannerParams bridges;
+					bridges.Seed = WorldSeedService::Derive_Subsystem_Seed (
+						profile.Seed,WorldSeedService::SEED_DOMAIN_BRIDGES);
+					bridges.MaxApproachGradeRadians = terrain.MaxBuildableSlopeRadians;
+					bool bridges_built = BridgePlanner::Generate (bridges,&error);
+					Check (bridges_only || bridges_built,"native bridge plan failed: %s",error.Peek_Buffer ());
+					Check (bridges_only || BridgePlanner::Get_Bridge_Count () > 0,
+						"native map has no bridge over a river or ravine (%d crossing diagnostics)",
+						BridgePlanner::Get_Diagnostic_Count ());
+					usable_crossing = BridgePlanner::Has_Usable_River_Crossing ();
+					Check (bridges_only || usable_crossing,
+						"native map lacks a traversable river bridge with connected dry approaches");
+					::fprintf (stdout,"native bridges: %d, usable river crossing %s\n",
+						BridgePlanner::Get_Bridge_Count (),usable_crossing ? "yes" : "no");
+					if (usable_crossing) {
+						DynamicVectorClass<int> start_roads,states;
+						for (int b = 0; b < BridgeSystem::Get_Bridge_Count (); b++) {
+							BridgeClass * bridge = BridgeSystem::Peek_Bridge (b);
+							start_roads.Add (bridge->Get_Start_Road ());
+							states.Add (bridge->Get_Damage_State ());
+							bridge->Set_Start_Road (-1);
+						}
+						Check (!BridgePlanner::Has_Usable_River_Crossing (),"detached bridges passed the native acceptance gate");
+						for (int b = 0; b < BridgeSystem::Get_Bridge_Count (); b++) {
+							BridgeSystem::Peek_Bridge (b)->Set_Start_Road (start_roads[b]);
+							BridgeSystem::Set_Damage_State (b,BRIDGE_STATE_BROKEN);
+						}
+						Check (!BridgePlanner::Has_Usable_River_Crossing (),"broken bridges passed the native acceptance gate");
+						for (int b = 0; b < BridgeSystem::Get_Bridge_Count (); b++) BridgeSystem::Set_Damage_State (b,states[b]);
+						Check (BridgePlanner::Has_Usable_River_Crossing (),"restored bridge crossing failed the native acceptance gate");
+					}
+					if (bridges_built && !bridges_only) {
+						BaseSelectionParams bases;
+						bases.Seed = plan.Seed;
+						bases.MaxInitialResourceTravelTimeDifferenceSeconds =
+							profile.Fairness.MaxInitialResourceTravelTimeDifferenceSeconds;
+						bases.MaxBaseToBaseTravelTimeDifferenceSeconds =
+							profile.Fairness.MaxBaseToBaseTravelTimeDifferenceSeconds;
+						bases.MinBaseToBaseTravelTimeSeconds =
+							profile.Fairness.MinBaseToBaseTravelTimeSeconds;
+						bases.MinBaseExpansionArea = profile.Fairness.MinBaseExpansionArea;
+						bases.AllowSingleBridgeDependency = profile.Fairness.AllowSingleBridgeDependency;
+						bases.MaxRepairAttemptsPerPair = profile.Retry.MaxLocalRetriesPerStage;
+						bool selected = BaseSelectionPlanner::Generate (bases,&error);
+						Check (selected,
+							"native base selection failed: %s",error.Peek_Buffer ());
+						Check (BaseSelectionPlanner::Has_Selection (),"native map has no selected base pair");
+					}
+				}
+			}
+			Check (dry_buildable >= 200,"native profile has too little dry buildable land: %d chunks",dry_buildable);
+			Check (StrategicPlanner::Get_Node_Count_By_Type (STRATEGIC_NODE_BASE_CANDIDATE) >= 2,
+				"native profile lacks two base candidates");
+			::fprintf (stdout,"native profile: %d macro/%d after cliffs/%d after water/%d dry/%d approachable, %d bases, %d resources, %d cliffs, %d channels (%d rivers), %d basins, %d coast (%d partial), %d roads, %d sand samples\n",
+				macro_buildable,after_cliffs_buildable,buildable,dry_buildable,approachable,
+				StrategicPlanner::Get_Node_Count_By_Type (STRATEGIC_NODE_BASE_CANDIDATE),
+				StrategicPlanner::Get_Node_Count_By_Type (STRATEGIC_NODE_RESOURCE_CANDIDATE),
+				InteriorCliffGenerator::Get_Feature_Count (),channels,rivers,basins,coast,partial_coast,
+				RoadGraphGenerator::Get_Edge_Count (),sandy_shore_samples);
+			if (BaseSelectionPlanner::Has_Selection ()) {
+				const BaseFairnessMetrics & fairness = BaseSelectionPlanner::Get_Fairness_Metrics ();
+				::fprintf (stdout,"native base routes: %.1f s base-to-base, %.1f s resource difference\n",
+					fairness.BaseToBaseTravelTimeSeconds,fairness.ResourceTravelTimeDifferenceSeconds);
+			}
+			::fprintf (stdout,"native checksums: terrain=%08X cliffs=%08X water=%08X roads=%08X bases=%08X\n",
+				MacroTerrainGenerator::Get_Terrain_Checksum (),InteriorCliffGenerator::Get_Checksum (),
+				HydrologyGenerator::Get_Checksum (),RoadGraphGenerator::Get_Checksum (),
+				BaseSelectionPlanner::Get_Checksum ());
+		}
+	}
+
+	if (checksum_out != nullptr) {
+		unsigned int checksums[3] = { MacroTerrainGenerator::Get_Terrain_Checksum (),
+			RoadGraphGenerator::Get_Checksum (),BridgePlanner::Get_Checksum () };
+		CRCEngine crc;
+		crc (checksums,sizeof(checksums));
+		*checksum_out = (unsigned int)crc;
+	}
+	BaseSelectionPlanner::Shutdown ();
+	BridgePlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	RoadGraphGenerator::Shutdown ();
+	RoadSystem::Shutdown ();
+	StrategicPlanner::Shutdown ();
+	HydrologyGenerator::Shutdown ();
+	WaterSystem::Shutdown ();
+	InteriorCliffGenerator::Shutdown ();
+	for (int y = 0; y < WorldTerrainSystem::Get_Chunk_Count_Y (); y++) {
+		for (int x = 0; x < WorldTerrainSystem::Get_Chunk_Count_X (); x++) {
+			TerrainChunkInfoClass info;
+			if (WorldTerrainSystem::Get_Chunk_Info (x,y,&info)) {
+				Check (!info.InteriorCliff,"interior cliff exclusion survived generator shutdown");
+			}
+		}
+	}
+	MacroTerrainGenerator::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	WorldBoundsService::Shutdown ();
+	return usable_crossing;
 }
 
 
@@ -8753,6 +13500,11 @@ void	Check_World_Sync (void)
 				 "a content hash mismatch was accepted");
 
 		wrong = client_handshake;
+		wrong.PlanningHash ^= 0xFFFFu;
+		Check (WorldSyncService::Begin_Join (server_handshake,wrong,&detail) == WORLD_SYNC_PLANNING_MISMATCH,
+				 "a hybrid planning input hash mismatch was accepted");
+
+		wrong = client_handshake;
 		wrong.ManifestRevision += 1;
 		Check (WorldSyncService::Begin_Join (server_handshake,wrong,&detail) == WORLD_SYNC_MANIFEST_MISMATCH,
 				 "a manifest revision mismatch was accepted");
@@ -10641,6 +15393,45 @@ int	TerrainSelfCheck::Run (const char *which)
 	if ((which == nullptr) || (::strcmp (which, "shroud") == 0)) {
 		Check_Shroud ();
 	}
+	if ((which == nullptr) || (::strcmp (which, "hybridplan") == 0)) {
+		Check_Hybrid_Plan_Records ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridplanning") == 0)) {
+		Check_Hybrid_Planning ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridmapidentity") == 0)) {
+		Check_Hybrid_Map_Identity ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridstrategicgraph") == 0)) {
+		Check_Hybrid_Strategic_Graph ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridcoarsematrix") == 0)) {
+		Check_Hybrid_Coarse_Matrix ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridlandforms") == 0)) {
+		Check_Hybrid_Landforms ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridhydrology") == 0)) {
+		Check_Hybrid_Hydrology ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridmacroterrain") == 0)) {
+		Check_Hybrid_Macro_Terrain ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridanchors") == 0)) {
+		Check_Hybrid_Anchors ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridtopology") == 0)) {
+		Check_Hybrid_Topology ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridroutes") == 0)) {
+		Check_Hybrid_Routes ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridpreflight") == 0)) {
+		Check_Hybrid_Preflight ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "mapplan") == 0)) {
+		Check_Map_Plan ();
+	}
 	if ((which == nullptr) || (::strcmp (which, "macro") == 0)) {
 		Check_Macro_Terrain ();
 	}
@@ -10649,6 +15440,30 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "hydrology") == 0)) {
 		Check_Hydrology ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "native_profile") == 0)) {
+		Check_Native_Profile_Quality ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "native_bridges") == 0)) {
+		for (unsigned int seed = 1; seed <= 8; seed++) {
+			bool accepted = false;
+			unsigned int chosen_seed = 0,checksum = 0;
+			// Exercise consecutive deterministic candidates, including rejected worlds.
+			// The manager's bounded policy allows at most three attempts.
+			for (unsigned int attempt = 0; attempt < 3 && !accepted; attempt++) {
+				::fprintf (stdout,"native bridge request %u attempt seed %u\n",seed,seed + attempt);
+				chosen_seed = seed + attempt;
+				accepted = Check_Native_Profile_Quality (chosen_seed,true,&checksum);
+			}
+			Check (accepted,"native bridge request %u exhausted its bounded retries",seed);
+			if (accepted) {
+				unsigned int replay_checksum = 0;
+				Check (Check_Native_Profile_Quality (chosen_seed,true,&replay_checksum),
+					"accepted native bridge seed %u failed exact reconstruction",chosen_seed);
+				Check (checksum == replay_checksum,"native bridge seed %u was not deterministic",chosen_seed);
+				::fprintf (stdout,"native bridge request %u accepted seed %u checksum %08X\n",seed,chosen_seed,checksum);
+			}
+		}
 	}
 	if ((which == nullptr) || (::strcmp (which, "strategic") == 0)) {
 		Check_Strategic_Plan ();

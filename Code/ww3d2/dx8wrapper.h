@@ -448,6 +448,14 @@ static void Set_Fog(bool enable, const Vector3 &color, float start, float end, f
 	static IDirect3DDevice9* _Get_D3D_Device8() { return D3DDevice; }
 	static IDirect3D9* _Get_D3D8() { return D3DInterface; }
 
+	/*
+	** D-004: the programmable shader layer (shaderdatabase.cpp) reads the applied state and
+	** hands effect draws back through the caches.
+	*/
+	static const RenderStateStruct & Peek_Render_State(void) { return render_state; }
+	static unsigned Get_DX8_Render_State(D3DRENDERSTATETYPE state) { return RenderStates[state]; }
+	static void Invalidate_After_Effect_Draw(void);
+
 	static const DX8Caps*	Get_Current_Caps() { WWASSERT(CurrentCaps); return CurrentCaps; }
 	static bool					Has_Current_Caps() { return CurrentCaps != nullptr; }
 

@@ -6,6 +6,44 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
+- **Q-019** Hybrid rewrite I10 (runtime Phase 9, transportation topology). Section 5 asks every map
+ for 1/1/2 canyon/ravine bridges and 1/2/3 river bridges, and Phase 9 step 3/4 can only fill those
+ quotas from Phase-6 windows that a road can actually use. Phase 5 places generic canyons and
+ ravines without regard to where the heavy routes run -- its own rejection rule only preserves `4W`
+ of dry corridor width -- so on many seeds every ravine lies where no heavy route crosses it, every
+ one of its windows is non-preferred, and the plan's own fallback ("one `SECONDARY_2` cross-link
+ between the nearest heavy-family waypoints on opposite banks") has no far-bank waypoint to reach.
+ Evidence: five seeds at MEDIUM on the `open_frontier` archetype produced bridge-capable ravine
+ windows on every seed, and on every seed all four heavy sites stood on one side of the crossing
+ axis (measured 4 positive, 0 negative per window); the archetypes that carry their own canyon
+ obligation (`canyon_crossroads`, `ravine_network`) fill the quota on the first seed. Phase 9
+ currently binds such a window to the nearest family chain when it is inside that family's own
+ `MaxCorridorHalfWidth(PRIMARY_2)`, and fails the attempt when it is not, which is Section 5's
+ "do not reduce a quota to rescue a seed" without failing worlds that do have a usable crossing.
+ Blocks: nothing in the code -- the phase is implemented and green -- but it decides the attempt-0
+ pass rate item 21 measures, so it is worth settling before that batch runs. Smallest decision
+ needed: which the user wants -- (a) bias Phase 5 so at least one canyon/ravine system crosses a
+ required heavy corridor, the way the archetypes' own principal features do; (b) let Phase 9 keep
+ the nearest-chain binding it has now and accept the attempt-failure rate on archetypes with no
+ canyon obligation; or (c) make the canyon/ravine bridge quota conditional on a crossing existing.
+
+- **Q-018** Hybrid rewrite I6 (runtime Phase 5, vector landforms). At LARGE the plan's hill
+ target -- `10 + RoundHalfUp(terrain.hill_density * 6)`, so 11 hills at the native
+ `hill_density = 0.15` -- cannot be satisfied together with rejection rule 6's "overlap area of
+ two accepted independent features of the same type must be <= 25% of the smaller polygon" and
+ the `BASE_PROTECTED` exclusion, because the same section draws each hill radius from
+ `0.08D..0.16D`, which is 192..384 world units at `D = 2400`. Evidence: an exhaustive search of
+ every candidate cell that can hold the feature (3180 cells, so not a retry-budget shortfall)
+ refuses the eleventh hill on the 25% cap; measured over twelve seeds, 6/12 LARGE seeds fail
+ Phase 5 the same way, and the two rules are individually correct, so no source, donor or runtime
+ data resolves which one yields. Blocks: closing I6's gate at LARGE, and the D-002/D-003 native
+ visual run, whose profile is `2400 x 2400`. Phase 5 currently reports the named attempt failure
+ Section 5 prescribes, the self-check requires success at MEDIUM and tolerates the LARGE failure,
+ and nothing half-built is ever kept. Smallest decision needed: which of these the user wants --
+ (a) scale hill radius by size class, for example `0.05D..0.10D` at LARGE; (b) exempt hills from
+ rule 6 and cap them by a total-area budget instead; (c) reduce the LARGE hill base count; or
+ (d) accept the attempt-failure rate and let whole-world retries carry it.
+
 - **Q-006** P08's acceptance -- that repeated map load and unload keeps what was
  retained and leaks nothing -- is proved as arithmetic by `asset_residency` but not
  against real game data, and it cannot be automated here: the client takes no map

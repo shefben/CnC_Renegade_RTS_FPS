@@ -314,3 +314,347 @@ root problem under several phases. `WIP_features.md` describes work actually ope
   - **Tiberium haze, dust and enemy obstruction:** profile data, off by default.
   - **Sensor degradation:** reuses the weapon module's curve and defaults.
   - **Detail texture:** none exists in always.dat, so no stand-in is used.
+
+## D-002 — Procedural Skirmish is a fully native generated map (2026-09-24)
+
+User ruling: the Procedural Skirmish button launches a truly native procedurally generated
+map. It does not start from any base/host map (no stock skirmish `.mix` underneath, no
+`fit_to_level` overlay); the generator produces the whole world. This supersedes the
+"laid over a real level" design in `dlgmainmenu.cpp` (V2 roadmap Section 34 entry point) and
+the "Coexist, not replace" host-level approach in `docs/procedural_world/MacroTerrainGeneration.md`
+for that button.
+
+The native profile uses the existing large-supported 2400 × 2400 world size for FPS travel.
+Terrain relief is raised above sea level with a profile-specific land bias, so rivers and
+small basins remain without flooding most buildable land. Generation remains ordered:
+terrain and cliffs, water carving, strategic anchors, graded roads and bridges, then base
+selection. Each terrain edit refreshes the chunk registry and restores the cliff generator's
+owned exclusions before the next planner reads it. Opposing bases on this large profile must
+have at least a 60-second reference-vehicle road route; the bounded alternate-seed retry
+handles candidate worlds that cannot meet the fairness gates.
+
+## D-003 — Map plan first: Section 34 phases 4-11 reordered behind a 2D layout plan (2026-09-26)
+
+User ruling: the procedural world is laid out in plan view before any 3D terrain exists,
+the way C&C battlefields (RA2 random maps, Renegade multiplayer maps, Generals WorldBuilder
+plans) are designed. This reorders roadmap Section 34 phases 4-11. The roadmap file itself is
+not rewritten; this decision supersedes its phase order and the pipeline doc records the new
+sequence.
+
+Evidence that motivated it: `MacroTerrainGenerator` was pure noise with no design intent,
+interior cliffs were leftover steep chunks joined by a greedy walk, hydrology ran at chunk
+resolution with four neighbours, bases were chosen at Phase 11 after roads and bridges, and
+fairness depended on search, repair and three whole-world retries. Neither open-source
+donor offers a generator to borrow: Tiberian Dawn/RA1 are hand-built tile templates, Generals
+/Zero Hour is a hand-authored heightmap (WorldBuilder) with cliff/impassable cell flags. RA2's
+random map generator is closed source; its tier/plateau/cliff/ramp model is what is imitated.
+
+New phase order (Phase numbers below are the roadmap's; 3B is inserted):
+
+1. Phase 1-3 unchanged: bounds, boundary, cliff ring.
+2. **Phase 3B (new) — Map plan.** `MapPlanGenerator` (WWPhys, one owner) builds a 2D grid at
+   chunk resolution from the seed and the profile `plan` block: L0 layout graph (GDI/Nod base
+   sites, centre and flank Tiberium fields, lanes, chokes, symmetry mode), L1 integer height
+   tiers, L2 water plan, L3 passability (open/base/lane/field/cliff seam/ramp/water), and a
+   checksum for the manifest. Deterministic; retryable without touching the 3D world.
+3. Phase 4 macro terrain becomes a realizer: the heightfield is the plan tier height plus
+   in-tier noise scaled by `plan.detail_weight`; noise is detail, not structure. Cliff band
+   and approach flattening unchanged.
+4. Phase 5 interior cliffs, Phase 6 hydrology: unchanged owners, now operating on terrain
+   whose seams and basins come from the plan. Tier seams produce the steep chunks the cliff
+   generator already looks for.
+5. Phase 7 strategic candidates: plan base-site cells receive a scoring bonus so base
+   anchors land on planned sites; existing eligibility and fairness gates still apply.
+6. Phase 8-11 roads, bridges, tunnels, base selection: unchanged owners and gates. Base
+   selection validates the plan; whole-world retries remain the last resort.
+7. Phase 12+ unchanged.
+
+Constraints resolved in this decision: the Zero Hour donor is absent locally and is used as
+a semantic reference only (`WorldHeightMap` cell flags, cliff-cell classification); WWPhys
+`HeightfieldClass` and `WorldTerrainSystem` stay the owners. The plan stage is profile-gated
+(`plan.enabled`); `fit_to_level` worlds skip it. The D-002 native profile enables it. The
+D-002 visual verification remains open and now targets the plan-driven world. Schema 11,
+generator 10.
+
+## D-004 - Hybrid rewrite I6: how runtime Phase 5 resolves the plan's open landform geometry (2026-09-27)
+
+Section 8 Phase 5 fixes most of the vector-landform algorithm exactly, but a few values it needs
+are not in the geometry table. These are the readings runtime Phase 5
+(`Code/wwphys/hybridlandforms.{h,cpp}`) implements; the reasoning and the code locations are in
+`docs/procedural_world/HybridLandforms.md`.
+
+1. **Ravine centerline length** is the canyon row (`0.35D..0.75D`) scaled by `2/3`, the same
+   canyon-to-ravine ratio every shared row of the table already uses, and a Section-6.8 attached
+   branch is that range scaled by `2/3` again. The table gives a ravine floor, rim and depth but
+   no length.
+2. **A cliff field is compactly supported.** Section 10.2 gives a cliff only an edge width and a
+   rock/talus transition width, so the field uses no other length scale: zero at the talus toe,
+   full height at the upper edge, one talus width of shelf, then back to zero across one more,
+   with the same taper longitudinally at each end of the run. An unbounded one-sided step would
+   lift terrain the cliff never reserved, including a base far outside its influence polygon.
+3. **A density-created canyon/ravine system is a ravine.** `terrain.valley_density` is the knob the
+   ravine target adds; a canyon exists only where an archetype requires one.
+4. **Basin and coast are not Phase-5 features.** `plateau_basin`'s basin is already a Phase-4 macro
+   zone and every water polygon belongs to Phase 6, so step 1 of the creation order builds only
+   `PRINCIPAL_CANYON`, `PRINCIPAL_RIDGE` (with its `SURFACE_SADDLE`) and `MAIN_RAVINE_GUIDE` plus
+   its branches.
+5. **Rejection rule 5's `4W` heavy-corridor dry width binds generic features only.** An archetype
+   principal canyon or ravine exists to obstruct the axis and Phase 3 already recorded the crossing
+   obligation Phase 6 must satisfy with a window.
+6. **The candidate budget counts alternates, not misfits.** A cell where the feature does not fit
+   inside the placeable world is stepped over without spending a
+   `retry.max_alternate_candidates_per_feature` slot; a cell that conflicts with other planned
+   intent spends one. The keyed candidate order and the set of acceptable positions are unchanged.
+7. **Horizontal draws are clamped to the placeable interior**, exactly as Phase 5 already clamps its
+   vertical draws to `terrain.min_elevation..max_elevation`. The clamp only shrinks, never leaves
+   the drawn range and never goes below a Section-5 minimum; when the minimum itself does not fit,
+   the phase reports its named attempt failure.
+8. **Reservation, boundary and elevation tests are taken at the feature's own sample points** (its
+   influence outline plus its spine), not only at coarse cell centres, because a cliff band or a
+   ravine floor is narrower than one coarse cell. A line feature also stamps the cell each
+   centerline sample stands in, so a thin feature still appears in `LandformMask`.
+9. **`data/procedural_world/native.json` raises `retry.max_alternate_candidates_per_feature` from 6
+   to 32.** Phase 5 places 20 or more features that must each miss two base reserves, the Tiberium
+   reserves, the `OPEN_MANEUVER` discs and each other; measured over twelve seeds, 6 alternates per
+   feature failed nearly every attempt while 32 passes 8/12 at MEDIUM. The plan parameterizes
+   exactly this (Section 17: local candidate limits come from the profile) and forbids weakening
+   quotas instead. The value also feeds `HybridPlanningInputHash` and the Tiberium reposition
+   budget, both in the same search-harder direction.
+
+The one thing these readings cannot resolve is **Q-018**: at LARGE the hill target and rejection
+rule 6's 25% same-type overlap cap are mutually unsatisfiable for many seeds even after an
+exhaustive candidate search. Phase 5 reports the named attempt failure and the question is open.
+
+The centripetal Catmull-Rom sampler every plan curve needs is added once, to the shared planning
+owner (`Hybrid_Sample_Centripetal_Catmull_Rom` in `Code/wwphys/hybridplanning.{h,cpp}`), so Phases
+6 and 10 do not each grow a spline rule.
+
+## D-005 - Hybrid rewrite I7: how runtime Phase 6 resolves the plan's open hydrology detail (2026-09-27)
+
+Section 8 Phase 6 fixes the drainage solve exactly -- Priority-Flood from the exterior, then D8 over
+the filled surface with a fixed tie order -- but a handful of records it asks for have no stated
+shape. These are the readings runtime Phase 6 (`Code/wwphys/hybridhydrology.{h,cpp}`) implements;
+the reasoning and the code locations are in `docs/procedural_world/HybridHydrology.md`.
+
+1. **A river "system" is one flow-connected channel component.** Step 9's "merge shared downstream
+   chains by analysis-cell id" is a union-find over channel cells joined to their D8 destination, so
+   a tributary is never a second system. The stored centerline is the system's primary headwater's
+   chain: longest quantized chain, then more accumulation at the source, then the lower cell id.
+2. **A basin polygon is the closed lattice outline of its four-connected cell set**, walked from the
+   basin's lowest-index cell and stripped of collinear corners. A corner that two unused outline
+   edges still start from would let the ring touch itself, so that basin is not simple and is
+   illegal under step 13. A dry hole inside a depression is folded into the outer ring; step 17's
+   islands are the plan's mechanism for dry land inside water.
+3. **An island is its own record, not a hole in its host.** Step 17's subtraction is realized by
+   every water query treating an island polygon as land, which avoids a polygon boolean and a second
+   description of the host outline.
+4. **The coast polygon is the world rectangle clipped to the sea side of the guide's `v` boundary**,
+   so the sea stays convex and inside the world bounds; a local retry moves that boundary outward by
+   exactly `S`.
+5. **A river mouth bound to a lake or the sea ends at that shoreline**, and the mouth sample's stored
+   surface is the sink's water level, so Phase 7 step 2 holds in the record and no channel runs
+   through standing water.
+6. **A selected system carries the river bed depth.** Section 5 defines a counted river as a
+   source-to-sink network, so a stream depth would never apply to a selected record;
+   `WaterDefinitionClass::BedDepth` for `ow_water_river` and `ow_water_lake` are read through
+   `WaterSystem` in the manager adapter, never duplicated in the generator.
+7. **Fords stay inert until a fordability query exists.** Preflight reports
+   `FORD_CAPABILITY_UNAVAILABLE`, so the params carry the capability's two depth limits and the
+   manager passes zero: no window carries a ford flag today, and the comparison is the one place to
+   ask the real query when it ships.
+8. **A retained cliff station is cut-capable by construction.** Step 18's "cut metadata" is the fact
+   that the station's two endpoint elevations connect within `PRIMARY_2` grade -- which is what
+   retention already proved -- plus the `LowElevation` / `HighElevation` on the record.
+9. **The window gate is about obstructed corridors, not touched ones.** Phase 5's rejection rule
+   deliberately allows a generic barrier to overlap a required heavy corridor as long as `4W` of dry
+   width survives, so Phase 6 demands a window only where the obstruction leaves no contiguous
+   `heavy_vehicle_width + 2*min_vehicle_lane_clearance` run clear of it inside
+   `MaxCorridorHalfWidth(PRIMARY_2)`. This is the checklist's own wording ("every obstructed required
+   corridor has a window") and it keeps a short cliff clipping a corridor edge from failing an
+   otherwise legal seed.
+10. **Only a preferred window becomes a reservation.** Every accepted window stamps `NO_DECORATION`
+    and its own window flag; a window on a required heavy corridor, or within `2S` of a Section-6.10
+    crossing guide, is additionally inserted as the `HYBRID_RESERVE_CROSSING_WINDOW` reservation
+    Phase 4 reserved that rank for.
+
+`WaterSystem` needs no interface change for this item: it already stores closed areas and flowing
+centerlines with per-station width and surface height, which is the shape of these records, so the
+adapter that hands them over belongs to the phase that realizes water.
+
+## D-006 - Hybrid rewrite I8: how runtime Phase 7 realizes the plan's height expression (2026-09-27)
+
+Section 8 Phase 7 gives the height formula exactly; what it does not say is who writes the
+heightfield, how the four-key noise draw maps onto the shared three-key helper, or what "carve" means
+once a river surface has been fixed. These are the readings runtime Phase 7
+(`Code/wwphys/hybridmacroterrain.{h,cpp}`) implements; the reasoning is in
+`docs/procedural_world/HybridMacroTerrain.md`.
+
+1. **The formula and the write are separate owners.** `WorldTerrainSystem` stays the heightfield and
+   `MacroTerrainGenerator::Generate` stays the one thing that writes it; a request carrying the Phase
+   4-6 records takes `Hybrid_Macro_Sample_Height` per vertex instead of the noise-geography channels,
+   which are replaced rather than joined. `UseHybrid` and the D-003 `UsePlan` path are mutually
+   exclusive, and an authored/legacy request takes exactly the code it always did.
+2. **The detail-noise octave folds into the named key.** The plan's
+   `Hash01(terrain,"detail_noise",octave,ix,iy)` is four keys and the Section-0.3 helper takes three,
+   so the octave is mixed into the named key with the standard golden-ratio odd constant and `ix`/`iy`
+   stay the lattice keys.
+3. **The mouth is re-pinned after the downstream walk.** Step 3's minimum walk can lower the mouth
+   step 2 just fixed, so the pin is re-applied before step 4's upstream maximum walk -- otherwise a
+   river bound to a lake ends below its own lake.
+4. **Phase 7's carve is a bed target.** `Hybrid_Macro_Water_Carve` returns `base_height - bed` from
+   the frozen longitudinal walk, blended out across `max(river_width,2W)`, so a bed follows its own
+   water surface downhill. Phase 6's `Hybrid_Water_Carve_Depth` keeps its own meaning -- how deep the
+   water is -- for the callers that ask that.
+5. **A coast is cut to sea level.** Ocean and coast carry a zero `BedDepth`
+   (`WaterSystem::Define_Default_Water`) and the plan names that field as the only carve source, so the
+   sea floor is cut exactly to the water surface rather than to an invented depth.
+6. **Protected profiles are excluded from slope relaxation, not from the write.** Explicit cliff,
+   canyon and ravine walls, river beds and banks, and lake/sea polygons with their shoreline band are
+   written with their computed height and then left out of the relaxation loop, which is how a
+   vertical-faced cliff survives a pass whose job is to flatten steep ground.
+7. **"Every Phase-5/6 feature still represented" is a sign test.** The gate compares the realized
+   ground at each feature's own mid-sample against `tier_height + macro_bias`: positive for a hill or
+   ridge, negative for a canyon or ravine floor. Probes the water carved or the elevation clamp pinned
+   are skipped, because the formula itself makes water outrank relief there.
+8. **The gate re-measures window grade on the written ground.** Phase 6 retained each crossing window
+   from the provisional surface; the same `PRIMARY_2` grade rule is checked again after the heightfield
+   exists, so a window detail noise or relaxation pushed out of reach fails this attempt instead of
+   Phase 11's routing.
+
+## D-007 - Hybrid rewrite I9: how runtime Phase 8 measures the anchors it freezes (2026-09-27)
+
+Section 8 Phase 8 lists the hard requirements exactly and forbids moving a centre to satisfy one. What
+it leaves open is how three of those requirements are measured. These are the readings runtime Phase 8
+(`Code/wwphys/hybridanchors.{h,cpp}`) implements; the reasoning is in
+`docs/procedural_world/HybridAnchors.md`.
+
+1. **The starting-building proxy area is the `R_BASE` core disc** -- the disc Phase 4 already reserves
+   as `BASE_CORE` for exactly the starting buildings -- and the buildable-slope test is measured over
+   it.
+2. **Expansion area is measured as clear buildable land inside the protected disc**, at `A/2` samples,
+   using the existing owner's own radius rule (`BaseSelectionPlanner`'s `sqrt(area/pi)`, which is
+   Section 0.5's `R_EXPAND` and already part of `R_BASE_PROTECTED`).
+3. **Slope comes from the written heightfield**, as the central-difference gradient over one analysis
+   spacing, because Phase 8 validates the ground that exists after the ordinary-slope relaxation pass,
+   not the formula that produced it.
+4. **"Outside BASE_PROTECTED" is measured on the frozen disc, not on the rasterized coarse flag.** A
+   cell is `S` wide and is flagged for its whole area when its centre is inside the disc, so the flag
+   would refuse a field reserve that legally clears the disc by less than half a cell. Phase 3 already
+   separates the two centres by `R_BASE_PROTECTED + field_radius_max`.
+5. **`V_REF` is applied exactly as `BaseSelectionPlanner` applies it**: world-unit distances divided by
+   `WorldMetricsClass::Get_Reference_Vehicle_Speed()`, with no unit conversion invented, which is what
+   Section 0.10 means by using the legacy value unchanged.
+6. **A field's approach is one of its own Phase-3 edges**, verified by walking the straight run from
+   the field centre toward that edge's other endpoint out to the reserve radius and requiring it clear
+   of water and immutable walls.
+7. **`PlanningDistance` belongs to the graph owner.** Section 0.10's helper is implemented once, as
+   `Hybrid_Planning_Distance` in `hybridstrategicgraph`, with Dijkstra over quantized straight-line
+   edge lengths and ties broken by `StableId`; Phase 19's authoritative re-check calls the same
+   function rather than growing a second distance rule.
+
+## D-009 - Hybrid rewrite I11: HIGHWAY_4 curvature resolution (2026-09-28)
+
+**Decision (user, 2026-09-28):** retain the canonical global analysis spacing
+`A = clamp(world.chunk_size/4, 8, 16)` and retain the Section-7 road minimum-turn-radius requirements,
+`HIGHWAY_4 = 8W` included. Phase-10 spline conversion now deterministically thins non-mandatory
+direction-change controls for wide-radius road classes before centripetal Catmull-Rom construction.
+Full envelope, obstacle, curvature, grade and cross-slope validation remains mandatory. This resolves
+the mismatch between raster A* turn density and `HIGHWAY_4`'s `8W` continuous-curve requirement without
+changing global planning resolution and without deferring horizontal route validity to Phase 12.
+
+Explicitly rejected: deriving `A` from the widest road class (it is shared analysis resolution for
+terrain, water, crossings and sampling, so one road class may not redefine it), and reading `8W` as a
+Phase-12 open-road target (Phase 12 consumes frozen Phase-10 splines and must not become a second
+routing phase).
+
+How it is implemented in `Code/wwphys/hybridroutes.cpp`:
+
+1. The raw control set is built exactly as before: the leg ends plus every direction-change cell.
+2. `Thin_Controls` drops ordinary interior controls until the retained ones are at least
+   `ceil(4*Rmin/A)` analysis cells apart along the original chain. The factor 4 follows the measured
+   centripetal Catmull-Rom behaviour at a 45-degree turn -- the rounded corner comes out at roughly a
+   quarter of the control spacing.
+3. Never thinned, and never thinned *across*: the leg ends and the cell just inside each of them (which
+   is what fixes the departure tangent), every frozen waypoint, every mandatory crossing or overpass
+   obligation, every chain cell inside an accepted crossing window, and every control step 5 inserted.
+4. `4*Rmin` is a starting spacing only. The sampled spline is still checked against the envelope, the
+   hard obstacles, the class minimum radius, vertical feasibility, grade and cross slope; a curvature
+   failure widens the spacing by one analysis cell and rebuilds, bounded by
+   `retry.max_local_retries_per_stage` within the envelope.
+5. A non-curvature failure takes step 5's original-A*-cell insertion instead, and the result is
+   rechecked against everything including the radius. Every attempted control set is recorded by digest
+   so no set is evaluated twice and the two repairs cannot oscillate.
+
+Two related conversion rules were corrected by the same evidence and are part of this decision: a
+crossing is entered through the window's own frozen approach endpoints rather than a cell centre (a
+curve through a single pinned point bows out of a corridor barely a roadbed wide and lands on the wall
+it was crossing), and the spline is anchored on the frozen endpoint positions rather than on cell
+centres.
+
+### Revision (2026-09-28): the centerline is arcs and tangents, not a thinned control polygon
+
+**Thinning was implemented as decided above and did not close the gate.** Measured on the fixture seeds
+it moved the shortfall rather than removing it -- 25.7, then 24.2, then 21.9, then 8.3 on a `PRIMARY_2` --
+and each repair exposed a different corner. The census that was required before any further change said
+why, and the answer is structural rather than tuning:
+
+> A curve drawn *through the cell centres of an 8-way A\* chain* cannot honour a minimum turn radius wider
+> than the analysis cell except by accident. The chain's only turn granularity is 45 degrees at a cell
+> vertex; on this grid `A = 15` while a `HIGHWAY_4` needs `8W = 26.6`. The curvature of any spline through
+> those controls is therefore decided by which cells the search happened to pick, and thinning, turn
+> spacing and search margins are all ways of steering an accident.
+
+**So Phase 10 now reads the A\* chain as what it is -- a corridor -- and builds the centerline as geometry
+that satisfies the radius by construction:**
+
+1. The chain becomes a corridor polyline: the frozen endpoints, every direction-change cell, every frozen
+   waypoint, every step-5 insertion. A crossing contributes its window's own two frozen approach points
+   and nothing between them.
+2. Every frozen interior point is given a lead-in and a lead-out along its own axis, so the polyline runs
+   *straight* through it. An arc that rounds a corner does not pass through the corner, and a frozen
+   position must be interpolated exactly; this is what makes both possible at once. For a crossing that
+   axis is the line between its two approach points, which is also what makes the crossing straight.
+3. Every remaining corner is filleted with a circular arc of the class minimum turn radius. A turn of
+   `theta` consumes `R tan(theta/2)` of straight on each side; where two corners cannot share the leg
+   between them, the shallower -- corridor, never frozen -- is dropped and the pass restarts. Two *frozen*
+   corners crowding each other is reported as what it is, which points at the phase that froze them.
+4. The centerline is sampled at `min(W,A/2)` along those straights and arcs, and the complete validator
+   then runs unchanged: envelope, hard obstacles, the exact Section-7 radius, grade, cross slope.
+
+**The `8W` requirement is not weakened; it is strengthened.** It is no longer a test a candidate has to
+pass by luck -- the arcs *are* the radius -- and it is now measured twice: by the router on every
+candidate, and independently in `Check_Hybrid_Routes`, which recomputes the circumradius over a
+class-radius baseline at every sample of open road. The only tolerance either allows is the project
+position quantum `Q = 0.001`, which covers writing a coordinate down and nothing else. Arcs are built at
+`1.05 * Rmin` so that quantum cannot decide the outcome; a curvature refusal raises that construction
+margin by one step, which can only flatten the curve, and never moves the limit.
+
+Section 8 Phase 10's wording -- "centripetal Catmull-Rom through those controls" -- no longer describes
+the road centerline, and that is a deliberate, recorded deviation on the grounds above: the plan's own
+Section 0.5 `A` and Section 7 radius table are in direct arithmetic conflict for the wide classes on an
+8-way grid, and Section 7 is the one that describes something a vehicle drives. The shared sampler
+`Hybrid_Sample_Centripetal_Catmull_Rom` is unchanged and still serves Phases 5, 6 and 10's other curves.
+
+Six defects in the surrounding rules were found by the same census and fixed at their owners:
+
+- a crossing is now **known from the leg that built it** rather than deduced from the finished chain --
+  Phase 10 routes a crossing as its own leg between the two frozen approach points, so a route that
+  merely clips a window's corridor is no longer mistaken for a crossing, and a real crossing whose bank
+  cell centre falls outside the corridor is no longer missed;
+- a leg's stops are ordered by the whole journey, not by the stop behind them, so a crossing is no longer
+  entered from the far bank and crossed back;
+- standing water inside an accepted window is legal ground for the road that crosses it, which it has to
+  be: the two approach points stand on the two banks and every cell between them is wet;
+- a leg boundary carries the previous leg's heading and its trailing straight, so a turn crowded against a
+  frozen waypoint is measured like any other turn;
+- same-way turns (an arc of 45-degree steps) and opposite-way turns (an S, each corner rounded alone) no
+  longer share one spacing number, which had them the wrong way round;
+- vertices the road would have to double back to reach are dropped wherever they appear, including after
+  a fillet drop creates one.
+
+**Status: accepted.** All eight fixture seeds route every mandatory edge including their `HIGHWAY_4`
+trunks; every accepted sample of open road measures at or above its class minimum radius under the
+independent check; `terrain_hybridroutes` and `fds_terrain_hybridroutes` pass, as does the whole 231-test
+ctest suite on client and dedicated server; the second routing pass reproduces the checksum. The
+temporary routing diagnostics are gone -- `Hybrid_Route_Census` remains in `hybridroutes.h` as a
+deliberate tool, called by nothing in a normal build.

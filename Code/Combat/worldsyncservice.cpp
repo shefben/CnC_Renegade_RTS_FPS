@@ -51,6 +51,7 @@ const char *	World_Sync_Result_Name(WorldSyncResultType result)
 		case WORLD_SYNC_GENERATOR_MISMATCH:		return "generator version mismatch";
 		case WORLD_SYNC_PROFILE_MISMATCH:		return "profile hash mismatch";
 		case WORLD_SYNC_CONTENT_MISMATCH:		return "content hash mismatch";
+		case WORLD_SYNC_PLANNING_MISMATCH:		return "planning input hash mismatch";
 		case WORLD_SYNC_MANIFEST_MISMATCH:		return "manifest revision mismatch";
 		case WORLD_SYNC_NO_BASELINE:				return "no baseline generated";
 		case WORLD_SYNC_SNAPSHOT_REFUSED:		return "snapshot refused";
@@ -68,7 +69,7 @@ const char *	World_Sync_Result_Name(WorldSyncResultType result)
 
 WorldSyncHandshakeClass::WorldSyncHandshakeClass(void) :
 	HandshakeVersion(CURRENT_HANDSHAKE_VERSION),
-	GeneratorVersion(0),ProfileHash(0),ContentHash(0),ManifestRevision(0),
+	GeneratorVersion(0),ProfileHash(0),ContentHash(0),PlanningHash(0),ManifestRevision(0),
 	WorldRevision(0),WorldChecksum(0),SnapshotRevision(0),
 	SnapshotCount(0),SnapshotBytes(0),OperationCount(0)
 {
@@ -80,6 +81,7 @@ bool WorldSyncHandshakeClass::operator == (const WorldSyncHandshakeClass & that)
 	return (HandshakeVersion == that.HandshakeVersion) &&
 			 (GeneratorVersion == that.GeneratorVersion) &&
 			 (ProfileHash == that.ProfileHash) && (ContentHash == that.ContentHash) &&
+			 (PlanningHash == that.PlanningHash) &&
 			 (ManifestRevision == that.ManifestRevision) &&
 			 (WorldRevision == that.WorldRevision) && (WorldChecksum == that.WorldChecksum) &&
 			 (SnapshotRevision == that.SnapshotRevision) &&
@@ -88,7 +90,7 @@ bool WorldSyncHandshakeClass::operator == (const WorldSyncHandshakeClass & that)
 }
 
 
-enum { WORLD_SYNC_HANDSHAKE_FIELDS = 11 };
+enum { WORLD_SYNC_HANDSHAKE_FIELDS = 12 };
 
 static void Write_Word(unsigned char * at,unsigned int value)
 {
@@ -122,6 +124,7 @@ bool WorldSyncHandshakeClass::Write_Block(unsigned char * buffer,int max_bytes,i
 	Write_Word(at,GeneratorVersion);			at += 4;
 	Write_Word(at,ProfileHash);				at += 4;
 	Write_Word(at,ContentHash);				at += 4;
+	Write_Word(at,PlanningHash);				at += 4;
 	Write_Word(at,ManifestRevision);			at += 4;
 	Write_Word(at,WorldRevision);				at += 4;
 	Write_Word(at,WorldChecksum);				at += 4;
@@ -144,6 +147,7 @@ bool WorldSyncHandshakeClass::Read_Block(const unsigned char * buffer,int bytes,
 	GeneratorVersion	= Read_Word(at);	at += 4;
 	ProfileHash			= Read_Word(at);	at += 4;
 	ContentHash			= Read_Word(at);	at += 4;
+	PlanningHash		= Read_Word(at);	at += 4;
 	ManifestRevision	= Read_Word(at);	at += 4;
 	WorldRevision		= Read_Word(at);	at += 4;
 	WorldChecksum		= Read_Word(at);	at += 4;
@@ -256,7 +260,8 @@ bool WorldSyncService::Get_Expected_Chunk_Checksum(int px,int py,unsigned int * 
 */
 bool WorldSyncService::Build_Handshake(unsigned int profile_hash,unsigned int content_hash,
 													unsigned int manifest_revision,
-													WorldSyncHandshakeClass * out)
+													WorldSyncHandshakeClass * out,
+													unsigned int planning_hash)
 {
 	if (out == nullptr) return false;
 	if (!WorldTerrainSystem::Has_Terrain()) return false;
@@ -340,6 +345,12 @@ WorldSyncResultType WorldSyncService::Begin_Join(const WorldSyncHandshakeClass &
 			detail_out->Format("server content 0x%08X, client 0x%08X",server.ContentHash,client.ContentHash);
 		}
 		return WORLD_SYNC_CONTENT_MISMATCH;
+	}
+	if (server.PlanningHash != client.PlanningHash) {
+		if (detail_out) {
+			detail_out->Format("server planning 0x%08X, client 0x%08X",server.PlanningHash,client.PlanningHash);
+		}
+		return WORLD_SYNC_PLANNING_MISMATCH;
 	}
 	if (server.ManifestRevision != client.ManifestRevision) {
 		if (detail_out) {

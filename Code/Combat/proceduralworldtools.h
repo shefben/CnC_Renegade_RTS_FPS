@@ -71,6 +71,8 @@ struct ProceduralWorldValidationReport
 	unsigned int	Seed;
 	unsigned int	ProfileHash;
 	unsigned int	ContentManifestHash;
+	unsigned int	HybridPlanningInputHash;	// 0 for a legacy world
+	unsigned int	HybridContentRevision;
 
 	bool		CombatSpacePassed;
 	int		CombatSpaceFailureCount;

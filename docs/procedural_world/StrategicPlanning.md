@@ -74,6 +74,12 @@ picking one of the roadmap's two orderings and hoping it does not matter:
    candidate combinations that are obviously economically disconnected" is this filter, made
    concrete rather than left as a phrase.
 
+### Planned sites (D-003)
+
+With a map plan, `ChunkScore` carries `PlanBase` and `PlanField` beside `Terrain`. Step 5
+ranks Tiberium candidates by `Terrain + PlanField * 2.0` and skips planned base discs; the base
+ranking adds `PlanBase * 2.0`; settlements use `Terrain` alone. See `MapPlan.md`.
+
 ## Settlements, POIs, and expansion areas
 
 Settlement candidates (step 6) and POI candidates (step 7) both use terrain score alone, placed

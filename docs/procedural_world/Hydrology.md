@@ -97,6 +97,13 @@ This is a coarse approximation of a basin's true shape -- one chunk's own square
 never a fitted polygon around the actual depression -- the same per-chunk granularity Phase 5's
 own interior cliff stations already accept as a documented simplification.
 
+### Planned water (D-003)
+
+When `MapPlanGenerator::Has_Plan()`, chunks whose centre lies in a plan `WATER` cell are
+offered to the basin builder first, in index order, inside the same `max_river_count` budget
+as rivers and sinks. Everything the builder refuses (cliff band, sea, claimed) still refuses.
+See `MapPlan.md`.
+
 ## Depth is not a profile field
 
 `WaterDefinitionClass::BedDepth`, already set per category by `WaterSystem::Define_Default_

@@ -36,6 +36,7 @@
 #include "settlementgenerator.h"
 #include "strategicplanner.h"
 #include "tiberiumfieldgenerator.h"
+#include "worldmetrics.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
 #include "wwmath.h"
@@ -74,7 +75,7 @@ CombatSpaceMetrics::CombatSpaceMetrics(void) :
 
 CombatSpaceValidationParams::CombatSpaceValidationParams(void) :
 	Seed(1), MaxMandatoryExposedInfantryRunTimeSeconds(12.0f), MinVehicleLaneClearance(1.0f),
-	ReferenceInfantrySpeed(4.3f)
+	ReferenceInfantrySpeed(WorldMetricsClass::Get_Reference_Infantry_Speed())
 { }
 
 

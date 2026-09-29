@@ -61,6 +61,7 @@
 #include "sortingrenderer.h"
 #include "shattersystem.h"
 #include "shadermgr.h"
+#include "shaderdatabase.h"
 #include "light.h"
 #include "assetmgr.h"
 #include "textureloader.h"
@@ -408,6 +409,19 @@ void DX8Wrapper::Invalidate_Cached_Render_States(void)
 	ShaderClass::Invalidate();
 }
 
+//
+//	D-004.  An effect draw (ShaderControllerClass) set vertex and pixel shaders on the device
+//	behind the wrapper and may have changed stage state through the caches; make the next
+//	fixed-function draw re-apply everything it depends on.
+//
+void DX8Wrapper::Invalidate_After_Effect_Draw(void)
+{
+	DX8CALL(SetVertexShader(NULL));
+	DX8CALL(SetPixelShader(NULL));
+	ShaderClass::Invalidate();
+	render_state_changed |= SHADER_CHANGED | MATERIAL_CHANGED | LIGHTS_CHANGED | TEXTURES_CHANGED | VERTEX_BUFFER_CHANGED;
+}
+
 void DX8Wrapper::Do_Onetime_Device_Dependent_Shutdowns(void)
 {
 	/*
@@ -539,6 +553,7 @@ bool DX8Wrapper::Reset_Device(void)
 		Set_Index_Buffer (nullptr, 0);
 		DynamicVBAccessClass::_Deinit();
 		DynamicIBAccessClass::_Deinit();
+		ShaderControllerClass::On_Device_Lost();
 		DX8TextureManagerClass::Release_Textures();
 
 		// Reset frame count to reflect the flipping chain being reset by Reset()
@@ -548,6 +563,7 @@ bool DX8Wrapper::Reset_Device(void)
 		DX8TextureManagerClass::Recreate_Textures();
 		Invalidate_Cached_Render_States();
 		Set_Default_Global_Render_States();
+		ShaderControllerClass::On_Device_Reset();
 		WWDEBUG_SAY(("Device reset completed\n"));
 		return true;
 	}
@@ -1937,6 +1953,19 @@ void DX8Wrapper::Draw(
 		case BUFFER_TYPE_DYNAMIC_DX8:
 			{
 				DX8_RECORD_RENDER(polygon_count,vertex_count,render_state.shader);
+
+				//	D-004: a texture the shader database names is drawn by its programmable shader.
+				if (ShaderControllerClass::Is_Active()) {
+					ShaderDrawStruct draw;
+					draw.PrimitiveType	= primitive_type;
+					draw.BaseVertexIndex	= BaseVertexIndex;
+					draw.MinVertexIndex	= min_vertex_index;
+					draw.VertexCount		= vertex_count;
+					draw.StartIndex		= start_index+render_state.iba_offset;
+					draw.PolygonCount		= polygon_count;
+					if (ShaderControllerClass::Draw(draw)) break;
+				}
+
 				DX8CALL(DrawIndexedPrimitive(
 					(D3DPRIMITIVETYPE)primitive_type,
 					BaseVertexIndex,

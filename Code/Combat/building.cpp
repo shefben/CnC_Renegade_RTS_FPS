@@ -842,8 +842,11 @@ BuildingGameObj::Update_State (bool force_update)
 	**	buildings -- every descriptor before this phase, and every one after it that does not opt
 	**	in -- take no extra RecalculateTeam call on every hit, honoring the header's own "call on
 	**	relevant state/config changes, never every frame".
+	**
+	**	The constructor calls Update_State before Init/Load has attached a definition, so the
+	**	descriptor lookup must wait until one exists.
 	*/
-	if (CombatManager::I_Am_Server ()) {
+	if (CombatManager::I_Am_Server () && Has_Definition ()) {
 		const StringClass & descriptor_name = Get_Definition ().Get_Descriptor_Name ();
 		const BuildingModelDescriptor *descriptor = (descriptor_name.Get_Length () > 0)
 			? BuildingDescriptorManager::Get_Descriptor (descriptor_name.Peek_Buffer ()) : nullptr;

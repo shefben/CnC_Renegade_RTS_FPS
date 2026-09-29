@@ -76,6 +76,7 @@ public:
 	bool									Save (ChunkSaveClass &csave) override;
 	bool									Load (ChunkLoadClass &cload) override;
 	const PersistFactoryClass &	Get_Factory (void) const override;
+	int									Get_Harvester_Def_ID (void) const	{ return HarvesterDefID; }
 
 	////////////////////////////////////////////////////////////////
 	//	Editable support

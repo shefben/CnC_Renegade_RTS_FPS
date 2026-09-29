@@ -14,6 +14,14 @@ layout, collision, damage state and multiplayer state-block serialization; this 
 `Add_Bridge`/`Build_Layout`/`Build_Geometry`/`Set_Damage_State`/`Connect_Roads`, the same entry
 points the console command and self check already use.
 
+## Native bridge requirement (generator 9)
+
+Every accepted `fit_to_level: false` world must contain a usable bridge over a generated river. `RoadGraphGenerator` deterministically reserves one hydrology crossing on an existing strategic road edge, routing straight between dry approaches on opposite banks. The span is excluded from road grading so the river is not filled before bridge placement.
+
+The reserved crossing cannot be rerouted away and its bridge starts pristine. `BridgePlanner::Has_Usable_River_Crossing` checks the actual deck above river water, traversability, road widths, and both dry road-to-bank connections. The manager rejects the attempt when this gate fails; its existing three-attempt seed policy then retries, and clients reconstruct the server's accepted seed exactly. Profiles that cannot supply a river crossing fail instead of yielding a bridge-less generated map.
+
+`terrain_native_bridges` and its dedicated-server counterpart exercise requests for seeds 1–8, bounded alternate seeds, exact reconstruction checksums, and rejection of broken or detached bridges. The native profile check also includes the bridge requirement before base selection. Rendering and driving over the final geometry remain live-game checks.
+
 ## Finding the banks
 
 A crossing candidate names a point, not a span. `Find_Bridge_Banks` walks outward from that

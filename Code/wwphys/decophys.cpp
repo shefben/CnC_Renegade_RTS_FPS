@@ -156,7 +156,10 @@ bool DecorationPhysClass::Intersection_Test(PhysOBBoxIntersectionTestClass & tes
 
 bool DecorationPhysClass::Cast_Ray(PhysRayCollisionTestClass & raytest)
 {
-	WWASSERT(Model);
+	// A decoration whose model asset failed to load has no geometry to hit.
+	if (Model == nullptr) {
+		return false;
+	}
 	if (Model->Cast_Ray(raytest)) {
 		raytest.CollidedPhysObj = this;
 		return true;
@@ -166,7 +169,10 @@ bool DecorationPhysClass::Cast_Ray(PhysRayCollisionTestClass & raytest)
 
 bool DecorationPhysClass::Cast_AABox(PhysAABoxCollisionTestClass & boxtest)
 {
-	WWASSERT(Model);
+	// A decoration whose model asset failed to load has no geometry to hit.
+	if (Model == nullptr) {
+		return false;
+	}
 	if (Model->Cast_AABox(boxtest)) {
 		boxtest.CollidedPhysObj = this;
 		return true;
@@ -176,7 +182,10 @@ bool DecorationPhysClass::Cast_AABox(PhysAABoxCollisionTestClass & boxtest)
 
 bool DecorationPhysClass::Cast_OBBox(PhysOBBoxCollisionTestClass & boxtest)
 {
-	WWASSERT(Model);
+	// A decoration whose model asset failed to load has no geometry to hit.
+	if (Model == nullptr) {
+		return false;
+	}
 	if (Model->Cast_OBBox(boxtest)) {
 		boxtest.CollidedPhysObj = this;
 		return true;

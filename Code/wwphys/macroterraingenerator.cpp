@@ -25,9 +25,15 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "macroterraingenerator.h"
+#include "hybridmacroterrain.h"
+
+#include "mapplangenerator.h"
 
 #include "heightfield.h"
+#include "phys.h"
+#include "pscene.h"
 #include "terrainmask.h"
+#include "terraintexturesystem.h"
 #include "vector2.h"
 #include "vector3.h"
 #include "worldboundsservice.h"
@@ -47,11 +53,14 @@ MacroTerrainParams::MacroTerrainParams(void) :
 	Seed (1u),
 	WorldWidth (4096.0f), WorldHeight (4096.0f), ChunkSize (128.0f),
 	CenterX (0.0f), CenterY (0.0f), SeaLevel (0.0f),
-	MinElevation (-30.0f), MaxElevation (160.0f),
+	MinElevation (-30.0f), MaxElevation (160.0f), LandElevationBias (0.0f),
 	MaxBuildableSlopeRadians (0.4886f),		// ~28 degrees
 	FeatureScale (900.0f),
 	MacroRelief (0.6f), HillDensity (0.45f), MountainDensity (0.18f), ValleyDensity (0.30f),
-	RidgeSharpness (0.55f), PlateauChance (0.15f), BoundaryApproachFlattening (0.6f)
+	RidgeSharpness (0.55f), PlateauChance (0.15f), BoundaryApproachFlattening (0.6f),
+	UsePlan (false), PlanDetailWeight (0.35f),
+	UseHybrid (false), HybridParams (nullptr), HybridMatrices (nullptr), HybridLandforms (nullptr),
+	HybridHydrology (nullptr), HybridSurfaces (nullptr)
 {
 }
 
@@ -60,7 +69,7 @@ MacroTerrainParams::MacroTerrainParams(void) :
 //	world description, so it lives beside the generator that consumes it rather than widening
 //	the schema with a number no profile author has an opinion about (the same reasoning
 //	ProceduralWorldManager's own CLIFF_STATION_SPACING/CLIFF_STATIONS_PER_CHUNK already use).
-static const int SLOPE_RELAXATION_PASSES = 4;
+static const int SLOPE_RELAXATION_PASSES = 16;
 
 
 void MacroTerrainGenerator::Init(void)
@@ -158,11 +167,16 @@ Sample_Elevation(const MacroTerrainParams & p,float wx,float wy)
 	ridge = ridge * WWMath::Lerp (ridge,ridge * ridge,p.RidgeSharpness);
 	float hill       = Fractal_Noise (wx,wy,base_freq * 3.1f,3,seed + 2027);
 	float valley_raw = Fractal_Noise (wx,wy,base_freq * 0.6f,3,seed + 3041);
+	//	The zero contour of broad valley noise forms a continuous, winding
+	//	ravine. The old absolute-value term only made broad shallow bowls and
+	//	left no recognisable channel for rivers or canyon walls to follow.
+	float ravine = WWMath::Clamp (1.0f - WWMath::Fabs (valley_raw) / 0.16f,0.0f,1.0f);
+	ravine *= ravine;
 
 	float combined = (macro * p.MacroRelief)
 						+ (((ridge * 2.0f) - 1.0f) * p.MountainDensity)
 						+ (hill * p.HillDensity * 0.5f)
-						- (WWMath::Fabs (valley_raw) * p.ValleyDensity);
+						- ((WWMath::Fabs (valley_raw) * 0.45f + ravine * 0.55f) * p.ValleyDensity);
 	combined = WWMath::Clamp (combined,-1.0f,1.0f);
 
 	if (p.PlateauChance > 0.0f) {
@@ -180,7 +194,8 @@ Sample_Elevation(const MacroTerrainParams & p,float wx,float wy)
 		}
 	}
 
-	return (combined >= 0.0f) ? (combined * p.MaxElevation) : (combined * -p.MinElevation);
+	float relief = (combined >= 0.0f) ? (combined * p.MaxElevation) : (combined * -p.MinElevation);
+	return relief + p.LandElevationBias;
 }
 
 
@@ -201,7 +216,10 @@ static void
 Relax_Slopes(float * heights,const bool * locked,int vx,int vy,float cell_size,float max_slope_radians)
 {
 	float clamped_slope = WWMath::Clamp (max_slope_radians,0.0f,1.5f);		// tan() diverges past ~85.9 degrees
-	float max_delta = cell_size * WWMath::Tan (clamped_slope);
+	// A terrain triangle can climb in both grid axes at once.  Limiting each
+	// edge to tan(limit) independently allowed the combined gradient to reach
+	// sqrt(2) times the buildable slope, leaving whole seed variants unusable.
+	float max_delta = cell_size * WWMath::Tan (clamped_slope) * 0.70710678f;
 
 	for (int pass = 0; pass < SLOPE_RELAXATION_PASSES; pass++) {
 		for (int iy = 0; iy < vy; iy++) {
@@ -256,10 +274,18 @@ bool MacroTerrainGenerator::Generate(const MacroTerrainParams & params,StringCla
 	if (!WWMath::Is_Valid_Float (params.ChunkSize) || (params.ChunkSize <= 0.0f))
 																				FAIL ("chunk size must be positive");
 	if (params.MaxElevation < params.MinElevation)					FAIL ("max elevation below min elevation");
+	if (!WWMath::Is_Valid_Float (params.LandElevationBias))	FAIL ("land elevation bias is not finite");
 	if (!WWMath::Is_Valid_Float (params.FeatureScale) || (params.FeatureScale <= 0.0f))
 																				FAIL ("feature scale must be positive");
 	if ((params.MaxBuildableSlopeRadians <= 0.0f) || (params.MaxBuildableSlopeRadians >= 1.5f))
 																				FAIL ("max buildable slope must be between 0 and ~86 degrees");
+	if (params.UsePlan && !MapPlanGenerator::Has_Plan ())		FAIL ("use_plan set but MapPlanGenerator holds no plan");
+	if (params.UseHybrid && params.UsePlan)						FAIL ("hybrid Phase 7 and the D-003 plan path are exclusive");
+	if (params.UseHybrid && ((params.HybridParams == nullptr) || (params.HybridMatrices == nullptr)
+		|| (params.HybridLandforms == nullptr) || (params.HybridHydrology == nullptr)
+		|| (params.HybridSurfaces == nullptr)))					FAIL ("use_hybrid set without the Phase 4-6 records");
+	if (params.UsePlan && ((params.PlanDetailWeight < 0.0f) || (params.PlanDetailWeight > 1.0f)))
+																				FAIL ("plan detail weight must be 0..1");
 
 	float cell_size = params.ChunkSize / (float)HeightfieldClass::PATCH_CELLS;
 
@@ -301,9 +327,50 @@ bool MacroTerrainGenerator::Generate(const MacroTerrainParams & params,StringCla
 				h = 0.0f;
 				locked[idx] = true;
 
+			} else if (params.UseHybrid) {
+
+				/*
+				**	Runtime Phase 7 (item I8).  The whole height expression -- semantic tier, macro bias,
+				**	the Phase-5 landform sum, the Phase-6 water carve and the protected detail noise -- is
+				**	`Hybrid_Macro_Sample_Height`, which returns an absolute height while this grid stores
+				**	relief relative to sea level.  Nothing else in this loop applies to a hybrid world:
+				**	the boundary-approach flattening is the noise path's own seam rule, and Phase 4 has
+				**	already put the hybrid boundary band's tier into the matrix.
+				*/
+				h = Hybrid_Macro_Sample_Height (*params.HybridParams,*params.HybridMatrices,
+														  *params.HybridLandforms,*params.HybridHydrology,
+														  *params.HybridSurfaces,Vector2 (wx,wy)) - params.SeaLevel;
+
+				/*
+				**	The ordinary-slope enforcement below runs only outside the explicit steep and water
+				**	profiles the plan names, so a vertical-faced cliff, a canyon wall and a river bed keep
+				**	the shape Phases 5 and 6 fixed.  A protected vertex is still written; it is only never
+				**	a term in the relaxation loop's arithmetic.
+				*/
+				if (Hybrid_Macro_Is_Protected_Profile (*params.HybridParams,*params.HybridLandforms,
+																	*params.HybridHydrology,Vector2 (wx,wy))) {
+					locked[idx] = true;
+					params.HybridSurfaces->ProtectedVertices ++;
+				} else {
+					locked[idx] = false;
+				}
+
 			} else {
 
 				h = Sample_Elevation (params,wx,wy);
+
+				if (params.UsePlan) {
+					//	D-003 Phase 3B.  The plan's tier height is the structure; the noise relief
+					//	is kept only as in-tier detail.  A RAMP cell keeps its blended tier slope and
+					//	drops the detail so a lane crossing a tier stays under the buildable cap; a
+					//	CLIFF_SEAM cell keeps its sharp step so the interior cliff generator sees a
+					//	chunk still steep after relaxation, which is exactly the candidate it wants.
+					float tier_h = MapPlanGenerator::Sample_Tier_Height (wx,wy);
+					MapPlanCellKind kind = MapPlanGenerator::Get_Kind_At (wx,wy);
+					float detail = (kind == MAP_PLAN_CELL_RAMP) ? 0.0f : params.PlanDetailWeight;
+					if ((kind == MAP_PLAN_CELL_BASE) || (kind == MAP_PLAN_CELL_FIELD)) detail *= 0.25f;
+					h = tier_h + (h - params.LandElevationBias) * detail + params.LandElevationBias;
+				}
 
 				if ((zone == WORLD_ZONE_BOUNDARY_APPROACH) && configured) {
 					//	Pulled toward the flat band the closer the approach zone gets to it, so
@@ -335,6 +402,21 @@ bool MacroTerrainGenerator::Generate(const MacroTerrainParams & params,StringCla
 		}
 	}
 
+	if (params.UseHybrid) {
+		//	Phase 7's own record of what was realized, for its gate, its checksum and the manifest.
+		float lowest = heights[0];
+		float highest = heights[0];
+		for (int idx = 0; idx < (vx * vy); idx++) {
+			if (heights[idx] < lowest) lowest = heights[idx];
+			if (heights[idx] > highest) highest = heights[idx];
+		}
+		params.HybridSurfaces->VertexCountX	= vx;
+		params.HybridSurfaces->VertexCountY	= vy;
+		params.HybridSurfaces->CellSize		= cell_size;
+		params.HybridSurfaces->MinHeight		= lowest + params.SeaLevel;
+		params.HybridSurfaces->MaxHeight		= highest + params.SeaLevel;
+	}
+
 	bool set_ok = WorldTerrainSystem::Set_Heights (heights,vx * vy);
 	delete [] heights;
 	delete [] locked;
@@ -345,13 +427,31 @@ bool MacroTerrainGenerator::Generate(const MacroTerrainParams & params,StringCla
 
 	//	Device-less from here down: the chunk registry needs no scene.
 	WorldTerrainSystem::Build_Chunk_Registry (params.MaxBuildableSlopeRadians);
+	if (!WorldTerrainSystem::Has_Chunk_Registry ()) {
+		FAIL ("generated terrain has no chunk registry");
+	}
 
-	//	Best-effort from here down: both calls are already safe with no physics scene
-	//	(WorldTerrainSystem's own contract, proven by terrain_service/terrain_far), so a tool or
-	//	a dedicated server calling Generate before a scene exists gets a correct heightfield and
-	//	chunk registry with no collision/far layer yet, rather than a refusal.
-	WorldTerrainSystem::Build_Collision ();
-	WorldTerrainSystem::Build_Far_Terrain_Representation ();
+	//	A native world has no level or editor command to define terrain layers.  Patch
+	//	rendering draws one pass per registered layer, so an empty registry leaves
+	//	the generated ground invisible even though its collision mesh exists.
+	if (TerrainTextureSystem::Get_Layer_Count() == 0) {
+		TerrainTextureSystem::Define_Default_Layers();
+	}
+	if (!TerrainTextureSystem::Create_Masks ()) {
+		FAIL ("generated terrain texture masks could not be created");
+	}
+
+	//	Both calls are safe without a physics scene, so device-less generators still
+	//	get heightfield data. Once a live scene exists, both representations are
+	//	required before the world can be accepted.
+	const bool collision_built = WorldTerrainSystem::Build_Collision ();
+	const bool far_built = WorldTerrainSystem::Build_Far_Terrain_Representation ();
+	//	Device-less self-checks may generate only data.  In a live scene, accepting a
+	//	heightfield without its collision or rendered far layer produces a broken map.
+	if (PhysicsSceneClass::Get_Instance () != nullptr) {
+		if (!collision_built) FAIL ("generated terrain collision could not be built");
+		if (!far_built) FAIL ("generated far terrain could not be built");
+	}
 
 	Generated			= true;
 	TerrainChecksum	= WorldTerrainSystem::Get_World_Chunk_Checksum ();

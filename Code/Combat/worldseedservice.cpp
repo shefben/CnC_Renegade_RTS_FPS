@@ -27,11 +27,13 @@
 #include "worldseedservice.h"
 
 #include "crc.h"
+#include "hybridplanning.h"
 
 
 const char * const WorldSeedService::SEED_DOMAIN_BOUNDARY				= "boundary";
 const char * const WorldSeedService::SEED_DOMAIN_BOUNDARY_CLIFFS	= "boundary_cliffs";
 const char * const WorldSeedService::SEED_DOMAIN_TERRAIN				= "terrain";
+const char * const WorldSeedService::SEED_DOMAIN_MAP_PLAN			= "map_plan";
 const char * const WorldSeedService::SEED_DOMAIN_INTERIOR_CLIFFS	= "interior_cliffs";
 const char * const WorldSeedService::SEED_DOMAIN_HYDROLOGY				= "hydrology";
 const char * const WorldSeedService::SEED_DOMAIN_ROADS					= "roads";
@@ -58,4 +60,10 @@ unsigned int WorldSeedService::Derive_Subsystem_Seed(unsigned int world_seed,con
 		return normalized;
 	}
 	return CRC::String (domain,normalized);
+}
+
+
+float WorldSeedService::Hash01(unsigned int world_seed,const char * domain,unsigned int k0,unsigned int k1,unsigned int k2)
+{
+	return Hybrid_Hash01 (Derive_Subsystem_Seed (world_seed,domain),k0,k1,k2);
 }

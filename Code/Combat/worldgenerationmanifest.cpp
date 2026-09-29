@@ -27,9 +27,12 @@
 #include "worldgenerationmanifest.h"
 
 #include "crc.h"
+#include "wwdebug.h"
 #include "worldseedservice.h"
 
 #include "nlohmann/json.hpp"
+
+#include <stdio.h>
 
 using nlohmann::json;
 
@@ -39,6 +42,8 @@ WorldGenerationManifest::WorldGenerationManifest(void) :
 	Seed (0),
 	ProfileHash (0),
 	ContentManifestHash (0),
+	HybridPlanningInputHash (0),
+	HybridContentRevision (0),
 	CliffRingChecksum (0),
 	TerrainChecksum (0),
 	InteriorCliffChecksum (0),
@@ -63,20 +68,27 @@ WorldGenerationManifest::WorldGenerationManifest(void) :
 static StringClass
 Format_Canonical_Profile_String(const ProceduralWorldProfile & p)
 {
-	StringClass s (256u,true);
-	s.Format (
+	//	Rewrite Section 0.7: legacy lane_width_cells and settlements are inert on the hybrid path and
+	//	kept out of its hash -- a constant stands in so the string layout never changes.
+	const bool hybrid = p.Uses_Hybrid_Generator ();
+
+	//	StringClass::Format truncates at 511 characters, which silently dropped every field past
+	//	the terrain block from the hash; format into a buffer that holds the whole string.
+	char buffer[4096];
+	int length = ::snprintf (buffer,sizeof (buffer),
 		"schema=%u gen=%u seed=%u "
 		"w.width=%.4f w.height=%.4f w.chunk=%.4f w.sea=%.4f w.fit=%d w.cx=%.4f w.cy=%.4f "
 		"b.shape=%s b.band=%.4f b.cmin=%.4f b.cmax=%.4f b.hard=%.4f b.ceil=%.4f "
 		"b.rimrough=%.4f b.facerough=%.4f b.toe=%.4f b.colsimp=%d "
 		"t.relief=%.4f t.hill=%.4f t.mtn=%.4f t.icliff=%.4f t.valley=%.4f "
-		"t.minelev=%.4f t.maxelev=%.4f t.slope=%.4f t.scale=%.4f t.ridge=%.4f t.plateau=%.4f t.approach=%.4f "
+		"t.minelev=%.4f t.maxelev=%.4f t.landbias=%.4f t.slope=%.4f t.scale=%.4f t.ridge=%.4f t.plateau=%.4f t.approach=%.4f "
+		"pl.on=%d pl.sym=%s pl.tiers=%d pl.step=%.4f pl.detail=%.4f pl.lane=%d pl.base=%d pl.flank=%d pl.water=%.4f pl.margin=%.4f "
 		"wa.riv=%d wa.lake=%d wa.pond=%d wa.coast=%d wa.rwidth=%.4f wa.swidth=%.4f wa.raccum=%.4f wa.rcount=%d "
 		"rs.rmin=%.4f rs.rmax=%.4f rs.ymin=%.4f rs.ymax=%.4f rs.density=%.4f rs.anchors=%d rs.load=%.4f "
 			"rs.grow=%d rs.growrate=%.4f "
 		"f.forest=%d f.settle=%d f.tunnel=%d f.hwy=%d f.tib=%d "
 		"r.local=%d r.alt=%d "
-		"fa.resdiff=%.4f fa.incdiff=%.4f fa.frontdiff=%.4f fa.b2bdiff=%.4f "
+		"fa.resdiff=%.4f fa.incdiff=%.4f fa.frontdiff=%.4f fa.b2bdiff=%.4f fa.b2bmin=%.4f "
 		"fa.minveh=%d fa.mininf=%d fa.minexp=%.4f fa.bridgeok=%d "
 		"fa.rundist=%.4f fa.runtime=%.4f fa.cover=%.4f fa.laneclear=%.4f",
 		p.SchemaVersion,p.GeneratorVersion,p.Seed,
@@ -87,23 +99,36 @@ Format_Canonical_Profile_String(const ProceduralWorldProfile & p)
 			p.Boundary.CollisionSimplification,
 		p.Terrain.MacroRelief,p.Terrain.HillDensity,p.Terrain.MountainDensity,
 			p.Terrain.InteriorCliffDensity,p.Terrain.ValleyDensity,
-		p.Terrain.MinElevation,p.Terrain.MaxElevation,p.Terrain.MaxBuildableSlopeDegrees,p.Terrain.FeatureScale,
+		p.Terrain.MinElevation,p.Terrain.MaxElevation,p.Terrain.LandElevationBias,p.Terrain.MaxBuildableSlopeDegrees,p.Terrain.FeatureScale,
 			p.Terrain.RidgeSharpness,p.Terrain.PlateauChance,p.Terrain.BoundaryApproachFlattening,
+			(int)p.Plan.Enabled,p.Plan.Symmetry.Peek_Buffer (),p.Plan.TierCount,p.Plan.TierStep,p.Plan.DetailWeight,
+			hybrid ? 0 : p.Plan.LaneWidthCells,p.Plan.BaseRadiusCells,p.Plan.FlankLanes,p.Plan.WaterFraction,p.Plan.BoundaryMarginCells,
 		p.Water.Rivers ? 1 : 0,p.Water.Lakes ? 1 : 0,p.Water.Ponds ? 1 : 0,p.Water.Coastline ? 1 : 0,
 			p.Water.RiverWidth,p.Water.StreamWidth,p.Water.RiverAccumulationChunks,p.Water.MaxRiverCount,
 		p.Resource.FieldRadiusMin,p.Resource.FieldRadiusMax,p.Resource.InitialYieldMin,p.Resource.InitialYieldMax,
 			p.Resource.CrystalDensity,p.Resource.HarvestAnchorCount,p.Resource.HarvesterLoadAmount,
 			p.Resource.GrowthEnabled ? 1 : 0,p.Resource.GrowthRatePerSecond,
-		p.Features.Forests ? 1 : 0,p.Features.Settlements ? 1 : 0,p.Features.Tunnels ? 1 : 0,
+		p.Features.Forests ? 1 : 0,(!hybrid && p.Features.Settlements) ? 1 : 0,p.Features.Tunnels ? 1 : 0,
 			p.Features.Highways ? 1 : 0,p.Features.TiberiumFields ? 1 : 0,
 		p.Retry.MaxLocalRetriesPerStage,p.Retry.MaxAlternateCandidatesPerFeature,
 		p.Fairness.MaxInitialResourceTravelTimeDifferenceSeconds,p.Fairness.MaxProjectedInitialIncomeDifferencePercent,
 			p.Fairness.MaxBaseToFrontTravelTimeDifferenceSeconds,p.Fairness.MaxBaseToBaseTravelTimeDifferenceSeconds,
+			p.Fairness.MinBaseToBaseTravelTimeSeconds,
 		p.Fairness.MinVehicleApproachCount,p.Fairness.MinInfantryApproachCount,
 			p.Fairness.MinBaseExpansionArea,p.Fairness.AllowSingleBridgeDependency ? 1 : 0,
 		p.Fairness.MaxMandatoryExposedInfantryRunDistance,p.Fairness.MaxMandatoryExposedInfantryRunTimeSeconds,
 			p.Fairness.PreferredCoverInterval,p.Fairness.MinVehicleLaneClearance
 	);
+	WWASSERT ((length > 0) && (length < (int)sizeof (buffer)));
+	StringClass s (buffer,true);
+
+	//	Schema 12 hybrid plan fields (rewrite Section 4), appended so the layout above is unchanged.
+	StringClass hybrid_fields;
+	hybrid_fields.Format ("|%s|%s|%s|%s|%.4f|%.4f|%.4f|%d|%d",
+		p.Plan.Archetype.Peek_Buffer (),p.Plan.BiomeMode.Peek_Buffer (),p.Plan.Biome.Peek_Buffer (),
+		p.Plan.SecondaryBiome.Peek_Buffer (),p.Plan.MixedBiomeProbability,p.Plan.RoadDensity,
+		p.Plan.IslandChance,p.Plan.RouteRedundancy,p.Plan.AllowFords ? 1 : 0);
+	s += hybrid_fields;
 	return s;
 }
 
@@ -196,6 +221,8 @@ bool WorldGenerationManifestService::Serialize(const WorldGenerationManifest & m
 	root ["seed"]								= m.Seed;
 	root ["profile_hash"]					= m.ProfileHash;
 	root ["content_manifest_hash"]		= m.ContentManifestHash;
+	root ["hybrid_planning_input_hash"]	= m.HybridPlanningInputHash;
+	root ["hybrid_content_revision"]	= m.HybridContentRevision;
 	root ["cliff_ring_checksum"]			= m.CliffRingChecksum;
 	root ["terrain_checksum"]				= m.TerrainChecksum;
 	root ["interior_cliff_checksum"]		= m.InteriorCliffChecksum;
@@ -236,6 +263,8 @@ bool WorldGenerationManifestService::Deserialize(const char * json_text,WorldGen
 		m.Seed						= root.value ("seed",0u);
 		m.ProfileHash				= root.value ("profile_hash",0u);
 		m.ContentManifestHash	= root.value ("content_manifest_hash",0u);
+		m.HybridPlanningInputHash	= root.value ("hybrid_planning_input_hash",0u);
+		m.HybridContentRevision		= root.value ("hybrid_content_revision",0u);
 		m.CliffRingChecksum		= root.value ("cliff_ring_checksum",0u);
 		m.TerrainChecksum			= root.value ("terrain_checksum",0u);
 		m.InteriorCliffChecksum	= root.value ("interior_cliff_checksum",0u);
@@ -271,5 +300,14 @@ StringClass WorldGenerationManifestService::Format_Reproduction_String(const Wor
 	StringClass s (128u,true);
 	s.Format ("generator_version=%u seed=%u profile=%u content_manifest=%u",
 				 m.GeneratorVersion,m.Seed,m.ProfileHash,m.ContentManifestHash);
+
+	//	A hybrid world's identity is its planning input hash and structural content revision
+	//	(hybrid plan Section 0.3) on top of the legacy fields; a legacy world keeps the exact
+	//	Phase 1 step 12 format.
+	if (m.HybridPlanningInputHash != 0u || m.HybridContentRevision != 0u) {
+		StringClass hybrid (64u,true);
+		hybrid.Format (" hybrid_planning=%u hybrid_content=%u",m.HybridPlanningInputHash,m.HybridContentRevision);
+		s += hybrid;
+	}
 	return s;
 }

@@ -16,6 +16,10 @@ this phase's initial fields belong to. `RoadGraphGenerator::Find_Anchor_Path` --
 question answered a second time -- is the one owner both generators now measure a real road
 route through, rather than two independent copies of the same walk quietly drifting apart.
 
+With a map plan (D-003) the resource candidates the planner offers already sit on the plan's
+`FIELD_CENTER` and `FIELD_FLANK` discs, so the fields resolve there without this generator
+reading the plan. See `MapPlan.md`.
+
 ## Schema 5: the profile fields Section 17A.6 requires
 
 Section 17A.6 requires field/profile data to "define or derive" a field radius range, initial

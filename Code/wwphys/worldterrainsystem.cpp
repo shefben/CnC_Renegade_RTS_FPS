@@ -1250,6 +1250,20 @@ bool WorldTerrainSystem::Mark_Chunk_Interior_Cliff(int px,int py)
 }
 
 
+bool WorldTerrainSystem::Clear_Chunk_Interior_Cliff(int px,int py)
+{
+	if (ChunkRegistry == nullptr || px < 0 || px >= ChunkRegistryCountX ||
+		py < 0 || py >= ChunkRegistryCountY) return false;
+	TerrainChunkInfoClass & info = ChunkRegistry[py * ChunkRegistryCountX + px];
+	if (!info.InteriorCliff) return true;
+	info.InteriorCliff = false;
+	info.Buildable = !info.CliffBand && (info.MaxSlopeRadians <= ChunkMaxBuildableSlopeRadians);
+	info.Checksum = Compute_Chunk_Checksum(info);
+	info.Revision++;
+	return true;
+}
+
+
 bool WorldTerrainSystem::Build_Chunk_Registry(float max_buildable_slope_radians)
 {
 	if (!Has_Terrain()) {

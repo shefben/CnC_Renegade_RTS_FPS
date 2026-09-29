@@ -138,6 +138,26 @@ struct WorldMetricsStruct
 };
 
 
+/*
+**	A collision box measured from a model's WORLDBOX, in vehicle-root axes: Length is the full
+**	X (forward) extent, Width the full Y (lateral) extent, Height the full Z extent.  Only a
+**	resolved WORLDBOX answers -- a render bounding box or the engine default never does, so
+**	a caller that must not guess gets "unmeasured" rather than a plausible number.
+*/
+struct WorldCollisionBoxStruct
+{
+	WorldCollisionBoxStruct(void) : Length(0.0f),Width(0.0f),Height(0.0f),DefinitionID(0),
+		MeasuredCount(0),UnmeasuredCount(0) { }
+
+	float		Length;
+	float		Width;
+	float		Height;
+	int		DefinitionID;			// the definition that supplied Width (a class's widest member)
+	int		MeasuredCount;			// definitions whose WORLDBOX resolved
+	int		UnmeasuredCount;		// class members with no WORLDBOX, left out rather than guessed
+};
+
+
 class WorldMetricsClass
 {
 public:
@@ -179,6 +199,16 @@ public:
 	static bool		Is_Posture_Supported(WorldPostureType posture);
 
 	/*
+	**	Measured collision boxes (see WorldCollisionBoxStruct).  The class form is the per-axis
+	**	largest over every physics definition of that class whose WORLDBOX resolved; it is the
+	**	canonical heavy-ground aggregate when asked for LOCOMOTION_TRACKED.  Both return false
+	**	when nothing was measured.  Unlike Get_Widest, Width here is the lateral extent, not
+	**	the circumscribing diameter.
+	*/
+	static bool		Get_Collision_Box(int definition_id,WorldCollisionBoxStruct * out);
+	static bool		Get_Class_Collision_Box(WorldLocomotionClassType loco,WorldCollisionBoxStruct * out);
+
+	/*
 	**	Which locomotion class a physics definition belongs to, by asking the definition
 	**	what type it is rather than by keeping a table of names.
 	*/
@@ -216,6 +246,14 @@ public:
 	//	up at the time.
 	static float	Compute_Overhead_Clearance(float stand_height,float step_height);
 
+	//	One definition's measured collision box from its metrics: the full extents on each axis,
+	//	or false when the extents are a fallback rather than the model's own WORLDBOX.  The
+	//	accumulate form folds a measured box into a class answer, per-axis largest, keeping the
+	//	widest member's definition id.
+	static bool		Compute_Collision_Box(const WorldMetricsStruct & metrics,int definition_id,
+												WorldCollisionBoxStruct * out);
+	static void		Accumulate_Collision_Box(const WorldCollisionBoxStruct & in,WorldCollisionBoxStruct * worst);
+
 	/*
 	**	The soldier posture constants, owned here so that the two literals that used to sit
 	**	in SoldierGameObj have one home.  Both are the engine's own existing values.
@@ -235,6 +273,21 @@ public:
 	**	a different ratio changes it in exactly one place.
 	*/
 	static float	Get_World_Units_Per_Meter(void);
+
+	/*
+	**	Fairness reference speeds, metres per second.  No canonical vehicle/infantry travel speed
+	**	exists anywhere in this codebase's own data -- RoadGraphGenerator, RoadSystem and
+	**	MoveablePhysClass all reason in distance and slope, never a rate.  These are fairness
+	**	*estimates* only, never consulted by movement, so they are documented real-world reference
+	**	figures rather than measured game data, the same class of constant as
+	**	Get_World_Units_Per_Meter: 8.33 m/s (30 km/h) is a standard defense-engineering
+	**	cross-country wheeled-vehicle planning speed; 4.3 m/s is a standard loaded-infantry running
+	**	pace.  They used to be inline literals in BaseSelectionPlanner, TiberiumFieldGenerator and
+	**	CombatSpaceValidator; the hybrid generator's preflight (V_REF / I_REF) and those three now
+	**	all read these, unchanged in value.
+	*/
+	static float	Get_Reference_Vehicle_Speed(void)		{ return 8.33f; }
+	static float	Get_Reference_Infantry_Speed(void)	{ return 4.3f; }
 
 private:
 

@@ -58,6 +58,12 @@ struct WorldGenerationManifest
 	unsigned int	ProfileHash;
 	unsigned int	ContentManifestHash;
 
+	//	Hybrid plan Section 0.3: the HybridPlanningInputHash and the structural ContentRevision the
+	//	preflight froze for this world, stored in addition to the legacy profile hash.  Both are 0
+	//	for a legacy (non-hybrid) world and never influence the legacy fields above.
+	unsigned int	HybridPlanningInputHash;
+	unsigned int	HybridContentRevision;
+
 	//	Section 29A.3's consequential-decision lists.  Stable IDs only (Section 3B.5), never
 	//	pointers/indices -- every list here is safe to serialize, diff, and network-replicate
 	//	as-is.

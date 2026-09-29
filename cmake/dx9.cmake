@@ -7,6 +7,8 @@ if(WIN32)
         )
 
         FetchContent_MakeAvailable(dx9)
+        # min-dx9-sdk ships the D3DX headers; D3DX itself is loaded at runtime.
+        target_compile_definitions(d3d9lib INTERFACE W3D_HAVE_D3DX)
         if(MSVC)
             # The prebuilt legacy DxErr.lib still imports _vsnprintf, which
             # moved to this compatibility library with the Universal CRT.
@@ -15,6 +17,7 @@ if(WIN32)
     else()
         add_library(d3d9lib INTERFACE)
         target_link_libraries(d3d9lib INTERFACE d3d9 d3dx9)
+        target_compile_definitions(d3d9lib INTERFACE W3D_HAVE_D3DX)
     endif()
 else()
     find_path(DXVK_INCLUDE_PATH NAMES "dxvk/d3d9.h" REQUIRED)

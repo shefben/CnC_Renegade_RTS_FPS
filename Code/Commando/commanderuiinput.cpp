@@ -9,6 +9,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "commanderuiinput.h"
+#include "commanderoverlay.h"
 
 #include "camera.h"
 #include "ccamera.h"
@@ -70,14 +71,10 @@ static bool	_WorldPressActive	= false;
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 static void	Read_Cursor(Vector2 * out_point)
 {
-	Vector3 position (0.0f,0.0f,0.0f);
-	DirectInput::Get_Cursor_Pos (&position);
-
-	//	Clamped here as well as in ScreenCursorClass, because a click can be read on a frame the
-	//	cursor sprite has not drawn yet -- the frame Commander Mode was entered on.
-	const RectClass & screen = Render2DClass::Get_Screen_Resolution ();
-	out_point->X = WWMath::Clamp (position.X,screen.Left,screen.Right);
-	out_point->Y = WWMath::Clamp (position.Y,screen.Top,screen.Bottom);
+	//	The software cursor CommanderOverlay draws (the CnC_Renegade_new fork's): the OS cursor
+	//	stays hidden in Commander Mode, and DirectInput's cursor position is only seeded on
+	//	Acquire, so the overlay integrates mouse deltas itself.
+	CommanderOverlay::Get_Cursor_Screen (*out_point);
 }
 
 
@@ -318,153 +315,52 @@ static void	Handle_Palette_Click(CommanderPaletteCommandType command)
 static void	Handle_Left_Click(const Vector2 & cursor)
 {
 	/*
-	**	The command grid is tested before the sidebar because it is drawn over it: it sits in the
-	**	lower right, and at small resolutions its panel and the sidebar's share an edge.  Whatever
-	**	is on top has to win the click, or the player clicks a button and something behind it
-	**	responds.
+	**	Everything drawn over the world -- sidebar, page buttons, minimap, status strip -- is
+	**	CommanderOverlay's (the CnC_Renegade_new fork's layout), so it answers what the click
+	**	landed on.  A click on its chrome is swallowed: the world behind a panel must not receive
+	**	a click the player aimed at the panel.
 	*/
-	{
-		CommanderPaletteCommandType command = PALETTE_MOVE;
-		bool inside_panel = false;
+	int card_index = -1;
+	int command_index = -1;
+	Vector3 minimap_world (0.0f,0.0f,0.0f);
+	CommanderOverlayHitType overlay_hit = CommanderOverlay::Hit_Test (cursor,&card_index,&minimap_world,&command_index);
 
-		if (CommanderCommandPaletteRenderer::Hit_Test (cursor.X,cursor.Y,&command,&inside_panel)) {
+	switch (overlay_hit) {
+		case COMMANDER_OVERLAY_HIT_COMMAND:
 			_ClickCount++;
-			Handle_Palette_Click (command);
+			Handle_Palette_Click ((CommanderPaletteCommandType)command_index);
 			return;
-		}
 
-		//	Inside the grid's panel but between buttons: swallowed, not passed to the world.
-		if (inside_panel) {
+		case COMMANDER_OVERLAY_HIT_CARD:
 			_ClickCount++;
+			Begin_Card (CommanderSidebarModel::Get_Card (card_index));
 			return;
-		}
-	}
 
-	/*
-	**	The governance panel (top left): each button is one of the existing governance events,
-	**	so a click here and the matching console command reach the server the same way.
-	*/
-	{
-		CommanderGovernanceButton button;
-		bool inside_panel = false;
-
-		if (CommanderGovernancePanelRenderer::Hit_Test (cursor.X,cursor.Y,&button,&inside_panel)) {
+		case COMMANDER_OVERLAY_HIT_PAGE_PREV:
 			_ClickCount++;
-			switch (button.Action) {
-				case GOVERNANCE_ACTION_VOTE_YES:
-				case GOVERNANCE_ACTION_VOTE_NO: {
-					cCommanderVoteCastEvent * event = new cCommanderVoteCastEvent;
-					event->Init (button.Action == GOVERNANCE_ACTION_VOTE_YES);
-					CommanderGovernancePanel::Note_Local_Vote (Local_Team ());
-					break;
-				}
-				case GOVERNANCE_ACTION_CALL_REMOVE: {
-					cCommanderVoteCallEvent * event = new cCommanderVoteCallEvent;
-					event->Init (true,button.TargetId);
-					break;
-				}
-				case GOVERNANCE_ACTION_CLAIM: {
-					cCommanderClaimEvent * event = new cCommanderClaimEvent;
-					event->Init (true);
-					break;
-				}
-				case GOVERNANCE_ACTION_TRANSFER: {
-					cCommanderTransferEvent * event = new cCommanderTransferEvent;
-					event->Init (button.TargetId);
-					break;
-				}
-				default:
-					break;
-			}
+			CommanderOverlay::Change_Page (-1);
 			return;
-		}
 
-		if (inside_panel) {
+		case COMMANDER_OVERLAY_HIT_PAGE_NEXT:
+			_ClickCount++;
+			CommanderOverlay::Change_Page (1);
+			return;
+
+		case COMMANDER_OVERLAY_HIT_MINIMAP:
+			_ClickCount++;
+			CommanderModeController::Set_Focus (minimap_world);
+			return;
+
+		case COMMANDER_OVERLAY_HIT_PANEL:
 			_ClickCount++;
 			return;
-		}
-	}
 
-	/*
-	**	The minimap (V2 Phase 16): a click on the map moves the Commander camera there; a click on
-	**	its frame is swallowed like any other panel's.
-	*/
-	{
-		Vector3 world (0.0f,0.0f,0.0f);
-		bool inside_panel = false;
-		if (CommanderMinimapRenderer::Hit_Test (cursor.X,cursor.Y,&world,&inside_panel)) {
-			_ClickCount++;
-			CommanderModeController::Set_Focus (world);
-			return;
-		}
-		if (inside_panel) {
-			_ClickCount++;
-			return;
-		}
-	}
-
-	/*
-	**	The selected building's power panel, which occupies the grid's corner while a building
-	**	rather than units is selected.  A click becomes a request; what the panel shows next is
-	**	whatever the server answers through the Commander mirror.
-	*/
-	{
-		CommanderPowerPanelButtonType button = POWER_PANEL_TOGGLE;
-		bool inside_panel = false;
-
-		if (CommanderPowerPanelRenderer::Hit_Test (cursor.X,cursor.Y,&button,&inside_panel)) {
-			_ClickCount++;
-
-			CommanderPowerPanelState state;
-			int action = 0, value = 0;
-			if (CommanderPowerPanel::Build_State (CommanderSelection::Get_Selected_Building (),&state) &&
-				 CommanderPowerPanel::Get_Request (button,state,&action,&value)) {
-				cCommanderPowerEvent * event = new cCommanderPowerEvent;
-				event->Init (state.BuildingId,action,value);
-			}
-			return;
-		}
-
-		if (inside_panel) {
-			_ClickCount++;
-			return;
-		}
-	}
-
-	_ClickCount++;
-
-	int index = -1;
-	CommanderSidebarHitType hit = CommanderSidebarRenderer::Hit_Test (cursor.X,cursor.Y,&index);
-
-	switch (hit) {
-
-		case SIDEBAR_HIT_MODE_TAB:
-			if ((index >= 0) && (index < SIDEBAR_MODE_COUNT)) {
-				CommanderSidebarModel::Set_Mode ((CommanderSidebarModeType)index);
-			}
-			return;
-
-		case SIDEBAR_HIT_PAGE_PREV:
-			CommanderSidebarModel::Prev_Page ();
-			return;
-
-		case SIDEBAR_HIT_PAGE_NEXT:
-			CommanderSidebarModel::Next_Page ();
-			return;
-
-		case SIDEBAR_HIT_CARD:
-			Begin_Card (CommanderSidebarRenderer::Get_Card_At (cursor.X,cursor.Y));
-			return;
-
-		case SIDEBAR_HIT_PANEL:
-			//	On the strip but not on a control.  Swallowed: the world behind the panel must not
-			//	receive a click the player aimed at the panel.
-			return;
-
-		case SIDEBAR_HIT_NONE:
+		case COMMANDER_OVERLAY_HIT_NONE:
 		default:
 			break;
 	}
+
+	_ClickCount++;
 
 	/*
 	**	A click on the world.  With a ghost armed it commits the placement at the pointer; that
@@ -616,24 +512,17 @@ static void	Handle_Right_Click(const Vector2 & cursor)
 	**	the panels does nothing: those are hit-tested for the left button only, and an order
 	**	aimed at a point behind the sidebar is not a point the player chose.
 	*/
+	//	Right click on the overlay: in a factory's list it is the fork's "RCLICK BACK" to the
+	//	building list; anywhere else on the panels it does nothing.
+	if (CommanderOverlay::Is_Over_Panel (cursor)) {
+		if (CommanderSidebarModel::Get_Mode () != SIDEBAR_MODE_BUILDINGS) {
+			CommanderSidebarModel::Return_To_Buildings ();
+		}
+		return;
+	}
+
 	if (CommanderSelection::Get_Count () <= 0) return;
 
-	bool inside_panel = false;
-	CommanderPaletteCommandType ignored = PALETTE_MOVE;
-	if (CommanderCommandPaletteRenderer::Hit_Test (cursor.X,cursor.Y,&ignored,&inside_panel) ||
-		 inside_panel) {
-		return;
-	}
-	{
-		bool inside_power = false, inside_governance = false, inside_minimap = false;
-		CommanderPowerPanelRenderer::Hit_Test (cursor.X,cursor.Y,nullptr,&inside_power);
-		CommanderGovernancePanelRenderer::Hit_Test (cursor.X,cursor.Y,nullptr,&inside_governance);
-		CommanderMinimapRenderer::Hit_Test (cursor.X,cursor.Y,nullptr,&inside_minimap);
-		if (inside_power || inside_governance || inside_minimap) return;
-	}
-	if (CommanderSidebarRenderer::Hit_Test (cursor.X,cursor.Y,nullptr) != SIDEBAR_HIT_NONE) {
-		return;
-	}
 
 	Vector3 world_point (0.0f,0.0f,0.0f);
 	if (!Pick_World_Point (cursor,&world_point)) return;
@@ -741,7 +630,8 @@ void CommanderUIInput::Update(void)
 	**	is a no-op when the cursor is already in the asked-for state, so this costs nothing.
 	*/
 	if (want_pointer) {
-		MouseMgrClass::Show_Cursor (true);
+		//	CommanderOverlay draws its own cursor; the OS one is only for a dialog opened on top.
+		MouseMgrClass::Show_Cursor (DialogMgrClass::Get_Dialog_Count () > 0);
 	} else if (_PointerActive && (DialogMgrClass::Get_Dialog_Count () == 0)) {
 		//	Only hide what this file showed, and only when no dialog wants it -- a dialog opened
 		//	over Commander Mode and still up when Commander Mode exits keeps its own cursor.
@@ -781,8 +671,31 @@ void CommanderUIInput::Update(void)
 		return;
 	}
 
+	CommanderOverlay::Update ();
+
 	Vector2 cursor (0.0f,0.0f);
 	Read_Cursor (&cursor);
+
+	/*
+	**	Order hotkeys, as the CnC_Renegade_new fork binds them: H hold, G defend, X stop and
+	**	V attack-move (S and A belong to the camera pan).  Each arms the same command a palette
+	**	button did.
+	*/
+	{
+		struct OrderHotkeyStruct { int Key; CommanderPaletteCommandType Command; };
+		static const OrderHotkeyStruct ORDER_HOTKEYS [] =
+		{
+			{ DIK_H,	PALETTE_HOLD },
+			{ DIK_G,	PALETTE_DEFEND },
+			{ DIK_X,	PALETTE_STOP },
+			{ DIK_V,	PALETTE_ATTACK_MOVE },
+		};
+		for (int index = 0; index < (int)(sizeof (ORDER_HOTKEYS) / sizeof (ORDER_HOTKEYS[0])); index ++) {
+			if ((DirectInput::Get_Keyboard_Button (ORDER_HOTKEYS[index].Key) & DirectInput::DI_BUTTON_HIT) != 0) {
+				Handle_Palette_Click (ORDER_HOTKEYS[index].Command);
+			}
+		}
+	}
 
 	//	The ghost follows the pointer while one is armed, so what the player is about to commit
 	//	is what they are looking at.  The other half of Section 43's aiming gap.

@@ -87,6 +87,7 @@ public:
 	virtual	void					Init( void )											= 0;
 	void								Init( const BaseGameObjDef & definition );
 	const BaseGameObjDef &		Get_Definition( void ) const ;
+	bool								Has_Definition( void ) const			{ return Definition != nullptr; }
 
 	// Save / Load
 	virtual	bool					Save( ChunkSaveClass & csave ) override;

@@ -3294,6 +3294,25 @@ int	Run_World_Seed_And_Profile (void)
 								original.GeneratorVersion,original.Seed,original.ProfileHash,original.ContentManifestHash);
 		Check (::strcmp (repro.Peek_Buffer (),expected.Peek_Buffer ()) == 0,
 				 "reproduction string did not match the required format");
+
+		//	A hybrid world's manifest carries its planning identity (hybrid plan Section 0.3) through
+		//	the same round trip, and only then does the reproduction string grow the hybrid suffix.
+		WorldGenerationManifest hybrid = original;
+		hybrid.HybridPlanningInputHash	= 0xABCD1234u;
+		hybrid.HybridContentRevision		= 0x5678u;
+		StringClass hybrid_json ("");
+		WorldGenerationManifest hybrid_reloaded;
+		Check (WorldGenerationManifestService::Serialize (hybrid,&hybrid_json) &&
+				 WorldGenerationManifestService::Deserialize (hybrid_json.Peek_Buffer (),&hybrid_reloaded,&error) &&
+				 hybrid_reloaded.HybridPlanningInputHash == hybrid.HybridPlanningInputHash &&
+				 hybrid_reloaded.HybridContentRevision == hybrid.HybridContentRevision,
+				 "hybrid planning identity did not survive round trip");
+		StringClass hybrid_repro = WorldGenerationManifestService::Format_Reproduction_String (hybrid);
+		StringClass hybrid_expected (96u,true);
+		hybrid_expected.Format ("%s hybrid_planning=%u hybrid_content=%u",expected.Peek_Buffer (),
+										hybrid.HybridPlanningInputHash,hybrid.HybridContentRevision);
+		Check (::strcmp (hybrid_repro.Peek_Buffer (),hybrid_expected.Peek_Buffer ()) == 0,
+				 "hybrid reproduction string did not match the required format");
 	}
 
 	return _Failures;
@@ -6156,7 +6175,7 @@ int	Run_Procedural_World_Tools (void)
 **	check already and is not duplicated here.  See docs/procedural_world/PerformanceBudgets.md.
 ***********************************************************************************************/
 static const char * const	PERF_PROFILE_SMALL_JSON =
-	"{ \"schema_version\":8,\"generator_version\":7,\"name\":\"SMALL\",\"seed\":1,"
+	"{ \"schema_version\":11,\"generator_version\":11,\"name\":\"SMALL\",\"seed\":1,"
 	"  \"world\":{\"fit_to_level\":true,\"width\":600.0,\"height\":600.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
 	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
 	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"
@@ -6164,7 +6183,7 @@ static const char * const	PERF_PROFILE_SMALL_JSON =
 	"               \"feature_scale\":300.0} }";
 
 static const char * const	PERF_PROFILE_MEDIUM_JSON =
-	"{ \"schema_version\":8,\"generator_version\":7,\"name\":\"MEDIUM\",\"seed\":1,"
+	"{ \"schema_version\":11,\"generator_version\":11,\"name\":\"MEDIUM\",\"seed\":1,"
 	"  \"world\":{\"fit_to_level\":true,\"width\":1200.0,\"height\":1200.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
 	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
 	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"
@@ -6172,7 +6191,7 @@ static const char * const	PERF_PROFILE_MEDIUM_JSON =
 	"               \"feature_scale\":300.0} }";
 
 static const char * const	PERF_PROFILE_LARGE_SUPPORTED_JSON =
-	"{ \"schema_version\":8,\"generator_version\":7,\"name\":\"LARGE_SUPPORTED\",\"seed\":1,"
+	"{ \"schema_version\":11,\"generator_version\":11,\"name\":\"LARGE_SUPPORTED\",\"seed\":1,"
 	"  \"world\":{\"fit_to_level\":true,\"width\":2400.0,\"height\":2400.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
 	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
 	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"

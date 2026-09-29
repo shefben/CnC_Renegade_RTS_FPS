@@ -9,8 +9,8 @@ rules live together.
 
 | Identity | Constant | Value | Where it is checked | Compatibility rule |
 | --- | --- | --- | --- | --- |
-| World profile schema | `ProceduralWorldProfile::CURRENT_SCHEMA_VERSION` | **8** | `Validate_Profile` | Any schema 1..8 loads. Each field it predates takes its documented default. 0 or >8 is refused. |
-| Generator | `ProceduralWorldProfile::CURRENT_GENERATOR_VERSION` | **7** | `Validate_Profile`; `WorldSyncService` handshake | Must equal 7 exactly. Only one generator implementation is kept, so a profile naming another would silently build a different world. It is refused. |
+| World profile schema | `ProceduralWorldProfile::CURRENT_SCHEMA_VERSION` | **10** | `Validate_Profile` | Any schema 1..10 loads. Each field it predates takes its documented default. 0 or >10 is refused. |
+| Generator | `ProceduralWorldProfile::CURRENT_GENERATOR_VERSION` | **9** | `Validate_Profile`; `WorldSyncService` handshake | Must equal 9 exactly. Only one generator implementation is kept, so a profile naming another would silently build a different world. It is refused. |
 | World-sync handshake | `WorldSyncHandshakeClass::CURRENT_HANDSHAKE_VERSION` | 1 | `WorldSyncService` | Exact match, server and client. |
 | Chunk snapshot | `WorldChunkSnapshotClass::CURRENT_SNAPSHOT_VERSION` | 1 | snapshot read/apply | Exact match. A mismatched snapshot is refused rather than applied. |
 | World operation record | `WorldOperationClass::CURRENT_FORMAT_VERSION` | 1 | journal read | Exact match. |
@@ -18,6 +18,10 @@ rules live together.
 | Building descriptors | per-file `schema_version` | 1 | `BuildingDescriptorManager` | V1 rule, unchanged. |
 
 ### Generator version history
+
+Generator 9 reserves a river crossing in native road plans and rejects generated worlds without a traversable bridge joined to both dry approaches. It also checks that repositioned bridges still cross an obstruction and includes bridge placement in the deterministic checksum. Schema remains 10.
+
+Generator 8 changes native macro relief, slope relaxation, hydrology and road results for a given seed. Schema 10 adds `terrain.land_elevation_bias` and `fairness.min_base_to_base_travel_time_seconds`; older schemas load with zero defaults. A client and server must use the same generator version to reproduce a world.
 
 As recorded in `proceduralworldprofile.h`'s own version comment:
 
@@ -30,9 +34,10 @@ As recorded in `proceduralworldprofile.h`'s own version comment:
 | 5 | Tiberium fields (Phase 12). |
 | 6 | The Commander's foundation grading (Phase 17). Schemas 7 and 8 (logistics, vehicle subsystems) added fields only and left the generator at 6. |
 | **7** | V2 close. Adds tunnels (Phase 10: bores, ground and cliff portal cuts, road splits at tunnel mouths), the Section 9.4 coastline (`water.coastline` consumed for the first time) and Section 10.6 street lamps. The same seed now yields a different world than under 6, which is why the number moved. |
+| **8** | Native terrain relief, slope relaxation, shoreline shaping, and the resulting transportation layout changed for the same seed. Schema 10 adds land elevation bias and a minimum opposing-base route time. |
 
-The shipped profiles (`data/procedural_world/{small,default,large_supported}.json`) are at schema
-8 / generator 7. Phase 29 found `default.json` still claiming schema 4 / generator 4 and refused
+The shipped profiles (`data/procedural_world/{small,default,large_supported,native}.json`) are at schema
+10 / generator 9. Phase 29 found `default.json` still claiming schema 4 / generator 4 and refused
 outright. That was corrected, and the validator now enforces the rule above instead of strict
 schema equality, which had contradicted `proceduralworldprofile.h`'s own statement that older
 schemas load.

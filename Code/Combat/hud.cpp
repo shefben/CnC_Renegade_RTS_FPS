@@ -2845,35 +2845,12 @@ void 	HUDClass::Render()
 	}
 
 	/*
-	**	The Commander sidebar, Section 42.  Outside Is_HUD_Displayed on purpose: the panel's own
-	**	gate is CommanderSidebarModel::Is_Open(), which is true only in Commander Mode, and
-	**	tying it to the FPS HUD's visibility rules would couple it to state it has nothing to do
-	**	with.  It draws nothing at all when closed, so "do not replace/clutter the ordinary FPS
-	**	HUD" holds by construction.
+	**	Commander Mode's 2D panels -- sidebar, minimap, status strip, cursor -- are the
+	**	CnC_Renegade_new fork's CommanderOverlay, drawn by CombatGameModeClass::Render after the
+	**	HUD.  Only the selection brackets and rubber band are still drawn here; they gate
+	**	themselves on Commander Mode, so an ordinary FPS frame draws none of them.
 	*/
-	CommanderSidebarRenderer::Render();
-
-	//	Selection brackets, the rubber band and the command grid.  Each gates itself on Commander
-	//	Mode the same way the sidebar does, so an ordinary FPS frame draws none of them.
 	CommanderSelectionRenderer::Render();
-
-	//	The Commander panels, drawn as Section 29's RTS overlay components (D-001 P26): each says
-	//	whether it is up, and draws only if so.  They are screen-space 2D, so the render info the
-	//	contract carries is built from the combat camera and otherwise unused by them.
-	if ( COMBAT_CAMERA != nullptr ) {
-		IRTSOverlayComponent * overlays[] = {
-			&CommanderCommandPaletteRenderer::Get_Overlay_Component(),
-			&CommanderPowerPanelRenderer::Get_Overlay_Component(),
-			&CommanderMinimapRenderer::Get_Overlay_Component(),
-			&CommanderGovernancePanelRenderer::Get_Overlay_Component(),
-		};
-		RenderInfoClass overlay_rinfo( *COMBAT_CAMERA );
-		for ( int i = 0; i < (int)( sizeof( overlays ) / sizeof( overlays[0] ) ); i++ ) {
-			if ( overlays[i]->Is_RTS_Overlay_Visible() ) {
-				overlays[i]->Render_RTS_Overlay( overlay_rinfo );
-			}
-		}
-	}
 
 	// Only render if Combat is active, and Menu is not,  and we have a star who is not sniping
 	if ( Is_HUD_Displayed() ) {

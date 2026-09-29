@@ -261,12 +261,16 @@ static void	Send_Identity(int destination)
 }
 
 
-//	The four identity numbers a handshake compares, from the world this peer generated.
+//	The identity numbers a handshake compares, from the world this peer generated.  A hybrid
+//	world's content identity is the structural content revision its preflight froze (hybrid plan
+//	Section 0.3); a legacy world keeps its (registry-less, 0) content manifest hash.
 static bool	Build_Local_Handshake(WorldSyncHandshakeClass * out)
 {
 	const WorldGenerationManifest & manifest = ProceduralWorldManager::Get_Manifest ();
-	return WorldSyncService::Build_Handshake (manifest.ProfileHash,manifest.ContentManifestHash,
-														  manifest.TerrainChecksum,out);
+	const unsigned int content_hash = (manifest.HybridContentRevision != 0u) ?
+		manifest.HybridContentRevision : manifest.ContentManifestHash;
+	return WorldSyncService::Build_Handshake (manifest.ProfileHash,content_hash,
+														  manifest.TerrainChecksum,out,manifest.HybridPlanningInputHash);
 }
 
 

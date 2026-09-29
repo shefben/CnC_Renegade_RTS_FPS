@@ -82,6 +82,18 @@ RenderObjClass * create_render_obj_from_filename( const char * filename )
 }
 
 
+/*
+** PhysClasses cannot survive without a model (transform, bounds and collision all live on it),
+** so a model whose asset failed to load is replaced by the stock empty "NULL" object instead of
+** crashing on the first position or collision query.
+*/
+static RenderObjClass * create_missing_model_placeholder(const char * name)
+{
+	WWRELEASE_SAY(("PhysClass: model for '%s' failed to load, substituting NULL model\n", (name != nullptr) ? name : ""));
+	return WW3DAssetManager::Get_Instance()->Create_Render_Obj("NULL");
+}
+
+
 /***********************************************************************************************
 **
 ** PhysClass Implementation
@@ -163,7 +175,7 @@ void PhysClass::Init(const PhysDefClass & def)
 		}
 
 		if ( model == nullptr ) {
-			WWDEBUG_SAY(( "***  FATAL ERROR : Failed to create model %s\n", def.ModelName.Peek_Buffer() ));
+			model = create_missing_model_placeholder(def.ModelName);
 		}
 
 		Set_Model(model);
@@ -200,9 +212,9 @@ void PhysClass::Set_Model_By_Name(const char * model_type_name)
 {
 	RenderObjClass * model = WW3DAssetManager::Get_Instance()->Create_Render_Obj(model_type_name);
 	if ( model == nullptr ) {
-		WWDEBUG_SAY(( "%s failed to load\n", model_type_name ));
+		model = create_missing_model_placeholder(model_type_name);
 	}
-	WWASSERT(model);		// As above, PhysClasses cannot survive without a model...
+	WWASSERT(model);
 
 	Set_Model(model);
 	if (model) {
@@ -568,6 +580,9 @@ bool PhysClass::Load (ChunkLoadClass &cload)
 	/*
 	** Only install the model after our definition is installed
 	*/
+	if (render_model == nullptr) {
+		render_model = create_missing_model_placeholder(Name);
+	}
 	Set_Model(render_model);
 	REF_PTR_RELEASE(render_model);
 

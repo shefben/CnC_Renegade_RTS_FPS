@@ -39,6 +39,9 @@ bool	InteriorCliffGenerator::Built			= false;
 unsigned int	InteriorCliffGenerator::Checksum	= 0;
 
 DynamicVectorClass<int>						InteriorCliffGenerator::OwnedEscarpmentIds;
+DynamicVectorClass<int>						InteriorCliffGenerator::ClaimedChunkIndices;
+int									InteriorCliffGenerator::ClaimedChunkCountX = 0;
+int									InteriorCliffGenerator::ClaimedChunkCountY = 0;
 DynamicVectorClass<InteriorCliffFeature>	InteriorCliffGenerator::Features;
 
 
@@ -74,7 +77,7 @@ static const int NEIGHBOR_DY[4] = {  0, 1,  0,-1 };
 
 InteriorCliffParams::InteriorCliffParams(void) :
 	Seed (1),
-	SlopeThresholdFraction (0.92f),
+	SlopeThresholdFraction (0.70f),
 	MaxBuildableSlopeRadians (0.4886922f),		// ~28 degrees, the schema's own default cap
 	Density (0.16f),										// ProceduralWorldTerrainSettings::InteriorCliffDensity's own default
 	MaxRunLength (10),
@@ -157,7 +160,18 @@ void InteriorCliffGenerator::Clear(void)
 		}
 	}
 
+	if (ClaimedChunkCountX == WorldTerrainSystem::Get_Chunk_Count_X() &&
+		ClaimedChunkCountY == WorldTerrainSystem::Get_Chunk_Count_Y() && ClaimedChunkCountX > 0) {
+		for (int i = 0; i < ClaimedChunkIndices.Count(); i++) {
+			int index = ClaimedChunkIndices[i];
+			WorldTerrainSystem::Clear_Chunk_Interior_Cliff(index % ClaimedChunkCountX,
+				index / ClaimedChunkCountX);
+		}
+	}
 	OwnedEscarpmentIds.Delete_All();
+	ClaimedChunkIndices.Delete_All();
+	ClaimedChunkCountX = 0;
+	ClaimedChunkCountY = 0;
 	Features.Delete_All();
 
 	Built		= false;
@@ -171,6 +185,20 @@ bool InteriorCliffGenerator::Get_Feature(int index,InteriorCliffFeature * out)
 		return false;
 	}
 	*out = Features[index];
+	return true;
+}
+
+
+bool InteriorCliffGenerator::Restore_Chunk_Claims(void)
+{
+	if (ClaimedChunkIndices.Count() == 0) return true;
+	if ((WorldTerrainSystem::Get_Chunk_Count_X() != ClaimedChunkCountX) ||
+		(WorldTerrainSystem::Get_Chunk_Count_Y() != ClaimedChunkCountY)) return false;
+	for (int i = 0; i < ClaimedChunkIndices.Count(); i++) {
+		int index = ClaimedChunkIndices[i];
+		if (!WorldTerrainSystem::Mark_Chunk_Interior_Cliff(index % ClaimedChunkCountX,
+			index / ClaimedChunkCountX)) return false;
+	}
 	return true;
 }
 
@@ -246,6 +274,8 @@ bool InteriorCliffGenerator::Generate(const InteriorCliffParams & params,StringC
 	int count_x = WorldTerrainSystem::Get_Chunk_Count_X();
 	int count_y = WorldTerrainSystem::Get_Chunk_Count_Y();
 	if ((count_x <= 0) || (count_y <= 0))						FAIL("chunk registry is empty");
+	ClaimedChunkCountX = count_x;
+	ClaimedChunkCountY = count_y;
 
 	float threshold = params.MaxBuildableSlopeRadians * params.SlopeThresholdFraction;
 
@@ -433,7 +463,10 @@ bool InteriorCliffGenerator::Generate(const InteriorCliffParams & params,StringC
 			//	through the one door WorldTerrainSystem offers for it -- see that method's own
 			//	comment on Section 3D.1 ownership.
 			for (int i = 0; i < n; i++) {
-				WorldTerrainSystem::Mark_Chunk_Interior_Cliff (path_px[i],path_py[i]);
+				if (!WorldTerrainSystem::Mark_Chunk_Interior_Cliff (path_px[i],path_py[i])) {
+					FAIL("chunk registry refused an interior cliff exclusion");
+				}
+				ClaimedChunkIndices.Add(path_py[i] * count_x + path_px[i]);
 			}
 
 			Features.Add (feature);

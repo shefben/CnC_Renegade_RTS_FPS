@@ -36,6 +36,9 @@
 #include "strategicplanner.h"
 #include "terrainmask.h"
 #include "watersystem.h"
+#include "hydrologygenerator.h"
+#include "phys.h"
+#include "pscene.h"
 #include "worldboundsservice.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
@@ -261,6 +264,9 @@ static bool On_Obstruction(const Vector3 & point,bool is_water)
 static bool Find_Bridge_Banks(const Vector3 & crossing_position,int road_id,bool is_water,
 										 Vector3 * start_out,Vector3 * end_out,float * span_out)
 {
+	// A repositioned crossing must still span its obstruction, rather than placing
+	// a short bridge entirely on dry, unobstructed ground.
+	if (!On_Obstruction(crossing_position,is_water)) return false;
 	Vector3 tangent(1.0f,0.0f,0.0f);
 	RoadSplineClass * road = RoadSystem::Peek_Road(road_id);
 	if (road != nullptr) {
@@ -636,7 +642,7 @@ bool BridgePlanner::Generate(const BridgePlannerParams & params,StringClass * er
 				//	routing tends to produce one crossing per edge); when it does happen and an
 				//	edge's second crossing fails after its first already succeeded, that failure
 				//	goes straight to stage 6 rather than stage 4.
-				bool reroute_allowed = !edge_has_committed_bridge &&
+				bool reroute_allowed = live_edge.RequiredBridgeCrossingId.Is_Empty() && !edge_has_committed_bridge &&
 												(reroute_attempts_used < params.MaxRerouteAttemptsPerEdge);
 				if (reroute_allowed) {
 					reroute_attempts_used++;
@@ -757,6 +763,7 @@ bool BridgePlanner::Generate(const BridgePlannerParams & params,StringClass * er
 			for (int s = 0; s < BRIDGE_STATE_COUNT; s++) {
 				if (draw <= DAMAGE_STATE_THRESHOLD[s]) { state = s; break; }
 			}
+			if (crossing_id == live_edge.RequiredBridgeCrossingId) state = BRIDGE_STATE_PRISTINE;
 			resolved_bridge.InitialState			= state;
 			resolved_bridge.CountsAsConnectivity	= (state != BRIDGE_STATE_BROKEN);
 
@@ -818,6 +825,16 @@ bool BridgePlanner::Generate(const BridgePlannerParams & params,StringClass * er
 			crc(&q_state,sizeof(q_state));
 			crc(&q_counts,sizeof(q_counts));
 			crc(&q_importance,sizeof(q_importance));
+			crc(b.CrossingNodeId.Peek_Buffer(),b.CrossingNodeId.Get_Length());
+			crc(b.RoadEdgeId.Peek_Buffer(),b.RoadEdgeId.Get_Length());
+			const BridgeClass * bridge = BridgeSystem::Peek_Bridge(b.BridgeId);
+			if (bridge != nullptr) {
+				for (int end = 0; end < 2; end++) {
+					const Vector3 & p = end == 0 ? bridge->Get_Start() : bridge->Get_End();
+					int q[3] = { (int)(p.X * CHECKSUM_QUANTUM),(int)(p.Y * CHECKSUM_QUANTUM),(int)(p.Z * CHECKSUM_QUANTUM) };
+					crc(q,sizeof(q));
+				}
+			}
 		}
 		Checksum = (unsigned int)crc;
 	}
@@ -833,6 +850,61 @@ bool BridgePlanner::Generate(const BridgePlannerParams & params,StringClass * er
 	return true;
 }
 
+
+bool BridgePlanner::Has_Usable_River_Crossing(void)
+{
+	for (int i = 0; i < Bridges.Count(); i++) {
+		const BridgeClass * bridge = BridgeSystem::Peek_Bridge(Bridges[i].BridgeId);
+		if (bridge == nullptr || !BridgeSystem::Is_Traversable(bridge->Get_ID()) ||
+			bridge->Get_Start_Road() < 0 || bridge->Get_End_Road() < 0 ||
+			bridge->Get_Start_Road() == bridge->Get_End_Road()) continue;
+		const BridgeDefinitionClass * definition = BridgeSystem::Find_Definition(bridge->Get_Definition());
+		float width = bridge->Get_Width();
+		if (width <= 0.0f && definition != nullptr) width = definition->Get_Width();
+		bool geometry_ready = true;
+		if (PhysicsSceneClass::Get_Instance() != nullptr) {
+			for (int s = 0; s < bridge->Get_Section_Count(); s++) {
+				const BridgeSectionClass & section = bridge->Get_Section(s);
+				if ((section.Kind == BRIDGE_SECTION_START_CAP || section.Kind == BRIDGE_SECTION_SPAN ||
+					section.Kind == BRIDGE_SECTION_END_CAP) && section.Phys == nullptr) geometry_ready = false;
+			}
+		}
+		if (!geometry_ready) continue;
+		bool connected = true;
+		for (int end = 0; end < 2; end++) {
+			RoadSplineClass * road = RoadSystem::Peek_Road(end == 0 ? bridge->Get_Start_Road() : bridge->Get_End_Road());
+			if (road == nullptr || road->Get_Point_Count() < 2 || road->Get_Width() > width) {
+				connected = false; break;
+			}
+			const Vector3 & bank = end == 0 ? bridge->Get_Start() : bridge->Get_End();
+			const RoadConnectionClass & a = road->Get_Start_Connection();
+			const RoadConnectionClass & b = road->Get_End_Connection();
+			bool bound = (a.Type == ROAD_ENDPOINT_BRIDGE && a.TargetID == bridge->Get_ID() &&
+				(a.Position - bank).Length() <= 1.0f) ||
+				(b.Type == ROAD_ENDPOINT_BRIDGE && b.TargetID == bridge->Get_ID() &&
+				(b.Position - bank).Length() <= 1.0f);
+			if (!bound || WaterSystem::Is_Point_In_Water(bank.X,bank.Y)) connected = false;
+		}
+		if (!connected) continue;
+		Vector3 delta = bridge->Get_End() - bridge->Get_Start();
+		int steps = (int)delta.Length() + 1;
+		for (int f = 0; f < HydrologyGenerator::Get_Feature_Count(); f++) {
+			HydrologyFeature feature;
+			if (!HydrologyGenerator::Get_Feature(f,&feature) || feature.Type != HYDRO_FEATURE_RIVER) continue;
+			WaterAreaClass * water = WaterSystem::Find_Area(feature.Name.Peek_Buffer());
+			if (water == nullptr) continue;
+			for (int s = 1; s < steps; s++) {
+				Vector3 p = bridge->Get_Start() + delta * ((float)s / steps);
+				float surface,deck;
+				int bridge_id = -1;
+				if (water->Get_Surface_Height(p.X,p.Y,&surface) &&
+					BridgeSystem::Conform_Point(p.X,p.Y,&deck,&bridge_id) &&
+					bridge_id == bridge->Get_ID() && deck > surface + DECK_STRUCTURAL_DEPTH) return true;
+			}
+		}
+	}
+	return false;
+}
 
 int BridgePlanner::Check_Traversable_States_Pass(StringClass * report)
 {

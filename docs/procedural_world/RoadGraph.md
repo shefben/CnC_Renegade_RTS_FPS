@@ -63,6 +63,12 @@ A small deterministic hash jitter breaks routing ties between otherwise-equal pa
 per seed -- the same narrow seed usage `StrategicPlanner` already established for the same
 reason.
 
+### Planned lanes (D-003)
+
+When a map plan exists, a chunk whose centre lies in a `LANE` or `RAMP` cell has its cost
+multiplied by `PLAN_LANE_COST_SCALE` (0.5) after the slope and approach terms. Blocks and
+crossing lifts are unchanged. See `MapPlan.md`.
+
 ## Which edges, and how they are found
 
 Step 3's "select required graph edges" is a minimum spanning tree (Prim's) over every

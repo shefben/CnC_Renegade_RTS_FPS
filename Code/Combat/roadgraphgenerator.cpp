@@ -32,6 +32,8 @@
 #include "strategicplanner.h"
 #include "terrainmask.h"
 #include "watersystem.h"
+#include "hydrologygenerator.h"
+#include "mapplangenerator.h"
 #include "worldboundsservice.h"
 #include "worldmetrics.h"
 #include "worldterrainsystem.h"
@@ -138,7 +140,8 @@ RoadGraphParams::RoadGraphParams(void) :
 	MaxBuildableSlopeRadians (0.4886922f),
 	SlopeCostWeight (3.0f),
 	CrossingCostPenalty (8.0f),
-	BoundaryApproachCostWeight (1.5f)
+	BoundaryApproachCostWeight (1.5f),
+	RequireBridgeCrossing (false)
 {
 }
 
@@ -156,6 +159,7 @@ RoadGraphEdge::RoadGraphEdge(void) :
 bool RoadGraphEdge::operator == (const RoadGraphEdge & that) const
 {
 	if ((Id != that.Id) || (RoadId != that.RoadId) || (FromNodeIndex != that.FromNodeIndex) ||
+		 (RequiredBridgeCrossingId != that.RequiredBridgeCrossingId) ||
 		 (ToNodeIndex != that.ToNodeIndex) || (Class != that.Class) || (Length != that.Length) ||
 		 (UnresolvedCrossingIds.Count() != that.UnresolvedCrossingIds.Count())) {
 		return false;
@@ -340,6 +344,11 @@ struct RouteChunk
 };
 
 
+//	D-003: a chunk the map plan painted as a lane (or the ramp a lane climbs) costs this
+//	fraction of its terrain-derived cost, so the routed road follows the planned corridor
+//	whenever the corridor is at all passable.  Blocks and crossing rules are untouched.
+static const float PLAN_LANE_COST_SCALE = 0.5f;
+
 static void Compute_Route_Chunks(int count_x,int count_y,const RoadGraphParams & params,
 											 DynamicVectorClass<RouteChunk> * out)
 {
@@ -383,6 +392,13 @@ static void Compute_Route_Chunks(int count_x,int count_y,const RoadGraphParams &
 				float approach_term = 1.0f - (boundary_distance / 200.0f);
 				if (approach_term < 0.0f) approach_term = 0.0f;
 				rc.Cost += approach_term * params.BoundaryApproachCostWeight;
+			}
+
+			if (MapPlanGenerator::Has_Plan()) {
+				MapPlanCellKind kind = MapPlanGenerator::Get_Kind_At(bounds.Center.X,bounds.Center.Y);
+				if ((kind == MAP_PLAN_CELL_LANE) || (kind == MAP_PLAN_CELL_RAMP)) {
+					rc.Cost *= PLAN_LANE_COST_SCALE;
+				}
 			}
 		}
 	}
@@ -515,6 +531,120 @@ static RoadGraphClassType Classify_Edge(StrategicNodeType from_type,StrategicNod
 /***********************************************************************************************
  * Generate -- Phase 8 steps 1-9, 13-15                                                          *
  *=============================================================================================*/
+// Reserve one of hydrology's actual river crossings on an existing strategic edge.
+// Keep the tree's anchors, but route both banks explicitly so the bridge planner
+// receives a straight crossing with road left on either side after it cuts the span.
+static bool Reserve_Bridge_Crossing(const RoadGraphParams & params,int count_x,int count_y,
+	const DynamicVectorClass<RouteChunk> & chunks,DynamicVectorClass<RoadGraphEdge> & edges,
+	DynamicVectorClass<int> & owned)
+{
+	int best_edge = -1;
+	float best_cost = 1.0e30f;
+	RoadSplineClass best_spline;
+	StringClass best_crossing;
+	DynamicVectorClass<StringClass> best_crossings;
+	for (int f = 0; f < HydrologyGenerator::Get_Feature_Count(); f++) {
+		HydrologyFeature feature;
+		if (!HydrologyGenerator::Get_Feature(f,&feature) || feature.Type != HYDRO_FEATURE_RIVER) continue;
+		WaterAreaClass * water = WaterSystem::Find_Area(feature.Name.Peek_Buffer());
+		if (water == nullptr || water->Get_Station_Count() < 2) continue;
+		for (int c = 0; c < feature.Crossings.Count(); c++) {
+			const Vector3 center = feature.Crossings[c].Position;
+			if (!WaterSystem::Is_Point_In_Water(center.X,center.Y)) continue;
+			StringClass crossing_id;
+			for (int n = 0; n < StrategicPlanner::Get_Node_Count(); n++) {
+				StrategicNode node;
+				if (StrategicPlanner::Get_Node(n,&node) && node.Type == STRATEGIC_NODE_CROSSING_CANDIDATE &&
+					(node.Position - center).Length2() < 0.01f) { crossing_id = node.Id; break; }
+			}
+			if (crossing_id.Is_Empty()) continue;
+			int station = 0;
+			float nearest = 1.0e30f;
+			for (int s = 0; s < water->Get_Station_Count(); s++) {
+				float distance = (water->Get_Station(s).Position - center).Length2();
+				if (distance < nearest) { nearest = distance; station = s; }
+			}
+			int before = station > 0 ? station - 1 : station;
+			int after = station + 1 < water->Get_Station_Count() ? station + 1 : station;
+			Vector3 flow = water->Get_Station(after).Position - water->Get_Station(before).Position;
+			Vector3 axis(-flow.Y,flow.X,0.0f);
+			if (axis.Length2() <= WWMATH_EPSILON) continue;
+			axis.Normalize();
+			AABoxClass bounds;
+			if (!WorldTerrainSystem::Get_Patch_Bounds(0,0,&bounds)) continue;
+			float approach = WWMath::Max(bounds.Extent.X * 2.0f,water->Get_Station(station).Width * 2.0f);
+			Vector3 bank[2] = { center - axis * approach,center + axis * approach };
+			bool legal = true;
+			for (int b = 0; b < 2; b++) {
+				if (WaterSystem::Is_Point_In_Water(bank[b].X,bank[b].Y) ||
+					WorldBoundsService::Classify_Point(Vector2(bank[b].X,bank[b].Y)) >= WORLD_ZONE_CLIFF_BAND ||
+					!WorldTerrainSystem::Sample_Height(bank[b].X,bank[b].Y,&bank[b].Z)) legal = false;
+			}
+			if (!legal) continue;
+			for (int e = 0; e < edges.Count(); e++) {
+				StrategicNode from,to;
+				if (!StrategicPlanner::Get_Node(edges[e].FromNodeIndex,&from) ||
+					!StrategicPlanner::Get_Node(edges[e].ToNodeIndex,&to)) continue;
+				float side_a = Vector3::Dot_Product(from.Position - center,axis);
+				float side_b = Vector3::Dot_Product(to.Position - center,axis);
+				if (side_a * side_b >= 0.0f) continue;
+				Vector3 a = bank[side_a < 0.0f ? 0 : 1], b = bank[side_a < 0.0f ? 1 : 0];
+				float cost = (from.Position - a).Length() + (a - b).Length() + (b - to.Position).Length();
+				if (cost >= best_cost) continue;
+				int from_chunk = Nearest_Chunk(from.Position,count_x,count_y,chunks);
+				int to_chunk = Nearest_Chunk(to.Position,count_x,count_y,chunks);
+				int bank_a = Nearest_Chunk(a,count_x,count_y,chunks);
+				int bank_b = Nearest_Chunk(b,count_x,count_y,chunks);
+				if (from_chunk < 0 || to_chunk < 0 || bank_a < 0 || bank_b < 0 || bank_a == bank_b) continue;
+				DynamicVectorClass<int> path_a,path_b;
+				Route_Path(from_chunk,bank_a,count_x,count_y,chunks,params.Seed,&path_a);
+				Route_Path(bank_b,to_chunk,count_x,count_y,chunks,params.Seed,&path_b);
+				if (path_a.Count() == 0 || path_b.Count() == 0) continue;
+				bool overlaps = false;
+				for (int i = 0; i < path_a.Count(); i++) for (int j = 0; j < path_b.Count(); j++)
+					if (path_a[i] == path_b[j]) overlaps = true;
+				if (overlaps) continue;
+				RoadSplineClass spline;
+				spline.Add_Control_Point(from.Position);
+				for (int i = 0; i < path_a.Count(); i++) spline.Add_Control_Point(chunks[path_a[i]].Position);
+				spline.Add_Control_Point(a);
+				Vector3 deck(center.X,center.Y,(a.Z + b.Z) * 0.5f);
+				spline.Add_Control_Point(deck);
+				spline.Add_Control_Point(b);
+				for (int i = 0; i < path_b.Count(); i++) spline.Add_Control_Point(chunks[path_b[i]].Position);
+				spline.Add_Control_Point(to.Position);
+				spline.Set_Width(ROAD_GRAPH_CLASS_WIDTH[edges[e].Class]);
+				spline.Set_Shoulder_Width(ROAD_GRAPH_CLASS_SHOULDER[edges[e].Class]);
+				spline.Set_Road_Class(Road_Graph_Class_To_Road_Class(edges[e].Class));
+				spline.Set_Material("l11_gravel.tga");
+				// The span is cut by BridgePlanner before any approach grading: never fill the river.
+				spline.Set_Grade_Policy(ROAD_GRADE_NONE);
+				best_edge = e; best_cost = cost; best_spline = spline; best_crossing = crossing_id;
+				best_crossings.Delete_All(); best_crossings.Add(crossing_id);
+				for (int side = 0; side < 2; side++) {
+					const DynamicVectorClass<int> & path = side == 0 ? path_a : path_b;
+					for (int i = 0; i < path.Count(); i++) {
+						const RouteChunk & chunk = chunks[path[i]];
+						if (!chunk.HasCrossing) continue;
+						bool exists = false;
+						for (int j = 0; j < best_crossings.Count(); j++) if (best_crossings[j] == chunk.CrossingId) exists = true;
+						if (!exists) best_crossings.Add(chunk.CrossingId);
+					}
+				}
+			}
+		}
+	}
+	if (best_edge < 0) return false;
+	RoadGraphEdge & edge = edges[best_edge];
+	RoadSystem::Remove_Road(edge.RoadId);
+	edge.RoadId = RoadSystem::Add_Road(best_spline);
+	owned.Add(edge.RoadId);
+	edge.Length = best_cost;
+	edge.RequiredBridgeCrossingId = best_crossing;
+	edge.UnresolvedCrossingIds = best_crossings;
+	return true;
+}
+
 bool RoadGraphGenerator::Generate(const RoadGraphParams & params,StringClass * error_out)
 {
 	#define FAIL(msg) { if (error_out) *error_out = msg; Clear(); return false; }
@@ -632,6 +762,10 @@ bool RoadGraphGenerator::Generate(const RoadGraphParams & params,StringClass * e
 		spline.Set_Width(ROAD_GRAPH_CLASS_WIDTH[cls]);
 		spline.Set_Shoulder_Width(ROAD_GRAPH_CLASS_SHOULDER[cls]);
 		spline.Set_Road_Class(Road_Graph_Class_To_Road_Class(cls));
+		//	The authored ow_road_* surfaces are still optional runtime assets.
+		//	Use the verified stock gravel until a road-class material is available,
+		//	so generated carriageways are visible instead of untextured geometry.
+		spline.Set_Material("l11_gravel.tga");
 		spline.Set_Grade_Policy(ROAD_GRADE_BLEND);
 
 		int road_id = RoadSystem::Add_Road(spline);
@@ -660,6 +794,11 @@ bool RoadGraphGenerator::Generate(const RoadGraphParams & params,StringClass * e
 		edge_index++;
 	}
 
+	if (params.RequireBridgeCrossing && !Reserve_Bridge_Crossing(params,count_x,count_y,chunks,Edges,OwnedRoadIds)) {
+		if (error_out) *error_out = "no river crossing could be connected to the strategic road network";
+		Clear();
+		return false;
+	}
 	if (OwnedRoadIds.Count() > 0) {
 		RoadSystem::Build_Network();
 	}
@@ -678,6 +817,7 @@ bool RoadGraphGenerator::Generate(const RoadGraphParams & params,StringClass * e
 			crc(&q_to,sizeof(q_to));
 			crc(&q_length,sizeof(q_length));
 			crc(&q_crossings,sizeof(q_crossings));
+			crc(e.RequiredBridgeCrossingId.Peek_Buffer(),e.RequiredBridgeCrossingId.Get_Length());
 		}
 		Checksum = (unsigned int)crc;
 	}

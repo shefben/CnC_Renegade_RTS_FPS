@@ -87,6 +87,8 @@ set(WW3D2_SRC
     seglinerenderer.cpp
     shader.cpp
     shadermgr.cpp
+    shaderdatabase.cpp
+    shadereffect.cpp
     shattersystem.cpp
     snappts.cpp
     sortingrenderer.cpp
@@ -207,6 +209,8 @@ worldparticlemanager.cpp
     seglinerenderer.h
     shader.h
     shadermgr.h
+    shaderdatabase.h
+    shadereffect.h
     shattersystem.h
     snappts.h
     sortingrenderer.h

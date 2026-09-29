@@ -71,6 +71,8 @@
 #include "statusoverlaysystem.h"
 #include "worlddebugdisplay.h"
 #include "commandermodecontroller.h"
+#include "commandercamera.h"
+#include "strategicviewmanager.h"
 #include "commandersidebar.h"
 #include "commanderplacement.h"
 #include "buildingconstruction.h"
@@ -236,7 +238,10 @@ void	CombatManager::Init( bool render_available )
 	CombatSoundManager::Init();
 
 	// create THE camera
-	MainCamera = new CCameraClass();
+	// CommanderCamera is a CCameraClass that behaves exactly like one until the overhead
+	// commander view is entered (StrategicViewManager, from the CnC_Renegade_new fork).
+	MainCamera = new CommanderCamera();
+	StrategicViewManager::Init();
 
 	// create the dazzle layer
 	if (render_available) {
@@ -291,6 +296,7 @@ void	CombatManager::Shutdown( void )
 		DazzleRenderObjClass::Set_Current_Dazzle_Layer(nullptr);
 	}
 
+	StrategicViewManager::Shutdown();
 	MainCamera->Release_Ref();
 	MainCamera = nullptr;
 
@@ -746,6 +752,24 @@ public:
 		// to be done after the definition databases are loaded...
 		//
 		AnimatedSoundMgrClass::Initialize ();
+
+		/*
+		**	A native procedural world has no level file at all: the scene starts empty and
+		**	ProceduralWorldManager::Generate_World builds everything in Post_Load_Level.
+		*/
+		if ( ProceduralWorldManager::Is_Native_Map( _load_map_name ) ) {
+			INIT_STATUS("Native procedural world");
+			PlayerInfoLog::Set_Current_Map_Name(_load_map_name);
+			CombatManager::Set_Last_LSD_Name( "" );
+			CombatManager::Inc_Load_Progress();
+			if ( _preload_assets ) {
+				AssetDependencyManager::Load_Always_Assets();
+			}
+			CombatManager::Inc_Load_Progress();
+			CombatManager::Inc_Load_Progress();
+			CombatManager::Inc_Load_Progress();
+			return;
+		}
 
 		StringClass filename_to_load( _load_map_name, true );
 		StringClass lsd_filename( _load_map_name,true );
@@ -1290,12 +1314,19 @@ void 	CombatManager::Think()
 	//	skipped for the duration.  star_is_alive here is the one fact CommanderModeController
 	//	needs and does not look up itself; SoldierGameObj::Get_Defense_Object matches the
 	//	dead-soldier check RadarManager/TacticalIntelligenceModel already use.
+	StrategicViewManager::Think();
 	if ( CommanderModeController::Is_Active() ) {
 		bool star_is_alive = (COMBAT_STAR != nullptr) &&
 									 (COMBAT_STAR->Get_Defense_Object() != nullptr) &&
 									 (COMBAT_STAR->Get_Defense_Object()->Get_Health() > 0.0f);
 		CommanderModeController::Update( TimeManager::Get_Frame_Seconds(),star_is_alive );
-	} else if ( !MainCamera->Is_Using_Host_Model() ) {
+	}
+
+	// The overhead view is the CommanderCamera's own Update (it also plays the transitions in
+	// and out); otherwise the normal first-person camera runs as before.
+	if ( StrategicViewManager::Is_Overhead_View() ) {
+		MainCamera->Update();
+	} else if ( !CommanderModeController::Is_Active() && !MainCamera->Is_Using_Host_Model() ) {
 		MainCamera->Update();
 	}
 

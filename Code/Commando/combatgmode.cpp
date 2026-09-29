@@ -104,6 +104,7 @@
 #include "FastAllocator.h"
 #include "dlgcncserverinfo.h"
 #include "commanderuiinput.h"
+#include "commanderoverlay.h"
 #include "radiocommanddisplay.h"
 #include "hudinfo.h"
 #include "string_ids.h"
@@ -383,6 +384,9 @@ void	CombatGameModeClass::Init()
 	**	unavailable there for the same reason `CommanderSidebarRenderer` does.
 	*/
 	CommanderUIInput::Init ( !cNetwork::I_Am_Only_Server () );
+	if ( !cNetwork::I_Am_Only_Server () ) {
+		CommanderOverlay::Init ();
+	}
 
 	//
 	// Notify combat about the state of the CameraLockedToTurret user option.
@@ -415,6 +419,7 @@ void 	CombatGameModeClass::Shutdown()
 
 	//	Gives the cursor and the FPS input gate back, whatever state Commander Mode was in.
 	CommanderUIInput::Shutdown ();
+	CommanderOverlay::Shutdown ();
 
 	//
 	//	The mode is going away, so its assets go with it, along with everything
@@ -1522,6 +1527,7 @@ void 	CombatGameModeClass::Render()
    }
 
 	MultiHUDClass::Render();
+	CommanderOverlay::Render ();
 	cBandwidthGraph::Render();
 	cPlayerManager::Render();
 	cTeamManager::Render();

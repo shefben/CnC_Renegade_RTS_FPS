@@ -101,6 +101,7 @@ public:
 	//	this edge's route passed through, unresolved -- Phase 8 step 15's own list, per edge
 	//	rather than one global bag, so a later phase knows which road needs which crossing.
 	DynamicVectorClass<StringClass>	UnresolvedCrossingIds;
+	StringClass RequiredBridgeCrossingId; // cannot be rerouted away or initially broken
 };
 
 
@@ -117,6 +118,7 @@ struct RoadGraphParams
 	float	SlopeCostWeight;					// >= 0 -- how strongly steep chunks are avoided
 	float	CrossingCostPenalty;				// >= 0 -- extra cost to route through a water/cliff crossing chunk
 	float	BoundaryApproachCostWeight;	// >= 0 -- how strongly the boundary-approach band is avoided
+	bool	RequireBridgeCrossing;		// generated worlds reserve one real river crossing
 };
 
 

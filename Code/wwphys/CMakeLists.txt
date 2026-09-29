@@ -54,6 +54,18 @@ set(WWPHYS_SRC
     worldboundsservice.cpp
     boundarycliffgenerator.cpp
     macroterraingenerator.cpp
+    mapplangenerator.cpp
+    hybridanchors.cpp
+    hybridcoarsematrix.cpp
+    hybridhydrology.cpp
+    hybridmacroterrain.cpp
+    hybridlandforms.cpp
+    hybridmapidentity.cpp
+    hybridplanrecords.cpp
+    hybridroutes.cpp
+    hybridplanning.cpp
+    hybridtopology.cpp
+    hybridstrategicgraph.cpp
     interiorcliffgenerator.cpp
     hydrologygenerator.cpp
     pscene_collision.cpp
@@ -176,6 +188,18 @@ set(WWPHYS_SRC
     worldboundsservice.h
     boundarycliffgenerator.h
     macroterraingenerator.h
+    mapplangenerator.h
+    hybridanchors.h
+    hybridcoarsematrix.h
+    hybridhydrology.h
+    hybridmacroterrain.h
+    hybridlandforms.h
+    hybridmapidentity.h
+    hybridplanrecords.h
+    hybridroutes.h
+    hybridplanning.h
+    hybridtopology.h
+    hybridstrategicgraph.h
     interiorcliffgenerator.h
     hydrologygenerator.h
     rbody.h

@@ -51,6 +51,7 @@
 #include "always.h"
 #include "wwstring.h"
 #include "vector.h"
+#include "hybridplanrecords.h"
 
 
 /*
@@ -130,7 +131,7 @@ struct ProceduralWorldTerrainSettings
 {
 	ProceduralWorldTerrainSettings(void) : MacroRelief(0.6f),HillDensity(0.45f),MountainDensity(0.18f),
 														 InteriorCliffDensity(0.16f),ValleyDensity(0.30f),
-														 MinElevation(-30.0f),MaxElevation(160.0f),
+												 MinElevation(-30.0f),MaxElevation(160.0f),LandElevationBias(0.0f),
 														 MaxBuildableSlopeDegrees(28.0f),FeatureScale(900.0f),
 														 RidgeSharpness(0.55f),PlateauChance(0.15f),
 														 BoundaryApproachFlattening(0.6f) { }
@@ -147,6 +148,7 @@ struct ProceduralWorldTerrainSettings
 	//	above were parsed-but-unconsumed placeholders for.
 	float	MinElevation;				// world units relative to world.sea_level, may be negative -- the relief floor
 	float	MaxElevation;				// world units relative to world.sea_level, must clear boundary.cliff_min_height -- the relief ceiling
+	float	LandElevationBias;		// shifts ordinary terrain above sea level without moving water or the cliff foot
 	float	MaxBuildableSlopeDegrees;	// degrees, (0,90) -- both the generation-time ordinary-slope cap
 												//	and the chunk registry's buildability threshold.  One number
 												//	serves both deliberately: two separate definitions of "too
@@ -194,6 +196,53 @@ struct ProceduralWorldWaterSettings
 
 
 /*
+**	D-003 Phase 3B.  Schema 11's addition when the map plan generator was built.  A 2D layout
+**	plan built before any 3D terrain: base sites, Tiberium fields, lanes, integer height tiers,
+**	planned water and per-cell passability.  Absent block or `enabled:false` skips the phase
+**	and the pipeline behaves as it did under schema 10 (noise-first terrain).  A fit_to_level
+**	world always skips it.  Field ranges are validated by Validate.
+*/
+struct ProceduralWorldPlanSettings
+{
+	ProceduralWorldPlanSettings(void) : Enabled(false),Symmetry("rotational"),
+														TierCount(3),TierStep(18.0f),DetailWeight(0.35f),
+														LaneWidthCells(1),BaseRadiusCells(3),FlankLanes(1),
+														WaterFraction(0.08f),BoundaryMarginCells(2.0f),
+														Archetype("auto"),BiomeMode("auto"),Biome("auto"),
+														SecondaryBiome("auto"),MixedBiomeProbability(0.125f),
+														RoadDensity(0.65f),IslandChance(0.20f),RouteRedundancy(2),
+														AllowFords(false),LegacyLaneWidthCellsPresent(false) { }
+	bool			Enabled;
+	StringClass	Symmetry;				// "none" | "rotational" | "mirror_x"
+	int			TierCount;				// 2..5 -- integer height tiers
+	float			TierStep;				// world units per tier, > 0
+	float			DetailWeight;			// 0..1 -- share of the noise relief kept inside a tier
+	int			LaneWidthCells;		// legacy (schema <= 11) -- inert on the hybrid path (Section 4)
+	int			BaseRadiusCells;		// >= 1 -- flat base disc radius in plan cells
+	int			FlankLanes;				// 0..2 -- flank lanes besides the centre lane
+	float			WaterFraction;			// hybrid 0.03..0.20 -- share of the world planned as water
+	float			BoundaryMarginCells;	// >= 0 -- cells kept between a site disc and the world edge
+
+	//	Schema 12 -- hybrid rewrite Section 4 (item I1).  Names are the plan's spellings.
+	StringClass	Archetype;				// "auto" | a Section 6 archetype
+	StringClass	BiomeMode;				// "auto" | "single" | "mixed"
+	StringClass	Biome;					// "auto" | temperate | desert | snow | tiberium_wasteland
+	StringClass	SecondaryBiome;		// same set; only legal Section 4.3 pairs
+	float			MixedBiomeProbability;	// 0..1 -- auto mode's chance of a mixed map
+	float			RoadDensity;			// 0..1
+	float			IslandChance;			// 0..1
+	int			RouteRedundancy;		// 2..3
+	bool			AllowFords;				// true fails preflight until a ford capability exists
+
+	//	Set by the parser when the profile carries lane_width_cells, so the hybrid path can say
+	//	once that it ignores it (Section 0.7).  Not a profile field.
+	bool			LegacyLaneWidthCellsPresent;
+
+	int			Route_Family_Count(void) const	{ return Hybrid_Route_Family_Count (RouteRedundancy,FlankLanes); }
+};
+
+
+/*
 **	Section 15, Section 17A.6.  Schema 5's addition when Phase 12 built the field generator
 **	these were reserved for -- Section 17A.6 requires field/profile data to "define or derive"
 **	exactly this list.  No canonical v1 data source exists for a Tiberium field's own game-scale
@@ -229,12 +278,17 @@ struct ProceduralWorldResourceSettings
 struct ProceduralWorldFeatureFlags
 {
 	ProceduralWorldFeatureFlags(void) : Forests(true),Settlements(true),Tunnels(true),
-													 Highways(true),TiberiumFields(true) { }
+													 Highways(true),TiberiumFields(true),
+													 LegacySettlementsPresent(false) { }
 	bool	Forests;
-	bool	Settlements;
+	bool	Settlements;			// legacy -- inert on the hybrid path (Section 0.7)
 	bool	Tunnels;
 	bool	Highways;
 	bool	TiberiumFields;
+
+	//	Set by the parser when world_features.settlements is present, so the hybrid path can say
+	//	once that it ignores it.  Not a profile field.
+	bool	LegacySettlementsPresent;
 };
 
 
@@ -417,6 +471,7 @@ struct ProceduralWorldFairnessThresholds
 		MaxProjectedInitialIncomeDifferencePercent(10.0f),
 		MaxBaseToFrontTravelTimeDifferenceSeconds(20.0f),
 		MaxBaseToBaseTravelTimeDifferenceSeconds(20.0f),
+		MinBaseToBaseTravelTimeSeconds(0.0f),
 		MinVehicleApproachCount(2),
 		MinInfantryApproachCount(2),
 		MinBaseExpansionArea(4096.0f),
@@ -431,6 +486,7 @@ struct ProceduralWorldFairnessThresholds
 	float	MaxProjectedInitialIncomeDifferencePercent;		// >= 0, percent (0..100 typical)
 	float	MaxBaseToFrontTravelTimeDifferenceSeconds;			// >= 0
 	float	MaxBaseToBaseTravelTimeDifferenceSeconds;			// >= 0
+	float	MinBaseToBaseTravelTimeSeconds;				// >= 0, minimum route time between opposing bases
 	int		MinVehicleApproachCount;								// >= 1 -- Section 10A.7's normal target is 2
 	int		MinInfantryApproachCount;								// >= 1
 	float	MinBaseExpansionArea;									// world units^2, > 0
@@ -518,9 +574,19 @@ class ProceduralWorldProfile
 		//	equal CURRENT_GENERATOR_VERSION -- no older generator is kept (one canonical
 		//	implementation), so a profile naming another one names a world this build cannot
 		//	reproduce, and is refused rather than silently generating a different one.
-		enum { CURRENT_SCHEMA_VERSION = 9, CURRENT_GENERATOR_VERSION = 7 };
+		// Native terrain relief and base-route fields extend schema 9; changed terrain
+		// shaping and hydrology require a new deterministic generator identity.
+		// Generator 9 reserves a native river bridge and hashes its placement.
+		// Schema 11 adds the D-003 map plan block; generator 10 realizes terrain from it.
+		// Schema 12 adds the hybrid rewrite's plan fields (archetype, biome selectors, road
+		// density, island chance, route redundancy, allow_fords); generator 11 is the hybrid
+		// generator identity and makes legacy lane_width_cells/settlements inert on that path.
+		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 11 };
 
 		ProceduralWorldProfile(void);
+
+		//	The hybrid generator runs for a plan-enabled world that is not fit to a level.
+		bool			Uses_Hybrid_Generator(void) const	{ return Plan.Enabled && !World.FitToLevel; }
 
 		unsigned int	SchemaVersion;
 		unsigned int	GeneratorVersion;
@@ -535,6 +601,7 @@ class ProceduralWorldProfile
 		ProceduralWorldBoundarySettings		Boundary;
 		ProceduralWorldTerrainSettings		Terrain;
 		ProceduralWorldWaterSettings			Water;
+		ProceduralWorldPlanSettings			Plan;
 		ProceduralWorldResourceSettings		Resource;
 		ProceduralWorldFeatureFlags			Features;
 		ProceduralWorldRetryLimits				Retry;

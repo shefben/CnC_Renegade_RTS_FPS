@@ -133,6 +133,7 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			//	the value already in p rather than from a literal repeated here.
 			p.Terrain.MinElevation					= t.value ("min_elevation",p.Terrain.MinElevation);
 			p.Terrain.MaxElevation					= t.value ("max_elevation",p.Terrain.MaxElevation);
+			p.Terrain.LandElevationBias			= t.value ("land_elevation_bias",p.Terrain.LandElevationBias);
 			p.Terrain.MaxBuildableSlopeDegrees	= t.value ("max_buildable_slope_degrees",p.Terrain.MaxBuildableSlopeDegrees);
 			p.Terrain.FeatureScale					= t.value ("feature_scale",p.Terrain.FeatureScale);
 			p.Terrain.RidgeSharpness				= t.value ("ridge_sharpness",p.Terrain.RidgeSharpness);
@@ -155,6 +156,43 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			p.Water.MaxRiverCount				= w.value ("max_river_count",p.Water.MaxRiverCount);
 		}
 
+		//	Schema 11 (D-003).  Absent in older profiles; defaults leave the phase disabled.
+		if (root.contains ("plan") && root ["plan"].is_object ()) {
+			auto & pl = root ["plan"];
+			p.Plan.Enabled					= pl.value ("enabled",p.Plan.Enabled);
+			if (pl.contains ("symmetry") && pl ["symmetry"].is_string ()) {
+				p.Plan.Symmetry = pl ["symmetry"].get<std::string> ().c_str ();
+			}
+			p.Plan.TierCount				= pl.value ("tier_count",p.Plan.TierCount);
+			p.Plan.TierStep				= pl.value ("tier_step",p.Plan.TierStep);
+			p.Plan.DetailWeight			= pl.value ("detail_weight",p.Plan.DetailWeight);
+			p.Plan.LaneWidthCells		= pl.value ("lane_width_cells",p.Plan.LaneWidthCells);
+			p.Plan.LegacyLaneWidthCellsPresent = pl.contains ("lane_width_cells");
+			p.Plan.BaseRadiusCells		= pl.value ("base_radius_cells",p.Plan.BaseRadiusCells);
+			p.Plan.FlankLanes				= pl.value ("flank_lanes",p.Plan.FlankLanes);
+			p.Plan.WaterFraction			= pl.value ("water_fraction",p.Plan.WaterFraction);
+			p.Plan.BoundaryMarginCells	= pl.value ("boundary_margin_cells",p.Plan.BoundaryMarginCells);
+
+			//	Schema 12 (hybrid rewrite Section 4).  Absent fields keep the Section 4 defaults.
+			if (pl.contains ("archetype") && pl ["archetype"].is_string ()) {
+				p.Plan.Archetype = pl ["archetype"].get<std::string> ().c_str ();
+			}
+			if (pl.contains ("biome_mode") && pl ["biome_mode"].is_string ()) {
+				p.Plan.BiomeMode = pl ["biome_mode"].get<std::string> ().c_str ();
+			}
+			if (pl.contains ("biome") && pl ["biome"].is_string ()) {
+				p.Plan.Biome = pl ["biome"].get<std::string> ().c_str ();
+			}
+			if (pl.contains ("secondary_biome") && pl ["secondary_biome"].is_string ()) {
+				p.Plan.SecondaryBiome = pl ["secondary_biome"].get<std::string> ().c_str ();
+			}
+			p.Plan.MixedBiomeProbability	= pl.value ("mixed_biome_probability",p.Plan.MixedBiomeProbability);
+			p.Plan.RoadDensity				= pl.value ("road_density",p.Plan.RoadDensity);
+			p.Plan.IslandChance				= pl.value ("island_chance",p.Plan.IslandChance);
+			p.Plan.RouteRedundancy			= pl.value ("route_redundancy",p.Plan.RouteRedundancy);
+			p.Plan.AllowFords					= pl.value ("allow_fords",p.Plan.AllowFords);
+		}
+
 		if (root.contains ("resource") && root ["resource"].is_object ()) {
 			auto & rs = root ["resource"];
 
@@ -175,6 +213,7 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 			auto & f = root ["world_features"];
 			p.Features.Forests			= f.value ("forests",p.Features.Forests);
 			p.Features.Settlements		= f.value ("settlements",p.Features.Settlements);
+			p.Features.LegacySettlementsPresent = f.contains ("settlements");
 			p.Features.Tunnels			= f.value ("tunnels",p.Features.Tunnels);
 			p.Features.Highways			= f.value ("highways",p.Features.Highways);
 			p.Features.TiberiumFields	= f.value ("tiberium_fields",p.Features.TiberiumFields);
@@ -207,6 +246,8 @@ bool ProceduralWorldProfileManager::Load_Profile_From_Text(const char * json_tex
 				= fa.value ("max_base_to_front_travel_time_difference_seconds",p.Fairness.MaxBaseToFrontTravelTimeDifferenceSeconds);
 			p.Fairness.MaxBaseToBaseTravelTimeDifferenceSeconds
 				= fa.value ("max_base_to_base_travel_time_difference_seconds",p.Fairness.MaxBaseToBaseTravelTimeDifferenceSeconds);
+			p.Fairness.MinBaseToBaseTravelTimeSeconds
+				= fa.value ("min_base_to_base_travel_time_seconds",p.Fairness.MinBaseToBaseTravelTimeSeconds);
 			p.Fairness.MinVehicleApproachCount			= fa.value ("min_vehicle_approach_count",p.Fairness.MinVehicleApproachCount);
 			p.Fairness.MinInfantryApproachCount			= fa.value ("min_infantry_approach_count",p.Fairness.MinInfantryApproachCount);
 			p.Fairness.MinBaseExpansionArea				= fa.value ("min_base_expansion_area",p.Fairness.MinBaseExpansionArea);
@@ -386,6 +427,7 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	//	Schema 3's macro terrain fields (Phase 4).
 	NEED_FINITE (p.Terrain.MinElevation,"non-finite terrain.min_elevation");
 	NEED_FINITE (p.Terrain.MaxElevation,"non-finite terrain.max_elevation");
+	NEED_FINITE (p.Terrain.LandElevationBias,"non-finite terrain.land_elevation_bias");
 	if (p.Terrain.MaxElevation < p.Terrain.MinElevation)	FAIL ("terrain.max_elevation below min_elevation");
 
 	//	Section 1.5's aircraft rule extends naturally to generated ground: nothing the terrain
@@ -418,6 +460,61 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	if (p.Water.RiverAccumulationChunks <= 0.0f)			FAIL ("water.river_accumulation_chunks must be positive");
 	if (p.Water.MaxRiverCount <= 0)							FAIL ("water.max_river_count must be positive");
 
+	//	Schema 11 (D-003) plan block.  Ranges mirror MapPlanGenerator::Generate's own checks so a
+	//	bad profile is rejected at load, not at the first world attempt.
+	if (p.Plan.Enabled) {
+		if ((p.Plan.Symmetry != "none") && (p.Plan.Symmetry != "rotational") && (p.Plan.Symmetry != "mirror_x"))
+																		FAIL ("plan.symmetry must be none, rotational or mirror_x");
+		if ((p.Plan.TierCount < 2) || (p.Plan.TierCount > 5))	FAIL ("plan.tier_count must be 2..5");
+		NEED_FINITE (p.Plan.TierStep,"non-finite plan.tier_step");
+		if (p.Plan.TierStep <= 0.0f)							FAIL ("plan.tier_step must be positive");
+		NEED_FINITE (p.Plan.DetailWeight,"non-finite plan.detail_weight");
+		if ((p.Plan.DetailWeight < 0.0f) || (p.Plan.DetailWeight > 1.0f))	FAIL ("plan.detail_weight must be 0..1");
+		if (p.Plan.BaseRadiusCells < 1)						FAIL ("plan.base_radius_cells must be >= 1");
+		if ((p.Plan.FlankLanes < 0) || (p.Plan.FlankLanes > 2))	FAIL ("plan.flank_lanes must be 0..2");
+		NEED_FINITE (p.Plan.WaterFraction,"non-finite plan.water_fraction");
+		NEED_NONNEGATIVE (p.Plan.BoundaryMarginCells,"negative/non-finite plan.boundary_margin_cells");
+
+		//	lane_width_cells is legacy (Section 0.7) but the D-003 planner still reads it until the
+		//	hybrid corridor phases replace that planner, so its range stays enforced.
+		if (p.Plan.LaneWidthCells < 1)						FAIL ("plan.lane_width_cells must be >= 1");
+
+		//	Section 4 -- the hybrid path's water range.  Only a fitted world keeps the legacy range;
+		//	it skips the phase anyway.
+		if (p.Uses_Hybrid_Generator ()) {
+			if ((p.Plan.WaterFraction < 0.03f) || (p.Plan.WaterFraction > 0.20f))	FAIL ("plan.water_fraction must be 0.03..0.20");
+		} else {
+			if ((p.Plan.WaterFraction < 0.0f) || (p.Plan.WaterFraction > 1.0f))	FAIL ("plan.water_fraction must be 0..1");
+		}
+
+		HybridArchetype archetype;
+		HybridBiomeMode biome_mode;
+		HybridBiome biome;
+		HybridBiome secondary_biome;
+		if (!Hybrid_Archetype_From_Name (p.Plan.Archetype,&archetype))
+																		FAIL ("plan.archetype must be auto or a Section 6 archetype");
+		if (!Hybrid_Biome_Mode_From_Name (p.Plan.BiomeMode,&biome_mode))
+																		FAIL ("plan.biome_mode must be auto, single or mixed");
+		if (!Hybrid_Biome_From_Name (p.Plan.Biome,&biome))
+																		FAIL ("plan.biome must be auto, temperate, desert, snow or tiberium_wasteland");
+		if (!Hybrid_Biome_From_Name (p.Plan.SecondaryBiome,&secondary_biome))
+																		FAIL ("plan.secondary_biome must be auto, temperate, desert, snow or tiberium_wasteland");
+		if ((biome != HYBRID_BIOME_AUTO) && (secondary_biome != HYBRID_BIOME_AUTO)
+		 && !Hybrid_Is_Legal_Biome_Pair (biome,secondary_biome))
+																		FAIL ("plan.biome and plan.secondary_biome are not a legal mixed pair");
+		NEED_FINITE (p.Plan.MixedBiomeProbability,"non-finite plan.mixed_biome_probability");
+		if ((p.Plan.MixedBiomeProbability < 0.0f) || (p.Plan.MixedBiomeProbability > 1.0f))
+																		FAIL ("plan.mixed_biome_probability must be 0..1");
+		NEED_FINITE (p.Plan.RoadDensity,"non-finite plan.road_density");
+		if ((p.Plan.RoadDensity < 0.0f) || (p.Plan.RoadDensity > 1.0f))	FAIL ("plan.road_density must be 0..1");
+		NEED_FINITE (p.Plan.IslandChance,"non-finite plan.island_chance");
+		if ((p.Plan.IslandChance < 0.0f) || (p.Plan.IslandChance > 1.0f))	FAIL ("plan.island_chance must be 0..1");
+		if ((p.Plan.RouteRedundancy < 2) || (p.Plan.RouteRedundancy > 3))	FAIL ("plan.route_redundancy must be 2..3");
+		if (p.Plan.Enabled && p.World.FitToLevel) {
+			//	Not an error: a fitted world simply skips the phase.  Logged by the manager.
+		}
+	}
+
 	//	Schema 5's resource fields (Phase 12).
 	NEED_FINITE (p.Resource.FieldRadiusMin,"non-finite resource.field_radius_min");
 	NEED_FINITE (p.Resource.FieldRadiusMax,"non-finite resource.field_radius_max");
@@ -443,6 +540,9 @@ bool ProceduralWorldProfileManager::Validate_Profile(const ProceduralWorldProfil
 	NEED_NONNEGATIVE (p.Fairness.MaxProjectedInitialIncomeDifferencePercent,"negative/non-finite fairness.max_projected_initial_income_difference_percent");
 	NEED_NONNEGATIVE (p.Fairness.MaxBaseToFrontTravelTimeDifferenceSeconds,"negative/non-finite fairness.max_base_to_front_travel_time_difference_seconds");
 	NEED_NONNEGATIVE (p.Fairness.MaxBaseToBaseTravelTimeDifferenceSeconds,"negative/non-finite fairness.max_base_to_base_travel_time_difference_seconds");
+	NEED_NONNEGATIVE (p.Fairness.MinBaseToBaseTravelTimeSeconds,"negative/non-finite fairness.min_base_to_base_travel_time_seconds");
+	if (p.Fairness.MinBaseToBaseTravelTimeSeconds > p.Fairness.MaxBaseToBaseTravelTimeDifferenceSeconds)
+		FAIL ("fairness.min_base_to_base_travel_time_seconds exceeds maximum");
 	if (p.Fairness.MinVehicleApproachCount < 1)			FAIL ("fairness.min_vehicle_approach_count must be at least 1");
 	if (p.Fairness.MinInfantryApproachCount < 1)			FAIL ("fairness.min_infantry_approach_count must be at least 1");
 	if (!std::isfinite (p.Fairness.MinBaseExpansionArea) || p.Fairness.MinBaseExpansionArea <= 0.0f)

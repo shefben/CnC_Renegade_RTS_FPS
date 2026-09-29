@@ -143,6 +143,7 @@ struct BaseSelectionParams
 	//	Copied from the profile by the caller, Section 17A.1's own fields, named identically.
 	float	MaxInitialResourceTravelTimeDifferenceSeconds;
 	float	MaxBaseToBaseTravelTimeDifferenceSeconds;
+	float	MinBaseToBaseTravelTimeSeconds;
 	float	MinBaseExpansionArea;
 	bool		AllowSingleBridgeDependency;
 

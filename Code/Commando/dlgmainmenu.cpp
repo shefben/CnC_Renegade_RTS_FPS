@@ -377,14 +377,22 @@ MainMenuDialogClass::Start_Procedural_Skirmish (unsigned int seed, const char *p
 		return false;
 	}
 
-	StringClass mapname = Choose_Skirmish_Map ();
-	if (mapname.Is_Empty ()) {
-		if (error_out != nullptr) *error_out = "no skirmish map found to host the world";
+	if (!ProceduralWorldManager::Request_World (seed, profile_path, error_out)) {
 		return false;
 	}
 
-	if (!ProceduralWorldManager::Request_World (seed, profile_path, error_out)) {
-		return false;
+	//	A profile that generates its own terrain starts on no level file at all (D-002); a
+	//	fit_to_level profile is laid over a stock skirmish map as before.
+	StringClass mapname;
+	if (ProceduralWorldManager::Is_Requested_Native ()) {
+		mapname = ProceduralWorldManager::NATIVE_MAP_NAME;
+	} else {
+		mapname = Choose_Skirmish_Map ();
+		if (mapname.Is_Empty ()) {
+			ProceduralWorldManager::Clear_Request ();
+			if (error_out != nullptr) *error_out = "no skirmish map found to host the world";
+			return false;
+		}
 	}
 
 	const int SKIRMISH_LOAD_MENU_NUMBER	= 96;
@@ -440,21 +448,14 @@ MainMenuDialogClass::On_Command (int ctrl_id, int message_id, unsigned int param
 		case IDC_MENU_START_PROCEDURAL_GAME_BUTTON:
 		{
 			/*
-			**	V2 roadmap Section 34.  A procedural world is laid over a real level rather than
-			**	replacing one: the generator owns the boundary and the cliff ring that encloses
-			**	the map, and everything else a match needs -- lighting, spawners, presets, the
-			**	physics scene itself -- still comes from the level being loaded.  Generating a
-			**	whole level from nothing is later phases' work; this is the entry point that
-			**	exists from the first phase that has anything to show.
-			**
-			**	So the same skirmish map the Practice button picks is used as the host, and the
-			**	only difference is the request placed before the load.  A seed of zero asks the
-			**	manager to choose one and log it, so a world worth revisiting can be asked for
-			**	again by number.
+			**	D-002: the button launches a fully native generated world -- no stock map
+			**	underneath; terrain, bases, spawns and navigation all come from the generator.
+			**	A seed of zero asks the manager to choose one and log it, so a world worth
+			**	revisiting can be asked for again by number.
 			*/
 			IsStartingPractice = true;
 			StringClass world_error;
-			bool started = Start_Procedural_Skirmish(0,nullptr,&world_error);
+			bool started = Start_Procedural_Skirmish(0,ProceduralWorldManager::NATIVE_PROFILE_PATH,&world_error);
 			IsStartingPractice = false;
 
 			if (!started) {

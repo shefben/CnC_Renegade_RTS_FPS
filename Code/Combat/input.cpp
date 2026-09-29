@@ -434,6 +434,12 @@ StringID	Functions[ NUM_FUNCTIONS ] = {
 	//	Roadmap Section 41.  The INI key, not display text -- see DEFAULT_COMMANDER_MODE_KEY
 	//	below for what this binds to when no configuration file mentions it.
 	{ INPUT_FUNCTION_COMMANDER_MODE_TOGGLE, "CommanderModeToggle" },
+	{ INPUT_FUNCTION_COMMANDER_PAN_FORWARD, "CommanderPanForward" },
+	{ INPUT_FUNCTION_COMMANDER_PAN_BACKWARD, "CommanderPanBackward" },
+	{ INPUT_FUNCTION_COMMANDER_PAN_LEFT, "CommanderPanLeft" },
+	{ INPUT_FUNCTION_COMMANDER_PAN_RIGHT, "CommanderPanRight" },
+	{ INPUT_FUNCTION_COMMANDER_ZOOM_IN, "CommanderZoomIn" },
+	{ INPUT_FUNCTION_COMMANDER_ZOOM_OUT, "CommanderZoomOut" },
 
 };
 
@@ -622,6 +628,12 @@ int	FunctionKeyStates[ NUM_FUNCTIONS ] =
 	BUTTON_HIT, //INPUT_FUNCTION_PROFILE_RESET,
 
 	BUTTON_HIT, //INPUT_FUNCTION_COMMANDER_MODE_TOGGLE,
+	BUTTON_HELD,	//INPUT_FUNCTION_COMMANDER_PAN_FORWARD,
+	BUTTON_HELD,	//INPUT_FUNCTION_COMMANDER_PAN_BACKWARD,
+	BUTTON_HELD,	//INPUT_FUNCTION_COMMANDER_PAN_LEFT,
+	BUTTON_HELD,	//INPUT_FUNCTION_COMMANDER_PAN_RIGHT,
+	BUTTON_HELD,	//INPUT_FUNCTION_COMMANDER_ZOOM_IN,
+	BUTTON_HELD,	//INPUT_FUNCTION_COMMANDER_ZOOM_OUT,
 };
 
 static_assert ((sizeof (FunctionKeyStates) / sizeof (FunctionKeyStates[0])) == INPUT_FUNCTION_COUNT,
@@ -772,6 +784,14 @@ bool	Input::Is_Allowed_During_Commander_UI( InputFunction function )
 		//	The key that opened Commander Mode has to be able to close it.  This allow-list is
 		//	deny-by-default, so leaving this out would strand the player in the mode.
 		case INPUT_FUNCTION_COMMANDER_MODE_TOGGLE:
+
+		//	The overhead camera's own controls (StrategicViewManager).
+		case INPUT_FUNCTION_COMMANDER_PAN_FORWARD:
+		case INPUT_FUNCTION_COMMANDER_PAN_BACKWARD:
+		case INPUT_FUNCTION_COMMANDER_PAN_LEFT:
+		case INPUT_FUNCTION_COMMANDER_PAN_RIGHT:
+		case INPUT_FUNCTION_COMMANDER_ZOOM_IN:
+		case INPUT_FUNCTION_COMMANDER_ZOOM_OUT:
 			return true;
 
 		default:
@@ -1797,11 +1817,22 @@ struct BuiltinDefaultKeyStruct
 {
 	InputFunction	Function;
 	int				PrimaryKey;
+	int				SecondaryKey;
 };
 
 static const BuiltinDefaultKeyStruct	_BuiltinDefaultKeys [] =
 {
-	{ INPUT_FUNCTION_COMMANDER_MODE_TOGGLE,	DIK_B },
+	{ INPUT_FUNCTION_COMMANDER_MODE_TOGGLE,	DIK_B,										0 },
+
+	//	Overhead camera, as the CnC_Renegade_new fork binds it: arrows pan with the on-foot WASD
+	//	as the secondary (the soldier's own use of those keys is muted while commanding), and the
+	//	wheel zooms.
+	{ INPUT_FUNCTION_COMMANDER_PAN_FORWARD,	DIK_UP,									DIK_W },
+	{ INPUT_FUNCTION_COMMANDER_PAN_BACKWARD,	DIK_DOWN,								DIK_S },
+	{ INPUT_FUNCTION_COMMANDER_PAN_LEFT,		DIK_LEFT,								DIK_A },
+	{ INPUT_FUNCTION_COMMANDER_PAN_RIGHT,		DIK_RIGHT,								DIK_D },
+	{ INPUT_FUNCTION_COMMANDER_ZOOM_IN,			Input::SLIDER_MOUSE_WHEEL_FORWARD,	0 },
+	{ INPUT_FUNCTION_COMMANDER_ZOOM_OUT,		Input::SLIDER_MOUSE_WHEEL_BACKWARD,	0 },
 };
 
 
@@ -1821,6 +1852,7 @@ Input::Apply_Builtin_Defaults (void)
 		if (FunctionSecondaryKeys[index] != 0) continue;
 
 		FunctionPrimaryKeys[index] = _BuiltinDefaultKeys[i].PrimaryKey;
+		FunctionSecondaryKeys[index] = _BuiltinDefaultKeys[i].SecondaryKey;
 	}
 
 	return ;

@@ -34,6 +34,7 @@
 #include "terrainmask.h"
 #include "terraintexturesystem.h"
 #include "watersystem.h"
+#include "worldmetrics.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
 #include "wwmath.h"
@@ -132,7 +133,7 @@ TiberiumFieldParams::TiberiumFieldParams(void) :
 	HarvesterLoadAmount(600.0f),
 	GrowthEnabled(false),GrowthRatePerSecond(0.0f),
 	MaxRepairAttemptsPerField(8),
-	ReferenceVehicleSpeed(8.33f),
+	ReferenceVehicleSpeed(WorldMetricsClass::Get_Reference_Vehicle_Speed()),
 	MaxBuildableSlopeRadians(0.5f)
 { }
 

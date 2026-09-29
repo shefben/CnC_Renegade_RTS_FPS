@@ -248,6 +248,14 @@ typedef enum {
 	//	of its own -- see the static_asserts added beside them.
 	INPUT_FUNCTION_COMMANDER_MODE_TOGGLE,
 
+	//	Overhead commander camera (StrategicViewManager), ported from the CnC_Renegade_new fork.
+	INPUT_FUNCTION_COMMANDER_PAN_FORWARD,
+	INPUT_FUNCTION_COMMANDER_PAN_BACKWARD,
+	INPUT_FUNCTION_COMMANDER_PAN_LEFT,
+	INPUT_FUNCTION_COMMANDER_PAN_RIGHT,
+	INPUT_FUNCTION_COMMANDER_ZOOM_IN,
+	INPUT_FUNCTION_COMMANDER_ZOOM_OUT,
+
 	INPUT_FUNCTION_COUNT
 
 } InputFunction;

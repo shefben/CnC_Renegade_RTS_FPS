@@ -66,6 +66,12 @@
 #include "always.h"
 #include "wwstring.h"
 
+struct HybridCoarseMatrices;
+struct HybridLandformSet;
+struct HybridHydrologySet;
+struct HybridMacroTerrainParams;
+struct HybridMacroTerrainSet;
+
 
 /*
 **	Plain generator-tuning numbers, filled in by the Combat-side profile translator
@@ -92,6 +98,7 @@ struct MacroTerrainParams
 	//	Relief.
 	float	MinElevation;		// world units relative to SeaLevel, <= 0 typically -- the relief floor
 	float	MaxElevation;		// world units relative to SeaLevel, > 0 -- the relief ceiling
+	float	LandElevationBias;	// world units added to relief before the height clamp
 	float	MaxBuildableSlopeRadians;	// both the generation-time ordinary-slope cap and the chunk
 												//	registry's buildability threshold -- see the .cpp for why
 												//	one number serves both rather than risking two definitions
@@ -111,6 +118,29 @@ struct MacroTerrainParams
 	//	exists, a density this class cannot act on would either be silently ignored (which is
 	//	what happens today, honestly, by simply not being a field here) or would have to fake a
 	//	steep hill and call it a cliff, which is worse.
+
+	//	D-003 Phase 3B.  When true, MapPlanGenerator must hold a plan; the heightfield becomes
+	//	the plan's tier height plus the noise relief scaled by PlanDetailWeight, so noise is
+	//	detail inside a tier rather than the structure of the map.
+	bool	UsePlan;
+	float	PlanDetailWeight;				// 0..1
+
+	/*
+	**	Hybrid rewrite item I8, runtime Phase 7.  When `UseHybrid` is true every one of these five
+	**	records must be present and each vertex's height is `Hybrid_Macro_Sample_Height` over them
+	**	instead of the noise-geography channels above: the plan replaces those channels rather than
+	**	adding a path beside them, so `UseHybrid` and `UsePlan` are mutually exclusive and an
+	**	authored/legacy (plan-disabled) request still takes exactly the code it always did.
+	**
+	**	These are borrowed pointers into the manager's per-attempt records, valid for the duration of
+	**	the Generate call only.  wwphys owns all five types, so no Combat header crosses the boundary.
+	*/
+	bool	UseHybrid;
+	const HybridMacroTerrainParams *	HybridParams;
+	const HybridCoarseMatrices *		HybridMatrices;
+	const HybridLandformSet *			HybridLandforms;
+	const HybridHydrologySet *			HybridHydrology;
+	HybridMacroTerrainSet *				HybridSurfaces;	// Phase 7's record; the write fills its extents
 };
 
 

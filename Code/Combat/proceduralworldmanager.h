@@ -64,6 +64,16 @@
 
 #include "proceduralworldprofile.h"
 #include "worldgenerationmanifest.h"
+#include "hybridpreflight.h"
+#include "hybridmapidentity.h"
+#include "hybridstrategicgraph.h"
+#include "hybridcoarsematrix.h"
+#include "hybridlandforms.h"
+#include "hybridhydrology.h"
+#include "hybridmacroterrain.h"
+#include "hybridanchors.h"
+#include "hybridtopology.h"
+#include "hybridroutes.h"
 
 
 class ProceduralWorldManager
@@ -72,6 +82,13 @@ class ProceduralWorldManager
 
 		//	The profile shipped with the game, used when a request names no other.
 		static const char * const DEFAULT_PROFILE_PATH;
+
+		//	A native world is generated whole -- terrain, bases, spawns, navigation -- with no
+		//	level file underneath.  NATIVE_MAP_NAME is the map name such a game carries (no file
+		//	by that name exists); the level loader skips the file load for it.
+		static const char * const NATIVE_PROFILE_PATH;
+		static const char * const NATIVE_MAP_NAME;
+		static bool		Is_Native_Map(const char * map_name);
 
 		static void		Init(void);
 		static void		Shutdown(void);
@@ -108,6 +125,9 @@ class ProceduralWorldManager
 		static void		Clear_Request(void);
 
 		static bool		Is_Requested(void)			{ return Requested; }
+		//	True when the request's profile generates its own terrain (fit_to_level false), so
+		//	the game should start on NATIVE_MAP_NAME rather than a host level.
+		static bool		Is_Requested_Native(void)	{ return Requested && RequestedNative; }
 		static bool		Is_World_Active(void)		{ return WorldActive; }
 
 		/*
@@ -131,11 +151,169 @@ class ProceduralWorldManager
 		*/
 		static const ProceduralWorldProfile &		Get_Active_Profile(void)	{ return ActiveProfile; }
 		static const WorldGenerationManifest &		Get_Manifest(void)			{ return Manifest; }
+		/*
+		** The hybrid generator's Section 0.8 metric cache from the current request's preflight;
+		** Has_Hybrid_Metrics is false for the legacy generator or before preflight passed.
+		*/
+		static bool											Has_Hybrid_Metrics(void)	{ return HybridMetricsValid; }
+		static const HybridMetricCache &				Get_Hybrid_Metrics(void)	{ return HybridMetrics; }
+
+		/*
+		** Runtime Phase 2's immutable MapIdentity and Section-6.10 intent set for the attempt
+		** currently being generated (rewrite item I3).  Has_Hybrid_Identity is false for the legacy
+		** generator and before Phase 2 has run for this attempt; every later hybrid phase reads
+		** these records rather than re-deriving anything from the archetype name.
+		*/
+		static bool											Has_Hybrid_Identity(void)	{ return HybridIdentityValid; }
+		static const HybridMapIdentity &				Get_Hybrid_Identity(void)	{ return HybridIdentity; }
+		static const HybridArchetypeIntentSet &	Get_Hybrid_Intents(void)	{ return HybridIntents; }
+
+		/*
+		** Runtime Phase 3's strategic gameplay graph for the attempt currently being generated
+		** (rewrite item I4): both bases, every Tiberium role, the front-center analysis node, the
+		** heavy route-family waypoints and their route/resource/crossing intents.  False before
+		** Phase 3 has run for this attempt, and for the legacy generator, which has no Phase 3.
+		*/
+		static bool											Has_Hybrid_Strategic_Graph(void)	{ return HybridGraphValid; }
+		static const HybridStrategicGraph &			Get_Hybrid_Strategic_Graph(void)	{ return HybridGraph; }
+
+		/*
+		** Runtime Phase 4's coarse semantic matrices for the attempt currently being generated
+		** (rewrite item I5): the Section-2.2 layers at spacing `S` plus the reservation set later
+		** phases query and extend.  False before Phase 4 has run for this attempt, and for the
+		** legacy generator.  The layers live in the attempt scratch arena, so they are valid only
+		** until the next attempt resets it.
+		*/
+		static bool											Has_Hybrid_Coarse_Matrices(void)	{ return HybridCoarseValid; }
+		static const HybridCoarseMatrices &			Get_Hybrid_Coarse_Matrices(void)	{ return HybridCoarse; }
+
+		/*
+		** Runtime Phase 5's vector landforms for the attempt currently being generated (rewrite item
+		** I6): the hills, ridges, explicit cliff runs and canyon/ravine systems, each with its own
+		** compact-support field.  False before Phase 5 has run for this attempt, and for the legacy
+		** generator.  Phase 6's provisional drainage surface and Phase 7's `landform` height term are
+		** both `Hybrid_Landform_Height` over this set, so no later phase re-derives the profiles.
+		*/
+		static bool											Has_Hybrid_Landforms(void)			{ return HybridLandformsValid; }
+		static const HybridLandformSet &				Get_Hybrid_Landforms(void)			{ return HybridLandforms; }
+
+		/*
+		** Runtime Phase 6's vector hydrology for the attempt currently being generated (rewrite item
+		** I7): the selected river systems with their per-sample widths and drainage surfaces, the lake
+		** and coast polygons, the decorative islands, and every crossing/ramp-pass window the road
+		** phases are allowed to use.  False before Phase 6 has run for this attempt, and for the
+		** legacy generator.  Phase 7's `water_carve` term is `Hybrid_Water_Carve_Depth` over this set
+		** and its guided-river surface samples are the `Surfaces` array, so no later phase re-derives
+		** a carve profile or a drainage height.
+		*/
+		static bool											Has_Hybrid_Hydrology(void)			{ return HybridHydrologyValid; }
+		static const HybridHydrologySet &			Get_Hybrid_Hydrology(void)			{ return HybridHydrology; }
+
+		/*
+		** Runtime Phase 7's realization record for the attempt currently being generated (rewrite item
+		** I8): the frozen river water surfaces and bed heights from the plan's longitudinal walk, plus
+		** the realized heightfield extents.  The heightfield itself stays `WorldTerrainSystem`'s and
+		** the write stays `MacroTerrainGenerator`'s; this is the record every later phase reads when it
+		** needs a river's water level rather than sampling the ground for one.
+		*/
+		static bool											Has_Hybrid_Macro_Terrain(void)	{ return HybridMacroValid; }
+		static const HybridMacroTerrainSet &		Get_Hybrid_Macro_Terrain(void)	{ return HybridMacro; }
+
+		/*
+		** Runtime Phase 8's frozen anchors for the attempt currently being generated (rewrite item I9):
+		** each base's centre, its `BASE_PROTECTED` radius and its sorted viable heavy exit sectors, every
+		** Tiberium anchor with its protected reserve, and the Section-0.10 provisional fairness numbers.
+		** Phase 8 moves nothing -- these are the Phase-3 centres, validated against realized ground --
+		** and later phases read this record as the authority rather than re-deriving a base footprint.
+		*/
+		static bool											Has_Hybrid_Anchors(void)			{ return HybridAnchorsValid; }
+		static const HybridAnchorSet &				Get_Hybrid_Anchors(void)			{ return HybridAnchors; }
+
+		/*
+		** Runtime Phase 9's transportation topology for the attempt currently being generated (rewrite
+		** item I10): the base entrance points, the heavy route families with their bound crossing
+		** windows, the home and field roads, the quota-filled service and trail edges, the optional
+		** cross-links and the shared overpass obligations.  This phase decides which roads exist and
+		** which frozen points they pass through; Phase 10 routes them and may not invent a crossing this
+		** record does not carry.  It replaces the native MST topology on the hybrid path.
+		*/
+		static bool											Has_Hybrid_Topology(void)			{ return HybridTopologyValid; }
+		static const HybridTopology &					Get_Hybrid_Topology(void)			{ return HybridTopologyRecord; }
+
+		/*
+		** Runtime Phase 10's routed splines for the attempt currently being generated (rewrite item I11):
+		** one accepted spline per topology edge, the A* cell chain behind it, and the frozen waypoints it
+		** was routed through.  Nothing is realized on the ground yet -- the crossing intervals are still
+		** unresolved records for Phase 11 to compile.
+		*/
+		static bool											Has_Hybrid_Routes(void)				{ return HybridRoutesValid; }
+		static const HybridRouteSet &					Get_Hybrid_Routes(void)				{ return HybridRoutes; }
 
 	private:
 
 		static bool		Fit_Profile_To_Level(ProceduralWorldProfile * profile);
 		static bool		Build_Cliff_Ring(const ProceduralWorldProfile & profile,StringClass * error_out);
+
+		//	Rewrite item I3.  Runtime Phase 2: resolves this attempt's MapIdentity and Section-6.10
+		//	intent set from the validated profile and the frozen preflight metric cache.  `built_out`
+		//	reports whether the records now exist; false with a true return means the legacy
+		//	generator, which has no Phase 2 at all.
+		static bool		Build_Hybrid_Map_Identity(const ProceduralWorldProfile & profile,bool * built_out,
+															  StringClass * error_out);
+
+		//	Rewrite item I4.  Runtime Phase 3: places every required gameplay role and records the
+		//	route/resource/crossing intents from the frozen Phase-2 records.  `built_out` reports
+		//	whether the graph now exists; false with a true return means the legacy generator.
+		static bool		Build_Hybrid_Strategic_Graph(const ProceduralWorldProfile & profile,bool * built_out,
+																	StringClass * error_out);
+
+		//	Rewrite item I5.  Runtime Phase 4: the coarse semantic matrices and the reservation set,
+		//	built from the frozen Phase-2 records and the Phase-3 roles.  `built_out` reports whether
+		//	the matrices now exist; false with a true return means the legacy generator.
+		static bool		Build_Hybrid_Coarse_Matrices(const ProceduralWorldProfile & profile,bool * built_out,
+																	StringClass * error_out);
+
+		//	Rewrite item I6.  Runtime Phase 5: the vector landforms, built from the frozen Phase-2
+		//	records, the Phase-3 roles and the Phase-4 matrices, which this phase also completes by
+		//	writing the LandformMask and RoughnessClass layers.  `built_out` reports whether the
+		//	landform set now exists; false with a true return means the legacy generator.
+		static bool		Build_Hybrid_Landforms(const ProceduralWorldProfile & profile,bool * built_out,
+															StringClass * error_out);
+
+		//	Rewrite item I7.  Runtime Phase 6: the vector hydrology, built from the frozen Phase-2
+		//	records, the Phase-3 roles, the Phase-4 matrices and the Phase-5 landforms.  The matrices
+		//	are handed over mutable because this phase owns the accepted water intent and the crossing
+		//	window reservations Phase 4 deliberately left for it.  `built_out` reports whether the
+		//	hydrology set now exists; false with a true return means the legacy generator.
+		static bool		Build_Hybrid_Hydrology(const ProceduralWorldProfile & profile,bool * built_out,
+															StringClass * error_out);
+
+		//	Rewrite item I9.  Runtime Phase 8: validates the frozen Phase-3 base and Tiberium centres
+		//	against the realized Phase-7 ground and freezes each base's protected disc and viable exit
+		//	sectors.  Nothing is moved here; a hard requirement the realized world fails is an attempt
+		//	failure.  `built_out` reports whether the anchors are frozen; false with a true return means
+		//	the legacy generator, or a hybrid attempt whose Phase 7 did not run.
+		static bool		Build_Hybrid_Anchors(const ProceduralWorldProfile & profile,bool * built_out,
+														StringClass * error_out);
+
+		//	Rewrite item I10.  Runtime Phase 9: the transportation topology, from the Phase-3 intents, the
+		//	Phase-6 windows and the Phase-8 frozen centres and exit sectors.  `built_out` reports whether
+		//	the topology now exists; false with a true return means the legacy generator, or a hybrid
+		//	attempt whose Phase 8 did not run.
+		static bool		Build_Hybrid_Topology(const ProceduralWorldProfile & profile,bool * built_out,
+														 StringClass * error_out);
+
+		//	Rewrite item I11.  Runtime Phase 10: the bounded heading-aware A* and its splines, over the
+		//	Phase-9 topology and the realized Phase-7 ground.  `built_out` reports whether the routes now
+		//	exist; false with a true return means the legacy generator, or a hybrid attempt whose Phase 9
+		//	did not run.
+		static bool		Build_Hybrid_Routes(const ProceduralWorldProfile & profile,bool * built_out,
+													  StringClass * error_out);
+
+		//	D-003 Phase 3B.  The 2D map plan built before any terrain.  `built_out` reports
+		//	whether MapPlanGenerator now holds a plan; false with a true return means "correctly
+		//	skipped" (plan disabled in the profile, or a `fit_to_level` world).
+		static bool		Build_Map_Plan(const ProceduralWorldProfile & profile,bool * built_out,StringClass * error_out);
 
 		//	Roadmap Section 34 Phase 4.  `built_out` is set to whether a chunk registry now exists
 		//	for Phases 5-9 to read -- false and a true return together mean "correctly skipped",
@@ -269,6 +447,7 @@ class ProceduralWorldManager
 
 		static bool		Requested;
 		static bool		RequestedExact;
+		static bool		RequestedNative;
 		static bool		WorldActive;
 
 		static unsigned int		RequestedSeed;
@@ -276,6 +455,32 @@ class ProceduralWorldManager
 
 		static ProceduralWorldProfile		ActiveProfile;
 		static WorldGenerationManifest	Manifest;
+		static HybridMetricCache			HybridMetrics;
+		static bool							HybridMetricsValid;
+		static HybridMapIdentity			HybridIdentity;
+		static HybridArchetypeIntentSet	HybridIntents;
+		static bool							HybridIdentityValid;
+		static HybridStrategicGraph		HybridGraph;
+		static bool							HybridGraphValid;
+		static HybridCoarseMatrices		HybridCoarse;
+		static bool							HybridCoarseValid;
+		static HybridLandformSet			HybridLandforms;
+		static bool							HybridLandformsValid;
+		static HybridHydrologySet			HybridHydrology;
+		static bool							HybridHydrologyValid;
+		static HybridMacroTerrainSet		HybridMacro;
+		static bool							HybridMacroValid;
+		static HybridAnchorSet				HybridAnchors;
+		static bool							HybridAnchorsValid;
+		static HybridTopology				HybridTopologyRecord;
+		static bool							HybridTopologyValid;
+		static HybridRouteSet				HybridRoutes;
+		static bool							HybridRoutesValid;
+
+		//	Section 16.3's one per-attempt scratch arena and Section 16.1's work counters.  Reserved
+		//	at the start of a hybrid attempt and reused by every phase that needs scratch.
+		static HybridScratchArena		HybridArena;
+		static HybridWorkCounters		HybridWork;
 };
 
 #endif	// PROCEDURALWORLDMANAGER_H

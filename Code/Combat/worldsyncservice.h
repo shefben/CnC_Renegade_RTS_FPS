@@ -71,7 +71,7 @@ class WorldSyncHandshakeClass
 {
 public:
 
-	enum { CURRENT_HANDSHAKE_VERSION = 1 };
+	enum { CURRENT_HANDSHAKE_VERSION = 2 };	// 2: added PlanningHash (hybrid plan Section 0.3)
 
 	WorldSyncHandshakeClass(void);
 
@@ -82,6 +82,7 @@ public:
 	unsigned int	GeneratorVersion;		// ProceduralWorldProfile::CURRENT_GENERATOR_VERSION
 	unsigned int	ProfileHash;			// the profile that generated this world
 	unsigned int	ContentHash;			// the asset/definition set the server is running
+	unsigned int	PlanningHash;			// hybrid plan Section 0.3 HybridPlanningInputHash, 0 for a legacy world
 	unsigned int	ManifestRevision;		// the generation manifest's own revision
 	unsigned int	WorldRevision;			// where the journal is now
 	unsigned int	WorldChecksum;			// what the client should arrive at
@@ -112,6 +113,7 @@ enum WorldSyncResultType
 	WORLD_SYNC_GENERATOR_MISMATCH,
 	WORLD_SYNC_PROFILE_MISMATCH,
 	WORLD_SYNC_CONTENT_MISMATCH,
+	WORLD_SYNC_PLANNING_MISMATCH,
 	WORLD_SYNC_MANIFEST_MISMATCH,
 	WORLD_SYNC_NO_BASELINE,
 	WORLD_SYNC_SNAPSHOT_REFUSED,
@@ -168,7 +170,8 @@ public:
 	*/
 	static bool		Build_Handshake(unsigned int profile_hash,unsigned int content_hash,
 											 unsigned int manifest_revision,
-											 WorldSyncHandshakeClass * out);
+											 WorldSyncHandshakeClass * out,
+											 unsigned int planning_hash = 0);
 
 	/*
 	**	Steps 9-12, client side, as a small explicit state machine rather than one call.

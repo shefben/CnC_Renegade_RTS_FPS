@@ -36,7 +36,8 @@ separate:
 - **Section 17A.1's own named thresholds**, which are: whether both sides even have a reachable
   resource candidate at all, whether the difference between their two resource-travel times stays
   under `MaxInitialResourceTravelTimeDifferenceSeconds`, whether the base-to-base route itself
-  stays under `MaxBaseToBaseTravelTimeDifferenceSeconds`, and whether the route crosses a bridge
+  stays between `MinBaseToBaseTravelTimeSeconds` and
+  `MaxBaseToBaseTravelTimeDifferenceSeconds`, and whether the route crosses a bridge
   at all when `AllowSingleBridgeDependency` is false. A pair is selected only when every one of
   these passes -- the site score never overrides a failed threshold, it only decides which pair is
   tried first.
@@ -46,7 +47,9 @@ and its sibling `MaxBaseToFrontTravelTimeDifferenceSeconds` are both named "diff
 17A.1's own list, but exactly one GDI/Nod pair has exactly one physical route between them -- there
 is no second measurement for a literal difference to be taken against. This generator reads the
 base-to-base field as a direct cap on that one route's own travel time (a "difference" from
-immediate adjacency), documented here rather than invented silently. `MaxBaseToFrontTravelTimeDifferenceSeconds`
+immediate adjacency), documented here rather than invented silently. The minimum defaults to zero
+for existing profiles; the large native profile uses it to keep opposing bases from spawning
+next to each other on a mostly unused battlefield. `MaxBaseToFrontTravelTimeDifferenceSeconds`
 needs a defined "front" (Section 17's own contested-area concept) this phase does not establish and
 is not attempted -- Phase 11's own "Targeted validation" block names only resource access,
 required connectivity and "travel-time difference," never a front-line term, so this is a scoped

@@ -652,6 +652,103 @@ float WorldMetricsClass::Get_Posture_Height(WorldLocomotionClassType loco,WorldP
 
 
 /***********************************************************************************************
+ * WorldMetricsClass::Compute_Collision_Box --                                                 *
+ * WorldMetricsClass::Accumulate_Collision_Box --                                              *
+ * WorldMetricsClass::Get_Collision_Box --                                                     *
+ * WorldMetricsClass::Get_Class_Collision_Box --                                               *
+ *                                                                                             *
+ * Resolve_Extents already reads the WORLDBOX in root coordinates; the box is its full extent  *
+ * on each axis.  HasExtents is the line between a measurement and a fallback, so a definition *
+ * without it is counted as unmeasured instead of contributing a render-bound number.          *
+ *=============================================================================================*/
+bool WorldMetricsClass::Compute_Collision_Box(const WorldMetricsStruct & metrics,int definition_id,
+															WorldCollisionBoxStruct * out)
+{
+	if (out == nullptr) {
+		return false;
+	}
+	*out = WorldCollisionBoxStruct();
+	if (!metrics.Valid || !metrics.HasExtents) {
+		out->UnmeasuredCount = 1;
+		return false;
+	}
+	if ((metrics.Extents.X <= 0.0f) || (metrics.Extents.Y <= 0.0f) || (metrics.Extents.Z <= 0.0f)) {
+		out->UnmeasuredCount = 1;
+		return false;
+	}
+
+	out->Length = metrics.Extents.X * 2.0f;
+	out->Width = metrics.Extents.Y * 2.0f;
+	out->Height = metrics.Extents.Z * 2.0f;
+	out->DefinitionID = definition_id;
+	out->MeasuredCount = 1;
+	return true;
+}
+
+
+void WorldMetricsClass::Accumulate_Collision_Box(const WorldCollisionBoxStruct & in,WorldCollisionBoxStruct * worst)
+{
+	if (worst == nullptr) {
+		return;
+	}
+	worst->UnmeasuredCount += in.UnmeasuredCount;
+	if (in.MeasuredCount <= 0) {
+		return;
+	}
+
+	//	Ties keep the lower id so the answer does not depend on sweep order.
+	if (	(worst->MeasuredCount == 0) || (in.Width > worst->Width) ||
+			((in.Width == worst->Width) && (in.DefinitionID < worst->DefinitionID)))
+	{
+		worst->DefinitionID = in.DefinitionID;
+	}
+	worst->Length = WWMath::Max(worst->Length,in.Length);
+	worst->Width = WWMath::Max(worst->Width,in.Width);
+	worst->Height = WWMath::Max(worst->Height,in.Height);
+	worst->MeasuredCount += in.MeasuredCount;
+}
+
+
+bool WorldMetricsClass::Get_Collision_Box(int definition_id,WorldCollisionBoxStruct * out)
+{
+	if (out == nullptr) {
+		return false;
+	}
+	*out = WorldCollisionBoxStruct();
+
+	WorldMetricsStruct metrics;
+	if (!Get_Metrics(definition_id,&metrics)) {
+		out->UnmeasuredCount = 1;
+		return false;
+	}
+	return Compute_Collision_Box(metrics,definition_id,out);
+}
+
+
+bool WorldMetricsClass::Get_Class_Collision_Box(WorldLocomotionClassType loco,WorldCollisionBoxStruct * out)
+{
+	if ((out == nullptr) || (loco < 0) || (loco >= LOCOMOTION_COUNT)) {
+		return false;
+	}
+	*out = WorldCollisionBoxStruct();
+
+	for (	DefinitionClass * def = DefinitionMgrClass::Get_First(CLASSID_PHYSICS,DefinitionMgrClass::ID_SUPERCLASS);
+			def != nullptr;
+			def = DefinitionMgrClass::Get_Next(def,CLASSID_PHYSICS,DefinitionMgrClass::ID_SUPERCLASS))
+	{
+		if (Classify((PhysDefClass *)def) != loco) {
+			continue;
+		}
+
+		WorldCollisionBoxStruct box;
+		Get_Collision_Box((int)def->Get_ID(),&box);
+		Accumulate_Collision_Box(box,out);
+	}
+	return out->MeasuredCount > 0;
+}
+
+
+/***********************************************************************************************
  * WorldMetricsClass::Get_Building_Footprint --                                                *
  *                                                                                             *
  * From the Section 39 descriptor, which already owns the width and depth.  The radius is the  *

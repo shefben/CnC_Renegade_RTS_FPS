@@ -33,6 +33,7 @@
 #include "strategicplanner.h"
 #include "watersystem.h"
 #include "worldboundsservice.h"
+#include "worldmetrics.h"
 #include "worldterrainsystem.h"
 #include "worldtraversability.h"
 #include "wwdebug.h"
@@ -66,18 +67,6 @@ static const float EXPANSION_ROOM_RADIUS_MULTIPLIER = 2.0f;
 //	second, unjustified "weapon range" constant this project does not define anywhere else.
 static const float HIGH_GROUND_EPSILON = 1.0f;			// world units; ignores terrain noise below this
 static const float HIGH_GROUND_RING_TOLERANCE = 0.25f;	// +/- fraction of the ring radius sampled
-
-//	No canonical vehicle/infantry travel speed exists anywhere in this codebase's own data --
-//	RoadGraphGenerator, RoadSystem and MoveablePhysClass all reason in distance and slope, never
-//	a rate.  These are fairness *estimates* only, never consulted by movement or by any other
-//	generator, so they are documented real-world reference figures rather than measured game
-//	data, the same class of constant Get_World_Units_Per_Meter already used for the one other
-//	undefined physical quantity this chain needed: 8.33 m/s (30 km/h) is a standard defense-
-//	engineering cross-country wheeled-vehicle planning speed; 4.3 m/s is a standard loaded-
-//	infantry running pace.  BaseSelectionParams' own constructor below is where a caller who
-//	disagrees overrides them; nothing here hard-codes a use of the default beyond that.
-static const float DEFAULT_REFERENCE_VEHICLE_SPEED	= 8.33f;
-static const float DEFAULT_REFERENCE_INFANTRY_SPEED	= 4.3f;
 
 
 const char * Base_Repair_Operation_Name(BaseRepairOperationType op)
@@ -130,11 +119,12 @@ BaseSelectionParams::BaseSelectionParams(void) :
 	Seed(1),
 	MaxInitialResourceTravelTimeDifferenceSeconds(15.0f),
 	MaxBaseToBaseTravelTimeDifferenceSeconds(20.0f),
+	MinBaseToBaseTravelTimeSeconds(0.0f),
 	MinBaseExpansionArea(4096.0f),
 	AllowSingleBridgeDependency(false),
 	MaxRepairAttemptsPerPair(8),
-	ReferenceVehicleSpeed(DEFAULT_REFERENCE_VEHICLE_SPEED),
-	ReferenceInfantrySpeed(DEFAULT_REFERENCE_INFANTRY_SPEED)
+	ReferenceVehicleSpeed(WorldMetricsClass::Get_Reference_Vehicle_Speed()),
+	ReferenceInfantrySpeed(WorldMetricsClass::Get_Reference_Infantry_Speed())
 { }
 
 
@@ -403,7 +393,8 @@ static bool Thresholds_Pass(const PairEvaluation & eval,const BaseSelectionParam
 
 	bool resource_ok	= metrics_out->ResourceTravelTimeDifferenceSeconds <=
 								 params.MaxInitialResourceTravelTimeDifferenceSeconds;
-	bool travel_ok		= metrics_out->BaseToBaseTravelTimeSeconds <= params.MaxBaseToBaseTravelTimeDifferenceSeconds;
+	bool travel_ok		= metrics_out->BaseToBaseTravelTimeSeconds >= params.MinBaseToBaseTravelTimeSeconds &&
+		metrics_out->BaseToBaseTravelTimeSeconds <= params.MaxBaseToBaseTravelTimeDifferenceSeconds;
 	bool bridge_ok		= params.AllowSingleBridgeDependency || !metrics_out->SingleBridgeDependency;
 
 	metrics_out->PassedThresholds = resource_ok && travel_ok && bridge_ok;
@@ -444,6 +435,9 @@ bool BaseSelectionPlanner::Generate(const BaseSelectionParams & params,StringCla
 	if (!RoadGraphGenerator::Has_Graph())	FAIL("no road graph -- connect the candidates first");
 	if (!BridgePlanner::Has_Plan())			FAIL("no bridge plan -- resolve crossings first");
 	if (params.MinBaseExpansionArea <= 0.0f)		FAIL("min base expansion area must be positive");
+	if (params.MinBaseToBaseTravelTimeSeconds < 0.0f ||
+		params.MinBaseToBaseTravelTimeSeconds > params.MaxBaseToBaseTravelTimeDifferenceSeconds)
+		FAIL("invalid base-to-base travel time interval");
 	if (params.MaxRepairAttemptsPerPair < 0)		FAIL("max repair attempts per pair must not be negative");
 	if (params.ReferenceVehicleSpeed <= 0.0f)		FAIL("reference vehicle speed must be positive");
 
@@ -596,8 +590,9 @@ bool BaseSelectionPlanner::Generate(const BaseSelectionParams & params,StringCla
 			}
 
 			bool bridge_fails = !params.AllowSingleBridgeDependency && (eval.BridgeEdgesOnPath >= 1);
-			bool travel_fails = (eval.PathLength / params.ReferenceVehicleSpeed) >
-										params.MaxBaseToBaseTravelTimeDifferenceSeconds;
+			float base_travel_time = eval.PathLength / params.ReferenceVehicleSpeed;
+			bool travel_fails = base_travel_time < params.MinBaseToBaseTravelTimeSeconds ||
+				base_travel_time > params.MaxBaseToBaseTravelTimeDifferenceSeconds;
 
 			if (bridge_fails || travel_fails) {
 				//	Hold the better-scoring side fixed and substitute the weaker side's own site

@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "shadermgr.h"
+#include "shaderdatabase.h"
 
 #include "dx8wrapper.h"
 #include "dx8caps.h"
@@ -655,6 +656,8 @@ void	ShaderManagerClass::Init(ShaderTierType tier)
 	//	  - terrain detail: it needs a second UV rate on a single layer, which the terrain pass
 	//	    cannot carry, and it has no layer table entry to draw.  A registered program is a
 	//	    claim that a pipeline exists -- Is_Supported is how a caller asks.
+
+	ShaderControllerClass::Init(Tier == SHADER_TIER_PROGRAMMABLE);
 }
 
 
@@ -663,6 +666,8 @@ void	ShaderManagerClass::Init(ShaderTierType tier)
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 void	ShaderManagerClass::Shutdown(void)
 {
+	ShaderControllerClass::Shutdown();
+
 	Reset_Program();
 	Reset_Textures();
 

@@ -208,6 +208,8 @@ public:
 	static int			Get_Diagnostic_Count(void)	{ return Diagnostics.Count(); }
 	static bool			Get_Diagnostic(int index,CrossingResolutionRecord * out);
 	static int			Get_Unresolved_Count(void);
+	// Native acceptance gate: a real river span, traversable deck, both dry roads attached.
+	static bool		Has_Usable_River_Crossing(void);
 
 	static int			Check_Traversable_States_Pass(StringClass * report);
 	static int			Check_Broken_States_Block(StringClass * report);

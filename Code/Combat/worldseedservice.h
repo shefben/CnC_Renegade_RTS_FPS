@@ -87,6 +87,7 @@ class WorldSeedService
 		//	per-subsystem derivation exists for.
 		static const char * const SEED_DOMAIN_BOUNDARY_CLIFFS;
 		static const char * const SEED_DOMAIN_TERRAIN;
+		static const char * const SEED_DOMAIN_MAP_PLAN;
 
 		//	Added with Phase 5's interior cliffs.  Its own domain rather than sharing "terrain"
 		//	for the same reason boundary_cliffs is not "boundary": interior cliff placement reads
@@ -123,6 +124,12 @@ class WorldSeedService
 		**	and should not be done by generator code.
 		*/
 		static unsigned int	Derive_Subsystem_Seed(unsigned int world_seed,const char * domain);
+
+	/*
+	**	The hybrid generator's Hash01 (plan Section 0.3): a [0,1) draw keyed by up to three integers
+	**	under a subsystem domain.  Same seed, domain and keys always give the same value.
+	*/
+	static float			Hash01(unsigned int world_seed,const char * domain,unsigned int k0 = 0,unsigned int k1 = 0,unsigned int k2 = 0);
 };
 
 #endif // WORLDSEEDSERVICE_H

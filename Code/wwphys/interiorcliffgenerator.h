@@ -210,6 +210,9 @@ public:
 	static bool			Has_Cliffs(void)				{ return Built; }
 	static int			Get_Feature_Count(void)		{ return Features.Count(); }
 	static bool			Get_Feature(int index,InteriorCliffFeature * out);
+	// Reassert generated cliff exclusions after later terrain carving refreshes
+	// dirty chunk entries. The escarpment geometry remains in the world.
+	static bool			Restore_Chunk_Claims(void);
 
 	//	A CRC over every feature's own type, traversability, length, tallest station and bypass
 	//	point, quantized (Section 3B.4) -- the same "same seed, same checksum" claim Phase 3 and
@@ -232,6 +235,9 @@ private:
 	static unsigned int	Checksum;
 
 	static DynamicVectorClass<int>						OwnedEscarpmentIds;
+	static DynamicVectorClass<int>						ClaimedChunkIndices;
+	static int									ClaimedChunkCountX;
+	static int									ClaimedChunkCountY;
 	static DynamicVectorClass<InteriorCliffFeature>	Features;
 };
 

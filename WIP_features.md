@@ -256,3 +256,39 @@ implemented and the hard gate passes, before any Zero Hour work.
 
 ---
 
+## D-003 native visual run (started 2026-09-26)
+
+State: every plan consumer is in and green (see `completed_features.md`, D-003 consumers).
+`data/procedural_world/native.json` enables the plan. No self-check drives the whole
+`ProceduralWorldManager` pipeline, so plan-to-world integration is proven per owner only.
+Next action: run the native profile once in-engine with the plan enabled (the open D-002
+visual gate), confirm bases sit on the planned discs, the Tiberium field on the centre disc,
+roads along the lanes and pools where the plan put water; record the result in
+`completed_features.md` or file the failure as a WIP entry against the owner at fault.
+
+## Hybrid generator rewrite (started 2026-09-26)
+
+Continue `Procedural_World_Generator_Rewrite_Plan_FINAL_AUDITED.md` using
+`Procedural_World_Generator_Rewrite_CHECKLIST.md`. I0 through I10 are recorded in
+`completed_features.md`: I7 (runtime Phase 6, vector hydrology), I8 (Phase 7, macro terrain
+realization), I9 (Phase 8, frozen base/Tiberium anchors) and I10 (Phase 9, transportation topology)
+all closed on 2026-09-27 with their gates green on client and dedicated server, decisions D-005 to
+D-008, and docs under `docs/procedural_world/Hybrid{Hydrology,MacroTerrain,Anchors,Topology}.md`.
+**Q-018** (LARGE hill quota) and **Q-019** (canyon bridge quota on archetypes with no canyon
+obligation) are open and neither blocks code.
+
+**I11 (runtime Phase 10) is closed** -- see `completed_features.md` and `DECISIONS.md` D-009 with its
+2026-09-28 revision. The whole 231-test ctest suite is green on client and dedicated server.
+
+**I12 (runtime Phase 11, the deterministic interaction solver) is the next item.** Phase 10 hands it what
+it needs: one accepted centerline per mandatory topology edge, the A* cell chain behind it, the frozen
+waypoints it was routed through, and -- new with I11 -- a `HybridRouteStructuralSpan` per crossing, giving
+the window, the two frozen approach points and the sample range of the straight interval between them,
+with the method (bridge, overpass, bore, cut) deliberately unresolved.
+
+**Next exact action:** implement I12 against `Procedural_World_Generator_Rewrite_Plan_FINAL_AUDITED.md`
+Section 8 Phase 11 and Sections 12.3 to 12.5, in a new `Code/wwphys/hybridinteractions.{h,cpp}` owned by
+`ProceduralWorldManager::Build_Hybrid_Interactions`, then its `terrain_hybridinteractions` /
+`fds_terrain_hybridinteractions` gate, then I13. `Q-018` (LARGE hill quota against the 25 per cent overlap
+cap) and `Q-019` (canyon/ravine bridge quota on archetypes with no canyon obligation) are both still open
+and neither blocks I12.

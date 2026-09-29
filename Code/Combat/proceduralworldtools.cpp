@@ -53,6 +53,8 @@ ProceduralWorldValidationReport::ProceduralWorldValidationReport(void) :
 	Seed (0),
 	ProfileHash (0),
 	ContentManifestHash (0),
+	HybridPlanningInputHash (0),
+	HybridContentRevision (0),
 	CombatSpacePassed (false),
 	CombatSpaceFailureCount (0),
 	SightlineSampleCount (0),
@@ -102,6 +104,8 @@ ProceduralWorldValidationReport ProceduralWorldToolsService::Build_Validation_Re
 	report.Seed							= manifest.Seed;
 	report.ProfileHash				= manifest.ProfileHash;
 	report.ContentManifestHash	= manifest.ContentManifestHash;
+	report.HybridPlanningInputHash	= manifest.HybridPlanningInputHash;
+	report.HybridContentRevision	= manifest.HybridContentRevision;
 
 	report.CombatSpacePassed			= CombatSpaceValidator::Passed ();
 	report.CombatSpaceFailureCount	= CombatSpaceValidator::Get_Failure_Count ();
@@ -139,6 +143,8 @@ bool ProceduralWorldToolsService::Serialize_Validation_Report(const ProceduralWo
 	root ["seed"]								= r.Seed;
 	root ["profile_hash"]					= r.ProfileHash;
 	root ["content_manifest_hash"]		= r.ContentManifestHash;
+	root ["hybrid_planning_input_hash"]	= r.HybridPlanningInputHash;
+	root ["hybrid_content_revision"]	= r.HybridContentRevision;
 
 	json combat_space;
 	combat_space ["passed"]									= r.CombatSpacePassed;
@@ -175,14 +181,14 @@ StringClass ProceduralWorldToolsService::Format_Validation_Report_Text(const Pro
 {
 	StringClass s (512u,true);
 	s.Format (
-		"generator_version=%u seed=%u profile=%u content_manifest=%u\n"
+		"generator_version=%u seed=%u profile=%u content_manifest=%u hybrid_planning=%u hybrid_content=%u\n"
 		"combat space: %s -- %d hard failure(s), sightline P50=%.1f P90=%.1f max=%.1f, "
 		"base-to-base travel %.1fs, single-bridge-dependency=%s, %d field(s) without a route, "
 		"%d settlement(s) without a road\n"
 		"transportation network: %s -- %d unbound abutment(s), %d bridge(s) with no road, "
 		"%d bridge(s) narrower than their road, %d duplicate road(s), %d excessive approach grade(s), "
 		"%d insufficient clearance(s), required base routes %s (%s), %d unreachable passable cell(s)\n",
-		r.GeneratorVersion,r.Seed,r.ProfileHash,r.ContentManifestHash,
+		r.GeneratorVersion,r.Seed,r.ProfileHash,r.ContentManifestHash,r.HybridPlanningInputHash,r.HybridContentRevision,
 		r.CombatSpacePassed ? "PASS" : "FAIL",r.CombatSpaceFailureCount,
 		r.SightlineP50,r.SightlineP90,r.SightlineMax,
 		r.BaseToBaseTravelTimeSeconds,r.SingleBridgeDependency ? "yes" : "no",

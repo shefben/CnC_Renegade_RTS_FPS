@@ -35,11 +35,12 @@ Request_World(seed, profile_path)          validate profile now; refuse before a
 | --- | --- | --- | --- | --- |
 | 1 | World bounds | `ProceduralBoundsBuilder` → `WorldBoundsService` (`WorldBoundsAndBoundaryCliffs.md`) | always | attempt fails |
 | 2 | Boundary cliff ring | `BoundaryCliffGenerator` (same doc) | bounds built | logged; interior still generated |
-| 3 | Macro terrain, or fitted terrain sampled from the host level | `MacroTerrainGenerator` / `Build_Fitted_Terrain` (`MacroTerrainGeneration.md`) | always | attempt fails |
+| 2B | **Map plan** (D-003): 2D layout of base sites, Tiberium fields, lanes, height tiers, water and passability | `MapPlanGenerator` (`MapPlan.md`) | `plan.enabled` and not `fit_to_level` | attempt fails |
+| 3 | Macro terrain realized from the plan's tier heights plus in-tier noise, or noise-only when no plan, or fitted terrain sampled from the host level | `MacroTerrainGenerator` / `Build_Fitted_Terrain` (`MacroTerrainGeneration.md`) | always | attempt fails |
 | 4 | Interior cliffs | `InteriorCliffGenerator` (`InteriorCliffs.md`) | chunk registry | logged; later stages skip what they need from it |
-| 5 | Hydrology | `HydrologyGenerator` (`Hydrology.md`) | chunk registry | logged |
-| 6 | Strategic candidates | `StrategicPlanner` (`StrategicPlanning.md`) | chunk registry | logged; roads onward skipped |
-| 7 | Road graph | `RoadGraphGenerator` (`RoadGraph.md`) | strategic plan | logged; bridges onward skipped |
+| 5 | Hydrology (plan `WATER` cells are carved first when a plan exists) | `HydrologyGenerator` (`Hydrology.md`) | chunk registry | logged |
+| 6 | Strategic candidates (plan base discs rank first for bases, plan field discs first for Tiberium, and a base disc is never spent on Tiberium, when a plan exists) | `StrategicPlanner` (`StrategicPlanning.md`) | chunk registry | logged; roads onward skipped |
+| 7 | Road graph (plan `LANE`/`RAMP` chunks cost half, so routes follow planned corridors) | `RoadGraphGenerator` (`RoadGraph.md`) | strategic plan | logged; bridges onward skipped |
 | 8 | Bridges | `BridgePlanner` (`BridgePlanning.md`) | road graph | logged |
 | 9 | **Tunnels** | `TunnelPlanner` → `TunnelSystem` (`RoadsBridgesTunnels.md`) | chunk registry and `world_features.tunnels` | logged |
 | 10 | Base selection and fairness repair | `BaseSelectionPlanner` (`BaseSelection.md`) | bridge plan | logged |

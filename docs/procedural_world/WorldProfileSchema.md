@@ -79,6 +79,7 @@ the JSON example and the struct defaults can never silently drift apart).
 | `boundary.hard_barrier_offset` | world units | distance past the cliff band where actors/geometry are hard-rejected | 20.0 | >= 0, finite | yes |
 | `boundary.air_ceiling` | world units above sea level | aircraft flight-volume top (Section 1.5) | 260.0 | > cliff_max_height | yes |
 | `terrain.macro_relief` | normalized weight, 0..1 | overall relief intensity (Section 18B MACRO scale) | 0.6 | >= 0, finite | yes |
+| `terrain.land_elevation_bias` | world units | raises ordinary land above sea level before height clamping; does not move water or the boundary cliff foot | 0.0 | finite | yes |
 | `terrain.hill_density` | normalized weight, 0..1 | see terrain settings note below | 0.45 | >= 0, finite | yes |
 | `terrain.mountain_density` | normalized weight, 0..1 | see note below | 0.18 | >= 0, finite | yes |
 | `terrain.interior_cliff_density` | normalized weight, 0..1 | see note below | 0.16 | >= 0, finite | yes |
@@ -88,6 +89,7 @@ the JSON example and the struct defaults can never silently drift apart).
 | `retry.max_local_retries_per_stage` | count | Section 3C.1 step-1 ceiling every generator stage's local-adjustment loop is bounded by | 8 | > 0 | no (soft/behavioral, does not change chosen output given the same seed unless a stage actually exhausts it) |
 | `retry.max_alternate_candidates_per_feature` | count | Section 3C.1 step-2 ceiling | 6 | > 0 | no, same reasoning |
 | `fairness.*` | see Section 17A.1 | quantitative fairness thresholds, consumed starting Phase 15/17A | see example above | each field's own sign (nonnegative unless noted) | no (soft preference thresholds a repair pass may fail against, not generation inputs themselves) |
+| `fairness.min_base_to_base_travel_time_seconds` | seconds at the base selector's reference vehicle speed | minimum route time between opposing starting bases on large FPS worlds | 0.0 | >= 0 and <= the configured maximum base-to-base route time | yes |
 
 **Density-field semantics** (Section 4A's explicit requirement -- these are not left
 implementation-defined): each of `terrain.hill_density`/`mountain_density`/
@@ -305,6 +307,10 @@ than added speculatively.
 
 ### Version semantics
 
+Generator 9 adds the mandatory native river bridge: road planning reserves a real crossing, bridge planning must connect both banks, and a world without a usable crossing is rejected for bounded seed retry. The profile schema remains 10; no new JSON fields are needed.
+
+Schema 10 adds `terrain.land_elevation_bias` and `fairness.min_base_to_base_travel_time_seconds`, both defaulting to zero in older profiles. Generator 8 identifies the changed native terrain shaping, shoreline, and transportation output for a given seed.
+
 `CURRENT_SCHEMA_VERSION` and `CURRENT_GENERATOR_VERSION` moved to 2 with Phase 3, to 3 with
 Phase 4, and to 4 with Phase 6, independently each time and for the same two reasons: the schema
 gained fields, and the algorithm changed. (Phase 5's interior cliffs moved neither number — it
@@ -361,3 +367,23 @@ gameplay blocks (logistics, vehicle subsystems).
 The three shipped profiles move to schema 9 and name a full starting base for each faction
 (Construction Yard, power plant, refinery, infantry and vehicle production, base defence). They
 leave dust, haze and enemy obstruction off. A schema-1..8 profile still loads.
+
+## `plan` (schema 11, D-003)
+
+Optional. Absent or `enabled:false` skips Phase 2B and the pipeline behaves as it did under
+schema 10. A `fit_to_level` world always skips it. Owner: `MapPlanGenerator` (`MapPlan.md`).
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | build the 2D map plan before terrain |
+| `symmetry` | `"none"` / `"rotational"` / `"mirror_x"` | `"rotational"` | how the Nod half relates to the GDI half |
+| `tier_count` | int >= 2 | `3` | integer height tiers |
+| `tier_step` | float > 0 | `18.0` | world units of elevation per tier |
+| `detail_weight` | 0..1 | `0.35` | share of the noise relief kept inside a tier; ramps get 0, base/field discs a quarter |
+| `lane_width_cells` | int >= 1 | `1` | lane corridor half-width in plan cells (one cell = one chunk) |
+| `base_radius_cells` | int >= 1 | `3` | flat base disc radius in plan cells |
+| `flank_lanes` | 0..2 | `1` | flank lanes besides the centre lane, each through its own flank field |
+| `water_fraction` | 0..1 | `0.08` | share of lowest-tier open cells planned as water |
+| `boundary_margin_cells` | float >= 0 | `2.0` | cells kept between a site disc and the world edge |
+
+The manifest canonical string carries every field as `pl.*`, so a plan change is a new world.

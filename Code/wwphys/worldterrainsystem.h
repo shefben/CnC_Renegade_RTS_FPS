@@ -414,6 +414,7 @@ public:
 	**	registry or the coordinates are out of range.
 	*/
 	static bool			Mark_Chunk_Interior_Cliff(int px,int py);
+	static bool			Clear_Chunk_Interior_Cliff(int px,int py);
 
 	//	A CRC over every chunk's own checksum, in row-major order -- the one number Phase 4
 	//	step 17's manifest checksum and a device-less self check both mean by "the terrain".

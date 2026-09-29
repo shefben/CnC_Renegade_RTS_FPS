@@ -401,7 +401,9 @@ set(COMMANDO_SRC
     commanderorderevent.cpp
     commanderorderevent.h
     commanderuiinput.cpp
+    commanderoverlay.cpp
     commanderuiinput.h
+    commanderoverlay.h
     commanderclaimevent.cpp
     commanderclaimevent.h
     commanderwaypointevent.cpp
@@ -679,6 +681,31 @@ add_test(NAME terrain_far      COMMAND renegade -terrainselfcheck far)
 add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
 
     #	Procedural macro terrain -- roadmap Section 34 Phase 4.  See terrainselfcheck.h.
+    add_test(NAME terrain_hybridplan COMMAND renegade -terrainselfcheck hybridplan)
+    set_tests_properties(terrain_hybridplan PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridplanning COMMAND renegade -terrainselfcheck hybridplanning)
+    set_tests_properties(terrain_hybridplanning PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridmapidentity COMMAND renegade -terrainselfcheck hybridmapidentity)
+    set_tests_properties(terrain_hybridmapidentity PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridstrategicgraph COMMAND renegade -terrainselfcheck hybridstrategicgraph)
+    set_tests_properties(terrain_hybridstrategicgraph PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridcoarsematrix COMMAND renegade -terrainselfcheck hybridcoarsematrix)
+    set_tests_properties(terrain_hybridcoarsematrix PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridlandforms COMMAND renegade -terrainselfcheck hybridlandforms)
+    set_tests_properties(terrain_hybridlandforms PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridhydrology COMMAND renegade -terrainselfcheck hybridhydrology)
+    set_tests_properties(terrain_hybridhydrology PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridmacroterrain COMMAND renegade -terrainselfcheck hybridmacroterrain)
+    set_tests_properties(terrain_hybridmacroterrain PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridanchors COMMAND renegade -terrainselfcheck hybridanchors)
+    set_tests_properties(terrain_hybridanchors PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridtopology COMMAND renegade -terrainselfcheck hybridtopology)
+    set_tests_properties(terrain_hybridtopology PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridroutes COMMAND renegade -terrainselfcheck hybridroutes)
+    set_tests_properties(terrain_hybridroutes PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_hybridpreflight COMMAND renegade -terrainselfcheck hybridpreflight)
+    set_tests_properties(terrain_hybridpreflight PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_mapplan COMMAND renegade -terrainselfcheck mapplan)
     add_test(NAME terrain_macro   COMMAND renegade -terrainselfcheck macro)
 
     #	Procedural interior cliffs -- roadmap Section 34 Phase 5.  See terrainselfcheck.h.
@@ -686,6 +713,10 @@ add_test(NAME terrain_shroud   COMMAND renegade -terrainselfcheck shroud)
 
     #	Procedural hydrology -- roadmap Section 34 Phase 6.  See terrainselfcheck.h.
     add_test(NAME terrain_hydrology   COMMAND renegade -terrainselfcheck hydrology)
+    add_test(NAME terrain_native_profile COMMAND renegade -terrainselfcheck native_profile)
+    set_tests_properties(terrain_native_profile PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME terrain_native_bridges COMMAND renegade -terrainselfcheck native_bridges)
+    set_tests_properties(terrain_native_bridges PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
     #	Procedural strategic planner -- roadmap Section 34 Phase 7.  See terrainselfcheck.h.
     add_test(NAME terrain_strategic   COMMAND renegade -terrainselfcheck strategic)
@@ -814,9 +845,38 @@ add_test(NAME fds_terrain_shroud   COMMAND renegadeserver -terrainselfcheck shro
     add_test(NAME fds_terrain_collision  COMMAND renegadeserver -terrainselfcheck collision)
     add_test(NAME fds_terrain_textures  COMMAND renegadeserver -terrainselfcheck textures)
     add_test(NAME fds_terrain_roads  COMMAND renegadeserver -terrainselfcheck roads)
+    add_test(NAME fds_terrain_hybridplan COMMAND renegadeserver -terrainselfcheck hybridplan)
+    set_tests_properties(fds_terrain_hybridplan PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridplanning COMMAND renegadeserver -terrainselfcheck hybridplanning)
+    set_tests_properties(fds_terrain_hybridplanning PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridmapidentity COMMAND renegadeserver -terrainselfcheck hybridmapidentity)
+    set_tests_properties(fds_terrain_hybridmapidentity PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridstrategicgraph COMMAND renegadeserver -terrainselfcheck hybridstrategicgraph)
+    set_tests_properties(fds_terrain_hybridstrategicgraph PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridcoarsematrix COMMAND renegadeserver -terrainselfcheck hybridcoarsematrix)
+    set_tests_properties(fds_terrain_hybridcoarsematrix PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridlandforms COMMAND renegadeserver -terrainselfcheck hybridlandforms)
+    set_tests_properties(fds_terrain_hybridlandforms PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridhydrology COMMAND renegadeserver -terrainselfcheck hybridhydrology)
+    set_tests_properties(fds_terrain_hybridhydrology PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridmacroterrain COMMAND renegadeserver -terrainselfcheck hybridmacroterrain)
+    set_tests_properties(fds_terrain_hybridmacroterrain PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridanchors COMMAND renegadeserver -terrainselfcheck hybridanchors)
+    set_tests_properties(fds_terrain_hybridanchors PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridtopology COMMAND renegadeserver -terrainselfcheck hybridtopology)
+    set_tests_properties(fds_terrain_hybridtopology PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridroutes COMMAND renegadeserver -terrainselfcheck hybridroutes)
+    set_tests_properties(fds_terrain_hybridroutes PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_hybridpreflight COMMAND renegadeserver -terrainselfcheck hybridpreflight)
+    set_tests_properties(fds_terrain_hybridpreflight PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_mapplan COMMAND renegadeserver -terrainselfcheck mapplan)
     add_test(NAME fds_terrain_macro   COMMAND renegadeserver -terrainselfcheck macro)
     add_test(NAME fds_terrain_interior_cliffs   COMMAND renegadeserver -terrainselfcheck interior)
     add_test(NAME fds_terrain_hydrology   COMMAND renegadeserver -terrainselfcheck hydrology)
+    add_test(NAME fds_terrain_native_profile COMMAND renegadeserver -terrainselfcheck native_profile)
+    set_tests_properties(fds_terrain_native_profile PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME fds_terrain_native_bridges COMMAND renegadeserver -terrainselfcheck native_bridges)
+    set_tests_properties(fds_terrain_native_bridges PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
     add_test(NAME fds_terrain_strategic   COMMAND renegadeserver -terrainselfcheck strategic)
     add_test(NAME fds_terrain_roadgraph   COMMAND renegadeserver -terrainselfcheck roadgraph)
     add_test(NAME fds_terrain_bridgeplan   COMMAND renegadeserver -terrainselfcheck bridgeplan)

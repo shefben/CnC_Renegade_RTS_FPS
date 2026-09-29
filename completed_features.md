@@ -4590,3 +4590,287 @@ inventory, references, and validation output: `docs/assets/GeneratedTextureRepor
 No engine-side code was touched -- every consuming system (P13/P14/P17/P18/P19/P23/P16)
 was already fully wired and waiting on art only. Not done: in-engine visual check
 (no build/launch performed this pass, see report's "Engine tests performed").
+
+## D-003: map-plan-first pipeline -- `MapPlanGenerator` Phase 2B (2026-09-26)
+
+New WWPhys owner `MapPlanGenerator` builds a deterministic 2D layout on a chunk grid
+before any terrain: base sites (GDI/Nod, symmetric), centre and flank Tiberium fields,
+chokes, lanes, integer height tiers, cliff seams, ramps, planned water, CRC checksum.
+Manager runs it between the cliff ring and macro terrain (`Build_Map_Plan`), gated by
+profile `plan.enabled` and skipped for `fit_to_level`. `MacroTerrainGenerator` realizes
+the plan (`UsePlan`, `PlanDetailWeight`: tier height plus in-tier noise, ramps flat,
+base/field discs damped). `StrategicPlanner` adds `PLAN_BASE_SITE_BONUS` so anchors land
+on planned sites. Profile schema 11 / generator 10 with `plan` block (parse, validate,
+manifest `pl.*` fields), seed domain `map_plan`, native.json enables it. Self-check
+`terrain_mapplan` / `fds_terrain_mapplan` green; `terrain_macro`, `terrain_strategic`,
+`terrain_native_profile`, `terrain_native_bridges`, `shader_worldprofile` still green.
+Docs: `docs/procedural_world/MapPlan.md`, `GenerationPipeline.md` row 2B,
+`WorldProfileSchema.md` plan block. Decision `D-003` in `DECISIONS.md`.
+Not done (tracked in WIP): hydrology carving plan WATER, Tiberium seeding from FIELD,
+roads restricted to LANE cells, and the visual native run (D-002 gate).
+Side fix: `bridgeplanner.cpp` gained `#include "phys.h"` (uncommitted WIP failed to
+compile: `RefMultiListClass<PhysClass>` instantiated without the full type).
+## D-003 consumers: hydrology, strategic ranking, roads read the map plan (2026-09-26)
+
+`MapPlanGenerator::Get_Field_Site_Weight` added beside the base weight. `StrategicPlanner`
+keeps `PlanBase`/`PlanField` on `ChunkScore` instead of folding the base bonus into
+`Terrain`: step 5 (Tiberium candidates) skips planned base discs and adds the field bonus,
+the base ranking adds the base bonus, settlements use terrain alone; this also fixes the
+Phase 2B version, where the folded base bonus let step 5 spend planned base discs on
+Tiberium first. `HydrologyGenerator` carves plan `WATER` chunks before standalone sinks
+within `max_river_count`. `RoadGraphGenerator` halves the route cost of `LANE`/`RAMP`
+chunks. `TiberiumFieldGenerator` unchanged (resolves from the now-planned candidates).
+`terrain_mapplan` extended: site weights, strategic candidates on planned discs, no
+resource candidate on a base disc, hydrology carving when the plan has water. Docs:
+`MapPlan.md`, `GenerationPipeline.md` rows 5-7, `Hydrology.md`, `RoadGraph.md`,
+`StrategicPlanning.md`, `TiberiumFields.md`.
+
+## Hybrid rewrite I0: repository audit and baseline
+
+Canonical owners, source-name differences, required metrics and original build/test baseline are recorded in `docs/procedural_world/HybridRewriteAudit.md` (completed 2026-09-26). This was an audit-only stage with 92/92 procedural self-checks recorded at that baseline.
+
+## Hybrid rewrite I1: records and profile migration
+
+Hybrid records/tables, schema 12 / generator 11, native profile migration, inert legacy settlement/lane fields and the manifest profile-string truncation fix are implemented (2026-09-26). The I1 client/server `terrain_hybridplan` gates passed again on 2026-09-27 within the focused 6/6 hybrid check selection; I2 remains separately in WIP.
+
+## Hybrid rewrite I3: runtime Phase 2, MapIdentity
+
+Runtime Phase 2 is implemented (2026-09-27). `Code/wwphys/hybridmapidentity.{h,cpp}` owns the
+`HybridMapIdentity` and `HybridArchetypeIntentSet` records, the Section 0.4 strategic `(u,v)`
+frame (scale `D/2`, centre `world.center_*`, axis rebuilt from the quantized angle), the
+resolver and the gate checksum; `Hybrid_Key` joins the other Section 0.3 helpers in
+`hybridplanning.{h,cpp}` so every named draw uses the plan's own spelling of its key. The
+resolver is pure over a plain `HybridMapIdentityParams`, the way `MapPlanParams` already is, and
+`ProceduralWorldManager::Build_Hybrid_Map_Identity` fills it from the validated profile and the
+frozen preflight metric cache, runs Phase 2 at the top of `Generate_World_Attempt` before any
+geography, and clears the records with the attempt while the immutable content metrics survive a
+retry. Draws come from `map_plan` (identity and strategic choices), `hydrology` (guided-river
+meander) and `biomes` (mixed divider); no new seed domain and no stateful RNG. All eight
+Section 6.10 intent sets are built, including the frozen quantized guided-river centerline
+(stations at spacing `A`, `river_valley` clamped to `u` +/- 0.10, `COASTAL_GUIDED_RIVER` at half
+amplitude ending on its drawn `|v| = 0.55..0.70` sea boundary), the `SURFACE_SADDLE` record, the
+bridge/distinct-crossing tags and the `OPEN_MANEUVER` discs; the Section 4.3 divider control
+points and `max(4S,8W)` transition width are frozen for Phase 4 to rasterize. A profile/content
+contradiction fails the request by name (`ARCHETYPE_REQUIRES_COASTLINE`, `NO_AVAILABLE_BIOME`,
+`NO_AVAILABLE_BIOME_PAIR`, `ILLEGAL_BIOME_PAIR`) instead of retrying a seed. Phase 2 touches no
+terrain and leaves the 35% biome test, the disc placeability repair, the saddle amplitude ramp
+and role placement to the phases that own them. Decisions and ownership:
+`docs/procedural_world/HybridMapIdentity.md`.
+Gate (2026-09-27): Release `renegade`, `renegadeserver` and `leveledit` built with no warnings,
+`terrain_hybridmapidentity` and `fds_terrain_hybridmapidentity` pass (proven live by a
+temporarily inverted expectation, which failed as expected and was reverted), and the 14
+generation-path checks `terrain_hybridplan`, `terrain_hybridplanning`, `terrain_hybridpreflight`,
+`terrain_hybridmapidentity`, `terrain_mapplan`, `terrain_native_profile`,
+`terrain_native_bridges` and their `fds_` twins pass 14/14.
+
+## Hybrid rewrite I2: shared prerequisites
+
+The shared deterministic helpers, quantizers, Section 0.5 constants, Section 0.6 size
+envelope, Section 7.1 road/corridor helpers, planning spatial hash, work budgets and
+scratch arena live in `Code/wwphys/hybridplanning.{h,cpp}`. The Section 0.8 immutable
+metric-cache preflight, the structural content revision and the Section 0.3
+`HybridPlanningInputHash` live in `Code/Combat/hybridpreflight.{h,cpp}`: collision widths
+and heights for the Humvee, the heavy tracked class and both teams' Harvesters come from
+`WorldMetricsClass` WORLDBOX measurements with their definition ids as provenance, and an
+unresolved metric is rejected by name instead of guessed. `ProceduralWorldManager` refuses
+a bad request at the menu and runs the full preflight before any seeded stage, building the
+cache once per request and reusing it across the bounded retries (Section 17 teardown keeps
+immutable content metrics). `WorldGenerationManifest`, the attempt reproduction string,
+`ProceduralWorldTools` and `WorldSyncHandshakeClass` (handshake version 2,
+`WORLD_SYNC_PLANNING_MISMATCH`) carry the planning identity; legacy and authored worlds keep
+zero and are unchanged. Reference dimensions were measured offline from the installed
+Always/Always2 archives and are recorded in
+`docs/procedural_world/VehicleCollisionMetrics.{md,json}`; nothing hard-codes them.
+Evidence and ownership: `docs/procedural_world/HybridPlanningPrerequisites.md`.
+Gate (2026-09-27): Release `renegade` and `renegadeserver` built, and
+`terrain_hybridplan`, `terrain_hybridplanning`, `terrain_hybridpreflight` plus their `fds_`
+twins passed 6/6, with `terrain_native_profile`, `terrain_native_bridges`,
+`terrain_worldsync`, `terrain_worldsynctransport` and their `fds_` twins passing 8/8 for the
+manager and handshake changes.
+
+## Hybrid generator rewrite I4 -- runtime Phase 3, strategic gameplay graph (2026-09-27)
+
+`Code/wwphys/hybridstrategicgraph.{h,cpp}` owns the plan's runtime Phase 3: both bases, both home
+fields, the `FRONT_CENTER` analysis node, the Section 5 contested (1/3/5) and remote-rich (1/1/2)
+fields, the `route_family_count` heavy GDI-to-Nod families and their `CROSSING_OBLIGATION_INTENT`
+records, and every resource intent including the `SERVICE_DIRT_2` branch per non-home field -- all
+placed from the frozen `HybridMapIdentity`/`HybridArchetypeIntentSet` with the Section 6.1 bounded
+ring repair (`A,2A,...<=0.10D`, 16 stations from +u CCW) against the canonical `WorldBoundsService`
+placeable boundary, and closed on the role-count / intent / cycle gate plus a record checksum.
+`river_valley`'s first contested field comes from the frozen guided river by the Section 6.10 station
+walk, with the Section 6.2 `4W..10W` bank clearance enforced against the whole centerline.
+`HybridStrategicSite::RouteFamily` and `HybridStrategicEdge::RoadClass` extend the I1 records;
+`ProceduralWorldManager::Build_Hybrid_Strategic_Graph` runs the phase per attempt after the boundary
+and Phase 2. Evidence: ctest `terrain_hybridstrategicgraph` + `fds_terrain_hybridstrategicgraph`
+green, `terrain_native_bridges` (full attempt path) green; decisions in
+`docs/procedural_world/HybridStrategicGraph.md`.
+
+## Hybrid generator rewrite I5 -- runtime Phase 4, coarse semantic matrices (2026-09-27)
+
+`Code/wwphys/hybridcoarsematrix.{h,cpp}` owns the plan's runtime Phase 4: the Section 2.2 layers at
+spacing `S` (`ceil(extent/S)` row-major, in the Section 16.3 attempt arena), populated in the exact
+ten-step order -- `WorldBoundsService` playable/placeable classification, middle tier, archetype macro
+bands, `BASE_PROTECTED`/`BASE_CORE` with forced middle tier and zero bias, Tiberium discs, heavy
+corridors `max(6S,0.08D)`, service corridors `max(4S,0.05D)`, `open_frontier`'s `NO_IMMUTABLE_BARRIER`
+discs under the Section 6.9 95%-placeable rule, Section 4.3 biome ownership with the 35% rule / six
+0.05 shifts / straight `u=0` fallback / `max(4S,8W)` transition, and `NO_DECORATION` -- with the
+eight-rank reservation comparator, conflict resolution that moves only the lower-priority role through
+Section 6.1 repair and writes the repaired centre back into the strategic graph, and the Phase 4 gate
+plus checksum. No crossing window is created. `HybridSemanticMatrix` moved from `DynamicVectorClass`
+layers to one arena- or heap-backed aligned block; Section 6.1's ring search is now the shared
+`Hybrid_Repair_Ring_Search` and Phase 3's `Hybrid_Role_Is_Hard_Valid` is exported, so the repair
+geometry and the role legality rule each have one owner.
+`ProceduralWorldManager::Build_Hybrid_Coarse_Matrices` runs the phase per attempt after Phase 3 and
+owns the per-attempt arena and Section 16.1 work counters. Evidence: ctest
+`terrain_hybridcoarsematrix` + `fds_terrain_hybridcoarsematrix` green, and the I1-I4 neighbours
+(`hybridplan`, `hybridplanning`, `hybridmapidentity`, `hybridstrategicgraph`, `hybridpreflight`, both
+client and `fds_`) still green after the shared-helper refactor; decisions in
+`docs/procedural_world/HybridCoarseMatrix.md`.
+
+
+## Hybrid generator rewrite I6 -- runtime Phase 5, vector landforms (2026-09-27)
+
+Runtime Phase 5 is in `Code/wwphys/hybridlandforms.{h,cpp}`: the deterministic target counts, the
+plan's creation order (archetype principal features, remaining canyon/ravine systems, explicit
+cliff runs, remaining ridges, hills, optional plateau conversion), the six-step keyed candidate
+process with its rejection rules and 25% same-type overlap cap, the four-control centripetal
+Catmull-Rom line features sampled at `A/2`, the Section-10.3 canyon/ravine profile with the
+`A`-wide smooth branch union, Section 6.10's mandatory surface saddle widened to a `PRIMARY_2`
+footprint, Section 6.8's 2/3/5 attached ravine branches, the Section-10.4 plateau conversion, and
+the Phase-5 gate plus checksum. `Hybrid_Landform_Height` is the single owner of the Phase-7
+`landform` term, so Phases 6 and 7 re-implement no profile. The phase also completes the Phase-4
+matrix by writing the two Section-2.2 layers Phase 4 leaves clear (`LandformMask`,
+`RoughnessClass`) and the HILL / RIDGE / PLATEAU / CLIFF_BAND / CANYON_BAND / RAVINE_BAND flags; it
+reads `BASE_PROTECTED` and Section 6.9's `NO_IMMUTABLE_BARRIER` from those same matrices instead of
+re-deriving a reserve. The centripetal Catmull-Rom sampler every plan curve needs was added once to
+the shared owner, `Hybrid_Sample_Centripetal_Catmull_Rom` in `Code/wwphys/hybridplanning.{h,cpp}`.
+`ProceduralWorldManager::Build_Hybrid_Landforms` runs the phase per attempt after Phase 4 and
+reuses that attempt's arena and Section-16.1 counters. `data/procedural_world/native.json` raises
+`retry.max_alternate_candidates_per_feature` to 32 (D-004 item 9). Evidence: ctest
+`terrain_hybridlandforms` + `fds_terrain_hybridlandforms` green, and all 18 `hybrid|native` checks
+(client and `fds_`, including `terrain_native_profile` and `terrain_native_bridges`) green after the
+shared-sampler and profile changes. Decisions in `docs/procedural_world/HybridLandforms.md` and
+`DECISIONS.md` D-004. Open: **Q-018** -- at LARGE the hill quota and the 25% same-type overlap cap
+are mutually unsatisfiable for many seeds, which Phase 5 reports as the named Section-5 attempt
+failure; the self-check requires success at MEDIUM and tolerates it at LARGE.
+
+## Hybrid generator rewrite I7 -- runtime Phase 6, vector hydrology (2026-09-27)
+
+Runtime Phase 6 is in `Code/wwphys/hybridhydrology.{h,cpp}`: the provisional surface with the
+`+4*tier_step` base barrier, Priority-Flood from the exterior with the
+`(filled_height,row_major_index)` key, D8 over the filled surface with the `E,NE,N,NW,W,SW,S,SE`
+tie order, accumulation in descending `(filled_height,flood_rank)`, the channel threshold with its
+three `0.80` reductions, the guided river inserted as selected system 0 with its synthetic
+accumulation, the D8 centerlines with the accept-or-fall-back smoothing pass, the Section-11 width
+formula, basin and guide lakes with the water-fraction basins, the clipped coast, the mouth binding,
+the optional islands and every crossing/ramp-pass window created in one pass after the water was
+fixed, plus the merge, the semantic stamps and the planning spatial hash. Phase 7's `water_carve`,
+standing-water and island-bias terms are `Hybrid_Water_Carve_Depth`,
+`Hybrid_Point_In_Standing_Water` and `Hybrid_Island_Height_Bias`, so no later phase re-derives a
+carve profile. `ProceduralWorldManager::Build_Hybrid_Hydrology` runs it per attempt after Phase 5
+and reads the two carve depths from the canonical `WaterSystem` definitions. Evidence: ctest
+`terrain_hybridhydrology` + `fds_terrain_hybridhydrology` green, and the whole `hybrid` family green
+on client and dedicated server. Decisions in `docs/procedural_world/HybridHydrology.md` and
+`DECISIONS.md` D-005.
+
+## Hybrid generator rewrite I8 -- runtime Phase 7, macro terrain realization (2026-09-27)
+
+Runtime Phase 7's formula owner is `Code/wwphys/hybridmacroterrain.{h,cpp}`: the plan's
+`HybridValueNoise2D`, the full height expression, the `detail_protection_factor` list with its
+minimum rule, the island shoreline blend, the six-step river longitudinal walk that freezes each
+river's water surface and bed, the bank blend and the phase gate. The heightfield stays
+`WorldTerrainSystem`'s and the single write stays `MacroTerrainGenerator::Generate`, which now takes
+the Phase 4-6 records (`MacroTerrainParams::UseHybrid`) and replaces its four noise-geography
+channels with `Hybrid_Macro_Sample_Height`; the authored/legacy and D-003 plan paths are untouched
+and mutually exclusive with it. Ordinary-slope relaxation now skips explicit wall and water profiles
+(`Hybrid_Macro_Is_Protected_Profile`), the chunk registry is still built exactly once, and no road
+cut/fill happens here. `ProceduralWorldManager::Build_Macro_Terrain` runs the river walk before the
+write and the gate after it, and keeps the record at `Get_Hybrid_Macro_Terrain`. Evidence: ctest
+`terrain_hybridmacroterrain` + `fds_terrain_hybridmacroterrain` green, `terrain_macro` (the legacy
+noise path) still green. Decisions in `docs/procedural_world/HybridMacroTerrain.md` and
+`DECISIONS.md` D-006.
+
+## Hybrid generator rewrite I9 -- runtime Phase 8, frozen base and Tiberium anchors (2026-09-27)
+
+Runtime Phase 8 is in `Code/wwphys/hybridanchors.{h,cpp}`: the base hard requirements measured on
+the realized ground (whole protected disc placeable and dry, buildable slope over the `R_BASE` proxy
+area, clear expansion area against `fairness.min_base_expansion_area`), the sixteen exit sectors with
+the heavy swept rectangle from `R_BASE_PROTECTED` to `+6W`, the resource-anchor legality rules with
+their corridor approach, the Section-0.10 provisional home and front fairness gates over
+`PlanningDistance`, the freeze and the gate. Section 0.10's `PlanningDistance` was added once to the
+graph owner as `Hybrid_Planning_Distance`. Nothing is moved here: a hard requirement the realized
+world fails is a named attempt failure. `ProceduralWorldManager::Build_Hybrid_Anchors` runs it right
+after Phase 7, sampling `WorldTerrainSystem` for height and slope, and keeps the frozen record at
+`Get_Hybrid_Anchors`; the base-to-base minimum/maximum time gates are deliberately absent because
+they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybridanchors` +
+`fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
+`DECISIONS.md` D-007.
+
+## Hybrid generator rewrite I11 -- runtime Phase 10, bounded heading-aware A* and road centerlines (2026-09-28)
+
+Runtime Phase 10 is in `Code/wwphys/hybridroutes.{h,cpp}`, wired through
+`ProceduralWorldManager::Build_Hybrid_Routes` / `Get_Hybrid_Routes` and gated by
+`renegade -terrainselfcheck hybridroutes`. The search is the plan's: routing priority order over the eight
+groups then `StableId`, state `(cell, incoming_direction)` with the `E,NE,N,NW,W,SW,S,SE` expansion order,
+three envelopes (preferred, `+S`, `+2S`) as a hard bound on the search rather than only on its cost, the
+hard-infinite cell list, the `Ks/Kt/Kc` cost table with the reuse modifier, the heavy-family and
+cross-link collinear rules measured over their stated run lengths, the `20A` window penalty, the
+`0.75*Euclidean` heuristic, `(f,g,cell,dir)` ordering with reopening only on a strictly lower quantized
+`g`, and the `8N` per-route / `R*8N` per-attempt ceilings, which refuse by name and leave nothing behind.
+
+**The road centerline is straights and circular arcs of the class minimum turn radius, not a Catmull-Rom
+through analysis-cell controls.** `DECISIONS.md` D-009 and its revision carry the measured reason: on an
+8-way chain whose only turn granularity is 45 degrees at a cell vertex, a curve through cell centres
+cannot honour a radius wider than the cell except by accident, and `A = clamp(chunk/4,8,16)` is 15 where
+a `HIGHWAY_4` needs `8W = 26.6`. Phase 10 therefore reads the chain as a corridor, gives every frozen
+point a lead-in and lead-out along its own axis so the polyline runs straight through it, fillets every
+remaining corner with an arc of the class radius, drops the shallower of two corners that cannot share the
+leg between them, and samples the result at `min(W,A/2)`. The complete validator still runs on every
+candidate -- envelope, hard obstacles, exact Section-7 radius, grade, cross slope -- and
+`Check_Hybrid_Routes` now measures the radius a second time, independently, at every sample of open road,
+with no tolerance beyond the position quantum `Q`.
+
+A crossing is known from the leg that built it rather than deduced from the finished chain: Phase 10
+routes it as its own leg between the window's two frozen approach points, and records it as a
+`HybridRouteStructuralSpan` -- window, ingress, egress and the sample range -- which stays unresolved as to
+bridge, overpass, bore or cut for Phase 11 to choose. The straightness of every such span, and the
+discharge of every frozen waypoint through it, are both checked.
+
+Defects fixed at their owners along the way, each one found by `Hybrid_Route_Census` and none of them in
+Phase 10 alone: the shared Catmull-Rom sampler refused any curve over fourteen controls (a cap written for
+Section 10's four-control line features) and raising it exposed a second fixed-size array in the same
+function that corrupted the stack; the A* open heap was sized one entry per state while lazy reopening
+pushes duplicates; Phase 9 now requires an overpass point to be clear ground with an analysis cell of
+water clearance; Phase 6 now tests a window's approach across a roadbed width, requires a legal
+analysis-grid neighbour on each bank, and keeps standing water an analysis cell clear of every frozen
+route waypoint; standing water inside an accepted window is legal ground for the road crossing it; and
+`shader_perfbudgets`'s embedded representative profiles had drifted from the shipped
+`data/procedural_world/*.json` generator version.
+
+**Gate:** all eight fixture seeds route every mandatory edge, `HIGHWAY_4` family trunks included; every
+accepted sample of open road measures at or above its class minimum radius; the second routing pass
+reproduces the checksum; `terrain_hybridroutes` and `fds_terrain_hybridroutes` pass, and so does the whole
+231-test ctest suite on client and dedicated server. Documented in
+`docs/procedural_world/HybridRoutes.md`.
+
+## Hybrid generator rewrite I10 -- runtime Phase 9, transportation topology (2026-09-27)
+
+Runtime Phase 9 is in `Code/wwphys/hybridtopology.{h,cpp}`, with all fourteen construction steps in
+the plan's order: base entrance assignment from the frozen Phase-8 sectors with its reserved
+corridor and `NO_DECORATION` stamp, the family chains with every Phase-3 crossing obligation bound to
+one Phase-6 window, both Section-5 bridge quotas, the highway assignment by trunk length, the field
+access points with their 22.5-degree rotation search and Harvester turning disc, the home roads and
+field service branches, the service and trail quota fills, the optional cross-links with the plan's
+exact benefit score, and both overpass passes with one shared `OVERPASS_OBLIGATION` waypoint per
+crossing. Section-12.2's unit-capacity edge-disjoint max-flow with `BASE_INTERNAL` contracted is
+exported as `Hybrid_Topology_Max_Flow` for Phase 19. This replaces the native MST topology on the
+hybrid path; `RoadGraphGenerator` still owns the authored/legacy one. Two precision fixes this item
+required: Phase 5 now rejects an immutable wall whose samples fall inside a Tiberium or base reserve
+*disc*, and Phase 6 keeps rivers, lakes and coast out of a Tiberium reserve disc -- without them
+Phase 8's "the full field reserve is dry" rule refused three of five MEDIUM seeds over a
+half-cell rasterization gap. `ProceduralWorldManager::Build_Hybrid_Topology` runs it after Phase 8.
+Evidence: ctest `terrain_hybridtopology` + `fds_terrain_hybridtopology` green, and all 24
+`hybrid|terrain_macro|terrain_plan` checks green on client and dedicated server. Decisions in
+`docs/procedural_world/HybridTopology.md` and `DECISIONS.md` D-008. Open: **Q-019** -- on archetypes
+with no canyon obligation the Section-5 canyon/ravine bridge quota depends on where Phase 5 happened
+to put its ravines, which decides the attempt-0 pass rate item 21 measures.

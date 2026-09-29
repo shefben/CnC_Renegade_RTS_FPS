@@ -74,6 +74,8 @@ set(COMBAT_SRC
     buildingdescriptormanager.cpp
     teampowergridservice.cpp
     commandermodecontroller.cpp
+    commandercamera.cpp
+    strategicviewmanager.cpp
     commandersidebar.cpp
     commanderplacement.cpp
     buildingconstruction.cpp
@@ -81,6 +83,7 @@ runtimebuildingfactory.cpp
 runtimedoorservice.cpp
 proceduralworldprofile.cpp
 worldseedservice.cpp
+hybridpreflight.cpp
 worldgenerationmanifest.cpp
 proceduralboundsbuilder.cpp
 proceduralworldmanager.cpp
@@ -284,6 +287,8 @@ bridgedamageservice.cpp
     buildingdescriptormanager.h
     teampowergridservice.h
     commandermodecontroller.h
+    commandercamera.h
+    strategicviewmanager.h
     commandersidebar.h
     commanderplacement.h
     buildingconstruction.h
@@ -291,6 +296,7 @@ runtimebuildingfactory.h
 runtimedoorservice.h
 proceduralworldprofile.h
 worldseedservice.h
+hybridpreflight.h
 worldgenerationmanifest.h
 proceduralboundsbuilder.h
 proceduralworldmanager.h

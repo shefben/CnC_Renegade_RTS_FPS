@@ -1,0 +1,112 @@
+{
+	"schema_version": 12,
+	"generator_version": 11,
+	"name": "Native procedural world",
+
+	"seed": 1,
+
+	"world": {
+		"fit_to_level": false,
+    "width": 2400.0,
+    "height": 2400.0,
+		"chunk_size": 60.0,
+		"sea_level": 0.0
+	},
+
+	"boundary": {
+		"shape": "irregular_ring",
+		"cliff_band_width": 120.0,
+		"cliff_min_height": 60.0,
+		"cliff_max_height": 110.0,
+		"hard_barrier_offset": 20.0,
+		"air_ceiling": 200.0,
+		"rim_roughness": 0.35,
+		"face_roughness": 0.45,
+		"toe_width": 12.0,
+		"collision_simplification": 2
+	},
+
+	"terrain": {
+    "macro_relief": 0.25,
+    "hill_density": 0.15,
+    "mountain_density": 0.20,
+		"interior_cliff_density": 0.45,
+    "valley_density": 0.20,
+
+		"min_elevation": -15.0,
+    "max_elevation": 90.0,
+    "land_elevation_bias": 12.0,
+		"max_buildable_slope_degrees": 25.0,
+		"feature_scale": 300.0,
+		"ridge_sharpness": 0.5,
+		"plateau_chance": 0.12,
+		"boundary_approach_flattening": 0.6
+	},
+
+	"water": {
+		"rivers": true,
+		"lakes": true,
+		"ponds": true,
+		"coastline": true,
+
+		"river_width": 6.0,
+		"stream_width": 2.5,
+		"river_accumulation_chunks": 3.0,
+		"max_river_count": 6
+	},
+	"plan": {
+		"enabled": true,
+		"symmetry": "rotational",
+		"tier_count": 3,
+		"tier_step": 18.0,
+		"detail_weight": 0.35,
+		"base_radius_cells": 3,
+		"flank_lanes": 1,
+		"water_fraction": 0.08,
+		"boundary_margin_cells": 2.0,
+		"archetype": "auto",
+		"biome_mode": "auto",
+		"biome": "auto",
+		"secondary_biome": "auto",
+		"mixed_biome_probability": 0.125,
+		"road_density": 0.65,
+		"island_chance": 0.20,
+		"route_redundancy": 2,
+		"allow_fords": false
+	},
+
+	"world_features": {
+		"forests": true,
+		"tunnels": true,
+		"highways": true,
+		"tiberium_fields": true
+	},
+
+	"retry": {
+		"max_local_retries_per_stage": 8,
+		"max_alternate_candidates_per_feature": 32
+	},
+
+	"base": {
+		"gdi_initial_buildings": ["gdi_construction_yard", "gdi_power_plant", "gdi_refinery", "gdi_barracks", "gdi_weapons_factory", "gdi_advanced_guard_tower"],
+		"nod_initial_buildings": ["nod_construction_yard", "nod_power_plant", "nod_refinery", "nod_hand_of_nod", "nod_airstrip", "nod_obelisk"],
+		"spawn_candidate_count": 12,
+		"spawn_zone_radius": 30.0
+	},
+
+	"fairness": {
+		"max_initial_resource_travel_time_difference_seconds": 15.0,
+		"max_projected_initial_income_difference_percent": 10.0,
+		"max_base_to_front_travel_time_difference_seconds": 20.0,
+		"max_base_to_base_travel_time_difference_seconds": 240.0,
+		"min_base_to_base_travel_time_seconds": 60.0,
+		"min_vehicle_approach_count": 2,
+		"min_infantry_approach_count": 2,
+		"min_base_expansion_area": 4096.0,
+		"allow_single_bridge_dependency": false,
+		"max_mandatory_exposed_infantry_run_distance": 60.0,
+		"max_mandatory_exposed_infantry_run_time_seconds": 12.0,
+		"preferred_cover_interval": 25.0,
+		"min_vehicle_lane_clearance": 1.0
+	}
+}

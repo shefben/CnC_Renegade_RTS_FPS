@@ -29,6 +29,7 @@
 #include "crc.h"
 #include "hydrologygenerator.h"
 #include "interiorcliffgenerator.h"
+#include "mapplangenerator.h"
 #include "playertype.h"
 #include "terrainmask.h"
 #include "watersystem.h"
@@ -68,6 +69,8 @@ static const float CHECKSUM_QUANTUM = 1000.0f;
 //	resolve their tie the same way regardless of seed, which is this generator's only use of
 //	its own seed -- see this file's header comment.
 static const float TERRAIN_SCORE_JITTER_WEIGHT = 0.05f;
+static const float	PLAN_BASE_SITE_BONUS = 2.0f;		// D-003: lifts a planned base cell above any unplanned score
+static const float	PLAN_FIELD_SITE_BONUS = 2.0f;		// D-003: lifts a planned Tiberium field cell above any unplanned score
 
 static const int NEIGHBOR_DX[4] = {  1, 0, -1, 0 };
 static const int NEIGHBOR_DY[4] = {  0, 1,  0,-1 };
@@ -78,7 +81,7 @@ StrategicPlannerParams::StrategicPlannerParams(void) :
 	MinApproachCount (2),
 	MinBaseCandidatesPerFaction (2),
 	MinBaseSeparation (150.0f),
-	MaxTiberiumCandidates (4),
+	MaxTiberiumCandidates (8),
 	MaxSettlementCandidates (3),
 	MaxPoiCandidates (3),
 	MaxExpansionCandidates (2),
@@ -180,13 +183,16 @@ struct ChunkScore
 	bool		Eligible;
 	int		ApproachCount;
 	float		Terrain;			// 0..1
+	float		PlanBase;		// D-003: 1 inside a planned base disc, else 0
+	float		PlanField;		// D-003: 1 inside a planned Tiberium field disc, else 0
 	Vector3	Position;
 
 	//	DynamicVectorClass<T> (wwlib/vector.h) requires T to support == and !=.
 	bool	operator == (const ChunkScore & that) const
 	{
 		return (Eligible == that.Eligible) && (ApproachCount == that.ApproachCount) &&
-				 (Terrain == that.Terrain) && (Position == that.Position);
+				 (Terrain == that.Terrain) && (PlanBase == that.PlanBase) && (PlanField == that.PlanField) &&
+				 (Position == that.Position);
 	}
 	bool	operator != (const ChunkScore & that) const	{ return !(*this == that); }
 };
@@ -248,6 +254,18 @@ static void Compute_Chunk_Scores(int count_x,int count_y,unsigned int seed,Dynam
 			float jitter = (TerrainMaskClass::Hash_Value(px,py,(int)seed) - 0.5f) * TERRAIN_SCORE_JITTER_WEIGHT;
 
 			score.Terrain = (boundary_term * 0.5f) + (approach_term * 0.5f) + jitter;
+
+			//	D-003 Phase 3B.  Plan site membership is kept beside the terrain score, not folded
+			//	into it: the Tiberium ranking adds PlanField, the base ranking adds PlanBase, and
+			//	the settlement ranking uses neither, so a planned base disc is never spent on a
+			//	Tiberium candidate first.  Eligibility and the later fairness gates still apply;
+			//	the plan proposes, the planners dispose.
+			score.PlanBase	= 0.0f;
+			score.PlanField	= 0.0f;
+			if (MapPlanGenerator::Has_Plan ()) {
+				score.PlanBase	= MapPlanGenerator::Get_Base_Site_Weight (score.Position.X,score.Position.Y);
+				score.PlanField	= MapPlanGenerator::Get_Field_Site_Weight (score.Position.X,score.Position.Y);
+			}
 		}
 	}
 }
@@ -268,6 +286,26 @@ static void Sort_By_Terrain_Descending(DynamicVectorClass<int> & indices,const D
 			b--;
 		}
 		indices[b + 1] = key;
+	}
+}
+
+
+//	Sorts indices by a parallel score array, descending, ascending index as the tie-break; the
+//	score array is permuted alongside.  Same insertion-sort idiom as the terrain-only rank.
+static void Sort_By_Score_Descending(DynamicVectorClass<int> & indices,DynamicVectorClass<float> & score)
+{
+	for (int a = 1; a < indices.Count(); a++) {
+		int key_idx = indices[a];
+		float key_score = score[a];
+		int b = a - 1;
+		while ((b >= 0) &&
+				 ((score[b] < key_score) || ((score[b] == key_score) && (indices[b] > key_idx)))) {
+			indices[b + 1] = indices[b];
+			score[b + 1]	= score[b];
+			b--;
+		}
+		indices[b + 1] = key_idx;
+		score[b + 1]	= key_score;
 	}
 }
 
@@ -320,9 +358,21 @@ bool StrategicPlanner::Generate(const StrategicPlannerParams & params,StringClas
 	//
 	DynamicVectorClass<int> tiberium_candidate_chunks;
 	{
-		DynamicVectorClass<StrategicNode> placed;		// separation bookkeeping only, not final nodes
-		for (int r = 0; (r < ranked.Count()) && (placed.Count() < params.MaxTiberiumCandidates); r++) {
+		//	D-003: planned field discs first, planned base discs never (they are reserved for
+		//	the base ranking below), the plain terrain rank for everything else.
+		DynamicVectorClass<int> tiberium_ranked;
+		DynamicVectorClass<float> tiberium_score;
+		for (int r = 0; r < ranked.Count(); r++) {
 			int idx = ranked[r];
+			if (scores[idx].PlanBase > 0.0f) continue;
+			tiberium_ranked.Add(idx);
+			tiberium_score.Add(scores[idx].Terrain + (scores[idx].PlanField * PLAN_FIELD_SITE_BONUS));
+		}
+		Sort_By_Score_Descending(tiberium_ranked,tiberium_score);
+
+		DynamicVectorClass<StrategicNode> placed;		// separation bookkeeping only, not final nodes
+		for (int r = 0; (r < tiberium_ranked.Count()) && (placed.Count() < params.MaxTiberiumCandidates); r++) {
+			int idx = tiberium_ranked[r];
 			if (claimed[idx]) continue;
 			if (!Far_Enough(scores[idx].Position,placed,params.MinBaseSeparation)) continue;
 
@@ -362,23 +412,10 @@ bool StrategicPlanner::Generate(const StrategicPlannerParams & params,StringClas
 				bonus = 1.0f - (nearest / RESOURCE_PROXIMITY_RANGE);
 				if (bonus < 0.0f) bonus = 0.0f;
 			}
-			base_score.Add(scores[idx].Terrain + (bonus * 0.5f));
+			base_score.Add(scores[idx].Terrain + (bonus * 0.5f) + (scores[idx].PlanBase * PLAN_BASE_SITE_BONUS));
 		}
 
-		//	Sort base_ranked by base_score, same insertion-sort idiom as the terrain-only rank.
-		for (int a = 1; a < base_ranked.Count(); a++) {
-			int key_idx = base_ranked[a];
-			float key_score = base_score[a];
-			int b = a - 1;
-			while ((b >= 0) &&
-					 ((base_score[b] < key_score) || ((base_score[b] == key_score) && (base_ranked[b] > key_idx)))) {
-				base_ranked[b + 1] = base_ranked[b];
-				base_score[b + 1]	= base_score[b];
-				b--;
-			}
-			base_ranked[b + 1] = key_idx;
-			base_score[b + 1]	= key_score;
-		}
+		Sort_By_Score_Descending(base_ranked,base_score);
 
 		bool next_is_gdi = true;
 		for (int r = 0; r < base_ranked.Count(); r++) {

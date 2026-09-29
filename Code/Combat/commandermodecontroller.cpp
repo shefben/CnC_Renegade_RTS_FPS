@@ -47,6 +47,8 @@
 #include "physicalgameobj.h"
 #include "worldspatialindex.h"
 #include "wwmath.h"
+#include "commandercamera.h"
+#include "strategicviewmanager.h"
 
 
 static const float	COMMANDER_DEFAULT_ZOOM_MIN		= 50.0f;
@@ -76,6 +78,39 @@ static Vector3						_PickRayEnd (0.0f,0.0f,0.0f);
 static float						_Zoom				= 400.0f;
 static float						_Tilt				= 55.0f;
 static float						_Rotation		= 0.0f;
+
+
+/*
+**	The overhead camera itself is the CnC_Renegade_new fork's CommanderCamera, driven by its
+**	StrategicViewManager (pan keys, wheel zoom, smoothing, the in/out transition).  This
+**	controller stays the owner of *being* in Commander Mode -- the sidebar, the embodied star,
+**	picking -- and hands the camera an anchor: the entry focus, with a pan radius wide enough
+**	to cover the world bounds.
+*/
+class CommanderViewBoundsClass : public IStrategicViewBounds
+{
+public:
+	bool Get_Base_Center (int player_type,Vector3 & center) const override
+	{
+		(void)player_type;
+		center = _Focus;
+		return true;
+	}
+
+	float Get_Max_Pan_Distance (int player_type) const override
+	{
+		(void)player_type;
+		const float world_extent = (Vector3 (_WorldMax.X - _WorldMin.X,_WorldMax.Y - _WorldMin.Y,0.0f)).Length ();
+		return WWMath::Clamp (world_extent,100.0f,4000.0f);
+	}
+};
+
+static CommanderViewBoundsClass	_ViewBounds;
+
+static bool Overhead_Camera_Engaged(void)
+{
+	return (CommanderCamera::Get_Instance () != nullptr) && StrategicViewManager::Is_Overhead_View ();
+}
 
 
 static float	Clamp(float value,float lo,float hi)
@@ -124,6 +159,12 @@ bool CommanderModeController::Enter_Commander_Mode(SoldierGameObj * star)
 		star->Get_Position (&star_position);
 		Set_Focus (Resolve_Entry_Focus (team,star_position));
 		_FocusPlaced = true;
+	}
+
+	if (CommanderCamera::Get_Instance () != nullptr) {
+		StrategicViewManager::Set_Bounds_Provider (&_ViewBounds);
+		StrategicViewManager::Set_Player_Type (team);
+		StrategicViewManager::Request_View_Mode (StrategicViewManager::VIEW_OVERHEAD);
 	}
 	return true;
 }
@@ -179,6 +220,10 @@ bool CommanderModeController::Enter_Commander_Mode(SoldierGameObj * star,int tea
 
 void CommanderModeController::Exit_Commander_Mode(void)
 {
+	if (Overhead_Camera_Engaged ()) {
+		StrategicViewManager::Request_View_Mode (StrategicViewManager::VIEW_FIRST_PERSON);
+	}
+
 	_Active	= false;
 	_Star		= nullptr;
 
@@ -236,6 +281,10 @@ void CommanderModeController::Set_Focus(const Vector3 & world_point)
 	**	every legacy map (directive 1.10).
 	*/
 	_Focus = WorldBoundsService::Clamp_Commander_Camera (_Focus);
+
+	if (Overhead_Camera_Engaged ()) {
+		CommanderCamera::Get_Instance ()->Focus_On (_Focus);
+	}
 }
 
 void CommanderModeController::Pan(const Vector3 & delta)
@@ -382,6 +431,13 @@ void CommanderModeController::Update(float seconds,bool star_is_alive)
 
 	if (!star_is_alive) {
 		Exit_Commander_Mode ();		// "death immediately exits Commander Mode"
+		return;
+	}
+
+	// The CommanderCamera moves itself in its own Update; mirror where it is looking so picking,
+	// placement and the minimap read the camera's real focus.
+	if (Overhead_Camera_Engaged ()) {
+		_Focus = CommanderCamera::Get_Instance ()->Get_Look_At_Position ();
 		return;
 	}
 

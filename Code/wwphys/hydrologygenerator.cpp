@@ -26,8 +26,11 @@
 
 #include "hydrologygenerator.h"
 
+#include "mapplangenerator.h"
+
 #include "crc.h"
 #include "watersystem.h"
+#include "terraintexturesystem.h"
 #include "watertype.h"
 #include "worldboundsservice.h"
 #include "worldterrainsystem.h"
@@ -234,12 +237,9 @@ bool HydrologyGenerator::Build_Basin_Feature(int px,int py,float accumulation,co
 
 	TerrainChunkInfoClass info;
 	if (!WorldTerrainSystem::Get_Chunk_Info(px,py,&info)) return false;
-	if (info.CliffBand) return false;		// structural: never build water in or past the cliff band
+	if (info.CliffBand || info.InteriorCliff) return false;	// cliffs are placed before hydrology
 
-	float x0 = bounds.Center.X - bounds.Extent.X;
-	float x1 = bounds.Center.X + bounds.Extent.X;
 	float y0 = bounds.Center.Y - bounds.Extent.Y;
-	float y1 = bounds.Center.Y + bounds.Extent.Y;
 	float surface_height = info.MinHeight + BASIN_HEIGHT_MARGIN;
 
 	WaterAreaClass area;
@@ -249,10 +249,17 @@ bool HydrologyGenerator::Build_Basin_Feature(int px,int py,float accumulation,co
 	area.Set_Definition(as_lake ? "ow_water_lake" : "ow_water_pond");
 	area.Set_Closed(true);
 	area.Set_Height(surface_height);
-	area.Add_Station(Vector3(x0,y0,0.0f),0.0f);
-	area.Add_Station(Vector3(x0,y1,0.0f),0.0f);
-	area.Add_Station(Vector3(x1,y1,0.0f),0.0f);
-	area.Add_Station(Vector3(x1,y0,0.0f),0.0f);
+	//	Keep the basin inside its drainage chunk, but give its shore an organic
+	//	octagonal outline.  Four chunk-corner stations made every pond a 60 m
+	//	square on the native profile.
+	static const float direction_x[8] = { 0.0f,-0.707107f,-1.0f,-0.707107f,0.0f,0.707107f,1.0f,0.707107f };
+	static const float direction_y[8] = { -1.0f,-0.707107f,0.0f,0.707107f,1.0f,0.707107f,0.0f,-0.707107f };
+	for (int station = 0; station < 8; station++) {
+		float shape = 0.78f + (0.08f * TerrainMaskClass::Hash_Value(
+			(px * 8) + station,py,(int)params.Seed));
+		area.Add_Station(Vector3(bounds.Center.X + (direction_x[station] * bounds.Extent.X * shape),
+			bounds.Center.Y + (direction_y[station] * bounds.Extent.Y * shape),0.0f),0.0f);
+	}
 
 	int id = WaterSystem::Add_Area(area);
 	int index = WaterSystem::Get_Area_Count() - 1;
@@ -288,7 +295,7 @@ bool HydrologyGenerator::Build_Coast_Feature(int px,int py,const HydrologyParams
 
 	TerrainChunkInfoClass info;
 	if (!WorldTerrainSystem::Get_Chunk_Info(px,py,&info)) return false;
-	if (info.CliffBand) return false;		// structural: the sea never reaches into the ring
+	if (info.CliffBand || info.InteriorCliff) return false;	// preserve both cliff layers
 
 	float x0 = bounds.Center.X - bounds.Extent.X;
 	float x1 = bounds.Center.X + bounds.Extent.X;
@@ -302,10 +309,33 @@ bool HydrologyGenerator::Build_Coast_Feature(int px,int py,const HydrologyParams
 	area.Set_Definition("ow_water_coast");
 	area.Set_Closed(true);
 	area.Set_Height(params.SeaLevel);
-	area.Add_Station(Vector3(x0,y0,0.0f),0.0f);
-	area.Add_Station(Vector3(x0,y1,0.0f),0.0f);
-	area.Add_Station(Vector3(x1,y1,0.0f),0.0f);
-	area.Add_Station(Vector3(x1,y0,0.0f),0.0f);
+	// Clip the chunk's water surface to the sampled sea-level contour.  Flooding
+	// whole chunk squares made a visible stair-step shoreline even where the
+	// underlying heightfield crossed sea level halfway through the chunk.
+	DynamicVectorClass<Vector3> polygon;
+	polygon.Add(Vector3(x0,y0,0.0f));
+	polygon.Add(Vector3(x0,y1,0.0f));
+	polygon.Add(Vector3(x1,y1,0.0f));
+	polygon.Add(Vector3(x1,y0,0.0f));
+	for (int i = 0; i < polygon.Count(); i++) {
+		float height = 0.0f;
+		if (!WorldTerrainSystem::Sample_Height(polygon[i].X,polygon[i].Y,&height)) return false;
+		polygon[i].Z = height;
+	}
+	DynamicVectorClass<Vector3> clipped;
+	for (int i = 0; i < polygon.Count(); i++) {
+		const Vector3 & a = polygon[i];
+		const Vector3 & b = polygon[(i + 1) % polygon.Count()];
+		bool a_wet = (a.Z <= params.SeaLevel);
+		bool b_wet = (b.Z <= params.SeaLevel);
+		if (a_wet) clipped.Add(Vector3(a.X,a.Y,0.0f));
+		if (a_wet != b_wet) {
+			float t = (params.SeaLevel - a.Z) / (b.Z - a.Z);
+			clipped.Add(Vector3(a.X + ((b.X - a.X) * t),a.Y + ((b.Y - a.Y) * t),0.0f));
+		}
+	}
+	if (clipped.Count() < 3) return false;
+	for (int i = 0; i < clipped.Count(); i++) area.Add_Station(clipped[i],0.0f);
 
 	int id = WaterSystem::Add_Area(area);
 	int index = WaterSystem::Get_Area_Count() - 1;
@@ -399,7 +429,7 @@ bool HydrologyGenerator::Generate(const HydrologyParams & params,StringClass * e
 			if (!WorldTerrainSystem::Get_Chunk_Info(px,py,&info)) continue;
 			int index = (py * count_x) + px;
 			height[index]		= (info.MinHeight + info.MaxHeight) * 0.5f;
-			cliff_band[index]	= info.CliffBand;
+			cliff_band[index]	= info.CliffBand || info.InteriorCliff;
 		}
 	}
 
@@ -525,6 +555,8 @@ bool HydrologyGenerator::Generate(const HydrologyParams & params,StringClass * e
 	//	Steps 5, 7, 10, 12: carve, and terminate every accepted source, in accumulation order.
 	//
 	int river_count = 0;
+	int basin_count = 0;
+	DynamicVectorClass<int> selected_basins;
 	for (int si = 0; (si < sources.Count()) && (river_count < params.MaxRiverCount); si++) {
 
 		int start = sources[si];
@@ -634,23 +666,70 @@ bool HydrologyGenerator::Generate(const HydrologyParams & params,StringClass * e
 		//	Section 5.9.  A channel that ran out of downstream room (its last station could not
 		//	flow anywhere without entering the cliff band, or is a genuine local minimum) gets a
 		//	real, visible terminus rather than an unexplained stop.
-		if (ended_at_sink) {
+		if (ended_at_sink && basin_count < params.MaxRiverCount) {
 			int sink_idx = path[path.Count() - 1];
-			Build_Basin_Feature(sink_idx % count_x,sink_idx / count_x,accumulation[sink_idx],params);
+			if (Build_Basin_Feature(sink_idx % count_x,sink_idx / count_x,accumulation[sink_idx],params)) {
+				selected_basins.Add(sink_idx);
+				basin_count++;
+			}
 		}
 	}
 
 	//
-	//	Standalone basins: every sink that actually drains something, not already covered as a
-	//	river's own terminus.
+	//	D-003: the map plan's WATER cells are carved first, in index order, so planned pools
+	//	take the basin budget before incidental sinks do.  Adjacent planned cells are allowed
+	//	(that is what makes a pool rather than a speckle); everything the basin builder
+	//	refuses -- cliff band, sea, already claimed -- still refuses here.
 	//
+	if (MapPlanGenerator::Has_Plan()) {
+		for (int i = 0; (i < total) && (basin_count < params.MaxRiverCount); i++) {
+			if (cliff_band[i] || claimed[i] || sea[i]) continue;
+			int px = i % count_x, py = i / count_x;
+			AABoxClass bounds;
+			if (!WorldTerrainSystem::Get_Patch_Bounds(px,py,&bounds)) continue;
+			if (MapPlanGenerator::Get_Kind_At(bounds.Center.X,bounds.Center.Y) != MAP_PLAN_CELL_WATER) continue;
+			if (Build_Basin_Feature(px,py,accumulation[i],params)) {
+				selected_basins.Add(i);
+				basin_count++;
+				claimed[i] = true;
+			}
+		}
+	}
+
+	//
+	//	The strongest standalone sinks get water.  A pond at every local minimum
+	//	filled the native map with dozens of square water areas and little land.
+	//
+	DynamicVectorClass<int> standalone_basins;
 	for (int i = 0; i < total; i++) {
 		if (cliff_band[i] || claimed[i] || sea[i]) continue;
 		if (flow_target[i] >= 0) continue;
 		if (accumulation[i] < stream_threshold) continue;
-
-		Build_Basin_Feature(i % count_x,i / count_x,accumulation[i],params);
-		claimed[i] = true;
+		int insert = standalone_basins.Count();
+		standalone_basins.Add(i);
+		while (insert > 0 && Accumulation_Order_Before(i,standalone_basins[insert - 1],accumulation)) {
+			standalone_basins[insert] = standalone_basins[insert - 1];
+			insert--;
+		}
+		standalone_basins[insert] = i;
+	}
+	for (int c = 0; c < standalone_basins.Count() && basin_count < params.MaxRiverCount; c++) {
+		int i = standalone_basins[c];
+		int px = i % count_x, py = i / count_x;
+		bool near_existing = false;
+		for (int b = 0; b < selected_basins.Count(); b++) {
+			int bx = selected_basins[b] % count_x, by = selected_basins[b] / count_x;
+			if ((px >= bx - 1) && (px <= bx + 1) && (py >= by - 1) && (py <= by + 1)) {
+				near_existing = true;
+				break;
+			}
+		}
+		if (near_existing) continue;
+		if (Build_Basin_Feature(px,py,accumulation[i],params)) {
+			selected_basins.Add(i);
+			basin_count++;
+			claimed[i] = true;
+		}
 	}
 
 	//	The coast itself, one area per sea chunk in index order.
@@ -662,6 +741,12 @@ bool HydrologyGenerator::Generate(const HydrologyParams & params,StringClass * e
 	}
 
 	//
+	//	Per-area stamps populate the river mask. The shoreline layer reads its
+	//	distance field, so rebuild it once after all water areas are known.
+	if (Features.Count () > 0) {
+		TerrainTextureSystem::Update_Water_Distance ();
+	}
+
 	//	Checksum: every feature's own type, shore, enclosed flag, length and crossing candidates.
 	//
 	{
