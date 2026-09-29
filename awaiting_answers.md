@@ -6,6 +6,63 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
+- **Q-020** Hybrid rewrite I12 (runtime Phase 11). The I12 gate requires `surface_pass`, `road_cut` and
+ `ramp_pass` each to execute in a real-pipeline fixture. Under the supported native configuration none of
+ the three can, and the reasons follow from the plan's own constants and from D-004, not from a missing
+ seed. Nothing has been weakened to force them. Measured over 200 seeds of each of the seven archetypes
+ (`renegade -terrainselfcheck hybridinteractionsearch`): 1400 attempts, 135 worlds through Phase 10, 67
+ solved, and 0 of each of the three methods selected.
+
+ **`road_cut` is impossible on every native explicit cliff.** Section 5 gives a cliff
+ `height difference = tier_step * (1.00 .. 2.00)` = 18..36 at the native `tier_step = 18`, against
+ `grading.max_cut_depth = grading.max_fill_height = 6`. D-004 realized a cliff as a compactly supported
+ *raised band* -- zero at the talus toe, full height at the upper edge, one talus width of shelf, back to
+ zero across one more -- so both approach ends of a station stand on the same bench (measured: approaches
+ 0 and 0, face 31.68). A road cut is the straight profile between the two approach elevations, which must
+ be `<= bench + 6` at both ends and `>= bench + H - 6` on the shelf between them; a straight line cannot
+ rise and fall, so this needs `H <= 12`, and every cliff is `H >= 18`. Even a true step would need
+ `H <= 6 + 6 + (2e + t) * tan(12 deg) <= 15.2`. Phase 6 now measures the cut per class (`CutClasses`);
+ no cliff window in the census has a class for which a cut fits.
+
+ **`ramp_pass` is built for the wrong shape.** The shared local-pass builder's cliff ramp is one diagonal
+ between the two approach elevations, which describes a *step*. Under D-004 both approaches stand on the
+ same bench, so that line is flat and runs straight under a band 18..36 high; it is refused on cut/fill at
+ every cliff station (the gate's two solving worlds: 45 and 57 `cut_fill` refusals, 24 and 24
+ `cross_slope`). A surface crossing of a band would be ascend-shelf-descend -- the canyon floor pass
+ inverted, still one ascent and one descent and no switchback -- and its shelf is `TalusWidth = 1W..3W`
+ = 3.3..10.0 against the `swept + 2 * clearance = 8.80` continuous floor the heavy envelope needs, so it
+ could only ever work on the widest talus.
+
+ With no cut, no ramp and -- in the self-check's content registry -- no tunnel module, **every explicit
+ cliff is a sealed wall with no window at all** (census: 0 cliff windows in 135 worlds). In game the
+ tunnel answer comes from `TunnelSystem`'s runtime registry, so a registered portal module would reopen
+ cliff windows for tunnels only. That is the honest consequence of
+ the above; before this item's fixes, cliff windows survived on a bridge bit no cliff method uses and on a
+ tunnel promise the content cannot keep, and 55 routed cliff crossings ended in exhausted reroutes.
+
+ **`surface_pass` cannot follow a legitimate bridge refusal.** Canyon/ravine order is bridge first. The
+ widest canyon Section 5 allows spans `2 * rim_half_width <= 2 * (3W + 8W) = 22W = 73.1` (widest
+ measured: 63.9); the registered bridge resolves to a 200 maximum span and a 40 clear width, against a
+ largest Section-12.4 requirement of 15.8 (`HIGHWAY_4`'s carriageway). So `SPAN_TOO_LONG` and
+ `WIDTH_TOO_NARROW` cannot occur, and every other bridge refusal is a station hard-validity rule the pass
+ shares. Census: no routed canyon or ravine span is pass-capable and not bridge-capable. The pass geometry
+ itself works -- `canyon_crossroads` seed 31337 carries two pass-capable canyon windows.
+
+ Blocks: closing I12's coverage gate, and so I13. Evidence checked: Section 5's landform table, Section
+ 10.2, Section 8 Phase 11's road-x-cliff and road-x-canyon orders, D-004, the content fixture's bridge and
+ tunnel registry, the Phase-6 per-class cut measurement, and the full seed census. Smallest decision
+ needed, per branch:
+
+ - `road_cut`: (a) accept it as unreachable on native explicit cliffs, proved above, with the compile path
+   exercised by an owner-level test on a synthetic low cliff; or (b) change a constant -- the cliff height
+   range, `tier_step`, or the grading limits.
+ - `surface_pass`: (a) accept it as unreachable behind the native bridge registry, covered the same way;
+   or (b) require a content configuration whose bridge cannot span every canyon.
+ - `ramp_pass`: (a) generalize the cliff ramp to D-004's band (ascend, shelf, descend -- the floor pass
+   inverted, validated identically); (b) revise D-004 so a cliff is a step between an upper and a lower
+   bench, as Section 10.2's `upper-side sign` suggests, which changes Phases 5, 6 and 7; or (c) accept it
+   as unreachable and cover it at owner level.
+
 - **Q-019 CLOSED (2026-09-29, option (a)).** Section 5's canyon/ravine bridge quota is Phase 5's to
   satisfy: it lays the required systems across a heavy route corridor rather than leaving Phase 9 with
   nothing bindable. Implemented, with four owner-level defects fixed alongside it (landform `StableId`

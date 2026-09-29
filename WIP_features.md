@@ -283,80 +283,41 @@ obligation) are open and neither blocks code.
 **I12's bridge/ford-disabled/junction/overpass behaviour is closed, and `Q-019` is closed** (D-011).
 Full suite 235/235 on client and dedicated server.
 
-**I12: the reroute fallback and the ground width rule are both fixed; the three ground-method fixtures are
-still outstanding.** D-012 records the local-pass geometry decisions, D-013 the `plateau_basin` audit.
-235/235 ctest green on client and dedicated server, `tools/validate_feature_state.py` green.
+**I12: everything but the three ground-method fixtures is closed, and those three are blocked on
+`Q-020`.** Decisions D-012 (local-pass geometry), D-013 (`plateau_basin`), D-014 (reroute lifecycle,
+capabilities, window metadata). 235/235 ctest on client and dedicated server.
 
-**Phase 10 records the crossings it was never sent to make.** A wall cell is hard-invalid unless it lies
-inside an accepted window, so a window is the only hole in an immutable barrier, and a route could drive
-through one it was never given as a stop with nothing recorded -- Phase 11 compiled nothing and Phase 12
-would have laid road across an unmodified cliff face. `Note_Unplanned_Crossings` records them on the
-window's own frozen approach pair, oriented by the side the route arrived from. 39 of 162 built worlds
-cross a cliff this way.
+Closed in this item, each proved in `Check_Hybrid_Interactions` / `Check_Hybrid_Local_Pass`:
 
-**The plan's next-envelope reroute is implemented end to end.**
-`Hybrid_Solve_Routes_And_Interactions` (`hybridinteractions.cpp`) is the shared owner of Phase 10, Phase 11
-and the reroute between them, and both drivers -- `ProceduralWorldManager::Build_Hybrid_Interactions` and
-the self-check's Phase-11 gate -- go through it. `RerouteEdgeId` is no longer write-only. The rules: the
-next envelope is strictly the one after the envelope that produced the refused route, so a reroute always
-moves outward; a floor already at or past the one being asked for ends the attempt, so the same route state
-cannot come round twice; `next > 2` fails with the interaction failure Phase 11 named; Phase 9 and the
-topology are never touched. `HybridRouteParams::EnvelopeFloors` carries the per-edge floor and
-`HybridRouteParams` is kept on the manager (`HybridRouteInputs`) and on the self-check fixture so the
-re-run has the same inputs.
+- the next-envelope reroute, owned by `Hybrid_Solve_Interactions_With_Reroute`: Phase 10 once on the normal
+  path, re-run whole only after a request, floors monotone and per edge, `Phase10Runs == reroutes + 1`
+  asserted, one-, two- and three-run fixtures (`plateau_basin` seed 193 is the permanent one-reroute
+  fixture);
+- unplanned crossings recorded by Phase 10 (`Note_Unplanned_Crossings`);
+- ground width `required_swept_width <= RoadbedWidth(class)`, with the swept width from the edge's own
+  Section-12.1 capability mask, set by Phase 9 per role and never from road class;
+- per-class measured cut metadata (`CutClasses`), no bridge bit on cliff windows, and the pipeline
+  fixture's Phase 6 fed the same preflight metrics as Phase 11.
 
-Phase 10 is re-run whole rather than patched for one edge, and that is deliberate: a route is routed to
-avoid the routes accepted before it, so moving one spline makes the later edges' avoidance data stale, and
-splicing a new spline into the old set would leave exactly the half-updated state transactionality forbids.
-Re-running makes the step transactional for free -- the accepted state is one Phase-10 run and one Phase-11
-run over it, so no old crossing record, interaction, unplanned crossing or checksum contribution survives --
-and every edge but the rerouted one is byte-identical, because the search is deterministic and only that
-edge's starting envelope changed.
+Final census, 200 seeds x 7 archetypes (`renegade -terrainselfcheck hybridinteractionsearch`): 1400
+attempted, 135 through Phase 10, 135 reached Phase 11, 67 solved; 195 reroute requests, 1 resolved at
+envelope +1, 0 at +2, 68 worlds exhausted; selected bridge 446, at-grade junction 157, overpass 199, ford 0
+(no capability), surface pass 0, road cut 0, ramp pass 0, tunnel 0; final failures 36 `no_solution`, 32
+`obligation_lost`, every one after its envelopes were spent. The previous census built 162 worlds; the 27
+that no longer route were routing through cliff windows no cliff method could serve, and all of them
+failed Phase 11 before.
 
-Measured: the Phase-11 gate recovered from `bridge 3, junction 3, overpass 3` to `bridge 8, junction 4,
-overpass 7` -- exactly the pre-regression figures -- spending **1 reroute**. The 16 worlds that recording
-unplanned crossings had cost are back. `Check_Hybrid_Interactions` also proves the floor is honoured
-directly: a route asked to start at envelope 1 must not come back in envelope 0.
+**Blocked on `Q-020`:** `surface_pass`, `road_cut` and `ramp_pass` cannot execute on the native
+configuration. `road_cut` needs a cliff under 12 high and every cliff is 18..36; the cliff ramp is built
+for a step while D-004 made cliffs raised bands; no bridge refusal a pass does not share can occur against
+the registered 200-span bridge. The question gives the proofs and the smallest decision per branch.
 
-**`Ground_Carries_Swept_Width` now compares the right two quantities.** It is
-`required_swept_width <= RoadbedWidth(class)`. The `+ 2 * min_vehicle_lane_clearance` expansion is the
-plan's *clear width* -- a bridge deck, a tunnel bore, a canyon pass's continuous floor -- and not the
-definition of a roadbed; requiring the roadbed to contain it made every class below `HIGHWAY_4` unable to
-carry any ground method, `PRIMARY_2` failing by 0.16 world units, which was an artifact of comparing the
-wrong quantities. The clearance checks the plan does name are untouched: `Floor_Is_Legal` still requires
-`2 * floor_half >= swept + 2 * clearance`, Section 12.4 still governs a bridge deck and Section 12.5 a
-tunnel bore. No road was widened.
+**Next exact action:** wait for the `Q-020` answer. Per branch it is either an owner-level synthetic
+fixture that exercises the compile path (and the gate's "executes in a real pipeline fixture" requirement
+is waived for that branch), or the generator change the user picks -- the band-shaped ramp, a D-004
+revision, or a constant. Then the I12 gate as written: `terrain_hybrid{routes,interactions}` and their
+`fds_` twins, both full suites, `tools/validate_feature_state.py`, the I12 completion record, commit, I13.
 
-**The required swept width follows the edge's own capability**, through `Required_Swept_Width`: the heavy
-reference for `HIGHWAY_4` and `PRIMARY_2` (Section 9.5's heavy route classes), the Harvester for
-`SECONDARY_2` (as the ford path already reads it), and the light reference below that. A trail no longer
-becomes heavy-capable because a heavy vehicle was measured somewhere. `HybridInteractionParams` gained
-`LightVehicleWidth`, wired from `HumveeWidth` in both the manager and the fixture.
-
-**Still open, in order:**
-
-1. **`cut_capable` is still a semantic lie.** Phase 6 sets `HYBRID_WINDOW_METHOD_CUT` for every cliff
-   station that survives the approach and grade rules without measuring whether a legal cut fits, so the
-   36 to 67 "cut-capable" windows per world are not evidence a cut is possible. Either compute it in Phase 6
-   against the same planning-level requirements Phase 11 revalidates (minimum centerline correction within
-   `grading.max_cut_depth`, no sample needing fill past `grading.max_fill_height`, the cut inside
-   `RoadDeformationHalfWidth` of the canonical planning class, the outer blend reaching untouched terrain
-   with no immutable wall, base or Tiberium conflict), or stop calling it `cut_capable` and store it as an
-   unresolved method possibility. The diagnostics have to distinguish "structurally available" from
-   "actually valid for this road".
-2. **The three ground-method fixtures.** `surface_pass` (canyon/ravine, bridge fails, pass succeeds),
-   `road_cut` (explicit cliff, cut succeeds) and `ramp_pass` (explicit cliff, cut fails, pass succeeds) are
-   distinct cases and none may be counted for a branch it never executes. The corrected width rule may make
-   `PRIMARY_2` cases reachable that were impossible before, so the deterministic seed search
-   (`renegade -terrainselfcheck hybridinteractionsearch`, registered with nothing, asserts nothing) has to
-   be redone before any other generator policy is touched. Freeze the first qualifying seed of each kind as
-   a permanent fixture.
-3. Then the I12 gate: all three branches through the real pipeline, each independently asserted through real
-   Phases 6, 9, 10 and 11 with the earlier methods in the order handled correctly, the compiled record
-   valid, the checksum reproducing, client and FDS agreeing; `terrain_hybrid{routes,interactions}` and their
-   `fds_` twins; both full suites; `tools/validate_feature_state.py`. Update the I12 completion record,
-   commit, then I13.
-
-Remaining upstream refusals across the 40 fixtures, each its own owner's defect and none of them to be
-weakened for a test: overpass quota short, river bridge quota short, `hill 13 exhausted 32 alternate
-candidates` (`Q-018`), `HIGHWAY_4 has no legal route`, `field reserve is illegal`.
+Remaining upstream refusals, each its own owner's defect: overpass quota short, river bridge quota short,
+`hill 13 exhausted 32 alternate candidates` (`Q-018`), `HIGHWAY_4 has no legal route`, `field reserve is
+illegal`.

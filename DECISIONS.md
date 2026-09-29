@@ -554,6 +554,53 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-014 - Hybrid rewrite I12: reroute lifecycle, edge capabilities, and honest window metadata (2026-09-29)
+
+**Reroute.** Section 8 Phase 11's last method-order step -- "rerun this edge once in its next Phase-10
+corridor envelope" -- is owned by `Hybrid_Solve_Interactions_With_Reroute`. Phase 10 runs once on the
+normal path and Phase 11 consumes that frozen set; Phase 10 is re-entered only after an actual reroute
+request, and then **whole**, not spliced: a route is routed to avoid the routes before it, so splicing one
+changed spline into avoidance state derived from the old set is exactly the half-updated state
+transactionality forbids. The accepted state is always one Phase-10 run paired with one Phase-11 run over
+it. The next envelope is strictly after the one that produced the refused route; floors
+(`HybridRouteParams::EnvelopeFloors`) only rise and never pass 2, which is the termination proof, so the
+bound is per edge and there is no invented per-world cap. `next > 2` fails with the interaction failure
+Phase 11 named. Proved by the gate: `Phase10Runs == reroutes + 1` on every attempt; a no-reroute world
+keeps its frozen route checksum; `plateau_basin` seed 193 spends exactly one reroute, runs Phase 10 twice,
+moves its edge to the next envelope only, and solves reproducibly; an unspannable-bridge fixture goes
+0 -> 1 -> 2 and fails as `obligation_lost` after exactly three runs. The user accepted the whole-pass
+re-run on the condition that unaffected edges reproduce byte-identically; every route routed before the
+rerouted edge is asserted identical (on seed 193 the rerouted edge is a first-priority trunk, so the
+guarantee there covers the routes of every earlier group, which is none).
+
+**Required navigation capabilities** are Section 12.1's per-road field, set at Phase-9 edge creation from
+the edge's role and copied unchanged into the route (both checksums). The mapping is Phase 12's own
+swept-check list: family trunks and step 11's optional heavy cross-links carry heavy; home roads and
+contested/remote field branches carry the Harvester; quota service links, trails and the cross-links
+synthesized for bridge and overpass quotas carry light only. Road class is never read. Phase 11's ground
+roadbed test is `required_swept_width <= RoadbedWidth(class)`; `+ 2 * clearance` stays only where the
+plan names clear width -- the pass floor, Section 12.4's bridge deck and Section 12.5's tunnel bore -- and
+all of them now use the edge's own envelope. The audit table is in `HybridTopology.md`.
+
+**Window metadata means what it says.** Three Phase-6 flags were true of stations that could not use them:
+
+- `cut_capable` was set for every surviving cliff station. It is now `CutClasses`, one bit per road class,
+  set by running Phase 11's own cut test on the provisional height -- the class grade through the approach
+  intervals, cut and fill on the straight profile at `min(W/2, A/3)`, and the blend at
+  `RoadDeformationHalfWidth(class)` plus the outer blend landing clear of bases, Tiberium reserves and other
+  walls. `HYBRID_WINDOW_METHOD_CUT` is set exactly when a bit is; Phase 11 tries a cut only for the edge's
+  own class and still revalidates on the realized terrain;
+- cliff stations carried `bridge_capable`. Step 18 gives cliff stations pass/tunnel/cut metadata only and
+  the cliff method order has no bridge, so the bit served nothing -- but it kept the window alive, and a
+  window is the only hole in an immutable wall. 55 routed cliff crossings went through such windows and
+  every one ended in an exhausted reroute. The bridge bit is now river, canyon and ravine only;
+- the self-check pipeline fixture ran Phase 6 on stand-alone defaults that promised tunnels the content
+  registers no module for. `Build_Hybrid_Pipeline` now takes the preflight metric cache whenever Phase 11
+  will run, exactly as the manager fills Phase 6.
+
+With those corrected, the native configuration leaves every explicit cliff a sealed wall and puts no
+routed road on a pass-capable, bridge-incapable canyon window. Whether that is acceptable is `Q-020`.
+
 ## D-013 - Hybrid rewrite I12: what `plateau_basin`'s rim actually is (2026-09-29)
 
 Asked whether the missing road-cut coverage should come from a `plateau_basin` CLIFF crossing obligation,
