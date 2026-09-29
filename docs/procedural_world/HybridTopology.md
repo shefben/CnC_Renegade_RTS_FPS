@@ -73,6 +73,45 @@ MEDIUM seeds, that mismatch refused three of five worlds at Phase 8 with `resour
   Phase 4's own reservation ranks, where a Tiberium reserve is exclusive and water is not one of its
   compatible layers.
 
+## Required navigation capabilities
+
+Section 12.1 has every road record store its *required navigation capabilities*. Phase 9 sets them on
+`HybridTopologyEdge::Capabilities` when it creates the edge, because that is the only place the edge's
+role is known, and Phase 10 copies the mask unchanged into `HybridRoute::Capabilities`. Both checksums
+include it. Nothing downstream re-derives it, and nothing reads the road class to decide it: class sets the
+cross section, grade, cross slope, turn radius and render tier, while which vehicles an edge must carry is
+set by what the edge is for.
+
+The mapping is Section 8 Phase 12's own list of swept-envelope checks -- light reference on every road,
+heavy reference on every heavy-capable strategic edge, Harvester envelope on every home/resource economy
+edge -- applied to the roles Phase 9 creates (`Hybrid_Topology_Edge_Capabilities`):
+
+| edge role (plan step) | kind | road class | capabilities |
+| --- | --- | --- | --- |
+| heavy route-family trunk (5) | `FAMILY_TRUNK` | `HIGHWAY_4` or `PRIMARY_2` | light + heavy |
+| mandatory synthesized river-bridge cross-link (3) | `CROSS_LINK` | `SECONDARY_2` | light |
+| mandatory synthesized canyon/ravine-bridge cross-link (4) | `CROSS_LINK` | `SECONDARY_2` | light |
+| home-field road (7) | `HOME_ROAD` | `PRIMARY_2` or `SECONDARY_2` | light + Harvester |
+| contested-field branch (8) | `FIELD_BRANCH` | `SERVICE_DIRT_2` | light + Harvester |
+| remote-rich-field branch (8) | `FIELD_BRANCH` | `SERVICE_DIRT_2` | light + Harvester |
+| quota-filling service link (9) | `SERVICE_FILL` | `SERVICE_DIRT_2` | light |
+| `TRAIL_1` shortcut (10) | `TRAIL` | `TRAIL_1` | light |
+| optional heavy cross-link (11) | `CROSS_LINK` | `SECONDARY_2` | light + heavy |
+| synthesized overpass cross-link (13) | `CROSS_LINK` | `SECONDARY_2` | light |
+| base internal | `BASE_INTERNAL` | none | none (never realized) |
+
+The bridge-quota and overpass-quota cross-links exist to meet a count; the plan gives them no heavier role,
+so they carry light only rather than an invented heavy or Harvester requirement. Two consequences are
+deliberate and tested: two edges of one class can carry different masks (a `PRIMARY_2` trunk `0x3` and a
+`PRIMARY_2` home road `0x5` occur in real worlds, as do `SECONDARY_2` cross-links with and without heavy),
+and a trail never becomes heavy-capable.
+
+Phase 11 uses the widest envelope in the mask for every width test: the ground roadbed
+(`required_swept_width <= RoadbedWidth(class)`), a pass floor's continuous width
+(`swept + 2 * min_vehicle_lane_clearance`), Section 12.4's bridge clear width and Section 12.5's tunnel
+bore. Preflight's per-class `BridgeRequiredWidth` table is unchanged: it runs before any edge exists and
+answers only whether shipped content can carry a class at all.
+
 ## Failure behavior
 
 Every failure is a named attempt failure and leaves the record empty: `no_entrance_sector`,
