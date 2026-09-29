@@ -280,22 +280,22 @@ pass rate for archetypes with no canyon obligation.
 
 ## I12 — Runtime Phase 11: interaction solver (§8 P11, §12.3–12.5)
 
-- [ ] Query only via spatial hash; process by road `StableId` then along-road distance; no runtime objects.
-- [ ] Station search: `half_length = max(8W,4S)`, spacing `min(W,A/2)`, cap 64 stations, quantize + dedupe; mandatory obligations centered on frozen waypoint.
-- [ ] Common hard-valid station tests (8 conditions).
-- [ ] Road×river: bridge → ford (all conditions; never HIGHWAY_4/PRIMARY_2; never quota) → next envelope once → fail.
-- [ ] Road×canyon/ravine: bridge → pass window → tunnel → next envelope → fail; mandatory bridge skips pass/tunnel.
-- [ ] Road×cliff/ridge: cut → ramp/pass window → tunnel → next envelope → fail.
-- [ ] Road×road: at-grade junction conditions → overpass → reroute lower priority → fail; reserved overpass never downgrades.
-- [ ] Bridge asset selection: smallest sufficient max span, then lower kind `StableId`; metrics from definition then `BridgePlannerParams`.
-- [ ] Bridge scoring `4*span + 2*elevation + 3*grade + 2*curve + detour`; approach reserve `max(8W, required_approach_length)`.
-- [ ] Bridge vertical geometry (§12.3) and width (§12.4); overpass clearance with heavy vehicle height + safety.
-- [ ] Overpass construction: assignment order, `L_ramp`, smoothstep ramps, sample `min(W/3,A/4)`, one swap only, then reroute.
-- [ ] Tunnel rules (§12.5); shortest sufficient definition.
-- [ ] All bridges/overpasses `PRISTINE`; old random damage disabled on hybrid path.
-- [ ] CrossingProblems per edge ≤12.
-- [ ] Swept proxy validation over every compiled crossing interval.
-- [ ] **Gate:** one solution per conflict; obligations keep method; bridge/overpass quotas; proxy sweeps pass; limits respected.
+- [x] Query only via spatial hash; process by road `StableId` then along-road distance; no runtime objects.
+- [x] Station search: `half_length = max(8W,4S)`, spacing `min(W,A/2)`, cap 64 stations, quantize + dedupe; mandatory obligations centered on frozen waypoint.
+- [x] Common hard-valid station tests (8 conditions).
+- [x] Road×river: bridge → ford (all conditions; never HIGHWAY_4/PRIMARY_2; never quota) → next envelope once → fail.
+- [x] Road×canyon/ravine: bridge → pass window → tunnel → next envelope → fail; mandatory bridge skips pass/tunnel.
+- [x] Road×cliff/ridge: cut → ramp/pass window → tunnel → next envelope → fail.
+- [x] Road×road: at-grade junction conditions → overpass → reroute lower priority → fail; reserved overpass never downgrades.
+- [x] Bridge asset selection: smallest sufficient max span, then lower kind `StableId`; metrics from definition then `BridgePlannerParams`.
+- [x] Bridge scoring `4*span + 2*elevation + 3*grade + 2*curve + detour`; approach reserve `max(8W, required_approach_length)`.
+- [x] Bridge vertical geometry (§12.3) and width (§12.4); overpass clearance with heavy vehicle height + safety.
+- [x] Overpass construction: assignment order, `L_ramp`, smoothstep ramps, sample `min(W/3,A/4)`, one swap only, then reroute.
+- [x] Tunnel rules (§12.5); shortest sufficient definition.
+- [x] All bridges/overpasses `PRISTINE`; old random damage disabled on hybrid path.
+- [x] CrossingProblems per edge ≤12.
+- [x] Swept proxy validation over every compiled crossing interval.
+- [x] **Gate:** one solution per conflict; obligations keep method; bridge/overpass quotas; proxy sweeps pass; limits respected.
 
 ## I13 — Runtime Phase 12: final roads, crossings, cut/fill (§8 P12)
 

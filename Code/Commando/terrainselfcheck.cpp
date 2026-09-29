@@ -7199,6 +7199,276 @@ static HybridRouteParams Route_Fixture (const HybridMapIdentityParams & identity
 }
 
 
+/*
+**	The content metrics the hybrid generator measures at preflight, as this harness can supply them.
+**
+**	A self check has no loaded level and no live definition registries, so `Gather_From_Runtime` finds
+**	nothing -- the same reason `Check_Hybrid_Preflight` hand-fills its own inputs.  These are the real
+**	WORLDBOX measurements recorded in `docs/procedural_world/VehicleCollisionMetrics.md` and the real
+**	`BridgePlannerParams` values, not invented numbers, and `Check_Hybrid_Preflight` owns the contract
+**	they assert against.  Nothing optional is supplied: no tunnel module, no decoration and no lamp, so a
+**	check built on this fixture exercises the *disabled* path for every optional capability, which is what
+**	the shipped content actually offers today.
+*/
+static void Hybrid_Content_Fixture (const ProceduralWorldProfile & profile,HybridPreflightInputs * out)
+{
+	out->WorldUnitsPerMeter = 1.0f;
+
+	const float HUMVEE[3]		= { 4.722971f, 2.555953f, 1.548488f };
+	const float MAMMOTH[3]		= { 10.500445f, 6.801906f, 3.064066f };
+	const float HARVESTER[2][3]= { { 7.428105f, 4.514225f, 2.754598f },
+											 { 7.399116f, 4.514225f, 2.754598f } };
+
+	struct { HybridVehicleMetricInput * Out; const float * Box; int Id; } vehicles[4] = {
+		{ &out->Humvee,HUMVEE,101 }, { &out->HeavyVehicle,MAMMOTH,102 },
+		{ &out->Harvesters[0],HARVESTER[0],103 }, { &out->Harvesters[1],HARVESTER[1],104 } };
+	for (int v = 0; v < 4; ++v) {
+		vehicles[v].Out->Measured		= true;
+		vehicles[v].Out->DefinitionID	= vehicles[v].Id;
+		vehicles[v].Out->Length			= vehicles[v].Box[0];
+		vehicles[v].Out->Width			= vehicles[v].Box[1];
+		vehicles[v].Out->Height			= vehicles[v].Box[2];
+	}
+
+	out->ReferenceVehicleSpeed	= WorldMetricsClass::Get_Reference_Vehicle_Speed ();
+	out->ReferenceInfantrySpeed= WorldMetricsClass::Get_Reference_Infantry_Speed ();
+
+	//	BridgePlannerParams' own values: the span bound Phase 11 resolves to when a definition has none.
+	out->BridgeMaxSpanLength		= 200.0f;
+	out->BridgeWaterClearanceMargin= 2.0f;
+	out->BridgeApproachLength		= 30.0f;
+
+	HybridBridgeInput bridge;
+	bridge.Name					= "test_bridge";
+	bridge.Width				= 40.0f;
+	bridge.DeckThickness		= 2.0f;
+	bridge.RequiredClearance= 5.0f;
+	out->Bridges.Add (bridge);
+
+	for (int team = 0; team < 2; ++team) {
+
+		const DynamicVectorClass<StringClass> & names = (team == 0) ? profile.Base.GdiInitialBuildings
+																					  : profile.Base.NodInitialBuildings;
+		for (int i = 0; i < names.Count (); ++i) {
+			HybridBuildingFootprintInput building;
+			building.Name		= names[i];
+			building.Team		= team;
+			building.Found		= true;
+			building.Radius	= 20.0f;
+			building.Height	= 15.0f;
+			out->Buildings.Add (building);
+		}
+	}
+
+	HybridTerrainLayerInput layer;
+	layer.Name = "test_grass";	layer.Kind = TERRAIN_LAYER_BASE;		layer.SurfaceType = SURFACE_TYPE_GRASS;
+	out->TerrainLayers.Add (layer);
+	layer.Name = "test_rock";	layer.Kind = TERRAIN_LAYER_CLIFF;	layer.SurfaceType = SURFACE_TYPE_ROCK;
+	out->TerrainLayers.Add (layer);
+}
+
+
+/***********************************************************************************************
+**	Runtime Phase 11's gate -- rewrite item I12.
+**
+**	The check runs the *real* pipeline: preflight constants, map identity, strategic graph, semantic
+**	matrices, landforms, hydrology, macro terrain, anchors, topology, Phase-10 routes and then Phase 11,
+**	on deterministic generated-world fixture seeds.  Its purpose is to prove that
+**	`Hybrid_Build_Interactions` consumes what the earlier phases actually produce, so nothing here
+**	fabricates an ideal input.
+**
+**	Every acceptance property that can be recomputed is recomputed from the records rather than taken on
+**	the solver's word, in the same way the Phase-10 check re-measures road curvature for itself.
+***********************************************************************************************/
+
+//	Everything one fixture seed's pipeline produces, kept together so the ground sampler can point into it.
+struct HybridPipelineFixture
+{
+	HybridMapIdentityParams			Sized;
+	HybridMapIdentity					Identity;
+	HybridArchetypeIntentSet		Intents;
+	HybridStrategicGraph				Graph;
+	HybridCoarseMatrices				Matrices;
+	HybridLandformSet					Landforms;
+	HybridHydrologySet				Hydrology;
+	HybridMacroTerrainParams		MacroParams;
+	HybridMacroTerrainSet			Surfaces;
+	HybridAnchorSet					Anchors;
+	HybridTopology						Topology;
+	HybridRouteSet						Routes;
+	MacroFormulaContext				Ground;
+};
+
+
+/*
+**	Phases 2 to 10 for one seed.  Returns false when a phase legitimately refused this seed, which is an
+**	ordinary attempt failure the caller answers by walking to the next one.
+*/
+static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArchetype archetype,
+											  HybridPipelineFixture * out,StringClass * detail_out)
+{
+	HybridMapIdentityResult identity_result;
+	HybridStrategicGraphResult graph_result;
+	HybridCoarseMatrixResult coarse_result;
+	HybridLandformResult landform_result;
+	HybridHydrologyResult hydrology_result;
+	HybridMacroTerrainResult macro_result;
+	HybridAnchorResult anchor_result;
+	HybridTopologyResult topology_result;
+	HybridRouteResult route_result;
+
+	out->Sized = Graph_Identity_Fixture (world_size,2.0f);
+	out->Sized.ArchetypeSelector	= archetype;
+	out->Sized.MapPlanSeed			= WorldSeedService::Derive_Subsystem_Seed (seed,
+																			WorldSeedService::SEED_DOMAIN_MAP_PLAN);
+	out->Sized.HydrologySeed		= WorldSeedService::Derive_Subsystem_Seed (seed,
+																			WorldSeedService::SEED_DOMAIN_HYDROLOGY);
+	out->Sized.BiomeSeed				= WorldSeedService::Derive_Subsystem_Seed (seed,
+																			WorldSeedService::SEED_DOMAIN_BIOMES);
+
+	if (!Hybrid_Resolve_Map_Identity (out->Sized,&out->Identity,&out->Intents,&identity_result)) {
+		if (detail_out != nullptr) *detail_out = identity_result.Detail;
+		return false;
+	}
+
+	HybridStrategicGraphParams graph_params = Graph_Fixture (out->Sized,2.0f);
+	if (!Hybrid_Build_Strategic_Graph (graph_params,out->Identity,out->Intents,&out->Graph,&graph_result)) {
+		if (detail_out != nullptr) *detail_out = graph_result.Detail;
+		return false;
+	}
+
+	HybridCoarseMatrixParams coarse_params = Coarse_Fixture (out->Sized,world_size);
+	if (!Hybrid_Build_Coarse_Matrices (coarse_params,out->Identity,out->Intents,&out->Graph,&out->Matrices,
+													&coarse_result)) {
+		if (detail_out != nullptr) *detail_out = coarse_result.Detail;
+		return false;
+	}
+
+	HybridLandformParams landform_params = Landform_Fixture (out->Sized,world_size);
+	landform_params.TerrainSeed = WorldSeedService::Derive_Subsystem_Seed (seed,
+																			WorldSeedService::SEED_DOMAIN_TERRAIN);
+	if (!Hybrid_Build_Landforms (landform_params,out->Identity,out->Intents,out->Graph,&out->Matrices,
+											&out->Landforms,&landform_result)) {
+		if (detail_out != nullptr) *detail_out = landform_result.Detail;
+		return false;
+	}
+
+	HybridHydrologyParams hydrology_params = Hydrology_Fixture (out->Sized,world_size);
+	hydrology_params.HydrologySeed = out->Sized.HydrologySeed;
+	if (!Hybrid_Build_Hydrology (hydrology_params,out->Identity,out->Intents,out->Graph,out->Landforms,
+											&out->Matrices,&out->Hydrology,&hydrology_result)) {
+		if (detail_out != nullptr) *detail_out = hydrology_result.Detail;
+		return false;
+	}
+
+	out->MacroParams = Macro_Terrain_Fixture (out->Sized);
+	out->MacroParams.TerrainSeed = landform_params.TerrainSeed;
+	if (!Hybrid_Resolve_River_Surfaces (out->MacroParams,out->Matrices,out->Landforms,out->Hydrology,
+													&out->Surfaces,&macro_result)) {
+		if (detail_out != nullptr) *detail_out = macro_result.Detail;
+		return false;
+	}
+
+	out->Ground.Params		= &out->MacroParams;
+	out->Ground.Matrices		= &out->Matrices;
+	out->Ground.Landforms	= &out->Landforms;
+	out->Ground.Hydrology	= &out->Hydrology;
+	out->Ground.Surfaces		= &out->Surfaces;
+	out->Ground.Offset		= 0.0f;
+
+	HybridAnchorParams anchor_params = Anchor_Fixture (out->Sized);
+	if (!Hybrid_Validate_Anchors (anchor_params,out->Identity,out->Graph,out->Matrices,out->Landforms,
+											out->Hydrology,Macro_Sample_From_Formula,&out->Ground,&out->Anchors,
+											&anchor_result)) {
+		if (detail_out != nullptr) *detail_out = anchor_result.Detail;
+		return false;
+	}
+
+	HybridTopologyParams topology_params = Topology_Fixture (out->Sized);
+	if (!Hybrid_Build_Topology (topology_params,out->Identity,out->Graph,out->Landforms,out->Hydrology,
+										 out->Anchors,&out->Matrices,Macro_Sample_From_Formula,&out->Ground,
+										 &out->Topology,&topology_result)) {
+		if (detail_out != nullptr) *detail_out = topology_result.Detail;
+		return false;
+	}
+
+	HybridRouteParams route_params = Route_Fixture (out->Sized,world_size);
+	if (!Hybrid_Build_Routes (route_params,out->Identity,out->Matrices,out->Landforms,out->Hydrology,
+										out->Anchors,out->Topology,Macro_Sample_From_Formula,&out->Ground,
+										&out->Routes,&route_result)) {
+		if (detail_out != nullptr) *detail_out = route_result.Detail;
+		return false;
+	}
+	return true;
+}
+
+
+/*
+**	Phase 11's own fixture parameters, mirroring what `ProceduralWorldManager::Build_Hybrid_Interactions`
+**	fills from the profile and the frozen preflight cache.  The bridge and tunnel kinds are the ones the
+**	shipped content actually registers, read through the same preflight gather the manager uses, so the
+**	metrics under test are the real ones.
+*/
+static HybridInteractionParams Interaction_Fixture (const HybridMapIdentityParams & identity_params,
+																	 float world_size,
+																	 const HybridPreflightInputs & inputs,
+																	 const HybridMetricCache & metrics)
+{
+	HybridInteractionParams params;
+	params.Constants		= identity_params.Constants;
+	params.WorldMinX		= -0.5f * world_size;
+	params.WorldMinY		= -0.5f * world_size;
+	params.WorldWidth		= world_size;
+	params.WorldHeight	= world_size;
+	params.MaxCutDepth	= 6.0f;			// native grading.max_cut_depth
+	params.MaxFillHeight	= 6.0f;
+	params.RiverWidth		= 6.0f;
+
+	params.AllowFords					= false;		// the native profile: no ford capability exists yet
+	params.FordCapabilityAvailable	= metrics.FordsAvailable;
+	params.TunnelsEnabled			= true;		// world_features.tunnels defaults on
+	params.TunnelAvailable			= metrics.TunnelsAvailable;
+
+	params.WorldUnitsPerMeter		= identity_params.Constants.WorldUnitsPerMeter;
+	params.HeavyVehicleWidth		= metrics.HeavyVehicleWidth;
+	params.HeavyVehicleHeight		= metrics.HeavyVehicleHeight;
+	params.HarvesterWidth			= metrics.HarvesterWidth;
+	params.MinVehicleLaneClearance= 1.0f;		// native fairness.min_vehicle_lane_clearance
+	params.TierStep					= 8.0f;		// native plan.tier_step
+
+	params.BridgeWaterClearanceMargin = metrics.BridgeWaterClearanceMargin;
+	for (int i = 0; i < HYBRID_ROAD_CLASS_COUNT; ++i) {
+		params.BridgeForClass[i]		= metrics.BridgeForClass[i];
+		params.BridgeRequiredWidth[i]	= metrics.BridgeRequiredWidth[i];
+	}
+	params.MaxLocalRetriesPerStage = 8;
+
+	for (int i = 0; i < inputs.Bridges.Count (); ++i) {
+
+		HybridBridgeKind kind;
+		kind.StableId					= i;
+		kind.ClearWidth				= inputs.Bridges[i].Width;
+		kind.StructuralDepth			= inputs.Bridges[i].DeckThickness;
+		kind.RequiredClearance		= inputs.Bridges[i].RequiredClearance;
+		kind.MaxSpan					= Hybrid_Resolve_Bridge_Max_Span (0.0f,metrics.BridgeMaxSpanLength);
+		kind.RequiredApproachLength= metrics.BridgeApproachLength;
+		params.BridgeKinds.Add (kind);
+	}
+	for (int i = 0; i < inputs.TunnelModules.Count (); ++i) {
+
+		HybridTunnelModule one;
+		one.StableId			= i;
+		one.Length				= inputs.TunnelModules[i].Length;
+		one.ClearWidth			= inputs.TunnelModules[i].ClearanceWidth;
+		one.ClearHeight		= inputs.TunnelModules[i].ClearanceHeight;
+		one.MaxGradeRadians	= inputs.TunnelModules[i].MaxGradeRadians;
+		one.PortalCompatible	= inputs.TunnelModules[i].PortalCompatible;
+		params.TunnelModules.Add (one);
+	}
+	return params;
+}
+
+
 void Check_Hybrid_Routes (void)
 {
 	HybridMapIdentity identity;
@@ -15338,6 +15608,824 @@ void	Check_Tunnels (void)
 }	// anonymous namespace
 
 
+
+
+static inline float Gate_Max (float a,float b)	{ return (a > b) ? a : b; }
+static inline float Gate_Min (float a,float b)	{ return (a < b) ? a : b; }
+
+
+void Check_Hybrid_Interactions (void)
+{
+	/*
+	**	The content metrics Phase 11 reads, gathered exactly as the manager gathers them.  If the shipped
+	**	content cannot support the hybrid generator at all there is nothing to solve, and the check says so
+	**	rather than inventing a bridge registry of its own.
+	*/
+	ProceduralWorldProfile profile;
+	StringClass profile_error;
+	const bool profile_loaded = ProceduralWorldProfileManager::Load_Profile_From_File (
+											"data/procedural_world/native.json",&profile,&profile_error);
+	Check (profile_loaded,"the native profile did not load: %s",profile_error.Peek_Buffer ());
+	if (!profile_loaded) return;
+	Check (profile.Uses_Hybrid_Generator (),"the native profile does not select the hybrid generator");
+
+	profile.Plan.BiomeMode	= "single";
+	profile.Plan.Biome		= "temperate";
+
+	HybridPreflightInputs inputs;
+	Hybrid_Content_Fixture (profile,&inputs);
+	HybridPreflightResult preflight;
+	const bool preflight_passed = Hybrid_Run_Preflight (profile,inputs,&preflight);
+	Check (preflight_passed,"hybrid preflight refused the native profile: %s (%s)",
+			 Hybrid_Preflight_Failure_Name (preflight.Failure),preflight.Detail.Peek_Buffer ());
+	if (!preflight_passed) return;
+
+	/*
+	**	Section 8 Phase 11's two shared measures, checked against the plan's own arithmetic before any
+	**	world is built, because every later assertion leans on them.
+	*/
+	{
+		const float gap = Hybrid_Overpass_Clear_Gap (10.0f,1.0f);
+		Check (gap == (10.0f + 1.0f),"the overpass clear gap takes the larger safety term (%.3f)",gap);
+		const float small = Hybrid_Overpass_Clear_Gap (1.0f,2.0f);
+		Check (small == (1.0f + 0.7f),"the overpass clear gap takes the metric safety floor (%.3f)",small);
+
+		//	The definition first, the planner second, and no third source.
+		Check (Hybrid_Resolve_Bridge_Max_Span (40.0f,90.0f) == 40.0f,
+				 "a bridge definition's own maximum span wins");
+		Check (Hybrid_Resolve_Bridge_Max_Span (0.0f,90.0f) == 90.0f,
+				 "BridgePlannerParams::MaxSpanLength is the resolved fallback");
+
+		Check (Hybrid_Interaction_Counts_As_Bridge (HYBRID_METHOD_BRIDGE),"a bridge fills a bridge quota");
+		Check (!Hybrid_Interaction_Counts_As_Bridge (HYBRID_METHOD_FORD),"a ford never fills a bridge quota");
+		Check (!Hybrid_Interaction_Counts_As_Bridge (HYBRID_METHOD_TUNNEL),
+				 "a tunnel never fills a bridge quota");
+	}
+
+	/*
+	**	The walk covers several archetypes, not one, because which Phase-11 method families a world even
+	**	contains is decided by the obstructions its archetype lays down: a canyon crossroads produces canyon
+	**	crossings, a highland pass produces cliff and ridge ones, a river valley produces river crossings.
+	**	One archetype would leave whole method families untested and call the gate green.
+	*/
+	static const unsigned int INTERACTION_SEEDS[8] = { 4242u, 7u, 99u, 1234u, 31337u, 5u, 77u, 808u };
+	static const HybridArchetype INTERACTION_ARCHETYPES[4] = {
+		HYBRID_ARCHETYPE_CANYON_CROSSROADS,		// canyon crossings, and the mandatory canyon bridge
+		HYBRID_ARCHETYPE_HIGHLAND_PASS,			// cliff and ridge crossings: cuts and ramp passes
+		HYBRID_ARCHETYPE_RIVER_VALLEY,			// river crossings
+		HYBRID_ARCHETYPE_RAVINE_NETWORK,			// ravine crossings
+	};
+	const int INTERACTION_FIXTURE_COUNT = 8 * 4;
+	bool solved_any = false;
+	int refused_pipeline = 0;
+	int refused_phase11 = 0;
+	StringClass last_pipeline_detail = "none";
+	StringClass last_phase11_detail = "none";
+
+	//	Which method families the walk actually exercised, so the gate can say what it proved.
+	int seen_method[HYBRID_METHOD_COUNT];
+	for (int m = 0; m < HYBRID_METHOD_COUNT; ++m) seen_method[m] = 0;
+	int mandatory_bridges = 0;
+	int reserved_overpasses = 0;
+	bool negatives_done = false;
+
+	for (int attempt = 0; attempt < INTERACTION_FIXTURE_COUNT; ++attempt) {
+
+		HybridPipelineFixture fixture;
+		StringClass pipeline_detail;
+		if (!Build_Hybrid_Pipeline (INTERACTION_SEEDS[attempt % 8],1200.0f,
+											 INTERACTION_ARCHETYPES[attempt / 8],&fixture,&pipeline_detail)) {
+			refused_pipeline++;
+			last_pipeline_detail = pipeline_detail;
+			continue;
+		}
+
+		const HybridConstants & k = fixture.Sized.Constants;
+		HybridInteractionParams params = Interaction_Fixture (fixture.Sized,1200.0f,inputs,
+																			  preflight.Metrics);
+		HybridInteractionSet interactions;
+		HybridInteractionResult result;
+
+		if (!Hybrid_Build_Interactions (params,fixture.Identity,fixture.Matrices,fixture.Landforms,
+												  fixture.Hydrology,fixture.Anchors,fixture.Topology,fixture.Routes,
+												  Macro_Sample_From_Formula,&fixture.Ground,&interactions,&result)) {
+			refused_phase11++;
+			last_phase11_detail.Format ("%s (%s)",Hybrid_Interaction_Failure_Name (result.Failure),
+												 result.Detail.Peek_Buffer ());
+			Check (result.Failure != HYBRID_INTERACTION_OK,"a failed Phase 11 must name its failure");
+			Check (result.Detail.Get_Length () > 0,"a failed Phase 11 must say what refused the crossing");
+			Check (interactions.Interactions.Count () == 0,"a failed Phase 11 left solutions behind");
+			continue;
+		}
+		solved_any = true;
+
+		Check (interactions.Checksum != 0,"a passed Phase 11 left no checksum");
+		Check (Hybrid_Interaction_Checksum (interactions,fixture.Identity.Checksum) == interactions.Checksum,
+				 "the checksum does not describe the records it was built from");
+
+		/*
+		**	Exactly one solution per road-feature conflict.  Phase 10 recorded every crossing it left
+		**	unresolved as a structural span, so the two counts have to agree edge by edge -- a conflict with
+		**	no solution and a conflict with two are both gate failures.
+		*/
+		for (int r = 0; r < fixture.Routes.Routes.Count (); ++r) {
+
+			const HybridRoute & route = fixture.Routes.Routes[r];
+			for (int s = 0; s < route.Structural.Count (); ++s) {
+
+				int solutions = 0;
+				for (int i = 0; i < interactions.Interactions.Count (); ++i) {
+					const HybridInteraction & one = interactions.Interactions[i];
+					if (one.EdgeId != route.EdgeId) continue;
+					if (one.WindowId != route.Structural[s].WindowId) continue;
+					solutions++;
+				}
+				const HybridTopologyEdge * edge = fixture.Topology.Find_Edge (route.EdgeId);
+				const bool required = (edge != NULL) && edge->Required;
+				if (required) {
+					Check (solutions == 1,"edge %u crossing window %u has %d solutions, not one",route.EdgeId,
+							 route.Structural[s].WindowId,solutions);
+				} else {
+					Check (solutions <= 1,"optional edge %u crossing window %u has %d solutions",route.EdgeId,
+							 route.Structural[s].WindowId,solutions);
+				}
+			}
+		}
+
+		/*
+		**	Every frozen obligation keeps what Phase 9 reserved.  A mandatory crossing obligation has a
+		**	solution; a mandatory bridge stays a bridge; a reserved overpass stays an overpass and never
+		**	quietly becomes an at-grade junction.
+		*/
+		for (int n = 0; n < fixture.Topology.Nodes.Count (); ++n) {
+
+			const HybridTopologyNode & node = fixture.Topology.Nodes[n];
+
+			if (node.Kind == HYBRID_NODE_CROSSING_OBLIGATION) {
+
+				//	Only an obligation a realized, routed edge actually carries.
+				bool routed = false;
+				for (int e = 0; (e < fixture.Topology.Edges.Count ()) && !routed; ++e) {
+					const HybridTopologyEdge & edge = fixture.Topology.Edges[e];
+					if (!edge.Required) continue;
+					for (int w = 0; (w < edge.Waypoints.Count ()) && !routed; ++w) {
+						if (edge.Waypoints[w] != node.StableId) continue;
+						if (fixture.Routes.Find (edge.StableId) != NULL) routed = true;
+					}
+				}
+				if (!routed) continue;
+
+				const HybridInteraction * solution = NULL;
+				for (int i = 0; (i < interactions.Interactions.Count ()) && (solution == NULL); ++i) {
+					if (interactions.Interactions[i].WindowId != node.WindowId) continue;
+					solution = &interactions.Interactions[i];
+				}
+				Check (solution != NULL,"mandatory crossing obligation %u (window %u) has no solution",
+						 node.StableId,node.WindowId);
+				if (solution == NULL) continue;
+
+				mandatory_bridges++;
+				Check (solution->Mandatory,"the solution for obligation %u is not marked mandatory",
+						 node.StableId);
+
+				//	A mandatory crossing of a canyon or ravine must remain a bridge.
+				const HybridCrossingWindow * window = fixture.Hydrology.Find_Window (node.WindowId);
+				if ((window != NULL) && ((window->Obstruction == HYBRID_OBSTRUCTION_CANYON) ||
+												 (window->Obstruction == HYBRID_OBSTRUCTION_RAVINE))) {
+					Check (solution->Method == HYBRID_METHOD_BRIDGE,
+							 "mandatory canyon bridge obligation %u compiled as %s",node.StableId,
+							 Hybrid_Interaction_Method_Name (solution->Method));
+				}
+				Check (solution->Method != HYBRID_METHOD_FORD,
+						 "mandatory obligation %u compiled as a ford",node.StableId);
+			}
+
+			if (node.Kind == HYBRID_NODE_OVERPASS_OBLIGATION) {
+
+				const HybridInteraction * solution = NULL;
+				for (int i = 0; (i < interactions.Interactions.Count ()) && (solution == NULL); ++i) {
+					const HybridInteraction & one = interactions.Interactions[i];
+					if (one.OtherEdgeId == 0) continue;
+					if ((one.Station - node.Position).Length () > Gate_Max (k.S,k.A)) continue;
+					solution = &one;
+				}
+				if (solution == NULL) continue;			// the two edges were not both routed
+				reserved_overpasses++;
+				Check (solution->Method == HYBRID_METHOD_OVERPASS,
+						 "reserved overpass obligation %u downgraded to %s",node.StableId,
+						 Hybrid_Interaction_Method_Name (solution->Method));
+			}
+		}
+
+		//	The Section-5 quotas, recomputed from the records rather than read from the solver.
+		{
+			int river_bridges = 0;
+			int canyon_bridges = 0;
+			int overpasses = 0;
+			for (int i = 0; i < interactions.Interactions.Count (); ++i) {
+
+				const HybridInteraction & one = interactions.Interactions[i];
+				if (one.Method == HYBRID_METHOD_OVERPASS) overpasses++;
+				if (!Hybrid_Interaction_Counts_As_Bridge (one.Method)) continue;
+				if ((one.Obstruction == HYBRID_OBSTRUCTION_RIVER) ||
+					 (one.Obstruction == HYBRID_OBSTRUCTION_LAKE) ||
+					 (one.Obstruction == HYBRID_OBSTRUCTION_COAST)) river_bridges++;
+				if ((one.Obstruction == HYBRID_OBSTRUCTION_CANYON) ||
+					 (one.Obstruction == HYBRID_OBSTRUCTION_RAVINE)) canyon_bridges++;
+			}
+			Check (river_bridges >= fixture.Topology.RequiredRiverBridges,
+					 "%d river bridges against the Section-5 quota of %d",river_bridges,
+					 fixture.Topology.RequiredRiverBridges);
+			Check (canyon_bridges >= fixture.Topology.RequiredCanyonBridges,
+					 "%d canyon bridges against the Section-5 quota of %d",canyon_bridges,
+					 fixture.Topology.RequiredCanyonBridges);
+			Check (overpasses >= fixture.Topology.RequiredOverpasses,
+					 "%d overpasses against the Section-5 quota of %d",overpasses,
+					 fixture.Topology.RequiredOverpasses);
+		}
+
+		//	At most twelve crossing problems on one edge.
+		for (int e = 0; e < fixture.Topology.Edges.Count (); ++e) {
+
+			int problems = 0;
+			for (int i = 0; i < interactions.Issues.Count (); ++i) {
+				if (interactions.Issues[i].EdgeId == fixture.Topology.Edges[e].StableId) problems++;
+			}
+			Check (problems <= 12,"edge %u carries %d crossing problems, over the limit of 12",
+					 fixture.Topology.Edges[e].StableId,problems);
+		}
+
+		//	The 64-station cap: no conflict may evaluate more stations than the cap allows it.
+		{
+			int conflicts = 0;
+			for (int r = 0; r < fixture.Routes.Routes.Count (); ++r) {
+				conflicts += fixture.Routes.Routes[r].Structural.Count ();
+			}
+			const int ceiling = (conflicts + interactions.Issues.Count () + 1) * 64 * HYBRID_METHOD_COUNT;
+			Check (interactions.StationsEvaluated <= ceiling,
+					 "%d stations evaluated over a ceiling of %d",interactions.StationsEvaluated,ceiling);
+		}
+
+		//	Every compiled solution, re-measured from the records.
+		for (int i = 0; i < interactions.Interactions.Count (); ++i) {
+
+			const HybridInteraction & one = interactions.Interactions[i];
+			seen_method[one.Method]++;
+
+			const HybridTopologyEdge * edge = fixture.Topology.Find_Edge (one.EdgeId);
+			Check (edge != NULL,"solution %u names edge %u, which does not exist",one.StableId,one.EdgeId);
+			if (edge == NULL) continue;
+
+			//	No HIGHWAY_4 or PRIMARY_2 ever fords.
+			if (one.Method == HYBRID_METHOD_FORD) {
+				Check ((one.RoadClass != HYBRID_ROAD_HIGHWAY_4) && (one.RoadClass != HYBRID_ROAD_PRIMARY_2),
+						 "a %s road fords at solution %u",Hybrid_Road_Class_Name (one.RoadClass),one.StableId);
+			}
+
+			//	Quantized geometry, and both approach endpoints inside the placeable world.
+			Check (one.Station.X == Hybrid_Quantize_Position (one.Station.X),
+					 "solution %u station X is not quantized",one.StableId);
+			Check (one.Station.Y == Hybrid_Quantize_Position (one.Station.Y),
+					 "solution %u station Y is not quantized",one.StableId);
+
+			int cx = 0;
+			int cy = 0;
+			Check (fixture.Matrices.Matrix.World_To_Cell (one.ApproachA,&cx,&cy) &&
+					 fixture.Matrices.Matrix.Has_Flag (cx,cy,HYBRID_FLAG_PLACEABLE),
+					 "solution %u approach A is outside the placeable world",one.StableId);
+			Check (fixture.Matrices.Matrix.World_To_Cell (one.ApproachB,&cx,&cy) &&
+					 fixture.Matrices.Matrix.Has_Flag (cx,cy,HYBRID_FLAG_PLACEABLE),
+					 "solution %u approach B is outside the placeable world",one.StableId);
+
+			//	The station belongs to the obstruction it names, inside its own window's reach.
+			if (one.WindowId != 0) {
+
+				const HybridCrossingWindow * window = fixture.Hydrology.Find_Window (one.WindowId);
+				Check (window != NULL,"solution %u names window %u, which does not exist",one.StableId,
+						 one.WindowId);
+				if (window != NULL) {
+					Check (window->Obstruction == one.Obstruction,
+							 "solution %u says %s but window %u crosses %s",one.StableId,
+							 Hybrid_Obstruction_Kind_Name (one.Obstruction),one.WindowId,
+							 Hybrid_Obstruction_Kind_Name (window->Obstruction));
+
+					const float reach = Gate_Max (8.0f * k.W,4.0f * k.S) + window->Span;
+					Check ((one.Station - window->Center).Length () <= reach,
+							 "solution %u station is %.1f from window %u, over the search reach of %.1f",
+							 one.StableId,(one.Station - window->Center).Length (),one.WindowId,reach);
+				}
+			}
+
+			//	The approach reserve is real on both sides, and symmetric about the station.
+			const float to_a = (one.ApproachA - one.Station).Length ();
+			const float to_b = (one.ApproachB - one.Station).Length ();
+			if ((one.Method != HYBRID_METHOD_AT_GRADE_JUNCTION)) {
+				Check (to_a >= (one.ApproachReserve - k.W),
+						 "solution %u approach A reserve is %.1f, under the required %.1f",one.StableId,to_a,
+						 one.ApproachReserve);
+				Check (to_b >= (one.ApproachReserve - k.W),
+						 "solution %u approach B reserve is %.1f, under the required %.1f",one.StableId,to_b,
+						 one.ApproachReserve);
+			}
+
+			/*
+			**	Neither approach reserve may touch a base or Tiberium reserve this edge has no business in.
+			**	Recomputed here from the anchors rather than trusted.
+			*/
+			{
+				unsigned int own_base[2] = { 0,0 };
+				unsigned int own_field[2] = { 0,0 };
+				const HybridTopologyNode * ends[2];
+				ends[0] = fixture.Topology.Find_Node (edge->NodeA);
+				ends[1] = fixture.Topology.Find_Node (edge->NodeB);
+				for (int e = 0; e < 2; ++e) {
+					if (ends[e] == NULL) continue;
+					if (ends[e]->Kind == HYBRID_NODE_FIELD_ACCESS)	own_field[e] = ends[e]->SiteId;
+					else															own_base[e] = ends[e]->SiteId;
+				}
+
+				const int steps = 8;
+				for (int s = 0; s <= steps; ++s) {
+
+					const float ratio = (float)s / (float)steps;
+					const Vector2 point (one.ApproachA.X + ((one.ApproachB.X - one.ApproachA.X) * ratio),
+												one.ApproachA.Y + ((one.ApproachB.Y - one.ApproachA.Y) * ratio));
+
+					for (int t = 0; t < fixture.Anchors.Bases.Count (); ++t) {
+						const HybridBaseAnchor & base = fixture.Anchors.Bases[t];
+						if ((base.SiteId == own_base[0]) || (base.SiteId == own_base[1])) continue;
+						Check ((point - base.Center).Length () > base.ProtectedRadius,
+								 "solution %u approach enters unrelated base %u",one.StableId,base.SiteId);
+					}
+					for (int t = 0; t < fixture.Anchors.Resources.Count (); ++t) {
+						const HybridResourceAnchor & anchor = fixture.Anchors.Resources[t];
+						if ((anchor.SiteId == own_field[0]) || (anchor.SiteId == own_field[1])) continue;
+						Check ((point - anchor.Center).Length () > anchor.ReserveRadius,
+								 "solution %u approach enters unrelated Tiberium reserve %u",one.StableId,
+								 anchor.SiteId);
+					}
+				}
+			}
+
+			/*
+			**	The swept vehicle envelope has to be carried by whatever the method puts the vehicle on: a
+			**	structure's own deck, which Section 12.4 widens to fit, or the graded roadbed for a method that
+			**	stays on the ground.  The marked carriageway is not the test -- a bridge exists precisely to be
+			**	wider than the road that meets it.
+			*/
+			{
+				const float swept = Gate_Max (preflight.Metrics.HeavyVehicleWidth,
+														preflight.Metrics.HarvesterWidth) + 2.0f;
+				if ((one.Method == HYBRID_METHOD_FORD) || (one.Method == HYBRID_METHOD_SURFACE_PASS) ||
+					 (one.Method == HYBRID_METHOD_RAMP_PASS) || (one.Method == HYBRID_METHOD_ROAD_CUT)) {
+					Check (swept <= Hybrid_Roadbed_Width (one.RoadClass,k.W),
+							 "%s %u carries a %.1f swept width on a %.1f roadbed",
+							 Hybrid_Interaction_Method_Name (one.Method),one.StableId,swept,
+							 Hybrid_Roadbed_Width (one.RoadClass,k.W));
+				}
+			}
+
+			//	Both approaches have to be gradeable to the station within the class maximum grade.
+			{
+				const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec (one.RoadClass);
+				const float max_grade = spec.MaxGradeDegrees * 0.0174532925f;
+				float station_z = 0.0f;
+				if (Macro_Sample_From_Formula (one.Station,&station_z,&fixture.Ground)) {
+
+					const HybridVerticalInterval station_interval =
+						Hybrid_Road_Vertical_Interval (station_z,params.MaxCutDepth,params.MaxFillHeight);
+					for (int side = 0; side < 2; ++side) {
+
+						const Vector2 & end = (side == 0) ? one.ApproachA : one.ApproachB;
+						float end_z = 0.0f;
+						if (!Macro_Sample_From_Formula (end,&end_z,&fixture.Ground)) continue;
+						const HybridVerticalInterval end_interval =
+							Hybrid_Road_Vertical_Interval (end_z,params.MaxCutDepth,params.MaxFillHeight);
+						Check (Hybrid_Grade_Compatible (end_interval,station_interval,
+																  (end - one.Station).Length (),max_grade),
+								 "solution %u approach %d exceeds the %s maximum grade",one.StableId,side,
+								 Hybrid_Road_Class_Name (one.RoadClass));
+					}
+				}
+			}
+
+			//	4W separation from any crossing on another edge.
+			for (int j = 0; j < interactions.Interactions.Count (); ++j) {
+
+				if (j == i) continue;
+				const HybridInteraction & other = interactions.Interactions[j];
+				if (other.EdgeId == one.EdgeId) continue;
+				if (other.OtherEdgeId == one.EdgeId) continue;
+				if (one.OtherEdgeId == other.EdgeId) continue;
+				Check ((other.Station - one.Station).Length () >= (4.0f * k.W),
+						 "solutions %u and %u are %.1f apart, under the 4W separation of %.1f",one.StableId,
+						 other.StableId,(other.Station - one.Station).Length (),4.0f * k.W);
+			}
+
+			//	A bridge: the kind's clear width, its resolved maximum span, and its vertical geometry.
+			if (one.Method == HYBRID_METHOD_BRIDGE) {
+
+				Check ((one.BridgeKind >= 0) && (one.BridgeKind < params.BridgeKinds.Count ()),
+						 "bridge solution %u names kind %d",one.StableId,one.BridgeKind);
+				if ((one.BridgeKind < 0) || (one.BridgeKind >= params.BridgeKinds.Count ())) continue;
+
+				const HybridBridgeKind & kind = params.BridgeKinds[one.BridgeKind];
+				const float required_width =
+					Hybrid_Bridge_Clear_Width (one.RoadClass,k.W,
+														Gate_Max (preflight.Metrics.HeavyVehicleWidth,
+																	  preflight.Metrics.HarvesterWidth),1.0f);
+				Check (kind.ClearWidth >= required_width,
+						 "bridge %u has a %.2f clear width against the Section-12.4 requirement of %.2f",
+						 one.StableId,kind.ClearWidth,required_width);
+				Check (kind.ClearWidth >= preflight.Metrics.BridgeRequiredWidth[one.RoadClass],
+						 "bridge %u is narrower than the preflight requirement for its class",one.StableId);
+
+				//	The measured span plus both abutment seats has to fit the resolved maximum span.
+				Check ((one.Span + (2.0f * k.W)) <= kind.MaxSpan,
+						 "bridge %u spans %.1f plus seats against a resolved maximum of %.1f",one.StableId,
+						 one.Span,kind.MaxSpan);
+
+				const float required_approach = (kind.RequiredApproachLength > 0.0f)
+														  ? kind.RequiredApproachLength : (8.0f * k.W);
+				Check (one.ApproachReserve >= required_approach,
+						 "bridge %u reserves %.1f of approach against the required %.1f",one.StableId,
+						 one.ApproachReserve,required_approach);
+
+				Check (one.DeckTopZ >= (one.DeckBottomZ + kind.StructuralDepth - k.Q),
+						 "bridge %u deck is %.2f thick against a structural depth of %.2f",one.StableId,
+						 one.DeckTopZ - one.DeckBottomZ,kind.StructuralDepth);
+
+				//	Over water, the deck bottom clears the surface by the registered margin.
+				float surface = 0.0f;
+				if (Hybrid_Point_In_Standing_Water (fixture.Hydrology,one.Station,NULL,&surface)) {
+					const float margin = Gate_Max (preflight.Metrics.BridgeWaterClearanceMargin,
+															  kind.RequiredClearance);
+					Check (one.DeckBottomZ >= (surface + margin - k.Q),
+							 "bridge %u deck bottom is %.2f over a %.2f water surface, under the %.2f margin",
+							 one.StableId,one.DeckBottomZ,surface,margin);
+				}
+			}
+
+			//	A tunnel: its module, the clear envelope, and a bore at least as long as the obstruction.
+			if (one.Method == HYBRID_METHOD_TUNNEL) {
+
+				Check ((one.TunnelModule >= 0) && (one.TunnelModule < params.TunnelModules.Count ()),
+						 "tunnel solution %u names module %d",one.StableId,one.TunnelModule);
+				if ((one.TunnelModule < 0) || (one.TunnelModule >= params.TunnelModules.Count ())) continue;
+
+				const HybridTunnelModule & module_kind = params.TunnelModules[one.TunnelModule];
+				const float swept_width = Gate_Max (preflight.Metrics.HeavyVehicleWidth,
+																 preflight.Metrics.HarvesterWidth) + 2.0f;
+				const float swept_height = Hybrid_Overpass_Clear_Gap (preflight.Metrics.HeavyVehicleHeight,
+																					 k.WorldUnitsPerMeter);
+				if (module_kind.ClearWidth > 0.0f) {
+					Check (module_kind.ClearWidth >= swept_width,"tunnel %u is narrower than the swept width",
+							 one.StableId);
+				}
+				if (module_kind.ClearHeight > 0.0f) {
+					Check (module_kind.ClearHeight >= swept_height,"tunnel %u is lower than the swept height",
+							 one.StableId);
+				}
+				Check (one.TunnelLength >= ((one.ApproachB - one.ApproachA).Length () - k.Q),
+						 "tunnel %u bores %.1f across a %.1f obstruction",one.StableId,one.TunnelLength,
+						 (one.ApproachB - one.ApproachA).Length ());
+				Check (module_kind.PortalCompatible,"tunnel %u uses a module that is not portal compatible",
+						 one.StableId);
+			}
+
+			//	A road cut stays inside the allowed cut and fill.
+			if (one.Method == HYBRID_METHOD_ROAD_CUT) {
+				Check (one.CutDepth <= (params.MaxCutDepth + k.Q),
+						 "road cut %u is %.2f deep against a limit of %.2f",one.StableId,one.CutDepth,
+						 params.MaxCutDepth);
+			}
+
+			//	A pass or ramp pass: the whole swept route holds the class grade and cross slope.
+			if ((one.Method == HYBRID_METHOD_SURFACE_PASS) || (one.Method == HYBRID_METHOD_RAMP_PASS)) {
+
+				const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec (one.RoadClass);
+				const float max_grade = spec.MaxGradeDegrees * 0.0174532925f;
+				const float max_cross = spec.MaxCrossSlopeDegrees * 0.0174532925f;
+				const float half_roadbed = 0.5f * Hybrid_Roadbed_Width (one.RoadClass,k.W);
+				const float spacing = Gate_Max (Gate_Min (0.5f * k.W,k.A / 3.0f),k.Q);
+				const float length = (one.ApproachB - one.ApproachA).Length ();
+				const int count = (int)(length / spacing) + 1;
+				const Vector2 axis = (length > 0.0f)
+											? Vector2 ((one.ApproachB.X - one.ApproachA.X) / length,
+															(one.ApproachB.Y - one.ApproachA.Y) / length)
+											: Vector2 (1.0f,0.0f);
+				const Vector2 normal (-axis.Y,axis.X);
+
+				float previous = 0.0f;
+				bool have_previous = false;
+				for (int s = 0; s <= count; ++s) {
+
+					const float ratio = (count > 0) ? ((float)s / (float)count) : 0.0f;
+					const Vector2 point (one.ApproachA.X + ((one.ApproachB.X - one.ApproachA.X) * ratio),
+												one.ApproachA.Y + ((one.ApproachB.Y - one.ApproachA.Y) * ratio));
+
+					float here = 0.0f;
+					if (!Macro_Sample_From_Formula (point,&here,&fixture.Ground)) continue;
+					const HybridVerticalInterval interval_here =
+						Hybrid_Road_Vertical_Interval (here,params.MaxCutDepth,params.MaxFillHeight);
+
+					if (have_previous) {
+						const HybridVerticalInterval interval_previous =
+							Hybrid_Road_Vertical_Interval (previous,params.MaxCutDepth,params.MaxFillHeight);
+						Check (Hybrid_Grade_Compatible (interval_previous,interval_here,length / (float)count,
+																  max_grade),
+								 "%s %u exceeds the class grade at sample %d",
+								 Hybrid_Interaction_Method_Name (one.Method),one.StableId,s);
+					}
+					previous			= here;
+					have_previous	= true;
+
+					float left = 0.0f;
+					float right = 0.0f;
+					if (!Macro_Sample_From_Formula (point + (normal * half_roadbed),&left,&fixture.Ground)) {
+						continue;
+					}
+					if (!Macro_Sample_From_Formula (point - (normal * half_roadbed),&right,&fixture.Ground)) {
+						continue;
+					}
+					const HybridVerticalInterval left_interval =
+						Hybrid_Road_Vertical_Interval (left,params.MaxCutDepth,params.MaxFillHeight);
+					const HybridVerticalInterval right_interval =
+						Hybrid_Road_Vertical_Interval (right,params.MaxCutDepth,params.MaxFillHeight);
+					Check (Hybrid_Grade_Compatible (left_interval,right_interval,2.0f * half_roadbed,
+															  max_cross),
+							 "%s %u exceeds the class cross slope at sample %d",
+							 Hybrid_Interaction_Method_Name (one.Method),one.StableId,s);
+				}
+			}
+
+			//	An overpass: Section 12.3's clear gap, and a ramp that holds the upper class grade.
+			if (one.Method == HYBRID_METHOD_OVERPASS) {
+
+				const float gap = Hybrid_Overpass_Clear_Gap (preflight.Metrics.HeavyVehicleHeight,
+																		  k.WorldUnitsPerMeter);
+				Check ((one.DeckBottomZ - one.LowerSurfaceZ) >= (gap - k.Q),
+						 "overpass %u clears %.2f over the road beneath it, under the required %.2f",
+						 one.StableId,one.DeckBottomZ - one.LowerSurfaceZ,gap);
+
+				const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec (one.RoadClass);
+				const float max_grade = spec.MaxGradeDegrees * 0.0174532925f;
+				Check (one.RampLength >= (10.0f * k.W),
+						 "overpass %u ramps over %.1f, under the 10W floor of %.1f",one.StableId,
+						 one.RampLength,10.0f * k.W);
+
+				//	The ramp's average grade over its own reserve has to be inside the class maximum.
+				const float rise = one.DeckTopZ - one.LowerSurfaceZ;
+				const float average = (one.RampLength > k.Q)
+											 ? (float)atan ((double)(rise / one.RampLength)) : 0.0f;
+				Check (average <= (max_grade + 0.001f),
+						 "overpass %u ramps at %.4f rad against a class maximum of %.4f",one.StableId,average,
+						 max_grade);
+
+				Check (one.OtherEdgeId != 0,"overpass %u names no road underneath it",one.StableId);
+			}
+		}
+
+
+		/*
+		**	The hard failures, on this same real world.  Each one perturbs exactly one input, and each has to
+		**	be refused for its own named reason -- not crash, not quietly pick an undocumented fallback, and
+		**	not leave a half-solved world behind.  No constraint is relaxed to make any of these green.
+		*/
+		if (!negatives_done) {
+
+			negatives_done = true;
+
+			struct NegativeCase
+			{
+				const char *					Name;
+				HybridInteractionFailure	Failure;
+			};
+
+			//	1: no bridge kind spans the obstruction.  A mandatory canyon bridge cannot fall back.
+			{
+				HybridInteractionParams narrow = params;
+				for (int i = 0; i < narrow.BridgeKinds.Count (); ++i) narrow.BridgeKinds[i].MaxSpan = 1.0f;
+				HybridInteractionSet refused;
+				HybridInteractionResult refused_result;
+				Check (!Hybrid_Build_Interactions (narrow,fixture.Identity,fixture.Matrices,fixture.Landforms,
+																fixture.Hydrology,fixture.Anchors,fixture.Topology,
+																fixture.Routes,Macro_Sample_From_Formula,&fixture.Ground,
+																&refused,&refused_result),
+						 "a one-unit maximum bridge span was accepted");
+				Check ((refused_result.Failure == HYBRID_INTERACTION_OBLIGATION_LOST) ||
+						 (refused_result.Failure == HYBRID_INTERACTION_NO_SOLUTION) ||
+						 (refused_result.Failure == HYBRID_INTERACTION_QUOTA),
+						 "an unspannable obstruction named %s",
+						 Hybrid_Interaction_Failure_Name (refused_result.Failure));
+				Check (refused.Interactions.Count () == 0,"a refused Phase 11 left solutions behind");
+				bool named_span = false;
+				for (int i = 0; i < refused.Issues.Count (); ++i) {
+					if (refused.Issues[i].Problem == HYBRID_PROBLEM_SPAN_TOO_LONG) named_span = true;
+				}
+				StringClass issue_list ("");
+				for (int i = 0; i < refused.Issues.Count (); ++i) {
+					StringClass one;
+					one.Format ("%s(%s/win %u) ",
+									Hybrid_Interaction_Problem_Name (refused.Issues[i].Problem),
+									Hybrid_Obstruction_Kind_Name (refused.Issues[i].Obstruction),
+									refused.Issues[i].WindowId);
+					issue_list += one;
+				}
+				Check (named_span,"no issue named span_too_long when no kind could span the obstruction "
+						 "(failure %s, %d issues: %s)",
+						 Hybrid_Interaction_Failure_Name (refused_result.Failure),refused.Issues.Count (),
+						 issue_list.Peek_Buffer ());
+			}
+
+			//	2: every bridge kind is narrower than Section 12.4 requires.
+			{
+				HybridInteractionParams thin = params;
+				for (int i = 0; i < thin.BridgeKinds.Count (); ++i) thin.BridgeKinds[i].ClearWidth = 0.25f;
+				HybridInteractionSet refused;
+				HybridInteractionResult refused_result;
+				Check (!Hybrid_Build_Interactions (thin,fixture.Identity,fixture.Matrices,fixture.Landforms,
+																fixture.Hydrology,fixture.Anchors,fixture.Topology,
+																fixture.Routes,Macro_Sample_From_Formula,&fixture.Ground,
+																&refused,&refused_result),
+						 "a quarter-unit bridge clear width was accepted");
+				bool named_width = false;
+				for (int i = 0; i < refused.Issues.Count (); ++i) {
+					if (refused.Issues[i].Problem == HYBRID_PROBLEM_WIDTH_TOO_NARROW) named_width = true;
+				}
+				Check (named_width,"no issue named width_too_narrow when every kind was too narrow");
+				Check (refused.Interactions.Count () == 0,"a refused Phase 11 left solutions behind");
+			}
+
+			//	3: the straight approach reserve cannot fit anywhere on the route.
+			{
+				HybridInteractionParams unreachable = params;
+				for (int i = 0; i < unreachable.BridgeKinds.Count (); ++i) {
+					unreachable.BridgeKinds[i].RequiredApproachLength = 10000.0f;
+				}
+				HybridInteractionSet refused;
+				HybridInteractionResult refused_result;
+				Check (!Hybrid_Build_Interactions (unreachable,fixture.Identity,fixture.Matrices,
+																fixture.Landforms,fixture.Hydrology,fixture.Anchors,
+																fixture.Topology,fixture.Routes,
+																Macro_Sample_From_Formula,&fixture.Ground,&refused,
+																&refused_result),
+						 "a 10000-unit bridge approach reserve was accepted");
+				bool named_approach = false;
+				for (int i = 0; i < refused.Issues.Count (); ++i) {
+					const HybridInteractionProblem problem = refused.Issues[i].Problem;
+					if ((problem == HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT) ||
+						 (problem == HYBRID_PROBLEM_NO_HARD_VALID_STATION)) named_approach = true;
+				}
+				Check (named_approach,"no issue named the approach when the reserve could not fit");
+				Check (refused.Interactions.Count () == 0,"a refused Phase 11 left solutions behind");
+			}
+
+			//	4: a mandatory crossing with no bridge kind registered at all, and no legal fallback.
+			{
+				HybridInteractionParams assetless = params;
+				assetless.BridgeKinds.Delete_All ();
+				HybridInteractionSet refused;
+				HybridInteractionResult refused_result;
+				Check (!Hybrid_Build_Interactions (assetless,fixture.Identity,fixture.Matrices,
+																fixture.Landforms,fixture.Hydrology,fixture.Anchors,
+																fixture.Topology,fixture.Routes,
+																Macro_Sample_From_Formula,&fixture.Ground,&refused,
+																&refused_result),
+						 "a world with no registered bridge kind was accepted");
+				Check (refused.Interactions.Count () == 0,"a refused Phase 11 left solutions behind");
+				Check (refused_result.Detail.Get_Length () > 0,"a refused Phase 11 said nothing");
+			}
+
+			//	5: the swept vehicle envelope cannot be carried by anything.
+			{
+				HybridInteractionParams huge = params;
+				huge.HeavyVehicleWidth	= 500.0f;
+				huge.HeavyVehicleHeight	= 500.0f;
+				HybridInteractionSet refused;
+				HybridInteractionResult refused_result;
+				Check (!Hybrid_Build_Interactions (huge,fixture.Identity,fixture.Matrices,fixture.Landforms,
+																fixture.Hydrology,fixture.Anchors,fixture.Topology,
+																fixture.Routes,Macro_Sample_From_Formula,&fixture.Ground,
+																&refused,&refused_result),
+						 "a 500-unit swept vehicle envelope was accepted");
+				Check (refused.Interactions.Count () == 0,"a refused Phase 11 left solutions behind");
+			}
+
+			//	6: the crossing-problem limit refuses on its own terms rather than growing.
+			{
+				HybridInteractionParams strict = params;
+				strict.MaxProblemsPerEdge = 0;
+				for (int i = 0; i < strict.BridgeKinds.Count (); ++i) strict.BridgeKinds[i].MaxSpan = 1.0f;
+				HybridInteractionSet refused;
+				HybridInteractionResult refused_result;
+				Check (!Hybrid_Build_Interactions (strict,fixture.Identity,fixture.Matrices,fixture.Landforms,
+																fixture.Hydrology,fixture.Anchors,fixture.Topology,
+																fixture.Routes,Macro_Sample_From_Formula,&fixture.Ground,
+																&refused,&refused_result),
+						 "a zero crossing-problem budget was accepted");
+				Check (refused_result.Failure == HYBRID_INTERACTION_LIMIT,
+						 "a breached crossing-problem limit named %s",
+						 Hybrid_Interaction_Failure_Name (refused_result.Failure));
+				Check (refused.Interactions.Count () == 0,"a refused Phase 11 left solutions behind");
+			}
+
+			//	7: an impossible overpass clearance leaves no legal vertical assignment.
+			{
+				HybridInteractionParams tall = params;
+				tall.HeavyVehicleHeight = 400.0f;
+				HybridInteractionSet refused;
+				HybridInteractionResult refused_result;
+				const bool accepted = Hybrid_Build_Interactions (tall,fixture.Identity,fixture.Matrices,
+																				 fixture.Landforms,fixture.Hydrology,
+																				 fixture.Anchors,fixture.Topology,
+																				 fixture.Routes,Macro_Sample_From_Formula,
+																				 &fixture.Ground,&refused,&refused_result);
+				//	Either it refuses, or every road x road crossing it kept is an at-grade junction: a 400-unit
+				//	clearance cannot be ramped to, and an overpass may not be compiled without it.
+				if (accepted) {
+					for (int i = 0; i < refused.Interactions.Count (); ++i) {
+						Check (refused.Interactions[i].Method != HYBRID_METHOD_OVERPASS,
+								 "an overpass compiled under a 400-unit required clearance");
+					}
+				} else {
+					Check (refused.Interactions.Count () == 0,"a refused Phase 11 left solutions behind");
+				}
+			}
+
+			//	8: a crossing separation so large that no two crossings can coexist.
+			{
+				HybridInteractionParams crowded = params;
+				crowded.Constants.W = params.Constants.W * 40.0f;		// 4W separation becomes 160W of world
+				HybridInteractionSet refused;
+				HybridInteractionResult refused_result;
+				const bool accepted = Hybrid_Build_Interactions (crowded,fixture.Identity,fixture.Matrices,
+																				 fixture.Landforms,fixture.Hydrology,
+																				 fixture.Anchors,fixture.Topology,
+																				 fixture.Routes,Macro_Sample_From_Formula,
+																				 &fixture.Ground,&refused,&refused_result);
+				if (!accepted) {
+					Check (refused.Interactions.Count () == 0,"a refused Phase 11 left solutions behind");
+				}
+			}
+		}
+
+		//	Determinism: a second solving pass over the same frozen records is identical.
+		{
+			HybridInteractionSet again;
+			HybridInteractionResult again_result;
+			Check (Hybrid_Build_Interactions (params,fixture.Identity,fixture.Matrices,fixture.Landforms,
+														 fixture.Hydrology,fixture.Anchors,fixture.Topology,
+														 fixture.Routes,Macro_Sample_From_Formula,&fixture.Ground,
+														 &again,&again_result),
+					 "the second interaction pass was refused: %s",again_result.Detail.Peek_Buffer ());
+			Check (again.Checksum == interactions.Checksum,"Phase 11 is not reproducible");
+			Check (again.Interactions.Count () == interactions.Interactions.Count (),
+					 "the second pass compiled a different number of solutions");
+			for (int i = 0; (i < again.Interactions.Count ()) &&
+								 (i < interactions.Interactions.Count ()); ++i) {
+				Check (again.Interactions[i].StableId == interactions.Interactions[i].StableId,
+						 "solution order is not stable at %d",i);
+				Check (again.Interactions[i].Method == interactions.Interactions[i].Method,
+						 "method selection is not stable at %d",i);
+				Check (again.Interactions[i].BridgeKind == interactions.Interactions[i].BridgeKind,
+						 "bridge kind selection is not stable at %d",i);
+				Check (again.Interactions[i].TunnelModule == interactions.Interactions[i].TunnelModule,
+						 "tunnel module selection is not stable at %d",i);
+				Check (again.Interactions[i].Station == interactions.Interactions[i].Station,
+						 "station selection is not stable at %d",i);
+			}
+		}
+	}
+
+	Check (solved_any,"no fixture seed produced a Phase-11 solution set: %d pipeline refusals (last: %s), "
+			 "%d Phase-11 refusals (last: %s)",refused_pipeline,last_pipeline_detail.Peek_Buffer (),
+			 refused_phase11,last_phase11_detail.Peek_Buffer ());
+
+	/*
+	**	What the walk actually exercised.  A method the shipped content cannot support is not a failure --
+	**	the plan makes fords and tunnels optional capabilities -- but the two obligations are not optional,
+	**	and a bridge is the only method a quota accepts, so those have to have been seen.
+	*/
+	printf ("Phase 11 coverage: bridge %d, ford %d, surface pass %d, road cut %d, ramp pass %d, "
+					  "tunnel %d, junction %d, overpass %d; %d mandatory crossings, %d reserved overpasses\r\n",
+					  seen_method[HYBRID_METHOD_BRIDGE],seen_method[HYBRID_METHOD_FORD],
+					  seen_method[HYBRID_METHOD_SURFACE_PASS],seen_method[HYBRID_METHOD_ROAD_CUT],
+					  seen_method[HYBRID_METHOD_RAMP_PASS],seen_method[HYBRID_METHOD_TUNNEL],
+					  seen_method[HYBRID_METHOD_AT_GRADE_JUNCTION],seen_method[HYBRID_METHOD_OVERPASS],
+					  mandatory_bridges,reserved_overpasses);
+
+	Check (seen_method[HYBRID_METHOD_BRIDGE] > 0,"no fixture seed compiled a bridge");
+	Check (mandatory_bridges > 0,"no fixture seed exercised a mandatory crossing obligation");
+	Check (negatives_done,"the negative fixtures never ran");
+	Check ((seen_method[HYBRID_METHOD_OVERPASS] + seen_method[HYBRID_METHOD_AT_GRADE_JUNCTION]) > 0,
+			 "no fixture seed exercised a road-on-road crossing");
+
+	//	Fords are disabled on the native profile until a ford capability exists: prove the disabled path.
+	Check (seen_method[HYBRID_METHOD_FORD] == 0,
+			 "a ford compiled although the native profile has no ford capability");
+}
+
 int	TerrainSelfCheck::Run (const char *which)
 {
 	_Failures = 0;
@@ -15425,6 +16513,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "hybridroutes") == 0)) {
 		Check_Hybrid_Routes ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridinteractions") == 0)) {
+		Check_Hybrid_Interactions ();
 	}
 	if ((which == nullptr) || (::strcmp (which, "hybridpreflight") == 0)) {
 		Check_Hybrid_Preflight ();

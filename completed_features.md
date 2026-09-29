@@ -4806,6 +4806,66 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## Hybrid generator rewrite I12 -- runtime Phase 11, the deterministic interaction solver (2026-09-28)
+
+Runtime Phase 11 is in `Code/wwphys/hybridinteractions.{h,cpp}`, wired through
+`ProceduralWorldManager::Build_Hybrid_Interactions` into the generated-map startup sequence immediately
+after Phase 10, and gated by `renegade -terrainselfcheck hybridinteractions`. It decides what each crossing
+Phase 10 left unresolved actually *is* and instantiates nothing: no `RoadSystem`, `BridgeSystem` or
+`TunnelSystem` object is created and no terrain is touched, which is Phase 12's work.
+
+All four method orders are the plan's and are fixed: road x river (bridge, ford, one more Phase-10
+envelope, fail), road x canyon/ravine (bridge, surface pass, tunnel, envelope, fail, with a mandatory
+bridge obligation skipping both fallbacks), road x cliff/ridge (road cut, ramp pass, tunnel, envelope,
+fail) and road x road (at-grade junction, overpass with its single permitted swap, reroute the
+lower-priority road, fail). A reserved `OVERPASS_OBLIGATION` always compiles as an overpass and never
+downgrades. The solver never invents a method a Phase-6 window does not already permit and never moves an
+obligation to a different obstruction.
+
+Also implemented: the station search (`half_length = max(8W,4S)`, spacing `min(W,A/2)`, centred on the
+frozen waypoint for an obligation, capped at exactly 64 uniformly spaced stations, quantized and
+deduplicated); the common hard-valid station tests; bridge asset selection by smallest sufficient maximum
+span then lower registry id, with the span resolved through `Hybrid_Resolve_Bridge_Max_Span` -- the
+definition's own value first, `BridgePlannerParams::MaxSpanLength` second, no third source; the exact
+candidate score `4*span + 2*elevation + 3*grade + 2*curve + detour`; Section 12.3's vertical geometry for
+river and canyon bridges and for road-over-road clearance; Section 12.4's clear width; Section 12.5's
+tunnel conditions with the shortest sufficient module sequence; the overpass ramp; the swept proxy
+validation over every compiled interval; the Section-5 bridge and overpass quotas; and the twelve-problems
+-per-edge limit. Each crossing becomes a `HybridInteraction` and each unsolved one a
+`HybridInteractionIssue`, over a checksum that covers everything able to affect Phase 12 geometry.
+
+Three defects were found by the gate and fixed at their owners, recorded as `DECISIONS.md` D-010: the
+overpass ramp reservation now carries the smoothstep's exact peak-slope factor, because a ramp sized for
+the average grade peaks at `1.5x` it and the plan requires the limit at *every* sample; Section 12.4's
+swept-width question is asked of whatever carries the vehicle rather than of the marked carriageway, which
+had been refusing crossings that a widened deck exists to make; and a refused Phase 11 no longer leaves
+compiled solutions behind. Two diagnosis defects were fixed with them: a fallback attempt no longer
+overwrites the primary method's refusal reason, and the reported reason is now the furthest stage any
+station reached rather than whichever station happened to be evaluated last.
+
+**Gate:** `Check_Hybrid_Interactions` runs the real pipeline -- preflight, identity, strategic graph,
+semantic matrices, landforms, hydrology, macro terrain, anchors, topology, Phase-10 routes, Phase 11 --
+over 32 deterministic fixtures (eight seeds across four archetypes), and recomputes the acceptance
+properties for itself rather than trusting the solver: one solution per conflict, every obligation keeping
+its method, no `HIGHWAY_4` or `PRIMARY_2` fording, the Section-5 quotas, the problem limit, the station
+search reach, quantized geometry inside placeable bounds, unrelated base and Tiberium reserves untouched,
+approach grade feasibility, the swept envelope against whatever carries it, `4W` crossing separation,
+bridge clear width and resolved maximum span and structural depth and water clearance, tunnel envelope and
+module, road-cut depth, the full swept route of every pass, overpass clearance and ramp grade, and a second
+pass reproducing the checksum with stable record order and stable method, asset and station selection.
+Eight negative fixtures prove the hard failures refuse deterministically for their own named reason --
+span too long, clear width insufficient, approach reserve blocked, no registered bridge kind, swept
+clearance impossible, the crossing-problem limit, an unreachable overpass clearance and an impossible
+crossing separation -- with no constraint relaxed to make any of them green.
+
+Coverage on the shipped content: bridge, at-grade junction and overpass compile, with mandatory crossing
+obligations and a reserved overpass exercised. Fords and tunnels correctly do not compile, because no ford
+capability and no tunnel module are registered, and the gate asserts that disabled behaviour rather than
+fabricating content metrics. Surface pass, ramp pass and road cut are unreachable on these fixtures because
+the archetypes that would produce cliff and ridge crossings refuse upstream in Phase 9 -- see the open
+`Q-019` -- and that is recorded rather than worked around. Documented in
+`docs/procedural_world/HybridInteractions.md`.
+
 ## Hybrid generator rewrite I11 -- runtime Phase 10, bounded heading-aware A* and road centerlines (2026-09-28)
 
 Runtime Phase 10 is in `Code/wwphys/hybridroutes.{h,cpp}`, wired through

@@ -74,6 +74,7 @@
 #include "hybridanchors.h"
 #include "hybridtopology.h"
 #include "hybridroutes.h"
+#include "hybridinteractions.h"
 
 
 class ProceduralWorldManager
@@ -157,6 +158,7 @@ class ProceduralWorldManager
 		*/
 		static bool											Has_Hybrid_Metrics(void)	{ return HybridMetricsValid; }
 		static const HybridMetricCache &				Get_Hybrid_Metrics(void)	{ return HybridMetrics; }
+		static const HybridPreflightInputs &		Get_Hybrid_Inputs(void)		{ return HybridInputs; }
 
 		/*
 		** Runtime Phase 2's immutable MapIdentity and Section-6.10 intent set for the attempt
@@ -248,6 +250,7 @@ class ProceduralWorldManager
 		*/
 		static bool											Has_Hybrid_Routes(void)				{ return HybridRoutesValid; }
 		static const HybridRouteSet &					Get_Hybrid_Routes(void)				{ return HybridRoutes; }
+		static const HybridInteractionSet &			Get_Hybrid_Interactions(void)		{ return HybridInteractions; }
 
 	private:
 
@@ -307,6 +310,14 @@ class ProceduralWorldManager
 		//	Phase-9 topology and the realized Phase-7 ground.  `built_out` reports whether the routes now
 		//	exist; false with a true return means the legacy generator, or a hybrid attempt whose Phase 9
 		//	did not run.
+		/*
+		**	Rewrite item I12, runtime Phase 11: what each crossing Phase 10 left unresolved actually *is*.
+		**	Nothing is instantiated here -- the output is one compiled solution record per conflict, which
+		**	Phase 12 consumes as the whole of what it may know about a crossing.
+		*/
+		static bool		Build_Hybrid_Interactions(const ProceduralWorldProfile & profile,bool * built_out,
+																StringClass * error_out);
+
 		static bool		Build_Hybrid_Routes(const ProceduralWorldProfile & profile,bool * built_out,
 													  StringClass * error_out);
 
@@ -475,6 +486,21 @@ class ProceduralWorldManager
 		static HybridTopology				HybridTopologyRecord;
 		static bool							HybridTopologyValid;
 		static HybridRouteSet				HybridRoutes;
+		static HybridInteractionSet		HybridInteractions;
+		static bool								HybridInteractionsValid;
+
+		/*
+		**	The preflight inputs the metric cache indexes into.  Phase 11 needs the per-kind bridge and tunnel
+		**	metrics themselves, not only the cache's indices into them, and re-measuring content
+		**	mid-generation is exactly what preflight exists to avoid.
+		**
+		**	Written once, beside `HybridMetrics` and under the same `HybridMetricsValid` latch, from the
+		**	inputs the passing preflight was run on; read-only for the rest of the attempt and every retry,
+		**	because nothing preflight measures changes with the effective seed.  It is a second *view* of
+		**	frozen content measurements, never a second source of truth: `Get_Hybrid_Inputs` is the only way
+		**	anything outside that one assignment reaches it.
+		*/
+		static HybridPreflightInputs		HybridInputs;
 		static bool							HybridRoutesValid;
 
 		//	Section 16.3's one per-attempt scratch arena and Section 16.1's work counters.  Reserved

@@ -107,6 +107,9 @@ bool								ProceduralWorldManager::HybridAnchorsValid	= false;
 HybridTopology				ProceduralWorldManager::HybridTopologyRecord;
 bool								ProceduralWorldManager::HybridTopologyValid	= false;
 HybridRouteSet				ProceduralWorldManager::HybridRoutes;
+HybridInteractionSet		ProceduralWorldManager::HybridInteractions;
+bool							ProceduralWorldManager::HybridInteractionsValid		= false;
+HybridPreflightInputs	ProceduralWorldManager::HybridInputs;
 bool								ProceduralWorldManager::HybridRoutesValid	= false;
 HybridScratchArena			ProceduralWorldManager::HybridArena;
 HybridWorkCounters			ProceduralWorldManager::HybridWork;
@@ -927,6 +930,124 @@ bool ProceduralWorldManager::Build_Hybrid_Routes(const ProceduralWorldProfile & 
 
 
 
+/***********************************************************************************************
+ * Build_Hybrid_Interactions -- rewrite item I12, runtime Phase 11                                *
+ *                                                                                             *
+ * What each crossing actually is.  Phase 10 left every one of them as an unresolved structural    *
+ * interval; this decides bridge, ford, surface pass, road cut, ramp pass, tunnel, at-grade         *
+ * junction or overpass, in the fixed method order the plan sets out for each obstruction kind.     *
+ * Nothing is realized: no RoadSystem, BridgeSystem or TunnelSystem object is created and no        *
+ * terrain is touched, which is Phase 12's work.                                                   *
+ *                                                                                             *
+ * Every metric the solver needs comes from the frozen preflight cache -- the bridge registry and   *
+ * `BridgePlannerParams` through `HybridMetrics`, the vehicle envelopes through the same -- so this  *
+ * phase measures no content of its own and invents no constant.                                    *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProfile & profile,
+																		 bool * built_out,StringClass * error_out)
+{
+	if (built_out != nullptr) *built_out = false;
+	HybridInteractionsValid = false;
+	HybridInteractions.Reset ();
+
+	//	The legacy generator has no Phase 11: correctly skipped, not a failure.
+	if (!profile.Uses_Hybrid_Generator ()) {
+		return true;
+	}
+	if (!HybridRoutesValid) {
+		return true;
+	}
+
+	HybridInteractionParams params;
+	params.Constants		= HybridMetrics.Constants;
+	params.WorldMinX		= profile.World.CenterX - (0.5f * profile.World.Width);
+	params.WorldMinY		= profile.World.CenterY - (0.5f * profile.World.Height);
+	params.WorldWidth		= profile.World.Width;
+	params.WorldHeight	= profile.World.Height;
+	params.MaxCutDepth	= profile.Grading.MaxCutDepth;
+	params.MaxFillHeight	= profile.Grading.MaxFillHeight;
+	params.RiverWidth		= profile.Water.RiverWidth;
+
+	params.AllowFords					= profile.Plan.AllowFords;
+	params.FordCapabilityAvailable	= HybridMetrics.FordsAvailable;
+	params.TunnelsEnabled			= profile.Features.Tunnels;
+	params.TunnelAvailable			= HybridMetrics.TunnelsAvailable;
+
+	params.WorldUnitsPerMeter		= HybridMetrics.Constants.WorldUnitsPerMeter;
+	params.HeavyVehicleWidth		= HybridMetrics.HeavyVehicleWidth;
+	params.HeavyVehicleHeight		= HybridMetrics.HeavyVehicleHeight;
+	params.HarvesterWidth			= HybridMetrics.HarvesterWidth;
+	params.MinVehicleLaneClearance= profile.Fairness.MinVehicleLaneClearance;
+	params.TierStep					= profile.Plan.TierStep;
+
+	params.BridgeWaterClearanceMargin = HybridMetrics.BridgeWaterClearanceMargin;
+	for (int i = 0; i < HYBRID_ROAD_CLASS_COUNT; ++i) {
+		params.BridgeForClass[i]		= HybridMetrics.BridgeForClass[i];
+		params.BridgeRequiredWidth[i]	= HybridMetrics.BridgeRequiredWidth[i];
+	}
+
+	params.MaxLocalRetriesPerStage	= profile.Retry.MaxLocalRetriesPerStage;
+
+	/*
+	**	The registered bridge kinds, flattened for the wwphys layer.
+	**
+	**	Each kind's maximum supported span goes through `Hybrid_Resolve_Bridge_Max_Span`, which is the plan's
+	**	own resolution order: the bridge definition's value first, `BridgePlannerParams::MaxSpanLength`
+	**	second.  `BridgeDefinitionClass` exposes deck width, deck thickness, required clearance and support
+	**	spacing but no maximum span of its own, so today every kind resolves to the planner's value -- which
+	**	is a resolved metric, not a missing one.  Kinds that share it have equal span capability and are
+	**	separated by the remaining suitability tests and then the lower registry id.  Preflight refuses the
+	**	request when neither source supplies a span at all.
+	*/
+	const DynamicVectorClass<HybridBridgeInput> & bridges = HybridInputs.Bridges;
+	for (int i = 0; i < bridges.Count (); ++i) {
+
+		HybridBridgeKind kind;
+		kind.StableId					= i;
+		kind.ClearWidth				= bridges[i].Width;
+		kind.StructuralDepth			= bridges[i].DeckThickness;
+		kind.RequiredClearance		= bridges[i].RequiredClearance;
+		kind.MaxSpan					= Hybrid_Resolve_Bridge_Max_Span (0.0f,
+																					HybridMetrics.BridgeMaxSpanLength);
+		kind.RequiredApproachLength= HybridMetrics.BridgeApproachLength;
+		params.BridgeKinds.Add (kind);
+	}
+
+	const DynamicVectorClass<HybridTunnelModuleInput> & modules = HybridInputs.TunnelModules;
+	for (int i = 0; i < modules.Count (); ++i) {
+
+		HybridTunnelModule one;
+		one.StableId			= i;
+		one.Length				= modules[i].Length;
+		one.ClearWidth			= modules[i].ClearanceWidth;
+		one.ClearHeight		= modules[i].ClearanceHeight;
+		one.MaxGradeRadians	= modules[i].MaxGradeRadians;
+		one.PortalCompatible	= modules[i].PortalCompatible;
+		params.TunnelModules.Add (one);
+	}
+
+	params.Arena	= &HybridArena;
+	params.Counters= &HybridWork;
+
+	HybridInteractionResult result;
+	if (!Hybrid_Build_Interactions (params,HybridIdentity,HybridCoarse,HybridLandforms,HybridHydrology,
+												HybridAnchors,HybridTopologyRecord,HybridRoutes,
+												Sample_Terrain_Height,nullptr,&HybridInteractions,&result)) {
+		if (error_out != nullptr) {
+			error_out->Format ("hybrid interactions: %s (%s)",
+									 Hybrid_Interaction_Failure_Name (result.Failure),
+									 result.Detail.Peek_Buffer ());
+		}
+		HybridInteractions.Reset ();
+		return false;
+	}
+
+	HybridInteractionsValid = true;
+	if (built_out != nullptr) *built_out = true;
+	return true;
+}
+
+
 bool ProceduralWorldManager::Build_Map_Plan(const ProceduralWorldProfile & profile,bool * built_out,StringClass * error_out)
 {
 	if (built_out != nullptr) *built_out = false;
@@ -1723,6 +1844,7 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 				return false;
 			}
 			HybridMetrics = preflight.Metrics;
+			HybridInputs = preflight_inputs;
 			HybridMetricsValid = true;
 			WWDEBUG_SAY (("ProceduralWorld: hybrid preflight passed, content revision %08X, planning input hash %08X\n",
 								preflight.Metrics.ContentRevision,preflight.Metrics.PlanningInputHash));
@@ -1925,6 +2047,20 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	if (!Build_Hybrid_Routes (profile,&hybrid_routes_built,&hybrid_route_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",hybrid_route_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = hybrid_route_error;
+		return false;
+	}
+
+	/*
+	**	Runtime Phase 11 (rewrite item I12).  What each crossing Phase 10 left unresolved actually is:
+	**	a bridge, a ford, a surface pass, a road cut, a ramp pass, a tunnel, an at-grade junction or an
+	**	overpass, chosen in the fixed method order the plan sets out for each obstruction kind.  Nothing
+	**	is realized here; Phase 12 consumes these records.
+	*/
+	bool hybrid_interactions_built = false;
+	StringClass hybrid_interaction_error;
+	if (!Build_Hybrid_Interactions (profile,&hybrid_interactions_built,&hybrid_interaction_error)) {
+		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",hybrid_interaction_error.Peek_Buffer ()));
+		if (error_out != nullptr) *error_out = hybrid_interaction_error;
 		return false;
 	}
 

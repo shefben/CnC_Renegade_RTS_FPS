@@ -280,15 +280,25 @@ obligation) are open and neither blocks code.
 **I11 (runtime Phase 10) is closed** -- see `completed_features.md` and `DECISIONS.md` D-009 with its
 2026-09-28 revision. The whole 231-test ctest suite is green on client and dedicated server.
 
-**I12 (runtime Phase 11, the deterministic interaction solver) is the next item.** Phase 10 hands it what
-it needs: one accepted centerline per mandatory topology edge, the A* cell chain behind it, the frozen
-waypoints it was routed through, and -- new with I11 -- a `HybridRouteStructuralSpan` per crossing, giving
-the window, the two frozen approach points and the sample range of the straight interval between them,
-with the method (bridge, overpass, bore, cut) deliberately unresolved.
+**I12 (runtime Phase 11) is closed** -- see `completed_features.md` and `DECISIONS.md` D-010. The whole
+233-test ctest suite is green on client and dedicated server.
 
-**Next exact action:** implement I12 against `Procedural_World_Generator_Rewrite_Plan_FINAL_AUDITED.md`
-Section 8 Phase 11 and Sections 12.3 to 12.5, in a new `Code/wwphys/hybridinteractions.{h,cpp}` owned by
-`ProceduralWorldManager::Build_Hybrid_Interactions`, then its `terrain_hybridinteractions` /
-`fds_terrain_hybridinteractions` gate, then I13. `Q-018` (LARGE hill quota against the 25 per cent overlap
-cap) and `Q-019` (canyon/ravine bridge quota on archetypes with no canyon obligation) are both still open
-and neither blocks I12.
+**I13 (runtime Phase 12, final roads and local terrain cut/fill) is the next item.** Phase 11 hands it one
+compiled `HybridInteraction` per conflict -- method, station, tangent, approach reserve, bridge kind or
+tunnel module, deck and ramp elevations, cut depth, and the route sample range it covers -- plus the
+`HybridInteractionIssue` records for anything unsolved. Phase 12 may not reroute a road, move a crossing,
+change a method or reopen Phases 9 to 11; a failure there fails the whole attempt.
+
+**Next exact action:** implement I13 against
+`Procedural_World_Generator_Rewrite_Plan_FINAL_AUDITED.md` Section 8 Phase 12 and Sections 12.1 to 12.3 --
+the deterministic vertical-profile solver (forward then backward interval propagation, then the clamped
+walk, quantized and revalidated), terrain deformation and realization through the canonical
+`WorldTerrainSystem`, `RoadSystem`, `BridgeSystem`, `TunnelSystem` and junction APIs with the
+attempt-owned reverse-order cleanup list, and the post-realization physical verification -- in a new
+`Code/wwphys/hybridroadrealization.{h,cpp}` owned by `ProceduralWorldManager`, then its
+`terrain_hybridroadrealization` / `fds_` gate, then I14.
+
+`Q-018` (LARGE hill quota against the 25 per cent overlap cap) is open. **`Q-019` now blocks test
+coverage rather than code:** the `HIGHLAND_PASS`, `RIVER_VALLEY`, `RAVINE_NETWORK` and `PLATEAU_BASIN`
+archetypes refuse in Phase 9 on the canyon/ravine bridge quota, which is why Phase 11's road-cut, ramp-pass
+and surface-pass families have no reachable fixture. Resolving Q-019 would let the I12 gate cover them.

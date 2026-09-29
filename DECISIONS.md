@@ -552,6 +552,51 @@ it leaves open is how three of those requirements are measured. These are the re
    edge lengths and ties broken by `StableId`; Phase 19's authoritative re-check calls the same
    function rather than growing a second distance rule.
 
+
+## D-010 - Hybrid rewrite I12: the overpass ramp reservation carries the smoothstep's peak slope (2026-09-28)
+
+Section 8 Phase 11 asks for two things about an overpass ramp at once:
+
+```text
+L_ramp = max(10W, abs(delta_z) / max(tan(upper_class.max_grade),Q))
+...one smoothstep ramp over exactly L_ramp on each side...
+Sample at min(W/3,A/4) and require max grade, cross-slope, cut/fill interval and clearance at every sample.
+```
+
+For `y = h * smoothstep(x/L)` the slope is steepest at the midpoint, where it is `1.5 h / L`. A ramp
+measured out by `abs(delta_z) / tan(g)` therefore *averages* `g` and *peaks* at `1.5 g`, so the per-sample
+requirement refuses the very shape the same paragraph asks for. Measured on the fixture seeds this is
+exactly what happened: a reserved `OVERPASS_OBLIGATION` between edges 6 and 20 was refused
+`grade_too_steep`, and a reserved overpass may not downgrade.
+
+**Decision:** the grade limit does not move; the reservation does. `L_ramp` keeps the plan's formula as its
+floor and carries the smoothstep's exact peak-slope factor:
+
+```text
+L_ramp = max(10W, 1.5 * abs(delta_z) / max(tan(upper_class.max_grade),Q))
+```
+
+Of the two statements the per-sample limit is the stricter, and `L_ramp` is already written as a
+`max(...)` reservation, so extending it satisfies both rather than weakening either. The ramp is also
+measured against the rise it actually makes -- from the road's own elevation at each ramp foot up to the
+deck, not from the ground under the crossing -- and the foot elevation is resolved iteratively because the
+foot moves as the ramp lengthens. The compiled profile interpolates foot to deck through the smoothstep; it
+does not follow the terrain, which would put the ground's own slope into the road's grade.
+
+Two smaller corrections were made under the same evidence and are part of this decision:
+
+- **Section 12.4 is a question about what carries the vehicle, not about the marked carriageway.** The
+  common station tests asked the carriageway to exceed the swept vehicle envelope, which refuses every
+  crossing a widened deck exists to make -- 13 of 64 stations on a `PRIMARY_2` canyon crossing, whose 6.65
+  carriageway can never hold an 8.80 envelope and never needed to, because Section 12.4 sizes the deck to
+  `max(carriageway, swept + 2*clearance)` and blends both approaches up to it. A structural method now asks
+  its own asset; a ford, pass or cut asks its graded roadbed.
+- **A refused Phase 11 leaves no compiled solution behind**, matching every other phase's contract, while
+  its issue records are kept because they are what a refused attempt is read from.
+
+**Status: accepted.** `terrain_hybridinteractions` and `fds_terrain_hybridinteractions` pass, as does the
+whole 233-test ctest suite on client and dedicated server.
+
 ## D-009 - Hybrid rewrite I11: HIGHWAY_4 curvature resolution (2026-09-28)
 
 **Decision (user, 2026-09-28):** retain the canonical global analysis spacing
