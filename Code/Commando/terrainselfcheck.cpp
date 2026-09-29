@@ -17112,6 +17112,49 @@ void Check_Hybrid_Interactions (void)
 				}
 				Check (found,"edge %u vanished when its envelope floor was raised",edge_id);
 			}
+
+			/*
+			**	Byte-identity of the edges a reroute does not affect, measured where it means something.  The
+			**	fixture worlds that reroute happen to reroute their first-routed edge, which leaves nothing
+			**	before it to compare; so here the floor goes on the *last* edge Phase 10 routes, and every route
+			**	laid down before it must come back bit for bit.  The full re-run is only acceptable because this
+			**	holds.
+			*/
+			HybridPipelineFixture late;
+			StringClass late_why;
+			if (Build_Hybrid_Pipeline (INTERACTION_SEEDS[4],1200.0f,HYBRID_ARCHETYPE_CANYON_CROSSROADS,&late,
+												&late_why,&preflight.Metrics) && (late.Routes.Routes.Count () > 1)) {
+
+				const HybridRouteSet before = late.Routes;
+				const int last = before.Routes.Count () - 1;
+
+				HybridRouteEnvelopeFloor late_floor;
+				late_floor.EdgeId			= before.Routes[last].EdgeId;
+				late_floor.MinEnvelope	= before.Routes[last].Envelope + 1;
+				if (late_floor.MinEnvelope <= 2) {
+					late.RouteParams.EnvelopeFloors.Add (late_floor);
+
+					HybridRouteSet after;
+					HybridRouteResult after_result;
+					if (Hybrid_Build_Routes (late.RouteParams,late.Identity,late.Matrices,late.Landforms,
+													 late.Hydrology,late.Anchors,late.Topology,Macro_Sample_From_Formula,
+													 &late.Ground,&after,&after_result)) {
+						Check (after.Routes.Count () == before.Routes.Count (),
+								 "raising one floor changed the route count from %d to %d",before.Routes.Count (),
+								 after.Routes.Count ());
+						int identical = 0;
+						for (int r = 0; (r < last) && (r < after.Routes.Count ()); ++r) {
+							const bool same = Routes_Identical (before.Routes[r],after.Routes[r]);
+							Check (same,"edge %u, routed before the rerouted edge %u, changed",
+									 before.Routes[r].EdgeId,late_floor.EdgeId);
+							if (same) identical++;
+						}
+						untouched_checked += identical;
+						printf ("  late-edge reroute: edge %u to envelope %d, %d of %d earlier routes byte-identical\r\n",
+								  late_floor.EdgeId,late_floor.MinEnvelope,identical,last);
+					}
+				}
+			}
 		}
 	}
 
