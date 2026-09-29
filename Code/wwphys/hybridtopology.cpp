@@ -951,26 +951,38 @@ static bool Build_Family_Chains(TopologyBuilder & b,HybridTopologyResult * resul
 		int chosen = -1;
 		float chosen_distance = 0.0f;
 
+		//	Why each window was passed over, so an unbound obligation says what stood in the way.
+		int refused_used = 0;
+		int refused_obstruction = 0;
+		int refused_method = 0;
+		int refused_distance = 0;
+		int refused_spacing = 0;
+		float nearest_refused = 3.4e38f;
+
 		for (int w = 0; w < b.Hydrology->Windows.Count(); ++w) {
 
-			if (b.WindowUsed[w] != 0) continue;
+			if (b.WindowUsed[w] != 0) { refused_used++; continue; }
 			const HybridCrossingWindow & window = b.Hydrology->Windows[w];
 
 			//	The obstruction the obligation is about, and the method it requires.
 			if ((obligation.Obstruction != HYBRID_OBSTRUCTION_NONE) &&
-				 (obligation.Obstruction != window.Obstruction)) continue;
+				 (obligation.Obstruction != window.Obstruction)) { refused_obstruction++; continue; }
 
 			if (obligation.RequiredMethod == HYBRID_CROSSING_BRIDGE) {
-				if (!window.Has_Method(HYBRID_WINDOW_METHOD_BRIDGE)) continue;
+				if (!window.Has_Method(HYBRID_WINDOW_METHOD_BRIDGE)) { refused_method++; continue; }
 			} else if (obligation.RequiredMethod == HYBRID_CROSSING_PASS) {
-				if (!window.Has_Method(HYBRID_WINDOW_METHOD_PASS)) continue;
+				if (!window.Has_Method(HYBRID_WINDOW_METHOD_PASS)) { refused_method++; continue; }
 			} else if (obligation.RequiredMethod == HYBRID_CROSSING_TUNNEL) {
-				if (!window.Has_Method(HYBRID_WINDOW_METHOD_TUNNEL)) continue;
+				if (!window.Has_Method(HYBRID_WINDOW_METHOD_TUNNEL)) { refused_method++; continue; }
 			}
 
 			const float distance = (window.Center - guide).Length();
-			if (distance > corridor_half) continue;
-			if (!Window_Spacing_Is_Legal(b,window)) continue;
+			if (distance > corridor_half) {
+				refused_distance++;
+				if (distance < nearest_refused) nearest_refused = distance;
+				continue;
+			}
+			if (!Window_Spacing_Is_Legal(b,window)) { refused_spacing++; continue; }
 
 			//	Preferred beats plain, then nearer the guide, then the lower StableId.
 			if (chosen >= 0) {
@@ -983,9 +995,14 @@ static bool Build_Family_Chains(TopologyBuilder & b,HybridTopologyResult * resul
 		}
 
 		if (chosen < 0) {
-			detail.Format("obligation %u (family %d, obstruction %s) has no qualifying window",
+			detail.Format("obligation %u (family %d, obstruction %s, method %d) has no qualifying window "
+								"among %d: %d already used, %d wrong obstruction, %d without the method, %d past the "
+								"%.0f corridor half-width (nearest %.0f), %d too close to another",
 								obligation.StableId,obligation.RouteFamily,
-								Hybrid_Obstruction_Kind_Name(obligation.Obstruction));
+								Hybrid_Obstruction_Kind_Name(obligation.Obstruction),
+								(int)obligation.RequiredMethod,b.Hydrology->Windows.Count(),refused_used,
+								refused_obstruction,refused_method,refused_distance,corridor_half,
+								(nearest_refused < 3.4e38f) ? nearest_refused : -1.0f,refused_spacing);
 			return Fail(result,HYBRID_TOPOLOGY_OBLIGATION_UNBOUND,detail.Peek_Buffer());
 		}
 

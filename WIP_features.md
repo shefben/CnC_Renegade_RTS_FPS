@@ -280,32 +280,39 @@ obligation) are open and neither blocks code.
 **I11 (runtime Phase 10) is closed** -- see `completed_features.md` and `DECISIONS.md` D-009 with its
 2026-09-28 revision. The whole 231-test ctest suite is green on client and dedicated server.
 
-**I12 (runtime Phase 11) is closed** -- see `completed_features.md` and `DECISIONS.md` D-010, committed as
-`70164cf4`. The whole 233-test ctest suite is green on client and dedicated server.
+**I12 (runtime Phase 11) is closed** for its bridge, ford-disabled, junction and overpass behaviour, and
+**Q-019 is closed** (`DECISIONS.md` D-011). Full suite 233/233 on client and dedicated server.
 
-**Q-019 is decided and its implementation is the next item, before I13.** The decision is option (a):
-Phase 5 owns Section 5's canyon/ravine bridge quota and must lay that many systems across a required heavy
-corridor. `awaiting_answers.md` carries the decision and the reasoning. The first implementation is written
-and was reverted at the point it exposed two defects, so the tree is green rather than half-changed:
+**What Q-019 unblocked, and what it did not.** The canyon/ravine bridge quota no longer refuses seeds, and
+four owner-level defects were fixed with it: landform `StableId` ownership, the line-feature control frame
+(the 0.029 end-control offset), the `SURFACE_SADDLE` crossing obligation, and `highland_pass`'s wrongly
+tagged alternate guide. `highland_pass` seeds now reach Phase 11 instead of failing `obligation_unbound`.
 
-1. `Place_Required` in `Code/wwphys/hybridlandforms.cpp` consumes a `StableId` before its placement test,
-   so a step that tries several stations leaves id gaps and `terrain_hybridlandforms` fails "StableIds are
-   not creation order". Fix that first -- assign the id on acceptance, or restore `NextStableId` on refusal.
-2. With the quota step in place a different fixture seed becomes the first to pass, and on it ravine end
-   controls 0 and 3 measure lateral offsets of 0.029 and 0.018 against the 0.01 the plan allows, on ravines
-   placed *before* the new step. Ten times what the 0.001 position quantum explains, so it is a pre-existing
-   disagreement between the angle the controls are laid with and the `Orientation` the check measures
-   against. Understand it at its owner before judging the quota step.
+**Phase 11's road-cut, ramp-pass and surface-pass branches are still unexercised**, and the measurements
+say why. Of 40 real-pipeline fixtures (8 seeds x 5 archetypes) only 2 solve, and on the solved worlds:
 
-**Next exact action:** fix (1), then diagnose (2) at its owner in Phase 5's control laying, then re-apply
-the quota step. The reverted implementation is reproducible from the decision: a `Place_Quota_Crossing_Systems`
-step running *before* the density fill (so its systems count toward `TargetSystems` rather than adding to
-it, with `TargetSystems` raised to the quota as a floor), guided onto each heavy family corridor's midpoint
-and outwards in eighths with the landform axis perpendicular to the corridor, every candidate still going
-through the ordinary required-placement test and Section-6 rejection rules. Then rerun
-`terrain_hybridinteractions` and `fds_terrain_hybridinteractions` and confirm the road-cut, ramp-pass and
-surface-pass branches are exercised with their full record/geometry assertions, append the I12 completion
-record with the new coverage, and only then start I13 (runtime Phase 12, final roads and local terrain
-cut/fill).
+- `pass_capable` is **0 of 125 windows** and **0 of 114**. `Pass_Path_Is_Legal` in Phase 6 requires the
+  straight path between a window's two approach points to hold the `PRIMARY_2` max grade at every `min(W,A/2)`
+  step on the *provisional* height field. Across a cliff face or a canyon that is far steeper, so no window
+  ever carries `HYBRID_WINDOW_METHOD_PASS`, and both pass branches are unreachable by construction rather
+  than by fixture shortage. Decide whether that is correct -- the plan says "sampled `PRIMARY_2` swept path
+  across local **floor/ramp**", which may mean the path along the canyon floor or up a cliff's talus ramp
+  rather than the straight line between banks.
+- **73 and 81 windows are cut-capable**, so road cut is reachable in principle, but no route crosses a
+  cliff window on these seeds: the solved worlds' spans are 3 CANYON + 2 RIVER and 1 RAVINE + 2 RIVER.
+  `PLATEAU_BASIN`, whose crossing guides map to `CLIFF` (the basin rim), is now in the fixture set but its
+  seeds still refuse upstream.
+- The remaining refusals are **other** quota and placement shortfalls, each its own defect at its own
+  owner: overpass quota short (7), river bridge quota short (3), `hill 13 exhausted alternate candidates`
+  (4, which is `Q-018`), `HIGHWAY_4 has no legal route` (2), `field reserve is illegal` (2).
 
-`Q-018` (LARGE hill quota against the 25 per cent overlap cap) remains open and blocks only I6's LARGE gate.
+**Next exact action:** settle the `pass_capable` question first, because it decides whether two of the
+three branches exist at all -- read Section 8 Phase 6 step 18's "local floor/ramp" against
+`Pass_Path_Is_Legal`, and either correct the sampled path at its owner or prove from the specification that
+no supported configuration yields a pass window. Then chase the `PLATEAU_BASIN` refusals until a route
+crosses a cliff window, which gives road cut its fixture. Then extend `Check_Hybrid_Interactions` with the
+per-branch assertions the I12 gate already applies to bridges, append the I12 coverage note, and only then
+start I13 (runtime Phase 12).
+
+`Q-018` (LARGE hill quota against the 25 per cent overlap cap) is open and is now also one of the
+refusal reasons above.

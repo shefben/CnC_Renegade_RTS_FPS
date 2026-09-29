@@ -4440,8 +4440,19 @@ void Check_Hybrid_Strategic_Graph (void)
 				break;
 
 			case HYBRID_ARCHETYPE_HIGHLAND_PASS:
-				//	The one mandatory surface saddle plus the alternate family's distinct crossing.
-				Check (pass_required == 1 && distinct_required == 1,"highland_pass saddle and alternate corridor");
+				/*
+				**	`highland_pass` raises no crossing obligation at all.  Section 6.10's table gives it a
+				**	principal ridge, a surface saddle and an untagged alternate family guide -- and a ridge is
+				**	not a step-18 obstruction, so there is no window any obligation on it could ever bind to.
+				**	The saddle is realized as an amplitude reduction in the ridge and is crossed on ordinary
+				**	drivable ground, which is why Phase 5 widens it to a `PRIMARY_2` roadbed plus two lane
+				**	clearances.  Raising one made every seed of this archetype fail `obligation_unbound`.
+				*/
+				Check ((pass_required == 0) && (distinct_required == 0) && (bridge_required == 0),
+						 "highland_pass raises %d pass, %d distinct and %d bridge obligations, not none",
+						 pass_required,distinct_required,bridge_required);
+				Check (graph.Obligations.Count () == 0,"highland_pass raises %d crossing obligations, not none",
+						 graph.Obligations.Count ());
 				break;
 
 			case HYBRID_ARCHETYPE_OPEN_FRONTIER:
@@ -4894,6 +4905,9 @@ static HybridLandformParams Landform_Fixture (const HybridMapIdentityParams & id
 	params.PlateauChance				= 0.12f;
 	params.MaxAlternateCandidatesPerFeature	= 32;		// native retry.max_alternate_candidates_per_feature
 	params.MinVehicleLaneClearance				= 1.0f;
+	//	Section 5's canyon/ravine bridge quota: Phase 5 must lay that many across a heavy corridor.
+	params.CrossedCanyonSystemsRequired = Hybrid_Canyon_Bridge_Quota (identity_params.Constants.SizeClass);
+
 	return params;
 }
 
@@ -15669,13 +15683,14 @@ void Check_Hybrid_Interactions (void)
 	**	One archetype would leave whole method families untested and call the gate green.
 	*/
 	static const unsigned int INTERACTION_SEEDS[8] = { 4242u, 7u, 99u, 1234u, 31337u, 5u, 77u, 808u };
-	static const HybridArchetype INTERACTION_ARCHETYPES[4] = {
+	static const HybridArchetype INTERACTION_ARCHETYPES[5] = {
 		HYBRID_ARCHETYPE_CANYON_CROSSROADS,		// canyon crossings, and the mandatory canyon bridge
-		HYBRID_ARCHETYPE_HIGHLAND_PASS,			// cliff and ridge crossings: cuts and ramp passes
+		HYBRID_ARCHETYPE_PLATEAU_BASIN,			// the basin rim is a CLIFF obligation: cuts and ramp passes
+		HYBRID_ARCHETYPE_HIGHLAND_PASS,			// the surface saddle, on drivable ground
 		HYBRID_ARCHETYPE_RIVER_VALLEY,			// river crossings
 		HYBRID_ARCHETYPE_RAVINE_NETWORK,			// ravine crossings
 	};
-	const int INTERACTION_FIXTURE_COUNT = 8 * 4;
+	const int INTERACTION_FIXTURE_COUNT = 8 * 5;
 	bool solved_any = false;
 	int refused_pipeline = 0;
 	int refused_phase11 = 0;
@@ -15697,6 +15712,8 @@ void Check_Hybrid_Interactions (void)
 											 INTERACTION_ARCHETYPES[attempt / 8],&fixture,&pipeline_detail)) {
 			refused_pipeline++;
 			last_pipeline_detail = pipeline_detail;
+			printf ("  archetype %d seed %u: pipeline refused -- %s\r\n",(int)INTERACTION_ARCHETYPES[attempt / 8],
+					  INTERACTION_SEEDS[attempt % 8],pipeline_detail.Peek_Buffer ());
 			continue;
 		}
 
@@ -15718,6 +15735,29 @@ void Check_Hybrid_Interactions (void)
 			continue;
 		}
 		solved_any = true;
+		{
+			int spans = 0;
+			int windows_cut = 0;
+			int windows_pass = 0;
+			for (int r = 0; r < fixture.Routes.Routes.Count (); ++r) {
+				spans += fixture.Routes.Routes[r].Structural.Count ();
+			}
+			for (int wi = 0; wi < fixture.Hydrology.Windows.Count (); ++wi) {
+				if (fixture.Hydrology.Windows[wi].Has_Method (HYBRID_WINDOW_METHOD_CUT)) windows_cut++;
+				if (fixture.Hydrology.Windows[wi].Has_Method (HYBRID_WINDOW_METHOD_PASS)) windows_pass++;
+			}
+			StringClass kinds ("");
+			for (int si = 0; si < interactions.Interactions.Count (); ++si) {
+				StringClass one;
+				one.Format ("%s/%s ",Hybrid_Obstruction_Kind_Name (interactions.Interactions[si].Obstruction),
+								Hybrid_Interaction_Method_Name (interactions.Interactions[si].Method));
+				kinds += one;
+			}
+			printf ("  archetype %d seed %u: solved, %d solutions, %d spans, %d windows (%d cut, %d pass): %s\r\n",
+					  (int)INTERACTION_ARCHETYPES[attempt / 8],INTERACTION_SEEDS[attempt % 8],
+					  interactions.Interactions.Count (),spans,fixture.Hydrology.Windows.Count (),windows_cut,
+					  windows_pass,kinds.Peek_Buffer ());
+		}
 
 		Check (interactions.Checksum != 0,"a passed Phase 11 left no checksum");
 		Check (Hybrid_Interaction_Checksum (interactions,fixture.Identity.Checksum) == interactions.Checksum,

@@ -307,6 +307,17 @@ struct HybridLandformParams
 
 	//	Section 16.3 arena and Section 16.1 counters.  Optional: with no arena the candidate arrays
 	//	come from the ordinary heap, which is what a self-check or an offline tool gets.
+	/*
+	**	Section 5's canyon/ravine bridge quota, handed down so Phase 5 can satisfy it.
+	**
+	**	The quota is a requirement on the *world*, not on the road builder: Phase 9 can only bind a bridge to
+	**	an obstruction a heavy route actually crosses, and Section 5 forbids reducing a quota to rescue a
+	**	seed.  So this many canyon/ravine systems are laid across a required heavy corridor here, which is
+	**	what the archetypes carrying their own principal canyon already achieve through their intent guides.
+	**	See `DECISIONS.md` D-011.
+	*/
+	int							CrossedCanyonSystemsRequired;
+
 	HybridScratchArena *		Arena;
 	HybridWorkCounters *		Counters;
 };

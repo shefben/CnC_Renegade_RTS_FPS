@@ -343,7 +343,7 @@ HybridLandformParams::HybridLandformParams(void) :
 	SeaLevel(0.0f),MinElevation(-30.0f),MaxElevation(160.0f),TierStep(18.0f),TierCount(3),
 	MacroRelief(0.6f),HillDensity(0.45f),MountainDensity(0.18f),InteriorCliffDensity(0.16f),
 	ValleyDensity(0.30f),PlateauChance(0.15f),
-	MaxAlternateCandidatesPerFeature(6),MinVehicleLaneClearance(1.0f),
+	MaxAlternateCandidatesPerFeature(6),MinVehicleLaneClearance(1.0f),CrossedCanyonSystemsRequired(0),
 	Arena(nullptr),Counters(nullptr)
 {
 	::memset(&Constants,0,sizeof(Constants));
@@ -1035,9 +1035,17 @@ static bool Build_Geometry(const LandformBuilder & b,HybridLandform * landform,c
 										+LINE_CONTROL_INNER * length, +0.50f * length };
 	const float local_y[4] = { 0.0f, lateral1, lateral2, 0.0f };
 
-	const float c = WWMath::Cos(angle);
-	const float s = WWMath::Sin(angle);
+	/*
+	**	The stored `Orientation` is the authoritative axis of this feature, so it is also the basis the
+	**	controls are laid in.  Rotating them by the raw angle and *then* quantizing the orientation leaves
+	**	two descriptions of the same frame that differ by up to the 0.001 rad angle quantum -- harmless at
+	**	the centre and not at all harmless at the ends, where the lever arm is half the feature's length:
+	**	measured on a 116-unit ravine, end controls sat 0.029 off an axis the record says they are on, three
+	**	times the 0.01 the plan allows.  One frame, written down once, and every control laid in it.
+	*/
 	landform->Orientation = Hybrid_Quantize_Angle(angle);
+	const float c = WWMath::Cos(landform->Orientation);
+	const float s = WWMath::Sin(landform->Orientation);
 
 	for (int i = 0; i < 4; ++i) {
 		landform->Controls[i].Set(
@@ -1587,14 +1595,50 @@ static void Accept_Landform(LandformBuilder & b,const HybridLandform & landform)
 
 
 /*
+**	One feature's reservation of the authoritative `StableId` space.
+**
+**	A landform's id is not only its name: `Landform_Hash` keys every dimension, jitter and axis draw on it,
+**	so the id has to exist *before* the candidate positions are probed and has to stay the same across all
+**	of them -- probing the same feature at ten stations must draw the same feature, not ten different ones.
+**
+**	What must not happen is the id being spent when the feature is rejected outright.  Probing is not
+**	creation: a helper that gives up returns the id, so the next feature to be accepted takes it and the
+**	authoritative collection stays in contiguous creation order.  Every existing caller aborts the phase on
+**	a refusal, so this changes nothing for them; it is what lets a caller legitimately try a placement and
+**	carry on without leaving a hole behind.
+*/
+struct LandformIdReservation
+{
+	LandformIdReservation(LandformBuilder & builder) : B(builder),Reserved(builder.NextStableId),Kept(false)
+	{
+		B.NextStableId++;
+	}
+
+	~LandformIdReservation(void)
+	{
+		if (!Kept) B.NextStableId = Reserved;
+	}
+
+	unsigned int	Id(void) const	{ return Reserved; }
+	void				Keep(void)		{ Kept = true; }
+
+	LandformBuilder &	B;
+	unsigned int		Reserved;
+	bool					Kept;
+};
+
+
+/*
 **	A generic feature: the plan's six-step candidate process, bounded by
 **	retry.max_alternate_candidates_per_feature.
 */
 static bool Place_Generic(LandformBuilder & b,HybridLandformKind kind,unsigned int system_id,
 								  HybridLandformResult * result)
 {
+	LandformIdReservation reservation(b);
+
 	HybridLandform landform;
-	landform.StableId	= b.NextStableId++;
+	landform.StableId	= reservation.Id();
 	landform.Kind		= kind;
 	landform.SystemId	= system_id;
 	Draw_Dimensions(b,&landform);
@@ -1657,6 +1701,7 @@ static bool Place_Generic(LandformBuilder & b,HybridLandformKind kind,unsigned i
 		Note_Candidate(b);
 		landform.CandidateAttempts = tested + 1;
 		Accept_Landform(b,landform);
+		reservation.Keep();
 		return true;
 	}
 
@@ -1704,8 +1749,10 @@ static bool Place_Required(LandformBuilder & b,HybridLandformKind kind,const Hyb
 									unsigned int system_id,unsigned int parent_id,const Vector2 & centre,float angle,
 									unsigned int * out_stable_id,HybridLandformResult * result)
 {
+	LandformIdReservation reservation(b);
+
 	HybridLandform landform;
-	landform.StableId			= b.NextStableId++;
+	landform.StableId			= reservation.Id();
 	landform.Kind				= kind;
 	landform.SystemId			= system_id;
 	landform.ParentStableId	= parent_id;
@@ -1727,6 +1774,7 @@ static bool Place_Required(LandformBuilder & b,HybridLandformKind kind,const Hyb
 
 	if (Required_Placement_Test(centre,&place)) {
 		Accept_Landform(b,landform);
+		reservation.Keep();
 		if (out_stable_id != nullptr) *out_stable_id = landform.StableId;
 		return true;
 	}
@@ -1739,6 +1787,7 @@ static bool Place_Required(LandformBuilder & b,HybridLandformKind kind,const Hyb
 		if (Required_Placement_Test(repaired,&place)) {
 			b.Out->Moves++;
 			Accept_Landform(b,landform);
+			reservation.Keep();
 			if (out_stable_id != nullptr) *out_stable_id = landform.StableId;
 			return true;
 		}
@@ -1760,8 +1809,10 @@ static bool Place_Ravine_Branch(LandformBuilder & b,const HybridLandform & paren
 										  unsigned int system_id,const HybridArchetypeIntent & intent,
 										  HybridLandformResult * result)
 {
+	LandformIdReservation reservation(b);
+
 	HybridLandform landform;
-	landform.StableId			= b.NextStableId++;
+	landform.StableId			= reservation.Id();
 	landform.Kind				= HYBRID_LANDFORM_RAVINE;
 	landform.SystemId			= system_id;
 	landform.ParentStableId	= parent.StableId;
@@ -1928,6 +1979,162 @@ static bool Place_Archetype_Features(LandformBuilder & b,HybridLandformResult * 
 		}
 	}
 	return true;
+}
+
+
+/*
+**	Do two segments cross?  The ordinary 2D parametric test, on world coordinates both sides are already
+**	quantized to.
+*/
+static bool Segments_Intersect(const Vector2 & a0,const Vector2 & a1,const Vector2 & b0,const Vector2 & b1)
+{
+	const Vector2 r = a1 - a0;
+	const Vector2 s = b1 - b0;
+	const float denominator = (r.X * s.Y) - (r.Y * s.X);
+	if ((float)fabs((double)denominator) <= 1.0e-9f) return false;		// parallel or degenerate
+
+	const Vector2 delta = b0 - a0;
+	const float t = ((delta.X * s.Y) - (delta.Y * s.X)) / denominator;
+	const float u = ((delta.X * r.Y) - (delta.Y * r.X)) / denominator;
+	return (t >= 0.0f) && (t <= 1.0f) && (u >= 0.0f) && (u <= 1.0f);
+}
+
+
+/*
+**	Does a required heavy route corridor cross this landform's centerline?
+**
+**	This is the question Phase 9 asks when it fills Section 5's canyon/ravine bridge quota: a bridge can
+**	only be bound to an obstruction a heavy family actually has to get past.  Asking it here, at the phase
+**	that decides where the obstruction goes, is what makes that quota satisfiable at all.
+*/
+static bool Heavy_Corridor_Crosses(const LandformBuilder & b,const HybridLandform & landform)
+{
+	if (landform.Points.Count() < 2) return false;
+
+	for (int e = 0; e < b.Graph->Edges.Count(); ++e) {
+
+		const HybridStrategicEdge & edge = b.Graph->Edges[e];
+		if (edge.RouteFamily < 0) continue;					// not a base-to-base heavy route
+
+		const HybridStrategicSite * a = b.Graph->Find_Site(edge.SiteA);
+		const HybridStrategicSite * z = b.Graph->Find_Site(edge.SiteB);
+		if ((a == nullptr) || (z == nullptr)) continue;
+
+		for (int p = 1; p < landform.Points.Count(); ++p) {
+			if (Segments_Intersect(a->Position,z->Position,landform.Points[p - 1],landform.Points[p])) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+
+//	How many distinct canyon/ravine systems a required heavy corridor crosses.
+static int Crossed_Canyon_System_Count(const LandformBuilder & b)
+{
+	DynamicVectorClass<unsigned int> crossed;
+
+	for (int i = 0; i < b.Out->Landforms.Count(); ++i) {
+
+		const HybridLandform & landform = b.Out->Landforms[i];
+		if ((landform.Kind != HYBRID_LANDFORM_CANYON) && (landform.Kind != HYBRID_LANDFORM_RAVINE)) continue;
+		if (landform.SystemId == 0) continue;
+		if (!Heavy_Corridor_Crosses(b,landform)) continue;
+
+		bool counted = false;
+		for (int s = 0; (s < crossed.Count()) && !counted; ++s) {
+			if (crossed[s] == landform.SystemId) counted = true;
+		}
+		if (!counted) crossed.Add(landform.SystemId);
+	}
+	return crossed.Count();
+}
+
+
+/*
+**	Step 2a: lay the canyon/ravine systems Section 5's bridge quota needs *across* a required heavy
+**	corridor, before the density-driven systems fill the rest of the target.
+**
+**	Section 5 asks every map for 1/1/2 canyon/ravine bridges and forbids reducing a quota to rescue a seed,
+**	but Phase 9 can only bind a bridge to an obstruction a heavy route actually crosses.  Placing the
+**	generic systems without regard to where the heavy routes run leaves most seeds with nothing bindable --
+**	measured on `open_frontier`, every seed produced bridge-capable ravine windows and on every one of them
+**	all four heavy sites stood on the same side of the crossing axis.  The archetypes carrying their own
+**	principal canyon do not have this problem precisely because their intent guides them onto the strategic
+**	axis the routes follow.  This does the same for the quota.
+**
+**	The guide is a point on a heavy family's own corridor and the axis is perpendicular to it, so a route
+**	following that corridor has to cut through rather than run beside.  Stations walk out from each
+**	corridor's midpoint in eighths, edges in record order, and every candidate still goes through the
+**	ordinary required-placement test and the ordinary Section-6 rejection rules: nothing here weakens Phase
+**	5's geometry, it only decides where to try first.  One accepted system satisfies one quota slot: a
+**	system already counted is not counted again, which is what `Crossed_Canyon_System_Count` guarantees by
+**	counting distinct `SystemId`s.
+*/
+static bool Place_Quota_Crossing_Systems(LandformBuilder & b,HybridLandformResult * result)
+{
+	const int required = b.P->CrossedCanyonSystemsRequired;
+	if (required <= 0) return true;
+
+	HybridArchetypeIntent synthetic;						// not from an archetype: the quota is its own reason
+	const int stations = 9;									// the midpoint, then outwards in eighths
+	const int ceiling = (required + 1) * b.P->MaxAlternateCandidatesPerFeature;
+
+	int attempts = 0;
+	while ((Crossed_Canyon_System_Count(b) < required) && (attempts < ceiling)) {
+
+		bool placed = false;
+
+		for (int e = 0; (e < b.Graph->Edges.Count()) && !placed; ++e) {
+
+			const HybridStrategicEdge & edge = b.Graph->Edges[e];
+			if (edge.RouteFamily < 0) continue;
+
+			const HybridStrategicSite * a = b.Graph->Find_Site(edge.SiteA);
+			const HybridStrategicSite * z = b.Graph->Find_Site(edge.SiteB);
+			if ((a == nullptr) || (z == nullptr)) continue;
+
+			Vector2 along = z->Position - a->Position;
+			const float length = along.Length();
+			if (length <= b.P->Constants.A) continue;
+			along *= (1.0f / length);
+
+			//	Perpendicular to the corridor: the axis a crossing road must actually cut through.
+			const float angle = (float)::atan2((double)along.X,(double)(-along.Y));
+
+			for (int s = 0; (s < stations) && !placed; ++s) {
+
+				//	The midpoint first, then alternating outwards, so the choice never depends on order.
+				const int step = (s + 1) / 2;
+				const float sign = ((s % 2) == 0) ? 1.0f : -1.0f;
+				const float ratio = Clamp2(0.5f + (sign * (float)step * 0.125f),0.1f,0.9f);
+				const Vector2 guide(a->Position.X + (along.X * length * ratio),
+										  a->Position.Y + (along.Y * length * ratio));
+
+				const unsigned int system = b.NextSystemId;
+				unsigned int placed_id = 0;
+				HybridLandformResult scratch;
+				attempts++;
+
+				//	A refused probe costs nothing now: `Place_Required` returns the id it reserved.
+				if (!Place_Required(b,HYBRID_LANDFORM_RAVINE,synthetic,system,0,guide,angle,&placed_id,
+										  &scratch)) continue;
+
+				b.NextSystemId++;
+				placed = true;
+			}
+		}
+
+		if (!placed) break;										// no corridor station will take one
+	}
+
+	if (Crossed_Canyon_System_Count(b) >= required) return true;
+
+	StringClass detail;
+	detail.Format("Section 5 asks for %d canyon/ravine systems on a heavy corridor and only %d could be laid "
+					  "across one in %d attempts",required,Crossed_Canyon_System_Count(b),attempts);
+	return Fail(result,HYBRID_LANDFORM_REQUIRED_UNPLACEABLE,detail.Peek_Buffer());
 }
 
 
@@ -2231,7 +2438,18 @@ bool Hybrid_Build_Landforms(const HybridLandformParams & params,const HybridMapI
 	//	1 -- archetype principal features.
 	if (!Place_Archetype_Features(b,result)) { out->Reset(); return false; }
 
-	//	2 -- the remaining required canyon/ravine systems.  terrain.valley_density is the ravine knob,
+	/*
+	**	2a -- Section 5's canyon/ravine bridge quota, which needs systems a heavy route actually crosses or
+	**	Phase 9 has nothing to bind a bridge to.  It runs before the density fill so its systems count toward
+	**	the same target rather than adding to it, and the target is raised to the quota when the quota is the
+	**	larger of the two, because a Section-5 quota is a floor on the world.  See `DECISIONS.md` D-011.
+	*/
+	if (out->TargetSystems < params.CrossedCanyonSystemsRequired) {
+		out->TargetSystems = params.CrossedCanyonSystemsRequired;
+	}
+	if (!Place_Quota_Crossing_Systems(b,result)) { out->Reset(); return false; }
+
+	//	2b -- the remaining required canyon/ravine systems.  terrain.valley_density is the ravine knob,
 	//	so a density-created system is a ravine; a canyon exists only where an archetype requires one.
 	while (out->Count_Of_Systems() < out->TargetSystems) {
 		const unsigned int system = b.NextSystemId++;

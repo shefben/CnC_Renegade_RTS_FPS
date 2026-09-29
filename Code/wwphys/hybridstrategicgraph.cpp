@@ -828,20 +828,17 @@ bool Hybrid_Build_Strategic_Graph(const HybridStrategicGraphParams & params,cons
 		}
 	}
 
-	//	`highland_pass` family 0 crosses the principal ridge at the one mandatory surface saddle.
-	const HybridArchetypeIntent * saddle = intents.Find_First (HYBRID_INTENT_SURFACE_SADDLE);
-	if (saddle != nullptr) {
-		HybridCrossingObligation obligation;
-		obligation.StableId						= (unsigned int)graph->Obligations.Count () + 1;
-		obligation.RouteFamily					= 0;
-		obligation.Obstruction					= HYBRID_OBSTRUCTION_RIDGE;
-		obligation.RequiredMethod				= HYBRID_CROSSING_PASS;
-		obligation.DistinctCrossingRequired	= false;
-		obligation.Guide							= saddle->Guide;
-		obligation.IntentStableId				= saddle->StableId;
-		obligation.WaypointStableId			= family_waypoint[0][0];
-		graph->Obligations.Add (obligation);
-	}
+	/*
+	**	`highland_pass`'s surface saddle is deliberately *not* a crossing obligation.
+	**
+	**	Section 6.10 realizes the saddle by multiplying the principal ridge's amplitude down around the
+	**	saddle point, and Phase 5 widens that flat until it holds a `PRIMARY_2` roadbed plus
+	**	`2 * fairness.min_vehicle_lane_clearance`.  The road therefore crosses the ridge on ordinary drivable
+	**	ground, which needs no structure and no Phase-6 window -- and step 18 creates windows for rivers,
+	**	cliffs, canyons and ravines only, never ridges.  Binding a `RIDGE` obligation here asked Phase 9 for
+	**	a window that by specification cannot exist, and every `highland_pass` seed failed
+	**	`obligation_unbound` with the census reporting all 59 to 150 windows as "wrong obstruction".
+	*/
 
 	/*
 	**	Each family is one complete GDI-to-Nod intent through its ordered guides.  Two families share

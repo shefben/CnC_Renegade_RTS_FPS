@@ -604,6 +604,8 @@ bool ProceduralWorldManager::Build_Hybrid_Landforms(const ProceduralWorldProfile
 	params.MountainDensity		= profile.Terrain.MountainDensity;
 	params.InteriorCliffDensity	= profile.Terrain.InteriorCliffDensity;
 	params.ValleyDensity			= profile.Terrain.ValleyDensity;
+	//	Section 5's canyon/ravine bridge quota is a floor on the world, so Phase 5 owns satisfying it.
+	params.CrossedCanyonSystemsRequired = Hybrid_Canyon_Bridge_Quota (HybridMetrics.Constants.SizeClass);
 	params.PlateauChance			= profile.Terrain.PlateauChance;
 	params.MaxAlternateCandidatesPerFeature	= profile.Retry.MaxAlternateCandidatesPerFeature;
 	params.MinVehicleLaneClearance				= profile.Fairness.MinVehicleLaneClearance;

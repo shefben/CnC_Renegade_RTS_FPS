@@ -553,6 +553,65 @@ it leaves open is how three of those requirements are measured. These are the re
    function rather than growing a second distance rule.
 
 
+
+## D-011 - Hybrid rewrite Q-019: Phase 5 owns Section 5's canyon/ravine bridge quota (2026-09-29)
+
+**Decision: option (a).** Section 5 asks every map for 1/1/2 canyon/ravine bridges and forbids reducing a
+quota to rescue a seed, but Phase 9 can only bind a bridge to an obstruction a heavy route actually
+crosses. Phase 5 placed its generic canyons and ravines without regard to where the heavy routes run, so
+most seeds had nothing bindable -- measured on `open_frontier`, every seed produced bridge-capable ravine
+windows and on every one of them all four heavy sites stood on the same side of the crossing axis. The
+archetypes carrying their own principal canyon do not have this problem precisely because their intent
+guides them onto the strategic axis the routes follow.
+
+So Phase 5 now satisfies the quota itself. `Place_Quota_Crossing_Systems` runs before the density fill --
+its systems count toward `TargetSystems` rather than adding to it, and `TargetSystems` is raised to the
+quota because a Section-5 quota is a floor on the world. The guide is a point on a heavy family's own
+corridor and the landform axis is perpendicular to it, so a route following that corridor has to cut
+through rather than run beside; stations walk out from each corridor's midpoint in eighths, edges in
+record order. Every candidate still goes through the ordinary required-placement test and the ordinary
+Section-6 rejection rules. Distinct `SystemId`s are counted, so one accepted system satisfies one quota
+slot.
+
+Option (b) -- keep Phase 9's nearest-chain binding and accept the attempt-failure rate -- is rejected: a
+quota that cannot be filled on most seeds is not a quota. Phase 9's binding rule is unchanged.
+
+### Four defects fixed at their owners to make this work
+
+1. **`StableId` ownership (Phase 5).** A landform's id keys every `Landform_Hash` draw, so it must exist
+   before candidate positions are probed and stay the same across all of them. What must not happen is the
+   id being *spent* when the feature is rejected outright. `LandformIdReservation` returns the id on
+   refusal, so probing consumes nothing and the authoritative collection stays in contiguous creation
+   order. Every existing caller aborts the phase on refusal, so nothing changed for them.
+
+2. **The line-feature control frame (Phase 5, shared owner).** `Build_Geometry` rotated the four controls
+   by the raw `angle` and then stored `Orientation` as `Hybrid_Quantize_Angle(angle)` -- two descriptions
+   of one frame differing by up to the 0.001 rad angle quantum. Harmless at the centre, not at the ends,
+   where the lever arm is half the feature's length: measured on a 116-unit ravine, end controls sat 0.029
+   off an axis the record said they were on, three times the 0.01 the plan allows. The stored
+   `Orientation` is now the authoritative frame and the controls are laid in it. This is the shared helper
+   for cliffs, canyons, ridges and ravines, so it is fixed once for all of them. The tolerance was not
+   touched.
+
+3. **The `SURFACE_SADDLE` crossing obligation (Phase 3).** Phase 3 turned the saddle into a crossing
+   obligation with `Obstruction = RIDGE, RequiredMethod = PASS`. Section 6.10 realizes a saddle by
+   multiplying the principal ridge's amplitude down around the saddle point, and Phase 5 widens that flat
+   until it holds a `PRIMARY_2` roadbed plus two lane clearances -- the road crosses on ordinary drivable
+   ground. Step 18 creates windows for rivers, cliffs, canyons and ravines only, never ridges, so the
+   obligation could never bind.
+
+4. **`highland_pass`'s alternate family guide (Phase 2).** It was tagged
+   `DISTINCT_CROSSING_REQUIRED`, which raised a second unbindable `RIDGE` obligation. Section 6.10's table
+   writes those tags where it means them -- `ravine_network` tags one guide `BRIDGE_REQUIRED` and the other
+   `DISTINCT_CROSSING_REQUIRED` in as many words -- and for `highland_pass` it lists only "alternate family
+   guide `(0,+0.45*s)`". Untagged, as the table has it.
+
+Both (3) and (4) were diagnosed from the same census: the obligation refusal now reports how many windows
+exist and why each was passed over, and it read "no qualifying window among 59: 0 already used, 59 wrong
+obstruction" -- no ridge window existed, nor could one.
+
+**Status: accepted.** Full suite 233/233 on client and dedicated server.
+
 ## D-010 - Hybrid rewrite I12: the overpass ramp reservation carries the smoothstep's peak slope (2026-09-28)
 
 Section 8 Phase 11 asks for two things about an overpass ramp at once:

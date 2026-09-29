@@ -610,7 +610,17 @@ Build_Archetype_Intents(const HybridMapIdentityParams & params,const HybridMapId
 			//	around it; Phase 2 only fixes where it is.
 			Add_Intent (intents,HYBRID_INTENT_SURFACE_SADDLE);
 
-			Add_Crossing (intents,1,0.0f,+HIGHLAND_ALTERNATE_V * s,HYBRID_INTENT_FLAG_DISTINCT_CROSSING_REQUIRED);
+			/*
+			**	The alternate family guide carries no crossing tag.  Section 6.10's table writes those tags out
+			**	where it means them -- `ravine_network` tags one guide `BRIDGE_REQUIRED` and the other
+			**	`DISTINCT_CROSSING_REQUIRED` in as many words -- and for `highland_pass` it lists only "alternate
+			**	family guide `(0,+0.45*s)`".  Tagging it made Phase 3 raise a `RIDGE` crossing obligation, and a
+			**	ridge is not a step-18 obstruction: Phase 6 creates windows for rivers, cliffs, canyons and
+			**	ravines only, so the obligation could never bind and every `highland_pass` seed failed
+			**	`obligation_unbound` with all 59 to 150 windows reported as the wrong obstruction.  Both families
+			**	cross this ridge the way the archetype intends -- over the surface saddle, on drivable ground.
+			*/
+			Add_Crossing (intents,1,0.0f,+HIGHLAND_ALTERNATE_V * s,0);
 			break;
 		}
 
