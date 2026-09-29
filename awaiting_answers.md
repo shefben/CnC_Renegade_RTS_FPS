@@ -6,26 +6,36 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
-- **Q-019** Hybrid rewrite I10 (runtime Phase 9, transportation topology). Section 5 asks every map
- for 1/1/2 canyon/ravine bridges and 1/2/3 river bridges, and Phase 9 step 3/4 can only fill those
- quotas from Phase-6 windows that a road can actually use. Phase 5 places generic canyons and
- ravines without regard to where the heavy routes run -- its own rejection rule only preserves `4W`
- of dry corridor width -- so on many seeds every ravine lies where no heavy route crosses it, every
- one of its windows is non-preferred, and the plan's own fallback ("one `SECONDARY_2` cross-link
- between the nearest heavy-family waypoints on opposite banks") has no far-bank waypoint to reach.
- Evidence: five seeds at MEDIUM on the `open_frontier` archetype produced bridge-capable ravine
- windows on every seed, and on every seed all four heavy sites stood on one side of the crossing
- axis (measured 4 positive, 0 negative per window); the archetypes that carry their own canyon
- obligation (`canyon_crossroads`, `ravine_network`) fill the quota on the first seed. Phase 9
- currently binds such a window to the nearest family chain when it is inside that family's own
- `MaxCorridorHalfWidth(PRIMARY_2)`, and fails the attempt when it is not, which is Section 5's
- "do not reduce a quota to rescue a seed" without failing worlds that do have a usable crossing.
- Blocks: nothing in the code -- the phase is implemented and green -- but it decides the attempt-0
- pass rate item 21 measures, so it is worth settling before that batch runs. Smallest decision
- needed: which the user wants -- (a) bias Phase 5 so at least one canyon/ravine system crosses a
- required heavy corridor, the way the archetypes' own principal features do; (b) let Phase 9 keep
- the nearest-chain binding it has now and accept the attempt-failure rate on archetypes with no
- canyon obligation; or (c) make the canyon/ravine bridge quota conditional on a crossing existing.
+- **Q-019 (decided 2026-09-29, option (a); implementation in progress)** Hybrid rewrite I10/I6.
+  Section 5 asks every map for 1/1/2 canyon/ravine bridges and forbids reducing a quota to rescue a seed,
+  but Phase 9 can only bind a bridge to an obstruction a heavy route actually crosses, and Phase 5 places
+  generic canyons/ravines without regard to where the heavy routes run. **Decision: option (a) -- Phase 5
+  owns satisfying the quota**, by laying `Hybrid_Canyon_Bridge_Quota(size_class)` canyon/ravine systems
+  across a required heavy corridor, which is exactly what the archetypes carrying their own principal
+  canyon already achieve through their intent guides. Option (b) (accept the attempt-failure rate) is
+  rejected: a quota that cannot be filled on most seeds is not a quota, and Section 5 forbids reducing it.
+  Phase 9's nearest-chain binding is unchanged.
+
+  **Why it is still open:** the first implementation is written and reverted, because it exposed two
+  defects that have to be fixed first and were not safe to leave half-done:
+
+  1. **`Place_Required` consumes a `StableId` on a failed attempt.** The quota placement walks several
+     corridor stations, so its failures leave gaps and `terrain_hybridlandforms` fails
+     "StableIds are not creation order". The id must be assigned on acceptance, not before the placement
+     test, or the caller must restore `NextStableId` on refusal.
+  2. **A latent end-control tolerance defect in ravine geometry, newly exposed.** With the quota step in
+     place a different fixture seed becomes the first to pass, and on it
+     `terrain_hybridlandforms` reports ravine end controls 0 and 3 at lateral offsets of 0.029 and 0.018
+     against the 0.01 the plan allows -- an order of magnitude more than the 0.001 position quantum can
+     explain, on ravines placed *before* the new step runs. So it is pre-existing: some orientation makes
+     the laid controls disagree with the stored `Orientation` the check measures against. That has to be
+     understood at its owner before the quota step can be judged.
+
+  Blocks: Phase 11's road-cut, `RAMP_PASS_WINDOW` and surface-pass branches have no reachable fixture
+  until this lands, because the archetypes that would produce cliff/ridge and extra canyon crossings
+  (`highland_pass`, `river_valley`, `ravine_network`, `plateau_basin`) refuse in Phase 9 on this quota.
+  Those three I12 branches are therefore implemented but unexercised, which is recorded in
+  `completed_features.md` under I12 rather than left implicit.
 
 - **Q-018** Hybrid rewrite I6 (runtime Phase 5, vector landforms). At LARGE the plan's hill
  target -- `10 + RoundHalfUp(terrain.hill_density * 6)`, so 11 hills at the native

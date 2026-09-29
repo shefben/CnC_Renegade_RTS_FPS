@@ -576,6 +576,14 @@ floor and carries the smoothstep's exact peak-slope factor:
 L_ramp = max(10W, 1.5 * abs(delta_z) / max(tan(upper_class.max_grade),Q))
 ```
 
+The plan's literal term is preserved as a **lower bound**: `1.5 * x >= x`, so every `L_ramp` this produces
+is at least the reservation the original formula asked for, and the `max(10W, ...)` floor is untouched. The
+`1.5` is not a tuning constant -- it is the exact peak derivative of `smoothstep`, `d/ds [s^2(3-2s)] = 6s(1-s)`,
+which is `1.5` at `s = 0.5` -- so it is the smallest factor that can satisfy the per-sample constraint for
+the shape the plan specifies. **The sampled-grade validation remains authoritative:** the reservation only
+decides what geometry is offered, and a ramp whose samples exceed the class maximum grade is still
+refused.
+
 Of the two statements the per-sample limit is the stricter, and `L_ramp` is already written as a
 `max(...)` reservation, so extending it satisfies both rather than weakening either. The ramp is also
 measured against the rise it actually makes -- from the road's own elevation at each ramp foot up to the

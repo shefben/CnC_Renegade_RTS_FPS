@@ -280,25 +280,32 @@ obligation) are open and neither blocks code.
 **I11 (runtime Phase 10) is closed** -- see `completed_features.md` and `DECISIONS.md` D-009 with its
 2026-09-28 revision. The whole 231-test ctest suite is green on client and dedicated server.
 
-**I12 (runtime Phase 11) is closed** -- see `completed_features.md` and `DECISIONS.md` D-010. The whole
-233-test ctest suite is green on client and dedicated server.
+**I12 (runtime Phase 11) is closed** -- see `completed_features.md` and `DECISIONS.md` D-010, committed as
+`70164cf4`. The whole 233-test ctest suite is green on client and dedicated server.
 
-**I13 (runtime Phase 12, final roads and local terrain cut/fill) is the next item.** Phase 11 hands it one
-compiled `HybridInteraction` per conflict -- method, station, tangent, approach reserve, bridge kind or
-tunnel module, deck and ramp elevations, cut depth, and the route sample range it covers -- plus the
-`HybridInteractionIssue` records for anything unsolved. Phase 12 may not reroute a road, move a crossing,
-change a method or reopen Phases 9 to 11; a failure there fails the whole attempt.
+**Q-019 is decided and its implementation is the next item, before I13.** The decision is option (a):
+Phase 5 owns Section 5's canyon/ravine bridge quota and must lay that many systems across a required heavy
+corridor. `awaiting_answers.md` carries the decision and the reasoning. The first implementation is written
+and was reverted at the point it exposed two defects, so the tree is green rather than half-changed:
 
-**Next exact action:** implement I13 against
-`Procedural_World_Generator_Rewrite_Plan_FINAL_AUDITED.md` Section 8 Phase 12 and Sections 12.1 to 12.3 --
-the deterministic vertical-profile solver (forward then backward interval propagation, then the clamped
-walk, quantized and revalidated), terrain deformation and realization through the canonical
-`WorldTerrainSystem`, `RoadSystem`, `BridgeSystem`, `TunnelSystem` and junction APIs with the
-attempt-owned reverse-order cleanup list, and the post-realization physical verification -- in a new
-`Code/wwphys/hybridroadrealization.{h,cpp}` owned by `ProceduralWorldManager`, then its
-`terrain_hybridroadrealization` / `fds_` gate, then I14.
+1. `Place_Required` in `Code/wwphys/hybridlandforms.cpp` consumes a `StableId` before its placement test,
+   so a step that tries several stations leaves id gaps and `terrain_hybridlandforms` fails "StableIds are
+   not creation order". Fix that first -- assign the id on acceptance, or restore `NextStableId` on refusal.
+2. With the quota step in place a different fixture seed becomes the first to pass, and on it ravine end
+   controls 0 and 3 measure lateral offsets of 0.029 and 0.018 against the 0.01 the plan allows, on ravines
+   placed *before* the new step. Ten times what the 0.001 position quantum explains, so it is a pre-existing
+   disagreement between the angle the controls are laid with and the `Orientation` the check measures
+   against. Understand it at its owner before judging the quota step.
 
-`Q-018` (LARGE hill quota against the 25 per cent overlap cap) is open. **`Q-019` now blocks test
-coverage rather than code:** the `HIGHLAND_PASS`, `RIVER_VALLEY`, `RAVINE_NETWORK` and `PLATEAU_BASIN`
-archetypes refuse in Phase 9 on the canyon/ravine bridge quota, which is why Phase 11's road-cut, ramp-pass
-and surface-pass families have no reachable fixture. Resolving Q-019 would let the I12 gate cover them.
+**Next exact action:** fix (1), then diagnose (2) at its owner in Phase 5's control laying, then re-apply
+the quota step. The reverted implementation is reproducible from the decision: a `Place_Quota_Crossing_Systems`
+step running *before* the density fill (so its systems count toward `TargetSystems` rather than adding to
+it, with `TargetSystems` raised to the quota as a floor), guided onto each heavy family corridor's midpoint
+and outwards in eighths with the landform axis perpendicular to the corridor, every candidate still going
+through the ordinary required-placement test and Section-6 rejection rules. Then rerun
+`terrain_hybridinteractions` and `fds_terrain_hybridinteractions` and confirm the road-cut, ramp-pass and
+surface-pass branches are exercised with their full record/geometry assertions, append the I12 completion
+record with the new coverage, and only then start I13 (runtime Phase 12, final roads and local terrain
+cut/fill).
+
+`Q-018` (LARGE hill quota against the 25 per cent overlap cap) remains open and blocks only I6's LARGE gate.
