@@ -60,6 +60,7 @@ set(WWPHYS_SRC
     hybridhydrology.cpp
     hybridmacroterrain.cpp
     hybridlandforms.cpp
+    hybridlocalpass.cpp
     hybridmapidentity.cpp
     hybridplanrecords.cpp
     hybridinteractions.cpp
@@ -195,6 +196,7 @@ set(WWPHYS_SRC
     hybridhydrology.h
     hybridmacroterrain.h
     hybridlandforms.h
+    hybridlocalpass.h
     hybridmapidentity.h
     hybridplanrecords.h
     hybridinteractions.h

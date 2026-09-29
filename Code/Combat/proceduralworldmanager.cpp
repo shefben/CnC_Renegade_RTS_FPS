@@ -672,6 +672,9 @@ bool ProceduralWorldManager::Build_Hybrid_Hydrology(const ProceduralWorldProfile
 	params.MinElevation	= profile.Terrain.MinElevation;
 	params.MaxElevation	= profile.Terrain.MaxElevation;
 	params.TierStep		= profile.Plan.TierStep;
+	//	Step 18's pass candidates are planned road geometry, so they need the grading allowance.
+	params.MaxCutDepth	= profile.Grading.MaxCutDepth;
+	params.MaxFillHeight	= profile.Grading.MaxFillHeight;
 	params.TierCount		= profile.Plan.TierCount;
 	params.ChunkSize		= profile.World.ChunkSize;
 

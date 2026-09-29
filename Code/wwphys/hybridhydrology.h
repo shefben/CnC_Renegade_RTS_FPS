@@ -70,6 +70,7 @@
 #include "hybridstrategicgraph.h"
 #include "hybridcoarsematrix.h"
 #include "hybridlandforms.h"
+#include "hybridlocalpass.h"
 
 
 /*
@@ -255,6 +256,14 @@ struct HybridCrossingWindow
 	Vector2						ApproachB;
 	Vector2						BoundsMin;
 	Vector2						BoundsMax;
+
+	/*
+	**	The local pass this station proved, when it proved one.  Phase 6 freezes the geometry rather than only
+	**	the verdict so Phase 11 evaluates the *same* pass: a flag alone would leave Phase 11 to invent another
+	**	path, and two phases inventing their own geometry for one crossing is how they come to disagree.
+	**	Meaningful only when `Has_Method(HYBRID_WINDOW_METHOD_PASS)`.
+	*/
+	HybridLocalPassGeometry	Pass;
 };
 
 
@@ -301,6 +310,9 @@ struct HybridHydrologySet
 	int			IslandsRejected;			// slots that found no polygon; never a failure
 	int			OptionalLakes;				// basins added toward water_fraction
 	int			StationsConsidered;
+
+	//	Why step 18 refused a local pass at a station, by reason, for the census.
+	int			PassRefusals[HYBRID_LOCAL_PASS_FAILURE_COUNT];
 	int			StationsMerged;
 	int			LocalRetries;
 
@@ -332,6 +344,16 @@ struct HybridHydrologyParams
 	float					MinElevation;
 	float					MaxElevation;
 	float					TierStep;
+
+	/*
+	**	Section 7.1's vertical-interval inputs.  Step 18 needs them because a pass candidate is planned road
+	**	geometry: its profile has to be realizable inside `RoadVerticalInterval`, or the window would promise
+	**	Phase 11 a pass that Phase 12 could not build.
+	*/
+	float					MaxCutDepth;
+	float					MaxFillHeight;
+
+
 	int					TierCount;
 	float					ChunkSize;				// world.chunk_size, for the accumulation conversion
 

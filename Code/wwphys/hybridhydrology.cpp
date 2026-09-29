@@ -219,6 +219,7 @@ void HybridHydrologySet::Reset(void)
 	IslandsRejected		= 0;
 	OptionalLakes			= 0;
 	StationsConsidered	= 0;
+	for (int refusal = 0; refusal < HYBRID_LOCAL_PASS_FAILURE_COUNT; ++refusal) PassRefusals[refusal] = 0;
 	StationsMerged			= 0;
 	LocalRetries			= 0;
 	Checksum					= 0;
@@ -287,7 +288,7 @@ int HybridHydrologySet::Count_Of_True_Lakes(float minimum_area) const
 HybridHydrologyParams::HybridHydrologyParams(void) :
 	HydrologySeed(0),
 	WorldMinX(0.0f),WorldMinY(0.0f),WorldWidth(0.0f),WorldHeight(0.0f),
-	SeaLevel(0.0f),MinElevation(-30.0f),MaxElevation(90.0f),TierStep(18.0f),TierCount(3),
+	SeaLevel(0.0f),MinElevation(-30.0f),MaxElevation(90.0f),TierStep(18.0f),TierCount(3),MaxCutDepth(6.0f),MaxFillHeight(6.0f),
 	ChunkSize(30.0f),
 	Rivers(true),Lakes(true),Coastline(true),
 	RiverWidth(6.0f),StreamWidth(2.5f),RiverAccumulationChunks(6.0f),MaxRiverCount(4),
@@ -780,6 +781,21 @@ unsigned int Hybrid_Hydrology_Checksum(const HybridHydrologySet & set,unsigned i
 		stream.Add_Length(window.ApproachA.Y);
 		stream.Add_Length(window.ApproachB.X);
 		stream.Add_Length(window.ApproachB.Y);
+
+		//	The frozen local pass: Phase 11 consumes it, so it is part of what the world is.
+		stream.Add_Int((int)window.Pass.Kind);
+		stream.Add_Int(window.Pass.Orientation);
+		stream.Add_Int(window.Pass.ControlCount);
+		stream.Add_Length(window.Pass.TangentRun);
+		for (int i = 0; i < window.Pass.ControlCount; ++i) {
+			stream.Add_Length(window.Pass.Controls[i].X);
+			stream.Add_Length(window.Pass.Controls[i].Y);
+		}
+		stream.Add_Bool(window.Pass.HasFloor);
+		stream.Add_Length(window.Pass.FloorEntry.X);
+		stream.Add_Length(window.Pass.FloorEntry.Y);
+		stream.Add_Length(window.Pass.FloorExit.X);
+		stream.Add_Length(window.Pass.FloorExit.Y);
 	}
 
 	return stream.Get();
@@ -2663,6 +2679,38 @@ static bool Approach_Sample_Is_Legal(HydrologyBuilder & b,const HydroObstruction
 
 
 //	Does a `PRIMARY_2` swept path across the obstruction obey grade and cross slope (`pass_capable`)?
+/*
+**	The provisional height field, as the local-pass builder wants it.  Phase 6 has no realized terrain yet,
+**	so this is the same provisional profile every other Phase-6 rule reads.
+*/
+struct ProvisionalHeightContext
+{
+	HydrologyBuilder *	B;
+};
+
+
+static bool Provisional_Height_Sample(const Vector2 & world,float * height_out,void * context)
+{
+	ProvisionalHeightContext * ground = (ProvisionalHeightContext *)context;
+	if ((ground == nullptr) || (height_out == nullptr)) return false;
+	*height_out = Hybrid_Provisional_Height(*ground->B->P,*ground->B->Matrices,*ground->B->Landforms,world);
+	return true;
+}
+
+
+static HybridLocalPassParams Local_Pass_Params(const HydrologyBuilder & b)
+{
+	HybridLocalPassParams params;
+	params.Constants					= b.P->Constants;
+	params.MaxCutDepth				= b.P->MaxCutDepth;
+	params.MaxFillHeight				= b.P->MaxFillHeight;
+	params.SweptVehicleWidth		= Max2(b.P->HeavyVehicleWidth,b.P->HarvesterWidth);
+	params.MinVehicleLaneClearance= b.P->MinVehicleLaneClearance;
+	params.PassClass					= HYBRID_ROAD_PRIMARY_2;		// step 18 proves a pass for PRIMARY_2
+	return params;
+}
+
+
 static bool Pass_Path_Is_Legal(HydrologyBuilder & b,const Vector2 & from,const Vector2 & to)
 {
 	const HybridConstants & k = b.P->Constants;
@@ -2843,6 +2891,7 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 
 		const float span = 2.0f * half;
 		unsigned int methods = 0;
+		HybridLocalPassGeometry pass_geometry;
 
 		//	`bridge_capable`: a registered kind covers the span and clear width, and its approach fits.
 		if ((b.P->BridgeMaxSpanLength >= span) && (b.P->BridgeRequiredWidth > 0.0f)) {
@@ -2874,7 +2923,42 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 
 		} else {
 
-			if (Pass_Path_Is_Legal(b,end_a,end_b)) methods |= HYBRID_WINDOW_METHOD_PASS;
+			/*
+			**	`pass_capable`: the plan's "sampled `PRIMARY_2` swept path across the local floor/ramp".  That is
+			**	not the straight line between banks -- a wall too steep to climb straight down is routinely easy
+			**	to climb at an angle, and testing the straight line made every pass window on every seed
+			**	incapable.  The shared local-pass builder constructs the diagonal the class grade actually
+			**	requires, judges it as road, and the geometry it accepts is frozen onto the record for Phase 11
+			**	to revalidate rather than reinvent.
+			*/
+			{
+				const HybridLandform * landform = obstruction.Landform;
+				const bool cliff = (obstruction.Kind == HYBRID_OBSTRUCTION_CLIFF);
+				const HybridLocalPassKind pass_kind = cliff ? HYBRID_LOCAL_PASS_RAMP
+																	  : HYBRID_LOCAL_PASS_FLOOR;
+				const float floor_half = ((landform != nullptr) && !cliff) ? landform->FloorHalfWidth : 0.0f;
+				const float rim_half = (landform != nullptr) ? Max2(landform->RimHalfWidth,half) : half;
+
+				ProvisionalHeightContext ground;
+				ground.B = &b;
+
+				HybridLocalPassFailure why = HYBRID_LOCAL_PASS_OK;
+				/*
+				**	How much along-obstruction run this station may spend: half the feature's own length, so a
+				**	descent and an ascent both fit on it.  A ramp cannot lean further along a feature than the
+				**	feature is long, and that -- not an invented multiple of the lane width -- is the bound.
+				*/
+				const float available_run = (landform != nullptr) ? (0.5f * landform->Length)
+																			 : (12.0f * k.W);
+
+				if (Hybrid_Build_Local_Pass(Local_Pass_Params(b),pass_kind,centre,tangent,normal,half,
+													 floor_half,rim_half,approach,available_run,
+													 Provisional_Height_Sample,&ground,&pass_geometry,&why)) {
+					methods |= HYBRID_WINDOW_METHOD_PASS;
+				} else if ((why > HYBRID_LOCAL_PASS_OK) && (why < HYBRID_LOCAL_PASS_FAILURE_COUNT)) {
+					b.Out->PassRefusals[why]++;
+				}
+			}
 
 			if (b.P->TunnelsAvailable && (b.P->TunnelRequiredWidth >= b.P->HeavyVehicleWidth) &&
 				 (b.P->TunnelRequiredHeight >= b.P->HeavyVehicleHeight)) {
@@ -2903,6 +2987,7 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 		window.Obstruction		= obstruction.Kind;
 		window.ObstructionRecordId = obstruction.RecordId;
 		window.Methods				= methods;
+		if ((methods & HYBRID_WINDOW_METHOD_PASS) != 0) window.Pass = pass_geometry;
 		window.Station				= stations[index];
 		window.Span					= Hybrid_Quantize_Position(span);
 		window.ApproachLength	= Hybrid_Quantize_Position(approach);

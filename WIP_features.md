@@ -280,39 +280,44 @@ obligation) are open and neither blocks code.
 **I11 (runtime Phase 10) is closed** -- see `completed_features.md` and `DECISIONS.md` D-009 with its
 2026-09-28 revision. The whole 231-test ctest suite is green on client and dedicated server.
 
-**I12 (runtime Phase 11) is closed** for its bridge, ford-disabled, junction and overpass behaviour, and
-**Q-019 is closed** (`DECISIONS.md` D-011). Full suite 233/233 on client and dedicated server.
+**I12's bridge/ford-disabled/junction/overpass behaviour is closed, and `Q-019` is closed** (D-011).
+Full suite 235/235 on client and dedicated server.
 
-**What Q-019 unblocked, and what it did not.** The canyon/ravine bridge quota no longer refuses seeds, and
-four owner-level defects were fixed with it: landform `StableId` ownership, the line-feature control frame
-(the 0.029 end-control offset), the `SURFACE_SADDLE` crossing obligation, and `highland_pass`'s wrongly
-tagged alternate guide. `highland_pass` seeds now reach Phase 11 instead of failing `obligation_unbound`.
+**The `pass_capable` defect is fixed at its owner, and the pass branches are still not reachable.** Both
+statements are measured, and the second is now a different problem from the first.
 
-**Phase 11's road-cut, ramp-pass and surface-pass branches are still unexercised**, and the measurements
-say why. Of 40 real-pipeline fixtures (8 seeds x 5 archetypes) only 2 solve, and on the solved worlds:
+Fixed: `Code/wwphys/hybridlocalpass.{h,cpp}` is the one local-pass builder, shared by Phase 6 and Phase 11.
+It builds the *diagonal* ramp the class grade requires --
+`required_tangent_run = sqrt(max(0, (vertical/tan(g))^2 - normal_run^2))` -- for a canyon/ravine descent
+(ramp, floor, ramp, with the two ramps leaning opposite ways so the route returns across the station) and
+for a cliff band (one diagonal). It judges *planned road geometry*: the profile's own grade, its corners
+against the class turn radius, its cross slope, and -- the part that keeps it honest -- every sample inside
+its own `RoadVerticalInterval`, so no cut or fill limit is touched. Both tangent orientations are tried in
+a fixed order and the first fully legal one wins. `Check_Hybrid_Local_Pass` proves all of it on synthetic
+height fields (`terrain_hybridlocalpass` / `fds_`), including the regression case where the straight
+bank-to-bank line is refused and the legitimate diagonal is accepted. Phase 6 now calls the builder and
+**freezes the accepted geometry onto the window record** (`HybridCrossingWindow::Pass`), inside the
+hydrology checksum, so Phase 11 will revalidate the same pass rather than invent another.
 
-- `pass_capable` is **0 of 125 windows** and **0 of 114**. `Pass_Path_Is_Legal` in Phase 6 requires the
-  straight path between a window's two approach points to hold the `PRIMARY_2` max grade at every `min(W,A/2)`
-  step on the *provisional* height field. Across a cliff face or a canyon that is far steeper, so no window
-  ever carries `HYBRID_WINDOW_METHOD_PASS`, and both pass branches are unreachable by construction rather
-  than by fixture shortage. Decide whether that is correct -- the plan says "sampled `PRIMARY_2` swept path
-  across local **floor/ramp**", which may mean the path along the canyon floor or up a cliff's talus ramp
-  rather than the straight line between banks.
-- **73 and 81 windows are cut-capable**, so road cut is reachable in principle, but no route crosses a
-  cliff window on these seeds: the solved worlds' spans are 3 CANYON + 2 RIVER and 1 RAVINE + 2 RIVER.
-  `PLATEAU_BASIN`, whose crossing guides map to `CLIFF` (the basin rim), is now in the fixture set but its
-  seeds still refuse upstream.
-- The remaining refusals are **other** quota and placement shortfalls, each its own defect at its own
-  owner: overpass quota short (7), river bridge quota short (3), `hill 13 exhausted alternate candidates`
-  (4, which is `Q-018`), `HIGHWAY_4 has no legal route` (2), `field reserve is illegal` (2).
+Still unreachable, with the census in place to say why: on the two solving fixtures, pass refusals are
+`grade 72, cut_fill 3, floor_grade 1` and `grade 75, cross_slope 5, cut_fill 1, floor_grade 6`. `grade`
+here means the required tangent run exceeds the run the obstruction offers, which Phase 6 supplies as
+`0.5 * landform->Length`.
 
-**Next exact action:** settle the `pass_capable` question first, because it decides whether two of the
-three branches exist at all -- read Section 8 Phase 6 step 18's "local floor/ramp" against
-`Pass_Path_Is_Legal`, and either correct the sampled path at its owner or prove from the specification that
-no supported configuration yields a pass window. Then chase the `PLATEAU_BASIN` refusals until a route
-crosses a cliff window, which gives road cut its fixture. Then extend `Check_Hybrid_Interactions` with the
-per-branch assertions the I12 gate already applies to bridges, append the I12 coverage note, and only then
-start I13 (runtime Phase 12).
+**Next exact action:** measure, do not guess. Instrument Phase 6 to print, for the stations that refuse,
+the actual `vertical_run`, `normal_run`, `required_tangent_run` and `available_run` -- the previous attempt
+at this reported `0.00` because the builder does not return its geometry on a refusal, so the numbers have
+to come from inside `Try_Orientation`. Then decide from those numbers which is true: that `0.5 * Length` is
+the wrong available run (a switchback may legitimately use more of a long feature, and the plan caps
+nothing), or that the generated canyon depth-to-width ratios genuinely preclude a local pass under the
+supported configuration -- in which case prove it from Section 6's own `depth >= 0.75 * tier_step` and
+`length >= max(12W, 0.20D)` against the `PRIMARY_2` 12-degree grade, and record that the two pass branches
+cannot occur rather than leaving them looking untested.
 
-`Q-018` (LARGE hill quota against the 25 per cent overlap cap) is open and is now also one of the
-refusal reasons above.
+Road cut is separate and closer: 73 and 81 windows are cut-capable on the solving fixtures, so the only
+thing missing is a routed road that crosses one. `PLATEAU_BASIN` is in the 40-fixture set and still refuses
+upstream; its refusals are the thing to chase.
+
+Remaining upstream refusals across the 40 fixtures, each its own owner's defect and none to be weakened for
+a test: overpass quota short, river bridge quota short, `hill 13 exhausted alternate candidates` (`Q-018`),
+`HIGHWAY_4 has no legal route`, `field reserve is illegal`.
