@@ -7761,6 +7761,9 @@ struct HybridPipelineFixture
 	HybridTopology						Topology;
 	HybridRouteSet						Routes;
 	MacroFormulaContext				Ground;
+
+	//	Phase 10's own inputs, kept so Phase 11's next-envelope reroute can re-run them.
+	HybridRouteParams					RouteParams;
 };
 
 
@@ -7856,7 +7859,8 @@ static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArch
 		return false;
 	}
 
-	HybridRouteParams route_params = Route_Fixture (out->Sized,world_size);
+	out->RouteParams = Route_Fixture (out->Sized,world_size);
+	HybridRouteParams & route_params = out->RouteParams;
 	if (!Hybrid_Build_Routes (route_params,out->Identity,out->Matrices,out->Landforms,out->Hydrology,
 										out->Anchors,out->Topology,Macro_Sample_From_Formula,&out->Ground,
 										&out->Routes,&route_result)) {
@@ -7897,6 +7901,7 @@ static HybridInteractionParams Interaction_Fixture (const HybridMapIdentityParam
 	params.HeavyVehicleWidth		= metrics.HeavyVehicleWidth;
 	params.HeavyVehicleHeight		= metrics.HeavyVehicleHeight;
 	params.HarvesterWidth			= metrics.HarvesterWidth;
+	params.LightVehicleWidth		= metrics.HumveeWidth;
 	params.MinVehicleLaneClearance= 1.0f;		// native fairness.min_vehicle_lane_clearance
 	params.TierStep					= 8.0f;		// native plan.tier_step
 
@@ -16152,6 +16157,7 @@ void Check_Hybrid_Interactions (void)
 	for (int m = 0; m < HYBRID_METHOD_COUNT; ++m) seen_method[m] = 0;
 	int mandatory_bridges = 0;
 	int reserved_overpasses = 0;
+	int reroutes_spent = 0;
 	bool negatives_done = false;
 
 	for (int attempt = 0; attempt < INTERACTION_FIXTURE_COUNT; ++attempt) {
@@ -16172,10 +16178,20 @@ void Check_Hybrid_Interactions (void)
 																			  preflight.Metrics);
 		HybridInteractionSet interactions;
 		HybridInteractionResult result;
+		HybridRouteResult reroute_result;
+		int reroutes = 0;
 
-		if (!Hybrid_Build_Interactions (params,fixture.Identity,fixture.Matrices,fixture.Landforms,
-												  fixture.Hydrology,fixture.Anchors,fixture.Topology,fixture.Routes,
-												  Macro_Sample_From_Formula,&fixture.Ground,&interactions,&result)) {
+		/*
+		**	Through the shared owner, which is where the plan's next-envelope reroute lives.  Calling
+		**	`Hybrid_Build_Interactions` directly here would leave that path unexercised, which is exactly how
+		**	`RerouteEdgeId` came to be written and never read.
+		*/
+		if (!Hybrid_Solve_Routes_And_Interactions (fixture.RouteParams,params,fixture.Identity,
+																 fixture.Matrices,fixture.Landforms,fixture.Hydrology,
+																 fixture.Anchors,fixture.Topology,
+																 Macro_Sample_From_Formula,&fixture.Ground,
+																 &fixture.Routes,&reroute_result,&interactions,
+																 &result,&reroutes)) {
 			refused_phase11++;
 			last_phase11_detail.Format ("%s (%s)",Hybrid_Interaction_Failure_Name (result.Failure),
 												 result.Detail.Peek_Buffer ());
@@ -16188,6 +16204,7 @@ void Check_Hybrid_Interactions (void)
 			continue;
 		}
 		solved_any = true;
+		reroutes_spent += reroutes;
 		{
 			int spans = 0;
 			int windows_cut = 0;
@@ -16961,6 +16978,49 @@ void Check_Hybrid_Interactions (void)
 
 	Check (seen_method[HYBRID_METHOD_BRIDGE] > 0,"no fixture seed compiled a bridge");
 	Check (mandatory_bridges > 0,"no fixture seed exercised a mandatory crossing obligation");
+	/*
+	**	The reroute path itself.  Phase 11 names an edge in `RerouteEdgeId` and the shared owner answers by
+	**	raising that edge's envelope floor and re-running Phase 10, so the floor has to be honoured or the
+	**	whole fallback is decoration.  This proves it directly rather than waiting for a world that needs it:
+	**	a route asked to start at envelope 1 must not come back in envelope 0.
+	*/
+	{
+		HybridPipelineFixture fixture;
+		StringClass why;
+		if (Build_Hybrid_Pipeline (INTERACTION_SEEDS[4],1200.0f,HYBRID_ARCHETYPE_CANYON_CROSSROADS,&fixture,
+											&why) && (fixture.Routes.Routes.Count () > 0)) {
+
+			const unsigned int edge_id = fixture.Routes.Routes[0].EdgeId;
+			const int was = fixture.Routes.Routes[0].Envelope;
+
+			HybridRouteEnvelopeFloor floor;
+			floor.EdgeId		= edge_id;
+			floor.MinEnvelope	= 1;
+			fixture.RouteParams.EnvelopeFloors.Add (floor);
+
+			HybridRouteSet wider;
+			HybridRouteResult wider_result;
+			const bool rebuilt = Hybrid_Build_Routes (fixture.RouteParams,fixture.Identity,fixture.Matrices,
+																	fixture.Landforms,fixture.Hydrology,fixture.Anchors,
+																	fixture.Topology,Macro_Sample_From_Formula,
+																	&fixture.Ground,&wider,&wider_result);
+			Check (was == 0,"the fixture's first route did not start in envelope 0 (%d)",was);
+			if (rebuilt) {
+				bool found = false;
+				for (int r = 0; r < wider.Routes.Count (); ++r) {
+					if (wider.Routes[r].EdgeId != edge_id) continue;
+					found = true;
+					Check (wider.Routes[r].Envelope >= 1,
+							 "edge %u ignored its envelope floor and came back in envelope %d",edge_id,
+							 wider.Routes[r].Envelope);
+				}
+				Check (found,"edge %u vanished when its envelope floor was raised",edge_id);
+			}
+		}
+	}
+
+	printf ("Phase 11 reroutes spent across the walk: %d\r\n",reroutes_spent);
+
 	Check (negatives_done,"the negative fixtures never ran");
 	Check ((seen_method[HYBRID_METHOD_OVERPASS] + seen_method[HYBRID_METHOD_AT_GRADE_JUNCTION]) > 0,
 			 "no fixture seed exercised a road-on-road crossing");
@@ -17013,6 +17073,12 @@ void Check_Hybrid_Interaction_Search (void)
 
 	int worlds = 0;
 	int solved_worlds = 0;
+	int reroute_requests = 0;
+	int resolved_at_one = 0;
+	int resolved_at_two = 0;
+	int exhausted = 0;
+	int failure_reason[HYBRID_INTERACTION_FAILURE_COUNT];
+	for (int f = 0; f < HYBRID_INTERACTION_FAILURE_COUNT; ++f) failure_reason[f] = 0;
 	int first_surface_pass = -1;
 	int first_road_cut = -1;
 	int first_ramp_pass = -1;
@@ -17140,13 +17206,29 @@ void Check_Hybrid_Interaction_Search (void)
 				}
 			}
 
-			//	Then what Phase 11 actually made of them.
+			//	Then what Phase 11 actually made of them, through the owner that owns the reroute.
 			HybridInteractionParams sp = Interaction_Fixture (scan.Sized,1200.0f,inputs,preflight.Metrics);
 			HybridInteractionSet si;
 			HybridInteractionResult sr;
-			if (!Hybrid_Build_Interactions (sp,scan.Identity,scan.Matrices,scan.Landforms,scan.Hydrology,
-													  scan.Anchors,scan.Topology,scan.Routes,
-													  Macro_Sample_From_Formula,&scan.Ground,&si,&sr)) continue;
+			HybridRouteResult srr;
+			int spent = 0;
+			const bool ok = Hybrid_Solve_Routes_And_Interactions (scan.RouteParams,sp,scan.Identity,
+																					scan.Matrices,scan.Landforms,
+																					scan.Hydrology,scan.Anchors,scan.Topology,
+																					Macro_Sample_From_Formula,&scan.Ground,
+																					&scan.Routes,&srr,&si,&sr,&spent);
+			if (spent > 0) {
+				reroute_requests += spent;
+				if (ok && (spent == 1)) resolved_at_one++;
+				if (ok && (spent == 2)) resolved_at_two++;
+			}
+			if (!ok) {
+				if (spent > 0) exhausted++;
+				if ((sr.Failure > HYBRID_INTERACTION_OK) && (sr.Failure < HYBRID_INTERACTION_FAILURE_COUNT)) {
+					failure_reason[sr.Failure]++;
+				}
+				continue;
+			}
 			solved_worlds++;
 
 			for (int i = 0; i < si.Interactions.Count (); ++i) {
@@ -17175,6 +17257,13 @@ void Check_Hybrid_Interaction_Search (void)
 	printf ("search over %u seeds x 7 archetypes: %d worlds built, %d solved; first surface pass seed %d, "
 			  "first road cut seed %d, first ramp pass seed %d\r\n",
 			  SEARCH_SEEDS,worlds,solved_worlds,first_surface_pass,first_road_cut,first_ramp_pass);
+	printf ("reroutes: %d requested, %d resolved at envelope +1, %d at +2, %d exhausted\r\n",
+			  reroute_requests,resolved_at_one,resolved_at_two,exhausted);
+	for (int f = HYBRID_INTERACTION_OK + 1; f < HYBRID_INTERACTION_FAILURE_COUNT; ++f) {
+		if (failure_reason[f] == 0) continue;
+		printf ("   phase 11 failed %d x %s\r\n",failure_reason[f],
+				  Hybrid_Interaction_Failure_Name ((HybridInteractionFailure)f));
+	}
 }
 
 

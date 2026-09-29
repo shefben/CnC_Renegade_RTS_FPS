@@ -164,6 +164,27 @@ struct HybridRouteSet
 };
 
 
+/*
+**	One edge that may not use its narrower corridor envelopes again.
+**
+**	Phase 11 is allowed to answer "this crossing cannot be compiled -- give the road one more envelope", and
+**	this is how the answer comes back: the edge, and the narrowest envelope it may now start from.  Nothing
+**	else about the search changes, and no envelope is ever reconsidered once it has been ruled out, so a
+**	reroute always moves outward and the same route state cannot come round again.
+*/
+struct HybridRouteEnvelopeFloor
+{
+	HybridRouteEnvelopeFloor(void) : EdgeId(0),MinEnvelope(0) { }
+
+	//	DynamicVectorClass<T> requires == and !=.
+	bool	operator == (const HybridRouteEnvelopeFloor & that) const	{ return EdgeId == that.EdgeId; }
+	bool	operator != (const HybridRouteEnvelopeFloor & that) const	{ return !(*this == that); }
+
+	unsigned int	EdgeId;
+	int				MinEnvelope;		// 1 or 2; 0 is the ordinary start and needs no record
+};
+
+
 struct HybridRouteParams
 {
 	HybridRouteParams(void);
@@ -182,6 +203,9 @@ struct HybridRouteParams
 	int					MaxLocalRetriesPerStage;
 	int					AStarExpansionsPerRoute;	// 8N from the Section-16.1 budgets
 	int					AStarExpansionsPerAttempt;	// R * 8N
+
+	//	Empty for an ordinary run: every edge starts at envelope 0.
+	DynamicVectorClass<HybridRouteEnvelopeFloor>	EnvelopeFloors;
 
 	HybridScratchArena *		Arena;
 	HybridWorkCounters *		Counters;

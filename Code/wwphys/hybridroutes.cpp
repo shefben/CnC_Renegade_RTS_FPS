@@ -2582,7 +2582,20 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 	b.CurrentIsOptional	= (Hybrid_Route_Priority_Of(*b.Topology,edge) == HYBRID_ROUTE_PRIORITY_OPTIONAL_LINK);
 	const char * spline_reason = "no path";
 
-	for (int envelope = 0; envelope < 3; ++envelope) {
+	/*
+	**	Where this edge's envelope search starts.  Phase 11 may have ruled out the envelopes it already tried,
+	**	in which case the search begins strictly after the one that produced the route it refused.
+	*/
+	int first_envelope = 0;
+	for (int f = 0; f < b.P->EnvelopeFloors.Count(); ++f) {
+		if (b.P->EnvelopeFloors[f].EdgeId != edge.StableId) continue;
+		first_envelope = b.P->EnvelopeFloors[f].MinEnvelope;
+		break;
+	}
+	if (first_envelope < 0) first_envelope = 0;
+	if (first_envelope > 2) first_envelope = 2;
+
+	for (int envelope = first_envelope; envelope < 3; ++envelope) {
 
 		b.CurrentHalfWidth = Min2(preferred + ((float)envelope * k.S),maximum);
 		b.Expansions = 0;

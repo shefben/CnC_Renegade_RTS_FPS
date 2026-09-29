@@ -324,6 +324,7 @@ struct HybridInteractionParams
 	float					HeavyVehicleWidth;				// the swept clearance reference
 	float					HeavyVehicleHeight;
 	float					HarvesterWidth;
+	float					LightVehicleWidth;				// the Humvee reference: what a trail or service road carries
 	float					MinVehicleLaneClearance;		// fairness.min_vehicle_lane_clearance
 	float					TierStep;							// Section 12.3's elevation term denominator
 
@@ -382,6 +383,32 @@ bool	Hybrid_Build_Interactions(const HybridInteractionParams & params,const Hybr
 											HybridInteractionSet * out,HybridInteractionResult * result);
 
 unsigned int	Hybrid_Interaction_Checksum(const HybridInteractionSet & set,unsigned int seed = 0);
+
+
+/*
+**	The most reroutes one attempt may spend: the plan gives a road three corridor envelopes, so two of them
+**	can ever be reached by a reroute.
+*/
+#define HYBRID_MAX_REROUTES 2
+
+/*
+**	Phase 10 and Phase 11 as the plan describes them: routing, interaction solving, and the next-envelope
+**	reroute between them.  `route_params` is taken mutable because the reroute records which edge may no
+**	longer use its narrower envelopes.  `reroutes_out` counts the reroutes actually spent.
+*/
+bool	Hybrid_Solve_Routes_And_Interactions(HybridRouteParams & route_params,
+															const HybridInteractionParams & interaction_params,
+															const HybridMapIdentity & identity,
+															const HybridCoarseMatrices & matrices,
+															const HybridLandformSet & landforms,
+															const HybridHydrologySet & hydrology,
+															const HybridAnchorSet & anchors,
+															const HybridTopology & topology,
+															HybridRouteHeightSampleFunc sample,void * context,
+															HybridRouteSet * routes,HybridRouteResult * route_result,
+															HybridInteractionSet * interactions,
+															HybridInteractionResult * interaction_result,
+															int * reroutes_out = nullptr);
 
 
 /*

@@ -107,6 +107,7 @@ bool								ProceduralWorldManager::HybridAnchorsValid	= false;
 HybridTopology				ProceduralWorldManager::HybridTopologyRecord;
 bool								ProceduralWorldManager::HybridTopologyValid	= false;
 HybridRouteSet				ProceduralWorldManager::HybridRoutes;
+HybridRouteParams			ProceduralWorldManager::HybridRouteInputs;
 HybridInteractionSet		ProceduralWorldManager::HybridInteractions;
 bool							ProceduralWorldManager::HybridInteractionsValid		= false;
 HybridPreflightInputs	ProceduralWorldManager::HybridInputs;
@@ -928,6 +929,9 @@ bool ProceduralWorldManager::Build_Hybrid_Routes(const ProceduralWorldProfile & 
 		return false;
 	}
 
+	//	Kept for Phase 11's reroute, which re-runs Phase 10 with one edge's envelope floor raised.
+	HybridRouteInputs = params;
+
 	HybridRoutesValid = true;
 	if (built_out != nullptr) *built_out = true;
 	return true;
@@ -982,6 +986,7 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 	params.HeavyVehicleWidth		= HybridMetrics.HeavyVehicleWidth;
 	params.HeavyVehicleHeight		= HybridMetrics.HeavyVehicleHeight;
 	params.HarvesterWidth			= HybridMetrics.HarvesterWidth;
+	params.LightVehicleWidth		= HybridMetrics.HumveeWidth;
 	params.MinVehicleLaneClearance= profile.Fairness.MinVehicleLaneClearance;
 	params.TierStep					= profile.Plan.TierStep;
 
@@ -1034,17 +1039,35 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 	params.Arena	= &HybridArena;
 	params.Counters= &HybridWork;
 
+	/*
+	**	Phase 11 through its own owner, which is also where the plan's next-envelope reroute lives: a crossing
+	**	no method can compile may spend one more Phase-10 envelope, and the accepted state is always one
+	**	Phase-10 run paired with one Phase-11 run over it.
+	*/
+	HybridRouteResult route_result;
 	HybridInteractionResult result;
-	if (!Hybrid_Build_Interactions (params,HybridIdentity,HybridCoarse,HybridLandforms,HybridHydrology,
-												HybridAnchors,HybridTopologyRecord,HybridRoutes,
-												Sample_Terrain_Height,nullptr,&HybridInteractions,&result)) {
+	int reroutes = 0;
+	if (!Hybrid_Solve_Routes_And_Interactions (HybridRouteInputs,params,HybridIdentity,HybridCoarse,
+															 HybridLandforms,HybridHydrology,HybridAnchors,
+															 HybridTopologyRecord,Sample_Terrain_Height,nullptr,
+															 &HybridRoutes,&route_result,&HybridInteractions,&result,
+															 &reroutes)) {
 		if (error_out != nullptr) {
-			error_out->Format ("hybrid interactions: %s (%s)",
-									 Hybrid_Interaction_Failure_Name (result.Failure),
-									 result.Detail.Peek_Buffer ());
+			if (route_result.Failure != HYBRID_ROUTE_OK) {
+				error_out->Format ("hybrid routes (reroute): %s (%s)",
+										 Hybrid_Route_Failure_Name (route_result.Failure),
+										 route_result.Detail.Peek_Buffer ());
+			} else {
+				error_out->Format ("hybrid interactions: %s (%s)",
+										 Hybrid_Interaction_Failure_Name (result.Failure),
+										 result.Detail.Peek_Buffer ());
+			}
 		}
 		HybridInteractions.Reset ();
 		return false;
+	}
+	if (reroutes > 0) {
+		WWDEBUG_SAY (("Hybrid Phase 11: %d reroute(s) spent on wider Phase-10 envelopes\r\n",reroutes));
 	}
 
 	HybridInteractionsValid = true;

@@ -486,6 +486,12 @@ class ProceduralWorldManager
 		static HybridTopology				HybridTopologyRecord;
 		static bool							HybridTopologyValid;
 		static HybridRouteSet				HybridRoutes;
+
+	/*
+	**	The Phase-10 parameters the accepted routes were built with, kept because Phase 11 may legitimately
+	**	ask for one more corridor envelope and the reroute has to re-run Phase 10 with the same inputs.
+	*/
+	static HybridRouteParams			HybridRouteInputs;
 		static HybridInteractionSet		HybridInteractions;
 		static bool								HybridInteractionsValid;
 
