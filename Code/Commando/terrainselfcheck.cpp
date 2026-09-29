@@ -7318,6 +7318,13 @@ struct PassTerrain
 	bool		FarSideDiffers;
 	float		FarSideZ;				// applied where `across` is positive and beyond the span
 
+	/*
+	**	A true sheer step: the wall carries no slope at all, so the whole drop happens at the floor edge.  A
+	**	diagonal converts a *sloped* face into a gentle ramp, and cannot do anything at all with a
+	**	discontinuity, so this is the shape that genuinely cannot be realized inside `RoadVerticalInterval`.
+	*/
+	bool		WallIsVertical;
+
 	bool		BlockPlusTangent;		// true: the far `+tangent` reach is unreachably high
 };
 
@@ -7350,13 +7357,24 @@ static bool Pass_Terrain_Height (const Vector2 & world,float * height_out,void *
 		return true;
 	}
 
-	if (distance <= terrain->FloorHalf) {
+	/*
+	**	The floor includes its own edge, to within the position quantum.  A ramp foot lands exactly on
+	**	`FloorHalf`, and a quantized point half a thousandth outside it is still on the floor: without this the
+	**	synthetic field answers with the wall's height there, which is an artifact of the fixture rather than
+	**	anything the builder did.
+	*/
+	if (distance <= (terrain->FloorHalf + 0.001f)) {
 		*height_out = terrain->FloorZ + (along * terrain->TangentFloorSlope);
 		return true;
 	}
 	const float far_z = (terrain->FarSideDiffers && (across > 0.0f)) ? terrain->FarSideZ : terrain->RimZ;
 
 	if (distance >= terrain->HalfSpan) {
+		*height_out = far_z + (along * terrain->TangentRimSlope);
+		return true;
+	}
+
+	if (terrain->WallIsVertical) {
 		*height_out = far_z + (along * terrain->TangentRimSlope);
 		return true;
 	}
@@ -7391,9 +7409,10 @@ void Check_Hybrid_Local_Pass (void)
 	const float approach = 8.0f * params.Constants.W;
 
 	/*
-	**	How much along-obstruction run these fixtures make available.  A real obstruction offers half its
-	**	own length; the synthetic ones are treated as long features so the cases under test are the
-	**	geometry and the realizability, not the feature's extent -- which has its own case below.
+	**	How much along-obstruction run these fixtures make available, in each direction.  A real station's
+	**	run is the arc distance to each end of its own obstruction; the synthetic ones are given a long
+	**	feature in both directions so the cases under test are the geometry and the realizability.  The
+	**	cases that test the extent itself pass their own directional values.
 	*/
 	const float PASS_RUN = 400.0f;
 
@@ -7413,6 +7432,7 @@ void Check_Hybrid_Local_Pass (void)
 	terrain.TangentRimSlope		= 0.0f;
 	terrain.FarSideDiffers		= false;
 	terrain.FarSideZ				= 0.0f;
+	terrain.WallIsVertical		= false;
 	terrain.BlockPlusTangent	= false;
 
 	/*
@@ -7434,14 +7454,14 @@ void Check_Hybrid_Local_Pass (void)
 		const bool built = Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,terrain.Centre,
 																  terrain.Tangent,terrain.Normal,terrain.HalfSpan,
 																  terrain.FloorHalf,terrain.HalfSpan,approach,
-																  PASS_RUN,Pass_Terrain_Height,&terrain,&geometry,&failure);
+																  PASS_RUN,PASS_RUN,Pass_Terrain_Height,&terrain,&geometry,&failure);
 		Check (built,"a wall with room for a diagonal descent is not pass capable (%s)",
 				 Hybrid_Local_Pass_Failure_Name (failure));
 
 		if (built) {
 			Check (geometry.Kind == HYBRID_LOCAL_PASS_FLOOR,"the floor pass has the wrong kind");
 			Check (geometry.HasFloor,"the floor pass records no floor");
-			Check (geometry.ControlCount == 4,"the floor pass has %d controls, not four",geometry.ControlCount);
+			Check (geometry.ControlCount == 6,"the floor pass has %d controls, not six",geometry.ControlCount);
 			Check (geometry.TangentRun > 0.0f,
 					 "a descent too steep to take straight recorded no along-obstruction run");
 			Check (geometry.SteepestGrade <= (max_grade + 0.001f),
@@ -7456,7 +7476,7 @@ void Check_Hybrid_Local_Pass (void)
 			HybridLocalPassFailure again_failure = HYBRID_LOCAL_PASS_OK;
 			Check (Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,terrain.Centre,terrain.Tangent,
 													  terrain.Normal,terrain.HalfSpan,terrain.FloorHalf,
-													  terrain.HalfSpan,approach,PASS_RUN,Pass_Terrain_Height,&terrain,&again,
+													  terrain.HalfSpan,approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&terrain,&again,
 													  &again_failure),"the second pass build was refused");
 			Check (again.Orientation == geometry.Orientation,"pass orientation is not stable");
 			Check (again.TangentRun == geometry.TangentRun,"pass tangent run is not stable");
@@ -7484,27 +7504,26 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,deep.Centre,deep.Tangent,deep.Normal,
 													deep.HalfSpan,deep.FloorHalf,deep.HalfSpan,approach,
-													PASS_RUN,Pass_Terrain_Height,&deep,&geometry,&failure),
+													PASS_RUN,PASS_RUN,Pass_Terrain_Height,&deep,&geometry,&failure),
 				 "a 400-unit wall was accepted as a surface pass");
-		Check (failure == HYBRID_LOCAL_PASS_GRADE,"a wall past every legal run named %s",
+		Check (failure == HYBRID_LOCAL_PASS_RUN,"a wall past every legal run named %s",
 				 Hybrid_Local_Pass_Failure_Name (failure));
 	}
 
 	/*
-	**	Enough run for the grade, but the profile cannot be realized: the wall is a sheer step rather than a
+	**	Enough run for the grade, but the profile cannot be realized: the wall is a *vertical* step rather than a
 	**	slope, so the grade-limited ramp hangs outside the `RoadVerticalInterval` of the ground beneath it.
 	**	The cut and fill limits are not touched -- the geometry simply cannot be built.
 	*/
 	{
 		PassTerrain step = terrain;
-		step.HalfSpan	= 14.0f;			// the wall is now two units wide and still 24 deep
-		step.FloorHalf	= 12.0f;
+		step.WallIsVertical		= true;
 
 		HybridLocalPassGeometry geometry;
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,step.Centre,step.Tangent,step.Normal,
 													step.HalfSpan,step.FloorHalf,step.HalfSpan,approach,
-													PASS_RUN,Pass_Terrain_Height,&step,&geometry,&failure),
+													PASS_RUN,PASS_RUN,Pass_Terrain_Height,&step,&geometry,&failure),
 				 "a sheer step was accepted as a surface pass");
 		Check ((failure == HYBRID_LOCAL_PASS_CUT_FILL) || (failure == HYBRID_LOCAL_PASS_GRADE),
 				 "a sheer step named %s rather than the cut/fill or grade it breaks",
@@ -7520,7 +7539,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,narrow.Centre,narrow.Tangent,
 													narrow.Normal,narrow.HalfSpan,narrow.FloorHalf,narrow.HalfSpan,
-													approach,PASS_RUN,Pass_Terrain_Height,&narrow,&geometry,&failure),
+													approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&narrow,&geometry,&failure),
 				 "a floor narrower than the swept envelope was accepted");
 		Check (failure == HYBRID_LOCAL_PASS_FLOOR_WIDTH,"a narrow floor named %s",
 				 Hybrid_Local_Pass_Failure_Name (failure));
@@ -7535,7 +7554,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,tilted.Centre,tilted.Tangent,
 													tilted.Normal,tilted.HalfSpan,tilted.FloorHalf,tilted.HalfSpan,
-													approach,PASS_RUN,Pass_Terrain_Height,&tilted,&geometry,&failure),
+													approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&tilted,&geometry,&failure),
 				 "a floor climbing two-to-one along itself was accepted");
 		Check ((failure == HYBRID_LOCAL_PASS_FLOOR_GRADE) || (failure == HYBRID_LOCAL_PASS_CUT_FILL) ||
 				 (failure == HYBRID_LOCAL_PASS_GRADE),"a steep floor named %s",
@@ -7556,7 +7575,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,blocked.Centre,blocked.Tangent,
 													blocked.Normal,blocked.HalfSpan,blocked.FloorHalf,
-													blocked.HalfSpan,approach,PASS_RUN,Pass_Terrain_Height,&blocked,&geometry,
+													blocked.HalfSpan,approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&blocked,&geometry,
 													&failure),
 				 "a floor pass whose ravine is walled off on one side was accepted");
 	}
@@ -7575,6 +7594,7 @@ void Check_Hybrid_Local_Pass (void)
 		cliff.TangentRimSlope	= 0.0f;
 		cliff.FarSideDiffers		= true;
 		cliff.FarSideZ				= 5.0f;			// the upper bench: a five-unit step over 18 of normal run
+		cliff.WallIsVertical		= false;
 		cliff.BlockPlusTangent	= false;
 
 		/*
@@ -7586,7 +7606,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		const bool built = Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,cliff.Centre,cliff.Tangent,
 																  cliff.Normal,cliff.HalfSpan,0.0f,cliff.HalfSpan,
-																  approach,PASS_RUN,Pass_Terrain_Height,&cliff,&geometry,
+																  approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&cliff,&geometry,
 																  &failure);
 		Check (built,"a flat cliff fixture is not ramp capable (%s)",
 				 Hybrid_Local_Pass_Failure_Name (failure));
@@ -7613,7 +7633,7 @@ void Check_Hybrid_Local_Pass (void)
 																			blocked_cliff.Centre,blocked_cliff.Tangent,
 																			blocked_cliff.Normal,blocked_cliff.HalfSpan,0.0f,
 																			blocked_cliff.HalfSpan,approach,
-																			PASS_RUN,Pass_Terrain_Height,&blocked_cliff,&mirrored,
+																			PASS_RUN,PASS_RUN,Pass_Terrain_Height,&blocked_cliff,&mirrored,
 																			&mirror_failure);
 		Check (mirror_built,"a cliff ramp with one orientation blocked found neither (%s)",
 				 Hybrid_Local_Pass_Failure_Name (mirror_failure));
@@ -7621,6 +7641,94 @@ void Check_Hybrid_Local_Pass (void)
 			Check (mirrored.Orientation == 1,"the blocked orientation %d was chosen anyway",
 					 mirrored.Orientation);
 		}
+
+		/*
+		**	The same choice made by the obstruction's extent rather than by its terrain.  A cliff ramp leans
+		**	one way only, so a station with no run left toward `+tangent` has to take `-tangent`: the run is a
+		**	property of how much feature is left in that direction, and a ramp may not buy more of it by
+		**	running off the end of the cliff it is crossing.
+		*/
+		HybridLocalPassGeometry by_room;
+		HybridLocalPassFailure room_failure = HYBRID_LOCAL_PASS_OK;
+		HybridLocalPassMeasurement room;
+		const bool room_built = Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,cliff.Centre,
+																		 cliff.Tangent,cliff.Normal,cliff.HalfSpan,0.0f,
+																		 cliff.HalfSpan,approach,0.0f,PASS_RUN,
+																		 Pass_Terrain_Height,&cliff,&by_room,&room_failure,
+																		 &room);
+		Check (room_built,"a cliff ramp with no run toward +tangent found none the other way (%s)",
+				 Hybrid_Local_Pass_Failure_Name (room_failure));
+		if (room_built) {
+			Check (by_room.Orientation == 1,"the exhausted orientation %d was chosen anyway",
+					 by_room.Orientation);
+			Check (by_room.TangentRun <= PASS_RUN,
+					 "the ramp leaned %.2f, past the run its obstruction offers",by_room.TangentRun);
+		}
+
+		/*
+		**	And with no run either way there is no ramp at all.  There is no switchback to fall back on in
+		**	this generator version, so the honest answer is that the station is not pass capable.
+		*/
+		HybridLocalPassGeometry none;
+		HybridLocalPassFailure none_failure = HYBRID_LOCAL_PASS_OK;
+		HybridLocalPassMeasurement none_measured;
+		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,cliff.Centre,cliff.Tangent,
+													cliff.Normal,cliff.HalfSpan,0.0f,cliff.HalfSpan,approach,
+													0.0f,0.0f,Pass_Terrain_Height,&cliff,&none,&none_failure,
+													&none_measured),
+				 "a cliff ramp was accepted with no run available in either direction");
+		Check (none_failure == HYBRID_LOCAL_PASS_RUN,"the exhausted cliff ramp was refused as %s",
+				 Hybrid_Local_Pass_Failure_Name (none_failure));
+		Check (none_measured.RequiredTangentA > 0.0f,
+				 "a cliff step too steep to cross square required no along-obstruction run");
+	}
+
+	/*
+	**	Directional availability on a floor pass, and the measurement a refusal has to carry.
+	**
+	**	A station sits somewhere along its obstruction, so the run it may spend toward one end is not the run
+	**	it may spend toward the other.  A floor pass spends run *both* ways -- the descent leans one way and
+	**	the ascent the other -- so exhausting either direction refuses it in both orientations.  That is not a
+	**	conservative bound being hit: it is the shape of the pass.
+	*/
+	{
+		HybridLocalPassGeometry geometry;
+		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
+		HybridLocalPassMeasurement measured;
+
+		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,terrain.Centre,terrain.Tangent,
+													terrain.Normal,terrain.HalfSpan,terrain.FloorHalf,terrain.HalfSpan,
+													approach,PASS_RUN,0.0f,Pass_Terrain_Height,&terrain,&geometry,
+													&failure,&measured),
+				 "a floor pass was accepted with no run toward one end of its obstruction");
+		Check (failure == HYBRID_LOCAL_PASS_RUN,"the exhausted floor pass was refused as %s",
+				 Hybrid_Local_Pass_Failure_Name (failure));
+
+		//	A refusal has to say by how much, or a census cannot tell "nearly fits" from "nowhere near".
+		Check (measured.Valid,"the builder refused a measurable station without measuring it");
+		Check (measured.AvailablePlus == PASS_RUN,"the measurement lost the +tangent availability");
+		Check (measured.AvailableMinus == 0.0f,"the measurement lost the -tangent availability");
+		Check (measured.RequiredTangentA > 0.0f,
+				 "a wall too steep to descend square required no along-obstruction run");
+		Check (measured.RequiredHorizontalA > measured.RequiredTangentA,
+				 "the required horizontal run %.2f is not longer than its tangent component %.2f",
+				 measured.RequiredHorizontalA,measured.RequiredTangentA);
+		Check (measured.RatioBest > 1.0f,"a refused run reported a ratio of %.3f, which would have fit",
+				 measured.RatioBest);
+		Check (measured.Depth > 0.0f,"the measurement recorded no depth to descend");
+
+		//	The same station with room both ways is capable, so the direction was the whole of the refusal.
+		HybridLocalPassFailure both_failure = HYBRID_LOCAL_PASS_OK;
+		HybridLocalPassMeasurement both;
+		Check (Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,terrain.Centre,terrain.Tangent,
+												  terrain.Normal,terrain.HalfSpan,terrain.FloorHalf,terrain.HalfSpan,
+												  approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&terrain,&geometry,
+												  &both_failure,&both),
+				 "the same station with run both ways was refused (%s)",
+				 Hybrid_Local_Pass_Failure_Name (both_failure));
+		Check (both.RatioBest <= 1.0f,"an accepted pass reported a run ratio of %.3f",both.RatioBest);
+		Check (geometry.TangentRun <= PASS_RUN,"the accepted pass leaned %.2f past its available run",
+				 geometry.TangentRun);
 	}
 }
 
@@ -16098,6 +16206,46 @@ void Check_Hybrid_Interactions (void)
 			}
 			printf ("    pass refusals: %s\r\n",
 					  (refusals.Get_Length () > 0) ? refusals.Peek_Buffer () : "none");
+
+			/*
+			**	And how far short they fell.  A reason census alone cannot distinguish "the supported parameter
+			**	space cannot build a pass here" from "passes fit and later validation rejects them", so the
+			**	along-obstruction run every station asked for is reported as a distribution.
+			*/
+			StringClass ratios ("");
+			for (int rb = 0; rb < HYBRID_PASS_RATIO_BUCKETS; ++rb) {
+				if (fixture.Hydrology.PassRatioBuckets[rb] == 0) continue;
+				StringClass one;
+				one.Format ("%s %d, ",Hybrid_Pass_Ratio_Bucket_Name (rb),
+								fixture.Hydrology.PassRatioBuckets[rb]);
+				ratios += one;
+			}
+			int median_bucket = -1;
+			{
+				int seen = 0;
+				const int half_way = fixture.Hydrology.PassStationsMeasured / 2;
+				for (int rb = 0; rb < HYBRID_PASS_RATIO_BUCKETS; ++rb) {
+					seen += fixture.Hydrology.PassRatioBuckets[rb];
+					if (seen <= half_way) continue;
+					median_bucket = rb;
+					break;
+				}
+			}
+			printf ("    pass run: %d measured, %d fit, ratio min %.3f median %s max %.3f -- %s\r\n",
+					  fixture.Hydrology.PassStationsMeasured,fixture.Hydrology.PassRunFits,
+					  fixture.Hydrology.PassRatioMin,Hybrid_Pass_Ratio_Bucket_Name (median_bucket),
+					  fixture.Hydrology.PassRatioMax,
+					  (ratios.Get_Length () > 0) ? ratios.Peek_Buffer () : "none");
+
+			StringClass legs ("");
+			for (int lg = 0; lg < HYBRID_LOCAL_PASS_MAX_CONTROLS; ++lg) {
+				if (fixture.Hydrology.PassProfileLegRefusals[lg] == 0) continue;
+				StringClass one;
+				one.Format ("leg %d: %d, ",lg,fixture.Hydrology.PassProfileLegRefusals[lg]);
+				legs += one;
+			}
+			printf ("    pass profile: steepest %.4f rad -- %s\r\n",fixture.Hydrology.PassProfileGradeMax,
+					  (legs.Get_Length () > 0) ? legs.Peek_Buffer () : "no grade refusal");
 
 			StringClass kinds ("");
 			for (int si = 0; si < interactions.Interactions.Count (); ++si) {

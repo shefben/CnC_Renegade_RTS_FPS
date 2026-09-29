@@ -166,6 +166,7 @@ const char * Hybrid_Interaction_Problem_Name(HybridInteractionProblem problem)
 		case HYBRID_PROBLEM_CROSS_SLOPE:					return "cross_slope";
 		case HYBRID_PROBLEM_RESERVE_CONFLICT:			return "reserve_conflict";
 		case HYBRID_PROBLEM_METHOD_UNAVAILABLE:		return "method_unavailable";
+		case HYBRID_PROBLEM_CUT_OR_FILL:			return "cut_or_fill";
 		case HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING:	return "too_close_to_crossing";
 		default:													break;
 	}
@@ -1147,6 +1148,50 @@ static bool Compile_Ford(InteractionBuilder & b,const HybridTopologyEdge & edge,
 
 
 /*
+**	The realized macro terrain, as the shared local-pass builder wants it.
+*/
+static bool Interaction_Height_Sample(const Vector2 & world,float * height_out,void * context)
+{
+	InteractionBuilder * b = (InteractionBuilder *)context;
+	if ((b == nullptr) || (height_out == nullptr)) return false;
+	return b->Height_At(world,height_out);
+}
+
+
+static HybridLocalPassParams Pass_Params(const InteractionBuilder & b,HybridRoadClass road_class)
+{
+	HybridLocalPassParams params;
+	params.Constants					= b.P->Constants;
+	params.MaxCutDepth				= b.P->MaxCutDepth;
+	params.MaxFillHeight				= b.P->MaxFillHeight;
+	params.SweptVehicleWidth		= Max2(b.P->HeavyVehicleWidth,b.P->HarvesterWidth);
+	params.MinVehicleLaneClearance= b.P->MinVehicleLaneClearance;
+
+	//	The class actually being built here, not the `PRIMARY_2` the window was first proved for.
+	params.PassClass					= road_class;
+	return params;
+}
+
+
+//	Say what the pass broke in this phase's own vocabulary.
+static HybridInteractionProblem Pass_Problem(HybridLocalPassFailure failure)
+{
+	switch (failure) {
+		case HYBRID_LOCAL_PASS_NO_HEIGHT:		return HYBRID_PROBLEM_NO_HARD_VALID_STATION;
+		case HYBRID_LOCAL_PASS_RUN:
+		case HYBRID_LOCAL_PASS_GRADE:
+		case HYBRID_LOCAL_PASS_FLOOR_GRADE:		return HYBRID_PROBLEM_GRADE_TOO_STEEP;
+		case HYBRID_LOCAL_PASS_TURN_RADIUS:		return HYBRID_PROBLEM_TURN_TOO_TIGHT;
+		case HYBRID_LOCAL_PASS_CROSS_SLOPE:		return HYBRID_PROBLEM_CROSS_SLOPE;
+		case HYBRID_LOCAL_PASS_CUT_FILL:			return HYBRID_PROBLEM_CUT_OR_FILL;
+		case HYBRID_LOCAL_PASS_FLOOR_WIDTH:		return HYBRID_PROBLEM_CLEARANCE;
+		default:											break;
+	}
+	return HYBRID_PROBLEM_METHOD_UNAVAILABLE;
+}
+
+
+/*
 **	A preplanned surface pass or ramp pass: the road descends and climbs across the obstruction on the
 **	ground rather than over it.  The plan asks for the *full swept route* to be sampled at `min(W/2,A/3)`
 **	with the road-class max grade, turn radius, cross slope and vehicle clearance required at every sample,
@@ -1169,11 +1214,6 @@ static bool Compile_Pass(InteractionBuilder & b,const HybridTopologyEdge & edge,
 		return false;
 	}
 
-	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(edge.RoadClass);
-	const float max_grade = spec.MaxGradeDegrees * PI_OVER_180;
-	const float max_cross = spec.MaxCrossSlopeDegrees * PI_OVER_180;
-	const float half_roadbed = 0.5f * Hybrid_Roadbed_Width(edge.RoadClass,k.W);
-
 	const Vector2 across = Unit(window.ApproachB - window.ApproachA);
 	const float reserve = Max2(STATION_HALF_LENGTH_W * k.W,window.ApproachLength);
 	Vector2 approach_a(0.0f,0.0f);
@@ -1181,54 +1221,37 @@ static bool Compile_Pass(InteractionBuilder & b,const HybridTopologyEdge & edge,
 	if (!Station_Is_Hard_Valid(b,edge,route,window.Center,across,window.Span,reserve,&approach_a,
 										&approach_b,problem_out)) return false;
 
-	//	The swept route across the pass, at the plan's own spacing for this method.
+	/*
+	**	The pass Phase 6 froze, revalidated here on the realized terrain at this phase's own spacing.
+	**
+	**	What is validated is the *stored centerline*, not the straight line between the two approaches: a road
+	**	does not cross a canyon by driving off the rim, and judging that line is what made this method
+	**	unreachable.  Phase 6 proved a candidate against its provisional height and froze the geometry; this
+	**	phase re-reads every control elevation from the macro terrain and re-measures the grade, the corners,
+	**	the cross slope, the floor and each sample's `RoadVerticalInterval` for itself at `min(W/2, A/3)`, so a
+	**	`pass_capable` flag is never permission to skip validation.  What it must not do is invent a second
+	**	path: two phases each drawing their own centerline for one crossing is how they come to disagree, and
+	**	Phase 12 realizes this one.
+	*/
+	if (window.Pass.ControlCount < 2) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_METHOD_UNAVAILABLE;
+		return false;
+	}
+
+	//	The frozen shape decides which method this is, not the caller: a canyon never becomes a ramp pass.
+	const HybridLocalPassKind expected = (method == HYBRID_METHOD_RAMP_PASS) ? HYBRID_LOCAL_PASS_RAMP
+																							  : HYBRID_LOCAL_PASS_FLOOR;
+	if (window.Pass.Kind != expected) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_METHOD_UNAVAILABLE;
+		return false;
+	}
+
 	const float spacing = Max2(Min2(PASS_SAMPLE_W * k.W,k.A / PASS_SAMPLE_A),k.Q);
-	const float length = (approach_b - approach_a).Length();
-	const int steps = (int)::ceil((double)(length / spacing));
-	const int count = (steps > 0) ? steps : 1;
-	const Vector2 axis = Unit(approach_b - approach_a);
-	const Vector2 normal(-axis.Y,axis.X);
-
-	float previous_z = 0.0f;
-	for (int i = 0; i <= count; ++i) {
-
-		const float ratio = (float)i / (float)count;
-		const Vector2 point(approach_a.X + ((approach_b.X - approach_a.X) * ratio),
-								  approach_a.Y + ((approach_b.Y - approach_a.Y) * ratio));
-
-		float here = 0.0f;
-		if (!b.Height_At(point,&here)) {
-			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_NO_HARD_VALID_STATION;
-			return false;
-		}
-		const HybridVerticalInterval interval_here = Hybrid_Road_Vertical_Interval(here,b.P->MaxCutDepth,
-																								  b.P->MaxFillHeight);
-		if (i > 0) {
-			const HybridVerticalInterval interval_previous = Hybrid_Road_Vertical_Interval(previous_z,
-																													b.P->MaxCutDepth,
-																													b.P->MaxFillHeight);
-			if (!Hybrid_Grade_Compatible(interval_previous,interval_here,length / (float)count,max_grade)) {
-				if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
-				return false;
-			}
-		}
-		previous_z = here;
-
-		float left = 0.0f;
-		float right = 0.0f;
-		if (!b.Height_At(point + (normal * half_roadbed),&left) ||
-			 !b.Height_At(point - (normal * half_roadbed),&right)) {
-			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_CLEARANCE;
-			return false;
-		}
-		const HybridVerticalInterval left_interval = Hybrid_Road_Vertical_Interval(left,b.P->MaxCutDepth,
-																								  b.P->MaxFillHeight);
-		const HybridVerticalInterval right_interval = Hybrid_Road_Vertical_Interval(right,b.P->MaxCutDepth,
-																									b.P->MaxFillHeight);
-		if (!Hybrid_Grade_Compatible(left_interval,right_interval,2.0f * half_roadbed,max_cross)) {
-			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_CROSS_SLOPE;
-			return false;
-		}
+	HybridLocalPassFailure why = HYBRID_LOCAL_PASS_OK;
+	if (!Hybrid_Validate_Local_Pass(Pass_Params(b,edge.RoadClass),window.Pass,spacing,
+											  Interaction_Height_Sample,&b,&why)) {
+		if (problem_out != nullptr) *problem_out = Pass_Problem(why);
+		return false;
 	}
 
 	*out = HybridInteraction();

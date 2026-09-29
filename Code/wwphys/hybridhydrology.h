@@ -215,6 +215,16 @@ struct HybridWaterBody
 
 
 /*
+**	The run-shortfall histogram's buckets.  Fixed bounds, so two runs of the same world report the same
+**	distribution and a median can be read off without keeping every sample.
+*/
+#define HYBRID_PASS_RATIO_BUCKETS 8
+
+int				Hybrid_Pass_Ratio_Bucket(float ratio);
+const char *	Hybrid_Pass_Ratio_Bucket_Name(int bucket);
+
+
+/*
 **	One accepted crossing/pass window.  The obstruction is named by its own record: a river's
 **	hydrology StableId, or a Phase-5 landform's StableId.
 **
@@ -313,6 +323,25 @@ struct HybridHydrologySet
 
 	//	Why step 18 refused a local pass at a station, by reason, for the census.
 	int			PassRefusals[HYBRID_LOCAL_PASS_FAILURE_COUNT];
+
+	/*
+	**	How far short the refusals fell.  A count alone cannot tell "the supported parameter space cannot
+	**	build a pass" from "passes fit and something later rejects them", and those are different defects, so
+	**	the along-obstruction run every station asked for is kept as a distribution of
+	**	`required_tangent_run / available_tangent_run`.  Diagnosis, not world state: none of it is hashed.
+	*/
+	int			PassStationsMeasured;
+	int			PassRunFits;						// stations whose run fits, before any later validation
+	float			PassRatioMin;
+	float			PassRatioMax;
+	int			PassRatioBuckets[HYBRID_PASS_RATIO_BUCKETS];
+
+	/*
+	**	And what the compiled profiles did, which the run distribution cannot say: the steepest grade any
+	**	refused candidate's own profile reached, and which leg of the candidate it was on.
+	*/
+	float			PassProfileGradeMax;
+	int			PassProfileLegRefusals[HYBRID_LOCAL_PASS_MAX_CONTROLS];
 	int			StationsMerged;
 	int			LocalRetries;
 

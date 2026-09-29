@@ -220,6 +220,13 @@ void HybridHydrologySet::Reset(void)
 	OptionalLakes			= 0;
 	StationsConsidered	= 0;
 	for (int refusal = 0; refusal < HYBRID_LOCAL_PASS_FAILURE_COUNT; ++refusal) PassRefusals[refusal] = 0;
+	PassStationsMeasured	= 0;
+	PassRunFits				= 0;
+	PassRatioMin			= 0.0f;
+	PassRatioMax			= 0.0f;
+	for (int bucket = 0; bucket < HYBRID_PASS_RATIO_BUCKETS; ++bucket) PassRatioBuckets[bucket] = 0;
+	PassProfileGradeMax	= 0.0f;
+	for (int leg = 0; leg < HYBRID_LOCAL_PASS_MAX_CONTROLS; ++leg) PassProfileLegRefusals[leg] = 0;
 	StationsMerged			= 0;
 	LocalRetries			= 0;
 	Checksum					= 0;
@@ -2698,6 +2705,61 @@ static bool Provisional_Height_Sample(const Vector2 & world,float * height_out,v
 }
 
 
+/*
+**	The run-shortfall buckets.  `<= 1` is a pass the run fits, so the first two buckets are the ones that
+**	say passes are geometrically available at all.
+*/
+static const float	PASS_RATIO_BOUNDS[HYBRID_PASS_RATIO_BUCKETS] =
+{
+	0.50f,1.00f,1.50f,2.00f,3.00f,5.00f,10.00f,3.4e38f
+};
+
+static const char *	PASS_RATIO_NAMES[HYBRID_PASS_RATIO_BUCKETS] =
+{
+	"<=0.5","<=1.0","<=1.5","<=2.0","<=3.0","<=5.0","<=10",">10"
+};
+
+
+int Hybrid_Pass_Ratio_Bucket(float ratio)
+{
+	for (int bucket = 0; bucket < (HYBRID_PASS_RATIO_BUCKETS - 1); ++bucket) {
+		if (ratio <= PASS_RATIO_BOUNDS[bucket]) return bucket;
+	}
+	return HYBRID_PASS_RATIO_BUCKETS - 1;
+}
+
+
+const char * Hybrid_Pass_Ratio_Bucket_Name(int bucket)
+{
+	if ((bucket < 0) || (bucket >= HYBRID_PASS_RATIO_BUCKETS)) return "?";
+	return PASS_RATIO_NAMES[bucket];
+}
+
+
+static void Note_Pass_Measurement(HybridHydrologySet & out,const HybridLocalPassMeasurement & measured)
+{
+	if (!measured.Valid) return;
+
+	const float ratio = measured.RatioBest;
+	if (out.PassStationsMeasured == 0) {
+		out.PassRatioMin = ratio;
+		out.PassRatioMax = ratio;
+	} else {
+		if (ratio < out.PassRatioMin) out.PassRatioMin = ratio;
+		if (ratio > out.PassRatioMax) out.PassRatioMax = ratio;
+	}
+	out.PassStationsMeasured++;
+	if (ratio <= 1.0f) out.PassRunFits++;
+	out.PassRatioBuckets[Hybrid_Pass_Ratio_Bucket(ratio)]++;
+
+	if (measured.ProfileGrade > out.PassProfileGradeMax) out.PassProfileGradeMax = measured.ProfileGrade;
+	if ((measured.Failure[0] == HYBRID_LOCAL_PASS_GRADE) && (measured.ProfileLeg >= 0) &&
+		 (measured.ProfileLeg < HYBRID_LOCAL_PASS_MAX_CONTROLS)) {
+		out.PassProfileLegRefusals[measured.ProfileLeg]++;
+	}
+}
+
+
 static HybridLocalPassParams Local_Pass_Params(const HydrologyBuilder & b)
 {
 	HybridLocalPassParams params;
@@ -2943,21 +3005,30 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 				ground.B = &b;
 
 				HybridLocalPassFailure why = HYBRID_LOCAL_PASS_OK;
+				HybridLocalPassMeasurement measured;
+
 				/*
-				**	How much along-obstruction run this station may spend: half the feature's own length, so a
-				**	descent and an ascent both fit on it.  A ramp cannot lean further along a feature than the
-				**	feature is long, and that -- not an invented multiple of the lane width -- is the bound.
+				**	How much along-obstruction run this station may spend, and in which direction.
+				**
+				**	It is the arc distance along *this obstruction's own sampled centerline*: `stations[index]`
+				**	back toward its start, and what is left toward its end.  The two are rarely equal, because a
+				**	station sits somewhere along the feature rather than at its middle, and a nominal length is
+				**	not the run a particular station has.  A ramp may not buy run past either end -- past the end
+				**	it is no longer this window's local pass but ordinary routing around the obstacle -- and
+				**	nothing is subtracted from what is left, because a margin would be a tuning value.
 				*/
-				const float available_run = (landform != nullptr) ? (0.5f * landform->Length)
-																			 : (12.0f * k.W);
+				const float available_minus = stations[index];
+				const float available_plus = length - stations[index];
 
 				if (Hybrid_Build_Local_Pass(Local_Pass_Params(b),pass_kind,centre,tangent,normal,half,
-													 floor_half,rim_half,approach,available_run,
-													 Provisional_Height_Sample,&ground,&pass_geometry,&why)) {
+													 floor_half,rim_half,approach,available_plus,available_minus,
+													 Provisional_Height_Sample,&ground,&pass_geometry,&why,
+													 &measured)) {
 					methods |= HYBRID_WINDOW_METHOD_PASS;
 				} else if ((why > HYBRID_LOCAL_PASS_OK) && (why < HYBRID_LOCAL_PASS_FAILURE_COUNT)) {
 					b.Out->PassRefusals[why]++;
 				}
+				Note_Pass_Measurement(*b.Out,measured);
 			}
 
 			if (b.P->TunnelsAvailable && (b.P->TunnelRequiredWidth >= b.P->HeavyVehicleWidth) &&

@@ -283,41 +283,81 @@ obligation) are open and neither blocks code.
 **I12's bridge/ford-disabled/junction/overpass behaviour is closed, and `Q-019` is closed** (D-011).
 Full suite 235/235 on client and dedicated server.
 
-**The `pass_capable` defect is fixed at its owner, and the pass branches are still not reachable.** Both
-statements are measured, and the second is now a different problem from the first.
+**The `pass_capable` geometry is now correct at its owner, and both pass branches are geometrically
+available on real worlds -- what is still missing is a world where Phase 11 selects one.** Every statement
+below is measured, and the decisions are recorded as D-012.
 
-Fixed: `Code/wwphys/hybridlocalpass.{h,cpp}` is the one local-pass builder, shared by Phase 6 and Phase 11.
-It builds the *diagonal* ramp the class grade requires --
-`required_tangent_run = sqrt(max(0, (vertical/tan(g))^2 - normal_run^2))` -- for a canyon/ravine descent
-(ramp, floor, ramp, with the two ramps leaning opposite ways so the route returns across the station) and
-for a cliff band (one diagonal). It judges *planned road geometry*: the profile's own grade, its corners
-against the class turn radius, its cross slope, and -- the part that keeps it honest -- every sample inside
-its own `RoadVerticalInterval`, so no cut or fill limit is touched. Both tangent orientations are tried in
-a fixed order and the first fully legal one wins. `Check_Hybrid_Local_Pass` proves all of it on synthetic
-height fields (`terrain_hybridlocalpass` / `fds_`), including the regression case where the straight
-bank-to-bank line is refused and the legitimate diagonal is accepted. Phase 6 now calls the builder and
-**freezes the accepted geometry onto the window record** (`HybridCrossingWindow::Pass`), inside the
-hydrology checksum, so Phase 11 will revalidate the same pass rather than invent another.
+Fixed at `Code/wwphys/hybridlocalpass.{h,cpp}`, the one local-pass builder shared by Phase 6 and Phase 11:
 
-Still unreachable, with the census in place to say why: on the two solving fixtures, pass refusals are
-`grade 72, cut_fill 3, floor_grade 1` and `grade 75, cross_slope 5, cut_fill 1, floor_grade 6`. `grade`
-here means the required tangent run exceeds the run the obstruction offers, which Phase 6 supplies as
-`0.5 * landform->Length`.
+- **the available run is directional arc length.** It is the arc distance along the obstruction's own
+  sampled centerline -- `stations[index]` toward its start, the remainder toward its end -- and a floor
+  pass needs each of its two ramps to fit its own direction, because the descent leans one way and the
+  ascent the other. `0.5 * landform->Length` was never conservative; it simply was not the run a
+  particular station has. Nothing is subtracted from it. No switchbacks were added: one descent, a floor,
+  one ascent, and a station that cannot fit that shape in either deterministic orientation says so;
+- **`RUN` is now a refusal of its own,** separate from `GRADE`, so "the obstruction is too short" is no
+  longer reported as "the profile is too steep";
+- **a cliff ramp's profile is the grade line between the two approach elevations,** not the ground at the
+  ramp feet. Sampling the face judged the cliff instead of the road: on `canyon_crossroads` seed 31337 a
+  band whose benches both stand at 0 and whose face rises 31.7 between them gave a "profile" of
+  0, 31.7, 0, 0 and a 47-degree leg, and 69 of 76 stations refused for it. Whether the grade line can be
+  built out of the ground is the `RoadVerticalInterval` test, so a ramp still never becomes a road cut;
+- **a floor pass descends the wall, not the approach.** The candidate carries the two rim points, so the
+  graded legs are rim-to-floor and floor-to-rim -- the six-control record the struct was always sized
+  for. Starting the grade line at the approach point spread the same drop over flat ground and left the
+  profile buried under the rim, which refused most canyon and ravine stations on cut/fill;
+- **the run is solved, not estimated.** The foot lands `run` along the obstruction where the floor may
+  stand lower, so each step lengthens the run to what the foot it just reached asks for: monotone, hence
+  terminating, one candidate per step, and the two ways it ends are distinguished (`RUN` when the
+  obstruction is too short on the first step, `FLOOR_GRADE` when the floor falls away faster than a ramp
+  gains on it).
 
-**Next exact action:** measure, do not guess. Instrument Phase 6 to print, for the stations that refuse,
-the actual `vertical_run`, `normal_run`, `required_tangent_run` and `available_run` -- the previous attempt
-at this reported `0.00` because the builder does not return its geometry on a refusal, so the numbers have
-to come from inside `Try_Orientation`. Then decide from those numbers which is true: that `0.5 * Length` is
-the wrong available run (a switchback may legitimately use more of a long feature, and the plan caps
-nothing), or that the generated canyon depth-to-width ratios genuinely preclude a local pass under the
-supported configuration -- in which case prove it from Section 6's own `depth >= 0.75 * tier_step` and
-`length >= max(12W, 0.20D)` against the `PRIMARY_2` 12-degree grade, and record that the two pass branches
-cannot occur rather than leaving them looking untested.
+**Phase 11 now consumes the frozen candidate.** `Compile_Pass` was validating the straight line between
+the two approach points; it revalidates `HybridCrossingWindow::Pass` through
+`Hybrid_Validate_Local_Pass`, re-reading elevations from the realized macro terrain and re-measuring
+grade, corners, cross slope, floor and each sample's `RoadVerticalInterval` at `min(W/2, A/3)`. The
+frozen shape decides the method, so a canyon can never be reported as a `RAMP_PASS_WINDOW`.
+`HYBRID_PROBLEM_CUT_OR_FILL` was added so an unrealizable profile is not reported as a steep one.
 
-Road cut is separate and closer: 73 and 81 windows are cut-capable on the solving fixtures, so the only
-thing missing is a routed road that crosses one. `PLATEAU_BASIN` is in the 40-fixture set and still refuses
-upstream; its refusals are the thing to chase.
+Measured state, 40 real-pipeline fixtures (8 seeds x 5 archetypes), 235/235 ctest green on client and
+dedicated server:
 
-Remaining upstream refusals across the 40 fixtures, each its own owner's defect and none to be weakened for
-a test: overpass quota short, river bridge quota short, `hill 13 exhausted alternate candidates` (`Q-018`),
-`HIGHWAY_4 has no legal route`, `field reserve is illegal`.
+- the run fits at **75 of 76** and **82 of 87** measured stations, median ratio at or under 0.5. So the
+  along-obstruction run is *not* what blocks these methods, and neither branch is impossible. The census
+  carries the whole distribution (`PassRatioBuckets`, `PassRunFits`, `PassProfileGradeMax`,
+  `PassProfileLegRefusals`) because a count alone cannot tell "the parameter space cannot build a pass"
+  from "passes fit and later validation rejects them";
+- **zero grade refusals remain.** What refuses now is `cross_slope 24` and `cut_fill 45` (archetype 2
+  seed 31337) and `cross_slope 24, cut_fill 57` (archetype 5 seed 808), which is the honest answer for a
+  cliff band that needs more cut than the class allows -- those stations are road cuts, not surface
+  passes;
+- **`canyon_crossroads` seed 31337 carries two pass-capable windows** out of Phase 6, the first generated
+  world ever to do so. A deterministic search over seeds 1..90 of `canyon_crossroads`, `plateau_basin`
+  and `ravine_network` found pass windows only on `canyon_crossroads`: seeds 19, 23, 55 (1 window),
+  51 (2), 87 (3). `plateau_basin` and `ravine_network` produced none in that range.
+
+**Why Phase 11 still selects no pass, measured:** on `canyon_crossroads` seed 51, **2 of the 6 routed
+structural spans sit on pass-capable windows**, and Phase 11 chose `bridge` for both. That is the plan's
+own fixed method order for canyon and ravine -- bridge, then surface pass when the crossing is not a
+mandatory bridge, then tunnel -- and those windows are bridge-capable. So the order is not to be touched;
+the fixture needed is a world where a routed span crosses a canyon window that is pass-capable and *not*
+bridge-capable (span past the registered bridge kinds, so `Compile_Bridge` refuses with
+`SPAN_TOO_LONG`).
+
+**Next exact action, in order:**
+
+1. Extend the deterministic seed search to record, per routed structural span, whether its window is
+   pass-capable and whether `bridge_capable` is false -- that single predicate identifies the
+   `surface_pass` fixture. Search `canyon_crossroads` and `ravine_network` wider than seed 90 if needed.
+   Freeze the first such seed as a permanent I12 fixture. Do not change bridge metrics or the method
+   order to create one.
+2. For `road_cut` and `ramp_pass`: the cliff/ridge order is road cut first, so a single routed span on a
+   cliff or ridge window yields `road_cut`. 73 and 81 cut-capable windows exist and **no route crosses
+   one**, so this is a Phase 9/10 question, not a Phase 11 one: find out why no obligation binds to a
+   `CLIFF` obstruction on `plateau_basin` (whose basin rim is supposed to be a `CLIFF` obligation) and
+   why no route's structural span lands on a cliff window. Chase it at the owning phase.
+3. Then re-close I12 with the three branches exercised, and only then start I13 / Phase 12.
+
+Remaining upstream refusals across the 40 fixtures, each its own owner's defect and none of them to be
+weakened for a test: overpass quota short, river bridge quota short, `hill 13 exhausted 32 alternate
+candidates` (`Q-018`), `HIGHWAY_4 has no legal route`, `field reserve is illegal`.

@@ -47,14 +47,6 @@ static const float	PI_OVER_180	= 3.14159265358979323846f / 180.0f;
 static const float	SPACING_W	= 2.0f;
 static const float	SPACING_A	= 3.0f;
 
-/*
-**	The least along-obstruction run any station is allowed to spend, in lane widths, whatever the caller
-**	says is available.  A ramp needs somewhere to start, and a feature shorter than this is not one a road
-**	can be fitted to at all.
-*/
-static const float	TANGENT_RUN_FLOOR_W	= 4.0f;
-
-
 HybridLocalPassParams::HybridLocalPassParams(void) :
 	MaxCutDepth(0.0f),MaxFillHeight(0.0f),SweptVehicleWidth(0.0f),MinVehicleLaneClearance(0.0f),
 	PassClass(HYBRID_ROAD_PRIMARY_2)
@@ -80,6 +72,7 @@ const char * Hybrid_Local_Pass_Failure_Name(HybridLocalPassFailure failure)
 		case HYBRID_LOCAL_PASS_OK:				return "ok";
 		case HYBRID_LOCAL_PASS_NO_GEOMETRY:	return "no_geometry";
 		case HYBRID_LOCAL_PASS_NO_HEIGHT:	return "no_height";
+		case HYBRID_LOCAL_PASS_RUN:			return "run";
 		case HYBRID_LOCAL_PASS_GRADE:			return "grade";
 		case HYBRID_LOCAL_PASS_TURN_RADIUS:	return "turn_radius";
 		case HYBRID_LOCAL_PASS_CROSS_SLOPE:	return "cross_slope";
@@ -131,15 +124,46 @@ static float Corner_Radius(const Vector2 & a,const Vector2 & b,const Vector2 & c
 **	When the normal span alone is already long enough the tangent run is zero and the ramp is straight
 **	down the wall, which is the easy case the old straight-line test happened to cover.
 */
-static float Required_Tangent_Run(float normal_run,float vertical_run,float max_grade_radians)
+static float Required_Horizontal_Run(float vertical_run,float max_grade_radians)
 {
 	const float tangent = (float)::tan((double)max_grade_radians);
 	if (tangent <= 1.0e-6f) return 0.0f;
+	return (float)fabs((double)vertical_run) / tangent;
+}
 
-	const float minimum = (float)fabs((double)vertical_run) / tangent;
+
+static float Required_Tangent_Run(float normal_run,float vertical_run,float max_grade_radians)
+{
+	const float minimum = Required_Horizontal_Run(vertical_run,max_grade_radians);
 	const float squared = (minimum * minimum) - (normal_run * normal_run);
 	if (squared <= 0.0f) return 0.0f;
 	return (float)::sqrt((double)squared);
+}
+
+
+/*
+**	How short a station falls: `required / available`, with no room reported as far short rather than as
+**	divide-by-zero.  A station at the very end of a feature genuinely has no run that way.
+*/
+static const float	RATIO_NO_ROOM	= 1.0e9f;
+
+static float Run_Ratio(float required,float available)
+{
+	if (required <= 0.0f) return 0.0f;
+	if (available <= 0.0f) return RATIO_NO_ROOM;
+	return required / available;
+}
+
+
+//	Keep the best (smallest) worst-ramp ratio the orientations achieved.
+static void Note_Ratio(HybridLocalPassMeasurement * measure,float required_a,float available_a,
+							  float required_b,float available_b)
+{
+	if (measure == nullptr) return;
+	const float ratio_a = Run_Ratio(required_a,available_a);
+	const float ratio_b = Run_Ratio(required_b,available_b);
+	const float worst = (ratio_a > ratio_b) ? ratio_a : ratio_b;
+	if (worst < measure->RatioBest) measure->RatioBest = worst;
 }
 
 
@@ -160,7 +184,8 @@ static float Required_Tangent_Run(float normal_run,float vertical_run,float max_
 */
 static bool Profile_Is_Legal(const HybridLocalPassParams & params,const Vector2 * controls,int count,
 									  const float * control_z,float spacing,HybridLocalPassHeightFunc sample,
-									  void * context,float * steepest_out,HybridLocalPassFailure * failure_out)
+									  void * context,float * steepest_out,int * steepest_leg_out,
+									  HybridLocalPassFailure * failure_out)
 {
 	const HybridConstants & k = params.Constants;
 	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(params.PassClass);
@@ -183,11 +208,14 @@ static bool Profile_Is_Legal(const HybridLocalPassParams & params,const Vector2 
 		//	The leg's own grade, on the compiled profile.
 		const float rise = control_z[leg + 1] - control_z[leg];
 		const float grade = (float)::atan((double)((float)fabs((double)rise) / length));
+		if ((steepest_out != nullptr) && (grade > *steepest_out)) {
+			*steepest_out = grade;
+			if (steepest_leg_out != nullptr) *steepest_leg_out = leg;
+		}
 		if (grade > (max_grade + HYBRID_QUANTUM_ANGLE)) {
 			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_GRADE;
 			return false;
 		}
-		if ((steepest_out != nullptr) && (grade > *steepest_out)) *steepest_out = grade;
 
 		const int steps = (int)::ceil((double)(length / spacing));
 		const int count_of = (steps > 0) ? steps : 1;
@@ -319,14 +347,81 @@ static bool Floor_Is_Legal(const HybridLocalPassParams & params,const Vector2 & 
 ***********************************************************************************************/
 
 /*
+**	How many times the run a ramp needs may be recomputed from the foot it reaches.
+**
+**	The run and the foot depend on each other: the run is what the drop to the foot requires, and the foot
+**	lands that run along the obstruction, where the floor may stand lower than it does at the station.  So the
+**	run is solved rather than estimated -- each step lengthens it to what the foot it just reached asks for,
+**	which is monotone and therefore terminates: either it settles, or it passes what the obstruction offers
+**	and the station has no legal descent.  This is not a search: there is one candidate at every step.
+*/
+static const int	RAMP_RUN_REFINEMENTS	= 8;
+
+
+/*
+**	Solve one ramp: the along-obstruction run that lets it reach the floor inside the class grade, and the
+**	foot it reaches.  `normal_side` picks which side of the floor the foot is on, `tangent_dir` which way the
+**	ramp leans.
+*/
+static bool Solve_Ramp_Foot(float normal_run,float rim_z,float max_grade,float floor_edge,
+									 const Vector2 & centre,const Vector2 & normal,const Vector2 & tangent,
+									 float normal_side,float tangent_dir,float available,float quantum,
+									 HybridLocalPassHeightFunc sample,void * context,float * run_out,
+									 Vector2 * foot_out,float * foot_z_out,HybridLocalPassFailure * failure_out)
+{
+	float run = 0.0f;
+
+	for (int refinement = 0; refinement <= RAMP_RUN_REFINEMENTS; ++refinement) {
+
+		const Vector2 foot = Quantized(centre + (normal * (normal_side * floor_edge)) +
+												 (tangent * (tangent_dir * run)));
+		float foot_z = 0.0f;
+		if (!sample(foot,&foot_z,context)) {
+			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
+			return false;
+		}
+
+		const float needed = Required_Tangent_Run(normal_run,rim_z - foot_z,max_grade);
+		if (needed > available) {
+			if (run_out != nullptr) *run_out = needed;
+			/*
+			**	Which of the two things went wrong is worth saying, because they are different defects.  On the
+			**	first step the foot is at the station itself, so the run is what *this* descent costs and the
+			**	obstruction is simply too short for it.  On a later step the run had already grown, which only
+			**	happens when the floor falls away along the obstruction faster than the ramp gains on it -- and
+			**	that is the floor's own grade, not a shortage of feature.
+			*/
+			if (failure_out != nullptr) {
+				*failure_out = (refinement == 0) ? HYBRID_LOCAL_PASS_RUN : HYBRID_LOCAL_PASS_FLOOR_GRADE;
+			}
+			return false;
+		}
+
+		if (needed <= (run + quantum)) {
+			if (run_out != nullptr) *run_out = run;
+			if (foot_out != nullptr) *foot_out = foot;
+			if (foot_z_out != nullptr) *foot_z_out = foot_z;
+			return true;
+		}
+		run = needed;
+	}
+
+	//	The floor falls away along the obstruction faster than a ramp can gain on it.
+	if (run_out != nullptr) *run_out = run;
+	if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_FLOOR_GRADE;
+	return false;
+}
+
+/*
 **	One orientation of one candidate.  `lean` is +1 when the first ramp leans along +tangent.
 */
 static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPassKind kind,
 									 const Vector2 & centre,const Vector2 & tangent,const Vector2 & normal,
 									 float obstruction_half,float floor_half,float rim_half,
-									 float approach_length,float available_run,float lean,
+									 float approach_length,float available_plus,float available_minus,float lean,
 									 HybridLocalPassHeightFunc sample,void * context,
-									 HybridLocalPassGeometry * out,HybridLocalPassFailure * failure_out)
+									 HybridLocalPassGeometry * out,HybridLocalPassFailure * failure_out,
+									 HybridLocalPassMeasurement * measure)
 {
 	const HybridConstants & k = params.Constants;
 	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(params.PassClass);
@@ -361,45 +456,106 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 			return false;
 		}
 
-		//	The normal span each ramp has: rim to floor edge.
-		const float rim = (rim_half > 0.0f) ? rim_half : obstruction_half;
+		//	The normal span each ramp has: rim to floor edge.  The rim is the obstruction's own edge.
+		const float rim = Min2((rim_half > 0.0f) ? rim_half : obstruction_half,obstruction_half);
 		const float normal_run = Max2(rim - floor_edge,k.Q);
 
+		/*
+		**	The descent starts at the rim, not out at the approach point.
+		**
+		**	The approach is reserved ground outside the obstruction, where a road sits on the ground: only the
+		**	wall has to be descended.  Spreading the same drop over the flat approach as well leaves the
+		**	profile buried under the rim and hanging above the floor -- cut and fill in the shape of the road
+		**	rather than of the ground -- and on the generated worlds that artifact alone refused most canyon
+		**	and ravine stations on `RoadVerticalInterval`.  So the candidate carries the two rim points, and
+		**	the graded legs are rim to floor and floor to rim.
+		*/
+		const Vector2 rim_a = Quantized(centre + (normal * rim));
+		const Vector2 rim_b = Quantized(centre - (normal * rim));
+
 		float floor_z = 0.0f;
-		if (!sample(centre,&floor_z,context)) {
+		float rim_a_z = 0.0f;
+		float rim_b_z = 0.0f;
+		if (!sample(centre,&floor_z,context) || !sample(rim_a,&rim_a_z,context) ||
+			 !sample(rim_b,&rim_b_z,context)) {
 			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
 			return false;
 		}
 
-		const float run_a = Required_Tangent_Run(normal_run,z_a - floor_z,max_grade);
-		const float run_b = Required_Tangent_Run(normal_run,z_b - floor_z,max_grade);
-		const float run = Max2(run_a,run_b);
-		if (run > available_run) {
-			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_GRADE;
-			return false;
+		/*
+		**	Each ramp buys its own vertical, so each needs only the run its own vertical asks for -- and it
+		**	spends that run in its own direction.  The descent leans `+lean` and the ascent `-lean`, so the two
+		**	are judged against the two directional availabilities separately: they are rarely equal, because a
+		**	station sits somewhere along the feature rather than at its middle.
+		*/
+		const float vertical_a = rim_a_z - floor_z;
+		const float vertical_b = rim_b_z - floor_z;
+		const float estimate_a = Required_Tangent_Run(normal_run,vertical_a,max_grade);
+		const float estimate_b = Required_Tangent_Run(normal_run,vertical_b,max_grade);
+		const float available_a = (lean > 0.0f) ? available_plus : available_minus;
+		const float available_b = (lean > 0.0f) ? available_minus : available_plus;
+
+		if (measure != nullptr) {
+			measure->Valid						= true;
+			measure->NormalRun				= normal_run;
+			measure->VerticalA				= vertical_a;
+			measure->VerticalB				= vertical_b;
+			measure->RequiredHorizontalA	= Required_Horizontal_Run(vertical_a,max_grade);
+			measure->RequiredHorizontalB	= Required_Horizontal_Run(vertical_b,max_grade);
+			measure->RequiredTangentA		= estimate_a;
+			measure->RequiredTangentB		= estimate_b;
+			measure->MaxGradeRadians		= max_grade;
+			measure->FloorHalfWidth			= floor_edge;
+			measure->RimHalfWidth			= rim;
+			measure->Depth						= Max2((float)fabs((double)vertical_a),
+																  (float)fabs((double)vertical_b));
+			Note_Ratio(measure,estimate_a,available_a,estimate_b,available_b);
 		}
 
-		const Vector2 entry = Quantized(centre + (normal * floor_edge) + (tangent * (lean * run)));
-		const Vector2 exit = Quantized(centre - (normal * floor_edge) - (tangent * (lean * run)));
+		//	The descent, then the ascent: each solved against its own direction's room.
+		float run_a = 0.0f;
+		float run_b = 0.0f;
+		Vector2 entry(0.0f,0.0f);
+		Vector2 exit(0.0f,0.0f);
+		float entry_z = 0.0f;
+		float exit_z = 0.0f;
+
+		const bool solved_a = Solve_Ramp_Foot(normal_run,rim_a_z,max_grade,floor_edge,centre,normal,tangent,
+														  +1.0f,lean,available_a,k.Q,sample,context,&run_a,&entry,
+														  &entry_z,failure_out);
+		const bool solved_b = solved_a &&
+									 Solve_Ramp_Foot(normal_run,rim_b_z,max_grade,floor_edge,centre,normal,tangent,
+														  -1.0f,-lean,available_b,k.Q,sample,context,&run_b,&exit,
+														  &exit_z,failure_out);
+		if (measure != nullptr) {
+			measure->RequiredTangentA = run_a;
+			measure->RequiredTangentB = run_b;
+			Note_Ratio(measure,run_a,available_a,run_b,available_b);
+		}
+		if (!solved_a || !solved_b) return false;
 
 		if (!Floor_Is_Legal(params,entry,exit,floor_edge,sample,context,failure_out)) return false;
 
-		float entry_z = 0.0f;
-		float exit_z = 0.0f;
-		if (!sample(entry,&entry_z,context) || !sample(exit,&exit_z,context)) {
-			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
-			return false;
-		}
-
-		controls[count]	= approach_a;	control_z[count] = z_a;		count++;
+		controls[count]	= approach_a;	control_z[count] = z_a;			count++;
+		controls[count]	= rim_a;			control_z[count] = rim_a_z;	count++;
 		controls[count]	= entry;			control_z[count] = entry_z;	count++;
-		controls[count]	= exit;			control_z[count] = exit_z;	count++;
-		controls[count]	= approach_b;	control_z[count] = z_b;		count++;
+		controls[count]	= exit;			control_z[count] = exit_z;		count++;
+		controls[count]	= rim_b;			control_z[count] = rim_b_z;	count++;
+		controls[count]	= approach_b;	control_z[count] = z_b;			count++;
+
+		//	The floor's own longitudinal grade, on the segment that was actually built.
+		if (measure != nullptr) {
+			const float floor_span = (exit - entry).Length();
+			if (floor_span > Max2(k.Q,1.0e-3f)) {
+				measure->FloorGrade = (float)::atan((double)((float)fabs((double)(exit_z - entry_z)) /
+																		  floor_span));
+			}
+		}
 
 		out->HasFloor		= true;
 		out->FloorEntry	= entry;
 		out->FloorExit		= exit;
-		out->TangentRun	= Hybrid_Quantize_Position(run);
+		out->TangentRun	= Hybrid_Quantize_Position(Max2(run_a,run_b));
 
 	} else {
 
@@ -409,42 +565,63 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 		**	is what turns an unclimbable face into a climbable ramp.
 		*/
 		const float normal_run = 2.0f * Max2(obstruction_half,k.Q);
-		const float run = Required_Tangent_Run(normal_run,z_b - z_a,max_grade);
-		if (run > available_run) {
-			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_GRADE;
+		const float vertical = z_b - z_a;
+		const float run = Required_Tangent_Run(normal_run,vertical,max_grade);
+
+		//	One ramp, so one direction: the one it leans along.
+		const float available = (lean > 0.0f) ? available_plus : available_minus;
+
+		if (measure != nullptr) {
+			measure->Valid						= true;
+			measure->NormalRun				= normal_run;
+			measure->VerticalA				= vertical;
+			measure->RequiredHorizontalA	= Required_Horizontal_Run(vertical,max_grade);
+			measure->RequiredTangentA		= run;
+			measure->MaxGradeRadians		= max_grade;
+			measure->RimHalfWidth			= obstruction_half;
+			measure->Depth						= (float)fabs((double)vertical);
+			Note_Ratio(measure,run,available,0.0f,available);
+		}
+
+		if (run > available) {
+			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_RUN;
 			return false;
 		}
 
-		const Vector2 middle = Quantized(centre + (tangent * (lean * run * 0.5f)));
-		float middle_z = 0.0f;
-		if (!sample(middle,&middle_z,context)) {
-			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
-			return false;
-		}
-
-		/*
-		**	The profile through the band is the grade-limited line between the two approach elevations, not
-		**	the ground's own: the ramp is what the road will be cut and filled to.
-		*/
 		const Vector2 ramp_a = Quantized(centre + (normal * obstruction_half) + (tangent * (lean * run)));
 		const Vector2 ramp_b = Quantized(centre - (normal * obstruction_half));
 
-		float ramp_a_z = 0.0f;
-		float ramp_b_z = 0.0f;
-		if (!sample(ramp_a,&ramp_a_z,context) || !sample(ramp_b,&ramp_b_z,context)) {
-			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
-			return false;
-		}
+		controls[count]	= approach_a;	count++;
+		controls[count]	= ramp_a;		count++;
+		controls[count]	= ramp_b;		count++;
+		controls[count]	= approach_b;	count++;
 
-		controls[count]	= approach_a;	control_z[count] = z_a;			count++;
-		controls[count]	= ramp_a;		control_z[count] = ramp_a_z;	count++;
-		controls[count]	= ramp_b;		control_z[count] = ramp_b_z;	count++;
-		controls[count]	= approach_b;	control_z[count] = z_b;			count++;
+		/*
+		**	The ramp's elevations are the grade-limited line between the two approach elevations, spread over
+		**	the plan distance the ramp actually travels -- *not* the ground at the ramp feet.
+		**
+		**	That distinction is the whole point of a surface ramp: the road is cut and filled to a grade the
+		**	untouched face does not have, so sampling the face here would judge the cliff instead of the road.
+		**	Measured on the generated worlds, sampling it was what refused every cliff station: a band whose
+		**	benches both stand at 0 and whose face rises 31.7 between them produced a "profile" of 0, 31.7, 0,
+		**	0 and a 47-degree leg, when the road across it is a straight, level line.  Whether that line can be
+		**	built out of this ground is the `RoadVerticalInterval` test below, which is where a band needing
+		**	more cut than the class allows is refused -- and refused as cut, so a ramp never silently becomes
+		**	a road cut.
+		*/
+		float travelled[HYBRID_LOCAL_PASS_MAX_CONTROLS];
+		travelled[0] = 0.0f;
+		for (int i = 1; i < count; ++i) {
+			travelled[i] = travelled[i - 1] + (controls[i] - controls[i - 1]).Length();
+		}
+		const float total = travelled[count - 1];
+		for (int i = 0; i < count; ++i) {
+			const float ratio = (total > Max2(k.Q,1.0e-3f)) ? (travelled[i] / total) : 0.0f;
+			control_z[i] = z_a + (vertical * ratio);
+		}
 
 		out->HasFloor		= false;
 		out->TangentRun	= Hybrid_Quantize_Position(run);
-		(void)middle;
-		(void)middle_z;
 		(void)rim_half;
 		(void)floor_half;
 	}
@@ -454,9 +631,14 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 	if (!Corners_Are_Legal(params,controls,count,&tightest,failure_out)) return false;
 
 	float steepest = 0.0f;
-	if (!Profile_Is_Legal(params,controls,count,control_z,spacing,sample,context,&steepest,failure_out)) {
-		return false;
+	int steepest_leg = -1;
+	const bool legal = Profile_Is_Legal(params,controls,count,control_z,spacing,sample,context,&steepest,
+													&steepest_leg,failure_out);
+	if (measure != nullptr) {
+		measure->ProfileGrade	= steepest;
+		measure->ProfileLeg		= steepest_leg;
 	}
+	if (!legal) return false;
 
 	out->Kind			= kind;
 	out->ControlCount	= count;
@@ -476,11 +658,18 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 bool Hybrid_Build_Local_Pass(const HybridLocalPassParams & params,HybridLocalPassKind kind,
 									  const Vector2 & centre,const Vector2 & tangent,const Vector2 & normal,
 									  float obstruction_half,float floor_half,float rim_half,
-									  float approach_length,float available_tangent_run,
+									  float approach_length,float available_run_plus,float available_run_minus,
 									  HybridLocalPassHeightFunc sample,void * context,
-									  HybridLocalPassGeometry * out,HybridLocalPassFailure * failure_out)
+									  HybridLocalPassGeometry * out,HybridLocalPassFailure * failure_out,
+									  HybridLocalPassMeasurement * measure_out)
 {
 	if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_OK;
+	if (measure_out != nullptr) {
+		*measure_out = HybridLocalPassMeasurement();
+		measure_out->AvailablePlus	= available_run_plus;
+		measure_out->AvailableMinus= available_run_minus;
+		measure_out->RatioBest		= RATIO_NO_ROOM;
+	}
 	if ((out == nullptr) || (sample == nullptr)) return false;
 	*out = HybridLocalPassGeometry();
 
@@ -498,9 +687,11 @@ bool Hybrid_Build_Local_Pass(const HybridLocalPassParams & params,HybridLocalPas
 		HybridLocalPassGeometry candidate;
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 
-		const float available = Max2(available_tangent_run,TANGENT_RUN_FLOOR_W * params.Constants.W);
-		if (Try_Orientation(params,kind,centre,tangent,normal,obstruction_half,floor_half,rim_half,
-								  approach_length,available,lean,sample,context,&candidate,&failure)) {
+		const bool built = Try_Orientation(params,kind,centre,tangent,normal,obstruction_half,floor_half,
+													  rim_half,approach_length,available_run_plus,available_run_minus,
+													  lean,sample,context,&candidate,&failure,measure_out);
+		if (measure_out != nullptr) measure_out->Failure[orientation] = failure;
+		if (built) {
 			candidate.Orientation = orientation;
 			*out = candidate;
 			return true;
@@ -546,6 +737,7 @@ bool Hybrid_Validate_Local_Pass(const HybridLocalPassParams & params,
 	const float spacing = (sample_spacing > 0.0f) ? sample_spacing
 															 : Hybrid_Local_Pass_Sample_Spacing(params.Constants);
 	float steepest = 0.0f;
+	int steepest_leg = -1;
 	return Profile_Is_Legal(params,geometry.Controls,geometry.ControlCount,control_z,spacing,sample,context,
-									&steepest,failure_out);
+									&steepest,&steepest_leg,failure_out);
 }

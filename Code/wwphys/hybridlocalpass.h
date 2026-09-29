@@ -89,6 +89,7 @@ enum HybridLocalPassFailure
 	HYBRID_LOCAL_PASS_OK = 0,
 	HYBRID_LOCAL_PASS_NO_GEOMETRY,			// degenerate frame, or no obstruction width to cross
 	HYBRID_LOCAL_PASS_NO_HEIGHT,				// the height field has no answer somewhere on the candidate
+	HYBRID_LOCAL_PASS_RUN,						// the obstruction has no room for the run the grade needs
 	HYBRID_LOCAL_PASS_GRADE,					// the profile itself exceeds the class maximum grade
 	HYBRID_LOCAL_PASS_TURN_RADIUS,			// a corner of the candidate is tighter than the class allows
 	HYBRID_LOCAL_PASS_CROSS_SLOPE,
@@ -157,6 +158,58 @@ struct HybridLocalPassGeometry
 
 
 /*
+**	What the builder measured, whether or not it accepted anything.
+**
+**	A refusal is only useful if it says by how much: a station that needs 212 units of along-obstruction run
+**	and has 210 is a different fact about the generator than one that needs 212 and has 40.  Every field here
+**	is geometry the builder computed anyway, so nothing is recomputed to report it, and nothing here is part
+**	of the world -- it is diagnosis, not state.
+*/
+struct HybridLocalPassMeasurement
+{
+	HybridLocalPassMeasurement(void)	{ ::memset (this,0,sizeof (*this)); }
+
+	bool		Valid;						// the frame and the height field answered, so the numbers mean something
+
+	float		NormalRun;					// the normal span one ramp has: rim to floor edge, or the whole band
+	float		VerticalA;					// approach A down to the floor (or across the band)
+	float		VerticalB;
+
+	float		RequiredHorizontalA;		// vertical / tan(max_grade)
+	float		RequiredHorizontalB;
+	float		RequiredTangentA;			// sqrt(max(0, required_horizontal^2 - normal_run^2))
+	float		RequiredTangentB;
+
+	//	Directional, and orientation-independent: how much run the obstruction offers each way from here.
+	float		AvailablePlus;
+	float		AvailableMinus;
+
+	/*
+	**	The best the two deterministic orientations could do: the smaller of the two orientations' worst
+	**	ramp ratio, `required_tangent_run / available_run`.  `<= 1` means the run fits and any refusal came
+	**	from later validation; `> 1` means no orientation has the room.
+	*/
+	float		RatioBest;
+
+	float		MaxGradeRadians;
+	float		FloorHalfWidth;
+	float		RimHalfWidth;
+	float		Depth;						// the vertical the pass has to make
+	float		FloorGrade;					// the floor segment's own longitudinal grade, when one was built
+
+	/*
+	**	What the compiled profile actually did, which is a different fact from the run: a station whose run
+	**	fits and whose profile is still too steep is not short of obstruction, it is being judged by geometry
+	**	that does not match what was built.  `ProfileLeg` is the control index the refusing leg starts at.
+	*/
+	float		ProfileGrade;
+	int		ProfileLeg;
+
+	HybridLocalPassFailure	Failure[2];	// per orientation, in the order they were tried
+};
+
+
+/*
 **	Build and validate the local pass at one station.
 **
 **	`centre`, `tangent` and `normal` are the obstruction's local frame; `normal` points from approach A
@@ -164,21 +217,32 @@ struct HybridLocalPassGeometry
 **	`rim_half` come from the owning landform (a cliff passes `0` for the floor).  `approach_length` is how
 **	far outside the obstruction each approach point stands.
 **
-**	`available_tangent_run` is how much along-obstruction run this station may actually spend -- the caller
-**	knows it, because it is a property of the obstruction, not of the road: a ramp cannot lean further along
-**	a feature than the feature is long.  A run the geometry needs but the obstruction cannot offer is a
-**	`GRADE` refusal, which is the honest answer: there is no legal profile here.
+**	`available_run_plus` and `available_run_minus` are how much along-obstruction run this station may spend
+**	in each direction -- the caller knows them, because they are properties of the obstruction, not of the
+**	road.  They are *directional* and rarely equal: a station is somewhere along the feature, so the run
+**	toward one end is the arc distance to that end and the run toward the other is what is left.  A ramp may
+**	not buy extra run by leaving the feature it is crossing, because past the end it is no longer this
+**	window's local pass but ordinary routing around the obstacle, so a run the geometry needs and the
+**	obstruction cannot offer is a `GRADE` refusal: there is no legal profile here.
+**
+**	A floor pass spends run *both* ways -- the descent leans one way and the ascent the other -- so it needs
+**	each ramp's own required run to fit that ramp's own direction.  A cliff ramp spends run one way only.
 **
 **	Both tangent orientations are tried in a fixed order -- `+tangent` first, then `-tangent` -- and the
-**	first fully legal candidate wins.  Nothing here is drawn or randomized; the same inputs always produce
-**	the same pass.
+**	first fully legal candidate wins.  This is one descent, one floor where there is one, and one ascent:
+**	there are no switchbacks, so a station that cannot fit that shape in either orientation is not
+**	pass-capable.  Nothing here is drawn or randomized; the same inputs always produce the same pass.
+**
+**	`measure_out` is optional and is filled whether or not a candidate was accepted, so a census can say how
+**	far short a refusal fell rather than only that it happened.
 */
 bool	Hybrid_Build_Local_Pass(const HybridLocalPassParams & params,HybridLocalPassKind kind,
 										 const Vector2 & centre,const Vector2 & tangent,const Vector2 & normal,
 										 float obstruction_half,float floor_half,float rim_half,
-										 float approach_length,float available_tangent_run,
+										 float approach_length,float available_run_plus,float available_run_minus,
 										 HybridLocalPassHeightFunc sample,void * context,
-										 HybridLocalPassGeometry * out,HybridLocalPassFailure * failure_out);
+										 HybridLocalPassGeometry * out,HybridLocalPassFailure * failure_out,
+										 HybridLocalPassMeasurement * measure_out = nullptr);
 
 /*
 **	Validate an already-frozen pass.  Phase 11 calls this on the geometry Phase 6 stored, at its own

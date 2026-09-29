@@ -554,6 +554,81 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-012 - Hybrid rewrite I12: what a local pass is measured against (2026-09-29)
+
+Section 8 Phase 6 step 18 asks for a "sampled `PRIMARY_2` swept path across the local floor/ramp" and
+Section 8 Phase 11 offers a surface pass and a `RAMP_PASS_WINDOW`, but neither says what the path *is*.
+Three separate readings of that were wrong in ways that made both methods unreachable on every generated
+world, and all three are decided here. The shared owner is `Code/wwphys/hybridlocalpass.{h,cpp}`; Phase 6
+proves and freezes a candidate, Phase 11 revalidates the frozen one, Phase 12 realizes it.
+
+**1. The along-obstruction run a station may spend is directional, and it is arc length.**
+
+A ramp buys grade with run along the obstruction, so the run available is a property of the obstruction,
+not of the road. It is the arc distance along that obstruction's own sampled centerline: `stations[index]`
+back toward its start and the remainder toward its end. The two are rarely equal, because a station sits
+somewhere along the feature rather than at its middle, and a nominal `Length` is not the run a particular
+station has. A floor pass spends run *both* ways -- the descent leans one way, the ascent the other -- so
+each ramp is judged against its own direction. Nothing is subtracted from what is left: a margin would be
+a tuning value. A ramp may not buy run past either end, because past the end it is no longer this window's
+local pass but ordinary routing around the obstacle.
+
+There are no switchbacks in this generator version. One descent, a floor where there is one, and one
+ascent; a station that cannot fit that shape in either of the two deterministic orientations is not
+pass-capable, and says so as a `RUN` refusal rather than an unexplained `GRADE`.
+
+**2. A cliff ramp's profile is the grade line, not the ground under it.**
+
+The ramp's intermediate control elevations are the grade-limited line between the two approach elevations,
+spread over the plan distance the ramp travels. Sampling the face at the ramp feet instead judges the
+cliff rather than the road, and that is what it did: measured on `canyon_crossroads` seed 31337, a band
+whose two benches both stand at 0 and whose face rises 31.7 between them produced a "profile" of
+0, 31.7, 0, 0 and a 47-degree leg. 69 of 76 stations on that world refused for it. Whether the grade line
+can be built out of this ground is the `RoadVerticalInterval` test, which is where a band needing more cut
+than the class allows is refused -- and refused *as* cut, so a surface ramp never silently becomes a road
+cut.
+
+**3. A floor pass descends the wall, not the approach.**
+
+The candidate carries the two rim points, so the graded legs are rim-to-floor and floor-to-rim and the
+approach legs sit on the ground where the approach is. Starting the grade line out at the approach point
+spreads the same drop over flat ground as well, which leaves the profile buried under the rim and hanging
+above the floor -- cut and fill in the shape of the road rather than of the ground. That artifact alone
+refused most canyon and ravine stations on `RoadVerticalInterval`. This is the six-control candidate the
+record was always sized for: approach, rim, floor entry, floor exit, rim, approach.
+
+The run and the foot depend on each other, because the foot lands `run` along the obstruction where the
+floor may stand lower than it does at the station. So the run is *solved* rather than estimated: each step
+lengthens it to what the foot it just reached asks for, which is monotone and therefore terminates. It is
+not a search -- there is one candidate at every step -- and the two ways it can end are distinguished,
+because they are different defects: too little run on the first step means the obstruction is too short
+(`RUN`), while a run that grew and then ran out means the floor falls away faster than a ramp gains on it,
+which is the floor's own grade (`FLOOR_GRADE`).
+
+**Phase 11 consumes the frozen geometry.** `Compile_Pass` validated the straight line between the two
+approach points, which is the geometry a road crossing a canyon never uses. It now revalidates
+`HybridCrossingWindow::Pass` through `Hybrid_Validate_Local_Pass`, re-reading every control elevation from
+the realized macro terrain and re-measuring grade, corners, cross slope, floor and each sample's
+`RoadVerticalInterval` for itself at `min(W/2, A/3)` -- a `pass_capable` flag is not permission to skip
+validation -- and it does not draw a second centerline, because two phases each inventing geometry for one
+crossing is how they come to disagree. The frozen shape also decides the method: a floor pass is a surface
+pass and a cliff ramp is a ramp pass, so a canyon can never be reported as a `RAMP_PASS_WINDOW`.
+
+**What was measured, and what it rules out.** The refusal census now carries the distribution, not just
+the count, because "the parameter space cannot build a pass" and "passes fit and later validation rejects
+them" are different defects. On the two worlds that solve, the run fits at 75 of 76 and 82 of 87 stations,
+median ratio at or under 0.5. So the along-obstruction run is **not** what makes these methods unreachable
+and the branches are not impossible; `0.5 * Length` was never conservative, it was simply not the run a
+particular station has. No cut or fill limit, quota, cap or approach tolerance was changed.
+
+**Status: accepted.** `terrain_hybridlocalpass` and `fds_terrain_hybridlocalpass` cover both shapes,
+both orientations, directional exhaustion in each direction and each refusal reason; the whole 235-test
+ctest suite passes on client and dedicated server. `canyon_crossroads` seed 31337 is the first generated
+world to carry pass-capable windows out of Phase 6 -- two of them -- and seed 51 routes structural spans
+across two more. Phase 11 still selects no pass, because the plan's own method order for canyon and ravine
+is bridge first and those windows are bridge-capable; that is a coverage question about which world to
+freeze as the fixture, recorded in `WIP_features.md`, not a licence to reorder the methods.
+
 ## D-011 - Hybrid rewrite Q-019: Phase 5 owns Section 5's canyon/ravine bridge quota (2026-09-29)
 
 **Decision: option (a).** Section 5 asks every map for 1/1/2 canyon/ravine bridges and forbids reducing a

@@ -66,6 +66,7 @@
 #include "hybridanchors.h"
 #include "hybridtopology.h"
 #include "hybridroutes.h"
+#include "hybridlocalpass.h"
 
 
 /*
@@ -234,6 +235,7 @@ enum HybridInteractionProblem
 	HYBRID_PROBLEM_CROSS_SLOPE,				// the surface tilts more across the roadbed than the class allows
 	HYBRID_PROBLEM_RESERVE_CONFLICT,			// an approach reserve hits an unrelated base or Tiberium core
 	HYBRID_PROBLEM_METHOD_UNAVAILABLE,		// the window permits no method this conflict may use
+	HYBRID_PROBLEM_CUT_OR_FILL,			// the profile cannot be realized inside its RoadVerticalInterval
 	HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING,	// inside 4W of an unrelated compiled crossing
 	HYBRID_PROBLEM_COUNT
 };
