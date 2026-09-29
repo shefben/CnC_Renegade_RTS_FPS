@@ -1520,6 +1520,89 @@ static void Drop_Reversals(DynamicVectorClass<RouteVertex> * vertices)
 **	interval between them marked structural.  The chain cells between the two banks are the crossing, and
 **	the crossing's shape is the frozen interval, not whatever cells the search stepped through to get there.
 */
+/*
+**	Crossings the search made without being sent to make them.
+**
+**	A cell whose `LandformMask` carries a cliff face or a canyon or ravine wall is hard-invalid *unless it
+**	lies inside an accepted window*, so a window is the only hole in an immutable barrier -- and a route is
+**	free to use one it was never given as a stop.  When it does, the crossing is just as real as an obliged
+**	one: the road has to get across that wall, and Phase 11 has to choose how.  Recording only the legs that
+**	were planned as crossings left those traversals invisible, so Phase 11 compiled nothing for them and
+**	Phase 12 would have laid road across an unmodified cliff face.  Measured over 200 seeds of every
+**	archetype, 40 solved worlds crossed a cliff obstruction this way and not one road cut was compiled.
+**
+**	What makes it a crossing is what makes any crossing: the chain enters a window's footprint on one side
+**	of its axis and leaves on the other.  The record is the window's own frozen approach pair, oriented by
+**	the side the route arrived from, so the road crosses on the axis Phase 6 reserved -- exactly as a planned
+**	crossing does, because it is the same crossing.
+*/
+static void Note_Unplanned_Crossings(RouteBuilder & b,const DynamicVectorClass<int> & chain,
+												 DynamicVectorClass<RouteCrossing> * crossings)
+{
+	if (crossings == nullptr) return;
+
+	int index = 0;
+	while (index < chain.Count()) {
+
+		const unsigned int id = Cached_Window(b,chain[index]);
+		if (id == 0) {
+			index++;
+			continue;
+		}
+
+		//	The whole run of chain cells inside this one window.
+		int last = index;
+		while (((last + 1) < chain.Count()) && (Cached_Window(b,chain[last + 1]) == id)) last++;
+
+		const int first_vertex = (index > 0) ? (index - 1) : index;
+		const int last_vertex = ((last + 1) < chain.Count()) ? (last + 1) : last;
+
+		bool covered = false;
+		for (int c = 0; (c < crossings->Count()) && !covered; ++c) {
+			const RouteCrossing & already = (*crossings)[c];
+			if (already.WindowId == id) covered = true;
+			if ((first_vertex <= already.LastIndex) && (last_vertex >= already.FirstIndex)) covered = true;
+		}
+
+		const HybridCrossingWindow * window = b.Hydrology->Find_Window(id);
+		if (!covered && (window != nullptr) && (last_vertex > first_vertex)) {
+
+			//	Did it come out the other side?  A road along the rim enters and leaves on one side.
+			const Vector2 normal(-window->Tangent.Y,window->Tangent.X);
+			const Vector2 entered = b.Cell_Center(chain[first_vertex]) - window->Center;
+			const Vector2 left = b.Cell_Center(chain[last_vertex]) - window->Center;
+			const float across_in = (entered.X * normal.X) + (entered.Y * normal.Y);
+			const float across_out = (left.X * normal.X) + (left.Y * normal.Y);
+
+			if (((across_in < 0.0f) && (across_out > 0.0f)) ||
+				 ((across_in > 0.0f) && (across_out < 0.0f))) {
+
+				RouteCrossing record;
+				record.WindowId	= id;
+				record.FirstIndex	= first_vertex;
+				record.LastIndex	= last_vertex;
+
+				//	`ApproachA` stands on the `+normal` side, so the side it arrived from names the ingress.
+				const bool from_a = (across_in > 0.0f);
+				record.Ingress		= from_a ? window->ApproachA : window->ApproachB;
+				record.Egress		= from_a ? window->ApproachB : window->ApproachA;
+
+				//	Kept in chain order, because the vertex builder matches on `FirstIndex`.
+				int slot = crossings->Count();
+				crossings->Add(record);
+				while ((slot > 0) && ((*crossings)[slot - 1].FirstIndex > record.FirstIndex)) {
+					(*crossings)[slot] = (*crossings)[slot - 1];
+					slot--;
+				}
+				(*crossings)[slot] = record;
+			}
+		}
+
+		index = last + 1;
+	}
+}
+
+
 static void Build_Route_Vertices(RouteBuilder & b,const DynamicVectorClass<int> & chain,
 											const DynamicVectorClass<int> & frozen_cells,
 											const DynamicVectorClass<int> & inserted,
@@ -2622,6 +2705,13 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 			const HybridTopologyNode * node = b.Topology->Find_Node(edge.Waypoints[w]);
 			if (node != nullptr) mandatory_cells.Add(b.Cell_Of(node->Position));
 		}
+
+		/*
+		**	A window the search drove through without being sent to is still a crossing, and is
+		**	recorded here rather than left for a later phase to deduce -- the same rule as a planned
+		**	one, because it is the same crossing.
+		*/
+		Note_Unplanned_Crossings(b,chain,&crossings);
 
 		DynamicVectorClass<HybridRouteStructuralSpan> spans;
 		if (!Chain_To_Spline(b,chain,mandatory_cells,crossings,first_point,last_point,&points,&stations,

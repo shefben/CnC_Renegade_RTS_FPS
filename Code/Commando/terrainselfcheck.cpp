@@ -16182,6 +16182,9 @@ void Check_Hybrid_Interactions (void)
 			Check (result.Failure != HYBRID_INTERACTION_OK,"a failed Phase 11 must name its failure");
 			Check (result.Detail.Get_Length () > 0,"a failed Phase 11 must say what refused the crossing");
 			Check (interactions.Interactions.Count () == 0,"a failed Phase 11 left solutions behind");
+			printf ("  archetype %d seed %u: phase 11 refused -- %s\r\n",
+					  (int)INTERACTION_ARCHETYPES[attempt / 8],INTERACTION_SEEDS[attempt % 8],
+					  last_phase11_detail.Peek_Buffer ());
 			continue;
 		}
 		solved_any = true;
@@ -16967,6 +16970,214 @@ void Check_Hybrid_Interactions (void)
 			 "a ford compiled although the native profile has no ford capability");
 }
 
+/***********************************************************************************************
+**	A deterministic search for the worlds that reach Phase 11's ground methods -- rewrite item I12.
+**
+**	The fixed method orders mean a method is only reached when the ones before it legitimately refuse: a
+**	canyon surface pass needs a bridge that cannot compile, a cliff ramp pass needs a cut that cannot.
+**	Which supported seed produces that combination is a fact about the generator, not something to
+**	arrange, so this walks the real pipeline over many seeds and reports what each routed crossing was
+**	actually offered.  It is a tool, not a gate: nothing registers it with ctest and it asserts nothing.
+**
+**		renegade -terrainselfcheck hybridinteractionsearch
+***********************************************************************************************/
+
+void Check_Hybrid_Interaction_Search (void)
+{
+	ProceduralWorldProfile profile;
+	StringClass profile_error;
+	if (!ProceduralWorldProfileManager::Load_Profile_From_File ("data/procedural_world/native.json",
+																				 &profile,&profile_error)) {
+		printf ("search: the native profile did not load: %s\r\n",profile_error.Peek_Buffer ());
+		return;
+	}
+	profile.Plan.BiomeMode	= "single";
+	profile.Plan.Biome		= "temperate";
+
+	HybridPreflightInputs inputs;
+	Hybrid_Content_Fixture (profile,&inputs);
+	HybridPreflightResult preflight;
+	if (!Hybrid_Run_Preflight (profile,inputs,&preflight)) {
+		printf ("search: preflight refused the native profile\r\n");
+		return;
+	}
+
+	static const HybridArchetype SEARCH_ARCHETYPES[7] = {
+		HYBRID_ARCHETYPE_CANYON_CROSSROADS,HYBRID_ARCHETYPE_RAVINE_NETWORK,
+		HYBRID_ARCHETYPE_PLATEAU_BASIN,HYBRID_ARCHETYPE_HIGHLAND_PASS,
+		HYBRID_ARCHETYPE_RIVER_VALLEY,HYBRID_ARCHETYPE_TWIN_LAKES,
+		HYBRID_ARCHETYPE_COASTAL_PENINSULA
+	};
+
+	const unsigned int SEARCH_SEEDS = 200u;
+
+	int worlds = 0;
+	int solved_worlds = 0;
+	int first_surface_pass = -1;
+	int first_road_cut = -1;
+	int first_ramp_pass = -1;
+
+	for (int ai = 0; ai < 7; ++ai) {
+		for (unsigned int seed = 1u; seed <= SEARCH_SEEDS; ++seed) {
+
+			HybridPipelineFixture scan;
+			StringClass why;
+			if (!Build_Hybrid_Pipeline (seed,1200.0f,SEARCH_ARCHETYPES[ai],&scan,&why)) continue;
+			worlds++;
+
+			/*
+			**	What every routed structural span was offered.  The span names a window, so the record is that
+			**	window's own capability set plus the obstruction span against the resolved bridge maximum --
+			**	which is what decides whether `Compile_Bridge` can refuse for a legitimate reason.
+			*/
+			for (int r = 0; r < scan.Routes.Routes.Count (); ++r) {
+				const HybridRoute & route = scan.Routes.Routes[r];
+				for (int s = 0; s < route.Structural.Count (); ++s) {
+
+					const HybridCrossingWindow * window = NULL;
+					for (int wi = 0; wi < scan.Hydrology.Windows.Count (); ++wi) {
+						if (scan.Hydrology.Windows[wi].StableId != route.Structural[s].WindowId) continue;
+						window = &scan.Hydrology.Windows[wi];
+						break;
+					}
+					if (window == NULL) continue;
+
+					const bool canyon = (window->Obstruction == HYBRID_OBSTRUCTION_CANYON) ||
+											  (window->Obstruction == HYBRID_OBSTRUCTION_RAVINE);
+					const bool cliff = (window->Obstruction == HYBRID_OBSTRUCTION_CLIFF) ||
+											 (window->Obstruction == HYBRID_OBSTRUCTION_RIDGE);
+					if (!canyon && !cliff) continue;
+
+					const bool bridge_capable = window->Has_Method (HYBRID_WINDOW_METHOD_BRIDGE);
+					const bool pass_capable = window->Has_Method (HYBRID_WINDOW_METHOD_PASS);
+					const bool cut_capable = window->Has_Method (HYBRID_WINDOW_METHOD_CUT);
+					const bool tunnel_capable = window->Has_Method (HYBRID_WINDOW_METHOD_TUNNEL);
+
+					//	Only the combinations that could reach a ground method are worth printing.
+					const bool interesting = (canyon && pass_capable && !bridge_capable) ||
+													 (cliff && pass_capable && !cut_capable) ||
+													 (cliff && cut_capable);
+					if (!interesting) continue;
+
+					printf ("SPAN archetype %d seed %u: edge %u window %u %s/%u span %.2f (bridge max %.2f) "
+							  "bridge %d pass %d cut %d tunnel %d\r\n",
+							  (int)SEARCH_ARCHETYPES[ai],seed,route.EdgeId,window->StableId,
+							  Hybrid_Obstruction_Kind_Name (window->Obstruction),window->ObstructionRecordId,
+							  window->Span,preflight.Metrics.BridgeMaxSpanLength,bridge_capable ? 1 : 0,
+							  pass_capable ? 1 : 0,cut_capable ? 1 : 0,tunnel_capable ? 1 : 0);
+				}
+			}
+
+			/*
+			**	Why a whole family of windows is never reached: how close the accepted centerlines actually come
+			**	to the cliff and ridge windows Phase 6 created.  A large minimum distance says Phase 9 never
+			**	places an edge near one; a small one says Phase 10 routes around it at the last moment.
+			*/
+			{
+				int cliff_windows = 0;
+				int cliff_cut_capable = 0;
+				int cliff_crossed = 0;
+				float nearest = 1.0e9f;
+				float widest_canyon = 0.0f;
+				bool widest_bridge_capable = false;
+
+				for (int wi = 0; wi < scan.Hydrology.Windows.Count (); ++wi) {
+
+					const HybridCrossingWindow & w = scan.Hydrology.Windows[wi];
+					if ((w.Obstruction == HYBRID_OBSTRUCTION_CANYON) ||
+						 (w.Obstruction == HYBRID_OBSTRUCTION_RAVINE)) {
+						if (w.Span > widest_canyon) {
+							widest_canyon				= w.Span;
+							widest_bridge_capable	= w.Has_Method (HYBRID_WINDOW_METHOD_BRIDGE);
+						}
+						continue;
+					}
+					if ((w.Obstruction != HYBRID_OBSTRUCTION_CLIFF) &&
+						 (w.Obstruction != HYBRID_OBSTRUCTION_RIDGE)) continue;
+
+					cliff_windows++;
+					if (w.Has_Method (HYBRID_WINDOW_METHOD_CUT)) cliff_cut_capable++;
+
+					/*
+					**	Does a route actually *cross* this obstruction here?  Being near the window centre is not
+					**	the same thing -- a road running along the rim is near it too -- so the test is whether
+					**	two consecutive centerline samples stand on opposite sides of the obstruction, close
+					**	enough along it to be this window rather than another.
+					*/
+					const Vector2 normal (-w.Tangent.Y,w.Tangent.X);
+					const float reach = (0.5f * w.Span) + (2.0f * scan.Sized.Constants.W);
+					float closest = 1.0e9f;
+					bool crosses = false;
+
+					for (int r = 0; r < scan.Routes.Routes.Count (); ++r) {
+
+						const HybridRoute & route = scan.Routes.Routes[r];
+						float previous_across = 0.0f;
+						for (int s = 0; s < route.Points.Count (); ++s) {
+
+							const Vector2 relative = route.Points[s] - w.Center;
+							const float across = (relative.X * normal.X) + (relative.Y * normal.Y);
+							const float along = (relative.X * w.Tangent.X) + (relative.Y * w.Tangent.Y);
+							const float distance = relative.Length ();
+							if (distance < closest) closest = distance;
+
+							if ((s > 0) && (WWMath::Fabs (along) <= reach) &&
+								 (((previous_across < 0.0f) && (across >= 0.0f)) ||
+								  ((previous_across > 0.0f) && (across <= 0.0f)))) crosses = true;
+							previous_across = across;
+						}
+					}
+					if (closest < nearest) nearest = closest;
+					if (crosses) cliff_crossed++;
+				}
+
+				if (cliff_windows > 0) {
+					printf ("CLIFF archetype %d seed %u: %d windows (%d cut capable), %d crossed by a route, "
+							  "nearest centerline %.1f; widest canyon span %.1f (bridge capable %d, max %.1f)\r\n",
+							  (int)SEARCH_ARCHETYPES[ai],seed,cliff_windows,cliff_cut_capable,cliff_crossed,
+							  nearest,widest_canyon,widest_bridge_capable ? 1 : 0,
+							  preflight.Metrics.BridgeMaxSpanLength);
+				}
+			}
+
+			//	Then what Phase 11 actually made of them.
+			HybridInteractionParams sp = Interaction_Fixture (scan.Sized,1200.0f,inputs,preflight.Metrics);
+			HybridInteractionSet si;
+			HybridInteractionResult sr;
+			if (!Hybrid_Build_Interactions (sp,scan.Identity,scan.Matrices,scan.Landforms,scan.Hydrology,
+													  scan.Anchors,scan.Topology,scan.Routes,
+													  Macro_Sample_From_Formula,&scan.Ground,&si,&sr)) continue;
+			solved_worlds++;
+
+			for (int i = 0; i < si.Interactions.Count (); ++i) {
+
+				const HybridInteractionMethod method = si.Interactions[i].Method;
+				if ((method != HYBRID_METHOD_SURFACE_PASS) && (method != HYBRID_METHOD_ROAD_CUT) &&
+					 (method != HYBRID_METHOD_RAMP_PASS)) continue;
+
+				printf ("HIT archetype %d seed %u: %s on %s/%u, window %u, edge %u\r\n",
+						  (int)SEARCH_ARCHETYPES[ai],seed,Hybrid_Interaction_Method_Name (method),
+						  Hybrid_Obstruction_Kind_Name (si.Interactions[i].Obstruction),
+						  si.Interactions[i].ObstructionRecordId,si.Interactions[i].WindowId,
+						  si.Interactions[i].EdgeId);
+
+				if ((method == HYBRID_METHOD_SURFACE_PASS) && (first_surface_pass < 0)) {
+					first_surface_pass = (int)seed;
+				}
+				if ((method == HYBRID_METHOD_ROAD_CUT) && (first_road_cut < 0)) first_road_cut = (int)seed;
+				if ((method == HYBRID_METHOD_RAMP_PASS) && (first_ramp_pass < 0)) first_ramp_pass = (int)seed;
+			}
+		}
+		printf ("search archetype %d done: %d worlds built, %d solved so far\r\n",
+				  (int)SEARCH_ARCHETYPES[ai],worlds,solved_worlds);
+	}
+
+	printf ("search over %u seeds x 7 archetypes: %d worlds built, %d solved; first surface pass seed %d, "
+			  "first road cut seed %d, first ramp pass seed %d\r\n",
+			  SEARCH_SEEDS,worlds,solved_worlds,first_surface_pass,first_road_cut,first_ramp_pass);
+}
+
+
 int	TerrainSelfCheck::Run (const char *which)
 {
 	_Failures = 0;
@@ -17060,6 +17271,10 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "hybridinteractions") == 0)) {
 		Check_Hybrid_Interactions ();
+	}
+	//	A tool, not a gate: only ever run when named, so `which == nullptr` deliberately skips it.
+	if ((which != nullptr) && (::strcmp (which, "hybridinteractionsearch") == 0)) {
+		Check_Hybrid_Interaction_Search ();
 	}
 	if ((which == nullptr) || (::strcmp (which, "hybridpreflight") == 0)) {
 		Check_Hybrid_Preflight ();

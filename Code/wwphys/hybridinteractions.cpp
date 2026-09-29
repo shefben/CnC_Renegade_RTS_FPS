@@ -1336,15 +1336,16 @@ static bool Compile_Road_Cut(InteractionBuilder & b,const HybridTopologyEdge & e
 		const float profile = z_a + ((z_b - z_a) * ratio);
 		const float correction = profile - ground;
 
+		//	A cut or fill the class does not allow is exactly that, and is no longer reported as a steep grade.
 		if (correction < 0.0f) {
 			const float cut = -correction;
 			if (cut > b.P->MaxCutDepth) {
-				if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
+				if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_CUT_OR_FILL;
 				return false;
 			}
 			if (cut > deepest_cut) deepest_cut = cut;
 		} else if (correction > b.P->MaxFillHeight) {
-			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
+			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_CUT_OR_FILL;
 			return false;
 		}
 

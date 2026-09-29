@@ -554,6 +554,40 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-013 - Hybrid rewrite I12: what `plateau_basin`'s rim actually is (2026-09-29)
+
+Asked whether the missing road-cut coverage should come from a `plateau_basin` CLIFF crossing obligation,
+the answer traced from the code is **no**, and the reason is worth recording because it looks like one.
+
+`HYBRID_INTENT_BASIN_GUIDE` (`hybridmapidentity.cpp:655`) carries a centre and a radius drawn in
+`0.22*D .. 0.32*D`. It is consumed in exactly two places:
+
+- `hybridcoarsematrix.cpp:930` stamps a `HYBRID_FLAG_PLATEAU` disc of `radius + band` and then a
+  `HYBRID_FLAG_BASIN` disc of `radius` that clears the plateau flag again. The rim is therefore **one
+  coarse ring of a semantic flag** -- macro terrain, realized by Phase 7's height expression;
+- `hybridhydrology.cpp:2319` offers the basin centre as a fallback lake site for step 14's lake quota.
+
+No `HybridLandform` is created from it. Phase 5 goes the other way and *rejects* landform placement in
+`HYBRID_FLAG_BASIN` cells (`hybridlandforms.cpp:2174`), so the rim is never converted into an explicit
+cliff run. Step 18 creates crossing windows for rivers, explicit cliffs, canyons and ravines only, so the
+basin rim creates no window and can carry no Phase-11 interaction.
+
+The two `HYBRID_INTENT_BASIN_ENTRY` intents at `(0, +-0.35*s)` are **not** dropped: Phase 3
+(`hybridstrategicgraph.cpp:766`) treats them exactly as it treats a `ROUTE_FAMILY_CROSSING` guide, so each
+replaces its family's default guide and becomes that family's own `ROUTE_WAYPOINT` site. Family 0 and
+family 1 therefore enter the basin at the two intended regions, which is the archetype's actual
+requirement -- two independent heavy descents into the basin -- and it is met by ordinary graded routing
+through macro terrain. They carry neither `BRIDGE_REQUIRED` nor `DISTINCT_CROSSING_REQUIRED`, and
+`hybridstrategicgraph.cpp:809` creates a `CROSSING_OBLIGATION_INTENT` only for a guide that carries one of
+those two flags, so no obligation exists and none should be invented.
+`Archetype_Obstruction(PLATEAU_BASIN) = CLIFF` (line 627) is consequently dead code for this archetype: it
+only labels an obligation that something else created.
+
+**Decision.** `plateau_basin` is the wrong archetype to use as the road-cut fixture, and its basin rim is
+not to be reinterpreted as a cliff. Road cut belongs to the explicit Phase-5 cliff runs, which exist in
+quantity on many archetypes -- 36 to 67 cut-capable cliff windows per `canyon_crossroads` world -- so the
+fixture is a matter of finding a routed road that crosses one, not of adding an obligation.
+
 ## D-012 - Hybrid rewrite I12: what a local pass is measured against (2026-09-29)
 
 Section 8 Phase 6 step 18 asks for a "sampled `PRIMARY_2` swept path across the local floor/ramp" and
