@@ -116,7 +116,7 @@ enum HybridWindowMethodFlag
 	HYBRID_WINDOW_METHOD_TUNNEL			= 1 << 2,
 	HYBRID_WINDOW_METHOD_FORD_LIGHT		= 1 << 3,
 	HYBRID_WINDOW_METHOD_FORD_HARVESTER	= 1 << 4,
-	HYBRID_WINDOW_METHOD_CUT				= 1 << 5,	// cliff/ridge only: the cut Phase 11 tries first
+	HYBRID_WINDOW_METHOD_CUT				= 1 << 5,	// cliff only: at least one class passes the planning cut test
 };
 
 
@@ -239,7 +239,7 @@ struct HybridCrossingWindow
 		ObstructionRecordId(0),Methods(0),Preferred(false),MergedCount(1),Station(0.0f),Span(0.0f),
 		ApproachLength(0.0f),LowElevation(0.0f),HighElevation(0.0f),Center(0.0f,0.0f),
 		Tangent(1.0f,0.0f),ApproachA(0.0f,0.0f),ApproachB(0.0f,0.0f),
-		BoundsMin(0.0f,0.0f),BoundsMax(0.0f,0.0f) { }
+		BoundsMin(0.0f,0.0f),BoundsMax(0.0f,0.0f),CutClasses(0) { }
 
 	bool	operator == (const HybridCrossingWindow & that) const	{ return StableId == that.StableId; }
 	bool	operator != (const HybridCrossingWindow & that) const	{ return !(*this == that); }
@@ -274,6 +274,22 @@ struct HybridCrossingWindow
 	**	Meaningful only when `Has_Method(HYBRID_WINDOW_METHOD_PASS)`.
 	*/
 	HybridLocalPassGeometry	Pass;
+
+	/*
+	**	Which road classes the planning-level cut test passes for at this station, one bit per
+	**	`HybridRoadClass` (`1 << class`).  A road cut depends on the class that makes it -- the grade the
+	**	connected road may meet the station at, and `RoadDeformationHalfWidth(class)`, which decides where the
+	**	outer blend has to land -- and Phase 6 does not yet know which edge will consume a window, so one
+	**	boolean could only have meant "this is a cliff".  `HYBRID_WINDOW_METHOD_CUT` is set exactly when this
+	**	is non-zero; Phase 11 tries a cut only for a class whose bit is set, and still revalidates it on the
+	**	realized terrain for the actual connected road.
+	*/
+	unsigned int				CutClasses;
+
+	bool	Cut_Planned_For(HybridRoadClass road_class) const
+	{
+		return ((int)road_class >= 0) && ((int)road_class < 32) && ((CutClasses & (1u << (int)road_class)) != 0);
+	}
 };
 
 

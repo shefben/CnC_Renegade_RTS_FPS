@@ -1047,7 +1047,7 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 	HybridRouteResult route_result;
 	HybridInteractionResult result;
 	int reroutes = 0;
-	if (!Hybrid_Solve_Routes_And_Interactions (HybridRouteInputs,params,HybridIdentity,HybridCoarse,
+	if (!Hybrid_Solve_Interactions_With_Reroute (HybridRouteInputs,params,HybridIdentity,HybridCoarse,
 															 HybridLandforms,HybridHydrology,HybridAnchors,
 															 HybridTopologyRecord,Sample_Terrain_Height,nullptr,
 															 &HybridRoutes,&route_result,&HybridInteractions,&result,

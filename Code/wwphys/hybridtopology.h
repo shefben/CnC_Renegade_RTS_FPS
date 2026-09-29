@@ -101,6 +101,31 @@ enum HybridTopologyEdgeKind
 const char *	Hybrid_Topology_Edge_Kind_Name(HybridTopologyEdgeKind kind);
 
 
+/*
+**	The navigation capabilities one road edge is required to carry -- Section 12.1's "required navigation
+**	capabilities", which every road record stores.
+**
+**	They are decided here, where the edge is created and its *role* is known, and they are copied unchanged
+**	into every later record.  They are deliberately not derived from the road class: class decides the
+**	cross section, grade, cross slope, turn radius and render tier, while which vehicles an edge must carry
+**	is decided by what the edge is for, and two edges of one class can legitimately differ.  Section 8
+**	Phase 12's swept-envelope checks name the three the plan uses:
+**
+**		Humvee/light reference -> every road
+**		heavy reference         -> every heavy-capable strategic edge
+**		Harvester envelope      -> every home/resource economy edge
+*/
+enum HybridNavCapability
+{
+	HYBRID_NAV_LIGHT			= 1 << 0,
+	HYBRID_NAV_HEAVY			= 1 << 1,
+	HYBRID_NAV_HARVESTER		= 1 << 2,
+};
+
+//	The mask Phase 9 assigns to an edge of this kind.  `BASE_INTERNAL` is never realized and carries none.
+unsigned int	Hybrid_Topology_Edge_Capabilities(HybridTopologyEdgeKind kind,bool heavy_link);
+
+
 struct HybridTopologyNode
 {
 	HybridTopologyNode(void) :
@@ -126,7 +151,7 @@ struct HybridTopologyEdge
 {
 	HybridTopologyEdge(void) :
 		StableId(0),Kind(HYBRID_EDGE_FAMILY_TRUNK),RoadClass(HYBRID_ROAD_CLASS_COUNT),NodeA(0),NodeB(0),
-		RouteFamily(-1),Required(false),ObligationId(0),SourceEdgeId(0),Length(0.0f) { }
+		RouteFamily(-1),Required(false),ObligationId(0),SourceEdgeId(0),Capabilities(0),Length(0.0f) { }
 
 	bool	operator == (const HybridTopologyEdge & that) const	{ return StableId == that.StableId; }
 	bool	operator != (const HybridTopologyEdge & that) const	{ return !(*this == that); }
@@ -142,6 +167,7 @@ struct HybridTopologyEdge
 	bool							Required;			// a mandatory edge: Phase 10 may not drop it
 	unsigned int				ObligationId;		// the Phase-3 crossing obligation it satisfies, 0 when none
 	unsigned int				SourceEdgeId;		// the Phase-3 intent edge it came from, 0 when synthesized
+	unsigned int				Capabilities;		// HybridNavCapability bits: what this edge must carry
 	float							Length;				// quantized straight graph length through its waypoints
 
 	/*

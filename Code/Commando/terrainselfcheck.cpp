@@ -7871,6 +7871,24 @@ static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArch
 }
 
 
+//	Two routes are the same route: same edge, envelope, samples and structural spans, bit for bit.
+static bool Routes_Identical (const HybridRoute & a,const HybridRoute & b)
+{
+	if ((a.EdgeId != b.EdgeId) || (a.Envelope != b.Envelope) || (a.RoadClass != b.RoadClass)) return false;
+	if ((a.Capabilities != b.Capabilities) || (a.Length != b.Length)) return false;
+	if ((a.Points.Count () != b.Points.Count ()) || (a.Structural.Count () != b.Structural.Count ())) return false;
+	for (int i = 0; i < a.Points.Count (); ++i) {
+		if ((a.Points[i].X != b.Points[i].X) || (a.Points[i].Y != b.Points[i].Y)) return false;
+	}
+	for (int i = 0; i < a.Structural.Count (); ++i) {
+		if (a.Structural[i].WindowId != b.Structural[i].WindowId) return false;
+		if (a.Structural[i].FirstPoint != b.Structural[i].FirstPoint) return false;
+		if (a.Structural[i].LastPoint != b.Structural[i].LastPoint) return false;
+	}
+	return true;
+}
+
+
 /*
 **	Phase 11's own fixture parameters, mirroring what `ProceduralWorldManager::Build_Hybrid_Interactions`
 **	fills from the profile and the frozen preflight cache.  The bridge and tunnel kinds are the ones the
@@ -16158,6 +16176,8 @@ void Check_Hybrid_Interactions (void)
 	int mandatory_bridges = 0;
 	int reserved_overpasses = 0;
 	int reroutes_spent = 0;
+	int runs_seen[4] = { 0,0,0,0 };
+	int untouched_checked = 0;
 	bool negatives_done = false;
 
 	for (int attempt = 0; attempt < INTERACTION_FIXTURE_COUNT; ++attempt) {
@@ -16180,18 +16200,25 @@ void Check_Hybrid_Interactions (void)
 		HybridInteractionResult result;
 		HybridRouteResult reroute_result;
 		int reroutes = 0;
+		int phase10_runs = 0;
+
+		//	The frozen set Phase 10 handed over, kept to prove what a reroute did and did not touch.
+		HybridRouteSet frozen_routes = fixture.Routes;
 
 		/*
 		**	Through the shared owner, which is where the plan's next-envelope reroute lives.  Calling
 		**	`Hybrid_Build_Interactions` directly here would leave that path unexercised, which is exactly how
 		**	`RerouteEdgeId` came to be written and never read.
 		*/
-		if (!Hybrid_Solve_Routes_And_Interactions (fixture.RouteParams,params,fixture.Identity,
+		if (!Hybrid_Solve_Interactions_With_Reroute (fixture.RouteParams,params,fixture.Identity,
 																 fixture.Matrices,fixture.Landforms,fixture.Hydrology,
 																 fixture.Anchors,fixture.Topology,
 																 Macro_Sample_From_Formula,&fixture.Ground,
 																 &fixture.Routes,&reroute_result,&interactions,
-																 &result,&reroutes)) {
+																 &result,&reroutes,&phase10_runs)) {
+			Check (phase10_runs == (reroutes + 1),
+					 "a refused attempt ran Phase 10 %d times for %d reroutes",phase10_runs,reroutes);
+			if ((phase10_runs >= 1) && (phase10_runs <= 3)) runs_seen[phase10_runs]++;
 			refused_phase11++;
 			last_phase11_detail.Format ("%s (%s)",Hybrid_Interaction_Failure_Name (result.Failure),
 												 result.Detail.Peek_Buffer ());
@@ -16205,6 +16232,52 @@ void Check_Hybrid_Interactions (void)
 		}
 		solved_any = true;
 		reroutes_spent += reroutes;
+
+		/*
+		**	The lifecycle: Phase 10 ran once when the pipeline was built, and Phase 11 consumed that frozen
+		**	set.  Phase 10 runs again only for a reroute, so the count is exactly one more than the reroutes.
+		*/
+		Check (phase10_runs == (reroutes + 1),"Phase 10 ran %d times for %d reroutes",phase10_runs,reroutes);
+		if ((phase10_runs >= 1) && (phase10_runs <= 3)) runs_seen[phase10_runs]++;
+
+		if (reroutes == 0) {
+			//	No reroute: the routes Phase 11 solved over are the ones Phase 10 froze, untouched.
+			Check (fixture.Routes.Checksum == frozen_routes.Checksum,
+					 "a world with no reroute changed its routes (0x%08X -> 0x%08X)",frozen_routes.Checksum,
+					 fixture.Routes.Checksum);
+			Check (fixture.RouteParams.EnvelopeFloors.Count () == 0,"a world with no reroute raised a floor");
+		} else {
+			/*
+			**	A reroute moved outward only, and only for the edges it named: every floor is 1 or 2, and every
+			**	route Phase 10 laid down *before* the first rerouted edge is byte-identical, because it was routed
+			**	from identical inputs.  Routes after it may legitimately differ -- they avoid what came before.
+			*/
+			int first_rerouted = frozen_routes.Routes.Count ();
+			for (int f = 0; f < fixture.RouteParams.EnvelopeFloors.Count (); ++f) {
+				const HybridRouteEnvelopeFloor & floor = fixture.RouteParams.EnvelopeFloors[f];
+				Check ((floor.MinEnvelope >= 1) && (floor.MinEnvelope <= 2),"envelope floor %d for edge %u",
+						 floor.MinEnvelope,floor.EdgeId);
+				for (int r = 0; r < frozen_routes.Routes.Count (); ++r) {
+					if (frozen_routes.Routes[r].EdgeId != floor.EdgeId) continue;
+					if (r < first_rerouted) first_rerouted = r;
+					Check (floor.MinEnvelope > frozen_routes.Routes[r].Envelope,
+							 "edge %u was rerouted to floor %d from envelope %d: not outward",floor.EdgeId,
+							 floor.MinEnvelope,frozen_routes.Routes[r].Envelope);
+				}
+				for (int r = 0; r < fixture.Routes.Routes.Count (); ++r) {
+					if (fixture.Routes.Routes[r].EdgeId != floor.EdgeId) continue;
+					Check (fixture.Routes.Routes[r].Envelope >= floor.MinEnvelope,
+							 "edge %u came back in envelope %d under floor %d",floor.EdgeId,
+							 fixture.Routes.Routes[r].Envelope,floor.MinEnvelope);
+				}
+			}
+			for (int r = 0; (r < first_rerouted) && (r < fixture.Routes.Routes.Count ()); ++r) {
+				Check (Routes_Identical (frozen_routes.Routes[r],fixture.Routes.Routes[r]),
+						 "edge %u, routed before the rerouted edge, changed under the reroute",
+						 frozen_routes.Routes[r].EdgeId);
+			}
+			untouched_checked += first_rerouted;
+		}
 		{
 			int spans = 0;
 			int windows_cut = 0;
@@ -17019,7 +17092,123 @@ void Check_Hybrid_Interactions (void)
 		}
 	}
 
-	printf ("Phase 11 reroutes spent across the walk: %d\r\n",reroutes_spent);
+	printf ("Phase 11 reroutes spent across the walk: %d; worlds by Phase-10 runs: 1 x%d, 2 x%d, 3 x%d; "
+			  "%d earlier routes proved byte-identical\r\n",reroutes_spent,runs_seen[1],runs_seen[2],runs_seen[3],
+			  untouched_checked);
+	Check (runs_seen[1] > 0,"no fixture world solved without a reroute, so the one-run path is untested");
+	Check (runs_seen[2] > 0,"no fixture world spent exactly one reroute, so the two-run path is untested");
+
+	/*
+	**	Two reroute levels on one edge, 0 -> 1 -> 2, and then the honest failure.
+	**
+	**	No shipped bridge kind is allowed to span anything, so a mandatory bridge crossing can never compile:
+	**	Phase 11 must ask for envelope 1, then envelope 2, and then fail with the interaction failure it
+	**	named -- running Phase 10 exactly three times, never returning to a narrower envelope, and never
+	**	jumping from 0 straight to 2.  This is the negative fixture's own real pipeline, not a fabricated one.
+	*/
+	{
+		HybridPipelineFixture fixture;
+		StringClass why;
+		if (Build_Hybrid_Pipeline (INTERACTION_SEEDS[4],1200.0f,HYBRID_ARCHETYPE_CANYON_CROSSROADS,&fixture,
+											&why)) {
+
+			HybridInteractionParams unspannable = Interaction_Fixture (fixture.Sized,1200.0f,inputs,
+																						  preflight.Metrics);
+			for (int i = 0; i < unspannable.BridgeKinds.Count (); ++i) unspannable.BridgeKinds[i].MaxSpan = 1.0f;
+
+			HybridInteractionSet refused;
+			HybridInteractionResult refused_result;
+			HybridRouteResult refused_routes;
+			int spent = 0;
+			int runs = 0;
+			Check (!Hybrid_Solve_Interactions_With_Reroute (fixture.RouteParams,unspannable,fixture.Identity,
+																			fixture.Matrices,fixture.Landforms,
+																			fixture.Hydrology,fixture.Anchors,
+																			fixture.Topology,Macro_Sample_From_Formula,
+																			&fixture.Ground,&fixture.Routes,
+																			&refused_routes,&refused,&refused_result,
+																			&spent,&runs),
+					 "a world with no spannable bridge solved anyway");
+			Check (refused_result.Failure != HYBRID_INTERACTION_OK,"the exhausted reroute named no failure");
+			Check (refused.Interactions.Count () == 0,"the exhausted reroute left solutions behind");
+			Check (runs == (spent + 1),"Phase 10 ran %d times for %d reroutes",runs,spent);
+			Check (runs >= 3,"a crossing no envelope can serve ran Phase 10 only %d times",runs);
+			if ((runs >= 1) && (runs <= 3)) runs_seen[runs]++;
+
+			//	The one edge that failed went 0 -> 1 -> 2 and no further.
+			bool two_levels = false;
+			for (int f = 0; f < fixture.RouteParams.EnvelopeFloors.Count (); ++f) {
+				const int floor = fixture.RouteParams.EnvelopeFloors[f].MinEnvelope;
+				Check ((floor >= 1) && (floor <= 2),"an envelope floor of %d",floor);
+				if (floor == 2) two_levels = true;
+			}
+			Check (two_levels,"the unspannable crossing never reached its second reroute level");
+			printf ("  two-level reroute: %d reroutes, %d Phase-10 runs, final failure %s\r\n",spent,runs,
+					  Hybrid_Interaction_Failure_Name (refused_result.Failure));
+		}
+	}
+	Check (runs_seen[3] > 0,"no fixture exercised a three-run reroute");
+
+	/*
+	**	Section 12.1: two roads of one semantic class can be required to carry different vehicles, because the
+	**	capability comes from the edge's role and not its class.  Step 11's optional heavy cross-link and a
+	**	cross-link synthesized for a quota are both `SECONDARY_2`, and only the first carries the heavy
+	**	reference.
+	*/
+	{
+		const unsigned int heavy_link = Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_CROSS_LINK,true);
+		const unsigned int quota_link = Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_CROSS_LINK,false);
+		Check (heavy_link != quota_link,"two SECONDARY_2 cross-links of different roles got one capability");
+		Check ((heavy_link & HYBRID_NAV_HEAVY) != 0,"the optional heavy cross-link does not carry heavy");
+		Check ((quota_link & HYBRID_NAV_HEAVY) == 0,"a quota-filling cross-link was made heavy");
+		Check ((quota_link & HYBRID_NAV_HARVESTER) == 0,"a quota-filling cross-link was given the Harvester");
+
+		const unsigned int trunk = Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_FAMILY_TRUNK,false);
+		const unsigned int home = Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_HOME_ROAD,false);
+		const unsigned int branch = Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_FIELD_BRANCH,false);
+		const unsigned int fill = Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_SERVICE_FILL,false);
+		const unsigned int trail = Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_TRAIL,false);
+		Check ((trunk & HYBRID_NAV_HEAVY) != 0,"a family trunk does not carry heavy");
+		Check ((home & HYBRID_NAV_HARVESTER) != 0,"a home road does not carry the Harvester");
+		Check ((branch & HYBRID_NAV_HARVESTER) != 0,"a field branch does not carry the Harvester");
+		Check ((fill & HYBRID_NAV_HARVESTER) == 0,"a quota service link was given the Harvester");
+		Check (trail == HYBRID_NAV_LIGHT,"a trail carries more than the light reference");
+		Check (Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_BASE_INTERNAL,false) == 0,
+				 "a never-realized base edge carries a capability");
+
+		//	And a real world agrees: same class, different masks, straight out of Phase 9.
+		HybridPipelineFixture fixture;
+		StringClass why;
+		bool pair = false;
+		for (int s = 0; (s < 8) && !pair; ++s) {
+			for (int a = 0; (a < 5) && !pair; ++a) {
+				if (!Build_Hybrid_Pipeline (INTERACTION_SEEDS[s],1200.0f,INTERACTION_ARCHETYPES[a],&fixture,&why)) {
+					continue;
+				}
+				for (int i = 0; (i < fixture.Topology.Edges.Count ()) && !pair; ++i) {
+					for (int j = i + 1; (j < fixture.Topology.Edges.Count ()) && !pair; ++j) {
+						const HybridTopologyEdge & x = fixture.Topology.Edges[i];
+						const HybridTopologyEdge & y = fixture.Topology.Edges[j];
+						if (!x.Is_Realized () || !y.Is_Realized ()) continue;
+						if (x.RoadClass != y.RoadClass) continue;
+						if (x.Capabilities == y.Capabilities) continue;
+						pair = true;
+						printf ("  same class, different capability: edges %u (%s, 0x%x) and %u (%s, 0x%x) are both %s\r\n",
+								  x.StableId,Hybrid_Topology_Edge_Kind_Name (x.Kind),x.Capabilities,y.StableId,
+								  Hybrid_Topology_Edge_Kind_Name (y.Kind),y.Capabilities,
+								  Hybrid_Road_Class_Name (x.RoadClass));
+					}
+				}
+				for (int r = 0; r < fixture.Routes.Routes.Count (); ++r) {
+					const HybridTopologyEdge * edge = fixture.Topology.Find_Edge (fixture.Routes.Routes[r].EdgeId);
+					if (edge == NULL) continue;
+					Check (fixture.Routes.Routes[r].Capabilities == edge->Capabilities,
+							 "route %u did not copy its edge's capability unchanged",edge->StableId);
+				}
+			}
+		}
+		Check (pair,"no generated world has two same-class edges with different capability masks");
+	}
 
 	Check (negatives_done,"the negative fixtures never ran");
 	Check ((seen_method[HYBRID_METHOD_OVERPASS] + seen_method[HYBRID_METHOD_AT_GRADE_JUNCTION]) > 0,
@@ -17074,6 +17263,13 @@ void Check_Hybrid_Interaction_Search (void)
 	int worlds = 0;
 	int solved_worlds = 0;
 	int reroute_requests = 0;
+	int reached_phase11 = 0;
+	int cliff_spans = 0;
+	int cliff_spans_cut_any = 0;
+	int cliff_spans_cut_class = 0;
+	int cliff_spans_pass = 0;
+	int method_selected[HYBRID_METHOD_COUNT];
+	for (int m = 0; m < HYBRID_METHOD_COUNT; ++m) method_selected[m] = 0;
 	int resolved_at_one = 0;
 	int resolved_at_two = 0;
 	int exhausted = 0;
@@ -17116,8 +17312,16 @@ void Check_Hybrid_Interaction_Search (void)
 
 					const bool bridge_capable = window->Has_Method (HYBRID_WINDOW_METHOD_BRIDGE);
 					const bool pass_capable = window->Has_Method (HYBRID_WINDOW_METHOD_PASS);
-					const bool cut_capable = window->Has_Method (HYBRID_WINDOW_METHOD_CUT);
 					const bool tunnel_capable = window->Has_Method (HYBRID_WINDOW_METHOD_TUNNEL);
+
+					//	Structurally available for *this road's* class, which is what Phase 11 will try.
+					const bool cut_capable = window->Cut_Planned_For (route.RoadClass);
+					if (cliff) {
+						cliff_spans++;
+						if (window->Has_Method (HYBRID_WINDOW_METHOD_CUT)) cliff_spans_cut_any++;
+						if (cut_capable) cliff_spans_cut_class++;
+						if (pass_capable) cliff_spans_pass++;
+					}
 
 					//	Only the combinations that could reach a ground method are worth printing.
 					const bool interesting = (canyon && pass_capable && !bridge_capable) ||
@@ -17125,12 +17329,13 @@ void Check_Hybrid_Interaction_Search (void)
 													 (cliff && cut_capable);
 					if (!interesting) continue;
 
-					printf ("SPAN archetype %d seed %u: edge %u window %u %s/%u span %.2f (bridge max %.2f) "
-							  "bridge %d pass %d cut %d tunnel %d\r\n",
-							  (int)SEARCH_ARCHETYPES[ai],seed,route.EdgeId,window->StableId,
+					printf ("SPAN archetype %d seed %u: edge %u (%s, capability 0x%x) window %u %s/%u span %.2f "
+							  "(bridge max %.2f) bridge %d pass %d cut-for-class %d cut-classes 0x%02x tunnel %d\r\n",
+							  (int)SEARCH_ARCHETYPES[ai],seed,route.EdgeId,Hybrid_Road_Class_Name (route.RoadClass),
+							  route.Capabilities,window->StableId,
 							  Hybrid_Obstruction_Kind_Name (window->Obstruction),window->ObstructionRecordId,
 							  window->Span,preflight.Metrics.BridgeMaxSpanLength,bridge_capable ? 1 : 0,
-							  pass_capable ? 1 : 0,cut_capable ? 1 : 0,tunnel_capable ? 1 : 0);
+							  pass_capable ? 1 : 0,cut_capable ? 1 : 0,window->CutClasses,tunnel_capable ? 1 : 0);
 				}
 			}
 
@@ -17212,11 +17417,12 @@ void Check_Hybrid_Interaction_Search (void)
 			HybridInteractionResult sr;
 			HybridRouteResult srr;
 			int spent = 0;
-			const bool ok = Hybrid_Solve_Routes_And_Interactions (scan.RouteParams,sp,scan.Identity,
+			const bool ok = Hybrid_Solve_Interactions_With_Reroute (scan.RouteParams,sp,scan.Identity,
 																					scan.Matrices,scan.Landforms,
 																					scan.Hydrology,scan.Anchors,scan.Topology,
 																					Macro_Sample_From_Formula,&scan.Ground,
 																					&scan.Routes,&srr,&si,&sr,&spent);
+			reached_phase11++;
 			if (spent > 0) {
 				reroute_requests += spent;
 				if (ok && (spent == 1)) resolved_at_one++;
@@ -17234,6 +17440,7 @@ void Check_Hybrid_Interaction_Search (void)
 			for (int i = 0; i < si.Interactions.Count (); ++i) {
 
 				const HybridInteractionMethod method = si.Interactions[i].Method;
+				if ((method >= 0) && (method < HYBRID_METHOD_COUNT)) method_selected[method]++;
 				if ((method != HYBRID_METHOD_SURFACE_PASS) && (method != HYBRID_METHOD_ROAD_CUT) &&
 					 (method != HYBRID_METHOD_RAMP_PASS)) continue;
 
@@ -17257,8 +17464,16 @@ void Check_Hybrid_Interaction_Search (void)
 	printf ("search over %u seeds x 7 archetypes: %d worlds built, %d solved; first surface pass seed %d, "
 			  "first road cut seed %d, first ramp pass seed %d\r\n",
 			  SEARCH_SEEDS,worlds,solved_worlds,first_surface_pass,first_road_cut,first_ramp_pass);
+	printf ("worlds: %u attempted, %d built through Phase 10, %d reached Phase 11, %d solved\r\n",
+			  SEARCH_SEEDS * 7u,worlds,reached_phase11,solved_worlds);
 	printf ("reroutes: %d requested, %d resolved at envelope +1, %d at +2, %d exhausted\r\n",
 			  reroute_requests,resolved_at_one,resolved_at_two,exhausted);
+	printf ("routed cliff spans: %d; cut planned for some class %d, for the span's own class %d; pass %d\r\n",
+			  cliff_spans,cliff_spans_cut_any,cliff_spans_cut_class,cliff_spans_pass);
+	for (int m = 0; m < HYBRID_METHOD_COUNT; ++m) {
+		printf ("   selected %s: %d\r\n",Hybrid_Interaction_Method_Name ((HybridInteractionMethod)m),
+				  method_selected[m]);
+	}
 	for (int f = HYBRID_INTERACTION_OK + 1; f < HYBRID_INTERACTION_FAILURE_COUNT; ++f) {
 		if (failure_reason[f] == 0) continue;
 		printf ("   phase 11 failed %d x %s\r\n",failure_reason[f],

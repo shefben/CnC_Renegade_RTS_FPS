@@ -775,6 +775,7 @@ unsigned int Hybrid_Hydrology_Checksum(const HybridHydrologySet & set,unsigned i
 		stream.Add_Uint((unsigned int)window.Obstruction);
 		stream.Add_Uint(window.ObstructionRecordId);
 		stream.Add_Uint(window.Methods);
+		stream.Add_Uint(window.CutClasses);
 		stream.Add_Bool(window.Preferred);
 		stream.Add_Int(window.MergedCount);
 		stream.Add_Length(window.Station);
@@ -2884,6 +2885,93 @@ static bool Window_Has_Grid_Access(HydrologyBuilder & b,const HydroObstruction &
 
 
 /*
+**	Step 18's cut metadata: for each road class, would a road cut cross this cliff station at planning level?
+**
+**	This is Section 8 Phase 11's own cut test, run on the provisional height Phase 6 has, so the flag means
+**	what Phase 11 will later check rather than merely "this is a cliff":
+**
+**	  - the connected road can meet the station inside the class's own maximum grade, measured through the
+**	    Section-7.1 vertical intervals of the two approach ends -- the common hard-valid station test;
+**	  - along the straight profile between the two approach elevations, sampled at `min(W/2, A/3)`, no sample
+**	    needs more cut than `grading.max_cut_depth` or more fill than `grading.max_fill_height`;
+**	  - at `RoadDeformationHalfWidth(class)` plus the outer blend, either side of every sample, the blend lands
+**	    on placeable ground that is not a base, not a Tiberium reserve, and not another immutable wall.  A wall
+**	    within the station's own span of the centre is the one being cut, exactly as Phase 11 exempts it.
+**
+**	The cut and fill do not depend on the class, so they are measured once; the grade and the blend do.
+*/
+static unsigned int Cut_Classes(HydrologyBuilder & b,const HydroObstruction & obstruction,const Vector2 & centre,
+										  const Vector2 & tangent,const Vector2 & end_a,const Vector2 & end_b,
+										  float height_a,float height_b,float span)
+{
+	const HybridConstants & k = b.P->Constants;
+	const HybridSemanticMatrix & matrix = b.Matrices->Matrix;
+
+	const float length = (end_b - end_a).Length();
+	if (length <= Max2(k.Q,1.0e-3f)) return 0;
+
+	const float spacing = Hybrid_Local_Pass_Sample_Spacing(k);
+	const int steps = (int)::ceil((double)(length / spacing));
+	const int count = (steps > 0) ? steps : 1;
+
+	//	Cut and fill on the straight profile: the same for every class.
+	for (int i = 0; i <= count; ++i) {
+		const float ratio = (float)i / (float)count;
+		const Vector2 point(end_a.X + ((end_b.X - end_a.X) * ratio),end_a.Y + ((end_b.Y - end_a.Y) * ratio));
+		const float ground = Hybrid_Provisional_Height(*b.P,*b.Matrices,*b.Landforms,point);
+		const float correction = (height_a + ((height_b - height_a) * ratio)) - ground;
+		if ((correction < 0.0f) && (-correction > b.P->MaxCutDepth)) return 0;
+		if (correction > b.P->MaxFillHeight) return 0;
+	}
+
+	const HybridVerticalInterval interval_a = Hybrid_Road_Vertical_Interval(height_a,b.P->MaxCutDepth,
+																								  b.P->MaxFillHeight);
+	const HybridVerticalInterval interval_b = Hybrid_Road_Vertical_Interval(height_b,b.P->MaxCutDepth,
+																								  b.P->MaxFillHeight);
+	const float own_reach = span + k.A;
+
+	unsigned int classes = 0;
+	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
+
+		const HybridRoadClass road_class = (HybridRoadClass)c;
+		const float max_grade = Max_Grade_Radians(road_class);
+		if (!Hybrid_Grade_Compatible(interval_a,interval_b,length,max_grade)) continue;
+
+		const float blend = Hybrid_Road_Deformation_Half_Width(road_class,k.W,k.A) +
+								  Hybrid_Road_Outer_Blend_Width(k.W,k.A);
+		bool lands = true;
+		for (int i = 0; (i <= count) && lands; ++i) {
+
+			const float ratio = (float)i / (float)count;
+			const Vector2 point(end_a.X + ((end_b.X - end_a.X) * ratio),end_a.Y + ((end_b.Y - end_a.Y) * ratio));
+
+			for (int side = -1; (side <= 1) && lands; side += 2) {
+
+				const Vector2 edge_point = point + (tangent * (blend * (float)side));
+				int cx = 0, cy = 0;
+				if (!b.Coarse_Cell(edge_point,&cx,&cy) || !matrix.Has_Flag(cx,cy,HYBRID_FLAG_PLACEABLE)) {
+					lands = false;
+					break;
+				}
+				if (b.Matrices->Is_Base_Protected(cx,cy) || matrix.Has_Flag(cx,cy,HYBRID_FLAG_TIBERIUM_RESERVE)) {
+					lands = false;
+					break;
+				}
+				if (Hybrid_Point_In_Immutable_Landform(*b.Landforms,edge_point) &&
+					 ((edge_point - centre).Length() > own_reach)) {
+					lands = false;
+					break;
+				}
+			}
+		}
+		if (lands) classes |= (1u << (unsigned int)c);
+	}
+	(void)obstruction;
+	return classes;
+}
+
+
+/*
 **	Step 18 for one obstruction: sample its centerline every `A` and keep the stations whose two
 **	approaches are legal, whose endpoints can be connected within `PRIMARY_2` grade, and which at
 **	least one method can actually serve.
@@ -2953,6 +3041,7 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 
 		const float span = 2.0f * half;
 		unsigned int methods = 0;
+		unsigned int cut_classes = 0;
 		HybridLocalPassGeometry pass_geometry;
 
 		//	`bridge_capable`: a registered kind covers the span and clear width, and its approach fits.
@@ -3037,11 +3126,15 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 			}
 
 			/*
-			**	A cliff station that survived the approach and grade rules is exactly the cut Phase 11
-			**	tries first, so the cut metadata the plan asks for is that fact plus the two endpoint
-			**	elevations already stored on the record.
+			**	The cut metadata, measured per road class.  Surviving the approach and grade rules is not the
+			**	same thing as a cut fitting: a cliff drops `tier_step * [1, 2]` over a band a few lane widths
+			**	wide, so most stations need far more cut than `grading.max_cut_depth` allows, and a flag set
+			**	for every surviving station said nothing about any of them.
 			*/
-			if (obstruction.Kind == HYBRID_OBSTRUCTION_CLIFF) methods |= HYBRID_WINDOW_METHOD_CUT;
+			if (obstruction.Kind == HYBRID_OBSTRUCTION_CLIFF) {
+				cut_classes = Cut_Classes(b,obstruction,centre,tangent,end_a,end_b,height_a,height_b,span);
+				if (cut_classes != 0) methods |= HYBRID_WINDOW_METHOD_CUT;
+			}
 		}
 
 		//	A river station survives only when a bridge or a ford can serve it (step 18).
@@ -3059,6 +3152,7 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 		window.ObstructionRecordId = obstruction.RecordId;
 		window.Methods				= methods;
 		if ((methods & HYBRID_WINDOW_METHOD_PASS) != 0) window.Pass = pass_geometry;
+		window.CutClasses			= cut_classes;
 		window.Station				= stations[index];
 		window.Span					= Hybrid_Quantize_Position(span);
 		window.ApproachLength	= Hybrid_Quantize_Position(approach);

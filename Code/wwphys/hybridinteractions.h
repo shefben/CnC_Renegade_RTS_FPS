@@ -386,17 +386,23 @@ unsigned int	Hybrid_Interaction_Checksum(const HybridInteractionSet & set,unsign
 
 
 /*
-**	The most reroutes one attempt may spend: the plan gives a road three corridor envelopes, so two of them
-**	can ever be reached by a reroute.
+**	The most reroutes one *edge* may spend: the plan gives a road three corridor envelopes, so two of them
+**	can ever be reached by a reroute.  There is no per-world cap -- each edge's envelope floor only rises,
+**	which is what bounds the loop.
 */
-#define HYBRID_MAX_REROUTES 2
+#define HYBRID_MAX_REROUTES_PER_EDGE 2
 
 /*
-**	Phase 10 and Phase 11 as the plan describes them: routing, interaction solving, and the next-envelope
-**	reroute between them.  `route_params` is taken mutable because the reroute records which edge may no
-**	longer use its narrower envelopes.  `reroutes_out` counts the reroutes actually spent.
+**	Phase 11 over an already-frozen Phase-10 route set, with the plan's next-envelope reroute behind it.
+**
+**	`routes` comes in built: the normal path runs Phase 10 exactly once, and this consumes what it froze.
+**	Phase 10 runs again only when Phase 11 actually asks for another envelope, so a world that needs no
+**	reroute pays for one routing pass and no more.  `route_params` is taken mutable because a reroute records
+**	which edge may no longer use its narrower envelopes; `reroutes_out` counts the reroutes spent, and
+**	`phase10_runs_out` the total Phase-10 executions including the frozen one the caller already made -- 1
+**	with no reroute, 2 with one, 3 with two.
 */
-bool	Hybrid_Solve_Routes_And_Interactions(HybridRouteParams & route_params,
+bool	Hybrid_Solve_Interactions_With_Reroute(HybridRouteParams & route_params,
 															const HybridInteractionParams & interaction_params,
 															const HybridMapIdentity & identity,
 															const HybridCoarseMatrices & matrices,
@@ -408,7 +414,8 @@ bool	Hybrid_Solve_Routes_And_Interactions(HybridRouteParams & route_params,
 															HybridRouteSet * routes,HybridRouteResult * route_result,
 															HybridInteractionSet * interactions,
 															HybridInteractionResult * interaction_result,
-															int * reroutes_out = nullptr);
+															int * reroutes_out = nullptr,
+															int * phase10_runs_out = nullptr);
 
 
 /*

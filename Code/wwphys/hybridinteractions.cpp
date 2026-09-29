@@ -332,6 +332,10 @@ float Hybrid_Bridge_Clear_Width(HybridRoadClass road_class,float lane_width,floa
 **	  - Phase 9 is never re-run and the topology is never touched.  A frozen obligation stays on its own
 **	    obstruction; only the corridor the road may use inside it widens.
 **
+**	The normal path runs Phase 10 once, outside this function, and what it froze is what Phase 11 consumes.
+**	Phase 10 is only ever re-entered here after a reroute request, so a world that needs none pays for one
+**	routing pass.
+**
 **	Phase 10 is re-run rather than patched, and the whole of it rather than the one edge, because a route is
 **	routed to avoid the routes accepted before it: moving one edge's spline makes the later edges' avoidance
 **	data stale, and splicing a new spline into the old set would leave exactly the half-updated state this
@@ -341,7 +345,7 @@ float Hybrid_Bridge_Clear_Width(HybridRoadClass road_class,float lane_width,floa
 **	search is deterministic and only that edge's starting envelope changed.
 ***********************************************************************************************/
 
-bool Hybrid_Solve_Routes_And_Interactions(HybridRouteParams & route_params,
+bool Hybrid_Solve_Interactions_With_Reroute(HybridRouteParams & route_params,
 														const HybridInteractionParams & interaction_params,
 														const HybridMapIdentity & identity,
 														const HybridCoarseMatrices & matrices,
@@ -352,16 +356,39 @@ bool Hybrid_Solve_Routes_And_Interactions(HybridRouteParams & route_params,
 														HybridRouteSet * routes,HybridRouteResult * route_result,
 														HybridInteractionSet * interactions,
 														HybridInteractionResult * interaction_result,
-														int * reroutes_out)
+														int * reroutes_out,int * phase10_runs_out)
 {
 	if ((routes == nullptr) || (interactions == nullptr)) return false;
 	if (reroutes_out != nullptr) *reroutes_out = 0;
 
-	//	Two spare envelopes exist, so at most two reroutes can ever help; the third attempt is the last.
-	for (int attempt = 0; attempt <= HYBRID_MAX_REROUTES; ++attempt) {
+	//	The frozen set the caller built is the first Phase-10 execution.
+	int phase10_runs = 1;
+	if (phase10_runs_out != nullptr) *phase10_runs_out = phase10_runs;
 
-		if (!Hybrid_Build_Routes(route_params,identity,matrices,landforms,hydrology,anchors,topology,
-										 sample,context,routes,route_result)) return false;
+	/*
+	**	Every pass that does not return raises one edge's envelope floor by at least one, and a floor never
+	**	falls and never passes 2, so the loop cannot run more than twice per realized edge.  That is the
+	**	termination proof; the explicit bound below is only its arithmetic.
+	*/
+	int realized = 0;
+	for (int e = 0; e < topology.Edges.Count(); ++e) {
+		if (topology.Edges[e].Is_Realized()) realized++;
+	}
+	const int attempts = 1 + (HYBRID_MAX_REROUTES_PER_EDGE * realized);
+
+	for (int attempt = 0; attempt < attempts; ++attempt) {
+
+		/*
+		**	The first attempt consumes the routes as handed over; every later one consumes the set the reroute
+		**	just rebuilt.  Either way Phase 11 is reading a complete, frozen Phase-10 result.
+		*/
+		if (attempt > 0) {
+			//	An execution is an execution whether or not it routes: count it before asking.
+			phase10_runs++;
+			if (phase10_runs_out != nullptr) *phase10_runs_out = phase10_runs;
+			if (!Hybrid_Build_Routes(route_params,identity,matrices,landforms,hydrology,anchors,topology,
+											 sample,context,routes,route_result)) return false;
+		}
 
 		if (Hybrid_Build_Interactions(interaction_params,identity,matrices,landforms,hydrology,anchors,
 												topology,*routes,sample,context,interactions,
@@ -780,22 +807,21 @@ static bool Station_Is_Hard_Valid(InteractionBuilder & b,const HybridTopologyEdg
 **	within it.  A structural method asks the same question of its own asset instead.
 */
 /*
-**	The swept width this edge actually has to carry.
+**	The swept width this edge actually has to carry: the widest envelope among the navigation capabilities
+**	Phase 9 required of it.
 **
-**	Not the heaviest envelope that exists: a trail does not become heavy-capable because a heavy vehicle was
-**	measured somewhere.  The road class names the capability, exactly as the ford path already reads it --
-**	Section 9.5's heavy route class is `HIGHWAY_4` or `PRIMARY_2`, a Harvester corridor is `SECONDARY_2`, and
-**	below that a road carries the light reference.
+**	Read from the edge's own capability mask, never from its road class.  Class decides the cross section,
+**	grade and turn radius; which vehicles an edge must carry is decided by what the edge is for, and a trail
+**	does not become heavy-capable because a heavy vehicle was measured somewhere.  An edge with no
+**	capability at all is not a road and carries nothing.
 */
-static float Required_Swept_Width(const InteractionBuilder & b,HybridRoadClass road_class)
+static float Required_Swept_Width(const InteractionBuilder & b,unsigned int capabilities)
 {
-	switch (road_class) {
-		case HYBRID_ROAD_HIGHWAY_4:
-		case HYBRID_ROAD_PRIMARY_2:		return Max2(b.P->HeavyVehicleWidth,b.P->HarvesterWidth);
-		case HYBRID_ROAD_SECONDARY_2:		return b.P->HarvesterWidth;
-		default:									break;
-	}
-	return b.P->LightVehicleWidth;
+	float swept = 0.0f;
+	if ((capabilities & HYBRID_NAV_LIGHT) != 0)		swept = Max2(swept,b.P->LightVehicleWidth);
+	if ((capabilities & HYBRID_NAV_HEAVY) != 0)		swept = Max2(swept,b.P->HeavyVehicleWidth);
+	if ((capabilities & HYBRID_NAV_HARVESTER) != 0)	swept = Max2(swept,b.P->HarvesterWidth);
+	return swept;
 }
 
 
@@ -810,9 +836,9 @@ static float Required_Swept_Width(const InteractionBuilder & b,HybridRoadClass r
 **	about the road.  The clearance margin is still required where the plan names it: see `Floor_Is_Legal` for
 **	a pass floor, Section 12.4 for a bridge deck and Section 12.5 for a tunnel bore.
 */
-static bool Ground_Carries_Swept_Width(const InteractionBuilder & b,HybridRoadClass road_class)
+static bool Ground_Carries_Swept_Width(const InteractionBuilder & b,const HybridTopologyEdge & edge)
 {
-	return Required_Swept_Width(b,road_class) <= Hybrid_Roadbed_Width(road_class,b.P->Constants.W);
+	return Required_Swept_Width(b,edge.Capabilities) <= Hybrid_Roadbed_Width(edge.RoadClass,b.P->Constants.W);
 }
 
 
@@ -825,15 +851,16 @@ static bool Ground_Carries_Swept_Width(const InteractionBuilder & b,HybridRoadCl
 **	whose maximum span cannot cover the obstruction plus both abutment seats, or whose required approach
 **	reserve does not fit.  Choose the smallest sufficient maximum span, then the lower `StableId`.
 */
-static int Select_Bridge_Kind(const InteractionBuilder & b,HybridRoadClass road_class,float span,
-										float available_approach,HybridInteractionProblem * problem_out)
+static int Select_Bridge_Kind(const InteractionBuilder & b,HybridRoadClass road_class,
+										unsigned int capabilities,float span,float available_approach,
+										HybridInteractionProblem * problem_out)
 {
 	const HybridConstants & k = b.P->Constants;
-	const float required_width = Max2(b.P->BridgeRequiredWidth[road_class],
-												 Hybrid_Bridge_Clear_Width(road_class,k.W,
-																					Max2(b.P->HeavyVehicleWidth,
-																						  b.P->HarvesterWidth),
-																					b.P->MinVehicleLaneClearance));
+
+	//	Section 12.4: `max(connected carriageway, required swept width + 2 * clearance)`, the swept width
+	//	being what this edge must carry rather than the heaviest vehicle anywhere.
+	const float required_width = Hybrid_Bridge_Clear_Width(road_class,k.W,Required_Swept_Width(b,capabilities),
+																			 b.P->MinVehicleLaneClearance);
 
 	//	The abutment seats each bridge needs at its two ends, in the plan's own canonical terms: one lane.
 	const float seated_span = span + (2.0f * k.W);
@@ -1118,7 +1145,8 @@ static bool Compile_Bridge(InteractionBuilder & b,const HybridTopologyEdge & edg
 			continue;
 		}
 
-		const int kind_index = Select_Bridge_Kind(b,edge.RoadClass,span,Max2(available,reserve),&problem);
+		const int kind_index = Select_Bridge_Kind(b,edge.RoadClass,edge.Capabilities,span,
+																Max2(available,reserve),&problem);
 		if (kind_index < 0) {
 			if (problem != HYBRID_PROBLEM_NONE) asset_problem = problem;
 			b.Note_Reject(problem);
@@ -1239,7 +1267,7 @@ static bool Compile_Ford(InteractionBuilder & b,const HybridTopologyEdge & edge,
 	}
 
 	//	A ford puts the vehicle on the riverbed, so the graded roadbed is what has to carry it.
-	if (!Ground_Carries_Swept_Width(b,edge.RoadClass)) {
+	if (!Ground_Carries_Swept_Width(b,edge)) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_CLEARANCE;
 		return false;
 	}
@@ -1282,18 +1310,18 @@ static bool Interaction_Height_Sample(const Vector2 & world,float * height_out,v
 }
 
 
-static HybridLocalPassParams Pass_Params(const InteractionBuilder & b,HybridRoadClass road_class)
+static HybridLocalPassParams Pass_Params(const InteractionBuilder & b,const HybridTopologyEdge & edge)
 {
 	HybridLocalPassParams params;
 	params.Constants					= b.P->Constants;
 	params.MaxCutDepth				= b.P->MaxCutDepth;
 	params.MaxFillHeight				= b.P->MaxFillHeight;
 	//	The envelope this edge must carry, so the floor test asks for the clearance this road actually needs.
-	params.SweptVehicleWidth		= Required_Swept_Width(b,road_class);
+	params.SweptVehicleWidth		= Required_Swept_Width(b,edge.Capabilities);
 	params.MinVehicleLaneClearance= b.P->MinVehicleLaneClearance;
 
 	//	The class actually being built here, not the `PRIMARY_2` the window was first proved for.
-	params.PassClass					= road_class;
+	params.PassClass					= edge.RoadClass;
 	return params;
 }
 
@@ -1334,7 +1362,7 @@ static bool Compile_Pass(InteractionBuilder & b,const HybridTopologyEdge & edge,
 	}
 
 	//	A pass drives across the ground, so the graded roadbed is what has to carry the vehicle.
-	if (!Ground_Carries_Swept_Width(b,edge.RoadClass)) {
+	if (!Ground_Carries_Swept_Width(b,edge)) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_CLEARANCE;
 		return false;
 	}
@@ -1373,7 +1401,7 @@ static bool Compile_Pass(InteractionBuilder & b,const HybridTopologyEdge & edge,
 
 	const float spacing = Max2(Min2(PASS_SAMPLE_W * k.W,k.A / PASS_SAMPLE_A),k.Q);
 	HybridLocalPassFailure why = HYBRID_LOCAL_PASS_OK;
-	if (!Hybrid_Validate_Local_Pass(Pass_Params(b,edge.RoadClass),window.Pass,spacing,
+	if (!Hybrid_Validate_Local_Pass(Pass_Params(b,edge),window.Pass,spacing,
 											  Interaction_Height_Sample,&b,&why)) {
 		if (problem_out != nullptr) *problem_out = Pass_Problem(why);
 		return false;
@@ -1411,13 +1439,15 @@ static bool Compile_Road_Cut(InteractionBuilder & b,const HybridTopologyEdge & e
 									  HybridInteractionProblem * problem_out)
 {
 	const HybridConstants & k = b.P->Constants;
-	if (!window.Has_Method(HYBRID_WINDOW_METHOD_CUT)) {
+	//	Planned for *this* class: the Phase-6 cut test depends on the class, so another class's bit is no
+	//	evidence at all.  What follows then revalidates it on the realized terrain for this road.
+	if (!window.Has_Method(HYBRID_WINDOW_METHOD_CUT) || !window.Cut_Planned_For(edge.RoadClass)) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_METHOD_UNAVAILABLE;
 		return false;
 	}
 
 	//	A cut leaves the road on graded ground, so the roadbed is what has to carry the vehicle.
-	if (!Ground_Carries_Swept_Width(b,edge.RoadClass)) {
+	if (!Ground_Carries_Swept_Width(b,edge)) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_CLEARANCE;
 		return false;
 	}
@@ -1542,8 +1572,8 @@ static bool Compile_Tunnel(InteractionBuilder & b,const HybridTopologyEdge & edg
 
 	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(edge.RoadClass);
 	const float max_grade = spec.MaxGradeDegrees * PI_OVER_180;
-	const float swept_width = Max2(b.P->HeavyVehicleWidth,b.P->HarvesterWidth) +
-									  (2.0f * b.P->MinVehicleLaneClearance);
+	//	Section 12.5's bore holds this edge's own envelope plus the lane clearance either side.
+	const float swept_width = Required_Swept_Width(b,edge.Capabilities) + (2.0f * b.P->MinVehicleLaneClearance);
 	const float swept_height = Hybrid_Overpass_Clear_Gap(b.P->HeavyVehicleHeight,b.P->WorldUnitsPerMeter);
 
 	const Vector2 across = Unit(window.ApproachB - window.ApproachA);
@@ -1928,7 +1958,8 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	//	Section 12.3's clearance, plus the structural depth of the deck that carries the upper road.
 	const float gap = Hybrid_Overpass_Clear_Gap(b.P->HeavyVehicleHeight,b.P->WorldUnitsPerMeter);
 	float structural_depth = k.W;						// no registered deck: one lane width of structure
-	int bridge_kind = Select_Bridge_Kind(b,upper_edge.RoadClass,Hybrid_Roadbed_Width(lower_edge.RoadClass,
+	int bridge_kind = Select_Bridge_Kind(b,upper_edge.RoadClass,upper_edge.Capabilities,
+													 Hybrid_Roadbed_Width(lower_edge.RoadClass,
 																												k.W),
 													 STATION_HALF_LENGTH_W * k.W,nullptr);
 	if (bridge_kind >= 0) structural_depth = b.P->BridgeKinds[bridge_kind].StructuralDepth;

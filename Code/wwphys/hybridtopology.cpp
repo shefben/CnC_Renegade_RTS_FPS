@@ -498,14 +498,42 @@ static float Node_Distance(const TopologyBuilder & b,unsigned int node_a,unsigne
 }
 
 
+/*
+**	The capability mask each edge role carries, straight from the roles Section 8 Phase 9 creates:
+**
+**	  - a family trunk is a heavy route family's own chain, and step 11's optional heavy cross-link is named
+**	    a heavy link by the plan -- both carry the heavy reference;
+**	  - a home road and a contested or remote field branch are the resource economy edges, so they carry the
+**	    Harvester;
+**	  - a quota-filling service link, a trail, and a cross-link synthesized to fill the river or canyon bridge
+**	    quota or the overpass quota exist to meet a count, and the plan gives none of them a heavier role, so
+**	    they carry the light reference only.
+**
+**	Every realized road carries the light reference.  Nothing here reads the road class.
+*/
+unsigned int Hybrid_Topology_Edge_Capabilities(HybridTopologyEdgeKind kind,bool heavy_link)
+{
+	switch (kind) {
+		case HYBRID_EDGE_BASE_INTERNAL:	return 0;
+		case HYBRID_EDGE_FAMILY_TRUNK:	return HYBRID_NAV_LIGHT | HYBRID_NAV_HEAVY;
+		case HYBRID_EDGE_HOME_ROAD:
+		case HYBRID_EDGE_FIELD_BRANCH:	return HYBRID_NAV_LIGHT | HYBRID_NAV_HARVESTER;
+		case HYBRID_EDGE_CROSS_LINK:		return heavy_link ? (HYBRID_NAV_LIGHT | HYBRID_NAV_HEAVY) : HYBRID_NAV_LIGHT;
+		default:									break;
+	}
+	return HYBRID_NAV_LIGHT;
+}
+
+
 static unsigned int Add_Edge(TopologyBuilder & b,HybridTopologyEdgeKind kind,HybridRoadClass road_class,
 										unsigned int node_a,unsigned int node_b,int family,bool required,
-										unsigned int obligation,unsigned int source_edge)
+										unsigned int obligation,unsigned int source_edge,bool heavy_link = false)
 {
 	HybridTopologyEdge edge;
 	edge.StableId		= b.NextEdgeId++;
 	edge.Kind			= kind;
 	edge.RoadClass		= road_class;
+	edge.Capabilities	= Hybrid_Topology_Edge_Capabilities(kind,heavy_link);
 	edge.NodeA			= node_a;
 	edge.NodeB			= node_b;
 	edge.RouteFamily	= family;
@@ -1709,7 +1737,7 @@ static void Add_Optional_Cross_Links(TopologyBuilder & b)
 
 			//	Temporarily add the candidate, measure, then take it back out.
 			const unsigned int edge = Add_Edge(b,HYBRID_EDGE_CROSS_LINK,HYBRID_ROAD_SECONDARY_2,pairs[i].NodeA,
-														  pairs[i].NodeB,-1,false,0,0);
+														  pairs[i].NodeB,-1,false,0,0,true);
 			const float mean_after = Mean_Finite_Distance(*b.Out);
 			const int flow_after = Hybrid_Topology_Max_Flow(*b.Out,b.BaseNode[0],b.BaseNode[1]);
 			b.Out->Edges.Delete(b.Out->Edges.Count() - 1);
@@ -1731,8 +1759,9 @@ static void Add_Optional_Cross_Links(TopologyBuilder & b)
 
 		if (best < 0) return;
 
+		//	Step 11: an optional *heavy* cross-link, so it carries the heavy reference.
 		Add_Edge(b,HYBRID_EDGE_CROSS_LINK,HYBRID_ROAD_SECONDARY_2,pairs[best].NodeA,pairs[best].NodeB,-1,
-					false,0,0);
+					false,0,0,true);
 		b.Out->CrossLinks++;
 	}
 }
@@ -2212,6 +2241,7 @@ unsigned int Hybrid_Topology_Checksum(const HybridTopology & topology,unsigned i
 		stream.Add_Uint(edge.StableId);
 		stream.Add_Uint((unsigned int)edge.Kind);
 		stream.Add_Uint((unsigned int)edge.RoadClass);
+		stream.Add_Uint(edge.Capabilities);
 		stream.Add_Uint(edge.NodeA);
 		stream.Add_Uint(edge.NodeB);
 		stream.Add_Int(edge.RouteFamily);

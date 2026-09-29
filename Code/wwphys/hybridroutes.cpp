@@ -269,6 +269,7 @@ unsigned int Hybrid_Route_Checksum(const HybridRouteSet & set,unsigned int seed)
 		stream.Add_Int(route.RouteFamily);
 		stream.Add_Int(route.Envelope);
 		stream.Add_Bool(route.Required);
+		stream.Add_Uint(route.Capabilities);
 		stream.Add_Length(route.Length);
 		stream.Add_Int(route.ControlInsertions);
 		stream.Add_Int(route.Points.Count());
@@ -2735,6 +2736,7 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 		route.RoadClass			= road_class;
 		route.Priority				= Hybrid_Route_Priority_Of(*b.Topology,edge);
 		route.RouteFamily			= edge.RouteFamily;
+		route.Capabilities		= edge.Capabilities;		// Section 12.1: decided by Phase 9, never re-derived
 		route.Envelope				= envelope;
 		route.Required				= edge.Required;
 		route.ControlInsertions	= insertions;

@@ -113,7 +113,8 @@ struct HybridRoute
 {
 	HybridRoute(void) :
 		EdgeId(0),RoadClass(HYBRID_ROAD_CLASS_COUNT),Priority(HYBRID_ROUTE_PRIORITY_FAMILY_TRUNK),
-		RouteFamily(-1),Envelope(0),Required(false),Length(0.0f),ControlInsertions(0),Expansions(0),
+		RouteFamily(-1),Envelope(0),Required(false),Capabilities(0),Length(0.0f),ControlInsertions(0),
+		Expansions(0),
 		BoundsMin(0.0f,0.0f),BoundsMax(0.0f,0.0f) { }
 
 	//	DynamicVectorClass<T> (wwlib/vector.h) requires T to support == and !=.  EdgeId is the key.
@@ -126,6 +127,7 @@ struct HybridRoute
 	int						RouteFamily;
 	int						Envelope;			// 0 preferred, 1 preferred+S, 2 preferred+2S
 	bool						Required;
+	unsigned int			Capabilities;		// the edge's HybridNavCapability mask, copied unchanged
 	float						Length;				// spline arc length, quantized
 	int						ControlInsertions;
 	int						Expansions;
