@@ -62,6 +62,7 @@
 #include "hybridanchors.h"
 #include "hybridtopology.h"
 #include "hybridroutes.h"
+#include "hybridrealization.h"
 #include "w3d_file.h"
 #include "worldgenerationmanifest.h"
 #include "proceduralassetregistry.h"
@@ -16428,6 +16429,226 @@ static HybridCrossingWindow Solver_Window (HybridObstructionKind obstruction,Hyb
 }
 
 
+/***********************************************************************************************
+**	Runtime Phase 12's arithmetic -- rewrite item I13.
+**
+**	Section 12.1's solver is five named steps and each can fail in its own way, so each is proved here on
+**	terrain built to make exactly that step decide: flat ground the profile follows; a step the profile
+**	must grade across inside cut and fill; a pinned crossing height the walk must meet; a wall no grade
+**	can climb inside the limits, refused at forward propagation; two pins too far apart in height for the
+**	distance, refused at backward propagation; and the quantized result revalidated.  The cross-section is
+**	proved as the piecewise function it is.
+***********************************************************************************************/
+
+struct ProfileTerrain
+{
+	float	BaseZ;
+	float	StepAt;			// station where the ground steps
+	float	StepZ;			// by how much
+	float	WallAt;			// station where a wall begins (rises `WallZ` over `WallRun`)
+	float	WallZ;
+	float	WallRun;
+};
+
+static bool Profile_Terrain_Height (const Vector2 & world,float * height_out,void * context)
+{
+	const ProfileTerrain * terrain = (const ProfileTerrain *)context;
+	if ((terrain == NULL) || (height_out == NULL)) return false;
+	float z = terrain->BaseZ;
+	if ((terrain->StepZ != 0.0f) && (world.X >= terrain->StepAt)) z += terrain->StepZ;
+	if ((terrain->WallZ != 0.0f) && (world.X >= terrain->WallAt)) {
+		const float run = (terrain->WallRun > 0.0f) ? terrain->WallRun : 0.001f;
+		const float ratio = WWMath::Min ((world.X - terrain->WallAt) / run,1.0f);
+		z += terrain->WallZ * ratio;
+	}
+	*height_out = z;
+	return true;
+}
+
+
+//	A straight route along +X from `from` to `to`, sampled at `min(W, A/2)` like Phase 10's.
+static void Straight_Route (float from,float to,float step,HybridRoute * route)
+{
+	route->Points.Delete_All ();
+	route->Stations.Delete_All ();
+	const int steps = (int)WWMath::Ceil ((to - from) / step);
+	for (int i = 0; i <= steps; ++i) {
+		const float x = from + ((to - from) * ((float)i / (float)steps));
+		route->Points.Add (Vector2 (Hybrid_Quantize_Position (x),0.0f));
+		route->Stations.Add (Hybrid_Quantize_Position (x - from));
+	}
+}
+
+
+void Check_Hybrid_Realization (void)
+{
+	HybridConstants k;
+	Hybrid_Compute_Constants (2.555953f,1.0f,60.0f,1200.0f,1200.0f,3.0f,900.0f,&k);
+	const float spacing = Hybrid_Profile_Sample_Spacing (k);
+	const float max_cut = 6.0f;
+	const float max_fill = 6.0f;
+	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec (HYBRID_ROAD_PRIMARY_2);
+	const float max_grade = spec.MaxGradeDegrees * 0.0174532925f;
+	const float g = WWMath::Tan (max_grade);
+
+	Check (spacing == WWMath::Max (WWMath::Min (0.5f * k.W,k.A / 3.0f),k.Q),"the profile spacing is not min(W/2, A/3)");
+
+	HybridRoute route;
+	route.EdgeId = 1;
+	route.RoadClass = HYBRID_ROAD_PRIMARY_2;
+	Straight_Route (0.0f,120.0f,WWMath::Min (k.W,0.5f * k.A),&route);
+	const int last = route.Points.Count () - 1;
+
+	//	The sampler: exact endpoints, strictly increasing stations, spacing honoured.
+	{
+		ProfileTerrain flat = { 10.0f,0.0f,0.0f,0.0f,0.0f,0.0f };
+		DynamicVectorClass<HybridProfileSample> samples;
+		Check (Hybrid_Sample_Route_Interval (route,0,last,spacing,Profile_Terrain_Height,&flat,&samples),
+				 "the sampler refused a straight route");
+		Check (samples.Count () >= 2,"the sampler produced %d samples",samples.Count ());
+		Check (samples[0].Station == 0.0f,"the first sample is not the interval start");
+		Check (WWMath::Fabs (samples[samples.Count () - 1].Station - 120.0f) <= 0.002f,
+				 "the last sample is at %.3f, not the interval end",samples[samples.Count () - 1].Station);
+		bool increasing = true;
+		float widest = 0.0f;
+		for (int i = 1; i < samples.Count (); ++i) {
+			if (samples[i].Station <= samples[i - 1].Station) increasing = false;
+			widest = WWMath::Max (widest,samples[i].Station - samples[i - 1].Station);
+		}
+		Check (increasing,"sample stations are not strictly increasing");
+		Check (widest <= (spacing + 0.002f),"a sample gap of %.3f exceeds the spacing %.3f",widest,spacing);
+	}
+
+	//	1. Flat ground: the profile follows it exactly, no cut, no fill, no grade.
+	{
+		ProfileTerrain flat = { 10.0f,0.0f,0.0f,0.0f,0.0f,0.0f };
+		DynamicVectorClass<HybridProfileSample> samples;
+		Hybrid_Sample_Route_Interval (route,0,last,spacing,Profile_Terrain_Height,&flat,&samples);
+		HybridSolvedProfile solved;
+		HybridProfileFailure why = HYBRID_PROFILE_OK;
+		Check (Hybrid_Solve_Vertical_Profile (samples,max_cut,max_fill,max_grade,k.Q,&solved,&why),
+				 "flat ground has no profile (%s)",Hybrid_Profile_Failure_Name (why));
+		Check (solved.Z.Count () == samples.Count (),"the profile has %d heights for %d samples",solved.Z.Count (),
+				 samples.Count ());
+		Check ((solved.DeepestCut == 0.0f) && (solved.HighestFill == 0.0f) && (solved.SteepestGrade == 0.0f),
+				 "a flat profile cut %.3f, filled %.3f, graded %.4f",solved.DeepestCut,solved.HighestFill,
+				 solved.SteepestGrade);
+		for (int i = 0; i < solved.Z.Count (); ++i) {
+			Check (solved.Z[i] == 10.0f,"flat profile sample %d is at %.3f",i,solved.Z[i]);
+		}
+
+		//	Determinism: the same samples give the same profile.
+		HybridSolvedProfile again;
+		Hybrid_Solve_Vertical_Profile (samples,max_cut,max_fill,max_grade,k.Q,&again,&why);
+		bool same = again.Z.Count () == solved.Z.Count ();
+		for (int i = 0; same && (i < solved.Z.Count ()); ++i) same = (again.Z[i] == solved.Z[i]);
+		Check (same,"the solver is not deterministic");
+	}
+
+	//	2. A step of 8 the class grade must spread: cut on one side, fill on the other, both inside 6.
+	{
+		ProfileTerrain step = { 10.0f,60.0f,8.0f,0.0f,0.0f,0.0f };
+		DynamicVectorClass<HybridProfileSample> samples;
+		Hybrid_Sample_Route_Interval (route,0,last,spacing,Profile_Terrain_Height,&step,&samples);
+		HybridSolvedProfile solved;
+		HybridProfileFailure why = HYBRID_PROFILE_OK;
+		Check (Hybrid_Solve_Vertical_Profile (samples,max_cut,max_fill,max_grade,k.Q,&solved,&why),
+				 "an 8-unit step could not be graded (%s)",Hybrid_Profile_Failure_Name (why));
+		Check (solved.SteepestGrade <= (max_grade + 0.001f),"the graded step reaches %.4f rad",solved.SteepestGrade);
+		Check (solved.SteepestGrade > 0.0f,"a step was graded without any grade");
+		Check ((solved.DeepestCut <= max_cut + k.Q) && (solved.HighestFill <= max_fill + k.Q),
+				 "the step needs %.2f of cut and %.2f of fill",solved.DeepestCut,solved.HighestFill);
+		Check ((solved.DeepestCut > 0.0f) || (solved.HighestFill > 0.0f),"a step moved no ground");
+
+		//	Every adjacent pair, independently: grade inside the class maximum on the quantized profile.
+		for (int i = 1; i < solved.Z.Count (); ++i) {
+			const float ds = samples[i].Station - samples[i - 1].Station;
+			const float grade = WWMath::Atan (WWMath::Fabs (solved.Z[i] - solved.Z[i - 1]) / ds);
+			Check (grade <= (max_grade + 0.001f),"adjacent grade %.4f at sample %d",grade,i);
+			Check (solved.Z[i] == Hybrid_Quantize_Position (solved.Z[i]),"sample %d is not quantized",i);
+		}
+	}
+
+	//	3. A pinned crossing height: the walk meets it exactly, and grades toward it inside the limits.
+	{
+		ProfileTerrain flat = { 10.0f,0.0f,0.0f,0.0f,0.0f,0.0f };
+		DynamicVectorClass<HybridProfileSample> samples;
+		Hybrid_Sample_Route_Interval (route,0,last,spacing,Profile_Terrain_Height,&flat,&samples);
+		const int pin = samples.Count () / 2;
+		samples[pin].Fixed = true;
+		samples[pin].FixedZ = Hybrid_Quantize_Position (14.0f);	// a compiled deck height is already quantized
+		HybridSolvedProfile solved;
+		HybridProfileFailure why = HYBRID_PROFILE_OK;
+		Check (Hybrid_Solve_Vertical_Profile (samples,max_cut,max_fill,max_grade,k.Q,&solved,&why),
+				 "a pinned deck height could not be met (%s)",Hybrid_Profile_Failure_Name (why));
+		Check (solved.Z[pin] == samples[pin].FixedZ,"the pinned sample sits at %.5f, not the pinned %.5f",
+				 solved.Z[pin],samples[pin].FixedZ);
+		Check (solved.Z[0] == 10.0f,"the start was lifted to %.3f for a deck far away",solved.Z[0]);
+		Check (solved.SteepestGrade <= (max_grade + 0.001f),"the approach to the deck reaches %.4f rad",
+				 solved.SteepestGrade);
+		Check (solved.HighestFill <= (4.0f + k.Q),"fill %.2f for a 4-high deck",solved.HighestFill);
+	}
+
+	//	4. A wall no grade can climb inside cut and fill: refused at forward propagation, never patched.
+	{
+		ProfileTerrain wall = { 10.0f,0.0f,0.0f,60.0f,40.0f,2.0f };		// 40 up over 2 along
+		DynamicVectorClass<HybridProfileSample> samples;
+		Hybrid_Sample_Route_Interval (route,0,last,spacing,Profile_Terrain_Height,&wall,&samples);
+		HybridSolvedProfile solved;
+		HybridProfileFailure why = HYBRID_PROFILE_OK;
+		Check (!Hybrid_Solve_Vertical_Profile (samples,max_cut,max_fill,max_grade,k.Q,&solved,&why),
+				 "a 40-high wall was graded inside 6 of cut and fill");
+		Check (why == HYBRID_PROFILE_FORWARD_EMPTY,"the wall was refused as %s",Hybrid_Profile_Failure_Name (why));
+		Check (solved.Z.Count () == 0,"a refused profile left heights behind");
+	}
+
+	//	5. Two pins the grade cannot join: the second pin empties an interval on the backward pass.
+	{
+		ProfileTerrain flat = { 10.0f,0.0f,0.0f,0.0f,0.0f,0.0f };
+		DynamicVectorClass<HybridProfileSample> samples;
+		Hybrid_Sample_Route_Interval (route,0,last,spacing,Profile_Terrain_Height,&flat,&samples);
+		const int a = samples.Count () / 3;
+		const int b = a + 2;										// two samples apart: about 2 * spacing along
+		samples[a].Fixed = true;	samples[a].FixedZ = 10.0f;
+		samples[b].Fixed = true;	samples[b].FixedZ = 10.0f + (g * (samples[b].Station - samples[a].Station) * 3.0f);
+		HybridSolvedProfile solved;
+		HybridProfileFailure why = HYBRID_PROFILE_OK;
+		Check (!Hybrid_Solve_Vertical_Profile (samples,max_cut,max_fill,max_grade,k.Q,&solved,&why),
+				 "two pins three times too steep apart were joined");
+		Check ((why == HYBRID_PROFILE_FORWARD_EMPTY) || (why == HYBRID_PROFILE_BACKWARD_EMPTY),
+				 "unjoinable pins were refused as %s",Hybrid_Profile_Failure_Name (why));
+	}
+
+	//	The cross-section: level roadbed, shoulder at roadbed height, smoothstep to terrain over `outer_blend`.
+	{
+		const float half_roadbed = 0.5f * Hybrid_Roadbed_Width (HYBRID_ROAD_PRIMARY_2,k.W);
+		const float blend = Hybrid_Road_Outer_Blend_Width (k.W,k.A);
+		Check (blend == WWMath::Max (k.W,0.5f * k.A),"outer_blend is %.3f, not max(W, A/2)",blend);
+		Check (Hybrid_Road_Cross_Section_Half_Width (HYBRID_ROAD_PRIMARY_2,k.W,k.A) == (half_roadbed + blend),
+				 "the cross-section half width is not roadbed half plus blend");
+
+		const float road_z = 12.0f;
+		const float ground = 8.0f;
+		Check (Hybrid_Road_Cross_Section_Height (0.0f,road_z,ground,half_roadbed,blend) == road_z,"centre is not level");
+		Check (Hybrid_Road_Cross_Section_Height (half_roadbed,road_z,ground,half_roadbed,blend) == road_z,
+				 "the shoulder edge is not at roadbed height");
+		Check (Hybrid_Road_Cross_Section_Height (-half_roadbed,road_z,ground,half_roadbed,blend) == road_z,
+				 "the cross-section is not symmetric");
+		const float mid = Hybrid_Road_Cross_Section_Height (half_roadbed + (0.5f * blend),road_z,ground,half_roadbed,blend);
+		Check (WWMath::Fabs (mid - (0.5f * (road_z + ground))) <= 0.001f,
+				 "the blend midpoint is at %.3f, not halfway (smoothstep(0.5) = 0.5)",mid);
+		Check (Hybrid_Road_Cross_Section_Height (half_roadbed + blend,road_z,ground,half_roadbed,blend) == ground,
+				 "the blend does not reach untouched terrain at exactly outer_blend");
+		Check (Hybrid_Road_Cross_Section_Height (half_roadbed + blend + 5.0f,road_z,ground,half_roadbed,blend) == ground,
+				 "the cross-section touches terrain beyond its reach");
+		//	Smoothstep is flat at both ends: the quarter points are closer to their own end than linear.
+		const float q1 = Hybrid_Road_Cross_Section_Height (half_roadbed + (0.25f * blend),road_z,ground,half_roadbed,blend);
+		Check (WWMath::Fabs (q1 - road_z) < 0.25f * WWMath::Fabs (ground - road_z),
+				 "the blend leaves the shoulder linearly, not with a flat tangent");
+	}
+}
+
+
 void Check_Hybrid_Interactions (void)
 {
 	/*
@@ -18407,6 +18628,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "hybridlocalpass") == 0)) {
 		Check_Hybrid_Local_Pass ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "hybridrealization") == 0)) {
+		Check_Hybrid_Realization ();
 	}
 	if ((which == nullptr) || (::strcmp (which, "hybridinteractions") == 0)) {
 		Check_Hybrid_Interactions ();

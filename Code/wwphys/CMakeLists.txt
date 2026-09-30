@@ -64,6 +64,7 @@ set(WWPHYS_SRC
     hybridmapidentity.cpp
     hybridplanrecords.cpp
     hybridinteractions.cpp
+    hybridrealization.cpp
     hybridroutes.cpp
     hybridplanning.cpp
     hybridtopology.cpp
@@ -200,6 +201,7 @@ set(WWPHYS_SRC
     hybridmapidentity.h
     hybridplanrecords.h
     hybridinteractions.h
+    hybridrealization.h
     hybridroutes.h
     hybridplanning.h
     hybridtopology.h
