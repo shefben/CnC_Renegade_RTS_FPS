@@ -4867,7 +4867,8 @@ after a fixture bridge kind refuses an 80-unit canyon as `span_too_long`, the ba
 no cut for a 12-high band; each records the first method's refusal in `FallbackFrom`. None is reachable on
 the native configuration, and each unreachability is proved from the constants rather than assumed: a cut
 needs a cliff under 12 high, every native cliff is 18..36; every native canyon fits the registered 200-span
-bridge; a roadbed benched along a native band face needs 8.98 of cut against 6 (`Q-021`). Also closed in
+bridge; under the original `1W..3W` talus a roadbed benched along a native band face needed 8.98 of cut
+against 6, which `Q-021` resolved by widening the talus to `1W..5.25W` (D-016, generator 12). Also closed in
 this item: the next-envelope reroute end to end, Phase 10 once on the normal path (D-014); Section 12.1
 capabilities on every edge, set by role at Phase 9; measured per-class cut metadata; unplanned crossings
 recorded; the local pass measured as road rather than ground (D-012); `plateau_basin` audited (D-013).

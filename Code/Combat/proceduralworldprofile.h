@@ -581,7 +581,9 @@ class ProceduralWorldProfile
 		// Schema 12 adds the hybrid rewrite's plan fields (archetype, biome selectors, road
 		// density, island chance, route redundancy, allow_fords); generator 11 is the hybrid
 		// generator identity and makes legacy lane_width_cells/settlements inert on that path.
-		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 11 };
+		// Generator 12 widens Section 10.2's cliff talus range to 1W..5.25W (Q-021, D-016): the same
+		// seed now draws different cliff widths, so every cliff, window and route downstream differs.
+		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 12 };
 
 		ProceduralWorldProfile(void);
 

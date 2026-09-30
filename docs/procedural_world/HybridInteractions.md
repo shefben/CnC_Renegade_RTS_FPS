@@ -124,10 +124,11 @@ missing seed:
 | --- | --- | --- |
 | `road_cut` | a straight profile over a same-bench band needs `H <= max_cut + max_fill = 12`; every native cliff is `tier_step * 1..2 = 18..36` | 4-high band, cut first in the order, 4.00 of cut, four conditions recomputed |
 | `surface_pass` | the widest native canyon spans `22W = 73` and the registered bridge spans 200, so `Compile_Bridge` never refuses for a reason the pass does not share | 80-unit canyon, fixture bridge kind of 30 span refused `span_too_long`, pass compiled; native-sized registry takes the bridge |
-| `ramp_pass` | a `PRIMARY_2` roadbed benched along a smoothstep face needs `4.32 * 1.5 * H / F` of uphill cut, inside 6 only when `H / F <= 0.93`; the broadest native band is `18 / 12.47 = 1.44` (needs 8.98) | 12-high band over a 16.6 face, no cut planned, band ramp compiled, exits 110.9 along the cliff |
+| `ramp_pass` | reachable since D-016 widened the talus to `1W..5.25W`: the builder accepts a `tier_step`-high band from `4.0W` of talus (`H / F <= 1.14`), and the census finds one pass-capable native cliff window in 408 cliffs; a *routed* one is expected at the order of thousands of seeds and has not yet been found | 12-high band over a 16.6 face, no cut planned, band ramp compiled, exits 110.9 along the cliff |
 
-The consequence is that every native explicit cliff is a sealed wall (0 cliff windows in 135 census
-worlds) until a tunnel module ships or a constant changes; that is `Q-021`. `HybridInteraction::FallbackFrom`
+Under the original `1W..3W` talus every native explicit cliff was a sealed wall (0 cliff windows in 135
+census worlds); `Q-021` (D-016) widened the range so that shallow, broad cliffs can carry a ramp while
+tall or narrow ones remain walls. `HybridInteraction::FallbackFrom`
 records the first method's refusal when a later one compiled, so the fixed orders are provable from the
 record.
 

@@ -651,9 +651,17 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 		const float shelf_mid = 0.5f * (band->ShelfA + band->ShelfB);
 		const Vector2 shelf_centre = centre + (normal * shelf_mid);
 
-		//	Each ramp climbs from its toe on the bench to the shelf centreline: that is its normal run.
-		const float normal_run_a = Max2(band->ToeA - shelf_mid,k.Q);
-		const float normal_run_b = Max2(shelf_mid - band->ToeB,k.Q);
+		/*
+		**	Each ramp climbs its *face*: from the toe on the bench to the shelf edge, where the face ends and
+		**	the ground is already at full height.  Aiming the grade line at the shelf centreline instead leaves
+		**	it still climbing where it crosses the shelf edge -- `H * (t/2) / (F + t/2)` short of the ground
+		**	there, which on a native shelf `t` wide is several units, all of it landing on the uphill roadbed
+		**	edge as cut.  Measured: every band up to `8W` of talus refused on cross slope for exactly that.
+		**	Where the ramp meets the shelf, the road turns onto the shelf's own centreline for its traverse, so
+		**	the roadbed sits inside the flat with the clearance the floor test requires either side.
+		*/
+		const float normal_run_a = Max2(band->ToeA - band->ShelfA,k.Q);
+		const float normal_run_b = Max2(band->ShelfB - band->ToeB,k.Q);
 
 		float shelf_z = 0.0f;
 		if (!sample(shelf_centre,&shelf_z,context)) {
@@ -695,32 +703,60 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 		**	actually reaches.  Its foot is where the shelf traverse begins.
 		*/
 		float run_a = 0.0f;
-		Vector2 entry(0.0f,0.0f);
-		float entry_z = 0.0f;
-		if (!Solve_Ramp_Foot(normal_run_a,z_a,max_grade,shelf_mid,centre,normal,tangent,+1.0f,lean,available,
-									k.Q,sample,context,&run_a,&entry,&entry_z,failure_out)) return false;
+		Vector2 crest_a(0.0f,0.0f);
+		float crest_a_z = 0.0f;
+		if (!Solve_Ramp_Foot(normal_run_a,z_a,max_grade,band->ShelfA,centre,normal,tangent,+1.0f,lean,available,
+									k.Q,sample,context,&run_a,&crest_a,&crest_a_z,failure_out)) return false;
+
+		//	The crest is where the shelf traverse begins; there is no separate step onto a centreline.
+		const Vector2 entry = crest_a;
+		const float entry_z = crest_a_z;
 
 		/*
-		**	The traverse along the shelf: as long as the two corners at its ends need for their class-radius
-		**	fillets, and no longer -- both corners are the small angle between a ramp and the shelf, so this is
-		**	a short leg.  It continues in the lean direction, so it comes out of the same availability.
+		**	The traverse along the shelf runs from the near crest to the far crest -- diagonally across the shelf
+		**	`t` wide while continuing in the lean direction -- so the road is never asked to dogleg onto a
+		**	centreline and back: two right-angle corners on a leg half a shelf long would need more fillet than
+		**	any shelf can host.  Its along-cliff length is what the two corners at its ends need for their
+		**	class-radius fillets, and no longer; both corners are the small angle between a ramp and the shelf.
+		**	It comes out of the same directional availability as the ramps.
 		*/
-		const Vector2 ascent = entry - Quantized(centre + (normal * band->ToeA));
+		/*
+		**	The traverse's along-cliff run is the smallest at which its two corners' fillets fit on it.  The
+		**	corners depend on the run -- a longer run makes the traverse shallower and both turns smaller -- so
+		**	this is a fixed point in one variable, solved by stepping the run up from the pure-bend estimate
+		**	until the fillets fit.  Monotone, hence bounded: each step needs less fillet and offers more leg.
+		*/
+		const Vector2 ascent = crest_a - Quantized(centre + (normal * band->ToeA));
 		const float ascent_length = ascent.Length();
-		float traverse = 0.0f;
+		const Vector2 across_shelf = normal * (band->ShelfB - band->ShelfA);
+		const Vector2 along = tangent * lean;
+
+		float traverse = k.Q;
 		if (ascent_length > k.Q) {
-			const Vector2 along = tangent * lean;
 			const float dot = ((ascent.X * along.X) + (ascent.Y * along.Y)) / ascent_length;
 			const float bend = (float)::acos((double)((dot > 1.0f) ? 1.0f : ((dot < -1.0f) ? -1.0f : dot)));
-			traverse = 2.0f * min_radius * (float)::tan((double)(0.5f * bend));
+			traverse = Max2(2.0f * min_radius * (float)::tan((double)(0.5f * bend)),k.Q);
+
+			for (int step = 0; step < 64; ++step) {
+				const Vector2 leg = (along * traverse) + across_shelf;
+				const float leg_length = leg.Length();
+				if (leg_length <= k.Q) break;
+				//	Both corners are ramp-to-traverse; the descent mirrors the ascent, so the two turns are equal.
+				const float cos_turn = ((ascent.X * leg.X) + (ascent.Y * leg.Y)) / (ascent_length * leg_length);
+				const float turn = (float)::acos((double)((cos_turn > 1.0f) ? 1.0f
+																			 : ((cos_turn < -1.0f) ? -1.0f : cos_turn)));
+				const float fillets = 2.0f * min_radius * (float)::tan((double)(0.5f * turn));
+				if (fillets <= leg_length) break;
+				traverse += Max2(fillets - leg_length,k.A * 0.25f);
+			}
 		}
-		traverse = Hybrid_Quantize_Position(Max2(traverse,k.Q));
+		traverse = Hybrid_Quantize_Position(traverse);
 
 		if ((run_a + traverse) > available) {
 			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_RUN;
 			return false;
 		}
-		const Vector2 exit = Quantized(entry + (tangent * (lean * traverse)));
+		const Vector2 exit = Quantized(entry + (along * traverse) + across_shelf);
 		float exit_z = 0.0f;
 		if (!sample(exit,&exit_z,context)) {
 			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
@@ -733,20 +769,24 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 		**	opposite the station; both are frozen with the geometry.  The run is solved against the bench it
 		**	reaches, with what is left of the availability after the ascent and the traverse.
 		*/
+		//	The traverse ends on the far crest, where the descent begins.
+		const Vector2 crest_b = exit;
+		const float crest_b_z = exit_z;
+
 		float run_b = 0.0f;
 		Vector2 toe_b(0.0f,0.0f);
 		float toe_b_z = 0.0f;
 		{
-			const Vector2 exit_on_toe_line = exit - (normal * (shelf_mid - band->ToeB));
-			//	Solve from the bench up to the shelf, as the ascent did, then read it as a descent.
-			if (!Solve_Ramp_Foot(normal_run_b,exit_z,max_grade,0.0f,exit_on_toe_line,normal,tangent,0.0f,lean,
+			const Vector2 crest_on_toe_line = crest_b - (normal * (band->ShelfB - band->ToeB));
+			//	Solve from the bench up to the crest, as the ascent did, then read it as a descent.
+			if (!Solve_Ramp_Foot(normal_run_b,crest_b_z,max_grade,0.0f,crest_on_toe_line,normal,tangent,0.0f,lean,
 										available - run_a - traverse,k.Q,sample,context,&run_b,&toe_b,&toe_b_z,
 										failure_out)) return false;
 		}
 
 		//	The far approach stands off the far toe, along the normal, as far out as the near one does.
-		const Vector2 far_approach = Quantized(toe_b - (normal * (obstruction_half + approach_length -
-																					  (shelf_mid - band->ToeB))));
+		const Vector2 far_approach = Quantized(toe_b - (normal * (obstruction_half + approach_length +
+																					  band->ToeB)));
 		float far_z = 0.0f;
 		if (!sample(far_approach,&far_z,context)) {
 			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
@@ -780,6 +820,8 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 		controls[count]	= exit;				control_z[count] = exit_z;		count++;
 		controls[count]	= toe_b;				control_z[count] = toe_b_z;	count++;
 		controls[count]	= far_approach;	control_z[count] = far_z;		count++;
+		(void)crest_b;
+		(void)crest_b_z;
 
 		out->HasFloor		= true;
 		out->FloorEntry	= entry;

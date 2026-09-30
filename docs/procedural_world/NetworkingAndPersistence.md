@@ -9,8 +9,8 @@ rules live together.
 
 | Identity | Constant | Value | Where it is checked | Compatibility rule |
 | --- | --- | --- | --- | --- |
-| World profile schema | `ProceduralWorldProfile::CURRENT_SCHEMA_VERSION` | **10** | `Validate_Profile` | Any schema 1..10 loads. Each field it predates takes its documented default. 0 or >10 is refused. |
-| Generator | `ProceduralWorldProfile::CURRENT_GENERATOR_VERSION` | **9** | `Validate_Profile`; `WorldSyncService` handshake | Must equal 9 exactly. Only one generator implementation is kept, so a profile naming another would silently build a different world. It is refused. |
+| World profile schema | `ProceduralWorldProfile::CURRENT_SCHEMA_VERSION` | **12** | `Validate_Profile` | Any schema 1..12 loads. Each field it predates takes its documented default. 0 or >12 is refused. |
+| Generator | `ProceduralWorldProfile::CURRENT_GENERATOR_VERSION` | **12** | `Validate_Profile`; `WorldSyncService` handshake | Must equal 12 exactly. Generator 12 is Q-021's cliff talus range `1W..5.25W` (D-016); 11 was the hybrid generator identity; 10 realized terrain from the D-003 map plan. Only one generator implementation is kept, so a profile naming another would silently build a different world. It is refused. |
 | World-sync handshake | `WorldSyncHandshakeClass::CURRENT_HANDSHAKE_VERSION` | 1 | `WorldSyncService` | Exact match, server and client. |
 | Chunk snapshot | `WorldChunkSnapshotClass::CURRENT_SNAPSHOT_VERSION` | 1 | snapshot read/apply | Exact match. A mismatched snapshot is refused rather than applied. |
 | World operation record | `WorldOperationClass::CURRENT_FORMAT_VERSION` | 1 | journal read | Exact match. |

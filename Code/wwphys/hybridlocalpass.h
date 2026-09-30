@@ -147,7 +147,7 @@ struct HybridLocalPassBand
 };
 
 
-//	The most control points a pass centerline can need: approach, ramp feet, flat ends, approach.
+//	The most control points a pass centerline can need: approach, ramp foot, flat ends, ramp foot, approach.
 #define HYBRID_LOCAL_PASS_MAX_CONTROLS 6
 
 

@@ -5255,8 +5255,9 @@ void Check_Hybrid_Landforms (void)
 							 "cliff %u is shorter than the Section 5 minimum",landform.StableId);
 					Check ((landform.EdgeWidth >= (0.5f * k.W) - 0.001f) && (landform.EdgeWidth <= (1.5f * k.W) + 0.001f),
 							 "cliff %u edge width is outside 0.5W..1.5W",landform.StableId);
-					Check ((landform.TalusWidth >= k.W - 0.001f) && (landform.TalusWidth <= (3.0f * k.W) + 0.001f),
-							 "cliff %u talus width is outside 1W..3W",landform.StableId);
+					//	Section 10.2 as revised by Q-021 (D-016): `1W..5.25W`.
+					Check ((landform.TalusWidth >= k.W - 0.001f) && (landform.TalusWidth <= (5.25f * k.W) + 0.001f),
+							 "cliff %u talus width is outside 1W..5.25W",landform.StableId);
 					Check ((landform.UpperSideSign == 1) || (landform.UpperSideSign == -1),
 							 "cliff %u has no upper-side sign",landform.StableId);
 					break;
@@ -7700,31 +7701,67 @@ void Check_Hybrid_Local_Pass (void)
 	}
 
 	/*
-	**	The broadest *native* band -- `EdgeWidth 1.5W`, `TalusWidth 3W`, `tier_step * 1.00` high -- is refused
-	**	on cross slope, and that refusal is arithmetic rather than a defect: a level `PRIMARY_2` roadbed along
-	**	its smoothstep face needs 8.98 of uphill cut against 6 allowed.  Every native band is at least this
-	**	steep, so no native explicit cliff can carry a ramp pass under native grading; this is what the native
-	**	census measures, and this case is here so the reason is on record where the geometry is tested.
+	**	Native-range boundaries (Q-021, D-016).  These are the ordinary formulas evaluated at the ends of Section
+	**	10.2's ranges, not special cases: a D-004 band built exactly as Phase 5 draws one -- face `e + t`, shelf
+	**	`t`, smoothstep face -- at `EdgeWidth 1.5W` with the talus at the old and the new maximum, and at the
+	**	shallowest and tallest native height.  The feasibility condition they sit either side of is
+	**	`half_roadbed * 1.5 * H / F <= max_cut_depth`, i.e. `H / F <= 0.926`.
 	*/
-	{
+	/*
+	**	Expected refusals name the rule that refuses *first* in the builder's order.  A `1W` talus makes a
+	**	3.3-wide shelf, and the shelf-width test runs before any profile is compiled, so it refuses on
+	**	`floor_width`; the wider-but-still-too-steep bands get as far as the profile and refuse on cross slope.
+	**	Measured threshold for a `tier_step`-high band with the broadest edge: between `3.8W` and `4.0W` of
+	**	talus (`H / F` between 1.19 and 1.14), so `5.25W` carries a margin beyond the `0.926` the decision
+	**	derived -- the ramp crosses the face on a diagonal, and its across-face roadbed component is less than
+	**	the full half roadbed the derivation assumed.
+	*/
+	struct NativeBandCase { const char * Name; float Height; float TalusW; bool Expected; HybridLocalPassFailure Refusal; };
+	const NativeBandCase NATIVE_BANDS[4] = {
+		{ "old native maximum talus 3W, tier_step high",		18.0f,	3.00f,	false,	HYBRID_LOCAL_PASS_CROSS_SLOPE },
+		{ "new maximum talus 5.25W, tier_step high",			18.0f,	5.25f,	true,		HYBRID_LOCAL_PASS_OK },
+		{ "new maximum talus 5.25W, 2 * tier_step high",	36.0f,	5.25f,	false,	HYBRID_LOCAL_PASS_CROSS_SLOPE },
+		{ "narrow talus 1W, tier_step high",					18.0f,	1.00f,	false,	HYBRID_LOCAL_PASS_FLOOR_WIDTH },
+	};
+	for (int c = 0; c < 4; ++c) {
+
+		const NativeBandCase & one = NATIVE_BANDS[c];
+		const float e = 0.5f * (1.5f * params.Constants.W);		// the broadest native edge
+		const float talus = one.TalusW * params.Constants.W;
+
 		PassTerrain native = cliff;
-		native.BandFace	= 12.47f;
-		native.HalfSpan	= 12.47f + (0.5f * 9.97f);
-		native.RimZ			= BAND_HEIGHT;
+		native.BandFace	= e + talus;
+		native.HalfSpan	= native.BandFace + (0.5f * talus);
+		native.RimZ			= one.Height;
 		HybridLocalPassBand native_band;
 		native_band.ToeA		= +native.HalfSpan;
-		native_band.ShelfA	= +(0.5f * 9.97f);
-		native_band.ShelfB	= -(0.5f * 9.97f);
+		native_band.ShelfA	= +(0.5f * talus);
+		native_band.ShelfB	= -(0.5f * talus);
 		native_band.ToeB		= -native.HalfSpan;
 
 		HybridLocalPassGeometry geometry;
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
-		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,native.Centre,native.Tangent,native.Normal,
-													native.HalfSpan,0.0f,native.HalfSpan,&native_band,approach,PASS_RUN,
-													PASS_RUN,Pass_Terrain_Height,&native,&geometry,&failure),
-				 "the broadest native band was accepted although its face cannot be benched inside 6 of cut");
-		Check (failure == HYBRID_LOCAL_PASS_CROSS_SLOPE,"the native band was refused as %s, not cross_slope",
+		const bool built = Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,native.Centre,native.Tangent,
+																  native.Normal,native.HalfSpan,0.0f,native.HalfSpan,&native_band,
+																  approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&native,&geometry,
+																  &failure);
+		Check (built == one.Expected,"%s (H/F %.3f): expected %s, got %s (%s)",one.Name,
+				 one.Height / native.BandFace,one.Expected ? "a pass" : "a refusal",built ? "a pass" : "a refusal",
 				 Hybrid_Local_Pass_Failure_Name (failure));
+		if (built) {
+			Check (geometry.SteepestGrade <= (max_grade + 0.001f),"%s: profile grade %.4f",one.Name,
+					 geometry.SteepestGrade);
+			Check (geometry.FlatHalfWidth == Hybrid_Quantize_Position (0.5f * talus),"%s: shelf half %.3f",one.Name,
+					 geometry.FlatHalfWidth);
+			HybridLocalPassFailure again = HYBRID_LOCAL_PASS_OK;
+			Check (Hybrid_Validate_Local_Pass (params,geometry,Hybrid_Local_Pass_Sample_Spacing (params.Constants),
+														  Pass_Terrain_Height,&native,&again),"%s: does not revalidate (%s)",
+					 one.Name,Hybrid_Local_Pass_Failure_Name (again));
+			printf ("  native band: %s accepted, run %.1f\r\n",one.Name,geometry.TangentRun);
+		} else if (!one.Expected) {
+			Check (failure == one.Refusal,"%s: refused as %s, not %s",one.Name,
+					 Hybrid_Local_Pass_Failure_Name (failure),Hybrid_Local_Pass_Failure_Name (one.Refusal));
+		}
 	}
 
 	//	2. A shelf narrower than the swept envelope plus its clearance is not a pass, whatever the faces allow.
@@ -7815,11 +7852,15 @@ void Check_Hybrid_Local_Pass (void)
 													sheer.HalfSpan,0.0f,sheer.HalfSpan,&sheer_band,approach,PASS_RUN,
 													PASS_RUN,Pass_Terrain_Height,&sheer,&geometry,&failure),
 				 "a sheer 18-high wall was accepted as a ramp pass");
-		//	A level roadbed cannot sit on a wall: one edge is on the bench and the other 12 up.  That is the
-		//	cross-slope realizability rule, and it is the honest name for what a wall breaks.
-		Check ((failure == HYBRID_LOCAL_PASS_CUT_FILL) || (failure == HYBRID_LOCAL_PASS_GRADE) ||
-				 (failure == HYBRID_LOCAL_PASS_CROSS_SLOPE),
-				 "a sheer band named %s rather than the cut/fill, grade or cross slope it breaks",
+		/*
+		**	A wall has no face to climb: the ramp solver's foot lands on the shelf at full height at every run,
+		**	so the run it asks for never settles and it refuses as `floor_grade` -- "the flat falls away faster
+		**	than a ramp gains on it", which for a step of 12 in zero distance is exactly right.  Where a wall
+		**	survives the solver it is the cross-slope realizability rule that refuses it.
+		*/
+		Check ((failure == HYBRID_LOCAL_PASS_FLOOR_GRADE) || (failure == HYBRID_LOCAL_PASS_CROSS_SLOPE) ||
+				 (failure == HYBRID_LOCAL_PASS_CUT_FILL) || (failure == HYBRID_LOCAL_PASS_GRADE),
+				 "a sheer band named %s rather than the grade, cross slope or cut/fill it breaks",
 				 Hybrid_Local_Pass_Failure_Name (failure));
 	}
 
@@ -17988,6 +18029,23 @@ void Check_Hybrid_Interaction_Search (void)
 	int reroute_requests = 0;
 	int reached_phase11 = 0;
 	int cliff_spans = 0;
+
+	/*
+	**	Q-021's distribution: every explicit cliff Phase 5 accepted, by the dimensions that decide whether a
+	**	band can carry a ramp -- height, edge width, talus width, H / F -- and how many stations Phase 6 made
+	**	a pass window at.  The feasibility threshold measured on the builder is `H / F` between 1.14 and 1.19
+	**	for a `PRIMARY_2` roadbed; the decision's derivation gave 0.926.
+	*/
+	int cliffs_total = 0;
+	int cliffs_feasible_ratio = 0;				// H / F <= 1.14
+	int cliffs_with_pass_window = 0;
+	int cliff_pass_windows = 0;
+	int cliff_pass_windows_routed = 0;
+	int height_buckets[4] = { 0,0,0,0 };		// 18..22.5, ..27, ..31.5, ..36
+	int talus_buckets[5] = { 0,0,0,0,0 };		// 1..1.85W, ..2.7, ..3.55, ..4.4, ..5.25
+	int ratio_buckets[6] = { 0,0,0,0,0,0 };	// <=0.93, <=1.14, <=1.5, <=2, <=3, >3
+	float ratio_min = 1.0e9f;
+	float ratio_max = 0.0f;
 	int cliff_spans_cut_any = 0;
 	int cliff_spans_cut_class = 0;
 	int cliff_spans_pass = 0;
@@ -18060,6 +18118,47 @@ void Check_Hybrid_Interaction_Search (void)
 							  window->Span,preflight.Metrics.BridgeMaxSpanLength,bridge_capable ? 1 : 0,
 							  pass_capable ? 1 : 0,cut_capable ? 1 : 0,window->CutClasses,tunnel_capable ? 1 : 0);
 				}
+			}
+
+			for (int li = 0; li < scan.Landforms.Landforms.Count (); ++li) {
+				const HybridLandform & lf = scan.Landforms.Landforms[li];
+				if (lf.Kind != HYBRID_LANDFORM_CLIFF) continue;
+				const float e = 0.5f * lf.EdgeWidth;
+				const float face = e + lf.TalusWidth;
+				const float ratio = (face > 0.0f) ? (lf.HeightDifference / face) : 1.0e9f;
+				cliffs_total++;
+				if (ratio <= 1.14f) cliffs_feasible_ratio++;
+				if (ratio < ratio_min) ratio_min = ratio;
+				if (ratio > ratio_max) ratio_max = ratio;
+				int hb = (int)((lf.HeightDifference - 18.0f) / 4.5f);
+				if (hb < 0) hb = 0; if (hb > 3) hb = 3;
+				int tb = (int)((lf.TalusWidth / scan.Sized.Constants.W - 1.0f) / 0.85f);
+				if (tb < 0) tb = 0; if (tb > 4) tb = 4;
+				height_buckets[hb]++;
+				talus_buckets[tb]++;
+				ratio_buckets[(ratio <= 0.93f) ? 0 : (ratio <= 1.14f) ? 1 : (ratio <= 1.5f) ? 2 : (ratio <= 2.0f) ? 3
+								  : (ratio <= 3.0f) ? 4 : 5]++;
+
+				int windows_here = 0;
+				for (int wi = 0; wi < scan.Hydrology.Windows.Count (); ++wi) {
+					const HybridCrossingWindow & w = scan.Hydrology.Windows[wi];
+					if ((w.Obstruction != HYBRID_OBSTRUCTION_CLIFF) || (w.ObstructionRecordId != lf.StableId)) continue;
+					if (!w.Has_Method (HYBRID_WINDOW_METHOD_PASS)) continue;
+					windows_here++;
+					for (int r = 0; r < scan.Routes.Routes.Count (); ++r) {
+						for (int s = 0; s < scan.Routes.Routes[r].Structural.Count (); ++s) {
+							if (scan.Routes.Routes[r].Structural[s].WindowId == w.StableId) cliff_pass_windows_routed++;
+						}
+					}
+				}
+				if (windows_here > 0) {
+					cliffs_with_pass_window++;
+					printf ("RAMPWINDOW archetype %d seed %u: cliff %u H %.1f edge %.2f talus %.2f (%.2fW) H/F %.3f "
+							  "length %.0f -> %d pass windows\r\n",(int)SEARCH_ARCHETYPES[ai],seed,lf.StableId,
+							  lf.HeightDifference,lf.EdgeWidth,lf.TalusWidth,lf.TalusWidth / scan.Sized.Constants.W,
+							  ratio,lf.Length,windows_here);
+				}
+				cliff_pass_windows += windows_here;
 			}
 
 			/*
@@ -18197,6 +18296,15 @@ void Check_Hybrid_Interaction_Search (void)
 			  reroute_requests,resolved_at_one,resolved_at_two,exhausted);
 	printf ("routed cliff spans: %d; cut planned for some class %d, for the span's own class %d; pass %d\r\n",
 			  cliff_spans,cliff_spans_cut_any,cliff_spans_cut_class,cliff_spans_pass);
+	printf ("cliffs: %d accepted; H/F min %.3f max %.3f; %d with H/F <= 1.14; %d with a pass window (%d windows, "
+			  "%d of them routed)\r\n",cliffs_total,ratio_min,ratio_max,cliffs_feasible_ratio,cliffs_with_pass_window,
+			  cliff_pass_windows,cliff_pass_windows_routed);
+	printf ("   height 18..22.5: %d, ..27: %d, ..31.5: %d, ..36: %d\r\n",height_buckets[0],height_buckets[1],
+			  height_buckets[2],height_buckets[3]);
+	printf ("   talus 1..1.85W: %d, ..2.7W: %d, ..3.55W: %d, ..4.4W: %d, ..5.25W: %d\r\n",talus_buckets[0],
+			  talus_buckets[1],talus_buckets[2],talus_buckets[3],talus_buckets[4]);
+	printf ("   H/F <=0.93: %d, <=1.14: %d, <=1.5: %d, <=2: %d, <=3: %d, >3: %d\r\n",ratio_buckets[0],ratio_buckets[1],
+			  ratio_buckets[2],ratio_buckets[3],ratio_buckets[4],ratio_buckets[5]);
 	for (int m = 0; m < HYBRID_METHOD_COUNT; ++m) {
 		printf ("   selected %s: %d\r\n",Hybrid_Interaction_Method_Name ((HybridInteractionMethod)m),
 				  method_selected[m]);

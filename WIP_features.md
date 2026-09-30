@@ -283,20 +283,20 @@ obligation) are open and neither blocks code.
 **I12's bridge/ford-disabled/junction/overpass behaviour is closed, and `Q-019` is closed** (D-011).
 Full suite 235/235 on client and dedicated server.
 
-**I12 is closed (2026-09-30).** `Q-020` decided and implemented as D-015: the band-shaped ramp pass for
-D-004 cliffs, and executable real-solver fixtures for `road_cut`, `surface_pass` and `ramp_pass`. Together
-with D-012 (local pass as road geometry), D-013 (`plateau_basin`), D-014 (reroute lifecycle, capabilities,
-measured window metadata) the I12 gate is met: 235/235 ctest on client and dedicated server, the four
-`terrain_hybrid*` gates and their `fds_` twins green, `tools/validate_feature_state.py` green. The
-completion record in `completed_features.md` no longer calls any branch unexercised.
+**I12 is closed (2026-09-30), and `Q-021` is closed (D-016).** Section 10.2's cliff talus range is
+`1W..5.25W`, generator identity 12, and the band ramp accepts a `tier_step`-high cliff from `4.0W` of talus.
+235/235 ctest on client and dedicated server, the five `terrain_hybrid*` gates and their `fds_` twins green,
+`tools/validate_feature_state.py` green.
 
-Carried, not blocking: `Q-021` -- no native explicit cliff can be crossed on the surface under the native
-constants (proved in D-015), so every explicit cliff is a sealed wall until a tunnel module ships or a
-constant changes. `Q-018` (LARGE hill quota) remains open. The census's planner-quality numbers (1400
-attempted, 135 through Phase 10, 67 solved) are recorded by owner and are a later full-pipeline target,
-not an I12 matter.
+Carried, not blocking: no *routed* native `ramp_pass` has been found yet. The census over 1400 seeds shows
+the range occurring naturally and one pass-capable native cliff window (`plateau_basin` seed 137), none
+crossed by a route; D-016 estimates a routed one at the order of thousands of seeds. The search tool
+(`renegade -terrainselfcheck hybridinteractionsearch`) prints each pass-capable cliff as `RAMPWINDOW` and the
+cliff dimension distribution, so a wider walk needs no new instrumentation; when one is found, freeze it as
+the permanent native fixture in `Check_Hybrid_Interactions`. `Q-018` (LARGE hill quota) remains open.
 
 **Next exact action: begin I13 / runtime Phase 12** (`Procedural_World_Generator_Rewrite_CHECKLIST.md`
 "I13 -- Runtime Phase 12: final roads, crossings, cut/fill"), consuming the frozen Phase-11 interaction set
--- including `HybridCrossingWindow::Pass` for surface and ramp passes and `HybridInteraction::ApproachA/B`
-as the compiled ends -- through the Section 12.1 vertical-profile solver and Section 12.2 deformation.
+-- `HybridInteraction::ApproachA/B` as each crossing's compiled ends, `HybridCrossingWindow::Pass` for
+surface and ramp passes, `FallbackFrom` as provenance -- through the Section 12.1 vertical-profile solver
+and Section 12.2 deformation, with Phase 12.3's post-realization verification as the gate.

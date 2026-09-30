@@ -100,7 +100,15 @@ static const float	CLIFF_HEIGHT_MAX			= 2.00f;
 static const float	CLIFF_EDGE_MIN_W			= 0.5f;
 static const float	CLIFF_EDGE_MAX_W			= 1.5f;
 static const float	CLIFF_TALUS_MIN_W			= 1.0f;
-static const float	CLIFF_TALUS_MAX_W			= 3.0f;
+/*
+**	Q-021 (D-016): `1W..5.25W`, widened from Section 10.2's original `1W..3W`.  A `PRIMARY_2` roadbed benched
+**	along a D-004 smoothstep face needs `half_roadbed * 1.5 * H / F` of uphill cut, inside `max_cut_depth = 6`
+**	only when `H / F <= 0.926`; with the broadest edge (`0.75W`) and this talus the shallowest native cliff
+**	(`tier_step`) reaches `H / F = 18 / 6W = 0.903`, so a broad, shallow cliff *can* carry a ramp pass while
+**	a tall or narrow one stays a wall.  Drawn through the ordinary keyed range like every other dimension:
+**	nothing is redrawn or widened to make a road fit.
+*/
+static const float	CLIFF_TALUS_MAX_W			= 5.25f;
 
 static const float	CANYON_LENGTH_MIN_D		= 0.35f;
 static const float	CANYON_LENGTH_MAX_D		= 0.75f;

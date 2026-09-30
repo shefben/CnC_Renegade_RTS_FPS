@@ -10,21 +10,10 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
   covered by executable solver fixtures; `ramp_pass` rebuilt for D-004's raised band. All three execute
   through the real Phase-11 solver. See `DECISIONS.md` D-015. One finding carried into `Q-021`.
 
-- **Q-021** Hybrid rewrite I12/I13 (runtime Phases 6 and 11). No native explicit cliff can be crossed on
- the surface under the native constants, so every explicit cliff is a sealed wall (the census over 1400
- seeds carries 0 cliff windows in 135 worlds). This is arithmetic, not a defect: a `PRIMARY_2` roadbed
- benched along a D-004 smoothstep face needs `4.32 * 1.5 * H / F` of uphill cut, inside
- `grading.max_cut_depth = 6` only when `H / F <= 0.93`, and the broadest native band is
- `tier_step * 1.00 / (0.75W + 3W) = 18 / 12.47 = 1.44` (needs 8.98). A road cut needs `H <= 12` and every
- cliff is `H >= 18`. The band ramp is implemented and proven on a benchable band (`H / F = 0.72`); nothing
- native produces one. Blocks: nothing in I12 (D-015 covers the branches) and nothing in I13; blocks the
- *design intent* that some cliffs be legitimate passes. Evidence: D-015's measurement,
- `Check_Hybrid_Local_Pass`'s native-band case, the census. Smallest decision needed: which of these the user
- wants, if any -- (a) leave native cliffs sealed (the honest current behaviour; tunnels reopen them when a
- module ships); (b) widen Section 5's cliff talus range so `H / F` can reach `0.93` (for `tier_step` high,
- `F >= 19.4`, i.e. `TalusWidth` up to about `5W`); (c) allow a cliff of `tier_step * 0.5..1.0`; (d) raise
- `grading.max_cut_depth` for passes only; or (e) let a band pass bench a narrower roadbed (`SECONDARY_2`,
- 3.99 wide) where the heavy envelope is not required.
+- **Q-021 CLOSED (2026-09-30).** Section 10.2's cliff talus range widened to `1W..5.25W`; generator
+  identity 12. The builder accepts a `tier_step`-high band from `4.0W` of talus; the census over 1400 seeds
+  finds the new range occurring naturally and one pass-capable native cliff window, none yet routed. See
+  `DECISIONS.md` D-016.
 
 - **Q-019 CLOSED (2026-09-29, option (a)).** Section 5's canyon/ravine bridge quota is Phase 5's to
   satisfy: it lays the required systems across a heavy route corridor rather than leaving Phase 9 with

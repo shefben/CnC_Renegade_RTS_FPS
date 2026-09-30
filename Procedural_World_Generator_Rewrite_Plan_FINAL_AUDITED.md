@@ -2216,7 +2216,7 @@ centerline spline
 upper-side sign
 height difference
 edge width = 0.5W..1.5W
-rock/talus transition width = 1W..3W
+rock/talus transition width = 1W..5.25W
 allowed crossing/pass windows
 ```
 

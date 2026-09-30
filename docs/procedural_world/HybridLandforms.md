@@ -47,7 +47,7 @@ again. An independent ravine still has to pass Section 5's `max(12W,0.20D)` qual
 does not, because its system root carries the qualification.
 
 **Cliff field shape.** Section 10.2 gives a cliff exactly two widths — edge width `0.5..1.5W` and
-rock/talus transition width `1..3W` — so the field uses no other length scale: it rises from zero at
+rock/talus transition width `1..5.25W` (Q-021, D-016; originally `1..3W`) — so the field uses no other length scale: it rises from zero at
 the talus toe to full height at the upper edge, holds full height across one talus width of shelf
 and returns to zero across one more, with a longitudinal taper over the same distance at each end of
 the run. That keeps the field compactly supported the way Section 10.4 requires of a landform field.

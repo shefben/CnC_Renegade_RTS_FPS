@@ -554,6 +554,72 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-016 - Hybrid rewrite Q-021: the cliff talus range is `1W..5.25W`; generator 12 (2026-09-30)
+
+`Q-021` asked whether a native explicit cliff should be crossable on the surface at all, and the answer is
+the user's: yes, some of them -- a shallow, broad cliff may expose a legal ramp window while a tall or
+narrow one stays a hard wall -- by widening exactly one range. Section 10.2's rock/talus transition width is
+now **`1W..5.25W`** (was `1W..3W`), in `hybridlandforms.cpp`'s `CLIFF_TALUS_MAX_W`, in the plan text, and in
+`HybridLandforms.md`. Nothing else moved: cliff height stays `tier_step * 1.00..2.00`, `tier_step` 18,
+grading 6/6, D-004's raised band, the method orders, the class grades and roadbeds, and D-015's same-way
+lean. The talus is still drawn through the ordinary keyed range; nothing is redrawn or widened to make a
+road fit, and there is no ramp quota.
+
+**Generator identity.** The same seed now draws different cliff widths, so every cliff, window and route
+downstream differs: `CURRENT_GENERATOR_VERSION` is **12** (was 11), the four shipped profiles and the
+self-check's three mirrored representative profiles say `generator_version: 12`, and the versioning table
+in `NetworkingAndPersistence.md` is brought current (it had lagged at 9/10).
+
+**Where the threshold actually is.** The decision derived `H / F <= 0.926` from
+`half_roadbed * 1.5 * H / F <= max_cut_depth`. Measured on the builder with the real fixture geometry, a
+`tier_step`-high band with the broadest edge is accepted from **`4.0W` of talus (`H / F = 1.14`)** and
+refused at `3.8W` (`1.19`): the ramp's profile is the straight grade line, which sits above the smoothstep
+face on its lower half where the uphill edge is highest, so less of the face slope lands on that edge than
+the peak-slope derivation assumed. `5.25W` therefore carries a margin beyond the derivation, and the four
+boundary tests in `Check_Hybrid_Local_Pass` pin it: old maximum `3W` refused (cross slope), new maximum
+`5.25W` at `tier_step` accepted, `5.25W` at `2 * tier_step` refused (cross slope), `1W` refused (a 3.3-wide
+shelf fails the swept-width test before any profile is built).
+
+**Three builder corrections the boundary tests forced**, all in `hybridlocalpass.cpp`:
+
+- each ramp climbs its *face* -- toe to shelf edge -- not toe to shelf centreline. Aiming at the centreline
+  left the grade line still climbing where it crossed the shelf edge, several units below ground on a
+  native shelf, all of it landing on the uphill roadbed edge as cut; every band to `8W` of talus refused on
+  cross slope for it;
+- the shelf traverse runs crest to crest, diagonally across the shelf while continuing the lean, not via a
+  dogleg onto a centreline: two right-angle corners on a leg half a shelf long need more fillet than any
+  shelf has;
+- the traverse's along-cliff run is solved for its own two corners -- a longer run makes both turns smaller
+  and the leg longer -- as a bounded monotone fixed point from the pure-bend estimate.
+
+**The real-pipeline census, reported rather than acted on.** 200 seeds of each of the seven archetypes
+(1400 attempts, 136 worlds through Phase 10, 59 solved) accepted **408 explicit cliffs**:
+
+| dimension | distribution |
+| --- | --- |
+| height | 18..22.5: 113, ..27: 109, ..31.5: 103, ..36: 83 |
+| talus | 1..1.85W: 70, ..2.7W: 108, ..3.55W: 80, ..4.4W: 77, ..5.25W: 73 |
+| `H / F` (rising face `e + t`) | min 1.143, max 6.278; `<= 0.93`: 0, `<= 1.14`: 0, `<= 1.5`: 66, `<= 2`: 112, `<= 3`: 118, `> 3`: 112 |
+| pass-capable cliff windows | **1** (`plateau_basin` seed 137: cliff 2, `H 24.0`, talus `4.66W`, `H / F 1.435`, length 281) |
+| routes crossing them | 0 |
+| `ramp_pass` selected | 0 |
+
+The new range occurs through normal generation -- 73 cliffs drew a talus in the top fifth -- and native
+geometry *does* produce a pass-capable cliff window, so the requirement the decision set ("native geometry
+can legitimately produce one when its generated dimensions satisfy the existing physical validators") is
+met. The window on seed 137 is on real provisional terrain whose base slope evidently helps, since its
+`H / F` is past the fixture threshold. What did not occur in 1400 seeds is a routed road crossing such a
+window: the shallow-and-broad corner is roughly one cliff in four hundred, and a route crossing any given
+cliff window was about one world in four when every cliff carried a window. A native routed `ramp_pass`
+fixture is therefore expected at the order of several thousand seeds, which the tool can walk but this
+census did not. No further constant is changed on that account; the search tool now prints the cliff
+distribution and each pass-capable cliff (`RAMPWINDOW`) so the next walk needs no new instrumentation.
+
+**Status: accepted.** `terrain_hybridlocalpass`, `terrain_hybridlandforms` (its range assertion updated),
+`terrain_hybridhydrology`, `terrain_hybridroutes`, `terrain_hybridinteractions` and their `fds_` twins
+pass; `shader_perfbudgets` and its twin pass with the mirrored profiles at generator 12; 235/235 ctest on
+client and dedicated server; state validator green. `Q-021` closes on this record.
+
 ## D-015 - Hybrid rewrite Q-020: the three ground methods, and what a native cliff can carry (2026-09-30)
 
 `Q-020` was decided per branch: `road_cut` and `surface_pass` accepted as unreachable on the native
