@@ -4861,10 +4861,17 @@ crossing separation -- with no constraint relaxed to make any of them green.
 Coverage on the shipped content: bridge, at-grade junction and overpass compile, with mandatory crossing
 obligations and a reserved overpass exercised. Fords and tunnels correctly do not compile, because no ford
 capability and no tunnel module are registered, and the gate asserts that disabled behaviour rather than
-fabricating content metrics. Surface pass, ramp pass and road cut are unreachable on these fixtures because
-the archetypes that would produce cliff and ridge crossings refuse upstream in Phase 9 -- see the open
-`Q-019` -- and that is recorded rather than worked around. Documented in
-`docs/procedural_world/HybridInteractions.md`.
+fabricating content metrics. Surface pass, road cut and ramp pass each execute through the real solver on
+controlled one-edge worlds (2026-09-30, D-015): the cut first in its order through a 4-high band, the pass
+after a fixture bridge kind refuses an 80-unit canyon as `span_too_long`, the band ramp after Phase 6 plans
+no cut for a 12-high band; each records the first method's refusal in `FallbackFrom`. None is reachable on
+the native configuration, and each unreachability is proved from the constants rather than assumed: a cut
+needs a cliff under 12 high, every native cliff is 18..36; every native canyon fits the registered 200-span
+bridge; a roadbed benched along a native band face needs 8.98 of cut against 6 (`Q-021`). Also closed in
+this item: the next-envelope reroute end to end, Phase 10 once on the normal path (D-014); Section 12.1
+capabilities on every edge, set by role at Phase 9; measured per-class cut metadata; unplanned crossings
+recorded; the local pass measured as road rather than ground (D-012); `plateau_basin` audited (D-013).
+Documented in `docs/procedural_world/HybridInteractions.md`.
 
 ## Hybrid generator rewrite I11 -- runtime Phase 10, bounded heading-aware A* and road centerlines (2026-09-28)
 

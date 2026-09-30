@@ -88,6 +88,49 @@ The compiled profile runs from the road's own elevation at each ramp foot up to 
 smoothstep, sampled at `min(W/3,A/4)`. It does not follow the terrain, which would put the ground's own
 slope into the road's grade.
 
+## Ground methods: passes and cuts
+
+The three ground methods -- `surface_pass`, `ramp_pass`, `road_cut` -- share one owner for their
+geometry, `Code/wwphys/hybridlocalpass.{h,cpp}`, and one rule about what is judged: a candidate is planned
+road geometry (D-012), so the road's own profile must hold the class grade, its corners the class turn
+radius as Phase 10 fillets them (D-009), and every sample of it must be realizable inside its
+`RoadVerticalInterval`. Cross slope is Section 12.2's: zero on the roadbed, so the test is whether a level
+roadbed at the profile height is realizable, banking up to the class maximum. Phase 6 proves a candidate
+against the provisional height and freezes it on `HybridCrossingWindow::Pass`; Phase 11 revalidates that
+frozen record on the realized terrain at `min(W/2, A/3)` and compiles its ends as the crossing's own.
+
+**Canyon/ravine floor pass** -- descend the near wall on the diagonal, cross the floor, ascend the far
+wall, the two ramps leaning opposite ways so the route returns across the station. Each ramp's
+along-obstruction run is solved, not estimated, against the floor its foot actually reaches, and each is
+charged to its own direction's arc length along the obstruction.
+
+**Cliff band pass** -- D-004's cliff is a raised band with both approaches on one bench, so the pass is the
+floor pass inverted: ascend the near talus face, run along the shelf, descend the far face. Both ramps and
+the traverse lean the *same* way (D-015): a native face is a few lane widths wide and 18..36 high, so at the
+class grade a ramp runs nearly parallel to the face, and opposite leans would meet the shelf at close to
+180 degrees -- a hairpin. The crossing therefore exits some distance along the cliff, bounded by the cliff's
+directional arc length; the far approach is frozen with the geometry.
+
+**Road cut** -- the straight profile between the two approach elevations, accepted only when the plan's
+four conditions hold. Phase 6 measures it per road class (`CutClasses`); Phase 11 tries a cut only for the
+edge's own class and revalidates.
+
+### Reachability on the native configuration (D-015, Q-020, Q-021)
+
+None of the three is reachable on a native world, and each unreachability is arithmetic rather than a
+missing seed:
+
+| method | why not native | executable fixture |
+| --- | --- | --- |
+| `road_cut` | a straight profile over a same-bench band needs `H <= max_cut + max_fill = 12`; every native cliff is `tier_step * 1..2 = 18..36` | 4-high band, cut first in the order, 4.00 of cut, four conditions recomputed |
+| `surface_pass` | the widest native canyon spans `22W = 73` and the registered bridge spans 200, so `Compile_Bridge` never refuses for a reason the pass does not share | 80-unit canyon, fixture bridge kind of 30 span refused `span_too_long`, pass compiled; native-sized registry takes the bridge |
+| `ramp_pass` | a `PRIMARY_2` roadbed benched along a smoothstep face needs `4.32 * 1.5 * H / F` of uphill cut, inside 6 only when `H / F <= 0.93`; the broadest native band is `18 / 12.47 = 1.44` (needs 8.98) | 12-high band over a 16.6 face, no cut planned, band ramp compiled, exits 110.9 along the cliff |
+
+The consequence is that every native explicit cliff is a sealed wall (0 cliff windows in 135 census
+worlds) until a tunnel module ships or a constant changes; that is `Q-021`. `HybridInteraction::FallbackFrom`
+records the first method's refusal when a later one compiled, so the fixed orders are provable from the
+record.
+
 ## Failure
 
 Every unsolved conflict becomes a `HybridInteractionIssue` naming the problem, and more than twelve on one

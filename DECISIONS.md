@@ -554,6 +554,72 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-015 - Hybrid rewrite Q-020: the three ground methods, and what a native cliff can carry (2026-09-30)
+
+`Q-020` was decided per branch: `road_cut` and `surface_pass` accepted as unreachable on the native
+configuration and covered by owner-level fixtures on the real solver; `ramp_pass` to be made to understand
+D-004's actual raised-band cliff. All three now execute through the real Phase-11 solver, and the native
+constants, the native bridge registry, D-004 and every method order are unchanged.
+
+**The band ramp.** A D-004 cliff has both approaches on one bench, so its pass is the floor pass inverted:
+ascend the near talus face on the diagonal, run along the shelf, descend the far face. Both ramps and the
+traverse lean the **same** way along the cliff. The decision asked for opposite leans "so the route returns
+across the original crossing station"; measured on the geometry, that cannot be built. A native face is
+`e + t = 4.15..12.47` wide and `18..36` high, so at 12 degrees each ramp spends about 84 along the cliff for
+a dozen across it and runs nearly parallel to the face; ramps leaning opposite ways would meet the shelf at
+close to 180 degrees on a shelf `t = 3.3..10` wide, a hairpin no class radius drives and the decision's own
+"no switchbacks" rule forbids. Leaning the same way, every corner is a few degrees except the two at the
+toes, which are ordinary class-radius corners on legs that can host them. The crossing therefore exits some
+distance along the cliff from where it entered (110.9 on the fixture); that distance is bounded by the
+cliff's directional arc length exactly as any lean is, the far approach is frozen with the geometry, and
+Phase 11 compiles the frozen ends rather than the point opposite the station.
+
+**Two validators judged the ground instead of the road.** Both were corrected under D-012's rule that a pass
+candidate is planned road geometry:
+
+- corners are judged as Phase 10 builds them (D-009) -- an arc of the class minimum radius consuming
+  `R tan(theta/2)` of each leg, legal when both legs can host their share. The circumradius through three
+  controls was refusing floor-pass corners a vehicle drives easily, and once it stopped, the honest
+  refusals underneath surfaced: canyon floors `1.5W..3W = 5..10` wide against the heavy envelope's `8.80`,
+  and runs the class grade genuinely needs;
+- cross slope is Section 12.2 step 5's: "zero on ordinary straight roadbed", the *compiled profile* inside
+  the class maximum. The test is therefore whether a level roadbed at the profile height is realizable --
+  both roadbed edges inside their own `RoadVerticalInterval`, banking up to the class maximum -- and not
+  whether the untouched face happens to be flat across the road.
+
+**What that measures about native cliffs.** A `PRIMARY_2` roadbed benched along a face has the face's slope
+across it, so its uphill edge needs `half_roadbed * slope` of cut; with D-004's smoothstep the steepest
+slope is `1.5 * H / F`, so the cut is `4.32 * 1.5 * H / F` and fits inside `max_cut_depth = 6` only when
+`H / F <= 0.93`. The broadest, shallowest native band -- `EdgeWidth 1.5W`, `TalusWidth 3W`, `tier_step`
+high -- is `H / F = 18 / 12.47 = 1.44` and needs 8.98. So **no native explicit cliff can carry a ramp pass
+under native grading**, the native census carries no cliff window at all (0 in 135 worlds, 1400 seeds
+attempted), and `Check_Hybrid_Local_Pass` records the broadest native band as the cross-slope refusal it is.
+The native `ramp_pass` real-pipeline fixture the decision asked for therefore does not exist, for the same
+kind of reason `road_cut`'s does not: the constants, not the algorithm. Reported here rather than worked
+around; changing `tier_step`, the cliff height range, the talus range, the grading limits or the roadbed
+would each make one, and each is the user's call.
+
+**The three executable fixtures**, all on `Hybrid_Build_Interactions` with real road-class data, real
+`CutClasses`, the real method orders, and the real cut and pass validators, on a one-edge world whose only
+feature is the obstruction:
+
+- `road_cut`: a 4-high, 6-wide band. Cut is first in the cliff order and wins with no fallback, 4.00 of cut;
+  the plan's four conditions -- cut and fill limits, `RoadDeformationHalfWidth`, the outer blend on legal
+  ground -- are recomputed from the compiled record;
+- `surface_pass`: an 80-unit canyon with a fixture bridge kind of 30 maximum span. `Compile_Bridge` refuses
+  it as `span_too_long`, the order falls through to the pass, and Phase 11 revalidates the frozen Phase-6
+  geometry; the same canyon with the native-sized registry takes the bridge, as the order requires;
+- `ramp_pass`: a 12-high band over a 16.6 face, `H / F = 0.72`. Phase 6 plans no cut for any class (the
+  straight profile needs 12), the order falls through to the pass, and the frozen band geometry compiles.
+
+`HybridInteraction::FallbackFrom` records the first method's refusal when a later method compiled
+(`NONE` when the first won), so the fixed orders are provable from the record, and it is in the checksum.
+
+**Status: accepted.** `terrain_hybridlocalpass`, `terrain_hybridhydrology`, `terrain_hybridroutes`,
+`terrain_hybridinteractions` and their `fds_` twins pass; 235/235 ctest on client and dedicated server;
+state validator green. `Q-020` closes on this record with one item carried: whether a native cliff should
+be crossable on the surface at all is a constants question, filed as `Q-021`.
+
 ## D-014 - Hybrid rewrite I12: reroute lifecycle, edge capabilities, and honest window metadata (2026-09-29)
 
 **Reroute.** Section 8 Phase 11's last method-order step -- "rerun this edge once in its next Phase-10

@@ -283,41 +283,20 @@ obligation) are open and neither blocks code.
 **I12's bridge/ford-disabled/junction/overpass behaviour is closed, and `Q-019` is closed** (D-011).
 Full suite 235/235 on client and dedicated server.
 
-**I12: everything but the three ground-method fixtures is closed, and those three are blocked on
-`Q-020`.** Decisions D-012 (local-pass geometry), D-013 (`plateau_basin`), D-014 (reroute lifecycle,
-capabilities, window metadata). 235/235 ctest on client and dedicated server.
+**I12 is closed (2026-09-30).** `Q-020` decided and implemented as D-015: the band-shaped ramp pass for
+D-004 cliffs, and executable real-solver fixtures for `road_cut`, `surface_pass` and `ramp_pass`. Together
+with D-012 (local pass as road geometry), D-013 (`plateau_basin`), D-014 (reroute lifecycle, capabilities,
+measured window metadata) the I12 gate is met: 235/235 ctest on client and dedicated server, the four
+`terrain_hybrid*` gates and their `fds_` twins green, `tools/validate_feature_state.py` green. The
+completion record in `completed_features.md` no longer calls any branch unexercised.
 
-Closed in this item, each proved in `Check_Hybrid_Interactions` / `Check_Hybrid_Local_Pass`:
+Carried, not blocking: `Q-021` -- no native explicit cliff can be crossed on the surface under the native
+constants (proved in D-015), so every explicit cliff is a sealed wall until a tunnel module ships or a
+constant changes. `Q-018` (LARGE hill quota) remains open. The census's planner-quality numbers (1400
+attempted, 135 through Phase 10, 67 solved) are recorded by owner and are a later full-pipeline target,
+not an I12 matter.
 
-- the next-envelope reroute, owned by `Hybrid_Solve_Interactions_With_Reroute`: Phase 10 once on the normal
-  path, re-run whole only after a request, floors monotone and per edge, `Phase10Runs == reroutes + 1`
-  asserted, one-, two- and three-run fixtures (`plateau_basin` seed 193 is the permanent one-reroute
-  fixture);
-- unplanned crossings recorded by Phase 10 (`Note_Unplanned_Crossings`);
-- ground width `required_swept_width <= RoadbedWidth(class)`, with the swept width from the edge's own
-  Section-12.1 capability mask, set by Phase 9 per role and never from road class;
-- per-class measured cut metadata (`CutClasses`), no bridge bit on cliff windows, and the pipeline
-  fixture's Phase 6 fed the same preflight metrics as Phase 11.
-
-Final census, 200 seeds x 7 archetypes (`renegade -terrainselfcheck hybridinteractionsearch`): 1400
-attempted, 135 through Phase 10, 135 reached Phase 11, 67 solved; 195 reroute requests, 1 resolved at
-envelope +1, 0 at +2, 68 worlds exhausted; selected bridge 446, at-grade junction 157, overpass 199, ford 0
-(no capability), surface pass 0, road cut 0, ramp pass 0, tunnel 0; final failures 36 `no_solution`, 32
-`obligation_lost`, every one after its envelopes were spent. The previous census built 162 worlds; the 27
-that no longer route were routing through cliff windows no cliff method could serve, and all of them
-failed Phase 11 before.
-
-**Blocked on `Q-020`:** `surface_pass`, `road_cut` and `ramp_pass` cannot execute on the native
-configuration. `road_cut` needs a cliff under 12 high and every cliff is 18..36; the cliff ramp is built
-for a step while D-004 made cliffs raised bands; no bridge refusal a pass does not share can occur against
-the registered 200-span bridge. The question gives the proofs and the smallest decision per branch.
-
-**Next exact action:** wait for the `Q-020` answer. Per branch it is either an owner-level synthetic
-fixture that exercises the compile path (and the gate's "executes in a real pipeline fixture" requirement
-is waived for that branch), or the generator change the user picks -- the band-shaped ramp, a D-004
-revision, or a constant. Then the I12 gate as written: `terrain_hybrid{routes,interactions}` and their
-`fds_` twins, both full suites, `tools/validate_feature_state.py`, the I12 completion record, commit, I13.
-
-Remaining upstream refusals, each its own owner's defect: overpass quota short, river bridge quota short,
-`hill 13 exhausted 32 alternate candidates` (`Q-018`), `HIGHWAY_4 has no legal route`, `field reserve is
-illegal`.
+**Next exact action: begin I13 / runtime Phase 12** (`Procedural_World_Generator_Rewrite_CHECKLIST.md`
+"I13 -- Runtime Phase 12: final roads, crossings, cut/fill"), consuming the frozen Phase-11 interaction set
+-- including `HybridCrossingWindow::Pass` for surface and ramp passes and `HybridInteraction::ApproachA/B`
+as the compiled ends -- through the Section 12.1 vertical-profile solver and Section 12.2 deformation.
