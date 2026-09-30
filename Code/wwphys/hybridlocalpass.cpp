@@ -102,18 +102,6 @@ static Vector2 Quantized(const Vector2 & v)
 }
 
 
-//	The circumradius of a corner; a straight run reports a huge radius.
-static float Corner_Radius(const Vector2 & a,const Vector2 & b,const Vector2 & c)
-{
-	const float ab = (b - a).Length();
-	const float bc = (c - b).Length();
-	const float ca = (a - c).Length();
-	const float cross = ((b.X - a.X) * (c.Y - a.Y)) - ((b.Y - a.Y) * (c.X - a.X));
-	const float area = 0.5f * (float)fabs((double)cross);
-	if (area <= 1.0e-4f) return 3.4e38f;
-	return (ab * bc * ca) / (4.0f * area);
-}
-
 
 /*
 **	The along-obstruction run a ramp needs to make its vertical in the normal span it has.
@@ -244,7 +232,20 @@ static bool Profile_Is_Legal(const HybridLocalPassParams & params,const Vector2 
 				return false;
 			}
 
-			//	The cross slope across the roadbed, on the ground the roadbed sits on.
+			/*
+			**	Cross slope, as Section 12.2 step 5 defines it: "zero on ordinary straight roadbed", with the
+			**	*compiled profile* required to stay inside the class maximum.  The roadbed is level across; what
+			**	the ground under it does is the cut and fill that levels it.  So the test is realizability of a
+			**	level roadbed at the profile height: both roadbed edges have to sit inside their own
+			**	`RoadVerticalInterval`.  Judging the untouched ground's own slope across the road instead would
+			**	refuse every diagonal on a face -- a ramp cut into a talus exists precisely where the ground is
+			**	steep across it -- and that is what refused every native band station.
+			**
+			**	Where a level roadbed cannot be built, the class *may* bank up to its maximum cross slope: the
+			**	edges then need to reach the profile only to within `half_roadbed * tan(max_cross)`, one up and
+			**	one down.  Past that it is a cross-slope refusal, not a cut/fill one, because the level roadbed
+			**	was realizable somewhere and the failing quantity is the tilt the ground demands.
+			*/
 			float left = 0.0f;
 			float right = 0.0f;
 			if (!sample(point + (normal * half_roadbed),&left,context) ||
@@ -257,7 +258,12 @@ static bool Profile_Is_Legal(const HybridLocalPassParams & params,const Vector2 
 			const HybridVerticalInterval right_interval = Hybrid_Road_Vertical_Interval(right,
 																											 params.MaxCutDepth,
 																											 params.MaxFillHeight);
-			if (!Hybrid_Grade_Compatible(left_interval,right_interval,2.0f * half_roadbed,max_cross)) {
+			const float bank = half_roadbed * (float)::tan((double)max_cross);
+			const bool left_ok  = (profile >= (left_interval.Low - bank - k.Q)) &&
+										 (profile <= (left_interval.High + bank + k.Q));
+			const bool right_ok = (profile >= (right_interval.Low - bank - k.Q)) &&
+										 (profile <= (right_interval.High + bank + k.Q));
+			if (!left_ok || !right_ok) {
 				if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_CROSS_SLOPE;
 				return false;
 			}
@@ -267,22 +273,72 @@ static bool Profile_Is_Legal(const HybridLocalPassParams & params,const Vector2 
 }
 
 
-//	Every corner of the candidate has to be one a `PassClass` vehicle can drive.
+//	The turn at a corner, in radians: zero for straight on.
+static float Corner_Turn(const Vector2 & a,const Vector2 & b,const Vector2 & c)
+{
+	Vector2 incoming = b - a;
+	Vector2 outgoing = c - b;
+	const float li = incoming.Length();
+	const float lo = outgoing.Length();
+	if ((li <= 0.0f) || (lo <= 0.0f)) return 0.0f;
+	incoming *= (1.0f / li);
+	outgoing *= (1.0f / lo);
+	float dot = (incoming.X * outgoing.X) + (incoming.Y * outgoing.Y);
+	if (dot > 1.0f) dot = 1.0f;
+	if (dot < -1.0f) dot = -1.0f;
+	return (float)::acos((double)dot);
+}
+
+
+/*
+**	Every corner of the candidate has to be one a `PassClass` vehicle can drive.
+**
+**	Judged the way Phase 10 builds a corner (D-009): a circular arc of the class minimum radius, which
+**	consumes `R tan(theta/2)` of the straight on each side of the vertex.  A corner is legal when the two
+**	legs meeting at it can each host their share of arc, and the largest radius the legs can host is what is
+**	reported.  The circumradius through three controls is *not* this test -- a floor pass's legs are tens of
+**	units long and its turns are tens of degrees, so a corner a vehicle drives easily has a small circumradius
+**	and was being refused for it.  A corner that turns back on itself cannot be filleted at any radius.
+*/
 static bool Corners_Are_Legal(const HybridLocalPassParams & params,const Vector2 * controls,int count,
 										float * tightest_out,HybridLocalPassFailure * failure_out)
 {
 	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(params.PassClass);
 	const float min_radius = spec.MinTurnRadiusW * params.Constants.W;
+	const float quantum = Max2(params.Constants.Q,1.0e-3f);
+	const float reversal = 170.0f * PI_OVER_180;
 
 	if (tightest_out != nullptr) *tightest_out = 3.4e38f;
+	if (count < 3) return true;
 
-	for (int i = 1; i < (count - 1); ++i) {
+	//	Half-tangent every corner takes at the class radius; the ends take none.
+	float tangent[HYBRID_LOCAL_PASS_MAX_CONTROLS];
+	for (int i = 0; i < count; ++i) {
+		tangent[i] = 0.0f;
+		if ((i == 0) || (i == (count - 1))) continue;
+		const float turn = Corner_Turn(controls[i - 1],controls[i],controls[i + 1]);
+		if (turn >= reversal) {
+			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_TURN_RADIUS;
+			return false;
+		}
+		if (turn <= quantum) continue;
+		tangent[i] = min_radius * (float)::tan((double)(0.5f * turn));
+	}
 
-		const float radius = Corner_Radius(controls[i - 1],controls[i],controls[i + 1]);
-		if ((tightest_out != nullptr) && (radius < *tightest_out)) *tightest_out = radius;
-		if (radius >= (min_radius - params.Constants.Q)) continue;
-		if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_TURN_RADIUS;
-		return false;
+	for (int leg = 0; leg < (count - 1); ++leg) {
+
+		const float length = (controls[leg + 1] - controls[leg]).Length();
+		const float needed = tangent[leg] + tangent[leg + 1];
+		if (needed > (length + quantum)) {
+			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_TURN_RADIUS;
+			return false;
+		}
+
+		//	The radius this leg could host, scaling both arcs together.
+		if ((tightest_out != nullptr) && (needed > quantum)) {
+			const float could = min_radius * (length / needed);
+			if (could < *tightest_out) *tightest_out = could;
+		}
 	}
 	return true;
 }
@@ -418,6 +474,7 @@ static bool Solve_Ramp_Foot(float normal_run,float rim_z,float max_grade,float f
 static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPassKind kind,
 									 const Vector2 & centre,const Vector2 & tangent,const Vector2 & normal,
 									 float obstruction_half,float floor_half,float rim_half,
+									 const HybridLocalPassBand * band,
 									 float approach_length,float available_plus,float available_minus,float lean,
 									 HybridLocalPassHeightFunc sample,void * context,
 									 HybridLocalPassGeometry * out,HybridLocalPassFailure * failure_out,
@@ -555,75 +612,184 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 		out->HasFloor		= true;
 		out->FloorEntry	= entry;
 		out->FloorExit		= exit;
+		out->FlatHalfWidth= Hybrid_Quantize_Position(floor_edge);
 		out->TangentRun	= Hybrid_Quantize_Position(Max2(run_a,run_b));
 
 	} else {
 
 		/*
-		**	A cliff band: one diagonal ramp from the lower approach to the upper one, leaning along the
-		**	obstruction for as much run as the grade needs.  The crossing point moves along the tangent, which
-		**	is what turns an unclimbable face into a climbable ramp.
+		**	A cliff band, as D-004 realizes it: both approaches stand on the same lower bench, the band rises
+		**	over the near talus face, holds full height across a shelf, and falls over the far face.  The pass
+		**	climbs the near face on the diagonal, runs along the shelf, and descends the far face on the
+		**	diagonal -- and both ramps lean the *same* way along the cliff.
+		**
+		**	Why the same way, when a floor pass leans its two ramps opposite ways: a native band is 18..36 high
+		**	and its face a few lane widths wide, so at the class grade each ramp spends 80 or more units along
+		**	the cliff for 5 across it -- the ramp runs nearly parallel to the cliff.  Ramps leaning opposite
+		**	ways would then meet the shelf traverse at close to 180 degrees on a shelf 3 to 10 wide: a hairpin,
+		**	which no class radius can drive and which the plan forbids as a switchback.  Leaning the same way,
+		**	the traverse continues the ramps' direction and every corner is a few degrees -- except the two at
+		**	the toes, where the road turns off its approach onto the face, and those are ordinary class-radius
+		**	corners on legs long enough to host them.  The crossing therefore exits some distance along the
+		**	cliff from where it entered; that distance is bounded by the cliff's own directional arc length,
+		**	exactly as a floor pass's lean is, and it is the honest shape of a road over a raised band.
+		**
+		**	The old rule -- one grade line between the two approach elevations -- described a *step*, and on a
+		**	band produced a flat profile running straight under 18..36 of terrain, refused on cut/fill at every
+		**	cliff station of every world.
 		*/
-		const float normal_run = 2.0f * Max2(obstruction_half,k.Q);
-		const float vertical = z_b - z_a;
-		const float run = Required_Tangent_Run(normal_run,vertical,max_grade);
+		if (band == nullptr) {
+			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_GEOMETRY;
+			return false;
+		}
+		if (!((band->ToeA > band->ShelfA) && (band->ShelfA > band->ShelfB) && (band->ShelfB > band->ToeB))) {
+			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_GEOMETRY;
+			return false;
+		}
 
-		//	One ramp, so one direction: the one it leans along.
+		const float shelf_half = 0.5f * (band->ShelfA - band->ShelfB);
+		const float shelf_mid = 0.5f * (band->ShelfA + band->ShelfB);
+		const Vector2 shelf_centre = centre + (normal * shelf_mid);
+
+		//	Each ramp climbs from its toe on the bench to the shelf centreline: that is its normal run.
+		const float normal_run_a = Max2(band->ToeA - shelf_mid,k.Q);
+		const float normal_run_b = Max2(shelf_mid - band->ToeB,k.Q);
+
+		float shelf_z = 0.0f;
+		if (!sample(shelf_centre,&shelf_z,context)) {
+			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
+			return false;
+		}
+
+		//	The bench is read where the approaches stand, clear of the toe's own edge.
+		const float vertical_a = shelf_z - z_a;
+		const float vertical_b = shelf_z - z_b;
+		const float estimate_a = Required_Tangent_Run(normal_run_a,vertical_a,max_grade);
+		const float estimate_b = Required_Tangent_Run(normal_run_b,vertical_b,max_grade);
+
+		/*
+		**	Both ramps and the traverse spend run in the lean direction, so all of it comes out of that one
+		**	directional availability.  The other direction is not used and is not charged.
+		*/
 		const float available = (lean > 0.0f) ? available_plus : available_minus;
 
 		if (measure != nullptr) {
 			measure->Valid						= true;
-			measure->NormalRun				= normal_run;
-			measure->VerticalA				= vertical;
-			measure->RequiredHorizontalA	= Required_Horizontal_Run(vertical,max_grade);
-			measure->RequiredTangentA		= run;
+			measure->NormalRun				= Min2(normal_run_a,normal_run_b);
+			measure->VerticalA				= vertical_a;
+			measure->VerticalB				= vertical_b;
+			measure->RequiredHorizontalA	= Required_Horizontal_Run(vertical_a,max_grade);
+			measure->RequiredHorizontalB	= Required_Horizontal_Run(vertical_b,max_grade);
+			measure->RequiredTangentA		= estimate_a;
+			measure->RequiredTangentB		= estimate_b;
 			measure->MaxGradeRadians		= max_grade;
+			measure->FloorHalfWidth			= shelf_half;
 			measure->RimHalfWidth			= obstruction_half;
-			measure->Depth						= (float)fabs((double)vertical);
-			Note_Ratio(measure,run,available,0.0f,available);
+			measure->Depth						= Max2((float)fabs((double)vertical_a),
+																  (float)fabs((double)vertical_b));
+			Note_Ratio(measure,estimate_a + estimate_b,available,0.0f,available);
 		}
 
-		if (run > available) {
+		/*
+		**	The ascent: from the toe at the station, leaning `lean` along the cliff, solved against the shelf it
+		**	actually reaches.  Its foot is where the shelf traverse begins.
+		*/
+		float run_a = 0.0f;
+		Vector2 entry(0.0f,0.0f);
+		float entry_z = 0.0f;
+		if (!Solve_Ramp_Foot(normal_run_a,z_a,max_grade,shelf_mid,centre,normal,tangent,+1.0f,lean,available,
+									k.Q,sample,context,&run_a,&entry,&entry_z,failure_out)) return false;
+
+		/*
+		**	The traverse along the shelf: as long as the two corners at its ends need for their class-radius
+		**	fillets, and no longer -- both corners are the small angle between a ramp and the shelf, so this is
+		**	a short leg.  It continues in the lean direction, so it comes out of the same availability.
+		*/
+		const Vector2 ascent = entry - Quantized(centre + (normal * band->ToeA));
+		const float ascent_length = ascent.Length();
+		float traverse = 0.0f;
+		if (ascent_length > k.Q) {
+			const Vector2 along = tangent * lean;
+			const float dot = ((ascent.X * along.X) + (ascent.Y * along.Y)) / ascent_length;
+			const float bend = (float)::acos((double)((dot > 1.0f) ? 1.0f : ((dot < -1.0f) ? -1.0f : dot)));
+			traverse = 2.0f * min_radius * (float)::tan((double)(0.5f * bend));
+		}
+		traverse = Hybrid_Quantize_Position(Max2(traverse,k.Q));
+
+		if ((run_a + traverse) > available) {
 			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_RUN;
 			return false;
 		}
-
-		const Vector2 ramp_a = Quantized(centre + (normal * obstruction_half) + (tangent * (lean * run)));
-		const Vector2 ramp_b = Quantized(centre - (normal * obstruction_half));
-
-		controls[count]	= approach_a;	count++;
-		controls[count]	= ramp_a;		count++;
-		controls[count]	= ramp_b;		count++;
-		controls[count]	= approach_b;	count++;
+		const Vector2 exit = Quantized(entry + (tangent * (lean * traverse)));
+		float exit_z = 0.0f;
+		if (!sample(exit,&exit_z,context)) {
+			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
+			return false;
+		}
 
 		/*
-		**	The ramp's elevations are the grade-limited line between the two approach elevations, spread over
-		**	the plan distance the ramp actually travels -- *not* the ground at the ramp feet.
-		**
-		**	That distinction is the whole point of a surface ramp: the road is cut and filled to a grade the
-		**	untouched face does not have, so sampling the face here would judge the cliff instead of the road.
-		**	Measured on the generated worlds, sampling it was what refused every cliff station: a band whose
-		**	benches both stand at 0 and whose face rises 31.7 between them produced a "profile" of 0, 31.7, 0,
-		**	0 and a 47-degree leg, when the road across it is a straight, level line.  Whether that line can be
-		**	built out of this ground is the `RoadVerticalInterval` test below, which is where a band needing
-		**	more cut than the class allows is refused -- and refused as cut, so a ramp never silently becomes
-		**	a road cut.
+		**	The descent: from the traverse's end, leaning the same way, down the far face to the bench.  The
+		**	far toe is wherever that lands along the cliff, so the far approach stands opposite it rather than
+		**	opposite the station; both are frozen with the geometry.  The run is solved against the bench it
+		**	reaches, with what is left of the availability after the ascent and the traverse.
 		*/
-		float travelled[HYBRID_LOCAL_PASS_MAX_CONTROLS];
-		travelled[0] = 0.0f;
-		for (int i = 1; i < count; ++i) {
-			travelled[i] = travelled[i - 1] + (controls[i] - controls[i - 1]).Length();
-		}
-		const float total = travelled[count - 1];
-		for (int i = 0; i < count; ++i) {
-			const float ratio = (total > Max2(k.Q,1.0e-3f)) ? (travelled[i] / total) : 0.0f;
-			control_z[i] = z_a + (vertical * ratio);
+		float run_b = 0.0f;
+		Vector2 toe_b(0.0f,0.0f);
+		float toe_b_z = 0.0f;
+		{
+			const Vector2 exit_on_toe_line = exit - (normal * (shelf_mid - band->ToeB));
+			//	Solve from the bench up to the shelf, as the ascent did, then read it as a descent.
+			if (!Solve_Ramp_Foot(normal_run_b,exit_z,max_grade,0.0f,exit_on_toe_line,normal,tangent,0.0f,lean,
+										available - run_a - traverse,k.Q,sample,context,&run_b,&toe_b,&toe_b_z,
+										failure_out)) return false;
 		}
 
-		out->HasFloor		= false;
-		out->TangentRun	= Hybrid_Quantize_Position(run);
+		//	The far approach stands off the far toe, along the normal, as far out as the near one does.
+		const Vector2 far_approach = Quantized(toe_b - (normal * (obstruction_half + approach_length -
+																					  (shelf_mid - band->ToeB))));
+		float far_z = 0.0f;
+		if (!sample(far_approach,&far_z,context)) {
+			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
+			return false;
+		}
+
+		//	The shelf is the flat this pass crosses, and it has to carry the envelope like a floor does.
+		if (!Floor_Is_Legal(params,entry,exit,shelf_half,sample,context,failure_out)) return false;
+
+		if (measure != nullptr) {
+			measure->RequiredTangentA = run_a;
+			measure->RequiredTangentB = run_b;
+			Note_Ratio(measure,run_a + traverse + run_b,available,0.0f,available);
+			const float shelf_span = (exit - entry).Length();
+			if (shelf_span > Max2(k.Q,1.0e-3f)) {
+				measure->FloorGrade = (float)::atan((double)((float)fabs((double)(exit_z - entry_z)) /
+																		  shelf_span));
+			}
+		}
+
+		const Vector2 toe_a = Quantized(centre + (normal * band->ToeA));
+		float toe_a_z = 0.0f;
+		if (!sample(toe_a,&toe_a_z,context)) {
+			if (failure_out != nullptr) *failure_out = HYBRID_LOCAL_PASS_NO_HEIGHT;
+			return false;
+		}
+
+		controls[count]	= approach_a;		control_z[count] = z_a;			count++;
+		controls[count]	= toe_a;				control_z[count] = toe_a_z;	count++;
+		controls[count]	= entry;				control_z[count] = entry_z;	count++;
+		controls[count]	= exit;				control_z[count] = exit_z;		count++;
+		controls[count]	= toe_b;				control_z[count] = toe_b_z;	count++;
+		controls[count]	= far_approach;	control_z[count] = far_z;		count++;
+
+		out->HasFloor		= true;
+		out->FloorEntry	= entry;
+		out->FloorExit		= exit;
+		out->FlatHalfWidth= Hybrid_Quantize_Position(shelf_half);
+		out->TangentRun	= Hybrid_Quantize_Position(run_a + traverse + run_b);
 		(void)rim_half;
 		(void)floor_half;
+		(void)approach_b;
+		(void)estimate_b;
 	}
 
 	//	Judged as road: its corners, then its profile.
@@ -640,10 +806,11 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 	}
 	if (!legal) return false;
 
-	out->Kind			= kind;
-	out->ControlCount	= count;
-	out->SteepestGrade= steepest;
-	out->TightestRadius= tightest;
+	out->Kind				= kind;
+	out->ControlCount		= count;
+	out->SteepestGrade	= steepest;
+	out->TightestRadius	= tightest;
+	out->ProvedSweptWidth= params.SweptVehicleWidth;
 
 	float length = 0.0f;
 	for (int i = 0; i < count; ++i) {
@@ -658,6 +825,7 @@ static bool Try_Orientation(const HybridLocalPassParams & params,HybridLocalPass
 bool Hybrid_Build_Local_Pass(const HybridLocalPassParams & params,HybridLocalPassKind kind,
 									  const Vector2 & centre,const Vector2 & tangent,const Vector2 & normal,
 									  float obstruction_half,float floor_half,float rim_half,
+									  const HybridLocalPassBand * band,
 									  float approach_length,float available_run_plus,float available_run_minus,
 									  HybridLocalPassHeightFunc sample,void * context,
 									  HybridLocalPassGeometry * out,HybridLocalPassFailure * failure_out,
@@ -688,7 +856,7 @@ bool Hybrid_Build_Local_Pass(const HybridLocalPassParams & params,HybridLocalPas
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 
 		const bool built = Try_Orientation(params,kind,centre,tangent,normal,obstruction_half,floor_half,
-													  rim_half,approach_length,available_run_plus,available_run_minus,
+													  rim_half,band,approach_length,available_run_plus,available_run_minus,
 													  lean,sample,context,&candidate,&failure,measure_out);
 		if (measure_out != nullptr) measure_out->Failure[orientation] = failure;
 		if (built) {
@@ -728,10 +896,10 @@ bool Hybrid_Validate_Local_Pass(const HybridLocalPassParams & params,
 		return false;
 	}
 
+	//	The flat's width *across* the obstruction, as stored: the distance between its two ends is its length.
 	if (geometry.HasFloor) {
-		const float floor_half = 0.5f * (geometry.FloorExit - geometry.FloorEntry).Length();
-		if (!Floor_Is_Legal(params,geometry.FloorEntry,geometry.FloorExit,floor_half,sample,context,
-								  failure_out)) return false;
+		if (!Floor_Is_Legal(params,geometry.FloorEntry,geometry.FloorExit,geometry.FlatHalfWidth,sample,
+								  context,failure_out)) return false;
 	}
 
 	const float spacing = (sample_spacing > 0.0f) ? sample_spacing

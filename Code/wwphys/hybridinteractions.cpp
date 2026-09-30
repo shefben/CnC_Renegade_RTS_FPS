@@ -450,6 +450,7 @@ unsigned int Hybrid_Interaction_Checksum(const HybridInteractionSet & set,unsign
 		stream.Add_Uint(one.WindowId);
 		stream.Add_Bool(one.Mandatory);
 		stream.Add_Int((int)one.Method);
+		stream.Add_Int((int)one.FallbackFrom);
 		stream.Add_Int((int)one.RoadClass);
 		stream.Add_Length(one.Station.X);
 		stream.Add_Length(one.Station.Y);
@@ -1416,8 +1417,16 @@ static bool Compile_Pass(InteractionBuilder & b,const HybridTopologyEdge & edge,
 	out->RoadClass				= edge.RoadClass;
 	out->Station				= Quantized(window.Center);
 	out->Tangent				= across;
-	out->ApproachA				= approach_a;
-	out->ApproachB				= approach_b;
+
+	/*
+	**	The compiled ends are the frozen pass's own, not the station's.  A band pass leaves the cliff some
+	**	distance along it from where it entered -- its far approach is the last frozen control, not the point
+	**	opposite the station -- and Phase 12 realizes what Phase 6 froze.  For a floor pass the two coincide.
+	*/
+	out->ApproachA				= window.Pass.Controls[0];
+	out->ApproachB				= window.Pass.Controls[window.Pass.ControlCount - 1];
+	(void)approach_a;
+	(void)approach_b;
 	out->Span					= window.Span;
 	out->ApproachReserve		= reserve;
 	out->FirstPoint			= interval.FirstPoint;
@@ -1737,7 +1746,8 @@ static bool Solve_Obstruction(InteractionBuilder & b,const HybridTopologyEdge & 
 	const HybridInteractionProblem problem = (primary != HYBRID_PROBLEM_NONE) ? primary : fallback;
 
 	if (solved) {
-		solution.StableId = b.NextStableId++;
+		solution.StableId		= b.NextStableId++;
+		solution.FallbackFrom= primary;				// NONE when the first method in the order compiled
 		b.Out->Interactions.Add(solution);
 		return true;
 	}

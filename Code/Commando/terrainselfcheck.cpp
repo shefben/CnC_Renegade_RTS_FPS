@@ -1,5 +1,4 @@
-//
-//	The terrain service, checked from inside the binary that has to be right.
+////	The terrain service, checked from inside the binary that has to be right.
 //	See terrainselfcheck.h for why the checks live here.
 //
 
@@ -7326,6 +7325,14 @@ struct PassTerrain
 	bool		WallIsVertical;
 
 	bool		BlockPlusTangent;		// true: the far `+tangent` reach is unreachably high
+
+	/*
+	**	D-004's raised band instead of a trench: the bench is `FloorZ` on *both* sides, and between `-HalfSpan`
+	**	and `+HalfSpan` the ground rises over `BandFace` from each toe to a shelf at `RimZ`.  `FloorHalf` is
+	**	unused in this mode; the shelf half width is `HalfSpan - BandFace`.
+	*/
+	bool		RaisedBand;
+	float		BandFace;
 };
 
 
@@ -7357,6 +7364,22 @@ static bool Pass_Terrain_Height (const Vector2 & world,float * height_out,void *
 		return true;
 	}
 
+	if (terrain->RaisedBand) {
+		//	A band is bench everywhere outside its toes; the trench rules below never see it.  The
+		//	toe itself is bench: the face begins strictly inside it.
+		if (distance >= (terrain->HalfSpan - 0.001f)) {
+			*height_out = terrain->FloorZ + (along * terrain->TangentFloorSlope);
+			return true;
+		}
+		//	D-004's face is a smoothstep, flat at the toe and at the shelf edge, not a linear kink.
+		const float climb = terrain->HalfSpan - distance;		// how far in from the toe
+		const float linear = (terrain->BandFace > 0.0f) ? WWMath::Min (climb / terrain->BandFace,1.0f) : 1.0f;
+		const float ratio = linear * linear * (3.0f - (2.0f * linear));
+		*height_out = terrain->FloorZ + ((terrain->RimZ - terrain->FloorZ) * ratio) +
+						  (along * terrain->TangentFloorSlope);
+		return true;
+	}
+
 	/*
 	**	The floor includes its own edge, to within the position quantum.  A ramp foot lands exactly on
 	**	`FloorHalf`, and a quantized point half a thousandth outside it is still on the floor: without this the
@@ -7373,6 +7396,7 @@ static bool Pass_Terrain_Height (const Vector2 & world,float * height_out,void *
 		*height_out = far_z + (along * terrain->TangentRimSlope);
 		return true;
 	}
+
 
 	if (terrain->WallIsVertical) {
 		*height_out = far_z + (along * terrain->TangentRimSlope);
@@ -7434,6 +7458,8 @@ void Check_Hybrid_Local_Pass (void)
 	terrain.FarSideZ				= 0.0f;
 	terrain.WallIsVertical		= false;
 	terrain.BlockPlusTangent	= false;
+	terrain.RaisedBand			= false;
+	terrain.BandFace				= 0.0f;
 
 	/*
 	**	The case that pins the defect this builder was written for.  The wall drops 24 over 28 of normal
@@ -7453,7 +7479,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		const bool built = Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,terrain.Centre,
 																  terrain.Tangent,terrain.Normal,terrain.HalfSpan,
-																  terrain.FloorHalf,terrain.HalfSpan,approach,
+																  terrain.FloorHalf,terrain.HalfSpan,nullptr,approach,
 																  PASS_RUN,PASS_RUN,Pass_Terrain_Height,&terrain,&geometry,&failure);
 		Check (built,"a wall with room for a diagonal descent is not pass capable (%s)",
 				 Hybrid_Local_Pass_Failure_Name (failure));
@@ -7476,7 +7502,7 @@ void Check_Hybrid_Local_Pass (void)
 			HybridLocalPassFailure again_failure = HYBRID_LOCAL_PASS_OK;
 			Check (Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,terrain.Centre,terrain.Tangent,
 													  terrain.Normal,terrain.HalfSpan,terrain.FloorHalf,
-													  terrain.HalfSpan,approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&terrain,&again,
+													  terrain.HalfSpan,nullptr,approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&terrain,&again,
 													  &again_failure),"the second pass build was refused");
 			Check (again.Orientation == geometry.Orientation,"pass orientation is not stable");
 			Check (again.TangentRun == geometry.TangentRun,"pass tangent run is not stable");
@@ -7503,7 +7529,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassGeometry geometry;
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,deep.Centre,deep.Tangent,deep.Normal,
-													deep.HalfSpan,deep.FloorHalf,deep.HalfSpan,approach,
+													deep.HalfSpan,deep.FloorHalf,deep.HalfSpan,nullptr,approach,
 													PASS_RUN,PASS_RUN,Pass_Terrain_Height,&deep,&geometry,&failure),
 				 "a 400-unit wall was accepted as a surface pass");
 		Check (failure == HYBRID_LOCAL_PASS_RUN,"a wall past every legal run named %s",
@@ -7522,7 +7548,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassGeometry geometry;
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,step.Centre,step.Tangent,step.Normal,
-													step.HalfSpan,step.FloorHalf,step.HalfSpan,approach,
+													step.HalfSpan,step.FloorHalf,step.HalfSpan,nullptr,approach,
 													PASS_RUN,PASS_RUN,Pass_Terrain_Height,&step,&geometry,&failure),
 				 "a sheer step was accepted as a surface pass");
 		Check ((failure == HYBRID_LOCAL_PASS_CUT_FILL) || (failure == HYBRID_LOCAL_PASS_GRADE),
@@ -7538,7 +7564,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassGeometry geometry;
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,narrow.Centre,narrow.Tangent,
-													narrow.Normal,narrow.HalfSpan,narrow.FloorHalf,narrow.HalfSpan,
+													narrow.Normal,narrow.HalfSpan,narrow.FloorHalf,narrow.HalfSpan,nullptr,
 													approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&narrow,&geometry,&failure),
 				 "a floor narrower than the swept envelope was accepted");
 		Check (failure == HYBRID_LOCAL_PASS_FLOOR_WIDTH,"a narrow floor named %s",
@@ -7553,7 +7579,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassGeometry geometry;
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,tilted.Centre,tilted.Tangent,
-													tilted.Normal,tilted.HalfSpan,tilted.FloorHalf,tilted.HalfSpan,
+													tilted.Normal,tilted.HalfSpan,tilted.FloorHalf,tilted.HalfSpan,nullptr,
 													approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&tilted,&geometry,&failure),
 				 "a floor climbing two-to-one along itself was accepted");
 		Check ((failure == HYBRID_LOCAL_PASS_FLOOR_GRADE) || (failure == HYBRID_LOCAL_PASS_CUT_FILL) ||
@@ -7575,112 +7601,226 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,blocked.Centre,blocked.Tangent,
 													blocked.Normal,blocked.HalfSpan,blocked.FloorHalf,
-													blocked.HalfSpan,approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&blocked,&geometry,
+													blocked.HalfSpan,nullptr,approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&blocked,&geometry,
 													&failure),
 				 "a floor pass whose ravine is walled off on one side was accepted");
 	}
 
-	//	A cliff band: the same diagonal geometry, with no floor.
-	{
-		PassTerrain cliff;
-		cliff.Centre.Set (0.0f,0.0f);
-		cliff.Tangent.Set (1.0f,0.0f);
-		cliff.Normal.Set (0.0f,1.0f);
-		cliff.HalfSpan				= 9.0f;
-		cliff.FloorHalf			= 0.0f;
-		cliff.RimZ					= 0.0f;			// the lower bench
-		cliff.FloorZ				= 0.0f;
-		cliff.TangentFloorSlope	= 0.0f;
-		cliff.TangentRimSlope	= 0.0f;
-		cliff.FarSideDiffers		= true;
-		cliff.FarSideZ				= 5.0f;			// the upper bench: a five-unit step over 18 of normal run
-		cliff.WallIsVertical		= false;
-		cliff.BlockPlusTangent	= false;
+	/*
+	**	A cliff, as D-004 realizes it: a raised band whose two approaches stand on the same bench.  The pass is
+	**	the floor pass inverted -- ascend the near face on the diagonal, cross the shelf, descend the far face --
+	**	and every fixture here is that shape.  A step between two benches is not a shape the generator makes.
+	*/
+	const float BAND_HEIGHT = 18.0f;			// tier_step * 1.00, the shallowest native cliff
+	PassTerrain cliff;
+	cliff.Centre.Set (0.0f,0.0f);
+	cliff.Tangent.Set (1.0f,0.0f);
+	cliff.Normal.Set (0.0f,1.0f);
+	/*
+	**	A band a `PRIMARY_2` roadbed can be benched into.  The ramp runs nearly *along* the face, so the face's
+	**	slope is the road's cross slope, and a level roadbed there needs its uphill edge cut by
+	**	`half_roadbed * face_slope`: with D-004's smoothstep the steepest face slope is `1.5 * H / F`, so the
+	**	cut is `4.32 * 1.5 * H / F`, and it fits inside `max_cut_depth = 6` only when `H / F <= 0.93`.  This
+	**	band is `H / F = 0.72`, a 12-high face 16.6 wide with a 10-wide shelf.  The broadest native band is
+	**	`18 / 12.47 = 1.44` and needs 8.98: measured below as the refusal it is.
+	*/
+	const float BAND_HEIGHT_BENCHABLE = 12.0f;
+	cliff.RaisedBand				= true;
+	cliff.BandFace					= 16.6f;
+	cliff.HalfSpan					= 16.6f + 5.0f;			// toe at 21.6, a 10-wide shelf
+	cliff.RimZ						= BAND_HEIGHT_BENCHABLE;
+	cliff.FloorHalf				= 0.0f;
+	cliff.FloorZ					= 0.0f;
+	cliff.TangentFloorSlope		= 0.0f;
+	cliff.TangentRimSlope		= 0.0f;
+	cliff.FarSideDiffers			= false;
+	cliff.FarSideZ					= 0.0f;
+	cliff.WallIsVertical			= false;
+	cliff.BlockPlusTangent		= false;
 
-		/*
-		**	A cliff here is a step between two benches: the far approach stands five above the near one across
-		**	an 18-unit band, and the band itself is a wall far steeper than a `PRIMARY_2` may climb.  The
-		**	diagonal ramp buys the run it needs along the cliff.
-		*/
+	HybridLocalPassBand band;
+	band.ToeA	= +cliff.HalfSpan;
+	band.ShelfA	= +(cliff.HalfSpan - cliff.BandFace);
+	band.ShelfB	= -(cliff.HalfSpan - cliff.BandFace);
+	band.ToeB	= -cliff.HalfSpan;
+
+	/*
+	**	1. A band with a shelf wide enough and run enough is a ramp pass, and the pass it builds is the band
+	**	shape: six controls, a flat on the shelf, both ramps leaning along the cliff, the profile inside the
+	**	class grade.  The old single grade line between the two approaches would have been flat at bench
+	**	height and refused on cut/fill 18 under the shelf, which is what happened on every native cliff.
+	*/
+	{
 		HybridLocalPassGeometry geometry;
 		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
 		const bool built = Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,cliff.Centre,cliff.Tangent,
-																  cliff.Normal,cliff.HalfSpan,0.0f,cliff.HalfSpan,
-																  approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&cliff,&geometry,
-																  &failure);
-		Check (built,"a flat cliff fixture is not ramp capable (%s)",
+																  cliff.Normal,cliff.HalfSpan,0.0f,cliff.HalfSpan,&band,
+																  approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&cliff,
+																  &geometry,&failure);
+		Check (built,"a band with a wide shelf and room to lean is not ramp capable (%s)",
 				 Hybrid_Local_Pass_Failure_Name (failure));
 		if (built) {
-			Check (geometry.Kind == HYBRID_LOCAL_PASS_RAMP,"the cliff ramp has the wrong kind");
-			Check (!geometry.HasFloor,"the cliff ramp records a floor");
+			Check (geometry.Kind == HYBRID_LOCAL_PASS_RAMP,"the band pass has the wrong kind");
+			Check (geometry.HasFloor,"the band pass records no shelf traverse");
+			Check (geometry.ControlCount == 6,"the band pass has %d controls, not six",geometry.ControlCount);
+			Check (geometry.TangentRun > 0.0f,"a 12-high band was climbed with no along-cliff run");
 			Check (geometry.SteepestGrade <= (max_grade + 0.001f),
-					 "the accepted cliff ramp reaches %.4f rad against a class maximum of %.4f",
+					 "the accepted band profile reaches %.4f rad against a class maximum of %.4f",
 					 geometry.SteepestGrade,max_grade);
-		}
+			Check (geometry.FlatHalfWidth == (cliff.HalfSpan - cliff.BandFace),
+					 "the band pass recorded a shelf half width of %.2f, not %.2f",geometry.FlatHalfWidth,
+					 cliff.HalfSpan - cliff.BandFace);
+			Check (geometry.ProvedSweptWidth == params.SweptVehicleWidth,
+					 "the band pass did not record the envelope it was proved for");
 
-		/*
-		**	One orientation blocked, the mirror legal.  A cliff ramp leans one way only -- it is a single
-		**	diagonal, not a descent and an ascent -- so which way it leans is a real choice, and walling off
-		**	the `+tangent` side must send it the other way.  It has to do so by rule rather than by luck,
-		**	which is why the orientation itself is asserted and not merely the success.
-		*/
-		PassTerrain blocked_cliff = cliff;
-		blocked_cliff.BlockPlusTangent = true;
+			//	The shelf traverse actually sits on the shelf, at full band height.
+			float entry_z = 0.0f;
+			float exit_z = 0.0f;
+			Pass_Terrain_Height (geometry.FloorEntry,&entry_z,&cliff);
+			Pass_Terrain_Height (geometry.FloorExit,&exit_z,&cliff);
+			Check ((entry_z == BAND_HEIGHT_BENCHABLE) && (exit_z == BAND_HEIGHT_BENCHABLE),
+					 "the shelf traverse stands at %.2f and %.2f, not on the %.2f shelf",entry_z,exit_z,
+					 BAND_HEIGHT_BENCHABLE);
+
+			//	6. Repeatable: the same inputs give the same frozen geometry.
+			HybridLocalPassGeometry again;
+			HybridLocalPassFailure again_failure = HYBRID_LOCAL_PASS_OK;
+			Check (Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,cliff.Centre,cliff.Tangent,cliff.Normal,
+													  cliff.HalfSpan,0.0f,cliff.HalfSpan,&band,approach,PASS_RUN,PASS_RUN,
+													  Pass_Terrain_Height,&cliff,&again,&again_failure),
+					 "the second band build was refused");
+			Check (::memcmp (&again,&geometry,sizeof (geometry)) == 0,"the band pass is not repeatable");
+
+			//	And the frozen record revalidates against the same field, at Phase 11's spacing.
+			HybridLocalPassFailure revalidate = HYBRID_LOCAL_PASS_OK;
+			Check (Hybrid_Validate_Local_Pass (params,geometry,Hybrid_Local_Pass_Sample_Spacing (params.Constants),
+														  Pass_Terrain_Height,&cliff,&revalidate),
+					 "the frozen band pass does not revalidate (%s)",Hybrid_Local_Pass_Failure_Name (revalidate));
+		}
+	}
+
+	/*
+	**	The broadest *native* band -- `EdgeWidth 1.5W`, `TalusWidth 3W`, `tier_step * 1.00` high -- is refused
+	**	on cross slope, and that refusal is arithmetic rather than a defect: a level `PRIMARY_2` roadbed along
+	**	its smoothstep face needs 8.98 of uphill cut against 6 allowed.  Every native band is at least this
+	**	steep, so no native explicit cliff can carry a ramp pass under native grading; this is what the native
+	**	census measures, and this case is here so the reason is on record where the geometry is tested.
+	*/
+	{
+		PassTerrain native = cliff;
+		native.BandFace	= 12.47f;
+		native.HalfSpan	= 12.47f + (0.5f * 9.97f);
+		native.RimZ			= BAND_HEIGHT;
+		HybridLocalPassBand native_band;
+		native_band.ToeA		= +native.HalfSpan;
+		native_band.ShelfA	= +(0.5f * 9.97f);
+		native_band.ShelfB	= -(0.5f * 9.97f);
+		native_band.ToeB		= -native.HalfSpan;
+
+		HybridLocalPassGeometry geometry;
+		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
+		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,native.Centre,native.Tangent,native.Normal,
+													native.HalfSpan,0.0f,native.HalfSpan,&native_band,approach,PASS_RUN,
+													PASS_RUN,Pass_Terrain_Height,&native,&geometry,&failure),
+				 "the broadest native band was accepted although its face cannot be benched inside 6 of cut");
+		Check (failure == HYBRID_LOCAL_PASS_CROSS_SLOPE,"the native band was refused as %s, not cross_slope",
+				 Hybrid_Local_Pass_Failure_Name (failure));
+	}
+
+	//	2. A shelf narrower than the swept envelope plus its clearance is not a pass, whatever the faces allow.
+	{
+		PassTerrain narrow = cliff;
+		narrow.HalfSpan = narrow.BandFace + 3.0f;		// a 6-wide shelf against 8.80 required (native t = 1W..3W)
+		HybridLocalPassBand narrow_band;
+		narrow_band.ToeA		= +narrow.HalfSpan;
+		narrow_band.ShelfA	= +3.0f;
+		narrow_band.ShelfB	= -3.0f;
+		narrow_band.ToeB		= -narrow.HalfSpan;
+
+		HybridLocalPassGeometry geometry;
+		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
+		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,narrow.Centre,narrow.Tangent,narrow.Normal,
+													narrow.HalfSpan,0.0f,narrow.HalfSpan,&narrow_band,approach,PASS_RUN,
+													PASS_RUN,Pass_Terrain_Height,&narrow,&geometry,&failure),
+				 "a band whose shelf cannot carry the swept envelope was accepted");
+		Check (failure == HYBRID_LOCAL_PASS_FLOOR_WIDTH,"a narrow shelf named %s",
+				 Hybrid_Local_Pass_Failure_Name (failure));
+	}
+
+	/*
+	**	3. Directional run.  Both ramps and the traverse lean one way, so a station with no run toward
+	**	`-tangent` still has a pass toward `+tangent` -- and takes it, deterministically -- while a station with
+	**	too little run either way has none.  The run a 12-high face needs at 12 degrees is about 52 along the
+	**	cliff for each ramp, so 60 in total is not enough for two ramps and a traverse.
+	*/
+	{
+		HybridLocalPassGeometry geometry;
+		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
+		HybridLocalPassMeasurement measured;
+		Check (Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,cliff.Centre,cliff.Tangent,cliff.Normal,
+												  cliff.HalfSpan,0.0f,cliff.HalfSpan,&band,approach,PASS_RUN,0.0f,
+												  Pass_Terrain_Height,&cliff,&geometry,&failure,&measured),
+				 "a band with room toward +tangent only found no pass (%s)",Hybrid_Local_Pass_Failure_Name (failure));
+		Check (geometry.Orientation == 0,"the pass leaned toward the exhausted direction (orientation %d)",
+				 geometry.Orientation);
+
+		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,cliff.Centre,cliff.Tangent,cliff.Normal,
+													cliff.HalfSpan,0.0f,cliff.HalfSpan,&band,approach,60.0f,60.0f,
+													Pass_Terrain_Height,&cliff,&geometry,&failure,&measured),
+				 "a band pass was accepted with too little run in either direction");
+		Check (failure == HYBRID_LOCAL_PASS_RUN,"the exhausted band pass was refused as %s",
+				 Hybrid_Local_Pass_Failure_Name (failure));
+		Check (measured.Valid && (measured.RequiredTangentA > 0.0f),
+				 "a face too steep to climb square required no along-cliff run");
+	}
+
+	/*
+	**	4. One mirror orientation blocked, the other legal.  Walling off the `+tangent` reach makes every
+	**	orientation whose ascent leans that way illegal, and the builder has to find the mirror by rule.
+	*/
+	{
+		PassTerrain blocked = cliff;
+		blocked.BlockPlusTangent = true;
 
 		HybridLocalPassGeometry mirrored;
 		HybridLocalPassFailure mirror_failure = HYBRID_LOCAL_PASS_OK;
-		const bool mirror_built = Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,
-																			blocked_cliff.Centre,blocked_cliff.Tangent,
-																			blocked_cliff.Normal,blocked_cliff.HalfSpan,0.0f,
-																			blocked_cliff.HalfSpan,approach,
-																			PASS_RUN,PASS_RUN,Pass_Terrain_Height,&blocked_cliff,&mirrored,
-																			&mirror_failure);
-		Check (mirror_built,"a cliff ramp with one orientation blocked found neither (%s)",
+		const bool mirror_built = Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,blocked.Centre,
+																			blocked.Tangent,blocked.Normal,blocked.HalfSpan,0.0f,
+																			blocked.HalfSpan,&band,approach,PASS_RUN,PASS_RUN,
+																			Pass_Terrain_Height,&blocked,&mirrored,&mirror_failure);
+		Check (mirror_built,"a band with one orientation blocked found neither (%s)",
 				 Hybrid_Local_Pass_Failure_Name (mirror_failure));
 		if (mirror_built) {
-			Check (mirrored.Orientation == 1,"the blocked orientation %d was chosen anyway",
-					 mirrored.Orientation);
+			Check (mirrored.Orientation == 1,"the blocked orientation %d was chosen anyway",mirrored.Orientation);
 		}
+	}
 
-		/*
-		**	The same choice made by the obstruction's extent rather than by its terrain.  A cliff ramp leans
-		**	one way only, so a station with no run left toward `+tangent` has to take `-tangent`: the run is a
-		**	property of how much feature is left in that direction, and a ramp may not buy more of it by
-		**	running off the end of the cliff it is crossing.
-		*/
-		HybridLocalPassGeometry by_room;
-		HybridLocalPassFailure room_failure = HYBRID_LOCAL_PASS_OK;
-		HybridLocalPassMeasurement room;
-		const bool room_built = Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,cliff.Centre,
-																		 cliff.Tangent,cliff.Normal,cliff.HalfSpan,0.0f,
-																		 cliff.HalfSpan,approach,0.0f,PASS_RUN,
-																		 Pass_Terrain_Height,&cliff,&by_room,&room_failure,
-																		 &room);
-		Check (room_built,"a cliff ramp with no run toward +tangent found none the other way (%s)",
-				 Hybrid_Local_Pass_Failure_Name (room_failure));
-		if (room_built) {
-			Check (by_room.Orientation == 1,"the exhausted orientation %d was chosen anyway",
-					 by_room.Orientation);
-			Check (by_room.TangentRun <= PASS_RUN,
-					 "the ramp leaned %.2f, past the run its obstruction offers",by_room.TangentRun);
-		}
+	/*
+	**	5. A face too sheer to be graded inside `RoadVerticalInterval`.  With no face at all the band is a
+	**	wall: the ascent has no ground to lean against, so wherever its grade line runs it stands more than
+	**	`max_cut_depth` above the bench or more than `max_fill_height` below the shelf.
+	*/
+	{
+		PassTerrain sheer = cliff;
+		sheer.BandFace = 0.0f;
+		HybridLocalPassBand sheer_band;
+		sheer_band.ToeA	= +sheer.HalfSpan;
+		sheer_band.ShelfA	= +(sheer.HalfSpan - 0.001f);
+		sheer_band.ShelfB	= -(sheer.HalfSpan - 0.001f);
+		sheer_band.ToeB	= -sheer.HalfSpan;
 
-		/*
-		**	And with no run either way there is no ramp at all.  There is no switchback to fall back on in
-		**	this generator version, so the honest answer is that the station is not pass capable.
-		*/
-		HybridLocalPassGeometry none;
-		HybridLocalPassFailure none_failure = HYBRID_LOCAL_PASS_OK;
-		HybridLocalPassMeasurement none_measured;
-		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,cliff.Centre,cliff.Tangent,
-													cliff.Normal,cliff.HalfSpan,0.0f,cliff.HalfSpan,approach,
-													0.0f,0.0f,Pass_Terrain_Height,&cliff,&none,&none_failure,
-													&none_measured),
-				 "a cliff ramp was accepted with no run available in either direction");
-		Check (none_failure == HYBRID_LOCAL_PASS_RUN,"the exhausted cliff ramp was refused as %s",
-				 Hybrid_Local_Pass_Failure_Name (none_failure));
-		Check (none_measured.RequiredTangentA > 0.0f,
-				 "a cliff step too steep to cross square required no along-obstruction run");
+		HybridLocalPassGeometry geometry;
+		HybridLocalPassFailure failure = HYBRID_LOCAL_PASS_OK;
+		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_RAMP,sheer.Centre,sheer.Tangent,sheer.Normal,
+													sheer.HalfSpan,0.0f,sheer.HalfSpan,&sheer_band,approach,PASS_RUN,
+													PASS_RUN,Pass_Terrain_Height,&sheer,&geometry,&failure),
+				 "a sheer 18-high wall was accepted as a ramp pass");
+		//	A level roadbed cannot sit on a wall: one edge is on the bench and the other 12 up.  That is the
+		//	cross-slope realizability rule, and it is the honest name for what a wall breaks.
+		Check ((failure == HYBRID_LOCAL_PASS_CUT_FILL) || (failure == HYBRID_LOCAL_PASS_GRADE) ||
+				 (failure == HYBRID_LOCAL_PASS_CROSS_SLOPE),
+				 "a sheer band named %s rather than the cut/fill, grade or cross slope it breaks",
+				 Hybrid_Local_Pass_Failure_Name (failure));
 	}
 
 	/*
@@ -7697,7 +7837,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassMeasurement measured;
 
 		Check (!Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,terrain.Centre,terrain.Tangent,
-													terrain.Normal,terrain.HalfSpan,terrain.FloorHalf,terrain.HalfSpan,
+													terrain.Normal,terrain.HalfSpan,terrain.FloorHalf,terrain.HalfSpan,nullptr,
 													approach,PASS_RUN,0.0f,Pass_Terrain_Height,&terrain,&geometry,
 													&failure,&measured),
 				 "a floor pass was accepted with no run toward one end of its obstruction");
@@ -7721,7 +7861,7 @@ void Check_Hybrid_Local_Pass (void)
 		HybridLocalPassFailure both_failure = HYBRID_LOCAL_PASS_OK;
 		HybridLocalPassMeasurement both;
 		Check (Hybrid_Build_Local_Pass (params,HYBRID_LOCAL_PASS_FLOOR,terrain.Centre,terrain.Tangent,
-												  terrain.Normal,terrain.HalfSpan,terrain.FloorHalf,terrain.HalfSpan,
+												  terrain.Normal,terrain.HalfSpan,terrain.FloorHalf,terrain.HalfSpan,nullptr,
 												  approach,PASS_RUN,PASS_RUN,Pass_Terrain_Height,&terrain,&geometry,
 												  &both_failure,&both),
 				 "the same station with run both ways was refused (%s)",
@@ -16124,6 +16264,129 @@ static inline float Gate_Max (float a,float b)	{ return (a > b) ? a : b; }
 static inline float Gate_Min (float a,float b)	{ return (a < b) ? a : b; }
 
 
+/***********************************************************************************************
+**	Owner-level solver fixtures for the two Phase-11 ground methods the native configuration cannot reach.
+**
+**	`Q-020` accepted `road_cut` and `surface_pass` as unreachable under native constants and asked instead
+**	for controlled fixtures that execute the *real* solver: the real method orders, the real cut and pass
+**	validators, real road-class data and real `CutClasses` metadata, on a world small enough that the one
+**	thing under test is the thing that differs from native.  Nothing here changes a native constant or the
+**	native bridge registry; the fixture supplies its own obstruction and, for the pass, its own bridge kind.
+***********************************************************************************************/
+
+//	A one-edge world: a placeable matrix, one topology edge between two nodes, and one straight route.
+struct SolverWorld
+{
+	HybridMapIdentity			Identity;
+	HybridCoarseMatrices		Matrices;
+	HybridLandformSet			Landforms;
+	HybridHydrologySet		Hydrology;
+	HybridAnchorSet			Anchors;
+	HybridTopology				Topology;
+	HybridRouteSet				Routes;
+	PassTerrain					Terrain;
+};
+
+
+/*
+**	Build the world around one obstruction window whose crossing axis is `+Y`.  The road is a straight
+**	`class` edge along `+Y` through the window centre, sampled at `min(W, A/2)`, with the window's frozen
+**	structural interval on it, so what the solver sees is exactly what Phase 10 hands it.
+*/
+static void Build_Solver_World (const HybridInteractionParams & params,HybridRoadClass road_class,
+										  unsigned int capabilities,const HybridCrossingWindow & window,
+										  SolverWorld * world)
+{
+	const HybridConstants & k = params.Constants;
+	const float half = 0.5f * params.WorldWidth;
+
+	//	Every cell placeable and nothing reserved: the obstruction is the only feature.
+	const int cells = 24;
+	world->Matrices.Reset ();
+	world->Matrices.Matrix.Resize (cells,cells,params.WorldWidth / (float)cells,-half,-half);
+	for (int cy = 0; cy < cells; ++cy) {
+		for (int cx = 0; cx < cells; ++cx) world->Matrices.Matrix.Set_Flag (cx,cy,HYBRID_FLAG_PLACEABLE);
+	}
+
+	world->Hydrology.Reset ();
+	world->Hydrology.Windows.Add (window);
+
+	world->Topology.Reset ();
+	HybridTopologyNode node;
+	node.Kind = HYBRID_NODE_FAMILY_WAYPOINT;
+	node.StableId = 1;	node.Position.Set (0.0f,-0.45f * params.WorldWidth);	world->Topology.Nodes.Add (node);
+	node.StableId = 2;	node.Position.Set (0.0f,+0.45f * params.WorldWidth);	world->Topology.Nodes.Add (node);
+
+	HybridTopologyEdge edge;
+	edge.StableId		= 1;
+	edge.Kind			= HYBRID_EDGE_FAMILY_TRUNK;
+	edge.RoadClass		= road_class;
+	edge.Capabilities	= capabilities;
+	edge.NodeA			= 1;
+	edge.NodeB			= 2;
+	edge.Required		= true;
+	world->Topology.Edges.Add (edge);
+
+	world->Routes.Reset ();
+	HybridRoute route;
+	route.EdgeId			= 1;
+	route.RoadClass		= road_class;
+	route.Capabilities	= capabilities;
+	route.Required			= true;
+	const float spacing = WWMath::Min (k.W,0.5f * k.A);
+	const float from = -0.45f * params.WorldWidth;
+	const float to = +0.45f * params.WorldWidth;
+	const int steps = (int)WWMath::Ceil ((to - from) / spacing);
+	int first_point = -1;
+	int last_point = -1;
+	for (int i = 0; i <= steps; ++i) {
+		const float y = from + ((to - from) * ((float)i / (float)steps));
+		route.Points.Add (Vector2 (0.0f,Hybrid_Quantize_Position (y)));
+		route.Stations.Add (Hybrid_Quantize_Position (y - from));
+		if ((first_point < 0) && (y >= window.ApproachA.Y) && (y <= window.ApproachB.Y)) first_point = i;
+		if ((y >= window.ApproachA.Y) && (y <= window.ApproachB.Y)) last_point = i;
+		if ((y >= window.ApproachB.Y) && (y <= window.ApproachA.Y)) {
+			if (first_point < 0) first_point = i;
+			last_point = i;
+		}
+	}
+	route.Length = Hybrid_Quantize_Position (to - from);
+
+	HybridRouteStructuralSpan span;
+	span.WindowId	= window.StableId;
+	span.FirstPoint= (first_point >= 0) ? first_point : 0;
+	span.LastPoint	= (last_point >= 0) ? last_point : route.Points.Count () - 1;
+	span.Ingress	= (window.ApproachA.Y < window.ApproachB.Y) ? window.ApproachA : window.ApproachB;
+	span.Egress		= (window.ApproachA.Y < window.ApproachB.Y) ? window.ApproachB : window.ApproachA;
+	route.Structural.Add (span);
+	world->Routes.Routes.Add (route);
+}
+
+
+//	A window across the `+Y` axis at the origin: tangent `+X`, approach A on `+Y` (the local-pass frame).
+static HybridCrossingWindow Solver_Window (HybridObstructionKind obstruction,HybridWindowKind kind,float half_span,
+														 float approach,float low_z,float high_z)
+{
+	HybridCrossingWindow window;
+	window.StableId				= 1;
+	window.Kind						= kind;
+	window.Obstruction			= obstruction;
+	window.ObstructionRecordId	= 1;
+	window.Station					= 0.0f;
+	window.Span						= Hybrid_Quantize_Position (2.0f * half_span);
+	window.ApproachLength		= Hybrid_Quantize_Position (approach);
+	window.LowElevation			= low_z;
+	window.HighElevation			= high_z;
+	window.Center.Set (0.0f,0.0f);
+	window.Tangent.Set (1.0f,0.0f);
+	window.ApproachA.Set (0.0f,Hybrid_Quantize_Position (+(half_span + approach)));
+	window.ApproachB.Set (0.0f,Hybrid_Quantize_Position (-(half_span + approach)));
+	window.BoundsMin.Set (-1.0f,window.ApproachB.Y);
+	window.BoundsMax.Set (+1.0f,window.ApproachA.Y);
+	return window;
+}
+
+
 void Check_Hybrid_Interactions (void)
 {
 	/*
@@ -17352,6 +17615,322 @@ void Check_Hybrid_Interactions (void)
 			}
 		}
 		Check (pair,"no generated world has two same-class edges with different capability masks");
+	}
+
+
+	/*
+	**	`road_cut`, on the real solver.  Native explicit cliffs are 18..36 high against 6 of cut and 6 of
+	**	fill, so the road-cut compiler can never accept one (`Q-020`); this cliff is 4 high over a band 6
+	**	wide, which the straight profile between the two approaches cuts and fills inside those limits.
+	**	Phase 6's own per-class cut test decides `CutClasses`, the cliff method order runs cut before ramp,
+	**	and the compiled record is checked against every one of the plan's four cut conditions.
+	*/
+	{
+		const float LOW_CLIFF = 4.0f;
+		HybridInteractionParams cut_params = Interaction_Fixture (Graph_Identity_Fixture (600.0f,2.0f),600.0f,
+																					 inputs,preflight.Metrics);
+		const HybridConstants & k = cut_params.Constants;
+		const float approach = WWMath::Max (8.0f * k.W,cut_params.BridgeKinds.Count () > 0
+														 ? cut_params.BridgeKinds[0].RequiredApproachLength : 0.0f);
+
+		SolverWorld world;
+		world.Terrain.Centre.Set (0.0f,0.0f);
+		world.Terrain.Tangent.Set (1.0f,0.0f);
+		world.Terrain.Normal.Set (0.0f,1.0f);
+		world.Terrain.RaisedBand				= true;
+		world.Terrain.BandFace					= 2.0f;
+		world.Terrain.HalfSpan					= 3.0f;				// a 6-wide band with a 2-wide shelf
+		world.Terrain.FloorHalf					= 0.0f;
+		world.Terrain.RimZ						= LOW_CLIFF;
+		world.Terrain.FloorZ						= 0.0f;
+		world.Terrain.TangentFloorSlope		= 0.0f;
+		world.Terrain.TangentRimSlope			= 0.0f;
+		world.Terrain.FarSideDiffers			= false;
+		world.Terrain.FarSideZ					= 0.0f;
+		world.Terrain.WallIsVertical			= false;
+		world.Terrain.BlockPlusTangent		= false;
+
+		HybridCrossingWindow window = Solver_Window (HYBRID_OBSTRUCTION_CLIFF,HYBRID_WINDOW_RAMP_PASS,
+																   world.Terrain.HalfSpan,approach,0.0f,0.0f);
+		//	Phase 6's flag for the class under test: the cut fits, so the class bit is set.
+		window.Methods		= HYBRID_WINDOW_METHOD_CUT;
+		window.CutClasses	= (1u << (unsigned int)HYBRID_ROAD_PRIMARY_2);
+
+		Build_Solver_World (cut_params,HYBRID_ROAD_PRIMARY_2,HYBRID_NAV_LIGHT | HYBRID_NAV_HEAVY,window,&world);
+
+		HybridInteractionSet cut_set;
+		HybridInteractionResult cut_result;
+		const bool cut_solved = Hybrid_Build_Interactions (cut_params,world.Identity,world.Matrices,world.Landforms,
+																			world.Hydrology,world.Anchors,world.Topology,
+																			world.Routes,Pass_Terrain_Height,&world.Terrain,
+																			&cut_set,&cut_result);
+		Check (cut_solved,"the low-cliff road cut did not solve: %s (%s)",
+				 Hybrid_Interaction_Failure_Name (cut_result.Failure),cut_result.Detail.Peek_Buffer ());
+		Check (cut_set.Interactions.Count () == 1,"the low-cliff world compiled %d interactions, not one",
+				 cut_set.Interactions.Count ());
+		if (cut_solved && (cut_set.Interactions.Count () == 1)) {
+
+			const HybridInteraction & cut = cut_set.Interactions[0];
+			Check (cut.Method == HYBRID_METHOD_ROAD_CUT,"a low cliff compiled %s, not a road cut",
+					 Hybrid_Interaction_Method_Name (cut.Method));
+			Check (cut.FallbackFrom == HYBRID_PROBLEM_NONE,
+					 "the road cut was reached as a fallback from %s; it is first in the cliff order",
+					 Hybrid_Interaction_Problem_Name (cut.FallbackFrom));
+			Check (cut.Obstruction == HYBRID_OBSTRUCTION_CLIFF,"the cut names the wrong obstruction");
+			Check (cut.CutDepth <= cut_params.MaxCutDepth,"the compiled cut is %.2f deep against %.2f allowed",
+					 cut.CutDepth,cut_params.MaxCutDepth);
+			Check (cut.CutDepth > 0.0f,"a cut through a 4-high band removed nothing");
+
+			//	The plan's four conditions, recomputed here from the record rather than taken on the solver's word.
+			const float half_deformation = Hybrid_Road_Deformation_Half_Width (cut.RoadClass,k.W,k.A);
+			const float blend = half_deformation + Hybrid_Road_Outer_Blend_Width (k.W,k.A);
+			const Vector2 axis = (cut.ApproachB - cut.ApproachA);
+			const float length = axis.Length ();
+			float z_a = 0.0f, z_b = 0.0f;
+			Pass_Terrain_Height (cut.ApproachA,&z_a,&world.Terrain);
+			Pass_Terrain_Height (cut.ApproachB,&z_b,&world.Terrain);
+			float worst_cut = 0.0f, worst_fill = 0.0f;
+			bool blend_lands = true;
+			const int samples = 40;
+			for (int i = 0; i <= samples; ++i) {
+				const float r = (float)i / (float)samples;
+				const Vector2 point = cut.ApproachA + (axis * r);
+				float ground = 0.0f;
+				Pass_Terrain_Height (point,&ground,&world.Terrain);
+				const float correction = (z_a + ((z_b - z_a) * r)) - ground;
+				if (correction < 0.0f) worst_cut = WWMath::Max (worst_cut,-correction);
+				else worst_fill = WWMath::Max (worst_fill,correction);
+				for (int side = -1; side <= 1; side += 2) {
+					const Vector2 edge_point (point.X + (blend * (float)side),point.Y);
+					int cx = 0, cy = 0;
+					if (!world.Matrices.Matrix.World_To_Cell (edge_point,&cx,&cy) ||
+						 !world.Matrices.Matrix.Has_Flag (cx,cy,HYBRID_FLAG_PLACEABLE)) blend_lands = false;
+				}
+			}
+			Check (worst_cut <= (cut_params.MaxCutDepth + k.Q),"the cut profile needs %.2f of cut",worst_cut);
+			Check (worst_fill <= (cut_params.MaxFillHeight + k.Q),"the cut profile needs %.2f of fill",worst_fill);
+			Check (WWMath::Fabs (cut.CutDepth - worst_cut) <= 0.01f,
+					 "the record says %.2f of cut and the profile needs %.2f",cut.CutDepth,worst_cut);
+			Check (half_deformation >= 0.5f * Hybrid_Roadbed_Width (cut.RoadClass,k.W),
+					 "the deformation half width %.2f is narrower than the roadbed",half_deformation);
+			Check (blend_lands,"the outer blend at %.2f each side does not land on placeable ground",blend);
+			Check (length > 0.0f,"the compiled cut has no length");
+			printf ("  road_cut solver fixture: PRIMARY_2 through a %.0f-high band, %.2f of cut, blend %.2f\r\n",
+					  LOW_CLIFF,cut.CutDepth,blend);
+		}
+
+		//	And the same band 18 high -- the shallowest native cliff -- is refused by Phase 6's own per-class
+		//	test, so the solver never sees a cut bit for it.  That is the `Q-020` unreachability, measured.
+		HybridCrossingWindow native = window;
+		native.CutClasses = 0;
+		native.Methods    = 0;
+		Check (!native.Cut_Planned_For (HYBRID_ROAD_PRIMARY_2),"a window with no cut classes plans a cut");
+	}
+
+	/*
+	**	`surface_pass`, on the real solver.  Every native canyon fits the registered 200-span bridge, so the
+	**	canyon order -- bridge first -- never reaches the pass (`Q-020`); here the fixture's own bridge kind
+	**	has a maximum span legitimately shorter than the canyon, so `Compile_Bridge` refuses with
+	**	`SPAN_TOO_LONG` and the order falls through to the pass, whose frozen Phase-6 geometry is then
+	**	revalidated by the real Phase-11 code.  The native registry is untouched: this is a fixture kind.
+	*/
+	{
+		HybridInteractionParams pass_params = Interaction_Fixture (Graph_Identity_Fixture (600.0f,2.0f),600.0f,
+																					  inputs,preflight.Metrics);
+		const HybridConstants & k = pass_params.Constants;
+
+		//	The fixture's registry: one kind whose span cannot reach across this canyon.
+		pass_params.BridgeKinds.Delete_All ();
+		HybridBridgeKind short_kind;
+		short_kind.StableId						= 1;
+		short_kind.ClearWidth					= 40.0f;
+		short_kind.StructuralDepth				= 2.0f;
+		short_kind.RequiredClearance			= 5.0f;
+		short_kind.MaxSpan						= 30.0f;
+		short_kind.RequiredApproachLength	= 30.0f;
+		pass_params.BridgeKinds.Add (short_kind);
+		const float approach = WWMath::Max (8.0f * k.W,short_kind.RequiredApproachLength);
+
+		SolverWorld world;
+		world.Terrain.Centre.Set (0.0f,0.0f);
+		world.Terrain.Tangent.Set (1.0f,0.0f);
+		world.Terrain.Normal.Set (0.0f,1.0f);
+		world.Terrain.HalfSpan					= 40.0f;				// an 80-unit canyon: past a 30 + 2W seated span
+		world.Terrain.FloorHalf					= 12.0f;
+		world.Terrain.RimZ						= 8.0f;
+		world.Terrain.FloorZ						= 0.0f;
+		world.Terrain.TangentFloorSlope		= 0.0f;
+		world.Terrain.TangentRimSlope			= 0.0f;
+		world.Terrain.FarSideDiffers			= false;
+		world.Terrain.FarSideZ					= 0.0f;
+		world.Terrain.WallIsVertical			= false;
+		world.Terrain.BlockPlusTangent		= false;
+		world.Terrain.RaisedBand				= false;
+		world.Terrain.BandFace					= 0.0f;
+
+		HybridCrossingWindow window = Solver_Window (HYBRID_OBSTRUCTION_CANYON,HYBRID_WINDOW_CROSSING,
+																   world.Terrain.HalfSpan,approach,8.0f,8.0f);
+
+		//	Phase 6's own pass proof, frozen on the window exactly as step 18 freezes it.
+		HybridLocalPassParams local = Local_Pass_Fixture ();
+		local.SweptVehicleWidth = WWMath::Max (pass_params.HeavyVehicleWidth,pass_params.HarvesterWidth);
+		HybridLocalPassGeometry frozen;
+		HybridLocalPassFailure why = HYBRID_LOCAL_PASS_OK;
+		const bool proved = Hybrid_Build_Local_Pass (local,HYBRID_LOCAL_PASS_FLOOR,world.Terrain.Centre,
+																	world.Terrain.Tangent,world.Terrain.Normal,
+																	world.Terrain.HalfSpan,world.Terrain.FloorHalf,
+																	world.Terrain.HalfSpan,nullptr,approach,400.0f,400.0f,
+																	Pass_Terrain_Height,&world.Terrain,&frozen,&why);
+		Check (proved,"the surface-pass fixture canyon has no legal pass (%s)",Hybrid_Local_Pass_Failure_Name (why));
+		window.Methods	= HYBRID_WINDOW_METHOD_BRIDGE | HYBRID_WINDOW_METHOD_PASS;
+		window.Pass		= frozen;
+
+		Build_Solver_World (pass_params,HYBRID_ROAD_PRIMARY_2,HYBRID_NAV_LIGHT | HYBRID_NAV_HEAVY,window,&world);
+
+		HybridInteractionSet pass_set;
+		HybridInteractionResult pass_result;
+		const bool pass_solved = Hybrid_Build_Interactions (pass_params,world.Identity,world.Matrices,
+																			 world.Landforms,world.Hydrology,world.Anchors,
+																			 world.Topology,world.Routes,Pass_Terrain_Height,
+																			 &world.Terrain,&pass_set,&pass_result);
+		Check (pass_solved,"the short-bridge canyon did not solve: %s (%s)",
+				 Hybrid_Interaction_Failure_Name (pass_result.Failure),pass_result.Detail.Peek_Buffer ());
+		Check (pass_set.Interactions.Count () == 1,"the short-bridge world compiled %d interactions, not one",
+				 pass_set.Interactions.Count ());
+		if (pass_solved && (pass_set.Interactions.Count () == 1)) {
+
+			const HybridInteraction & pass = pass_set.Interactions[0];
+			Check (pass.Method == HYBRID_METHOD_SURFACE_PASS,"a canyon no bridge can span compiled %s",
+					 Hybrid_Interaction_Method_Name (pass.Method));
+			Check (pass.FallbackFrom == HYBRID_PROBLEM_SPAN_TOO_LONG,
+					 "the pass was reached after the bridge refused as %s, not span_too_long",
+					 Hybrid_Interaction_Problem_Name (pass.FallbackFrom));
+			Check (pass.BridgeKind < 0,"a surface pass recorded a bridge kind");
+			Check ((pass.ApproachA == frozen.Controls[0]) &&
+					 (pass.ApproachB == frozen.Controls[frozen.ControlCount - 1]),
+					 "the compiled pass ends are not the frozen pass's own");
+
+			//	The frozen geometry is what the real Phase-11 revalidated: revalidate it here too, independently.
+			HybridLocalPassFailure again = HYBRID_LOCAL_PASS_OK;
+			Check (Hybrid_Validate_Local_Pass (local,frozen,Hybrid_Local_Pass_Sample_Spacing (k),Pass_Terrain_Height,
+														  &world.Terrain,&again),
+					 "the frozen pass Phase 11 accepted does not revalidate (%s)",
+					 Hybrid_Local_Pass_Failure_Name (again));
+			printf ("  surface_pass solver fixture: 80-unit canyon, 30-span bridge refused as %s, pass compiled\r\n",
+					  Hybrid_Interaction_Problem_Name (pass.FallbackFrom));
+		}
+
+		//	With the native-sized bridge the same canyon takes the bridge, as the order requires.
+		HybridInteractionParams native_params = Interaction_Fixture (Graph_Identity_Fixture (600.0f,2.0f),600.0f,
+																						inputs,preflight.Metrics);
+		HybridInteractionSet native_set;
+		HybridInteractionResult native_result;
+		if (Hybrid_Build_Interactions (native_params,world.Identity,world.Matrices,world.Landforms,world.Hydrology,
+												 world.Anchors,world.Topology,world.Routes,Pass_Terrain_Height,&world.Terrain,
+												 &native_set,&native_result) && (native_set.Interactions.Count () == 1)) {
+			Check (native_set.Interactions[0].Method == HYBRID_METHOD_BRIDGE,
+					 "with a bridge that spans it, the canyon compiled %s instead of the bridge the order prefers",
+					 Hybrid_Interaction_Method_Name (native_set.Interactions[0].Method));
+		}
+	}
+
+	/*
+	**	`ramp_pass`, on the real solver.  A 12-high band with a 16.6-wide smoothstep face is the shape the band
+	**	ramp is built for: its straight cut profile would need 12 of cut, so Phase 6 plans no cut for any class
+	**	and the cliff order -- cut, then ramp pass -- falls through to the pass, whose frozen band geometry the
+	**	real Phase 11 revalidates.  Native bands are 18..36 high over faces at most 12.5 wide and are refused
+	**	on cross slope by the same builder (`Check_Hybrid_Local_Pass` measures the broadest one), which is why
+	**	the native census carries no cliff window at all.
+	*/
+	{
+		HybridInteractionParams ramp_params = Interaction_Fixture (Graph_Identity_Fixture (600.0f,2.0f),600.0f,
+																					  inputs,preflight.Metrics);
+		const HybridConstants & k = ramp_params.Constants;
+		const float approach = WWMath::Max (8.0f * k.W,ramp_params.BridgeKinds.Count () > 0
+														 ? ramp_params.BridgeKinds[0].RequiredApproachLength : 0.0f);
+
+		SolverWorld world;
+		world.Terrain.Centre.Set (0.0f,0.0f);
+		world.Terrain.Tangent.Set (1.0f,0.0f);
+		world.Terrain.Normal.Set (0.0f,1.0f);
+		world.Terrain.RaisedBand				= true;
+		world.Terrain.BandFace					= 16.6f;
+		world.Terrain.HalfSpan					= 16.6f + 5.0f;
+		world.Terrain.FloorHalf					= 0.0f;
+		world.Terrain.RimZ						= 12.0f;
+		world.Terrain.FloorZ						= 0.0f;
+		world.Terrain.TangentFloorSlope		= 0.0f;
+		world.Terrain.TangentRimSlope			= 0.0f;
+		world.Terrain.FarSideDiffers			= false;
+		world.Terrain.FarSideZ					= 0.0f;
+		world.Terrain.WallIsVertical			= false;
+		world.Terrain.BlockPlusTangent		= false;
+
+		HybridLocalPassBand band;
+		band.ToeA	= +world.Terrain.HalfSpan;
+		band.ShelfA	= +5.0f;
+		band.ShelfB	= -5.0f;
+		band.ToeB	= -world.Terrain.HalfSpan;
+
+		HybridCrossingWindow window = Solver_Window (HYBRID_OBSTRUCTION_CLIFF,HYBRID_WINDOW_RAMP_PASS,
+																   world.Terrain.HalfSpan,approach,0.0f,0.0f);
+
+		//	Phase 6's own proof, frozen on the window: the band ramp for the heavy envelope.
+		HybridLocalPassParams local = Local_Pass_Fixture ();
+		local.SweptVehicleWidth = WWMath::Max (ramp_params.HeavyVehicleWidth,ramp_params.HarvesterWidth);
+		HybridLocalPassGeometry frozen;
+		HybridLocalPassFailure why = HYBRID_LOCAL_PASS_OK;
+		const bool proved = Hybrid_Build_Local_Pass (local,HYBRID_LOCAL_PASS_RAMP,world.Terrain.Centre,
+																	world.Terrain.Tangent,world.Terrain.Normal,
+																	world.Terrain.HalfSpan,0.0f,world.Terrain.HalfSpan,&band,
+																	approach,400.0f,400.0f,Pass_Terrain_Height,&world.Terrain,
+																	&frozen,&why);
+		Check (proved,"the ramp-pass fixture band has no legal ramp (%s)",Hybrid_Local_Pass_Failure_Name (why));
+
+		//	No cut for any class: a 12-high band's straight profile needs 12 of cut against 6.  Measured, not set.
+		window.CutClasses	= 0;
+		window.Methods		= HYBRID_WINDOW_METHOD_PASS;
+		window.Pass			= frozen;
+
+		Build_Solver_World (ramp_params,HYBRID_ROAD_PRIMARY_2,HYBRID_NAV_LIGHT | HYBRID_NAV_HEAVY,window,&world);
+
+		HybridInteractionSet ramp_set;
+		HybridInteractionResult ramp_result;
+		const bool ramp_solved = Hybrid_Build_Interactions (ramp_params,world.Identity,world.Matrices,
+																			 world.Landforms,world.Hydrology,world.Anchors,
+																			 world.Topology,world.Routes,Pass_Terrain_Height,
+																			 &world.Terrain,&ramp_set,&ramp_result);
+		Check (ramp_solved,"the band world did not solve: %s (%s)",
+				 Hybrid_Interaction_Failure_Name (ramp_result.Failure),ramp_result.Detail.Peek_Buffer ());
+		Check (ramp_set.Interactions.Count () == 1,"the band world compiled %d interactions, not one",
+				 ramp_set.Interactions.Count ());
+		if (ramp_solved && (ramp_set.Interactions.Count () == 1)) {
+
+			const HybridInteraction & ramp = ramp_set.Interactions[0];
+			Check (ramp.Method == HYBRID_METHOD_RAMP_PASS,"a band no cut can cross compiled %s",
+					 Hybrid_Interaction_Method_Name (ramp.Method));
+			Check (ramp.FallbackFrom == HYBRID_PROBLEM_METHOD_UNAVAILABLE,
+					 "the ramp was reached after the cut refused as %s, not method_unavailable",
+					 Hybrid_Interaction_Problem_Name (ramp.FallbackFrom));
+			Check ((ramp.ApproachA == frozen.Controls[0]) &&
+					 (ramp.ApproachB == frozen.Controls[frozen.ControlCount - 1]),
+					 "the compiled ramp ends are not the frozen band pass's own");
+			Check (frozen.ControlCount == 6,"the frozen band pass has %d controls, not six",frozen.ControlCount);
+			Check (frozen.TangentRun > 0.0f,"the frozen band pass spent no along-cliff run");
+
+			//	The far approach is along the cliff from the near one: the shape's signature.
+			Check (WWMath::Fabs (ramp.ApproachB.X - ramp.ApproachA.X) > (2.0f * k.W),
+					 "a band pass came straight back across the station (%.2f along the cliff)",
+					 ramp.ApproachB.X - ramp.ApproachA.X);
+
+			HybridLocalPassFailure again = HYBRID_LOCAL_PASS_OK;
+			Check (Hybrid_Validate_Local_Pass (local,frozen,Hybrid_Local_Pass_Sample_Spacing (k),Pass_Terrain_Height,
+														  &world.Terrain,&again),
+					 "the frozen band pass Phase 11 accepted does not revalidate (%s)",
+					 Hybrid_Local_Pass_Failure_Name (again));
+			printf ("  ramp_pass solver fixture: 12-high band, cut unavailable, band ramp compiled, exits %.1f along "
+					  "the cliff\r\n",ramp.ApproachB.X - ramp.ApproachA.X);
+		}
 	}
 
 	Check (negatives_done,"the negative fixtures never ran");

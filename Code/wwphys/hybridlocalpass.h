@@ -70,13 +70,14 @@
 
 /*
 **	What shape of pass this is.  The two differ in construction, not in how they are judged: a canyon or
-**	ravine is descended, crossed along its floor and climbed again, while a cliff or ridge band is climbed
-**	once on the diagonal.
+**	ravine is descended, crossed along its floor and climbed again, while a cliff -- D-004's compactly
+**	supported *raised band*, whose two approaches stand on the same bench -- is climbed on the diagonal,
+**	crossed along its elevated shelf and descended again.  The second is the first inverted.
 */
 enum HybridLocalPassKind
 {
 	HYBRID_LOCAL_PASS_FLOOR = 0,		// canyon/ravine: descend, cross the floor, ascend
-	HYBRID_LOCAL_PASS_RAMP,				// cliff: one diagonal ramp across the face/talus band
+	HYBRID_LOCAL_PASS_RAMP,				// cliff band: ascend the near face, cross the shelf, descend the far face
 	HYBRID_LOCAL_PASS_KIND_COUNT
 };
 
@@ -128,7 +129,25 @@ struct HybridLocalPassParams
 };
 
 
-//	The most control points a pass centerline can need: approach, ramp feet, floor ends, approach.
+/*
+**	A cliff band at one station, as D-004 realizes it: two talus toes on the bench and two shelf edges
+**	between them, all measured along the station `normal` from the centre, in travel order from approach A
+**	(the `+normal` side) to approach B and therefore strictly decreasing.  The two faces need not be alike --
+**	Section 10.2's band rises over `2e + t` on one side and falls over `t` on the other -- which is why the
+**	four offsets are given rather than a half span.
+*/
+struct HybridLocalPassBand
+{
+	HybridLocalPassBand(void) : ToeA(0.0f),ShelfA(0.0f),ShelfB(0.0f),ToeB(0.0f) { }
+
+	float	ToeA;			// where the near face leaves the bench
+	float	ShelfA;		// where it reaches the shelf
+	float	ShelfB;		// where the shelf ends
+	float	ToeB;			// where the far face reaches the bench again
+};
+
+
+//	The most control points a pass centerline can need: approach, ramp feet, flat ends, approach.
 #define HYBRID_LOCAL_PASS_MAX_CONTROLS 6
 
 
@@ -147,13 +166,22 @@ struct HybridLocalPassGeometry
 	Vector2					Controls[HYBRID_LOCAL_PASS_MAX_CONTROLS];
 	int						ControlCount;			// the ordered pass centerline, approach to approach
 
+	/*
+	**	The flat traverse between the two ramps: a canyon floor or a band shelf.  `FlatHalfWidth` is the half
+	**	width of that flat *across* the obstruction -- the value the swept-width test has to use -- and is
+	**	stored because it cannot be recovered from the two ends, whose distance is the traverse's length.
+	*/
 	bool						HasFloor;
-	Vector2					FloorEntry;				// where the descent meets the floor
-	Vector2					FloorExit;				// where the ascent leaves it
+	Vector2					FloorEntry;				// where the first ramp reaches the flat
+	Vector2					FloorExit;				// where the second ramp leaves it
+	float						FlatHalfWidth;
+
+	//	The swept envelope this pass was proved to carry, so a consumer can see what it was proved for.
+	float						ProvedSweptWidth;
 
 	float						Length;					// the candidate centerline's own length, quantized
 	float						SteepestGrade;			// the worst grade on the accepted profile, radians
-	float						TightestRadius;		// the tightest corner on it
+	float						TightestRadius;		// the tightest arc the corners leave room for, at class tangent lengths
 };
 
 
@@ -212,10 +240,10 @@ struct HybridLocalPassMeasurement
 /*
 **	Build and validate the local pass at one station.
 **
-**	`centre`, `tangent` and `normal` are the obstruction's local frame; `normal` points from approach A
-**	toward approach B.  `obstruction_half` is the half span of the obstruction itself, `floor_half` and
-**	`rim_half` come from the owning landform (a cliff passes `0` for the floor).  `approach_length` is how
-**	far outside the obstruction each approach point stands.
+**	`centre`, `tangent` and `normal` are the obstruction's local frame; approach A stands on the `+normal`
+**	side and approach B on the `-normal` side.  `obstruction_half` places the two approaches,
+**	`approach_length` outside it.  A floor pass takes `floor_half` and `rim_half` from the owning canyon or
+**	ravine and ignores `band`; a band pass takes `band` from the owning cliff and ignores the two half widths.
 **
 **	`available_run_plus` and `available_run_minus` are how much along-obstruction run this station may spend
 **	in each direction -- the caller knows them, because they are properties of the obstruction, not of the
@@ -239,6 +267,7 @@ struct HybridLocalPassMeasurement
 bool	Hybrid_Build_Local_Pass(const HybridLocalPassParams & params,HybridLocalPassKind kind,
 										 const Vector2 & centre,const Vector2 & tangent,const Vector2 & normal,
 										 float obstruction_half,float floor_half,float rim_half,
+										 const HybridLocalPassBand * band,
 										 float approach_length,float available_run_plus,float available_run_minus,
 										 HybridLocalPassHeightFunc sample,void * context,
 										 HybridLocalPassGeometry * out,HybridLocalPassFailure * failure_out,

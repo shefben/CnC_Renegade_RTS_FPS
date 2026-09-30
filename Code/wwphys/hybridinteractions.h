@@ -159,6 +159,31 @@ struct HybridTunnelModule
 
 
 /*
+**	Why a conflict could not be solved, in the categories the plan's own failure vocabulary uses.  The
+**	solver records one of these per unsolved conflict so a refused attempt reads as a story rather than
+**	as a bare refusal.
+*/
+enum HybridInteractionProblem
+{
+	HYBRID_PROBLEM_NONE = 0,
+	HYBRID_PROBLEM_NO_HARD_VALID_STATION,	// every station in the search window failed a common test
+	HYBRID_PROBLEM_SPAN_TOO_LONG,				// no registered bridge kind spans the obstruction
+	HYBRID_PROBLEM_WIDTH_TOO_NARROW,			// no kind meets the Section-12.4 clear width
+	HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT,	// the straight approach reserve has no room
+	HYBRID_PROBLEM_GRADE_TOO_STEEP,
+	HYBRID_PROBLEM_TURN_TOO_TIGHT,
+	HYBRID_PROBLEM_CLEARANCE,					// swept vehicle width/height, or overpass vertical gap
+	HYBRID_PROBLEM_CROSS_SLOPE,				// the surface tilts more across the roadbed than the class allows
+	HYBRID_PROBLEM_RESERVE_CONFLICT,			// an approach reserve hits an unrelated base or Tiberium core
+	HYBRID_PROBLEM_METHOD_UNAVAILABLE,		// the window permits no method this conflict may use
+	HYBRID_PROBLEM_CUT_OR_FILL,			// the profile cannot be realized inside its RoadVerticalInterval
+	HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING,	// inside 4W of an unrelated compiled crossing
+	HYBRID_PROBLEM_COUNT
+};
+
+const char *	Hybrid_Interaction_Problem_Name(HybridInteractionProblem problem);
+
+/*
 **	One compiled solution.  It says what the crossing *is* and where, and nothing about how it is built:
 **	Phase 12 owns realization, and this record is the whole of what it is allowed to consume about a
 **	crossing.
@@ -168,6 +193,7 @@ struct HybridInteraction
 	HybridInteraction(void) :
 		StableId(0),EdgeId(0),OtherEdgeId(0),Obstruction(HYBRID_OBSTRUCTION_NONE),ObstructionRecordId(0),
 		WindowId(0),Mandatory(false),Method(HYBRID_METHOD_BRIDGE),RoadClass(HYBRID_ROAD_CLASS_COUNT),
+		FallbackFrom(HYBRID_PROBLEM_NONE),
 		Station(0.0f,0.0f),Tangent(1.0f,0.0f),ApproachA(0.0f,0.0f),ApproachB(0.0f,0.0f),Span(0.0f),
 		ApproachReserve(0.0f),BridgeKind(-1),TunnelModule(-1),TunnelLength(0.0f),DeckBottomZ(0.0f),
 		DeckTopZ(0.0f),LowerSurfaceZ(0.0f),RampLength(0.0f),UpperIsThisEdge(true),CutDepth(0.0f),
@@ -186,6 +212,13 @@ struct HybridInteraction
 	bool							Mandatory;				// a frozen Phase-9 crossing or overpass obligation
 	HybridInteractionMethod	Method;
 	HybridRoadClass			RoadClass;				// the class that drives across it
+
+	/*
+	**	Why the first method in this obstruction's order did not win, when a later one did: the plan's orders
+	**	are fixed, so a fallback is only legitimate when the method ahead of it refused for a named reason,
+	**	and the record says which.  `HYBRID_PROBLEM_NONE` when the first method is the one compiled.
+	*/
+	HybridInteractionProblem	FallbackFrom;
 
 	Vector2						Station;					// the compiled crossing point, quantized
 	Vector2						Tangent;					// the road's direction through the station
@@ -216,31 +249,6 @@ struct HybridInteraction
 	float							Score;					// the bridge candidate score, 0 for other methods
 };
 
-
-/*
-**	Why a conflict could not be solved, in the categories the plan's own failure vocabulary uses.  The
-**	solver records one of these per unsolved conflict so a refused attempt reads as a story rather than
-**	as a bare refusal.
-*/
-enum HybridInteractionProblem
-{
-	HYBRID_PROBLEM_NONE = 0,
-	HYBRID_PROBLEM_NO_HARD_VALID_STATION,	// every station in the search window failed a common test
-	HYBRID_PROBLEM_SPAN_TOO_LONG,				// no registered bridge kind spans the obstruction
-	HYBRID_PROBLEM_WIDTH_TOO_NARROW,			// no kind meets the Section-12.4 clear width
-	HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT,	// the straight approach reserve has no room
-	HYBRID_PROBLEM_GRADE_TOO_STEEP,
-	HYBRID_PROBLEM_TURN_TOO_TIGHT,
-	HYBRID_PROBLEM_CLEARANCE,					// swept vehicle width/height, or overpass vertical gap
-	HYBRID_PROBLEM_CROSS_SLOPE,				// the surface tilts more across the roadbed than the class allows
-	HYBRID_PROBLEM_RESERVE_CONFLICT,			// an approach reserve hits an unrelated base or Tiberium core
-	HYBRID_PROBLEM_METHOD_UNAVAILABLE,		// the window permits no method this conflict may use
-	HYBRID_PROBLEM_CUT_OR_FILL,			// the profile cannot be realized inside its RoadVerticalInterval
-	HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING,	// inside 4W of an unrelated compiled crossing
-	HYBRID_PROBLEM_COUNT
-};
-
-const char *	Hybrid_Interaction_Problem_Name(HybridInteractionProblem problem);
 
 
 //	One unsolved conflict, kept whether or not the attempt survived it.  At most 12 per edge.

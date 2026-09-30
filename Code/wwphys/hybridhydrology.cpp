@@ -804,6 +804,8 @@ unsigned int Hybrid_Hydrology_Checksum(const HybridHydrologySet & set,unsigned i
 		stream.Add_Length(window.Pass.FloorEntry.Y);
 		stream.Add_Length(window.Pass.FloorExit.X);
 		stream.Add_Length(window.Pass.FloorExit.Y);
+		stream.Add_Length(window.Pass.FlatHalfWidth);
+		stream.Add_Length(window.Pass.ProvedSweptWidth);
 	}
 
 	return stream.Get();
@@ -3103,6 +3105,30 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 				const float floor_half = ((landform != nullptr) && !cliff) ? landform->FloorHalfWidth : 0.0f;
 				const float rim_half = (landform != nullptr) ? Max2(landform->RimHalfWidth,half) : half;
 
+				/*
+				**	A cliff's band in this station's frame, from D-004's field: with `e = EdgeWidth / 2` and
+				**	`t = TalusWidth`, and `side` the lateral offset toward the upper side, the face rises over
+				**	`-(e + t) .. e`, the shelf holds full height over `e .. e + t`, and the far face falls over
+				**	`e + t .. e + 2t`.  `Polyline_Measure`'s lateral is left-positive along the centerline, and the
+				**	station `normal` here is `(-tangent.Y, tangent.X)`, which is that same left -- so the upper
+				**	side is `+normal` when `UpperSideSign` is `+1`, and the four offsets are read off the field
+				**	directly.  Travel order is approach A (`+normal`) to approach B, so the offsets decrease.
+				*/
+				HybridLocalPassBand band;
+				if (cliff && (landform != nullptr)) {
+					const float e = 0.5f * landform->EdgeWidth;
+					const float t = landform->TalusWidth;
+					const float up = (landform->UpperSideSign >= 0) ? 1.0f : -1.0f;
+					const float toe_low = up * -(e + t);			// where the rising face leaves the bench
+					const float shelf_low = up * e;					// where it reaches full height
+					const float shelf_high = up * (e + t);			// where the shelf ends
+					const float toe_high = up * (e + (2.0f * t));	// where the falling face reaches the bench
+					band.ToeA		= Max2(toe_low,toe_high);
+					band.ToeB		= Min2(toe_low,toe_high);
+					band.ShelfA		= Max2(shelf_low,shelf_high);
+					band.ShelfB		= Min2(shelf_low,shelf_high);
+				}
+
 				ProvisionalHeightContext ground;
 				ground.B = &b;
 
@@ -3123,7 +3149,8 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 				const float available_plus = length - stations[index];
 
 				if (Hybrid_Build_Local_Pass(Local_Pass_Params(b),pass_kind,centre,tangent,normal,half,
-													 floor_half,rim_half,approach,available_plus,available_minus,
+													 floor_half,rim_half,cliff ? &band : nullptr,approach,
+													 available_plus,available_minus,
 													 Provisional_Height_Sample,&ground,&pass_geometry,&why,
 													 &measured)) {
 					methods |= HYBRID_WINDOW_METHOD_PASS;
