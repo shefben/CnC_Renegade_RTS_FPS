@@ -297,7 +297,7 @@ blocks, two receive-loop bounds tested after the write, a server using 128 of
 its 2048 receive buffers, and three flood-detection tests that were narrower
 than they read. `wwnet` links clean; detail in `docs/tt484/NativeEventDispatch.md` 5.
 
-## P04-C: `M00_Advanced_Guard_Tower` merged from `agtfix.cpp`
+## P04-AP: `M00_Advanced_Guard_Tower` merged from `agtfix.cpp`
 
 First of the 13 script names the donor redefines. Gun mount offsets are rotated
 by the tower facing read off the MCT instead of being added unrotated to the
@@ -305,7 +305,7 @@ controller position, the height correction for a low-placed controller is taken,
 and the guns and missile emitter are destroyed with the tower instead of being
 left standing. `renegade` links clean.
 
-## P04-D: corrected the recorded blocker on the 2142 donor-only scripts
+## P04-AQ: corrected the recorded blocker on the 2142 donor-only scripts
 
 The donor SDK was recorded as uniformly bound to the closed binary. It is not:
 406 of its 690 declared functions have portable C++ source, and all 284 of the
@@ -383,7 +383,7 @@ stock rule is not a correction to it; same disposition as `VehicleOwnershipPatch
 Owners identified (`dlgcncpurchasemainmenu.cpp:389` and the branch above) if it
 is ever wanted.
 
-## P04-E: Phase 4's donor half narrowed to the original TT script library
+## P04-AR: Phase 4's donor half narrowed to the original TT script library
 
 User direction: only the original TT scripts go into the engine, not the
 gameplay-mode variations. In scope is the library a stock level actually
@@ -1560,3 +1560,19 @@ pool's class cap, and no `GameObj` anywhere. Evidence:
 `docs/zerohour/WeatherEnvironmentRenderer.md`, `docs/assets/WeatherSprites.md`;
 `terrain_weather`/`fds_terrain_weather` added, run green on Linux through
 `tools/linuxcheck/selfcheck.sh` and clean under AddressSanitizer.
+## P-VALIDATOR: the state files are checked by something that does not get tired
+
+`tools/validate_feature_state.py` (a `feature_state` ctest entry) checks what roadmap 0A.11
+asks: all four state files exist, carry the heading they are found by and are not the remains of
+a bad write; feature ids are unique within a lifecycle file and never in two of them at once;
+`unstarted_features.md` is still delete-only in shape; and every `Q-###` mentioned anywhere
+resolves to an entry in `awaiting_answers.md`. It cannot check the conservation rule itself --
+whether a deleted backlog line is the entry that appeared in `completed_features.md` is a
+question about meaning -- so it checks the arithmetic around it. It found three real collisions
+on its first run: `P04-C`, `P04-D` and `P04-E` each named two different finished items, and the
+early run of three was renamed `P04-AP`, `P04-AQ` and `P04-AR` with their text untouched, because
+the later spine owns `C1` and `E1`. Evidence: it passes with no warnings on this tree, and fails
+as it should on an injected duplicate id, an entry in both lifecycle files, a question
+reference nothing answers, prose in the backlog and a truncated file -- the last of which it
+also catches in its own description, since a state file cannot name a question that does not
+exist even as an example.

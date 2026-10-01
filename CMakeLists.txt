@@ -157,6 +157,16 @@ if(BUILD_TESTING)
     add_test(NAME zerohour_port_matrix
              COMMAND "${Python3_EXECUTABLE}"
                      "${CMAKE_SOURCE_DIR}/tools/zerohour/check_port_matrix.py")
+
+    #
+    # The four persistent project-state files are the project's memory, they are edited
+    # by hand at the end of every session, and the ways they go wrong are quiet: a
+    # duplicated feature id, an entry left in two lifecycle files at once, a Q-###
+    # nothing answers, a file truncated by a bad write.  Roadmap 0A.11 asks for this.
+    #
+    add_test(NAME feature_state
+             COMMAND "${Python3_EXECUTABLE}"
+                     "${CMAKE_SOURCE_DIR}/tools/validate_feature_state.py")
   else()
     message(WARNING "Python not found; the Zero Hour donor matrices were not checked.")
   endif()
