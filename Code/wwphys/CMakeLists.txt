@@ -82,7 +82,9 @@ set(WWPHYS_SRC
     ribbontype.cpp
     surfacemarktype.cpp
     surfaceribbonsystem.cpp
+    particlebatchtype.cpp
     worldlightmanager.cpp
+    worldparticlebatchmanager.cpp
     worldshadowmanager.cpp
     worldsurfacemarkmanager.cpp
     timeddecophys.cpp
@@ -189,7 +191,9 @@ set(WWPHYS_SRC
     ribbontype.h
     surfacemarktype.h
     surfaceribbonsystem.h
+    particlebatchtype.h
     worldlightmanager.h
+    worldparticlebatchmanager.h
     worldshadowmanager.h
     worldsurfacemarkmanager.h
     timeddecophys.h

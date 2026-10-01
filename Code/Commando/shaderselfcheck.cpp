@@ -141,12 +141,25 @@ int	Run_Programs (void)
 			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_DEBUG_OVERLAY));
 
 	//
+	//	Batched particles are the third program -- roadmap Section 26.  Its consumer is
+	//	WorldParticleBatchManager::Render_Group, and like the overlays it builds a material in
+	//	Init, which is worth checking here rather than assuming because this process has no
+	//	device for it to build one against.
+	//
+	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_PARTICLE),
+			"batched particles have no program");
+	Check (ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_PARTICLE) == 1,
+			"batched particles want %d passes, not 1",
+			ShaderManagerClass::Get_Pass_Count (MATERIAL_PROGRAM_PARTICLE));
+
+	//
 	//	Nothing else is registered yet, and an unregistered pipeline reports no passes so
 	//	that a caller which loops over them draws nothing rather than drawing it wrongly.
 	//
 	for (int i=0; i<MATERIAL_PROGRAM_COUNT; i++) {
 
-		if ((i == MATERIAL_PROGRAM_LEGACY_W3D) || (i == MATERIAL_PROGRAM_DEBUG_OVERLAY)) {
+		if ((i == MATERIAL_PROGRAM_LEGACY_W3D) || (i == MATERIAL_PROGRAM_DEBUG_OVERLAY)
+			|| (i == MATERIAL_PROGRAM_PARTICLE)) {
 			continue;
 		}
 
@@ -257,6 +270,8 @@ int	Run_Programs (void)
 			"stock W3D materials lost their program on re-initialisation");
 	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_DEBUG_OVERLAY),
 			"debug overlays lost their program on re-initialisation");
+	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_PARTICLE),
+			"batched particles lost their program on re-initialisation");
 	Check (ShaderManagerClass::Is_Supported (MATERIAL_PROGRAM_GHOST_TINT) == false,
 			"a program survived re-initialisation");
 	Check (ShaderManagerClass::Get_Current_Program () == MATERIAL_PROGRAM_COUNT,

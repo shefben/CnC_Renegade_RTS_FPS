@@ -161,6 +161,77 @@ private:
 
 
 /***********************************************************************************************
+**	Batched particles.
+**
+**	Roadmap Section 26's pool draws its groups through PointGroupClass and LineGroupClass, both
+**	of which set their own shader and their own texture stage and neither of which sets a
+**	material.  A particle therefore used to be lit by whatever material the last thing drawn
+**	happened to leave on the device, which is not a bug anybody would notice and is exactly the
+**	state leak Section 15 exists to remove: the same explosion looks different depending on what
+**	was in front of it.
+**
+**	So the program owns the one piece of state the batchers do not: emissive white, opacity from
+**	the vertex alpha, no lighting.  A particle is light or dust and neither takes a lamp.
+***********************************************************************************************/
+class ParticleProgramClass : public MaterialProgramClass
+{
+public:
+	ParticleProgramClass(void) : Material(nullptr) { }
+	virtual ~ParticleProgramClass(void) override	{ Shutdown(); }
+
+	virtual const char *	Get_Name(void) const override		{ return _ProgramNames[MATERIAL_PROGRAM_PARTICLE]; }
+	virtual int				Get_Pass_Count(void) const override	{ return 1; }
+
+	virtual bool	Init(ShaderTierType) override
+	{
+		//	Fixed function, and nothing above it would help: every per-particle quantity --
+		//	position, size, colour, alpha, angle, frame -- is already in the vertices the point
+		//	group builds, so there is nothing left for a vertex program to compute.
+		WWASSERT(Material == nullptr);
+		Material = NEW_REF(VertexMaterialClass,());
+
+		//	The same two settings as the engine's PRELIT_DIFFUSE preset, built rather than
+		//	fetched: Get_Preset reads a table that DX8Wrapper fills when a device comes up, and
+		//	a program has to be able to initialise in a process that has no device -- which is
+		//	the dedicated server, and is also how this layer is checked.
+		Material->Set_Lighting(false);
+		Material->Set_Diffuse_Color_Source(VertexMaterialClass::COLOR1);
+		Material->Set_Ambient(0,0,0);
+		Material->Set_Diffuse(0,0,0);
+		Material->Set_Specular(0,0,0);
+		Material->Set_Emissive(1,1,1);
+		Material->Set_Opacity(1.0f);
+		Material->Set_Shininess(0.0f);
+		return true;
+	}
+
+	virtual void	Shutdown(void) override
+	{
+		REF_PTR_RELEASE(Material);
+	}
+
+	virtual void	Set_Pass(int pass) override
+	{
+		WWASSERT(pass == 0);
+		(void)pass;
+
+		//	The shader and the texture belong to the group being drawn and are set by the
+		//	batcher a line later, so this sets the material and only the material.
+		DX8Wrapper::Set_Material(Material);
+	}
+
+	virtual void	Reset(void) override
+	{
+		//	Nothing to put back.  Every draw in this renderer sets its own material, so
+		//	installing a null one here would be inventing a state rather than restoring one.
+	}
+
+private:
+	VertexMaterialClass *	Material;
+};
+
+
+/***********************************************************************************************
  * ShaderManagerClass::Detect_Tier -- ask the device what it can do                            *
  *                                                                                             *
  * There is no device on a dedicated server and none before the renderer comes up, and         *
@@ -218,6 +289,12 @@ void	ShaderManagerClass::Init(ShaderTierType tier)
 
 	//	The one listed pipeline whose consumer was already in the tree.  See boxrobj.cpp.
 	Register_Program(MATERIAL_PROGRAM_DEBUG_OVERLAY,new DebugOverlayProgramClass);
+
+	//	The batched particle pool -- roadmap Section 26.  Registered here rather than by the
+	//	pool itself because this function rebuilds the registry from nothing every time the
+	//	device comes up, and a program registered once at the pool's own Init would be lost at
+	//	the first device reset.  See worldparticlebatchmanager.cpp for the consumer.
+	Register_Program(MATERIAL_PROGRAM_PARTICLE,new ParticleProgramClass);
 }
 
 

@@ -30,20 +30,22 @@ unchanged across the change and the live prototype count drops back.
 ## P09 -- the layer exists, the pipelines do not
 
 `ShaderManagerClass` is in place and checked (see `docs/zerohour/ShaderManager.md`),
-with stock W3D content registered as a program and debug overlays registered against a
-real consumer, `BoxRenderObjClass::render_box`. Eleven pipelines are left enumerated
+with stock W3D content registered as a program, debug overlays registered against a
+real consumer (`BoxRenderObjClass::render_box`) and, since P22, particles registered
+against `WorldParticleBatchManager::Render_Group`. Ten pipelines are left enumerated
 and unregistered -- terrain, terrain detail, roads, bridges, water, foliage, projected
-shadows, particles, tracers and beams, status markers, ghost building tint -- because
-none of them has anything to draw until the terrain framework (P11, P13 to P15, P17)
-and the Commander work land. Each registers itself when its system arrives.
+shadows, tracers and beams, status markers, ghost building tint -- because none of them
+has anything to draw until the terrain framework (P11, P13 to P15, P17) and the
+Commander work land. Each registers itself when its system arrives.
 
-Two things remain unproved. Nothing here has been seen on a screen: the checks run
-without a device, so whether a debug box still looks like a debug box wants one run
-with a display mask on. And the acceptance line *new donor systems share one
-state/shader management layer* needs a donor system, which debug overlays are not.
+One thing remains unproved: nothing here has been seen on a screen, because the checks
+run without a device, so whether a debug box still looks like a debug box wants one run
+with a display mask on. The acceptance line *new donor systems share one state/shader
+management layer* is now carried by a donor system rather than by the overlays -- the
+particle pool goes through `Set_Program`/`Reset_Program` for every group it draws.
 Next exact action: register the terrain and terrain-detail pipelines against
 `RenegadeTerrainPatchClass`, which now has material passes to draw with (P13-A); the other
-nine still wait on their systems.
+eight still wait on their systems.
 
 ---
 
@@ -129,6 +131,20 @@ P01 through P07 are complete (see `completed_features.md`). The backlog is in
 ---
 
 ## Working notes that cost a session each
+
+A session running on Linux cannot build the client at all -- the CI's Linux job builds
+only the maths and utility libraries -- but the device-less self checks can still be
+*run*, which is where the world systems' acceptance evidence lives.
+`tools/linuxcheck/selfcheck.sh <check>` does it: the check's own translation unit, the
+sources it actually exercises, four real support libraries, and an automatically
+generated empty stub for every other engine symbol the linker asks for. It is g++ and
+not MSVC and nothing in it draws, so it proves policy and arithmetic and not a build;
+it found two real faults in P22 before any Windows build existed (a protected
+`Invalidate_Cached_Bounding_Volumes`, and a particle program whose `Init` would have
+dereferenced a null `VertexMaterialClass` preset table in a process with no device).
+`g++ -fsyntax-only` with the same include set type-checks a single wwphys, ww3d2 or
+Commando translation unit in seconds; `Code/Commando/consolefunction.cpp` is the one
+that cannot, because it reaches Win32 headers no stub replaces.
 
 Assembling a generated `.cpp` from parts: write the parts with the Write tool
 and concatenate them with Python opened `newline=''`. `cat a b > c` in this
@@ -310,3 +326,18 @@ user: run `renegade --gamedir "C:\Westwood\Renegade_full"`, load a level, then `
 and `light_status` at the console, walk into and out of the ring, and report whether the world
 actually lights up, whether the lights-per-query number stays flat after `light_test 64 15`, and what
 `light_clear` leaves behind.
+
+## P22 -- budgeted, batched, and nothing has emitted one in anger
+
+`WorldParticleBatchManager` is in and checked (P22-A in `completed_features.md`,
+`docs/zerohour/WorldParticleBatchManager.md`), and the acceptance is proved as numbers
+device-less -- 1800 particles in two groups are six submissions and two buffer allocations.
+What this entry carries is the half no arithmetic can supply: nothing in `Combat` emits into
+the pool yet (its callers are P23 weather, P24 tracers, P25 debris and the Commander
+feedback of P36/P38, and the authored W3D emitters deliberately keep their own path), and
+no batched particle has been drawn, because the six default kinds name no texture. Next
+exact action is a manual one for the user: run `renegade --gamedir
+"C:\Westwood\Renegade_full"`, load a level, then `particle_texture <a texture name from
+that level>`, `particle_test 600` and `particle_status` at the console, and report whether
+sprites, points and streaks appear around the camera and what the submission and headroom
+numbers say.

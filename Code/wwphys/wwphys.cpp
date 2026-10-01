@@ -42,6 +42,7 @@
 #include "surfaceribbonsystem.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldlightmanager.h"
+#include "worldparticlebatchmanager.h"
 #include "worldshadowmanager.h"
 
 
@@ -68,10 +69,17 @@ void WWPhys::Init(void)
 	//	The dynamic lights, in a grid of their own so that asking which ones reach a place costs
 	//	the place and not the world -- roadmap Section 25.
 	WorldLightManager::Init();
+
+	//	One pool of particles for the whole world and one set of buffers per texture, with the
+	//	five budget classes that decide which particles a busy frame can afford -- roadmap
+	//	Section 26.  The default kinds name no textures and cost nothing until something emits.
+	WorldParticleBatchManager::Init();
+	WorldParticleBatchManager::Define_Default_Batches();
 }
 
 void WWPhys::Shutdown(void)
 {
+	WorldParticleBatchManager::Shutdown();
 	WorldLightManager::Shutdown();
 	WorldShadowManager::Shutdown();
 	WorldSurfaceMarkManager::Shutdown();

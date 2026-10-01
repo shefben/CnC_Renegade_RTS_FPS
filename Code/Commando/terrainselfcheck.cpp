@@ -32,6 +32,7 @@
 #include "physlist.h"
 #include "pscene.h"
 #include "worldlightmanager.h"
+#include "worldparticlebatchmanager.h"
 #include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldterrainsystem.h"
@@ -3081,6 +3082,512 @@ void	Check_Lights (void)
 }
 
 
+/*
+**	Batched particles -- roadmap Section 26.
+**
+**	The acceptance is a claim about how cost scales: a firefight has to cost the particles the
+**	camera can see and not the number of effects that produced them.  A claim like that is only
+**	worth anything as a number, so the middle of this check fills two groups with nine hundred
+**	particles each and counts the draw submissions they would make.  Eighteen hundred particles
+**	emitted one at a time cost six submissions, and the buffers behind them are allocated twice.
+**
+**	The end of it is the budget policy, which is the other half of the feature and the half that
+**	is easy to get subtly wrong: the pool is filled exactly to capacity and then the order in
+**	which classes lose particles is read back out, including that a class sitting on its
+**	reservation is never the one that loses one.
+**
+**	None of this needs a graphics device, a level or a physics scene.  The pool is an array, the
+**	policy is arithmetic, and the buffers are plain memory handed to the engine's own point and
+**	line batchers -- so these run in exactly the state a dedicated server runs in.
+*/
+void	Check_Particles (void)
+{
+	//	A pool of this service's own, whatever else has already initialised one.
+	WorldParticleBatchManager::Shutdown ();
+	WorldParticleBatchManager::Init ();
+
+	//
+	//	What a fresh service holds.
+	//
+	Check (WorldParticleBatchManager::Get_Pool_Size () == PARTICLE_BATCH_POOL_SIZE,
+			 "a fresh pool holds %d particles, not %d",
+			 WorldParticleBatchManager::Get_Pool_Size (), (int)PARTICLE_BATCH_POOL_SIZE);
+	Check (WorldParticleBatchManager::Get_Particle_Count () == 0,
+			 "a fresh pool already has %d particle(s)", WorldParticleBatchManager::Get_Particle_Count ());
+	Check (WorldParticleBatchManager::Get_Headroom () == WorldParticleBatchManager::Get_Pool_Size (),
+			 "a fresh pool has %d of %d slots free",
+			 WorldParticleBatchManager::Get_Headroom (), WorldParticleBatchManager::Get_Pool_Size ());
+	Check (WorldParticleBatchManager::Get_Definition_Count () == 0,
+			 "a fresh pool already knows %d kind(s) of particle",
+			 WorldParticleBatchManager::Get_Definition_Count ());
+
+	//
+	//	A reservation is a promise that a class can always have that many particles, so the
+	//	promises have to fit in the pool.  If they ever add up to more than it holds, every
+	//	number below this line is describing a policy that cannot be kept.
+	//
+	Check (WorldParticleBatchManager::Get_Reserved_Total () <= WorldParticleBatchManager::Get_Pool_Size (),
+			 "the budget classes reserve %d of a %d particle pool",
+			 WorldParticleBatchManager::Get_Reserved_Total (), WorldParticleBatchManager::Get_Pool_Size ());
+
+	WorldParticleBatchManager::Define_Default_Batches ();
+	Check (WorldParticleBatchManager::Get_Definition_Count () == 6,
+			 "%d default kinds of particle were defined, not six",
+			 WorldParticleBatchManager::Get_Definition_Count ());
+
+	for (int d = 0; d < WorldParticleBatchManager::Get_Definition_Count (); d ++) {
+		Check (WorldParticleBatchManager::Peek_Definition (d).Names_A_Texture () == false,
+				 "the default kind %s names a texture that does not exist yet",
+				 WorldParticleBatchManager::Peek_Definition (d).Get_Name ());
+	}
+
+	//
+	//	One particle, and the three places it is counted.
+	//
+	const int signal = WorldParticleBatchManager::Find_Definition_Index ("ow_part_signal");
+	Check (signal >= 0, "the critical-gameplay default kind was not defined");
+
+	if (signal >= 0) {
+
+		Check (WorldParticleBatchManager::Peek_Definition (signal).Get_Budget_Class ()
+					== PARTICLE_BUDGET_CRITICAL_GAMEPLAY,
+				 "the signal kind is in the %s budget",
+				 Particle_Budget_Class_Name (WorldParticleBatchManager::Peek_Definition (signal).Get_Budget_Class ()));
+
+		Check (WorldParticleBatchManager::Emit (signal, Vector3 (0.0f, 0.0f, 0.0f),
+															 Vector3 (0.0f, 0.0f, 1.0f)),
+				 "one particle would not be emitted into an empty pool");
+
+		Check (WorldParticleBatchManager::Get_Particle_Count () == 1,
+				 "emitting one particle made %d", WorldParticleBatchManager::Get_Particle_Count ());
+		Check (WorldParticleBatchManager::Get_Group_Particle_Count (signal) == 1,
+				 "the group holds %d of its own one particle",
+				 WorldParticleBatchManager::Get_Group_Particle_Count (signal));
+		Check (WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_CRITICAL_GAMEPLAY) == 1,
+				 "the critical budget holds %d particle(s) after one was emitted into it",
+				 WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_CRITICAL_GAMEPLAY));
+		Check (WorldParticleBatchManager::Get_Headroom ()
+					== (WorldParticleBatchManager::Get_Pool_Size () - 1),
+				 "one particle cost %d slots of headroom",
+				 WorldParticleBatchManager::Get_Pool_Size () - WorldParticleBatchManager::Get_Headroom ());
+
+		//
+		//	It is drawn by the batch and by nothing of its own.  The buffers exist, the submission
+		//	is one, and there is no render object -- because the kind names no texture, which is
+		//	the state every default kind is in until the art arrives.
+		//
+		WorldParticleBatchManager::Timestep (0.016f);
+
+		Check (WorldParticleBatchManager::Has_Geometry (signal),
+				 "a group with a particle in it has no buffers");
+		Check (WorldParticleBatchManager::Get_Buffer_Allocation_Count () == 1,
+				 "one group allocated %d sets of buffers",
+				 WorldParticleBatchManager::Get_Buffer_Allocation_Count ());
+		Check (WorldParticleBatchManager::Get_Drawn_Particle_Count () == 1,
+				 "%d particle(s) were written into the buffers, not one",
+				 WorldParticleBatchManager::Get_Drawn_Particle_Count ());
+		Check (WorldParticleBatchManager::Get_Submission_Count () == 1,
+				 "one particle costs %d draw submission(s)",
+				 WorldParticleBatchManager::Get_Submission_Count ());
+		Check (WorldParticleBatchManager::Has_Object (signal) == false,
+				 "a group with no texture built something for the scene to draw");
+		Check (WorldParticleBatchManager::Get_Missing_Texture_Count () == 1,
+				 "%d group(s) reported a missing texture, not the one",
+				 WorldParticleBatchManager::Get_Missing_Texture_Count ());
+
+		//
+		//	And it goes away by itself.  Nothing else in the engine has to remember it existed,
+		//	which is the whole reason a particle is a slot in an array and not an object.
+		//
+		WorldParticleBatchManager::Timestep (
+			WorldParticleBatchManager::Peek_Definition (signal).Get_Lifetime ());
+
+		Check (WorldParticleBatchManager::Get_Particle_Count () == 0,
+				 "%d particle(s) outlived their own lifetime",
+				 WorldParticleBatchManager::Get_Particle_Count ());
+		Check (WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_CRITICAL_GAMEPLAY) == 0,
+				 "the critical budget still holds %d expired particle(s)",
+				 WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_CRITICAL_GAMEPLAY));
+		Check (WorldParticleBatchManager::Get_Submission_Count () == 0,
+				 "an empty pool still costs %d submission(s)",
+				 WorldParticleBatchManager::Get_Submission_Count ());
+	}
+
+	/*
+	**	The acceptance, as numbers.
+	**
+	**	Two groups, nine hundred particles each, emitted one at a time the way a firefight
+	**	produces them.  Stock Renegade would answer eighteen hundred particles from eighteen
+	**	hundred separate effects with eighteen hundred render objects and eighteen hundred draw
+	**	calls; here it is six submissions, because a submission is three hundred particles of one
+	**	texture, and two buffer allocations, because a group allocates once and refills.
+	*/
+	int sprite_a = -1;
+	int sprite_b = -1;
+	int streaks  = -1;
+	{
+		ParticleBatchDefinitionClass def;
+		def.Set_Name ("check_sprite_a");
+		def.Set_Kind (PARTICLE_BATCH_SPRITE);
+		def.Set_Budget_Class (PARTICLE_BUDGET_COMBAT_NEAR);
+		def.Set_Lifetime (60.0f);
+		def.Set_Max_Particles (1024);
+		def.Set_Gravity (0.0f);
+		sprite_a = WorldParticleBatchManager::Define_Definition (def);
+
+		def.Set_Name ("check_sprite_b");
+		sprite_b = WorldParticleBatchManager::Define_Definition (def);
+
+		def.Set_Name ("check_streaks");
+		def.Set_Kind (PARTICLE_BATCH_STREAK);
+		def.Set_Budget_Class (PARTICLE_BUDGET_COMBAT_FAR);
+		streaks = WorldParticleBatchManager::Define_Definition (def);
+	}
+
+	Check ((sprite_a >= 0) && (sprite_b >= 0) && (streaks >= 0),
+			 "the check's own kinds of particle would not be defined");
+
+	if ((sprite_a >= 0) && (sprite_b >= 0) && (streaks >= 0)) {
+
+		const int allocations_before = WorldParticleBatchManager::Get_Buffer_Allocation_Count ();
+
+		int made = 0;
+		for (int i = 0; i < 900; i ++) {
+			if (WorldParticleBatchManager::Emit (sprite_a,
+															 Vector3 ((float)i * 0.1f, 0.0f, 0.0f),
+															 Vector3 (0.0f, 0.0f, 0.0f))) {
+				made ++;
+			}
+		}
+		Check (made == 900, "%d of nine hundred particles were refused by an empty pool", 900 - made);
+
+		WorldParticleBatchManager::Timestep (0.016f);
+
+		Check (WorldParticleBatchManager::Get_Drawn_Particle_Count () == 900,
+				 "%d of nine hundred particles reached the buffers",
+				 WorldParticleBatchManager::Get_Drawn_Particle_Count ());
+		Check (WorldParticleBatchManager::Get_Submission_Count () == 3,
+				 "nine hundred particles of one texture cost %d submission(s), not three",
+				 WorldParticleBatchManager::Get_Submission_Count ());
+		Check (WorldParticleBatchManager::Get_Buffer_Allocation_Count () == (allocations_before + 1),
+				 "nine hundred particles allocated %d sets of buffers, not one",
+				 WorldParticleBatchManager::Get_Buffer_Allocation_Count () - allocations_before);
+
+		for (int i = 0; i < 900; i ++) {
+			WorldParticleBatchManager::Emit (sprite_b,
+														Vector3 (0.0f, (float)i * 0.1f, 0.0f),
+														Vector3 (0.0f, 0.0f, 0.0f));
+		}
+
+		WorldParticleBatchManager::Timestep (0.016f);
+
+		Check (WorldParticleBatchManager::Get_Particle_Count () == 1800,
+				 "the pool holds %d of eighteen hundred particles",
+				 WorldParticleBatchManager::Get_Particle_Count ());
+		Check (WorldParticleBatchManager::Get_Submission_Count () == 6,
+				 "eighteen hundred particles in two groups cost %d submission(s), not six",
+				 WorldParticleBatchManager::Get_Submission_Count ());
+		Check (WorldParticleBatchManager::Get_Buffer_Allocation_Count () == (allocations_before + 2),
+				 "two groups allocated %d sets of buffers",
+				 WorldParticleBatchManager::Get_Buffer_Allocation_Count () - allocations_before);
+		Check (WorldParticleBatchManager::Get_Poly_Count () == (1800 * 2),
+				 "eighteen hundred quads are %d triangles", WorldParticleBatchManager::Get_Poly_Count ());
+
+		//
+		//	A streak group is drawn whole however many lines it holds, because a line group fills
+		//	one index buffer and one vertex buffer and submits them once.
+		//
+		for (int i = 0; i < 400; i ++) {
+			WorldParticleBatchManager::Emit (streaks,
+														Vector3 (0.0f, 0.0f, (float)i * 0.1f),
+														Vector3 (1.0f, 0.0f, 0.0f));
+		}
+
+		WorldParticleBatchManager::Timestep (0.016f);
+
+		Check (WorldParticleBatchManager::Get_Submission_Count () == 7,
+				 "four hundred streaks added %d submission(s) to six, not one",
+				 WorldParticleBatchManager::Get_Submission_Count () - 6);
+		Check (WorldParticleBatchManager::Get_Poly_Count () == ((1800 * 2) + (400 * 4)),
+				 "the batch draws %d triangles for eighteen hundred quads and four hundred streaks",
+				 WorldParticleBatchManager::Get_Poly_Count ());
+
+		//
+		//	Clearing the world's particles keeps the buffers.  They are the thing that must not be
+		//	allocated again, and they hold nothing that belongs to a particle.
+		//
+		const int allocations_held = WorldParticleBatchManager::Get_Buffer_Allocation_Count ();
+		WorldParticleBatchManager::Clear_Particles ();
+		Check (WorldParticleBatchManager::Get_Particle_Count () == 0,
+				 "%d particle(s) survived being cleared", WorldParticleBatchManager::Get_Particle_Count ());
+		Check (WorldParticleBatchManager::Get_Submission_Count () == 0,
+				 "an empty pool costs %d submission(s)", WorldParticleBatchManager::Get_Submission_Count ());
+		Check (WorldParticleBatchManager::Get_Buffer_Allocation_Count () == allocations_held,
+				 "clearing the particles reallocated buffers");
+	}
+
+	/*
+	**	The budget policy.
+	**
+	**	The pool is filled exactly to capacity out of four budget classes and then the order in
+	**	which they lose particles is read back.  There is nothing probabilistic here: the oldest
+	**	particle of the least important class above its reservation is the one that goes, every
+	**	time, and a class sitting on its reservation does not go at all.
+	*/
+	{
+		int ambient		= -1;
+		int environment	= -1;
+		int near_combat	= -1;
+		int critical_a	= -1;
+		int critical_b	= -1;
+
+		ParticleBatchDefinitionClass def;
+		def.Set_Kind (PARTICLE_BATCH_POINT);
+		def.Set_Lifetime (120.0f);
+		def.Set_Max_Particles (1024);
+		def.Set_Gravity (0.0f);
+
+		def.Set_Name ("check_ambient");
+		def.Set_Budget_Class (PARTICLE_BUDGET_AMBIENT);
+		ambient = WorldParticleBatchManager::Define_Definition (def);
+
+		def.Set_Name ("check_environment");
+		def.Set_Budget_Class (PARTICLE_BUDGET_ENVIRONMENT);
+		environment = WorldParticleBatchManager::Define_Definition (def);
+
+		def.Set_Name ("check_near");
+		def.Set_Budget_Class (PARTICLE_BUDGET_COMBAT_NEAR);
+		near_combat = WorldParticleBatchManager::Define_Definition (def);
+
+		def.Set_Name ("check_critical_a");
+		def.Set_Budget_Class (PARTICLE_BUDGET_CRITICAL_GAMEPLAY);
+		critical_a = WorldParticleBatchManager::Define_Definition (def);
+
+		def.Set_Name ("check_critical_b");
+		critical_b = WorldParticleBatchManager::Define_Definition (def);
+
+		Check ((ambient >= 0) && (environment >= 0) && (near_combat >= 0)
+					&& (critical_a >= 0) && (critical_b >= 0),
+				 "the budget check's own kinds of particle would not be defined");
+
+		if ((ambient >= 0) && (environment >= 0) && (near_combat >= 0)
+			&& (critical_a >= 0) && (critical_b >= 0)) {
+
+			const Vector3 origin (0.0f, 0.0f, 0.0f);
+			const Vector3 still (0.0f, 0.0f, 0.0f);
+
+			const int ambient_cap	= WorldParticleBatchManager::Get_Budget_Cap (PARTICLE_BUDGET_AMBIENT);
+			const int ambient_floor	= WorldParticleBatchManager::Get_Budget_Reserve (PARTICLE_BUDGET_AMBIENT);
+
+			//
+			//	A class at its own ceiling recycles within itself: the count stops growing and the
+			//	emissions keep succeeding, because an effect at its budget should go on looking
+			//	alive rather than freeze.
+			//
+			int recycles_before = WorldParticleBatchManager::Get_Recycle_Count ();
+			for (int i = 0; i < (ambient_cap + 1); i ++) {
+				WorldParticleBatchManager::Emit (ambient, origin, still);
+			}
+			Check (WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_AMBIENT) == ambient_cap,
+					 "the ambient budget holds %d particles against a cap of %d",
+					 WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_AMBIENT), ambient_cap);
+			Check (WorldParticleBatchManager::Get_Recycle_Count () == (recycles_before + 1),
+					 "a class at its cap recycled %d time(s) for one emission past it",
+					 WorldParticleBatchManager::Get_Recycle_Count () - recycles_before);
+
+			//
+			//	Fill the rest of the pool.  Nothing may be refused on the way: every one of these
+			//	is inside its class's cap and the pool has the room.
+			//
+			int filled = 0;
+			for (int i = 0; i < 1024; i ++) {
+				if (WorldParticleBatchManager::Emit (environment, origin, still))	{ filled ++; }
+			}
+			for (int i = 0; i < 1024; i ++) {
+				if (WorldParticleBatchManager::Emit (near_combat, origin, still))	{ filled ++; }
+			}
+			for (int i = 0; i < 1024; i ++) {
+				if (WorldParticleBatchManager::Emit (critical_a, origin, still))		{ filled ++; }
+			}
+			const int remainder = WorldParticleBatchManager::Get_Headroom ();
+			for (int i = 0; i < remainder; i ++) {
+				if (WorldParticleBatchManager::Emit (critical_b, origin, still))		{ filled ++; }
+			}
+
+			Check (filled == (3072 + remainder),
+					 "%d emissions into a pool with room for them were refused",
+					 (3072 + remainder) - filled);
+			Check (WorldParticleBatchManager::Get_Particle_Count ()
+						== WorldParticleBatchManager::Get_Pool_Size (),
+					 "the pool holds %d of its %d slots after being filled",
+					 WorldParticleBatchManager::Get_Particle_Count (),
+					 WorldParticleBatchManager::Get_Pool_Size ());
+			Check (WorldParticleBatchManager::Get_Headroom () == 0,
+					 "a full pool reports %d slots of headroom", WorldParticleBatchManager::Get_Headroom ());
+
+			//
+			//	Now the policy.  A critical particle into a full pool takes its slot from the
+			//	bottom: the ambient class, which is the least important thing in the world and is
+			//	holding more than it was promised.
+			//
+			const int sheds_before = WorldParticleBatchManager::Get_Shed_Count ();
+			const int critical_before =
+				WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_CRITICAL_GAMEPLAY);
+
+			Check (WorldParticleBatchManager::Emit (critical_b, origin, still),
+					 "a critical particle was refused by a pool full of ambient ones");
+			Check (WorldParticleBatchManager::Get_Shed_Count () == (sheds_before + 1),
+					 "one critical particle shed %d others",
+					 WorldParticleBatchManager::Get_Shed_Count () - sheds_before);
+			Check (WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_AMBIENT)
+						== (ambient_cap - 1),
+					 "the ambient budget went from %d to %d", ambient_cap,
+					 WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_AMBIENT));
+			Check (WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_CRITICAL_GAMEPLAY)
+						== (critical_before + 1),
+					 "the critical budget did not gain the particle the ambient one paid for");
+			Check (WorldParticleBatchManager::Get_Particle_Count ()
+						== WorldParticleBatchManager::Get_Pool_Size (),
+					 "shedding changed the number of particles in the pool");
+
+			//
+			//	Keep going until the ambient class is down to the share it was promised, and then
+			//	one more.  That one has to come out of the environment class instead -- the
+			//	reservation is the line nothing crosses.
+			//
+			for (int i = 0; i < (ambient_cap - 1 - ambient_floor); i ++) {
+				WorldParticleBatchManager::Emit (critical_b, origin, still);
+			}
+			Check (WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_AMBIENT)
+						== ambient_floor,
+					 "the ambient budget stopped at %d rather than at its reservation of %d",
+					 WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_AMBIENT),
+					 ambient_floor);
+
+			const int environment_before =
+				WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_ENVIRONMENT);
+
+			Check (WorldParticleBatchManager::Emit (critical_b, origin, still),
+					 "a critical particle was refused although two classes were above their reservations");
+			Check (WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_AMBIENT)
+						== ambient_floor,
+					 "a class sitting on its reservation was shed anyway");
+			Check (WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_ENVIRONMENT)
+						== (environment_before - 1),
+					 "the next slot did not come out of the environment class");
+
+			//
+			//	And the bottom of the list has nowhere to take a slot from.  An ambient particle
+			//	into a full pool does not happen, and says so.
+			//
+			const int refusals_before =
+				WorldParticleBatchManager::Get_Class_Refusal_Count (PARTICLE_BUDGET_AMBIENT);
+
+			Check (WorldParticleBatchManager::Emit (ambient, origin, still) == false,
+					 "an ambient particle took a slot out of a full pool");
+			Check (WorldParticleBatchManager::Get_Class_Refusal_Count (PARTICLE_BUDGET_AMBIENT)
+						== (refusals_before + 1),
+					 "a refused particle was not counted as refused");
+			Check (WorldParticleBatchManager::Get_Particle_Count ()
+						== WorldParticleBatchManager::Get_Pool_Size (),
+					 "a refused particle changed the pool");
+
+			//
+			//	Retuning a budget.  A reservation that does not fit next to the others is refused
+			//	rather than clamped, because a caller asking for the impossible wants to know.
+			//
+			Check (WorldParticleBatchManager::Set_Budget (PARTICLE_BUDGET_AMBIENT,
+																		 PARTICLE_BATCH_POOL_SIZE,
+																		 PARTICLE_BATCH_POOL_SIZE) == false,
+					 "a reservation of the whole pool was accepted next to four others");
+			Check (WorldParticleBatchManager::Get_Budget_Reserve (PARTICLE_BUDGET_AMBIENT) == ambient_floor,
+					 "a refused budget change was applied anyway");
+			Check (WorldParticleBatchManager::Set_Budget (PARTICLE_BUDGET_AMBIENT, 128, 1024),
+					 "a budget that fits was refused");
+			Check (WorldParticleBatchManager::Get_Budget_Reserve (PARTICLE_BUDGET_AMBIENT) == 128,
+					 "the new reservation did not take");
+			Check (WorldParticleBatchManager::Get_Budget_Cap (PARTICLE_BUDGET_AMBIENT) == 1024,
+					 "the new cap did not take");
+
+			WorldParticleBatchManager::Reset_Budgets ();
+			Check (WorldParticleBatchManager::Get_Budget_Reserve (PARTICLE_BUDGET_AMBIENT) == ambient_floor,
+					 "the budgets would not go back to their defaults");
+
+			//
+			//	Headroom, per class, with the pool empty again: whichever runs out first, the
+			//	class's own cap or the pool.
+			//
+			WorldParticleBatchManager::Clear_Particles ();
+			Check (WorldParticleBatchManager::Get_Class_Headroom (PARTICLE_BUDGET_AMBIENT) == ambient_cap,
+					 "an empty pool offers the ambient class %d of its %d",
+					 WorldParticleBatchManager::Get_Class_Headroom (PARTICLE_BUDGET_AMBIENT), ambient_cap);
+			Check (WorldParticleBatchManager::Get_Class_Headroom (PARTICLE_BUDGET_CRITICAL_GAMEPLAY)
+						== WorldParticleBatchManager::Get_Pool_Size (),
+					 "the critical class is capped below the pool it is allowed to fill");
+
+			//
+			//	A group's own ceiling is the other recycling rule, and it recycles inside the
+			//	group: one effect's ceiling is never paid for by another effect.
+			//
+			def.Set_Name ("check_narrow");
+			def.Set_Budget_Class (PARTICLE_BUDGET_AMBIENT);
+			def.Set_Max_Particles (4);
+			const int narrow = WorldParticleBatchManager::Define_Definition (def);
+			Check (narrow >= 0, "a kind with a small ceiling would not be defined");
+
+			if (narrow >= 0) {
+
+				for (int i = 0; i < 4; i ++) {
+					WorldParticleBatchManager::Emit (ambient, origin, still);
+				}
+				recycles_before = WorldParticleBatchManager::Get_Recycle_Count ();
+
+				for (int i = 0; i < 6; i ++) {
+					Check (WorldParticleBatchManager::Emit (narrow, origin, still),
+							 "an emission into a group at its ceiling was refused instead of recycled");
+				}
+
+				Check (WorldParticleBatchManager::Get_Group_Particle_Count (narrow) == 4,
+						 "a group with a ceiling of four holds %d",
+						 WorldParticleBatchManager::Get_Group_Particle_Count (narrow));
+				Check (WorldParticleBatchManager::Get_Recycle_Count () == (recycles_before + 2),
+						 "six particles into a group of four recycled %d",
+						 WorldParticleBatchManager::Get_Recycle_Count () - recycles_before);
+				Check (WorldParticleBatchManager::Get_Group_Particle_Count (ambient) == 4,
+						 "a group at its ceiling took %d particles from another group",
+						 4 - WorldParticleBatchManager::Get_Group_Particle_Count (ambient));
+			}
+		}
+	}
+
+	//
+	//	The world going away takes the particles and the buffers and leaves the tuning: a
+	//	particle is a thing happening in a place, a definition is a number somebody chose.
+	//
+	const int definitions = WorldParticleBatchManager::Get_Definition_Count ();
+	WorldParticleBatchManager::Release_Resources ();
+	Check (WorldParticleBatchManager::Get_Particle_Count () == 0,
+			 "%d particle(s) outlived their world", WorldParticleBatchManager::Get_Particle_Count ());
+	Check (WorldParticleBatchManager::Get_Definition_Count () == definitions,
+			 "unloading a world forgot %d kind(s) of particle",
+			 definitions - WorldParticleBatchManager::Get_Definition_Count ());
+	if (sprite_a >= 0) {
+		Check (WorldParticleBatchManager::Has_Geometry (sprite_a) == false,
+				 "a group's buffers outlived the world they were drawn in");
+	}
+
+	//
+	//	And the service going away takes everything.
+	//
+	WorldParticleBatchManager::Shutdown ();
+	Check (WorldParticleBatchManager::Get_Pool_Size () == 0, "the pool outlived the service");
+	Check (WorldParticleBatchManager::Get_Definition_Count () == 0,
+			 "%d kind(s) of particle outlived the service",
+			 WorldParticleBatchManager::Get_Definition_Count ());
+	Check (WorldParticleBatchManager::Get_Particle_Count () == 0, "particles outlived the service");
+}
+
+
 }	// anonymous namespace
 
 
@@ -3129,6 +3636,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "lights") == 0)) {
 		Check_Lights ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "particles") == 0)) {
+		Check_Particles ();
 	}
 
 	if (_Failures == 0) {

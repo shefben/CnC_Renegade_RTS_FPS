@@ -115,6 +115,7 @@
 #include "surfaceribbonsystem.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldlightmanager.h"
+#include "worldparticlebatchmanager.h"
 #include "worldshadowmanager.h"
 #include "lightenvironment.h"
 #include "dx8wrapper.h"
@@ -441,6 +442,16 @@ void PhysicsSceneClass::Update(float dt,int frameid)
 	}
 
 	/*
+	**	Batched particles move, age out and refill the buffers that draw them.  Roadmap Section
+	**	26.  Stepped here for the same reason as the marks above: there is one pool for the whole
+	**	world and no per-particle object to be stepped through, which is the point of it.
+	*/
+	{
+		WWPROFILE("WorldParticles");
+		WorldParticleBatchManager::Timestep(dt);
+	}
+
+	/*
 	** Process pending release requests
 	** Put here prior to rendering to insure items won't draw too many times.
 	*/
@@ -761,6 +772,14 @@ void PhysicsSceneClass::Remove_Object(PhysClass * obj)
  *=============================================================================================*/
 void PhysicsSceneClass::Remove_All(void)
 {
+	/*
+	**	The batched particle groups are dynamic objects, so the loop below would find them -- but
+	**	the particle pool is holding pointers to them, and an object removed from under it is a
+	**	group that silently stops drawing for the rest of the session.  They are taken out
+	**	through the pool instead, which forgets them as it goes.  Roadmap Section 26.
+	*/
+	WorldParticleBatchManager::Release_Resources();
+
 	PhysClass * obj = ObjList.Peek_Head();
 	while (obj) {
 		Remove_Object(obj);

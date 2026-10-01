@@ -53,6 +53,7 @@
 #include "surfacemarktype.h"
 #include "surfaceribbonsystem.h"
 #include "worldlightmanager.h"
+#include "worldparticlebatchmanager.h"
 #include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
 #include "ribbontype.h"
@@ -1797,6 +1798,222 @@ public:
 		int count = WorldLightManager::Get_Dynamic_Light_Count();
 		WorldLightManager::Remove_All_Dynamic_Lights();
 		Print( "light_clear: %d dynamic light(s) removed.\n", count );
+	}
+};
+
+
+class ParticleStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "particle_status"; }
+	virtual	const char * Get_Help( void ) override	{ return "PARTICLE_STATUS - how many batched particles exist, what they cost to draw, and what each budget class is holding."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		int particles	= WorldParticleBatchManager::Get_Particle_Count();
+		int pool			= WorldParticleBatchManager::Get_Pool_Size();
+		int drawn		= WorldParticleBatchManager::Get_Drawn_Particle_Count();
+		int submissions = WorldParticleBatchManager::Get_Submission_Count();
+
+		Print( "particle_status: %d of %d particle(s) live, %d slot(s) of headroom, peak %d.\n",
+				 particles, pool, WorldParticleBatchManager::Get_Headroom(),
+				 WorldParticleBatchManager::Get_Peak_Particle_Count() );
+
+		//	This is the acceptance stated in two numbers: the particles are counted in thousands
+		//	and the submissions in single figures, and the second must not follow the number of
+		//	effects that produced the first.
+		Print( "particle_status: %d drawn in %d submission(s) by %d object(s), %d culled by distance.\n",
+				 drawn, submissions, WorldParticleBatchManager::Get_Object_Count(),
+				 WorldParticleBatchManager::Get_Culled_Particle_Count() );
+
+		Print( "particle_status: %d group(s) defined, %d set(s) of buffers ever allocated, %d triangles.\n",
+				 WorldParticleBatchManager::Get_Definition_Count(),
+				 WorldParticleBatchManager::Get_Buffer_Allocation_Count(),
+				 WorldParticleBatchManager::Get_Poly_Count() );
+
+		for ( int c = 0; c < PARTICLE_BUDGET_CLASS_COUNT; c ++ ) {
+			Print( "particle_status:   %-18s %4d held, %4d reserved, %4d cap, %4d headroom, %d refused.\n",
+					 Particle_Budget_Class_Name( c ),
+					 WorldParticleBatchManager::Get_Class_Particle_Count( c ),
+					 WorldParticleBatchManager::Get_Budget_Reserve( c ),
+					 WorldParticleBatchManager::Get_Budget_Cap( c ),
+					 WorldParticleBatchManager::Get_Class_Headroom( c ),
+					 WorldParticleBatchManager::Get_Class_Refusal_Count( c ) );
+		}
+
+		Print( "particle_status: %d shed for something more important, %d recycled at a ceiling, %d refused.\n",
+				 WorldParticleBatchManager::Get_Shed_Count(),
+				 WorldParticleBatchManager::Get_Recycle_Count(),
+				 WorldParticleBatchManager::Get_Refusal_Count() );
+
+		int missing = WorldParticleBatchManager::Get_Missing_Texture_Count();
+		if ( missing > 0 ) {
+			Print( "particle_status: %d group(s) hold particles and name no texture -- try particle_texture.\n",
+					 missing );
+		}
+	}
+};
+
+
+class ParticleTextureConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "particle_texture"; }
+	virtual	const char * Get_Help( void ) override	{ return "PARTICLE_TEXTURE <texture> - draws every default kind of particle with the named texture.  No argument clears it again."; }
+	virtual	void Activate( const char * input ) override {
+
+		char	texture[ 128 ];
+		texture[ 0 ] = 0;
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%127s", texture );
+		}
+
+		if ( WorldParticleBatchManager::Get_Definition_Count() == 0 ) {
+			WorldParticleBatchManager::Define_Default_Batches();
+		}
+
+		//	Set_Definition_Texture rather than redefining the kind: the particles already in
+		//	flight keep flying and appear as soon as the next frame builds the group's object,
+		//	which is what makes this something you can watch happen.
+		int count = WorldParticleBatchManager::Get_Definition_Count();
+		for ( int i = 0; i < count; i ++ ) {
+			WorldParticleBatchManager::Set_Definition_Texture( i, texture );
+		}
+
+		if ( texture[ 0 ] != 0 ) {
+			Print( "particle_texture: %d kind(s) of particle will draw with %s.\n", count, texture );
+			Print( "particle_texture: try particle_test 600.\n" );
+		} else {
+			Print( "particle_texture: %d kind(s) of particle draw nothing again.\n", count );
+		}
+	}
+};
+
+
+class ParticleTestConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "particle_test"; }
+	virtual	const char * Get_Help( void ) override	{ return "PARTICLE_TEST <count> [speed] - throws that many particles up around the camera, spread across every default kind."; }
+	virtual	void Activate( const char * input ) override {
+
+		int	count	= 600;
+		float	speed	= 6.0f;
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%d %f", &count, &speed );
+		}
+		if ( count < 1 )		{ count = 1; }
+		if ( count > PARTICLE_BATCH_POOL_SIZE ) { count = PARTICLE_BATCH_POOL_SIZE; }
+		if ( speed < 0.0f )	{ speed = 0.0f; }
+
+		if ( WorldParticleBatchManager::Get_Definition_Count() == 0 ) {
+			WorldParticleBatchManager::Define_Default_Batches();
+		}
+
+		int kinds = WorldParticleBatchManager::Get_Definition_Count();
+		if ( kinds == 0 ) {
+			Print( "particle_test: no kinds of particle are defined.\n" );
+			return ;
+		}
+
+		Vector3 center( 0.0f, 0.0f, 0.0f );
+		if ( COMBAT_SCENE != nullptr ) {
+			center = COMBAT_SCENE->Get_Last_Camera_Position();
+		}
+
+		//	One burst per kind, a few metres apart, so that sprites, points and streaks are all
+		//	in front of the camera at once and which is which is something the eye can answer.
+		int per_kind = count / kinds;
+		if ( per_kind < 1 ) { per_kind = 1; }
+
+		int made = 0;
+		for ( int k = 0; k < kinds; k ++ ) {
+
+			float angle = 2.0f * WWMATH_PI * float( k ) / float( kinds );
+			Vector3 spot( center.X + ( 6.0f * WWMath::Cos( angle ) ),
+							  center.Y + ( 6.0f * WWMath::Sin( angle ) ),
+							  center.Z + 1.0f );
+
+			made += WorldParticleBatchManager::Emit_Burst( k, spot, per_kind, speed, 0.5f );
+		}
+
+		Print( "particle_test: %d of %d particle(s) emitted across %d kind(s) around %.1f,%.1f,%.1f.\n",
+				 made, count, kinds, center.X, center.Y, center.Z );
+		Print( "particle_test: %d live, %d slot(s) of headroom left.  particle_status for the cost.\n",
+				 WorldParticleBatchManager::Get_Particle_Count(),
+				 WorldParticleBatchManager::Get_Headroom() );
+
+		if ( WorldParticleBatchManager::Get_Missing_Texture_Count() > 0 ) {
+			Print( "particle_test: nothing will be drawn until particle_texture names one.\n" );
+		}
+	}
+};
+
+
+class ParticleBudgetConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "particle_budget"; }
+	virtual	const char * Get_Help( void ) override	{ return "PARTICLE_BUDGET <class> <reserve> <cap> - retunes one budget class, by index 0 (critical) to 4 (ambient).  No argument resets them all."; }
+	virtual	void Activate( const char * input ) override {
+
+		int budget_class	= -1;
+		int reserve			= -1;
+		int cap				= -1;
+
+		int fields = 0;
+		if ( input != nullptr ) {
+			fields = ::sscanf( input, "%d %d %d", &budget_class, &reserve, &cap );
+		}
+
+		if ( fields < 3 ) {
+			WorldParticleBatchManager::Reset_Budgets();
+			Print( "particle_budget: every class is back at its default.  %d of %d slots reserved.\n",
+					 WorldParticleBatchManager::Get_Reserved_Total(),
+					 WorldParticleBatchManager::Get_Pool_Size() );
+			Print( "particle_budget: particle_status prints what each class is holding.\n" );
+			return ;
+		}
+
+		if ( ( budget_class < 0 ) || ( budget_class >= PARTICLE_BUDGET_CLASS_COUNT ) ) {
+			Print( "particle_budget: %d is not a budget class.  0 is critical gameplay, %d is ambient.\n",
+					 budget_class, (int)PARTICLE_BUDGET_CLASS_COUNT - 1 );
+			return ;
+		}
+
+		if ( !WorldParticleBatchManager::Set_Budget( budget_class, reserve, cap ) ) {
+			//	The only way this fails is a reservation that does not fit next to the others,
+			//	because a reservation that cannot be honoured is not a budget.
+			Print( "particle_budget: %s cannot reserve %d -- the other classes have already promised %d of %d.\n",
+					 Particle_Budget_Class_Name( budget_class ), reserve,
+					 WorldParticleBatchManager::Get_Reserved_Total()
+						- WorldParticleBatchManager::Get_Budget_Reserve( budget_class ),
+					 WorldParticleBatchManager::Get_Pool_Size() );
+			return ;
+		}
+
+		Print( "particle_budget: %s now reserves %d and holds at most %d, %d of %d slots reserved in all.\n",
+				 Particle_Budget_Class_Name( budget_class ),
+				 WorldParticleBatchManager::Get_Budget_Reserve( budget_class ),
+				 WorldParticleBatchManager::Get_Budget_Cap( budget_class ),
+				 WorldParticleBatchManager::Get_Reserved_Total(),
+				 WorldParticleBatchManager::Get_Pool_Size() );
+	}
+};
+
+
+class ParticleClearConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "particle_clear"; }
+	virtual	const char * Get_Help( void ) override	{ return "PARTICLE_CLEAR - removes every batched particle.  The buffers are kept."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		int count = WorldParticleBatchManager::Get_Particle_Count();
+		WorldParticleBatchManager::Clear_Particles();
+		Print( "particle_clear: %d particle(s) removed, %d set(s) of buffers kept.\n",
+				 count, WorldParticleBatchManager::Get_Buffer_Allocation_Count() );
 	}
 };
 
@@ -6241,6 +6458,11 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new LightStatusConsoleFunctionClass() );
 	FunctionList.Add( new LightTestConsoleFunctionClass() );
 	FunctionList.Add( new LightClearConsoleFunctionClass() );
+	FunctionList.Add( new ParticleStatusConsoleFunctionClass() );
+	FunctionList.Add( new ParticleTextureConsoleFunctionClass() );
+	FunctionList.Add( new ParticleTestConsoleFunctionClass() );
+	FunctionList.Add( new ParticleBudgetConsoleFunctionClass() );
+	FunctionList.Add( new ParticleClearConsoleFunctionClass() );
 	FunctionList.Add( new DSAPOResetConsoleFunctionClass() );
 	FunctionList.Add( new EnableTriangleRenderConsoleFunctionClass() );
 	FunctionList.Add( new ExposePrelitConsoleFunctionClass() );

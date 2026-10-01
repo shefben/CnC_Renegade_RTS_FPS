@@ -1521,3 +1521,20 @@ actually reach the object, returning the same pointer untouched when none do. Ab
 `terrain_lights` proves as a number: the same question over a full sixty-four-light table examines no
 more lights than it does over eight. Evidence: `docs/zerohour/WorldLightManager.md`; twenty-eight
 green terrain ctest entries including the new `terrain_lights` and `fds_terrain_lights`.
+## P22-A: One pool of particles, and a submission is three hundred of them
+
+`WorldParticleBatchManager` (`Code/WWPhys/worldparticlebatchmanager.*`, with
+`Code/WWPhys/particlebatchtype.*`) holds one fixed pool of 4096 particles for the whole world as
+sprites, points and streaks, batched into one set of vertex buffers per texture group and drawn
+through the now-registered `MATERIAL_PROGRAM_PARTICLE` pipeline, which also owns the material the
+engine's point and line batchers never set. Every particle is spawned into one of Section 26's five
+budget classes, each with a reservation it can always have and a cap it may never pass, and a full
+pool sheds the oldest particle of the least important class above its reservation in constant time.
+Absorbs the acceptance *Large firefights do not explode draw calls or allocations linearly with
+particle count*, which `terrain_particles` proves as numbers: 1800 particles emitted one at a time
+across two groups cost six draw submissions and two buffer allocations, and 400 streaks add one
+submission. The authored W3D emitters keep `ParticleBufferClass` deliberately -- their behaviour is
+in the asset. Evidence: `docs/zerohour/WorldParticleBatchManager.md`,
+`docs/assets/ParticleSprites.md`; `terrain_particles`/`fds_terrain_particles` added and
+`shader_programs` extended for the new pipeline, both run green on Linux through
+`tools/linuxcheck/selfcheck.sh` (see WIP for why that is not a build).

@@ -41,6 +41,7 @@ textures load unmodified, and no name we invent may shadow one of theirs.
 | [WaterModels.md](WaterModels.md) | Water surface textures (roadmap Section 22) | 6 textures |
 | [RibbonSurfaces.md](RibbonSurfaces.md) | Ground mark textures -- tracks, scorches, drag marks (roadmap Section 23) | 5 textures |
 | [SurfaceMarks.md](SurfaceMarks.md) | Surface mark textures -- scorches, blasts, stains, impacts (roadmap Section 35) | 7 textures |
+| [ParticleSprites.md](ParticleSprites.md) | Batched particle textures -- smoke, dust, sparks, streaks, embers (roadmap Section 26) | 6 textures |
 
 ## Format of an entry
 
