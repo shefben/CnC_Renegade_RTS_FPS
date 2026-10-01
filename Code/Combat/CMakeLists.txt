@@ -141,6 +141,7 @@ set(COMBAT_SRC
     weaponmanager.cpp
     weapons.cpp
     weaponview.cpp
+    weatherenvironment.cpp
     WeatherMgr.cpp
     worldspatialindex.cpp
     action.h
@@ -283,6 +284,7 @@ set(COMBAT_SRC
     weaponmanager.h
     weapons.h
     weaponview.h
+    weatherenvironment.h
     WeatherMgr.h
     worldspatialindex.h
     assets.cpp

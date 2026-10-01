@@ -138,6 +138,29 @@ class WeatherSystemClass : public RenderObjClass
 		}
 
 		void Set_Density (float density);
+
+		/*
+		**	The budget -- roadmap Section 36, which asks for bounded particle budgets.
+		**
+		**	Stock Renegade bounded this accidentally and globally: Spawn refused once the total
+		**	particle count over every weather system reached USHRT_MAX/6, which is a limit of the
+		**	index buffer rather than a decision about what a frame can afford, and which the
+		**	first system to ask was free to spend all of.  Rain could therefore starve snow
+		**	entirely, and the number at which any of it stopped was 10922 whatever the machine.
+		**
+		**	So the ceiling is now a number somebody chose, and each live system is told its share
+		**	of it.  Zero means no share, which is how a system that is fading out stops being
+		**	refilled; the index-buffer limit still applies underneath, because it is real.
+		*/
+		static void		Set_Global_Particle_Budget (unsigned budget);
+		static unsigned	Get_Global_Particle_Budget()	{return (_GlobalParticleBudget);}
+		static unsigned	Get_Global_Particle_Count()	{return (_GlobalParticleCount);}
+		static unsigned	Get_Particle_Limit();
+
+		void		Set_Particle_Budget (unsigned budget)	{ParticleBudget = budget;}
+		unsigned Get_Particle_Budget() const					{return (ParticleBudget);}
+		unsigned Get_Particle_Count() const					{return (ParticleCount);}
+
 		void Render (RenderInfoClass &rinfo) override;
 		void Get_Obj_Space_Bounding_Sphere (SphereClass &sphere) const override;
 		void Get_Obj_Space_Bounding_Box (AABoxClass &box) const override;
@@ -212,6 +235,7 @@ class WeatherSystemClass : public RenderObjClass
 		Vector3									 ObjectMin, ObjectMax;	// Bounding box around this render object (for culling purposes).
 		ParticleStruct							*ParticleHead;				// Head of list of particles in system.
 		unsigned									 ParticleCount;			// No. of particles in system.
+		unsigned									 ParticleBudget;			// Most particles this system may hold at once.
 
 		#if WEATHER_PARTICLE_SORT
 		SortingIndexBufferClass				*IndexBuffer;
@@ -234,6 +258,7 @@ class WeatherSystemClass : public RenderObjClass
 
 		static Random2Class					_RandomNumber;				// Random no. generator.
 		static unsigned						_GlobalParticleCount;	// Total no. of particles over all weather systems.
+		static unsigned						_GlobalParticleBudget;	// Most particles every weather system may hold between them.
 };
 
 
@@ -320,13 +345,36 @@ class	WeatherMgrClass : public SaveLoadSubSystemClass, public NetworkObjectClass
 {
 	public:
 
+		/*
+		**	The weather a level can ask for -- roadmap Section 36's six initial visual modes.
+		**
+		**	The first three fall and land: they are WeatherSystemClass, which casts rays down from
+		**	a box above the camera so that nothing spawns where the sky cannot be seen, which is
+		**	why snow does not fall inside a Renegade building.  The last three hang in the air
+		**	instead, and are drawn by WeatherEnvironmentRenderer out of the batched particle pool,
+		**	because an atmospheric mote neither falls nor lands and a ray cast for one would be a
+		**	ray cast for nothing.
+		**
+		**	Both halves are one weather state: the same density parameter, the same ramping and
+		**	override, the same save file and the same packet.  New modes are appended, so the
+		**	numbering of the three a script or a level already names cannot move.
+		*/
 		enum PrecipitationEnum {
 			PRECIPITATION_FIRST,
 			PRECIPITATION_RAIN = PRECIPITATION_FIRST,
 			PRECIPITATION_SNOW,
 			PRECIPITATION_ASH,
+			PRECIPITATION_DUST,
+			PRECIPITATION_TIBERIUM,
+			PRECIPITATION_FALLING_PARTICLES,
 			PRECIPITATION_COUNT
 		};
+
+		//	Whether this kind of weather falls and lands, or hangs in the air.
+		static bool Is_Atmospheric (PrecipitationEnum precipitation);
+
+		//	What a kind of weather is called, for the console and the checks.
+		static const char *Get_Precipitation_Name (PrecipitationEnum precipitation);
 
 		 WeatherMgrClass();
 		~WeatherMgrClass() {}
@@ -372,6 +420,14 @@ class	WeatherMgrClass : public SaveLoadSubSystemClass, public NetworkObjectClass
 		static bool Set_Fog_Range (float startdistance, float enddistance, float ramptime = 0.0f);
 		static void Get_Fog_Range (float &startdistance, float &enddistance);
 
+		/*
+		**	How many particles one kind of precipitation is holding, and what it is allowed to
+		**	hold.  Zero for a kind with no live system, which is also the answer on a dedicated
+		**	server and before anything has asked for weather.
+		*/
+		static unsigned Get_Precipitation_Particle_Count (PrecipitationEnum precipitation);
+		static unsigned Get_Precipitation_Particle_Budget (PrecipitationEnum precipitation);
+
 		static void Update (PhysicsSceneClass *scene, CameraClass *camera);
 		static void Render (const CameraClass *camera);
 
@@ -406,7 +462,13 @@ class	WeatherMgrClass : public SaveLoadSubSystemClass, public NetworkObjectClass
 
 			VARID_FOG_ENABLED,
 			VARID_PARAMETER (FOG_START_DISTANCE),
-			VARID_PARAMETER (FOG_END_DISTANCE)
+			VARID_PARAMETER (FOG_END_DISTANCE),
+
+			//	Appended, and appended deliberately: a saved game identifies a field by its id,
+			//	so a new one has to come after every id that already exists in a save file.
+			VARID_PARAMETER (DUST_DENSITY),
+			VARID_PARAMETER (TIBERIUM_DENSITY),
+			VARID_PARAMETER (FALLING_DENSITY)
 		};
 
 		#undef VARID_PARAMETER
@@ -420,11 +482,29 @@ class	WeatherMgrClass : public SaveLoadSubSystemClass, public NetworkObjectClass
 			PARAMETER_ASH_DENSITY,
 			PARAMETER_FOG_START_DISTANCE,
 			PARAMETER_FOG_END_DISTANCE,
+			PARAMETER_DUST_DENSITY,
+			PARAMETER_TIBERIUM_DENSITY,
+			PARAMETER_FALLING_DENSITY,
 			PARAMETER_COUNT
 		};
 
 		static bool Set_Wind (float heading, float speed, float variability, float ramptime, bool override);
 		static bool Set_Precipitation (PrecipitationEnum precipitation, float density, float ramptime, bool override);
+
+		/*
+		**	What each kind of weather is: which density parameter it ramps, whether it falls and
+		**	lands or hangs in the air, and which mode of the environment layer draws it when it
+		**	hangs.  One table, so that adding a kind of weather is a row rather than a case in
+		**	three switches that can disagree.
+		*/
+		struct DescriptorStruct {
+			const char *Name;
+			int			Parameter;
+			bool			Atmospheric;
+			int			EnvironmentMode;
+		};
+
+		static const DescriptorStruct &Get_Descriptor (PrecipitationEnum precipitation);
 
 		static bool Is_Dirty()							{return (_Dirty);}
 		static void Set_Dirty (bool dirty = true)	{_Dirty = dirty;}

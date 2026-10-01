@@ -55,11 +55,22 @@
 #include "sortingrenderer.h"
 #include "SoundEnvironment.h"
 #include "WWAudio.h"
+#include "weatherenvironment.h"
 #include "wwmemlog.h"
 
 
 // Singletons.
 WeatherMgrClass _TheWeatherMgr;
+
+
+/*
+**	How many particles every weather system in the world may hold between them -- roadmap
+**	Section 36's bounded particle budget.  Eight thousand is below the index-buffer limit the
+**	stock code stopped at and above anything three simultaneous precipitation types produce at
+**	the densities a level actually sets, so it bounds the pathological case and is invisible in
+**	the ordinary one.
+*/
+static constexpr unsigned WEATHER_DEFAULT_PARTICLE_BUDGET = 8192;
 
 
 // Static data.
@@ -68,6 +79,7 @@ DEFINE_AUTO_POOL(WeatherSystemClass::ParticleStruct, WeatherSystemClass::GROWTH_
 
 Random2Class									 WeatherSystemClass::_RandomNumber (0x60486223);
 unsigned											 WeatherSystemClass::_GlobalParticleCount = 0;
+unsigned											 WeatherSystemClass::_GlobalParticleBudget = WEATHER_DEFAULT_PARTICLE_BUDGET;
 
 SoundEnvironmentClass						*WeatherMgrClass::_SoundEnvironment;
 WeatherParameterClass						 WeatherMgrClass::_Parameters [PARAMETER_COUNT];
@@ -262,6 +274,7 @@ WeatherSystemClass::WeatherSystemClass	(PhysicsSceneClass *scene,
 	  RayUpdatePtr (nullptr),
 	  ParticleHead (nullptr),
 	  ParticleCount (0),
+	  ParticleBudget (_GlobalParticleBudget),
 	  MinRayEndZ (FLT_MAX),
 	  SpawnCountFraction (0.0f),
 	  PageCount (pagecount),
@@ -829,6 +842,31 @@ bool WeatherSystemClass::Update (WindClass *wind, const Vector3 &cameraposition)
 
 
 /***********************************************************************************************
+ * WeatherSystemClass::Get_Particle_Limit -- what the renderer can hold, whatever anybody wants *
+ *                                                                                             *
+ * A weather system draws itself through one index buffer of unsigned shorts, so there is a     *
+ * number of particles past which it cannot address its own vertices.  Half of it, because the  *
+ * same buffer carries the other primitives in the system.  Nothing can raise this.            *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+unsigned WeatherSystemClass::Get_Particle_Limit()
+{
+	return (USHRT_MAX / (2 * VERTICES_PER_TRIANGLE));
+}
+
+
+/***********************************************************************************************
+ * WeatherSystemClass::Set_Global_Particle_Budget --                                           *
+ *                                                                                             *
+ * Clamped to what the renderer can hold rather than refused, because a caller asking for more  *
+ * than that is asking for as much as possible and should get it.                               *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+void WeatherSystemClass::Set_Global_Particle_Budget (unsigned budget)
+{
+	_GlobalParticleBudget = MIN (budget, Get_Particle_Limit());
+}
+
+
+/***********************************************************************************************
  * WeatherSystemClass::Spawn --																					  *
  *                                                                                             *
  * INPUT:                                                                                      *
@@ -842,12 +880,16 @@ bool WeatherSystemClass::Update (WindClass *wind, const Vector3 &cameraposition)
  *=============================================================================================*/
 bool WeatherSystemClass::Spawn (RayStruct *suppliedrayptr)
 {
-	const unsigned maxparticlecount = USHRT_MAX / (2 * VERTICES_PER_TRIANGLE);
+	//	Three ceilings, and only the last of them is a hardware fact.  This system's share of the
+	//	budget stops one kind of weather spending all of it; the budget stops every kind of
+	//	weather between them costing more than somebody decided a frame can afford; and the index
+	//	limit is the one the renderer imposes whatever anybody decided, because a system cannot
+	//	address more than USHRT_MAX vertices and this is conservatively half of that.
+	if (ParticleCount >= ParticleBudget) {
+		return (false);
+	}
 
-	// Due to a limitation in the underlying rendering API, there cannot be more than USHRT_MAX
-	// total vertices in the system. Conservatively restrict this to half of this to compensate
-	// for other primitives in the system.
-	if (_GlobalParticleCount < maxparticlecount) {
+	if (_GlobalParticleCount < MIN (_GlobalParticleBudget, Get_Particle_Limit())) {
 
 		RayStruct *rayptr;
 
@@ -1551,6 +1593,46 @@ WeatherMgrClass::WeatherMgrClass()
 
 
 /***********************************************************************************************
+ * WeatherMgrClass::Get_Descriptor -- what a kind of weather is                                *
+ *                                                                                             *
+ * The stock code asked this question with a switch in the update loop that mapped a            *
+ * precipitation type to its density parameter, and a second switch a few lines later that      *
+ * mapped it to a constructor.  Two switches over the same enumeration are two places to        *
+ * forget, so the answer is a table and the loop reads it.                                      *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+const WeatherMgrClass::DescriptorStruct &WeatherMgrClass::Get_Descriptor (PrecipitationEnum precipitation)
+{
+	static const DescriptorStruct _descriptors [PRECIPITATION_COUNT] = {
+
+		//	Falls, lands, and is spawned only where a ray says the sky can be seen.
+		{"rain",		 PARAMETER_RAIN_DENSITY,		  false, -1},
+		{"snow",		 PARAMETER_SNOW_DENSITY,		  false, -1},
+		{"ash",		 PARAMETER_ASH_DENSITY,			  false, -1},
+
+		//	Hangs in the air, and is drawn out of the batched particle pool -- roadmap Section 36.
+		{"dust",		 PARAMETER_DUST_DENSITY,		  true,  WEATHER_ENVIRONMENT_DUST},
+		{"tiberium", PARAMETER_TIBERIUM_DENSITY,	  true,  WEATHER_ENVIRONMENT_TIBERIUM},
+		{"falling",	 PARAMETER_FALLING_DENSITY,	  true,  WEATHER_ENVIRONMENT_FALLING},
+	};
+
+	WWASSERT ((precipitation >= PRECIPITATION_FIRST) && (precipitation < PRECIPITATION_COUNT));
+	return (_descriptors [precipitation]);
+}
+
+
+bool WeatherMgrClass::Is_Atmospheric (PrecipitationEnum precipitation)
+{
+	return (Get_Descriptor (precipitation).Atmospheric);
+}
+
+
+const char *WeatherMgrClass::Get_Precipitation_Name (PrecipitationEnum precipitation)
+{
+	return (Get_Descriptor (precipitation).Name);
+}
+
+
+/***********************************************************************************************
  * WeatherMgrClass::Init --																						  *
  *                                                                                             *
  * INPUT:                                                                                      *
@@ -1572,6 +1654,11 @@ void WeatherMgrClass::Init (SoundEnvironmentClass *soundenvironment)
 	for (int p = PRECIPITATION_FIRST; p < PRECIPITATION_COUNT; p++) {
 		_Precipitation [p] = nullptr;
 	}
+
+	//	The atmospheric half of the weather -- roadmap Section 36.  It defines one particle kind
+	//	per mode in the batched pool and allocates nothing else, so this costs nothing until a
+	//	level asks for dust.
+	WeatherEnvironmentRenderer::Init();
 
 	Reset();
 }
@@ -1612,6 +1699,9 @@ void WeatherMgrClass::Reset()
 			Set_Precipitation ((PrecipitationEnum) p, 0.0f, 0.0f, false);
 		}
 	}
+	//	The motes hanging in the air belonged to the level that is going away.
+	WeatherEnvironmentRenderer::Reset();
+
 	Set_Fog_Enable (false);
 	Set_Fog_Range (200.0f, 300.0f);
 
@@ -1639,6 +1729,7 @@ void WeatherMgrClass::Reset()
 void WeatherMgrClass::Shutdown()
 {
 	Reset();
+	WeatherEnvironmentRenderer::Shutdown();
 	REF_PTR_RELEASE (_SoundEnvironment);
 }
 
@@ -1968,6 +2059,28 @@ void WeatherMgrClass::Get_Fog_Range (float &startdistance, float &enddistance)
 }
 
 
+unsigned WeatherMgrClass::Get_Precipitation_Particle_Count (PrecipitationEnum precipitation)
+{
+	WWASSERT ((precipitation >= PRECIPITATION_FIRST) && (precipitation < PRECIPITATION_COUNT));
+
+	if (_Precipitation [precipitation] == nullptr) {
+		return (0);
+	}
+	return (_Precipitation [precipitation]->Get_Particle_Count());
+}
+
+
+unsigned WeatherMgrClass::Get_Precipitation_Particle_Budget (PrecipitationEnum precipitation)
+{
+	WWASSERT ((precipitation >= PRECIPITATION_FIRST) && (precipitation < PRECIPITATION_COUNT));
+
+	if (_Precipitation [precipitation] == nullptr) {
+		return (0);
+	}
+	return (_Precipitation [precipitation]->Get_Particle_Budget());
+}
+
+
 /***********************************************************************************************
  * WeatherMgrClass::Update --																						  *
  *                                                                                             *
@@ -2010,35 +2123,39 @@ void WeatherMgrClass::Update (PhysicsSceneClass *scene, CameraClass *camera)
 		}
 	}
 
+	//	How many precipitation systems are live, because each one's share of the particle budget
+	//	is the budget divided between them.  Stock Renegade let whichever system asked first
+	//	spend the whole global allowance, so rain could leave snow with nothing -- roadmap
+	//	Section 36 asks for bounded budgets, and a budget one claimant can empty is not one.
+	unsigned livesystemcount = 0;
+	for (int l = PRECIPITATION_FIRST; l < PRECIPITATION_COUNT; l++) {
+		if (_Precipitation [l] != nullptr) livesystemcount++;
+	}
+
 	for (int p = PRECIPITATION_FIRST; p < PRECIPITATION_COUNT; p++) {
 
-		WeatherParameterClass *parameterptr = nullptr;
-		bool						  modified;
-
-		switch (p) {
-
-		  	case PRECIPITATION_RAIN:
-				parameterptr = &_Parameters [PARAMETER_RAIN_DENSITY];
-				break;
-
-		  	case PRECIPITATION_SNOW:
-				parameterptr = &_Parameters [PARAMETER_SNOW_DENSITY];
-				break;
-
-		  	case PRECIPITATION_ASH:
-				parameterptr = &_Parameters [PARAMETER_ASH_DENSITY];
-				break;
-
-			default:
-				WWASSERT (false);
-				break;
-		}
+		const DescriptorStruct	&descriptor  = Get_Descriptor ((PrecipitationEnum) p);
+		WeatherParameterClass	*parameterptr = &_Parameters [descriptor.Parameter];
+		bool							 modified;
 
 		modified = parameterptr->Update (time, _PrecipitationOverrideCount > 0);
+
+		//	Weather that hangs in the air has no system of its own: the environment layer draws it
+		//	out of the batched particle pool, where the budget and the batching already are.  So
+		//	handing over the density is the whole of the dispatch.
+		if (descriptor.Atmospheric) {
+			WeatherEnvironmentRenderer::Set_Density (descriptor.EnvironmentMode, parameterptr->Value());
+			continue;
+		}
+
 	  	if (_Precipitation [p] != nullptr) {
 	  		if (modified) {
 	  			_Precipitation [p]->Set_Density (parameterptr->Value());
 	  		}
+
+			_Precipitation [p]->Set_Particle_Budget ((livesystemcount > 0)
+																? (WeatherSystemClass::Get_Global_Particle_Budget() / livesystemcount)
+																: 0);
 
 	  		// Optimization: if there is nothing to update, can safely remove the weather system.
 	  		if (!_Precipitation [p]->Update (_Wind, camera->Get_Position())) {
@@ -2076,6 +2193,23 @@ void WeatherMgrClass::Update (PhysicsSceneClass *scene, CameraClass *camera)
 				}
 			}
 		}
+	}
+
+	/*
+	**	The air of the place, and the wind that moves it.  The same WindClass the precipitation
+	**	uses, so a gust moves the dust and the snow together.  Not on a dedicated server: it has
+	**	no camera to carry the volume with and nothing to draw a mote with.
+	*/
+	if (!CombatManager::I_Am_Only_Server() && (camera != nullptr)) {
+
+		Vector3 windvelocity (0.0f, 0.0f, 0.0f);
+		if (_Wind != nullptr) {
+			const Vector2 velocity = _Wind->Get_Velocity();
+			windvelocity.Set (velocity.X, velocity.Y, 0.0f);
+		}
+
+		WeatherEnvironmentRenderer::Set_Wind (windvelocity);
+		WeatherEnvironmentRenderer::Update (camera->Get_Position());
 	}
 
 	fogmodified  = _Parameters [PARAMETER_FOG_START_DISTANCE].Update (time, false);
@@ -2157,6 +2291,9 @@ bool WeatherMgrClass::Save_Dynamic (ChunkSaveClass &csave)
 	WRITE_MICRO_CHUNK (csave, VARID_FOG_ENABLED, _FogEnabled);
 	WRITE_PARAMETER (FOG_START_DISTANCE);
 	WRITE_PARAMETER (FOG_END_DISTANCE);
+	WRITE_PARAMETER (DUST_DENSITY);
+	WRITE_PARAMETER (TIBERIUM_DENSITY);
+	WRITE_PARAMETER (FALLING_DENSITY);
 	csave.End_Chunk ();
 	return (true);
 }
@@ -2287,6 +2424,9 @@ bool WeatherMgrClass::Load_Dynamic_Micro_Chunks (ChunkLoadClass &cload)
 			READ_MICRO_CHUNK (cload, VARID_FOG_ENABLED, _FogEnabled);
 			READ_PARAMETER (FOG_START_DISTANCE);
 			READ_PARAMETER (FOG_END_DISTANCE);
+			READ_PARAMETER (DUST_DENSITY);
+			READ_PARAMETER (TIBERIUM_DENSITY);
+			READ_PARAMETER (FALLING_DENSITY);
 		}
 		cload.Close_Micro_Chunk ();
 	}
@@ -2323,6 +2463,9 @@ void WeatherMgrClass::Export_Rare (BitStreamClass &packet)
 	EXPORT_PARAMETER (packet, RAIN_DENSITY);
 	EXPORT_PARAMETER (packet, SNOW_DENSITY);
 	EXPORT_PARAMETER (packet, ASH_DENSITY);
+	EXPORT_PARAMETER (packet, DUST_DENSITY);
+	EXPORT_PARAMETER (packet, TIBERIUM_DENSITY);
+	EXPORT_PARAMETER (packet, FALLING_DENSITY);
 	packet.Add (_WindOverrideCount);
 	packet.Add (_PrecipitationOverrideCount);
 }
@@ -2356,6 +2499,9 @@ void WeatherMgrClass::Import_Rare (BitStreamClass &packet)
 	IMPORT_PARAMETER (packet, RAIN_DENSITY);
 	IMPORT_PARAMETER (packet, SNOW_DENSITY);
 	IMPORT_PARAMETER (packet, ASH_DENSITY);
+	IMPORT_PARAMETER (packet, DUST_DENSITY);
+	IMPORT_PARAMETER (packet, TIBERIUM_DENSITY);
+	IMPORT_PARAMETER (packet, FALLING_DENSITY);
 	packet.Get (_WindOverrideCount);
 	packet.Get (_PrecipitationOverrideCount);
 

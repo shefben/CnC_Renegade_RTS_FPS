@@ -20,6 +20,7 @@
 #
 #	Usage:
 #		tools/linuxcheck/selfcheck.sh particles      # roadmap Section 26, the particle pool
+#		tools/linuxcheck/selfcheck.sh weather        # roadmap Section 36, the weather layer
 #		tools/linuxcheck/selfcheck.sh programs       # roadmap Section 15, the shader manager
 #
 #	Adding a check: give it a case below naming its self-check TU, its entry point and the
@@ -53,6 +54,17 @@ particles)
 		Code/wwphys/worldparticlebatchmanager.cpp
 		Code/ww3d2/pointgr.cpp
 		Code/ww3d2/linegrp.cpp"
+	;;
+weather)
+	CHECK_TU="Code/Commando/terrainselfcheck.cpp"
+	CHECK_HEADER="terrainselfcheck.h"
+	CHECK_CALL="TerrainSelfCheck::Run"
+	SOURCES="Code/Combat/weatherenvironment.cpp
+		Code/wwphys/particlebatchtype.cpp
+		Code/wwphys/worldparticlebatchmanager.cpp
+		Code/ww3d2/pointgr.cpp
+		Code/ww3d2/linegrp.cpp
+		Code/Combat/WeatherMgr.cpp"
 	;;
 programs)
 	CHECK_TU="Code/Commando/shaderselfcheck.cpp"

@@ -128,6 +128,7 @@
 #include "dx8wrapper.h"
 #include "sortingrenderer.h"
 #include "WeatherMgr.h"
+#include "weatherenvironment.h"
 #include "mapmgr.h"
 #include "Path.h"
 #include "sctextobj.h"
@@ -6291,6 +6292,192 @@ public:
 	}
 };
 
+class WeatherConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "weather"; }
+	virtual	const char * Get_Help( void ) override	{ return "WEATHER <rain|snow|ash|dust|tiberium|falling> <density> [ramptime] - sets one kind of weather.  No argument lists them."; }
+	virtual	void Activate( const char * input ) override {
+
+		char	name[ 32 ];
+		float	density	= 0.0f;
+		float	ramptime	= 0.0f;
+
+		name[ 0 ] = 0;
+		int fields = 0;
+		if ( input != nullptr ) {
+			fields = ::sscanf( input, "%31s %f %f", name, &density, &ramptime );
+		}
+
+		if ( fields < 2 ) {
+			Print( "weather: what every kind of weather is set to --\n" );
+			for ( int p = WeatherMgrClass::PRECIPITATION_FIRST; p < WeatherMgrClass::PRECIPITATION_COUNT; p ++ ) {
+
+				WeatherMgrClass::PrecipitationEnum precipitation = (WeatherMgrClass::PrecipitationEnum)p;
+				float current = 0.0f;
+				WeatherMgrClass::Get_Precipitation( precipitation, current );
+
+				Print( "weather:   %-9s density %.2f, %s\n",
+						 WeatherMgrClass::Get_Precipitation_Name( precipitation ), current,
+						 WeatherMgrClass::Is_Atmospheric( precipitation ) ? "hangs in the air" : "falls and lands" );
+			}
+			return ;
+		}
+
+		//	The name rather than the number, because the number is an enumeration nobody at a
+		//	console should have to remember.
+		int found = -1;
+		for ( int p = WeatherMgrClass::PRECIPITATION_FIRST; p < WeatherMgrClass::PRECIPITATION_COUNT; p ++ ) {
+			if ( ::stricmp( WeatherMgrClass::Get_Precipitation_Name( (WeatherMgrClass::PrecipitationEnum)p ), name ) == 0 ) {
+				found = p;
+				break;
+			}
+		}
+
+		if ( found < 0 ) {
+			Print( "weather: there is no weather called %s.  weather with no argument lists them.\n", name );
+			return ;
+		}
+
+		if ( !WeatherMgrClass::Set_Precipitation( (WeatherMgrClass::PrecipitationEnum)found, density, ramptime ) ) {
+			//	Weather is server-set, which is the whole reason it survives a save and reaches
+			//	every client, so a client cannot change it from here.
+			Print( "weather: %s was refused -- weather is set by the server.\n", name );
+			return ;
+		}
+
+		Print( "weather: %s set to density %.2f over %.1f second(s).\n", name, density, ramptime );
+	}
+};
+
+
+class WeatherStatusConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "weather_status"; }
+	virtual	const char * Get_Help( void ) override	{ return "WEATHER_STATUS - what every kind of weather is holding, and what it is allowed to hold."; }
+	virtual	void Activate( const char * /* input */ ) override {
+
+		float heading	= 0.0f;
+		float speed		= 0.0f;
+		float variability = 0.0f;
+		WeatherMgrClass::Get_Wind( heading, speed, variability );
+
+		Print( "weather_status: wind heading %.0f degrees at %.1f m/s, variability %.2f.\n",
+				 heading, speed, variability );
+
+		Print( "weather_status: precipitation holds %u particle(s) of a budget of %u, limit %u.\n",
+				 WeatherSystemClass::Get_Global_Particle_Count(),
+				 WeatherSystemClass::Get_Global_Particle_Budget(),
+				 WeatherSystemClass::Get_Particle_Limit() );
+
+		for ( int p = WeatherMgrClass::PRECIPITATION_FIRST; p < WeatherMgrClass::PRECIPITATION_COUNT; p ++ ) {
+
+			WeatherMgrClass::PrecipitationEnum precipitation = (WeatherMgrClass::PrecipitationEnum)p;
+			float density = 0.0f;
+			WeatherMgrClass::Get_Precipitation( precipitation, density );
+
+			if ( WeatherMgrClass::Is_Atmospheric( precipitation ) ) {
+				continue;
+			}
+
+			Print( "weather_status:   %-9s density %.2f, %u particle(s) of %u.\n",
+					 WeatherMgrClass::Get_Precipitation_Name( precipitation ), density,
+					 WeatherMgrClass::Get_Precipitation_Particle_Count( precipitation ),
+					 WeatherMgrClass::Get_Precipitation_Particle_Budget( precipitation ) );
+		}
+
+		//	The atmospheric half, which lives in the batched particle pool -- the live count
+		//	against the target is the acceptance of Section 36 in two numbers.
+		Print( "weather_status: the air holds %d mote(s) of a target of %d, budget %d, %d refused.\n",
+				 WeatherEnvironmentRenderer::Get_Live_Count(),
+				 WeatherEnvironmentRenderer::Get_Target_Count(),
+				 WeatherEnvironmentRenderer::Get_Budget(),
+				 WeatherEnvironmentRenderer::Get_Refused_Count() );
+
+		for ( int m = 0; m < WEATHER_ENVIRONMENT_MODE_COUNT; m ++ ) {
+			Print( "weather_status:   %-9s density %.2f, %d mote(s) of %d%s.\n",
+					 WeatherEnvironmentRenderer::Get_Mode_Name( m ),
+					 WeatherEnvironmentRenderer::Get_Density( m ),
+					 WeatherEnvironmentRenderer::Get_Live_Count( m ),
+					 WeatherEnvironmentRenderer::Get_Target_Count( m ),
+					 WeatherEnvironmentRenderer::Names_A_Texture( m ) ? "" : ", no texture" );
+		}
+
+		const AABoxClass & volume = WeatherEnvironmentRenderer::Get_Volume();
+		Print( "weather_status: the air is a %.0f x %.0f x %.0f box at %.0f,%.0f,%.0f, %s.\n",
+				 volume.Extent.X * 2.0f, volume.Extent.Y * 2.0f, volume.Extent.Z * 2.0f,
+				 volume.Center.X, volume.Center.Y, volume.Center.Z,
+				 WeatherEnvironmentRenderer::Has_Region() ? "pinned to a region" : "following the camera" );
+	}
+};
+
+
+class WeatherTextureConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "weather_texture"; }
+	virtual	const char * Get_Help( void ) override	{ return "WEATHER_TEXTURE <texture> - draws every atmospheric weather mode with the named texture.  No argument clears it again."; }
+	virtual	void Activate( const char * input ) override {
+
+		char	texture[ 128 ];
+		texture[ 0 ] = 0;
+
+		if ( input != nullptr ) {
+			::sscanf( input, "%127s", texture );
+		}
+
+		int count = 0;
+		for ( int m = 0; m < WEATHER_ENVIRONMENT_MODE_COUNT; m ++ ) {
+			if ( WeatherEnvironmentRenderer::Set_Texture( m, texture ) ) {
+				count ++;
+			}
+		}
+
+		if ( texture[ 0 ] != 0 ) {
+			Print( "weather_texture: %d mode(s) of atmospheric weather will draw with %s.\n", count, texture );
+			Print( "weather_texture: try weather dust 1.\n" );
+		} else {
+			Print( "weather_texture: %d mode(s) of atmospheric weather draw nothing again.\n", count );
+		}
+
+		//	The falling kinds are not affected: rain, snow and ash are drawn from the stock
+		//	WeatherParticles.tga, which exists, and nothing here has an opinion about it.
+	}
+};
+
+
+class WeatherBudgetConsoleFunctionClass : public ConsoleFunctionClass
+{
+public:
+	virtual	const char * Get_Name( void ) override	{ return "weather_budget"; }
+	virtual	const char * Get_Help( void ) override	{ return "WEATHER_BUDGET <precipitation> [atmospheric] - how many particles the weather may hold.  No argument prints them."; }
+	virtual	void Activate( const char * input ) override {
+
+		int precipitation	= -1;
+		int atmospheric	= -1;
+
+		int fields = 0;
+		if ( input != nullptr ) {
+			fields = ::sscanf( input, "%d %d", &precipitation, &atmospheric );
+		}
+
+		if ( fields >= 1 ) {
+			WeatherSystemClass::Set_Global_Particle_Budget( (unsigned)( ( precipitation > 0 ) ? precipitation : 0 ) );
+		}
+		if ( fields >= 2 ) {
+			WeatherEnvironmentRenderer::Set_Budget( atmospheric );
+		}
+
+		Print( "weather_budget: precipitation %u particle(s) (the renderer can address %u), air %d mote(s).\n",
+				 WeatherSystemClass::Get_Global_Particle_Budget(),
+				 WeatherSystemClass::Get_Particle_Limit(),
+				 WeatherEnvironmentRenderer::Get_Budget() );
+		Print( "weather_budget: each live kind of precipitation gets an equal share of its budget.\n" );
+	}
+};
+
+
 /*
 **
 */
@@ -6410,6 +6597,10 @@ void	ConsoleFunctionManager::Init( void )
 	FunctionList.Add( new AmmoConsoleFunctionClass() );
 	FunctionList.Add( new AppPacketTypesResetConsoleFunctionClass() );
 	FunctionList.Add( new AshConsoleFunctionClass() );
+	FunctionList.Add( new WeatherConsoleFunctionClass() );
+	FunctionList.Add( new WeatherStatusConsoleFunctionClass() );
+	FunctionList.Add( new WeatherTextureConsoleFunctionClass() );
+	FunctionList.Add( new WeatherBudgetConsoleFunctionClass() );
 	FunctionList.Add( new BreakExecutionConsoleFunctionClass() );
 	FunctionList.Add( new CrashExecutionConsoleFunctionClass() );
 	FunctionList.Add( new BuByeConsoleFunctionClass() );

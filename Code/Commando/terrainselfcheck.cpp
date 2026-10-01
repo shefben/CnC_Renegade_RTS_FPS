@@ -33,6 +33,8 @@
 #include "pscene.h"
 #include "worldlightmanager.h"
 #include "worldparticlebatchmanager.h"
+#include "weatherenvironment.h"
+#include "WeatherMgr.h"
 #include "worldshadowmanager.h"
 #include "worldsurfacemarkmanager.h"
 #include "worldterrainsystem.h"
@@ -3588,6 +3590,311 @@ void	Check_Particles (void)
 }
 
 
+/*
+**	One frame of weather: the layer tops the air up, and then the pool moves and ages what is in
+**	it.  Both halves matter to the numbers in the check below.  A population that is above its
+**	target -- a density that was turned down, or a budget that was divided with another mode --
+**	comes down because its motes reach the end of their lives, and not because anything removes
+**	them, which is what makes weather fade rather than snap off.
+*/
+void	Weather_Frames (const Vector3 &camera, int frames)
+{
+	for (int f = 0; f < frames; f ++) {
+		WorldParticleBatchManager::Timestep (1.0f / 30.0f);
+		WeatherEnvironmentRenderer::Update (camera);
+	}
+	return ;
+}
+
+
+/*
+**	The weather / environment particle layer -- roadmap Section 36.
+**
+**	The acceptance is that weather can cover a large outdoor scene at a stable bounded particle
+**	count.  Both halves of that are numbers: the population of a mode converges on a target and
+**	stays there however many steps run, and the targets of every mode together never exceed the
+**	layer's budget however much density is asked for.  The middle of this check asks for four
+**	times full density on all three modes -- six thousand motes' worth -- and reads back nine
+**	hundred.
+**
+**	The other half of Section 36 is Renegade's own precipitation, which already had most of what
+**	the roadmap asks for.  What it did not have was a budget anybody chose, so the end of this
+**	checks the one it has now, including that nothing can raise it past what the renderer can
+**	address.
+**
+**	No graphics device, no level, no physics scene: the motes live in the batched pool of Section
+**	26, which fills its buffers out of plain memory, and the precipitation budget is arithmetic.
+*/
+void	Check_Weather (void)
+{
+	//	A pool of its own, and a layer that has not been initialised against another one.
+	WorldParticleBatchManager::Shutdown ();
+	WorldParticleBatchManager::Init ();
+	WeatherEnvironmentRenderer::Shutdown ();
+	WeatherEnvironmentRenderer::Init ();
+
+	const Vector3 camera (100.0f, -50.0f, 12.0f);
+
+	//
+	//	What a fresh layer holds: three modes, each a kind of particle in the pool, none of them
+	//	naming a texture and none of them holding a mote.
+	//
+	Check (WeatherEnvironmentRenderer::Get_Live_Count () == 0,
+			 "a fresh weather layer already holds %d mote(s)", WeatherEnvironmentRenderer::Get_Live_Count ());
+	Check (WeatherEnvironmentRenderer::Get_Budget () > 0, "the weather layer has no budget at all");
+	Check (WeatherEnvironmentRenderer::Get_Budget ()
+				<= WorldParticleBatchManager::Get_Budget_Cap (PARTICLE_BUDGET_ENVIRONMENT),
+			 "the weather layer may use %d of a budget class that holds %d",
+			 WeatherEnvironmentRenderer::Get_Budget (),
+			 WorldParticleBatchManager::Get_Budget_Cap (PARTICLE_BUDGET_ENVIRONMENT));
+
+	for (int m = 0; m < WEATHER_ENVIRONMENT_MODE_COUNT; m ++) {
+
+		const int definition = WeatherEnvironmentRenderer::Get_Definition_Index (m);
+
+		Check (definition >= 0, "the %s mode defined no kind of particle",
+				 WeatherEnvironmentRenderer::Get_Mode_Name (m));
+
+		if (definition >= 0) {
+			Check (WorldParticleBatchManager::Peek_Definition (definition).Get_Budget_Class ()
+						== PARTICLE_BUDGET_ENVIRONMENT,
+					 "the %s mode is in the %s budget, not the environment one",
+					 WeatherEnvironmentRenderer::Get_Mode_Name (m),
+					 Particle_Budget_Class_Name (WorldParticleBatchManager::Peek_Definition (definition).Get_Budget_Class ()));
+		}
+
+		Check (WeatherEnvironmentRenderer::Names_A_Texture (m) == false,
+				 "the %s mode names a texture that does not exist yet",
+				 WeatherEnvironmentRenderer::Get_Mode_Name (m));
+		Check (WeatherEnvironmentRenderer::Get_Density (m) == 0.0f,
+				 "the %s mode starts at density %f", WeatherEnvironmentRenderer::Get_Mode_Name (m),
+				 WeatherEnvironmentRenderer::Get_Density (m));
+	}
+
+	//
+	//	Weather nobody asked for costs nothing.  This is the state a level with no weather
+	//	settings is in, which is most of them, and it has to be free.
+	//
+	Weather_Frames (camera, 8);
+	Check (WeatherEnvironmentRenderer::Get_Live_Count () == 0,
+			 "a layer at zero density emitted %d mote(s)", WeatherEnvironmentRenderer::Get_Live_Count ());
+	Check (WorldParticleBatchManager::Get_Particle_Count () == 0,
+			 "a layer at zero density put %d particle(s) in the pool",
+			 WorldParticleBatchManager::Get_Particle_Count ());
+
+	//
+	//	One mode at full density converges on its target and then stops.  Converging is the
+	//	acceptance; stopping is what makes it bounded rather than merely slow.
+	//
+	WeatherEnvironmentRenderer::Set_Density (WEATHER_ENVIRONMENT_DUST, 1.0f);
+	Weather_Frames (camera, 40);
+
+	const int dust_target = WeatherEnvironmentRenderer::Get_Target_Count (WEATHER_ENVIRONMENT_DUST);
+
+	Check (dust_target > 0, "dust at full density wants no motes at all");
+	Check (WeatherEnvironmentRenderer::Get_Live_Count (WEATHER_ENVIRONMENT_DUST) == dust_target,
+			 "dust settled at %d motes against a target of %d",
+			 WeatherEnvironmentRenderer::Get_Live_Count (WEATHER_ENVIRONMENT_DUST), dust_target);
+
+	Weather_Frames (camera, 60);
+	Check (WeatherEnvironmentRenderer::Get_Live_Count (WEATHER_ENVIRONMENT_DUST) == dust_target,
+			 "dust held %d motes after it had already reached its target of %d",
+			 WeatherEnvironmentRenderer::Get_Live_Count (WEATHER_ENVIRONMENT_DUST), dust_target);
+	Check (WeatherEnvironmentRenderer::Get_Refused_Count () == 0,
+			 "%d mote(s) were refused by a pool with room for them",
+			 WeatherEnvironmentRenderer::Get_Refused_Count ());
+
+	//	And the motes are in the pool rather than anywhere else, in one group, costing the
+	//	submissions a group costs.
+	Check (WorldParticleBatchManager::Get_Particle_Count () == dust_target,
+			 "the pool holds %d of the layer's %d motes",
+			 WorldParticleBatchManager::Get_Particle_Count (), dust_target);
+	Check (WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_ENVIRONMENT) == dust_target,
+			 "the environment budget holds %d of the layer's %d motes",
+			 WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_ENVIRONMENT), dust_target);
+
+	//
+	//	The budget.  Four times full density on every mode is six thousand motes' worth of
+	//	asking; what comes back is the budget, divided between the modes in proportion to what
+	//	each asked for, with nobody starved.
+	//
+	WeatherEnvironmentRenderer::Set_Density (WEATHER_ENVIRONMENT_DUST, 4.0f);
+	WeatherEnvironmentRenderer::Set_Density (WEATHER_ENVIRONMENT_TIBERIUM, 4.0f);
+	WeatherEnvironmentRenderer::Set_Density (WEATHER_ENVIRONMENT_FALLING, 4.0f);
+
+	//	Long enough for the dust that is now above its share to reach the end of its life: a mode
+	//	whose target falls thins out over its own lifetime, which at thirty frames a second is
+	//	six seconds of them.
+	Weather_Frames (camera, 240);
+
+	Check (WeatherEnvironmentRenderer::Get_Target_Count () <= WeatherEnvironmentRenderer::Get_Budget (),
+			 "the three modes want %d motes against a budget of %d",
+			 WeatherEnvironmentRenderer::Get_Target_Count (), WeatherEnvironmentRenderer::Get_Budget ());
+	Check (WeatherEnvironmentRenderer::Get_Live_Count () <= WeatherEnvironmentRenderer::Get_Budget (),
+			 "the layer holds %d motes against a budget of %d",
+			 WeatherEnvironmentRenderer::Get_Live_Count (), WeatherEnvironmentRenderer::Get_Budget ());
+	Check (WeatherEnvironmentRenderer::Get_Live_Count () == WeatherEnvironmentRenderer::Get_Target_Count (),
+			 "the layer settled at %d motes against a target of %d",
+			 WeatherEnvironmentRenderer::Get_Live_Count (), WeatherEnvironmentRenderer::Get_Target_Count ());
+
+	for (int m = 0; m < WEATHER_ENVIRONMENT_MODE_COUNT; m ++) {
+		Check (WeatherEnvironmentRenderer::Get_Target_Count (m) > 0,
+				 "the %s mode was starved to nothing by the others",
+				 WeatherEnvironmentRenderer::Get_Mode_Name (m));
+	}
+
+	//	Dust asks for the most of the three after falling, so a share in proportion has to put
+	//	falling above dust above tiberium -- that is the whole of "in proportion".
+	Check (WeatherEnvironmentRenderer::Get_Target_Count (WEATHER_ENVIRONMENT_FALLING)
+				> WeatherEnvironmentRenderer::Get_Target_Count (WEATHER_ENVIRONMENT_DUST),
+			 "falling wants more motes than dust and was given fewer");
+	Check (WeatherEnvironmentRenderer::Get_Target_Count (WEATHER_ENVIRONMENT_DUST)
+				> WeatherEnvironmentRenderer::Get_Target_Count (WEATHER_ENVIRONMENT_TIBERIUM),
+			 "dust wants more motes than tiberium and was given fewer");
+
+	//	The pool is the thing that actually has to be bounded, and it is: the whole weather layer
+	//	fits inside the one budget class the pool keeps for the air of a place.
+	Check (WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_ENVIRONMENT)
+				<= WorldParticleBatchManager::Get_Budget_Cap (PARTICLE_BUDGET_ENVIRONMENT),
+			 "the environment budget class holds %d against a cap of %d",
+			 WorldParticleBatchManager::Get_Class_Particle_Count (PARTICLE_BUDGET_ENVIRONMENT),
+			 WorldParticleBatchManager::Get_Budget_Cap (PARTICLE_BUDGET_ENVIRONMENT));
+
+	//
+	//	Where the air is.  By default it travels with the camera, which is what makes a bounded
+	//	number of motes cover an unbounded scene; a region pins it to one part of the world, which
+	//	is what a tiberium field is.
+	//
+	Check (WeatherEnvironmentRenderer::Has_Region () == false, "a fresh layer is pinned to a region");
+	WeatherEnvironmentRenderer::Update (camera);
+	Check (Near (WeatherEnvironmentRenderer::Get_Volume ().Center.X, camera.X)
+				&& Near (WeatherEnvironmentRenderer::Get_Volume ().Center.Z, camera.Z),
+			 "the camera-centred volume is at %f,%f,%f and the camera is at %f,%f,%f",
+			 WeatherEnvironmentRenderer::Get_Volume ().Center.X,
+			 WeatherEnvironmentRenderer::Get_Volume ().Center.Y,
+			 WeatherEnvironmentRenderer::Get_Volume ().Center.Z, camera.X, camera.Y, camera.Z);
+
+	{
+		const AABoxClass region (Vector3 (-400.0f, 300.0f, 5.0f), Vector3 (50.0f, 50.0f, 10.0f));
+
+		WeatherEnvironmentRenderer::Set_Region (region);
+		Check (WeatherEnvironmentRenderer::Has_Region (), "a region was set and did not take");
+
+		WeatherEnvironmentRenderer::Update (camera);
+		Check (Near (WeatherEnvironmentRenderer::Get_Volume ().Center.X, region.Center.X),
+				 "a pinned volume followed the camera to %f instead of staying at %f",
+				 WeatherEnvironmentRenderer::Get_Volume ().Center.X, region.Center.X);
+
+		WeatherEnvironmentRenderer::Clear_Region ();
+		WeatherEnvironmentRenderer::Update (camera);
+		Check (Near (WeatherEnvironmentRenderer::Get_Volume ().Center.X, camera.X),
+				 "the volume stayed pinned at %f after the region was cleared",
+				 WeatherEnvironmentRenderer::Get_Volume ().Center.X);
+	}
+
+	//
+	//	The wind the precipitation uses moves the air as well.  What it does to a mote is a
+	//	picture rather than a number, so what is checked here is that the layer keeps what it was
+	//	given rather than what it does with it.
+	//
+	WeatherEnvironmentRenderer::Set_Wind (Vector3 (3.0f, -1.0f, 0.0f));
+	Check (Near (WeatherEnvironmentRenderer::Get_Wind ().X, 3.0f)
+				&& Near (WeatherEnvironmentRenderer::Get_Wind ().Y, -1.0f),
+			 "the layer was given a wind of 3,-1 and holds %f,%f",
+			 WeatherEnvironmentRenderer::Get_Wind ().X, WeatherEnvironmentRenderer::Get_Wind ().Y);
+
+	//
+	//	A level change takes the air with it and leaves the modes behind: a mote was hanging in a
+	//	place that is not loaded any more, a density is a number somebody chose.
+	//
+	WeatherEnvironmentRenderer::Reset ();
+	Check (WeatherEnvironmentRenderer::Get_Live_Count () == 0,
+			 "%d mote(s) outlived their level", WeatherEnvironmentRenderer::Get_Live_Count ());
+	for (int m = 0; m < WEATHER_ENVIRONMENT_MODE_COUNT; m ++) {
+		Check (WeatherEnvironmentRenderer::Get_Definition_Index (m) >= 0,
+				 "the %s mode was forgotten by a level change",
+				 WeatherEnvironmentRenderer::Get_Mode_Name (m));
+		Check (WeatherEnvironmentRenderer::Get_Density (m) == 0.0f,
+				 "the %s mode kept its density across a level change",
+				 WeatherEnvironmentRenderer::Get_Mode_Name (m));
+	}
+
+	//
+	//	What each kind of weather is, out of the one table that answers it.  Three fall and land,
+	//	three hang in the air, and every one of them has a name and its own density parameter.
+	//
+	{
+		int atmospheric = 0;
+
+		for (int p = WeatherMgrClass::PRECIPITATION_FIRST; p < WeatherMgrClass::PRECIPITATION_COUNT; p ++) {
+
+			const WeatherMgrClass::PrecipitationEnum precipitation = (WeatherMgrClass::PrecipitationEnum)p;
+			const char *name = WeatherMgrClass::Get_Precipitation_Name (precipitation);
+
+			Check ((name != nullptr) && (name[0] != 0), "precipitation type %d has no name", p);
+
+			if (WeatherMgrClass::Is_Atmospheric (precipitation)) {
+				atmospheric ++;
+			}
+		}
+
+		Check (WeatherMgrClass::PRECIPITATION_COUNT == 6,
+				 "there are %d kinds of weather, not the six Section 36 lists",
+				 (int)WeatherMgrClass::PRECIPITATION_COUNT);
+		Check (atmospheric == 3, "%d kinds of weather hang in the air, not three", atmospheric);
+		Check (WeatherMgrClass::Is_Atmospheric (WeatherMgrClass::PRECIPITATION_RAIN) == false,
+				 "rain is drawn as atmosphere rather than as precipitation");
+		Check (WeatherMgrClass::Is_Atmospheric (WeatherMgrClass::PRECIPITATION_SNOW) == false,
+				 "snow is drawn as atmosphere rather than as precipitation");
+		Check (WeatherMgrClass::Is_Atmospheric (WeatherMgrClass::PRECIPITATION_DUST),
+				 "dust is drawn as precipitation rather than as atmosphere");
+	}
+
+	//
+	//	Renegade's own precipitation, and the budget it did not have.  Stock Renegade stopped
+	//	spawning at USHRT_MAX/6 particles -- a limit of the index buffer rather than a decision --
+	//	and whichever system asked first could spend all of it.  The limit is still the limit, and
+	//	nothing may be told to exceed it.
+	//
+	{
+		const unsigned limit = WeatherSystemClass::Get_Particle_Limit ();
+		const unsigned original = WeatherSystemClass::Get_Global_Particle_Budget ();
+
+		Check (limit > 0, "the renderer can address no weather particles at all");
+		Check (original > 0, "the weather has no particle budget at all");
+		Check (original <= limit, "the weather budget of %u is above the renderer's limit of %u",
+				 original, limit);
+
+		WeatherSystemClass::Set_Global_Particle_Budget (limit * 4);
+		Check (WeatherSystemClass::Get_Global_Particle_Budget () == limit,
+				 "a budget of four times the renderer's limit was accepted as %u",
+				 WeatherSystemClass::Get_Global_Particle_Budget ());
+
+		WeatherSystemClass::Set_Global_Particle_Budget (1234);
+		Check (WeatherSystemClass::Get_Global_Particle_Budget () == 1234,
+				 "a budget inside the limit was changed to %u",
+				 WeatherSystemClass::Get_Global_Particle_Budget ());
+
+		WeatherSystemClass::Set_Global_Particle_Budget (original);
+		Check (WeatherSystemClass::Get_Global_Particle_Count () == 0,
+				 "%u weather particle(s) exist in a process with no weather",
+				 WeatherSystemClass::Get_Global_Particle_Count ());
+	}
+
+	//
+	//	The layer going down takes its kinds with it.
+	//
+	WeatherEnvironmentRenderer::Shutdown ();
+	for (int m = 0; m < WEATHER_ENVIRONMENT_MODE_COUNT; m ++) {
+		Check (WeatherEnvironmentRenderer::Get_Definition_Index (m) < 0,
+				 "the %s mode outlived the layer", WeatherEnvironmentRenderer::Get_Mode_Name (m));
+	}
+	Check (WeatherEnvironmentRenderer::Get_Live_Count () == 0, "motes outlived the layer");
+
+	WorldParticleBatchManager::Shutdown ();
+}
+
+
 }	// anonymous namespace
 
 
@@ -3639,6 +3946,9 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "particles") == 0)) {
 		Check_Particles ();
+	}
+	if ((which == nullptr) || (::strcmp (which, "weather") == 0)) {
+		Check_Weather ();
 	}
 
 	if (_Failures == 0) {

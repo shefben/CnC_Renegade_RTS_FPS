@@ -341,3 +341,17 @@ exact action is a manual one for the user: run `renegade --gamedir
 that level>`, `particle_test 600` and `particle_status` at the console, and report whether
 sprites, points and streaks appear around the camera and what the submission and headroom
 numbers say.
+## P23 -- the air is counted and nobody has seen a mote
+
+`WeatherEnvironmentRenderer` is in and checked (P23-A in `completed_features.md`,
+`docs/zerohour/WeatherEnvironmentRenderer.md`), and the acceptance is proved device-less: six
+thousand motes' worth of density comes back as the 900 the budget allows. What this entry
+carries is what the numbers cannot show: the three atmospheric modes name no texture, so no mote
+has been drawn; the new kinds are reachable from C++ and the console but have no script command
+and no LevelEdit radio button; and `Set_Region`, which pins the air to a tiberium field rather
+than to the camera, has no caller because nothing reads a weather region out of a level yet.
+Next exact action is a manual one for the user: run `renegade --gamedir
+"C:\Westwood\Renegade_full"`, load a level, then `weather_texture <a texture name from that
+level>`, `weather dust 1`, `weather tiberium 1` and `weather_status` at the console, and report
+whether the air fills with motes around the camera and whether the live counts sit on their
+targets.

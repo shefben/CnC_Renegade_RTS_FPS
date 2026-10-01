@@ -98,7 +98,6 @@ P01-P06 gate everything after them (directive 0.3).
 
 ## P23: Weather / environment particle layer (roadmap Section 36)
 
-- [ ] Acceptance: Weather can cover a large outdoor scene at a stable bounded particle count without creating a `GameObj` per particle.
 
 ## P24: Tracer / beam / projectile render modules (roadmap Section 27)
 

@@ -1538,3 +1538,25 @@ in the asset. Evidence: `docs/zerohour/WorldParticleBatchManager.md`,
 `docs/assets/ParticleSprites.md`; `terrain_particles`/`fds_terrain_particles` added and
 `shader_programs` extended for the new pipeline, both run green on Linux through
 `tools/linuxcheck/selfcheck.sh` (see WIP for why that is not a build).
+## P23-A: Three more kinds of weather, and a budget somebody chose
+
+Renegade already had most of Section 36 -- camera-centred emitters, batched rendering, wind,
+ramped density, culling, no server renderer dependency, and a ray grid that is the reason snow
+does not fall inside a building -- so the donor's screen-space snow was not ported and
+`WeatherSystemClass` keeps rain, snow and ash. What was missing is now in:
+`WeatherEnvironmentRenderer` (`Code/Combat/weatherenvironment.*`) adds dust, tiberium haze and
+generic falling motes as weather that hangs in the air, holding no particles of its own and
+emitting into the P22 pool's `ENVIRONMENT` budget class; `WeatherSystemClass` gained a real
+particle budget, divided equally between live systems, in place of the `USHRT_MAX/6` index-buffer
+accident that whichever system asked first could spend entirely; and what each kind of weather is
+became one table (`WeatherMgrClass::Get_Descriptor`) in place of two switches over the same
+enumeration. The three new kinds are precipitation types like the other three -- same
+server-authoritative `Set_Precipitation`, same ramping, same micro-chunks, same packet, appended
+so existing numbering cannot move. Absorbs the acceptance *Weather can cover a large outdoor
+scene at a stable bounded particle count without creating a `GameObj` per particle*, which
+`terrain_weather` proves as numbers: four times full density on all three modes is six thousand
+motes' worth of asking and 900 motes of answer, in proportion, no mode starved, nothing above the
+pool's class cap, and no `GameObj` anywhere. Evidence:
+`docs/zerohour/WeatherEnvironmentRenderer.md`, `docs/assets/WeatherSprites.md`;
+`terrain_weather`/`fds_terrain_weather` added, run green on Linux through
+`tools/linuxcheck/selfcheck.sh` and clean under AddressSanitizer.
