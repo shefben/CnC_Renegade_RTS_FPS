@@ -14,6 +14,8 @@
 
 This revision closes the ambiguity/dependency defects found in the previous hybrid plan: size class is derived rather than randomly chosen; quantization and deterministic range selection are explicit; hybrid feature toggles and quota semantics are explicit; legacy plan-field units are preserved; strategic route-family construction is explicit; landform counts/dimensions are bounded; hydrology uses one specified Priority-Flood+D8 algorithm; road A* state/cost/corridor limits are specified; crossing search/scoring/asset selection are specified; bridges start pristine; Phase 12 versus Phase 18 object ownership is no longer duplicated; Tiberium role counts and contestability are specified; tactical repair cannot modify structural topology; performance work ceilings are fixed rather than calibrated by agent judgment; three-attempt retry/exhaustion behavior is explicit; and coding order now mirrors runtime dependencies one-for-one.
 
+**Extension 2026-10-02 (highway access ramps):** freeway-style `ON_RAMP`/`OFF_RAMP` access between `HIGHWAY_4` and `PRIMARY_2`/`SECONDARY_2` roads is a first-class transportation feature specified completely in Section 12.6 and wired into Sections 2, 5, 7, 8 (Phases 9-12, 17-19), 12, 16-20, 22 and 23. It is distinct from overpass ramps, bridge approaches and cliff ramp passes.
+
 # 0. Non-negotiable execution contract
 
 ## 0.1 Agent behavior
@@ -274,10 +276,10 @@ Phase 5  locks landform vectors
 Phase 6  locks water vectors/polygons
 Phase 7  locks macro terrain before roads
 Phase 8  locks base/resource anchors
-Phase 9  locks transportation topology/road classes
-Phase 10 locks preliminary road splines
-Phase 11 locks crossing/junction solution types and locations
-Phase 12 locks structural road/crossing geometry and road cut/fill
+Phase 9  locks transportation topology/road classes, including HIGHWAY_INTERCHANGE forms, sides, retargets and selected gore candidates
+Phase 10 locks preliminary road splines, including constructed HIGHWAY_RAMP centerlines; it may only withdraw an interchange to its frozen Phase-9 fallback variant under Section 12.6.9
+Phase 11 locks crossing/junction solution types and locations, including merge/diverge and local-junction records
+Phase 12 locks structural road/crossing geometry and road cut/fill, including widened merge/diverge roadbed
 Phase 13 locks Tiberium footprints/access envelopes
 Phase 14 locks starting-base footprint/production envelopes
 Phase 15 locks final gameplay terrain geometry
@@ -348,7 +350,7 @@ The rewrite changes planning and compilation. It does not create replacement run
 
 - `WorldTerrainSystem` for authoritative terrain heights, patches, collision and chunk registry;
 - `WaterSystem` for water masks, carve/shape and water geometry;
-- `RoadSystem` for road ribbons, grading hooks, road masks and junction realization;
+- `RoadSystem` for road ribbons, grading hooks, road masks and junction realization, including highway-access ramps and the optional per-sample asymmetric edge profile Section 12.6.13 adds to its existing `RoadSplineClass`/`RoadPointClass` records;
 - `BridgeSystem` for bridge geometry/collision/damage/traversability;
 - `TunnelSystem` for tunnel geometry/collision/traversability when enabled;
 - `EscarpmentSystem` for explicit cliff/escarpment realization;
@@ -399,6 +401,7 @@ REMOTE_TIBERIUM
 ROUTE_WAYPOINT
 ROAD_JUNCTION          // derived in Phase 9
 CROSSING_OBLIGATION    // derived in Phase 9
+HIGHWAY_INTERCHANGE    // derived in Phase 9 (Section 12.6)
 ```
 
 Required edge/intent types:
@@ -477,6 +480,7 @@ Use splines/polylines/polygons for:
 RiverSpline
 RoadSpline
 HighwaySpline
+HighwayRampSpline      // a RoadSpline of class HIGHWAY_RAMP, constructed by Section 12.6.7
 CanyonSpline
 RavineSpline
 CliffSpline
@@ -522,6 +526,7 @@ ROAD x RIVER   -> bridge/ford/reroute crossing problem
 ROAD x CANYON  -> bridge/pass/descent/tunnel/reroute problem
 ROAD x CLIFF   -> cut/pass/tunnel/reroute problem
 ROAD x ROAD    -> junction/overpass problem
+HIGHWAY_RAMP x HIGHWAY_4 -> intended merge/diverge record, never an incidental ROAD x ROAD (Section 12.6.10)
 RIVER x BASIN  -> lake widening candidate
 ROAD x BASE    -> protected entrance/exit alignment problem
 ROAD x TIBERIUM -> service-access edge but no carriageway through field core
@@ -556,6 +561,7 @@ Patch spacing:
 | river/lake shore | `min(W, A/2)` |
 | road corridor | `min(W/2, A/3)` |
 | bridge/tunnel/overpass approach | `min(W/3, A/4)` |
+| highway interchange ramp, gore reserve and merge/diverge interval | `min(W/3, A/4)` |
 | base entrance/production corridor | `min(W/2, A/3)` |
 
 These are temporary compiler samples. Final terrain remains the existing `WorldTerrainSystem` rectangular heightfield/patch topology. This rewrite does not replace that renderer/collision topology with a quadtree mesh.
@@ -828,6 +834,8 @@ trail shortcut     = TRAIL_1 edge length >= 8W
 
 A physical bridge has exactly one primary obstruction and can satisfy only one bridge-category quota.
 
+Highway access interchanges (Section 12.6) are **not** a mandatory quota feature: no global interchange count exists, and a highway is never forced to have ramps when no topology connection requires them. Whenever a Phase-9 topology connection between `HIGHWAY_4` and `PRIMARY_2`/`SECONDARY_2` can be legally realized as a `HIGHWAY_INTERCHANGE`, it is preferred over a perpendicular at-grade highway junction. Interchanges never weaken the highway or overpass quotas: those quotas are filled by Phase-9 steps 5 and 12-14 before any interchange exists, and an interchange can neither remove nor move a quota object. A grade-separated `DIAMOND_ACCESS` crossing is one distinct physical `ROAD_X_ROAD` overpass object and is counted at most once; a physical overpass is never counted as two quota objects. Interchange/ramp counts are reported as diagnostics only.
+
 Optional cross-links are exact:
 
 ```text
@@ -1054,6 +1062,9 @@ Use these semantic cross sections:
 | `SECONDARY_2` | 2 | `W` | `0.20W` each | 0 | 14 deg | 10 deg | `4W` |
 | `SERVICE_DIRT_2` | 2 | `W` | `0.20W` each | 0 | 18 deg | 12 deg | `3W` |
 | `TRAIL_1` | 1 | `W` | `0.10W` each | 0 | 22 deg | 14 deg | `2W` |
+| `HIGHWAY_RAMP` | 1 | `W` | `0.20W` inner, `0.30W` outer | 0 | 12 deg | 8 deg | `5W` |
+
+`HIGHWAY_RAMP` is the semantic class of every highway access ramp (Section 12.6). Its inner shoulder is on the left of the ramp's logical travel direction. It is never A*-routed, never assigned to a strategic route family and never binds a crossing window; Phase 10 constructs it by Section 12.6.7.
 
 Exact total roadbed widths before outer terrain blend are:
 
@@ -1063,6 +1074,7 @@ PRIMARY_2       = 2W + 2(0.30W)         = 2.60W
 SECONDARY_2     = 2W + 2(0.20W)         = 2.40W
 SERVICE_DIRT_2  = 2W + 2(0.20W)         = 2.40W
 TRAIL_1         = 1W + 2(0.10W)         = 1.20W
+HIGHWAY_RAMP    = 1W + 0.20W + 0.30W    = 1.50W
 ```
 
 The existing three physical/render road tiers remain the realization owner. Map semantic classes by capability, not by inventing new rendering systems:
@@ -1070,12 +1082,15 @@ The existing three physical/render road tiers remain the realization owner. Map 
 ```text
 HIGHWAY_4                    -> existing widest/highway physical tier
 PRIMARY_2, SECONDARY_2      -> existing normal paved physical tier
+HIGHWAY_RAMP                -> existing normal paved physical tier (no highway-access tier exists)
 SERVICE_DIRT_2, TRAIL_1     -> existing dirt/track physical tier
 ```
 
+`HIGHWAY_RAMP` uses the speed hint of the normal paved tier.
+
 If the source enum names differ, identify the tiers through the existing `Road_Graph_Class_To_Road_Class` mapping/registered widths and preserve those enum names. The semantic width above is still passed as the actual spline/ribbon width when the canonical RoadSystem API supports explicit width. If the RoadSystem stores width in its road definition instead, create/update the hybrid definitions once during init; do not approximate the width with a different lane count.
 
-`TRAIL_1` never satisfies heavy-vehicle route redundancy. `SERVICE_DIRT_2` may carry a Harvester only after the actual Harvester swept-envelope validator passes it.
+`TRAIL_1` never satisfies heavy-vehicle route redundancy. `SERVICE_DIRT_2` may carry a Harvester only after the actual Harvester swept-envelope validator passes it. A `HIGHWAY_RAMP` carries exactly the capabilities Section 12.6.4 step 9 assigns and is validated with the same swept envelopes as any road carrying them; it is never counted as `HIGHWAY_4` length for the Section-5 highway-corridor qualification.
 
 ## 7.1 Shared road-planning geometry helpers
 
@@ -1087,6 +1102,7 @@ RoadbedWidth(PRIMARY_2)      = 2.60W
 RoadbedWidth(SECONDARY_2)    = 2.40W
 RoadbedWidth(SERVICE_DIRT_2) = 2.40W
 RoadbedWidth(TRAIL_1)        = 1.20W
+RoadbedWidth(HIGHWAY_RAMP)   = 1.50W
 
 PreferredCorridorHalfWidth(HIGHWAY_4 or PRIMARY_2) = max(6S,0.08D)
 PreferredCorridorHalfWidth(SECONDARY_2)            = max(5S,0.06D)
@@ -1100,6 +1116,8 @@ RoadVerticalInterval(z_terrain) =
 RoadOuterBlendWidth = max(W,A/2)
 RoadDeformationHalfWidth(class) = 0.5*Section7TotalRoadbedWidth(class) + RoadOuterBlendWidth
 ```
+
+`PreferredCorridorHalfWidth`/`MaxCorridorHalfWidth` are undefined for `HIGHWAY_RAMP` because it has no A* corridor; every other helper applies to it unchanged.
 
 For two route samples separated by horizontal distance `d`, intervals `I0` and `I1` are grade-compatible for class `c` iff:
 
@@ -1544,7 +1562,8 @@ Construction order is fixed:
 11. generate optional heavy cross-link candidates between non-base waypoints on different heavy families; reject already-adjacent pairs and pairs with straight distance `<8W`; compute the exact benefit score below, sort by descending score then shorter candidate distance then endpoint StableIds, and accept exactly `extra_links` unless fewer hard-valid candidates exist, in which case accept all available candidates; optional-link shortage alone is not a phase failure;
 12. reserve road-over-road overpass obligations after highway assignment. **(Q-023)** A candidate intersection is also hard-valid only when, on both edges, the overpass pose (straight `max(10W, half deck)` either side) connects to the edge's neighbouring structural poses by the same rule as a crossing window; the `60..120` degree, `10W`, exclusion, spacing and slope tests are unchanged. Treat every current topology edge as a straight intent segment between its frozen endpoints. First enumerate geometric intersections between `HIGHWAY_4` intent segments and `PRIMARY_2`/`SECONDARY_2` intent segments. A candidate intersection is hard-valid only when: crossing angle is `60..120` degrees; both intent segments have at least `10W` of segment length on each side of the intersection; the intersection is outside base/Tiberium/crossing-window protected bounds; it is `>=12W` from an already selected overpass; and the Phase-7 terrain disc of radius `2W` around it has maximum sampled absolute slope <= `SECONDARY_2.max_grade`. Rank valid natural intersections by `(overpass_cost, highway edge StableId, other edge StableId)`. `overpass_cost = clamp(local_max_slope/SECONDARY_2.max_grade,0,1) + clamp((distance_to_nearest_edge_endpoint)/(0.5D),0,1)`. Select in order until quota is met;
 13. if overpass quota is still short, enumerate candidate `SECONDARY_2` cross-links between non-base waypoints on different heavy families whose straight intent segment intersects a `HIGHWAY_4` intent segment at `60..120` degrees and satisfies the same `10W`, exclusion, spacing and slope tests. Rank by `overpass_cost + candidate_crosslink_length/D`, then endpoint StableIds. Add the lowest-ranked candidate, insert one shared `OVERPASS_OBLIGATION` waypoint at the exact quantized intersection into both the highway edge and the new cross-link, then repeat enumeration until quota is met. **(Q-024)** The Section-5 overpass number is a deterministic target, not a minimum: steps 12 and 13 enumerate every candidate, apply every hard-valid rule (the `60..120` degree angle measured on the intent sub-segment the crossing lies on, the `10W` arms on that sub-segment, the exclusions, spacing, slope and Q-023 pose realizability) before ranking, and take candidates in order until the target is reached or none remains. A shortfall is recorded as `OVERPASS_TARGET_SHORTAGE = RequestedOverpassTarget - ReservedOverpassCount` and is not an attempt failure; Phase 9 never invents a crossing to make up the count. Every reserved `OVERPASS_OBLIGATION` stays mandatory downstream;
-14. for every selected natural or synthesized overpass, insert one shared `OVERPASS_OBLIGATION` waypoint into both participating topology edges at the exact quantized intersection. Phase 10 therefore routes both roads through the same point; it does not have to rediscover the crossing.
+14. for every selected natural or synthesized overpass, insert one shared `OVERPASS_OBLIGATION` waypoint into both participating topology edges at the exact quantized intersection. Phase 10 therefore routes both roads through the same point; it does not have to rediscover the crossing;
+15. **highway access interchanges.** Run the exact Section-12.6.4 procedure over every `HIGHWAY_4` pass-through node with a `PRIMARY_2`/`SECONDARY_2` arrival, in interchange processing order: choose `DIAMOND_ACCESS`/`SIDE_ACCESS`, decide the crossing mode, evaluate at most `K_GORE=32` frozen gore candidates by Section 12.6.8 (pose realizability, structure reserves, `24W` gore spacing, exclusions, grade, local-junction arms), retarget arrivals to local junctions, and create the interchange, local-junction, ramp and crossing records with their frozen fallback variant and capabilities. Ramps are created only where this graph connection already exists; two roads merely passing near each other never create one. A rejected anchor keeps its conventional junction and is not a phase failure. Steps 1-14 are not revisited, so this step never changes a quota object.
 
 Optional heavy cross-link benefit is computed on the graph **before** adding that candidate:
 
@@ -1563,7 +1582,7 @@ score = 0.50*path_reduction + 0.30*flow_gain + 0.20*frontier_term
 
 Shortest-path adjacency and max-flow adjacency are sorted by edge `StableId`; disconnected pair distances are excluded from the mean in both `M_before` and `M_after`, and if no finite unordered pair exists the candidate score is zero. The open-frontier term is fixed and does not alter candidate legality.
 
-**Gate:** graph contains `route_family_count` heavy GDI-to-Nod families, all river/canyon bridge obligations are assigned to distinct Phase-6 hard-valid windows and every reserved overpass obligation is hard-valid, pose-realizable and one waypoint shared by both participating edges (Q-024: `ReservedOverpassCount` overpasses against the `RequestedOverpassTarget`, never more), Section-5 road/highway/dirt/trail intent counts pass, at least one cycle exists, and no family pair is intentionally assigned the same required bottleneck.
+**Gate:** graph contains `route_family_count` heavy GDI-to-Nod families, all river/canyon bridge obligations are assigned to distinct Phase-6 hard-valid windows and every reserved overpass obligation is hard-valid, pose-realizable and one waypoint shared by both participating edges (Q-024: `ReservedOverpassCount` overpasses against the `RequestedOverpassTarget`, never more), Section-5 road/highway/dirt/trail intent counts pass (after step-15 retargeting), at least one cycle exists, no family pair is intentionally assigned the same required bottleneck, and every accepted `HIGHWAY_INTERCHANGE` has its form, access sides, selected hard-valid candidate, local junctions, ramp and crossing records, capabilities and fallback variant, with no lower-road edge served by two interchanges and no two unrelated gores closer than `24W`.
 
 ## Phase 10 - route roads on bounded analysis grid
 
@@ -1571,6 +1590,7 @@ Route topology edges in this stable priority order, then by edge `StableId`:
 
 ```text
 1 heavy route-family trunks
+1b highway interchange elements: crossing edge(s), then ramps (constructed by Section 12.6.7, never A*-routed)
 2 mandatory synthesized river/canyon bridge cross-links
 3 home-field roads
 4 contested/remote service branches
@@ -1579,6 +1599,8 @@ Route topology edges in this stable priority order, then by edge `StableId`:
 7 optional heavy cross-links
 8 TRAIL_1 shortcuts
 ```
+
+Group 1b follows Section 12.6.9 exactly: a `HIGHWAY_4` edge incident to an active interchange anchor is routed with that interchange's straight alignment stops `a_I`/`b_I`; after group 1, every active interchange is constructed and re-validated in interchange processing order; and an interchange may be withdrawn to its frozen Phase-9 fallback variant only by the two Section-12.6.9 triggers and only before group 2 starts. Retargeted edges then route to their local junction `L_s` under the ordinary rules below.
 
 A topology edge containing one or more frozen `CROSSING_OBLIGATION`, `RAMP_PASS_WINDOW` or `OVERPASS_OBLIGATION` waypoints is routed as consecutive subroutes through those waypoints in source-to-destination order. A waypoint maps to the analysis cell containing its quantized XY position; if it lies exactly on a cell boundary, choose the lower row-major cell id. The resulting concatenated path contains that cell exactly.
 
@@ -1596,6 +1618,7 @@ lake/coast water
 river bed/bank outside an accepted river CROSSING_WINDOW
 cliff/canyon/ravine hard wall outside an accepted CROSSING_WINDOW/RAMP_PASS_WINDOW
 OPEN_MANEUVER immutable-barrier violation
+inside an active HIGHWAY_INTERCHANGE footprint polygon (Section 12.6.9), for edges routed after group 1b, except the cell containing the edge's own local-junction endpoint
 ```
 
 Starting-building transforms do not exist yet and are therefore not routing inputs. `BASE_PROTECTED` plus the frozen Phase-9 entrance corridors are the complete base-side routing constraints at this stage.
@@ -1652,6 +1675,8 @@ Class constants:
 | `SERVICE_DIRT_2` | 4 | 3 | 1.5 |
 | `TRAIL_1` | 3 | 2 | 1.0 |
 
+`HIGHWAY_RAMP` has no row because it is never A*-routed.
+
 A* heuristic is exactly `0.75 * EuclideanDistance(current,goal)`, which remains admissible because the only negative modifier reduces the base distance to `0.75*d`. Open-set priority key is `(f,g,row_major_cell_id,incoming_direction_ordinal)` with lower values first. Closed-state reopening is allowed only when a strictly lower quantized `g` is found.
 
 ### Deterministic path-to-spline conversion
@@ -1674,7 +1699,7 @@ For one accepted A* cell chain:
 
 Do not use an unspecified smoothing/tension parameter, hand-edit a control point, or accept the raw staircase as final road geometry.
 
-**Gate:** every mandatory topology edge has one legal preliminary spline that passes the exact Phase-10 envelope/curvature/grade-feasibility checks and every spline has a stable checksum.
+**Gate:** every mandatory topology edge has one legal preliminary spline that passes the exact Phase-10 envelope/curvature/grade-feasibility checks and every spline has a stable checksum; every active interchange's highway is straight over `[X-S_I, X+S_I]` along its frozen axis, its ramps and crossing match Section 12.6.7 exactly and pass every Section-12.6.8 test on the routed geometry, and every withdrawn interchange has its fallback variant restored and recorded.
 
 ## Phase 11 - solve feature interactions before terrain road deformation
 
@@ -1702,6 +1727,7 @@ connected road can meet the station within its max grade and minimum turn radius
 required swept vehicle width/height clearance passes
 selected structural asset span/width/height limits pass when an asset is required
 station is >=4W from an unrelated already compiled crossing unless the topology explicitly shares a road junction
+no approach reserve, tunnel portal reserve or overpass ramp interval intersects an active HIGHWAY_INTERCHANGE gore reserve (Section 12.6.10)
 ```
 
 If a mandatory frozen crossing waypoint has no hard-valid station inside its search window, attempt only the method-specific fallback sequence below. Phase 11 never silently moves that obligation to a different obstruction.
@@ -1741,11 +1767,14 @@ Method order is fixed:
 
 ### Road x road
 
+Intended highway-access junctions are compiled from their frozen Phase-9/10 records and are never rediscovered as road-road intersections: `HIGHWAY_RAMP_MERGE`, `HIGHWAY_RAMP_DIVERGE` and `HIGHWAY_RAMP_LOCAL_JUNCTION`, plus the `DIAMOND_ACCESS` crossing (reserved overpass or intended at-grade junction at its anchor). Their compilation, elevations and solution records follow Section 12.6.10. Every other intersection involving a ramp, crossing edge or interchange footprint is an incidental `ROAD_X_ROAD` handled below.
+
 A non-reserved crossing becomes an at-grade junction only when:
 
 ```text
 crossing angle >=30 degrees and <=150 degrees
 intersection is outside every bridge/tunnel approach reserve
+intersection is outside every active HIGHWAY_INTERCHANGE footprint polygon expanded by RoadOuterBlendWidth
 for each road, at least max(4W, its minimum turn radius) of centerline exists on both sides
 required local vertical correction fits grading.max_cut_depth/max_fill_height
 combined junction surface can satisfy the larger of the two road cross-slope limits
@@ -1794,13 +1823,13 @@ Every generated bridge/overpass starts in `PRISTINE` damage state. Initial rando
 
 Before the phase gate, run lightweight swept proxy validation over every compiled bridge/pass/tunnel/overpass interval using the cached collision envelopes. This is the last phase allowed to change crossing method/location or invoke a remaining Phase-10 corridor envelope.
 
-**Gate:** every road-feature conflict has exactly one compiled solution record; mandatory bridge/overpass obligations retain their required method; Section-5 bridge/overpass quotas pass; all compiled proxy swept checks pass; and no accepted solution exceeds asset, vehicle, grade, turn, cut/fill or clearance limits.
+**Gate:** every road-feature conflict has exactly one compiled solution record; mandatory bridge/overpass obligations retain their required method; Section-5 bridge/overpass quotas pass; all compiled proxy swept checks pass; no accepted solution exceeds asset, vehicle, grade, turn, cut/fill or clearance limits; every active interchange ramp has one merge or diverge record and every local junction one `HIGHWAY_RAMP_LOCAL_JUNCTION` record whose Section-12.1 whole-road solve passes; and no bridge/tunnel/overpass reserve intersects an active gore reserve.
 
 ## Phase 12 - compile final roads and local terrain cut/fill
 
 Phase 12 consumes frozen Phase-10 splines and Phase-11 compiled interactions. It does **not** reroute a road, move a crossing, change a crossing method or reopen Phases 9-11. A failure here fails the whole attempt.
 
-Process roads in the exact Phase-10 routing priority and `StableId` order. This phase is the single runtime realization point for roads and structural crossings.
+Process roads in the exact Phase-10 routing priority and `StableId` order (group 1b interchange elements after the highways they attach to). This phase is the single runtime realization point for roads and structural crossings. It never chooses a new interchange topology and never downgrades a frozen interchange to an ordinary intersection; a failed interchange realization fails the attempt.
 
 ### 12.1 Deterministic vertical-profile solver
 
@@ -1819,7 +1848,7 @@ A compiled crossing/junction endpoint with a fixed required deck/portal/junction
 2. backward propagation: `lo_i=max(lo_i,lo_{i+1}-g*ds_{i+1})` and `hi_i=min(hi_i,hi_{i+1}+g*ds_{i+1})`; fail if `lo_i>hi_i`;
 3. choose first sample `z_0=clamp(t_0,lo_0,hi_0)`; for each later sample choose `z_i=clamp(t_i,max(lo_i,z_{i-1}-g*ds_i),min(hi_i,z_{i-1}+g*ds_i))`; if the clamp interval is empty, fail;
 4. quantize every `z_i` to `Q`, revalidate adjacent grade after quantization, and fail if the max grade is exceeded by more than angular quantization `0.001 rad`;
-5. compute the road cross-section from Section 7. Cross slope is zero on ordinary straight roadbed unless an existing RoadSystem banking API already consumes an explicit bank value; this rewrite does not invent banking. At intersections/ramps the compiled profile must remain <= the Section-7 max cross slope.
+5. compute the road cross-section from Section 7. Cross slope is zero on ordinary straight roadbed unless an existing RoadSystem banking API already consumes an explicit bank value; this rewrite does not invent banking. At intersections, overpass ramps and highway-access merge/diverge intervals the compiled profile must remain <= the Section-7 max cross slope of every road sharing that surface.
 
 This algorithm is the only road centerline vertical-profile solver on the hybrid startup path.
 
@@ -1834,13 +1863,17 @@ For each accepted road interval:
 2. shoulder follows the roadbed edge elevation;
 3. `outer_blend = max(W,A/2)`; blend from shoulder edge to untouched terrain with `smoothstep` across exactly `outer_blend`;
 4. do not modify terrain inside a bridge deck span, tunnel bore, water/canyon void under a bridge, or an unrelated earlier road's protected junction surface;
-5. a road-road junction uses the already compiled shared junction surface; process that shared patch once under the lower junction `StableId`;
+5. a road-road junction uses the already compiled shared junction surface; process that shared patch once under the lower junction `StableId`; a highway's merge/diverge interval is deformed with the highway as its widened union roadbed (Section 12.6.11), and a ramp's outer blend never modifies an earlier road's roadbed or shoulder;
 6. apply an existing canonical ditch/embankment helper only when the current `RoadSystem` already exposes it; absence of such a helper causes no extra geometry and is not a failure;
 7. commit the deformation through `WorldTerrainSystem`;
 8. realize the road/crossing exactly once through canonical `RoadSystem`, `BridgeSystem`, `TunnelSystem` and junction APIs;
 9. append every created runtime id to the attempt-owned reverse-order cleanup list.
 
 Temporary refinement patches use Section 2.5 spacing and are released immediately after their accepted deformation is committed.
+
+### 12.2a Highway access ramp realization
+
+Realize every active interchange exactly by Section 12.6.13 items 1-6: one canonical `RoadSystem` road per ramp on the normal paved tier (width `W`, symmetric shoulder `0.25W`, exact `1.50W` footprint); the widened merge/diverge carriageway and roadbed on the highway road through the optional per-sample asymmetric edge profile added to the canonical `RoadSplineClass`/`RoadPointClass` owner (default zero, so existing callers are unchanged); the gore attachment as the compiled merge/diverge record with no `RoadSystem`-discovered junction inside a parallel interval or gore reserve; the local junction through the canonical junction path at its compiled elevation; the `DIAMOND_ACCESS` crossing through the existing overpass or junction path. Append every created runtime id to the cleanup list.
 
 ### 12.3 Post-realization physical verification
 
@@ -1852,9 +1885,9 @@ heavy reference         -> every heavy-capable strategic edge
 Harvester envelope      -> every home/resource economy edge
 ```
 
-Verify bridge/tunnel/overpass width/height/span/attachment against the realized runtime object and verify every realized road sample against its solved centerline/grade/cross-slope. A discrepancy is a hard Phase-12 attempt failure. Do **not** jump backward and repair it after runtime objects have been committed; teardown/retry keeps the pipeline one-way and prevents half-undone bridge/road state.
+Every ramp, parallel interval and local junction is swept with the envelopes its capabilities require (heavy reference when it carries heavy capability, exactly as the connected highway route; Harvester when it carries Harvester capability). Verify bridge/tunnel/overpass width/height/span/attachment against the realized runtime object, verify every realized road sample against its solved centerline/grade/cross-slope, and verify every interchange by the Section-12.6.13 ramp list. A discrepancy is a hard Phase-12 attempt failure. Do **not** jump backward and repair it after runtime objects have been committed; teardown/retry keeps the pipeline one-way and prevents half-undone bridge/road state.
 
-**Gate:** every mandatory road/crossing object is realized exactly once; realized geometry matches the frozen compiled records; all required swept-envelope tests pass; and no crossing is detached from either connected approach.
+**Gate:** every mandatory road/crossing object is realized exactly once; realized geometry matches the frozen compiled records; all required swept-envelope tests pass; no crossing is detached from either connected approach; and every active interchange's ramps, widened intervals and local junctions are realized, attached at both ends and match their merge/diverge records.
 
 ## Phase 13 - realize Tiberium fields
 
@@ -1962,7 +1995,7 @@ This is the final phase allowed to modify gameplay terrain geometry. It cannot m
 Build immutable exclusion envelopes before any repair:
 
 ```text
-all road swept envelopes + shoulder
+all road swept envelopes + shoulder, including HIGHWAY_RAMP roads, widened merge/diverge roadbed and gore reserves
 bridge/tunnel/overpass approaches
 base starting-building footprints and production corridors
 Harvester routes/field turning discs
@@ -2040,7 +2073,7 @@ When `world_features.forests=false`, tree/bush/grass candidates are skipped; roc
 Every candidate instance is rejected when its collision/placement bounds intersect:
 
 ```text
-road roadbed + shoulder + W clear zone
+road roadbed + shoulder + W clear zone (HIGHWAY_RAMP roads and widened merge/diverge roadbed included)
 bridge/tunnel/overpass approach reserve
 `BASE_PROTECTED` or production exit
 starting-building footprint
@@ -2059,9 +2092,10 @@ HIGHWAY_4   -> station spacing 12W; every station; alternate side
 PRIMARY_2   -> station spacing 10W only within 12W of a `BASE_PROTECTED` boundary or an abutment of a river/canyon bridge or overpass carrying PRIMARY_2/HIGHWAY_4
 SECONDARY_2 -> no lamps on the native hybrid path in this version
 SERVICE_DIRT_2 / TRAIL_1 -> no lamps
+HIGHWAY_RAMP -> no lamps
 ```
 
-Lamp offset from road edge is `0.5` world units beyond the full roadbed width, preserving the existing foliage-lamp placement convention. Missing lamp art omits lamps without affecting checksums for authoritative topology.
+Lamp offset from road edge is `0.5` world units beyond the full roadbed width, preserving the existing foliage-lamp placement convention. On a `HIGHWAY_4` merge/diverge interval the roadbed edge is the widened edge `E` of Section 12.6.11, and a lamp station whose lamp would lie inside any ramp roadbed, gore reserve or the ordinary road clear zone is skipped (the station sequence is not shifted). Missing lamp art omits lamps without affecting checksums for authoritative topology.
 
 **Gate:** no decoration instance intersects any structural exclusion envelope; decoration does not alter any Phase-15 checksum except the dedicated decoration/material stage checksum.
 
@@ -2075,8 +2109,8 @@ Perform exactly:
 2. finalize canonical collision/static-spatial registration for the already realized Phase-12 structural objects, Phase-13 Tiberium data and Phase-17 collision-bearing decoration; do not instantiate any road/bridge/tunnel/Tiberium/foliage object a second time;
 3. call only the non-instantiating/finalization path of `GeneratedWorldIntegrator`. If the current integrator mixes creation with finalization, split it so the hybrid path can register/finalize existing ids without duplicating them;
 4. build the authoritative navigation capability map / `PathfindClass` sectors exactly once;
-5. add/verify bridge/tunnel/overpass links from the frozen Phase-11/12 records, then freeze the capability graph;
-6. build the minimap base layer from frozen world records;
+5. add/verify bridge/tunnel/overpass links and every highway-access ramp, merge/diverge interval and local-junction link (two-way, Section 12.6.5) from the frozen Phase-11/12 records, then freeze the capability graph;
+6. build the minimap base layer from frozen world records, drawing ramps and widened merge/diverge intervals as road geometry connected to their highway and local junction, never as detached splines;
 7. partition shroud;
 8. build Commander chokepoint/expansion metadata from the final capability graph and Phase-14 reservations;
 9. build the existing logistics graph only when its existing profile/runtime enable flag is true; otherwise record the repository-standard disabled/absent state;
@@ -2086,7 +2120,7 @@ No active starting building, AI, Harvester, player object or economy actor is sp
 
 Any failure in terrain collision, structural registration or navigation is a hard attempt failure. Do not retry only the nav build and do not mutate geometry here to make nav pass.
 
-**Gate:** canonical collision/navigation/integration owners report success and planned connectivity equals actual capability-graph connectivity for all mandatory routes.
+**Gate:** canonical collision/navigation/integration owners report success and planned connectivity equals actual capability-graph connectivity for all mandatory routes, including the connectivity each active `HIGHWAY_INTERCHANGE` encodes with its required capabilities.
 
 ## Phase 19 - final validation, manifest commit and activation
 
@@ -2106,7 +2140,7 @@ Phase 19A is read-only with respect to generated-world geometry/topology and per
 10. **Infantry approaches:** each base has at least `fairness.min_infantry_approach_count` distinct infantry-capable approaches. Distinct means their final capability paths leave `BASE_PROTECTED` through different one-of-16 Phase-8 sectors; multiple paths through the same sector count once.
 11. **Expansion:** each base still has clear expansion area `>= fairness.min_base_expansion_area` by the existing Commander expansion-area calculator.
 12. **Infantry exposure:** every mandatory segment passes both `fairness.max_mandatory_exposed_infantry_run_distance` and `fairness.max_mandatory_exposed_infantry_run_time_seconds` using `I_REF`; `preferred_cover_interval` remains a soft placement target and is not promoted to a failure threshold.
-13. **Road geometry:** every realized road remains within its Section-7 max grade/cross-slope/min turn radius and swept-clearance rules.
+13. **Road geometry:** every realized road, including every `HIGHWAY_RAMP`, remains within its Section-7 max grade/cross-slope/min turn radius and swept-clearance rules.
 14. **Crossings:** every bridge/tunnel/overpass is attached at both ends, within registered span/width/height/approach limits, and has the expected navigation link.
 15. **Obstacle binding:** no realized road intersects river water, lake/coast water, cliff, canyon or ravine hard geometry without its exact Phase-11 compiled solution record. Lakes/coast have no road crossing solution in this generator version, so any road intersection with them fails.
 16. **Quotas:** every Section-5 mandatory feature quota is still satisfied by distinct qualified final objects. **(Q-024)** Overpasses are checked against Phase 9's frozen `ReservedOverpassCount`, not the raw Section-5 table: `realized_overpass_count == ReservedOverpassCount`, each reserved overpass one distinct legal realized `ROAD_X_ROAD` grade-separated structure. River and canyon/ravine bridge quotas stay mandatory minimums.
@@ -2114,6 +2148,7 @@ Phase 19A is read-only with respect to generated-world geometry/topology and per
 18. **Navigation agreement:** every mandatory planned connection exists with the required capability in the Phase-18 graph; no required capability exists only in planner metadata.
 19. **Biome/material invariants:** single/mixed ownership and Section-14.2 priority masks match MapIdentity.
 20. **Determinism:** immediately recompute every authoritative stage checksum from frozen records in Section-20 order; every value must match the value captured when that stage locked.
+21. **Highway access interchanges:** every active interchange passes the complete Section-12.6.13 ramp list (attachment at both ends, gore metadata, turn radius, grade, cross slope, merge/diverge tangent alignment and length, swept clearance, roadbed continuity, no accidental intersection, required capability through the interchange), and every withdrawn interchange's fallback junction exists instead.
 
 Any failure rejects the attempt with a named diagnostic. Do not modify the map to rescue Phase 19A.
 
@@ -2299,14 +2334,16 @@ Every road record stores:
 
 ```text
 StableId
-semantic class
+semantic class (including HIGHWAY_RAMP)
 source strategic edge
 spline
-exact Section-7 cross section
+exact Section-7 cross section (asymmetric shoulders for HIGHWAY_RAMP)
 speed hint
 required navigation capabilities
-junction records
+junction records, each with its compiled junction role (incidental ROAD_X_ROAD, shared-node, overpass obligation, HIGHWAY_RAMP_MERGE, HIGHWAY_RAMP_DIVERGE, HIGHWAY_RAMP_LOCAL_JUNCTION)
 crossing records
+HIGHWAY_RAMP only: owning HIGHWAY_INTERCHANGE StableId, ON_RAMP/OFF_RAMP role, side, gore station and merge/diverge interval
+HIGHWAY_4 only: the merge/diverge intervals and widened-profile samples it carries
 attempt-owned runtime road ids after Phase 12
 ```
 
@@ -2321,7 +2358,8 @@ Before max-flow:
 1. contract all graph edges/vertices lying inside each `BASE_PROTECTED` disc into one source/sink vertex per base;
 2. replace every physical bridge, tunnel, canyon pass and road-over-road one-at-a-time crossing by one unit-capacity edge;
 3. all ordinary heavy road edges also have unit capacity;
-4. `TRAIL_1` edges and any edge failing heavy capability are removed.
+4. `TRAIL_1` edges and any edge failing heavy capability are removed;
+5. every heavy-capable `HIGHWAY_RAMP` is one ordinary unit-capacity edge between its local junction and the highway at its gore, and a local junction is an ordinary vertex; ramps receive no special capacity.
 
 Run deterministic Edmonds-Karp with adjacency lists sorted by edge `StableId`. Required max flow from GDI contracted source to Nod contracted sink is `>= route_family_count`.
 
@@ -2376,6 +2414,271 @@ both portals clear water/base/Tiberium/bridge-approach reserves
 ```
 
 Select the shortest sufficient registered tunnel definition/module sequence; tie break by StableId. If none fits, continue to reroute/fail according to Phase 11. Do not invent tunnel geometry outside the existing canonical TunnelSystem capabilities.
+
+## 12.6 Highway access ramps and interchanges
+
+This subsection is the single authoritative specification of procedural freeway-style highway access (added 2026-10-02 as an extension of this generator version). Every phase rule that mentions an interchange, a `HIGHWAY_RAMP`, a gore or a merge/diverge interval refers back here. Nothing in it is optional implementer judgment: every constant, order, fallback and tie-break is fixed below.
+
+### 12.6.1 Terminology
+
+| Term | Exact meaning |
+|---|---|
+| `HIGHWAY_ACCESS_RAMP` | one one-direction conceptual access branch connecting `HIGHWAY_4` to a lower-class paved road through a merge or diverge section; each is realized as exactly one road of semantic class `HIGHWAY_RAMP` |
+| `ON_RAMP` | a `HIGHWAY_ACCESS_RAMP` whose logical travel direction enters `HIGHWAY_4` |
+| `OFF_RAMP` | a `HIGHWAY_ACCESS_RAMP` whose logical travel direction leaves `HIGHWAY_4` |
+| `RAMP_GORE` | the deterministic split/merge point between a ramp and the highway: the highway station at which the ramp roadbed's inner edge meets the highway roadbed's outer edge (12.6.6) |
+| `MERGE_SECTION` | the highway-parallel interval of an `ON_RAMP`, from its gore downstream for exactly `MergeLength`, in which the ramp lane aligns with and tapers into the normal `HIGHWAY_4` cross section |
+| `DIVERGE_SECTION` | the highway-parallel interval of an `OFF_RAMP`, exactly `DivergeLength` long and ending at its gore, between the main carriageway and the curved departure |
+| `HIGHWAY_INTERCHANGE` | one record grouping the `ON_RAMP`/`OFF_RAMP` records, local junctions and optional crossing road that connect one `HIGHWAY_4` anchor node with the lower-class paved topology edges arriving there |
+| interchange anchor `X` | the `HIGHWAY_4` pass-through topology node whose lower-class arrivals an interchange serves |
+| local junction `L_s` | the topology node of kind `INTERCHANGE_LOCAL_JUNCTION` on side `s` where that side's ramps meet the lower roads |
+| `INTERCHANGE_CROSSING` | the one lower-class road of a `DIAMOND_ACCESS` interchange joining its two local junctions across the highway |
+
+These terms are **not** equivalent to, and are never used interchangeably with: the Phase-11 overpass `L_ramp` (the vertical approach of a grade-separated road-over-road crossing), bridge/tunnel straight-approach reserves, bridge approaches, the cliff `RAMP_PASS_WINDOW`/`ramp_pass` ground method, or the `RAMP_PASS_WINDOW` semantic-matrix bit. A `HIGHWAY_RAMP` is a road; those are crossing geometry.
+
+### 12.6.2 Scope
+
+- The highway side of every ramp is `HIGHWAY_4`. The lower side is `PRIMARY_2` or `SECONDARY_2`.
+- No ramp is ever generated directly between `HIGHWAY_4` and `SERVICE_DIRT_2` or `TRAIL_1`. Such an arrival reaches highway access only through an interchange's local junction, where it joins the `PRIMARY_2`/`SECONDARY_2` access road (12.6.4 step 6). Where no interchange exists on its side it keeps its conventional Phase-11 junction with the highway, which is not a highway access ramp. This generator version does not synthesize extra `PRIMARY_2`/`SECONDARY_2` connector edges for them, because that would change the Section-5 topology and quota counts.
+- Exactly two interchange forms exist (12.6.3). No cloverleaf, turbine, stack, trumpet, loop ramp, collector-distributor road, braided ramp, frontage road or any other urban interchange. Cities remain disabled (Section 0.7) and no city interchange logic exists.
+- Every ramp connects actual frozen transportation topology. No decorative or unused ramp is generated.
+- No interchange is created where a `HIGHWAY_4` edge terminates (a base entrance point, or any node with fewer than two incident `HIGHWAY_4` edges). A lower road meeting a highway end keeps its conventional junction.
+- Interchanges are not a Section-5 quota feature (12.6.15). The existing highway and overpass quotas are unchanged.
+
+### 12.6.3 Interchange forms
+
+`DIAMOND_ACCESS` is used when the anchor has `PRIMARY_2`/`SECONDARY_2` arrivals on **both** sides of the highway. Each side receives exactly one `OFF_RAMP` and one `ON_RAMP`, both ending at that side's local junction. The two local junctions are joined by one `INTERCHANGE_CROSSING` road that crosses the highway at the anchor:
+
+- **grade-separated** through the existing overpass system whenever the Phase-9 overpass obligation tests of 12.6.4 step 4 pass. Grade separation is *required* in exactly that case; the crossing is then a reserved `OVERPASS_OBLIGATION` and never downgrades;
+- **at grade** only when those overpass tests fail and the at-grade feasibility test of 12.6.4 step 4 passes;
+- otherwise the anchor receives no interchange.
+
+`SIDE_ACCESS` is used when `PRIMARY_2`/`SECONDARY_2` arrivals exist on **one** side only. That side receives exactly one `OFF_RAMP` and one `ON_RAMP` (a half diamond); the far carriageway receives no ramps and no crossing exists. Both ramps are necessary: the `OFF_RAMP` connects the upstream highway neighbour and the `ON_RAMP` the downstream one, so neither is decorative. Logically a `SIDE_ACCESS` interchange provides only near-carriageway movements; because realized ramps remain physically two-way (12.6.5), the undirected Phase-9 connectivity to both highway neighbours is preserved.
+
+### 12.6.4 Phase-9 interchange selection (topology)
+
+Phase 9 step 15 executes this procedure after step 14. All directions use quantized intent positions.
+
+1. **Anchors.** An anchor candidate is a `FAMILY_WAYPOINT` node `X` on a `HIGHWAY_4` family with exactly two incident `HIGHWAY_4` trunk edges and at least one incident `PRIMARY_2`/`SECONDARY_2` edge (an *access arrival*). Order anchors by `(highway family id, X's index along its family chain from the GDI entrance, X StableId)`; this is the *interchange processing order* used everywhere below.
+2. **Frame.** Let `P` be the previous stop and `N` the next stop along the family chain (stops are nodes and frozen edge waypoints, as in Phase 10). Axis `a = normalize(normalize(X-P) + normalize(N-X))`; if the unnormalized sum is shorter than `Q`, the anchor is rejected. Left normal `n_LEFT = rotate(a,+90 degrees)`, right normal `n_RIGHT = -n_LEFT`. Right-hand traffic is the fixed logical convention: carriageway travel direction `tau_RIGHT = a`, `tau_LEFT = -a`. Each side `s` has a local frame with `x` along `tau_s` and `y` along `n_s`; `n_s` is to the right of `tau_s` on both sides.
+3. **Arrivals and sides.** Every incident edge of `X` other than its two highway edges is an arrival. Its departure direction `delta = normalize(first stop beyond X along that edge - X)`; `c = cross(a,delta)`. Side is `LEFT` when `c>0` and `RIGHT` when `c<0`. Reject the anchor when any arrival has `abs(c) < 0.5` (within 30 degrees of the highway axis), or when any of its access arrivals already belongs to an accepted interchange at its other endpoint (one interchange per lower-road edge). *Access sides* are the sides with at least one access arrival: two access sides give `DIAMOND_ACCESS`, one gives `SIDE_ACCESS`.
+4. **DIAMOND crossing decision.** Crossing class is `PRIMARY_2` when any access arrival is `PRIMARY_2`, otherwise `SECONDARY_2`. The crossing intent segment runs from `X + n_RIGHT*d_L` to `X + n_LEFT*d_L` (12.6.7); this decision evaluates it with candidate `k=0`'s `d_L` for the mode being tested, and the mode then stays fixed for every candidate (12.6.8 re-tests the crossing's exclusions per candidate). It is **grade-separated** when the existing step-12 overpass hard-validity tests pass for it at `X` (`60..120` degrees, arms of at least `10W` and the Q-023 overpass pose, exclusion from base/Tiberium/crossing-window protected bounds, `>=12W` from every already selected overpass, Phase-7 slope disc); it then receives one `OVERPASS_OBLIGATION` waypoint at `X`, anchored on the highway chain at node `X`. Otherwise it is **at grade** when the Phase-11 at-grade junction conditions evaluate true on intent geometry and Phase-7 terrain (crossing angle, outside every crossing-window approach reserve, arms `>= max(4W, class radius)`, vertical correction inside `grading.max_cut_depth`/`max_fill_height`, cross-slope); the crossing is then two edges `L_RIGHT -> X` and `X -> L_LEFT` and `X` remains an intended at-grade junction node. Otherwise the anchor is rejected.
+5. **Candidates.** Evaluate candidates `k = 0..K_GORE-1` (12.6.6) in ascending `k`; the first candidate passing every test of 12.6.8 is selected. If none passes, the anchor is rejected. Each evaluated `k` increments the counter `highway ramp candidates evaluated`.
+6. **Retargeting.** On acceptance, every arrival on an access side (any class, including `SERVICE_DIRT_2`/`TRAIL_1`) has its endpoint `X` replaced by that side's local junction `L_s`. Arrivals on a non-access side (only `SERVICE_DIRT_2`/`TRAIL_1` can be there) keep `X` and its conventional junction. Recompute the quantized graph length of every retargeted edge. If any retargeted edge counted toward a Section-5 `SERVICE_DIRT_2`/`TRAIL_1` quota now falls below its Section-5 qualification length, undo this anchor entirely and reject it.
+7. **Routed-edge cap.** Reject the anchor when accepting it would make the realized-edge count exceed Section-16.1 `R`. New realized edges are two ramps per access side plus the crossing edges: none for `SIDE_ACCESS`, one for grade-separated `DIAMOND_ACCESS`, two for at-grade `DIAMOND_ACCESS`.
+8. **Records.** On acceptance create, with fresh `StableId`s in this order: the `HIGHWAY_INTERCHANGE` record; local junction nodes (`RIGHT` then `LEFT`); per access side (`RIGHT` then `LEFT`) its `OFF_RAMP` edge then its `ON_RAMP` edge; the crossing edge(s); the crossing's `OVERPASS_OBLIGATION` node when grade-separated. Ramp edges have kind `HIGHWAY_RAMP`, class `HIGHWAY_RAMP`, `NodeA=L_s`, `NodeB=X`, `Required=true`, and graph length `= constructed ramp centerline length from L_s to its gore + G(k)`. The crossing edge kind is `INTERCHANGE_CROSSING`, `Required=true`. Store the **fallback variant**: the original endpoint `X` of every retargeted edge.
+9. **Capabilities.** Let `M` be the bitwise OR of the `Capabilities` of every retargeted arrival of the interchange (both sides). Every ramp and crossing edge of that interchange carries the bitwise OR of `HYBRID_NAV_LIGHT` and `M`. A ramp therefore carries heavy capability exactly when it serves a heavy edge, and Harvester capability exactly when it serves an economy edge, as every other road edge derives capability from its source topology connection.
+
+A rejected anchor keeps all of its arrivals at `X`; Phase 11's existing road-road logic then solves those junctions. Rejection is never a phase failure.
+
+### 12.6.5 Directionality
+
+The canonical `RoadSystem`/`RoadSplineClass` and the hybrid topology records carry no one-way attribute (verified in source 2026-10-02), and no canonical navigation owner enforces one-way traversal. Therefore:
+
+- `ON_RAMP`/`OFF_RAMP` are procedural topology and geometry roles only;
+- every realized ramp is physically traversable in both directions and appears as a two-way link in the Phase-18 capability graph;
+- no one-way navigation subsystem is created by this feature;
+- the role is preserved as metadata for geometry generation, Commander/minimap representation, future traffic/AI semantics, debugging and checksums.
+
+If a later generator version adds canonical one-way edge support, it consumes the stored roles; this version does not.
+
+### 12.6.6 `HIGHWAY_RAMP` cross section and fixed constants
+
+| Field | Value |
+|---|---|
+| lanes | 1 |
+| lane width | `W` |
+| inner shoulder | `0.20W`, on the left of the ramp's travel direction (the side facing the highway in the parallel interval) |
+| outer shoulder | `0.30W` |
+| median | 0 |
+| roadbed width | `1.50W` |
+| max grade | 12 deg |
+| max cross slope | 8 deg |
+| minimum turn radius | `R_r = 5W` |
+
+Interchange constants, all exact:
+
+```text
+MergeLength      = max(12W, 2*HIGHWAY_4.minimum_turn_radius)   = 16W
+DivergeLength    = max(10W, 1.5*HIGHWAY_4.minimum_turn_radius) = 12W
+GoreReserveMargin = 2W
+InterchangeGoreSpacing = 24W
+K_GORE           = 32          // candidates per interchange; never raised at runtime
+theta_c          = 15 degrees  // convergence heading relative to the highway tangent
+psi              = 45 degrees  // departure heading at the local junction
+l_arm            = max(4W, R_r) = 5W
+T15 = R_r*tan(7.5 deg)  = 0.6582626W
+T30 = R_r*tan(15 deg)   = 1.3397460W
+d_sep  = 0.5*RoadbedWidth(HIGHWAY_4) + 0.5*RoadbedWidth(HIGHWAY_RAMP) = 3.575W
+d_join = 0.5*HIGHWAY_4.median + 1.5*W = 1.875W                         // outer-lane center
+h_hwy  = 0.5*HIGHWAY_4.median + 2W    = 2.375W                         // carriageway half width
+E_hwy  = 0.5*RoadbedWidth(HIGHWAY_4)  = 2.825W                         // roadbed half width
+HighwayJunctionReserve = max(4W, HIGHWAY_4.minimum_turn_radius) = 8W
+```
+
+`MergeLength` and `DivergeLength` are centerline lengths measured along the highway, never endpoint chord distances. Lateral offsets `d` are measured from the highway centerline along `n_s`. The ramp's authoritative centerline is its roadbed centerline.
+
+### 12.6.7 Candidate construction (exact)
+
+For candidate `k`, in each access side's frame (`X` at the origin, the highway centerline is the `x` axis and is straight over the interchange, 12.6.9):
+
+```text
+l_conv(k)  = T30 + T15 + (2+k)*W                         = (3.9980086 + k)W
+d_Lmin(k)  = d_sep + l_conv(k)*sin(theta_c) + (l_arm+T30)*sin(psi)
+           = (9.0926380 + 0.2588190k)W
+d_L(k)     = d_Lmin(k)                                   for SIDE_ACCESS and at-grade DIAMOND_ACCESS
+d_L(k)     = max(d_Lmin(k), d_Lov)                       for grade-separated DIAMOND_ACCESS
+d_Lov      = E_hwy + L_ramp_plan + l_arm
+G(k)       = T15 + l_conv(k)*cos(theta_c) + d_L(k) - d_sep - l_conv(k)*sin(theta_c)
+S_I(k)     = G(k) + MergeLength + GoreReserveMargin      // straight highway half-extent each side of X
+```
+
+For `SIDE_ACCESS`, `G(k) = (9.0029197 + 0.9659258k)W`. The planning overpass helpers are:
+
+```text
+Dz_plan(c, center, foot1, foot2) = minimum_clear_vertical_gap (Section 12.3) + OverpassDepthMax(c)
+                                   + max(0, z(center) - min(z(foot1), z(foot2)))
+L_ramp_plan(c)                   = the Phase-11 overpass L_ramp expression with upper_class = c
+                                   and delta_z = Dz_plan(c, ...)
+```
+
+`z` is the Phase-7 terrain height and `OverpassDepthMax(c)` is the largest structural depth among registered bridge/overpass kinds able to carry class `c` (preflight metric cache). In `d_Lov`, `c` is the crossing class, `center = X` and the feet are `X + n_RIGHT*d_Lmin(k)` and `X + n_LEFT*d_Lmin(k)`.
+
+Local junction: `L_s = (0, d_L(k))`.
+
+`ON_RAMP` of side `s`, control polygon in travel order `[L_s, V1, V2, p_g]`:
+
+```text
+p_g = ( G(k), d_sep)                                   // RAMP_GORE point, heading +x
+V2  = ( G(k) - T15, d_sep)
+V1  = V2 - l_conv(k)*(cos theta_c, -sin theta_c)
+L_s -> V1 has heading (cos psi, -sin psi) and length (d_L(k) - V1.y)/sin(psi) >= l_arm + T30
+```
+
+The `x = 0` position of `L_s` is what makes `G(k)` the formula above; the length equals `l_arm + T30` exactly when `d_L(k) = d_Lmin(k)`.
+
+`OFF_RAMP` of side `s` is the mirror `x -> -x` in travel order `[p_g', V2', V1', L_s]` with `p_g' = (-G(k), d_sep)`. Every polygon corner is filleted with one circular arc of radius `R_r` by Phase 10's arcs-and-tangents corner construction (D-009 revision); the fillet tangent lengths are `T30` at `V1` and `T15` at `V2`, so the final arc ends exactly at the gore with heading parallel to the highway. The centerline therefore approaches the merge/diverge tangent along a straight convergence leg at exactly `theta_c = 15` degrees, every curve radius equals `R_r`, and no instantaneous branch angle, hairpin, switchback or self-intersection exists.
+
+Parallel intervals in highway station `x` (side frame), with `smoothstep(u) = u*u*(3-2u)`:
+
+```text
+ON_RAMP  MERGE_SECTION   x in [G, G+MergeLength],      u = (x-G)/MergeLength
+         d(u) = d_sep + (d_join - d_sep)*smoothstep(u)       // separated -> outer lane
+OFF_RAMP DIVERGE_SECTION x in [-G-DivergeLength, -G], u = (x+G+DivergeLength)/DivergeLength
+         d(u) = d_join + (d_sep - d_join)*smoothstep(u)      // outer lane -> separated
+```
+
+`lateral_offset_fraction = smoothstep(u)` over the full interval. The ramp centerline inside the interval is the curve `(x, d(u))`; its heading equals the highway tangent at both ends.
+
+Gore reserves (side frame): `ON_RAMP [G-GoreReserveMargin, G+MergeLength+GoreReserveMargin]`, `OFF_RAMP [-G-DivergeLength-GoreReserveMargin, -G+GoreReserveMargin]`. For `LEFT`, chain station equals `-x`.
+
+Crossing (`DIAMOND_ACCESS`): the straight segment `L_RIGHT -> L_LEFT` through `X`, perpendicular to `a`.
+
+Local junction arms, measured from `n_s`: `OFF_RAMP` arm at `-135` degrees, `ON_RAMP` arm at `+135` degrees, crossing arm at `180` degrees; every retargeted arrival is a *stem* arm.
+
+### 12.6.8 Candidate hard-validity (Phase 9)
+
+Candidate `k` is hard-valid only when every test passes. Tests use intent geometry with the highway taken as the straight line through `X` along `a` over `[-S_I(k), +S_I(k)]`, Phase-6 vectors, Phase-7 terrain and Phase-9 frozen records:
+
+1. **Straight extent and pose.** The interchange pose `(X, a, straight S_I(k) either side)` connects to the neighbouring structural poses on the highway chain by the `HIGHWAY_4` radius construction, using the same Q-023 rule as a crossing window, and the chain extends at least `S_I(k) + HighwayJunctionReserve` on both sides of `X` before a base entrance.
+2. **Structure reserves.** Along the chain, measured from each structure's own station:
+   - `[X-S_I(k), X+S_I(k)]` is disjoint from every crossing-obligation waypoint's planning reserve `0.5*window obstruction span + max(8W, BridgeApproachMax(HIGHWAY_4))`, from every other `OVERPASS_OBLIGATION`'s planning reserve, from `HighwayJunctionReserve` around every other highway node with a conventional junction, and from the straight extent of every already accepted interchange;
+   - every gore reserve of this interchange is disjoint from its own crossing's overpass planning reserve (grade-separated `DIAMOND_ACCESS`) and from `HighwayJunctionReserve` around `X` whenever `X` keeps a junction (an at-grade `DIAMOND_ACCESS` crossing, or a non-access-side arrival).
+   An `OVERPASS_OBLIGATION`'s planning reserve is `0.5*RoadbedWidth(other road) + L_ramp_plan(HIGHWAY_4)`, i.e. it conservatively assumes the highway is the upper road, with `Dz_plan(HIGHWAY_4, ...)` taking `center` = that obligation and the feet = the chain points `10W` either side. `BridgeApproachMax(c)` is the largest required approach length among registered bridge kinds able to carry class `c` (preflight metric cache).
+3. **Spacing.** Every gore of this interchange is at least `InterchangeGoreSpacing` along the chain from every gore of every already accepted interchange; gore reserves are pairwise disjoint.
+4. **Same-interchange intervals.** Merge/diverge intervals on the same carriageway do not overlap (they cannot by construction: the `OFF_RAMP` interval lies upstream of `-G` and the `ON_RAMP` interval downstream of `+G`); a `DIAMOND_ACCESS`'s two sides use different carriageways. No shared auxiliary lane is generated in this version.
+5. **Exclusions.** Every ramp centerline and roadbed sample (spacing `min(W/3,A/4)`), every gore reserve's widened roadbed, the local-junction disc of radius `0.5*max(RoadbedWidth of its arms) + l_arm` and the crossing segment lie inside placeable bounds and outside: `BASE_PROTECTED` and frozen base entrance corridors; Tiberium hard reserves and cores; lake/coast/river water; cliff/canyon/ravine hard walls (no window exception); `OPEN_MANEUVER` immutable-barrier violations. A ramp in this version never carries its own bridge, tunnel, cut or pass: a candidate that would need one is rejected, which satisfies the rule that an interchange whose ramp needs a major structural crossing is avoided while another legal solution exists (the conventional junction always remains).
+6. **Grade.** Consecutive ramp samples are grade-compatible under Section 7.1 at the `HIGHWAY_RAMP` max grade; an at-grade crossing at its class max grade.
+7. **Local junction.** Every stem arm (departure direction from `L_s` to the retargeted arrival's next stop) lies within 60 degrees of `n_s`, and all arms of `L_s`, sorted by angle, are separated pairwise by at least 30 degrees.
+
+### 12.6.9 Phase-10 routing, alignment and the only fallback
+
+1. **Highway alignment.** For each active interchange, both incident highway edges of `X` are routed with the stops `a_I = X - a*S_I(k)` and `b_I = X + a*S_I(k)`: the incoming edge reaches `a_I` and runs straight along `a` to `X`; the outgoing edge leaves `X` straight along `a` to `b_I`. This is the Q-022 crossing-alignment rule applied to an interchange pose: every class-radius turn is finished before `a_I` and begins after `b_I`. A route that cannot do so is a normal envelope failure.
+2. **Construction (routing group 1b).** After every group-1 trunk is routed, construct the interchanges in interchange processing order: crossing edge(s) first, then ramps (`RIGHT` then `LEFT`, `OFF_RAMP` then `ON_RAMP`), exactly by 12.6.7 on the routed highway. Ramps are constructed, never A*-routed. Each element is re-validated with every 12.6.8 test against the routed geometry and, additionally, must not intersect the roadbed of any already routed group-1 road other than its own highway inside its merge/diverge interval.
+3. **Fallback.** Withdrawing an interchange is allowed only here, and only before any routing group after 1b starts: (a) when a highway edge carrying interchange alignment fails its third envelope, withdraw that edge's interchange that is later in processing order (an edge carries at most two, one per end node) and rerun the edge from its first envelope; repeat; after none remain the edge fails by the ordinary rule; (b) when a group-1b element fails re-validation, withdraw that interchange. Withdrawal restores the frozen Phase-9 fallback variant: retargeted edges end at `X` again, and the interchange's local junctions, ramps, crossing edge and crossing `OVERPASS_OBLIGATION` become inactive. Inactive records keep their `StableId`s and appear in the stage checksum with status `WITHDRAWN`. An already routed highway leg keeps its straight alignment.
+4. **Footprint.** For each active interchange side, the footprint polygon is: the highway centerline point at the diverge start, the `OFF_RAMP` centerline from there to `L_s`, the `ON_RAMP` centerline from `L_s` to the merge end, then back along the highway centerline. For every edge routed after group 1b, analysis cells whose centers lie inside an active footprint are hard-infinite, except the cell containing that edge's own `L_s` endpoint.
+5. **Lower roads.** Retargeted edges route to `L_s` as their endpoint stop under the ordinary Phase-10 rules.
+
+### 12.6.10 Phase-11 compilation and junction roles
+
+Phase 11 compiles three intended junction roles, which are never rediscovered as incidental `ROAD_X_ROAD` intersections:
+
+```text
+HIGHWAY_RAMP_DIVERGE        an OFF_RAMP with its highway over its DIVERGE_SECTION and gore reserve
+HIGHWAY_RAMP_MERGE          an ON_RAMP with its highway over its MERGE_SECTION and gore reserve
+HIGHWAY_RAMP_LOCAL_JUNCTION all arms at one L_s, built by the existing class-radius junction construction
+```
+
+A `DIAMOND_ACCESS` crossing is a reserved `OVERPASS_OBLIGATION` (compiled by the existing overpass construction rule; the highway is the lower road through node `X` and its two incident edges are treated as one continuous road, which the 12.6.9 alignment makes straight) or an intended at-grade junction at `X`.
+
+Every other intersection involving a ramp, a crossing edge or a footprint polygon is an incidental `ROAD_X_ROAD` solved by the existing rules, with one addition: an incidental at-grade junction is legal only when the intersection lies outside every footprint polygon expanded by `RoadOuterBlendWidth`. The interchange element is never the rerouted road, because group-1 conflicts were excluded in Phase 10 and every later road has lower routing priority.
+
+Phase 11 also:
+
+1. adds to the common crossing-station tests: *no approach reserve, tunnel portal reserve or overpass ramp interval intersects any active gore reserve*; a bridge/tunnel/overpass station failing it is hard-invalid and the existing station/method sequence continues;
+2. verifies every compiled overpass ramp interval on the highway chain (including a swapped assignment) against every gore reserve; a conflict is that assignment's failure under the existing swap rule;
+3. compiles each `L_s` elevation `z_L`: the crossing profile at `L_s` for `DIAMOND_ACCESS`; for `SIDE_ACCESS`, the Section-12.1 solve of the lower-`StableId` ramp of that side with its gore pinned to the highway profile;
+4. judges every ramp by the Section-12.1 solver over the whole ramp (Q-022 whole-road grading) with pins: gore = highway profile at the gore station, parallel interval = highway profile, `L_s = z_L`;
+5. writes one merge/diverge solution record per ramp: gore station, interval, samples at `min(W/3,A/4)` of `(station, u, d(u), widened carriageway half width h, widened roadbed half width E, z)`;
+6. runs lightweight swept proxy validation over ramps, parallel intervals and local junctions with the ramp's required capabilities.
+
+A failure after Phase 10 is never resolved by withdrawing the interchange; it follows the existing Phase-11 rules and, when they are exhausted, fails the phase. Ramps and crossing edges are constructed and have no Phase-10 envelope, so wherever an existing rule would reroute one of them (for example both overpass assignments of a `DIAMOND_ACCESS` crossing failing), the rule is exhausted and Phase 11 fails.
+
+### 12.6.11 Merge/diverge roadbed
+
+The highway cross section widens smoothly through every parallel interval; Phase 12 never draws a one-lane road across the highway shoulder.
+
+`ON_RAMP`: the ramp runs independently to its gore; at the gore its roadbed touches the highway roadbed and becomes highway-parallel; the highway's outer roadbed widens to include the merge lane; the merge lane tapers into the normal `HIGHWAY_4` cross section by the merge end. `OFF_RAMP` is the exact reverse: the highway roadbed widens to provide the diverge lane, the diverge lane separates at the gore, and the ramp curves away to its local junction.
+
+On the ramp side, at every station of a parallel interval:
+
+```text
+h(x) = max(h_hwy, d(u) + 0.5W)     // widened carriageway half width
+E(x) = max(E_hwy, d(u) + 0.75W)    // widened roadbed half width
+```
+
+`h` and `E` are continuous, so no width discontinuity exists: `h` equals `h_hwy` exactly at the merge end and diverge start (`d=d_join`), and at the gore `E` equals the ramp roadbed's outer edge on both sides of the gore station. The inner strip between the two carriageways becomes carriageway at the gore station, which is the gore nose. The far side of the highway and every station outside the parallel intervals keep the normal `HIGHWAY_4` cross section and lane count.
+
+### 12.6.12 Terrain and elevation
+
+Ramps are ordinary terrain-supported roads: the normal Section-12.1 solver, normal cut/fill limits and the normal outer terrain blend apply. Inside a parallel interval the ramp surface is the highway surface (zero cross slope on the straight highway). A `DIAMOND_ACCESS` crossing uses the existing overpass elevation system, and its ramps reach the crossing's elevation at `L_s` through a legal `HIGHWAY_RAMP` profile. No floating ramp or unsupported elevated road surface exists.
+
+### 12.6.13 Realization, navigation and validation
+
+Phase 12 processes the highway (group 1), then interchange elements (group 1b), then later roads:
+
+1. each ramp is one canonical `RoadSystem` road from `L_s` to its gore on the existing normal paved physical tier (`ROAD_CLASS_STREET` in the current source), width `W`; because the current `RoadSplineClass` has one symmetric shoulder width, the shoulder passed is `0.25W` on the roadbed centerline, so the realized footprint is exactly `1.50W`;
+2. the widened carriageway/roadbed of 12.6.11 is realized on the highway road itself. The canonical `RoadSplineClass`/`RoadPointClass` owner is extended with an optional per-sample asymmetric edge profile (extra left/right carriageway and shoulder half widths over station intervals) consumed by ribbon, road-mask and grade stamping; its default is zero, so every existing caller is unchanged. No new road rendering subsystem is created;
+3. the ramp road's end cross-section at the gore coincides with the outer part of the widened highway cross-section (within `Q`); the attachment is the compiled `HIGHWAY_RAMP_MERGE`/`DIVERGE` record, and no `RoadSystem`-discovered junction may exist inside a merge/diverge interval or gore reserve;
+4. the local junction is realized by the canonical junction path, at `z_L`;
+5. terrain deformation uses the union roadbed; a ramp's outer blend never modifies the highway roadbed or shoulder, so in the gore wedge it stops at the highway roadbed edge;
+6. Phase 12 never chooses a new interchange topology or downgrades a frozen interchange to an ordinary intersection; any discrepancy fails the attempt.
+
+Phase 12.3 additionally verifies every ramp by the Phase-19A ramp list below. Phase 18 includes every ramp, local junction and parallel interval in the capability graph as two-way links, verifies the planned interchange connectivity, and renders ramps and widened intervals as connected road geometry on the Commander/minimap layer. Phase 19A check 21 validates, from realized records:
+
+```text
+both ramp endpoints attach to their intended roads (L_s and the highway gore)
+gore metadata matches realized geometry
+minimum ramp turn radius R_r
+maximum ramp grade 12 deg and cross slope 8 deg
+merge/diverge tangent alignment: heading difference 0 at the gore within 0.001 rad; convergence leg 15 deg
+merge/diverge length equals MergeLength/DivergeLength along the highway
+swept vehicle clearance for the ramp's capabilities (heavy envelope when HEAVY, Harvester when HARVESTER)
+no roadbed or carriageway discontinuity at merge/diverge (h and E continuous; gore cross-sections coincide)
+no accidental intersection with neighbouring lanes/structures
+required navigation capability exists through the interchange
+```
+
+### 12.6.14 Raised highway clarification
+
+This generator version supports **local** highway elevation caused only by bridge or road-over-road structural crossings. It does not generate long independently elevated `HIGHWAY_4` viaduct corridors; that requires a later explicitly specified elevated-highway feature and generator-version bump. Highway access ramps are terrain-supported roads and are not elevated-highway generation.
+
+### 12.6.15 Determinism, checksums, diagnostics and versioning
+
+- Every interchange decision uses the stable orders above; no draw is consumed and no RNG is used.
+- Stage checksums include every interchange record in `StableId` order with at least: interchange `StableId`; form; status (`ACTIVE`/`WITHDRAWN`); anchor and connected highway edge `StableId`s; connected lower-road `StableId`s; per ramp its role, side, gore station, merge/diverge interval and quantized ramp spline; selected `k`, `d_L`, `G`, `S_I`; required navigation capability; crossing mode; and, after Phase 12, the realized runtime road ids. Stage 9 carries the Phase-9 records, stage 10 the routed geometry and statuses, stage 11 the compiled merge/diverge and junction records, stage 12 the realized ids and widened-profile samples, stage 18 the navigation links.
+- Interchanges are not mandatory quota features and no global interchange count is forced. Diagnostics report: interchanges by form, ramps by role, withdrawals, anchors rejected by reason, and `highway ramp candidates evaluated`.
+- Implementing this extension changes generated output: increment `CURRENT_GENERATOR_VERSION` by exactly 1 once when the extension lands, as the repository did for D-016 and D-018. `HIGHWAY_RAMP` is appended after the existing road classes and the new node/edge kinds after the existing kinds, so existing ordinals, per-class bitmasks (Phase-6 `approach_classes`, whose `HIGHWAY_RAMP` bit is always false because ramps never bind windows) and record encodings keep their values.
 
 # 13. Tiberium rules
 
@@ -2463,6 +2766,8 @@ A* expansions per route = 8*N
 A* expansions per attempt = R * 8*N
 crossing stations per CrossingProblem = 64
 CrossingProblems per routed edge = 12
+highway ramp gore candidates per HIGHWAY_INTERCHANGE = K_GORE = 32
+interchange anchors evaluated per attempt <= count of HIGHWAY_4 pass-through topology nodes
 LOS rays SMALL/MEDIUM/LARGE = 512 / 2048 / 4096
 local tactical repair candidates per failed segment =
     3 * retry.max_alternate_candidates_per_feature
@@ -2472,7 +2777,7 @@ workers = 4 max
 
 If an edge exceeds its A* expansion ceiling, that route attempt fails and uses the documented local reroute sequence; do not raise the ceiling at runtime.
 
-Routed-edge creation itself may not exceed `R`. Phase 9 must fail if mandatory graph requirements would exceed that cap; the default native profile/quotas are designed to remain below it.
+Routed-edge creation itself may not exceed `R`. Phase 9 must fail if mandatory graph requirements would exceed that cap; the default native profile/quotas are designed to remain below it. Interchange ramps and crossings count as routed edges; Section 12.6.4 step 7 rejects an interchange rather than exceed `R`, so interchanges never cause this failure. When all `K_GORE` candidates of an anchor fail, that interchange candidate fails; the limit is never raised at runtime.
 
 Expose counters for:
 
@@ -2483,6 +2788,8 @@ A* state expansions
 routed edges
 crossing problems
 crossing candidate stations
+highway ramp candidates evaluated
+highway interchanges by form, ramps by role, interchange withdrawals and anchor rejections by reason
 LOS rays
 local refinement samples
 whole-world attempt count
@@ -2495,6 +2802,7 @@ No P99-derived tuning step is required to finish the implementation. Future gene
 
 - road A* uses only the Phase-10 corridor and at most two `+S` expansions;
 - bridge/crossing search uses the Phase-11 window and 64-station cap;
+- highway-access candidates come only from existing Phase-9 topology connections at `HIGHWAY_4` pass-through nodes, use the frozen `K_GORE=32` list per interchange and query nearby features through `ProceduralPlanningSpatialHash`; no unbounded interchange search exists;
 - vector intersections use `ProceduralPlanningSpatialHash`;
 - local refinement uses only the accepted feature AABB expanded by its blend width;
 - tactical LOS checks only the Phase-15 listed mandatory corridors;
@@ -2531,6 +2839,8 @@ Local repair stays inside the phase that owns the failing feature. There is **no
 4 when that phase's documented candidate/method limits are exhausted, fail the phase
 5 tear down the attempt and start the next whole-world effective seed
 ```
+
+Section 12.6 defines exactly two such operations for highway access: Phase 9 advances an interchange's frozen `K_GORE` candidate iterator and otherwise rejects the anchor (keeping its conventional junction), and Phase 10 may withdraw an interchange to its frozen Phase-9 fallback variant only under Section 12.6.9. No later phase gains either.
 
 A phase that does not define one of those operations does not gain it from this section. This section never authorizes new coordinates, a new crossing type, a new tunnel, wider search bounds, weaker constraints or an implementer-selected fallback.
 
@@ -2573,6 +2883,7 @@ attempt index
 A* expansions
 routed-edge count
 crossing-problem/station count
+highway ramp candidates evaluated; interchanges by form; withdrawals
 refinement sample count
 LOS rays
 worker count
@@ -2589,7 +2900,7 @@ For a fixed representative seed set:
 
 ```text
 1 worker vs 4 workers -> identical authoritative stage/final checksums
-client vs dedicated server -> identical topology/physics-authoritative checksums
+client vs dedicated server -> identical topology/physics-authoritative checksums, including interchange records
 repeated same input -> identical checksums
 effective seed N reconstructed from manifest -> identical world
 save/load reconstruction -> identical generated-world identity before runtime mutations
@@ -2608,6 +2919,7 @@ Harvester path from each base to home field
 required contested-field equal-access check
 all road class grade/turn/cross-slope limits
 bridge/tunnel/overpass span/width/height/attachment checks
+highway access interchange checks (Phase-19A check 21)
 Section-5 quotas
 starting-base footprints/production exits/expansion area
 spawn sightline and mandatory infantry exposure thresholds
@@ -2641,9 +2953,14 @@ cliff/canyon mesh has a visible hole/self-overlap at a spline join
 terrain material ignores the priority mask, including a road covered by biome material or a vertical cliff/canyon/ravine face covered by ordinary biome ground material
 foliage/prop visibly stands in road, water, bridge approach or base production corridor
 mixed biome appears as isolated checkerboard/islands rather than the one divider/transition band
+highway ramp visibly detached from its highway or local junction, or drawn across the highway shoulder instead of through a widened merge/diverge interval
+merge/diverge interval shows a carriageway/roadbed width step, a gap or overlapping road surfaces
+Commander/minimap shows a ramp as a detached decorative spline
 ```
 
-Driving smoke covers Humvee, heavy reference vehicle, Harvester and infantry on at least one example of each applicable route/crossing class. A visual failure is logged against the owning phase and fixed there; the agent does not ask the user how the defect should be interpreted.
+The smoke seed set must include at least one seed with an active `SIDE_ACCESS` and one with an active `DIAMOND_ACCESS` interchange (search the deterministic seed sequence and record the seeds found); their merge and diverge intervals are inspected visually.
+
+Driving smoke covers Humvee, heavy reference vehicle, Harvester and infantry on at least one example of each applicable route/crossing class. Highway access driving smoke is exact: a Humvee enters `HIGHWAY_4` through an `ON_RAMP`; a Humvee exits `HIGHWAY_4` through an `OFF_RAMP`; the heavy reference vehicle drives a heavy-capable ramp; and, when any Harvester-capable strategic route uses a ramp on a smoke seed, a Harvester traverses it. A visual failure is logged against the owning phase and fixed there; the agent does not ask the user how the defect should be interpreted.
 
 # 19. Exact implementation/migration sequence
 
@@ -2675,6 +2992,8 @@ This is the coding order. Do not implement a later item before the gate/test nam
 
 Each implementation item must leave the project buildable. When an old and new record must coexist during migration, add an adapter and delete it only in item 22 after call-site search proves it unused.
 
+**Highway access ramp extension (Section 12.6).** I1, I2, I10, I11 and I12 were completed before this extension was specified. Their highway-access portions are reopened and are implemented in this order **before the remaining I13 realization work proceeds**: I1 (`HIGHWAY_RAMP` class appended, interchange/ramp/local-junction/crossing records, junction roles), I2 (Section-7.1 helpers for `HIGHWAY_RAMP`, interchange constants, counters), I10 (Phase-9 step 15), I11 (alignment stops, group 1b construction, withdrawal, footprint cells), I12 (Phase-11 roles, gore-reserve station test, ramp grading and records). Each reopened item re-passes its own gate. Only the portions this extension requires are revisited; already-passing behavior is preserved except the generated-output change the single generator-version increment of Section 12.6.15 records. I13, I18 and I19 then include their Section-12.6 parts as ordinary items.
+
 # 20. Required stage manifest/checksum order
 
 The final generated-world manifest must represent enabled authoritative stages in stable order:
@@ -2702,6 +3021,8 @@ The final generated-world manifest must represent enabled authoritative stages i
 ```
 
 Disabled/non-authoritative render-only stages use the repository-standard absent/zero representation consistently.
+
+Highway access interchange records enter stages 9, 10, 11, 12 and 18 exactly as Section 12.6.15 lists; a map without an active interchange still serializes the empty interchange list, so its encoding is stable.
 
 ---
 
@@ -2743,6 +3064,8 @@ At completion update the repository's procedural documentation so it describes t
 
 Document city/settlement generation as a **future feature requiring a defined civilian/abandoned-building asset set and a later generator-version bump**, not as unfinished work inside this rewrite.
 
+Document highway access interchanges (Section 12.6) in the owning `docs/procedural_world/` files (`HybridTopology.md`, `HybridRoutes.md`, `HybridInteractions.md`, `RoadsBridgesTunnels.md`), and document long elevated-highway viaducts as a future feature requiring its own specification and generator-version bump.
+
 ---
 
 # 23. Definition of done
@@ -2754,7 +3077,8 @@ The rewrite is complete only when all of the following are true:
 - no active procedural city/settlement generation exists;
 - default maps use one broad biome theme, with mixed mode available through the explicit randomizer/profile control;
 - roads form a deliberate cyclic hierarchy rather than a tree;
-- highways, two-lane roads, dirt roads and trails have distinct semantics;
+- highways, two-lane roads, dirt roads, trails and highway access ramps have distinct semantics;
+- every `HIGHWAY_4` connection to `PRIMARY_2`/`SECONDARY_2` that can legally be an interchange is realized as `DIAMOND_ACCESS` or `SIDE_ACCESS` with merge/diverge widening, passes Phase-19A check 21 and the on-ramp/off-ramp/heavy (and, where used, Harvester) driving smoke;
 - road routes use bounded analysis-grid search and smooth splines;
 - river/lake/cliff/canyon/ravine features are coherent continuous structures;
 - bridges/overpasses/tunnels are selected before final road terrain deformation;
@@ -2776,7 +3100,7 @@ Implement the Section-19 coding sequence strictly in order and the Section-8 run
 
 The first meaningful milestone is intentionally ugly:
 
-> A gray/untextured generated battlefield in which bases, Tiberium fields, rivers, lakes, cliffs, canyons, ravines, highways, two-lane roads, dirt roads, trails, bridges, overpasses and optional tunnels appear in coherent places; required vehicles can traverse them; alternate strategic routes exist; and generation finishes within the startup budget.
+> A gray/untextured generated battlefield in which bases, Tiberium fields, rivers, lakes, cliffs, canyons, ravines, highways with their access ramps, two-lane roads, dirt roads, trails, bridges, overpasses and optional tunnels appear in coherent places; required vehicles can traverse them; alternate strategic routes exist; and generation finishes within the startup budget.
 
 Biome materials, foliage, lamps and other visual dressing are considered complete only after that milestone passes the seed-batch and traversal gates.
 

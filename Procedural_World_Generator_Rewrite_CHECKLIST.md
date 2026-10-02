@@ -4,6 +4,8 @@ Source of truth: `Procedural_World_Generator_Rewrite_Plan_FINAL_AUDITED.md` (ref
 
 Order rule (Plan §19, §24): work items I0 → I19 strictly in order. Do not start an item until the previous item's gate is checked. Every item must leave the project buildable. Old/new records coexist through adapters; adapters are deleted only in item 22.
 
+**Highway access ramp extension (Plan §12.6, added 2026-10-02).** The extension was specified after I1, I2, I10, I11 and I12 were completed. Their highway-access items below are marked **REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION**; the historical completion records stay as written and are not re-claimed for the new work. Do the reopened items in order I1 → I2 → I10 → I11 → I12, re-pass each item's gate, then continue I13 with its §12.6 items included. Revisit only what the extension needs and keep already-passing behavior, apart from the one `CURRENT_GENERATOR_VERSION` increment §12.6.15 prescribes for the whole extension.
+
 Standing rules for every item:
 
 - [ ] Reuse canonical owner (§0.1, §1); on name mismatch record it in `docs/procedural_world/<owner>.md` (fallback `GenerationPipeline.md`) and continue.
@@ -55,6 +57,15 @@ Do not change generation output yet. *(User directive 2026-09-26: finish the who
 - [x] `CURRENT_SCHEMA_VERSION` +1 and `CURRENT_GENERATOR_VERSION` +1 — exactly once for the whole rewrite.
 - [x] **Gate:** profile round-trip deterministic; old profiles still load; native profile selects hybrid generator.
 
+**REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** — records only (§7, §12.1, §12.6.1, §12.6.10, §12.6.15):
+
+- [ ] `HIGHWAY_RAMP` semantic class appended after `TRAIL_1` (existing ordinals, `HYBRID_ROAD_CLASS_COUNT`-sized arrays and the Phase-6 `approach_classes` bitmask keep their values; the `HIGHWAY_RAMP` window bit is always false); cross section `1` lane, `W`, inner `0.20W` / outer `0.30W` shoulders, roadbed `1.50W`, 12° grade, 8° cross slope, `5W` radius; normal paved tier mapping and its speed hint.
+- [ ] `HIGHWAY_INTERCHANGE` record: `StableId`, form (`DIAMOND_ACCESS`/`SIDE_ACCESS`), status (`ACTIVE`/`WITHDRAWN`), anchor node, highway edge ids, axis, access sides, crossing mode, selected `k`, `d_L`, `G`, `S_I`, retarget list with fallback endpoints, capability mask.
+- [ ] Topology kinds appended: node `INTERCHANGE_LOCAL_JUNCTION`; edges `HIGHWAY_RAMP` and `INTERCHANGE_CROSSING`; ramp fields (role `ON_RAMP`/`OFF_RAMP`, side, gore station, merge/diverge interval, owning interchange).
+- [ ] Compiled junction roles `HIGHWAY_RAMP_MERGE`, `HIGHWAY_RAMP_DIVERGE`, `HIGHWAY_RAMP_LOCAL_JUNCTION` alongside the existing incidental / shared-node / overpass-obligation roles; merge/diverge solution record (§12.6.10 item 5).
+- [ ] Road record fields of §12.1 (junction role per junction record, ramp metadata, highway widened-interval list).
+- [ ] **Gate (re-pass):** records round-trip; existing self-checks unchanged except the new fields.
+
 ## I2 — Shared prerequisites (§0.3, §0.5, §0.8, §2.3, §7.1)
 
 Done 2026-09-27 -- helpers in `Code/wwphys/hybridplanning.{h,cpp}`, preflight and identity in `Code/Combat/hybridpreflight.{h,cpp}`, request/manifest/network integration in `ProceduralWorldManager`, `WorldGenerationManifest` and `WorldSyncHandshakeClass` (handshake version 2). Gate self-checks `terrain_hybridplanning` / `terrain_hybridpreflight` and their `fds_` twins. Evidence in `docs/procedural_world/HybridPlanningPrerequisites.md`; the measured reference vehicles are in `docs/procedural_world/VehicleCollisionMetrics.{md,json}`.
@@ -79,6 +90,16 @@ Done 2026-09-27 -- helpers in `Code/wwphys/hybridplanning.{h,cpp}`, preflight an
 - [x] Scratch arena / pool (§16.3) and work counters (§16.1 list).
 - [x] Unit/self-checks for each helper, preflight and spatial hash.
 - [x] **Gate:** self-checks pass.
+
+**REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** (§7.1, §12.6.6–12.6.7, §16.1):
+
+- [ ] `RoadbedWidth(HIGHWAY_RAMP)=1.50W`; corridor helpers undefined for `HIGHWAY_RAMP`; deformation half width from the shared formula.
+- [ ] Interchange constants once: `MergeLength=16W`, `DivergeLength=12W`, `GoreReserveMargin=2W`, `InterchangeGoreSpacing=24W`, `K_GORE=32`, `theta_c=15°`, `psi=45°`, `l_arm=5W`, `T15`, `T30`, `d_sep=3.575W`, `d_join=1.875W`, `h_hwy=2.375W`, `E_hwy=2.825W`, `HighwayJunctionReserve=8W` — derived from the §7 table, not retyped.
+- [ ] Preflight metric-cache entries `BridgeApproachMax(class)` and `OverpassDepthMax(class)` from existing bridge definitions / `BridgePlannerParams`.
+- [ ] Counters `highway ramp candidates evaluated`, interchanges by form, ramps by role, withdrawals, anchor rejections by reason.
+- [ ] Self-check: §12.6.7 construction reproduces `d_Lmin(0)=9.0926380W`, `SIDE G(0)=9.0029197W`, fillet arcs end at the gore with zero heading error, and `h`/`E` are continuous at both interval ends.
+
+- [ ] **Gate (re-pass):** self-checks pass.
 
 ## I3 — Runtime Phase 2: MapIdentity (§8 P2, §4, §5, §6.1, §6.10)
 
@@ -265,6 +286,21 @@ pass rate for archetypes with no canyon obligation.
 - [x] Replace native MST topology; topology self-check before any A*.
 - [x] **Gate:** families present, bridge obligations bound to distinct windows, overpass waypoints shared, road/highway/dirt/trail counts pass, cycle exists, no shared required bottleneck.
 
+**REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** — new step 15 after step 14; steps 1–14 untouched (§8 P9 step 15, §12.6.2–12.6.8):
+
+- [ ] Highway-access topology selection: anchors = `HIGHWAY_4` pass-through `FAMILY_WAYPOINT`s with ≥1 `PRIMARY_2`/`SECONDARY_2` arrival; never a highway terminus; processing order `(family, chain index, StableId)`; only existing graph connections, never proximity.
+- [ ] Frame and sides: bisector axis `a`, right-hand-traffic `tau_s`/`n_s`; side by `cross(a,delta)`; reject on `|c|<0.5` or a lower edge already served by another interchange; `DIAMOND_ACCESS` (two access sides) vs `SIDE_ACCESS` (one).
+- [ ] DIAMOND crossing: class rule; grade-separated via step-12 overpass tests (one `OVERPASS_OBLIGATION` anchored at node `X`), else at-grade via Phase-11 at-grade conditions (crossing split at `X`), else reject.
+- [ ] Gore candidate selection: `k=0..31` ascending, first hard-valid by §12.6.8; `d_L(k)`, `G(k)`, `S_I(k)` per §12.6.7; `highway ramp candidates evaluated` counter.
+- [ ] Pose realizability: interchange pose `(X, a, S_I)` connects to neighbouring structural poses by the `HIGHWAY_4` radius construction (Q-023 rule); chain extends `S_I + 8W` before a base entrance.
+- [ ] Structure reserves: crossing-window, overpass (highway-upper planning reserve) and conventional-junction reserves; own-crossing and own-junction reserves against gore reserves.
+- [ ] Interchange spacing: gores of unrelated interchanges `≥24W` apart along the chain; gore reserves and straight extents disjoint; same-carriageway intervals non-overlapping.
+- [ ] Exclusions (no window exception), grade feasibility at 12°, local-junction arm cone (60°) and separation (30°).
+- [ ] Retargeting of all access-side arrivals (incl. `SERVICE_DIRT_2`/`TRAIL_1`) to `L_s`; non-access-side arrivals keep `X`; Section-5 qualification recheck; routed-edge cap `R`.
+- [ ] Records in fixed `StableId` order; ramp graph length; frozen fallback variant; capabilities = `LIGHT` OR all retargeted arrivals' capabilities.
+- [ ] Rejected anchor keeps its conventional junction (never a phase failure); quotas unchanged.
+- [ ] **Gate (re-pass):** §8 P9 gate including the interchange clause; stage-9 checksum includes interchange records.
+
 ## I11 — Runtime Phase 10: bounded heading-aware A* and splines (§8 P10, §16.2)
 
 - [x] Routing priority order (8 groups) then `StableId`; subroutes through frozen obligation/window waypoints.
@@ -277,6 +313,16 @@ pass rate for archetypes with no canyon obligation.
 - [x] Path-to-spline: dedupe, direction-change controls, sample `min(W,A/2)`, curvature/grade/cross-slope checks, insert earliest failing nearest path cell, ≤`max_local_retries_per_stage` insertions, then next envelope. **The centerline is straights and circular arcs of the class radius, not a Catmull-Rom through cell centres** — see `DECISIONS.md` D-009 revision for the measured conflict between `A = clamp(chunk/4,8,16)` and the Section-7 radii on an 8-way grid, and for why `8W` is thereby satisfied by construction and verified independently.
 - [x] Crossing intervals remain unresolved records.
 - [x] **Gate:** every mandatory edge has one legal spline with stable checksum.
+
+**REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** (§8 P10, §12.6.9):
+
+- [ ] Highway tangent alignment: both highway edges at an active anchor routed through stops `a_I`/`b_I`, straight along `a` over `[X-S_I, X+S_I]` (Q-022 alignment rule).
+- [ ] Routing group 1b after group 1: crossing edge(s), then ramps `RIGHT`→`LEFT`, `OFF_RAMP`→`ON_RAMP`; route `HIGHWAY_RAMP` centerlines by the exact §12.6.7 construction (arcs of `5W`, `45°` departure, `15°` convergence leg, parallel at the gore), never A*.
+- [ ] Re-validate every §12.6.8 test on routed geometry plus no intersection with other group-1 roadbeds.
+- [ ] Withdrawal (only fallback, only before group 2): third-envelope failure of an aligned highway edge, or a failed group-1b re-validation; restore frozen Phase-9 variant; `WITHDRAWN` status in checksum.
+- [ ] Footprint polygons hard-infinite for edges routed after group 1b (own `L_s` cell excepted).
+- [ ] Lower-road attachment routing: retargeted edges route to `L_s` under ordinary rules.
+- [ ] **Gate (re-pass):** §8 P10 gate including straight-extent, construction and withdrawal clauses; stage-10 checksum includes ramp splines and statuses.
 
 ## I12 — Runtime Phase 11: interaction solver (§8 P11, §12.3–12.5)
 
@@ -297,6 +343,17 @@ pass rate for archetypes with no canyon obligation.
 - [x] Swept proxy validation over every compiled crossing interval.
 - [x] **Gate:** one solution per conflict; obligations keep method; bridge/overpass quotas; proxy sweeps pass; limits respected.
 
+**REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** (§8 P11, §12.6.10):
+
+- [ ] Compile merge/diverge interactions: one `HIGHWAY_RAMP_MERGE`/`DIVERGE` record per ramp (gore station, interval, `d(u)`, `h`, `E`, `z` at `min(W/3,A/4)`); one `HIGHWAY_RAMP_LOCAL_JUNCTION` per `L_s` via the existing class-radius junction construction.
+- [ ] Distinguish intended ramp junctions (merge, diverge, local junction, DIAMOND crossing at `X`) from incidental `ROAD_X_ROAD` crossings; incidental at-grade only outside footprint + `RoadOuterBlendWidth`; the interchange element is never the rerouted road.
+- [ ] DIAMOND crossing: reserved overpass via existing rule with the highway continuous through `X` (or intended at-grade junction); swap rule checked against gore reserves; constructed edges have no envelope, so exhaustion fails the phase.
+- [ ] Structural conflict validation: new common station test (no approach / portal / overpass ramp interval in an active gore reserve).
+- [ ] `z_L` per §12.6.10 item 3; whole-ramp 12.1 solve with gore, parallel-interval and `L_s` pins.
+- [ ] Swept proxy validation of ramps, parallel intervals and local junctions with ramp capabilities.
+- [ ] No withdrawal in Phase 11.
+- [ ] **Gate (re-pass):** §8 P11 gate including the interchange clause; stage-11 checksum includes merge/diverge and junction-role records.
+
 ## I13 — Runtime Phase 12: final roads, crossings, cut/fill (§8 P12)
 
 - [ ] No reroute/method change; failure fails attempt.
@@ -306,14 +363,22 @@ pass rate for archetypes with no canyon obligation.
 - [ ] Refinement patches released after commit.
 - [ ] Post-realization swept verification (Humvee all roads, heavy on heavy edges, Harvester on economy edges) + crossing object verification.
 - [ ] No global nav rebuild triggered.
-- [ ] **Gate:** every mandatory object realized once, matches frozen records, swept tests pass, no detached crossing.
+- [ ] Highway access (§8 P12 §12.2a, §12.6.11–12.6.13), processed in routing order (highway, then group 1b, then later roads):
+  - [ ] Realize ramp roadbed: one canonical `RoadSystem` road per ramp, `L_s`→gore, normal paved tier, width `W`, symmetric shoulder `0.25W` (exact `1.50W` footprint).
+  - [ ] Realize merge/diverge widening on the highway road: optional per-sample asymmetric edge profile added to `RoadSplineClass`/`RoadPointClass` (default zero, existing callers unchanged) used by ribbon, road mask and grade stamping; `h`/`E` from the compiled record.
+  - [ ] Gore attachment = compiled merge/diverge record; assert no `RoadSystem`-discovered junction inside a parallel interval or gore reserve.
+  - [ ] Canonical RoadSystem instantiation of local junctions at `z_L` and the DIAMOND crossing through the existing overpass/junction path; runtime ids on the cleanup list.
+  - [ ] Terrain deformation: union roadbed; ramp outer blend never modifies the highway roadbed/shoulder (gore wedge).
+  - [ ] Swept validation: ramps, parallel intervals, local junctions with heavy/Harvester envelopes per capability; §12.6.13 ramp list.
+  - [ ] No new topology, no downgrade to an ordinary intersection; discrepancy fails the attempt.
+- [ ] **Gate:** every mandatory object realized once, matches frozen records, swept tests pass, no detached crossing, every active interchange realized and attached at both ends.
 
 ## I14 — Runtime Phase 13: Tiberium fields (§8 P13, §13)
 
 - [ ] Realize via canonical `TiberiumFieldGenerator` from frozen anchors.
 - [ ] Radius attempt list from `K = max_local_retries_per_stage` (Max→Min, quantized, deduped).
 - [ ] Core hard-invalid list; transition/contamination masks.
-- [ ] Harvest apron from `FIELD_ACCESS_POINT` (no road mesh); Harvester OBB checks at `min(W/2,A/3)`; turning disc `1.5*Harvester length`.
+- [ ] Harvest apron from `FIELD_ACCESS_POINT` (no road mesh); Harvester OBB checks at `min(W/2,A/3)`; turning disc `1.5*Harvester length`; a Harvester route through an interchange is checked along its ramps and parallel intervals too.
 - [ ] Contestability: ≥1 contested field with `|GDI−Nod| ≤ max_base_to_front_travel_time_difference_seconds`.
 - [ ] REMOTE_RICH yield multiplier 1.25 only if field member already exists.
 - [ ] **Gate:** counts; home Harvester routes valid; contestability; legal footprints/access.
@@ -328,7 +393,7 @@ pass rate for archetypes with no canyon obligation.
 
 ## I16 — Runtime Phase 15: tactical refinement (§8 P15, §15)
 
-- [ ] Immutable exclusion envelopes built first.
+- [ ] Immutable exclusion envelopes built first (ramps, widened merge/diverge roadbed and gore reserves included).
 - [ ] Run existing `CombatSpaceValidator` on listed targets with profile thresholds only.
 - [ ] Repair order: berm (≤4W radius, ≤0.75W height, buildable slope) → rock/ruin props → vegetation → fail; stations `max(4W, preferred_cover_interval)` midpoint outward; ≤`max_alternate_candidates_per_feature` per method; keyed yaw.
 - [ ] Bridge approach cover pocket within `6W..12W` unless already under thresholds.
@@ -342,7 +407,7 @@ pass rate for archetypes with no canyon obligation.
 - [ ] `BiomeDecorationGenerator` unchanged as producer; theme multipliers 1.00/0.55/0.20/0.15; `accepted_budget` per category/region; cluster-center separation `2W`, query radius `max(3W,2A)`.
 - [ ] `forests=false` skips tree/bush/grass, keeps rocks.
 - [ ] Decoration exclusion list.
-- [ ] Street lamps: HIGHWAY_4 every 12W alternating; PRIMARY_2 10W near base/bridge; none otherwise; offset 0.5 beyond roadbed.
+- [ ] Street lamps: HIGHWAY_4 every 12W alternating; PRIMARY_2 10W near base/bridge; none otherwise (none on `HIGHWAY_RAMP`); offset 0.5 beyond roadbed, using the widened edge `E` on merge/diverge intervals; skip a station whose lamp lands in a ramp roadbed, gore reserve or clear zone.
 - [ ] Cities remain disabled.
 - [ ] **Gate:** no decoration in structural envelopes; only decoration/material checksum affected.
 
@@ -351,14 +416,16 @@ pass rate for archetypes with no canyon obligation.
 - [ ] Terrain collision rebuild once; register existing structural/Tiberium/decoration ids (no second instantiation).
 - [ ] Split `GeneratedWorldIntegrator` creation vs finalization if mixed.
 - [ ] Nav/`PathfindClass` build exactly once; bridge/tunnel/overpass links from frozen records; freeze capability graph.
-- [ ] Minimap, shroud, Commander chokepoint/expansion metadata, logistics (only if enabled).
+- [ ] Final navigation links through ramps: every ramp, parallel interval and local junction is a two-way capability link (§12.6.5) with its required capabilities; planned interchange connectivity == capability graph.
+- [ ] Minimap, shroud, Commander chokepoint/expansion metadata, logistics (only if enabled); ramps and widened intervals drawn as connected road geometry, never detached splines.
 - [ ] Discard planning spatial hash; compute provisional checksums.
 - [ ] Verify no earlier phase triggers a global rebuild.
 - [ ] **Gate:** owners report success; planned connectivity == capability graph connectivity.
 
 ## I19 — Runtime Phase 19: validation, retries, manifest, activation (§8 P19, §17, §20, §21)
 
-- [ ] 19A read-only checks 1–20 (heavy connectivity, Edmonds-Karp ≥ `route_family_count` per §12.2 contraction rules, home access, home fairness, income fairness, front fairness, base separation min/max, single-bridge dependency, vehicle approaches, infantry approaches, expansion, exposure, road geometry, crossings, obstacle binding, quotas, base layout, nav agreement, biome invariants, checksum recompute).
+- [ ] 19A read-only checks 1–21 (heavy connectivity, Edmonds-Karp ≥ `route_family_count` per §12.2 contraction rules incl. ramps as ordinary unit-capacity edges, home access, home fairness, income fairness, front fairness, base separation min/max, single-bridge dependency, vehicle approaches, infantry approaches, expansion, exposure, road geometry incl. `HIGHWAY_RAMP`, crossings, obstacle binding, quotas, base layout, nav agreement, biome invariants, checksum recompute, highway access interchanges).
+- [ ] Check 21 final attachment/geometry/capability validation: both ramp ends attached (`L_s`, highway gore), gore metadata vs realized geometry, `5W` radius, 12° grade, 8° cross slope, gore tangent alignment (0 within 0.001 rad) and 15° convergence leg, merge `16W` / diverge `12W` along the highway, swept clearance per capability, `h`/`E` continuity, no accidental intersection, required capability through the interchange; withdrawn interchanges have their fallback junction.
 - [ ] Named diagnostic per failure; no repair.
 - [ ] Attempts 0..2 with `effective_seed = Normalize_Seed(requested + attempt_index)`; full reverse-order teardown; watchdog never resets (15/30/60 s).
 - [ ] 19B commit: manifest fields (requested seed, attempt index, effective seed, `HybridPlanningInputHash`, versions, content revision), stage checksums in §20 order (19 stages, absent/zero for disabled), commit-not-active, server `Commit_Planned_Base_Layout` + spawn pool, rollback on failure, then `WORLD_ACTIVE`.
@@ -378,6 +445,15 @@ pass rate for archetypes with no canyon obligation.
 - [ ] §18.3 automatic gameplay/geometry checks on every batch map.
 - [ ] §18.4 live visual/driving smoke seeds documented: temperate, snow, desert, tiberium-wasteland, mixed, coastal_peninsula, highland_pass; Humvee, heavy, Harvester, infantry.
 - [ ] First milestone: gray battlefield with all features coherent, traversable, alternate routes, within budget — before biome/foliage/lamps count as done.
+- [ ] Highway access acceptance (§12.6, §18.2, §18.4):
+  - [ ] Smoke seeds with an active `SIDE_ACCESS` and an active `DIAMOND_ACCESS` found in the deterministic seed sequence and recorded.
+  - [ ] On-ramp driving smoke: Humvee enters `HIGHWAY_4` through an `ON_RAMP`.
+  - [ ] Off-ramp driving smoke: Humvee exits `HIGHWAY_4` through an `OFF_RAMP`.
+  - [ ] Heavy reference vehicle drives a heavy-capable ramp; Harvester traverses a ramp whenever a Harvester-capable strategic route uses one on a smoke seed.
+  - [ ] Determinism test: interchange records/checksums identical for 1 vs 4 workers, repeat runs and manifest reconstruction.
+  - [ ] Client/FDS checksum agreement including interchange records.
+  - [ ] Merge/diverge visual inspection: no width step, gap or overlapping surface; ramp attached to highway and local junction; Commander/minimap shows connected ramps.
+  - [ ] Diagnostics recorded per batch seed: candidates evaluated, interchanges by form, withdrawals.
 
 ## 22 — Remove obsolete native hybrid branches
 
@@ -387,8 +463,9 @@ pass rate for archetypes with no canyon obligation.
 
 - [ ] Update `docs/procedural_world/*` to hybrid pipeline; remove claims of MST roads, noise-driven geography, active cities, multi-patch biomes, unspecified budgets, post-commit bridge discovery, last-incomplete-world activation.
 - [ ] Document cities/settlements as future feature needing asset set + generator-version bump.
+- [ ] Document highway access interchanges in `HybridTopology.md`, `HybridRoutes.md`, `HybridInteractions.md`, `RoadsBridgesTunnels.md`; document elevated-highway viaducts as a future feature needing its own specification + generator-version bump.
 - [ ] Record source-name mismatches found during §0.1 adaptation.
 
 ## Definition of done (§23)
 
-- [ ] Every §23 bullet true; project lifecycle files (`completed_features.md`, `WIP_features.md`, `unstarted_features.md`, `DECISIONS.md`) reconciled per `CLAUDE.md`.
+- [ ] Every §23 bullet true (including the highway-access bullet); project lifecycle files (`completed_features.md`, `WIP_features.md`, `unstarted_features.md`, `DECISIONS.md`) reconciled per `CLAUDE.md`.
