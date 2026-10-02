@@ -293,6 +293,8 @@ void HybridPreflightInputs::Gather_From_Runtime(const ProceduralWorldProfile & p
 		bridge.RequiredClearance = def->Get_Required_Clearance();
 		bridge.SupportSpacing = def->Get_Support_Spacing();
 		bridge.SupportClearance = def->Get_Support_Clearance();
+		bridge.StartSeat = def->Get_Section_Length(BRIDGE_SECTION_START_CAP);
+		bridge.EndSeat = def->Get_Section_Length(BRIDGE_SECTION_END_CAP);
 		for (int kind = 0; kind < BRIDGE_SECTION_KIND_COUNT; ++kind) {
 			for (int state = 0; state < BRIDGE_STATE_COUNT; ++state) {
 				if (!def->Does_Collide(kind,state) && !def->Is_Traversable(kind,state)) {
@@ -683,6 +685,8 @@ unsigned int Hybrid_Structural_Content_Revision(const HybridPreflightInputs & in
 		h.Add_Length(bridge.RequiredClearance);
 		h.Add_Length(bridge.SupportSpacing);
 		h.Add_Length(bridge.SupportClearance);
+		h.Add_Length(bridge.StartSeat);
+		h.Add_Length(bridge.EndSeat);
 		h.Add_String(bridge.StructuralModels.Peek_Buffer());
 	}
 	h.Add_Length(inputs.BridgeMaxSpanLength);
@@ -882,6 +886,8 @@ unsigned int Hybrid_Planning_Input_Hash(const ProceduralWorldProfile & p,const H
 		h.Add_Length(inputs.Bridges[b].RequiredClearance);
 		h.Add_Length(inputs.Bridges[b].SupportSpacing);
 		h.Add_Length(inputs.Bridges[b].SupportClearance);
+		h.Add_Length(inputs.Bridges[b].StartSeat);
+		h.Add_Length(inputs.Bridges[b].EndSeat);
 		h.Add_String(inputs.Bridges[b].StructuralModels.Peek_Buffer());
 	}
 	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {

@@ -122,19 +122,32 @@ struct HybridVehicleMetricInput
 
 struct HybridBridgeInput
 {
+	HybridBridgeInput(void) :
+		Width(0.0f),DeckThickness(0.0f),RequiredClearance(0.0f),SupportSpacing(0.0f),SupportClearance(0.0f),
+		StartSeat(0.0f),EndSeat(0.0f) { }
+
 	StringClass		Name;
 	float				Width;						// clear deck width, world units
 	float				DeckThickness;				// structural depth
 	float				RequiredClearance;
 	float				SupportSpacing;
 	float				SupportClearance;
+
+	/*
+	**	The abutment seat at each end: the definition's own start and end cap section lengths, which
+	**	BridgeSystem::Layout_Bridge lays from each endpoint inward.  The canonical abutment is that cap, and it
+	**	has to stand on the bank, so a bridge reaches this far past the obstruction at each end.
+	*/
+	float				StartSeat;
+	float				EndSeat;
 	StringClass		StructuralModels;			// every colliding or traversable model, '|' separated
 
 	bool operator == (const HybridBridgeInput & that) const
 	{
 		return (Name == that.Name) && (Width == that.Width) && (DeckThickness == that.DeckThickness) &&
 				 (RequiredClearance == that.RequiredClearance) && (SupportSpacing == that.SupportSpacing) &&
-				 (SupportClearance == that.SupportClearance) && (StructuralModels == that.StructuralModels);
+				 (SupportClearance == that.SupportClearance) && (StartSeat == that.StartSeat) &&
+				 (EndSeat == that.EndSeat) && (StructuralModels == that.StructuralModels);
 	}
 	bool operator != (const HybridBridgeInput & that) const	{ return !(*this == that); }
 };

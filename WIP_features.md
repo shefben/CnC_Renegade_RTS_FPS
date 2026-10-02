@@ -289,14 +289,25 @@ Full suite 235/235 on client and dedicated server.
 `tools/validate_feature_state.py` green.
 
 Carried, not blocking: no *routed* native `ramp_pass` has been found yet. The census over 1400 seeds shows
-the range occurring naturally and one pass-capable native cliff window (`plateau_basin` seed 137), none
+the range occurring naturally and one pass-capable native cliff window (`coastal_peninsula` seed 137), none
 crossed by a route; D-016 estimates a routed one at the order of thousands of seeds. The search tool
 (`renegade -terrainselfcheck hybridinteractionsearch`) prints each pass-capable cliff as `RAMPWINDOW` and the
 cliff dimension distribution, so a wider walk needs no new instrumentation; when one is found, freeze it as
 the permanent native fixture in `Check_Hybrid_Interactions`. `Q-018` (LARGE hill quota) remains open.
 
-**Next exact action: begin I13 / runtime Phase 12** (`Procedural_World_Generator_Rewrite_CHECKLIST.md`
-"I13 -- Runtime Phase 12: final roads, crossings, cut/fill"), consuming the frozen Phase-11 interaction set
--- `HybridInteraction::ApproachA/B` as each crossing's compiled ends, `HybridCrossingWindow::Pass` for
-surface and ramp passes, `FallbackFrom` as provenance -- through the Section 12.1 vertical-profile solver
-and Section 12.2 deformation, with Phase 12.3's post-realization verification as the gate.
+**The Q-022/Q-023 crossing ownership correction is closed (2026-10-02)** -- D-017, D-018, D-009's 2026-10-02
+revision, generator identity 13; 237/237 ctest on client and dedicated server. Carried, not blocking: the
+end-to-end yield is low -- of 1400 census attempts 172 pass Phase 9, 32 Phase 10 and 6 Phase 11 -- and what
+stops the rest is upstream owner refusals (Phase-9 overpass and river-bridge quotas, Phase-10 hard-invalid
+ground and no-path, Phase-11 road x road crossings on synthesized cross-links). No native seed resolves a
+reroute; the one-reroute fixture is the controlled world in `Check_Controlled_Reroute`. `Q-018` remains open.
+
+**I13 / runtime Phase 12 in progress.** Committed: `39e23bea` (Section 12.1 solver, 12.2 cross-section) and
+the Q-022/Q-023 checkpoint. Phase 12's inputs now exist: `Hybrid_Realized_Route` (each road with its crossing
+connectors spliced in), `Hybrid_Road_Profile_Structures` (every structure a road carries, as 12.1 structures)
+and `Hybrid_Solve_Road_Stretch` (12.1 over a realized road with its structures).
+
+**Next exact action:** build the Phase-12 realization owner on those three: for each realized road, solve its
+whole profile once, then apply Section 12.2's cross-section deformation and 12.3's post-realization checks,
+instantiating roads, bridges and tunnels through the existing `RoadSystem` / `BridgeSystem` / `TunnelSystem`
+owners.

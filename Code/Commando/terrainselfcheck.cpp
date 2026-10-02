@@ -6793,8 +6793,146 @@ static HybridTopologyParams Topology_Fixture (const HybridMapIdentityParams & id
 }
 
 
+
+/*
+**	Q-023's structural-pose realizability, on the owner's own exports with hand-made poses: no terrain, no
+**	world, only the geometry the rule is about.  `W` and `A` are the native constants.
+*/
+static HybridCrossingWindow Pose_Window (unsigned int id,const Vector2 & centre,const Vector2 & axis,float half,
+													  unsigned int approach_classes)
+{
+	HybridCrossingWindow window;
+	window.StableId			= id;
+	window.Obstruction		= HYBRID_OBSTRUCTION_RIVER;
+	window.Methods				= HYBRID_WINDOW_METHOD_BRIDGE;
+	window.Center				= centre;
+	window.Tangent.Set (-axis.Y,axis.X);
+	window.ApproachA			= centre - (axis * half);
+	window.ApproachB			= centre + (axis * half);
+	window.Span					= 6.0f;
+	window.ApproachLength	= half - 3.0f;
+	window.ApproachClasses	= approach_classes;
+	return window;
+}
+
+
+static void Check_Hybrid_Structural_Poses (void)
+{
+	HybridConstants k;
+	::memset (&k,0,sizeof (k));
+	k.W = 3.322739f;
+	k.A = 15.0f;
+	k.S = 60.0f;
+	k.Q = 0.001f;
+
+	const unsigned int ALL = 0x1Fu;
+	const unsigned int NO_HIGHWAY = ALL & ~(1u << (unsigned int)HYBRID_ROAD_HIGHWAY_4);
+	const float half = 3.0f + (8.0f * k.W);			//	a 6-wide river plus the 8W approach either side
+
+	HybridRoadPose west;
+	west.Point.Set (-400.0f,0.0f);
+	HybridRoadPose east;
+	east.Point.Set (400.0f,0.0f);
+
+	//	Collinear crossings: two windows on the road's own line, well apart -- accepted, each and together.
+	{
+		const HybridCrossingWindow first = Pose_Window (1,Vector2 (-100.0f,0.0f),Vector2 (1.0f,0.0f),half,ALL);
+		const HybridCrossingWindow second = Pose_Window (2,Vector2 (100.0f,0.0f),Vector2 (1.0f,0.0f),half,ALL);
+		const HybridRoadPose a = Hybrid_Window_Pose (first,west.Point,second.Center);
+		const HybridRoadPose b = Hybrid_Window_Pose (second,first.Center,east.Point);
+		Check (Hybrid_Road_Poses_Connect (a,b,HYBRID_ROAD_HIGHWAY_4,k),"two collinear crossings 200 apart do not connect");
+		Check (Hybrid_Window_Bindable (first,west,b,HYBRID_ROAD_HIGHWAY_4,k),"a collinear crossing is not bindable");
+	}
+
+	/*
+	**	Close right-angle crossings: the first runs east, the second runs north 44 units on -- the measured
+	**	failing case.  A `HIGHWAY_4` (R = 26.6) cannot turn between them and keep both straights; the same pair
+	**	44 units apart *collinear* is fine, so it is the poses that decide, not the distance.
+	*/
+	{
+		const HybridCrossingWindow first = Pose_Window (1,Vector2 (0.0f,0.0f),Vector2 (1.0f,0.0f),half,ALL);
+		const HybridCrossingWindow second = Pose_Window (2,Vector2 (half + 44.0f,half + 30.0f),Vector2 (0.0f,1.0f),
+																		 half,ALL);
+		HybridRoadPose a = Hybrid_Window_Pose (first,west.Point,second.Center);
+		HybridRoadPose b = Hybrid_Window_Pose (second,first.Center,Vector2 (half + 44.0f,400.0f));
+		Check (!Hybrid_Road_Poses_Connect (a,b,HYBRID_ROAD_HIGHWAY_4,k),
+				 "a HIGHWAY_4 joined two right-angle crossings with no room for its turn");
+
+		const HybridCrossingWindow inline_second = Pose_Window (3,Vector2 ((2.0f * half) + 44.0f,0.0f),
+																				  Vector2 (1.0f,0.0f),half,ALL);
+		a = Hybrid_Window_Pose (first,west.Point,inline_second.Center);
+		b = Hybrid_Window_Pose (inline_second,first.Center,east.Point);
+		Check (Hybrid_Road_Poses_Connect (a,b,HYBRID_ROAD_HIGHWAY_4,k),
+				 "two collinear crossings 44 apart did not connect -- the test is not about distance");
+	}
+
+	//	Wrong-side window: its axis is more than 90 degrees from the road's intent on one side.
+	{
+		const HybridCrossingWindow across = Pose_Window (1,Vector2 (0.0f,0.0f),Vector2 (0.0f,1.0f),half,ALL);
+		HybridRoadPose before;
+		before.Point.Set (-300.0f,200.0f);
+		HybridRoadPose after;
+		after.Point.Set (300.0f,200.0f);
+		int refusal = HYBRID_BINDING_OK;
+		Check (!Hybrid_Window_Bindable (across,before,after,HYBRID_ROAD_PRIMARY_2,k,&refusal) &&
+				 (refusal == HYBRID_BINDING_WRONG_SIDE),
+				 "a window the road would leave heading back the way it came was bindable (refusal %d)",refusal);
+	}
+
+	//	Next candidate: rank 1 is the right-angle trap, rank 2 a straight crossing -- rank 2, deterministically.
+	{
+		const HybridCrossingWindow trap = Pose_Window (1,Vector2 (-300.0f,0.0f),Vector2 (0.0f,1.0f),half,ALL);
+		const HybridCrossingWindow good = Pose_Window (2,Vector2 (0.0f,0.0f),Vector2 (1.0f,0.0f),half,ALL);
+		const HybridCrossingWindow * ranked[2] = { &trap,&good };
+		HybridRoadPose before;
+		before.Point.Set (-300.0f - 10.0f,-5.0f);
+		const int first = Hybrid_First_Bindable_Window (ranked,2,before,east,HYBRID_ROAD_HIGHWAY_4,k);
+		const int again = Hybrid_First_Bindable_Window (ranked,2,before,east,HYBRID_ROAD_HIGHWAY_4,k);
+		Check ((first == 1) && (again == 1),"the realizable rank-2 window was not chosen (%d, %d)",first,again);
+	}
+
+	//	Highway safety, and the same window for a fixed SECONDARY_2 cross-link.
+	{
+		const HybridCrossingWindow narrow = Pose_Window (1,Vector2 (0.0f,0.0f),Vector2 (1.0f,0.0f),half,NO_HIGHWAY);
+		int refusal = HYBRID_BINDING_OK;
+		Check (!Hybrid_Window_Bindable (narrow,west,east,HYBRID_ROAD_HIGHWAY_4,k,&refusal) &&
+				 (refusal == HYBRID_BINDING_APPROACH_CLASS),
+				 "a window no HIGHWAY_4 can line up with was bindable to a family that may become one (refusal %d)",refusal);
+		Check (Hybrid_Window_Bindable (narrow,west,east,HYBRID_ROAD_SECONDARY_2,k,&refusal),
+				 "the same window was refused to a SECONDARY_2 cross-link it can carry (refusal %d)",refusal);
+		Check (Hybrid_Window_Bindable (narrow,west,east,HYBRID_ROAD_PRIMARY_2,k),"PRIMARY_2 lost the window too");
+	}
+
+	/*
+	**	Overpass pose: a 90-degree crossing of two intent segments whose other road arrives at the shared point
+	**	from a node only 30 units off, beside it, so its own turn onto the deck has no room -- refused.  The same
+	**	crossing approached from 200 units back is accepted.
+	*/
+	{
+		const float deck = Hybrid_Overpass_Half_Deck (Vector2 (1.0f,0.0f),Vector2 (0.0f,1.0f),HYBRID_ROAD_HIGHWAY_4,
+																	 HYBRID_ROAD_SECONDARY_2,k.W);
+		Check (deck > 0.0f,"a right-angle overpass has no deck");
+		const HybridRoadPose pose = Hybrid_Overpass_Pose (Vector2 (0.0f,0.0f),Vector2 (0.0f,-200.0f),
+																		  Vector2 (0.0f,200.0f),k,deck);
+		Check (pose.Before >= (10.0f * k.W),"an overpass pose reserves less than the 10W Phase 9 owes its ramps");
+		HybridRoadPose close;
+		close.Point.Set (30.0f,-30.0f);
+		HybridRoadPose far_end;
+		far_end.Point.Set (0.0f,200.0f);
+		Check (!Hybrid_Road_Poses_Connect (close,pose,HYBRID_ROAD_SECONDARY_2,k),
+				 "an overpass the road cannot line up with from its own neighbour was accepted");
+		HybridRoadPose distant;
+		distant.Point.Set (0.0f,-200.0f);
+		Check (Hybrid_Road_Poses_Connect (distant,pose,HYBRID_ROAD_SECONDARY_2,k) &&
+				 Hybrid_Road_Poses_Connect (pose,far_end,HYBRID_ROAD_SECONDARY_2,k),
+				 "a straight run through an overpass did not connect");
+	}
+}
+
 void Check_Hybrid_Topology (void)
 {
+	Check_Hybrid_Structural_Poses ();
+
 	HybridMapIdentity identity;
 	HybridArchetypeIntentSet intents;
 	HybridMapIdentityResult identity_result;
@@ -6874,12 +7012,18 @@ void Check_Hybrid_Topology (void)
 	**	satisfiable by construction and every later step gets exercised; the loop still walks seeds the way
 	**	the manager does, and a seed that fails must fail *named* and leave nothing behind.
 	*/
-	static const unsigned int TOPOLOGY_SEEDS[5] = { 4242u, 7u, 99u, 1234u, 31337u };
+	/*
+	**	The first five are the original walk.  Once Phase 9 refuses structural sequences no road of the edge's
+	**	class can drive (Q-023), none of them freezes a topology -- each binds a canyon obligation only to windows
+	**	a `HIGHWAY_4` cannot line up with, or loses its landforms -- so the walk goes on to canyon seeds the
+	**	`hybridinteractionsearch` census found passing Phase 9 under that rule.
+	*/
+	static const unsigned int TOPOLOGY_SEEDS[8] = { 4242u, 7u, 99u, 1234u, 31337u, 18u, 20u, 23u };
 	bool topology_built = false;
 	int refused_graph = 0, refused_matrix = 0, refused_landforms = 0, refused_hydrology = 0;
 	int refused_anchors = 0, refused_topology = 0;
 
-	for (int attempt = 0; (attempt < 5) && !topology_built; ++attempt) {
+	for (int attempt = 0; (attempt < 8) && !topology_built; ++attempt) {
 
 	const unsigned int seed = TOPOLOGY_SEEDS[attempt];
 	HybridMapIdentityParams sized = Graph_Identity_Fixture (1200.0f,2.0f);
@@ -7946,6 +8090,10 @@ struct HybridPipelineFixture
 
 	//	Phase 10's own inputs, kept so Phase 11's next-envelope reroute can re-run them.
 	HybridRouteParams					RouteParams;
+
+	//	How far the pipeline got (9 = Phase 9 passed, 10 = Phase 10 passed) and Phase 9's Q-023 census.
+	int									Reached;
+	HybridTopologyResult				TopologyResult;
 };
 
 
@@ -7967,6 +8115,8 @@ static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArch
 	HybridTopologyResult topology_result;
 	HybridRouteResult route_result;
 
+	out->Reached = 0;
+	out->TopologyResult = HybridTopologyResult ();
 	out->Sized = Graph_Identity_Fixture (world_size,2.0f);
 	out->Sized.ArchetypeSelector	= archetype;
 	out->Sized.MapPlanSeed			= WorldSeedService::Derive_Subsystem_Seed (seed,
@@ -8057,12 +8207,17 @@ static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArch
 	}
 
 	HybridTopologyParams topology_params = Topology_Fixture (out->Sized);
-	if (!Hybrid_Build_Topology (topology_params,out->Identity,out->Graph,out->Landforms,out->Hydrology,
-										 out->Anchors,&out->Matrices,Macro_Sample_From_Formula,&out->Ground,
-										 &out->Topology,&topology_result)) {
+	out->Reached = 8;
+	const bool topology_built = Hybrid_Build_Topology (topology_params,out->Identity,out->Graph,out->Landforms,
+																		out->Hydrology,out->Anchors,&out->Matrices,
+																		Macro_Sample_From_Formula,&out->Ground,&out->Topology,
+																		&topology_result);
+	out->TopologyResult = topology_result;
+	if (!topology_built) {
 		if (detail_out != nullptr) *detail_out = topology_result.Detail;
 		return false;
 	}
+	out->Reached = 9;
 
 	out->RouteParams = Route_Fixture (out->Sized,world_size);
 	HybridRouteParams & route_params = out->RouteParams;
@@ -8072,6 +8227,7 @@ static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArch
 		if (detail_out != nullptr) *detail_out = route_result.Detail;
 		return false;
 	}
+	out->Reached = 10;
 	return true;
 }
 
@@ -8144,6 +8300,8 @@ static HybridInteractionParams Interaction_Fixture (const HybridMapIdentityParam
 		kind.RequiredClearance		= inputs.Bridges[i].RequiredClearance;
 		kind.MaxSpan					= Hybrid_Resolve_Bridge_Max_Span (0.0f,metrics.BridgeMaxSpanLength);
 		kind.RequiredApproachLength= metrics.BridgeApproachLength;
+		kind.StartSeat					= inputs.Bridges[i].StartSeat;
+		kind.EndSeat					= inputs.Bridges[i].EndSeat;
 		params.BridgeKinds.Add (kind);
 	}
 	for (int i = 0; i < inputs.TunnelModules.Count (); ++i) {
@@ -8161,8 +8319,374 @@ static HybridInteractionParams Interaction_Fixture (const HybridMapIdentityParam
 }
 
 
+
+/***********************************************************************************************
+**	Controlled crossing worlds (Q-022 section 13, Q-023 section 16).
+**
+**	Level ground with carved rivers, every coarse cell placeable, no anchors or landforms: straight rivers,
+**	crossing windows on them and one topology edge, routed and compiled by the real Phase-10 and Phase-11
+**	owners.  Each world places exactly the geometry one rule is about, which a generated world only meets by
+**	chance.  The road's own line sits on an analysis-cell row (centres at 7.5 + 15n) wherever it has to pass a
+**	window exactly: a window's crossable strip is narrower than a cell.
+***********************************************************************************************/
+//	Level ground at 0, with every river carved: a bed 4 below the banks, blended up to them over 6.
+static bool Crossing_Ground (const Vector2 & world,float * height_out,void * context)
+{
+	const HybridHydrologySet * hydrology = (const HybridHydrologySet *)context;
+	const float BED_DEPTH = 4.0f;
+	const float BANK_BLEND = 6.0f;
+	float height = 0.0f;
+	for (int r = 0; r < hydrology->Rivers.Count (); ++r) {
+		const HybridRiverSystem & river = hydrology->Rivers[r];
+		for (int i = 1; i < river.Points.Count (); ++i) {
+			const Vector2 a = river.Points[i - 1];
+			const Vector2 d = river.Points[i] - a;
+			const float length2 = (d.X * d.X) + (d.Y * d.Y);
+			float t_on = (length2 > 0.0f) ? ((((world.X - a.X) * d.X) + ((world.Y - a.Y) * d.Y)) / length2) : 0.0f;
+			t_on = (t_on < 0.0f) ? 0.0f : ((t_on > 1.0f) ? 1.0f : t_on);
+			const float distance = (world - (a + (d * t_on))).Length ();
+			const float half = 0.5f * ((t_on < 0.5f) ? river.Widths[i - 1] : river.Widths[i]);
+			float here = 0.0f;
+			if (distance <= half)								here = -BED_DEPTH;
+			else if (distance < (half + BANK_BLEND))	here = -BED_DEPTH * (1.0f - ((distance - half) / BANK_BLEND));
+			if (here < height) height = here;
+		}
+	}
+	*height_out = height;
+	return true;
+}
+
+
+struct CrossingWorld
+{
+	HybridMapIdentityParams		Sized;
+	HybridMapIdentity				Identity;
+	HybridCoarseMatrices			Matrices;
+	HybridLandformSet				Landforms;
+	HybridHydrologySet			Hydrology;
+	HybridAnchorSet				Anchors;
+	HybridTopology					Topology;
+	HybridRouteParams				RouteParams;
+	HybridRouteSet					Routes;
+};
+
+
+static void Crossing_World_Begin (CrossingWorld * world)
+{
+	const float size = 1200.0f;
+	world->Sized = Graph_Identity_Fixture (size,2.0f);
+	world->Identity = HybridMapIdentity ();
+	world->Identity.Checksum = 0x5EE0u;
+
+	const int cells = 24;
+	world->Matrices.Reset ();
+	world->Matrices.Matrix.Resize (cells,cells,size / (float)cells,-0.5f * size,-0.5f * size);
+	for (int cy = 0; cy < cells; ++cy) {
+		for (int cx = 0; cx < cells; ++cx) world->Matrices.Matrix.Set_Flag (cx,cy,HYBRID_FLAG_PLACEABLE);
+	}
+	world->Landforms.Landforms.Delete_All ();
+	world->Hydrology.Reset ();
+	world->Anchors = HybridAnchorSet ();
+	world->Anchors.Frozen = true;
+	world->Topology.Reset ();
+	world->RouteParams = Route_Fixture (world->Sized,size);
+	world->Routes.Reset ();
+}
+
+
+//	A straight river `width` wide, except `wide_width` between its own stations `wide_from` and `wide_to`.
+static void Crossing_World_River (CrossingWorld * world,unsigned int id,const Vector2 & from,const Vector2 & to,
+											 float width,float wide_from = 0.0f,float wide_to = 0.0f,float wide_width = 0.0f)
+{
+	HybridRiverSystem river;
+	river.StableId	= id;
+	river.BedDepth	= 0.0f;
+	const float length = (to - from).Length ();
+	const int steps = (int)(length / 5.0f) + 1;
+	float widest = width;
+	for (int i = 0; i <= steps; ++i) {
+		const float s = length * ((float)i / (float)steps);
+		const bool wide = (wide_width > 0.0f) && (s >= wide_from) && (s <= wide_to);
+		river.Points.Add (from + ((to - from) * (s / length)));
+		river.Stations.Add (s);
+		river.Widths.Add (wide ? wide_width : width);
+		if (wide && (wide_width > widest)) widest = wide_width;
+	}
+	river.Length = length;
+	river.Source = from;
+	river.Mouth = to;
+	river.BoundsMin.Set (WWMath::Min (from.X,to.X) - (0.5f * widest),WWMath::Min (from.Y,to.Y) - (0.5f * widest));
+	river.BoundsMax.Set (WWMath::Max (from.X,to.X) + (0.5f * widest),WWMath::Max (from.Y,to.Y) + (0.5f * widest));
+	world->Hydrology.Rivers.Add (river);
+}
+
+
+//	A bridge window on river `river_id`, crossed along `axis` (ApproachA -> ApproachB), with the Step-18 8W approach.
+static void Crossing_World_Window (CrossingWorld * world,unsigned int id,unsigned int river_id,const Vector2 & centre,
+											  const Vector2 & axis,float span)
+{
+	const HybridConstants & k = world->Sized.Constants;
+	const float half = (0.5f * span) + (8.0f * k.W);
+	const Vector2 tangent (-axis.Y,axis.X);
+
+	HybridCrossingWindow window;
+	window.StableId				= id;
+	window.Kind						= HYBRID_WINDOW_CROSSING;
+	window.Obstruction			= HYBRID_OBSTRUCTION_RIVER;
+	window.ObstructionRecordId	= river_id;
+	window.Methods					= HYBRID_WINDOW_METHOD_BRIDGE;
+	for (int r = 0; r < world->Hydrology.Rivers.Count (); ++r) {
+		const HybridRiverSystem & river = world->Hydrology.Rivers[r];
+		if (river.StableId != river_id) continue;
+		const Vector2 along = (river.Mouth - river.Source) / river.Length;
+		window.Station = ((centre.X - river.Source.X) * along.X) + ((centre.Y - river.Source.Y) * along.Y);
+	}
+	window.Span						= span;
+	window.ApproachLength		= 8.0f * k.W;
+	window.Center					= centre;
+	window.Tangent					= tangent;
+	const Vector2 a = centre - (axis * half);
+	const Vector2 b = centre + (axis * half);
+	window.ApproachA.Set (Hybrid_Quantize_Position (a.X),Hybrid_Quantize_Position (a.Y));
+	window.ApproachB.Set (Hybrid_Quantize_Position (b.X),Hybrid_Quantize_Position (b.Y));
+	const Vector2 side = tangent * (0.5f * span);
+	window.BoundsMin.Set (WWMath::Min (WWMath::Min (a.X + side.X,a.X - side.X),WWMath::Min (b.X + side.X,b.X - side.X)),
+								 WWMath::Min (WWMath::Min (a.Y + side.Y,a.Y - side.Y),WWMath::Min (b.Y + side.Y,b.Y - side.Y)));
+	window.BoundsMax.Set (WWMath::Max (WWMath::Max (a.X + side.X,a.X - side.X),WWMath::Max (b.X + side.X,b.X - side.X)),
+								 WWMath::Max (WWMath::Max (a.Y + side.Y,a.Y - side.Y),WWMath::Max (b.Y + side.Y,b.Y - side.Y)));
+	window.ApproachClasses		= 0x1Fu;
+	world->Hydrology.Windows.Add (window);
+}
+
+
+//	One required cross-link from `a` to `b`; through window `window_id` as a frozen crossing waypoint when non-zero.
+static void Crossing_World_Edge (CrossingWorld * world,const Vector2 & a,const Vector2 & b,HybridRoadClass road_class,
+											unsigned int window_id)
+{
+	HybridTopologyNode node;
+	node.Kind = HYBRID_NODE_FAMILY_WAYPOINT;
+	node.StableId = 1;	node.Position = a;	world->Topology.Nodes.Add (node);
+	node.StableId = 2;	node.Position = b;	world->Topology.Nodes.Add (node);
+
+	HybridTopologyEdge edge;
+	edge.StableId		= 1;
+	edge.Kind			= HYBRID_EDGE_CROSS_LINK;
+	edge.RoadClass		= road_class;
+	edge.Capabilities	= Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_CROSS_LINK,false);
+	edge.NodeA			= 1;
+	edge.NodeB			= 2;
+	edge.Required		= true;
+	edge.RouteFamily	= -1;
+	edge.Length			= (b - a).Length ();
+	const HybridCrossingWindow * window = world->Hydrology.Find_Window (window_id);
+	if (window != NULL) {
+		node.Kind		= HYBRID_NODE_CROSSING_OBLIGATION;
+		node.StableId	= 3;
+		node.Position	= window->Center;
+		node.WindowId	= window_id;
+		world->Topology.Nodes.Add (node);
+		edge.Waypoints.Add (3);
+	}
+	world->Topology.Edges.Add (edge);
+}
+
+
+static bool Crossing_World_Route (CrossingWorld * world,HybridRouteResult * result)
+{
+	return Hybrid_Build_Routes (world->RouteParams,world->Identity,world->Matrices,world->Landforms,world->Hydrology,
+										 world->Anchors,world->Topology,Crossing_Ground,&world->Hydrology,&world->Routes,result);
+}
+
+
+/*
+**	Q-022's invariant on a road: it passes both of a crossing's approach ends and runs straight along their axis
+**	from one to the other, so every turn onto or off the crossing is finished outside them.
+*/
+static bool Straight_Between (const DynamicVectorClass<Vector2> & points,const Vector2 & a,const Vector2 & b,float q,
+										StringClass * why)
+{
+	int at = -1;
+	float nearest = 3.4e38f;
+	for (int i = 0; i < points.Count (); ++i) {
+		const float distance = (points[i] - a).Length ();
+		if (distance >= nearest) continue;
+		nearest = distance;
+		at = i;
+	}
+	if ((at < 0) || (nearest > (2.0f * q))) {
+		why->Format ("the road misses the approach end (%.2f,%.2f) by %.3f",a.X,a.Y,nearest);
+		return false;
+	}
+	const float length = (b - a).Length ();
+	const Vector2 axis = (b - a) / length;
+	float behind = 0.0f;
+	float ahead = 0.0f;
+	Hybrid_Polyline_Straight_Run (points,at,axis,q,&behind,&ahead);
+	float back_behind = 0.0f;
+	float back_ahead = 0.0f;
+	Hybrid_Polyline_Straight_Run (points,at,-axis,q,&back_behind,&back_ahead);
+	const float run = WWMath::Max (ahead,back_behind);
+	if (run < (length - (2.0f * q))) {
+		why->Format ("the road runs straight only %.2f of the %.2f between (%.2f,%.2f) and (%.2f,%.2f)",run,length,
+						 a.X,a.Y,b.X,b.Y);
+		return false;
+	}
+	return true;
+}
+
+
+//	The tightest turn a sampled road makes: the smallest circle through three consecutive non-collinear samples.
+static float Tightest_Radius (const DynamicVectorClass<Vector2> & points)
+{
+	float tightest = 3.4e38f;
+	for (int i = 1; (i + 1) < points.Count (); ++i) {
+		const Vector2 p = points[i - 1];
+		const Vector2 q = points[i];
+		const Vector2 r = points[i + 1];
+		const float cross = ((q.X - p.X) * (r.Y - p.Y)) - ((q.Y - p.Y) * (r.X - p.X));
+		const float a = (q - p).Length ();
+		const float b = (r - q).Length ();
+		const float c = (r - p).Length ();
+		if (((float)fabs ((double)cross)) <= (1.0e-4f * a * c)) continue;		//	collinear to the sample's own rounding
+		const float radius = (a * b * c) / (2.0f * (float)fabs ((double)cross));
+		if (radius < tightest) tightest = radius;
+	}
+	return tightest;
+}
+
+
+/*
+**	Q-022 section 13, Phase 10's half: Phase 10 owns the road's arrival at every frozen crossing.  Each world is
+**	a 20-wide river north-south through the origin, long enough that the road has no way round it, with one
+**	window at the origin crossed eastward.  `PRIMARY_2` turns at 16.6 and carries an 8W = 26.6 straight approach.
+*/
+static void Check_Hybrid_Crossing_Alignment (void)
+{
+	const float ROW = 7.5f;
+	const Vector2 EAST (1.0f,0.0f);
+
+	//	1. Straight crossing: the road is on the axis already, and is accepted without a turn anywhere near it.
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		Crossing_World_River (&world,1,Vector2 (0.0f,-500.0f),Vector2 (0.0f,500.0f),20.0f);
+		Crossing_World_Window (&world,2,1,Vector2 (0.0f,ROW),EAST,20.0f);
+		Crossing_World_Edge (&world,Vector2 (-397.5f,ROW),Vector2 (397.5f,ROW),HYBRID_ROAD_PRIMARY_2,2);
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (routed,"a road already on its crossing's axis did not route: %s",result.Detail.Peek_Buffer ());
+		if (routed && (world.Routes.Routes.Count () == 1)) {
+			const HybridRoute & road = world.Routes.Routes[0];
+			const HybridCrossingWindow & window = world.Hydrology.Windows[0];
+			StringClass why;
+			Check (Straight_Between (road.Points,window.ApproachA,window.ApproachB,k.Q,&why),"straight crossing: %s",
+					 why.Peek_Buffer ());
+			float worst = 0.0f;
+			for (int i = 0; i < road.Points.Count (); ++i) worst = WWMath::Max (worst,WWMath::Fabs (road.Points[i].Y - ROW));
+			Check (worst <= (2.0f * k.Q),"a road on its crossing's axis was bent %.3f off it",worst);
+		}
+	}
+
+	/*
+	**	2. Sideways arrival: the two ends lie along the river, so the straight line between them meets the window
+	**	at about 80 degrees.  Phase 10 turns on its own bank and enters along the axis.
+	*/
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		const Vector2 a (-37.5f,-352.5f);
+		const Vector2 b (37.5f,367.5f);
+		Crossing_World_River (&world,1,Vector2 (0.0f,-500.0f),Vector2 (0.0f,500.0f),20.0f);
+		Crossing_World_Window (&world,2,1,Vector2 (0.0f,ROW),EAST,20.0f);
+		Crossing_World_Edge (&world,a,b,HYBRID_ROAD_PRIMARY_2,2);
+		const Vector2 line = (b - a) / (b - a).Length ();
+		Check (WWMath::Fabs (line.X) < 0.5f,"the sideways world's ends are not along the river");
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (routed || (result.Failure != HYBRID_ROUTE_OK),"a sideways arrival failed without naming why");
+		Check (routed,"a sideways arrival with room to turn on its bank did not route: %s",result.Detail.Peek_Buffer ());
+		if (routed && (world.Routes.Routes.Count () == 1)) {
+			const HybridCrossingWindow & window = world.Hydrology.Windows[0];
+			StringClass why;
+			Check (Straight_Between (world.Routes.Routes[0].Points,window.ApproachA,window.ApproachB,k.Q,&why),
+					 "sideways arrival: %s",why.Peek_Buffer ());
+			Check (Tightest_Radius (world.Routes.Routes[0].Points) >= (0.98f * Hybrid_Road_Class_Spec (HYBRID_ROAD_PRIMARY_2).MinTurnRadiusW * k.W),
+					 "the sideways road turns tighter than its class");
+		}
+	}
+
+	/*
+	**	3. Opposite arrival: the start lies east of the window's west approach end, so the straight line to it
+	**	arrives heading west -- against the crossing.  Phase 10 has to swing round before the approach; a road
+	**	that touched the approach end and hooked back would leave Phase 11 a hook to cut, which is not allowed.
+	*/
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		const Vector2 a (-22.5f,52.5f);
+		Crossing_World_River (&world,1,Vector2 (0.0f,-500.0f),Vector2 (0.0f,500.0f),20.0f);
+		Crossing_World_Window (&world,2,1,Vector2 (0.0f,ROW),EAST,20.0f);
+		Crossing_World_Edge (&world,a,Vector2 (397.5f,ROW),HYBRID_ROAD_PRIMARY_2,2);
+		const HybridCrossingWindow & window = world.Hydrology.Windows[0];
+		Check (((window.ApproachA.X - a.X) * EAST.X) + ((window.ApproachA.Y - a.Y) * EAST.Y) < 0.0f,
+				 "the opposite world's start is not past the approach end");
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (routed || (result.Failure != HYBRID_ROUTE_OK),"an opposite arrival failed without naming why");
+		if (routed && (world.Routes.Routes.Count () == 1)) {
+			StringClass why;
+			Check (Straight_Between (world.Routes.Routes[0].Points,window.ApproachA,window.ApproachB,k.Q,&why),
+					 "opposite arrival: %s",why.Peek_Buffer ());
+			Check (Tightest_Radius (world.Routes.Routes[0].Points) >= (0.98f * Hybrid_Road_Class_Spec (HYBRID_ROAD_PRIMARY_2).MinTurnRadiusW * k.W),
+					 "the opposite-arrival road turns tighter than its class");
+		}
+		printf ("  opposite arrival: %s\r\n",routed ? "swung round before the approach" : result.Detail.Peek_Buffer ());
+	}
+
+	/*
+	**	4. Insufficient turn room: a second river, with no window, runs parallel east of the crossing and the far
+	**	end lies between the two.  Leaving the window eastward the road keeps its 8W straight and then needs one
+	**	class radius more to turn north; with the second river's bank 14 past the approach end it has 4.  Every
+	**	envelope is refused -- the turn may not eat into the straight.  The same world with the bank 84 past
+	**	routes, so it is the turn room that decides.
+	*/
+	for (int roomy = 0; roomy < 2; ++roomy) {
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		const float second = (roomy != 0) ? 130.0f : 60.0f;			//	west bank at 120 or 50
+		Crossing_World_River (&world,1,Vector2 (0.0f,-500.0f),Vector2 (0.0f,500.0f),20.0f);
+		Crossing_World_River (&world,3,Vector2 (second,-500.0f),Vector2 (second,500.0f),20.0f);
+		Crossing_World_Window (&world,2,1,Vector2 (0.0f,ROW),EAST,20.0f);
+		Crossing_World_Edge (&world,Vector2 (-397.5f,ROW),Vector2 ((roomy != 0) ? 67.5f : 37.5f,397.5f),
+									HYBRID_ROAD_PRIMARY_2,2);
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		if (roomy == 0) {
+			Check (!routed,"a road with no room to turn after its crossing's straight was routed");
+			Check (result.Failure != HYBRID_ROUTE_OK,"the refused turn named no failure");
+			Check (result.Detail.Get_Length () > 0,"the refused turn said nothing");
+			printf ("  insufficient turn room: %s\r\n",result.Detail.Peek_Buffer ());
+		} else {
+			Check (routed,"the same crossing with room to turn did not route: %s",result.Detail.Peek_Buffer ());
+			if (routed && (world.Routes.Routes.Count () == 1)) {
+				const HybridCrossingWindow & window = world.Hydrology.Windows[0];
+				StringClass why;
+				Check (Straight_Between (world.Routes.Routes[0].Points,window.ApproachA,window.ApproachB,k.Q,&why),
+						 "turn room: %s",why.Peek_Buffer ());
+			}
+		}
+	}
+}
+
+
 void Check_Hybrid_Routes (void)
 {
+	Check_Hybrid_Crossing_Alignment ();
+
 	HybridMapIdentity identity;
 	HybridArchetypeIntentSet intents;
 	HybridMapIdentityResult identity_result;
@@ -8227,10 +8751,11 @@ void Check_Hybrid_Routes (void)
 	}
 
 	//	A full Phase-10 build on a real Phase-2 to Phase-9 chain, seed-walked the way the manager does.
-	static const unsigned int ROUTE_SEEDS[8] = { 4242u, 7u, 99u, 1234u, 31337u, 5u, 77u, 808u };
+	//	The original eight, then the canyon seeds the census found passing Phase 10 under Q-022 and Q-023.
+	static const unsigned int ROUTE_SEEDS[10] = { 4242u, 7u, 99u, 1234u, 31337u, 5u, 77u, 808u, 23u, 98u };
 	bool routed = false;
 
-	for (int attempt = 0; (attempt < 8) && !routed; ++attempt) {
+	for (int attempt = 0; (attempt < 10) && !routed; ++attempt) {
 
 	const unsigned int seed = ROUTE_SEEDS[attempt];
 	HybridMapIdentityParams sized = Graph_Identity_Fixture (1200.0f,2.0f);
@@ -16619,6 +17144,36 @@ void Check_Hybrid_Realization (void)
 				 "unjoinable pins were refused as %s",Hybrid_Profile_Failure_Name (why));
 	}
 
+	/*
+	**	6. A solved profile is a solution of itself.  A compiled deck pins the heights this solver returned,
+	**	quantized; a road graded at the class maximum then has to be re-solvable from those pins, or a crossing
+	**	Phase 11 accepted could not be built by Phase 12.  An 8-high step graded inside 6 of cut and fill runs
+	**	at the maximum through it, so every pin there sits on the limit.
+	*/
+	{
+		ProfileTerrain step = { 10.0f,60.0f,8.0f,0.0f,0.0f,0.0f };
+		DynamicVectorClass<HybridProfileSample> samples;
+		Hybrid_Sample_Route_Interval (route,0,last,spacing,Profile_Terrain_Height,&step,&samples);
+		HybridSolvedProfile first;
+		HybridProfileFailure why = HYBRID_PROFILE_OK;
+		Check (Hybrid_Solve_Vertical_Profile (samples,max_cut,max_fill,max_grade,k.Q,&first,&why),
+				 "the step did not grade (%s)",Hybrid_Profile_Failure_Name (why));
+		if (first.Z.Count () == samples.Count ()) {
+			Check (first.SteepestGrade >= (max_grade - 0.001f),"the step never reaches the class maximum (%.4f)",
+					 first.SteepestGrade);
+			for (int i = 0; i < samples.Count (); ++i) {
+				samples[i].Fixed	= true;
+				samples[i].FixedZ	= first.Z[i];
+			}
+			HybridSolvedProfile again;
+			const bool resolved = Hybrid_Solve_Vertical_Profile (samples,max_cut,max_fill,max_grade,k.Q,&again,&why);
+			Check (resolved,"a profile pinned to its own solution was refused (%s)",Hybrid_Profile_Failure_Name (why));
+			for (int i = 0; (i < again.Z.Count ()) && (i < first.Z.Count ()); ++i) {
+				Check (again.Z[i] == first.Z[i],"pinned sample %d came back at %.4f, not %.4f",i,again.Z[i],first.Z[i]);
+			}
+		}
+	}
+
 	//	The cross-section: level roadbed, shoulder at roadbed height, smoothstep to terrain over `outer_blend`.
 	{
 		const float half_roadbed = 0.5f * Hybrid_Roadbed_Width (HYBRID_ROAD_PRIMARY_2,k.W);
@@ -16646,6 +17201,300 @@ void Check_Hybrid_Realization (void)
 		Check (WWMath::Fabs (q1 - road_z) < 0.25f * WWMath::Fabs (ground - road_z),
 				 "the blend leaves the shoulder linearly, not with a flat tangent");
 	}
+}
+
+
+
+/*
+**	The controlled reroute world (Q-023 section 16).
+**
+**	With Phase 9 refusing structural sequences no road can drive, no native seed in a 1400-world census leaves a
+**	Phase-11 refusal that the next Phase-10 envelope then resolves: a wider envelope only helps when the narrower
+**	one forced the road onto a crossing it would otherwise have avoided, and the topology no longer freezes
+**	those.  So the reroute is proved on a controlled world through the *real* owners: real Phase-10 routing, a
+**	real Phase-11 refusal, the real envelope-floor increment, a real Phase-10 reroute and a real Phase-11 success.
+**
+**	One `SECONDARY_2` cross-link from (-400,7.5) to (+400,7.5) and a 20-wide river across it for 150 either side,
+**	with one accepted crossing window on the road's line.  Envelope 0 is the class's preferred corridor, +/-150:
+**	the river fills it, so the road can only cross by the window.  Nothing the fixture registers can span the
+**	river and the crossing is not an obligation, so Phase 11 refuses it and asks for envelope 1, +/-180, where the
+**	road goes round the river's end -- which costs less than the window's own `20A` penalty, so the search takes
+**	it -- and there is nothing left to cross.
+*/
+static bool Build_Reroute_World (CrossingWorld * world,StringClass * why)
+{
+	const float ROW = 7.5f;
+	Crossing_World_Begin (world);
+	Crossing_World_River (world,1,Vector2 (0.0f,ROW - 150.0f),Vector2 (0.0f,ROW + 150.0f),20.0f);
+	Crossing_World_Window (world,2,1,Vector2 (0.0f,ROW),Vector2 (1.0f,0.0f),20.0f);
+	Crossing_World_Edge (world,Vector2 (-400.0f,ROW),Vector2 (400.0f,ROW),HYBRID_ROAD_SECONDARY_2,0);
+	HybridRouteResult result;
+	if (!Crossing_World_Route (world,&result)) {
+		if (why != nullptr) *why = result.Detail;
+		return false;
+	}
+	return true;
+}
+
+
+
+/*
+**	Q-022 section 13, Phase 11's half, on the controlled worlds: an asset approach Phase 10's 8W does not
+**	cover, a moved station, and the station cap.
+*/
+static void Check_Hybrid_Crossing_Compile (const HybridPreflightInputs & inputs,const HybridMetricCache & metrics)
+{
+	const float ROW = 7.5f;
+	const Vector2 EAST (1.0f,0.0f);
+
+	/*
+	**	5. Asset approach longer than 8W.  Phase 10 only guarantees 8W; the shipped bridge kinds ask for more, and
+	**	a road straight through the window has it, so the compiled reserve is the kind's own -- never cut back to
+	**	8W.  Then a second river runs parallel, its water 54 past the crossing's east bank and its carved bank
+	**	from 48: room for Phase 10's 8W straight and a 16.6 turn, not for a 12W straight and the same turn at
+	**	any station along the river.
+	**	A kind that needs 12W is refused there, not compiled on a shortened approach, and Phase 11 asks Phase 10
+	**	for the next envelope.
+	*/
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		Crossing_World_River (&world,1,Vector2 (0.0f,-500.0f),Vector2 (0.0f,500.0f),20.0f);
+		Crossing_World_Window (&world,2,1,Vector2 (0.0f,ROW),EAST,20.0f);
+		Crossing_World_Edge (&world,Vector2 (-397.5f,ROW),Vector2 (397.5f,ROW),HYBRID_ROAD_PRIMARY_2,2);
+		HybridRouteResult routed_result;
+		const bool routed = Crossing_World_Route (&world,&routed_result);
+		Check (routed,"the straight asset-approach world does not route: %s",routed_result.Detail.Peek_Buffer ());
+		if (routed) {
+			HybridInteractionParams params = Interaction_Fixture (world.Sized,1200.0f,inputs,metrics);
+			float shipped = 0.0f;
+			for (int i = 0; i < params.BridgeKinds.Count (); ++i) {
+				shipped = WWMath::Max (shipped,params.BridgeKinds[i].RequiredApproachLength);
+			}
+			HybridInteractionSet fits;
+			HybridInteractionResult fits_result;
+			const bool compiled = Hybrid_Build_Interactions (params,world.Identity,world.Matrices,world.Landforms,
+																			 world.Hydrology,world.Anchors,world.Topology,world.Routes,
+																			 Crossing_Ground,&world.Hydrology,&fits,&fits_result);
+			Check (compiled,"the shipped kinds did not compile on a straight road: %s",fits_result.Detail.Peek_Buffer ());
+			for (int i = 0; i < fits.Interactions.Count (); ++i) {
+				const HybridInteraction & one = fits.Interactions[i];
+				const float needed = WWMath::Max (8.0f * k.W,params.BridgeKinds[one.BridgeKind].RequiredApproachLength);
+				Check (one.ApproachReserve >= (needed - k.Q),"a bridge compiled on a %.2f approach, under its kind's %.2f",
+						 one.ApproachReserve,needed);
+			}
+			printf ("  asset approach: shipped kinds need %.1f against Phase 10's 8W of %.1f\r\n",shipped,8.0f * k.W);
+		}
+	}
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		Crossing_World_River (&world,1,Vector2 (0.0f,-500.0f),Vector2 (0.0f,500.0f),20.0f);
+		Crossing_World_River (&world,3,Vector2 (74.0f,-500.0f),Vector2 (74.0f,500.0f),20.0f);
+		Crossing_World_Window (&world,2,1,Vector2 (0.0f,ROW),EAST,20.0f);
+		Crossing_World_Edge (&world,Vector2 (-397.5f,ROW),Vector2 (37.5f,397.5f),HYBRID_ROAD_PRIMARY_2,2);
+		HybridRouteResult routed_result;
+		const bool routed = Crossing_World_Route (&world,&routed_result);
+		Check (routed,"the narrow asset-approach world does not route: %s",routed_result.Detail.Peek_Buffer ());
+		if (routed) {
+			HybridInteractionParams params = Interaction_Fixture (world.Sized,1200.0f,inputs,metrics);
+			for (int i = 0; i < params.BridgeKinds.Count (); ++i) params.BridgeKinds[i].RequiredApproachLength = 12.0f * k.W;
+			HybridInteractionSet refused;
+			HybridInteractionResult refused_result;
+			Check (!Hybrid_Build_Interactions (params,world.Identity,world.Matrices,world.Landforms,world.Hydrology,
+														  world.Anchors,world.Topology,world.Routes,Crossing_Ground,&world.Hydrology,
+														  &refused,&refused_result),
+					 "a bridge needing a 12W approach compiled where the road has room for 8W");
+			Check (refused.Interactions.Count () == 0,"the refused crossing left solutions behind");
+			Check (::strstr (refused_result.Detail.Peek_Buffer (),"approach_does_not_fit") != NULL,
+					 "the 12W kind was refused for something else: %s",refused_result.Detail.Peek_Buffer ());
+			Check (refused_result.RerouteEdgeId == world.Routes.Routes[0].EdgeId,
+					 "the refused crossing did not ask Phase 10 for the next envelope (edge %u)",
+					 refused_result.RerouteEdgeId);
+		}
+	}
+
+	/*
+	**	6. Moved station.  The river is 40 wide for 25 either side of the window and 16 elsewhere, and nothing
+	**	registered spans more than 30, so the window's own station cannot be bridged.  Phase 11 moves along the
+	**	river to where it narrows and builds the connector: the road turns at its class radius and runs a
+	**	complete straight approach onto the deck and off it.
+	*/
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		const float centre_station = 500.0f + ROW;
+		Crossing_World_River (&world,1,Vector2 (0.0f,-500.0f),Vector2 (0.0f,500.0f),16.0f,centre_station - 25.0f,
+									 centre_station + 25.0f,40.0f);
+		Crossing_World_Window (&world,2,1,Vector2 (0.0f,ROW),EAST,40.0f);
+		Crossing_World_Edge (&world,Vector2 (-397.5f,ROW),Vector2 (397.5f,ROW),HYBRID_ROAD_PRIMARY_2,2);
+		HybridRouteResult routed_result;
+		const bool routed = Crossing_World_Route (&world,&routed_result);
+		Check (routed,"the moved-station world does not route: %s",routed_result.Detail.Peek_Buffer ());
+		if (routed) {
+			HybridInteractionParams params = Interaction_Fixture (world.Sized,1200.0f,inputs,metrics);
+			float approach = 8.0f * k.W;
+			for (int i = 0; i < params.BridgeKinds.Count (); ++i) {
+				params.BridgeKinds[i].MaxSpan = WWMath::Min (params.BridgeKinds[i].MaxSpan,30.0f);
+				approach = WWMath::Max (approach,params.BridgeKinds[i].RequiredApproachLength);
+			}
+			HybridInteractionSet set;
+			HybridInteractionResult result;
+			const bool compiled = Hybrid_Build_Interactions (params,world.Identity,world.Matrices,world.Landforms,
+																			 world.Hydrology,world.Anchors,world.Topology,world.Routes,
+																			 Crossing_Ground,&world.Hydrology,&set,&result);
+			Check (compiled,"no station along the narrowing river compiled: %s",result.Detail.Peek_Buffer ());
+			if (compiled && (set.Interactions.Count () == 1)) {
+				const HybridInteraction & one = set.Interactions[0];
+				const HybridCrossingWindow & window = world.Hydrology.Windows[0];
+				Check ((one.Station - window.Center).Length () > 25.0f,"the bridge stayed on the unbridgeable station");
+				Check (one.Span <= 30.0f,"the moved station's span %.1f is past every kind",one.Span);
+				Check (one.Path.AddedLength > 0.0f,"a moved station was compiled with no connector");
+
+				HybridRoute realized;
+				Check (Hybrid_Realized_Route (world.Routes.Routes[0],set,&realized),"the moved crossing has no realized road");
+				StringClass why;
+				Check (Straight_Between (realized.Points,one.ApproachA,one.ApproachB,k.Q,&why),"moved station: %s",
+						 why.Peek_Buffer ());
+				const float straight = (one.ApproachB - one.ApproachA).Length ();
+				Check (straight >= (one.Span + (2.0f * approach) - (2.0f * k.Q)),
+						 "the moved station's straight is %.2f, short of the deck and two %.2f approaches",straight,approach);
+				const float radius = Tightest_Radius (realized.Points);
+				Check (radius >= (0.98f * Hybrid_Road_Class_Spec (HYBRID_ROAD_PRIMARY_2).MinTurnRadiusW * k.W),
+						 "the connector turns at %.2f, under the class radius",radius);
+				printf ("  moved station: %.1f along the river, connector adds %.1f, tightest turn %.1f\r\n",
+						  (one.Station - window.Center).Length (),one.Path.AddedLength,radius);
+			}
+		}
+	}
+
+	//	7. The station cap: a search range of 145 stations held to 64, the anchor first and both ends kept.
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		Crossing_World_River (&world,1,Vector2 (0.0f,-500.0f),Vector2 (0.0f,500.0f),20.0f);
+		Crossing_World_Window (&world,2,1,Vector2 (0.0f,ROW),EAST,20.0f);
+		HybridInteractionParams params = Interaction_Fixture (world.Sized,1200.0f,inputs,metrics);
+		const HybridCrossingWindow & window = world.Hydrology.Windows[0];
+		DynamicVectorClass<HybridObstructionStation> list;
+		Hybrid_Crossing_Station_List (params,world.Hydrology,world.Landforms,window,window.Center,&list);
+
+		const float half_length = WWMath::Max (8.0f * k.W,4.0f * k.S);
+		const float spacing = WWMath::Min (k.W,0.5f * k.A);
+		Check (((2.0f * half_length) / spacing) + 1.0f > 64.0f,"the cap world's range does not reach the cap");
+		Check ((list.Count () > 0) && (list.Count () <= 64),"%d stations, not 1..64",list.Count ());
+		if (list.Count () > 0) {
+			Check ((list[0].Centre - window.Center).Length () <= k.Q,"candidate 0 is not the anchor");
+			bool low = false;
+			bool high = false;
+			for (int i = 0; i < list.Count (); ++i) {
+				if (list[i].Offset <= (-half_length + k.Q)) low = true;
+				if (list[i].Offset >= (half_length - k.Q)) high = true;
+				for (int j = i + 1; j < list.Count (); ++j) {
+					Check ((list[i].Centre - list[j].Centre).Length () > k.Q,"stations %d and %d are one station",i,j);
+				}
+			}
+			Check (low && high,"the capped list lost an end of its range (%s %s)",low ? "" : "low",high ? "" : "high");
+		}
+	}
+}
+
+
+//	Where on a polyline a point lies, as an arc-length station: the nearest point of the nearest segment.
+static float Gate_Station_On (const HybridRoute & road,const Vector2 & point)
+{
+	float best = 3.4e38f;
+	float station = 0.0f;
+	for (int i = 1; i < road.Points.Count (); ++i) {
+		const Vector2 a = road.Points[i - 1];
+		const Vector2 d = road.Points[i] - a;
+		const float length2 = (d.X * d.X) + (d.Y * d.Y);
+		float t_on = (length2 > 0.0f) ? ((((point.X - a.X) * d.X) + ((point.Y - a.Y) * d.Y)) / length2) : 0.0f;
+		t_on = (t_on < 0.0f) ? 0.0f : ((t_on > 1.0f) ? 1.0f : t_on);
+		const Vector2 on = a + (d * t_on);
+		const float distance = (point - on).Length ();
+		if (distance >= best) continue;
+		best = distance;
+		station = road.Stations[i - 1] + ((road.Stations[i] - road.Stations[i - 1]) * t_on);
+	}
+	return station;
+}
+
+
+static void Check_Controlled_Reroute (const HybridPreflightInputs & inputs,const HybridMetricCache & metrics,
+												  int * runs_seen,int * untouched_checked)
+{
+	CrossingWorld world;
+	StringClass why;
+	const bool built = Build_Reroute_World (&world,&why);
+	Check (built,"the controlled reroute world does not route: %s",why.Peek_Buffer ());
+	if (!built) return;
+
+	Check (world.Routes.Routes.Count () == 1,"the controlled reroute world routed %d edges",world.Routes.Routes.Count ());
+	if (world.Routes.Routes.Count () != 1) return;
+	const HybridRoute first = world.Routes.Routes[0];
+	Check (first.Envelope == 0,"the controlled road did not start in envelope 0 (%d)",first.Envelope);
+	Check (first.Structural.Count () == 1,"envelope 0 does not cross the river by its window (%d crossings)",
+			 first.Structural.Count ());
+
+	//	Nothing the fixture registers spans the river.
+	HybridInteractionParams params = Interaction_Fixture (world.Sized,1200.0f,inputs,metrics);
+	for (int i = 0; i < params.BridgeKinds.Count (); ++i) params.BridgeKinds[i].MaxSpan = 1.0f;
+
+	//	The refusal on its own, first: real Phase 11 on the envelope-0 route names this edge for a reroute.
+	{
+		HybridInteractionSet refused;
+		HybridInteractionResult refused_result;
+		Check (!Hybrid_Build_Interactions (params,world.Identity,world.Matrices,world.Landforms,world.Hydrology,
+													  world.Anchors,world.Topology,world.Routes,Crossing_Ground,&world.Hydrology,&refused,
+													  &refused_result),"the unspannable river crossing compiled");
+		Check (refused_result.RerouteEdgeId == first.EdgeId,"Phase 11 asked to reroute edge %u, not %u",
+				 refused_result.RerouteEdgeId,first.EdgeId);
+	}
+
+	HybridInteractionSet solved;
+	HybridInteractionResult solved_result;
+	HybridRouteResult solved_routes;
+	int spent = 0;
+	int runs = 0;
+	const bool ok = Hybrid_Solve_Interactions_With_Reroute (world.RouteParams,params,world.Identity,world.Matrices,
+																			  world.Landforms,world.Hydrology,world.Anchors,
+																			  world.Topology,Crossing_Ground,&world.Hydrology,&world.Routes,
+																			  &solved_routes,&solved,&solved_result,&spent,&runs);
+	Check (ok,"the controlled reroute did not solve: %s (%s)",Hybrid_Interaction_Failure_Name (solved_result.Failure),
+			 solved_result.Detail.Peek_Buffer ());
+	Check (spent == 1,"the controlled reroute spent %d reroutes",spent);
+	Check (runs == 2,"the controlled reroute ran Phase 10 %d times, not twice",runs);
+	if ((runs >= 1) && (runs <= 3)) runs_seen[runs]++;
+
+	Check (world.RouteParams.EnvelopeFloors.Count () == 1,"one reroute raised %d floors",
+			 world.RouteParams.EnvelopeFloors.Count ());
+	if ((world.RouteParams.EnvelopeFloors.Count () == 1) && (world.Routes.Routes.Count () == 1)) {
+		const HybridRouteEnvelopeFloor & floor = world.RouteParams.EnvelopeFloors[0];
+		Check (floor.MinEnvelope == (first.Envelope + 1),"edge %u moved from envelope %d to floor %d: not the next one",
+				 floor.EdgeId,first.Envelope,floor.MinEnvelope);
+		const HybridRoute & after = world.Routes.Routes[0];
+		Check (after.Envelope >= floor.MinEnvelope,"the rerouted edge came back in envelope %d under floor %d",
+				 after.Envelope,floor.MinEnvelope);
+		Check (after.Structural.Count () == 0,"the rerouted road still crosses the river (%d crossings)",
+				 after.Structural.Count ());
+		Check (solved.Interactions.Count () == 0,"the rerouted road compiled %d crossings",solved.Interactions.Count ());
+		printf ("  controlled reroute: edge %u envelope %d -> %d, crossings %d -> %d\r\n",floor.EdgeId,first.Envelope,
+				  after.Envelope,first.Structural.Count (),after.Structural.Count ());
+	}
+
+	//	The accepted state is one run pair: solving it again from the same inputs reproduces it.
+	HybridInteractionSet again;
+	HybridInteractionResult again_result;
+	Check (Hybrid_Build_Interactions (params,world.Identity,world.Matrices,world.Landforms,world.Hydrology,world.Anchors,
+												 world.Topology,world.Routes,Crossing_Ground,&world.Hydrology,&again,&again_result),
+			 "the rerouted route set does not solve a second time");
+	Check (again.Checksum == solved.Checksum,"the rerouted interaction set does not reproduce its checksum");
+	(void)untouched_checked;
 }
 
 
@@ -16703,7 +17552,14 @@ void Check_Hybrid_Interactions (void)
 	**	crossings, a highland pass produces cliff and ridge ones, a river valley produces river crossings.
 	**	One archetype would leave whole method families untested and call the gate green.
 	*/
-	static const unsigned int INTERACTION_SEEDS[8] = { 4242u, 7u, 99u, 1234u, 31337u, 5u, 77u, 808u };
+	/*
+	**	Re-seeded for Q-022 / Q-023, which made the old eight-seed walk build no Phase-10 world at all: every
+	**	compiled crossing must now be attached to its road, and Phase 9 freezes only structural sequences a road
+	**	can drive.  The walk is the original seeds plus, per archetype, the first seeds the 1400-world census
+	**	found reaching Phase 11 -- solved ones and refused ones alike, so both outcomes stay exercised.
+	*/
+	static const unsigned int INTERACTION_SEEDS[8] = { 23u, 98u, 196u, 13u, 24u, 35u, 95u, 4242u };
+	static const unsigned int CANYON_SEED = 23u;		//	canyon_crossroads, routed and solved
 	static const HybridArchetype INTERACTION_ARCHETYPES[5] = {
 		HYBRID_ARCHETYPE_CANYON_CROSSROADS,		// canyon crossings, and the mandatory canyon bridge
 		HYBRID_ARCHETYPE_PLATEAU_BASIN,			// the basin rim is a CLIFF obligation: cuts and ramp passes
@@ -16779,6 +17635,37 @@ void Check_Hybrid_Interactions (void)
 			continue;
 		}
 		solved_any = true;
+
+		/*
+		**	Every road can be graded as it will be realized (Q-022): Section 12.1 over its realized centerline
+		**	with every structure its compiled crossings put on it holding its own surface.  This replaces a
+		**	per-solution grade from each approach end down to the ground at the station, which asked a bridge
+		**	to meet the canyon floor or the water its deck never touches.
+		*/
+		for (int r = 0; r < fixture.Routes.Routes.Count (); ++r) {
+
+			const HybridRoute & route = fixture.Routes.Routes[r];
+			HybridRoute realized;
+			DynamicVectorClass<HybridProfileStructure> structures;
+			Check (Hybrid_Realized_Route (route,interactions,&realized),"route %u has no realized centerline",
+					 route.EdgeId);
+			Check (Hybrid_Road_Profile_Structures (interactions,realized,&structures),
+					 "a structure on route %u does not sit on its realized road",route.EdgeId);
+			if (realized.Points.Count () < 2) continue;
+
+			DynamicVectorClass<HybridProfileSample> samples;
+			HybridSolvedProfile solved_profile;
+			HybridProfileFailure why = HYBRID_PROFILE_OK;
+			const float max_grade = Hybrid_Road_Class_Spec (route.RoadClass).MaxGradeDegrees * 0.0174532925f;
+			const bool graded = Hybrid_Solve_Road_Stretch (realized.Points,realized.Stations,0.0f,
+														realized.Stations[realized.Stations.Count () - 1],structures,
+														Hybrid_Profile_Sample_Spacing (k),Macro_Sample_From_Formula,
+														&fixture.Ground,params.MaxCutDepth,params.MaxFillHeight,max_grade,
+														k.Q,&samples,&solved_profile,NULL,NULL,&why);
+			Check (graded,"archetype %d seed %u: route %u (%s) cannot be graded as realized: %s (%d structures)",
+					 (int)INTERACTION_ARCHETYPES[attempt / 8],INTERACTION_SEEDS[attempt % 8],route.EdgeId,
+					 Hybrid_Road_Class_Name (route.RoadClass),Hybrid_Profile_Failure_Name (why),structures.Count ());
+		}
 		reroutes_spent += reroutes;
 
 		/*
@@ -17098,10 +17985,39 @@ void Check_Hybrid_Interactions (void)
 				}
 			}
 
-			//	The approach reserve is real on both sides, and symmetric about the station.
+			/*
+			**	The approach reserve is real on both sides, and symmetric about the station.  A bridge or tunnel
+			**	approach is straight along its crossing axis (Q-022), so the straight line to each approach end
+			**	measures it.  An overpass ramp is Section 12.3's `L_ramp` along the upper road's own centerline
+			**	beyond each end of its straight deck, and the plan does not ask the ramp itself to be straight, so
+			**	it is measured along the realized road: each foot at least half the deck plus the ramp from the
+			**	crossing.
+			*/
 			const float to_a = (one.ApproachA - one.Station).Length ();
 			const float to_b = (one.ApproachB - one.Station).Length ();
-			if ((one.Method != HYBRID_METHOD_AT_GRADE_JUNCTION)) {
+			if (one.Method == HYBRID_METHOD_OVERPASS) {
+				const HybridRoute * upper = NULL;
+				for (int r = 0; r < fixture.Routes.Routes.Count (); ++r) {
+					if (fixture.Routes.Routes[r].EdgeId == one.EdgeId) upper = &fixture.Routes.Routes[r];
+				}
+				HybridRoute road;
+				Check ((upper != NULL) && Hybrid_Realized_Route (*upper,interactions,&road),
+						 "overpass %u has no realized upper road",one.StableId);
+				if (road.Points.Count () >= 2) {
+					const float centre = Gate_Station_On (road,one.Station);
+					const float foot_a = Gate_Station_On (road,one.ApproachA);
+					const float foot_b = Gate_Station_On (road,one.ApproachB);
+					const float needed = (0.5f * one.Span) + one.ApproachReserve - (2.0f * k.Q);
+					Check ((float)fabs ((double)(centre - foot_a)) >= needed,
+							 "overpass %u ramp A runs %.2f along its road, under the %.2f of half deck and ramp",
+							 one.StableId,(float)fabs ((double)(centre - foot_a)),needed);
+					Check ((float)fabs ((double)(foot_b - centre)) >= needed,
+							 "overpass %u ramp B runs %.2f along its road, under the %.2f of half deck and ramp",
+							 one.StableId,(float)fabs ((double)(foot_b - centre)),needed);
+					Check ((foot_a - centre) * (foot_b - centre) < 0.0f,"overpass %u ramps are not either side of it",
+							 one.StableId);
+				}
+			} else if (one.Method != HYBRID_METHOD_AT_GRADE_JUNCTION) {
 				Check (to_a >= (one.ApproachReserve - k.W),
 						 "solution %u approach A reserve is %.1f, under the required %.1f",one.StableId,to_a,
 						 one.ApproachReserve);
@@ -17164,30 +18080,6 @@ void Check_Hybrid_Interactions (void)
 							 "%s %u carries a %.1f swept width on a %.1f roadbed",
 							 Hybrid_Interaction_Method_Name (one.Method),one.StableId,swept,
 							 Hybrid_Roadbed_Width (one.RoadClass,k.W));
-				}
-			}
-
-			//	Both approaches have to be gradeable to the station within the class maximum grade.
-			{
-				const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec (one.RoadClass);
-				const float max_grade = spec.MaxGradeDegrees * 0.0174532925f;
-				float station_z = 0.0f;
-				if (Macro_Sample_From_Formula (one.Station,&station_z,&fixture.Ground)) {
-
-					const HybridVerticalInterval station_interval =
-						Hybrid_Road_Vertical_Interval (station_z,params.MaxCutDepth,params.MaxFillHeight);
-					for (int side = 0; side < 2; ++side) {
-
-						const Vector2 & end = (side == 0) ? one.ApproachA : one.ApproachB;
-						float end_z = 0.0f;
-						if (!Macro_Sample_From_Formula (end,&end_z,&fixture.Ground)) continue;
-						const HybridVerticalInterval end_interval =
-							Hybrid_Road_Vertical_Interval (end_z,params.MaxCutDepth,params.MaxFillHeight);
-						Check (Hybrid_Grade_Compatible (end_interval,station_interval,
-																  (end - one.Station).Length (),max_grade),
-								 "solution %u approach %d exceeds the %s maximum grade",one.StableId,side,
-								 Hybrid_Road_Class_Name (one.RoadClass));
-					}
 				}
 			}
 
@@ -17608,7 +18500,7 @@ void Check_Hybrid_Interactions (void)
 	{
 		HybridPipelineFixture fixture;
 		StringClass why;
-		if (Build_Hybrid_Pipeline (INTERACTION_SEEDS[4],1200.0f,HYBRID_ARCHETYPE_CANYON_CROSSROADS,&fixture,
+		if (Build_Hybrid_Pipeline (CANYON_SEED,1200.0f,HYBRID_ARCHETYPE_CANYON_CROSSROADS,&fixture,
 											&why,&preflight.Metrics) && (fixture.Routes.Routes.Count () > 0)) {
 
 			const unsigned int edge_id = fixture.Routes.Routes[0].EdgeId;
@@ -17647,7 +18539,7 @@ void Check_Hybrid_Interactions (void)
 			*/
 			HybridPipelineFixture late;
 			StringClass late_why;
-			if (Build_Hybrid_Pipeline (INTERACTION_SEEDS[4],1200.0f,HYBRID_ARCHETYPE_CANYON_CROSSROADS,&late,
+			if (Build_Hybrid_Pipeline (CANYON_SEED,1200.0f,HYBRID_ARCHETYPE_CANYON_CROSSROADS,&late,
 												&late_why,&preflight.Metrics) && (late.Routes.Routes.Count () > 1)) {
 
 				const HybridRouteSet before = late.Routes;
@@ -17687,82 +18579,12 @@ void Check_Hybrid_Interactions (void)
 			  "%d earlier routes proved byte-identical\r\n",reroutes_spent,runs_seen[1],runs_seen[2],runs_seen[3],
 			  untouched_checked);
 	/*
-	**	One reroute that succeeds, on a real world found by the deterministic seed search
-	**	(`hybridinteractionsearch`): `plateau_basin` seed 193 routes an edge whose crossing no method can
-	**	compile in its first envelope and can in the next.  Phase 10 must therefore run exactly twice, the
-	**	rerouted edge must come back at or above its raised floor, and every route laid down before it must be
-	**	byte-identical -- the full re-run is only allowed because it changes nothing it did not have to.
+	**	One reroute that succeeds.  No native seed of a 1400-world census leaves a Phase-11 refusal the next
+	**	envelope resolves once Phase 9 refuses undrivable structural sequences (Q-023), so this is the controlled
+	**	world above, through the real Phase-10 and Phase-11 owners -- not a claim that a native one exists.
 	*/
-	{
-		const unsigned int ONE_REROUTE_SEED = 193u;
-		HybridPipelineFixture fixture;
-		StringClass why;
-		const bool built = Build_Hybrid_Pipeline (ONE_REROUTE_SEED,1200.0f,HYBRID_ARCHETYPE_PLATEAU_BASIN,&fixture,
-																&why,&preflight.Metrics);
-		Check (built,"the one-reroute fixture world no longer builds: %s",why.Peek_Buffer ());
-		if (built) {
-
-			const HybridRouteSet frozen_routes = fixture.Routes;
-			HybridInteractionParams params = Interaction_Fixture (fixture.Sized,1200.0f,inputs,preflight.Metrics);
-			HybridInteractionSet solved;
-			HybridInteractionResult solved_result;
-			HybridRouteResult solved_routes;
-			int spent = 0;
-			int runs = 0;
-			const bool ok = Hybrid_Solve_Interactions_With_Reroute (fixture.RouteParams,params,fixture.Identity,
-																					  fixture.Matrices,fixture.Landforms,
-																					  fixture.Hydrology,fixture.Anchors,
-																					  fixture.Topology,Macro_Sample_From_Formula,
-																					  &fixture.Ground,&fixture.Routes,
-																					  &solved_routes,&solved,&solved_result,
-																					  &spent,&runs);
-			Check (ok,"the one-reroute fixture did not solve: %s (%s)",
-					 Hybrid_Interaction_Failure_Name (solved_result.Failure),solved_result.Detail.Peek_Buffer ());
-			Check (spent == 1,"the one-reroute fixture spent %d reroutes",spent);
-			Check (runs == 2,"the one-reroute fixture ran Phase 10 %d times, not twice",runs);
-			if ((runs >= 1) && (runs <= 3)) runs_seen[runs]++;
-
-			Check (fixture.RouteParams.EnvelopeFloors.Count () == 1,"one reroute raised %d floors",
-					 fixture.RouteParams.EnvelopeFloors.Count ());
-			if (fixture.RouteParams.EnvelopeFloors.Count () == 1) {
-
-				const HybridRouteEnvelopeFloor & floor = fixture.RouteParams.EnvelopeFloors[0];
-				int first_rerouted = frozen_routes.Routes.Count ();
-				for (int r = 0; r < frozen_routes.Routes.Count (); ++r) {
-					if (frozen_routes.Routes[r].EdgeId != floor.EdgeId) continue;
-					first_rerouted = r;
-					Check (floor.MinEnvelope == (frozen_routes.Routes[r].Envelope + 1),
-							 "edge %u moved from envelope %d to floor %d: not the next envelope",floor.EdgeId,
-							 frozen_routes.Routes[r].Envelope,floor.MinEnvelope);
-				}
-				for (int r = 0; r < fixture.Routes.Routes.Count (); ++r) {
-					if (fixture.Routes.Routes[r].EdgeId != floor.EdgeId) continue;
-					Check (fixture.Routes.Routes[r].Envelope >= floor.MinEnvelope,
-							 "the rerouted edge came back in envelope %d under floor %d",
-							 fixture.Routes.Routes[r].Envelope,floor.MinEnvelope);
-				}
-				Check (first_rerouted < frozen_routes.Routes.Count (),"the rerouted edge had no frozen route");
-				for (int r = 0; (r < first_rerouted) && (r < fixture.Routes.Routes.Count ()); ++r) {
-					Check (Routes_Identical (frozen_routes.Routes[r],fixture.Routes.Routes[r]),
-							 "edge %u, routed before the rerouted edge, changed under the reroute",
-							 frozen_routes.Routes[r].EdgeId);
-				}
-				untouched_checked += first_rerouted;
-				printf ("  one-reroute fixture: plateau_basin seed %u, edge %u to envelope %d, %d earlier routes "
-						  "byte-identical\r\n",ONE_REROUTE_SEED,floor.EdgeId,floor.MinEnvelope,first_rerouted);
-			}
-
-			//	The accepted state is one run pair: solving it again from the same inputs reproduces it.
-			HybridInteractionSet again;
-			HybridInteractionResult again_result;
-			Check (Hybrid_Build_Interactions (params,fixture.Identity,fixture.Matrices,fixture.Landforms,
-														 fixture.Hydrology,fixture.Anchors,fixture.Topology,fixture.Routes,
-														 Macro_Sample_From_Formula,&fixture.Ground,&again,&again_result),
-					 "the rerouted route set does not solve a second time");
-			Check (again.Checksum == solved.Checksum,
-					 "the rerouted interaction set does not reproduce its checksum");
-		}
-	}
+	Check_Controlled_Reroute (inputs,preflight.Metrics,runs_seen,&untouched_checked);
+	Check_Hybrid_Crossing_Compile (inputs,preflight.Metrics);
 
 	Check (runs_seen[1] > 0,"no fixture world solved without a reroute, so the one-run path is untested");
 	Check (runs_seen[2] > 0,"no fixture world spent exactly one reroute, so the two-run path is untested");
@@ -17778,7 +18600,7 @@ void Check_Hybrid_Interactions (void)
 	{
 		HybridPipelineFixture fixture;
 		StringClass why;
-		if (Build_Hybrid_Pipeline (INTERACTION_SEEDS[4],1200.0f,HYBRID_ARCHETYPE_CANYON_CROSSROADS,&fixture,
+		if (Build_Hybrid_Pipeline (CANYON_SEED,1200.0f,HYBRID_ARCHETYPE_CANYON_CROSSROADS,&fixture,
 											&why,&preflight.Metrics)) {
 
 			HybridInteractionParams unspannable = Interaction_Fixture (fixture.Sized,1200.0f,inputs,
@@ -18068,8 +18890,11 @@ void Check_Hybrid_Interactions (void)
 					 "the pass was reached after the bridge refused as %s, not span_too_long",
 					 Hybrid_Interaction_Problem_Name (pass.FallbackFrom));
 			Check (pass.BridgeKind < 0,"a surface pass recorded a bridge kind");
-			Check ((pass.ApproachA == frozen.Controls[0]) &&
-					 (pass.ApproachB == frozen.Controls[frozen.ControlCount - 1]),
+			//	The frozen pass's own two ends, in the order this road drives them.
+			const Vector2 & end_0 = frozen.Controls[0];
+			const Vector2 & end_n = frozen.Controls[frozen.ControlCount - 1];
+			Check (((pass.ApproachA == end_0) && (pass.ApproachB == end_n)) ||
+					 ((pass.ApproachA == end_n) && (pass.ApproachB == end_0)),
 					 "the compiled pass ends are not the frozen pass's own");
 
 			//	The frozen geometry is what the real Phase-11 revalidated: revalidate it here too, independently.
@@ -18174,8 +18999,11 @@ void Check_Hybrid_Interactions (void)
 			Check (ramp.FallbackFrom == HYBRID_PROBLEM_METHOD_UNAVAILABLE,
 					 "the ramp was reached after the cut refused as %s, not method_unavailable",
 					 Hybrid_Interaction_Problem_Name (ramp.FallbackFrom));
-			Check ((ramp.ApproachA == frozen.Controls[0]) &&
-					 (ramp.ApproachB == frozen.Controls[frozen.ControlCount - 1]),
+			//	The frozen band pass's own two ends, in the order this road drives them.
+			const Vector2 & ramp_0 = frozen.Controls[0];
+			const Vector2 & ramp_n = frozen.Controls[frozen.ControlCount - 1];
+			Check (((ramp.ApproachA == ramp_0) && (ramp.ApproachB == ramp_n)) ||
+					 ((ramp.ApproachA == ramp_n) && (ramp.ApproachB == ramp_0)),
 					 "the compiled ramp ends are not the frozen band pass's own");
 			Check (frozen.ControlCount == 6,"the frozen band pass has %d controls, not six",frozen.ControlCount);
 			Check (frozen.TangentRun > 0.0f,"the frozen band pass spent no along-cliff run");
@@ -18246,6 +19074,11 @@ void Check_Hybrid_Interaction_Search (void)
 	const unsigned int SEARCH_SEEDS = 200u;
 
 	int worlds = 0;
+	int passed_phase9 = 0;
+	int rejected_approach = 0;
+	int rejected_wrong_side = 0;
+	int rejected_pose = 0;
+	int recovered_next_rank = 0;
 	int solved_worlds = 0;
 	int reroute_requests = 0;
 	int reached_phase11 = 0;
@@ -18286,7 +19119,18 @@ void Check_Hybrid_Interaction_Search (void)
 
 			HybridPipelineFixture scan;
 			StringClass why;
-			if (!Build_Hybrid_Pipeline (seed,1200.0f,SEARCH_ARCHETYPES[ai],&scan,&why,&preflight.Metrics)) continue;
+			const bool scanned = Build_Hybrid_Pipeline (seed,1200.0f,SEARCH_ARCHETYPES[ai],&scan,&why,&preflight.Metrics);
+			if (scan.Reached >= 8) {
+				rejected_approach		+= scan.TopologyResult.RejectedApproachClass;
+				rejected_wrong_side	+= scan.TopologyResult.RejectedWrongSide;
+				rejected_pose			+= scan.TopologyResult.RejectedPose;
+				recovered_next_rank	+= scan.TopologyResult.RecoveredByNextRank;
+			}
+			if (scan.Reached >= 9) {
+				passed_phase9++;
+				printf ("TOPOLOGY archetype %d seed %u\r\n",(int)SEARCH_ARCHETYPES[ai],seed);
+			}
+			if (!scanned) continue;
 			worlds++;
 
 			/*
@@ -18466,6 +19310,7 @@ void Check_Hybrid_Interaction_Search (void)
 																					Macro_Sample_From_Formula,&scan.Ground,
 																					&scan.Routes,&srr,&si,&sr,&spent);
 			reached_phase11++;
+			printf ("BUILT archetype %d seed %u\r\n",(int)SEARCH_ARCHETYPES[ai],seed);
 			if (spent > 0) {
 				printf ("REROUTE archetype %d seed %u: %d reroute(s), %s\r\n",(int)SEARCH_ARCHETYPES[ai],seed,spent,
 						  ok ? "solved" : Hybrid_Interaction_Failure_Name (sr.Failure));
@@ -18483,6 +19328,7 @@ void Check_Hybrid_Interaction_Search (void)
 				continue;
 			}
 			solved_worlds++;
+			printf ("SOLVED archetype %d seed %u: %d interactions\r\n",(int)SEARCH_ARCHETYPES[ai],seed,si.Interactions.Count ());
 
 			for (int i = 0; i < si.Interactions.Count (); ++i) {
 
@@ -18511,6 +19357,9 @@ void Check_Hybrid_Interaction_Search (void)
 	printf ("search over %u seeds x 7 archetypes: %d worlds built, %d solved; first surface pass seed %d, "
 			  "first road cut seed %d, first ramp pass seed %d\r\n",
 			  SEARCH_SEEDS,worlds,solved_worlds,first_surface_pass,first_road_cut,first_ramp_pass);
+	printf ("phase 9 (Q-023): %d worlds passed; candidates rejected: %d approach class, %d wrong side, %d pose; "
+			  "%d bindings recovered by a lower-ranked window\r\n",passed_phase9,rejected_approach,rejected_wrong_side,
+			  rejected_pose,recovered_next_rank);
 	printf ("worlds: %u attempted, %d built through Phase 10, %d reached Phase 11, %d solved\r\n",
 			  SEARCH_SEEDS * 7u,worlds,reached_phase11,solved_worlds);
 	printf ("reroutes: %d requested, %d resolved at envelope +1, %d at +2, %d exhausted\r\n",

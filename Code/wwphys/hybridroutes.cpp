@@ -144,6 +144,7 @@ const char * Hybrid_Route_Failure_Name(HybridRouteFailure failure)
 		case HYBRID_ROUTE_NO_SPLINE:				return "no_spline";
 		case HYBRID_ROUTE_EXPANSION_BUDGET:	return "expansion_budget";
 		case HYBRID_ROUTE_WAYPOINT_MISSED:		return "waypoint_missed";
+		case HYBRID_ROUTE_CROSSING_MISALIGNED:	return "crossing_misaligned";
 		default:											break;
 	}
 	return "unknown";
@@ -402,6 +403,15 @@ struct RouteBuilder
 	**	the class's own turn geometry is not asked of it, exactly as the grade and cross-slope tests are not.
 	*/
 	bool									StructuralLeg;
+
+	/*
+	**	A leg that ends on a crossing's first frozen approach point has to *arrive* along the crossing's axis,
+	**	and a leg that starts on its last one has to *leave* along it (revised D-009, Q-022): the crossing is
+	**	entered and left straight, and the turn onto it is made on open road before the approach.  Zero when the
+	**	leg's end is not a crossing.
+	*/
+	Vector2								ArrivalAxis;
+	Vector2								DepartureAxis;
 
 	//	The last refusal's own numbers, for the failure detail.
 	const int *							LastChain;
@@ -1141,6 +1151,98 @@ static float Heading_Change(int incoming,int direction)
 static int Chain_Direction(const RouteBuilder & b,int from,int to);
 
 
+//	Defined with the spline conversion below.
+static Vector2 Unit(const Vector2 & v);
+
+
+//	The unit vector of one 8-way direction.
+static Vector2 Direction_Unit(int direction)
+{
+	if ((direction < 0) || (direction >= DIRECTION_COUNT)) return Vector2(0.0f,0.0f);
+	return Unit(Vector2((float)NEIGHBOR_DX[direction],(float)NEIGHBOR_DY[direction]));
+}
+
+
+//	The 8-way direction nearest an arbitrary heading; the lower ordinal on a tie.
+static int Nearest_Direction(const Vector2 & heading)
+{
+	int best = START_DIRECTION;
+	float best_dot = -2.0f;
+	for (int d = 0; d < DIRECTION_COUNT; ++d) {
+		const Vector2 unit = Direction_Unit(d);
+		const float dot = (unit.X * heading.X) + (unit.Y * heading.Y);
+		if (dot > best_dot) {
+			best_dot = dot;
+			best = d;
+		}
+	}
+	return best;
+}
+
+
+/*
+**	May a move along `direction` leave or enter a crossing whose axis is `axis`?  The grid has eight headings
+**	and a crossing axis any, so the road lines up with the crossing in its own turn before the approach; what
+**	the search guarantees is that the turn it leaves for that is no more than one grid step, 45 degrees.
+*/
+static bool Direction_Fits_Axis(int direction,const Vector2 & axis)
+{
+	const Vector2 unit = Direction_Unit(direction);
+	if (unit.Length() <= 0.0f) return false;
+	const float dot = Clamp2((unit.X * axis.X) + (unit.Y * axis.Y),-1.0f,1.0f);
+	return ((float)::acos((double)dot) <= ((45.0f * PI_OVER_180) + HYBRID_QUANTUM_ANGLE));
+}
+
+
+/*
+**	Does a search that has reached its goal arrive in a way the crossing ahead can be turned onto?
+**
+**	The heading has to fit the axis, and the turn still left -- `phi`, at most one grid step -- has to fit on
+**	the straight the chain arrives along: its own arc `R tan(phi/2)`, the straight kept before the frozen
+**	approach point, and the arc of the grid step the chain turned onto that straight with, `R tan(22.5deg)`.
+**	That is the corner construction's own measure of the room the lead needs, so a goal accepted here is one
+**	the lead can be laid at; the corner construction remains the authority and refuses what does not fit.
+*/
+static bool Arrival_Fits_Crossing(RouteBuilder & b,int state,int cell,int goal,int incoming,float min_turn_radius)
+{
+	if (b.ArrivalAxis.Length() <= 0.0f) return true;
+	if (!Direction_Fits_Axis(incoming,b.ArrivalAxis)) return false;
+	if (min_turn_radius <= 0.0f) return true;
+
+	const Vector2 unit = Direction_Unit(incoming);
+	const float dot = Clamp2((unit.X * b.ArrivalAxis.X) + (unit.Y * b.ArrivalAxis.Y),-1.0f,1.0f);
+	const float phi = (float)::acos((double)dot);
+	const float step = 22.5f * PI_OVER_180;
+	const float straight = Min2(b.P->Constants.W,0.5f * b.A);
+	const float needed = (min_turn_radius * ((float)::tan((double)(0.5f * phi)) + (float)::tan((double)step))) +
+								straight;
+
+	/*
+	**	The straight run the chain arrives along: the move into the goal from `cell` (whose state is `state`),
+	**	and the run behind it while the chain kept that heading, carried across the leg boundary when the leg
+	**	started on it.  Judged when the move is generated, not when the goal is popped: a goal state is closed
+	**	at its first arrival, and its cheapest path is not necessarily one with room for the lead.
+	*/
+	float run = (b.Cell_Center(goal) - b.Cell_Center(cell)).Length();
+	if ((state % STATE_COUNT) != incoming) return (run >= needed);
+	int walk = state;
+	int guard = b.CellCount;
+	while ((walk >= 0) && (guard-- > 0) && (run < needed)) {
+		const int here = walk / STATE_COUNT;
+		const int parent_cell = b.States[walk].FromCell;
+		const int parent_direction = b.States[walk].FromDirection;
+		if (parent_cell < 0) {
+			if (b.EntryDirection == incoming) run += b.EntryRun;
+			break;
+		}
+		run += (b.Cell_Center(here) - b.Cell_Center(parent_cell)).Length();
+		if ((parent_direction != START_DIRECTION) && (parent_direction != incoming)) break;
+		walk = State_Index(b,parent_cell,parent_direction);
+	}
+	return (run >= needed);
+}
+
+
 /*
 **	One A* leg.  `entry_direction` is the heading the road arrives on from the previous leg, so the turn
 **	rules apply across a leg boundary: a leg that started with no heading could turn as sharply as it liked
@@ -1219,9 +1321,16 @@ static bool Search_Leg(RouteBuilder & b,int start,int goal,int entry_direction,
 			const int ny = y + NEIGHBOR_DY[direction];
 			if (!b.Valid_Cell(nx,ny)) continue;
 
+			//	The first move off a crossing's last approach point leaves along the crossing's own axis.
+			if ((state == start_state) && (b.DepartureAxis.Length() > 0.0f) &&
+				 !Direction_Fits_Axis(direction,b.DepartureAxis)) continue;
+
 			const int neighbor = b.Cell_Index(nx,ny);
 			if (Cached_Refusal(b,neighbor) != 0) continue;
 			const Vector2 neighbor_centre = b.Cell_Center(neighbor);
+
+			//	A move onto the goal on a heading, or a straight, the crossing ahead cannot be turned onto is not an arrival.
+			if ((neighbor == goal) && !Arrival_Fits_Crossing(b,state,cell,goal,direction,min_turn_radius)) continue;
 
 			float grade = 0.0f;
 			float d = 0.0f;
@@ -1411,8 +1520,8 @@ static int Chain_Direction(const RouteBuilder & b,int from,int to)
 //	One vertex of the corridor polyline the centerline is fitted to.
 struct RouteVertex
 {
-	RouteVertex(void) : P(0.0f,0.0f),Axis(0.0f,0.0f),Frozen(false),WindowId(0),ChainIndex(-1),
-								StructuralAhead(false) { }
+	RouteVertex(void) : P(0.0f,0.0f),Axis(0.0f,0.0f),Frozen(false),Pinned(false),Lead(false),Keep(0.0f),
+								Anchor(0.0f,0.0f),LeadSide(0),WindowId(0),ChainIndex(-1),StructuralAhead(false) { }
 
 	//	DynamicVectorClass<T> requires == and !=.  The position is this vertex's identity.
 	bool	operator == (const RouteVertex & that) const	{ return P == that.P; }
@@ -1420,7 +1529,12 @@ struct RouteVertex
 
 	Vector2			P;
 	Vector2			Axis;					// for a frozen vertex, the direction the road must run through it
-	bool				Frozen;				// an earlier phase fixed this position: never dropped, never cut
+	bool				Frozen;				// an earlier phase fixed this position: never dropped, never a corner
+	bool				Pinned;				// a corner whose position is fixed: never dropped, may carry an arc
+	bool				Lead;					// a pinned corner laid to keep a frozen point straight (Insert_Frozen_Leads)
+	float				Keep;					// frozen only: straight to keep either side when more than the default
+	Vector2			Anchor;				// lead only: the frozen point it keeps straight, along `Axis`
+	int				LeadSide;			// lead only: +1 laid before its frozen point, -1 after it
 	unsigned int	WindowId;			// non-zero: a crossing approach point
 	int				ChainIndex;			// the chain cell this came from, -1 when it is not one
 	bool				StructuralAhead;	// the leg leaving this vertex is inside a crossing
@@ -1489,19 +1603,37 @@ struct RouteCrossing
 static void Drop_Reversals(DynamicVectorClass<RouteVertex> * vertices)
 {
 	const float reversal = 170.0f * (3.14159265358979323846f / 180.0f);
+	const float widest = 150.0f * (3.14159265358979323846f / 180.0f);		// the sharpest turn a lead can take
 
 	bool again = true;
 	while (again) {
-
 		again = false;
 		for (int v = 1; v < (vertices->Count() - 1); ++v) {
 
-			if ((*vertices)[v].Frozen) continue;
-			if (Vertex_Turn((*vertices)[v - 1].P,(*vertices)[v].P,(*vertices)[v + 1].P) < reversal) continue;
+			//	At a frozen point the limit is the sharpest turn its lead can be laid for, not a full reversal.
+			const float limit = ((*vertices)[v].Frozen && !(*vertices)[v].Pinned) ? widest : reversal;
+			if (Vertex_Turn((*vertices)[v - 1].P,(*vertices)[v].P,(*vertices)[v + 1].P) < limit) continue;
+
+			/*
+			**	A reversal at a corridor vertex drops that vertex.  A reversal *at a frozen point* drops the corridor
+			**	vertex beside it that makes the road double back: a chain cell standing inside a crossing's approach
+			**	corridor, nearer the water than the frozen approach point, would otherwise have the road arrive at
+			**	the point heading away from the crossing and turn straight round onto it -- a U-turn no lead can
+			**	straighten.  Two frozen points reversing on each other are left as the conflict they are.
+			*/
+			int drop = v;
+			if ((*vertices)[v].Frozen || (*vertices)[v].Pinned) {
+				const bool behind_free = ((v - 1) > 0) && !(*vertices)[v - 1].Frozen && !(*vertices)[v - 1].Pinned;
+				const bool ahead_free = ((v + 1) < (vertices->Count() - 1)) && !(*vertices)[v + 1].Frozen &&
+												!(*vertices)[v + 1].Pinned;
+				if (behind_free)		drop = v - 1;
+				else if (ahead_free)	drop = v + 1;
+				else continue;
+			}
 
 			DynamicVectorClass<RouteVertex> kept;
 			for (int k = 0; k < vertices->Count(); ++k) {
-				if (k == v) continue;
+				if (k == drop) continue;
 				kept.Add((*vertices)[k]);
 			}
 			vertices->Delete_All();
@@ -1606,6 +1738,8 @@ static void Note_Unplanned_Crossings(RouteBuilder & b,const DynamicVectorClass<i
 
 static void Build_Route_Vertices(RouteBuilder & b,const DynamicVectorClass<int> & chain,
 											const DynamicVectorClass<int> & frozen_cells,
+											const DynamicVectorClass<RouteVertex> & frozen_points,
+											const DynamicVectorClass<int> & pinned_cells,
 											const DynamicVectorClass<int> & inserted,
 											const DynamicVectorClass<RouteCrossing> & crossings,
 											const Vector2 & first_point,const Vector2 & last_point,
@@ -1700,15 +1834,30 @@ static void Build_Route_Vertices(RouteBuilder & b,const DynamicVectorClass<int> 
 		for (int f = 0; (f < frozen_cells.Count()) && !frozen; ++f) {
 			if (frozen_cells[f] == cell) frozen = true;
 		}
+		bool pinned = false;
+		for (int f = 0; (f < pinned_cells.Count()) && !pinned && !frozen; ++f) {
+			if (pinned_cells[f] == cell) pinned = true;
+		}
 		for (int e = 0; (e < inserted.Count()) && !keep; ++e) {
 			if (inserted[e] == cell) keep = true;
 		}
 
-		if (keep || frozen) {
+		//	A structural point on open ground -- an overpass obligation -- stands at its own position on its axis.
+		int structural_point = -1;
+		for (int f = 0; (f < frozen_points.Count()) && (structural_point < 0); ++f) {
+			if (b.Cell_Of(frozen_points[f].P) == cell) structural_point = f;
+		}
+
+		if (structural_point >= 0) {
+			RouteVertex vertex = frozen_points[structural_point];
+			vertex.ChainIndex = i;
+			out->Add(vertex);
+		} else if (keep || frozen || pinned) {
 
 			RouteVertex vertex;
 			vertex.P				= b.Cell_Center(cell);
 			vertex.Frozen		= frozen;
+			vertex.Pinned		= pinned;
 			vertex.ChainIndex	= i;
 			out->Add(vertex);
 		}
@@ -1757,24 +1906,78 @@ static void Build_Route_Vertices(RouteBuilder & b,const DynamicVectorClass<int> 
 
 
 /*
-**	Give every frozen interior point a straight run through it, so the arcs can sit outside it.
+**	The lead before frozen point `point`, which the road has to pass heading along `axis`, coming from `prior`.
+**
+**	A lead is the corner that turns the road onto a frozen point's axis *before* it reaches the point, so the
+**	point itself is straight-through.  It stands `lead = R tan(theta/2) + straight` back along the axis, where
+**	`theta` is the turn the road actually makes at the lead -- which moves as the lead does, so it is settled
+**	by a few fixed-point steps -- and `straight` is the straight the road keeps between the end of that arc
+**	and the frozen point.  The lead is refused when it would stand behind `prior`, when the turn at it is past
+**	150 degrees, or when its own arc does not fit the lead's length: then there is no room on this side.
+**
+**	Returns true with `needed_out` false when the road already arrives along the axis.
+*/
+static bool Lead_Before(const Vector2 & prior,const Vector2 & point,const Vector2 & axis,float radius,
+								float straight,bool * needed_out,Vector2 * gate_out)
+{
+	const float widest = 150.0f * PI_OVER_180;
+	*needed_out = false;
+
+	const Vector2 incoming = Unit(point - prior);
+	if (incoming.Length() <= 0.0f) return false;
+
+	float dot = Clamp2((incoming.X * axis.X) + (incoming.Y * axis.Y),-1.0f,1.0f);
+	const float turn = (float)::acos((double)dot);
+	if (turn <= HYBRID_QUANTUM_ANGLE) return true;
+	if (turn >= widest) return false;
+
+	float lead = (radius * (float)::tan((double)(0.5f * turn))) + straight;
+	Vector2 gate(point.X - (axis.X * lead),point.Y - (axis.Y * lead));
+	for (int step = 0; step < 8; ++step) {
+		const float at_gate = Vertex_Turn(prior,gate,point);
+		if (at_gate >= widest) return false;
+		const float needed = (radius * (float)::tan((double)(0.5f * at_gate))) + straight;
+		if (needed <= lead) break;
+		lead = needed;
+		gate.Set(point.X - (axis.X * lead),point.Y - (axis.Y * lead));
+	}
+
+	const Vector2 reach = gate - prior;
+	const Vector2 straight_on = point - prior;
+	if (((reach.X * straight_on.X) + (reach.Y * straight_on.Y)) <= 0.0f) return false;
+	if (reach.Length() <= HYBRID_QUANTUM_POSITION) return false;
+
+	const float at_gate = Vertex_Turn(prior,gate,point);
+	if (at_gate >= widest) return false;
+	if (((radius * (float)::tan((double)(0.5f * at_gate))) + straight) > (lead + HYBRID_QUANTUM_POSITION)) return false;
+
+	*needed_out = true;
+	*gate_out = gate;
+	return true;
+}
+
+
+/*
+**	Give every frozen interior point a straight run through it, so the arcs sit outside it.
 **
 **	An arc that rounds a corner does not pass through the corner, and a frozen point has to be interpolated
-**	exactly -- so a frozen point may not *be* a corner.  A lead-in and a lead-out along the point's own axis
-**	turn the corner at the frozen point into two corners on open road, with the frozen point straight
-**	between them.  For a crossing that axis is the line between its two approach points, which is also what
-**	makes the crossing itself straight; for any other frozen point it is the direction the corridor already
-**	passes through it.
+**	exactly -- so a frozen point may never *be* a corner.  A lead-in and a lead-out along the point's own
+**	axis turn the corner at the frozen point into corners on open road, with the frozen point straight
+**	between them.  For a crossing that axis is the line between its two frozen approach points, which is also
+**	what makes the crossing itself straight; for any other frozen point it is the direction the corridor
+**	already passes through it.
 **
-**	The lead is `R tan(theta/2)` long, which is exactly the straight the arc at it will need, plus a
-**	quantum.  It is clamped so it cannot reach back past the vertex behind it; if that leaves the arc no
-**	room, the feasibility pass drops that vertex, which it is free to do because it is corridor, not frozen.
+**	Revised D-009 (Q-022): Phase 10 owns this geometry completely.  A lead is placed wherever the road can
+**	make the turn: a corridor vertex standing so close that the lead's arc would not fit is dropped, because
+**	it is corridor and the road may simply run straighter there.  Only a route endpoint, another frozen point
+**	or another pinned vertex can stop it, and then no lead is laid -- the feasibility pass refuses the frozen
+**	corner that remains rather than leaving it for a later phase to cut into a crossing's straight approach.
+**	Every lead is pinned: it may carry an arc, but it is never dropped.
+**
+**	`straight` is the straight kept between each lead's arc and its frozen point.
 */
-static void Insert_Frozen_Leads(RouteBuilder & b,float radius,DynamicVectorClass<RouteVertex> * vertices)
+static void Insert_Frozen_Leads(float radius,float straight,DynamicVectorClass<RouteVertex> * vertices)
 {
-	const float quantum = Max2(b.P->Constants.Q,1.0e-3f);
-	const float widest = 150.0f * (3.14159265358979323846f / 180.0f);		// a 150-degree turn, at most
-
 	DynamicVectorClass<RouteVertex> built;
 
 	int v = 0;
@@ -1790,12 +1993,11 @@ static void Insert_Frozen_Leads(RouteBuilder & b,float radius,DynamicVectorClass
 		int run_end = v;
 		while ((run_end + 1) < (vertices->Count() - 1)) {
 			if (!(*vertices)[run_end + 1].Frozen) break;
-			if ((*vertices)[run_end + 1].WindowId != (*vertices)[v].WindowId) break;
+			//	Only one crossing's own pair of approach points is one straight run; any other frozen point is its own.
+			if (((*vertices)[v].WindowId == 0) || ((*vertices)[run_end + 1].WindowId != (*vertices)[v].WindowId)) break;
 			run_end++;
 		}
 
-		const Vector2 before = built[built.Count() - 1].P;
-		const Vector2 after = (*vertices)[run_end + 1].P;
 		const Vector2 run_start = (*vertices)[v].P;
 		const Vector2 run_finish = (*vertices)[run_end].P;
 
@@ -1811,86 +2013,71 @@ static void Insert_Frozen_Leads(RouteBuilder & b,float radius,DynamicVectorClass
 		*/
 		Vector2 axis = (*vertices)[v].Axis;
 		if (axis.Length() <= 0.0f) axis = Unit(run_finish - run_start);
-		if (axis.Length() <= 0.0f) axis = Unit(run_start - before);
+		if (axis.Length() <= 0.0f) axis = Unit(run_start - built[built.Count() - 1].P);
 		if (axis.Length() <= 0.0f) {
 			for (int k = v; k <= run_end; ++k) built.Add((*vertices)[k]);
 			v = run_end + 1;
 			continue;
 		}
 
-		/*
-		**	The lead-in, on the approach side of the run.  It is `R tan(theta/2)` back along the axis, which is
-		**	exactly the straight the arc at it will need, and it is only placed where it genuinely lies ahead
-		**	of the vertex the road arrives from -- otherwise the road would have to double back to reach it.
-		**	Where it cannot be placed, the frozen point keeps its corner: inside a crossing window that corner
-		**	is the interaction phase's to compile, and anywhere else the curvature test will say so plainly.
-		*/
-		{
-			const Vector2 incoming = Unit(run_start - before);
-			float turn = 0.0f;
-			if (incoming.Length() > 0.0f) {
-				float dot = (incoming.X * axis.X) + (incoming.Y * axis.Y);
-				dot = Clamp2(dot,-1.0f,1.0f);
-				turn = (float)::acos((double)dot);
-			}
-
-			if (turn > quantum) {
-
-				const float half = 0.5f * Min2(turn,widest);
-				float lead = (radius * (float)::tan((double)half)) + b.P->Constants.Q;
-				const float room = (run_start - before).Length();
-				if (lead > (0.5f * room)) lead = 0.5f * room;
-
-				const Vector2 gate_point(run_start.X - (axis.X * lead),run_start.Y - (axis.Y * lead));
-				const Vector2 reach = gate_point - before;
-				const Vector2 straight_on = run_start - before;
-				const float forward = (reach.X * straight_on.X) + (reach.Y * straight_on.Y);
-
-				if ((lead > quantum) && (forward > 0.0f) && (reach.Length() > quantum)) {
-					RouteVertex gate;
-					gate.P = Vector2(Hybrid_Quantize_Position(gate_point.X),
-											Hybrid_Quantize_Position(gate_point.Y));
-					gate.ChainIndex = (*vertices)[v].ChainIndex;
-					built.Add(gate);
+		//	The lead-in, dropping any corridor vertex behind it that leaves its arc no room.
+		for (;;) {
+			const Vector2 prior = built[built.Count() - 1].P;
+			bool needed = false;
+			Vector2 gate(0.0f,0.0f);
+			if (Lead_Before(prior,run_start,axis,radius,Max2(straight,(*vertices)[v].Keep),&needed,&gate)) {
+				if (needed) {
+					RouteVertex lead;
+					lead.P				= gate;
+					lead.Pinned			= true;
+					lead.Lead			= true;
+					lead.Anchor			= run_start;
+					lead.Axis			= axis;
+					lead.LeadSide		= 1;
+					lead.Keep			= Max2(straight,(*vertices)[v].Keep);
+					lead.ChainIndex	= (*vertices)[v].ChainIndex;
+					built.Add(lead);
 				}
+				break;
 			}
+			const RouteVertex & crowding = built[built.Count() - 1];
+			if ((built.Count() <= 1) || crowding.Frozen || crowding.Pinned) break;
+			built.Delete(built.Count() - 1);
 		}
 
 		for (int k = v; k <= run_end; ++k) built.Add((*vertices)[k]);
 
-		//	The lead-out, the same way, on the far side of the run from the road that leaves.
-		{
-			const Vector2 outgoing = Unit(after - run_finish);
-			float turn = 0.0f;
-			if (outgoing.Length() > 0.0f) {
-				float dot = (outgoing.X * axis.X) + (outgoing.Y * axis.Y);
-				dot = Clamp2(dot,-1.0f,1.0f);
-				turn = (float)::acos((double)dot);
-			}
-
-			if (turn > quantum) {
-
-				const float half = 0.5f * Min2(turn,widest);
-				float lead = (radius * (float)::tan((double)half)) + b.P->Constants.Q;
-				const float room = (after - run_finish).Length();
-				if (lead > (0.5f * room)) lead = 0.5f * room;
-
-				const Vector2 gate_point(run_finish.X + (axis.X * lead),run_finish.Y + (axis.Y * lead));
-				const Vector2 reach = after - gate_point;
-				const Vector2 straight_on = after - run_finish;
-				const float forward = (reach.X * straight_on.X) + (reach.Y * straight_on.Y);
-
-				if ((lead > quantum) && (forward > 0.0f) && (reach.Length() > quantum)) {
-					RouteVertex gate;
-					gate.P = Vector2(Hybrid_Quantize_Position(gate_point.X),
-											Hybrid_Quantize_Position(gate_point.Y));
-					gate.ChainIndex = (*vertices)[run_end].ChainIndex;
-					built.Add(gate);
+		/*
+		**	The lead-out, the same construction on the road travelled backwards: corridor vertices ahead that
+		**	leave its arc no room are skipped, never the frozen point's own straight.
+		*/
+		int next = run_end + 1;
+		const Vector2 back(-axis.X,-axis.Y);
+		for (;;) {
+			const Vector2 ahead = (*vertices)[next].P;
+			bool needed = false;
+			Vector2 gate(0.0f,0.0f);
+			if (Lead_Before(ahead,run_finish,back,radius,Max2(straight,(*vertices)[run_end].Keep),&needed,&gate)) {
+				if (needed) {
+					RouteVertex lead;
+					lead.P				= gate;
+					lead.Pinned			= true;
+					lead.Lead			= true;
+					lead.Anchor			= run_finish;
+					lead.Axis			= axis;
+					lead.LeadSide		= -1;
+					lead.Keep			= Max2(straight,(*vertices)[run_end].Keep);
+					lead.ChainIndex	= (*vertices)[run_end].ChainIndex;
+					built.Add(lead);
 				}
+				break;
 			}
+			const RouteVertex & crowding = (*vertices)[next];
+			if ((next >= (vertices->Count() - 1)) || crowding.Frozen || crowding.Pinned) break;
+			next++;
 		}
 
-		v = run_end + 1;
+		v = next;
 	}
 
 	vertices->Delete_All();
@@ -1905,17 +2092,23 @@ static void Insert_Frozen_Leads(RouteBuilder & b,float radius,DynamicVectorClass
 **	Where that fails, the shallower of the two corners is dropped -- it is a corridor vertex, so the road
 **	simply takes the straighter line there -- and the pass restarts, because dropping one vertex changes the
 **	angles at its neighbours.  Ties go to the earlier vertex, so the result does not depend on iteration
-**	order.
+**	order.  The only tolerance is the position quantum `Q`, which is the rounding a vertex picks up when it
+**	is written down.
 **
-**	A reversal cannot be filleted at any radius, and two *frozen* corners crowding each other cannot be
-**	resolved at all: both are reported as what they are, which points at the phase that froze them rather
-**	than hiding a corner the class cannot drive.
+**	A reversal cannot be filleted at any radius, and frozen or pinned corners crowding each other cannot be
+**	resolved at all: both are reported as what they are, which points at the phase that froze them.  So is a
+**	frozen point still standing at a corner once everything fits (revised D-009): its leads could not be laid,
+**	and the road would drive the frozen point as a kink.
+**
+**	A dropped vertex beside a lead changes the turn the lead was sized for, so its length no longer matches
+**	the arc it carries; `leads_stale_out` then reports it and the caller lays the leads again.
 */
-static bool Fillet_Is_Feasible(RouteBuilder & b,float radius,DynamicVectorClass<RouteVertex> * vertices,
-										 const char ** reason_out)
+static bool Fillet_Is_Feasible(float radius,float q,float straight,DynamicVectorClass<RouteVertex> * vertices,
+										 const char ** reason_out,bool * leads_stale_out)
 {
-	const float quantum = Max2(b.P->Constants.Q,1.0e-3f);
-	const float reversal = 170.0f * (3.14159265358979323846f / 180.0f);
+	const float quantum = Max2(q,1.0e-3f);
+	const float reversal = 170.0f * PI_OVER_180;
+	if (leads_stale_out != nullptr) *leads_stale_out = false;
 
 	for (int pass = 0; pass <= vertices->Count(); ++pass) {
 
@@ -1955,22 +2148,51 @@ static bool Fillet_Is_Feasible(RouteBuilder & b,float radius,DynamicVectorClass<
 			return false;
 		}
 
-		//	The first leg that cannot host the two arcs sharing it.
+		/*
+		**	The first leg that cannot host the two arcs sharing it -- and, beside an interior frozen point, the
+		**	straight kept between that point and the nearest arc, so the road is measurably on the frozen axis
+		**	before and after the point rather than leaving an arc exactly on it.
+		*/
+		const int last_vertex = vertices->Count() - 1;
 		int crowded = -1;
-		for (int leg = 0; leg < (vertices->Count() - 1); ++leg) {
+		for (int leg = 0; leg < last_vertex; ++leg) {
 			const float length = ((*vertices)[leg + 1].P - (*vertices)[leg].P).Length();
-			if ((tangent[leg] + tangent[leg + 1]) <= length) continue;
+			const RouteVertex & low = (*vertices)[leg];
+			const RouteVertex & high = (*vertices)[leg + 1];
+			const bool low_frozen = (leg > 0) && low.Frozen;
+			const bool high_frozen = ((leg + 1) < last_vertex) && high.Frozen;
+			const bool same_run = low_frozen && high_frozen && (low.WindowId != 0) && (low.WindowId == high.WindowId);
+			float keep = 0.0f;
+			if (!same_run) {
+				if (low_frozen)	keep += Max2(straight,low.Keep);
+				if (high_frozen)	keep += Max2(straight,high.Keep);
+			}
+			if ((tangent[leg] + tangent[leg + 1] + keep) <= (length + q)) continue;
 			crowded = leg;
 			break;
 		}
-		if (crowded < 0) return true;									// every arc fits
+
+		if (crowded < 0) {
+			//	Every arc fits.  A frozen point left at a corner is a turn no arc rounds.
+			for (int v = 1; v < (vertices->Count() - 1); ++v) {
+				if (!(*vertices)[v].Frozen) continue;
+				const float shorter = Min2(((*vertices)[v].P - (*vertices)[v - 1].P).Length(),
+													((*vertices)[v + 1].P - (*vertices)[v].P).Length());
+				const float rounding = (2.0f * q) / Max2(shorter,q);
+				if (Vertex_Turn((*vertices)[v - 1].P,(*vertices)[v].P,(*vertices)[v + 1].P) <=
+					 (HYBRID_QUANTUM_ANGLE + rounding)) continue;
+				if (reason_out != nullptr) *reason_out = "a frozen point is left at a corner its leads could not straighten";
+				return false;
+			}
+			return true;
+		}
 
 		/*
-		**	Drop the shallower of the two corners crowding this leg.  A frozen one never moves, and a leg
-		**	between two frozen ones has no give at all.
+		**	Drop the shallower of the two corners crowding this leg.  A frozen or pinned one never moves, and a
+		**	leg between two of them has no give at all.
 		*/
-		const bool low_movable = !(*vertices)[crowded].Frozen && (crowded > 0);
-		const bool high_movable = !(*vertices)[crowded + 1].Frozen &&
+		const bool low_movable = !(*vertices)[crowded].Frozen && !(*vertices)[crowded].Pinned && (crowded > 0);
+		const bool high_movable = !(*vertices)[crowded + 1].Frozen && !(*vertices)[crowded + 1].Pinned &&
 										  ((crowded + 1) < (vertices->Count() - 1));
 
 		int drop = -1;
@@ -1989,6 +2211,9 @@ static bool Fillet_Is_Feasible(RouteBuilder & b,float radius,DynamicVectorClass<
 			return false;
 		}
 
+		const bool beside_lead = ((drop > 0) && (*vertices)[drop - 1].Lead) ||
+										 (((drop + 1) < vertices->Count()) && (*vertices)[drop + 1].Lead);
+
 		DynamicVectorClass<RouteVertex> kept;
 		for (int v = 0; v < vertices->Count(); ++v) {
 			if (v == drop) continue;
@@ -1996,8 +2221,75 @@ static bool Fillet_Is_Feasible(RouteBuilder & b,float radius,DynamicVectorClass<
 		}
 		vertices->Delete_All();
 		for (int v = 0; v < kept.Count(); ++v) vertices->Add(kept[v]);
+
+		if (beside_lead && (leads_stale_out != nullptr)) {
+			*leads_stale_out = true;
+			if (reason_out != nullptr) *reason_out = "a lead was sized for a corner that has been dropped";
+			return false;
+		}
 	}
 
+	if (reason_out != nullptr) *reason_out = "the corridor could not be filleted";
+	return false;
+}
+
+
+/*
+**	Leads and corner drops, settled together: dropping a corridor vertex beside a lead changes the turn the
+**	lead was sized for, so every lead is laid again on what is left.  Each round removes a vertex, so the
+**	rounds are bounded by the polyline itself.
+*/
+/*
+**	Each lead is laid against the vertex beside it as it stood when the lead was laid.  Between two frozen runs
+**	that neighbour is then replaced by the *other* run's lead, so each is sized for a turn the road no longer
+**	makes.  Every lead is laid again against its actual neighbour until none moves by more than `q` -- two facing
+**	leads settle together -- in a bounded number of rounds.
+*/
+static void Relax_Leads(float radius,float q,DynamicVectorClass<RouteVertex> * vertices)
+{
+	for (int round = 0; round < 16; ++round) {
+
+		bool moved = false;
+		for (int i = 1; i < (vertices->Count() - 1); ++i) {
+
+			RouteVertex & lead = (*vertices)[i];
+			if (!lead.Lead || (lead.LeadSide == 0)) continue;
+
+			const bool before = (lead.LeadSide > 0);
+			const Vector2 neighbour = before ? (*vertices)[i - 1].P : (*vertices)[i + 1].P;
+			const Vector2 axis = before ? lead.Axis : Vector2(-lead.Axis.X,-lead.Axis.Y);
+			bool needed = false;
+			Vector2 gate(0.0f,0.0f);
+			if (!Lead_Before(neighbour,lead.Anchor,axis,radius,lead.Keep,&needed,&gate) || !needed) continue;
+			if ((gate - lead.P).Length() <= q) continue;
+			lead.P = gate;
+			moved = true;
+		}
+		if (!moved) break;
+	}
+}
+
+
+static bool Settle_Corners(float radius,float q,float straight,DynamicVectorClass<RouteVertex> * vertices,
+									const char ** reason_out)
+{
+	Insert_Frozen_Leads(radius,straight,vertices);
+	Relax_Leads(radius,q,vertices);
+	const int rounds = vertices->Count() + 1;
+	for (int round = 0; round <= rounds; ++round) {
+		bool stale = false;
+		if (Fillet_Is_Feasible(radius,q,straight,vertices,reason_out,&stale)) return true;
+		if (!stale) return false;
+
+		DynamicVectorClass<RouteVertex> stripped;
+		for (int v = 0; v < vertices->Count(); ++v) {
+			if (!(*vertices)[v].Lead) stripped.Add((*vertices)[v]);
+		}
+		vertices->Delete_All();
+		for (int v = 0; v < stripped.Count(); ++v) vertices->Add(stripped[v]);
+		Insert_Frozen_Leads(radius,straight,vertices);
+		Relax_Leads(radius,q,vertices);
+	}
 	if (reason_out != nullptr) *reason_out = "the corridor could not be filleted";
 	return false;
 }
@@ -2077,6 +2369,7 @@ static float Curvature_Radius(const Vector2 & a,const Vector2 & b,const Vector2 
 **	Returns the index of the earliest failing sample, or -1 when every sample passes.
 */
 static int First_Failing_Sample(RouteBuilder & b,const DynamicVectorClass<Vector2> & samples,
+										  const DynamicVectorClass<HybridRouteStructuralSpan> & spans,
 										  const char ** reason_out)
 {
 	if (reason_out != nullptr) *reason_out = "none";
@@ -2094,22 +2387,20 @@ static int First_Failing_Sample(RouteBuilder & b,const DynamicVectorClass<Vector
 	for (int i = 0; i < samples.Count(); ++i) {
 
 		/*
-		**	Structural ground is the crossing *and its approach transition*: the road is on the ramp onto the
-		**	deck for an analysis cell either side of the corridor Phase 6 reserved, and that ramp's geometry
-		**	is compiled by the interaction phase along with the deck itself.  Measured on the failing seed the
-		**	last sub-radius corner left was exactly there -- the turn that lines a trunk up with its bridge.
+		**	Structural ground is *this road's own* crossing interval, by sample index: the straight between the
+		**	two frozen approach points, which is the obstruction and the alignment reserve either side of it.
+		**	The interaction phase compiles the deck or bore and grades that interval; everything outside it,
+		**	including the turn that lines the road up with the crossing, is open road and Phase 10's own
+		**	(revised D-009, Q-022), so it is validated in full like any other.
+		**
+		**	It is never any ground inside some window's footprint.  Exempting the footprint let a road run along
+		**	the window's own axis through the water, outside its structural interval, reach the far approach
+		**	point and turn back across on the interval itself: two crossings of one stream, one of them with no
+		**	structure, which Phase 11 could only compile by looping the road round on itself.
 		*/
-		bool structural_sample = Window_At(b,samples[i]) != 0;
-		if (!structural_sample) {
-			const int reach = (int)Hybrid_Round_Half_Up(b.A / Max2(spacing,k.Q));
-			for (int step = 1; (step <= reach) && !structural_sample; ++step) {
-				if ((i - step) >= 0) {
-					if (Window_At(b,samples[i - step]) != 0) structural_sample = true;
-				}
-				if ((i + step) < samples.Count()) {
-					if (Window_At(b,samples[i + step]) != 0) structural_sample = true;
-				}
-			}
+		bool structural_sample = false;
+		for (int s = 0; (s < spans.Count()) && !structural_sample; ++s) {
+			if ((i >= spans[s].FirstPoint) && (i <= spans[s].LastPoint)) structural_sample = true;
 		}
 
 		if (Corridor_Excess(b,samples[i]) > 0.0f) {
@@ -2231,6 +2522,70 @@ static int First_Failing_Sample(RouteBuilder & b,const DynamicVectorClass<Vector
 			}
 		}
 	}
+
+	/*
+	**	"The local vertical feasibility intervals admit the class max grade", read as what it says: there is a
+	**	profile through every sample's `RoadVerticalInterval` that keeps the class grade -- Section 12.1's own
+	**	forward and backward interval propagation, over each stretch of open road between this road's
+	**	structural intervals (whose deck and bore elevations are the interaction phase's to compile).  Testing
+	**	only neighbouring pairs let a long climb steeper than the class through, each step absorbed by the
+	**	next sample's cut or fill until the allowance ran out, and the road then could not be graded at all.
+	*/
+	{
+		const float g = (float)::tan((double)max_grade_radians);
+		DynamicVectorClass<float> lo;
+		DynamicVectorClass<float> hi;
+		DynamicVectorClass<float> along;
+		int first = 0;
+		while (first < samples.Count()) {
+
+			//	The next stretch of open road: from `first` up to the next structural sample, exclusive.
+			bool in_span = false;
+			for (int s = 0; (s < spans.Count()) && !in_span; ++s) {
+				if ((first > spans[s].FirstPoint) && (first < spans[s].LastPoint)) in_span = true;
+			}
+			if (in_span) {
+				first++;
+				continue;
+			}
+			int last = first;
+			while ((last + 1) < samples.Count()) {
+				bool stop = false;
+				for (int s = 0; (s < spans.Count()) && !stop; ++s) {
+					if (((last + 1) > spans[s].FirstPoint) && ((last + 1) <= spans[s].LastPoint)) stop = true;
+				}
+				if (stop) break;
+				last++;
+			}
+
+			lo.Delete_All();
+			hi.Delete_All();
+			along.Delete_All();
+			float travelled = 0.0f;
+			for (int i = first; i <= last; ++i) {
+				float ground = 0.0f;
+				if (!Height_At(b,samples[i],&ground)) return i;
+				const HybridVerticalInterval interval = Hybrid_Road_Vertical_Interval(ground,b.P->MaxCutDepth,
+																										  b.P->MaxFillHeight);
+				if (i > first) travelled += (samples[i] - samples[i - 1]).Length();
+				lo.Add(interval.Low);
+				hi.Add(interval.High);
+				along.Add(travelled);
+			}
+			for (int i = 1; i < lo.Count(); ++i) {
+				const float ds = along[i] - along[i - 1];
+				lo[i] = Max2(lo[i],lo[i - 1] - (g * ds));
+				hi[i] = Min2(hi[i],hi[i - 1] + (g * ds));
+				if (lo[i] > hi[i]) {
+					if (reason_out != nullptr) *reason_out = "no profile through the vertical intervals keeps the class grade";
+					b.LastRadiusAt		= first + i;
+					b.LastRadiusWindow= 0;
+					return first + i;
+				}
+			}
+			first = last + 1;
+		}
+	}
 	return -1;
 }
 
@@ -2271,7 +2626,7 @@ static int First_Failing_Sample(RouteBuilder & b,const DynamicVectorClass<Vector
 **	approach point still carries a turn, the corner is inside the window and is the interaction phase's to
 **	compile, which is the same exemption the grade and cross-slope tests already make there.
 */
-static bool Emit_Centerline(RouteBuilder & b,float radius,const DynamicVectorClass<RouteVertex> & vertices,
+static bool Emit_Centerline(float radius,float q,const DynamicVectorClass<RouteVertex> & vertices,
 									 float spacing,DynamicVectorClass<Vector2> * points,
 									 DynamicVectorClass<float> * stations,
 									 DynamicVectorClass<HybridRouteStructuralSpan> * spans)
@@ -2281,7 +2636,7 @@ static bool Emit_Centerline(RouteBuilder & b,float radius,const DynamicVectorCla
 	spans->Delete_All();
 	if (vertices.Count() < 2) return false;
 
-	const float quantum = Max2(b.P->Constants.Q,1.0e-3f);
+	const float quantum = Max2(q,1.0e-3f);
 	float length = 0.0f;
 
 	//	What each corner's arc consumes of the straights either side of it.
@@ -2374,6 +2729,8 @@ static bool Emit_Centerline(RouteBuilder & b,float radius,const DynamicVectorCla
 */
 static bool Chain_To_Spline(RouteBuilder & b,const DynamicVectorClass<int> & chain,
 									 const DynamicVectorClass<int> & mandatory,
+									 const DynamicVectorClass<RouteVertex> & structural_points,
+									 const DynamicVectorClass<int> & waypoint_cells,
 									 const DynamicVectorClass<RouteCrossing> & crossings,const Vector2 & first_point,
 									 const Vector2 & last_point,DynamicVectorClass<Vector2> * points,
 									 DynamicVectorClass<float> * stations,
@@ -2395,11 +2752,10 @@ static bool Chain_To_Spline(RouteBuilder & b,const DynamicVectorClass<int> & cha
 															  ((float)radius_steps * FILLET_RADIUS_STEP));
 
 		DynamicVectorClass<RouteVertex> vertices;
-		Build_Route_Vertices(b,chain,mandatory,extra,crossings,first_point,last_point,&vertices);
-		Insert_Frozen_Leads(b,build_radius,&vertices);
-
+		Build_Route_Vertices(b,chain,mandatory,structural_points,waypoint_cells,extra,crossings,first_point,last_point,
+									&vertices);
 		const char * geometry = "none";
-		if (!Fillet_Is_Feasible(b,build_radius,&vertices,&geometry)) {
+		if (!Settle_Corners(build_radius,k.Q,spacing,&vertices,&geometry)) {
 			if (reason_out != nullptr) *reason_out = geometry;
 			b.LastRadius	= min_radius;
 			b.LastRadiusAt	= vertices.Count();
@@ -2409,14 +2765,40 @@ static bool Chain_To_Spline(RouteBuilder & b,const DynamicVectorClass<int> & cha
 		DynamicVectorClass<Vector2> samples;
 		DynamicVectorClass<float> sample_stations;
 		DynamicVectorClass<HybridRouteStructuralSpan> spans;
-		if (!Emit_Centerline(b,build_radius,vertices,spacing,&samples,&sample_stations,&spans)) {
+		if (!Emit_Centerline(build_radius,k.Q,vertices,spacing,&samples,&sample_stations,&spans)) {
 			if (reason_out != nullptr) *reason_out = "degenerate centerline";
 			b.LastRadius	= min_radius;
 			b.LastRadiusAt	= vertices.Count();
 			return false;
 		}
 
-		const int failing = First_Failing_Sample(b,samples,reason_out);
+		int failing = First_Failing_Sample(b,samples,spans,reason_out);
+
+		/*
+		**	A route-family waypoint is discharged by the road passing through its cell, which is the plan's own
+		**	waypoint rule; it is a pinned corner, so the arc that rounds it has to stay inside that cell.
+		*/
+		if (failing < 0) {
+			const float half = 0.5f * b.A;
+			for (int w = 0; (w < waypoint_cells.Count()) && (failing < 0); ++w) {
+				const Vector2 centre = b.Cell_Center(waypoint_cells[w]);
+				bool inside = false;
+				int nearest = 0;
+				float nearest_distance = 3.4e38f;
+				for (int i = 0; (i < samples.Count()) && !inside; ++i) {
+					const Vector2 offset = samples[i] - centre;
+					if (((float)fabs((double)offset.X) <= half) && ((float)fabs((double)offset.Y) <= half)) inside = true;
+					if (offset.Length() < nearest_distance) {
+						nearest_distance = offset.Length();
+						nearest = i;
+					}
+				}
+				if (!inside) {
+					if (reason_out != nullptr) *reason_out = "the centerline leaves a route-family waypoint's cell";
+					failing = nearest;
+				}
+			}
+		}
 		if (failing < 0) {
 
 			points->Delete_All();
@@ -2491,6 +2873,36 @@ static void Edge_Node_Chain(const RouteBuilder & b,const HybridTopologyEdge & ed
 }
 
 
+/*
+**	The straight a road keeps either side of an overpass obligation: the deck an overpass there spans along it,
+**	whichever road rides over (Hybrid_Overpass_Half_Deck, the topology owner's measure, so Phase 9 reserved
+**	at least this).  The deck is a straight bridge, so the road may not start turning under it.
+*/
+static float Overpass_Straight(const RouteBuilder & b,const HybridTopologyEdge & edge,const HybridTopologyNode & node,
+										 const Vector2 & axis)
+{
+	for (int e = 0; e < b.Topology->Edges.Count(); ++e) {
+
+		const HybridTopologyEdge & other = b.Topology->Edges[e];
+		if (other.StableId == edge.StableId) continue;
+		int at = -1;
+		for (int w = 0; (w < other.Waypoints.Count()) && (at < 0); ++w) {
+			if (other.Waypoints[w] == node.StableId) at = w;
+		}
+		if (at < 0) continue;
+
+		const unsigned int before_id = (at > 0) ? other.Waypoints[at - 1] : other.NodeA;
+		const unsigned int after_id = ((at + 1) < other.Waypoints.Count()) ? other.Waypoints[at + 1] : other.NodeB;
+		const HybridTopologyNode * before = b.Topology->Find_Node(before_id);
+		const HybridTopologyNode * after = b.Topology->Find_Node(after_id);
+		if ((before == nullptr) || (after == nullptr)) return 0.0f;
+		return Hybrid_Overpass_Half_Deck(axis,after->Position - before->Position,edge.RoadClass,other.RoadClass,
+													b.P->Constants.W);
+	}
+	return 0.0f;
+}
+
+
 static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRouteResult * result)
 {
 	const HybridConstants & k = b.P->Constants;
@@ -2499,6 +2911,14 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 	const float preferred = Hybrid_Preferred_Corridor_Half_Width(road_class,k.S,k.D);
 	const float maximum = Hybrid_Max_Corridor_Half_Width(road_class,k.S,k.D);
 	StringClass detail;
+
+	//	The failure detail describes this edge's own searches, never an earlier edge's.
+	b.LastExpansions		= 0;
+	b.LastGoalTouched		= 0;
+	b.LastClosed			= 0;
+	b.LastRadius			= 0.0f;
+	b.LastRadiusAt			= -1;
+	b.LastRadiusWindow	= 0;
 
 	DynamicVectorClass<unsigned int> nodes;
 	Edge_Node_Chain(b,edge,&nodes);
@@ -2517,6 +2937,16 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 	DynamicVectorClass<Vector2> stops;
 	DynamicVectorClass<unsigned int> stop_window;		// the window a stop belongs to, 0 for open ground
 	DynamicVectorClass<unsigned int> stop_site;			// the Tiberium reserve a stop may enter, 0 for none
+
+	/*
+	**	An overpass obligation is a structural crossing on open ground: its deck is straight, and Phase 9 chose
+	**	it where two intent segments cross at 60 to 120 degrees.  So each road passes it at its own position and
+	**	along its own intent segment -- the line from the node before it to the node after it on this edge --
+	**	exactly as a crossing window is passed along its axis (revised D-009, Q-022).  Passing it on whatever
+	**	heading the search arrived with let two roads meet there running along each other.
+	*/
+	DynamicVectorClass<Vector2> stop_axis;				// zero except at an overpass obligation
+	DynamicVectorClass<RouteVertex> structural_points;
 
 	for (int n = 0; n < nodes.Count(); ++n) {
 
@@ -2559,15 +2989,33 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 			stops.Add(a_first ? window->ApproachA : window->ApproachB);
 			stop_window.Add(node->WindowId);
 			stop_site.Add(0);
+			stop_axis.Add(Vector2(0.0f,0.0f));
 			stops.Add(a_first ? window->ApproachB : window->ApproachA);
 			stop_window.Add(node->WindowId);
 			stop_site.Add(0);
+			stop_axis.Add(Vector2(0.0f,0.0f));
 			continue;
+		}
+
+		Vector2 axis(0.0f,0.0f);
+		if ((node->Kind == HYBRID_NODE_OVERPASS_OBLIGATION) && (n > 0) && ((n + 1) < nodes.Count())) {
+			const HybridTopologyNode * before = b.Topology->Find_Node(nodes[n - 1]);
+			const HybridTopologyNode * after = b.Topology->Find_Node(nodes[n + 1]);
+			if ((before != nullptr) && (after != nullptr)) axis = Unit(after->Position - before->Position);
+			if (axis.Length() > 0.0f) {
+				RouteVertex point;
+				point.P		= Vector2(Hybrid_Quantize_Position(node->Position.X),Hybrid_Quantize_Position(node->Position.Y));
+				point.Axis	= axis;
+				point.Frozen= true;
+				point.Keep	= Overpass_Straight(b,edge,*node,axis);
+				structural_points.Add(point);
+			}
 		}
 
 		stops.Add(node->Position);
 		stop_window.Add(node->WindowId);
 		stop_site.Add((node->Kind == HYBRID_NODE_FIELD_ACCESS) ? node->SiteId : 0);
+		stop_axis.Add(axis);
 	}
 	if (stops.Count() < 2) return true;
 
@@ -2605,6 +3053,7 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 		DynamicVectorClass<RouteCrossing> crossings;
 		bool routed = true;
 		int entry_direction = START_DIRECTION;
+		float entry_run_override = -1.0f;
 
 		for (int leg = 0; (leg < (stops.Count() - 1)) && routed; ++leg) {
 
@@ -2614,6 +3063,24 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 			b.OwnWindow		= (stop_window[leg] != 0) ? stop_window[leg] : stop_window[leg + 1];
 			b.StructuralLeg= (stop_window[leg] != 0) && (stop_window[leg] == stop_window[leg + 1]);
 			b.OwnFieldSite	= (stop_site[leg] != 0) ? stop_site[leg] : stop_site[leg + 1];
+
+			/*
+			**	A crossing is entered and left along its own axis: a leg arriving at a crossing's first approach
+			**	point must arrive on it, and a leg leaving its last one must leave on it.
+			*/
+			b.ArrivalAxis.Set(0.0f,0.0f);
+			b.DepartureAxis.Set(0.0f,0.0f);
+			if (!b.StructuralLeg) {
+				if (((leg + 2) < stops.Count()) && (stop_window[leg + 1] != 0) &&
+					 (stop_window[leg + 1] == stop_window[leg + 2])) {
+					b.ArrivalAxis = Unit(stops[leg + 2] - stops[leg + 1]);
+				}
+				if ((leg >= 1) && (stop_window[leg] != 0) && (stop_window[leg] == stop_window[leg - 1])) {
+					b.DepartureAxis = Unit(stops[leg] - stops[leg - 1]);
+				}
+				if (stop_axis[leg + 1].Length() > 0.0f)	b.ArrivalAxis = stop_axis[leg + 1];
+				if (stop_axis[leg].Length() > 0.0f)		b.DepartureAxis = stop_axis[leg];
+			}
 
 			const int start = b.Cell_Of(stops[leg]);
 			const int goal = b.Cell_Of(stops[leg + 1]);
@@ -2629,7 +3096,9 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 			//	The straight this leg is handed by the one before it, so a turn at the boundary is measured.
 			b.EntryDirection	= entry;
 			b.EntryRun			= 0.0f;
-			if ((entry != START_DIRECTION) && (chain.Count() >= 2)) {
+			if (entry_run_override >= 0.0f) {
+				b.EntryRun = entry_run_override;
+			} else if ((entry != START_DIRECTION) && (chain.Count() >= 2)) {
 				const int arrival = Chain_Direction(b,chain[chain.Count() - 2],chain[chain.Count() - 1]);
 				for (int c = chain.Count() - 1; c >= 1; --c) {
 					if (Chain_Direction(b,chain[c - 1],chain[c]) != arrival) break;
@@ -2669,6 +3138,16 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 				const int previous = chain[chain.Count() - 2];
 				const int direction = Chain_Direction(b,previous,last);
 				entry_direction = (direction >= 0) ? direction : START_DIRECTION;
+			}
+
+			/*
+			**	A crossing hands the next leg the crossing's own heading, not whatever the cells under the
+			**	structure happened to step through, and the whole straight it ran along.
+			*/
+			entry_run_override = -1.0f;
+			if (routed && b.StructuralLeg) {
+				entry_direction = Nearest_Direction(Unit(stops[leg + 1] - stops[leg]));
+				entry_run_override = (stops[leg + 1] - stops[leg]).Length();
 			}
 		}
 
@@ -2715,9 +3194,21 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 		**	refusal on ground the search had every right to use.
 		*/
 		DynamicVectorClass<int> mandatory_cells;
+		DynamicVectorClass<int> waypoint_cells;
 		for (int w = 0; w < edge.Waypoints.Count(); ++w) {
 			const HybridTopologyNode * node = b.Topology->Find_Node(edge.Waypoints[w]);
-			if (node != nullptr) mandatory_cells.Add(b.Cell_Of(node->Position));
+			if (node == nullptr) continue;
+			/*
+			**	A structural point -- a crossing or an overpass obligation -- is frozen: the road runs straight
+			**	through it, because a deck or a bore is straight.  A route-family waypoint is only required to be
+			**	on the road, which is the plan's own rule ("every frozen waypoint's own cell is on the accepted
+			**	chain"); freezing its cell *centre* as a straight-through point demanded a straight the plan
+			**	never asked for, at a point that is not even the waypoint's own position, and left a kink there
+			**	whenever its leads could not be laid.  It is a pinned corner instead, and its arc must stay in
+			**	its cell.
+			*/
+			if (node->Kind == HYBRID_NODE_FAMILY_WAYPOINT)	waypoint_cells.Add(b.Cell_Of(node->Position));
+			else															mandatory_cells.Add(b.Cell_Of(node->Position));
 		}
 
 		/*
@@ -2728,7 +3219,8 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 		Note_Unplanned_Crossings(b,chain,&crossings);
 
 		DynamicVectorClass<HybridRouteStructuralSpan> spans;
-		if (!Chain_To_Spline(b,chain,mandatory_cells,crossings,first_point,last_point,&points,&stations,
+		if (!Chain_To_Spline(b,chain,mandatory_cells,structural_points,waypoint_cells,crossings,first_point,last_point,
+									&points,&stations,
 									&spans,&insertions,&spline_reason)) continue;
 
 		HybridRoute route;
@@ -2764,6 +3256,7 @@ static bool Route_Edge(RouteBuilder & b,const HybridTopologyEdge & edge,HybridRo
 		b.Out->Routes.Add(route);
 		return true;
 	}
+
 
 	//	Three envelopes and no legal spline: a mandatory edge fails the attempt, an optional one is dropped.
 	if (!edge.Required) {
@@ -2855,6 +3348,42 @@ static bool Check_Gate(RouteBuilder & b,HybridRouteResult * result)
 							  node->WindowId,cell,route->Cells.Count(),route->Structural.Count(),
 							  banks.Peek_Buffer());
 			return Fail(result,HYBRID_ROUTE_WAYPOINT_MISSED,detail.Peek_Buffer());
+		}
+
+		/*
+		**	Revised D-009 (Q-022): every structural interval is entered and left along its own axis, with the
+		**	turn onto it finished on open road before its frozen approach point.  The interval itself is one
+		**	straight, and the road keeps the lead straight beside each end unless the route begins or ends there.
+		*/
+		const HybridConstants & k = b.P->Constants;
+		const float straight = Min2(k.W,0.5f * k.A);
+		for (int s = 0; s < route->Structural.Count(); ++s) {
+
+			const HybridRouteStructuralSpan & span = route->Structural[s];
+			const Vector2 axis = Unit(span.Egress - span.Ingress);
+			const int first = span.FirstPoint;
+			const int last = span.LastPoint;
+			if ((first < 0) || (last >= route->Points.Count()) || (last <= first)) {
+				detail.Format("route %u's crossing of window %u has no interval",route->EdgeId,span.WindowId);
+				return Fail(result,HYBRID_ROUTE_CROSSING_MISALIGNED,detail.Peek_Buffer());
+			}
+
+			float behind = 0.0f;
+			float through = 0.0f;
+			float ahead = 0.0f;
+			Hybrid_Polyline_Straight_Run(route->Points,first,axis,k.Q,&behind,&through);
+			Hybrid_Polyline_Straight_Run(route->Points,last,axis,k.Q,nullptr,&ahead);
+
+			const float interval = route->Stations[last] - route->Stations[first];
+			const float before_room = Min2(straight,route->Stations[first]);
+			const float after_room = Min2(straight,route->Stations[route->Points.Count() - 1] - route->Stations[last]);
+			const float slack = 2.0f * k.Q;
+			if ((through < (interval - slack)) || (behind < (before_room - slack)) || (ahead < (after_room - slack))) {
+				detail.Format("route %u is not straight through window %u along its axis: %.3f of %.3f straight "
+								  "through the interval, %.3f of %.3f before it, %.3f of %.3f after it",route->EdgeId,
+								  span.WindowId,through,interval,behind,before_room,ahead,after_room);
+				return Fail(result,HYBRID_ROUTE_CROSSING_MISALIGNED,detail.Peek_Buffer());
+			}
 		}
 	}
 	return true;
@@ -3264,4 +3793,443 @@ bool Hybrid_Route_Census(const HybridRouteParams & params,const HybridMapIdentit
 	//	Every leg's goal was reachable: the disconnection is not in the cell rules.
 	out->GoalReachable = true;
 	return true;
+}
+
+
+/***********************************************************************************************
+**	The straight a sampled road keeps through one of its samples.
+***********************************************************************************************/
+void Hybrid_Polyline_Straight_Run(const DynamicVectorClass<Vector2> & points,int index,const Vector2 & axis,
+											 float q,float * behind_out,float * ahead_out)
+{
+	if (behind_out != nullptr) *behind_out = 0.0f;
+	if (ahead_out != nullptr) *ahead_out = 0.0f;
+	const int count = points.Count();
+	const Vector2 unit = Unit(axis);
+	if ((index < 0) || (index >= count) || (unit.Length() <= 0.0f)) return;
+
+	const Vector2 & origin = points[index];
+	for (int side = 0; side < 2; ++side) {
+
+		const int step = (side == 0) ? -1 : 1;
+		const float sense = (side == 0) ? -1.0f : 1.0f;
+		float reached = 0.0f;
+		for (int i = index + step; (i >= 0) && (i < count); i += step) {
+			const Vector2 offset = points[i] - origin;
+			const float along = ((offset.X * unit.X) + (offset.Y * unit.Y)) * sense;
+			const float across = (float)fabs((double)((offset.X * unit.Y) - (offset.Y * unit.X)));
+			//	On the line: within the quantum each position was written to, and the angular quantum over the run.
+			if (along <= reached) break;
+			if (across > ((2.0f * q) + (along * HYBRID_QUANTUM_ANGLE))) break;
+			reached = along;
+		}
+		if ((side == 0) && (behind_out != nullptr)) *behind_out = reached;
+		if ((side == 1) && (ahead_out != nullptr)) *ahead_out = reached;
+	}
+}
+
+
+/***********************************************************************************************
+**	The realized crossing path -- see Hybrid_Build_Crossing_Path in the header.
+***********************************************************************************************/
+
+/*
+**	The corner polyline of one side of a crossing path, before the crossing's own controls: where the road
+**	leaves the preliminary centerline.  `index` is the route sample the road turns at.  The road has to be
+**	running straight into that sample, because the arc that turns it off starts on the route's own straight.
+**	Returns the vertices to put in front of the controls, or false when no departure can start there.
+*/
+static bool Departure_Vertices(const HybridRoute & route,int index,const Vector2 & control,const Vector2 & axis,
+										 float straight,float q,DynamicVectorClass<RouteVertex> * out,int * start_out)
+{
+	out->Delete_All();
+	*start_out = index;
+
+	//	The route already stands on the control, heading along the axis: it simply continues onto it.
+	if ((route.Points[index] - control).Length() <= q) {
+		float behind = 0.0f;
+		Hybrid_Polyline_Straight_Run(route.Points,index,axis,q,&behind,nullptr);
+		if ((index > 0) && (behind < Min2(straight,route.Stations[index]) - (2.0f * q))) return false;
+		RouteVertex start;
+		start.P = route.Points[index];
+		out->Add(start);
+		return true;
+	}
+
+	//	The route's own start is a node, not a corner: the road may leave it on any heading.
+	if (index == 0) {
+		RouteVertex start;
+		start.P = route.Points[0];
+		out->Add(start);
+		return true;
+	}
+
+	const Vector2 heading = Unit(route.Points[index] - route.Points[index - 1]);
+	float behind = 0.0f;
+	Hybrid_Polyline_Straight_Run(route.Points,index,heading,q,&behind,nullptr);
+	if (behind <= q) return false;
+
+	//	The earliest sample on that straight is where the path begins; it coincides with the route up to its arc.
+	int first = index;
+	while ((first > 0) && ((route.Stations[index] - route.Stations[first - 1]) <= (behind + q))) first--;
+	if (first == index) return false;
+
+	RouteVertex start;
+	start.P = route.Points[first];
+	out->Add(start);
+
+	RouteVertex corner;
+	corner.P			= route.Points[index];
+	corner.Pinned	= true;
+	out->Add(corner);
+	*start_out = first;
+	return true;
+}
+
+
+//	The same on the far side, in travel order after the controls.
+static bool Rejoin_Vertices(const HybridRoute & route,int index,const Vector2 & control,const Vector2 & axis,
+									 float straight,float q,DynamicVectorClass<RouteVertex> * out,int * end_out)
+{
+	out->Delete_All();
+	*end_out = index;
+	const int last = route.Points.Count() - 1;
+
+	if ((route.Points[index] - control).Length() <= q) {
+		float ahead = 0.0f;
+		Hybrid_Polyline_Straight_Run(route.Points,index,axis,q,nullptr,&ahead);
+		const float remaining = route.Stations[last] - route.Stations[index];
+		if ((index < last) && (ahead < Min2(straight,remaining) - (2.0f * q))) return false;
+		RouteVertex end;
+		end.P = route.Points[index];
+		out->Add(end);
+		return true;
+	}
+
+	if (index == last) {
+		RouteVertex end;
+		end.P = route.Points[last];
+		out->Add(end);
+		return true;
+	}
+
+	const Vector2 heading = Unit(route.Points[index + 1] - route.Points[index]);
+	float ahead = 0.0f;
+	Hybrid_Polyline_Straight_Run(route.Points,index,heading,q,nullptr,&ahead);
+	if (ahead <= q) return false;
+
+	int final_index = index;
+	while ((final_index < last) && ((route.Stations[final_index + 1] - route.Stations[index]) <= (ahead + q))) final_index++;
+	if (final_index == index) return false;
+
+	RouteVertex corner;
+	corner.P			= route.Points[index];
+	corner.Pinned	= true;
+	out->Add(corner);
+
+	RouteVertex end;
+	end.P = route.Points[final_index];
+	out->Add(end);
+	*end_out = final_index;
+	return true;
+}
+
+
+//	Appends a vertex, merging it into the last one when they coincide; the crossing's own vertex wins.
+static void Append_Vertex(DynamicVectorClass<RouteVertex> * list,const RouteVertex & vertex,float q)
+{
+	if ((list->Count() > 0) && (((*list)[list->Count() - 1].P - vertex.P).Length() <= q)) {
+		RouteVertex & last = (*list)[list->Count() - 1];
+		if (vertex.Frozen || vertex.Pinned) {
+			const Vector2 keep = last.P;
+			last = vertex;
+			last.P = keep;
+		}
+		return;
+	}
+	list->Add(vertex);
+}
+
+
+//	The crossing's own controls as corner-polyline vertices: both ends frozen on their axes, interior ones pinned.
+static void Control_Vertices(const Vector2 * controls,int control_count,DynamicVectorClass<RouteVertex> * out)
+{
+	out->Delete_All();
+	const Vector2 entry_axis = Unit(controls[1] - controls[0]);
+	const Vector2 exit_axis = Unit(controls[control_count - 1] - controls[control_count - 2]);
+	for (int c = 0; c < control_count; ++c) {
+		RouteVertex vertex;
+		vertex.P = controls[c];
+		if (c == 0) {
+			vertex.Frozen	= true;
+			vertex.Axis		= entry_axis;
+			vertex.WindowId= 1;
+		} else if (c == (control_count - 1)) {
+			vertex.Frozen	= true;
+			vertex.Axis		= exit_axis;
+			vertex.WindowId= (control_count == 2) ? 1 : 2;		// a two-point crossing is one straight frozen run
+		} else {
+			vertex.Pinned	= true;
+		}
+		out->Add(vertex);
+	}
+}
+
+
+bool Hybrid_Build_Crossing_Path(const HybridRoute & route,int first_point,int last_point,
+										 const Vector2 * controls,int control_count,float radius,float spacing,
+										 float quantum,float max_reach,HybridCrossingPath * out,
+										 const char ** reason_out)
+{
+	if (reason_out != nullptr) *reason_out = "";
+	if (out == nullptr) return false;
+	out->Reset();
+
+	const int count = route.Points.Count();
+	if ((controls == nullptr) || (control_count < 2) || (count < 2) || (route.Stations.Count() != count) ||
+		 (first_point < 0) || (last_point >= count) || (last_point <= first_point) || !(radius > 0.0f) ||
+		 !(spacing > 0.0f)) {
+		if (reason_out != nullptr) *reason_out = "invalid crossing path input";
+		return false;
+	}
+
+	const Vector2 entry_axis = Unit(controls[1] - controls[0]);
+	const Vector2 exit_axis = Unit(controls[control_count - 1] - controls[control_count - 2]);
+	if ((entry_axis.Length() <= 0.0f) || (exit_axis.Length() <= 0.0f)) {
+		if (reason_out != nullptr) *reason_out = "the crossing's end controls coincide";
+		return false;
+	}
+
+	DynamicVectorClass<RouteVertex> crossing;
+	Control_Vertices(controls,control_count,&crossing);
+
+	/*
+	**	Each side is found on its own, with the other side standing in as a straight run on along the crossing's
+	**	axis, because the two are separated by the crossing's frozen ends and cannot crowd each other.  The road
+	**	leaves the preliminary centerline at the latest sample at or before the interval's ingress, and rejoins
+	**	at the earliest at or after its egress, from which the shared corner construction -- Phase 10's own
+	**	leads and fillets at the class radius -- can reach the crossing; the closest is the smallest change to the
+	**	road, and the search order makes the choice deterministic.
+	*/
+	const float extension = 2.0f * spacing;
+	DynamicVectorClass<RouteVertex> near_side;
+	int depart = -1;
+	for (int d = first_point; d >= 0; --d) {
+
+		if ((route.Stations[first_point] - route.Stations[d]) > max_reach) break;
+
+		DynamicVectorClass<RouteVertex> candidate;
+		int start = d;
+		if (!Departure_Vertices(route,d,controls[0],entry_axis,spacing,quantum,&candidate,&start)) continue;
+
+		DynamicVectorClass<RouteVertex> trial;
+		for (int i = 0; i < candidate.Count(); ++i) Append_Vertex(&trial,candidate[i],quantum);
+		for (int i = 0; i < crossing.Count(); ++i) Append_Vertex(&trial,crossing[i],quantum);
+		RouteVertex beyond;
+		beyond.P = controls[control_count - 1] + (exit_axis * extension);
+		trial.Add(beyond);
+		if (!Settle_Corners(radius,quantum,spacing,&trial,nullptr)) continue;
+
+		depart = start;
+		for (int i = 0; i < candidate.Count(); ++i) near_side.Add(candidate[i]);
+		break;
+	}
+	if (depart < 0) {
+		if (reason_out != nullptr) *reason_out = "no departure from the preliminary road meets the crossing at the class radius";
+		return false;
+	}
+
+	DynamicVectorClass<RouteVertex> far_side;
+	int rejoin = -1;
+	for (int r = last_point; r < count; ++r) {
+
+		if ((route.Stations[r] - route.Stations[last_point]) > max_reach) break;
+
+		DynamicVectorClass<RouteVertex> candidate;
+		int finish = r;
+		if (!Rejoin_Vertices(route,r,controls[control_count - 1],exit_axis,spacing,quantum,&candidate,&finish)) continue;
+
+		DynamicVectorClass<RouteVertex> trial;
+		RouteVertex before;
+		before.P = controls[0] - (entry_axis * extension);
+		trial.Add(before);
+		for (int i = 0; i < crossing.Count(); ++i) Append_Vertex(&trial,crossing[i],quantum);
+		for (int i = 0; i < candidate.Count(); ++i) Append_Vertex(&trial,candidate[i],quantum);
+		if (!Settle_Corners(radius,quantum,spacing,&trial,nullptr)) continue;
+
+		rejoin = finish;
+		for (int i = 0; i < candidate.Count(); ++i) far_side.Add(candidate[i]);
+		break;
+	}
+	if (rejoin < 0) {
+		if (reason_out != nullptr) *reason_out = "no rejoin onto the preliminary road leaves the crossing at the class radius";
+		return false;
+	}
+	if (rejoin <= depart) {
+		if (reason_out != nullptr) *reason_out = "the crossing path departs after it rejoins";
+		return false;
+	}
+
+	//	The whole path, settled once more as one polyline and laid down exactly as Phase 10 lays a centerline.
+	DynamicVectorClass<RouteVertex> vertices;
+	for (int i = 0; i < near_side.Count(); ++i) Append_Vertex(&vertices,near_side[i],quantum);
+	for (int i = 0; i < crossing.Count(); ++i) Append_Vertex(&vertices,crossing[i],quantum);
+	for (int i = 0; i < far_side.Count(); ++i) Append_Vertex(&vertices,far_side[i],quantum);
+	if (vertices.Count() < 2) {
+		if (reason_out != nullptr) *reason_out = "the crossing path collapsed to a point";
+		return false;
+	}
+
+	const char * why = nullptr;
+	if ((vertices.Count() > 2) && !Settle_Corners(radius,quantum,spacing,&vertices,&why)) {
+		if (reason_out != nullptr) *reason_out = (why != nullptr) ? why : "the crossing path could not be filleted";
+		return false;
+	}
+
+	DynamicVectorClass<Vector2> samples;
+	DynamicVectorClass<float> stations;
+	DynamicVectorClass<HybridRouteStructuralSpan> spans;
+	if (!Emit_Centerline(radius,quantum,vertices,spacing,&samples,&stations,&spans)) {
+		if (reason_out != nullptr) *reason_out = "the crossing path is degenerate";
+		return false;
+	}
+
+	//	Quantized and de-duplicated, with both ends exactly the preliminary route's own samples.
+	DynamicVectorClass<Vector2> kept;
+	for (int i = 0; i < samples.Count(); ++i) {
+		const Vector2 q = (i == 0) ? route.Points[depart]
+										   : Vector2(Hybrid_Quantize_Position(samples[i].X),Hybrid_Quantize_Position(samples[i].Y));
+		if ((kept.Count() > 0) && ((q - kept[kept.Count() - 1]).Length() <= quantum)) continue;
+		kept.Add(q);
+	}
+	if ((kept.Count() > 1) && ((kept[kept.Count() - 1] - route.Points[rejoin]).Length() <= quantum)) {
+		kept[kept.Count() - 1] = route.Points[rejoin];
+	} else {
+		kept.Add(route.Points[rejoin]);
+	}
+	if (kept.Count() < 2) {
+		if (reason_out != nullptr) *reason_out = "the crossing path collapsed to a point";
+		return false;
+	}
+
+	float length = 0.0f;
+	for (int i = 0; i < kept.Count(); ++i) {
+		if (i > 0) length += (kept[i] - kept[i - 1]).Length();
+		out->Points.Add(kept[i]);
+		out->Stations.Add(length);
+	}
+
+	out->DepartPoint	= depart;
+	out->RejoinPoint	= rejoin;
+	out->Length			= Hybrid_Quantize_Position(length);
+	out->AddedLength	= Hybrid_Quantize_Position(Max2(0.0f,length -
+																		(route.Points[rejoin] - route.Points[depart]).Length()));
+	return true;
+}
+
+
+/***********************************************************************************************
+**	Two road poses on empty ground -- see Hybrid_Road_Poses_Connect in the header.
+***********************************************************************************************/
+bool Hybrid_Road_Poses_Connect(const HybridRoadPose & from,const HybridRoadPose & to,HybridRoadClass road_class,
+										 const HybridConstants & constants,const Vector2 * before_from,const Vector2 * after_to)
+{
+	const HybridConstants & k = constants;
+	const float radius = Hybrid_Road_Class_Spec(road_class).MinTurnRadiusW * k.W * FILLET_RADIUS_MARGIN;
+	const float straight = Min2(k.W,0.5f * k.A);
+	if (!(radius > 0.0f) || ((from.Point - to.Point).Length() <= k.Q)) return false;
+
+	//	The structure's own straight, frozen at its far end (`from`) and its near end (`to`).
+	RouteVertex start;
+	RouteVertex leave;
+	bool from_structural = from.Is_Structural();
+	Vector2 from_axis(0.0f,0.0f);
+	if (from_structural) {
+		from_axis = Unit(from.Axis);
+		start.P			= from.Point - (from_axis * from.Before);
+		leave.P			= from.Point + (from_axis * from.After);
+		leave.Axis		= from_axis;
+		leave.Frozen	= true;
+		leave.WindowId	= 1;
+	} else {
+		start.P = from.Point;
+	}
+
+	//	A free pose in the middle of its edge is a pinned corner, with the road behind it as the start.
+	RouteVertex from_corner;
+	const bool from_pinned = !from_structural && (before_from != nullptr) &&
+									 ((*before_from - from.Point).Length() > k.Q);
+	if (from_pinned) {
+		from_corner.P		= from.Point;
+		from_corner.Pinned= true;
+		start.P				= *before_from;
+	}
+
+	RouteVertex arrive;
+	RouteVertex finish;
+	const bool to_structural = to.Is_Structural();
+	Vector2 to_axis(0.0f,0.0f);
+	if (to_structural) {
+		to_axis = Unit(to.Axis);
+		arrive.P			= to.Point - (to_axis * to.Before);
+		arrive.Axis		= to_axis;
+		arrive.Frozen	= true;
+		arrive.WindowId= 2;
+		finish.P			= to.Point + (to_axis * to.After);
+	} else {
+		finish.P = to.Point;
+	}
+
+	RouteVertex to_corner;
+	const bool to_pinned = !to_structural && (after_to != nullptr) && ((*after_to - to.Point).Length() > k.Q);
+	if (to_pinned) {
+		to_corner.P			= to.Point;
+		to_corner.Pinned	= true;
+		finish.P				= *after_to;
+	}
+
+	/*
+	**	Where the road would turn on a direct route: the meeting point of the line leaving `from` along its
+	**	axis and the line arriving at `to` along its axis, when both reach it going forward.  Without one of
+	**	the two axes the leads alone are the turns.
+	*/
+	bool has_corner = false;
+	Vector2 corner(0.0f,0.0f);
+	if (from_structural && to_structural) {
+		const Vector2 p = leave.P;
+		const Vector2 r = from_axis;
+		const Vector2 q = arrive.P;
+		const Vector2 s = to_axis;
+		const float denominator = (r.X * s.Y) - (r.Y * s.X);
+		if ((float)fabs((double)denominator) > 1.0e-4f) {
+			const Vector2 d = q - p;
+			const float t = ((d.X * s.Y) - (d.Y * s.X)) / denominator;
+			const float u = ((d.X * r.Y) - (d.Y * r.X)) / denominator;
+			if ((t > k.Q) && (u > k.Q)) {
+				has_corner = true;
+				corner = p + (r * t);
+			}
+		}
+	}
+
+	for (int attempt = 0; attempt < 2; ++attempt) {
+
+		if ((attempt == 0) && !has_corner) continue;
+
+		DynamicVectorClass<RouteVertex> vertices;
+		vertices.Add(start);
+		if (from_pinned) vertices.Add(from_corner);
+		if (from_structural) vertices.Add(leave);
+		if (attempt == 0) {
+			RouteVertex middle;
+			middle.P = corner;
+			vertices.Add(middle);
+		}
+		if (to_structural) vertices.Add(arrive);
+		if (to_pinned) vertices.Add(to_corner);
+		vertices.Add(finish);
+
+		if (Settle_Corners(radius,k.Q,straight,&vertices,nullptr)) return true;
+	}
+	return false;
 }

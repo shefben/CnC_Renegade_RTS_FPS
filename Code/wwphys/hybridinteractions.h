@@ -121,7 +121,7 @@ struct HybridBridgeKind
 {
 	HybridBridgeKind(void) :
 		StableId(0),ClearWidth(0.0f),StructuralDepth(0.0f),RequiredClearance(0.0f),MaxSpan(0.0f),
-		RequiredApproachLength(0.0f) { }
+		RequiredApproachLength(0.0f),StartSeat(0.0f),EndSeat(0.0f) { }
 
 	//	DynamicVectorClass<T> (wwlib/vector.h) requires T to support == and !=.
 	bool	operator == (const HybridBridgeKind & that) const	{ return StableId == that.StableId; }
@@ -133,6 +133,15 @@ struct HybridBridgeKind
 	float		RequiredClearance;		// the kind's own clearance requirement under the deck
 	float		MaxSpan;						// maximum supported span, through Hybrid_Resolve_Bridge_Max_Span
 	float		RequiredApproachLength;	// 0 = none registered; the solver then uses 8W
+
+	/*
+	**	The canonical abutment seats: the definition's start and end cap section lengths.  The cap is the
+	**	abutment BridgeSystem lays inward from each endpoint, so a deck reaches this far past the obstruction
+	**	at each end for its abutment to stand on the bank, and the span it is selected against is the measured
+	**	obstruction plus both of them.
+	*/
+	float		StartSeat;
+	float		EndSeat;
 };
 
 
@@ -197,6 +206,7 @@ struct HybridInteraction
 		Station(0.0f,0.0f),Tangent(1.0f,0.0f),ApproachA(0.0f,0.0f),ApproachB(0.0f,0.0f),Span(0.0f),
 		ApproachReserve(0.0f),BridgeKind(-1),TunnelModule(-1),TunnelLength(0.0f),DeckBottomZ(0.0f),
 		DeckTopZ(0.0f),LowerSurfaceZ(0.0f),RampLength(0.0f),UpperIsThisEdge(true),CutDepth(0.0f),
+		DeckStartZ(0.0f),DeckEndZ(0.0f),DeckReachA(0.0f),DeckReachB(0.0f),
 		FirstPoint(0),LastPoint(0),Envelope(0),Score(0.0f) { }
 
 	//	DynamicVectorClass<T> requires == and !=.  The record's own id is its identity.
@@ -243,8 +253,33 @@ struct HybridInteraction
 	bool							UpperIsThisEdge;		// overpass only: which of the two roads rides over
 	float							CutDepth;
 
+	/*
+	**	The road surface where it meets the structure at each end, in travel order: a bridge's two abutments, a
+	**	tunnel's two portals, an overpass deck's two ends.  A river bridge and an overpass hold a level deck, so
+	**	both equal `DeckTopZ`; a canyon deck runs between the two road profiles (Section 12.3) and a bore between
+	**	its portals, so theirs are the road's own solved elevations there, frozen here for Phase 12 to pin.
+	*/
+	float							DeckStartZ;
+	float							DeckEndZ;
+
+	/*
+	**	How far the deck or bore reaches from `Station` along `Tangent`, back towards `ApproachA` and on towards
+	**	`ApproachB`: a bridge's two abutment ends, a tunnel's two portals, an overpass deck's two ends.  These are
+	**	the structure's own endpoints, which Phase 12 hands to BridgeSystem / TunnelSystem.
+	*/
+	float							DeckReachA;
+	float							DeckReachB;
+
 	int							FirstPoint;				// the owning route's sample range this solution covers
 	int							LastPoint;
+
+	/*
+	**	The horizontal centerline the road is realized on through this solution, from where it leaves the
+	**	Phase-10 centerline to where it rejoins it (Hybrid_Build_Crossing_Path).  An at-grade junction has
+	**	none -- each road keeps its own centerline through it.  An overpass's is the upper road's own
+	**	centerline over its two ramps and the deck, indexed into that road's realized centerline.
+	*/
+	HybridCrossingPath		Path;
 	int							Envelope;				// the Phase-10 envelope the owning route was accepted in
 	float							Score;					// the bridge candidate score, 0 for other methods
 };
@@ -273,6 +308,31 @@ struct HybridInteractionIssue
 	int							StationsTried;
 	Vector2						Station;
 };
+
+
+struct HybridInteractionSet;
+
+/*
+**	One road's realized horizontal centerline: its Phase-10 centerline with each of its own compiled
+**	crossing paths put in place of the stretch that path departs and rejoins, stations measured again, and
+**	each crossing's structural interval re-indexed onto the new points with the crossing's own compiled ends
+**	as its ingress and egress.  Junctions and overpasses leave a road's centerline where it is.  Phase 11
+**	finds road x road crossings on these centerlines, and Phase 12 realizes them; it is the one function
+**	both use, so the two can never disagree about where a road runs.
+*/
+bool	Hybrid_Realized_Route(const HybridRoute & route,const HybridInteractionSet & set,HybridRoute * out);
+
+
+/*
+**	Every structure one road's compiled crossings put on it, on that road's realized centerline
+**	(Hybrid_Realized_Route): each deck or bore's two ends along the road and the surface it holds -- a river or
+**	overpass deck level at its top, a canyon or ravine deck and a tunnel bore carried between the end elevations
+**	the record froze.  Section 12.1 over the realized road with these is the road's final profile; Phase 11
+**	judges candidates with it and Phase 12 realizes it.  False when a structure cannot be placed on the road.
+*/
+struct HybridProfileStructure;
+bool	Hybrid_Road_Profile_Structures(const HybridInteractionSet & set,const HybridRoute & realized,
+												 DynamicVectorClass<HybridProfileStructure> * out);
 
 
 /*
@@ -361,6 +421,7 @@ enum HybridInteractionFailure
 	HYBRID_INTERACTION_QUOTA,					// a Section-5 bridge or overpass quota is unmet
 	HYBRID_INTERACTION_SWEEP,					// a compiled interval failed its swept proxy validation
 	HYBRID_INTERACTION_LIMIT,					// more than 12 problems on one edge, or a work budget
+	HYBRID_INTERACTION_DETACHED,				// a compiled crossing is not attached to the road that drives it
 	HYBRID_INTERACTION_FAILURE_COUNT
 };
 
@@ -435,6 +496,19 @@ float	Hybrid_Overpass_Clear_Gap(float heavy_vehicle_height,float world_units_per
 //	Section 12.4's minimum clear bridge width for one road class.
 float	Hybrid_Bridge_Clear_Width(HybridRoadClass road_class,float lane_width,float swept_vehicle_width,
 											float min_lane_clearance);
+
+
+
+/*
+**	Section 8 Phase 11's station list for one crossing problem (Q-022): candidate 0 is the problem's own anchor
+**	-- `centre` projected onto the window's obstruction, which for a routed crossing is the window's own
+**	station -- then the rest of `-max(8W,4S) .. +max(8W,4S)` along the obstruction at `min(W,A/2)`, both ends
+**	included where they are on the obstruction, never more than `MaxStationsPerCrossing` in all.  Exported so
+**	the gate can hold the list to that rule; the solver builds its own with this same function.
+*/
+void	Hybrid_Crossing_Station_List(const HybridInteractionParams & params,const HybridHydrologySet & hydrology,
+											const HybridLandformSet & landforms,const HybridCrossingWindow & window,
+											const Vector2 & centre,DynamicVectorClass<HybridObstructionStation> * out);
 
 
 #endif	// HYBRIDINTERACTIONS_H

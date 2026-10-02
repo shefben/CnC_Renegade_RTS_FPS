@@ -72,6 +72,29 @@ between them is wet. A frozen crossing waypoint is discharged by the span, which
 than touching the cell the node's position falls in -- that cell is the middle of the obstruction, which
 the road spans rather than drives through.
 
+**Phase 10 owns the arrival (Q-022, revised D-009).** The road enters and leaves every frozen crossing along
+the window's own axis, `normalize(approach_b - approach_a)`, straight from one approach point to the other,
+with every class-radius turn finished outside them. The search is told: A* arrives at the ingress cell and
+departs the egress cell on the axis, judged at move generation with the run the class's turn still needs;
+the two approach points are frozen vertices with lead-ins and lead-outs along the axis; a corner that would
+have to sit on a frozen point, or crowd it, refuses the candidate. Phase 10 guarantees `8W` of straight
+approach on each side -- the asset-specific remainder is Phase 11's to find or refuse. A road that cannot
+line up in an envelope fails that envelope; after the third the edge fails. Nothing is left at a crossing for
+Phase 11 to straighten. The old D-009 behaviour -- keep the waypoint and leave a corner there for Phase 11 --
+is revoked.
+
+A crossing's own span exempts only its own samples from the open-road checks, and the open road between
+spans is graded by Section 12.1's interval propagation, so a road that touches its crossings but cannot be
+graded between them is refused here rather than in Phase 11.
+
+Overpass obligations are routed through their exact node along each edge's intent segment, straight for
+the deck's half length (`Hybrid_Overpass_Half_Deck`, the topology owner's measure) either side.
+
+`terrainselfcheck`'s controlled crossing worlds (`Check_Hybrid_Crossing_Alignment`) pin this: a road already
+on the axis is accepted unbent; a sideways arrival turns on its own bank and enters aligned; an arrival from
+past the approach end swings round or is refused; and a crossing whose straight leaves no room for the turn
+after it is refused in every envelope while the same crossing with room routes.
+
 ## Diagnostics
 
 `Hybrid_Route_Census` in `hybridroutes.h` answers "what refuses this region?" with the same cached rules

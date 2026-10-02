@@ -37,15 +37,24 @@ an at-grade junction. `HIGHWAY_4` and `PRIMARY_2` never ford, and a ford never s
 
 ## The station search
 
-`half_length = max(8W,4S)`, spacing `min(W,A/2)`, stations marching along the obstruction, centred on the
-crossing the road made -- or, for a frozen obligation, on its own waypoint, because the obligation does not
-move. More than 64 stations collapses to exactly 64 uniformly spaced ones including both endpoints. Every
-station is quantized to `Q` and deduplicated before scoring.
+`half_length = max(8W,4S)`, spacing `min(W,A/2)`, stations measured **on the obstruction itself**
+(`Hybrid_Obstruction_Stations`), centred on the crossing the road made -- or, for a frozen obligation, on its
+own waypoint. **Candidate 0 is always that anchor** (Q-022); the rest of the range follows, both ends
+included, never more than 64 unique stations in all. The plan's literal "exactly 64 uniformly spaced
+stations" has an even count and never samples the centre, so it could drop the road's own crossing from its
+own candidates. `Hybrid_Crossing_Station_List` is exported so the gate holds the list to this rule.
 
-A station is hard-valid only when the road can actually reach it on its frozen centerline and cross the
-obstruction rather than run along it, both approach-reserve endpoints are inside placeable bounds, neither
-reserve touches a base or Tiberium reserve the edge has no business in, the approaches are gradeable to the
-station inside the class maximum grade, and it stands at least `4W` from an unrelated compiled crossing.
+At the anchor the road is the routed road, already straight across (Phase 10 owns that). Anywhere else the
+road reaches the station by a **connector** (`Hybrid_Build_Crossing_Path`) built with Phase 10's own corner
+construction: class-radius turns, then the complete straight approach on each side. The connector is
+authoritative compiled geometry: it is recorded on the interaction (`Path`), `Hybrid_Realized_Route` splices
+it into the road, Phase 12 realizes that road, and a crossing whose two ends are not attached to its realized
+road fails the gate (`detached`).
+
+A station is hard-valid only when its approach-reserve endpoints are inside placeable bounds, neither
+reserve touches a base or Tiberium reserve the edge has no business in, its crossing path stays on legal
+ground at legal cross slope, the whole realized road can be graded by Section 12.1 with this crossing's
+structure in it, and it stands at least `4W` from an unrelated compiled crossing.
 
 ## Bridges
 
@@ -57,7 +66,21 @@ span capability, and selection among them falls to the remaining suitability tes
 `StableId`.
 
 A kind is rejected when its clear width is below Section 12.4, when its resolved maximum span cannot cover
-the obstruction plus both abutment seats, or when its required approach reserve does not fit. Among those
+the obstruction plus both abutment seats (each seat is the definition's own start/end cap section length,
+from the bridge owner), or when its required approach does not fit: the reserve is
+`max(8W, kind.RequiredApproachLength)`, measured on the road's own straight at the anchor, and it is never
+shortened -- a kind that does not fit is refused and the next station or the next envelope is tried. The
+shipped kinds need 30 against Phase 10's guaranteed `8W` of 26.6, so this is the ordinary case.
+
+A river deck is level at its top; where the carved channel leaves the bank below the road's reach, the deck
+extends along its axis until the ground is within `max_fill_height` of it, inside the straight approach,
+and the kind is re-selected for the longer deck. A canyon or ravine deck is carried between the two road
+profiles at its ends, solved with the rest of the road.
+
+Grading is always the **whole realized road**: Section 12.1 over the road with its connectors spliced in and
+every structure already compiled on it holding its own surface. A pinned height is a height the solver
+itself produced and quantized, so propagation treats it as its quantization cell and returns the pin
+exactly; a deck graded at the class maximum is therefore re-solvable from its own compiled ends. Among those
 that remain: smallest sufficient maximum span, then lower `StableId`. The candidate score is
 `4*span + 2*elevation + 3*grade + 2*curve + detour`, lowest wins, ties to the earlier station.
 
@@ -86,7 +109,15 @@ move; the reservation does. See `DECISIONS.md` D-010.
 
 The compiled profile runs from the road's own elevation at each ramp foot up to the deck through one
 smoothstep, sampled at `min(W/3,A/4)`. It does not follow the terrain, which would put the ground's own
-slope into the road's grade.
+slope into the road's grade. `L_ramp` is a minimum, so the recorded length is the quantum at or above it.
+
+The deck is a registered bridge kind -- the overpass takes its structural depth and approach from it, and a
+road x road crossing no registered kind can carry is `method_unavailable`, never an invented structure. The
+deck is straight, so the upper road must run straight under all of it (`w_lower / sin(theta) + w_deck *
+|cot(theta)|` along the upper road). The ramps run along the upper road's centerline beyond the deck and may
+follow its curves. The upper road is then graded whole, as for a bridge: its realized centerline with every
+bridge and tunnel of pass one and every overpass already on it, and this deck held level at its top --
+grading the ramps alone left their feet free and accepted decks the road beyond could not climb to.
 
 ## Ground methods: passes and cuts
 

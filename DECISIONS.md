@@ -554,6 +554,152 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-018 - Hybrid rewrite Q-023: Phase-9 structural bindings must be realizable road poses; generator 13 (2026-10-02)
+
+**Decision (user, 2026-10-02, option (a)):** Phase-9 structural bindings must be geometrically realizable as
+oriented road poses before the topology is frozen. Q-022 is not reverted and Phase 10's crossing-axis rules
+are not weakened; the tests were not reseeded to find rare worlds that happen not to expose an invalid
+topology. The owner was fixed, then the census re-measured.
+
+**The ownership chain** this settles, each phase owning exactly one question:
+
+| Phase | Owns |
+| --- | --- |
+| 6 | local crossing capability per road class: `HybridCrossingWindow::ApproachClasses`, one bit per class -- the class's own roadbed half width on legal ground over both straight approaches, and the class's own turn radius of room past each approach point. The existence test is unchanged (`PRIMARY_2`, approach only). |
+| 9 | structural-pose realizability: which windows and overpass points an edge of a given class can drive, in order |
+| 10 | the exact terrain route through them (Q-022) |
+| 11 | the exact compile of each crossing on that route (Q-022) |
+| 12 | realization only |
+
+**Selection order** for every crossing candidate -- obligation, quota fill, synthesized cross-link:
+capability bit -> corridor -> `>= 12W` -> wrong side -> pose -> ranking / `StableId`. An impossible candidate
+is skipped and the next ranked one considered; the phase fails only when none remains, never because an
+impossible window happened to rank first.
+
+- **Binding class.** A heavy-family binding made before highway assignment is judged as `HIGHWAY_4`, because
+  that family may still become a highway; a synthesized cross-link as `SECONDARY_2`; anything else as its
+  actual class. A window is never discarded globally because a wider class cannot use it.
+- **Wrong side.** With `A` the window's axis oriented from the previous structural point to the next,
+  `dot(incoming, A) >= 0` and `dot(outgoing, A) >= 0`.
+- **Pose.** A window is a `HybridRoadPose` (point, axis, `8W` straight either side); an overpass point is one
+  with `max(10W, half deck)` either side, the half deck being `Hybrid_Overpass_Half_Deck`, the measure Phase 10
+  keeps straight. Consecutive poses on an edge must connect in the empty plane by `Hybrid_Road_Poses_Connect`,
+  which is Phase 10's own arcs-and-tangents corner construction at the class radius -- no terrain A*, no
+  second geometry algorithm, no distance formula. Overpass obligations take the same pose rule on both edges
+  on top of the unchanged `60..120` degrees, `10W`, exclusions, spacing and slope tests.
+- `Check_Gate` re-checks every frozen chain, and `HybridTopologyResult` carries the attempt's census
+  (`RejectedApproachClass`, `RejectedWrongSide`, `RejectedPose`, `RecoveredByNextRank`) whether or not the
+  attempt succeeded.
+
+**The reroute fixture.** No native seed in the 1400-world census leaves a Phase-11 refusal that the next
+envelope then resolves: a wider envelope only helps where the narrower one forced a road onto a crossing it
+would otherwise avoid, and Phase 9 no longer freezes those. As the decision allowed, the one-reroute fixture
+is a **controlled owner-level world** (`Check_Controlled_Reroute`), not a claim that a native one exists: real
+Phase 10 routes a `SECONDARY_2` across a river by its window, real Phase 11 refuses the crossing and names the
+edge, the real owner raises the envelope floor, real Phase 10 reroutes round the river's end in envelope 1,
+and real Phase 11 succeeds -- Phase 10 runs exactly twice and the accepted state reproduces its checksum. The
+two-level (three-run) reroute and the late-edge byte-identity proof stay on native worlds.
+
+**Generator identity 13.** Phases 9 to 11 and the 12.1 solver now build different topologies, roads and
+crossings from the same seed: `CURRENT_GENERATOR_VERSION` is 13, the four shipped profiles and the
+self-check's three mirrored representative profiles say `generator_version: 13`, and the versioning table in
+`NetworkingAndPersistence.md` is current.
+
+**The census, as the decision required it** (`renegade -terrainselfcheck hybridinteractionsearch`, 200 seeds x
+7 archetypes, 1400 attempts, on the final tree):
+
+| measure | count |
+| --- | --- |
+| Phase-9 candidates rejected for the approach-class bit | 7834 |
+| Phase-9 candidates rejected on the wrong side | 6619 |
+| Phase-9 candidates rejected for pose (spacing / turn) | 3322 |
+| Phase-9 bindings recovered by a lower-ranked window | 1146 |
+| worlds passing Phase 9 | 172 |
+| worlds passing Phase 10 | 32 |
+| worlds passing Phase 11 | 6 |
+| reroute requests | 77 |
+| reroutes resolved at envelope +1 | 0 |
+| reroutes resolved at envelope +2 | 0 |
+| reroute exhaustions | 26 |
+
+Phase 9's realizability rule is doing the work it was asked to: 1146 bindings that would have frozen an
+undrivable sequence went to a lower-ranked window instead. The yield is still low and is **reported, not
+acted on** here: before Q-023 the same tool passed Phase 10 in 8 of 420 worlds (1.9%) and now in 32 of 1400
+(2.3%); 6 worlds solve (0.4%). What stops the rest is upstream of this correction -- Phase-9 quota and
+obligation refusals (overpass quota short, river bridge quota short, obligations with no realizable window),
+Phase-10 hard-invalid ground and no-path refusals, and Phase-11 road x road crossings that no junction or
+overpass can compile (`turn_too_tight`, `approach_does_not_fit`) on synthesized cross-links. Two worlds that
+solved mid-way (`highland_pass` 24 and 171) are now refused, by the whole-road overpass grading below: their
+overpass decks could not be climbed to by the road beyond the ramp feet. Seed choice for the gates: the
+Phase-9 and Phase-10 walks keep their original seeds and add the census's first canyon seeds that pass
+(18, 20, 23; 23, 98); the Phase-11 walk is re-seeded with the census's own Phase-11 worlds, solved and
+refused, because the old eight seeds now build no Phase-10 world -- every one of those refusals is a named
+owner refusal, not a weakened check.
+
+**Status: accepted.** `terrain_hybridtopology` (with the seven Q-023 pose tests: collinear crossings, close
+right-angle crossings, wrong side, next candidate, highway safety, secondary cross-link, overpass pose),
+`terrain_hybridroutes`, `terrain_hybridinteractions`, `terrain_hybridrealization` and their `fds_` twins pass;
+237/237 ctest on client and dedicated server; state validator green. `Q-023` closes on this record.
+
+
+
+## D-017 - Hybrid rewrite Q-022: Phase 10 owns crossing alignment; Phase 11 compiles attached crossings (2026-10-02)
+
+**Decision (user, 2026-10-02, option (a)).** D-009's crossing behaviour is revised: Phase 10 owns the
+horizontal road geometry necessary to reach every frozen structural crossing correctly. Phase 11 may select
+or move a crossing station and compile the structure; it is never responsible for repairing a road that
+arrives at its crossing in the wrong direction. The previous behaviour -- keep the waypoint and leave a corner
+there for Phase 11 -- is **revoked** (see D-009's 2026-10-02 revision).
+
+**Phase 10.** Every frozen structural crossing (obligation, bridge-required window, accepted crossing or
+ramp-pass window used as a waypoint) is a constrained waypoint with a position and a crossing-axis tangent,
+`normalize(approach_b - approach_a)`. The road enters and leaves along that axis, straight from one frozen
+approach point to the other, with every class-radius turn finished before the straight approach; Phase 10
+guarantees `8W` of it on each side. A* arrives and departs on the axis (judged at move generation with the
+run the class's turn still needs); the approach points are frozen vertices with axis leads; a corner that
+would sit on or crowd a frozen point refuses the candidate; a structural exemption covers only its own span;
+the open road between spans is graded by Section 12.1's interval propagation. A road that cannot is a normal
+envelope failure, and after the third the edge fails.
+
+**Phase 11.** The station list is anchor-first: candidate 0 is the problem's own anchor projected onto the
+obstruction, then the range, both ends included, at most 64 unique stations in all (superseding the literal
+"exactly 64 uniformly spaced"; the performance ceiling is unchanged). Stations are measured on the obstruction.
+A moved station is reached by a connector built with Phase 10's own corner construction
+(`Hybrid_Build_Crossing_Path`): class-radius turns, then the complete straight approach of
+`max(8W, kind.RequiredApproachLength)`, never shortened -- a kind that does not fit is rejected. Connectors are
+authoritative compiled geometry (`HybridInteraction::Path`, spliced by `Hybrid_Realized_Route`); a crossing
+not attached to its realized road at both ends fails the gate (`HYBRID_INTERACTION_DETACHED`). Abutment seats
+are the bridge definition's own start/end cap section lengths, from the bridge owner -- no invented "one
+lane". A river deck is level and extends along its axis until the bank is within `max_fill_height` of it; a
+canyon or ravine deck is carried between the two road profiles. An overpass deck is a registered bridge kind
+or nothing (`method_unavailable`); it is straight under the deck, and its ramps follow the upper centerline.
+
+**Whole-road grading**, found by the restored gate rather than assumed: every compiled structure -- bridges,
+tunnels and now overpasses, whose ramps had been graded alone with free feet -- is judged by Section 12.1 over
+the whole realized road with every structure already on it. And the 12.1 solver had a fixed-point defect: a
+compiled pin is a height the solver itself produced and quantized, but propagation treated it as an exact
+real, so a deck graded at the class maximum could not be re-solved from its own pins (measured: a ravine deck
+at grade 0.140525 against a maximum of 0.140541, the climb beyond it 3e-5 short). A pin now propagates as its
+quantization cell `FixedZ +/- Q/2` and is returned exactly; the final grade check is unchanged.
+`Check_Hybrid_Realization` pins a profile to its own solution and requires it back. An overpass `L_ramp` is
+recorded at the quantum at or above it, since rounding to nearest put a floor-sized ramp under the `10W` floor.
+
+**Section-13 tests**, on controlled worlds through the real owners: straight crossing (accepted unbent),
+sideways arrival (turns on its own bank and enters aligned), opposite arrival (swings round or is refused --
+this world is refused), insufficient turn room (refused in every envelope; the same world with room routes),
+asset approach longer than `8W` (the shipped kinds need 30 against 26.6 and compile at 30 on a straight road;
+a 12W kind is refused with `approach_does_not_fit` and asks for the next envelope), moved station (43.8 along
+the river, connector 57.4 long, tightest turn 16.6 = the class radius) and the 64-station cap (anchor first,
+both ends kept, unique).
+
+**Section-14 probe.** The detached-crossing measurement (81 of 81 compiled crossings off their road before
+Q-022) is now an owner gate: Phase 11 refuses a detached crossing, and the interactions gate grades every road
+of every solved world as realized, with its structures, by Section 12.1.
+
+**Status: accepted** with D-018. `Q-022` closes on this record.
+
+
+
 ## D-016 - Hybrid rewrite Q-021: the cliff talus range is `1W..5.25W`; generator 12 (2026-09-30)
 
 `Q-021` asked whether a native explicit cliff should be crossable on the surface at all, and the answer is
@@ -600,7 +746,7 @@ shelf fails the swept-width test before any profile is built).
 | height | 18..22.5: 113, ..27: 109, ..31.5: 103, ..36: 83 |
 | talus | 1..1.85W: 70, ..2.7W: 108, ..3.55W: 80, ..4.4W: 77, ..5.25W: 73 |
 | `H / F` (rising face `e + t`) | min 1.143, max 6.278; `<= 0.93`: 0, `<= 1.14`: 0, `<= 1.5`: 66, `<= 2`: 112, `<= 3`: 118, `> 3`: 112 |
-| pass-capable cliff windows | **1** (`plateau_basin` seed 137: cliff 2, `H 24.0`, talus `4.66W`, `H / F 1.435`, length 281) |
+| pass-capable cliff windows | **1** (`coastal_peninsula` seed 137: cliff 2, `H 24.0`, talus `4.66W`, `H / F 1.435`, length 281) |
 | routes crossing them | 0 |
 | `ramp_pass` selected | 0 |
 
@@ -1058,3 +1204,15 @@ independent check; `terrain_hybridroutes` and `fds_terrain_hybridroutes` pass, a
 ctest suite on client and dedicated server; the second routing pass reproduces the checksum. The
 temporary routing diagnostics are gone -- `Hybrid_Route_Census` remains in `hybridroutes.h` as a
 deliberate tool, called by nothing in a normal build.
+
+### Revision (2026-10-02): crossings are aligned by Phase 10, never left as corners (Q-022, D-017)
+
+The crossing behaviour above is revised by D-017. *When Phase 10 cannot run straight through the frozen
+crossing approach, preserve the waypoint but leave a corner there for Phase 11 to resolve* is **revoked**.
+Every frozen structural crossing is a constrained Phase-10 waypoint with both a position and a crossing-axis
+tangent: the accepted road's tangent where it enters the structural approach is collinear with the frozen
+axis, the turn onto it is finished before the straight approach, and a road that cannot do that is an
+envelope failure and, after the third envelope, an edge failure. A spline that merely touches the waypoint
+while arriving sideways or backwards is not accepted. The arcs-and-tangents construction of the 2026-09-28
+revision stays the only turn solver: Phase 11's connectors are built with it, and Phase 9 uses it in the empty
+plane to judge whether a structural sequence is drivable at all (D-018).

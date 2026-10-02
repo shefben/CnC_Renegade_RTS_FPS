@@ -6,6 +6,18 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
+- **Q-023 CLOSED (2026-10-02, option (a)).** Phase-9 structural bindings must be geometrically realizable as
+  oriented road poses before the topology is frozen: Phase 6 records per-class approach capability, Phase 9
+  tests capability -> corridor -> `12W` -> wrong side -> pose -> rank and takes the next ranked window when one
+  is impossible, overpasses get the same pose rule. Generator identity 13. The one-reroute fixture is a
+  controlled owner-level world (no native seed in 1400 resolves a reroute). See `DECISIONS.md` D-018, with the
+  census.
+
+- **Q-022 CLOSED (2026-10-02, option (a)).** Revised D-009: Phase 10 owns the horizontal geometry that reaches
+  every frozen structural crossing; Phase 11 compiles attached crossings, anchor station first within 64,
+  approaches never shortened, every structure graded over the whole realized road. See `DECISIONS.md` D-017
+  and D-009's 2026-10-02 revision.
+
 - **Q-020 CLOSED (2026-09-30).** `road_cut` and `surface_pass` accepted as unreachable on native and
   covered by executable solver fixtures; `ramp_pass` rebuilt for D-004's raised band. All three execute
   through the real Phase-11 solver. See `DECISIONS.md` D-015. One finding carried into `Q-021`.

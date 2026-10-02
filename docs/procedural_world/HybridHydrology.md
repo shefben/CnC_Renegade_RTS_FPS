@@ -101,6 +101,15 @@ corridor (or within `2S` of a Section-6.10 crossing guide) is additionally inser
 `HYBRID_RESERVE_CROSSING_WINDOW` reservation, which is the "required window" Phase 4's priority list
 reserved that rank for; an optional window is a permission, not a reservation.
 
+## Per-class approach capability (Q-023)
+
+Each window records `ApproachClasses`, one bit per road class: the bit is set when that class's own roadbed
+half width stays on legal ground over both straight approaches and that class's own minimum turn radius of
+turn room lies past each approach point. The window's existence test is unchanged (`PRIMARY_2`, approach
+only); the mask only tells Phase 9 which classes may be bound to it. It is part of the window checksum.
+`Hybrid_Obstruction_Stations` and `Hybrid_Crossing_Ground_Is_Clear` are exported so Phase 11 measures its
+stations on the obstruction and judges their ground by the same rule.
+
 ## What Phase 6 deliberately does not do
 
 - It writes no heights, no water areas and no `WaterSystem` records. `WaterSystem` needs no interface

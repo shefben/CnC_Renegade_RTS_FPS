@@ -4806,6 +4806,29 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## Hybrid crossing ownership correction (Q-022, Q-023) -- generator identity 13 (2026-10-02)
+
+Phase 6 records per-class approach capability (`HybridCrossingWindow::ApproachClasses`); Phase 9 freezes only
+structural sequences a road of the binding class can drive (`Hybrid_Window_Bindable`,
+`Hybrid_First_Bindable_Window`, `Hybrid_Road_Poses_Connect`, the overpass pose), skipping impossible windows
+to the next ranked one and keeping its census on `HybridTopologyResult`; Phase 10 enters and leaves every
+frozen crossing along its axis with the turn finished before the straight approach; Phase 11 builds anchor-first
+station lists on the obstruction (`Hybrid_Crossing_Station_List`), connectors with the route owner's corner
+construction (`Hybrid_Build_Crossing_Path`), seats from the bridge definition's cap sections, never-shortened
+asset approaches, level river decks reaching meetable bank, carried canyon decks, registered-kind overpass decks
+straight under the deck, every structure graded over the whole realized road (`Hybrid_Realized_Route`,
+`Hybrid_Road_Profile_Structures`, `Hybrid_Solve_Road_Stretch`), and refuses a detached crossing. Section 12.1
+treats a pinned height as its quantization cell. Generator identity 13.
+
+**Tests:** Q-023's seven pose tests (`Check_Hybrid_Structural_Poses`), Q-022's seven controlled-world tests
+(`Check_Hybrid_Crossing_Alignment`, `Check_Hybrid_Crossing_Compile`), the controlled one-reroute world
+(`Check_Controlled_Reroute`, real Phase 10 -> real Phase-11 refusal -> floor -> real reroute -> real success),
+the solver fixed-point test, and whole-road grading of every solved world in the interactions gate.
+**Gate:** `terrain_hybridtopology`, `terrain_hybridroutes`, `terrain_hybridinteractions`,
+`terrain_hybridrealization` and their `fds_` twins pass; 237/237 ctest on client and dedicated server; state
+validator green. Census and decisions in `DECISIONS.md` D-017 and D-018; docs in
+`docs/procedural_world/Hybrid{Hydrology,Topology,Routes,Interactions}.md` and the plan.
+
 ## Hybrid generator rewrite I12 -- runtime Phase 11, the deterministic interaction solver (2026-09-28)
 
 Runtime Phase 11 is in `Code/wwphys/hybridinteractions.{h,cpp}`, wired through

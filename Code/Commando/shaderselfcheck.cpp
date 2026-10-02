@@ -6175,7 +6175,7 @@ int	Run_Procedural_World_Tools (void)
 **	check already and is not duplicated here.  See docs/procedural_world/PerformanceBudgets.md.
 ***********************************************************************************************/
 static const char * const	PERF_PROFILE_SMALL_JSON =
-	"{ \"schema_version\":11,\"generator_version\":12,\"name\":\"SMALL\",\"seed\":1,"
+	"{ \"schema_version\":11,\"generator_version\":13,\"name\":\"SMALL\",\"seed\":1,"
 	"  \"world\":{\"fit_to_level\":true,\"width\":600.0,\"height\":600.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
 	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
 	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"
@@ -6183,7 +6183,7 @@ static const char * const	PERF_PROFILE_SMALL_JSON =
 	"               \"feature_scale\":300.0} }";
 
 static const char * const	PERF_PROFILE_MEDIUM_JSON =
-	"{ \"schema_version\":11,\"generator_version\":12,\"name\":\"MEDIUM\",\"seed\":1,"
+	"{ \"schema_version\":11,\"generator_version\":13,\"name\":\"MEDIUM\",\"seed\":1,"
 	"  \"world\":{\"fit_to_level\":true,\"width\":1200.0,\"height\":1200.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
 	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
 	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"
@@ -6191,7 +6191,7 @@ static const char * const	PERF_PROFILE_MEDIUM_JSON =
 	"               \"feature_scale\":300.0} }";
 
 static const char * const	PERF_PROFILE_LARGE_SUPPORTED_JSON =
-	"{ \"schema_version\":11,\"generator_version\":12,\"name\":\"LARGE_SUPPORTED\",\"seed\":1,"
+	"{ \"schema_version\":11,\"generator_version\":13,\"name\":\"LARGE_SUPPORTED\",\"seed\":1,"
 	"  \"world\":{\"fit_to_level\":true,\"width\":2400.0,\"height\":2400.0,\"chunk_size\":60.0,\"sea_level\":0.0},"
 	"  \"boundary\":{\"cliff_band_width\":120.0,\"cliff_min_height\":60.0,\"cliff_max_height\":110.0,"
 	"                \"hard_barrier_offset\":20.0,\"air_ceiling\":200.0},"

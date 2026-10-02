@@ -33,6 +33,7 @@
  *---------------------------------------------------------------------------------------------*/
 
 #include "hybridinteractions.h"
+#include "hybridrealization.h"
 
 #include <math.h>
 #include <string.h>
@@ -184,6 +185,7 @@ const char * Hybrid_Interaction_Failure_Name(HybridInteractionFailure failure)
 		case HYBRID_INTERACTION_QUOTA:				return "quota";
 		case HYBRID_INTERACTION_SWEEP:				return "sweep";
 		case HYBRID_INTERACTION_LIMIT:				return "limit";
+		case HYBRID_INTERACTION_DETACHED:			return "detached";
 		default:												break;
 	}
 	return "unknown";
@@ -469,11 +471,119 @@ unsigned int Hybrid_Interaction_Checksum(const HybridInteractionSet & set,unsign
 		stream.Add_Length(one.RampLength);
 		stream.Add_Bool(one.UpperIsThisEdge);
 		stream.Add_Length(one.CutDepth);
+		stream.Add_Length(one.DeckStartZ);
+		stream.Add_Length(one.DeckEndZ);
+		stream.Add_Length(one.DeckReachA);
+		stream.Add_Length(one.DeckReachB);
 		stream.Add_Int(one.FirstPoint);
 		stream.Add_Int(one.LastPoint);
 		stream.Add_Int(one.Envelope);
+		stream.Add_Int(one.Path.DepartPoint);
+		stream.Add_Int(one.Path.RejoinPoint);
+		stream.Add_Length(one.Path.Length);
+		stream.Add_Int(one.Path.Points.Count());
+		for (int p = 0; p < one.Path.Points.Count(); ++p) {
+			stream.Add_Length(one.Path.Points[p].X);
+			stream.Add_Length(one.Path.Points[p].Y);
+		}
 	}
 	return stream.Get();
+}
+
+
+/***********************************************************************************************
+**	A road's realized horizontal centerline.
+***********************************************************************************************/
+bool Hybrid_Realized_Route(const HybridRoute & route,const HybridInteractionSet & set,HybridRoute * out)
+{
+	if (out == nullptr) return false;
+	*out = route;
+	if ((route.Points.Count() < 2) || (route.Stations.Count() != route.Points.Count())) return false;
+
+	//	This road's own crossings that carry a path, in the order the road meets them.
+	DynamicVectorClass<int> crossings;
+	for (int i = 0; i < set.Interactions.Count(); ++i) {
+		const HybridInteraction & one = set.Interactions[i];
+		if (one.EdgeId != route.EdgeId) continue;
+		if ((one.Method == HYBRID_METHOD_AT_GRADE_JUNCTION) || (one.Method == HYBRID_METHOD_OVERPASS)) continue;
+		if (one.Path.Points.Count() < 2) continue;
+		crossings.Add(i);
+	}
+	for (int i = 1; i < crossings.Count(); ++i) {
+		for (int j = i; j > 0; --j) {
+			if (set.Interactions[crossings[j]].Path.DepartPoint >=
+				 set.Interactions[crossings[j - 1]].Path.DepartPoint) break;
+			const int swap = crossings[j];
+			crossings[j]		= crossings[j - 1];
+			crossings[j - 1]	= swap;
+		}
+	}
+
+	out->Points.Delete_All();
+	out->Stations.Delete_All();
+	out->Structural.Delete_All();
+
+	int next = 0;													// the next preliminary sample not yet copied
+	for (int c = 0; c < crossings.Count(); ++c) {
+
+		const HybridInteraction & one = set.Interactions[crossings[c]];
+		const HybridCrossingPath & path = one.Path;
+		//	Back-to-back crossings may share the one sample where the first rejoins and the second departs.
+		const bool shared = (c > 0) && (path.DepartPoint == (next - 1));
+		if (((path.DepartPoint < next) && !shared) || (path.RejoinPoint >= route.Points.Count()) ||
+			 (path.RejoinPoint <= path.DepartPoint)) {
+			*out = route;
+			return false;												// two crossings claim one stretch: not ours to merge
+		}
+
+		for (int p = next; p < path.DepartPoint; ++p) out->Points.Add(route.Points[p]);
+
+		const int path_first = shared ? (out->Points.Count() - 1) : out->Points.Count();
+		for (int p = shared ? 1 : 0; p < path.Points.Count(); ++p) out->Points.Add(path.Points[p]);
+
+		//	The crossing's own ends, which are points of its path, re-indexed onto the realized points.
+		HybridRouteStructuralSpan span;
+		span.WindowId	= one.WindowId;
+		span.Ingress	= one.ApproachA;
+		span.Egress		= one.ApproachB;
+		span.FirstPoint= path_first;
+		span.LastPoint	= out->Points.Count() - 1;
+		float best_a = 3.4e38f;
+		float best_b = 3.4e38f;
+		for (int p = path_first; p < out->Points.Count(); ++p) {
+			const float to_a = (out->Points[p] - one.ApproachA).Length();
+			const float to_b = (out->Points[p] - one.ApproachB).Length();
+			if (to_a < best_a) {
+				best_a = to_a;
+				span.FirstPoint = p;
+			}
+			if (to_b < best_b) {
+				best_b = to_b;
+				span.LastPoint = p;
+			}
+		}
+		if (one.WindowId != 0) out->Structural.Add(span);
+
+		next = path.RejoinPoint + 1;
+	}
+	for (int p = next; p < route.Points.Count(); ++p) out->Points.Add(route.Points[p]);
+
+	float length = 0.0f;
+	for (int p = 0; p < out->Points.Count(); ++p) {
+		if (p > 0) length += (out->Points[p] - out->Points[p - 1]).Length();
+		out->Stations.Add(length);
+	}
+	out->Length = Hybrid_Quantize_Position(length);
+
+	out->BoundsMin = out->Points[0];
+	out->BoundsMax = out->Points[0];
+	for (int p = 1; p < out->Points.Count(); ++p) {
+		out->BoundsMin.X = Min2(out->BoundsMin.X,out->Points[p].X);
+		out->BoundsMin.Y = Min2(out->BoundsMin.Y,out->Points[p].Y);
+		out->BoundsMax.X = Max2(out->BoundsMax.X,out->Points[p].X);
+		out->BoundsMax.Y = Max2(out->BoundsMax.Y,out->Points[p].Y);
+	}
+	return true;
 }
 
 
@@ -564,45 +674,107 @@ static bool Note_Problem(InteractionBuilder & b,unsigned int edge_id,unsigned in
 **	mandatory obligation, on its frozen waypoint, because "Phase 11 never silently moves that obligation
 **	to a different obstruction".
 **
-**	Stations march *along the obstruction*.  The interval is `+/-max(8W,4S)` at `min(W,A/2)`, capped at
-**	exactly 64 uniformly spaced stations including both endpoints, then quantized and deduplicated.
+**	Stations march *along the obstruction*: `+/-max(8W,4S)` of the obstruction's own arc length at
+**	`min(W,A/2)`, capped at exactly 64 uniformly spaced stations including both endpoints, then quantized and
+**	deduplicated.  Each is measured where it stands -- the obstruction's direction and half width there --
+**	because a river does not run along its window's tangent line, and a station stepped out along that line
+**	is soon not on the river at all.
 */
-static void Build_Stations(const InteractionBuilder & b,const Vector2 & centre,const Vector2 & along,
-									DynamicVectorClass<Vector2> * out)
+static float Station_Half_Length(const HybridConstants & k)
+{
+	return Max2(STATION_HALF_LENGTH_W * k.W,STATION_HALF_LENGTH_S * k.S);
+}
+
+
+static void Build_Stations(const InteractionBuilder & b,const HybridCrossingWindow & window,const Vector2 & centre,
+									DynamicVectorClass<HybridObstructionStation> * out)
 {
 	out->Delete_All();
 
 	const HybridConstants & k = b.P->Constants;
-	const float half_length = Max2(STATION_HALF_LENGTH_W * k.W,STATION_HALF_LENGTH_S * k.S);
+	const float half_length = Station_Half_Length(k);
 	const float spacing = Min2(k.W,0.5f * k.A);
 	if ((half_length <= 0.0f) || (spacing <= 0.0f)) return;
-
-	const Vector2 axis = Unit(along);
-	if (axis.Length() <= 0.0f) {
-		out->Add(Quantized(centre));
-		return;
-	}
-
-	//	The nominal count from `-half_length` through `+half_length` inclusive.
-	int count = (int)Hybrid_Round_Half_Up((2.0f * half_length) / spacing) + 1;
-	if (count < 2) count = 2;
-
 	const int cap = (b.P->MaxStationsPerCrossing > 1) ? b.P->MaxStationsPerCrossing : STATION_CAP;
-	if (count > cap) count = cap;					// exactly `cap` uniformly spaced, both endpoints included
 
-	for (int i = 0; i < count; ++i) {
-
-		const float ratio = (count > 1) ? ((float)i / (float)(count - 1)) : 0.5f;
-		const float offset = -half_length + (ratio * 2.0f * half_length);
-		const Vector2 station = Quantized(Vector2(centre.X + (axis.X * offset),
-																centre.Y + (axis.Y * offset)));
-
-		bool duplicate = false;
-		for (int q = 0; (q < out->Count()) && !duplicate; ++q) {
-			if ((*out)[q] == station) duplicate = true;
-		}
-		if (!duplicate) out->Add(station);
+	/*
+	**	Candidate 0 is the crossing problem's own anchor (Q-022): the frozen Phase-9 waypoint for an obligation,
+	**	the road's own crossing for anything else, projected onto the obstruction.  Both are the window's own
+	**	station here, because Phase 10 routes every crossing straight through its window's frozen approach
+	**	points and the window's centre stands on the obstruction; its frame is Step 18's own.  The literal
+	**	"exactly 64 uniformly spaced stations including both endpoints" is an even count and never samples the
+	**	centre of the interval, so it could drop the crossing the road actually makes from its own candidates.
+	*/
+	HybridObstructionStation anchor;
+	if ((centre - window.Center).Length() <= k.Q) {
+		anchor.Centre		= window.Center;
+		anchor.Tangent		= window.Tangent;
+		anchor.HalfSpan	= 0.5f * window.Span;
+		anchor.Offset		= 0.0f;
+	} else {
+		DynamicVectorClass<HybridObstructionStation> projected;
+		Hybrid_Obstruction_Stations(*b.Hydrology,*b.Landforms,window,centre,0.0f,spacing,2,&projected);
+		if (projected.Count() == 0) return;
+		anchor = projected[0];
+		anchor.Offset = 0.0f;
 	}
+
+	/*
+	**	The rest of the interval: `-half_length .. +half_length` along the obstruction at `min(W,A/2)`, or
+	**	exactly `cap` uniform stations including both endpoints when there would be more, then quantized and
+	**	deduplicated.  The total never exceeds `cap`: a grid station on the anchor is the anchor, and when the
+	**	grid is already full the grid station nearest the anchor that is not an endpoint gives way to it.
+	*/
+	DynamicVectorClass<HybridObstructionStation> grid;
+	Hybrid_Obstruction_Stations(*b.Hydrology,*b.Landforms,window,anchor.Centre,half_length,spacing,cap,&grid);
+
+	int replaced = -1;
+	for (int s = 0; (s < grid.Count()) && (replaced < 0); ++s) {
+		if ((grid[s].Centre - anchor.Centre).Length() <= k.Q) replaced = s;
+	}
+	if ((replaced < 0) && (grid.Count() >= cap)) {
+		float nearest = 3.4e38f;
+		for (int s = 1; s < (grid.Count() - 1); ++s) {
+			const float distance = (float)fabs((double)grid[s].Offset);
+			if (distance >= nearest) continue;
+			nearest = distance;
+			replaced = s;
+		}
+	}
+
+	out->Add(anchor);
+	for (int s = 0; s < grid.Count(); ++s) {
+		if (s == replaced) continue;
+		if (out->Count() >= cap) break;
+		out->Add(grid[s]);
+	}
+}
+
+
+void Hybrid_Crossing_Station_List(const HybridInteractionParams & params,const HybridHydrologySet & hydrology,
+											 const HybridLandformSet & landforms,const HybridCrossingWindow & window,
+											 const Vector2 & centre,DynamicVectorClass<HybridObstructionStation> * out)
+{
+	InteractionBuilder b;
+	::memset(&b,0,sizeof(b));
+	b.P			= &params;
+	b.Hydrology	= &hydrology;
+	b.Landforms	= &landforms;
+	Build_Stations(b,window,centre,out);
+}
+
+
+/*
+**	A window's own two frozen approach points in the order this road drives them.  The road was routed
+**	through exactly these, so a crossing at the window's own station reaches them exactly rather than through
+**	a recomputation that rounds a few thousandths away from where the road actually is.
+*/
+static void Own_Approaches(const HybridCrossingWindow & window,const Vector2 & ingress,Vector2 * first_out,
+									Vector2 * second_out)
+{
+	const bool from_a = ((ingress - window.ApproachA).Length() <= (ingress - window.ApproachB).Length());
+	*first_out	= from_a ? window.ApproachA : window.ApproachB;
+	*second_out	= from_a ? window.ApproachB : window.ApproachA;
 }
 
 
@@ -702,30 +874,15 @@ static bool Station_Is_Hard_Valid(InteractionBuilder & b,const HybridTopologyEdg
 	if (approach_b_out != nullptr) *approach_b_out = approach_b;
 
 	/*
-	**	1 and 5 together: the road has to reach this station.  The frozen centerline is what it is, so the
-	**	station must lie on it -- within half a roadbed -- and the road's local heading there must cross the
-	**	obstruction rather than run along it, within the class turn radius of the crossing axis.
+	**	1 belongs to the station list -- every station is a point on the obstruction's own centerline
+	**	(Hybrid_Obstruction_Stations) -- and 5's turn-radius half belongs to the road that reaches it, which
+	**	the caller builds and judges once the crossing's controls are known (Hybrid_Build_Crossing_Path).
+	**	Asking instead whether the preliminary centerline passes within some distance of the station anywhere
+	**	along its length accepted stations a hundred units down the river from where the road crosses it, on
+	**	the strength of the same road running along the bank further on.
 	*/
-	float nearest = 3.4e38f;
-	int at = -1;
-	for (int i = 1; i < route.Points.Count(); ++i) {
-		float t = 0.0f;
-		const float distance = Distance_To_Segment(station,route.Points[i - 1],route.Points[i],&t);
-		if (distance >= nearest) continue;
-		nearest	= distance;
-		at			= i;
-	}
-	if ((at < 0) || (nearest > (half_roadbed + k.A))) {
-		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_NO_HARD_VALID_STATION;
-		return false;
-	}
-
-	const Vector2 heading = Unit(route.Points[at] - route.Points[at - 1]);
-	const float alignment = (float)fabs((double)((heading.X * axis.X) + (heading.Y * axis.Y)));
-	if (alignment < 0.5f) {								// more than 60 degrees off the crossing axis
-		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TURN_TOO_TIGHT;
-		return false;
-	}
+	(void)route;
+	(void)half_roadbed;
 
 	//	2: both road-side approach centerlines stay inside placeable bounds.
 	if (!Point_Is_Placeable(b,approach_a) || !Point_Is_Placeable(b,approach_b)) {
@@ -741,33 +898,14 @@ static bool Station_Is_Hard_Valid(InteractionBuilder & b,const HybridTopologyEdg
 	}
 
 	/*
-	**	3 and 5: the straight approach reserve is available on each side and the road can meet the station
-	**	inside its own max grade.  The reserve is measured on the realized ground through the Section-7.1
-	**	vertical feasibility interval, which is the same measure Phase 10 and Phase 12 use.
+	**	3 and 5 -- the straight approach reserve is available, and the connected road can meet the station
+	**	within its max grade and minimum turn radius -- are answered where the road that reaches the station
+	**	exists: Judge_Crossing_Path builds it with the route owner's corner construction and grades the road it
+	**	belongs to with Section 12.1's own solver, the structure holding its own surface.  Measuring a grade from
+	**	each approach end down to the ground *at the station* asked a canyon bridge to meet the canyon floor,
+	**	which its deck never touches, and refused every deep crossing the deck exists to make.
 	*/
-	float station_z = 0.0f;
-	if (!b.Height_At(station,&station_z)) {
-		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_NO_HARD_VALID_STATION;
-		return false;
-	}
-	const HybridVerticalInterval station_interval = Hybrid_Road_Vertical_Interval(station_z,
-																								  b.P->MaxCutDepth,
-																								  b.P->MaxFillHeight);
-	for (int side = 0; side < 2; ++side) {
-
-		const Vector2 & end = (side == 0) ? approach_a : approach_b;
-		float end_z = 0.0f;
-		if (!b.Height_At(end,&end_z)) {
-			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT;
-			return false;
-		}
-		const HybridVerticalInterval end_interval = Hybrid_Road_Vertical_Interval(end_z,b.P->MaxCutDepth,
-																								  b.P->MaxFillHeight);
-		if (!Hybrid_Grade_Compatible(end_interval,station_interval,(end - station).Length(),max_grade)) {
-			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
-			return false;
-		}
-	}
+	(void)max_grade;
 
 	/*
 	**	6 belongs to whatever actually carries the vehicle, so it is asked where the method is known rather
@@ -863,8 +1001,6 @@ static int Select_Bridge_Kind(const InteractionBuilder & b,HybridRoadClass road_
 	const float required_width = Hybrid_Bridge_Clear_Width(road_class,k.W,Required_Swept_Width(b,capabilities),
 																			 b.P->MinVehicleLaneClearance);
 
-	//	The abutment seats each bridge needs at its two ends, in the plan's own canonical terms: one lane.
-	const float seated_span = span + (2.0f * k.W);
 
 	int best = -1;
 	bool width_seen = false;
@@ -875,12 +1011,14 @@ static int Select_Bridge_Kind(const InteractionBuilder & b,HybridRoadClass road_
 		const HybridBridgeKind & kind = b.P->BridgeKinds[i];
 		if (kind.ClearWidth < required_width) continue;
 		width_seen = true;
-		if (!(kind.MaxSpan >= seated_span)) continue;
+		//	The measured obstruction plus both canonical abutment seats -- the kind's own cap sections.
+		if (!(kind.MaxSpan >= (span + kind.StartSeat + kind.EndSeat))) continue;
 		span_seen = true;
 
-		const float approach = (kind.RequiredApproachLength > 0.0f) ? kind.RequiredApproachLength
-																					 : (STATION_HALF_LENGTH_W * k.W);
-		if (approach > available_approach) continue;
+		//	The required straight, `max(8W, required_approach_length)`, against what the road offers -- measured on
+		//	positions written to `Q`, so the comparison carries that rounding and nothing more.
+		const float approach = Max2(STATION_HALF_LENGTH_W * k.W,kind.RequiredApproachLength);
+		if (approach > (available_approach + (2.0f * k.Q))) continue;
 
 		if (best < 0) {
 			best = i;
@@ -990,6 +1128,10 @@ static bool Bridge_Vertical_Geometry(const InteractionBuilder & b,HybridObstruct
 **	The swept proxy validation every compiled interval gets before the gate.
 ***********************************************************************************************/
 
+//	Defined with the crossing path judge below.
+static float Path_Station_Of(const HybridCrossingPath & path,const Vector2 & point);
+
+
 /*
 **	"Before the phase gate, run lightweight swept proxy validation over every compiled bridge/pass/
 **	tunnel/overpass interval using the cached collision envelopes."
@@ -1015,29 +1157,68 @@ static bool Sweep_Is_Clear(InteractionBuilder & b,const HybridInteraction & one,
 	}
 	spacing = Max2(spacing,k.Q);
 
-	const float length = (one.ApproachB - one.ApproachA).Length();
-	const int steps = (int)::ceil((double)(length / spacing));
+	/*
+	**	The swept line is the road the crossing is actually driven on -- its frozen path when it has one, the
+	**	straight between its two ends otherwise -- and a structure's own deck or bore carries its own surface,
+	**	so the ground under it is not what a vehicle drives on.
+	*/
+	DynamicVectorClass<Vector2> line;
+	DynamicVectorClass<float> stations;
+	if (one.Path.Points.Count() >= 2) {
+		for (int i = 0; i < one.Path.Points.Count(); ++i) {
+			line.Add(one.Path.Points[i]);
+			stations.Add(one.Path.Stations[i]);
+		}
+	} else {
+		line.Add(one.ApproachA);
+		line.Add(one.ApproachB);
+		stations.Add(0.0f);
+		stations.Add((one.ApproachB - one.ApproachA).Length());
+	}
+	const float total = stations[stations.Count() - 1];
+
+	float structure_from = total + 1.0f;
+	float structure_to = total + 1.0f;
+	if (one.Method == HYBRID_METHOD_OVERPASS) {
+		structure_from	= 0.0f;
+		structure_to	= total;
+	} else if ((one.Method == HYBRID_METHOD_BRIDGE) || (one.Method == HYBRID_METHOD_TUNNEL)) {
+		const Vector2 axis = Unit(one.Tangent);
+		const float half_before = one.DeckReachA;
+		const float half_after = one.DeckReachB;
+		const Vector2 middle = (one.Method == HYBRID_METHOD_BRIDGE)
+										? one.Station : ((one.ApproachA + one.ApproachB) * 0.5f);
+		HybridCrossingPath probe;
+		probe.Points = line;
+		probe.Stations = stations;
+		structure_from = Path_Station_Of(probe,middle - (axis * half_before));
+		structure_to = Path_Station_Of(probe,middle + (axis * half_after));
+		if (structure_to < structure_from) {
+			const float swap = structure_from;
+			structure_from	= structure_to;
+			structure_to	= swap;
+		}
+	}
+
+	const int steps = (int)::ceil((double)(total / spacing));
 	const int count = (steps > 0) ? steps : 1;
-	const Vector2 axis = Unit(one.ApproachB - one.ApproachA);
-	const Vector2 normal(-axis.Y,axis.X);
-
-	//	A structural deck carries its own surface, so the ground under it is not what a vehicle drives on.
-	const bool structural = (one.Method == HYBRID_METHOD_BRIDGE) ||
-									(one.Method == HYBRID_METHOD_OVERPASS) ||
-									(one.Method == HYBRID_METHOD_TUNNEL);
-
 	for (int i = 0; i <= count; ++i) {
 
-		const float ratio = (float)i / (float)count;
-		const Vector2 point(one.ApproachA.X + ((one.ApproachB.X - one.ApproachA.X) * ratio),
-								  one.ApproachA.Y + ((one.ApproachB.Y - one.ApproachA.Y) * ratio));
+		const float at = total * ((float)i / (float)count);
+		const Vector2 point = Hybrid_Polyline_Point_At(line,stations,at);
 		b.Out->SweepSamples++;
 
 		if (!Point_Is_Placeable(b,point)) {
 			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_RESERVE_CONFLICT;
 			return false;
 		}
-		if (structural) continue;
+		if ((at >= structure_from) && (at <= structure_to)) continue;
+
+		//	Across the road where it is: the local direction of the line, not the crossing's own axis.
+		const Vector2 ahead = Hybrid_Polyline_Point_At(line,stations,Min2(at + spacing,total));
+		const Vector2 behind = Hybrid_Polyline_Point_At(line,stations,Max2(at - spacing,0.0f));
+		const Vector2 direction = Unit(ahead - behind);
+		const Vector2 normal(-direction.Y,direction.X);
 
 		float left = 0.0f;
 		float right = 0.0f;
@@ -1062,6 +1243,19 @@ static bool Sweep_Is_Clear(InteractionBuilder & b,const HybridInteraction & one,
 /***********************************************************************************************
 **	The method orders.  Each one is the plan's, and each one is fixed.
 ***********************************************************************************************/
+
+/*
+**	A window's crossing axis in the direction this road drives it: from the bank its interval enters by to
+**	the other.  Phase 6 named one approach `A` and the other `B` without knowing which way any road would
+**	come, so the road's own ingress decides which end of a compiled crossing is first.
+*/
+static Vector2 Travel_Axis(const HybridCrossingWindow & window,const Vector2 & ingress)
+{
+	const Vector2 axis = Unit(window.ApproachB - window.ApproachA);
+	const bool from_a = ((ingress - window.ApproachA).Length() <= (ingress - window.ApproachB).Length());
+	return from_a ? axis : Vector2(-axis.X,-axis.Y);
+}
+
 
 /*
 **	How much straight road is available either side of a crossing, measured on the route the road already
@@ -1096,9 +1290,449 @@ static bool Approach_Grade(InteractionBuilder & b,const Vector2 & station,float 
 }
 
 
+/***********************************************************************************************
+**	The road that reaches a compiled crossing.
+***********************************************************************************************/
+
 /*
-**	A bridge at the lowest-score hard-valid station.  Used by road x river and road x canyon/ravine alike:
-**	the two differ in their fallback order and in Section 12.3's vertical geometry, not in this.
+**	May a road stand here?  Step 18's approach-sample rules, which judged the window's own approaches --
+**	placeable, no standing water, no other river's channel, no explicit wall other than the crossing's own --
+**	and clear of any base or field reserve the edge has no business in.
+*/
+static bool Path_Point_Is_Legal(const InteractionBuilder & b,const HybridTopologyEdge & edge,
+										  const HybridCrossingWindow & window,const Vector2 & point,
+										  HybridInteractionProblem * problem_out)
+{
+	if (!Point_Is_Placeable(b,point)) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT;
+		return false;
+	}
+	if (!Hybrid_Crossing_Ground_Is_Clear(*b.Hydrology,*b.Landforms,window.Obstruction,window.ObstructionRecordId,
+													 point)) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT;
+		return false;
+	}
+	if (Reserve_Hits_Unrelated_Reserve(b,edge,point,point)) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_RESERVE_CONFLICT;
+		return false;
+	}
+	return true;
+}
+
+
+//	The arc length on `path` nearest `point`.
+static float Path_Station_Of(const HybridCrossingPath & path,const Vector2 & point)
+{
+	float best = 3.4e38f;
+	float station = 0.0f;
+	for (int i = 1; i < path.Points.Count(); ++i) {
+		float t = 0.0f;
+		const float distance = Distance_To_Segment(point,path.Points[i - 1],path.Points[i],&t);
+		if (distance >= best) continue;
+		best		= distance;
+		station	= path.Stations[i - 1] + ((path.Stations[i] - path.Stations[i - 1]) * t);
+	}
+	return station;
+}
+
+
+/***********************************************************************************************
+**	A road as it will be realized, and its structures, for Section 12.1.
+***********************************************************************************************/
+
+//	The station on a realized road of the point nearest `point`, over its samples `lo..hi`.
+static float Realized_Station_Of(const HybridRoute & road,int lo,int hi,const Vector2 & point)
+{
+	float best = 3.4e38f;
+	float station = road.Stations[lo];
+	for (int i = lo + 1; i <= hi; ++i) {
+		float t = 0.0f;
+		const float distance = Distance_To_Segment(point,road.Points[i - 1],road.Points[i],&t);
+		if (distance >= best) continue;
+		best		= distance;
+		station	= road.Stations[i - 1] + ((road.Stations[i] - road.Stations[i - 1]) * t);
+	}
+	return station;
+}
+
+
+//	Where a crossing path lies on the realized road: the samples its first and last points were copied to.
+static bool Realized_Range(const HybridRoute & road,const HybridCrossingPath & path,int * lo_out,int * hi_out)
+{
+	const int count = path.Points.Count();
+	if (count < 2) return false;
+	for (int i = 0; i < road.Points.Count(); ++i) {
+		if (road.Points[i] != path.Points[0]) continue;
+		for (int j = i + 1; j < road.Points.Count(); ++j) {
+			if (road.Points[j] != path.Points[count - 1]) continue;
+			*lo_out = i;
+			*hi_out = j;
+			return true;
+		}
+	}
+	return false;
+}
+
+
+/*
+**	A compiled crossing's structure on the realized road it belongs to: where its deck or bore starts and
+**	stops, and the surface it holds -- a river deck or an overpass deck level at its top, a canyon or ravine
+**	deck and a tunnel bore carried between the two end elevations the record froze.  False when the method
+**	builds no structure (a pass, a cut, a junction).
+*/
+static bool Compiled_Structure(const HybridInteraction & one,const HybridRoute & road,HybridProfileStructure * out)
+{
+	if (road.Points.Count() < 2) return false;
+	const int last = road.Points.Count() - 1;
+
+	if (one.Method == HYBRID_METHOD_OVERPASS) {
+		const float centre = Realized_Station_Of(road,0,last,one.Station);
+		out->From		= centre - (0.5f * one.Span);
+		out->To			= centre + (0.5f * one.Span);
+		out->Mode		= HYBRID_PROFILE_STRUCTURE_LEVEL;
+		out->EndsFixed	= true;
+		out->StartZ		= one.DeckTopZ;
+		out->EndZ		= one.DeckTopZ;
+		return true;
+	}
+	if ((one.Method != HYBRID_METHOD_BRIDGE) && (one.Method != HYBRID_METHOD_TUNNEL)) return false;
+
+	int lo = 0;
+	int hi = last;
+	if (!Realized_Range(road,one.Path,&lo,&hi)) return false;
+
+	const Vector2 axis = Unit(one.Tangent);
+	const Vector2 from_point = one.Station - (axis * one.DeckReachA);
+	const Vector2 to_point = one.Station + (axis * one.DeckReachB);
+
+	out->From		= Realized_Station_Of(road,lo,hi,from_point);
+	out->To			= Realized_Station_Of(road,lo,hi,to_point);
+	out->EndsFixed	= true;
+	const bool level = (one.Method == HYBRID_METHOD_BRIDGE) && (one.Obstruction == HYBRID_OBSTRUCTION_RIVER);
+	out->Mode		= level ? HYBRID_PROFILE_STRUCTURE_LEVEL : HYBRID_PROFILE_STRUCTURE_CARRIED;
+	out->StartZ		= level ? one.DeckTopZ : one.DeckStartZ;
+	out->EndZ		= level ? one.DeckTopZ : one.DeckEndZ;
+	if (out->To < out->From) {
+		const float swap = out->From;
+		out->From	= out->To;
+		out->To		= swap;
+	}
+	return true;
+}
+
+
+bool Hybrid_Road_Profile_Structures(const HybridInteractionSet & set,const HybridRoute & realized,
+												DynamicVectorClass<HybridProfileStructure> * out)
+{
+	if (out == nullptr) return false;
+	out->Delete_All();
+	for (int i = 0; i < set.Interactions.Count(); ++i) {
+		const HybridInteraction & one = set.Interactions[i];
+		if (one.EdgeId != realized.EdgeId) continue;
+		HybridProfileStructure structure;
+		if (!Compiled_Structure(one,realized,&structure)) {
+			if ((one.Method == HYBRID_METHOD_BRIDGE) || (one.Method == HYBRID_METHOD_TUNNEL) ||
+				 (one.Method == HYBRID_METHOD_OVERPASS)) return false;
+			continue;
+		}
+		out->Add(structure);
+	}
+	return true;
+}
+
+
+/*
+**	What a compiled crossing's structure does to the road's profile.
+*/
+enum CrossingStructure
+{
+	CROSSING_STRUCTURE_NONE = 0,		// the road stays on the ground the whole way: a pass, a cut
+	CROSSING_STRUCTURE_LEVEL,			// a level deck at a fixed top both approaches must reach: a river bridge
+	CROSSING_STRUCTURE_CARRIED			// a deck or bore between the road's own elevations at its ends
+};
+
+
+/*
+**	"The connected road can meet the station within its max grade and minimum turn radius", answered by
+**	building that road.
+**
+**	`controls` are the crossing's own centerline in travel order, the first on the interval's ingress side.
+**	The path is Hybrid_Build_Crossing_Path's -- the route owner's arc-straight-arc connectors at the class
+**	turn radius, departing and rejoining the Phase-10 centerline inside the station search's own `max(8W,4S)`,
+**	and the crossing's own controls with D-009 fillets -- and it is refused when it cannot be built, when it
+**	would overlap another crossing this road already compiled, when any ground sample of it stands somewhere a
+**	road may not, or when Section 12.1's own solver cannot give it a profile.  That solver is the one Phase 12
+**	realizes the road with, so a crossing accepted here is one the realization can actually grade.
+**
+**	`structure_centre` / `structure_axis` and the two halves place a deck or a bore on the path -- a bridge's
+**	reaches past its obstruction by its own start and end abutment seats, which can differ.  A LEVEL
+**	structure holds every sample on it at `pin_z`; a CARRIED one holds its samples to the grade alone, on the
+**	line between the ground at its two ends, and its two end elevations come back in `start_z_out` and
+**	`end_z_out` -- Section 12.3's canyon deck "between those endpoint elevations", which "does not descend
+**	toward the canyon floor".
+*/
+static bool Judge_Crossing_Path(InteractionBuilder & b,const HybridTopologyEdge & edge,const HybridRoute & route,
+										  const HybridRouteStructuralSpan & interval,const HybridCrossingWindow & window,
+										  const Vector2 * controls,int control_count,const Vector2 & structure_centre,
+										  const Vector2 & structure_axis,float half_before,float half_after,
+										  CrossingStructure structure,
+										  float pin_z,HybridCrossingPath * path_out,float * start_z_out,
+										  float * end_z_out,HybridInteractionProblem * problem_out)
+{
+	const HybridConstants & k = b.P->Constants;
+	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(edge.RoadClass);
+	const float radius = spec.MinTurnRadiusW * k.W;
+	const float spacing = Max2(Min2(k.W,0.5f * k.A),k.Q);
+	if (start_z_out != nullptr) *start_z_out = pin_z;
+	if (end_z_out != nullptr) *end_z_out = pin_z;
+
+	if (!Hybrid_Build_Crossing_Path(route,interval.FirstPoint,interval.LastPoint,controls,control_count,radius,
+											  spacing,k.Q,Station_Half_Length(k),path_out,nullptr)) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TURN_TOO_TIGHT;
+		return false;
+	}
+
+	/*
+	**	Two crossings on one road may not claim the same stretch of it.  Two windows back to back may share the
+	**	one sample where the first rejoins and the second departs; anything more is the same road twice.
+	*/
+	for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
+		const HybridInteraction & other = b.Out->Interactions[i];
+		if ((other.EdgeId != edge.StableId) || (other.Path.Points.Count() == 0)) continue;
+		if ((other.Method == HYBRID_METHOD_OVERPASS) || (other.Method == HYBRID_METHOD_AT_GRADE_JUNCTION)) continue;
+		if ((path_out->RejoinPoint <= other.Path.DepartPoint) || (path_out->DepartPoint >= other.Path.RejoinPoint)) {
+			continue;
+		}
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING;
+		return false;
+	}
+
+	//	Where the structure starts and stops on the path.
+	const bool has_structure = (structure != CROSSING_STRUCTURE_NONE) && ((half_before + half_after) > 0.0f);
+	const float total = path_out->Stations[path_out->Stations.Count() - 1];
+	float structure_from = total;
+	float structure_to = total;
+	if (has_structure) {
+		const Vector2 axis = Unit(structure_axis);
+		structure_from	= Path_Station_Of(*path_out,structure_centre - (axis * half_before));
+		structure_to	= Path_Station_Of(*path_out,structure_centre + (axis * half_after));
+		if (structure_to < structure_from) {
+			const float swap = structure_from;
+			structure_from	= structure_to;
+			structure_to	= swap;
+		}
+	}
+
+	/*
+	**	Every ground sample stands somewhere a road may, and the ground across the roadbed there can be graded
+	**	level inside the class cross slope -- the same test the gate's swept proxy check applies afterwards, so
+	**	a station that would fail it is refused here, where another station can still be tried.
+	*/
+	const float sample_spacing = Hybrid_Profile_Sample_Spacing(k);
+	const float half_roadbed = 0.5f * Hybrid_Roadbed_Width(edge.RoadClass,k.W);
+	const float max_cross = spec.MaxCrossSlopeDegrees * PI_OVER_180;
+	for (float s = 0.0f; s <= (total + k.Q); s += sample_spacing) {
+		const float at = Min2(s,total);
+		if (has_structure && (at > structure_from) && (at < structure_to)) continue;
+		const Vector2 point = Hybrid_Polyline_Point_At(path_out->Points,path_out->Stations,at);
+		HybridInteractionProblem problem = HYBRID_PROBLEM_NONE;
+		if (!Path_Point_Is_Legal(b,edge,window,point,&problem)) {
+			if (problem_out != nullptr) *problem_out = problem;
+			return false;
+		}
+
+		const Vector2 ahead = Hybrid_Polyline_Point_At(path_out->Points,path_out->Stations,Min2(at + sample_spacing,total));
+		const Vector2 behind = Hybrid_Polyline_Point_At(path_out->Points,path_out->Stations,Max2(at - sample_spacing,0.0f));
+		const Vector2 direction = Unit(ahead - behind);
+		if (direction.Length() <= 0.0f) continue;
+		const Vector2 normal(-direction.Y,direction.X);
+		float left = 0.0f;
+		float right = 0.0f;
+		if (!b.Height_At(point + (normal * half_roadbed),&left) || !b.Height_At(point - (normal * half_roadbed),&right)) {
+			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_CLEARANCE;
+			return false;
+		}
+		const HybridVerticalInterval left_interval = Hybrid_Road_Vertical_Interval(left,b.P->MaxCutDepth,
+																								  b.P->MaxFillHeight);
+		const HybridVerticalInterval right_interval = Hybrid_Road_Vertical_Interval(right,b.P->MaxCutDepth,
+																									b.P->MaxFillHeight);
+		if (!Hybrid_Grade_Compatible(left_interval,right_interval,2.0f * half_roadbed,max_cross)) {
+			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_CROSS_SLOPE;
+			return false;
+		}
+	}
+
+	/*
+	**	And Section 12.1 can grade it -- not the path alone but the road it is part of, exactly as Phase 12 will
+	**	solve it: the road as it will be realized, with every crossing already compiled on it holding its own
+	**	surface and this one holding its own, from the nearest crossing still to be compiled behind it to the
+	**	nearest ahead (whose deck elevations are not known yet, so the road is free there), or the road's ends.
+	**	Judging the connector alone left a river deck to be reached inside its own approach reserve, when the
+	**	road behind it is free to start climbing long before.
+	*/
+	HybridInteractionSet trial;
+	for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
+		const HybridInteraction & other = b.Out->Interactions[i];
+		if (other.EdgeId != edge.StableId) continue;
+		if ((other.Method == HYBRID_METHOD_OVERPASS) || (other.Method == HYBRID_METHOD_AT_GRADE_JUNCTION)) continue;
+		trial.Interactions.Add(other);
+	}
+	HybridInteraction candidate;
+	candidate.StableId	= 0;
+	candidate.EdgeId		= edge.StableId;
+	candidate.WindowId	= window.StableId;
+	candidate.Method		= HYBRID_METHOD_BRIDGE;
+	candidate.ApproachA	= controls[0];
+	candidate.ApproachB	= controls[control_count - 1];
+	candidate.Path			= *path_out;
+	trial.Interactions.Add(candidate);
+
+	HybridRoute road;
+	int lo = 0;
+	int hi = 0;
+	if (!Hybrid_Realized_Route(route,trial,&road) || !Realized_Range(road,*path_out,&lo,&hi)) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING;
+		return false;
+	}
+
+	DynamicVectorClass<HybridProfileStructure> structures;
+	for (int i = 0; (i + 1) < trial.Interactions.Count(); ++i) {
+		HybridProfileStructure one;
+		if (Compiled_Structure(trial.Interactions[i],road,&one)) structures.Add(one);
+	}
+	int own = -1;
+	if (has_structure) {
+		const Vector2 axis = Unit(structure_axis);
+		HybridProfileStructure one;
+		one.From		= Realized_Station_Of(road,lo,hi,structure_centre - (axis * half_before));
+		one.To		= Realized_Station_Of(road,lo,hi,structure_centre + (axis * half_after));
+		if (one.To < one.From) {
+			const float swap = one.From;
+			one.From	= one.To;
+			one.To	= swap;
+		}
+		one.Mode			= (structure == CROSSING_STRUCTURE_LEVEL) ? HYBRID_PROFILE_STRUCTURE_LEVEL
+																			 : HYBRID_PROFILE_STRUCTURE_CARRIED;
+		one.EndsFixed	= (structure == CROSSING_STRUCTURE_LEVEL);
+		one.StartZ		= pin_z;
+		one.EndZ			= pin_z;
+		own = structures.Count();
+		structures.Add(one);
+	}
+
+	//	The stretch: bounded by the crossings on this road that are still to be compiled.
+	float stretch_from = 0.0f;
+	float stretch_to = road.Stations[road.Stations.Count() - 1];
+	const float own_from = road.Stations[lo];
+	const float own_to = road.Stations[hi];
+	for (int s = 0; s < route.Structural.Count(); ++s) {
+		const HybridRouteStructuralSpan & span = route.Structural[s];
+		bool compiled = false;
+		for (int i = 0; (i < trial.Interactions.Count()) && !compiled; ++i) {
+			if (trial.Interactions[i].WindowId == span.WindowId) compiled = true;
+		}
+		if (compiled) continue;
+
+		int at_in = -1;
+		int at_out = -1;
+		for (int i = 0; i < road.Points.Count(); ++i) {
+			if ((at_in < 0) && (road.Points[i] == route.Points[span.FirstPoint])) at_in = i;
+			if (road.Points[i] == route.Points[span.LastPoint]) at_out = i;
+		}
+		if ((at_in < 0) || (at_out < at_in)) continue;
+		if (road.Stations[at_out] <= own_from)	stretch_from = Max2(stretch_from,road.Stations[at_out]);
+		if (road.Stations[at_in] >= own_to)		stretch_to = Min2(stretch_to,road.Stations[at_in]);
+	}
+
+	DynamicVectorClass<HybridProfileSample> samples;
+	HybridSolvedProfile solved;
+	DynamicVectorClass<float> starts;
+	DynamicVectorClass<float> ends;
+	HybridProfileFailure main_why = HYBRID_PROFILE_OK;
+	if (!Hybrid_Solve_Road_Stretch(road.Points,road.Stations,stretch_from,stretch_to,structures,
+											 Hybrid_Profile_Sample_Spacing(k),b.Sample,b.Context,b.P->MaxCutDepth,
+											 b.P->MaxFillHeight,spec.MaxGradeDegrees * PI_OVER_180,k.Q,&samples,&solved,
+											 &starts,&ends,&main_why)) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
+		return false;
+	}
+	if (own >= 0) {
+		if (start_z_out != nullptr) *start_z_out = starts[own];
+		if (end_z_out != nullptr) *end_z_out = ends[own];
+	}
+	return true;
+}
+
+
+/*
+**	The straight approach the road already has at its window's own station, measured on the road itself:
+**	from each edge of the obstruction out along the crossing axis to where the road's turn begins.  Phase 10
+**	runs every crossing straight through its window's frozen approach points and keeps a straight beyond each,
+**	so this is at least Step 18's approach reserve; zero when the road is not straight across at all.
+*/
+static float Own_Straight_Approach(const InteractionBuilder & b,const HybridRoute & route,
+											  const HybridRouteStructuralSpan & interval,const Vector2 & station,
+											  const Vector2 & across,float span)
+{
+	const float q = b.P->Constants.Q;
+	const Vector2 & in = route.Points[interval.FirstPoint];
+	const Vector2 & out = route.Points[interval.LastPoint];
+
+	float behind = 0.0f;
+	float through = 0.0f;
+	float ahead = 0.0f;
+	Hybrid_Polyline_Straight_Run(route.Points,interval.FirstPoint,across,q,&behind,&through);
+	Hybrid_Polyline_Straight_Run(route.Points,interval.LastPoint,across,q,nullptr,&ahead);
+	if (through < ((out - in).Length() - (2.0f * q))) return 0.0f;
+
+	const Vector2 edge_a(station.X - (across.X * 0.5f * span),station.Y - (across.Y * 0.5f * span));
+	const Vector2 edge_b(station.X + (across.X * 0.5f * span),station.Y + (across.Y * 0.5f * span));
+	const float side_a = ((edge_a.X - in.X) * across.X) + ((edge_a.Y - in.Y) * across.Y) + behind;
+	const float side_b = ((out.X - edge_b.X) * across.X) + ((out.Y - edge_b.Y) * across.Y) + ahead;
+	return Max2(0.0f,Min2(side_a,side_b));
+}
+
+
+/*
+**	Do a bridge's two ends stand on legal dry bank?  Everything the deck reaches past the obstruction -- its
+**	abutment caps, and whatever more of the bank it spans to meet the road -- has to be placeable, out of any
+**	water, the crossed river's own channel included, and off any other explicit wall.
+*/
+static bool Abutments_Are_Legal(const InteractionBuilder & b,const HybridCrossingWindow & window,
+										  const Vector2 & station,const Vector2 & across,float span,float reach_before,
+										  float reach_after)
+{
+	const float spacing = Max2(Min2(b.P->Constants.W,0.5f * b.P->Constants.A),b.P->Constants.Q);
+	for (int side = 0; side < 2; ++side) {
+
+		const float beyond = ((side == 0) ? reach_before : reach_after) - (0.5f * span);
+		if (!(beyond > 0.0f)) continue;
+		const float sense = (side == 0) ? -1.0f : 1.0f;
+		const int steps = (int)::ceil((double)(beyond / spacing));
+		const int count = (steps > 0) ? steps : 1;
+		for (int i = 1; i <= count; ++i) {
+			const float out = (0.5f * span) + (beyond * ((float)i / (float)count));
+			const Vector2 point(station.X + (across.X * out * sense),station.Y + (across.Y * out * sense));
+			if (!Point_Is_Placeable(b,point)) return false;
+			if (Hybrid_Point_In_Water(*b.Hydrology,point)) return false;
+			if (!Hybrid_Crossing_Ground_Is_Clear(*b.Hydrology,*b.Landforms,window.Obstruction,
+															 window.ObstructionRecordId,point)) return false;
+		}
+	}
+	return true;
+}
+
+
+/*
+**	A bridge at the lowest-score hard-valid station.  Used by road x river and road x canyon/ravine alike: the
+**	two differ in their fallback order and in Section 12.3's vertical geometry, not in this.
+**
+**	Revised D-009 (Q-022): the window's own station is the crossing Phase 10 already aligned the road with, so
+**	the road crosses there exactly as routed and the straight approach it offers is measured on it.  Any other
+**	station gets a connector, built by the route owner's own corner construction, that turns before the
+**	station's approach endpoint and runs straight from there to the obstruction for exactly the approach the
+**	selected kind needs; a station no legal connector reaches is not hard-valid.  An approach is never
+**	shortened to fit, and a kind whose approach the road cannot give is rejected.
 */
 static bool Compile_Bridge(InteractionBuilder & b,const HybridTopologyEdge & edge,const HybridRoute & route,
 									const HybridRouteStructuralSpan & interval,const HybridCrossingWindow & window,
@@ -1111,12 +1745,11 @@ static bool Compile_Bridge(InteractionBuilder & b,const HybridTopologyEdge & edg
 		return false;
 	}
 
-	const Vector2 across = Unit(window.ApproachB - window.ApproachA);
-	const float span = window.Span;
-	const float available = Available_Approach(route,interval.FirstPoint,interval.LastPoint);
+	const Vector2 ingress = route.Points[interval.FirstPoint];
+	const Vector2 egress = route.Points[interval.LastPoint];
 
-	DynamicVectorClass<Vector2> stations;
-	Build_Stations(b,centre,window.Tangent,&stations);
+	DynamicVectorClass<HybridObstructionStation> stations;
+	Build_Stations(b,window,centre,&stations);
 	if (stations_out != nullptr) *stations_out = stations.Count();
 
 	/*
@@ -1134,64 +1767,176 @@ static bool Compile_Bridge(InteractionBuilder & b,const HybridTopologyEdge & edg
 
 	for (int s = 0; s < stations.Count(); ++s) {
 
-		const float reserve = Max2(STATION_HALF_LENGTH_W * k.W,window.ApproachLength);
-		Vector2 approach_a(0.0f,0.0f);
-		Vector2 approach_b(0.0f,0.0f);
+		/*
+		**	The crossing at this station runs across the obstruction *here*, from the bank the road arrives on
+		**	to the other, and spans the obstruction's own width here.  At the window's own station that is the
+		**	axis the road was routed along.
+		*/
+		const Vector2 & station = stations[s].Centre;
+		const bool own_station = (station == window.Center);
+		Vector2 across(-stations[s].Tangent.Y,stations[s].Tangent.X);
+		if ((((ingress.X - station.X) * across.X) + ((ingress.Y - station.Y) * across.Y)) > 0.0f) across = -across;
+		if (own_station) across = Unit(egress - ingress);
+		const float span = own_station ? window.Span : Hybrid_Quantize_Position(2.0f * stations[s].HalfSpan);
+
 		HybridInteractionProblem problem = HYBRID_PROBLEM_NONE;
 
-		if (!Station_Is_Hard_Valid(b,edge,route,stations[s],across,span,reserve,&approach_a,&approach_b,
-											&problem)) {
-			if (problem != HYBRID_PROBLEM_NONE) station_problem = problem;
-			b.Note_Reject(problem);
-			continue;
-		}
-
-		const int kind_index = Select_Bridge_Kind(b,edge.RoadClass,edge.Capabilities,span,
-																Max2(available,reserve),&problem);
+		//	The asset first: its seats and its approach decide where the deck ends and the road meets it.
+		const float available = own_station ? Own_Straight_Approach(b,route,interval,station,across,span) : 3.4e38f;
+		const int kind_index = Select_Bridge_Kind(b,edge.RoadClass,edge.Capabilities,span,available,&problem);
 		if (kind_index < 0) {
 			if (problem != HYBRID_PROBLEM_NONE) asset_problem = problem;
 			b.Note_Reject(problem);
 			continue;
 		}
 		const HybridBridgeKind & kind = b.P->BridgeKinds[kind_index];
+		const float reserve = Max2(STATION_HALF_LENGTH_W * k.W,kind.RequiredApproachLength);
+
+		Vector2 approach_a(0.0f,0.0f);
+		Vector2 approach_b(0.0f,0.0f);
+		if (!Station_Is_Hard_Valid(b,edge,route,station,across,span,reserve,&approach_a,&approach_b,&problem)) {
+			if (problem != HYBRID_PROBLEM_NONE) station_problem = problem;
+			b.Note_Reject(problem);
+			continue;
+		}
+		if (own_station) Own_Approaches(window,ingress,&approach_a,&approach_b);
 
 		float station_z = 0.0f;
-		if (!b.Height_At(stations[s],&station_z)) continue;
+		if (!b.Height_At(station,&station_z)) continue;
 
 		float grade_a = 0.0f;
 		float grade_b = 0.0f;
 		float bank_z_a = 0.0f;
 		float bank_z_b = 0.0f;
-		if (!Approach_Grade(b,stations[s],station_z,approach_a,&grade_a,&bank_z_a)) continue;
-		if (!Approach_Grade(b,stations[s],station_z,approach_b,&grade_b,&bank_z_b)) continue;
+		if (!Approach_Grade(b,station,station_z,approach_a,&grade_a,&bank_z_a)) continue;
+		if (!Approach_Grade(b,station,station_z,approach_b,&grade_b,&bank_z_b)) continue;
 
 		/*
-		**	The compiled interval is straight, so its measured turn radius is the class minimum rather than
-		**	anything tighter, and the curve term is zero.  The detour term is what moving the station along
-		**	the obstruction costs the road: the road has to reach out to it and back.
+		**	Section 12.3's `abutment_z` is the road's elevation where it meets the deck, and the road meets it at
+		**	the deck's two ends -- not at the approach reserve ends, which can stand a whole tier step away
+		**	across a ravine.  A deck reaches past the obstruction by at least the kind's own abutment seats.  A
+		**	river deck, which is level, also has to reach bank the road can meet it from: the channel is carved
+		**	wider than the water (Phase 7's bank blend), and a deck that stopped at the water's edge would leave
+		**	its abutment in the carved slope, below the reach of the road's fill.  So each end moves out along
+		**	the axis until the ground there is within `grading.max_fill_height` of the deck -- the legacy bridge
+		**	planner's own bank search, stated in the road's own vertical interval -- and the kind is re-chosen
+		**	for the longer deck.  It may not reach past the straight approach.
 		*/
-		const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(edge.RoadClass);
-		const float measured_radius = spec.MinTurnRadiusW * k.W;
-
-		float offset = 3.4e38f;
-		for (int i = 1; i < route.Points.Count(); ++i) {
-			const float distance = Distance_To_Segment(stations[s],route.Points[i - 1],route.Points[i],
-																	 nullptr);
-			if (distance < offset) offset = distance;
-		}
-		const float added_length = (offset < 3.4e38f) ? (2.0f * offset) : 0.0f;
-
-		const float score = Bridge_Candidate_Score(b,edge.RoadClass,kind,span,bank_z_a,bank_z_b,grade_a,
-																 grade_b,measured_radius,added_length);
-
+		const bool level_deck = (window.Obstruction == HYBRID_OBSTRUCTION_RIVER);
+		const float reach_step = Hybrid_Profile_Sample_Spacing(k);
+		float reach_before = (0.5f * span) + kind.StartSeat;
+		float reach_after = (0.5f * span) + kind.EndSeat;
 		float bottom = 0.0f;
 		float top = 0.0f;
-		if (!Bridge_Vertical_Geometry(b,window.Obstruction,kind,stations[s],bank_z_a,bank_z_b,&bottom,&top,
-												&problem)) {
+		bool settled = false;
+		bool refused = false;
+		int chosen = kind_index;
+		for (int pass = 0; (pass < 8) && !settled && !refused; ++pass) {
+
+			const HybridBridgeKind & now = b.P->BridgeKinds[chosen];
+			reach_before	= Max2(reach_before,(0.5f * span) + now.StartSeat);
+			reach_after		= Max2(reach_after,(0.5f * span) + now.EndSeat);
+
+			float seat_z_a = 0.0f;
+			float seat_z_b = 0.0f;
+			if (!b.Height_At(station - (across * reach_before),&seat_z_a) ||
+				 !b.Height_At(station + (across * reach_after),&seat_z_b)) {
+				refused = true;
+				break;
+			}
+			if (!Bridge_Vertical_Geometry(b,window.Obstruction,now,station,seat_z_a,seat_z_b,&bottom,&top,
+													&problem)) {
+				if (problem != HYBRID_PROBLEM_NONE) geometry_problem = problem;
+				refused = true;
+				break;
+			}
+			if (!level_deck) {
+				settled = true;
+				break;
+			}
+
+			bool moved = false;
+			for (int side = 0; (side < 2) && !refused; ++side) {
+				float & reach = (side == 0) ? reach_before : reach_after;
+				const float sense = (side == 0) ? -1.0f : 1.0f;
+				for (;;) {
+					float ground = 0.0f;
+					const Vector2 at(station.X + (across.X * reach * sense),station.Y + (across.Y * reach * sense));
+					if (!b.Height_At(at,&ground)) {
+						refused = true;
+						break;
+					}
+					if ((ground + b.P->MaxFillHeight) >= top) break;
+					reach += reach_step;
+					moved = true;
+					if (reach > ((0.5f * span) + reserve)) {
+						problem = HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT;
+						geometry_problem = problem;
+						refused = true;
+						break;
+					}
+				}
+			}
+			if (refused) break;
+
+			//	A longer deck may need a kind with a longer span.
+			const float deck = reach_before + reach_after;
+			const float measured = deck - now.StartSeat - now.EndSeat;
+			if (deck > now.MaxSpan) {
+				const int again = Select_Bridge_Kind(b,edge.RoadClass,edge.Capabilities,measured,available,&problem);
+				if ((again < 0) || (again == chosen)) {
+					if (problem == HYBRID_PROBLEM_NONE) problem = HYBRID_PROBLEM_SPAN_TOO_LONG;
+					asset_problem = problem;
+					refused = true;
+					break;
+				}
+				chosen = again;
+				continue;
+			}
+			if (!moved) settled = true;
+		}
+		if (!settled || refused) {
+			b.Note_Reject(problem);
+			continue;
+		}
+		const HybridBridgeKind & built = b.P->BridgeKinds[chosen];
+		const float half_before = Hybrid_Quantize_Position(reach_before);
+		const float half_after = Hybrid_Quantize_Position(reach_after);
+
+		if (!Abutments_Are_Legal(b,window,station,across,span,half_before,half_after)) {
+			geometry_problem = HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT;
+			b.Note_Reject(HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT);
+			continue;
+		}
+
+		/*
+		**	The road that crosses at this station: the routed road itself at the window's own station, a
+		**	connector anywhere else.  A river deck is level at its top and both approaches are graded up to it,
+		**	exactly as Phase 12 will grade them.  A canyon or ravine deck runs between the two road profiles at
+		**	its ends and never dips toward the floor, so its two ends are whatever the road's own profile makes
+		**	them, and its top and underside follow from them.
+		*/
+		HybridCrossingPath path;
+		const Vector2 controls[2] = { approach_a,approach_b };
+		float start_z = top;
+		float end_z = top;
+		if (!Judge_Crossing_Path(b,edge,route,interval,window,controls,2,station,across,half_before,half_after,
+										 level_deck ? CROSSING_STRUCTURE_LEVEL : CROSSING_STRUCTURE_CARRIED,top,&path,
+										 &start_z,&end_z,&problem)) {
 			if (problem != HYBRID_PROBLEM_NONE) geometry_problem = problem;
 			b.Note_Reject(problem);
 			continue;
 		}
+
+		/*
+		**	Every corner of that road is a fillet at the class radius, so its tightest measured radius is the
+		**	class minimum and the curve term is zero.  The detour term is the plan's `added_route_length`: the
+		**	road's length through the two approach-reserve endpoints less the straight distance between its ends.
+		*/
+		const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(edge.RoadClass);
+		const float measured_radius = spec.MinTurnRadiusW * k.W;
+		const float score = Bridge_Candidate_Score(b,edge.RoadClass,built,span,bank_z_a,bank_z_b,grade_a,
+																 grade_b,measured_radius,path.AddedLength);
 
 		//	Lower score wins; a tie keeps the earlier station, which is the Section 0.3 stable order here.
 		if (found && !(score < best_score)) continue;
@@ -1204,18 +1949,26 @@ static bool Compile_Bridge(InteractionBuilder & b,const HybridTopologyEdge & edg
 		best.Mandatory				= mandatory;
 		best.Method					= HYBRID_METHOD_BRIDGE;
 		best.RoadClass				= edge.RoadClass;
-		best.Station				= stations[s];
+		best.Station				= station;
 		best.Tangent				= across;
 		best.ApproachA				= approach_a;
 		best.ApproachB				= approach_b;
 		best.Span					= span;
-		best.ApproachReserve		= (kind.RequiredApproachLength > 0.0f) ? kind.RequiredApproachLength
-																					  : (STATION_HALF_LENGTH_W * k.W);
-		best.BridgeKind			= kind_index;
+		best.ApproachReserve		= reserve;
+		best.BridgeKind			= chosen;
+		best.DeckReachA			= half_before;
+		best.DeckReachB			= half_after;
+		if (!level_deck) {
+			top		= Hybrid_Quantize_Position(Max2(start_z,end_z));
+			bottom	= Hybrid_Quantize_Position(Min2(start_z,end_z) - built.StructuralDepth);
+		}
 		best.DeckBottomZ			= bottom;
 		best.DeckTopZ				= top;
+		best.DeckStartZ			= Hybrid_Quantize_Position(start_z);
+		best.DeckEndZ				= Hybrid_Quantize_Position(end_z);
 		best.FirstPoint			= interval.FirstPoint;
 		best.LastPoint				= interval.LastPoint;
+		best.Path					= path;
 		best.Envelope				= route.Envelope;
 		best.Score					= score;
 		best_score					= score;
@@ -1273,7 +2026,7 @@ static bool Compile_Ford(InteractionBuilder & b,const HybridTopologyEdge & edge,
 		return false;
 	}
 
-	const Vector2 across = Unit(window.ApproachB - window.ApproachA);
+	const Vector2 across = Travel_Axis(window,route.Points[interval.FirstPoint]);
 	const float reserve = Max2(STATION_HALF_LENGTH_W * k.W,window.ApproachLength);
 	Vector2 approach_a(0.0f,0.0f);
 	Vector2 approach_b(0.0f,0.0f);
@@ -1368,7 +2121,7 @@ static bool Compile_Pass(InteractionBuilder & b,const HybridTopologyEdge & edge,
 		return false;
 	}
 
-	const Vector2 across = Unit(window.ApproachB - window.ApproachA);
+	const Vector2 across = Travel_Axis(window,route.Points[interval.FirstPoint]);
 	const float reserve = Max2(STATION_HALF_LENGTH_W * k.W,window.ApproachLength);
 	Vector2 approach_a(0.0f,0.0f);
 	Vector2 approach_b(0.0f,0.0f);
@@ -1408,6 +2161,32 @@ static bool Compile_Pass(InteractionBuilder & b,const HybridTopologyEdge & edge,
 		return false;
 	}
 
+	/*
+	**	The frozen controls in the order this road drives them: Phase 6 built the pass from one side of its
+	**	window, and a road may arrive from either.  The road reaches the first control and leaves from the
+	**	last through the route owner's own fillets -- a band pass leaves the cliff some distance along it from
+	**	where it entered, and its far approach is not the point opposite the station.
+	*/
+	Vector2 controls[HYBRID_LOCAL_PASS_MAX_CONTROLS];
+	const int control_count = window.Pass.ControlCount;
+	const Vector2 & ingress = route.Points[interval.FirstPoint];
+	//	Which end is on the bank the road arrives from is a matter of side, not of distance: a band pass's far
+	//	approach can stand a long way along the cliff from the road and still be on the far side of it.
+	const Vector2 side(-window.Tangent.Y,window.Tangent.X);
+	const float ingress_side = ((ingress.X - window.Center.X) * side.X) + ((ingress.Y - window.Center.Y) * side.Y);
+	const float first_side = ((window.Pass.Controls[0].X - window.Center.X) * side.X) +
+									 ((window.Pass.Controls[0].Y - window.Center.Y) * side.Y);
+	const bool reversed = ((ingress_side > 0.0f) != (first_side > 0.0f));
+	for (int c = 0; c < control_count; ++c) {
+		controls[c] = window.Pass.Controls[reversed ? (control_count - 1 - c) : c];
+	}
+
+	HybridCrossingPath path;
+	if (!Judge_Crossing_Path(b,edge,route,interval,window,controls,control_count,window.Center,across,0.0f,0.0f,
+									 CROSSING_STRUCTURE_NONE,0.0f,&path,nullptr,nullptr,problem_out)) {
+		return false;
+	}
+
 	*out = HybridInteraction();
 	out->EdgeId					= edge.StableId;
 	out->Obstruction			= window.Obstruction;
@@ -1418,15 +2197,12 @@ static bool Compile_Pass(InteractionBuilder & b,const HybridTopologyEdge & edge,
 	out->Station				= Quantized(window.Center);
 	out->Tangent				= across;
 
-	/*
-	**	The compiled ends are the frozen pass's own, not the station's.  A band pass leaves the cliff some
-	**	distance along it from where it entered -- its far approach is the last frozen control, not the point
-	**	opposite the station -- and Phase 12 realizes what Phase 6 froze.  For a floor pass the two coincide.
-	*/
-	out->ApproachA				= window.Pass.Controls[0];
-	out->ApproachB				= window.Pass.Controls[window.Pass.ControlCount - 1];
+	//	The compiled ends are the frozen pass's own, in travel order; Phase 12 realizes what Phase 6 froze.
+	out->ApproachA				= controls[0];
+	out->ApproachB				= controls[control_count - 1];
 	(void)approach_a;
 	(void)approach_b;
+	out->Path					= path;
 	out->Span					= window.Span;
 	out->ApproachReserve		= reserve;
 	out->FirstPoint			= interval.FirstPoint;
@@ -1461,12 +2237,13 @@ static bool Compile_Road_Cut(InteractionBuilder & b,const HybridTopologyEdge & e
 		return false;
 	}
 
-	const Vector2 across = Unit(window.ApproachB - window.ApproachA);
+	const Vector2 across = Travel_Axis(window,route.Points[interval.FirstPoint]);
 	const float reserve = Max2(STATION_HALF_LENGTH_W * k.W,window.ApproachLength);
 	Vector2 approach_a(0.0f,0.0f);
 	Vector2 approach_b(0.0f,0.0f);
 	if (!Station_Is_Hard_Valid(b,edge,route,window.Center,across,window.Span,reserve,&approach_a,
 										&approach_b,problem_out)) return false;
+	Own_Approaches(window,route.Points[interval.FirstPoint],&approach_a,&approach_b);
 
 	float z_a = 0.0f;
 	float z_b = 0.0f;
@@ -1541,6 +2318,14 @@ static bool Compile_Road_Cut(InteractionBuilder & b,const HybridTopologyEdge & e
 		}
 	}
 
+	//	The road through the cut is its own straight interval; Section 12.1 has to be able to grade it.
+	HybridCrossingPath path;
+	const Vector2 controls[2] = { approach_a,approach_b };
+	if (!Judge_Crossing_Path(b,edge,route,interval,window,controls,2,window.Center,across,0.0f,0.0f,
+									 CROSSING_STRUCTURE_NONE,0.0f,&path,nullptr,nullptr,problem_out)) {
+		return false;
+	}
+
 	*out = HybridInteraction();
 	out->EdgeId					= edge.StableId;
 	out->Obstruction			= window.Obstruction;
@@ -1555,6 +2340,7 @@ static bool Compile_Road_Cut(InteractionBuilder & b,const HybridTopologyEdge & e
 	out->Span					= window.Span;
 	out->ApproachReserve		= reserve;
 	out->CutDepth				= Hybrid_Quantize_Position(deepest_cut);
+	out->Path					= path;
 	out->FirstPoint			= interval.FirstPoint;
 	out->LastPoint				= interval.LastPoint;
 	out->Envelope				= route.Envelope;
@@ -1585,12 +2371,13 @@ static bool Compile_Tunnel(InteractionBuilder & b,const HybridTopologyEdge & edg
 	const float swept_width = Required_Swept_Width(b,edge.Capabilities) + (2.0f * b.P->MinVehicleLaneClearance);
 	const float swept_height = Hybrid_Overpass_Clear_Gap(b.P->HeavyVehicleHeight,b.P->WorldUnitsPerMeter);
 
-	const Vector2 across = Unit(window.ApproachB - window.ApproachA);
+	const Vector2 across = Travel_Axis(window,route.Points[interval.FirstPoint]);
 	const float reserve = Max2(STATION_HALF_LENGTH_W * k.W,window.ApproachLength);
 	Vector2 approach_a(0.0f,0.0f);
 	Vector2 approach_b(0.0f,0.0f);
 	if (!Station_Is_Hard_Valid(b,edge,route,window.Center,across,window.Span,reserve,&approach_a,
 										&approach_b,problem_out)) return false;
+	Own_Approaches(window,route.Points[interval.FirstPoint],&approach_a,&approach_b);
 
 	//	Both portals clear of water, base, Tiberium and any bridge approach reserve already compiled.
 	for (int side = 0; side < 2; ++side) {
@@ -1647,6 +2434,17 @@ static bool Compile_Tunnel(InteractionBuilder & b,const HybridTopologyEdge & edg
 		return false;
 	}
 
+	//	The road to each portal; the bore between them is the structure, and carries no ground of its own.
+	HybridCrossingPath path;
+	const Vector2 controls[2] = { approach_a,approach_b };
+	const Vector2 middle((approach_a.X + approach_b.X) * 0.5f,(approach_a.Y + approach_b.Y) * 0.5f);
+	float portal_z_a = 0.0f;
+	float portal_z_b = 0.0f;
+	if (!Judge_Crossing_Path(b,edge,route,interval,window,controls,2,middle,across,0.5f * bore,0.5f * bore,
+									 CROSSING_STRUCTURE_CARRIED,0.0f,&path,&portal_z_a,&portal_z_b,problem_out)) {
+		return false;
+	}
+
 	*out = HybridInteraction();
 	out->EdgeId					= edge.StableId;
 	out->Obstruction			= window.Obstruction;
@@ -1662,6 +2460,11 @@ static bool Compile_Tunnel(InteractionBuilder & b,const HybridTopologyEdge & edg
 	out->ApproachReserve		= reserve;
 	out->TunnelModule			= best;
 	out->TunnelLength			= Hybrid_Quantize_Position(best_length);
+	out->DeckReachA			= Hybrid_Quantize_Position(0.5f * bore);
+	out->DeckReachB			= Hybrid_Quantize_Position(0.5f * bore);
+	out->Path					= path;
+	out->DeckStartZ			= Hybrid_Quantize_Position(portal_z_a);
+	out->DeckEndZ				= Hybrid_Quantize_Position(portal_z_b);
 	out->FirstPoint			= interval.FirstPoint;
 	out->LastPoint				= interval.LastPoint;
 	out->Envelope				= route.Envelope;
@@ -1950,8 +2753,9 @@ static bool At_Grade_Is_Legal(InteractionBuilder & b,const HybridTopologyEdge & 
 static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyEdge & upper_edge,
 												const HybridRoute & upper_route,const HybridTopologyEdge & lower_edge,
 												const HybridRoute & lower_route,const Vector2 & point,
-												const Vector2 & upper_heading,bool upper_is_first,bool mandatory,
-												HybridInteraction * out,HybridInteractionProblem * problem_out)
+												const Vector2 & upper_heading,const Vector2 & lower_heading,
+												bool upper_is_first,bool mandatory,HybridInteraction * out,
+												HybridInteractionProblem * problem_out)
 {
 	const HybridConstants & k = b.P->Constants;
 	const HybridRoadClassSpec & upper_spec = Hybrid_Road_Class_Spec(upper_edge.RoadClass);
@@ -1968,23 +2772,99 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	//	Section 12.3's clearance, plus the structural depth of the deck that carries the upper road.
 	const float gap = Hybrid_Overpass_Clear_Gap(b.P->HeavyVehicleHeight,b.P->WorldUnitsPerMeter);
 	float structural_depth = k.W;						// no registered deck: one lane width of structure
+	/*
+	**	The deck's approach is the upper road's own centerline either side of the crossing -- the ramps run
+	**	along it -- so what a kind's required approach has to fit inside is the shorter of those two arms,
+	**	exactly as a bridge's has to fit inside the road on either side of its interval.
+	*/
+	float arm_before = 0.0f;
+	float arm_after = 0.0f;
+	Arm_Lengths(upper_route,point,&arm_before,&arm_after);
 	int bridge_kind = Select_Bridge_Kind(b,upper_edge.RoadClass,upper_edge.Capabilities,
-													 Hybrid_Roadbed_Width(lower_edge.RoadClass,
-																												k.W),
-													 STATION_HALF_LENGTH_W * k.W,nullptr);
-	if (bridge_kind >= 0) structural_depth = b.P->BridgeKinds[bridge_kind].StructuralDepth;
+													 Hybrid_Roadbed_Width(lower_edge.RoadClass,k.W),
+													 Min2(arm_before,arm_after),nullptr);
+	/*
+	**	The deck is a registered bridge kind, realized through BridgeSystem in Phase 12; a road x road crossing
+	**	that no registered kind can carry is not an overpass this generator can build, and it says so rather
+	**	than inventing a structure of its own.
+	*/
+	if (bridge_kind < 0) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_METHOD_UNAVAILABLE;
+		return false;
+	}
+	structural_depth = b.P->BridgeKinds[bridge_kind].StructuralDepth;
 
 	const float deck_bottom = lower_z + gap;
 	const float deck_top = deck_bottom + structural_depth;
+	const float tangent = (float)::tan((double)max_grade);
+
+	/*
+	**	Where the crossing stands on the upper road, and how long the level deck has to be: the strip of the
+	**	upper deck that lies over the lower roadbed, at the angle the two roads actually meet.  Measured along
+	**	the upper road that is `w_lower / sin(theta) + w_deck * |cot(theta)|`, so a skew crossing gets the
+	**	longer deck it needs and the upper road's own embankment never stands on the lower roadbed.
+	*/
+	const float total = upper_route.Stations[upper_route.Stations.Count() - 1];
+	float centre_station = 0.0f;
+	{
+		float best = 3.4e38f;
+		for (int i = 1; i < upper_route.Points.Count(); ++i) {
+			float t_on = 0.0f;
+			const float distance = Distance_To_Segment(point,upper_route.Points[i - 1],upper_route.Points[i],&t_on);
+			if (distance >= best) continue;
+			best = distance;
+			centre_station = upper_route.Stations[i - 1] +
+								  ((upper_route.Stations[i] - upper_route.Stations[i - 1]) * t_on);
+		}
+	}
 
 	const Vector2 axis = Unit(upper_heading);
-	const Vector2 normal(-axis.Y,axis.X);
-	const float tangent = (float)::tan((double)max_grade);
+	const Vector2 under = Unit(lower_heading);
+	const float sine = (float)fabs((double)((axis.X * under.Y) - (axis.Y * under.X)));
+	const float cosine = (float)fabs((double)((axis.X * under.X) + (axis.Y * under.Y)));
+	if (sine <= 1.0e-3f) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TURN_TOO_TIGHT;
+		return false;
+	}
+	/*
+	**	The deck carries the upper road at Section 12.4's clear width -- the wider of its carriageway and the
+	**	swept envelope it must carry with the lane clearance either side -- and never narrower than its own
+	**	roadbed; BridgeSystem is handed that width, not the registered kind's widest.
+	*/
+	const float deck_width = Max2(Hybrid_Roadbed_Width(upper_edge.RoadClass,k.W),
+											Hybrid_Bridge_Clear_Width(upper_edge.RoadClass,k.W,
+																			  Required_Swept_Width(b,upper_edge.Capabilities),
+																			  b.P->MinVehicleLaneClearance));
+	const float deck_length = (Hybrid_Roadbed_Width(lower_edge.RoadClass,k.W) / sine) +
+									  ((deck_width * cosine) / sine);
+	const float half_deck = 0.5f * deck_length;
+
+	//	The deck is a straight bridge, so the upper road has to run straight under all of it.
+	{
+		int at = 0;
+		float nearest = 3.4e38f;
+		for (int i = 0; i < upper_route.Points.Count(); ++i) {
+			const float distance = (upper_route.Points[i] - point).Length();
+			if (distance >= nearest) continue;
+			nearest = distance;
+			at = i;
+		}
+		float behind = 0.0f;
+		float ahead = 0.0f;
+		Hybrid_Polyline_Straight_Run(upper_route.Points,at,axis,k.Q,&behind,&ahead);
+		const Vector2 offset = point - upper_route.Points[at];
+		const float along = (offset.X * axis.X) + (offset.Y * axis.Y);
+		if ((behind < (half_deck - along - (2.0f * k.Q))) || (ahead < (half_deck + along - (2.0f * k.Q)))) {
+			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TURN_TOO_TIGHT;
+			return false;
+		}
+	}
 
 	/*
 	**	The ramp is measured against the rise it actually has to make: from the road's own elevation at each
 	**	ramp foot up to the deck, not from the ground under the crossing.  Each side is sized on its own rise
-	**	and the longer of the two is reserved, because the plan reserves `L_ramp` on each side.
+	**	and the longer of the two is reserved, because the plan reserves `L_ramp` on each side.  The feet stand
+	**	on the upper road's own centerline, `L_ramp` beyond each end of the deck.
 	**
 	**	`L_ramp` carries the smoothstep's peak-slope factor as well as the plan's `10W` floor, so the shape
 	**	the plan asks for and the per-sample grade it requires are both satisfied.  It is found iteratively
@@ -1999,13 +2879,15 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 
 	for (int pass = 0; pass < 4; ++pass) {
 
-		const Vector2 foot_a(point.X - (axis.X * ramp),point.Y - (axis.Y * ramp));
-		const Vector2 foot_b(point.X + (axis.X * ramp),point.Y + (axis.Y * ramp));
+		const float foot_from = centre_station - half_deck - ramp;
+		const float foot_to = centre_station + half_deck + ramp;
+		if ((foot_from < 0.0f) || (foot_to > total)) break;			// the arm test below names it
+		const Vector2 foot_a = Hybrid_Polyline_Point_At(upper_route.Points,upper_route.Stations,foot_from);
+		const Vector2 foot_b = Hybrid_Polyline_Point_At(upper_route.Points,upper_route.Stations,foot_to);
 		if (!b.Height_At(foot_a,&foot_z_a) || !b.Height_At(foot_b,&foot_z_b)) {
 			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_NO_HARD_VALID_STATION;
 			return false;
 		}
-
 		const float rise = Max2((float)fabs((double)(deck_top - foot_z_a)),
 										(float)fabs((double)(deck_top - foot_z_b)));
 		const float needed = Max2(RAMP_FLOOR_W * k.W,
@@ -2014,28 +2896,38 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 		ramp = needed;
 	}
 
+	/*
+	**	`L_ramp` is a minimum, so the recorded length is the quantum at or above it: rounding to nearest would
+	**	put a ramp sized exactly on the `10W` floor up to half a quantum under it.
+	*/
+	{
+		const float rounded = Hybrid_Quantize_Position(ramp);
+		ramp = (rounded < ramp) ? (rounded + HYBRID_QUANTUM_POSITION) : rounded;
+	}
+
 	//	The upper road has to have that much centerline either side of the crossing to ramp over.
-	float before = 0.0f;
-	float after = 0.0f;
-	Arm_Lengths(upper_route,point,&before,&after);
-	if ((before < ramp) || (after < ramp)) {
+	const float from_station = centre_station - half_deck - ramp;
+	const float to_station = centre_station + half_deck + ramp;
+	if ((from_station < 0.0f) || (to_station > total)) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT;
 		return false;
 	}
 
-	const Vector2 approach_a(point.X - (axis.X * ramp),point.Y - (axis.Y * ramp));
-	const Vector2 approach_b(point.X + (axis.X * ramp),point.Y + (axis.Y * ramp));
+	const Vector2 approach_a = Quantized(Hybrid_Polyline_Point_At(upper_route.Points,upper_route.Stations,
+																					  from_station));
+	const Vector2 approach_b = Quantized(Hybrid_Polyline_Point_At(upper_route.Points,upper_route.Stations,
+																					  to_station));
 
 	const float spacing = Max2(Min2(k.W / OVERPASS_SAMPLE_W,k.A / OVERPASS_SAMPLE_A),k.Q);
-	const int steps = (int)::ceil((double)((2.0f * ramp) / spacing));
+	const float length = to_station - from_station;
+	const int steps = (int)::ceil((double)(length / spacing));
 	const int count = (steps > 0) ? steps : 1;
 
 	float previous_z = 0.0f;
 	for (int i = 0; i <= count; ++i) {
 
-		const float ratio = (float)i / (float)count;
-		const Vector2 sample(approach_a.X + ((approach_b.X - approach_a.X) * ratio),
-									approach_a.Y + ((approach_b.Y - approach_a.Y) * ratio));
+		const float along = from_station + (length * ((float)i / (float)count));
+		const Vector2 sample = Hybrid_Polyline_Point_At(upper_route.Points,upper_route.Stations,along);
 
 		float ground = 0.0f;
 		if (!b.Height_At(sample,&ground)) {
@@ -2049,10 +2941,10 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 		**	the ground offset by one.  Following the terrain instead would put the terrain's own slope into the
 		**	road's grade, which is what the vertical-profile solver exists to avoid.
 		*/
-		const float from_centre = (float)fabs((double)((ratio - 0.5f) * 2.0f * ramp));
-		const float s = Clamp2(1.0f - (from_centre / Max2(ramp,k.Q)),0.0f,1.0f);
+		const float from_deck = Max2((float)fabs((double)(along - centre_station)) - half_deck,0.0f);
+		const float s = Clamp2(1.0f - (from_deck / Max2(ramp,k.Q)),0.0f,1.0f);
 		const float smooth = s * s * (3.0f - (2.0f * s));
-		const float foot_z = (ratio < 0.5f) ? foot_z_a : foot_z_b;
+		const float foot_z = (along < centre_station) ? foot_z_a : foot_z_b;
 		const float profile = foot_z + ((deck_top - foot_z) * smooth);
 
 		//	Cut and fill: the ramp's own feet have to land inside the vertical interval of the ground.
@@ -2065,7 +2957,7 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 
 		//	Max grade along the ramp, on the compiled profile rather than on the ground under it.
 		if (i > 0) {
-			const float run = (2.0f * ramp) / (float)count;
+			const float run = length / (float)count;
 			const float rise = (float)fabs((double)(profile - previous_z));
 			if ((run > k.Q) && ((float)::atan((double)(rise / run)) > (max_grade + 0.001f)) ) {
 				if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
@@ -2074,7 +2966,13 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 		}
 		previous_z = profile;
 
-		//	Cross slope across the deck, and the clearance over the road underneath at the crossing itself.
+		//	Cross slope across the road where it is, measured across its own local direction.
+		const Vector2 ahead = Hybrid_Polyline_Point_At(upper_route.Points,upper_route.Stations,
+																	  Min2(along + spacing,total));
+		const Vector2 behind = Hybrid_Polyline_Point_At(upper_route.Points,upper_route.Stations,
+																		Max2(along - spacing,0.0f));
+		const Vector2 direction = Unit(ahead - behind);
+		const Vector2 normal(-direction.Y,direction.X);
 		float left = 0.0f;
 		float right = 0.0f;
 		if (b.Height_At(sample + (normal * half_roadbed),&left) &&
@@ -2103,6 +3001,70 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 		return false;
 	}
 
+	/*
+	**	The upper road's own centerline over both ramps and the deck, frozen as the path Phase 12 realizes, and
+	**	graded by Section 12.1 itself with the deck held level at its top: the smoothstep above is the plan's
+	**	construction rule, and the solver is what Phase 12 will actually build the road with.
+	*/
+	HybridCrossingPath path;
+	path.DepartPoint = 0;
+	path.RejoinPoint = upper_route.Points.Count() - 1;
+	for (int i = 0; i < upper_route.Points.Count(); ++i) {
+		if (upper_route.Stations[i] <= from_station) path.DepartPoint = i;
+		if (upper_route.Stations[i] >= to_station) {
+			path.RejoinPoint = i;
+			break;
+		}
+	}
+	path.Points.Add(approach_a);
+	path.Stations.Add(0.0f);
+	for (int i = path.DepartPoint + 1; i < path.RejoinPoint; ++i) {
+		if ((upper_route.Stations[i] <= (from_station + k.Q)) || (upper_route.Stations[i] >= (to_station - k.Q))) {
+			continue;
+		}
+		path.Points.Add(upper_route.Points[i]);
+		path.Stations.Add(upper_route.Stations[i] - from_station);
+	}
+	path.Points.Add(approach_b);
+	path.Stations.Add(length);
+	path.Length = Hybrid_Quantize_Position(length);
+	path.AddedLength = 0.0f;
+
+	/*
+	**	Section 12.1 grades the upper road whole, as Phase 12 will build it: its realized centerline with every
+	**	structure already compiled on it holding its own surface and this deck held level at its top.  Pass two
+	**	runs on realized roads, so the bridges and tunnels of pass one are on `upper_route` already; the ramps'
+	**	smoothstep above is the plan's construction rule, and this is what decides whether the road can carry it.
+	**	Grading the ramps alone left their feet free, so a deck could be accepted that the road beyond its feet
+	**	cannot climb to.
+	*/
+	{
+		DynamicVectorClass<HybridProfileStructure> structures;
+		for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
+			const HybridInteraction & other = b.Out->Interactions[i];
+			if (other.EdgeId != upper_edge.StableId) continue;
+			HybridProfileStructure one;
+			if (Compiled_Structure(other,upper_route,&one)) structures.Add(one);
+		}
+		HybridProfileStructure deck;
+		deck.From		= centre_station - half_deck;
+		deck.To			= centre_station + half_deck;
+		deck.Mode		= HYBRID_PROFILE_STRUCTURE_LEVEL;
+		deck.EndsFixed	= true;
+		deck.StartZ		= Hybrid_Quantize_Position(deck_top);
+		deck.EndZ		= deck.StartZ;
+		structures.Add(deck);
+
+		DynamicVectorClass<HybridProfileSample> samples;
+		HybridSolvedProfile solved;
+		if (!Hybrid_Solve_Road_Stretch(upper_route.Points,upper_route.Stations,0.0f,total,structures,
+												 Hybrid_Profile_Sample_Spacing(k),b.Sample,b.Context,b.P->MaxCutDepth,
+												 b.P->MaxFillHeight,max_grade,k.Q,&samples,&solved,nullptr,nullptr,nullptr)) {
+			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
+			return false;
+		}
+	}
+
 	*out = HybridInteraction();
 	out->EdgeId					= upper_edge.StableId;
 	out->OtherEdgeId			= lower_edge.StableId;
@@ -2112,15 +3074,20 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	out->RoadClass				= upper_edge.RoadClass;
 	out->Station				= Quantized(point);
 	out->Tangent				= axis;
-	out->ApproachA				= Quantized(approach_a);
-	out->ApproachB				= Quantized(approach_b);
-	out->Span					= Hybrid_Roadbed_Width(lower_edge.RoadClass,k.W);
-	out->ApproachReserve		= Hybrid_Quantize_Position(ramp);
+	out->ApproachA				= approach_a;
+	out->ApproachB				= approach_b;
+	out->Span					= Hybrid_Quantize_Position(deck_length);
+	out->ApproachReserve		= ramp;
 	out->BridgeKind			= bridge_kind;
 	out->DeckBottomZ			= Hybrid_Quantize_Position(deck_bottom);
 	out->DeckTopZ				= Hybrid_Quantize_Position(deck_top);
+	out->DeckStartZ			= out->DeckTopZ;
+	out->DeckEndZ				= out->DeckTopZ;
+	out->DeckReachA			= Hybrid_Quantize_Position(half_deck);
+	out->DeckReachB			= Hybrid_Quantize_Position(half_deck);
 	out->LowerSurfaceZ		= Hybrid_Quantize_Position(lower_z);
-	out->RampLength			= Hybrid_Quantize_Position(ramp);
+	out->RampLength			= ramp;
+	out->Path					= path;
 	out->UpperIsThisEdge		= upper_is_first;
 	out->Envelope				= upper_route.Envelope;
 	(void)lower_route;
@@ -2141,11 +3108,12 @@ static bool Solve_Road_Crossing(InteractionBuilder & b,const HybridTopologyEdge 
 											HybridInteractionResult * result)
 {
 	HybridInteractionProblem problem = HYBRID_PROBLEM_NONE;
+	HybridInteractionProblem junction_problem = HYBRID_PROBLEM_NONE;
 	HybridInteraction solution;
 
 	//	An at-grade junction, unless Phase 9 reserved this crossing as an overpass.
 	if (!mandatory && At_Grade_Is_Legal(b,edge_a,route_a,edge_b,route_b,point,heading_a,heading_b,
-													&problem)) {
+													&junction_problem)) {
 
 		solution = HybridInteraction();
 		solution.StableId			= b.NextStableId++;
@@ -2180,8 +3148,9 @@ static bool Solve_Road_Crossing(InteractionBuilder & b,const HybridTopologyEdge 
 		const HybridRoute & lower_route = a_is_lower ? route_a : route_b;
 		const HybridRoute & upper_route = a_is_lower ? route_b : route_a;
 		const Vector2 & upper_heading = a_is_lower ? heading_b : heading_a;
+		const Vector2 & lower_heading = a_is_lower ? heading_a : heading_b;
 
-		if (Try_Overpass_Assignment(b,upper,upper_route,lower,lower_route,point,upper_heading,
+		if (Try_Overpass_Assignment(b,upper,upper_route,lower,lower_route,point,upper_heading,lower_heading,
 											 !a_is_lower,mandatory,&solution,&problem)) {
 			solution.StableId = b.NextStableId++;
 			b.Out->Interactions.Add(solution);
@@ -2209,9 +3178,10 @@ static bool Solve_Road_Crossing(InteractionBuilder & b,const HybridTopologyEdge 
 	}
 
 	StringClass detail;
-	detail.Format("edges %u (%s) and %u (%s) cross at (%.1f,%.1f) and neither an at-grade junction nor an "
-					  "overpass compiles: %s",edge_a.StableId,Hybrid_Road_Class_Name(edge_a.RoadClass),
+	detail.Format("edges %u (%s) and %u (%s) cross at (%.1f,%.1f) and neither an at-grade junction (%s) nor an "
+					  "overpass (%s) compiles",edge_a.StableId,Hybrid_Road_Class_Name(edge_a.RoadClass),
 					  edge_b.StableId,Hybrid_Road_Class_Name(edge_b.RoadClass),point.X,point.Y,
+					  mandatory ? "reserved overpass" : Hybrid_Interaction_Problem_Name(junction_problem),
 					  Hybrid_Interaction_Problem_Name(problem));
 
 	if (mandatory) return Fail(result,HYBRID_INTERACTION_OBLIGATION_LOST,detail.Peek_Buffer());
@@ -2247,6 +3217,163 @@ static Vector2 Route_Heading_At(const HybridRoute & route,const Vector2 & point)
 **	Section 5's bridge and overpass quotas, checked against what actually compiled.  A ford never counts,
 **	which is why the count asks for the method rather than for the crossing.
 */
+/*
+**	Revised D-009 (Q-022): a crossing that is not attached to its road is not a solution.  For every compiled
+**	crossing, on the road as it will actually be realized:
+**
+**		- its path starts and ends on the road's own Phase-10 samples, so it is joined at both ends;
+**		- both compiled ends lie on that path, within the position quantum;
+**		- the road enters the crossing along its axis and leaves along it, with the turn onto it finished on
+**		  open road before the end -- it keeps the lead straight there unless the road itself begins or ends;
+**		- a bridge has the full straight approach its selected kind needs, `max(8W, required_approach_length)`,
+**		  from each edge of the obstruction out to where the road's turn begins.
+**
+**	A Phase-11 success with disconnected geometry is no longer a success.
+*/
+static int Nearest_Index(const DynamicVectorClass<Vector2> & points,const Vector2 & point,float * distance_out)
+{
+	int best = -1;
+	float nearest = 3.4e38f;
+	for (int i = 0; i < points.Count(); ++i) {
+		const float distance = (points[i] - point).Length();
+		if (distance >= nearest) continue;
+		nearest = distance;
+		best = i;
+	}
+	if (distance_out != nullptr) *distance_out = nearest;
+	return best;
+}
+
+
+static bool Check_Attachment(InteractionBuilder & b,HybridInteractionResult * result)
+{
+	const HybridConstants & k = b.P->Constants;
+	const float q = k.Q;
+	const float slack = 2.0f * q;
+	const float straight = Min2(k.W,0.5f * k.A);
+
+	for (int r = 0; r < b.Routes->Routes.Count(); ++r) {
+
+		const HybridRoute & route = b.Routes->Routes[r];
+		HybridRoute realized;
+		if (!Hybrid_Realized_Route(route,*b.Out,&realized)) {
+			StringClass detail;
+			detail.Format("two compiled crossings on edge %u claim one stretch of it",route.EdgeId);
+			return Fail(result,HYBRID_INTERACTION_DETACHED,detail.Peek_Buffer());
+		}
+
+		for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
+
+			const HybridInteraction & one = b.Out->Interactions[i];
+			if (one.EdgeId != route.EdgeId) continue;
+			if (one.Method == HYBRID_METHOD_AT_GRADE_JUNCTION) continue;
+
+			StringClass detail;
+			const char * what = Hybrid_Interaction_Method_Name(one.Method);
+			const HybridCrossingPath & path = one.Path;
+			const int count = path.Points.Count();
+
+			/*
+			**	An overpass rides the upper road's own centerline: its ends are points of that road, not samples
+			**	of it, and there is no turn onto it to check.
+			*/
+			if (one.Method == HYBRID_METHOD_OVERPASS) {
+				float off_a = 3.4e38f;
+				float off_b = 3.4e38f;
+				for (int s = 1; s < realized.Points.Count(); ++s) {
+					off_a = Min2(off_a,Distance_To_Segment(one.ApproachA,realized.Points[s - 1],realized.Points[s],nullptr));
+					off_b = Min2(off_b,Distance_To_Segment(one.ApproachB,realized.Points[s - 1],realized.Points[s],nullptr));
+				}
+				if ((count < 2) || (off_a > slack) || (off_b > slack)) {
+					detail.Format("the overpass on edge %u is not on its upper road: its ends stand %.4f and %.4f off it",
+									  route.EdgeId,off_a,off_b);
+					return Fail(result,HYBRID_INTERACTION_DETACHED,detail.Peek_Buffer());
+				}
+				continue;
+			}
+
+			if ((count < 2) || (path.DepartPoint < 0) || (path.RejoinPoint >= route.Points.Count()) ||
+				 ((path.Points[0] - route.Points[path.DepartPoint]).Length() > q) ||
+				 ((path.Points[count - 1] - route.Points[path.RejoinPoint]).Length() > q)) {
+				detail.Format("the compiled %s on edge %u is not joined to its road at both ends",what,route.EdgeId);
+				return Fail(result,HYBRID_INTERACTION_DETACHED,detail.Peek_Buffer());
+			}
+
+			float off_a = 0.0f;
+			float off_b = 0.0f;
+			Nearest_Index(path.Points,one.ApproachA,&off_a);
+			Nearest_Index(path.Points,one.ApproachB,&off_b);
+			if ((off_a > slack) || (off_b > slack)) {
+				detail.Format("the compiled %s on edge %u has its ends %.4f and %.4f off its own path",what,
+								  route.EdgeId,off_a,off_b);
+				return Fail(result,HYBRID_INTERACTION_DETACHED,detail.Peek_Buffer());
+			}
+
+			//	The axes the road has to enter and leave by, in the order it drives them.
+			Vector2 axis_in = Unit(one.ApproachB - one.ApproachA);
+			Vector2 axis_out = axis_in;
+			if ((one.Method == HYBRID_METHOD_SURFACE_PASS) || (one.Method == HYBRID_METHOD_RAMP_PASS)) {
+				const HybridCrossingWindow * window = b.Hydrology->Find_Window(one.WindowId);
+				if ((window == nullptr) || (window->Pass.ControlCount < 2)) {
+					detail.Format("the compiled %s on edge %u has no frozen pass",what,route.EdgeId);
+					return Fail(result,HYBRID_INTERACTION_DETACHED,detail.Peek_Buffer());
+				}
+				const HybridLocalPassGeometry & pass = window->Pass;
+				const int n = pass.ControlCount;
+				if (one.ApproachA == pass.Controls[0]) {
+					axis_in	= Unit(pass.Controls[1] - pass.Controls[0]);
+					axis_out	= Unit(pass.Controls[n - 1] - pass.Controls[n - 2]);
+				} else {
+					axis_in	= Unit(pass.Controls[n - 2] - pass.Controls[n - 1]);
+					axis_out	= Unit(pass.Controls[0] - pass.Controls[1]);
+				}
+			}
+
+			float at_a = 0.0f;
+			float at_b = 0.0f;
+			const int index_a = Nearest_Index(realized.Points,one.ApproachA,&at_a);
+			const int index_b = Nearest_Index(realized.Points,one.ApproachB,&at_b);
+			if ((index_a < 0) || (index_b <= index_a) || (at_a > slack) || (at_b > slack)) {
+				detail.Format("the compiled %s on edge %u is not on the realized road",what,route.EdgeId);
+				return Fail(result,HYBRID_INTERACTION_DETACHED,detail.Peek_Buffer());
+			}
+
+			float behind = 0.0f;
+			float ahead = 0.0f;
+			Hybrid_Polyline_Straight_Run(realized.Points,index_a,axis_in,q,&behind,nullptr);
+			Hybrid_Polyline_Straight_Run(realized.Points,index_b,axis_out,q,nullptr,&ahead);
+			const int last = realized.Points.Count() - 1;
+			const float before_room = Min2(straight,realized.Stations[index_a]);
+			const float after_room = Min2(straight,realized.Stations[last] - realized.Stations[index_b]);
+			if ((behind < (before_room - slack)) || (ahead < (after_room - slack))) {
+				detail.Format("the road is not aligned with the compiled %s on edge %u: %.3f of %.3f straight before "
+								  "it, %.3f of %.3f after it",what,route.EdgeId,behind,before_room,ahead,after_room);
+				return Fail(result,HYBRID_INTERACTION_DETACHED,detail.Peek_Buffer());
+			}
+
+			if ((one.Method == HYBRID_METHOD_BRIDGE) && (one.BridgeKind >= 0) &&
+				 (one.BridgeKind < b.P->BridgeKinds.Count())) {
+
+				const HybridBridgeKind & kind = b.P->BridgeKinds[one.BridgeKind];
+				const float required = Max2(STATION_HALF_LENGTH_W * k.W,kind.RequiredApproachLength);
+				const Vector2 edge_a = one.Station - (axis_in * (0.5f * one.Span));
+				const Vector2 edge_b = one.Station + (axis_in * (0.5f * one.Span));
+				const Vector2 & a = realized.Points[index_a];
+				const Vector2 & c = realized.Points[index_b];
+				const float side_a = ((edge_a.X - a.X) * axis_in.X) + ((edge_a.Y - a.Y) * axis_in.Y) + behind;
+				const float side_b = ((c.X - edge_b.X) * axis_in.X) + ((c.Y - edge_b.Y) * axis_in.Y) + ahead;
+				if ((side_a < (required - slack)) || (side_b < (required - slack))) {
+					detail.Format("the bridge on edge %u has %.3f and %.3f of straight approach where its kind needs "
+									  "%.3f",route.EdgeId,side_a,side_b,required);
+					return Fail(result,HYBRID_INTERACTION_DETACHED,detail.Peek_Buffer());
+				}
+			}
+		}
+	}
+	return true;
+}
+
+
 static bool Check_Quotas(InteractionBuilder & b,HybridInteractionResult * result)
 {
 	int river_bridges = 0;
@@ -2362,6 +3489,20 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 	}
 
 	/*
+	**	Pass two reads every road where it is now realized.  A crossing compiled in pass one may have moved a
+	**	stretch of road onto its own path, and a road x road crossing found on the preliminary centerline there
+	**	would be a crossing with a road that is no longer there.
+	*/
+	DynamicVectorClass<HybridRoute> realized;
+	for (int i = 0; i < routes.Routes.Count(); ++i) {
+		HybridRoute one;
+		if (!Hybrid_Realized_Route(routes.Routes[i],*out,&one)) {
+			return Fail(result,HYBRID_INTERACTION_INVALID_INPUT,"two compiled crossings claim one stretch of a road");
+		}
+		realized.Add(one);
+	}
+
+	/*
 	**	Pass two: road x road.  Every frozen Phase-9 overpass obligation first, because it is reserved and
 	**	may not downgrade, then the geometric crossings the two centerlines actually make.
 	*/
@@ -2386,8 +3527,12 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 		}
 		if ((first == nullptr) || (second == nullptr)) continue;
 
-		const HybridRoute * route_a = routes.Find(first->StableId);
-		const HybridRoute * route_b = routes.Find(second->StableId);
+		const HybridRoute * route_a = nullptr;
+		const HybridRoute * route_b = nullptr;
+		for (int r = 0; r < realized.Count(); ++r) {
+			if (realized[r].EdgeId == first->StableId)	route_a = &realized[r];
+			if (realized[r].EdgeId == second->StableId)	route_b = &realized[r];
+		}
 		if ((route_a == nullptr) || (route_b == nullptr)) continue;
 
 		if (!Solve_Road_Crossing(b,*first,*route_a,*second,*route_b,node.Position,
@@ -2398,8 +3543,8 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 	for (int i = 0; i < order.Count(); ++i) {
 		for (int j = i + 1; j < order.Count(); ++j) {
 
-			const HybridRoute & route_a = routes.Routes[order[i]];
-			const HybridRoute & route_b = routes.Routes[order[j]];
+			const HybridRoute & route_a = realized[order[i]];
+			const HybridRoute & route_b = realized[order[j]];
 			const HybridTopologyEdge * edge_a = topology.Find_Edge(route_a.EdgeId);
 			const HybridTopologyEdge * edge_b = topology.Find_Edge(route_b.EdgeId);
 			if ((edge_a == nullptr) || (edge_b == nullptr)) continue;
@@ -2469,6 +3614,9 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 						  out->Interactions[i].EdgeId,Hybrid_Interaction_Problem_Name(problem));
 		return Fail(result,HYBRID_INTERACTION_SWEEP,detail.Peek_Buffer());
 	}
+
+	//	Every compiled crossing attached to the road that drives it.
+	if (!Check_Attachment(b,result)) return false;
 
 	//	The gate's quota half.
 	if (!Check_Quotas(b,result)) return false;

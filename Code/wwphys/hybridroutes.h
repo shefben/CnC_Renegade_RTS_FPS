@@ -223,6 +223,7 @@ enum HybridRouteFailure
 	HYBRID_ROUTE_NO_SPLINE,						// a path exists but no legal spline survives the insertions
 	HYBRID_ROUTE_EXPANSION_BUDGET,			// the per-route or per-attempt A* ceiling was reached
 	HYBRID_ROUTE_WAYPOINT_MISSED,				// gate: a frozen waypoint cell is not on the accepted chain
+	HYBRID_ROUTE_CROSSING_MISALIGNED,		// gate: a crossing is not entered or left along its own axis
 	HYBRID_ROUTE_FAILURE_COUNT
 };
 
@@ -333,6 +334,87 @@ bool	Hybrid_Route_Census(const HybridRouteParams & params,const HybridMapIdentit
 **	The Phase 10 gate value: a quantized digest of every accepted route in EdgeId order.
 */
 unsigned int	Hybrid_Route_Checksum(const HybridRouteSet & set,unsigned int seed = 0);
+
+
+/*
+**	The horizontal centerline a compiled crossing is driven on.
+**
+**	Phase 10 routes every crossing straight through its window's two frozen approach points.  Phase 11 may
+**	then place the crossing somewhere else along the obstruction -- the plan's station search -- or compile a
+**	pass whose far end leaves the cliff some way along it, and in both cases "the connected road can meet the
+**	station within its max grade and minimum turn radius" is a statement about a road that has to exist.
+**	This is that road: the preliminary centerline up to where it departs, Section-7 fillets at the class
+**	turn radius into the crossing's first control point, the crossing's own controls, fillets back out of the
+**	last one, and the preliminary centerline again from where it rejoins.
+**
+**	It is built with Phase 10's own corner construction, not a second turn solver: the two end controls are
+**	*frozen* exactly as Phase 10 freezes a window's approach points, so the road runs straight through each
+**	along the crossing's own axis and every turn onto it is finished on a lead before the control -- never
+**	inside the straight approach reserve a bridge needs.  Interior controls -- a pass's own corners -- are
+**	pinned corners carrying the same D-009 fillets the pass builder judged them by.  When the preliminary
+**	centerline already runs through a control along its axis (the crossing at its own window station), the
+**	path simply continues on it and no connector is built on that side.
+**
+**	It is built once, in Phase 11, and frozen in the compiled record; Phase 12 realizes it and nothing else.
+*/
+struct HybridCrossingPath
+{
+	HybridCrossingPath(void) : DepartPoint(0),RejoinPoint(0),Length(0.0f),AddedLength(0.0f) { }
+
+	void	Reset(void)
+	{
+		DepartPoint	= 0;
+		RejoinPoint	= 0;
+		Length		= 0.0f;
+		AddedLength	= 0.0f;
+		Points.Delete_All();
+		Stations.Delete_All();
+	}
+
+	int								DepartPoint;	// the preliminary route sample the realized road leaves at
+	int								RejoinPoint;	// and the one it rejoins at
+	float								Length;			// arc length of `Points`
+	float								AddedLength;	// `Length` less the straight distance between its two ends, >= 0
+	DynamicVectorClass<Vector2>	Points;			// route.Points[DepartPoint] .. route.Points[RejoinPoint]
+	DynamicVectorClass<float>		Stations;		// arc length from Points[0]
+};
+
+/*
+**	Builds the path above for one structural interval of `route` and the crossing's ordered `controls`
+**	(at least two, the first on the interval's ingress side).  `max_reach` bounds how far back along the
+**	route the road may depart, and how far forward it may rejoin, measured from the interval's own ends.
+**	Fails, naming why in `reason_out`, when no departure or rejoin on the preliminary centerline can meet the
+**	frozen controls at `radius` -- that is the plan's turn-radius test failing, not a geometry to bend.
+*/
+/*
+**	Could a road of `road_class` get from `from` to `to` on empty ground?  Phase 10's own corner construction
+**	answers it -- the frozen straight through each structural pose, the leads that finish every turn before a
+**	structure, and the class-radius fillets -- applied to the two poses with nothing between them but, where
+**	the two axes meet ahead, the one corridor corner a direct route would turn at.  Terrain is not consulted:
+**	this is the plan's "provably impossible even on an empty plane", which is Phase 9's to refuse, and the
+**	exact terrain path stays Phase 10's.
+**
+**	A free pose with a neighbour of its own beyond it -- an ordinary route waypoint in the middle of an edge --
+**	is a pinned corner in Phase 10, whose own arc needs room on the leg it shares with the structure's lead;
+**	`before_from` / `after_to` name that neighbour so the corner is part of the construction.
+*/
+bool	Hybrid_Road_Poses_Connect(const HybridRoadPose & from,const HybridRoadPose & to,HybridRoadClass road_class,
+										const HybridConstants & constants,const Vector2 * before_from = nullptr,
+										const Vector2 * after_to = nullptr);
+
+/*
+**	How far a sampled road runs straight along `axis` through its sample `index`, behind it and ahead of it:
+**	the arc length over which every sample stands on that line, within the position quantum each sample was
+**	written to and the angular quantum over the run.  The revised D-009 invariant is stated in it: a crossing
+**	is entered and left along its own axis, with the turn onto it finished before its frozen approach point.
+*/
+void	Hybrid_Polyline_Straight_Run(const DynamicVectorClass<Vector2> & points,int index,const Vector2 & axis,
+											 float q,float * behind_out,float * ahead_out);
+
+bool	Hybrid_Build_Crossing_Path(const HybridRoute & route,int first_point,int last_point,
+										 const Vector2 * controls,int control_count,float radius,float spacing,
+										 float quantum,float max_reach,HybridCrossingPath * out,
+										 const char ** reason_out = nullptr);
 
 
 #endif // HYBRIDROUTES_H

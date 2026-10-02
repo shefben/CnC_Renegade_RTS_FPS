@@ -112,6 +112,35 @@ Phase 11 uses the widest envelope in the mask for every width test: the ground r
 bore. Preflight's per-class `BridgeRequiredWidth` table is unchanged: it runs before any edge exists and
 answers only whether shipped content can carry a class at all.
 
+## Structural-pose realizability (Q-023)
+
+A Phase-9 structural binding must be geometrically realizable as an oriented road pose before the topology is
+frozen; Phase 10 then routes it on the terrain and Phase 11 compiles it. Every candidate crossing window --
+obligation, quota fill, synthesized cross-link -- is tested in this order:
+
+1. Phase 6's per-class capability: the window's `ApproachClasses` bit for the binding class;
+2. the corridor;
+3. `>= 12W` along the obstruction from an already selected window;
+4. **wrong side**: with `A` the window's axis oriented from the previous structural point to the next,
+   `dot(incoming, A) >= 0` and `dot(outgoing, A) >= 0`;
+5. **pose**: the window as a pose (`HybridRoadPose`: point, axis, `8W` straight either side) must connect to
+   the neighbouring poses on the edge in the empty plane with the class's own radius construction
+   (`Hybrid_Road_Poses_Connect`, Phase 10's arcs-and-tangents corner rule -- no terrain A*, no second
+   geometry solver, no distance formula);
+6. ranking, then `StableId`.
+
+An impossible candidate is skipped and the next ranked window considered (`RecoveredByNextRank`); only when
+none remains does the phase fail. The binding class is `HIGHWAY_4` for a heavy-family binding made before
+highway assignment -- the family may still become a highway, so a window a highway cannot line up with is not
+bound to it -- `SECONDARY_2` for a synthesized cross-link, and the edge's actual class otherwise. A window is
+never discarded globally because a wider class cannot use it.
+
+Overpass obligations get the same pose rule on both edges, with `max(10W, half deck)` of straight either side
+(`Hybrid_Overpass_Pose`, `Hybrid_Overpass_Half_Deck` -- the same measure Phase 10 keeps straight), on top of
+the unchanged `60..120` degree, `10W`, exclusion, spacing and slope tests. The gate re-checks every frozen
+chain. `HybridTopologyResult` carries the census of the attempt (`RejectedApproachClass`,
+`RejectedWrongSide`, `RejectedPose`, `RecoveredByNextRank`) whether or not it succeeded.
+
 ## Failure behavior
 
 Every failure is a named attempt failure and leaves the record empty: `no_entrance_sector`,

@@ -239,7 +239,7 @@ struct HybridCrossingWindow
 		ObstructionRecordId(0),Methods(0),Preferred(false),MergedCount(1),Station(0.0f),Span(0.0f),
 		ApproachLength(0.0f),LowElevation(0.0f),HighElevation(0.0f),Center(0.0f,0.0f),
 		Tangent(1.0f,0.0f),ApproachA(0.0f,0.0f),ApproachB(0.0f,0.0f),
-		BoundsMin(0.0f,0.0f),BoundsMax(0.0f,0.0f),CutClasses(0) { }
+		BoundsMin(0.0f,0.0f),BoundsMax(0.0f,0.0f),CutClasses(0),ApproachClasses(0) { }
 
 	bool	operator == (const HybridCrossingWindow & that) const	{ return StableId == that.StableId; }
 	bool	operator != (const HybridCrossingWindow & that) const	{ return !(*this == that); }
@@ -289,6 +289,23 @@ struct HybridCrossingWindow
 	bool	Cut_Planned_For(HybridRoadClass road_class) const
 	{
 		return ((int)road_class >= 0) && ((int)road_class < 32) && ((CutClasses & (1u << (int)road_class)) != 0);
+	}
+
+	/*
+	**	Which road classes can line up with this crossing on both banks, one bit per `HybridRoadClass` (Q-023).
+	**	A road enters and leaves a crossing along its axis with its turn finished before the approach point
+	**	(revised D-009), so past each approach point there has to be legal ground, one class roadbed wide, for
+	**	that class's own turn -- `R tan(45deg) = R` of it, a road along the bank turning onto the crossing --
+	**	beyond the straight `8W` approach the window already reserves.  It depends on the class, so it is a
+	**	mask like `CutClasses` rather than one verdict: a window too tight for `HIGHWAY_4` can still serve a
+	**	`SECONDARY_2` cross-link.  Phase 9 binds a window to an edge only when the edge's class bit is set.
+	*/
+	unsigned int				ApproachClasses;
+
+	bool	Approach_Planned_For(HybridRoadClass road_class) const
+	{
+		return ((int)road_class >= 0) && ((int)road_class < 32) &&
+				 ((ApproachClasses & (1u << (int)road_class)) != 0);
 	}
 };
 
@@ -558,6 +575,51 @@ bool	Hybrid_Point_In_Water(const HybridHydrologySet & set,const Vector2 & world)
 **	zero across its exact `2W` shoreline band.  Zero everywhere else.
 */
 float	Hybrid_Island_Height_Bias(const HybridHydrologySet & set,const Vector2 & world);
+
+
+/*
+**	One place a road could cross a window's obstruction, measured where it actually is.
+**
+**	Section 8 Phase 11 searches for a crossing station `-half_length .. +half_length` *along the obstruction*
+**	and requires that "station belongs to the intended obstruction".  A river or a canyon does not run along
+**	its window's tangent line, so a station stepped out along that line leaves it within a few dozen units;
+**	the station is instead the point that far along the obstruction's own centerline, with the obstruction's
+**	own direction and half width there -- the same measure Step 18 sampled the window with.
+*/
+struct HybridObstructionStation
+{
+	HybridObstructionStation(void) : Centre(0.0f,0.0f),Tangent(1.0f,0.0f),HalfSpan(0.0f),Offset(0.0f) { }
+
+	//	DynamicVectorClass<T> requires == and !=.  The quantized position is a station's identity.
+	bool	operator == (const HybridObstructionStation & that) const	{ return Centre == that.Centre; }
+	bool	operator != (const HybridObstructionStation & that) const	{ return !(*this == that); }
+
+	Vector2	Centre;		// on the obstruction's centerline, quantized
+	Vector2	Tangent;		// along the obstruction, unit, signed like the window's own tangent
+	float		HalfSpan;	// the obstruction's half width here, Step 18's measure
+	float		Offset;		// signed arc length along the obstruction from the search centre
+};
+
+/*
+**	The station list for one window: `centre` projected onto the window's obstruction centerline, then every
+**	station from `-half_length` through `+half_length` of arc length at `spacing`, replaced by exactly `cap`
+**	uniform stations (both ends included) when there would be more, quantized and de-duplicated in order.  A
+**	station past either end of the obstruction is not on it and is not produced.  Returns false when the
+**	window names no obstruction this set or `landforms` holds.
+*/
+bool	Hybrid_Obstruction_Stations(const HybridHydrologySet & hydrology,const HybridLandformSet & landforms,
+										  const HybridCrossingWindow & window,const Vector2 & centre,float half_length,
+										  float spacing,int cap,DynamicVectorClass<HybridObstructionStation> * out);
+
+/*
+**	Step 18's approach-sample water and wall rules for one point a crossing's road stands on: no standing
+**	water, no other river's channel, and no immutable wall other than the crossing's own obstruction.  Phase 6
+**	judges a window's approaches by it and Phase 11 the road that reaches a compiled crossing, so the two ask
+**	the same question.  The base and Tiberium reserves are each phase's own business and are not asked here.
+*/
+bool	Hybrid_Crossing_Ground_Is_Clear(const HybridHydrologySet & hydrology,const HybridLandformSet & landforms,
+												  HybridObstructionKind obstruction,unsigned int obstruction_record,
+												  const Vector2 & point);
 
 /*
 **	The Phase 6 gate value: a quantized digest of every accepted river, body and window in StableId

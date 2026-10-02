@@ -583,7 +583,11 @@ class ProceduralWorldProfile
 		// generator identity and makes legacy lane_width_cells/settlements inert on that path.
 		// Generator 12 widens Section 10.2's cliff talus range to 1W..5.25W (Q-021, D-016): the same
 		// seed now draws different cliff widths, so every cliff, window and route downstream differs.
-		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 12 };
+		// Generator 13 is the Q-022/Q-023 crossing ownership correction: Phase 9 freezes only structural
+		// sequences a road of the edge's class can drive, Phase 10 enters every frozen crossing along its axis,
+		// Phase 11 compiles attached crossings graded over the whole realized road, and Section 12.1 treats a
+		// pinned height as its quantization cell -- the same seed now builds different topologies and roads.
+		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 13 };
 
 		ProceduralWorldProfile(void);
 

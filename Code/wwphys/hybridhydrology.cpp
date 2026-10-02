@@ -776,6 +776,7 @@ unsigned int Hybrid_Hydrology_Checksum(const HybridHydrologySet & set,unsigned i
 		stream.Add_Uint(window.ObstructionRecordId);
 		stream.Add_Uint(window.Methods);
 		stream.Add_Uint(window.CutClasses);
+		stream.Add_Uint(window.ApproachClasses);
 		stream.Add_Bool(window.Preferred);
 		stream.Add_Int(window.MergedCount);
 		stream.Add_Length(window.Station);
@@ -2664,22 +2665,32 @@ static bool Approach_Sample_Is_Legal(HydrologyBuilder & b,const HydroObstruction
 	if (!b.Coarse_Cell(point,&cx,&cy))												return false;
 	if (b.Matrices->Is_Base_Protected(cx,cy))										return false;
 	if (matrix.Has_Flag(cx,cy,HYBRID_FLAG_TIBERIUM_RESERVE))					return false;
-	if (Hybrid_Point_In_Standing_Water(*b.Out,point,nullptr,nullptr))		return false;
+	return Hybrid_Crossing_Ground_Is_Clear(*b.Out,*b.Landforms,obstruction.Kind,obstruction.RecordId,point);
+}
 
-	//	Another river's channel is water, so an approach may not run along it.
-	for (int i = 0; i < b.Out->Rivers.Count(); ++i) {
-		const HybridRiverSystem & river = b.Out->Rivers[i];
-		if (river.StableId == obstruction.RecordId) continue;
+
+bool Hybrid_Crossing_Ground_Is_Clear(const HybridHydrologySet & hydrology,const HybridLandformSet & landforms,
+												 HybridObstructionKind obstruction,unsigned int obstruction_record,
+												 const Vector2 & point)
+{
+	if (Hybrid_Point_In_Standing_Water(hydrology,point,nullptr,nullptr)) return false;
+
+	//	Another river's channel is water, so an approach may not run along it.  The record ids of rivers and
+	//	landforms are separate series, so only a river crossing's own record names a river to leave out.
+	const bool river_crossing = (obstruction == HYBRID_OBSTRUCTION_RIVER);
+	for (int i = 0; i < hydrology.Rivers.Count(); ++i) {
+		const HybridRiverSystem & river = hydrology.Rivers[i];
+		if (river_crossing && (river.StableId == obstruction_record)) continue;
 		int index = -1;
 		const float distance = Distance_To_Polyline(river.Points,point,nullptr,&index);
 		if (distance <= (0.5f * river.Width_At_Index(index))) return false;
 	}
 
 	//	Another immutable wall is a hard obstruction, so it is not an approach either.
-	for (int i = 0; i < b.Landforms->Landforms.Count(); ++i) {
-		const HybridLandform & landform = b.Landforms->Landforms[i];
+	for (int i = 0; i < landforms.Landforms.Count(); ++i) {
+		const HybridLandform & landform = landforms.Landforms[i];
 		if (!Hybrid_Landform_Is_Immutable(landform.Kind)) continue;
-		if (landform.StableId == obstruction.RecordId) continue;
+		if (!river_crossing && (landform.StableId == obstruction_record)) continue;
 		if ((point.X < landform.BoundsMin.X) || (point.X > landform.BoundsMax.X) ||
 			 (point.Y < landform.BoundsMin.Y) || (point.Y > landform.BoundsMax.Y)) continue;
 		if (Hybrid_Landform_Contribution(landform,point,nullptr) != 0.0f) return false;
@@ -3035,6 +3046,28 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 		if (!legal) continue;
 		if (!Window_Has_Grid_Access(b,obstruction,centre,normal)) continue;
 
+		/*
+		**	Which classes can line up with the crossing on both banks (Q-023): the same continuous legality,
+		**	at each class's own roadbed width, over the straight approach and then the class's own turn room
+		**	past the approach point.  Local only -- no topology neighbour and no search.
+		*/
+		unsigned int approach_classes = 0;
+		for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
+
+			const HybridRoadClass road_class = (HybridRoadClass)c;
+			const float class_half = 0.5f * Hybrid_Roadbed_Width(road_class,k.W);
+			const float turn_room = Hybrid_Road_Class_Spec(road_class).MinTurnRadiusW * k.W;
+			bool fits = true;
+			for (float out_of = step; (out_of <= (approach + turn_room)) && fits; out_of += step) {
+				for (int lateral_index = -1; (lateral_index <= 1) && fits; ++lateral_index) {
+					const Vector2 offset = tangent * ((float)lateral_index * class_half);
+					if (!Approach_Sample_Is_Legal(b,obstruction,side_a + (normal * out_of) + offset))	fits = false;
+					if (!Approach_Sample_Is_Legal(b,obstruction,side_b - (normal * out_of) + offset))	fits = false;
+				}
+			}
+			if (fits) approach_classes |= (1u << (unsigned int)c);
+		}
+
 		const float height_a = Hybrid_Provisional_Height(*b.P,*b.Matrices,*b.Landforms,end_a);
 		const float height_b = Hybrid_Provisional_Height(*b.P,*b.Matrices,*b.Landforms,end_b);
 		const float span_distance = (end_a - end_b).Length();
@@ -3193,6 +3226,7 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 		window.Methods				= methods;
 		if ((methods & HYBRID_WINDOW_METHOD_PASS) != 0) window.Pass = pass_geometry;
 		window.CutClasses			= cut_classes;
+		window.ApproachClasses	= approach_classes;
 		window.Station				= stations[index];
 		window.Span					= Hybrid_Quantize_Position(span);
 		window.ApproachLength	= Hybrid_Quantize_Position(approach);
@@ -3713,5 +3747,110 @@ bool Hybrid_Build_Hydrology(const HybridHydrologyParams & params,const HybridMap
 					 out->RiverThreshold,out->ThresholdReductions,out->StandingWaterFraction,
 					 out->WaterFractionTarget,out->Checksum));
 
+	return true;
+}
+
+
+
+/***********************************************************************************************
+**	Section 8 Phase 11's crossing stations, measured on the obstruction itself.
+***********************************************************************************************/
+bool Hybrid_Obstruction_Stations(const HybridHydrologySet & hydrology,const HybridLandformSet & landforms,
+											const HybridCrossingWindow & window,const Vector2 & centre,float half_length,
+											float spacing,int cap,DynamicVectorClass<HybridObstructionStation> * out)
+{
+	if (out == nullptr) return false;
+	out->Delete_All();
+
+	HydroObstruction obstruction;
+	obstruction.Kind		= window.Obstruction;
+	obstruction.Window	= window.Kind;
+	obstruction.RecordId	= window.ObstructionRecordId;
+	obstruction.River		= nullptr;
+	obstruction.Landform	= nullptr;
+
+	const DynamicVectorClass<Vector2> * points = nullptr;
+	if (window.Obstruction == HYBRID_OBSTRUCTION_RIVER) {
+		obstruction.River = hydrology.Find_River(window.ObstructionRecordId);
+		if (obstruction.River != nullptr) points = &obstruction.River->Points;
+	} else {
+		obstruction.Landform = landforms.Find(window.ObstructionRecordId);
+		if (obstruction.Landform != nullptr) points = &obstruction.Landform->Points;
+	}
+	if ((points == nullptr) || (points->Count() < 2) || !(spacing > 0.0f) || (half_length < 0.0f)) return false;
+
+	//	The search centre's own place on the centerline, in arc length.
+	float origin = 0.0f;
+	Distance_To_Polyline(*points,centre,&origin,nullptr);
+
+	float total = 0.0f;
+	for (int i = 1; i < points->Count(); ++i) total += ((*points)[i] - (*points)[i - 1]).Length();
+
+	//	The nominal count from `-half_length` through `+half_length` inclusive, capped to exactly `cap` uniform.
+	int count = (int)Hybrid_Round_Half_Up((2.0f * half_length) / spacing) + 1;
+	if (count < 2) count = 2;
+	if ((cap > 1) && (count > cap)) count = cap;
+
+	for (int n = 0; n < count; ++n) {
+
+		const float ratio = (count > 1) ? ((float)n / (float)(count - 1)) : 0.5f;
+		const float offset = -half_length + (ratio * 2.0f * half_length);
+		const float along = origin + offset;
+		if ((along < 0.0f) || (along > total)) continue;			// past the obstruction's end: not on it
+
+		//	The segment holding that arc length, and the point and direction there.
+		float travelled = 0.0f;
+		int segment = points->Count() - 2;
+		float t = 1.0f;
+		for (int i = 0; i < (points->Count() - 1); ++i) {
+			const float length = ((*points)[i + 1] - (*points)[i]).Length();
+			if ((travelled + length) >= along) {
+				segment = i;
+				t = (length > 0.0f) ? Clamp2((along - travelled) / length,0.0f,1.0f) : 0.0f;
+				break;
+			}
+			travelled += length;
+		}
+
+		const Vector2 & a = (*points)[segment];
+		const Vector2 & b = (*points)[segment + 1];
+
+		/*
+		**	Step 18's own frame: at a sample the tangent is the chord through its two neighbours, and between two
+		**	samples it moves from one to the other.  A station on a sample is therefore measured exactly as the
+		**	window there was.
+		*/
+		const int last = points->Count() - 1;
+		const Vector2 at_a = (*points)[(segment + 1 <= last) ? (segment + 1) : last] - (*points)[(segment > 0) ? (segment - 1) : 0];
+		const Vector2 at_b = (*points)[(segment + 2 <= last) ? (segment + 2) : last] - (*points)[segment];
+		const float length_a = at_a.Length();
+		const float length_b = at_b.Length();
+		if ((length_a <= 0.0f) || (length_b <= 0.0f)) continue;
+		Vector2 tangent = ((at_a * (1.0f / length_a)) * (1.0f - t)) + ((at_b * (1.0f / length_b)) * t);
+		const float tangent_length = tangent.Length();
+		if (tangent_length <= 0.0f) continue;
+		tangent *= (1.0f / tangent_length);
+		if (((tangent.X * window.Tangent.X) + (tangent.Y * window.Tangent.Y)) < 0.0f) tangent = -tangent;
+
+		HybridObstructionStation station;
+		station.Centre.Set(Hybrid_Quantize_Position(a.X + ((b.X - a.X) * t)),
+								 Hybrid_Quantize_Position(a.Y + ((b.Y - a.Y) * t)));
+		station.Tangent.Set(Hybrid_Quantize_Normalized(tangent.X),Hybrid_Quantize_Normalized(tangent.Y));
+		station.Offset = offset;
+
+		//	Step 18's half width: a river's own width between its two samples, a landform's own band.
+		if (obstruction.River != nullptr) {
+			station.HalfSpan = 0.5f * (((1.0f - t) * obstruction.River->Width_At_Index(segment)) +
+												(t * obstruction.River->Width_At_Index(segment + 1)));
+		} else {
+			station.HalfSpan = Obstruction_Half_Span(obstruction,segment);
+		}
+
+		bool duplicate = false;
+		for (int q = 0; (q < out->Count()) && !duplicate; ++q) {
+			if ((*out)[q].Centre == station.Centre) duplicate = true;
+		}
+		if (!duplicate) out->Add(station);
+	}
 	return true;
 }

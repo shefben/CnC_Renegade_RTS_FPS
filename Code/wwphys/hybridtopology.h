@@ -247,6 +247,17 @@ struct HybridTopology
 	int			Trails;
 	int			CrossLinks;
 
+	/*
+	**	Q-023's census, not part of the frozen record: candidate structural bindings refused because no road of
+	**	the edge's class could line up with the window on both banks, because the window faces away from the
+	**	road's intent on either side, or because no class-radius road joins the resulting structural poses even
+	**	on empty ground -- and bindings that took a lower-ranked window after a higher one was refused.
+	*/
+	int			RejectedApproachClass;
+	int			RejectedWrongSide;
+	int			RejectedPose;
+	int			RecoveredByNextRank;
+
 	unsigned int	Checksum;			// Phase 9 gate value
 };
 
@@ -272,6 +283,24 @@ struct HybridTopologyParams
 /*
 **	Phase 9 failures.  Each is a named attempt failure: the manager retries with a new seed.
 */
+/*
+**	A point a road has to pass, as Phase 9 freezes it (Q-023).  A structural waypoint -- a crossing window or an
+**	overpass obligation -- has a traversal `Axis`, signed for travel along its edge, and straight reserves
+**	`Before` and `After` it along that axis; an ordinary waypoint, a base entrance or a field access point has
+**	no axis (zero) and may be passed on any heading.
+*/
+struct HybridRoadPose
+{
+	HybridRoadPose(void) : Point(0.0f,0.0f),Axis(0.0f,0.0f),Before(0.0f),After(0.0f) { }
+
+	Vector2	Point;
+	Vector2	Axis;
+	float		Before;
+	float		After;
+
+	bool	Is_Structural(void) const	{ return Axis.Length() > 0.0f; }
+};
+
 enum HybridTopologyFailure
 {
 	HYBRID_TOPOLOGY_OK = 0,
@@ -284,7 +313,8 @@ enum HybridTopologyFailure
 	HYBRID_TOPOLOGY_TRAIL_QUOTA,					// too few candidate pairs for the trail quota
 	HYBRID_TOPOLOGY_OVERPASS_QUOTA,				// the overpass quota cannot be met, naturally or synthesized
 	HYBRID_TOPOLOGY_EDGE_BUDGET,					// more routed edges than R allows
-	HYBRID_TOPOLOGY_NO_CYCLE,						// gate: a tree fails this phase
+	HYBRID_TOPOLOGY_NO_CYCLE,
+	HYBRID_TOPOLOGY_UNREALIZABLE,			// gate: a structural waypoint sequence no road of its class can drive						// gate: a tree fails this phase
 	HYBRID_TOPOLOGY_FAILURE_COUNT
 };
 
@@ -292,10 +322,18 @@ const char *	Hybrid_Topology_Failure_Name(HybridTopologyFailure failure);
 
 struct HybridTopologyResult
 {
-	HybridTopologyResult(void) : Failure(HYBRID_TOPOLOGY_OK) { }
+	HybridTopologyResult(void) :
+		Failure(HYBRID_TOPOLOGY_OK),RejectedApproachClass(0),RejectedWrongSide(0),RejectedPose(0),
+		RecoveredByNextRank(0) { }
 
 	HybridTopologyFailure	Failure;
 	StringClass					Detail;
+
+	//	The Q-023 census of the attempt, kept whether or not it succeeded (HybridTopology's own copy is reset).
+	int							RejectedApproachClass;
+	int							RejectedWrongSide;
+	int							RejectedPose;
+	int							RecoveredByNextRank;
 };
 
 
@@ -342,6 +380,57 @@ bool	Hybrid_Build_Topology(const HybridTopologyParams & params,const HybridMapId
 **	Hybrid_Build_Topology stores it in out->Checksum.
 */
 unsigned int	Hybrid_Topology_Checksum(const HybridTopology & topology,unsigned int seed = 0);
+
+
+/*
+**	Q-023, structural-pose realizability.  Phase 9 chooses which physical windows become structural waypoints on
+**	which edges, and it may not freeze a sequence no road of the edge's class could drive even on empty ground.
+**
+**	Hybrid_Window_Pose: the pose a crossing window presents to a road travelling from `previous` to `next`: its
+**	centre, its own axis signed for that travel, and its whole frozen straight -- the obstruction and the `8W`
+**	approach reserve either side -- as the reserves.
+**
+**	Hybrid_Overpass_Pose: an overpass obligation's pose on one participating road: the shared point, the road's
+**	own intent from `previous` to `next`, and the `10W` Phase 9 reserves either side for its ramps.
+**
+**	Hybrid_Pose_Faces_Intent: neither side has the road arriving at, or leaving, the structure from behind --
+**	the axis is within 90 degrees of the planned direction on both sides.
+**
+**	Hybrid_Window_Bindable: everything Phase 9 asks before a window may be ranked for one edge -- the class
+**	approach capability Phase 6 recorded, the wrong-side test, and the route owner's connector from the
+**	neighbour behind and to the neighbour ahead (Hybrid_Road_Poses_Connect).
+**
+**	Hybrid_First_Bindable_Window: the first of `count` windows, in the caller's own rank order, that is bindable;
+**	-1 when none is.  An impossible candidate is passed over, never chosen and then failed.
+*/
+HybridRoadPose	Hybrid_Window_Pose(const HybridCrossingWindow & window,const Vector2 & previous,const Vector2 & next);
+HybridRoadPose	Hybrid_Overpass_Pose(const Vector2 & point,const Vector2 & previous,const Vector2 & next,
+											const HybridConstants & constants,float half_deck = 0.0f);
+
+/*
+**	Half the deck an overpass spans along one road, `axis`, where it crosses `other_axis`: the deck covers the
+**	other roadbed at the angle the two meet, `w / sin(theta) + w |cot(theta)|`, with `w` the wider of the two
+**	roadbeds.  The deck is a straight bridge, so the road keeps this straight either side of the shared point;
+**	Phase 9 reserves at least it (and `10W`), and Phase 10 keeps it.  Zero for parallel roads.
+*/
+float	Hybrid_Overpass_Half_Deck(const Vector2 & axis,const Vector2 & other_axis,HybridRoadClass road_class,
+										HybridRoadClass other_class,float lane_width);
+bool	Hybrid_Pose_Faces_Intent(const Vector2 & previous,const HybridRoadPose & pose,const Vector2 & next);
+bool	Hybrid_Window_Bindable(const HybridCrossingWindow & window,const HybridRoadPose & previous,
+										const HybridRoadPose & next,HybridRoadClass road_class,const HybridConstants & constants,
+										int * refusal_out = nullptr);
+int	Hybrid_First_Bindable_Window(const HybridCrossingWindow * const * ranked,int count,
+											const HybridRoadPose & previous,const HybridRoadPose & next,
+											HybridRoadClass road_class,const HybridConstants & constants);
+
+//	Hybrid_Window_Bindable's refusals, in the order it asks.
+enum HybridBindingRefusal
+{
+	HYBRID_BINDING_OK = 0,
+	HYBRID_BINDING_APPROACH_CLASS,
+	HYBRID_BINDING_WRONG_SIDE,
+	HYBRID_BINDING_POSE,
+};
 
 
 #endif // HYBRIDTOPOLOGY_H

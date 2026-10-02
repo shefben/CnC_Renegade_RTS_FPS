@@ -1,6 +1,6 @@
 {
 	"schema_version": 11,
-	"generator_version": 12,
+	"generator_version": 13,
 	"name": "Default procedural world",
 
 	"seed": 1,

@@ -1020,6 +1020,8 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 		kind.MaxSpan					= Hybrid_Resolve_Bridge_Max_Span (0.0f,
 																					HybridMetrics.BridgeMaxSpanLength);
 		kind.RequiredApproachLength= HybridMetrics.BridgeApproachLength;
+		kind.StartSeat					= bridges[i].StartSeat;
+		kind.EndSeat					= bridges[i].EndSeat;
 		params.BridgeKinds.Add (kind);
 	}
 
