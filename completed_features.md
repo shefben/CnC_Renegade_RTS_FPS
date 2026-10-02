@@ -4806,6 +4806,26 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## Hybrid planner-yield stabilization (Q-024, Q-025) -- generator identity 14 (2026-10-02)
+
+The Section-5 overpass number is a target (Q-024): the never-enforced `60..120` degree rule is fixed, and the angle
+and arms are measured on driven sub-segments. Each heavy family is one continuous physical trunk (`Route_Road`,
+`HybridTrunkRoad`, Q-025) with its logical edges preserved. The reuse discount is revoked and the parallel-overlap
+rule added for independent roads. Shared topology nodes compile as `NodeId` junctions. Grading is per physical road.
+Owner fixes:
+- Phase 6 exact reserve discs and departure-fan turn room;
+- preferred bridge windows bound to their own family;
+- crossing obligations no longer road endpoints;
+- entrance corridors kept out of Tiberium reserves;
+- approach-reserve geometry and junction-aware 4W separation;
+- centerline field exemption.
+
+Owner-level failure census (`HybridTopologyResult` quota censuses, `HybridRouteResult::Census`,
+`HybridInteractionResult::RoadCrossings`) in the registered `hybridinteractionsearch` self-check. 1400-world yield
+172 / 32 / 6 -> 448 / 69 / 24. **Gate:** `terrain_hybridtopology`, `terrain_hybridroutes`,
+`terrain_hybridinteractions`, `terrain_hybridrealization` and `fds_` twins; full ctest on client and dedicated
+server; state validator. Decisions D-019 and D-020.
+
 ## Hybrid crossing ownership correction (Q-022, Q-023) -- generator identity 13 (2026-10-02)
 
 Phase 6 records per-class approach capability (`HybridCrossingWindow::ApproachClasses`); Phase 9 freezes only

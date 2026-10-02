@@ -6,6 +6,14 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
+- **Q-025 CLOSED (2026-10-02, option (a)).** Each heavy family is one continuous physical trunk; the logical edges
+  stay authoritative. The reuse discount is revoked, and independent roads may not overlap beyond a shared
+  junction's reach. Shared topology nodes compile as `NodeId` junctions. See `DECISIONS.md` D-020.
+
+- **Q-024 CLOSED (2026-10-02, option (a)).** The Section-5 overpass number is a target: every reserved overpass is
+  hard-valid and compiles, and a shortfall is a diagnostic only. Bridge quotas stay mandatory. Generator identity
+  14. See `DECISIONS.md` D-019.
+
 - **Q-023 CLOSED (2026-10-02, option (a)).** Phase-9 structural bindings must be geometrically realizable as
   oriented road poses before the topology is frozen: Phase 6 records per-class approach capability, Phase 9
   tests capability -> corridor -> `12W` -> wrong side -> pose -> rank and takes the next ranked window when one

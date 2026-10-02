@@ -200,7 +200,7 @@ const char *	Hybrid_Interaction_Problem_Name(HybridInteractionProblem problem);
 struct HybridInteraction
 {
 	HybridInteraction(void) :
-		StableId(0),EdgeId(0),OtherEdgeId(0),Obstruction(HYBRID_OBSTRUCTION_NONE),ObstructionRecordId(0),
+		StableId(0),EdgeId(0),OtherEdgeId(0),NodeId(0),Obstruction(HYBRID_OBSTRUCTION_NONE),ObstructionRecordId(0),
 		WindowId(0),Mandatory(false),Method(HYBRID_METHOD_BRIDGE),RoadClass(HYBRID_ROAD_CLASS_COUNT),
 		FallbackFrom(HYBRID_PROBLEM_NONE),
 		Station(0.0f,0.0f),Tangent(1.0f,0.0f),ApproachA(0.0f,0.0f),ApproachB(0.0f,0.0f),Span(0.0f),
@@ -216,6 +216,7 @@ struct HybridInteraction
 	unsigned int				StableId;
 	unsigned int				EdgeId;					// the road this solution belongs to
 	unsigned int				OtherEdgeId;			// road x road only; 0 otherwise
+	unsigned int				NodeId;					// a topology junction: the node its roads share; 0 otherwise
 	HybridObstructionKind	Obstruction;
 	unsigned int				ObstructionRecordId;	// river or landform StableId; 0 for road x road
 	unsigned int				WindowId;				// the Phase-6 window used; 0 when none was needed
@@ -332,7 +333,18 @@ bool	Hybrid_Realized_Route(const HybridRoute & route,const HybridInteractionSet 
 */
 struct HybridProfileStructure;
 bool	Hybrid_Road_Profile_Structures(const HybridInteractionSet & set,const HybridRoute & realized,
-												 DynamicVectorClass<HybridProfileStructure> * out);
+												 DynamicVectorClass<HybridProfileStructure> * out,
+												 const DynamicVectorClass<unsigned int> * edges = nullptr);
+
+/*
+**	The physical road a logical edge is part of, realized (Q-025): a heavy family's whole trunk -- each of its
+**	logical edges realized with its own crossings and the slices joined end to end, one continuous road -- or
+**	the edge's own realized road when it is a road of its own.  `edges_out` receives the logical edges it
+**	carries, in travel order, for Hybrid_Road_Profile_Structures.  Section 12.1 grades a road over this.
+*/
+bool	Hybrid_Realized_Physical_Road(const HybridRouteSet & routes,const HybridInteractionSet & set,
+												unsigned int edge_id,HybridRoute * out,
+												DynamicVectorClass<unsigned int> * edges_out);
 
 
 /*
@@ -427,6 +439,43 @@ enum HybridInteractionFailure
 
 const char *	Hybrid_Interaction_Failure_Name(HybridInteractionFailure failure);
 
+/*
+**	What a road x road meeting is.  Two edges that end at one topology node meet there by design (`SHARED`);
+**	a Phase-9 `OVERPASS_OBLIGATION` is a reserved crossing (`OBLIGATION`); anything else the two realized
+**	centerlines do is `INCIDENTAL` and gets the junction / overpass / reroute order.
+*/
+enum HybridRoadMeeting
+{
+	HYBRID_ROAD_MEETING_SHARED = 0,
+	HYBRID_ROAD_MEETING_OBLIGATION,
+	HYBRID_ROAD_MEETING_INCIDENTAL,
+	HYBRID_ROAD_MEETING_COUNT
+};
+
+//	The road x road accounting of one Phase-11 attempt, and the crossing that failed it, if one did.
+struct HybridRoadCrossingCensus
+{
+	HybridRoadCrossingCensus(void)	{ Reset(); }
+	void	Reset(void);
+
+	int		Meetings[HYBRID_ROAD_MEETING_COUNT];	// every meeting found, by class
+	int		IncidentalNearShared;	// crossings of two edges that share a node, away from that node
+	int		IncidentalBeyondJunction;	// ...and beyond the junction's own arm reach there
+	int		WaypointShared;			// edge pairs where one ends at a waypoint of the other
+	int		FailedMeeting;				// HybridRoadMeeting of the failure, -1 when none failed
+	int		FailedKindA;				// HybridTopologyEdgeKind of each edge
+	int		FailedKindB;
+	float		FailedAngle;				// degrees between the two roads at the crossing, 0..90
+	float		FailedEndA;					// distance from the crossing to each edge's nearer endpoint node
+	float		FailedEndB;
+	int		FailedEndKindA;			// HybridTopologyNodeKind of that nearer endpoint node
+	int		FailedEndKindB;
+	bool		FailedWaypointShared;	// one edge ends at a node the other carries as a waypoint
+	int		JunctionProblem;			// HybridInteractionProblem
+	int		OverpassProblem[2];		// the first assignment, then the swap
+};
+
+
 struct HybridInteractionResult
 {
 	HybridInteractionResult(void) : Failure(HYBRID_INTERACTION_OK),RerouteEdgeId(0) { }
@@ -436,6 +485,8 @@ struct HybridInteractionResult
 
 	//	Set when the solver wants one edge rerouted through its next Phase-10 envelope before failing.
 	unsigned int					RerouteEdgeId;
+
+	HybridRoadCrossingCensus	RoadCrossings;
 };
 
 

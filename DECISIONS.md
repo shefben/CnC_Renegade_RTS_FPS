@@ -554,6 +554,114 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-020 - Hybrid rewrite Q-025: one physical trunk per heavy family; independent roads keep apart (2026-10-02)
+
+**Decision (user, 2026-10-02, option (a)).** Each heavy route family is one continuous physical trunk road through
+its ordered family waypoints. The logical topology edges are not collapsed. They stay authoritative for strategic
+topology, `StableId`s, Phase-9 ownership, crossing-obligation ownership, reroute envelope ownership, fairness,
+max-flow, diagnostics and checksums. Physical continuity and logical segmentation are separate.
+
+**Phase 10 (`Route_Road`).** A family's trunk edges are routed in travel order, each with its own envelope,
+Phase-11 floor and expansion budget. The heading a leg ends on is offered to the next across an ordinary family
+waypoint, and a leg arriving at that waypoint is first asked to arrive toward the next edge's first stop, each
+falling back to the existing free search. The chains are concatenated and the centerline is built once over the
+whole family. An ordinary waypoint is a position-only pinned corner standing on its own frozen position; the
+class-radius arc rounds it and must stay in its cell. Structural waypoints keep their exact Q-022 pose. A failure
+is charged to the logical edge it happened on, which alone moves to its next envelope; a Phase-11 reroute raises
+only that edge's floor and the whole trunk is laid again. Each logical edge's route is the exact slice of the one
+centerline its interval covers. `HybridRouteSet::Trunks` holds the `HybridTrunkRoad`: family, class, capability,
+logical edges and intervals, nodes, junction nodes, centerline, crossing intervals. No mixed-class trunk exists:
+Phase 9 assigns one class per family.
+
+**Independent roads.** The `-0.25d` reuse modifier is revoked (`reuse_modifier = 0`). One common rule replaces
+hugging. A later-routed independent road may not run within 30 degrees of an existing road, closer than
+`ParallelCenterlineClearance(A,B) = 0.5*RoadbedWidth(A) + 0.5*RoadbedWidth(B) + fairness.min_vehicle_lane_clearance`,
+for a continuous `>6W`, outside the junction-owned interval `JunctionReach(class) = max(4W, R)` measured along each
+road from a node the two share. `First_Parallel_Overlap` checks it exactly on the centerline; the search applies a
+conservative version. No shared-road / merge semantics (option (b)) were implemented.
+
+**Phase 11.** Every shared topology node is the topology's intended junction: one `NodeId` junction record, never
+an incidental crossing, judged by the shared surface's reserve, cut/fill and cross-slope rules on every road arm
+there. A heavy family's own consecutive edges are one road and need no junction. Grading is per physical road
+(`Hybrid_Realized_Physical_Road`): a trunk is graded once by Section 12.1 with every structure on any of its edges.
+
+**Owner defects found and fixed in the same pass.**
+- *Approach reserves.* The approach-reserve test used the reserve's length as a radius around the whole straight
+  and refused junctions beyond a bridge's approach. It is now the straight from `ApproachA` to `ApproachB` at the
+  road's own roadbed width.
+- *4W separation.* The gate's `4W` separation now treats solutions as related when they share a road, including
+  every road through a junction's node.
+- *Entrance corridors.* A base entrance corridor overlapping a frozen Tiberium reserve could not be reserved
+  against it (step 6), so step 5 now skips it. Before: 148 of 512 corridors over 420 worlds overlapped. After: 0.
+- *Centerline field exemption.* The centerline pass keeps its road-end field exemption.
+- *Phase 6.* Approach legality uses the exact `BASE_PROTECTED` and Tiberium discs Phase 10 refuses, and approach
+  turn room is the departure fan (straight on, or a quarter turn either way at the class radius).
+- *Phase 9.* Preferred bridge windows bind to the family whose corridor made them preferred. Crossing obligations
+  are no longer road endpoints.
+
+**Tests.** `Check_Hybrid_Continuous_Trunk`, plus native trunk checks in `Check_Hybrid_Routes`, covering:
+- one road through ordinary waypoints with no corner and no second road object;
+- several guides in order;
+- a branch at a trunk node compiled as one `NodeId` junction with no incidental record;
+- a service road that may not ride the trunk past `JunctionReach`;
+- a legal parallel road;
+- the logical graph and max-flow unchanged;
+- a single-edge reroute that moves only that edge's floor and lays the trunk again in one piece.
+
+The structural-waypoint pose case is the existing Q-022 alignment worlds, run through the same router.
+
+**Status: accepted.** `Q-025` closes on this record.
+
+
+
+## D-019 - Hybrid rewrite Q-024: the Section-5 overpass number is a target; generator 14 (2026-10-02)
+
+**Decision (user, 2026-10-02, option (a)).** Section 5's highway road-over-road overpass numbers (0 / 1 / 2) are
+deterministic generation targets, not minimum quotas. Steps 12 and 13 enumerate every candidate and apply every
+hard-valid rule before ranking: the `60..120` degree angle, the `10W` arms, the exclusions, `12W` spacing, slope,
+Q-023 pose and the registered structure. Candidates are taken in order until the target is met or none remains.
+Phase 9 freezes `RequestedOverpassTarget` and `ReservedOverpassCount`. `OVERPASS_TARGET_SHORTAGE` is a diagnostic,
+not an attempt failure. The Phase-9 gate checks that every reserved overpass is hard-valid, pose-realizable and
+shared by both edges, never more than the target. Phase 11 stays strict: every reserved overpass compiles or
+follows the swap / reroute / fail order, and the quota check is `compiled reserved overpasses ==
+ReservedOverpassCount`. Phase 19's quota check is written the same way in the plan. River and canyon/ravine bridge
+quotas stay mandatory. A highway on-ramp or off-ramp is not an overpass.
+
+**The rule Q-024 exposed.** The `60..120` degree test never refused anything: it compared the 0..90 line angle
+against both ends of the directed band. Angle and arms were also measured on each edge's endpoint-to-endpoint
+line instead of the intent sub-segment the road is driven along. Both are fixed; in the 1400-world census they are
+now the dominant overpass refusals (natural: 309 angle, 65 arm; synthesized: 1171 angle, 519 arm).
+
+**Generator identity 14.** `CURRENT_GENERATOR_VERSION` is 14: the four shipped profiles, the self-check's
+mirrored profiles and `NetworkingAndPersistence.md`.
+
+**The stabilization census** (`renegade -terrainselfcheck hybridinteractionsearch`, 200 seeds x 7 archetypes, 1400
+attempts, final tree):
+
+| | before (`0c8328fa`) | after |
+| --- | --- | --- |
+| pass Phase 9 | 172 | 448 |
+| pass Phase 10 | 32 | 69 |
+| pass Phase 11 | 6 | 24 |
+| reroutes requested / resolved / exhausted | 77 / 0 / 26 | 130 / 0 / 44 |
+
+What still fails, by owner:
+- *Phase 9: 332 failures.* 225 bridge quota (river 182, canyon/ravine 43) and 107 obligation unbound. Of the river
+  quota's refused candidates, 3095 have no heavy node on one bank and 2839 lie outside every family's corridor.
+  Those windows are real but far from the families, and the plan's procedure cannot bind them.
+- *Phase 10: 379 failures.* 66 no path, the frontier dominated by turn/approach pose. 297 centerline refusals,
+  classified by geometric condition: 149 ground rules (Tiberium 49, grade 48, cross slope 21, others), 91
+  structural transitions (a frozen crossing or overpass straight that the terrain-routed chain cannot line up
+  with), 55 ordinary-guide boundaries (the class-radius arc at a trunk joint leaves the guide's cell because the
+  family's intent turns sharply there) and 2 control/fillet constructions. None is a quantization or rounding
+  artifact.
+- *Phase 11: 45 failures.* 19 no solution (shallow incidental road x road crossings), 18 obligation lost (reserved
+  overpasses whose roads cannot fit the ramps, or obligations that cannot cross) and 8 bridge sweep (cross slope).
+
+**Status: accepted.** `Q-024` closes on this record.
+
+
+
 ## D-018 - Hybrid rewrite Q-023: Phase-9 structural bindings must be realizable road poses; generator 13 (2026-10-02)
 
 **Decision (user, 2026-10-02, option (a)):** Phase-9 structural bindings must be geometrically realizable as

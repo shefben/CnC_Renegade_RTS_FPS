@@ -104,8 +104,10 @@ reserved that rank for; an optional window is a permission, not a reservation.
 ## Per-class approach capability (Q-023)
 
 Each window records `ApproachClasses`, one bit per road class: the bit is set when that class's own roadbed
-half width stays on legal ground over both straight approaches and that class's own minimum turn radius of
-turn room lies past each approach point. The window's existence test is unchanged (`PRIMARY_2`, approach
+half width stays on legal ground over both straight approaches and, past each approach point, the road has a
+legal way off at its own turn radius -- straight on for one radius, or a quarter turn of that radius either way
+(the departure fan), swept at the roadbed width. Legal ground here is the exact `BASE_PROTECTED` and Tiberium
+reserve discs Phase 10 refuses, not the coarse flag of the cell a sample falls in. The window's existence test is unchanged (`PRIMARY_2`, approach
 only); the mask only tells Phase 9 which classes may be bound to it. It is part of the window checksum.
 `Hybrid_Obstruction_Stations` and `Hybrid_Crossing_Ground_Is_Clear` are exported so Phase 11 measures its
 stations on the obstruction and judges their ground by the same rule.

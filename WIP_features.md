@@ -302,12 +302,24 @@ stops the rest is upstream owner refusals (Phase-9 overpass and river-bridge quo
 ground and no-path, Phase-11 road x road crossings on synthesized cross-links). No native seed resolves a
 reroute; the one-reroute fixture is the controlled world in `Check_Controlled_Reroute`. `Q-018` remains open.
 
-**I13 / runtime Phase 12 in progress.** Committed: `39e23bea` (Section 12.1 solver, 12.2 cross-section) and
-the Q-022/Q-023 checkpoint. Phase 12's inputs now exist: `Hybrid_Realized_Route` (each road with its crossing
-connectors spliced in), `Hybrid_Road_Profile_Structures` (every structure a road carries, as 12.1 structures)
-and `Hybrid_Solve_Road_Stretch` (12.1 over a realized road with its structures).
+**Planner-yield stabilization pass closed (2026-10-02)** -- Q-024 (D-019) and Q-025 (D-020), generator identity 14.
+1400-world yield: Phase 9 448, Phase 10 69, Phase 11 24 (was 172 / 32 / 6). The remaining failures are
+classified by owner in D-019. Carried, measured, not yet resolved:
+- 55 Phase-10 ordinary-guide boundary refusals: the arc at a trunk joint leaves the guide's cell where the intent
+  turns sharply.
+- 91 structural-transition refusals.
+- 0 of 130 reroutes resolve.
+- 3095 river-quota windows with no heavy node on one bank.
 
-**Next exact action:** build the Phase-12 realization owner on those three: for each realized road, solve its
-whole profile once, then apply Section 12.2's cross-section deformation and 12.3's post-realization checks,
-instantiating roads, bridges and tunnels through the existing `RoadSystem` / `BridgeSystem` / `TunnelSystem`
-owners.
+`hybridinteractionsearch` remains a registered census self-check (no environment switches).
+
+**I13 / runtime Phase 12 in progress.** Committed: `39e23bea` (Section 12.1 solver, 12.2 cross-section) and
+`0c8328fa` (Q-022/Q-023). Phase 12's inputs exist: `Hybrid_Realized_Route`, `Hybrid_Road_Profile_Structures`,
+`Hybrid_Solve_Road_Stretch`. The highway-access-ramp extension (Plan Section 12.6, added 2026-10-02 by another
+session) reopens items in I1 -> I2 -> I10 -> I11 -> I12, which the checklist orders before the rest of I13.
+
+**Next exact action:** apply the highway-access-ramp plan/checklist extension the other session wrote (Plan Section 12.6;
+uncommitted in the plan and checklist). Implement its reopened Phase-9/10/11 prerequisites in the checklist order
+I1 -> I2 -> I10 -> I11 -> I12, and restore those gates. Then continue I13: the Phase-12 realization owner on
+`Hybrid_Realized_Physical_Road` (one road per heavy family trunk), `Hybrid_Road_Profile_Structures` and
+`Hybrid_Solve_Road_Stretch`.

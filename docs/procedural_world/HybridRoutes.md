@@ -95,6 +95,48 @@ on the axis is accepted unbent; a sideways arrival turns on its own bank and ent
 past the approach end swings round or is refused; and a crossing whose straight leaves no room for the turn
 after it is refused in every envelope while the same crossing with room routes.
 
+## One physical trunk per heavy family (Q-025)
+
+A heavy route family is one road. Its logical topology edges -- base entrance to waypoint to waypoint to base
+entrance -- keep their own `StableId`s, envelopes, Phase-11 envelope floors and route records, but Phase 10
+routes them as one physical road (`Route_Road`): the edges in travel order, each with its own envelope and
+expansion budget, the heading a leg ends on offered to the next across the ordinary family waypoint between
+them, and a leg arriving at that waypoint first asked to arrive toward the next edge's first stop. Each falls
+back to the existing free search when it leads nowhere. The centerline is built once over the whole
+concatenated chain, so an ordinary waypoint is a pinned corner the class-radius arc rounds (standing on the
+waypoint's own frozen position, its arc required to stay in the waypoint's cell) -- not the end of one road and
+the start of another. Structural waypoints keep their exact Q-022 pose.
+
+A failure is charged to the logical edge it happened on -- a leg with no path to the edge that leg belongs to, a
+centerline failure to the edge whose chain lies nearest the failing point -- and only that edge moves to its
+next envelope; after its third the edge fails. A Phase-11 reroute raises only that edge's floor, and the whole
+trunk is laid again in one piece. Each logical edge's `HybridRoute` is the exact slice of the one centerline its
+interval covers, so consecutive slices share their end sample. `HybridRouteSet::Trunks` holds the physical road
+(`HybridTrunkRoad`: family, class, capability, logical edges and their intervals, node sequence, junction nodes,
+centerline, crossing intervals); `Find_Trunk` maps a logical edge to it.
+
+## Independent roads keep their roadbeds apart (Q-025)
+
+The `-0.25d` reuse modifier is revoked: no road gets a discount for taking another's corridor. Instead, every
+independently realized road obeys one rule against every road already routed: it may not run within 30 degrees
+of it, closer than `ParallelCenterlineClearance(A,B) = 0.5*RoadbedWidth(A) + 0.5*RoadbedWidth(B) +
+fairness.min_vehicle_lane_clearance`, for a continuous `6W`. The only exemption is the junction a real shared
+topology node owns, `JunctionReach(class) = max(4W, class minimum turn radius)` along each road from the node.
+`First_Parallel_Overlap` enforces it exactly on the centerline. The A* applies it conservatively
+(`Move_Runs_Parallel`): half a cell of extra clearance, one cell less run, half a cell less exemption, and the
+angle judged over the whole run's displacement, so the search does not hand the centerline check a road the
+check then refuses. The existing heavy-family and optional-link collinear rules are unchanged.
+
+## Failure census
+
+With `HybridRouteParams::CollectCensus` set (the `hybridinteractionsearch` self-check sets it), a refused attempt
+reports its failed logical edge in `HybridRouteResult::Census`. That record holds the owning reason (`HybridRouteBlock`:
+envelope, world bounds, standing water, river or wall outside a window, base, Tiberium, grade, cross slope,
+turn/approach pose, an existing road, the expansion budget, or the centerline). It also holds the no-path frontier
+counted by rule, the class, role, envelope, structural-waypoint count, the failing leg and its end nodes, and for
+a centerline refusal its geometric condition (`HybridSplineFailureClass`: control/fillet construction, structural
+transition, ordinary-guide boundary, quantization, real minimum radius, or a ground rule).
+
 ## Diagnostics
 
 `Hybrid_Route_Census` in `hybridroutes.h` answers "what refuses this region?" with the same cached rules

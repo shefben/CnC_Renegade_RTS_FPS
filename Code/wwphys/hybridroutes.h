@@ -145,6 +145,39 @@ struct HybridRoute
 };
 
 
+/*
+**	One heavy route family's physical trunk road (Q-025).  The family's logical topology edges stay in the graph
+**	and keep their own route records, but they are one road: routed leg by leg with each edge's own envelope,
+**	and laid down as one continuous centerline across the ordinary family waypoints between them.  Each logical
+**	edge's route record is the exact slice of this centerline its interval covers, so the slices meet end to end
+**	on one curve with no corner and no second road at a waypoint.
+*/
+struct HybridTrunkRoad
+{
+	HybridTrunkRoad(void) : StableId(0),RouteFamily(-1),RoadClass(HYBRID_ROAD_CLASS_COUNT),Capabilities(0),Length(0.0f) { }
+
+	//	DynamicVectorClass<T> requires == and !=.  The physical road's own id is its identity.
+	bool	operator == (const HybridTrunkRoad & that) const	{ return StableId == that.StableId; }
+	bool	operator != (const HybridTrunkRoad & that) const	{ return !(*this == that); }
+
+	unsigned int						StableId;			// the physical road, 1-based in routing order
+	int									RouteFamily;
+	HybridRoadClass					RoadClass;			// one class for the whole family (Phase 9's assignment)
+	unsigned int						Capabilities;		// HybridNavCapability, identical on every segment
+	float									Length;
+
+	DynamicVectorClass<unsigned int>	EdgeIds;			// the logical edges, in travel order
+	DynamicVectorClass<float>			EdgeFrom;		// each edge's interval along the trunk, in Stations
+	DynamicVectorClass<float>			EdgeTo;
+	DynamicVectorClass<unsigned int>	Nodes;			// every node it passes, endpoints and waypoints, in order
+	DynamicVectorClass<unsigned int>	JunctionNodes;	// the nodes on it another realized road also carries
+
+	DynamicVectorClass<Vector2>		Points;			// the one continuous centerline, quantized
+	DynamicVectorClass<float>			Stations;
+	DynamicVectorClass<HybridRouteStructuralSpan>	Structural;		// its crossing intervals, in travel order
+};
+
+
 struct HybridRouteSet
 {
 	HybridRouteSet(void)	{ Reset (); }
@@ -155,7 +188,11 @@ struct HybridRouteSet
 	int						Count_Of_Class(HybridRoadClass road_class) const;
 	float						Total_Length_Of_Class(HybridRoadClass road_class) const;
 
+	//	The physical trunk a logical edge is part of, or null when the edge is its own road.
+	const HybridTrunkRoad *	Find_Trunk(unsigned int edge_id) const;
+
 	DynamicVectorClass<HybridRoute>	Routes;
+	DynamicVectorClass<HybridTrunkRoad>	Trunks;
 
 	int			AnalysisCountX;				// the grid every chain's cell ids index into
 	int			AnalysisCountY;
@@ -164,6 +201,17 @@ struct HybridRouteSet
 	int			WidenedRoutes;					// routes that needed an envelope past the preferred one
 	unsigned int	Checksum;					// Phase 10 gate value
 };
+
+
+/*
+**	Q-025's two shared measures.  `JunctionReach` is the road a real junction owns on each road through it,
+**	`max(4W, the class minimum turn radius)` along the centerline from the shared node -- Section 8 Phase 11's
+**	junction arm.  `ParallelCenterlineClearance` is how far apart two independently realized roads' centerlines
+**	must stay where they run within 30 degrees of each other for more than `6W`, so their roadbeds and the lane
+**	clearance between them do not overlap.
+*/
+float	Hybrid_Junction_Reach(HybridRoadClass road_class,float lane_width);
+float	Hybrid_Parallel_Clearance(HybridRoadClass a,HybridRoadClass c,float lane_width,float lane_clearance);
 
 
 /*
@@ -211,6 +259,79 @@ struct HybridRouteParams
 
 	HybridScratchArena *		Arena;
 	HybridWorkCounters *		Counters;
+
+	float							MinVehicleLaneClearance;	// fairness.min_vehicle_lane_clearance (Q-025's road separation)
+
+	//	When set, a failed edge reports what refused it (HybridRouteResult::Census).  Off in a normal build: it
+	//	costs one word per analysis cell and a mark on every refused move.
+	bool							CollectCensus;
+};
+
+
+/*
+**	What refuses an edge's search or its centerline, by owner.  A no-path search is classified by its frontier:
+**	the cells a refused move tried to enter and no move ever reached, counted by every rule that refused them.
+**	There is no `OPEN_MANEUVER` entry: Section 6.9's discs are not a Phase-10 refusal rule.
+*/
+enum HybridRouteBlock
+{
+	HYBRID_BLOCK_NONE = 0,
+	HYBRID_BLOCK_ENVELOPE,				// outside the edge's current corridor envelope
+	HYBRID_BLOCK_WORLD_BOUNDS,			// not placeable: the world's hard boundary
+	HYBRID_BLOCK_WATER,					// standing water, lake or coast
+	HYBRID_BLOCK_RIVER,					// a river channel outside an accepted window
+	HYBRID_BLOCK_WALL,					// a cliff, canyon or ravine wall outside an accepted window
+	HYBRID_BLOCK_BASE,					// BASE_PROTECTED outside the edge's own entrance corridor
+	HYBRID_BLOCK_TIBERIUM,				// a Tiberium hard reserve the edge does not serve
+	HYBRID_BLOCK_GRADE,					// the move climbs past the class grade
+	HYBRID_BLOCK_CROSS_SLOPE,			// the move's cross slope is past the class maximum
+	HYBRID_BLOCK_TURN,					// turn radius, turn spacing, or a crossing's arrival/departure axis
+	HYBRID_BLOCK_EXISTING_ROAD,		// a collinear rule against an already-routed road
+	HYBRID_BLOCK_BUDGET,					// an A* expansion ceiling
+	HYBRID_BLOCK_SPLINE,					// a path was found and its centerline could not be built or validated
+	HYBRID_BLOCK_COUNT
+};
+
+const char *	Hybrid_Route_Block_Name(HybridRouteBlock block);
+
+//	What kind of geometric failure a refused centerline was (HYBRID_BLOCK_SPLINE only).
+enum HybridSplineFailureClass
+{
+	HYBRID_SPLINE_FAILURE_NONE = 0,
+	HYBRID_SPLINE_FAILURE_CONTROL_FILLET,		// the corridor polyline could not be filleted at all
+	HYBRID_SPLINE_FAILURE_STRUCTURAL,				// a crossing's or overpass's frozen straight could not be joined
+	HYBRID_SPLINE_FAILURE_GUIDE_BOUNDARY,		// at a trunk's ordinary family waypoint (Q-025)
+	HYBRID_SPLINE_FAILURE_QUANTIZATION,			// curvature short of the class radius by under 1%
+	HYBRID_SPLINE_FAILURE_MIN_RADIUS,			// curvature genuinely under the class radius
+	HYBRID_SPLINE_FAILURE_GROUND,					// a terrain rule: ground, grade, cross slope, envelope, another road
+	HYBRID_SPLINE_FAILURE_COUNT
+};
+
+const char *	Hybrid_Spline_Failure_Class_Name(HybridSplineFailureClass failure);
+
+//	The failed edge of a refused Phase-10 attempt, when HybridRouteParams::CollectCensus is set.
+struct HybridRouteFailureCensus
+{
+	HybridRouteFailureCensus(void)	{ Reset(); }
+	void	Reset(void);
+
+	unsigned int	EdgeId;
+	int				RoadClass;					// HybridRoadClass
+	int				EdgeKind;					// HybridTopologyEdgeKind
+	int				Envelope;					// the last envelope tried
+	int				StructuralWaypoints;		// crossing and overpass obligations on the edge
+	int				Leg;							// the leg that found no path, -1 when the centerline failed
+	int				Legs;
+	unsigned int	LegFrom;						// the topology node at each end of that leg
+	unsigned int	LegTo;
+	bool				LegFromStructural;
+	bool				LegToStructural;
+	int				Reason;						// HybridRouteBlock: the final owning reason
+	int				SplineBlock;				// for HYBRID_BLOCK_SPLINE, what the centerline was refused by
+	int				SplineClass;				// HybridSplineFailureClass
+	float				SplineJointDistance;		// how far the failure was from the nearest trunk joint, -1 when none
+	StringClass		SplineReason;
+	int				Frontier[HYBRID_BLOCK_COUNT];	// the last no-path search's frontier, by rule
 };
 
 
@@ -233,8 +354,9 @@ struct HybridRouteResult
 {
 	HybridRouteResult(void) : Failure(HYBRID_ROUTE_OK) { }
 
-	HybridRouteFailure	Failure;
-	StringClass				Detail;
+	HybridRouteFailure			Failure;
+	StringClass						Detail;
+	HybridRouteFailureCensus	Census;
 };
 
 

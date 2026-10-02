@@ -587,7 +587,10 @@ class ProceduralWorldProfile
 		// sequences a road of the edge's class can drive, Phase 10 enters every frozen crossing along its axis,
 		// Phase 11 compiles attached crossings graded over the whole realized road, and Section 12.1 treats a
 		// pinned height as its quantization cell -- the same seed now builds different topologies and roads.
-		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 13 };
+		// Generator 14 is the Q-024/Q-025 stabilization: the overpass number is a target, each heavy family is one
+		// continuous physical trunk, independent roads keep their roadbeds apart, entrance corridors stay out of
+		// Tiberium reserves, and junctions compile at shared topology nodes.
+		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 14 };
 
 		ProceduralWorldProfile(void);
 

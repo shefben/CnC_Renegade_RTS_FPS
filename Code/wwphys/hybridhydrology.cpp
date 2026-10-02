@@ -2656,15 +2656,25 @@ static float Obstruction_Half_Span(const HydroObstruction & obstruction,int inde
 **	crossed is exempt from the wall test -- that is what the window is for -- and so is the crossed
 **	river's own channel, which the approach starts outside of anyway.
 */
+/*
+**	Step 18's "neither approach enters BASE_PROTECTED/Tiberium hard reserve", on the reserves' own geometry.
+**	Phase 4 froze each as a disc whose centre and radius Phase 8 keeps, and Phase 10 refuses exactly that disc;
+**	judging it by the coarse cell a sample falls in disagreed with Phase 10 at every disc edge -- a coarse cell
+**	whose centre is outside a disc passed approach and turn room the router then refused, and one whose centre
+**	is inside refused road the router would accept.
+*/
 static bool Approach_Sample_Is_Legal(HydrologyBuilder & b,const HydroObstruction & obstruction,
 												  const Vector2 & point)
 {
-	const HybridSemanticMatrix & matrix = b.Matrices->Matrix;
-
 	int cx = 0, cy = 0;
 	if (!b.Coarse_Cell(point,&cx,&cy))												return false;
-	if (b.Matrices->Is_Base_Protected(cx,cy))										return false;
-	if (matrix.Has_Flag(cx,cy,HYBRID_FLAG_TIBERIUM_RESERVE))					return false;
+	for (int r = 0; r < b.Matrices->Reservations.Count(); ++r) {
+		const HybridReservation & reservation = b.Matrices->Reservations[r];
+		if ((reservation.Priority != HYBRID_RESERVE_BASE_PROTECTED) &&
+			 (reservation.Priority != HYBRID_RESERVE_HOME_TIBERIUM) &&
+			 (reservation.Priority != HYBRID_RESERVE_FIELD_TIBERIUM)) continue;
+		if (Distance_To_Segment(point,reservation.A,reservation.B,nullptr) <= reservation.Radius) return false;
+	}
 	return Hybrid_Crossing_Ground_Is_Clear(*b.Out,*b.Landforms,obstruction.Kind,obstruction.RecordId,point);
 }
 
@@ -2828,6 +2838,42 @@ static bool Pass_Path_Is_Legal(HydrologyBuilder & b,const Vector2 & from,const V
 	}
 	Note_Samples(b,samples);
 	return true;
+}
+
+
+//	Step 18's `preferred` rule: on a required heavy corridor, or within `2S` of a crossing guide.
+/*
+**	A legal way off an approach point for a road of `half` roadbed half width and turn radius `radius`, leaving
+**	along `ahead`: straight on for one radius, or a quarter turn of that radius to the left or to the right,
+**	every sample swept across the roadbed.  Any one of the three is enough.
+*/
+static bool Departure_Fan_Is_Legal(HydrologyBuilder & b,const HydroObstruction & obstruction,const Vector2 & origin,
+											  const Vector2 & ahead,float half,float radius,float step)
+{
+	const Vector2 left(-ahead.Y,ahead.X);
+	for (int way = 0; way < 3; ++way) {
+
+		const float sense = (way == 1) ? 1.0f : ((way == 2) ? -1.0f : 0.0f);
+		const float length = (way == 0) ? radius : (0.5f * 3.14159265358979323846f * radius);
+		const Vector2 centre = origin + (left * (sense * radius));
+		bool clear = true;
+		for (float s = step; (s <= length) && clear; s += step) {
+
+			Vector2 at = origin + (ahead * s);
+			Vector2 direction = ahead;
+			if (way != 0) {
+				const float angle = s / radius;
+				at = centre - (left * (sense * radius * (float)cos((double)angle))) + (ahead * (radius * (float)sin((double)angle)));
+				direction = (ahead * (float)cos((double)angle)) + (left * (sense * (float)sin((double)angle)));
+			}
+			const Vector2 across(-direction.Y,direction.X);
+			for (int lateral = -1; (lateral <= 1) && clear; ++lateral) {
+				if (!Approach_Sample_Is_Legal(b,obstruction,at + (across * ((float)lateral * half)))) clear = false;
+			}
+		}
+		if (clear) return true;
+	}
+	return false;
 }
 
 
@@ -3047,9 +3093,13 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 		if (!Window_Has_Grid_Access(b,obstruction,centre,normal)) continue;
 
 		/*
-		**	Which classes can line up with the crossing on both banks (Q-023): the same continuous legality,
-		**	at each class's own roadbed width, over the straight approach and then the class's own turn room
-		**	past the approach point.  Local only -- no topology neighbour and no search.
+		**	Which classes can line up with the crossing on both banks (Q-023): each class's own roadbed on legal
+		**	ground over the straight approach, and then a legal way off it at the class's own turn radius.  A road
+		**	leaving an approach point is not obliged to go straight on -- it may turn either way at its radius --
+		**	so the turn room is the departure fan: straight on for one radius, or a quarter turn of that radius to
+		**	either side, each swept at the class roadbed width.  Requiring the straight alone refused 442 of
+		**	2719 `HIGHWAY_4` refusals over 210 worlds that had a legal turn off the approach.  Local only -- no
+		**	topology neighbour and no search.
 		*/
 		unsigned int approach_classes = 0;
 		for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
@@ -3058,13 +3108,15 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 			const float class_half = 0.5f * Hybrid_Roadbed_Width(road_class,k.W);
 			const float turn_room = Hybrid_Road_Class_Spec(road_class).MinTurnRadiusW * k.W;
 			bool fits = true;
-			for (float out_of = step; (out_of <= (approach + turn_room)) && fits; out_of += step) {
+			for (float out_of = step; (out_of <= approach) && fits; out_of += step) {
 				for (int lateral_index = -1; (lateral_index <= 1) && fits; ++lateral_index) {
 					const Vector2 offset = tangent * ((float)lateral_index * class_half);
 					if (!Approach_Sample_Is_Legal(b,obstruction,side_a + (normal * out_of) + offset))	fits = false;
 					if (!Approach_Sample_Is_Legal(b,obstruction,side_b - (normal * out_of) + offset))	fits = false;
 				}
 			}
+			if (fits) fits = Departure_Fan_Is_Legal(b,obstruction,side_a + (normal * approach),normal,class_half,turn_room,step) &&
+								  Departure_Fan_Is_Legal(b,obstruction,side_b - (normal * approach),-normal,class_half,turn_room,step);
 			if (fits) approach_classes |= (1u << (unsigned int)c);
 		}
 

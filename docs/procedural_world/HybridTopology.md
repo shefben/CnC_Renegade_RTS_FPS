@@ -141,6 +141,33 @@ the unchanged `60..120` degree, `10W`, exclusion, spacing and slope tests. The g
 chain. `HybridTopologyResult` carries the census of the attempt (`RejectedApproachClass`,
 `RejectedWrongSide`, `RejectedPose`, `RecoveredByNextRank`) whether or not it succeeded.
 
+## The overpass target (Q-024)
+
+Section 5's overpass number (`Hybrid_Overpass_Target`: 0 / 1 / 2) is a deterministic target, not a minimum.
+Steps 12 and 13 enumerate every candidate and apply every hard-valid rule before ranking. Those rules are the
+`60..120` degree angle (measured between the lines, on the intent sub-segment the crossing lies on), the `10W`
+arms on that sub-segment, the base / Tiberium / water / wall / window exclusions, the `12W` spacing, the slope
+disc and Q-023 pose realizability on both roads. Candidates are taken in ranked order until the target is met or
+none remains. The record freezes `RequestedOverpassTarget` and `ReservedOverpassCount`;
+`Overpass_Target_Shortage()` is the diagnostic, logged as `OVERPASS_TARGET_SHORTAGE`, and is never an attempt
+failure. The angle rule had never refused anything before this: it compared the 0..90 line angle against both
+ends of the directed band.
+
+Bridge quota selection binds a preferred window into the family whose heavy corridor made it preferred, not
+whichever family's node happens to be nearest. A non-preferred window gets the plan's bank cross-link, and
+otherwise the fallback into any family whose chain passes within its corridor. Crossing obligations are no longer
+pairable road endpoints: a road ending there would end inside the structure.
+
+`HybridTopologyResult` carries the quota census (`RiverQuota`, `CanyonQuota`: rejections by binding path and
+reason; `OverpassQuota`: step-12 and step-13 refusals by rule) whether or not the attempt succeeded.
+
+## Entrance corridors and Tiberium
+
+Step 6 reserves each base entrance corridor against unrelated Tiberium, so a candidate corridor that already
+overlaps a frozen Tiberium hard reserve is treated like one outside the viable sector and the next ranked
+sector is tried (`Corridor_Fits_Sector`). Measured before the fix: 148 of 512 frozen corridors over 420 worlds
+overlapped a reserve, and their trunks could not leave their own base. After it: none.
+
 ## Failure behavior
 
 Every failure is a named attempt failure and leaves the record empty: `no_entrance_sector`,

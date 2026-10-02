@@ -6959,7 +6959,7 @@ void Check_Hybrid_Topology (void)
 		Check (Hybrid_Canyon_Bridge_Quota (HYBRID_SIZE_LARGE) == 2,"LARGE canyon bridge quota");
 		Check (Hybrid_Highway_Quota (HYBRID_SIZE_SMALL) == 0,"SMALL highway quota");
 		Check (Hybrid_Highway_Quota (HYBRID_SIZE_LARGE) == 2,"LARGE highway quota");
-		Check (Hybrid_Overpass_Quota (HYBRID_SIZE_MEDIUM) == 1,"MEDIUM overpass quota");
+		Check (Hybrid_Overpass_Target (HYBRID_SIZE_MEDIUM) == 1,"MEDIUM overpass target");
 		Check (Hybrid_Service_Branch_Quota (HYBRID_SIZE_LARGE) == 8,"LARGE service branch quota");
 		Check (Hybrid_Trail_Quota (HYBRID_SIZE_MEDIUM) == 2,"MEDIUM trail quota");
 		Check (Hybrid_Cross_Link_Cap (HYBRID_SIZE_MEDIUM) == 5,"MEDIUM cross-link cap");
@@ -7268,9 +7268,9 @@ void Check_Hybrid_Topology (void)
 			 Hybrid_Service_Branch_Quota (identity.SizeClass));
 	Check (topology.Trails >= Hybrid_Trail_Quota (identity.SizeClass),"%d trails, Section 5 wants %d",
 			 topology.Trails,Hybrid_Trail_Quota (identity.SizeClass));
-	Check (topology.CrossLinks <= (topology.OptionalCrossLinkQuota + topology.Overpasses),
+	Check (topology.CrossLinks <= (topology.OptionalCrossLinkQuota + topology.ReservedOverpassCount),
 			 "%d cross-links, over the %d the quota and the overpass fallback allow",topology.CrossLinks,
-			 topology.OptionalCrossLinkQuota + topology.Overpasses);
+			 topology.OptionalCrossLinkQuota + topology.ReservedOverpassCount);
 
 	for (int e = 0; e < topology.Edges.Count (); ++e) {
 		const HybridTopologyEdge & edge = topology.Edges[e];
@@ -7284,8 +7284,22 @@ void Check_Hybrid_Topology (void)
 	}
 
 	//	Steps 12 to 14: every overpass obligation is one waypoint shared by exactly two edges.
-	Check (topology.Overpasses >= Hybrid_Overpass_Quota (identity.SizeClass),
-			 "%d overpasses, Section 5 wants %d",topology.Overpasses,Hybrid_Overpass_Quota (identity.SizeClass));
+	//	Q-024: the Section-5 number is a target; what Phase 9 reserved is exactly what it found, never padded.
+	Check (topology.RequestedOverpassTarget == Hybrid_Overpass_Target (identity.SizeClass),
+			 "the overpass target is %d, Section 5 says %d",topology.RequestedOverpassTarget,
+			 Hybrid_Overpass_Target (identity.SizeClass));
+	Check (topology.ReservedOverpassCount <= topology.RequestedOverpassTarget,
+			 "%d overpasses reserved past a target of %d",topology.ReservedOverpassCount,topology.RequestedOverpassTarget);
+	Check (topology.ReservedOverpassCount == topology.Count_Of_Node_Kind (HYBRID_NODE_OVERPASS_OBLIGATION),
+			 "%d overpasses counted, %d obligation nodes",topology.ReservedOverpassCount,
+			 topology.Count_Of_Node_Kind (HYBRID_NODE_OVERPASS_OBLIGATION));
+	Check (result.OverpassQuota.Required == topology.RequestedOverpassTarget,"the overpass census lost its target");
+	if (topology.Overpass_Target_Shortage () > 0) {
+		//	A shortfall is legitimate only when nothing hard-valid was left to take.
+		Check (result.OverpassQuota.Have == topology.ReservedOverpassCount,"the overpass census lost its count");
+		printf ("  overpass target %d, %d reserved: OVERPASS_TARGET_SHORTAGE %d (natural %d, synthesized %d candidates refused)\r\n",topology.RequestedOverpassTarget,topology.ReservedOverpassCount,topology.Overpass_Target_Shortage (),
+				  result.OverpassQuota.Natural,result.OverpassQuota.Synthesized);
+	}
 
 	for (int i = 0; i < topology.Nodes.Count (); ++i) {
 
@@ -7351,6 +7365,7 @@ static HybridRouteParams Route_Fixture (const HybridMapIdentityParams & identity
 	params.RiverWidth		= 6.0f;
 	params.FieldRadiusMax= 60.0f;
 	params.MaxLocalRetriesPerStage = 8;
+	params.MinVehicleLaneClearance = 1.0f;		// native fairness.min_vehicle_lane_clearance
 
 	//	Section 16.1's own budgets for this grid, so the ceilings under test are the real ones.
 	HybridWorkBudgets budgets;
@@ -8094,7 +8109,11 @@ struct HybridPipelineFixture
 	//	How far the pipeline got (9 = Phase 9 passed, 10 = Phase 10 passed) and Phase 9's Q-023 census.
 	int									Reached;
 	HybridTopologyResult				TopologyResult;
+	HybridRouteResult					RouteResult;
 };
+
+//	Set by the census tool: Phase 10 then reports what refused a failed edge (HybridRouteParams::CollectCensus).
+static bool s_route_census = false;
 
 
 /*
@@ -8220,11 +8239,13 @@ static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArch
 	out->Reached = 9;
 
 	out->RouteParams = Route_Fixture (out->Sized,world_size);
+	out->RouteParams.CollectCensus = s_route_census;
 	HybridRouteParams & route_params = out->RouteParams;
 	if (!Hybrid_Build_Routes (route_params,out->Identity,out->Matrices,out->Landforms,out->Hydrology,
 										out->Anchors,out->Topology,Macro_Sample_From_Formula,&out->Ground,
 										&out->Routes,&route_result)) {
 		if (detail_out != nullptr) *detail_out = route_result.Detail;
+		out->RouteResult = route_result;
 		return false;
 	}
 	out->Reached = 10;
@@ -8556,6 +8577,214 @@ static float Tightest_Radius (const DynamicVectorClass<Vector2> & points)
 
 
 /*
+**	Q-025 on a controlled world: one heavy family of three logical trunk edges -- A, two ordinary guides, B --
+**	across level ground, and the roads Q-025's rules are about beside it.  Everything goes through the real
+**	Phase-10 and Phase-11 owners.
+*/
+static void Trunk_World_Node (CrossingWorld * world,unsigned int id,HybridTopologyNodeKind kind,const Vector2 & at,int family)
+{
+	HybridTopologyNode node;
+	node.StableId		= id;
+	node.Kind			= kind;
+	node.Position		= at;
+	node.RouteFamily	= family;
+	world->Topology.Nodes.Add (node);
+}
+
+
+static void Trunk_World_Edge (CrossingWorld * world,unsigned int id,HybridTopologyEdgeKind kind,HybridRoadClass road_class,
+										unsigned int a,unsigned int c,int family)
+{
+	HybridTopologyEdge edge;
+	edge.StableId		= id;
+	edge.Kind			= kind;
+	edge.RoadClass		= road_class;
+	edge.Capabilities	= Hybrid_Topology_Edge_Capabilities (kind,false);
+	edge.NodeA			= a;
+	edge.NodeB			= c;
+	edge.Required		= true;
+	edge.RouteFamily	= family;
+	const HybridTopologyNode * na = world->Topology.Find_Node (a);
+	const HybridTopologyNode * nc = world->Topology.Find_Node (c);
+	edge.Length			= ((na != NULL) && (nc != NULL)) ? (nc->Position - na->Position).Length () : 0.0f;
+	world->Topology.Edges.Add (edge);
+}
+
+
+//	The longest stretch over which `road` runs within 30 degrees of `other` and closer than `clearance`, outside
+//	`reach_own` along `road` and `reach_other` along `other` of their shared point -- measured here, independently.
+static float Overlap_Run (const HybridRoute & road,const HybridRoute & other,float clearance,const Vector2 & shared,
+								  float reach_own,float reach_other)
+{
+	const float parallel = WWMath::Cos (30.0f * 0.0174532925f);
+	float own_shared = 0.0f;
+	float other_shared = 0.0f;
+	float best = 1.0e9f;
+	for (int i = 0; i < road.Points.Count (); ++i) {
+		const float d = (road.Points[i] - shared).Length ();
+		if (d < best) { best = d; own_shared = road.Stations[i]; }
+	}
+	best = 1.0e9f;
+	for (int i = 0; i < other.Points.Count (); ++i) {
+		const float d = (other.Points[i] - shared).Length ();
+		if (d < best) { best = d; other_shared = other.Stations[i]; }
+	}
+	float run = 0.0f;
+	float longest = 0.0f;
+	for (int i = 1; (i + 1) < road.Points.Count (); ++i) {
+		int at = -1;
+		float nearest = 1.0e9f;
+		for (int q = 1; q < other.Points.Count (); ++q) {
+			const float d = (road.Points[i] - (other.Points[q - 1] + other.Points[q]) * 0.5f).Length ();
+			if (d < nearest) { nearest = d; at = q; }
+		}
+		bool overlap = false;
+		if ((at > 0) && (nearest < clearance)) {
+			Vector2 a = road.Points[i + 1] - road.Points[i - 1];
+			Vector2 c = other.Points[at] - other.Points[at - 1];
+			a.Normalize ();
+			c.Normalize ();
+			const bool junction = (WWMath::Fabs (road.Stations[i] - own_shared) <= reach_own) ||
+										 (WWMath::Fabs (other.Stations[at] - other_shared) <= reach_other);
+			overlap = !junction && (WWMath::Fabs ((a.X * c.X) + (a.Y * c.Y)) >= parallel);
+		}
+		run = overlap ? (run + (road.Points[i] - road.Points[i - 1]).Length ()) : 0.0f;
+		if (run > longest) longest = run;
+	}
+	return longest;
+}
+
+
+static void Check_Hybrid_Continuous_Trunk (const HybridPreflightInputs * inputs,const HybridMetricCache * metrics)
+{
+	const float ROW = 7.5f;
+	const HybridRoadClass TRUNK = HYBRID_ROAD_PRIMARY_2;
+
+	//	The family: A (-397.5,ROW), guides at (-127.5,52.5) and (142.5,-37.5), B (397.5,ROW).
+	CrossingWorld world;
+	Crossing_World_Begin (&world);
+	const HybridConstants & k = world.Sized.Constants;
+	Trunk_World_Node (&world,1,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (-397.5f,ROW),0);
+	Trunk_World_Node (&world,2,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (-127.5f,52.5f),0);
+	Trunk_World_Node (&world,3,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (142.5f,-37.5f),0);
+	Trunk_World_Node (&world,4,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (397.5f,ROW),0);
+	Trunk_World_Edge (&world,1,HYBRID_EDGE_FAMILY_TRUNK,TRUNK,1,2,0);
+	Trunk_World_Edge (&world,2,HYBRID_EDGE_FAMILY_TRUNK,TRUNK,2,3,0);
+	Trunk_World_Edge (&world,3,HYBRID_EDGE_FAMILY_TRUNK,TRUNK,3,4,0);
+
+	/*
+	**	A branch at the first guide (a service road off to the north), a hugging service road from the same guide
+	**	that would most cheaply ride the trunk east, and a legal parallel road well clear of it.
+	*/
+	Trunk_World_Node (&world,5,HYBRID_NODE_FIELD_ACCESS,Vector2 (-127.5f,322.5f),-1);
+	Trunk_World_Edge (&world,4,HYBRID_EDGE_FIELD_BRANCH,HYBRID_ROAD_SERVICE_DIRT_2,2,5,-1);
+	Trunk_World_Node (&world,6,HYBRID_NODE_FIELD_ACCESS,Vector2 (127.5f,7.5f),-1);	// ~8 deg off the trunk, 40 north of it
+	Trunk_World_Edge (&world,5,HYBRID_EDGE_SERVICE_FILL,HYBRID_ROAD_SERVICE_DIRT_2,2,6,-1);
+	Trunk_World_Node (&world,7,HYBRID_NODE_FIELD_ACCESS,Vector2 (-337.5f,-232.5f),-1);
+	Trunk_World_Node (&world,8,HYBRID_NODE_FIELD_ACCESS,Vector2 (337.5f,-232.5f),-1);
+	Trunk_World_Edge (&world,6,HYBRID_EDGE_TRAIL,HYBRID_ROAD_TRAIL_1,7,8,-1);
+
+	const int edges_before = world.Topology.Edges.Count ();
+	HybridRouteResult result;
+	const bool routed = Crossing_World_Route (&world,&result);
+	Check (routed,"the controlled trunk world does not route: %s",result.Detail.Peek_Buffer ());
+	if (!routed) return;
+	Check (world.Topology.Edges.Count () == edges_before,"routing changed the logical graph");
+
+	//	Ordinary waypoints, one physical road: one trunk, three slices end to end, class radius at the joints.
+	Check (world.Routes.Trunks.Count () == 1,"%d physical trunks for one family",world.Routes.Trunks.Count ());
+	if (world.Routes.Trunks.Count () == 1) {
+		const HybridTrunkRoad & trunk = world.Routes.Trunks[0];
+		Check ((trunk.EdgeIds.Count () == 3) && (trunk.EdgeIds[0] == 1) && (trunk.EdgeIds[1] == 2) && (trunk.EdgeIds[2] == 3),
+				 "the trunk's logical edges are not 1, 2, 3 in order");
+		for (int s = 0; (s + 1) < trunk.EdgeIds.Count (); ++s) {
+			const HybridRoute * here = world.Routes.Find (trunk.EdgeIds[s]);
+			const HybridRoute * next = world.Routes.Find (trunk.EdgeIds[s + 1]);
+			Check ((here != NULL) && (next != NULL) && (here->Points[here->Points.Count () - 1] == next->Points[0]),
+					 "trunk slices %u and %u do not meet",trunk.EdgeIds[s],trunk.EdgeIds[s + 1]);
+		}
+		const float radius = Tightest_Radius (trunk.Points);
+		Check (radius >= (0.98f * Hybrid_Road_Class_Spec (TRUNK).MinTurnRadiusW * k.W),
+				 "the trunk turns at %.2f through its waypoints, under the class radius",radius);
+		for (int g = 2; g <= 3; ++g) {
+			const HybridTopologyNode * guide = world.Topology.Find_Node ((unsigned int)g);
+			bool inside = false;
+			for (int i = 0; (i < trunk.Points.Count ()) && !inside; ++i) {
+				inside = (WWMath::Fabs (trunk.Points[i].X - guide->Position.X) <= 7.5f + 7.5f) &&
+							(WWMath::Fabs (trunk.Points[i].Y - guide->Position.Y) <= 7.5f + 7.5f);
+			}
+			Check (inside,"the trunk does not pass guide %d's cell",g);
+		}
+		printf ("  continuous trunk: %d logical edges, one centerline of %.0f, tightest turn %.1f\r\n",
+				  trunk.EdgeIds.Count (),trunk.Length,radius);
+	}
+
+	//	The hugging service road may not ride the trunk past the junction it shares with it.
+	const HybridRoute * hug = world.Routes.Find (5);
+	const HybridRoute * slice = world.Routes.Find (2);
+	if ((hug != NULL) && (slice != NULL)) {
+		const float clearance = Hybrid_Parallel_Clearance (HYBRID_ROAD_SERVICE_DIRT_2,TRUNK,k.W,1.0f);
+		const float run = Overlap_Run (*hug,*slice,clearance,world.Topology.Find_Node (2)->Position,
+												 Hybrid_Junction_Reach (HYBRID_ROAD_SERVICE_DIRT_2,k.W),Hybrid_Junction_Reach (TRUNK,k.W));
+		Check (run <= ((6.0f * k.W) + (2.0f * k.Q)),"the service road rides the trunk for %.1f past its junction",run);
+		printf ("  service road beside the trunk: longest overlap past the junction %.1f of %.1f allowed\r\n",run,6.0f * k.W);
+	} else {
+		Check (hug == NULL,"the hugging service road routed without its trunk slice");
+	}
+
+	//	Legal parallel roads: the trail runs the same way 240 off the trunk and routes.
+	Check (world.Routes.Find (6) != NULL,"a road far clear of the trunk was refused");
+
+	//	The branch at a trunk node: one NodeId junction, and no incidental crossing between it and the trunk.
+	if (inputs != NULL) {
+		HybridInteractionParams params = Interaction_Fixture (world.Sized,1200.0f,*inputs,*metrics);
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		const bool ok = Hybrid_Build_Interactions (params,world.Identity,world.Matrices,world.Landforms,world.Hydrology,
+																 world.Anchors,world.Topology,world.Routes,Crossing_Ground,
+																 &world.Hydrology,&set,&solved);
+		Check (ok,"the controlled trunk world does not solve: %s",solved.Detail.Peek_Buffer ());
+		int at_guide = 0;
+		int incidental = 0;
+		for (int i = 0; i < set.Interactions.Count (); ++i) {
+			const HybridInteraction & one = set.Interactions[i];
+			if (one.Method != HYBRID_METHOD_AT_GRADE_JUNCTION) continue;
+			if (one.NodeId == 2) at_guide++;
+			//	The branch (edge 4) meets the trunk only at its guide.
+			if ((one.NodeId == 0) && ((one.EdgeId == 4) || (one.OtherEdgeId == 4))) incidental++;
+		}
+		Check (at_guide == 1,"the branch guide has %d junction records, not one",at_guide);
+		Check (incidental == 0,"%d incidental junctions on the branch, which meets the trunk only at its guide",incidental);
+		Check (solved.RoadCrossings.Meetings[HYBRID_ROAD_MEETING_SHARED] >= 1,"no shared-node meeting was counted");
+	}
+
+	//	One logical edge rerouted: only its floor moves, and the trunk is laid again in one piece.
+	HybridRouteEnvelopeFloor floor;
+	floor.EdgeId		= 2;
+	floor.MinEnvelope	= 1;
+	world.RouteParams.EnvelopeFloors.Add (floor);
+	HybridRouteSet again;
+	HybridRouteResult again_result;
+	const bool rerouted = Hybrid_Build_Routes (world.RouteParams,world.Identity,world.Matrices,world.Landforms,
+															world.Hydrology,world.Anchors,world.Topology,Crossing_Ground,
+															&world.Hydrology,&again,&again_result);
+	Check (rerouted,"the trunk does not route with its middle edge's floor raised: %s",again_result.Detail.Peek_Buffer ());
+	if (rerouted) {
+		Check ((again.Find (1) != NULL) && (again.Find (1)->Envelope == 0),"edge 1's envelope moved with edge 2's floor");
+		Check ((again.Find (2) != NULL) && (again.Find (2)->Envelope >= 1),"edge 2 ignored its floor");
+		Check ((again.Find (3) != NULL) && (again.Find (3)->Envelope == 0),"edge 3's envelope moved with edge 2's floor");
+		Check ((again.Trunks.Count () == 1) && (again.Trunks[0].EdgeIds.Count () == 3),"the rerouted trunk is not one road");
+		for (unsigned int e = 1; e < 3; ++e) {
+			const HybridRoute * here = again.Find (e);
+			const HybridRoute * next = again.Find (e + 1);
+			Check ((here != NULL) && (next != NULL) && (here->Points[here->Points.Count () - 1] == next->Points[0]),
+					 "after the reroute, slices %u and %u do not meet",e,e + 1);
+		}
+	}
+}
+
+
+/*
 **	Q-022 section 13, Phase 10's half: Phase 10 owns the road's arrival at every frozen crossing.  Each world is
 **	a 20-wide river north-south through the origin, long enough that the road has no way round it, with one
 **	window at the origin crossed eastward.  `PRIMARY_2` turns at 16.6 and carries an 8W = 26.6 straight approach.
@@ -8686,6 +8915,7 @@ static void Check_Hybrid_Crossing_Alignment (void)
 void Check_Hybrid_Routes (void)
 {
 	Check_Hybrid_Crossing_Alignment ();
+	Check_Hybrid_Continuous_Trunk (NULL,NULL);
 
 	HybridMapIdentity identity;
 	HybridArchetypeIntentSet intents;
@@ -8831,6 +9061,68 @@ void Check_Hybrid_Routes (void)
 	routed = true;
 
 	const HybridConstants & k = params.Constants;
+
+	/*
+	**	Q-025 on a real world: each heavy family is one physical trunk whose logical edges are the family's own
+	**	trunk edges in travel order, sliced end to end from one continuous centerline -- and the logical graph is
+	**	untouched by it, max-flow included.
+	*/
+	{
+		int families_seen = 0;
+		for (int f = 0; f < 8; ++f) {
+			int family_edges = 0;
+			for (int e = 0; e < topology.Edges.Count (); ++e) {
+				if ((topology.Edges[e].Kind == HYBRID_EDGE_FAMILY_TRUNK) && (topology.Edges[e].RouteFamily == f)) family_edges++;
+			}
+			if (family_edges == 0) continue;
+			families_seen++;
+			const HybridTrunkRoad * trunk = NULL;
+			for (int i = 0; i < routes.Trunks.Count (); ++i) {
+				if (routes.Trunks[i].RouteFamily == f) {
+					Check (trunk == NULL,"family %d has more than one physical trunk",f);
+					trunk = &routes.Trunks[i];
+				}
+			}
+			Check (trunk != NULL,"family %d has no physical trunk",f);
+			if (trunk == NULL) continue;
+			Check (trunk->EdgeIds.Count () == family_edges,"family %d's trunk carries %d of its %d edges",f,
+					 trunk->EdgeIds.Count (),family_edges);
+			for (int s = 0; s < trunk->EdgeIds.Count (); ++s) {
+				const HybridTopologyEdge * edge = topology.Find_Edge (trunk->EdgeIds[s]);
+				const HybridRoute * slice = routes.Find (trunk->EdgeIds[s]);
+				Check ((edge != NULL) && (edge->Kind == HYBRID_EDGE_FAMILY_TRUNK) && (edge->RouteFamily == f),
+						 "trunk %u carries edge %u, not one of family %d's",trunk->StableId,trunk->EdgeIds[s],f);
+				Check (slice != NULL,"trunk edge %u has no route record",trunk->EdgeIds[s]);
+				if ((edge == NULL) || (slice == NULL)) continue;
+				Check (slice->RoadClass == trunk->RoadClass,"trunk edge %u changes class",edge->StableId);
+				if ((s + 1) < trunk->EdgeIds.Count ()) {
+					const HybridTopologyEdge * next = topology.Find_Edge (trunk->EdgeIds[s + 1]);
+					const HybridRoute * next_slice = routes.Find (trunk->EdgeIds[s + 1]);
+					Check ((next != NULL) && (next->NodeA == edge->NodeB),"trunk edges %u and %u do not meet",edge->StableId,
+							 trunk->EdgeIds[s + 1]);
+					if (next_slice != NULL) {
+						Check (slice->Points[slice->Points.Count () - 1] == next_slice->Points[0],
+								 "trunk edges %u and %u are not one continuous road",edge->StableId,next_slice->EdgeId);
+					}
+				}
+			}
+		}
+		Check (families_seen == routes.Trunks.Count (),"%d trunks for %d families",routes.Trunks.Count (),families_seen);
+
+		//	The logical graph is Phase 9's and Phase 10 does not touch it.
+		unsigned int gdi = 0;
+		unsigned int nod = 0;
+		for (int n = 0; n < topology.Nodes.Count (); ++n) {
+			if (topology.Nodes[n].Kind != HYBRID_NODE_BASE) continue;
+			if (topology.Nodes[n].Team == 0) gdi = topology.Nodes[n].StableId;
+			if (topology.Nodes[n].Team == 1) nod = topology.Nodes[n].StableId;
+		}
+		if ((gdi != 0) && (nod != 0)) {
+			Check (Hybrid_Topology_Max_Flow (topology,gdi,nod) >= families_seen,
+					 "max-flow %d under the %d heavy families after routing",Hybrid_Topology_Max_Flow (topology,gdi,nod),
+					 families_seen);
+		}
+	}
 
 	//	Every mandatory realized edge has exactly one route, and every route belongs to an edge.
 	for (int e = 0; e < topology.Edges.Count (); ++e) {
@@ -17174,13 +17466,20 @@ void Check_Hybrid_Realization (void)
 		}
 	}
 
-	//	The cross-section: level roadbed, shoulder at roadbed height, smoothstep to terrain over `outer_blend`.
-	{
-		const float half_roadbed = 0.5f * Hybrid_Roadbed_Width (HYBRID_ROAD_PRIMARY_2,k.W);
+	/*
+	**	The cross-section of every road class: level roadbed, shoulder at roadbed height, smoothstep to terrain
+	**	over `outer_blend`.  Each class's roadbed is its own (Section 7's lanes, shoulders and median), and the
+	**	blend is the same for all of them.
+	*/
+	for (int road_class = 0; road_class < HYBRID_ROAD_CLASS_COUNT; ++road_class) {
+		const HybridRoadClass cls = (HybridRoadClass)road_class;
+		const float half_roadbed = 0.5f * Hybrid_Roadbed_Width (cls,k.W);
+		Check (half_roadbed == (0.5f * Hybrid_Road_Class_Spec (cls).Roadbed_Width_W () * k.W),
+				 "%s's roadbed is not its own lanes, shoulders and median",Hybrid_Road_Class_Name (cls));
 		const float blend = Hybrid_Road_Outer_Blend_Width (k.W,k.A);
 		Check (blend == WWMath::Max (k.W,0.5f * k.A),"outer_blend is %.3f, not max(W, A/2)",blend);
-		Check (Hybrid_Road_Cross_Section_Half_Width (HYBRID_ROAD_PRIMARY_2,k.W,k.A) == (half_roadbed + blend),
-				 "the cross-section half width is not roadbed half plus blend");
+		Check (Hybrid_Road_Cross_Section_Half_Width (cls,k.W,k.A) == (half_roadbed + blend),
+				 "the %s cross-section half width is not roadbed half plus blend",Hybrid_Road_Class_Name (cls));
 
 		const float road_z = 12.0f;
 		const float ground = 8.0f;
@@ -17425,6 +17724,39 @@ static float Gate_Station_On (const HybridRoute & road,const Vector2 & point)
 }
 
 
+//	The roads a solution involves: its own two, and for a topology junction every road through its node.
+static void Gate_Solution_Edges (const HybridTopology & topology,const HybridInteraction & one,
+											DynamicVectorClass<unsigned int> * out)
+{
+	out->Delete_All ();
+	if (one.EdgeId != 0) out->Add (one.EdgeId);
+	if (one.OtherEdgeId != 0) out->Add (one.OtherEdgeId);
+	if (one.NodeId == 0) return;
+	for (int e = 0; e < topology.Edges.Count (); ++e) {
+		const HybridTopologyEdge & edge = topology.Edges[e];
+		bool carries = (edge.NodeA == one.NodeId) || (edge.NodeB == one.NodeId);
+		for (int w = 0; (w < edge.Waypoints.Count ()) && !carries; ++w) carries = (edge.Waypoints[w] == one.NodeId);
+		if (carries) out->Add (edge.StableId);
+	}
+}
+
+
+static bool Gate_Solutions_Related (const HybridTopology & topology,const HybridInteraction & one,
+												const HybridInteraction & other)
+{
+	DynamicVectorClass<unsigned int> first;
+	DynamicVectorClass<unsigned int> second;
+	Gate_Solution_Edges (topology,one,&first);
+	Gate_Solution_Edges (topology,other,&second);
+	for (int i = 0; i < first.Count (); ++i) {
+		for (int j = 0; j < second.Count (); ++j) {
+			if (first[i] == second[j]) return true;
+		}
+	}
+	return false;
+}
+
+
 static void Check_Controlled_Reroute (const HybridPreflightInputs & inputs,const HybridMetricCache & metrics,
 												  int * runs_seen,int * untouched_checked)
 {
@@ -17644,12 +17976,16 @@ void Check_Hybrid_Interactions (void)
 		*/
 		for (int r = 0; r < fixture.Routes.Routes.Count (); ++r) {
 
+			//	One physical road at a time (Q-025): a heavy family's trunk is graded once, as one road.
 			const HybridRoute & route = fixture.Routes.Routes[r];
+			const HybridTrunkRoad * trunk = fixture.Routes.Find_Trunk (route.EdgeId);
+			if ((trunk != NULL) && (trunk->EdgeIds[0] != route.EdgeId)) continue;
 			HybridRoute realized;
+			DynamicVectorClass<unsigned int> road_edges;
 			DynamicVectorClass<HybridProfileStructure> structures;
-			Check (Hybrid_Realized_Route (route,interactions,&realized),"route %u has no realized centerline",
-					 route.EdgeId);
-			Check (Hybrid_Road_Profile_Structures (interactions,realized,&structures),
+			Check (Hybrid_Realized_Physical_Road (fixture.Routes,interactions,route.EdgeId,&realized,&road_edges),
+					 "route %u has no realized centerline",route.EdgeId);
+			Check (Hybrid_Road_Profile_Structures (interactions,realized,&structures,&road_edges),
 					 "a structure on route %u does not sit on its realized road",route.EdgeId);
 			if (realized.Points.Count () < 2) continue;
 
@@ -17908,9 +18244,9 @@ void Check_Hybrid_Interactions (void)
 			Check (canyon_bridges >= fixture.Topology.RequiredCanyonBridges,
 					 "%d canyon bridges against the Section-5 quota of %d",canyon_bridges,
 					 fixture.Topology.RequiredCanyonBridges);
-			Check (overpasses >= fixture.Topology.RequiredOverpasses,
-					 "%d overpasses against the Section-5 quota of %d",overpasses,
-					 fixture.Topology.RequiredOverpasses);
+			Check (overpasses >= fixture.Topology.ReservedOverpassCount,
+					 "%d overpasses against the %d Phase 9 reserved",overpasses,
+					 fixture.Topology.ReservedOverpassCount);
 		}
 
 		//	At most twelve crossing problems on one edge.
@@ -18083,14 +18419,16 @@ void Check_Hybrid_Interactions (void)
 				}
 			}
 
-			//	4W separation from any crossing on another edge.
+			/*
+			**	4W separation from any unrelated crossing -- "unless the topology explicitly shares a road
+			**	junction": two solutions are related when they involve a common road, counting every road that
+			**	carries a topology junction's node.
+			*/
 			for (int j = 0; j < interactions.Interactions.Count (); ++j) {
 
 				if (j == i) continue;
 				const HybridInteraction & other = interactions.Interactions[j];
-				if (other.EdgeId == one.EdgeId) continue;
-				if (other.OtherEdgeId == one.EdgeId) continue;
-				if (one.OtherEdgeId == other.EdgeId) continue;
+				if (Gate_Solutions_Related (fixture.Topology,one,other)) continue;
 				Check ((other.Station - one.Station).Length () >= (4.0f * k.W),
 						 "solutions %u and %u are %.1f apart, under the 4W separation of %.1f",one.StableId,
 						 other.StableId,(other.Station - one.Station).Length (),4.0f * k.W);
@@ -18556,7 +18894,16 @@ void Check_Hybrid_Interactions (void)
 					if (Hybrid_Build_Routes (late.RouteParams,late.Identity,late.Matrices,late.Landforms,
 													 late.Hydrology,late.Anchors,late.Topology,Macro_Sample_From_Formula,
 													 &late.Ground,&after,&after_result)) {
-						Check (after.Routes.Count () == before.Routes.Count (),
+						/*
+						**	The rerouted edge is the last one routed; at its next envelope it either routes or, when it
+						**	is optional, is dropped as Phase 10 drops any optional edge with no legal road.  Everything
+						**	before it is unaffected either way.
+						*/
+						const HybridTopologyEdge * late_edge = late.Topology.Find_Edge (late_floor.EdgeId);
+						const bool dropped = (after.Find (late_floor.EdgeId) == NULL);
+						Check ((after.Routes.Count () == before.Routes.Count ()) ||
+								 (dropped && (late_edge != NULL) && !late_edge->Required &&
+								  (after.Routes.Count () == (before.Routes.Count () - 1))),
 								 "raising one floor changed the route count from %d to %d",before.Routes.Count (),
 								 after.Routes.Count ());
 						int identical = 0;
@@ -18585,6 +18932,7 @@ void Check_Hybrid_Interactions (void)
 	*/
 	Check_Controlled_Reroute (inputs,preflight.Metrics,runs_seen,&untouched_checked);
 	Check_Hybrid_Crossing_Compile (inputs,preflight.Metrics);
+	Check_Hybrid_Continuous_Trunk (&inputs,&preflight.Metrics);
 
 	Check (runs_seen[1] > 0,"no fixture world solved without a reroute, so the one-run path is untested");
 	Check (runs_seen[2] > 0,"no fixture world spent exactly one reroute, so the two-run path is untested");
@@ -19079,6 +19427,61 @@ void Check_Hybrid_Interaction_Search (void)
 	int rejected_wrong_side = 0;
 	int rejected_pose = 0;
 	int recovered_next_rank = 0;
+	s_route_census = true;
+
+	//	The upstream census: what each failed phase was refused by (the stabilization pass's measurements).
+	int topology_failure[HYBRID_TOPOLOGY_FAILURE_COUNT];
+	for (int i = 0; i < HYBRID_TOPOLOGY_FAILURE_COUNT; ++i) topology_failure[i] = 0;
+	int quota_worlds[2] = { 0,0 };
+	int quota_candidates[2] = { 0,0 };
+	int quota_zero_candidates[2] = { 0,0 };
+	int quota_refused[2][HYBRID_QUOTA_PATH_COUNT][HYBRID_QUOTA_REFUSAL_COUNT];
+	for (int c = 0; c < 2; ++c) {
+		for (int pa = 0; pa < HYBRID_QUOTA_PATH_COUNT; ++pa) {
+			for (int r = 0; r < HYBRID_QUOTA_REFUSAL_COUNT; ++r) quota_refused[c][pa][r] = 0;
+		}
+	}
+	int overpass_worlds = 0;
+	int overpass_natural = 0;
+	int overpass_pairs = 0;
+	int overpass_synthesized = 0;
+	int overpass_no_pairs = 0;
+	int overpass_no_crossing = 0;
+	int overpass_natural_refused[HYBRID_OVERPASS_REFUSAL_COUNT];
+	int overpass_synth_refused[HYBRID_OVERPASS_REFUSAL_COUNT];
+	for (int r = 0; r < HYBRID_OVERPASS_REFUSAL_COUNT; ++r) {
+		overpass_natural_refused[r] = 0;
+		overpass_synth_refused[r] = 0;
+	}
+	int route_failures = 0;
+	int route_reason[HYBRID_BLOCK_COUNT];
+	int route_spline_block[HYBRID_BLOCK_COUNT];
+	int route_frontier[HYBRID_BLOCK_COUNT];
+	for (int i = 0; i < HYBRID_BLOCK_COUNT; ++i) {
+		route_reason[i] = 0;
+		route_spline_block[i] = 0;
+		route_frontier[i] = 0;
+	}
+	int route_class[HYBRID_ROAD_CLASS_COUNT];
+	for (int i = 0; i < HYBRID_ROAD_CLASS_COUNT; ++i) route_class[i] = 0;
+	int route_kind[HYBRID_TOPOLOGY_EDGE_KIND_COUNT];
+	for (int i = 0; i < HYBRID_TOPOLOGY_EDGE_KIND_COUNT; ++i) route_kind[i] = 0;
+	int route_envelope_final[3] = { 0,0,0 };
+	int spline_class[HYBRID_SPLINE_FAILURE_COUNT];
+	for (int i = 0; i < HYBRID_SPLINE_FAILURE_COUNT; ++i) spline_class[i] = 0;
+	int route_structural_leg = 0;
+	int route_with_structural = 0;
+	int meetings[HYBRID_ROAD_MEETING_COUNT] = { 0,0,0 };
+	int meetings_near_shared = 0;
+	int meetings_beyond_junction = 0;
+	int meetings_waypoint_shared = 0;
+	int meeting_failed[HYBRID_ROAD_MEETING_COUNT] = { 0,0,0 };
+	int junction_problem[HYBRID_PROBLEM_COUNT];
+	int overpass_problem[HYBRID_PROBLEM_COUNT];
+	for (int i = 0; i < HYBRID_PROBLEM_COUNT; ++i) {
+		junction_problem[i] = 0;
+		overpass_problem[i] = 0;
+	}
 	int solved_worlds = 0;
 	int reroute_requests = 0;
 	int reached_phase11 = 0;
@@ -19127,10 +19530,79 @@ void Check_Hybrid_Interaction_Search (void)
 				recovered_next_rank	+= scan.TopologyResult.RecoveredByNextRank;
 			}
 			if (scan.Reached >= 9) {
+				const HybridTopologyResult & tr = scan.TopologyResult;
+				if (tr.OverpassQuota.Have < tr.OverpassQuota.Required) {
+					const HybridOverpassCensus & o = tr.OverpassQuota;
+					printf ("OVERPASSSHORT archetype %d seed %u: families %d highways %d; natural %d, synthesized %d of %d pairs "
+							  "(%d heavy-heavy); angle refusals <15 %d, <30 %d, <45 %d, <60 %d\r\n",(int)SEARCH_ARCHETYPES[ai],seed,
+							  o.Families,o.Highways,o.Natural,o.Synthesized,o.Pairs,o.HeavyPairs,o.AngleBucket[0],
+							  o.AngleBucket[1],o.AngleBucket[2],o.AngleBucket[3]);
+					overpass_worlds++;
+					overpass_natural += o.Natural;
+					overpass_pairs += o.Pairs;
+					overpass_synthesized += o.Synthesized;
+					if (o.Pairs == 0) overpass_no_pairs++;
+					else if (o.Synthesized == 0) overpass_no_crossing++;
+					for (int r = 0; r < HYBRID_OVERPASS_REFUSAL_COUNT; ++r) {
+						overpass_natural_refused[r] += o.NaturalRefused[r];
+						overpass_synth_refused[r] += o.SynthesizedRefused[r];
+					}
+				}
 				passed_phase9++;
 				printf ("TOPOLOGY archetype %d seed %u\r\n",(int)SEARCH_ARCHETYPES[ai],seed);
 			}
-			if (!scanned) continue;
+			if (!scanned) {
+				if (scan.Reached == 8) {
+					const HybridTopologyResult & tr = scan.TopologyResult;
+					printf ("P9FAIL archetype %d seed %u: %s -- %s\r\n",(int)SEARCH_ARCHETYPES[ai],seed,
+							  Hybrid_Topology_Failure_Name (tr.Failure),tr.Detail.Peek_Buffer ());
+					if ((tr.Failure >= 0) && (tr.Failure < HYBRID_TOPOLOGY_FAILURE_COUNT)) topology_failure[tr.Failure]++;
+					if (tr.Failure == HYBRID_TOPOLOGY_BRIDGE_QUOTA) {
+						const bool river = (tr.RiverQuota.Have < tr.RiverQuota.Required);
+						const HybridQuotaCensus & q = river ? tr.RiverQuota : tr.CanyonQuota;
+						const int c = river ? 0 : 1;
+						quota_worlds[c]++;
+						quota_candidates[c] += q.Candidates;
+						if (q.Candidates == 0) quota_zero_candidates[c]++;
+						for (int pa = 0; pa < HYBRID_QUOTA_PATH_COUNT; ++pa) {
+							for (int r = 0; r < HYBRID_QUOTA_REFUSAL_COUNT; ++r) quota_refused[c][pa][r] += q.Refused[pa][r];
+						}
+					}
+				}
+				if ((scan.Reached == 9) && (scan.RouteResult.Census.EdgeId != 0)) {
+					const HybridRouteFailureCensus & rc = scan.RouteResult.Census;
+					route_failures++;
+					if ((rc.Reason >= 0) && (rc.Reason < HYBRID_BLOCK_COUNT)) route_reason[rc.Reason]++;
+					if ((rc.Reason == HYBRID_BLOCK_SPLINE) && (rc.SplineBlock >= 0) && (rc.SplineBlock < HYBRID_BLOCK_COUNT)) {
+						route_spline_block[rc.SplineBlock]++;
+					}
+					for (int i = 0; i < HYBRID_BLOCK_COUNT; ++i) route_frontier[i] += rc.Frontier[i];
+					if ((rc.RoadClass >= 0) && (rc.RoadClass < HYBRID_ROAD_CLASS_COUNT)) route_class[rc.RoadClass]++;
+					if ((rc.SplineClass > 0) && (rc.SplineClass < HYBRID_SPLINE_FAILURE_COUNT)) spline_class[rc.SplineClass]++;
+					if ((rc.EdgeKind >= 0) && (rc.EdgeKind < HYBRID_TOPOLOGY_EDGE_KIND_COUNT)) route_kind[rc.EdgeKind]++;
+					if ((rc.Envelope >= 0) && (rc.Envelope < 3)) route_envelope_final[rc.Envelope]++;
+					if (rc.LegFromStructural || rc.LegToStructural) route_structural_leg++;
+					if (rc.StructuralWaypoints > 0) route_with_structural++;
+					printf ("ROUTEFAIL archetype %d seed %u: edge %u %s %s envelope %d, %d structural, leg %d of %d (%u%s -> %u%s): %s",
+							  (int)SEARCH_ARCHETYPES[ai],seed,rc.EdgeId,
+							  Hybrid_Topology_Edge_Kind_Name ((HybridTopologyEdgeKind)rc.EdgeKind),
+							  Hybrid_Road_Class_Name ((HybridRoadClass)rc.RoadClass),rc.Envelope,rc.StructuralWaypoints,rc.Leg,
+							  rc.Legs,rc.LegFrom,rc.LegFromStructural ? "*" : "",rc.LegTo,rc.LegToStructural ? "*" : "",
+							  Hybrid_Route_Block_Name ((HybridRouteBlock)rc.Reason));
+					if (rc.Reason == HYBRID_BLOCK_SPLINE) {
+						printf (" (%s; %s; %s, %.0f from a joint)",rc.SplineReason.Peek_Buffer (),Hybrid_Route_Block_Name ((HybridRouteBlock)rc.SplineBlock),
+								  Hybrid_Spline_Failure_Class_Name ((HybridSplineFailureClass)rc.SplineClass),rc.SplineJointDistance);
+					} else {
+						printf (" [");
+						for (int i = 1; i < HYBRID_BLOCK_COUNT; ++i) {
+							if (rc.Frontier[i] > 0) printf (" %s %d",Hybrid_Route_Block_Name ((HybridRouteBlock)i),rc.Frontier[i]);
+						}
+						printf (" ]");
+					}
+					printf ("\r\n");
+				}
+				continue;
+			}
 			worlds++;
 
 			/*
@@ -19310,6 +19782,30 @@ void Check_Hybrid_Interaction_Search (void)
 																					Macro_Sample_From_Formula,&scan.Ground,
 																					&scan.Routes,&srr,&si,&sr,&spent);
 			reached_phase11++;
+			for (int i = 0; i < HYBRID_ROAD_MEETING_COUNT; ++i) meetings[i] += sr.RoadCrossings.Meetings[i];
+			meetings_near_shared += sr.RoadCrossings.IncidentalNearShared;
+			meetings_beyond_junction += sr.RoadCrossings.IncidentalBeyondJunction;
+			meetings_waypoint_shared += sr.RoadCrossings.WaypointShared;
+			if (!ok && (sr.RoadCrossings.FailedMeeting >= 0) && (sr.RoadCrossings.FailedMeeting < HYBRID_ROAD_MEETING_COUNT)) {
+				const HybridRoadCrossingCensus & rc = sr.RoadCrossings;
+				meeting_failed[rc.FailedMeeting]++;
+				if ((rc.JunctionProblem >= 0) && (rc.JunctionProblem < HYBRID_PROBLEM_COUNT)) junction_problem[rc.JunctionProblem]++;
+				for (int s = 0; s < 2; ++s) {
+					if ((rc.OverpassProblem[s] >= 0) && (rc.OverpassProblem[s] < HYBRID_PROBLEM_COUNT)) overpass_problem[rc.OverpassProblem[s]]++;
+				}
+				printf ("ROADFAIL archetype %d seed %u: %s %s x %s at %.1f deg, ends %.1f (%s) / %.1f (%s)%s; junction %s, overpass %s / %s"
+						  "\r\n",(int)SEARCH_ARCHETYPES[ai],seed,
+						  (rc.FailedMeeting == HYBRID_ROAD_MEETING_OBLIGATION) ? "obligation"
+						  : ((rc.FailedMeeting == HYBRID_ROAD_MEETING_SHARED) ? "shared-node" : "incidental"),
+						  Hybrid_Topology_Edge_Kind_Name ((HybridTopologyEdgeKind)rc.FailedKindA),
+						  Hybrid_Topology_Edge_Kind_Name ((HybridTopologyEdgeKind)rc.FailedKindB),rc.FailedAngle,rc.FailedEndA,
+						  Hybrid_Topology_Node_Kind_Name ((HybridTopologyNodeKind)rc.FailedEndKindA),rc.FailedEndB,
+						  Hybrid_Topology_Node_Kind_Name ((HybridTopologyNodeKind)rc.FailedEndKindB),
+						  rc.FailedWaypointShared ? ", ends at the other's waypoint" : "",
+						  Hybrid_Interaction_Problem_Name ((HybridInteractionProblem)rc.JunctionProblem),
+						  Hybrid_Interaction_Problem_Name ((HybridInteractionProblem)rc.OverpassProblem[0]),
+						  Hybrid_Interaction_Problem_Name ((HybridInteractionProblem)rc.OverpassProblem[1]));
+			}
 			printf ("BUILT archetype %d seed %u\r\n",(int)SEARCH_ARCHETYPES[ai],seed);
 			if (spent > 0) {
 				printf ("REROUTE archetype %d seed %u: %d reroute(s), %s\r\n",(int)SEARCH_ARCHETYPES[ai],seed,spent,
@@ -19324,6 +19820,8 @@ void Check_Hybrid_Interaction_Search (void)
 				if (spent > 0) exhausted++;
 				if ((sr.Failure > HYBRID_INTERACTION_OK) && (sr.Failure < HYBRID_INTERACTION_FAILURE_COUNT)) {
 					failure_reason[sr.Failure]++;
+					printf ("P11FAIL archetype %d seed %u: %s -- %s\r\n",(int)SEARCH_ARCHETYPES[ai],seed,
+							  Hybrid_Interaction_Failure_Name (sr.Failure),sr.Detail.Peek_Buffer ());
 				}
 				continue;
 			}
@@ -19362,6 +19860,79 @@ void Check_Hybrid_Interaction_Search (void)
 			  rejected_pose,recovered_next_rank);
 	printf ("worlds: %u attempted, %d built through Phase 10, %d reached Phase 11, %d solved\r\n",
 			  SEARCH_SEEDS * 7u,worlds,reached_phase11,solved_worlds);
+	s_route_census = false;
+	printf ("phase 9 failures:");
+	for (int i = 1; i < HYBRID_TOPOLOGY_FAILURE_COUNT; ++i) {
+		if (topology_failure[i] > 0) printf (" %s %d",Hybrid_Topology_Failure_Name ((HybridTopologyFailure)i),topology_failure[i]);
+	}
+	printf ("\r\n");
+	for (int c = 0; c < 2; ++c) {
+		printf ("%s bridge quota short in %d worlds: %d candidates (%d worlds with none)\r\n",c == 0 ? "river" : "canyon/ravine",
+				  quota_worlds[c],quota_candidates[c],quota_zero_candidates[c]);
+		for (int pa = 0; pa < HYBRID_QUOTA_PATH_COUNT; ++pa) {
+			printf ("   %-10s",Hybrid_Quota_Path_Name ((HybridQuotaPath)pa));
+			for (int r = 0; r < HYBRID_QUOTA_REFUSAL_COUNT; ++r) {
+				if (quota_refused[c][pa][r] > 0) printf (" %s %d",Hybrid_Quota_Refusal_Name ((HybridQuotaRefusal)r),quota_refused[c][pa][r]);
+			}
+			printf ("\r\n");
+		}
+	}
+	printf ("overpass target short in %d of the worlds Phase 9 froze: %d natural crossings, %d synthesized (%d eligible pairs; %d worlds with no "
+			  "pair, %d with no pair crossing a highway)\r\n",overpass_worlds,overpass_natural,overpass_synthesized,overpass_pairs,
+			  overpass_no_pairs,overpass_no_crossing);
+	printf ("   natural    ");
+	for (int r = 0; r < HYBRID_OVERPASS_REFUSAL_COUNT; ++r) {
+		printf (" %s %d",Hybrid_Overpass_Refusal_Name ((HybridOverpassRefusal)r),overpass_natural_refused[r]);
+	}
+	printf ("\r\n");
+	printf ("   synthesized");
+	for (int r = 0; r < HYBRID_OVERPASS_REFUSAL_COUNT; ++r) {
+		printf (" %s %d",Hybrid_Overpass_Refusal_Name ((HybridOverpassRefusal)r),overpass_synth_refused[r]);
+	}
+	printf ("\r\n");
+	printf ("phase 10 failures: %d; owning reason:",route_failures);
+	for (int i = 1; i < HYBRID_BLOCK_COUNT; ++i) {
+		if (route_reason[i] > 0) printf (" %s %d",Hybrid_Route_Block_Name ((HybridRouteBlock)i),route_reason[i]);
+	}
+	printf ("\r\n");
+	printf ("   centerline refusals by owner:");
+	for (int i = 0; i < HYBRID_BLOCK_COUNT; ++i) {
+		if (route_spline_block[i] > 0) printf (" %s %d",Hybrid_Route_Block_Name ((HybridRouteBlock)i),route_spline_block[i]);
+	}
+	printf ("\r\n");
+	printf ("   centerline refusals by geometric condition:");
+	for (int i = 1; i < HYBRID_SPLINE_FAILURE_COUNT; ++i) {
+		if (spline_class[i] > 0) printf (" %s %d",Hybrid_Spline_Failure_Class_Name ((HybridSplineFailureClass)i),spline_class[i]);
+	}
+	printf ("\r\n");
+	printf ("   no-path frontier cells by rule:");
+	for (int i = 1; i < HYBRID_BLOCK_COUNT; ++i) {
+		if (route_frontier[i] > 0) printf (" %s %d",Hybrid_Route_Block_Name ((HybridRouteBlock)i),route_frontier[i]);
+	}
+	printf ("\r\n");
+	printf ("   by class:");
+	for (int i = 0; i < HYBRID_ROAD_CLASS_COUNT; ++i) {
+		if (route_class[i] > 0) printf (" %s %d",Hybrid_Road_Class_Name ((HybridRoadClass)i),route_class[i]);
+	}
+	printf ("; by role:");
+	for (int i = 0; i < HYBRID_TOPOLOGY_EDGE_KIND_COUNT; ++i) {
+		if (route_kind[i] > 0) printf (" %s %d",Hybrid_Topology_Edge_Kind_Name ((HybridTopologyEdgeKind)i),route_kind[i]);
+	}
+	printf ("; final envelope 0/1/2: %d/%d/%d; %d with structural waypoints, %d failing on a structural leg\r\n",
+			  route_envelope_final[0],route_envelope_final[1],route_envelope_final[2],route_with_structural,
+			  route_structural_leg);
+	printf ("phase 11 road meetings: %d shared-node, %d obligation, %d incidental; %d crossings away from a shared node "
+			  "between edges that share one (%d beyond the junction arms); %d edge pairs where one ends at the other's waypoint\r\n",meetings[0],meetings[1],meetings[2],meetings_near_shared,meetings_beyond_junction,meetings_waypoint_shared);
+	printf ("   failed: %d shared-node, %d obligation, %d incidental; junction refused by",meeting_failed[0],
+			  meeting_failed[1],meeting_failed[2]);
+	for (int i = 0; i < HYBRID_PROBLEM_COUNT; ++i) {
+		if (junction_problem[i] > 0) printf (" %s %d",Hybrid_Interaction_Problem_Name ((HybridInteractionProblem)i),junction_problem[i]);
+	}
+	printf ("; overpass refused by");
+	for (int i = 0; i < HYBRID_PROBLEM_COUNT; ++i) {
+		if (overpass_problem[i] > 0) printf (" %s %d",Hybrid_Interaction_Problem_Name ((HybridInteractionProblem)i),overpass_problem[i]);
+	}
+	printf ("\r\n");
 	printf ("reroutes: %d requested, %d resolved at envelope +1, %d at +2, %d exhausted\r\n",
 			  reroute_requests,resolved_at_one,resolved_at_two,exhausted);
 	printf ("routed cliff spans: %d; cut planned for some class %d, for the span's own class %d; pass %d\r\n",

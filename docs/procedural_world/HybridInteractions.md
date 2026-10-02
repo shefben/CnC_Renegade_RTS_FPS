@@ -56,6 +56,30 @@ reserve touches a base or Tiberium reserve the edge has no business in, its cros
 ground at legal cross slope, the whole realized road can be graded by Section 12.1 with this crossing's
 structure in it, and it stands at least `4W` from an unrelated compiled crossing.
 
+## Road meetings (Q-025)
+
+A topology node that two or more realized roads carry -- as an end or as a waypoint -- is the junction the
+topology made, apart from a heavy family's own consecutive trunk edges, which are one road. Phase 11 compiles one
+at-grade junction record for it (`HybridInteraction::NodeId`) and does not rediscover it as an incidental
+crossing. Its conditions are the ones the shared surface has to meet on every road arm there: outside every
+compiled bridge or tunnel approach reserve, gradeable to each arm inside cut/fill and the road's own grade, and
+the larger of the roads' cross-slope limits. The crossing-angle and both-sides arm rules are for two roads that
+*cross*; a fork leaves its node on one heading by design, and a road that ends there has one side. A refused
+topology junction asks the lowest-priority road there for its next envelope, then fails. The same two roads
+crossing again beyond the junction's reach is an ordinary incidental crossing.
+
+"Outside every bridge/tunnel approach reserve" is outside the straight road the structure owns: the segment from
+its `ApproachA` to its `ApproachB` at that road's own roadbed width (`Inside_Approach_Reserve`). The test it
+replaces used the reserve's *length* as a radius around the whole straight, and refused junctions well beyond a
+bridge's approach.
+
+Grading is per physical road (`Hybrid_Realized_Physical_Road`): a heavy family's trunk is graded once, as one road
+with every structure on any of its logical edges, by Section 12.1. Judge_Crossing_Path, the overpass deck and the
+gate all use it.
+
+`HybridInteractionResult::RoadCrossings` records every meeting (shared-node, obligation, incidental) and, for a
+refused one, its edges' kinds, the angle, the end nodes, and the junction and overpass refusals.
+
 ## Bridges
 
 Metrics resolve through `Hybrid_Resolve_Bridge_Max_Span`: **the bridge definition's own value first,
@@ -118,6 +142,12 @@ deck is straight, so the upper road must run straight under all of it (`w_lower 
 follow its curves. The upper road is then graded whole, as for a bridge: its realized centerline with every
 bridge and tunnel of pass one and every overpass already on it, and this deck held level at its top --
 grading the ramps alone left their feet free and accepted decks the road beyond could not climb to.
+
+### The overpass count (Q-024)
+
+Every overpass Phase 9 reserved compiles as its own overpass or follows the swap / reroute / fail order; the
+quota check is `compiled reserved overpasses == HybridTopology::ReservedOverpassCount`, not the raw Section-5
+table.
 
 ## Ground methods: passes and cuts
 

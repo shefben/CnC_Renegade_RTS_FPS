@@ -447,6 +447,7 @@ unsigned int Hybrid_Interaction_Checksum(const HybridInteractionSet & set,unsign
 		stream.Add_Uint(one.StableId);
 		stream.Add_Uint(one.EdgeId);
 		stream.Add_Uint(one.OtherEdgeId);
+		stream.Add_Uint(one.NodeId);
 		stream.Add_Int((int)one.Obstruction);
 		stream.Add_Uint(one.ObstructionRecordId);
 		stream.Add_Uint(one.WindowId);
@@ -582,6 +583,71 @@ bool Hybrid_Realized_Route(const HybridRoute & route,const HybridInteractionSet 
 		out->BoundsMin.Y = Min2(out->BoundsMin.Y,out->Points[p].Y);
 		out->BoundsMax.X = Max2(out->BoundsMax.X,out->Points[p].X);
 		out->BoundsMax.Y = Max2(out->BoundsMax.Y,out->Points[p].Y);
+	}
+	return true;
+}
+
+
+bool Hybrid_Realized_Physical_Road(const HybridRouteSet & routes,const HybridInteractionSet & set,
+											  unsigned int edge_id,HybridRoute * out,DynamicVectorClass<unsigned int> * edges_out)
+{
+	if (out == nullptr) return false;
+	if (edges_out != nullptr) edges_out->Delete_All();
+
+	const HybridTrunkRoad * trunk = routes.Find_Trunk(edge_id);
+	if (trunk == nullptr) {
+		const HybridRoute * route = routes.Find(edge_id);
+		if (route == nullptr) return false;
+		if (edges_out != nullptr) edges_out->Add(edge_id);
+		return Hybrid_Realized_Route(*route,set,out);
+	}
+
+	for (int e = 0; e < trunk->EdgeIds.Count(); ++e) {
+
+		const HybridRoute * route = routes.Find(trunk->EdgeIds[e]);
+		if (route == nullptr) return false;
+		HybridRoute piece;
+		if (!Hybrid_Realized_Route(*route,set,&piece)) return false;
+		if (edges_out != nullptr) edges_out->Add(trunk->EdgeIds[e]);
+
+		if (e == 0) {
+			*out = piece;
+			out->EdgeId = edge_id;
+			out->Points.Delete_All();
+			out->Stations.Delete_All();
+			out->Structural.Delete_All();
+			out->Cells.Delete_All();
+			out->Waypoints.Delete_All();
+		}
+
+		//	Consecutive slices share the sample they were cut at.
+		const int skip = (out->Points.Count() > 0) ? 1 : 0;
+		const int base = out->Points.Count() - skip;
+		for (int q = skip; q < piece.Points.Count(); ++q) out->Points.Add(piece.Points[q]);
+		for (int s = 0; s < piece.Structural.Count(); ++s) {
+			HybridRouteStructuralSpan span = piece.Structural[s];
+			span.FirstPoint	+= base;
+			span.LastPoint		+= base;
+			out->Structural.Add(span);
+		}
+		for (int c = 0; c < piece.Cells.Count(); ++c) out->Cells.Add(piece.Cells[c]);
+		for (int w = 0; w < piece.Waypoints.Count(); ++w) out->Waypoints.Add(piece.Waypoints[w]);
+	}
+
+	float length = 0.0f;
+	for (int q = 0; q < out->Points.Count(); ++q) {
+		if (q > 0) length += (out->Points[q] - out->Points[q - 1]).Length();
+		out->Stations.Add(length);
+	}
+	out->Length = Hybrid_Quantize_Position(length);
+	if (out->Points.Count() < 2) return false;
+	out->BoundsMin = out->Points[0];
+	out->BoundsMax = out->Points[0];
+	for (int q = 1; q < out->Points.Count(); ++q) {
+		out->BoundsMin.X = Min2(out->BoundsMin.X,out->Points[q].X);
+		out->BoundsMin.Y = Min2(out->BoundsMin.Y,out->Points[q].Y);
+		out->BoundsMax.X = Max2(out->BoundsMax.X,out->Points[q].X);
+		out->BoundsMax.Y = Max2(out->BoundsMax.Y,out->Points[q].Y);
 	}
 	return true;
 }
@@ -1422,13 +1488,16 @@ static bool Compiled_Structure(const HybridInteraction & one,const HybridRoute &
 
 
 bool Hybrid_Road_Profile_Structures(const HybridInteractionSet & set,const HybridRoute & realized,
-												DynamicVectorClass<HybridProfileStructure> * out)
+												DynamicVectorClass<HybridProfileStructure> * out,
+												const DynamicVectorClass<unsigned int> * edges)
 {
 	if (out == nullptr) return false;
 	out->Delete_All();
 	for (int i = 0; i < set.Interactions.Count(); ++i) {
 		const HybridInteraction & one = set.Interactions[i];
-		if (one.EdgeId != realized.EdgeId) continue;
+		bool on_road = (one.EdgeId == realized.EdgeId);
+		for (int e = 0; (edges != nullptr) && (e < edges->Count()) && !on_road; ++e) on_road = (one.EdgeId == (*edges)[e]);
+		if (!on_road) continue;
 		HybridProfileStructure structure;
 		if (!Compiled_Structure(one,realized,&structure)) {
 			if ((one.Method == HYBRID_METHOD_BRIDGE) || (one.Method == HYBRID_METHOD_TUNNEL) ||
@@ -1570,10 +1639,21 @@ static bool Judge_Crossing_Path(InteractionBuilder & b,const HybridTopologyEdge 
 	**	Judging the connector alone left a river deck to be reached inside its own approach reserve, when the
 	**	road behind it is free to start climbing long before.
 	*/
+	//	The physical road this edge is part of (Q-025): a heavy family's whole trunk, or the edge itself.
+	DynamicVectorClass<unsigned int> road_edges;
+	const HybridTrunkRoad * trunk = b.Routes->Find_Trunk(edge.StableId);
+	if (trunk != nullptr) {
+		for (int e = 0; e < trunk->EdgeIds.Count(); ++e) road_edges.Add(trunk->EdgeIds[e]);
+	} else {
+		road_edges.Add(edge.StableId);
+	}
+
 	HybridInteractionSet trial;
 	for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
 		const HybridInteraction & other = b.Out->Interactions[i];
-		if (other.EdgeId != edge.StableId) continue;
+		bool on_road = false;
+		for (int e = 0; (e < road_edges.Count()) && !on_road; ++e) on_road = (other.EdgeId == road_edges[e]);
+		if (!on_road) continue;
 		if ((other.Method == HYBRID_METHOD_OVERPASS) || (other.Method == HYBRID_METHOD_AT_GRADE_JUNCTION)) continue;
 		trial.Interactions.Add(other);
 	}
@@ -1590,7 +1670,8 @@ static bool Judge_Crossing_Path(InteractionBuilder & b,const HybridTopologyEdge 
 	HybridRoute road;
 	int lo = 0;
 	int hi = 0;
-	if (!Hybrid_Realized_Route(route,trial,&road) || !Realized_Range(road,*path_out,&lo,&hi)) {
+	if (!Hybrid_Realized_Physical_Road(*b.Routes,trial,edge.StableId,&road,nullptr) ||
+		 !Realized_Range(road,*path_out,&lo,&hi)) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING;
 		return false;
 	}
@@ -1620,28 +1701,32 @@ static bool Judge_Crossing_Path(InteractionBuilder & b,const HybridTopologyEdge 
 		structures.Add(one);
 	}
 
-	//	The stretch: bounded by the crossings on this road that are still to be compiled.
+	//	The stretch: bounded by the crossings on this road -- every logical edge of it -- still to be compiled.
 	float stretch_from = 0.0f;
 	float stretch_to = road.Stations[road.Stations.Count() - 1];
 	const float own_from = road.Stations[lo];
 	const float own_to = road.Stations[hi];
-	for (int s = 0; s < route.Structural.Count(); ++s) {
-		const HybridRouteStructuralSpan & span = route.Structural[s];
-		bool compiled = false;
-		for (int i = 0; (i < trial.Interactions.Count()) && !compiled; ++i) {
-			if (trial.Interactions[i].WindowId == span.WindowId) compiled = true;
-		}
-		if (compiled) continue;
+	for (int e = 0; e < road_edges.Count(); ++e) {
+		const HybridRoute * slice = b.Routes->Find(road_edges[e]);
+		if (slice == nullptr) continue;
+		for (int s = 0; s < slice->Structural.Count(); ++s) {
+			const HybridRouteStructuralSpan & span = slice->Structural[s];
+			bool compiled = false;
+			for (int i = 0; (i < trial.Interactions.Count()) && !compiled; ++i) {
+				if (trial.Interactions[i].WindowId == span.WindowId) compiled = true;
+			}
+			if (compiled) continue;
 
-		int at_in = -1;
-		int at_out = -1;
-		for (int i = 0; i < road.Points.Count(); ++i) {
-			if ((at_in < 0) && (road.Points[i] == route.Points[span.FirstPoint])) at_in = i;
-			if (road.Points[i] == route.Points[span.LastPoint]) at_out = i;
+			int at_in = -1;
+			int at_out = -1;
+			for (int i = 0; i < road.Points.Count(); ++i) {
+				if ((at_in < 0) && (road.Points[i] == slice->Points[span.FirstPoint])) at_in = i;
+				if (road.Points[i] == slice->Points[span.LastPoint]) at_out = i;
+			}
+			if ((at_in < 0) || (at_out < at_in)) continue;
+			if (road.Stations[at_out] <= own_from)	stretch_from = Max2(stretch_from,road.Stations[at_out]);
+			if (road.Stations[at_in] >= own_to)		stretch_to = Min2(stretch_to,road.Stations[at_in]);
 		}
-		if ((at_in < 0) || (at_out < at_in)) continue;
-		if (road.Stations[at_out] <= own_from)	stretch_from = Max2(stretch_from,road.Stations[at_out]);
-		if (road.Stations[at_in] >= own_to)		stretch_to = Min2(stretch_to,road.Stations[at_in]);
 	}
 
 	DynamicVectorClass<HybridProfileSample> samples;
@@ -2600,6 +2685,27 @@ static bool Solve_Obstruction(InteractionBuilder & b,const HybridTopologyEdge & 
 ***********************************************************************************************/
 
 //	Where two segments cross, if they do.
+void HybridRoadCrossingCensus::Reset(void)
+{
+	for (int i = 0; i < HYBRID_ROAD_MEETING_COUNT; ++i) Meetings[i] = 0;
+	IncidentalNearShared	= 0;
+	IncidentalBeyondJunction = 0;
+	WaypointShared			= 0;
+	FailedEndKindA			= -1;
+	FailedEndKindB			= -1;
+	FailedWaypointShared	= false;
+	FailedMeeting			= -1;
+	FailedKindA				= -1;
+	FailedKindB				= -1;
+	FailedAngle				= 0.0f;
+	FailedEndA				= 0.0f;
+	FailedEndB				= 0.0f;
+	JunctionProblem		= 0;
+	OverpassProblem[0]	= 0;
+	OverpassProblem[1]	= 0;
+}
+
+
 static bool Segments_Cross(const Vector2 & a0,const Vector2 & a1,const Vector2 & b0,const Vector2 & b1,
 									Vector2 * point_out)
 {
@@ -2640,6 +2746,24 @@ static void Arm_Lengths(const HybridRoute & route,const Vector2 & point,float * 
 
 
 /*
+**	Is `point` inside a compiled bridge's or tunnel's approach reserve?  The reserve is the straight road the
+**	structure owns, from `ApproachA` to `ApproachB` through the deck or bore, at that road's own roadbed width.
+**	The test this replaces used the reserve's *length* as a radius around the whole straight, which refused a
+**	junction 23 units beyond the end of a bridge's approach -- outside the reserve altogether.
+*/
+static bool Inside_Approach_Reserve(const InteractionBuilder & b,const Vector2 & point)
+{
+	for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
+		const HybridInteraction & other = b.Out->Interactions[i];
+		if ((other.Method != HYBRID_METHOD_BRIDGE) && (other.Method != HYBRID_METHOD_TUNNEL)) continue;
+		const float half = 0.5f * Hybrid_Roadbed_Width(other.RoadClass,b.P->Constants.W);
+		if (Distance_To_Segment(point,other.ApproachA,other.ApproachB,nullptr) <= half) return true;
+	}
+	return false;
+}
+
+
+/*
 **	Section 8 Phase 11's at-grade junction conditions, all five of them.
 */
 static bool At_Grade_Is_Legal(InteractionBuilder & b,const HybridTopologyEdge & edge_a,
@@ -2662,12 +2786,7 @@ static bool At_Grade_Is_Legal(InteractionBuilder & b,const HybridTopologyEdge & 
 	}
 
 	//	2: the intersection is outside every compiled bridge or tunnel approach reserve.
-	for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
-		const HybridInteraction & other = b.Out->Interactions[i];
-		if ((other.Method != HYBRID_METHOD_BRIDGE) && (other.Method != HYBRID_METHOD_TUNNEL)) continue;
-		if (Distance_To_Segment(point,other.ApproachA,other.ApproachB,nullptr) > other.ApproachReserve) {
-			continue;
-		}
+	if (Inside_Approach_Reserve(b,point)) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_RESERVE_CONFLICT;
 		return false;
 	}
@@ -3039,16 +3158,26 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	**	cannot climb to.
 	*/
 	{
+		//	The upper road as one physical road (Q-025): a heavy family's whole trunk, or the edge itself.
+		HybridRoute road;
+		DynamicVectorClass<unsigned int> road_edges;
+		if (!Hybrid_Realized_Physical_Road(*b.Routes,*b.Out,upper_edge.StableId,&road,&road_edges)) {
+			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING;
+			return false;
+		}
 		DynamicVectorClass<HybridProfileStructure> structures;
 		for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
 			const HybridInteraction & other = b.Out->Interactions[i];
-			if (other.EdgeId != upper_edge.StableId) continue;
+			bool on_road = false;
+			for (int e = 0; (e < road_edges.Count()) && !on_road; ++e) on_road = (other.EdgeId == road_edges[e]);
+			if (!on_road) continue;
 			HybridProfileStructure one;
-			if (Compiled_Structure(other,upper_route,&one)) structures.Add(one);
+			if (Compiled_Structure(other,road,&one)) structures.Add(one);
 		}
+		const float road_centre = Realized_Station_Of(road,0,road.Points.Count() - 1,point);
 		HybridProfileStructure deck;
-		deck.From		= centre_station - half_deck;
-		deck.To			= centre_station + half_deck;
+		deck.From		= road_centre - half_deck;
+		deck.To			= road_centre + half_deck;
 		deck.Mode		= HYBRID_PROFILE_STRUCTURE_LEVEL;
 		deck.EndsFixed	= true;
 		deck.StartZ		= Hybrid_Quantize_Position(deck_top);
@@ -3057,7 +3186,7 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 
 		DynamicVectorClass<HybridProfileSample> samples;
 		HybridSolvedProfile solved;
-		if (!Hybrid_Solve_Road_Stretch(upper_route.Points,upper_route.Stations,0.0f,total,structures,
+		if (!Hybrid_Solve_Road_Stretch(road.Points,road.Stations,0.0f,road.Stations[road.Stations.Count() - 1],structures,
 												 Hybrid_Profile_Sample_Spacing(k),b.Sample,b.Context,b.P->MaxCutDepth,
 												 b.P->MaxFillHeight,max_grade,k.Q,&samples,&solved,nullptr,nullptr,nullptr)) {
 			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
@@ -3109,6 +3238,7 @@ static bool Solve_Road_Crossing(InteractionBuilder & b,const HybridTopologyEdge 
 {
 	HybridInteractionProblem problem = HYBRID_PROBLEM_NONE;
 	HybridInteractionProblem junction_problem = HYBRID_PROBLEM_NONE;
+	HybridInteractionProblem overpass_problem[2] = { HYBRID_PROBLEM_NONE,HYBRID_PROBLEM_NONE };
 	HybridInteraction solution;
 
 	//	An at-grade junction, unless Phase 9 reserved this crossing as an overpass.
@@ -3156,6 +3286,7 @@ static bool Solve_Road_Crossing(InteractionBuilder & b,const HybridTopologyEdge 
 			b.Out->Interactions.Add(solution);
 			return true;
 		}
+		overpass_problem[attempt] = problem;
 	}
 
 	//	Neither assignment compiled: the lower-priority road is the one asked to reroute.
@@ -3163,6 +3294,39 @@ static bool Solve_Road_Crossing(InteractionBuilder & b,const HybridTopologyEdge 
 								  ((priority_a == priority_b) && (edge_a.StableId > edge_b.StableId));
 	const HybridTopologyEdge & rerouted = reroute_a ? edge_a : edge_b;
 	const HybridRoute & rerouted_route = reroute_a ? route_a : route_b;
+
+	if (result != nullptr) {
+		HybridRoadCrossingCensus & census = result->RoadCrossings;
+		census.FailedMeeting		= mandatory ? HYBRID_ROAD_MEETING_OBLIGATION : HYBRID_ROAD_MEETING_INCIDENTAL;
+		census.FailedKindA		= (int)edge_a.Kind;
+		census.FailedKindB		= (int)edge_b.Kind;
+		const float cosine		= (float)fabs((double)((heading_a.X * heading_b.X) + (heading_a.Y * heading_b.Y)));
+		census.FailedAngle		= (float)acos((double)Min2(cosine,1.0f)) / PI_OVER_180;
+		const HybridTopologyNode * a0 = b.Topology->Find_Node(edge_a.NodeA);
+		const HybridTopologyNode * a1 = b.Topology->Find_Node(edge_a.NodeB);
+		const HybridTopologyNode * b0 = b.Topology->Find_Node(edge_b.NodeA);
+		const HybridTopologyNode * b1 = b.Topology->Find_Node(edge_b.NodeB);
+		census.FailedEndA			= ((a0 != nullptr) && (a1 != nullptr))
+											? Min2((a0->Position - point).Length(),(a1->Position - point).Length()) : -1.0f;
+		census.FailedEndB			= ((b0 != nullptr) && (b1 != nullptr))
+											? Min2((b0->Position - point).Length(),(b1->Position - point).Length()) : -1.0f;
+		if ((a0 != nullptr) && (a1 != nullptr)) {
+			census.FailedEndKindA = (int)(((a0->Position - point).Length() <= (a1->Position - point).Length()) ? a0->Kind : a1->Kind);
+		}
+		if ((b0 != nullptr) && (b1 != nullptr)) {
+			census.FailedEndKindB = (int)(((b0->Position - point).Length() <= (b1->Position - point).Length()) ? b0->Kind : b1->Kind);
+		}
+		census.FailedWaypointShared = false;
+		for (int w = 0; w < edge_a.Waypoints.Count(); ++w) {
+			if ((edge_a.Waypoints[w] == edge_b.NodeA) || (edge_a.Waypoints[w] == edge_b.NodeB)) census.FailedWaypointShared = true;
+		}
+		for (int w = 0; w < edge_b.Waypoints.Count(); ++w) {
+			if ((edge_b.Waypoints[w] == edge_a.NodeA) || (edge_b.Waypoints[w] == edge_a.NodeB)) census.FailedWaypointShared = true;
+		}
+		census.JunctionProblem	= (int)junction_problem;
+		census.OverpassProblem[0]= (int)overpass_problem[0];
+		census.OverpassProblem[1]= (int)overpass_problem[1];
+	}
 
 	if (!Note_Problem(b,edge_a.StableId,edge_b.StableId,HYBRID_OBSTRUCTION_NONE,0,mandatory,problem,0,
 							point)) {
@@ -3192,6 +3356,276 @@ static bool Solve_Road_Crossing(InteractionBuilder & b,const HybridTopologyEdge 
 					 edge_b.StableId));
 	return true;
 }
+
+/***********************************************************************************************
+**	Topology junctions: where Phase 9 joined two roads at a node they share.
+***********************************************************************************************/
+
+//	Defined with the phase below: the route's local heading nearest a point.
+static Vector2 Route_Heading_At(const HybridRoute & route,const Vector2 & point);
+
+
+//	Does `edge` carry `node` -- as an endpoint, or as one of its waypoints?
+static bool Edge_Carries_Node(const HybridTopologyEdge & edge,unsigned int node)
+{
+	if ((edge.NodeA == node) || (edge.NodeB == node)) return true;
+	for (int w = 0; w < edge.Waypoints.Count(); ++w) {
+		if (edge.Waypoints[w] == node) return true;
+	}
+	return false;
+}
+
+
+/*
+**	The node two edges meet at by design, if one is near `point`: a node both carry that is not a structure of
+**	its own (an overpass obligation is a reserved crossing, compiled above; a crossing obligation is a bridge
+**	no other road may end on).  "Near" is the junction's own reach there -- the longer of the two roads'
+**	`max(4W, minimum turn radius)` arms -- which is the road the junction surface owns.
+*/
+static unsigned int Designed_Meeting_Node(const InteractionBuilder & b,const HybridTopologyEdge & edge_a,
+														const HybridTopologyEdge & edge_b,const Vector2 & point)
+{
+	const HybridConstants & k = b.P->Constants;
+	const float reach = Max2(Max2(JUNCTION_ARM_W * k.W,Hybrid_Road_Class_Spec(edge_a.RoadClass).MinTurnRadiusW * k.W),
+									 Hybrid_Road_Class_Spec(edge_b.RoadClass).MinTurnRadiusW * k.W);
+	const unsigned int candidates[2] = { edge_a.NodeA,edge_a.NodeB };
+	for (int pass = 0; pass < 2; ++pass) {
+		const int count = (pass == 0) ? 2 : edge_a.Waypoints.Count();
+		for (int i = 0; i < count; ++i) {
+			const unsigned int node_id = (pass == 0) ? candidates[i] : edge_a.Waypoints[i];
+			if (!Edge_Carries_Node(edge_b,node_id)) continue;
+			const HybridTopologyNode * node = b.Topology->Find_Node(node_id);
+			if (node == nullptr) continue;
+			if ((node->Kind == HYBRID_NODE_OVERPASS_OBLIGATION) || (node->Kind == HYBRID_NODE_CROSSING_OBLIGATION)) continue;
+			if ((node->Position - point).Length() <= reach) return node_id;
+		}
+	}
+	return 0;
+}
+
+
+//	One road's arms at a node: the realized road leaving it backward and forward, where it does.
+struct JunctionArm
+{
+	unsigned int	EdgeId;
+	Vector2			Heading;			// unit, leaving the node
+	float				Length;			// centerline the arm has before the road ends
+	float				Need;				// max(4W, the road's own minimum turn radius)
+	float				MaxGrade;
+	float				MaxCross;
+	float				HalfRoadbed;
+
+	//	DynamicVectorClass<T> requires == and !=.
+	bool	operator == (const JunctionArm & that) const	{ return (EdgeId == that.EdgeId) && (Heading == that.Heading); }
+	bool	operator != (const JunctionArm & that) const	{ return !(*this == that); }
+};
+
+
+static void Junction_Arms(const InteractionBuilder & b,const HybridTopologyEdge & edge,const HybridRoute & route,
+								  const Vector2 & node,DynamicVectorClass<JunctionArm> * arms)
+{
+	if (route.Points.Count() < 2) return;
+	const HybridConstants & k = b.P->Constants;
+	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(edge.RoadClass);
+
+	int at = 0;
+	float nearest = 3.4e38f;
+	for (int i = 0; i < route.Points.Count(); ++i) {
+		const float distance = (route.Points[i] - node).Length();
+		if (distance >= nearest) continue;
+		nearest	= distance;
+		at			= i;
+	}
+	const float total = route.Stations[route.Stations.Count() - 1];
+
+	JunctionArm arm;
+	arm.EdgeId		= edge.StableId;
+	arm.Need			= Max2(JUNCTION_ARM_W * k.W,spec.MinTurnRadiusW * k.W);
+	arm.MaxGrade	= spec.MaxGradeDegrees * PI_OVER_180;
+	arm.MaxCross	= spec.MaxCrossSlopeDegrees * PI_OVER_180;
+	arm.HalfRoadbed= 0.5f * Hybrid_Roadbed_Width(edge.RoadClass,k.W);
+	if (at > 0) {
+		arm.Heading	= Unit(Hybrid_Polyline_Point_At(route.Points,route.Stations,Max2(route.Stations[at] - k.W,0.0f)) - node);
+		arm.Length	= route.Stations[at];
+		arms->Add(arm);
+	}
+	if (at < (route.Points.Count() - 1)) {
+		arm.Heading	= Unit(Hybrid_Polyline_Point_At(route.Points,route.Stations,Min2(route.Stations[at] + k.W,total)) - node);
+		arm.Length	= total - route.Stations[at];
+		arms->Add(arm);
+	}
+}
+
+
+/*
+**	The junction the topology made at a node: the roads do not cross there, they meet -- one ending at the
+**	other, or several starting from one base entrance, whose entrance corridor every road through it shares by
+**	construction.  So the at-grade test for two *crossing* roads -- a 30..150 degree angle between them and
+**	`max(4W, R)` of road on both sides -- is not this junction's test: a fork leaves its node on one heading by
+**	design, and a road that ends at the node has one side.  What the shared junction surface itself must satisfy
+**	is kept, on every arm the roads have there:
+**
+**	1. the node is outside every compiled bridge or tunnel approach reserve;
+**	2. the surface is gradeable to each arm inside cut and fill and that road's grade, over the arm's own reach
+**	   (`max(4W, R)`, or the road's whole length where it is shorter);
+**	3. the surface satisfies the larger of the roads' cross-slope limits.
+*/
+static bool Topology_Junction_Is_Legal(InteractionBuilder & b,const Vector2 & node,
+													const DynamicVectorClass<JunctionArm> & arms,
+													HybridInteractionProblem * problem_out)
+{
+	const HybridConstants & k = b.P->Constants;
+
+	if (Inside_Approach_Reserve(b,node)) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_RESERVE_CONFLICT;
+		return false;
+	}
+
+	float junction_z = 0.0f;
+	if (!b.Height_At(node,&junction_z)) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_NO_HARD_VALID_STATION;
+		return false;
+	}
+	const HybridVerticalInterval junction_interval = Hybrid_Road_Vertical_Interval(junction_z,b.P->MaxCutDepth,
+																									b.P->MaxFillHeight);
+	float max_cross = 0.0f;
+	float half = 0.0f;
+	for (int i = 0; i < arms.Count(); ++i) {
+		const float reach = Min2(arms[i].Need,arms[i].Length);
+		if (reach <= k.Q) continue;
+		const Vector2 end = node + (arms[i].Heading * reach);
+		float end_z = 0.0f;
+		max_cross	= Max2(max_cross,arms[i].MaxCross);
+		half			= Max2(half,arms[i].HalfRoadbed);
+		if (!b.Height_At(end,&end_z)) continue;
+		const HybridVerticalInterval end_interval = Hybrid_Road_Vertical_Interval(end_z,b.P->MaxCutDepth,
+																								  b.P->MaxFillHeight);
+		if (!Hybrid_Grade_Compatible(junction_interval,end_interval,reach,arms[i].MaxGrade)) {
+			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
+			return false;
+		}
+	}
+
+	//	The surface is as wide as the widest road through it, judged across each arm's own direction.
+	for (int i = 0; i < arms.Count(); ++i) {
+		const Vector2 normal(-arms[i].Heading.Y,arms[i].Heading.X);
+		float left = 0.0f;
+		float right = 0.0f;
+		if (!b.Height_At(node + (normal * half),&left) || !b.Height_At(node - (normal * half),&right)) continue;
+		const HybridVerticalInterval left_interval = Hybrid_Road_Vertical_Interval(left,b.P->MaxCutDepth,
+																								  b.P->MaxFillHeight);
+		const HybridVerticalInterval right_interval = Hybrid_Road_Vertical_Interval(right,b.P->MaxCutDepth,
+																									b.P->MaxFillHeight);
+		if (!Hybrid_Grade_Compatible(left_interval,right_interval,2.0f * half,max_cross)) {
+			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_CROSS_SLOPE;
+			return false;
+		}
+	}
+	return true;
+}
+
+
+/*
+**	Every node the topology joins two or more realized roads at, compiled as the junction the topology meant.
+**	The one meeting that is not a junction is a family trunk passing a waypoint of its own -- two consecutive
+**	segments of one route, which is one road.  A junction the rules refuse asks the lowest-priority road
+**	there for its next envelope, and otherwise fails the phase: there is no overpass for two roads that end
+**	at the same point.
+*/
+static bool Compile_Topology_Junctions(InteractionBuilder & b,const DynamicVectorClass<HybridRoute> & realized,
+													HybridInteractionResult * result)
+{
+	const HybridTopology & topology = *b.Topology;
+
+	for (int n = 0; n < topology.Nodes.Count(); ++n) {
+
+		const HybridTopologyNode & node = topology.Nodes[n];
+		if ((node.Kind == HYBRID_NODE_OVERPASS_OBLIGATION) || (node.Kind == HYBRID_NODE_CROSSING_OBLIGATION) ||
+			 (node.Kind == HYBRID_NODE_BASE)) continue;
+
+		DynamicVectorClass<int> incident;
+		for (int r = 0; r < realized.Count(); ++r) {
+			const HybridTopologyEdge * edge = topology.Find_Edge(realized[r].EdgeId);
+			if ((edge != nullptr) && Edge_Carries_Node(*edge,node.StableId)) incident.Add(r);
+		}
+		if (incident.Count() < 2) continue;
+
+		if (incident.Count() == 2) {
+			const HybridTopologyEdge * first = topology.Find_Edge(realized[incident[0]].EdgeId);
+			const HybridTopologyEdge * second = topology.Find_Edge(realized[incident[1]].EdgeId);
+			if ((first->Kind == HYBRID_EDGE_FAMILY_TRUNK) && (second->Kind == HYBRID_EDGE_FAMILY_TRUNK) &&
+				 (first->RouteFamily == second->RouteFamily)) continue;
+		}
+		if (result != nullptr) result->RoadCrossings.Meetings[HYBRID_ROAD_MEETING_SHARED]++;
+
+		//	The through road is the highest-priority one; the lowest-priority one is the one rerouted.
+		int through = incident[0];
+		int lowest = incident[0];
+		DynamicVectorClass<JunctionArm> arms;
+		for (int i = 0; i < incident.Count(); ++i) {
+			const HybridRoute & route = realized[incident[i]];
+			const HybridTopologyEdge * edge = topology.Find_Edge(route.EdgeId);
+			Junction_Arms(b,*edge,route,node.Position,&arms);
+			const HybridTopologyEdge * held_through = topology.Find_Edge(realized[through].EdgeId);
+			const HybridTopologyEdge * held_lowest = topology.Find_Edge(realized[lowest].EdgeId);
+			const HybridRoutePriority priority = Hybrid_Route_Priority_Of(topology,*edge);
+			const HybridRoutePriority through_priority = Hybrid_Route_Priority_Of(topology,*held_through);
+			const HybridRoutePriority lowest_priority = Hybrid_Route_Priority_Of(topology,*held_lowest);
+			if ((priority < through_priority) || ((priority == through_priority) && (edge->StableId < held_through->StableId))) {
+				through = incident[i];
+			}
+			if ((priority > lowest_priority) || ((priority == lowest_priority) && (edge->StableId > held_lowest->StableId))) {
+				lowest = incident[i];
+			}
+		}
+
+		HybridInteractionProblem problem = HYBRID_PROBLEM_NONE;
+		if (Topology_Junction_Is_Legal(b,node.Position,arms,&problem)) {
+			const HybridRoute & main = realized[through];
+			const HybridTopologyEdge * main_edge = topology.Find_Edge(main.EdgeId);
+			HybridInteraction solution;
+			solution.StableId		= b.NextStableId++;
+			solution.EdgeId		= main.EdgeId;
+			solution.OtherEdgeId	= realized[(through == incident[0]) ? incident[1] : incident[0]].EdgeId;
+			solution.NodeId		= node.StableId;
+			solution.Method		= HYBRID_METHOD_AT_GRADE_JUNCTION;
+			solution.RoadClass	= main_edge->RoadClass;
+			solution.Station		= Quantized(node.Position);
+			solution.Tangent		= Route_Heading_At(main,node.Position);
+			solution.ApproachA	= Quantized(node.Position);
+			solution.ApproachB	= Quantized(node.Position);
+			solution.Envelope		= main.Envelope;
+			b.Out->Interactions.Add(solution);
+			continue;
+		}
+
+		const HybridRoute & rerouted = realized[lowest];
+		const HybridTopologyEdge * rerouted_edge = topology.Find_Edge(rerouted.EdgeId);
+		const HybridTopologyEdge * main_edge = topology.Find_Edge(realized[through].EdgeId);
+		if (!Note_Problem(b,main_edge->StableId,rerouted_edge->StableId,HYBRID_OBSTRUCTION_NONE,0,true,problem,0,
+								node.Position)) {
+			StringClass detail;
+			detail.Format("edge %u has more than %d unsolved crossings",main_edge->StableId,b.P->MaxProblemsPerEdge);
+			return Fail(result,HYBRID_INTERACTION_LIMIT,detail.Peek_Buffer());
+		}
+		if (rerouted.Envelope < 2) {
+			b.Out->RerouteRequests++;
+			if (result != nullptr) result->RerouteEdgeId = rerouted.EdgeId;
+		}
+		if (result != nullptr) {
+			result->RoadCrossings.FailedMeeting		= HYBRID_ROAD_MEETING_SHARED;
+			result->RoadCrossings.FailedKindA		= (int)main_edge->Kind;
+			result->RoadCrossings.FailedKindB		= (int)rerouted_edge->Kind;
+			result->RoadCrossings.JunctionProblem	= (int)problem;
+		}
+		StringClass detail;
+		detail.Format("the junction the topology makes at node %u (%s, %d roads) is refused: %s",node.StableId,
+						  Hybrid_Topology_Node_Kind_Name(node.Kind),incident.Count(),Hybrid_Interaction_Problem_Name(problem));
+		return Fail(result,HYBRID_INTERACTION_NO_SOLUTION,detail.Peek_Buffer());
+	}
+	return true;
+}
+
 
 /***********************************************************************************************
 **	The phase itself, and its gate.
@@ -3392,7 +3826,12 @@ static bool Check_Quotas(InteractionBuilder & b,HybridInteractionResult * result
 			canyon_bridges++;
 		}
 	}
-	const int overpasses = b.Out->Count_Of_Method(HYBRID_METHOD_OVERPASS);
+	//	Q-024: every overpass Phase 9 reserved compiles as its own overpass -- no more, no fewer.
+	int overpasses = 0;
+	for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
+		const HybridInteraction & one = b.Out->Interactions[i];
+		if ((one.Method == HYBRID_METHOD_OVERPASS) && one.Mandatory) overpasses++;
+	}
 
 	StringClass detail;
 	if (river_bridges < b.Topology->RequiredRiverBridges) {
@@ -3405,9 +3844,9 @@ static bool Check_Quotas(InteractionBuilder & b,HybridInteractionResult * result
 						  b.Topology->RequiredCanyonBridges);
 		return Fail(result,HYBRID_INTERACTION_QUOTA,detail.Peek_Buffer());
 	}
-	if (overpasses < b.Topology->RequiredOverpasses) {
-		detail.Format("%d overpasses compiled against the Section-5 quota of %d",overpasses,
-						  b.Topology->RequiredOverpasses);
+	if (overpasses != b.Topology->ReservedOverpassCount) {
+		detail.Format("%d reserved overpasses compiled of the %d Phase 9 reserved",overpasses,
+						  b.Topology->ReservedOverpassCount);
 		return Fail(result,HYBRID_INTERACTION_QUOTA,detail.Peek_Buffer());
 	}
 	return true;
@@ -3526,6 +3965,7 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 			else if (second == nullptr)	second = &edge;
 		}
 		if ((first == nullptr) || (second == nullptr)) continue;
+		if (result != nullptr) result->RoadCrossings.Meetings[HYBRID_ROAD_MEETING_OBLIGATION]++;
 
 		const HybridRoute * route_a = nullptr;
 		const HybridRoute * route_b = nullptr;
@@ -3540,6 +3980,9 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 										 Route_Heading_At(*route_b,node.Position),true,result)) return false;
 	}
 
+	//	The junctions the topology makes, then the crossings it does not.
+	if (!Compile_Topology_Junctions(b,realized,result)) return false;
+
 	for (int i = 0; i < order.Count(); ++i) {
 		for (int j = i + 1; j < order.Count(); ++j) {
 
@@ -3549,9 +3992,16 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 			const HybridTopologyEdge * edge_b = topology.Find_Edge(route_b.EdgeId);
 			if ((edge_a == nullptr) || (edge_b == nullptr)) continue;
 
-			//	Two roads that meet at a shared topology node meet by design, not by accident.
-			if ((edge_a->NodeA == edge_b->NodeA) || (edge_a->NodeA == edge_b->NodeB) ||
-				 (edge_a->NodeB == edge_b->NodeA) || (edge_a->NodeB == edge_b->NodeB)) continue;
+			if (result != nullptr) {
+				bool waypoint = false;
+				for (int w = 0; w < edge_a->Waypoints.Count(); ++w) {
+					if ((edge_a->Waypoints[w] == edge_b->NodeA) || (edge_a->Waypoints[w] == edge_b->NodeB)) waypoint = true;
+				}
+				for (int w = 0; w < edge_b->Waypoints.Count(); ++w) {
+					if ((edge_b->Waypoints[w] == edge_a->NodeA) || (edge_b->Waypoints[w] == edge_a->NodeB)) waypoint = true;
+				}
+				if (waypoint) result->RoadCrossings.WaypointShared++;
+			}
 
 			DynamicVectorClass<Vector2> solved;
 			for (int p = 1; p < route_a.Points.Count(); ++p) {
@@ -3568,6 +4018,21 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 					}
 					if (already) continue;
 					solved.Add(point);
+
+					/*
+					**	Two roads that share a topology node -- as ends, or one ending at the other's waypoint -- meet
+					**	by design there, and that meeting is the junction Compile_Topology_Junctions builds.  Only the
+					**	stretch the junction owns is theirs: the same two roads crossing again further off is an
+					**	ordinary crossing and is solved as one.
+					*/
+					if (Designed_Meeting_Node(b,*edge_a,*edge_b,point) != 0) continue;
+					if (result != nullptr) {
+						bool share = false;
+						const unsigned int ends[2] = { edge_a->NodeA,edge_a->NodeB };
+						for (int e = 0; e < 2; ++e) if (Edge_Carries_Node(*edge_b,ends[e])) share = true;
+						for (int w = 0; w < edge_a->Waypoints.Count(); ++w) if (Edge_Carries_Node(*edge_b,edge_a->Waypoints[w])) share = true;
+						if (share) result->RoadCrossings.IncidentalBeyondJunction++;
+					}
 
 					//	A crossing inside one road's own structural interval is that crossing, not a junction.
 					bool structural = false;
@@ -3590,6 +4055,7 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 					}
 					if (reserved) continue;
 
+					if (result != nullptr) result->RoadCrossings.Meetings[HYBRID_ROAD_MEETING_INCIDENTAL]++;
 					if (!Solve_Road_Crossing(b,*edge_a,route_a,*edge_b,route_b,point,
 													 Unit(route_a.Points[p] - route_a.Points[p - 1]),
 													 Unit(route_b.Points[q] - route_b.Points[q - 1]),false,
@@ -3644,6 +4110,7 @@ bool Hybrid_Build_Interactions(const HybridInteractionParams & params,const Hybr
 		result->Failure			= HYBRID_INTERACTION_OK;
 		result->Detail				= "";
 		result->RerouteEdgeId	= 0;
+		result->RoadCrossings.Reset();
 	}
 
 	if (Solve_Interactions(params,identity,matrices,landforms,hydrology,anchors,topology,routes,sample,

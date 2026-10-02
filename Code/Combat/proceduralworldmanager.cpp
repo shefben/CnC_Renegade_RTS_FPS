@@ -914,6 +914,7 @@ bool ProceduralWorldManager::Build_Hybrid_Routes(const ProceduralWorldProfile & 
 	params.MaxLocalRetriesPerStage		= profile.Retry.MaxLocalRetriesPerStage;
 	params.AStarExpansionsPerRoute		= HybridMetrics.Budgets.AStarExpansionsPerRoute;
 	params.AStarExpansionsPerAttempt	= HybridMetrics.Budgets.AStarExpansionsPerAttempt;
+	params.MinVehicleLaneClearance		= profile.Fairness.MinVehicleLaneClearance;
 	params.Arena			= &HybridArena;
 	params.Counters		= &HybridWork;
 

@@ -234,7 +234,7 @@ struct HybridTopology
 	int			RequiredRiverBridges;
 	int			RequiredCanyonBridges;
 	int			RequiredHighways;
-	int			RequiredOverpasses;
+	int			RequestedOverpassTarget;	// Section 5's overpass number, a target since Q-024 (0 / 1 / 2)
 	int			RequiredServiceBranches;
 	int			RequiredTrails;
 	int			OptionalCrossLinkQuota;
@@ -242,7 +242,7 @@ struct HybridTopology
 	int			RiverBridges;			// obligations/quota fills bound to river windows
 	int			CanyonBridges;			// ...and to canyon/ravine windows
 	int			Highways;
-	int			Overpasses;
+	int			ReservedOverpassCount;	// the hard-valid OVERPASS_OBLIGATIONs actually reserved
 	int			ServiceBranches;
 	int			Trails;
 	int			CrossLinks;
@@ -259,6 +259,12 @@ struct HybridTopology
 	int			RecoveredByNextRank;
 
 	unsigned int	Checksum;			// Phase 9 gate value
+
+	//	Q-024's diagnostic: how far the reserved overpasses fell short of the target.  Not an attempt failure.
+	int	Overpass_Target_Shortage(void) const
+	{
+		return (RequestedOverpassTarget > ReservedOverpassCount) ? (RequestedOverpassTarget - ReservedOverpassCount) : 0;
+	}
 };
 
 
@@ -311,7 +317,6 @@ enum HybridTopologyFailure
 	HYBRID_TOPOLOGY_NO_FIELD_ACCESS,				// no hard-valid FIELD_ACCESS_POINT exists for a field
 	HYBRID_TOPOLOGY_SERVICE_QUOTA,				// too few candidate pairs for the dirt/service quota
 	HYBRID_TOPOLOGY_TRAIL_QUOTA,					// too few candidate pairs for the trail quota
-	HYBRID_TOPOLOGY_OVERPASS_QUOTA,				// the overpass quota cannot be met, naturally or synthesized
 	HYBRID_TOPOLOGY_EDGE_BUDGET,					// more routed edges than R allows
 	HYBRID_TOPOLOGY_NO_CYCLE,
 	HYBRID_TOPOLOGY_UNREALIZABLE,			// gate: a structural waypoint sequence no road of its class can drive						// gate: a tree fails this phase
@@ -319,6 +324,89 @@ enum HybridTopologyFailure
 };
 
 const char *	Hybrid_Topology_Failure_Name(HybridTopologyFailure failure);
+
+/*
+**	Why a Section-5 bridge-quota candidate window was passed over, and by which binding path.  `FILTER` is the
+**	window-level test every candidate takes first; `FAMILY` is the preferred window's insertion into its
+**	nearest family, `CROSS_LINK` the plan's synthesized `SECONDARY_2` bank cross-link, and `FALLBACK` the
+**	nearest-family binding a non-preferred window gets when the cross-link cannot be built.
+*/
+enum HybridQuotaRefusal
+{
+	HYBRID_QUOTA_REFUSE_METHOD = 0,				// the window has no bridge method
+	HYBRID_QUOTA_REFUSE_APPROACH_CLASS,			// Phase 6 found no approach for the binding class
+	HYBRID_QUOTA_REFUSE_CORRIDOR,					// outside the owning family's maximum corridor
+	HYBRID_QUOTA_REFUSE_SPACING,					// within 12W of a selected window on its obstruction
+	HYBRID_QUOTA_REFUSE_WRONG_SIDE,				// Q-023's wrong-side test
+	HYBRID_QUOTA_REFUSE_POSE,						// Q-023's pose-connector test
+	HYBRID_QUOTA_REFUSE_CONSUMED,					// already bound by an obligation or an earlier quota pass
+	HYBRID_QUOTA_REFUSE_NO_BANK_PAIR,			// no heavy node on one of the two banks
+	HYBRID_QUOTA_REFUSE_OTHER,						// no family, or no insertion slot on the family chain
+	HYBRID_QUOTA_REFUSAL_COUNT
+};
+
+enum HybridQuotaPath
+{
+	HYBRID_QUOTA_PATH_FILTER = 0,
+	HYBRID_QUOTA_PATH_FAMILY,
+	HYBRID_QUOTA_PATH_CROSS_LINK,
+	HYBRID_QUOTA_PATH_FALLBACK,
+	HYBRID_QUOTA_PATH_COUNT
+};
+
+const char *	Hybrid_Quota_Refusal_Name(HybridQuotaRefusal refusal);
+const char *	Hybrid_Quota_Path_Name(HybridQuotaPath path);
+
+//	One bridge quota's last selection pass: the pass that failed, or the last one that succeeded.
+struct HybridQuotaCensus
+{
+	HybridQuotaCensus(void)	{ Reset (); }
+	void	Reset(void);
+
+	int	Required;
+	int	Have;
+	int	Candidates;			// windows of the quota's own obstruction category considered in the pass
+	int	Bindable;			// of those, the ones that could have been bound
+	int	Refused[HYBRID_QUOTA_PATH_COUNT][HYBRID_QUOTA_REFUSAL_COUNT];
+};
+
+//	Why a step-12 or step-13 overpass candidate (two intent segments that cross) was passed over.
+enum HybridOverpassRefusal
+{
+	HYBRID_OVERPASS_REFUSE_ANGLE = 0,			// outside 60..120 degrees
+	HYBRID_OVERPASS_REFUSE_ARM,					// less than 10W of the highway segment on one side
+	HYBRID_OVERPASS_REFUSE_ARM_OTHER,			// less than 10W of the other segment on one side
+	HYBRID_OVERPASS_REFUSE_PROTECTED,			// unplaceable, water, an immutable wall or BASE_PROTECTED
+	HYBRID_OVERPASS_REFUSE_WATER_CLEARANCE,	// closer to standing water than the router can step around
+	HYBRID_OVERPASS_REFUSE_TIBERIUM,				// inside a Tiberium hard reserve
+	HYBRID_OVERPASS_REFUSE_WINDOW,				// inside a selected crossing window's own bounds
+	HYBRID_OVERPASS_REFUSE_SPACING,				// within 12W of a selected overpass
+	HYBRID_OVERPASS_REFUSE_SLOPE,					// the 2W disc is steeper than SECONDARY_2's grade
+	HYBRID_OVERPASS_REFUSE_POSE,					// Q-023: one of the two roads cannot drive it
+	HYBRID_OVERPASS_REFUSAL_COUNT
+};
+
+const char *	Hybrid_Overpass_Refusal_Name(HybridOverpassRefusal refusal);
+
+//	The overpass quota's last pass of each step.
+struct HybridOverpassCensus
+{
+	HybridOverpassCensus(void)	{ Reset (); }
+	void	Reset(void);
+
+	int	Required;
+	int	Have;
+	int	Natural;				// step 12: highway x PRIMARY_2/SECONDARY_2 intent segments that cross
+	int	NaturalRefused[HYBRID_OVERPASS_REFUSAL_COUNT];
+	int	Pairs;				// step 13: heavy waypoint pairs eligible for a synthesized cross-link
+	int	Synthesized;		// of those pairs, (pair, highway) segments that cross
+	int	SynthesizedRefused[HYBRID_OVERPASS_REFUSAL_COUNT];
+	int	Families;			// heavy route families, and how many of them are highways
+	int	Highways;
+	int	HeavyPairs;			// eligible pairs whose two nodes are both on heavy families
+	int	AngleBucket[4];	// refused-for-angle crossings by angle between the lines: <15, <30, <45, <60
+};
+
 
 struct HybridTopologyResult
 {
@@ -334,6 +422,11 @@ struct HybridTopologyResult
 	int							RejectedWrongSide;
 	int							RejectedPose;
 	int							RecoveredByNextRank;
+
+	//	The quota passes' own accounting, so a short quota says what stood in the way.
+	HybridQuotaCensus			RiverQuota;
+	HybridQuotaCensus			CanyonQuota;
+	HybridOverpassCensus		OverpassQuota;
 };
 
 
@@ -343,7 +436,7 @@ struct HybridTopologyResult
 int	Hybrid_River_Bridge_Quota(HybridSizeClass size_class);			// 1 / 2 / 3
 int	Hybrid_Canyon_Bridge_Quota(HybridSizeClass size_class);		// 1 / 1 / 2
 int	Hybrid_Highway_Quota(HybridSizeClass size_class);				// 0 / 1 / 2
-int	Hybrid_Overpass_Quota(HybridSizeClass size_class);				// 0 / 1 / 2
+int	Hybrid_Overpass_Target(HybridSizeClass size_class);			// 0 / 1 / 2, a target (Q-024)
 int	Hybrid_Service_Branch_Quota(HybridSizeClass size_class);		// 2 / 4 / 8
 int	Hybrid_Trail_Quota(HybridSizeClass size_class);					// 1 / 2 / 4
 int	Hybrid_Cross_Link_Cap(HybridSizeClass size_class);				// 2 / 5 / 10

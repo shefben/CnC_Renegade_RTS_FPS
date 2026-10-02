@@ -112,7 +112,6 @@ const char * Hybrid_Topology_Failure_Name(HybridTopologyFailure failure)
 		case HYBRID_TOPOLOGY_NO_FIELD_ACCESS:		return "no_field_access";
 		case HYBRID_TOPOLOGY_SERVICE_QUOTA:			return "service_quota";
 		case HYBRID_TOPOLOGY_TRAIL_QUOTA:			return "trail_quota";
-		case HYBRID_TOPOLOGY_OVERPASS_QUOTA:		return "overpass_quota";
 		case HYBRID_TOPOLOGY_EDGE_BUDGET:			return "edge_budget";
 		case HYBRID_TOPOLOGY_NO_CYCLE:				return "no_cycle";
 		case HYBRID_TOPOLOGY_UNREALIZABLE:			return "unrealizable";
@@ -134,10 +133,90 @@ static int Size_Pick(HybridSizeClass size_class,int small,int medium,int large)
 }
 
 
+const char * Hybrid_Quota_Refusal_Name(HybridQuotaRefusal refusal)
+{
+	switch (refusal) {
+		case HYBRID_QUOTA_REFUSE_METHOD:				return "method";
+		case HYBRID_QUOTA_REFUSE_APPROACH_CLASS:	return "approach_class";
+		case HYBRID_QUOTA_REFUSE_CORRIDOR:			return "corridor";
+		case HYBRID_QUOTA_REFUSE_SPACING:			return "spacing";
+		case HYBRID_QUOTA_REFUSE_WRONG_SIDE:		return "wrong_side";
+		case HYBRID_QUOTA_REFUSE_POSE:				return "pose";
+		case HYBRID_QUOTA_REFUSE_CONSUMED:			return "consumed";
+		case HYBRID_QUOTA_REFUSE_NO_BANK_PAIR:		return "no_bank_pair";
+		case HYBRID_QUOTA_REFUSE_OTHER:				return "other";
+		default:												break;
+	}
+	return "unknown";
+}
+
+
+const char * Hybrid_Quota_Path_Name(HybridQuotaPath path)
+{
+	switch (path) {
+		case HYBRID_QUOTA_PATH_FILTER:		return "filter";
+		case HYBRID_QUOTA_PATH_FAMILY:		return "family";
+		case HYBRID_QUOTA_PATH_CROSS_LINK:	return "cross_link";
+		case HYBRID_QUOTA_PATH_FALLBACK:		return "fallback";
+		default:										break;
+	}
+	return "unknown";
+}
+
+
+const char * Hybrid_Overpass_Refusal_Name(HybridOverpassRefusal refusal)
+{
+	switch (refusal) {
+		case HYBRID_OVERPASS_REFUSE_ANGLE:		return "angle";
+		case HYBRID_OVERPASS_REFUSE_ARM:			return "arm_highway";
+		case HYBRID_OVERPASS_REFUSE_ARM_OTHER:	return "arm_other";
+		case HYBRID_OVERPASS_REFUSE_PROTECTED:	return "protected";
+		case HYBRID_OVERPASS_REFUSE_WATER_CLEARANCE:	return "water_clearance";
+		case HYBRID_OVERPASS_REFUSE_TIBERIUM:	return "tiberium";
+		case HYBRID_OVERPASS_REFUSE_WINDOW:		return "window";
+		case HYBRID_OVERPASS_REFUSE_SPACING:	return "spacing";
+		case HYBRID_OVERPASS_REFUSE_SLOPE:		return "slope";
+		case HYBRID_OVERPASS_REFUSE_POSE:		return "pose";
+		default:											break;
+	}
+	return "unknown";
+}
+
+
+void HybridQuotaCensus::Reset(void)
+{
+	Required		= 0;
+	Have			= 0;
+	Candidates	= 0;
+	Bindable		= 0;
+	for (int p = 0; p < HYBRID_QUOTA_PATH_COUNT; ++p) {
+		for (int r = 0; r < HYBRID_QUOTA_REFUSAL_COUNT; ++r) Refused[p][r] = 0;
+	}
+}
+
+
+void HybridOverpassCensus::Reset(void)
+{
+	Required		= 0;
+	Have			= 0;
+	Natural		= 0;
+	Pairs			= 0;
+	Synthesized	= 0;
+	Families		= 0;
+	Highways		= 0;
+	HeavyPairs	= 0;
+	for (int i = 0; i < 4; ++i) AngleBucket[i] = 0;
+	for (int r = 0; r < HYBRID_OVERPASS_REFUSAL_COUNT; ++r) {
+		NaturalRefused[r]		= 0;
+		SynthesizedRefused[r]= 0;
+	}
+}
+
+
 int Hybrid_River_Bridge_Quota(HybridSizeClass size_class)		{ return Size_Pick(size_class,1,2,3); }
 int Hybrid_Canyon_Bridge_Quota(HybridSizeClass size_class)		{ return Size_Pick(size_class,1,1,2); }
 int Hybrid_Highway_Quota(HybridSizeClass size_class)				{ return Size_Pick(size_class,0,1,2); }
-int Hybrid_Overpass_Quota(HybridSizeClass size_class)			{ return Size_Pick(size_class,0,1,2); }
+int Hybrid_Overpass_Target(HybridSizeClass size_class)			{ return Size_Pick(size_class,0,1,2); }
 int Hybrid_Service_Branch_Quota(HybridSizeClass size_class)	{ return Size_Pick(size_class,2,4,8); }
 int Hybrid_Trail_Quota(HybridSizeClass size_class)				{ return Size_Pick(size_class,1,2,4); }
 int Hybrid_Cross_Link_Cap(HybridSizeClass size_class)			{ return Size_Pick(size_class,2,5,10); }
@@ -163,7 +242,7 @@ void HybridTopology::Reset(void)
 	RequiredRiverBridges		= 0;
 	RequiredCanyonBridges	= 0;
 	RequiredHighways			= 0;
-	RequiredOverpasses		= 0;
+	RequestedOverpassTarget	= 0;
 	RequiredServiceBranches	= 0;
 	RequiredTrails				= 0;
 	OptionalCrossLinkQuota	= 0;
@@ -171,7 +250,7 @@ void HybridTopology::Reset(void)
 	RiverBridges	= 0;
 	CanyonBridges	= 0;
 	Highways			= 0;
-	Overpasses		= 0;
+	ReservedOverpassCount	= 0;
 	ServiceBranches= 0;
 	Trails			= 0;
 	CrossLinks		= 0;
@@ -687,6 +766,16 @@ static bool Corridor_Fits_Sector(const TopologyBuilder & b,const Vector2 & centr
 			if (radius <= protected_radius) continue;
 
 			if (!Point_Is_Clear(b,point,true)) return false;
+
+			/*
+			**	Step 6 reserves the corridor against unrelated Tiberium, so a corridor that already runs into a
+			**	frozen Tiberium hard reserve cannot be reserved at all: the family trunk that leaves through it owns
+			**	no field, and Phase 10 refuses that ground to it.  Measured, 148 of 512 frozen corridors over 420
+			**	worlds overlapped a reserve, and their trunks then failed to leave their own base.
+			*/
+			for (int r = 0; r < b.Anchors->Resources.Count(); ++r) {
+				if ((point - b.Anchors->Resources[r].Center).Length() <= b.Anchors->Resources[r].ReserveRadius) return false;
+			}
 
 			Vector2 outward = point - centre;
 			if (outward.Length() <= 0.0f) continue;
@@ -1573,142 +1662,286 @@ enum BridgeBindingKind
 	BRIDGE_BINDING_CROSS_LINK,
 };
 
-static BridgeBindingKind Plan_Bridge_Binding(TopologyBuilder & b,const HybridCrossingWindow & window,int family,
-															int * positive_out,int * negative_out)
+//	One binding refusal in a quota census, on the path that refused it.
+static void Note_Quota_Refusal(HybridQuotaCensus * census,HybridQuotaPath path,int binding_refusal)
 {
-	const HybridRoadClass family_class = Heavy_Binding_Class(b);
+	HybridQuotaRefusal refusal = HYBRID_QUOTA_REFUSE_OTHER;
+	if (binding_refusal == HYBRID_BINDING_APPROACH_CLASS)	refusal = HYBRID_QUOTA_REFUSE_APPROACH_CLASS;
+	if (binding_refusal == HYBRID_BINDING_WRONG_SIDE)		refusal = HYBRID_QUOTA_REFUSE_WRONG_SIDE;
+	if (binding_refusal == HYBRID_BINDING_POSE)				refusal = HYBRID_QUOTA_REFUSE_POSE;
+	census->Refused[path][refusal]++;
+}
 
-	if (window.Preferred && (family >= 0)) {
-		const int refusal = Family_Binding_Refusal(b,family,window,family_class);
-		if (refusal == HYBRID_BINDING_OK) return BRIDGE_BINDING_FAMILY;
-		Note_Binding_Refusal(b,refusal);
-		return BRIDGE_BINDING_NONE;
+
+static float Distance_To_Segment_Point(const Vector2 & point,const Vector2 & a,const Vector2 & c)
+{
+	const Vector2 axis = c - a;
+	const float length2 = (axis.X * axis.X) + (axis.Y * axis.Y);
+	float t = 0.0f;
+	if (length2 > 0.0f) t = Clamp2((((point.X - a.X) * axis.X) + ((point.Y - a.Y) * axis.Y)) / length2,0.0f,1.0f);
+	return (point - Vector2(a.X + (axis.X * t),a.Y + (axis.Y * t))).Length();
+}
+
+
+//	The distance from a point to a family's nearest own node: its waypoints and its two base entrances.
+static float Family_Node_Distance(const TopologyBuilder & b,int family,const Vector2 & position)
+{
+	float best = 3.4e38f;
+	for (int n = 0; n < b.Out->Nodes.Count(); ++n) {
+		const HybridTopologyNode & node = b.Out->Nodes[n];
+		if ((node.Kind != HYBRID_NODE_FAMILY_WAYPOINT) && (node.Kind != HYBRID_NODE_BASE_ENTRANCE)) continue;
+		if (node.RouteFamily != family) continue;
+		best = Min2(best,(node.Position - position).Length());
+	}
+	return best;
+}
+
+
+/*
+**	The families a preferred window belongs to: every family whose required heavy corridor (Phase 4's
+**	`HEAVY_CORRIDOR` reservations, which is how Phase 6 marked the window preferred) contains it.  A window
+**	preferred only for its nearness to a crossing guide belongs to the family whose node is nearest.
+*/
+static int Preferred_Families(const TopologyBuilder & b,const HybridCrossingWindow & window,int * families,int capacity)
+{
+	int count = 0;
+	for (int r = 0; r < b.Matrices->Reservations.Count(); ++r) {
+		const HybridReservation & reservation = b.Matrices->Reservations[r];
+		if (reservation.Priority != HYBRID_RESERVE_HEAVY_CORRIDOR) continue;
+		if ((reservation.RouteFamily < 0) || (reservation.RouteFamily >= b.FamilyCount)) continue;
+		if (Distance_To_Segment_Point(window.Center,reservation.A,reservation.B) > reservation.Radius) continue;
+		bool seen = false;
+		for (int i = 0; (i < count) && !seen; ++i) seen = (families[i] == reservation.RouteFamily);
+		if (seen || (count >= capacity)) continue;
+		//	Ascending family id: the plan's ranking key begins with it.
+		int slot = count++;
+		while ((slot > 0) && (families[slot - 1] > reservation.RouteFamily)) {
+			families[slot] = families[slot - 1];
+			slot--;
+		}
+		families[slot] = reservation.RouteFamily;
+	}
+	if (count == 0) {
+		float distance = 0.0f;
+		const int nearest = Nearest_Family(b,window.Center,&distance);
+		if (nearest >= 0) families[count++] = nearest;
+	}
+	return count;
+}
+
+
+//	One family binding of a quota window, with the census of why it was refused.
+static bool Quota_Family_Binding(TopologyBuilder & b,const HybridCrossingWindow & window,int family,
+											HybridQuotaPath path,HybridQuotaCensus * census)
+{
+	int edge = -1;
+	int slot = 0;
+	if (!Find_Insertion(b,family,window.Center,&edge,&slot)) {
+		census->Refused[path][HYBRID_QUOTA_REFUSE_OTHER]++;
+		return false;
+	}
+	const int refusal = Family_Binding_Refusal(b,family,window,Heavy_Binding_Class(b));
+	if (refusal == HYBRID_BINDING_OK) return true;
+	Note_Binding_Refusal(b,refusal);
+	Note_Quota_Refusal(census,path,refusal);
+	return false;
+}
+
+
+/*
+**	One candidate binding for a bridge quota: a window, and the family it goes into or the bank cross-link it
+**	gets.  Steps 3 and 4 rank preferred windows first by `(family_id, distance from that family's nearest
+**	guide, StableId)` and insert each into *that* family -- the family whose corridor made it preferred, not
+**	whichever family happens to own the nearest node -- and then non-preferred windows by lowest `StableId`
+**	with the plan's bank cross-link.
+*/
+struct QuotaCandidate
+{
+	QuotaCandidate(void) : Window(-1),Family(-1),Preferred(false),Distance(0.0f),StableId(0),
+		Binding(BRIDGE_BINDING_NONE),Positive(-1),Negative(-1) { }
+
+	int					Window;
+	int					Family;
+	bool					Preferred;
+	float					Distance;
+	unsigned int		StableId;
+	BridgeBindingKind	Binding;
+	int					Positive;
+	int					Negative;
+
+	//	DynamicVectorClass<T> requires == and !=.
+	bool	operator == (const QuotaCandidate & that) const
+	{
+		return (Window == that.Window) && (Family == that.Family) && (Binding == that.Binding);
+	}
+	bool	operator != (const QuotaCandidate & that) const	{ return !(*this == that); }
+};
+
+
+//	Does `a` outrank `b` in the plan's quota order?
+static bool Quota_Outranks(const QuotaCandidate & a,const QuotaCandidate & c)
+{
+	if (a.Preferred != c.Preferred) return a.Preferred;
+	if (a.Preferred) {
+		if (a.Family != c.Family) return a.Family < c.Family;
+		if (a.Distance != c.Distance) return a.Distance < c.Distance;
+		return a.StableId < c.StableId;
+	}
+	//	Non-preferred: the plan's lowest StableId; the bank cross-link the plan names before the family fallback.
+	if (a.StableId != c.StableId) return a.StableId < c.StableId;
+	if (a.Binding != c.Binding) return a.Binding == BRIDGE_BINDING_CROSS_LINK;
+	return a.Family < c.Family;
+}
+
+
+/*
+**	Every realizable binding of one quota window, offered to `consider`.  A preferred window is tried in each
+**	family whose corridor contains it.  A non-preferred window gets the plan's bank cross-link; when that cannot
+**	be built -- no heavy node on the far bank, or a sequence no `SECONDARY_2` can drive -- it is bound into any
+**	family whose own chain passes within that family's `MaxCorridorHalfWidth(PRIMARY_2)`, which the plan's
+**	preferred procedure already does for windows on a corridor (D-011).  Returns the number offered.
+*/
+static int Quota_Bindings(TopologyBuilder & b,int w,HybridQuotaCensus * census,DynamicVectorClass<QuotaCandidate> * out)
+{
+	const HybridCrossingWindow & window = b.Hydrology->Windows[w];
+	int offered = 0;
+
+	QuotaCandidate base;
+	base.Window		= w;
+	base.Preferred	= window.Preferred;
+	base.StableId	= window.StableId;
+
+	if (window.Preferred) {
+		int families[8];
+		const int count = Preferred_Families(b,window,families,8);
+		for (int i = 0; i < count; ++i) {
+			if (!Quota_Family_Binding(b,window,families[i],HYBRID_QUOTA_PATH_FAMILY,census)) continue;
+			QuotaCandidate candidate = base;
+			candidate.Family		= families[i];
+			candidate.Distance	= Family_Node_Distance(b,families[i],window.Center);
+			candidate.Binding		= BRIDGE_BINDING_FAMILY;
+			out->Add(candidate);
+			offered++;
+		}
+		return offered;
 	}
 
-	/*
-	**	The plan's fallback -- one `SECONDARY_2` cross-link between the nearest heavy waypoints on opposite
-	**	banks -- assumes a heavy node exists on the far bank.  Often none does: a river or ravine can run close
-	**	enough to the map edge that every heavy node stands on one side of it.  Then the window is bound to the
-	**	nearest family chain instead, which is the very procedure a *preferred* window gets, and only when the
-	**	window is inside that family's own `MaxCorridorHalfWidth(PRIMARY_2)` so the binding cannot drag a route
-	**	across the map.  A bridge on a family route satisfies the same Section-5 quota with strictly more use than
-	**	a cross-link to nowhere.
-	*/
 	int positive = -1;
 	int negative = -1;
 	if (Bank_Nodes(b,window,&positive,&negative)) {
 		const int refusal = Bank_Cross_Link_Refusal(b,window,positive,negative);
 		if (refusal == HYBRID_BINDING_OK) {
-			*positive_out = positive;
-			*negative_out = negative;
-			return BRIDGE_BINDING_CROSS_LINK;
+			QuotaCandidate candidate = base;
+			candidate.Binding		= BRIDGE_BINDING_CROSS_LINK;
+			candidate.Positive	= positive;
+			candidate.Negative	= negative;
+			out->Add(candidate);
+			return 1;
 		}
 		Note_Binding_Refusal(b,refusal);
+		Note_Quota_Refusal(census,HYBRID_QUOTA_PATH_CROSS_LINK,refusal);
+	} else {
+		census->Refused[HYBRID_QUOTA_PATH_CROSS_LINK][HYBRID_QUOTA_REFUSE_NO_BANK_PAIR]++;
 	}
 
-	if (family < 0) return BRIDGE_BINDING_NONE;
 	const float corridor_half = Hybrid_Max_Corridor_Half_Width(HYBRID_ROAD_PRIMARY_2,b.P->Constants.S,b.P->Constants.D);
-	if (Distance_To_Family_Chain(b,family,window.Center) > corridor_half) return BRIDGE_BINDING_NONE;
-
-	const int refusal = Family_Binding_Refusal(b,family,window,family_class);
-	if (refusal == HYBRID_BINDING_OK) return BRIDGE_BINDING_FAMILY;
-	Note_Binding_Refusal(b,refusal);
-	return BRIDGE_BINDING_NONE;
+	bool any_corridor = false;
+	for (int family = 0; family < b.FamilyCount; ++family) {
+		if (Distance_To_Family_Chain(b,family,window.Center) > corridor_half) continue;
+		any_corridor = true;
+		if (!Quota_Family_Binding(b,window,family,HYBRID_QUOTA_PATH_FALLBACK,census)) continue;
+		QuotaCandidate candidate = base;
+		candidate.Family		= family;
+		candidate.Distance	= Family_Node_Distance(b,family,window.Center);
+		candidate.Binding		= BRIDGE_BINDING_FAMILY;
+		out->Add(candidate);
+		offered++;
+	}
+	if (!any_corridor) census->Refused[HYBRID_QUOTA_PATH_FALLBACK][HYBRID_QUOTA_REFUSE_CORRIDOR]++;
+	return offered;
 }
 
 
 static bool Fill_Bridge_Quota(TopologyBuilder & b,bool river,HybridTopologyResult * result)
 {
 	StringClass detail;
+	HybridQuotaCensus local;
+	HybridQuotaCensus * census = (result != nullptr) ? (river ? &result->RiverQuota : &result->CanyonQuota) : &local;
 
 	for (;;) {
 
 		const int have = river ? b.Out->RiverBridges : b.Out->CanyonBridges;
 		const int required = river ? b.Out->RequiredRiverBridges : b.Out->RequiredCanyonBridges;
-		if (have >= required) return true;
+		if (have >= required) {
+			census->Have = have;
+			return true;
+		}
+		census->Reset();
+		census->Required	= required;
+		census->Have		= have;
 
-		int chosen = -1;
-		bool chosen_preferred = false;
-		int chosen_family = -1;
-		float chosen_distance = 0.0f;
-		BridgeBindingKind chosen_binding = BRIDGE_BINDING_NONE;
-		int chosen_positive = -1;
-		int chosen_negative = -1;
-
-		int ranked_first = -1;
-		bool ranked_preferred = false;
-		int ranked_family = -1;
-		float ranked_distance = 0.0f;
+		bool have_choice = false;
+		QuotaCandidate chosen;
+		bool have_ranked = false;
+		QuotaCandidate ranked_first;			//	the best window before Q-023's realizability is asked
 		int refused = 0;
 
 		for (int w = 0; w < b.Hydrology->Windows.Count(); ++w) {
 
-			if (b.WindowUsed[w] != 0) continue;
 			const HybridCrossingWindow & window = b.Hydrology->Windows[w];
 			if (!Window_Is_Bridge_Category(window,river)) continue;
-			if (!window.Has_Method(HYBRID_WINDOW_METHOD_BRIDGE)) continue;
-			if (!Window_Spacing_Is_Legal(b,window)) continue;
-
-			float distance = 0.0f;
-			const int family = Nearest_Family(b,window.Center,&distance);
-
-			//	Preferred windows first, ranked by (family id, distance to that family's nearest guide,
-			//	StableId); a plain window is only considered when no preferred one is left.
-			bool outranks_ranked = (ranked_first < 0);
-			if (!outranks_ranked) {
-				outranks_ranked = true;
-				if (ranked_preferred && !window.Preferred) outranks_ranked = false;
-				if (ranked_preferred == window.Preferred) {
-					if (family > ranked_family) outranks_ranked = false;
-					if ((family == ranked_family) && (distance >= ranked_distance)) outranks_ranked = false;
-				}
+			census->Candidates++;
+			if (b.WindowUsed[w] != 0) {
+				census->Refused[HYBRID_QUOTA_PATH_FILTER][HYBRID_QUOTA_REFUSE_CONSUMED]++;
+				continue;
 			}
-			if (outranks_ranked) {
-				ranked_first		= w;
-				ranked_preferred	= window.Preferred;
-				ranked_family		= family;
-				ranked_distance	= distance;
+			if (!window.Has_Method(HYBRID_WINDOW_METHOD_BRIDGE)) {
+				census->Refused[HYBRID_QUOTA_PATH_FILTER][HYBRID_QUOTA_REFUSE_METHOD]++;
+				continue;
 			}
-
-			//	Q-023: a window whose binding no road could drive is not ranked at all.
-			int positive = -1;
-			int negative = -1;
-			const BridgeBindingKind binding = Plan_Bridge_Binding(b,window,family,&positive,&negative);
-			if (binding == BRIDGE_BINDING_NONE) {
-				refused++;
+			if (!Window_Spacing_Is_Legal(b,window)) {
+				census->Refused[HYBRID_QUOTA_PATH_FILTER][HYBRID_QUOTA_REFUSE_SPACING]++;
 				continue;
 			}
 
-			if (chosen >= 0) {
-				if (chosen_preferred && !window.Preferred) continue;
-				if (chosen_preferred == window.Preferred) {
-					if (family > chosen_family) continue;
-					if ((family == chosen_family) && (distance >= chosen_distance)) continue;
-				}
+			QuotaCandidate plain;
+			plain.Window		= w;
+			plain.Preferred	= window.Preferred;
+			plain.StableId		= window.StableId;
+			plain.Family		= Nearest_Family(b,window.Center,&plain.Distance);
+			if (!have_ranked || Quota_Outranks(plain,ranked_first)) {
+				ranked_first	= plain;
+				have_ranked		= true;
 			}
-			chosen				= w;
-			chosen_preferred	= window.Preferred;
-			chosen_family		= family;
-			chosen_distance	= distance;
-			chosen_binding		= binding;
-			chosen_positive	= positive;
-			chosen_negative	= negative;
+
+			//	Q-023: a binding no road could drive is not ranked at all.
+			DynamicVectorClass<QuotaCandidate> bindings;
+			if (Quota_Bindings(b,w,census,&bindings) == 0) {
+				refused++;
+				continue;
+			}
+			census->Bindable++;
+			for (int i = 0; i < bindings.Count(); ++i) {
+				if (have_choice && !Quota_Outranks(bindings[i],chosen)) continue;
+				chosen		= bindings[i];
+				have_choice	= true;
+			}
 		}
 
-		if (chosen < 0) {
+		if (!have_choice) {
 			detail.Format("%s bridge quota short: %d of %d, no bridge-capable window left (%d refused as undrivable)",
 								river ? "river" : "canyon/ravine",have,required,refused);
 			return Fail(result,HYBRID_TOPOLOGY_BRIDGE_QUOTA,detail.Peek_Buffer());
 		}
-		if ((ranked_first >= 0) && (chosen != ranked_first)) b.Out->RecoveredByNextRank++;
+		if (have_ranked && (chosen.Window != ranked_first.Window)) b.Out->RecoveredByNextRank++;
 
-		const HybridCrossingWindow & window = b.Hydrology->Windows[chosen];
-		if (chosen_binding == BRIDGE_BINDING_FAMILY) {
-			const unsigned int node = Add_Node(b,HYBRID_NODE_CROSSING_OBLIGATION,window.Center,chosen_family,
+		const HybridCrossingWindow & window = b.Hydrology->Windows[chosen.Window];
+		if (chosen.Binding == BRIDGE_BINDING_FAMILY) {
+			const unsigned int node = Add_Node(b,HYBRID_NODE_CROSSING_OBLIGATION,window.Center,chosen.Family,
 														  -1,0,window.StableId,-1);
-			Insert_Waypoint(b,chosen_family,node,window.Center);
+			Insert_Waypoint(b,chosen.Family,node,window.Center);
 		} else {
-			Add_Bank_Cross_Link(b,window,chosen_positive,chosen_negative);
+			Add_Bank_Cross_Link(b,window,chosen.Positive,chosen.Negative);
 		}
 		Consume_Window(b,window);
 	}
@@ -1979,12 +2212,16 @@ static void Sort_By_Distance(DynamicVectorClass<PairCandidate> * pairs)
 }
 
 
-//	A "non-base waypoint": every topology node a road may start or end at, which is everything except
-//	the logical base node, its entrances (reached only through BASE_INTERNAL) and a mid-edge overpass.
+/*
+**	A "non-base waypoint": every topology node a road may start or end at, which is everything except the
+**	logical base node, its entrances (reached only through BASE_INTERNAL) and the two structural waypoints.  A
+**	mid-edge overpass is a deck; a crossing obligation is a bridge, tunnel or pass the road through it must run
+**	straight across (Q-022), so a road ending there would end in the middle of a structure -- measured, four of
+**	seventeen Phase-11 road x road refusals in a 1400-world census were cross-links ending at one.
+*/
 static bool Is_Pairable_Waypoint(const HybridTopologyNode & node)
 {
-	return (node.Kind == HYBRID_NODE_FAMILY_WAYPOINT) || (node.Kind == HYBRID_NODE_CROSSING_OBLIGATION) ||
-			 (node.Kind == HYBRID_NODE_FIELD_ACCESS);
+	return (node.Kind == HYBRID_NODE_FAMILY_WAYPOINT) || (node.Kind == HYBRID_NODE_FIELD_ACCESS);
 }
 
 
@@ -1994,9 +2231,10 @@ static bool Is_Pairable_Waypoint(const HybridTopologyNode & node)
 **
 **	"Non-base waypoint" is read as every node a road may end at, not only a Phase-3 family waypoint: a
 **	two-family map has exactly two of those and exactly one pair between them, which cannot fill a
-**	Section-5 trail quota of two by any ordering.  A crossing waypoint and a field access point are
-**	waypoints in the same sense, and pairing them keeps the intent of the rule -- a shortcut between
-**	*different* routes -- because the "different families" test still refuses two nodes of one family.
+**	Section-5 trail quota of two by any ordering.  A field access point is a waypoint in the same sense, and
+**	pairing it keeps the intent of the rule -- a shortcut between *different* routes -- because the "different
+**	families" test still refuses two nodes of one family.  A crossing waypoint is not: see
+**	Is_Pairable_Waypoint.
 */
 static void Collect_Waypoint_Pairs(const TopologyBuilder & b,bool different_families,float minimum,
 											  DynamicVectorClass<PairCandidate> * out)
@@ -2262,11 +2500,11 @@ static float Crossing_Angle_Degrees(const Vector2 & a0,const Vector2 & a1,const 
 **	one analysis spacing plus the roadbed half width, which is what it takes for the router to arrive at
 **	the waypoint and leave it again on the analysis grid.
 */
-static bool Overpass_Point_Is_Legal(const TopologyBuilder & b,const Vector2 & point)
+static int Overpass_Point_Refusal(const TopologyBuilder & b,const Vector2 & point)
 {
 	const HybridConstants & k = b.P->Constants;
 
-	if (!Point_Is_Clear(b,point,false)) return false;
+	if (!Point_Is_Clear(b,point,false)) return HYBRID_OVERPASS_REFUSE_PROTECTED;
 
 	const float clearance = k.A + (0.5f * Hybrid_Roadbed_Width(HYBRID_ROAD_SECONDARY_2,k.W));
 	for (int i = 0; i < b.Hydrology->Bodies.Count(); ++i) {
@@ -2278,43 +2516,42 @@ static bool Overpass_Point_Is_Legal(const TopologyBuilder & b,const Vector2 & po
 
 		//	Water that merely surrounds the point still encloses it on the analysis grid.
 		for (int p = 0; p < body.Points.Count(); ++p) {
-			if ((body.Points[p] - point).Length() <= clearance) return false;
+			if ((body.Points[p] - point).Length() <= clearance) return HYBRID_OVERPASS_REFUSE_WATER_CLEARANCE;
 		}
 	}
 
 	for (int i = 0; i < b.Anchors->Bases.Count(); ++i) {
-		if ((point - b.Anchors->Bases[i].Center).Length() <= b.Anchors->Bases[i].ProtectedRadius) return false;
+		if ((point - b.Anchors->Bases[i].Center).Length() <= b.Anchors->Bases[i].ProtectedRadius) return HYBRID_OVERPASS_REFUSE_PROTECTED;
 	}
 	for (int i = 0; i < b.Anchors->Resources.Count(); ++i) {
-		if ((point - b.Anchors->Resources[i].Center).Length() <= b.Anchors->Resources[i].ReserveRadius) return false;
+		if ((point - b.Anchors->Resources[i].Center).Length() <= b.Anchors->Resources[i].ReserveRadius) return HYBRID_OVERPASS_REFUSE_TIBERIUM;
 	}
 	/*
-	**	A selected crossing window's protected bounds are everything a road needs to use it: the obstruction, its
-	**	straight approach reserve, and the room past each approach point to finish turning onto the crossing
-	**	(Step 18's turn room, revised D-009 / Q-022).  An overpass outside them still needs its own `10W` of
-	**	road each side of the crossing for its ramps -- the arm rule above -- and those may not run into a
-	**	crossing's approach either, so the overpass stands that much further off.
+	**	A selected crossing window's protected bounds: the obstruction and its straight approach reserve.  Whether
+	**	an overpass leaves a road on the same edge room to turn onto that crossing, and its own ramps their `10W`,
+	**	is the Q-023 pose rule's question (Overpass_Refusal), answered with the class's own radius construction; a
+	**	fixed distance from every selected window refused overpasses on roads that never use that window.
 	*/
-	const float turn_room = Hybrid_Road_Class_Spec(HYBRID_ROAD_PRIMARY_2).MinTurnRadiusW * k.W;
-	const float arm = OVERPASS_ARM_W * k.W;
 	for (int i = 0; i < b.SelectedWindow.Count(); ++i) {
 		const HybridCrossingWindow * window = b.Hydrology->Find_Window(b.SelectedWindow[i]);
 		if (window == nullptr) continue;
-		const float bounds = window->ApproachLength + (0.5f * window->Span) + turn_room;
-		if ((point - window->Center).Length() <= (bounds + arm)) return false;
+		const float own = window->ApproachLength + (0.5f * window->Span);
+		if ((point - window->Center).Length() <= own) return HYBRID_OVERPASS_REFUSE_WINDOW;
 	}
 	for (int n = 0; n < b.Out->Nodes.Count(); ++n) {
 		if (b.Out->Nodes[n].Kind != HYBRID_NODE_OVERPASS_OBLIGATION) continue;
-		if ((point - b.Out->Nodes[n].Position).Length() < (OVERPASS_SPACING_W * k.W)) return false;
+		if ((point - b.Out->Nodes[n].Position).Length() < (OVERPASS_SPACING_W * k.W)) return HYBRID_OVERPASS_REFUSE_SPACING;
 	}
-	return true;
+	return -1;
 }
 
 
 struct OverpassCandidate
 {
 	int				HighwayEdge;		// index into Out->Edges
+	int				HighwaySlot;		// the highway's intent sub-segment the crossing lies on
 	int				OtherEdge;			// index, or -1 for a synthesized cross-link candidate
+	int				OtherSlot;
 	unsigned int	NodeA;				// the synthesized candidate's own endpoints
 	unsigned int	NodeB;
 	Vector2			Point;
@@ -2333,30 +2570,34 @@ struct OverpassCandidate
 /*
 **	Step 12's exact cost: `clamp(local_max_slope/SECONDARY_2.max_grade,0,1) +
 **	clamp(distance_to_nearest_edge_endpoint/(0.5D),0,1)`, with the slope sampled over the `2W` disc the
-**	plan names.  False means the candidate is not hard-valid at all.
+**	plan names.  -1 when the candidate is hard-valid, otherwise the first step-12 rule it fails.
 */
-static bool Overpass_Cost(const TopologyBuilder & b,const Vector2 & point,const Vector2 & a0,const Vector2 & a1,
-								  const Vector2 & b0,const Vector2 & b1,float * cost_out)
+static int Overpass_Cost(const TopologyBuilder & b,const Vector2 & point,const Vector2 & a0,const Vector2 & a1,
+								 const Vector2 & b0,const Vector2 & b1,float * cost_out)
 {
 	const HybridConstants & k = b.P->Constants;
 	const float arm = OVERPASS_ARM_W * k.W;
 	const float max_grade = Hybrid_Road_Class_Spec(HYBRID_ROAD_SECONDARY_2).MaxGradeDegrees * PI_OVER_180;
 
-	//	At least 10W of each segment on each side of the crossing.
-	if ((point - a0).Length() < arm)	return false;
-	if ((point - a1).Length() < arm)	return false;
-	if ((point - b0).Length() < arm)	return false;
-	if ((point - b1).Length() < arm)	return false;
-
+	/*
+	**	`60..120` degrees between the two directed segments is `>= 60` between the two lines, which is what
+	**	Crossing_Angle_Degrees measures (0..90).  The test this replaces compared that 0..90 value against both
+	**	ends of the directed band and so could never refuse anything.
+	*/
 	const float angle = Crossing_Angle_Degrees(a0,a1,b0,b1);
-	if ((angle < (OVERPASS_ANGLE_MIN - 0.001f)) && ((180.0f - angle) < (OVERPASS_ANGLE_MIN - 0.001f))) return false;
-	if (angle > (OVERPASS_ANGLE_MAX + 0.001f)) return false;
+	if (angle < (OVERPASS_ANGLE_MIN - 0.001f)) return HYBRID_OVERPASS_REFUSE_ANGLE;
+	if ((180.0f - angle) > (OVERPASS_ANGLE_MAX + 90.001f)) return HYBRID_OVERPASS_REFUSE_ANGLE;
 
-	if (!Overpass_Point_Is_Legal(b,point)) return false;
+	//	At least 10W of each segment on each side of the crossing.
+	if (((point - a0).Length() < arm) || ((point - a1).Length() < arm)) return HYBRID_OVERPASS_REFUSE_ARM;
+	if (((point - b0).Length() < arm) || ((point - b1).Length() < arm)) return HYBRID_OVERPASS_REFUSE_ARM_OTHER;
+
+	const int refusal = Overpass_Point_Refusal(b,point);
+	if (refusal >= 0) return refusal;
 
 	float slope = 0.0f;
-	if (!Disc_Max_Slope(b,point,OVERPASS_SLOPE_DISC_W * k.W,&slope)) return false;
-	if (slope > max_grade) return false;
+	if (!Disc_Max_Slope(b,point,OVERPASS_SLOPE_DISC_W * k.W,&slope)) return HYBRID_OVERPASS_REFUSE_PROTECTED;
+	if (slope > max_grade) return HYBRID_OVERPASS_REFUSE_SLOPE;
 
 	float nearest = (point - a0).Length();
 	nearest = Min2(nearest,(point - a1).Length());
@@ -2364,27 +2605,35 @@ static bool Overpass_Cost(const TopologyBuilder & b,const Vector2 & point,const 
 	nearest = Min2(nearest,(point - b1).Length());
 
 	*cost_out = Clamp2(slope / Max2(max_grade,k.Q),0.0f,1.0f) + Clamp2(nearest / (0.5f * k.D),0.0f,1.0f);
-	return true;
+	return -1;
 }
 
 
-//	The slot an overpass waypoint at `point` takes in an edge's waypoint list: along-edge order from NodeA.
-static int Overpass_Slot(const TopologyBuilder & b,const HybridTopologyEdge & edge,const Vector2 & point)
+/*
+**	An edge as Phase 10 drives it: NodeA, its waypoints in order, NodeB, joined by straight intent segments.
+**	Sub-segment `slot` runs from chain node `slot` to chain node `slot + 1`, and a waypoint inserted on it goes in
+**	at `Waypoints[slot]`.  Steps 12 and 13 treat "every current topology edge as a straight intent segment between
+**	its frozen endpoints"; once an edge carries waypoints, the straight segments it is driven along are these, and
+**	the angle, the `10W` either side and the deck axis that Phase 10 realizes are all measured on the one the
+**	crossing lies on.  Measuring them on the endpoint-to-endpoint line accepted overpasses the two roads then met
+**	at 17 to 27 degrees.
+*/
+static int Edge_Segment_Count(const HybridTopologyEdge & edge)
 {
-	const HybridTopologyNode * a = b.Out->Find_Node(edge.NodeA);
-	int insert_at = edge.Waypoints.Count();
-	if (a != nullptr) {
-		const float own = (point - a->Position).Length();
-		for (int w = 0; w < edge.Waypoints.Count(); ++w) {
-			const HybridTopologyNode * existing = b.Out->Find_Node(edge.Waypoints[w]);
-			if (existing == nullptr) continue;
-			if ((existing->Position - a->Position).Length() > own) {
-				insert_at = w;
-				break;
-			}
-		}
-	}
-	return insert_at;
+	return edge.Waypoints.Count() + 1;
+}
+
+
+static bool Edge_Segment(const TopologyBuilder & b,const HybridTopologyEdge & edge,int slot,Vector2 * from,Vector2 * to)
+{
+	const unsigned int before = (slot > 0) ? edge.Waypoints[slot - 1] : edge.NodeA;
+	const unsigned int after = (slot < edge.Waypoints.Count()) ? edge.Waypoints[slot] : edge.NodeB;
+	const HybridTopologyNode * a = b.Out->Find_Node(before);
+	const HybridTopologyNode * c = b.Out->Find_Node(after);
+	if ((a == nullptr) || (c == nullptr)) return false;
+	*from	= a->Position;
+	*to	= c->Position;
+	return true;
 }
 
 
@@ -2393,30 +2642,16 @@ static int Overpass_Slot(const TopologyBuilder & b,const HybridTopologyEdge & ed
 **	direction, keeps the `10W` either side its ramps need, and can get there from the waypoint behind and on to
 **	the one ahead with its own class radius.
 */
-//	The intent direction an edge would have through a new waypoint at `point`: its neighbours at the slot.
-static Vector2 Edge_Axis_At_Slot(const TopologyBuilder & b,const HybridTopologyEdge & edge,const Vector2 & point)
-{
-	const int slot = Overpass_Slot(b,edge,point);
-	const unsigned int before = (slot > 0) ? edge.Waypoints[slot - 1] : edge.NodeA;
-	const unsigned int after = (slot < edge.Waypoints.Count()) ? edge.Waypoints[slot] : edge.NodeB;
-	const HybridTopologyNode * a = b.Out->Find_Node(before);
-	const HybridTopologyNode * c = b.Out->Find_Node(after);
-	if ((a == nullptr) || (c == nullptr)) return Vector2(0.0f,0.0f);
-	return c->Position - a->Position;
-}
-
-
-static int Overpass_Refusal(const TopologyBuilder & b,const HybridTopologyEdge & edge,const Vector2 & point,
-									 const Vector2 & other_axis,HybridRoadClass other_class)
+static int Overpass_Refusal(const TopologyBuilder & b,const HybridTopologyEdge & edge,int slot,const Vector2 & point,
+									 const Vector2 & own_axis,const Vector2 & other_axis,HybridRoadClass other_class)
 {
 	DynamicVectorClass<ChainEntry> chain;
 	Edge_Chain(b,edge,&chain);
 	ChainEntry candidate;
 	candidate.Kind		= HYBRID_NODE_OVERPASS_OBLIGATION;
 	candidate.Position	= point;
-	candidate.HalfDeck	= Hybrid_Overpass_Half_Deck(Edge_Axis_At_Slot(b,edge,point),other_axis,edge.RoadClass,
-																	 other_class,b.P->Constants.W);
-	const int at = Overpass_Slot(b,edge,point) + 1;
+	candidate.HalfDeck	= Hybrid_Overpass_Half_Deck(own_axis,other_axis,edge.RoadClass,other_class,b.P->Constants.W);
+	const int at = slot + 1;
 	chain.Insert(at,candidate);
 	return Chain_Refusal(b,chain,at - 1,at + 1,edge.RoadClass);
 }
@@ -2444,17 +2679,19 @@ static int Synthesized_Overpass_Refusal(const TopologyBuilder & b,unsigned int a
 
 
 //	Step 14: one shared waypoint, inserted into both participating edges at the same quantized point.
-static void Insert_Shared_Overpass(TopologyBuilder & b,int highway_edge,int other_edge,const Vector2 & point)
+static void Insert_Shared_Overpass(TopologyBuilder & b,int highway_edge,int highway_slot,int other_edge,int other_slot,
+											  const Vector2 & point)
 {
 	const unsigned int node = Add_Node(b,HYBRID_NODE_OVERPASS_OBLIGATION,point,-1,-1,0,0,-1);
 
 	const int edges[2] = { highway_edge, other_edge };
+	const int slots[2] = { highway_slot, other_slot };
 	for (int i = 0; i < 2; ++i) {
 		if ((edges[i] < 0) || (edges[i] >= b.Out->Edges.Count())) continue;
 		HybridTopologyEdge & edge = b.Out->Edges[edges[i]];
-		edge.Waypoints.Insert(Overpass_Slot(b,edge,point),node);
+		edge.Waypoints.Insert(slots[i],node);
 	}
-	b.Out->Overpasses++;
+	b.Out->ReservedOverpassCount++;
 }
 
 
@@ -2463,54 +2700,81 @@ static bool Reserve_Overpasses(TopologyBuilder & b,HybridTopologyResult * result
 	const HybridConstants & k = b.P->Constants;
 	const float minimum = CROSS_LINK_MIN_W * k.W;
 	StringClass detail;
+	HybridOverpassCensus local;
+	HybridOverpassCensus * census = (result != nullptr) ? &result->OverpassQuota : &local;
+	census->Reset();
+	census->Required	= b.Out->RequestedOverpassTarget;
+	census->Have		= b.Out->ReservedOverpassCount;
+	census->Families	= b.FamilyCount;
+	census->Highways	= b.Out->Highways;
 
 	//	Step 12: the natural intersections between a HIGHWAY_4 segment and a PRIMARY_2/SECONDARY_2 one.
-	while (b.Out->Overpasses < b.Out->RequiredOverpasses) {
+	while (b.Out->ReservedOverpassCount < b.Out->RequestedOverpassTarget) {
 
 		DynamicVectorClass<OverpassCandidate> candidates;
+		census->Natural = 0;
+		for (int r = 0; r < HYBRID_OVERPASS_REFUSAL_COUNT; ++r) census->NaturalRefused[r] = 0;
 
 		for (int h = 0; h < b.Out->Edges.Count(); ++h) {
 
 			const HybridTopologyEdge & highway = b.Out->Edges[h];
 			if (highway.RoadClass != HYBRID_ROAD_HIGHWAY_4) continue;
-			const HybridTopologyNode * h0 = b.Out->Find_Node(highway.NodeA);
-			const HybridTopologyNode * h1 = b.Out->Find_Node(highway.NodeB);
-			if ((h0 == nullptr) || (h1 == nullptr)) continue;
 
 			for (int o = 0; o < b.Out->Edges.Count(); ++o) {
 
 				if (o == h) continue;
 				const HybridTopologyEdge & other = b.Out->Edges[o];
 				if ((other.RoadClass != HYBRID_ROAD_PRIMARY_2) && (other.RoadClass != HYBRID_ROAD_SECONDARY_2)) continue;
-				const HybridTopologyNode * o0 = b.Out->Find_Node(other.NodeA);
-				const HybridTopologyNode * o1 = b.Out->Find_Node(other.NodeB);
-				if ((o0 == nullptr) || (o1 == nullptr)) continue;
 
-				Vector2 point(0.0f,0.0f);
-				if (!Segments_Cross(h0->Position,h1->Position,o0->Position,o1->Position,&point,nullptr,nullptr)) continue;
+				for (int hs = 0; hs < Edge_Segment_Count(highway); ++hs) {
+					Vector2 h0(0.0f,0.0f);
+					Vector2 h1(0.0f,0.0f);
+					if (!Edge_Segment(b,highway,hs,&h0,&h1)) continue;
 
-				float cost = 0.0f;
-				if (!Overpass_Cost(b,point,h0->Position,h1->Position,o0->Position,o1->Position,&cost)) continue;
+					for (int os = 0; os < Edge_Segment_Count(other); ++os) {
+						Vector2 o0(0.0f,0.0f);
+						Vector2 o1(0.0f,0.0f);
+						if (!Edge_Segment(b,other,os,&o0,&o1)) continue;
 
-				//	Q-023: both roads have to be able to drive it.
-				int refusal = Overpass_Refusal(b,highway,point,Edge_Axis_At_Slot(b,other,point),other.RoadClass);
-				if (refusal == HYBRID_BINDING_OK) {
-					refusal = Overpass_Refusal(b,other,point,Edge_Axis_At_Slot(b,highway,point),highway.RoadClass);
+						Vector2 point(0.0f,0.0f);
+						if (!Segments_Cross(h0,h1,o0,o1,&point,nullptr,nullptr)) continue;
+						census->Natural++;
+
+						float cost = 0.0f;
+						const int rule = Overpass_Cost(b,point,h0,h1,o0,o1,&cost);
+						if (rule >= 0) {
+							census->NaturalRefused[rule]++;
+							if (rule == HYBRID_OVERPASS_REFUSE_ANGLE) {
+								const int bucket = (int)(Crossing_Angle_Degrees(h0,h1,o0,o1) / 15.0f);
+								census->AngleBucket[(bucket < 0) ? 0 : ((bucket > 3) ? 3 : bucket)]++;
+							}
+							continue;
+						}
+
+						//	Q-023: both roads have to be able to drive it.
+						int refusal = Overpass_Refusal(b,highway,hs,point,h1 - h0,o1 - o0,other.RoadClass);
+						if (refusal == HYBRID_BINDING_OK) {
+							refusal = Overpass_Refusal(b,other,os,point,o1 - o0,h1 - h0,highway.RoadClass);
+						}
+						if (refusal != HYBRID_BINDING_OK) {
+							Note_Binding_Refusal(b,refusal);
+							census->NaturalRefused[HYBRID_OVERPASS_REFUSE_POSE]++;
+							continue;
+						}
+
+						OverpassCandidate candidate;
+						candidate.HighwayEdge	= h;
+						candidate.HighwaySlot	= hs;
+						candidate.OtherEdge		= o;
+						candidate.OtherSlot		= os;
+						candidate.NodeA			= 0;
+						candidate.NodeB			= 0;
+						candidate.Point			= point;
+						candidate.Cost				= cost;
+						candidate.Length			= 0.0f;
+						candidates.Add(candidate);
+					}
 				}
-				if (refusal != HYBRID_BINDING_OK) {
-					Note_Binding_Refusal(b,refusal);
-					continue;
-				}
-
-				OverpassCandidate candidate;
-				candidate.HighwayEdge	= h;
-				candidate.OtherEdge		= o;
-				candidate.NodeA			= 0;
-				candidate.NodeB			= 0;
-				candidate.Point			= point;
-				candidate.Cost				= cost;
-				candidate.Length			= 0.0f;
-				candidates.Add(candidate);
 			}
 		}
 
@@ -2532,16 +2796,26 @@ static bool Reserve_Overpasses(TopologyBuilder & b,HybridTopologyResult * result
 			}
 			best = i;
 		}
-		Insert_Shared_Overpass(b,candidates[best].HighwayEdge,candidates[best].OtherEdge,candidates[best].Point);
+		Insert_Shared_Overpass(b,candidates[best].HighwayEdge,candidates[best].HighwaySlot,candidates[best].OtherEdge,
+									  candidates[best].OtherSlot,candidates[best].Point);
 	}
 
 	//	Step 13: synthesized SECONDARY_2 cross-links that cross a highway, ranked with their own length.
-	while (b.Out->Overpasses < b.Out->RequiredOverpasses) {
+	while (b.Out->ReservedOverpassCount < b.Out->RequestedOverpassTarget) {
 
 		DynamicVectorClass<PairCandidate> pairs;
 		Collect_Waypoint_Pairs(b,true,minimum,&pairs);
 
 		DynamicVectorClass<OverpassCandidate> candidates;
+		census->Pairs			= pairs.Count();
+		census->HeavyPairs	= 0;
+		for (int p = 0; p < pairs.Count(); ++p) {
+			const HybridTopologyNode * na = b.Out->Find_Node(pairs[p].NodeA);
+			const HybridTopologyNode * nc = b.Out->Find_Node(pairs[p].NodeB);
+			if ((na != nullptr) && (nc != nullptr) && (na->RouteFamily >= 0) && (nc->RouteFamily >= 0)) census->HeavyPairs++;
+		}
+		census->Synthesized	= 0;
+		for (int r = 0; r < HYBRID_OVERPASS_REFUSAL_COUNT; ++r) census->SynthesizedRefused[r] = 0;
 
 		for (int p = 0; p < pairs.Count(); ++p) {
 
@@ -2553,42 +2827,64 @@ static bool Reserve_Overpasses(TopologyBuilder & b,HybridTopologyResult * result
 
 				const HybridTopologyEdge & highway = b.Out->Edges[h];
 				if (highway.RoadClass != HYBRID_ROAD_HIGHWAY_4) continue;
-				const HybridTopologyNode * h0 = b.Out->Find_Node(highway.NodeA);
-				const HybridTopologyNode * h1 = b.Out->Find_Node(highway.NodeB);
-				if ((h0 == nullptr) || (h1 == nullptr)) continue;
 
-				Vector2 point(0.0f,0.0f);
-				if (!Segments_Cross(h0->Position,h1->Position,a->Position,c->Position,&point,nullptr,nullptr)) continue;
+				for (int hs = 0; hs < Edge_Segment_Count(highway); ++hs) {
+					Vector2 h0(0.0f,0.0f);
+					Vector2 h1(0.0f,0.0f);
+					if (!Edge_Segment(b,highway,hs,&h0,&h1)) continue;
 
-				float cost = 0.0f;
-				if (!Overpass_Cost(b,point,h0->Position,h1->Position,a->Position,c->Position,&cost)) continue;
+					Vector2 point(0.0f,0.0f);
+					if (!Segments_Cross(h0,h1,a->Position,c->Position,&point,nullptr,nullptr)) continue;
+					census->Synthesized++;
 
-				int refusal = Overpass_Refusal(b,highway,point,c->Position - a->Position,HYBRID_ROAD_SECONDARY_2);
-				if (refusal == HYBRID_BINDING_OK) {
-					refusal = Synthesized_Overpass_Refusal(b,pairs[p].NodeA,pairs[p].NodeB,point,
-																		Edge_Axis_At_Slot(b,highway,point),highway.RoadClass);
+					float cost = 0.0f;
+					const int rule = Overpass_Cost(b,point,h0,h1,a->Position,c->Position,&cost);
+					if (rule >= 0) {
+						census->SynthesizedRefused[rule]++;
+						if (rule == HYBRID_OVERPASS_REFUSE_ANGLE) {
+							const int bucket = (int)(Crossing_Angle_Degrees(h0,h1,a->Position,c->Position) / 15.0f);
+							census->AngleBucket[(bucket < 0) ? 0 : ((bucket > 3) ? 3 : bucket)]++;
+						}
+						continue;
+					}
+
+					int refusal = Overpass_Refusal(b,highway,hs,point,h1 - h0,c->Position - a->Position,
+															 HYBRID_ROAD_SECONDARY_2);
+					if (refusal == HYBRID_BINDING_OK) {
+						refusal = Synthesized_Overpass_Refusal(b,pairs[p].NodeA,pairs[p].NodeB,point,h1 - h0,
+																			highway.RoadClass);
+					}
+					if (refusal != HYBRID_BINDING_OK) {
+						Note_Binding_Refusal(b,refusal);
+						census->SynthesizedRefused[HYBRID_OVERPASS_REFUSE_POSE]++;
+						continue;
+					}
+
+					OverpassCandidate candidate;
+					candidate.HighwayEdge	= h;
+					candidate.HighwaySlot	= hs;
+					candidate.OtherEdge		= -1;
+					candidate.OtherSlot		= 0;
+					candidate.NodeA			= pairs[p].NodeA;
+					candidate.NodeB			= pairs[p].NodeB;
+					candidate.Point			= point;
+					candidate.Cost				= cost + (pairs[p].Distance / Max2(b.P->Constants.D,b.P->Constants.Q));
+					candidate.Length			= pairs[p].Distance;
+					candidates.Add(candidate);
 				}
-				if (refusal != HYBRID_BINDING_OK) {
-					Note_Binding_Refusal(b,refusal);
-					continue;
-				}
-
-				OverpassCandidate candidate;
-				candidate.HighwayEdge	= h;
-				candidate.OtherEdge		= -1;
-				candidate.NodeA			= pairs[p].NodeA;
-				candidate.NodeB			= pairs[p].NodeB;
-				candidate.Point			= point;
-				candidate.Cost				= cost + (pairs[p].Distance / Max2(b.P->Constants.D,b.P->Constants.Q));
-				candidate.Length			= pairs[p].Distance;
-				candidates.Add(candidate);
 			}
 		}
 
+		/*
+		**	Q-024: the Section-5 number is a target.  Every hard-valid candidate has been enumerated, ranked and
+		**	taken in order; when none remains the shortfall is recorded, and Phase 9 does not invent a crossing
+		**	to make up the count.
+		*/
 		if (candidates.Count() == 0) {
-			detail.Format("overpass quota short: %d of %d, no natural or synthesized candidate remains",
-								b.Out->Overpasses,b.Out->RequiredOverpasses);
-			return Fail(result,HYBRID_TOPOLOGY_OVERPASS_QUOTA,detail.Peek_Buffer());
+			census->Have = b.Out->ReservedOverpassCount;
+			WWDEBUG_SAY(("Hybrid Phase 9: OVERPASS_TARGET_SHORTAGE %d (%d reserved of a target of %d)\r\n",
+							 b.Out->Overpass_Target_Shortage(),b.Out->ReservedOverpassCount,b.Out->RequestedOverpassTarget));
+			break;
 		}
 
 		int best = 0;
@@ -2606,8 +2902,9 @@ static bool Reserve_Overpasses(TopologyBuilder & b,HybridTopologyResult * result
 		const OverpassCandidate & chosen = candidates[best];
 		Add_Edge(b,HYBRID_EDGE_CROSS_LINK,HYBRID_ROAD_SECONDARY_2,chosen.NodeA,chosen.NodeB,-1,true,0,0);
 		b.Out->CrossLinks++;
-		Insert_Shared_Overpass(b,chosen.HighwayEdge,b.Out->Edges.Count() - 1,chosen.Point);
+		Insert_Shared_Overpass(b,chosen.HighwayEdge,chosen.HighwaySlot,b.Out->Edges.Count() - 1,0,chosen.Point);
 	}
+	census->Have = b.Out->ReservedOverpassCount;
 	return true;
 }
 
@@ -2706,7 +3003,7 @@ static bool Check_Gate(TopologyBuilder & b,HybridTopologyResult * result)
 		}
 		if (uses == 2) continue;
 		detail.Format("overpass obligation %u is used by %d edges, not two",out.Nodes[n].StableId,uses);
-		return Fail(result,HYBRID_TOPOLOGY_OVERPASS_QUOTA,detail.Peek_Buffer());
+		return Fail(result,HYBRID_TOPOLOGY_INVALID_INPUT,detail.Peek_Buffer());
 	}
 
 	if ((out.RiverBridges < out.RequiredRiverBridges) || (out.CanyonBridges < out.RequiredCanyonBridges)) {
@@ -2726,9 +3023,12 @@ static bool Check_Gate(TopologyBuilder & b,HybridTopologyResult * result)
 		detail.Format("trails %d/%d",out.Trails,out.RequiredTrails);
 		return Fail(result,HYBRID_TOPOLOGY_TRAIL_QUOTA,detail.Peek_Buffer());
 	}
-	if (out.Overpasses < out.RequiredOverpasses) {
-		detail.Format("overpasses %d/%d",out.Overpasses,out.RequiredOverpasses);
-		return Fail(result,HYBRID_TOPOLOGY_OVERPASS_QUOTA,detail.Peek_Buffer());
+	//	Q-024: the reserved count is what Phase 9 found, never more than the target and never padded to it.
+	if ((out.ReservedOverpassCount > out.RequestedOverpassTarget) ||
+		 (out.ReservedOverpassCount != out.Count_Of_Node_Kind(HYBRID_NODE_OVERPASS_OBLIGATION))) {
+		detail.Format("%d overpasses reserved against a target of %d, %d obligation nodes",out.ReservedOverpassCount,
+						  out.RequestedOverpassTarget,out.Count_Of_Node_Kind(HYBRID_NODE_OVERPASS_OBLIGATION));
+		return Fail(result,HYBRID_TOPOLOGY_INVALID_INPUT,detail.Peek_Buffer());
 	}
 
 	/*
@@ -2768,7 +3068,8 @@ unsigned int Hybrid_Topology_Checksum(const HybridTopology & topology,unsigned i
 	stream.Add_Int(topology.RiverBridges);
 	stream.Add_Int(topology.CanyonBridges);
 	stream.Add_Int(topology.Highways);
-	stream.Add_Int(topology.Overpasses);
+	stream.Add_Int(topology.RequestedOverpassTarget);
+	stream.Add_Int(topology.ReservedOverpassCount);
 	stream.Add_Int(topology.ServiceBranches);
 	stream.Add_Int(topology.Trails);
 	stream.Add_Int(topology.CrossLinks);
@@ -2884,7 +3185,7 @@ bool Hybrid_Build_Topology(const HybridTopologyParams & params,const HybridMapId
 	out->RequiredRiverBridges		= Hybrid_River_Bridge_Quota(identity.SizeClass);
 	out->RequiredCanyonBridges		= Hybrid_Canyon_Bridge_Quota(identity.SizeClass);
 	out->RequiredHighways			= Hybrid_Highway_Quota(identity.SizeClass);
-	out->RequiredOverpasses			= Hybrid_Overpass_Quota(identity.SizeClass);
+	out->RequestedOverpassTarget	= Hybrid_Overpass_Target(identity.SizeClass);
 	out->RequiredServiceBranches	= Hybrid_Service_Branch_Quota(identity.SizeClass);
 	out->RequiredTrails				= Hybrid_Trail_Quota(identity.SizeClass);
 	out->OptionalCrossLinkQuota	= Hybrid_Extra_Cross_Link_Count(identity.SizeClass,params.RoadDensity);
@@ -2924,7 +3225,7 @@ bool Hybrid_Build_Topology(const HybridTopologyParams & params,const HybridMapId
 					 "%d canyon, %d highways, %d overpasses, %d service, %d trails, %d cross-links, "
 					 "checksum 0x%08X\r\n",
 					 out->Nodes.Count(),out->Edges.Count(),out->Realized_Edge_Count(),params.MaxRoutedEdges,
-					 out->Entrances.Count(),out->RiverBridges,out->CanyonBridges,out->Highways,out->Overpasses,
+					 out->Entrances.Count(),out->RiverBridges,out->CanyonBridges,out->Highways,out->ReservedOverpassCount,
 					 out->ServiceBranches,out->Trails,out->CrossLinks,out->Checksum));
 
 	return true;
