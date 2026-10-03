@@ -152,7 +152,7 @@ struct HybridRoute
 		RouteFamily(-1),Envelope(0),Required(false),Capabilities(0),Length(0.0f),ControlInsertions(0),
 		Expansions(0),
 		BoundsMin(0.0f,0.0f),BoundsMax(0.0f,0.0f),InterchangeId(0),RampRole(HYBRID_RAMP_ROLE_NONE),
-		RampSide(HYBRID_INTERCHANGE_SIDE_NONE) { }
+		RampSide(HYBRID_INTERCHANGE_SIDE_NONE),RampRoadbedExtra(0.0f) { }
 
 	//	DynamicVectorClass<T> (wwlib/vector.h) requires T to support == and !=.  EdgeId is the key.
 	bool	operator == (const HybridRoute & that) const	{ return EdgeId == that.EdgeId; }
@@ -185,6 +185,7 @@ struct HybridRoute
 	HybridRampRole				RampRole;
 	HybridInterchangeSide	RampSide;
 	HybridRampInterval		RampInterval;
+	float							RampRoadbedExtra;	// D-024's E, from the ramp edge
 
 	//	Section 12.1: HIGHWAY_4 only -- the merge/diverge intervals it carries, in chain order.
 	DynamicVectorClass<HybridWidenedInterval>		Widened;

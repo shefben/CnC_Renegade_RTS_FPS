@@ -471,7 +471,8 @@ bool HybridTopology::Has_Cycle(void) const
 
 HybridTopologyParams::HybridTopologyParams(void) :
 	RoadDensity(0.65f),FieldRadiusMax(60.0f),MinVehicleLaneClearance(1.0f),HarvesterLength(7.4f),
-	MaxRoutedEdges(32),TunnelsAvailable(false),MaxCutDepth(0.0f),MaxFillHeight(0.0f),OverpassClearGap(0.0f)
+	MaxRoutedEdges(32),TunnelsAvailable(false),MaxCutDepth(0.0f),MaxFillHeight(0.0f),OverpassClearGap(0.0f),
+	LightVehicleWidth(0.0f),HeavyVehicleWidth(0.0f),HarvesterWidth(0.0f)
 {
 	memset(&Constants,0,sizeof(Constants));
 	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
@@ -709,6 +710,23 @@ unsigned int Hybrid_Topology_Edge_Capabilities(HybridTopologyEdgeKind kind,bool 
 		default:									break;
 	}
 	return HYBRID_NAV_LIGHT;
+}
+
+
+float Hybrid_Required_Swept_Width(unsigned int capabilities,float light_width,float heavy_width,float harvester_width)
+{
+	float swept = 0.0f;
+	if (((capabilities & HYBRID_NAV_LIGHT) != 0) && (light_width > swept))			swept = light_width;
+	if (((capabilities & HYBRID_NAV_HEAVY) != 0) && (heavy_width > swept))			swept = heavy_width;
+	if (((capabilities & HYBRID_NAV_HARVESTER) != 0) && (harvester_width > swept))	swept = harvester_width;
+	return swept;
+}
+
+
+float Hybrid_Edge_Roadbed_Width(const HybridTopologyEdge & edge,float w)
+{
+	const float width = Hybrid_Roadbed_Width(edge.RoadClass,w);
+	return (edge.Kind == HYBRID_EDGE_HIGHWAY_RAMP) ? (width + (2.0f * edge.RampRoadbedExtra)) : width;
 }
 
 
@@ -3134,7 +3152,26 @@ struct InterchangeAnchor
 	HybridRoadClass									CrossingClass;
 	float													LocalOverpass;		// d_Lov, grade-separated only
 	bool													KeepsJunction;		// X keeps a conventional junction
+	float													RampExtra;			// D-024's E for this anchor's ramps
 };
+
+
+/*
+**	D-024: the `E` of every ramp an anchor would create.  Its ramps carry LIGHT and every access-side arrival's
+**	capabilities (12.6.4 step 9), so their roadbed carries the widest of those vehicles.
+*/
+static float Anchor_Ramp_Extra(const TopologyBuilder & b,const InterchangeAnchor & a)
+{
+	unsigned int capabilities = HYBRID_NAV_LIGHT;
+	for (int r = 0; r < a.Arrivals.Count(); ++r) {
+		if ((a.AccessSides & (1u << a.Arrivals[r].Side)) == 0) continue;
+		capabilities |= b.Out->Edges[a.Arrivals[r].EdgeIndex].Capabilities;
+	}
+	const HybridTopologyParams & p = *b.P;
+	return Hybrid_Quantize_Position(Hybrid_Ramp_Roadbed_Extra(p.Constants.W,
+																			  Hybrid_Required_Swept_Width(capabilities,p.LightVehicleWidth,
+																														p.HeavyVehicleWidth,p.HarvesterWidth)));
+}
 
 
 static Vector2 Side_Tau(const InterchangeAnchor & a,int side)
@@ -3393,10 +3430,10 @@ static int Interchange_Candidate_Refusal(const TopologyBuilder & b,const HybridI
 				if (travel.Length() <= 0.0f) continue;
 				const Vector2 left(-travel.Y,travel.X);
 				const float from_gore = (float)fabs((double)(stations[p] - stations[gore_end]));
-				float inner_shoulder = 0.0f, outer_shoulder = 0.0f;
-				Hybrid_Ramp_Gore_Shoulders(c,from_gore,&inner_shoulder,&outer_shoulder);
-				const Vector2 inner_edge = world + (left * ((0.5f * k.W) + inner_shoulder));
-				const Vector2 outer_edge = world - (left * ((0.5f * k.W) + outer_shoulder));
+				float inner = 0.0f, outer = 0.0f;
+				Hybrid_Ramp_Effective_Edges(c,a.RampExtra,from_gore,&inner,&outer);
+				const Vector2 inner_edge = world + (left * inner);
+				const Vector2 outer_edge = world - (left * outer);
 				if (!Ramp_Point_Is_Clear(b,world) || !Ramp_Point_Is_Clear(b,inner_edge) || !Ramp_Point_Is_Clear(b,outer_edge)) return 5;
 
 				float z = 0.0f;
@@ -3435,7 +3472,7 @@ static int Interchange_Candidate_Refusal(const TopologyBuilder & b,const HybridI
 		if ((a.AccessSides & (1u << side)) == 0) continue;
 		const Vector2 local = Side_World(a,side,Vector2(0.0f,cand.LocalOffset));
 		const Vector2 normal = Side_Normal(a,side);
-		float widest = Hybrid_Roadbed_Width(HYBRID_ROAD_HIGHWAY_RAMP,k.W);
+		float widest = Hybrid_Roadbed_Width(HYBRID_ROAD_HIGHWAY_RAMP,k.W) + (2.0f * a.RampExtra);
 		DynamicVectorClass<Vector2> arms;
 		Vector2 polygon[4];
 		Hybrid_Ramp_Control_Polygon(c,cand,HYBRID_RAMP_ROLE_ON,polygon);
@@ -3654,6 +3691,7 @@ static int Frame_Anchor(const TopologyBuilder & b,const HybridInterchangeConstan
 		out->Arrivals.Add(arrival);
 	}
 	out->Form = (out->AccessSides == 3u) ? HYBRID_INTERCHANGE_DIAMOND_ACCESS : HYBRID_INTERCHANGE_SIDE_ACCESS;
+	out->RampExtra = Anchor_Ramp_Extra(b,*out);
 
 	//	A non-access side keeps its arrivals at X, and with them X's conventional junction.
 	for (int r = 0; r < out->Arrivals.Count(); ++r) {
@@ -3824,6 +3862,7 @@ static bool Build_Interchanges(TopologyBuilder & b)
 					ramp.RampRole		= (HybridRampRole)roles[ri];
 					ramp.RampSide		= (HybridInterchangeSide)side;
 					ramp.RampInterval	= Ramp_Interval(c,side,roles[ri],cand);
+					ramp.RampRoadbedExtra= anchor.RampExtra;
 					ramp.Length			= Hybrid_Quantize_Position(ramp_length[side][roles[ri] - 1] + cand.GoreOffset);
 					interchange.RampEdges.Add(id);
 					b.Out->RampsByRole[roles[ri]]++;
@@ -3954,6 +3993,7 @@ static bool Check_Interchanges(const TopologyBuilder & b,StringClass * detail)
 		anchor.LocalOverpass	= 0.0f;
 		anchor.KeepsJunction	= (interchange.CrossingMode == HYBRID_INTERCHANGE_CROSSING_AT_GRADE) ||
 										  Chain_Node_Has_Junction(b,chain,index);
+		anchor.RampExtra		= 0.0f;
 		for (int r = 0; r < interchange.Retargets.Count(); ++r) {
 			for (int e = 0; e < b.Out->Edges.Count(); ++e) {
 				if (b.Out->Edges[e].StableId != interchange.Retargets[r].EdgeId) continue;
@@ -3963,6 +4003,15 @@ static bool Check_Interchanges(const TopologyBuilder & b,StringClass * detail)
 				arrival.Access		= true;
 				arrival.Beyond		= Stop_Beyond(b,b.Out->Edges[e],interchange.Retargets[r].LocalJunction);
 				anchor.Arrivals.Add(arrival);
+			}
+		}
+		anchor.RampExtra = Anchor_Ramp_Extra(b,anchor);
+		for (int e = 0; e < interchange.RampEdges.Count(); ++e) {
+			const HybridTopologyEdge * ramp = b.Out->Find_Edge(interchange.RampEdges[e]);
+			if ((ramp == nullptr) || (ramp->RampRoadbedExtra != anchor.RampExtra)) {
+				detail->Format("interchange %u: ramp %u does not carry its capabilities' roadbed (D-024)",interchange.StableId,
+									interchange.RampEdges[e]);
+				return false;
 			}
 		}
 		HybridRampCandidate cand;
@@ -4203,6 +4252,7 @@ unsigned int Hybrid_Topology_Checksum(const HybridTopology & topology,unsigned i
 			stream.Add_Length(edge.RampInterval.FullTo);
 			stream.Add_Length(edge.RampInterval.TaperFrom);
 			stream.Add_Length(edge.RampInterval.TaperTo);
+			stream.Add_Length(edge.RampRoadbedExtra);
 		}
 	}
 

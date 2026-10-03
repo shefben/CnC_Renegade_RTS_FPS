@@ -554,7 +554,7 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
-## D-024 - Hybrid rewrite: Phase-11 interchange compilation, the readings it takes (2026-10-03)
+## D-024 - Hybrid rewrite: Phase-11 interchange compilation readings; the effective ramp roadbed (2026-10-03)
 
 **Context.** Plan 12.6.10 is implemented as written. Three of its terms need a concrete reading. These are the
 readings taken; none weakens a constraint.
@@ -567,18 +567,51 @@ readings taken; none weakens a constraint.
    `HybridRampInterval`: chain stations relative to `X`, with the highway point at `X + a * station`. `d`, `h`
    and `E` are the 12.6.7/12.6.11 values there, and `z` is the highway's Section-12.1 surface. The merge/diverge
    record's `JunctionZ` is that surface at the gore, and a local junction's is `z_L`.
-3. **Ramp swept proxy.** The heavy reference vehicle is `6.80 = 2.05W` wide (native metrics, `W = 3.32`), wider than
-   the `1.50W` ramp roadbed of D-022. The plan validates a ramp "with the same swept envelopes as a road carrying
-   them", so the ramp gets exactly the proxy `Sweep_Is_Clear` applies to every compiled interval:
-   - the swept envelope's edges stand on placeable ground;
-   - the class cross slope holds across the roadbed.
+3. **Ramp swept proxy.** Superseded by the resolution below.
 
-   It is not asked to contain the envelope inside its roadbed. Only the ground crossing methods (ford, pass, cut)
-   ask that of any road, through `Ground_Carries_Swept_Width`. Requiring containment would refuse every
-   heavy-serving ramp, which 12.6.4 step 9 creates by design. If containment is wanted, it conflicts with D-022's
-   cross section and needs a decision.
+**Resolution (user, 2026-10-03).** Items 1 and 2 are accepted.
 
-**Status: implementation reading, for review.**
+Item 3 changes: a vehicle a ramp's capabilities require must fit inside the actual drivable paved roadbed. Its
+outside edge standing on generic placeable terrain never satisfies ramp validation.
+
+- **Cross section.** The nominal `HIGHWAY_RAMP` stays `1.50W`. Its effective independent roadbed is
+  `max(1.50W, RequiredSweptVehicleWidth)`, widened equally either side of `RampLaneCenterline` by
+  `E = max(0, (RequiredSweptVehicleWidth - 1.50W) / 2)`. The inner edge is `-(0.70W + E)` and the outer edge
+  `+(0.80W + E)`.
+- **Light-only ramps.** `E = 0`, and the Q-026/D-022 geometry is unchanged. Harvester ramps also have `E = 0`
+  (`4.5142 < 1.50W`).
+- **Heavy ramps.** The measured heavy reference is `6.801906 = 2.0470W`, so `E = 0.2735W` (`0.9090`).
+- **Unchanged.** The lane centre, `R_r = 5W`, the gore, `d_aux = 2.875W` and the `16W`/`12W` intervals do not move.
+- **At the gore,** the required vehicle is validated against the combined `HIGHWAY_4` + auxiliary-lane paved
+  surface on the ramp side, not the nominal ramp strip.
+
+Implementation:
+- Phase 9 computes `E` from the ramp's capabilities, which are LIGHT plus every access-side arrival's, using the
+  preflight vehicle widths now in `HybridTopologyParams`. It freezes `E` on each ramp edge
+  (`HybridTopologyEdge::RampRoadbedExtra`, topology checksum) and judges test 5's ramp edges and the local-junction
+  disc on the effective roadbed. `Check_Interchanges` verifies that the frozen `E` matches the capabilities.
+- Phase 10 copies `E` to the ramp route (route checksum) and re-validates on the effective edges. Later roads keep
+  their Q-025 clearance from the effective edge.
+- Phase 11 uses `Hybrid_Edge_Roadbed_Width` wherever an edge's roadbed matters: junction arms, at-grade surfaces,
+  overpass decks.
+- **The ramp fit.** At every ramp sample, the vehicle must fit the paved surface:
+  - the ramp's effective roadbed;
+  - or, where the ramp's inner edge has joined the highway's ramp-side roadbed (the gore shoulder transition and the
+    gore), the combined surface from the highway's median edge to the ramp's outer edge.
+
+  Over each parallel interval it must fit the combined ramp-side surface `E(x) - median/2`.
+- **Gore transition.** `E` blends out over D-022's `2W` gore shoulder transition with the same `f`, so the edges
+  reach the combined surface's `2.375W`/`3.825W` exactly at the gore and no width step exists there
+  (`Hybrid_Ramp_Effective_Edges`).
+
+Two defects surfaced and were fixed at their owner (Phase 10):
+- **OFF_RAMP edges swapped.** Its samples are stored `L_s -> gore`, against its traffic, so its `0.70W`/`0.80W` edges
+  had been applied on the wrong sides. The inner edge is now left of the ramp's traffic, as in Phase 9 and D-022.
+- **Own-highway allowance.** It was a fixed lateral bound (`DSep`) on the nominal roadbed. It is now the converged
+  gore wedge itself: the ramp may touch its own highway's roadbed only over the run of samples from the gore in which
+  its effective inner edge is still joined to it, and never again after separating.
+
+**Status: accepted.**
 
 
 

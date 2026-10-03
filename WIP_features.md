@@ -402,13 +402,20 @@ interchange clause is restored (2026-10-03). It compiles:
 The interchange element is never rerouted. Phase 11 reads `Hybrid_Route_Edge_End`, so a withdrawn interchange's
 fallback junction at `X` compiles. Readings taken are recorded in D-024, for review.
 
-**Next exact action:** the Section-14 gate before I13. It requires:
-- on-ramp, off-ramp, side-access and diamond tests through Phases 9-11;
-- `16W` merge and `12W` diverge intervals, widening `5.65W -> 6.65W`, the edge offsets, gore reservation and
-  spacing;
-- every existing river/bridge/canyon/overpass test and the Q-020..Q-025 tests green;
-- the three `terrain_hybrid*` gates and the full ctest suite green on client and dedicated server;
-- the state validator green.
+D-024 is resolved (2026-10-03): the effective ramp roadbed `max(1.50W, swept)`, `E` frozen by Phase 9. The
+Section-14 gate before I13 is met (see completed_features.md). Census r9: 448 / 98 / 33, interchange outcomes
+unchanged.
+
+**Next exact action:** I13 / Phase 12, in this order:
+1. the deterministic Phase-12 plan (`Hybrid_Plan_Realization`):
+   - roads in routing order, graded once with structures and junction surfaces;
+   - actual paved edges (asymmetric, D-024, widened highway);
+   - the Section-12.2 deformation over a height grid;
+   - `BridgeAssembly` -> `BridgePiece` records, one WHOLE piece now;
+2. runtime realization through `WorldTerrainSystem` / `RoadSystem` (with the optional per-sample asymmetric edge
+   profile) / `BridgeSystem` (one assembly at a time) / `TunnelSystem`, replacing the legacy road, bridge and tunnel
+   generators on the hybrid path, with the reverse-order cleanup list;
+3. post-realization verification (12.3).
 
 Then continue I13: the Phase-12 realization owner on `Hybrid_Realized_Physical_Road` (one road per heavy family
 trunk), `Hybrid_Road_Profile_Structures` and `Hybrid_Solve_Road_Stretch`. Ramp road deformation uses

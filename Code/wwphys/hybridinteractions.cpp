@@ -1301,11 +1301,7 @@ static bool Station_Is_Hard_Valid(InteractionBuilder & b,const HybridTopologyEdg
 */
 static float Required_Swept_Width(const InteractionBuilder & b,unsigned int capabilities)
 {
-	float swept = 0.0f;
-	if ((capabilities & HYBRID_NAV_LIGHT) != 0)		swept = Max2(swept,b.P->LightVehicleWidth);
-	if ((capabilities & HYBRID_NAV_HEAVY) != 0)		swept = Max2(swept,b.P->HeavyVehicleWidth);
-	if ((capabilities & HYBRID_NAV_HARVESTER) != 0)	swept = Max2(swept,b.P->HarvesterWidth);
-	return swept;
+	return Hybrid_Required_Swept_Width(capabilities,b.P->LightVehicleWidth,b.P->HeavyVehicleWidth,b.P->HarvesterWidth);
 }
 
 
@@ -1322,7 +1318,7 @@ static float Required_Swept_Width(const InteractionBuilder & b,unsigned int capa
 */
 static bool Ground_Carries_Swept_Width(const InteractionBuilder & b,const HybridTopologyEdge & edge)
 {
-	return Required_Swept_Width(b,edge.Capabilities) <= Hybrid_Roadbed_Width(edge.RoadClass,b.P->Constants.W);
+	return Required_Swept_Width(b,edge.Capabilities) <= Hybrid_Edge_Roadbed_Width(edge,b.P->Constants.W);
 }
 
 
@@ -3125,8 +3121,7 @@ static bool At_Grade_Is_Legal(InteractionBuilder & b,const HybridTopologyEdge & 
 
 	//	5: the shared junction surface satisfies the larger of the two cross-slope limits.
 	const float max_cross = Max2(spec_a.MaxCrossSlopeDegrees,spec_b.MaxCrossSlopeDegrees) * PI_OVER_180;
-	const float half = 0.5f * Max2(Hybrid_Roadbed_Width(edge_a.RoadClass,k.W),
-											 Hybrid_Roadbed_Width(edge_b.RoadClass,k.W));
+	const float half = 0.5f * Max2(Hybrid_Edge_Roadbed_Width(edge_a,k.W),Hybrid_Edge_Roadbed_Width(edge_b,k.W));
 	const Vector2 normal(-heading_a.Y,heading_a.X);
 	float left = 0.0f;
 	float right = 0.0f;
@@ -3165,7 +3160,7 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	const HybridRoadClassSpec & upper_spec = Hybrid_Road_Class_Spec(upper_edge.RoadClass);
 	const float max_grade = upper_spec.MaxGradeDegrees * PI_OVER_180;
 	const float max_cross = upper_spec.MaxCrossSlopeDegrees * PI_OVER_180;
-	const float half_roadbed = 0.5f * Hybrid_Roadbed_Width(upper_edge.RoadClass,k.W);
+	const float half_roadbed = 0.5f * Hybrid_Edge_Roadbed_Width(upper_edge,k.W);
 
 	float lower_z = 0.0f;
 	if (!b.Height_At(point,&lower_z)) {
@@ -3185,7 +3180,7 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	float arm_after = 0.0f;
 	Arm_Lengths(upper_route,point,&arm_before,&arm_after);
 	int bridge_kind = Select_Bridge_Kind(b,upper_edge.RoadClass,upper_edge.Capabilities,
-													 Hybrid_Roadbed_Width(lower_edge.RoadClass,k.W),
+													 Hybrid_Edge_Roadbed_Width(lower_edge,k.W),
 													 Min2(arm_before,arm_after),nullptr);
 	/*
 	**	The deck is a registered bridge kind, realized through BridgeSystem in Phase 12; a road x road crossing
@@ -3235,11 +3230,11 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	**	swept envelope it must carry with the lane clearance either side -- and never narrower than its own
 	**	roadbed; BridgeSystem is handed that width, not the registered kind's widest.
 	*/
-	const float deck_width = Max2(Hybrid_Roadbed_Width(upper_edge.RoadClass,k.W),
+	const float deck_width = Max2(Hybrid_Edge_Roadbed_Width(upper_edge,k.W),
 											Hybrid_Bridge_Clear_Width(upper_edge.RoadClass,k.W,
 																			  Required_Swept_Width(b,upper_edge.Capabilities),
 																			  b.P->MinVehicleLaneClearance));
-	const float deck_length = (Hybrid_Roadbed_Width(lower_edge.RoadClass,k.W) / sine) +
+	const float deck_length = (Hybrid_Edge_Roadbed_Width(lower_edge,k.W) / sine) +
 									  ((deck_width * cosine) / sine);
 	const float half_deck = 0.5f * deck_length;
 
@@ -3747,7 +3742,7 @@ static void Junction_Arms(const InteractionBuilder & b,const HybridTopologyEdge 
 	arm.Need			= Max2(JUNCTION_ARM_W * k.W,spec.MinTurnRadiusW * k.W);
 	arm.MaxGrade	= spec.MaxGradeDegrees * PI_OVER_180;
 	arm.MaxCross	= spec.MaxCrossSlopeDegrees * PI_OVER_180;
-	arm.HalfRoadbed= 0.5f * Hybrid_Roadbed_Width(edge.RoadClass,k.W);
+	arm.HalfRoadbed= 0.5f * Hybrid_Edge_Roadbed_Width(edge,k.W);
 	if (at > 0) {
 		arm.Heading	= Unit(Hybrid_Polyline_Point_At(route.Points,route.Stations,Max2(route.Stations[at] - k.W,0.0f)) - node);
 		arm.Length	= route.Stations[at];
@@ -4240,13 +4235,20 @@ static bool Sweep_Interchanges(InteractionBuilder & b,HybridInteractionResult * 
 		const HybridInterchange & ic = *view.Record;
 		float half_swept = 0.0f;
 
-		//	Each ramp, L_s to its gore, on its asymmetric roadbed and through its gore shoulder transition.
+		/*
+		**	Each ramp, L_s to its gore.  D-024: the vehicle its capabilities require fits inside the paved surface --
+		**	the ramp's own effective roadbed, or, where that roadbed has joined the highway's (the gore shoulder
+		**	transition, the gore), the combined surface from the highway's median edge out to the ramp's outer edge.
+		**	Generic placeable ground beside the roadbed never counts.
+		*/
+		const float median_edge = 0.5f * Hybrid_Road_Class_Spec(HYBRID_ROAD_HIGHWAY_4).MedianW * k.W;
 		for (int e = 0; e < ic.RampEdges.Count(); ++e) {
 
 			const HybridTopologyEdge & ramp = *b.Topology->Find_Edge(ic.RampEdges[e]);
 			const HybridRoute * route = b.Routes->Find(ramp.StableId);
 			if ((route == nullptr) || (route->Points.Count() < 2)) continue;		// the gate names it
-			half_swept = Max2(half_swept,0.5f * Required_Swept_Width(b,ramp.Capabilities));
+			const float swept = Required_Swept_Width(b,ramp.Capabilities);
+			half_swept = Max2(half_swept,0.5f * swept);
 			Vector2 tau;
 			Vector2 normal;
 			Side_Frame(ic.Axis,ramp.RampSide,&tau,&normal);
@@ -4260,23 +4262,48 @@ static bool Sweep_Interchanges(InteractionBuilder & b,HybridInteractionResult * 
 				const Vector2 ahead = Hybrid_Polyline_Point_At(route->Points,route->Stations,Min2(at + spacing,total));
 				const Vector2 behind = Hybrid_Polyline_Point_At(route->Points,route->Stations,Max2(at - spacing,0.0f));
 				const Vector2 direction = Unit(ahead - behind);
-				Vector2 inward(-direction.Y,direction.X);										// left of travel...
-				if (((inward.X * normal.X) + (inward.Y * normal.Y)) > 0.0f) inward = -inward;	// ...turned toward the highway
-				float inner = 0.0f;
-				float outer = 0.0f;
-				Hybrid_Ramp_Gore_Shoulders(c,total - at,&inner,&outer);
-				const float to_inner = (0.5f * k.W) + inner;
-				const float to_outer = (0.5f * k.W) + outer;
+				//	Inner is left of the ramp's traffic; an OFF_RAMP is stored L_s -> gore, against it.
+				Vector2 inward(-direction.Y,direction.X);
+				if (ramp.RampRole == HYBRID_RAMP_ROLE_OFF) inward = -inward;
+				float to_inner = 0.0f;
+				float to_outer = 0.0f;
+				Hybrid_Ramp_Effective_Edges(c,ramp.RampRoadbedExtra,total - at,&to_inner,&to_outer);
+				const Vector2 inner_edge = point + (inward * to_inner);
+				const Vector2 outer_edge = point - (inward * to_outer);
 				b.Out->SweepSamples++;
-				if (!Point_Is_Placeable(b,point) || !Point_Is_Placeable(b,point + (inward * Max2(to_inner,half_swept))) ||
-					 !Point_Is_Placeable(b,point - (inward * Max2(to_outer,half_swept)))) {
-					detail.Format("ramp %u of interchange %u: its swept envelope leaves placeable ground at station %.1f",
+
+				float paved = to_inner + to_outer;
+				{
+					//	Joined to the highway: the ramp's inner edge is on the highway's ramp-side roadbed here.
+					const Vector2 inner_offset = inner_edge - view.X;
+					const Vector2 outer_offset = outer_edge - view.X;
+					const float x = (inner_offset.X * tau.X) + (inner_offset.Y * tau.Y);
+					const float y_inner = (inner_offset.X * normal.X) + (inner_offset.Y * normal.Y);
+					const float y_outer = (outer_offset.X * normal.X) + (outer_offset.Y * normal.Y);
+					float highway_edge = c.EHwy;
+					const bool on = (ramp.RampRole == HYBRID_RAMP_ROLE_ON);
+					const float along = on ? (x - ic.GoreOffset) : (x + ic.GoreOffset + c.DivergeLength);
+					const float span = on ? c.MergeLength : c.DivergeLength;
+					if ((along >= 0.0f) && (along <= span)) {
+						HybridAuxiliaryLaneSection section;
+						Hybrid_Auxiliary_Lane_Section(c,ramp.RampRole,along,&section);
+						highway_edge = section.E;
+					}
+					if (y_inner <= (highway_edge + k.Q)) paved = Max2(paved,y_outer - median_edge);
+				}
+				if (paved < (swept - k.Q)) {
+					detail.Format("ramp %u of interchange %u: a %.2f-wide vehicle does not fit the %.2f of paved surface at "
+									  "station %.1f",ramp.StableId,ic.StableId,swept,paved,at);
+					return Fail(result,HYBRID_INTERACTION_SWEEP,detail.Peek_Buffer());
+				}
+				if (!Point_Is_Placeable(b,point) || !Point_Is_Placeable(b,inner_edge) || !Point_Is_Placeable(b,outer_edge)) {
+					detail.Format("ramp %u of interchange %u: its roadbed leaves placeable ground at station %.1f",
 									  ramp.StableId,ic.StableId,at);
 					return Fail(result,HYBRID_INTERACTION_SWEEP,detail.Peek_Buffer());
 				}
 				float z_in = 0.0f;
 				float z_out = 0.0f;
-				if (!b.Height_At(point + (inward * to_inner),&z_in) || !b.Height_At(point - (inward * to_outer),&z_out) ||
+				if (!b.Height_At(inner_edge,&z_in) || !b.Height_At(outer_edge,&z_out) ||
 					 !Hybrid_Grade_Compatible(Hybrid_Road_Vertical_Interval(z_in,b.P->MaxCutDepth,b.P->MaxFillHeight),
 													  Hybrid_Road_Vertical_Interval(z_out,b.P->MaxCutDepth,b.P->MaxFillHeight),
 													  to_inner + to_outer,ramp_cross)) {
@@ -4298,8 +4325,13 @@ static bool Sweep_Interchanges(InteractionBuilder & b,HybridInteractionResult * 
 				const Vector2 centre = view.X + (ic.Axis * sample.Station);
 				const Vector2 lane = centre + (normal * sample.D);
 				b.Out->SweepSamples++;
-				if (!Point_Is_Placeable(b,lane) || !Point_Is_Placeable(b,lane + (normal * half_swept)) ||
-					 !Point_Is_Placeable(b,lane - (normal * half_swept))) {
+				//	D-024: the combined HIGHWAY_4 + auxiliary-lane surface on the ramp side carries the vehicle.
+				if ((sample.E - median_edge) < ((2.0f * half_swept) - k.Q)) {
+					detail.Format("the parallel interval of ramp %u: %.2f of paved surface for a %.2f-wide vehicle at chain "
+									  "station %.1f",md.RampEdgeId,sample.E - median_edge,2.0f * half_swept,sample.Station);
+					return Fail(result,HYBRID_INTERACTION_SWEEP,detail.Peek_Buffer());
+				}
+				if (!Point_Is_Placeable(b,lane) || !Point_Is_Placeable(b,centre + (normal * sample.E))) {
 					detail.Format("the parallel interval of ramp %u leaves placeable ground at chain station %.1f",md.RampEdgeId,
 									  sample.Station);
 					return Fail(result,HYBRID_INTERACTION_SWEEP,detail.Peek_Buffer());
@@ -4331,7 +4363,7 @@ static bool Sweep_Interchanges(InteractionBuilder & b,HybridInteractionResult * 
 				const float reach = Min2(Max2(JUNCTION_ARM_W * k.W,spec.MinTurnRadiusW * k.W),total);
 				const bool from_start = ((route.Points[0] - local->Position).Length() <=
 												 (route.Points[route.Points.Count() - 1] - local->Position).Length());
-				const float half = Max2(0.5f * Hybrid_Roadbed_Width(edge->RoadClass,k.W),
+				const float half = Max2(0.5f * Hybrid_Edge_Roadbed_Width(*edge,k.W),
 												0.5f * Required_Swept_Width(b,edge->Capabilities));
 				const int steps = (int)::ceil((double)(reach / spacing));
 				const int count = (steps > 0) ? steps : 1;

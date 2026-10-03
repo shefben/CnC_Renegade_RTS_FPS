@@ -304,6 +304,23 @@ void	Hybrid_Ramp_Gore_Shoulders(const HybridInterchangeConstants & c,float from_
 **	GoreReserveMargin]`, `OFF_RAMP [-G - DivergeLength - GoreReserveMargin, -G + GoreReserveMargin]`.  Laterally it
 **	covers the highway out to `E_aux` and the independent ramp's roadbed over its gore shoulder transition.
 */
+/*
+**	D-024: a ramp's paved roadbed carries the widest vehicle its capabilities require.  Its effective width is
+**	`max(1.50W, RequiredSweptVehicleWidth)`, widened equally either side of RampLaneCenterline by
+**	`E = max(0, (RequiredSweptVehicleWidth - 1.50W) / 2)`, so the asymmetric cross section is kept: inner edge
+**	`-(0.70W + E)`, outer edge `+(0.80W + E)`.  A light-only ramp has `E = 0`.
+*/
+float	Hybrid_Ramp_Roadbed_Extra(float w,float required_swept_width);
+
+/*
+**	The ramp's two roadbed edges about RampLaneCenterline, `from_gore` along it from its gore, as distances on the
+**	inner (highway, left of traffic) and outer side: `0.5W` + D-022's gore shoulders + D-024's `E`.  Over the `2W`
+**	gore shoulder transition `E` blends out with the shoulders' own `f`, so at the gore the edges are exactly the
+**	combined HIGHWAY_4 + auxiliary-lane surface's (2.375W / 3.825W), against which the vehicle is judged there.
+*/
+void	Hybrid_Ramp_Effective_Edges(const HybridInterchangeConstants & c,float extra,float from_gore,float * inner_out,
+										  float * outer_out);
+
 void	Hybrid_Gore_Reserve_Extent(const HybridInterchangeConstants & c,float gore_offset,int role,float * x0_out,
 										 float * x1_out);
 

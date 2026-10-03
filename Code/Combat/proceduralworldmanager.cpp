@@ -866,6 +866,9 @@ bool ProceduralWorldManager::Build_Hybrid_Topology(const ProceduralWorldProfile 
 		params.BridgeApproachMax[c]	= HybridMetrics.BridgeApproachMax[c];
 		params.OverpassDepthMax[c]		= HybridMetrics.OverpassDepthMax[c];
 	}
+	params.LightVehicleWidth		= HybridMetrics.HumveeWidth;
+	params.HeavyVehicleWidth		= HybridMetrics.HeavyVehicleWidth;
+	params.HarvesterWidth			= HybridMetrics.HarvesterWidth;
 
 	HybridTopologyResult result;
 	if (!Hybrid_Build_Topology (params,HybridIdentity,HybridGraph,HybridLandforms,HybridHydrology,

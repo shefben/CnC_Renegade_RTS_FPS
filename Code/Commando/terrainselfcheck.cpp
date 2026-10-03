@@ -6811,6 +6811,10 @@ static HybridTopologyParams Topology_Fixture (const HybridMapIdentityParams & id
 		params.BridgeApproachMax[c]	= Hybrid_Road_Class_Is_Routed (c) ? (8.0f * identity_params.Constants.W) : 0.0f;
 		params.OverpassDepthMax[c]		= Hybrid_Road_Class_Is_Routed (c) ? 2.0f : 0.0f;
 	}
+	//	The measured reference vehicles' WORLDBOX widths: Humvee, Mammoth, Harvester (D-024).
+	params.LightVehicleWidth		= 2.555953f;
+	params.HeavyVehicleWidth		= 6.801906f;
+	params.HarvesterWidth			= 4.514225f;
 	return params;
 }
 
@@ -7240,6 +7244,43 @@ static void Check_Hybrid_Interchange_Construction (void)
 			 "the gore invariant does not hold (inner %.4fW, outer %.4fW)",inner / W,outer / W);
 	Hybrid_Ramp_Gore_Shoulders (c,2.0f * W,&inner,&outer);
 	Check (Near (inner,0.20f * W,tol) && Near (outer,0.30f * W,tol),"2W from the gore the ramp does not have its own shoulders");
+
+	/*
+	**	D-024: the effective ramp roadbed is max(1.50W, the required vehicle), widened by E on both sides of the lane
+	**	centre.  Light and Harvester ramps are unchanged; the measured heavy reference (6.801906, 2.0470W) needs
+	**	E = 0.2735W.  Over the gore transition E blends out, so the gore keeps 2.375W / 3.825W.
+	*/
+	{
+		const float LIGHT = 2.555953f;
+		const float HEAVY = 6.801906f;
+		const float HARVESTER = 4.514225f;
+		const float heavy_e = 0.5f * (HEAVY - (1.5f * W));
+		Check (Hybrid_Ramp_Roadbed_Extra (W,LIGHT) == 0.0f && Hybrid_Ramp_Roadbed_Extra (W,HARVESTER) == 0.0f &&
+				 Near (Hybrid_Ramp_Roadbed_Extra (W,HEAVY),heavy_e,tol),"D-024 E: light %.4f harvester %.4f heavy %.4f, heavy %.4f expected",
+				 Hybrid_Ramp_Roadbed_Extra (W,LIGHT),Hybrid_Ramp_Roadbed_Extra (W,HARVESTER),Hybrid_Ramp_Roadbed_Extra (W,HEAVY),heavy_e);
+		Hybrid_Ramp_Effective_Edges (c,0.0f,10.0f * W,&inner,&outer);
+		Check (Near (inner,0.70f * W,tol) && Near (outer,0.80f * W,tol),"a light ramp's edges moved: %.4fW / %.4fW",inner / W,outer / W);
+		Hybrid_Ramp_Effective_Edges (c,heavy_e,10.0f * W,&inner,&outer);
+		Check (Near (inner,(0.70f * W) + heavy_e,tol) && Near (outer,(0.80f * W) + heavy_e,tol) && Near (inner + outer,HEAVY,tol),
+				 "a heavy ramp's roadbed is %.4fW / %.4fW, %.4f wide for a %.4f vehicle",inner / W,outer / W,inner + outer,HEAVY);
+		Hybrid_Ramp_Effective_Edges (c,heavy_e,0.0f,&inner,&outer);
+		Check (Near (c.DAux - inner,2.375f * W,tol) && Near (c.DAux + outer,3.825f * W,tol),
+				 "a heavy ramp's gore edges are %.4fW / %.4fW, not the combined surface's 2.375W / 3.825W",(c.DAux - inner) / W,
+				 (c.DAux + outer) / W);
+		float worst_step = 0.0f;
+		float previous_inner = 0.0f;
+		float previous_outer = 0.0f;
+		Hybrid_Ramp_Effective_Edges (c,heavy_e,0.0f,&previous_inner,&previous_outer);
+		for (int i = 1; i <= 400; ++i) {
+			Hybrid_Ramp_Effective_Edges (c,heavy_e,(2.0f * W) * ((float)i / 400.0f),&inner,&outer);
+			worst_step = WWMath::Max (worst_step,WWMath::Max (WWMath::Fabs (inner - previous_inner),WWMath::Fabs (outer - previous_outer)));
+			previous_inner = inner;
+			previous_outer = outer;
+		}
+		Check (worst_step <= (0.01f * W),"the gore transition steps the heavy roadbed by %.4fW",worst_step / W);
+		printf ("  D-024 ramp roadbed: light 1.50W unchanged, heavy %.4fW wide (E %.4fW), gore 2.375W / 3.825W either way\r\n",
+				  HEAVY / W,heavy_e / W);
+	}
 	printf ("  interchange construction: d_Lmin(0) %.7fW, G(0) %.7fW, gore on d_aux with zero heading error, 10W+6W / 6W+6W lanes\r\n",
 			  k0.LocalOffsetMin / W,k0.GoreOffset / W);
 }
@@ -18467,6 +18508,130 @@ static bool Interchange_Phase11 (CrossingWorld * world,const HybridPreflightInpu
 
 
 /*
+**	D-024 on the controlled SIDE_ACCESS world: a light arrival's ramps keep the nominal 1.50W roadbed; a heavy
+**	arrival's carry max(1.50W, heavy).  Phase 9 freezes E on each ramp, Phase 10 copies it, and the exclusions use it:
+**	a small Tiberium reserve on the heavy inner edge of the light world's frozen ramp -- beyond its light edge --
+**	leaves the light candidate alone and refuses it for the heavy world.  Phase 11 fits the heavy vehicle inside the
+**	paved surface, and refuses it when the frozen roadbed is the nominal one.
+*/
+static void Heavy_Arrival (CrossingWorld * world)
+{
+	for (int e = 0; e < world->Topology.Edges.Count (); ++e) {
+		if (world->Topology.Edges[e].StableId == 4) world->Topology.Edges[e].Capabilities |= HYBRID_NAV_HEAVY;
+	}
+}
+
+
+static void Check_Hybrid_Ramp_Roadbed (const HybridPreflightInputs & inputs,const HybridMetricCache & metrics)
+{
+	CrossingWorld light;
+	Interchange_World (&light,1,0.0f);
+	const HybridConstants & k = light.Sized.Constants;
+	StringClass why;
+	const bool light_built = Interchange_World_Build (&light,&why) && (light.Topology.Interchanges.Count () == 1);
+	HybridRouteResult light_routed;
+	const bool light_ok = light_built && Crossing_World_Route (&light,&light_routed) && (light.Routes.WithdrawnInterchanges.Count () == 0);
+	Check (light_ok,"D-024 light world: %s %s",why.Peek_Buffer (),light_routed.Detail.Peek_Buffer ());
+	if (!light_ok) return;
+	const HybridInterchange & light_ic = light.Topology.Interchanges[0];
+	const float heavy_e = Hybrid_Quantize_Position (Hybrid_Ramp_Roadbed_Extra (k.W,metrics.HeavyVehicleWidth));
+	for (int e = 0; e < light_ic.RampEdges.Count (); ++e) {
+		const HybridTopologyEdge * ramp = light.Topology.Find_Edge (light_ic.RampEdges[e]);
+		Check ((ramp != NULL) && (ramp->RampRoadbedExtra == 0.0f) &&
+				 (Hybrid_Edge_Roadbed_Width (*ramp,k.W) == Hybrid_Roadbed_Width (HYBRID_ROAD_HIGHWAY_RAMP,k.W)),
+				 "a light ramp's roadbed is not the nominal 1.50W");
+	}
+
+	//	The heavy world, unobstructed: same candidate, E frozen on every ramp and copied to its route.
+	CrossingWorld heavy;
+	Interchange_World (&heavy,1,0.0f);
+	Heavy_Arrival (&heavy);
+	const bool heavy_built = Interchange_World_Build (&heavy,&why) && (heavy.Topology.Interchanges.Count () == 1);
+	HybridRouteResult heavy_routed;
+	const bool heavy_ok = heavy_built && Crossing_World_Route (&heavy,&heavy_routed) && (heavy.Routes.WithdrawnInterchanges.Count () == 0);
+	Check (heavy_ok,"D-024 heavy world: built %d interchanges %d withdrawn %d: %s %s",heavy_built ? 1 : 0,heavy.Topology.Interchanges.Count (),heavy.Routes.WithdrawnInterchanges.Count (),why.Peek_Buffer (),heavy_routed.Detail.Peek_Buffer ());
+	if (!heavy_ok) return;
+	const HybridInterchange & heavy_ic = heavy.Topology.Interchanges[0];
+	Check (heavy_ic.SelectedK == light_ic.SelectedK,"the unobstructed heavy world chose k %d, the light one k %d",heavy_ic.SelectedK,
+			 light_ic.SelectedK);
+	for (int e = 0; e < heavy_ic.RampEdges.Count (); ++e) {
+		const HybridTopologyEdge * ramp = heavy.Topology.Find_Edge (heavy_ic.RampEdges[e]);
+		const HybridRoute * route = heavy.Routes.Find (heavy_ic.RampEdges[e]);
+		Check ((ramp != NULL) && (route != NULL) && (ramp->RampRoadbedExtra == heavy_e) && (route->RampRoadbedExtra == heavy_e) &&
+				 (WWMath::Fabs (Hybrid_Edge_Roadbed_Width (*ramp,k.W) - WWMath::Max (1.5f * k.W,metrics.HeavyVehicleWidth)) <= (2.0f * k.Q)),
+				 "a heavy ramp does not carry E %.4f on its edge and route",heavy_e);
+	}
+	{
+		//	E is part of the frozen record: both stage checksums move with it.
+		const unsigned int topology_sum = Hybrid_Topology_Checksum (heavy.Topology);
+		const unsigned int route_sum = Hybrid_Route_Checksum (heavy.Routes);
+		for (int e = 0; e < heavy.Topology.Edges.Count (); ++e) {
+			if (heavy.Topology.Edges[e].Kind == HYBRID_EDGE_HIGHWAY_RAMP) heavy.Topology.Edges[e].RampRoadbedExtra += k.Q;
+		}
+		for (int r = 0; r < heavy.Routes.Routes.Count (); ++r) {
+			if (heavy.Routes.Routes[r].RoadClass == HYBRID_ROAD_HIGHWAY_RAMP) heavy.Routes.Routes[r].RampRoadbedExtra += k.Q;
+		}
+		Check ((Hybrid_Topology_Checksum (heavy.Topology) != topology_sum) && (Hybrid_Route_Checksum (heavy.Routes) != route_sum),
+				 "E does not reach the topology and route checksums");
+		for (int e = 0; e < heavy.Topology.Edges.Count (); ++e) {
+			if (heavy.Topology.Edges[e].Kind == HYBRID_EDGE_HIGHWAY_RAMP) heavy.Topology.Edges[e].RampRoadbedExtra = heavy_e;
+		}
+		for (int r = 0; r < heavy.Routes.Routes.Count (); ++r) {
+			if (heavy.Routes.Routes[r].RoadClass == HYBRID_ROAD_HIGHWAY_RAMP) heavy.Routes.Routes[r].RampRoadbedExtra = heavy_e;
+		}
+	}
+
+	//	Phase 11 fits the heavy vehicle -- and refuses it on the nominal roadbed.
+	{
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		const bool ok = Interchange_Phase11 (&heavy,inputs,metrics,&set,&solved);
+		Check (ok,"the heavy SIDE_ACCESS world does not solve Phase 11: %s",solved.Detail.Peek_Buffer ());
+		for (int e = 0; e < heavy.Topology.Edges.Count (); ++e) heavy.Topology.Edges[e].RampRoadbedExtra = 0.0f;
+		for (int r = 0; r < heavy.Routes.Routes.Count (); ++r) heavy.Routes.Routes[r].RampRoadbedExtra = 0.0f;
+		HybridInteractionSet narrow;
+		HybridInteractionResult narrow_result;
+		Check (!Interchange_Phase11 (&heavy,inputs,metrics,&narrow,&narrow_result) && (narrow_result.Failure == HYBRID_INTERACTION_SWEEP),
+				 "a heavy ramp on the nominal 1.50W roadbed was accepted (%s)",narrow_result.Detail.Peek_Buffer ());
+	}
+
+	//	The light world's frozen OFF_RAMP, mid-way: a 0.1W reserve on its heavy inner edge, beyond its light one.
+	const HybridRoute * off = NULL;
+	for (int e = 0; e < light_ic.RampEdges.Count (); ++e) {
+		const HybridRoute * route = light.Routes.Find (light_ic.RampEdges[e]);
+		if ((route != NULL) && (route->RampRole == HYBRID_RAMP_ROLE_OFF)) off = route;
+	}
+	Check (off != NULL,"the light world has no OFF_RAMP route");
+	if (off == NULL) return;
+	const int mid = off->Points.Count () / 2;
+	const Vector2 travel = off->Points[mid + 1] - off->Points[mid];
+	Vector2 inward (travel.Y,-travel.X);										// right of the stored order: left of OFF traffic
+	inward.Normalize ();
+	HybridResourceAnchor field;
+	field.SiteId			= 78;
+	field.Center			= off->Points[mid] + (inward * ((0.70f * k.W) + heavy_e));
+	field.ReserveRadius	= 0.1f * k.W;
+
+	CrossingWorld light_blocked;
+	Interchange_World (&light_blocked,1,0.0f);
+	light_blocked.Anchors.Resources.Add (field);
+	const bool lb = Interchange_World_Build (&light_blocked,&why) && (light_blocked.Topology.Interchanges.Count () == 1);
+	CrossingWorld heavy_blocked;
+	Interchange_World (&heavy_blocked,1,0.0f);
+	Heavy_Arrival (&heavy_blocked);
+	heavy_blocked.Anchors.Resources.Add (field);
+	const bool hb = Interchange_World_Build (&heavy_blocked,&why) && (heavy_blocked.Topology.Interchanges.Count () == 1);
+	Check (lb && (light_blocked.Topology.Interchanges[0].SelectedK == light_ic.SelectedK),
+			 "a reserve beyond the light ramp's roadbed moved or refused its candidate");
+	Check (!hb || (heavy_blocked.Topology.Interchanges[0].SelectedK != light_ic.SelectedK),
+			 "a reserve on the heavy ramp's roadbed did not refuse candidate k %d",light_ic.SelectedK);
+	printf ("  D-024 on the controlled world: E %.4f frozen on the heavy ramps, Phase 11 fits the heavy vehicle (nominal "
+			  "roadbed refused); a reserve on the heavy edge keeps k %d light and %s heavy\r\n",heavy_e,light_ic.SelectedK,
+			  hb ? "moves it" : "refuses the anchor");
+}
+
+
+/*
 **	Phase 11 (Plan 12.6.10) on the controlled interchange worlds, through the real Phase-9, 10 and 11 owners:
 **	- the intended junctions compiled from the frozen records and never rediscovered: one merge or diverge record
 **	  per ramp with its Q-026 samples, one local junction per L_s carrying z_L, and no junction at X on a
@@ -20073,6 +20238,7 @@ void Check_Hybrid_Interactions (void)
 	*/
 	Check_Controlled_Reroute (inputs,preflight.Metrics,runs_seen,&untouched_checked);
 	Check_Hybrid_Interchange_Interactions (inputs,preflight.Metrics);
+	Check_Hybrid_Ramp_Roadbed (inputs,preflight.Metrics);
 	Check_Hybrid_Crossing_Compile (inputs,preflight.Metrics);
 	Check_Hybrid_Continuous_Trunk (&inputs,&preflight.Metrics);
 

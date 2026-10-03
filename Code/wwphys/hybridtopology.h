@@ -128,6 +128,9 @@ enum HybridNavCapability
 //	The mask Phase 9 assigns to an edge of this kind.  `BASE_INTERNAL` is never realized and carries none.
 unsigned int	Hybrid_Topology_Edge_Capabilities(HybridTopologyEdgeKind kind,bool heavy_link);
 
+//	The swept width a capability mask requires: the widest of the reference vehicles it names (Section 12.4).
+float	Hybrid_Required_Swept_Width(unsigned int capabilities,float light_width,float heavy_width,float harvester_width);
+
 
 struct HybridTopologyNode
 {
@@ -232,7 +235,7 @@ struct HybridTopologyEdge
 	HybridTopologyEdge(void) :
 		StableId(0),Kind(HYBRID_EDGE_FAMILY_TRUNK),RoadClass(HYBRID_ROAD_CLASS_COUNT),NodeA(0),NodeB(0),
 		RouteFamily(-1),Required(false),ObligationId(0),SourceEdgeId(0),Capabilities(0),Length(0.0f),
-		InterchangeId(0),RampRole(HYBRID_RAMP_ROLE_NONE),RampSide(HYBRID_INTERCHANGE_SIDE_NONE) { }
+		InterchangeId(0),RampRole(HYBRID_RAMP_ROLE_NONE),RampSide(HYBRID_INTERCHANGE_SIDE_NONE),RampRoadbedExtra(0.0f) { }
 
 	bool	operator == (const HybridTopologyEdge & that) const	{ return StableId == that.StableId; }
 	bool	operator != (const HybridTopologyEdge & that) const	{ return !(*this == that); }
@@ -263,7 +266,13 @@ struct HybridTopologyEdge
 	HybridRampRole				RampRole;
 	HybridInterchangeSide	RampSide;
 	HybridRampInterval		RampInterval;
+
+	//	D-024: HIGHWAY_RAMP only -- `E`, the widening either side that carries its capabilities' widest vehicle.
+	float							RampRoadbedExtra;
 };
+
+//	An edge's paved roadbed width: its class's, and for a ramp D-024's effective `max(1.50W, swept)`.
+float	Hybrid_Edge_Roadbed_Width(const HybridTopologyEdge & edge,float w);
 
 
 /*
@@ -452,6 +461,11 @@ struct HybridTopologyParams
 	float					OverpassClearGap;				// Section 12.3's minimum_clear_vertical_gap
 	float					BridgeApproachMax[HYBRID_ROAD_CLASS_COUNT];	// preflight metric cache
 	float					OverpassDepthMax[HYBRID_ROAD_CLASS_COUNT];
+
+	//	The reference vehicles' swept widths (preflight metric cache): a ramp's roadbed carries its widest (D-024).
+	float					LightVehicleWidth;
+	float					HeavyVehicleWidth;
+	float					HarvesterWidth;
 };
 
 

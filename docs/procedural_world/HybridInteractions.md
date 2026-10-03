@@ -228,9 +228,14 @@ rediscovers these as road-road intersections, and never withdraws the interchang
 - **Merge/diverge records.** There is one `HIGHWAY_RAMP_MERGE` or `DIVERGE` record per ramp, at its gore, with
   `JunctionZ` set to the highway surface there. Each has a `HybridMergeDiverge` sample set at `min(W/3, A/4)` over
   its interval, in the interval's own frame (chain stations relative to `X`): `(station, full, u, d, h, E, z)`.
-- **Swept proxy.** This is the `Sweep_Is_Clear` proxy, run over ramps, parallel intervals and local-junction arms
-  with the vehicles the ramp's capabilities require. The swept envelope must stand on placeable ground, and the
-  class cross slope must hold across the roadbed.
+- **Swept proxy and fit (D-024).** The vehicle a ramp's capabilities require must fit the paved surface:
+  - the ramp's effective roadbed (`max(1.50W, swept)`, `E` frozen by Phase 9);
+  - or, once the ramp's inner edge has joined the highway's ramp-side roadbed, the combined surface from the
+    highway's median edge to the ramp's outer edge.
+
+  Each parallel interval must carry it on `E(x) - median/2`. Generic placeable ground beside the roadbed never counts.
+  The roadbed edges also stand on placeable ground, and the class cross slope holds across them. Local-junction arms
+  are swept on their effective roadbeds.
 - **Gate clause.** Each realized interchange must have:
   - one merge or diverge record and one sample set per ramp;
   - one local-junction record per `L_s`;

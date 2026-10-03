@@ -2592,6 +2592,25 @@ outer_edge = RampLaneCenterline + (0.5W + outer_shoulder)
 
 An `OFF_RAMP` uses the reverse transition over the first `2W` after its gore. At `GoreStation` the invariant is: `RampLaneCenterline` offset `2.875W`; highway-parallel tangent; inner edge `2.375W`; outer edge `3.825W`; inner shoulder `0`; outer shoulder `0.45W`; continuous XY and Z road surface. The auxiliary lane therefore occupies `2.375W .. 3.375W`, centred exactly at `2.875W`, and the highway shoulder `3.375W .. 3.825W`.
 
+**Effective ramp roadbed (D-024).** A vehicle a ramp's capabilities require fits inside its paved roadbed. Its
+effective independent roadbed is `max(1.50W, RequiredSweptVehicleWidth)`, widened equally either side of
+`RampLaneCenterline` by `E = max(0, (RequiredSweptVehicleWidth - 1.50W)/2)`:
+
+```text
+inner_edge = RampLaneCenterline - (0.5W + inner_shoulder + E*(1 - f))
+outer_edge = RampLaneCenterline + (0.5W + outer_shoulder + E*(1 - f))
+```
+
+`E` blends out over the gore shoulder transition with the same `f`, so the gore invariant above is unchanged. From
+the point where the ramp joins the highway's roadbed, and at the gore and through the parallel interval, the vehicle is
+validated against the combined `HIGHWAY_4` + auxiliary-lane paved surface on the ramp side.
+
+The following are unchanged:
+- the nominal `1.50W` (light and Harvester ramps have `E = 0`);
+- the lane centre, `R_r`, the gore, `d_aux` and the interval lengths.
+
+Phase 9 freezes `E` on each ramp edge.
+
 Parallel intervals in highway station `x` (side frame), with `f(u) = 3u^2 - 2u^3` and `u = clamp(s/TaperLength, 0, 1)` (Q-026; superseding the earlier single smoothstep over the whole interval):
 
 ```text

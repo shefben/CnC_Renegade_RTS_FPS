@@ -498,6 +498,27 @@ void Hybrid_Ramp_Gore_Shoulders(const HybridInterchangeConstants & c,float from_
 }
 
 
+float Hybrid_Ramp_Roadbed_Extra(float w,float required_swept_width)
+{
+	const float extra = 0.5f * (required_swept_width - Hybrid_Roadbed_Width(HYBRID_ROAD_HIGHWAY_RAMP,w));
+	return (extra > 0.0f) ? extra : 0.0f;
+}
+
+
+void Hybrid_Ramp_Effective_Edges(const HybridInterchangeConstants & c,float extra,float from_gore,float * inner_out,
+											float * outer_out)
+{
+	float inner_shoulder = 0.0f;
+	float outer_shoulder = 0.0f;
+	Hybrid_Ramp_Gore_Shoulders(c,from_gore,&inner_shoulder,&outer_shoulder);
+	const float u = 1.0f - Clamp3(from_gore / c.GoreReserveMargin,0.0f,1.0f);
+	const float f = (3.0f * u * u) - (2.0f * u * u * u);
+	const float widen = extra * (1.0f - f);
+	*inner_out = (0.5f * c.W) + inner_shoulder + widen;
+	*outer_out = (0.5f * c.W) + outer_shoulder + widen;
+}
+
+
 void Hybrid_Gore_Reserve_Extent(const HybridInterchangeConstants & c,float gore_offset,int role,float * x0_out,
 										  float * x1_out)
 {

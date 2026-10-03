@@ -510,6 +510,7 @@ unsigned int Hybrid_Route_Checksum(const HybridRouteSet & set,unsigned int seed)
 			stream.Add_Length(route.RampInterval.FullTo);
 			stream.Add_Length(route.RampInterval.TaperFrom);
 			stream.Add_Length(route.RampInterval.TaperTo);
+			stream.Add_Length(route.RampRoadbedExtra);
 		}
 		stream.Add_Int(route.Widened.Count());
 		for (int w = 0; w < route.Widened.Count(); ++w) {
@@ -1061,7 +1062,7 @@ static void Fill_Cell_Cache(RouteBuilder & b,int cell)
 		**	rule requires -- as it holds itself to a margin on curvature.  The centerline check stays exact.
 		*/
 		const float clearance = Hybrid_Parallel_Clearance(b.CurrentClass,route.RoadClass,w,b.P->MinVehicleLaneClearance) +
-										(0.5f * b.A);
+										route.RampRoadbedExtra + (0.5f * b.A);
 		for (int p = 0; p < route.Points.Count(); ++p) {
 			const float distance = (route.Points[p] - centre).Length();
 			if (distance <= w) mask |= (1u << r);
@@ -3221,7 +3222,8 @@ static int First_Parallel_Overlap(RouteBuilder & b,const DynamicVectorClass<Vect
 
 		const HybridRoute & route = b.Out->Routes[r];
 		if (route.Points.Count() < 2) continue;
-		const float clearance = Hybrid_Parallel_Clearance(b.CurrentClass,route.RoadClass,k.W,b.P->MinVehicleLaneClearance);
+		const float clearance = Hybrid_Parallel_Clearance(b.CurrentClass,route.RoadClass,k.W,b.P->MinVehicleLaneClearance) +
+										route.RampRoadbedExtra;
 		if ((route.BoundsMin.X > (high.X + clearance)) || (route.BoundsMax.X < (low.X - clearance)) ||
 			 (route.BoundsMin.Y > (high.Y + clearance)) || (route.BoundsMax.Y < (low.Y - clearance))) continue;
 		const float other_reach = Hybrid_Junction_Reach(route.RoadClass,k.W);
@@ -5318,9 +5320,10 @@ struct ConstructedCheck
 	Vector2			X;
 	Vector2			Axis;
 	int				Side;
-	float				OwnReach;				// a sample whose side-frame offset is at most this may touch its own highway
-	float				OwnAlong;				// ...or, for a crossing, one within this of X along the crossing
+	float				OwnAlong;				// a crossing may touch its own highway within this of X along it
 	bool				IsRamp;
+	bool				Reversed;				// ramp: the samples run against its traffic (an OFF_RAMP stored L_s -> gore)
+	float				Extra;					// ramp: D-024's E
 	float				GoreStation;			// ramp: the station of its gore along the samples
 	HybridInterchangeConstants	C;
 };
@@ -5336,20 +5339,41 @@ static bool Constructed_Road_Is_Legal(RouteBuilder & b,const DynamicVectorClass<
 	const float outer_offset = Hybrid_Road_Outer_Edge_Offset(road_class,k.W);
 	HybridVerticalInterval previous;
 
+	/*
+	**	A ramp's roadbed is joined to its own highway's from the gore (its last sample) until its inner edge clears the
+	**	highway roadbed -- the converged gore wedge, which is one paved surface.  From the first clear sample on, the two
+	**	roadbeds may not meet again.  The inner edge is the effective one (D-024), so a wider ramp stays joined longer.
+	*/
+	int joined_from = points.Count();
+	if (check.IsRamp) {
+		const float half_highway = 0.5f * Hybrid_Roadbed_Width(HYBRID_ROAD_HIGHWAY_4,k.W);
+		for (int i = points.Count() - 1; i >= 0; --i) {
+			float inner = 0.0f;
+			float outer = 0.0f;
+			Hybrid_Ramp_Effective_Edges(check.C,check.Extra,(float)fabs((double)(stations[i] - check.GoreStation)),&inner,&outer);
+			bool joined = false;
+			for (int o = 0; (o < b.Out->Routes.Count()) && !joined; ++o) {
+				const HybridRoute & own = b.Out->Routes[o];
+				if ((own.EdgeId != check.OwnIn) && (own.EdgeId != check.OwnOut)) continue;
+				joined = (Polyline_Distance(own.Points,points[i]) < (half_highway + inner));
+			}
+			if (!joined) break;
+			joined_from = i;
+		}
+	}
+
 	for (int i = 0; i < points.Count(); ++i) {
 
 		const int q = ((i + 1) < points.Count()) ? (i + 1) : i;
 		const int r = ((i + 1) < points.Count()) ? i : (i - 1);
 		const Vector2 travel = Unit(points[q] - points[r]);
-		const Vector2 left(-travel.Y,travel.X);
+		Vector2 left(-travel.Y,travel.X);
 		float inner = inner_offset;
 		float outer = outer_offset;
 		if (check.IsRamp) {
-			float inner_shoulder = 0.0f;
-			float outer_shoulder = 0.0f;
-			Hybrid_Ramp_Gore_Shoulders(check.C,(float)fabs((double)(stations[i] - check.GoreStation)),&inner_shoulder,&outer_shoulder);
-			inner = (0.5f * k.W) + inner_shoulder;
-			outer = (0.5f * k.W) + outer_shoulder;
+			//	The inner edge is left of the ramp's *traffic* (D-022), which an OFF_RAMP's stored order runs against.
+			if (check.Reversed) left = -left;
+			Hybrid_Ramp_Effective_Edges(check.C,check.Extra,(float)fabs((double)(stations[i] - check.GoreStation)),&inner,&outer);
 		}
 		const Vector2 probes[3] = { points[i],points[i] + (left * inner),points[i] - (left * outer) };
 		for (int p = 0; p < 3; ++p) {
@@ -5381,15 +5405,19 @@ static bool Constructed_Road_Is_Legal(RouteBuilder & b,const DynamicVectorClass<
 			const HybridRoute & other = b.Out->Routes[o];
 			if (other.Priority != HYBRID_ROUTE_PRIORITY_FAMILY_TRUNK) continue;
 			const bool own = (other.EdgeId == check.OwnIn) || (other.EdgeId == check.OwnOut);
-			if (own) {
+			float facing = Max2(inner,outer);
+			if (own && check.IsRamp) {
+				if (i >= joined_from) continue;
+				facing = inner;														// the inner edge faces its own highway
+			}
+			if (own && !check.IsRamp) {
 				const Vector2 offset = points[i] - check.X;
 				const Vector2 normal = (check.Side == HYBRID_INTERCHANGE_SIDE_RIGHT) ? Vector2(check.Axis.Y,-check.Axis.X)
 																										  : Vector2(-check.Axis.Y,check.Axis.X);
 				const float lateral = (offset.X * normal.X) + (offset.Y * normal.Y);
-				if (check.IsRamp && (lateral <= check.OwnReach)) continue;
-				if (!check.IsRamp && ((float)fabs((double)lateral) <= check.OwnAlong)) continue;
+				if ((float)fabs((double)lateral) <= check.OwnAlong) continue;
 			}
-			const float clearance = (0.5f * Hybrid_Roadbed_Width(other.RoadClass,k.W)) + Max2(inner,outer);
+			const float clearance = (0.5f * Hybrid_Roadbed_Width(other.RoadClass,k.W)) + facing;
 			if (Polyline_Distance(other.Points,points[i]) < clearance) {
 				if (why != nullptr) why->Format("sample %d meets the roadbed of group-1 road %u",i,other.EdgeId);
 				return false;
@@ -5415,6 +5443,7 @@ static void Constructed_Route(RouteBuilder & b,const HybridTopologyEdge & edge,c
 	out->RampRole		= edge.RampRole;
 	out->RampSide		= edge.RampSide;
 	out->RampInterval	= edge.RampInterval;
+	out->RampRoadbedExtra= edge.RampRoadbedExtra;
 	float station = 0.0f;
 	for (int i = 0; i < points.Count(); ++i) {
 		if (i > 0) station += (points[i] - points[i - 1]).Length();
@@ -5534,7 +5563,8 @@ static bool Construct_Interchange(RouteBuilder & b,const HybridInterchange & ic,
 			Straight_Points(from,to,spacing,&points,&stations);
 			check.Side		= HYBRID_INTERCHANGE_SIDE_RIGHT;
 			check.IsRamp	= false;
-			check.OwnReach	= 0.0f;
+			check.Reversed	= false;
+			check.Extra		= 0.0f;
 			check.OwnAlong	= c.EHwy + (0.5f * Hybrid_Roadbed_Width(edge->RoadClass,k.W)) +
 								  ((ic.CrossingMode == HYBRID_INTERCHANGE_CROSSING_GRADE_SEPARATED) ? (ic.LocalOffset - c.EHwy) : 0.0f);
 			check.GoreStation= 0.0f;
@@ -5584,7 +5614,8 @@ static bool Construct_Interchange(RouteBuilder & b,const HybridInterchange & ic,
 
 		check.Side			= edge->RampSide;
 		check.IsRamp		= true;
-		check.OwnReach		= c.DSep + k.Q;
+		check.Reversed		= (edge->RampRole == HYBRID_RAMP_ROLE_OFF);
+		check.Extra			= edge->RampRoadbedExtra;
 		check.OwnAlong		= 0.0f;
 		check.GoreStation	= stations[count - 1];
 		if (!Constructed_Road_Is_Legal(b,points,stations,HYBRID_ROAD_HIGHWAY_RAMP,check,why)) {

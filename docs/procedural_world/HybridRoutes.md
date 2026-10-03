@@ -197,6 +197,11 @@ another candidate.
   - no routed group-1 roadbed is met. The road's own highway may be met only inside the ramp's converged gore
     wedge, or by the crossing at `X`.
 
+  The ramp's roadbed edges are its effective ones (D-024): `E` is frozen on the edge, and the inner edge is left
+  of the ramp's traffic, which an `OFF_RAMP`'s stored `L_s -> gore` order runs against. The ramp may touch its own
+  highway's roadbed only over the run of samples from the gore in which its inner edge is still joined to it, and
+  never again after separating. Later roads keep their Q-025 clearance from the effective edge.
+
   Ramp and crossing routes have priority `INTERCHANGE`, and the highway's logical routes carry their widened
   intervals.
 - **Footprint.** Each realized side adds its footprint polygon: the diverge interval's lane, the `OFF` ramp, `L_s`,

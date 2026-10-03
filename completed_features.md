@@ -4806,6 +4806,52 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## Section-14 gate before I13: highway access ramps through Phases 9-11 (2026-10-03)
+
+The gate set before returning to I13. Each item is met by a named, passing test.
+
+| Gate item | Test |
+| --- | --- |
+| Records, Phase-9/10/11 ramp work | checklist I1/I2/I10/I11/I12 reopened items |
+| On-ramp, off-ramp, `SIDE_ACCESS` (one OFF + one ON) and `DIAMOND_ACCESS` through Phases 9, 10 and 11 | `Check_Hybrid_Interchange_Topology`, `Check_Hybrid_Interchange_Routes`, `Check_Hybrid_Interchange_Interactions` |
+| `16W` merge (`10W + 6W`) and `12W` diverge (`6W + 6W`) intervals | `Check_Hybrid_Interchange_Construction`, and the frozen intervals in `Check_Hybrid_Interchange_Topology` |
+| Widening `5.65W -> 6.65W` | `Check_Hybrid_Interchange_Construction` |
+| Offsets `-0.70W / +0.80W`, and D-024's effective edges | `Check_Hybrid_Interchange_Construction`, `Check_Hybrid_Ramp_Roadbed` |
+| Gore reservation | Phase 11's gore-reserve test in `Check_Hybrid_Interchange_Interactions` |
+| Spacing | the second-anchor refusal in `Check_Hybrid_Interchange_Topology` |
+
+Gore spacing (`24W`, 12.6.8 test 3) is implied by test 2's disjoint straight extents: the gores are then at least
+`36W` apart.
+
+Also passing:
+- the existing river/bridge/canyon/overpass tests and the Q-020..Q-025 tests;
+- `terrain_hybridtopology`, `terrain_hybridroutes` and `terrain_hybridinteractions`, and their `fds_` twins;
+- the full ctest suite, 237/237, on client and dedicated server;
+- the state validator.
+
+## D-024 resolution: the effective HIGHWAY_RAMP roadbed (2026-10-03)
+
+A ramp's paved roadbed carries the widest vehicle its capabilities require: `max(1.50W, swept)`, widened by `E`
+either side of `RampLaneCenterline`, with `E` blended out over the gore transition.
+- Phase 9 freezes `E` (`RampRoadbedExtra`) from the preflight vehicle widths and uses it for the test-5 exclusions
+  and the local-junction disc.
+- Phase 10 copies `E`, re-validates on the effective edges and keeps later roads clear of them.
+- Phase 11 fits the vehicle in the paved surface: the ramp roadbed, or the combined highway + auxiliary-lane surface
+  once joined.
+
+Fixed at the owner (Phase 10): the `OFF_RAMP`'s swapped edge sides, and the own-highway allowance, which is now the
+converged gore wedge.
+
+**Gate:**
+- the unit cross section: light/Harvester `E = 0`, heavy `E = 0.2735W`, the gore edges unchanged, and a continuous
+  transition;
+- `Check_Hybrid_Ramp_Roadbed` covers:
+  - `E` frozen and copied, and reaching both checksums;
+  - Phase 11 fitting the heavy vehicle and refusing it on the nominal roadbed;
+  - a reserve on the heavy edge leaving the light candidate alone and moving the heavy one;
+- mutations (`E` forced to 0, the fit disabled) fail those checks;
+- the full ctest suite on client and dedicated server.
+
 ## HIGHWAY_RAMP Phase-11 interchange compilation (Plan 12.6.10, checklist I12 reopened) (2026-10-03)
 
 Phase 11 compiles each interchange Phase 10 realized from its frozen records, never rediscovering it:
