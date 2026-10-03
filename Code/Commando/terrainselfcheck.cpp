@@ -9129,12 +9129,12 @@ static void Check_Hybrid_Crossing_Discipline (void)
 **	a second anchor inside the first's straight extent is refused for spacing.  Every accepted interchange passes
 **	the gate clause, its intervals are exactly 16W (10W + 6W) and 12W (6W + 6W), and it reproduces its checksum.
 */
-static void Interchange_World (CrossingWorld * world,int access_sides,float second_anchor_x)
+static void Interchange_World (CrossingWorld * world,int access_sides,float second_anchor_x,float bend = 0.0f)
 {
 	Crossing_World_Begin (world);
-	Trunk_World_Node (world,1,HYBRID_NODE_BASE_ENTRANCE,Vector2 (-487.5f,7.5f),0);
+	Trunk_World_Node (world,1,HYBRID_NODE_BASE_ENTRANCE,Vector2 (-487.5f,7.5f + bend),0);
 	Trunk_World_Node (world,2,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (7.5f,7.5f),0);
-	Trunk_World_Node (world,3,HYBRID_NODE_BASE_ENTRANCE,Vector2 (487.5f,7.5f),0);
+	Trunk_World_Node (world,3,HYBRID_NODE_BASE_ENTRANCE,Vector2 (487.5f,7.5f + bend),0);
 	Trunk_World_Node (world,4,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (7.5f,-292.5f),1);
 	Trunk_World_Node (world,5,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (7.5f,307.5f),1);
 	if (second_anchor_x != 0.0f) {
@@ -9266,6 +9266,135 @@ static void Check_Hybrid_Interchange_Topology (void)
 				 (spaced.Topology.AnchorRejections[HYBRID_INTERCHANGE_REJECT_NO_CANDIDATE] == 1),
 				 "two anchors 150 apart both got interchanges (%d)",spaced.Topology.Interchanges.Count ());
 		printf ("  spacing: the second anchor inside the first's straight extent is refused\r\n");
+	}
+}
+
+
+/*
+**	Phase 10 (Plan 12.6.9) on the controlled interchange worlds: the highway straight through the frozen
+**	interchange, the ramps and the crossing constructed exactly where Phase 9 froze them, the moved arrival routed
+**	to its local junction and kept out of the footprint, and both withdrawal paths -- (a) a highway that cannot
+**	run straight through X, (b) a ramp that meets another group-1 road -- restoring the arrival to X.
+*/
+static void Check_Hybrid_Interchange_Routes (void)
+{
+	/*
+	**	SIDE_ACCESS realized, on a highway whose intent bends 14 degrees at X: only the 12.6.9 alignment makes the
+	**	routed highway straight over [X - S_I, X + S_I], which group 1b and the gate both require.
+	*/
+	{
+		CrossingWorld world;
+		Interchange_World (&world,1,0.0f,-60.0f);
+		StringClass why;
+		Check (Interchange_World_Build (&world,&why) && world.Topology.Interchanges.Count () == 1,"SIDE_ACCESS topology: %s",
+				 why.Peek_Buffer ());
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (routed,"SIDE_ACCESS world refused in Phase 10: %s",result.Detail.Peek_Buffer ());
+		if (routed && (world.Topology.Interchanges.Count () == 1)) {
+			const HybridInterchange & ic = world.Topology.Interchanges[0];
+			const float W = world.Sized.Constants.W;
+			Check (world.Routes.WithdrawnInterchanges.Count () == 0,"the realizable interchange was withdrawn");
+			int ramps = 0;
+			for (int e = 0; e < ic.RampEdges.Count (); ++e) {
+				const HybridRoute * ramp = world.Routes.Find (ic.RampEdges[e]);
+				if (ramp == NULL) continue;
+				ramps++;
+				Check (ramp->RoadClass == HYBRID_ROAD_HIGHWAY_RAMP && ramp->Priority == HYBRID_ROUTE_PRIORITY_INTERCHANGE &&
+						 ramp->InterchangeId == ic.StableId,"ramp route %u is not a constructed HIGHWAY_RAMP",ramp->EdgeId);
+				//	Over the 5W baseline the validator uses, so the samples' position quantum is not read as a turn.
+				const int step = (int)((5.0f * W) / WWMath::Min (W / 3.0f,15.0f / 4.0f) + 0.5f);
+				float tightest = 3.4e38f;
+				for (int i = step; (i + step) < ramp->Points.Count (); ++i) {
+					DynamicVectorClass<Vector2> three;
+					three.Add (ramp->Points[i - step]);	three.Add (ramp->Points[i]);	three.Add (ramp->Points[i + step]);
+					tightest = WWMath::Min (tightest,Tightest_Radius (three));
+				}
+				Check (tightest >= (0.99f * 5.0f * W),"ramp %u turns at %.3f, under 5W",ramp->EdgeId,tightest);
+			}
+			Check (ramps == 2,"SIDE_ACCESS has %d constructed ramps",ramps);
+			int widened = 0;
+			for (int r = 0; r < world.Routes.Routes.Count (); ++r) widened += world.Routes.Routes[r].Widened.Count ();
+			Check (widened == 2,"the highway carries %d widened intervals, not 2",widened);
+			const HybridRoute * arrival = world.Routes.Find (4);
+			const HybridTopologyNode * local = world.Topology.Find_Node (ic.LocalJunction[HYBRID_INTERCHANGE_SIDE_RIGHT]);
+			Check ((arrival != NULL) && (local != NULL) &&
+					 ((arrival->Points[0] - local->Position).Length () <= 1.0f ||
+					  (arrival->Points[arrival->Points.Count () - 1] - local->Position).Length () <= 1.0f),
+					 "the moved arrival does not end at its local junction");
+			HybridRouteSet again;
+			CrossingWorld second;
+			Interchange_World (&second,1,0.0f,-60.0f);
+			StringClass second_why;
+			Interchange_World_Build (&second,&second_why);
+			HybridRouteResult second_result;
+			Check (Crossing_World_Route (&second,&second_result) && (second.Routes.Checksum == world.Routes.Checksum),
+					 "the realized interchange does not reproduce its route checksum");
+			printf ("  Phase 10 SIDE_ACCESS: highway straight through X over +-%.1fW, 2 ramps at R_r, arrival at L_s\r\n",
+					  ic.StraightHalfExtent / W);
+		}
+	}
+
+	//	DIAMOND_ACCESS realized: four ramps and the grade-separated crossing edge through X.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,3,0.0f);
+		StringClass why;
+		Interchange_World_Build (&world,&why);
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (routed,"DIAMOND_ACCESS world refused in Phase 10: %s",result.Detail.Peek_Buffer ());
+		if (routed && (world.Topology.Interchanges.Count () == 1)) {
+			const HybridInterchange & ic = world.Topology.Interchanges[0];
+			int ramps = 0;
+			for (int e = 0; e < ic.RampEdges.Count (); ++e) ramps += (world.Routes.Find (ic.RampEdges[e]) != NULL) ? 1 : 0;
+			const HybridRoute * crossing = (ic.CrossingEdges.Count () > 0) ? world.Routes.Find (ic.CrossingEdges[0]) : NULL;
+			Check ((ramps == 4) && (crossing != NULL) && (crossing->Waypoints.Count () == 1),
+					 "DIAMOND_ACCESS: %d ramps, crossing %s",ramps,(crossing != NULL) ? "routed" : "missing");
+			printf ("  Phase 10 DIAMOND_ACCESS: 4 ramps and the crossing through X\r\n");
+		}
+	}
+
+	//	Withdrawal (a): a Tiberium reserve on the highway's straight extent -- Phase 9 does not test highway ground.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,1,0.0f);
+		HybridResourceAnchor field;
+		field.SiteId			= 77;
+		field.Center.Set (67.5f,7.5f);
+		field.ReserveRadius	= 6.0f;
+		world.Anchors.Resources.Add (field);
+		StringClass why;
+		Check (Interchange_World_Build (&world,&why) && (world.Topology.Interchanges.Count () == 1),
+				 "withdrawal (a) world: Phase 9 refused the interchange: %s",why.Peek_Buffer ());
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (routed,"withdrawal (a) world refused: %s",result.Detail.Peek_Buffer ());
+		const HybridRoute * arrival = world.Routes.Find (4);
+		const HybridTopologyNode * x_node = world.Topology.Find_Node (2);
+		Check (routed && (world.Routes.WithdrawnInterchanges.Count () == 1) && (arrival != NULL) && (x_node != NULL) &&
+				 ((arrival->Points[0] - x_node->Position).Length () <= 1.0f) &&
+				 (world.Routes.Find (world.Topology.Interchanges[0].RampEdges[0]) == NULL),
+				 "withdrawal (a): the interchange was not withdrawn to its fallback variant");
+		printf ("  Phase 10 withdrawal (a): highway cannot run straight through X; arrival restored to X\r\n");
+	}
+
+	//	Withdrawal (b): a second group-1 road across the ramp's ground.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,1,0.0f);
+		Trunk_World_Node (&world,8,HYBRID_NODE_BASE_ENTRANCE,Vector2 (-292.5f,-22.5f),1);
+		Trunk_World_Node (&world,9,HYBRID_NODE_BASE_ENTRANCE,Vector2 (307.5f,-22.5f),1);
+		Trunk_World_Edge (&world,8,HYBRID_EDGE_FAMILY_TRUNK,HYBRID_ROAD_PRIMARY_2,8,9,1);
+		StringClass why;
+		Check (Interchange_World_Build (&world,&why) && (world.Topology.Interchanges.Count () == 1),
+				 "withdrawal (b) world: Phase 9 refused the interchange: %s",why.Peek_Buffer ());
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (routed && (world.Routes.WithdrawnInterchanges.Count () == 1),
+				 "withdrawal (b): a ramp across another group-1 road was not withdrawn (%s)",
+				 routed ? "routed" : result.Detail.Peek_Buffer ());
+		printf ("  Phase 10 withdrawal (b): ramp meets another group-1 road; interchange withdrawn\r\n");
 	}
 }
 
@@ -9648,6 +9777,7 @@ void Check_Hybrid_Routes (void)
 	Check_Hybrid_Crossing_Alignment ();
 	Check_Hybrid_Continuous_Trunk (NULL,NULL);
 	Check_Hybrid_Ordinary_Guide ();
+	Check_Hybrid_Interchange_Routes ();
 	Check_Hybrid_Crossing_Discipline ();
 
 	HybridMapIdentity identity;
@@ -20581,6 +20711,15 @@ void Check_Hybrid_Interaction_Search (void)
 						  Hybrid_Interaction_Problem_Name ((HybridInteractionProblem)rc.OverpassProblem[1]));
 			}
 			printf ("BUILT archetype %d seed %u\r\n",(int)SEARCH_ARCHETYPES[ai],seed);
+			if (scan.Topology.Interchanges.Count () > 0) {
+				//	Section 12.6.9: which frozen interchanges Phase 10 realized, and which it withdrew.
+				int realized = 0;
+				for (int i = 0; i < scan.Topology.Interchanges.Count (); ++i) {
+					if (!scan.Routes.Interchange_Withdrawn (scan.Topology.Interchanges[i].StableId)) realized++;
+				}
+				printf ("INTERCHANGE10 archetype %d seed %u: realized %d withdrawn %d\r\n",(int)SEARCH_ARCHETYPES[ai],seed,
+						  realized,scan.Routes.WithdrawnInterchanges.Count ());
+			}
 			if (spent > 0) {
 				printf ("REROUTE archetype %d seed %u: %d reroute(s), %s\r\n",(int)SEARCH_ARCHETYPES[ai],seed,spent,
 						  ok ? "solved" : Hybrid_Interaction_Failure_Name (sr.Failure));

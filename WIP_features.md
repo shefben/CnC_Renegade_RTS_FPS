@@ -367,17 +367,36 @@ checksums identical on rebuild. Of 124 anchors, 121 had no valid candidate. Refu
 (2605), then test 5 (984), test 7 (208) and test 2 (81). Phase 10 does not yet construct ramps, so archetype 5
 seed 16 fails Phase 10 on its ramp edge (census 448 / 97 / 33).
 
-**Next exact action:** Phase-10 `HIGHWAY_RAMP` routing (checklist I11 reopened, Plan 12.6.9), then restore the
-Phase-10 gate:
-- highway alignment straight over `[X - S_I, X + S_I]`;
-- routing group 1b, which constructs the ramps by `Hybrid_Ramp_Centerline` and the crossings;
-- re-validation against the routed geometry;
-- the withdrawal fallback, the footprint, and lower-road retargeting.
+Phase-10 interchange realization (checklist I11 reopened, Plan 12.6.9) is done, and the Phase-10 gate is restored
+(2026-10-03):
+- an aligned highway straight over `[X - S_I, X + S_I]`;
+- group-1b construction of the ramps and crossing by the shared 5W constructor, re-validated against the routed
+  world and the group-1 roads;
+- footprint keep-out;
+- withdrawal (a) and (b) to the fallback variant;
+- the gate clause.
+
+The census is back to 448 / 98 / 33. Of the three natural interchanges, Phase 10 realizes none:
+- archetype 5 seed 16 is withdrawn by rule (a): its aligned highway, with a 74.7-degree intent bend at `X`, enters
+  a Tiberium reserve;
+- archetype 5 seed 199 and archetype 3 seed 129 fail Phase 10 on highway edges exactly as they did before step 15.
+
+**Next exact action:** Phase-11 merge/diverge compilation (checklist I12 reopened, Plan 12.6.10), then restore the
+Phase-11 gate. It covers:
+- `HIGHWAY_RAMP_MERGE` / `DIVERGE` records with the Q-026 samples;
+- `HIGHWAY_RAMP_LOCAL_JUNCTION` per `L_s`;
+- intended vs incidental junctions, and the incidental at-grade rule outside footprint + `RoadOuterBlendWidth`;
+- the DIAMOND crossing overpass with the highway continuous through `X`;
+- the gore-reserve station test and the overpass ramp-interval check;
+- `z_L` and the whole-ramp 12.1 solve;
+- the swept proxy.
+
+The routed highway trunk through `X` is one road; its logical edges meet at `X`.
 
 Steps:
 1. (done) records, schema and checksum;
 2. (done) Phase-9 `HIGHWAY_INTERCHANGE` topology and gore selection;
-3. Phase-10 ramp routing and tangent geometry;
+3. (done) Phase-10 ramp routing and tangent geometry;
 4. Phase-11 merge/diverge compilation.
 
 Then restore the Phase-9/10/11 gates and bump the generator identity. Keep it separate from the remaining

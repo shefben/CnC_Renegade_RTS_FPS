@@ -4806,6 +4806,33 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## HIGHWAY_RAMP Phase-10 interchange realization (Plan 12.6.9, checklist I11 reopened) (2026-10-03)
+
+A `HIGHWAY_4` trunk through an active anchor routes `a_I -> X -> b_I` as one aligned straight. It replaces its chain
+cells like a crossing, but it is open road: no structural span, and every sample is validated.
+
+Group 1b (`Construct_Interchanges`), after the group-1 trunks:
+- re-checks the highway straight through `X`;
+- builds the crossing edges and then the ramps by `Hybrid_Ramp_Centerline`, exactly to the frozen gores;
+- re-validates every sample and both asymmetric edges against the realized world, the grade and every group-1
+  roadbed;
+- adds the constructed routes (priority `INTERCHANGE`) and the highway's widened intervals;
+- registers the footprint polygons, hard-infinite for every road routed after it.
+
+Withdrawal (a), a highway edge failing its third envelope, and withdrawal (b), a group-1b element failing
+re-validation, both restore the fallback variant (`WithdrawnInterchanges`, `Hybrid_Route_Edge_End`, stage-10
+checksum). The Phase-10 gate gained `Check_Interchanges_Gate`. No gore, side or `k` is ever changed.
+
+**Gate:**
+- `Check_Hybrid_Interchange_Routes`:
+  - `SIDE_ACCESS` on a highway bending 14 degrees at `X`, which is realized only because of the alignment;
+  - `DIAMOND_ACCESS`;
+  - withdrawal (a) and (b);
+  - determinism;
+- the full ctest suite on client and dedicated server.
+
+The 1400-world census is back to 448 / 98 / 33.
+
 ## D-023 interchange arrival geometry, and the natural Phase-9 interchange gate (2026-10-03)
 
 - No arrival-angle prefilter: side is the sign of `cross(a, delta)`.

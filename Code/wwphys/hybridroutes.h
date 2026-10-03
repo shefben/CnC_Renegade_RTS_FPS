@@ -73,7 +73,8 @@ enum HybridRoutePriority
 	HYBRID_ROUTE_PRIORITY_SERVICE_FILL,			// 5 quota-filling SERVICE_DIRT_2 cross-links
 	HYBRID_ROUTE_PRIORITY_OVERPASS_LINK,		// 6 mandatory/synthesized overpass SECONDARY_2 cross-links
 	HYBRID_ROUTE_PRIORITY_OPTIONAL_LINK,		// 7 optional heavy cross-links
-	HYBRID_ROUTE_PRIORITY_TRAIL,					// 8 TRAIL_1 shortcuts
+	HYBRID_ROUTE_PRIORITY_TRAIL,				// 8 TRAIL_1 shortcuts
+	HYBRID_ROUTE_PRIORITY_INTERCHANGE,		// group 1b (12.6.9): constructed ramps and crossings, never searched
 	HYBRID_ROUTE_PRIORITY_COUNT
 };
 
@@ -223,6 +224,15 @@ struct HybridRouteSet
 
 	DynamicVectorClass<HybridRoute>	Routes;
 	DynamicVectorClass<HybridTrunkRoad>	Trunks;
+
+	/*
+	**	Section 12.6.9's only fallback: the interchanges Phase 10 withdrew, StableId order.  A withdrawn interchange
+	**	keeps its Phase-9 records; its retargeted edges end at the anchor X again (the frozen fallback variant) and
+	**	its local junctions, ramps, crossing edges and crossing obligation are inactive.
+	*/
+	DynamicVectorClass<unsigned int>	WithdrawnInterchanges;
+
+	bool	Interchange_Withdrawn(unsigned int interchange_id) const;
 
 	int			AnalysisCountX;				// the grid every chain's cell ids index into
 	int			AnalysisCountY;
@@ -395,6 +405,7 @@ enum HybridRouteFailure
 	HYBRID_ROUTE_EXPANSION_BUDGET,			// the per-route or per-attempt A* ceiling was reached
 	HYBRID_ROUTE_WAYPOINT_MISSED,				// gate: a frozen waypoint cell is not on the accepted chain
 	HYBRID_ROUTE_CROSSING_MISALIGNED,		// gate: a crossing is not entered or left along its own axis
+	HYBRID_ROUTE_INTERCHANGE_INVALID,		// gate: an active interchange is not realized as frozen (12.6.9)
 	HYBRID_ROUTE_FAILURE_COUNT
 };
 
@@ -430,6 +441,18 @@ HybridRouteCostWeights	Hybrid_Route_Cost_Weights(HybridRoadClass road_class);
 **	leaving `out` empty.  `sample` reads the realized Phase-7 height, as in Phases 8 and 9.
 */
 typedef bool (*HybridRouteHeightSampleFunc)(const Vector2 & world,float * height_out,void * context);
+
+/*
+**	An edge's end as Phase 10 realizes it (12.6.9): an arrival an interchange retargeted ends at its local junction
+**	while the interchange is active, and at the anchor X again once Phase 10 has withdrawn it.  Phase 11 and
+**	later read edge ends through this.
+*/
+unsigned int	Hybrid_Route_Edge_End(const HybridTopology & topology,const HybridRouteSet & routes,
+											 const HybridTopologyEdge & edge,bool node_b);
+
+//	Is this topology edge part of a withdrawn interchange (a ramp, a crossing edge)?
+bool	Hybrid_Route_Edge_Withdrawn(const HybridTopology & topology,const HybridRouteSet & routes,
+										  const HybridTopologyEdge & edge);
 
 bool	Hybrid_Build_Routes(const HybridRouteParams & params,const HybridMapIdentity & identity,
 										const HybridCoarseMatrices & matrices,const HybridLandformSet & landforms,

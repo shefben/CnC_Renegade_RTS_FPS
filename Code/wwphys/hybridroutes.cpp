@@ -104,6 +104,7 @@ static const float	CURVATURE_SEARCH_MARGIN	= 1.20f;		// the search holds the cla
 **	the 0.001 position quantum.  It is a construction margin only: the accepted radius is still measured
 **	against the class minimum itself, and a curve under it is still refused.
 */
+static const unsigned int	ALIGNED_ID_BASE		= 0x40000000u;	// an interchange's aligned straight, never a window id
 static const float	FILLET_RADIUS_MARGIN		= 1.05f;
 static const float	FILLET_RADIUS_STEP		= 0.10f;		// one escalation step, on a curvature refusal
 
@@ -129,7 +130,8 @@ const char * Hybrid_Route_Priority_Name(HybridRoutePriority priority)
 		case HYBRID_ROUTE_PRIORITY_SERVICE_FILL:	return "service_fill";
 		case HYBRID_ROUTE_PRIORITY_OVERPASS_LINK:	return "overpass_link";
 		case HYBRID_ROUTE_PRIORITY_OPTIONAL_LINK:	return "optional_link";
-		case HYBRID_ROUTE_PRIORITY_TRAIL:			return "trail";
+		case HYBRID_ROUTE_PRIORITY_TRAIL:				return "trail";
+		case HYBRID_ROUTE_PRIORITY_INTERCHANGE:		return "interchange";
 		default:												break;
 	}
 	return "unknown";
@@ -146,6 +148,7 @@ const char * Hybrid_Route_Failure_Name(HybridRouteFailure failure)
 		case HYBRID_ROUTE_NO_SPLINE:				return "no_spline";
 		case HYBRID_ROUTE_EXPANSION_BUDGET:	return "expansion_budget";
 		case HYBRID_ROUTE_WAYPOINT_MISSED:		return "waypoint_missed";
+		case HYBRID_ROUTE_INTERCHANGE_INVALID:	return "interchange_invalid";
 		case HYBRID_ROUTE_CROSSING_MISALIGNED:	return "crossing_misaligned";
 		default:											break;
 	}
@@ -176,6 +179,8 @@ HybridRoutePriority Hybrid_Route_Priority_Of(const HybridTopology & topology,con
 		case HYBRID_EDGE_FIELD_BRANCH:	return HYBRID_ROUTE_PRIORITY_FIELD_BRANCH;
 		case HYBRID_EDGE_SERVICE_FILL:	return HYBRID_ROUTE_PRIORITY_SERVICE_FILL;
 		case HYBRID_EDGE_TRAIL:				return HYBRID_ROUTE_PRIORITY_TRAIL;
+		case HYBRID_EDGE_HIGHWAY_RAMP:
+		case HYBRID_EDGE_INTERCHANGE_CROSSING:	return HYBRID_ROUTE_PRIORITY_INTERCHANGE;
 
 		case HYBRID_EDGE_CROSS_LINK:
 		{
@@ -230,12 +235,47 @@ void HybridRouteSet::Reset(void)
 {
 	Routes.Delete_All();
 	Trunks.Delete_All();
+	WithdrawnInterchanges.Delete_All();
 	AnalysisCountX		= 0;
 	AnalysisCountY		= 0;
 	TotalExpansions	= 0;
 	TotalInsertions	= 0;
 	WidenedRoutes		= 0;
 	Checksum				= 0;
+}
+
+
+bool HybridRouteSet::Interchange_Withdrawn(unsigned int interchange_id) const
+{
+	for (int i = 0; i < WithdrawnInterchanges.Count(); ++i) {
+		if (WithdrawnInterchanges[i] == interchange_id) return true;
+	}
+	return false;
+}
+
+
+unsigned int Hybrid_Route_Edge_End(const HybridTopology & topology,const HybridRouteSet & routes,
+											 const HybridTopologyEdge & edge,bool node_b)
+{
+	const unsigned int node = node_b ? edge.NodeB : edge.NodeA;
+	for (int i = 0; i < topology.Interchanges.Count(); ++i) {
+		const HybridInterchange & interchange = topology.Interchanges[i];
+		if (!routes.Interchange_Withdrawn(interchange.StableId)) continue;
+		for (int r = 0; r < interchange.Retargets.Count(); ++r) {
+			const HybridInterchangeRetarget & retarget = interchange.Retargets[r];
+			if ((retarget.EdgeId == edge.StableId) && (retarget.LocalJunction == node)) return retarget.FallbackNode;
+		}
+	}
+	return node;
+}
+
+
+bool Hybrid_Route_Edge_Withdrawn(const HybridTopology & topology,const HybridRouteSet & routes,
+											const HybridTopologyEdge & edge)
+{
+	(void)topology;
+	if ((edge.Kind != HYBRID_EDGE_HIGHWAY_RAMP) && (edge.Kind != HYBRID_EDGE_INTERCHANGE_CROSSING)) return false;
+	return routes.Interchange_Withdrawn(edge.InterchangeId);
 }
 
 
@@ -431,6 +471,9 @@ unsigned int Hybrid_Route_Checksum(const HybridRouteSet & set,unsigned int seed)
 		}
 	}
 
+	stream.Add_Int(set.WithdrawnInterchanges.Count());
+	for (int i = 0; i < set.WithdrawnInterchanges.Count(); ++i) stream.Add_Uint(set.WithdrawnInterchanges[i]);
+
 	stream.Add_Int(set.Trunks.Count());
 	for (int i = 0; i < set.Trunks.Count(); ++i) {
 		const HybridTrunkRoad & trunk = set.Trunks[i];
@@ -567,6 +610,16 @@ struct RouteBuilder
 	unsigned int						OwnWindow;			// the window this leg is allowed to cross, 0 for none
 	unsigned int						ClosedWindow;		// a planned window this leg only approaches or leaves
 	DynamicVectorClass<unsigned int>	ForbiddenWindows;	// windows this road may not cross (Route_Road)
+
+	/*
+	**	Section 12.6.9: the active interchanges' footprint polygons (world points; polygon i is FootprintCount[i]
+	**	points from FootprintStart[i]), hard-infinite for every road routed after group 1b except in its own local
+	**	junction's cell, which is that road's own endpoint and so already exempt as its start or goal cell.
+	*/
+	DynamicVectorClass<Vector2>		FootprintPoints;
+	DynamicVectorClass<int>				FootprintStart;
+	DynamicVectorClass<int>				FootprintCount;
+	unsigned int							LastFailedEdge;		// the logical edge Route_Road last failed on
 	unsigned int						OwnFieldSite;		// the Tiberium reserve this leg may enter, 0 for none
 	unsigned int						OwnEndFieldSite;	// the centerline pass: the field at the road's other end
 
@@ -597,6 +650,7 @@ struct RouteBuilder
 	**	the class's own turn geometry is not asked of it, exactly as the grade and cross-slope tests are not.
 	*/
 	bool									StructuralLeg;
+	bool									AlignedLeg;			// a leg of an interchange's aligned highway straight
 
 	/*
 	**	A leg that ends on a crossing's first frozen approach point has to *arrive* along the crossing's axis,
@@ -773,7 +827,8 @@ enum HybridRouteRefusal
 	HYBRID_REFUSE_TIBERIUM		= 1 << 2,
 	HYBRID_REFUSE_WATER			= 1 << 3,		// standing water: never crossable in this generator version
 	HYBRID_REFUSE_WALL			= 1 << 4,		// a cliff, canyon or ravine wall outside an accepted window
-	HYBRID_REFUSE_CHANNEL		= 1 << 5,		// a river channel outside an accepted window
+	HYBRID_REFUSE_CHANNEL		= 1 << 5,
+	HYBRID_REFUSE_FOOTPRINT		= 1 << 6,		// an active interchange's footprint (12.6.9 item 4)		// a river channel outside an accepted window
 };
 
 
@@ -796,6 +851,22 @@ static bool Window_Forbidden(const RouteBuilder & b,unsigned int window)
 		if (b.ForbiddenWindows[i] == window) return true;
 	}
 	return false;
+}
+
+
+//	Is `point` inside footprint polygon `f` (even-odd rule)?
+static bool Point_In_Footprint(const RouteBuilder & b,int f,const Vector2 & point)
+{
+	const int first = b.FootprintStart[f];
+	const int count = b.FootprintCount[f];
+	bool inside = false;
+	for (int i = 0, j = count - 1; i < count; j = i++) {
+		const Vector2 & pi = b.FootprintPoints[first + i];
+		const Vector2 & pj = b.FootprintPoints[first + j];
+		if (((pi.Y > point.Y) != (pj.Y > point.Y)) &&
+			 (point.X < (((pj.X - pi.X) * (point.Y - pi.Y)) / (pj.Y - pi.Y)) + pi.X)) inside = !inside;
+	}
+	return inside;
 }
 
 
@@ -875,6 +946,11 @@ static unsigned int Classify_Point(const RouteBuilder & b,const Vector2 & centre
 																	HYBRID_LANDFORM_MASK_RAVINE_WALL);
 	const bool wall = (mask & wall_bits) != 0;
 	if ((wet || wall) && !open_window) refusals |= (wall ? HYBRID_REFUSE_WALL : HYBRID_REFUSE_CHANNEL);
+
+	//	Section 12.6.9 item 4: an active interchange's footprint, for every road routed after group 1b.
+	for (int f = 0; f < b.FootprintStart.Count(); ++f) {
+		if (Point_In_Footprint(b,f,centre)) refusals |= HYBRID_REFUSE_FOOTPRINT;
+	}
 
 	return refusals;
 }
@@ -1741,6 +1817,7 @@ static unsigned int Refusal_Blocks(unsigned int refusal)
 	if (refusal & HYBRID_REFUSE_WATER)			blocks |= (1u << HYBRID_BLOCK_WATER);
 	if (refusal & HYBRID_REFUSE_WALL)			blocks |= (1u << HYBRID_BLOCK_WALL);
 	if (refusal & HYBRID_REFUSE_CHANNEL)		blocks |= (1u << HYBRID_BLOCK_RIVER);
+	if (refusal & HYBRID_REFUSE_FOOTPRINT)		blocks |= (1u << HYBRID_BLOCK_EXISTING_ROAD);
 	return blocks;
 }
 
@@ -1755,7 +1832,7 @@ static bool Search_Leg(RouteBuilder & b,int start,int goal,int entry_direction,
 	const HybridConstants & k = b.P->Constants;
 	const HybridRouteCostWeights weights = Hybrid_Route_Cost_Weights(b.CurrentClass);
 	const float max_grade = Max2(Hybrid_Road_Class_Spec(b.CurrentClass).MaxGradeDegrees * PI_OVER_180,k.Q);
-	const float min_turn_radius = b.StructuralLeg ? 0.0f
+	const float min_turn_radius = (b.StructuralLeg || b.AlignedLeg) ? 0.0f
 																: (Hybrid_Road_Class_Spec(b.CurrentClass).MinTurnRadiusW *
 																	k.W);
 	const float window_penalty = WINDOW_PENALTY_A * b.A;
@@ -2179,7 +2256,7 @@ static float Vertex_Turn(const Vector2 & previous,const Vector2 & here,const Vec
 */
 struct RouteCrossing
 {
-	RouteCrossing(void) : WindowId(0),FirstIndex(0),LastIndex(0),Ingress(0.0f,0.0f),Egress(0.0f,0.0f) { }
+	RouteCrossing(void) : WindowId(0),FirstIndex(0),LastIndex(0),Ingress(0.0f,0.0f),Egress(0.0f,0.0f),Aligned(false) { }
 
 	//	DynamicVectorClass<T> requires == and !=.  The window is this record's identity within a route.
 	bool	operator == (const RouteCrossing & that) const	{ return WindowId == that.WindowId; }
@@ -2190,6 +2267,14 @@ struct RouteCrossing
 	int				LastIndex;			// the chain cell the far bank's approach point stands in
 	Vector2			Ingress;
 	Vector2			Egress;
+
+	/*
+	**	An interchange's aligned highway straight (12.6.9 item 1), not a crossing: the chain cells between are
+	**	replaced by the straight a_I -> X -> b_I exactly as a crossing's are, but it is open road -- no structural
+	**	span, every sample validated.  `WindowId` then holds ALIGNED_ID_BASE | interchange StableId, which no
+	**	Phase-6 window has, so the two frozen ends form one straight run in the corner construction.
+	*/
+	bool				Aligned;
 };
 
 
@@ -2416,7 +2501,7 @@ static void Build_Route_Vertices(RouteBuilder & b,const DynamicVectorClass<int> 
 			in_vertex.Frozen			= true;
 			in_vertex.WindowId		= record.WindowId;
 			in_vertex.ChainIndex		= record.FirstIndex;
-			in_vertex.StructuralAhead= true;
+			in_vertex.StructuralAhead= !record.Aligned;
 			out->Add(in_vertex);
 
 			RouteVertex out_vertex;
@@ -3694,9 +3779,9 @@ static void Edge_Node_Chain(const RouteBuilder & b,const HybridTopologyEdge & ed
 									 DynamicVectorClass<unsigned int> * out)
 {
 	out->Delete_All();
-	out->Add(edge.NodeA);
+	out->Add(Hybrid_Route_Edge_End(*b.Topology,*b.Out,edge,false));
 	for (int w = 0; w < edge.Waypoints.Count(); ++w) out->Add(edge.Waypoints[w]);
-	out->Add(edge.NodeB);
+	out->Add(Hybrid_Route_Edge_End(*b.Topology,*b.Out,edge,true));
 }
 
 
@@ -3809,6 +3894,7 @@ static int Unplanned_Crossing_At_Fault(const CornerFailure & corner,const Dynami
 	int nearest = -1;
 	float nearest_distance = 3.4e38f;
 	for (int c = 0; c < crossings.Count(); ++c) {
+		if (crossings[c].Aligned) continue;
 		const unsigned int id = crossings[c].WindowId;
 		bool planned = false;
 		for (int n = 0; (n < stop_window.Count()) && !planned; ++n) {
@@ -4005,9 +4091,11 @@ static void Remove_Stop(int n,int segment_count,DynamicVectorClass<Vector2> * st
 								DynamicVectorClass<unsigned int> * stop_window,DynamicVectorClass<unsigned int> * stop_site,
 								DynamicVectorClass<Vector2> * stop_axis,DynamicVectorClass<unsigned int> * stop_node,
 								DynamicVectorClass<int> * stop_segment,DynamicVectorClass<int> * leg_start,
-								DynamicVectorClass<int> * first_stop,DynamicVectorClass<int> * last_stop)
+								DynamicVectorClass<int> * first_stop,DynamicVectorClass<int> * last_stop,
+								DynamicVectorClass<unsigned int> * stop_align)
 {
 	const int s = (*stop_segment)[n];
+	stop_align->Delete(n);
 	stops->Delete(n);
 	stop_window->Delete(n);
 	stop_site->Delete(n);
@@ -4032,12 +4120,13 @@ static void Next_Envelope_Reset(int s,int segment_count,DynamicVectorClass<Vecto
 										  DynamicVectorClass<int> * stop_segment,DynamicVectorClass<int> * leg_start,
 										  DynamicVectorClass<int> * first_stop,DynamicVectorClass<int> * last_stop,
 										  DynamicVectorClass<int> * unavailable_segment,
-										  DynamicVectorClass<unsigned int> * unavailable_window,DynamicVectorClass<int> * local_used)
+										  DynamicVectorClass<unsigned int> * unavailable_window,DynamicVectorClass<int> * local_used,
+										  DynamicVectorClass<unsigned int> * stop_align)
 {
 	for (int n = stops->Count() - 1; n >= 0; --n) {
 		if (((*stop_segment)[n] != s) || ((*stop_node)[n] != 0) || ((*stop_window)[n] == 0)) continue;
 		Remove_Stop(n,segment_count,stops,stop_window,stop_site,stop_axis,stop_node,stop_segment,leg_start,first_stop,
-						last_stop);
+						last_stop,stop_align);
 	}
 	DynamicVectorClass<int> kept_segment;
 	DynamicVectorClass<unsigned int> kept_window;
@@ -4053,6 +4142,19 @@ static void Next_Envelope_Reset(int s,int segment_count,DynamicVectorClass<Vecto
 		unavailable_window->Add(kept_window[u]);
 	}
 	(*local_used)[s] = 0;
+}
+
+
+//	The interchange anchored at `node`, when Phase 10 has not withdrawn it.
+static const HybridInterchange * Active_Interchange_At(const RouteBuilder & b,unsigned int node)
+{
+	for (int i = 0; i < b.Topology->Interchanges.Count(); ++i) {
+		const HybridInterchange & interchange = b.Topology->Interchanges[i];
+		if ((interchange.AnchorNode != node) || (interchange.Status != HYBRID_INTERCHANGE_ACTIVE)) continue;
+		if (b.Out->Interchange_Withdrawn(interchange.StableId)) continue;
+		return &interchange;
+	}
+	return nullptr;
 }
 
 
@@ -4099,6 +4201,14 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 	DynamicVectorClass<Vector2> stop_axis;				// zero except at an overpass obligation
 	DynamicVectorClass<unsigned int> stop_node;		// the topology node each stop stands for
 	DynamicVectorClass<int> stop_segment;				// the logical edge a stop belongs to
+
+	/*
+	**	Section 12.6.9 item 1: a HIGHWAY_4 trunk through an active interchange anchor X runs straight along the
+	**	frozen axis `a` over [X - S_I, X + S_I].  X becomes three stops, a_I, X and b_I, all marked with the
+	**	interchange; the legs between them are its aligned straight, and the two legs outside them arrive on and
+	**	leave along `a`.
+	*/
+	DynamicVectorClass<unsigned int> stop_align;		// the interchange a stop is aligned through, 0 for none
 	DynamicVectorClass<int> first_stop;					// each logical edge's first stop
 	DynamicVectorClass<RouteVertex> structural_points;
 	b.RoadNodes.Delete_All();
@@ -4115,7 +4225,25 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 			bool known = false;
 			for (int r = 0; (r < b.RoadNodes.Count()) && !known; ++r) known = (b.RoadNodes[r] == nodes[n]);
 			if (!known) b.RoadNodes.Add(nodes[n]);
-			if ((s > 0) && (n == 0)) continue;				//	the stop the previous edge ended on
+			if ((s > 0) && (n == 0)) {							//	the stop the previous edge ended on
+				const HybridInterchange * aligned = (trunk && (road_class == HYBRID_ROAD_HIGHWAY_4))
+																? Active_Interchange_At(b,nodes[n]) : nullptr;
+				if ((aligned != nullptr) && (stops.Count() >= 2)) {
+					//	b_I: the far end of the straight, past X along the road's own travel direction.
+					const Vector2 x_point = stops[stops.Count() - 1];
+					const Vector2 a_point = stops[stops.Count() - 2];
+					const Vector2 axis = (((x_point - a_point).X * aligned->Axis.X) + ((x_point - a_point).Y * aligned->Axis.Y) >= 0.0f)
+												? aligned->Axis : Vector2(-aligned->Axis.X,-aligned->Axis.Y);
+					stops.Add(x_point + (axis * aligned->StraightHalfExtent));
+					stop_window.Add(0);
+					stop_site.Add(0);
+					stop_axis.Add(axis);
+					stop_node.Add(0);
+					stop_segment.Add(s);
+					stop_align.Add(aligned->StableId);
+				}
+				continue;
+			}
 
 			const HybridTopologyNode * node = b.Topology->Find_Node(nodes[n]);
 			if (node == nullptr) continue;
@@ -4156,6 +4284,7 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 					stop_axis.Add(Vector2(0.0f,0.0f));
 					stop_node.Add(node->StableId);
 					stop_segment.Add(s);
+					stop_align.Add(0);
 				}
 				continue;
 			}
@@ -4175,12 +4304,30 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 				}
 			}
 
+			//	a_I before an active interchange anchor X that joins this logical edge to the next.
+			const HybridInterchange * aligned = (trunk && (road_class == HYBRID_ROAD_HIGHWAY_4) && (n == (nodes.Count() - 1)) &&
+															 ((s + 1) < segment_count) && (stops.Count() > 0))
+															? Active_Interchange_At(b,nodes[n]) : nullptr;
+			if (aligned != nullptr) {
+				const Vector2 before = stops[stops.Count() - 1];
+				const Vector2 axis = ((((node->Position - before).X * aligned->Axis.X) + ((node->Position - before).Y * aligned->Axis.Y)) >= 0.0f)
+											? aligned->Axis : Vector2(-aligned->Axis.X,-aligned->Axis.Y);
+				stops.Add(node->Position - (axis * aligned->StraightHalfExtent));
+				stop_window.Add(0);
+				stop_site.Add(0);
+				stop_axis.Add(axis);
+				stop_node.Add(0);
+				stop_segment.Add(s);
+				stop_align.Add(aligned->StableId);
+			}
+
 			stops.Add(node->Position);
 			stop_window.Add(node->WindowId);
 			stop_site.Add((node->Kind == HYBRID_NODE_FIELD_ACCESS) ? node->SiteId : 0);
 			stop_axis.Add(axis);
 			stop_node.Add(node->StableId);
 			stop_segment.Add(s);
+			stop_align.Add((aligned != nullptr) ? aligned->StableId : 0);
 		}
 	}
 	if (stops.Count() < 2) return true;
@@ -4324,6 +4471,7 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 				b.CorridorB		= stops[leg + 1];
 				b.OwnWindow		= (stop_window[leg] != 0) ? stop_window[leg] : stop_window[leg + 1];
 				b.StructuralLeg= (stop_window[leg] != 0) && (stop_window[leg] == stop_window[leg + 1]);
+				b.AlignedLeg	= (stop_align[leg] != 0) && (stop_align[leg] == stop_align[leg + 1]);
 				b.ClosedWindow	= b.StructuralLeg ? 0 : b.OwnWindow;
 				b.OwnFieldSite	= (stop_site[leg] != 0) ? stop_site[leg] : stop_site[leg + 1];
 				b.OwnEndFieldSite = 0;
@@ -4334,7 +4482,7 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 				*/
 				b.ArrivalAxis.Set(0.0f,0.0f);
 				b.DepartureAxis.Set(0.0f,0.0f);
-				if (!b.StructuralLeg) {
+				if (!b.StructuralLeg && !b.AlignedLeg) {
 					if (((leg + 2) < stops.Count()) && (stop_window[leg + 1] != 0) &&
 						 (stop_window[leg + 1] == stop_window[leg + 2])) {
 						b.ArrivalAxis = Unit(stops[leg + 2] - stops[leg + 1]);
@@ -4382,7 +4530,7 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 				**	can carry straight on through the waypoint; only when it cannot does it arrive as it likes and
 				**	leave the corner to the centerline.  The waypoint stays position-only either way.
 				*/
-				const bool to_joint = ((s + 1) < segment_count) && ((leg + 1) == last_stop[s]) && !b.StructuralLeg &&
+				const bool to_joint = ((s + 1) < segment_count) && ((leg + 1) == last_stop[s]) && !b.StructuralLeg && !b.AlignedLeg &&
 											 (stop_window[leg + 1] == 0) && (stop_axis[leg + 1].Length() <= 0.0f) &&
 											 (b.ArrivalAxis.Length() <= 0.0f) && ((leg + 2) < stops.Count());
 				if (to_joint) b.ArrivalAxis = Unit(stops[leg + 2] - stops[leg + 1]);
@@ -4425,6 +4573,31 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 					if (record.LastIndex > record.FirstIndex) crossings.Add(record);
 				}
 
+				//	An aligned leg extends its interchange's straight record (a_I -> X -> b_I): open road, never a span.
+				if (b.AlignedLeg) {
+					int first_index = (chain_before > 0) ? (chain_before - 1) : 0;
+					for (int c = chain.Count() - 1; c >= 0; --c) {
+						if (chain[c] != start) continue;
+						first_index = c;
+						break;
+					}
+					const unsigned int id = ALIGNED_ID_BASE | stop_align[leg];
+					const int last_record = crossings.Count() - 1;
+					if ((last_record >= 0) && crossings[last_record].Aligned && (crossings[last_record].WindowId == id)) {
+						crossings[last_record].LastIndex	= chain.Count() - 1;
+						crossings[last_record].Egress		= stops[leg + 1];
+					} else {
+						RouteCrossing record;
+						record.WindowId	= id;
+						record.Aligned		= true;
+						record.FirstIndex	= first_index;
+						record.LastIndex	= chain.Count() - 1;
+						record.Ingress		= stops[leg];
+						record.Egress		= stops[leg + 1];
+						if (record.LastIndex > record.FirstIndex) crossings.Add(record);
+					}
+				}
+
 				//	The heading this leg ends on is the heading the next one starts with.
 				if (chain.Count() >= 2) {
 					const int direction = Chain_Direction(b,chain[chain.Count() - 2],chain[chain.Count() - 1]);
@@ -4437,17 +4610,26 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 					entry_direction = Nearest_Direction(Unit(stops[leg + 1] - stops[leg]));
 					entry_run_override = (stops[leg + 1] - stops[leg]).Length();
 				}
+				if (b.AlignedLeg) {
+					int from_stop = leg;
+					while ((from_stop > 0) && (stop_align[from_stop - 1] == stop_align[leg])) from_stop--;
+					entry_direction = Nearest_Direction(Unit(stops[leg + 1] - stops[leg]));
+					entry_run_override = (stops[leg + 1] - stops[from_stop]).Length();
+				}
 			}
 			segment_expansions[s] = b.Expansions;
 		}
 
 		if (!routed) {
-			if ((result != nullptr) && (result->Failure == HYBRID_ROUTE_EXPANSION_BUDGET)) return false;
+			if ((result != nullptr) && (result->Failure == HYBRID_ROUTE_EXPANSION_BUDGET)) {
+				b.LastFailedEdge = segments[failed_segment]->StableId;
+				return false;
+			}
 			if (envelope[failed_segment] >= 2) break;
 			envelope[failed_segment]++;				// no path in this envelope: widen this logical edge
 			Next_Envelope_Reset(failed_segment,segment_count,&stops,&stop_window,&stop_site,&stop_axis,&stop_node,
 									  &stop_segment,&leg_start,&first_stop,&last_stop,&unavailable_segment,
-									  &unavailable_window,&local_used);
+									  &unavailable_window,&local_used,&stop_align);
 			restart = failed_segment;
 			continue;
 		}
@@ -4603,8 +4785,8 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 				 (local_used[stop_segment[promoted_stop]] < local_limit)) {
 				const int s = stop_segment[promoted_stop];
 				for (int side = 0; side < 2; ++side) {
-					Remove_Stop(promoted_stop,segment_count,&stops,&stop_window,&stop_site,&stop_axis,&stop_node,
-									&stop_segment,&leg_start,&first_stop,&last_stop);
+				Remove_Stop(promoted_stop,segment_count,&stops,&stop_window,&stop_site,&stop_axis,&stop_node,
+								&stop_segment,&leg_start,&first_stop,&last_stop,&stop_align);
 				}
 				unavailable_segment.Add(s);
 				unavailable_window.Add(all_crossings[withdrawn_fault].WindowId);
@@ -4638,6 +4820,7 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 					stop_site.Insert(fault_leg + 1,0);
 					stop_axis.Insert(fault_leg + 1,Vector2(0.0f,0.0f));
 					stop_node.Insert(fault_leg + 1,0);
+					stop_align.Insert(fault_leg + 1,0);
 					stop_segment.Insert(fault_leg + 1,s);
 					leg_start.Insert(fault_leg + 1,0);
 				}
@@ -4654,7 +4837,7 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 			envelope[failed_segment]++;
 			Next_Envelope_Reset(failed_segment,segment_count,&stops,&stop_window,&stop_site,&stop_axis,&stop_node,
 									  &stop_segment,&leg_start,&first_stop,&last_stop,&unavailable_segment,
-									  &unavailable_window,&local_used);
+									  &unavailable_window,&local_used,&stop_align);
 			restart = failed_segment;
 			continue;
 		}
@@ -4851,6 +5034,7 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 
 	//	No legal road: the logical edge it failed on fails the attempt, or is dropped when it is optional.
 	const HybridTopologyEdge & edge = *segments[failed_segment];
+	b.LastFailedEdge = edge.StableId;
 	if (!edge.Required) {
 		WWDEBUG_SAY(("Hybrid Phase 10: optional edge %u (%s) has no legal route and is dropped\r\n",
 						 edge.StableId,Hybrid_Topology_Edge_Kind_Name(edge.Kind)));
@@ -4952,6 +5136,552 @@ static void Family_Trunk_Edges(const HybridTopology & topology,int family,
 **	The Phase 10 gate.
 ***********************************************************************************************/
 
+/***********************************************************************************************
+**	Section 12.6.9: routing group 1b -- realizing Phase 9's frozen interchanges on the routed highway.
+**
+**	Phase 10 never moves a gore, swaps a side or picks another candidate: it realizes the frozen interchange or
+**	withdraws it to its frozen Phase-9 fallback variant (item 3), the only fallback the plan allows.
+***********************************************************************************************/
+
+//	The side frame of 12.6.7: tau_RIGHT = a, tau_LEFT = -a; n_s is to the right of tau_s.
+static Vector2 Interchange_World(const Vector2 & x_point,const Vector2 & axis,int side,const Vector2 & local)
+{
+	const Vector2 tau = (side == HYBRID_INTERCHANGE_SIDE_RIGHT) ? axis : Vector2(-axis.X,-axis.Y);
+	const Vector2 normal = (side == HYBRID_INTERCHANGE_SIDE_RIGHT) ? Vector2(axis.Y,-axis.X) : Vector2(-axis.Y,axis.X);
+	return x_point + (tau * local.X) + (normal * local.Y);
+}
+
+
+//	Is the routed highway straight along `axis` over [X - extent, X + extent], through X?
+static bool Highway_Is_Aligned(const DynamicVectorClass<Vector2> & points,const Vector2 & x_point,const Vector2 & axis,
+										 float extent,float q,float spacing,StringClass * why)
+{
+	int at = -1;
+	float best = 3.4e38f;
+	for (int i = 0; i < points.Count(); ++i) {
+		const float distance = (points[i] - x_point).Length();
+		if (distance >= best) continue;
+		best	= distance;
+		at		= i;
+	}
+	if ((at < 0) || (best > (spacing + (2.0f * q)))) {
+		if (why != nullptr) why->Format("the routed highway misses X by %.3f",best);
+		return false;
+	}
+	const Vector2 travel = Unit(points[((at + 1) < points.Count()) ? (at + 1) : at] - points[(at > 0) ? (at - 1) : at]);
+	const Vector2 along = (((travel.X * axis.X) + (travel.Y * axis.Y)) >= 0.0f) ? axis : Vector2(-axis.X,-axis.Y);
+	const Vector2 offset = points[at] - x_point;
+	const float across = (float)fabs((double)((offset.X * along.Y) - (offset.Y * along.X)));
+	if (across > (2.0f * q)) {
+		if (why != nullptr) why->Format("the routed highway passes %.3f off X",across);
+		return false;
+	}
+	float behind = 0.0f;
+	float ahead = 0.0f;
+	Hybrid_Polyline_Straight_Run(points,at,along,q,&behind,&ahead);
+	const float shift = (offset.X * along.X) + (offset.Y * along.Y);
+	if (((behind + shift) < (extent - spacing)) || ((ahead - shift) < (extent - spacing))) {
+		if (why != nullptr) why->Format("the routed highway is straight only %.3f behind and %.3f ahead of X, %.3f needed",
+												  behind + shift,ahead - shift,extent);
+		return false;
+	}
+	return true;
+}
+
+
+//	The shortest distance from `point` to a polyline.
+static float Polyline_Distance(const DynamicVectorClass<Vector2> & points,const Vector2 & point)
+{
+	float best = 3.4e38f;
+	for (int i = 1; i < points.Count(); ++i) {
+		const Vector2 d = points[i] - points[i - 1];
+		const float length2 = (d.X * d.X) + (d.Y * d.Y);
+		float t_on = (length2 > 0.0f) ? ((((point.X - points[i - 1].X) * d.X) + ((point.Y - points[i - 1].Y) * d.Y)) / length2) : 0.0f;
+		t_on = Clamp2(t_on,0.0f,1.0f);
+		best = Min2(best,(point - (points[i - 1] + (d * t_on))).Length());
+	}
+	return best;
+}
+
+
+/*
+**	One constructed road's samples against 12.6.8's exclusions on the realized world, its class grade, and every
+**	already routed group-1 roadbed.  `own_highway` (a HIGHWAY_4 logical edge pair) may be touched only where
+**	`allow_own` says so -- a ramp inside its converged gore wedge, a crossing at X.  `inner_edge`/`outer_edge` are
+**	the roadbed edges about the reference spline (left of travel negative).
+*/
+struct ConstructedCheck
+{
+	unsigned int	OwnIn;
+	unsigned int	OwnOut;
+	Vector2			X;
+	Vector2			Axis;
+	int				Side;
+	float				OwnReach;				// a sample whose side-frame offset is at most this may touch its own highway
+	float				OwnAlong;				// ...or, for a crossing, one within this of X along the crossing
+	bool				IsRamp;
+	float				GoreStation;			// ramp: the station of its gore along the samples
+	HybridInterchangeConstants	C;
+};
+
+
+static bool Constructed_Road_Is_Legal(RouteBuilder & b,const DynamicVectorClass<Vector2> & points,
+												  const DynamicVectorClass<float> & stations,HybridRoadClass road_class,
+												  const ConstructedCheck & check,StringClass * why)
+{
+	const HybridConstants & k = b.P->Constants;
+	const float max_grade = Hybrid_Road_Class_Spec(road_class).MaxGradeDegrees * PI_OVER_180;
+	const float inner_offset = -Hybrid_Road_Inner_Edge_Offset(road_class,k.W);
+	const float outer_offset = Hybrid_Road_Outer_Edge_Offset(road_class,k.W);
+	HybridVerticalInterval previous;
+
+	for (int i = 0; i < points.Count(); ++i) {
+
+		const int q = ((i + 1) < points.Count()) ? (i + 1) : i;
+		const int r = ((i + 1) < points.Count()) ? i : (i - 1);
+		const Vector2 travel = Unit(points[q] - points[r]);
+		const Vector2 left(-travel.Y,travel.X);
+		float inner = inner_offset;
+		float outer = outer_offset;
+		if (check.IsRamp) {
+			float inner_shoulder = 0.0f;
+			float outer_shoulder = 0.0f;
+			Hybrid_Ramp_Gore_Shoulders(check.C,(float)fabs((double)(stations[i] - check.GoreStation)),&inner_shoulder,&outer_shoulder);
+			inner = (0.5f * k.W) + inner_shoulder;
+			outer = (0.5f * k.W) + outer_shoulder;
+		}
+		const Vector2 probes[3] = { points[i],points[i] + (left * inner),points[i] - (left * outer) };
+		for (int p = 0; p < 3; ++p) {
+			if ((Classify_Point(b,probes[p]) != 0) || Hybrid_Point_In_Water(*b.Hydrology,probes[p]) ||
+				 Hybrid_Point_In_Immutable_Landform(*b.Landforms,probes[p])) {
+				if (why != nullptr) why->Format("sample %d stands on refused ground (%.1f,%.1f)",i,probes[p].X,probes[p].Y);
+				return false;
+			}
+		}
+		if ((i > 0) && Segment_Meets_River(b,points[i - 1],points[i],nullptr)) {
+			if (why != nullptr) why->Format("step %d crosses a river; a constructed road never has its own bridge",i);
+			return false;
+		}
+
+		float z = 0.0f;
+		if (!Height_At(b,points[i],&z)) {
+			if (why != nullptr) why->Format("sample %d has no ground",i);
+			return false;
+		}
+		const HybridVerticalInterval interval = Hybrid_Road_Vertical_Interval(z,b.P->MaxCutDepth,b.P->MaxFillHeight);
+		if ((i > 0) && !Hybrid_Grade_Compatible(previous,interval,stations[i] - stations[i - 1],max_grade)) {
+			if (why != nullptr) why->Format("step %d breaks the class grade",i);
+			return false;
+		}
+		previous = interval;
+
+		//	Every routed group-1 roadbed, its own highway only where the construction meets it.
+		for (int o = 0; o < b.Out->Routes.Count(); ++o) {
+			const HybridRoute & other = b.Out->Routes[o];
+			if (other.Priority != HYBRID_ROUTE_PRIORITY_FAMILY_TRUNK) continue;
+			const bool own = (other.EdgeId == check.OwnIn) || (other.EdgeId == check.OwnOut);
+			if (own) {
+				const Vector2 offset = points[i] - check.X;
+				const Vector2 normal = (check.Side == HYBRID_INTERCHANGE_SIDE_RIGHT) ? Vector2(check.Axis.Y,-check.Axis.X)
+																										  : Vector2(-check.Axis.Y,check.Axis.X);
+				const float lateral = (offset.X * normal.X) + (offset.Y * normal.Y);
+				if (check.IsRamp && (lateral <= check.OwnReach)) continue;
+				if (!check.IsRamp && ((float)fabs((double)lateral) <= check.OwnAlong)) continue;
+			}
+			const float clearance = (0.5f * Hybrid_Roadbed_Width(other.RoadClass,k.W)) + Max2(inner,outer);
+			if (Polyline_Distance(other.Points,points[i]) < clearance) {
+				if (why != nullptr) why->Format("sample %d meets the roadbed of group-1 road %u",i,other.EdgeId);
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+
+//	The route record of a constructed road: samples from its NodeA to its NodeB, and the cells they stand in.
+static void Constructed_Route(RouteBuilder & b,const HybridTopologyEdge & edge,const DynamicVectorClass<Vector2> & points,
+										HybridRoute * out)
+{
+	out->EdgeId			= edge.StableId;
+	out->RoadClass		= edge.RoadClass;
+	out->Priority		= HYBRID_ROUTE_PRIORITY_INTERCHANGE;
+	out->RouteFamily	= -1;
+	out->Envelope		= 0;
+	out->Required		= edge.Required;
+	out->Capabilities	= edge.Capabilities;
+	out->InterchangeId= edge.InterchangeId;
+	out->RampRole		= edge.RampRole;
+	out->RampSide		= edge.RampSide;
+	out->RampInterval	= edge.RampInterval;
+	float station = 0.0f;
+	for (int i = 0; i < points.Count(); ++i) {
+		if (i > 0) station += (points[i] - points[i - 1]).Length();
+		out->Points.Add(Vector2(Hybrid_Quantize_Position(points[i].X),Hybrid_Quantize_Position(points[i].Y)));
+		out->Stations.Add(Hybrid_Quantize_Position(station));
+		const int cell = b.Cell_Of(points[i]);
+		if ((out->Cells.Count() == 0) || (out->Cells[out->Cells.Count() - 1] != cell)) out->Cells.Add(cell);
+	}
+	out->Length = Hybrid_Quantize_Position(station);
+	for (int w = 0; w < edge.Waypoints.Count(); ++w) out->Waypoints.Add(edge.Waypoints[w]);
+	Vector2 lo = (points.Count() > 0) ? points[0] : Vector2(0.0f,0.0f);
+	Vector2 hi = lo;
+	for (int i = 1; i < points.Count(); ++i) {
+		lo.Set(Min2(lo.X,points[i].X),Min2(lo.Y,points[i].Y));
+		hi.Set(Max2(hi.X,points[i].X),Max2(hi.Y,points[i].Y));
+	}
+	out->BoundsMin = lo;
+	out->BoundsMax = hi;
+}
+
+
+//	A straight from `from` to `to`, sampled at `spacing`, both ends included.
+static void Straight_Points(const Vector2 & from,const Vector2 & to,float spacing,DynamicVectorClass<Vector2> * points,
+									 DynamicVectorClass<float> * stations)
+{
+	const float length = (to - from).Length();
+	int steps = (int)::ceil((double)(length / Max2(spacing,1.0e-3f)));
+	if (steps < 1) steps = 1;
+	for (int i = 0; i <= steps; ++i) {
+		const float t_on = (float)i / (float)steps;
+		points->Add(from + ((to - from) * t_on));
+		stations->Add(length * t_on);
+	}
+}
+
+
+//	Withdraws an interchange (12.6.9 item 3): its constructed routes and widened intervals go, its arrivals end at X.
+static void Withdraw_Interchange(RouteBuilder & b,unsigned int interchange_id)
+{
+	if (b.Out->Interchange_Withdrawn(interchange_id)) return;
+	int slot = b.Out->WithdrawnInterchanges.Count();
+	b.Out->WithdrawnInterchanges.Add(interchange_id);
+	while ((slot > 0) && (b.Out->WithdrawnInterchanges[slot - 1] > interchange_id)) {
+		b.Out->WithdrawnInterchanges[slot] = b.Out->WithdrawnInterchanges[slot - 1];
+		slot--;
+	}
+	b.Out->WithdrawnInterchanges[slot] = interchange_id;
+
+	DynamicVectorClass<HybridRoute> kept;
+	for (int r = 0; r < b.Out->Routes.Count(); ++r) {
+		HybridRoute route = b.Out->Routes[r];
+		if (route.InterchangeId == interchange_id) continue;
+		DynamicVectorClass<HybridWidenedInterval> widened;
+		for (int w = 0; w < route.Widened.Count(); ++w) {
+			if (route.Widened[w].InterchangeId != interchange_id) widened.Add(route.Widened[w]);
+		}
+		route.Widened.Delete_All();
+		for (int w = 0; w < widened.Count(); ++w) route.Widened.Add(widened[w]);
+		kept.Add(route);
+	}
+	b.Out->Routes.Delete_All();
+	for (int r = 0; r < kept.Count(); ++r) b.Out->Routes.Add(kept[r]);
+}
+
+
+/*
+**	Group 1b for one active interchange: the highway's alignment re-validated, then the crossing edge(s), then the
+**	ramps RIGHT then LEFT, OFF then ON, each exactly by 12.6.7 on the routed highway and re-validated against the
+**	realized world and every group-1 roadbed.  True with the routes added; false (nothing added) to withdraw.
+*/
+static bool Construct_Interchange(RouteBuilder & b,const HybridInterchange & ic,StringClass * why)
+{
+	const HybridConstants & k = b.P->Constants;
+	const float spacing = Min2(k.W / 3.0f,0.25f * k.A);
+	HybridInterchangeConstants c;
+	Hybrid_Interchange_Constants(k.W,&c);
+	const HybridTopologyNode * anchor = b.Topology->Find_Node(ic.AnchorNode);
+	const HybridTrunkRoad * trunk = b.Out->Find_Trunk(ic.HighwayEdgeIn);
+	if ((anchor == nullptr) || (trunk == nullptr)) {
+		why->Format("interchange %u has no routed highway",ic.StableId);
+		return false;
+	}
+	const Vector2 x_point = anchor->Position;
+	if (!Highway_Is_Aligned(trunk->Points,x_point,ic.Axis,ic.StraightHalfExtent,k.Q,Min2(k.W,0.5f * k.A),why)) return false;
+
+	HybridRampCandidate cand;
+	Hybrid_Ramp_Candidate(c,ic.SelectedK,0.0f,&cand);
+	cand.LocalOffset				= ic.LocalOffset;
+	cand.GoreOffset				= ic.GoreOffset;
+	cand.StraightHalfExtent		= ic.StraightHalfExtent;
+
+	ConstructedCheck check;
+	check.OwnIn		= ic.HighwayEdgeIn;
+	check.OwnOut	= ic.HighwayEdgeOut;
+	check.X			= x_point;
+	check.Axis		= ic.Axis;
+	check.C			= c;
+
+	DynamicVectorClass<HybridRoute> built;
+
+	//	The DIAMOND crossing: the straight L_RIGHT -> L_LEFT through X, one edge or two.
+	if (ic.Form == HYBRID_INTERCHANGE_DIAMOND_ACCESS) {
+		const Vector2 right = Interchange_World(x_point,ic.Axis,HYBRID_INTERCHANGE_SIDE_RIGHT,Vector2(0.0f,ic.LocalOffset));
+		const Vector2 left = Interchange_World(x_point,ic.Axis,HYBRID_INTERCHANGE_SIDE_LEFT,Vector2(0.0f,ic.LocalOffset));
+		for (int e = 0; e < ic.CrossingEdges.Count(); ++e) {
+			const HybridTopologyEdge * edge = b.Topology->Find_Edge(ic.CrossingEdges[e]);
+			if (edge == nullptr) continue;
+			Vector2 from = right;
+			Vector2 to = left;
+			if (ic.CrossingEdges.Count() == 2) {
+				from	= (e == 0) ? right : x_point;
+				to		= (e == 0) ? x_point : left;
+			}
+			DynamicVectorClass<Vector2> points;
+			DynamicVectorClass<float> stations;
+			Straight_Points(from,to,spacing,&points,&stations);
+			check.Side		= HYBRID_INTERCHANGE_SIDE_RIGHT;
+			check.IsRamp	= false;
+			check.OwnReach	= 0.0f;
+			check.OwnAlong	= c.EHwy + (0.5f * Hybrid_Roadbed_Width(edge->RoadClass,k.W)) +
+								  ((ic.CrossingMode == HYBRID_INTERCHANGE_CROSSING_GRADE_SEPARATED) ? (ic.LocalOffset - c.EHwy) : 0.0f);
+			check.GoreStation= 0.0f;
+			if (!Constructed_Road_Is_Legal(b,points,stations,edge->RoadClass,check,why)) {
+				StringClass inner = *why;
+				why->Format("interchange %u crossing edge %u: %s",ic.StableId,edge->StableId,inner.Peek_Buffer());
+				return false;
+			}
+			HybridRoute route;
+			Constructed_Route(b,*edge,points,&route);
+			built.Add(route);
+		}
+	}
+
+	//	The ramps, RIGHT then LEFT, OFF then ON -- the order Phase 9 created them in.
+	for (int e = 0; e < ic.RampEdges.Count(); ++e) {
+		const HybridTopologyEdge * edge = b.Topology->Find_Edge(ic.RampEdges[e]);
+		if (edge == nullptr) continue;
+		Vector2 polygon[4];
+		Hybrid_Ramp_Control_Polygon(c,cand,edge->RampRole,polygon);
+		DynamicVectorClass<Vector2> local_points;
+		DynamicVectorClass<float> local_stations;
+		if (!Hybrid_Ramp_Centerline(polygon,c.RampRadius,k.Q,spacing,&local_points,&local_stations)) {
+			why->Format("interchange %u ramp %u cannot be built at R_r",ic.StableId,edge->StableId);
+			return false;
+		}
+
+		//	World samples from L_s (NodeA) to the gore: an OFF_RAMP is built gore -> L_s and is reversed.
+		DynamicVectorClass<Vector2> points;
+		DynamicVectorClass<float> stations;
+		const int count = local_points.Count();
+		const float total = local_stations[count - 1];
+		for (int i = 0; i < count; ++i) {
+			const int source = (edge->RampRole == HYBRID_RAMP_ROLE_OFF) ? (count - 1 - i) : i;
+			points.Add(Interchange_World(x_point,ic.Axis,edge->RampSide,local_points[source]));
+			stations.Add((edge->RampRole == HYBRID_RAMP_ROLE_OFF) ? (total - local_stations[source]) : local_stations[source]);
+		}
+
+		//	The gore, exactly where Phase 9 froze it.
+		const Vector2 gore = Interchange_World(x_point,ic.Axis,edge->RampSide,
+															Vector2((edge->RampRole == HYBRID_RAMP_ROLE_OFF) ? -ic.GoreOffset : ic.GoreOffset,c.DAux));
+		if ((points[count - 1] - gore).Length() > (2.0f * k.Q)) {
+			why->Format("interchange %u ramp %u ends %.3f from its frozen gore",ic.StableId,edge->StableId,
+							(points[count - 1] - gore).Length());
+			return false;
+		}
+
+		check.Side			= edge->RampSide;
+		check.IsRamp		= true;
+		check.OwnReach		= c.DSep + k.Q;
+		check.OwnAlong		= 0.0f;
+		check.GoreStation	= stations[count - 1];
+		if (!Constructed_Road_Is_Legal(b,points,stations,HYBRID_ROAD_HIGHWAY_RAMP,check,why)) {
+			StringClass inner = *why;
+			why->Format("interchange %u ramp %u: %s",ic.StableId,edge->StableId,inner.Peek_Buffer());
+			return false;
+		}
+		HybridRoute route;
+		Constructed_Route(b,*edge,points,&route);
+		built.Add(route);
+	}
+
+	//	Realized: the routes, the highway's widened intervals, and the footprint every later road keeps out of.
+	for (int r = 0; r < built.Count(); ++r) b.Out->Routes.Add(built[r]);
+	for (int e = 0; e < ic.RampEdges.Count(); ++e) {
+		const HybridTopologyEdge * ramp = b.Topology->Find_Edge(ic.RampEdges[e]);
+		if (ramp == nullptr) continue;
+		const unsigned int highway = (ramp->RampInterval.From >= 0.0f) ? ic.HighwayEdgeOut : ic.HighwayEdgeIn;
+		for (int r = 0; r < b.Out->Routes.Count(); ++r) {
+			if (b.Out->Routes[r].EdgeId != highway) continue;
+			HybridWidenedInterval widened;
+			widened.InterchangeId	= ic.StableId;
+			widened.RampEdgeId		= ramp->StableId;
+			widened.Role				= ramp->RampRole;
+			widened.Side				= ramp->RampSide;
+			widened.Interval			= ramp->RampInterval;
+			b.Out->Routes[r].Widened.Add(widened);
+		}
+	}
+	for (int side = 0; side < HYBRID_INTERCHANGE_SIDE_COUNT; ++side) {
+		if ((ic.AccessSides & (1u << side)) == 0) continue;
+		b.FootprintStart.Add(b.FootprintPoints.Count());
+		DynamicVectorClass<Vector2> local;
+		local.Add(Vector2(-ic.GoreOffset - c.DivergeLength,0.0f));
+		for (float along = 0.0f; along <= c.DivergeLength; along += spacing) {
+			HybridAuxiliaryLaneSection section;
+			Hybrid_Auxiliary_Lane_Section(c,HYBRID_RAMP_ROLE_OFF,along,&section);
+			local.Add(Vector2(-ic.GoreOffset - c.DivergeLength + along,section.D));
+		}
+		Vector2 polygon[4];
+		DynamicVectorClass<Vector2> ramp_points;
+		DynamicVectorClass<float> ramp_stations;
+		Hybrid_Ramp_Control_Polygon(c,cand,HYBRID_RAMP_ROLE_OFF,polygon);
+		if (Hybrid_Ramp_Centerline(polygon,c.RampRadius,k.Q,spacing,&ramp_points,&ramp_stations)) {
+			for (int i = 0; i < ramp_points.Count(); ++i) local.Add(ramp_points[i]);
+		}
+		ramp_points.Delete_All();
+		ramp_stations.Delete_All();
+		Hybrid_Ramp_Control_Polygon(c,cand,HYBRID_RAMP_ROLE_ON,polygon);
+		if (Hybrid_Ramp_Centerline(polygon,c.RampRadius,k.Q,spacing,&ramp_points,&ramp_stations)) {
+			for (int i = 0; i < ramp_points.Count(); ++i) local.Add(ramp_points[i]);
+		}
+		for (float along = 0.0f; along <= c.MergeLength; along += spacing) {
+			HybridAuxiliaryLaneSection section;
+			Hybrid_Auxiliary_Lane_Section(c,HYBRID_RAMP_ROLE_ON,along,&section);
+			local.Add(Vector2(ic.GoreOffset + along,section.D));
+		}
+		local.Add(Vector2(ic.GoreOffset + c.MergeLength,0.0f));
+		for (int i = 0; i < local.Count(); ++i) b.FootprintPoints.Add(Interchange_World(x_point,ic.Axis,side,local[i]));
+		b.FootprintCount.Add(local.Count());
+	}
+	return true;
+}
+
+
+static void Construct_Interchanges(RouteBuilder & b)
+{
+	for (int i = 0; i < b.Topology->Interchanges.Count(); ++i) {
+		const HybridInterchange & ic = b.Topology->Interchanges[i];
+		if ((ic.Status != HYBRID_INTERCHANGE_ACTIVE) || b.Out->Interchange_Withdrawn(ic.StableId)) continue;
+		StringClass why;
+		if (Construct_Interchange(b,ic,&why)) continue;
+		WWDEBUG_SAY(("Hybrid Phase 10: interchange %u withdrawn in group 1b: %s\r\n",ic.StableId,why.Peek_Buffer()));
+		Withdraw_Interchange(b,ic.StableId);
+	}
+}
+
+
+/*
+**	The tightest turn of a sampled road, measured as the route validator measures curvature: the circle through
+**	three samples `baseline` apart, so the position quantum the samples were written to is not read as a turn.
+*/
+static float Sampled_Tightest_Radius(const DynamicVectorClass<Vector2> & points,int baseline)
+{
+	float tightest = 3.4e38f;
+	const int step = (baseline > 1) ? baseline : 1;
+	for (int i = step; (i + step) < points.Count(); ++i) {
+		const Vector2 p = points[i - step];
+		const Vector2 q = points[i];
+		const Vector2 r = points[i + step];
+		const float cross = ((q.X - p.X) * (r.Y - p.Y)) - ((q.Y - p.Y) * (r.X - p.X));
+		const float a = (q - p).Length();
+		const float bb = (r - q).Length();
+		const float cc = (r - p).Length();
+		if ((float)fabs((double)cross) <= (1.0e-4f * a * cc)) continue;
+		tightest = Min2(tightest,(a * bb * cc) / (2.0f * (float)fabs((double)cross)));
+	}
+	return tightest;
+}
+
+
+/*
+**	The Phase-10 gate's interchange clause (12.6.9): every active interchange is realized exactly as frozen -- the
+**	highway straight through X over its extent, every ramp from its local junction to its frozen gore at d_aux with
+**	the highway tangent and no turn under R_r, every crossing edge routed -- and no road routed after group 1b
+**	enters an active footprint outside its own end cells.
+*/
+static bool Check_Interchanges_Gate(RouteBuilder & b,StringClass * detail)
+{
+	const HybridConstants & k = b.P->Constants;
+	HybridInterchangeConstants c;
+	Hybrid_Interchange_Constants(k.W,&c);
+
+	for (int i = 0; i < b.Topology->Interchanges.Count(); ++i) {
+
+		const HybridInterchange & ic = b.Topology->Interchanges[i];
+		if ((ic.Status != HYBRID_INTERCHANGE_ACTIVE) || b.Out->Interchange_Withdrawn(ic.StableId)) continue;
+		const HybridTopologyNode * anchor = b.Topology->Find_Node(ic.AnchorNode);
+		const HybridTrunkRoad * trunk = b.Out->Find_Trunk(ic.HighwayEdgeIn);
+		if ((anchor == nullptr) || (trunk == nullptr) ||
+			 !Highway_Is_Aligned(trunk->Points,anchor->Position,ic.Axis,ic.StraightHalfExtent,k.Q,Min2(k.W,0.5f * k.A),detail)) {
+			StringClass inner = *detail;
+			detail->Format("interchange %u: %s",ic.StableId,inner.Peek_Buffer());
+			return false;
+		}
+		for (int e = 0; e < ic.CrossingEdges.Count(); ++e) {
+			if (b.Out->Find(ic.CrossingEdges[e]) != nullptr) continue;
+			detail->Format("interchange %u: crossing edge %u has no route",ic.StableId,ic.CrossingEdges[e]);
+			return false;
+		}
+		for (int e = 0; e < ic.RampEdges.Count(); ++e) {
+			const HybridTopologyEdge * edge = b.Topology->Find_Edge(ic.RampEdges[e]);
+			const HybridRoute * route = b.Out->Find(ic.RampEdges[e]);
+			const HybridTopologyNode * local = (edge != nullptr) ? b.Topology->Find_Node(edge->NodeA) : nullptr;
+			if ((edge == nullptr) || (route == nullptr) || (local == nullptr) || (route->Points.Count() < 3)) {
+				detail->Format("interchange %u: ramp %u has no route",ic.StableId,ic.RampEdges[e]);
+				return false;
+			}
+			const int last = route->Points.Count() - 1;
+			const Vector2 gore = Interchange_World(anchor->Position,ic.Axis,edge->RampSide,
+																Vector2((edge->RampRole == HYBRID_RAMP_ROLE_OFF) ? -ic.GoreOffset : ic.GoreOffset,c.DAux));
+			if (((route->Points[0] - local->Position).Length() > (2.0f * k.Q)) || ((route->Points[last] - gore).Length() > (2.0f * k.Q))) {
+				detail->Format("interchange %u: ramp %u does not run from its local junction to its frozen gore",ic.StableId,edge->StableId);
+				return false;
+			}
+			//	The arc's tangent at the gore (the circle through the last three samples), against the highway axis.
+			const Vector2 p0 = route->Points[last - 2];
+			const Vector2 p1 = route->Points[last - 1];
+			const float d = 2.0f * ((p0.X * (p1.Y - gore.Y)) + (p1.X * (gore.Y - p0.Y)) + (gore.X * (p0.Y - p1.Y)));
+			float heading_error = 0.0f;
+			if ((float)fabs((double)d) > 1.0e-6f) {
+				const float a2 = (p0.X * p0.X) + (p0.Y * p0.Y);
+				const float b2 = (p1.X * p1.X) + (p1.Y * p1.Y);
+				const float g2 = (gore.X * gore.X) + (gore.Y * gore.Y);
+				const Vector2 centre(((a2 * (p1.Y - gore.Y)) + (b2 * (gore.Y - p0.Y)) + (g2 * (p0.Y - p1.Y))) / d,
+											((a2 * (gore.X - p1.X)) + (b2 * (p0.X - gore.X)) + (g2 * (p1.X - p0.X))) / d);
+				const Vector2 radial = Unit(gore - centre);
+				heading_error = (float)fabs((double)((radial.X * ic.Axis.X) + (radial.Y * ic.Axis.Y)));
+				heading_error = (float)asin((double)Min2(heading_error,1.0f));
+			} else {
+				const Vector2 chord = Unit(gore - p1);
+				const float cross = (float)fabs((double)((chord.X * ic.Axis.Y) - (chord.Y * ic.Axis.X)));
+				heading_error = (float)asin((double)Min2(cross,1.0f));
+			}
+			if (heading_error > 0.001f) {
+				detail->Format("interchange %u: ramp %u meets its gore %.5f rad off the highway tangent",ic.StableId,edge->StableId,
+									heading_error);
+				return false;
+			}
+			const float spacing = Min2(k.W / 3.0f,0.25f * k.A);
+			const int baseline = (int)Hybrid_Round_Half_Up(c.RampRadius / Max2(spacing,k.Q));
+			if (Sampled_Tightest_Radius(route->Points,baseline) < (0.99f * c.RampRadius)) {
+				detail->Format("interchange %u: ramp %u turns under R_r",ic.StableId,edge->StableId);
+				return false;
+			}
+		}
+	}
+
+	//	The footprints, against every road routed after group 1b.
+	for (int r = 0; r < b.Out->Routes.Count(); ++r) {
+		const HybridRoute & route = b.Out->Routes[r];
+		if ((route.Priority == HYBRID_ROUTE_PRIORITY_FAMILY_TRUNK) || (route.Priority == HYBRID_ROUTE_PRIORITY_INTERCHANGE)) continue;
+		const int first_cell = (route.Cells.Count() > 0) ? route.Cells[0] : -1;
+		const int last_cell = (route.Cells.Count() > 0) ? route.Cells[route.Cells.Count() - 1] : -1;
+		for (int p = 0; p < route.Points.Count(); ++p) {
+			const int cell = b.Cell_Of(route.Points[p]);
+			if ((cell == first_cell) || (cell == last_cell)) continue;
+			for (int f = 0; f < b.FootprintStart.Count(); ++f) {
+				if (!Point_In_Footprint(b,f,route.Points[p])) continue;
+				detail->Format("route %u enters an interchange footprint at (%.1f,%.1f)",route.EdgeId,route.Points[p].X,
+									route.Points[p].Y);
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+
 static bool Check_Gate(RouteBuilder & b,HybridRouteResult * result)
 {
 	StringClass detail;
@@ -4960,6 +5690,7 @@ static bool Check_Gate(RouteBuilder & b,HybridRouteResult * result)
 
 		const HybridTopologyEdge & edge = b.Topology->Edges[e];
 		if (!edge.Is_Realized()) continue;
+		if (Hybrid_Route_Edge_Withdrawn(*b.Topology,*b.Out,edge)) continue;		// 12.6.9: inactive after withdrawal
 
 		const HybridRoute * route = b.Out->Find(edge.StableId);
 		if (route == nullptr) {
@@ -5109,6 +5840,8 @@ bool Hybrid_Build_Routes(const HybridRouteParams & params,const HybridMapIdentit
 	b.CacheStamp	= nullptr;
 	b.CacheEdge		= nullptr;
 	b.Generation	= 0;
+	b.AlignedLeg	= false;
+	b.LastFailedEdge= 0;
 	b.LastChain		= nullptr;
 	b.LastChainCount = 0;
 	b.CurrentClass	= HYBRID_ROAD_PRIMARY_2;
@@ -5150,6 +5883,7 @@ bool Hybrid_Build_Routes(const HybridRouteParams & params,const HybridMapIdentit
 
 			const HybridTopologyEdge & edge = topology.Edges[e];
 			if (!edge.Is_Realized()) continue;
+			if ((edge.Kind == HYBRID_EDGE_HIGHWAY_RAMP) || (edge.Kind == HYBRID_EDGE_INTERCHANGE_CROSSING)) continue;
 			if ((int)Hybrid_Route_Priority_Of(topology,edge) != priority) continue;
 
 			/*
@@ -5171,12 +5905,49 @@ bool Hybrid_Build_Routes(const HybridRouteParams & params,const HybridMapIdentit
 				segments.Add(&edge);
 			}
 
-			if (!Route_Road(b,segments,result)) { out->Reset(); return false; }
+			/*
+			**	12.6.9 item 3(a): a highway edge carrying interchange alignment that fails its third envelope withdraws
+			**	the interchange at its ends that is later in processing order, and is routed again from its first
+			**	envelope; when none remains it fails by the ordinary rule.  Only before group 1b starts.
+			*/
+			for (;;) {
+				if (Route_Road(b,segments,result)) break;
+				unsigned int withdraw = 0;
+				const HybridTopologyEdge * failed = topology.Find_Edge(b.LastFailedEdge);
+				const bool envelope_failure = (result == nullptr) || (result->Failure != HYBRID_ROUTE_EXPANSION_BUDGET);
+				if ((priority == HYBRID_ROUTE_PRIORITY_FAMILY_TRUNK) && envelope_failure && (failed != nullptr)) {
+					for (int i = 0; i < topology.Interchanges.Count(); ++i) {
+						const HybridInterchange & ic = topology.Interchanges[i];
+						if ((ic.Status != HYBRID_INTERCHANGE_ACTIVE) || out->Interchange_Withdrawn(ic.StableId)) continue;
+						if ((ic.AnchorNode != failed->NodeA) && (ic.AnchorNode != failed->NodeB)) continue;
+						if (ic.StableId > withdraw) withdraw = ic.StableId;
+					}
+				}
+				if (withdraw == 0) { out->Reset(); return false; }
+				WWDEBUG_SAY(("Hybrid Phase 10: interchange %u withdrawn, highway edge %u has no aligned route\r\n",withdraw,
+								 b.LastFailedEdge));
+				Withdraw_Interchange(b,withdraw);
+				if (result != nullptr) {
+					result->Failure	= HYBRID_ROUTE_OK;
+					result->Detail		= "";
+				}
+			}
 			if (params.Counters != nullptr) params.Counters->Add(HYBRID_WORK_ROUTED_EDGES,segments.Count());
 		}
+
+		//	Group 1b: every group-1 road is on the ground, so the interchanges are constructed on it.
+		if (priority == HYBRID_ROUTE_PRIORITY_FAMILY_TRUNK) Construct_Interchanges(b);
 	}
 
 	if (!Check_Gate(b,result)) { out->Reset(); return false; }
+	{
+		StringClass detail;
+		if (!Check_Interchanges_Gate(b,&detail)) {
+			Fail(result,HYBRID_ROUTE_INTERCHANGE_INVALID,detail.Peek_Buffer());
+			out->Reset();
+			return false;
+		}
+	}
 
 	out->Checksum = Hybrid_Route_Checksum(*out,identity.Checksum);
 

@@ -328,13 +328,13 @@ pass rate for archetypes with no canyon obligation.
 
 **REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** (§8 P10, §12.6.9):
 
-- [ ] Highway tangent alignment: both highway edges at an active anchor routed through stops `a_I`/`b_I`, straight along `a` over `[X-S_I, X+S_I]` (Q-022 alignment rule).
-- [ ] Routing group 1b after group 1: crossing edge(s), then ramps `RIGHT`→`LEFT`, `OFF_RAMP`→`ON_RAMP`; route `HIGHWAY_RAMP` centerlines by the exact §12.6.7 construction (arcs of `5W`, `45°` departure, `15°` convergence leg, parallel at the gore), never A*.
-- [ ] Re-validate every §12.6.8 test on routed geometry plus no intersection with other group-1 roadbeds.
-- [ ] Withdrawal (only fallback, only before group 2): third-envelope failure of an aligned highway edge, or a failed group-1b re-validation; restore frozen Phase-9 variant; `WITHDRAWN` status in checksum.
-- [ ] Footprint polygons hard-infinite for edges routed after group 1b (own `L_s` cell excepted).
-- [ ] Lower-road attachment routing: retargeted edges route to `L_s` under ordinary rules.
-- [ ] **Gate (re-pass):** §8 P10 gate including straight-extent, construction and withdrawal clauses; stage-10 checksum includes ramp splines and statuses.
+- [x] Highway tangent alignment: both highway edges at an active anchor routed through stops `a_I`/`b_I`, straight along `a` over `[X-S_I, X+S_I]` (Q-022 alignment rule).
+- [x] Routing group 1b after group 1: crossing edge(s), then ramps `RIGHT`→`LEFT`, `OFF_RAMP`→`ON_RAMP`; route `HIGHWAY_RAMP` centerlines by the exact §12.6.7 construction (arcs of `5W`, `45°` departure, `15°` convergence leg, parallel at the gore), never A*.
+- [x] Re-validate every §12.6.8 test on routed geometry plus no intersection with other group-1 roadbeds.
+- [x] Withdrawal (only fallback, only before group 2): third-envelope failure of an aligned highway edge, or a failed group-1b re-validation; restore frozen Phase-9 variant; `WITHDRAWN` status in checksum.
+- [x] Footprint polygons hard-infinite for edges routed after group 1b (own `L_s` cell excepted).
+- [x] Lower-road attachment routing: retargeted edges route to `L_s` under ordinary rules.
+- [x] **Gate (re-pass):** §8 P10 gate including straight-extent, construction and withdrawal clauses; stage-10 checksum includes ramp splines and statuses. *(2026-10-03: aligned stops `a_I`/X/`b_I` with an open-road aligned straight; group 1b `Construct_Interchanges` with `Hybrid_Ramp_Centerline` re-validated against the realized world, the gore exactly as frozen and every group-1 roadbed (12.6.8 tests 2/3/4/7 depend only on frozen topology positions, which Phase 10 never moves); withdrawal (a) and (b) to the fallback variant (`HybridRouteSet::WithdrawnInterchanges`, `Hybrid_Route_Edge_End`); footprint keep-out; gate `Check_Interchanges_Gate`; `Check_Hybrid_Interchange_Routes`.)*
 
 ## I12 — Runtime Phase 11: interaction solver (§8 P11, §12.3–12.5)
 

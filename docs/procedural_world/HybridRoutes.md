@@ -177,6 +177,46 @@ interval covers, so consecutive slices share their boundary point. `HybridRouteS
 (`HybridTrunkRoad`: family, class, capability, logical edges and their intervals, node sequence, junction nodes,
 centerline, crossing intervals); `Find_Trunk` maps a logical edge to it.
 
+## Highway access interchanges (Plan 12.6.9)
+
+Phase 10 realizes each interchange Phase 9 froze, or withdraws it. It never moves a gore, swaps a side or picks
+another candidate.
+
+- **Alignment.** A `HIGHWAY_4` trunk through an active anchor `X` gets three stops: `a_I = X - a*S_I`, `X`, and
+  `b_I = X + a*S_I` (`stop_align`). The legs outside them arrive on and leave along `a`. The legs between them form
+  one aligned record: the chain cells are replaced by the straight `a_I -> b_I` exactly as a crossing's are. The
+  record is open road, not a structural span, so every sample is validated.
+- **Group 1b** (`Construct_Interchanges`). After all group-1 roads are routed, every active interchange is built
+  in processing order: the crossing edge or edges first, then the ramps (`RIGHT` then `LEFT`, `OFF` then `ON`), by
+  `Hybrid_Ramp_Centerline` on the routed highway.
+- **Re-validation.** Before anything is added, Phase 10 re-checks:
+  - the highway runs straight through `X` over `+-S_I`;
+  - each ramp ends exactly at its frozen gore;
+  - every sample and both asymmetric roadbed edges stand on legal ground, with no river step and no wall;
+  - the class grade holds;
+  - no routed group-1 roadbed is met. The road's own highway may be met only inside the ramp's converged gore
+    wedge, or by the crossing at `X`.
+
+  Ramp and crossing routes have priority `INTERCHANGE`, and the highway's logical routes carry their widened
+  intervals.
+- **Footprint.** Each realized side adds its footprint polygon: the diverge interval's lane, the `OFF` ramp, `L_s`,
+  the `ON` ramp, the merge interval's lane, and back along the highway. It is hard-infinite for every road routed
+  after group 1b (`HYBRID_REFUSE_FOOTPRINT`). A road's own `L_s` is its start or goal cell, so it is exempt.
+- **Withdrawal** (the only fallback). Either path restores the frozen fallback variant, recorded in
+  `HybridRouteSet::WithdrawnInterchanges` and the stage-10 checksum:
+  - (a) A highway edge carrying alignment fails its third envelope: the interchange at its ends that is later in
+    processing order is withdrawn, and the road is routed again from its first envelope.
+  - (b) A group-1b element fails re-validation.
+
+  `Hybrid_Route_Edge_End` gives the effective endpoints: retargeted arrivals end at `X` again, and the interchange's
+  ramps and crossings are inactive.
+- **Gate** (`Check_Interchanges_Gate`). Every active interchange is checked:
+  - the highway is aligned;
+  - every crossing edge is routed;
+  - every ramp runs from `L_s` to its frozen gore, meets it on the highway tangent within 0.001 rad, and never turns
+    under `R_r` (measured over the validator's `R_r` baseline);
+  - no road routed after group 1b enters a footprint outside its end cells.
+
 ## Independent roads keep their roadbeds apart (Q-025)
 
 The `-0.25d` reuse modifier is revoked: no road gets a discount for taking another's corridor. Instead, every
