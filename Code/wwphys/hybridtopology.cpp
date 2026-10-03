@@ -3204,16 +3204,9 @@ static bool Disjoint(float a0,float a1,float b0,float b1)
 static void Gore_Reserve(const HybridInterchangeConstants & c,const InterchangeAnchor & a,int side,int role,
 								 const HybridRampCandidate & cand,float * from,float * to,float * gore)
 {
-	float x0 = 0.0f, x1 = 0.0f, xg = 0.0f;
-	if (role == HYBRID_RAMP_ROLE_ON) {
-		x0 = cand.GoreOffset - c.GoreReserveMargin;
-		x1 = cand.GoreOffset + c.MergeLength + c.GoreReserveMargin;
-		xg = cand.GoreOffset;
-	} else {
-		x0 = -cand.GoreOffset - c.DivergeLength - c.GoreReserveMargin;
-		x1 = -cand.GoreOffset + c.GoreReserveMargin;
-		xg = -cand.GoreOffset;
-	}
+	float x0 = 0.0f, x1 = 0.0f;
+	Hybrid_Gore_Reserve_Extent(c,cand.GoreOffset,role,&x0,&x1);
+	const float xg = (role == HYBRID_RAMP_ROLE_ON) ? cand.GoreOffset : -cand.GoreOffset;
 	const float s0 = Side_Station(a,side,x0);
 	const float s1 = Side_Station(a,side,x1);
 	*from	= Min2(s0,s1);

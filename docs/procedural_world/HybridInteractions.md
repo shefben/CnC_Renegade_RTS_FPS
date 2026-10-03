@@ -193,6 +193,53 @@ tall or narrow ones remain walls. `HybridInteraction::FallbackFrom`
 records the first method's refusal when a later one compiled, so the fixed orders are provable from the
 record.
 
+## Highway access interchanges (Plan 12.6.10)
+
+Phase 11 compiles each interchange Phase 10 realized (active, not withdrawn) from its frozen records. It never
+rediscovers these as road-road intersections, and never withdraws the interchange.
+
+- **Edge ends.** Phase 11 reads edge ends through `Hybrid_Route_Edge_End`. A retargeted arrival ends at its local
+  junction while the interchange is active, and at `X` once it is withdrawn, so a withdrawn interchange's fallback
+  junction at `X` compiles as an ordinary shared-node junction.
+- **No junction at `X`.** A ramp's `NodeB` names `X`, but the ramp ends at its gore, so ramps are not arms at `X`.
+  On a `SIDE_ACCESS` highway only the trunk's own two edges remain there, and they are one road.
+- **Local junctions.** Each `L_s` is a topology junction compiled by the existing construction with the role
+  `HIGHWAY_RAMP_LOCAL_JUNCTION`. Its `JunctionZ` is `z_L`.
+- **DIAMOND_ACCESS crossing.**
+  - Grade-separated: the interchange's own reserved overpass. It is mandatory, the highway is the lower road, and
+    its two edges at `X` are passed as one physical trunk. It is not counted against Section 5's reserved overpasses.
+  - At grade: the intended junction at `X`.
+- **Priority** follows the routing groups (`Hybrid_Route_Priority_Rank`: trunks, then group 1b, then the rest). A
+  constructed ramp or crossing is never the rerouted road. A rule that would reroute one is exhausted, and the
+  phase fails (`HYBRID_INTERACTION_INTERCHANGE`).
+- **Structure reserves.**
+  - The common station tests add test 9: no approach reserve meets an active gore reserve.
+  - Every overpass assignment, including the swap, checks its ramp interval against the gore reserves
+    (`HYBRID_PROBLEM_GORE_RESERVE`).
+  - The gore reserve (`Hybrid_Gore_Reserve_Extent`) runs along the side frame and laterally from the highway's far
+    roadbed edge to `E_aux`. It also covers the ramp's roadbed over its `2W` gore shoulder transition.
+- **Incidental at-grade junctions** are legal only outside every footprint (`Hybrid_Interchange_Footprint`, shared
+  with Phase 10) expanded by `RoadOuterBlendWidth` (`HYBRID_PROBLEM_INTERCHANGE_FOOTPRINT`).
+- **Elevations.** These are compiled after every crossing on the roads involved:
+  - The highway is graded whole by Section 12.1 with its structures.
+  - `z_L` for `DIAMOND_ACCESS` is the crossing's own profile at `L_s`. For `SIDE_ACCESS` it is the
+    lower-`StableId` ramp of that side, solved with its gore pinned to the highway.
+  - Every ramp is judged whole, from `z_L` to the highway at its gore.
+- **Merge/diverge records.** There is one `HIGHWAY_RAMP_MERGE` or `DIVERGE` record per ramp, at its gore, with
+  `JunctionZ` set to the highway surface there. Each has a `HybridMergeDiverge` sample set at `min(W/3, A/4)` over
+  its interval, in the interval's own frame (chain stations relative to `X`): `(station, full, u, d, h, E, z)`.
+- **Swept proxy.** This is the `Sweep_Is_Clear` proxy, run over ramps, parallel intervals and local-junction arms
+  with the vehicles the ramp's capabilities require. The swept envelope must stand on placeable ground, and the
+  class cross slope must hold across the roadbed.
+- **Gate clause.** Each realized interchange must have:
+  - one merge or diverge record and one sample set per ramp;
+  - one local-junction record per `L_s`;
+  - its `DIAMOND_ACCESS` crossing compiled;
+  - no incidental solution between its own elements and its own highway.
+
+  In addition, no bridge, tunnel or overpass reserve may intersect an active gore reserve. The stage-11 checksum
+  includes `JunctionZ` and the merge/diverge records.
+
 ## Failure
 
 Every unsolved conflict becomes a `HybridInteractionIssue` naming the problem, and more than twelve on one

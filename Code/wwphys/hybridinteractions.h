@@ -187,6 +187,8 @@ enum HybridInteractionProblem
 	HYBRID_PROBLEM_METHOD_UNAVAILABLE,		// the window permits no method this conflict may use
 	HYBRID_PROBLEM_CUT_OR_FILL,			// the profile cannot be realized inside its RoadVerticalInterval
 	HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING,	// inside 4W of an unrelated compiled crossing
+	HYBRID_PROBLEM_GORE_RESERVE,				// an approach, portal or overpass ramp reserve meets a gore reserve (12.6.10)
+	HYBRID_PROBLEM_INTERCHANGE_FOOTPRINT,	// an incidental junction inside an interchange footprint + RoadOuterBlendWidth
 	HYBRID_PROBLEM_COUNT
 };
 
@@ -227,7 +229,7 @@ struct HybridInteraction
 		ApproachReserve(0.0f),BridgeKind(-1),TunnelModule(-1),TunnelLength(0.0f),DeckBottomZ(0.0f),
 		DeckTopZ(0.0f),LowerSurfaceZ(0.0f),RampLength(0.0f),UpperIsThisEdge(true),CutDepth(0.0f),
 		DeckStartZ(0.0f),DeckEndZ(0.0f),DeckReachA(0.0f),DeckReachB(0.0f),
-		FirstPoint(0),LastPoint(0),Envelope(0),Score(0.0f),Role(HYBRID_JUNCTION_ROLE_NONE) { }
+		FirstPoint(0),LastPoint(0),Envelope(0),Score(0.0f),Role(HYBRID_JUNCTION_ROLE_NONE),JunctionZ(0.0f) { }
 
 	//	DynamicVectorClass<T> requires == and !=.  The record's own id is its identity.
 	bool	operator == (const HybridInteraction & that) const	{ return StableId == that.StableId; }
@@ -310,6 +312,12 @@ struct HybridInteraction
 	**	reads it from what the record already says -- a reserved overpass, a shared node, or incidental.
 	*/
 	HybridJunctionRole		Role;
+
+	/*
+	**	Section 12.6.10's compiled elevation of a highway access junction: z_L for a HIGHWAY_RAMP_LOCAL_JUNCTION,
+	**	the highway's surface at the gore for a HIGHWAY_RAMP_MERGE / DIVERGE.  0 for every other solution.
+	*/
+	float							JunctionZ;
 };
 
 HybridJunctionRole	Hybrid_Interaction_Junction_Role(const HybridInteraction & one);
@@ -507,6 +515,7 @@ enum HybridInteractionFailure
 	HYBRID_INTERACTION_SWEEP,					// a compiled interval failed its swept proxy validation
 	HYBRID_INTERACTION_LIMIT,					// more than 12 problems on one edge, or a work budget
 	HYBRID_INTERACTION_DETACHED,				// a compiled crossing is not attached to the road that drives it
+	HYBRID_INTERACTION_INTERCHANGE,			// an active interchange's intended junctions or elevations do not compile (12.6.10)
 	HYBRID_INTERACTION_FAILURE_COUNT
 };
 

@@ -170,6 +170,14 @@ HybridRouteCostWeights Hybrid_Route_Cost_Weights(HybridRoadClass road_class)
 }
 
 
+int Hybrid_Route_Priority_Rank(HybridRoutePriority priority)
+{
+	if (priority == HYBRID_ROUTE_PRIORITY_FAMILY_TRUNK)	return 0;
+	if (priority == HYBRID_ROUTE_PRIORITY_INTERCHANGE)		return 1;
+	return (int)priority + 1;
+}
+
+
 HybridRoutePriority Hybrid_Route_Priority_Of(const HybridTopology & topology,const HybridTopologyEdge & edge)
 {
 	switch (edge.Kind) {
@@ -5202,6 +5210,49 @@ static Vector2 Interchange_World(const Vector2 & x_point,const Vector2 & axis,in
 }
 
 
+void Hybrid_Interchange_Footprint(const HybridConstants & k,const HybridInterchange & ic,const Vector2 & x_point,int side,
+											 DynamicVectorClass<Vector2> * polygon)
+{
+	polygon->Delete_All();
+	const float spacing = Min2(k.W / 3.0f,0.25f * k.A);
+	HybridInterchangeConstants c;
+	Hybrid_Interchange_Constants(k.W,&c);
+	HybridRampCandidate cand;
+	Hybrid_Ramp_Candidate(c,ic.SelectedK,0.0f,&cand);
+	cand.LocalOffset				= ic.LocalOffset;
+	cand.GoreOffset				= ic.GoreOffset;
+	cand.StraightHalfExtent		= ic.StraightHalfExtent;
+
+	DynamicVectorClass<Vector2> local;
+	local.Add(Vector2(-ic.GoreOffset - c.DivergeLength,0.0f));
+	for (float along = 0.0f; along <= c.DivergeLength; along += spacing) {
+		HybridAuxiliaryLaneSection section;
+		Hybrid_Auxiliary_Lane_Section(c,HYBRID_RAMP_ROLE_OFF,along,&section);
+		local.Add(Vector2(-ic.GoreOffset - c.DivergeLength + along,section.D));
+	}
+	Vector2 control[4];
+	DynamicVectorClass<Vector2> ramp_points;
+	DynamicVectorClass<float> ramp_stations;
+	Hybrid_Ramp_Control_Polygon(c,cand,HYBRID_RAMP_ROLE_OFF,control);
+	if (Hybrid_Ramp_Centerline(control,c.RampRadius,k.Q,spacing,&ramp_points,&ramp_stations)) {
+		for (int i = 0; i < ramp_points.Count(); ++i) local.Add(ramp_points[i]);
+	}
+	ramp_points.Delete_All();
+	ramp_stations.Delete_All();
+	Hybrid_Ramp_Control_Polygon(c,cand,HYBRID_RAMP_ROLE_ON,control);
+	if (Hybrid_Ramp_Centerline(control,c.RampRadius,k.Q,spacing,&ramp_points,&ramp_stations)) {
+		for (int i = 0; i < ramp_points.Count(); ++i) local.Add(ramp_points[i]);
+	}
+	for (float along = 0.0f; along <= c.MergeLength; along += spacing) {
+		HybridAuxiliaryLaneSection section;
+		Hybrid_Auxiliary_Lane_Section(c,HYBRID_RAMP_ROLE_ON,along,&section);
+		local.Add(Vector2(ic.GoreOffset + along,section.D));
+	}
+	local.Add(Vector2(ic.GoreOffset + c.MergeLength,0.0f));
+	for (int i = 0; i < local.Count(); ++i) polygon->Add(Interchange_World(x_point,ic.Axis,side,local[i]));
+}
+
+
 //	Is the routed highway straight along `axis` over [X - extent, X + extent], through X?
 static bool Highway_Is_Aligned(const DynamicVectorClass<Vector2> & points,const Vector2 & x_point,const Vector2 & axis,
 										 float extent,float q,float spacing,StringClass * why)
@@ -5565,35 +5616,11 @@ static bool Construct_Interchange(RouteBuilder & b,const HybridInterchange & ic,
 	}
 	for (int side = 0; side < HYBRID_INTERCHANGE_SIDE_COUNT; ++side) {
 		if ((ic.AccessSides & (1u << side)) == 0) continue;
+		DynamicVectorClass<Vector2> footprint;
+		Hybrid_Interchange_Footprint(k,ic,x_point,side,&footprint);
 		b.FootprintStart.Add(b.FootprintPoints.Count());
-		DynamicVectorClass<Vector2> local;
-		local.Add(Vector2(-ic.GoreOffset - c.DivergeLength,0.0f));
-		for (float along = 0.0f; along <= c.DivergeLength; along += spacing) {
-			HybridAuxiliaryLaneSection section;
-			Hybrid_Auxiliary_Lane_Section(c,HYBRID_RAMP_ROLE_OFF,along,&section);
-			local.Add(Vector2(-ic.GoreOffset - c.DivergeLength + along,section.D));
-		}
-		Vector2 polygon[4];
-		DynamicVectorClass<Vector2> ramp_points;
-		DynamicVectorClass<float> ramp_stations;
-		Hybrid_Ramp_Control_Polygon(c,cand,HYBRID_RAMP_ROLE_OFF,polygon);
-		if (Hybrid_Ramp_Centerline(polygon,c.RampRadius,k.Q,spacing,&ramp_points,&ramp_stations)) {
-			for (int i = 0; i < ramp_points.Count(); ++i) local.Add(ramp_points[i]);
-		}
-		ramp_points.Delete_All();
-		ramp_stations.Delete_All();
-		Hybrid_Ramp_Control_Polygon(c,cand,HYBRID_RAMP_ROLE_ON,polygon);
-		if (Hybrid_Ramp_Centerline(polygon,c.RampRadius,k.Q,spacing,&ramp_points,&ramp_stations)) {
-			for (int i = 0; i < ramp_points.Count(); ++i) local.Add(ramp_points[i]);
-		}
-		for (float along = 0.0f; along <= c.MergeLength; along += spacing) {
-			HybridAuxiliaryLaneSection section;
-			Hybrid_Auxiliary_Lane_Section(c,HYBRID_RAMP_ROLE_ON,along,&section);
-			local.Add(Vector2(ic.GoreOffset + along,section.D));
-		}
-		local.Add(Vector2(ic.GoreOffset + c.MergeLength,0.0f));
-		for (int i = 0; i < local.Count(); ++i) b.FootprintPoints.Add(Interchange_World(x_point,ic.Axis,side,local[i]));
-		b.FootprintCount.Add(local.Count());
+		for (int i = 0; i < footprint.Count(); ++i) b.FootprintPoints.Add(footprint[i]);
+		b.FootprintCount.Add(footprint.Count());
 	}
 	return true;
 }

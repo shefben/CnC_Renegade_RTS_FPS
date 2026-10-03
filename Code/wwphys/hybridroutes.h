@@ -83,6 +83,21 @@ const char *	Hybrid_Route_Priority_Name(HybridRoutePriority priority);
 //	Which group a topology edge belongs to, from its kind, class and waypoints.
 HybridRoutePriority	Hybrid_Route_Priority_Of(const HybridTopology & topology,const HybridTopologyEdge & edge);
 
+/*
+**	The order the routing groups run in (12.6.9): group 1 (family trunks), group 1b (the interchange elements),
+**	then the rest in priority order.  A lower rank is the higher priority; Phase 11 ranks roads by it wherever
+**	"the higher-priority road" decides.
+*/
+int	Hybrid_Route_Priority_Rank(HybridRoutePriority priority);
+
+/*
+**	12.6.9 item 5: one realized access side's footprint polygon, in world space -- the highway at the diverge
+**	start, the diverge lane, the OFF_RAMP, L_s, the ON_RAMP, the merge lane, and back along the highway.  Phase 10
+**	keeps every later road out of it; Phase 11 bounds incidental at-grade junctions with it.
+*/
+void	Hybrid_Interchange_Footprint(const HybridConstants & k,const HybridInterchange & ic,const Vector2 & x_point,
+											int side,DynamicVectorClass<Vector2> * polygon);
+
 
 /*
 **	One structural interval inside a route: the frozen straight centerline that carries the road across an

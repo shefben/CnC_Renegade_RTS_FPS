@@ -357,14 +357,14 @@ pass rate for archetypes with no canyon obligation.
 
 **REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** (§8 P11, §12.6.10):
 
-- [ ] Compile merge/diverge interactions: one `HIGHWAY_RAMP_MERGE`/`DIVERGE` record per ramp (gore station, interval, `d(u)`, `h`, `E`, `z` at `min(W/3,A/4)`); one `HIGHWAY_RAMP_LOCAL_JUNCTION` per `L_s` via the existing class-radius junction construction.
-- [ ] Distinguish intended ramp junctions (merge, diverge, local junction, DIAMOND crossing at `X`) from incidental `ROAD_X_ROAD` crossings; incidental at-grade only outside footprint + `RoadOuterBlendWidth`; the interchange element is never the rerouted road.
-- [ ] DIAMOND crossing: reserved overpass via existing rule with the highway continuous through `X` (or intended at-grade junction); swap rule checked against gore reserves; constructed edges have no envelope, so exhaustion fails the phase.
-- [ ] Structural conflict validation: new common station test (no approach / portal / overpass ramp interval in an active gore reserve).
-- [ ] `z_L` per §12.6.10 item 3; whole-ramp 12.1 solve with gore, parallel-interval and `L_s` pins.
-- [ ] Swept proxy validation of ramps, parallel intervals and local junctions with ramp capabilities.
-- [ ] No withdrawal in Phase 11.
-- [ ] **Gate (re-pass):** §8 P11 gate including the interchange clause; stage-11 checksum includes merge/diverge and junction-role records.
+- [x] Compile merge/diverge interactions: one `HIGHWAY_RAMP_MERGE`/`DIVERGE` record per ramp (gore station, interval, `d(u)`, `h`, `E`, `z` at `min(W/3,A/4)`); one `HIGHWAY_RAMP_LOCAL_JUNCTION` per `L_s` via the existing class-radius junction construction.
+- [x] Distinguish intended ramp junctions (merge, diverge, local junction, DIAMOND crossing at `X`) from incidental `ROAD_X_ROAD` crossings; incidental at-grade only outside footprint + `RoadOuterBlendWidth`; the interchange element is never the rerouted road.
+- [x] DIAMOND crossing: reserved overpass via existing rule with the highway continuous through `X` (or intended at-grade junction); swap rule checked against gore reserves; constructed edges have no envelope, so exhaustion fails the phase.
+- [x] Structural conflict validation: new common station test (no approach / portal / overpass ramp interval in an active gore reserve).
+- [x] `z_L` per §12.6.10 item 3; whole-ramp 12.1 solve with gore, parallel-interval and `L_s` pins.
+- [x] Swept proxy validation of ramps, parallel intervals and local junctions with ramp capabilities.
+- [x] No withdrawal in Phase 11.
+- [x] **Gate (re-pass):** §8 P11 gate including the interchange clause; stage-11 checksum includes merge/diverge and junction-role records. *(2026-10-03: `Collect_Interchanges`, `Compile_Interchange_Crossings`, local-junction role, `Compile_Interchange_Elevations` (z_L, whole-ramp solves, merge/diverge records and samples), `Sweep_Interchanges`, `Check_Interchanges_Gate`; station test 9 and overpass-assignment gore checks; footprint + `RoadOuterBlendWidth` at-grade rule; `Hybrid_Route_Priority_Rank`; Phase 11 reads `Hybrid_Route_Edge_End`; `Check_Hybrid_Interchange_Interactions`.)*
 
 ## I13 — Runtime Phase 12: final roads, crossings, cut/fill (§8 P12)
 

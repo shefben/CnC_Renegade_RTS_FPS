@@ -554,6 +554,34 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-024 - Hybrid rewrite: Phase-11 interchange compilation, the readings it takes (2026-10-03)
+
+**Context.** Plan 12.6.10 is implemented as written. Three of its terms need a concrete reading. These are the
+readings taken; none weakens a constraint.
+
+1. **Gore reserve, laterally.** "Covers the highway to `E_aux`" is read as the whole highway cross section on that
+   side of the chain: from the far roadbed edge `-E_hwy` to `E_aux`, over `Hybrid_Gore_Reserve_Extent` along the side
+   frame. It also covers the independent ramp's roadbed over its `2W` gore shoulder transition, using the ramp's own
+   edge offsets. A structure on the highway therefore cannot stand inside a gore reserve on either carriageway.
+2. **Merge/diverge sample frame.** A `HybridMergeDiverge` sample's station is in the same frame as the frozen
+   `HybridRampInterval`: chain stations relative to `X`, with the highway point at `X + a * station`. `d`, `h`
+   and `E` are the 12.6.7/12.6.11 values there, and `z` is the highway's Section-12.1 surface. The merge/diverge
+   record's `JunctionZ` is that surface at the gore, and a local junction's is `z_L`.
+3. **Ramp swept proxy.** The heavy reference vehicle is `6.80 = 2.05W` wide (native metrics, `W = 3.32`), wider than
+   the `1.50W` ramp roadbed of D-022. The plan validates a ramp "with the same swept envelopes as a road carrying
+   them", so the ramp gets exactly the proxy `Sweep_Is_Clear` applies to every compiled interval:
+   - the swept envelope's edges stand on placeable ground;
+   - the class cross slope holds across the roadbed.
+
+   It is not asked to contain the envelope inside its roadbed. Only the ground crossing methods (ford, pass, cut)
+   ask that of any road, through `Ground_Carries_Swept_Width`. Requiring containment would refuse every
+   heavy-serving ramp, which 12.6.4 step 9 creates by design. If containment is wanted, it conflicts with D-022's
+   cross section and needs a decision.
+
+**Status: implementation reading, for review.**
+
+
+
 ## D-023 - Hybrid rewrite: no arrival-angle prefilter on highway interchanges; local-junction reachability (2026-10-03)
 
 **Decision (user, 2026-10-03).** The step-15 rule that rejected an anchor when any arrival lay within 30 degrees of

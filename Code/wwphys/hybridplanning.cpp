@@ -498,6 +498,19 @@ void Hybrid_Ramp_Gore_Shoulders(const HybridInterchangeConstants & c,float from_
 }
 
 
+void Hybrid_Gore_Reserve_Extent(const HybridInterchangeConstants & c,float gore_offset,int role,float * x0_out,
+										  float * x1_out)
+{
+	if (role == HYBRID_RAMP_ROLE_ON) {
+		*x0_out = gore_offset - c.GoreReserveMargin;
+		*x1_out = gore_offset + c.MergeLength + c.GoreReserveMargin;
+	} else {
+		*x0_out = -gore_offset - c.DivergeLength - c.GoreReserveMargin;
+		*x1_out = -gore_offset + c.GoreReserveMargin;
+	}
+}
+
+
 float Hybrid_Carriageway_Width(HybridRoadClass road_class,float w)
 {
 	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(road_class);

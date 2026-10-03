@@ -390,25 +390,30 @@ interchanges:
 
 None is a ramp-geometry failure. Only realized and withdrawn outcomes count when judging ramp correctness.
 
-**Next exact action:** Phase-11 merge/diverge compilation (checklist I12 reopened, Plan 12.6.10), then restore the
-Phase-11 gate. It covers:
-- `HIGHWAY_RAMP_MERGE` / `DIVERGE` records with the Q-026 samples;
-- `HIGHWAY_RAMP_LOCAL_JUNCTION` per `L_s`;
-- intended vs incidental junctions, and the incidental at-grade rule outside footprint + `RoadOuterBlendWidth`;
-- the DIAMOND crossing overpass with the highway continuous through `X`;
-- the gore-reserve station test and the overpass ramp-interval check;
-- `z_L` and the whole-ramp 12.1 solve;
-- the swept proxy.
+Phase-11 interchange compilation (checklist I12 reopened, Plan 12.6.10) is done, and the Phase-11 gate's
+interchange clause is restored (2026-10-03). It compiles:
+- one `HIGHWAY_RAMP_MERGE`/`DIVERGE` record and sample set per ramp, and one `HIGHWAY_RAMP_LOCAL_JUNCTION` per `L_s`
+  carrying `z_L`;
+- no junction at `X` on a `SIDE_ACCESS` highway;
+- the grade-separated DIAMOND crossing as its interchange's mandatory overpass over the continuous highway;
+- gore-reserve station and overpass-assignment tests, and the footprint + `RoadOuterBlendWidth` at-grade rule;
+- whole-ramp Section-12.1 solves, and the swept proxy.
 
-The routed highway trunk through `X` is one road; its logical edges meet at `X`.
+The interchange element is never rerouted. Phase 11 reads `Hybrid_Route_Edge_End`, so a withdrawn interchange's
+fallback junction at `X` compiles. Readings taken are recorded in D-024, for review.
 
-Steps:
-1. (done) records, schema and checksum;
-2. (done) Phase-9 `HIGHWAY_INTERCHANGE` topology and gore selection;
-3. (done) Phase-10 ramp routing and tangent geometry;
-4. Phase-11 merge/diverge compilation.
+**Next exact action:** the Section-14 gate before I13. It requires:
+- on-ramp, off-ramp, side-access and diamond tests through Phases 9-11;
+- `16W` merge and `12W` diverge intervals, widening `5.65W -> 6.65W`, the edge offsets, gore reservation and
+  spacing;
+- every existing river/bridge/canyon/overpass test and the Q-020..Q-025 tests green;
+- the three `terrain_hybrid*` gates and the full ctest suite green on client and dedicated server;
+- the state validator green.
 
-Then restore the Phase-9/10/11 gates and bump the generator identity. Keep it separate from the remaining
-structural-transition failures. Then continue I13: the Phase-12 realization owner on
-`Hybrid_Realized_Physical_Road` (one road per heavy family trunk), `Hybrid_Road_Profile_Structures` and
-`Hybrid_Solve_Road_Stretch`.
+Then continue I13: the Phase-12 realization owner on `Hybrid_Realized_Physical_Road` (one road per heavy family
+trunk), `Hybrid_Road_Profile_Structures` and `Hybrid_Solve_Road_Stretch`. Ramp road deformation uses
+`RampLaneCenterline` with the asymmetric edge offsets and leaves the symmetric classes unchanged.
+
+Generator identity stays 16: there is no bump for ramp substeps. Keep the remaining structural-transition failures
+separate. The river-bridge quota's opposite-bank investigation stays open and must be resolved before release
+acceptance.

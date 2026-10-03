@@ -299,6 +299,14 @@ void	Hybrid_Auxiliary_Lane_Section(const HybridInterchangeConstants & c,int role
 */
 void	Hybrid_Ramp_Gore_Shoulders(const HybridInterchangeConstants & c,float from_gore,float * inner_out,float * outer_out);
 
+/*
+**	12.6.7's gore reserve of one ramp along its side frame: `ON_RAMP [G - GoreReserveMargin, G + MergeLength +
+**	GoreReserveMargin]`, `OFF_RAMP [-G - DivergeLength - GoreReserveMargin, -G + GoreReserveMargin]`.  Laterally it
+**	covers the highway out to `E_aux` and the independent ramp's roadbed over its gore shoulder transition.
+*/
+void	Hybrid_Gore_Reserve_Extent(const HybridInterchangeConstants & c,float gore_offset,int role,float * x0_out,
+										 float * x1_out);
+
 
 /*
 **	Section 2.3 -- ProceduralPlanningSpatialHash.  Compiler scratch, not a runtime spatial

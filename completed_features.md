@@ -4806,6 +4806,37 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## HIGHWAY_RAMP Phase-11 interchange compilation (Plan 12.6.10, checklist I12 reopened) (2026-10-03)
+
+Phase 11 compiles each interchange Phase 10 realized from its frozen records, never rediscovering it:
+- the merge/diverge records and Q-026 samples (`HybridMergeDiverge`) per ramp;
+- the local-junction records carrying `z_L`;
+- no junction at `X` on a `SIDE_ACCESS` highway;
+- the grade-separated DIAMOND crossing as its mandatory overpass, with the highway the continuous lower road and
+  outside Section 5's overpass count.
+
+It also enforces:
+- the gore-reserve tests (station test 9, overpass assignments including the swap) and the footprint +
+  `RoadOuterBlendWidth` rule for incidental at-grade junctions;
+- whole-highway, `z_L` and whole-ramp Section-12.1 solves, and the swept proxy over ramps, parallel intervals and
+  local junctions;
+- priority by routing group (`Hybrid_Route_Priority_Rank`), with interchange elements never rerouted;
+- effective edge ends (`Hybrid_Route_Edge_End`), so a withdrawn interchange's fallback junction compiles.
+
+Shared helpers: `Hybrid_Gore_Reserve_Extent` (Phase 9 now uses it) and `Hybrid_Interchange_Footprint` (Phase 10
+now uses it). The gate clause is `Check_Interchanges_Gate`. Readings are recorded in D-024.
+
+**Gate:**
+- `Check_Hybrid_Interchange_Interactions` covers:
+  - `SIDE_ACCESS` records, samples, `z_L` and determinism;
+  - the `DIAMOND_ACCESS` overpass and records;
+  - a crossing 1W past a merge interval, refused at grade by the footprint and as an overpass both ways by the gore
+    reserve, with the crossing road rerouted;
+  - the withdrawn fallback junction at `X`.
+- Mutation checks: disabling the overpass gore check, or the footprint rule and the ramp exclusion at `X`, fails
+  the intended tests.
+- The full ctest suite on client and dedicated server.
+
 ## HIGHWAY_RAMP Phase-10 interchange realization (Plan 12.6.9, checklist I11 reopened) (2026-10-03)
 
 A `HIGHWAY_4` trunk through an active anchor routes `a_I -> X -> b_I` as one aligned straight. It replaces its chain

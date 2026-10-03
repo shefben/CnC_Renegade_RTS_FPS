@@ -18456,6 +18456,232 @@ static bool Build_Reroute_World (CrossingWorld * world,StringClass * why)
 **	Q-022 section 13, Phase 11's half, on the controlled worlds: an asset approach Phase 10's 8W does not
 **	cover, a moved station, and the station cap.
 */
+//	Phase 11 over one controlled interchange world, with the fixture's interaction parameters.
+static bool Interchange_Phase11 (CrossingWorld * world,const HybridPreflightInputs & inputs,const HybridMetricCache & metrics,
+											HybridInteractionSet * set,HybridInteractionResult * solved)
+{
+	HybridInteractionParams params = Interaction_Fixture (world->Sized,1200.0f,inputs,metrics);
+	return Hybrid_Build_Interactions (params,world->Identity,world->Matrices,world->Landforms,world->Hydrology,world->Anchors,
+												 world->Topology,world->Routes,Crossing_Ground,&world->Hydrology,set,solved);
+}
+
+
+/*
+**	Phase 11 (Plan 12.6.10) on the controlled interchange worlds, through the real Phase-9, 10 and 11 owners:
+**	- the intended junctions compiled from the frozen records and never rediscovered: one merge or diverge record
+**	  per ramp with its Q-026 samples, one local junction per L_s carrying z_L, and no junction at X on a
+**	  SIDE_ACCESS highway, which runs through it;
+**	- a grade-separated DIAMOND_ACCESS crossing as its reserved overpass, the highway continuous beneath it;
+**	- a road crossing the highway 1W past a merge interval: refused at grade by the footprint rule and as an
+**	  overpass both ways by the gore reserve, and the road -- never the interchange -- is the one rerouted;
+**	- a withdrawn interchange's fallback junction at X.
+*/
+static void Check_Hybrid_Interchange_Interactions (const HybridPreflightInputs & inputs,const HybridMetricCache & metrics)
+{
+	//	SIDE_ACCESS, on the highway that bends at X.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,1,0.0f,-60.0f);
+		const HybridConstants & k = world.Sized.Constants;
+		HybridInterchangeConstants c;
+		Hybrid_Interchange_Constants (k.W,&c);
+		const float tol = 2.0f * k.Q;
+		StringClass why;
+		Interchange_World_Build (&world,&why);
+		HybridRouteResult routed;
+		const bool ok10 = Crossing_World_Route (&world,&routed) && (world.Topology.Interchanges.Count () == 1) &&
+								(world.Routes.WithdrawnInterchanges.Count () == 0);
+		Check (ok10,"Phase 11 SIDE_ACCESS world: Phase 10 did not realize it (%s)",routed.Detail.Peek_Buffer ());
+		if (ok10) {
+			HybridInteractionSet set;
+			HybridInteractionResult solved;
+			const bool ok = Interchange_Phase11 (&world,inputs,metrics,&set,&solved);
+			Check (ok,"the SIDE_ACCESS world does not solve Phase 11: %s",solved.Detail.Peek_Buffer ());
+			const HybridInterchange & ic = world.Topology.Interchanges[0];
+			const HybridTopologyNode * local = world.Topology.Find_Node (ic.LocalJunction[HYBRID_INTERCHANGE_SIDE_RIGHT]);
+			int at_x = 0;
+			int locals = 0;
+			int merges = 0;
+			int diverges = 0;
+			int incidental = 0;
+			float z_local = -1.0e6f;
+			for (int i = 0; i < set.Interactions.Count (); ++i) {
+				const HybridInteraction & one = set.Interactions[i];
+				const HybridJunctionRole role = Hybrid_Interaction_Junction_Role (one);
+				if (one.NodeId == ic.AnchorNode) at_x++;
+				if ((role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION) && (local != NULL) && (one.NodeId == local->StableId)) {
+					locals++;
+					z_local = one.JunctionZ;
+				}
+				if (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE) merges++;
+				if (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE) diverges++;
+				if (role == HYBRID_JUNCTION_ROLE_INCIDENTAL) incidental++;
+			}
+			Check (at_x == 0,"SIDE_ACCESS: %d junctions at X, which the highway runs through",at_x);
+			Check ((locals == 1) && (merges == 1) && (diverges == 1),"SIDE_ACCESS: %d local junctions, %d merges, %d diverges",
+					 locals,merges,diverges);
+			Check (incidental == 0,"SIDE_ACCESS: %d incidental crossings rediscovered",incidental);
+
+			//	Level ground: the whole-ramp solves pin L_s to the ground the highway's gore stands on.
+			float ground = 0.0f;
+			if (local != NULL) Crossing_Ground (local->Position,&ground,&world.Hydrology);
+			Check (WWMath::Fabs (z_local - ground) <= tol,"SIDE_ACCESS: z_L %.3f, the level ground is %.3f",z_local,ground);
+
+			//	The merge/diverge samples: one end at d_join, the gore end at d_aux, h = d + W/2, E = d + 0.95W.
+			Check (set.MergeDiverge.Count () == 2,"SIDE_ACCESS: %d merge/diverge sample sets",set.MergeDiverge.Count ());
+			const float spacing = WWMath::Min (k.W / 3.0f,0.25f * k.A);
+			for (int m = 0; m < set.MergeDiverge.Count (); ++m) {
+				const HybridMergeDiverge & md = set.MergeDiverge[m];
+				const int count = md.Samples.Count ();
+				Check (count >= 2,"merge/diverge %u has %d samples",md.StableId,count);
+				if (count < 2) continue;
+				const HybridMergeDivergeSample & first = md.Samples[0];
+				const HybridMergeDivergeSample & last = md.Samples[count - 1];
+				const bool gore_first = (WWMath::Fabs (first.Station - md.Interval.GoreStation) <= tol);
+				const HybridMergeDivergeSample & gore = gore_first ? first : last;
+				const HybridMergeDivergeSample & outer_end = gore_first ? last : first;
+				Check ((WWMath::Fabs (gore.Station - md.Interval.GoreStation) <= tol) && gore.Full &&
+						 (WWMath::Fabs (gore.D - c.DAux) <= tol) && (WWMath::Fabs (gore.E - c.EAux) <= tol),
+						 "merge/diverge %u: the gore sample is d %.3f E %.3f, not d_aux %.3f E_aux %.3f",md.StableId,gore.D,gore.E,
+						 c.DAux,c.EAux);
+				Check (!outer_end.Full && (WWMath::Fabs (outer_end.D - c.DJoin) <= tol) && (WWMath::Fabs (outer_end.E - c.EHwy) <= tol),
+						 "merge/diverge %u: the taper's outer end is d %.3f E %.3f, not d_join %.3f E_hwy %.3f",md.StableId,outer_end.D,outer_end.E,
+						 c.DJoin,c.EHwy);
+				for (int s = 0; s < count; ++s) {
+					const HybridMergeDivergeSample & one = md.Samples[s];
+					Check ((WWMath::Fabs (one.H - (one.D + (0.5f * k.W))) <= tol) && (WWMath::Fabs (one.E - (one.D + (0.95f * k.W))) <= tol),
+							 "merge/diverge %u sample %d: h %.3f E %.3f for d %.3f",md.StableId,s,one.H,one.E,one.D);
+					Check (WWMath::Fabs (one.Z - ground) <= tol,"merge/diverge %u sample %d: z %.3f off the level highway",md.StableId,s,
+							 one.Z);
+					if (s > 0) {
+						Check ((one.Station - md.Samples[s - 1].Station) <= (spacing + tol),"merge/diverge %u: samples %.3f apart",
+								 md.StableId,one.Station - md.Samples[s - 1].Station);
+					}
+				}
+			}
+
+			HybridInteractionSet again;
+			HybridInteractionResult again_result;
+			Check (Interchange_Phase11 (&world,inputs,metrics,&again,&again_result) && (again.Checksum == set.Checksum),
+					 "the SIDE_ACCESS Phase-11 compile is not deterministic");
+			printf ("  Phase 11 SIDE_ACCESS: local junction at z_L %.2f, a merge and a diverge (%d + %d samples), none at X\r\n",
+					  z_local,(set.MergeDiverge.Count () > 0) ? set.MergeDiverge[0].Samples.Count () : 0,
+					  (set.MergeDiverge.Count () > 1) ? set.MergeDiverge[1].Samples.Count () : 0);
+		}
+	}
+
+	//	DIAMOND_ACCESS, grade-separated: the crossing is its interchange's reserved overpass over the highway.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,3,0.0f);
+		StringClass why;
+		Interchange_World_Build (&world,&why);
+		HybridRouteResult routed;
+		const bool ok10 = Crossing_World_Route (&world,&routed) && (world.Topology.Interchanges.Count () == 1) &&
+								(world.Routes.WithdrawnInterchanges.Count () == 0);
+		Check (ok10,"Phase 11 DIAMOND_ACCESS world: Phase 10 did not realize it (%s)",routed.Detail.Peek_Buffer ());
+		if (ok10) {
+			const HybridInterchange & ic = world.Topology.Interchanges[0];
+			HybridInteractionSet set;
+			HybridInteractionResult solved;
+			const bool ok = Interchange_Phase11 (&world,inputs,metrics,&set,&solved);
+			Check (ok,"the DIAMOND_ACCESS world does not solve Phase 11: %s",solved.Detail.Peek_Buffer ());
+			int overpass = 0;
+			int locals = 0;
+			int merges = 0;
+			for (int i = 0; i < set.Interactions.Count (); ++i) {
+				const HybridInteraction & one = set.Interactions[i];
+				const HybridJunctionRole role = Hybrid_Interaction_Junction_Role (one);
+				if ((role == HYBRID_JUNCTION_ROLE_OVERPASS_OBLIGATION) && one.Mandatory && (ic.CrossingEdges.Count () > 0) &&
+					 (one.EdgeId == ic.CrossingEdges[0]) && ((one.OtherEdgeId == ic.HighwayEdgeIn) || (one.OtherEdgeId == ic.HighwayEdgeOut))) {
+					overpass++;
+				}
+				if (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION) locals++;
+				if ((role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE) || (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE)) merges++;
+			}
+			Check (overpass == 1,"DIAMOND_ACCESS: %d reserved overpasses carry the crossing over the highway",overpass);
+			Check ((locals == 2) && (merges == 4) && (set.MergeDiverge.Count () == 4),
+					 "DIAMOND_ACCESS: %d local junctions, %d merge/diverge records, %d sample sets",locals,merges,
+					 set.MergeDiverge.Count ());
+			printf ("  Phase 11 DIAMOND_ACCESS: the crossing is the reserved overpass, 2 local junctions, 4 merge/diverge\r\n");
+		}
+	}
+
+	//	A road crossing the highway 1W past the merge interval, inside the gore reserve's margin.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,1,0.0f);
+		const HybridConstants & k = world.Sized.Constants;
+		HybridInterchangeConstants c;
+		Hybrid_Interchange_Constants (k.W,&c);
+		StringClass why;
+		const bool built = Interchange_World_Build (&world,&why) && (world.Topology.Interchanges.Count () == 1);
+		Check (built,"gore reserve world: Phase 9 refused the interchange: %s",why.Peek_Buffer ());
+		if (built) {
+			//	Added once Phase 9 froze the interchange, as a road would be that meets the highway there.
+			const HybridTopologyNode * x_node = world.Topology.Find_Node (world.Topology.Interchanges[0].AnchorNode);
+			const float x_cross = x_node->Position.X + world.Topology.Interchanges[0].GoreOffset + c.MergeLength + k.W;
+			Trunk_World_Node (&world,8,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (x_cross,-292.5f),1);
+			Trunk_World_Node (&world,9,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (x_cross,307.5f),1);
+			Trunk_World_Edge (&world,8,HYBRID_EDGE_CROSS_LINK,HYBRID_ROAD_PRIMARY_2,8,9,-1);
+			HybridRouteResult routed;
+			const bool ok10 = Crossing_World_Route (&world,&routed) && (world.Routes.WithdrawnInterchanges.Count () == 0);
+			Check (ok10,"gore reserve world: Phase 10 %s",routed.Detail.Peek_Buffer ());
+			if (ok10) {
+				HybridInteractionSet set;
+				HybridInteractionResult solved;
+				const bool ok = Interchange_Phase11 (&world,inputs,metrics,&set,&solved);
+				const HybridRoadCrossingCensus & census = solved.RoadCrossings;
+				Check (!ok && (census.JunctionProblem == HYBRID_PROBLEM_INTERCHANGE_FOOTPRINT) &&
+						 (census.OverpassProblem[0] == HYBRID_PROBLEM_GORE_RESERVE) &&
+						 (census.OverpassProblem[1] == HYBRID_PROBLEM_GORE_RESERVE) && (solved.RerouteEdgeId == 8),
+						 "a crossing beside the merge interval: %s, junction %s, overpasses %s / %s, reroute edge %u (%s)",
+						 ok ? "compiled" : "refused",
+						 Hybrid_Interaction_Problem_Name ((HybridInteractionProblem)census.JunctionProblem),
+						 Hybrid_Interaction_Problem_Name ((HybridInteractionProblem)census.OverpassProblem[0]),
+						 Hybrid_Interaction_Problem_Name ((HybridInteractionProblem)census.OverpassProblem[1]),solved.RerouteEdgeId,
+						 solved.Detail.Peek_Buffer ());
+				printf ("  Phase 11 gore reserve: a crossing 1W past the merge is refused at grade (footprint) and as an "
+						  "overpass both ways (gore reserve); the crossing road is rerouted\r\n");
+			}
+		}
+	}
+
+	//	A withdrawn interchange: its fallback junction at X, and none of its records.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,1,0.0f);
+		HybridResourceAnchor field;
+		field.SiteId			= 77;
+		field.Center.Set (67.5f,7.5f);
+		field.ReserveRadius	= 6.0f;
+		world.Anchors.Resources.Add (field);
+		StringClass why;
+		Interchange_World_Build (&world,&why);
+		HybridRouteResult routed;
+		const bool ok10 = Crossing_World_Route (&world,&routed) && (world.Routes.WithdrawnInterchanges.Count () == 1);
+		Check (ok10,"withdrawn world: Phase 10 %s",routed.Detail.Peek_Buffer ());
+		if (ok10) {
+			HybridInteractionSet set;
+			HybridInteractionResult solved;
+			const bool ok = Interchange_Phase11 (&world,inputs,metrics,&set,&solved);
+			int at_x = 0;
+			int interchange = 0;
+			for (int i = 0; i < set.Interactions.Count (); ++i) {
+				const HybridInteraction & one = set.Interactions[i];
+				const HybridJunctionRole role = Hybrid_Interaction_Junction_Role (one);
+				if ((one.Method == HYBRID_METHOD_AT_GRADE_JUNCTION) && (one.NodeId == world.Topology.Interchanges[0].AnchorNode)) at_x++;
+				if ((role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE) || (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE) ||
+					 (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION)) interchange++;
+			}
+			Check (ok && (at_x == 1) && (interchange == 0) && (set.MergeDiverge.Count () == 0),
+					 "withdrawn interchange: %d junctions at X, %d interchange records (%s)",at_x,interchange,solved.Detail.Peek_Buffer ());
+			printf ("  Phase 11 withdrawn interchange: the fallback junction at X, no interchange records\r\n");
+		}
+	}
+}
+
+
 static void Check_Hybrid_Crossing_Compile (const HybridPreflightInputs & inputs,const HybridMetricCache & metrics)
 {
 	const float ROW = 7.5f;
@@ -19846,6 +20072,7 @@ void Check_Hybrid_Interactions (void)
 	**	world above, through the real Phase-10 and Phase-11 owners -- not a claim that a native one exists.
 	*/
 	Check_Controlled_Reroute (inputs,preflight.Metrics,runs_seen,&untouched_checked);
+	Check_Hybrid_Interchange_Interactions (inputs,preflight.Metrics);
 	Check_Hybrid_Crossing_Compile (inputs,preflight.Metrics);
 	Check_Hybrid_Continuous_Trunk (&inputs,&preflight.Metrics);
 
