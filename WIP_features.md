@@ -376,10 +376,14 @@ Phase-10 interchange realization (checklist I11 reopened, Plan 12.6.9) is done, 
 - withdrawal (a) and (b) to the fallback variant;
 - the gate clause.
 
-The census is back to 448 / 98 / 33. Of the three natural interchanges, Phase 10 realizes none:
-- archetype 5 seed 16 is withdrawn by rule (a): its aligned highway, with a 74.7-degree intent bend at `X`, enters
-  a Tiberium reserve;
-- archetype 5 seed 199 and archetype 3 seed 129 fail Phase 10 on highway edges exactly as they did before step 15.
+The census is back to 448 / 98 / 33. The three natural interchanges, classified by outcome (user, 2026-10-03):
+- archetype 5 seed 16: `INTERCHANGE_WITHDRAWN`. Rule (a): its straightened highway, with a 74.7-degree intent bend at
+  `X`, enters a Tiberium reserve. This is a legitimate withdrawal, and the ordinary junction at `X` is restored.
+- archetype 5 seed 199 and archetype 3 seed 129: `WORLD_FAILED_BEFORE_INTERCHANGE_REALIZATION`. Their `HIGHWAY_4`
+  edges fail ordinary Phase-10 routing, as before interchange support. These are not ramp failures and not
+  withdrawals.
+
+Only realized and withdrawn outcomes count when judging ramp correctness.
 
 **Next exact action:** Phase-11 merge/diverge compilation (checklist I12 reopened, Plan 12.6.10), then restore the
 Phase-11 gate. It covers:

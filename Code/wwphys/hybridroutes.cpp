@@ -245,6 +245,30 @@ void HybridRouteSet::Reset(void)
 }
 
 
+const char * Hybrid_Interchange_Outcome_Name(HybridInterchangeOutcome outcome)
+{
+	switch (outcome) {
+		case HYBRID_INTERCHANGE_REALIZED:								return "INTERCHANGE_REALIZED";
+		case HYBRID_INTERCHANGE_OUTCOME_WITHDRAWN:					return "INTERCHANGE_WITHDRAWN";
+		case HYBRID_INTERCHANGE_WORLD_FAILED_BEFORE_REALIZATION:	return "WORLD_FAILED_BEFORE_INTERCHANGE_REALIZATION";
+		default:																	break;
+	}
+	return "unknown";
+}
+
+
+HybridInterchangeOutcome Hybrid_Interchange_Outcome(const HybridRouteResult & result,unsigned int interchange_id)
+{
+	for (int i = 0; i < result.WithdrawnInterchanges.Count(); ++i) {
+		if (result.WithdrawnInterchanges[i] == interchange_id) return HYBRID_INTERCHANGE_OUTCOME_WITHDRAWN;
+	}
+	for (int i = 0; i < result.RealizedInterchanges.Count(); ++i) {
+		if (result.RealizedInterchanges[i] == interchange_id) return HYBRID_INTERCHANGE_REALIZED;
+	}
+	return HYBRID_INTERCHANGE_WORLD_FAILED_BEFORE_REALIZATION;
+}
+
+
 bool HybridRouteSet::Interchange_Withdrawn(unsigned int interchange_id) const
 {
 	for (int i = 0; i < WithdrawnInterchanges.Count(); ++i) {
@@ -620,6 +644,7 @@ struct RouteBuilder
 	DynamicVectorClass<int>				FootprintStart;
 	DynamicVectorClass<int>				FootprintCount;
 	unsigned int							LastFailedEdge;		// the logical edge Route_Road last failed on
+	HybridRouteResult *					Result;				// the caller's result, for the interchange outcomes
 	unsigned int						OwnFieldSite;		// the Tiberium reserve this leg may enter, 0 for none
 	unsigned int						OwnEndFieldSite;	// the centerline pass: the field at the road's other end
 
@@ -5354,6 +5379,7 @@ static void Straight_Points(const Vector2 & from,const Vector2 & to,float spacin
 static void Withdraw_Interchange(RouteBuilder & b,unsigned int interchange_id)
 {
 	if (b.Out->Interchange_Withdrawn(interchange_id)) return;
+	if (b.Result != nullptr) b.Result->WithdrawnInterchanges.Add(interchange_id);
 	int slot = b.Out->WithdrawnInterchanges.Count();
 	b.Out->WithdrawnInterchanges.Add(interchange_id);
 	while ((slot > 0) && (b.Out->WithdrawnInterchanges[slot - 1] > interchange_id)) {
@@ -5554,7 +5580,10 @@ static void Construct_Interchanges(RouteBuilder & b)
 		const HybridInterchange & ic = b.Topology->Interchanges[i];
 		if ((ic.Status != HYBRID_INTERCHANGE_ACTIVE) || b.Out->Interchange_Withdrawn(ic.StableId)) continue;
 		StringClass why;
-		if (Construct_Interchange(b,ic,&why)) continue;
+		if (Construct_Interchange(b,ic,&why)) {
+			if (b.Result != nullptr) b.Result->RealizedInterchanges.Add(ic.StableId);
+			continue;
+		}
 		WWDEBUG_SAY(("Hybrid Phase 10: interchange %u withdrawn in group 1b: %s\r\n",ic.StableId,why.Peek_Buffer()));
 		Withdraw_Interchange(b,ic.StableId);
 	}
@@ -5806,6 +5835,8 @@ bool Hybrid_Build_Routes(const HybridRouteParams & params,const HybridMapIdentit
 	if (result != nullptr) {
 		result->Failure	= HYBRID_ROUTE_OK;
 		result->Detail		= "";
+		result->RealizedInterchanges.Delete_All();
+		result->WithdrawnInterchanges.Delete_All();
 	}
 	if ((out == nullptr) || (sample == nullptr)) {
 		return Fail(result,HYBRID_ROUTE_INVALID_INPUT,"no output record or no height sampler");
@@ -5842,6 +5873,7 @@ bool Hybrid_Build_Routes(const HybridRouteParams & params,const HybridMapIdentit
 	b.Generation	= 0;
 	b.AlignedLeg	= false;
 	b.LastFailedEdge= 0;
+	b.Result			= result;
 	b.LastChain		= nullptr;
 	b.LastChainCount = 0;
 	b.CurrentClass	= HYBRID_ROAD_PRIMARY_2;
@@ -5910,6 +5942,7 @@ bool Hybrid_Build_Routes(const HybridRouteParams & params,const HybridMapIdentit
 			**	the interchange at its ends that is later in processing order, and is routed again from its first
 			**	envelope; when none remains it fails by the ordinary rule.  Only before group 1b starts.
 			*/
+			DynamicVectorClass<unsigned int> withdrawn_here;
 			for (;;) {
 				if (Route_Road(b,segments,result)) break;
 				unsigned int withdraw = 0;
@@ -5923,7 +5956,26 @@ bool Hybrid_Build_Routes(const HybridRouteParams & params,const HybridMapIdentit
 						if (ic.StableId > withdraw) withdraw = ic.StableId;
 					}
 				}
-				if (withdraw == 0) { out->Reset(); return false; }
+				if (withdraw == 0) {
+					/*
+					**	Withdrawing did not rescue the road: it fails by the ordinary rule, on its own routing, exactly as it
+					**	would have with no interchange -- so the interchanges withdrawn for it are reported as never reached
+					**	(WORLD_FAILED_BEFORE_INTERCHANGE_REALIZATION), not as withdrawals.
+					*/
+					if (result != nullptr) {
+						DynamicVectorClass<unsigned int> kept;
+						for (int i = 0; i < result->WithdrawnInterchanges.Count(); ++i) {
+							bool here = false;
+							for (int j = 0; (j < withdrawn_here.Count()) && !here; ++j) here = (withdrawn_here[j] == result->WithdrawnInterchanges[i]);
+							if (!here) kept.Add(result->WithdrawnInterchanges[i]);
+						}
+						result->WithdrawnInterchanges.Delete_All();
+						for (int i = 0; i < kept.Count(); ++i) result->WithdrawnInterchanges.Add(kept[i]);
+					}
+					out->Reset();
+					return false;
+				}
+				withdrawn_here.Add(withdraw);
 				WWDEBUG_SAY(("Hybrid Phase 10: interchange %u withdrawn, highway edge %u has no aligned route\r\n",withdraw,
 								 b.LastFailedEdge));
 				Withdraw_Interchange(b,withdraw);

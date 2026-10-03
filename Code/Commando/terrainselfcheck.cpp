@@ -8569,6 +8569,7 @@ static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArch
 		out->RouteResult = route_result;
 		return false;
 	}
+	out->RouteResult = route_result;
 	out->Reached = 10;
 	return true;
 }
@@ -9295,6 +9296,8 @@ static void Check_Hybrid_Interchange_Routes (void)
 			const HybridInterchange & ic = world.Topology.Interchanges[0];
 			const float W = world.Sized.Constants.W;
 			Check (world.Routes.WithdrawnInterchanges.Count () == 0,"the realizable interchange was withdrawn");
+			Check (Hybrid_Interchange_Outcome (result,ic.StableId) == HYBRID_INTERCHANGE_REALIZED,"the realized interchange is not reported %s",
+					 Hybrid_Interchange_Outcome_Name (HYBRID_INTERCHANGE_REALIZED));
 			int ramps = 0;
 			for (int e = 0; e < ic.RampEdges.Count (); ++e) {
 				const HybridRoute * ramp = world.Routes.Find (ic.RampEdges[e]);
@@ -9374,7 +9377,8 @@ static void Check_Hybrid_Interchange_Routes (void)
 		const HybridTopologyNode * x_node = world.Topology.Find_Node (2);
 		Check (routed && (world.Routes.WithdrawnInterchanges.Count () == 1) && (arrival != NULL) && (x_node != NULL) &&
 				 ((arrival->Points[0] - x_node->Position).Length () <= 1.0f) &&
-				 (world.Routes.Find (world.Topology.Interchanges[0].RampEdges[0]) == NULL),
+				 (world.Routes.Find (world.Topology.Interchanges[0].RampEdges[0]) == NULL) &&
+				 (Hybrid_Interchange_Outcome (result,world.Topology.Interchanges[0].StableId) == HYBRID_INTERCHANGE_OUTCOME_WITHDRAWN),
 				 "withdrawal (a): the interchange was not withdrawn to its fallback variant");
 		printf ("  Phase 10 withdrawal (a): highway cannot run straight through X; arrival restored to X\r\n");
 	}
@@ -9395,6 +9399,24 @@ static void Check_Hybrid_Interchange_Routes (void)
 				 "withdrawal (b): a ramp across another group-1 road was not withdrawn (%s)",
 				 routed ? "routed" : result.Detail.Peek_Buffer ());
 		printf ("  Phase 10 withdrawal (b): ramp meets another group-1 road; interchange withdrawn\r\n");
+	}
+
+	//	A world that fails Phase 10 on its highway before group 1b: neither realized nor withdrawn.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,1,0.0f);
+		StringClass why;
+		Interchange_World_Build (&world,&why);
+		Crossing_World_River (&world,9,Vector2 (-250.0f,-600.0f),Vector2 (-250.0f,600.0f),16.0f);
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (!routed && (world.Topology.Interchanges.Count () == 1) &&
+				 (Hybrid_Interchange_Outcome (result,world.Topology.Interchanges[0].StableId) ==
+				  HYBRID_INTERCHANGE_WORLD_FAILED_BEFORE_REALIZATION),
+				 "a highway that cannot cross a windowless river is not reported %s",
+				 Hybrid_Interchange_Outcome_Name (HYBRID_INTERCHANGE_WORLD_FAILED_BEFORE_REALIZATION));
+		printf ("  Phase 10 highway failure before group 1b: %s\r\n",
+				  Hybrid_Interchange_Outcome_Name (HYBRID_INTERCHANGE_WORLD_FAILED_BEFORE_REALIZATION));
 	}
 }
 
@@ -20286,6 +20308,7 @@ void Check_Hybrid_Interaction_Search (void)
 
 	int worlds = 0;
 	int passed_phase9 = 0;
+	int interchange_outcome[HYBRID_INTERCHANGE_OUTCOME_COUNT] = { 0,0,0 };
 	int rejected_approach = 0;
 	int rejected_wrong_side = 0;
 	int rejected_pose = 0;
@@ -20444,6 +20467,17 @@ void Check_Hybrid_Interaction_Search (void)
 						for (int i = 0; i < topo.AnchorTurnDegrees.Count (); ++i) {
 							printf (" [turn %.1f before %.1f after %.1f]",topo.AnchorTurnDegrees[i],topo.AnchorNeighbourBefore[i],
 									  topo.AnchorNeighbourAfter[i]);
+						}
+						printf ("\r\n");
+					}
+
+					//	Section 12.6.9: each frozen interchange's Phase-10 outcome, the three kept distinct.
+					if (topo.Interchanges.Count () > 0) {
+						printf ("INTERCHANGE10 archetype %d seed %u:",(int)SEARCH_ARCHETYPES[ai],seed);
+						for (int i = 0; i < topo.Interchanges.Count (); ++i) {
+							const HybridInterchangeOutcome outcome = Hybrid_Interchange_Outcome (scan.RouteResult,topo.Interchanges[i].StableId);
+							interchange_outcome[outcome]++;
+							printf (" %u %s",topo.Interchanges[i].StableId,Hybrid_Interchange_Outcome_Name (outcome));
 						}
 						printf ("\r\n");
 					}
@@ -20711,15 +20745,6 @@ void Check_Hybrid_Interaction_Search (void)
 						  Hybrid_Interaction_Problem_Name ((HybridInteractionProblem)rc.OverpassProblem[1]));
 			}
 			printf ("BUILT archetype %d seed %u\r\n",(int)SEARCH_ARCHETYPES[ai],seed);
-			if (scan.Topology.Interchanges.Count () > 0) {
-				//	Section 12.6.9: which frozen interchanges Phase 10 realized, and which it withdrew.
-				int realized = 0;
-				for (int i = 0; i < scan.Topology.Interchanges.Count (); ++i) {
-					if (!scan.Routes.Interchange_Withdrawn (scan.Topology.Interchanges[i].StableId)) realized++;
-				}
-				printf ("INTERCHANGE10 archetype %d seed %u: realized %d withdrawn %d\r\n",(int)SEARCH_ARCHETYPES[ai],seed,
-						  realized,scan.Routes.WithdrawnInterchanges.Count ());
-			}
 			if (spent > 0) {
 				printf ("REROUTE archetype %d seed %u: %d reroute(s), %s\r\n",(int)SEARCH_ARCHETYPES[ai],seed,spent,
 						  ok ? "solved" : Hybrid_Interaction_Failure_Name (sr.Failure));
@@ -20773,6 +20798,11 @@ void Check_Hybrid_Interaction_Search (void)
 			  rejected_pose,recovered_next_rank);
 	printf ("worlds: %u attempted, %d built through Phase 10, %d reached Phase 11, %d solved\r\n",
 			  SEARCH_SEEDS * 7u,worlds,reached_phase11,solved_worlds);
+	printf ("interchanges: %s %d, %s %d, %s %d\r\n",
+			  Hybrid_Interchange_Outcome_Name (HYBRID_INTERCHANGE_REALIZED),interchange_outcome[HYBRID_INTERCHANGE_REALIZED],
+			  Hybrid_Interchange_Outcome_Name (HYBRID_INTERCHANGE_OUTCOME_WITHDRAWN),interchange_outcome[HYBRID_INTERCHANGE_OUTCOME_WITHDRAWN],
+			  Hybrid_Interchange_Outcome_Name (HYBRID_INTERCHANGE_WORLD_FAILED_BEFORE_REALIZATION),
+			  interchange_outcome[HYBRID_INTERCHANGE_WORLD_FAILED_BEFORE_REALIZATION]);
 	s_route_census = false;
 	printf ("phase 9 failures:");
 	for (int i = 1; i < HYBRID_TOPOLOGY_FAILURE_COUNT; ++i) {

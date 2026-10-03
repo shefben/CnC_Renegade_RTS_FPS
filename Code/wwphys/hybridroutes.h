@@ -411,6 +411,21 @@ enum HybridRouteFailure
 
 const char *	Hybrid_Route_Failure_Name(HybridRouteFailure failure);
 
+/*
+**	What Phase 10 did with one frozen interchange (12.6.9), kept distinct for the diagnostics: realized by group 1b,
+**	withdrawn to its fallback variant (rule a or b), or never reached because the attempt failed Phase 10 before
+**	group 1b constructed it -- an ordinary routing failure, not an interchange one.
+*/
+enum HybridInterchangeOutcome
+{
+	HYBRID_INTERCHANGE_REALIZED = 0,
+	HYBRID_INTERCHANGE_OUTCOME_WITHDRAWN,
+	HYBRID_INTERCHANGE_WORLD_FAILED_BEFORE_REALIZATION,
+	HYBRID_INTERCHANGE_OUTCOME_COUNT
+};
+
+const char *	Hybrid_Interchange_Outcome_Name(HybridInterchangeOutcome outcome);
+
 struct HybridRouteResult
 {
 	HybridRouteResult(void) : Failure(HYBRID_ROUTE_OK) { }
@@ -418,7 +433,13 @@ struct HybridRouteResult
 	HybridRouteFailure			Failure;
 	StringClass						Detail;
 	HybridRouteFailureCensus	Census;
+
+	//	Diagnostics that survive a failed attempt: the interchanges group 1b realized and those Phase 10 withdrew.
+	DynamicVectorClass<unsigned int>	RealizedInterchanges;
+	DynamicVectorClass<unsigned int>	WithdrawnInterchanges;
 };
+
+HybridInterchangeOutcome	Hybrid_Interchange_Outcome(const HybridRouteResult & result,unsigned int interchange_id);
 
 
 /*
