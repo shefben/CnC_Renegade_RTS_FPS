@@ -74,17 +74,20 @@ namespace
 		"SECONDARY_2",
 		"SERVICE_DIRT_2",
 		"TRAIL_1",
+		"HIGHWAY_RAMP",
 	};
 
 	//	Section 7 cross-section table.  Lane width is W for every class.
 	const HybridRoadClassSpec ROAD_CLASS_SPECS [HYBRID_ROAD_CLASS_COUNT] =
 	{
-		//	class							lanes	shoulder	median	grade	x-slope	turn	tier
-		{	HYBRID_ROAD_HIGHWAY_4,			4,		0.45f,	0.75f,	8.0f,		6.0f,		8.0f,	HYBRID_ROAD_TIER_HIGHWAY	},
-		{	HYBRID_ROAD_PRIMARY_2,			2,		0.30f,	0.0f,		12.0f,	8.0f,		5.0f,	HYBRID_ROAD_TIER_PAVED		},
-		{	HYBRID_ROAD_SECONDARY_2,		2,		0.20f,	0.0f,		14.0f,	10.0f,	4.0f,	HYBRID_ROAD_TIER_PAVED		},
-		{	HYBRID_ROAD_SERVICE_DIRT_2,	2,		0.20f,	0.0f,		18.0f,	12.0f,	3.0f,	HYBRID_ROAD_TIER_DIRT		},
-		{	HYBRID_ROAD_TRAIL_1,				1,		0.10f,	0.0f,		22.0f,	14.0f,	2.0f,	HYBRID_ROAD_TIER_DIRT		},
+		//	class							lanes	inner		median	grade	x-slope	turn	tier								outer
+		{	HYBRID_ROAD_HIGHWAY_4,			4,		0.45f,	0.75f,	8.0f,		6.0f,		8.0f,	HYBRID_ROAD_TIER_HIGHWAY,	0.45f	},
+		{	HYBRID_ROAD_PRIMARY_2,			2,		0.30f,	0.0f,		12.0f,	8.0f,		5.0f,	HYBRID_ROAD_TIER_PAVED,		0.30f	},
+		{	HYBRID_ROAD_SECONDARY_2,		2,		0.20f,	0.0f,		14.0f,	10.0f,	4.0f,	HYBRID_ROAD_TIER_PAVED,		0.20f	},
+		{	HYBRID_ROAD_SERVICE_DIRT_2,	2,		0.20f,	0.0f,		18.0f,	12.0f,	3.0f,	HYBRID_ROAD_TIER_DIRT,		0.20f	},
+		{	HYBRID_ROAD_TRAIL_1,				1,		0.10f,	0.0f,		22.0f,	14.0f,	2.0f,	HYBRID_ROAD_TIER_DIRT,		0.10f	},
+		//	Section 12.6.6: one lane, 0.20W inner and 0.30W outer shoulder (1.50W), the normal paved tier and speed hint.
+		{	HYBRID_ROAD_HIGHWAY_RAMP,		1,		0.20f,	0.0f,		12.0f,	8.0f,		5.0f,	HYBRID_ROAD_TIER_PAVED,		0.30f	},
 	};
 
 	int Find_Name(const char * const * table,int count,const char * name)

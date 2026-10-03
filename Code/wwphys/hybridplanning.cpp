@@ -366,9 +366,14 @@ float Hybrid_Carriageway_Width(HybridRoadClass road_class,float w)
 }
 
 
+/*
+**	Corridor helpers are undefined for HIGHWAY_RAMP (Section 12.6): a ramp is constructed, never searched, so
+**	it has no corridor; both helpers answer 0 for it, which no search can use.
+*/
 float Hybrid_Preferred_Corridor_Half_Width(HybridRoadClass road_class,float s,float d)
 {
 	switch (road_class) {
+		case HYBRID_ROAD_HIGHWAY_RAMP:		return 0.0f;
 		case HYBRID_ROAD_HIGHWAY_4:
 		case HYBRID_ROAD_PRIMARY_2:			return Max2(6.0f * s,0.08f * d);
 		case HYBRID_ROAD_SECONDARY_2:			return Max2(5.0f * s,0.06f * d);
@@ -381,6 +386,7 @@ float Hybrid_Preferred_Corridor_Half_Width(HybridRoadClass road_class,float s,fl
 
 float Hybrid_Max_Corridor_Half_Width(HybridRoadClass road_class,float s,float d)
 {
+	if (road_class == HYBRID_ROAD_HIGHWAY_RAMP) return 0.0f;
 	return Hybrid_Preferred_Corridor_Half_Width(road_class,s,d) + 2.0f * s;
 }
 

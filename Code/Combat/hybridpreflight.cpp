@@ -496,6 +496,12 @@ bool Hybrid_Run_Preflight(const ProceduralWorldProfile & profile,const HybridPre
 	const float lane_clearance = profile.Fairness.MinVehicleLaneClearance;
 	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
 		const HybridRoadClass road_class = (HybridRoadClass)c;
+		//	A HIGHWAY_RAMP never carries its own bridge in this generator version (12.6.8 test 5).
+		if (!Hybrid_Road_Class_Is_Routed(c)) {
+			m.BridgeRequiredWidth[c]	= 0.0f;
+			m.BridgeForClass[c]			= -1;
+			continue;
+		}
 		float swept = m.HumveeWidth;
 		if (road_class != HYBRID_ROAD_TRAIL_1) {
 			swept = (m.HarvesterWidth > swept) ? m.HarvesterWidth : swept;

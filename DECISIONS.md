@@ -554,6 +554,56 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-022 - Hybrid rewrite Q-026: merge/diverge is an explicit auxiliary lane; generator 16 (2026-10-03)
+
+**Decision (user, 2026-10-03, option (b)).** An entrance or exit ramp becomes a real additional highway lane
+before it merges or after it diverges. Sliding the whole `1.50W` independent ramp from `3.575W` to the outer lane
+centre made a long diagonal roadbed, not an acceleration or deceleration lane. The single smoothstep over the whole
+`16W` / `12W` interval in Plan Sections 12.6.7 and 12.6.11 is superseded.
+
+**Geometry (Plan 12.6.6, 12.6.7, 12.6.11, 12.6.13, 12.6.15).**
+- `ON_RAMP`: independent `HIGHWAY_RAMP` -> gore -> `10W` full-width auxiliary lane -> `6W` merge taper -> normal
+  `HIGHWAY_4`.
+- `OFF_RAMP`: normal `HIGHWAY_4` -> `6W` diverge taper -> `6W` full-width auxiliary lane -> gore -> independent
+  ramp.
+
+| | value |
+| --- | --- |
+| auxiliary-lane centre `d_aux` | `d_join + W = 2.875W` |
+| ramp-side roadbed edge `E_aux` | `E_hwy + W = 3.825W` |
+| highway width | `5.65W -> 6.65W` |
+
+The highway centerline and median never move. The taper uses `f = 3u^2 - 2u^3`, `u = clamp(s/6W, 0, 1)`:
+- merge: `d = 2.875W - W f`, `E = 3.825W - W f`;
+- diverge: `d = 1.875W + W f`, `E = 2.825W + W f`.
+
+Throughout, `h = d + 0.5W` and `E = d + 0.95W`.
+
+**The gore.** The gore is at `d_aux`. The independent ramp finishes its lateral transition before it, and its
+shoulders blend into the widened roadbed over the `2W` gore shoulder-transition interval (`GoreReserveMargin`).
+`d_sep = 3.575W` and `4.325W` are not gore or highway cross-section values.
+
+**Construction constants.** The construction keeps its constants, with `d_aux` in place of `d_sep`:
+- `d_Lmin(k) = (8.3926380 + 0.2588190k)W`;
+- `SIDE G(k) = (9.0029197 + 0.9659258k)W`, unchanged.
+
+**Recorded alongside.** The new constants (`TaperLength`, `MergeFullLength`, `DivergeFullLength`, `d_aux`, `h_aux`,
+`E_aux`), the subinterval fields, the gore reserves' lateral extent, the Phase-11 record samples, the Phase-12 gore
+attachment, the Phase-19A check, and the checksum fields.
+
+**Interpretation, flagged.** The plan keeps the ramp's authoritative centerline as its roadbed centerline. At the
+gore that centerline is placed at `d_aux`. The independent ramp's asymmetric shoulders (`0.20W` / `0.30W`) put
+its lane centre `0.05W` inside the roadbed centerline, and that is absorbed by the `2W` shoulder transition.
+
+**Generator identity 16.** It is bumped in the first ramp implementation commit and is the first identity containing
+the finalized post-stabilization behaviour plus the `HIGHWAY_RAMP` records. Intermediate identity-15 development
+commits after `5384130c` (notably `48f7d5ab`) changed generated output without a bump. They are not compatibility
+fixtures, and no version number is spent repairing them.
+
+**Status: accepted.** `Q-026` closes on this record.
+
+
+
 ## D-021 - Hybrid rewrite: ordinary guides are strategic anchors; structural-transition defects fixed; generator 15 (2026-10-02)
 
 **Decision (user, 2026-10-02).** An ordinary route-family guide is a strategic routing anchor. The Phase-10 A* chain

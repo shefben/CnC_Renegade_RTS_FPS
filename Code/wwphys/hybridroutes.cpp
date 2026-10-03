@@ -400,6 +400,35 @@ unsigned int Hybrid_Route_Checksum(const HybridRouteSet & set,unsigned int seed)
 			stream.Add_Length(route.Structural[s].Egress.X);
 			stream.Add_Length(route.Structural[s].Egress.Y);
 		}
+
+		//	Section 12.6.15: ramp metadata and a highway's widened intervals.
+		if (route.RoadClass == HYBRID_ROAD_HIGHWAY_RAMP) {
+			stream.Add_Uint(route.InterchangeId);
+			stream.Add_Uint((unsigned int)route.RampRole);
+			stream.Add_Uint((unsigned int)route.RampSide);
+			stream.Add_Length(route.RampInterval.GoreStation);
+			stream.Add_Length(route.RampInterval.From);
+			stream.Add_Length(route.RampInterval.To);
+			stream.Add_Length(route.RampInterval.FullFrom);
+			stream.Add_Length(route.RampInterval.FullTo);
+			stream.Add_Length(route.RampInterval.TaperFrom);
+			stream.Add_Length(route.RampInterval.TaperTo);
+		}
+		stream.Add_Int(route.Widened.Count());
+		for (int w = 0; w < route.Widened.Count(); ++w) {
+			const HybridWidenedInterval & widened = route.Widened[w];
+			stream.Add_Uint(widened.InterchangeId);
+			stream.Add_Uint(widened.RampEdgeId);
+			stream.Add_Uint((unsigned int)widened.Role);
+			stream.Add_Uint((unsigned int)widened.Side);
+			stream.Add_Length(widened.Interval.GoreStation);
+			stream.Add_Length(widened.Interval.From);
+			stream.Add_Length(widened.Interval.To);
+			stream.Add_Length(widened.Interval.FullFrom);
+			stream.Add_Length(widened.Interval.FullTo);
+			stream.Add_Length(widened.Interval.TaperFrom);
+			stream.Add_Length(widened.Interval.TaperTo);
+		}
 	}
 
 	stream.Add_Int(set.Trunks.Count());

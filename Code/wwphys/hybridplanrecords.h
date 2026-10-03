@@ -246,7 +246,9 @@ enum HybridBiome
 
 
 /*
-**	Section 7 -- road classes and physical road tiers.
+**	Section 7 -- road classes and physical road tiers.  `HIGHWAY_RAMP` (Section 12.6) is appended after the
+**	five strategic classes, so their ordinals, every class-indexed array and the Phase-6 `approach_classes`
+**	bits keep their values; a ramp is never A*-routed, never a family's class and never binds a window.
 */
 enum HybridRoadClass
 {
@@ -255,8 +257,15 @@ enum HybridRoadClass
 	HYBRID_ROAD_SECONDARY_2,
 	HYBRID_ROAD_SERVICE_DIRT_2,
 	HYBRID_ROAD_TRAIL_1,
+	HYBRID_ROAD_HIGHWAY_RAMP,
 	HYBRID_ROAD_CLASS_COUNT
 };
+
+//	The classes a road is routed, searched and bridged as: every class but the constructed HIGHWAY_RAMP.
+inline bool Hybrid_Road_Class_Is_Routed(int road_class)
+{
+	return (road_class >= HYBRID_ROAD_HIGHWAY_4) && (road_class <= HYBRID_ROAD_TRAIL_1);
+}
 
 
 enum HybridPhysicalRoadTier
@@ -275,14 +284,15 @@ struct HybridRoadClassSpec
 {
 	HybridRoadClass			Class;
 	int							Lanes;
-	float							ShoulderW;				// each side
+	float							ShoulderW;				// the inner shoulder: left of the logical travel direction
 	float							MedianW;
 	float							MaxGradeDegrees;
 	float							MaxCrossSlopeDegrees;
 	float							MinTurnRadiusW;
 	HybridPhysicalRoadTier	PhysicalTier;
+	float							OuterShoulderW;		// the outer shoulder; equal to ShoulderW except HIGHWAY_RAMP
 
-	float	Roadbed_Width_W(void) const		{ return (float)Lanes + 2.0f * ShoulderW + MedianW; }
+	float	Roadbed_Width_W(void) const		{ return (float)Lanes + ShoulderW + OuterShoulderW + MedianW; }
 };
 
 

@@ -77,6 +77,7 @@ enum HybridTopologyNodeKind
 	HYBRID_NODE_CROSSING_OBLIGATION,		// a mandatory crossing, bound to one Phase-6 window
 	HYBRID_NODE_OVERPASS_OBLIGATION,		// a grade-separated road-over-road crossing, shared by two edges
 	HYBRID_NODE_FIELD_ACCESS,				// FIELD_ACCESS_POINT: where a field's road actually ends
+	HYBRID_NODE_INTERCHANGE_LOCAL_JUNCTION,	// Section 12.6: L_s, where one side's ramps meet the lower roads
 	HYBRID_NODE_KIND_COUNT
 };
 
@@ -95,6 +96,8 @@ enum HybridTopologyEdgeKind
 	HYBRID_EDGE_SERVICE_FILL,				// quota-filling SERVICE_DIRT_2 between family waypoints
 	HYBRID_EDGE_TRAIL,						// TRAIL_1 infantry shortcut
 	HYBRID_EDGE_CROSS_LINK,					// optional heavy cross-link, or a synthesized bridge/overpass link
+	HYBRID_EDGE_HIGHWAY_RAMP,				// Section 12.6: one ON_RAMP or OFF_RAMP, constructed, never searched
+	HYBRID_EDGE_INTERCHANGE_CROSSING,	// Section 12.6: a DIAMOND_ACCESS crossing joining its two local junctions
 	HYBRID_TOPOLOGY_EDGE_KIND_COUNT
 };
 
@@ -147,11 +150,95 @@ struct HybridTopologyNode
 };
 
 
+/*
+**	Section 12.6's highway access vocabulary.  Ordinals are part of the checksum: never reorder.
+*/
+enum HybridRampRole
+{
+	HYBRID_RAMP_ROLE_NONE = 0,
+	HYBRID_RAMP_ROLE_ON,						// ON_RAMP: logical travel enters HIGHWAY_4
+	HYBRID_RAMP_ROLE_OFF,					// OFF_RAMP: logical travel leaves HIGHWAY_4
+	HYBRID_RAMP_ROLE_COUNT
+};
+
+enum HybridInterchangeSide
+{
+	HYBRID_INTERCHANGE_SIDE_RIGHT = 0,	// n_RIGHT = -n_LEFT; carriageway travel tau_RIGHT = a
+	HYBRID_INTERCHANGE_SIDE_LEFT,			// n_LEFT = rotate(a,+90); tau_LEFT = -a
+	HYBRID_INTERCHANGE_SIDE_COUNT,
+	HYBRID_INTERCHANGE_SIDE_NONE = HYBRID_INTERCHANGE_SIDE_COUNT
+};
+
+enum HybridInterchangeForm
+{
+	HYBRID_INTERCHANGE_DIAMOND_ACCESS = 0,
+	HYBRID_INTERCHANGE_SIDE_ACCESS,
+	HYBRID_INTERCHANGE_FORM_COUNT
+};
+
+enum HybridInterchangeStatus
+{
+	HYBRID_INTERCHANGE_ACTIVE = 0,
+	HYBRID_INTERCHANGE_WITHDRAWN,			// Phase 10's only fallback (12.6.9): the frozen Phase-9 variant restored
+	HYBRID_INTERCHANGE_STATUS_COUNT
+};
+
+enum HybridInterchangeCrossingMode
+{
+	HYBRID_INTERCHANGE_CROSSING_NONE = 0,			// SIDE_ACCESS
+	HYBRID_INTERCHANGE_CROSSING_GRADE_SEPARATED,	// one reserved OVERPASS_OBLIGATION at the anchor
+	HYBRID_INTERCHANGE_CROSSING_AT_GRADE,			// two edges through the anchor, an intended at-grade junction
+	HYBRID_INTERCHANGE_CROSSING_MODE_COUNT
+};
+
+//	Why Phase 9 step 15 rejected an anchor (a diagnostic; rejection is never a phase failure).
+enum HybridInterchangeRejection
+{
+	HYBRID_INTERCHANGE_REJECT_AXIS = 0,				// the two highway directions cancel (|sum| < Q)
+	HYBRID_INTERCHANGE_REJECT_ARRIVAL_ANGLE,		// an arrival within 30 degrees of the highway axis
+	HYBRID_INTERCHANGE_REJECT_ARRIVAL_SERVED,		// an access arrival already belongs to another interchange
+	HYBRID_INTERCHANGE_REJECT_CROSSING,				// DIAMOND: neither overpass nor at-grade crossing is feasible
+	HYBRID_INTERCHANGE_REJECT_NO_CANDIDATE,			// no k in 0..K_GORE-1 passed 12.6.8
+	HYBRID_INTERCHANGE_REJECT_QUALIFICATION,		// a retargeted quota edge fell below its Section-5 length
+	HYBRID_INTERCHANGE_REJECT_EDGE_CAP,				// the realized-edge count would exceed R
+	HYBRID_INTERCHANGE_REJECTION_COUNT
+};
+
+const char *	Hybrid_Ramp_Role_Name(HybridRampRole role);
+const char *	Hybrid_Interchange_Side_Name(HybridInterchangeSide side);
+const char *	Hybrid_Interchange_Form_Name(HybridInterchangeForm form);
+const char *	Hybrid_Interchange_Status_Name(HybridInterchangeStatus status);
+const char *	Hybrid_Interchange_Crossing_Mode_Name(HybridInterchangeCrossingMode mode);
+const char *	Hybrid_Interchange_Rejection_Name(HybridInterchangeRejection rejection);
+
+
+/*
+**	One ramp's highway-parallel interval, in chain station relative to the anchor `X` along the highway axis
+**	`a` (12.6.7: for RIGHT the station is the side-frame `x`, for LEFT it is `-x`), with the Q-026 subdivisions:
+**	an ON_RAMP's full auxiliary lane follows its gore and the merge taper ends the interval; an OFF_RAMP's
+**	diverge taper begins it and the full auxiliary lane runs to its gore.  `From < To` in chain order.
+*/
+struct HybridRampInterval
+{
+	HybridRampInterval(void) : GoreStation(0.0f),From(0.0f),To(0.0f),FullFrom(0.0f),FullTo(0.0f),TaperFrom(0.0f),
+		TaperTo(0.0f) { }
+
+	float	GoreStation;
+	float	From;
+	float	To;
+	float	FullFrom;					// the full-width auxiliary lane
+	float	FullTo;
+	float	TaperFrom;					// the merge or diverge taper
+	float	TaperTo;
+};
+
+
 struct HybridTopologyEdge
 {
 	HybridTopologyEdge(void) :
 		StableId(0),Kind(HYBRID_EDGE_FAMILY_TRUNK),RoadClass(HYBRID_ROAD_CLASS_COUNT),NodeA(0),NodeB(0),
-		RouteFamily(-1),Required(false),ObligationId(0),SourceEdgeId(0),Capabilities(0),Length(0.0f) { }
+		RouteFamily(-1),Required(false),ObligationId(0),SourceEdgeId(0),Capabilities(0),Length(0.0f),
+		InterchangeId(0),RampRole(HYBRID_RAMP_ROLE_NONE),RampSide(HYBRID_INTERCHANGE_SIDE_NONE) { }
 
 	bool	operator == (const HybridTopologyEdge & that) const	{ return StableId == that.StableId; }
 	bool	operator != (const HybridTopologyEdge & that) const	{ return !(*this == that); }
@@ -175,6 +262,13 @@ struct HybridTopologyEdge
 	**	shared overpass obligations.  Phase 10 routes sub-legs through exactly these.
 	*/
 	DynamicVectorClass<unsigned int>	Waypoints;
+
+	//	HIGHWAY_RAMP and INTERCHANGE_CROSSING edges only (Section 12.6): the owning interchange; ramps also
+	//	carry their role, side and highway-parallel interval.  NodeA is the local junction, NodeB the anchor.
+	unsigned int				InterchangeId;
+	HybridRampRole				RampRole;
+	HybridInterchangeSide	RampSide;
+	HybridRampInterval		RampInterval;
 };
 
 
@@ -206,6 +300,65 @@ struct HybridBaseEntrance
 
 
 /*
+**	One retargeted arrival of an interchange: the edge, the anchor it ended at (the frozen fallback variant
+**	Phase 10's withdrawal restores) and the local junction it ends at while the interchange is active.
+*/
+struct HybridInterchangeRetarget
+{
+	HybridInterchangeRetarget(void) : EdgeId(0),FallbackNode(0),LocalJunction(0),Side(HYBRID_INTERCHANGE_SIDE_NONE) { }
+
+	bool	operator == (const HybridInterchangeRetarget & that) const	{ return EdgeId == that.EdgeId; }
+	bool	operator != (const HybridInterchangeRetarget & that) const	{ return !(*this == that); }
+
+	unsigned int				EdgeId;
+	unsigned int				FallbackNode;		// X
+	unsigned int				LocalJunction;		// L_s
+	HybridInterchangeSide	Side;
+};
+
+
+/*
+**	Section 12.6's HIGHWAY_INTERCHANGE record (12.6.4 step 8, 12.6.15): one anchor `X` on a HIGHWAY_4 family,
+**	its frame, the selected gore candidate and every record it created, by StableId.
+*/
+struct HybridInterchange
+{
+	HybridInterchange(void) :
+		StableId(0),Form(HYBRID_INTERCHANGE_SIDE_ACCESS),Status(HYBRID_INTERCHANGE_ACTIVE),AnchorNode(0),
+		HighwayEdgeIn(0),HighwayEdgeOut(0),Axis(1.0f,0.0f),AccessSides(0),CrossingMode(HYBRID_INTERCHANGE_CROSSING_NONE),
+		CrossingClass(HYBRID_ROAD_CLASS_COUNT),SelectedK(-1),LocalOffset(0.0f),GoreOffset(0.0f),StraightHalfExtent(0.0f),
+		CrossingObligation(0),Capabilities(0)
+	{
+		LocalJunction[0] = LocalJunction[1] = 0;
+	}
+
+	bool	operator == (const HybridInterchange & that) const	{ return StableId == that.StableId; }
+	bool	operator != (const HybridInterchange & that) const	{ return !(*this == that); }
+
+	unsigned int						StableId;
+	HybridInterchangeForm			Form;
+	HybridInterchangeStatus			Status;
+	unsigned int						AnchorNode;			// X
+	unsigned int						HighwayEdgeIn;		// the HIGHWAY_4 trunk edge arriving at X
+	unsigned int						HighwayEdgeOut;	// ...and the one leaving it
+	Vector2								Axis;					// a, unit
+	unsigned int						AccessSides;		// bit HYBRID_INTERCHANGE_SIDE_*: sides with an access arrival
+	HybridInterchangeCrossingMode	CrossingMode;
+	HybridRoadClass					CrossingClass;		// PRIMARY_2 or SECONDARY_2 for DIAMOND_ACCESS
+	int									SelectedK;			// the gore candidate, 0..K_GORE-1
+	float									LocalOffset;		// d_L(k)
+	float									GoreOffset;			// G(k)
+	float									StraightHalfExtent;// S_I(k)
+	unsigned int						LocalJunction[HYBRID_INTERCHANGE_SIDE_COUNT];	// L_s node, 0 when none
+	unsigned int						CrossingObligation;	// the OVERPASS_OBLIGATION node, grade-separated only
+	unsigned int						Capabilities;		// LIGHT | every retargeted arrival's capabilities
+	DynamicVectorClass<unsigned int>				RampEdges;			// RIGHT then LEFT, OFF then ON
+	DynamicVectorClass<unsigned int>				CrossingEdges;
+	DynamicVectorClass<HybridInterchangeRetarget>	Retargets;			// the frozen fallback variant
+};
+
+
+/*
 **	Runtime Phase 9's output.
 */
 struct HybridTopology
@@ -217,6 +370,7 @@ struct HybridTopology
 	const HybridTopologyNode *	Find_Node(unsigned int stable_id) const;
 	const HybridTopologyEdge *	Find_Edge(unsigned int stable_id) const;
 	const HybridBaseEntrance *	Find_Entrance(int team,int family) const;
+	const HybridInterchange *	Find_Interchange(unsigned int stable_id) const;
 
 	int	Count_Of_Edge_Kind(HybridTopologyEdgeKind kind) const;
 	int	Count_Of_Road_Class(HybridRoadClass road_class) const;
@@ -229,6 +383,7 @@ struct HybridTopology
 	DynamicVectorClass<HybridTopologyNode>		Nodes;
 	DynamicVectorClass<HybridTopologyEdge>		Edges;
 	DynamicVectorClass<HybridBaseEntrance>		Entrances;
+	DynamicVectorClass<HybridInterchange>		Interchanges;		// Section 12.6, StableId order
 
 	//	Section 5 quota bookkeeping, kept for the gate and the log.
 	int			RequiredRiverBridges;
@@ -257,6 +412,13 @@ struct HybridTopology
 	int			RejectedWrongSide;
 	int			RejectedPose;
 	int			RecoveredByNextRank;
+
+	//	Section 12.6.15's diagnostics: not part of the frozen record.
+	int			RampCandidatesEvaluated;				// "highway ramp candidates evaluated"
+	int			InterchangesByForm[HYBRID_INTERCHANGE_FORM_COUNT];
+	int			RampsByRole[HYBRID_RAMP_ROLE_COUNT];
+	int			InterchangeWithdrawals;
+	int			AnchorRejections[HYBRID_INTERCHANGE_REJECTION_COUNT];
 
 	unsigned int	Checksum;			// Phase 9 gate value
 

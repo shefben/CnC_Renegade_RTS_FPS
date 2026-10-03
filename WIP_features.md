@@ -337,13 +337,27 @@ Carried, measured, not yet resolved:
 `Hybrid_Solve_Road_Stretch`. The highway-access-ramp extension (Plan Section 12.6, added 2026-10-02 by another
 session) reopens items in I1 -> I2 -> I10 -> I11 -> I12, which the checklist orders before the rest of I13.
 
-**Blocking: `Q-026`** (`awaiting_answers.md`). The merge/diverge lateral profile in the 2026-10-03 instruction
-(`10W + 6W`, auxiliary lane at `2.875W`, `5.65W -> 6.65W`) is not the committed Plan Section 12.6.7 / 12.6.11
-smoothstep profile (`3.575W -> 1.875W`, outer edge up to `4.325W`). Step 1 below does not depend on the profile;
-Phase-9 candidate construction onward does.
+**HIGHWAY_RAMP extension in progress (2026-10-03).** `Q-026` is closed: option (b), the auxiliary-lane profile
+(D-022, Plan Sections 12.6.6, 12.6.7, 12.6.11, 12.6.13 and 12.6.15 rewritten). Step 1 is done:
+- the `HIGHWAY_RAMP` class, with asymmetric shoulders;
+- the topology kinds, the interchange, retarget and ramp-interval records;
+- route metadata and widened intervals;
+- junction roles and merge/diverge records;
+- every stage checksum;
+- generator identity 16.
 
-**Next exact action:** implement the HIGHWAY_RAMP extension (Plan Section 12.6, committed `dc7807c3`) in this order:
-1. records, schema and checksum;
+`Check_Hybrid_Ramp_Records` covers it (checklist I1 reopened items closed).
+
+**Next exact action:** checklist I2 reopened items, then the rest of the HIGHWAY_RAMP extension.
+
+I2 items:
+- interchange constants, derived once from the Section-7 table, with the Q-026 `d_aux` / `E_aux` / `TaperLength`;
+- the preflight `BridgeApproachMax(class)` and `OverpassDepthMax(class)` metric-cache entries;
+- the diagnostics counters;
+- the Section 12.6.7 construction self-check (`d_Lmin(0)=8.3926380W`, `SIDE G(0)=9.0029197W`, the Q-026 profile).
+
+Then:
+1. (done) records, schema and checksum;
 2. Phase-9 `HIGHWAY_INTERCHANGE` topology and gore selection;
 3. Phase-10 ramp routing and tangent geometry;
 4. Phase-11 merge/diverge compilation.

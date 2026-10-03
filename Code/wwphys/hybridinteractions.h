@@ -192,6 +192,26 @@ enum HybridInteractionProblem
 
 const char *	Hybrid_Interaction_Problem_Name(HybridInteractionProblem problem);
 
+
+/*
+**	Section 12.1's compiled junction roles.  An at-grade junction or an overpass is exactly one of them, and the
+**	three Section-12.6 highway access roles are intended junctions, never rediscovered as incidental crossings.
+**	Ordinals are part of the checksum: never reorder.
+*/
+enum HybridJunctionRole
+{
+	HYBRID_JUNCTION_ROLE_NONE = 0,						// not a road x road solution
+	HYBRID_JUNCTION_ROLE_INCIDENTAL,					// an incidental ROAD_X_ROAD crossing
+	HYBRID_JUNCTION_ROLE_SHARED_NODE,					// the topology's intended junction at a shared node (Q-025)
+	HYBRID_JUNCTION_ROLE_OVERPASS_OBLIGATION,		// a reserved Phase-9 overpass
+	HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE,		// an ON_RAMP over its MERGE_SECTION and gore reserve
+	HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE,		// an OFF_RAMP over its DIVERGE_SECTION and gore reserve
+	HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION,	// all arms at one interchange local junction L_s
+	HYBRID_JUNCTION_ROLE_COUNT
+};
+
+const char *	Hybrid_Junction_Role_Name(HybridJunctionRole role);
+
 /*
 **	One compiled solution.  It says what the crossing *is* and where, and nothing about how it is built:
 **	Phase 12 owns realization, and this record is the whole of what it is allowed to consume about a
@@ -207,7 +227,7 @@ struct HybridInteraction
 		ApproachReserve(0.0f),BridgeKind(-1),TunnelModule(-1),TunnelLength(0.0f),DeckBottomZ(0.0f),
 		DeckTopZ(0.0f),LowerSurfaceZ(0.0f),RampLength(0.0f),UpperIsThisEdge(true),CutDepth(0.0f),
 		DeckStartZ(0.0f),DeckEndZ(0.0f),DeckReachA(0.0f),DeckReachB(0.0f),
-		FirstPoint(0),LastPoint(0),Envelope(0),Score(0.0f) { }
+		FirstPoint(0),LastPoint(0),Envelope(0),Score(0.0f),Role(HYBRID_JUNCTION_ROLE_NONE) { }
 
 	//	DynamicVectorClass<T> requires == and !=.  The record's own id is its identity.
 	bool	operator == (const HybridInteraction & that) const	{ return StableId == that.StableId; }
@@ -283,6 +303,58 @@ struct HybridInteraction
 	HybridCrossingPath		Path;
 	int							Envelope;				// the Phase-10 envelope the owning route was accepted in
 	float							Score;					// the bridge candidate score, 0 for other methods
+
+	/*
+	**	The compiled junction role (Section 12.1).  The three highway access roles are set where they are
+	**	compiled; for every other road x road solution it is left NONE and Hybrid_Interaction_Junction_Role
+	**	reads it from what the record already says -- a reserved overpass, a shared node, or incidental.
+	*/
+	HybridJunctionRole		Role;
+};
+
+HybridJunctionRole	Hybrid_Interaction_Junction_Role(const HybridInteraction & one);
+
+
+/*
+**	Section 12.6.10 item 5: one HIGHWAY_RAMP_MERGE / DIVERGE solution's samples at `min(W/3,A/4)` along the
+**	highway, in chain order.  `Full` is true over the full-width auxiliary lane, false over the taper (Q-026);
+**	`U` is the taper parameter (0 in the full lane), `D` the auxiliary-lane centre offset, `H` and `E` the
+**	widened ramp-side carriageway and roadbed half widths, `Z` the surface elevation.
+*/
+struct HybridMergeDivergeSample
+{
+	HybridMergeDivergeSample(void) : Station(0.0f),Full(false),U(0.0f),D(0.0f),H(0.0f),E(0.0f),Z(0.0f) { }
+
+	bool	operator == (const HybridMergeDivergeSample & that) const	{ return Station == that.Station; }
+	bool	operator != (const HybridMergeDivergeSample & that) const	{ return !(*this == that); }
+
+	float	Station;
+	bool	Full;
+	float	U;
+	float	D;
+	float	H;
+	float	E;
+	float	Z;
+};
+
+
+struct HybridMergeDiverge
+{
+	HybridMergeDiverge(void) : StableId(0),InteractionId(0),RampEdgeId(0),HighwayEdgeId(0),InterchangeId(0),
+		Role(HYBRID_JUNCTION_ROLE_NONE),Side(HYBRID_INTERCHANGE_SIDE_NONE) { }
+
+	bool	operator == (const HybridMergeDiverge & that) const	{ return StableId == that.StableId; }
+	bool	operator != (const HybridMergeDiverge & that) const	{ return !(*this == that); }
+
+	unsigned int				StableId;
+	unsigned int				InteractionId;		// the HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE/DIVERGE record
+	unsigned int				RampEdgeId;
+	unsigned int				HighwayEdgeId;
+	unsigned int				InterchangeId;
+	HybridJunctionRole		Role;					// MERGE or DIVERGE
+	HybridInterchangeSide	Side;
+	HybridRampInterval		Interval;			// gore station, interval, full lane and taper
+	DynamicVectorClass<HybridMergeDivergeSample>	Samples;
 };
 
 
@@ -367,6 +439,7 @@ struct HybridInteractionSet
 
 	DynamicVectorClass<HybridInteraction>			Interactions;
 	DynamicVectorClass<HybridInteractionIssue>	Issues;
+	DynamicVectorClass<HybridMergeDiverge>			MergeDiverge;		// Section 12.6.10 item 5, StableId order
 
 	int				StationsEvaluated;		// work actually done, against the Section-16.1 budgets
 	int				SweepSamples;

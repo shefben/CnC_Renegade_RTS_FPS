@@ -2992,6 +2992,7 @@ static unsigned int Cut_Classes(HydrologyBuilder & b,const HydroObstruction & ob
 	unsigned int classes = 0;
 	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
 
+		if (!Hybrid_Road_Class_Is_Routed(c)) continue;			// a HIGHWAY_RAMP never binds a window (12.6.15)
 		const HybridRoadClass road_class = (HybridRoadClass)c;
 		const float max_grade = Max_Grade_Radians(road_class);
 		if (!Hybrid_Grade_Compatible(interval_a,interval_b,length,max_grade)) continue;
@@ -3104,6 +3105,7 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 		unsigned int approach_classes = 0;
 		for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
 
+			if (!Hybrid_Road_Class_Is_Routed(c)) continue;		// the HIGHWAY_RAMP bit is always false (12.6.15)
 			const HybridRoadClass road_class = (HybridRoadClass)c;
 			const float class_half = 0.5f * Hybrid_Roadbed_Width(road_class,k.W);
 			const float turn_room = Hybrid_Road_Class_Spec(road_class).MinTurnRadiusW * k.W;

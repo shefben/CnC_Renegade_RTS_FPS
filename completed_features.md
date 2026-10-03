@@ -4806,6 +4806,28 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## HIGHWAY_RAMP records, schema and checksums (Section 12.6, checklist I1 reopened) -- generator identity 16 (2026-10-03)
+
+What was added:
+- `HYBRID_ROAD_HIGHWAY_RAMP`, appended after `TRAIL_1`. Section 7's row has the 0.20W / 0.30W shoulders
+  (`OuterShoulderW`) and the paved tier. Corridor helpers are undefined (0) for it, and it is excluded from the
+  Phase-6 approach and cut bits and from preflight bridge selection.
+- Node kind `INTERCHANGE_LOCAL_JUNCTION`, and edge kinds `HIGHWAY_RAMP` and `INTERCHANGE_CROSSING`.
+- Enums for ramp role, side, form, status, crossing mode and anchor rejection.
+- `HybridRampInterval`, with the Q-026 full-lane and taper subintervals.
+- `HybridInterchange`, with its retargets (the fallback variant).
+- The Section 12.6.15 diagnostics counters.
+- On `HybridRoute`: ramp metadata, and the `HybridWidenedInterval` list for `HIGHWAY_4`.
+- `HybridJunctionRole`, with `Hybrid_Interaction_Junction_Role`.
+- `HybridMergeDiverge` records with their widened-profile samples.
+
+Every field reaches its stage checksum. Q-026 is closed (D-022); generator identity is 16.
+
+**Gate:**
+- `Check_Hybrid_Ramp_Records`;
+- the full ctest suite on client and dedicated server;
+- the state validator.
+
 ## Hybrid ordinary-guide and structural-transition stabilization -- generator identity 15 (2026-10-02)
 
 An ordinary route guide is a strategic anchor (D-021). The A* chain passes the guide's cell; the centerline need

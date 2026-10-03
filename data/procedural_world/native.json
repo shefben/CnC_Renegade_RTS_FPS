@@ -1,6 +1,6 @@
 {
 	"schema_version": 12,
-	"generator_version": 15,
+	"generator_version": 16,
 	"name": "Native procedural world",
 
 	"seed": 1,

@@ -79,6 +79,7 @@ const char * Hybrid_Topology_Node_Kind_Name(HybridTopologyNodeKind kind)
 		case HYBRID_NODE_CROSSING_OBLIGATION:	return "crossing_obligation";
 		case HYBRID_NODE_OVERPASS_OBLIGATION:	return "overpass_obligation";
 		case HYBRID_NODE_FIELD_ACCESS:			return "field_access";
+		case HYBRID_NODE_INTERCHANGE_LOCAL_JUNCTION:	return "interchange_local_junction";
 		default:											break;
 	}
 	return "unknown";
@@ -95,7 +96,83 @@ const char * Hybrid_Topology_Edge_Kind_Name(HybridTopologyEdgeKind kind)
 		case HYBRID_EDGE_SERVICE_FILL:	return "service_fill";
 		case HYBRID_EDGE_TRAIL:				return "trail";
 		case HYBRID_EDGE_CROSS_LINK:		return "cross_link";
+		case HYBRID_EDGE_HIGHWAY_RAMP:	return "highway_ramp";
+		case HYBRID_EDGE_INTERCHANGE_CROSSING:	return "interchange_crossing";
 		default:									break;
+	}
+	return "unknown";
+}
+
+
+const char * Hybrid_Ramp_Role_Name(HybridRampRole role)
+{
+	switch (role) {
+		case HYBRID_RAMP_ROLE_NONE:	return "none";
+		case HYBRID_RAMP_ROLE_ON:		return "on_ramp";
+		case HYBRID_RAMP_ROLE_OFF:		return "off_ramp";
+		default:								break;
+	}
+	return "unknown";
+}
+
+
+const char * Hybrid_Interchange_Side_Name(HybridInterchangeSide side)
+{
+	switch (side) {
+		case HYBRID_INTERCHANGE_SIDE_RIGHT:	return "right";
+		case HYBRID_INTERCHANGE_SIDE_LEFT:	return "left";
+		case HYBRID_INTERCHANGE_SIDE_NONE:	return "none";
+		default:										break;
+	}
+	return "unknown";
+}
+
+
+const char * Hybrid_Interchange_Form_Name(HybridInterchangeForm form)
+{
+	switch (form) {
+		case HYBRID_INTERCHANGE_DIAMOND_ACCESS:	return "diamond_access";
+		case HYBRID_INTERCHANGE_SIDE_ACCESS:		return "side_access";
+		default:												break;
+	}
+	return "unknown";
+}
+
+
+const char * Hybrid_Interchange_Status_Name(HybridInterchangeStatus status)
+{
+	switch (status) {
+		case HYBRID_INTERCHANGE_ACTIVE:		return "active";
+		case HYBRID_INTERCHANGE_WITHDRAWN:	return "withdrawn";
+		default:										break;
+	}
+	return "unknown";
+}
+
+
+const char * Hybrid_Interchange_Crossing_Mode_Name(HybridInterchangeCrossingMode mode)
+{
+	switch (mode) {
+		case HYBRID_INTERCHANGE_CROSSING_NONE:					return "none";
+		case HYBRID_INTERCHANGE_CROSSING_GRADE_SEPARATED:	return "grade_separated";
+		case HYBRID_INTERCHANGE_CROSSING_AT_GRADE:			return "at_grade";
+		default:															break;
+	}
+	return "unknown";
+}
+
+
+const char * Hybrid_Interchange_Rejection_Name(HybridInterchangeRejection rejection)
+{
+	switch (rejection) {
+		case HYBRID_INTERCHANGE_REJECT_AXIS:				return "axis";
+		case HYBRID_INTERCHANGE_REJECT_ARRIVAL_ANGLE:	return "arrival_angle";
+		case HYBRID_INTERCHANGE_REJECT_ARRIVAL_SERVED:	return "arrival_served";
+		case HYBRID_INTERCHANGE_REJECT_CROSSING:			return "crossing";
+		case HYBRID_INTERCHANGE_REJECT_NO_CANDIDATE:		return "no_candidate";
+		case HYBRID_INTERCHANGE_REJECT_QUALIFICATION:	return "qualification";
+		case HYBRID_INTERCHANGE_REJECT_EDGE_CAP:			return "edge_cap";
+		default:														break;
 	}
 	return "unknown";
 }
@@ -238,6 +315,7 @@ void HybridTopology::Reset(void)
 	Nodes.Delete_All();
 	Edges.Delete_All();
 	Entrances.Delete_All();
+	Interchanges.Delete_All();
 
 	RequiredRiverBridges		= 0;
 	RequiredCanyonBridges	= 0;
@@ -258,7 +336,21 @@ void HybridTopology::Reset(void)
 	RejectedWrongSide			= 0;
 	RejectedPose				= 0;
 	RecoveredByNextRank		= 0;
+	RampCandidatesEvaluated	= 0;
+	for (int i = 0; i < HYBRID_INTERCHANGE_FORM_COUNT; ++i) InterchangesByForm[i] = 0;
+	for (int i = 0; i < HYBRID_RAMP_ROLE_COUNT; ++i) RampsByRole[i] = 0;
+	InterchangeWithdrawals	= 0;
+	for (int i = 0; i < HYBRID_INTERCHANGE_REJECTION_COUNT; ++i) AnchorRejections[i] = 0;
 	Checksum			= 0;
+}
+
+
+const HybridInterchange * HybridTopology::Find_Interchange(unsigned int stable_id) const
+{
+	for (int i = 0; i < Interchanges.Count(); ++i) {
+		if (Interchanges[i].StableId == stable_id) return &Interchanges[i];
+	}
+	return nullptr;
 }
 
 
@@ -3101,6 +3193,55 @@ unsigned int Hybrid_Topology_Checksum(const HybridTopology & topology,unsigned i
 		stream.Add_Length(edge.Length);
 		stream.Add_Int(edge.Waypoints.Count());
 		for (int w = 0; w < edge.Waypoints.Count(); ++w) stream.Add_Uint(edge.Waypoints[w]);
+
+		//	Section 12.6.15: a ramp's role, side, gore station and interval with its Q-026 subintervals.
+		if ((edge.Kind == HYBRID_EDGE_HIGHWAY_RAMP) || (edge.Kind == HYBRID_EDGE_INTERCHANGE_CROSSING)) {
+			stream.Add_Uint(edge.InterchangeId);
+			stream.Add_Uint((unsigned int)edge.RampRole);
+			stream.Add_Uint((unsigned int)edge.RampSide);
+			stream.Add_Length(edge.RampInterval.GoreStation);
+			stream.Add_Length(edge.RampInterval.From);
+			stream.Add_Length(edge.RampInterval.To);
+			stream.Add_Length(edge.RampInterval.FullFrom);
+			stream.Add_Length(edge.RampInterval.FullTo);
+			stream.Add_Length(edge.RampInterval.TaperFrom);
+			stream.Add_Length(edge.RampInterval.TaperTo);
+		}
+	}
+
+	//	Section 12.6.15: every interchange record, StableId order, active and withdrawn alike.
+	stream.Add_Int(topology.Interchanges.Count());
+	for (int i = 0; i < topology.Interchanges.Count(); ++i) {
+		const HybridInterchange & interchange = topology.Interchanges[i];
+		stream.Add_Uint(interchange.StableId);
+		stream.Add_Uint((unsigned int)interchange.Form);
+		stream.Add_Uint((unsigned int)interchange.Status);
+		stream.Add_Uint(interchange.AnchorNode);
+		stream.Add_Uint(interchange.HighwayEdgeIn);
+		stream.Add_Uint(interchange.HighwayEdgeOut);
+		stream.Add_Length(interchange.Axis.X);
+		stream.Add_Length(interchange.Axis.Y);
+		stream.Add_Uint(interchange.AccessSides);
+		stream.Add_Uint((unsigned int)interchange.CrossingMode);
+		stream.Add_Uint((unsigned int)interchange.CrossingClass);
+		stream.Add_Int(interchange.SelectedK);
+		stream.Add_Length(interchange.LocalOffset);
+		stream.Add_Length(interchange.GoreOffset);
+		stream.Add_Length(interchange.StraightHalfExtent);
+		for (int s = 0; s < HYBRID_INTERCHANGE_SIDE_COUNT; ++s) stream.Add_Uint(interchange.LocalJunction[s]);
+		stream.Add_Uint(interchange.CrossingObligation);
+		stream.Add_Uint(interchange.Capabilities);
+		stream.Add_Int(interchange.RampEdges.Count());
+		for (int e = 0; e < interchange.RampEdges.Count(); ++e) stream.Add_Uint(interchange.RampEdges[e]);
+		stream.Add_Int(interchange.CrossingEdges.Count());
+		for (int e = 0; e < interchange.CrossingEdges.Count(); ++e) stream.Add_Uint(interchange.CrossingEdges[e]);
+		stream.Add_Int(interchange.Retargets.Count());
+		for (int r = 0; r < interchange.Retargets.Count(); ++r) {
+			stream.Add_Uint(interchange.Retargets[r].EdgeId);
+			stream.Add_Uint(interchange.Retargets[r].FallbackNode);
+			stream.Add_Uint(interchange.Retargets[r].LocalJunction);
+			stream.Add_Uint((unsigned int)interchange.Retargets[r].Side);
+		}
 	}
 
 	for (int i = 0; i < topology.Entrances.Count(); ++i) {

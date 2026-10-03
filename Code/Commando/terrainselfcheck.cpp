@@ -3896,10 +3896,22 @@ void Check_Hybrid_Planning (void)
 	HybridConstants k;
 	Hybrid_Compute_Constants (2.556f,1,60,1200,1200,3,10000,&k);
 	Check (Near (k.W,3.3228f,0.00001f) && k.A == 15 && k.S == 30 && k.BHash == 60 && k.RBaseProtected == 180,"canonical planning constants");
-	const float widths[] = { 5.65f,2.60f,2.40f,2.40f,1.20f };
+	const float widths[] = { 5.65f,2.60f,2.40f,2.40f,1.20f,1.50f };
+	Check ((sizeof (widths) / sizeof (widths[0])) == HYBRID_ROAD_CLASS_COUNT,"a road class has no Section-7 width row");
 	for (int road = 0; road < HYBRID_ROAD_CLASS_COUNT; ++road) {
 		const HybridRoadClass rc = (HybridRoadClass)road;
 		Check (Near (Hybrid_Roadbed_Width (rc,k.W),widths[road]*k.W),"roadbed width %d",road);
+		if (!Hybrid_Road_Class_Is_Routed (road)) {
+			//	HIGHWAY_RAMP: corridor helpers are undefined; asymmetric 0.20W / 0.30W shoulders; paved tier.
+			Check (Hybrid_Max_Corridor_Half_Width (rc,k.S,k.D) == 0.0f && Hybrid_Preferred_Corridor_Half_Width (rc,k.S,k.D) == 0.0f,"a ramp has a corridor");
+			const HybridRoadClassSpec & ramp = Hybrid_Road_Class_Spec (rc);
+			Check (ramp.Lanes == 1 && ramp.ShoulderW == 0.20f && ramp.OuterShoulderW == 0.30f && ramp.MedianW == 0.0f &&
+					 ramp.MaxGradeDegrees == 12.0f && ramp.MaxCrossSlopeDegrees == 8.0f && ramp.MinTurnRadiusW == 5.0f &&
+					 ramp.PhysicalTier == HYBRID_ROAD_TIER_PAVED && ::strcmp (Hybrid_Road_Class_Name (rc),"HIGHWAY_RAMP") == 0,
+					 "the HIGHWAY_RAMP row is not Section 7's");
+			Check (Near (Hybrid_Road_Deformation_Half_Width (rc,k.W,k.A),0.5f*widths[road]*k.W+7.5f),"road deformation envelope %d",road);
+			continue;
+		}
 		Check (Hybrid_Max_Corridor_Half_Width (rc,k.S,k.D) == Hybrid_Preferred_Corridor_Half_Width (rc,k.S,k.D)+2*k.S,"bounded corridor expansion %d",road);
 		Check (Near (Hybrid_Road_Deformation_Half_Width (rc,k.W,k.A),0.5f*widths[road]*k.W+7.5f),"road deformation envelope %d",road);
 	}
@@ -6948,8 +6960,152 @@ static void Check_Hybrid_Structural_Poses (void)
 	}
 }
 
+/*
+**	Section 12.6's records (checklist I1, reopened): the HIGHWAY_RAMP class, topology kinds, interchange record,
+**	ramp interval with the Q-026 subdivisions, route metadata, junction roles and merge/diverge records.  Every
+**	field the plan lists reaches its stage checksum: an identical record reproduces it, and changing any one
+**	field moves it.  Existing ordinals keep their values.
+*/
+static void Check_Hybrid_Ramp_Records (void)
+{
+	Check (HYBRID_ROAD_HIGHWAY_RAMP == 5 && HYBRID_ROAD_TRAIL_1 == 4 && HYBRID_ROAD_CLASS_COUNT == 6,
+			 "HIGHWAY_RAMP is not appended after TRAIL_1");
+	Check (HYBRID_NODE_INTERCHANGE_LOCAL_JUNCTION == 6 && HYBRID_EDGE_HIGHWAY_RAMP == 7 && HYBRID_EDGE_INTERCHANGE_CROSSING == 8,
+			 "the interchange node/edge kinds are not appended after the existing kinds");
+	Check (::strcmp (Hybrid_Topology_Node_Kind_Name (HYBRID_NODE_INTERCHANGE_LOCAL_JUNCTION),"interchange_local_junction") == 0 &&
+			 ::strcmp (Hybrid_Topology_Edge_Kind_Name (HYBRID_EDGE_HIGHWAY_RAMP),"highway_ramp") == 0 &&
+			 ::strcmp (Hybrid_Topology_Edge_Kind_Name (HYBRID_EDGE_INTERCHANGE_CROSSING),"interchange_crossing") == 0 &&
+			 ::strcmp (Hybrid_Ramp_Role_Name (HYBRID_RAMP_ROLE_ON),"on_ramp") == 0 &&
+			 ::strcmp (Hybrid_Interchange_Form_Name (HYBRID_INTERCHANGE_DIAMOND_ACCESS),"diamond_access") == 0 &&
+			 ::strcmp (Hybrid_Interchange_Status_Name (HYBRID_INTERCHANGE_WITHDRAWN),"withdrawn") == 0 &&
+			 ::strcmp (Hybrid_Junction_Role_Name (HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION),"highway_ramp_local_junction") == 0,
+			 "a Section-12.6 name is not the plan's");
+
+	//	A topology with one SIDE_ACCESS interchange and its ON_RAMP.
+	HybridTopology topology;
+	HybridTopologyNode anchor;
+	anchor.StableId = 1;	anchor.Kind = HYBRID_NODE_FAMILY_WAYPOINT;	anchor.Position.Set (0.0f,0.0f);
+	topology.Nodes.Add (anchor);
+	HybridTopologyNode local;
+	local.StableId = 2;	local.Kind = HYBRID_NODE_INTERCHANGE_LOCAL_JUNCTION;	local.Position.Set (0.0f,-28.0f);
+	topology.Nodes.Add (local);
+	HybridTopologyEdge ramp;
+	ramp.StableId		= 1;
+	ramp.Kind			= HYBRID_EDGE_HIGHWAY_RAMP;
+	ramp.RoadClass		= HYBRID_ROAD_HIGHWAY_RAMP;
+	ramp.NodeA			= 2;
+	ramp.NodeB			= 1;
+	ramp.Required		= true;
+	ramp.InterchangeId= 1;
+	ramp.RampRole		= HYBRID_RAMP_ROLE_ON;
+	ramp.RampSide		= HYBRID_INTERCHANGE_SIDE_RIGHT;
+	ramp.RampInterval.GoreStation = 30.0f;
+	ramp.RampInterval.From = 30.0f;		ramp.RampInterval.To = 83.0f;
+	ramp.RampInterval.FullFrom = 30.0f;	ramp.RampInterval.FullTo = 63.0f;
+	ramp.RampInterval.TaperFrom = 63.0f;	ramp.RampInterval.TaperTo = 83.0f;
+	topology.Edges.Add (ramp);
+	HybridInterchange interchange;
+	interchange.StableId				= 1;
+	interchange.Form					= HYBRID_INTERCHANGE_SIDE_ACCESS;
+	interchange.AnchorNode			= 1;
+	interchange.HighwayEdgeIn		= 7;
+	interchange.HighwayEdgeOut		= 8;
+	interchange.AccessSides			= 1u << HYBRID_INTERCHANGE_SIDE_RIGHT;
+	interchange.SelectedK			= 0;
+	interchange.LocalOffset			= 28.0f;
+	interchange.GoreOffset			= 30.0f;
+	interchange.StraightHalfExtent= 90.0f;
+	interchange.LocalJunction[HYBRID_INTERCHANGE_SIDE_RIGHT] = 2;
+	interchange.Capabilities		= HYBRID_NAV_LIGHT;
+	interchange.RampEdges.Add (1);
+	HybridInterchangeRetarget retarget;
+	retarget.EdgeId = 9;	retarget.FallbackNode = 1;	retarget.LocalJunction = 2;	retarget.Side = HYBRID_INTERCHANGE_SIDE_RIGHT;
+	interchange.Retargets.Add (retarget);
+	topology.Interchanges.Add (interchange);
+
+	const unsigned int base = Hybrid_Topology_Checksum (topology);
+	HybridTopology copy = topology;
+	Check (Hybrid_Topology_Checksum (copy) == base,"an identical interchange topology does not reproduce its checksum");
+	Check (topology.Find_Interchange (1) != NULL && topology.Find_Interchange (2) == NULL,"Find_Interchange");
+
+	int unmoved = 0;
+	for (int field = 0; field < 9; ++field) {
+		HybridTopology changed = topology;
+		HybridInterchange & ic = changed.Interchanges[0];
+		HybridTopologyEdge & re = changed.Edges[0];
+		switch (field) {
+			case 0: ic.Status = HYBRID_INTERCHANGE_WITHDRAWN;		break;
+			case 1: ic.SelectedK = 1;										break;
+			case 2: ic.GoreOffset += 1.0f;								break;
+			case 3: ic.Retargets[0].FallbackNode = 3;				break;
+			case 4: re.RampRole = HYBRID_RAMP_ROLE_OFF;				break;
+			case 5: re.RampSide = HYBRID_INTERCHANGE_SIDE_LEFT;	break;
+			case 6: re.RampInterval.FullTo += 1.0f;					break;
+			case 7: re.RampInterval.TaperFrom += 1.0f;				break;
+			case 8: ic.Form = HYBRID_INTERCHANGE_DIAMOND_ACCESS;	break;
+		}
+		if (Hybrid_Topology_Checksum (changed) == base) unmoved++;
+	}
+	Check (unmoved == 0,"%d interchange/ramp fields do not reach the stage-9 checksum",unmoved);
+
+	//	The route record (Section 12.1) and the stage-10 checksum.
+	HybridRouteSet routes;
+	HybridRoute route;
+	route.EdgeId = 1;	route.RoadClass = HYBRID_ROAD_HIGHWAY_RAMP;	route.InterchangeId = 1;
+	route.RampRole = HYBRID_RAMP_ROLE_ON;	route.RampSide = HYBRID_INTERCHANGE_SIDE_RIGHT;	route.RampInterval = ramp.RampInterval;
+	routes.Routes.Add (route);
+	HybridRoute highway;
+	highway.EdgeId = 7;	highway.RoadClass = HYBRID_ROAD_HIGHWAY_4;
+	HybridWidenedInterval widened;
+	widened.InterchangeId = 1;	widened.RampEdgeId = 1;	widened.Role = HYBRID_RAMP_ROLE_ON;
+	widened.Side = HYBRID_INTERCHANGE_SIDE_RIGHT;	widened.Interval = ramp.RampInterval;
+	highway.Widened.Add (widened);
+	routes.Routes.Add (highway);
+	const unsigned int route_base = Hybrid_Route_Checksum (routes);
+	HybridRouteSet routes_changed = routes;
+	routes_changed.Routes[1].Widened[0].Interval.FullTo += 1.0f;
+	HybridRouteSet ramp_changed = routes;
+	ramp_changed.Routes[0].RampRole = HYBRID_RAMP_ROLE_OFF;
+	Check ((Hybrid_Route_Checksum (routes_changed) != route_base) && (Hybrid_Route_Checksum (ramp_changed) != route_base),
+			 "ramp metadata or widened intervals do not reach the stage-10 checksum");
+
+	//	Junction roles (Section 12.1) and the merge/diverge record (12.6.10 item 5) in the stage-11 checksum.
+	HybridInteraction incidental;
+	incidental.Method = HYBRID_METHOD_AT_GRADE_JUNCTION;
+	HybridInteraction shared = incidental;	shared.NodeId = 4;
+	HybridInteraction obligation;	obligation.Method = HYBRID_METHOD_OVERPASS;	obligation.Mandatory = true;
+	HybridInteraction bridge;	bridge.Method = HYBRID_METHOD_BRIDGE;
+	HybridInteraction merge = incidental;	merge.Role = HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE;
+	Check (Hybrid_Interaction_Junction_Role (incidental) == HYBRID_JUNCTION_ROLE_INCIDENTAL &&
+			 Hybrid_Interaction_Junction_Role (shared) == HYBRID_JUNCTION_ROLE_SHARED_NODE &&
+			 Hybrid_Interaction_Junction_Role (obligation) == HYBRID_JUNCTION_ROLE_OVERPASS_OBLIGATION &&
+			 Hybrid_Interaction_Junction_Role (bridge) == HYBRID_JUNCTION_ROLE_NONE &&
+			 Hybrid_Interaction_Junction_Role (merge) == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE,
+			 "a compiled junction role is not the plan's");
+	HybridInteractionSet set;
+	merge.StableId = 1;
+	set.Interactions.Add (merge);
+	HybridMergeDiverge md;
+	md.StableId = 1;	md.InteractionId = 1;	md.RampEdgeId = 1;	md.HighwayEdgeId = 8;	md.InterchangeId = 1;
+	md.Role = HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE;	md.Side = HYBRID_INTERCHANGE_SIDE_RIGHT;	md.Interval = ramp.RampInterval;
+	HybridMergeDivergeSample sample;
+	sample.Station = 30.0f;	sample.Full = true;	sample.D = 2.875f;	sample.H = 3.375f;	sample.E = 3.825f;
+	md.Samples.Add (sample);
+	set.MergeDiverge.Add (md);
+	const unsigned int set_base = Hybrid_Interaction_Checksum (set);
+	HybridInteractionSet set_changed = set;
+	set_changed.MergeDiverge[0].Samples[0].E = 4.325f;
+	HybridInteractionSet role_changed = set;
+	role_changed.Interactions[0].Role = HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE;
+	Check ((Hybrid_Interaction_Checksum (set_changed) != set_base) && (Hybrid_Interaction_Checksum (role_changed) != set_base),
+			 "a merge/diverge sample or junction role does not reach the stage-11 checksum");
+	printf ("  ramp records: class, kinds, interchange, intervals, roles and merge/diverge samples reach every stage checksum\r\n");
+}
+
+
 void Check_Hybrid_Topology (void)
 {
+	Check_Hybrid_Ramp_Records ();
 	Check_Hybrid_Structural_Poses ();
 
 	HybridMapIdentity identity;

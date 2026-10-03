@@ -59,12 +59,12 @@ Do not change generation output yet. *(User directive 2026-09-26: finish the who
 
 **REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** — records only (§7, §12.1, §12.6.1, §12.6.10, §12.6.15):
 
-- [ ] `HIGHWAY_RAMP` semantic class appended after `TRAIL_1` (existing ordinals, `HYBRID_ROAD_CLASS_COUNT`-sized arrays and the Phase-6 `approach_classes` bitmask keep their values; the `HIGHWAY_RAMP` window bit is always false); cross section `1` lane, `W`, inner `0.20W` / outer `0.30W` shoulders, roadbed `1.50W`, 12° grade, 8° cross slope, `5W` radius; normal paved tier mapping and its speed hint.
-- [ ] `HIGHWAY_INTERCHANGE` record: `StableId`, form (`DIAMOND_ACCESS`/`SIDE_ACCESS`), status (`ACTIVE`/`WITHDRAWN`), anchor node, highway edge ids, axis, access sides, crossing mode, selected `k`, `d_L`, `G`, `S_I`, retarget list with fallback endpoints, capability mask.
-- [ ] Topology kinds appended: node `INTERCHANGE_LOCAL_JUNCTION`; edges `HIGHWAY_RAMP` and `INTERCHANGE_CROSSING`; ramp fields (role `ON_RAMP`/`OFF_RAMP`, side, gore station, merge/diverge interval, owning interchange).
-- [ ] Compiled junction roles `HIGHWAY_RAMP_MERGE`, `HIGHWAY_RAMP_DIVERGE`, `HIGHWAY_RAMP_LOCAL_JUNCTION` alongside the existing incidental / shared-node / overpass-obligation roles; merge/diverge solution record (§12.6.10 item 5).
-- [ ] Road record fields of §12.1 (junction role per junction record, ramp metadata, highway widened-interval list).
-- [ ] **Gate (re-pass):** records round-trip; existing self-checks unchanged except the new fields.
+- [x] `HIGHWAY_RAMP` semantic class appended after `TRAIL_1` (existing ordinals, `HYBRID_ROAD_CLASS_COUNT`-sized arrays and the Phase-6 `approach_classes` bitmask keep their values; the `HIGHWAY_RAMP` window bit is always false); cross section `1` lane, `W`, inner `0.20W` / outer `0.30W` shoulders, roadbed `1.50W`, 12° grade, 8° cross slope, `5W` radius; normal paved tier mapping and its speed hint. *(2026-10-03: `HybridRoadClassSpec::OuterShoulderW` carries the asymmetric shoulder; `Hybrid_Road_Class_Is_Routed` excludes the ramp from window, bridge and corridor loops.)*
+- [x] `HIGHWAY_INTERCHANGE` record: `StableId`, form (`DIAMOND_ACCESS`/`SIDE_ACCESS`), status (`ACTIVE`/`WITHDRAWN`), anchor node, highway edge ids, axis, access sides, crossing mode, selected `k`, `d_L`, `G`, `S_I`, retarget list with fallback endpoints, capability mask.
+- [x] Topology kinds appended: node `INTERCHANGE_LOCAL_JUNCTION`; edges `HIGHWAY_RAMP` and `INTERCHANGE_CROSSING`; ramp fields (role `ON_RAMP`/`OFF_RAMP`, side, gore station, merge/diverge interval with its full-auxiliary-lane and taper subintervals, owning interchange).
+- [x] Compiled junction roles `HIGHWAY_RAMP_MERGE`, `HIGHWAY_RAMP_DIVERGE`, `HIGHWAY_RAMP_LOCAL_JUNCTION` alongside the existing incidental / shared-node / overpass-obligation roles; merge/diverge solution record (§12.6.10 item 5). *(roles derived for existing records by `Hybrid_Interaction_Junction_Role`; ramp roles set where compiled.)*
+- [x] Road record fields of §12.1 (junction role per junction record, ramp metadata, highway widened-interval list). *(Phase-10 `HybridRoute` carries them; the Phase-12 road record consumes them in I13.)*
+- [x] **Gate (re-pass):** records round-trip; existing self-checks unchanged except the new fields. *(`Check_Hybrid_Ramp_Records`; full ctest green; generator identity 16.)*
 
 ## I2 — Shared prerequisites (§0.3, §0.5, §0.8, §2.3, §7.1)
 
@@ -94,10 +94,10 @@ Done 2026-09-27 -- helpers in `Code/wwphys/hybridplanning.{h,cpp}`, preflight an
 **REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** (§7.1, §12.6.6–12.6.7, §16.1):
 
 - [ ] `RoadbedWidth(HIGHWAY_RAMP)=1.50W`; corridor helpers undefined for `HIGHWAY_RAMP`; deformation half width from the shared formula.
-- [ ] Interchange constants once: `MergeLength=16W`, `DivergeLength=12W`, `GoreReserveMargin=2W`, `InterchangeGoreSpacing=24W`, `K_GORE=32`, `theta_c=15°`, `psi=45°`, `l_arm=5W`, `T15`, `T30`, `d_sep=3.575W`, `d_join=1.875W`, `h_hwy=2.375W`, `E_hwy=2.825W`, `HighwayJunctionReserve=8W` — derived from the §7 table, not retyped.
+- [ ] Interchange constants once: `MergeLength=16W`, `DivergeLength=12W`, `TaperLength=6W`, `MergeFullLength=10W`, `DivergeFullLength=6W` (Q-026), `GoreReserveMargin=2W`, `InterchangeGoreSpacing=24W`, `K_GORE=32`, `theta_c=15°`, `psi=45°`, `l_arm=5W`, `T15`, `T30`, `d_sep=3.575W`, `d_join=1.875W`, `d_aux=2.875W`, `h_aux=3.375W`, `E_aux=3.825W`, `h_hwy=2.375W`, `E_hwy=2.825W`, `HighwayJunctionReserve=8W` — derived from the §7 table, not retyped.
 - [ ] Preflight metric-cache entries `BridgeApproachMax(class)` and `OverpassDepthMax(class)` from existing bridge definitions / `BridgePlannerParams`.
 - [ ] Counters `highway ramp candidates evaluated`, interchanges by form, ramps by role, withdrawals, anchor rejections by reason.
-- [ ] Self-check: §12.6.7 construction reproduces `d_Lmin(0)=9.0926380W`, `SIDE G(0)=9.0029197W`, fillet arcs end at the gore with zero heading error, and `h`/`E` are continuous at both interval ends.
+- [ ] Self-check: §12.6.7 construction reproduces `d_Lmin(0)=8.3926380W` (Q-026: gore at `d_aux`), `SIDE G(0)=9.0029197W`, fillet arcs end at the gore at `d_aux` with zero heading error; the merge profile is `10W` at `d_aux`/`E_aux` then a `6W` `3u^2-2u^3` taper to `d_join`/`E_hwy`, the diverge the exact reverse (`6W` taper, `6W` full); highway width `5.65W -> 6.65W`; `h`/`E` continuous at every subdivision boundary.
 
 - [ ] **Gate (re-pass):** self-checks pass.
 

@@ -6,32 +6,13 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
-- **Q-026 OPEN (2026-10-03) -- which merge/diverge lateral profile is authoritative for `HIGHWAY_RAMP`?**
-  - *Unknown.* The 2026-10-03 instruction (Section 11) says to use the committed Plan Section 12.6 geometry without
-    reinterpretation. It then lists the merge as `10W` full-parallel acceleration plus `6W` taper (16W), the diverge
-    as `6W` taper plus `6W` full-parallel deceleration (12W), an auxiliary lane centred at `2.875W`, the outer
-    roadbed edge widening from `2.825W` to `3.825W`, and the highway widening from `5.65W` to `6.65W`.
-  - *What the committed plan says (Section 12.6.7 / 12.6.11, `dc7807c3`):* none of `2.875W`, `3.825W`, `6.65W`, or a
-    split into parallel plus taper appears. The plan's ramp centreline over the whole 16W / 12W interval is one
-    smoothstep: `d(u) = d_sep + (d_join - d_sep)*smoothstep(u)`, from `d_sep = 3.575W` (ramp roadbed touching the
-    highway roadbed edge, where the gore point `p_g = (G, d_sep)` also sits) to `d_join = 1.875W` (the outer-lane
-    centre). It widens with `h = max(2.375W, d + 0.5W)` and `E = max(2.825W, d + 0.75W)`. At the gore that gives
-    an outer roadbed edge of `4.325W` (a 7.15W total) tapering to the normal `2.825W`; there is never a constant
-    `3.825W` / `6.65W` section.
-  - *Blocks.* The HIGHWAY_RAMP extension from Phase-9 candidate construction onward, which depends on the profile:
-    `G(k)`, `S_I(k)` and the gore reserves come from `p_g` at `d_sep`. Phase-10 ramp geometry, Phase-11
-    merge/diverge records (`d(u)`, `h`, `E` samples), and the Section-14 gate checks ("16W total", "5.65W to 6.65W",
-    "merge/diverge centre offsets") all depend on it too. Step 1 (records, enums, schema, checksum) does not.
-  - *Evidence checked.* Plan Sections 12.6.6, 12.6.7 and 12.6.11 and the checklist I1/I2 reopened items: `grep` for
-    `2.875`, `3.825`, `6.65`, acceleration, deceleration and auxiliary finds nothing. Section 7: `HIGHWAY_4` roadbed
-    `5.65W`, median `0.75W`.
-  - *Smallest decision.*
-    - **(a)** Keep the plan's single-smoothstep profile as written. The Section-14 width and offset checks become
-      the plan's values: maximum outer edge `4.325W` at the gore, centreline `3.575W -> 1.875W`.
-    - **(b)** Adopt the auxiliary-lane profile from the 2026-10-03 instruction. The plan then needs restating: where
-      the ramp centreline reaches `2.875W` (the gore point and `G(k)`, or a new lateral transition after `d_sep`),
-      what the 6W taper interpolates (`2.875W -> 1.875W` lane centre with the edge `3.825W -> 2.825W`?), and
-      whether `E` is `d + 0.75W` or the fixed `3.825W` in the parallel part.
+- **Q-026 CLOSED (2026-10-03, option (b)).** Highway access ramps use an explicit auxiliary lane:
+  - `ON_RAMP`: gore, `10W` full lane, `6W` taper.
+  - `OFF_RAMP`: `6W` taper, `6W` full lane, gore.
+  - Lane centre `2.875W`, ramp-side edge `3.825W`, highway width `6.65W`.
+  - The gore is at `2.875W`, not `d_sep`.
+
+  The earlier single smoothstep is superseded. See `DECISIONS.md` D-022.
 
 - **Q-025 CLOSED (2026-10-02, option (a)).** Each heavy family is one continuous physical trunk; the logical edges
   stay authoritative. The reuse discount is revoked, and independent roads may not overlap beyond a shared

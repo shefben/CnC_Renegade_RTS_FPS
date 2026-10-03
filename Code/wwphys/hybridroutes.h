@@ -107,6 +107,26 @@ struct HybridRouteStructuralSpan
 
 
 /*
+**	A HIGHWAY_4 route's merge/diverge interval (Section 12.1, 12.6): which ramp widens it, on which side, over
+**	which chain stations (relative to the interchange anchor, Q-026 subdivisions included).
+*/
+struct HybridWidenedInterval
+{
+	HybridWidenedInterval(void) : InterchangeId(0),RampEdgeId(0),Role(HYBRID_RAMP_ROLE_NONE),
+		Side(HYBRID_INTERCHANGE_SIDE_NONE) { }
+
+	bool	operator == (const HybridWidenedInterval & that) const	{ return RampEdgeId == that.RampEdgeId; }
+	bool	operator != (const HybridWidenedInterval & that) const	{ return !(*this == that); }
+
+	unsigned int				InterchangeId;
+	unsigned int				RampEdgeId;
+	HybridRampRole				Role;
+	HybridInterchangeSide	Side;
+	HybridRampInterval		Interval;
+};
+
+
+/*
 **	One routed edge: the accepted spline, the A* cell chain behind it, and what the search cost.
 */
 struct HybridRoute
@@ -115,7 +135,8 @@ struct HybridRoute
 		EdgeId(0),RoadClass(HYBRID_ROAD_CLASS_COUNT),Priority(HYBRID_ROUTE_PRIORITY_FAMILY_TRUNK),
 		RouteFamily(-1),Envelope(0),Required(false),Capabilities(0),Length(0.0f),ControlInsertions(0),
 		Expansions(0),
-		BoundsMin(0.0f,0.0f),BoundsMax(0.0f,0.0f) { }
+		BoundsMin(0.0f,0.0f),BoundsMax(0.0f,0.0f),InterchangeId(0),RampRole(HYBRID_RAMP_ROLE_NONE),
+		RampSide(HYBRID_INTERCHANGE_SIDE_NONE) { }
 
 	//	DynamicVectorClass<T> (wwlib/vector.h) requires T to support == and !=.  EdgeId is the key.
 	bool	operator == (const HybridRoute & that) const	{ return EdgeId == that.EdgeId; }
@@ -142,6 +163,15 @@ struct HybridRoute
 
 	//	The straight structural intervals inside this route, in travel order; empty for an open road.
 	DynamicVectorClass<HybridRouteStructuralSpan>	Structural;
+
+	//	Section 12.1: HIGHWAY_RAMP only -- the owning interchange, role, side, gore station and interval.
+	unsigned int				InterchangeId;
+	HybridRampRole				RampRole;
+	HybridInterchangeSide	RampSide;
+	HybridRampInterval		RampInterval;
+
+	//	Section 12.1: HIGHWAY_4 only -- the merge/diverge intervals it carries, in chain order.
+	DynamicVectorClass<HybridWidenedInterval>		Widened;
 };
 
 

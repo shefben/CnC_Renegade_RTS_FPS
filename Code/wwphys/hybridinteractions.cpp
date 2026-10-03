@@ -196,10 +196,39 @@ const char * Hybrid_Interaction_Failure_Name(HybridInteractionFailure failure)
 **	The records.
 ***********************************************************************************************/
 
+const char * Hybrid_Junction_Role_Name(HybridJunctionRole role)
+{
+	switch (role) {
+		case HYBRID_JUNCTION_ROLE_NONE:								return "none";
+		case HYBRID_JUNCTION_ROLE_INCIDENTAL:						return "incidental";
+		case HYBRID_JUNCTION_ROLE_SHARED_NODE:						return "shared_node";
+		case HYBRID_JUNCTION_ROLE_OVERPASS_OBLIGATION:			return "overpass_obligation";
+		case HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE:			return "highway_ramp_merge";
+		case HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE:			return "highway_ramp_diverge";
+		case HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION:	return "highway_ramp_local_junction";
+		default:																break;
+	}
+	return "unknown";
+}
+
+
+HybridJunctionRole Hybrid_Interaction_Junction_Role(const HybridInteraction & one)
+{
+	if (one.Role != HYBRID_JUNCTION_ROLE_NONE) return one.Role;
+	if ((one.Method != HYBRID_METHOD_AT_GRADE_JUNCTION) && (one.Method != HYBRID_METHOD_OVERPASS)) {
+		return HYBRID_JUNCTION_ROLE_NONE;
+	}
+	if (one.Mandatory && (one.Method == HYBRID_METHOD_OVERPASS)) return HYBRID_JUNCTION_ROLE_OVERPASS_OBLIGATION;
+	if (one.NodeId != 0) return HYBRID_JUNCTION_ROLE_SHARED_NODE;
+	return HYBRID_JUNCTION_ROLE_INCIDENTAL;
+}
+
+
 void HybridInteractionSet::Reset(void)
 {
 	Interactions.Delete_All();
 	Issues.Delete_All();
+	MergeDiverge.Delete_All();
 	StationsEvaluated	= 0;
 	SweepSamples		= 0;
 	RerouteRequests	= 0;
@@ -486,6 +515,37 @@ unsigned int Hybrid_Interaction_Checksum(const HybridInteractionSet & set,unsign
 		for (int p = 0; p < one.Path.Points.Count(); ++p) {
 			stream.Add_Length(one.Path.Points[p].X);
 			stream.Add_Length(one.Path.Points[p].Y);
+		}
+		stream.Add_Int((int)Hybrid_Interaction_Junction_Role(one));
+	}
+
+	//	Section 12.6.15: the merge/diverge records and their widened-profile samples.
+	stream.Add_Int(set.MergeDiverge.Count());
+	for (int i = 0; i < set.MergeDiverge.Count(); ++i) {
+		const HybridMergeDiverge & md = set.MergeDiverge[i];
+		stream.Add_Uint(md.StableId);
+		stream.Add_Uint(md.InteractionId);
+		stream.Add_Uint(md.RampEdgeId);
+		stream.Add_Uint(md.HighwayEdgeId);
+		stream.Add_Uint(md.InterchangeId);
+		stream.Add_Int((int)md.Role);
+		stream.Add_Int((int)md.Side);
+		stream.Add_Length(md.Interval.GoreStation);
+		stream.Add_Length(md.Interval.From);
+		stream.Add_Length(md.Interval.To);
+		stream.Add_Length(md.Interval.FullFrom);
+		stream.Add_Length(md.Interval.FullTo);
+		stream.Add_Length(md.Interval.TaperFrom);
+		stream.Add_Length(md.Interval.TaperTo);
+		stream.Add_Int(md.Samples.Count());
+		for (int s = 0; s < md.Samples.Count(); ++s) {
+			stream.Add_Length(md.Samples[s].Station);
+			stream.Add_Bool(md.Samples[s].Full);
+			stream.Add_Length(md.Samples[s].U);
+			stream.Add_Length(md.Samples[s].D);
+			stream.Add_Length(md.Samples[s].H);
+			stream.Add_Length(md.Samples[s].E);
+			stream.Add_Length(md.Samples[s].Z);
 		}
 	}
 	return stream.Get();

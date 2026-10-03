@@ -592,7 +592,10 @@ class ProceduralWorldProfile
 		// Tiberium reserves, and junctions compile at shared topology nodes.
 		// Generator 15 makes an ordinary route guide a strategic anchor only: the search passes its cell, the
 		// centerline is not bound to it, and Phase 9's pose connector treats it as the same droppable corner.
-		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 15 };
+		// Generator 16 is the first identity with the finalized post-stabilization routing (D-021 and its revision)
+		// and the HIGHWAY_RAMP records (Section 12.6, Q-026 auxiliary-lane profile, D-022).  The identity-15
+		// development commits after 5384130c are not compatibility fixtures.
+		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 16 };
 
 		ProceduralWorldProfile(void);
 
