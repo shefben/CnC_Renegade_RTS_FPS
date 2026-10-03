@@ -441,6 +441,24 @@ struct HybridRouteResult
 
 HybridInterchangeOutcome	Hybrid_Interchange_Outcome(const HybridRouteResult & result,unsigned int interchange_id);
 
+/*
+**	The world's Phase-10 outcome beside one interchange's -- a separate fact, never folded into it.  A world that fails
+**	after the interchange reached a terminal state (realized, or withdrawn and the restored ordinary road still
+**	failing) keeps that state; only a world that fails while the interchange is not yet terminal is
+**	WORLD_FAILED_BEFORE_INTERCHANGE_REALIZATION.
+*/
+enum HybridInterchangeWorldOutcome
+{
+	HYBRID_WORLD_ROUTED = 0,
+	HYBRID_WORLD_FAILED_BEFORE_INTERCHANGE_REALIZATION,
+	HYBRID_WORLD_FAILED_AFTER_INTERCHANGE_WITHDRAWAL,
+	HYBRID_WORLD_FAILED_AFTER_INTERCHANGE_REALIZATION,
+	HYBRID_WORLD_OUTCOME_COUNT
+};
+
+const char *						Hybrid_Interchange_World_Outcome_Name(HybridInterchangeWorldOutcome outcome);
+HybridInterchangeWorldOutcome	Hybrid_Interchange_World_Outcome(const HybridRouteResult & result,unsigned int interchange_id);
+
 
 /*
 **	Section 8 Phase 10's cost constants per road class: the grade, turn and corridor-excess weights.

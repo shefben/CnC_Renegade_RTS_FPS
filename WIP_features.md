@@ -376,14 +376,19 @@ Phase-10 interchange realization (checklist I11 reopened, Plan 12.6.9) is done, 
 - withdrawal (a) and (b) to the fallback variant;
 - the gate clause.
 
-The census is back to 448 / 98 / 33. The three natural interchanges, classified by outcome (user, 2026-10-03):
-- archetype 5 seed 16: `INTERCHANGE_WITHDRAWN`. Rule (a): its straightened highway, with a 74.7-degree intent bend at
-  `X`, enters a Tiberium reserve. This is a legitimate withdrawal, and the ordinary junction at `X` is restored.
-- archetype 5 seed 199 and archetype 3 seed 129: `WORLD_FAILED_BEFORE_INTERCHANGE_REALIZATION`. Their `HIGHWAY_4`
-  edges fail ordinary Phase-10 routing, as before interchange support. These are not ramp failures and not
-  withdrawals.
+The census is back to 448 / 98 / 33. Interchange and world outcomes are separate facts (user, 2026-10-03): a
+withdrawal stands when the restored ordinary road later fails. `WORLD_FAILED_BEFORE_INTERCHANGE_REALIZATION` is
+reserved for a world that fails before the interchange is realized or withdrawn. Measured on the three natural
+interchanges:
+- archetype 5 seed 16: `INTERCHANGE_WITHDRAWN`, `WORLD_ROUTED`. Rule (a): its straightened highway enters a
+  Tiberium reserve. The ordinary junction at `X` is restored, and the world fails later, in Phase 11.
+- archetype 5 seed 199: `INTERCHANGE_WITHDRAWN`, `WORLD_FAILED_AFTER_INTERCHANGE_WITHDRAWAL`. Rule (a): aligned
+  edge 5 meets hard-invalid ground. The restored fallback then fails on edge 6's grade, exactly as before
+  interchange support.
+- archetype 3 seed 129: `INTERCHANGE_WITHDRAWN`, `WORLD_FAILED_AFTER_INTERCHANGE_WITHDRAWAL`. Rule (a): aligned
+  edge 8 has no path. Its fallback then fails on turn/approach pose, exactly as before.
 
-Only realized and withdrawn outcomes count when judging ramp correctness.
+None is a ramp-geometry failure. Only realized and withdrawn outcomes count when judging ramp correctness.
 
 **Next exact action:** Phase-11 merge/diverge compilation (checklist I12 reopened, Plan 12.6.10), then restore the
 Phase-11 gate. It covers:

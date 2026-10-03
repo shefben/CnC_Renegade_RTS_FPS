@@ -210,16 +210,20 @@ another candidate.
 
   `Hybrid_Route_Edge_End` gives the effective endpoints: retargeted arrivals end at `X` again, and the interchange's
   ramps and crossings are inactive.
-- **Outcomes** (`HybridInterchangeOutcome`, on `HybridRouteResult`, surviving a failed attempt). The three are kept
-  distinct:
-  - `INTERCHANGE_REALIZED`: group 1b built it.
-  - `INTERCHANGE_WITHDRAWN`: rule (a) or (b) restored the fallback, and the attempt went on.
-  - `WORLD_FAILED_BEFORE_INTERCHANGE_REALIZATION`: the attempt failed Phase 10 before group 1b reached the
-    interchange. This includes a highway that still fails after a rule-(a) withdrawal, because that is its own
-    ordinary routing failure.
+- **Outcomes.** The interchange's outcome and the world's are separate facts, both on `HybridRouteResult` and both
+  surviving a failed attempt.
+  - Interchange (`HybridInterchangeOutcome`, `Hybrid_Interchange_Outcome`):
+    - `INTERCHANGE_REALIZED`: group 1b built it.
+    - `INTERCHANGE_WITHDRAWN`: rule (a) or (b) restored the fallback. A withdrawal stands even when the restored
+      ordinary road later fails.
+    - `WORLD_FAILED_BEFORE_INTERCHANGE_REALIZATION`: the attempt failed while the interchange had reached neither
+      terminal state.
+  - World (`HybridInterchangeWorldOutcome`, `Hybrid_Interchange_World_Outcome`): `WORLD_ROUTED`,
+    `WORLD_FAILED_BEFORE_INTERCHANGE_REALIZATION`, `WORLD_FAILED_AFTER_INTERCHANGE_WITHDRAWAL`, or
+    `WORLD_FAILED_AFTER_INTERCHANGE_REALIZATION`.
 
-  Only the first two say anything about ramp correctness. The census prints each interchange's outcome and the
-  totals.
+  Only realized and withdrawn interchanges say anything about ramp correctness. The census prints both outcomes for
+  each interchange, and the totals.
 - **Gate** (`Check_Interchanges_Gate`). Every active interchange is checked:
   - the highway is aligned;
   - every crossing edge is routed;
