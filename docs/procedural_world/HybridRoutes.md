@@ -45,8 +45,9 @@ The construction:
 3. **Fillet.** Each remaining corner takes an arc of the class radius. A turn of `theta` consumes
    `R tan(theta/2)` of the straight on each side; where two corners cannot share the leg between them the
    shallower is dropped -- a corridor vertex, never a frozen one -- and the pass restarts, because dropping
-   a vertex changes the angles at its neighbours. Two frozen corners crowding each other is reported as
-   such, which points at the phase that froze them.
+   a vertex changes the angles at its neighbours. Dropping a vertex beside a lead, or beside a frozen point
+   (whose need for a lead was judged against that vertex), lays the leads again. Two frozen corners crowding
+   each other is reported as such, which points at the phase that froze them.
 4. **Sample and validate.** The straights and arcs are sampled at `min(W,A/2)` and the whole validator
    runs: inside the current envelope, clear of every hard obstacle, at or above the exact Section-7 class
    radius, and within the class grade and cross slope through `RoadVerticalInterval`. An obstacle,
@@ -72,13 +73,18 @@ between them is wet. A frozen crossing waypoint is discharged by the span, which
 than touching the cell the node's position falls in -- that cell is the middle of the obstruction, which
 the road spans rather than drives through.
 
-**Phase 10 owns the arrival (Q-022, revised D-009).** The road enters and leaves every frozen crossing along
+**Phase 10 owns the arrival and the departure (Q-022, revised D-009).** The road enters and leaves every frozen crossing along
 the window's own axis, `normalize(approach_b - approach_a)`, straight from one approach point to the other,
 with every class-radius turn finished outside them. The search is told: A* arrives at the ingress cell and
 departs the egress cell on the axis, judged at move generation with the run the class's turn still needs;
 the two approach points are frozen vertices with lead-ins and lead-outs along the axis; a corner that would
 have to sit on a frozen point, or crowd it, refuses the candidate. Phase 10 guarantees `8W` of straight
-approach on each side -- the asset-specific remainder is Phase 11's to find or refuse. A road that cannot
+approach on each side -- the asset-specific remainder is Phase 11's to find or refuse. The departure is held to
+the arrival's measure (`Departure_Fits_Crossing`, `Arrival_Fits_Crossing`'s mirror): the leg leaving a crossing is
+handed the crossing's heading and its frozen straight as run, but that straight is no room for an arc, so the
+chain's first turn after the egress must leave `R tan(phi/2) + R tan(theta/2)` and the kept straight on the run
+from the egress -- `phi` the turn off the axis onto the grid heading, `theta` the turn itself. Without it the
+search turned in the cell after the egress and the lead-out was refused in every envelope. A road that cannot
 line up in an envelope fails that envelope; after the third the edge fails. Nothing is left at a crossing for
 Phase 11 to straighten. The old D-009 behaviour -- keep the waypoint and leave a corner there for Phase 11 --
 is revoked.
@@ -86,6 +92,30 @@ is revoked.
 A crossing's own span exempts only its own samples from the open-road checks, and the open road between
 spans is graded by Section 12.1's interval propagation, so a road that touches its crossings but cannot be
 graded between them is refused here rather than in Phase 11.
+
+**A road crosses an obstruction only as a crossing (2026-10-02).** A river is 2.5 to 6 units wide and an
+analysis cell 8 to 16, so a river runs between cell centres almost everywhere, and the hard-infinite cell list --
+which judges cells by their centres -- did not see it: the search stepped across rivers between two dry centres,
+and the centerline's own point-and-cell test (a sample is refused only when its cell is refused too) let the road
+follow. So the moves and the centerline steps are judged themselves (`Segment_Meets_River`): a search move
+(`Move_Crosses_Channel`, cached per cell and direction, since the river geometry is fixed) or a centerline step
+outside the road's own structural spans that meets a river must meet it inside a window the leg may use. A road
+crosses its planned window once, on the leg that is that crossing. The legs that approach or leave the window find its obstruction closed
+(`RouteBuilder::ClosedWindow`): left open, a leg could reach the near bank from the far one by crossing the same
+window outside its frozen interval -- a crossing nothing recorded and nothing would build. A window the search
+was never sent to stays usable at the plan's `20A` window penalty, and such a crossing is recorded like a planned
+one (`Note_Unplanned_Crossings`). It is aligned like one too: when the centerline is refused at a corner that
+belongs to an unplanned crossing (`Unplanned_Crossing_At_Fault`), that window becomes a planned crossing of the
+leg it happened on -- its two approach points inserted as that leg's stops, in travel order -- and the logical
+edge is searched again from its start in the same envelope, arriving and departing on the axis. A promoted window
+is a planned stop from then on, so each is promoted at most once. If the centerline still cannot line up with a
+promoted crossing -- typically a window the leg used to reach a planned crossing's near bank from the far side,
+right beside it -- its stops are taken out again and the road may not cross that window at all
+(`RouteBuilder::ForbiddenWindows`); the search finds its own way, or the envelope fails as before. An unplanned
+crossing the centerline can align as it stands is left alone. `Check_Hybrid_Crossing_Discipline` pins both: a road whose two ends stand on one bank
+of a river with one window is refused by the search, and a road that must cross a window it was not sent to
+crosses it straight between the approach points and records it once, and a road across a 3-unit river whose
+centerline runs midway between two columns of cell centres, with no window, is refused by the search.
 
 Overpass obligations are routed through their exact node along each edge's intent segment, straight for
 the deck's half length (`Hybrid_Overpass_Half_Deck`, the topology owner's measure) either side.
@@ -103,15 +133,34 @@ routes them as one physical road (`Route_Road`): the edges in travel order, each
 expansion budget, the heading a leg ends on offered to the next across the ordinary family waypoint between
 them, and a leg arriving at that waypoint first asked to arrive toward the next edge's first stop. Each falls
 back to the existing free search when it leads nowhere. The centerline is built once over the whole
-concatenated chain, so an ordinary waypoint is a pinned corner the class-radius arc rounds (standing on the
-waypoint's own frozen position, its arc required to stay in the waypoint's cell) -- not the end of one road and
-the start of another. Structural waypoints keep their exact Q-022 pose.
+concatenated chain -- an ordinary waypoint is not the end of one road and the start of another.
+
+**Ordinary guides are strategic anchors (2026-10-02).** An ordinary family waypoint, including a trunk joint
+between two logical edges, constrains the search: the A* chain must pass through the guide's analysis cell, and
+the Phase-10 gate checks that on the chain. The final class-radius centerline need not intersect the guide's
+cell; a sharp family turn at a guide is rounded at the class radius wherever that puts the arc. The guide still
+gives the corridor polyline a corner (`RouteVertex::Guide`) -- at a trunk joint it stands on the waypoint's own
+frozen position, which Phases 3 and 9 made legal ground -- held against ordinary corridor corners, but dropped
+when a structure's lead needs its room. Released altogether, the corner fell back to chain cell centres inside
+the field reserves guides stand beside, and ordinary fillet crowding dropped it: in the 1400-world census
+Phase 10's yield fell from 93 to 54. Held absolutely, it refused a crossing's lead-in that the terrain and the
+Q-023 connector both allow. Phase 9's Q-023 connector (`Hybrid_Road_Poses_Connect`) builds the same guide corner. Structural waypoints stay exact: a crossing obligation, an overpass obligation, a
+base entrance or field access point where the corridor ends exactly, a ramp pass window (and later a highway
+ramp's gore, merge and diverge points) keeps its position, axis, straight approach and departure reserve and
+turn-radius transition (Q-022, Q-023).
+
+**Logical slicing.** The logical edges are slices of the one centerline, bookkeeping only. The boundary at an
+ordinary guide is the point of the centerline nearest the centre `G` of the guide's analysis cell: the sample
+nearest `G` after the previous boundary (quantized distance, ties to the earlier sample), then the exact closest
+point to `G` on the segment before or after it, clamped and quantized to `Q`. A boundary inside a structural
+interval moves to that interval's nearer end; boundaries are strictly ordered and no edge has zero length. The
+boundary point is shared by the two slices and lies on the polyline, so slicing never changes the road.
 
 A failure is charged to the logical edge it happened on -- a leg with no path to the edge that leg belongs to, a
 centerline failure to the edge whose chain lies nearest the failing point -- and only that edge moves to its
 next envelope; after its third the edge fails. A Phase-11 reroute raises only that edge's floor, and the whole
 trunk is laid again in one piece. Each logical edge's `HybridRoute` is the exact slice of the one centerline its
-interval covers, so consecutive slices share their end sample. `HybridRouteSet::Trunks` holds the physical road
+interval covers, so consecutive slices share their boundary point. `HybridRouteSet::Trunks` holds the physical road
 (`HybridTrunkRoad`: family, class, capability, logical edges and their intervals, node sequence, junction nodes,
 centerline, crossing intervals); `Find_Trunk` maps a logical edge to it.
 
@@ -135,7 +184,15 @@ envelope, world bounds, standing water, river or wall outside a window, base, Ti
 turn/approach pose, an existing road, the expansion budget, or the centerline). It also holds the no-path frontier
 counted by rule, the class, role, envelope, structural-waypoint count, the failing leg and its end nodes, and for
 a centerline refusal its geometric condition (`HybridSplineFailureClass`: control/fillet construction, structural
-transition, ordinary-guide boundary, quantization, real minimum radius, or a ground rule).
+transition, quantization, real minimum radius, or a ground rule). A structural transition carries its exact cause
+(`HybridStructuralCause`): an unplanned crossing at fault; the chain crossing a planned window's obstruction
+outside its crossing (`far_bank_approach` -- the road reaches the approach from the far bank, which Q-023's
+empty-plane facing test cannot see); two structures, or a structure and a road end, too close
+(`sequence_too_close`); the road meeting a frozen point from behind (`wrong_side`); the ideal straight `2R`
+transition beyond the structure standing on hard ground, leaving the envelope, or breaking the grade or cross
+slope; Q-023's empty-plane connector refusing what Phase 9 accepted (`q023_phase10_mismatch`); or, all of those
+legal, the searched chain leaving the lead before the approach (`lead_before_approach`) or the departure after
+the structure (`departure_after_structure`) no room.
 
 ## Diagnostics
 

@@ -590,7 +590,9 @@ class ProceduralWorldProfile
 		// Generator 14 is the Q-024/Q-025 stabilization: the overpass number is a target, each heavy family is one
 		// continuous physical trunk, independent roads keep their roadbeds apart, entrance corridors stay out of
 		// Tiberium reserves, and junctions compile at shared topology nodes.
-		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 14 };
+		// Generator 15 makes an ordinary route guide a strategic anchor only: the search passes its cell, the
+		// centerline is not bound to it, and Phase 9's pose connector treats it as the same droppable corner.
+		enum { CURRENT_SCHEMA_VERSION = 12, CURRENT_GENERATOR_VERSION = 15 };
 
 		ProceduralWorldProfile(void);
 

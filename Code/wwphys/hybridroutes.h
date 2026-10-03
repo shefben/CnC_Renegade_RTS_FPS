@@ -300,7 +300,6 @@ enum HybridSplineFailureClass
 	HYBRID_SPLINE_FAILURE_NONE = 0,
 	HYBRID_SPLINE_FAILURE_CONTROL_FILLET,		// the corridor polyline could not be filleted at all
 	HYBRID_SPLINE_FAILURE_STRUCTURAL,				// a crossing's or overpass's frozen straight could not be joined
-	HYBRID_SPLINE_FAILURE_GUIDE_BOUNDARY,		// at a trunk's ordinary family waypoint (Q-025)
 	HYBRID_SPLINE_FAILURE_QUANTIZATION,			// curvature short of the class radius by under 1%
 	HYBRID_SPLINE_FAILURE_MIN_RADIUS,			// curvature genuinely under the class radius
 	HYBRID_SPLINE_FAILURE_GROUND,					// a terrain rule: ground, grade, cross slope, envelope, another road
@@ -308,6 +307,26 @@ enum HybridSplineFailureClass
 };
 
 const char *	Hybrid_Spline_Failure_Class_Name(HybridSplineFailureClass failure);
+
+//	The exact cause of a structural-transition refusal (HYBRID_SPLINE_FAILURE_STRUCTURAL).
+enum HybridStructuralCause
+{
+	HYBRID_STRUCTURAL_NONE = 0,
+	HYBRID_STRUCTURAL_LEAD_BEFORE,			// no class-radius lead fits before the required straight approach
+	HYBRID_STRUCTURAL_DEPARTURE_AFTER,		// no class-radius departure fits after the structure
+	HYBRID_STRUCTURAL_WRONG_SIDE,				// the road meets the structure from behind its approach
+	HYBRID_STRUCTURAL_OBSTACLE,				// the ideal transition stands on hard ground
+	HYBRID_STRUCTURAL_ENVELOPE,				// the ideal transition leaves the envelope
+	HYBRID_STRUCTURAL_GRADE,					// the ideal transition cannot keep the class grade
+	HYBRID_STRUCTURAL_CROSS_SLOPE,			// ...or the class cross slope
+	HYBRID_STRUCTURAL_SEQUENCE,				// two structures (or a structure and a road end) too close
+	HYBRID_STRUCTURAL_Q023_MISMATCH,			// Q-023's empty-plane connector and Phase 10's disagree
+	HYBRID_STRUCTURAL_UNPLANNED_CROSSING,	// a window the search crossed without being sent to it (or promoted)
+	HYBRID_STRUCTURAL_FAR_BANK,				// the chain crosses a planned window's obstruction outside its crossing
+	HYBRID_STRUCTURAL_COUNT
+};
+
+const char *	Hybrid_Structural_Cause_Name(HybridStructuralCause cause);
 
 //	The failed edge of a refused Phase-10 attempt, when HybridRouteParams::CollectCensus is set.
 struct HybridRouteFailureCensus
@@ -329,6 +348,7 @@ struct HybridRouteFailureCensus
 	int				Reason;						// HybridRouteBlock: the final owning reason
 	int				SplineBlock;				// for HYBRID_BLOCK_SPLINE, what the centerline was refused by
 	int				SplineClass;				// HybridSplineFailureClass
+	int				StructuralCause;			// HybridStructuralCause, for a structural transition
 	float				SplineJointDistance;		// how far the failure was from the nearest trunk joint, -1 when none
 	StringClass		SplineReason;
 	int				Frontier[HYBRID_BLOCK_COUNT];	// the last no-path search's frontier, by rule
@@ -517,8 +537,9 @@ struct HybridCrossingPath
 **	exact terrain path stays Phase 10's.
 **
 **	A free pose with a neighbour of its own beyond it -- an ordinary route waypoint in the middle of an edge --
-**	is a pinned corner in Phase 10, whose own arc needs room on the leg it shares with the structure's lead;
-**	`before_from` / `after_to` name that neighbour so the corner is part of the construction.
+**	is Phase 10's guide corner: held against ordinary corners, but dropped when a structure's lead needs its
+**	room, since the centerline is not bound to the guide.  `before_from` / `after_to` name that neighbour so
+**	the corner is part of the construction.
 */
 bool	Hybrid_Road_Poses_Connect(const HybridRoadPose & from,const HybridRoadPose & to,HybridRoadClass road_class,
 										const HybridConstants & constants,const Vector2 * before_from = nullptr,

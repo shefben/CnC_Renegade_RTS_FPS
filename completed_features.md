@@ -4806,6 +4806,32 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## Hybrid ordinary-guide and structural-transition stabilization -- generator identity 15 (2026-10-02)
+
+An ordinary route guide is a strategic anchor (D-021). The A* chain passes the guide's cell; the centerline need
+not, and the gate checks the chain. The guide corner (`RouteVertex::Guide`) yields to a structure's lead, and
+Phase 9's Q-023 connector builds the same corner. Logical edges are sliced at the centerline point nearest the
+guide cell's centre.
+
+The exact-cause census (`HybridStructuralCause`) found five Phase-10 crossing defects, each fixed at its owner:
+- rivers stepped across between cell centres (`Move_Crosses_Channel`, `Segment_Meets_River`);
+- a road's own planned window re-crossed by its approach legs (`ClosedWindow`);
+- unplanned crossings never aligned (promotion, then `ForbiddenWindows`, inside `max_local_retries_per_stage`);
+- no departure room (`Departure_Fits_Crossing`);
+- a stale lead decision after a drop beside a frozen point.
+
+1400-world yield on the unchanged seed set: 448 / 69 / 24 -> 448 / 107 / 35. Structural transitions 91 -> 20, each
+classified. The 55 former guide refusals moved to their next owner.
+
+**Gate:**
+- `Check_Hybrid_Ordinary_Guide`, `Check_Hybrid_Crossing_Discipline` and the guide-beside-lead pose check;
+- `terrain_hybridtopology`, `terrain_hybridroutes`, `terrain_hybridinteractions` and `terrain_hybridrealization`,
+  with their `fds_` twins;
+- the full ctest suite on client and dedicated server;
+- the state validator.
+
+Decision D-021.
+
 ## Hybrid planner-yield stabilization (Q-024, Q-025) -- generator identity 14 (2026-10-02)
 
 The Section-5 overpass number is a target (Q-024): the never-enforced `60..120` degree rule is fixed, and the angle

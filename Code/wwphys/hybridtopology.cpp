@@ -1301,7 +1301,7 @@ static int Chain_Refusal(const TopologyBuilder & b,const DynamicVectorClass<Chai
 		const HybridRoadPose to = Chain_Pose(b,chain,i + 1);
 		if (!from.Is_Structural() && !to.Is_Structural()) continue;
 
-		//	An ordinary waypoint in the middle of the edge is a corner of its own, turned toward its other neighbour.
+		//	An ordinary waypoint in the middle of the edge is a guide corner, turned toward its other neighbour.
 		Vector2 behind(0.0f,0.0f);
 		Vector2 ahead(0.0f,0.0f);
 		const bool from_interior = !from.Is_Structural() && (i > 0);

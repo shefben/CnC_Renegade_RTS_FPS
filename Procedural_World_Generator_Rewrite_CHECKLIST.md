@@ -286,6 +286,10 @@ pass rate for archetypes with no canyon obligation.
 - [x] Replace native MST topology; topology self-check before any A*.
 - [x] **Gate:** families present, bridge obligations bound to distinct windows, overpass waypoints shared, road/highway/dirt/trail counts pass, cycle exists, no shared required bottleneck.
 
+**OPEN STABILIZATION ITEM (2026-10-02)** — the river-bridge quota stays mandatory; this is an investigation, not a rule change:
+
+- [ ] Determine why valid Phase-6 bridge windows frequently cannot be connected to the heavy topology because no suitable heavy-family node exists on the opposite bank (1400-world census: 3095 cross-link candidates refused `no_bank_pair`, 2839 fallback candidates outside every family corridor, in 182 quota-short worlds). Distinguish: Phase-3 intent placement failing to straddle rivers; Phase-6 windows outside usable corridors; Phase-9 synthesized cross-link endpoint selection too restrictive; the quota procedure internally inconsistent. Do not change the rule; file the next `Q-###` if the investigation finds a spec conflict.
+
 **REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** — new step 15 after step 14; steps 1–14 untouched (§8 P9 step 15, §12.6.2–12.6.8):
 
 - [ ] Highway-access topology selection: anchors = `HIGHWAY_4` pass-through `FAMILY_WAYPOINT`s with ≥1 `PRIMARY_2`/`SECONDARY_2` arrival; never a highway terminus; processing order `(family, chain index, StableId)`; only existing graph connections, never proximity.

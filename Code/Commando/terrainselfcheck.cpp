@@ -6927,6 +6927,25 @@ static void Check_Hybrid_Structural_Poses (void)
 				 Hybrid_Road_Poses_Connect (pose,far_end,HYBRID_ROAD_SECONDARY_2,k),
 				 "a straight run through an overpass did not connect");
 	}
+
+	/*
+	**	An ordinary guide beside a crossing's lead (2026-10-02): the guide stands one cell off the road's line,
+	**	ten units short of the crossing's near bank.  It is the search's anchor, not a corner of the centerline,
+	**	so the crossing's lead drops it and the road runs straight in -- what Phase 10 builds.  Held as a fixed
+	**	corner it left the lead no room, and Phase 9 refused a window Phase 10 could cross.  A guide far enough
+	**	out keeps its corner and is accepted as before.
+	*/
+	{
+		const HybridCrossingWindow crossing = Pose_Window (1,Vector2 (0.0f,0.0f),Vector2 (1.0f,0.0f),half,ALL);
+		const HybridRoadPose pose = Hybrid_Window_Pose (crossing,west.Point,east.Point);
+		HybridRoadPose guide;
+		guide.Point.Set (-half - 10.0f,15.0f);
+		Check (Hybrid_Road_Poses_Connect (guide,pose,HYBRID_ROAD_PRIMARY_2,k,&west.Point,nullptr),
+				 "a guide beside a crossing's lead refused the crossing -- the guide was held as a fixed corner");
+		guide.Point.Set (-250.0f,60.0f);
+		Check (Hybrid_Road_Poses_Connect (guide,pose,HYBRID_ROAD_PRIMARY_2,k,&west.Point,nullptr),
+				 "a guide well out from a crossing refused it");
+	}
 }
 
 void Check_Hybrid_Topology (void)
@@ -8655,6 +8674,271 @@ static float Overlap_Run (const HybridRoute & road,const HybridRoute & other,flo
 }
 
 
+//	Does any routed chain pass the analysis cell `point` stands in?
+static bool Chain_Passes_Cell (const CrossingWorld & world,const Vector2 & point)
+{
+	const float a = world.Sized.Constants.A;
+	const float min_x = world.RouteParams.WorldMinX;
+	const float min_y = world.RouteParams.WorldMinY;
+	const int cx = (int)((point.X - min_x) / a);
+	const int cy = (int)((point.Y - min_y) / a);
+	const int cell = (cy * world.Routes.AnalysisCountX) + cx;
+	for (int r = 0; r < world.Routes.Routes.Count (); ++r) {
+		for (int c = 0; c < world.Routes.Routes[r].Cells.Count (); ++c) {
+			if (world.Routes.Routes[r].Cells[c] == cell) return true;
+		}
+	}
+	return false;
+}
+
+
+/*
+**	An ordinary guide is a strategic anchor; a structural waypoint is a physical constraint (the 2026-10-02
+**	ordinary-guide correction).  Two logical trunk edges meet at a guide where the family turns 135 degrees, and
+**	river channels (no windows) hem the guide's cell in on the east, south and north, so the search can only
+**	arrive from the west and leave to the north-west: a sharp corner at the guide.  The search's chain passes
+**	through the guide's cell, and the road rounds the corner at its class radius -- which a 135-degree arc does
+**	about 28 units from the corner, outside the cell.  The road is accepted, and its two logical edges are
+**	contiguous, non-overlapping slices of the one centerline, covering all of it.
+*/
+/*
+**	A road crosses an obstruction only as a crossing, and every crossing is aligned (2026-10-02).
+**
+**	Own window closed: a river runs the whole height of the map with one window in it (both on analysis-cell
+**	centres, so the search can reach the window's footprint), and a road whose two ends
+**	both stand on the west bank is sent through that window.  It crosses east on its crossing leg; it has no
+**	second window to come back by, so the road is refused -- it may not cross the same window again outside its
+**	frozen interval, which is a crossing nothing records and nothing would build.
+**
+**	Narrow river between cell centres: a river 3 units wide whose centerline runs exactly between two columns of
+**	analysis-cell centres, so no centre is wet, and no window anywhere on it.  A road from one side to the other
+**	is refused by the search -- a move is judged where it meets the river, not only at the cells it joins.
+**
+**	Unplanned crossing aligned: the same river and window, and a road from the south-west to the north-east
+**	that was never sent to the window.  The search crosses it anyway (the window penalty is a cost, not a ban),
+**	and the road runs straight between the window's two approach points along its axis, with the crossing
+**	recorded once as a structural span.  (A positive check: here the search meets the window on its axis by
+**	itself; the promotion that lines up a crossing the centerline refuses is measured by the census.)
+*/
+static void Check_Hybrid_Crossing_Discipline (void)
+{
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		Crossing_World_River (&world,9,Vector2 (7.5f,-600.0f),Vector2 (7.5f,600.0f),16.0f);
+		Crossing_World_Window (&world,10,9,Vector2 (7.5f,7.5f),Vector2 (1.0f,0.0f),16.0f);
+		Crossing_World_Edge (&world,Vector2 (-300.0f,-150.0f),Vector2 (-300.0f,150.0f),HYBRID_ROAD_SECONDARY_2,10);
+
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		int spans = 0;
+		if (routed && (world.Routes.Routes.Count () == 1)) {
+			const HybridRoute & route = world.Routes.Routes[0];
+			for (int s = 0; s < route.Structural.Count (); ++s) {
+				if (route.Structural[s].WindowId == 10) spans++;
+			}
+		}
+		Check (!routed,"a road with both ends on one bank crossed its one window there and back (%d recorded crossing(s))",
+				 spans);
+		//	Refused by the search -- the way back across is closed -- not later, by a centerline over a chain that
+		//	crossed the window twice.
+		Check (routed || (::strstr (result.Detail.Peek_Buffer (),"no path") != NULL),
+				 "the road was refused for crossing back, not by the closed window: %s",result.Detail.Peek_Buffer ());
+		printf ("  own window closed: %s\r\n",routed ? "routed" : result.Detail.Peek_Buffer ());
+		(void)k;
+	}
+
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		//	Cell centres stand at A/2 + nA from the world's -600 edge, so x = A is midway between two columns.
+		const float between = world.Sized.Constants.A;
+		Crossing_World_River (&world,9,Vector2 (between,-600.0f),Vector2 (between,600.0f),3.0f);
+		Crossing_World_Edge (&world,Vector2 (-300.0f,7.5f),Vector2 (300.0f,7.5f),HYBRID_ROAD_SECONDARY_2,0);
+
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (!routed && (::strstr (result.Detail.Peek_Buffer (),"no path") != NULL),
+				 "a road crossed a narrow river between cell centres with no window: %s",
+				 routed ? "routed" : result.Detail.Peek_Buffer ());
+		printf ("  narrow river: %s\r\n",routed ? "routed" : "refused by the search");
+	}
+
+	/*
+	**	Departure room: a HIGHWAY_4 crosses a north-south river eastward on its window, then must turn north to an
+	**	end 300 units up and only 120 east of the crossing.  The road keeps straight past the far approach point long
+	**	enough to round its turns and is accepted with the crossing straight on its axis.  (A positive check: in
+	**	open terrain the search turns late anyway; the census measures the departure rule on real worlds.)
+	*/
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		Crossing_World_River (&world,9,Vector2 (7.5f,-600.0f),Vector2 (7.5f,600.0f),16.0f);
+		Crossing_World_Window (&world,10,9,Vector2 (7.5f,7.5f),Vector2 (1.0f,0.0f),16.0f);
+		Crossing_World_Edge (&world,Vector2 (-292.5f,7.5f),Vector2 (127.5f,307.5f),HYBRID_ROAD_HIGHWAY_4,10);
+
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (routed,"a highway with room to turn after its crossing was refused: %s",result.Detail.Peek_Buffer ());
+		if (routed && (world.Routes.Routes.Count () == 1)) {
+			const HybridCrossingWindow & window = world.Hydrology.Windows[0];
+			StringClass why;
+			Check (Straight_Between (world.Routes.Routes[0].Points,window.ApproachA,window.ApproachB,k.Q,&why),
+					 "the departure bent the crossing: %s",why.Peek_Buffer ());
+		}
+		printf ("  departure room: %s\r\n",routed ? "turned after the lead-out" : result.Detail.Peek_Buffer ());
+	}
+
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		Crossing_World_River (&world,9,Vector2 (7.5f,-600.0f),Vector2 (7.5f,600.0f),16.0f);
+		Crossing_World_Window (&world,10,9,Vector2 (7.5f,7.5f),Vector2 (1.0f,0.0f),16.0f);
+		Crossing_World_Edge (&world,Vector2 (-300.0f,-250.0f),Vector2 (300.0f,250.0f),HYBRID_ROAD_SECONDARY_2,0);
+
+		HybridRouteResult result;
+		const bool routed = Crossing_World_Route (&world,&result);
+		Check (routed,"a road that had to cross an unplanned window was refused: %s",result.Detail.Peek_Buffer ());
+		if (routed && (world.Routes.Routes.Count () == 1)) {
+			const HybridRoute & route = world.Routes.Routes[0];
+			const HybridCrossingWindow & window = world.Hydrology.Windows[0];
+			int spans = 0;
+			for (int s = 0; s < route.Structural.Count (); ++s) {
+				if (route.Structural[s].WindowId == 10) spans++;
+			}
+			Check (spans == 1,"the unplanned crossing is recorded %d times",spans);
+			StringClass why;
+			Check (Straight_Between (route.Points,window.ApproachA,window.ApproachB,k.Q,&why),
+					 "the unplanned crossing is not aligned: %s",why.Peek_Buffer ());
+			printf ("  unplanned crossing: aligned, road %.1f long\r\n",route.Length);
+		}
+	}
+}
+
+
+static void Check_Hybrid_Ordinary_Guide (void)
+{
+	const float ROW = 7.5f;
+	const HybridRoadClass TRUNK = HYBRID_ROAD_PRIMARY_2;
+
+	CrossingWorld world;
+	Crossing_World_Begin (&world);
+	const HybridConstants & k = world.Sized.Constants;
+	const Vector2 guide_position (7.5f,ROW);
+	const float gx = guide_position.X;
+	const float gy = guide_position.Y;
+	Crossing_World_River (&world,11,Vector2 (gx + 15.0f,gy - 30.0f),Vector2 (gx + 15.0f,gy + 30.0f),10.0f);
+	Crossing_World_River (&world,12,Vector2 (gx - 30.0f,gy - 15.0f),Vector2 (gx + 30.0f,gy - 15.0f),10.0f);
+	Crossing_World_River (&world,13,Vector2 (gx,gy + 15.0f),Vector2 (gx + 30.0f,gy + 15.0f),10.0f);
+	Trunk_World_Node (&world,1,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (-292.5f,ROW),0);
+	Trunk_World_Node (&world,2,HYBRID_NODE_FAMILY_WAYPOINT,guide_position,0);
+	Trunk_World_Node (&world,3,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (gx - 255.0f,gy + 255.0f),0);
+	Trunk_World_Edge (&world,1,HYBRID_EDGE_FAMILY_TRUNK,TRUNK,1,2,0);
+	Trunk_World_Edge (&world,2,HYBRID_EDGE_FAMILY_TRUNK,TRUNK,2,3,0);
+
+	HybridRouteResult result;
+	const bool routed = Crossing_World_Route (&world,&result);
+	Check (routed,"a trunk turning 135 degrees at an ordinary guide was refused: %s",result.Detail.Peek_Buffer ());
+	if (!routed || (world.Routes.Trunks.Count () != 1)) return;
+
+	const HybridTrunkRoad & trunk = world.Routes.Trunks[0];
+	Check (Chain_Passes_Cell (world,guide_position),"the search's chain does not pass the ordinary guide's cell");
+	const float radius = Tightest_Radius (trunk.Points);
+	Check (radius >= (0.98f * Hybrid_Road_Class_Spec (TRUNK).MinTurnRadiusW * k.W),
+			 "the trunk rounds the guide at %.2f, under the class radius",radius);
+
+	float nearest = 1.0e9f;
+	for (int i = 0; i < trunk.Points.Count (); ++i) nearest = WWMath::Min (nearest,(trunk.Points[i] - guide_position).Length ());
+	bool outside = true;
+	for (int i = 0; i < trunk.Points.Count (); ++i) {
+		if ((WWMath::Fabs (trunk.Points[i].X - guide_position.X) <= 7.5f) &&
+			 (WWMath::Fabs (trunk.Points[i].Y - guide_position.Y) <= 7.5f)) outside = false;
+	}
+	Check (outside,"the 135-degree turn's centerline still enters the guide's cell -- this world does not test the rule");
+
+	//	Logical slicing: contiguous, non-overlapping, covering the whole trunk, both edges of positive length.
+	const HybridRoute * first = world.Routes.Find (1);
+	const HybridRoute * second = world.Routes.Find (2);
+	Check ((first != NULL) && (second != NULL),"a logical edge has no route record");
+	if ((first != NULL) && (second != NULL)) {
+		Check (first->Points[0] == trunk.Points[0],"the first slice does not start the trunk");
+		Check (second->Points[second->Points.Count () - 1] == trunk.Points[trunk.Points.Count () - 1],
+				 "the last slice does not end the trunk");
+		Check (first->Points[first->Points.Count () - 1] == second->Points[0],"the slices are not contiguous");
+		Check ((first->Length > 0.0f) && (second->Length > 0.0f),"a logical edge has zero length (%.3f, %.3f)",
+				 first->Length,second->Length);
+		Check (WWMath::Fabs ((first->Length + second->Length) - trunk.Length) <= (4.0f * k.Q),
+				 "the slices cover %.3f of a %.3f trunk",first->Length + second->Length,trunk.Length);
+		Check ((trunk.EdgeFrom.Count () == 2) && (trunk.EdgeTo[0] == trunk.EdgeFrom[1]) && (trunk.EdgeFrom[0] == 0.0f) &&
+				 (trunk.EdgeFrom[1] > 0.0f) && (trunk.EdgeTo[1] > trunk.EdgeFrom[1]),"the trunk's edge intervals are not ordered");
+
+		//	The boundary is the centerline point nearest the guide cell's centre.
+		const Vector2 boundary = second->Points[0];
+		float best = 1.0e9f;
+		for (int i = 1; i < trunk.Points.Count (); ++i) {
+			const Vector2 a = trunk.Points[i - 1];
+			const Vector2 d = trunk.Points[i] - a;
+			const float length2 = (d.X * d.X) + (d.Y * d.Y);
+			float t_on = (length2 > 0.0f) ? ((((guide_position.X - a.X) * d.X) + ((guide_position.Y - a.Y) * d.Y)) / length2) : 0.0f;
+			t_on = WWMath::Clamp (t_on,0.0f,1.0f);
+			best = WWMath::Min (best,(guide_position - (a + (d * t_on))).Length ());
+		}
+		Check (WWMath::Fabs ((boundary - guide_position).Length () - best) <= (2.0f * k.Q),
+				 "the boundary is %.3f from the guide, the nearest centerline point %.3f",(boundary - guide_position).Length (),best);
+
+		//	Deterministic.
+		CrossingWorld again;
+		Crossing_World_Begin (&again);
+		for (int r = 0; r < world.Hydrology.Rivers.Count (); ++r) again.Hydrology.Rivers.Add (world.Hydrology.Rivers[r]);
+		for (int n = 0; n < world.Topology.Nodes.Count (); ++n) again.Topology.Nodes.Add (world.Topology.Nodes[n]);
+		for (int e = 0; e < world.Topology.Edges.Count (); ++e) again.Topology.Edges.Add (world.Topology.Edges[e]);
+		HybridRouteResult again_result;
+		Check (Crossing_World_Route (&again,&again_result) && (again.Routes.Checksum == world.Routes.Checksum),
+				 "the sliced trunk does not reproduce its checksum");
+	}
+	printf ("  ordinary guide: 135-degree turn rounded %.1f from the guide, tightest turn %.1f, slices %.1f + %.1f\r\n",
+			  nearest,radius,(first != NULL) ? first->Length : 0.0f,(second != NULL) ? second->Length : 0.0f);
+
+	/*
+	**	The same turn where the guide is a crossing obligation: a structural waypoint stays exact.  The road must
+	**	cross straight along the window's axis between its two frozen approach points -- or be refused by name;
+	**	it is never rounded past the crossing.
+	*/
+	{
+		CrossingWorld crossing;
+		Crossing_World_Begin (&crossing);
+		const Vector2 axis (0.866f,0.5f);
+		Crossing_World_River (&crossing,9,Vector2 (-250.0f,ROW + 433.0f),Vector2 (250.0f,ROW - 433.0f),16.0f);
+		Crossing_World_Window (&crossing,10,9,guide_position,axis,16.0f);
+		Trunk_World_Node (&crossing,1,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (-292.5f,ROW),0);
+		Trunk_World_Node (&crossing,3,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (-142.5f,ROW + 255.0f),0);
+		HybridTopologyNode obligation;
+		obligation.StableId	= 2;
+		obligation.Kind		= HYBRID_NODE_CROSSING_OBLIGATION;
+		obligation.Position	= guide_position;
+		obligation.WindowId	= 10;
+		obligation.RouteFamily= 0;
+		crossing.Topology.Nodes.Add (obligation);
+		Trunk_World_Edge (&crossing,1,HYBRID_EDGE_FAMILY_TRUNK,TRUNK,1,3,0);
+		crossing.Topology.Edges[0].Waypoints.Add (2);
+
+		HybridRouteResult crossing_result;
+		const bool crossed = Crossing_World_Route (&crossing,&crossing_result);
+		Check (crossed || (crossing_result.Failure != HYBRID_ROUTE_OK),"the structural guide failed without naming why");
+		if (crossed && (crossing.Routes.Routes.Count () == 1)) {
+			const HybridCrossingWindow & window = crossing.Hydrology.Windows[0];
+			StringClass why;
+			Check (Straight_Between (crossing.Routes.Routes[0].Points,window.ApproachA,window.ApproachB,k.Q,&why),
+					 "the structural guide's pose was not kept: %s",why.Peek_Buffer ());
+		}
+		printf ("  structural guide: %s\r\n",crossed ? "crossed straight on its axis" : crossing_result.Detail.Peek_Buffer ());
+	}
+}
+
+
 static void Check_Hybrid_Continuous_Trunk (const HybridPreflightInputs * inputs,const HybridMetricCache * metrics)
 {
 	const float ROW = 7.5f;
@@ -8706,14 +8990,10 @@ static void Check_Hybrid_Continuous_Trunk (const HybridPreflightInputs * inputs,
 		const float radius = Tightest_Radius (trunk.Points);
 		Check (radius >= (0.98f * Hybrid_Road_Class_Spec (TRUNK).MinTurnRadiusW * k.W),
 				 "the trunk turns at %.2f through its waypoints, under the class radius",radius);
+		//	The search's chain passes every ordinary guide's cell; the rounded centerline need not.
 		for (int g = 2; g <= 3; ++g) {
 			const HybridTopologyNode * guide = world.Topology.Find_Node ((unsigned int)g);
-			bool inside = false;
-			for (int i = 0; (i < trunk.Points.Count ()) && !inside; ++i) {
-				inside = (WWMath::Fabs (trunk.Points[i].X - guide->Position.X) <= 7.5f + 7.5f) &&
-							(WWMath::Fabs (trunk.Points[i].Y - guide->Position.Y) <= 7.5f + 7.5f);
-			}
-			Check (inside,"the trunk does not pass guide %d's cell",g);
+			Check (Chain_Passes_Cell (world,guide->Position),"the trunk's chain does not pass guide %d's cell",g);
 		}
 		printf ("  continuous trunk: %d logical edges, one centerline of %.0f, tightest turn %.1f\r\n",
 				  trunk.EdgeIds.Count (),trunk.Length,radius);
@@ -8916,6 +9196,8 @@ void Check_Hybrid_Routes (void)
 {
 	Check_Hybrid_Crossing_Alignment ();
 	Check_Hybrid_Continuous_Trunk (NULL,NULL);
+	Check_Hybrid_Ordinary_Guide ();
+	Check_Hybrid_Crossing_Discipline ();
 
 	HybridMapIdentity identity;
 	HybridArchetypeIntentSet intents;
@@ -19467,6 +19749,8 @@ void Check_Hybrid_Interaction_Search (void)
 	int route_kind[HYBRID_TOPOLOGY_EDGE_KIND_COUNT];
 	for (int i = 0; i < HYBRID_TOPOLOGY_EDGE_KIND_COUNT; ++i) route_kind[i] = 0;
 	int route_envelope_final[3] = { 0,0,0 };
+	int structural_cause[HYBRID_STRUCTURAL_COUNT];
+	for (int i = 0; i < HYBRID_STRUCTURAL_COUNT; ++i) structural_cause[i] = 0;
 	int spline_class[HYBRID_SPLINE_FAILURE_COUNT];
 	for (int i = 0; i < HYBRID_SPLINE_FAILURE_COUNT; ++i) spline_class[i] = 0;
 	int route_structural_leg = 0;
@@ -19569,6 +19853,10 @@ void Check_Hybrid_Interaction_Search (void)
 						}
 					}
 				}
+				if ((scan.Reached == 9) && (scan.RouteResult.Census.EdgeId == 0)) {
+					printf ("P10GATE archetype %d seed %u: %s -- %s\r\n",(int)SEARCH_ARCHETYPES[ai],seed,
+							  Hybrid_Route_Failure_Name (scan.RouteResult.Failure),scan.RouteResult.Detail.Peek_Buffer ());
+				}
 				if ((scan.Reached == 9) && (scan.RouteResult.Census.EdgeId != 0)) {
 					const HybridRouteFailureCensus & rc = scan.RouteResult.Census;
 					route_failures++;
@@ -19579,6 +19867,7 @@ void Check_Hybrid_Interaction_Search (void)
 					for (int i = 0; i < HYBRID_BLOCK_COUNT; ++i) route_frontier[i] += rc.Frontier[i];
 					if ((rc.RoadClass >= 0) && (rc.RoadClass < HYBRID_ROAD_CLASS_COUNT)) route_class[rc.RoadClass]++;
 					if ((rc.SplineClass > 0) && (rc.SplineClass < HYBRID_SPLINE_FAILURE_COUNT)) spline_class[rc.SplineClass]++;
+					if ((rc.StructuralCause > 0) && (rc.StructuralCause < HYBRID_STRUCTURAL_COUNT)) structural_cause[rc.StructuralCause]++;
 					if ((rc.EdgeKind >= 0) && (rc.EdgeKind < HYBRID_TOPOLOGY_EDGE_KIND_COUNT)) route_kind[rc.EdgeKind]++;
 					if ((rc.Envelope >= 0) && (rc.Envelope < 3)) route_envelope_final[rc.Envelope]++;
 					if (rc.LegFromStructural || rc.LegToStructural) route_structural_leg++;
@@ -19590,8 +19879,9 @@ void Check_Hybrid_Interaction_Search (void)
 							  rc.Legs,rc.LegFrom,rc.LegFromStructural ? "*" : "",rc.LegTo,rc.LegToStructural ? "*" : "",
 							  Hybrid_Route_Block_Name ((HybridRouteBlock)rc.Reason));
 					if (rc.Reason == HYBRID_BLOCK_SPLINE) {
-						printf (" (%s; %s; %s, %.0f from a joint)",rc.SplineReason.Peek_Buffer (),Hybrid_Route_Block_Name ((HybridRouteBlock)rc.SplineBlock),
-								  Hybrid_Spline_Failure_Class_Name ((HybridSplineFailureClass)rc.SplineClass),rc.SplineJointDistance);
+						printf (" (%s; %s; %s, %.0f from a joint; %s)",rc.SplineReason.Peek_Buffer (),Hybrid_Route_Block_Name ((HybridRouteBlock)rc.SplineBlock),
+								  Hybrid_Spline_Failure_Class_Name ((HybridSplineFailureClass)rc.SplineClass),rc.SplineJointDistance,
+								  Hybrid_Structural_Cause_Name ((HybridStructuralCause)rc.StructuralCause));
 					} else {
 						printf (" [");
 						for (int i = 1; i < HYBRID_BLOCK_COUNT; ++i) {
@@ -19903,6 +20193,11 @@ void Check_Hybrid_Interaction_Search (void)
 	printf ("   centerline refusals by geometric condition:");
 	for (int i = 1; i < HYBRID_SPLINE_FAILURE_COUNT; ++i) {
 		if (spline_class[i] > 0) printf (" %s %d",Hybrid_Spline_Failure_Class_Name ((HybridSplineFailureClass)i),spline_class[i]);
+	}
+	printf ("\r\n");
+	printf ("   structural transitions by cause:");
+	for (int i = 1; i < HYBRID_STRUCTURAL_COUNT; ++i) {
+		if (structural_cause[i] > 0) printf (" %s %d",Hybrid_Structural_Cause_Name ((HybridStructuralCause)i),structural_cause[i]);
 	}
 	printf ("\r\n");
 	printf ("   no-path frontier cells by rule:");

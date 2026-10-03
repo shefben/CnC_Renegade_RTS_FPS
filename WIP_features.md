@@ -303,13 +303,20 @@ ground and no-path, Phase-11 road x road crossings on synthesized cross-links). 
 reroute; the one-reroute fixture is the controlled world in `Check_Controlled_Reroute`. `Q-018` remains open.
 
 **Planner-yield stabilization pass closed (2026-10-02)** -- Q-024 (D-019) and Q-025 (D-020), generator identity 14.
-1400-world yield: Phase 9 448, Phase 10 69, Phase 11 24 (was 172 / 32 / 6). The remaining failures are
-classified by owner in D-019. Carried, measured, not yet resolved:
-- 55 Phase-10 ordinary-guide boundary refusals: the arc at a trunk joint leaves the guide's cell where the intent
-  turns sharply.
-- 91 structural-transition refusals.
-- 0 of 130 reroutes resolve.
-- 3095 river-quota windows with no heavy node on one bank.
+
+**Ordinary-guide / structural-transition stabilization closed (2026-10-02)** -- D-021, generator identity 15.
+- Ordinary guides are strategic anchors: the chain passes the guide's cell, and the centerline need not.
+- Logical slicing takes the nearest point to the guide cell's centre.
+- Five Phase-10 crossing defects were fixed: river moves and steps between cell centres, the own window re-crossed,
+  unplanned crossings never aligned, departure room, and the stale lead decision.
+
+1400-world yield is 448 / 107 / 35 (was 448 / 69 / 24). Structural transitions fell from 91 to 20, every one
+classified by exact cause in D-021. None is a Q-023 / Phase-10 mismatch.
+
+Carried, measured, not yet resolved:
+- 2 of 196 reroutes resolve.
+- The river-bridge quota opposite-bank investigation, now an open item in the checklist under I10. The quota stays
+  mandatory.
 
 `hybridinteractionsearch` remains a registered census self-check (no environment switches).
 
@@ -318,8 +325,13 @@ classified by owner in D-019. Carried, measured, not yet resolved:
 `Hybrid_Solve_Road_Stretch`. The highway-access-ramp extension (Plan Section 12.6, added 2026-10-02 by another
 session) reopens items in I1 -> I2 -> I10 -> I11 -> I12, which the checklist orders before the rest of I13.
 
-**Next exact action:** apply the highway-access-ramp plan/checklist extension the other session wrote (Plan Section 12.6;
-uncommitted in the plan and checklist). Implement its reopened Phase-9/10/11 prerequisites in the checklist order
-I1 -> I2 -> I10 -> I11 -> I12, and restore those gates. Then continue I13: the Phase-12 realization owner on
+**Next exact action:** implement the HIGHWAY_RAMP extension (Plan Section 12.6, committed `dc7807c3`) in this order:
+1. records, schema and checksum;
+2. Phase-9 `HIGHWAY_INTERCHANGE` topology and gore selection;
+3. Phase-10 ramp routing and tangent geometry;
+4. Phase-11 merge/diverge compilation.
+
+Then restore the Phase-9/10/11 gates and bump the generator identity. Keep it separate from the remaining
+structural-transition failures. Then continue I13: the Phase-12 realization owner on
 `Hybrid_Realized_Physical_Road` (one road per heavy family trunk), `Hybrid_Road_Profile_Structures` and
 `Hybrid_Solve_Road_Stretch`.
