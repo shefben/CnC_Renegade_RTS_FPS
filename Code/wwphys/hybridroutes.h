@@ -584,6 +584,16 @@ bool	Hybrid_Road_Poses_Connect(const HybridRoadPose & from,const HybridRoadPose 
 void	Hybrid_Polyline_Straight_Run(const DynamicVectorClass<Vector2> & points,int index,const Vector2 & axis,
 											 float q,float * behind_out,float * ahead_out);
 
+/*
+**	Section 12.6.7: a HIGHWAY_RAMP's RampLaneCenterline from its four-point control polygon (travel order), by
+**	Phase 10's own arcs-and-tangents corner construction at exactly the ramp radius `R_r` -- the shared owner,
+**	never a second turn solver.  The two interior corners are kept (fillet tangents T30 and T15), the two ends
+**	are frozen, so the last arc ends exactly at the gore.  Samples at `spacing`; false when the polygon cannot
+**	be filleted at `R_r`.
+*/
+bool	Hybrid_Ramp_Centerline(const Vector2 polygon[4],float ramp_radius,float quantum,float spacing,
+									DynamicVectorClass<Vector2> * points,DynamicVectorClass<float> * stations);
+
 bool	Hybrid_Build_Crossing_Path(const HybridRoute & route,int first_point,int last_point,
 										 const Vector2 * controls,int control_count,float radius,float spacing,
 										 float quantum,float max_reach,HybridCrossingPath * out,

@@ -523,6 +523,16 @@ bool Hybrid_Run_Preflight(const ProceduralWorldProfile & profile,const HybridPre
 	m.BridgeMaxSpanLength = inputs.BridgeMaxSpanLength;
 	m.BridgeWaterClearanceMargin = inputs.BridgeWaterClearanceMargin;
 	m.BridgeApproachLength = (inputs.BridgeApproachLength > 0.0f) ? inputs.BridgeApproachLength : 8.0f * w;
+	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
+		m.BridgeApproachMax[c]	= 0.0f;
+		m.OverpassDepthMax[c]	= 0.0f;
+		if (!Hybrid_Road_Class_Is_Routed(c)) continue;
+		for (int b = 0; b < inputs.Bridges.Count(); ++b) {
+			if (inputs.Bridges[b].Width < m.BridgeRequiredWidth[c]) continue;
+			if (m.BridgeApproachLength > m.BridgeApproachMax[c])			m.BridgeApproachMax[c] = m.BridgeApproachLength;
+			if (inputs.Bridges[b].DeckThickness > m.OverpassDepthMax[c])	m.OverpassDepthMax[c] = inputs.Bridges[b].DeckThickness;
+		}
+	}
 	if (m.BridgeForClass[m.HeavyRouteClass] < 0 || !(m.BridgeMaxSpanLength > 0.0f)) {
 		::snprintf(detail,sizeof(detail),"%s needs clear width %.3f",
 					  Hybrid_Road_Class_Name(m.HeavyRouteClass),m.BridgeRequiredWidth[m.HeavyRouteClass]);
@@ -909,6 +919,10 @@ unsigned int Hybrid_Planning_Input_Hash(const ProceduralWorldProfile & p,const H
 	h.Add_Length(m.BridgeMaxSpanLength);
 	h.Add_Length(m.BridgeWaterClearanceMargin);
 	h.Add_Length(m.BridgeApproachLength);
+	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
+		h.Add_Length(m.BridgeApproachMax[c]);
+		h.Add_Length(m.OverpassDepthMax[c]);
+	}
 	for (int b = 0; b < HYBRID_BIOME_COUNT; ++b) {
 		h.Add_Bool(m.BiomeAvailable[b]);
 		for (int slot = 0; slot < HYBRID_SLOT_COUNT; ++slot) {

@@ -93,13 +93,13 @@ Done 2026-09-27 -- helpers in `Code/wwphys/hybridplanning.{h,cpp}`, preflight an
 
 **REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** (§7.1, §12.6.6–12.6.7, §16.1):
 
-- [ ] `RoadbedWidth(HIGHWAY_RAMP)=1.50W`; corridor helpers undefined for `HIGHWAY_RAMP`; deformation half width from the shared formula.
-- [ ] Interchange constants once: `MergeLength=16W`, `DivergeLength=12W`, `TaperLength=6W`, `MergeFullLength=10W`, `DivergeFullLength=6W` (Q-026), `GoreReserveMargin=2W`, `InterchangeGoreSpacing=24W`, `K_GORE=32`, `theta_c=15°`, `psi=45°`, `l_arm=5W`, `T15`, `T30`, `d_sep=3.575W`, `d_join=1.875W`, `d_aux=2.875W`, `h_aux=3.375W`, `E_aux=3.825W`, `h_hwy=2.375W`, `E_hwy=2.825W`, `HighwayJunctionReserve=8W` — derived from the §7 table, not retyped.
-- [ ] Preflight metric-cache entries `BridgeApproachMax(class)` and `OverpassDepthMax(class)` from existing bridge definitions / `BridgePlannerParams`.
-- [ ] Counters `highway ramp candidates evaluated`, interchanges by form, ramps by role, withdrawals, anchor rejections by reason.
-- [ ] Self-check: §12.6.7 construction reproduces `d_Lmin(0)=8.3926380W` (Q-026: gore at `d_aux`), `SIDE G(0)=9.0029197W`, fillet arcs end at the gore at `d_aux` with zero heading error; the merge profile is `10W` at `d_aux`/`E_aux` then a `6W` `3u^2-2u^3` taper to `d_join`/`E_hwy`, the diverge the exact reverse (`6W` taper, `6W` full); highway width `5.65W -> 6.65W`; `h`/`E` continuous at every subdivision boundary.
+- [x] `RoadbedWidth(HIGHWAY_RAMP)=1.50W`; corridor helpers undefined for `HIGHWAY_RAMP`; deformation half width from the shared formula. *(D-022: roadbed `-0.70W..+0.80W` of the `RampLaneCenterline` via `Hybrid_Road_Inner/Outer_Edge_Offset`, `RoadbedMidpointOffset=+0.05W`; Phase-12 deformation must use the asymmetric edges, carried to I13.)*
+- [x] Interchange constants once: `MergeLength=16W`, `DivergeLength=12W`, `TaperLength=6W`, `MergeFullLength=10W`, `DivergeFullLength=6W` (Q-026), `GoreReserveMargin=2W`, `InterchangeGoreSpacing=24W`, `K_GORE=32`, `theta_c=15°`, `psi=45°`, `l_arm=5W`, `T15`, `T30`, `d_sep=3.575W`, `d_join=1.875W`, `d_aux=2.875W`, `h_aux=3.375W`, `E_aux=3.825W`, `h_hwy=2.375W`, `E_hwy=2.825W`, `HighwayJunctionReserve=8W` — derived from the §7 table, not retyped. *(`Hybrid_Interchange_Constants`.)*
+- [x] Preflight metric-cache entries `BridgeApproachMax(class)` and `OverpassDepthMax(class)` from existing bridge definitions / `BridgePlannerParams`. *(hashed into the planning input.)*
+- [x] Counters `highway ramp candidates evaluated`, interchanges by form, ramps by role, withdrawals, anchor rejections by reason. *(on `HybridTopology`, landed with I1.)*
+- [x] Self-check: §12.6.7 construction reproduces `d_Lmin(0)=8.3926380W` (gore at `d_aux` on the `RampLaneCenterline`, D-022), `SIDE G(0)=9.0029197W`; the shared Phase-10 corner construction (`Hybrid_Ramp_Centerline`) ends at the gore at `d_aux` with zero heading error and radius `R_r`; merge `10W` full + `6W` taper, diverge `6W` taper + `6W` full; highway `5.65W -> 6.65W`; `h`/`E` continuous; gore invariant (edges `2.375W`/`3.825W`, shoulders `0`/`0.45W`). *(`Check_Hybrid_Interchange_Construction`.)*
 
-- [ ] **Gate (re-pass):** self-checks pass.
+- [x] **Gate (re-pass):** self-checks pass.
 
 ## I3 — Runtime Phase 2: MapIdentity (§8 P2, §4, §5, §6.1, §6.10)
 

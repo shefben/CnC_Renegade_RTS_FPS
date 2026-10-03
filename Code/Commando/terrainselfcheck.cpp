@@ -7103,9 +7103,142 @@ static void Check_Hybrid_Ramp_Records (void)
 }
 
 
+/*
+**	Section 12.6.6 / 12.6.7 / 12.6.11 with Q-026 and the D-022 revision (checklist I2, reopened): the interchange
+**	constants derived from the Section-7 table, the gore candidate numbers, the RampLaneCenterline built by
+**	Phase 10's own corner construction, the auxiliary-lane profile, the ramp's asymmetric roadbed edges and the
+**	gore shoulder transition.
+*/
+static float Tightest_Radius (const DynamicVectorClass<Vector2> & points);
+
+static void Check_Hybrid_Interchange_Construction (void)
+{
+	const float W = 3.3228f;
+	const float tol = 1.0e-4f * W;
+	HybridInterchangeConstants c;
+	Hybrid_Interchange_Constants (W,&c);
+	Check (Near (c.MergeLength,16.0f * W,tol) && Near (c.DivergeLength,12.0f * W,tol) && Near (c.TaperLength,6.0f * W,tol) &&
+			 Near (c.MergeFullLength,10.0f * W,tol) && Near (c.DivergeFullLength,6.0f * W,tol) &&
+			 Near (c.GoreReserveMargin,2.0f * W,tol) && Near (c.InterchangeGoreSpacing,24.0f * W,tol) && c.GoreCandidates == 32 &&
+			 Near (c.RampRadius,5.0f * W,tol) && Near (c.ArmLength,5.0f * W,tol) &&
+			 Near (c.T15,0.6582626f * W,tol) && Near (c.T30,1.3397460f * W,tol) &&
+			 Near (c.DSep,3.575f * W,tol) && Near (c.DJoin,1.875f * W,tol) && Near (c.DAux,2.875f * W,tol) &&
+			 Near (c.HHwy,2.375f * W,tol) && Near (c.EHwy,2.825f * W,tol) && Near (c.HAux,3.375f * W,tol) &&
+			 Near (c.EAux,3.825f * W,tol) && Near (c.HighwayShoulder,0.45f * W,tol) && Near (c.HighwayJunctionReserve,8.0f * W,tol),
+			 "an interchange constant is not Section 12.6.6's");
+	//	Only the ramp side widens: the far half stays E_hwy, the centerline and median do not move.
+	Check (Near (c.EHwy + c.EAux,6.65f * W,tol) && Near (2.0f * c.EHwy,5.65f * W,tol),"the highway does not widen 5.65W -> 6.65W");
+
+	//	D-022: the ramp's roadbed against its RampLaneCenterline.
+	Check (Near (Hybrid_Road_Inner_Edge_Offset (HYBRID_ROAD_HIGHWAY_RAMP,W),-0.70f * W,tol) &&
+			 Near (Hybrid_Road_Outer_Edge_Offset (HYBRID_ROAD_HIGHWAY_RAMP,W),0.80f * W,tol) &&
+			 Near (Hybrid_Road_Roadbed_Midpoint_Offset (HYBRID_ROAD_HIGHWAY_RAMP,W),0.05f * W,tol) &&
+			 Near (Hybrid_Road_Roadbed_Midpoint_Offset (HYBRID_ROAD_PRIMARY_2,W),0.0f,tol),
+			 "the ramp roadbed is not -0.70W..+0.80W of its travel lane");
+
+	//	12.6.7: d_Lmin(0), SIDE G(0), and G's slope in k.
+	HybridRampCandidate k0;
+	HybridRampCandidate k1;
+	Hybrid_Ramp_Candidate (c,0,0.0f,&k0);
+	Hybrid_Ramp_Candidate (c,1,0.0f,&k1);
+	Check (Near (k0.LocalOffsetMin,8.3926380f * W,tol) && Near (k0.GoreOffset,9.0029197f * W,tol) &&
+			 Near (k1.GoreOffset - k0.GoreOffset,0.9659258f * W,tol) && Near (k1.LocalOffsetMin - k0.LocalOffsetMin,0.2588190f * W,tol) &&
+			 Near (k0.StraightHalfExtent,k0.GoreOffset + 18.0f * W,tol),
+			 "d_Lmin(0) %.7fW, G(0) %.7fW are not 8.3926380W / 9.0029197W",k0.LocalOffsetMin / W,k0.GoreOffset / W);
+
+	//	The constructed ON_RAMP and OFF_RAMP: start at L_s, end at the gore on d_aux with zero heading error, radius R_r.
+	for (int role = HYBRID_RAMP_ROLE_ON; role <= HYBRID_RAMP_ROLE_OFF; ++role) {
+		Vector2 polygon[4];
+		Hybrid_Ramp_Control_Polygon (c,k0,role,polygon);
+		DynamicVectorClass<Vector2> points;
+		DynamicVectorClass<float> stations;
+		const bool built = Hybrid_Ramp_Centerline (polygon,c.RampRadius,HYBRID_QUANTUM_POSITION,WWMath::Min (W / 3.0f,15.0f / 4.0f),
+																&points,&stations);
+		Check (built && (points.Count () >= 3),"the %s centerline was not built",Hybrid_Ramp_Role_Name ((HybridRampRole)role));
+		if (!built || (points.Count () < 3)) continue;
+		const int gore_end = (role == HYBRID_RAMP_ROLE_ON) ? (points.Count () - 1) : 0;
+		const int next = (role == HYBRID_RAMP_ROLE_ON) ? (gore_end - 1) : 1;
+		const Vector2 gore = points[gore_end];
+		const Vector2 local = points[(role == HYBRID_RAMP_ROLE_ON) ? 0 : (points.Count () - 1)];
+		const float expected_x = (role == HYBRID_RAMP_ROLE_ON) ? k0.GoreOffset : -k0.GoreOffset;
+		Check (Near (gore.X,expected_x,2.0f * HYBRID_QUANTUM_POSITION) && Near (gore.Y,c.DAux,2.0f * HYBRID_QUANTUM_POSITION),
+				 "the %s does not end at its gore (%.3f,%.3f)",Hybrid_Ramp_Role_Name ((HybridRampRole)role),gore.X,gore.Y);
+		Check (Near (local.X,0.0f,2.0f * HYBRID_QUANTUM_POSITION) && Near (local.Y,k0.LocalOffset,2.0f * HYBRID_QUANTUM_POSITION),
+				 "the %s does not start at L_s",Hybrid_Ramp_Role_Name ((HybridRampRole)role));
+		/*
+		**	The arc's tangent at the gore, not the last chord's (a chord leaves the arc at half its own angle): the
+		**	circle through the last three samples, and the tangent perpendicular to its radius at the gore.
+		*/
+		const int far_index = (role == HYBRID_RAMP_ROLE_ON) ? (gore_end - 2) : 2;
+		const Vector2 a = points[far_index];
+		const Vector2 b = points[next];
+		const float d = 2.0f * ((a.X * (b.Y - gore.Y)) + (b.X * (gore.Y - a.Y)) + (gore.X * (a.Y - b.Y)));
+		float heading_error = 0.0f;
+		if ((float)fabs ((double)d) > 1.0e-6f) {
+			const float a2 = (a.X * a.X) + (a.Y * a.Y);
+			const float b2 = (b.X * b.X) + (b.Y * b.Y);
+			const float g2 = (gore.X * gore.X) + (gore.Y * gore.Y);
+			const Vector2 centre (((a2 * (b.Y - gore.Y)) + (b2 * (gore.Y - a.Y)) + (g2 * (a.Y - b.Y))) / d,
+										 ((a2 * (gore.X - b.X)) + (b2 * (a.X - gore.X)) + (g2 * (b.X - a.X))) / d);
+			const Vector2 radial = gore - centre;
+			heading_error = (float)fabs ((double)atan2 ((double)radial.X,(double)fabs ((double)radial.Y)));
+		}
+		Check (heading_error <= 0.001f,"the %s meets the gore %.5f rad off the highway tangent",
+				 Hybrid_Ramp_Role_Name ((HybridRampRole)role),heading_error);
+		const float radius = Tightest_Radius (points);
+		Check (radius >= (0.99f * c.RampRadius),"the %s turns at %.3f, under R_r %.3f",Hybrid_Ramp_Role_Name ((HybridRampRole)role),
+				 radius,c.RampRadius);
+	}
+
+	//	Q-026: merge = 10W full at d_aux / E_aux, then a 6W taper to d_join / E_hwy; diverge the reverse; continuous.
+	HybridAuxiliaryLaneSection s;
+	Hybrid_Auxiliary_Lane_Section (c,HYBRID_RAMP_ROLE_ON,0.0f,&s);
+	Check (s.Full && Near (s.D,2.875f * W,tol) && Near (s.E,3.825f * W,tol) && Near (s.H,3.375f * W,tol),"merge at the gore");
+	Hybrid_Auxiliary_Lane_Section (c,HYBRID_RAMP_ROLE_ON,9.999f * W,&s);
+	Check (s.Full && Near (s.D,2.875f * W,tol) && Near (s.E,3.825f * W,tol),"merge at the end of the full lane");
+	Hybrid_Auxiliary_Lane_Section (c,HYBRID_RAMP_ROLE_ON,13.0f * W,&s);
+	Check (!s.Full && Near (s.U,0.5f,1.0e-4f) && Near (s.D,2.375f * W,tol) && Near (s.E,3.325f * W,tol),"merge mid-taper");
+	Hybrid_Auxiliary_Lane_Section (c,HYBRID_RAMP_ROLE_ON,16.0f * W,&s);
+	Check (Near (s.D,1.875f * W,tol) && Near (s.E,2.825f * W,tol) && Near (s.H,2.375f * W,tol),"merge end is not the normal section");
+	Hybrid_Auxiliary_Lane_Section (c,HYBRID_RAMP_ROLE_OFF,0.0f,&s);
+	Check (Near (s.D,1.875f * W,tol) && Near (s.E,2.825f * W,tol),"diverge start is not the normal section");
+	Hybrid_Auxiliary_Lane_Section (c,HYBRID_RAMP_ROLE_OFF,6.0f * W,&s);
+	Check (s.Full && Near (s.D,2.875f * W,tol) && Near (s.E,3.825f * W,tol),"diverge full lane");
+	Hybrid_Auxiliary_Lane_Section (c,HYBRID_RAMP_ROLE_OFF,12.0f * W,&s);
+	Check (s.Full && Near (s.D,2.875f * W,tol),"diverge at the gore");
+	float worst = 0.0f;
+	for (int role = HYBRID_RAMP_ROLE_ON; role <= HYBRID_RAMP_ROLE_OFF; ++role) {
+		const float length = (role == HYBRID_RAMP_ROLE_ON) ? c.MergeLength : c.DivergeLength;
+		HybridAuxiliaryLaneSection previous;
+		Hybrid_Auxiliary_Lane_Section (c,role,0.0f,&previous);
+		for (int i = 1; i <= 1600; ++i) {
+			HybridAuxiliaryLaneSection here;
+			Hybrid_Auxiliary_Lane_Section (c,role,length * ((float)i / 1600.0f),&here);
+			worst = WWMath::Max (worst,WWMath::Max ((float)fabs ((double)(here.E - previous.E)),(float)fabs ((double)(here.H - previous.H))));
+			previous = here;
+		}
+	}
+	//	The taper's steepest slope is 1.5W/6W; no step of 0.01W may change h or E by more than that allows.
+	Check (worst <= (0.26f * 0.01f * W),"h or E jumps by %.4f between adjacent stations",worst);
+
+	//	D-022's gore shoulder transition: edges from the fixed lane centre reach 2.375W / 3.825W at the gore.
+	float inner = 0.0f;
+	float outer = 0.0f;
+	Hybrid_Ramp_Gore_Shoulders (c,0.0f,&inner,&outer);
+	Check (Near (inner,0.0f,tol) && Near (outer,0.45f * W,tol) &&
+			 Near (c.DAux - (0.5f * W + inner),2.375f * W,tol) && Near (c.DAux + (0.5f * W + outer),3.825f * W,tol),
+			 "the gore invariant does not hold (inner %.4fW, outer %.4fW)",inner / W,outer / W);
+	Hybrid_Ramp_Gore_Shoulders (c,2.0f * W,&inner,&outer);
+	Check (Near (inner,0.20f * W,tol) && Near (outer,0.30f * W,tol),"2W from the gore the ramp does not have its own shoulders");
+	printf ("  interchange construction: d_Lmin(0) %.7fW, G(0) %.7fW, gore on d_aux with zero heading error, 10W+6W / 6W+6W lanes\r\n",
+			  k0.LocalOffsetMin / W,k0.GoreOffset / W);
+}
+
+
 void Check_Hybrid_Topology (void)
 {
 	Check_Hybrid_Ramp_Records ();
+	Check_Hybrid_Interchange_Construction ();
 	Check_Hybrid_Structural_Poses ();
 
 	HybridMapIdentity identity;

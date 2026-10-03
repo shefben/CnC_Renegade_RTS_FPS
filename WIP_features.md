@@ -348,15 +348,18 @@ session) reopens items in I1 -> I2 -> I10 -> I11 -> I12, which the checklist ord
 
 `Check_Hybrid_Ramp_Records` covers it (checklist I1 reopened items closed).
 
-**Next exact action:** checklist I2 reopened items, then the rest of the HIGHWAY_RAMP extension.
+I2 reopened items are done (2026-10-03), under the D-022 revision: the ramp reference spline is its travel lane
+(`RampLaneCenterline`), its roadbed runs `-0.70W..+0.80W` of it, and the `2W` gore shoulder transition changes only the
+edges. Landed:
+- `Hybrid_Interchange_Constants`;
+- `Hybrid_Ramp_Candidate`, `Hybrid_Ramp_Control_Polygon` and `Hybrid_Auxiliary_Lane_Section`;
+- `Hybrid_Ramp_Gore_Shoulders`;
+- `Hybrid_Ramp_Centerline`, on Phase 10's own corner construction;
+- the preflight `BridgeApproachMax` and `OverpassDepthMax`;
+- `Check_Hybrid_Interchange_Construction`.
 
-I2 items:
-- interchange constants, derived once from the Section-7 table, with the Q-026 `d_aux` / `E_aux` / `TaperLength`;
-- the preflight `BridgeApproachMax(class)` and `OverpassDepthMax(class)` metric-cache entries;
-- the diagnostics counters;
-- the Section 12.6.7 construction self-check (`d_Lmin(0)=8.3926380W`, `SIDE G(0)=9.0029197W`, the Q-026 profile).
-
-Then:
+**Next exact action:** Phase-9 step 15 (checklist I10 reopened): `HIGHWAY_INTERCHANGE` topology and gore selection
+by Plan 12.6.4 and 12.6.8, then restore the Phase-9 gate. After that:
 1. (done) records, schema and checksum;
 2. Phase-9 `HIGHWAY_INTERCHANGE` topology and gore selection;
 3. Phase-10 ramp routing and tangent geometry;

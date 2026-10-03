@@ -591,9 +591,34 @@ shoulders blend into the widened roadbed over the `2W` gore shoulder-transition 
 `E_aux`), the subinterval fields, the gore reserves' lateral extent, the Phase-11 record samples, the Phase-12 gore
 attachment, the Phase-19A check, and the checksum fields.
 
-**Interpretation, flagged.** The plan keeps the ramp's authoritative centerline as its roadbed centerline. At the
-gore that centerline is placed at `d_aux`. The independent ramp's asymmetric shoulders (`0.20W` / `0.30W`) put
-its lane centre `0.05W` inside the roadbed centerline, and that is absorbed by the `2W` shoulder transition.
+**Revision (user, 2026-10-03): the ramp reference is its travel lane.** For `HIGHWAY_RAMP` only, the authoritative
+spline is `RampLaneCenterline`, the centre of the `W` travel lane. It is used for turn radius, routing, gore
+alignment, merge/diverge offsets, grade sampling and the swept vehicle path, and it is never shifted by the unequal
+shoulders.
+
+Relative to it the independent roadbed spans `-0.70W` to `+0.80W`, so the derived `RoadbedMidpointOffset` is
+`+0.05W`: `2.925W` when the lane is at `2.875W`. The midpoint is never a routing centerline.
+
+The `2W` gore shoulder transition changes only the roadbed edges: `inner_shoulder = 0.20W(1-f)` and
+`outer_shoulder = 0.30W + 0.15Wf`, with the edges taken from the fixed lane centre.
+
+The gore invariant:
+- lane `2.875W`, tangent parallel;
+- edges `2.375W` / `3.825W`;
+- shoulders `0` / `0.45W`;
+- continuous XY and Z.
+
+Every other class keeps its centerline semantics.
+
+**The `d_Lmin` value.** The instruction also gave `d_Lmin(0) = 8.4426380W` with `G(k)` unchanged. That figure came
+from my earlier message, which wrongly assumed the construction still referenced the roadbed midpoint. With
+12.6.7's construction on `RampLaneCenterline` and the gore at the lane offset `2.875W`:
+- `d_Lmin(0) = 2.875 + l_conv(0) sin 15 + (l_arm + T30) sin 45 = 8.3926380W`;
+- `G(0) = 9.0029197W`, unchanged.
+
+Forcing `8.4426380W` with the lane still at `2.875W` would lengthen the `L_s -> V1` leg and move `G(k)` by `+0.05W`,
+contradicting "keep G(k) unchanged". The plan and code use `8.3926380W`; the local junction `L_s` is a
+`RampLaneCenterline` point.
 
 **Generator identity 16.** It is bumped in the first ramp implementation commit and is the first identity containing
 the finalized post-stabilization behaviour plus the `HIGHWAY_RAMP` records. Intermediate identity-15 development

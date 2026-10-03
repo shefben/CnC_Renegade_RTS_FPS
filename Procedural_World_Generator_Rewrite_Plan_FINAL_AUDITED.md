@@ -2353,7 +2353,7 @@ speed hint
 required navigation capabilities
 junction records, each with its compiled junction role (incidental ROAD_X_ROAD, shared-node, overpass obligation, HIGHWAY_RAMP_MERGE, HIGHWAY_RAMP_DIVERGE, HIGHWAY_RAMP_LOCAL_JUNCTION)
 crossing records
-HIGHWAY_RAMP only: owning HIGHWAY_INTERCHANGE StableId, ON_RAMP/OFF_RAMP role, side, gore station and merge/diverge interval
+HIGHWAY_RAMP only: owning HIGHWAY_INTERCHANGE StableId, ON_RAMP/OFF_RAMP role, side, gore station and merge/diverge interval; its spline is the RampLaneCenterline (travel-lane reference), with the derived RoadbedMidpointOffset = +0.05W
 HIGHWAY_4 only: the merge/diverge intervals and widened-profile samples it carries
 attempt-owned runtime road ids after Phase 12
 ```
@@ -2534,7 +2534,9 @@ E_aux  = E_hwy + W                    = 3.825W                         // roadbe
 HighwayJunctionReserve = max(4W, HIGHWAY_4.minimum_turn_radius) = 8W
 ```
 
-`MergeLength` and `DivergeLength` are centerline lengths measured along the highway, never endpoint chord distances. Lateral offsets `d` are measured from the highway centerline along `n_s`. The ramp's authoritative centerline is its roadbed centerline.
+`MergeLength` and `DivergeLength` are centerline lengths measured along the highway, never endpoint chord distances. Lateral offsets `d` are measured from the highway centerline along `n_s`.
+
+**Ramp reference spline (D-022 revision).** For `HIGHWAY_RAMP` only, the authoritative spline is `RampLaneCenterline`, the centre of its `W`-wide travel lane; it is used for turn radius, routing, gore alignment, merge/diverge offsets, grade sampling and the swept vehicle path, and it is never shifted by the unequal shoulders. Relative to it the independent roadbed spans `-0.70W` (inner: `0.50W` half lane + `0.20W` shoulder) to `+0.80W` (outer: `0.50W` + `0.30W`), so the roadbed's geometric midpoint lies `RoadbedMidpointOffset = +0.05W` outward of the reference; the midpoint is a derived value and never the routing centerline. Every other road class keeps its existing centerline semantics. Every `d` and every construction point of 12.6.7 below is a `RampLaneCenterline` position.
 
 ### 12.6.7 Candidate construction (exact)
 
@@ -2577,7 +2579,18 @@ The `x = 0` position of `L_s` is what makes `G(k)` the formula above; the length
 
 `OFF_RAMP` of side `s` is the mirror `x -> -x` in travel order `[p_g', V2', V1', L_s]` with `p_g' = (-G(k), d_aux)`. Every polygon corner is filleted with one circular arc of radius `R_r` by Phase 10's arcs-and-tangents corner construction (D-009 revision); the fillet tangent lengths are `T30` at `V1` and `T15` at `V2`, so the final arc ends exactly at the gore with heading parallel to the highway. The centerline therefore approaches the merge/diverge tangent along a straight convergence leg at exactly `theta_c = 15` degrees, every curve radius equals `R_r`, and no instantaneous branch angle, hairpin, switchback or self-intersection exists.
 
-The independent ramp finishes its whole lateral transition before the gore: its convergence leg and final fillet bring its authoritative centerline to `d_aux` with heading parallel to the highway exactly at `p_g`. Because the independent ramp's shoulders are asymmetric (inner `0.20W`, outer `0.30W`) and the auxiliary lane carries the highway shoulder (`0.45W`), the ramp's shoulders blend into the highway's widened roadbed over the gore shoulder-transition interval `GoreReserveMargin = 2W` immediately on the independent-ramp side of the gore; the lane centre itself is continuous at `d_aux`.
+The independent ramp finishes its whole lateral transition before the gore: its convergence leg and final fillet bring `RampLaneCenterline` to `d_aux = 2.875W` with heading parallel to the highway exactly at `p_g` (its roadbed midpoint is then at `2.925W`).
+
+**Gore shoulder transition (D-022 revision).** Over the `2W` (`GoreReserveMargin`) of independent ramp adjacent to the gore the roadbed edges change and the reference spline does not move. For an `ON_RAMP`, over the final `2W` before `GoreStation`, with `u` running `0 -> 1` toward the gore and `f = 3u^2 - 2u^3`:
+
+```text
+inner_shoulder(u) = 0.20W * (1 - f)
+outer_shoulder(u) = 0.30W + 0.15W * f
+inner_edge = RampLaneCenterline - (0.5W + inner_shoulder)
+outer_edge = RampLaneCenterline + (0.5W + outer_shoulder)
+```
+
+An `OFF_RAMP` uses the reverse transition over the first `2W` after its gore. At `GoreStation` the invariant is: `RampLaneCenterline` offset `2.875W`; highway-parallel tangent; inner edge `2.375W`; outer edge `3.825W`; inner shoulder `0`; outer shoulder `0.45W`; continuous XY and Z road surface. The auxiliary lane therefore occupies `2.375W .. 3.375W`, centred exactly at `2.875W`, and the highway shoulder `3.375W .. 3.825W`.
 
 Parallel intervals in highway station `x` (side frame), with `f(u) = 3u^2 - 2u^3` and `u = clamp(s/TaperLength, 0, 1)` (Q-026; superseding the earlier single smoothstep over the whole interval):
 
@@ -2661,7 +2674,7 @@ h(x) = d(x) + 0.5W      // widened carriageway half width: h_aux = 3.375W in the
 E(x) = d(x) + 0.95W     // widened roadbed half width:     E_aux = 3.825W in the full lane, E_hwy at the taper's outer end
 ```
 
-`h` and `E` are continuous, so no width discontinuity exists: they equal the normal `h_hwy`/`E_hwy` exactly at the merge end and the diverge start, stay at `h_aux`/`E_aux` over the full auxiliary lane, and change only through the `6W` taper. At the gore the independent ramp's lane continues as the auxiliary lane (centre `d_aux` on both sides of the gore station), and its asymmetric shoulders blend into the widened highway roadbed over the `2W` gore shoulder-transition interval. The far side of the highway and every station outside the parallel intervals keep the normal `HIGHWAY_4` cross section and lane count.
+`h` and `E` are continuous, so no width discontinuity exists: they equal the normal `h_hwy`/`E_hwy` exactly at the merge end and the diverge start, stay at `h_aux`/`E_aux` over the full auxiliary lane, and change only through the `6W` taper. At the gore the independent ramp's travel lane continues as the auxiliary lane (`RampLaneCenterline` at `d_aux` on both sides of the gore station), and its shoulders change into the widened highway roadbed over the `2W` gore shoulder transition of 12.6.7 (inner edge `-> 2.375W`, outer edge `-> 3.825W`, reference spline fixed). The far side of the highway and every station outside the parallel intervals keep the normal `HIGHWAY_4` cross section and lane count.
 
 ### 12.6.12 Terrain and elevation
 
@@ -2673,7 +2686,7 @@ Phase 12 processes the highway (group 1), then interchange elements (group 1b), 
 
 1. each ramp is one canonical `RoadSystem` road from `L_s` to its gore on the existing normal paved physical tier (`ROAD_CLASS_STREET` in the current source), width `W`; because the current `RoadSplineClass` has one symmetric shoulder width, the shoulder passed is `0.25W` on the roadbed centerline, so the realized footprint is exactly `1.50W`;
 2. the widened carriageway/roadbed of 12.6.11 is realized on the highway road itself. The canonical `RoadSplineClass`/`RoadPointClass` owner is extended with an optional per-sample asymmetric edge profile (extra left/right carriageway and shoulder half widths over station intervals) consumed by ribbon, road-mask and grade stamping; its default is zero, so every existing caller is unchanged. No new road rendering subsystem is created;
-3. at the gore the ramp road's lane centre coincides with the highway's auxiliary-lane centre `d_aux` (within `Q`), and over the `2W` gore shoulder-transition interval its shoulders blend into the widened highway roadbed `E_aux`; the attachment is the compiled `HIGHWAY_RAMP_MERGE`/`DIVERGE` record, and no `RoadSystem`-discovered junction may exist inside a merge/diverge interval or gore reserve;
+3. the ramp road is realized on its `RampLaneCenterline`, with its roadbed edges at `-0.70W` / `+0.80W` of it (the canonical road owner receives the asymmetric edge profile; the derived `RoadbedMidpointOffset = +0.05W` is never used as the routing centerline); at the gore its lane centre coincides with the highway's auxiliary-lane centre `d_aux` (within `Q`) and over the `2W` gore shoulder transition its edges reach `2.375W` / `3.825W`; the attachment is the compiled `HIGHWAY_RAMP_MERGE`/`DIVERGE` record, and no `RoadSystem`-discovered junction may exist inside a merge/diverge interval or gore reserve;
 4. the local junction is realized by the canonical junction path, at `z_L`;
 5. terrain deformation uses the union roadbed; a ramp's outer blend never modifies the highway roadbed or shoulder, so in the gore wedge it stops at the highway roadbed edge;
 6. Phase 12 never chooses a new interchange topology or downgrades a frozen interchange to an ordinary intersection; any discrepancy fails the attempt.
@@ -2688,6 +2701,7 @@ maximum ramp grade 12 deg and cross slope 8 deg
 merge/diverge tangent alignment: heading difference 0 at the gore within 0.001 rad; convergence leg 15 deg
 merge/diverge length equals MergeLength/DivergeLength along the highway, subdivided 10W full + 6W taper (merge) and 6W taper + 6W full (diverge)
 auxiliary lane centre d_aux = 2.875W and ramp-side roadbed edge E_aux = 3.825W (highway width 6.65W) over every full auxiliary lane
+gore invariant: RampLaneCenterline at 2.875W, tangent parallel, inner edge 2.375W, outer edge 3.825W, inner shoulder 0, outer shoulder 0.45W, continuous XY/Z
 swept vehicle clearance for the ramp's capabilities (heavy envelope when HEAVY, Harvester when HARVESTER)
 no roadbed or carriageway discontinuity at merge/diverge (h and E continuous; gore cross-sections coincide)
 no accidental intersection with neighbouring lanes/structures

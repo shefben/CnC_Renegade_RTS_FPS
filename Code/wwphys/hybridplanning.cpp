@@ -359,6 +359,145 @@ float Hybrid_Roadbed_Width(HybridRoadClass road_class,float w)
 }
 
 
+float Hybrid_Road_Inner_Edge_Offset(HybridRoadClass road_class,float w)
+{
+	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(road_class);
+	return -((0.5f * ((float)spec.Lanes + spec.MedianW)) + spec.ShoulderW) * w;
+}
+
+
+float Hybrid_Road_Outer_Edge_Offset(HybridRoadClass road_class,float w)
+{
+	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(road_class);
+	return ((0.5f * ((float)spec.Lanes + spec.MedianW)) + spec.OuterShoulderW) * w;
+}
+
+
+float Hybrid_Road_Roadbed_Midpoint_Offset(HybridRoadClass road_class,float w)
+{
+	return 0.5f * (Hybrid_Road_Inner_Edge_Offset(road_class,w) + Hybrid_Road_Outer_Edge_Offset(road_class,w));
+}
+
+
+/*
+**	Section 12.6.6 -- every interchange constant from the Section-7 table and the plan's fixed numbers.
+*/
+void Hybrid_Interchange_Constants(float w,HybridInterchangeConstants * out)
+{
+	HybridInterchangeConstants & c = *out;
+	const HybridRoadClassSpec & highway = Hybrid_Road_Class_Spec(HYBRID_ROAD_HIGHWAY_4);
+	const HybridRoadClassSpec & ramp = Hybrid_Road_Class_Spec(HYBRID_ROAD_HIGHWAY_RAMP);
+	const float highway_radius = highway.MinTurnRadiusW * w;
+	const float pi = 3.14159265358979323846f;
+
+	c.W							= w;
+	c.MergeLength				= Max2(12.0f * w,2.0f * highway_radius);
+	c.DivergeLength			= Max2(10.0f * w,1.5f * highway_radius);
+	c.TaperLength				= 6.0f * w;
+	c.MergeFullLength			= c.MergeLength - c.TaperLength;
+	c.DivergeFullLength		= c.DivergeLength - c.TaperLength;
+	c.GoreReserveMargin		= 2.0f * w;
+	c.InterchangeGoreSpacing= 24.0f * w;
+	c.GoreCandidates			= 32;
+	c.ThetaC						= 15.0f * (pi / 180.0f);
+	c.Psi							= 45.0f * (pi / 180.0f);
+	c.RampRadius				= ramp.MinTurnRadiusW * w;
+	c.ArmLength					= Max2(4.0f * w,c.RampRadius);
+	c.T15							= c.RampRadius * (float)::tan((double)(7.5f * (pi / 180.0f)));
+	c.T30							= c.RampRadius * (float)::tan((double)(15.0f * (pi / 180.0f)));
+	c.DSep						= (0.5f * Hybrid_Roadbed_Width(HYBRID_ROAD_HIGHWAY_4,w)) + (0.5f * Hybrid_Roadbed_Width(HYBRID_ROAD_HIGHWAY_RAMP,w));
+	c.DJoin						= ((0.5f * highway.MedianW) + 1.5f) * w;
+	c.DAux						= c.DJoin + w;
+	c.HHwy						= ((0.5f * highway.MedianW) + 2.0f) * w;
+	c.EHwy						= 0.5f * Hybrid_Roadbed_Width(HYBRID_ROAD_HIGHWAY_4,w);
+	c.HAux						= c.HHwy + w;
+	c.EAux						= c.EHwy + w;
+	c.HighwayShoulder			= highway.OuterShoulderW * w;
+	c.HighwayJunctionReserve= Max2(4.0f * w,highway_radius);
+}
+
+
+void Hybrid_Ramp_Candidate(const HybridInterchangeConstants & c,int k,float d_lov,HybridRampCandidate * out)
+{
+	const float sin_c = (float)::sin((double)c.ThetaC);
+	const float cos_c = (float)::cos((double)c.ThetaC);
+	const float sin_p = (float)::sin((double)c.Psi);
+
+	out->K						= k;
+	out->ConvergenceLength	= c.T30 + c.T15 + ((float)(2 + k) * c.W);
+	out->LocalOffsetMin		= c.DAux + (out->ConvergenceLength * sin_c) + ((c.ArmLength + c.T30) * sin_p);
+	out->LocalOffset			= Max2(out->LocalOffsetMin,d_lov);
+	out->GoreOffset			= c.T15 + (out->ConvergenceLength * cos_c) + out->LocalOffset - c.DAux -
+									  (out->ConvergenceLength * sin_c);
+	out->StraightHalfExtent	= out->GoreOffset + c.MergeLength + c.GoreReserveMargin;
+}
+
+
+void Hybrid_Ramp_Control_Polygon(const HybridInterchangeConstants & c,const HybridRampCandidate & candidate,int role,
+											Vector2 polygon[4])
+{
+	const float sin_c = (float)::sin((double)c.ThetaC);
+	const float cos_c = (float)::cos((double)c.ThetaC);
+	const Vector2 local(0.0f,candidate.LocalOffset);
+	const Vector2 gore(candidate.GoreOffset,c.DAux);
+	const Vector2 v2(candidate.GoreOffset - c.T15,c.DAux);
+	const Vector2 v1(v2.X - (candidate.ConvergenceLength * cos_c),v2.Y + (candidate.ConvergenceLength * sin_c));
+
+	if (role == HYBRID_RAMP_ROLE_OFF) {
+		polygon[0].Set(-gore.X,gore.Y);
+		polygon[1].Set(-v2.X,v2.Y);
+		polygon[2].Set(-v1.X,v1.Y);
+		polygon[3] = local;
+		return;
+	}
+	polygon[0] = local;
+	polygon[1] = v1;
+	polygon[2] = v2;
+	polygon[3] = gore;
+}
+
+
+void Hybrid_Auxiliary_Lane_Section(const HybridInterchangeConstants & c,int role,float along,HybridAuxiliaryLaneSection * out)
+{
+	float u = 0.0f;
+	bool full = true;
+	if (role == HYBRID_RAMP_ROLE_OFF) {
+		//	Diverge: taper first (normal -> full), then the full lane to the gore.
+		if (along < c.TaperLength) {
+			full	= false;
+			u		= Clamp3(along / c.TaperLength,0.0f,1.0f);
+		}
+	} else {
+		//	Merge: the full lane from the gore, then the taper (full -> normal).
+		if (along > c.MergeFullLength) {
+			full	= false;
+			u		= Clamp3((along - c.MergeFullLength) / c.TaperLength,0.0f,1.0f);
+		}
+	}
+	const float f = (3.0f * u * u) - (2.0f * u * u * u);
+	float d = c.DAux;
+	if (!full) d = (role == HYBRID_RAMP_ROLE_OFF) ? (c.DJoin + (c.W * f)) : (c.DAux - (c.W * f));
+
+	out->Full	= full;
+	out->U		= full ? 0.0f : u;
+	out->D		= d;
+	out->H		= d + (0.5f * c.W);
+	out->E		= d + (c.EAux - c.DAux);
+}
+
+
+void Hybrid_Ramp_Gore_Shoulders(const HybridInterchangeConstants & c,float from_gore,float * inner_out,float * outer_out)
+{
+	const float u = 1.0f - Clamp3(from_gore / c.GoreReserveMargin,0.0f,1.0f);
+	const float f = (3.0f * u * u) - (2.0f * u * u * u);
+	const HybridRoadClassSpec & ramp = Hybrid_Road_Class_Spec(HYBRID_ROAD_HIGHWAY_RAMP);
+	const float inner = ramp.ShoulderW * c.W;
+	const float outer = ramp.OuterShoulderW * c.W;
+	*inner_out = inner * (1.0f - f);
+	*outer_out = outer + ((c.HighwayShoulder - outer) * f);
+}
+
+
 float Hybrid_Carriageway_Width(HybridRoadClass road_class,float w)
 {
 	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(road_class);

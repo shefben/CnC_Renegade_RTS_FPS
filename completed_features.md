@@ -4806,6 +4806,21 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## HIGHWAY_RAMP shared prerequisites (Section 12.6.6-12.6.7, checklist I2 reopened; D-022 revision) (2026-10-03)
+
+The ramp reference spline is its travel lane (`RampLaneCenterline`). The roadbed edges sit at `-0.70W` and `+0.80W`
+of it (`Hybrid_Road_Inner/Outer_Edge_Offset`), with a derived midpoint offset of `+0.05W`. What landed:
+- `Hybrid_Interchange_Constants`, derived from the Section-7 table.
+- Gore candidates (`Hybrid_Ramp_Candidate`): `d_Lmin(0)=8.3926380W`, `G(0)=9.0029197W`.
+- Control polygons, and the Q-026 auxiliary-lane cross section (`Hybrid_Auxiliary_Lane_Section`).
+- The D-022 gore shoulder transition (`Hybrid_Ramp_Gore_Shoulders`).
+- The ramp centerline, built by Phase 10's own corner construction (`Hybrid_Ramp_Centerline`).
+- The preflight `BridgeApproachMax(class)` and `OverpassDepthMax(class)`, hashed into the planning input.
+
+**Gate:**
+- `Check_Hybrid_Interchange_Construction`;
+- the full ctest suite on client and dedicated server.
+
 ## HIGHWAY_RAMP records, schema and checksums (Section 12.6, checklist I1 reopened) -- generator identity 16 (2026-10-03)
 
 What was added:

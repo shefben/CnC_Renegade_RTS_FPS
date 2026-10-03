@@ -153,13 +153,7 @@ struct HybridTopologyNode
 /*
 **	Section 12.6's highway access vocabulary.  Ordinals are part of the checksum: never reorder.
 */
-enum HybridRampRole
-{
-	HYBRID_RAMP_ROLE_NONE = 0,
-	HYBRID_RAMP_ROLE_ON,						// ON_RAMP: logical travel enters HIGHWAY_4
-	HYBRID_RAMP_ROLE_OFF,					// OFF_RAMP: logical travel leaves HIGHWAY_4
-	HYBRID_RAMP_ROLE_COUNT
-};
+//	HybridRampRole is in hybridplanrecords.h: the shared planning helpers construct ramps by role.
 
 enum HybridInterchangeSide
 {

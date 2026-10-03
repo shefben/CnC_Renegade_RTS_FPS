@@ -205,6 +205,100 @@ float							Hybrid_Interval_Gap(const HybridVerticalInterval & i0,const HybridVe
 bool							Hybrid_Grade_Compatible(const HybridVerticalInterval & i0,const HybridVerticalInterval & i1,
 																float horizontal_distance,float max_grade_radians);
 
+/*
+**	A road's roadbed edges relative to its reference spline, inner (left of travel, negative) and outer.  For
+**	every class but HIGHWAY_RAMP the reference is the roadbed centre, so the two are equal and opposite; a
+**	ramp's reference is its travel lane (D-022), so its roadbed spans -0.70W..+0.80W and its derived midpoint
+**	lies RoadbedMidpointOffset = +0.05W outward -- a derived value, never a routing centerline.
+*/
+float							Hybrid_Road_Inner_Edge_Offset(HybridRoadClass road_class,float w);
+float							Hybrid_Road_Outer_Edge_Offset(HybridRoadClass road_class,float w);
+float							Hybrid_Road_Roadbed_Midpoint_Offset(HybridRoadClass road_class,float w);
+
+
+/*
+**	Section 12.6.6's interchange constants, derived once from the Section-7 table (never retyped), in world
+**	units.  Angles are radians.  Q-026 / D-022 values included.
+*/
+struct HybridInterchangeConstants
+{
+	float	W;
+	float	MergeLength;					// max(12W, 2 R_HIGHWAY_4)    = 16W
+	float	DivergeLength;					// max(10W, 1.5 R_HIGHWAY_4)  = 12W
+	float	TaperLength;					// 6W
+	float	MergeFullLength;				// MergeLength - TaperLength  = 10W
+	float	DivergeFullLength;			// DivergeLength - TaperLength =  6W
+	float	GoreReserveMargin;			// 2W, also the gore shoulder transition
+	float	InterchangeGoreSpacing;		// 24W
+	int	GoreCandidates;				// K_GORE = 32
+	float	ThetaC;							// 15 degrees
+	float	Psi;								// 45 degrees
+	float	RampRadius;						// R_r = 5W
+	float	ArmLength;						// l_arm = max(4W, R_r) = 5W
+	float	T15;								// R_r tan(7.5 deg)
+	float	T30;								// R_r tan(15 deg)
+	float	DSep;								// 0.5 RoadbedWidth(HIGHWAY_4) + 0.5 RoadbedWidth(HIGHWAY_RAMP) = 3.575W
+	float	DJoin;							// 0.5 median + 1.5W = 1.875W (outer through lane centre)
+	float	DAux;								// DJoin + W = 2.875W (auxiliary lane centre; the gore offset)
+	float	HHwy;								// 0.5 median + 2W = 2.375W
+	float	EHwy;								// 0.5 RoadbedWidth(HIGHWAY_4) = 2.825W
+	float	HAux;								// HHwy + W = 3.375W
+	float	EAux;								// EHwy + W = 3.825W
+	float	HighwayShoulder;				// HIGHWAY_4's shoulder, 0.45W: the gore's outer shoulder
+	float	HighwayJunctionReserve;		// max(4W, R_HIGHWAY_4) = 8W
+};
+
+void	Hybrid_Interchange_Constants(float w,HybridInterchangeConstants * out);
+
+
+/*
+**	Section 12.6.7, one gore candidate `k`: l_conv, d_Lmin, d_L (`d_lov` > 0 for a grade-separated DIAMOND_ACCESS
+**	crossing, else 0), G and S_I.  All RampLaneCenterline positions in the side frame.
+*/
+struct HybridRampCandidate
+{
+	int	K;
+	float	ConvergenceLength;			// l_conv(k)
+	float	LocalOffsetMin;				// d_Lmin(k)
+	float	LocalOffset;					// d_L(k)
+	float	GoreOffset;						// G(k)
+	float	StraightHalfExtent;			// S_I(k)
+};
+
+void	Hybrid_Ramp_Candidate(const HybridInterchangeConstants & c,int k,float d_lov,HybridRampCandidate * out);
+
+/*
+**	The ramp's control polygon in travel order, side frame (12.6.7): an ON_RAMP is [L_s, V1, V2, p_g], an
+**	OFF_RAMP its mirror [p_g', V2', V1', L_s].  `role` is a HybridRampRole.
+*/
+void	Hybrid_Ramp_Control_Polygon(const HybridInterchangeConstants & c,const HybridRampCandidate & candidate,int role,
+											Vector2 polygon[4]);
+
+/*
+**	The Q-026 merge/diverge cross section at `along`, the distance into the ramp's highway-parallel interval in
+**	chain order (an ON_RAMP's interval starts at its gore, an OFF_RAMP's ends at it): the auxiliary-lane centre
+**	`d`, the widened ramp-side carriageway and roadbed half widths `h = d + 0.5W` and `E = d + 0.95W`, whether
+**	the station is in the full-width lane, and the taper parameter `u` (0 in the full lane).
+*/
+struct HybridAuxiliaryLaneSection
+{
+	bool	Full;
+	float	U;
+	float	D;
+	float	H;
+	float	E;
+};
+
+void	Hybrid_Auxiliary_Lane_Section(const HybridInterchangeConstants & c,int role,float along,
+											HybridAuxiliaryLaneSection * out);
+
+/*
+**	D-022's gore shoulder transition on the independent ramp, `from_gore` along it from the gore (0..2W):
+**	the inner and outer shoulders, which reach 0 and the highway's 0.45W at the gore.  The reference spline
+**	does not move.  The same for an ON_RAMP (approaching its gore) and an OFF_RAMP (leaving it).
+*/
+void	Hybrid_Ramp_Gore_Shoulders(const HybridInterchangeConstants & c,float from_gore,float * inner_out,float * outer_out);
+
 
 /*
 **	Section 2.3 -- ProceduralPlanningSpatialHash.  Compiler scratch, not a runtime spatial

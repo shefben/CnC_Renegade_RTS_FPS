@@ -268,6 +268,16 @@ inline bool Hybrid_Road_Class_Is_Routed(int road_class)
 }
 
 
+//	Section 12.6: an access ramp's logical role.  Ordinals are part of the checksum: never reorder.
+enum HybridRampRole
+{
+	HYBRID_RAMP_ROLE_NONE = 0,
+	HYBRID_RAMP_ROLE_ON,						// ON_RAMP: logical travel enters HIGHWAY_4
+	HYBRID_RAMP_ROLE_OFF,					// OFF_RAMP: logical travel leaves HIGHWAY_4
+	HYBRID_RAMP_ROLE_COUNT
+};
+
+
 enum HybridPhysicalRoadTier
 {
 	HYBRID_ROAD_TIER_HIGHWAY = 0,

@@ -271,6 +271,14 @@ struct HybridMetricCache
 	float		BridgeWaterClearanceMargin;
 	float		BridgeApproachLength;
 
+	/*
+	**	Section 12.6's planning metrics, per class: the largest required approach length, and the largest structural
+	**	depth, among registered bridge/overpass kinds able to carry the class (0 when none can).  Approach length
+	**	comes from BridgePlannerParams (every kind shares it), depth from each definition's deck thickness.
+	*/
+	float		BridgeApproachMax[HYBRID_ROAD_CLASS_COUNT];
+	float		OverpassDepthMax[HYBRID_ROAD_CLASS_COUNT];
+
 	int		BiomeSlotLayer[HYBRID_BIOME_COUNT][HYBRID_SLOT_COUNT];	// terrain layer index, -1 = unresolved
 	bool		BiomeAvailable[HYBRID_BIOME_COUNT];
 

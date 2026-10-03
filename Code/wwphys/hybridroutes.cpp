@@ -5829,6 +5829,31 @@ bool Hybrid_Build_Crossing_Path(const HybridRoute & route,int first_point,int la
 
 
 /***********************************************************************************************
+**	A HIGHWAY_RAMP's constructed centerline -- see Hybrid_Ramp_Centerline in the header.
+***********************************************************************************************/
+bool Hybrid_Ramp_Centerline(const Vector2 polygon[4],float ramp_radius,float quantum,float spacing,
+									 DynamicVectorClass<Vector2> * points,DynamicVectorClass<float> * stations)
+{
+	if ((points == nullptr) || (stations == nullptr) || !(ramp_radius > 0.0f)) return false;
+
+	DynamicVectorClass<RouteVertex> vertices;
+	for (int i = 0; i < 4; ++i) {
+		RouteVertex vertex;
+		vertex.P			= polygon[i];
+		vertex.Frozen	= (i == 0) || (i == 3);
+		vertex.Pinned	= (i == 1) || (i == 2);
+		vertices.Add(vertex);
+	}
+	const char * reason = nullptr;
+	if (!Settle_Corners(ramp_radius,quantum,0.0f,&vertices,&reason)) return false;
+	if (vertices.Count() != 4) return false;				// a constructed corner was dropped: not the plan's ramp
+
+	DynamicVectorClass<HybridRouteStructuralSpan> spans;
+	return Emit_Centerline(ramp_radius,quantum,vertices,spacing,points,stations,&spans);
+}
+
+
+/***********************************************************************************************
 **	Two road poses on empty ground -- see Hybrid_Road_Poses_Connect in the header.
 ***********************************************************************************************/
 bool Hybrid_Road_Poses_Connect(const HybridRoadPose & from,const HybridRoadPose & to,HybridRoadClass road_class,
