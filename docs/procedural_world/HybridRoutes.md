@@ -79,12 +79,16 @@ with every class-radius turn finished outside them. The search is told: A* arriv
 departs the egress cell on the axis, judged at move generation with the run the class's turn still needs;
 the two approach points are frozen vertices with lead-ins and lead-outs along the axis; a corner that would
 have to sit on a frozen point, or crowd it, refuses the candidate. Phase 10 guarantees `8W` of straight
-approach on each side -- the asset-specific remainder is Phase 11's to find or refuse. The departure is held to
-the arrival's measure (`Departure_Fits_Crossing`, `Arrival_Fits_Crossing`'s mirror): the leg leaving a crossing is
-handed the crossing's heading and its frozen straight as run, but that straight is no room for an arc, so the
-chain's first turn after the egress must leave `R tan(phi/2) + R tan(theta/2)` and the kept straight on the run
-from the egress -- `phi` the turn off the axis onto the grid heading, `theta` the turn itself. Without it the
-search turned in the cell after the egress and the lead-out was refused in every envelope. A road that cannot
+approach on each side -- the asset-specific remainder is Phase 11's to find or refuse. The structural sequence is symmetric -- ordinary road, class-radius arrival
+transition, straight approach, structure, straight departure, class-radius departure transition, ordinary road --
+and one owner judges both sides. The corner construction lays the lead-in and the lead-out by the same rule
+(`Lead_Before`, along the axis and against it). The search applies one transition-room measure
+(`Transition_Room`: `R tan(phi/2) + R tan(turn/2)` plus the kept straight) to the arrival (`Arrival_Fits_Crossing`)
+and to the departure (`Departure_Fits_Crossing`). Here `phi` is the turn between the axis and the chain's grid
+heading, and `turn` is the chain's own next turn. Without the departure side, the search turned in the cell after
+the egress and the lead-out was refused in every envelope. Leads are never cached: every centerline build lays
+them afresh from the current corridor vertices, and a dropped vertex beside a lead or a frozen point lays them
+again, so the gate validates only the final rebuilt geometry. A road that cannot
 line up in an envelope fails that envelope; after the third the edge fails. Nothing is left at a crossing for
 Phase 11 to straighten. The old D-009 behaviour -- keep the waypoint and leave a corner there for Phase 11 --
 is revoked.
@@ -97,22 +101,31 @@ graded between them is refused here rather than in Phase 11.
 analysis cell 8 to 16, so a river runs between cell centres almost everywhere, and the hard-infinite cell list --
 which judges cells by their centres -- did not see it: the search stepped across rivers between two dry centres,
 and the centerline's own point-and-cell test (a sample is refused only when its cell is refused too) let the road
-follow. So the moves and the centerline steps are judged themselves (`Segment_Meets_River`): a search move
-(`Move_Crosses_Channel`, cached per cell and direction, since the river geometry is fixed) or a centerline step
-outside the road's own structural spans that meets a river must meet it inside a window the leg may use. A road
+follow. So the moves and the centerline steps are judged as continuous segments (`Segment_Meets_River`). A search
+move (`Move_Crosses_Channel`, cached per cell and direction, since the river geometry is fixed) that meets a river
+must meet it inside a window the leg may use. A centerline step may meet a river only within the road's own accepted
+crossing stretch: inside one of its structural spans, or stepping into or out of one at a point that span's own
+window covers (`Window_Covers`). A road
 crosses its planned window once, on the leg that is that crossing. The legs that approach or leave the window find its obstruction closed
 (`RouteBuilder::ClosedWindow`): left open, a leg could reach the near bank from the far one by crossing the same
 window outside its frozen interval -- a crossing nothing recorded and nothing would build. A window the search
 was never sent to stays usable at the plan's `20A` window penalty, and such a crossing is recorded like a planned
-one (`Note_Unplanned_Crossings`). It is aligned like one too: when the centerline is refused at a corner that
-belongs to an unplanned crossing (`Unplanned_Crossing_At_Fault`), that window becomes a planned crossing of the
-leg it happened on -- its two approach points inserted as that leg's stops, in travel order -- and the logical
-edge is searched again from its start in the same envelope, arriving and departing on the axis. A promoted window
-is a planned stop from then on, so each is promoted at most once. If the centerline still cannot line up with a
-promoted crossing -- typically a window the leg used to reach a planned crossing's near bank from the far side,
-right beside it -- its stops are taken out again and the road may not cross that window at all
-(`RouteBuilder::ForbiddenWindows`); the search finds its own way, or the envelope fails as before. An unplanned
-crossing the centerline can align as it stands is left alone. `Check_Hybrid_Crossing_Discipline` pins both: a road whose two ends stand on one bank
+one (`Note_Unplanned_Crossings`, which asks the chain's own moves whether they meet a river inside the window's
+footprint -- the same segment test the search used to allow them; comparing the run's end cells about the window's
+centre had missed crossings near the footprint's ends, leaving water crossed with no structure), and aligned like
+one by `Phase10NaturalCrossingAlignmentRepair` (Plan Section 8
+Phase 10, authorized in Section 17). When the centerline is refused at a corner that involves such a crossing
+(`Unplanned_Crossing_At_Fault`, exact involvement only), the window's existing frozen approach pair becomes two
+constrained stops of the leg it happened on, in travel order, and the logical edge is searched again from its start
+in the same envelope. The failing corner is the earliest along the road, so crossings are repaired one at a time in
+route order. If a promoted crossing is still the one refused, its stops are withdrawn and the window is unavailable
+to that edge for the rest of the envelope (`RouteBuilder::ForbiddenWindows`, set per edge before its legs are
+searched). Each promotion and each withdrawal consumes one local retry of the edge's envelope. The budget is
+`retry.max_local_retries_per_stage`, shared with the centerline's step-5 insertions: a rebuilt centerline gets only
+what is left. With the budget spent the edge advances to its next envelope, which starts with no promotion, no
+unavailable window and a fresh budget. The repair never moves a window, invents a station, changes an obstruction or
+method, or widens the corridor outside the envelope sequence. An unplanned crossing the centerline can align as it
+stands is left alone. `Check_Hybrid_Crossing_Discipline` pins both: a road whose two ends stand on one bank
 of a river with one window is refused by the search, and a road that must cross a window it was not sent to
 crosses it straight between the approach points and records it once, and a road across a 3-unit river whose
 centerline runs midway between two columns of cell centres, with no window, is refused by the search.

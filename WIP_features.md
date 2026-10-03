@@ -313,10 +313,22 @@ reroute; the one-reroute fixture is the controlled world in `Check_Controlled_Re
 1400-world yield is 448 / 107 / 35 (was 448 / 69 / 24). Structural transitions fell from 91 to 20, every one
 classified by exact cause in D-021. None is a Q-023 / Phase-10 mismatch.
 
+Accepted 2026-10-03 (checkpoint `5384130c`). The plan now authorizes each of the following as written, and the code
+follows them:
+- `Phase10NaturalCrossingAlignmentRepair`, in Plan Section 8 Phase 10 and Section 17: one local retry per promotion
+  or withdrawal, sharing the envelope budget with the step-5 insertions; the window is unavailable to the edge for
+  the rest of the envelope; everything resets only by advancing the envelope.
+- Segment-vs-river testing.
+- Symmetric arrival/departure turn room, judged by one owner (`Transition_Room`).
+- Rebuild of stale structural leads.
+
+The remaining structural-transition failures stay strict. After the alignment the census reads 448 / 98 / 33,
+with 22 structural transitions (D-021 revision).
+
 Carried, measured, not yet resolved:
 - 2 of 196 reroutes resolve.
-- The river-bridge quota opposite-bank investigation, now an open item in the checklist under I10. The quota stays
-  mandatory.
+- The river-bridge quota opposite-bank investigation (I10 open item). The quota stays mandatory. It does not block
+  HIGHWAY_RAMP, but **must be resolved before final release acceptance**.
 
 `hybridinteractionsearch` remains a registered census self-check (no environment switches).
 
@@ -324,6 +336,11 @@ Carried, measured, not yet resolved:
 `0c8328fa` (Q-022/Q-023). Phase 12's inputs exist: `Hybrid_Realized_Route`, `Hybrid_Road_Profile_Structures`,
 `Hybrid_Solve_Road_Stretch`. The highway-access-ramp extension (Plan Section 12.6, added 2026-10-02 by another
 session) reopens items in I1 -> I2 -> I10 -> I11 -> I12, which the checklist orders before the rest of I13.
+
+**Blocking: `Q-026`** (`awaiting_answers.md`). The merge/diverge lateral profile in the 2026-10-03 instruction
+(`10W + 6W`, auxiliary lane at `2.875W`, `5.65W -> 6.65W`) is not the committed Plan Section 12.6.7 / 12.6.11
+smoothstep profile (`3.575W -> 1.875W`, outer edge up to `4.325W`). Step 1 below does not depend on the profile;
+Phase-9 candidate construction onward does.
 
 **Next exact action:** implement the HIGHWAY_RAMP extension (Plan Section 12.6, committed `dc7807c3`) in this order:
 1. records, schema and checksum;

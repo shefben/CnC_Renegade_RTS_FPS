@@ -288,7 +288,7 @@ pass rate for archetypes with no canyon obligation.
 
 **OPEN STABILIZATION ITEM (2026-10-02)** — the river-bridge quota stays mandatory; this is an investigation, not a rule change:
 
-- [ ] Determine why valid Phase-6 bridge windows frequently cannot be connected to the heavy topology because no suitable heavy-family node exists on the opposite bank (1400-world census: 3095 cross-link candidates refused `no_bank_pair`, 2839 fallback candidates outside every family corridor, in 182 quota-short worlds). Distinguish: Phase-3 intent placement failing to straddle rivers; Phase-6 windows outside usable corridors; Phase-9 synthesized cross-link endpoint selection too restrictive; the quota procedure internally inconsistent. Do not change the rule; file the next `Q-###` if the investigation finds a spec conflict.
+- [ ] Determine why valid Phase-6 bridge windows frequently cannot be connected to the heavy topology because no suitable heavy-family node exists on the opposite bank (1400-world census: 3095 cross-link candidates refused `no_bank_pair`, 2839 fallback candidates outside every family corridor, in 182 quota-short worlds). Distinguish: Phase-3 intent placement failing to straddle rivers; Phase-6 windows outside usable corridors; Phase-9 synthesized cross-link endpoint selection too restrictive; the quota procedure internally inconsistent. Do not change the rule; file the next `Q-###` if the investigation finds a spec conflict. Not blocking the HIGHWAY_RAMP extension; **must be resolved before final release acceptance** (current yield is far below the §17 seed-batch targets).
 
 **REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** — new step 15 after step 14; steps 1–14 untouched (§8 P9 step 15, §12.6.2–12.6.8):
 
@@ -317,6 +317,14 @@ pass rate for archetypes with no canyon obligation.
 - [x] Path-to-spline: dedupe, direction-change controls, sample `min(W,A/2)`, curvature/grade/cross-slope checks, insert earliest failing nearest path cell, ≤`max_local_retries_per_stage` insertions, then next envelope. **The centerline is straights and circular arcs of the class radius, not a Catmull-Rom through cell centres** — see `DECISIONS.md` D-009 revision for the measured conflict between `A = clamp(chunk/4,8,16)` and the Section-7 radii on an 8-way grid, and for why `8W` is thereby satisfied by construction and verified independently.
 - [x] Crossing intervals remain unresolved records.
 - [x] **Gate:** every mandatory edge has one legal spline with stable checksum.
+
+**STABILIZATION (D-021, 2026-10-02)** (§8 P10, §17):
+
+- [x] Ordinary strategic guide vs structural waypoint: the A* chain passes the guide's cell; the final centerline need not; the guide corner stays at its frozen position, is not pushed aside by ordinary smoothing, yields to a structural straight approach; Phase 9 Q-023 uses the same corner geometry; logical slicing at the nearest centerline point.
+- [x] Continuous segment-vs-river testing for every search move and every centerline segment; a road crosses its own window only through its accepted crossing stretch.
+- [x] `Phase10NaturalCrossingAlignmentRepair`: promote the earliest failing naturally selected crossing's frozen approach pair to constrained stops, rerun in the same envelope, 1 local retry each (shared with step-5 insertions), window unavailable to the edge for the rest of the envelope when still unusable, reset only by advancing to the next envelope.
+- [x] Symmetric structural arrival/departure turn-room validation by one class-radius owner.
+- [x] Structural leads rebuilt whenever adjacent control geometry changes; the gate validates only the final rebuilt geometry.
 
 **REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** (§8 P10, §12.6.9):
 

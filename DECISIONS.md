@@ -679,6 +679,39 @@ or the quota procedure itself. No rule changed.
 
 
 
+**Revision (user, 2026-10-03): accepted, with the repair bounded and authorized.** Checkpoint `5384130c` is
+accepted. The plan now carries every rule the code depends on: Section 8 Phase 10 and Section 17 for the repair;
+Phase 10 for segment-vs-river testing, symmetric transition room and the rebuild of stale structural leads.
+
+`Phase10NaturalCrossingAlignmentRepair` was brought to the user's bounds:
+- Each promotion and each withdrawal costs one local retry of the edge's envelope. The budget is
+  `retry.max_local_retries_per_stage`, shared with the step-5 insertions; a rebuilt centerline receives only what
+  is left.
+- A withdrawn window is unavailable to that edge only for the rest of the envelope.
+- Advancing the envelope removes the edge's promotions and unavailable windows and gives it a fresh budget.
+- The repair acts only on a corner refusal that involves the crossing exactly. The nearest-structure reading is
+  kept for the census alone.
+
+Arrival and departure turn room are one measure (`Transition_Room`). The centerline step test is exactly "a river
+only inside the road's own accepted crossing stretch". Before, it accepted any window's footprint.
+
+That exact test exposed one more owner defect, now fixed: `Note_Unplanned_Crossings` decided whether a chain crossed
+a window by comparing the run's two end cells about the window's centre. It missed crossings the chain made near a
+footprint end, so the search allowed water crossings that were never recorded or built. It now asks the chain's
+moves with the search's own segment test.
+
+The two far-bank cases are now classified only when the chain actually meets the river.
+
+Census on the unchanged seed set: 448 / 98 / 33. Structural transitions: 22, with no `q023_phase10_mismatch`. The
+drop from `5384130c`'s 448 / 107 / 35 is the exact river rule. The 20 centerline river refusals are class-radius
+arcs that touch a river beside a window, outside the road's own crossing. Under the looser test those roads would
+have driven through water with no structure.
+
+Generator identity stays 15 by instruction. These are corrections inside the same accepted stabilization, and the
+HIGHWAY_RAMP bump is the next increment.
+
+
+
 ## D-020 - Hybrid rewrite Q-025: one physical trunk per heavy family; independent roads keep apart (2026-10-02)
 
 **Decision (user, 2026-10-02, option (a)).** Each heavy route family is one continuous physical trunk road through
