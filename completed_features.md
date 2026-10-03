@@ -4806,6 +4806,33 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## I13 step 1: the Phase-12 realization plan (2026-10-03)
+
+`Hybrid_Plan_Realization` covers the following, and is pure and checksummed:
+- every physical road in routing order, graded once by Section 12.1 with its structures and every junction surface
+  it shares;
+- the actual paved edges per sample: asymmetric and D-024-effective ramps, and the `HIGHWAY_4` widened to the
+  compiled `E(x)`;
+- `Hybrid_Deform_Terrain` (12.2 steps 1-5: level roadbed to the asymmetric edges, a smoothstep over exactly
+  `outer_blend`, nothing under decks, in bores or in water, earlier roadbeds kept);
+- `BridgeAssembly` -> `BridgePiece`, one WHOLE piece per compiled bridge or overpass deck, with piece ids and
+  transforms in the checksum.
+
+Two defects were fixed at their owner:
+- **Clamp walk (Section 12.1 solver).** A walk on an exact propagated bound could overshoot it by a rounding unit
+  and refuse a feasible profile. It now takes the bound, and step 4 still revalidates.
+- **Junction records.** A junction record names two edges, so a node junction now holds every road through its
+  node.
+
+**Gate** (`hybridrealization`):
+- `Check_Hybrid_Deformation_Units` (hand-made plans with exact answers);
+- `Check_Hybrid_Realization_Plan`:
+  - heavy `SIDE_ACCESS`: order, effective edges by traffic side, `E_aux` widening, determinism, and pins holding on
+    raised ground;
+  - `DIAMOND`: the overpass assembly, the highway at `LowerSurfaceZ`, ramps at `z_L`;
+  - river bridge: one WHOLE piece at the deck, deck and water untouched, the piece transform in the checksum.
+- Mutations (no pins, no protection, no deck skip, OFF ramps on the wrong side) fail them.
+
 ## Section-14 gate before I13: highway access ramps through Phases 9-11 (2026-10-03)
 
 The gate set before returning to I13. Each item is met by a named, passing test.

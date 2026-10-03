@@ -406,8 +406,11 @@ D-024 is resolved (2026-10-03): the effective ramp roadbed `max(1.50W, swept)`, 
 Section-14 gate before I13 is met (see completed_features.md). Census r9: 448 / 98 / 33, interchange outcomes
 unchanged.
 
+Phase-12 step 1 is done (2026-10-03): `Hybrid_Plan_Realization`, `Hybrid_Deform_Terrain` and `BridgeAssembly`,
+plus the Section-12.1 clamp-walk rounding fix. See `docs/procedural_world/HybridRealization.md`.
+
 **Next exact action:** I13 / Phase 12, in this order:
-1. the deterministic Phase-12 plan (`Hybrid_Plan_Realization`):
+1. (done) the deterministic Phase-12 plan (`Hybrid_Plan_Realization`):
    - roads in routing order, graded once with structures and junction surfaces;
    - actual paved edges (asymmetric, D-024, widened highway);
    - the Section-12.2 deformation over a height grid;

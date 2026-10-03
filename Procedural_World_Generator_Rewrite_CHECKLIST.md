@@ -368,6 +368,18 @@ pass rate for archetypes with no canyon obligation.
 
 ## I13 — Runtime Phase 12: final roads, crossings, cut/fill (§8 P12)
 
+**Progress (2026-10-03), Phase-12 plan (pure, gated by `hybridrealization`):** `Hybrid_Plan_Realization` is in
+place. It covers:
+- roads in routing order, each graded once with its structures and junction surfaces (`z_L`, gore, overpass lower
+  surface, node junctions);
+- the actual paved edges: asymmetric, D-024, widened highway;
+- `Hybrid_Deform_Terrain` (12.2 steps 1-5);
+- `BridgeAssembly` -> `BridgePiece` (one WHOLE piece);
+- the stage-12 checksum.
+
+The Section-12.1 clamp-walk rounding defect is fixed. The runtime realization through the canonical owners
+(steps 6-9, `RoadSplineClass` edge profile, cleanup list) and the 12.3 verification remain.
+
 - [ ] No reroute/method change; failure fails attempt.
 - [ ] Vertical-profile solver exactly as §12.1 (forward/backward propagation, clamp walk, quantize, revalidate, no invented banking).
 - [ ] Terrain deformation 9 steps (roadbed, shoulder, `outer_blend` smoothstep, protected voids, shared junction patch once, existing ditch helper only if present, commit via `WorldTerrainSystem`, realize once via Road/Bridge/Tunnel/junction APIs, reverse-order cleanup list).

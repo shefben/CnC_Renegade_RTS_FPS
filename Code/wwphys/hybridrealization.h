@@ -42,8 +42,10 @@
  *     height, the shoulder is at the roadbed edge, and the ground blends from the shoulder edge to    *
  *     untouched terrain with a smoothstep over exactly `outer_blend = max(W, A/2)`.                *
  *                                                                                               *
- * The terrain edit itself, and the RoadSystem / BridgeSystem / TunnelSystem objects, belong to     *
- * their owners and are driven from ProceduralWorldManager::Realize_Hybrid_Roads.                   *
+ * Phase 12's plan lives here too: every road in routing order, graded once with its structures and  *
+ * junction surfaces and carrying its actual paved edges, the terrain deformation over a height grid,  *
+ * and every compiled bridge as its BridgeAssembly.  The runtime owners (WorldTerrainSystem,          *
+ * RoadSystem, BridgeSystem, TunnelSystem) are driven from that plan by the procedural world manager. *
  *                                                                                               *
  *---------------------------------------------------------------------------------------------*/
 
@@ -231,6 +233,221 @@ bool	Hybrid_Solve_Road_Stretch(const DynamicVectorClass<Vector2> & points,const 
 										  DynamicVectorClass<HybridProfileSample> * samples_out,
 										  HybridSolvedProfile * solved_out,DynamicVectorClass<float> * start_z_out,
 										  DynamicVectorClass<float> * end_z_out,HybridProfileFailure * failure_out);
+
+
+/***********************************************************************************************
+**	Section 12.2 / 12.2a -- the realization plan: every road Phase 12 builds, in routing order, graded once by
+**	Section 12.1 and carrying the cross section the terrain is deformed to; and every compiled bridge or overpass
+**	deck as the assembly Phase 12 builds it from.  Pure computation over the frozen Phase-9..11 records: the
+**	runtime owners (WorldTerrainSystem, RoadSystem, BridgeSystem, TunnelSystem) are driven from it, never the
+**	other way round.
+***********************************************************************************************/
+
+//	One solved centerline sample of a realized road.
+struct HybridRealizedSample
+{
+	HybridRealizedSample(void) : Position(0.0f,0.0f),Station(0.0f),Z(0.0f),Left(0.0f),Right(0.0f),Structure(false) { }
+
+	bool	operator == (const HybridRealizedSample & that) const	{ return (Station == that.Station) && (Position == that.Position); }
+	bool	operator != (const HybridRealizedSample & that) const	{ return !(*this == that); }
+
+	Vector2	Position;
+	float		Station;
+	float		Z;					// the Section-12.1 solution
+	float		Left;				// the roadbed edge, shoulder included, left of the road's travel direction
+	float		Right;			// ...and right of it
+	bool		Structure;		// on a compiled deck or inside a bore: the ground under it is not the road's
+};
+
+
+/*
+**	One physical road (Q-025): a heavy family's whole trunk, an interchange ramp or crossing edge, or any other
+**	edge on its own.  `Left`/`Right` are the actual paved edges: a symmetric class's half roadbed; a ramp's
+**	RampLaneCenterline edges with D-022's gore transition and D-024's `E`; a HIGHWAY_4's ramp side widened to the
+**	compiled merge/diverge `E(x)` over each parallel interval (12.6.11).
+*/
+struct HybridRealizedRoad
+{
+	HybridRealizedRoad(void) :
+		StableId(0),EdgeId(0),RoadClass(HYBRID_ROAD_CLASS_COUNT),Tier(HYBRID_ROAD_TIER_PAVED),Capabilities(0),Group(0),
+		CarriagewayWidth(0.0f),ShoulderWidth(0.0f) { }
+
+	bool	operator == (const HybridRealizedRoad & that) const	{ return StableId == that.StableId; }
+	bool	operator != (const HybridRealizedRoad & that) const	{ return !(*this == that); }
+
+	unsigned int							StableId;			// realization order, 1-based
+	unsigned int							EdgeId;				// the logical edge that names it (a trunk's first)
+	DynamicVectorClass<unsigned int>	Edges;				// every logical edge it carries, in travel order
+	HybridRoadClass						RoadClass;
+	HybridPhysicalRoadTier				Tier;					// Section 7's physical tier
+	unsigned int							Capabilities;
+	int										Group;				// Hybrid_Route_Priority_Rank: 0 trunks, 1 group 1b, then the rest
+	float										CarriagewayWidth;	// lanes * W + median, the width RoadSystem is handed
+	float										ShoulderWidth;		// the symmetric shoulder RoadSystem is handed (12.6.13 item 1)
+	DynamicVectorClass<HybridRealizedSample>	Samples;
+};
+
+
+/*
+**	A compiled bridge or overpass deck as Phase 12 builds it: CompiledBridge (the Phase-11 record) -> assembly ->
+**	ordered pieces.  Phase 11 chose the logical bridge family and its structural requirements; Phase 12 owns the
+**	physical assembly.  Navigation, route independence and gameplay see one assembly as one logical crossing.
+**	This version builds every assembly from exactly one WHOLE piece -- the existing single bridge/deck
+**	realization -- and the other kinds are reserved for a later modular bridge family.  Piece ids and transforms
+**	are ordered and part of the stage checksum, and every piece seam is a swept-validation sample.
+**	Ordinals are part of the checksum: never reorder.
+*/
+enum HybridBridgePieceKind
+{
+	HYBRID_BRIDGE_PIECE_WHOLE = 0,					// the existing one-object bridge or deck realization
+	HYBRID_BRIDGE_PIECE_START_ABUTMENT,
+	HYBRID_BRIDGE_PIECE_END_ABUTMENT,
+	HYBRID_BRIDGE_PIECE_CENTER,
+	HYBRID_BRIDGE_PIECE_SHORT_CENTER,
+	HYBRID_BRIDGE_PIECE_SUPPORT,						// a pier
+	HYBRID_BRIDGE_PIECE_DAMAGED_TRAVERSABLE,
+	HYBRID_BRIDGE_PIECE_BROKEN,
+	HYBRID_BRIDGE_PIECE_COUNT
+};
+
+const char *	Hybrid_Bridge_Piece_Kind_Name(HybridBridgePieceKind kind);
+
+struct HybridBridgePiece
+{
+	HybridBridgePiece(void) :
+		PieceId(0),Kind(HYBRID_BRIDGE_PIECE_WHOLE),Start(0.0f,0.0f),End(0.0f,0.0f),StartZ(0.0f),EndZ(0.0f),Width(0.0f) { }
+
+	bool	operator == (const HybridBridgePiece & that) const	{ return PieceId == that.PieceId; }
+	bool	operator != (const HybridBridgePiece & that) const	{ return !(*this == that); }
+
+	unsigned int				PieceId;				// 1-based, in deck order from Start
+	HybridBridgePieceKind	Kind;
+	Vector2						Start;				// the piece's transform: its two deck ends and their surface heights
+	Vector2						End;
+	float							StartZ;
+	float							EndZ;
+	float							Width;
+};
+
+struct HybridBridgeAssembly
+{
+	HybridBridgeAssembly(void) :
+		StableId(0),InteractionId(0),Method(HYBRID_METHOD_BRIDGE),BridgeKind(-1),EdgeId(0),Start(0.0f,0.0f),End(0.0f,0.0f),
+		StartZ(0.0f),EndZ(0.0f),Width(0.0f) { }
+
+	bool	operator == (const HybridBridgeAssembly & that) const	{ return StableId == that.StableId; }
+	bool	operator != (const HybridBridgeAssembly & that) const	{ return !(*this == that); }
+
+	unsigned int				StableId;			// in the Phase-11 records' order, 1-based
+	unsigned int				InteractionId;		// the compiled bridge or overpass it builds
+	HybridInteractionMethod	Method;				// BRIDGE or OVERPASS
+	int							BridgeKind;			// the logical family Phase 11 chose
+	unsigned int				EdgeId;				// the road it carries
+	Vector2						Start;				// the whole deck, end to end
+	Vector2						End;
+	float							StartZ;
+	float							EndZ;
+	float							Width;				// Section 12.4's clear width
+	DynamicVectorClass<HybridBridgePiece>	Pieces;
+};
+
+
+struct HybridRealizationPlan
+{
+	HybridRealizationPlan(void)	{ Reset (); }
+
+	void	Reset(void);
+
+	//	The physical road carrying a logical edge, or null.
+	const HybridRealizedRoad *	Find_Road(unsigned int edge_id) const;
+
+	DynamicVectorClass<HybridRealizedRoad>		Roads;			// routing order
+	DynamicVectorClass<HybridBridgeAssembly>	Bridges;
+	unsigned int										Checksum;
+};
+
+
+struct HybridRealizationParams
+{
+	HybridRealizationParams(void);
+
+	HybridConstants	Constants;
+	float					MaxCutDepth;
+	float					MaxFillHeight;
+	float					LightVehicleWidth;			// preflight metric cache
+	float					HeavyVehicleWidth;
+	float					HarvesterWidth;
+	float					MinVehicleLaneClearance;
+};
+
+enum HybridRealizationFailure
+{
+	HYBRID_REALIZATION_OK = 0,
+	HYBRID_REALIZATION_INVALID_INPUT,
+	HYBRID_REALIZATION_ROAD,				// a routed road cannot be realized from its compiled crossings
+	HYBRID_REALIZATION_PROFILE,			// Section 12.1 refuses a road with its structures and junction surfaces
+	HYBRID_REALIZATION_FAILURE_COUNT
+};
+
+const char *	Hybrid_Realization_Failure_Name(HybridRealizationFailure failure);
+
+struct HybridRealizationResult
+{
+	HybridRealizationResult(void) : Failure(HYBRID_REALIZATION_OK),EdgeId(0),Profile(HYBRID_PROFILE_OK) { }
+
+	HybridRealizationFailure	Failure;
+	StringClass						Detail;
+	unsigned int					EdgeId;
+	HybridProfileFailure			Profile;
+};
+
+
+/*
+**	Phase 12's plan.  Roads in routing order (trunks, group 1b, the rest; Hybrid_Route_Priority_Rank then
+**	StableId), each graded whole once: its compiled structures hold their own surfaces, and every junction
+**	surface it shares holds it -- an interchange local junction at z_L, a ramp's gore at the highway's compiled
+**	surface, an overpass's lower road at its compiled LowerSurfaceZ, and any other at-grade junction at the
+**	surface the road realized before it already has there.  A failure fails the attempt (Section 12).
+*/
+bool	Hybrid_Plan_Realization(const HybridRealizationParams & params,const HybridTopology & topology,
+										const HybridRouteSet & routes,const HybridInteractionSet & interactions,
+										HybridRouteHeightSampleFunc sample,void * context,HybridRealizationPlan * out,
+										HybridRealizationResult * result);
+
+unsigned int	Hybrid_Realization_Checksum(const HybridRealizationPlan & plan,unsigned int seed = 0);
+
+
+/*
+**	Section 12.2's terrain deformation over a height grid (vertex (ix, iy) at origin + spacing * (ix, iy), row-major
+**	in x), road by road in plan order:
+**	1-2. the roadbed and shoulder, out to the sample's actual paved edges either side, at the solved height;
+**	3. a smoothstep from the paved edge to the terrain over exactly `outer_blend = max(W, A/2)`;
+**	4. nothing under a deck or inside a bore, and no water;
+**	5. never an earlier road's roadbed or shoulder -- the earlier road owns that surface, a junction's shared patch
+**	   included, so a later road's blend (a ramp's at its gore) never modifies it.
+**	Steps 6-9 belong to the runtime owners.
+*/
+struct HybridHeightGrid
+{
+	float	OriginX;
+	float	OriginY;
+	float	Spacing;
+	int	CountX;
+	int	CountY;
+};
+
+struct HybridDeformationStats
+{
+	HybridDeformationStats(void) : Changed(0),Protected(0),Water(0),Structure(0) { }
+
+	int	Changed;			// vertex writes
+	int	Protected;		// left alone: an earlier road's roadbed
+	int	Water;
+	int	Structure;		// under a deck or in a bore
+};
+
+bool	Hybrid_Deform_Terrain(const HybridRealizationPlan & plan,const HybridConstants & k,const HybridHydrologySet * hydrology,
+									const HybridHeightGrid & grid,float * heights,HybridDeformationStats * stats);
 
 
 #endif	// HYBRIDREALIZATION_H
