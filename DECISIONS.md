@@ -554,6 +554,70 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-023 - Hybrid rewrite: no arrival-angle prefilter on highway interchanges; local-junction reachability (2026-10-03)
+
+**Decision (user, 2026-10-03).** The step-15 rule that rejected an anchor when any arrival lay within 30 degrees of
+the `HIGHWAY_4` axis is removed. Arrival direction does not decide interchange legality; the geometry that must be
+driven does.
+
+`SIDE_ACCESS` imposes no minimum arrival-vs-highway angle. It requires only:
+- that the arrival can reach its local junction;
+- turn room at the local junction;
+- that the shared 5W ramp constructor reaches the gore;
+- every 12.6.8 exclusion.
+
+For `DIAMOND_ACCESS` the angle rules apply to the crossing edge itself:
+- `60..120` degrees when the crossing is grade-separated (the step-12 overpass tests, already on the crossing
+  segment);
+- `30..150` degrees when it is at grade (now an explicit check in `At_Grade_Crossing_Is_Feasible`).
+
+Each arrival still has to reach its local junction.
+
+**Plan 12.6.4 step 3 and 12.6.8 test 7, as implemented.** Side is the sign of `cross(a, delta)`, ties to `RIGHT`.
+Test 7 keeps turn room: arms at least 30 degrees apart.
+
+Test 7's 60-degree stem cone was the same arrival-angle prefilter measured from `L_s`, so it is replaced by
+reachability:
+- the stem must leave `L_s` outside the footprint wedge between the `OFF` and `ON` ramp arms, which Phase 10 makes
+  hard-infinite;
+- the arrival's intent leg from `L_s` must not cross either ramp (beyond the shared arms within `l_arm`), the
+  highway's straight extent or the diamond crossing.
+
+A nearly parallel feeder is legal when that geometry works. No 12.6.8 constant changed.
+
+**Census** (1400 worlds, identity 16, the same seed set):
+
+| | value |
+| --- | --- |
+| worlds with anchors | 124 |
+| anchors: `SIDE_ACCESS` | 112 |
+| anchors: `DIAMOND_ACCESS` | 12 |
+| accepted `SIDE_ACCESS` | 3 (archetype 5 seeds 16 and 199, archetype 3 seed 129), each at `k = 2` |
+| accepted `DIAMOND_ACCESS` | 0 |
+| frozen checksum vs rebuilt | identical in every world |
+| anchor rejections | 121, all `no_candidate` |
+
+Candidate refusals by 12.6.8 test, over all 32 candidates of every anchor:
+
+| test | refusals |
+| --- | --- |
+| 1, straight extent and pose | 2605 |
+| 2, structure reserves | 81 |
+| 5, exclusions | 984 |
+| 7, local junction | 208 |
+| 3, 4 and 6 | 0 |
+
+The natural-world gate holds: three generated worlds freeze a `HIGHWAY_INTERCHANGE`, and it survives the full
+Phase-9 gate and checksum rebuild. The census line now also splits test 1 into chain reach, pose before X and pose
+after X, and records each anchor's chain turn and the neighbour distances along the axis.
+
+Phase 10 does not yet construct ramps, so archetype 5 seed 16, which reached Phase 11 before, now fails Phase 10
+on its ramp edge. The Phase-10 count is 97 instead of 98. The next work item, Plan 12.6.9, removes that failure.
+
+**Status: accepted.**
+
+
+
 ## D-022 - Hybrid rewrite Q-026: merge/diverge is an explicit auxiliary lane; generator 16 (2026-10-03)
 
 **Decision (user, 2026-10-03, option (b)).** An entrance or exit ramp becomes a real additional highway lane

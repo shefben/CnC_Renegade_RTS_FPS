@@ -189,7 +189,7 @@ enum HybridInterchangeCrossingMode
 enum HybridInterchangeRejection
 {
 	HYBRID_INTERCHANGE_REJECT_AXIS = 0,				// the two highway directions cancel (|sum| < Q)
-	HYBRID_INTERCHANGE_REJECT_ARRIVAL_ANGLE,		// an arrival within 30 degrees of the highway axis
+	HYBRID_INTERCHANGE_REJECT_ARRIVAL_ANGLE,		// unused since D-023 (no arrival-angle prefilter); kept for its ordinal
 	HYBRID_INTERCHANGE_REJECT_ARRIVAL_SERVED,		// an access arrival already belongs to another interchange
 	HYBRID_INTERCHANGE_REJECT_CROSSING,				// DIAMOND: neither overpass nor at-grade crossing is feasible
 	HYBRID_INTERCHANGE_REJECT_NO_CANDIDATE,			// no k in 0..K_GORE-1 passed 12.6.8
@@ -414,6 +414,11 @@ struct HybridTopology
 	int			InterchangeWithdrawals;
 	int			AnchorRejections[HYBRID_INTERCHANGE_REJECTION_COUNT];
 	int			CandidateRefusals[8];						// gore candidates refused, by the 12.6.8 test (1..7)
+	int			AnchorsByForm[HYBRID_INTERCHANGE_FORM_COUNT];	// anchors framed and given candidates, by form
+	int			StraightExtentRefusals[3];				// test 1 split: chain reach, pose before X, pose after X
+	DynamicVectorClass<float>	AnchorTurnDegrees;			// each framed anchor: the chain's turn at X
+	DynamicVectorClass<float>	AnchorNeighbourBefore;		// ...the distance to the stop before X along a
+	DynamicVectorClass<float>	AnchorNeighbourAfter;		// ...and to the stop after it
 
 	unsigned int	Checksum;			// Phase 9 gate value
 

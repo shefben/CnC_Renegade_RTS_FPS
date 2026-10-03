@@ -358,10 +358,14 @@ edges. Landed:
 - the preflight `BridgeApproachMax` and `OverpassDepthMax`;
 - `Check_Hybrid_Interchange_Construction`.
 
-Phase-9 step 15 (checklist I10 reopened) is done, and the Phase-9 gate is restored (2026-10-03). The 1400-world census
-(identity 16) is unchanged at 448 / 98 / 33. It formed no interchange: of 124 anchors, 83 have an arrival within 30
-degrees of the highway axis and 41 have no hard-valid candidate (the per-test breakdown is now in the census line).
-Interchanges are exercised by the controlled worlds in `Check_Hybrid_Interchange_Topology`.
+Phase-9 step 15 (checklist I10 reopened) is done, and the Phase-9 gate is restored (2026-10-03). D-023 removes the
+arrival-angle prefilter: test 7 is now turn room plus reachability, and the at-grade diamond angle is `30..150` on
+the crossing edge.
+
+Natural-world gate: met. The 1400-world census froze three `SIDE_ACCESS` interchanges, each at `k = 2`, with
+checksums identical on rebuild. Of 124 anchors, 121 had no valid candidate. Refusals were dominated by test 1
+(2605), then test 5 (984), test 7 (208) and test 2 (81). Phase 10 does not yet construct ramps, so archetype 5
+seed 16 fails Phase 10 on its ramp edge (census 448 / 97 / 33).
 
 **Next exact action:** Phase-10 `HIGHWAY_RAMP` routing (checklist I11 reopened, Plan 12.6.9), then restore the
 Phase-10 gate:

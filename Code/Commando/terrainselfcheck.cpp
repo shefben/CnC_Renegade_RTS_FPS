@@ -20291,10 +20291,15 @@ void Check_Hybrid_Interaction_Search (void)
 					int rejected = 0;
 					for (int r = 0; r < HYBRID_INTERCHANGE_REJECTION_COUNT; ++r) rejected += topo.AnchorRejections[r];
 					if ((topo.Interchanges.Count () > 0) || (rejected > 0)) {
-						printf ("INTERCHANGE archetype %d seed %u: diamond %d side %d, ramps on %d off %d, candidates %d; rejected",
-								  (int)SEARCH_ARCHETYPES[ai],seed,topo.InterchangesByForm[HYBRID_INTERCHANGE_DIAMOND_ACCESS],
-								  topo.InterchangesByForm[HYBRID_INTERCHANGE_SIDE_ACCESS],topo.RampsByRole[HYBRID_RAMP_ROLE_ON],
+						printf ("INTERCHANGE archetype %d seed %u: anchors side %d diamond %d; accepted side %d diamond %d; "
+								  "ramps on %d off %d, candidates %d; k",
+								  (int)SEARCH_ARCHETYPES[ai],seed,topo.AnchorsByForm[HYBRID_INTERCHANGE_SIDE_ACCESS],
+								  topo.AnchorsByForm[HYBRID_INTERCHANGE_DIAMOND_ACCESS],topo.InterchangesByForm[HYBRID_INTERCHANGE_SIDE_ACCESS],
+								  topo.InterchangesByForm[HYBRID_INTERCHANGE_DIAMOND_ACCESS],topo.RampsByRole[HYBRID_RAMP_ROLE_ON],
 								  topo.RampsByRole[HYBRID_RAMP_ROLE_OFF],topo.RampCandidatesEvaluated);
+						for (int i = 0; i < topo.Interchanges.Count (); ++i) printf (" %d",topo.Interchanges[i].SelectedK);
+						printf ("; checksum 0x%08X (rebuilt 0x%08X); rejected",topo.Checksum,
+								  Hybrid_Topology_Checksum (topo,scan.Identity.Checksum));
 						for (int r = 0; r < HYBRID_INTERCHANGE_REJECTION_COUNT; ++r) {
 							if (topo.AnchorRejections[r] > 0) {
 								printf (" %s %d",Hybrid_Interchange_Rejection_Name ((HybridInterchangeRejection)r),topo.AnchorRejections[r]);
@@ -20303,6 +20308,12 @@ void Check_Hybrid_Interaction_Search (void)
 						printf ("; candidates refused by 12.6.8 test");
 						for (int r = 1; r < 8; ++r) {
 							if (topo.CandidateRefusals[r] > 0) printf (" %d:%d",r,topo.CandidateRefusals[r]);
+						}
+						printf ("; test1 reach %d before %d after %d; anchors",topo.StraightExtentRefusals[0],
+								  topo.StraightExtentRefusals[1],topo.StraightExtentRefusals[2]);
+						for (int i = 0; i < topo.AnchorTurnDegrees.Count (); ++i) {
+							printf (" [turn %.1f before %.1f after %.1f]",topo.AnchorTurnDegrees[i],topo.AnchorNeighbourBefore[i],
+									  topo.AnchorNeighbourAfter[i]);
 						}
 						printf ("\r\n");
 					}

@@ -4806,6 +4806,23 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## D-023 interchange arrival geometry, and the natural Phase-9 interchange gate (2026-10-03)
+
+- No arrival-angle prefilter: side is the sign of `cross(a, delta)`.
+- Test 7 is turn room plus reachability: the stem leaves outside the footprint wedge, and the intent leg crosses
+  neither ramp, nor the highway's straight extent, nor the crossing.
+- The at-grade diamond angle (`30..150` degrees) is measured on the crossing edge.
+- Census diagnostics: anchors by form, accepted interchanges and their `k`, the frozen and rebuilt checksums,
+  candidate refusals per test, the test-1 split, and anchor turn and neighbour distances.
+
+Natural gate met: three generated worlds freeze a `SIDE_ACCESS` interchange that survives the Phase-9 gate and the
+checksum rebuild.
+
+**Gate:**
+- `Check_Hybrid_Interchange_Topology`;
+- the full ctest suite on client and dedicated server;
+- the state validator.
+
 ## HIGHWAY_RAMP Phase-9 interchange topology (step 15, checklist I10 reopened) (2026-10-03)
 
 `Build_Interchanges` implements Plan 12.6.4 and 12.6.8:

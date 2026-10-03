@@ -342,6 +342,11 @@ void HybridTopology::Reset(void)
 	InterchangeWithdrawals	= 0;
 	for (int i = 0; i < HYBRID_INTERCHANGE_REJECTION_COUNT; ++i) AnchorRejections[i] = 0;
 	for (int i = 0; i < 8; ++i) CandidateRefusals[i] = 0;
+	for (int i = 0; i < HYBRID_INTERCHANGE_FORM_COUNT; ++i) AnchorsByForm[i] = 0;
+	for (int i = 0; i < 3; ++i) StraightExtentRefusals[i] = 0;
+	AnchorTurnDegrees.Delete_All();
+	AnchorNeighbourBefore.Delete_All();
+	AnchorNeighbourAfter.Delete_All();
 	Checksum			= 0;
 }
 
@@ -3263,7 +3268,7 @@ static bool Chain_Node_Has_Junction(const TopologyBuilder & b,const HighwayChain
 */
 static int Interchange_Candidate_Refusal(const TopologyBuilder & b,const HybridInterchangeConstants & c,
 													  const InterchangeAnchor & a,const HybridRampCandidate & cand,
-													  unsigned int skip,float ramp_length[2][2])
+													  unsigned int skip,float ramp_length[2][2],int * diag = nullptr)
 {
 	const HybridConstants & k = b.P->Constants;
 	const HighwayChain & chain = *a.Chain;
@@ -3279,18 +3284,27 @@ static int Interchange_Candidate_Refusal(const TopologyBuilder & b,const HybridI
 	pose.Before	= cand.StraightHalfExtent;
 	pose.After	= cand.StraightHalfExtent;
 	if (((sx - chain.Station[0]) < (cand.StraightHalfExtent + c.HighwayJunctionReserve)) ||
-		 ((chain.Station[last] - sx) < (cand.StraightHalfExtent + c.HighwayJunctionReserve))) return 1;
+		 ((chain.Station[last] - sx) < (cand.StraightHalfExtent + c.HighwayJunctionReserve))) {
+		if (diag != nullptr) diag[0]++;
+		return 1;
+	}
 	{
 		const HybridRoadPose from = Chain_Pose(b,chain.Entries,i - 1);
 		Vector2 behind(0.0f,0.0f);
 		const bool from_interior = !from.Is_Structural() && ((i - 1) > 0);
 		if (from_interior) behind = Pose_Far_End(Chain_Pose(b,chain.Entries,i - 2),false);
-		if (!Hybrid_Road_Poses_Connect(from,pose,HYBRID_ROAD_HIGHWAY_4,k,from_interior ? &behind : nullptr,nullptr)) return 1;
+		if (!Hybrid_Road_Poses_Connect(from,pose,HYBRID_ROAD_HIGHWAY_4,k,from_interior ? &behind : nullptr,nullptr)) {
+			if (diag != nullptr) diag[1]++;
+			return 1;
+		}
 		const HybridRoadPose to = Chain_Pose(b,chain.Entries,i + 1);
 		Vector2 ahead(0.0f,0.0f);
 		const bool to_interior = !to.Is_Structural() && ((i + 1) < last);
 		if (to_interior) ahead = Pose_Far_End(Chain_Pose(b,chain.Entries,i + 2),true);
-		if (!Hybrid_Road_Poses_Connect(pose,to,HYBRID_ROAD_HIGHWAY_4,k,nullptr,to_interior ? &ahead : nullptr)) return 1;
+		if (!Hybrid_Road_Poses_Connect(pose,to,HYBRID_ROAD_HIGHWAY_4,k,nullptr,to_interior ? &ahead : nullptr)) {
+			if (diag != nullptr) diag[2]++;
+			return 1;
+		}
 	}
 
 	//	2. Structure reserves along the chain.
@@ -3416,7 +3430,14 @@ static int Interchange_Candidate_Refusal(const TopologyBuilder & b,const HybridI
 		}
 	}
 
-	//	5, 7. Local junctions: the disc clear, the arms within their cones and apart.
+	/*
+	**	5, 7. Local junctions.  The disc is clear (5).  Turn room (7): every pair of arms is at least 30 degrees apart.
+	**	Reachability (7, D-023, replacing the 60-degree stem cone): each arrival must be able to leave L_s and reach
+	**	its next stop without driving through the interchange -- its stem may not start inside the footprint wedge
+	**	between the OFF and ON ramp arms (Phase 10 makes the footprint hard-infinite), and its intent leg from L_s
+	**	may not cross either ramp (away from the shared arm at L_s), the highway's straight extent or the crossing.
+	**	A nearly parallel feeder is therefore legal whenever that geometry works; no arrival angle is imposed.
+	*/
 	for (int side = 0; side < HYBRID_INTERCHANGE_SIDE_COUNT; ++side) {
 		if ((a.AccessSides & (1u << side)) == 0) continue;
 		const Vector2 local = Side_World(a,side,Vector2(0.0f,cand.LocalOffset));
@@ -3432,11 +3453,37 @@ static int Interchange_Candidate_Refusal(const TopologyBuilder & b,const HybridI
 			arms.Add(Vector2(-normal.X,-normal.Y));
 			widest = Max2(widest,Hybrid_Roadbed_Width(a.CrossingClass,k.W));
 		}
+		//	The ramps' own polylines, for the reachability test.
+		DynamicVectorClass<Vector2> ramp_lines[2];
+		for (int role = HYBRID_RAMP_ROLE_ON; role <= HYBRID_RAMP_ROLE_OFF; ++role) {
+			Vector2 ramp_polygon[4];
+			Hybrid_Ramp_Control_Polygon(c,cand,role,ramp_polygon);
+			DynamicVectorClass<float> ramp_stations;
+			DynamicVectorClass<Vector2> ramp_points;
+			if (Hybrid_Ramp_Centerline(ramp_polygon,c.RampRadius,k.Q,Min2(k.W / 3.0f,0.25f * k.A),&ramp_points,&ramp_stations)) {
+				for (int q = 0; q < ramp_points.Count(); ++q) ramp_lines[role - 1].Add(Side_World(a,side,ramp_points[q]));
+			}
+		}
+		const Vector2 highway_from = a.X - (a.Axis * cand.StraightHalfExtent);
+		const Vector2 highway_to = a.X + (a.Axis * cand.StraightHalfExtent);
+		const Vector2 far_local = Side_World(a,(side == HYBRID_INTERCHANGE_SIDE_RIGHT) ? HYBRID_INTERCHANGE_SIDE_LEFT
+																														: HYBRID_INTERCHANGE_SIDE_RIGHT,
+														 Vector2(0.0f,cand.LocalOffset));
 		for (int r = 0; r < a.Arrivals.Count(); ++r) {
 			const InterchangeArrival & arrival = a.Arrivals[r];
 			if (arrival.Side != side) continue;
 			const Vector2 stem = Unit_Of(arrival.Beyond - local);
-			if (Wrapped_Angle_Difference(stem,normal) > ((60.0f * PI_OVER_180) + HYBRID_QUANTUM_ANGLE)) return 7;
+			if (Wrapped_Angle_Difference(stem,Vector2(-normal.X,-normal.Y)) < ((45.0f * PI_OVER_180) + HYBRID_QUANTUM_ANGLE)) return 7;
+			if (Segments_Cross(local,arrival.Beyond,highway_from,highway_to,nullptr,nullptr,nullptr)) return 7;
+			if ((a.Form == HYBRID_INTERCHANGE_DIAMOND_ACCESS) &&
+				 Segments_Cross(local,arrival.Beyond,local,far_local,nullptr,nullptr,nullptr)) return 7;
+			for (int line = 0; line < 2; ++line) {
+				for (int q = 1; q < ramp_lines[line].Count(); ++q) {
+					if (((ramp_lines[line][q - 1] - local).Length() <= c.ArmLength) &&
+						 ((ramp_lines[line][q] - local).Length() <= c.ArmLength)) continue;
+					if (Segments_Cross(local,arrival.Beyond,ramp_lines[line][q - 1],ramp_lines[line][q],nullptr,nullptr,nullptr)) return 7;
+				}
+			}
 			arms.Add(stem);
 			widest = Max2(widest,Hybrid_Roadbed_Width(b.Out->Edges[arrival.EdgeIndex].RoadClass,k.W));
 		}
@@ -3505,6 +3552,10 @@ static bool At_Grade_Crossing_Is_Feasible(const TopologyBuilder & b,const Interc
 	const HybridConstants & k = b.P->Constants;
 	const HybridRoadClass classes[2] = { HYBRID_ROAD_HIGHWAY_4,a.CrossingClass };
 	const Vector2 axes[2] = { a.Axis,Side_Normal(a,HYBRID_INTERCHANGE_SIDE_LEFT) };
+
+	//	D-023: the at-grade angle (30..150 degrees) is the crossing edge's own, L_RIGHT -> L_LEFT, against the highway.
+	const float angle = Wrapped_Angle_Difference(axes[0],axes[1]) * (180.0f / 3.14159265358979323846f);
+	if ((angle < (30.0f - 0.001f)) || (angle > (150.0f + 0.001f))) return false;
 
 	for (int i = 0; i < b.SelectedWindow.Count(); ++i) {
 		const HybridCrossingWindow * window = b.Hydrology->Find_Window(b.SelectedWindow[i]);
@@ -3591,9 +3642,13 @@ static int Frame_Anchor(const TopologyBuilder & b,const HybridInterchangeConstan
 		arrival.EdgeIndex	= e;
 		arrival.Beyond		= Stop_Beyond(b,edge,entry.NodeId);
 		arrival.Access		= (edge.RoadClass == HYBRID_ROAD_PRIMARY_2) || (edge.RoadClass == HYBRID_ROAD_SECONDARY_2);
+		/*
+		**	The side is the sign of cross(a, delta), ties to RIGHT.  The arrival's direction decides nothing else
+		**	(D-023): there is no minimum arrival-vs-highway angle; whether the arrival can reach its local junction
+		**	is test 7's geometry, judged per candidate.
+		*/
 		const Vector2 delta = Unit_Of(arrival.Beyond - out->X);
 		const float cross = (out->Axis.X * delta.Y) - (out->Axis.Y * delta.X);
-		if ((float)fabs((double)cross) < 0.5f) return HYBRID_INTERCHANGE_REJECT_ARRIVAL_ANGLE;
 		arrival.Side = (cross > 0.0f) ? HYBRID_INTERCHANGE_SIDE_LEFT : HYBRID_INTERCHANGE_SIDE_RIGHT;
 		if (arrival.Access) {
 			for (int i = 0; i < b.Out->Interchanges.Count(); ++i) {
@@ -3670,6 +3725,16 @@ static bool Build_Interchanges(TopologyBuilder & b)
 				continue;
 			}
 
+			b.Out->AnchorsByForm[anchor.Form]++;
+			{
+				const Vector2 before = chain.Entries[index - 1].Position;
+				const Vector2 after = chain.Entries[index + 1].Position;
+				b.Out->AnchorTurnDegrees.Add(Wrapped_Angle_Difference(Unit_Of(anchor.X - before),Unit_Of(after - anchor.X)) *
+													  (180.0f / 3.14159265358979323846f));
+				b.Out->AnchorNeighbourBefore.Add(((anchor.X - before).X * anchor.Axis.X) + ((anchor.X - before).Y * anchor.Axis.Y));
+				b.Out->AnchorNeighbourAfter.Add(((after - anchor.X).X * anchor.Axis.X) + ((after - anchor.X).Y * anchor.Axis.Y));
+			}
+
 			//	5. Candidates in ascending k; the first hard-valid one is selected.
 			int selected = -1;
 			HybridRampCandidate cand;
@@ -3677,7 +3742,7 @@ static bool Build_Interchanges(TopologyBuilder & b)
 			for (int kk = 0; (kk < c.GoreCandidates) && (selected < 0); ++kk) {
 				b.Out->RampCandidatesEvaluated++;
 				Hybrid_Ramp_Candidate(c,kk,anchor.LocalOverpass,&cand);
-				const int refusal = Interchange_Candidate_Refusal(b,c,anchor,cand,0,ramp_length);
+				const int refusal = Interchange_Candidate_Refusal(b,c,anchor,cand,0,ramp_length,b.Out->StraightExtentRefusals);
 				if (refusal < 0)						selected = kk;
 				else if (refusal < 8)				b.Out->CandidateRefusals[refusal]++;
 			}
