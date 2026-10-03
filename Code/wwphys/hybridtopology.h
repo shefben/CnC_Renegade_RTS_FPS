@@ -413,6 +413,7 @@ struct HybridTopology
 	int			RampsByRole[HYBRID_RAMP_ROLE_COUNT];
 	int			InterchangeWithdrawals;
 	int			AnchorRejections[HYBRID_INTERCHANGE_REJECTION_COUNT];
+	int			CandidateRefusals[8];						// gore candidates refused, by the 12.6.8 test (1..7)
 
 	unsigned int	Checksum;			// Phase 9 gate value
 
@@ -439,6 +440,13 @@ struct HybridTopologyParams
 	float					HarvesterLength;				// the turning disc a field access point must clear
 	int					MaxRoutedEdges;				// R: 18 / 32 / 52 by size class, from the work budgets
 	bool					TunnelsAvailable;				// Section 5's tunnel toggle, for window method choice
+
+	//	Section 12.6's planning inputs for step 15 (highway access interchanges).
+	float					MaxCutDepth;					// grading.max_cut_depth
+	float					MaxFillHeight;					// grading.max_fill_height
+	float					OverpassClearGap;				// Section 12.3's minimum_clear_vertical_gap
+	float					BridgeApproachMax[HYBRID_ROAD_CLASS_COUNT];	// preflight metric cache
+	float					OverpassDepthMax[HYBRID_ROAD_CLASS_COUNT];
 };
 
 
@@ -629,6 +637,17 @@ bool	Hybrid_Build_Topology(const HybridTopologyParams & params,const HybridMapId
 **	Hybrid_Build_Topology stores it in out->Checksum.
 */
 unsigned int	Hybrid_Topology_Checksum(const HybridTopology & topology,unsigned int seed = 0);
+
+/*
+**	Phase 9 step 15 alone (Section 12.6.4 / 12.6.8), on a topology whose steps 1-14 are already frozen -- what
+**	Hybrid_Build_Topology runs after step 14, exposed for controlled worlds -- followed by the Phase-9 gate's
+**	interchange clause.  `family_count` is the identity's route family count.  False, with `detail_out`, when the
+**	gate clause refuses the result; a rejected anchor is never a failure.
+*/
+bool	Hybrid_Build_Interchanges(const HybridTopologyParams & params,const HybridLandformSet & landforms,
+										const HybridHydrologySet & hydrology,const HybridAnchorSet & anchors,
+										HybridCoarseMatrices * matrices,HybridTopologyHeightSampleFunc sample,void * context,
+										int family_count,HybridTopology * topology,StringClass * detail_out);
 
 
 /*

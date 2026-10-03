@@ -292,18 +292,18 @@ pass rate for archetypes with no canyon obligation.
 
 **REOPENED FOR HIGHWAY ACCESS RAMP EXTENSION (2026-10-02)** — new step 15 after step 14; steps 1–14 untouched (§8 P9 step 15, §12.6.2–12.6.8):
 
-- [ ] Highway-access topology selection: anchors = `HIGHWAY_4` pass-through `FAMILY_WAYPOINT`s with ≥1 `PRIMARY_2`/`SECONDARY_2` arrival; never a highway terminus; processing order `(family, chain index, StableId)`; only existing graph connections, never proximity.
-- [ ] Frame and sides: bisector axis `a`, right-hand-traffic `tau_s`/`n_s`; side by `cross(a,delta)`; reject on `|c|<0.5` or a lower edge already served by another interchange; `DIAMOND_ACCESS` (two access sides) vs `SIDE_ACCESS` (one).
-- [ ] DIAMOND crossing: class rule; grade-separated via step-12 overpass tests (one `OVERPASS_OBLIGATION` anchored at node `X`), else at-grade via Phase-11 at-grade conditions (crossing split at `X`), else reject.
-- [ ] Gore candidate selection: `k=0..31` ascending, first hard-valid by §12.6.8; `d_L(k)`, `G(k)`, `S_I(k)` per §12.6.7; `highway ramp candidates evaluated` counter.
-- [ ] Pose realizability: interchange pose `(X, a, S_I)` connects to neighbouring structural poses by the `HIGHWAY_4` radius construction (Q-023 rule); chain extends `S_I + 8W` before a base entrance.
-- [ ] Structure reserves: crossing-window, overpass (highway-upper planning reserve) and conventional-junction reserves; own-crossing and own-junction reserves against gore reserves.
-- [ ] Interchange spacing: gores of unrelated interchanges `≥24W` apart along the chain; gore reserves and straight extents disjoint; same-carriageway intervals non-overlapping.
-- [ ] Exclusions (no window exception), grade feasibility at 12°, local-junction arm cone (60°) and separation (30°).
-- [ ] Retargeting of all access-side arrivals (incl. `SERVICE_DIRT_2`/`TRAIL_1`) to `L_s`; non-access-side arrivals keep `X`; Section-5 qualification recheck; routed-edge cap `R`.
-- [ ] Records in fixed `StableId` order; ramp graph length; frozen fallback variant; capabilities = `LIGHT` OR all retargeted arrivals' capabilities.
-- [ ] Rejected anchor keeps its conventional junction (never a phase failure); quotas unchanged.
-- [ ] **Gate (re-pass):** §8 P9 gate including the interchange clause; stage-9 checksum includes interchange records.
+- [x] Highway-access topology selection: anchors = `HIGHWAY_4` pass-through `FAMILY_WAYPOINT`s with ≥1 `PRIMARY_2`/`SECONDARY_2` arrival; never a highway terminus; processing order `(family, chain index, StableId)`; only existing graph connections, never proximity.
+- [x] Frame and sides: bisector axis `a`, right-hand-traffic `tau_s`/`n_s`; side by `cross(a,delta)`; reject on `|c|<0.5` or a lower edge already served by another interchange; `DIAMOND_ACCESS` (two access sides) vs `SIDE_ACCESS` (one).
+- [x] DIAMOND crossing: class rule; grade-separated via step-12 overpass tests (one `OVERPASS_OBLIGATION` anchored at node `X`), else at-grade via Phase-11 at-grade conditions (crossing split at `X`), else reject.
+- [x] Gore candidate selection: `k=0..31` ascending, first hard-valid by §12.6.8; `d_L(k)`, `G(k)`, `S_I(k)` per §12.6.7; `highway ramp candidates evaluated` counter.
+- [x] Pose realizability: interchange pose `(X, a, S_I)` connects to neighbouring structural poses by the `HIGHWAY_4` radius construction (Q-023 rule); chain extends `S_I + 8W` before a base entrance.
+- [x] Structure reserves: crossing-window, overpass (highway-upper planning reserve) and conventional-junction reserves; own-crossing and own-junction reserves against gore reserves.
+- [x] Interchange spacing: gores of unrelated interchanges `≥24W` apart along the chain; gore reserves and straight extents disjoint; same-carriageway intervals non-overlapping.
+- [x] Exclusions (no window exception), grade feasibility at 12°, local-junction arm cone (60°) and separation (30°).
+- [x] Retargeting of all access-side arrivals (incl. `SERVICE_DIRT_2`/`TRAIL_1`) to `L_s`; non-access-side arrivals keep `X`; Section-5 qualification recheck; routed-edge cap `R`.
+- [x] Records in fixed `StableId` order; ramp graph length; frozen fallback variant; capabilities = `LIGHT` OR all retargeted arrivals' capabilities.
+- [x] Rejected anchor keeps its conventional junction (never a phase failure); quotas unchanged.
+- [x] **Gate (re-pass):** §8 P9 gate including the interchange clause; stage-9 checksum includes interchange records. *(2026-10-03: `Build_Interchanges` / `Hybrid_Build_Interchanges`, gate clause `Check_Interchanges` re-tests every frozen candidate; `Check_Hybrid_Interchange_Topology`: SIDE_ACCESS, grade-separated DIAMOND_ACCESS, ramp-across-river refusal, spacing refusal, determinism; ramps never get their own bridge/tunnel -- a candidate whose ramp, gore band, local junction or crossing meets water, a hard wall, a base, a corridor or a Tiberium reserve is refused in Phase 9.)*
 
 ## I11 — Runtime Phase 10: bounded heading-aware A* and splines (§8 P10, §16.2)
 

@@ -858,6 +858,14 @@ bool ProceduralWorldManager::Build_Hybrid_Topology(const ProceduralWorldProfile 
 	params.HarvesterLength			= HybridMetrics.HarvesterLength;
 	params.MaxRoutedEdges			= HybridMetrics.Budgets.MaxRoutedEdges;
 	params.TunnelsAvailable			= HybridMetrics.TunnelsAvailable && profile.Features.Tunnels;
+	params.MaxCutDepth				= profile.Grading.MaxCutDepth;
+	params.MaxFillHeight				= profile.Grading.MaxFillHeight;
+	params.OverpassClearGap			= Hybrid_Overpass_Clear_Gap (HybridMetrics.HeavyVehicleHeight,
+																			  HybridMetrics.Constants.WorldUnitsPerMeter);
+	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
+		params.BridgeApproachMax[c]	= HybridMetrics.BridgeApproachMax[c];
+		params.OverpassDepthMax[c]		= HybridMetrics.OverpassDepthMax[c];
+	}
 
 	HybridTopologyResult result;
 	if (!Hybrid_Build_Topology (params,HybridIdentity,HybridGraph,HybridLandforms,HybridHydrology,

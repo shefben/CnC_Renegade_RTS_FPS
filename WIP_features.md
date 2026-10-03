@@ -358,10 +358,21 @@ edges. Landed:
 - the preflight `BridgeApproachMax` and `OverpassDepthMax`;
 - `Check_Hybrid_Interchange_Construction`.
 
-**Next exact action:** Phase-9 step 15 (checklist I10 reopened): `HIGHWAY_INTERCHANGE` topology and gore selection
-by Plan 12.6.4 and 12.6.8, then restore the Phase-9 gate. After that:
+Phase-9 step 15 (checklist I10 reopened) is done, and the Phase-9 gate is restored (2026-10-03). The 1400-world census
+(identity 16) is unchanged at 448 / 98 / 33. It formed no interchange: of 124 anchors, 83 have an arrival within 30
+degrees of the highway axis and 41 have no hard-valid candidate (the per-test breakdown is now in the census line).
+Interchanges are exercised by the controlled worlds in `Check_Hybrid_Interchange_Topology`.
+
+**Next exact action:** Phase-10 `HIGHWAY_RAMP` routing (checklist I11 reopened, Plan 12.6.9), then restore the
+Phase-10 gate:
+- highway alignment straight over `[X - S_I, X + S_I]`;
+- routing group 1b, which constructs the ramps by `Hybrid_Ramp_Centerline` and the crossings;
+- re-validation against the routed geometry;
+- the withdrawal fallback, the footprint, and lower-road retargeting.
+
+Steps:
 1. (done) records, schema and checksum;
-2. Phase-9 `HIGHWAY_INTERCHANGE` topology and gore selection;
+2. (done) Phase-9 `HIGHWAY_INTERCHANGE` topology and gore selection;
 3. Phase-10 ramp routing and tangent geometry;
 4. Phase-11 merge/diverge compilation.
 

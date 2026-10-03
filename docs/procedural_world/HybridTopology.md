@@ -168,6 +168,57 @@ overlaps a frozen Tiberium hard reserve is treated like one outside the viable s
 sector is tried (`Corridor_Fits_Sector`). Measured before the fix: 148 of 512 frozen corridors over 420 worlds
 overlapped a reserve, and their trunks could not leave their own base. After it: none.
 
+## Highway access interchanges (step 15, Plan Section 12.6)
+
+After step 14, `Build_Interchanges` walks every `HIGHWAY_4` family chain in interchange processing order. It
+considers each pass-through family waypoint `X` with two `HIGHWAY_4` trunk edges and at least one `PRIMARY_2` or
+`SECONDARY_2` arrival (`Frame_Anchor`):
+- *Frame.* The axis is the bisector of the two chain directions; an anchor whose two directions cancel is refused.
+- *Sides.* Arrivals are sided by `cross(a, delta)`. Any arrival within 30 degrees of the axis, or an access arrival
+  that another interchange already serves, refuses the anchor.
+- *Form.* Access arrivals on both sides give `DIAMOND_ACCESS`, on one side `SIDE_ACCESS`.
+- *DIAMOND crossing.* It is grade-separated when step 12's overpass tests pass for the crossing segment at `X`,
+  with `d_L` raised to `d_Lov`. Otherwise it is at grade when Phase 11's at-grade conditions hold on intent geometry
+  and Phase-7 terrain. Otherwise the anchor is refused.
+
+Gore candidates `k = 0..31` are tried in order; the first that passes every 12.6.8 test
+(`Interchange_Candidate_Refusal`) is frozen:
+1. The interchange pose `(X, a, S_I)` connects to its chain neighbours by the `HIGHWAY_4` corner construction
+   (Q-023), and the chain reaches `S_I + 8W` past `X` on both sides before a base entrance.
+2. Structure reserves are disjoint along the chain: crossing windows, overpasses (highway-upper planning reserve),
+   conventional junctions, other interchanges' straight extents, and the interchange's own crossing and junction
+   against its gore reserves.
+3. Gore spacing is at least `24W` from every other interchange's gores, and the gore reserves are disjoint.
+4. (Same-carriageway intervals cannot overlap by construction.)
+5. Every ramp is built by the shared 5W constructor (`Hybrid_Ramp_Centerline`) on its `RampLaneCenterline`. Its
+   samples and both roadbed edges (D-022 asymmetric edges with the gore shoulder transition), the gore band's
+   widened highway roadbed, the local-junction disc and the crossing segment must all be placeable and clear of:
+   water, immutable walls, bases, entrance corridors and Tiberium reserves. **A ramp never gets its own bridge,
+   tunnel, cut or pass**: a candidate that would need one is refused here, never left for Phase 11.
+6. Ramp samples are grade-compatible at 12 degrees, and an at-grade crossing at its class grade.
+7. Local-junction stems lie within 60 degrees of `n_s`, and all arms are at least 30 degrees apart.
+
+Before anything changes, the anchor is also refused when a retargeted `TRAIL_1` would fall below its Section-5
+length, or when the new edges would exceed `R`.
+
+On acceptance, step 15 creates, in the plan's order:
+- the `HybridInterchange`;
+- the local-junction nodes;
+- the ramps, `OFF` then `ON` per side, with their Q-026 intervals and length `ramp + G(k)`;
+- the crossing edge or edges, and the crossing's `OVERPASS_OBLIGATION` (an interchange obligation, not a Section-5
+  overpass).
+
+Every access-side arrival is retargeted to `L_s`, its original endpoint `X` recorded as the fallback variant. Ramps
+and crossings carry `LIGHT` OR the retargeted arrivals' capabilities.
+
+A rejected anchor keeps its conventional junction and is never a failure. The Phase-9 gate's interchange clause
+(`Check_Interchanges`) re-tests every frozen interchange: real `HIGHWAY_4` pass-through topology, frozen access
+sides, ramps on their local junctions, retargets ending there, and the frozen candidate still hard-valid.
+
+Diagnostics on `HybridTopology`: interchanges by form, ramps by role, candidates evaluated, anchor rejections by
+reason, and candidate refusals by 12.6.8 test. `Hybrid_Build_Interchanges` runs step 15 alone on an already frozen
+topology, for controlled worlds.
+
 ## Failure behavior
 
 Every failure is a named attempt failure and leaves the record empty: `no_entrance_sector`,

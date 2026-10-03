@@ -341,6 +341,7 @@ void HybridTopology::Reset(void)
 	for (int i = 0; i < HYBRID_RAMP_ROLE_COUNT; ++i) RampsByRole[i] = 0;
 	InterchangeWithdrawals	= 0;
 	for (int i = 0; i < HYBRID_INTERCHANGE_REJECTION_COUNT; ++i) AnchorRejections[i] = 0;
+	for (int i = 0; i < 8; ++i) CandidateRefusals[i] = 0;
 	Checksum			= 0;
 }
 
@@ -465,9 +466,13 @@ bool HybridTopology::Has_Cycle(void) const
 
 HybridTopologyParams::HybridTopologyParams(void) :
 	RoadDensity(0.65f),FieldRadiusMax(60.0f),MinVehicleLaneClearance(1.0f),HarvesterLength(7.4f),
-	MaxRoutedEdges(32),TunnelsAvailable(false)
+	MaxRoutedEdges(32),TunnelsAvailable(false),MaxCutDepth(0.0f),MaxFillHeight(0.0f),OverpassClearGap(0.0f)
 {
 	memset(&Constants,0,sizeof(Constants));
+	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
+		BridgeApproachMax[c]	= 0.0f;
+		OverpassDepthMax[c]	= 0.0f;
+	}
 }
 
 
@@ -3044,6 +3049,925 @@ static bool Family_Is_Connected(const TopologyBuilder & b,int family)
 }
 
 
+//	A unit vector, or zero.
+static Vector2 Unit_Of(const Vector2 & v)
+{
+	const float length = v.Length();
+	return (length > 0.0f) ? (v * (1.0f / length)) : Vector2(0.0f,0.0f);
+}
+
+
+/***********************************************************************************************
+**	Step 15 (Section 12.6.4 / 12.6.8): highway access interchanges.
+**
+**	After step 14, every HIGHWAY_4 pass-through family waypoint with PRIMARY_2/SECONDARY_2 arrivals is an anchor
+**	candidate.  Each is framed, its arrivals sided, its form and crossing mode decided, and its gore candidates
+**	k = 0..K_GORE-1 tested in order against 12.6.8 on intent geometry, Phase-6 vectors, Phase-7 terrain and the
+**	frozen Phase-9 records; the first hard-valid one is frozen as a HIGHWAY_INTERCHANGE with its local junctions,
+**	ramps and crossing.  A ramp is never given its own bridge, tunnel, cut or pass: a candidate whose ramp, gore
+**	reserve, local junction or crossing would need one is refused here, never left for Phase 11.  Phase 9 proves
+**	the frozen pose realizable with the shared 5W ramp constructor; Phase 10 builds the routed ramp.
+***********************************************************************************************/
+
+//	One heavy family's highway chain: its stops in travel order from the GDI entrance, with chain stations.
+struct HighwayChain
+{
+	int									Family;
+	DynamicVectorClass<ChainEntry>	Entries;
+	DynamicVectorClass<float>			Station;
+	DynamicVectorClass<unsigned int>	TrunkEdges;			// the family's trunk edge StableIds, in travel order
+};
+
+
+static void Build_Highway_Chain(const TopologyBuilder & b,int family,HighwayChain * out)
+{
+	out->Family = family;
+	out->Entries.Delete_All();
+	out->Station.Delete_All();
+	out->TrunkEdges.Delete_All();
+	for (int e = 0; e < b.Out->Edges.Count(); ++e) {
+		const HybridTopologyEdge & edge = b.Out->Edges[e];
+		if ((edge.Kind != HYBRID_EDGE_FAMILY_TRUNK) || (edge.RouteFamily != family)) continue;
+		DynamicVectorClass<ChainEntry> chain;
+		Edge_Chain(b,edge,&chain);
+		for (int c = (out->Entries.Count() > 0) ? 1 : 0; c < chain.Count(); ++c) out->Entries.Add(chain[c]);
+		out->TrunkEdges.Add(edge.StableId);
+	}
+	float station = 0.0f;
+	for (int i = 0; i < out->Entries.Count(); ++i) {
+		if (i > 0) station += (out->Entries[i].Position - out->Entries[i - 1].Position).Length();
+		out->Station.Add(Hybrid_Quantize_Position(station));
+	}
+}
+
+
+//	One arrival at an anchor: the edge, its side and the stop it departs X toward.
+struct InterchangeArrival
+{
+	bool	operator == (const InterchangeArrival & that) const	{ return EdgeIndex == that.EdgeIndex; }
+	bool	operator != (const InterchangeArrival & that) const	{ return !(*this == that); }
+
+	int							EdgeIndex;
+	HybridInterchangeSide	Side;
+	bool							Access;				// PRIMARY_2 or SECONDARY_2
+	Vector2						Beyond;				// the first stop beyond X along the edge
+};
+
+
+//	Everything one anchor's candidate tests need.
+struct InterchangeAnchor
+{
+	const HighwayChain *								Chain;
+	int													Index;				// X's index in Chain->Entries
+	unsigned int										Node;
+	Vector2												X;
+	Vector2												Axis;					// a
+	DynamicVectorClass<InterchangeArrival>		Arrivals;
+	unsigned int										AccessSides;
+	HybridInterchangeForm							Form;
+	HybridInterchangeCrossingMode					Mode;
+	HybridRoadClass									CrossingClass;
+	float													LocalOverpass;		// d_Lov, grade-separated only
+	bool													KeepsJunction;		// X keeps a conventional junction
+};
+
+
+static Vector2 Side_Tau(const InterchangeAnchor & a,int side)
+{
+	return (side == HYBRID_INTERCHANGE_SIDE_RIGHT) ? a.Axis : Vector2(-a.Axis.X,-a.Axis.Y);
+}
+
+
+static Vector2 Side_Normal(const InterchangeAnchor & a,int side)
+{
+	//	n_s is to the right of tau_s on both sides: n_RIGHT = rotate(a,-90), n_LEFT = rotate(a,+90).
+	return (side == HYBRID_INTERCHANGE_SIDE_RIGHT) ? Vector2(a.Axis.Y,-a.Axis.X) : Vector2(-a.Axis.Y,a.Axis.X);
+}
+
+
+static Vector2 Side_World(const InterchangeAnchor & a,int side,const Vector2 & local)
+{
+	return a.X + (Side_Tau(a,side) * local.X) + (Side_Normal(a,side) * local.Y);
+}
+
+
+//	Chain station of side-frame `x`: for RIGHT the station is `x`, for LEFT it is `-x` (12.6.7), about X.
+static float Side_Station(const InterchangeAnchor & a,int side,float x)
+{
+	return a.Chain->Station[a.Index] + ((side == HYBRID_INTERCHANGE_SIDE_RIGHT) ? x : -x);
+}
+
+
+//	L_ramp_plan(c) with Dz_plan(c, center, foot1, foot2) (12.6.7).
+static float Ramp_Length_Plan(const TopologyBuilder & b,HybridRoadClass road_class,const Vector2 & center,
+										const Vector2 & foot1,const Vector2 & foot2)
+{
+	const HybridConstants & k = b.P->Constants;
+	float zc = 0.0f, z1 = 0.0f, z2 = 0.0f;
+	Height_At(b,center,&zc);
+	Height_At(b,foot1,&z1);
+	Height_At(b,foot2,&z2);
+	const float delta_z = b.P->OverpassClearGap + b.P->OverpassDepthMax[road_class] + Max2(0.0f,zc - Min2(z1,z2));
+	const float grade = (float)tan((double)(Hybrid_Road_Class_Spec(road_class).MaxGradeDegrees * PI_OVER_180));
+	return Max2(10.0f * k.W,(float)fabs((double)delta_z) / Max2(grade,k.Q));
+}
+
+
+//	The ramp exclusions of 12.6.8 test 5 at one world point.
+static bool Ramp_Point_Is_Clear(const TopologyBuilder & b,const Vector2 & world)
+{
+	if (!Point_Is_Clear(b,world,false)) return false;
+	for (int i = 0; i < b.Out->Entrances.Count(); ++i) {
+		const HybridBaseEntrance & entrance = b.Out->Entrances[i];
+		if (Distance_To_Segment_Point(world,entrance.CorridorA,entrance.CorridorB) <= entrance.CorridorHalfWidth) return false;
+	}
+	for (int i = 0; i < b.Anchors->Resources.Count(); ++i) {
+		if ((world - b.Anchors->Resources[i].Center).Length() <= b.Anchors->Resources[i].ReserveRadius) return false;
+	}
+	return true;
+}
+
+
+//	Are two closed station intervals disjoint?
+static bool Disjoint(float a0,float a1,float b0,float b1)
+{
+	return (a1 < b0) || (b1 < a0);
+}
+
+
+//	One ramp's gore reserve on the chain, and its gore station.
+static void Gore_Reserve(const HybridInterchangeConstants & c,const InterchangeAnchor & a,int side,int role,
+								 const HybridRampCandidate & cand,float * from,float * to,float * gore)
+{
+	float x0 = 0.0f, x1 = 0.0f, xg = 0.0f;
+	if (role == HYBRID_RAMP_ROLE_ON) {
+		x0 = cand.GoreOffset - c.GoreReserveMargin;
+		x1 = cand.GoreOffset + c.MergeLength + c.GoreReserveMargin;
+		xg = cand.GoreOffset;
+	} else {
+		x0 = -cand.GoreOffset - c.DivergeLength - c.GoreReserveMargin;
+		x1 = -cand.GoreOffset + c.GoreReserveMargin;
+		xg = -cand.GoreOffset;
+	}
+	const float s0 = Side_Station(a,side,x0);
+	const float s1 = Side_Station(a,side,x1);
+	*from	= Min2(s0,s1);
+	*to	= Max2(s0,s1);
+	*gore	= Side_Station(a,side,xg);
+}
+
+
+//	The ramp's highway-parallel interval, chain stations relative to X, with the Q-026 subdivisions.
+static HybridRampInterval Ramp_Interval(const HybridInterchangeConstants & c,int side,int role,const HybridRampCandidate & cand)
+{
+	const float sign = (side == HYBRID_INTERCHANGE_SIDE_RIGHT) ? 1.0f : -1.0f;
+	float g = 0.0f, f0 = 0.0f, f1 = 0.0f, t0 = 0.0f, t1 = 0.0f;
+	if (role == HYBRID_RAMP_ROLE_ON) {
+		g = cand.GoreOffset;		f0 = g;	f1 = g + c.MergeFullLength;	t0 = f1;	t1 = g + c.MergeLength;
+	} else {
+		g = -cand.GoreOffset;	t0 = g - c.DivergeLength;	t1 = g - c.DivergeFullLength;	f0 = t1;	f1 = g;
+	}
+	HybridRampInterval interval;
+	interval.GoreStation	= Hybrid_Quantize_Position(sign * g);
+	interval.FullFrom		= Hybrid_Quantize_Position(Min2(sign * f0,sign * f1));
+	interval.FullTo		= Hybrid_Quantize_Position(Max2(sign * f0,sign * f1));
+	interval.TaperFrom	= Hybrid_Quantize_Position(Min2(sign * t0,sign * t1));
+	interval.TaperTo		= Hybrid_Quantize_Position(Max2(sign * t0,sign * t1));
+	interval.From			= Min2(interval.FullFrom,interval.TaperFrom);
+	interval.To				= Max2(interval.FullTo,interval.TaperTo);
+	return interval;
+}
+
+
+//	Does the chain node at index `j` keep a conventional junction (an incident edge that is not the chain's own)?
+static bool Chain_Node_Has_Junction(const TopologyBuilder & b,const HighwayChain & chain,int j)
+{
+	const unsigned int node = chain.Entries[j].NodeId;
+	for (int e = 0; e < b.Out->Edges.Count(); ++e) {
+		const HybridTopologyEdge & edge = b.Out->Edges[e];
+		if (!edge.Is_Realized() || (edge.Kind == HYBRID_EDGE_HIGHWAY_RAMP) || (edge.Kind == HYBRID_EDGE_INTERCHANGE_CROSSING)) continue;
+		if ((edge.NodeA != node) && (edge.NodeB != node)) continue;
+		bool own = false;
+		for (int t = 0; (t < chain.TrunkEdges.Count()) && !own; ++t) own = (chain.TrunkEdges[t] == edge.StableId);
+		if (!own) return true;
+	}
+	return false;
+}
+
+
+/*
+**	12.6.8 for candidate `k` of one anchor.  Returns -1 when hard-valid, else the failing test number (1..7) for
+**	the diagnostics.  `skip` is an interchange StableId to leave out of the comparisons (the Phase-9 gate
+**	re-checks a frozen interchange against every other one).  On success the ramp lengths (L_s to gore) are
+**	returned in `ramp_length[side][role-1]`.
+*/
+static int Interchange_Candidate_Refusal(const TopologyBuilder & b,const HybridInterchangeConstants & c,
+													  const InterchangeAnchor & a,const HybridRampCandidate & cand,
+													  unsigned int skip,float ramp_length[2][2])
+{
+	const HybridConstants & k = b.P->Constants;
+	const HighwayChain & chain = *a.Chain;
+	const int i = a.Index;
+	const int last = chain.Entries.Count() - 1;
+	const float sx = chain.Station[i];
+	const float spacing = Min2(k.W / 3.0f,0.25f * k.A);
+
+	//	1. Straight extent and pose (Q-023's rule) and the chain's reach before each base entrance.
+	HybridRoadPose pose;
+	pose.Point	= a.X;
+	pose.Axis	= a.Axis;
+	pose.Before	= cand.StraightHalfExtent;
+	pose.After	= cand.StraightHalfExtent;
+	if (((sx - chain.Station[0]) < (cand.StraightHalfExtent + c.HighwayJunctionReserve)) ||
+		 ((chain.Station[last] - sx) < (cand.StraightHalfExtent + c.HighwayJunctionReserve))) return 1;
+	{
+		const HybridRoadPose from = Chain_Pose(b,chain.Entries,i - 1);
+		Vector2 behind(0.0f,0.0f);
+		const bool from_interior = !from.Is_Structural() && ((i - 1) > 0);
+		if (from_interior) behind = Pose_Far_End(Chain_Pose(b,chain.Entries,i - 2),false);
+		if (!Hybrid_Road_Poses_Connect(from,pose,HYBRID_ROAD_HIGHWAY_4,k,from_interior ? &behind : nullptr,nullptr)) return 1;
+		const HybridRoadPose to = Chain_Pose(b,chain.Entries,i + 1);
+		Vector2 ahead(0.0f,0.0f);
+		const bool to_interior = !to.Is_Structural() && ((i + 1) < last);
+		if (to_interior) ahead = Pose_Far_End(Chain_Pose(b,chain.Entries,i + 2),true);
+		if (!Hybrid_Road_Poses_Connect(pose,to,HYBRID_ROAD_HIGHWAY_4,k,nullptr,to_interior ? &ahead : nullptr)) return 1;
+	}
+
+	//	2. Structure reserves along the chain.
+	const float lo = sx - cand.StraightHalfExtent;
+	const float hi = sx + cand.StraightHalfExtent;
+	for (int j = 0; j <= last; ++j) {
+		if (j == i) continue;
+		const ChainEntry & entry = chain.Entries[j];
+		const float sj = chain.Station[j];
+		if ((entry.Kind == HYBRID_NODE_CROSSING_OBLIGATION) && (entry.WindowId != 0)) {
+			const HybridCrossingWindow * window = b.Hydrology->Find_Window(entry.WindowId);
+			const float reserve = ((window != nullptr) ? (0.5f * window->Span) : 0.0f) +
+										 Max2(8.0f * k.W,b.P->BridgeApproachMax[HYBRID_ROAD_HIGHWAY_4]);
+			if (!Disjoint(lo,hi,sj - reserve,sj + reserve)) return 2;
+		} else if (entry.Kind == HYBRID_NODE_OVERPASS_OBLIGATION) {
+			HybridRoadClass other_class = HYBRID_ROAD_SECONDARY_2;
+			for (int e = 0; e < b.Out->Edges.Count(); ++e) {
+				const HybridTopologyEdge & other = b.Out->Edges[e];
+				if (other.RouteFamily == chain.Family) continue;
+				for (int w = 0; w < other.Waypoints.Count(); ++w) {
+					if (other.Waypoints[w] == entry.NodeId) other_class = other.RoadClass;
+				}
+			}
+			const Vector2 along = Unit_Of(chain.Entries[(j < last) ? (j + 1) : j].Position - chain.Entries[(j > 0) ? (j - 1) : j].Position);
+			const float reserve = (0.5f * Hybrid_Roadbed_Width(other_class,k.W)) +
+										 Ramp_Length_Plan(b,HYBRID_ROAD_HIGHWAY_4,entry.Position,entry.Position - (along * (10.0f * k.W)),
+															  entry.Position + (along * (10.0f * k.W)));
+			if (!Disjoint(lo,hi,sj - reserve,sj + reserve)) return 2;
+		} else if ((j > 0) && (j < last) && Chain_Node_Has_Junction(b,chain,j)) {
+			if (!Disjoint(lo,hi,sj - c.HighwayJunctionReserve,sj + c.HighwayJunctionReserve)) return 2;
+		}
+	}
+	for (int n = 0; n < b.Out->Interchanges.Count(); ++n) {
+		const HybridInterchange & other = b.Out->Interchanges[n];
+		if ((other.StableId == skip) || (other.Status != HYBRID_INTERCHANGE_ACTIVE)) continue;
+		for (int j = 0; j <= last; ++j) {
+			if (chain.Entries[j].NodeId != other.AnchorNode) continue;
+			if (!Disjoint(lo,hi,chain.Station[j] - other.StraightHalfExtent,chain.Station[j] + other.StraightHalfExtent)) return 2;
+		}
+	}
+	const float own_overpass = (a.Mode == HYBRID_INTERCHANGE_CROSSING_GRADE_SEPARATED)
+										? ((0.5f * Hybrid_Roadbed_Width(a.CrossingClass,k.W)) +
+											Ramp_Length_Plan(b,HYBRID_ROAD_HIGHWAY_4,a.X,a.X - (a.Axis * (10.0f * k.W)),a.X + (a.Axis * (10.0f * k.W))))
+										: 0.0f;
+	for (int side = 0; side < HYBRID_INTERCHANGE_SIDE_COUNT; ++side) {
+		if ((a.AccessSides & (1u << side)) == 0) continue;
+		for (int role = HYBRID_RAMP_ROLE_ON; role <= HYBRID_RAMP_ROLE_OFF; ++role) {
+			float g0 = 0.0f, g1 = 0.0f, gore = 0.0f;
+			Gore_Reserve(c,a,side,role,cand,&g0,&g1,&gore);
+			if ((own_overpass > 0.0f) && !Disjoint(g0,g1,sx - own_overpass,sx + own_overpass)) return 2;
+			if (a.KeepsJunction && !Disjoint(g0,g1,sx - c.HighwayJunctionReserve,sx + c.HighwayJunctionReserve)) return 2;
+
+			//	3. Spacing against every gore of every accepted interchange on this chain.
+			for (int n = 0; n < b.Out->Interchanges.Count(); ++n) {
+				const HybridInterchange & other = b.Out->Interchanges[n];
+				if ((other.StableId == skip) || (other.Status != HYBRID_INTERCHANGE_ACTIVE)) continue;
+				for (int e = 0; e < other.RampEdges.Count(); ++e) {
+					const HybridTopologyEdge * ramp = b.Out->Find_Edge(other.RampEdges[e]);
+					if (ramp == nullptr) continue;
+					for (int j = 0; j <= last; ++j) {
+						if (chain.Entries[j].NodeId != other.AnchorNode) continue;
+						const float other_gore = chain.Station[j] + ramp->RampInterval.GoreStation;
+						const float other_from = chain.Station[j] + ramp->RampInterval.From - c.GoreReserveMargin;
+						const float other_to = chain.Station[j] + ramp->RampInterval.To + c.GoreReserveMargin;
+						if ((float)fabs((double)(gore - other_gore)) < c.InterchangeGoreSpacing) return 3;
+						if (!Disjoint(g0,g1,other_from,other_to)) return 3;
+					}
+				}
+			}
+		}
+	}
+
+	//	5, 6. Every ramp: built by the shared 5W constructor, clear of every exclusion, within 12 degrees.
+	const float max_grade = Hybrid_Road_Class_Spec(HYBRID_ROAD_HIGHWAY_RAMP).MaxGradeDegrees * PI_OVER_180;
+	for (int side = 0; side < HYBRID_INTERCHANGE_SIDE_COUNT; ++side) {
+		if ((a.AccessSides & (1u << side)) == 0) continue;
+		for (int role = HYBRID_RAMP_ROLE_ON; role <= HYBRID_RAMP_ROLE_OFF; ++role) {
+			Vector2 polygon[4];
+			Hybrid_Ramp_Control_Polygon(c,cand,role,polygon);
+			DynamicVectorClass<Vector2> points;
+			DynamicVectorClass<float> stations;
+			if (!Hybrid_Ramp_Centerline(polygon,c.RampRadius,k.Q,spacing,&points,&stations)) return 5;
+			ramp_length[side][role - 1] = stations[stations.Count() - 1];
+			const int gore_end = (role == HYBRID_RAMP_ROLE_ON) ? (points.Count() - 1) : 0;
+
+			HybridVerticalInterval previous_interval;
+			for (int p = 0; p < points.Count(); ++p) {
+				const Vector2 world = Side_World(a,side,points[p]);
+				//	Travel direction in the world, and the roadbed edges about the fixed RampLaneCenterline (D-022).
+				const int q = ((p + 1) < points.Count()) ? (p + 1) : p;
+				const int r = ((p + 1) < points.Count()) ? p : (p - 1);
+				const Vector2 travel = Unit_Of(Side_World(a,side,points[q]) - Side_World(a,side,points[r]));
+				if (travel.Length() <= 0.0f) continue;
+				const Vector2 left(-travel.Y,travel.X);
+				const float from_gore = (float)fabs((double)(stations[p] - stations[gore_end]));
+				float inner_shoulder = 0.0f, outer_shoulder = 0.0f;
+				Hybrid_Ramp_Gore_Shoulders(c,from_gore,&inner_shoulder,&outer_shoulder);
+				const Vector2 inner_edge = world + (left * ((0.5f * k.W) + inner_shoulder));
+				const Vector2 outer_edge = world - (left * ((0.5f * k.W) + outer_shoulder));
+				if (!Ramp_Point_Is_Clear(b,world) || !Ramp_Point_Is_Clear(b,inner_edge) || !Ramp_Point_Is_Clear(b,outer_edge)) return 5;
+
+				float z = 0.0f;
+				if (!Height_At(b,world,&z)) return 5;
+				const HybridVerticalInterval interval = Hybrid_Road_Vertical_Interval(z,b.P->MaxCutDepth,b.P->MaxFillHeight);
+				if ((p > 0) && !Hybrid_Grade_Compatible(previous_interval,interval,stations[p] - stations[p - 1],max_grade)) return 6;
+				previous_interval = interval;
+			}
+
+			//	The gore reserve's widened roadbed on the highway (the band the auxiliary lane adds).
+			float g0 = 0.0f, g1 = 0.0f, gore = 0.0f;
+			Gore_Reserve(c,a,side,role,cand,&g0,&g1,&gore);
+			for (float s = g0; s <= g1; s += spacing) {
+				const float x = (side == HYBRID_INTERCHANGE_SIDE_RIGHT) ? (s - sx) : (sx - s);
+				const float along = (role == HYBRID_RAMP_ROLE_ON) ? (x - cand.GoreOffset) : (x + cand.GoreOffset + c.DivergeLength);
+				const float span = (role == HYBRID_RAMP_ROLE_ON) ? c.MergeLength : c.DivergeLength;
+				HybridAuxiliaryLaneSection section;
+				Hybrid_Auxiliary_Lane_Section(c,role,Clamp2(along,0.0f,span),&section);
+				for (int lateral = 0; lateral < 3; ++lateral) {
+					const float y = c.EHwy + ((section.E - c.EHwy) * (0.5f * (float)lateral));
+					if (!Ramp_Point_Is_Clear(b,Side_World(a,side,Vector2(x,y)))) return 5;
+				}
+			}
+		}
+	}
+
+	//	5, 7. Local junctions: the disc clear, the arms within their cones and apart.
+	for (int side = 0; side < HYBRID_INTERCHANGE_SIDE_COUNT; ++side) {
+		if ((a.AccessSides & (1u << side)) == 0) continue;
+		const Vector2 local = Side_World(a,side,Vector2(0.0f,cand.LocalOffset));
+		const Vector2 normal = Side_Normal(a,side);
+		float widest = Hybrid_Roadbed_Width(HYBRID_ROAD_HIGHWAY_RAMP,k.W);
+		DynamicVectorClass<Vector2> arms;
+		Vector2 polygon[4];
+		Hybrid_Ramp_Control_Polygon(c,cand,HYBRID_RAMP_ROLE_ON,polygon);
+		arms.Add(Unit_Of(Side_World(a,side,polygon[1]) - local));
+		Hybrid_Ramp_Control_Polygon(c,cand,HYBRID_RAMP_ROLE_OFF,polygon);
+		arms.Add(Unit_Of(Side_World(a,side,polygon[2]) - local));
+		if (a.Form == HYBRID_INTERCHANGE_DIAMOND_ACCESS) {
+			arms.Add(Vector2(-normal.X,-normal.Y));
+			widest = Max2(widest,Hybrid_Roadbed_Width(a.CrossingClass,k.W));
+		}
+		for (int r = 0; r < a.Arrivals.Count(); ++r) {
+			const InterchangeArrival & arrival = a.Arrivals[r];
+			if (arrival.Side != side) continue;
+			const Vector2 stem = Unit_Of(arrival.Beyond - local);
+			if (Wrapped_Angle_Difference(stem,normal) > ((60.0f * PI_OVER_180) + HYBRID_QUANTUM_ANGLE)) return 7;
+			arms.Add(stem);
+			widest = Max2(widest,Hybrid_Roadbed_Width(b.Out->Edges[arrival.EdgeIndex].RoadClass,k.W));
+		}
+		for (int p = 0; p < arms.Count(); ++p) {
+			for (int q = p + 1; q < arms.Count(); ++q) {
+				if (Wrapped_Angle_Difference(arms[p],arms[q]) < ((30.0f * PI_OVER_180) - HYBRID_QUANTUM_ANGLE)) return 7;
+			}
+		}
+		const float disc = (0.5f * widest) + c.ArmLength;
+		if (!Ramp_Point_Is_Clear(b,local)) return 5;
+		for (int ring = 1; ring <= 2; ++ring) {
+			for (int d = 0; d < 16; ++d) {
+				const float angle = (float)d * ((360.0f / 16.0f) * PI_OVER_180);
+				const Vector2 point = local + (Vector2((float)cos((double)angle),(float)sin((double)angle)) * (disc * 0.5f * (float)ring));
+				if (!Ramp_Point_Is_Clear(b,point)) return 5;
+			}
+		}
+	}
+
+	//	5, 6. The DIAMOND crossing segment: clear, and at grade within its class grade.
+	if (a.Form == HYBRID_INTERCHANGE_DIAMOND_ACCESS) {
+		const Vector2 right = Side_World(a,HYBRID_INTERCHANGE_SIDE_RIGHT,Vector2(0.0f,cand.LocalOffset));
+		const Vector2 left = Side_World(a,HYBRID_INTERCHANGE_SIDE_LEFT,Vector2(0.0f,cand.LocalOffset));
+		const float length = (left - right).Length();
+		const Vector2 along = Unit_Of(left - right);
+		for (float s = 0.0f; s <= length; s += spacing) {
+			if (!Ramp_Point_Is_Clear(b,right + (along * s))) return 5;
+		}
+		if ((a.Mode == HYBRID_INTERCHANGE_CROSSING_AT_GRADE) && !Run_Within_Grade(b,right,left,a.CrossingClass)) return 6;
+	}
+	return -1;
+}
+
+
+//	The quantized graph length of an edge through its waypoints.
+static float Edge_Graph_Length(const TopologyBuilder & b,const HybridTopologyEdge & edge)
+{
+	float length = 0.0f;
+	for (int s = 0; s < Edge_Segment_Count(edge); ++s) {
+		Vector2 from(0.0f,0.0f), to(0.0f,0.0f);
+		if (Edge_Segment(b,edge,s,&from,&to)) length += (to - from).Length();
+	}
+	return Hybrid_Quantize_Position(length);
+}
+
+
+//	The first stop beyond `node` along `edge`, which ends at `node`.
+static Vector2 Stop_Beyond(const TopologyBuilder & b,const HybridTopologyEdge & edge,unsigned int node)
+{
+	unsigned int next = 0;
+	if (edge.NodeA == node)	next = (edge.Waypoints.Count() > 0) ? edge.Waypoints[0] : edge.NodeB;
+	else							next = (edge.Waypoints.Count() > 0) ? edge.Waypoints[edge.Waypoints.Count() - 1] : edge.NodeA;
+	const HybridTopologyNode * n = b.Out->Find_Node(next);
+	return (n != nullptr) ? n->Position : Vector2(0.0f,0.0f);
+}
+
+
+/*
+**	Phase-11's at-grade junction conditions on intent geometry and Phase-7 terrain (12.6.4 step 4): the crossing
+**	meets the straight highway at a right angle by construction; outside every crossing-window approach reserve;
+**	arms of max(4W, class radius) on both roads; the vertical correction from X to every arm end inside the
+**	grading limits at the arm's class grade; and the cross slope at X within both classes.
+*/
+static bool At_Grade_Crossing_Is_Feasible(const TopologyBuilder & b,const InterchangeAnchor & a,float local_offset)
+{
+	const HybridConstants & k = b.P->Constants;
+	const HybridRoadClass classes[2] = { HYBRID_ROAD_HIGHWAY_4,a.CrossingClass };
+	const Vector2 axes[2] = { a.Axis,Side_Normal(a,HYBRID_INTERCHANGE_SIDE_LEFT) };
+
+	for (int i = 0; i < b.SelectedWindow.Count(); ++i) {
+		const HybridCrossingWindow * window = b.Hydrology->Find_Window(b.SelectedWindow[i]);
+		if (window == nullptr) continue;
+		if (Distance_To_Segment_Point(a.X,window->ApproachA,window->ApproachB) <=
+			 (0.5f * Hybrid_Roadbed_Width(HYBRID_ROAD_HIGHWAY_4,k.W))) return false;
+	}
+	float z = 0.0f;
+	if (!Height_At(b,a.X,&z)) return false;
+	const HybridVerticalInterval centre = Hybrid_Road_Vertical_Interval(z,b.P->MaxCutDepth,b.P->MaxFillHeight);
+	for (int r = 0; r < 2; ++r) {
+		const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(classes[r]);
+		const float arm = Max2(4.0f * k.W,spec.MinTurnRadiusW * k.W);
+		if ((r == 1) && (local_offset < arm)) return false;
+		for (int sign = -1; sign <= 1; sign += 2) {
+			float end = 0.0f;
+			if (!Height_At(b,a.X + (axes[r] * (arm * (float)sign)),&end)) return false;
+			const HybridVerticalInterval there = Hybrid_Road_Vertical_Interval(end,b.P->MaxCutDepth,b.P->MaxFillHeight);
+			if (!Hybrid_Grade_Compatible(centre,there,arm,spec.MaxGradeDegrees * PI_OVER_180)) return false;
+		}
+		const Vector2 across(-axes[r].Y,axes[r].X);
+		const float half = 0.5f * Hybrid_Roadbed_Width(classes[r],k.W);
+		float left = 0.0f, right = 0.0f;
+		if (!Height_At(b,a.X + (across * half),&left) || !Height_At(b,a.X - (across * half),&right)) return false;
+		if (!Hybrid_Grade_Compatible(Hybrid_Road_Vertical_Interval(left,b.P->MaxCutDepth,b.P->MaxFillHeight),
+											  Hybrid_Road_Vertical_Interval(right,b.P->MaxCutDepth,b.P->MaxFillHeight),2.0f * half,
+											  spec.MaxCrossSlopeDegrees * PI_OVER_180)) return false;
+	}
+	return true;
+}
+
+
+/*
+**	Frames anchor `index` of `chain` (12.6.4 steps 1-3) and decides its crossing (step 4).  Returns -1 when the
+**	anchor goes on to its candidates, a HybridInterchangeRejection otherwise, or -2 when `index` is no anchor.
+*/
+static int Frame_Anchor(const TopologyBuilder & b,const HybridInterchangeConstants & c,const HighwayChain & chain,int index,
+								InterchangeAnchor * out)
+{
+	const HybridConstants & k = b.P->Constants;
+	const ChainEntry & entry = chain.Entries[index];
+	if ((index <= 0) || (index >= (chain.Entries.Count() - 1)) || (entry.Kind != HYBRID_NODE_FAMILY_WAYPOINT)) return -2;
+
+	out->Chain				= &chain;
+	out->Index				= index;
+	out->Node				= entry.NodeId;
+	out->X					= entry.Position;
+	out->Arrivals.Delete_All();
+	out->AccessSides		= 0;
+	out->Mode				= HYBRID_INTERCHANGE_CROSSING_NONE;
+	out->CrossingClass	= HYBRID_ROAD_CLASS_COUNT;
+	out->LocalOverpass	= 0.0f;
+	out->KeepsJunction	= false;
+
+	int highway_edges = 0;
+	bool any_access = false;
+	for (int e = 0; e < b.Out->Edges.Count(); ++e) {
+		const HybridTopologyEdge & edge = b.Out->Edges[e];
+		if ((edge.NodeA != entry.NodeId) && (edge.NodeB != entry.NodeId)) continue;
+		if ((edge.Kind == HYBRID_EDGE_FAMILY_TRUNK) && (edge.RouteFamily == chain.Family)) {
+			if (edge.RoadClass == HYBRID_ROAD_HIGHWAY_4) highway_edges++;
+			continue;
+		}
+		if (!edge.Is_Realized() || (edge.Kind == HYBRID_EDGE_HIGHWAY_RAMP) || (edge.Kind == HYBRID_EDGE_INTERCHANGE_CROSSING)) continue;
+		if ((edge.RoadClass == HYBRID_ROAD_PRIMARY_2) || (edge.RoadClass == HYBRID_ROAD_SECONDARY_2)) any_access = true;
+	}
+	if ((highway_edges != 2) || !any_access) return -2;
+
+	//	2. Frame.
+	const Vector2 p = chain.Entries[index - 1].Position;
+	const Vector2 n = chain.Entries[index + 1].Position;
+	const Vector2 sum = Unit_Of(out->X - p) + Unit_Of(n - out->X);
+	if (sum.Length() < k.Q) return HYBRID_INTERCHANGE_REJECT_AXIS;
+	out->Axis = Unit_Of(sum);
+
+	//	3. Arrivals and sides.
+	for (int e = 0; e < b.Out->Edges.Count(); ++e) {
+		const HybridTopologyEdge & edge = b.Out->Edges[e];
+		if ((edge.NodeA != entry.NodeId) && (edge.NodeB != entry.NodeId)) continue;
+		if ((edge.Kind == HYBRID_EDGE_FAMILY_TRUNK) && (edge.RouteFamily == chain.Family)) continue;
+		if (!edge.Is_Realized() || (edge.Kind == HYBRID_EDGE_HIGHWAY_RAMP) || (edge.Kind == HYBRID_EDGE_INTERCHANGE_CROSSING)) continue;
+
+		InterchangeArrival arrival;
+		arrival.EdgeIndex	= e;
+		arrival.Beyond		= Stop_Beyond(b,edge,entry.NodeId);
+		arrival.Access		= (edge.RoadClass == HYBRID_ROAD_PRIMARY_2) || (edge.RoadClass == HYBRID_ROAD_SECONDARY_2);
+		const Vector2 delta = Unit_Of(arrival.Beyond - out->X);
+		const float cross = (out->Axis.X * delta.Y) - (out->Axis.Y * delta.X);
+		if ((float)fabs((double)cross) < 0.5f) return HYBRID_INTERCHANGE_REJECT_ARRIVAL_ANGLE;
+		arrival.Side = (cross > 0.0f) ? HYBRID_INTERCHANGE_SIDE_LEFT : HYBRID_INTERCHANGE_SIDE_RIGHT;
+		if (arrival.Access) {
+			for (int i = 0; i < b.Out->Interchanges.Count(); ++i) {
+				for (int r = 0; r < b.Out->Interchanges[i].Retargets.Count(); ++r) {
+					if (b.Out->Interchanges[i].Retargets[r].EdgeId == edge.StableId) return HYBRID_INTERCHANGE_REJECT_ARRIVAL_SERVED;
+				}
+			}
+			out->AccessSides |= (1u << arrival.Side);
+		}
+		out->Arrivals.Add(arrival);
+	}
+	out->Form = (out->AccessSides == 3u) ? HYBRID_INTERCHANGE_DIAMOND_ACCESS : HYBRID_INTERCHANGE_SIDE_ACCESS;
+
+	//	A non-access side keeps its arrivals at X, and with them X's conventional junction.
+	for (int r = 0; r < out->Arrivals.Count(); ++r) {
+		if ((out->AccessSides & (1u << out->Arrivals[r].Side)) == 0) out->KeepsJunction = true;
+	}
+
+	//	4. The DIAMOND crossing: grade-separated when the step-12 overpass tests pass, else at grade, else none.
+	if (out->Form == HYBRID_INTERCHANGE_DIAMOND_ACCESS) {
+		out->CrossingClass = HYBRID_ROAD_SECONDARY_2;
+		for (int r = 0; r < out->Arrivals.Count(); ++r) {
+			if (out->Arrivals[r].Access && (b.Out->Edges[out->Arrivals[r].EdgeIndex].RoadClass == HYBRID_ROAD_PRIMARY_2)) {
+				out->CrossingClass = HYBRID_ROAD_PRIMARY_2;
+			}
+		}
+		HybridRampCandidate k0;
+		Hybrid_Ramp_Candidate(c,0,0.0f,&k0);
+		const Vector2 foot_right = Side_World(*out,HYBRID_INTERCHANGE_SIDE_RIGHT,Vector2(0.0f,k0.LocalOffsetMin));
+		const Vector2 foot_left = Side_World(*out,HYBRID_INTERCHANGE_SIDE_LEFT,Vector2(0.0f,k0.LocalOffsetMin));
+		const float overpass_offset = c.EHwy + Ramp_Length_Plan(b,out->CrossingClass,out->X,foot_right,foot_left) + c.ArmLength;
+		HybridRampCandidate grade_separated;
+		Hybrid_Ramp_Candidate(c,0,overpass_offset,&grade_separated);
+		const Vector2 right = Side_World(*out,HYBRID_INTERCHANGE_SIDE_RIGHT,Vector2(0.0f,grade_separated.LocalOffset));
+		const Vector2 left = Side_World(*out,HYBRID_INTERCHANGE_SIDE_LEFT,Vector2(0.0f,grade_separated.LocalOffset));
+		float cost = 0.0f;
+		if (Overpass_Cost(b,out->X,out->X - (out->Axis * grade_separated.StraightHalfExtent),
+								out->X + (out->Axis * grade_separated.StraightHalfExtent),right,left,&cost) < 0) {
+			out->Mode				= HYBRID_INTERCHANGE_CROSSING_GRADE_SEPARATED;
+			out->LocalOverpass	= overpass_offset;
+		} else if (At_Grade_Crossing_Is_Feasible(b,*out,k0.LocalOffset)) {
+			out->Mode				= HYBRID_INTERCHANGE_CROSSING_AT_GRADE;
+			out->KeepsJunction	= true;
+		} else {
+			return HYBRID_INTERCHANGE_REJECT_CROSSING;
+		}
+	}
+	return -1;
+}
+
+
+static bool Build_Interchanges(TopologyBuilder & b)
+{
+	const HybridConstants & k = b.P->Constants;
+	HybridInterchangeConstants c;
+	Hybrid_Interchange_Constants(k.W,&c);
+
+	//	Interchange processing order: highway family, then X's index along its chain from the GDI entrance.
+	for (int family = 0; family < b.FamilyCount; ++family) {
+
+		HighwayChain chain;
+		Build_Highway_Chain(b,family,&chain);
+		if ((chain.Entries.Count() < 3) || (chain.TrunkEdges.Count() == 0)) continue;
+		const HybridTopologyEdge * first = b.Out->Find_Edge(chain.TrunkEdges[0]);
+		if ((first == nullptr) || (first->RoadClass != HYBRID_ROAD_HIGHWAY_4)) continue;
+
+		for (int index = 1; index < (chain.Entries.Count() - 1); ++index) {
+
+			InterchangeAnchor anchor;
+			const int framed = Frame_Anchor(b,c,chain,index,&anchor);
+			if (framed == -2) continue;
+			if (framed >= 0) {
+				b.Out->AnchorRejections[framed]++;
+				continue;
+			}
+
+			//	5. Candidates in ascending k; the first hard-valid one is selected.
+			int selected = -1;
+			HybridRampCandidate cand;
+			float ramp_length[2][2] = { { 0.0f,0.0f },{ 0.0f,0.0f } };
+			for (int kk = 0; (kk < c.GoreCandidates) && (selected < 0); ++kk) {
+				b.Out->RampCandidatesEvaluated++;
+				Hybrid_Ramp_Candidate(c,kk,anchor.LocalOverpass,&cand);
+				const int refusal = Interchange_Candidate_Refusal(b,c,anchor,cand,0,ramp_length);
+				if (refusal < 0)						selected = kk;
+				else if (refusal < 8)				b.Out->CandidateRefusals[refusal]++;
+			}
+			if (selected < 0) {
+				b.Out->AnchorRejections[HYBRID_INTERCHANGE_REJECT_NO_CANDIDATE]++;
+				continue;
+			}
+
+			//	6. The Section-5 qualification recheck of every retargeted arrival, before anything changes.
+			bool qualifies = true;
+			for (int r = 0; r < anchor.Arrivals.Count(); ++r) {
+				const InterchangeArrival & arrival = anchor.Arrivals[r];
+				if ((anchor.AccessSides & (1u << arrival.Side)) == 0) continue;
+				const HybridTopologyEdge & moved = b.Out->Edges[arrival.EdgeIndex];
+				if (moved.Kind != HYBRID_EDGE_TRAIL) continue;
+				const Vector2 local = Side_World(anchor,arrival.Side,Vector2(0.0f,cand.LocalOffset));
+				float length = 0.0f;
+				for (int s = 0; s < Edge_Segment_Count(moved); ++s) {
+					Vector2 from(0.0f,0.0f), to(0.0f,0.0f);
+					if (!Edge_Segment(b,moved,s,&from,&to)) continue;
+					if ((s == 0) && (moved.NodeA == anchor.Node)) from = local;
+					if ((s == (Edge_Segment_Count(moved) - 1)) && (moved.NodeB == anchor.Node)) to = local;
+					length += (to - from).Length();
+				}
+				if (Hybrid_Quantize_Position(length) < (TRAIL_MIN_W * k.W)) qualifies = false;
+			}
+			if (!qualifies) {
+				b.Out->AnchorRejections[HYBRID_INTERCHANGE_REJECT_QUALIFICATION]++;
+				continue;
+			}
+
+			//	7. The routed-edge cap.
+			const int sides = (anchor.Form == HYBRID_INTERCHANGE_DIAMOND_ACCESS) ? 2 : 1;
+			const int crossing_edges = (anchor.Mode == HYBRID_INTERCHANGE_CROSSING_GRADE_SEPARATED) ? 1 :
+												((anchor.Mode == HYBRID_INTERCHANGE_CROSSING_AT_GRADE) ? 2 : 0);
+			if ((b.Out->Realized_Edge_Count() + (2 * sides) + crossing_edges) > b.P->MaxRoutedEdges) {
+				b.Out->AnchorRejections[HYBRID_INTERCHANGE_REJECT_EDGE_CAP]++;
+				continue;
+			}
+
+			//	8. Records, with fresh StableIds in the plan's order.
+			HybridInterchange interchange;
+			interchange.StableId				= (unsigned int)b.Out->Interchanges.Count() + 1;
+			interchange.Form					= anchor.Form;
+			interchange.Status				= HYBRID_INTERCHANGE_ACTIVE;
+			interchange.AnchorNode			= anchor.Node;
+			for (int t = 0; t < chain.TrunkEdges.Count(); ++t) {
+				const HybridTopologyEdge * trunk = b.Out->Find_Edge(chain.TrunkEdges[t]);
+				if (trunk == nullptr) continue;
+				if (trunk->NodeB == anchor.Node) interchange.HighwayEdgeIn = trunk->StableId;
+				if (trunk->NodeA == anchor.Node) interchange.HighwayEdgeOut = trunk->StableId;
+			}
+			interchange.Axis					= anchor.Axis;
+			interchange.AccessSides			= anchor.AccessSides;
+			interchange.CrossingMode		= anchor.Mode;
+			interchange.CrossingClass		= anchor.CrossingClass;
+			interchange.SelectedK			= selected;
+			interchange.LocalOffset			= cand.LocalOffset;
+			interchange.GoreOffset			= cand.GoreOffset;
+			interchange.StraightHalfExtent= cand.StraightHalfExtent;
+
+			for (int side = 0; side < HYBRID_INTERCHANGE_SIDE_COUNT; ++side) {
+				if ((anchor.AccessSides & (1u << side)) == 0) continue;
+				interchange.LocalJunction[side] = Add_Node(b,HYBRID_NODE_INTERCHANGE_LOCAL_JUNCTION,
+																		 Side_World(anchor,side,Vector2(0.0f,cand.LocalOffset)),-1,-1,0,0,-1);
+			}
+
+			//	9. Capabilities: LIGHT and every retargeted arrival's own.
+			unsigned int capabilities = HYBRID_NAV_LIGHT;
+			for (int r = 0; r < anchor.Arrivals.Count(); ++r) {
+				const InterchangeArrival & arrival = anchor.Arrivals[r];
+				if ((anchor.AccessSides & (1u << arrival.Side)) == 0) continue;
+				capabilities |= b.Out->Edges[arrival.EdgeIndex].Capabilities;
+			}
+			interchange.Capabilities = capabilities;
+
+			for (int side = 0; side < HYBRID_INTERCHANGE_SIDE_COUNT; ++side) {
+				if ((anchor.AccessSides & (1u << side)) == 0) continue;
+				const int roles[2] = { HYBRID_RAMP_ROLE_OFF,HYBRID_RAMP_ROLE_ON };
+				for (int ri = 0; ri < 2; ++ri) {
+					const unsigned int id = Add_Edge(b,HYBRID_EDGE_HIGHWAY_RAMP,HYBRID_ROAD_HIGHWAY_RAMP,
+																interchange.LocalJunction[side],anchor.Node,-1,true,0,0);
+					HybridTopologyEdge & ramp = b.Out->Edges[b.Out->Edges.Count() - 1];
+					ramp.Capabilities	= capabilities;
+					ramp.InterchangeId= interchange.StableId;
+					ramp.RampRole		= (HybridRampRole)roles[ri];
+					ramp.RampSide		= (HybridInterchangeSide)side;
+					ramp.RampInterval	= Ramp_Interval(c,side,roles[ri],cand);
+					ramp.Length			= Hybrid_Quantize_Position(ramp_length[side][roles[ri] - 1] + cand.GoreOffset);
+					interchange.RampEdges.Add(id);
+					b.Out->RampsByRole[roles[ri]]++;
+				}
+			}
+
+			if (anchor.Mode == HYBRID_INTERCHANGE_CROSSING_GRADE_SEPARATED) {
+				interchange.CrossingEdges.Add(Add_Edge(b,HYBRID_EDGE_INTERCHANGE_CROSSING,anchor.CrossingClass,
+																	interchange.LocalJunction[HYBRID_INTERCHANGE_SIDE_RIGHT],
+																	interchange.LocalJunction[HYBRID_INTERCHANGE_SIDE_LEFT],-1,true,0,0));
+				interchange.CrossingObligation = Add_Node(b,HYBRID_NODE_OVERPASS_OBLIGATION,anchor.X,-1,-1,0,0,-1);
+				b.Out->Edges[b.Out->Edges.Count() - 1].Waypoints.Add(interchange.CrossingObligation);
+			} else if (anchor.Mode == HYBRID_INTERCHANGE_CROSSING_AT_GRADE) {
+				interchange.CrossingEdges.Add(Add_Edge(b,HYBRID_EDGE_INTERCHANGE_CROSSING,anchor.CrossingClass,
+																	interchange.LocalJunction[HYBRID_INTERCHANGE_SIDE_RIGHT],anchor.Node,-1,true,0,0));
+				interchange.CrossingEdges.Add(Add_Edge(b,HYBRID_EDGE_INTERCHANGE_CROSSING,anchor.CrossingClass,
+																	anchor.Node,interchange.LocalJunction[HYBRID_INTERCHANGE_SIDE_LEFT],-1,true,0,0));
+			}
+			for (int e = 0; e < b.Out->Edges.Count(); ++e) {
+				HybridTopologyEdge & edge = b.Out->Edges[e];
+				for (int x = 0; x < interchange.CrossingEdges.Count(); ++x) {
+					if (edge.StableId != interchange.CrossingEdges[x]) continue;
+					edge.Capabilities	= capabilities;
+					edge.InterchangeId= interchange.StableId;
+					edge.Length			= Edge_Graph_Length(b,edge);
+				}
+			}
+
+			//	6. Retarget every access-side arrival to its side's local junction; the fallback variant is X.
+			for (int r = 0; r < anchor.Arrivals.Count(); ++r) {
+				const InterchangeArrival & arrival = anchor.Arrivals[r];
+				if ((anchor.AccessSides & (1u << arrival.Side)) == 0) continue;
+				HybridTopologyEdge & edge = b.Out->Edges[arrival.EdgeIndex];
+				HybridInterchangeRetarget retarget;
+				retarget.EdgeId			= edge.StableId;
+				retarget.FallbackNode	= anchor.Node;
+				retarget.LocalJunction	= interchange.LocalJunction[arrival.Side];
+				retarget.Side				= arrival.Side;
+				interchange.Retargets.Add(retarget);
+				if (edge.NodeA == anchor.Node) edge.NodeA = retarget.LocalJunction;
+				if (edge.NodeB == anchor.Node) edge.NodeB = retarget.LocalJunction;
+				edge.Length = Edge_Graph_Length(b,edge);
+			}
+
+			b.Out->InterchangesByForm[anchor.Form]++;
+			b.Out->Interchanges.Add(interchange);
+		}
+	}
+	return true;
+}
+
+
+/*
+**	The Phase-9 gate's interchange clause: every active interchange references real connected topology, has its
+**	side frozen, its two ramps per access side on the frozen local junctions, its retargeted arrivals ending there,
+**	and its selected candidate still hard-valid against every other interchange (12.6.8, the shared 5W ramp
+**	constructor included).
+*/
+static bool Check_Interchanges(const TopologyBuilder & b,StringClass * detail)
+{
+	HybridInterchangeConstants c;
+	Hybrid_Interchange_Constants(b.P->Constants.W,&c);
+
+	for (int i = 0; i < b.Out->Interchanges.Count(); ++i) {
+
+		const HybridInterchange & interchange = b.Out->Interchanges[i];
+		if (interchange.Status != HYBRID_INTERCHANGE_ACTIVE) continue;
+		const HybridTopologyNode * anchor_node = b.Out->Find_Node(interchange.AnchorNode);
+		const HybridTopologyEdge * in = b.Out->Find_Edge(interchange.HighwayEdgeIn);
+		const HybridTopologyEdge * out = b.Out->Find_Edge(interchange.HighwayEdgeOut);
+		if ((anchor_node == nullptr) || (in == nullptr) || (out == nullptr) || (in->NodeB != interchange.AnchorNode) ||
+			 (out->NodeA != interchange.AnchorNode) || (in->RoadClass != HYBRID_ROAD_HIGHWAY_4) ||
+			 (out->RoadClass != HYBRID_ROAD_HIGHWAY_4)) {
+			detail->Format("interchange %u does not stand on a HIGHWAY_4 pass-through node",interchange.StableId);
+			return false;
+		}
+		if ((interchange.AccessSides == 0) || (interchange.AccessSides > 3u) ||
+			 ((interchange.Form == HYBRID_INTERCHANGE_DIAMOND_ACCESS) != (interchange.AccessSides == 3u))) {
+			detail->Format("interchange %u has no frozen access side",interchange.StableId);
+			return false;
+		}
+		int ramps = 0;
+		for (int e = 0; e < interchange.RampEdges.Count(); ++e) {
+			const HybridTopologyEdge * ramp = b.Out->Find_Edge(interchange.RampEdges[e]);
+			if ((ramp == nullptr) || (ramp->Kind != HYBRID_EDGE_HIGHWAY_RAMP) || (ramp->NodeB != interchange.AnchorNode) ||
+				 (ramp->RampSide >= HYBRID_INTERCHANGE_SIDE_COUNT) || (ramp->NodeA != interchange.LocalJunction[ramp->RampSide])) {
+				detail->Format("interchange %u has a ramp off its local junction",interchange.StableId);
+				return false;
+			}
+			ramps++;
+		}
+		const int sides = (interchange.AccessSides == 3u) ? 2 : 1;
+		if (ramps != (2 * sides)) {
+			detail->Format("interchange %u has %d ramps for %d access sides",interchange.StableId,ramps,sides);
+			return false;
+		}
+		for (int r = 0; r < interchange.Retargets.Count(); ++r) {
+			const HybridTopologyEdge * edge = b.Out->Find_Edge(interchange.Retargets[r].EdgeId);
+			if ((edge == nullptr) || ((edge->NodeA != interchange.Retargets[r].LocalJunction) &&
+											  (edge->NodeB != interchange.Retargets[r].LocalJunction))) {
+				detail->Format("interchange %u: retargeted edge %u does not end at its local junction",interchange.StableId,
+									interchange.Retargets[r].EdgeId);
+				return false;
+			}
+		}
+
+		//	The selected candidate, re-tested as frozen.
+		HighwayChain chain;
+		Build_Highway_Chain(b,in->RouteFamily,&chain);
+		int index = -1;
+		for (int j = 0; j < chain.Entries.Count(); ++j) {
+			if (chain.Entries[j].NodeId == interchange.AnchorNode) index = j;
+		}
+		if (index < 0) {
+			detail->Format("interchange %u: anchor not on its highway chain",interchange.StableId);
+			return false;
+		}
+		InterchangeAnchor anchor;
+		anchor.Chain			= &chain;
+		anchor.Index			= index;
+		anchor.Node				= interchange.AnchorNode;
+		anchor.X					= anchor_node->Position;
+		anchor.Axis				= interchange.Axis;
+		anchor.AccessSides	= interchange.AccessSides;
+		anchor.Form				= interchange.Form;
+		anchor.Mode				= interchange.CrossingMode;
+		anchor.CrossingClass	= interchange.CrossingClass;
+		anchor.LocalOverpass	= 0.0f;
+		anchor.KeepsJunction	= (interchange.CrossingMode == HYBRID_INTERCHANGE_CROSSING_AT_GRADE) ||
+										  Chain_Node_Has_Junction(b,chain,index);
+		for (int r = 0; r < interchange.Retargets.Count(); ++r) {
+			for (int e = 0; e < b.Out->Edges.Count(); ++e) {
+				if (b.Out->Edges[e].StableId != interchange.Retargets[r].EdgeId) continue;
+				InterchangeArrival arrival;
+				arrival.EdgeIndex	= e;
+				arrival.Side		= interchange.Retargets[r].Side;
+				arrival.Access		= true;
+				arrival.Beyond		= Stop_Beyond(b,b.Out->Edges[e],interchange.Retargets[r].LocalJunction);
+				anchor.Arrivals.Add(arrival);
+			}
+		}
+		HybridRampCandidate cand;
+		Hybrid_Ramp_Candidate(c,interchange.SelectedK,0.0f,&cand);
+		cand.LocalOffset			= interchange.LocalOffset;
+		cand.GoreOffset			= interchange.GoreOffset;
+		cand.StraightHalfExtent	= interchange.StraightHalfExtent;
+		float lengths[2][2];
+		const int refusal = Interchange_Candidate_Refusal(b,c,anchor,cand,interchange.StableId,lengths);
+		if (refusal >= 0) {
+			detail->Format("interchange %u: its frozen candidate k=%d fails 12.6.8 test %d",interchange.StableId,
+								interchange.SelectedK,refusal);
+			return false;
+		}
+	}
+	return true;
+}
+
+
+bool Hybrid_Build_Interchanges(const HybridTopologyParams & params,const HybridLandformSet & landforms,
+										const HybridHydrologySet & hydrology,const HybridAnchorSet & anchors,
+										HybridCoarseMatrices * matrices,HybridTopologyHeightSampleFunc sample,void * context,
+										int family_count,HybridTopology * topology,StringClass * detail_out)
+{
+	if ((matrices == nullptr) || (topology == nullptr) || (sample == nullptr)) return false;
+
+	TopologyBuilder b;
+	b.P				= &params;
+	b.Identity		= nullptr;
+	b.Graph			= nullptr;
+	b.Landforms		= &landforms;
+	b.Hydrology		= &hydrology;
+	b.Anchors		= &anchors;
+	b.Matrices		= matrices;
+	b.Sample			= sample;
+	b.Context		= context;
+	b.Out				= topology;
+	b.FamilyCount	= family_count;
+	b.BaseNode[0]	= 0;
+	b.BaseNode[1]	= 0;
+	b.NextNodeId	= 1;
+	b.NextEdgeId	= 1;
+	for (int n = 0; n < topology->Nodes.Count(); ++n) {
+		if (topology->Nodes[n].StableId >= b.NextNodeId) b.NextNodeId = topology->Nodes[n].StableId + 1;
+		if ((topology->Nodes[n].Kind == HYBRID_NODE_CROSSING_OBLIGATION) && (topology->Nodes[n].WindowId != 0)) {
+			b.SelectedWindow.Add(topology->Nodes[n].WindowId);
+		}
+	}
+	for (int e = 0; e < topology->Edges.Count(); ++e) {
+		if (topology->Edges[e].StableId >= b.NextEdgeId) b.NextEdgeId = topology->Edges[e].StableId + 1;
+	}
+	for (int w = 0; w < hydrology.Windows.Count(); ++w) b.WindowUsed.Add(0);
+
+	Build_Interchanges(b);
+	StringClass detail;
+	if (!Check_Interchanges(b,&detail)) {
+		if (detail_out != nullptr) *detail_out = detail;
+		return false;
+	}
+	return true;
+}
+
+
 static bool Check_Gate(TopologyBuilder & b,HybridTopologyResult * result)
 {
 	HybridTopology & out = *b.Out;
@@ -3083,10 +4007,23 @@ static bool Check_Gate(TopologyBuilder & b,HybridTopologyResult * result)
 		}
 	}
 
-	//	Every overpass obligation is one waypoint shared by exactly two edges.
+	/*
+	**	Every overpass obligation is one waypoint shared by exactly two edges -- except a DIAMOND_ACCESS crossing's
+	**	own, which its crossing edge carries over the highway's anchor node (12.6.4 step 4) and which is not a
+	**	Section-5 overpass (12.6.2); the interchange clause below checks it.
+	*/
+	int interchange_obligations = 0;
 	for (int n = 0; n < out.Nodes.Count(); ++n) {
 
 		if (out.Nodes[n].Kind != HYBRID_NODE_OVERPASS_OBLIGATION) continue;
+		bool interchange_owned = false;
+		for (int i = 0; i < out.Interchanges.Count(); ++i) {
+			if (out.Interchanges[i].CrossingObligation == out.Nodes[n].StableId) interchange_owned = true;
+		}
+		if (interchange_owned) {
+			interchange_obligations++;
+			continue;
+		}
 		int uses = 0;
 		for (int e = 0; e < out.Edges.Count(); ++e) {
 			for (int w = 0; w < out.Edges[e].Waypoints.Count(); ++w) {
@@ -3103,6 +4040,8 @@ static bool Check_Gate(TopologyBuilder & b,HybridTopologyResult * result)
 						  out.CanyonBridges,out.RequiredCanyonBridges);
 		return Fail(result,HYBRID_TOPOLOGY_BRIDGE_QUOTA,detail.Peek_Buffer());
 	}
+	if (!Check_Interchanges(b,&detail)) return Fail(result,HYBRID_TOPOLOGY_INVALID_INPUT,detail.Peek_Buffer());
+
 	if (out.Highways != out.RequiredHighways) {
 		detail.Format("highways %d/%d",out.Highways,out.RequiredHighways);
 		return Fail(result,HYBRID_TOPOLOGY_BRIDGE_QUOTA,detail.Peek_Buffer());
@@ -3117,9 +4056,9 @@ static bool Check_Gate(TopologyBuilder & b,HybridTopologyResult * result)
 	}
 	//	Q-024: the reserved count is what Phase 9 found, never more than the target and never padded to it.
 	if ((out.ReservedOverpassCount > out.RequestedOverpassTarget) ||
-		 (out.ReservedOverpassCount != out.Count_Of_Node_Kind(HYBRID_NODE_OVERPASS_OBLIGATION))) {
+		 (out.ReservedOverpassCount != (out.Count_Of_Node_Kind(HYBRID_NODE_OVERPASS_OBLIGATION) - interchange_obligations))) {
 		detail.Format("%d overpasses reserved against a target of %d, %d obligation nodes",out.ReservedOverpassCount,
-						  out.RequestedOverpassTarget,out.Count_Of_Node_Kind(HYBRID_NODE_OVERPASS_OBLIGATION));
+						  out.RequestedOverpassTarget,out.Count_Of_Node_Kind(HYBRID_NODE_OVERPASS_OBLIGATION) - interchange_obligations);
 		return Fail(result,HYBRID_TOPOLOGY_INVALID_INPUT,detail.Peek_Buffer());
 	}
 
@@ -3356,6 +4295,9 @@ bool Hybrid_Build_Topology(const HybridTopologyParams & params,const HybridMapId
 
 	//	12, 13, 14 -- the overpass obligations, each a waypoint shared by two edges.
 	if (!Reserve_Overpasses(b,result))							return Topology_Failed(out,result);
+
+	//	15 -- highway access interchanges (Section 12.6); a rejected anchor keeps its conventional junction.
+	Build_Interchanges(b);
 
 	if (!Check_Gate(b,result))										return Topology_Failed(out,result);
 

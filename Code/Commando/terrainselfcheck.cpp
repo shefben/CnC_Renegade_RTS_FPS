@@ -6801,6 +6801,16 @@ static HybridTopologyParams Topology_Fixture (const HybridMapIdentityParams & id
 	params.HarvesterLength			= 7.428105f;	// the measured Harvester WORLDBOX length
 	params.MaxRoutedEdges			= 32;				// R at MEDIUM
 	params.TunnelsAvailable			= true;
+
+	//	Section 12.6's step-15 inputs: native grading, the measured heavy vehicle's clear gap, and the fixture
+	//	bridge (2.0 deep, the 8W approach fallback, carrying every routed class).
+	params.MaxCutDepth				= 6.0f;			// native grading.max_cut_depth
+	params.MaxFillHeight				= 6.0f;
+	params.OverpassClearGap			= Hybrid_Overpass_Clear_Gap (3.064066f,1.0f);
+	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
+		params.BridgeApproachMax[c]	= Hybrid_Road_Class_Is_Routed (c) ? (8.0f * identity_params.Constants.W) : 0.0f;
+		params.OverpassDepthMax[c]		= Hybrid_Road_Class_Is_Routed (c) ? 2.0f : 0.0f;
+	}
 	return params;
 }
 
@@ -7235,10 +7245,13 @@ static void Check_Hybrid_Interchange_Construction (void)
 }
 
 
+static void Check_Hybrid_Interchange_Topology (void);		// on the controlled crossing worlds, below
+
 void Check_Hybrid_Topology (void)
 {
 	Check_Hybrid_Ramp_Records ();
 	Check_Hybrid_Interchange_Construction ();
+	Check_Hybrid_Interchange_Topology ();
 	Check_Hybrid_Structural_Poses ();
 
 	HybridMapIdentity identity;
@@ -9104,6 +9117,155 @@ static void Check_Hybrid_Crossing_Discipline (void)
 					 "the unplanned crossing is not aligned: %s",why.Peek_Buffer ());
 			printf ("  unplanned crossing: aligned, road %.1f long\r\n",route.Length);
 		}
+	}
+}
+
+
+/*
+**	Phase 9 step 15 (Section 12.6.4 / 12.6.8) on controlled worlds: a straight HIGHWAY_4 family trunk through an
+**	ordinary waypoint X, with PRIMARY_2 arrivals.  One side's arrival gives SIDE_ACCESS with one OFF_RAMP and one
+**	ON_RAMP; both sides give DIAMOND_ACCESS with a grade-separated crossing; a river between the highway and every
+**	candidate's local junction refuses the anchor (a ramp never gets its own bridge) and leaves the arrival at X;
+**	a second anchor inside the first's straight extent is refused for spacing.  Every accepted interchange passes
+**	the gate clause, its intervals are exactly 16W (10W + 6W) and 12W (6W + 6W), and it reproduces its checksum.
+*/
+static void Interchange_World (CrossingWorld * world,int access_sides,float second_anchor_x)
+{
+	Crossing_World_Begin (world);
+	Trunk_World_Node (world,1,HYBRID_NODE_BASE_ENTRANCE,Vector2 (-487.5f,7.5f),0);
+	Trunk_World_Node (world,2,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (7.5f,7.5f),0);
+	Trunk_World_Node (world,3,HYBRID_NODE_BASE_ENTRANCE,Vector2 (487.5f,7.5f),0);
+	Trunk_World_Node (world,4,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (7.5f,-292.5f),1);
+	Trunk_World_Node (world,5,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (7.5f,307.5f),1);
+	if (second_anchor_x != 0.0f) {
+		Trunk_World_Node (world,6,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (second_anchor_x,7.5f),0);
+		Trunk_World_Node (world,7,HYBRID_NODE_FAMILY_WAYPOINT,Vector2 (second_anchor_x,-292.5f),1);
+		Trunk_World_Edge (world,1,HYBRID_EDGE_FAMILY_TRUNK,HYBRID_ROAD_HIGHWAY_4,1,2,0);
+		Trunk_World_Edge (world,2,HYBRID_EDGE_FAMILY_TRUNK,HYBRID_ROAD_HIGHWAY_4,2,6,0);
+		Trunk_World_Edge (world,3,HYBRID_EDGE_FAMILY_TRUNK,HYBRID_ROAD_HIGHWAY_4,6,3,0);
+		Trunk_World_Edge (world,6,HYBRID_EDGE_CROSS_LINK,HYBRID_ROAD_PRIMARY_2,6,7,-1);
+	} else {
+		Trunk_World_Edge (world,1,HYBRID_EDGE_FAMILY_TRUNK,HYBRID_ROAD_HIGHWAY_4,1,2,0);
+		Trunk_World_Edge (world,2,HYBRID_EDGE_FAMILY_TRUNK,HYBRID_ROAD_HIGHWAY_4,2,3,0);
+	}
+	if (access_sides & 1) Trunk_World_Edge (world,4,HYBRID_EDGE_CROSS_LINK,HYBRID_ROAD_PRIMARY_2,2,4,-1);	// RIGHT (south)
+	if (access_sides & 2) Trunk_World_Edge (world,5,HYBRID_EDGE_CROSS_LINK,HYBRID_ROAD_PRIMARY_2,2,5,-1);	// LEFT (north)
+}
+
+
+static bool Interchange_World_Build (CrossingWorld * world,StringClass * detail)
+{
+	HybridTopologyParams params = Topology_Fixture (world->Sized);
+	return Hybrid_Build_Interchanges (params,world->Landforms,world->Hydrology,world->Anchors,&world->Matrices,
+												 Crossing_Ground,&world->Hydrology,2,&world->Topology,detail);
+}
+
+
+static void Check_Hybrid_Interchange_Topology (void)
+{
+	CrossingWorld world;
+	Interchange_World (&world,1,0.0f);
+	const float W = world.Sized.Constants.W;
+	const float tol = 2.0f * HYBRID_QUANTUM_POSITION;
+	StringClass detail;
+
+	//	SIDE_ACCESS: one access side, an OFF_RAMP and an ON_RAMP, the arrival retargeted, the side frozen.
+	Check (Interchange_World_Build (&world,&detail),"SIDE_ACCESS gate: %s",detail.Peek_Buffer ());
+	Check (world.Topology.Interchanges.Count () == 1,"SIDE_ACCESS: %d interchanges",world.Topology.Interchanges.Count ());
+	if (world.Topology.Interchanges.Count () == 1) {
+		const HybridInterchange & ic = world.Topology.Interchanges[0];
+		Check (ic.Form == HYBRID_INTERCHANGE_SIDE_ACCESS && ic.AccessSides == (1u << HYBRID_INTERCHANGE_SIDE_RIGHT) &&
+				 ic.CrossingMode == HYBRID_INTERCHANGE_CROSSING_NONE && ic.SelectedK == 0 && ic.RampEdges.Count () == 2 &&
+				 ic.Retargets.Count () == 1 && ic.HighwayEdgeIn == 1 && ic.HighwayEdgeOut == 2,
+				 "SIDE_ACCESS record: form %d sides %u k %d ramps %d",(int)ic.Form,ic.AccessSides,ic.SelectedK,ic.RampEdges.Count ());
+		const HybridTopologyEdge * arrival = world.Topology.Find_Edge (4);
+		Check ((arrival != NULL) && (arrival->NodeA == ic.LocalJunction[HYBRID_INTERCHANGE_SIDE_RIGHT]),
+				 "the access arrival was not retargeted to L_RIGHT");
+		const HybridTopologyNode * local = world.Topology.Find_Node (ic.LocalJunction[HYBRID_INTERCHANGE_SIDE_RIGHT]);
+		Check ((local != NULL) && Near (local->Position.X,7.5f,tol) && Near (local->Position.Y,7.5f - ic.LocalOffset,tol),
+				 "L_RIGHT is not at X + n_RIGHT d_L");
+		int on = 0, off = 0;
+		for (int e = 0; e < ic.RampEdges.Count (); ++e) {
+			const HybridTopologyEdge * ramp = world.Topology.Find_Edge (ic.RampEdges[e]);
+			if (ramp == NULL) continue;
+			const HybridRampInterval & r = ramp->RampInterval;
+			if (ramp->RampRole == HYBRID_RAMP_ROLE_ON) {
+				on++;
+				Check (Near (r.To - r.From,16.0f * W,tol) && Near (r.FullTo - r.FullFrom,10.0f * W,tol) &&
+						 Near (r.TaperTo - r.TaperFrom,6.0f * W,tol) && Near (r.GoreStation,r.FullFrom,tol) &&
+						 Near (r.GoreStation,ic.GoreOffset,tol),"ON_RAMP interval is not gore + 10W full + 6W taper");
+			} else if (ramp->RampRole == HYBRID_RAMP_ROLE_OFF) {
+				off++;
+				Check (Near (r.To - r.From,12.0f * W,tol) && Near (r.FullTo - r.FullFrom,6.0f * W,tol) &&
+						 Near (r.TaperTo - r.TaperFrom,6.0f * W,tol) && Near (r.GoreStation,r.FullTo,tol) &&
+						 Near (r.GoreStation,-ic.GoreOffset,tol),"OFF_RAMP interval is not 6W taper + 6W full + gore");
+			}
+			Check (ramp->RoadClass == HYBRID_ROAD_HIGHWAY_RAMP && ramp->NodeA == ic.LocalJunction[HYBRID_INTERCHANGE_SIDE_RIGHT] &&
+					 ramp->NodeB == 2 && ramp->Required && (ramp->Capabilities & HYBRID_NAV_LIGHT) != 0,"a ramp edge is not the plan's");
+		}
+		Check (on == 1 && off == 1,"SIDE_ACCESS has %d ON_RAMP and %d OFF_RAMP",on,off);
+
+		//	Deterministic.
+		CrossingWorld again;
+		Interchange_World (&again,1,0.0f);
+		StringClass again_detail;
+		Interchange_World_Build (&again,&again_detail);
+		Check (Hybrid_Topology_Checksum (again.Topology) == Hybrid_Topology_Checksum (world.Topology),
+				 "the SIDE_ACCESS interchange does not reproduce its checksum");
+		printf ("  SIDE_ACCESS: k %d, d_L %.3fW, G %.3fW, S_I %.3fW\r\n",ic.SelectedK,ic.LocalOffset / W,ic.GoreOffset / W,
+				  ic.StraightHalfExtent / W);
+	}
+
+	//	DIAMOND_ACCESS: both sides, two ramps each, a grade-separated crossing with its overpass obligation.
+	{
+		CrossingWorld diamond;
+		Interchange_World (&diamond,3,0.0f);
+		StringClass why;
+		Check (Interchange_World_Build (&diamond,&why),"DIAMOND_ACCESS gate: %s",why.Peek_Buffer ());
+		Check (diamond.Topology.Interchanges.Count () == 1,"DIAMOND_ACCESS: %d interchanges",diamond.Topology.Interchanges.Count ());
+		if (diamond.Topology.Interchanges.Count () == 1) {
+			const HybridInterchange & ic = diamond.Topology.Interchanges[0];
+			Check (ic.Form == HYBRID_INTERCHANGE_DIAMOND_ACCESS && ic.AccessSides == 3u && ic.RampEdges.Count () == 4 &&
+					 ic.CrossingMode == HYBRID_INTERCHANGE_CROSSING_GRADE_SEPARATED && ic.CrossingEdges.Count () == 1 &&
+					 ic.CrossingObligation != 0 && ic.CrossingClass == HYBRID_ROAD_PRIMARY_2,
+					 "DIAMOND_ACCESS record: form %d sides %u ramps %d mode %d",(int)ic.Form,ic.AccessSides,ic.RampEdges.Count (),
+					 (int)ic.CrossingMode);
+			HybridInterchangeConstants c;
+			Hybrid_Interchange_Constants (W,&c);
+			HybridRampCandidate k0;
+			Hybrid_Ramp_Candidate (c,0,0.0f,&k0);
+			Check (ic.LocalOffset > (k0.LocalOffsetMin + tol),"the grade-separated d_L %.3fW is not raised past d_Lmin by d_Lov",
+					 ic.LocalOffset / W);
+			printf ("  DIAMOND_ACCESS: grade-separated, d_L %.3fW, G %.3fW\r\n",ic.LocalOffset / W,ic.GoreOffset / W);
+		}
+	}
+
+	//	A river between the highway and every local junction: no ramp may cross it, so the anchor is refused.
+	{
+		CrossingWorld river;
+		Interchange_World (&river,1,0.0f);
+		Crossing_World_River (&river,9,Vector2 (-480.0f,-14.0f),Vector2 (480.0f,-14.0f),3.0f);
+		StringClass why;
+		Check (Interchange_World_Build (&river,&why),"river world gate: %s",why.Peek_Buffer ());
+		const HybridTopologyEdge * arrival = river.Topology.Find_Edge (4);
+		Check ((river.Topology.Interchanges.Count () == 0) && (arrival != NULL) && (arrival->NodeA == 2) &&
+				 (river.Topology.AnchorRejections[HYBRID_INTERCHANGE_REJECT_NO_CANDIDATE] == 1) &&
+				 (river.Topology.CandidateRefusals[5] == 32),
+				 "a ramp that must cross a river was accepted or misreported (%d interchanges, %d refused by test 5)",
+				 river.Topology.Interchanges.Count (),river.Topology.CandidateRefusals[5]);
+		printf ("  ramp across a river: refused, the arrival keeps its junction at X\r\n");
+	}
+
+	//	Spacing: a second anchor 150 units on, inside the first's straight extent, is refused.
+	{
+		CrossingWorld spaced;
+		Interchange_World (&spaced,1,157.5f);
+		StringClass why;
+		Check (Interchange_World_Build (&spaced,&why),"spacing world gate: %s",why.Peek_Buffer ());
+		Check ((spaced.Topology.Interchanges.Count () == 1) &&
+				 (spaced.Topology.AnchorRejections[HYBRID_INTERCHANGE_REJECT_NO_CANDIDATE] == 1),
+				 "two anchors 150 apart both got interchanges (%d)",spaced.Topology.Interchanges.Count ());
+		printf ("  spacing: the second anchor inside the first's straight extent is refused\r\n");
 	}
 }
 
@@ -20123,6 +20285,28 @@ void Check_Hybrid_Interaction_Search (void)
 				}
 				passed_phase9++;
 				printf ("TOPOLOGY archetype %d seed %u\r\n",(int)SEARCH_ARCHETYPES[ai],seed);
+				{
+					//	Section 12.6.15's diagnostics: interchanges by form, candidates evaluated, rejections by reason.
+					const HybridTopology & topo = scan.Topology;
+					int rejected = 0;
+					for (int r = 0; r < HYBRID_INTERCHANGE_REJECTION_COUNT; ++r) rejected += topo.AnchorRejections[r];
+					if ((topo.Interchanges.Count () > 0) || (rejected > 0)) {
+						printf ("INTERCHANGE archetype %d seed %u: diamond %d side %d, ramps on %d off %d, candidates %d; rejected",
+								  (int)SEARCH_ARCHETYPES[ai],seed,topo.InterchangesByForm[HYBRID_INTERCHANGE_DIAMOND_ACCESS],
+								  topo.InterchangesByForm[HYBRID_INTERCHANGE_SIDE_ACCESS],topo.RampsByRole[HYBRID_RAMP_ROLE_ON],
+								  topo.RampsByRole[HYBRID_RAMP_ROLE_OFF],topo.RampCandidatesEvaluated);
+						for (int r = 0; r < HYBRID_INTERCHANGE_REJECTION_COUNT; ++r) {
+							if (topo.AnchorRejections[r] > 0) {
+								printf (" %s %d",Hybrid_Interchange_Rejection_Name ((HybridInterchangeRejection)r),topo.AnchorRejections[r]);
+							}
+						}
+						printf ("; candidates refused by 12.6.8 test");
+						for (int r = 1; r < 8; ++r) {
+							if (topo.CandidateRefusals[r] > 0) printf (" %d:%d",r,topo.CandidateRefusals[r]);
+						}
+						printf ("\r\n");
+					}
+				}
 			}
 			if (!scanned) {
 				if (scan.Reached == 8) {

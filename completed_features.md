@@ -4806,6 +4806,27 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## HIGHWAY_RAMP Phase-9 interchange topology (step 15, checklist I10 reopened) (2026-10-03)
+
+`Build_Interchanges` implements Plan 12.6.4 and 12.6.8:
+- anchors, frame and sides;
+- the `DIAMOND` grade-separated or at-grade crossing decision;
+- gore candidates `k = 0..31`, each tested against all seven 12.6.8 tests with the shared 5W ramp constructor. A ramp
+  that would need its own structure is refused in Phase 9;
+- the qualification and `R` checks;
+- records in the plan's order, retargeting with the fallback variant, and capabilities.
+
+The Phase-9 gate gained the interchange clause (`Check_Interchanges`). Interchange-owned overpass obligations are
+kept out of the Section-5 overpass accounting. `Hybrid_Build_Interchanges` exposes step 15 for controlled worlds.
+
+**Gate:**
+- `Check_Hybrid_Interchange_Topology`: `SIDE_ACCESS` with 16W (10 + 6) and 12W (6 + 6) intervals, a grade-separated
+  `DIAMOND_ACCESS`, refusal of a ramp across a river, the spacing refusal, and determinism;
+- the full ctest suite on client and dedicated server;
+- the state validator.
+
+The 1400-world census is unchanged (no natural world forms an interchange yet).
+
 ## HIGHWAY_RAMP shared prerequisites (Section 12.6.6-12.6.7, checklist I2 reopened; D-022 revision) (2026-10-03)
 
 The ramp reference spline is its travel lane (`RampLaneCenterline`). The roadbed edges sit at `-0.70W` and `+0.80W`
