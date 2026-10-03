@@ -107,6 +107,11 @@ RoadSplineClass & RoadSplineClass::operator = (const RoadSplineClass & that)
 		Points.Add(that.Points[i]);
 	}
 
+	EdgeProfile.Delete_All();
+	for (int i = 0; i < that.EdgeProfile.Count(); i++) {
+		EdgeProfile.Add(that.EdgeProfile[i]);
+	}
+
 	return *this;
 }
 
@@ -137,6 +142,15 @@ bool RoadSplineClass::operator == (const RoadSplineClass & that) const
 		}
 	}
 
+	if (EdgeProfile.Count() != that.EdgeProfile.Count()) {
+		return false;
+	}
+	for (int i = 0; i < EdgeProfile.Count(); i++) {
+		if (EdgeProfile[i] != that.EdgeProfile[i]) {
+			return false;
+		}
+	}
+
 	return (Name == that.Name) && (Material == that.Material);
 }
 
@@ -145,6 +159,7 @@ void RoadSplineClass::Reset(void)
 {
 	ControlPoints.Delete_All();
 	Points.Delete_All();
+	EdgeProfile.Delete_All();
 	Length = 0.0f;
 	StartConnection = RoadConnectionClass();
 	EndConnection = RoadConnectionClass();
@@ -353,6 +368,16 @@ bool RoadSplineClass::Tessellate(float max_deviation,float min_segment,float max
 	}
 
 	Update_Frames();
+
+	//	The edge profile, read once at the distances the road was authored with: trims keep it per point.
+	for (int i = 0; i < Points.Count(); i++) {
+		RoadEdgeProfileSample extra;
+		Edge_Profile_At(Points[i].Distance,&extra);
+		Points[i].ExtraLeft				= extra.CarriagewayLeft;
+		Points[i].ExtraRight				= extra.CarriagewayRight;
+		Points[i].ShoulderExtraLeft	= extra.ShoulderLeft;
+		Points[i].ShoulderExtraRight	= extra.ShoulderRight;
+	}
 	return true;
 }
 
@@ -416,6 +441,82 @@ void RoadSplineClass::Update_Frames(void)
 }
 
 
+//	A cut point's edge profile, between the two points it was cut between.
+static void Interpolate_Extras(const RoadPointClass & a,const RoadPointClass & b,float t,RoadPointClass * out)
+{
+	out->ExtraLeft				= a.ExtraLeft + ((b.ExtraLeft - a.ExtraLeft) * t);
+	out->ExtraRight			= a.ExtraRight + ((b.ExtraRight - a.ExtraRight) * t);
+	out->ShoulderExtraLeft	= a.ShoulderExtraLeft + ((b.ShoulderExtraLeft - a.ShoulderExtraLeft) * t);
+	out->ShoulderExtraRight	= a.ShoulderExtraRight + ((b.ShoulderExtraRight - a.ShoulderExtraRight) * t);
+}
+
+
+/***********************************************************************************************
+ * RoadSplineClass::Set_Edge_Profile -- the optional asymmetric edges, by distance along the road *
+ *=============================================================================================*/
+bool RoadSplineClass::Set_Edge_Profile(const RoadEdgeProfileSample * samples,int count)
+{
+	EdgeProfile.Delete_All();
+	if ((samples == nullptr) || (count <= 0)) {
+		return true;
+	}
+	for (int i = 1; i < count; i++) {
+		if (!(samples[i].Distance > samples[i-1].Distance)) {
+			return false;
+		}
+	}
+	for (int i = 0; i < count; i++) {
+		EdgeProfile.Add(samples[i]);
+	}
+	return true;
+}
+
+
+void RoadSplineClass::Edge_Profile_At(float distance,RoadEdgeProfileSample * out) const
+{
+	*out = RoadEdgeProfileSample();
+	out->Distance = distance;
+	int count = EdgeProfile.Count();
+	if (count == 0) {
+		return;
+	}
+	const RoadEdgeProfileSample * a = &EdgeProfile[0];
+	const RoadEdgeProfileSample * b = a;
+	float t = 0.0f;
+	if (distance >= EdgeProfile[count-1].Distance) {
+		a = &EdgeProfile[count-1];
+		b = a;
+	} else if (distance > EdgeProfile[0].Distance) {
+		int i = 1;
+		while ((i < count - 1) && (EdgeProfile[i].Distance < distance)) {
+			i++;
+		}
+		a = &EdgeProfile[i-1];
+		b = &EdgeProfile[i];
+		float span = b->Distance - a->Distance;
+		t = (span > WWMATH_EPSILON) ? ((distance - a->Distance) / span) : 0.0f;
+	}
+	out->CarriagewayLeft		= a->CarriagewayLeft + ((b->CarriagewayLeft - a->CarriagewayLeft) * t);
+	out->CarriagewayRight	= a->CarriagewayRight + ((b->CarriagewayRight - a->CarriagewayRight) * t);
+	out->ShoulderLeft			= a->ShoulderLeft + ((b->ShoulderLeft - a->ShoulderLeft) * t);
+	out->ShoulderRight		= a->ShoulderRight + ((b->ShoulderRight - a->ShoulderRight) * t);
+}
+
+
+float RoadSplineClass::Get_Widest_Total_Width(void) const
+{
+	float widest = Get_Total_Width();
+	for (int i = 0; i < EdgeProfile.Count(); i++) {
+		const RoadEdgeProfileSample & s = EdgeProfile[i];
+		float left = (0.5f * Width) + s.CarriagewayLeft + ShoulderWidth + s.ShoulderLeft;
+		float right = (0.5f * Width) + s.CarriagewayRight + ShoulderWidth + s.ShoulderRight;
+		float total = 2.0f * ((left > right) ? left : right);
+		if (total > widest) widest = total;
+	}
+	return widest;
+}
+
+
 /***********************************************************************************************
  * RoadSplineClass::Trim_Start -- cut the road back from its beginning                          *
  *                                                                                             *
@@ -453,6 +554,7 @@ bool RoadSplineClass::Trim_Start(float distance)
 	if ((position - after).Length() >= ROADSPLINE_MIN_SPACING) {
 		RoadPointClass point = Points[cut];
 		point.Position = position;
+		Interpolate_Extras(Points[cut-1],Points[cut],t,&point);
 		kept.Add(point);
 	}
 	for (int i = cut; i < Points.Count(); i++) {
@@ -512,6 +614,7 @@ bool RoadSplineClass::Trim_End(float distance)
 	if ((position - before).Length() >= ROADSPLINE_MIN_SPACING) {
 		RoadPointClass point = Points[cut-1];
 		point.Position = position;
+		Interpolate_Extras(Points[cut-1],Points[cut],t,&point);
 		kept.Add(point);
 	}
 

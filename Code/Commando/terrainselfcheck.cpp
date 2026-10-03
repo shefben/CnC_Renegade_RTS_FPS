@@ -1298,6 +1298,88 @@ void	Check_Roads (void)
 	}
 
 	//
+	//	The optional asymmetric edge profile (the hybrid generator's Plan 12.2a).  A road without one is exactly what
+	//	it was; a road with one carries its extras to every tessellated point and through a trim, compares and
+	//	copies with them, reports its widest extent, answers the on-road question per side, and stamps the road
+	//	mask to each side's own edge.
+	//
+	{
+		Vector3 ends[2];
+		ends[0].Set (0.0f, 0.0f, 0.0f);
+		ends[1].Set (20.0f, 0.0f, 0.0f);
+		RoadSplineClass plain;
+		plain.Set_Control_Points (ends, 2);
+		plain.Set_Width (6.0f);
+		plain.Set_Shoulder_Width (1.0f);
+		Check (plain.Tessellate (0.25f, 0.5f, 4.0f), "the plain road did not tessellate");
+		bool zero = !plain.Has_Edge_Profile () && (plain.Get_Widest_Total_Width () == plain.Get_Total_Width ());
+		for (int i = 0; i < plain.Get_Point_Count (); i++) {
+			const RoadPointClass & point = plain.Get_Point (i);
+			zero = zero && (point.ExtraLeft == 0.0f) && (point.ExtraRight == 0.0f) && (point.ShoulderExtraLeft == 0.0f) &&
+					 (point.ShoulderExtraRight == 0.0f) && (point.Left_Half_Width () == 3.0f) && (point.Right_Half_Width () == 3.0f);
+		}
+		Check (zero, "a road without an edge profile is not exactly what it was");
+
+		RoadEdgeProfileSample profile[2];
+		profile[0].Distance = 0.0f;
+		profile[1].Distance = 20.0f;
+		profile[1].CarriagewayLeft = 2.0f;
+		profile[1].ShoulderLeft = 0.5f;
+		profile[1].ShoulderRight = -0.5f;
+		RoadSplineClass shaped (plain);
+		RoadEdgeProfileSample backwards[2];
+		backwards[0].Distance = 5.0f;
+		backwards[1].Distance = 1.0f;
+		Check (!shaped.Set_Edge_Profile (backwards, 2), "an edge profile running backwards was accepted");
+		Check (shaped.Set_Edge_Profile (profile, 2) && shaped.Tessellate (0.25f, 0.5f, 4.0f), "the shaped road did not build");
+		Check (Near (shaped.Get_Widest_Total_Width (), 13.0f, 0.001f), "the shaped road's widest extent is %f, not 13",
+				 shaped.Get_Widest_Total_Width ());
+		float worst = 0.0f;
+		for (int i = 0; i < shaped.Get_Point_Count (); i++) {
+			const RoadPointClass & point = shaped.Get_Point (i);
+			const float expected = 2.0f * (point.Distance / 20.0f);
+			worst = WWMath::Max (worst, WWMath::Fabs (point.ExtraLeft - expected) + WWMath::Fabs (point.ExtraRight));
+		}
+		Check (worst <= 0.001f, "the shaped road's points do not carry the interpolated profile (off by %f)", worst);
+		RoadSplineClass copy (shaped);
+		Check (copy == shaped, "a copy of a shaped road is not the same road");
+		copy.Clear_Edge_Profile ();
+		Check (copy != shaped, "a road without its edge profile still compares equal");
+
+		RoadSplineClass trimmed (shaped);
+		Check (trimmed.Trim_Start (5.0f) && Near (trimmed.Get_Point (0).ExtraLeft, 0.5f, 0.01f),
+				 "a trim does not cut the profile at the cut (%f)", trimmed.Get_Point (0).ExtraLeft);
+
+		//	The on-road question, per side: 4.0 left is on (half width 4.5 there), 4.0 right is not (3.0).
+		RoadSystem::Clear_Roads ();
+		RoadSystem::Add_Road (shaped);
+		Check (RoadSystem::Build_Network (0.25f, 0.5f, 4.0f), "the shaped road network would not build");
+		RoadNavInfoClass left_info;
+		RoadNavInfoClass right_info;
+		Check (RoadSystem::Find_Nearest_Road (Vector3 (15.0f, 4.0f, 0.0f), 10.0f, &left_info) && left_info.IsOnRoad &&
+				 RoadSystem::Find_Nearest_Road (Vector3 (15.0f, -4.0f, 0.0f), 10.0f, &right_info) && !right_info.IsOnRoad,
+				 "the on-road question ignores the edge profile");
+		RoadSystem::Clear_Roads ();
+
+		//	The mask, stamped to each side's own edge.
+		TerrainMaskClass mask;
+		Check (mask.Create (41, 41, 0.5f, Vector3 (0.0f, -10.0f, 0.0f)), "the profile mask would not be created");
+		Vector3 line[2];
+		line[0].Set (0.0f, 0.0f, 0.0f);
+		line[1].Set (20.0f, 0.0f, 0.0f);
+		const float left[2] = { 2.0f, 4.0f };
+		const float right[2] = { 2.0f, 2.0f };
+		const float feather[2] = { 0.0f, 0.0f };
+		mask.Stamp_Polyline_Asymmetric (line, left, right, feather, feather, 2, 1.0f);
+		Check ((mask.Get (30, 26) > 0.99f) && (mask.Get (30, 14) < 0.01f) && (mask.Get (30, 16) > 0.99f),
+				 "the asymmetric mask is not stamped to each side's edge (%f, %f, %f)", mask.Get (30, 26), mask.Get (30, 14),
+				 mask.Get (30, 16));
+		mask.Destroy ();
+		printf ("  road edge profile: plain roads unchanged; extras interpolated, trimmed, compared, per-side on-road, "
+				  "asymmetric mask\r\n");
+	}
+
+	//
 	//	Nothing outlives the world it described.
 	//
 	RoadSystem::Shutdown ();

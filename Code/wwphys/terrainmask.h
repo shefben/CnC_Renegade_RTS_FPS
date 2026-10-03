@@ -101,6 +101,14 @@ public:
 	void					Stamp_Polyline(const Vector3 * points,int count,float width,float value,float feather = 0.0f);
 
 	/*
+	**	The same stamp with different edges either side of the line, per point: `left` / `right` are the full-strength
+	**	half widths and `left_feather` / `right_feather` the soft edges beyond them, left being the left of the
+	**	line's direction.  Between points they are interpolated along the segment a grid point is nearest.
+	*/
+	void					Stamp_Polyline_Asymmetric(const Vector3 * points,const float * left,const float * right,
+															  const float * left_feather,const float * right_feather,int count,float value);
+
+	/*
 	**	How far every point is from the nearest place where source is at or above threshold,
 	**	in world units, saturating at max_distance.
 	**

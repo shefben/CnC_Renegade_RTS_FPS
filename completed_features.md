@@ -4806,6 +4806,30 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## I13 step 2A: the RoadSplineClass asymmetric edge profile (2026-10-03)
+
+This is the optional per-sample edge profile Plan 12.2a/12.6.13 adds to the canonical road owner:
+- `RoadEdgeProfileSample`: carriageway and shoulder extras each side, by authored distance;
+- per-point extras on `RoadPointClass`, read at tessellation and interpolated at trims;
+- copy, compare and reset.
+
+Consumers:
+- the ribbon (`Emit_Run`) and the junction polygon corners;
+- the road mask (`TerrainMaskClass::Stamp_Polyline_Asymmetric`);
+- grade stamping (`Get_Widest_Total_Width`);
+- the per-side on-road query.
+
+The default is empty, so every existing road is byte-for-byte unchanged.
+
+**Gate:** `terrain_roads` covers:
+- a plain road unchanged;
+- extras interpolated, trimmed, copied and compared;
+- the widest extent;
+- per-side on-road;
+- an asymmetric mask.
+
+237/237 ctest on client and dedicated server.
+
 ## I13 step 1: the Phase-12 realization plan (2026-10-03)
 
 `Hybrid_Plan_Realization` covers the following, and is pure and checksummed:

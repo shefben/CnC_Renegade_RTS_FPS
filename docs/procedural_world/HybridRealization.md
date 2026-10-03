@@ -62,6 +62,23 @@ are reserved for a later modular family. Navigation, route independence and game
 logical crossing. Piece ids and transforms are ordered and part of the stage checksum, and every piece seam is a
 swept-validation sample.
 
+## The road owner's edge profile
+
+`RoadSplineClass` has an optional per-sample asymmetric edge profile (`RoadEdgeProfileSample`). It holds extra half
+width for the carriageway and for the shoulder on each side, by distance along the road as authored.
+- **When it is read.** Tessellation reads it once onto every `RoadPointClass` (`ExtraLeft`, `ExtraRight`,
+  `ShoulderExtraLeft`, `ShoulderExtraRight`). A trim interpolates it at the cut.
+- **Who uses it.** It is consumed by:
+  - the ribbon (each edge at its own half width);
+  - the junction polygon corners;
+  - the road mask (`TerrainMaskClass::Stamp_Polyline_Asymmetric`);
+  - grade stamping (the widest extent, `Get_Widest_Total_Width`);
+  - the on-road query (per side).
+- **Default.** An empty profile is the default and changes nothing, so every existing road is unchanged.
+
+Phase 12 hands the canonical owner its nominal width and symmetric shoulder, and expresses the asymmetric and
+effective edges as this profile.
+
 ## Section 12.2 -- the deformation, `Hybrid_Deform_Terrain`
 
 The deformation runs over a height grid, road by road in plan order:

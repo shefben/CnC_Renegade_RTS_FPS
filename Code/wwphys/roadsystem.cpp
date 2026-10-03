@@ -769,7 +769,24 @@ void RoadSystem::Stamp_Road_Mask(void)
 			line.Add(road.Get_Point(i).Position);
 		}
 
-		mask->Stamp_Polyline(&line[0],line.Count(),road.Get_Width(),1.0f,road.Get_Shoulder_Width());
+		if (!road.Has_Edge_Profile()) {
+			mask->Stamp_Polyline(&line[0],line.Count(),road.Get_Width(),1.0f,road.Get_Shoulder_Width());
+			continue;
+		}
+
+		//	A road with an edge profile is stamped to its own edges, side by side.
+		DynamicVectorClass<float> left;
+		DynamicVectorClass<float> right;
+		DynamicVectorClass<float> left_feather;
+		DynamicVectorClass<float> right_feather;
+		for (int i = 0; i < count; i++) {
+			const RoadPointClass & point = road.Get_Point(i);
+			left.Add(point.Left_Half_Width());
+			right.Add(point.Right_Half_Width());
+			left_feather.Add(road.Get_Shoulder_Width() + point.ShoulderExtraLeft);
+			right_feather.Add(road.Get_Shoulder_Width() + point.ShoulderExtraRight);
+		}
+		mask->Stamp_Polyline_Asymmetric(&line[0],&left[0],&right[0],&left_feather[0],&right_feather[0],count,1.0f);
 	}
 }
 
@@ -801,7 +818,8 @@ void RoadSystem::Apply_Grades(void)
 			line.Add(road.Get_Point(i).Position);
 		}
 
-		WorldTerrainSystem::Apply_Road_Grade(&line[0],line.Count(),road.Get_Total_Width(),blend);
+		//	A profiled road grades its widest extent, so no part of either edge is left ungraded.
+		WorldTerrainSystem::Apply_Road_Grade(&line[0],line.Count(),road.Get_Widest_Total_Width(),blend);
 	}
 }
 
@@ -1036,12 +1054,12 @@ static void Emit_Run(DynamicMeshBuilderClass & builder,const RoadRunClass & run,
 	for (int n = 0; n < run.Count; n++) {
 
 		const RoadPointClass & point = _RunPoints[run.First + n];
-		Vector3 across = point.Side * point.HalfWidth;
 		Vector3 lift(0.0f,0.0f,offset);
 		float v = point.Distance / tile;
 
-		builder.Vertex(point.Position + across + lift,0.0f,v);
-		builder.Vertex(point.Position - across + lift,1.0f,v);
+		//	Each edge at its own half width: the edge profile (zero by default) widens one side alone.
+		builder.Vertex(point.Position + (point.Side * point.Left_Half_Width()) + lift,0.0f,v);
+		builder.Vertex(point.Position - (point.Side * point.Right_Half_Width()) + lift,1.0f,v);
 	}
 }
 
@@ -1093,10 +1111,10 @@ static void Emit_Junction(DynamicMeshBuilderClass & builder,int junction_index,f
 			have_reference = true;
 		}
 
-		Vector3 across = point.Side * point.HalfWidth;
 		for (int side = 0; side < 2; side++) {
 			RoadCornerClass corner;
-			corner.Position = (side == 0) ? (point.Position + across) : (point.Position - across);
+			corner.Position = (side == 0) ? (point.Position + (point.Side * point.Left_Half_Width()))
+													: (point.Position - (point.Side * point.Right_Half_Width()));
 			corner.Angle = WWMath::Atan2(corner.Position.Y - junction->Position.Y,
 												  corner.Position.X - junction->Position.X);
 			corners.Add(corner);
@@ -1408,7 +1426,11 @@ bool RoadSystem::Find_Nearest_Road(const Vector3 & position,float max_distance,
 		best.DistanceAlong = along;
 		best.Position = road.Get_Point(index).Position;
 		best.Tangent = road.Get_Point(index).Tangent;
-		best.IsOnRoad = (lateral <= (road.Get_Width() * 0.5f));
+		//	On the carriageway on the side the position is: the edge profile may widen one side alone.
+		const RoadPointClass & nearest = road.Get_Point(index);
+		const Vector3 offset_from = position - nearest.Position;
+		const bool on_left = ((offset_from.X * nearest.Side.X) + (offset_from.Y * nearest.Side.Y)) >= 0.0f;
+		best.IsOnRoad = (lateral <= (on_left ? nearest.Left_Half_Width() : nearest.Right_Half_Width()));
 	}
 
 	if (!have_best) {

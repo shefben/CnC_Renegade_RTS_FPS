@@ -208,6 +208,99 @@ void TerrainMaskClass::Stamp_Disc(const Vector3 & center,float radius,float valu
 }
 
 
+void TerrainMaskClass::Stamp_Polyline_Asymmetric(const Vector3 * points,const float * left,const float * right,
+												  const float * left_feather,const float * right_feather,int count,float value)
+{
+	if ((Values == nullptr) || (points == nullptr) || (left == nullptr) || (right == nullptr) ||
+		 (left_feather == nullptr) || (right_feather == nullptr) || (count < 2)) {
+		return;
+	}
+
+	float reach = 0.0f;
+	float min_x = points[0].X;
+	float max_x = points[0].X;
+	float min_y = points[0].Y;
+	float max_y = points[0].Y;
+	for (int index = 0; index < count; index++) {
+		float l = left[index] + ((left_feather[index] > 0.0f) ? left_feather[index] : 0.0f);
+		float r = right[index] + ((right_feather[index] > 0.0f) ? right_feather[index] : 0.0f);
+		if (l > reach) reach = l;
+		if (r > reach) reach = r;
+		if (points[index].X < min_x) min_x = points[index].X;
+		if (points[index].X > max_x) max_x = points[index].X;
+		if (points[index].Y < min_y) min_y = points[index].Y;
+		if (points[index].Y > max_y) max_y = points[index].Y;
+	}
+
+	int ix0 = WWMath::Float_To_Int_Floor((min_x - reach - Origin.X) / CellSize);
+	int iy0 = WWMath::Float_To_Int_Floor((min_y - reach - Origin.Y) / CellSize);
+	int ix1 = WWMath::Float_To_Int_Floor((max_x + reach - Origin.X) / CellSize) + 1;
+	int iy1 = WWMath::Float_To_Int_Floor((max_y + reach - Origin.Y) / CellSize) + 1;
+	if (ix0 < 0) ix0 = 0;
+	if (iy0 < 0) iy0 = 0;
+	if (ix1 > VertexCountX - 1) ix1 = VertexCountX - 1;
+	if (iy1 > VertexCountY - 1) iy1 = VertexCountY - 1;
+
+	//	As Stamp_Polyline: the distance to the whole line, once per grid point, with the side it lies on.
+	for (int iy = iy0; iy <= iy1; iy++) {
+		for (int ix = ix0; ix <= ix1; ix++) {
+
+			float px = Origin.X + ix * CellSize;
+			float py = Origin.Y + iy * CellSize;
+			float closest_sq = -1.0f;
+			int closest = 0;
+			float closest_t = 0.0f;
+			float closest_cross = 0.0f;
+
+			for (int index = 0; index < count - 1; index++) {
+				float ax = points[index].X;
+				float ay = points[index].Y;
+				float bx = points[index+1].X - ax;
+				float by = points[index+1].Y - ay;
+				float span_sq = (bx * bx) + (by * by);
+				float t = 0.0f;
+				if (span_sq > WWMATH_EPSILON) {
+					t = (((px - ax) * bx) + ((py - ay) * by)) / span_sq;
+					if (t < 0.0f) t = 0.0f;
+					if (t > 1.0f) t = 1.0f;
+				}
+				float dx = px - (ax + (bx * t));
+				float dy = py - (ay + (by * t));
+				float distance_sq = (dx * dx) + (dy * dy);
+				if ((closest_sq < 0.0f) || (distance_sq < closest_sq)) {
+					closest_sq = distance_sq;
+					closest = index;
+					closest_t = t;
+					closest_cross = (bx * (py - ay)) - (by * (px - ax));
+				}
+			}
+			if (closest_sq < 0.0f) {
+				continue;
+			}
+
+			bool on_left = (closest_cross >= 0.0f);
+			const float * half = on_left ? left : right;
+			const float * soft = on_left ? left_feather : right_feather;
+			float radius = half[closest] + ((half[closest+1] - half[closest]) * closest_t);
+			float feather = soft[closest] + ((soft[closest+1] - soft[closest]) * closest_t);
+			if (feather < 0.0f) feather = 0.0f;
+			float distance = WWMath::Sqrt(closest_sq);
+			if (distance > (radius + feather)) {
+				continue;
+			}
+
+			float strength = 1.0f;
+			if ((feather > 0.0f) && (distance > radius)) {
+				float t = 1.0f - ((distance - radius) / feather);
+				strength = t * t * (3.0f - 2.0f * t);
+			}
+			float & existing = Values[iy * VertexCountX + ix];
+			existing = existing + (value - existing) * strength;
+		}
+	}
+}
+
+
 void TerrainMaskClass::Stamp_Polyline(const Vector3 * points,int count,float width,float value,float feather)
 {
 	if ((Values == nullptr) || (points == nullptr) || (count < 2) || (width <= 0.0f)) {

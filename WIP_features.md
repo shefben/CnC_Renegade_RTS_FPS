@@ -415,7 +415,8 @@ plus the Section-12.1 clamp-walk rounding fix. See `docs/procedural_world/Hybrid
    - actual paved edges (asymmetric, D-024, widened highway);
    - the Section-12.2 deformation over a height grid;
    - `BridgeAssembly` -> `BridgePiece` records, one WHOLE piece now;
-2. runtime realization through `WorldTerrainSystem` / `RoadSystem` (with the optional per-sample asymmetric edge
+2. (2A done: the `RoadSplineClass` edge profile and its consumers) runtime realization through `WorldTerrainSystem` /
+   `RoadSystem` (with the optional per-sample asymmetric edge
    profile) / `BridgeSystem` (one assembly at a time) / `TunnelSystem`, replacing the legacy road, bridge and tunnel
    generators on the hybrid path, with the reverse-order cleanup list;
 3. post-realization verification (12.3).

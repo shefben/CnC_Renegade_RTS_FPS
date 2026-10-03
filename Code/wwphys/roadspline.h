@@ -127,6 +127,34 @@ public:
 
 
 /*
+**	An optional per-sample asymmetric edge profile (the hybrid generator's Plan 12.2a / 12.6.13): extra half width
+**	added to the carriageway and to the shoulder on each side of the centre line, by distance along the road as it
+**	was authored.  A road without one -- the default -- is zero everywhere, so every existing road is unchanged.
+**	Left is the left of the road's direction.  Extras may be negative: an asymmetric shoulder narrower on one side.
+*/
+class RoadEdgeProfileSample
+{
+public:
+	RoadEdgeProfileSample(void) :
+		Distance(0.0f), CarriagewayLeft(0.0f), CarriagewayRight(0.0f), ShoulderLeft(0.0f), ShoulderRight(0.0f) { }
+
+	bool operator == (const RoadEdgeProfileSample & that) const
+	{
+		return (Distance == that.Distance) && (CarriagewayLeft == that.CarriagewayLeft) &&
+				 (CarriagewayRight == that.CarriagewayRight) && (ShoulderLeft == that.ShoulderLeft) &&
+				 (ShoulderRight == that.ShoulderRight);
+	}
+	bool operator != (const RoadEdgeProfileSample & that) const	{ return !(*this == that); }
+
+	float				Distance;
+	float				CarriagewayLeft;
+	float				CarriagewayRight;
+	float				ShoulderLeft;
+	float				ShoulderRight;
+};
+
+
+/*
 **	One point on the tessellated centre line.
 **
 **	Everything a ribbon, a junction or a navigation query needs about a place on the road is
@@ -137,13 +165,16 @@ class RoadPointClass
 public:
 	RoadPointClass(void) :
 		Position(0.0f,0.0f,0.0f), Tangent(1.0f,0.0f,0.0f), Side(0.0f,1.0f,0.0f),
-		Normal(0.0f,0.0f,1.0f), Distance(0.0f), HalfWidth(0.0f) { }
+		Normal(0.0f,0.0f,1.0f), Distance(0.0f), HalfWidth(0.0f),
+		ExtraLeft(0.0f), ExtraRight(0.0f), ShoulderExtraLeft(0.0f), ShoulderExtraRight(0.0f) { }
 
 	bool operator == (const RoadPointClass & that) const
 	{
 		return (Position == that.Position) && (Tangent == that.Tangent) &&
 				 (Side == that.Side) && (Normal == that.Normal) &&
-				 (Distance == that.Distance) && (HalfWidth == that.HalfWidth);
+				 (Distance == that.Distance) && (HalfWidth == that.HalfWidth) &&
+				 (ExtraLeft == that.ExtraLeft) && (ExtraRight == that.ExtraRight) &&
+				 (ShoulderExtraLeft == that.ShoulderExtraLeft) && (ShoulderExtraRight == that.ShoulderExtraRight);
 	}
 	bool operator != (const RoadPointClass & that) const	{ return !(*this == that); }
 
@@ -153,6 +184,15 @@ public:
 	Vector3			Normal;			// unit, up, the surface normal the ribbon is lit by
 	float				Distance;		// travelled along the road from its start, in world units
 	float				HalfWidth;		// of the carriageway here
+
+	//	The edge profile at this point (zero without one): the carriageway and the shoulder either side.
+	float				ExtraLeft;
+	float				ExtraRight;
+	float				ShoulderExtraLeft;
+	float				ShoulderExtraRight;
+
+	float				Left_Half_Width(void) const		{ return HalfWidth + ExtraLeft; }
+	float				Right_Half_Width(void) const		{ return HalfWidth + ExtraRight; }
 };
 
 
@@ -267,6 +307,21 @@ public:
 	*/
 	float					Get_Total_Width(void) const				{ return Width + (2.0f * ShoulderWidth); }
 
+	/*
+	**	The optional asymmetric edge profile.  Samples are in increasing distance along the road as authored and
+	**	are read by linear interpolation, clamped at both ends; the tessellated points take their extras from it
+	**	and keep them through Trim_Start / Trim_End.  An empty profile -- the default -- changes nothing.
+	*/
+	bool					Set_Edge_Profile(const RoadEdgeProfileSample * samples,int count);
+	void					Clear_Edge_Profile(void)					{ EdgeProfile.Delete_All(); }
+	bool					Has_Edge_Profile(void) const				{ return EdgeProfile.Count() > 0; }
+	int					Get_Edge_Profile_Count(void) const		{ return EdgeProfile.Count(); }
+	const RoadEdgeProfileSample &	Get_Edge_Profile_Sample(int index) const	{ return EdgeProfile[index]; }
+	void					Edge_Profile_At(float distance,RoadEdgeProfileSample * out) const;
+
+	//	The widest the road reaches anywhere, its edge profile included.
+	float					Get_Widest_Total_Width(void) const;
+
 private:
 
 	void					Subdivide(int segment,float t0,float t1,const Vector3 & p0,const Vector3 & p1,
@@ -278,6 +333,8 @@ private:
 	StringClass			Material;
 
 	DynamicVectorClass<Vector3>			ControlPoints;
+
+	DynamicVectorClass<RoadEdgeProfileSample>	EdgeProfile;
 	DynamicVectorClass<RoadPointClass>	Points;
 
 	float					Width;
