@@ -1239,12 +1239,25 @@ bool Hybrid_Deform_Terrain(const HybridRealizationPlan & plan,const HybridConsta
 				if (distance > (edge + blend)) continue;
 
 				/*
-				**	4: under a deck or in a bore, nothing -- but its two abutment seats, one grid cell inside each end,
-				**	are graded with the road, so the ground the road's last point stands on is the deck's own end and not
-				**	a sample of the bank under it.  A segment touching a structure sample lies wholly inside the structure:
-				**	its samples are strictly interior and its ends are the road's own.
+				**	1-2 on the grid: the ground is bilinear between vertices, so the surface carries the roadbed out to its
+				**	paved edges only when every vertex of every cell the paved roadbed reaches holds the road.  The four
+				**	cells round a vertex reach the roadbed when the vertex is within the paved edge plus that square's
+				**	extent towards the road, `cell * (|n.x| + |n.y|)` along the unit `n` from the road to the vertex.
+				*/
+				const Vector2 p(grid.OriginX + (grid.Spacing * (float)ix),grid.OriginY + (grid.Spacing * (float)iy));
+				const Vector2 foot_point = a.Position + ((b.Position - a.Position) * t);
+				const Vector2 outward = (distance > 0.0f) ? ((p - foot_point) * (1.0f / distance)) : Vector2(0.0f,0.0f);
+				const float cell_reach = grid.Spacing * ((float)fabs((double)outward.X) + (float)fabs((double)outward.Y));
+				const bool roadbed = (distance <= (edge + cell_reach));
+
+				/*
+				**	4: under a deck or in a bore, nothing -- but its two abutment seats, one and a half grid cells inside each
+				**	end, are graded with the road, so the ground the road's last point stands on is the deck's own end and
+				**	not a sample of the bank under it.  A segment touching a structure sample lies wholly inside the
+				**	structure: its samples are strictly interior and its ends are the road's own.
 				*/
 				const int index = (iy * grid.CountX) + ix;
+				bool seat_vertex = false;
 				if (a.Structure || b.Structure) {
 					const float foot = a.Station + ((b.Station - a.Station) * t);
 					int lo = segment[v] - 1;
@@ -1256,20 +1269,25 @@ bool Hybrid_Deform_Terrain(const HybridRealizationPlan & plan,const HybridConsta
 						counted.Structure++;
 						continue;
 					}
+					seat_vertex = true;
 				}
 				if (owned[index] != 0) {
 					counted.Protected++;
 					continue;
 				}
-				const Vector2 p(grid.OriginX + (grid.Spacing * (float)ix),grid.OriginY + (grid.Spacing * (float)iy));
-				if ((hydrology != nullptr) && Hybrid_Point_In_Water(*hydrology,p)) {
+				/*
+				**	3: no water -- except an abutment seat's own roadbed vertices.  A bank that meets the deck end inside one
+				**	grid cell would otherwise leave the road's last stretch interpolated down to the river bed; the seat is
+				**	the abutment, under the deck, and nothing of the span or of the channel beside the roadbed is touched.
+				*/
+				if ((hydrology != nullptr) && !(seat_vertex && roadbed) && Hybrid_Point_In_Water(*hydrology,p)) {
 					counted.Water++;
 					continue;
 				}
 				const float z = a.Z + ((b.Z - a.Z) * t);
-				heights[index] = Hybrid_Road_Cross_Section_Height(distance,z,heights[index],edge,blend);
+				heights[index] = roadbed ? z : Hybrid_Road_Cross_Section_Height(distance,z,heights[index],edge,blend);
 				counted.Changed++;
-				if (distance <= edge) mine.Add(index);
+				if (roadbed) mine.Add(index);
 			}
 		}
 		for (int m = 0; m < mine.Count(); ++m) owned[mine[m]] = 1;

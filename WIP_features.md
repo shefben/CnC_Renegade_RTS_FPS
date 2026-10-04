@@ -425,15 +425,18 @@ loaded level and real content for preflight. The live path is therefore covered 
   bridges;
 - the in-attempt live gate.
 
-A first live native run in the game is still owed.
+Phase-12 step 3 is done (2026-10-04, D-026): Section 12.3's physical half (`Verify_Physical`) runs after
+realization and in the live gate. It found and fixed two native-cell deformation defects: the whole-cell roadbed and
+abutment seats over water. All I13 live-gate items are met except the in-game run.
 
-**Next exact action:** I13 / Phase 12 step 3, the 12.3 post-realization verification:
-- the canonical swept/collision query at `min(W/2, A/3)` (Humvee on every road, heavy on heavy edges, Harvester on
-  economy edges, with ramps, parallel intervals and local junctions by capability);
-- bridge and overpass width, height, span and attachment against the runtime objects;
-- the Section-12.6.13 ramp list.
+**Next exact action:** the I13 in-game smoke, which needs the user's GUI: no command line or server path starts a
+native world, and Release builds log nothing. Steps:
+1. Main menu, Start Procedural Game.
+2. Once loaded, open the console and run `procedural_world status`.
+3. Expect `Phase 12 realized 1 time(s) ... Section 12.3 green`, with RoadSystem and BridgeSystem counts equal to the
+   stretches and assemblies.
 
-Then the I13 gate.
+Then close I13 and start Phase 13's Tiberium asset inventory.
 
 **Deferred:** tunnel realization on the native hybrid path (user, 2026-10-03). No Phase-12 tunnel owner or adapter
 exists. To be planned as its own item.
@@ -446,9 +449,16 @@ exists. To be planned as its own item.
 - crystal positions are not checked against roads, bridges or water: only the field footprint's centre and rim are
   checked, and bridges are not checked at all.
 
-The user's I14 directive is to reuse the original registered Renegade crystal presets and never guess names. I14 must
-therefore first enumerate the shipped content (`always.dat`) with a definition dumper for any canonical Tiberium crystal
-preset. If none exists, that is a blocking question for the user, not a guessed name.
+The user's I14 directive (2026-10-03) sets the order:
+1. Inventory `always.dat` and the loaded definitions (`ow_tiberium_crystal`, crystal W3D models, crystal
+   presets/definitions, harvestable-crystal scripts/components).
+2. Use an original harvestable crystal preset directly if one exists.
+3. Otherwise, define one native-hybrid crystal definition on an original Renegade crystal model, reusing the
+   canonical Tiberium/harvesting behaviour.
+4. Otherwise, record `MISSING_TIBERIUM_CRYSTAL_ASSET` and stop crystal realization.
+
+Field positions are filtered first: no collision-bearing crystal may intersect roads, bridge/overpass reserves,
+water, the Harvester apron or the turning disc.
 
 Generator identity stays 16: there is no bump for ramp substeps. Keep the remaining structural-transition failures
 separate. The river-bridge quota's opposite-bank investigation stays open and must be resolved before release

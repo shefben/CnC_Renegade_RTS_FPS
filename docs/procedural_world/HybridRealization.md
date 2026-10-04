@@ -91,9 +91,13 @@ effective edges as this profile.
 
 The deformation runs over a height grid, road by road in plan order:
 1. The roadbed and shoulder are set to the solved height, out to the sample's actual edges on each side (asymmetric
-   where the road is).
+   where the road is). The ground is bilinear between grid vertices, so a vertex holds the road whenever any of its
+   four cells reaches the paved roadbed: `distance <= edge + cell * (|n.x| + |n.y|)`, `n` the unit direction from the
+   road to the vertex. Otherwise a native 3.75 cell, as wide as a ramp's roadbed, would interpolate blend vertices
+   under the paved width (D-026).
 2. A smoothstep blends from the paved edge to the terrain over exactly `outer_blend = max(W, A/2)`.
-3. Nothing is changed under a deck, inside a bore, or in water.
+3. Nothing is changed under a deck, inside a bore, or in water, except a deck's abutment seats (below), whose own
+   roadbed vertices are graded even over water.
 4. An earlier road's roadbed and shoulder are never changed. The earlier road owns that surface, including a
    junction's shared patch, so a later road's blend (a ramp's at its gore) never modifies it.
 
@@ -115,7 +119,9 @@ Two refinements to the deformation:
 - The roadbed test uses the true distance to the road (a round cap at road ends, never a band along an end segment's
   line).
 - A deck's two abutment seats (one and a half grid cells inside each end) are graded with the road, so the road's last
-  point stands on the deck's own end height. The rest of the span stays untouched.
+  point stands on the deck's own end height. A bank that meets the deck end inside one cell puts a seat vertex in
+  water; its roadbed vertices are graded all the same, or the road's last stretch would be interpolated down to the
+  river bed. The rest of the span, and the channel beside the seat's roadbed, stay untouched.
 
 ## Runtime realization -- `HybridRoadRealizer`
 
@@ -141,7 +147,54 @@ Every created id is on the cleanup list. `Clear` removes them in reverse order, 
 - every bridge at its assembly's ends, width and kind, bound at both ends;
 - no RoadSystem-discovered junction inside an active gore reserve.
 
-The manager runs it after realization, and again (the live gate) just before road geometry is built.
+**`Verify_Physical`** (12.3's physical half, D-026) reads only runtime objects: `WorldTerrainSystem` heights,
+`BridgeSystem` decks (`Conform_Point`), their definitions' deck thickness and support/decoration posts, and the runtime
+roads' paved edges (roads carry no collision; vehicles drive on the ground and the decks).
+
+- **The swept/collision query.** It runs at every plan sample (`min(W/2, A/3)`, every deck end and piece seam among
+  them), with:
+  - the light envelope on every road;
+  - the heavy envelope on every `HYBRID_NAV_HEAVY` road;
+  - the Harvester envelope on every `HYBRID_NAV_HARVESTER` road.
+
+  Ramps, parallel intervals, local junctions, widened highway, approaches, decks and overpasses are all on those
+  roads. Each placement is a 3 x 3 footprint in the runtime road's own frame:
+  - **Placement.** It stands on the roadbed midpoint, or flush with either paved edge where the road's own roadbed is
+    narrower than the envelope (a ramp's gore transition, D-024's combined surface).
+  - **Paved.** It must stand on paved runtime surface: some realized road's roadbed, or a deck at the road's height.
+  - **Surface.** It must stand on the solved surface within the realization tolerance. Where roadbeds overlap, that is
+    the earliest road's surface (12.2 step 5).
+  - **Slope.** It must stay within the class grade and cross slope.
+  - **Overhead.** No deck may stand closer above it than its height plus Section 12.3's safety
+    (`Hybrid_Overpass_Clear_Gap`).
+  - **Posts.** It must meet no pier or decoration post (plan-box separating axes, vertical extents).
+- **Road surfaces.** At every tessellated point, the centre and both paved edges stand on the solved (or owning)
+  surface within the tolerance, and the cross slope that leaves stays within the class limit.
+- **Bridges.** Every assembly is checked as follows:
+  - span equal to the compiled `DeckReachA + DeckReachB`;
+  - every deck section at least Section 12.4's clear width;
+  - the deck along its length and width at the compiled elevation (2Q);
+  - the deck bottom over water no lower than compiled;
+  - an overpass's clear gap over the realized road beneath, which stands at its `LowerSurfaceZ`;
+  - a road bound to each end that stops on the deck end at its surface;
+  - traversable, with the definition's stated clearance kept.
+- **The 12.6.13 ramp list.**
+  - **Ends.** The runtime ramp lies on its realized centerline. `L_s` is an arm of a canonical junction at `z_L`, and
+    the gore end is attached at `d_aux` and at the highway's surface.
+  - **Geometry at the gore.** The tangent is within 0.001 rad. The cross section is 2.375W / 3.825W, inner shoulder 0,
+    outer 0.45W.
+  - **Plan form.** There is no turn under `R_r`, and the convergence leg is 15 degrees.
+  - **Merge/diverge.** The record's lengths, subdivisions, `d_aux` and `E_aux` hold, and the runtime highway's
+    ramp-side carriageway and roadbed equal the record.
+  - **Junctions and capabilities.** There is no other junction on the ramp, and the ramp's capabilities are carried.
+
+The realization tolerance is `2Q + tan(class max grade) * cell * sqrt(2)`. This is how far bilinear ground can depart
+from a slope-limited surface whose vertices it holds, across one cell diagonal: a grade break inside a cell, or two
+roads' surfaces meeting in one. A discrepancy fails the attempt and the attempt's teardown runs. Nothing is repaired.
+
+The manager runs both halves after realization, and again (the live gate) just before road geometry is built.
+`procedural_world status` reports Phase 12 on the active world and runs Section 12.3 again on demand, which is the
+Release-visible check for an in-game run.
 
 ## Migration adapters
 

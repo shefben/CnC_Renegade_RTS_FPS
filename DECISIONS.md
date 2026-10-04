@@ -554,6 +554,86 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-026 - Hybrid rewrite: Section 12.3 post-realization verification on the runtime objects; the realized grid (2026-10-04)
+
+**Directive (user, 2026-10-03).** Verify the runtime objects exactly:
+- **Swept/collision query** at `min(W/2, A/3)`: light on every road, heavy on heavy-capable routes, Harvester on economy
+  routes. It covers ordinary roads, ramps, parallel intervals, local junctions, widened highway sections, bridge
+  approaches and decks, and overpasses.
+- **Every `BridgeAssembly`** against its compiled span, clear width, deck elevation, attachment at both ends and
+  vehicle clearance.
+
+A discrepancy fails the attempt through the existing teardown. Nothing is repaired after realization.
+
+**Implementation readings** (no constraint weakened):
+1. **The canonical swept query** (`HybridRoadRealizer::Verify_Physical`). Roads carry no collision; vehicles drive on
+   the terrain and on decks. The query therefore reads exactly those:
+   - `WorldTerrainSystem` heights;
+   - `BridgeSystem::Conform_Point` decks and their definition's deck thickness;
+   - each bridge's support and decoration sections as posts;
+   - the runtime `RoadSystem` roads' paved edges (carriageway, shoulder and edge profile).
+
+   At every plan sample, the envelope's 3 x 3 footprint (its length along the runtime road's own frame, its width
+   across it) must:
+   - stand on paved runtime surface;
+   - stand on the solved surface within the realization tolerance (reading 3);
+   - stay within the class grade and cross slope;
+   - stand under no deck closer than its height plus Section 12.3's safety;
+   - meet no post.
+2. **Placement and ownership.**
+   - The envelope stands on the roadbed midpoint. Where that roadbed alone is narrower than the envelope, it stands
+     flush with either paved edge. This is the ramp's 2W gore transition, where D-024 lets the combined highway and
+     auxiliary-lane surface carry it.
+   - Where roadbeds overlap (a junction or a gore), the surface is the earliest road's, as solved (12.2 step 5).
+3. **The realization tolerance.** The ground is bilinear between vertices that hold the solved surfaces. Between
+   them it may depart from a surface by that surface's class slope over one cell diagonal:
+   `2Q + tan(class max grade) * cell * sqrt(2)`. This is the case at a grade break inside a cell, such as a deck end
+   or a junction's level patch, and where two roads' surfaces meet. The tilt this puts under a vehicle must still keep
+   the class grade and cross slope. Measured on the native-cell (3.75) controlled worlds:
+   - the deck-end break leaves 0.196 under the abutment;
+   - the heavy interchange's local junction leaves 0.69;
+   - no envelope is tilted past its class limits.
+4. **Bridges.** Each runtime bridge is checked against both its assembly and the compiled record:
+   - span against the compiled `DeckReachA + DeckReachB`;
+   - every deck section at least Section 12.4's clear width for the carried road's vehicles;
+   - the deck surface along its whole length and width at the compiled elevation (2Q);
+   - the deck bottom over a river no lower than compiled, and an overpass's clear gap over the realized road beneath
+     (and that road at its compiled `LowerSurfaceZ`);
+   - a runtime road bound to each end, stopping on the deck end at its surface;
+   - traversable, and the definition's own stated clearance.
+5. **The ramp list (12.6.13), from the realized records and the runtime objects.**
+   - **Ends.** The runtime ramp lies on its realized centerline (2Q). Its `L_s` end is an arm of a canonical
+     `RoadSystem` junction whose ground stands at `z_L`. Its gore end is `ROAD_ENDPOINT_ATTACHED` to the realized
+     highway, at `d_aux` and at the highway's surface.
+   - **Geometry at the gore.** The tangent is within 0.001 rad, measured on the realized centerline's arc samples as
+     Phase 10 measures it. The cross section is inner 2.375W and outer 3.825W, with no inner shoulder and the 0.45W
+     outer one.
+   - **Plan form.** There is no turn under `R_r`. The convergence leg is 15 degrees, with its straight through the
+     midpoint.
+   - **Merge/diverge.** The record's lengths and subdivisions hold, and every sample matches the Q-026 section. The
+     runtime highway's ramp-side carriageway and roadbed equal the record over the whole interval.
+   - **Junctions and capabilities.** No `RoadSystem` junction has the ramp as an arm except at `L_s`. The ramp carries
+     its capabilities.
+6. **Live gate.** The manager runs the physical half both after realization and in the live gate before road
+   geometry is built. Terrain changed by any later stage therefore fails the attempt.
+
+**Defects found at native resolution and fixed at the owner (`Hybrid_Deform_Terrain`):**
+- **Whole cells.** The deformation graded only vertices within the paved edge. With 3.75 cells as wide as a ramp's
+  roadbed, the bilinear ground under the paved width took blend vertices, which tilted a ramp's light envelope 12.5
+  degrees (class 8). A vertex now holds the road when any of its four cells reaches the paved roadbed
+  (`distance <= edge + cell * (|n.x| + |n.y|)`). Those vertices are the road's own and protected from later roads.
+  The smoothstep still runs from the paved edge.
+- **Abutment seat over water.** A bank inside the cell of a deck end left the seat vertex in water, so it was
+  skipped, and the road's last 1.4 m sagged 3.2 m to the river bed. An abutment seat's own roadbed vertices (at most
+  1.5 cells under the deck end) are now graded even over water. The span, and the channel beside the seat's
+  roadbed, stay untouched.
+
+A mutation that turns whole cells off fails Section 12.3 on both native-cell worlds.
+
+**Status: implemented, for review** (readings 2 and 3 and the seat-over-water rule in particular).
+
+
+
 ## D-025 - Hybrid rewrite: Phase 12 goes live on the canonical owners; tunnels deferred; migration adapters (2026-10-03)
 
 **Decision (user, 2026-10-03).**
@@ -617,7 +697,7 @@ Each change was isolated on these four worlds:
 
 The second pair is Phase 11's existing station/sweep order, not a sampler defect.
 
-**Status: implemented, for review.**
+**Status: accepted (user, 2026-10-03).**
 
 
 

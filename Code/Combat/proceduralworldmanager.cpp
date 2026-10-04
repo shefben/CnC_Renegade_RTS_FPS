@@ -32,6 +32,7 @@
 #include "biomedecorationgenerator.h"
 #include "boundarycliffgenerator.h"
 #include "bridgeplanner.h"
+#include "bridgesystem.h"
 #include "castres.h"
 #include "combat.h"
 #include "combatspacevalidator.h"
@@ -1093,19 +1094,56 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 }
 
 
-//	Phase 12's runtime objects against its frozen plan (HybridRoadRealizer::Verify), from the manager's own records.
-bool ProceduralWorldManager::Verify_Hybrid_Roads(StringClass * error_out)
+/*
+**	Phase 12's runtime inputs from the manager's own records.  The swept envelopes are the preflight metric cache's
+**	widths and heights; the cache keeps no Humvee or heavy-vehicle length, so those come from the same measured
+**	WORLDBOX inputs preflight read them from.
+*/
+void ProceduralWorldManager::Hybrid_Realizer_Inputs(const ProceduralWorldProfile & profile,HybridRoadRealizerInputs * inputs)
+{
+	inputs->Plan				= &HybridRealization;
+	inputs->Topology			= &HybridTopologyRecord;
+	inputs->Routes				= &HybridRoutes;
+	inputs->Interactions		= &HybridInteractions;
+	inputs->Anchors			= &HybridAnchors;
+	inputs->Hydrology			= &HybridHydrology;
+	inputs->Constants			= HybridMetrics.Constants;
+	inputs->BridgeDefinitions.Delete_All ();
+	for (int i = 0; i < HybridInputs.Bridges.Count (); ++i) inputs->BridgeDefinitions.Add (HybridInputs.Bridges[i].Name);
+	inputs->Light.Length			= HybridInputs.Humvee.Length;
+	inputs->Light.Width			= HybridMetrics.HumveeWidth;
+	inputs->Light.Height			= HybridMetrics.HumveeHeight;
+	inputs->Heavy.Length			= HybridInputs.HeavyVehicle.Length;
+	inputs->Heavy.Width			= HybridMetrics.HeavyVehicleWidth;
+	inputs->Heavy.Height			= HybridMetrics.HeavyVehicleHeight;
+	inputs->Harvester.Length	= HybridMetrics.HarvesterLength;
+	inputs->Harvester.Width		= HybridMetrics.HarvesterWidth;
+	inputs->Harvester.Height	= HybridMetrics.HarvesterHeight;
+	inputs->MinVehicleLaneClearance = profile.Fairness.MinVehicleLaneClearance;
+}
+
+
+bool ProceduralWorldManager::Report_Hybrid_Roads(StringClass * report_out)
+{
+	if (!WorldActive || !HybridRealizationValid || !ActiveProfile.Uses_Hybrid_Generator ()) return false;
+	StringClass verdict;
+	const bool verified = Verify_Hybrid_Roads (ActiveProfile,&verdict);
+	report_out->Format ("Phase 12 realized %d time(s): %d road stretch(es), %d bridge/overpass assemblies, %d terrain vertices "
+							  "graded; RoadSystem %d roads, BridgeSystem %d bridges; Section 12.3 %s over %d swept placements%s%s",
+							  HybridRoadRealizer::Get_Realize_Count (),HybridRoadRealizer::Get_Piece_Count (),
+							  HybridRoadRealizer::Get_Bridge_Count (),(int)HybridRoadRealizer::Get_Terrain_Changed (),
+							  RoadSystem::Get_Road_Count (),BridgeSystem::Get_Bridge_Count (),verified ? "green" : "FAILED",
+							  HybridRoadRealizer::Get_Swept_Samples (),verified ? "" : " -- ",verdict.Peek_Buffer ());
+	return true;
+}
+
+
+//	Phase 12's runtime objects against its frozen plan: Section 12.3's record half, then its physical half.
+bool ProceduralWorldManager::Verify_Hybrid_Roads(const ProceduralWorldProfile & profile,StringClass * error_out)
 {
 	HybridRoadRealizerInputs inputs;
-	inputs.Plan				= &HybridRealization;
-	inputs.Topology		= &HybridTopologyRecord;
-	inputs.Routes			= &HybridRoutes;
-	inputs.Interactions	= &HybridInteractions;
-	inputs.Anchors			= &HybridAnchors;
-	inputs.Hydrology		= &HybridHydrology;
-	inputs.Constants		= HybridMetrics.Constants;
-	for (int i = 0; i < HybridInputs.Bridges.Count (); ++i) inputs.BridgeDefinitions.Add (HybridInputs.Bridges[i].Name);
-	return HybridRoadRealizer::Verify (inputs,error_out);
+	Hybrid_Realizer_Inputs (profile,&inputs);
+	return HybridRoadRealizer::Verify (inputs,error_out) && HybridRoadRealizer::Verify_Physical (inputs,error_out);
 }
 
 
@@ -1144,17 +1182,10 @@ bool ProceduralWorldManager::Realize_Hybrid_Roads(const ProceduralWorldProfile &
 	}
 
 	HybridRoadRealizerInputs inputs;
-	inputs.Plan				= &HybridRealization;
-	inputs.Topology		= &HybridTopologyRecord;
-	inputs.Routes			= &HybridRoutes;
-	inputs.Interactions	= &HybridInteractions;
-	inputs.Anchors			= &HybridAnchors;
-	inputs.Hydrology		= &HybridHydrology;
-	inputs.Constants		= HybridMetrics.Constants;
-	for (int i = 0; i < HybridInputs.Bridges.Count (); ++i) inputs.BridgeDefinitions.Add (HybridInputs.Bridges[i].Name);
+	Hybrid_Realizer_Inputs (profile,&inputs);
 
 	StringClass detail;
-	if (!HybridRoadRealizer::Realize (inputs,&detail) || !Verify_Hybrid_Roads (&detail) ||
+	if (!HybridRoadRealizer::Realize (inputs,&detail) || !Verify_Hybrid_Roads (profile,&detail) ||
 		 !HybridRoadRealizer::Publish_Adapters (inputs,&detail)) {
 		if (error_out != nullptr) error_out->Format ("hybrid Phase 12: %s",detail.Peek_Buffer ());
 		return false;
@@ -2437,7 +2468,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	*/
 	if (hybrid_roads) {
 		StringClass verify_error;
-		if (!Verify_Hybrid_Roads (&verify_error)) {
+		if (!Verify_Hybrid_Roads (profile,&verify_error)) {
 			if (error_out != nullptr) error_out->Format ("hybrid Phase 12 live gate: %s",verify_error.Peek_Buffer ());
 			return false;
 		}

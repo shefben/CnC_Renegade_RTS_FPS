@@ -52,11 +52,23 @@
 #include "hybridanchors.h"
 
 
+//	One reference vehicle's measured collision envelope (preflight's WORLDBOX), full extents in world units.
+struct HybridSweptEnvelope
+{
+	HybridSweptEnvelope(void) : Length(0.0f),Width(0.0f),Height(0.0f) { }
+
+	float	Length;
+	float	Width;
+	float	Height;
+};
+
+
 //	Everything Phase 12's runtime half reads: the frozen records and the plan built from them.
 struct HybridRoadRealizerInputs
 {
 	HybridRoadRealizerInputs(void) :
-		Plan(nullptr),Topology(nullptr),Routes(nullptr),Interactions(nullptr),Anchors(nullptr),Hydrology(nullptr)
+		Plan(nullptr),Topology(nullptr),Routes(nullptr),Interactions(nullptr),Anchors(nullptr),Hydrology(nullptr),
+		MinVehicleLaneClearance(0.0f)
 	{
 		memset(&Constants,0,sizeof(Constants));
 	}
@@ -69,6 +81,12 @@ struct HybridRoadRealizerInputs
 	const HybridHydrologySet *			Hydrology;
 	HybridConstants						Constants;
 	DynamicVectorClass<StringClass>	BridgeDefinitions;	// the BridgeSystem definition of each Phase-11 bridge kind
+
+	//	Section 12.3's swept envelopes: light on every road, heavy on heavy edges, Harvester on economy edges.
+	HybridSweptEnvelope					Light;
+	HybridSweptEnvelope					Heavy;
+	HybridSweptEnvelope					Harvester;
+	float										MinVehicleLaneClearance;	// Section 12.4's clear-width margin
 };
 
 
@@ -110,6 +128,21 @@ public:
 	*/
 	static bool			Verify(const HybridRoadRealizerInputs & in,StringClass * error_out);
 
+	/*
+	**	Section 12.3's physical half, against the runtime objects only:
+	**	- the canonical swept/collision query at `min(W/2, A/3)` along every road (light), every heavy-capable road
+	**	  (heavy) and every economy road (Harvester), ramps, parallel intervals, local junctions, decks and overpasses
+	**	  included: the envelope's footprint on paved runtime surface, standing on the solved surface, under no deck
+	**	  closer than its height plus Section 12.3's safety, and clear of every pier;
+	**	- every realized road sample against its solved grade and cross slope;
+	**	- every BridgeAssembly against its compiled span, clear width, deck elevation, attachment at both ends and
+	**	  vertical clearance;
+	**	- every active interchange by the Section-12.6.13 ramp list.
+	**	A discrepancy fails the attempt; nothing is repaired after realization.
+	*/
+	static bool			Verify_Physical(const HybridRoadRealizerInputs & in,StringClass * error_out);
+	static int			Get_Swept_Samples(void)							{ return SweptSamples; }
+
 	//	The migration adapters: nodes, road graph edges, river/canyon bridges and the frozen base pair.
 	static bool			Publish_Adapters(const HybridRoadRealizerInputs & in,StringClass * error_out);
 
@@ -129,6 +162,7 @@ private:
 	static int										TerrainChanged;
 	static int										BaselineRoads;
 	static int										BaselineBridges;
+	static int										SweptSamples;
 	static DynamicVectorClass<HybridRealizedPiece>	Pieces;
 	static DynamicVectorClass<int>			BridgeIds;			// one per plan assembly, in order
 };

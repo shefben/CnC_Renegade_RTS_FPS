@@ -391,21 +391,41 @@ selection no longer run on that path. A live gate re-verifies before road geomet
 (`Hybrid_Native_Tunnels_Available`). No Phase-12 tunnel realization, no tunnel adapter, and tunnels are not part of the
 Phase-12 gate. Authored/legacy `TunnelSystem` is unchanged. To be revisited as its own item.
 
-- [ ] No reroute/method change; failure fails attempt.
-- [ ] Vertical-profile solver exactly as §12.1 (forward/backward propagation, clamp walk, quantize, revalidate, no invented banking).
-- [ ] Terrain deformation 9 steps (roadbed, shoulder, `outer_blend` smoothstep, protected voids, shared junction patch once, existing ditch helper only if present, commit via `WorldTerrainSystem`, realize once via Road/Bridge/Tunnel/junction APIs, reverse-order cleanup list).
-- [ ] Semantic class → existing physical road tier mapping (§7); explicit width passed or hybrid defs created once at init.
-- [ ] Refinement patches released after commit.
-- [ ] Post-realization swept verification (Humvee all roads, heavy on heavy edges, Harvester on economy edges) + crossing object verification.
-- [ ] No global nav rebuild triggered.
-- [ ] Highway access (§8 P12 §12.2a, §12.6.11–12.6.13), processed in routing order (highway, then group 1b, then later roads):
-  - [ ] Realize ramp roadbed: one canonical `RoadSystem` road per ramp, `L_s`→gore, normal paved tier, width `W`, symmetric shoulder `0.25W` (exact `1.50W` footprint).
-  - [ ] Realize merge/diverge widening on the highway road: optional per-sample asymmetric edge profile added to `RoadSplineClass`/`RoadPointClass` (default zero, existing callers unchanged) used by ribbon, road mask and grade stamping; `h`/`E` from the compiled record.
-  - [ ] Gore attachment = compiled merge/diverge record; assert no `RoadSystem`-discovered junction inside a parallel interval or gore reserve.
-  - [ ] Canonical RoadSystem instantiation of local junctions at `z_L` and the DIAMOND crossing through the existing overpass/junction path; runtime ids on the cleanup list.
-  - [ ] Terrain deformation: union roadbed; ramp outer blend never modifies the highway roadbed/shoulder (gore wedge).
-  - [ ] Swept validation: ramps, parallel intervals, local junctions with heavy/Harvester envelopes per capability; §12.6.13 ramp list.
-  - [ ] No new topology, no downgrade to an ordinary intersection; discrepancy fails the attempt.
+**Progress (2026-10-04), Section 12.3 (step 3, D-026):** `HybridRoadRealizer::Verify_Physical` verifies the runtime
+objects:
+- the canonical swept/collision query (light, heavy and Harvester envelopes by capability, at every plan sample);
+- every road sample's realized surface and cross slope;
+- every `BridgeAssembly` against its compiled span, clear width, deck elevation, attachments and clearances;
+- the 12.6.13 ramp list.
+
+It runs after realization and in the live gate. At the native 3.75 cell it found two deformation defects, both fixed at
+`Hybrid_Deform_Terrain`: the whole-cell roadbed, and abutment seats over water. `procedural_world status` reports
+Phase 12 in Release builds.
+
+**I13 live gate (user, 2026-10-03):**
+- [x] all Phase-12 controlled tests green;
+- [x] post-build swept verification green (native-cell controlled worlds);
+- [x] BridgeAssembly runtime verification green;
+- [x] failed-attempt teardown proven;
+- [x] old hybrid road/bridge realization unreachable;
+- [ ] one real loaded native-hybrid world reaches Phase 12 in-game without duplicate roads/bridges or terrain
+  corruption.
+
+- [x] No reroute/method change; failure fails attempt.
+- [x] Vertical-profile solver exactly as §12.1 (forward/backward propagation, clamp walk, quantize, revalidate, no invented banking).
+- [x] Terrain deformation 9 steps (roadbed, shoulder, `outer_blend` smoothstep, protected voids, shared junction patch once, existing ditch helper only if present, commit via `WorldTerrainSystem`, realize once via Road/Bridge/Tunnel/junction APIs, reverse-order cleanup list). *(No ditch helper exists; tunnels deferred; whole-cell roadbed and seats over water, D-026.)*
+- [x] Semantic class → existing physical road tier mapping (§7); explicit width passed or hybrid defs created once at init.
+- [x] Refinement patches released after commit. *(Phase 12 deforms the committed field directly; it creates none.)*
+- [x] Post-realization swept verification (Humvee all roads, heavy on heavy edges, Harvester on economy edges) + crossing object verification. *(D-026.)*
+- [x] No global nav rebuild triggered. *(Phase 12 builds the road network only; Phase 18 owns the navigation build.)*
+- [x] Highway access (§8 P12 §12.2a, §12.6.11–12.6.13), processed in routing order (highway, then group 1b, then later roads):
+  - [x] Realize ramp roadbed: one canonical `RoadSystem` road per ramp, `L_s`→gore, normal paved tier, width `W`, symmetric shoulder `0.25W` (exact `1.50W` footprint).
+  - [x] Realize merge/diverge widening on the highway road: optional per-sample asymmetric edge profile added to `RoadSplineClass`/`RoadPointClass` (default zero, existing callers unchanged) used by ribbon, road mask and grade stamping; `h`/`E` from the compiled record.
+  - [x] Gore attachment = compiled merge/diverge record; assert no `RoadSystem`-discovered junction inside a parallel interval or gore reserve.
+  - [x] Canonical RoadSystem instantiation of local junctions at `z_L` and the DIAMOND crossing through the existing overpass/junction path; runtime ids on the cleanup list.
+  - [x] Terrain deformation: union roadbed; ramp outer blend never modifies the highway roadbed/shoulder (gore wedge).
+  - [x] Swept validation: ramps, parallel intervals, local junctions with heavy/Harvester envelopes per capability; §12.6.13 ramp list.
+  - [x] No new topology, no downgrade to an ordinary intersection; discrepancy fails the attempt.
 - [ ] **Gate:** every mandatory object realized once, matches frozen records, swept tests pass, no detached crossing, every active interchange realized and attached at both ends.
 
 ## I14 — Runtime Phase 13: Tiberium fields (§8 P13, §13)

@@ -18818,8 +18818,9 @@ static void Plan_Road (HybridRealizationPlan * plan,unsigned int edge,float y,fl
 
 /*
 **	Section 12.2's deformation on hand-made plans, where every answer is known exactly: the paved edges either
-**	side (asymmetric), the smoothstep over exactly outer_blend, untouched terrain beyond, nothing under a deck or in
-**	water, and an earlier road's roadbed never changed by a later road crossing it at another height.
+**	side (asymmetric) carried by every grid cell they reach, the smoothstep from the paved edge over exactly
+**	outer_blend, untouched terrain beyond, nothing under a deck or in water but an abutment seat's own roadbed, and an
+**	earlier road's roadbed never changed by a later road crossing it at another height.
 */
 static void Check_Hybrid_Deformation_Units (const HybridConstants & k)
 {
@@ -18849,16 +18850,23 @@ static void Check_Hybrid_Deformation_Units (const HybridConstants & k)
 	Check (AT (0.0f,1.5f) == 5.0f && AT (0.0f,-3.5f) == 5.0f,"the asymmetric roadbed is not level at its solved height");
 	//	The earlier road's roadbed: B's blend reaches y 1.5 inside A's roadbed, which stays at 5.
 	Check (AT (0.0f,1.5f) == 5.0f && (stats.Protected > 0),"a later road's blend changed an earlier road's roadbed");
-	//	The smoothstep on A's right, where no other road reaches: exact at every vertex across the blend.
+	/*
+	**	The smoothstep on A's right, where no other road reaches: exact at every vertex across the blend.  The ground is
+	**	bilinear, so the cells the paved edge falls in hold the road at all four vertices: along a grid axis that is one
+	**	cell past the edge, and the smoothstep from the paved edge takes over beyond it.
+	*/
 	float worst = 0.0f;
 	for (int iy = 0; iy < grid.CountY; ++iy) {
 		const float y = grid.OriginY + (grid.Spacing * (float)iy);
 		if ((y > -4.0f) || (y < (-4.0f - blend - 2.0f))) continue;
 		const float s = WWMath::Min ((-4.0f - y) / blend,1.0f);
-		const float expected = 5.0f + ((GROUND - 5.0f) * (s * s * (3.0f - (2.0f * s))));
+		const float expected = (y >= (-4.0f - grid.Spacing)) ? 5.0f : (5.0f + ((GROUND - 5.0f) * (s * s * (3.0f - (2.0f * s)))));
 		worst = WWMath::Max (worst,WWMath::Fabs (AT (0.0f,y) - expected));
 	}
 	Check (worst <= 1.0e-4f,"the outer blend is not a smoothstep over exactly outer_blend (off by %.5f)",worst);
+	Check ((AT (0.0f,-4.0f - grid.Spacing) == 5.0f) && (AT (0.0f,-4.0f - (2.0f * grid.Spacing)) != 5.0f),
+			 "the grid does not carry the paved edge: one cell past it holds %.3f, two cells %.3f",
+			 AT (0.0f,-4.0f - grid.Spacing),AT (0.0f,-4.0f - (2.0f * grid.Spacing)));
 	Check (AT (0.0f,-4.0f - blend - 1.0f) == GROUND,"terrain beyond the blend was changed");
 
 	//	Under a deck: nothing changes.
@@ -18884,6 +18892,27 @@ static void Check_Hybrid_Deformation_Units (const HybridConstants & k)
 	Hybrid_Deform_Terrain (wet_plan,k,&water.Hydrology,grid,&wet[0],&wet_stats);
 	const int river = mid + (int)(20.0f / grid.Spacing);
 	Check ((wet[river] == GROUND) && (wet_stats.Water > 0),"a road deformed the water it crosses");
+
+	/*
+	**	An abutment seat over water: the bank inside the deck end's seat (water from x -5.75, the deck end at -6).  The
+	**	seat's own roadbed vertices hold the road, so the road's last stretch is not interpolated down to the river bed;
+	**	the span, and the channel beside the seat's roadbed, keep the river's ground.
+	*/
+	CrossingWorld seat_water;
+	Crossing_World_Begin (&seat_water);
+	Crossing_World_River (&seat_water,1,Vector2 (0.0f,-60.0f),Vector2 (0.0f,60.0f),11.5f);
+	DynamicVectorClass<float> seat;
+	for (int v = 0; v < (grid.CountX * grid.CountY); ++v) seat.Add (GROUND);
+	HybridRealizationPlan seat_plan;
+	Plan_Road (&seat_plan,5,0.0f,9.0f,2.0f,2.0f,-40.0f,40.0f,true);
+	HybridDeformationStats seat_stats;
+	Hybrid_Deform_Terrain (seat_plan,k,&seat_water.Hydrology,grid,&seat[0],&seat_stats);
+	#define SEAT(x,y) seat[(((int)(((y) - grid.OriginY) / grid.Spacing + 0.5f)) * grid.CountX) + (int)(((x) - grid.OriginX) / grid.Spacing + 0.5f)]
+	Check ((SEAT (-5.5f,0.0f) == 9.0f) && (SEAT (-5.5f,2.5f) == 9.0f) && (SEAT (-5.0f,0.0f) == GROUND) &&
+			 (SEAT (-5.5f,3.0f) == GROUND) && (SEAT (0.0f,0.0f) == GROUND) && (SEAT (-30.0f,0.0f) == 9.0f),
+			 "an abutment seat over water is wrong: seat %.2f / %.2f, span %.2f, channel %.2f, middle %.2f",
+			 SEAT (-5.5f,0.0f),SEAT (-5.5f,2.5f),SEAT (-5.0f,0.0f),SEAT (-5.5f,3.0f),SEAT (0.0f,0.0f));
+	#undef SEAT
 	#undef AT
 	printf ("  Phase 12 deformation: asymmetric roadbed level, smoothstep over %.2f, earlier roadbed kept (%d), deck (%d) and "
 			  "water (%d) untouched\r\n",blend,stats.Protected,deck_stats.Structure,wet_stats.Water);
@@ -19238,7 +19267,8 @@ static void Runtime_Bases (CrossingWorld * world,unsigned int gdi_entrance,unsig
 
 
 static HybridRoadRealizerInputs Runtime_Inputs (const CrossingWorld & world,const HybridRealizationPlan & plan,
-																const HybridInteractionSet & set,const HybridPreflightInputs & content)
+																const HybridInteractionSet & set,const HybridPreflightInputs & content,
+																const HybridMetricCache & metrics)
 {
 	HybridRoadRealizerInputs in;
 	in.Plan				= &plan;
@@ -19249,20 +19279,60 @@ static HybridRoadRealizerInputs Runtime_Inputs (const CrossingWorld & world,cons
 	in.Hydrology		= &world.Hydrology;
 	in.Constants		= world.Sized.Constants;
 	for (int i = 0; i < content.Bridges.Count (); i++) in.BridgeDefinitions.Add (content.Bridges[i].Name);
+	in.Light.Length			= content.Humvee.Length;
+	in.Light.Width				= metrics.HumveeWidth;
+	in.Light.Height			= metrics.HumveeHeight;
+	in.Heavy.Length			= content.HeavyVehicle.Length;
+	in.Heavy.Width				= metrics.HeavyVehicleWidth;
+	in.Heavy.Height			= metrics.HeavyVehicleHeight;
+	in.Harvester.Length		= metrics.HarvesterLength;
+	in.Harvester.Width		= metrics.HarvesterWidth;
+	in.Harvester.Height		= metrics.HarvesterHeight;
+	in.MinVehicleLaneClearance = 1.0f;
 	return in;
 }
 
 
 /*
-**	Phase 12 live on the canonical owners (I13 step 2B), through the exact path the procedural world manager runs --
-**	HybridRoadRealizer::Realize, Verify, Publish_Adapters, Clear -- on controlled worlds with a real WorldTerrainSystem
-**	field, RoadSystem and BridgeSystem:
-**	- a heavy SIDE_ACCESS interchange on raised ground: realized exactly once (a second call refused), runtime roads
-**	  on their frozen records, the ramp's effective asymmetric roadbed in the terrain (graded on its wide side at a
-**	  distance its narrow side blends), the gore attached to the highway with no discovered junction, the adapters
-**	  joining the base pair through the road graph, and teardown leaving nothing;
-**	- a river bridge: one BridgeSystem bridge for its assembly, both road ends bound to it, the deck span and water
-**	  untouched, and the adapter's bridge edge running bank to bank.
+**	The native terrain cell (data/procedural_world/native.json: chunk 60 over HeightfieldClass's 16 cells), so the
+**	12.3 verification runs on the ground resolution a real native world has.
+*/
+static const float NATIVE_TERRAIN_CELL = 60.0f / 16.0f;
+
+
+//	A runtime terrain over every routed road of a controlled world and the deformation's reach around it.
+static bool Runtime_Terrain_Whole (CrossingWorld * world,float cell,bool (*ground) (const Vector2 &,float *,void *))
+{
+	Vector2 lo (3.4e38f,3.4e38f);
+	Vector2 hi (-3.4e38f,-3.4e38f);
+	for (int r = 0; r < world->Routes.Routes.Count (); r++) {
+		const HybridRoute & route = world->Routes.Routes[r];
+		for (int p = 0; p < route.Points.Count (); p++) {
+			lo.Set (WWMath::Min (lo.X,route.Points[p].X),WWMath::Min (lo.Y,route.Points[p].Y));
+			hi.Set (WWMath::Max (hi.X,route.Points[p].X),WWMath::Max (hi.Y,route.Points[p].Y));
+		}
+	}
+	if (!(hi.X >= lo.X)) return false;
+	const HybridConstants & k = world->Sized.Constants;
+	const float margin = (4.0f * k.W) + Hybrid_Road_Outer_Blend_Width (k.W,k.A) + (4.0f * cell);
+	const float half = (0.5f * WWMath::Max (hi.X - lo.X,hi.Y - lo.Y)) + margin;
+	return Runtime_Terrain (world,(lo + hi) * 0.5f,half,cell,ground);
+}
+
+
+/*
+**	Phase 12 live on the canonical owners (I13 steps 2B and 3), through the exact path the procedural world manager
+**	runs -- HybridRoadRealizer::Realize, Verify, Verify_Physical, Publish_Adapters, Clear -- on controlled worlds
+**	with a real WorldTerrainSystem field, RoadSystem and BridgeSystem:
+**	- a heavy SIDE_ACCESS interchange on raised ground, on a fine local field: realized exactly once (a second call
+**	  refused), runtime roads on their frozen records, the ramp's effective asymmetric roadbed in the terrain (graded
+**	  on its wide side at a distance its narrow side blends), the gore attached to the highway;
+**	- the same world on a native-cell field over all of it: Section 12.3's physical verification (the light, heavy
+**	  and Harvester envelopes swept along every road, the ramp list), the adapters joining the base pair through the
+**	  road graph, and teardown leaving nothing; a road cut into after realization fails it;
+**	- a river bridge on a native-cell field: one BridgeSystem bridge for its assembly verified against its compiled
+**	  span, width, deck and attachments, both road ends bound to it, the deck span and water untouched, and the
+**	  adapter's bridge edge running bank to bank; a deck dropped under its compiled elevation fails it.
 */
 static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,const HybridMetricCache & metrics)
 {
@@ -19296,92 +19366,143 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 							 Interchange_Phase11 (&world,content,metrics,&set,&solved);
 		Check (ok,"Phase 12 runtime interchange world: %s %s",routed.Detail.Peek_Buffer (),solved.Detail.Peek_Buffer ());
 		Runtime_Bases (&world,1,3);
-		HybridRealizationParams params = Realization_Fixture (k,metrics);
-		params.TerrainCellSize = 0.25f;
-		HybridRealizationPlan plan;
-		HybridRealizationResult result;
-		const Vector2 centre (7.5f,-30.0f);
-		const bool terrain = ok && Runtime_Terrain (&world,centre,110.0f,0.25f,Raised_Ground);
-		const bool planned = terrain && Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Raised_Ground,
-																					&world.Hydrology,&plan,&result);
-		Check (planned,"Phase 12 runtime: the plan was refused: %s",result.Detail.Peek_Buffer ());
-		if (planned) {
-			const HybridRoadRealizerInputs in = Runtime_Inputs (world,plan,set,content);
-			StringClass error;
-			const bool realized = HybridRoadRealizer::Realize (in,&error);
-			Check (realized,"Phase 12 runtime: Realize refused the interchange world: %s",error.Peek_Buffer ());
-			StringClass again;
-			Check (!HybridRoadRealizer::Realize (in,&again) && (HybridRoadRealizer::Get_Realize_Count () == 1),
-					 "Phase 12 realized the same attempt twice");
-			StringClass verify_error;
-			const bool verified = realized && HybridRoadRealizer::Verify (in,&verify_error);
-			Check (verified,"Phase 12 runtime verification: %s",verify_error.Peek_Buffer ());
 
-			//	The heavy ramp's asymmetric effective roadbed in the terrain, and its gore attached to the highway.
-			const HybridInterchange & ic = world.Topology.Interchanges[0];
-			const HybridRealizedRoad * ramp = plan.Find_Road (ic.RampEdges[1]);
-			int attached = 0;
-			for (int r = 0; r < RoadSystem::Get_Road_Count (); r++) {
-				const RoadSplineClass * road = RoadSystem::Peek_Road (r);
-				if ((road != NULL) && (road->Get_End_Connection ().Type == ROAD_ENDPOINT_ATTACHED) &&
-					 (RoadSystem::Peek_Road (road->Get_End_Connection ().TargetID) != NULL) &&
-					 (RoadSystem::Peek_Road (road->Get_End_Connection ().TargetID)->Get_Width () > road->Get_Width ())) attached++;
-			}
-			Check (attached == 2,"%d ramp gores are attached to the highway, not 2",attached);
-			if (realized && (ramp != NULL) && (ramp->Samples.Count () > 8)) {
-				const HybridRealizedSample & s = ramp->Samples[4];
-				const Vector2 ahead = ramp->Samples[5].Position - ramp->Samples[3].Position;
-				Vector2 left (-ahead.Y,ahead.X);
-				left.Normalize ();
-				const float wide = WWMath::Max (s.Left,s.Right);
-				const float narrow = WWMath::Min (s.Left,s.Right);
-				const float probe = 0.5f * (wide + narrow);
-				float on_wide = 0.0f;
-				float on_narrow = 0.0f;
-				const Vector2 wide_point = s.Position + (left * ((s.Left > s.Right) ? probe : -probe));
-				const Vector2 narrow_point = s.Position + (left * ((s.Left > s.Right) ? -probe : probe));
-				WorldTerrainSystem::Sample_Height (wide_point.X,wide_point.Y,&on_wide);
-				WorldTerrainSystem::Sample_Height (narrow_point.X,narrow_point.Y,&on_narrow);
-				Check ((wide - narrow > 0.25f) && (WWMath::Fabs (on_wide - s.Z) <= 0.02f) && (WWMath::Fabs (on_narrow - s.Z) > 0.02f),
-						 "the ramp's asymmetric roadbed is not in the terrain: %.3f on its %.2f side, %.3f on its %.2f side, road %.3f",
-						 on_wide,wide,on_narrow,narrow,s.Z);
-			}
+		//	The fine local field: realized once, the asymmetric roadbed in the terrain, the gores attached.
+		{
+			HybridRealizationParams params = Realization_Fixture (k,metrics);
+			const float FINE_CELL = 0.15f;
+			params.TerrainCellSize = FINE_CELL;
+			HybridRealizationPlan plan;
+			HybridRealizationResult result;
+			const Vector2 centre (7.5f,-30.0f);
+			const bool terrain = ok && Runtime_Terrain (&world,centre,80.0f,FINE_CELL,Raised_Ground);
+			const bool planned = terrain && Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Raised_Ground,
+																						&world.Hydrology,&plan,&result);
+			Check (planned,"Phase 12 runtime: the plan was refused: %s",result.Detail.Peek_Buffer ());
+			if (planned) {
+				const HybridRoadRealizerInputs in = Runtime_Inputs (world,plan,set,content,metrics);
+				StringClass error;
+				const bool realized = HybridRoadRealizer::Realize (in,&error);
+				Check (realized,"Phase 12 runtime: Realize refused the interchange world: %s",error.Peek_Buffer ());
+				StringClass again;
+				Check (!HybridRoadRealizer::Realize (in,&again) && (HybridRoadRealizer::Get_Realize_Count () == 1),
+						 "Phase 12 realized the same attempt twice");
+				StringClass verify_error;
+				const bool verified = realized && HybridRoadRealizer::Verify (in,&verify_error);
+				Check (verified,"Phase 12 runtime verification: %s",verify_error.Peek_Buffer ());
 
-			//	The adapters: the base pair joined through the road graph, the selection, every road edge on a real road.
-			const bool published = HybridRoadRealizer::Publish_Adapters (in,&error);
-			Check (published,"Phase 12 adapters: %s",error.Peek_Buffer ());
-			SelectedBaseSite gdi;
-			SelectedBaseSite nod;
-			int gdi_node = -1;
-			int nod_node = -1;
-			const bool sites = BaseSelectionPlanner::Get_Selected_Site (PLAYERTYPE_GDI,&gdi) &&
-									 BaseSelectionPlanner::Get_Selected_Site (PLAYERTYPE_NOD,&nod) &&
-									 StrategicPlanner::Find_Node_By_Id (gdi.Id,&gdi_node) && StrategicPlanner::Find_Node_By_Id (nod.Id,&nod_node);
-			float length = 0.0f;
-			Check (published && sites && RoadGraphGenerator::Find_Anchor_Path (gdi_node,nod_node,NULL,&length) && (length > 900.0f),
-					 "the adapters do not join the base pair through the road graph (%.1f)",length);
-			int roads = 0;
-			for (int e = 0; e < RoadGraphGenerator::Get_Edge_Count (); e++) {
-				RoadGraphEdge edge;
-				if (RoadGraphGenerator::Get_Edge (e,&edge) && (RoadSystem::Peek_Road (edge.RoadId) != NULL)) roads++;
+				//	The heavy ramp's asymmetric effective roadbed in the terrain, and its gore attached to the highway.
+				const HybridInterchange & ic = world.Topology.Interchanges[0];
+				const HybridRealizedRoad * ramp = plan.Find_Road (ic.RampEdges[1]);
+				int attached = 0;
+				for (int r = 0; r < RoadSystem::Get_Road_Count (); r++) {
+					const RoadSplineClass * road = RoadSystem::Peek_Road (r);
+					if ((road != NULL) && (road->Get_End_Connection ().Type == ROAD_ENDPOINT_ATTACHED) &&
+						 (RoadSystem::Peek_Road (road->Get_End_Connection ().TargetID) != NULL) &&
+						 (RoadSystem::Peek_Road (road->Get_End_Connection ().TargetID)->Get_Width () > road->Get_Width ())) attached++;
+				}
+				Check (attached == 2,"%d ramp gores are attached to the highway, not 2",attached);
+				if (realized && (ramp != NULL) && (ramp->Samples.Count () > 8)) {
+					const HybridRealizedSample & s = ramp->Samples[4];
+					const Vector2 ahead = ramp->Samples[5].Position - ramp->Samples[3].Position;
+					Vector2 left (-ahead.Y,ahead.X);
+					left.Normalize ();
+					/*
+					**	The same distance out on both sides, past the narrow side's paved edge and the grid cell it falls in
+					**	(at most a cell diagonal), inside the wide side's: graded level on the wide side, blending on the
+					**	narrow one.
+					*/
+					const float wide = WWMath::Max (s.Left,s.Right);
+					const float narrow = WWMath::Min (s.Left,s.Right);
+					const float probe = narrow + (2.0f * FINE_CELL);
+					float on_wide = 0.0f;
+					float on_narrow = 0.0f;
+					const Vector2 wide_point = s.Position + (left * ((s.Left > s.Right) ? probe : -probe));
+					const Vector2 narrow_point = s.Position + (left * ((s.Left > s.Right) ? -probe : probe));
+					WorldTerrainSystem::Sample_Height (wide_point.X,wide_point.Y,&on_wide);
+					WorldTerrainSystem::Sample_Height (narrow_point.X,narrow_point.Y,&on_narrow);
+					Check ((probe < wide) && (WWMath::Fabs (on_wide - s.Z) <= (2.0f * k.Q)) && (WWMath::Fabs (on_narrow - s.Z) > (2.0f * k.Q)),
+							 "the ramp's asymmetric roadbed is not in the terrain: %.5f on its %.2f side, %.5f on its %.2f side, road %.5f",
+							 on_wide,wide,on_narrow,narrow,s.Z);
+				}
+				HybridRoadRealizer::Clear ();
+				printf ("  Phase 12 runtime, heavy SIDE_ACCESS (fine field): realized once and verified, ramp roadbed %.2f / %.2f in "
+						  "the terrain, gores attached\r\n",(ramp != NULL) ? ramp->Samples[4].Left : 0.0f,
+						  (ramp != NULL) ? ramp->Samples[4].Right : 0.0f);
 			}
-			Check (roads >= 4,"only %d adapter edges name a realized road",roads);
-
-			//	Teardown: the cleanup list leaves nothing, and Phase 12 may run again.
-			const int before = RoadSystem::Get_Road_Count ();
-			HybridRoadRealizer::Clear ();
-			Check ((RoadSystem::Get_Road_Count () == 0) && (BridgeSystem::Get_Bridge_Count () == 0) &&
-					 (HybridRoadRealizer::Get_Realize_Count () == 0) && (HybridRoadRealizer::Get_Piece_Count () == 0),
-					 "Phase 12's teardown left %d roads and %d bridges",RoadSystem::Get_Road_Count (),BridgeSystem::Get_Bridge_Count ());
-			printf ("  Phase 12 runtime, heavy SIDE_ACCESS: %d roads realized once and verified, ramp roadbed %.2f / %.2f in the "
-					  "terrain, gores attached, base pair joined (%.0f), teardown clean\r\n",before,
-					  (ramp != NULL) ? ramp->Samples[4].Left : 0.0f,(ramp != NULL) ? ramp->Samples[4].Right : 0.0f,length);
+			WorldTerrainSystem::Destroy_Terrain ();
 		}
-		StrategicPlanner::Clear ();
-		RoadGraphGenerator::Clear ();
-		BridgePlanner::Clear ();
-		BaseSelectionPlanner::Clear ();
-		WorldTerrainSystem::Destroy_Terrain ();
+
+		//	The native field over the whole world: Section 12.3, the adapters and teardown.
+		{
+			HybridRealizationParams params = Realization_Fixture (k,metrics);
+			params.TerrainCellSize = NATIVE_TERRAIN_CELL;
+			HybridRealizationPlan plan;
+			HybridRealizationResult result;
+			const bool planned = ok && Runtime_Terrain_Whole (&world,NATIVE_TERRAIN_CELL,Raised_Ground) &&
+										Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Raised_Ground,&world.Hydrology,
+																		 &plan,&result);
+			Check (planned,"Phase 12 runtime (native field): the plan was refused: %s",result.Detail.Peek_Buffer ());
+			if (planned) {
+				const HybridRoadRealizerInputs in = Runtime_Inputs (world,plan,set,content,metrics);
+				StringClass error;
+				const bool verified = HybridRoadRealizer::Realize (in,&error) && HybridRoadRealizer::Verify (in,&error) &&
+											 HybridRoadRealizer::Verify_Physical (in,&error);
+				Check (verified,"Phase 12 runtime (native field) Section 12.3: %s",error.Peek_Buffer ());
+				const int swept = HybridRoadRealizer::Get_Swept_Samples ();
+
+				//	The adapters: the base pair joined through the road graph, the selection, every road edge on a real road.
+				const bool published = HybridRoadRealizer::Publish_Adapters (in,&error);
+				Check (published,"Phase 12 adapters: %s",error.Peek_Buffer ());
+				SelectedBaseSite gdi;
+				SelectedBaseSite nod;
+				int gdi_node = -1;
+				int nod_node = -1;
+				const bool sites = BaseSelectionPlanner::Get_Selected_Site (PLAYERTYPE_GDI,&gdi) &&
+										 BaseSelectionPlanner::Get_Selected_Site (PLAYERTYPE_NOD,&nod) &&
+										 StrategicPlanner::Find_Node_By_Id (gdi.Id,&gdi_node) && StrategicPlanner::Find_Node_By_Id (nod.Id,&nod_node);
+				float length = 0.0f;
+				Check (published && sites && RoadGraphGenerator::Find_Anchor_Path (gdi_node,nod_node,NULL,&length) && (length > 900.0f),
+						 "the adapters do not join the base pair through the road graph (%.1f)",length);
+				int roads = 0;
+				for (int e = 0; e < RoadGraphGenerator::Get_Edge_Count (); e++) {
+					RoadGraphEdge edge;
+					if (RoadGraphGenerator::Get_Edge (e,&edge) && (RoadSystem::Peek_Road (edge.RoadId) != NULL)) roads++;
+				}
+				Check (roads >= 4,"only %d adapter edges name a realized road",roads);
+
+				/*
+				**	A discrepancy fails the attempt: the terrain cut into under a road after realization, and a ramp's gore
+				**	moved off d_aux, each fail Section 12.3; nothing is repaired.
+				*/
+				const HybridInterchange & ic = world.Topology.Interchanges[0];
+				const HybridRealizedRoad * highway = plan.Find_Road (ic.HighwayEdgeIn);
+				if (verified && (highway != NULL)) {
+					const Vector2 at = highway->Samples[highway->Samples.Count () / 3].Position;
+					WorldTerrainSystem::Modify_Height_Region (Vector3 (at.X,at.Y,0.0f),2.0f * NATIVE_TERRAIN_CELL,-2.0f);
+					StringClass cut;
+					Check (!HybridRoadRealizer::Verify_Physical (in,&cut),"Section 12.3 accepted a road cut into after realization");
+					WorldTerrainSystem::Modify_Height_Region (Vector3 (at.X,at.Y,0.0f),2.0f * NATIVE_TERRAIN_CELL,2.0f);
+					StringClass restored;
+					Check (HybridRoadRealizer::Verify_Physical (in,&restored),"Section 12.3 refused the restored road: %s",
+							 restored.Peek_Buffer ());
+				}
+
+				//	Teardown: the cleanup list leaves nothing, and Phase 12 may run again.
+				const int before = RoadSystem::Get_Road_Count ();
+				HybridRoadRealizer::Clear ();
+				Check ((RoadSystem::Get_Road_Count () == 0) && (BridgeSystem::Get_Bridge_Count () == 0) &&
+						 (HybridRoadRealizer::Get_Realize_Count () == 0) && (HybridRoadRealizer::Get_Piece_Count () == 0),
+						 "Phase 12's teardown left %d roads and %d bridges",RoadSystem::Get_Road_Count (),BridgeSystem::Get_Bridge_Count ());
+				printf ("  Phase 12 runtime, heavy SIDE_ACCESS (native field): %d roads, Section 12.3 green over %d swept placements, "
+						  "a cut road refused, base pair joined (%.0f), teardown clean\r\n",before,swept,length);
+			}
+			StrategicPlanner::Clear ();
+			RoadGraphGenerator::Clear ();
+			BridgePlanner::Clear ();
+			BaseSelectionPlanner::Clear ();
+			WorldTerrainSystem::Destroy_Terrain ();
+		}
 	}
 
 	//	A river bridge.
@@ -19403,19 +19524,20 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 		const HybridTopologyEdge * edge = (world.Topology.Edges.Count () > 0) ? &world.Topology.Edges[0] : NULL;
 		if (ok && (edge != NULL)) Runtime_Bases (&world,edge->NodeA,edge->NodeB);
 		HybridRealizationParams params = Realization_Fixture (k,metrics);
-		params.TerrainCellSize = 0.5f;
+		params.TerrainCellSize = NATIVE_TERRAIN_CELL;
 		HybridRealizationPlan plan;
 		HybridRealizationResult result;
-		const bool planned = ok && Runtime_Terrain (&world,Vector2 (0.0f,7.5f),60.0f,0.5f,Crossing_Ground) &&
+		const bool planned = ok && Runtime_Terrain_Whole (&world,NATIVE_TERRAIN_CELL,Crossing_Ground) &&
 									Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Crossing_Ground,&world.Hydrology,
 																	 &plan,&result) && (plan.Bridges.Count () == 1);
 		Check (planned,"Phase 12 runtime: the bridge plan was refused: %s",result.Detail.Peek_Buffer ());
 		if (planned) {
 			float under_before = 0.0f;
 			WorldTerrainSystem::Sample_Height (0.0f,7.5f,&under_before);
-			const HybridRoadRealizerInputs in = Runtime_Inputs (world,plan,set,content);
+			const HybridRoadRealizerInputs in = Runtime_Inputs (world,plan,set,content,metrics);
 			StringClass error;
-			const bool realized = HybridRoadRealizer::Realize (in,&error) && HybridRoadRealizer::Verify (in,&error);
+			const bool realized = HybridRoadRealizer::Realize (in,&error) && HybridRoadRealizer::Verify (in,&error) &&
+										 HybridRoadRealizer::Verify_Physical (in,&error);
 			const StringClass bridge_error = error;
 			Check (realized,"Phase 12 runtime bridge: %s",bridge_error.Peek_Buffer ());
 			const BridgeClass * bridge = (HybridRoadRealizer::Get_Bridge_Count () == 1)
@@ -19427,6 +19549,17 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 					 "the river bridge is not one bridge between two bound roads over untouched water (%d bridges, %d roads)",
 					 BridgeSystem::Get_Bridge_Count (),RoadSystem::Get_Road_Count ());
 
+			//	A deck that no longer stands at its compiled elevation fails the bridge's verification.
+			BridgeClass * runtime = (bridge != NULL) ? BridgeSystem::Peek_Bridge (HybridRoadRealizer::Get_Bridge_Id (0)) : NULL;
+			if (realized && (runtime != NULL) && (runtime->Get_Section_Count () > 0)) {
+				BridgeSectionClass & section = const_cast<BridgeSectionClass &> (runtime->Get_Section (0));
+				const Vector3 start = section.Start;
+				section.Start.Z -= 0.25f;
+				StringClass dropped;
+				Check (!HybridRoadRealizer::Verify_Physical (in,&dropped),"Section 12.3 accepted a deck under its compiled elevation");
+				section.Start = start;
+			}
+
 			const bool published = HybridRoadRealizer::Publish_Adapters (in,&error);
 			ResolvedBridge resolved;
 			bool bank_to_bank = false;
@@ -19437,12 +19570,10 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 					StrategicNode to;
 					if (!RoadGraphGenerator::Get_Edge (e,&graph) || (graph.Id != resolved.RoadEdgeId)) continue;
 					if (!StrategicPlanner::Get_Node (graph.FromNodeIndex,&from) || !StrategicPlanner::Get_Node (graph.ToNodeIndex,&to)) continue;
-					const Vector3 a (plan.Bridges[0].Start.X,plan.Bridges[0].Start.Y,from.Position.Z);
 					bank_to_bank = ((Vector2 (from.Position.X,from.Position.Y) - plan.Bridges[0].Start).Length () <= k.Q ||
 										 (Vector2 (from.Position.X,from.Position.Y) - plan.Bridges[0].End).Length () <= k.Q) &&
 										((Vector2 (to.Position.X,to.Position.Y) - plan.Bridges[0].Start).Length () <= k.Q ||
 										 (Vector2 (to.Position.X,to.Position.Y) - plan.Bridges[0].End).Length () <= k.Q);
-					(void)a;
 				}
 			}
 			int crossing = -1;
@@ -19454,8 +19585,8 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 			Check ((RoadSystem::Get_Road_Count () == 0) && (BridgeSystem::Get_Bridge_Count () == 0),
 					 "Phase 12's bridge teardown left %d roads and %d bridges",RoadSystem::Get_Road_Count (),
 					 BridgeSystem::Get_Bridge_Count ());
-			printf ("  Phase 12 runtime, river bridge: one bridge bound at both ends, deck span untouched, adapter bridge edge "
-					  "bank to bank, teardown clean\r\n");
+			printf ("  Phase 12 runtime, river bridge (native field): one bridge verified against its assembly and bound at both "
+					  "ends, a dropped deck refused, deck span untouched, adapter bridge edge bank to bank, teardown clean\r\n");
 		}
 		StrategicPlanner::Clear ();
 		RoadGraphGenerator::Clear ();

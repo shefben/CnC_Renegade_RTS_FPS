@@ -76,6 +76,7 @@
 #include "hybridroutes.h"
 #include "hybridrealization.h"
 #include "hybridinteractions.h"
+struct HybridRoadRealizerInputs;
 
 
 class ProceduralWorldManager
@@ -160,6 +161,12 @@ class ProceduralWorldManager
 		static bool											Has_Hybrid_Metrics(void)	{ return HybridMetricsValid; }
 		static const HybridMetricCache &				Get_Hybrid_Metrics(void)	{ return HybridMetrics; }
 		static const HybridPreflightInputs &		Get_Hybrid_Inputs(void)		{ return HybridInputs; }
+
+		/*
+		**	Phase 12 on the active native hybrid world, for the console: false when it has none; otherwise Section 12.3 run
+		**	again over the runtime objects as they stand now, its verdict in `report_out`.
+		*/
+		static bool		Report_Hybrid_Roads(StringClass * report_out);
 
 		/*
 		** Runtime Phase 2's immutable MapIdentity and Section-6.10 intent set for the attempt
@@ -331,7 +338,9 @@ class ProceduralWorldManager
 		**	plans and base selection; tunnels are deferred and none is realized.
 		*/
 		static bool		Realize_Hybrid_Roads(const ProceduralWorldProfile & profile,StringClass * error_out);
-		static bool		Verify_Hybrid_Roads(StringClass * error_out);
+		//	Section 12.3 over the runtime objects: the record half and the physical half (swept envelopes, bridges, ramps).
+		static bool		Verify_Hybrid_Roads(const ProceduralWorldProfile & profile,StringClass * error_out);
+		static void		Hybrid_Realizer_Inputs(const ProceduralWorldProfile & profile,HybridRoadRealizerInputs * inputs);
 
 		static bool		Build_Hybrid_Routes(const ProceduralWorldProfile & profile,bool * built_out,
 													  StringClass * error_out);

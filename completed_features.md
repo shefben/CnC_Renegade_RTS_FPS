@@ -4806,6 +4806,24 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## I13 step 3: Section 12.3 post-realization verification on the runtime objects (2026-10-04, D-026)
+
+`HybridRoadRealizer::Verify_Physical` checks the realized runtime objects:
+- the canonical swept/collision query (light, heavy and Harvester envelopes by capability, at every plan sample,
+  against terrain, decks, deck clearances and posts);
+- road surfaces and cross slope;
+- every `BridgeAssembly` against its compiled span, width, deck, attachments and clearances;
+- the 12.6.13 ramp list.
+
+It runs after realization and in the live gate. At the 3.75 native cell it found two defects, fixed in
+`Hybrid_Deform_Terrain`:
+- the whole-cell roadbed;
+- abutment seats over water.
+
+Evidence: `terrain_hybridrealization` and `fds_terrain_hybridrealization` pass on native-cell controlled worlds.
+Mutations refuse a cut road, a dropped deck, and turning whole cells off. 237/237 tests pass. The in-game smoke is
+still owed (WIP).
+
 ## I13 step 2B: Phase 12 live on the canonical owners, migration adapters, tunnels deferred (2026-10-03, D-025)
 
 On the native hybrid path Phase 12 is the sole runtime realization owner of roads, bridge and overpass decks

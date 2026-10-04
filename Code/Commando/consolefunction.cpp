@@ -2881,6 +2881,10 @@ public:
 					 ProceduralWorldManager::Is_World_Active() ? "a generated world is active" : "no generated world active" );
 			if ( ProceduralWorldManager::Is_World_Active() ) {
 				Print( "procedural_world: %s\n",(const char *)ProceduralWorldToolsService::Get_Reproduction_String() );
+				StringClass phase12;
+				if ( ProceduralWorldManager::Report_Hybrid_Roads( &phase12 ) ) {
+					Print( "procedural_world: %s\n",(const char *)phase12 );
+				}
 			}
 			//	The wire half (D-001 priority 3): who has joined, where this client is, and traffic.
 			Print( "procedural_world: sync -- %d client(s) on the live stream, this client %s%s%s; "
