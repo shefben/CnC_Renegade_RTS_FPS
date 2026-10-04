@@ -178,6 +178,18 @@ void BridgePlanner::Shutdown(void)
 }
 
 
+bool BridgePlanner::Adopt_Bridges(const DynamicVectorClass<ResolvedBridge> & bridges,unsigned int checksum)
+{
+	Clear();
+	for (int i = 0; i < bridges.Count(); i++) {
+		Bridges.Add(bridges[i]);
+	}
+	Checksum	= checksum;
+	Built		= true;
+	return true;
+}
+
+
 void BridgePlanner::Clear(void)
 {
 	if (OwnedBridgeIds.Count() > 0) {

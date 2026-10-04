@@ -4806,6 +4806,48 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## I13 step 2B: Phase 12 live on the canonical owners, migration adapters, tunnels deferred (2026-10-03, D-025)
+
+On the native hybrid path Phase 12 is the sole runtime realization owner of roads, bridge and overpass decks
+(`BridgeAssembly`), junction surfaces and road cut/fill.
+
+- **`HybridRoadRealizer`** (Combat):
+  - `Realize`:
+    - commits the deformation through `WorldTerrainSystem`;
+    - builds one `BridgeSystem` bridge per assembly (one WHOLE piece; compiled ends, width and kind);
+    - builds one `RoadSystem` road per stretch between decks, with nominal width/shoulder, the edge profile, no
+      RoadSystem grading, deck ends bound both ways, and ramp gores `ROAD_ENDPOINT_ATTACHED`;
+    - then builds the network and layout.
+  - `Verify`: exactly once, nothing added, roads on frozen records, bridges at their assemblies, no discovered junction
+    in a gore reserve.
+  - `Clear`: reverse-order teardown.
+- **`Publish_Adapters`**: read-only adoption into `StrategicPlanner`, `RoadGraphGenerator`, `BridgePlanner` and
+  `BaseSelectionPlanner`.
+- **Manager** (`Realize_Hybrid_Roads`, `Verify_Hybrid_Roads`):
+  - replaces the legacy strategic plan, road graph, bridge and tunnel plans and base selection on the hybrid path;
+  - a live gate re-verifies before road geometry is built;
+  - `Destroy_World` clears Phase 12 first.
+- **Tunnels deferred:** `Hybrid_Native_Tunnels_Available` forces `tunnel_available = false` in Phases 6, 9 and 11; the
+  census pipeline mirrors it.
+- **Plan and deformation refinements:**
+  - the earlier road's surface held under later roads (12.2 step 5);
+  - the gore pinned to the realized highway;
+  - true-distance roadbed test;
+  - abutment seats graded;
+  - carriageway half widths per sample.
+- **Defect fixed:** the Section-12.1 sampler left a sliver step before a structure end that quantized into a false grade.
+  It now uses the fewest equal steps.
+
+**Gate:**
+- `Check_Hybrid_Phase12_Runtime` on controlled worlds with real terrain, roads and bridges:
+  - heavy `SIDE_ACCESS`: realized once (a second call refused), verified, the asymmetric ramp roadbed in the terrain,
+    gores attached, the base pair joined through the adapters, teardown clean;
+  - river bridge: one bridge bound at both ends, water untouched, the adapter's deck edge bank to bank, teardown clean.
+- The roads gate covers the attached end (no tee) and the open end (tee).
+- The sampler sliver test.
+- Mutations (no exactly-once guard, no teardown release, no attachment) fail.
+- 237/237 ctest on client and dedicated server; census r11 448 / 98 / 34.
+
 ## I13 step 2A: the RoadSplineClass asymmetric edge profile (2026-10-03)
 
 This is the optional per-sample edge profile Plan 12.2a/12.6.13 adds to the canonical road owner:

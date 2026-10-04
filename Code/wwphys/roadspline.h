@@ -91,6 +91,8 @@ enum RoadEndpointType
 	ROAD_ENDPOINT_OPEN			= 0,		// the road simply stops
 	ROAD_ENDPOINT_BRIDGE,						// a bridge carries it on from here
 	ROAD_ENDPOINT_TUNNEL,						// a tunnel portal carries it on from here
+	ROAD_ENDPOINT_ATTACHED,						// it joins another road's widened carriageway (a merge/diverge
+														// gore, TargetID that road): an attachment, never a junction
 	ROAD_ENDPOINT_COUNT
 };
 

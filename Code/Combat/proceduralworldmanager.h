@@ -74,6 +74,7 @@
 #include "hybridanchors.h"
 #include "hybridtopology.h"
 #include "hybridroutes.h"
+#include "hybridrealization.h"
 #include "hybridinteractions.h"
 
 
@@ -252,6 +253,10 @@ class ProceduralWorldManager
 		static const HybridRouteSet &					Get_Hybrid_Routes(void)				{ return HybridRoutes; }
 		static const HybridInteractionSet &			Get_Hybrid_Interactions(void)		{ return HybridInteractions; }
 
+		//	Runtime Phase 12's frozen plan, once it realized the attempt's roads and decks (I13).
+		static bool											Has_Hybrid_Realization(void)		{ return HybridRealizationValid; }
+		static const HybridRealizationPlan &			Get_Hybrid_Realization(void)		{ return HybridRealization; }
+
 	private:
 
 		static bool		Fit_Profile_To_Level(ProceduralWorldProfile * profile);
@@ -317,6 +322,16 @@ class ProceduralWorldManager
 		*/
 		static bool		Build_Hybrid_Interactions(const ProceduralWorldProfile & profile,bool * built_out,
 																StringClass * error_out);
+
+		/*
+		**	Rewrite item I13, runtime Phase 12: the frozen roads, bridge and overpass decks, junction surfaces and road
+		**	cut/fill realized once through WorldTerrainSystem, RoadSystem and BridgeSystem (HybridRoadRealizer),
+		**	verified against the plan, and published through the migration adapters the downstream systems still
+		**	read.  On the native hybrid path it replaces the legacy strategic plan, road graph, bridge and tunnel
+		**	plans and base selection; tunnels are deferred and none is realized.
+		*/
+		static bool		Realize_Hybrid_Roads(const ProceduralWorldProfile & profile,StringClass * error_out);
+		static bool		Verify_Hybrid_Roads(StringClass * error_out);
 
 		static bool		Build_Hybrid_Routes(const ProceduralWorldProfile & profile,bool * built_out,
 													  StringClass * error_out);
@@ -494,6 +509,8 @@ class ProceduralWorldManager
 	static HybridRouteParams			HybridRouteInputs;
 		static HybridInteractionSet		HybridInteractions;
 		static bool								HybridInteractionsValid;
+		static HybridRealizationPlan		HybridRealization;
+		static bool								HybridRealizationValid;
 
 		/*
 		**	The preflight inputs the metric cache indexes into.  Phase 11 needs the per-kind bridge and tunnel

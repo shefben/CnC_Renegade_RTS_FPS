@@ -246,7 +246,8 @@ bool	Hybrid_Solve_Road_Stretch(const DynamicVectorClass<Vector2> & points,const 
 //	One solved centerline sample of a realized road.
 struct HybridRealizedSample
 {
-	HybridRealizedSample(void) : Position(0.0f,0.0f),Station(0.0f),Z(0.0f),Left(0.0f),Right(0.0f),Structure(false) { }
+	HybridRealizedSample(void) :
+		Position(0.0f,0.0f),Station(0.0f),Z(0.0f),Left(0.0f),Right(0.0f),CarriageLeft(0.0f),CarriageRight(0.0f),Structure(false) { }
 
 	bool	operator == (const HybridRealizedSample & that) const	{ return (Station == that.Station) && (Position == that.Position); }
 	bool	operator != (const HybridRealizedSample & that) const	{ return !(*this == that); }
@@ -256,7 +257,9 @@ struct HybridRealizedSample
 	float		Z;					// the Section-12.1 solution
 	float		Left;				// the roadbed edge, shoulder included, left of the road's travel direction
 	float		Right;			// ...and right of it
-	bool		Structure;		// on a compiled deck or inside a bore: the ground under it is not the road's
+	float		CarriageLeft;	// the paved carriageway's edge, left and right: the roadbed less its shoulder
+	float		CarriageRight;
+	bool		Structure;		// strictly inside a compiled deck or bore (its ends are on the road): not the road's ground
 };
 
 
@@ -378,6 +381,7 @@ struct HybridRealizationParams
 	float					HeavyVehicleWidth;
 	float					HarvesterWidth;
 	float					MinVehicleLaneClearance;
+	float					TerrainCellSize;				// the height grid Phase 12 deforms; 0 when there is none yet
 };
 
 enum HybridRealizationFailure

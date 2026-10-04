@@ -194,6 +194,14 @@ public:
 	//	world generator in this tree uses for BridgeSystem's shared, add-or-clear collection.
 	static void			Clear(void);
 
+	/*
+	**	Migration adapter (hybrid rewrite I13, Phase 12): the native hybrid generator publishes its frozen, realized
+	**	records here read-only, so the consumers that still read this planner keep working.  It creates, moves and
+	**	owns no runtime object -- Phase 12 owns those -- and `checksum` is the hybrid record's own.  Removed once every
+	**	consumer is migrated by its own item (checklist item 22).
+	*/
+	static bool			Adopt_Bridges(const DynamicVectorClass<ResolvedBridge> & bridges,unsigned int checksum);
+
 	static bool			Has_Plan(void)				{ return Built; }
 	static int			Get_Bridge_Count(void)	{ return Bridges.Count(); }
 	static bool			Get_Bridge(int index,ResolvedBridge * out);

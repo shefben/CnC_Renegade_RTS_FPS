@@ -185,6 +185,15 @@ public:
 	static void			Clear(void);
 	static bool			Has_Selection(void)		{ return Built; }
 
+	/*
+	**	Migration adapter (hybrid rewrite I13, Phase 12): the native hybrid generator publishes its frozen, realized
+	**	records here read-only, so the consumers that still read this planner keep working.  It creates, moves and
+	**	owns no runtime object -- Phase 12 owns those -- and `checksum` is the hybrid record's own.  Removed once every
+	**	consumer is migrated by its own item (checklist item 22).
+	*/
+	static bool			Adopt_Selection(const SelectedBaseSite & gdi,const SelectedBaseSite & nod,
+												 const BaseFairnessMetrics & metrics,unsigned int checksum);
+
 	static bool			Get_Selected_Site(int faction,SelectedBaseSite * out);
 	static const BaseFairnessMetrics &	Get_Fairness_Metrics(void)	{ return LastMetrics; }
 

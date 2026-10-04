@@ -719,6 +719,11 @@ void RoadSystem::Find_Junctions(void)
 
 				for (int e = 0; e < 2; e++) {
 
+					//	An end attached to another road's widened carriageway is that road's lane, not a tee.
+					const RoadConnectionClass & connection = (e == 0) ? ending.Get_Start_Connection()
+																					  : ending.Get_End_Connection();
+					if (connection.Type == ROAD_ENDPOINT_ATTACHED) { continue; }
+
 					int index = (e == 0) ? 0 : (ending.Get_Point_Count() - 1);
 					const Vector3 & tip = ending.Get_Point(index).Position;
 

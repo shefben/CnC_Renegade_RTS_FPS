@@ -380,6 +380,17 @@ place. It covers:
 The Section-12.1 clamp-walk rounding defect is fixed. The runtime realization through the canonical owners
 (steps 6-9, `RoadSplineClass` edge profile, cleanup list) and the 12.3 verification remain.
 
+**Progress (2026-10-03), Phase-12 runtime (step 2B):** `HybridRoadRealizer` (Combat) is the native hybrid path's sole
+runtime realization owner of roads, bridge and overpass decks (via `BridgeAssembly`), junction surfaces and road
+cut/fill. The manager's `Realize_Hybrid_Roads` runs it once, verifies it, and publishes read-only migration adapters
+(`StrategicPlanner::Adopt_Plan`, `RoadGraphGenerator::Adopt_Graph`, `BridgePlanner::Adopt_Bridges`,
+`BaseSelectionPlanner::Adopt_Selection`). The legacy strategic plan, road graph, bridge and tunnel plans and base
+selection no longer run on that path. A live gate re-verifies before road geometry is built.
+
+**Deferred (user, 2026-10-03): tunnel realization.** The native hybrid path plans with `tunnel_available = false`
+(`Hybrid_Native_Tunnels_Available`). No Phase-12 tunnel realization, no tunnel adapter, and tunnels are not part of the
+Phase-12 gate. Authored/legacy `TunnelSystem` is unchanged. To be revisited as its own item.
+
 - [ ] No reroute/method change; failure fails attempt.
 - [ ] Vertical-profile solver exactly as §12.1 (forward/backward propagation, clamp walk, quantize, revalidate, no invented banking).
 - [ ] Terrain deformation 9 steps (roadbed, shoulder, `outer_blend` smoothstep, protected voids, shared junction patch once, existing ditch helper only if present, commit via `WorldTerrainSystem`, realize once via Road/Bridge/Tunnel/junction APIs, reverse-order cleanup list).

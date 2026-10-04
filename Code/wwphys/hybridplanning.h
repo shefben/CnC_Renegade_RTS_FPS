@@ -200,6 +200,18 @@ float							Hybrid_Preferred_Corridor_Half_Width(HybridRoadClass road_class,floa
 float							Hybrid_Max_Corridor_Half_Width(HybridRoadClass road_class,float s,float d);
 HybridVerticalInterval	Hybrid_Road_Vertical_Interval(float z,float max_cut_depth,float max_fill_height);
 float							Hybrid_Road_Outer_Blend_Width(float w,float a);
+
+/*
+**	Tunnel realization is deferred in this generator revision (user, 2026-10-03): Phase 12 has no tunnel owner, so the
+**	native hybrid path plans as `tunnel_available = false` everywhere -- Phase 6's window flags, Phase 9's window
+**	method choice and Phase 11's optional tunnel fallback -- and a road continues through the plan's own legal
+**	fallback/reroute/fail sequence instead.  Authored/legacy TunnelSystem behaviour is untouched.
+*/
+inline bool						Hybrid_Native_Tunnels_Available(bool measured_and_enabled)
+{
+	(void)measured_and_enabled;
+	return false;
+}
 float							Hybrid_Road_Deformation_Half_Width(HybridRoadClass road_class,float w,float a);
 float							Hybrid_Interval_Gap(const HybridVerticalInterval & i0,const HybridVerticalInterval & i1);
 bool							Hybrid_Grade_Compatible(const HybridVerticalInterval & i0,const HybridVerticalInterval & i1,

@@ -554,6 +554,73 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-025 - Hybrid rewrite: Phase 12 goes live on the canonical owners; tunnels deferred; migration adapters (2026-10-03)
+
+**Decision (user, 2026-10-03).**
+- **Phase 12 ownership.** On the native hybrid path, Phase 12 is the sole runtime realization owner of roads,
+  bridge/overpass decks (through `BridgeAssembly`), junction surfaces and accepted road cut/fill. The old hybrid-path
+  road and bridge generators neither instantiate, deform, reroute, repair nor duplicate them. Authored/legacy
+  generation is unchanged.
+- **Adapters.** Downstream systems read Phase 12's records through temporary read-only migration adapters, which may
+  translate records and ids but never alter geometry or create runtime objects. Phase-12 records stay authoritative.
+- **Tunnels deferred.** No Phase-12 tunnel realization, no tunnel adapter, and tunnels are not part of the Phase-12
+  gate. Hybrid planning behaves as `tunnel_available = false`.
+- **Bridges.** A bridge is `CompiledBridge -> BridgeAssembly -> BridgePiece[]`, with one `WHOLE` piece in this
+  version.
+
+**Implementation readings** (no constraint weakened):
+1. **Tunnels.** `Hybrid_Native_Tunnels_Available` returns false for Phase 6's window flags, Phase 9's window method
+   choice and Phase 11's tunnel fallback. The census pipeline mirrors it. Phase 11's own tunnel tests keep their
+   explicit fixtures.
+2. **The shared junction patch, processed once under the earlier road (12.2 step 5).** Wherever a later road's
+   centerline runs over an earlier road's roadbed (plus 1.5 terrain cells), it is graded to that road's realized
+   surface, sample by sample. The deformation keeps the earlier roadbed.
+
+   A level patch at a fixed reach was tried first and rejected. It made Phase 12 stricter than Phase 11: a
+   `DIAMOND_ACCESS` local junction sits on the crossing's climb to its deck and cannot be level. The earlier-road rule
+   is the plan's own wording and needs no new geometry.
+3. **Ramp gore pin.** It is the realized highway's surface at the gore, which is 12.6.10's "highway profile at the gore
+   station". It equals the compiled `JunctionZ` whenever Phase 12 grades the ground Phase 11 compiled on. `z_L` stays
+   the compiled value at every road through `L_s`.
+4. **Abutment seats.** One and a half grid cells inside each deck end are graded with the road, so the road's last
+   point stands on the deck end's own height. The rest of the span stays untouched (12.2 step 4).
+5. **Adapter graph.** A new `STRATEGIC_NODE_ROUTE_POINT` type carries road nodes with no gameplay role. River/canyon
+   bridges become bank-to-bank deck edges, so navigation's bridge portals stand at the two banks. Overpass decks are
+   Phase-12 objects but are not published as bridges. The base pair is Phase 8's frozen one
+   (`Adopt_Selection`); no second selection algorithm runs.
+6. **Gore attachment.** A ramp's gore end is `ROAD_ENDPOINT_ATTACHED` to its highway road, a new canonical endpoint type
+   that RoadSystem's junction discovery skips. The gore lies exactly at RoadSystem's tee reach (2.875W).
+
+**Defects fixed at their owners:**
+- **Section 12.1 sampler.** It placed whole multiples of the spacing, then the exact end. A structure end landing just
+  past a multiple left a 0.0166 step whose quantized heights read as a 0.24 rad grade, refusing feasible profiles in
+  Phase 11's crossing judgements as well as Phase 12. It now uses the fewest equal steps within the spacing.
+- **Deformation distance.** The roadbed test measured distance to an end segment's infinite line, grading a band
+  behind a road's end. It now uses the true distance.
+
+**Census r11** (1400 worlds; tunnels off and the sampler fix together, against r10): 448 / 98 / 34, unchanged in
+total, with the solved set moved.
+
+| World | r10 | r11 |
+| --- | --- | --- |
+| archetype 3 seed 106 | failed | solved |
+| archetype 3 seed 110 | failed | solved |
+| archetype 1 seed 24 | solved | fails on a `PRIMARY_2 x HIGHWAY_4` crossing |
+| archetype 5 seed 182 | solved | fails a bridge sweep cross-slope after reroutes |
+
+Each change was isolated on these four worlds:
+- **The tunnel switch** changes none of them.
+- **The sampler fix** accounts for all four:
+  - Archetype 3 seeds 106 and 110 now pass grading where the false sliver grade refused them.
+  - Archetype 1 seed 24 and archetype 5 seed 182 now accept a different crossing station first, which a later
+    Phase-11 check (overpass turn, bridge sweep) refuses.
+
+The second pair is Phase 11's existing station/sweep order, not a sampler defect.
+
+**Status: implemented, for review.**
+
+
+
 ## D-024 - Hybrid rewrite: Phase-11 interchange compilation readings; the effective ramp roadbed (2026-10-03)
 
 **Context.** Plan 12.6.10 is implemented as written. Three of its terms need a concrete reading. These are the

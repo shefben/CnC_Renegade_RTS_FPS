@@ -84,6 +84,7 @@ runtimedoorservice.cpp
 proceduralworldprofile.cpp
 worldseedservice.cpp
 hybridpreflight.cpp
+hybridroadrealizer.cpp
 worldgenerationmanifest.cpp
 proceduralboundsbuilder.cpp
 proceduralworldmanager.cpp
@@ -297,6 +298,7 @@ runtimedoorservice.h
 proceduralworldprofile.h
 worldseedservice.h
 hybridpreflight.h
+hybridroadrealizer.h
 worldgenerationmanifest.h
 proceduralboundsbuilder.h
 proceduralworldmanager.h

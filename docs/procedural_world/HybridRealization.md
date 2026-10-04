@@ -3,11 +3,19 @@
 Runtime Phase 12 builds what Phases 9 to 11 froze. It does not reroute a road, move a crossing, change a
 method or reopen an earlier phase; a failure fails the attempt (Plan Section 12).
 
-Owner: `Code/wwphys/hybridrealization.{h,cpp}` for the arithmetic, gated by `renegade -terrainselfcheck
-hybridrealization`. The runtime objects belong to their owners: `WorldTerrainSystem`, `RoadSystem`, `BridgeSystem` and
-`TunnelSystem`. The procedural world manager drives them from the plan below. That runtime step is the next
-part of I13 and is not wired yet. Until it is, the legacy road, bridge and tunnel generators still run after
-Phase 11.
+Owners:
+- `Code/wwphys/hybridrealization.{h,cpp}`: the arithmetic (the plan, the deformation, the solver).
+- `Code/Combat/hybridroadrealizer.{h,cpp}`: the runtime half on the canonical owners (`WorldTerrainSystem`, `RoadSystem`,
+  `BridgeSystem`).
+- `ProceduralWorldManager::Realize_Hybrid_Roads`: runs both once per attempt on the native hybrid path.
+
+Gated by `renegade -terrainselfcheck hybridrealization`. On that path Phase 12 is the sole runtime realization owner of
+roads, bridge and overpass decks, junction surfaces and road cut/fill. The legacy strategic plan, road graph, bridge
+and tunnel plans and base selection do not run there.
+
+**Tunnels are deferred** (user, 2026-10-03). `Hybrid_Native_Tunnels_Available` forces `tunnel_available = false` in
+Phases 6, 9 and 11, so Phase 11 skips the optional tunnel fallback and a road takes the plan's own
+fallback/reroute/fail sequence. No tunnel is realized or adapted. Authored/legacy `TunnelSystem` is unchanged.
 
 ## Section 12.1 -- the vertical profile
 
@@ -91,6 +99,68 @@ The deformation runs over a height grid, road by road in plan order:
 
 Steps 6-9 of Section 12.2 (the ditch helper if one exists, commit, realization, cleanup list) belong to the runtime
 owners.
+
+## Junction surfaces (12.2 step 5)
+
+A road-road junction's shared patch is processed once, under the earlier road:
+- Wherever a later road's centerline runs over an earlier road's roadbed, it is graded to that road's realized surface,
+  sample by sample (`Add_Shared_Surfaces`). The stretch runs 1.5 terrain cells past the roadbed edge, so the grid
+  vertices it is interpolated from hold one surface.
+- The deformation keeps the earlier road's roadbed vertices.
+- An interchange local junction holds every road through `L_s` at its compiled `z_L`.
+- A ramp's gore holds the ramp at the realized highway's surface there (12.6.10 item 4).
+- An overpass holds its lower road at the compiled `LowerSurfaceZ`.
+
+Two refinements to the deformation:
+- The roadbed test uses the true distance to the road (a round cap at road ends, never a band along an end segment's
+  line).
+- A deck's two abutment seats (one and a half grid cells inside each end) are graded with the road, so the road's last
+  point stands on the deck's own end height. The rest of the span stays untouched.
+
+## Runtime realization -- `HybridRoadRealizer`
+
+The runtime half runs in this order:
+
+1. **Terrain.** `Realize` runs `Hybrid_Deform_Terrain` over the `WorldTerrainSystem` field and commits it through
+   `WorldTerrainSystem::Set_Heights`.
+2. **Bridges.** One `BridgeSystem` bridge per `BridgeAssembly`, from its single `WHOLE` piece: the compiled ends and
+   width, the Phase-11 kind's definition, and `DeckHeight` 0 so the deck follows its ends exactly.
+3. **Roads.** One `RoadSystem` road per stretch of a planned road between its decks:
+   - nominal width and symmetric shoulder (a ramp's `W` / `0.25W`);
+   - the asymmetric and effective edges as the road's edge profile;
+   - no RoadSystem grading, since the ground already carries the profile;
+   - ends handed to their decks (`ROAD_ENDPOINT_BRIDGE`, bound both ways);
+   - a ramp's gore end attached to its highway (`ROAD_ENDPOINT_ATTACHED`, which RoadSystem never discovers as a tee).
+4. **Network.** `RoadSystem::Build_Network` and the bridge layout and geometry.
+
+Every created id is on the cleanup list. `Clear` removes them in reverse order, keeping anyone else's objects.
+
+**`Verify`** (12.3's record half) checks:
+- realized exactly once, with every stretch and assembly once and nothing added;
+- every road point on its frozen centerline at its solved height, within `tan(grade) * cell + 2Q`;
+- every bridge at its assembly's ends, width and kind, bound at both ends;
+- no RoadSystem-discovered junction inside an active gore reserve.
+
+The manager runs it after realization, and again (the live gate) just before road geometry is built.
+
+## Migration adapters
+
+`Publish_Adapters` translates Phase 12's records into the legacy planners the downstream systems still read. It
+creates, moves and owns nothing:
+- **`StrategicPlanner::Adopt_Plan`:**
+  - the frozen bases (`BASE_CANDIDATE`) and fields (`RESOURCE_CANDIDATE`);
+  - each bridge's crossing node (`CROSSING_CANDIDATE`);
+  - every road node as `STRATEGIC_NODE_ROUTE_POINT`, a new adapter-only type with no gameplay role.
+- **`RoadGraphGenerator::Adopt_Graph`:**
+  - each realized logical edge, split at its river/canyon bridges into bank-to-bank deck edges;
+  - each base's internal link and each field's apron link (no road);
+  - every road edge names its `RoadSystem` stretch.
+- **`BridgePlanner::Adopt_Bridges`:** each river/canyon bridge, pristine, counting as connectivity. Overpass decks are
+  Phase-12 objects but are not "bridges" to these consumers.
+- **`BaseSelectionPlanner::Adopt_Selection`:** Phase 8's frozen base pair.
+
+Base selection, Tiberium, combat-space and transportation validation, navigation, the minimap, logistics, the Commander
+AI and placement rules read these. They stay until each consumer is migrated by its own item (checklist 22).
 
 ## Checksum
 

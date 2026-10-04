@@ -197,6 +197,18 @@ void RoadGraphGenerator::Adopt_Owned_Road_Id(int road_id)
 }
 
 
+bool RoadGraphGenerator::Adopt_Graph(const DynamicVectorClass<RoadGraphEdge> & edges,unsigned int checksum)
+{
+	Clear();
+	for (int i = 0; i < edges.Count(); i++) {
+		Edges.Add(edges[i]);
+	}
+	Checksum	= checksum;
+	Built		= true;
+	return true;
+}
+
+
 void RoadGraphGenerator::Clear(void)
 {
 	if (OwnedRoadIds.Count() > 0) {

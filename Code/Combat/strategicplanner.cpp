@@ -127,6 +127,29 @@ void StrategicPlanner::Clear(void)
 }
 
 
+bool StrategicPlanner::Adopt_Plan(const DynamicVectorClass<StrategicNode> & nodes,unsigned int checksum)
+{
+	Clear();
+	for (int i = 0; i < nodes.Count(); i++) {
+		Nodes.Add(nodes[i]);
+	}
+
+	//	The straight-line stand-in this planner's own travel cost is.
+	const int n = Nodes.Count();
+	for (int a = 0; a < n; a++) {
+		for (int b = 0; b < n; b++) {
+			float dx = Nodes[a].Position.X - Nodes[b].Position.X;
+			float dy = Nodes[a].Position.Y - Nodes[b].Position.Y;
+			TravelCost.Add(WWMath::Sqrt((dx * dx) + (dy * dy)));
+		}
+	}
+
+	Checksum	= checksum;
+	Built		= true;
+	return true;
+}
+
+
 bool StrategicPlanner::Get_Node(int index,StrategicNode * out)
 {
 	if ((index < 0) || (index >= Nodes.Count()) || (out == nullptr)) {

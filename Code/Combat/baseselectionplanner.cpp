@@ -408,6 +408,21 @@ static bool Thresholds_Pass(const PairEvaluation & eval,const BaseSelectionParam
 void BaseSelectionPlanner::Init(void)		{ Clear(); }
 void BaseSelectionPlanner::Shutdown(void)	{ Clear(); }
 
+bool BaseSelectionPlanner::Adopt_Selection(const SelectedBaseSite & gdi,const SelectedBaseSite & nod,
+											  const BaseFairnessMetrics & metrics,unsigned int checksum)
+{
+	Clear();
+	GdiSite		= gdi;
+	NodSite		= nod;
+	HasGdiSite	= true;
+	HasNodSite	= true;
+	LastMetrics	= metrics;
+	Checksum		= checksum;
+	Built			= true;
+	return true;
+}
+
+
 void BaseSelectionPlanner::Clear(void)
 {
 	Built = false;

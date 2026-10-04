@@ -73,6 +73,7 @@ enum StrategicNodeType
 	STRATEGIC_NODE_POI_CANDIDATE,
 	STRATEGIC_NODE_CROSSING_CANDIDATE,
 	STRATEGIC_NODE_TUNNEL_CANDIDATE,
+	STRATEGIC_NODE_ROUTE_POINT,		// migration adapter only: a hybrid road node (entrance, waypoint, junction), no role
 	STRATEGIC_NODE_TYPE_COUNT
 };
 
@@ -140,6 +141,14 @@ public:
 	**	validation checks below are how a caller learns whether that outcome is still acceptable.
 	*/
 	static bool			Generate(const StrategicPlannerParams & params,StringClass * error_out);
+
+	/*
+	**	Migration adapter (hybrid rewrite I13, Phase 12): the native hybrid generator publishes its frozen, realized
+	**	records here read-only, so the consumers that still read this planner keep working.  It creates, moves and
+	**	owns no runtime object -- Phase 12 owns those -- and `checksum` is the hybrid record's own.  Removed once every
+	**	consumer is migrated by its own item (checklist item 22).
+	*/
+	static bool			Adopt_Plan(const DynamicVectorClass<StrategicNode> & nodes,unsigned int checksum);
 
 	static void			Clear(void);
 	static bool			Has_Plan(void)				{ return Built; }

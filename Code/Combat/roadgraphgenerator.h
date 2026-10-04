@@ -142,6 +142,14 @@ public:
 	//	outright.
 	static void			Clear(void);
 
+	/*
+	**	Migration adapter (hybrid rewrite I13, Phase 12): the native hybrid generator publishes its frozen, realized
+	**	records here read-only, so the consumers that still read this planner keep working.  It creates, moves and
+	**	owns no runtime object -- Phase 12 owns those -- and `checksum` is the hybrid record's own.  Removed once every
+	**	consumer is migrated by its own item (checklist item 22).
+	*/
+	static bool			Adopt_Graph(const DynamicVectorClass<RoadGraphEdge> & edges,unsigned int checksum);
+
 	//	BridgePlanner (Phase 9) calls this after RoadSystem::Trim_Road_Range hands back a new
 	//	road id -- the far segment of a road this generator built, once a bridge has cut it in
 	//	two.  A split segment is still this generator's own road, just under a second id, and

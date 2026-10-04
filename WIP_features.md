@@ -409,21 +409,46 @@ unchanged.
 Phase-12 step 1 is done (2026-10-03): `Hybrid_Plan_Realization`, `Hybrid_Deform_Terrain` and `BridgeAssembly`,
 plus the Section-12.1 clamp-walk rounding fix. See `docs/procedural_world/HybridRealization.md`.
 
-**Next exact action:** I13 / Phase 12, in this order:
-1. (done) the deterministic Phase-12 plan (`Hybrid_Plan_Realization`):
-   - roads in routing order, graded once with structures and junction surfaces;
-   - actual paved edges (asymmetric, D-024, widened highway);
-   - the Section-12.2 deformation over a height grid;
-   - `BridgeAssembly` -> `BridgePiece` records, one WHOLE piece now;
-2. (2A done: the `RoadSplineClass` edge profile and its consumers) runtime realization through `WorldTerrainSystem` /
-   `RoadSystem` (with the optional per-sample asymmetric edge
-   profile) / `BridgeSystem` (one assembly at a time) / `TunnelSystem`, replacing the legacy road, bridge and tunnel
-   generators on the hybrid path, with the reverse-order cleanup list;
-3. post-realization verification (12.3).
+Phase-12 step 2B is done (2026-10-03, D-025):
+- `HybridRoadRealizer` realizes once on `WorldTerrainSystem`, `RoadSystem` (with the edge profile) and
+  `BridgeSystem` (one bridge per `BridgeAssembly`), verifies, and tears down in reverse order;
+- the manager's `Realize_Hybrid_Roads` replaces the legacy strategic plan, road graph, bridge and tunnel plans and
+  base selection on the native hybrid path;
+- migration adapters publish into `StrategicPlanner`, `RoadGraphGenerator`, `BridgePlanner` and
+  `BaseSelectionPlanner`;
+- a live gate re-verifies before road geometry is built;
+- tunnels are deferred (`tunnel_available = false`).
 
-Then continue I13: the Phase-12 realization owner on `Hybrid_Realized_Physical_Road` (one road per heavy family
-trunk), `Hybrid_Road_Profile_Structures` and `Hybrid_Solve_Road_Stretch`. Ramp road deformation uses
-`RampLaneCenterline` with the asymmetric edge offsets and leaves the symmetric classes unchanged.
+A native world cannot be generated through the manager inside the self-check environment: `Generate_World` needs a
+loaded level and real content for preflight. The live path is therefore covered by:
+- the same `Realize` / `Verify` / `Publish_Adapters` / `Clear` path on controlled worlds with real terrain, roads and
+  bridges;
+- the in-attempt live gate.
+
+A first live native run in the game is still owed.
+
+**Next exact action:** I13 / Phase 12 step 3, the 12.3 post-realization verification:
+- the canonical swept/collision query at `min(W/2, A/3)` (Humvee on every road, heavy on heavy edges, Harvester on
+  economy edges, with ramps, parallel intervals and local junctions by capability);
+- bridge and overpass width, height, span and attachment against the runtime objects;
+- the Section-12.6.13 ramp list.
+
+Then the I13 gate.
+
+**Deferred:** tunnel realization on the native hybrid path (user, 2026-10-03). No Phase-12 tunnel owner or adapter
+exists. To be planned as its own item.
+
+**I14 finding (2026-10-03), recorded for Phase 13.** Nothing spawns Tiberium crystals today:
+- `TiberiumFieldGenerator` emits position records only (`TiberiumCrystalPlacement`) and stamps the Tiberium mask;
+- no crystal preset, definition or W3D model is registered in the procedural path or in `ProceduralAssetRegistry`
+  (the header names only the intended `ow_tiberium_crystal` family);
+- `TT_Game`'s `Plant_Crystals` takes a free-form `Crystal_Preset` parameter with no default;
+- crystal positions are not checked against roads, bridges or water: only the field footprint's centre and rim are
+  checked, and bridges are not checked at all.
+
+The user's I14 directive is to reuse the original registered Renegade crystal presets and never guess names. I14 must
+therefore first enumerate the shipped content (`always.dat`) with a definition dumper for any canonical Tiberium crystal
+preset. If none exists, that is a blocking question for the user, not a guessed name.
 
 Generator identity stays 16: there is no bump for ramp substeps. Keep the remaining structural-transition failures
 separate. The river-bridge quota's opposite-bank investigation stays open and must be resolved before release

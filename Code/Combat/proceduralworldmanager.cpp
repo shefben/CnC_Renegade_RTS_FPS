@@ -25,6 +25,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "proceduralworldmanager.h"
+#include "hybridroadrealizer.h"
 #include "bridgedamageservice.h"
 
 #include "baseselectionplanner.h"
@@ -110,6 +111,8 @@ HybridRouteSet				ProceduralWorldManager::HybridRoutes;
 HybridRouteParams			ProceduralWorldManager::HybridRouteInputs;
 HybridInteractionSet		ProceduralWorldManager::HybridInteractions;
 bool							ProceduralWorldManager::HybridInteractionsValid		= false;
+HybridRealizationPlan	ProceduralWorldManager::HybridRealization;
+bool							ProceduralWorldManager::HybridRealizationValid		= false;
 HybridPreflightInputs	ProceduralWorldManager::HybridInputs;
 bool								ProceduralWorldManager::HybridRoutesValid	= false;
 HybridScratchArena			ProceduralWorldManager::HybridArena;
@@ -719,7 +722,7 @@ bool ProceduralWorldManager::Build_Hybrid_Hydrology(const ProceduralWorldProfile
 	params.BridgeApproachLength		= HybridMetrics.BridgeApproachLength;
 	params.BridgeWaterClearanceMargin= HybridMetrics.BridgeWaterClearanceMargin;
 
-	params.TunnelsAvailable		= HybridMetrics.TunnelsAvailable && profile.Features.Tunnels;
+	params.TunnelsAvailable		= Hybrid_Native_Tunnels_Available (HybridMetrics.TunnelsAvailable && profile.Features.Tunnels);
 	params.TunnelRequiredWidth	= HybridMetrics.TunnelRequiredWidth;
 	params.TunnelRequiredHeight= HybridMetrics.TunnelRequiredHeight;
 
@@ -857,7 +860,7 @@ bool ProceduralWorldManager::Build_Hybrid_Topology(const ProceduralWorldProfile 
 	params.MinVehicleLaneClearance= profile.Fairness.MinVehicleLaneClearance;
 	params.HarvesterLength			= HybridMetrics.HarvesterLength;
 	params.MaxRoutedEdges			= HybridMetrics.Budgets.MaxRoutedEdges;
-	params.TunnelsAvailable			= HybridMetrics.TunnelsAvailable && profile.Features.Tunnels;
+	params.TunnelsAvailable			= Hybrid_Native_Tunnels_Available (HybridMetrics.TunnelsAvailable && profile.Features.Tunnels);
 	params.MaxCutDepth				= profile.Grading.MaxCutDepth;
 	params.MaxFillHeight				= profile.Grading.MaxFillHeight;
 	params.OverpassClearGap			= Hybrid_Overpass_Clear_Gap (HybridMetrics.HeavyVehicleHeight,
@@ -992,7 +995,7 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 	params.AllowFords					= profile.Plan.AllowFords;
 	params.FordCapabilityAvailable	= HybridMetrics.FordsAvailable;
 	params.TunnelsEnabled			= profile.Features.Tunnels;
-	params.TunnelAvailable			= HybridMetrics.TunnelsAvailable;
+	params.TunnelAvailable			= Hybrid_Native_Tunnels_Available (HybridMetrics.TunnelsAvailable);
 
 	params.WorldUnitsPerMeter		= HybridMetrics.Constants.WorldUnitsPerMeter;
 	params.HeavyVehicleWidth		= HybridMetrics.HeavyVehicleWidth;
@@ -1086,6 +1089,80 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 
 	HybridInteractionsValid = true;
 	if (built_out != nullptr) *built_out = true;
+	return true;
+}
+
+
+//	Phase 12's runtime objects against its frozen plan (HybridRoadRealizer::Verify), from the manager's own records.
+bool ProceduralWorldManager::Verify_Hybrid_Roads(StringClass * error_out)
+{
+	HybridRoadRealizerInputs inputs;
+	inputs.Plan				= &HybridRealization;
+	inputs.Topology		= &HybridTopologyRecord;
+	inputs.Routes			= &HybridRoutes;
+	inputs.Interactions	= &HybridInteractions;
+	inputs.Anchors			= &HybridAnchors;
+	inputs.Hydrology		= &HybridHydrology;
+	inputs.Constants		= HybridMetrics.Constants;
+	for (int i = 0; i < HybridInputs.Bridges.Count (); ++i) inputs.BridgeDefinitions.Add (HybridInputs.Bridges[i].Name);
+	return HybridRoadRealizer::Verify (inputs,error_out);
+}
+
+
+/***********************************************************************************************
+ * Realize_Hybrid_Roads -- rewrite item I13, runtime Phase 12                                   *
+ *=============================================================================================*/
+bool ProceduralWorldManager::Realize_Hybrid_Roads(const ProceduralWorldProfile & profile,StringClass * error_out)
+{
+	HybridRealizationValid = false;
+	HybridRealization.Reset ();
+	if (!profile.Uses_Hybrid_Generator () || !HybridInteractionsValid) {
+		if (error_out != nullptr) *error_out = "Phase 12 has no compiled Phase-11 interactions to realize";
+		return false;
+	}
+
+	HybridRealizationParams params;
+	params.Constants					= HybridMetrics.Constants;
+	params.MaxCutDepth				= profile.Grading.MaxCutDepth;
+	params.MaxFillHeight				= profile.Grading.MaxFillHeight;
+	params.LightVehicleWidth		= HybridMetrics.HumveeWidth;
+	params.HeavyVehicleWidth		= HybridMetrics.HeavyVehicleWidth;
+	params.HarvesterWidth			= HybridMetrics.HarvesterWidth;
+	params.MinVehicleLaneClearance= profile.Fairness.MinVehicleLaneClearance;
+	const HeightfieldClass * field = WorldTerrainSystem::Peek_Heightfield ();
+	params.TerrainCellSize			= (field != nullptr) ? field->Get_Cell_Size () : 0.0f;
+
+	HybridRealizationResult result;
+	if (!Hybrid_Plan_Realization (params,HybridTopologyRecord,HybridRoutes,HybridInteractions,Sample_Terrain_Height,
+											nullptr,&HybridRealization,&result)) {
+		if (error_out != nullptr) {
+			error_out->Format ("hybrid Phase 12 plan: %s (%s)",Hybrid_Realization_Failure_Name (result.Failure),
+									 result.Detail.Peek_Buffer ());
+		}
+		HybridRealization.Reset ();
+		return false;
+	}
+
+	HybridRoadRealizerInputs inputs;
+	inputs.Plan				= &HybridRealization;
+	inputs.Topology		= &HybridTopologyRecord;
+	inputs.Routes			= &HybridRoutes;
+	inputs.Interactions	= &HybridInteractions;
+	inputs.Anchors			= &HybridAnchors;
+	inputs.Hydrology		= &HybridHydrology;
+	inputs.Constants		= HybridMetrics.Constants;
+	for (int i = 0; i < HybridInputs.Bridges.Count (); ++i) inputs.BridgeDefinitions.Add (HybridInputs.Bridges[i].Name);
+
+	StringClass detail;
+	if (!HybridRoadRealizer::Realize (inputs,&detail) || !Verify_Hybrid_Roads (&detail) ||
+		 !HybridRoadRealizer::Publish_Adapters (inputs,&detail)) {
+		if (error_out != nullptr) error_out->Format ("hybrid Phase 12: %s",detail.Peek_Buffer ());
+		return false;
+	}
+	HybridRealizationValid = true;
+	WWDEBUG_SAY (("Hybrid Phase 12: %d road stretches, %d bridge/overpass assemblies realized, %d terrain vertices graded"
+					  NL,HybridRoadRealizer::Get_Piece_Count (),HybridRoadRealizer::Get_Bridge_Count (),
+					  (int)HybridRoadRealizer::Get_Terrain_Changed ()));
 	return true;
 }
 
@@ -2176,12 +2253,28 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 		return false;
 	}
 
+	/*
+	**	Runtime Phase 12 (rewrite item I13) on the native hybrid path, once the ground is finished but for its roads:
+	**	the sole realization owner of the roads, bridge and overpass decks, junction surfaces and road cut/fill.  The
+	**	legacy strategic plan, road graph, bridge and tunnel plans and base selection do not run there; the migration
+	**	adapters publish Phase 12's records into the planners their downstream consumers still read.
+	*/
+	const bool hybrid_roads = profile.Uses_Hybrid_Generator () && HybridInteractionsValid;
+	if (hybrid_roads) {
+		StringClass realization_error;
+		if (!Realize_Hybrid_Roads (profile,&realization_error)) {
+			WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",realization_error.Peek_Buffer ()));
+			if (error_out != nullptr) *error_out = realization_error;
+			return false;
+		}
+	}
+
 	//	Strategic plan, Phase 7.  Reads the same chunk registry; also reads whatever interior
 	//	cliff/hydrology candidates exist, optionally, so it runs whether or not either of those
 	//	stages themselves succeeded.
-	bool strategic_plan_built = false;
+	bool strategic_plan_built = hybrid_roads;
 	StringClass strategic_plan_error;
-	if (terrain_built) {
+	if (terrain_built && !hybrid_roads) {
 		strategic_plan_built = Build_Strategic_Plan (profile,&strategic_plan_error);
 		if (!strategic_plan_built) {
 			WWDEBUG_SAY (("ProceduralWorldManager: strategic plan failed (%s); the terrain itself is unaffected\r\n",
@@ -2190,9 +2283,9 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	}
 
 	//	Road graph, Phase 8.  Needs the strategic plan to connect, not merely the terrain.
-	bool road_graph_built = false;
+	bool road_graph_built = hybrid_roads;
 	StringClass road_graph_error;
-	if (strategic_plan_built) {
+	if (strategic_plan_built && !hybrid_roads) {
 		road_graph_built = Build_Road_Graph (profile,&road_graph_error);
 		if (!road_graph_built) {
 			WWDEBUG_SAY (("ProceduralWorldManager: road graph failed (%s); the strategic plan itself is unaffected\r\n",
@@ -2211,9 +2304,9 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 
 	//	Bridge plan, Phase 9.  Needs the road graph -- every candidate comes from an edge's own
 	//	unresolved-crossing list.
-	bool bridge_plan_built = false;
+	bool bridge_plan_built = hybrid_roads;
 	StringClass bridge_plan_error;
-	if (road_graph_built) {
+	if (road_graph_built && !hybrid_roads) {
 		bridge_plan_built = Build_Bridge_Plan (profile,&bridge_plan_error);
 		if (!bridge_plan_built) {
 			WWDEBUG_SAY (("ProceduralWorldManager: bridge plan failed (%s); the road graph itself is unaffected\r\n",
@@ -2236,9 +2329,10 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 
 	//	Tunnels, Phase 10.  After the bridge plan, whose unresolved crossings are one of its two
 	//	candidate sources; the other (cliff bypasses) needs only the strategic plan and terrain.
+	//	Tunnels are deferred on the native hybrid path (Hybrid_Native_Tunnels_Available): none is planned or realized.
 	bool tunnel_plan_built = false;
 	StringClass tunnel_plan_error;
-	if (terrain_built) {
+	if (terrain_built && !hybrid_roads) {
 		tunnel_plan_built = Build_Tunnel_Plan (profile,&tunnel_plan_error);
 		if (!tunnel_plan_built) {
 			WWDEBUG_SAY (("ProceduralWorldManager: tunnel plan failed (%s); the bridge plan itself is unaffected\r\n",
@@ -2257,9 +2351,10 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 
 	//	Base selection, Phase 11.  Needs the road graph and the bridge plan -- Phase 11's own
 	//	purpose line: choose bases only once roads, bridges and terrain constraints are known.
-	bool base_selection_built = false;
+	//	On the native hybrid path the base pair is Phase 8's frozen one, published by Phase 12's adapter.
+	bool base_selection_built = hybrid_roads && BaseSelectionPlanner::Has_Selection ();
 	StringClass base_selection_error;
-	if (bridge_plan_built) {
+	if (bridge_plan_built && !hybrid_roads) {
 		base_selection_built = Build_Base_Selection (profile,&base_selection_error);
 		if (!base_selection_built) {
 			WWDEBUG_SAY (("ProceduralWorldManager: base selection failed (%s); the bridge plan itself is unaffected\r\n",
@@ -2334,6 +2429,18 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	if (!profile.World.FitToLevel && RoadGraphGenerator::Get_Edge_Count () == 0) {
 		if (error_out != nullptr) *error_out = "native world has no generated roads";
 		return false;
+	}
+	/*
+	**	The live Phase-12 gate (I13): on the native hybrid path, before any road mesh is built, the runtime roads and
+	**	bridges are still exactly Phase 12's -- realized once, nothing added or duplicated by any later stage, every
+	**	road on its frozen record, every bridge at its assembly.  A discrepancy fails the attempt.
+	*/
+	if (hybrid_roads) {
+		StringClass verify_error;
+		if (!Verify_Hybrid_Roads (&verify_error)) {
+			if (error_out != nullptr) error_out->Format ("hybrid Phase 12 live gate: %s",verify_error.Peek_Buffer ());
+			return false;
+		}
 	}
 	if (RoadSystem::Get_Road_Count () > 0 && !RoadSystem::Build_Geometry ()) {
 		if (error_out != nullptr) *error_out = "generated road geometry could not be built";
@@ -2704,6 +2811,9 @@ void ProceduralWorldManager::Destroy_World(void)
 	ProceduralAssetRegistry::Shutdown ();
 	TiberiumFieldGenerator::Clear ();
 	BaseSelectionPlanner::Clear ();
+	HybridRoadRealizer::Clear ();
+	HybridRealizationValid = false;
+	HybridRealization.Reset ();
 	TunnelPlanner::Clear ();
 	BridgePlanner::Clear ();
 	RoadGraphGenerator::Clear ();
