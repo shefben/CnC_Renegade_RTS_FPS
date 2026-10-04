@@ -439,18 +439,19 @@ D-026 tightening and D-027 (Q-027 closed, 2026-10-04) are implemented:
 
 All seven required tests pass, and the suite is 237/237.
 
-Census r12: 448 / 98 / 0 (r11 448 / 98 / 34); attribution in D-027. Eighteen of the 34 fail on a Phase-12
-planning defect that predates D-027. D-025 reading 2 pins a later road to an earlier road's surface at any roadbed
-overlap, not only at compiled junctions, so Phase 12 is stricter than Phase 11.
+D-028 (2026-10-04) narrows the shared surface to compiled Phase-11 junctions, within their arm reach. The census now
+runs Phase 12 on solved worlds. Census r13 is 448 / 98 / 0; the breakdown is in D-028. The 19 remaining Phase-12
+plan refusals among r11's 34 are compiled-junction holds: Phase 11 judges a junction at the ground's height, one at a
+time, while Phase 12 holds it at the earlier road's surface.
 
 **Next exact action:**
-1. On the user's direction, narrow D-025's shared surface to compiled junctions (Plan 12.2 step 5), or take the
-   alternative they choose.
-2. Census r13.
-3. The in-game smoke: Main menu, Start Procedural Game, then `procedural_world status`. It cannot pass before step 1:
-   no native world solves Phase 11.
+1. On the user's direction, make Phase 11's junction judgement use Phase 12's junction elevation (the earlier road's
+   solved surface, and neighbouring junctions together), or take the alternative they choose.
+2. Census r14.
+3. The in-game smoke: Main menu, Start Procedural Game, then `procedural_world status`. It needs a native world that
+   solves Phase 11.
 4. Close I13.
-5. Start the Phase-13 Tiberium definition/script inventory.
+5. Start the Phase-13 Tiberium inventory.
 
 **Deferred:** tunnel realization on the native hybrid path (user, 2026-10-03). No Phase-12 tunnel owner or adapter
 exists. To be planned as its own item.

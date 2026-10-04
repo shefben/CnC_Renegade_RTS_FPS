@@ -18393,6 +18393,7 @@ static void Straight_Route (float from,float to,float step,HybridRoute * route)
 static void Check_Hybrid_Realization_Plan (const HybridPreflightInputs & inputs,const HybridMetricCache & metrics);
 static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,const HybridMetricCache & metrics);
 static void Check_Hybrid_Pin_Landings (const HybridPreflightInputs & content,const HybridMetricCache & metrics);
+static void Check_Hybrid_Junction_Footprint (const HybridMetricCache & metrics);
 static void Check_Hybrid_Deformation_Units (const HybridConstants & k);
 
 void Check_Hybrid_Realization (void)
@@ -18637,6 +18638,7 @@ void Check_Hybrid_Realization (void)
 			Check_Hybrid_Realization_Plan (inputs,preflight.Metrics);
 			Check_Hybrid_Phase12_Runtime (inputs,preflight.Metrics);
 			Check_Hybrid_Pin_Landings (inputs,preflight.Metrics);
+			Check_Hybrid_Junction_Footprint (preflight.Metrics);
 		}
 	}
 }
@@ -19667,6 +19669,256 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 	BridgeSystem::Shutdown ();
 	RoadSystem::Shutdown ();
 	WorldTerrainSystem::Shutdown ();
+}
+
+
+/*
+**	The census's Phase 12: a world Phase 11 solved, realized on the canonical owners over its native terrain field and
+**	verified (Section 12.3, D-026/D-027/D-028), then torn down.  Empty when it passes; otherwise the refusal.
+*/
+static bool Census_Phase12 (const HybridPipelineFixture & scan,const HybridInteractionSet & set,const HybridPreflightInputs & inputs,
+									 const HybridMetricCache & metrics,StringClass * failure)
+{
+	const float origin = Native_Terrain_Origin (1200.0f);
+	const int vertices = (int)::ceil ((double)(1200.0f / NATIVE_TERRAIN_CELL)) + 1;
+	if (!WorldTerrainSystem::Create_Terrain (vertices,vertices,NATIVE_TERRAIN_CELL,Vector3 (origin,origin,0.0f))) {
+		*failure = "terrain: the native field cannot be created";
+		return false;
+	}
+	DynamicVectorClass<float> heights;
+	heights.Resize (vertices * vertices);
+	for (int iy = 0; iy < vertices; iy++) {
+		for (int ix = 0; ix < vertices; ix++) {
+			float z = 0.0f;
+			Macro_Sample_From_Formula (Vector2 (origin + (NATIVE_TERRAIN_CELL * (float)ix),origin + (NATIVE_TERRAIN_CELL * (float)iy)),&z,
+												(void *)&scan.Ground);
+			heights.Add (z);
+		}
+	}
+	WorldTerrainSystem::Set_Heights (&heights[0],heights.Count ());
+
+	HybridRealizationParams params = Realization_Fixture (scan.Sized.Constants,metrics);
+	params.TerrainCellSize = NATIVE_TERRAIN_CELL;
+	HybridRealizationPlan plan;
+	HybridRealizationResult planned;
+	bool ok = Hybrid_Plan_Realization (params,scan.Topology,scan.Routes,set,Macro_Sample_From_Formula,(void *)&scan.Ground,&plan,&planned);
+	if (!ok) {
+		failure->Format ("plan: %s",planned.Detail.Peek_Buffer ());
+	} else {
+		HybridRoadRealizerInputs in;
+		in.Plan				= &plan;
+		in.Topology			= &scan.Topology;
+		in.Routes			= &scan.Routes;
+		in.Interactions	= &set;
+		in.Anchors			= &scan.Anchors;
+		in.Hydrology		= &scan.Hydrology;
+		in.Constants		= scan.Sized.Constants;
+		for (int i = 0; i < inputs.Bridges.Count (); i++) in.BridgeDefinitions.Add (inputs.Bridges[i].Name);
+		in.Light.Length			= inputs.Humvee.Length;
+		in.Light.Width				= metrics.HumveeWidth;
+		in.Light.Height			= metrics.HumveeHeight;
+		in.Heavy.Length			= inputs.HeavyVehicle.Length;
+		in.Heavy.Width				= metrics.HeavyVehicleWidth;
+		in.Heavy.Height			= metrics.HeavyVehicleHeight;
+		in.Harvester.Length		= metrics.HarvesterLength;
+		in.Harvester.Width		= metrics.HarvesterWidth;
+		in.Harvester.Height		= metrics.HarvesterHeight;
+		in.MinVehicleLaneClearance = 1.0f;
+		StringClass error;
+		if (!HybridRoadRealizer::Realize (in,&error)) {
+			failure->Format ("realize: %s",error.Peek_Buffer ());
+			ok = false;
+		} else if (!HybridRoadRealizer::Verify (in,&error)) {
+			failure->Format ("verify: %s",error.Peek_Buffer ());
+			ok = false;
+		} else if (!HybridRoadRealizer::Verify_Physical (in,&error)) {
+			failure->Format ("section_12_3: %s",error.Peek_Buffer ());
+			ok = false;
+		}
+		HybridRoadRealizer::Clear ();
+	}
+	WorldTerrainSystem::Destroy_Terrain ();
+	return ok;
+}
+
+
+/*
+**	D-028's ground: rising 0.05 a metre across the roads (y) and rolling along them (x), so two parallel roads a few metres
+**	apart solve to different profiles of their own.
+*/
+static bool Parallel_Ground (const Vector2 & world,float * height_out,void * context)
+{
+	(void)context;
+	*height_out = (0.05f * world.Y) + (3.0f * (float)::sin ((double)(world.X / 40.0f)));
+	return true;
+}
+
+
+//	Two straight parallel PRIMARY_2 roads along x, `separation` apart, as hand-made Phase-9/10 records.
+static void Parallel_Roads (HybridTopology * topology,HybridRouteSet * routes,float separation,float spacing)
+{
+	topology->Reset ();
+	routes->Reset ();
+	for (int r = 0; r < 2; r++) {
+		const float y = (float)r * separation;
+		HybridTopologyNode node;
+		node.Kind		= HYBRID_NODE_FAMILY_WAYPOINT;
+		node.StableId	= (unsigned int)((2 * r) + 1);
+		node.Position.Set (-200.0f,y);
+		topology->Nodes.Add (node);
+		node.StableId	= (unsigned int)((2 * r) + 2);
+		node.Position.Set (200.0f,y);
+		topology->Nodes.Add (node);
+		HybridTopologyEdge edge;
+		edge.StableId		= (unsigned int)(r + 1);
+		edge.Kind			= HYBRID_EDGE_CROSS_LINK;
+		edge.RoadClass		= HYBRID_ROAD_PRIMARY_2;
+		edge.Capabilities	= Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_CROSS_LINK,false);
+		edge.NodeA			= (unsigned int)((2 * r) + 1);
+		edge.NodeB			= (unsigned int)((2 * r) + 2);
+		topology->Edges.Add (edge);
+		HybridRoute route;
+		route.EdgeId		= edge.StableId;
+		route.RoadClass	= HYBRID_ROAD_PRIMARY_2;
+		route.Capabilities= edge.Capabilities;
+		const int count = (int)(400.0f / spacing);
+		for (int i = 0; i <= count; i++) {
+			route.Points.Add (Vector2 (-200.0f + (400.0f * (float)i / (float)count),y));
+			route.Stations.Add (400.0f * (float)i / (float)count);
+		}
+		route.Length = 400.0f;
+		routes->Routes.Add (route);
+	}
+}
+
+
+/*
+**	D-028: a road shares another's surface only inside a compiled Phase-11 junction's footprint.  Two parallel roads whose
+**	paved footprints overlap, or stand within the old 1.5-cell margin of each other, and share no junction record each
+**	keep the profile they solve to alone -- no held surface, no pin.  A compiled junction record between the same two
+**	roads holds the later one at the earlier one's surface over exactly its arm reach either side of the junction point,
+**	and the road far from it keeps its own profile.
+*/
+static void Check_Hybrid_Junction_Footprint (const HybridMetricCache & metrics)
+{
+	HybridConstants k;
+	Hybrid_Compute_Constants (2.555953f,1.0f,60.0f,1200.0f,1200.0f,3.0f,900.0f,&k);
+	HybridRealizationParams params = Realization_Fixture (k,metrics);
+	params.TerrainCellSize = NATIVE_TERRAIN_CELL;
+	const float half = 0.5f * Hybrid_Roadbed_Width (HYBRID_ROAD_PRIMARY_2,k.W);
+	const float margin = 1.5f * NATIVE_TERRAIN_CELL;
+	const float arm = Hybrid_Junction_Arm_Reach (HYBRID_ROAD_PRIMARY_2,k.W);
+	const char * names[2] = { "overlapping","nearby" };
+	const HybridInteractionSet none;
+
+	for (int c = 0; c < 2; c++) {
+		//	Overlapping paved footprints; then footprints apart, the later centerline inside the old 1.5-cell margin.
+		const float separation = (c == 0) ? (1.5f * half) : (0.5f * ((2.0f * half) + (half + margin)));
+		Check ((separation < (half + margin)) && ((c == 0) || (separation > (2.0f * half))),
+				 "the D-028 %s case is not inside the old shared-surface margin",names[c]);
+		HybridTopology topology;
+		HybridRouteSet routes;
+		Parallel_Roads (&topology,&routes,separation,Hybrid_Profile_Sample_Spacing (k));
+
+		//	Each road alone.
+		HybridRealizationPlan solo[2];
+		bool solos = true;
+		for (int r = 0; r < 2; r++) {
+			HybridTopology one_topology = topology;
+			HybridRouteSet one_routes;
+			one_routes.Routes.Add (routes.Routes[r]);
+			one_topology.Edges.Delete_All ();
+			one_topology.Edges.Add (topology.Edges[r]);
+			HybridRealizationResult result;
+			solos = solos && Hybrid_Plan_Realization (params,one_topology,one_routes,none,Parallel_Ground,NULL,&solo[r],&result);
+		}
+
+		//	Together, no junction: each exactly its solo profile, and no pin.
+		HybridRealizationPlan together;
+		HybridRealizationResult result;
+		const bool planned = solos && Hybrid_Plan_Realization (params,topology,routes,none,Parallel_Ground,NULL,&together,&result);
+		float worst = 0.0f;
+		float apart = 0.0f;
+		if (planned) {
+			for (int r = 0; r < 2; r++) {
+				const HybridRealizedRoad & road = *together.Find_Road ((unsigned int)(r + 1));
+				const HybridRealizedRoad & alone = *solo[r].Find_Road ((unsigned int)(r + 1));
+				for (int s = 0; (s < road.Samples.Count ()) && (s < alone.Samples.Count ()); s++) {
+					worst = WWMath::Max (worst,WWMath::Fabs (road.Samples[s].Z - alone.Samples[s].Z));
+				}
+			}
+			const HybridRealizedRoad & first = *together.Find_Road (1);
+			const HybridRealizedRoad & second = *together.Find_Road (2);
+			for (int s = 0; (s < first.Samples.Count ()) && (s < second.Samples.Count ()); s++) {
+				apart = WWMath::Max (apart,WWMath::Fabs (first.Samples[s].Z - second.Samples[s].Z));
+			}
+		}
+		Check (planned && (worst <= k.Q) && (together.Pins.Count () == 0) && (apart > 0.1f),
+				 "%s roads %.2f apart with no compiled junction share a surface: %.4f off their own profiles, %d pins, %.3f apart in z (%s)",
+				 names[c],separation,worst,together.Pins.Count (),apart,result.Detail.Peek_Buffer ());
+
+		printf ("  D-028 %s roads %.2f apart: no compiled junction, each its own profile (%.3f apart in z), no pin\r\n",names[c],
+				  separation,apart);
+		if (c != 0) continue;
+
+		//	The overlapping roads with a compiled junction at x = 0: held over its arm reach, their own beyond it.
+		HybridInteractionSet joined;
+		HybridInteraction junction;
+		junction.StableId		= 1;
+		junction.EdgeId		= 1;
+		junction.OtherEdgeId	= 2;
+		junction.Method		= HYBRID_METHOD_AT_GRADE_JUNCTION;
+		junction.RoadClass	= HYBRID_ROAD_PRIMARY_2;
+		junction.Station.Set (0.0f,0.5f * separation);
+		junction.Tangent.Set (1.0f,0.0f);
+		junction.ApproachA	= junction.Station;
+		junction.ApproachB	= junction.Station;
+		joined.Interactions.Add (junction);
+		HybridRealizationPlan held;
+		const bool held_planned = Hybrid_Plan_Realization (params,topology,routes,joined,Parallel_Ground,NULL,&held,&result);
+		float inside = 0.0f;
+		float outside = 0.0f;
+		int inside_count = 0;
+		if (held_planned) {
+			const HybridRealizedRoad & first = *held.Find_Road (1);
+			const HybridRealizedRoad & second = *held.Find_Road (2);
+			const HybridRealizedRoad & alone = *solo[1].Find_Road (2);
+			for (int s = 0; s < second.Samples.Count (); s++) {
+				const float x = second.Samples[s].Position.X;
+				if (WWMath::Fabs (x) <= (arm - k.W)) {
+					//	The earlier road's surface at the same x.
+					float z = first.Samples[0].Z;
+					for (int f = 1; f < first.Samples.Count (); f++) {
+						if (first.Samples[f].Position.X < x) continue;
+						const HybridRealizedSample & a = first.Samples[f - 1];
+						const HybridRealizedSample & b = first.Samples[f];
+						const float t = (b.Position.X > a.Position.X) ? ((x - a.Position.X) / (b.Position.X - a.Position.X)) : 0.0f;
+						z = a.Z + ((b.Z - a.Z) * t);
+						break;
+					}
+					inside = WWMath::Max (inside,WWMath::Fabs (second.Samples[s].Z - z));
+					inside_count++;
+				} else if (WWMath::Fabs (x) >= 120.0f) {
+					//	Its solo profile at the same x: sample stations differ once held stretches add their own ends.
+					float z = alone.Samples[0].Z;
+					for (int f = 1; f < alone.Samples.Count (); f++) {
+						if (alone.Samples[f].Position.X < x) continue;
+						const HybridRealizedSample & a = alone.Samples[f - 1];
+						const HybridRealizedSample & b = alone.Samples[f];
+						const float t = (b.Position.X > a.Position.X) ? ((x - a.Position.X) / (b.Position.X - a.Position.X)) : 0.0f;
+						z = a.Z + ((b.Z - a.Z) * t);
+						break;
+					}
+					outside = WWMath::Max (outside,WWMath::Fabs (second.Samples[s].Z - z));
+				}
+			}
+		}
+		Check (held_planned && (inside_count > 4) && (inside <= (2.0f * k.Q)) && (outside <= (2.0f * k.Q)),
+				 "a compiled junction between the %s roads does not hold the later road over its arm reach only: %.4f off the "
+				 "earlier surface inside (%d samples), %.4f off its own profile far outside (%s)",names[c],inside,inside_count,outside,
+				 result.Detail.Peek_Buffer ());
+		printf ("  D-028 a compiled junction between the overlapping roads: the later one held over its %.2f arm reach only\r\n",arm);
+	}
 }
 
 
@@ -22136,6 +22388,20 @@ void Check_Hybrid_Interaction_Search (void)
 
 	const unsigned int SEARCH_SEEDS = 200u;
 
+	//	Phase 12 on the canonical owners for every world Phase 11 solves.
+	WorldTerrainSystem::Init ();
+	RoadSystem::Init ();
+	BridgeSystem::Init ();
+	for (int i = 0; i < inputs.Bridges.Count (); i++) {
+		BridgeDefinitionClass definition;
+		definition.Set_Name (inputs.Bridges[i].Name.Peek_Buffer ());
+		definition.Set_Width (inputs.Bridges[i].Width);
+		definition.Set_Deck_Thickness (inputs.Bridges[i].DeckThickness);
+		BridgeSystem::Define_Bridge (definition);
+	}
+	int phase12_realized = 0;
+	int phase12_failed = 0;
+
 	int worlds = 0;
 	int passed_phase9 = 0;
 	int interchange_outcome[HYBRID_INTERCHANGE_OUTCOME_COUNT] = { 0,0,0 };
@@ -22606,6 +22872,16 @@ void Check_Hybrid_Interaction_Search (void)
 			}
 			solved_worlds++;
 			printf ("SOLVED archetype %d seed %u: %d interactions\r\n",(int)SEARCH_ARCHETYPES[ai],seed,si.Interactions.Count ());
+			{
+				StringClass failure;
+				if (Census_Phase12 (scan,si,inputs,preflight.Metrics,&failure)) {
+					phase12_realized++;
+					printf ("P12OK archetype %d seed %u: %d landings\r\n",(int)SEARCH_ARCHETYPES[ai],seed,si.Landings.Count ());
+				} else {
+					phase12_failed++;
+					printf ("P12FAIL archetype %d seed %u: %s\r\n",(int)SEARCH_ARCHETYPES[ai],seed,failure.Peek_Buffer ());
+				}
+			}
 
 			for (int i = 0; i < si.Interactions.Count (); ++i) {
 
@@ -22637,6 +22913,10 @@ void Check_Hybrid_Interaction_Search (void)
 	printf ("phase 9 (Q-023): %d worlds passed; candidates rejected: %d approach class, %d wrong side, %d pose; "
 			  "%d bindings recovered by a lower-ranked window\r\n",passed_phase9,rejected_approach,rejected_wrong_side,
 			  rejected_pose,recovered_next_rank);
+	BridgeSystem::Shutdown ();
+	RoadSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+	printf ("phase 12: %d realized and verified on the canonical owners, %d failed\r\n",phase12_realized,phase12_failed);
 	printf ("worlds: %u attempted, %d built through Phase 10, %d reached Phase 11, %d solved\r\n",
 			  SEARCH_SEEDS * 7u,worlds,reached_phase11,solved_worlds);
 	printf ("interchanges: %s %d, %s %d, %s %d\r\n",

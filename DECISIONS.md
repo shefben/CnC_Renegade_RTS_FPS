@@ -554,6 +554,88 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-028 - Hybrid rewrite: the shared junction surface is a compiled junction's, nothing else (2026-10-04)
+
+**Decision (user, 2026-10-04).** Narrow the shared-surface rule to compiled Phase-11 junctions; this supersedes D-025
+reading 2.
+- **When a surface is shared.** A later road uses an earlier road's surface only when both roads take part in the same
+  explicit Phase-11 compiled junction record.
+- **What never creates a vertical pin.** Incidental paved-footprint overlap, nearby or parallel roads, adjacent roads,
+  and roads passing through another road's margin.
+- **A compiled junction's surface:**
+  - it uses the junction's frozen elevation and profile;
+  - it applies only over that junction's compiled reach/patch;
+  - it is processed once, under the earlier road;
+  - outside that patch, each road follows its own Phase-12 vertical solution.
+- **Phase consistency.** Phase 11 and Phase 12 use the same junction footprint and elevation constraints, and Phase 12
+  adds no vertical pin Phase 11 never validated. D-027's structural-pin and overpass rules are unchanged.
+
+**Implementation.**
+- **The footprint.** `Hybrid_Junction_Arm_Reach` (`max(4W, class turn radius)`) is the arm Phase 11's at-grade and
+  topology junction tests reserve and grade each road over. It is now one shared function. Phase 12 holds a road at
+  an earlier road's surface only for an at-grade junction record both roads carry (`EdgeId`, `OtherEdgeId` or `NodeId`).
+  It holds it only within that road's arm reach either side of the junction point, and only on the one stretch of its
+  centerline over the earlier roadbed (plus the 1.5-cell grid margin) that passes through the junction point. Any other
+  overlap inside that window is incidental and holds nothing.
+- **The elevation.** It is the earlier road's own solved surface there: the junction's frozen pin and profile (D-026).
+- **Unchanged.** Interchange local junctions (`z_L`), gores and overpass lower surfaces keep their compiled holds.
+- **Validation.** Phase 11 builds this same plan in its D-027 judgement, so every hold Phase 12 applies is one Phase 11
+  validated.
+
+**Regression test.** It runs on two parallel `PRIMARY_2` roads with no junction record:
+- **Overlapping:** paved footprints overlap, 6.48 apart.
+- **Nearby:** footprints apart, the later centerline inside the old 1.5-cell margin, 9.29 apart.
+
+In both cases each road keeps exactly the profile it solves to alone (0.324 / 0.465 apart in z), with no pin. With a
+compiled junction record between the overlapping roads, the later road is held at the earlier surface within its
+16.61 arm reach (2Q), and its own profile elsewhere. Reinstating the old any-overlap rule fails both no-junction cases.
+
+### Census r13 (1400 worlds; Phase 12 now runs in the census on every Phase-11-solved world)
+
+**448 / 98 / 0** in Phase 11; Phase 12: 0 reached, 0 failed. Phases 9 and 10 are unchanged.
+
+**Phase-11 failures, all 98 worlds:**
+
+| Count | Failure |
+| --- | --- |
+| 51 | road crossing: neither junction nor overpass (overpass refusals `turn_too_tight` 53, `method_unavailable` 101; r11: 25 / 59) |
+| 25 | `realization`: Phase 12's profile plan refused |
+| 10 | obstruction crossing |
+| 9 | junction refused: `pin_landing` |
+| 3 | `realization`: ordinary roadbed grade on the grid |
+
+**r11's 34 solved worlds:**
+
+| Count | Failure |
+| --- | --- |
+| 19 | Phase-12 plan refused |
+| 8 | `pin_landing` |
+| 4 | road crossing |
+| 3 | ordinary roadbed grade |
+
+r12 had 18 plan refusals among them; the narrowing removed the overlap holds, and the 19 left are all compiled-junction
+holds.
+
+**The 19 plan refusals, measured:**
+
+| Count | Cause |
+| --- | --- |
+| 12 | No adjacent pair of holds is over grade: a compiled junction's held surface lies outside the later road's cut/fill interval |
+| 4 | Two compiled junctions with two different earlier roads, 0.8-4.6 m apart, whose surfaces differ by more than the grade allows (e.g. 1.11 m in 0.79 m) |
+| 1 | Two junctions on the same earlier road |
+| 1 | A deck end against a junction hold |
+| 1 | Another hold |
+
+**Finding, not yet acted on.** The junction footprint is now shared. The junction elevation is not:
+- **Phase 11** judges an at-grade junction at the ground's height (`At_Grade_Is_Legal`, `Topology_Junction_Is_Legal`),
+  one junction at a time.
+- **Phase 12** holds the later road at the earlier road's solved surface, and junctions close together each hold it.
+
+D-027's post-pass catches the conflict in Phase 11 (`realization`, with a reroute request), but the junction judgement
+itself does not yet use Phase 12's elevation. Reported for the user's direction before any further change.
+
+**Status: implemented. Census r13 reported.**
+
 ## D-027 - Hybrid rewrite Q-027: structural pin landings, overpass deck reach, the bridge-end support footprint (2026-10-04)
 
 **Decision (user, 2026-10-04).** Q-027: pins option (A) and overpasses option (C), each refined.
@@ -858,9 +940,11 @@ rule yields only under a bridge end's support footprint:
 1. **Tunnels.** `Hybrid_Native_Tunnels_Available` returns false for Phase 6's window flags, Phase 9's window method
    choice and Phase 11's tunnel fallback. The census pipeline mirrors it. Phase 11's own tunnel tests keep their
    explicit fixtures.
-2. **The shared junction patch, processed once under the earlier road (12.2 step 5).** Wherever a later road's
-   centerline runs over an earlier road's roadbed (plus 1.5 terrain cells), it is graded to that road's realized
-   surface, sample by sample. The deformation keeps the earlier roadbed.
+2. **The shared junction patch, processed once under the earlier road (12.2 step 5).** *Superseded by D-028:* the
+   shared surface applies only within a compiled Phase-11 junction's arm reach, between roads carrying that record.
+   As first read here, it applied wherever a later road's centerline ran over an earlier road's roadbed (plus 1.5
+   terrain cells), and that pinned nearby and parallel roads Phase 11 never judged held. The deformation keeps the
+   earlier roadbed.
 
    A level patch at a fixed reach was tried first and rejected. It made Phase 12 stricter than Phase 11: a
    `DIAMOND_ACCESS` local junction sits on the crossing's climb to its deck and cannot be level. The earlier-road rule

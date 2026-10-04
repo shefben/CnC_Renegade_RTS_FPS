@@ -178,6 +178,12 @@ const char * Hybrid_Interaction_Problem_Name(HybridInteractionProblem problem)
 }
 
 
+float Hybrid_Junction_Arm_Reach(HybridRoadClass road_class,float w)
+{
+	return Max2(JUNCTION_ARM_W * w,Hybrid_Road_Class_Spec(road_class).MinTurnRadiusW * w);
+}
+
+
 const char * Hybrid_Interaction_Failure_Name(HybridInteractionFailure failure)
 {
 	switch (failure) {
@@ -3149,8 +3155,8 @@ static bool At_Grade_Is_Legal(InteractionBuilder & b,const HybridTopologyEdge & 
 	}
 
 	//	3: each road keeps max(4W, its own turn radius) of centerline on both sides of the junction.
-	const float needed_a = Max2(JUNCTION_ARM_W * k.W,spec_a.MinTurnRadiusW * k.W);
-	const float needed_b = Max2(JUNCTION_ARM_W * k.W,spec_b.MinTurnRadiusW * k.W);
+	const float needed_a = Hybrid_Junction_Arm_Reach(edge_a.RoadClass,k.W);
+	const float needed_b = Hybrid_Junction_Arm_Reach(edge_b.RoadClass,k.W);
 	float before = 0.0f;
 	float after = 0.0f;
 	Arm_Lengths(route_a,point,&before,&after);
@@ -3864,7 +3870,7 @@ static unsigned int Designed_Meeting_Node(const InteractionBuilder & b,const Hyb
 														const HybridTopologyEdge & edge_b,const Vector2 & point)
 {
 	const HybridConstants & k = b.P->Constants;
-	const float reach = Max2(Max2(JUNCTION_ARM_W * k.W,Hybrid_Road_Class_Spec(edge_a.RoadClass).MinTurnRadiusW * k.W),
+	const float reach = Max2(Hybrid_Junction_Arm_Reach(edge_a.RoadClass,k.W),
 									 Hybrid_Road_Class_Spec(edge_b.RoadClass).MinTurnRadiusW * k.W);
 	const unsigned int candidates[2] = { Hybrid_Route_Edge_End(*b.Topology,*b.Routes,edge_a,false),
 													 Hybrid_Route_Edge_End(*b.Topology,*b.Routes,edge_a,true) };
@@ -3919,7 +3925,7 @@ static void Junction_Arms(const InteractionBuilder & b,const HybridTopologyEdge 
 
 	JunctionArm arm;
 	arm.EdgeId		= edge.StableId;
-	arm.Need			= Max2(JUNCTION_ARM_W * k.W,spec.MinTurnRadiusW * k.W);
+	arm.Need			= Hybrid_Junction_Arm_Reach(edge.RoadClass,k.W);
 	arm.MaxGrade	= spec.MaxGradeDegrees * PI_OVER_180;
 	arm.MaxCross	= spec.MaxCrossSlopeDegrees * PI_OVER_180;
 	arm.HalfRoadbed= 0.5f * Hybrid_Edge_Roadbed_Width(edge,k.W);
@@ -4544,7 +4550,7 @@ static bool Sweep_Interchanges(InteractionBuilder & b,HybridInteractionResult * 
 				if ((edge->NodeA != local->StableId) && (edge->NodeB != local->StableId)) continue;
 				const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(edge->RoadClass);
 				const float total = route.Stations[route.Stations.Count() - 1];
-				const float reach = Min2(Max2(JUNCTION_ARM_W * k.W,spec.MinTurnRadiusW * k.W),total);
+				const float reach = Min2(Hybrid_Junction_Arm_Reach(edge->RoadClass,k.W),total);
 				const bool from_start = ((route.Points[0] - local->Position).Length() <=
 												 (route.Points[route.Points.Count() - 1] - local->Position).Length());
 				const float half = Max2(0.5f * Hybrid_Edge_Roadbed_Width(*edge,k.W),

@@ -4806,6 +4806,14 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## D-028: the shared junction surface is a compiled junction's only (2026-10-04)
+
+Phase 12 holds a later road at an earlier road's surface only for a compiled Phase-11 at-grade junction both carry. It
+holds it only on the junction's own stretch, within the shared arm reach (`Hybrid_Junction_Arm_Reach`). This
+supersedes D-025 reading 2. Evidence: a regression test shows overlapping and nearby parallel roads keep their own
+profiles with no pin (the old rule fails it), and the suite is 237/237. Census r13, which now includes Phase 12, is
+reported in D-028.
+
 ## D-026 tightening and D-027: structural pins, landings, overpass deck reach (2026-10-04, Q-027)
 
 Structural pins are realized and verified at 2Q on the drivable surface, and `BRIDGE_END_SUPPORT` claims are limited to

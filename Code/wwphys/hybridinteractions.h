@@ -448,6 +448,13 @@ enum HybridRealizedPinKind
 const char *	Hybrid_Realized_Pin_Kind_Name(HybridRealizedPinKind kind);
 
 /*
+**	A compiled at-grade junction's footprint along one road through it: `max(4W, the class turn radius)` either side of
+**	the junction point -- the arm Phase 11 reserves and grades each road over.  Phase 12's shared junction surface is
+**	applied only there (D-028), so Phase 12 holds no road anywhere Phase 11 never judged it held.
+*/
+float	Hybrid_Junction_Arm_Reach(HybridRoadClass road_class,float w);
+
+/*
 **	D-027's STRUCTURAL_PIN_LANDING: a pin the native terrain grid cannot realize directly, under its grade, cross-slope
 **	and cut/fill limits, holds every ground road through it level at the pin's frozen elevation for exactly `Length`
 **	(the grid cell diagonal, L_pin) away from the pin.  A deck is never lengthened for one: at a deck end the landing is

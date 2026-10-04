@@ -106,10 +106,15 @@ owners.
 
 ## Junction surfaces (12.2 step 5)
 
-A road-road junction's shared patch is processed once, under the earlier road:
-- Wherever a later road's centerline runs over an earlier road's roadbed, it is graded to that road's realized surface,
-  sample by sample (`Add_Shared_Surfaces`). The stretch runs 1.5 terrain cells past the roadbed edge, so the grid
-  vertices it is interpolated from hold one surface.
+A compiled road-road junction's shared patch is processed once, under the earlier road (D-028):
+- Only roads that both carry one compiled Phase-11 at-grade junction record share a surface.
+- The surface is shared only within that junction's footprint: each road's arm reach either side of the junction point
+  (`Hybrid_Junction_Arm_Reach`, `max(4W, class turn radius)`, the arm Phase 11 reserves and grades).
+- Within it, the one stretch of the later road's centerline over the earlier road's roadbed that passes through the
+  junction point is graded to that road's realized surface, sample by sample (`Add_Shared_Surface`). Other overlaps
+  inside the window are incidental and hold nothing. The stretch runs 1.5 terrain cells past the roadbed edge,
+  so the grid vertices it is interpolated from hold one surface.
+- Roads that merely overlap, run alongside or pass through another's margin share nothing; each keeps its own profile.
 - The deformation keeps the earlier road's roadbed vertices.
 - An interchange local junction holds every road through `L_s` at its compiled `z_L`.
 - A ramp's gore holds the ramp at the realized highway's surface there (12.6.10 item 4).

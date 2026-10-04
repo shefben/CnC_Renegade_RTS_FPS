@@ -649,6 +649,15 @@ static void Add_Junction_Surface(DynamicVectorClass<HybridProfileStructure> * st
 										float station,float z,float q,float reach);
 
 
+//	Is a physical road carrying these logical edges a participant in this compiled junction record?
+static bool Junction_Carries(const HybridTopology & topology,const HybridRouteSet & routes,const HybridInteraction & one,
+									  const DynamicVectorClass<unsigned int> & edges)
+{
+	return Carries_Edge(edges,one.EdgeId) || ((one.OtherEdgeId != 0) && Carries_Edge(edges,one.OtherEdgeId)) ||
+			 Road_Carries_Node(topology,routes,edges,one.NodeId);
+}
+
+
 //	Is `point` on a realized road's roadbed -- inside its actual paved edge on the side it lies, plus `margin`?
 static bool On_Roadbed(const HybridRealizedRoad & road,const Vector2 & point,float margin)
 {
@@ -672,21 +681,23 @@ static bool On_Roadbed(const HybridRealizedRoad & road,const Vector2 & point,flo
 
 
 /*
-**	12.2 step 5: a road-road junction's shared patch is processed once, under the earlier road.  Wherever this road's
-**	centerline runs over the roadbed of a road realized before it -- the junction it shares, a crossing it makes -- it is
-**	graded to that road's own surface, sample by sample, so the ground the earlier road keeps there is the ground this
-**	road stands on.  `margin` (one and a half terrain cells) carries the stretch past the earlier roadbed's edge, so every
-**	grid vertex the road's centerline is interpolated from holds the same surface.  The earliest road wins.
+**	12.2 step 5 (D-028): a compiled road-road junction's shared patch is processed once, under the earlier road.  Inside
+**	the junction's footprint on this road -- `[window_from, window_to]`, its arm reach either side of the junction point
+**	`centre` -- the one stretch of this road's centerline over the earlier road's roadbed that passes through the junction
+**	point is graded to that road's own surface, sample by sample.  Other overlaps inside the window are incidental.  `margin` (one and a half terrain cells) carries the stretch past the earlier roadbed's edge, so every grid
+**	vertex the road's centerline is interpolated from holds the same surface.  Nothing outside a compiled junction's
+**	footprint is held: roads that merely pass near, alongside or through another's margin each keep their own profile.
 */
-static void Add_Shared_Surfaces(const DynamicVectorClass<HybridRealizedRoad> & earlier,const HybridRoute & road,float spacing,
-										  float q,float margin,DynamicVectorClass<HybridProfileStructure> * structures)
+static void Add_Shared_Surface(const HybridRealizedRoad & other,const HybridRoute & road,float window_from,float window_to,
+										 float centre,float spacing,float q,float margin,DynamicVectorClass<HybridProfileStructure> * structures)
 {
 	const float total = road.Stations[road.Stations.Count() - 1];
-	const int steps = Max_Int((int)::ceil((double)(total / spacing)),1);
-	for (int r = 0; r < earlier.Count(); ++r) {
-
-		const HybridRealizedRoad & other = earlier[r];
-		if (other.Samples.Count() < 2) continue;
+	window_from	= Max2(window_from,0.0f);
+	window_to	= Min2(window_to,total);
+	if ((window_to - window_from) <= q) return;
+	const int steps = Max_Int((int)::ceil((double)((window_to - window_from) / spacing)),1);
+	{
+		if (other.Samples.Count() < 2) return;
 		float reach = 0.0f;
 		Vector2 lo = other.Samples[0].Position;
 		Vector2 hi = lo;
@@ -700,7 +711,7 @@ static void Add_Shared_Surfaces(const DynamicVectorClass<HybridRealizedRoad> & e
 		float from = 0.0f;
 		float last_inside = 0.0f;
 		for (int i = 0; i <= steps; ++i) {
-			const float at = total * ((float)i / (float)steps);
+			const float at = window_from + ((window_to - window_from) * ((float)i / (float)steps));
 			const Vector2 point = Hybrid_Polyline_Point_At(road.Points,road.Stations,at);
 			const bool here = (point.X >= (lo.X - reach)) && (point.X <= (hi.X + reach)) && (point.Y >= (lo.Y - reach)) &&
 									(point.Y <= (hi.Y + reach)) && On_Roadbed(other,point,margin);
@@ -712,8 +723,13 @@ static void Add_Shared_Surfaces(const DynamicVectorClass<HybridRealizedRoad> & e
 				inside = here;
 				if (!(here && (i == steps))) continue;
 			}
-			//	A stretch over the earlier roadbed has ended (or the road has): hold it to that road's surface.
+			//	A stretch over the earlier roadbed has ended (or the road has): held only when it is the junction's own, the one
+			//	through the junction point.  Any other overlap inside the window is incidental and holds nothing.
 			const float to = last_inside;
+			if ((centre < (from - spacing)) || (centre > (to + spacing))) {
+				inside = here && (i < steps);
+				continue;
+			}
 			const float z_from = Realized_Z_At(other,Hybrid_Polyline_Point_At(road.Points,road.Stations,from));
 			const float z_to = Realized_Z_At(other,Hybrid_Polyline_Point_At(road.Points,road.Stations,to));
 			inside = here && (i < steps);
@@ -1003,8 +1019,24 @@ bool Hybrid_Plan_Realization(const HybridRealizationParams & params,const Hybrid
 		//	0. D-027's compiled structural landings: Phase 11 judged the road with them, and nothing overrides them.
 		Add_Landings(interactions,road,real_structures,k.Q,&structures);
 
-		//	1. The earlier roads' surfaces wherever this road runs over their roadbeds (12.2 step 5).
-		Add_Shared_Surfaces(out->Roads,road,Hybrid_Profile_Sample_Spacing(k),k.Q,1.5f * params.TerrainCellSize,&structures);
+		/*
+		**	1. Each compiled at-grade junction this road shares with a road realized before it (12.2 step 5, D-028): that
+		**	earlier road's surface over the junction's footprint on this road, its arm reach either side of the junction
+		**	point.  Only roads both in one compiled junction record share a surface; the earliest road through it wins.
+		*/
+		{
+			const float arm = Hybrid_Junction_Arm_Reach(first_edge->RoadClass,k.W);
+			for (int r = 0; r < out->Roads.Count(); ++r) {
+				for (int i = 0; i < interactions.Interactions.Count(); ++i) {
+					const HybridInteraction & one = interactions.Interactions[i];
+					if (one.Method != HYBRID_METHOD_AT_GRADE_JUNCTION) continue;
+					if (!Junction_Carries(topology,routes,one,edges) || !Junction_Carries(topology,routes,one,out->Roads[r].Edges)) continue;
+					const float at = Nearest_Station(road.Points,road.Stations,one.Station,nullptr);
+					Add_Shared_Surface(out->Roads[r],road,at - arm,at + arm,at,Hybrid_Profile_Sample_Spacing(k),k.Q,
+											 1.5f * params.TerrainCellSize,&structures);
+				}
+			}
+		}
 
 		//	2. Each interchange local junction this road passes through, at its compiled z_L.
 		for (int s = 0; s < surfaces.Count(); ++s) {
