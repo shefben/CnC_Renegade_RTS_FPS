@@ -189,6 +189,7 @@ enum HybridInteractionProblem
 	HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING,	// inside 4W of an unrelated compiled crossing
 	HYBRID_PROBLEM_GORE_RESERVE,				// an approach, portal or overpass ramp reserve meets a gore reserve (12.6.10)
 	HYBRID_PROBLEM_INTERCHANGE_FOOTPRINT,	// an incidental junction inside an interchange footprint + RoadOuterBlendWidth
+	HYBRID_PROBLEM_PIN_LANDING,				// a structural pin cannot be realized on the terrain grid, landing or not (D-027)
 	HYBRID_PROBLEM_COUNT
 };
 
@@ -430,6 +431,44 @@ bool	Hybrid_Realized_Physical_Road(const HybridRouteSet & routes,const HybridInt
 /*
 **	Runtime Phase 11's output.
 */
+/*
+**	D-026 / D-027: a frozen structural point.  Phase 12's authoritative drivable surface stands at its elevation within
+**	2Q.  Ordinals are part of the checksum: never reorder.
+*/
+enum HybridRealizedPinKind
+{
+	HYBRID_PIN_LOCAL_JUNCTION = 0,			// an interchange local junction L_s, at its compiled z_L
+	HYBRID_PIN_RAMP_GORE,						// a ramp's gore, at the realized highway's surface there
+	HYBRID_PIN_JUNCTION,							// any other at-grade junction, at the earliest road's surface (12.2 step 5)
+	HYBRID_PIN_OVERPASS_CROSSING,				// the road under an overpass, at its compiled LowerSurfaceZ
+	HYBRID_PIN_DECK_END,							// a bridge or overpass deck end, and the road attached to it there
+	HYBRID_PIN_KIND_COUNT
+};
+
+const char *	Hybrid_Realized_Pin_Kind_Name(HybridRealizedPinKind kind);
+
+/*
+**	D-027's STRUCTURAL_PIN_LANDING: a pin the native terrain grid cannot realize directly, under its grade, cross-slope
+**	and cut/fill limits, holds every ground road through it level at the pin's frozen elevation for exactly `Length`
+**	(the grid cell diagonal, L_pin) away from the pin.  A deck is never lengthened for one: at a deck end the landing is
+**	the ground road outside the deck.  Phase 11 compiles it into vertical feasibility; Phase 12 realizes exactly it.
+*/
+struct HybridPinLanding
+{
+	HybridPinLanding(void) : StableId(0),PinKind(HYBRID_PIN_JUNCTION),Position(0.0f,0.0f),Z(0.0f),Length(0.0f),InteractionId(0) { }
+
+	bool	operator == (const HybridPinLanding & that) const	{ return StableId == that.StableId; }
+	bool	operator != (const HybridPinLanding & that) const	{ return !(*this == that); }
+
+	unsigned int				StableId;
+	HybridRealizedPinKind	PinKind;
+	Vector2						Position;			// the pin
+	float							Z;						// its frozen elevation
+	float							Length;				// L_pin, along each attached ground road away from the pin
+	unsigned int				InteractionId;		// the compiled solution the pin belongs to
+};
+
+
 struct HybridInteractionSet
 {
 	HybridInteractionSet(void)	{ Reset (); }
@@ -448,6 +487,7 @@ struct HybridInteractionSet
 	DynamicVectorClass<HybridInteraction>			Interactions;
 	DynamicVectorClass<HybridInteractionIssue>	Issues;
 	DynamicVectorClass<HybridMergeDiverge>			MergeDiverge;		// Section 12.6.10 item 5, StableId order
+	DynamicVectorClass<HybridPinLanding>			Landings;			// D-027 STRUCTURAL_PIN_LANDING records, StableId order
 
 	int				StationsEvaluated;		// work actually done, against the Section-16.1 budgets
 	int				SweepSamples;
@@ -486,11 +526,23 @@ struct HybridInteractionParams
 	float					HeavyVehicleHeight;
 	float					HarvesterWidth;
 	float					LightVehicleWidth;				// the Humvee reference: what a trail or service road carries
+	float					LightVehicleLength;				// D-027: the envelopes' lengths, for Section 12.3's swept judgement
+	float					HeavyVehicleLength;
+	float					HarvesterLength;
 	float					MinVehicleLaneClearance;		// fairness.min_vehicle_lane_clearance
 	float					TierStep;							// Section 12.3's elevation term denominator
 
 	float					BridgeWaterClearanceMargin;
 	int					BridgeForClass[HYBRID_ROAD_CLASS_COUNT];		// registry index, -1 = none carries it
+
+	/*
+	**	D-027: the terrain grid Phase 12 deforms -- WorldTerrainSystem's field, a vertex at origin + cell * (ix, iy).
+	**	`TerrainCellSize` 0 means there is none yet: no structural pin is judged and no overpass deck reaches past its
+	**	lower road by a cell diagonal.
+	*/
+	float					TerrainCellSize;
+	float					TerrainOriginX;
+	float					TerrainOriginY;
 	float					BridgeRequiredWidth[HYBRID_ROAD_CLASS_COUNT];	// Section 12.4's clear-width requirement
 
 	int					MaxLocalRetriesPerStage;
@@ -516,6 +568,7 @@ enum HybridInteractionFailure
 	HYBRID_INTERACTION_LIMIT,					// more than 12 problems on one edge, or a work budget
 	HYBRID_INTERACTION_DETACHED,				// a compiled crossing is not attached to the road that drives it
 	HYBRID_INTERACTION_INTERCHANGE,			// an active interchange's intended junctions or elevations do not compile (12.6.10)
+	HYBRID_INTERACTION_REALIZATION,			// Phase 12's plan or a structural pin cannot be realized on the grid (D-027)
 	HYBRID_INTERACTION_FAILURE_COUNT
 };
 

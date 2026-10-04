@@ -57,6 +57,7 @@ int													HybridRoadRealizer::BaselineBridges	= 0;
 int													HybridRoadRealizer::SweptSamples		= 0;
 DynamicVectorClass<HybridRealizedPiece>	HybridRoadRealizer::Pieces;
 DynamicVectorClass<int>							HybridRoadRealizer::BridgeIds;
+DynamicVectorClass<HybridTerrainClaim>		HybridRoadRealizer::Claims;
 
 
 //	The material every road is drawn with today: the legacy road graph's own (decoration owns the choice, I17).
@@ -216,6 +217,7 @@ static void Release_Objects(DynamicVectorClass<HybridRealizedPiece> & pieces,Dyn
 void HybridRoadRealizer::Clear(void)
 {
 	Release_Objects(Pieces,BridgeIds);
+	Claims.Delete_All();
 	RealizeCount	= 0;
 	TerrainChanged	= 0;
 	BaselineRoads	= 0;
@@ -261,7 +263,7 @@ bool HybridRoadRealizer::Realize(const HybridRoadRealizerInputs & in,StringClass
 		grid.CountX		= count_x;
 		grid.CountY		= count_y;
 		HybridDeformationStats stats;
-		if (!Hybrid_Deform_Terrain(plan,k,in.Hydrology,grid,&heights[0],&stats)) {
+		if (!Hybrid_Deform_Terrain(plan,k,in.Hydrology,grid,&heights[0],&stats,&Claims)) {
 			return Realizer_Fail(error_out,"Phase 12's terrain deformation refused the plan");
 		}
 		for (int i = 0; i < heights.Count(); ++i) heights[i] -= origin.Z;
@@ -596,16 +598,10 @@ struct PierBox
 
 //	Swept placements tested by the current verification.
 static int	Swept = 0;
-/*
-**	How far the realized ground may stand from a solved surface.  The ground is bilinear over the terrain grid, and
-**	its vertices hold the solved surfaces, so between them it can depart from a surface by no more than that surface's
-**	slope over one cell diagonal -- a grade break (a deck end, a junction's level patch) inside a cell, or two roads'
-**	surfaces meeting in one.  The class grade bounds the slope.
-*/
+//	D-026's ordinary realization tolerance, shared with Phase 11's pin judgement (Hybrid_Realized_Surface_Tolerance).
 static float Realized_Tolerance(const HybridConstants & k,float cell,HybridRoadClass road_class)
 {
-	const float grade = WWMath::Tan(Hybrid_Road_Class_Spec(road_class).MaxGradeDegrees * (WWMATH_PI / 180.0f));
-	return (2.0f * k.Q) + (grade * cell * WWMath::Sqrt(2.0f));
+	return Hybrid_Realized_Surface_Tolerance(k,cell,road_class);
 }
 
 
@@ -1070,7 +1066,8 @@ static bool Sweep_Road(SweepContext & x,int road_index,const HybridSweptEnvelope
 		const float length = WWMath::Max(2.0f * half_length,k.Q);
 		const float grade = WWMath::Fabs(support[2][1] - support[0][1]) / length;
 		const float cross = WWMath::Fabs(support[1][2] - support[1][0]) / WWMath::Max(2.0f * half_width,k.Q);
-		if ((grade > (max_grade + ((2.0f * k.Q) / length))) || (cross > (max_cross + ((2.0f * k.Q) / (2.0f * half_width))))) {
+		if ((grade > Hybrid_Realized_Grade_Limit(road.RoadClass,length,k.Q)) ||
+			 (cross > Hybrid_Realized_Cross_Limit(road.RoadClass,2.0f * half_width,k.Q))) {
 			detail.Format("road %u: the %s envelope stands on a %.4f grade and a %.4f cross slope at station %.2f (class %.4f / %.4f)",
 							  road.EdgeId,which,grade,cross,centre_station,max_grade,max_cross);
 			return Realizer_Fail(error_out,detail.Peek_Buffer());
@@ -1087,7 +1084,7 @@ static bool Sweep_Road(SweepContext & x,int road_index,const HybridSweptEnvelope
 **	at both ends to roads that stop on its deck ends; traversable; and the definition's own stated clearance.
 */
 static bool Verify_Bridges(const HybridRoadRealizerInputs & in,const DynamicVectorClass<int> & bridge_ids,
-									const DynamicVectorClass<HybridRealizedPiece> & pieces,float cell,StringClass * error_out)
+									const DynamicVectorClass<HybridRealizedPiece> & pieces,StringClass * error_out)
 {
 	const HybridRealizationPlan & plan = *in.Plan;
 	const HybridConstants & k = in.Constants;
@@ -1169,10 +1166,7 @@ static bool Verify_Bridges(const HybridRoadRealizerInputs & in,const DynamicVect
 				return Realizer_Fail(error_out,detail.Peek_Buffer());
 			}
 		}
-		const float realized = Realized_Tolerance(k,cell,edge->RoadClass);
 		if (assembly.Method == HYBRID_METHOD_OVERPASS) {
-			const HybridTopologyEdge * lower = in.Topology->Find_Edge(compiled->OtherEdgeId);
-			const float lower_tolerance = (lower != nullptr) ? Realized_Tolerance(k,cell,lower->RoadClass) : realized;
 			float ground = 0.0f;
 			const Vector2 from_start = compiled->Station - assembly.Start;
 			const float at = WWMath::Clamp(((from_start.X * axis.X) + (from_start.Y * axis.Y)) / WWMath::Max(assembly_span,k.Q),
@@ -1180,7 +1174,7 @@ static bool Verify_Bridges(const HybridRoadRealizerInputs & in,const DynamicVect
 			const float z = assembly.StartZ + ((assembly.EndZ - assembly.StartZ) * at);
 			const float gap = Hybrid_Overpass_Clear_Gap(in.Heavy.Height,k.WorldUnitsPerMeter);
 			if (!WorldTerrainSystem::Sample_Height(compiled->Station.X,compiled->Station.Y,&ground) ||
-				 ((z - thickness - ground) < (gap - lower_tolerance)) || (WWMath::Fabs(ground - compiled->LowerSurfaceZ) > lower_tolerance)) {
+				 ((z - thickness - ground) < (gap - tolerance)) || (WWMath::Fabs(ground - compiled->LowerSurfaceZ) > tolerance)) {
 				detail.Format("overpass assembly %u: the road beneath stands at %.3f (compiled %.3f), %.3f under the deck bottom; "
 								  "Section 12.3 needs %.3f",assembly.StableId,ground,compiled->LowerSurfaceZ,z - thickness - ground,gap);
 				return Realizer_Fail(error_out,detail.Peek_Buffer());
@@ -1201,7 +1195,7 @@ static bool Verify_Bridges(const HybridRoadRealizerInputs & in,const DynamicVect
 					const RoadPointClass & point = road->Get_Point((r == 0) ? 0 : (road->Get_Point_Count() - 1));
 					attached = (connection.Type == ROAD_ENDPOINT_BRIDGE) && (connection.TargetID == id) &&
 								  ((Vector2(point.Position.X,point.Position.Y) - tip).Length() <= tolerance) &&
-								  (WWMath::Fabs(point.Position.Z - tip_z) <= realized);
+								  (WWMath::Fabs(point.Position.Z - tip_z) <= tolerance);
 				}
 			}
 			if (!attached) {
@@ -1243,7 +1237,7 @@ static bool Verify_Road_Surfaces(SweepContext & x,StringClass * error_out)
 		const RoadSplineClass * road = RoadSystem::Peek_Road(piece.RoadId);
 		if (road == nullptr) continue;													// Verify names it
 		const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(planned.RoadClass);
-		const float max_cross = WWMath::Tan(spec.MaxCrossSlopeDegrees * (WWMATH_PI / 180.0f));
+		const float max_cross = Hybrid_Realized_Cross_Limit(planned.RoadClass,1.0e6f,k.Q);
 		for (int i = 0; i < road->Get_Point_Count(); ++i) {
 			const RoadPointClass & p = road->Get_Point(i);
 			const Vector2 centre(p.Position.X,p.Position.Y);
@@ -1281,7 +1275,7 @@ static bool Verify_Road_Surfaces(SweepContext & x,StringClass * error_out)
 				}
 			}
 			const float cross = WWMath::Fabs(departure[2] - departure[0]) / WWMath::Max(left + right,k.Q);
-			if (cross > (max_cross + ((2.0f * k.Q) / WWMath::Max(left + right,k.Q)))) {
+			if (cross > Hybrid_Realized_Cross_Limit(planned.RoadClass,WWMath::Max(left + right,k.Q),k.Q)) {
 				detail.Format("road %u's roadbed is realized at a %.4f cross slope at (%.2f,%.2f), class %.4f",planned.EdgeId,cross,
 								  centre.X,centre.Y,max_cross);
 				return Realizer_Fail(error_out,detail.Peek_Buffer());
@@ -1387,14 +1381,13 @@ static bool Runtime_Height_Near(const DynamicVectorClass<HybridRealizedPiece> & 
 **	  ramp (their swept envelopes are run by the swept query).
 */
 static bool Verify_Interchanges(const HybridRoadRealizerInputs & in,const DynamicVectorClass<HybridRealizedPiece> & pieces,
-										  float cell,StringClass * error_out)
+										  StringClass * error_out)
 {
 	const HybridRealizationPlan & plan = *in.Plan;
 	const HybridConstants & k = in.Constants;
 	HybridInterchangeConstants c;
 	Hybrid_Interchange_Constants(k.W,&c);
 	const float edge_tolerance = 2.0f * k.Q;
-	const float tolerance = Realized_Tolerance(k,cell,HYBRID_ROAD_HIGHWAY_RAMP);
 	StringClass detail;
 
 	for (int i = 0; i < in.Topology->Interchanges.Count(); ++i) {
@@ -1466,23 +1459,30 @@ static bool Verify_Interchanges(const HybridRoadRealizerInputs & in,const Dynami
 			float ground = 0.0f;
 			if (((Vector2(start.X,start.Y) - local->Position).Length() > edge_tolerance) || !compiled_local || !junction ||
 				 !WorldTerrainSystem::Sample_Height(local->Position.X,local->Position.Y,&ground) ||
-				 (WWMath::Fabs(start.Z - z_l) > tolerance) || (WWMath::Fabs(ground - z_l) > tolerance)) {
+				 (WWMath::Fabs(start.Z - z_l) > edge_tolerance) || (WWMath::Fabs(ground - z_l) > edge_tolerance)) {
 				detail.Format("interchange %u: ramp %u is not attached at its local junction %u (junction %d, ramp %.3f, ground %.3f, "
 								  "z_L %.3f)",ic.StableId,ramp->StableId,local->StableId,junction ? 1 : 0,start.Z,ground,z_l);
 				return Realizer_Fail(error_out,detail.Peek_Buffer());
 			}
 
-			//	The gore: attached to the highway, at d_aux, at the highway's realized surface.
+			//	The gore: attached to the highway, at d_aux, at the highway's surface there (its pin).
 			const RoadConnectionClass & attachment = runtime->Get_End_Connection();
+			const HybridRealizedPin * gore_pin = nullptr;
+			for (int p = 0; (p < plan.Pins.Count()) && (gore_pin == nullptr); ++p) {
+				if ((plan.Pins[p].Kind == HYBRID_PIN_RAMP_GORE) && ((plan.Pins[p].Position - gore).Length() <= edge_tolerance)) {
+					gore_pin = &plan.Pins[p];
+				}
+			}
 			float highway_z = 0.0f;
 			Vector2 highway_tangent(0.0f,0.0f);
 			int highway_id = -1;
 			if ((attachment.Type != ROAD_ENDPOINT_ATTACHED) ||
 				 !Runtime_Height_Near(pieces,highway,gore,&highway_z,&highway_tangent,&highway_id) ||
 				 (attachment.TargetID != highway_id) || ((Vector2(end.X,end.Y) - gore).Length() > edge_tolerance) ||
-				 (WWMath::Fabs(end.Z - highway_z) > tolerance)) {
-				detail.Format("interchange %u: ramp %u's gore is not attached to the highway at d_aux (%.3f off, %.3f above it)",
-								  ic.StableId,ramp->StableId,(Vector2(end.X,end.Y) - gore).Length(),end.Z - highway_z);
+				 (gore_pin == nullptr) || (WWMath::Fabs(end.Z - gore_pin->Z) > edge_tolerance)) {
+				detail.Format("interchange %u: ramp %u's gore is not attached to the highway at d_aux (%.3f off, %.3f above its pin)",
+								  ic.StableId,ramp->StableId,(Vector2(end.X,end.Y) - gore).Length(),
+								  end.Z - ((gore_pin != nullptr) ? gore_pin->Z : highway_z));
 				return Realizer_Fail(error_out,detail.Peek_Buffer());
 			}
 
@@ -1491,10 +1491,11 @@ static bool Verify_Interchanges(const HybridRoadRealizerInputs & in,const Dynami
 			float radius = 0.0f;
 			Vector2 heading(0.0f,0.0f);
 			const bool from_gore = ((realized.Points[count - 1] - gore).Length() <= edge_tolerance);
+			//	Phase 10's own measure (12.6.9 gate): the circle through the last two samples and the frozen gore point.
 			if (from_gore) {
-				Circle_Through(realized.Points[count - 3],realized.Points[count - 2],realized.Points[count - 1],&radius,&heading);
+				Circle_Through(realized.Points[count - 3],realized.Points[count - 2],gore,&radius,&heading);
 			} else {
-				Circle_Through(realized.Points[2],realized.Points[1],realized.Points[0],&radius,&heading);
+				Circle_Through(realized.Points[2],realized.Points[1],gore,&radius,&heading);
 			}
 			const float heading_error = WWMath::Fabs((heading.X * ic.Axis.Y) - (heading.Y * ic.Axis.X));
 			const float spacing = Hybrid_Profile_Sample_Spacing(k);
@@ -1663,6 +1664,115 @@ static bool Verify_Interchanges(const HybridRoadRealizerInputs & in,const Dynami
 }
 
 
+/*
+**	D-026's structural pins.  At every frozen point the authoritative drivable surface stands at the plan's elevation
+**	within 2Q -- never relaxed by the terrain cell.  Off a deck that surface is the terrain (RoadSystem conforms its
+**	roads to it and they carry no collision); at a deck end it is the deck, and the road attached there ends on it.
+**	Every road with an end at a local junction or a gore ends at its pin.
+*/
+static bool Verify_Pins(const HybridRoadRealizerInputs & in,const DynamicVectorClass<HybridRealizedPiece> & pieces,
+								const DynamicVectorClass<int> & bridge_ids,StringClass * error_out)
+{
+	const HybridRealizationPlan & plan = *in.Plan;
+	const float tolerance = 2.0f * in.Constants.Q;
+	StringClass detail;
+	for (int n = 0; n < plan.Pins.Count(); ++n) {
+		const HybridRealizedPin & pin = plan.Pins[n];
+		const char * kind = Hybrid_Realized_Pin_Kind_Name(pin.Kind);
+		float ground = 0.0f;
+		if (!WorldTerrainSystem::Sample_Height(pin.Position.X,pin.Position.Y,&ground)) {
+			detail.Format("the %s pin at (%.2f,%.2f) is off the terrain",kind,pin.Position.X,pin.Position.Y);
+			return Realizer_Fail(error_out,detail.Peek_Buffer());
+		}
+
+		int bridge_id = -1;
+		if (pin.Kind == HYBRID_PIN_DECK_END) {
+			for (int b = 0; (b < plan.Bridges.Count()) && (bridge_id < 0); ++b) {
+				if (plan.Bridges[b].StableId == pin.AssemblyId) bridge_id = bridge_ids[b];
+			}
+			float deck = 0.0f;
+			int found = -1;
+			if ((bridge_id < 0) || !BridgeSystem::Conform_Point(pin.Position.X,pin.Position.Y,&deck,&found) || (found != bridge_id) ||
+				 (WWMath::Fabs(deck - pin.Z) > tolerance)) {
+				detail.Format("deck end of assembly %u at (%.2f,%.2f): the deck stands %.4f off its compiled %.3f",pin.AssemblyId,
+								  pin.Position.X,pin.Position.Y,deck - pin.Z,pin.Z);
+				return Realizer_Fail(error_out,detail.Peek_Buffer());
+			}
+		}
+
+		//	Off a deck the terrain itself; at a deck end the road that attaches there, which stands on the terrain.
+		if (WWMath::Fabs(ground - pin.Z) > tolerance) {
+			detail.Format("the %s pin at (%.2f,%.2f): the drivable surface stands %.4f off its frozen %.3f",kind,pin.Position.X,
+							  pin.Position.Y,ground - pin.Z,pin.Z);
+			return Realizer_Fail(error_out,detail.Peek_Buffer());
+		}
+
+		//	Every runtime road ending here ends at the pin.
+		int ends = 0;
+		for (int q = 0; q < pieces.Count(); ++q) {
+			const RoadSplineClass * road = RoadSystem::Peek_Road(pieces[q].RoadId);
+			if ((road == nullptr) || (road->Get_Point_Count() < 2)) continue;
+			for (int end = 0; end < 2; ++end) {
+				const RoadPointClass & tip = road->Get_Point((end == 0) ? 0 : (road->Get_Point_Count() - 1));
+				if ((Vector2(tip.Position.X,tip.Position.Y) - pin.Position).Length() > tolerance) continue;
+				const RoadConnectionClass & connection = (end == 0) ? road->Get_Start_Connection() : road->Get_End_Connection();
+				if ((pin.Kind == HYBRID_PIN_DECK_END) && ((connection.Type != ROAD_ENDPOINT_BRIDGE) || (connection.TargetID != bridge_id))) {
+					continue;
+				}
+				ends++;
+				if (WWMath::Fabs(tip.Position.Z - pin.Z) > tolerance) {
+					detail.Format("road %u ends %.4f off the %s pin %.3f at (%.2f,%.2f)",in.Plan->Roads[pieces[q].RoadIndex].EdgeId,
+									  tip.Position.Z - pin.Z,kind,pin.Z,pin.Position.X,pin.Position.Y);
+					return Realizer_Fail(error_out,detail.Peek_Buffer());
+				}
+			}
+		}
+		if ((pin.Kind == HYBRID_PIN_DECK_END) && (ends != 1)) {
+			detail.Format("deck end of assembly %u at (%.2f,%.2f) has %d attached road ends, not 1",pin.AssemblyId,pin.Position.X,
+							  pin.Position.Y,ends);
+			return Realizer_Fail(error_out,detail.Peek_Buffer());
+		}
+	}
+	return true;
+}
+
+
+static bool Support_Contains(const HybridRealizationPlan & plan,const HybridBridgeAssembly & assembly,int end,float cell,
+									  const Vector2 & p)
+{
+	float left = 0.0f;
+	float right = 0.0f;
+	Hybrid_Bridge_End_Support_Extents(plan,assembly,end,&left,&right);
+	return Hybrid_Bridge_End_Support_Contains(assembly,end,left,right,cell,p);
+}
+
+
+//	Every BRIDGE_END_SUPPORT claim is water under its own assembly's end support footprint (D-026).
+static bool Verify_Claims(const HybridRoadRealizerInputs & in,const DynamicVectorClass<HybridTerrainClaim> & claims,
+								  StringClass * error_out)
+{
+	const HeightfieldClass * field = WorldTerrainSystem::Peek_Heightfield();
+	if ((field == nullptr) || (claims.Count() == 0)) return true;
+	const float cell = field->Get_Cell_Size();
+	StringClass detail;
+	for (int c = 0; c < claims.Count(); ++c) {
+		const HybridTerrainClaim & claim = claims[c];
+		const Vector3 & origin = field->Get_Origin();
+		const Vector2 p(origin.X + (cell * (float)(claim.Vertex % field->Get_Vertex_Count_X())),
+							 origin.Y + (cell * (float)(claim.Vertex / field->Get_Vertex_Count_X())));
+		const HybridBridgeAssembly * assembly = in.Plan->Find_Bridge(claim.AssemblyId);
+		const bool water = (in.Hydrology != nullptr) && Hybrid_Point_In_Water(*in.Hydrology,p);
+		if ((claim.Kind != HYBRID_TERRAIN_BRIDGE_END_SUPPORT) || (assembly == nullptr) || !water ||
+			 !(Support_Contains(*in.Plan,*assembly,0,cell,p) || Support_Contains(*in.Plan,*assembly,1,cell,p))) {
+			detail.Format("terrain at (%.2f,%.2f) is claimed as bridge-end support of assembly %u outside its footprint",p.X,p.Y,
+							  claim.AssemblyId);
+			return Realizer_Fail(error_out,detail.Peek_Buffer());
+		}
+	}
+	return true;
+}
+
+
 bool HybridRoadRealizer::Verify_Physical(const HybridRoadRealizerInputs & in,StringClass * error_out)
 {
 	if ((in.Plan == nullptr) || (in.Topology == nullptr) || (in.Routes == nullptr) || (in.Interactions == nullptr) ||
@@ -1697,8 +1807,9 @@ bool HybridRoadRealizer::Verify_Physical(const HybridRoadRealizerInputs & in,Str
 	}
 	SweptSamples = Swept;
 
-	return Verify_Road_Surfaces(x,error_out) && Verify_Bridges(in,BridgeIds,Pieces,cell,error_out) &&
-			 Verify_Interchanges(in,Pieces,cell,error_out);
+	return Verify_Pins(in,Pieces,BridgeIds,error_out) && Verify_Claims(in,Claims,error_out) &&
+			 Verify_Road_Surfaces(x,error_out) && Verify_Bridges(in,BridgeIds,Pieces,error_out) &&
+			 Verify_Interchanges(in,Pieces,error_out);
 }
 
 

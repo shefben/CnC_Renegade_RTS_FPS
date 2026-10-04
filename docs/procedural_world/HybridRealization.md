@@ -188,6 +188,31 @@ roads' paved edges (roads carry no collision; vehicles drive on the ground and t
     ramp-side carriageway and roadbed equal the record.
   - **Junctions and capabilities.** There is no other junction on the ramp, and the ramp's capabilities are carried.
 
+**Structural pins (D-026/D-027).** `HybridRealizationPlan::Pins` lists every frozen structural point:
+- local junctions at `z_L`;
+- gores at the realized highway's surface;
+- other at-grade junctions at the earliest road's surface;
+- overpass crossings at `LowerSurfaceZ`;
+- deck ends.
+
+The deformation realizes each one exactly. A pin's grid triangle (`HeightfieldClass::Sample_Cell`'s split, mirrored by
+`Hybrid_Grid_Height_At`) takes the least vertex change that hits it, repeated over shared vertices. `Verify_Physical`
+then checks the drivable surface at every pin at 2Q, never relaxed by the cell.
+
+A compiled `STRUCTURAL_PIN_LANDING` is a level structure on every ground road through its pin, exactly `L_pin` away from
+the pin. Phase 11 decides where one is needed, with this same deformation and these same checks
+(`Hybrid_Plan_Rasterization`), so Phase 12 realizes what was judged.
+
+**The bridge-end support (D-026/D-027).** Water under a deck end is graded only inside the end support footprint, and
+every vertex graded there is recorded as `BRIDGE_END_SUPPORT` terrain owned by its assembly. The footprint is:
+- **across:** on each side, the wider of the deck's half width and the attached road's actual paved roadbed there,
+  never its blend;
+- **along:** 1.5 native cells along the deck;
+- **on the grid:** the cells overlapping it.
+
+The vehicle grade limit is Section 12.1 step 4's, the class maximum + 0.001 rad, + 2Q over the base. The ordinary
+roadbed tolerance applies between pins only. Both limits are `Hybrid_Realized_*`, shared with Phase 11.
+
 The realization tolerance is `2Q + tan(class max grade) * cell * sqrt(2)`. This is how far bilinear ground can depart
 from a slope-limited surface whose vertices it holds, across one cell diagonal: a grade break inside a cell, or two
 roads' surfaces meeting in one. A discrepancy fails the attempt and the attempt's teardown runs. Nothing is repaired.

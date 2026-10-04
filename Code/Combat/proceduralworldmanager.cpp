@@ -866,6 +866,11 @@ bool ProceduralWorldManager::Build_Hybrid_Topology(const ProceduralWorldProfile 
 	params.MaxFillHeight				= profile.Grading.MaxFillHeight;
 	params.OverpassClearGap			= Hybrid_Overpass_Clear_Gap (HybridMetrics.HeavyVehicleHeight,
 																			  HybridMetrics.Constants.WorldUnitsPerMeter);
+	{
+		//	D-027: the overpass deck reaches past its lower road by a native terrain cell diagonal too.
+		const HeightfieldClass * field = WorldTerrainSystem::Peek_Heightfield ();
+		params.TerrainCellSize		= (field != nullptr) ? field->Get_Cell_Size () : 0.0f;
+	}
 	for (int c = 0; c < HYBRID_ROAD_CLASS_COUNT; ++c) {
 		params.BridgeApproachMax[c]	= HybridMetrics.BridgeApproachMax[c];
 		params.OverpassDepthMax[c]		= HybridMetrics.OverpassDepthMax[c];
@@ -1003,6 +1008,9 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 	params.HeavyVehicleHeight		= HybridMetrics.HeavyVehicleHeight;
 	params.HarvesterWidth			= HybridMetrics.HarvesterWidth;
 	params.LightVehicleWidth		= HybridMetrics.HumveeWidth;
+	params.LightVehicleLength		= HybridInputs.Humvee.Length;
+	params.HeavyVehicleLength		= HybridInputs.HeavyVehicle.Length;
+	params.HarvesterLength			= HybridMetrics.HarvesterLength;
 	params.MinVehicleLaneClearance= profile.Fairness.MinVehicleLaneClearance;
 	params.TierStep					= profile.Plan.TierStep;
 
@@ -1010,6 +1018,15 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 	for (int i = 0; i < HYBRID_ROAD_CLASS_COUNT; ++i) {
 		params.BridgeForClass[i]		= HybridMetrics.BridgeForClass[i];
 		params.BridgeRequiredWidth[i]	= HybridMetrics.BridgeRequiredWidth[i];
+	}
+	{
+		//	D-027: the grid Phase 12 will deform, so every structural pin is judged on it here.
+		const HeightfieldClass * field = WorldTerrainSystem::Peek_Heightfield ();
+		if ((field != nullptr) && field->Is_Valid ()) {
+			params.TerrainCellSize	= field->Get_Cell_Size ();
+			params.TerrainOriginX	= field->Get_Origin ().X;
+			params.TerrainOriginY	= field->Get_Origin ().Y;
+		}
 	}
 
 	params.MaxLocalRetriesPerStage	= profile.Retry.MaxLocalRetriesPerStage;
@@ -1129,9 +1146,11 @@ bool ProceduralWorldManager::Report_Hybrid_Roads(StringClass * report_out)
 	StringClass verdict;
 	const bool verified = Verify_Hybrid_Roads (ActiveProfile,&verdict);
 	report_out->Format ("Phase 12 realized %d time(s): %d road stretch(es), %d bridge/overpass assemblies, %d terrain vertices "
-							  "graded; RoadSystem %d roads, BridgeSystem %d bridges; Section 12.3 %s over %d swept placements%s%s",
+							  "graded, %d structural pins, %d bridge-end support vertices; RoadSystem %d roads, BridgeSystem %d "
+							  "bridges; Section 12.3 %s over %d swept placements%s%s",
 							  HybridRoadRealizer::Get_Realize_Count (),HybridRoadRealizer::Get_Piece_Count (),
 							  HybridRoadRealizer::Get_Bridge_Count (),(int)HybridRoadRealizer::Get_Terrain_Changed (),
+							  HybridRealization.Pins.Count (),HybridRoadRealizer::Get_Support_Claim_Count (),
 							  RoadSystem::Get_Road_Count (),BridgeSystem::Get_Bridge_Count (),verified ? "green" : "FAILED",
 							  HybridRoadRealizer::Get_Swept_Samples (),verified ? "" : " -- ",verdict.Peek_Buffer ());
 	return true;

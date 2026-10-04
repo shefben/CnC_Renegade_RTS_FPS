@@ -4806,6 +4806,15 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## D-026 tightening and D-027: structural pins, landings, overpass deck reach (2026-10-04, Q-027)
+
+Structural pins are realized and verified at 2Q on the drivable surface, and `BRIDGE_END_SUPPORT` claims are limited to
+the abutment-width footprint. Phase 11 now judges Phase 12's own plan on the native grid
+(`Hybrid_Plan_Rasterization`), compiling `STRUCTURAL_PIN_LANDING`s or rejecting a solution through Phase 11's own
+order. Overpass decks reach `outer_blend + L_pin` past the lower road's actual paved roadbed. Evidence: seven D-027
+tests pass in `terrain_hybridrealization` and its FDS twin, and the suite is 237/237. Census r12 is 448 / 98 / 0,
+attributed in D-027.
+
 ## I13 step 3: Section 12.3 post-realization verification on the runtime objects (2026-10-04, D-026)
 
 `HybridRoadRealizer::Verify_Physical` checks the realized runtime objects:

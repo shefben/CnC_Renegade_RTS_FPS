@@ -8599,9 +8599,23 @@ static bool s_route_census = false;
 **	Phases 2 to 10 for one seed.  Returns false when a phase legitimately refused this seed, which is an
 **	ordinary attempt failure the caller answers by walking to the next one.
 */
+/*
+**	The native terrain cell (data/procedural_world/native.json: chunk 60 over HeightfieldClass's 16 cells), so Phase 11's
+**	D-027 judgement and Phase 12's verification run on the ground resolution a real native world has.
+*/
+static const float NATIVE_TERRAIN_CELL = 60.0f / 16.0f;
+
+//	The native field's origin over a centred square world, as MacroTerrainGenerator lays it.
+static float Native_Terrain_Origin (float world_size)
+{
+	const int vertices = (int)::ceil ((double)(world_size / NATIVE_TERRAIN_CELL)) + 1;
+	return -0.5f * (float)(vertices - 1) * NATIVE_TERRAIN_CELL;
+}
+
+
 static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArchetype archetype,
 											  HybridPipelineFixture * out,StringClass * detail_out,
-											  const HybridMetricCache * metrics = NULL)
+											  const HybridMetricCache * metrics = NULL,float terrain_cell = 0.0f)
 {
 	HybridMapIdentityResult identity_result;
 	HybridStrategicGraphResult graph_result;
@@ -8706,6 +8720,7 @@ static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArch
 
 	HybridTopologyParams topology_params = Topology_Fixture (out->Sized);
 	topology_params.TunnelsAvailable = Hybrid_Native_Tunnels_Available (topology_params.TunnelsAvailable);
+	topology_params.TerrainCellSize = terrain_cell;
 	out->Reached = 8;
 	const bool topology_built = Hybrid_Build_Topology (topology_params,out->Identity,out->Graph,out->Landforms,
 																		out->Hydrology,out->Anchors,&out->Matrices,
@@ -8783,6 +8798,9 @@ static HybridInteractionParams Interaction_Fixture (const HybridMapIdentityParam
 	params.HeavyVehicleHeight		= metrics.HeavyVehicleHeight;
 	params.HarvesterWidth			= metrics.HarvesterWidth;
 	params.LightVehicleWidth		= metrics.HumveeWidth;
+	params.LightVehicleLength		= inputs.Humvee.Length;
+	params.HeavyVehicleLength		= inputs.HeavyVehicle.Length;
+	params.HarvesterLength			= metrics.HarvesterLength;
 	params.MinVehicleLaneClearance= 1.0f;		// native fairness.min_vehicle_lane_clearance
 	params.TierStep					= 8.0f;		// native plan.tier_step
 
@@ -9313,9 +9331,10 @@ static void Interchange_World (CrossingWorld * world,int access_sides,float seco
 }
 
 
-static bool Interchange_World_Build (CrossingWorld * world,StringClass * detail)
+static bool Interchange_World_Build (CrossingWorld * world,StringClass * detail,float terrain_cell = 0.0f)
 {
 	HybridTopologyParams params = Topology_Fixture (world->Sized);
+	params.TerrainCellSize = terrain_cell;
 	return Hybrid_Build_Interchanges (params,world->Landforms,world->Hydrology,world->Anchors,&world->Matrices,
 												 Crossing_Ground,&world->Hydrology,2,&world->Topology,detail);
 }
@@ -18373,6 +18392,7 @@ static void Straight_Route (float from,float to,float step,HybridRoute * route)
 
 static void Check_Hybrid_Realization_Plan (const HybridPreflightInputs & inputs,const HybridMetricCache & metrics);
 static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,const HybridMetricCache & metrics);
+static void Check_Hybrid_Pin_Landings (const HybridPreflightInputs & content,const HybridMetricCache & metrics);
 static void Check_Hybrid_Deformation_Units (const HybridConstants & k);
 
 void Check_Hybrid_Realization (void)
@@ -18616,6 +18636,7 @@ void Check_Hybrid_Realization (void)
 		if (preflight_passed) {
 			Check_Hybrid_Realization_Plan (inputs,preflight.Metrics);
 			Check_Hybrid_Phase12_Runtime (inputs,preflight.Metrics);
+			Check_Hybrid_Pin_Landings (inputs,preflight.Metrics);
 		}
 	}
 }
@@ -18894,9 +18915,11 @@ static void Check_Hybrid_Deformation_Units (const HybridConstants & k)
 	Check ((wet[river] == GROUND) && (wet_stats.Water > 0),"a road deformed the water it crosses");
 
 	/*
-	**	An abutment seat over water: the bank inside the deck end's seat (water from x -5.75, the deck end at -6).  The
-	**	seat's own roadbed vertices hold the road, so the road's last stretch is not interpolated down to the river bed;
-	**	the span, and the channel beside the seat's roadbed, keep the river's ground.
+	**	An abutment seat over water: the bank inside the deck end's seat (water from x -5.75, the deck end at -6), the road's
+	**	paved roadbed 3.0 left and 1.0 right of travel, the deck 3.0 wide.  The support is as wide as the abutment -- the
+	**	wider of the deck and the attached paved roadbed each side, 3.0 left, 1.5 right -- and 1.5 cells along the deck:
+	**	its roadbed vertices hold the road even over water, so the road's last stretch is not interpolated down to the
+	**	river bed.  The span, the channel beyond the paved roadbed and the road's outer blend over it keep the river's ground.
 	*/
 	CrossingWorld seat_water;
 	Crossing_World_Begin (&seat_water);
@@ -18904,14 +18927,33 @@ static void Check_Hybrid_Deformation_Units (const HybridConstants & k)
 	DynamicVectorClass<float> seat;
 	for (int v = 0; v < (grid.CountX * grid.CountY); ++v) seat.Add (GROUND);
 	HybridRealizationPlan seat_plan;
-	Plan_Road (&seat_plan,5,0.0f,9.0f,2.0f,2.0f,-40.0f,40.0f,true);
+	Plan_Road (&seat_plan,5,0.0f,9.0f,3.0f,1.0f,-40.0f,40.0f,true);
+	HybridBridgeAssembly seat_deck;
+	seat_deck.StableId	= 1;
+	seat_deck.EdgeId		= 5;
+	seat_deck.Start.Set (-6.0f,0.0f);
+	seat_deck.End.Set (6.0f,0.0f);
+	seat_deck.StartZ		= 9.0f;
+	seat_deck.EndZ			= 9.0f;
+	seat_deck.Width		= 3.0f;
+	seat_plan.Bridges.Add (seat_deck);
 	HybridDeformationStats seat_stats;
-	Hybrid_Deform_Terrain (seat_plan,k,&seat_water.Hydrology,grid,&seat[0],&seat_stats);
+	DynamicVectorClass<HybridTerrainClaim> seat_claims;
+	Hybrid_Deform_Terrain (seat_plan,k,&seat_water.Hydrology,grid,&seat[0],&seat_stats,&seat_claims);
 	#define SEAT(x,y) seat[(((int)(((y) - grid.OriginY) / grid.Spacing + 0.5f)) * grid.CountX) + (int)(((x) - grid.OriginX) / grid.Spacing + 0.5f)]
-	Check ((SEAT (-5.5f,0.0f) == 9.0f) && (SEAT (-5.5f,2.5f) == 9.0f) && (SEAT (-5.0f,0.0f) == GROUND) &&
-			 (SEAT (-5.5f,3.0f) == GROUND) && (SEAT (0.0f,0.0f) == GROUND) && (SEAT (-30.0f,0.0f) == 9.0f),
-			 "an abutment seat over water is wrong: seat %.2f / %.2f, span %.2f, channel %.2f, middle %.2f",
-			 SEAT (-5.5f,0.0f),SEAT (-5.5f,2.5f),SEAT (-5.0f,0.0f),SEAT (-5.5f,3.0f),SEAT (0.0f,0.0f));
+	Check ((SEAT (-5.5f,0.0f) == 9.0f) && (SEAT (-5.5f,3.0f) == 9.0f) && (SEAT (-5.5f,-1.5f) == 9.0f) &&
+			 (SEAT (-5.0f,0.0f) == GROUND) && (SEAT (-5.5f,4.0f) == GROUND) && (SEAT (-5.5f,-2.5f) == GROUND) &&
+			 (SEAT (-5.5f,6.0f) == GROUND) && (SEAT (0.0f,0.0f) == GROUND) && (SEAT (-30.0f,0.0f) == 9.0f),
+			 "an abutment seat over water is wrong: seat %.2f, paved left edge %.2f, deck right edge %.2f, span %.2f, beyond the "
+			 "roadbed %.2f / %.2f, under the blend %.2f, middle %.2f",SEAT (-5.5f,0.0f),SEAT (-5.5f,3.0f),SEAT (-5.5f,-1.5f),
+			 SEAT (-5.0f,0.0f),SEAT (-5.5f,4.0f),SEAT (-5.5f,-2.5f),SEAT (-5.5f,6.0f),SEAT (0.0f,0.0f));
+	//	Recorded as the assembly's BRIDGE_END_SUPPORT: x -5.5 and 5.5, y -1.5..3.5 (the paved roadbed and its cells, inside
+	//	the footprint) -- 2 x 11 vertices, none else.
+	bool owned_by_deck = (seat_claims.Count () == 22);
+	for (int c = 0; c < seat_claims.Count (); c++) {
+		owned_by_deck = owned_by_deck && (seat_claims[c].Kind == HYBRID_TERRAIN_BRIDGE_END_SUPPORT) && (seat_claims[c].AssemblyId == 1);
+	}
+	Check (owned_by_deck,"the bridge-end support is not recorded as the assembly's: %d claims",seat_claims.Count ());
 	#undef SEAT
 	#undef AT
 	printf ("  Phase 12 deformation: asymmetric roadbed level, smoothstep over %.2f, earlier roadbed kept (%d), deck (%d) and "
@@ -19293,15 +19335,11 @@ static HybridRoadRealizerInputs Runtime_Inputs (const CrossingWorld & world,cons
 }
 
 
-/*
-**	The native terrain cell (data/procedural_world/native.json: chunk 60 over HeightfieldClass's 16 cells), so the
-**	12.3 verification runs on the ground resolution a real native world has.
-*/
-static const float NATIVE_TERRAIN_CELL = 60.0f / 16.0f;
 
 
 //	A runtime terrain over every routed road of a controlled world and the deformation's reach around it.
-static bool Runtime_Terrain_Whole (CrossingWorld * world,float cell,bool (*ground) (const Vector2 &,float *,void *))
+static bool Runtime_Terrain_Whole (CrossingWorld * world,float cell,bool (*ground) (const Vector2 &,float *,void *),
+											  float shift = 0.0f)
 {
 	Vector2 lo (3.4e38f,3.4e38f);
 	Vector2 hi (-3.4e38f,-3.4e38f);
@@ -19316,8 +19354,24 @@ static bool Runtime_Terrain_Whole (CrossingWorld * world,float cell,bool (*groun
 	const HybridConstants & k = world->Sized.Constants;
 	const float margin = (4.0f * k.W) + Hybrid_Road_Outer_Blend_Width (k.W,k.A) + (4.0f * cell);
 	const float half = (0.5f * WWMath::Max (hi.X - lo.X,hi.Y - lo.Y)) + margin;
-	return Runtime_Terrain (world,(lo + hi) * 0.5f,half,cell,ground);
+	return Runtime_Terrain (world,((lo + hi) * 0.5f) + Vector2 (shift,shift),half,cell,ground);
 }
+
+
+//	Phase 11's fixture on the runtime field just built: D-027 judges every structural pin on that grid.
+static HybridInteractionParams Grid_Interaction_Fixture (const CrossingWorld & world,const HybridPreflightInputs & content,
+																			const HybridMetricCache & metrics)
+{
+	HybridInteractionParams params = Interaction_Fixture (world.Sized,1200.0f,content,metrics);
+	const HeightfieldClass * field = WorldTerrainSystem::Peek_Heightfield ();
+	if ((field != NULL) && field->Is_Valid ()) {
+		params.TerrainCellSize	= field->Get_Cell_Size ();
+		params.TerrainOriginX	= field->Get_Origin ().X;
+		params.TerrainOriginY	= field->Get_Origin ().Y;
+	}
+	return params;
+}
+
 
 
 /*
@@ -19327,10 +19381,12 @@ static bool Runtime_Terrain_Whole (CrossingWorld * world,float cell,bool (*groun
 **	- a heavy SIDE_ACCESS interchange on raised ground, on a fine local field: realized exactly once (a second call
 **	  refused), runtime roads on their frozen records, the ramp's effective asymmetric roadbed in the terrain (graded
 **	  on its wide side at a distance its narrow side blends), the gore attached to the highway;
-**	- the same world on a native-cell field over all of it: Section 12.3's physical verification (the light, heavy
-**	  and Harvester envelopes swept along every road, the ramp list), the adapters joining the base pair through the
-**	  road graph, and teardown leaving nothing; a road cut into after realization fails it;
-**	- a river bridge on a native-cell field: one BridgeSystem bridge for its assembly verified against its compiled
+**	- the same world on a native-cell field over all of it, Phase 11 judged on that grid and ground (D-027): Section
+**	  12.3's physical verification (the light, heavy and Harvester envelopes swept along every road, the structural
+**	  pins, the ramp list), the adapters joining the base pair through the road graph, and teardown leaving nothing; a
+**	  road cut into after realization fails it;
+**	- a river bridge on a native-cell field, Phase 11 judged on it: one BridgeSystem bridge for its assembly verified
+**	  against its compiled
 **	  span, width, deck and attachments, both road ends bound to it, the deck span and water untouched, and the
 **	  adapter's bridge edge running bank to bank; a deck dropped under its compiled elevation fails it.
 */
@@ -19439,12 +19495,20 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 			params.TerrainCellSize = NATIVE_TERRAIN_CELL;
 			HybridRealizationPlan plan;
 			HybridRealizationResult result;
-			const bool planned = ok && Runtime_Terrain_Whole (&world,NATIVE_TERRAIN_CELL,Raised_Ground) &&
-										Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Raised_Ground,&world.Hydrology,
-																		 &plan,&result);
+			//	D-027: Phase 11 judges the structural pins on the very grid and ground Phase 12 realizes.
+			HybridInteractionSet judged;
+			HybridInteractionResult judged_result;
+			const bool terrain = ok && Runtime_Terrain_Whole (&world,NATIVE_TERRAIN_CELL,Crossing_Ground);
+			const bool compiled = terrain &&
+										 Hybrid_Build_Interactions (Grid_Interaction_Fixture (world,content,metrics),world.Identity,world.Matrices,
+																			 world.Landforms,world.Hydrology,world.Anchors,world.Topology,world.Routes,
+																			 Crossing_Ground,&world.Hydrology,&judged,&judged_result);
+			Check (compiled,"Phase 11 on the native grid refused the interchange world: %s",judged_result.Detail.Peek_Buffer ());
+			const bool planned = compiled && Hybrid_Plan_Realization (params,world.Topology,world.Routes,judged,Crossing_Ground,
+																						 &world.Hydrology,&plan,&result);
 			Check (planned,"Phase 12 runtime (native field): the plan was refused: %s",result.Detail.Peek_Buffer ());
 			if (planned) {
-				const HybridRoadRealizerInputs in = Runtime_Inputs (world,plan,set,content,metrics);
+				const HybridRoadRealizerInputs in = Runtime_Inputs (world,plan,judged,content,metrics);
 				StringClass error;
 				const bool verified = HybridRoadRealizer::Realize (in,&error) && HybridRoadRealizer::Verify (in,&error) &&
 											 HybridRoadRealizer::Verify_Physical (in,&error);
@@ -19505,6 +19569,7 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 		}
 	}
 
+
 	//	A river bridge.
 	{
 		CrossingWorld world;
@@ -19516,10 +19581,10 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 		HybridRouteResult routed;
 		HybridInteractionSet set;
 		HybridInteractionResult solved;
-		HybridInteractionParams iparams = Interaction_Fixture (world.Sized,1200.0f,content,metrics);
-		const bool ok = Crossing_World_Route (&world,&routed) &&
-							 Hybrid_Build_Interactions (iparams,world.Identity,world.Matrices,world.Landforms,world.Hydrology,
-																 world.Anchors,world.Topology,world.Routes,Crossing_Ground,&world.Hydrology,&set,&solved);
+		const bool ok = Crossing_World_Route (&world,&routed) && Runtime_Terrain_Whole (&world,NATIVE_TERRAIN_CELL,Crossing_Ground) &&
+							 Hybrid_Build_Interactions (Grid_Interaction_Fixture (world,content,metrics),world.Identity,world.Matrices,
+																 world.Landforms,world.Hydrology,world.Anchors,world.Topology,world.Routes,Crossing_Ground,
+																 &world.Hydrology,&set,&solved);
 		Check (ok,"Phase 12 runtime bridge world: %s %s",routed.Detail.Peek_Buffer (),solved.Detail.Peek_Buffer ());
 		const HybridTopologyEdge * edge = (world.Topology.Edges.Count () > 0) ? &world.Topology.Edges[0] : NULL;
 		if (ok && (edge != NULL)) Runtime_Bases (&world,edge->NodeA,edge->NodeB);
@@ -19527,7 +19592,7 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 		params.TerrainCellSize = NATIVE_TERRAIN_CELL;
 		HybridRealizationPlan plan;
 		HybridRealizationResult result;
-		const bool planned = ok && Runtime_Terrain_Whole (&world,NATIVE_TERRAIN_CELL,Crossing_Ground) &&
+		const bool planned = ok &&
 									Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Crossing_Ground,&world.Hydrology,
 																	 &plan,&result) && (plan.Bridges.Count () == 1);
 		Check (planned,"Phase 12 runtime: the bridge plan was refused: %s",result.Detail.Peek_Buffer ());
@@ -19599,6 +19664,374 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 	BridgePlanner::Shutdown ();
 	RoadGraphGenerator::Shutdown ();
 	StrategicPlanner::Shutdown ();
+	BridgeSystem::Shutdown ();
+	RoadSystem::Shutdown ();
+	WorldTerrainSystem::Shutdown ();
+}
+
+
+/*
+**	D-027's controlled grounds.  `Mound_Ground`: a 1.5 m cone, falling 0.25 a metre, on the controlled SIDE_ACCESS world's
+**	local junction L_s (7.50, -20.39), so every road leaves L_s at its class maximum.  `Falling_Bank_Ground`: the ground
+**	beyond both banks of the controlled river falling 0.15 a metre away from it.
+*/
+static const Vector2 MOUND_CENTRE (7.5f,-20.39f);
+
+static bool Mound_Ground (const Vector2 & world,float * height_out,void * context)
+{
+	if (!Crossing_Ground (world,height_out,context)) return false;
+	*height_out += WWMath::Max (0.0f,1.5f - (0.25f * (world - MOUND_CENTRE).Length ()));
+	return true;
+}
+
+
+static bool Falling_Bank_Ground (const Vector2 & world,float * height_out,void * context)
+{
+	if (!Crossing_Ground (world,height_out,context)) return false;
+	*height_out -= 0.15f * WWMath::Max (WWMath::Fabs (world.X) - 12.0f,0.0f);
+	return true;
+}
+
+
+//	The controlled river world: one PRIMARY_2 across a 20 m river.
+static void Landing_River_World (CrossingWorld * world)
+{
+	Crossing_World_Begin (world);
+	Crossing_World_River (world,1,Vector2 (0.0f,-500.0f),Vector2 (0.0f,500.0f),20.0f);
+	Crossing_World_Window (world,2,1,Vector2 (0.0f,7.5f),Vector2 (1.0f,0.0f),20.0f);
+	Crossing_World_Edge (world,Vector2 (-397.5f,7.5f),Vector2 (397.5f,7.5f),HYBRID_ROAD_PRIMARY_2,2);
+}
+
+
+//	Phases 10 and 11 on the native grid over `ground`, the grid shifted by `shift` cells.
+static bool Landing_Phase11 (CrossingWorld * world,bool (*ground) (const Vector2 &,float *,void *),float shift,
+									  const HybridPreflightInputs & content,const HybridMetricCache & metrics,float max_fill,
+									  HybridInteractionSet * set,HybridInteractionResult * solved,HybridInteractionParams * params_out = NULL)
+{
+	HybridRouteResult routed;
+	if (!Crossing_World_Route (world,&routed) ||
+		 !Runtime_Terrain_Whole (world,NATIVE_TERRAIN_CELL,ground,shift * NATIVE_TERRAIN_CELL)) return false;
+	HybridInteractionParams params = Grid_Interaction_Fixture (*world,content,metrics);
+	if (max_fill > 0.0f) params.MaxFillHeight = max_fill;
+	if (params_out != NULL) *params_out = params;
+	return Hybrid_Build_Interactions (params,world->Identity,world->Matrices,world->Landforms,world->Hydrology,world->Anchors,
+												 world->Topology,world->Routes,ground,&world->Hydrology,set,solved);
+}
+
+
+//	Phase 12 on the canonical owners over the compiled set, Section 12.3 included; the realizer is left clear.
+static bool Landing_Phase12 (const CrossingWorld & world,const HybridInteractionSet & set,bool (*ground) (const Vector2 &,float *,void *),
+									  const HybridPreflightInputs & content,const HybridMetricCache & metrics,HybridRealizationPlan * plan,
+									  StringClass * error)
+{
+	HybridRealizationParams params = Realization_Fixture (world.Sized.Constants,metrics);
+	params.TerrainCellSize = NATIVE_TERRAIN_CELL;
+	HybridRealizationResult result;
+	if (!Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,ground,(void *)&world.Hydrology,plan,&result)) {
+		*error = result.Detail;
+		return false;
+	}
+	const HybridRoadRealizerInputs in = Runtime_Inputs (world,*plan,set,content,metrics);
+	const bool verified = HybridRoadRealizer::Realize (in,error) && HybridRoadRealizer::Verify (in,error) &&
+								 HybridRoadRealizer::Verify_Physical (in,error);
+	HybridRoadRealizer::Clear ();
+	return verified;
+}
+
+
+//	The D-027 judgement of a plan, the way Phase 11 runs it.
+static bool Landing_Judge (const CrossingWorld & world,const HybridRealizationPlan & plan,const HybridInteractionParams & params,
+									bool (*ground) (const Vector2 &,float *,void *),DynamicVectorClass<HybridRasterIssue> * issues)
+{
+	HybridHeightGrid grid;
+	grid.OriginX	= params.TerrainOriginX;
+	grid.OriginY	= params.TerrainOriginY;
+	grid.Spacing	= params.TerrainCellSize;
+	grid.CountX		= 0;
+	grid.CountY		= 0;
+	HybridPinEnvelopes envelopes;
+	envelopes.Length[HYBRID_ENVELOPE_LIGHT]		= params.LightVehicleLength;
+	envelopes.Width[HYBRID_ENVELOPE_LIGHT]		= params.LightVehicleWidth;
+	envelopes.Length[HYBRID_ENVELOPE_HEAVY]		= params.HeavyVehicleLength;
+	envelopes.Width[HYBRID_ENVELOPE_HEAVY]		= params.HeavyVehicleWidth;
+	envelopes.Length[HYBRID_ENVELOPE_HARVESTER]	= params.HarvesterLength;
+	envelopes.Width[HYBRID_ENVELOPE_HARVESTER]	= params.HarvesterWidth;
+	return Hybrid_Plan_Rasterization (plan,world.Sized.Constants,&world.Hydrology,grid,ground,(void *)&world.Hydrology,
+												 params.MaxCutDepth,params.MaxFillHeight,envelopes,issues);
+}
+
+
+//	Has the judgement an issue at the pin standing at `point`?
+static bool Issue_At (const HybridRealizationPlan & plan,const DynamicVectorClass<HybridRasterIssue> & issues,const Vector2 & point)
+{
+	for (int i = 0; i < issues.Count (); i++) {
+		if ((issues[i].Pin >= 0) && ((plan.Pins[issues[i].Pin].Position - point).Length () <= 0.01f)) return true;
+	}
+	return false;
+}
+
+
+//	The plan Phase 12 builds from a compiled set with its landings removed: the profile the pins were judged on.
+static bool Plan_Without_Landings (const CrossingWorld & world,const HybridInteractionSet & set,bool (*ground) (const Vector2 &,float *,void *),
+											  const HybridMetricCache & metrics,HybridRealizationPlan * plan)
+{
+	HybridInteractionSet bare = set;
+	bare.Landings.Delete_All ();
+	HybridRealizationParams params = Realization_Fixture (world.Sized.Constants,metrics);
+	params.TerrainCellSize = NATIVE_TERRAIN_CELL;
+	HybridRealizationResult result;
+	return Hybrid_Plan_Realization (params,world.Topology,world.Routes,bare,ground,(void *)&world.Hydrology,plan,&result);
+}
+
+
+/*
+**	D-027 on the controlled worlds, Phases 10-12 on one native terrain grid:
+**	- a local junction the grid cannot realize directly compiles a STRUCTURAL_PIN_LANDING at z_L, exactly L_pin along
+**	  every road through it, and Phase 12 realizes it with Section 12.3 green; the ramp gores, already exact, get none;
+**	- a river bridge's deck ends compile landings on the road outside each deck, the deck not lengthened;
+**	- a landing the cut/fill cannot carry is refused in Phase 11 -- every bridge station in the window's own order, then
+**	  the obligation -- and a local junction whose landing still fails refuses its interchange there, never in Phase 12;
+**	- a DIAMOND overpass deck reaches past the highway's paved roadbed by the crossing road's outer blend and L_pin each
+**	  side, realizes with landed abutments, and is refused in Phase 11 when no registered kind spans the extended deck;
+**	- a bridge end's support preserves the attached road's whole paved roadbed, never the open river or its blend.
+*/
+static void Check_Hybrid_Pin_Landings (const HybridPreflightInputs & content,const HybridMetricCache & metrics)
+{
+	WorldTerrainSystem::Init ();
+	RoadSystem::Init ();
+	BridgeSystem::Init ();
+	for (int i = 0; i < content.Bridges.Count (); i++) {
+		BridgeDefinitionClass definition;
+		definition.Set_Name (content.Bridges[i].Name.Peek_Buffer ());
+		definition.Set_Width (content.Bridges[i].Width);
+		definition.Set_Deck_Thickness (content.Bridges[i].DeckThickness);
+		BridgeSystem::Define_Bridge (definition);
+	}
+	const float L_PIN = Hybrid_Pin_Landing_Length (NATIVE_TERRAIN_CELL);
+
+	//	A local junction on a mound: landed at z_L; the exact gores are not.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,1,0.0f);
+		Heavy_Arrival (&world);
+		StringClass why;
+		Interchange_World_Build (&world,&why,NATIVE_TERRAIN_CELL);
+		const HybridConstants & k = world.Sized.Constants;
+		const HybridInterchange & ic = world.Topology.Interchanges[0];
+		const HybridTopologyNode * local = world.Topology.Find_Node (ic.LocalJunction[HYBRID_INTERCHANGE_SIDE_RIGHT]);
+		Check ((local != NULL) && ((local->Position - MOUND_CENTRE).Length () <= 0.01f),"the mound is not on the world's L_s");
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		HybridInteractionParams params;
+		const bool ok = Landing_Phase11 (&world,Mound_Ground,0.0f,content,metrics,0.0f,&set,&solved,&params);
+		Check (ok,"Phase 11 refused the mound world: %s",solved.Detail.Peek_Buffer ());
+		int local_landings = 0;
+		float z_l = -1.0e6f;
+		for (int i = 0; i < set.Interactions.Count (); i++) {
+			if (set.Interactions[i].Role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION) z_l = set.Interactions[i].JunctionZ;
+		}
+		for (int l = 0; l < set.Landings.Count (); l++) {
+			const HybridPinLanding & landing = set.Landings[l];
+			if ((landing.PinKind == HYBRID_PIN_LOCAL_JUNCTION) && ((landing.Position - MOUND_CENTRE).Length () <= 0.01f) &&
+				 (WWMath::Fabs (landing.Z - z_l) <= k.Q) && (landing.Length == L_PIN)) local_landings++;
+			Check (landing.PinKind != HYBRID_PIN_RAMP_GORE,"an exact gore was given a STRUCTURAL_PIN_LANDING");
+		}
+		Check (ok && (local_landings == 1) && (set.Landings.Count () == 1),
+				 "the mound's local junction did not compile exactly one landing at z_L (%d of %d)",local_landings,set.Landings.Count ());
+
+		//	Required: without it the grid misses the pin; the gores need nothing.
+		HybridRealizationPlan bare;
+		DynamicVectorClass<HybridRasterIssue> issues;
+		if (ok && Plan_Without_Landings (world,set,Mound_Ground,metrics,&bare)) {
+			Landing_Judge (world,bare,params,Mound_Ground,&issues);
+			Check (Issue_At (bare,issues,MOUND_CENTRE),"the local junction realizes directly; the landing was not required");
+			for (int n = 0; n < bare.Pins.Count (); n++) {
+				if (bare.Pins[n].Kind != HYBRID_PIN_RAMP_GORE) continue;
+				Check (!Issue_At (bare,issues,bare.Pins[n].Position),"an exact gore at (%.2f,%.2f) was judged unrealizable",
+						 bare.Pins[n].Position.X,bare.Pins[n].Position.Y);
+			}
+		}
+
+		//	Realized exactly: every road through L_s level at z_L for L_pin, the pins at 2Q, Section 12.3 green.
+		HybridRealizationPlan plan;
+		StringClass error;
+		const bool realized = ok && Landing_Phase12 (world,set,Mound_Ground,content,metrics,&plan,&error);
+		Check (realized,"Phase 12 refused the landed local junction: %s",error.Peek_Buffer ());
+		int held = 0;
+		int off = 0;
+		for (int r = 0; r < plan.Roads.Count (); r++) {
+			for (int s = 0; s < plan.Roads[r].Samples.Count (); s++) {
+				const HybridRealizedSample & sample = plan.Roads[r].Samples[s];
+				if ((sample.Position - MOUND_CENTRE).Length () > (L_PIN - (2.0f * k.Q))) continue;
+				held++;
+				if (WWMath::Fabs (sample.Z - z_l) > k.Q) off++;
+			}
+		}
+		Check (realized && (held >= 3) && (off == 0),"the landing does not hold every road through L_s at z_L: %d of %d off",off,held);
+		WorldTerrainSystem::Destroy_Terrain ();
+		printf ("  D-027 local junction on a mound: one STRUCTURAL_PIN_LANDING at z_L %.3f over %.3f (required: the bare plan misses "
+				  "the pin), %d samples held, exact gores unlanded, Section 12.3 green\r\n",z_l,L_PIN,held);
+	}
+
+	//	The same mound with the grid a quarter cell over: the landed junction still fails, and Phase 11 refuses it.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,1,0.0f);
+		Heavy_Arrival (&world);
+		StringClass why;
+		Interchange_World_Build (&world,&why,NATIVE_TERRAIN_CELL);
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		const bool ok = Landing_Phase11 (&world,Mound_Ground,0.25f,content,metrics,0.0f,&set,&solved);
+		Check (!ok && (solved.Failure == HYBRID_INTERACTION_INTERCHANGE) && (strstr (solved.Detail.Peek_Buffer (),"STRUCTURAL_PIN_LANDING") != NULL) &&
+				 (set.Interactions.Count () == 0),"a local junction its landing cannot realize was not refused in Phase 11 (%s: %s)",
+				 Hybrid_Interaction_Failure_Name (solved.Failure),solved.Detail.Peek_Buffer ());
+		WorldTerrainSystem::Destroy_Terrain ();
+		printf ("  D-027 local junction its landing cannot realize: refused in Phase 11 (%s)\r\n",
+				  Hybrid_Interaction_Failure_Name (solved.Failure));
+	}
+
+	//	A river bridge: both deck ends landed on the ground road outside the deck, the deck as compiled.
+	{
+		CrossingWorld world;
+		Landing_River_World (&world);
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		HybridInteractionParams params;
+		const bool ok = Landing_Phase11 (&world,Crossing_Ground,0.0f,content,metrics,0.0f,&set,&solved,&params);
+		Check (ok,"Phase 11 refused the river world on the grid: %s",solved.Detail.Peek_Buffer ());
+		const HybridInteraction * bridge = NULL;
+		for (int i = 0; i < set.Interactions.Count (); i++) {
+			if (set.Interactions[i].Method == HYBRID_METHOD_BRIDGE) bridge = &set.Interactions[i];
+		}
+		HybridRealizationPlan plan;
+		StringClass error;
+		const float q = world.Sized.Constants.Q;
+		const bool realized = ok && (bridge != NULL) && Landing_Phase12 (world,set,Crossing_Ground,content,metrics,&plan,&error);
+		Check (realized,"Phase 12 refused the landed river bridge: %s",error.Peek_Buffer ());
+		int deck_landings = 0;
+		bool ends_as_compiled = realized && (plan.Bridges.Count () == 1);
+		if (ends_as_compiled) {
+			const Vector2 axis = bridge->Tangent * (1.0f / bridge->Tangent.Length ());
+			const HybridBridgeAssembly & assembly = plan.Bridges[0];
+			ends_as_compiled = ((assembly.Start - (bridge->Station - (axis * bridge->DeckReachA))).Length () <= 0.01f) &&
+									 ((assembly.End - (bridge->Station + (axis * bridge->DeckReachB))).Length () <= 0.01f);
+			for (int l = 0; l < set.Landings.Count (); l++) {
+				const HybridPinLanding & landing = set.Landings[l];
+				if ((landing.PinKind != HYBRID_PIN_DECK_END) || (landing.InteractionId != bridge->StableId)) continue;
+				if (((landing.Position - assembly.Start).Length () <= 0.01f) || ((landing.Position - assembly.End).Length () <= 0.01f)) deck_landings++;
+			}
+			//	The landing is the ground road outside the deck, at the deck end's own height.
+			const HybridRealizedRoad & road = plan.Roads[0];
+			for (int s = 0; s < road.Samples.Count (); s++) {
+				const HybridRealizedSample & sample = road.Samples[s];
+				const float to_start = (sample.Position - assembly.Start).Length ();
+				const float to_end = (sample.Position - assembly.End).Length ();
+				if (sample.Structure || (WWMath::Min (to_start,to_end) > (L_PIN - (2.0f * q)))) continue;
+				ends_as_compiled = ends_as_compiled && (WWMath::Fabs (sample.Z - ((to_start < to_end) ? assembly.StartZ : assembly.EndZ)) <= q);
+			}
+		}
+		HybridRealizationPlan bare;
+		DynamicVectorClass<HybridRasterIssue> issues;
+		bool required = false;
+		if (realized && Plan_Without_Landings (world,set,Crossing_Ground,metrics,&bare)) {
+			Landing_Judge (world,bare,params,Crossing_Ground,&issues);
+			required = Issue_At (bare,issues,plan.Bridges[0].Start) && Issue_At (bare,issues,plan.Bridges[0].End);
+		}
+		Check (realized && (deck_landings == 2) && ends_as_compiled && required,
+				 "the river bridge's deck ends are not landed outside an unlengthened deck (%d landings, ends %d, required %d)",
+				 deck_landings,ends_as_compiled ? 1 : 0,required ? 1 : 0);
+		WorldTerrainSystem::Destroy_Terrain ();
+		printf ("  D-027 river bridge: both deck ends landed on the ground road (required: the bare plan misses them), the deck "
+				  "as compiled, Section 12.3 green\r\n");
+	}
+
+	//	A landing the cut/fill cannot carry: every station refused for it in the window's own order, in Phase 11.
+	{
+		CrossingWorld world;
+		Landing_River_World (&world);
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		const bool ok = Landing_Phase11 (&world,Falling_Bank_Ground,0.0f,content,metrics,4.0f,&set,&solved);
+		Check (!ok && (solved.Failure == HYBRID_INTERACTION_OBLIGATION_LOST) && (strstr (solved.Detail.Peek_Buffer (),"pin_landing") != NULL),
+				 "a bridge whose landing the cut/fill cannot carry was not refused in Phase 11 (%s: %s)",
+				 Hybrid_Interaction_Failure_Name (solved.Failure),solved.Detail.Peek_Buffer ());
+		//	The same world with no grid compiles that bridge: the landing, not the bridge, is what Phase 11 refused.
+		HybridInteractionParams bare = Interaction_Fixture (world.Sized,1200.0f,content,metrics);
+		bare.MaxFillHeight = 4.0f;
+		HybridInteractionSet unjudged;
+		HybridInteractionResult unjudged_result;
+		Check (Hybrid_Build_Interactions (bare,world.Identity,world.Matrices,world.Landforms,world.Hydrology,world.Anchors,world.Topology,
+													 world.Routes,Falling_Bank_Ground,&world.Hydrology,&unjudged,&unjudged_result) &&
+				 (unjudged.Count_Of_Method (HYBRID_METHOD_BRIDGE) == 1),"the falling-bank bridge does not compile without the grid: %s",
+				 unjudged_result.Detail.Peek_Buffer ());
+		WorldTerrainSystem::Destroy_Terrain ();
+		printf ("  D-027 a landing the cut/fill cannot carry: every bridge station refused in order in Phase 11 (%s)\r\n",
+				  Hybrid_Interaction_Failure_Name (solved.Failure));
+	}
+
+	//	A DIAMOND overpass on the extended deck, realized with landed abutments; and refused when no kind spans it.
+	{
+		CrossingWorld world;
+		Interchange_World (&world,3,0.0f);
+		StringClass why;
+		Interchange_World_Build (&world,&why,NATIVE_TERRAIN_CELL);
+		const HybridConstants & k = world.Sized.Constants;
+		HybridInterchangeConstants c;
+		Hybrid_Interchange_Constants (k.W,&c);
+		const float allowance = Hybrid_Overpass_Deck_Allowance (k.W,k.A,NATIVE_TERRAIN_CELL);
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		HybridInteractionParams params;
+		const bool ok = Landing_Phase11 (&world,Crossing_Ground,0.0f,content,metrics,0.0f,&set,&solved,&params);
+		Check (ok,"Phase 11 refused the DIAMOND world on the grid: %s",solved.Detail.Peek_Buffer ());
+		const HybridInteraction * overpass = NULL;
+		for (int i = 0; i < set.Interactions.Count (); i++) {
+			if (set.Interactions[i].Method == HYBRID_METHOD_OVERPASS) overpass = &set.Interactions[i];
+		}
+		//	The crossing is square to the highway, so the deck leaves its paved roadbed at E_hwy either side.
+		const float required = c.EHwy + allowance;
+		Check ((overpass != NULL) && (WWMath::Fabs (overpass->DeckReachA - required) <= (2.0f * k.Q)) &&
+				 (WWMath::Fabs (overpass->DeckReachB - required) <= (2.0f * k.Q)),
+				 "the DIAMOND deck does not reach E_hwy + outer blend + L_pin (%.3f) past the crossing: %.3f / %.3f",required,
+				 (overpass != NULL) ? overpass->DeckReachA : 0.0f,(overpass != NULL) ? overpass->DeckReachB : 0.0f);
+		int deck_landings = 0;
+		for (int l = 0; l < set.Landings.Count (); l++) {
+			if ((overpass != NULL) && (set.Landings[l].PinKind == HYBRID_PIN_DECK_END) && (set.Landings[l].InteractionId == overpass->StableId)) {
+				deck_landings++;
+			}
+		}
+		HybridRealizationPlan plan;
+		StringClass error;
+		const bool realized = ok && (overpass != NULL) && Landing_Phase12 (world,set,Crossing_Ground,content,metrics,&plan,&error);
+		Check (realized,"Phase 12 refused the extended DIAMOND overpass: %s",error.Peek_Buffer ());
+		const float span = (overpass != NULL) ? (overpass->DeckReachA + overpass->DeckReachB) : 0.0f;
+		WorldTerrainSystem::Destroy_Terrain ();
+
+		//	No registered kind spans the extended deck (each spans the old one): Phase 11 refuses the interchange.
+		CrossingWorld short_world;
+		Interchange_World (&short_world,3,0.0f);
+		Interchange_World_Build (&short_world,&why,NATIVE_TERRAIN_CELL);
+		HybridRouteResult routed;
+		bool refused = false;
+		HybridInteractionResult short_result;
+		if (Crossing_World_Route (&short_world,&routed) && Runtime_Terrain_Whole (&short_world,NATIVE_TERRAIN_CELL,Crossing_Ground)) {
+			HybridInteractionParams short_params = Grid_Interaction_Fixture (short_world,content,metrics);
+			for (int b = 0; b < short_params.BridgeKinds.Count (); b++) short_params.BridgeKinds[b].MaxSpan = WWMath::Min (short_params.BridgeKinds[b].MaxSpan,
+																																			 (2.0f * c.EHwy) + allowance);
+			HybridInteractionSet short_set;
+			refused = !Hybrid_Build_Interactions (short_params,short_world.Identity,short_world.Matrices,short_world.Landforms,
+															  short_world.Hydrology,short_world.Anchors,short_world.Topology,short_world.Routes,Crossing_Ground,
+															  &short_world.Hydrology,&short_set,&short_result) &&
+						 (short_result.Failure == HYBRID_INTERACTION_INTERCHANGE);
+		}
+		Check (refused,"an overpass no registered kind can span once extended was not refused in Phase 11 (%s: %s)",
+				 Hybrid_Interaction_Failure_Name (short_result.Failure),short_result.Detail.Peek_Buffer ());
+		WorldTerrainSystem::Destroy_Terrain ();
+		printf ("  D-027 DIAMOND overpass: deck %.3f (E_hwy + blend + L_pin each side), %d abutments landed, Section 12.3 green; "
+				  "refused in Phase 11 when no kind spans it\r\n",span,deck_landings);
+	}
+
 	BridgeSystem::Shutdown ();
 	RoadSystem::Shutdown ();
 	WorldTerrainSystem::Shutdown ();
@@ -21808,7 +22241,8 @@ void Check_Hybrid_Interaction_Search (void)
 
 			HybridPipelineFixture scan;
 			StringClass why;
-			const bool scanned = Build_Hybrid_Pipeline (seed,1200.0f,SEARCH_ARCHETYPES[ai],&scan,&why,&preflight.Metrics);
+			const bool scanned = Build_Hybrid_Pipeline (seed,1200.0f,SEARCH_ARCHETYPES[ai],&scan,&why,&preflight.Metrics,
+																	  NATIVE_TERRAIN_CELL);
 			if (scan.Reached >= 8) {
 				rejected_approach		+= scan.TopologyResult.RejectedApproachClass;
 				rejected_wrong_side	+= scan.TopologyResult.RejectedWrongSide;
@@ -22113,6 +22547,10 @@ void Check_Hybrid_Interaction_Search (void)
 			//	Then what Phase 11 actually made of them, through the owner that owns the reroute.
 			HybridInteractionParams sp = Interaction_Fixture (scan.Sized,1200.0f,inputs,preflight.Metrics);
 			sp.TunnelAvailable = Hybrid_Native_Tunnels_Available (sp.TunnelAvailable);
+			//	D-027: every structural pin and road judged on the native terrain grid Phase 12 would deform.
+			sp.TerrainCellSize	= NATIVE_TERRAIN_CELL;
+			sp.TerrainOriginX		= Native_Terrain_Origin (1200.0f);
+			sp.TerrainOriginY		= Native_Terrain_Origin (1200.0f);
 			HybridInteractionSet si;
 			HybridInteractionResult sr;
 			HybridRouteResult srr;

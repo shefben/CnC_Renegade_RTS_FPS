@@ -134,6 +134,9 @@ public:
 	**	  (heavy) and every economy road (Harvester), ramps, parallel intervals, local junctions, decks and overpasses
 	**	  included: the envelope's footprint on paved runtime surface, standing on the solved surface, under no deck
 	**	  closer than its height plus Section 12.3's safety, and clear of every pier;
+	**	- every frozen structural pin (plan.Pins) on its authoritative drivable surface -- the terrain off a deck, the deck
+	**	  on one, and the road attached there -- within 2Q, never relaxed by the terrain cell (D-026);
+	**	- every BRIDGE_END_SUPPORT claim inside its assembly's end support footprint;
 	**	- every realized road sample against its solved grade and cross slope;
 	**	- every BridgeAssembly against its compiled span, clear width, deck elevation, attachment at both ends and
 	**	  vertical clearance;
@@ -142,6 +145,10 @@ public:
 	*/
 	static bool			Verify_Physical(const HybridRoadRealizerInputs & in,StringClass * error_out);
 	static int			Get_Swept_Samples(void)							{ return SweptSamples; }
+
+	//	The terrain Phase 12 graded as structural support under bridge ends (D-026 BRIDGE_END_SUPPORT), by assembly.
+	static int			Get_Support_Claim_Count(void)					{ return Claims.Count(); }
+	static const HybridTerrainClaim &	Get_Support_Claim(int index)	{ return Claims[index]; }
 
 	//	The migration adapters: nodes, road graph edges, river/canyon bridges and the frozen base pair.
 	static bool			Publish_Adapters(const HybridRoadRealizerInputs & in,StringClass * error_out);
@@ -165,6 +172,7 @@ private:
 	static int										SweptSamples;
 	static DynamicVectorClass<HybridRealizedPiece>	Pieces;
 	static DynamicVectorClass<int>			BridgeIds;			// one per plan assembly, in order
+	static DynamicVectorClass<HybridTerrainClaim>	Claims;
 };
 
 

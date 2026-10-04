@@ -202,6 +202,15 @@ HybridVerticalInterval	Hybrid_Road_Vertical_Interval(float z,float max_cut_depth
 float							Hybrid_Road_Outer_Blend_Width(float w,float a);
 
 /*
+**	D-027.  `L_pin`: a structural landing reaches exactly one native terrain cell diagonal from its pin (0 with no grid).
+**	An overpass deck reaches past the lower road's actual paved roadbed by the upper road's outer blend plus `L_pin` on
+**	each side, so the upper road's own ground, its blend and its landing never stand on the lower roadbed; Phase 9's
+**	`d_Lov` and Phase 11's deck are the same reach.
+*/
+float							Hybrid_Pin_Landing_Length(float terrain_cell);
+float							Hybrid_Overpass_Deck_Allowance(float w,float a,float terrain_cell);
+
+/*
 **	Tunnel realization is deferred in this generator revision (user, 2026-10-03): Phase 12 has no tunnel owner, so the
 **	native hybrid path plans as `tunnel_available = false` everywhere -- Phase 6's window flags, Phase 9's window
 **	method choice and Phase 11's optional tunnel fallback -- and a road continues through the plan's own legal

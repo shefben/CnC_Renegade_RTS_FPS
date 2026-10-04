@@ -6,6 +6,11 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
+- **Q-027 CLOSED (2026-10-04, options A and C, refined).** A structural pin the native grid cannot realize directly
+  gets a Phase-11 `STRUCTURAL_PIN_LANDING` (`L_pin = cell * sqrt(2)`); an impossible landing is refused in Phase 11.
+  An overpass deck reaches `outer_blend + L_pin` past the lower road's actual paved roadbed. The bridge-end support
+  spans the wider of the abutment and the attached paved roadbed. See `DECISIONS.md` D-027.
+
 - **Q-026 CLOSED (2026-10-03, option (b)).** Highway access ramps use an explicit auxiliary lane:
   - `ON_RAMP`: gore, `10W` full lane, `6W` taper.
   - `OFF_RAMP`: `6W` taper, `6W` full lane, gore.

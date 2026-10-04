@@ -461,6 +461,7 @@ struct HybridTopologyParams
 	float					OverpassClearGap;				// Section 12.3's minimum_clear_vertical_gap
 	float					BridgeApproachMax[HYBRID_ROAD_CLASS_COUNT];	// preflight metric cache
 	float					OverpassDepthMax[HYBRID_ROAD_CLASS_COUNT];
+	float					TerrainCellSize;				// D-027: the native terrain grid, for the overpass deck's reach (0 = none)
 
 	//	The reference vehicles' swept widths (preflight metric cache): a ramp's roadbed carries its widest (D-024).
 	float					LightVehicleWidth;

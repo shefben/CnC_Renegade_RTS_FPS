@@ -471,7 +471,7 @@ bool HybridTopology::Has_Cycle(void) const
 
 HybridTopologyParams::HybridTopologyParams(void) :
 	RoadDensity(0.65f),FieldRadiusMax(60.0f),MinVehicleLaneClearance(1.0f),HarvesterLength(7.4f),
-	MaxRoutedEdges(32),TunnelsAvailable(false),MaxCutDepth(0.0f),MaxFillHeight(0.0f),OverpassClearGap(0.0f),
+	MaxRoutedEdges(32),TunnelsAvailable(false),MaxCutDepth(0.0f),MaxFillHeight(0.0f),OverpassClearGap(0.0f),TerrainCellSize(0.0f),
 	LightVehicleWidth(0.0f),HeavyVehicleWidth(0.0f),HarvesterWidth(0.0f)
 {
 	memset(&Constants,0,sizeof(Constants));
@@ -3710,7 +3710,12 @@ static int Frame_Anchor(const TopologyBuilder & b,const HybridInterchangeConstan
 		Hybrid_Ramp_Candidate(c,0,0.0f,&k0);
 		const Vector2 foot_right = Side_World(*out,HYBRID_INTERCHANGE_SIDE_RIGHT,Vector2(0.0f,k0.LocalOffsetMin));
 		const Vector2 foot_left = Side_World(*out,HYBRID_INTERCHANGE_SIDE_LEFT,Vector2(0.0f,k0.LocalOffsetMin));
-		const float overpass_offset = c.EHwy + Ramp_Length_Plan(b,out->CrossingClass,out->X,foot_right,foot_left) + c.ArmLength;
+		/*
+		**	d_Lov: the deck reaches past the highway's paved roadbed by the crossing road's outer blend and L_pin (D-027),
+		**	exactly as Phase 11 builds it, then L_ramp and the arm.
+		*/
+		const float overpass_offset = c.EHwy + Hybrid_Overpass_Deck_Allowance(k.W,k.A,b.P->TerrainCellSize) +
+												Ramp_Length_Plan(b,out->CrossingClass,out->X,foot_right,foot_left) + c.ArmLength;
 		HybridRampCandidate grade_separated;
 		Hybrid_Ramp_Candidate(c,0,overpass_offset,&grade_separated);
 		const Vector2 right = Side_World(*out,HYBRID_INTERCHANGE_SIDE_RIGHT,Vector2(0.0f,grade_separated.LocalOffset));

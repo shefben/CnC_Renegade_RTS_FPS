@@ -579,6 +579,18 @@ float Hybrid_Road_Outer_Blend_Width(float w,float a)
 }
 
 
+float Hybrid_Pin_Landing_Length(float terrain_cell)
+{
+	return (terrain_cell > 0.0f) ? (terrain_cell * 1.41421356f) : 0.0f;
+}
+
+
+float Hybrid_Overpass_Deck_Allowance(float w,float a,float terrain_cell)
+{
+	return Hybrid_Road_Outer_Blend_Width(w,a) + Hybrid_Pin_Landing_Length(terrain_cell);
+}
+
+
 float Hybrid_Road_Deformation_Half_Width(HybridRoadClass road_class,float w,float a)
 {
 	return 0.5f * Hybrid_Roadbed_Width(road_class,w) + Hybrid_Road_Outer_Blend_Width(w,a);

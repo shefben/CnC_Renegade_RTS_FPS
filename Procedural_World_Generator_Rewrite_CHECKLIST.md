@@ -402,6 +402,14 @@ It runs after realization and in the live gate. At the native 3.75 cell it found
 `Hybrid_Deform_Terrain`: the whole-cell roadbed, and abutment seats over water. `procedural_world status` reports
 Phase 12 in Release builds.
 
+**Progress (2026-10-04), D-026 tightening and D-027 (Q-027):**
+- structural pins (`HybridRealizationPlan::Pins`) realized and verified at 2Q on the drivable surface;
+- `BRIDGE_END_SUPPORT` claims, across the wider of the abutment and the paved roadbed, 1.5 cells along the deck;
+- Phase-11 `STRUCTURAL_PIN_LANDING` records judged by Phase 12's own deformation and Section-12.3 criteria, with
+  impossible landings refused through Phase 11's own order;
+- overpass decks reaching `outer_blend + L_pin` past the lower road's actual paved roadbed;
+- ordinary roadbed the grid cannot carry caught in Phase 11.
+
 **I13 live gate (user, 2026-10-03):**
 - [x] all Phase-12 controlled tests green;
 - [x] post-build swept verification green (native-cell controlled worlds);

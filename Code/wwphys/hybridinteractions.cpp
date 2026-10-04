@@ -170,6 +170,7 @@ const char * Hybrid_Interaction_Problem_Name(HybridInteractionProblem problem)
 		case HYBRID_PROBLEM_CUT_OR_FILL:			return "cut_or_fill";
 		case HYBRID_PROBLEM_GORE_RESERVE:					return "gore_reserve";
 		case HYBRID_PROBLEM_INTERCHANGE_FOOTPRINT:		return "interchange_footprint";
+		case HYBRID_PROBLEM_PIN_LANDING:					return "pin_landing";
 		case HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING:	return "too_close_to_crossing";
 		default:													break;
 	}
@@ -188,6 +189,7 @@ const char * Hybrid_Interaction_Failure_Name(HybridInteractionFailure failure)
 		case HYBRID_INTERACTION_SWEEP:				return "sweep";
 		case HYBRID_INTERACTION_LIMIT:				return "limit";
 		case HYBRID_INTERACTION_INTERCHANGE:	return "interchange";
+		case HYBRID_INTERACTION_REALIZATION:	return "realization";
 		case HYBRID_INTERACTION_DETACHED:			return "detached";
 		default:												break;
 	}
@@ -232,6 +234,7 @@ void HybridInteractionSet::Reset(void)
 	Interactions.Delete_All();
 	Issues.Delete_All();
 	MergeDiverge.Delete_All();
+	Landings.Delete_All();
 	StationsEvaluated	= 0;
 	SweepSamples		= 0;
 	RerouteRequests	= 0;
@@ -288,7 +291,9 @@ HybridInteractionParams::HybridInteractionParams(void) :
 	MaxCutDepth(0.0f),MaxFillHeight(0.0f),RiverWidth(0.0f),
 	AllowFords(false),FordCapabilityAvailable(false),TunnelsEnabled(false),TunnelAvailable(false),
 	WorldUnitsPerMeter(1.0f),HeavyVehicleWidth(0.0f),HeavyVehicleHeight(0.0f),HarvesterWidth(0.0f),LightVehicleWidth(0.0f),
+	LightVehicleLength(0.0f),HeavyVehicleLength(0.0f),HarvesterLength(0.0f),
 	MinVehicleLaneClearance(0.0f),TierStep(1.0f),BridgeWaterClearanceMargin(0.0f),
+	TerrainCellSize(0.0f),TerrainOriginX(0.0f),TerrainOriginY(0.0f),
 	MaxLocalRetriesPerStage(8),MaxStationsPerCrossing(STATION_CAP),MaxProblemsPerEdge(12),
 	Arena(nullptr),Counters(nullptr)
 {
@@ -552,6 +557,17 @@ unsigned int Hybrid_Interaction_Checksum(const HybridInteractionSet & set,unsign
 			stream.Add_Length(md.Samples[s].Z);
 		}
 	}
+	stream.Add_Int(set.Landings.Count());
+	for (int i = 0; i < set.Landings.Count(); ++i) {
+		const HybridPinLanding & landing = set.Landings[i];
+		stream.Add_Uint(landing.StableId);
+		stream.Add_Int((int)landing.PinKind);
+		stream.Add_Length(landing.Position.X);
+		stream.Add_Length(landing.Position.Y);
+		stream.Add_Length(landing.Z);
+		stream.Add_Length(landing.Length);
+		stream.Add_Uint(landing.InteractionId);
+	}
 	return stream.Get();
 }
 
@@ -784,6 +800,31 @@ static bool Is_Interchange_Element(const HybridTopologyEdge & edge)
 }
 
 
+/*
+**	D-027: a compiled solution Phase 11 has rejected after the fact, because its structural pin cannot be realized on
+**	the terrain grid even with a landing.  The re-run skips it, so its own fallback order -- the next station, the
+**	permitted swap, the next method, a reroute -- decides what happens instead.
+*/
+struct SolutionKey
+{
+	SolutionKey(void) : Method(HYBRID_METHOD_BRIDGE),EdgeId(0),OtherEdgeId(0),WindowId(0),NodeId(0),Station(0.0f,0.0f) { }
+
+	bool	operator == (const SolutionKey & that) const
+	{
+		return (Method == that.Method) && (EdgeId == that.EdgeId) && (OtherEdgeId == that.OtherEdgeId) &&
+				 (WindowId == that.WindowId) && (NodeId == that.NodeId) && (Station == that.Station);
+	}
+	bool	operator != (const SolutionKey & that) const	{ return !(*this == that); }
+
+	HybridInteractionMethod	Method;
+	unsigned int				EdgeId;
+	unsigned int				OtherEdgeId;
+	unsigned int				WindowId;
+	unsigned int				NodeId;
+	Vector2						Station;
+};
+
+
 struct InteractionBuilder
 {
 	const HybridInteractionParams *	P;
@@ -799,6 +840,29 @@ struct InteractionBuilder
 	HybridInteractionSet *				Out;
 
 	unsigned int							NextStableId;
+
+	//	D-027: the solutions earlier runs rejected, and the one this run rejects.
+	const DynamicVectorClass<SolutionKey> *	Excluded;
+	DynamicVectorClass<SolutionKey> *			Rejected;
+
+	/*
+	**	Was this solution rejected?  The same method, window and station; for a road x road solution the same pair of
+	**	edges -- in order when `ordered` (an overpass: its swap is a different solution), either way round otherwise.
+	*/
+	bool	Is_Excluded(HybridInteractionMethod method,unsigned int edge,unsigned int other,unsigned int window,bool ordered,
+							const Vector2 & station) const
+	{
+		if (Excluded == nullptr) return false;
+		for (int i = 0; i < Excluded->Count(); ++i) {
+			const SolutionKey & key = (*Excluded)[i];
+			if ((key.Method != method) || (key.WindowId != window)) continue;
+			const bool same_pair = ((key.EdgeId == edge) && (key.OtherEdgeId == other)) ||
+										  (!ordered && (key.EdgeId == other) && (key.OtherEdgeId == edge));
+			if (!same_pair) continue;
+			if ((key.Station - station).Length() <= (2.0f * P->Constants.Q)) return true;
+		}
+		return false;
+	}
 
 	//	Section 12.6.10: the interchanges Phase 10 realized, and every gore reserve of them.
 	DynamicVectorClass<InterchangeView>	Interchanges;
@@ -1333,7 +1397,7 @@ static bool Ground_Carries_Swept_Width(const InteractionBuilder & b,const Hybrid
 */
 static int Select_Bridge_Kind(const InteractionBuilder & b,HybridRoadClass road_class,
 										unsigned int capabilities,float span,float available_approach,
-										HybridInteractionProblem * problem_out)
+										HybridInteractionProblem * problem_out,bool whole_deck = false)
 {
 	const HybridConstants & k = b.P->Constants;
 
@@ -1353,7 +1417,8 @@ static int Select_Bridge_Kind(const InteractionBuilder & b,HybridRoadClass road_
 		if (kind.ClearWidth < required_width) continue;
 		width_seen = true;
 		//	The measured obstruction plus both canonical abutment seats -- the kind's own cap sections.
-		if (!(kind.MaxSpan >= (span + kind.StartSeat + kind.EndSeat))) continue;
+		//	D-027: an overpass deck is sized whole, its abutment room included; a river or canyon deck adds the seats.
+		if (!(kind.MaxSpan >= (whole_deck ? span : (span + kind.StartSeat + kind.EndSeat)))) continue;
 		span_seen = true;
 
 		//	The required straight, `max(8W, required_approach_length)`, against what the road offers -- measured on
@@ -2134,6 +2199,11 @@ static bool Compile_Bridge(InteractionBuilder & b,const HybridTopologyEdge & edg
 		*/
 		const Vector2 & station = stations[s].Centre;
 		const bool own_station = (station == window.Center);
+		if (b.Is_Excluded(HYBRID_METHOD_BRIDGE,edge.StableId,0,window.StableId,true,station)) {
+			geometry_problem = HYBRID_PROBLEM_PIN_LANDING;
+			b.Note_Reject(HYBRID_PROBLEM_PIN_LANDING);
+			continue;
+		}
 		Vector2 across(-stations[s].Tangent.Y,stations[s].Tangent.X);
 		if ((((ingress.X - station.X) * across.X) + ((ingress.Y - station.Y) * across.Y)) > 0.0f) across = -across;
 		if (own_station) across = Unit(egress - ingress);
@@ -3051,6 +3121,12 @@ static bool At_Grade_Is_Legal(InteractionBuilder & b,const HybridTopologyEdge & 
 	const HybridRoadClassSpec & spec_a = Hybrid_Road_Class_Spec(edge_a.RoadClass);
 	const HybridRoadClassSpec & spec_b = Hybrid_Road_Class_Spec(edge_b.RoadClass);
 
+	//	D-027: a junction here whose structural pin the grid cannot realize was rejected; the overpass order follows.
+	if (b.Is_Excluded(HYBRID_METHOD_AT_GRADE_JUNCTION,edge_a.StableId,edge_b.StableId,0,false,Quantized(point))) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_PIN_LANDING;
+		return false;
+	}
+
 	//	1: the crossing angle stays inside 30 to 150 degrees.
 	float dot = (heading_a.X * heading_b.X) + (heading_a.Y * heading_b.Y);
 	dot = Clamp2((float)fabs((double)dot),0.0f,1.0f);
@@ -3149,6 +3225,107 @@ static bool At_Grade_Is_Legal(InteractionBuilder & b,const HybridTopologyEdge & 
 **	exactly `L_ramp` a side with a level deck through the crossing, sampled at `min(W/3,A/4)`, and every
 **	sample has to hold max grade, cross slope, the cut/fill interval and the clearance.
 */
+/*
+**	D-027: a road's actual paved roadbed either side of its travel at `point` -- shoulder included, a ramp's effective
+**	asymmetric edges (D-022, D-024), a HIGHWAY_4 widened to the merge/diverge E(x) over every active parallel interval
+**	(12.6.11).  `heading` is the road's direction there.
+*/
+static void Paved_Edges_At(const InteractionBuilder & b,const HybridTopologyEdge & edge,const HybridRoute & route,const Vector2 & point,
+									const Vector2 & heading,float * left_out,float * right_out)
+{
+	const HybridConstants & k = b.P->Constants;
+	HybridInterchangeConstants c;
+	Hybrid_Interchange_Constants(k.W,&c);
+	const float half = 0.5f * Hybrid_Edge_Roadbed_Width(edge,k.W);
+	*left_out	= half;
+	*right_out	= half;
+
+	if ((edge.Kind == HYBRID_EDGE_HIGHWAY_RAMP) && (route.Points.Count() >= 2)) {
+		//	Stored L_s -> gore; inner is left of the ramp's traffic, which an OFF_RAMP's stored order runs against.
+		float station = 0.0f;
+		float best = 3.4e38f;
+		for (int i = 1; i < route.Points.Count(); ++i) {
+			float t_on = 0.0f;
+			const float distance = Distance_To_Segment(point,route.Points[i - 1],route.Points[i],&t_on);
+			if (distance >= best) continue;
+			best		= distance;
+			station	= route.Stations[i - 1] + ((route.Stations[i] - route.Stations[i - 1]) * t_on);
+		}
+		float inner = 0.0f;
+		float outer = 0.0f;
+		Hybrid_Ramp_Effective_Edges(c,edge.RampRoadbedExtra,route.Stations[route.Stations.Count() - 1] - station,&inner,&outer);
+		const bool against = (edge.RampRole == HYBRID_RAMP_ROLE_OFF);
+		*left_out	= against ? outer : inner;
+		*right_out	= against ? inner : outer;
+		return;
+	}
+	if (edge.RoadClass != HYBRID_ROAD_HIGHWAY_4) return;
+
+	const Vector2 left_of_travel(-heading.Y,heading.X);
+	for (int i = 0; i < b.Interchanges.Count(); ++i) {
+		const HybridInterchange & ic = *b.Interchanges[i].Record;
+		if ((ic.HighwayEdgeIn != edge.StableId) && (ic.HighwayEdgeOut != edge.StableId)) continue;
+		for (int e = 0; e < ic.RampEdges.Count(); ++e) {
+			const HybridTopologyEdge * ramp = b.Topology->Find_Edge(ic.RampEdges[e]);
+			if (ramp == nullptr) continue;
+			Vector2 tau;
+			Vector2 normal;
+			Side_Frame(ic.Axis,ramp->RampSide,&tau,&normal);
+			const Vector2 offset = point - b.Interchanges[i].X;
+			const float x = (offset.X * tau.X) + (offset.Y * tau.Y);
+			const bool on = (ramp->RampRole == HYBRID_RAMP_ROLE_ON);
+			const float along = on ? (x - ic.GoreOffset) : (x + ic.GoreOffset + c.DivergeLength);
+			const float span = on ? c.MergeLength : c.DivergeLength;
+			if ((along < 0.0f) || (along > span)) continue;
+			HybridAuxiliaryLaneSection section;
+			Hybrid_Auxiliary_Lane_Section(c,ramp->RampRole,along,&section);
+			if (((left_of_travel.X * normal.X) + (left_of_travel.Y * normal.Y)) > 0.0f) {
+				*left_out = Max2(*left_out,section.E);
+			} else {
+				*right_out = Max2(*right_out,section.E);
+			}
+		}
+	}
+}
+
+
+/*
+**	D-027's overpass deck reach on one side: from the crossing along the upper road (`direction`) to where the whole deck
+**	width -- its centerline and both edges -- has left the lower road's actual paved roadbed, then the upper road's
+**	outer blend and L_pin beyond.  The lower roadbed is read where the deck leaves it, so a widening there counts.
+*/
+static float Overpass_Reach(const InteractionBuilder & b,const HybridTopologyEdge & lower_edge,const HybridRoute & lower_route,
+									 const Vector2 & point,const Vector2 & direction,const Vector2 & under,float deck_half)
+{
+	const HybridConstants & k = b.P->Constants;
+	const Vector2 lower_left(-under.Y,under.X);
+	const Vector2 upper_left(-direction.Y,direction.X);
+	const float rise = (direction.X * lower_left.X) + (direction.Y * lower_left.Y);
+	const float spread = (float)fabs((double)((upper_left.X * lower_left.X) + (upper_left.Y * lower_left.Y)));
+	float exit = 0.0f;
+	Vector2 at = point;
+	for (int pass = 0; pass < 2; ++pass) {
+		float left = 0.0f;
+		float right = 0.0f;
+		Paved_Edges_At(b,lower_edge,lower_route,at,under,&left,&right);
+		if (pass > 0) {
+			float left0 = 0.0f;
+			float right0 = 0.0f;
+			Paved_Edges_At(b,lower_edge,lower_route,point,under,&left0,&right0);
+			left	= Max2(left,left0);
+			right	= Max2(right,right0);
+		}
+		const float edge = (rise > 0.0f) ? left : right;
+		exit = (edge + (deck_half * spread)) / Max2((float)fabs((double)rise),1.0e-3f);
+		//	Where the deck leaves the lower road, along the lower road.
+		const Vector2 out = point + (direction * exit);
+		const float along = ((out.X - point.X) * under.X) + ((out.Y - point.Y) * under.Y);
+		at = point + (under * along);
+	}
+	return exit + Hybrid_Overpass_Deck_Allowance(k.W,k.A,b.P->TerrainCellSize);
+}
+
+
 static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyEdge & upper_edge,
 												const HybridRoute & upper_route,const HybridTopologyEdge & lower_edge,
 												const HybridRoute & lower_route,const Vector2 & point,
@@ -3161,6 +3338,12 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	const float max_grade = upper_spec.MaxGradeDegrees * PI_OVER_180;
 	const float max_cross = upper_spec.MaxCrossSlopeDegrees * PI_OVER_180;
 	const float half_roadbed = 0.5f * Hybrid_Edge_Roadbed_Width(upper_edge,k.W);
+
+	//	D-027: this assignment's structural pins could not be realized on the grid; the swap or a reroute follows.
+	if (b.Is_Excluded(HYBRID_METHOD_OVERPASS,upper_edge.StableId,lower_edge.StableId,0,true,Quantized(point))) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_PIN_LANDING;
+		return false;
+	}
 
 	float lower_z = 0.0f;
 	if (!b.Height_At(point,&lower_z)) {
@@ -3179,9 +3362,29 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	float arm_before = 0.0f;
 	float arm_after = 0.0f;
 	Arm_Lengths(upper_route,point,&arm_before,&arm_after);
-	int bridge_kind = Select_Bridge_Kind(b,upper_edge.RoadClass,upper_edge.Capabilities,
-													 Hybrid_Edge_Roadbed_Width(lower_edge,k.W),
-													 Min2(arm_before,arm_after),nullptr);
+
+	/*
+	**	D-027: the deck reaches, each side, from the crossing to where its whole width has left the lower road's actual
+	**	paved roadbed (asymmetric and widened edges included, its shoulders counted once, in that roadbed), then the upper
+	**	road's outer blend and L_pin, so the upper road's own ground, blend and structural landing never stand on the lower
+	**	roadbed.  The registered kind has to span that whole deck.
+	*/
+	const Vector2 axis = Unit(upper_heading);
+	const Vector2 under = Unit(lower_heading);
+	const float sine = (float)fabs((double)((axis.X * under.Y) - (axis.Y * under.X)));
+	if (sine <= 1.0e-3f) {
+		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TURN_TOO_TIGHT;
+		return false;
+	}
+	const float deck_width = Max2(Hybrid_Edge_Roadbed_Width(upper_edge,k.W),
+											Hybrid_Bridge_Clear_Width(upper_edge.RoadClass,k.W,
+																			  Required_Swept_Width(b,upper_edge.Capabilities),
+																			  b.P->MinVehicleLaneClearance));
+	const float reach_before = Overpass_Reach(b,lower_edge,lower_route,point,-axis,under,0.5f * deck_width);
+	const float reach_after = Overpass_Reach(b,lower_edge,lower_route,point,axis,under,0.5f * deck_width);
+	const float deck_length = reach_before + reach_after;
+	int bridge_kind = Select_Bridge_Kind(b,upper_edge.RoadClass,upper_edge.Capabilities,deck_length,
+													 Min2(arm_before,arm_after),nullptr,true);
 	/*
 	**	The deck is a registered bridge kind, realized through BridgeSystem in Phase 12; a road x road crossing
 	**	that no registered kind can carry is not an overpass this generator can build, and it says so rather
@@ -3198,10 +3401,7 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	const float tangent = (float)::tan((double)max_grade);
 
 	/*
-	**	Where the crossing stands on the upper road, and how long the level deck has to be: the strip of the
-	**	upper deck that lies over the lower roadbed, at the angle the two roads actually meet.  Measured along
-	**	the upper road that is `w_lower / sin(theta) + w_deck * |cot(theta)|`, so a skew crossing gets the
-	**	longer deck it needs and the upper road's own embankment never stands on the lower roadbed.
+	**	Where the crossing stands on the upper road.
 	*/
 	const float total = upper_route.Stations[upper_route.Stations.Count() - 1];
 	float centre_station = 0.0f;
@@ -3216,27 +3416,6 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 								  ((upper_route.Stations[i] - upper_route.Stations[i - 1]) * t_on);
 		}
 	}
-
-	const Vector2 axis = Unit(upper_heading);
-	const Vector2 under = Unit(lower_heading);
-	const float sine = (float)fabs((double)((axis.X * under.Y) - (axis.Y * under.X)));
-	const float cosine = (float)fabs((double)((axis.X * under.X) + (axis.Y * under.Y)));
-	if (sine <= 1.0e-3f) {
-		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TURN_TOO_TIGHT;
-		return false;
-	}
-	/*
-	**	The deck carries the upper road at Section 12.4's clear width -- the wider of its carriageway and the
-	**	swept envelope it must carry with the lane clearance either side -- and never narrower than its own
-	**	roadbed; BridgeSystem is handed that width, not the registered kind's widest.
-	*/
-	const float deck_width = Max2(Hybrid_Edge_Roadbed_Width(upper_edge,k.W),
-											Hybrid_Bridge_Clear_Width(upper_edge.RoadClass,k.W,
-																			  Required_Swept_Width(b,upper_edge.Capabilities),
-																			  b.P->MinVehicleLaneClearance));
-	const float deck_length = (Hybrid_Edge_Roadbed_Width(lower_edge,k.W) / sine) +
-									  ((deck_width * cosine) / sine);
-	const float half_deck = 0.5f * deck_length;
 
 	//	The deck is a straight bridge, so the upper road has to run straight under all of it.
 	{
@@ -3253,7 +3432,7 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 		Hybrid_Polyline_Straight_Run(upper_route.Points,at,axis,k.Q,&behind,&ahead);
 		const Vector2 offset = point - upper_route.Points[at];
 		const float along = (offset.X * axis.X) + (offset.Y * axis.Y);
-		if ((behind < (half_deck - along - (2.0f * k.Q))) || (ahead < (half_deck + along - (2.0f * k.Q)))) {
+		if ((behind < (reach_before - along - (2.0f * k.Q))) || (ahead < (reach_after + along - (2.0f * k.Q)))) {
 			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_TURN_TOO_TIGHT;
 			return false;
 		}
@@ -3278,8 +3457,8 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 
 	for (int pass = 0; pass < 4; ++pass) {
 
-		const float foot_from = centre_station - half_deck - ramp;
-		const float foot_to = centre_station + half_deck + ramp;
+		const float foot_from = centre_station - reach_before - ramp;
+		const float foot_to = centre_station + reach_after + ramp;
 		if ((foot_from < 0.0f) || (foot_to > total)) break;			// the arm test below names it
 		const Vector2 foot_a = Hybrid_Polyline_Point_At(upper_route.Points,upper_route.Stations,foot_from);
 		const Vector2 foot_b = Hybrid_Polyline_Point_At(upper_route.Points,upper_route.Stations,foot_to);
@@ -3305,8 +3484,8 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	}
 
 	//	The upper road has to have that much centerline either side of the crossing to ramp over.
-	const float from_station = centre_station - half_deck - ramp;
-	const float to_station = centre_station + half_deck + ramp;
+	const float from_station = centre_station - reach_before - ramp;
+	const float to_station = centre_station + reach_after + ramp;
 	if ((from_station < 0.0f) || (to_station > total)) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_APPROACH_DOES_NOT_FIT;
 		return false;
@@ -3350,7 +3529,8 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 		**	the ground offset by one.  Following the terrain instead would put the terrain's own slope into the
 		**	road's grade, which is what the vertical-profile solver exists to avoid.
 		*/
-		const float from_deck = Max2((float)fabs((double)(along - centre_station)) - half_deck,0.0f);
+		const float from_deck = (along < centre_station) ? Max2((centre_station - along) - reach_before,0.0f)
+																		 : Max2((along - centre_station) - reach_after,0.0f);
 		const float s = Clamp2(1.0f - (from_deck / Max2(ramp,k.Q)),0.0f,1.0f);
 		const float smooth = s * s * (3.0f - (2.0f * s));
 		const float foot_z = (along < centre_station) ? foot_z_a : foot_z_b;
@@ -3466,8 +3646,8 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 		}
 		const float road_centre = Realized_Station_Of(road,0,road.Points.Count() - 1,point);
 		HybridProfileStructure deck;
-		deck.From		= road_centre - half_deck;
-		deck.To			= road_centre + half_deck;
+		deck.From		= road_centre - reach_before;
+		deck.To			= road_centre + reach_after;
 		deck.Mode		= HYBRID_PROFILE_STRUCTURE_LEVEL;
 		deck.EndsFixed	= true;
 		deck.StartZ		= Hybrid_Quantize_Position(deck_top);
@@ -3502,8 +3682,8 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	out->DeckTopZ				= Hybrid_Quantize_Position(deck_top);
 	out->DeckStartZ			= out->DeckTopZ;
 	out->DeckEndZ				= out->DeckTopZ;
-	out->DeckReachA			= Hybrid_Quantize_Position(half_deck);
-	out->DeckReachB			= Hybrid_Quantize_Position(half_deck);
+	out->DeckReachA			= Hybrid_Quantize_Position(reach_before);
+	out->DeckReachB			= Hybrid_Quantize_Position(reach_after);
 	out->LowerSurfaceZ		= Hybrid_Quantize_Position(lower_z);
 	out->RampLength			= ramp;
 	out->Path					= path;
@@ -3891,7 +4071,11 @@ static bool Compile_Topology_Junctions(InteractionBuilder & b,const DynamicVecto
 		const bool local_junction = (node.Kind == HYBRID_NODE_INTERCHANGE_LOCAL_JUNCTION);
 
 		HybridInteractionProblem problem = HYBRID_PROBLEM_NONE;
-		if (Topology_Junction_Is_Legal(b,node.Position,arms,&problem)) {
+		const bool rejected = b.Is_Excluded(HYBRID_METHOD_AT_GRADE_JUNCTION,realized[through].EdgeId,
+														realized[(through == incident[0]) ? incident[1] : incident[0]].EdgeId,0,false,
+														Quantized(node.Position));
+		if (rejected) problem = HYBRID_PROBLEM_PIN_LANDING;
+		if (!rejected && Topology_Junction_Is_Legal(b,node.Position,arms,&problem)) {
 			const HybridRoute & main = realized[through];
 			const HybridTopologyEdge * main_edge = topology.Find_Edge(main.EdgeId);
 			HybridInteraction solution;
@@ -4732,12 +4916,181 @@ static bool Check_Quotas(InteractionBuilder & b,HybridInteractionResult * result
 **	The phase's body.  The wrapper below owns the contract a refused phase has to keep -- nothing compiled
 **	left behind -- so every `return false` in here can simply say why it failed.
 */
+/*
+**	D-027 -- structural pins against the terrain grid, before Phase 12.
+**
+**	Phase 11 builds the very plan Phase 12 will realize (Hybrid_Plan_Realization over the compiled records) and judges
+**	every structural pin of it on the native terrain grid with Phase 12's own deformation (Hybrid_Pin_Rasterization).
+**	A pin the grid realizes directly keeps its profile.  One it cannot gets a STRUCTURAL_PIN_LANDING -- every ground road
+**	through it level at the pin's elevation for exactly L_pin -- and the plan is solved again with it, so the landing is
+**	part of vertical feasibility.  A pin that still fails, or a landing that leaves its road no legal profile, rejects the
+**	solution the pin belongs to, and that solution's own fallback order decides what replaces it.  An interchange element
+**	is never rerouted: its failure fails the phase.  Phase 12 never meets the contradiction first.
+*/
+static const int PIN_LANDING_ROUNDS = 6;
+//	Each run excludes one more compiled solution, and a window's whole station order may have to be walked.
+static const int MAX_PIN_REJECTION_RUNS = 256;
+
+
+//	The distance from `point` to a polyline.
+static float Point_To_Polyline(const DynamicVectorClass<Vector2> & points,const Vector2 & point)
+{
+	float best = 3.4e38f;
+	for (int i = 1; i < points.Count(); ++i) best = Min2(best,Distance_To_Segment(point,points[i - 1],points[i],nullptr));
+	return best;
+}
+
+
+static bool Reject_Solution(InteractionBuilder & b,unsigned int interaction_id,const char * why,HybridInteractionResult * result)
+{
+	const HybridInteraction * one = b.Out->Find(interaction_id);
+	StringClass detail;
+	if (one == nullptr) {
+		detail.Format("a structural pin of no compiled solution: %s",why);
+		return Fail(result,HYBRID_INTERACTION_REALIZATION,detail.Peek_Buffer());
+	}
+	const HybridTopologyEdge * edge = b.Topology->Find_Edge(one->EdgeId);
+	const HybridTopologyEdge * other = (one->OtherEdgeId != 0) ? b.Topology->Find_Edge(one->OtherEdgeId) : nullptr;
+	const HybridJunctionRole role = Hybrid_Interaction_Junction_Role(*one);
+	const bool interchange = (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION) ||
+									 (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE) || (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE) ||
+									 ((edge != nullptr) && Is_Interchange_Element(*edge)) || ((other != nullptr) && Is_Interchange_Element(*other));
+	detail.Format("the %s on edge %u at (%.1f,%.1f): %s",Hybrid_Interaction_Method_Name(one->Method),one->EdgeId,one->Station.X,
+					  one->Station.Y,why);
+	if (interchange) return Fail(result,HYBRID_INTERACTION_INTERCHANGE,detail.Peek_Buffer());
+	if (b.Rejected != nullptr) {
+		SolutionKey key;
+		key.Method			= one->Method;
+		key.EdgeId			= one->EdgeId;
+		key.OtherEdgeId	= one->OtherEdgeId;
+		key.WindowId		= one->WindowId;
+		key.NodeId			= one->NodeId;
+		key.Station			= one->Station;
+		b.Rejected->Add(key);
+	}
+	return Fail(result,HYBRID_INTERACTION_REALIZATION,detail.Peek_Buffer());
+}
+
+
+static bool Compile_Pin_Landings(InteractionBuilder & b,HybridInteractionResult * result)
+{
+	const HybridInteractionParams & p = *b.P;
+	if (!(p.TerrainCellSize > 0.0f)) return true;
+	const HybridConstants & k = p.Constants;
+
+	HybridRealizationParams params;
+	params.Constants					= k;
+	params.MaxCutDepth				= p.MaxCutDepth;
+	params.MaxFillHeight				= p.MaxFillHeight;
+	params.LightVehicleWidth		= p.LightVehicleWidth;
+	params.HeavyVehicleWidth		= p.HeavyVehicleWidth;
+	params.HarvesterWidth			= p.HarvesterWidth;
+	params.MinVehicleLaneClearance= p.MinVehicleLaneClearance;
+	params.TerrainCellSize			= p.TerrainCellSize;
+	HybridHeightGrid grid;
+	grid.OriginX	= p.TerrainOriginX;
+	grid.OriginY	= p.TerrainOriginY;
+	grid.Spacing	= p.TerrainCellSize;
+	grid.CountX		= 0;
+	grid.CountY		= 0;
+	const float length = Hybrid_Pin_Landing_Length(p.TerrainCellSize);
+	HybridPinEnvelopes envelopes;
+	envelopes.Length[HYBRID_ENVELOPE_LIGHT]		= p.LightVehicleLength;
+	envelopes.Width[HYBRID_ENVELOPE_LIGHT]		= p.LightVehicleWidth;
+	envelopes.Length[HYBRID_ENVELOPE_HEAVY]		= p.HeavyVehicleLength;
+	envelopes.Width[HYBRID_ENVELOPE_HEAVY]		= p.HeavyVehicleWidth;
+	envelopes.Length[HYBRID_ENVELOPE_HARVESTER]	= p.HarvesterLength;
+	envelopes.Width[HYBRID_ENVELOPE_HARVESTER]	= p.HarvesterWidth;
+	StringClass detail;
+
+	for (int round = 0; round < PIN_LANDING_ROUNDS; ++round) {
+
+		HybridRealizationPlan plan;
+		HybridRealizationResult planned;
+		if (!Hybrid_Plan_Realization(params,*b.Topology,*b.Routes,*b.Out,b.Sample,b.Context,&plan,&planned)) {
+			//	A landing on the refused road is what left it no profile: its solution is the one rejected.
+			HybridRoute road;
+			if (Hybrid_Realized_Physical_Road(*b.Routes,*b.Out,planned.EdgeId,&road,nullptr)) {
+				for (int l = 0; l < b.Out->Landings.Count(); ++l) {
+					const HybridPinLanding & landing = b.Out->Landings[l];
+					if (Point_To_Polyline(road.Points,landing.Position) > (2.0f * k.Q)) continue;
+					detail.Format("its STRUCTURAL_PIN_LANDING at (%.1f,%.1f) leaves edge %u no legal profile (%s)",landing.Position.X,
+									  landing.Position.Y,planned.EdgeId,planned.Detail.Peek_Buffer());
+					return Reject_Solution(b,landing.InteractionId,detail.Peek_Buffer(),result);
+				}
+			}
+			//	Otherwise the plan itself cannot be realized: Phase 11 says so, with its one more envelope, never Phase 12.
+			const HybridRoute * route = b.Routes->Find(planned.EdgeId);
+			if ((route != nullptr) && (route->Envelope < 2)) {
+				b.Out->RerouteRequests++;
+				if (result != nullptr) result->RerouteEdgeId = planned.EdgeId;
+			}
+			detail.Format("Phase 12's plan cannot be realized: %s (%s)",Hybrid_Realization_Failure_Name(planned.Failure),
+							  planned.Detail.Peek_Buffer());
+			return Fail(result,HYBRID_INTERACTION_REALIZATION,detail.Peek_Buffer());
+		}
+
+		DynamicVectorClass<HybridRasterIssue> issues;
+		if (Hybrid_Plan_Rasterization(plan,k,b.Hydrology,grid,b.Sample,b.Context,p.MaxCutDepth,p.MaxFillHeight,envelopes,&issues)) {
+			return true;
+		}
+		bool added = false;
+		for (int i = 0; i < issues.Count(); ++i) {
+			const HybridRasterIssue & issue = issues[i];
+			if (issue.Pin < 0) continue;
+			const HybridRealizedPin & pin = plan.Pins[issue.Pin];
+			unsigned int owner = pin.InteractionId;
+			if (pin.Kind == HYBRID_PIN_DECK_END) {
+				const HybridBridgeAssembly * assembly = plan.Find_Bridge(pin.AssemblyId);
+				owner = (assembly != nullptr) ? assembly->InteractionId : 0;
+			}
+			bool landed = false;
+			for (int l = 0; (l < b.Out->Landings.Count()) && !landed; ++l) {
+				landed = ((b.Out->Landings[l].Position - pin.Position).Length() <= (2.0f * k.Q));
+			}
+			if (landed) {
+				detail.Format("%s, with its STRUCTURAL_PIN_LANDING",issue.Detail.Peek_Buffer());
+				return Reject_Solution(b,owner,detail.Peek_Buffer(),result);
+			}
+			HybridPinLanding landing;
+			landing.StableId			= b.Out->Landings.Count() + 1;
+			landing.PinKind			= pin.Kind;
+			landing.Position			= pin.Position;
+			landing.Z					= pin.Z;
+			landing.Length				= length;
+			landing.InteractionId	= owner;
+			b.Out->Landings.Add(landing);
+			added = true;
+		}
+		if (!added) {
+			/*
+			**	Ordinary roadbed the grid cannot carry, away from every pin: Phase 11 says so, with that road's one more
+			**	envelope, never Phase 12.
+			*/
+			for (int i = 0; i < issues.Count(); ++i) {
+				if (issues[i].Pin >= 0) continue;
+				const unsigned int edge = plan.Roads[issues[i].Road].EdgeId;
+				const HybridRoute * route = b.Routes->Find(edge);
+				if ((route != nullptr) && (route->Envelope < 2)) {
+					b.Out->RerouteRequests++;
+					if (result != nullptr) result->RerouteEdgeId = edge;
+				}
+				detail.Format("the terrain grid cannot realize edge %u: %s",edge,issues[i].Detail.Peek_Buffer());
+				return Fail(result,HYBRID_INTERACTION_REALIZATION,detail.Peek_Buffer());
+			}
+		}
+	}
+	return Fail(result,HYBRID_INTERACTION_LIMIT,"the structural pin landings did not settle");
+}
+
+
 static bool Solve_Interactions(const HybridInteractionParams & params,const HybridMapIdentity & identity,
 										 const HybridCoarseMatrices & matrices,const HybridLandformSet & landforms,
 										 const HybridHydrologySet & hydrology,const HybridAnchorSet & anchors,
 										 const HybridTopology & topology,const HybridRouteSet & routes,
 										 HybridRouteHeightSampleFunc sample,void * context,
-										 HybridInteractionSet * out,HybridInteractionResult * result)
+										 HybridInteractionSet * out,HybridInteractionResult * result,
+										 const DynamicVectorClass<SolutionKey> * excluded,DynamicVectorClass<SolutionKey> * rejected)
 {
 
 	const HybridConstants & k = params.Constants;
@@ -4760,6 +5113,8 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 	b.Context			= context;
 	b.Out					= out;
 	b.NextStableId		= 1;
+	b.Excluded			= excluded;
+	b.Rejected			= rejected;
 	b.Clear_Rejects();
 	Collect_Interchanges(b);
 
@@ -4953,6 +5308,9 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 	//	Every crossing on the interchanges' roads is compiled: their elevations and merge/diverge records (12.6.10).
 	if (!Compile_Interchange_Elevations(b,result)) return false;
 
+	//	D-027: every structural pin of the plan Phase 12 will build, judged on the terrain grid, landed or rejected here.
+	if (!Compile_Pin_Landings(b,result)) return false;
+
 	/*
 	**	"Before the phase gate, run lightweight swept proxy validation over every compiled bridge/pass/
 	**	tunnel/overpass interval using the cached collision envelopes."
@@ -5007,11 +5365,29 @@ bool Hybrid_Build_Interactions(const HybridInteractionParams & params,const Hybr
 		result->RoadCrossings.Reset();
 	}
 
-	if (Solve_Interactions(params,identity,matrices,landforms,hydrology,anchors,topology,routes,sample,
-									context,out,result)) return true;
+	/*
+	**	D-027: a solution rejected for its structural pin is excluded and the phase solved again, deterministically, so its
+	**	own fallback order picks what replaces it.  Bounded: each run excludes at least one more solution.
+	*/
+	DynamicVectorClass<SolutionKey> excluded;
+	for (int run = 0; run <= MAX_PIN_REJECTION_RUNS; ++run) {
+		out->Reset();
+		if (result != nullptr) {
+			result->Failure			= HYBRID_INTERACTION_OK;
+			result->Detail				= "";
+			result->RerouteEdgeId	= 0;
+			result->RoadCrossings.Reset();
+		}
+		DynamicVectorClass<SolutionKey> rejected;
+		if (Solve_Interactions(params,identity,matrices,landforms,hydrology,anchors,topology,routes,sample,
+										context,out,result,&excluded,&rejected)) return true;
+		if (rejected.Count() == 0) break;
+		for (int r = 0; r < rejected.Count(); ++r) excluded.Add(rejected[r]);
+	}
 
 	out->Interactions.Delete_All();
 	out->MergeDiverge.Delete_All();
+	out->Landings.Delete_All();
 	out->Checksum = 0;
 	return false;
 }

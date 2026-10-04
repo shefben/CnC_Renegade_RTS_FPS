@@ -136,9 +136,17 @@ smoothstep, sampled at `min(W/3,A/4)`. It does not follow the terrain, which wou
 slope into the road's grade. `L_ramp` is a minimum, so the recorded length is the quantum at or above it.
 
 The deck is a registered bridge kind -- the overpass takes its structural depth and approach from it, and a
-road x road crossing no registered kind can carry is `method_unavailable`, never an invented structure. The
-deck is straight, so the upper road must run straight under all of it (`w_lower / sin(theta) + w_deck *
-|cot(theta)|` along the upper road). The ramps run along the upper road's centerline beyond the deck and may
+road x road crossing no registered kind can carry is `method_unavailable`, never an invented structure.
+
+**Deck reach (D-027).** On each side, the deck ends past where its whole width has left the lower road's actual paved
+roadbed. That roadbed is a ramp's effective asymmetric edges or a HIGHWAY_4's merge/diverge `E(x)`, read where the deck
+leaves it, with shoulders counted once inside the roadbed. Beyond that point the deck adds the upper road's
+`outer_blend + L_pin` (`Hybrid_Overpass_Deck_Allowance`), so the upper road's own ground, its blend and its structural
+landing never stand on the lower roadbed. The registered kind must span the whole extended deck, and `L_ramp`, the
+arm test, grade, cut/fill, clearance and the gore reserve are all judged on it. Phase 9's `d_Lov` carries the same
+allowance.
+
+The deck is straight, so the upper road must run straight under all of it. The ramps run along the upper road's centerline beyond the deck and may
 follow its curves. The upper road is then graded whole, as for a bridge: its realized centerline with every
 bridge and tunnel of pass one and every overpass already on it, and this deck held level at its top --
 grading the ramps alone left their feet free and accepted decks the road beyond could not climb to.
@@ -244,6 +252,30 @@ rediscovers these as road-road intersections, and never withdraws the interchang
 
   In addition, no bridge, tunnel or overpass reserve may intersect an active gore reserve. The stage-11 checksum
   includes `JunctionZ` and the merge/diverge records.
+
+## Structural pins on the terrain grid (D-027)
+
+Phase 11's last step judges the plan Phase 12 will realize, on the native terrain grid Phase 12 will deform
+(`TerrainCellSize`, `TerrainOrigin`; 0 = no grid, no judgement). It builds the plan with `Hybrid_Plan_Realization`,
+then runs Phase 12's own deformation and pin realization and Section 12.3's own criteria over the result
+(`Hybrid_Plan_Rasterization`):
+- every structural pin at 2Q, and the ground its correction moved inside cut/fill;
+- every ground sample's realized surface within the ordinary tolerance and the class cross slope;
+- every sample swept with the envelopes its road must carry.
+
+The outcomes:
+- **A failure near a pin** (within `L_pin` + 2 cells) compiles that pin's `STRUCTURAL_PIN_LANDING`
+  (`HybridInteractionSet::Landings`). The landing holds every ground road through the pin level at its frozen elevation
+  for exactly `L_pin = cell * sqrt(2)` away from the pin. A deck is never lengthened: at a deck end the landing is the
+  ground road outside it. The plan is solved and judged again with it.
+- **A pin that still fails, or a landing that leaves its road no profile,** rejects the solution the pin belongs to.
+  Phase 11 is solved again with that solution excluded, so its own order (next station, swap, next method, one more
+  envelope, fail) decides what replaces it.
+- **An interchange element** is never rerouted: its rejection fails the phase (`interchange`).
+- **A failure on ordinary roadbed** away from every pin asks for that road's one more envelope, or fails the phase
+  (`realization`).
+
+Phase 12 never meets any of these first.
 
 ## Failure
 

@@ -478,6 +478,20 @@ const char * Hybrid_Bridge_Piece_Kind_Name(HybridBridgePieceKind kind)
 }
 
 
+const char * Hybrid_Realized_Pin_Kind_Name(HybridRealizedPinKind kind)
+{
+	switch (kind) {
+		case HYBRID_PIN_LOCAL_JUNCTION:		return "local_junction";
+		case HYBRID_PIN_RAMP_GORE:				return "ramp_gore";
+		case HYBRID_PIN_JUNCTION:				return "junction";
+		case HYBRID_PIN_OVERPASS_CROSSING:	return "overpass_crossing";
+		case HYBRID_PIN_DECK_END:				return "deck_end";
+		default:										break;
+	}
+	return "unknown";
+}
+
+
 const char * Hybrid_Realization_Failure_Name(HybridRealizationFailure failure)
 {
 	switch (failure) {
@@ -495,7 +509,17 @@ void HybridRealizationPlan::Reset(void)
 {
 	Roads.Delete_All();
 	Bridges.Delete_All();
+	Pins.Delete_All();
 	Checksum = 0;
+}
+
+
+const HybridBridgeAssembly * HybridRealizationPlan::Find_Bridge(unsigned int stable_id) const
+{
+	for (int b = 0; b < Bridges.Count(); ++b) {
+		if (Bridges[b].StableId == stable_id) return &Bridges[b];
+	}
+	return nullptr;
 }
 
 
@@ -780,6 +804,42 @@ static void Add_Junction_Surface(DynamicVectorClass<HybridProfileStructure> * st
 }
 
 
+/*
+**	D-027: each compiled STRUCTURAL_PIN_LANDING on this road -- one whose pin its realized centerline passes through --
+**	held level at the pin's elevation for exactly the landing's length away from the pin on each ground side.  A deck or
+**	bore beside the pin keeps its own surface: a landing is never laid over a structure, so at a deck end it is the
+**	ground road outside the deck.
+*/
+static void Add_Landings(const HybridInteractionSet & interactions,const HybridRoute & road,int real_structures,float q,
+								 DynamicVectorClass<HybridProfileStructure> * structures)
+{
+	const float total = road.Stations[road.Stations.Count() - 1];
+	for (int l = 0; l < interactions.Landings.Count(); ++l) {
+		const HybridPinLanding & landing = interactions.Landings[l];
+		float distance = 0.0f;
+		const float station = Nearest_Station(road.Points,road.Stations,landing.Position,&distance);
+		if (distance > (2.0f * q)) continue;
+		float from = Max2(station - landing.Length,0.0f);
+		float to = Min2(station + landing.Length,total);
+		for (int s = 0; s < real_structures; ++s) {
+			const HybridProfileStructure & deck = (*structures)[s];
+			if ((deck.To <= (from + q)) || (deck.From >= (to - q))) continue;
+			if (deck.From >= (station - q)) to = Min2(to,deck.From);
+			if (deck.To <= (station + q)) from = Max2(from,deck.To);
+		}
+		if ((to - from) <= q) continue;
+		HybridProfileStructure level;
+		level.From			= from;
+		level.To				= to;
+		level.Mode			= HYBRID_PROFILE_STRUCTURE_LEVEL;
+		level.EndsFixed	= true;
+		level.StartZ		= Hybrid_Quantize_Position(landing.Z);
+		level.EndZ			= level.StartZ;
+		structures->Add(level);
+	}
+}
+
+
 //	The actual paved edges either side of one sample of a physical road (12.6.11, D-022, D-024).
 static void Sample_Edges(const HybridRealizationParams & params,const HybridTopology & topology,
 								 const HybridInteractionSet & interactions,const HybridRealizedRoad & road,
@@ -940,6 +1000,9 @@ bool Hybrid_Plan_Realization(const HybridRealizationParams & params,const Hybrid
 		const int real_structures = structures.Count();
 		const float total = road.Stations[road.Stations.Count() - 1];
 
+		//	0. D-027's compiled structural landings: Phase 11 judged the road with them, and nothing overrides them.
+		Add_Landings(interactions,road,real_structures,k.Q,&structures);
+
 		//	1. The earlier roads' surfaces wherever this road runs over their roadbeds (12.2 step 5).
 		Add_Shared_Surfaces(out->Roads,road,Hybrid_Profile_Sample_Spacing(k),k.Q,1.5f * params.TerrainCellSize,&structures);
 
@@ -1066,6 +1129,70 @@ bool Hybrid_Plan_Realization(const HybridRealizationParams & params,const Hybrid
 		out->Bridges.Add(assembly);
 	}
 
+	/*
+	**	D-026: every frozen structural point, in record order.  Each at-grade junction: an interchange local junction at
+	**	its compiled z_L, a ramp's gore at the realized highway's surface, any other at the surface of the earliest road
+	**	through it (12.2 step 5).  Each overpass crossing at its lower road's compiled surface.  Then each deck end.  A
+	**	point already pinned keeps its first pin.
+	*/
+	for (int i = 0; i < interactions.Interactions.Count(); ++i) {
+		const HybridInteraction & one = interactions.Interactions[i];
+		HybridRealizedPin pin;
+		pin.Position		= one.Station;
+		pin.InteractionId	= one.StableId;
+		if (one.Method == HYBRID_METHOD_OVERPASS) {
+			const HybridRealizedRoad * lower = out->Find_Road(one.OtherEdgeId);
+			if (lower == nullptr) continue;
+			pin.Kind			= HYBRID_PIN_OVERPASS_CROSSING;
+			pin.Z				= one.LowerSurfaceZ;
+			pin.RoadIndex	= (int)(lower - &out->Roads[0]);
+		} else if (one.Method == HYBRID_METHOD_AT_GRADE_JUNCTION) {
+			int earliest = -1;
+			for (int r = 0; (r < out->Roads.Count()) && (earliest < 0); ++r) {
+				const HybridRealizedRoad & road = out->Roads[r];
+				if (Carries_Edge(road.Edges,one.EdgeId) || ((one.OtherEdgeId != 0) && Carries_Edge(road.Edges,one.OtherEdgeId)) ||
+					 Road_Carries_Node(topology,routes,road.Edges,one.NodeId)) {
+					earliest = r;
+				}
+			}
+			if (earliest < 0) continue;
+			const HybridJunctionRole role = Hybrid_Interaction_Junction_Role(one);
+			pin.RoadIndex = earliest;
+			if (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION) {
+				pin.Kind	= HYBRID_PIN_LOCAL_JUNCTION;
+				pin.Z		= one.JunctionZ;
+			} else if ((role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE) || (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE)) {
+				const HybridRealizedRoad * highway = out->Find_Road(one.OtherEdgeId);
+				if (highway == nullptr) continue;
+				pin.Kind			= HYBRID_PIN_RAMP_GORE;
+				pin.RoadIndex	= (int)(highway - &out->Roads[0]);
+				pin.Z				= Realized_Z_At(*highway,one.Station);
+			} else {
+				pin.Kind	= HYBRID_PIN_JUNCTION;
+				pin.Z		= Realized_Z_At(out->Roads[earliest],one.Station);
+			}
+		} else {
+			continue;
+		}
+		pin.Z = Hybrid_Quantize_Position(pin.Z);
+		bool known = false;
+		for (int p = 0; (p < out->Pins.Count()) && !known; ++p) known = ((out->Pins[p].Position - pin.Position).Length() <= k.Q);
+		if (!known) out->Pins.Add(pin);
+	}
+	for (int b = 0; b < out->Bridges.Count(); ++b) {
+		const HybridBridgeAssembly & assembly = out->Bridges[b];
+		const HybridRealizedRoad * carried = out->Find_Road(assembly.EdgeId);
+		for (int end = 0; end < 2; ++end) {
+			HybridRealizedPin pin;
+			pin.Kind			= HYBRID_PIN_DECK_END;
+			pin.Position	= (end == 0) ? assembly.Start : assembly.End;
+			pin.Z				= (end == 0) ? assembly.StartZ : assembly.EndZ;
+			pin.RoadIndex	= (carried != nullptr) ? (int)(carried - &out->Roads[0]) : -1;
+			pin.AssemblyId	= assembly.StableId;
+			out->Pins.Add(pin);
+		}
+	}
+
 	out->Checksum = Hybrid_Realization_Checksum(*out);
 	return true;
 }
@@ -1124,6 +1251,17 @@ unsigned int Hybrid_Realization_Checksum(const HybridRealizationPlan & plan,unsi
 			stream.Add_Length(piece.Width);
 		}
 	}
+	stream.Add_Int(plan.Pins.Count());
+	for (int p = 0; p < plan.Pins.Count(); ++p) {
+		const HybridRealizedPin & pin = plan.Pins[p];
+		stream.Add_Int((int)pin.Kind);
+		stream.Add_Length(pin.Position.X);
+		stream.Add_Length(pin.Position.Y);
+		stream.Add_Length(pin.Z);
+		stream.Add_Int(pin.RoadIndex);
+		stream.Add_Uint(pin.AssemblyId);
+		stream.Add_Uint(pin.InteractionId);
+	}
 	return stream.Get();
 }
 
@@ -1133,13 +1271,171 @@ unsigned int Hybrid_Realization_Checksum(const HybridRealizationPlan & plan,unsi
 ***********************************************************************************************/
 
 
-bool Hybrid_Deform_Terrain(const HybridRealizationPlan & plan,const HybridConstants & k,const HybridHydrologySet * hydrology,
-									const HybridHeightGrid & grid,float * heights,HybridDeformationStats * stats)
+//	HeightfieldClass's own far-edge rule (WWMATH_EPSILON): a point on the field's last vertex line belongs to the last cell.
+static const float GRID_EDGE_EPSILON = 0.0001f;
+
+
+void Hybrid_Bridge_End_Support_Extents(const HybridRealizationPlan & plan,const HybridBridgeAssembly & assembly,int end,
+												  float * left_out,float * right_out)
 {
-	if ((heights == nullptr) || (grid.CountX <= 0) || (grid.CountY <= 0) || !(grid.Spacing > 0.0f)) return false;
-	HybridDeformationStats local;
-	HybridDeformationStats & counted = (stats != nullptr) ? *stats : local;
-	counted = HybridDeformationStats();
+	const float half = 0.5f * assembly.Width;
+	*left_out	= half;
+	*right_out	= half;
+	const HybridRealizedRoad * road = plan.Find_Road(assembly.EdgeId);
+	if ((road == nullptr) || (road->Samples.Count() < 2)) return;
+	const Vector2 from = (end == 0) ? assembly.Start : assembly.End;
+	const Vector2 to = (end == 0) ? assembly.End : assembly.Start;
+	const Vector2 axis = Unit_Vector(to - from);
+	int nearest = 0;
+	float best = 3.4e38f;
+	for (int s = 0; s < road->Samples.Count(); ++s) {
+		const float distance = (road->Samples[s].Position - from).Length();
+		if (distance >= best) continue;
+		best		= distance;
+		nearest	= s;
+	}
+	//	The road's paved edges there, left and right of its travel, turned into the frame looking into the deck.
+	const int ahead = ((nearest + 1) < road->Samples.Count()) ? (nearest + 1) : nearest;
+	const int behind = ((nearest + 1) < road->Samples.Count()) ? nearest : (nearest - 1);
+	const Vector2 travel = road->Samples[ahead].Position - road->Samples[behind].Position;
+	const bool same = (((travel.X * axis.X) + (travel.Y * axis.Y)) >= 0.0f);
+	const HybridRealizedSample & at = road->Samples[nearest];
+	*left_out	= Max2(half,same ? at.Left : at.Right);
+	*right_out	= Max2(half,same ? at.Right : at.Left);
+}
+
+
+bool Hybrid_Bridge_End_Support_Contains(const HybridBridgeAssembly & assembly,int end,float left,float right,float cell,
+													 const Vector2 & vertex)
+{
+	const Vector2 from = (end == 0) ? assembly.Start : assembly.End;
+	const Vector2 to = (end == 0) ? assembly.End : assembly.Start;
+	const Vector2 axis = Unit_Vector(to - from);
+	const Vector2 across(-axis.Y,axis.X);
+	const float reach = Min2(1.5f * cell,(to - from).Length());
+	const Vector2 offset = vertex - from;
+	const float along = (offset.X * axis.X) + (offset.Y * axis.Y);
+	if ((along < -GRID_EDGE_EPSILON) || (along > (reach + GRID_EDGE_EPSILON))) return false;
+
+	//	One of the vertex's four cells -- together the axis-aligned square of half side `cell` round it -- overlaps the
+	//	footprint rectangle: separating axes x, y, along and across.
+	const float half_along = 0.5f * reach;
+	const float half_across = 0.5f * (left + right);
+	const Vector2 d = vertex - (from + (axis * half_along) + (across * (0.5f * (left - right))));
+	const float ax = (float)fabs((double)axis.X);
+	const float ay = (float)fabs((double)axis.Y);
+	if ((float)fabs((double)d.X) > (cell + (half_along * ax) + (half_across * ay) + GRID_EDGE_EPSILON)) return false;
+	if ((float)fabs((double)d.Y) > (cell + (half_along * ay) + (half_across * ax) + GRID_EDGE_EPSILON)) return false;
+	if ((float)fabs((double)((d.X * axis.X) + (d.Y * axis.Y))) > (half_along + (cell * (ax + ay)) + GRID_EDGE_EPSILON)) return false;
+	if ((float)fabs((double)((d.X * across.X) + (d.Y * across.Y))) > (half_across + (cell * (ax + ay)) + GRID_EDGE_EPSILON)) return false;
+	return true;
+}
+
+
+static bool In_Support(const HybridRealizationPlan & plan,const HybridBridgeAssembly & assembly,int end,float cell,const Vector2 & p)
+{
+	float left = 0.0f;
+	float right = 0.0f;
+	Hybrid_Bridge_End_Support_Extents(plan,assembly,end,&left,&right);
+	return Hybrid_Bridge_End_Support_Contains(assembly,end,left,right,cell,p);
+}
+
+
+bool Hybrid_Grid_Height_At(const HybridHeightGrid & grid,const float * heights,const Vector2 & point,float * height_out,
+									int * vertices_out,float * weights_out)
+{
+	if ((heights == nullptr) || (grid.CountX < 2) || (grid.CountY < 2) || !(grid.Spacing > 0.0f)) return false;
+	const float gx = (point.X - grid.OriginX) / grid.Spacing;
+	const float gy = (point.Y - grid.OriginY) / grid.Spacing;
+	int cx = (int)::floor((double)gx);
+	int cy = (int)::floor((double)gy);
+	if ((cx == (grid.CountX - 1)) && ((gx - (float)cx) < GRID_EDGE_EPSILON)) cx--;
+	if ((cy == (grid.CountY - 1)) && ((gy - (float)cy) < GRID_EDGE_EPSILON)) cy--;
+	if ((cx < 0) || (cy < 0) || (cx >= (grid.CountX - 1)) || (cy >= (grid.CountY - 1))) return false;
+
+	const float u = Clamp3((point.X - (grid.OriginX + ((float)cx * grid.Spacing))) / grid.Spacing,0.0f,1.0f);
+	const float v = Clamp3((point.Y - (grid.OriginY + ((float)cy * grid.Spacing))) / grid.Spacing,0.0f,1.0f);
+	const int low = (cy * grid.CountX) + cx;
+	int index[3];
+	float weight[3];
+	if (u >= v) {
+		//	Below the diagonal: the low corner, the next along x, the high corner.
+		index[0] = low;		weight[0] = 1.0f - u;
+		index[1] = low + 1;	weight[1] = u - v;
+		index[2] = low + grid.CountX + 1;	weight[2] = v;
+	} else {
+		//	Above it: the low corner, the high corner, the next along y.
+		index[0] = low;		weight[0] = 1.0f - v;
+		index[1] = low + grid.CountX + 1;	weight[1] = u;
+		index[2] = low + grid.CountX;	weight[2] = v - u;
+	}
+	if (height_out != nullptr) {
+		*height_out = (heights[index[0]] * weight[0]) + (heights[index[1]] * weight[1]) + (heights[index[2]] * weight[2]);
+	}
+	for (int i = 0; i < 3; ++i) {
+		if (vertices_out != nullptr) vertices_out[i] = index[i];
+		if (weights_out != nullptr) weights_out[i] = weight[i];
+	}
+	return true;
+}
+
+
+//	The plan assembly whose deck runs between these two road samples, and which of its ends is `this_end`; -1 when none.
+static int Deck_Assembly_Of(const HybridRealizationPlan & plan,const Vector2 & this_end,const Vector2 & other_end,float tolerance,
+									 int * end_out)
+{
+	for (int b = 0; b < plan.Bridges.Count(); ++b) {
+		const HybridBridgeAssembly & assembly = plan.Bridges[b];
+		if (((assembly.Start - this_end).Length() <= tolerance) && ((assembly.End - other_end).Length() <= tolerance)) {
+			*end_out = 0;
+			return b;
+		}
+		if (((assembly.End - this_end).Length() <= tolerance) && ((assembly.Start - other_end).Length() <= tolerance)) {
+			*end_out = 1;
+			return b;
+		}
+	}
+	return -1;
+}
+
+
+//	Is this vertex under a bridge's unsupported span -- past both end support footprints, inside its deck width?
+static bool Under_Bridge_Span(const HybridRealizationPlan & plan,float cell,const Vector2 & vertex)
+{
+	for (int b = 0; b < plan.Bridges.Count(); ++b) {
+		const HybridBridgeAssembly & assembly = plan.Bridges[b];
+		if (assembly.Method != HYBRID_METHOD_BRIDGE) continue;
+		const Vector2 axis = Unit_Vector(assembly.End - assembly.Start);
+		const Vector2 offset = vertex - assembly.Start;
+		const float along = (offset.X * axis.X) + (offset.Y * axis.Y);
+		const float across = (float)fabs((double)((offset.X * -axis.Y) + (offset.Y * axis.X)));
+		const float span = (assembly.End - assembly.Start).Length();
+		if ((along > (1.5f * cell)) && (along < (span - (1.5f * cell))) && (across <= (0.5f * assembly.Width))) return true;
+	}
+	return false;
+}
+
+
+static void Claim_Support(DynamicVectorClass<HybridTerrainClaim> * claims,int vertex,unsigned int assembly_id)
+{
+	if (claims == nullptr) return;
+	for (int c = 0; c < claims->Count(); ++c) {
+		if ((*claims)[c].Vertex == vertex) return;
+	}
+	HybridTerrainClaim claim;
+	claim.Kind			= HYBRID_TERRAIN_BRIDGE_END_SUPPORT;
+	claim.Vertex		= vertex;
+	claim.AssemblyId	= assembly_id;
+	claims->Add(claim);
+}
+
+
+//	Steps 1-5 over the grid, road by road in plan order.
+static void Deform_Roads(const HybridRealizationPlan & plan,const HybridConstants & k,const HybridHydrologySet * hydrology,
+								 const HybridHeightGrid & grid,float * heights,HybridDeformationStats & counted,
+								 DynamicVectorClass<HybridTerrainClaim> * claims)
+{
+	const float deck_tolerance = 0.25f * k.W;
 
 	const float blend = Hybrid_Road_Outer_Blend_Width(k.W,k.A);
 	const int total = grid.CountX * grid.CountY;
@@ -1257,7 +1553,8 @@ bool Hybrid_Deform_Terrain(const HybridRealizationPlan & plan,const HybridConsta
 				**	structure: its samples are strictly interior and its ends are the road's own.
 				*/
 				const int index = (iy * grid.CountX) + ix;
-				bool seat_vertex = false;
+				int seat_assembly = -1;
+				int seat_end = 0;
 				if (a.Structure || b.Structure) {
 					const float foot = a.Station + ((b.Station - a.Station) * t);
 					int lo = segment[v] - 1;
@@ -1269,20 +1566,27 @@ bool Hybrid_Deform_Terrain(const HybridRealizationPlan & plan,const HybridConsta
 						counted.Structure++;
 						continue;
 					}
-					seat_vertex = true;
+					const bool near_lo = ((foot - road.Samples[lo].Station) <= (road.Samples[hi].Station - foot));
+					seat_assembly = Deck_Assembly_Of(plan,road.Samples[near_lo ? lo : hi].Position,road.Samples[near_lo ? hi : lo].Position,
+																deck_tolerance,&seat_end);
 				}
 				if (owned[index] != 0) {
 					counted.Protected++;
 					continue;
 				}
 				/*
-				**	3: no water -- except an abutment seat's own roadbed vertices.  A bank that meets the deck end inside one
-				**	grid cell would otherwise leave the road's last stretch interpolated down to the river bed; the seat is
-				**	the abutment, under the deck, and nothing of the span or of the channel beside the roadbed is touched.
+				**	3: no water -- except a deck end's own support footprint (D-026).  A bank that meets the deck end inside one
+				**	grid cell would otherwise leave the road's last stretch interpolated down to the river bed.  The terrain cells
+				**	under the end support, 1.5 cells along the deck and across its width, are structural support graded with the
+				**	road and recorded as the assembly's; the span, the channel beside the deck and the approach are untouched.
 				*/
-				if ((hydrology != nullptr) && !(seat_vertex && roadbed) && Hybrid_Point_In_Water(*hydrology,p)) {
-					counted.Water++;
-					continue;
+				if ((hydrology != nullptr) && Hybrid_Point_In_Water(*hydrology,p)) {
+					if (!roadbed || (seat_assembly < 0) ||
+						 !In_Support(plan,plan.Bridges[seat_assembly],seat_end,grid.Spacing,p)) {
+						counted.Water++;
+						continue;
+					}
+					Claim_Support(claims,index,plan.Bridges[seat_assembly].StableId);
 				}
 				const float z = a.Z + ((b.Z - a.Z) * t);
 				heights[index] = roadbed ? z : Hybrid_Road_Cross_Section_Height(distance,z,heights[index],edge,blend);
@@ -1292,5 +1596,619 @@ bool Hybrid_Deform_Terrain(const HybridRealizationPlan & plan,const HybridConsta
 		}
 		for (int m = 0; m < mine.Count(); ++m) owned[mine[m]] = 1;
 	}
+}
+
+
+/*
+**	The structural pins on the grid.  `local` (a patch round one pin, D-027's Phase-11 judgement) skips the pins whose
+**	triangle is off the patch; on the whole field a pin off it is a failure.
+*/
+static void Realize_Pins(const HybridRealizationPlan & plan,const HybridConstants & k,const HybridHydrologySet * hydrology,
+								 const HybridHeightGrid & grid,float * heights,HybridDeformationStats & counted,
+								 DynamicVectorClass<HybridTerrainClaim> * claims,bool local)
+{
+	/*
+	**	D-026: every structural pin realized exactly.  The surface under a pin is one triangle of the grid; the least change
+	**	to its vertices that puts the surface at the pin's height is a step along their weights.  Pins sharing vertices are
+	**	met together by repeating those steps (Kaczmarz), which converges to the least total change.  Water is never moved
+	**	but a deck end's own support footprint, and nothing under a bridge's unsupported span.
+	*/
+	const int pin_count = plan.Pins.Count();
+	DynamicVectorClass<int> pin_vertex;
+	DynamicVectorClass<float> pin_weight;
+	DynamicVectorClass<unsigned char> pin_moves;
+	pin_vertex.Resize(3 * pin_count);
+	pin_weight.Resize(3 * pin_count);
+	pin_moves.Resize(3 * pin_count);
+	for (int n = 0; n < pin_count; ++n) {
+		const HybridRealizedPin & pin = plan.Pins[n];
+		int vertex[3] = { -1,-1,-1 };
+		float weight[3] = { 0.0f,0.0f,0.0f };
+		unsigned char moves[3] = { 0,0,0 };
+		float ignored = 0.0f;
+		if (Hybrid_Grid_Height_At(grid,heights,pin.Position,&ignored,vertex,weight)) {
+			const HybridBridgeAssembly * assembly = (pin.Kind == HYBRID_PIN_DECK_END) ? plan.Find_Bridge(pin.AssemblyId) : nullptr;
+			const int end = ((assembly != nullptr) && ((assembly->End - pin.Position).Length() < (assembly->Start - pin.Position).Length())) ? 1 : 0;
+			for (int i = 0; i < 3; ++i) {
+				const Vector2 p(grid.OriginX + (grid.Spacing * (float)(vertex[i] % grid.CountX)),
+									 grid.OriginY + (grid.Spacing * (float)(vertex[i] / grid.CountX)));
+				bool movable = !Under_Bridge_Span(plan,grid.Spacing,p);
+				if (movable && (hydrology != nullptr) && Hybrid_Point_In_Water(*hydrology,p)) {
+					movable = (assembly != nullptr) && In_Support(plan,*assembly,end,grid.Spacing,p);
+					if (movable && (weight[i] > 0.0f)) Claim_Support(claims,vertex[i],assembly->StableId);
+				}
+				moves[i] = movable ? 1 : 0;
+			}
+		}
+		for (int i = 0; i < 3; ++i) {
+			pin_vertex.Add(vertex[i]);
+			pin_weight.Add(weight[i]);
+			pin_moves.Add(moves[i]);
+		}
+	}
+	const float target = 0.25f * k.Q;
+	float worst = 0.0f;
+	int pass = 0;
+	for (; pass < 64; ++pass) {
+		worst = 0.0f;
+		for (int n = 0; n < pin_count; ++n) {
+			if (pin_vertex[3 * n] < 0) {
+				if (!local) worst = 3.4e38f;
+				continue;
+			}
+			float surface = 0.0f;
+			float moving = 0.0f;
+			for (int i = 0; i < 3; ++i) {
+				const float w = pin_weight[(3 * n) + i];
+				surface += w * heights[pin_vertex[(3 * n) + i]];
+				if (pin_moves[(3 * n) + i] != 0) moving += w * w;
+			}
+			const float residual = plan.Pins[n].Z - surface;
+			worst = Max2(worst,(float)fabs((double)residual));
+			if (!(moving > 0.0f)) continue;
+			for (int i = 0; i < 3; ++i) {
+				if (pin_moves[(3 * n) + i] != 0) heights[pin_vertex[(3 * n) + i]] += pin_weight[(3 * n) + i] * (residual / moving);
+			}
+		}
+		if (worst <= target) break;
+	}
+	counted.Pins			= pin_count;
+	counted.PinPasses		= pass + 1;
+	counted.PinResidual	= worst;
+}
+
+
+bool Hybrid_Deform_Terrain(const HybridRealizationPlan & plan,const HybridConstants & k,const HybridHydrologySet * hydrology,
+									const HybridHeightGrid & grid,float * heights,HybridDeformationStats * stats,
+									DynamicVectorClass<HybridTerrainClaim> * claims)
+{
+	if ((heights == nullptr) || (grid.CountX <= 0) || (grid.CountY <= 0) || !(grid.Spacing > 0.0f)) return false;
+	HybridDeformationStats local;
+	HybridDeformationStats & counted = (stats != nullptr) ? *stats : local;
+	counted = HybridDeformationStats();
+	if (claims != nullptr) claims->Delete_All();
+	Deform_Roads(plan,k,hydrology,grid,heights,counted,claims);
+	Realize_Pins(plan,k,hydrology,grid,heights,counted,claims,false);
 	return true;
+}
+
+
+/***********************************************************************************************
+**	D-027 -- structural pins against the terrain grid, judged before Phase 12.
+***********************************************************************************************/
+
+float Hybrid_Realized_Surface_Tolerance(const HybridConstants & k,float cell,HybridRoadClass road_class)
+{
+	const float grade = (float)::tan((double)(Hybrid_Road_Class_Spec(road_class).MaxGradeDegrees * PI_OVER_180));
+	return (2.0f * k.Q) + (grade * cell * 1.41421356f);
+}
+
+
+float Hybrid_Realized_Grade_Limit(HybridRoadClass road_class,float base,float q)
+{
+	const float angle = (Hybrid_Road_Class_Spec(road_class).MaxGradeDegrees * PI_OVER_180) + HYBRID_QUANTUM_ANGLE;
+	return (float)::tan((double)angle) + ((2.0f * q) / Max2(base,q));
+}
+
+
+float Hybrid_Realized_Cross_Limit(HybridRoadClass road_class,float base,float q)
+{
+	return (float)::tan((double)(Hybrid_Road_Class_Spec(road_class).MaxCrossSlopeDegrees * PI_OVER_180)) +
+			 ((2.0f * q) / Max2(base,q));
+}
+
+
+/*
+**	The judgement's view of the realized world, built from the plan the way Phase 12's runtime objects are: every road's
+**	ground stretches (segments between two non-structure samples), bucketed, every road's centerline, and every deck.
+*/
+struct PinSegment
+{
+	PinSegment(void) : Road(-1),Sample(0) { }
+	bool	operator == (const PinSegment & that) const	{ return (Road == that.Road) && (Sample == that.Sample); }
+	bool	operator != (const PinSegment & that) const	{ return !(*this == that); }
+
+	int	Road;
+	int	Sample;			// the segment Samples[Sample - 1] .. Samples[Sample]
+};
+
+struct PinLine
+{
+	bool	operator == (const PinLine & that) const	{ return &Points == &that.Points; }
+	bool	operator != (const PinLine & that) const	{ return !(*this == that); }
+
+	DynamicVectorClass<Vector2>	Points;
+	DynamicVectorClass<float>		Stations;
+};
+
+struct PinWorld
+{
+	const HybridRealizationPlan *		Plan;
+	const HybridHeightGrid *			Grid;
+	const float *							Heights;
+	DynamicVectorClass<PinSegment>	Segments;
+	DynamicVectorClass<PinLine>		Lines;			// per road
+	float										BucketOriginX;
+	float										BucketOriginY;
+	float										BucketSize;
+	int										BucketsX;
+	int										BucketsY;
+	DynamicVectorClass<int>				Head;				// per bucket, into Next / Entry
+	DynamicVectorClass<int>				Next;
+	DynamicVectorClass<int>				Entry;			// into Segments
+};
+
+
+static void Pin_World_Build(PinWorld * w,float bucket)
+{
+	const HybridRealizationPlan & plan = *w->Plan;
+	Vector2 lo(3.4e38f,3.4e38f);
+	Vector2 hi(-3.4e38f,-3.4e38f);
+	float reach = 0.0f;
+	for (int r = 0; r < plan.Roads.Count(); ++r) {
+		const HybridRealizedRoad & road = plan.Roads[r];
+		PinLine line;
+		w->Lines.Add(line);
+		PinLine & added = w->Lines[w->Lines.Count() - 1];
+		for (int i = 0; i < road.Samples.Count(); ++i) {
+			const HybridRealizedSample & s = road.Samples[i];
+			added.Points.Add(s.Position);
+			added.Stations.Add(s.Station);
+			lo.Set(Min2(lo.X,s.Position.X),Min2(lo.Y,s.Position.Y));
+			hi.Set(Max2(hi.X,s.Position.X),Max2(hi.Y,s.Position.Y));
+			reach = Max2(reach,Max2(s.Left,s.Right));
+			if ((i > 0) && !road.Samples[i - 1].Structure && !s.Structure) {
+				PinSegment seg;
+				seg.Road		= r;
+				seg.Sample	= i;
+				w->Segments.Add(seg);
+			}
+		}
+	}
+	w->BucketSize		= bucket;
+	w->BucketOriginX	= lo.X - reach - bucket;
+	w->BucketOriginY	= lo.Y - reach - bucket;
+	w->BucketsX			= Max_Int((int)::ceil((double)((hi.X + reach + bucket - w->BucketOriginX) / bucket)) + 1,1);
+	w->BucketsY			= Max_Int((int)::ceil((double)((hi.Y + reach + bucket - w->BucketOriginY) / bucket)) + 1,1);
+	w->Head.Resize(w->BucketsX * w->BucketsY);
+	for (int b = 0; b < (w->BucketsX * w->BucketsY); ++b) w->Head.Add(-1);
+	for (int s = 0; s < w->Segments.Count(); ++s) {
+		const HybridRealizedRoad & road = plan.Roads[w->Segments[s].Road];
+		const HybridRealizedSample & a = road.Samples[w->Segments[s].Sample - 1];
+		const HybridRealizedSample & b = road.Samples[w->Segments[s].Sample];
+		const float extent = Max2(Max2(a.Left,a.Right),Max2(b.Left,b.Right));
+		const int x0 = Max_Int((int)::floor((double)((Min2(a.Position.X,b.Position.X) - extent - w->BucketOriginX) / bucket)),0);
+		const int y0 = Max_Int((int)::floor((double)((Min2(a.Position.Y,b.Position.Y) - extent - w->BucketOriginY) / bucket)),0);
+		const int x1 = Min_Int((int)::floor((double)((Max2(a.Position.X,b.Position.X) + extent - w->BucketOriginX) / bucket)),w->BucketsX - 1);
+		const int y1 = Min_Int((int)::floor((double)((Max2(a.Position.Y,b.Position.Y) + extent - w->BucketOriginY) / bucket)),w->BucketsY - 1);
+		for (int by = y0; by <= y1; ++by) {
+			for (int bx = x0; bx <= x1; ++bx) {
+				const int index = (by * w->BucketsX) + bx;
+				w->Next.Add(w->Head[index]);
+				w->Head[index] = w->Entry.Count();
+				w->Entry.Add(s);
+			}
+		}
+	}
+}
+
+
+//	The station and paved edges of a plan road at `station`, and its solved surface there.
+static void Pin_Plan_At(const HybridRealizedRoad & road,float station,float * z_out,float * left_out,float * right_out)
+{
+	const int count = road.Samples.Count();
+	int lo = 0;
+	int hi = count - 1;
+	while ((hi - lo) > 1) {
+		const int mid = (lo + hi) / 2;
+		if (road.Samples[mid].Station <= station) {
+			lo = mid;
+		} else {
+			hi = mid;
+		}
+	}
+	const HybridRealizedSample & a = road.Samples[lo];
+	const HybridRealizedSample & b = road.Samples[hi];
+	const float span = b.Station - a.Station;
+	const float t = (span > 0.0f) ? Clamp3((station - a.Station) / span,0.0f,1.0f) : 0.0f;
+	*z_out		= a.Z + ((b.Z - a.Z) * t);
+	*left_out	= a.Left + ((b.Left - a.Left) * t);
+	*right_out	= a.Right + ((b.Right - a.Right) * t);
+}
+
+
+/*
+**	Is `q` on some road's paved roadbed (Section 12.3's On_Paved_Road over the plan): the earliest such road and the
+**	station on it.  A segment's band between its samples, and the joint at an interior sample of a ground stretch.
+*/
+static bool Pin_Paved_Owner(const PinWorld & w,const Vector2 & q,float slack,int * owner_out,float * station_out)
+{
+	*owner_out = -1;
+	const int bx = (int)::floor((double)((q.X - w.BucketOriginX) / w.BucketSize));
+	const int by = (int)::floor((double)((q.Y - w.BucketOriginY) / w.BucketSize));
+	if ((bx < 0) || (by < 0) || (bx >= w.BucketsX) || (by >= w.BucketsY)) return false;
+	for (int e = w.Head[(by * w.BucketsX) + bx]; e >= 0; e = w.Next[e]) {
+		const PinSegment & seg = w.Segments[w.Entry[e]];
+		if ((*owner_out >= 0) && (seg.Road >= *owner_out)) continue;
+		const HybridRealizedRoad & road = w.Plan->Roads[seg.Road];
+		const HybridRealizedSample & a = road.Samples[seg.Sample - 1];
+		const HybridRealizedSample & b = road.Samples[seg.Sample];
+		const Vector2 d = b.Position - a.Position;
+		const Vector2 off = q - a.Position;
+		const float length2 = (d.X * d.X) + (d.Y * d.Y);
+		bool inside = false;
+		float station = a.Station;
+		if (length2 > 0.0f) {
+			const float t = ((off.X * d.X) + (off.Y * d.Y)) / length2;
+			if ((t >= 0.0f) && (t <= 1.0f)) {
+				const float lateral = ((d.X * off.Y) - (d.Y * off.X)) / (float)sqrt((double)length2);
+				const float left = a.Left + ((b.Left - a.Left) * t);
+				const float right = a.Right + ((b.Right - a.Right) * t);
+				inside = (lateral <= (left + slack)) && (-lateral <= (right + slack));
+				station = a.Station + ((b.Station - a.Station) * t);
+			}
+		}
+		if (!inside && (seg.Sample > 1) && !road.Samples[seg.Sample - 2].Structure) {
+			const Vector2 side(-d.Y,d.X);
+			const bool left_side = ((off.X * side.X) + (off.Y * side.Y)) >= 0.0f;
+			inside = (off.Length() <= ((left_side ? a.Left : a.Right) + slack));
+			station = a.Station;
+		}
+		if (!inside) continue;
+		*owner_out		= seg.Road;
+		*station_out	= station;
+	}
+	return (*owner_out >= 0);
+}
+
+
+//	The deck over `q`, if any (BridgeSystem::Conform_Point over the plan's assemblies): the higher of two.
+static bool Pin_Deck_At(const HybridRealizationPlan & plan,const Vector2 & q,float * z_out)
+{
+	bool found = false;
+	for (int b = 0; b < plan.Bridges.Count(); ++b) {
+		const HybridBridgeAssembly & assembly = plan.Bridges[b];
+		const Vector2 d = assembly.End - assembly.Start;
+		const float length2 = (d.X * d.X) + (d.Y * d.Y);
+		if (!(length2 > 0.0f)) continue;
+		const Vector2 off = q - assembly.Start;
+		const float t = ((off.X * d.X) + (off.Y * d.Y)) / length2;
+		if ((t < 0.0f) || (t > 1.0f)) continue;
+		const float lateral = (float)fabs((double)(((d.X * off.Y) - (d.Y * off.X)) / (float)sqrt((double)length2)));
+		if (lateral > (0.5f * assembly.Width)) continue;
+		const float z = assembly.StartZ + ((assembly.EndZ - assembly.StartZ) * t);
+		if (!found || (z > *z_out)) *z_out = z;
+		found = true;
+	}
+	return found;
+}
+
+
+//	What a vehicle expecting `expected` stands on at `q` (Section 12.3's Surface_At): a deck when nearer, the ground else.
+static bool Pin_Support(const PinWorld & w,const Vector2 & q,float expected,float * support_out)
+{
+	float ground = 0.0f;
+	if (!Hybrid_Grid_Height_At(*w.Grid,w.Heights,q,&ground)) return false;
+	*support_out = ground;
+	float deck = 0.0f;
+	if (Pin_Deck_At(*w.Plan,q,&deck) && ((float)fabs((double)(deck - expected)) <= (float)fabs((double)(ground - expected)))) {
+		*support_out = deck;
+	}
+	return true;
+}
+
+
+/*
+**	One envelope at one plan sample, exactly as Section 12.3's swept query places and judges it: placed on the roadbed
+**	midpoint, else flush with either paved edge, wholly on paved surface or a deck at the road's height; then standing
+**	on the surface it should within the ordinary tolerance, at the class grade and cross slope.
+*/
+static bool Pin_Sweep(const PinWorld & w,const HybridConstants & k,int road_index,int sample,float length,float width,
+							 StringClass * detail_out)
+{
+	const HybridRealizedRoad & road = w.Plan->Roads[road_index];
+	const PinLine & line = w.Lines[road_index];
+	const int count = road.Samples.Count();
+	const float total = road.Samples[count - 1].Station;
+	const float half_length = 0.5f * length;
+	const float half_width = 0.5f * width;
+	const float spacing = Hybrid_Profile_Sample_Spacing(k);
+	const float centre_station = Clamp3(road.Samples[sample].Station,Min2(half_length,0.5f * total),Max2(total - half_length,0.5f * total));
+	const float tolerance = Hybrid_Realized_Surface_Tolerance(k,w.Grid->Spacing,road.RoadClass);
+
+	Vector2 point[3];
+	Vector2 left[3];
+	float expected[3];
+	float left_edge[3];
+	float right_edge[3];
+	for (int a = 0; a < 3; ++a) {
+		const float at = Clamp3(centre_station + (half_length * (float)(a - 1)),0.0f,total);
+		point[a] = Hybrid_Polyline_Point_At(line.Points,line.Stations,at);
+		const Vector2 direction = Unit_Vector(Hybrid_Polyline_Point_At(line.Points,line.Stations,Min2(at + spacing,total)) -
+														  Hybrid_Polyline_Point_At(line.Points,line.Stations,Max2(at - spacing,0.0f)));
+		left[a].Set(-direction.Y,direction.X);
+		Pin_Plan_At(road,at,&expected[a],&left_edge[a],&right_edge[a]);
+	}
+
+	Vector2 q[3][3];
+	float surface[3][3];
+	float limit[3][3];
+	bool found = false;
+	for (int placement = 0; (placement < 3) && !found; ++placement) {
+		bool all = true;
+		for (int a = 0; (a < 3) && all; ++a) {
+			const float centre = (placement == 0) ? (0.5f * (left_edge[a] - right_edge[a]))
+									 : ((placement == 1) ? (left_edge[a] - half_width) : (half_width - right_edge[a]));
+			for (int b = 0; (b < 3) && all; ++b) {
+				const float offset = centre + (half_width * (float)(b - 1));
+				q[a][b] = point[a] + (left[a] * offset);
+				surface[a][b] = expected[a];
+				limit[a][b] = tolerance;
+				int owner = -1;
+				float owner_station = 0.0f;
+				const bool own = (offset <= (left_edge[a] + k.Q)) && (-offset <= (right_edge[a] + k.Q));
+				if (Pin_Paved_Owner(w,q[a][b],k.Q,&owner,&owner_station) || own) {
+					if ((owner >= 0) && (owner < road_index)) {
+						float ignored_left = 0.0f;
+						float ignored_right = 0.0f;
+						Pin_Plan_At(w.Plan->Roads[owner],owner_station,&surface[a][b],&ignored_left,&ignored_right);
+						limit[a][b] = Max2(tolerance,Hybrid_Realized_Surface_Tolerance(k,w.Grid->Spacing,w.Plan->Roads[owner].RoadClass));
+					}
+					continue;
+				}
+				float deck = 0.0f;
+				all = Pin_Deck_At(*w.Plan,q[a][b],&deck) && ((float)fabs((double)(deck - expected[a])) <= tolerance);
+			}
+		}
+		found = all;
+	}
+	if (!found) {
+		if (detail_out != nullptr) {
+			detail_out->Format("road %u: the %.2f-wide envelope leaves the paved surface at station %.2f",road.EdgeId,width,
+									 centre_station);
+		}
+		return false;
+	}
+
+	float support[3][3];
+	for (int a = 0; a < 3; ++a) {
+		for (int b = 0; b < 3; ++b) {
+			float stand = 0.0f;
+			if (!Pin_Support(w,q[a][b],surface[a][b],&stand)) {
+				if (detail_out != nullptr) detail_out->Format("road %u: the envelope leaves the terrain at station %.2f",road.EdgeId,centre_station);
+				return false;
+			}
+			const float off = stand - surface[a][b];
+			if ((float)fabs((double)off) > limit[a][b]) {
+				if (detail_out != nullptr) {
+					detail_out->Format("road %u: the envelope stands %.4f off the solved surface at (%.2f,%.2f)",road.EdgeId,off,
+											 q[a][b].X,q[a][b].Y);
+				}
+				return false;
+			}
+			support[a][b] = expected[a] + off;
+		}
+	}
+	const float grade = (float)fabs((double)(support[2][1] - support[0][1])) / Max2(length,k.Q);
+	const float cross = (float)fabs((double)(support[1][2] - support[1][0])) / Max2(width,k.Q);
+	if ((grade > Hybrid_Realized_Grade_Limit(road.RoadClass,length,k.Q)) ||
+		 (cross > Hybrid_Realized_Cross_Limit(road.RoadClass,width,k.Q))) {
+		if (detail_out != nullptr) {
+			detail_out->Format("road %u: the %.2f x %.2f envelope at station %.2f stands on a %.4f grade and a %.4f cross slope",
+									 road.EdgeId,length,width,centre_station,grade,cross);
+		}
+		return false;
+	}
+	return true;
+}
+
+
+//	One ground sample's realized surface (Section 12.3's road-surface check): centre and paved edges, and cross slope.
+static bool Pin_Road_Surface(const PinWorld & w,const HybridConstants & k,int road_index,int sample,StringClass * detail_out)
+{
+	const HybridRealizedRoad & road = w.Plan->Roads[road_index];
+	const HybridRealizedSample & s = road.Samples[sample];
+	const int ahead = ((sample + 1) < road.Samples.Count()) ? (sample + 1) : sample;
+	const int behind = (sample > 0) ? (sample - 1) : sample;
+	const Vector2 direction = Unit_Vector(road.Samples[ahead].Position - road.Samples[behind].Position);
+	const Vector2 side(-direction.Y,direction.X);
+	float departure[3];
+	for (int b = 0; b < 3; ++b) {
+		const Vector2 q = (b == 0) ? (s.Position - (side * s.Right)) : ((b == 1) ? s.Position : (s.Position + (side * s.Left)));
+		float surface = s.Z;
+		float tolerance = Hybrid_Realized_Surface_Tolerance(k,w.Grid->Spacing,road.RoadClass);
+		int owner = -1;
+		float owner_station = 0.0f;
+		if (Pin_Paved_Owner(w,q,k.Q,&owner,&owner_station) && (owner < road_index)) {
+			float ignored_left = 0.0f;
+			float ignored_right = 0.0f;
+			Pin_Plan_At(w.Plan->Roads[owner],owner_station,&surface,&ignored_left,&ignored_right);
+			tolerance = Max2(tolerance,Hybrid_Realized_Surface_Tolerance(k,w.Grid->Spacing,w.Plan->Roads[owner].RoadClass));
+		}
+		float stand = 0.0f;
+		if (!Pin_Support(w,q,surface,&stand) || ((float)fabs((double)(stand - surface)) > tolerance)) {
+			if (detail_out != nullptr) {
+				detail_out->Format("road %u's realized surface at (%.2f,%.2f) stands %.4f off its solved %.3f",road.EdgeId,q.X,q.Y,
+										 stand - surface,surface);
+			}
+			return false;
+		}
+		departure[b] = stand - surface;
+	}
+	const float width = Max2(s.Left + s.Right,k.Q);
+	const float cross = (float)fabs((double)(departure[2] - departure[0])) / width;
+	if (cross > Hybrid_Realized_Cross_Limit(road.RoadClass,width,k.Q)) {
+		if (detail_out != nullptr) {
+			detail_out->Format("road %u's roadbed at (%.2f,%.2f) is realized at a %.4f cross slope",road.EdgeId,s.Position.X,
+									 s.Position.Y,cross);
+		}
+		return false;
+	}
+	return true;
+}
+
+
+bool Hybrid_Plan_Rasterization(const HybridRealizationPlan & plan,const HybridConstants & k,const HybridHydrologySet * hydrology,
+										 const HybridHeightGrid & grid,HybridRouteHeightSampleFunc sample,void * context,float max_cut,
+										 float max_fill,const HybridPinEnvelopes & envelopes,DynamicVectorClass<HybridRasterIssue> * issues)
+{
+	if (issues != nullptr) issues->Delete_All();
+	const float cell = grid.Spacing;
+	const float near_reach = Hybrid_Pin_Landing_Length(cell) + (2.0f * cell);
+	float widest = 0.0f;
+	float longest = 0.0f;
+	for (int e = 0; e < HYBRID_ENVELOPE_COUNT; ++e) {
+		widest	= Max2(widest,envelopes.Width[e]);
+		longest	= Max2(longest,envelopes.Length[e]);
+	}
+
+	//	The patch: the field's own vertices under every road and its reach, at the heights the field holds there now.
+	Vector2 lo(3.4e38f,3.4e38f);
+	Vector2 hi(-3.4e38f,-3.4e38f);
+	for (int r = 0; r < plan.Roads.Count(); ++r) {
+		for (int i = 0; i < plan.Roads[r].Samples.Count(); ++i) {
+			const Vector2 & p = plan.Roads[r].Samples[i].Position;
+			lo.Set(Min2(lo.X,p.X),Min2(lo.Y,p.Y));
+			hi.Set(Max2(hi.X,p.X),Max2(hi.Y,p.Y));
+		}
+	}
+	for (int n = 0; n < plan.Pins.Count(); ++n) {
+		lo.Set(Min2(lo.X,plan.Pins[n].Position.X),Min2(lo.Y,plan.Pins[n].Position.Y));
+		hi.Set(Max2(hi.X,plan.Pins[n].Position.X),Max2(hi.Y,plan.Pins[n].Position.Y));
+	}
+	if (!(hi.X >= lo.X)) return true;
+	const float reach = longest + widest + Hybrid_Road_Outer_Blend_Width(k.W,k.A) + (8.0f * k.W) + (2.0f * cell);
+	HybridHeightGrid patch;
+	patch.Spacing = cell;
+	const int ix0 = (int)::floor((double)((lo.X - reach - grid.OriginX) / cell));
+	const int iy0 = (int)::floor((double)((lo.Y - reach - grid.OriginY) / cell));
+	const int ix1 = (int)::ceil((double)((hi.X + reach - grid.OriginX) / cell));
+	const int iy1 = (int)::ceil((double)((hi.Y + reach - grid.OriginY) / cell));
+	patch.OriginX	= grid.OriginX + ((float)ix0 * cell);
+	patch.OriginY	= grid.OriginY + ((float)iy0 * cell);
+	patch.CountX	= (ix1 - ix0) + 1;
+	patch.CountY	= (iy1 - iy0) + 1;
+	DynamicVectorClass<float> original;
+	original.Resize(patch.CountX * patch.CountY);
+	for (int iy = 0; iy < patch.CountY; ++iy) {
+		for (int ix = 0; ix < patch.CountX; ++ix) {
+			float z = 0.0f;
+			sample(Vector2(patch.OriginX + (cell * (float)ix),patch.OriginY + (cell * (float)iy)),&z,context);
+			original.Add(z);
+		}
+	}
+
+	//	Phase 12 exactly: the roads, then the pins.
+	DynamicVectorClass<float> heights;
+	heights.Resize(original.Count());
+	for (int v = 0; v < original.Count(); ++v) heights.Add(original[v]);
+	HybridDeformationStats stats;
+	Deform_Roads(plan,k,hydrology,patch,&heights[0],stats,nullptr);
+	DynamicVectorClass<float> raw;
+	raw.Resize(heights.Count());
+	for (int v = 0; v < heights.Count(); ++v) raw.Add(heights[v]);
+	Realize_Pins(plan,k,hydrology,patch,&heights[0],stats,nullptr,true);
+
+	bool clean = true;
+	StringClass detail;
+
+	//	Each pin: its own surface at 2Q, and the ground it moved inside cut/fill.
+	for (int n = 0; n < plan.Pins.Count(); ++n) {
+		const HybridRealizedPin & pin = plan.Pins[n];
+		const char * kind = Hybrid_Realized_Pin_Kind_Name(pin.Kind);
+		float surface = 0.0f;
+		int vertex[3] = { -1,-1,-1 };
+		float weight[3];
+		bool failed = !Hybrid_Grid_Height_At(patch,&heights[0],pin.Position,&surface,vertex,weight) ||
+						  ((float)fabs((double)(surface - pin.Z)) > (2.0f * k.Q));
+		if (failed) {
+			detail.Format("the %s pin at (%.2f,%.2f) stands %.4f off its frozen %.3f on the grid",kind,pin.Position.X,pin.Position.Y,
+							  surface - pin.Z,pin.Z);
+		}
+		for (int i = 0; (i < 3) && !failed && (vertex[i] >= 0); ++i) {
+			const int v = vertex[i];
+			if (heights[v] == raw[v]) continue;
+			if (((original[v] - heights[v]) > (max_cut + k.Q)) || ((heights[v] - original[v]) > (max_fill + k.Q))) {
+				detail.Format("the %s pin at (%.2f,%.2f) moves the ground %.3f, past its cut/fill",kind,pin.Position.X,pin.Position.Y,
+								  heights[v] - original[v]);
+				failed = true;
+			}
+		}
+		if (!failed) continue;
+		clean = false;
+		if (issues != nullptr) {
+			HybridRasterIssue issue;
+			issue.Pin		= n;
+			issue.Road		= pin.RoadIndex;
+			issue.Detail	= detail;
+			issues->Add(issue);
+		}
+	}
+
+	//	Section 12.3 over every ground sample of every road: its surface, and every envelope it must carry.
+	PinWorld w;
+	w.Plan		= &plan;
+	w.Grid		= &patch;
+	w.Heights	= &heights[0];
+	Pin_World_Build(&w,4.0f * k.W);
+	for (int r = 0; r < plan.Roads.Count(); ++r) {
+		const HybridRealizedRoad & road = plan.Roads[r];
+		bool road_reported = false;
+		for (int i = 0; i < road.Samples.Count(); ++i) {
+			if (road.Samples[i].Structure) continue;
+			StringClass why;
+			bool ok = Pin_Road_Surface(w,k,r,i,&why);
+			for (int e = 0; (e < HYBRID_ENVELOPE_COUNT) && ok; ++e) {
+				const unsigned int needs = (e == HYBRID_ENVELOPE_LIGHT) ? ~0u
+												 : ((e == HYBRID_ENVELOPE_HEAVY) ? (unsigned int)HYBRID_NAV_HEAVY : (unsigned int)HYBRID_NAV_HARVESTER);
+				if ((road.Capabilities & needs) == 0) continue;
+				if (!(envelopes.Length[e] > 0.0f) || !(envelopes.Width[e] > 0.0f)) continue;
+				ok = Pin_Sweep(w,k,r,i,envelopes.Length[e],envelopes.Width[e],&why);
+			}
+			if (ok) continue;
+			clean = false;
+			//	A failure within L_pin + 2 cells of a pin is that pin's; anywhere else it is the road's, once per road.
+			int nearest = -1;
+			float best = near_reach;
+			for (int n = 0; n < plan.Pins.Count(); ++n) {
+				const float distance = (plan.Pins[n].Position - road.Samples[i].Position).Length();
+				if (distance > best) continue;
+				best		= distance;
+				nearest	= n;
+			}
+			if ((nearest < 0) && road_reported) continue;
+			if (nearest < 0) road_reported = true;
+			if (issues != nullptr) {
+				bool known = false;
+				for (int s = 0; (s < issues->Count()) && !known; ++s) known = (nearest >= 0) && ((*issues)[s].Pin == nearest);
+				if (known) continue;
+				HybridRasterIssue issue;
+				issue.Pin		= nearest;
+				issue.Road		= r;
+				issue.Detail	= why;
+				issues->Add(issue);
+			}
+		}
+	}
+	return clean;
 }

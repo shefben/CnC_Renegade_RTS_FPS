@@ -554,6 +554,129 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-027 - Hybrid rewrite Q-027: structural pin landings, overpass deck reach, the bridge-end support footprint (2026-10-04)
+
+**Decision (user, 2026-10-04).** Q-027: pins option (A) and overpasses option (C), each refined.
+
+- **Pins.**
+  - `L_pin = native_terrain_cell * sqrt(2)`. Phase 11 first tests whether the planned surface rasterizes directly,
+    meeting the pin at 2Q, the class grade and cross slope, and cut/fill. If it does, the profile stays as it is.
+  - When the coarse grid cannot hit the frozen pin, Phase 11 compiles a `STRUCTURAL_PIN_LANDING`. It sits at the pin's
+    frozen elevation, exactly `L_pin` along each attached ground road away from the pin. Phase 11 includes it in
+    vertical feasibility, and Phase 12 realizes exactly it.
+  - A landing that makes grade or cut/fill impossible rejects the solution. Only the existing fallback, reroute and fail
+    rules follow. Phase 12 never discovers the contradiction first.
+- **Bridge deck ends.** A river or canyon deck is never lengthened to make a landing. The road-side terrain just outside
+  the deck is the landing, and the terrain under the end support is adjusted as already implemented.
+- **Overpasses.**
+  - On each side, the deck ends at least `upper_outer_blend + L_pin` past where the upper road leaves the lower road's
+    actual paved roadbed polygon (asymmetric and widened edges included, shoulders counted once).
+  - Phase 11 uses the extended deck for span, `L_ramp`, grade, cut/fill, clearance, approach reserve and gore/structure
+    conflicts, and rejects or reroutes there.
+- **Bridge-end support footprint.**
+  - **Across:** `max(actual bridge/abutment width, attached road's actual paved roadbed at the endpoint)`, shoulders
+    and asymmetric/widened edges included, never the outer blend.
+  - **Along:** at most 1.5 native cells along the deck.
+  - **Untouched:** water geometry and the open river outside it.
+
+### Implementation
+
+1. **Records.**
+   - `HybridPinLanding` is `HybridInteractionSet::Landings`, in the stage-11 checksum.
+   - The pin kinds move to `hybridinteractions.h`.
+   - The Phase-12 plan holds each landing as a level structure on every ground road through its pin, exactly `L_pin`
+     away from the pin on each ground side. It never overlays a deck or bore, so at a deck end it is the ground road
+     outside the deck.
+2. **One judgement, Phase 12's own criteria (`Hybrid_Plan_Rasterization`).** Phase 11's last step builds the very plan
+   Phase 12 will realize (`Hybrid_Plan_Realization` over the compiled records). It then runs Phase 12's own
+   deformation and pin realization over the native grid (`TerrainCellSize`/`TerrainOrigin` on the Phase-9 and
+   Phase-11 params). Over that realized surface it checks Section 12.3's criteria, through limits shared with Phase 12
+   (`Hybrid_Realized_*`):
+   - every pin at 2Q, and the ground its correction moved inside cut/fill;
+   - every ground sample's surface within the ordinary tolerance and the cross slope;
+   - every sample swept with each envelope the road requires, placed and judged as Section 12.3 places it.
+3. **Outcomes.**
+   - A failure within `L_pin` + 2 cells of a pin compiles that pin's landing, and the plan is judged again.
+   - A pin that still fails, or a landing that leaves its road no profile, rejects the solution the pin belongs to.
+     Phase 11 is solved again with that solution excluded (`SolutionKey`), so the solution's own order picks the next
+     station, the swap, the next method or a reroute.
+   - An interchange element is never rerouted: its rejection fails Phase 11 (`interchange`).
+4. **Ordinary roadbed (reading, for review).**
+   - **The finding.** On native cells, a road climbing at the class maximum across a grade change can realize a vehicle
+     grade a hair over the limit (0.2143 against 0.2140 on the falling-bank world). This is away from every pin.
+   - **The reading.** The same judgement catches it in Phase 11 and asks for that road's one more envelope (the
+     existing fallback) or fails there. Phase 12 never meets an ordinary-roadbed failure first either.
+   - **Limits.** The vehicle grade limit is Section 12.1 step 4's: class maximum + 0.001 rad, + 2Q over the base.
+     Before this the Phase-12 sweep lacked the angular quantum and refused profiles the solver itself accepts.
+5. **Overpass reach (`Overpass_Reach`).**
+   - **Exit.** Where the whole deck width leaves the lower road's actual paved roadbed, read at the exit with
+     `Paved_Edges_At`: a ramp's effective edges, or a HIGHWAY_4's merge/diverge `E(x)`. Then
+     `Hybrid_Overpass_Deck_Allowance` = outer blend + `L_pin` is added.
+   - **The deck width counts.** The exit is taken at the deck edges rather than the centerline, as the old formula's
+     `w_deck * cot` term did. On a square crossing the two are the same.
+   - **Span.** The registered kind must span the whole extended deck.
+   - **Phase 9.** `d_Lov` is `E_hwy + allowance + L_ramp_plan + l_arm`, so Phase 9's DIAMOND geometry and Phase 11's
+     deck agree.
+6. **Support footprint.**
+   - **Across.** Measured on each side, looking into the deck: `max(deck half width, the attached road's paved edge)`
+     (`Hybrid_Bridge_End_Support_Extents`).
+   - **Along.** 1.5 cells along the deck.
+   - **On the grid.** A vertex belongs when one of its cells overlaps that footprint and it is on the paved roadbed's
+     whole-cell reach.
+   - **Claims.** Every water vertex graded there is a `BRIDGE_END_SUPPORT` claim of that assembly.
+
+### Tests (controlled worlds, Phases 10-12 on one native 3.75 grid; `terrain_hybridrealization`)
+
+- **Local junction needs a landing:** a 1.5 m mound on `L_s` compiles one landing at `z_L` over 5.303. The bare plan
+  misses the pin, every road through `L_s` holds `z_L` within `L_pin`, and Section 12.3 is green.
+- **Exact gores:** no landing, and no judgement issue on them.
+- **Bridge endpoints need landings:** the river bridge's two deck ends are landed on the ground road outside a deck
+  that is exactly as compiled, and the bare plan misses both pins. Section 12.3 is green.
+- **Impossible landings:**
+  - **Bridge (falling bank, fill 4.0).** Every one of 64 stations is refused for `pin_landing`, then
+    `obligation_lost`, in Phase 11. The same world compiles the bridge with no grid.
+  - **Local junction (the mound, grid shifted a quarter cell).** The interchange is refused in Phase 11.
+- **DIAMOND overpass:** the deck reaches `E_hwy + blend + L_pin` = 22.19 each side (44.380). Both abutments are
+  landed and Section 12.3 is green. With every kind's span cut below the extended deck, Phase 11 refuses the
+  interchange.
+- **Support footprint:** the bridge-end support keeps the attached asymmetric paved roadbed (3.0 left) wider than the
+  deck (1.5). It leaves the river beyond the roadbed and under its blend, and the span, untouched, with 22 claims all
+  the assembly's.
+
+Generator identity stays 16 (no released native world).
+
+### Census r12 (1400 worlds, native 3.75 grid in Phases 9 and 11), against r11
+
+**448 / 98 / 0** (r11: 448 / 98 / 34). Phase 9 and Phase 10 are unchanged. All 34 r11-solved worlds now fail
+Phase 11:
+
+| Count | Cause |
+| --- | --- |
+| 18 | Phase 12's own profile plan refuses them (`forward_propagation_empty`) |
+| 9 | A topology/incidental junction whose pin still fails with its landing (`pin_landing`) |
+| 3 | Ordinary roadbed vehicle grade on the grid (0.142, light envelope) |
+| 3 | An overpass whose extended deck no longer fits its straight run (`turn_too_tight`) |
+| 1 | An incidental crossing |
+
+**Isolation** (same 34 worlds, r11's Phase 11 without the grid judgement, then Phase 12's plan):
+- 31 still solve Phase 11. The 3 lost are the extended overpass decks.
+- Phase 12's plan, unchanged since `863d6553`, refuses 18 of those 31: 15 at any cell size, 3 only with the native
+  1.5-cell shared-surface margin.
+
+Those 18 worlds would have failed Phase 12 in-game before D-027. D-027 only moves the failure into Phase 11, so
+Phase 12 no longer meets it first.
+
+**Cause of the 18, found here.** D-025 reading 2 holds a later road at an earlier road's surface wherever its centerline
+runs over that road's roadbed plus 1.5 terrain cells. That applies at any roadbed overlap, not only at compiled
+junctions. A road passing near, alongside or between other roads is pinned to their surfaces, metres apart: 3.2 m
+within 8.3 m, 12.6 m within 36.5 m, past every class grade. Phase 11 imposes none of this, so Phase 12 is stricter than
+Phase 11. Excluding earlier roads' deck and bore samples changes nothing (still 13 of 31 plannable). Plan 12.2 step 5
+speaks of "a road-road junction['s] ... already compiled shared junction surface", which the overlap rule exceeds.
+Recorded for the user's direction; not changed here.
+
+**Status: implemented and tested. The census shift is reported, not tuned.**
+
+
 ## D-026 - Hybrid rewrite: Section 12.3 post-realization verification on the runtime objects; the realized grid (2026-10-04)
 
 **Directive (user, 2026-10-03).** Verify the runtime objects exactly:
@@ -590,9 +713,12 @@ A discrepancy fails the attempt through the existing teardown. Nothing is repair
    `2Q + tan(class max grade) * cell * sqrt(2)`. This is the case at a grade break inside a cell, such as a deck end
    or a junction's level patch, and where two roads' surfaces meet. The tilt this puts under a vehicle must still keep
    the class grade and cross slope. Measured on the native-cell (3.75) controlled worlds:
-   - the deck-end break leaves 0.196 under the abutment;
-   - the heavy interchange's local junction leaves 0.69;
-   - no envelope is tilted past its class limits.
+   - 0.196 at a river-bridge deck end (the attachment point);
+   - 0.1385 at the heavy interchange's local junction point;
+   - 0.687 at a heavy envelope's corner on a roadbed next to that junction;
+   - no envelope tilted past its class limits.
+
+   Superseded for structural points by the 2026-10-04 ruling below.
 4. **Bridges.** Each runtime bridge is checked against both its assembly and the compiled record:
    - span against the compiled `DeckReachA + DeckReachB`;
    - every deck section at least Section 12.4's clear width for the carried road's vehicles;
@@ -630,7 +756,87 @@ A discrepancy fails the attempt through the existing teardown. Nothing is repair
 
 A mutation that turns whole cells off fails Section 12.3 on both native-cell worlds.
 
-**Status: implemented, for review** (readings 2 and 3 and the seat-over-water rule in particular).
+**Status (2026-10-04):** `ef679952` accepted. Readings 2 and 3 are amended below by the user's ruling.
+
+### Ruling (user, 2026-10-04)
+
+**Bridge-end terrain: accepted, as structural support grading, not road deformation into water.** The water-skip
+rule yields only under a bridge end's support footprint:
+- it reaches at most 1.5 native terrain cells along the deck;
+- it never touches the open river under the unsupported span, the water beside the approach, the water surface or
+  the WaterSystem polygon;
+- every vertex it changes is recorded as `BRIDGE_END_SUPPORT` terrain owned by that `BridgeAssembly`.
+
+**Height tolerance: split.**
+- **Ordinary road surface.** `2Q + tan(max_grade) * cell * sqrt(2)` applies only to ordinary roadbed between
+  structural points, and only while grade, cross slope, the vehicle sweep and continuous paving still pass.
+- **Structural pins.** At every frozen point the authoritative drivable surface matches the plan within `2Q`, never
+  relaxed by the terrain cell. The pins are:
+  - local junctions;
+  - ramp gores;
+  - bridge deck endpoints;
+  - bridge/road attachments;
+  - overpass fixed crossing elevations;
+  - shared junction surfaces.
+- Terrain beneath a bridge end may differ from the deck. The deck itself must match its compiled profile tightly.
+- The 0.69 at the heavy interchange's local junction is not accepted merely because the vehicle's grade and cross
+  slope pass.
+
+### Implementation (working tree, uncommitted pending Q-027)
+
+1. **The authoritative drivable surface.**
+   - Off a deck it is the terrain. `RoadSystem` conforms every road point to the terrain (`Conform_Road`, no grading),
+     and road meshes carry no collision ("the ground under it already does").
+   - There is no exact `RoadSystem` surface over hidden terrain, so the second resolution option does not apply.
+   - At a deck end it is the deck, and the attached road ends on it.
+2. **Pins (`HybridRealizationPlan::Pins`, in the stage checksum).** Every compiled at-grade junction is a pin, at the
+   compiled junction point:
+   - a local junction at `z_L`;
+   - a gore at the realized highway's surface;
+   - any other junction at the surface of the earliest road through it.
+
+   Every overpass crossing is a pin at its lower road's `LowerSurfaceZ`, and every deck end at its compiled height.
+3. **Pins realized.** The terrain is two triangles per cell (`HeightfieldClass::Sample_Cell`, mirrored exactly by
+   `Hybrid_Grid_Height_At`). Each pin moves the three vertices of its triangle by the least change that hits it,
+   repeated over pins sharing vertices (Kaczmarz, at most 64 passes). Water moves only inside a deck end's own
+   support footprint, and nothing moves under a bridge's span.
+4. **The support footprint (reading, for review in Q-027).**
+   - **Across.** As wide as the abutment: the wider of the deck and the attached road's paved roadbed there, since
+     the abutment carries the whole road.
+   - **Along.** 1.5 cells along the deck.
+   - **On the grid.** A vertex belongs when one of its four cells overlaps that rectangle.
+
+   With the deck's clear width alone, the attached shoulder beside water sagged 1.43.
+
+   Claims are checked by `Verify_Physical`. In the hand-made fixture they are 22 vertices, all owned by the deck.
+5. **Verification.** `Verify_Physical` checks every pin at `2Q`:
+   - the terrain at the point;
+   - the deck at a deck end;
+   - every runtime road end there.
+
+   The local-junction, gore, attachment and overpass checks in the ramp and bridge verifiers are `2Q` as well. The
+   coarse tolerance remains only for ordinary roadbed.
+
+### Measured on native 3.75 cells (Q-027)
+
+- **Before correction**, the terrain misses the pins by:
+  - `L_s`: 0.1385;
+  - river-bridge deck ends: 0.196 and 0.180;
+  - gores: 0.
+- **On a 0.15 field** the misses are 0.0017 and 0.048. The misses are the grid's.
+- **After correction**, every pin is exact, but the vehicle grade beside two of them exceeds the class limit:
+  - ramp out of `L_s`: 0.2132;
+  - bridge approach: 0.2247;
+  - limit: 0.2126.
+
+  Both roads climb at the class maximum into the grade break.
+- **Grid-support landings** (±cell·√2) fix the bridge. Applied in Phase 12 only, they refuse the heavy `SIDE_ACCESS`
+  world.
+- **Overpasses (found here, already in committed code).** Overpass deck ends stand on the lower road's paved edge,
+  because Phase 11 sizes the deck to the lower roadbed exactly. The DIAMOND deck end is 5.15 / 5.414 above the
+  terrain (3.75 / 0.25 cells), and the record-half `Verify` fails at both resolutions.
+
+**Status: accepted with the 2026-10-04 ruling; the grid conflicts it left are resolved by D-027 (Q-027).**
 
 
 

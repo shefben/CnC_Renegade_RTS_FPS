@@ -355,6 +355,28 @@ struct HybridBridgeAssembly
 };
 
 
+/*
+**	A frozen structural point (D-026): the authoritative drivable surface there -- the terrain off a deck, the deck on
+**	one -- must stand at `Z` within 2Q, never relaxed by the terrain cell size.  Ordinary roadbed between pins is held
+**	to the coarser realization tolerance.  The kinds are in hybridinteractions.h, beside the landing records.
+*/
+struct HybridRealizedPin
+{
+	HybridRealizedPin(void) :
+		Kind(HYBRID_PIN_JUNCTION),Position(0.0f,0.0f),Z(0.0f),RoadIndex(-1),AssemblyId(0),InteractionId(0) { }
+
+	bool	operator == (const HybridRealizedPin & that) const	{ return (Kind == that.Kind) && (Position == that.Position); }
+	bool	operator != (const HybridRealizedPin & that) const	{ return !(*this == that); }
+
+	HybridRealizedPinKind	Kind;
+	Vector2						Position;
+	float							Z;
+	int							RoadIndex;			// the earliest road whose surface it is; a deck end's carried road
+	unsigned int				AssemblyId;			// a deck end's BridgeAssembly, 0 otherwise
+	unsigned int				InteractionId;		// the compiled record that froze it, 0 for a deck end
+};
+
+
 struct HybridRealizationPlan
 {
 	HybridRealizationPlan(void)	{ Reset (); }
@@ -363,9 +385,11 @@ struct HybridRealizationPlan
 
 	//	The physical road carrying a logical edge, or null.
 	const HybridRealizedRoad *	Find_Road(unsigned int edge_id) const;
+	const HybridBridgeAssembly *	Find_Bridge(unsigned int stable_id) const;
 
 	DynamicVectorClass<HybridRealizedRoad>		Roads;			// routing order
 	DynamicVectorClass<HybridBridgeAssembly>	Bridges;
+	DynamicVectorClass<HybridRealizedPin>		Pins;				// every frozen structural point, in record order
 	unsigned int										Checksum;
 };
 
@@ -442,16 +466,123 @@ struct HybridHeightGrid
 
 struct HybridDeformationStats
 {
-	HybridDeformationStats(void) : Changed(0),Protected(0),Water(0),Structure(0) { }
+	HybridDeformationStats(void) : Changed(0),Protected(0),Water(0),Structure(0),Pins(0),PinPasses(0),PinResidual(0.0f) { }
 
 	int	Changed;			// vertex writes
 	int	Protected;		// left alone: an earlier road's roadbed
 	int	Water;
 	int	Structure;		// under a deck or in a bore
+	int	Pins;				// structural pins realized
+	int	PinPasses;		// correction passes they took
+	float	PinResidual;	// the largest pin residual left, grid heights
 };
 
+/*
+**	Terrain a structure owns rather than a road (D-026).  BRIDGE_END_SUPPORT is a water vertex graded as structural
+**	support under a bridge end -- never ordinary road deformation into water.
+*/
+enum HybridTerrainClaimKind
+{
+	HYBRID_TERRAIN_BRIDGE_END_SUPPORT = 0,
+};
+
+struct HybridTerrainClaim
+{
+	HybridTerrainClaim(void) : Kind(HYBRID_TERRAIN_BRIDGE_END_SUPPORT),Vertex(-1),AssemblyId(0) { }
+
+	bool	operator == (const HybridTerrainClaim & that) const	{ return Vertex == that.Vertex; }
+	bool	operator != (const HybridTerrainClaim & that) const	{ return !(*this == that); }
+
+	HybridTerrainClaimKind	Kind;
+	int						Vertex;				// row-major index into the height grid
+	unsigned int			AssemblyId;			// the BridgeAssembly that owns it
+};
+
+/*
+**	The end support footprint of a deck end (D-026): the terrain cells under the rectangle from the deck end `end`
+**	(0 Start, 1 End) 1.5 grid cells along the deck, and across it on each side the wider of the deck's half width and
+**	the attached road's actual paved roadbed there (shoulder, asymmetric and widened edges included; never its outer
+**	blend), since the abutment carries the whole road -- `left`/`right` looking into the deck.  A vertex belongs when it
+**	is no more than 1.5 cells along the deck from that end, not before it, and one of its four cells overlaps the
+**	rectangle.
+*/
+void	Hybrid_Bridge_End_Support_Extents(const HybridRealizationPlan & plan,const HybridBridgeAssembly & assembly,int end,
+												 float * left_out,float * right_out);
+bool	Hybrid_Bridge_End_Support_Contains(const HybridBridgeAssembly & assembly,int end,float left,float right,float cell,
+													  const Vector2 & vertex);
+
+/*
+**	The grid's surface at `point`, interpolated exactly as HeightfieldClass::Sample_Cell does: two triangles per cell,
+**	split on the diagonal from the low corner to the high one.  `vertices_out` / `weights_out` (3 each, optional)
+**	receive the triangle's vertex indices and their weights.
+*/
+bool	Hybrid_Grid_Height_At(const HybridHeightGrid & grid,const float * heights,const Vector2 & point,float * height_out,
+									int * vertices_out = nullptr,float * weights_out = nullptr);
+
+/*
+**	Steps 1-5 as above, then every structural pin (plan.Pins) realized exactly: the least change to the vertices of the
+**	triangle under each pin that puts the surface there at the pin's height, iterated over pins sharing vertices.  Water
+**	is never changed but a deck end's own support footprint, which `claims` (optional) records as BRIDGE_END_SUPPORT.
+*/
 bool	Hybrid_Deform_Terrain(const HybridRealizationPlan & plan,const HybridConstants & k,const HybridHydrologySet * hydrology,
-									const HybridHeightGrid & grid,float * heights,HybridDeformationStats * stats);
+									const HybridHeightGrid & grid,float * heights,HybridDeformationStats * stats,
+									DynamicVectorClass<HybridTerrainClaim> * claims = nullptr);
+
+
+/*
+**	D-026's realization limits, shared by Phase 11's pin judgement and Phase 12's verification so the two can never
+**	disagree.  Ordinary roadbed may stand off its solved surface by the slope-limited surface over one cell diagonal;
+**	a vehicle's grade over `base` may reach the class maximum plus Section 12.1 step 4's angular quantum and 2Q over the
+**	base; its cross slope over `base` the class maximum and 2Q over the base.
+*/
+float	Hybrid_Realized_Surface_Tolerance(const HybridConstants & k,float cell,HybridRoadClass road_class);
+float	Hybrid_Realized_Grade_Limit(HybridRoadClass road_class,float base,float q);
+float	Hybrid_Realized_Cross_Limit(HybridRoadClass road_class,float base,float q);
+
+//	The reference vehicles' collision envelopes Section 12.3 sweeps: light, heavy, Harvester (full extents).
+enum
+{
+	HYBRID_ENVELOPE_LIGHT = 0,
+	HYBRID_ENVELOPE_HEAVY,
+	HYBRID_ENVELOPE_HARVESTER,
+	HYBRID_ENVELOPE_COUNT
+};
+
+struct HybridPinEnvelopes
+{
+	HybridPinEnvelopes(void)	{ for (int i = 0; i < HYBRID_ENVELOPE_COUNT; ++i) { Length[i] = 0.0f; Width[i] = 0.0f; } }
+
+	float	Length[HYBRID_ENVELOPE_COUNT];
+	float	Width[HYBRID_ENVELOPE_COUNT];
+};
+
+/*
+**	D-027: can the native terrain grid realize `plan`?  Phase 11 runs Phase 12's own deformation and pin realization over
+**	a patch of `grid` under every road (vertex heights read through `sample`; the patch's counts are ignored, its origin
+**	and spacing are the field's) and judges the result exactly as Phase 12's Section 12.3 does:
+**	- every structural pin's drivable surface within 2Q, and the ground its correction moved inside cut/fill;
+**	- at every ground sample of every road, its realized surface -- centre and paved edges -- within the ordinary
+**	  tolerance of the surface it stands on (its own, or the earliest road's where roadbeds overlap) and the class cross
+**	  slope across it;
+**	- the same samples swept with every envelope the road's capabilities require, placed as Section 12.3 places them,
+**	  on paved surface or a deck, within the class grade and cross slope.
+**	Each failure is one issue: a pin's when within L_pin + 2 cells of it (`Pin` its index, once per pin), else its road's
+**	(`Pin` -1, once per road).  True when there is none.
+*/
+struct HybridRasterIssue
+{
+	HybridRasterIssue(void) : Pin(-1),Road(-1) { }
+	bool	operator == (const HybridRasterIssue & that) const	{ return (Pin == that.Pin) && (Road == that.Road); }
+	bool	operator != (const HybridRasterIssue & that) const	{ return !(*this == that); }
+
+	int				Pin;			// plan.Pins index, -1 for an ordinary roadbed failure
+	int				Road;			// plan.Roads index
+	StringClass		Detail;
+};
+
+bool	Hybrid_Plan_Rasterization(const HybridRealizationPlan & plan,const HybridConstants & k,const HybridHydrologySet * hydrology,
+										 const HybridHeightGrid & grid,HybridRouteHeightSampleFunc sample,void * context,float max_cut,
+										 float max_fill,const HybridPinEnvelopes & envelopes,DynamicVectorClass<HybridRasterIssue> * issues);
 
 
 #endif	// HYBRIDREALIZATION_H

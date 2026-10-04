@@ -429,14 +429,28 @@ Phase-12 step 3 is done (2026-10-04, D-026): Section 12.3's physical half (`Veri
 realization and in the live gate. It found and fixed two native-cell deformation defects: the whole-cell roadbed and
 abutment seats over water. All I13 live-gate items are met except the in-game run.
 
-**Next exact action:** the I13 in-game smoke, which needs the user's GUI: no command line or server path starts a
-native world, and Release builds log nothing. Steps:
-1. Main menu, Start Procedural Game.
-2. Once loaded, open the console and run `procedural_world status`.
-3. Expect `Phase 12 realized 1 time(s) ... Section 12.3 green`, with RoadSystem and BridgeSystem counts equal to the
-   stretches and assemblies.
+D-026 tightening and D-027 (Q-027 closed, 2026-10-04) are implemented:
+- 2Q structural pins and `BRIDGE_END_SUPPORT` claims;
+- Phase-11 `STRUCTURAL_PIN_LANDING`s, judged by `Hybrid_Plan_Rasterization` with Phase 12's own deformation and
+  Section-12.3 criteria;
+- impossible landings rejected through Phase 11's own order;
+- the overpass deck reaching `outer_blend + L_pin` past the lower paved roadbed;
+- the abutment-width support footprint.
 
-Then close I13 and start Phase 13's Tiberium asset inventory.
+All seven required tests pass, and the suite is 237/237.
+
+Census r12: 448 / 98 / 0 (r11 448 / 98 / 34); attribution in D-027. Eighteen of the 34 fail on a Phase-12
+planning defect that predates D-027. D-025 reading 2 pins a later road to an earlier road's surface at any roadbed
+overlap, not only at compiled junctions, so Phase 12 is stricter than Phase 11.
+
+**Next exact action:**
+1. On the user's direction, narrow D-025's shared surface to compiled junctions (Plan 12.2 step 5), or take the
+   alternative they choose.
+2. Census r13.
+3. The in-game smoke: Main menu, Start Procedural Game, then `procedural_world status`. It cannot pass before step 1:
+   no native world solves Phase 11.
+4. Close I13.
+5. Start the Phase-13 Tiberium definition/script inventory.
 
 **Deferred:** tunnel realization on the native hybrid path (user, 2026-10-03). No Phase-12 tunnel owner or adapter
 exists. To be planned as its own item.
