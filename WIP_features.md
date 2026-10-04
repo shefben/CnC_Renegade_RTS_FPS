@@ -444,14 +444,24 @@ runs Phase 12 on solved worlds. Census r13 is 448 / 98 / 0; the breakdown is in 
 plan refusals among r11's 34 are compiled-junction holds: Phase 11 judges a junction at the ground's height, one at a
 time, while Phase 12 holds it at the earlier road's surface.
 
+D-029 (2026-10-04) puts every fixed height on a road into one canonical record set, `HybridVerticalConstraint`.
+Phase 11 compiles it with the whole profile judged together, and Phase 12 consumes it unchanged. Census r14 is
+448 / 98 / 0. The old generic plan refusal is gone: every conflict now names its constraints.
+
+No world solves Phase 11, so the in-game smoke test was not possible. D-029 records three findings for the user:
+- A junction's own D-027 landing contradicts its own shared surface (7 rejections).
+- 15 of 53 overlap conflicts differ by 0.05 m or less.
+- The 51 road-crossing failures are untouched.
+
+The controlled fixture for "a landed pin still fails on the grid" no longer reaches that path. It now realizes. The
+census exercises the path 16 times.
+
 **Next exact action:**
-1. On the user's direction, make Phase 11's junction judgement use Phase 12's junction elevation (the earlier road's
-   solved surface, and neighbouring junctions together), or take the alternative they choose.
-2. Census r14.
-3. The in-game smoke: Main menu, Start Procedural Game, then `procedural_world status`. It needs a native world that
+1. Wait for the user's direction on the D-029 findings. No behavioural change before it.
+2. The in-game smoke: Main menu, Start Procedural Game, then `procedural_world status`. It needs a native world that
    solves Phase 11.
-4. Close I13.
-5. Start the Phase-13 Tiberium inventory.
+3. Close I13.
+4. Start the Phase-13 Tiberium inventory.
 
 **Deferred:** tunnel realization on the native hybrid path (user, 2026-10-03). No Phase-12 tunnel owner or adapter
 exists. To be planned as its own item.

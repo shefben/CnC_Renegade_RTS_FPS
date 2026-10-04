@@ -554,6 +554,247 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-029 - Hybrid rewrite: one canonical vertical-constraint record set, compiled in Phase 11 and consumed by Phase 12 (2026-10-04)
+
+**The mismatch (D-028's finding).** Phase 11 and Phase 12 judged junction heights differently:
+- **Phase 11** judged an at-grade or topology junction at the ground's height, one junction at a time
+  (`At_Grade_Is_Legal`, `Topology_Junction_Is_Legal`).
+- **Phase 12** held the later road at the earlier road's solved surface, with every junction and other fixed height on
+  that road acting together.
+
+D-027's post-pass re-ran Phase 12's whole plan inside Phase 11. It caught the conflict only as a generic plan refusal
+(`realization`: "Phase 12's plan cannot be realized ... forward_propagation_empty"), with a reroute request and no
+provenance. In r13 that was 19 of r11's 34 worlds.
+
+**Decision (user, 2026-10-04).**
+- **Where the representation lives.** One canonical junction-height / vertical-constraint representation. Phase 11
+  produces and evaluates it; Phase 12 consumes it unchanged. It is not a second approximation of Phase 12.
+- **Height authority.** The earlier road is the vertical authority. The junction height is its solved surface at the
+  junction station. There is no averaging, no bare-terrain fallback, no clamping, and Phase 12 never moves a junction.
+- **Reach.** `Hybrid_Junction_Arm_Reach = max(4W, class turn radius)` is kept. Incidental overlap creates no pins.
+- **One profile problem per road.** All of a road's fixed constraints are evaluated together, in station order, with no
+  distance threshold:
+  - compiled junctions;
+  - topology junctions;
+  - structural pins;
+  - deck and bridge endpoints;
+  - other fixed heights.
+- **Infeasible.** An infeasible profile is a Phase-11 failure or reroute. Nothing is averaged, softened, dropped,
+  converted or repaired.
+- **Diagnostics.** A rejection names the road, both constraints (kind, source, interaction, station, Z, owning road),
+  their separation and dz, and the required against the allowed grade or cut/fill.
+- **Frozen.** D-027 rules, the c3b18778 narrowing, the arm reach, class geometry, bridge-kind eligibility, overpass
+  policy, Phases 9-10, reroute budgets and the census corpus. The 51 crossing failures are not touched.
+
+**Implementation.**
+
+*The record.* `HybridVerticalConstraint` (hybridinteractions.h) has these fields:
+- `StableId`;
+- `RoadEdgeId` (the physical road's first logical edge);
+- `InteractionId` (the source);
+- `OwnerEdgeId` (the earlier road, for junctions and gores);
+- `Kind`;
+- `From`/`To` (the station range);
+- `Level` or carried `StartZ`/`EndZ` with `EndsFixed`;
+- `Reach`.
+
+It is frozen on `HybridInteractionSet::Constraints` with `ConstraintsCompiled`, and both are part of the set checksum.
+
+The kinds:
+- `STRUCTURE`: decks and bores;
+- `LANDING`: D-027;
+- `JUNCTION`: the earlier road's solved surface over a compiled at-grade or topology junction's footprint, sample by
+  sample through the junction point;
+- `LOCAL_JUNCTION`: `z_L`;
+- `RAMP_GORE`: the solved highway;
+- `OVERPASS_LOWER`.
+
+*Phase 11.* `Hybrid_Compile_Vertical_Constraints` (hybridrealization.cpp) is the compile half of the one plan builder,
+`Build_Plan`:
+1. It solves the physical roads in routing order.
+2. For each road it gathers that road's records and solves the whole profile once (`Hybrid_Solve_Road_Stretch`). A
+   junction is owned by the earliest road through it.
+3. Where two records overlap, they are compared over the overlap:
+   - the same height within 2Q is held once, and only the non-overlapping rest is added;
+   - any other height is an `OVERLAP` conflict.
+4. When a profile fails, `Diagnose_Profile` re-runs the forward propagation with each bound's source sample. It maps
+   both samples to their records and classifies the conflict:
+   - `GRADE`: two fixed heights;
+   - `CUT_FILL`: one fixed height against the ground interval;
+   - `GROUND`: no fixed height.
+
+Phase 11's last step, `Compile_Realization` (replacing D-027's `Compile_Pin_Landings`), runs this always, even with no
+terrain grid. On the native grid it then applies D-027's rasterization judgement to the plan those records make, and
+recompiles after each landing.
+
+On a conflict, `Profile_Conflict` rejects the later-compiled solution among the two constraints' sources through D-027's
+exclusion order. The `SolutionKey` now carries the problem: `profile_conflict`, or `pin_landing` when it was the
+solution's own landing. The phase is then re-solved. There are three other outcomes:
+- a conflict among interchange elements fails the phase;
+- a ground-only conflict asks for the road's next envelope;
+- every rejection is kept on `HybridInteractionResult::Rejections` / `RejectedSolutions`. The census prints them as
+  `P11REJECT`.
+
+*Phase 12.* `Hybrid_Plan_Realization` is the consume half of the same builder:
+- it takes each road's records exactly as frozen and derives none;
+- it refuses a set without `ConstraintsCompiled`;
+- `HybridRealizationPlan::Constraints` is the same list, field for field.
+
+Topology junctions get the same semantics: they are `AT_GRADE_JUNCTION` records carried by `NodeId`.
+
+**Behaviour change found while testing.** D-028's code dropped a junction's whole shared stretch whenever it touched a
+landing or structure. D-029 keeps the consistent rest. On D-027's quarter-cell-shifted mound, that drop was the only
+reason the landed local junction failed on the grid: the roads leaving `L_s` fell away from the earlier road's surface
+and fought it for the pin's vertices. With the surface held, the junction realizes at every grid shift from 0 to 15/16
+of a cell.
+
+That D-027 test now asserts the realization. The original assertion, a landed pin that still fails on the grid and is
+then refused, has no controlled fixture left. A pit beside `L_s` is absorbed by the roadbed fill, and a pond would change
+the routing. The refusal path itself is unchanged.
+
+**Tests (`Check_Hybrid_Profile_Parity`, plus the c3b18778 regression kept).**
+- `single_junction_surface_parity`. A 3 m spike is under the junction. The earlier road solves to 1.599 over ground
+  3.000. The later road is held at 1.599, and Phase 12's records equal Phase 11's.
+- `two_compatible_junction_constraints`. One later road crosses two earlier roads at 0.000 and 2.000, 60 apart. Both are
+  held in one profile, and the records are identical.
+- `two_incompatible_junction_constraints`. The earlier roads stand at 0 and 8, 24 apart, and each is legal alone.
+  Phase 11 rejects the later junction, naming both junction constraints, both earlier roads, and the grade
+  (0.4610 needed, 0.2126 allowed). It then rejects the overpass alternative the same way. Whatever Phase 11 accepts,
+  Phase 12 realizes.
+- `same_earlier_road_two_junctions`. One earlier road is crossed twice on a sloped ground. Each junction is held at its
+  own station's surface (-2.250 / 2.250) as two records with the same owner.
+- `junction_bridge_endpoint_conflict`. A trunk crosses a bridge road in a 4 m trench outside its approach. The
+  rejection names both constraints:
+  - the bridge's `STRUCTURE` at the deck end, z 3.000;
+  - the `JUNCTION` at z -4.000, 30.38 apart (grade 0.2304 needed, 0.2126 allowed).
+- `topology_junction_height_parity`. A shared-node junction is held at the earlier road's solved surface, with the same
+  record semantics, and the records are identical.
+
+The suite is 237/237 (client and FDS).
+
+### Census r14 (same 1400-world corpus)
+
+Phases 9 and 10 are unchanged: **448** and **98**.
+
+**Phase 11: 0 of 98 solve.** Phase 12 is reached by 0 worlds and fails in 0. No native world solves Phase 11, so the
+in-game smoke test was not possible and was not attempted.
+
+**Failure categories, all 98 worlds (mutually exclusive):**
+
+| r14 | r13 | Failure |
+| --- | --- | --- |
+| 50 | 51 | road crossing: neither junction nor overpass |
+| 22 | 9 | junction refused: `pin_landing` (D-027 grid refusals, and D-029 conflicts blamed on a solution's own landing) |
+| 15 | 0 | junction or overpass refused: `profile_conflict` (D-029 combined profile) |
+| 10 | 10 | obstruction crossing |
+| 1 | 25 | `realization`: profile infeasible with no fixed height involved (ground alone; `GROUND`) |
+| 0 | 3 | `realization`: ordinary roadbed grade on the grid |
+
+**r11's 34 solved worlds:**
+
+| r14 | r13 | Failure |
+| --- | --- | --- |
+| 19 | 8 | `pin_landing` |
+| 11 | 0 | `profile_conflict` |
+| 3 | 4 | road crossing |
+| 1 | 19 | ground-only profile (`realization`) |
+| 0 | 3 | ordinary roadbed grade |
+
+**The former 19 (r13 Phase-12 plan refusals among r11's 34):**
+- 11 now fail as `profile_conflict`:
+  - 5 are topology junctions;
+  - 6 are crossings whose junction was refused and whose overpass alternative was then refused for its own reason:
+    `method_unavailable` 3, `turn_too_tight` 2, `grade_too_steep` 1.
+- 7 now fail as `pin_landing`. The cause is either a landed pin that fails on the grid, or a D-029 conflict blamed on
+  the solution's own landing:
+  - 6 are topology junctions;
+  - 1 is a crossing whose junction was refused (`profile_conflict`) and whose overpass was refused (`pin_landing`).
+- 1 (archetype 1, seed 80) is still a profile with no fixed height involved: the road's own cut/fill bound, 6.008 deep.
+
+None now reaches the old generic refusal with a fixed height involved. Every one names its constraints.
+
+**The D-029 rejections.** 37 worlds rejected 101 solutions before their final failure: 1 rejection in 17 worlds, and
+up to 9 in one.
+
+By kind:
+
+| Count | Kind |
+| --- | --- |
+| 53 | `OVERLAP` (two holds on one stretch) |
+| 26 | `GRADE` (two fixed heights too close) |
+| 6 | `CUT_FILL` (6.07-7.59 needed, 6.0 allowed) |
+| 16 | D-027 grid refusals of a landed pin (the refusal path the controlled fixture no longer reaches) |
+
+The 53 overlaps, by height difference:
+
+| Count | Height difference |
+| --- | --- |
+| 2 | 0.01 m or less |
+| 13 | 0.05 m or less |
+| 12 | 0.25 m or less |
+| 8 | 1 m or less |
+| 18 | more than 1 m |
+
+The 53 overlaps, by the constraints involved:
+
+| Count | Constraints |
+| --- | --- |
+| 21 | junction and junction, two earlier roads |
+| 10 | landing and landing |
+| 7 | junction and landing of the **same** interaction |
+| 5 | junction and junction, one earlier road |
+| 5 | junction and structure |
+| 3 | junction and another interaction's landing |
+| 2 | junction and overpass lower surface |
+
+**Findings for the user's direction (nothing changed for them).**
+1. **A junction's own landing against its own shared surface: 7 rejections.**
+   - D-027's landing holds every ground road through the junction pin level at the pin's elevation for `L_pin`.
+   - D-029's shared surface holds the later road at the earlier road's solved surface, which slopes away from the pin
+     beyond the earlier road's own landing.
+   - D-028's code hid this by dropping the whole shared stretch wherever it touched a landing. D-029 forbids the drop,
+     so the two frozen rules now contradict each other on the same stretch.
+2. **Overlaps of millimetres to centimetres: 15 of 53 are 0.05 m or less.**
+   - Two holds on one stretch must agree within 2Q (2 mm; the solver itself pins at plus or minus Q/2).
+   - The holds are two junction stretches, or two landings, a few millimetres to centimetres apart. They are genuine
+     contradictions under the semantics, but physically small.
+3. **The 51 road-crossing failures are untouched.** The census counters below are not modified.
+
+**Road-crossing and overpass counters (reported, not modified).**
+
+The final failing attempt now differs per world, because rejections re-solve:
+
+| Counter | r14 | r13 |
+| --- | --- | --- |
+| Road meetings | 586 shared-node, 17 obligation, 253 incidental | 667, 17, 585 |
+| Failed meetings | 25 shared-node, 17 obligation, 46 incidental | 8, 17, 62 |
+
+Junction refusals:
+
+| Reason | r14 | r13 |
+| --- | --- | --- |
+| `approach_does_not_fit` | 9 | 28 |
+| `turn_too_tight` | 22 | 29 |
+| `reserve_conflict` | 3 | 3 |
+| `pin_landing` | 21 | 10 |
+| `profile_conflict` | 16 | (new) |
+
+Overpass refusals:
+
+| Reason | r14 | r13 |
+| --- | --- | --- |
+| `approach_does_not_fit` | 3 | 2 |
+| `grade_too_steep` | 5 | 2 |
+| `turn_too_tight` | 57 | 53 |
+| `method_unavailable` | 59 | 101 |
+| `pin_landing` | 1 | 0 |
+| `profile_conflict` | 1 | 0 |
+
+Reroutes: 251 requested, 97 exhausted (r13: 336, 97). Phase-11 failure codes: 74 `no_solution`,
+23 `obligation_lost`, 1 `realization` (r13: 47 / 23 / 28).
+
+**Status: implemented. Census r14 reported. Stopped for direction before any other behavioural change.**
+
 ## D-028 - Hybrid rewrite: the shared junction surface is a compiled junction's, nothing else (2026-10-04)
 
 **Decision (user, 2026-10-04).** Narrow the shared-surface rule to compiled Phase-11 junctions; this supersedes D-025
@@ -633,6 +874,9 @@ holds.
 
 D-027's post-pass catches the conflict in Phase 11 (`realization`, with a reroute request), but the junction judgement
 itself does not yet use Phase 12's elevation. Reported for the user's direction before any further change.
+
+*Resolved by D-029 (user, 2026-10-04):* one canonical vertical-constraint record set, compiled by Phase 11 with every
+fixed height on a road together, consumed unchanged by Phase 12. Census r14 is in D-029.
 
 **Status: implemented. Census r13 reported.**
 

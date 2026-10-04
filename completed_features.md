@@ -4806,6 +4806,19 @@ they need routed distance and belong to Phase 19. Evidence: ctest `terrain_hybri
 `fds_terrain_hybridanchors` green. Decisions in `docs/procedural_world/HybridAnchors.md` and
 `DECISIONS.md` D-007.
 
+## D-029: one canonical vertical-constraint record set, Phase 11 to Phase 12 (2026-10-04)
+
+Phase 11 compiles every road's fixed heights as `HybridVerticalConstraint` records
+(`Hybrid_Compile_Vertical_Constraints`) and accepts a road only when its whole profile is feasible. The fixed heights
+are decks, landings, compiled and topology junctions at the earlier road's solved surface, `z_L`, overpass lower
+surfaces and gores.
+
+A conflict names both constraints, with their separation and dz, and the grade or cut/fill needed against the allowed.
+Phase 11 rejects the later-compiled solution and re-solves. Phase 12 consumes the frozen records unchanged.
+
+Evidence: six parity tests, and Phase 12's records equal Phase 11's. The suite is 237/237. Census r14 is reported in
+D-029: 448 / 98 / 0, no world reaches Phase 12, so there is no smoke test.
+
 ## D-028: the shared junction surface is a compiled junction's only (2026-10-04)
 
 Phase 12 holds a later road at an earlier road's surface only for a compiled Phase-11 at-grade junction both carry. It

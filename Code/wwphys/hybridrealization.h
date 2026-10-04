@@ -390,6 +390,7 @@ struct HybridRealizationPlan
 	DynamicVectorClass<HybridRealizedRoad>		Roads;			// routing order
 	DynamicVectorClass<HybridBridgeAssembly>	Bridges;
 	DynamicVectorClass<HybridRealizedPin>		Pins;				// every frozen structural point, in record order
+	DynamicVectorClass<HybridVerticalConstraint>	Constraints;	// D-029: the fixed heights every road was graded with
 	unsigned int										Checksum;
 };
 
@@ -419,6 +420,50 @@ enum HybridRealizationFailure
 
 const char *	Hybrid_Realization_Failure_Name(HybridRealizationFailure failure);
 
+/*
+**	D-029: why one road's whole profile is infeasible, from its fixed-height constraints.
+**	- OVERLAP: two constraints hold one stretch at different heights.
+**	- GRADE: two constraints `Separation` apart differ by `Dz`, past the class grade.
+**	- CUT_FILL: a constraint's height cannot be graded to the road's cut/fill interval at `StationB`.
+**	- GROUND: no constraint takes part; the ground alone cannot be graded.
+**	- OTHER: the solver failed later (clamp walk, quantization).
+*/
+enum HybridConstraintConflictKind
+{
+	HYBRID_CONFLICT_NONE = 0,
+	HYBRID_CONFLICT_OVERLAP,
+	HYBRID_CONFLICT_GRADE,
+	HYBRID_CONFLICT_CUT_FILL,
+	HYBRID_CONFLICT_GROUND,
+	HYBRID_CONFLICT_OTHER,
+};
+
+struct HybridConstraintConflict
+{
+	HybridConstraintConflict(void) :
+		Kind(HYBRID_CONFLICT_NONE),RoadEdgeId(0),HasA(false),HasB(false),StationA(0.0f),StationB(0.0f),ZA(0.0f),ZB(0.0f),
+		Separation(0.0f),Dz(0.0f),RequiredGrade(0.0f),AllowedGrade(0.0f),TerrainZ(0.0f),RequiredCutFill(0.0f),
+		AllowedCutFill(0.0f) { }
+
+	HybridConstraintConflictKind	Kind;
+	unsigned int						RoadEdgeId;
+	bool									HasA;					// the earlier (or already held) side is a constraint
+	bool									HasB;					// the later side is a constraint
+	HybridVerticalConstraint		A;
+	HybridVerticalConstraint		B;
+	float									StationA;
+	float									StationB;
+	float									ZA;
+	float									ZB;
+	float									Separation;
+	float									Dz;
+	float									RequiredGrade;		// what the transition between the two sides needs
+	float									AllowedGrade;		// the class maximum
+	float									TerrainZ;			// CUT_FILL / GROUND: the ground where the road cannot reach
+	float									RequiredCutFill;	// CUT_FILL: the cut (negative) or fill (positive) it would need
+	float									AllowedCutFill;	// ...and the limit on that side
+};
+
 struct HybridRealizationResult
 {
 	HybridRealizationResult(void) : Failure(HYBRID_REALIZATION_OK),EdgeId(0),Profile(HYBRID_PROFILE_OK) { }
@@ -427,15 +472,33 @@ struct HybridRealizationResult
 	StringClass						Detail;
 	unsigned int					EdgeId;
 	HybridProfileFailure			Profile;
+	HybridConstraintConflict	Conflict;				// D-029: set when the failure is a road's fixed heights
 };
 
 
 /*
-**	Phase 12's plan.  Roads in routing order (trunks, group 1b, the rest; Hybrid_Route_Priority_Rank then
-**	StableId), each graded whole once: its compiled structures hold their own surfaces, and every junction
-**	surface it shares holds it -- an interchange local junction at z_L, a ramp's gore at the highway's compiled
-**	surface, an overpass's lower road at its compiled LowerSurfaceZ, and any other at-grade junction at the
-**	surface the road realized before it already has there.  A failure fails the attempt (Section 12).
+**	D-029: the canonical vertical constraints, compiled once.  The roads are solved in routing order (trunks, group 1b,
+**	the rest; Hybrid_Route_Priority_Rank then StableId), each graded whole once by Section 12.1 with every fixed height
+**	on it together:
+**	- its compiled decks and bores, and its D-027 landings;
+**	- at every compiled at-grade or topology junction it shares with a road solved before it, that earlier road's own
+**	  solved surface over the junction's footprint (D-028);
+**	- an interchange local junction at z_L, a ramp's gore at the highway's solved surface, an overpass's lower road at
+**	  its compiled LowerSurfaceZ.
+**	Two constraints holding one stretch at different heights are a conflict, never a choice.  `constraints_out`
+**	receives every record in compile order; `plan_out` (optional) the plan built from them.  On failure
+**	`result->Conflict` names the conflicting constraints.  Phase 11 runs this; Phase 12 never does.
+*/
+bool	Hybrid_Compile_Vertical_Constraints(const HybridRealizationParams & params,const HybridTopology & topology,
+													const HybridRouteSet & routes,const HybridInteractionSet & interactions,
+													HybridRouteHeightSampleFunc sample,void * context,
+													DynamicVectorClass<HybridVerticalConstraint> * constraints_out,
+													HybridRealizationPlan * plan_out,HybridRealizationResult * result);
+
+/*
+**	Phase 12's plan: every road graded once by Section 12.1 with exactly the constraints Phase 11 compiled
+**	(`interactions.Constraints`, consumed unchanged and kept on the plan), never a junction height of its own.  A set
+**	Phase 11 did not finish is refused.  A failure fails the attempt (Section 12).
 */
 bool	Hybrid_Plan_Realization(const HybridRealizationParams & params,const HybridTopology & topology,
 										const HybridRouteSet & routes,const HybridInteractionSet & interactions,

@@ -104,14 +104,56 @@ The deformation runs over a height grid, road by road in plan order:
 Steps 6-9 of Section 12.2 (the ditch helper if one exists, commit, realization, cleanup list) belong to the runtime
 owners.
 
+## Vertical constraints (D-029)
+
+Every fixed height on a road is one canonical record, `HybridVerticalConstraint`. Phase 11 compiles the records and
+Phase 12 consumes them unchanged:
+- **Phase 11.** `Hybrid_Compile_Vertical_Constraints` solves the roads in routing order. For each road it gathers
+  every fixed height and solves the whole profile once with all of them together:
+  - its own decks and bores (`STRUCTURE`);
+  - D-027 landings (`LANDING`);
+  - each compiled at-grade or topology junction, as the earlier road's own solved surface (`JUNCTION`);
+  - local-junction `z_L` (`LOCAL_JUNCTION`);
+  - overpass lower surfaces (`OVERPASS_LOWER`);
+  - ramp gores at the solved highway (`RAMP_GORE`).
+
+  A road's heights are accepted only when its whole profile is feasible. The records are frozen on
+  `HybridInteractionSet::Constraints` (`ConstraintsCompiled`).
+- **Phase 12.** `Hybrid_Plan_Realization` takes each road's records exactly as compiled and derives none of its own. It
+  refuses a set Phase 11 did not finish. `HybridRealizationPlan::Constraints` is the same list, field for field.
+- **Record fields.** Each record carries:
+  - the road;
+  - the source interaction;
+  - the owning earlier road (junctions and gores);
+  - the station range;
+  - the height (level, or carried between fixed ends);
+  - the arm reach;
+  - the kind.
+- **Overlaps.** Where two records overlap on one road, they are compared over the overlap:
+  - the same height within 2Q is the same surface, held once (only the non-overlapping rest is added);
+  - any other height is an `OVERLAP` conflict.
+
+  Nothing is averaged, softened, dropped or moved.
+- **Infeasible profile.** `HybridConstraintConflict` reports the conflict. The forward propagation is re-run with each
+  bound's source sample, which names the following:
+  - the road;
+  - both constraints (kind, record, interaction, owning road, station, Z);
+  - their separation and dz;
+  - the grade needed against the grade allowed, or the cut/fill needed against the cut/fill allowed.
+
+  Phase 11 then rejects the later-compiled solution among the two (`profile_conflict`; `pin_landing` when it was the
+  solution's own landing) and re-solves without it. A conflict among interchange elements fails the phase. A conflict
+  with the ground alone asks for the road's next envelope.
+
 ## Junction surfaces (12.2 step 5)
 
-A compiled road-road junction's shared patch is processed once, under the earlier road (D-028):
+A compiled road-road junction's shared patch is processed once, under the earliest road through it (D-028, D-029):
 - Only roads that both carry one compiled Phase-11 at-grade junction record share a surface.
 - The surface is shared only within that junction's footprint: each road's arm reach either side of the junction point
   (`Hybrid_Junction_Arm_Reach`, `max(4W, class turn radius)`, the arm Phase 11 reserves and grades).
 - Within it, the one stretch of the later road's centerline over the earlier road's roadbed that passes through the
-  junction point is graded to that road's realized surface, sample by sample (`Add_Shared_Surface`). Other overlaps
+  junction point is graded to that road's solved surface, sample by sample, the junction point itself among the samples
+  (`Junction_Pieces`, compiled as `JUNCTION` records). Other overlaps
   inside the window are incidental and hold nothing. The stretch runs 1.5 terrain cells past the roadbed edge,
   so the grid vertices it is interpolated from hold one surface.
 - Roads that merely overlap, run alongside or pass through another's margin share nothing; each keeps its own profile.

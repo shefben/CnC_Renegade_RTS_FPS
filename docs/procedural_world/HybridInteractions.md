@@ -253,12 +253,29 @@ rediscovers these as road-road intersections, and never withdraws the interchang
   In addition, no bridge, tunnel or overpass reserve may intersect an active gore reserve. The stage-11 checksum
   includes `JunctionZ` and the merge/diverge records.
 
+## Vertical constraints (D-029)
+
+Phase 11's last step (`Compile_Realization`) always compiles the canonical vertical constraints
+(`Hybrid_Compile_Vertical_Constraints`, see HybridRealization.md), with or without a terrain grid. Every road is solved
+in routing order with all its fixed heights together: its decks and bores, landings, each compiled at-grade or topology
+junction at the earlier road's solved surface, `z_L`, overpass lower surfaces, and gores.
+
+When the whole profile is feasible, the records are frozen on `HybridInteractionSet::Constraints`
+(`ConstraintsCompiled`), and Phase 12 consumes them unchanged. When it is not, the conflict names both constraints and
+the outcome is one of these:
+- **A rejectable solution** is involved: Phase 11 rejects the later-compiled of the two solutions behind them, recorded
+  as `profile_conflict` (or `pin_landing` for a solution's own landing), and re-solves without it. Its own order then
+  decides what replaces it.
+- **Only interchange elements** are involved: the phase fails (`interchange`).
+- **The ground alone** is involved: the road gets one more envelope, or the phase fails (`realization`).
+
+Each rejection is kept on `HybridInteractionResult::Rejections`.
+
 ## Structural pins on the terrain grid (D-027)
 
-Phase 11's last step judges the plan Phase 12 will realize, on the native terrain grid Phase 12 will deform
-(`TerrainCellSize`, `TerrainOrigin`; 0 = no grid, no judgement). It builds the plan with `Hybrid_Plan_Realization`,
-then runs Phase 12's own deformation and pin realization and Section 12.3's own criteria over the result
-(`Hybrid_Plan_Rasterization`):
+On the native terrain grid Phase 12 will deform (`TerrainCellSize`, `TerrainOrigin`; 0 = no grid, no judgement), Phase
+11 then judges the plan those constraints make. It runs Phase 12's own deformation and pin realization and Section
+12.3's own criteria over the result (`Hybrid_Plan_Rasterization`):
 - every structural pin at 2Q, and the ground its correction moved inside cut/fill;
 - every ground sample's realized surface within the ordinary tolerance and the class cross slope;
 - every sample swept with the envelopes its road must carry.
@@ -267,7 +284,7 @@ The outcomes:
 - **A failure near a pin** (within `L_pin` + 2 cells) compiles that pin's `STRUCTURAL_PIN_LANDING`
   (`HybridInteractionSet::Landings`). The landing holds every ground road through the pin level at its frozen elevation
   for exactly `L_pin = cell * sqrt(2)` away from the pin. A deck is never lengthened: at a deck end the landing is the
-  ground road outside it. The plan is solved and judged again with it.
+  ground road outside it. The constraints are compiled and judged again with it.
 - **A pin that still fails, or a landing that leaves its road no profile,** rejects the solution the pin belongs to.
   Phase 11 is solved again with that solution excluded, so its own order (next station, swap, next method, one more
   envelope, fail) decides what replaces it.

@@ -510,6 +510,7 @@ void HybridRealizationPlan::Reset(void)
 	Roads.Delete_All();
 	Bridges.Delete_All();
 	Pins.Delete_All();
+	Constraints.Delete_All();
 	Checksum = 0;
 }
 
@@ -639,14 +640,11 @@ struct JunctionSurfaceView
 {
 	Vector2								Point;
 	float									Z;
+	unsigned int						InteractionId;
 	DynamicVectorClass<int>			Roads;			// indices into the physical-road list
 	bool	operator == (const JunctionSurfaceView & that) const	{ return Point == that.Point; }
 	bool	operator != (const JunctionSurfaceView & that) const	{ return !(*this == that); }
 };
-
-
-static void Add_Junction_Surface(DynamicVectorClass<HybridProfileStructure> * structures,int real_structures,float total,
-										float station,float z,float q,float reach);
 
 
 //	Is a physical road carrying these logical edges a participant in this compiled junction record?
@@ -681,133 +679,248 @@ static bool On_Roadbed(const HybridRealizedRoad & road,const Vector2 & point,flo
 
 
 /*
-**	12.2 step 5 (D-028): a compiled road-road junction's shared patch is processed once, under the earlier road.  Inside
-**	the junction's footprint on this road -- `[window_from, window_to]`, its arm reach either side of the junction point
-**	`centre` -- the one stretch of this road's centerline over the earlier road's roadbed that passes through the junction
-**	point is graded to that road's own surface, sample by sample.  Other overlaps inside the window are incidental.  `margin` (one and a half terrain cells) carries the stretch past the earlier roadbed's edge, so every grid
-**	vertex the road's centerline is interpolated from holds the same surface.  Nothing outside a compiled junction's
-**	footprint is held: roads that merely pass near, alongside or through another's margin each keep their own profile.
+**	D-029: one road's fixed heights as they are compiled -- each a solver structure and its canonical record, in the
+**	same order -- and the conflict that stopped them, if any.  The STRUCTURE records come first.
 */
-static void Add_Shared_Surface(const HybridRealizedRoad & other,const HybridRoute & road,float window_from,float window_to,
-										 float centre,float spacing,float q,float margin,DynamicVectorClass<HybridProfileStructure> * structures)
+struct ConstraintSet
 {
-	const float total = road.Stations[road.Stations.Count() - 1];
-	window_from	= Max2(window_from,0.0f);
-	window_to	= Min2(window_to,total);
-	if ((window_to - window_from) <= q) return;
-	const int steps = Max_Int((int)::ceil((double)((window_to - window_from) / spacing)),1);
-	{
-		if (other.Samples.Count() < 2) return;
-		float reach = 0.0f;
-		Vector2 lo = other.Samples[0].Position;
-		Vector2 hi = lo;
-		for (int s = 0; s < other.Samples.Count(); ++s) {
-			reach = Max2(reach,Max2(other.Samples[s].Left,other.Samples[s].Right) + margin);
-			lo.Set(Min2(lo.X,other.Samples[s].Position.X),Min2(lo.Y,other.Samples[s].Position.Y));
-			hi.Set(Max2(hi.X,other.Samples[s].Position.X),Max2(hi.Y,other.Samples[s].Position.Y));
-		}
+	ConstraintSet(void) : RoadEdgeId(0),Q(0.0f),Real(0),Base(0),Conflict(false) { }
 
-		bool inside = false;
-		float from = 0.0f;
-		float last_inside = 0.0f;
-		for (int i = 0; i <= steps; ++i) {
-			const float at = window_from + ((window_to - window_from) * ((float)i / (float)steps));
-			const Vector2 point = Hybrid_Polyline_Point_At(road.Points,road.Stations,at);
-			const bool here = (point.X >= (lo.X - reach)) && (point.X <= (hi.X + reach)) && (point.Y >= (lo.Y - reach)) &&
-									(point.Y <= (hi.Y + reach)) && On_Roadbed(other,point,margin);
-			if (here) {
-				if (!inside) from = at;
-				last_inside = at;
-			}
-			if ((here && (i < steps)) || !inside) {
-				inside = here;
-				if (!(here && (i == steps))) continue;
-			}
-			//	A stretch over the earlier roadbed has ended (or the road has): held only when it is the junction's own, the one
-			//	through the junction point.  Any other overlap inside the window is incidental and holds nothing.
-			const float to = last_inside;
-			if ((centre < (from - spacing)) || (centre > (to + spacing))) {
-				inside = here && (i < steps);
-				continue;
-			}
-			const float z_from = Realized_Z_At(other,Hybrid_Polyline_Point_At(road.Points,road.Stations,from));
-			const float z_to = Realized_Z_At(other,Hybrid_Polyline_Point_At(road.Points,road.Stations,to));
-			inside = here && (i < steps);
-			if ((to - from) <= (2.0f * q)) {
-				Add_Junction_Surface(structures,0,total,0.5f * (from + to),0.5f * (z_from + z_to),q,q);
-				continue;
-			}
-			bool clear = true;
-			for (int s = 0; (s < structures->Count()) && clear; ++s) {
-				clear = (to < ((*structures)[s].From - q)) || (from > ((*structures)[s].To + q));
-			}
-			if (!clear) continue;
-			//	Sample by sample, so the line follows the earlier surface rather than a chord across its curve.
-			const int pieces = Max_Int((int)::ceil((double)((to - from) / spacing)),1);
-			float piece_from = from;
-			float piece_z = z_from;
-			for (int s = 1; s <= pieces; ++s) {
-				const float piece_to = (s == pieces) ? to : (from + ((to - from) * ((float)s / (float)pieces)));
-				const float piece_end_z = (s == pieces) ? z_to
-												 : Realized_Z_At(other,Hybrid_Polyline_Point_At(road.Points,road.Stations,piece_to));
-				HybridProfileStructure shared;
-				shared.From			= piece_from;
-				shared.To			= piece_to;
-				shared.Mode			= HYBRID_PROFILE_STRUCTURE_CARRIED;
-				shared.EndsFixed	= true;
-				shared.StartZ		= Hybrid_Quantize_Position(piece_z);
-				shared.EndZ			= Hybrid_Quantize_Position(piece_end_z);
-				structures->Add(shared);
-				piece_from	= piece_to;
-				piece_z		= piece_end_z;
-			}
-		}
-	}
+	DynamicVectorClass<HybridProfileStructure>		Structures;
+	DynamicVectorClass<HybridVerticalConstraint>	Records;
+	unsigned int												RoadEdgeId;
+	float															Q;
+	int															Real;
+	int															Base;					// records compiled before this road's
+	bool															Conflict;
+	HybridConstraintConflict								Clash;
+};
+
+
+static HybridProfileStructure Structure_Of(const HybridVerticalConstraint & record)
+{
+	HybridProfileStructure structure;
+	structure.From			= record.From;
+	structure.To			= record.To;
+	structure.Mode			= record.Level ? HYBRID_PROFILE_STRUCTURE_LEVEL : HYBRID_PROFILE_STRUCTURE_CARRIED;
+	structure.EndsFixed	= record.EndsFixed;
+	structure.StartZ		= record.StartZ;
+	structure.EndZ			= record.EndZ;
+	return structure;
 }
 
 
-//	A road's direction at the place nearest `point`.
-static Vector2 Road_Heading_At(const HybridRoute & road,const Vector2 & point)
+static HybridVerticalConstraint Record_Of(const HybridProfileStructure & structure,unsigned int road,HybridVerticalConstraintKind kind,
+														unsigned int interaction,unsigned int owner,float reach)
 {
-	float best = 3.4e38f;
-	Vector2 heading(1.0f,0.0f);
-	for (int i = 1; i < road.Points.Count(); ++i) {
-		const Vector2 d = road.Points[i] - road.Points[i - 1];
-		const float length2 = (d.X * d.X) + (d.Y * d.Y);
-		if (!(length2 > 0.0f)) continue;
-		float t = (((point.X - road.Points[i - 1].X) * d.X) + ((point.Y - road.Points[i - 1].Y) * d.Y)) / length2;
-		t = Clamp3(t,0.0f,1.0f);
-		const float distance = (point - (road.Points[i - 1] + (d * t))).Length();
-		if (distance >= best) continue;
-		best		= distance;
-		heading	= d * (1.0f / (float)sqrt((double)length2));
+	HybridVerticalConstraint record;
+	record.RoadEdgeId		= road;
+	record.InteractionId	= interaction;
+	record.OwnerEdgeId	= owner;
+	record.Kind				= kind;
+	record.From				= structure.From;
+	record.To				= structure.To;
+	record.Level			= (structure.Mode == HYBRID_PROFILE_STRUCTURE_LEVEL);
+	record.EndsFixed		= structure.EndsFixed;
+	record.StartZ			= structure.StartZ;
+	record.EndZ				= structure.EndZ;
+	record.Reach			= reach;
+	return record;
+}
+
+
+//	A constraint's height at `station`, when it states one: a level hold, or a carried line between pinned ends.
+static bool Constraint_Z_At(const HybridProfileStructure & s,float station,float * z_out)
+{
+	if (s.Mode == HYBRID_PROFILE_STRUCTURE_LEVEL) {
+		*z_out = s.StartZ;
+		return true;
 	}
-	return heading;
+	if (!s.EndsFixed) return false;
+	const float span = s.To - s.From;
+	const float t = (span > 0.0f) ? Clamp3((station - s.From) / span,0.0f,1.0f) : 0.0f;
+	*z_out = s.StartZ + ((s.EndZ - s.StartZ) * t);
+	return true;
 }
 
 
 /*
-**	One junction surface held on a road: a level patch `2Q` long at `station`, the shared surface the junction
-**	has there.  Section 12.1 holds every sample on it at `z` and propagates the class grade out of it.
+**	Add one constraint -- its pieces together -- to a road.  Where a piece overlaps a constraint the road already holds,
+**	the two are compared over the overlap: the same height within 2Q is the same surface held once already, and only
+**	the rest of the piece is added; any other height cannot hold with it, and is a conflict naming both.  Nothing is
+**	ever dropped silently.
 */
-static void Add_Junction_Surface(DynamicVectorClass<HybridProfileStructure> * structures,int real_structures,float total,
-											float station,float z,float q,float reach)
+static bool Constraint_Add(ConstraintSet & set,const DynamicVectorClass<HybridProfileStructure> & pieces,HybridVerticalConstraintKind kind,
+									unsigned int interaction,unsigned int owner,float reach)
 {
-	const float half = (reach > q) ? reach : q;
-	float from = station - half;
-	float to = station + half;
+	if (set.Conflict) return false;
+	const float q = set.Q;
+	for (int p = 0; p < pieces.Count(); ++p) {
+		const HybridProfileStructure & piece = pieces[p];
+
+		//	Every overlap with what is held, checked at both of its ends.
+		DynamicVectorClass<float> cut_from;
+		DynamicVectorClass<float> cut_to;
+		const int held_count = set.Structures.Count();
+		for (int e = 0; e < held_count; ++e) {
+			const HybridProfileStructure & held = set.Structures[e];
+			const float lo = Max2(piece.From,held.From);
+			const float hi = Min2(piece.To,held.To);
+			if (hi <= (lo + q)) continue;
+			const float at[2] = { lo,hi };
+			for (int k = 0; k < 2; ++k) {
+				float z_new = 0.0f;
+				float z_held = 0.0f;
+				if (!Constraint_Z_At(piece,at[k],&z_new) || !Constraint_Z_At(held,at[k],&z_held)) continue;
+				if ((float)fabs((double)(z_new - z_held)) <= (2.0f * q)) continue;
+				set.Conflict				= true;
+				set.Clash.Kind				= HYBRID_CONFLICT_OVERLAP;
+				set.Clash.RoadEdgeId		= set.RoadEdgeId;
+				set.Clash.HasA				= true;
+				set.Clash.HasB				= true;
+				set.Clash.A					= set.Records[e];
+				set.Clash.B					= Record_Of(piece,set.RoadEdgeId,kind,interaction,owner,reach);
+				set.Clash.B.StableId		= set.Base + set.Records.Count() + 1;
+				set.Clash.StationA		= at[k];
+				set.Clash.StationB		= at[k];
+				set.Clash.ZA				= z_held;
+				set.Clash.ZB				= z_new;
+				set.Clash.Dz				= (float)fabs((double)(z_new - z_held));
+				return false;
+			}
+			cut_from.Add(lo);
+			cut_to.Add(hi);
+		}
+
+		//	The rest of the piece, outside every overlap: a sweep over the overlaps in station order.
+		for (int i = 1; i < cut_from.Count(); ++i) {
+			for (int j = i; (j > 0) && (cut_from[j] < cut_from[j - 1]); --j) {
+				const float f = cut_from[j];
+				const float g = cut_to[j];
+				cut_from[j]		= cut_from[j - 1];
+				cut_to[j]		= cut_to[j - 1];
+				cut_from[j - 1]= f;
+				cut_to[j - 1]	= g;
+			}
+		}
+		float cursor = piece.From;
+		for (int c = 0; c <= cut_from.Count(); ++c) {
+			const float until = (c < cut_from.Count()) ? cut_from[c] : piece.To;
+			if (until > (cursor + q)) {
+				HybridProfileStructure rest = piece;
+				rest.From	= cursor;
+				rest.To		= until;
+				if ((rest.Mode != HYBRID_PROFILE_STRUCTURE_LEVEL) && rest.EndsFixed) {
+					Constraint_Z_At(piece,cursor,&rest.StartZ);
+					Constraint_Z_At(piece,until,&rest.EndZ);
+					rest.StartZ	= Hybrid_Quantize_Position(rest.StartZ);
+					rest.EndZ	= Hybrid_Quantize_Position(rest.EndZ);
+				}
+				HybridVerticalConstraint record = Record_Of(rest,set.RoadEdgeId,kind,interaction,owner,reach);
+				record.StableId = set.Base + set.Records.Count() + 1;
+				set.Structures.Add(rest);
+				set.Records.Add(record);
+			}
+			if (c < cut_from.Count()) cursor = Max2(cursor,cut_to[c]);
+		}
+	}
+	return true;
+}
+
+
+/*
+**	12.2 step 5 (D-028/D-029): a compiled road-road junction's shared patch, processed once under the earlier road.
+**	Inside the junction's footprint on this road -- `[window_from, window_to]`, its arm reach either side of the junction
+**	point `centre` -- the one stretch of this road's centerline over the earlier road's roadbed that passes through the
+**	junction point is held at that road's own solved surface, sample by sample, the junction point itself among the
+**	samples.  Other overlaps inside the window are incidental.  `margin` (one and a half terrain cells) carries the
+**	stretch past the earlier roadbed's edge, so every grid vertex the centerline is interpolated from holds one surface.
+*/
+static void Junction_Pieces(const HybridRealizedRoad & other,const HybridRoute & road,float window_from,float window_to,
+									 float centre,float spacing,float q,float margin,DynamicVectorClass<HybridProfileStructure> * pieces)
+{
+	pieces->Delete_All();
+	const float total = road.Stations[road.Stations.Count() - 1];
+	window_from	= Max2(window_from,0.0f);
+	window_to	= Min2(window_to,total);
+	if (((window_to - window_from) <= q) || (other.Samples.Count() < 2)) return;
+	const int steps = Max_Int((int)::ceil((double)((window_to - window_from) / spacing)),1);
+
+	//	The stretch over the earlier roadbed through the junction point.
+	float from = -1.0f;
+	float to = -1.0f;
+	bool inside = false;
+	float run_from = 0.0f;
+	for (int i = 0; i <= steps; ++i) {
+		const float at = window_from + ((window_to - window_from) * ((float)i / (float)steps));
+		const bool here = On_Roadbed(other,Hybrid_Polyline_Point_At(road.Points,road.Stations,at),margin);
+		if (here && !inside) run_from = at;
+		if (here) {
+			inside = true;
+			if ((centre >= (run_from - spacing)) && (centre <= (at + spacing))) {
+				from	= run_from;
+				to		= at;
+			}
+		} else {
+			inside = false;
+		}
+	}
+	if (from < 0.0f) return;
+	if ((to - from) <= (2.0f * q)) {
+		const float z = Realized_Z_At(other,Hybrid_Polyline_Point_At(road.Points,road.Stations,0.5f * (from + to)));
+		HybridProfileStructure level;
+		level.From			= Max2((0.5f * (from + to)) - q,0.0f);
+		level.To				= Min2((0.5f * (from + to)) + q,total);
+		level.Mode			= HYBRID_PROFILE_STRUCTURE_LEVEL;
+		level.EndsFixed	= true;
+		level.StartZ		= Hybrid_Quantize_Position(z);
+		level.EndZ			= level.StartZ;
+		pieces->Add(level);
+		return;
+	}
+
+	//	Sample by sample, the junction point among the cuts, so the line follows the earlier surface rather than a chord.
+	DynamicVectorClass<float> cuts;
+	const int count = Max_Int((int)::ceil((double)((to - from) / spacing)),1);
+	for (int s = 0; s <= count; ++s) cuts.Add((s == count) ? to : (from + ((to - from) * ((float)s / (float)count))));
+	if ((centre > (from + q)) && (centre < (to - q))) {
+		int slot = cuts.Count();
+		cuts.Add(centre);
+		while ((slot > 0) && (cuts[slot - 1] > centre)) {
+			cuts[slot] = cuts[slot - 1];
+			slot--;
+		}
+		cuts[slot] = centre;
+	}
+	for (int s = 1; s < cuts.Count(); ++s) {
+		if ((cuts[s] - cuts[s - 1]) <= q) continue;
+		HybridProfileStructure shared;
+		shared.From			= cuts[s - 1];
+		shared.To			= cuts[s];
+		shared.Mode			= HYBRID_PROFILE_STRUCTURE_CARRIED;
+		shared.EndsFixed	= true;
+		shared.StartZ		= Hybrid_Quantize_Position(Realized_Z_At(other,Hybrid_Polyline_Point_At(road.Points,road.Stations,cuts[s - 1])));
+		shared.EndZ			= Hybrid_Quantize_Position(Realized_Z_At(other,Hybrid_Polyline_Point_At(road.Points,road.Stations,cuts[s])));
+		pieces->Add(shared);
+	}
+}
+
+
+/*
+**	One junction surface held on a road: a level patch `2Q` long at `station`, the elevation the junction has there.
+**	Section 12.1 holds every sample on it at `z` and propagates the class grade out of it.
+*/
+static HybridProfileStructure Level_Patch(float total,float station,float z,float q)
+{
+	float from = station - q;
+	float to = station + q;
 	if (from < 0.0f) {
 		from	= 0.0f;
-		to		= Min2(2.0f * half,total);
+		to		= Min2(2.0f * q,total);
 	}
 	if (to > total) {
 		to		= total;
-		from	= Max2(total - (2.0f * half),0.0f);
-	}
-	//	Never over a surface the road already holds: a deck or bore holds its own, a shared patch is the earlier road's.
-	(void)real_structures;
-	for (int s = 0; s < structures->Count(); ++s) {
-		if ((to >= ((*structures)[s].From - q)) && (from <= ((*structures)[s].To + q))) return;
+		from	= Max2(total - (2.0f * q),0.0f);
 	}
 	HybridProfileStructure surface;
 	surface.From		= from;
@@ -816,7 +929,7 @@ static void Add_Junction_Surface(DynamicVectorClass<HybridProfileStructure> * st
 	surface.EndsFixed	= true;
 	surface.StartZ		= Hybrid_Quantize_Position(z);
 	surface.EndZ		= surface.StartZ;
-	structures->Add(surface);
+	return surface;
 }
 
 
@@ -826,9 +939,9 @@ static void Add_Junction_Surface(DynamicVectorClass<HybridProfileStructure> * st
 **	bore beside the pin keeps its own surface: a landing is never laid over a structure, so at a deck end it is the
 **	ground road outside the deck.
 */
-static void Add_Landings(const HybridInteractionSet & interactions,const HybridRoute & road,int real_structures,float q,
-								 DynamicVectorClass<HybridProfileStructure> * structures)
+static void Add_Landings(const HybridInteractionSet & interactions,const HybridRoute & road,ConstraintSet & set)
 {
+	const float q = set.Q;
 	const float total = road.Stations[road.Stations.Count() - 1];
 	for (int l = 0; l < interactions.Landings.Count(); ++l) {
 		const HybridPinLanding & landing = interactions.Landings[l];
@@ -837,8 +950,8 @@ static void Add_Landings(const HybridInteractionSet & interactions,const HybridR
 		if (distance > (2.0f * q)) continue;
 		float from = Max2(station - landing.Length,0.0f);
 		float to = Min2(station + landing.Length,total);
-		for (int s = 0; s < real_structures; ++s) {
-			const HybridProfileStructure & deck = (*structures)[s];
+		for (int s = 0; s < set.Real; ++s) {
+			const HybridProfileStructure & deck = set.Structures[s];
 			if ((deck.To <= (from + q)) || (deck.From >= (to - q))) continue;
 			if (deck.From >= (station - q)) to = Min2(to,deck.From);
 			if (deck.To <= (station + q)) from = Max2(from,deck.To);
@@ -851,7 +964,178 @@ static void Add_Landings(const HybridInteractionSet & interactions,const HybridR
 		level.EndsFixed	= true;
 		level.StartZ		= Hybrid_Quantize_Position(landing.Z);
 		level.EndZ			= level.StartZ;
-		structures->Add(level);
+		DynamicVectorClass<HybridProfileStructure> one;
+		one.Add(level);
+		if (!Constraint_Add(set,one,HYBRID_VCON_LANDING,landing.InteractionId,0,0.0f)) return;
+	}
+}
+
+
+//	The record whose height pins a sample at `station`, or -1.
+static int Pinning_Record(const ConstraintSet & set,float station,float z)
+{
+	int found = -1;
+	for (int r = 0; r < set.Structures.Count(); ++r) {
+		const HybridProfileStructure & s = set.Structures[r];
+		if ((station < (s.From - set.Q)) || (station > (s.To + set.Q))) continue;
+		float at = 0.0f;
+		if (!Constraint_Z_At(s,station,&at)) continue;
+		if ((float)fabs((double)(at - z)) <= (2.0f * set.Q)) return r;
+		if (found < 0) found = r;
+	}
+	return found;
+}
+
+
+/*
+**	D-029: which fixed heights, or which ground, emptied the profile.  Section 12.1's forward propagation run again,
+**	each bound remembering the sample it came from: the first sample left with no legal height has one bound from
+**	itself and the other from a sample behind it, and those two samples are the conflict.
+*/
+static void Diagnose_Profile(const DynamicVectorClass<HybridProfileSample> & samples,const ConstraintSet & set,float max_cut,
+									  float max_fill,float max_grade_radians,HybridProfileFailure failure,HybridConstraintConflict * out)
+{
+	*out = HybridConstraintConflict();
+	out->RoadEdgeId		= set.RoadEdgeId;
+	out->AllowedGrade		= (float)::tan((double)max_grade_radians);
+	out->Kind				= HYBRID_CONFLICT_OTHER;
+	const int count = samples.Count();
+	if ((failure != HYBRID_PROFILE_FORWARD_EMPTY) || (count < 2)) return;
+	const float g = out->AllowedGrade;
+	const float pin_cell = 0.5f * HYBRID_QUANTUM_POSITION;
+	DynamicVectorClass<float> own_lo;
+	DynamicVectorClass<float> own_hi;
+	for (int i = 0; i < count; ++i) {
+		const HybridProfileSample & s = samples[i];
+		if (s.Fixed) {
+			own_lo.Add(s.FixedZ - pin_cell);
+			own_hi.Add(s.FixedZ + pin_cell);
+		} else if (s.Unbounded) {
+			own_lo.Add(-1.0e9f);
+			own_hi.Add(1.0e9f);
+		} else {
+			const HybridVerticalInterval interval = Hybrid_Road_Vertical_Interval(s.TerrainZ,max_cut,max_fill);
+			own_lo.Add(interval.Low);
+			own_hi.Add(interval.High);
+		}
+	}
+	float lo = own_lo[0];
+	float hi = own_hi[0];
+	int lo_from = 0;
+	int hi_from = 0;
+	for (int i = 1; i < count; ++i) {
+		const float ds = samples[i].Station - samples[i - 1].Station;
+		if ((lo - (g * ds)) > own_lo[i]) {
+			lo -= g * ds;
+		} else {
+			lo			= own_lo[i];
+			lo_from	= i;
+		}
+		if ((hi + (g * ds)) < own_hi[i]) {
+			hi += g * ds;
+		} else {
+			hi			= own_hi[i];
+			hi_from	= i;
+		}
+		if (lo <= hi) continue;
+
+		//	The earlier sample is side A, this one side B.  Side A's bound is what reaches here.
+		const int a = (lo_from == i) ? hi_from : lo_from;
+		const int b = i;
+		const bool a_low = (lo_from != i);			// A sets the floor (a height the road cannot sink below), B the ceiling
+		const HybridProfileSample & sa = samples[a];
+		const HybridProfileSample & sb = samples[b];
+		out->StationA		= sa.Station;
+		out->StationB		= sb.Station;
+		out->Separation	= sb.Station - sa.Station;
+		out->ZA				= sa.Fixed ? sa.FixedZ : (a_low ? own_lo[a] : own_hi[a]);
+		out->ZB				= sb.Fixed ? sb.FixedZ : (a_low ? own_hi[b] : own_lo[b]);
+		out->Dz				= (float)fabs((double)(out->ZA - out->ZB));
+		out->RequiredGrade= out->Dz / Max2(out->Separation,set.Q);
+		const int ra = sa.Fixed ? Pinning_Record(set,sa.Station,sa.FixedZ) : -1;
+		const int rb = sb.Fixed ? Pinning_Record(set,sb.Station,sb.FixedZ) : -1;
+		out->HasA = (ra >= 0);
+		out->HasB = (rb >= 0);
+		if (out->HasA) out->A = set.Records[ra];
+		if (out->HasB) out->B = set.Records[rb];
+		if (out->HasA && out->HasB) {
+			out->Kind = HYBRID_CONFLICT_GRADE;
+		} else if (out->HasA || out->HasB) {
+			out->Kind = HYBRID_CONFLICT_CUT_FILL;
+			//	The ground side: where the fixed height's reach and the cut/fill interval part.
+			const HybridProfileSample & ground = out->HasA ? sb : sa;
+			const float pinned = out->HasA ? out->ZA : out->ZB;
+			out->TerrainZ = ground.TerrainZ;
+			if (pinned > ground.TerrainZ) {
+				out->RequiredCutFill	= (pinned - (g * out->Separation)) - ground.TerrainZ;
+				out->AllowedCutFill	= max_fill;
+			} else {
+				out->RequiredCutFill	= (pinned + (g * out->Separation)) - ground.TerrainZ;
+				out->AllowedCutFill	= -max_cut;
+			}
+		} else {
+			out->Kind		= HYBRID_CONFLICT_GROUND;
+			out->TerrainZ	= sb.TerrainZ;
+		}
+		return;
+	}
+}
+
+
+//	A conflict, read aloud: the road, both sides with their provenance, and the blocker.
+static void Describe_Side(const HybridConstraintConflict & c,bool side_a,StringClass * out)
+{
+	const bool has = side_a ? c.HasA : c.HasB;
+	const HybridVerticalConstraint & record = side_a ? c.A : c.B;
+	const float station = side_a ? c.StationA : c.StationB;
+	const float z = side_a ? c.ZA : c.ZB;
+	if (!has) {
+		out->Format("the road's own cut/fill bound %.3f at station %.2f",z,station);
+		return;
+	}
+	if (record.OwnerEdgeId != 0) {
+		out->Format("%s constraint %u (interaction %u, earlier road %u, stations %.2f..%.2f) at station %.2f z %.3f",
+						Hybrid_Vertical_Constraint_Kind_Name(record.Kind),record.StableId,record.InteractionId,record.OwnerEdgeId,
+						record.From,record.To,station,z);
+	} else {
+		out->Format("%s constraint %u (interaction %u, stations %.2f..%.2f) at station %.2f z %.3f",
+						Hybrid_Vertical_Constraint_Kind_Name(record.Kind),record.StableId,record.InteractionId,record.From,record.To,
+						station,z);
+	}
+}
+
+
+static void Describe_Conflict(const HybridConstraintConflict & c,HybridRoadClass road_class,HybridProfileFailure failure,StringClass * out)
+{
+	StringClass a;
+	StringClass b;
+	Describe_Side(c,true,&a);
+	Describe_Side(c,false,&b);
+	switch (c.Kind) {
+		case HYBRID_CONFLICT_OVERLAP:
+			out->Format("road %u (%s): %s and %s hold one stretch %.3f apart",c.RoadEdgeId,Hybrid_Road_Class_Name(road_class),
+							a.Peek_Buffer(),b.Peek_Buffer(),c.Dz);
+			break;
+		case HYBRID_CONFLICT_GRADE:
+			out->Format("road %u (%s): %s and %s are %.2f apart and %.3f apart in height: grade %.4f needed, %.4f allowed",
+							c.RoadEdgeId,Hybrid_Road_Class_Name(road_class),a.Peek_Buffer(),b.Peek_Buffer(),c.Separation,c.Dz,
+							c.RequiredGrade,c.AllowedGrade);
+			break;
+		case HYBRID_CONFLICT_CUT_FILL:
+			out->Format("road %u (%s): %s and %s are %.2f apart: over ground %.3f the road would need %s %.3f, %.3f allowed "
+							"(grade %.4f needed, %.4f allowed)",c.RoadEdgeId,Hybrid_Road_Class_Name(road_class),a.Peek_Buffer(),
+							b.Peek_Buffer(),c.Separation,c.TerrainZ,(c.RequiredCutFill >= 0.0f) ? "fill" : "cut",
+							(float)fabs((double)c.RequiredCutFill),(float)fabs((double)c.AllowedCutFill),c.RequiredGrade,c.AllowedGrade);
+			break;
+		case HYBRID_CONFLICT_GROUND:
+			out->Format("road %u (%s): no fixed height takes part: %s and %s are %.2f apart and %.3f apart in height (grade %.4f "
+							"needed, %.4f allowed)",c.RoadEdgeId,Hybrid_Road_Class_Name(road_class),a.Peek_Buffer(),b.Peek_Buffer(),
+							c.Separation,c.Dz,c.RequiredGrade,c.AllowedGrade);
+			break;
+		default:
+			out->Format("road %u (%s): Section 12.1 refuses it: %s",c.RoadEdgeId,Hybrid_Road_Class_Name(road_class),
+							Hybrid_Profile_Failure_Name(failure));
+			break;
 	}
 }
 
@@ -931,22 +1215,33 @@ static void Sample_Edges(const HybridRealizationParams & params,const HybridTopo
 }
 
 
-bool Hybrid_Plan_Realization(const HybridRealizationParams & params,const HybridTopology & topology,
-									  const HybridRouteSet & routes,const HybridInteractionSet & interactions,
-									  HybridRouteHeightSampleFunc sample,void * context,HybridRealizationPlan * out,
-									  HybridRealizationResult * result)
+/*
+**	The plan, both ways (D-029).  `compile` true: Phase 11 -- every road's constraints derived from the compiled records
+**	and the roads solved before it, conflicts diagnosed.  False: Phase 12 -- every road's constraints taken unchanged
+**	from `interactions.Constraints`, nothing derived.  Each road is solved once with exactly its constraints.
+*/
+static bool Build_Plan(const HybridRealizationParams & params,const HybridTopology & topology,const HybridRouteSet & routes,
+							  const HybridInteractionSet & interactions,HybridRouteHeightSampleFunc sample,void * context,bool compile,
+							  DynamicVectorClass<HybridVerticalConstraint> * constraints_out,HybridRealizationPlan * out,
+							  HybridRealizationResult * result)
 {
 	if (result != nullptr) {
 		result->Failure	= HYBRID_REALIZATION_OK;
 		result->Detail		= "";
 		result->EdgeId		= 0;
 		result->Profile	= HYBRID_PROFILE_OK;
+		result->Conflict	= HybridConstraintConflict();
 	}
 	if (out == nullptr) return false;
 	out->Reset();
+	if (constraints_out != nullptr) constraints_out->Delete_All();
 	const HybridConstants & k = params.Constants;
 	if ((sample == nullptr) || !(k.W > 0.0f) || !(k.A > 0.0f)) {
 		return Realization_Fail(result,HYBRID_REALIZATION_INVALID_INPUT,0,"Phase 12 needs the world constants and the terrain");
+	}
+	if (!compile && !interactions.ConstraintsCompiled) {
+		return Realization_Fail(result,HYBRID_REALIZATION_INVALID_INPUT,0,
+										"Phase 11 compiled no vertical constraints: Phase 12 derives none of its own (D-029)");
 	}
 
 	//	The physical roads, in routing order: a trunk once, by its first logical edge.
@@ -990,13 +1285,14 @@ bool Hybrid_Plan_Realization(const HybridRealizationParams & params,const Hybrid
 
 	//	Every interchange local junction's compiled z_L, and the roads through it.
 	DynamicVectorClass<JunctionSurfaceView> surfaces;
-	for (int i = 0; i < interactions.Interactions.Count(); ++i) {
+	for (int i = 0; compile && (i < interactions.Interactions.Count()); ++i) {
 		const HybridInteraction & one = interactions.Interactions[i];
 		if ((one.Method != HYBRID_METHOD_AT_GRADE_JUNCTION) ||
 			 (Hybrid_Interaction_Junction_Role(one) != HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION)) continue;
 		JunctionSurfaceView surface;
-		surface.Point	= one.Station;
-		surface.Z		= one.JunctionZ;
+		surface.Point				= one.Station;
+		surface.Z					= one.JunctionZ;
+		surface.InteractionId	= one.StableId;
 		for (int r = 0; r < physical.Count(); ++r) {
 			if (Road_Carries_Node(topology,routes,carried[r],one.NodeId)) surface.Roads.Add(r);
 		}
@@ -1008,84 +1304,119 @@ bool Hybrid_Plan_Realization(const HybridRealizationParams & params,const Hybrid
 		const HybridTopologyEdge * first_edge = topology.Find_Edge(names[o]);
 		const HybridRoute & road = physical[o];
 		const DynamicVectorClass<unsigned int> & edges = carried[o];
-		DynamicVectorClass<HybridProfileStructure> structures;
-		if (!Hybrid_Road_Profile_Structures(interactions,road,&structures,&edges)) {
-			detail.Format("edge %u's compiled structures cannot be placed on it",names[o]);
-			return Realization_Fail(result,HYBRID_REALIZATION_ROAD,names[o],detail.Peek_Buffer());
-		}
-		const int real_structures = structures.Count();
 		const float total = road.Stations[road.Stations.Count() - 1];
+		ConstraintSet set;
+		set.RoadEdgeId	= names[o];
+		set.Q				= k.Q;
+		set.Base			= out->Constraints.Count();
 
-		//	0. D-027's compiled structural landings: Phase 11 judged the road with them, and nothing overrides them.
-		Add_Landings(interactions,road,real_structures,k.Q,&structures);
+		if (compile) {
+			//	Its own compiled decks and bores.
+			DynamicVectorClass<HybridProfileStructure> structures;
+			DynamicVectorClass<unsigned int> owners;
+			if (!Hybrid_Road_Profile_Structures(interactions,road,&structures,&edges,&owners)) {
+				detail.Format("edge %u's compiled structures cannot be placed on it",names[o]);
+				return Realization_Fail(result,HYBRID_REALIZATION_ROAD,names[o],detail.Peek_Buffer());
+			}
+			for (int s = 0; s < structures.Count(); ++s) {
+				HybridVerticalConstraint record = Record_Of(structures[s],names[o],HYBRID_VCON_STRUCTURE,owners[s],0,0.0f);
+				record.StableId = set.Base + set.Records.Count() + 1;
+				set.Structures.Add(structures[s]);
+				set.Records.Add(record);
+			}
+			set.Real = set.Structures.Count();
 
-		/*
-		**	1. Each compiled at-grade junction this road shares with a road realized before it (12.2 step 5, D-028): that
-		**	earlier road's surface over the junction's footprint on this road, its arm reach either side of the junction
-		**	point.  Only roads both in one compiled junction record share a surface; the earliest road through it wins.
-		*/
-		{
+			//	D-027's compiled structural landings.
+			Add_Landings(interactions,road,set);
+
+			/*
+			**	Every compiled at-grade or topology junction it shares with a road solved before it: that road's own solved
+			**	surface over the junction's footprint on this road (D-028).  Only roads both in one compiled junction record
+			**	share a surface; the earliest road through it owns it.
+			*/
 			const float arm = Hybrid_Junction_Arm_Reach(first_edge->RoadClass,k.W);
-			for (int r = 0; r < out->Roads.Count(); ++r) {
-				for (int i = 0; i < interactions.Interactions.Count(); ++i) {
+			for (int r = 0; (r < out->Roads.Count()) && !set.Conflict; ++r) {
+				for (int i = 0; (i < interactions.Interactions.Count()) && !set.Conflict; ++i) {
 					const HybridInteraction & one = interactions.Interactions[i];
 					if (one.Method != HYBRID_METHOD_AT_GRADE_JUNCTION) continue;
 					if (!Junction_Carries(topology,routes,one,edges) || !Junction_Carries(topology,routes,one,out->Roads[r].Edges)) continue;
+					bool owned_earlier = false;
+					for (int e = 0; (e < r) && !owned_earlier; ++e) owned_earlier = Junction_Carries(topology,routes,one,out->Roads[e].Edges);
+					if (owned_earlier) continue;			// the earliest road through it owns its surface
 					const float at = Nearest_Station(road.Points,road.Stations,one.Station,nullptr);
-					Add_Shared_Surface(out->Roads[r],road,at - arm,at + arm,at,Hybrid_Profile_Sample_Spacing(k),k.Q,
-											 1.5f * params.TerrainCellSize,&structures);
+					DynamicVectorClass<HybridProfileStructure> pieces;
+					Junction_Pieces(out->Roads[r],road,at - arm,at + arm,at,Hybrid_Profile_Sample_Spacing(k),k.Q,
+										 1.5f * params.TerrainCellSize,&pieces);
+					Constraint_Add(set,pieces,HYBRID_VCON_JUNCTION,one.StableId,out->Roads[r].EdgeId,arm);
 				}
 			}
-		}
 
-		//	2. Each interchange local junction this road passes through, at its compiled z_L.
-		for (int s = 0; s < surfaces.Count(); ++s) {
-			bool member = false;
-			for (int m = 0; (m < surfaces[s].Roads.Count()) && !member; ++m) member = (surfaces[s].Roads[m] == o);
-			if (!member) continue;
-			const float station = Nearest_Station(road.Points,road.Stations,surfaces[s].Point,nullptr);
-			Add_Junction_Surface(&structures,real_structures,total,station,surfaces[s].Z,k.Q,k.Q);
-		}
-
-		//	An overpass's lower road at its compiled surface, and a ramp's gore at its highway's (12.6.10).
-		for (int i = 0; i < interactions.Interactions.Count(); ++i) {
-			const HybridInteraction & one = interactions.Interactions[i];
-			const bool mine = Carries_Edge(edges,one.EdgeId);
-			const bool theirs = Carries_Edge(edges,one.OtherEdgeId);
-			if (!mine && !theirs) continue;
-			const float station = Nearest_Station(road.Points,road.Stations,one.Station,nullptr);
-			const HybridJunctionRole role = Hybrid_Interaction_Junction_Role(one);
-
-			if (one.Method == HYBRID_METHOD_OVERPASS) {
-				if (theirs) Add_Junction_Surface(&structures,real_structures,total,station,one.LowerSurfaceZ,k.Q,k.Q);
-				continue;
+			//	Each interchange local junction it passes through, at its compiled z_L.
+			for (int s = 0; (s < surfaces.Count()) && !set.Conflict; ++s) {
+				bool member = false;
+				for (int m = 0; (m < surfaces[s].Roads.Count()) && !member; ++m) member = (surfaces[s].Roads[m] == o);
+				if (!member) continue;
+				DynamicVectorClass<HybridProfileStructure> patch;
+				patch.Add(Level_Patch(total,Nearest_Station(road.Points,road.Stations,surfaces[s].Point,nullptr),surfaces[s].Z,k.Q));
+				Constraint_Add(set,patch,HYBRID_VCON_LOCAL_JUNCTION,surfaces[s].InteractionId,0,0.0f);
 			}
-			if (one.Method != HYBRID_METHOD_AT_GRADE_JUNCTION) continue;
-			/*
-			**	A gore holds its ramp at the highway's profile there (12.6.10 item 4): the realized highway's own surface, the
-			**	earlier road the junction shares -- which is the compiled JunctionZ whenever the ground is the one Phase 11
-			**	compiled on.
-			*/
-			if ((role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE) || (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE)) {
-				if (!mine) continue;
+
+			//	An overpass's lower road at its compiled surface, and a ramp's gore at its highway's solved surface (12.6.10).
+			for (int i = 0; (i < interactions.Interactions.Count()) && !set.Conflict; ++i) {
+				const HybridInteraction & one = interactions.Interactions[i];
+				const bool mine = Carries_Edge(edges,one.EdgeId);
+				const bool theirs = Carries_Edge(edges,one.OtherEdgeId);
+				if (!mine && !theirs) continue;
+				const float station = Nearest_Station(road.Points,road.Stations,one.Station,nullptr);
+				const HybridJunctionRole role = Hybrid_Interaction_Junction_Role(one);
+				DynamicVectorClass<HybridProfileStructure> patch;
+				if (one.Method == HYBRID_METHOD_OVERPASS) {
+					if (!theirs) continue;
+					patch.Add(Level_Patch(total,station,one.LowerSurfaceZ,k.Q));
+					Constraint_Add(set,patch,HYBRID_VCON_OVERPASS_LOWER,one.StableId,0,0.0f);
+					continue;
+				}
+				if ((one.Method != HYBRID_METHOD_AT_GRADE_JUNCTION) || !mine) continue;
+				if ((role != HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE) && (role != HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE)) continue;
 				const HybridRealizedRoad * highway = out->Find_Road(one.OtherEdgeId);
 				const float gore_z = (highway != nullptr) ? Realized_Z_At(*highway,one.Station) : one.JunctionZ;
-				Add_Junction_Surface(&structures,real_structures,total,station,gore_z,k.Q,k.Q);
+				patch.Add(Level_Patch(total,station,gore_z,k.Q));
+				Constraint_Add(set,patch,HYBRID_VCON_RAMP_GORE,one.StableId,(highway != nullptr) ? highway->EdgeId : 0,0.0f);
 			}
+		} else {
+			//	Phase 12: exactly the constraints Phase 11 compiled for this road, in their order.
+			for (int c = 0; c < interactions.Constraints.Count(); ++c) {
+				const HybridVerticalConstraint & record = interactions.Constraints[c];
+				if (record.RoadEdgeId != names[o]) continue;
+				set.Structures.Add(Structure_Of(record));
+				set.Records.Add(record);
+				if (record.Kind == HYBRID_VCON_STRUCTURE) set.Real = set.Structures.Count();
+			}
+		}
+
+		const float max_grade = Hybrid_Road_Class_Spec(first_edge->RoadClass).MaxGradeDegrees * PI_OVER_180;
+		if (set.Conflict) {
+			if (result != nullptr) result->Conflict = set.Clash;
+			Describe_Conflict(set.Clash,first_edge->RoadClass,HYBRID_PROFILE_OK,&detail);
+			return Realization_Fail(result,HYBRID_REALIZATION_PROFILE,names[o],detail.Peek_Buffer());
 		}
 
 		DynamicVectorClass<HybridProfileSample> samples;
 		HybridSolvedProfile solved;
 		HybridProfileFailure failure = HYBRID_PROFILE_OK;
-		const float max_grade = Hybrid_Road_Class_Spec(first_edge->RoadClass).MaxGradeDegrees * PI_OVER_180;
-		if (!Hybrid_Solve_Road_Stretch(road.Points,road.Stations,0.0f,total,structures,Hybrid_Profile_Sample_Spacing(k),
+		if (!Hybrid_Solve_Road_Stretch(road.Points,road.Stations,0.0f,total,set.Structures,Hybrid_Profile_Sample_Spacing(k),
 												 sample,context,params.MaxCutDepth,params.MaxFillHeight,max_grade,k.Q,&samples,&solved,
 												 nullptr,nullptr,&failure)) {
 			if (result != nullptr) result->Profile = failure;
-			detail.Format("Section 12.1 refuses edge %u (%s) with its %d structures and %d junction surfaces: %s",names[o],
-							  Hybrid_Road_Class_Name(first_edge->RoadClass),real_structures,structures.Count() - real_structures,
-							  Hybrid_Profile_Failure_Name(failure));
+			HybridConstraintConflict conflict;
+			Diagnose_Profile(samples,set,params.MaxCutDepth,params.MaxFillHeight,max_grade,failure,&conflict);
+			if (result != nullptr) result->Conflict = conflict;
+			Describe_Conflict(conflict,first_edge->RoadClass,failure,&detail);
 			return Realization_Fail(result,HYBRID_REALIZATION_PROFILE,names[o],detail.Peek_Buffer());
+		}
+		for (int r = 0; r < set.Records.Count(); ++r) {
+			out->Constraints.Add(set.Records[r]);
+			if (constraints_out != nullptr) constraints_out->Add(set.Records[r]);
 		}
 
 		HybridRealizedRoad realized;
@@ -1111,8 +1442,9 @@ bool Hybrid_Plan_Realization(const HybridRealizationParams & params,const Hybrid
 			one.Station		= samples[i].Station;
 			one.Z				= solved.Z[i];
 			//	Strictly inside a deck or bore: its two ends are the abutments and portals, which stand on the road's own ground.
-			for (int s = 0; (s < real_structures) && !one.Structure; ++s) {
-				one.Structure = (one.Station > (structures[s].From + k.Q)) && (one.Station < (structures[s].To - k.Q));
+			for (int s = 0; (s < set.Structures.Count()) && !one.Structure; ++s) {
+				if (set.Records[s].Kind != HYBRID_VCON_STRUCTURE) continue;
+				one.Structure = (one.Station > (set.Structures[s].From + k.Q)) && (one.Station < (set.Structures[s].To - k.Q));
 			}
 			const int ahead = ((i + 1) < samples.Count()) ? (i + 1) : i;
 			const int behind = ((i + 1) < samples.Count()) ? i : (i - 1);
@@ -1227,6 +1559,27 @@ bool Hybrid_Plan_Realization(const HybridRealizationParams & params,const Hybrid
 
 	out->Checksum = Hybrid_Realization_Checksum(*out);
 	return true;
+}
+
+
+bool Hybrid_Compile_Vertical_Constraints(const HybridRealizationParams & params,const HybridTopology & topology,
+													  const HybridRouteSet & routes,const HybridInteractionSet & interactions,
+													  HybridRouteHeightSampleFunc sample,void * context,
+													  DynamicVectorClass<HybridVerticalConstraint> * constraints_out,
+													  HybridRealizationPlan * plan_out,HybridRealizationResult * result)
+{
+	HybridRealizationPlan local;
+	return Build_Plan(params,topology,routes,interactions,sample,context,true,constraints_out,
+							(plan_out != nullptr) ? plan_out : &local,result);
+}
+
+
+bool Hybrid_Plan_Realization(const HybridRealizationParams & params,const HybridTopology & topology,
+									  const HybridRouteSet & routes,const HybridInteractionSet & interactions,
+									  HybridRouteHeightSampleFunc sample,void * context,HybridRealizationPlan * out,
+									  HybridRealizationResult * result)
+{
+	return Build_Plan(params,topology,routes,interactions,sample,context,false,nullptr,out,result);
 }
 
 

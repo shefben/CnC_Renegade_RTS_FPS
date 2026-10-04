@@ -18394,6 +18394,7 @@ static void Check_Hybrid_Realization_Plan (const HybridPreflightInputs & inputs,
 static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,const HybridMetricCache & metrics);
 static void Check_Hybrid_Pin_Landings (const HybridPreflightInputs & content,const HybridMetricCache & metrics);
 static void Check_Hybrid_Junction_Footprint (const HybridMetricCache & metrics);
+static void Check_Hybrid_Profile_Parity (const HybridPreflightInputs & content,const HybridMetricCache & metrics);
 static void Check_Hybrid_Deformation_Units (const HybridConstants & k);
 
 void Check_Hybrid_Realization (void)
@@ -18639,6 +18640,7 @@ void Check_Hybrid_Realization (void)
 			Check_Hybrid_Phase12_Runtime (inputs,preflight.Metrics);
 			Check_Hybrid_Pin_Landings (inputs,preflight.Metrics);
 			Check_Hybrid_Junction_Footprint (preflight.Metrics);
+			Check_Hybrid_Profile_Parity (inputs,preflight.Metrics);
 		}
 	}
 }
@@ -18985,6 +18987,25 @@ static bool Lifted_Ground (const Vector2 & world,float * height_out,void * conte
 }
 
 
+/*
+**	D-029: Phase 11's canonical vertical constraints compiled onto a set, on `ground` -- what Phase 11's last step does.
+**	A fixture that realizes on other ground than Phase 11 compiled on, or that builds a set by hand, compiles them here on
+**	the ground it realizes, so Phase 12 consumes exactly what was compiled for that ground.
+*/
+static bool Compile_Constraints (const HybridRealizationParams & params,const HybridTopology & topology,const HybridRouteSet & routes,
+											HybridInteractionSet * set,bool (*ground) (const Vector2 &,float *,void *),void * context,
+											HybridRealizationResult * result = NULL)
+{
+	DynamicVectorClass<HybridVerticalConstraint> constraints;
+	HybridRealizationResult local;
+	if (!Hybrid_Compile_Vertical_Constraints (params,topology,routes,*set,ground,context,&constraints,NULL,
+															(result != NULL) ? result : &local)) return false;
+	set->Constraints = constraints;
+	set->ConstraintsCompiled = true;
+	return true;
+}
+
+
 //	The realization parameters the fixtures use: native grading and the measured reference vehicles.
 static HybridRealizationParams Realization_Fixture (const HybridConstants & k,const HybridMetricCache & metrics)
 {
@@ -19100,7 +19121,9 @@ static void Check_Hybrid_Realization_Plan (const HybridPreflightInputs & inputs,
 		{
 			HybridRealizationPlan raised;
 			HybridRealizationResult raised_result;
-			const bool raised_ok = Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Raised_Ground,&world.Hydrology,
+			HybridInteractionSet raised_set = set;
+			const bool raised_ok = Compile_Constraints (params,world.Topology,world.Routes,&raised_set,Raised_Ground,&world.Hydrology) &&
+										  Hybrid_Plan_Realization (params,world.Topology,world.Routes,raised_set,Raised_Ground,&world.Hydrology,
 																			&raised,&raised_result);
 			Check (raised_ok,"Phase 12 refused the raised SIDE_ACCESS world: %s",raised_result.Detail.Peek_Buffer ());
 			const HybridRealizedRoad * highway = raised_ok ? raised.Find_Road (ic.HighwayEdgeIn) : NULL;
@@ -19147,7 +19170,9 @@ static void Check_Hybrid_Realization_Plan (const HybridPreflightInputs & inputs,
 			const HybridRealizationParams params = Realization_Fixture (k,metrics);
 			HybridRealizationPlan plan;
 			HybridRealizationResult result;
-			const bool planned = Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Lifted_Ground,&world.Hydrology,
+			HybridInteractionSet lifted_set = set;
+			const bool planned = Compile_Constraints (params,world.Topology,world.Routes,&lifted_set,Lifted_Ground,&world.Hydrology) &&
+										Hybrid_Plan_Realization (params,world.Topology,world.Routes,lifted_set,Lifted_Ground,&world.Hydrology,
 																		 &plan,&result);
 			Check (planned,"Phase 12 refused the DIAMOND world on lifted ground: %s",result.Detail.Peek_Buffer ());
 			const HybridInterchange & ic = world.Topology.Interchanges[0];
@@ -19434,11 +19459,13 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 			HybridRealizationResult result;
 			const Vector2 centre (7.5f,-30.0f);
 			const bool terrain = ok && Runtime_Terrain (&world,centre,80.0f,FINE_CELL,Raised_Ground);
-			const bool planned = terrain && Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Raised_Ground,
+			HybridInteractionSet raised_set = set;
+			const bool planned = terrain && Compile_Constraints (params,world.Topology,world.Routes,&raised_set,Raised_Ground,&world.Hydrology) &&
+										Hybrid_Plan_Realization (params,world.Topology,world.Routes,raised_set,Raised_Ground,
 																						&world.Hydrology,&plan,&result);
 			Check (planned,"Phase 12 runtime: the plan was refused: %s",result.Detail.Peek_Buffer ());
 			if (planned) {
-				const HybridRoadRealizerInputs in = Runtime_Inputs (world,plan,set,content,metrics);
+				const HybridRoadRealizerInputs in = Runtime_Inputs (world,plan,raised_set,content,metrics);
 				StringClass error;
 				const bool realized = HybridRoadRealizer::Realize (in,&error);
 				Check (realized,"Phase 12 runtime: Realize refused the interchange world: %s",error.Peek_Buffer ());
@@ -19830,13 +19857,17 @@ static void Check_Hybrid_Junction_Footprint (const HybridMetricCache & metrics)
 			one_topology.Edges.Delete_All ();
 			one_topology.Edges.Add (topology.Edges[r]);
 			HybridRealizationResult result;
-			solos = solos && Hybrid_Plan_Realization (params,one_topology,one_routes,none,Parallel_Ground,NULL,&solo[r],&result);
+			HybridInteractionSet alone_set = none;
+			solos = solos && Compile_Constraints (params,one_topology,one_routes,&alone_set,Parallel_Ground,NULL) &&
+					  Hybrid_Plan_Realization (params,one_topology,one_routes,alone_set,Parallel_Ground,NULL,&solo[r],&result);
 		}
 
 		//	Together, no junction: each exactly its solo profile, and no pin.
 		HybridRealizationPlan together;
 		HybridRealizationResult result;
-		const bool planned = solos && Hybrid_Plan_Realization (params,topology,routes,none,Parallel_Ground,NULL,&together,&result);
+		HybridInteractionSet together_set = none;
+		const bool planned = solos && Compile_Constraints (params,topology,routes,&together_set,Parallel_Ground,NULL) &&
+									Hybrid_Plan_Realization (params,topology,routes,together_set,Parallel_Ground,NULL,&together,&result);
 		float worst = 0.0f;
 		float apart = 0.0f;
 		if (planned) {
@@ -19875,7 +19906,8 @@ static void Check_Hybrid_Junction_Footprint (const HybridMetricCache & metrics)
 		junction.ApproachB	= junction.Station;
 		joined.Interactions.Add (junction);
 		HybridRealizationPlan held;
-		const bool held_planned = Hybrid_Plan_Realization (params,topology,routes,joined,Parallel_Ground,NULL,&held,&result);
+		const bool held_planned = Compile_Constraints (params,topology,routes,&joined,Parallel_Ground,NULL) &&
+										  Hybrid_Plan_Realization (params,topology,routes,joined,Parallel_Ground,NULL,&held,&result);
 		float inside = 0.0f;
 		float outside = 0.0f;
 		int inside_count = 0;
@@ -20032,7 +20064,8 @@ static bool Plan_Without_Landings (const CrossingWorld & world,const HybridInter
 	HybridRealizationParams params = Realization_Fixture (world.Sized.Constants,metrics);
 	params.TerrainCellSize = NATIVE_TERRAIN_CELL;
 	HybridRealizationResult result;
-	return Hybrid_Plan_Realization (params,world.Topology,world.Routes,bare,ground,(void *)&world.Hydrology,plan,&result);
+	return Compile_Constraints (params,world.Topology,world.Routes,&bare,ground,(void *)&world.Hydrology) &&
+			 Hybrid_Plan_Realization (params,world.Topology,world.Routes,bare,ground,(void *)&world.Hydrology,plan,&result);
 }
 
 
@@ -20125,7 +20158,11 @@ static void Check_Hybrid_Pin_Landings (const HybridPreflightInputs & content,con
 				  "the pin), %d samples held, exact gores unlanded, Section 12.3 green\r\n",z_l,L_PIN,held);
 	}
 
-	//	The same mound with the grid a quarter cell over: the landed junction still fails, and Phase 11 refuses it.
+	/*
+	**	The same mound with the grid a quarter cell over.  Under D-027 alone this landed junction failed on the grid: the
+	**	roads leaving L_s dropped the earlier road's shared surface wherever it touched the landing, fell away from it, and
+	**	fought it for the pin's vertices.  D-029 holds that surface past the landing, so the landed junction realizes.
+	*/
 	{
 		CrossingWorld world;
 		Interchange_World (&world,1,0.0f);
@@ -20135,12 +20172,24 @@ static void Check_Hybrid_Pin_Landings (const HybridPreflightInputs & content,con
 		HybridInteractionSet set;
 		HybridInteractionResult solved;
 		const bool ok = Landing_Phase11 (&world,Mound_Ground,0.25f,content,metrics,0.0f,&set,&solved);
-		Check (!ok && (solved.Failure == HYBRID_INTERACTION_INTERCHANGE) && (strstr (solved.Detail.Peek_Buffer (),"STRUCTURAL_PIN_LANDING") != NULL) &&
-				 (set.Interactions.Count () == 0),"a local junction its landing cannot realize was not refused in Phase 11 (%s: %s)",
-				 Hybrid_Interaction_Failure_Name (solved.Failure),solved.Detail.Peek_Buffer ());
+		const HybridInteraction * local = NULL;
+		for (int i = 0; i < set.Interactions.Count (); i++) {
+			if (set.Interactions[i].Role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION) local = &set.Interactions[i];
+		}
+		int carried = 0;
+		for (int c = 0; (local != NULL) && (c < set.Constraints.Count ()); c++) {
+			const HybridVerticalConstraint & one = set.Constraints[c];
+			if ((one.Kind == HYBRID_VCON_JUNCTION) && (one.InteractionId == local->StableId) && (one.To > (L_PIN + world.Sized.Constants.Q))) carried++;
+		}
+		HybridRealizationPlan plan;
+		StringClass error;
+		const bool realized = ok && (local != NULL) && Landing_Phase12 (world,set,Mound_Ground,content,metrics,&plan,&error);
+		Check (realized && (set.Landings.Count () == 1) && (carried > 0),
+				 "the quarter-shifted mound's landed junction does not realize with the shared surface held past its landing "
+				 "(%d landings, %d surfaces past it: %s %s)",set.Landings.Count (),carried,solved.Detail.Peek_Buffer (),error.Peek_Buffer ());
 		WorldTerrainSystem::Destroy_Terrain ();
-		printf ("  D-027 local junction its landing cannot realize: refused in Phase 11 (%s)\r\n",
-				  Hybrid_Interaction_Failure_Name (solved.Failure));
+		printf ("  D-027/D-029 the mound a quarter cell over: landed, the shared surface held past the landing on %d stretches, "
+				  "realized, Section 12.3 green\r\n",carried);
 	}
 
 	//	A river bridge: both deck ends landed on the ground road outside the deck, the deck as compiled.
@@ -20287,6 +20336,383 @@ static void Check_Hybrid_Pin_Landings (const HybridPreflightInputs & content,con
 	BridgeSystem::Shutdown ();
 	RoadSystem::Shutdown ();
 	WorldTerrainSystem::Shutdown ();
+}
+
+
+/*
+**	D-029's hand-made worlds: straight or polyline roads put straight into the frozen records, so the junctions Phase 11
+**	compiles stand exactly where a test needs them.  The earlier roads are family trunks (routing rank 0), the later ones
+**	cross-links.
+*/
+static void Hand_Node (CrossingWorld * world,unsigned int id,const Vector2 & position)
+{
+	if (world->Topology.Find_Node (id) != NULL) return;
+	HybridTopologyNode node;
+	node.StableId	= id;
+	node.Kind		= HYBRID_NODE_FAMILY_WAYPOINT;
+	node.Position	= position;
+	world->Topology.Nodes.Add (node);
+}
+
+
+static void Hand_Road (CrossingWorld * world,unsigned int edge_id,HybridTopologyEdgeKind kind,const Vector2 * corners,int corner_count,
+							  unsigned int node_a,unsigned int node_b,unsigned int waypoint = 0)
+{
+	const HybridConstants & k = world->Sized.Constants;
+	Hand_Node (world,node_a,corners[0]);
+	Hand_Node (world,node_b,corners[corner_count - 1]);
+	HybridTopologyEdge edge;
+	edge.StableId		= edge_id;
+	edge.Kind			= kind;
+	edge.RoadClass		= HYBRID_ROAD_PRIMARY_2;
+	edge.Capabilities	= Hybrid_Topology_Edge_Capabilities (kind,false);
+	edge.NodeA			= node_a;
+	edge.NodeB			= node_b;
+	edge.RouteFamily	= (kind == HYBRID_EDGE_FAMILY_TRUNK) ? (int)edge_id : -1;
+	if (waypoint != 0) edge.Waypoints.Add (waypoint);
+	world->Topology.Edges.Add (edge);
+
+	HybridRoute route;
+	route.EdgeId		= edge_id;
+	route.RoadClass	= HYBRID_ROAD_PRIMARY_2;
+	route.Priority		= Hybrid_Route_Priority_Of (world->Topology,edge);
+	route.Capabilities= edge.Capabilities;
+	if (waypoint != 0) route.Waypoints.Add (waypoint);
+	const float spacing = WWMath::Min (k.W,0.5f * k.A);
+	float station = 0.0f;
+	for (int c = 1; c < corner_count; c++) {
+		const Vector2 d = corners[c] - corners[c - 1];
+		const float length = d.Length ();
+		int steps = (int)::ceil ((double)(length / spacing));
+		if (steps < 1) steps = 1;
+		for (int s = (c == 1) ? 0 : 1; s <= steps; s++) {
+			const float t = (float)s / (float)steps;
+			route.Points.Add (corners[c - 1] + (d * t));
+			route.Stations.Add (station + (length * t));
+		}
+		station += length;
+	}
+	route.Length = station;
+	world->Routes.Routes.Add (route);
+}
+
+
+//	Phase 11 over a hand-made world, on `ground`, with no terrain grid: the constraints, not the D-027 grid, under test.
+static bool Hand_Phase11 (CrossingWorld * world,bool (*ground) (const Vector2 &,float *,void *),const HybridPreflightInputs & content,
+								  const HybridMetricCache & metrics,HybridInteractionSet * set,HybridInteractionResult * solved)
+{
+	HybridInteractionParams params = Interaction_Fixture (world->Sized,1200.0f,content,metrics);
+	return Hybrid_Build_Interactions (params,world->Identity,world->Matrices,world->Landforms,world->Hydrology,world->Anchors,
+												 world->Topology,world->Routes,ground,&world->Hydrology,set,solved);
+}
+
+
+//	The road's solved surface at a point, from a realized plan road (its nearest sample segment).
+static float Plan_Z_Near (const HybridRealizedRoad & road,const Vector2 & point)
+{
+	float best = 3.4e38f;
+	float z = 0.0f;
+	for (int i = 1; i < road.Samples.Count (); i++) {
+		const Vector2 a = road.Samples[i - 1].Position;
+		const Vector2 d = road.Samples[i].Position - a;
+		const float length2 = (d.X * d.X) + (d.Y * d.Y);
+		float t = (length2 > 0.0f) ? ((((point.X - a.X) * d.X) + ((point.Y - a.Y) * d.Y)) / length2) : 0.0f;
+		t = WWMath::Clamp (t,0.0f,1.0f);
+		const float distance = (point - (a + (d * t))).Length ();
+		if (distance >= best) continue;
+		best	= distance;
+		z		= road.Samples[i - 1].Z + ((road.Samples[i].Z - road.Samples[i - 1].Z) * t);
+	}
+	return z;
+}
+
+
+//	The JUNCTION constraint on a road whose stretch holds the point nearest `point`, and the height it holds there.
+static const HybridVerticalConstraint * Junction_Constraint_At (const HybridInteractionSet & set,const HybridRealizedRoad & road,
+																					 const Vector2 & point,float * z_out)
+{
+	float best = 3.4e38f;
+	float station = 0.0f;
+	for (int i = 1; i < road.Samples.Count (); i++) {
+		const Vector2 a = road.Samples[i - 1].Position;
+		const Vector2 d = road.Samples[i].Position - a;
+		const float length2 = (d.X * d.X) + (d.Y * d.Y);
+		float t = (length2 > 0.0f) ? ((((point.X - a.X) * d.X) + ((point.Y - a.Y) * d.Y)) / length2) : 0.0f;
+		t = WWMath::Clamp (t,0.0f,1.0f);
+		const float distance = (point - (a + (d * t))).Length ();
+		if (distance >= best) continue;
+		best		= distance;
+		station	= road.Samples[i - 1].Station + ((road.Samples[i].Station - road.Samples[i - 1].Station) * t);
+	}
+	for (int c = 0; c < set.Constraints.Count (); c++) {
+		const HybridVerticalConstraint & one = set.Constraints[c];
+		if ((one.RoadEdgeId != road.EdgeId) || (one.Kind != HYBRID_VCON_JUNCTION)) continue;
+		if ((station < (one.From - 0.002f)) || (station > (one.To + 0.002f))) continue;
+		const float span = one.To - one.From;
+		const float t = (span > 0.0f) ? WWMath::Clamp ((station - one.From) / span,0.0f,1.0f) : 0.0f;
+		*z_out = one.Level ? one.StartZ : (one.StartZ + ((one.EndZ - one.StartZ) * t));
+		return &one;
+	}
+	return NULL;
+}
+
+
+//	Phase 12 consumed exactly what Phase 11 compiled: the plan's records equal the set's, field for field.
+static bool Constraints_Identical (const HybridInteractionSet & set,const HybridRealizationPlan & plan)
+{
+	if (plan.Constraints.Count () != set.Constraints.Count ()) return false;
+	for (int c = 0; c < set.Constraints.Count (); c++) {
+		if (plan.Constraints[c] != set.Constraints[c]) return false;
+	}
+	return true;
+}
+
+
+static bool Spike_Ground (const Vector2 & world,float * height_out,void * context)
+{
+	(void)context;
+	*height_out = 3.0f * (float)::exp (-(double)((world.X * world.X) + (world.Y * world.Y)) / 16.0);
+	return true;
+}
+
+
+static float g_step_from = 20.0f;
+static float g_step_to = 40.0f;
+static float g_step_height = 2.0f;
+
+static bool Step_Ground (const Vector2 & world,float * height_out,void * context)
+{
+	(void)context;
+	const float s = WWMath::Clamp ((world.Y - g_step_from) / (g_step_to - g_step_from),0.0f,1.0f);
+	*height_out = g_step_height * s * s * (3.0f - (2.0f * s));
+	return true;
+}
+
+
+static bool Slope_Ground (const Vector2 & world,float * height_out,void * context)
+{
+	(void)context;
+	*height_out = 0.05f * world.X;
+	return true;
+}
+
+
+static float g_trench_x = 0.0f;
+
+static bool Trench_Ground (const Vector2 & world,float * height_out,void * context)
+{
+	if (!Crossing_Ground (world,height_out,context)) return false;
+	*height_out -= 4.0f * (float)::exp (-(double)((world.X - g_trench_x) * (world.X - g_trench_x)) / 36.0);
+	return true;
+}
+
+
+//	Phase 12's plan from the compiled set on the same ground, with no terrain grid.
+static bool Hand_Phase12 (const CrossingWorld & world,const HybridInteractionSet & set,bool (*ground) (const Vector2 &,float *,void *),
+								  const HybridMetricCache & metrics,HybridRealizationPlan * plan,HybridRealizationResult * result)
+{
+	HybridRealizationParams params = Realization_Fixture (world.Sized.Constants,metrics);
+	params.TerrainCellSize = 0.0f;
+	return Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,ground,(void *)&world.Hydrology,plan,result);
+}
+
+
+static int Count_Junctions (const HybridInteractionSet & set)
+{
+	int count = 0;
+	for (int i = 0; i < set.Interactions.Count (); i++) {
+		if (set.Interactions[i].Method == HYBRID_METHOD_AT_GRADE_JUNCTION) count++;
+	}
+	return count;
+}
+
+
+/*
+**	D-029: one canonical vertical-constraint record set, compiled by Phase 11 and consumed unchanged by Phase 12.
+**	- single_junction_surface_parity: a junction's height is the earlier road's solved surface, not the ground;
+**	- two_compatible_junction_constraints: two junctions on one later road from two earlier roads, both held, one profile;
+**	- two_incompatible_junction_constraints: two junctions individually legal and together past the grade, refused in
+**	  Phase 11 with both junction constraints named;
+**	- same_earlier_road_two_junctions: one earlier road crossed twice, each junction sampled at its own station;
+**	- junction_bridge_endpoint_conflict: a bridge's deck end and a junction on one road judged together;
+**	- topology_junction_height_parity: a shared-node junction held by the same semantics.
+*/
+static void Check_Hybrid_Profile_Parity (const HybridPreflightInputs & content,const HybridMetricCache & metrics)
+{
+	//	single_junction_surface_parity
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		const Vector2 a[2] = { Vector2 (-150.0f,0.0f),Vector2 (150.0f,0.0f) };
+		const Vector2 b[2] = { Vector2 (0.0f,-150.0f),Vector2 (0.0f,150.0f) };
+		Hand_Road (&world,1,HYBRID_EDGE_FAMILY_TRUNK,a,2,11,12);
+		Hand_Road (&world,2,HYBRID_EDGE_CROSS_LINK,b,2,21,22);
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		const bool ok = Hand_Phase11 (&world,Spike_Ground,content,metrics,&set,&solved);
+		HybridRealizationPlan plan;
+		HybridRealizationResult planned;
+		const bool realized = ok && Hand_Phase12 (world,set,Spike_Ground,metrics,&plan,&planned);
+		float held = 0.0f;
+		const HybridVerticalConstraint * junction = realized ? Junction_Constraint_At (set,*plan.Find_Road (2),Vector2 (0.0f,0.0f),&held) : NULL;
+		const float surface = realized ? Plan_Z_Near (*plan.Find_Road (1),Vector2 (0.0f,0.0f)) : 0.0f;
+		const float later = realized ? Plan_Z_Near (*plan.Find_Road (2),Vector2 (0.0f,0.0f)) : 0.0f;
+		float ground = 0.0f;
+		Spike_Ground (Vector2 (0.0f,0.0f),&ground,NULL);
+		Check (ok && realized && (Count_Junctions (set) == 1) && (junction != NULL) && (junction->OwnerEdgeId == 1) &&
+				 (WWMath::Fabs (held - surface) <= (2.0f * k.Q)) && (WWMath::Fabs (later - surface) <= (2.0f * k.Q)) &&
+				 (WWMath::Fabs (surface - ground) > 0.5f) && Constraints_Identical (set,plan),
+				 "single junction: the later road is not held at the earlier road's solved surface %.3f (ground %.3f): held %.3f, "
+				 "realized %.3f, records identical %d (%s %s)",surface,ground,held,later,Constraints_Identical (set,plan) ? 1 : 0,
+				 solved.Detail.Peek_Buffer (),planned.Detail.Peek_Buffer ());
+		printf ("  D-029 single junction: held at the earlier road's solved surface %.3f over ground %.3f; Phase 12 consumed %d "
+				  "records unchanged\r\n",surface,ground,set.Constraints.Count ());
+	}
+
+	//	two_compatible_junction_constraints and two_incompatible_junction_constraints
+	for (int c = 0; c < 2; c++) {
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		const float second = (c == 0) ? 60.0f : 24.0f;
+		g_step_from		= (c == 0) ? 20.0f : 4.0f;
+		g_step_to		= (c == 0) ? 40.0f : 20.0f;
+		g_step_height	= (c == 0) ? 2.0f : 8.0f;
+		const Vector2 a1[2] = { Vector2 (-150.0f,0.0f),Vector2 (150.0f,0.0f) };
+		const Vector2 a2[2] = { Vector2 (-150.0f,second),Vector2 (150.0f,second) };
+		const Vector2 b[2] = { Vector2 (0.0f,-150.0f),Vector2 (0.0f,200.0f) };
+		Hand_Road (&world,1,HYBRID_EDGE_FAMILY_TRUNK,a1,2,11,12);
+		Hand_Road (&world,2,HYBRID_EDGE_FAMILY_TRUNK,a2,2,13,14);
+		Hand_Road (&world,3,HYBRID_EDGE_CROSS_LINK,b,2,21,22);
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		const bool ok = Hand_Phase11 (&world,Step_Ground,content,metrics,&set,&solved);
+		HybridRealizationPlan plan;
+		HybridRealizationResult planned;
+		const bool realized = ok && Hand_Phase12 (world,set,Step_Ground,metrics,&plan,&planned);
+		if (c == 0) {
+			float held1 = 0.0f;
+			float held2 = 0.0f;
+			const HybridVerticalConstraint * j1 = realized ? Junction_Constraint_At (set,*plan.Find_Road (3),Vector2 (0.0f,0.0f),&held1) : NULL;
+			const HybridVerticalConstraint * j2 = realized ? Junction_Constraint_At (set,*plan.Find_Road (3),Vector2 (0.0f,second),&held2) : NULL;
+			const float s1 = realized ? Plan_Z_Near (*plan.Find_Road (1),Vector2 (0.0f,0.0f)) : 0.0f;
+			const float s2 = realized ? Plan_Z_Near (*plan.Find_Road (2),Vector2 (0.0f,second)) : 0.0f;
+			Check (ok && realized && (Count_Junctions (set) == 2) && (j1 != NULL) && (j2 != NULL) && (j1->OwnerEdgeId == 1) &&
+					 (j2->OwnerEdgeId == 2) && (WWMath::Fabs (held1 - s1) <= (2.0f * k.Q)) && (WWMath::Fabs (held2 - s2) <= (2.0f * k.Q)) &&
+					 (WWMath::Fabs (s2 - s1) > 1.0f) && Constraints_Identical (set,plan),
+					 "two compatible junctions are not both held in one profile: %.3f / %.3f against %.3f / %.3f (%s %s)",held1,held2,
+					 s1,s2,solved.Detail.Peek_Buffer (),planned.Detail.Peek_Buffer ());
+			printf ("  D-029 two compatible junctions: one later road held at %.3f and %.3f, %.0f apart, in one profile\r\n",s1,s2,second);
+		} else {
+			//	Refused in Phase 11, both junction constraints named; whatever Phase 11 then accepts, Phase 12 realizes.
+			const char * why = solved.Rejections.Peek_Buffer ();
+			const bool named = (strstr (why,"junction constraint") != NULL) && (strstr (why,"earlier road 1") != NULL) &&
+									 (strstr (why,"earlier road 2") != NULL) && (strstr (why,"grade") != NULL);
+			Check ((solved.RejectedSolutions >= 1) && named && (Count_Junctions (set) < 2) && (!ok || realized),
+					 "two incompatible junctions were not refused in Phase 11 with both named (%d rejected: %s; final %s: %s; Phase 12 %s)",
+					 solved.RejectedSolutions,why,Hybrid_Interaction_Failure_Name (solved.Failure),solved.Detail.Peek_Buffer (),
+					 planned.Detail.Peek_Buffer ());
+			printf ("  D-029 two incompatible junctions: refused in Phase 11 (%s), then %s\r\n",why,
+					  ok ? "re-solved without the later junction" : Hybrid_Interaction_Failure_Name (solved.Failure));
+		}
+	}
+
+	//	same_earlier_road_two_junctions
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		const Vector2 a[2] = { Vector2 (-150.0f,0.0f),Vector2 (150.0f,0.0f) };
+		const Vector2 b[3] = { Vector2 (-90.0f,-60.0f),Vector2 (0.0f,60.0f),Vector2 (90.0f,-60.0f) };
+		Hand_Road (&world,1,HYBRID_EDGE_FAMILY_TRUNK,a,2,11,12);
+		Hand_Road (&world,2,HYBRID_EDGE_CROSS_LINK,b,3,21,22);
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		const bool ok = Hand_Phase11 (&world,Slope_Ground,content,metrics,&set,&solved);
+		HybridRealizationPlan plan;
+		HybridRealizationResult planned;
+		const bool realized = ok && Hand_Phase12 (world,set,Slope_Ground,metrics,&plan,&planned);
+		float held_w = 0.0f;
+		float held_e = 0.0f;
+		const HybridVerticalConstraint * west = realized ? Junction_Constraint_At (set,*plan.Find_Road (2),Vector2 (-45.0f,0.0f),&held_w) : NULL;
+		const HybridVerticalConstraint * east = realized ? Junction_Constraint_At (set,*plan.Find_Road (2),Vector2 (45.0f,0.0f),&held_e) : NULL;
+		const float s_w = realized ? Plan_Z_Near (*plan.Find_Road (1),Vector2 (-45.0f,0.0f)) : 0.0f;
+		const float s_e = realized ? Plan_Z_Near (*plan.Find_Road (1),Vector2 (45.0f,0.0f)) : 0.0f;
+		Check (ok && realized && (Count_Junctions (set) == 2) && (west != NULL) && (east != NULL) &&
+				 (west->InteractionId != east->InteractionId) && (west->OwnerEdgeId == 1) && (east->OwnerEdgeId == 1) &&
+				 (WWMath::Fabs (held_w - s_w) <= (2.0f * k.Q)) && (WWMath::Fabs (held_e - s_e) <= (2.0f * k.Q)) &&
+				 (WWMath::Fabs (s_e - s_w) > 2.0f) && Constraints_Identical (set,plan),
+				 "one earlier road crossed twice is not held at its own surface at each junction: %.3f / %.3f against %.3f / %.3f (%s %s)",
+				 held_w,held_e,s_w,s_e,solved.Detail.Peek_Buffer (),planned.Detail.Peek_Buffer ());
+		printf ("  D-029 one earlier road crossed twice: held at %.3f and %.3f, each its own junction's sample\r\n",s_w,s_e);
+	}
+
+	//	junction_bridge_endpoint_conflict
+	{
+		CrossingWorld world;
+		Landing_River_World (&world);
+		HybridRouteResult routed;
+		HybridInteractionSet first;
+		HybridInteractionResult first_result;
+		const bool routed_ok = Crossing_World_Route (&world,&routed) && Hand_Phase11 (&world,Crossing_Ground,content,metrics,&first,&first_result);
+		const HybridInteraction * bridge = NULL;
+		for (int i = 0; routed_ok && (i < first.Interactions.Count ()); i++) {
+			if (first.Interactions[i].Method == HYBRID_METHOD_BRIDGE) bridge = &first.Interactions[i];
+		}
+		Check (bridge != NULL,"the river world compiled no bridge: %s",first_result.Detail.Peek_Buffer ());
+		if (bridge != NULL) {
+			//	A trunk crossing the bridge road just outside its west approach reserve, in a 4 m trench.
+			g_trench_x = WWMath::Min (bridge->ApproachA.X,bridge->ApproachB.X) - 6.0f;
+			const Vector2 cross[2] = { Vector2 (g_trench_x,-200.0f),Vector2 (g_trench_x,200.0f) };
+			Hand_Road (&world,5,HYBRID_EDGE_FAMILY_TRUNK,cross,2,51,52);
+			HybridInteractionSet set;
+			HybridInteractionResult solved;
+			const bool ok = Hand_Phase11 (&world,Trench_Ground,content,metrics,&set,&solved);
+			HybridRealizationPlan plan;
+			HybridRealizationResult planned;
+			const bool realized = ok && Hand_Phase12 (world,set,Trench_Ground,metrics,&plan,&planned);
+			const char * why = solved.Rejections.Peek_Buffer ();
+			const bool named = (strstr (why,"structure constraint") != NULL) && (strstr (why,"junction constraint") != NULL);
+			Check ((solved.RejectedSolutions >= 1) && named && (!ok || realized),
+					 "a bridge deck end and a junction that cannot both hold were not refused together in Phase 11 (%d rejected: %s; "
+					 "final %s: %s; Phase 12 %s)",solved.RejectedSolutions,why,Hybrid_Interaction_Failure_Name (solved.Failure),
+					 solved.Detail.Peek_Buffer (),planned.Detail.Peek_Buffer ());
+			printf ("  D-029 bridge deck end and junction: refused together in Phase 11 (%s)\r\n",why);
+		}
+	}
+
+	//	topology_junction_height_parity
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		Hand_Node (&world,30,Vector2 (0.0f,0.0f));
+		const Vector2 a[2] = { Vector2 (-150.0f,0.0f),Vector2 (150.0f,0.0f) };
+		const Vector2 b[2] = { Vector2 (0.0f,0.0f),Vector2 (0.0f,150.0f) };
+		Hand_Road (&world,1,HYBRID_EDGE_FAMILY_TRUNK,a,2,11,12,30);
+		Hand_Road (&world,2,HYBRID_EDGE_CROSS_LINK,b,2,30,22);
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		const bool ok = Hand_Phase11 (&world,Spike_Ground,content,metrics,&set,&solved);
+		HybridRealizationPlan plan;
+		HybridRealizationResult planned;
+		const bool realized = ok && Hand_Phase12 (world,set,Spike_Ground,metrics,&plan,&planned);
+		const HybridInteraction * node_junction = NULL;
+		for (int i = 0; i < set.Interactions.Count (); i++) {
+			if ((set.Interactions[i].Method == HYBRID_METHOD_AT_GRADE_JUNCTION) && (set.Interactions[i].NodeId == 30)) node_junction = &set.Interactions[i];
+		}
+		float held = 0.0f;
+		const HybridVerticalConstraint * junction = realized ? Junction_Constraint_At (set,*plan.Find_Road (2),Vector2 (0.0f,0.0f),&held) : NULL;
+		const float surface = realized ? Plan_Z_Near (*plan.Find_Road (1),Vector2 (0.0f,0.0f)) : 0.0f;
+		const float later = realized ? Plan_Z_Near (*plan.Find_Road (2),Vector2 (0.0f,0.0f)) : 0.0f;
+		Check (ok && realized && (node_junction != NULL) && (junction != NULL) && (junction->InteractionId == node_junction->StableId) &&
+				 (junction->OwnerEdgeId == 1) && (WWMath::Fabs (held - surface) <= (2.0f * k.Q)) &&
+				 (WWMath::Fabs (later - surface) <= (2.0f * k.Q)) && Constraints_Identical (set,plan),
+				 "a topology junction is not held by the same semantics: held %.3f, realized %.3f, earlier surface %.3f (%s %s)",
+				 held,later,surface,solved.Detail.Peek_Buffer (),planned.Detail.Peek_Buffer ());
+		printf ("  D-029 topology junction: held at the earlier road's solved surface %.3f, the same record semantics\r\n",surface);
+	}
 }
 
 
@@ -22860,6 +23286,11 @@ void Check_Hybrid_Interaction_Search (void)
 				reroute_requests += spent;
 				if (ok && (spent == 1)) resolved_at_one++;
 				if (ok && (spent == 2)) resolved_at_two++;
+			}
+			//	D-029: every solution Phase 11 rejected on its way, with the conflict that rejected it.
+			if (sr.RejectedSolutions > 0) {
+				printf ("P11REJECT archetype %d seed %u: %d rejected: %s\r\n",(int)SEARCH_ARCHETYPES[ai],seed,sr.RejectedSolutions,
+						  sr.Rejections.Peek_Buffer ());
 			}
 			if (!ok) {
 				if (spent > 0) exhausted++;

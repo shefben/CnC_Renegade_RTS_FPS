@@ -190,6 +190,7 @@ enum HybridInteractionProblem
 	HYBRID_PROBLEM_GORE_RESERVE,				// an approach, portal or overpass ramp reserve meets a gore reserve (12.6.10)
 	HYBRID_PROBLEM_INTERCHANGE_FOOTPRINT,	// an incidental junction inside an interchange footprint + RoadOuterBlendWidth
 	HYBRID_PROBLEM_PIN_LANDING,				// a structural pin cannot be realized on the terrain grid, landing or not (D-027)
+	HYBRID_PROBLEM_PROFILE_CONFLICT,			// its fixed heights leave a road no Section-12.1 profile with the others (D-029)
 	HYBRID_PROBLEM_COUNT
 };
 
@@ -415,7 +416,8 @@ bool	Hybrid_Realized_Route(const HybridRoute & route,const HybridInteractionSet 
 struct HybridProfileStructure;
 bool	Hybrid_Road_Profile_Structures(const HybridInteractionSet & set,const HybridRoute & realized,
 												 DynamicVectorClass<HybridProfileStructure> * out,
-												 const DynamicVectorClass<unsigned int> * edges = nullptr);
+												 const DynamicVectorClass<unsigned int> * edges = nullptr,
+												 DynamicVectorClass<unsigned int> * interactions_out = nullptr);
 
 /*
 **	The physical road a logical edge is part of, realized (Q-025): a heavy family's whole trunk -- each of its
@@ -476,6 +478,57 @@ struct HybridPinLanding
 };
 
 
+/*
+**	D-029: one canonical fixed-height constraint on one physical road's Section-12.1 profile.  Phase 11 compiles them
+**	-- solving the roads in routing order with exactly these constraints, so a junction's height is the earlier road's
+**	own solved surface -- and accepts its solutions only when every road's whole profile is feasible with all of its
+**	constraints together.  Phase 12 consumes them unchanged and never derives another.  Ordinals are part of the
+**	checksum: never reorder.
+*/
+enum HybridVerticalConstraintKind
+{
+	HYBRID_VCON_STRUCTURE = 0,			// a compiled deck or bore holding its own surface
+	HYBRID_VCON_LANDING,					// a D-027 STRUCTURAL_PIN_LANDING
+	HYBRID_VCON_JUNCTION,				// an earlier road's solved surface over a compiled at-grade junction's footprint
+	HYBRID_VCON_LOCAL_JUNCTION,		// an interchange local junction at its compiled z_L
+	HYBRID_VCON_RAMP_GORE,				// a ramp's gore at its highway's solved surface
+	HYBRID_VCON_OVERPASS_LOWER,		// the road under an overpass at its compiled LowerSurfaceZ
+	HYBRID_VCON_KIND_COUNT
+};
+
+const char *	Hybrid_Vertical_Constraint_Kind_Name(HybridVerticalConstraintKind kind);
+
+struct HybridVerticalConstraint
+{
+	HybridVerticalConstraint(void) :
+		StableId(0),RoadEdgeId(0),InteractionId(0),OwnerEdgeId(0),Kind(HYBRID_VCON_STRUCTURE),From(0.0f),To(0.0f),
+		Level(true),EndsFixed(true),StartZ(0.0f),EndZ(0.0f),Reach(0.0f) { }
+
+	//	Equal only when every field is: Phase 12 consumes the records Phase 11 compiled, not a recomputation of them.
+	bool	operator == (const HybridVerticalConstraint & that) const
+	{
+		return (StableId == that.StableId) && (RoadEdgeId == that.RoadEdgeId) && (InteractionId == that.InteractionId) &&
+				 (OwnerEdgeId == that.OwnerEdgeId) && (Kind == that.Kind) && (From == that.From) && (To == that.To) &&
+				 (Level == that.Level) && (EndsFixed == that.EndsFixed) && (StartZ == that.StartZ) && (EndZ == that.EndZ) &&
+				 (Reach == that.Reach);
+	}
+	bool	operator != (const HybridVerticalConstraint & that) const	{ return !(*this == that); }
+
+	unsigned int						StableId;			// 1-based, in compile order
+	unsigned int						RoadEdgeId;			// the physical road it constrains (its naming edge)
+	unsigned int						InteractionId;		// the compiled solution it comes from
+	unsigned int						OwnerEdgeId;		// a junction's or gore's earlier road whose surface it is; 0 otherwise
+	HybridVerticalConstraintKind	Kind;
+	float									From;					// stations along the road's realized centerline
+	float									To;
+	bool									Level;				// level at StartZ; otherwise the line StartZ -> EndZ
+	bool									EndsFixed;			// a carried structure whose ends are compiled pins
+	float									StartZ;
+	float									EndZ;
+	float									Reach;				// a junction's arm reach, 0 for every other kind
+};
+
+
 struct HybridInteractionSet
 {
 	HybridInteractionSet(void)	{ Reset (); }
@@ -495,6 +548,8 @@ struct HybridInteractionSet
 	DynamicVectorClass<HybridInteractionIssue>	Issues;
 	DynamicVectorClass<HybridMergeDiverge>			MergeDiverge;		// Section 12.6.10 item 5, StableId order
 	DynamicVectorClass<HybridPinLanding>			Landings;			// D-027 STRUCTURAL_PIN_LANDING records, StableId order
+	DynamicVectorClass<HybridVerticalConstraint>	Constraints;		// D-029: every road's fixed heights, as Phase 12 consumes them
+	bool														ConstraintsCompiled;
 
 	int				StationsEvaluated;		// work actually done, against the Section-16.1 budgets
 	int				SweepSamples;
@@ -620,10 +675,14 @@ struct HybridRoadCrossingCensus
 
 struct HybridInteractionResult
 {
-	HybridInteractionResult(void) : Failure(HYBRID_INTERACTION_OK),RerouteEdgeId(0) { }
+	HybridInteractionResult(void) : Failure(HYBRID_INTERACTION_OK),RerouteEdgeId(0),RejectedSolutions(0) { }
 
 	HybridInteractionFailure	Failure;
 	StringClass						Detail;
+
+	//	D-027/D-029: compiled solutions rejected after the fact and re-solved without, with each rejection's conflict.
+	int								RejectedSolutions;
+	StringClass						Rejections;
 
 	//	Set when the solver wants one edge rerouted through its next Phase-10 envelope before failing.
 	unsigned int					RerouteEdgeId;

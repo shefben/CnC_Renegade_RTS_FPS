@@ -171,8 +171,24 @@ const char * Hybrid_Interaction_Problem_Name(HybridInteractionProblem problem)
 		case HYBRID_PROBLEM_GORE_RESERVE:					return "gore_reserve";
 		case HYBRID_PROBLEM_INTERCHANGE_FOOTPRINT:		return "interchange_footprint";
 		case HYBRID_PROBLEM_PIN_LANDING:					return "pin_landing";
+		case HYBRID_PROBLEM_PROFILE_CONFLICT:			return "profile_conflict";
 		case HYBRID_PROBLEM_TOO_CLOSE_TO_CROSSING:	return "too_close_to_crossing";
 		default:													break;
+	}
+	return "unknown";
+}
+
+
+const char * Hybrid_Vertical_Constraint_Kind_Name(HybridVerticalConstraintKind kind)
+{
+	switch (kind) {
+		case HYBRID_VCON_STRUCTURE:		return "structure";
+		case HYBRID_VCON_LANDING:			return "landing";
+		case HYBRID_VCON_JUNCTION:			return "junction";
+		case HYBRID_VCON_LOCAL_JUNCTION:	return "local_junction";
+		case HYBRID_VCON_RAMP_GORE:		return "ramp_gore";
+		case HYBRID_VCON_OVERPASS_LOWER:	return "overpass_lower";
+		default:									break;
 	}
 	return "unknown";
 }
@@ -241,6 +257,8 @@ void HybridInteractionSet::Reset(void)
 	Issues.Delete_All();
 	MergeDiverge.Delete_All();
 	Landings.Delete_All();
+	Constraints.Delete_All();
+	ConstraintsCompiled = false;
 	StationsEvaluated	= 0;
 	SweepSamples		= 0;
 	RerouteRequests	= 0;
@@ -563,6 +581,23 @@ unsigned int Hybrid_Interaction_Checksum(const HybridInteractionSet & set,unsign
 			stream.Add_Length(md.Samples[s].Z);
 		}
 	}
+	stream.Add_Bool(set.ConstraintsCompiled);
+	stream.Add_Int(set.Constraints.Count());
+	for (int i = 0; i < set.Constraints.Count(); ++i) {
+		const HybridVerticalConstraint & one = set.Constraints[i];
+		stream.Add_Uint(one.StableId);
+		stream.Add_Uint(one.RoadEdgeId);
+		stream.Add_Uint(one.InteractionId);
+		stream.Add_Uint(one.OwnerEdgeId);
+		stream.Add_Int((int)one.Kind);
+		stream.Add_Length(one.From);
+		stream.Add_Length(one.To);
+		stream.Add_Bool(one.Level);
+		stream.Add_Bool(one.EndsFixed);
+		stream.Add_Length(one.StartZ);
+		stream.Add_Length(one.EndZ);
+		stream.Add_Length(one.Reach);
+	}
 	stream.Add_Int(set.Landings.Count());
 	for (int i = 0; i < set.Landings.Count(); ++i) {
 		const HybridPinLanding & landing = set.Landings[i];
@@ -813,7 +848,9 @@ static bool Is_Interchange_Element(const HybridTopologyEdge & edge)
 */
 struct SolutionKey
 {
-	SolutionKey(void) : Method(HYBRID_METHOD_BRIDGE),EdgeId(0),OtherEdgeId(0),WindowId(0),NodeId(0),Station(0.0f,0.0f) { }
+	SolutionKey(void) :
+		Method(HYBRID_METHOD_BRIDGE),EdgeId(0),OtherEdgeId(0),WindowId(0),NodeId(0),Station(0.0f,0.0f),
+		Problem(HYBRID_PROBLEM_PIN_LANDING) { }
 
 	bool	operator == (const SolutionKey & that) const
 	{
@@ -828,6 +865,7 @@ struct SolutionKey
 	unsigned int				WindowId;
 	unsigned int				NodeId;
 	Vector2						Station;
+	HybridInteractionProblem	Problem;			// why it was rejected (not part of its identity)
 };
 
 
@@ -856,7 +894,7 @@ struct InteractionBuilder
 	**	edges -- in order when `ordered` (an overpass: its swap is a different solution), either way round otherwise.
 	*/
 	bool	Is_Excluded(HybridInteractionMethod method,unsigned int edge,unsigned int other,unsigned int window,bool ordered,
-							const Vector2 & station) const
+							const Vector2 & station,HybridInteractionProblem * problem_out = nullptr) const
 	{
 		if (Excluded == nullptr) return false;
 		for (int i = 0; i < Excluded->Count(); ++i) {
@@ -865,7 +903,9 @@ struct InteractionBuilder
 			const bool same_pair = ((key.EdgeId == edge) && (key.OtherEdgeId == other)) ||
 										  (!ordered && (key.EdgeId == other) && (key.OtherEdgeId == edge));
 			if (!same_pair) continue;
-			if ((key.Station - station).Length() <= (2.0f * P->Constants.Q)) return true;
+			if ((key.Station - station).Length() > (2.0f * P->Constants.Q)) continue;
+			if (problem_out != nullptr) *problem_out = key.Problem;
+			return true;
 		}
 		return false;
 	}
@@ -1835,10 +1875,12 @@ static bool Compiled_Structure(const HybridInteraction & one,const HybridRoute &
 
 bool Hybrid_Road_Profile_Structures(const HybridInteractionSet & set,const HybridRoute & realized,
 												DynamicVectorClass<HybridProfileStructure> * out,
-												const DynamicVectorClass<unsigned int> * edges)
+												const DynamicVectorClass<unsigned int> * edges,
+												DynamicVectorClass<unsigned int> * interactions_out)
 {
 	if (out == nullptr) return false;
 	out->Delete_All();
+	if (interactions_out != nullptr) interactions_out->Delete_All();
 	for (int i = 0; i < set.Interactions.Count(); ++i) {
 		const HybridInteraction & one = set.Interactions[i];
 		bool on_road = (one.EdgeId == realized.EdgeId);
@@ -1851,6 +1893,7 @@ bool Hybrid_Road_Profile_Structures(const HybridInteractionSet & set,const Hybri
 			continue;
 		}
 		out->Add(structure);
+		if (interactions_out != nullptr) interactions_out->Add(one.StableId);
 	}
 	return true;
 }
@@ -2205,9 +2248,10 @@ static bool Compile_Bridge(InteractionBuilder & b,const HybridTopologyEdge & edg
 		*/
 		const Vector2 & station = stations[s].Centre;
 		const bool own_station = (station == window.Center);
-		if (b.Is_Excluded(HYBRID_METHOD_BRIDGE,edge.StableId,0,window.StableId,true,station)) {
-			geometry_problem = HYBRID_PROBLEM_PIN_LANDING;
-			b.Note_Reject(HYBRID_PROBLEM_PIN_LANDING);
+		HybridInteractionProblem excluded_problem = HYBRID_PROBLEM_PIN_LANDING;
+		if (b.Is_Excluded(HYBRID_METHOD_BRIDGE,edge.StableId,0,window.StableId,true,station,&excluded_problem)) {
+			geometry_problem = excluded_problem;
+			b.Note_Reject(excluded_problem);
 			continue;
 		}
 		Vector2 across(-stations[s].Tangent.Y,stations[s].Tangent.X);
@@ -3127,9 +3171,11 @@ static bool At_Grade_Is_Legal(InteractionBuilder & b,const HybridTopologyEdge & 
 	const HybridRoadClassSpec & spec_a = Hybrid_Road_Class_Spec(edge_a.RoadClass);
 	const HybridRoadClassSpec & spec_b = Hybrid_Road_Class_Spec(edge_b.RoadClass);
 
-	//	D-027: a junction here whose structural pin the grid cannot realize was rejected; the overpass order follows.
-	if (b.Is_Excluded(HYBRID_METHOD_AT_GRADE_JUNCTION,edge_a.StableId,edge_b.StableId,0,false,Quantized(point))) {
-		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_PIN_LANDING;
+	/*
+	**	D-027 / D-029: a junction here was rejected -- its structural pin the grid cannot realize, or its height in a profile
+	**	that cannot hold it -- and the overpass order follows.
+	*/
+	if (b.Is_Excluded(HYBRID_METHOD_AT_GRADE_JUNCTION,edge_a.StableId,edge_b.StableId,0,false,Quantized(point),problem_out)) {
 		return false;
 	}
 
@@ -3346,8 +3392,7 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	const float half_roadbed = 0.5f * Hybrid_Edge_Roadbed_Width(upper_edge,k.W);
 
 	//	D-027: this assignment's structural pins could not be realized on the grid; the swap or a reroute follows.
-	if (b.Is_Excluded(HYBRID_METHOD_OVERPASS,upper_edge.StableId,lower_edge.StableId,0,true,Quantized(point))) {
-		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_PIN_LANDING;
+	if (b.Is_Excluded(HYBRID_METHOD_OVERPASS,upper_edge.StableId,lower_edge.StableId,0,true,Quantized(point),problem_out)) {
 		return false;
 	}
 
@@ -4079,8 +4124,7 @@ static bool Compile_Topology_Junctions(InteractionBuilder & b,const DynamicVecto
 		HybridInteractionProblem problem = HYBRID_PROBLEM_NONE;
 		const bool rejected = b.Is_Excluded(HYBRID_METHOD_AT_GRADE_JUNCTION,realized[through].EdgeId,
 														realized[(through == incident[0]) ? incident[1] : incident[0]].EdgeId,0,false,
-														Quantized(node.Position));
-		if (rejected) problem = HYBRID_PROBLEM_PIN_LANDING;
+														Quantized(node.Position),&problem);
 		if (!rejected && Topology_Junction_Is_Legal(b,node.Position,arms,&problem)) {
 			const HybridRoute & main = realized[through];
 			const HybridTopologyEdge * main_edge = topology.Find_Edge(main.EdgeId);
@@ -4947,7 +4991,24 @@ static float Point_To_Polyline(const DynamicVectorClass<Vector2> & points,const 
 }
 
 
-static bool Reject_Solution(InteractionBuilder & b,unsigned int interaction_id,const char * why,HybridInteractionResult * result)
+//	Can this compiled solution be excluded and the phase re-solved, its own fallback order picking what replaces it?
+static bool Rejectable(const InteractionBuilder & b,unsigned int interaction_id)
+{
+	const HybridInteraction * one = b.Out->Find(interaction_id);
+	if (one == nullptr) return false;
+	const HybridTopologyEdge * edge = b.Topology->Find_Edge(one->EdgeId);
+	const HybridTopologyEdge * other = (one->OtherEdgeId != 0) ? b.Topology->Find_Edge(one->OtherEdgeId) : nullptr;
+	const HybridJunctionRole role = Hybrid_Interaction_Junction_Role(*one);
+	if ((role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_LOCAL_JUNCTION) || (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_MERGE) ||
+		 (role == HYBRID_JUNCTION_ROLE_HIGHWAY_RAMP_DIVERGE)) return false;
+	if (((edge != nullptr) && Is_Interchange_Element(*edge)) || ((other != nullptr) && Is_Interchange_Element(*other))) return false;
+	return (one->Method == HYBRID_METHOD_BRIDGE) || (one->Method == HYBRID_METHOD_OVERPASS) ||
+			 (one->Method == HYBRID_METHOD_AT_GRADE_JUNCTION);
+}
+
+
+static bool Reject_Solution(InteractionBuilder & b,unsigned int interaction_id,const char * why,HybridInteractionResult * result,
+									 HybridInteractionProblem problem = HYBRID_PROBLEM_PIN_LANDING)
 {
 	const HybridInteraction * one = b.Out->Find(interaction_id);
 	StringClass detail;
@@ -4972,17 +5033,75 @@ static bool Reject_Solution(InteractionBuilder & b,unsigned int interaction_id,c
 		key.WindowId		= one->WindowId;
 		key.NodeId			= one->NodeId;
 		key.Station			= one->Station;
+		key.Problem			= problem;
 		b.Rejected->Add(key);
 	}
 	return Fail(result,HYBRID_INTERACTION_REALIZATION,detail.Peek_Buffer());
 }
 
 
-static bool Compile_Pin_Landings(InteractionBuilder & b,HybridInteractionResult * result)
+/*
+**	D-029: a road's whole profile is infeasible with its fixed heights.  The solution blamed is the one a conflicting
+**	constraint comes from -- a junction, a landing's owner, an overpass or a bridge -- the later-compiled one when both
+**	sides could be; it is rejected and Phase 11 re-solved without it.  A conflict naming only interchange elements fails
+**	the phase there; one naming no constraint (the ground alone) asks for the road's one more envelope, then fails.
+*/
+static bool Profile_Conflict(InteractionBuilder & b,const HybridRealizationResult & planned,HybridInteractionResult * result)
+{
+	const HybridConstraintConflict & c = planned.Conflict;
+	StringClass detail;
+	unsigned int blamed = 0;
+	HybridVerticalConstraintKind blamed_kind = HYBRID_VCON_KIND_COUNT;
+	bool interchange = false;
+	for (int side = 0; side < 2; ++side) {
+		const bool has = (side == 0) ? c.HasA : c.HasB;
+		if (!has) continue;
+		const HybridVerticalConstraint & record = (side == 0) ? c.A : c.B;
+		unsigned int owner = record.InteractionId;
+		if ((record.Kind == HYBRID_VCON_LOCAL_JUNCTION) || (record.Kind == HYBRID_VCON_RAMP_GORE)) interchange = true;
+		if (!Rejectable(b,owner)) {
+			const HybridInteraction * one = b.Out->Find(owner);
+			const HybridTopologyEdge * edge = (one != nullptr) ? b.Topology->Find_Edge(one->EdgeId) : nullptr;
+			if ((edge != nullptr) && Is_Interchange_Element(*edge)) interchange = true;
+			continue;
+		}
+		if (owner < blamed) continue;
+		if ((owner > blamed) || (record.Kind == HYBRID_VCON_LANDING)) blamed_kind = record.Kind;
+		blamed = owner;
+	}
+	if (blamed != 0) {
+		//	A solution's own STRUCTURAL_PIN_LANDING the road cannot carry stays D-027's refusal.
+		const HybridInteractionProblem problem = (blamed_kind == HYBRID_VCON_LANDING) ? HYBRID_PROBLEM_PIN_LANDING
+																											: HYBRID_PROBLEM_PROFILE_CONFLICT;
+		detail.Format("%s: %s",Hybrid_Interaction_Problem_Name(problem),planned.Detail.Peek_Buffer());
+		return Reject_Solution(b,blamed,detail.Peek_Buffer(),result,problem);
+	}
+	if (interchange) {
+		detail.Format("an interchange's fixed heights leave a road no profile: %s",planned.Detail.Peek_Buffer());
+		return Fail(result,HYBRID_INTERACTION_INTERCHANGE,detail.Peek_Buffer());
+	}
+	const HybridRoute * route = b.Routes->Find(planned.EdgeId);
+	if ((route != nullptr) && (route->Envelope < 2)) {
+		b.Out->RerouteRequests++;
+		if (result != nullptr) result->RerouteEdgeId = planned.EdgeId;
+	}
+	detail.Format("Phase 12's plan cannot be realized: %s",planned.Detail.Peek_Buffer());
+	return Fail(result,HYBRID_INTERACTION_REALIZATION,detail.Peek_Buffer());
+}
+
+
+/*
+**	Phase 11's last step (D-027, D-029).  The canonical vertical constraints are compiled -- the roads solved in routing
+**	order, each with every fixed height on it together, a junction's height the earlier road's own solved surface -- and
+**	accepted only when every road's whole profile is feasible.  On the native grid the plan they make is then judged as
+**	Phase 12 will realize it; a structural pin the grid cannot realize gets its landing and the constraints are compiled
+**	again.  The constraints are frozen on the set for Phase 12 to consume unchanged.
+*/
+static bool Compile_Realization(InteractionBuilder & b,HybridInteractionResult * result)
 {
 	const HybridInteractionParams & p = *b.P;
-	if (!(p.TerrainCellSize > 0.0f)) return true;
 	const HybridConstants & k = p.Constants;
+	const bool grid_known = (p.TerrainCellSize > 0.0f);
 
 	HybridRealizationParams params;
 	params.Constants					= k;
@@ -5013,33 +5132,23 @@ static bool Compile_Pin_Landings(InteractionBuilder & b,HybridInteractionResult 
 
 		HybridRealizationPlan plan;
 		HybridRealizationResult planned;
-		if (!Hybrid_Plan_Realization(params,*b.Topology,*b.Routes,*b.Out,b.Sample,b.Context,&plan,&planned)) {
-			//	A landing on the refused road is what left it no profile: its solution is the one rejected.
-			HybridRoute road;
-			if (Hybrid_Realized_Physical_Road(*b.Routes,*b.Out,planned.EdgeId,&road,nullptr)) {
-				for (int l = 0; l < b.Out->Landings.Count(); ++l) {
-					const HybridPinLanding & landing = b.Out->Landings[l];
-					if (Point_To_Polyline(road.Points,landing.Position) > (2.0f * k.Q)) continue;
-					detail.Format("its STRUCTURAL_PIN_LANDING at (%.1f,%.1f) leaves edge %u no legal profile (%s)",landing.Position.X,
-									  landing.Position.Y,planned.EdgeId,planned.Detail.Peek_Buffer());
-					return Reject_Solution(b,landing.InteractionId,detail.Peek_Buffer(),result);
-				}
-			}
-			//	Otherwise the plan itself cannot be realized: Phase 11 says so, with its one more envelope, never Phase 12.
-			const HybridRoute * route = b.Routes->Find(planned.EdgeId);
-			if ((route != nullptr) && (route->Envelope < 2)) {
-				b.Out->RerouteRequests++;
-				if (result != nullptr) result->RerouteEdgeId = planned.EdgeId;
-			}
+		DynamicVectorClass<HybridVerticalConstraint> constraints;
+		if (!Hybrid_Compile_Vertical_Constraints(params,*b.Topology,*b.Routes,*b.Out,b.Sample,b.Context,&constraints,&plan,
+															  &planned)) {
+			if (planned.Failure == HYBRID_REALIZATION_PROFILE) return Profile_Conflict(b,planned,result);
 			detail.Format("Phase 12's plan cannot be realized: %s (%s)",Hybrid_Realization_Failure_Name(planned.Failure),
 							  planned.Detail.Peek_Buffer());
 			return Fail(result,HYBRID_INTERACTION_REALIZATION,detail.Peek_Buffer());
 		}
+		b.Out->Constraints			= constraints;
+		b.Out->ConstraintsCompiled	= true;
+		if (!grid_known) return true;
 
 		DynamicVectorClass<HybridRasterIssue> issues;
 		if (Hybrid_Plan_Rasterization(plan,k,b.Hydrology,grid,b.Sample,b.Context,p.MaxCutDepth,p.MaxFillHeight,envelopes,&issues)) {
 			return true;
 		}
+		b.Out->ConstraintsCompiled = false;
 		bool added = false;
 		for (int i = 0; i < issues.Count(); ++i) {
 			const HybridRasterIssue & issue = issues[i];
@@ -5314,8 +5423,8 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 	//	Every crossing on the interchanges' roads is compiled: their elevations and merge/diverge records (12.6.10).
 	if (!Compile_Interchange_Elevations(b,result)) return false;
 
-	//	D-027: every structural pin of the plan Phase 12 will build, judged on the terrain grid, landed or rejected here.
-	if (!Compile_Pin_Landings(b,result)) return false;
+	//	D-027 / D-029: the canonical vertical constraints, every road's whole profile, and every structural pin on the grid.
+	if (!Compile_Realization(b,result)) return false;
 
 	/*
 	**	"Before the phase gate, run lightweight swept proxy validation over every compiled bridge/pass/
@@ -5376,6 +5485,7 @@ bool Hybrid_Build_Interactions(const HybridInteractionParams & params,const Hybr
 	**	own fallback order picks what replaces it.  Bounded: each run excludes at least one more solution.
 	*/
 	DynamicVectorClass<SolutionKey> excluded;
+	StringClass rejections;
 	for (int run = 0; run <= MAX_PIN_REJECTION_RUNS; ++run) {
 		out->Reset();
 		if (result != nullptr) {
@@ -5383,12 +5493,20 @@ bool Hybrid_Build_Interactions(const HybridInteractionParams & params,const Hybr
 			result->Detail				= "";
 			result->RerouteEdgeId	= 0;
 			result->RoadCrossings.Reset();
+			result->RejectedSolutions	= excluded.Count();
+			result->Rejections			= rejections;
 		}
 		DynamicVectorClass<SolutionKey> rejected;
 		if (Solve_Interactions(params,identity,matrices,landforms,hydrology,anchors,topology,routes,sample,
 										context,out,result,&excluded,&rejected)) return true;
 		if (rejected.Count() == 0) break;
 		for (int r = 0; r < rejected.Count(); ++r) excluded.Add(rejected[r]);
+		if (result != nullptr) {
+			rejections += result->Detail;
+			rejections += " | ";
+			result->RejectedSolutions	= excluded.Count();
+			result->Rejections			= rejections;
+		}
 	}
 
 	out->Interactions.Delete_All();
