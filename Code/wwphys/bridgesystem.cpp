@@ -64,6 +64,15 @@ static const float BRIDGE_MAX_CAP_SHARE = 0.8f;
 */
 static const float BRIDGE_NOMINAL_PIER_DROP = 6.0f;
 
+/*
+**	Conform_Point's projection error bound: gamma_k = k*u / (1 - k*u), u = 2^-24 the single-precision unit roundoff
+**	(FLT_EPSILON / 2).  See Conform_Point for the operations each covers.
+*/
+static const double BRIDGE_PROJECTION_U = 1.0 / 16777216.0;
+static const float BRIDGE_PROJECTION_GAMMA_2 = (float)((2.0 * BRIDGE_PROJECTION_U) / (1.0 - (2.0 * BRIDGE_PROJECTION_U)));
+static const float BRIDGE_PROJECTION_GAMMA_5 = (float)((5.0 * BRIDGE_PROJECTION_U) / (1.0 - (5.0 * BRIDGE_PROJECTION_U)));
+static const float BRIDGE_PROJECTION_GAMMA_6 = (float)((6.0 * BRIDGE_PROJECTION_U) / (1.0 - (6.0 * BRIDGE_PROJECTION_U)));
+
 
 DynamicVectorClass<BridgeDefinitionClass>	BridgeSystem::Definitions;
 DynamicVectorClass<BridgeClass>				BridgeSystem::Bridges;
@@ -492,6 +501,22 @@ static Vector3 Deck_Point(const BridgeClass & bridge,const Vector3 & dir,float d
 }
 
 
+/*
+**	The deck's far end: the bridge's own end point, exactly.  Start + dir * length lands within a
+**	coordinate ulp of it but not on it (one bridge in five), and a road or pin that hands over at
+**	the bridge's end would then stand that ulp off the last piece of deck -- outside it.  The near
+**	end needs no such care: Start + dir * 0 is Start.
+*/
+static Vector3 Deck_End(const BridgeClass & bridge,bool level_deck,float deck_z)
+{
+	Vector3 point = bridge.Get_End();
+	if (level_deck) {
+		point.Z = deck_z;
+	}
+	return point;
+}
+
+
 /***********************************************************************************************
  * BridgeSystem::Layout_Bridge -- caps, spans, piers and decoration along one line              *
  *                                                                                             *
@@ -563,16 +588,18 @@ bool BridgeSystem::Layout_Bridge(BridgeClass & bridge,const BridgeDefinitionClas
 
 	float span_start_distance = travelled;
 
+	const bool has_end_cap = (cap_end > WWMATH_EPSILON);
 	for (int s = 0; s < span_count; s++) {
 		Vector3 a = Deck_Point(bridge,dir,travelled,level_deck,deck_z);
-		Vector3 b = Deck_Point(bridge,dir,travelled + span_length,level_deck,deck_z);
+		Vector3 b = ((s == (span_count - 1)) && !has_end_cap) ? Deck_End(bridge,level_deck,deck_z)
+						: Deck_Point(bridge,dir,travelled + span_length,level_deck,deck_z);
 		Place_Section(bridge,BRIDGE_SECTION_SPAN,s,a,b,half_width,0.0f);
 		travelled += span_length;
 	}
 
-	if (cap_end > WWMATH_EPSILON) {
+	if (has_end_cap) {
 		Vector3 a = Deck_Point(bridge,dir,travelled,level_deck,deck_z);
-		Vector3 b = Deck_Point(bridge,dir,length,level_deck,deck_z);
+		Vector3 b = Deck_End(bridge,level_deck,deck_z);
 		Place_Section(bridge,BRIDGE_SECTION_END_CAP,0,a,b,half_width,0.0f);
 	}
 
@@ -1136,19 +1163,46 @@ bool BridgeSystem::Conform_Point(float x,float y,float * height_out,int * bridge
 
 			//	In plan: how far along this section, and how far to the side of it.
 			Vector3 along = section.End - section.Start;
-			float plan_length = WWMath::Sqrt((along.X * along.X) + (along.Y * along.Y));
+			float along_squared = (along.X * along.X) + (along.Y * along.Y);
+			float plan_length = WWMath::Sqrt(along_squared);
 			if (plan_length <= WWMATH_EPSILON) { continue; }
 
 			float dx = x - section.Start.X;
 			float dy = y - section.Start.Y;
 
-			float t = ((dx * along.X) + (dy * along.Y)) / (plan_length * plan_length);
-			if ((t < 0.0f) || (t > 1.0f)) { continue; }
+			/*
+			**	The parameter is taken over |along|^2 itself, never the square of its rounded square root: that square
+			**	can land an ulp below |along|^2, and the section's own end point -- a bridge end a road or pin hands over
+			**	on -- then projected one ulp past 1 and fell off the deck.  Over |along|^2 the end point gives exactly 1.
+			**
+			**	What is left is floating point's own error, of two kinds:
+			**	- the arithmetic: the two subtractions, two products, the sum and the division that make `t` put it at
+			**	  most gamma_4 * (|dx*Ax| + |dy*Ay|) / |A|^2 + gamma_5 * |t| from the exact parameter of these float inputs
+			**	  (the standard model, u = 2^-24, gamma_k = k*u / (1 - k*u));
+			**	- the point itself: a place on the deck's end line -- a deck corner, a lane's end -- is generally no float
+			**	  pair, and the nearest one is up to u * |x| and u * |y| from it, which along the section is at most
+			**	  u * (|x| * |Ax| + |y| * |Ay|) / |A|^2 of parameter.
+			**	One u more in each covers the computed values the bound is evaluated with.  A `t` within that of [0,1]
+			**	cannot be told from a point on the section's end: it is the endpoint, clamped to it exactly.  Anything
+			**	farther is outside, as before -- the allowance is a few parts in ten million of the section's coordinates
+			**	(36 micrometres 600 m from the origin), never a margin added to the span.
+			*/
+			float along_x = dx * along.X;
+			float along_y = dy * along.Y;
+			float t = (along_x + along_y) / along_squared;
+			float roundoff = (BRIDGE_PROJECTION_GAMMA_5 * ((WWMath::Fabs(along_x) + WWMath::Fabs(along_y)) / along_squared)) +
+								  (BRIDGE_PROJECTION_GAMMA_6 * WWMath::Fabs(t)) +
+								  (BRIDGE_PROJECTION_GAMMA_2 * (((WWMath::Fabs(x) * WWMath::Fabs(along.X)) + (WWMath::Fabs(y) * WWMath::Fabs(along.Y))) /
+																		  along_squared));
+			if ((t < -roundoff) || ((t - 1.0f) > roundoff)) { continue; }
+			t = WWMath::Clamp(t,0.0f,1.0f);
 
 			float lateral = ((dx * -along.Y) + (dy * along.X)) / plan_length;
 			if (WWMath::Fabs(lateral) > section.HalfWidth) { continue; }
 
-			float height = section.Start.Z + ((section.End.Z - section.Start.Z) * t);
+			//	An endpoint is the section's own end, exactly; between them the deck's straight line.
+			float height = (t <= 0.0f) ? section.Start.Z
+								: ((t >= 1.0f) ? section.End.Z : (section.Start.Z + ((section.End.Z - section.Start.Z) * t)));
 
 			//	Bridges may cross each other.  The one you are on is the higher one.
 			if (!found || (height > best_height)) {

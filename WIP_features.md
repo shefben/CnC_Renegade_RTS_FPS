@@ -468,11 +468,16 @@ grid ownership only. Census r15: 448 / 98 / 1 solved; Phase 12 0 of 1. On r11's 
 Phase-12 blocker is `BridgeSystem::Conform_Point` rejecting a deck end at `t = 1.0000001` (one float ulp); with a
 probe-only tolerance it passes Phase 12 entirely.
 
+D-031 (2026-10-05) makes a bridge deck's ends conform to floating point's own error, and proves the D-029 junction cut
+with a regression. Census seed 93 (archetype 1) now solves Phase 11 and passes Phase 12. The in-game smoke test is still
+blocked: the census is a 1200 m fixture harness, not the 2400 m in-game native profile, so no in-game native world is
+known to pass Phase 12.
+
 **Next exact action:**
-1. Report D-030's measurements to the user and wait for direction on the next blocker (the deck-end ulp in
-   `Conform_Point` is the smallest). No behavioural change before that.
-2. The in-game smoke: Main menu, Start Procedural Game, then `procedural_world status`. It needs a native world that
-   passes Phase 12.
+1. Wait for the user's direction. Named next investigation (not started): why Phase 11 detects no physical
+   roadbed-footprint conflict between roads whose centerlines do not intersect (archetype 5 seed 64).
+2. The in-game smoke: Main menu, Start Procedural Game, then `procedural_world status`. It needs an in-game
+   native-profile world that passes Phase 12; none is known (D-031).
 3. Close I13.
 4. Start the Phase-13 Tiberium inventory.
 

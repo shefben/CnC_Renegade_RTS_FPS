@@ -1426,6 +1426,273 @@ void	Check_Roads (void)
 }
 
 
+static float Float_From_Bits (unsigned int bits)
+{
+	float value = 0.0f;
+	::memcpy (&value, &bits, sizeof (value));
+	return value;
+}
+
+
+/*
+**	The projection BridgeSystem::Conform_Point made before D-031, kept here only to show what the fixtures
+**	reproduce: its parameter over the square of the rounded plan length.  The highest deck over (x, y), or false.
+*/
+static bool Legacy_Deck_Height (const BridgeClass & bridge, float x, float y, float * height_out)
+{
+	bool found = false;
+	for (int s = 0; s < bridge.Get_Section_Count (); s++) {
+		const BridgeSectionClass & section = bridge.Get_Section (s);
+		if ((section.Kind != BRIDGE_SECTION_START_CAP) && (section.Kind != BRIDGE_SECTION_SPAN) &&
+			 (section.Kind != BRIDGE_SECTION_END_CAP)) continue;
+		const Vector3 along = section.End - section.Start;
+		const float plan_length = WWMath::Sqrt ((along.X * along.X) + (along.Y * along.Y));
+		if (plan_length <= WWMATH_EPSILON) continue;
+		const float dx = x - section.Start.X;
+		const float dy = y - section.Start.Y;
+		const float t = ((dx * along.X) + (dy * along.Y)) / (plan_length * plan_length);
+		if ((t < 0.0f) || (t > 1.0f)) continue;
+		const float lateral = ((dx * -along.Y) + (dy * along.X)) / plan_length;
+		if (WWMath::Fabs (lateral) > section.HalfWidth) continue;
+		const float height = section.Start.Z + ((section.End.Z - section.Start.Z) * t);
+		if (!found || (height > *height_out)) *height_out = height;
+		found = true;
+	}
+	return found;
+}
+
+
+/*
+**	The exact parameter of (x, y) on the deck piece ending (or starting) at the bridge's end `end`, in double from the
+**	float inputs, and the arithmetic bound D-031 derives for Conform_Point's float parameter there.
+*/
+static void Exact_Deck_Parameter (const BridgeClass & bridge, int end, float x, float y, double * t_out, double * bound_out)
+{
+	*t_out = 0.5;
+	*bound_out = 0.0;
+	for (int s = 0; s < bridge.Get_Section_Count (); s++) {
+		const BridgeSectionClass & section = bridge.Get_Section (s);
+		if ((section.Kind != BRIDGE_SECTION_START_CAP) && (section.Kind != BRIDGE_SECTION_SPAN) &&
+			 (section.Kind != BRIDGE_SECTION_END_CAP)) continue;
+		const Vector3 & at = (end == 0) ? section.Start : section.End;
+		const Vector3 & tip = (end == 0) ? bridge.Get_Start () : bridge.Get_End ();
+		if ((at.X != tip.X) || (at.Y != tip.Y)) continue;
+		const double ax = (double)section.End.X - (double)section.Start.X;
+		const double ay = (double)section.End.Y - (double)section.Start.Y;
+		const double dx = (double)x - (double)section.Start.X;
+		const double dy = (double)y - (double)section.Start.Y;
+		const double squared = (ax * ax) + (ay * ay);
+		const double u = 1.0 / 16777216.0;
+		*t_out = ((dx * ax) + (dy * ay)) / squared;
+		*bound_out = (((5.0 * u) / (1.0 - (5.0 * u))) * ((fabs (dx * ax) + fabs (dy * ay)) / squared)) +
+						 (((6.0 * u) / (1.0 - (6.0 * u))) * fabs (*t_out)) +
+						 (((2.0 * u) / (1.0 - (2.0 * u))) * (((fabs ((double)x) * fabs (ax)) + (fabs ((double)y) * fabs (ay))) / squared));
+		return;
+	}
+}
+
+
+/*
+**	D-031: a bridge's two ends.  Whatever hands over at a bridge's exact end point -- a road, a D-026 deck-end pin, a
+**	vehicle -- stands on the deck there.
+**	- Archetype 1 seed 93's assembly 3, bit for bit on the census's bridge definition: the projection before D-031 put its
+**	  end 1.0000001 along the end cap; now it conforms at the deck's own end height, exactly.
+**	- Every orientation (3 degrees apart, both ways round), five lengths and two places on the map: both exact ends
+**	  conform at their own heights exactly (a sloped deck); every interior point the old projection put on the deck is
+**	  still on it, at the straight line's height within float noise (the old projection also dropped a point standing on
+**	  a joint between two spans -- 1.0000001 along one, below 0 on the next -- and those now conform); and stepping
+**	  outward one coordinate ulp at a time from either end, no point whose exact parameter is past twice the derived
+**	  bound conforms (the computed parameter can stand the bound either side of the exact one, so the band the bound
+**	  accepts is twice it, the coordinates' own few ulps).  The farthest accepted overrun stays under a quarter of a
+**	  millimetre at every length -- a 420 m bridge gets no more than a 2 m one.
+*/
+static void Check_Bridge_Deck_Ends (void)
+{
+	BridgeSystem::Clear_Bridges ();
+	BridgeDefinitionClass census;
+	census.Set_Name ("d031_census_bridge");
+	census.Set_Width (40.0f);
+	census.Set_Deck_Thickness (2.0f);
+	Check (BridgeSystem::Define_Bridge (census), "the census bridge definition would not define");
+
+	//	Archetype 1 seed 93, assembly 3: the floats Phase 12 handed BridgeSystem.
+	{
+		const Vector3 start (Float_From_Bits (0x43c910d8u), Float_From_Bits (0x403794b2u), 4.5f);
+		const Vector3 end (Float_From_Bits (0x43c46f2au), Float_From_Bits (0x41421ad4u), 4.5f);
+		BridgeClass bridge;
+		bridge.Set_Name ("d031_seed93");
+		bridge.Set_Definition ("d031_census_bridge");
+		bridge.Set_Endpoints (start, end);
+		bridge.Set_Width (15.783f);
+		bridge.Set_Deck_Height (0.0f);
+		const int id = BridgeSystem::Add_Bridge (bridge);
+		Check (BridgeSystem::Build_Layout (), "the seed-93 bridge would not lay out");
+		const BridgeClass * placed = BridgeSystem::Peek_Bridge (id);
+		float legacy = 0.0f;
+		const bool legacy_end = (placed != NULL) && Legacy_Deck_Height (*placed, end.X, end.Y, &legacy);
+		Check ((placed != NULL) && !legacy_end,
+				 "the seed-93 fixture does not reproduce the failure: the old projection found its end on the deck");
+		float height = 0.0f;
+		int over = -1;
+		const bool at_end = BridgeSystem::Conform_Point (end.X, end.Y, &height, &over);
+		Check (at_end && (over == id) && (height == 4.5f),
+				 "seed 93's deck end does not conform: %d, bridge %d, height %.7f", at_end ? 1 : 0, over, height);
+		const bool at_start = BridgeSystem::Conform_Point (start.X, start.Y, &height, &over);
+		Check (at_start && (over == id) && (height == 4.5f), "seed 93's deck start does not conform: height %.7f", height);
+		printf ("  D-031 seed 93 assembly 3: the old projection put its end off the deck; it now conforms at exactly 4.5\r\n");
+		BridgeSystem::Clear_Bridges ();
+	}
+
+	/*
+	**	Archetype 1 seed 93, assembly 1: the deck's start corner Section 12.3's deck sweep asks at, Start + across * reach as
+	**	Phase 12 computed it.  The nearest float pair to that corner stands 3.2 micrometres before the end line (exact
+	**	parameter -5.3e-7 on the start cap): past the arithmetic's own error, inside the point's own representation.
+	*/
+	{
+		const Vector3 start (Float_From_Bits (0xc33e9d22u), Float_From_Bits (0xc2d47990u), 4.5f);
+		const Vector3 end (Float_From_Bits (0xc329a77au), Float_From_Bits (0xc2b815ceu), 4.5f);
+		const float corner_x = Float_From_Bits (0xc341149du);
+		const float corner_y = Float_From_Bits (0xc2cd30b9u);
+		BridgeClass bridge;
+		bridge.Set_Name ("d031_seed93_a1");
+		bridge.Set_Definition ("d031_census_bridge");
+		bridge.Set_Endpoints (start, end);
+		bridge.Set_Width (8.802f);
+		bridge.Set_Deck_Height (0.0f);
+		const int id = BridgeSystem::Add_Bridge (bridge);
+		Check (BridgeSystem::Build_Layout (), "the seed-93 assembly-1 bridge would not lay out");
+		const BridgeClass * placed = BridgeSystem::Peek_Bridge (id);
+		double t = 0.0;
+		double bound = 0.0;
+		if (placed != NULL) Exact_Deck_Parameter (*placed, 0, corner_x, corner_y, &t, &bound);
+		float legacy = 0.0f;
+		const bool legacy_corner = (placed != NULL) && Legacy_Deck_Height (*placed, corner_x, corner_y, &legacy);
+		float height = 0.0f;
+		int over = -1;
+		const bool at_corner = BridgeSystem::Conform_Point (corner_x, corner_y, &height, &over);
+		Check ((placed != NULL) && !legacy_corner && (t < 0.0) && (t >= -bound),
+				 "the seed-93 corner fixture does not reproduce: old projection %d, exact parameter %.3g, bound %.3g",
+				 legacy_corner ? 1 : 0, t, bound);
+		Check (at_corner && (over == id) && (height == 4.5f),
+				 "seed 93's deck start corner does not conform: %d, bridge %d, height %.7f", at_corner ? 1 : 0, over, height);
+		printf ("  D-031 seed 93 assembly 1: its start corner %.2g before the end line (bound %.2g) conforms at exactly 4.5\r\n",
+				  t, bound);
+		BridgeSystem::Clear_Bridges ();
+	}
+
+	//	Every orientation, five lengths, two places.
+	const float lengths[5] = { 2.0f, 13.1f, 47.3f, 160.0f, 420.0f };
+	const Vector2 centres[2] = { Vector2 (397.5f, 7.5f), Vector2 (-905.25f, 551.75f) };
+	int bridges = 0;
+	int legacy_misses = 0;
+	int end_failures = 0;
+	int interior_failures = 0;
+	int joint_holes = 0;
+	int strict_failures = 0;
+	int stepped = 0;
+	float widest_overrun[5] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+	float interior_worst = 0.0f;
+	for (int l = 0; l < 5; l++) {
+		for (int c = 0; c < 2; c++) {
+			for (int a = 0; a < 120; a++) {
+				const float angle = DEG_TO_RADF ((3.0f * (float)a) + 0.37f);
+				const Vector2 axis (WWMath::Cos (angle), WWMath::Sin (angle));
+				const Vector3 start (centres[c].X - (0.5f * lengths[l] * axis.X), centres[c].Y - (0.5f * lengths[l] * axis.Y), 3.0f);
+				const Vector3 end (centres[c].X + (0.5f * lengths[l] * axis.X), centres[c].Y + (0.5f * lengths[l] * axis.Y), 5.0f);
+				BridgeClass bridge;
+				bridge.Set_Name ("d031_sweep");
+				bridge.Set_Definition ("d031_census_bridge");
+				bridge.Set_Endpoints (start, end);
+				bridge.Set_Width (8.0f);
+				const int id = BridgeSystem::Add_Bridge (bridge);
+				const BridgeClass * placed = BridgeSystem::Build_Layout () ? BridgeSystem::Peek_Bridge (id) : NULL;
+				if (placed == NULL) {
+					end_failures++;
+					BridgeSystem::Clear_Bridges ();
+					continue;
+				}
+				bridges++;
+
+				//	Both exact ends, at their own heights exactly.
+				for (int e = 0; e < 2; e++) {
+					const Vector3 & tip = (e == 0) ? start : end;
+					float legacy = 0.0f;
+					if (!Legacy_Deck_Height (*placed, tip.X, tip.Y, &legacy)) legacy_misses++;
+					float height = 0.0f;
+					int over = -1;
+					if (!BridgeSystem::Conform_Point (tip.X, tip.Y, &height, &over) || (over != id) || (height != tip.Z)) end_failures++;
+				}
+
+				//	The interior: the straight line's height, as before, within float noise.
+				for (int q = 1; q < 8; q++) {
+					const float along = lengths[l] * ((float)q / 8.0f);
+					const float x = start.X + (axis.X * along);
+					const float y = start.Y + (axis.Y * along);
+					float height = 0.0f;
+					float legacy = 0.0f;
+					const bool now = BridgeSystem::Conform_Point (x, y, &height);
+					const bool before = Legacy_Deck_Height (*placed, x, y, &legacy);
+					if (before && !now) {
+						interior_failures++;
+					} else if (now && !before) {
+						joint_holes++;
+					} else if (now) {
+						interior_worst = WWMath::Max (interior_worst, WWMath::Fabs (height - legacy));
+					}
+				}
+
+				//	Outward from each end, one coordinate ulp at a time along the axis's larger component.
+				for (int e = 0; e < 2; e++) {
+					const Vector3 & tip = (e == 0) ? start : end;
+					const float sign = (e == 0) ? -1.0f : 1.0f;
+					const bool along_x = (WWMath::Fabs (axis.X) >= WWMath::Fabs (axis.Y));
+					const float toward = (sign * (along_x ? axis.X : axis.Y)) >= 0.0f ? 1.0e30f : -1.0e30f;
+					float px = tip.X;
+					float py = tip.Y;
+					bool past = false;
+					for (int k = 0; k < 64; k++) {
+						if (along_x) px = ::nextafterf (px, toward);
+						else			 py = ::nextafterf (py, toward);
+						double t = 0.0;
+						double bound = 0.0;
+						Exact_Deck_Parameter (*placed, e, px, py, &t, &bound);
+						past = past || ((e == 0) ? (t < (-2.0 * bound)) : ((t - 1.0) > (2.0 * bound)));
+						float height = 0.0f;
+						int over = -1;
+						const bool on = BridgeSystem::Conform_Point (px, py, &height, &over) && (over == id);
+						stepped++;
+						if (on && past) strict_failures++;
+						if (on) {
+							const float overrun = (Vector2 (px, py) - Vector2 (tip.X, tip.Y)).Length ();
+							widest_overrun[l] = WWMath::Max (widest_overrun[l], overrun);
+						}
+					}
+				}
+				BridgeSystem::Clear_Bridges ();
+			}
+		}
+	}
+	Check ((bridges == 1200) && (end_failures == 0),
+			 "D-031: %d of %d bridges laid out; %d exact ends off their deck or off their own height", bridges, 1200, end_failures);
+	Check (legacy_misses > 0, "D-031: the sweep never reproduces the old projection's endpoint miss");
+	Check ((interior_failures == 0) && (interior_worst <= 1.0e-5f),
+			 "D-031: interior conformance changed: %d points the old projection put on the deck are off it, heights %.8f apart",
+			 interior_failures,
+			 interior_worst);
+	Check (strict_failures == 0, "D-031: %d of %d points past twice the derived bound still conform", strict_failures, stepped);
+	//	The allowance is the coordinates' own (tens of micrometres here), never a share of the span: no length widens it.
+	bool tight = true;
+	for (int l = 0; l < 5; l++) tight = tight && (widest_overrun[l] < 2.5e-4f);
+	Check (tight, "D-031: a bridge end conforms points %.6f / %.6f / %.6f / %.6f / %.6f past it (lengths 2 / 13.1 / 47.3 / 160 / 420)",
+			 widest_overrun[0], widest_overrun[1], widest_overrun[2], widest_overrun[3], widest_overrun[4]);
+	printf ("  D-031 %d bridges, every orientation: %d exact ends off their deck or height (%d ends the old projection "
+			  "dropped); interior heights within %.8f, %d joint holes closed, none lost; %d outward ulp steps, %d past twice "
+			  "the bound conform; widest accepted overrun %.7f / %.7f / %.7f / %.7f / %.7f by length\r\n", bridges, end_failures, legacy_misses,
+			  interior_worst, joint_holes, stepped, strict_failures, widest_overrun[0], widest_overrun[1], widest_overrun[2],
+			  widest_overrun[3], widest_overrun[4]);
+}
+
+
 /*
 **	Bridges -- roadmap Section 20.
 **
@@ -1814,6 +2081,8 @@ void	Check_Bridges (void)
 		BridgeDamageService::Reset ();
 		CombatManager::Set_I_Am_Server (was_server);
 	}
+
+	Check_Bridge_Deck_Ends ();
 
 	//
 	//	Nothing outlives the world it described.
@@ -20562,7 +20831,9 @@ static int Count_Junctions (const HybridInteractionSet & set)
 **	- same_earlier_road_two_junctions: one earlier road crossed twice, each junction sampled at its own station;
 **	- junction_bridge_endpoint_conflict: a bridge's deck end and a junction on one road judged together;
 **	- topology_junction_height_parity: a shared-node junction held by the same semantics;
-**	- junction_landing_off_centerline: a junction's landing holds the earlier road whose centerline misses the pin.
+**	- junction_landing_off_centerline: a junction's landing holds the earlier road whose centerline misses the pin;
+**	- junction_piece_cut_at_landing_end: a junction stretch whose sampled chord spans its landing's end is compared at the
+**	  earlier surface there, not the chord.
 */
 static void Check_Hybrid_Profile_Parity (const HybridPreflightInputs & content,const HybridMetricCache & metrics)
 {
@@ -20803,6 +21074,84 @@ static void Check_Hybrid_Profile_Parity (const HybridPreflightInputs & content,c
 				 "%.4f off the landing over %d samples (%s %s %s)",trunk_landings,later_landings,worst,level_samples,
 				 solved.Detail.Peek_Buffer (),planned.Detail.Peek_Buffer (),replanned.Detail.Peek_Buffer ());
 		printf ("  D-029 junction landing off the trunk's centerline: trunk held level %.4f about its nearest station\r\n",worst);
+	}
+
+	/*
+	**	junction_piece_cut_at_landing_end (D-029 follow-up, census worlds archetype 5 seeds 95 and 182 without it): a
+	**	branch leaving a trunk's node obliquely, with the junction's landing.  On the branch the trunk's surface stays level
+	**	past the branch's own landing end (the branch runs away from the trunk at the angle) and then climbs at the trunk's
+	**	grade; the branch's junction stretch, sampled at its spacing, has a chord over that turn.  Its landing ends inside
+	**	the chord, where the trunk's surface still equals the landing height -- the two holds are the same surface there --
+	**	so the junction stretch is cut at the landing's end and compared at the trunk's surface itself.  Every angle
+	**	compiles, and the branch stands on the trunk's surface at its landing's end.
+	*/
+	{
+		int compiled = 0;
+		int tried = 0;
+		float worst = 0.0f;
+		StringClass refused;
+		for (int a = 0; a < 6; a++) {
+			for (int m = 0; m < 2; m++) {
+				CrossingWorld world;
+				Crossing_World_Begin (&world);
+				const HybridConstants & k = world.Sized.Constants;
+				const float angle = DEG_TO_RADF (15.0f + (5.0f * (float)a));
+				const Vector2 node (0.0f,0.0f);
+				Hand_Node (&world,30,node);
+				const Vector2 trunk[2] = { Vector2 (-150.0f,0.0f),Vector2 (150.0f,0.0f) };
+				const Vector2 branch[2] = { node,Vector2 (150.0f * WWMath::Cos (angle),150.0f * WWMath::Sin (angle)) };
+				Hand_Road (&world,1,HYBRID_EDGE_FAMILY_TRUNK,trunk,2,11,12,30);
+				Hand_Road (&world,2,HYBRID_EDGE_CROSS_LINK,branch,2,30,22);
+
+				//	The node's compiled junction, and its landing at the trunk's surface there (as Phase 11 compiles them).
+				HybridInteractionSet set;
+				HybridInteraction junction;
+				junction.StableId		= 1;
+				junction.EdgeId		= 1;
+				junction.OtherEdgeId	= 2;
+				junction.NodeId		= 30;
+				junction.Method		= HYBRID_METHOD_AT_GRADE_JUNCTION;
+				junction.RoadClass	= HYBRID_ROAD_PRIMARY_2;
+				junction.Station		= node;
+				junction.Tangent.Set (1.0f,0.0f);
+				junction.ApproachA	= node;
+				junction.ApproachB	= node;
+				set.Interactions.Add (junction);
+				HybridRealizationParams params = Realization_Fixture (k,metrics);
+				params.TerrainCellSize = (m == 0) ? 0.0f : NATIVE_TERRAIN_CELL;
+				HybridRealizationPlan bare;
+				HybridRealizationResult result;
+				bool ok = Compile_Constraints (params,world.Topology,world.Routes,&set,Slope_Ground,NULL,&result) &&
+							 Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Slope_Ground,NULL,&bare,&result);
+				HybridPinLanding landing;
+				landing.StableId		= 1;
+				landing.PinKind		= HYBRID_PIN_JUNCTION;
+				landing.Position		= node;
+				landing.Z				= ok ? Hybrid_Quantize_Position (Plan_Z_Near (*bare.Find_Road (1),node)) : 0.0f;
+				landing.Length			= Hybrid_Pin_Landing_Length (NATIVE_TERRAIN_CELL);
+				landing.InteractionId= 1;
+				set.Landings.Add (landing);
+				HybridRealizationPlan held;
+				tried++;
+				ok = ok && Compile_Constraints (params,world.Topology,world.Routes,&set,Slope_Ground,NULL,&result) &&
+					  Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,Slope_Ground,NULL,&held,&result);
+				if (!ok) {
+					refused.Format ("%.0f degrees, margin %d: %s",15.0f + (5.0f * (float)a),m,result.Detail.Peek_Buffer ());
+					continue;
+				}
+				compiled++;
+				//	At the branch's landing end: the branch's own height and the trunk's surface there.
+				const HybridRealizedRoad & later = *held.Find_Road (2);
+				const HybridRealizedRoad & earlier = *held.Find_Road (1);
+				const Vector2 end = node + (Vector2 (WWMath::Cos (angle),WWMath::Sin (angle)) * landing.Length);
+				worst = WWMath::Max (worst,WWMath::Fabs (Plan_Z_Near (later,end) - Plan_Z_Near (earlier,end)));
+			}
+		}
+		Check ((compiled == tried) && (worst <= (2.0f * HYBRID_QUANTUM_POSITION)),
+				 "a junction stretch across its landing's end: %d of %d oblique branches compile (%s); the branch stands %.4f off the "
+				 "trunk's surface at its landing end",compiled,tried,refused.Peek_Buffer (),worst);
+		printf ("  D-029 junction stretch cut at its landing's end: %d of %d oblique branches compile, the branch %.4f off the "
+				  "trunk's surface there\r\n",compiled,tried,worst);
 	}
 }
 

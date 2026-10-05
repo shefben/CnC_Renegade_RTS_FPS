@@ -43,7 +43,8 @@ None of them names a model. See [../assets/BridgeSections.md](../assets/BridgeSe
 number of the definition's nominal spans that best fits, and stretches those spans to land
 exactly on the far bank. A bridge is never short of the far side and never overshoots it,
 and no length of gap needs a mesh made for it — which is what the acceptance means by
-variable length.
+variable length. The last piece of deck ends on the bridge's own end point, exactly: walking
+`start + direction * length` lands a coordinate ulp beside it in about one bridge in five (D-031).
 
 Two edges are handled rather than assumed away. A gap too short to hold both abutments
 scales them down **together**, so a short bridge is still a bridge with two ends and
@@ -84,7 +85,11 @@ so a broken span is a genuine hole with nothing standing in it.
   `RoadSystem::Conform_Point` and the answer to the opposite question: a road conforms to
   the ground, and over a bridge the deck **is** the ground. It returns false over a broken
   span, which is what makes a hole a hole rather than an invisible floor, and picks the
-  higher deck where two bridges cross.
+  higher deck where two bridges cross. A point at a deck piece's end is on it (D-031): the
+  parameter is taken over `|along|^2` itself, and one within floating point's own error of
+  `[0, 1]` -- the projection arithmetic, and the point's own float representation -- is
+  clamped to the end exactly. That allowance is the coordinates' few ulps (tens of
+  micrometres), never a share of the span; anything farther is off the deck as before.
 
 A bridge naming a kind nobody defined stays in the list with no sections: it draws nothing,
 carries nothing, reports itself untraversable and can be named in a log. A map error is not

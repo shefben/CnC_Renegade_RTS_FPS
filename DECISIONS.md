@@ -554,6 +554,106 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-031 - Hybrid rewrite: a bridge deck's ends conform to the ulp; the D-029 junction cut is verified (2026-10-05)
+
+**Direction (user, 2026-10-05).** Q-028 stays accepted and closed. The next fix is Phase 12's bridge deck-end
+conformance failure (archetype 1 seed 93), as numerical robustness only: no bridge geometry, span, abutment, approach
+reserve, selection, clearance or crossing location changes. Resolve the unverified D-029 follow-up rule by evidence:
+prove it with a regression or remove it. Do not touch archetype 5 seed 64's unrelated-road overlap.
+
+### The numerical cause (probed on seed 93, exact floats)
+
+Seed 93's assembly 3 end pin is the bridge's own `End`, bit for bit. Two things put it off the deck:
+1. **The last deck piece did not end on `End`.** `Layout_Bridge` placed it at `Start + direction * length`, which in
+   float lands a coordinate ulp beside `End` (here it happened to land on it; in a sweep of 1,200 bridges it misses in
+   about one in five).
+2. **The parameter's denominator.** `Conform_Point` took `t = (d . A) / (plan_length * plan_length)` with `plan_length`
+   the rounded square root of `|A|^2`. That square came out one ulp below `|A|^2` (0x1.b752fa vs 0x1.b752fc), so the end
+   point -- whose numerator is exactly `|A|^2` -- projected to `t = 1.00000012` and was refused (`t > 1`).
+
+With those two fixed, seed 93 then failed one step further, at assembly 1's start corner: Section 12.3's deck sweep
+asks at `Start + across * reach` (t = 0, at the paved edge). No float pair lies on the deck's end line there; the nearest,
+as computed, stands 3.2 micrometres before it (exact parameter -5.3e-7), beyond the projection arithmetic's error
+(2.0e-7) and within the point's own representation (2.2e-6). The same boundary class, from the input's rounding rather
+than the arithmetic.
+
+### The rule (`BridgeSystem`, the canonical owner)
+
+- `Layout_Bridge` ends the last piece (end cap, or the last span when there is none) on the bridge's `End` exactly
+  (`Deck_End`). The near end needs nothing: `Start + direction * 0` is `Start`.
+- `Conform_Point` takes `t = (dx*Ax + dy*Ay) / |A|^2` with `|A|^2` itself, so a piece's own end gives exactly 1.
+- What remains is floating point's own error, bounded from the operations, no tuned constant (standard model,
+  `u = 2^-24`, `gamma_k = k*u / (1 - k*u)`):
+  - the arithmetic: `gamma_5 * (|dx*Ax| + |dy*Ay|) / |A|^2 + gamma_6 * |t|` (subtractions, products, sum and division,
+    one u more for evaluating the bound in float);
+  - the point's representation: `gamma_2 * (|x|*|Ax| + |y|*|Ay|) / |A|^2` (a place on the end line is up to `u*|x|`,
+    `u*|y|` from the nearest float pair).
+- A `t` within that of `[0, 1]` is the endpoint: clamped to exactly 0 or 1, and the height is the piece's own end
+  height. Anything farther is off the deck, as before. The allowance is the coordinates' few ulps -- tens of
+  micrometres -- and does not grow with span (a 420 m bridge gets no more than a 2 m one). The lateral (width) test is
+  unchanged.
+- No existing engine tolerance governs this: `LineSegClass::Find_Point_Closest_To` clamps without a containment test,
+  and `WWMATH_EPSILON` (1e-4) is a world-space margin, which this must not be.
+- Phase 11's plan-side mirror (`Pin_Deck_At` in hybridrealization.cpp) is unchanged: it already divides by `|d|^2` over
+  the whole assembly; it was not part of this failure.
+
+### The D-029 follow-up cut: option A (proven, retained)
+
+The evidence: the follow-up commit added the cut for "interpolation leakage at held ends", measured only together with
+fix 1. A full 1,400-world census with the cut disabled (and the D-031 bridge fix, which touches nothing before
+Phase 12) against r15:
+- final failure categories: identical in all 1,400 worlds;
+- rejection paths: different in 17 worlds. Two of them, archetype 5 seeds 95 and 182, regain D-029's own
+  "landing vs its own junction" conflict: the later road's junction piece at stations 4.98..6.65 straddles its landing's
+  end at 5.30 and reads 0.036 off the landing (2Q is 0.002), where the true surfaces agree. With the cut: 0 such conflicts.
+
+Regression `junction_piece_cut_at_landing_end`: a branch leaving a trunk's node at 15-40 degrees, on the 0.05 slope,
+with the node junction's landing, with and without the 1.5-cell margin -- 12 cases. On the branch the trunk's surface
+stays level past the branch's landing end and then climbs; the branch's sampled junction chord spans that turn. With the
+cut all 12 compile and the branch stands 0.0000 off the trunk's surface at its landing end. Without it 8 of 12 are
+refused with exactly the census conflict ("landing constraint ... stations 0.00..5.30 ... and junction constraint ...
+stations 4.98..6.65 ... hold one stretch 0.006 apart").
+
+The invariant it enforces: wherever a junction piece meets another held height on the same road, the piece's held line
+passes through the earlier road's solved surface at that station, so two holds of one surface are compared as one.
+
+### Tests
+
+`terrain_bridges` (`Check_Bridge_Deck_Ends`):
+- seed 93's assembly 3, bit for bit on the census's bridge definition: the old projection refuses its end; now it
+  conforms at exactly 4.5;
+- seed 93's assembly 1 start corner as Phase 12 computed it: exact parameter -1.1e-6, bound 4.5e-6; conforms at 4.5;
+- 1,200 bridges (every 3 degrees, lengths 2 / 13.1 / 47.3 / 160 / 420, two map positions, sloped decks): every exact end
+  conforms at its own height (123 ends the old projection dropped); every interior point the old projection accepted is
+  still accepted at the same height within 4.8e-7 (2 points on a joint between spans, which the old projection dropped
+  as 1.0000001 on one and below 0 on the next, now conform); 153,600 outward one-ulp steps from both ends, none past
+  twice the bound conforms; widest accepted overrun 0.12 / 0.12 / 0.12 / 0.18 / 0.18 mm by length.
+- Each half is needed (measured before the representation term was added): with d3c3d10d's `bridgesystem.cpp`, seed
+  93's end and 187 sweep ends fail; with the projection fix alone (no `Deck_End`), 42 sweep ends fail. The
+  representation term is what seed 93's assembly-1 corner needed in the pipeline run.
+
+`terrain_hybridrealization`: `junction_piece_cut_at_landing_end` as above.
+
+### Seed 93
+
+Archetype 1 (twin_lakes) seed 93 through the census pipeline: solves Phase 11 (one reroute, 21 interactions, 6
+landings) and **passes Phase 12**: realized on the canonical owners and verified (`Verify`, `Verify_Physical`,
+Section 12.3). `phase 12: 1 realized and verified on the canonical owners, 0 failed.`
+
+### The in-game smoke test: still blocked, for a reason found here
+
+The census is a fixture harness, not the in-game native profile: it builds 1200 m worlds from fixture constants
+(`Graph_Identity_Fixture`) and fixture content (one bridge kind `test_bridge`, width 40), while
+`data/procedural_world/native.json` is a 2400 m world on the real content. "Archetype 1 seed 93" is therefore not a
+world the game can load, and in-game seed 93 is a different world the census never measured. Earlier reports said the
+smoke test needed "a native world that solves Phase 11"; that conflated the census with the in-game native profile. No
+in-game native-profile world is known to pass Phase 12, so the smoke test was not run and nothing was substituted.
+
+Full suite on this exact tree: 237/237 (122 client, 115 FDS), the own-pass regression, the bridge fix and the cut's
+regression included.
+
+**Status: implemented. Stopped for direction; archetype 5 seed 64's overlap not touched.**
+
 ## D-030 - Hybrid rewrite Q-028: a realization-aware grade budget, and a compiled junction's raster support (2026-10-05)
 
 **Decision (user, 2026-10-05), resolving Q-028.**
@@ -633,11 +733,10 @@ worst envelope, `A_k = max(1, sum(|b_k| * ds_k) / (L + Q / G))`, `G = tan(class 
 - A compiled junction's `STRUCTURAL_PIN_LANDING` holds every road its junction record carries (`Junction_Carries`:
   either edge, or the road through its node), level about that road's station nearest the pin. Other pins apply to
   roads whose centerline passes within 2Q. Test: `junction_landing_off_centerline`.
-- A junction stretch on the later road is cut at every end of another held structure inside it, so its chords never
-  interpolate across a landing's or deck's boundary. **Not verified by a test:** with the cut disabled, every current
-  check still passes (checked 2026-10-05), and the r11 measurement after the follow-up took both fixes together. It is
-  kept because it only adds sample cuts on the earlier road's own surface and can hold nothing new; it is not cited as
-  verified behaviour.
+- A junction stretch on the later road is cut at every end of another held structure inside it, so where the two meet
+  they are compared at the earlier road's surface itself, never at a sampled chord spanning the other's end. Verified
+  since D-031 (test `junction_piece_cut_at_landing_end`, and census evidence); it was unverified when D-030 was
+  written.
 - Only an explicit compiled junction shares a surface; incidental overlap holds nothing (c3b18778). Tests: D-028's
   parallel-road checks, and Q-028's `incidental_overlap_still_independent`.
 

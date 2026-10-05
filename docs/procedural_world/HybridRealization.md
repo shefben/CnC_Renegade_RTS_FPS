@@ -306,7 +306,10 @@ the pin. Phase 11 decides where one is needed, with this same deformation and th
 Which roads pass through a junction's pin is the junction record's answer (`Junction_Carries`), not a distance: a trunk
 through a topology node need not pass through the node point, and it is held level about its station nearest the pin
 (D-029 follow-up). Other pins apply to roads whose centerline is within 2Q of them. A junction stretch is cut at every
-end of another held structure inside it, so its chords never interpolate across a landing's or deck's boundary.
+end of another held structure inside it, so where the two meet they are compared at the earlier road's surface itself,
+never at a sampled chord spanning the other's end (D-031: without the cut, an oblique branch's junction chord over the
+earlier road's landing turn read 0.006-0.036 off its own landing and refused the junction; test
+`junction_piece_cut_at_landing_end`).
 
 **The bridge-end support (D-026/D-027).** Water under a deck end is graded only inside the end support footprint, and
 every vertex graded there is recorded as `BRIDGE_END_SUPPORT` terrain owned by its assembly. The footprint is:
