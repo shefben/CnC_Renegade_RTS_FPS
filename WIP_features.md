@@ -456,8 +456,15 @@ No world solves Phase 11, so the in-game smoke test was not possible. D-029 reco
 The controlled fixture for "a landed pin still fails on the grid" no longer reaches that path. It now realizes. The
 census exercises the path 16 times.
 
+D-029 follow-up (after the user's "go"):
+- Finding 1 was an implementation proxy, not a rule conflict. Landings now attach by junction record, and junction
+  pieces are cut at held ends.
+- On r11's 34 the same-interaction overlaps went from 7 to 0, and three worlds now reach the grid judgement.
+- All three fail ordinary-roadbed grade on curves, with every vertex exact. That is filed as Q-028.
+- Still 0 worlds solve Phase 11.
+
 **Next exact action:**
-1. Wait for the user's direction on the D-029 findings. No behavioural change before it.
+1. Wait for the user's answer to Q-028, then implement the chosen mechanism and rerun the filtered census on r11's 34.
 2. The in-game smoke: Main menu, Start Procedural Game, then `procedural_world status`. It needs a native world that
    solves Phase 11.
 3. Close I13.
