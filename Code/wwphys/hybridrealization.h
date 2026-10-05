@@ -91,13 +91,13 @@ const char *	Hybrid_Profile_Failure_Name(HybridProfileFailure failure);
 struct HybridProfileSample
 {
 	HybridProfileSample(void) :
-		Position(0.0f,0.0f),Station(0.0f),TerrainZ(0.0f),Fixed(false),FixedZ(0.0f),Unbounded(false) { }
+		Position(0.0f,0.0f),Station(0.0f),TerrainZ(0.0f),Fixed(false),FixedZ(0.0f),Unbounded(false),MaxGrade(0.0f) { }
 
 	//	DynamicVectorClass<T> (wwlib/vector.h) requires T to support == and !=.
 	bool	operator == (const HybridProfileSample & that) const
 	{
 		return (Station == that.Station) && (Position == that.Position) && (TerrainZ == that.TerrainZ) &&
-				 (Fixed == that.Fixed) && (FixedZ == that.FixedZ) && (Unbounded == that.Unbounded);
+				 (Fixed == that.Fixed) && (FixedZ == that.FixedZ) && (Unbounded == that.Unbounded) && (MaxGrade == that.MaxGrade);
 	}
 	bool	operator != (const HybridProfileSample & that) const	{ return !(*this == that); }
 
@@ -114,6 +114,12 @@ struct HybridProfileSample
 	**	between its two ends instead of pulling it down toward a canyon floor.
 	*/
 	bool		Unbounded;
+
+	/*
+	**	Q-028: the grade the step from the previous sample to this one may take, in radians, where the native terrain grid
+	**	would realize the class maximum steeper than the class allows (Hybrid_Apply_Grade_Budget); 0 is the class maximum.
+	*/
+	float		MaxGrade;
 };
 
 
@@ -137,8 +143,8 @@ struct HybridSolvedProfile
 /*
 **	Section 12.1.  `samples` are in station order with `Station` strictly increasing; the first and last
 **	are the interval's exact endpoints.  `max_cut_depth` / `max_fill_height` are the profile's grading
-**	limits and `max_grade_radians` the class maximum.  Deterministic: the same samples always give the
-**	same profile.
+**	limits and `max_grade_radians` the class maximum; a sample's own `MaxGrade`, when set, bounds the step into it
+**	instead (Q-028), in all four steps.  Deterministic: the same samples always give the same profile.
 */
 bool	Hybrid_Solve_Vertical_Profile(const DynamicVectorClass<HybridProfileSample> & samples,
 												  float max_cut_depth,float max_fill_height,float max_grade_radians,
@@ -223,8 +229,12 @@ struct HybridProfileStructure
 **	structure end inside it as exact samples of their own, then solved once.  This is the one vertical-profile
 **	path on the hybrid startup path: Phase 11 asks it whether a crossing can be graded, and Phase 12 realizes
 **	the road it returns.  `start_z_out` / `end_z_out` receive each structure's solved end elevations, or its
-**	pins, in the order of `structures`; a structure outside the stretch reports its pins unchanged.
+**	pins, in the order of `structures`; a structure outside the stretch reports its pins unchanged.  `budget`
+**	(optional, Q-028) is the native terrain grid the road will be realized on: every sample gets its realization-aware
+**	grade (Hybrid_Apply_Grade_Budget) before the one solve.
 */
+struct HybridGradeBudget;
+
 bool	Hybrid_Solve_Road_Stretch(const DynamicVectorClass<Vector2> & points,const DynamicVectorClass<float> & stations,
 										  float from_station,float to_station,
 										  const DynamicVectorClass<HybridProfileStructure> & structures,float spacing,
@@ -232,7 +242,8 @@ bool	Hybrid_Solve_Road_Stretch(const DynamicVectorClass<Vector2> & points,const 
 										  float max_fill_height,float max_grade_radians,float quantum,
 										  DynamicVectorClass<HybridProfileSample> * samples_out,
 										  HybridSolvedProfile * solved_out,DynamicVectorClass<float> * start_z_out,
-										  DynamicVectorClass<float> * end_z_out,HybridProfileFailure * failure_out);
+										  DynamicVectorClass<float> * end_z_out,HybridProfileFailure * failure_out,
+										  const HybridGradeBudget * budget = nullptr);
 
 
 /***********************************************************************************************
@@ -407,6 +418,11 @@ struct HybridRealizationParams
 	float					HarvesterWidth;
 	float					MinVehicleLaneClearance;
 	float					TerrainCellSize;				// the height grid Phase 12 deforms; 0 when there is none yet
+	float					TerrainOriginX;				// ...and its origin (Q-028's grade budget is taken on its triangles)
+	float					TerrainOriginY;
+	float					LightVehicleLength;			// the envelopes Section 12.3 sweeps, for Q-028's grade budget
+	float					HeavyVehicleLength;
+	float					HarvesterLength;
 };
 
 enum HybridRealizationFailure
@@ -515,7 +531,9 @@ unsigned int	Hybrid_Realization_Checksum(const HybridRealizationPlan & plan,unsi
 **	3. a smoothstep from the paved edge to the terrain over exactly `outer_blend = max(W, A/2)`;
 **	4. nothing under a deck or inside a bore, and no water;
 **	5. never an earlier road's roadbed or shoulder -- the earlier road owns that surface, a junction's shared patch
-**	   included, so a later road's blend (a ramp's at its gore) never modifies it.
+**	   included, so a later road's blend (a ramp's at its gore) never modifies it.  Q-028: inside a compiled junction's
+**	   raster support (Hybrid_Junction_Raster_Support) the earlier road's band beyond its paved edge is the junction's,
+**	   graded by the junction's later road, and no third road writes any of the support.
 **	Steps 6-9 belong to the runtime owners.
 */
 struct HybridHeightGrid
@@ -618,6 +636,91 @@ struct HybridPinEnvelopes
 	float	Length[HYBRID_ENVELOPE_COUNT];
 	float	Width[HYBRID_ENVELOPE_COUNT];
 };
+
+//	Does a road with these capabilities carry envelope `e` (Section 12.3 sweeps it only with what it must carry)?
+bool	Hybrid_Envelope_Swept(unsigned int capabilities,int e);
+
+
+/*
+**	Q-028 (option b): the realization-aware grade budget.  Section 12.3 judges a road's grade on the native terrain grid,
+**	where each roadbed vertex holds the solved profile at its nearest centerline foot (12.2 step 1) and the surface between
+**	vertices is the grid's two triangles per cell.  On a straight road that surface rises along the road exactly as fast as
+**	the profile; on a curve the vertices' foot stations no longer vary linearly with position, and the surface between a
+**	vehicle envelope's ends can rise faster than any step of the profile under it.
+**
+**	The budget is the exact amplification, taken from the native rasterizer's own geometry: for every envelope the road
+**	must carry, at every sample Section 12.3 sweeps from, the envelope's two grade points as Pin_Sweep places them, the
+**	grid triangle under each (Hybrid_Grid_Height_At), and each triangle vertex's nearest centerline foot (Deform_Roads).
+**	The realized rise between the two points is then a fixed linear sum of the profile's steps, sum(b_k * dZ_k); with
+**	every step |dZ_k| <= s_k * ds_k, the realized grade is at most sum(|b_k| * ds_k * s_k) / L.  Each step whose
+**	envelope sums exceed the run takes the amplification A_k = max(1, sum(|b_k| * ds_k) / (L + Q / G)) of the worst
+**	such envelope, and the solver grade atan(G / A_k) - Q_angle, G = tan(class + Q_angle), so that after the solver's
+**	own quantization (each step within tan(grade + Q_angle)) the realized grade stays within D-026's unchanged
+**	G + 2Q / L -- Q of the 2Q is left for rounding.  A straight road gives A = 1 exactly: its budget is the class.
+**
+**	A step with both samples fixed (a compiled hold: a deck, a landing, a junction's earlier surface), or inside a deck,
+**	keeps the class maximum: its height is a compiled constraint realized by its owner, never this road's own grade.
+**	An envelope whose grade points or triangle vertices stand over a deck or bore (`Decks`) is the deck end's, D-027's.
+**	So is one with a vertex whose nearest foot is another pass of the same road (beyond pi * (widest half + a cell
+**	diagonal) of arc from the envelope, the farthest its own pass can put it): that height is the other pass's, never a
+**	grade of this one, and no grade budget can change it.
+*/
+typedef void (*HybridRoadEdgesFunc)(const Vector2 & position,float station,const Vector2 & travel,float * left_out,
+												float * right_out,void * context);
+
+struct HybridGradeBudget
+{
+	HybridGradeBudget(void);
+
+	float											CellSize;		// the native terrain grid; 0: none, the class maximum everywhere
+	float											OriginX;
+	float											OriginY;
+	float											Spacing;			// Section 12.1's sample spacing, Pin_Sweep's travel direction
+	float											Length[HYBRID_ENVELOPE_COUNT];	// the envelopes the road carries; 0 = not swept
+	float											Width[HYBRID_ENVELOPE_COUNT];
+	float											Left;				// the class's own paved edges, when `Edges` is null
+	float											Right;
+	HybridRoadEdgesFunc						Edges;			// the realized paved edges at a sample (Section 12.2)
+	void *										EdgesContext;
+	DynamicVectorClass<HybridProfileStructure>	Decks;		// deck and bore spans, stations of the stretch's polyline
+};
+
+/*
+**	Sets every sample's `MaxGrade` from `budget` over the samples' own polyline (positions and stations as sampled, so the
+**	centerline the grid is deformed from).  Samples already marked Fixed / Unbounded keep the class maximum as above.
+**	`amplification_out` (optional) receives A_k per sample (the step into it; 1 where the class applies).
+*/
+void	Hybrid_Apply_Grade_Budget(const HybridGradeBudget & budget,float max_grade_radians,float quantum,
+										  DynamicVectorClass<HybridProfileSample> * samples,DynamicVectorClass<float> * amplification_out = nullptr);
+
+//	The solver grade that keeps an amplification `a` within the class maximum: atan(tan(class + Q_angle) / a) - Q_angle.
+float	Hybrid_Grade_Budget_Radians(float max_grade_radians,float amplification);
+
+
+/*
+**	Q-028: a compiled junction's raster support.  The junction's semantic shared surface is the later road's paved roadbed
+**	over every station held at the earlier road's surface (its JUNCTION records).  The grid realizes that surface on every
+**	triangle it reaches, and a triangle under it references vertices at most one cell away: a vertex belongs to the support
+**	when one of its own triangles -- |x|, |y| <= cell and |x - y| <= cell about it, the low-to-high diagonal split -- meets
+**	the surface.  Raster ownership only, never a height constraint (Section 12.2 step 5 below): inside the support the
+**	earlier road keeps its own paved roadbed; the vertices its band claims beyond its paved edge are the junction's, graded
+**	by the later road's own roadbed construction (its solved profile, the shared surface inside the hold and its own
+**	profile past it), and no other road's deformation may write them.  Each vertex belongs to the first junction listing it.
+*/
+struct HybridJunctionSupport
+{
+	HybridJunctionSupport(void) : Vertex(-1),EarlierRoad(-1),LaterRoad(-1),InteractionId(0) { }
+	bool	operator == (const HybridJunctionSupport & that) const	{ return Vertex == that.Vertex; }
+	bool	operator != (const HybridJunctionSupport & that) const	{ return !(*this == that); }
+
+	int				Vertex;				// row-major into the grid
+	int				EarlierRoad;		// plan.Roads index whose surface the junction holds
+	int				LaterRoad;			// ...and the road held on it
+	unsigned int	InteractionId;
+};
+
+void	Hybrid_Junction_Raster_Support(const HybridRealizationPlan & plan,const HybridHeightGrid & grid,
+												 DynamicVectorClass<HybridJunctionSupport> * out);
 
 /*
 **	D-027: can the native terrain grid realize `plan`?  Phase 11 runs Phase 12's own deformation and pin realization over

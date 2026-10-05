@@ -29,6 +29,39 @@ every grade.
 
 `Hybrid_Solve_Road_Stretch` grades one stretch with every structure on it holding its own surface.
 
+**The realization-aware grade budget (Q-028, D-030).** Section 12.3 judges grade on the native grid, not on the
+centerline. Each roadbed vertex holds the solved profile at its nearest centerline foot (12.2 step 1), and the surface
+between vertices is the grid's two triangles per cell. On a straight road that surface rises exactly as fast as the
+profile. On a curve the feet's stations stop varying linearly with position, and the surface between an envelope's two
+ends can rise faster than any profile step under it (up to 4.6% faster at a 12 m radius on the 3.75 grid).
+
+`Hybrid_Apply_Grade_Budget` takes that amplification from the rasterizer's own geometry before the one solve:
+- For every envelope the road must carry (`Hybrid_Envelope_Swept`), at every sample Section 12.3 sweeps from, it places
+  the two grade points as `Pin_Sweep` does: the roadbed midpoint on the road's realized paved edges, or all three
+  placements when the roadbed is narrower than the envelope.
+- It takes the grid triangle under each point (`Hybrid_Grid_Height_At`'s split) and each vertex's nearest centerline
+  foot (`Deform_Roads`' rule: nearest segment, first of equals, clamped).
+- The realized rise is then a fixed sum over the profile's steps, `sum(b_k * dZ_k)`. With every step within its grade,
+  the realized grade is at most `sum(|b_k| * ds_k * s_k) / L`.
+
+Each step takes the amplification of its worst envelope, `A_k = max(1, sum(|b_k| * ds_k) / (L + Q / G))`, and the solver
+grade `atan(G / A_k) - Q_angle`, with `G = tan(class + Q_angle)` (`Hybrid_Grade_Budget_Radians`). After the solver's own
+quantization every step is within `tan(grade + Q_angle)`, so the realized grade stays within D-026's unchanged
+`G + 2Q / L`; one Q of the 2Q is left for rounding. A straight road gives `A = 1` exactly and keeps the class.
+
+All four solver steps use each step's grade (`HybridProfileSample::MaxGrade`; 0 is the class). Exceptions:
+- A step with both samples fixed, or touching a deck or bore interior, keeps the class. Its height is a compiled
+  constraint its owner realizes.
+- An envelope over a deck, or whose vertices stand under one, is the deck end's (D-027).
+- An envelope with a vertex whose nearest foot is another pass of the same road is not modelled either. A vertex under
+  the envelope is within `r` (the widest paved half and a cell diagonal) of the centerline at its grade point, so its
+  foot on the envelope's own pass is within `pi * r` of arc. A foot beyond that is a road returning beside itself; that
+  height is the other pass's, and no grade budget can change it.
+
+Build_Plan takes the budget on the road's realized paved edges, so Phase 11's compile and Phase 12 grade with the same
+one. Phase 11's own crossing gradings take it on the class's edges. The class maximum itself and the D-026 check are
+unchanged.
+
 ## The plan -- `Hybrid_Plan_Realization`
 
 The plan holds every physical road in routing order (`Hybrid_Route_Priority_Rank`: the family trunks, then group
@@ -99,7 +132,8 @@ The deformation runs over a height grid, road by road in plan order:
 3. Nothing is changed under a deck, inside a bore, or in water, except a deck's abutment seats (below), whose own
    roadbed vertices are graded even over water.
 4. An earlier road's roadbed and shoulder are never changed. The earlier road owns that surface, including a
-   junction's shared patch, so a later road's blend (a ramp's at its gore) never modifies it.
+   junction's shared patch, so a later road's blend (a ramp's at its gore) never modifies it. Inside a compiled
+   junction's raster support (below), the earlier road keeps only its paved roadbed.
 
 Steps 6-9 of Section 12.2 (the ditch helper if one exists, commit, realization, cleanup list) belong to the runtime
 owners.
@@ -161,6 +195,25 @@ A compiled road-road junction's shared patch is processed once, under the earlie
 - An interchange local junction holds every road through `L_s` at its compiled `z_L`.
 - A ramp's gore holds the ramp at the realized highway's surface there (12.6.10 item 4).
 - An overpass holds its lower road at the compiled `LowerSurfaceZ`.
+
+**The junction's raster support (Q-028, D-030).** The semantic shared surface and the grid that realizes it are two
+separate things:
+- **Semantic surface.** The later road's paved roadbed over every station its `JUNCTION` records hold. This is the only
+  shared height, and nothing here widens it.
+- **Raster support** (`Hybrid_Junction_Raster_Support`). Every grid vertex one of whose own triangles meets that surface:
+  the hexagon `|x|, |y| <= cell`, `|x - y| <= cell` about the vertex, from the low-to-high diagonal split. A triangle
+  under the surface references vertices at most one cell from it, so the support reaches one cell at most.
+
+Inside the support:
+- The earlier road keeps its own paved roadbed.
+- The vertices its band claims beyond its paved edge (its cell reach) are the junction's. The later road's own roadbed
+  construction grades them: the shared surface where their foot is held, and its own profile past the hold. So the
+  triangles straddling the hold's ends meet the later road's surface without a step.
+- Once the later road is deformed the whole support is protected. No road after the earlier one, except the later
+  one, writes any of it.
+
+Outside the support, ownership is unchanged, and roads with no compiled junction have no support at all. The later road
+is never held to the earlier road's height because a vertex lies in the support.
 
 Two refinements to the deformation:
 - The roadbed test uses the true distance to the road (a round cap at road ends, never a band along an end segment's

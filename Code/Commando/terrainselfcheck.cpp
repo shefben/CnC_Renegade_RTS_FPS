@@ -18395,6 +18395,7 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 static void Check_Hybrid_Pin_Landings (const HybridPreflightInputs & content,const HybridMetricCache & metrics);
 static void Check_Hybrid_Junction_Footprint (const HybridMetricCache & metrics);
 static void Check_Hybrid_Profile_Parity (const HybridPreflightInputs & content,const HybridMetricCache & metrics);
+static void Check_Hybrid_Grade_Budget (const HybridPreflightInputs & content,const HybridMetricCache & metrics);
 static void Check_Hybrid_Deformation_Units (const HybridConstants & k);
 
 void Check_Hybrid_Realization (void)
@@ -18641,6 +18642,7 @@ void Check_Hybrid_Realization (void)
 			Check_Hybrid_Pin_Landings (inputs,preflight.Metrics);
 			Check_Hybrid_Junction_Footprint (preflight.Metrics);
 			Check_Hybrid_Profile_Parity (inputs,preflight.Metrics);
+			Check_Hybrid_Grade_Budget (inputs,preflight.Metrics);
 		}
 	}
 }
@@ -19400,6 +19402,25 @@ static HybridInteractionParams Grid_Interaction_Fixture (const CrossingWorld & w
 }
 
 
+//	Q-028: Phase 12's fixture on the same field -- its grid and the envelopes Phase 11 compiled the grade budget with.
+static HybridRealizationParams Grid_Realization_Fixture (const HybridConstants & k,const HybridPreflightInputs & content,
+																			 const HybridMetricCache & metrics)
+{
+	HybridRealizationParams params = Realization_Fixture (k,metrics);
+	params.TerrainCellSize = NATIVE_TERRAIN_CELL;
+	const HeightfieldClass * field = WorldTerrainSystem::Peek_Heightfield ();
+	if ((field != NULL) && field->Is_Valid ()) {
+		params.TerrainCellSize	= field->Get_Cell_Size ();
+		params.TerrainOriginX	= field->Get_Origin ().X;
+		params.TerrainOriginY	= field->Get_Origin ().Y;
+	}
+	params.LightVehicleLength	= content.Humvee.Length;
+	params.HeavyVehicleLength	= content.HeavyVehicle.Length;
+	params.HarvesterLength		= metrics.HarvesterLength;
+	return params;
+}
+
+
 
 /*
 **	Phase 12 live on the canonical owners (I13 steps 2B and 3), through the exact path the procedural world manager
@@ -19533,7 +19554,8 @@ static void Check_Hybrid_Phase12_Runtime (const HybridPreflightInputs & content,
 																			 world.Landforms,world.Hydrology,world.Anchors,world.Topology,world.Routes,
 																			 Crossing_Ground,&world.Hydrology,&judged,&judged_result);
 			Check (compiled,"Phase 11 on the native grid refused the interchange world: %s",judged_result.Detail.Peek_Buffer ());
-			const bool planned = compiled && Hybrid_Plan_Realization (params,world.Topology,world.Routes,judged,Crossing_Ground,
+			const bool planned = compiled && Hybrid_Plan_Realization (Grid_Realization_Fixture (k,content,metrics),world.Topology,
+																						 world.Routes,judged,Crossing_Ground,
 																						 &world.Hydrology,&plan,&result);
 			Check (planned,"Phase 12 runtime (native field): the plan was refused: %s",result.Detail.Peek_Buffer ());
 			if (planned) {
@@ -19726,6 +19748,12 @@ static bool Census_Phase12 (const HybridPipelineFixture & scan,const HybridInter
 
 	HybridRealizationParams params = Realization_Fixture (scan.Sized.Constants,metrics);
 	params.TerrainCellSize = NATIVE_TERRAIN_CELL;
+	//	Q-028: the grid and envelopes Phase 11 compiled the grade budget with.
+	params.TerrainOriginX		= origin;
+	params.TerrainOriginY		= origin;
+	params.LightVehicleLength	= inputs.Humvee.Length;
+	params.HeavyVehicleLength	= inputs.HeavyVehicle.Length;
+	params.HarvesterLength		= metrics.HarvesterLength;
 	HybridRealizationPlan plan;
 	HybridRealizationResult planned;
 	bool ok = Hybrid_Plan_Realization (params,scan.Topology,scan.Routes,set,Macro_Sample_From_Formula,(void *)&scan.Ground,&plan,&planned);
@@ -20008,8 +20036,7 @@ static bool Landing_Phase12 (const CrossingWorld & world,const HybridInteraction
 									  const HybridPreflightInputs & content,const HybridMetricCache & metrics,HybridRealizationPlan * plan,
 									  StringClass * error)
 {
-	HybridRealizationParams params = Realization_Fixture (world.Sized.Constants,metrics);
-	params.TerrainCellSize = NATIVE_TERRAIN_CELL;
+	const HybridRealizationParams params = Grid_Realization_Fixture (world.Sized.Constants,content,metrics);
 	HybridRealizationResult result;
 	if (!Hybrid_Plan_Realization (params,world.Topology,world.Routes,set,ground,(void *)&world.Hydrology,plan,&result)) {
 		*error = result.Detail;
@@ -20057,12 +20084,11 @@ static bool Issue_At (const HybridRealizationPlan & plan,const DynamicVectorClas
 
 //	The plan Phase 12 builds from a compiled set with its landings removed: the profile the pins were judged on.
 static bool Plan_Without_Landings (const CrossingWorld & world,const HybridInteractionSet & set,bool (*ground) (const Vector2 &,float *,void *),
-											  const HybridMetricCache & metrics,HybridRealizationPlan * plan)
+											  const HybridPreflightInputs & content,const HybridMetricCache & metrics,HybridRealizationPlan * plan)
 {
 	HybridInteractionSet bare = set;
 	bare.Landings.Delete_All ();
-	HybridRealizationParams params = Realization_Fixture (world.Sized.Constants,metrics);
-	params.TerrainCellSize = NATIVE_TERRAIN_CELL;
+	const HybridRealizationParams params = Grid_Realization_Fixture (world.Sized.Constants,content,metrics);
 	HybridRealizationResult result;
 	return Compile_Constraints (params,world.Topology,world.Routes,&bare,ground,(void *)&world.Hydrology) &&
 			 Hybrid_Plan_Realization (params,world.Topology,world.Routes,bare,ground,(void *)&world.Hydrology,plan,&result);
@@ -20127,7 +20153,7 @@ static void Check_Hybrid_Pin_Landings (const HybridPreflightInputs & content,con
 		//	Required: without it the grid misses the pin; the gores need nothing.
 		HybridRealizationPlan bare;
 		DynamicVectorClass<HybridRasterIssue> issues;
-		if (ok && Plan_Without_Landings (world,set,Mound_Ground,metrics,&bare)) {
+		if (ok && Plan_Without_Landings (world,set,Mound_Ground,content,metrics,&bare)) {
 			Landing_Judge (world,bare,params,Mound_Ground,&issues);
 			Check (Issue_At (bare,issues,MOUND_CENTRE),"the local junction realizes directly; the landing was not required");
 			for (int n = 0; n < bare.Pins.Count (); n++) {
@@ -20235,7 +20261,7 @@ static void Check_Hybrid_Pin_Landings (const HybridPreflightInputs & content,con
 		HybridRealizationPlan bare;
 		DynamicVectorClass<HybridRasterIssue> issues;
 		bool required = false;
-		if (realized && Plan_Without_Landings (world,set,Crossing_Ground,metrics,&bare)) {
+		if (realized && Plan_Without_Landings (world,set,Crossing_Ground,content,metrics,&bare)) {
 			Landing_Judge (world,bare,params,Crossing_Ground,&issues);
 			required = Issue_At (bare,issues,plan.Bridges[0].Start) && Issue_At (bare,issues,plan.Bridges[0].End);
 		}
@@ -20777,6 +20803,496 @@ static void Check_Hybrid_Profile_Parity (const HybridPreflightInputs & content,c
 				 "%.4f off the landing over %d samples (%s %s %s)",trunk_landings,later_landings,worst,level_samples,
 				 solved.Detail.Peek_Buffer (),planned.Detail.Peek_Buffer (),replanned.Detail.Peek_Buffer ());
 		printf ("  D-029 junction landing off the trunk's centerline: trunk held level %.4f about its nearest station\r\n",worst);
+	}
+}
+
+
+/*
+**	Q-028's grounds: a road on a circular arc of radius `g_arc_radius` about `g_arc_centre` starting at angle `g_arc_from`,
+**	on ground rising `g_arc_slope` a metre along every arc about that centre -- so under the road exactly at that grade, steeper
+**	inside it and gentler outside; or (`g_arc_line`) a straight road from `g_line_origin` along `g_line_dir` on ground
+**	rising `g_arc_slope` along it.
+*/
+static Vector2 g_arc_centre (0.0f,0.0f);
+static float g_arc_radius = 20.0f;
+static float g_arc_from = 0.0f;
+static float g_arc_slope = 0.2f;
+static bool g_arc_line = false;
+static Vector2 g_line_origin (0.0f,0.0f);
+static Vector2 g_line_dir (1.0f,0.0f);
+
+static bool Arc_Ground (const Vector2 & world,float * height_out,void * context)
+{
+	(void)context;
+	if (g_arc_line) {
+		*height_out = g_arc_slope * (((world.X - g_line_origin.X) * g_line_dir.X) + ((world.Y - g_line_origin.Y) * g_line_dir.Y));
+		return true;
+	}
+	double angle = ::atan2 ((double)(world.Y - g_arc_centre.Y),(double)(world.X - g_arc_centre.X)) - (double)g_arc_from;
+	while (angle < -1.0) angle += 2.0 * WWMATH_PI;
+	while (angle > ((2.0 * WWMATH_PI) - 1.0)) angle -= 2.0 * WWMATH_PI;
+	*height_out = g_arc_slope * g_arc_radius * (float)angle;
+	return true;
+}
+
+
+//	The centerline of an arc (`sweep` radians from `g_arc_from` about `g_arc_centre`) or of the straight line, every half metre.
+static void Budget_Points (float sweep_or_length,DynamicVectorClass<Vector2> * points)
+{
+	points->Delete_All ();
+	const float length = g_arc_line ? sweep_or_length : (g_arc_radius * sweep_or_length);
+	const int steps = (int)::ceil ((double)(length / 0.5f));
+	for (int i = 0; i <= steps; i++) {
+		const float t = (float)i / (float)steps;
+		if (g_arc_line) {
+			points->Add (g_line_origin + (g_line_dir * (length * t)));
+		} else {
+			const float angle = g_arc_from + (sweep_or_length * t);
+			points->Add (g_arc_centre + Vector2 (g_arc_radius * WWMath::Cos (angle),g_arc_radius * WWMath::Sin (angle)));
+		}
+	}
+}
+
+
+//	One hand-made PRIMARY_2 cross-link through `points` (stations its chord lengths), with a node at each end.
+static void Budget_Road (HybridTopology * topology,HybridRouteSet * routes,unsigned int edge_id,const DynamicVectorClass<Vector2> & points)
+{
+	HybridTopologyNode node;
+	node.Kind		= HYBRID_NODE_FAMILY_WAYPOINT;
+	node.StableId	= (2 * edge_id) - 1;
+	node.Position	= points[0];
+	topology->Nodes.Add (node);
+	node.StableId	= 2 * edge_id;
+	node.Position	= points[points.Count () - 1];
+	topology->Nodes.Add (node);
+	HybridTopologyEdge edge;
+	edge.StableId		= edge_id;
+	edge.Kind			= HYBRID_EDGE_CROSS_LINK;
+	edge.RoadClass		= HYBRID_ROAD_PRIMARY_2;
+	edge.Capabilities	= Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_CROSS_LINK,false);
+	edge.NodeA			= (2 * edge_id) - 1;
+	edge.NodeB			= 2 * edge_id;
+	topology->Edges.Add (edge);
+	HybridRoute route;
+	route.EdgeId		= edge_id;
+	route.RoadClass	= HYBRID_ROAD_PRIMARY_2;
+	route.Capabilities= edge.Capabilities;
+	float station = 0.0f;
+	for (int i = 0; i < points.Count (); i++) {
+		if (i > 0) station += (points[i] - points[i - 1]).Length ();
+		route.Points.Add (points[i]);
+		route.Stations.Add (station);
+	}
+	route.Length = station;
+	routes->Routes.Add (route);
+}
+
+
+//	The realization parameters on the census's native grid; `budgeted` gives Phase 12 the envelopes, so the grade budget.
+static HybridRealizationParams Budget_Params (const HybridConstants & k,const HybridPreflightInputs & content,
+															 const HybridMetricCache & metrics,bool budgeted)
+{
+	HybridRealizationParams params = Realization_Fixture (k,metrics);
+	params.TerrainCellSize	= NATIVE_TERRAIN_CELL;
+	params.TerrainOriginX	= Native_Terrain_Origin (1200.0f);
+	params.TerrainOriginY	= Native_Terrain_Origin (1200.0f);
+	if (budgeted) {
+		params.LightVehicleLength	= content.Humvee.Length;
+		params.HeavyVehicleLength	= content.HeavyVehicle.Length;
+		params.HarvesterLength		= metrics.HarvesterLength;
+	}
+	return params;
+}
+
+
+//	The grade budget Build_Plan takes for a PRIMARY_2 cross-link on that grid, on its class's own edges.
+static HybridGradeBudget Budget_Of (const HybridConstants & k,const HybridPreflightInputs & content,const HybridMetricCache & metrics)
+{
+	HybridGradeBudget budget;
+	budget.CellSize	= NATIVE_TERRAIN_CELL;
+	budget.OriginX		= Native_Terrain_Origin (1200.0f);
+	budget.OriginY		= Native_Terrain_Origin (1200.0f);
+	budget.Spacing		= Hybrid_Profile_Sample_Spacing (k);
+	const unsigned int capabilities = Hybrid_Topology_Edge_Capabilities (HYBRID_EDGE_CROSS_LINK,false);
+	const float lengths[HYBRID_ENVELOPE_COUNT] = { content.Humvee.Length,content.HeavyVehicle.Length,metrics.HarvesterLength };
+	const float widths[HYBRID_ENVELOPE_COUNT] = { metrics.HumveeWidth,metrics.HeavyVehicleWidth,metrics.HarvesterWidth };
+	for (int e = 0; e < HYBRID_ENVELOPE_COUNT; e++) {
+		if (!Hybrid_Envelope_Swept (capabilities,e)) continue;
+		budget.Length[e]	= lengths[e];
+		budget.Width[e]	= widths[e];
+	}
+	budget.Left		= -Hybrid_Road_Inner_Edge_Offset (HYBRID_ROAD_PRIMARY_2,k.W);
+	budget.Right	= Hybrid_Road_Outer_Edge_Offset (HYBRID_ROAD_PRIMARY_2,k.W);
+	return budget;
+}
+
+
+/*
+**	A hand-made world planned on the native grid -- compiled by Phase 11's own step and realized by Phase 12 -- and judged by
+**	D-026's unchanged Section 12.3 check as Phase 11 runs it, always with every envelope the roads carry.
+*/
+static bool Budget_Plan_And_Judge (const HybridTopology & topology,const HybridRouteSet & routes,const HybridConstants & k,
+											  const HybridPreflightInputs & content,const HybridMetricCache & metrics,bool budgeted,
+											  HybridRealizationPlan * plan,DynamicVectorClass<HybridRasterIssue> * issues,StringClass * detail)
+{
+	const HybridRealizationParams params = Budget_Params (k,content,metrics,budgeted);
+	HybridInteractionSet set;
+	HybridRealizationResult result;
+	issues->Delete_All ();
+	if (!Compile_Constraints (params,topology,routes,&set,Arc_Ground,NULL,&result) ||
+		 !Hybrid_Plan_Realization (params,topology,routes,set,Arc_Ground,NULL,plan,&result)) {
+		*detail = result.Detail;
+		return false;
+	}
+	HybridHeightGrid grid;
+	grid.OriginX	= params.TerrainOriginX;
+	grid.OriginY	= params.TerrainOriginY;
+	grid.Spacing	= params.TerrainCellSize;
+	grid.CountX		= 0;
+	grid.CountY		= 0;
+	HybridPinEnvelopes envelopes;
+	envelopes.Length[HYBRID_ENVELOPE_LIGHT]		= content.Humvee.Length;
+	envelopes.Width[HYBRID_ENVELOPE_LIGHT]		= metrics.HumveeWidth;
+	envelopes.Length[HYBRID_ENVELOPE_HEAVY]		= content.HeavyVehicle.Length;
+	envelopes.Width[HYBRID_ENVELOPE_HEAVY]		= metrics.HeavyVehicleWidth;
+	envelopes.Length[HYBRID_ENVELOPE_HARVESTER]	= metrics.HarvesterLength;
+	envelopes.Width[HYBRID_ENVELOPE_HARVESTER]	= metrics.HarvesterWidth;
+	Hybrid_Plan_Rasterization (*plan,k,NULL,grid,Arc_Ground,NULL,params.MaxCutDepth,params.MaxFillHeight,envelopes,issues);
+	*detail = (issues->Count () > 0) ? (*issues)[0].Detail : StringClass ("");
+	return true;
+}
+
+
+//	The steepest step of a plan road's solved profile.
+static float Steepest_Step (const HybridRealizedRoad & road)
+{
+	float steepest = 0.0f;
+	for (int i = 1; i < road.Samples.Count (); i++) {
+		const float run = road.Samples[i].Station - road.Samples[i - 1].Station;
+		if (run > 0.0f) steepest = WWMath::Max (steepest,WWMath::Fabs (road.Samples[i].Z - road.Samples[i - 1].Z) / run);
+	}
+	return steepest;
+}
+
+
+//	The amplification Q-028 takes on a road's own sampled centerline, and the largest of it.
+static float Budget_Amplification (const HybridRealizedRoad & road,const HybridGradeBudget & budget,float max_grade,float q,
+											  DynamicVectorClass<HybridProfileSample> * samples_out = NULL,
+											  DynamicVectorClass<float> * amplification_out = NULL)
+{
+	DynamicVectorClass<HybridProfileSample> samples;
+	for (int i = 0; i < road.Samples.Count (); i++) {
+		HybridProfileSample one;
+		one.Position	= road.Samples[i].Position;
+		one.Station		= road.Samples[i].Station;
+		samples.Add (one);
+	}
+	DynamicVectorClass<float> amplification;
+	Hybrid_Apply_Grade_Budget (budget,max_grade,q,&samples,&amplification);
+	float worst = 1.0f;
+	for (int i = 0; i < amplification.Count (); i++) worst = WWMath::Max (worst,amplification[i]);
+	if (samples_out != NULL) *samples_out = samples;
+	if (amplification_out != NULL) *amplification_out = amplification;
+	return worst;
+}
+
+
+/*
+**	Q-028: the realization-aware grade budget and the compiled junction's raster support.
+**	- straight_grade_unchanged: a straight road at the class maximum keeps the class as its solver grade, and passes;
+**	- curved_grid_amplification: a tight curve at the class maximum passes Section 12.1 at the class and fails D-026's
+**	  unchanged realized grade on the native grid; with the budget it is solved below the class and passes;
+**	- radius_dependence: the amplification grows as the radius shrinks -- the grid's geometry, not one percentage;
+**	- no_unnecessary_curve_penalty: a broad curve keeps the class nearly everywhere, its few steps within a hair of it;
+**	- pin_behavior_unchanged: a fixed hold keeps the class whatever the curve (its owner realizes it);
+**	- own_pass_only: a road returning beside itself keeps the class on its straight leg;
+**	- compiled_junction_raster_guard: the earlier road's band beyond its paved edge, inside the junction's raster support,
+**	  holds the later road's own surface, where without the junction it holds the earlier road's;
+**	- guard_is_not_semantic_hold: the support reaches past the held stretch, and the later road there keeps its own profile;
+**	- incidental_overlap_still_independent: roads overlapping with no compiled junction have no raster support at all.
+*/
+static void Check_Hybrid_Grade_Budget (const HybridPreflightInputs & content,const HybridMetricCache & metrics)
+{
+	HybridConstants k;
+	Hybrid_Compute_Constants (2.555953f,1.0f,60.0f,1200.0f,1200.0f,3.0f,900.0f,&k);
+	const float max_grade = Hybrid_Road_Class_Spec (HYBRID_ROAD_PRIMARY_2).MaxGradeDegrees * (WWMATH_PI / 180.0f);
+	const HybridGradeBudget budget = Budget_Of (k,content,metrics);
+	g_arc_slope = WWMath::Tan (max_grade);
+
+	//	straight_grade_unchanged: across the grid's diagonal, at the class maximum.
+	{
+		g_arc_line = true;
+		g_line_origin.Set (-100.0f,-60.0f);
+		g_line_dir.Set (WWMath::Cos (0.5236f),WWMath::Sin (0.5236f));
+		HybridTopology topology;
+		HybridRouteSet routes;
+		DynamicVectorClass<Vector2> points;
+		Budget_Points (200.0f,&points);
+		Budget_Road (&topology,&routes,1,points);
+		HybridRealizationPlan plan;
+		DynamicVectorClass<HybridRasterIssue> issues;
+		StringClass detail;
+		const bool planned = Budget_Plan_And_Judge (topology,routes,k,content,metrics,true,&plan,&issues,&detail);
+		const float worst = planned ? Budget_Amplification (plan.Roads[0],budget,max_grade,k.Q) : 0.0f;
+		const float steepest = planned ? Steepest_Step (plan.Roads[0]) : 0.0f;
+		Check (planned && (worst == 1.0f) && (steepest >= (0.999f * g_arc_slope)) && (issues.Count () == 0),
+				 "Q-028 straight road: amplification %.5f (want exactly 1), steepest step %.4f of the class %.4f, %d realization issues "
+				 "(%s)",worst,steepest,g_arc_slope,issues.Count (),detail.Peek_Buffer ());
+		printf ("  Q-028 straight road at the class maximum %.4f: amplification exactly 1, solved at %.4f, realized clean\r\n",
+				  g_arc_slope,steepest);
+		g_arc_line = false;
+	}
+
+	//	curved_grid_amplification and pin_behavior_unchanged: a tight half circle at the class maximum.
+	{
+		g_arc_centre.Set (0.0f,0.0f);
+		g_arc_radius	= 16.0f;
+		g_arc_from		= -1.5708f;
+		HybridTopology topology;
+		HybridRouteSet routes;
+		DynamicVectorClass<Vector2> points;
+		Budget_Points (3.1416f,&points);
+		Budget_Road (&topology,&routes,1,points);
+		HybridRealizationPlan before;
+		HybridRealizationPlan after;
+		DynamicVectorClass<HybridRasterIssue> before_issues;
+		DynamicVectorClass<HybridRasterIssue> after_issues;
+		StringClass before_detail;
+		StringClass after_detail;
+		const bool old_planned = Budget_Plan_And_Judge (topology,routes,k,content,metrics,false,&before,&before_issues,&before_detail);
+		const bool new_planned = Budget_Plan_And_Judge (topology,routes,k,content,metrics,true,&after,&after_issues,&after_detail);
+		const bool old_grade = (before_issues.Count () > 0) && (::strstr (before_detail.Peek_Buffer (),"grade") != NULL);
+		const float old_steepest = old_planned ? Steepest_Step (before.Roads[0]) : 0.0f;
+		DynamicVectorClass<HybridProfileSample> samples;
+		const float worst = new_planned ? Budget_Amplification (after.Roads[0],budget,max_grade,k.Q,&samples) : 0.0f;
+		//	The steepest budgeted step as solved, and how far past its own budget (plus the solver's angular quantum) it went.
+		float new_steepest = 0.0f;
+		float overshoot = -1.0f;
+		for (int i = 1; new_planned && (i < samples.Count ()) && (i < after.Roads[0].Samples.Count ()); i++) {
+			if (!(samples[i].MaxGrade > 0.0f)) continue;
+			const HybridRealizedSample & a = after.Roads[0].Samples[i - 1];
+			const HybridRealizedSample & b = after.Roads[0].Samples[i];
+			const float step = WWMath::Fabs (b.Z - a.Z) / WWMath::Max (b.Station - a.Station,k.Q);
+			new_steepest = WWMath::Max (new_steepest,step);
+			overshoot = WWMath::Max (overshoot,step - WWMath::Tan (samples[i].MaxGrade + HYBRID_QUANTUM_ANGLE));
+		}
+		Check (old_planned && old_grade && (old_steepest >= (0.999f * g_arc_slope)),
+				 "Q-028 tight curve without the budget: solved %d at %.4f, realization %s -- the fixture does not show the native grid "
+				 "steepening a legal profile",old_planned ? 1 : 0,old_steepest,before_detail.Peek_Buffer ());
+		Check (new_planned && (worst > 1.0f) && (new_steepest < g_arc_slope) && (overshoot <= 1.0e-5f) &&
+				 (after_issues.Count () == 0),
+				 "Q-028 tight curve with the budget: amplification %.4f, steepest budgeted step %.4f (%.6f past its budget), %d "
+				 "realization issues (%s)",worst,new_steepest,overshoot,after_issues.Count (),after_detail.Peek_Buffer ());
+		printf ("  Q-028 R %.0f curve: class profile %.4f realizes past D-026 (%s); budgeted (worst amplification %.4f), its "
+				  "budgeted steps solved at most %.4f, realized clean\r\n",g_arc_radius,old_steepest,before_detail.Peek_Buffer (),worst,new_steepest);
+
+		//	A fixed hold on the curve keeps the class: its height belongs to its owner, never this road's grade.
+		for (int i = 0; i < samples.Count (); i++) {
+			samples[i].Fixed	= (i >= 20) && (i <= 40);
+			samples[i].FixedZ	= 0.0f;
+		}
+		Hybrid_Apply_Grade_Budget (budget,max_grade,k.Q,&samples);
+		bool held_class = true;
+		bool free_budgeted = false;
+		for (int i = 1; i < samples.Count (); i++) {
+			if (samples[i - 1].Fixed && samples[i].Fixed) held_class = held_class && (samples[i].MaxGrade == 0.0f);
+			else free_budgeted = free_budgeted || (samples[i].MaxGrade > 0.0f);
+		}
+		Check (held_class && free_budgeted,"Q-028: a fixed hold on the curve %s the class; the free steps %s budgeted",
+				 held_class ? "keeps" : "does not keep",free_budgeted ? "are" : "are not");
+		printf ("  Q-028 a fixed hold on the curve keeps the class maximum; the free steps take the budget\r\n");
+	}
+
+	//	radius_dependence and no_unnecessary_curve_penalty: the same arc length at five radii.
+	{
+		const float radii[5] = { 12.0f,24.0f,48.0f,96.0f,1500.0f };
+		float worst[5];
+		float reduced[5];
+		float tightest[5];
+		for (int r = 0; r < 5; r++) {
+			g_arc_radius	= radii[r];
+			g_arc_from		= 0.0f;
+			HybridTopology topology;
+			HybridRouteSet routes;
+			DynamicVectorClass<Vector2> points;
+			Budget_Points (WWMath::Min (3.1416f,150.0f / radii[r]),&points);
+			Budget_Road (&topology,&routes,1,points);
+			HybridRealizationPlan plan;
+			HybridRealizationResult result;
+			HybridInteractionSet set;
+			const HybridRealizationParams params = Budget_Params (k,content,metrics,true);
+			const bool planned = Compile_Constraints (params,topology,routes,&set,Arc_Ground,NULL,&result) &&
+										Hybrid_Plan_Realization (params,topology,routes,set,Arc_Ground,NULL,&plan,&result);
+			DynamicVectorClass<HybridProfileSample> samples;
+			worst[r] = planned ? Budget_Amplification (plan.Roads[0],budget,max_grade,k.Q,&samples) : 0.0f;
+			int budgeted = 0;
+			float grade = max_grade;
+			for (int i = 1; i < samples.Count (); i++) {
+				if (!(samples[i].MaxGrade > 0.0f)) continue;
+				budgeted++;
+				grade = WWMath::Min (grade,samples[i].MaxGrade);
+			}
+			reduced[r]	= (samples.Count () > 1) ? ((float)budgeted / (float)(samples.Count () - 1)) : 1.0f;
+			tightest[r]	= grade;
+			Check (planned,"Q-028 radius %.0f: the arc was not planned (%s)",radii[r],result.Detail.Peek_Buffer ());
+		}
+		Check ((worst[0] > worst[1]) && (worst[1] > worst[2]) && (worst[2] >= worst[3]) && (worst[3] >= worst[4]) &&
+				 ((worst[0] - 1.0f) > (2.0f * (worst[2] - 1.0f))),
+				 "Q-028: the amplification does not follow the radius: %.4f %.4f %.4f %.4f %.4f at radius 12 24 48 96 1500",
+				 worst[0],worst[1],worst[2],worst[3],worst[4]);
+		Check ((reduced[4] <= 0.25f) && (WWMath::Tan (tightest[4]) >= (0.99f * g_arc_slope)),
+				 "Q-028 broad curve: %.0f%% of its steps budgeted, the tightest at %.4f against the class %.4f",100.0f * reduced[4],
+				 WWMath::Tan (tightest[4]),g_arc_slope);
+		printf ("  Q-028 amplification by radius 12/24/48/96/1500: %.4f %.4f %.4f %.4f %.4f; the broad curve budgets %.0f%% of its "
+				  "steps, none below %.4f of the class %.4f\r\n",worst[0],worst[1],worst[2],worst[3],worst[4],100.0f * reduced[4],
+				  WWMath::Tan (tightest[4]),g_arc_slope);
+	}
+
+	/*
+	**	own_pass_only: a road returning beside itself, converging from 7 m to 4 m apart, off the grid lines (y = 1, the
+	**	return 8 -> 5, on the 3.75 grid).  Where the return passes y = 6.5 the vertex row at y = 3.75 under the first leg's
+	**	envelopes switches to the nearer return leg, under one grade point and not the other.  The straight first leg keeps
+	**	amplification exactly 1 -- the return leg's vertices are that pass's height, never a grade of this one.
+	*/
+	{
+		const Vector2 corners[4] = { Vector2 (-100.0f,1.0f),Vector2 (100.0f,1.0f),Vector2 (100.0f,8.0f),Vector2 (-100.0f,5.0f) };
+		const float spacing = Hybrid_Profile_Sample_Spacing (k);
+		DynamicVectorClass<HybridProfileSample> samples;
+		float station = 0.0f;
+		for (int c = 1; c < 4; c++) {
+			const Vector2 d = corners[c] - corners[c - 1];
+			const float length = d.Length ();
+			const int steps = (int)::ceil ((double)(length / spacing));
+			for (int s = (c == 1) ? 0 : 1; s <= steps; s++) {
+				HybridProfileSample one;
+				one.Position	= corners[c - 1] + (d * ((float)s / (float)steps));
+				one.Station		= station + (length * (float)s / (float)steps);
+				samples.Add (one);
+			}
+			station += length;
+		}
+		DynamicVectorClass<float> amplification;
+		Hybrid_Apply_Grade_Budget (budget,max_grade,k.Q,&samples,&amplification);
+		float leg = 1.0f;
+		for (int i = 1; i < samples.Count (); i++) {
+			if ((samples[i].Station >= 20.0f) && (samples[i].Station <= 160.0f)) leg = WWMath::Max (leg,amplification[i]);
+		}
+		Check (leg == 1.0f,"Q-028: a road returning beside itself reads its other pass as grade: amplification %.4f on its "
+				 "straight leg",leg);
+		printf ("  Q-028 a road returning 4-7 m beside itself: its straight leg keeps the class (amplification %.4f)\r\n",leg);
+	}
+
+	//	The junction's raster support, on D-028's parallel roads.
+	{
+		const HybridRealizationParams params = Budget_Params (k,content,metrics,true);
+		const float half = 0.5f * Hybrid_Roadbed_Width (HYBRID_ROAD_PRIMARY_2,k.W);
+		const float separation = 1.5f * half;
+		const float arm = Hybrid_Junction_Arm_Reach (HYBRID_ROAD_PRIMARY_2,k.W);
+		HybridTopology topology;
+		HybridRouteSet routes;
+		Parallel_Roads (&topology,&routes,separation,Hybrid_Profile_Sample_Spacing (k));
+
+		//	The terrain grid under both roads, on the native origin.
+		const float cell = NATIVE_TERRAIN_CELL;
+		const float native = Native_Terrain_Origin (1200.0f);
+		HybridHeightGrid grid;
+		grid.Spacing	= cell;
+		grid.OriginX	= native + (cell * (float)::floor ((double)((-230.0f - native) / cell)));
+		grid.OriginY	= native + (cell * (float)::floor ((double)((-30.0f - native) / cell)));
+		grid.CountX		= (int)::ceil ((double)(460.0f / cell)) + 1;
+		grid.CountY		= (int)::ceil ((double)(70.0f / cell)) + 1;
+
+		//	incidental_overlap_still_independent: no compiled junction, no raster support.
+		HybridInteractionSet none;
+		HybridRealizationPlan apart;
+		HybridRealizationResult result;
+		const bool apart_planned = Compile_Constraints (params,topology,routes,&none,Parallel_Ground,NULL) &&
+											Hybrid_Plan_Realization (params,topology,routes,none,Parallel_Ground,NULL,&apart,&result);
+		DynamicVectorClass<HybridJunctionSupport> apart_support;
+		if (apart_planned) Hybrid_Junction_Raster_Support (apart,grid,&apart_support);
+		Check (apart_planned && (apart_support.Count () == 0),
+				 "Q-028: overlapping roads with no compiled junction have %d raster-support vertices (%s)",apart_support.Count (),
+				 result.Detail.Peek_Buffer ());
+
+		//	The compiled junction at x = 0.
+		HybridInteractionSet joined;
+		HybridInteraction junction;
+		junction.StableId		= 1;
+		junction.EdgeId		= 1;
+		junction.OtherEdgeId	= 2;
+		junction.Method		= HYBRID_METHOD_AT_GRADE_JUNCTION;
+		junction.RoadClass	= HYBRID_ROAD_PRIMARY_2;
+		junction.Station.Set (0.0f,0.5f * separation);
+		junction.Tangent.Set (1.0f,0.0f);
+		junction.ApproachA	= junction.Station;
+		junction.ApproachB	= junction.Station;
+		joined.Interactions.Add (junction);
+		HybridRealizationPlan plan;
+		const bool planned = Compile_Constraints (params,topology,routes,&joined,Parallel_Ground,NULL) &&
+									Hybrid_Plan_Realization (params,topology,routes,joined,Parallel_Ground,NULL,&plan,&result);
+		DynamicVectorClass<HybridJunctionSupport> support;
+		DynamicVectorClass<float> heights;
+		if (planned) {
+			Hybrid_Junction_Raster_Support (plan,grid,&support);
+			for (int iy = 0; iy < grid.CountY; iy++) {
+				for (int ix = 0; ix < grid.CountX; ix++) {
+					float z = 0.0f;
+					Parallel_Ground (Vector2 (grid.OriginX + (cell * (float)ix),grid.OriginY + (cell * (float)iy)),&z,NULL);
+					heights.Add (z);
+				}
+			}
+			HybridDeformationStats stats;
+			Hybrid_Deform_Terrain (plan,k,NULL,grid,&heights[0],&stats);
+		}
+		const HybridRealizedRoad * first = planned ? plan.Find_Road (1) : NULL;
+		const HybridRealizedRoad * second = planned ? plan.Find_Road (2) : NULL;
+		float held_to = -3.4e38f;
+		for (int c = 0; planned && (c < plan.Constraints.Count ()); c++) {
+			const HybridVerticalConstraint & one = plan.Constraints[c];
+			if ((one.RoadEdgeId == 2) && (one.Kind == HYBRID_VCON_JUNCTION)) held_to = WWMath::Max (held_to,one.To);
+		}
+
+		//	compiled_junction_raster_guard and guard_is_not_semantic_hold, vertex by vertex.
+		int guarded = 0;
+		int conflicting = 0;
+		int beyond = 0;
+		float worst = 0.0f;
+		for (int s = 0; (first != NULL) && (second != NULL) && (s < support.Count ()); s++) {
+			const int vertex = support[s].Vertex;
+			const Vector2 p (grid.OriginX + (cell * (float)(vertex % grid.CountX)),grid.OriginY + (cell * (float)(vertex / grid.CountX)));
+			//	Beyond the earlier road's paved edge, inside the later road's own roadbed band.
+			if ((WWMath::Fabs (p.Y) <= half) || (WWMath::Fabs (p.Y - separation) > (half + cell))) continue;
+			guarded++;
+			const float own = Plan_Z_Near (*second,p);
+			worst = WWMath::Max (worst,WWMath::Fabs (heights[vertex] - own));
+			if (WWMath::Fabs (Plan_Z_Near (*first,p) - own) > 0.01f) conflicting++;
+			if ((p.X + 200.0f) > (held_to + 1.0f)) beyond++;
+		}
+		Check (planned && (support.Count () > 0) && (support[0].EarlierRoad == 0) && (support[0].LaterRoad == 1) && (guarded > 0) &&
+				 (conflicting > 0) && (worst <= 1.0e-4f),
+				 "Q-028 junction raster support: %d vertices, %d beyond the earlier road's paved edge (%d where the two surfaces "
+				 "differ) held %.5f off the later road's own surface (%s)",support.Count (),guarded,conflicting,worst,
+				 result.Detail.Peek_Buffer ());
+		Check (beyond > 0,"Q-028: the junction's raster support stops at its held stretch (to station %.2f): no halo past it",held_to);
+
+		//	Far from the junction the earlier road's band is its own: the support is local.
+		bool control = false;
+		for (int ix = 0; (first != NULL) && (second != NULL) && (ix < grid.CountX) && !control; ix++) {
+			const Vector2 p (grid.OriginX + (cell * (float)ix),0.0f);
+			if (WWMath::Fabs (p.X) < 150.0f) continue;
+			for (int iy = 0; (iy < grid.CountY) && !control; iy++) {
+				const float y = grid.OriginY + (cell * (float)iy);
+				if ((y <= half) || (y > (half + cell))) continue;
+				const int vertex = (iy * grid.CountX) + ix;
+				const Vector2 q (p.X,y);
+				control = (WWMath::Fabs (heights[vertex] - Plan_Z_Near (*first,q)) <= 1.0e-4f) &&
+							 (WWMath::Fabs (Plan_Z_Near (*second,q) - Plan_Z_Near (*first,q)) > 0.01f);
+			}
+		}
+		Check (control,"Q-028: away from the junction the earlier road's band does not keep its own surface");
+		printf ("  Q-028 junction raster support: %d vertices, %d of the earlier road's band held to the later road's own surface "
+				  "(%d where they differ, %d past the held stretch); away from it the band stays the earlier road's; no junction, "
+				  "no support\r\n",support.Count (),guarded,conflicting,beyond);
 	}
 }
 

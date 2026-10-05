@@ -101,7 +101,15 @@ bool Hybrid_Solve_Vertical_Profile(const DynamicVectorClass<HybridProfileSample>
 		}
 	}
 
-	const float g = (float)::tan((double)max_grade_radians);
+	//	Each step's grade: the class maximum, or the sample's own realization-aware budget (Q-028) where it is tighter.
+	DynamicVectorClass<float> step_angle;
+	DynamicVectorClass<float> step_grade;
+	for (int i = 0; i < count; ++i) {
+		const float own = samples[i].MaxGrade;
+		const float angle = ((i > 0) && (own > 0.0f)) ? Min2(own,max_grade_radians) : max_grade_radians;
+		step_angle.Add(angle);
+		step_grade.Add((float)::tan((double)angle));
+	}
 
 	/*
 	**	The feasibility intervals.  A sample a compiled crossing or junction pins holds a quantized height --
@@ -133,6 +141,7 @@ bool Hybrid_Solve_Vertical_Profile(const DynamicVectorClass<HybridProfileSample>
 	//	1. Forward propagation.
 	for (int i = 1; i < count; ++i) {
 		const float ds = samples[i].Station - samples[i - 1].Station;
+		const float g = step_grade[i];
 		lo[i] = Max2(lo[i],lo[i - 1] - (g * ds));
 		hi[i] = Min2(hi[i],hi[i - 1] + (g * ds));
 		if (lo[i] > hi[i]) {
@@ -144,6 +153,7 @@ bool Hybrid_Solve_Vertical_Profile(const DynamicVectorClass<HybridProfileSample>
 	//	2. Backward propagation.
 	for (int i = count - 2; i >= 0; --i) {
 		const float ds = samples[i + 1].Station - samples[i].Station;
+		const float g = step_grade[i + 1];
 		lo[i] = Max2(lo[i],lo[i + 1] - (g * ds));
 		hi[i] = Min2(hi[i],hi[i + 1] + (g * ds));
 		if (lo[i] > hi[i]) {
@@ -158,6 +168,7 @@ bool Hybrid_Solve_Vertical_Profile(const DynamicVectorClass<HybridProfileSample>
 	z.Add(Clamp3(samples[0].Fixed ? samples[0].FixedZ : samples[0].TerrainZ,lo[0],hi[0]));
 	for (int i = 1; i < count; ++i) {
 		const float ds = samples[i].Station - samples[i - 1].Station;
+		const float g = step_grade[i];
 		float floor = Max2(lo[i],z[i - 1] - (g * ds));
 		const float ceiling = Min2(hi[i],z[i - 1] + (g * ds));
 		/*
@@ -177,9 +188,9 @@ bool Hybrid_Solve_Vertical_Profile(const DynamicVectorClass<HybridProfileSample>
 	}
 
 	/*
-	**	4. Quantize to `Q`, then revalidate every adjacent grade against the class maximum plus the
-	**	angular quantum.  A pinned sample returns its pin exactly: the crossing that pinned it compiled a
-	**	quantized height already, and the walk kept it inside that height's cell.
+	**	4. Quantize to `Q`, then revalidate every adjacent grade against its step's grade (the class maximum, or the
+	**	budget) plus the angular quantum.  A pinned sample returns its pin exactly: the crossing that pinned it compiled
+	**	a quantized height already, and the walk kept it inside that height's cell.
 	*/
 	for (int i = 0; i < count; ++i) z[i] = samples[i].Fixed ? samples[i].FixedZ : Hybrid_Quantize_Position(z[i]);
 
@@ -188,7 +199,7 @@ bool Hybrid_Solve_Vertical_Profile(const DynamicVectorClass<HybridProfileSample>
 		const float ds = Max2(samples[i].Station - samples[i - 1].Station,quantum);
 		const float grade = (float)::atan((double)((float)fabs((double)(z[i] - z[i - 1])) / ds));
 		if (grade > steepest) steepest = grade;
-		if (grade > (max_grade_radians + HYBRID_QUANTUM_ANGLE)) {
+		if (grade > (step_angle[i] + HYBRID_QUANTUM_ANGLE)) {
 			if (failure_out != nullptr) *failure_out = HYBRID_PROFILE_GRADE_AFTER_QUANTIZE;
 			return false;
 		}
@@ -293,7 +304,8 @@ bool Hybrid_Solve_Road_Stretch(const DynamicVectorClass<Vector2> & points,const 
 										 float max_fill_height,float max_grade_radians,float quantum,
 										 DynamicVectorClass<HybridProfileSample> * samples_out,
 										 HybridSolvedProfile * solved_out,DynamicVectorClass<float> * start_z_out,
-										 DynamicVectorClass<float> * end_z_out,HybridProfileFailure * failure_out)
+										 DynamicVectorClass<float> * end_z_out,HybridProfileFailure * failure_out,
+										 const HybridGradeBudget * budget)
 {
 	if (failure_out != nullptr) *failure_out = HYBRID_PROFILE_INVALID_INPUT;
 	if ((samples_out == nullptr) || (solved_out == nullptr) || (to_station <= from_station)) return false;
@@ -387,6 +399,16 @@ bool Hybrid_Solve_Road_Stretch(const DynamicVectorClass<Vector2> & points,const 
 			one.Unbounded	= true;
 			one.TerrainZ	= z_from + ((z_to - z_from) * ratio);
 		}
+	}
+
+	//	Q-028: the realization-aware grade of every step, on the stretch's own samples, before the one solve.
+	if ((budget != nullptr) && (budget->CellSize > 0.0f)) {
+		HybridGradeBudget local = *budget;
+		for (int d = 0; d < local.Decks.Count(); ++d) {
+			local.Decks[d].From	-= from_station;
+			local.Decks[d].To		-= from_station;
+		}
+		Hybrid_Apply_Grade_Budget(local,max_grade_radians,q,samples_out);
 	}
 
 	if (!Hybrid_Solve_Vertical_Profile(*samples_out,max_cut_depth,max_fill_height,max_grade_radians,quantum,
@@ -537,7 +559,8 @@ const HybridRealizedRoad * HybridRealizationPlan::Find_Road(unsigned int edge_id
 
 HybridRealizationParams::HybridRealizationParams(void) :
 	MaxCutDepth(0.0f),MaxFillHeight(0.0f),LightVehicleWidth(0.0f),HeavyVehicleWidth(0.0f),HarvesterWidth(0.0f),
-	MinVehicleLaneClearance(0.0f),TerrainCellSize(0.0f)
+	MinVehicleLaneClearance(0.0f),TerrainCellSize(0.0f),TerrainOriginX(0.0f),TerrainOriginY(0.0f),LightVehicleLength(0.0f),
+	HeavyVehicleLength(0.0f),HarvesterLength(0.0f)
 {
 	memset(&Constants,0,sizeof(Constants));
 }
@@ -1028,7 +1051,12 @@ static void Diagnose_Profile(const DynamicVectorClass<HybridProfileSample> & sam
 	out->Kind				= HYBRID_CONFLICT_OTHER;
 	const int count = samples.Count();
 	if ((failure != HYBRID_PROFILE_FORWARD_EMPTY) || (count < 2)) return;
-	const float g = out->AllowedGrade;
+	//	Each step's grade as the solver took it: the class maximum, or the sample's Q-028 budget.
+	DynamicVectorClass<float> step_grade;
+	for (int i = 0; i < count; ++i) {
+		const float own = samples[i].MaxGrade;
+		step_grade.Add(((i > 0) && (own > 0.0f)) ? (float)::tan((double)Min2(own,max_grade_radians)) : out->AllowedGrade);
+	}
 	const float pin_cell = 0.5f * HYBRID_QUANTUM_POSITION;
 	DynamicVectorClass<float> own_lo;
 	DynamicVectorClass<float> own_hi;
@@ -1052,6 +1080,7 @@ static void Diagnose_Profile(const DynamicVectorClass<HybridProfileSample> & sam
 	int hi_from = 0;
 	for (int i = 1; i < count; ++i) {
 		const float ds = samples[i].Station - samples[i - 1].Station;
+		const float g = step_grade[i];
 		if ((lo - (g * ds)) > own_lo[i]) {
 			lo -= g * ds;
 		} else {
@@ -1079,6 +1108,13 @@ static void Diagnose_Profile(const DynamicVectorClass<HybridProfileSample> & sam
 		out->ZB				= sb.Fixed ? sb.FixedZ : (a_low ? own_hi[b] : own_lo[b]);
 		out->Dz				= (float)fabs((double)(out->ZA - out->ZB));
 		out->RequiredGrade= out->Dz / Max2(out->Separation,set.Q);
+
+		//	What the steps between them allow: the rise they can make together, and the tightest of them.
+		float reach = 0.0f;
+		for (int s = a + 1; s <= b; ++s) {
+			reach += step_grade[s] * (samples[s].Station - samples[s - 1].Station);
+			out->AllowedGrade = Min2(out->AllowedGrade,step_grade[s]);
+		}
 		const int ra = sa.Fixed ? Pinning_Record(set,sa.Station,sa.FixedZ) : -1;
 		const int rb = sb.Fixed ? Pinning_Record(set,sb.Station,sb.FixedZ) : -1;
 		out->HasA = (ra >= 0);
@@ -1094,10 +1130,10 @@ static void Diagnose_Profile(const DynamicVectorClass<HybridProfileSample> & sam
 			const float pinned = out->HasA ? out->ZA : out->ZB;
 			out->TerrainZ = ground.TerrainZ;
 			if (pinned > ground.TerrainZ) {
-				out->RequiredCutFill	= (pinned - (g * out->Separation)) - ground.TerrainZ;
+				out->RequiredCutFill	= (pinned - reach) - ground.TerrainZ;
 				out->AllowedCutFill	= max_fill;
 			} else {
-				out->RequiredCutFill	= (pinned + (g * out->Separation)) - ground.TerrainZ;
+				out->RequiredCutFill	= (pinned + reach) - ground.TerrainZ;
 				out->AllowedCutFill	= -max_cut;
 			}
 		} else {
@@ -1239,6 +1275,31 @@ static void Sample_Edges(const HybridRealizationParams & params,const HybridTopo
 			sample->CarriageRight= Max2(sample->CarriageRight,carriage);
 		}
 	}
+}
+
+
+//	Q-028: a road's realized paved edges at any point of it, for its grade budget before it is graded (Sample_Edges).
+struct BudgetEdges
+{
+	const HybridRealizationParams *	Params;
+	const HybridTopology *				Topology;
+	const HybridInteractionSet *		Interactions;
+	const HybridRealizedRoad *			Road;
+	const HybridTopologyEdge *			FirstEdge;
+	float										Total;
+};
+
+
+static void Budget_Edges(const Vector2 & position,float station,const Vector2 & travel,float * left_out,float * right_out,
+								 void * context)
+{
+	const BudgetEdges & c = *(const BudgetEdges *)context;
+	HybridRealizedSample one;
+	one.Position	= position;
+	one.Station		= station;
+	Sample_Edges(*c.Params,*c.Topology,*c.Interactions,*c.Road,*c.FirstEdge,c.Total,travel,&one);
+	*left_out	= one.Left;
+	*right_out	= one.Right;
 }
 
 
@@ -1428,12 +1489,51 @@ static bool Build_Plan(const HybridRealizationParams & params,const HybridTopolo
 			return Realization_Fail(result,HYBRID_REALIZATION_PROFILE,names[o],detail.Peek_Buffer());
 		}
 
+		/*
+		**	Q-028: on the native grid, every step's realization-aware grade, from the road's realized paved edges and the
+		**	envelopes it must carry -- Phase 11 compiles with exactly the budget Phase 12 grades with.
+		*/
+		HybridRealizedRoad shape;
+		shape.RoadClass	= first_edge->RoadClass;
+		shape.Edges			= edges;
+		unsigned int capabilities = first_edge->Capabilities;
+		for (int e = 1; e < edges.Count(); ++e) {
+			const HybridTopologyEdge * edge = topology.Find_Edge(edges[e]);
+			if (edge != nullptr) capabilities |= edge->Capabilities;
+		}
+		BudgetEdges edge_context;
+		edge_context.Params			= &params;
+		edge_context.Topology		= &topology;
+		edge_context.Interactions	= &interactions;
+		edge_context.Road				= &shape;
+		edge_context.FirstEdge		= first_edge;
+		edge_context.Total			= total;
+		HybridGradeBudget budget;
+		if (params.TerrainCellSize > 0.0f) {
+			budget.CellSize	= params.TerrainCellSize;
+			budget.OriginX		= params.TerrainOriginX;
+			budget.OriginY		= params.TerrainOriginY;
+			budget.Spacing		= Hybrid_Profile_Sample_Spacing(k);
+			const float lengths[HYBRID_ENVELOPE_COUNT] = { params.LightVehicleLength,params.HeavyVehicleLength,params.HarvesterLength };
+			const float widths[HYBRID_ENVELOPE_COUNT] = { params.LightVehicleWidth,params.HeavyVehicleWidth,params.HarvesterWidth };
+			for (int e = 0; e < HYBRID_ENVELOPE_COUNT; ++e) {
+				if (!Hybrid_Envelope_Swept(capabilities,e)) continue;
+				budget.Length[e]	= lengths[e];
+				budget.Width[e]	= widths[e];
+			}
+			budget.Edges			= Budget_Edges;
+			budget.EdgesContext	= &edge_context;
+			for (int s = 0; s < set.Structures.Count(); ++s) {
+				if (set.Records[s].Kind == HYBRID_VCON_STRUCTURE) budget.Decks.Add(set.Structures[s]);
+			}
+		}
+
 		DynamicVectorClass<HybridProfileSample> samples;
 		HybridSolvedProfile solved;
 		HybridProfileFailure failure = HYBRID_PROFILE_OK;
 		if (!Hybrid_Solve_Road_Stretch(road.Points,road.Stations,0.0f,total,set.Structures,Hybrid_Profile_Sample_Spacing(k),
 												 sample,context,params.MaxCutDepth,params.MaxFillHeight,max_grade,k.Q,&samples,&solved,
-												 nullptr,nullptr,&failure)) {
+												 nullptr,nullptr,&failure,&budget)) {
 			if (result != nullptr) result->Profile = failure;
 			HybridConstraintConflict conflict;
 			Diagnose_Profile(samples,set,params.MaxCutDepth,params.MaxFillHeight,max_grade,failure,&conflict);
@@ -1857,6 +1957,20 @@ static void Deform_Roads(const HybridRealizationPlan & plan,const HybridConstant
 	owned.Resize(total);
 	for (int v = 0; v < total; ++v) owned.Add(0);
 
+	/*
+	**	Q-028: every compiled junction's raster support.  The earlier road keeps its paved roadbed there; its band beyond
+	**	the paved edge is left to the junction's later road, whose own roadbed construction grades it; once that road is
+	**	deformed the whole support is the junction's, and no road after the earlier one but the later writes any of it.
+	*/
+	DynamicVectorClass<HybridJunctionSupport> support;
+	Hybrid_Junction_Raster_Support(plan,grid,&support);
+	DynamicVectorClass<int> support_of;
+	if (support.Count() > 0) {
+		support_of.Resize(total);
+		for (int v = 0; v < total; ++v) support_of.Add(-1);
+		for (int s = 0; s < support.Count(); ++s) support_of[support[s].Vertex] = s;
+	}
+
 	//	The nearest-centerline record of one vertex, for the road being deformed.
 	DynamicVectorClass<float> best;
 	DynamicVectorClass<int> segment;
@@ -1986,6 +2100,11 @@ static void Deform_Roads(const HybridRealizationPlan & plan,const HybridConstant
 					counted.Protected++;
 					continue;
 				}
+				const int guard = (support_of.Count() > 0) ? support_of[index] : -1;
+				if ((guard >= 0) && (r > support[guard].EarlierRoad) && (r != support[guard].LaterRoad)) {
+					counted.Protected++;
+					continue;
+				}
 				/*
 				**	3: no water -- except a deck end's own support footprint (D-026).  A bank that meets the deck end inside one
 				**	grid cell would otherwise leave the road's last stretch interpolated down to the river bed.  The terrain cells
@@ -2003,10 +2122,14 @@ static void Deform_Roads(const HybridRealizationPlan & plan,const HybridConstant
 				const float z = a.Z + ((b.Z - a.Z) * t);
 				heights[index] = roadbed ? z : Hybrid_Road_Cross_Section_Height(distance,z,heights[index],edge,blend);
 				counted.Changed++;
-				if (roadbed) mine.Add(index);
+				const bool yielded = (guard >= 0) && (r == support[guard].EarlierRoad) && (distance > edge);
+				if (roadbed && !yielded) mine.Add(index);
 			}
 		}
 		for (int m = 0; m < mine.Count(); ++m) owned[mine[m]] = 1;
+		for (int s = 0; s < support.Count(); ++s) {
+			if (support[s].LaterRoad == r) owned[support[s].Vertex] = 1;
+		}
 	}
 }
 
@@ -2480,6 +2603,441 @@ static bool Pin_Road_Surface(const PinWorld & w,const HybridConstants & k,int ro
 }
 
 
+/***********************************************************************************************
+**	Q-028 (option b) -- the realization-aware grade budget.
+***********************************************************************************************/
+
+bool Hybrid_Envelope_Swept(unsigned int capabilities,int e)
+{
+	const unsigned int needs = (e == HYBRID_ENVELOPE_LIGHT) ? ~0u
+									 : ((e == HYBRID_ENVELOPE_HEAVY) ? (unsigned int)HYBRID_NAV_HEAVY : (unsigned int)HYBRID_NAV_HARVESTER);
+	return (capabilities & needs) != 0;
+}
+
+
+HybridGradeBudget::HybridGradeBudget(void) :
+	CellSize(0.0f),OriginX(0.0f),OriginY(0.0f),Spacing(0.0f),Left(0.0f),Right(0.0f),Edges(nullptr),EdgesContext(nullptr)
+{
+	for (int e = 0; e < HYBRID_ENVELOPE_COUNT; ++e) {
+		Length[e]	= 0.0f;
+		Width[e]		= 0.0f;
+	}
+}
+
+
+float Hybrid_Grade_Budget_Radians(float max_grade_radians,float amplification)
+{
+	if (!(amplification > 1.0f)) return max_grade_radians;
+	const double g = ::tan((double)(max_grade_radians + HYBRID_QUANTUM_ANGLE));
+	const float angle = (float)(::atan(g / (double)amplification) - (double)HYBRID_QUANTUM_ANGLE);
+	return Max2(Min2(angle,max_grade_radians),HYBRID_QUANTUM_ANGLE);
+}
+
+
+//	The polyline's segments bucketed, for the nearest-foot queries of one budget.
+struct BudgetIndex
+{
+	float							OriginX;
+	float							OriginY;
+	float							Size;
+	int							CountX;
+	int							CountY;
+	DynamicVectorClass<int>	Head;
+	DynamicVectorClass<int>	Next;
+	DynamicVectorClass<int>	Entry;				// segment i: points[i - 1] .. points[i]
+};
+
+
+static void Budget_Index_Build(const DynamicVectorClass<Vector2> & points,float reach,float size,BudgetIndex * index)
+{
+	Vector2 lo = points[0];
+	Vector2 hi = points[0];
+	for (int i = 1; i < points.Count(); ++i) {
+		lo.Set(Min2(lo.X,points[i].X),Min2(lo.Y,points[i].Y));
+		hi.Set(Max2(hi.X,points[i].X),Max2(hi.Y,points[i].Y));
+	}
+	index->Size		= size;
+	index->OriginX	= lo.X - reach - size;
+	index->OriginY	= lo.Y - reach - size;
+	index->CountX	= Max_Int((int)::ceil((double)((hi.X + reach + size - index->OriginX) / size)) + 1,1);
+	index->CountY	= Max_Int((int)::ceil((double)((hi.Y + reach + size - index->OriginY) / size)) + 1,1);
+	index->Head.Delete_All();
+	index->Next.Delete_All();
+	index->Entry.Delete_All();
+	index->Head.Resize(index->CountX * index->CountY);
+	for (int b = 0; b < (index->CountX * index->CountY); ++b) index->Head.Add(-1);
+	for (int i = 1; i < points.Count(); ++i) {
+		const Vector2 & a = points[i - 1];
+		const Vector2 & b = points[i];
+		const int x0 = Max_Int((int)::floor((double)((Min2(a.X,b.X) - reach - index->OriginX) / size)),0);
+		const int y0 = Max_Int((int)::floor((double)((Min2(a.Y,b.Y) - reach - index->OriginY) / size)),0);
+		const int x1 = Min_Int((int)::floor((double)((Max2(a.X,b.X) + reach - index->OriginX) / size)),index->CountX - 1);
+		const int y1 = Min_Int((int)::floor((double)((Max2(a.Y,b.Y) + reach - index->OriginY) / size)),index->CountY - 1);
+		for (int by = y0; by <= y1; ++by) {
+			for (int bx = x0; bx <= x1; ++bx) {
+				const int cell = (by * index->CountX) + bx;
+				index->Next.Add(index->Head[cell]);
+				index->Head[cell] = index->Entry.Count();
+				index->Entry.Add(i);
+			}
+		}
+	}
+}
+
+
+/*
+**	A grid vertex's nearest centerline foot exactly as Deform_Roads takes it: the nearest segment, the first of equals, its
+**	parameter clamped to the segment.  False when no segment is within the index's reach.
+*/
+static bool Budget_Foot(const DynamicVectorClass<Vector2> & points,const BudgetIndex & index,const Vector2 & p,int * segment_out,
+								float * t_out)
+{
+	const int bx = (int)::floor((double)((p.X - index.OriginX) / index.Size));
+	const int by = (int)::floor((double)((p.Y - index.OriginY) / index.Size));
+	if ((bx < 0) || (by < 0) || (bx >= index.CountX) || (by >= index.CountY)) return false;
+	float best = 3.4e38f;
+	int found = -1;
+	float found_t = 0.0f;
+	for (int e = index.Head[(by * index.CountX) + bx]; e >= 0; e = index.Next[e]) {
+		const int i = index.Entry[e];
+		const Vector2 a = points[i - 1];
+		const Vector2 d = points[i] - a;
+		const float length2 = (d.X * d.X) + (d.Y * d.Y);
+		if (!(length2 > 0.0f)) continue;
+		const float t = Clamp3((((p.X - a.X) * d.X) + ((p.Y - a.Y) * d.Y)) / length2,0.0f,1.0f);
+		const float distance = (p - (a + (d * t))).Length();
+		if ((distance > best) || ((distance == best) && (i > found))) continue;
+		best		= distance;
+		found		= i;
+		found_t	= t;
+	}
+	if (found < 0) return false;
+	*segment_out	= found;
+	*t_out			= found_t;
+	return true;
+}
+
+
+//	The grid triangle under `q` and its weights, exactly as Hybrid_Grid_Height_At splits the cell: vertices as (ix, iy).
+static void Budget_Triangle(const HybridGradeBudget & budget,const Vector2 & q,int * ix_out,int * iy_out,float * weight_out)
+{
+	const float cell = budget.CellSize;
+	const int cx = (int)::floor((double)((q.X - budget.OriginX) / cell));
+	const int cy = (int)::floor((double)((q.Y - budget.OriginY) / cell));
+	const float u = Clamp3((q.X - (budget.OriginX + ((float)cx * cell))) / cell,0.0f,1.0f);
+	const float v = Clamp3((q.Y - (budget.OriginY + ((float)cy * cell))) / cell,0.0f,1.0f);
+	ix_out[0] = cx;		iy_out[0] = cy;
+	ix_out[1] = cx + 1;	iy_out[1] = cy + 1;
+	if (u >= v) {
+		weight_out[0] = 1.0f - u;
+		ix_out[2] = cx + 1;	iy_out[2] = cy;		weight_out[2] = u - v;
+		weight_out[1] = v;
+	} else {
+		weight_out[0] = 1.0f - v;
+		weight_out[1] = u;
+		ix_out[2] = cx;		iy_out[2] = cy + 1;	weight_out[2] = v - u;
+	}
+}
+
+
+static bool Inside_Deck(const HybridGradeBudget & budget,float station,float q)
+{
+	for (int d = 0; d < budget.Decks.Count(); ++d) {
+		if ((station > (budget.Decks[d].From + q)) && (station < (budget.Decks[d].To - q))) return true;
+	}
+	return false;
+}
+
+
+void Hybrid_Apply_Grade_Budget(const HybridGradeBudget & budget,float max_grade_radians,float quantum,
+										 DynamicVectorClass<HybridProfileSample> * samples,DynamicVectorClass<float> * amplification_out)
+{
+	if (amplification_out != nullptr) amplification_out->Delete_All();
+	if (samples == nullptr) return;
+	const int count = samples->Count();
+	for (int i = 0; i < count; ++i) (*samples)[i].MaxGrade = 0.0f;
+	DynamicVectorClass<float> amplification;
+	amplification.Resize(count);
+	for (int i = 0; i < count; ++i) amplification.Add(1.0f);
+	const float q = Max2(quantum,HYBRID_QUANTUM_POSITION);
+	if ((count < 2) || !(budget.CellSize > 0.0f) || !(max_grade_radians > 0.0f)) {
+		if (amplification_out != nullptr) *amplification_out = amplification;
+		return;
+	}
+
+	//	The centerline as Section 12.2 deforms the grid from it, and its realized paved edges sample by sample.
+	DynamicVectorClass<Vector2> points;
+	DynamicVectorClass<float> stations;
+	DynamicVectorClass<float> lefts;
+	DynamicVectorClass<float> rights;
+	float widest = 0.0f;
+	for (int i = 0; i < count; ++i) {
+		points.Add((*samples)[i].Position);
+		stations.Add((*samples)[i].Station);
+	}
+	for (int i = 0; i < count; ++i) {
+		float left = budget.Left;
+		float right = budget.Right;
+		if (budget.Edges != nullptr) {
+			const int ahead = ((i + 1) < count) ? (i + 1) : i;
+			const int behind = ((i + 1) < count) ? i : (i - 1);
+			budget.Edges(points[i],stations[i],Unit_Vector(points[ahead] - points[behind]),&left,&right,budget.EdgesContext);
+		}
+		lefts.Add(left);
+		rights.Add(right);
+		widest = Max2(widest,Max2(left,right));
+	}
+	const float cell = budget.CellSize;
+	BudgetIndex index;
+	Budget_Index_Build(points,widest + (2.0f * cell),4.0f * cell,&index);
+
+	const float total = stations[count - 1];
+	const float spacing = Max2(budget.Spacing,q);
+	const float g = (float)::tan((double)(max_grade_radians + HYBRID_QUANTUM_ANGLE));
+
+	/*
+	**	The envelope's own pass.  A vertex of a triangle under a grade point is within `r` (the widest paved half and a cell
+	**	diagonal) of the centerline point at the grade point's station, so on a curve no tighter than `r` its nearest foot on
+	**	that pass is within an arc of pi * r of it.  A foot farther along the road is another pass of the same road -- a
+	**	road returning beside itself -- whose height is that pass's, never a grade of this one: the envelope is not modelled.
+	*/
+	const float own_pass = 3.14159265f * (widest + (1.41421356f * cell));
+
+	int ix[6];
+	int iy[6];
+	float c[6];
+	int seg[6];
+	float at_t[6];
+	DynamicVectorClass<float> b;
+	for (int e = 0; e < HYBRID_ENVELOPE_COUNT; ++e) {
+		const float length = budget.Length[e];
+		const float width = budget.Width[e];
+		if (!(length > 0.0f) || !(width > 0.0f)) continue;
+		const float half_length = 0.5f * length;
+		const float half_width = 0.5f * width;
+
+		for (int s = 0; s < count; ++s) {
+			//	Pin_Sweep's envelope from sample s: its three stations, the travel there and the paved edges (Pin_Plan_At).
+			if (Inside_Deck(budget,stations[s],q)) continue;
+			const float centre = Clamp3(stations[s],Min2(half_length,0.5f * total),Max2(total - half_length,0.5f * total));
+			Vector2 point[3];
+			Vector2 left[3];
+			float left_edge[3];
+			float right_edge[3];
+			float at[3];
+			bool own = true;
+			for (int a = 0; a < 3; ++a) {
+				at[a] = Clamp3(centre + (half_length * (float)(a - 1)),0.0f,total);
+				point[a] = Hybrid_Polyline_Point_At(points,stations,at[a]);
+				const Vector2 direction = Unit_Vector(Hybrid_Polyline_Point_At(points,stations,Min2(at[a] + spacing,total)) -
+																  Hybrid_Polyline_Point_At(points,stations,Max2(at[a] - spacing,0.0f)));
+				left[a].Set(-direction.Y,direction.X);
+				int lo = 0;
+				int hi = count - 1;
+				while ((hi - lo) > 1) {
+					const int mid = (lo + hi) / 2;
+					if (stations[mid] <= at[a]) {
+						lo = mid;
+					} else {
+						hi = mid;
+					}
+				}
+				const float span = stations[hi] - stations[lo];
+				const float t = (span > 0.0f) ? Clamp3((at[a] - stations[lo]) / span,0.0f,1.0f) : 0.0f;
+				left_edge[a]	= lefts[lo] + ((lefts[hi] - lefts[lo]) * t);
+				right_edge[a]	= rights[lo] + ((rights[hi] - rights[lo]) * t);
+				own = own && (width <= (left_edge[a] + right_edge[a] + (2.0f * q)));
+			}
+			if (Inside_Deck(budget,at[0],q) || Inside_Deck(budget,at[2],q)) continue;
+
+			//	Placement 0 -- the roadbed midpoint -- whenever the roadbed holds the envelope; otherwise whichever Pin_Sweep picks.
+			bool modelled = true;
+			for (int placement = 0; (placement < (own ? 1 : 3)) && modelled; ++placement) {
+				int n = 0;
+				for (int a = 0; a < 3; a += 2) {
+					const float offset = (placement == 0) ? (0.5f * (left_edge[a] - right_edge[a]))
+												: ((placement == 1) ? (left_edge[a] - half_width) : (half_width - right_edge[a]));
+					const Vector2 grade_point = point[a] + (left[a] * offset);
+					int tx[3];
+					int ty[3];
+					float tw[3];
+					Budget_Triangle(budget,grade_point,tx,ty,tw);
+					for (int v = 0; v < 3; ++v) {
+						const float weight = (a == 2) ? tw[v] : -tw[v];
+						int slot = -1;
+						for (int m = 0; (m < n) && (slot < 0); ++m) {
+							if ((ix[m] == tx[v]) && (iy[m] == ty[v])) slot = m;
+						}
+						if (slot >= 0) {
+							c[slot] += weight;
+							continue;
+						}
+						ix[n]	= tx[v];
+						iy[n]	= ty[v];
+						c[n]	= weight;
+						n++;
+					}
+				}
+
+				//	Each vertex's foot, and the rise between the grade points as a sum over the profile's steps.
+				int k_lo = count;
+				int k_hi = 0;
+				for (int m = 0; (m < n) && modelled; ++m) {
+					const Vector2 p(budget.OriginX + (cell * (float)ix[m]),budget.OriginY + (cell * (float)iy[m]));
+					modelled = Budget_Foot(points,index,p,&seg[m],&at_t[m]);
+					if (!modelled) break;
+					const float foot = stations[seg[m] - 1] + ((stations[seg[m]] - stations[seg[m] - 1]) * at_t[m]);
+					modelled = !Inside_Deck(budget,foot,q) && (foot >= (at[0] - own_pass)) && (foot <= (at[2] + own_pass));
+					k_lo = Min_Int(k_lo,seg[m]);
+					k_hi = Max_Int(k_hi,seg[m]);
+				}
+				if (!modelled || (k_hi < k_lo)) break;
+				b.Delete_All();
+				float sum = 0.0f;
+				for (int kk = k_lo; kk <= k_hi; ++kk) {
+					float coefficient = 0.0f;
+					for (int m = 0; m < n; ++m) {
+						if (kk < seg[m])			coefficient += c[m];
+						else if (kk == seg[m])	coefficient += c[m] * at_t[m];
+					}
+					b.Add(coefficient);
+					sum += (float)fabs((double)coefficient) * (stations[kk] - stations[kk - 1]);
+				}
+				const float a_s = Max2(1.0f,sum / (length + (q / g)));
+				if (!(a_s > 1.0f)) continue;
+				for (int kk = k_lo; kk <= k_hi; ++kk) {
+					if ((float)fabs((double)b[kk - k_lo]) <= 1.0e-6f) continue;
+					amplification[kk] = Max2(amplification[kk],a_s);
+				}
+			}
+		}
+	}
+
+	//	Each step's grade.  A compiled hold (both ends fixed) or a deck keeps the class: its owner realizes it.
+	for (int i = 1; i < count; ++i) {
+		const HybridProfileSample & from = (*samples)[i - 1];
+		const HybridProfileSample & to = (*samples)[i];
+		if ((from.Fixed && to.Fixed) || from.Unbounded || to.Unbounded) {
+			amplification[i] = 1.0f;
+			continue;
+		}
+		if (amplification[i] > 1.0f) (*samples)[i].MaxGrade = Hybrid_Grade_Budget_Radians(max_grade_radians,amplification[i]);
+	}
+	if (amplification_out != nullptr) *amplification_out = amplification;
+}
+
+
+/***********************************************************************************************
+**	Q-028 -- a compiled junction's raster support.
+***********************************************************************************************/
+
+//	Do two convex polygons meet (separating axes over both polygons' edges; touching counts)?
+static bool Convex_Meet(const Vector2 * a,int na,const Vector2 * b,int nb)
+{
+	for (int pass = 0; pass < 2; ++pass) {
+		const Vector2 * poly = (pass == 0) ? a : b;
+		const int n = (pass == 0) ? na : nb;
+		for (int i = 0; i < n; ++i) {
+			const Vector2 edge = poly[(i + 1) % n] - poly[i];
+			const Vector2 axis(-edge.Y,edge.X);
+			if (!(((axis.X * axis.X) + (axis.Y * axis.Y)) > 0.0f)) continue;
+			float a_lo = 3.4e38f;
+			float a_hi = -3.4e38f;
+			float b_lo = 3.4e38f;
+			float b_hi = -3.4e38f;
+			for (int m = 0; m < na; ++m) {
+				const float d = (a[m].X * axis.X) + (a[m].Y * axis.Y);
+				a_lo = Min2(a_lo,d);
+				a_hi = Max2(a_hi,d);
+			}
+			for (int m = 0; m < nb; ++m) {
+				const float d = (b[m].X * axis.X) + (b[m].Y * axis.Y);
+				b_lo = Min2(b_lo,d);
+				b_hi = Max2(b_hi,d);
+			}
+			const float slack = GRID_EDGE_EPSILON * (float)sqrt((double)((axis.X * axis.X) + (axis.Y * axis.Y)));
+			if ((a_hi < (b_lo - slack)) || (b_hi < (a_lo - slack))) return false;
+		}
+	}
+	return true;
+}
+
+
+void Hybrid_Junction_Raster_Support(const HybridRealizationPlan & plan,const HybridHeightGrid & grid,
+												DynamicVectorClass<HybridJunctionSupport> * out)
+{
+	if (out == nullptr) return;
+	out->Delete_All();
+	const int total = grid.CountX * grid.CountY;
+	if ((total <= 0) || !(grid.Spacing > 0.0f)) return;
+	const float cell = grid.Spacing;
+	DynamicVectorClass<unsigned char> listed;
+
+	for (int c = 0; c < plan.Constraints.Count(); ++c) {
+		const HybridVerticalConstraint & record = plan.Constraints[c];
+		if (record.Kind != HYBRID_VCON_JUNCTION) continue;
+		const HybridRealizedRoad * later = plan.Find_Road(record.RoadEdgeId);
+		const HybridRealizedRoad * earlier = plan.Find_Road(record.OwnerEdgeId);
+		if ((later == nullptr) || (earlier == nullptr) || (later->Samples.Count() < 2)) continue;
+		if (listed.Count() == 0) {
+			listed.Resize(total);
+			for (int v = 0; v < total; ++v) listed.Add(0);
+		}
+
+		//	The held stretch's paved roadbed, segment by segment: the later road between its paved edges over [From, To].
+		const HybridRealizedRoad & road = *later;
+		for (int i = 1; i < road.Samples.Count(); ++i) {
+			const HybridRealizedSample & sa = road.Samples[i - 1];
+			const HybridRealizedSample & sb = road.Samples[i];
+			const float from = Max2(sa.Station,record.From);
+			const float to = Min2(sb.Station,record.To);
+			if (to < from) continue;
+			const float span = sb.Station - sa.Station;
+			const float t0 = (span > 0.0f) ? Clamp3((from - sa.Station) / span,0.0f,1.0f) : 0.0f;
+			const float t1 = (span > 0.0f) ? Clamp3((to - sa.Station) / span,0.0f,1.0f) : 0.0f;
+			const Vector2 travel = Unit_Vector(sb.Position - sa.Position);
+			const Vector2 side(-travel.Y,travel.X);
+			const Vector2 a = sa.Position + ((sb.Position - sa.Position) * t0);
+			const Vector2 b = sa.Position + ((sb.Position - sa.Position) * t1);
+			const float left_a = sa.Left + ((sb.Left - sa.Left) * t0);
+			const float right_a = sa.Right + ((sb.Right - sa.Right) * t0);
+			const float left_b = sa.Left + ((sb.Left - sa.Left) * t1);
+			const float right_b = sa.Right + ((sb.Right - sa.Right) * t1);
+			const Vector2 quad[4] = { a - (side * right_a),b - (side * right_b),b + (side * left_b),a + (side * left_a) };
+
+			//	Every vertex one of whose own triangles meets it: the hexagon |x|, |y| <= cell, |x - y| <= cell about the vertex.
+			Vector2 lo = quad[0];
+			Vector2 hi = quad[0];
+			for (int m = 1; m < 4; ++m) {
+				lo.Set(Min2(lo.X,quad[m].X),Min2(lo.Y,quad[m].Y));
+				hi.Set(Max2(hi.X,quad[m].X),Max2(hi.Y,quad[m].Y));
+			}
+			const int x0 = Max_Int((int)::floor((double)((lo.X - cell - grid.OriginX) / cell)),0);
+			const int y0 = Max_Int((int)::floor((double)((lo.Y - cell - grid.OriginY) / cell)),0);
+			const int x1 = Min_Int((int)::ceil((double)((hi.X + cell - grid.OriginX) / cell)),grid.CountX - 1);
+			const int y1 = Min_Int((int)::ceil((double)((hi.Y + cell - grid.OriginY) / cell)),grid.CountY - 1);
+			for (int vy = y0; vy <= y1; ++vy) {
+				for (int vx = x0; vx <= x1; ++vx) {
+					const int vertex = (vy * grid.CountX) + vx;
+					if (listed[vertex] != 0) continue;
+					const Vector2 p(grid.OriginX + (cell * (float)vx),grid.OriginY + (cell * (float)vy));
+					const Vector2 hexagon[6] = { p + Vector2(cell,0.0f),p + Vector2(cell,cell),p + Vector2(0.0f,cell),
+														  p + Vector2(-cell,0.0f),p + Vector2(-cell,-cell),p + Vector2(0.0f,-cell) };
+					if (!Convex_Meet(hexagon,6,quad,4)) continue;
+					listed[vertex] = 1;
+					HybridJunctionSupport one;
+					one.Vertex			= vertex;
+					one.EarlierRoad	= (int)(earlier - &plan.Roads[0]);
+					one.LaterRoad		= (int)(later - &plan.Roads[0]);
+					one.InteractionId	= record.InteractionId;
+					out->Add(one);
+				}
+			}
+		}
+	}
+}
+
+
 bool Hybrid_Plan_Rasterization(const HybridRealizationPlan & plan,const HybridConstants & k,const HybridHydrologySet * hydrology,
 										 const HybridHeightGrid & grid,HybridRouteHeightSampleFunc sample,void * context,float max_cut,
 										 float max_fill,const HybridPinEnvelopes & envelopes,DynamicVectorClass<HybridRasterIssue> * issues)
@@ -2591,9 +3149,7 @@ bool Hybrid_Plan_Rasterization(const HybridRealizationPlan & plan,const HybridCo
 			StringClass why;
 			bool ok = Pin_Road_Surface(w,k,r,i,&why);
 			for (int e = 0; (e < HYBRID_ENVELOPE_COUNT) && ok; ++e) {
-				const unsigned int needs = (e == HYBRID_ENVELOPE_LIGHT) ? ~0u
-												 : ((e == HYBRID_ENVELOPE_HEAVY) ? (unsigned int)HYBRID_NAV_HEAVY : (unsigned int)HYBRID_NAV_HARVESTER);
-				if ((road.Capabilities & needs) == 0) continue;
+				if (!Hybrid_Envelope_Swept(road.Capabilities,e)) continue;
 				if (!(envelopes.Length[e] > 0.0f) || !(envelopes.Width[e] > 0.0f)) continue;
 				ok = Pin_Sweep(w,k,r,i,envelopes.Length[e],envelopes.Width[e],&why);
 			}

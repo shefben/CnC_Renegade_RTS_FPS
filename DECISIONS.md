@@ -554,6 +554,168 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-030 - Hybrid rewrite Q-028: a realization-aware grade budget, and a compiled junction's raster support (2026-10-05)
+
+**Decision (user, 2026-10-05), resolving Q-028.**
+- **Curve/grid grade amplification (mechanism A):** option (b). The profile solve takes a realization-aware grade
+  budget. It is derived from the native rasterizer's own geometry, not from an observed margin.
+- **D-026 is not relaxed.** The realized-grade check, the class maximum grades and every other limit are unchanged.
+- **No semantic widening of c3b18778.** Only an explicit compiled Phase-11 junction creates a shared surface.
+- **Grid-band conflicts (mechanism C):** a deterministic raster support footprint, tied only to an explicit compiled
+  junction, so the grid triangles realizing that junction cannot be given incompatible vertex ownership. The semantic
+  shared surface and the raster support are separate concepts.
+- **Pin-moved vertices (mechanism B)** stay under D-027's landings and rejections, untouched.
+
+### Why a legal curved profile realized steeper (measured)
+
+A probe over the three worlds that reached the grid judgement found that every vertex under a failing envelope held
+exactly its road's plan. Each roadbed vertex holds the profile at its nearest centerline foot (12.2 step 1); the grid
+interpolates the three vertices of a triangle. On a straight road the foot station is affine in position, so the
+triangulated surface rises along the road exactly as fast as the profile (the triangle gradient's component along the
+road is a weighted mean of profile steps, weights summing to one). On a curve the foot station is not affine: inside the
+curve it advances faster than position, outside slower, and on the sampled polyline it jumps at the inner bisectors.
+The surface between an envelope's two grade points can then rise faster than any profile step under it.
+
+### The budget (`Hybrid_Apply_Grade_Budget`)
+
+For each envelope a road must carry and each sample Section 12.3 sweeps from:
+1. the two grade points exactly as `Pin_Sweep` places them (the roadbed midpoint on the road's realized paved edges, or
+   all three placements when the roadbed is narrower than the envelope);
+2. the grid triangle under each (`Hybrid_Grid_Height_At`'s low-to-high split) and its weights;
+3. each vertex's nearest centerline foot (`Deform_Roads`' rule: nearest segment, the first of equals, clamped).
+
+The realized rise between the points is then a fixed linear sum of the profile's steps, `D = sum(b_k * dZ_k)`. If
+every step obeys `|dZ_k| <= s_k * ds_k`, then `|D| <= sum(|b_k| * ds_k * s_k)`. Each step takes the amplification of its
+worst envelope, `A_k = max(1, sum(|b_k| * ds_k) / (L + Q / G))`, `G = tan(class + Q_angle)`, and the solver grade
+`atan(G / A_k) - Q_angle`. The solver's own quantization keeps every step within `tan(grade + Q_angle) = G / A_k`, so
+`|D| <= G * L + Q`, inside D-026's unchanged `G + 2Q / L`. One Q of the 2Q is left for float rounding.
+
+- **Conservative by construction.** The bound holds for any profile whose steps keep their grades, at the grid
+  alignment the road actually has, because it is computed on that alignment itself. It is no fudge factor: no number
+  in it comes from the census.
+- **Straight roads unchanged.** `b_k >= 0` and `sum(b_k * ds_k) = L` exactly: `A = 1`, the class maximum.
+- **No fixed penalty.** A broad curve's few steps whose amplification exceeds the `Q / G` slack are budgeted by that
+  amount only.
+- **Exempt steps.** A step with both samples fixed (a deck, landing or junction hold) or touching a deck/bore interior
+  keeps the class: its height is a compiled constraint its owner realizes. Envelopes over a deck, or with vertices under
+  one, are the deck end's (D-027).
+- **Own pass only.** A vertex under an envelope is within `r` (widest paved half + a cell diagonal) of the centerline at
+  its grade point, so its nearest foot on the envelope's own pass lies within `pi * r` of arc. A foot farther along the
+  road is another pass of the same road (a road returning beside itself); that height is not a grade of this pass and
+  no budget can change it, so the envelope is not modelled. Found on the first filtered run: without this rule the
+  budget read such self-proximity as amplification 36-238 on dead-straight stretches and refused bridges in 13 of
+  r11's 34 worlds as `grade_too_steep`; with it the worst amplification on the same three worlds is 1.13 (a real 75
+  degree corner, R 32), none above 1.25.
+- **One solver.** All four Section 12.1 steps (forward, backward, clamp walk, post-quantization revalidation) use each
+  step's grade (`HybridProfileSample::MaxGrade`). There is no second pass and no post-hoc shaving.
+- **Phase 11 / Phase 12 parity.** `Build_Plan` takes the budget on the road's realized paved edges
+  (`Sample_Edges`) and the native grid's origin and the swept envelopes (`HybridRealizationParams`), so Phase 11's
+  compile and Phase 12 grade with the same one. Phase 11's own crossing gradings (`Hybrid_Solve_Road_Stretch`, the
+  ramp profile) take the same helper on the class's own edges. Phase 11's analytic pre-filters (junction arm interval,
+  overpass ramp length, scoring) are unchanged; the compile remains the acceptance.
+
+### The junction's raster support (`Hybrid_Junction_Raster_Support`)
+
+- **Semantic surface:** the later road's paved roadbed over every station its `JUNCTION` records hold. Unchanged.
+- **Raster support:** every grid vertex one of whose own triangles meets that surface. With the low-to-high diagonal
+  split, a vertex's triangles cover the hexagon `|x|, |y| <= cell`, `|x - y| <= cell` about it. So the support is
+  exactly the vertices a triangle under the surface references, at most one cell from it.
+- **Ownership inside it:** the earlier road keeps its paved roadbed; its band beyond its paved edge (cell reach) yields
+  to the junction, graded by the later road's own roadbed construction (the shared surface where the foot is held,
+  its own profile past the hold). After the later road is deformed the whole support is protected; no road after the
+  earlier one, except the later, writes it.
+- **Outside it:** unchanged. Roads with no compiled junction have no support.
+- It is never a height constraint: the later road is not held to the earlier road's height because a vertex lies in
+  the support.
+
+### Surviving rules from the D-029 investigation, stated by verified behaviour
+
+- A compiled junction's `STRUCTURAL_PIN_LANDING` holds every road its junction record carries (`Junction_Carries`:
+  either edge, or the road through its node), level about that road's station nearest the pin. Other pins apply to
+  roads whose centerline passes within 2Q. Test: `junction_landing_off_centerline`.
+- A junction stretch on the later road is cut at every end of another held structure inside it, so its chords never
+  interpolate across a landing's or deck's boundary. **Not verified by a test:** with the cut disabled, every current
+  check still passes (checked 2026-10-05), and the r11 measurement after the follow-up took both fixes together. It is
+  kept because it only adds sample cuts on the earlier road's own surface and can hold nothing new; it is not cited as
+  verified behaviour.
+- Only an explicit compiled junction shares a surface; incidental overlap holds nothing (c3b18778). Tests: D-028's
+  parallel-road checks, and Q-028's `incidental_overlap_still_independent`.
+
+### Tests (`Check_Hybrid_Grade_Budget`, in `terrain_hybridrealization`)
+
+- `straight_grade_unchanged`: a straight PRIMARY_2 across the grid diagonal at the class maximum 0.2126: amplification
+  exactly 1, solved at 0.2130 (the class plus the solver's angular quantum), realized clean.
+- `curved_grid_amplification`: a 16 m half circle at the class maximum. Without the budget it solves at 0.2128 and the
+  unchanged D-026 check refuses it (an envelope on a 0.2144 grade). With it (worst amplification 1.0267) its budgeted
+  steps solve at most 0.2122, every one within its own budget, and it realizes clean.
+- `radius_dependence`: the same arc length at radius 12 / 24 / 48 / 96 / 1500: amplification 1.0458 / 1.0133 / 1.0126 /
+  1.0038 / 1.0000.
+- `no_unnecessary_curve_penalty`: the 1500 m curve budgets 0% of its steps.
+- `pin_behavior_unchanged`: a fixed hold on the 16 m curve keeps the class; its free steps take the budget. D-027's own
+  landing and rejection tests (`Check_Hybrid_Pin_Landings`) pass unchanged.
+- `own_pass_only`: a road returning 4-7 m beside itself keeps amplification exactly 1 on its straight leg (12.21
+  without the rule).
+- `compiled_junction_raster_guard`: on D-028's overlapping parallel roads with a compiled junction, 43 support vertices;
+  the 22 in the earlier road's band beyond its paved edge hold the later road's own surface (4 where the two surfaces
+  differ), and away from the junction that band keeps the earlier road's surface.
+- `guard_is_not_semantic_hold`: 2 of those vertices lie past the held stretch and hold the later road's own profile,
+  not the earlier road's height.
+- `incidental_overlap_still_independent`: the same roads with no compiled junction have no support at all, and D-028's
+  parallel-road checks (each road its own profile, no pin) pass unchanged.
+
+### Measured on r11's 34 (filtered census, unchanged corpus)
+
+| After Q-028 | Before (1fb67210) | Failure |
+| --- | --- | --- |
+| 16 | 16 | `pin_landing` |
+| 12 | 11 | `profile_conflict` |
+| 3 | 3 | road crossing |
+| 1 | 3 | ordinary roadbed on the grid |
+| 1 | 1 | ground-only profile |
+| 1 | 0 | **solves Phase 11** |
+
+- **Archetype 1 seed 93 solves Phase 11.** Phase 12 then refuses it at Section 12.3: the deck end of assembly 3 reads
+  "-4.5000 off its compiled 4.500". Cause, probed: the pin is the bridge's exact end point, and
+  `BridgeSystem::Conform_Point` rejects the parameter `t = 1.0000001` (one float ulp past the end, `t > 1.0` with no
+  tolerance), so no deck is found there. With a temporary 1e-5 tolerance (probe only, not committed) the world passes
+  Phase 12 entirely: realize, verify, Section 12.3. Not a Q-028 defect; reported, not fixed here.
+- **Archetype 5 seed 95** no longer fails on the grid. It now fails at `pin_landing` (the topology junction at node
+  15). Among its rejections, a landing (interaction 12) and a junction (interaction 7, earlier road 5) hold road 12's
+  start 0.014 apart: the existing different-interaction landing/junction overlap category D-029 counted.
+- **Archetype 5 seed 64** still fails on the grid, now on cross slope (0.2330) rather than grade: SERVICE_DIRT_2 road
+  12's own centerline vertices are held by earlier road 0's roadbed band 0.47-0.66 m above road 12's plan, 38-44 m
+  from the nearest junction pin, past its 13.29 arm reach. Incidental roadbed overlap away from any compiled junction:
+  by c3b18778 and this decision it shares nothing and gets no support, so it is a separate cause (independent roads
+  overlapping outside a junction's reach, D-020's rule), not Q-028's.
+- **Archetype 3 seed 162** fails at `profile_conflict` where it failed at `pin_landing`: the same crossing area, its
+  refusal order changed with the profiles.
+
+Before the own-pass rule was found the first filtered run showed 13 new obstruction-crossing failures; that run is
+superseded by the table above.
+
+### Census r15 (same 1400-world corpus, after Q-028)
+
+Phases 9 and 10 are unchanged: **448** and **98**. **Phase 11: 1 of 98 solves** (archetype 1 seed 93, after one
+reroute). **Phase 12: 0 pass, 1 fails** (that world, on the deck-end ulp above). No native world passes Phase 12, so the
+in-game smoke test was not possible and was not attempted.
+
+**Phase 11 failures, all 98 worlds (mutually exclusive).** r14 predates the D-029 follow-up (1fb67210), whose full census
+was not run, so the column mixes both changes.
+
+| r15 | r14 | Failure |
+| --- | --- | --- |
+| 50 | 50 | road crossing: neither junction nor overpass |
+| 19 | 22 | junction refused: `pin_landing` |
+| 16 | 15 | junction or overpass refused: `profile_conflict` |
+| 10 | 10 | obstruction crossing |
+| 1 | 0 | `realization`: ordinary roadbed on the grid (archetype 5 seed 64: incidental overlap, above) |
+| 1 | 1 | `realization`: ground-only profile (archetype 1 seed 80, its own 6.008 cut) |
+| **1** | 0 | **solves Phase 11** |
+
+The 51-crossing / 50 road-crossing failures were not touched. 37 worlds rejected solutions before their final failure.
+
+**Status: implemented; filtered and full census reported. Stopped for direction before the next behavioural change.**
+
 ## D-029 - Hybrid rewrite: one canonical vertical-constraint record set, compiled in Phase 11 and consumed by Phase 12 (2026-10-04)
 
 **The mismatch (D-028's finding).** Phase 11 and Phase 12 judged junction heights differently:

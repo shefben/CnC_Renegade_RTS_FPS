@@ -461,12 +461,18 @@ D-029 follow-up (after the user's "go"):
   pieces are cut at held ends.
 - On r11's 34 the same-interaction overlaps went from 7 to 0, and three worlds now reach the grid judgement.
 - All three fail ordinary-roadbed grade on curves, with every vertex exact. That is filed as Q-028.
-- Still 0 worlds solve Phase 11.
+
+D-030 (2026-10-05, Q-028 answered) adds two things. Section 12.1 takes a realization-aware grade budget derived from
+the native rasterizer's geometry; D-026 is unchanged. A compiled junction gets a raster support footprint, which is
+grid ownership only. Census r15: 448 / 98 / 1 solved; Phase 12 0 of 1. On r11's 34, archetype 1 seed 93 now solves Phase 11. Its one
+Phase-12 blocker is `BridgeSystem::Conform_Point` rejecting a deck end at `t = 1.0000001` (one float ulp); with a
+probe-only tolerance it passes Phase 12 entirely.
 
 **Next exact action:**
-1. Wait for the user's answer to Q-028, then implement the chosen mechanism and rerun the filtered census on r11's 34.
+1. Report D-030's measurements to the user and wait for direction on the next blocker (the deck-end ulp in
+   `Conform_Point` is the smallest). No behavioural change before that.
 2. The in-game smoke: Main menu, Start Procedural Game, then `procedural_world status`. It needs a native world that
-   solves Phase 11.
+   passes Phase 12.
 3. Close I13.
 4. Start the Phase-13 Tiberium inventory.
 

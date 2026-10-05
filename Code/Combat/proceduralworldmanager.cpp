@@ -1188,6 +1188,12 @@ bool ProceduralWorldManager::Realize_Hybrid_Roads(const ProceduralWorldProfile &
 	params.MinVehicleLaneClearance= profile.Fairness.MinVehicleLaneClearance;
 	const HeightfieldClass * field = WorldTerrainSystem::Peek_Heightfield ();
 	params.TerrainCellSize			= (field != nullptr) ? field->Get_Cell_Size () : 0.0f;
+	//	Q-028: the grid and the envelopes Phase 11 compiled the grade budget with, so every road grades as it was compiled.
+	params.TerrainOriginX			= (field != nullptr) ? field->Get_Origin ().X : 0.0f;
+	params.TerrainOriginY			= (field != nullptr) ? field->Get_Origin ().Y : 0.0f;
+	params.LightVehicleLength		= HybridInputs.Humvee.Length;
+	params.HeavyVehicleLength		= HybridInputs.HeavyVehicle.Length;
+	params.HarvesterLength			= HybridMetrics.HarvesterLength;
 
 	HybridRealizationResult result;
 	if (!Hybrid_Plan_Realization (params,HybridTopologyRecord,HybridRoutes,HybridInteractions,Sample_Terrain_Height,

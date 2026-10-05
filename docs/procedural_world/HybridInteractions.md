@@ -104,7 +104,10 @@ profiles at its ends, solved with the rest of the road.
 Grading is always the **whole realized road**: Section 12.1 over the road with its connectors spliced in and
 every structure already compiled on it holding its own surface. A pinned height is a height the solver
 itself produced and quantized, so propagation treats it as its quantization cell and returns the pin
-exactly; a deck graded at the class maximum is therefore re-solvable from its own compiled ends. Among those
+exactly; a deck graded at the class maximum is therefore re-solvable from its own compiled ends. On the native
+grid every one of these gradings takes Q-028's realization-aware grade budget (`Hybrid_Apply_Grade_Budget`, D-030),
+the same helper the compile and Phase 12 grade with, so Phase 11 never accepts a crossing whose approaches the grid
+would realize past the class grade. Among those
 that remain: smallest sufficient maximum span, then lower `StableId`. The candidate score is
 `4*span + 2*elevation + 3*grade + 2*curve + detour`, lowest wins, ties to the earlier station.
 

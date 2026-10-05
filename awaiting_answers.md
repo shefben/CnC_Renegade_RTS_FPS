@@ -6,34 +6,10 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
-- **Q-028 (2026-10-04, blocks I13's in-game gate).** How must ordinary roadbed keep D-026's ruled grade on the native
-  grid?
-  - **The unknown.** D-026 (user ruling): ordinary roadbed gets the coarse height tolerance "only while grade, cross
-    slope, the vehicle sweep and continuous paving still pass". Section 12.1 solves profiles up to the class maximum
-    on continuous centerlines. The realized ground is two triangles per 3.75 cell. On curves the two cannot both hold.
-  - **Evidence.** After the D-029 follow-up, three of r11's 34 worlds (archetype 5 seeds 64 and 95, archetype 1
-    seed 93) pass the plan and fail the grid judgement. A probe over them found 119 envelope placements past the class
-    grade, in three mechanisms:
-    - **A, 61: pure interpolation on curves.** Every vertex under the envelope holds exactly its road's solved
-      surface (0.0000 off). The excess is the triangle interpolation of a curved ramp. It is a median 0.8% and a
-      maximum 3.6% over: `HIGHWAY_4` 0.1425 against 0.1420 (planned 0.1407), `PRIMARY_2` 0.2180 against 0.2140 (3.7 cm
-      under the plan at one end). On a straight road, interpolation of exact vertices never exceeds the solved grade.
-      Only curvature does. No tuning of the grid realization removes this.
-    - **B, 42: a vertex moved by the exact-pin realization**, within `L_pin` + 2 cells of a pin, up to 45% over. These
-      already go through D-027 landings and rejections.
-    - **C, 16: a vertex another road's roadbed owns.** That is its paved edge plus one cell's reach, where the grid
-      must carry that road. It lies 15-20 m from their junction pin, outside the compiled shared-surface window. The
-      two plans differ by 0.9-1.0 m there; up to 51% over.
-  - **Smallest decision needed.**
-    - For A, one of:
-      - **(a) Phase-11 grade caps.** A grid-judged stretch over the grade compiles a capped-grade constraint record
-        and is solved again, bounded like landings.
-      - **(b) Curve grade compensation in the 12.1 solve.** A curve's maximum grade is reduced by the grid's derived
-        interpolation bound for its radius. This is analytic and holds by construction.
-      - **(c) An interpolation allowance in the ordinary-roadbed grade check.** This relaxes D-026's ruling.
-    - For C: may the shared-surface window widen from the earlier road's paved edge to the grid band it owns (paved
-      edge plus one cell's reach)? This unfreezes the c3b18778 narrowing.
-  - **Recommendation.** (b) for A, since it tightens the solve and leaves the gate exactly where it is; and yes for C.
+- **Q-028 CLOSED (2026-10-05, option (b); a junction raster support for C).** The profile solve takes a realization-aware
+  grade budget derived from the native rasterizer's own geometry. D-026's check and the class grades are unchanged.
+  The c3b18778 shared-surface rule is not widened: a compiled junction gets a raster support footprint instead,
+  which is grid ownership only, never a height. Pin-moved vertices stay under D-027. See `DECISIONS.md` D-030.
 
 - **Q-027 CLOSED (2026-10-04, options A and C, refined).** A structural pin the native grid cannot realize directly
   gets a Phase-11 `STRUCTURAL_PIN_LANDING` (`L_pin = cell * sqrt(2)`); an impossible landing is refused in Phase 11.

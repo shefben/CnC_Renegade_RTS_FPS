@@ -935,6 +935,41 @@ struct InteractionBuilder
 };
 
 
+/*
+**	Q-028: the native grid's grade budget for a road of `road_class` carrying `edges`, its decks and bores `decks`, on the
+**	class's own paved edges (Hybrid_Apply_Grade_Budget): Phase 11's own gradings take the realization-aware grade Phase 12
+**	grades with, and the compiled plan then takes it on the road's realized edges.  Null without a grid.
+*/
+static const HybridGradeBudget * Grade_Budget(const InteractionBuilder & b,HybridRoadClass road_class,
+															 const DynamicVectorClass<unsigned int> & edges,
+															 const DynamicVectorClass<HybridProfileStructure> & decks,HybridGradeBudget * out)
+{
+	const HybridInteractionParams & p = *b.P;
+	if (!(p.TerrainCellSize > 0.0f)) return nullptr;
+	const HybridConstants & k = p.Constants;
+	unsigned int capabilities = 0;
+	for (int e = 0; e < edges.Count(); ++e) {
+		const HybridTopologyEdge * edge = b.Topology->Find_Edge(edges[e]);
+		if (edge != nullptr) capabilities |= edge->Capabilities;
+	}
+	out->CellSize	= p.TerrainCellSize;
+	out->OriginX	= p.TerrainOriginX;
+	out->OriginY	= p.TerrainOriginY;
+	out->Spacing	= Hybrid_Profile_Sample_Spacing(k);
+	const float lengths[HYBRID_ENVELOPE_COUNT] = { p.LightVehicleLength,p.HeavyVehicleLength,p.HarvesterLength };
+	const float widths[HYBRID_ENVELOPE_COUNT] = { p.LightVehicleWidth,p.HeavyVehicleWidth,p.HarvesterWidth };
+	for (int e = 0; e < HYBRID_ENVELOPE_COUNT; ++e) {
+		const bool swept = Hybrid_Envelope_Swept(capabilities,e);
+		out->Length[e]	= swept ? lengths[e] : 0.0f;
+		out->Width[e]	= swept ? widths[e] : 0.0f;
+	}
+	out->Left	= -Hybrid_Road_Inner_Edge_Offset(road_class,k.W);
+	out->Right	= Hybrid_Road_Outer_Edge_Offset(road_class,k.W);
+	out->Decks	= decks;
+	return out;
+}
+
+
 /***********************************************************************************************
 **	Section 12.6.10's geometry: the realized interchanges, their gore reserves and their footprints.
 ***********************************************************************************************/
@@ -2123,10 +2158,11 @@ static bool Judge_Crossing_Path(InteractionBuilder & b,const HybridTopologyEdge 
 	DynamicVectorClass<float> starts;
 	DynamicVectorClass<float> ends;
 	HybridProfileFailure main_why = HYBRID_PROFILE_OK;
+	HybridGradeBudget budget;
 	if (!Hybrid_Solve_Road_Stretch(road.Points,road.Stations,stretch_from,stretch_to,structures,
 											 Hybrid_Profile_Sample_Spacing(k),b.Sample,b.Context,b.P->MaxCutDepth,
 											 b.P->MaxFillHeight,spec.MaxGradeDegrees * PI_OVER_180,k.Q,&samples,&solved,
-											 &starts,&ends,&main_why)) {
+											 &starts,&ends,&main_why,Grade_Budget(b,edge.RoadClass,road_edges,structures,&budget))) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
 		return false;
 	}
@@ -3707,9 +3743,11 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 
 		DynamicVectorClass<HybridProfileSample> samples;
 		HybridSolvedProfile solved;
+		HybridGradeBudget budget;
 		if (!Hybrid_Solve_Road_Stretch(road.Points,road.Stations,0.0f,road.Stations[road.Stations.Count() - 1],structures,
 												 Hybrid_Profile_Sample_Spacing(k),b.Sample,b.Context,b.P->MaxCutDepth,
-												 b.P->MaxFillHeight,max_grade,k.Q,&samples,&solved,nullptr,nullptr,nullptr)) {
+												 b.P->MaxFillHeight,max_grade,k.Q,&samples,&solved,nullptr,nullptr,nullptr,
+												 Grade_Budget(b,upper_edge.RoadClass,road_edges,structures,&budget))) {
 			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GRADE_TOO_STEEP;
 			return false;
 		}
@@ -4226,9 +4264,11 @@ static bool Solve_Physical_Road(InteractionBuilder & b,unsigned int edge_id,Hybr
 	if ((edge == nullptr) || !Hybrid_Realized_Physical_Road(*b.Routes,*b.Out,edge_id,road,&edges) ||
 		 !Hybrid_Road_Profile_Structures(*b.Out,*road,&structures,&edges)) return false;
 	const float max_grade = Hybrid_Road_Class_Spec(edge->RoadClass).MaxGradeDegrees * PI_OVER_180;
+	HybridGradeBudget budget;
 	return Hybrid_Solve_Road_Stretch(road->Points,road->Stations,0.0f,road->Stations[road->Stations.Count() - 1],structures,
 												Hybrid_Profile_Sample_Spacing(k),b.Sample,b.Context,b.P->MaxCutDepth,
-												b.P->MaxFillHeight,max_grade,k.Q,samples,solved,nullptr,nullptr,nullptr);
+												b.P->MaxFillHeight,max_grade,k.Q,samples,solved,nullptr,nullptr,nullptr,
+												Grade_Budget(b,edge->RoadClass,edges,structures,&budget));
 }
 
 
@@ -4270,6 +4310,12 @@ static bool Solve_Ramp_Profile(InteractionBuilder & b,const HybridRoute & ramp,b
 	samples[samples.Count() - 1].FixedZ	= Hybrid_Quantize_Position(z_gore);
 	HybridProfileFailure failure = (HybridProfileFailure)0;
 	const float max_grade = Hybrid_Road_Class_Spec(HYBRID_ROAD_HIGHWAY_RAMP).MaxGradeDegrees * PI_OVER_180;
+	DynamicVectorClass<unsigned int> edges;
+	edges.Add(ramp.EdgeId);
+	const DynamicVectorClass<HybridProfileStructure> none;
+	HybridGradeBudget budget;
+	const HybridGradeBudget * budgeted = Grade_Budget(b,HYBRID_ROAD_HIGHWAY_RAMP,edges,none,&budget);
+	if (budgeted != nullptr) Hybrid_Apply_Grade_Budget(*budgeted,max_grade,k.Q,&samples);
 	return Hybrid_Solve_Vertical_Profile(samples,b.P->MaxCutDepth,b.P->MaxFillHeight,max_grade,k.Q,solved,&failure);
 }
 
@@ -5112,6 +5158,11 @@ static bool Compile_Realization(InteractionBuilder & b,HybridInteractionResult *
 	params.HarvesterWidth			= p.HarvesterWidth;
 	params.MinVehicleLaneClearance= p.MinVehicleLaneClearance;
 	params.TerrainCellSize			= p.TerrainCellSize;
+	params.TerrainOriginX			= p.TerrainOriginX;
+	params.TerrainOriginY			= p.TerrainOriginY;
+	params.LightVehicleLength		= p.LightVehicleLength;
+	params.HeavyVehicleLength		= p.HeavyVehicleLength;
+	params.HarvesterLength			= p.HarvesterLength;
 	HybridHeightGrid grid;
 	grid.OriginX	= p.TerrainOriginX;
 	grid.OriginY	= p.TerrainOriginY;
