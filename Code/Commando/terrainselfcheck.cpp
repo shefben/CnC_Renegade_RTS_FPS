@@ -20535,7 +20535,8 @@ static int Count_Junctions (const HybridInteractionSet & set)
 **	  Phase 11 with both junction constraints named;
 **	- same_earlier_road_two_junctions: one earlier road crossed twice, each junction sampled at its own station;
 **	- junction_bridge_endpoint_conflict: a bridge's deck end and a junction on one road judged together;
-**	- topology_junction_height_parity: a shared-node junction held by the same semantics.
+**	- topology_junction_height_parity: a shared-node junction held by the same semantics;
+**	- junction_landing_off_centerline: a junction's landing holds the earlier road whose centerline misses the pin.
 */
 static void Check_Hybrid_Profile_Parity (const HybridPreflightInputs & content,const HybridMetricCache & metrics)
 {
@@ -20712,6 +20713,70 @@ static void Check_Hybrid_Profile_Parity (const HybridPreflightInputs & content,c
 				 "a topology junction is not held by the same semantics: held %.3f, realized %.3f, earlier surface %.3f (%s %s)",
 				 held,later,surface,solved.Detail.Peek_Buffer (),planned.Detail.Peek_Buffer ());
 		printf ("  D-029 topology junction: held at the earlier road's solved surface %.3f, the same record semantics\r\n",surface);
+	}
+
+	//	junction_landing_off_centerline: the trunk runs 1.5 off the node, on a 0.05 grade.
+	{
+		CrossingWorld world;
+		Crossing_World_Begin (&world);
+		const HybridConstants & k = world.Sized.Constants;
+		const Vector2 node (0.0f,1.5f);
+		Hand_Node (&world,30,node);
+		const Vector2 a[2] = { Vector2 (-150.0f,0.0f),Vector2 (150.0f,0.0f) };
+		const Vector2 b[2] = { node,Vector2 (0.0f,150.0f) };
+		Hand_Road (&world,1,HYBRID_EDGE_FAMILY_TRUNK,a,2,11,12,30);
+		Hand_Road (&world,2,HYBRID_EDGE_CROSS_LINK,b,2,30,22);
+		HybridInteractionSet set;
+		HybridInteractionResult solved;
+		const bool ok = Hand_Phase11 (&world,Slope_Ground,content,metrics,&set,&solved);
+		HybridRealizationPlan plan;
+		HybridRealizationResult planned;
+		const bool realized = ok && Hand_Phase12 (world,set,Slope_Ground,metrics,&plan,&planned);
+		const HybridRealizedPin * pin = NULL;
+		for (int p = 0; realized && (p < plan.Pins.Count ()); p++) {
+			if ((plan.Pins[p].Kind == HYBRID_PIN_JUNCTION) && ((plan.Pins[p].Position - node).Length () <= k.Q)) pin = &plan.Pins[p];
+		}
+
+		//	The landing Phase 11 compiles when the grid misses that pin, compiled again on the same ground.
+		HybridPinLanding landing;
+		bool landed = false;
+		HybridRealizationPlan held;
+		HybridRealizationResult replanned;
+		if (pin != NULL) {
+			landing.StableId		= 1;
+			landing.PinKind		= HYBRID_PIN_JUNCTION;
+			landing.Position		= pin->Position;
+			landing.Z				= pin->Z;
+			landing.Length			= Hybrid_Pin_Landing_Length (NATIVE_TERRAIN_CELL);
+			landing.InteractionId= pin->InteractionId;
+			set.Landings.Add (landing);
+			HybridRealizationParams params = Realization_Fixture (k,metrics);
+			params.TerrainCellSize = 0.0f;
+			landed = Compile_Constraints (params,world.Topology,world.Routes,&set,Slope_Ground,(void *)&world.Hydrology,&replanned) &&
+						Hand_Phase12 (world,set,Slope_Ground,metrics,&held,&replanned);
+		}
+		int trunk_landings = 0;
+		int later_landings = 0;
+		for (int c = 0; landed && (c < set.Constraints.Count ()); c++) {
+			const HybridVerticalConstraint & record = set.Constraints[c];
+			if ((record.Kind != HYBRID_VCON_LANDING) || (record.InteractionId != landing.InteractionId)) continue;
+			if (record.RoadEdgeId == 1) trunk_landings++;
+			if (record.RoadEdgeId == 2) later_landings++;
+		}
+		const HybridRealizedRoad * trunk = landed ? held.Find_Road (1) : NULL;
+		float worst = (trunk != NULL) ? 0.0f : 1.0e6f;
+		int level_samples = 0;
+		for (int i = 0; (trunk != NULL) && (i < trunk->Samples.Count ()); i++) {
+			if (WWMath::Fabs (trunk->Samples[i].Position.X) > (landing.Length - k.Q)) continue;
+			worst = WWMath::Max (worst,WWMath::Fabs (trunk->Samples[i].Z - landing.Z));
+			level_samples++;
+		}
+		Check (realized && (pin != NULL) && (pin->Position.Y > (2.0f * k.Q)) && landed && (trunk_landings == 1) &&
+				 (later_landings == 1) && (level_samples > 0) && (worst <= (2.0f * k.Q)),
+				 "a junction landing does not hold the earlier road that misses its pin: %d trunk and %d later landings, the trunk "
+				 "%.4f off the landing over %d samples (%s %s %s)",trunk_landings,later_landings,worst,level_samples,
+				 solved.Detail.Peek_Buffer (),planned.Detail.Peek_Buffer (),replanned.Detail.Peek_Buffer ());
+		printf ("  D-029 junction landing off the trunk's centerline: trunk held level %.4f about its nearest station\r\n",worst);
 	}
 }
 

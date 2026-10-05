@@ -836,8 +836,24 @@ static bool Constraint_Add(ConstraintSet & set,const DynamicVectorClass<HybridPr
 **	samples.  Other overlaps inside the window are incidental.  `margin` (one and a half terrain cells) carries the
 **	stretch past the earlier roadbed's edge, so every grid vertex the centerline is interpolated from holds one surface.
 */
+static void Insert_Cut(DynamicVectorClass<float> & cuts,float at,float q)
+{
+	for (int c = 0; c < cuts.Count(); ++c) {
+		if ((float)fabs((double)(cuts[c] - at)) <= q) return;
+	}
+	int slot = cuts.Count();
+	cuts.Add(at);
+	while ((slot > 0) && (cuts[slot - 1] > at)) {
+		cuts[slot] = cuts[slot - 1];
+		slot--;
+	}
+	cuts[slot] = at;
+}
+
+
 static void Junction_Pieces(const HybridRealizedRoad & other,const HybridRoute & road,float window_from,float window_to,
-									 float centre,float spacing,float q,float margin,DynamicVectorClass<HybridProfileStructure> * pieces)
+									 float centre,float spacing,float q,float margin,const DynamicVectorClass<HybridProfileStructure> & held,
+									 DynamicVectorClass<HybridProfileStructure> * pieces)
 {
 	pieces->Delete_All();
 	const float total = road.Stations[road.Stations.Count() - 1];
@@ -879,18 +895,20 @@ static void Junction_Pieces(const HybridRealizedRoad & other,const HybridRoute &
 		return;
 	}
 
-	//	Sample by sample, the junction point among the cuts, so the line follows the earlier surface rather than a chord.
+	/*
+	**	Sample by sample, the junction point among the cuts, so the line follows the earlier surface rather than a chord.
+	**	D-029: every end of a height this road already holds inside the stretch is a cut too, so where the two meet they are
+	**	compared at the earlier surface itself, never at a chord spanning the other's end.
+	*/
 	DynamicVectorClass<float> cuts;
 	const int count = Max_Int((int)::ceil((double)((to - from) / spacing)),1);
 	for (int s = 0; s <= count; ++s) cuts.Add((s == count) ? to : (from + ((to - from) * ((float)s / (float)count))));
-	if ((centre > (from + q)) && (centre < (to - q))) {
-		int slot = cuts.Count();
-		cuts.Add(centre);
-		while ((slot > 0) && (cuts[slot - 1] > centre)) {
-			cuts[slot] = cuts[slot - 1];
-			slot--;
+	if ((centre > (from + q)) && (centre < (to - q))) Insert_Cut(cuts,centre,q);
+	for (int h = 0; h < held.Count(); ++h) {
+		const float ends[2] = { held[h].From,held[h].To };
+		for (int e = 0; e < 2; ++e) {
+			if ((ends[e] > (from + q)) && (ends[e] < (to - q))) Insert_Cut(cuts,ends[e],q);
 		}
-		cuts[slot] = centre;
 	}
 	for (int s = 1; s < cuts.Count(); ++s) {
 		if ((cuts[s] - cuts[s - 1]) <= q) continue;
@@ -934,12 +952,18 @@ static HybridProfileStructure Level_Patch(float total,float station,float z,floa
 
 
 /*
-**	D-027: each compiled STRUCTURAL_PIN_LANDING on this road -- one whose pin its realized centerline passes through --
-**	held level at the pin's elevation for exactly the landing's length away from the pin on each ground side.  A deck or
-**	bore beside the pin keeps its own surface: a landing is never laid over a structure, so at a deck end it is the
-**	ground road outside the deck.
+**	D-027: each compiled STRUCTURAL_PIN_LANDING on this road -- one whose pin its realized centerline passes through, or
+**	whose junction it is attached to -- held level at the pin's elevation for exactly the landing's length away from the
+**	pin on each ground side.  A deck or bore beside the pin keeps its own surface: a landing is never laid over a
+**	structure, so at a deck end it is the ground road outside the deck.
+**
+**	D-029: a road attached to a compiled junction carries its record, and the junction's landing, wherever its centerline
+**	runs: a trunk through a topology node need not pass through the node point itself, and the junction pin -- the earliest
+**	road's own surface at that point -- stands on its roadbed beside it.  That road is held level about its station nearest
+**	the pin, as every other road through the junction is.
 */
-static void Add_Landings(const HybridInteractionSet & interactions,const HybridRoute & road,ConstraintSet & set)
+static void Add_Landings(const HybridTopology & topology,const HybridRouteSet & routes,const HybridInteractionSet & interactions,
+								 const HybridRoute & road,const DynamicVectorClass<unsigned int> & edges,ConstraintSet & set)
 {
 	const float q = set.Q;
 	const float total = road.Stations[road.Stations.Count() - 1];
@@ -947,7 +971,10 @@ static void Add_Landings(const HybridInteractionSet & interactions,const HybridR
 		const HybridPinLanding & landing = interactions.Landings[l];
 		float distance = 0.0f;
 		const float station = Nearest_Station(road.Points,road.Stations,landing.Position,&distance);
-		if (distance > (2.0f * q)) continue;
+		const HybridInteraction * owner = interactions.Find(landing.InteractionId);
+		const bool attached = (owner != nullptr) && (owner->Method == HYBRID_METHOD_AT_GRADE_JUNCTION) &&
+									 Junction_Carries(topology,routes,*owner,edges);
+		if (!attached && (distance > (2.0f * q))) continue;
 		float from = Max2(station - landing.Length,0.0f);
 		float to = Min2(station + landing.Length,total);
 		for (int s = 0; s < set.Real; ++s) {
@@ -1327,7 +1354,7 @@ static bool Build_Plan(const HybridRealizationParams & params,const HybridTopolo
 			set.Real = set.Structures.Count();
 
 			//	D-027's compiled structural landings.
-			Add_Landings(interactions,road,set);
+			Add_Landings(topology,routes,interactions,road,edges,set);
 
 			/*
 			**	Every compiled at-grade or topology junction it shares with a road solved before it: that road's own solved
@@ -1346,7 +1373,7 @@ static bool Build_Plan(const HybridRealizationParams & params,const HybridTopolo
 					const float at = Nearest_Station(road.Points,road.Stations,one.Station,nullptr);
 					DynamicVectorClass<HybridProfileStructure> pieces;
 					Junction_Pieces(out->Roads[r],road,at - arm,at + arm,at,Hybrid_Profile_Sample_Spacing(k),k.Q,
-										 1.5f * params.TerrainCellSize,&pieces);
+										 1.5f * params.TerrainCellSize,set.Structures,&pieces);
 					Constraint_Add(set,pieces,HYBRID_VCON_JUNCTION,one.StableId,out->Roads[r].EdgeId,arm);
 				}
 			}

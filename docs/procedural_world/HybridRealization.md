@@ -250,6 +250,11 @@ A compiled `STRUCTURAL_PIN_LANDING` is a level structure on every ground road th
 the pin. Phase 11 decides where one is needed, with this same deformation and these same checks
 (`Hybrid_Plan_Rasterization`), so Phase 12 realizes what was judged.
 
+Which roads pass through a junction's pin is the junction record's answer (`Junction_Carries`), not a distance: a trunk
+through a topology node need not pass through the node point, and it is held level about its station nearest the pin
+(D-029 follow-up). Other pins apply to roads whose centerline is within 2Q of them. A junction stretch is cut at every
+end of another held structure inside it, so its chords never interpolate across a landing's or deck's boundary.
+
 **The bridge-end support (D-026/D-027).** Water under a deck end is graded only inside the end support footprint, and
 every vertex graded there is recorded as `BRIDGE_END_SUPPORT` terrain owned by its assembly. The footprint is:
 - **across:** on each side, the wider of the deck's half width and the attached road's actual paved roadbed there,

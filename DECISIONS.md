@@ -795,6 +795,42 @@ Reroutes: 251 requested, 97 exhausted (r13: 336, 97). Phase-11 failure codes: 74
 
 **Status: implemented. Census r14 reported. Stopped for direction before any other behavioural change.**
 
+### Follow-up after the user's "go" (2026-10-04): finding 1 was an implementation defect, not a rule conflict
+
+**Root cause of the 7 same-interaction landing/junction overlaps.**
+- `Add_Landings` decided which roads pass through a landed pin by distance: centerline within 2Q of the pin.
+- A topology junction's pin is the node point, and a trunk through a node need not pass through it. Probed in the
+  census, the earlier road's centerline missed its own junction's pin by 0.019 to 27 m.
+- So the landing held only the later road level. The earlier road kept its slope, and between landing rounds it moved,
+  leaving the landing's Z stale against the shared surface built from it.
+
+D-027's rule (every ground road through the junction pin is held level for `L_pin`) and D-029's shared surface do not
+conflict. The proxy did.
+
+**Fixes (no rule changed).**
+1. **Landing membership by junction record.** A junction's landing applies to every road its record carries
+   (`Junction_Carries`: either edge, or the road through its node), held level about that road's station nearest the
+   pin. Other pins (deck ends, overpass crossings) keep the 2Q test.
+2. **Junction pieces cut at held ends.** A junction stretch is split at every end of another held structure inside
+   it, so its sampled chords never interpolate across a landing's or deck's boundary.
+
+Test `junction_landing_off_centerline`: a trunk running 1.5 off a topology node on a 0.05 grade receives the
+junction's landing and is held level about its nearest station (0.0000 off; 0 landings before fix 1).
+
+**Measured on r11's 34 solved worlds (filtered census).**
+
+| After | r14 | Failure |
+| --- | --- | --- |
+| 16 | 19 | `pin_landing` |
+| 11 | 11 | `profile_conflict` |
+| 3 | 3 | road crossing |
+| 3 | 0 | ordinary roadbed grade on the grid |
+| 1 | 1 | ground-only profile |
+
+- Same-interaction landing/junction overlaps: 7 to 0.
+- Three worlds (archetype 5 seeds 64 and 95, archetype 1 seed 93) now pass the plan and fail later, on the D-026 grid
+  judgement of ordinary roadbed grade. That judgement and its cause are Q-028.
+
 ## D-028 - Hybrid rewrite: the shared junction surface is a compiled junction's, nothing else (2026-10-04)
 
 **Decision (user, 2026-10-04).** Narrow the shared-surface rule to compiled Phase-11 junctions; this supersedes D-025

@@ -284,7 +284,8 @@ The outcomes:
 - **A failure near a pin** (within `L_pin` + 2 cells) compiles that pin's `STRUCTURAL_PIN_LANDING`
   (`HybridInteractionSet::Landings`). The landing holds every ground road through the pin level at its frozen elevation
   for exactly `L_pin = cell * sqrt(2)` away from the pin. A deck is never lengthened: at a deck end the landing is the
-  ground road outside it. The constraints are compiled and judged again with it.
+  ground road outside it. A junction's landing holds every road its record carries, including a trunk whose centerline
+  misses the node point. The constraints are compiled and judged again with it.
 - **A pin that still fails, or a landing that leaves its road no profile,** rejects the solution the pin belongs to.
   Phase 11 is solved again with that solution excluded, so its own order (next station, swap, next method, one more
   envelope, fail) decides what replaces it.
