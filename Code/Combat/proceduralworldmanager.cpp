@@ -70,6 +70,7 @@
 #include "worldspatialindex.h"
 #include "worldterrainsystem.h"
 #include "wwdebug.h"
+#include <ctime>
 #include "wwmath.h"
 
 #include <time.h>
@@ -86,6 +87,10 @@ bool	ProceduralWorldManager::WorldActive	= false;
 
 unsigned int	ProceduralWorldManager::RequestedSeed	= 0;
 StringClass		ProceduralWorldManager::RequestedProfilePath;
+
+int															ProceduralWorldManager::AttemptStage	= PROCEDURAL_STAGE_PREFLIGHT;
+DynamicVectorClass<ProceduralWorldAttemptRecord>	ProceduralWorldManager::AttemptLog;
+FILE *													ProceduralWorldManager::ProgressLog	= nullptr;
 
 ProceduralWorldProfile		ProceduralWorldManager::ActiveProfile;
 WorldGenerationManifest		ProceduralWorldManager::Manifest;
@@ -1919,6 +1924,70 @@ Format_Attempt_Reproduction_String(const ProceduralWorldProfile & profile)
 }
 
 
+const char * Procedural_Attempt_Stage_Name(int stage)
+{
+	switch (stage) {
+		case PROCEDURAL_STAGE_PREFLIGHT:					return "preflight";
+		case PROCEDURAL_STAGE_BOUNDS:						return "bounds";
+		case PROCEDURAL_STAGE_PHASE2_IDENTITY:			return "phase2_identity";
+		case PROCEDURAL_STAGE_PHASE3_GRAPH:				return "phase3_graph";
+		case PROCEDURAL_STAGE_PHASE4_COARSE:				return "phase4_coarse";
+		case PROCEDURAL_STAGE_PHASE5_LANDFORMS:			return "phase5_landforms";
+		case PROCEDURAL_STAGE_PHASE6_HYDROLOGY:			return "phase6_hydrology";
+		case PROCEDURAL_STAGE_CLIFF_RING:					return "cliff_ring";
+		case PROCEDURAL_STAGE_MAP_PLAN:					return "map_plan";
+		case PROCEDURAL_STAGE_PHASE7_TERRAIN:			return "phase7_terrain";
+		case PROCEDURAL_STAGE_PHASE8_ANCHORS:			return "phase8_anchors";
+		case PROCEDURAL_STAGE_PHASE9_TOPOLOGY:			return "phase9_topology";
+		case PROCEDURAL_STAGE_PHASE10_ROUTES:			return "phase10_routes";
+		case PROCEDURAL_STAGE_PHASE11_INTERACTIONS:	return "phase11_interactions";
+		case PROCEDURAL_STAGE_WORLD_WATER:				return "world_water";
+		case PROCEDURAL_STAGE_PHASE12_REALIZATION:		return "phase12_realization";
+		case PROCEDURAL_STAGE_AFTER_PHASE12:				return "after_phase12";
+		case PROCEDURAL_STAGE_COMPLETE:					return "complete";
+		default:													return "unknown";
+	}
+}
+
+
+void ProceduralWorldManager::Enter_Stage(int stage)
+{
+	AttemptStage = stage;
+	if (ProgressLog == nullptr) return;
+	::fprintf (ProgressLog,"STAGE %10lu ms requested %u: %s\n",(unsigned long)((::clock () * 1000) / CLOCKS_PER_SEC),RequestedSeed,
+				  Procedural_Attempt_Stage_Name (stage));
+	::fflush (ProgressLog);
+}
+
+
+//	D-033: the attempt just run, captured before anything tears it down.
+void ProceduralWorldManager::Record_Attempt(const ProceduralWorldProfile & profile,int attempt,bool completed,bool connectivity_ok,
+														  const StringClass & error)
+{
+	ProceduralWorldAttemptRecord record;
+	record.Attempt			= attempt;
+	record.Seed				= profile.Seed;
+	record.Stage			= AttemptStage;
+	record.Completed		= completed;
+	record.ConnectivityOk= connectivity_ok;
+	record.Error			= error;
+	record.HasIdentity	= HybridIdentityValid;
+	if (HybridIdentityValid) {
+		record.Archetype			= (int)HybridIdentity.Archetype;
+		record.BiomeMode			= (int)HybridIdentity.BiomeMode;
+		record.PrimaryBiome		= (int)HybridIdentity.PrimaryBiome;
+		record.SecondaryBiome	= (int)HybridIdentity.SecondaryBiome;
+		record.IdentityChecksum	= HybridIdentity.Checksum;
+	}
+	if (HybridTopologyValid)		record.TopologyChecksum			= HybridTopologyRecord.Checksum;
+	if (HybridRoutesValid)			record.RoutesChecksum				= HybridRoutes.Checksum;
+	if (HybridInteractionsValid)	record.InteractionsChecksum		= HybridInteractions.Checksum;
+	if (HybridRealizationValid)	record.RealizationChecksum		= HybridRealization.Checksum;
+	record.Reproduction = Format_Attempt_Reproduction_String (profile);
+	AttemptLog.Add (record);
+}
+
+
 bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 {
 	//	Directive 1.10.  No request, no procedural anything: this is every hand-authored map.
@@ -1943,6 +2012,7 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 
 	//	A client rebuilding its server's world gets that world's one attempt, never a retry.
 	int attempts = RequestedExact ? 1 : MAX_WORLD_GENERATION_ATTEMPTS;
+	AttemptLog.Delete_All ();
 
 	for (int attempt = 0; attempt < attempts; attempt++) {
 		//	A retry must not inherit geometry, reservations or an active manifest from
@@ -1993,9 +2063,11 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 			preflight_inputs.Gather_From_Runtime (profile);
 			HybridPreflightResult preflight;
 			if (!Hybrid_Run_Preflight (profile,preflight_inputs,&preflight)) {
-				if (error_out != nullptr) {
-					error_out->Format ("hybrid preflight: %s (%s)",Hybrid_Preflight_Failure_Name (preflight.Failure),preflight.Detail.Peek_Buffer ());
-				}
+				StringClass preflight_error;
+				preflight_error.Format ("hybrid preflight: %s (%s)",Hybrid_Preflight_Failure_Name (preflight.Failure),preflight.Detail.Peek_Buffer ());
+				Enter_Stage (PROCEDURAL_STAGE_PREFLIGHT);
+				Record_Attempt (profile,attempt,false,false,preflight_error);
+				if (error_out != nullptr) *error_out = preflight_error;
 				return false;
 			}
 			HybridMetrics = preflight.Metrics;
@@ -2007,7 +2079,11 @@ bool ProceduralWorldManager::Generate_World(StringClass * error_out)
 
 		StringClass attempt_error;
 		bool required_connectivity_ok = false;
-		if (!Generate_World_Attempt (profile,&attempt_error,&required_connectivity_ok)) {
+		Enter_Stage (PROCEDURAL_STAGE_BOUNDS);
+		const bool attempt_completed = Generate_World_Attempt (profile,&attempt_error,&required_connectivity_ok);
+		if (attempt_completed) Enter_Stage (PROCEDURAL_STAGE_COMPLETE);
+		Record_Attempt (profile,attempt,attempt_completed,required_connectivity_ok,attempt_error);
+		if (!attempt_completed) {
 			last_error = attempt_error;
 			WWDEBUG_SAY (("ProceduralWorldManager: attempt %d (seed %u) failed outright (%s)%s -- %s\r\n",
 							  attempt,profile.Seed,attempt_error.Peek_Buffer (),
@@ -2073,6 +2149,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	*/
 	bool identity_built = false;
 	StringClass identity_error;
+	Enter_Stage (PROCEDURAL_STAGE_PHASE2_IDENTITY);
 	if (!Build_Hybrid_Map_Identity (profile,&identity_built,&identity_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",identity_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = identity_error;
@@ -2086,6 +2163,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	*/
 	bool graph_built = false;
 	StringClass graph_error;
+	Enter_Stage (PROCEDURAL_STAGE_PHASE3_GRAPH);
 	if (!Build_Hybrid_Strategic_Graph (profile,&graph_built,&graph_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",graph_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = graph_error;
@@ -2099,6 +2177,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	*/
 	bool coarse_built = false;
 	StringClass coarse_error;
+	Enter_Stage (PROCEDURAL_STAGE_PHASE4_COARSE);
 	if (!Build_Hybrid_Coarse_Matrices (profile,&coarse_built,&coarse_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",coarse_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = coarse_error;
@@ -2112,6 +2191,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	*/
 	bool landforms_built = false;
 	StringClass landform_error;
+	Enter_Stage (PROCEDURAL_STAGE_PHASE5_LANDFORMS);
 	if (!Build_Hybrid_Landforms (profile,&landforms_built,&landform_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",landform_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = landform_error;
@@ -2126,6 +2206,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	*/
 	bool hybrid_hydrology_built = false;
 	StringClass hybrid_hydrology_error;
+	Enter_Stage (PROCEDURAL_STAGE_PHASE6_HYDROLOGY);
 	if (!Build_Hybrid_Hydrology (profile,&hybrid_hydrology_built,&hybrid_hydrology_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",hybrid_hydrology_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = hybrid_hydrology_error;
@@ -2133,6 +2214,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	}
 
 	StringClass cliff_error;
+	Enter_Stage (PROCEDURAL_STAGE_CLIFF_RING);
 	bool cliffs = Build_Cliff_Ring (profile,&cliff_error);
 	if (!cliffs) {
 		WWDEBUG_SAY (("ProceduralWorldManager: cliff ring failed (%s); the boundary is still enforced\r\n",
@@ -2147,6 +2229,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	//	a failure -- when the profile leaves it disabled or the world is fitted to a level.
 	bool plan_built = false;
 	StringClass plan_error;
+	Enter_Stage (PROCEDURAL_STAGE_MAP_PLAN);
 	if (!Build_Map_Plan (profile,&plan_built,&plan_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: map plan failed (%s)\r\n",plan_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = plan_error;
@@ -2159,6 +2242,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	//	a `fit_to_level` world; see Build_Macro_Terrain's own comment.
 	bool terrain_built = false;
 	StringClass terrain_error;
+	Enter_Stage (PROCEDURAL_STAGE_PHASE7_TERRAIN);
 	if (!Build_Macro_Terrain (profile,&terrain_built,&terrain_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: required terrain failed (%s)\r\n",
 						 terrain_error.Peek_Buffer ()));
@@ -2174,6 +2258,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	*/
 	bool hybrid_anchors_built = false;
 	StringClass hybrid_anchor_error;
+	Enter_Stage (PROCEDURAL_STAGE_PHASE8_ANCHORS);
 	if (!Build_Hybrid_Anchors (profile,&hybrid_anchors_built,&hybrid_anchor_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",hybrid_anchor_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = hybrid_anchor_error;
@@ -2187,6 +2272,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	*/
 	bool hybrid_topology_built = false;
 	StringClass hybrid_topology_error;
+	Enter_Stage (PROCEDURAL_STAGE_PHASE9_TOPOLOGY);
 	if (!Build_Hybrid_Topology (profile,&hybrid_topology_built,&hybrid_topology_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",hybrid_topology_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = hybrid_topology_error;
@@ -2199,6 +2285,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	*/
 	bool hybrid_routes_built = false;
 	StringClass hybrid_route_error;
+	Enter_Stage (PROCEDURAL_STAGE_PHASE10_ROUTES);
 	if (!Build_Hybrid_Routes (profile,&hybrid_routes_built,&hybrid_route_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",hybrid_route_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = hybrid_route_error;
@@ -2213,6 +2300,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	*/
 	bool hybrid_interactions_built = false;
 	StringClass hybrid_interaction_error;
+	Enter_Stage (PROCEDURAL_STAGE_PHASE11_INTERACTIONS);
 	if (!Build_Hybrid_Interactions (profile,&hybrid_interactions_built,&hybrid_interaction_error)) {
 		WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",hybrid_interaction_error.Peek_Buffer ()));
 		if (error_out != nullptr) *error_out = hybrid_interaction_error;
@@ -2225,6 +2313,7 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	//	decides whether a chunk registry exists this run.
 	bool interior_cliffs_built = false;
 	StringClass interior_cliff_error;
+	Enter_Stage (PROCEDURAL_STAGE_WORLD_WATER);
 	if (terrain_built) {
 		interior_cliffs_built = Build_Interior_Cliffs (profile,&interior_cliff_error);
 		if (!interior_cliffs_built) {
@@ -2298,12 +2387,15 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 	const bool hybrid_roads = profile.Uses_Hybrid_Generator () && HybridInteractionsValid;
 	if (hybrid_roads) {
 		StringClass realization_error;
+		Enter_Stage (PROCEDURAL_STAGE_PHASE12_REALIZATION);
 		if (!Realize_Hybrid_Roads (profile,&realization_error)) {
 			WWDEBUG_SAY (("ProceduralWorldManager: %s\r\n",realization_error.Peek_Buffer ()));
 			if (error_out != nullptr) *error_out = realization_error;
 			return false;
 		}
 	}
+
+	Enter_Stage (PROCEDURAL_STAGE_AFTER_PHASE12);
 
 	//	Strategic plan, Phase 7.  Reads the same chunk registry; also reads whatever interior
 	//	cliff/hydrology candidates exist, optionally, so it runs whether or not either of those

@@ -199,6 +199,7 @@ public:
 	static	bool	Is_Loading_Level( void );
 
 	static	void	Post_Load_Level( void );
+	static	void	Load_Game_Definitions( void );	// the definitions and building descriptors a level load mounts
 
 	static	void	Unload_Level( void );
 

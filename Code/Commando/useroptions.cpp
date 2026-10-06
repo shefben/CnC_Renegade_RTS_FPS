@@ -35,6 +35,7 @@
 #include "bandwidth.h"
 #include "bandwidthcheck.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "trim.h"
 #include "singletoninstancekeeper.h"
@@ -55,6 +56,12 @@ extern char DefaultRegistryModifier[1024];
 //
 // Class statics
 //
+unsigned int	cUserOptions::ProceduralCensusFirst	= 0;
+int				cUserOptions::ProceduralCensusCount	= 0;
+unsigned int	cUserOptions::ProceduralSkirmishSeed	= 0;
+StringClass		cUserOptions::ProceduralProfilePath;
+StringClass		cUserOptions::ProceduralLogPath;
+
 cRegistryString cUserOptions::GameDir(					APPLICATION_SUB_KEY_NAME_OPTIONS, "GameDir",           "");
 
 cRegistryBool cUserOptions::ShowNamesOnSoldier(					APPLICATION_SUB_KEY_NAME_NETOPTIONS, "ShowNamesOnSoldier",           true);
@@ -287,6 +294,39 @@ cUserOptions::ParseResult cUserOptions::Parse_Command_Line(int argc, char *argv[
 			break;
 		}
 
+		//	D-033 developer launches (see useroptions.h).
+		if (strcmp(cmd, "--procedural-log") == 0) {
+			if ((i + 1) >= argc) {
+				retcode = ParseResult::FAILURE;
+				break;
+			}
+			ProceduralLogPath = argv[++i];
+			continue;
+		}
+		if ((strcmp(cmd, "--procedural-census") == 0) || (strcmp(cmd, "--procedural-skirmish") == 0)) {
+			const bool census = (strcmp(cmd, "--procedural-census") == 0);
+			const int needed = census ? 2 : 1;
+			if ((i + needed) >= argc) {
+				retcode = ParseResult::FAILURE;
+				break;
+			}
+			const unsigned int first = (unsigned int)::strtoul(argv[++i], nullptr, 10);
+			if (census) {
+				ProceduralCensusFirst = first;
+				ProceduralCensusCount = ::atoi(argv[++i]);
+			} else {
+				ProceduralSkirmishSeed = first;
+			}
+			if (((i + 1) < argc) && (argv[i + 1][0] != '-')) {
+				ProceduralProfilePath = argv[++i];
+			}
+			if ((first == 0) || (census && (ProceduralCensusCount <= 0))) {
+				retcode = ParseResult::FAILURE;
+				break;
+			}
+			continue;
+		}
+
 		retcode = ParseResult::FAILURE;
 		break;
 	}
@@ -315,6 +355,8 @@ void cUserOptions::Print_Command_Line_Help(bool error)
 	fprintf(file, "    [--gamespy-netplayername NAME]\n");
 	fprintf(file, "    [--gamespy-password PASSWORD]\n");
 #endif
+	fprintf(file, "    [--procedural-census FIRST_SEED COUNT [PROFILE]] [--procedural-skirmish SEED [PROFILE]]\n");
+	fprintf(file, "    [--procedural-log PATH]\n");
 	fprintf(file, "    [--help]\n");
 }
 

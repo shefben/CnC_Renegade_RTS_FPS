@@ -52,6 +52,8 @@
 #ifndef PROCEDURALWORLDTOOLS_H
 #define PROCEDURALWORLDTOOLS_H
 
+#include <cstdio>
+
 #ifndef ALWAYS_H
 #include "always.h"
 #endif
@@ -188,6 +190,24 @@ class ProceduralWorldToolsService
 		enum { MAX_SEED_BATCH_RESULTS = 64 };
 		static int			Run_Seed_Batch(unsigned int start_seed,int count,const char * profile_path,
 													  ProceduralWorldSeedBatchResult * results_out,StringClass * error_out);
+
+		/*
+		**	D-033: the production census.  The same loop as Run_Seed_Batch -- Destroy_World, Request_World and the
+		**	game's own Generate_World with its bounded retries -- over requested seeds in ascending order, but it never
+		**	stops on a failed seed: it prints every attempt's identity (requested and effective seed, archetype, biome,
+		**	the stage it reached and why it stopped, the manifest's reproduction string with the profile hash, generator
+		**	version and content revision, and each finished phase's checksum) to `out`, then the counts.  It stops after
+		**	`count` seeds, or at the first requested seed whose loaded world passed Phase 12 when `stop_at_phase12`.
+		**	Needs the game's content mounted (always.dat's definitions): run it from the real client or server process.
+		**	Returns the first such requested seed, or 0.
+		*/
+		static unsigned int	Run_Seed_Census(unsigned int first_seed,int count,const char * profile_path,bool stop_at_phase12,
+														 FILE * out);
+
+		//	One line naming the generated world a requested seed produced: requested and effective seed and identity.
+		//	`out` null writes to the world log (Set_World_Log; stdout until set).
+		static void			Print_World_Identity(FILE * out,const char * prefix);
+		static void			Set_World_Log(FILE * log);
 };
 
 #endif	// PROCEDURALWORLDTOOLS_H

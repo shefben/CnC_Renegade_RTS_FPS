@@ -76,7 +76,67 @@
 #include "hybridroutes.h"
 #include "hybridrealization.h"
 #include "hybridinteractions.h"
+#include <cstdio>
 struct HybridRoadRealizerInputs;
+
+
+/*
+**	D-033: one generation attempt as Generate_World ran it -- the effective seed, how far it got, what stopped it and
+**	the identity it carried -- for the production census and the identity line a developer launch prints (a Release
+**	build compiles WWDEBUG_SAY out).  Observational only: the generator never reads it back.
+*/
+enum ProceduralAttemptStage
+{
+	PROCEDURAL_STAGE_PREFLIGHT = 0,		// the request's content preflight, before any seeded work
+	PROCEDURAL_STAGE_BOUNDS,
+	PROCEDURAL_STAGE_PHASE2_IDENTITY,
+	PROCEDURAL_STAGE_PHASE3_GRAPH,
+	PROCEDURAL_STAGE_PHASE4_COARSE,
+	PROCEDURAL_STAGE_PHASE5_LANDFORMS,
+	PROCEDURAL_STAGE_PHASE6_HYDROLOGY,
+	PROCEDURAL_STAGE_CLIFF_RING,
+	PROCEDURAL_STAGE_MAP_PLAN,
+	PROCEDURAL_STAGE_PHASE7_TERRAIN,
+	PROCEDURAL_STAGE_PHASE8_ANCHORS,
+	PROCEDURAL_STAGE_PHASE9_TOPOLOGY,
+	PROCEDURAL_STAGE_PHASE10_ROUTES,
+	PROCEDURAL_STAGE_PHASE11_INTERACTIONS,
+	PROCEDURAL_STAGE_WORLD_WATER,			// interior cliffs and the raster hydrology Phase 12 grades over
+	PROCEDURAL_STAGE_PHASE12_REALIZATION,
+	PROCEDURAL_STAGE_AFTER_PHASE12,		// Phase 12 passed; the world's later stages are running
+	PROCEDURAL_STAGE_COMPLETE,
+	PROCEDURAL_STAGE_COUNT
+};
+
+const char *	Procedural_Attempt_Stage_Name(int stage);
+
+struct ProceduralWorldAttemptRecord
+{
+	ProceduralWorldAttemptRecord(void) :
+		Attempt(0),Seed(0),Stage(PROCEDURAL_STAGE_PREFLIGHT),Completed(false),ConnectivityOk(false),HasIdentity(false),
+		Archetype(0),BiomeMode(0),PrimaryBiome(0),SecondaryBiome(0),IdentityChecksum(0),TopologyChecksum(0),RoutesChecksum(0),
+		InteractionsChecksum(0),RealizationChecksum(0) { }
+	bool	operator == (const ProceduralWorldAttemptRecord & that) const	{ return (Attempt == that.Attempt) && (Seed == that.Seed); }
+	bool	operator != (const ProceduralWorldAttemptRecord & that) const	{ return !(*this == that); }
+
+	int				Attempt;					// 0 is the requested seed itself
+	unsigned int	Seed;						// the effective seed this attempt generated
+	int				Stage;					// ProceduralAttemptStage reached (the one that stopped it, unless COMPLETE)
+	bool				Completed;				// Generate_World_Attempt returned true
+	bool				ConnectivityOk;		// ...and the required base routes held
+	StringClass		Error;
+	bool				HasIdentity;			// Phase 2 ran: the fields below are the world's
+	int				Archetype;				// HybridArchetype
+	int				BiomeMode;				// HybridBiomeMode
+	int				PrimaryBiome;			// HybridBiome
+	int				SecondaryBiome;
+	unsigned int	IdentityChecksum;		// each phase's own gate checksum, 0 where the phase did not finish
+	unsigned int	TopologyChecksum;
+	unsigned int	RoutesChecksum;
+	unsigned int	InteractionsChecksum;
+	unsigned int	RealizationChecksum;
+	StringClass		Reproduction;			// the manifest's reproduction string for this attempt
+};
 
 
 class ProceduralWorldManager
@@ -146,6 +206,13 @@ class ProceduralWorldManager
 
 		//	Tear the generated world down.  Called from the level unload path.
 		static void		Destroy_World(void);
+
+		//	D-033: a developer sink for one line per stage an attempt enters (with the clock), or null for none.
+		static void		Set_Progress_Log(FILE * log)	{ ProgressLog = log; }
+
+		//	D-033: the attempts the last Generate_World ran, in order (see ProceduralWorldAttemptRecord).
+		static int													Get_Attempt_Count(void)		{ return AttemptLog.Count (); }
+		static const ProceduralWorldAttemptRecord &		Get_Attempt(int index)		{ return AttemptLog[index]; }
 
 		/*
 		**	What was generated, for the console, the manifest file and the self check.  The
@@ -479,6 +546,13 @@ class ProceduralWorldManager
 		//	rather than looping forever chasing a fully-connected layout that may not exist for
 		//	this profile at all.
 		static const int	MAX_WORLD_GENERATION_ATTEMPTS = 3;
+
+		static int											AttemptStage;
+		static FILE *										ProgressLog;
+		static void		Enter_Stage(int stage);
+		static DynamicVectorClass<ProceduralWorldAttemptRecord>	AttemptLog;
+		static void		Record_Attempt(const ProceduralWorldProfile & profile,int attempt,bool completed,bool connectivity_ok,
+										  const StringClass & error);
 
 		static bool		Requested;
 		static bool		RequestedExact;

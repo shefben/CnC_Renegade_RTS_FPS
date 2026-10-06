@@ -40,6 +40,7 @@
 #include "settlementgenerator.h"
 #include "playertype.h"
 #include "rawfile.h"
+#include "hybridplanrecords.h"
 
 #include <cstdio>
 
@@ -562,4 +563,104 @@ int ProceduralWorldToolsService::Run_Seed_Batch(unsigned int start_seed,int coun
 	}
 
 	return written;
+}
+
+
+/***********************************************************************************************
+ * Run_Seed_Census -- D-033's production census over the real generator and content.             *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+static void Print_Attempt(FILE * out,const char * prefix,unsigned int requested,const ProceduralWorldAttemptRecord & a)
+{
+	::fprintf (out,"%s requested %u attempt %d effective %u stage %s%s",prefix,requested,a.Attempt,a.Seed,
+				  Procedural_Attempt_Stage_Name (a.Stage),a.Completed ? (a.ConnectivityOk ? " connected" : " DISCONNECTED") : "");
+	if (a.HasIdentity) {
+		::fprintf (out," archetype %s biome %s %s/%s",Hybrid_Archetype_Name ((HybridArchetype)a.Archetype),
+					  Hybrid_Biome_Mode_Name ((HybridBiomeMode)a.BiomeMode),Hybrid_Biome_Name ((HybridBiome)a.PrimaryBiome),
+					  (a.SecondaryBiome < HYBRID_BIOME_COUNT) ? Hybrid_Biome_Name ((HybridBiome)a.SecondaryBiome) : "-");
+	}
+	::fprintf (out," checksums identity %08X topology %08X routes %08X interactions %08X realization %08X | %s",a.IdentityChecksum,
+				  a.TopologyChecksum,a.RoutesChecksum,a.InteractionsChecksum,a.RealizationChecksum,a.Reproduction.Peek_Buffer ());
+	if (!a.Completed) ::fprintf (out," | %s",a.Error.Peek_Buffer ());
+	::fprintf (out,"\n");
+}
+
+
+static FILE * _WorldLog = nullptr;
+
+void ProceduralWorldToolsService::Set_World_Log(FILE * log)
+{
+	_WorldLog = log;
+}
+
+
+void ProceduralWorldToolsService::Print_World_Identity(FILE * out,const char * prefix)
+{
+	if (out == nullptr) out = (_WorldLog != nullptr) ? _WorldLog : stdout;
+	const int count = ProceduralWorldManager::Get_Attempt_Count ();
+	for (int i = 0; i < count; i++) {
+		Print_Attempt (out,prefix,ProceduralWorldManager::Get_Requested_Seed (),ProceduralWorldManager::Get_Attempt (i));
+	}
+	::fflush (out);
+}
+
+
+unsigned int ProceduralWorldToolsService::Run_Seed_Census(unsigned int first_seed,int count,const char * profile_path,
+																			bool stop_at_phase12,FILE * out)
+{
+	int stage_counts [PROCEDURAL_STAGE_COUNT];
+	int loaded_counts [PROCEDURAL_STAGE_COUNT];
+	for (int s = 0; s < PROCEDURAL_STAGE_COUNT; s++) { stage_counts [s] = 0; loaded_counts [s] = 0; }
+	int attempts = 0;
+	int seeds = 0;
+	unsigned int found = 0;
+
+	for (int i = 0; i < count; i++) {
+		const unsigned int requested = first_seed + (unsigned int)i;
+		ProceduralWorldManager::Destroy_World ();
+
+		StringClass error;
+		if (!ProceduralWorldManager::Request_World (requested,profile_path,&error)) {
+			::fprintf (out,"CENSUS requested %u refused: %s\n",requested,error.Peek_Buffer ());
+			break;		//	the profile or content itself is refused: every seed alike
+		}
+		ProceduralWorldManager::Generate_World (&error);
+		seeds++;
+
+		//	The world the game keeps: the first attempt that completed connected, else the last that completed.
+		int loaded = -1;
+		for (int a = 0; a < ProceduralWorldManager::Get_Attempt_Count (); a++) {
+			const ProceduralWorldAttemptRecord & record = ProceduralWorldManager::Get_Attempt (a);
+			Print_Attempt (out,"CENSUS",requested,record);
+			stage_counts [record.Stage]++;
+			attempts++;
+			if (record.Completed && ((loaded < 0) || !ProceduralWorldManager::Get_Attempt (loaded).ConnectivityOk)) loaded = a;
+		}
+		const ProceduralWorldAttemptRecord * kept = (loaded >= 0) ? &ProceduralWorldManager::Get_Attempt (loaded) : nullptr;
+		const int last = ProceduralWorldManager::Get_Attempt_Count () - 1;
+		const int stage = (kept != nullptr) ? kept->Stage : ((last >= 0) ? ProceduralWorldManager::Get_Attempt (last).Stage : 0);
+		loaded_counts [stage]++;
+		if (kept != nullptr) {
+			::fprintf (out,"SEED requested %u loads effective seed %u (attempt %d)%s\n",requested,kept->Seed,kept->Attempt,
+						  kept->ConnectivityOk ? "" : " -- required routes disconnected");
+		} else {
+			::fprintf (out,"SEED requested %u loads nothing: every attempt failed (last at %s)\n",requested,
+						  Procedural_Attempt_Stage_Name (stage));
+		}
+		::fflush (out);
+
+		const bool passed12 = (kept != nullptr) && (kept->Stage >= PROCEDURAL_STAGE_AFTER_PHASE12);
+		if (passed12 && (found == 0)) found = requested;
+		if (passed12 && stop_at_phase12) break;
+	}
+
+	::fprintf (out,"CENSUS SUMMARY %d requested seed(s), %d attempt(s); first requested seed whose loaded world passed Phase 12: %u\n",
+				  seeds,attempts,found);
+	for (int s = 0; s < PROCEDURAL_STAGE_COUNT; s++) {
+		if ((stage_counts [s] == 0) && (loaded_counts [s] == 0)) continue;
+		::fprintf (out,"CENSUS STAGE %-22s attempts stopped/finished here %4d, requested seeds' kept world %4d\n",
+					  Procedural_Attempt_Stage_Name (s),stage_counts [s],loaded_counts [s]);
+	}
+	::fflush (out);
+	ProceduralWorldManager::Destroy_World ();
+	return found;
 }

@@ -122,6 +122,11 @@
 #include "debugbreak.h"
 #include "persistentcampaign.h"
 #include "dlgmainmenu.h"
+#include "proceduralworldmanager.h"
+#include "proceduralworldtools.h"
+#include "assetdep.h"
+#include "mainloop.h"
+#include "combat.h"
 #include "worldsyncevent.h"
 #include <cstdio>
 
@@ -1134,6 +1139,46 @@ bool Game_Init(void)
 			Game_Shutdown();
 			return (false);
 		}
+	}
+
+	//
+	//	D-033 developer launches (useroptions.h): the production census over the game's own content and generator,
+	//	then exit; or the main menu's Procedural Skirmish at a chosen requested seed.
+	//
+	const char * procedural_profile = cUserOptions::ProceduralProfilePath.Is_Empty () ? ProceduralWorldManager::NATIVE_PROFILE_PATH
+																												  : cUserOptions::ProceduralProfilePath.Peek_Buffer ();
+	FILE * procedural_log = stdout;
+	if (((cUserOptions::ProceduralCensusCount > 0) || (cUserOptions::ProceduralSkirmishSeed != 0)) &&
+		 !cUserOptions::ProceduralLogPath.Is_Empty ()) {
+		FILE * opened = ::fopen (cUserOptions::ProceduralLogPath.Peek_Buffer (),"a");
+		if (opened != nullptr) procedural_log = opened;
+	}
+	if (cUserOptions::ProceduralCensusCount > 0) {
+		::fprintf (procedural_log,"CENSUS start: requested seeds %u.. (%d), profile %s\n",cUserOptions::ProceduralCensusFirst,
+					  cUserOptions::ProceduralCensusCount,procedural_profile);
+		::fflush (procedural_log);
+		//	What a native procedural level load mounts before Post_Load_Level generates: the definitions, then the
+		//	always assets (the reference vehicles' models preflight measures).
+		CombatManager::Load_Game_Definitions ();
+		AssetDependencyManager::Load_Always_Assets ();
+		ProceduralWorldManager::Set_Progress_Log (procedural_log);
+		ProceduralWorldToolsService::Run_Seed_Census (cUserOptions::ProceduralCensusFirst,cUserOptions::ProceduralCensusCount,
+																	 procedural_profile,true,procedural_log);
+		ProceduralWorldManager::Set_Progress_Log (nullptr);
+		if (procedural_log != stdout) ::fclose (procedural_log);
+		Stop_Main_Loop (EXIT_SUCCESS);
+		return true;
+	}
+	if (cUserOptions::ProceduralSkirmishSeed != 0) {
+		ProceduralWorldManager::Set_Progress_Log (procedural_log);
+		ProceduralWorldToolsService::Set_World_Log (procedural_log);
+		StringClass world_error;
+		if (!MainMenuDialogClass::Start_Procedural_Skirmish (cUserOptions::ProceduralSkirmishSeed,procedural_profile,&world_error)) {
+			::fprintf (procedural_log,"WORLD requested %u refused: %s\n",cUserOptions::ProceduralSkirmishSeed,world_error.Peek_Buffer ());
+			::fflush (procedural_log);
+			Stop_Main_Loop (EXIT_FAILURE);
+		}
+		return true;
 	}
 
 	//

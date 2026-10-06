@@ -83,6 +83,47 @@ literal requirement. Bounded by `MAX_SEED_BATCH_RESULTS` (64).
 scene the same way `Write_Top_Down_Preview` does; no existing code in this repository has ever run
 this Destroy/Request/Generate sequence in a loop before this phase wrote it.
 
+## Production census (D-033)
+
+`Run_Seed_Census(first_seed, count, profile_path, stop_at_phase12, out)` is the production measurement: the same
+Destroy_World / Request_World / Generate_World loop as the seed batch, run inside the real game process on the real
+content, so its worlds are worlds the game would load. Unlike the batch it never stops on a failed seed. For every
+generation attempt `Generate_World` makes, it prints one line from the manager's attempt journal
+(`ProceduralWorldManager::Get_Attempt`):
+- the requested seed, the attempt index and the effective seed it generated;
+- the stage reached (`Procedural_Attempt_Stage_Name`) and the error that stopped it;
+- archetype and biome (once Phase 2 ran);
+- the Phase 2 / 9 / 10 / 11 / 12 gate checksums of every phase that finished;
+- the manifest's reproduction string: generator version, seed, profile hash and, once preflight passed, the hybrid
+  planning hash and content revision.
+
+It then prints which effective seed the requested seed's loaded world is (the first attempt that completed with its
+required routes, else the last that completed) and the per-stage counts. It stops at the first requested seed whose
+loaded world passed Phase 12 when asked.
+
+Developer launches (`cUserOptions`, `Game_Init`), after the game's own startup instead of the intro movies:
+
+```text
+renegade --gamedir "C:\Westwood\Renegade_full" --procedural-log census.txt
+         --procedural-census FIRST COUNT [PROFILE]     # the census, then exit
+renegade --gamedir "C:\Westwood\Renegade_full" --procedural-log world.txt
+         --procedural-skirmish SEED [PROFILE]          # the main menu's Procedural Skirmish at SEED
+```
+
+`PROFILE` defaults to `data/procedural_world/native.json` under the game directory. Pass the repository's file by
+absolute path when the install's copy is stale. The census mounts what a native level load mounts before
+`Post_Load_Level` generates: the definitions (`CombatManager::Load_Game_Definitions`, shared with the load thread)
+and the always assets. Every procedural level load also prints its `WORLD` identity lines (stdout, or the log), in a
+Release build too, so a skirmish's identity can be compared with the census line for the same requested seed.
+
+Notes for running it:
+- **`--gamedir` is required.** Without it the client sets its working folder to the exe's own and stops on a modal
+  "Invalid working folder" box.
+- **`--gamedir` persists.** It writes `HKCU\Software\Westwood\Renegade\Options\GameDir`; clear it afterwards if the
+  machine relied on it being empty.
+- **No self-check coverage.** Like the seed batch, the loop needs the live game and content, so the self check does
+  not exercise it.
+
 ## Console
 
 `world_tools <repro|validate [json_path]|preview <path> [layer_mask] [resolution]|

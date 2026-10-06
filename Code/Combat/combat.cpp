@@ -118,6 +118,7 @@
 #include "runtimedoorservice.h"
 #include "worldboundsservice.h"
 #include "proceduralworldmanager.h"
+#include "proceduralworldtools.h"
 #include "assetdep.h"
 #include "saveloadstatus.h"
 #include <stdio.h>
@@ -715,36 +716,9 @@ public:
 		CombatManager::Inc_Load_Progress();
 
 		//	Reload the definition databases (to support level-specific temp ddb's)
-		INIT_STATUS("Free definition databases");
-		DefinitionMgrClass::Free_Definitions();
-		WWLOG_INTERMEDIATE("Free definitions");
-
 		INIT_STATUS("Load definition databases");
-		SaveGameManager::Load_Definitions();
+		CombatManager::Load_Game_Definitions();
 		WWLOG_INTERMEDIATE("Load definitions");
-
-		//
-		//	Q-017.  Free_Definitions just above wiped every game object definition, including
-		//	the two project-owned building presets (Tiberium Silo, Advanced Communications
-		//	Center) that have no stock Objects.DDB entry -- re-add them every level load, not
-		//	just the first, then re-link every buildable descriptor's game_object_preset back to
-		//	the real definition it names (BuildingGameObjDef::DescriptorName), which is how
-		//	Initialize_Building's TeamPowerGridService::RegisterBuilding call finds the right
-		//	descriptor for a building created from a preset rather than a runtime-descriptor-
-		//	carrying instance.  The descriptor directory itself only needs loading once: unlike
-		//	DefinitionMgrClass, BuildingDescriptorManager's registry is not touched by
-		//	Free_Definitions.
-		//
-		{
-			static bool descriptors_loaded = false;
-			if (!descriptors_loaded) {
-				descriptors_loaded = true;
-				BuildingDescriptorManager::Init ();
-				BuildingDescriptorManager::Load_Directory ("data/building_descriptors",nullptr,nullptr);
-			}
-		}
-		ProjectBuildingDefs::Register ();
-		BuildingDescriptorManager::Resolve_Game_Object_Presets (nullptr);
 
 		CombatManager::Inc_Load_Progress();
 		//
@@ -811,6 +785,41 @@ public:
 
 	}
 } thread;
+
+/*
+**	The game's definitions, as every level load mounts them: the definition databases freed and reloaded, then the
+**	project's own building presets and descriptors.  Also what D-033's production census mounts before it generates
+**	anything, so the content it measures is exactly the content a game loads.
+*/
+void	CombatManager::Load_Game_Definitions( void )
+{
+	DefinitionMgrClass::Free_Definitions();
+	SaveGameManager::Load_Definitions();
+
+	//
+	//	Q-017.  Free_Definitions just above wiped every game object definition, including
+	//	the two project-owned building presets (Tiberium Silo, Advanced Communications
+	//	Center) that have no stock Objects.DDB entry -- re-add them every level load, not
+	//	just the first, then re-link every buildable descriptor's game_object_preset back to
+	//	the real definition it names (BuildingGameObjDef::DescriptorName), which is how
+	//	Initialize_Building's TeamPowerGridService::RegisterBuilding call finds the right
+	//	descriptor for a building created from a preset rather than a runtime-descriptor-
+	//	carrying instance.  The descriptor directory itself only needs loading once: unlike
+	//	DefinitionMgrClass, BuildingDescriptorManager's registry is not touched by
+	//	Free_Definitions.
+	//
+	{
+		static bool descriptors_loaded = false;
+		if (!descriptors_loaded) {
+			descriptors_loaded = true;
+			BuildingDescriptorManager::Init ();
+			BuildingDescriptorManager::Load_Directory ("data/building_descriptors",nullptr,nullptr);
+		}
+	}
+	ProjectBuildingDefs::Register ();
+	BuildingDescriptorManager::Resolve_Game_Object_Presets (nullptr);
+}
+
 
 void	CombatManager::Load_Level_Threaded( const char * map_name, bool preload_assets )
 {
@@ -920,7 +929,9 @@ void	CombatManager::Post_Load_Level( void )
 			WorldSyncTransport::On_Level_Loaded();
 		} else if (!ProceduralWorldManager::Generate_World( &world_error )) {
 			WWDEBUG_SAY(( "Procedural world generation failed: %s\r\n",world_error.Peek_Buffer() ));
+			ProceduralWorldToolsService::Print_World_Identity( nullptr, "WORLD" );		// D-033: what was tried, in Release too
 		} else if ( ProceduralWorldManager::Is_World_Active() ) {
+			ProceduralWorldToolsService::Print_World_Identity( nullptr, "WORLD" );		// D-033: the world a player is in
 			WorldSyncTransport::On_World_Generated();
 
 			//	Section 16A: the generated bases.  A fresh world's starting buildings are placed and

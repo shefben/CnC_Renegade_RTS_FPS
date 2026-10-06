@@ -554,6 +554,82 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-033 - Hybrid rewrite: a production census in the real game; the first production blocker is preflight (2026-10-05)
+
+**Direction (user, 2026-10-05).** The 1,400-world census is a fixture harness (1200 m worlds, fixture constants, one
+`test_bridge` kind). Before chasing another census-only failure, establish a measurement path that runs the shipped
+native profile on the production content through the game's own generator, use it to find a real requested seed that
+passes Phase 12, and smoke-test that exact seed in game. Stop and report if the bounded search finds none, without
+changing generator rules.
+
+### The production path (observational only)
+
+- **Attempt journal.** `ProceduralWorldManager` records every attempt `Generate_World` runs (`ProceduralWorldAttemptRecord`,
+  `Get_Attempt`). Each record holds:
+  - the effective seed;
+  - the stage reached (`Procedural_Attempt_Stage_Name`) and the error that stopped it;
+  - archetype and biome;
+  - the Phase 2, 9, 10, 11 and 12 gate checksums;
+  - the manifest's reproduction string: generator version, seed, profile hash and, past preflight, the hybrid planning
+    hash and content revision.
+
+  Nothing reads it back. Every procedural level load prints its `WORLD` lines, in Release too, where `WWDEBUG_SAY`
+  compiles out.
+- **Census.** `ProceduralWorldToolsService::Run_Seed_Census` is the seed batch's Destroy / Request / Generate loop. It
+  differs in three ways: it never stops on a failed seed, it prints the journal and per-stage counts, and it stops at the
+  first requested seed whose loaded world passed Phase 12.
+- **Developer launches.** In the real client, after the game's own startup instead of the intro movies:
+  - `--procedural-census FIRST COUNT [PROFILE]`;
+  - `--procedural-skirmish SEED [PROFILE]`, which is the main menu's Procedural Skirmish (`Start_Procedural_Skirmish`) at a
+    chosen requested seed;
+  - `--procedural-log PATH`.
+
+  The census mounts what a native level load mounts before `Post_Load_Level` generates: the definitions
+  (`CombatManager::Load_Game_Definitions`, now shared with the load thread) and the always assets.
+- **Proof it is production.** It runs in `renegade.exe` with `--gamedir C:\Westwood\Renegade_full`:
+  - it reads that install's `always.dat` / `Always2.dat` (1,897 physics definitions), its `data/building_descriptors`,
+    and its registered bridge definitions;
+  - it uses the repository's shipped `data/procedural_world/native.json` (2400 m; the install's copy is a stale generator-7
+    file);
+  - it calls `Request_World` and `Generate_World`, the same calls the menu makes.
+
+  Nothing in it substitutes a metric, a bridge, a dimension or a feature flag. The in-game skirmish for requested seed 1
+  printed the identical `WORLD` line the census printed for it.
+
+### Result: no production seed reaches Phase 2
+
+Requested seeds 1..256 make 256 attempts, all stopping at preflight with
+`MISSING_HUMVEE_COLLISION_METRIC (v_gdi_humvee)`. That is one attempt each: a preflight failure ends the request, and
+preflight is content-only, the same for every seed. The search was not widened to 1023 or 4095 because every seed
+would fail identically.
+
+The real in-game start (`--procedural-skirmish 1`, the menu's own path) fails the same way. That makes the first
+production blocker preflight, not geometry: today every production request stops there.
+
+**Cause (probed in the real client).**
+- `HybridPreflightInputs::Gather_From_Runtime` finds the five physics definitions whose model is
+  `vehicles\gdi humvee\v_gdi_humvee.w3d`.
+- `WorldMetricsClass::Resolve_Extents` passes that raw definition path to `WW3DAssetManager::Create_Render_Obj`, which
+  returns null, so no `WORLDBOX` is read and the metrics come back valid but without extents.
+- The engine's own `PhysClass` never does that. A model name with an extension goes through
+  `create_render_obj_from_filename`, which strips the directory and extension (`v_gdi_humvee`) first.
+
+The heavy vehicle and both Harvesters are measured through the same `Resolve_Extents`. Preflight stops at the Humvee,
+its first check, so whether their definitions carry paths too was not probed. The offline-measured `WORLDBOX` values in `VehicleCollisionMetrics.md` exist, so the asset is fine; only the
+runtime name resolution is wrong.
+
+**Not fixed here (D-033's own rule).**
+- `WorldMetricsClass` is a shared owner (navigation, vehicles, placement read it). Making it resolve models as `PhysClass`
+  does would change every consumer that currently falls back to the default envelope, which is a cross-cutting change
+  that needs its own decision.
+- Phase-12 geometry, the fixture census categories, archetype 5 seed 64 and every other measured category are untouched.
+
+**Validation.** Client, FDS and leveledit build with no warnings. Full suite on the exact committed tree: 237/237 (122
+client, 115 FDS).
+
+**The smoke test** was not run. No production world reaches Phase 12, so none can be smoke-tested, and nothing synthetic
+was substituted.
+
 ## D-032 - Hybrid rewrite: the native generator builds no tunnels (2026-10-05)
 
 **Decision (user, 2026-10-05).** Tunnels are removed from the native hybrid procedural-world generator: they are no

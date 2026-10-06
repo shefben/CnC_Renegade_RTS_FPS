@@ -473,16 +473,23 @@ with a regression. Census seed 93 (archetype 1) now solves Phase 11 and passes P
 blocked: the census is a 1200 m fixture harness, not the 2400 m in-game native profile, so no in-game native world is
 known to pass Phase 12.
 
+D-032 (2026-10-05) removes tunnel generation from the native hybrid generator; the fixture census r16 is unchanged.
+D-033 adds the production census in the real client (`--procedural-census`, `--procedural-skirmish`). Requested seeds
+1..256 on the shipped native profile and real content all stop at preflight: `MISSING_HUMVEE_COLLISION_METRIC`.
+`WorldMetricsClass::Resolve_Extents` asks the asset manager for the definition's raw model path, where `PhysClass` strips
+it first. The in-game start fails the same way, so no smoke test was possible.
+
 **Next exact action:**
-1. Wait for the user's direction. Named next investigation (not started): why Phase 11 detects no physical
-   roadbed-footprint conflict between roads whose centerlines do not intersect (archetype 5 seed 64).
-2. The in-game smoke: Main menu, Start Procedural Game, then `procedural_world status`. It needs an in-game
-   native-profile world that passes Phase 12; none is known (D-031).
+1. Wait for the user's direction on the production blocker: `WorldMetricsClass` model-name resolution, a shared owner
+   (D-033). Then rerun `--procedural-census 1 256` and smoke-test the first Phase-12 seed with
+   `--procedural-skirmish`.
+2. Named later investigation (not started): why Phase 11 detects no physical roadbed-footprint conflict between roads
+   whose centerlines do not intersect (fixture archetype 5 seed 64).
 3. Close I13.
 4. Start the Phase-13 Tiberium inventory.
 
-**Deferred:** tunnel realization on the native hybrid path (user, 2026-10-03). No Phase-12 tunnel owner or adapter
-exists. To be planned as its own item.
+**Removed (D-032, user 2026-10-05):** tunnels on the native hybrid path, which replaces the 2026-10-03 deferral.
+Authored/legacy `TunnelSystem` and the legacy generator's `TunnelPlanner` stay.
 
 **I14 finding (2026-10-03), recorded for Phase 13.** Nothing spawns Tiberium crystals today:
 - `TiberiumFieldGenerator` emits position records only (`TiberiumCrystalPlacement`) and stamps the Tiberium mask;

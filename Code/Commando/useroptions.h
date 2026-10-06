@@ -36,6 +36,7 @@
 #include "boolean.h"
 #include "regstring.h"
 #include "bandwidth.h"
+#include "wwstring.h"
 
 
 //-----------------------------------------------------------------------------
@@ -55,6 +56,19 @@ class cUserOptions
 		static void Print_Command_Line_Help(bool error);
 
 		static void Set_GameDir(const char *gamedir);
+
+		/*
+		**	D-033 developer launches, after the game's own startup instead of the intro movies:
+		**	--procedural-census FIRST COUNT [PROFILE]: the production census (ProceduralWorldToolsService::Run_Seed_Census)
+		**	   over requested seeds FIRST.., printed to stdout, stopping at the first whose world passes Phase 12; then exit.
+		**	--procedural-skirmish SEED [PROFILE]: the main menu's Procedural Skirmish with that requested seed.
+		**	PROFILE defaults to the native profile path.  Neither is a player feature.
+		*/
+		static unsigned int	ProceduralCensusFirst;
+		static int				ProceduralCensusCount;
+		static unsigned int	ProceduralSkirmishSeed;
+		static StringClass	ProceduralProfilePath;
+		static StringClass	ProceduralLogPath;		// --procedural-log PATH: where both write (default stdout)
 
 		static void Set_Server_INI_File(const char *ini_file);
 
