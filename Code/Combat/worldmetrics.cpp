@@ -320,7 +320,10 @@ bool WorldMetricsClass::Resolve_Extents(PhysDefClass * def,WorldMetricsStruct * 
 		return false;
 	}
 
-	RenderObjClass * model = assets->Create_Render_Obj(model_name.Peek_Buffer());
+	//	The render object the definition's model names, exactly as PhysClass::Init creates it: a definition's model
+	//	is a filename ("vehicles\\gdi humvee\\v_gdi_humvee.w3d"), and the asset manager knows it by its base name.
+	const StringClass key = PhysDefClass::Render_Obj_Name(model_name.Peek_Buffer());
+	RenderObjClass * model = assets->Create_Render_Obj(key.Peek_Buffer());
 	if (model == nullptr) {
 		return false;
 	}

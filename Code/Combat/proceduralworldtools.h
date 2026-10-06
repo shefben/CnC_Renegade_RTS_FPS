@@ -204,6 +204,10 @@ class ProceduralWorldToolsService
 		static unsigned int	Run_Seed_Census(unsigned int first_seed,int count,const char * profile_path,bool stop_at_phase12,
 														 FILE * out);
 
+		//	D-034: the reference vehicles' metrics the profile's preflight would gather from the loaded content, one line
+		//	each (definition, model string, render object asked for, measured extents), and the preflight verdict.
+		static bool			Print_Vehicle_Metrics(FILE * out,const char * profile_path);
+
 		//	One line naming the generated world a requested seed produced: requested and effective seed and identity.
 		//	`out` null writes to the world log (Set_World_Log; stdout until set).
 		static void			Print_World_Identity(FILE * out,const char * prefix);

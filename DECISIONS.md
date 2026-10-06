@@ -554,6 +554,80 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-034 - WorldMetricsClass resolves a definition's model as PhysClass does; the next production blocker is an empty bridge registry (2026-10-05)
+
+**Direction (user, 2026-10-05).** Fix `WorldMetricsClass::Resolve_Extents`'s model-name resolution at its owner, with
+the engine's own canonical model-name semantics: no preflight bypass, no Humvee special case, no hard-coded
+dimensions, no change to the metric contract. Then probe every production vehicle metric, rerun real-content
+preflight and the production census, and smoke-test the first Phase-12 world. Stop at any further seed-independent
+blocker.
+
+### The engine's model-name path
+
+`PhysClass::Init` (wwphys/phys.cpp) creates every physics object's model:
+- **A name containing a '.'** is a filename. It goes through `create_render_obj_from_filename`, which keeps what
+  follows the last backslash and removes the last four characters (`.w3d`). So
+  `vehicles\gdi humvee\v_gdi_humvee.w3d` becomes `v_gdi_humvee`.
+- **Any other name** is passed to the asset manager as it is.
+- **The lookup.** `WW3DAssetManager::Create_Render_Obj` then looks the name up in its prototype table
+  (`Find_Prototype`, `stricmp`, so case-insensitive). It never strips paths itself: load-on-demand loads the file named
+  by the stem, then looks up the original string again.
+- **What is not handled.** Only the backslash is a separator; the engine treats no other slash or alias.
+- **Combat's helper differs.** Combat's `Get_Render_Obj_Name_From_Filename` always strips four characters, even from a
+  name without an extension, so it is not the physics path's rule.
+
+### The defect and the fix
+
+- **Defect.** `WorldMetricsClass::Resolve_Extents` passed `def->Get_Model_Name()` verbatim to `Create_Render_Obj`.
+  Every shipped definition stores a filename, so every lookup returned null. No `WORLDBOX` was ever read in the game:
+  every metric fell back to the default envelope, and preflight refused the Humvee.
+- **Fix.** The physics path's own rule is now one public helper, `PhysDefClass::Render_Obj_Name(model_name)`.
+  `create_render_obj_from_filename`, and so `PhysClass::Init`, uses it unchanged. `Resolve_Extents` asks the asset
+  manager for `Render_Obj_Name(def->Get_Model_Name())`.
+- **What it does not add.** No search, fallback, basename guessing or other slash handling. A name without a '.' is
+  returned unchanged, so canonical names resolve exactly as before. A missing model still returns no extents.
+- **Consumers.** The metrics cache is keyed by definition id, so keys are unchanged. Navigation, vehicles, placement and
+  preflight now receive each definition's real `WORLDBOX` instead of the default envelope; that is the correction itself.
+- **Diagnostics.** Preflight's vehicle metric inputs carry the definition tried, its model string and the render object
+  asked for (diagnostics only: neither hashed nor compared). A failed vehicle metric names all three.
+
+### Production probe (`renegade --gamedir C:\Westwood\Renegade_full --procedural-census`, real always.dat)
+
+Every census start now prints the four reference metrics and the bridge registry:
+
+| Role | Definition | Model string | Render object | Length x width x height |
+| --- | --- | --- | --- | --- |
+| Humvee | physics 327740003 | `vehicles\gdi humvee\v_gdi_humvee.w3d` | `v_gdi_humvee` | 4.722971 x 2.555953 x 1.548488 |
+| Heavy reference | tracked aggregate, 47 measured, 0 without a WORLDBOX; widest physics 1963 | `vehicles\gdi mammoth tank\v_gdi_mammth.w3d` | `v_gdi_mammth` | 10.500445 x 6.801906 x 3.064066 |
+| GDI Harvester | gdi_refinery's CnC_GDI_Harvester, physics 327800032 | `vehicles\gdi harvester\v_gdi_hrvstr.w3d` | `v_gdi_hrvstr` | 7.428105 x 4.514225 x 2.754598 |
+| Nod Harvester | nod_refinery's CnC_Nod_Harvester, physics 327800033 | `vehicles\nod harvester\v_nod_hrvstr.w3d` | `v_nod_hrvstr` | 7.399116 x 4.514225 x 2.754598 |
+
+The Humvee matches `VehicleCollisionMetrics.md`'s offline WORLDBOX measurement exactly. The heavy and Harvester widths
+match the values the fixtures carried. None of those values is an input to the resolver.
+
+### The next production blocker: the bridge registry is empty
+
+With every vehicle metric resolved, preflight fails at `NO_HEAVY_CAPABLE_BRIDGE (HIGHWAY_4 needs clear width 15.783)`.
+The probe shows `bridges registered 0`.
+- **Cause.** `BridgeSystem::Init` defines the default bridge kinds: timber 4, concrete 8, steel truss 16 wide. In the game
+  process it is called only by the `bridge_test` console command; nothing on the game's startup or level-load path calls
+  it.
+- **Scope.** Seed-independent: the census over requested seeds 1..16 failed 16 of 16 identically.
+- **In game.** The real in-game start (`--procedural-skirmish 1`) fails the same way. A Procedural Skirmish therefore
+  opens on an empty native level with no terrain. The failure is only logged in `Post_Load_Level`; recorded in
+  `gameplay-gaps.md`.
+- **Not fixed (this decision's stop rule).** Which owner registers the bridge kinds at startup, and with what content (the
+  three defaults, or authored kinds), is the next decision.
+
+**Tests.** `Check_World_Metrics_Model_Key` (`-terrainselfcheck hybridpreflight`): a probe
+prototype with a WORLDBOX of 4.5 x 2.5 x 1.5 measures identically from a definition path, the render-object name, the
+bare filename and an upper-case path; a missing model stays unmeasured; `Render_Obj_Name` leaves a canonical name
+unchanged. With the old verbatim lookup restored, three of the four forms fail. Full suite on the exact committed tree:
+237/237 (122 client, 115 FDS).
+
+The census therefore stopped at 16 seeds, with 0 attempts entering Phase 2, and nothing reached Phases 9-12. No
+smoke test was possible.
+
 ## D-033 - Hybrid rewrite: a production census in the real game; the first production blocker is preflight (2026-10-05)
 
 **Direction (user, 2026-10-05).** The 1,400-world census is a fixture harness (1200 m worlds, fixture constants, one

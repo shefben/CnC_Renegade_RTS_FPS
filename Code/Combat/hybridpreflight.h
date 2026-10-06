@@ -112,6 +112,15 @@ struct HybridVehicleMetricInput
 	float				Height;
 	int				DefinitionID;				// provenance: the physics definition measured
 
+	/*
+	**	Diagnostics only (D-034), never hashed or compared: the definition measured or tried, its model string as the
+	**	definition stores it, and the render object that names (PhysDefClass::Render_Obj_Name), which is what the
+	**	asset manager was asked for.  A failed metric names all three.
+	*/
+	StringClass		Source;
+	StringClass		ModelName;
+	StringClass		ModelKey;
+
 	bool operator == (const HybridVehicleMetricInput & that) const
 	{
 		return (Measured == that.Measured) && (Length == that.Length) && (Width == that.Width) &&

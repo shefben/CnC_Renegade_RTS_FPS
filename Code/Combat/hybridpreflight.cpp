@@ -186,6 +186,19 @@ static bool Model_Base_Name_Is(const StringClass & model_name,const char * wante
 }
 
 
+//	D-034's diagnostics: which definition, its model string, and the render object that names.
+static void Note_Vehicle_Source(HybridVehicleMetricInput * out,const char * source,PhysDefClass * phys_def)
+{
+	out->Source = (source != NULL) ? source : "";
+	out->ModelName = "";
+	out->ModelKey = "";
+	if (phys_def != NULL) {
+		out->ModelName = phys_def->Get_Model_Name();
+		out->ModelKey = PhysDefClass::Render_Obj_Name(phys_def->Get_Model_Name().Peek_Buffer());
+	}
+}
+
+
 static void Set_Vehicle_Metric(HybridVehicleMetricInput * out,const WorldCollisionBoxStruct & box)
 {
 	*out = HybridVehicleMetricInput();
@@ -225,6 +238,9 @@ static void Gather_Team_Harvester(const DynamicVectorClass<StringClass> & names,
 		WorldCollisionBoxStruct box;
 		WorldMetricsClass::Get_Collision_Box(harvester->Get_Phys_Def_ID(),&box);
 		Set_Vehicle_Metric(out,box);
+		StringClass source;
+		source.Format("%s's harvester %s",names[i].Peek_Buffer(),harvester->Get_Name());
+		Note_Vehicle_Source(out,source.Peek_Buffer(),(PhysDefClass *)DefinitionMgrClass::Find_Definition(harvester->Get_Phys_Def_ID(),false));
 		return;
 	}
 }
@@ -241,6 +257,7 @@ void HybridPreflightInputs::Gather_From_Runtime(const ProceduralWorldProfile & p
 	** resolved.  A Humvee known only by its render bounds is no answer.
 	*/
 	Humvee = HybridVehicleMetricInput();
+	PhysDefClass * humvee_tried = NULL;
 	for (DefinitionClass * def = DefinitionMgrClass::Get_First(CLASSID_PHYSICS,DefinitionMgrClass::ID_SUPERCLASS);
 		  def != NULL;
 		  def = DefinitionMgrClass::Get_Next(def,CLASSID_PHYSICS,DefinitionMgrClass::ID_SUPERCLASS))
@@ -249,6 +266,7 @@ void HybridPreflightInputs::Gather_From_Runtime(const ProceduralWorldProfile & p
 		if (!Model_Base_Name_Is(phys_def->Get_Model_Name(),HUMVEE_MODEL_NAME)) {
 			continue;
 		}
+		if ((humvee_tried == NULL) || (def->Get_ID() < humvee_tried->Get_ID())) humvee_tried = phys_def;
 		if (Humvee.Measured && (int)def->Get_ID() >= Humvee.DefinitionID) {
 			continue;
 		}
@@ -256,6 +274,15 @@ void HybridPreflightInputs::Gather_From_Runtime(const ProceduralWorldProfile & p
 		if (WorldMetricsClass::Get_Collision_Box((int)def->Get_ID(),&box)) {
 			Set_Vehicle_Metric(&Humvee,box);
 		}
+	}
+	{
+		//	The measured definition, or (none measured) the lowest-id one tried.
+		PhysDefClass * named = Humvee.Measured ? (PhysDefClass *)DefinitionMgrClass::Find_Definition((uint32)Humvee.DefinitionID,false)
+															: humvee_tried;
+		StringClass source;
+		if (named != NULL) source.Format("physics definition %u",named->Get_ID());
+		else source = "no physics definition names the model";
+		Note_Vehicle_Source(&Humvee,source.Peek_Buffer(),named);
 	}
 
 	/*
@@ -265,6 +292,13 @@ void HybridPreflightInputs::Gather_From_Runtime(const ProceduralWorldProfile & p
 	WorldCollisionBoxStruct heavy_box;
 	WorldMetricsClass::Get_Class_Collision_Box(LOCOMOTION_TRACKED,&heavy_box);
 	Set_Vehicle_Metric(&HeavyVehicle,heavy_box);
+	{
+		StringClass source;
+		source.Format("tracked aggregate (%d measured, %d without a WORLDBOX); widest from physics definition %d",heavy_box.MeasuredCount,
+						  heavy_box.UnmeasuredCount,HeavyVehicle.DefinitionID);
+		Note_Vehicle_Source(&HeavyVehicle,source.Peek_Buffer(),
+								  HeavyVehicle.Measured ? (PhysDefClass *)DefinitionMgrClass::Find_Definition((uint32)HeavyVehicle.DefinitionID,false) : NULL);
+	}
 	if (heavy_box.UnmeasuredCount > 0) {
 		WWDEBUG_SAY(("Hybrid preflight: %d tracked definition(s) have no WORLDBOX and are left out of the heavy envelope\n",heavy_box.UnmeasuredCount));
 	}
@@ -433,16 +467,23 @@ bool Hybrid_Run_Preflight(const ProceduralWorldProfile & profile,const HybridPre
 	if (!(inputs.WorldUnitsPerMeter > 0.0f)) {
 		return Fail(result,HYBRID_PREFLIGHT_MISSING_WORLD_UNITS_PER_METER,"world units per meter");
 	}
+	//	A failed metric names what was tried (D-034): the definition, its model string and the render object asked for.
+	StringClass why;
 	if (!Vehicle_Metric_Usable(inputs.Humvee)) {
-		return Fail(result,HYBRID_PREFLIGHT_MISSING_HUMVEE_COLLISION_METRIC,HUMVEE_MODEL_NAME);
+		why.Format("%s: %s, model '%s' as render object '%s'",HUMVEE_MODEL_NAME,inputs.Humvee.Source.Peek_Buffer(),
+					  inputs.Humvee.ModelName.Peek_Buffer(),inputs.Humvee.ModelKey.Peek_Buffer());
+		return Fail(result,HYBRID_PREFLIGHT_MISSING_HUMVEE_COLLISION_METRIC,why.Peek_Buffer());
 	}
 	if (!Vehicle_Metric_Usable(inputs.HeavyVehicle)) {
-		return Fail(result,HYBRID_PREFLIGHT_MISSING_HEAVY_VEHICLE_COLLISION_METRIC,"tracked");
+		why.Format("tracked: %s",inputs.HeavyVehicle.Source.Peek_Buffer());
+		return Fail(result,HYBRID_PREFLIGHT_MISSING_HEAVY_VEHICLE_COLLISION_METRIC,why.Peek_Buffer());
 	}
 	static const char * const HARVESTER_TEAM_NAMES[2] = { "GDI refinery harvester", "Nod refinery harvester" };
 	for (int team = 0; team < 2; ++team) {
 		if (!Vehicle_Metric_Usable(inputs.Harvesters[team])) {
-			return Fail(result,HYBRID_PREFLIGHT_MISSING_HARVESTER_COLLISION_METRIC,HARVESTER_TEAM_NAMES[team]);
+			why.Format("%s: %s, model '%s' as render object '%s'",HARVESTER_TEAM_NAMES[team],inputs.Harvesters[team].Source.Peek_Buffer(),
+						  inputs.Harvesters[team].ModelName.Peek_Buffer(),inputs.Harvesters[team].ModelKey.Peek_Buffer());
+			return Fail(result,HYBRID_PREFLIGHT_MISSING_HARVESTER_COLLISION_METRIC,why.Peek_Buffer());
 		}
 	}
 

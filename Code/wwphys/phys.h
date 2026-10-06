@@ -808,6 +808,16 @@ public:
 	const StringClass &			Get_Model_Name()					{ return ModelName; }
 	bool								Get_Is_Pre_Lit()					{ return IsPreLit; }
 
+	/*
+	**	The render object a physics definition's model names, as PhysClass::Init asks WW3DAssetManager for it: a
+	**	filename -- any name with a '.' in it, "vehicles\gdi humvee\v_gdi_humvee.w3d" -- names the render object
+	**	by its base name after the last backslash, its 4-character extension removed ("v_gdi_humvee"); any other name
+	**	already is one,
+	**	returned unchanged -- so a render-object name passes straight through.  The asset manager matches names
+	**	case-insensitively, and nothing here changes case or slashes: only the backslash is a directory separator to it.
+	*/
+	static StringClass			Render_Obj_Name(const char * model_name);
+
 	//	Editable interface requirements
 	DECLARE_EDITABLE(PhysDefClass,DefinitionClass);
 

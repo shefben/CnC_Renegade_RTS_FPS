@@ -68,11 +68,7 @@ const float SUN_CHECK_DISTANCE = 50.0f;	//If a ray this long doesn't intersect, 
 */
 RenderObjClass * create_render_obj_from_filename( const char * filename )
 {
-	StringClass	render_obj_name(filename,true);
-	if ( ::strchr( filename, '\\' ) != 0 ) {
-		render_obj_name = ::strrchr( filename, '\\' ) + 1;
-	}
-	render_obj_name.Erase( render_obj_name.Get_Length() - 4, 4 );
+	const StringClass render_obj_name = PhysDefClass::Render_Obj_Name( filename );
 
 	RenderObjClass *model = WW3DAssetManager::Get_Instance()->Create_Render_Obj( render_obj_name );
 	if ( model == nullptr ) {
@@ -745,6 +741,20 @@ enum
 	PHYSDEF_VARIABLE_ISPRELIT,
 
 };
+
+
+StringClass PhysDefClass::Render_Obj_Name(const char * model_name)
+{
+	if ((model_name == nullptr) || (::strchr( model_name, '.' ) == nullptr)) {
+		return StringClass( (model_name != nullptr) ? model_name : "", true );
+	}
+	StringClass	render_obj_name(model_name,true);
+	if ( ::strchr( model_name, '\\' ) != 0 ) {
+		render_obj_name = ::strrchr( model_name, '\\' ) + 1;
+	}
+	render_obj_name.Erase( render_obj_name.Get_Length() - 4, 4 );
+	return render_obj_name;
+}
 
 
 PhysDefClass::PhysDefClass(void) :

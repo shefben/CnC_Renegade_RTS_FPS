@@ -479,9 +479,15 @@ D-033 adds the production census in the real client (`--procedural-census`, `--p
 `WorldMetricsClass::Resolve_Extents` asks the asset manager for the definition's raw model path, where `PhysClass` strips
 it first. The in-game start fails the same way, so no smoke test was possible.
 
+D-034 (2026-10-05) fixes `WorldMetricsClass`'s model-name resolution: it now uses the physics path's
+`PhysDefClass::Render_Obj_Name`. All four reference vehicle metrics resolve from real content. Preflight now stops at
+`NO_HEAVY_CAPABLE_BRIDGE`: the game process registers no bridge kinds, because `BridgeSystem::Init` runs only from the
+`bridge_test` console command. Census 1..16: 16 of 16 fail identically, and so does the in-game start, so no smoke test
+was possible.
+
 **Next exact action:**
-1. Wait for the user's direction on the production blocker: `WorldMetricsClass` model-name resolution, a shared owner
-   (D-033). Then rerun `--procedural-census 1 256` and smoke-test the first Phase-12 seed with
+1. Wait for the user's direction on the bridge registry: which owner registers bridge kinds at game startup, and which
+   kinds (D-034). Then rerun `--procedural-census 1 256` and smoke-test the first Phase-12 seed with
    `--procedural-skirmish`.
 2. Named later investigation (not started): why Phase 11 detects no physical roadbed-footprint conflict between roads
    whose centerlines do not intersect (fixture archetype 5 seed 64).

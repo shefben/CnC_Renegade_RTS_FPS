@@ -1162,6 +1162,7 @@ bool Game_Init(void)
 		CombatManager::Load_Game_Definitions ();
 		AssetDependencyManager::Load_Always_Assets ();
 		ProceduralWorldManager::Set_Progress_Log (procedural_log);
+		ProceduralWorldToolsService::Print_Vehicle_Metrics (procedural_log,procedural_profile);
 		ProceduralWorldToolsService::Run_Seed_Census (cUserOptions::ProceduralCensusFirst,cUserOptions::ProceduralCensusCount,
 																	 procedural_profile,true,procedural_log);
 		ProceduralWorldManager::Set_Progress_Log (nullptr);

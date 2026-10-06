@@ -41,6 +41,8 @@
 #include "playertype.h"
 #include "rawfile.h"
 #include "hybridplanrecords.h"
+#include "hybridpreflight.h"
+#include "proceduralworldprofile.h"
 
 #include <cstdio>
 
@@ -582,6 +584,50 @@ static void Print_Attempt(FILE * out,const char * prefix,unsigned int requested,
 				  a.TopologyChecksum,a.RoutesChecksum,a.InteractionsChecksum,a.RealizationChecksum,a.Reproduction.Peek_Buffer ());
 	if (!a.Completed) ::fprintf (out," | %s",a.Error.Peek_Buffer ());
 	::fprintf (out,"\n");
+}
+
+
+static void Print_Vehicle(FILE * out,const char * role,const HybridVehicleMetricInput & v)
+{
+	::fprintf (out,"METRIC %-18s %s | %s | model '%s' -> render object '%s' | ",role,v.Measured ? "resolved  " : "UNRESOLVED",
+				  v.Source.Peek_Buffer (),v.ModelName.Peek_Buffer (),v.ModelKey.Peek_Buffer ());
+	if (v.Measured) {
+		::fprintf (out,"length %.6f width %.6f height %.6f (definition %d)\n",v.Length,v.Width,v.Height,v.DefinitionID);
+	} else {
+		::fprintf (out,"no extents\n");
+	}
+}
+
+
+bool ProceduralWorldToolsService::Print_Vehicle_Metrics(FILE * out,const char * profile_path)
+{
+	ProceduralWorldProfile profile;
+	StringClass error;
+	if (!ProceduralWorldProfileManager::Load_Profile_From_File (profile_path,&profile,&error)) {
+		::fprintf (out,"METRIC profile %s refused: %s\n",profile_path,error.Peek_Buffer ());
+		return false;
+	}
+	HybridPreflightInputs inputs;
+	inputs.Gather_From_Runtime (profile);
+	Print_Vehicle (out,"humvee",inputs.Humvee);
+	Print_Vehicle (out,"heavy_reference",inputs.HeavyVehicle);
+	Print_Vehicle (out,"harvester_gdi",inputs.Harvesters[0]);
+	Print_Vehicle (out,"harvester_nod",inputs.Harvesters[1]);
+	::fprintf (out,"METRIC bridges registered %d",inputs.Bridges.Count ());
+	for (int b = 0; b < inputs.Bridges.Count (); b++) {
+		::fprintf (out,"%s %s (width %.3f)",(b == 0) ? ":" : ",",inputs.Bridges[b].Name.Peek_Buffer (),inputs.Bridges[b].Width);
+	}
+	::fprintf (out,"\n");
+	HybridPreflightResult result;
+	const bool passed = Hybrid_Run_Preflight (profile,inputs,&result);
+	::fprintf (out,"METRIC preflight %s%s%s%s\n",passed ? "passed" : Hybrid_Preflight_Failure_Name (result.Failure),passed ? "" : " (",
+				  passed ? "" : result.Detail.Peek_Buffer (),passed ? "" : ")");
+	if (passed) {
+		::fprintf (out,"METRIC content revision %08X planning input hash %08X\n",result.Metrics.ContentRevision,
+					  result.Metrics.PlanningInputHash);
+	}
+	::fflush (out);
+	return passed;
 }
 
 

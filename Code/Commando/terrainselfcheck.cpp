@@ -45,6 +45,11 @@
 #include "navmeshgenerator.h"
 #include "Pathfind.h"
 #include "worldmetrics.h"
+#include "assetmgr.h"
+#include "proto.h"
+#include "trackedvehicle.h"
+#include "definitionmgr.h"
+#include "sphere.h"
 #include "playertype.h"
 #include "coltype.h"
 #include "macroterraingenerator.h"
@@ -1690,6 +1695,132 @@ static void Check_Bridge_Deck_Ends (void)
 			  "the bound conform; widest accepted overrun %.7f / %.7f / %.7f / %.7f / %.7f by length\r\n", bridges, end_failures, legacy_misses,
 			  interior_worst, joint_holes, stepped, strict_failures, widest_overrun[0], widest_overrun[1], widest_overrun[2],
 			  widest_overrun[3], widest_overrun[4]);
+}
+
+
+/*
+**	D-034's probe model: a prototype whose render object carries a WORLDBOX sub-object of known extents, the way the
+**	shipped vehicle models do, served by an asset manager with nothing loaded from disk.
+*/
+static const char * const METRIC_PROBE_NAME = "ow_metric_probe";
+
+class MetricProbeBoxClass : public RenderObjClass
+{
+	public:
+		virtual RenderObjClass *	Clone (void) const override						{ return NEW_REF (MetricProbeBoxClass, ()); }
+		virtual void					Render (RenderInfoClass &) override			{ }
+		virtual int						Class_ID (void) const override					{ return CLASSID_UNKNOWN; }
+		virtual const char *			Get_Name (void) const override					{ return "WORLDBOX"; }
+		virtual void					Get_Obj_Space_Bounding_Sphere (SphereClass & sphere) const override
+		{
+			sphere.Init (Vector3 (0.25f, 0.0f, 0.75f), 3.0f);
+		}
+		virtual void					Get_Obj_Space_Bounding_Box (AABoxClass & box) const override
+		{
+			box.Init (Vector3 (0.25f, 0.0f, 0.75f), Vector3 (2.25f, 1.25f, 0.75f));
+		}
+};
+
+class MetricProbeModelClass : public RenderObjClass
+{
+	public:
+		MetricProbeModelClass (void) : Box (NEW_REF (MetricProbeBoxClass, ())) { }
+		virtual ~MetricProbeModelClass (void)												{ REF_PTR_RELEASE (Box); }
+		virtual RenderObjClass *	Clone (void) const override						{ return NEW_REF (MetricProbeModelClass, ()); }
+		virtual void					Render (RenderInfoClass &) override			{ }
+		virtual int						Class_ID (void) const override					{ return CLASSID_UNKNOWN; }
+		virtual const char *			Get_Name (void) const override					{ return METRIC_PROBE_NAME; }
+		virtual int						Get_Num_Sub_Objects (void) const override		{ return 1; }
+		virtual RenderObjClass *	Get_Sub_Object (int index) const override
+		{
+			if (index != 0) return nullptr;
+			Box->Add_Ref ();
+			return Box;
+		}
+		virtual void					Get_Obj_Space_Bounding_Sphere (SphereClass & sphere) const override
+		{
+			sphere.Init (Vector3 (0.0f, 0.0f, 0.0f), 9.0f);
+		}
+		virtual void					Get_Obj_Space_Bounding_Box (AABoxClass & box) const override
+		{
+			box.Init (Vector3 (0.0f, 0.0f, 0.0f), Vector3 (6.0f, 6.0f, 6.0f));
+		}
+	private:
+		RenderObjClass *	Box;
+};
+
+class MetricProbePrototypeClass : public PrototypeClass
+{
+	public:
+		virtual const char *			Get_Name (void) const override			{ return METRIC_PROBE_NAME; }
+		virtual int						Get_Class_ID (void) const override		{ return RenderObjClass::CLASSID_UNKNOWN; }
+		virtual RenderObjClass *	Create (void) override						{ return NEW_REF (MetricProbeModelClass, ()); }
+};
+
+//	A tracked vehicle definition naming any model string, as a definition loaded from always.dat would.
+class MetricProbeDefClass : public TrackedVehicleDefClass
+{
+	public:
+		void	Name_Model (const char * model)	{ ModelName = model; }
+};
+
+
+/*
+**	D-034: WorldMetricsClass resolves a definition's model the way PhysClass::Init does (PhysDefClass::Render_Obj_Name).
+**	- raw_definition_path: "vehicles\ow test\ow_metric_probe.w3d", the shape always.dat stores, measures the probe's
+**	  WORLDBOX; the asset manager itself does not know that string (the defect: it was asked for it verbatim);
+**	- canonical_name: "ow_metric_probe" measures the same box, unchanged;
+**	- equivalent_forms: "ow_metric_probe.w3d" and an upper-case path, both of which the engine resolves, measure the same
+**	  box (backslash is the engine's only separator and the asset manager compares case-insensitively);
+**	- missing_model: a path to a model nobody registered stays unmeasured, with no dimensions;
+**	- Render_Obj_Name returns an already-canonical name unchanged.
+*/
+static void Check_World_Metrics_Model_Key (void)
+{
+	WW3DAssetManager assets;
+	assets.Add_Prototype (new MetricProbePrototypeClass);
+	WorldMetricsClass::Reset ();
+
+	struct { const char * Model; bool Resolves; } forms[5] = {
+		{ "vehicles\\ow test\\ow_metric_probe.w3d", true },
+		{ "ow_metric_probe", true },
+		{ "ow_metric_probe.w3d", true },
+		{ "VEHICLES\\OW TEST\\OW_METRIC_PROBE.W3D", true },
+		{ "vehicles\\ow test\\ow_no_such_probe.w3d", false },
+	};
+	MetricProbeDefClass defs[5];
+	for (int f = 0; f < 5; f++) {
+		defs[f].Name_Model (forms[f].Model);
+		defs[f].Set_ID (0x7EED0000u + (unsigned int)f);
+		DefinitionMgrClass::Register_Definition (&defs[f]);
+	}
+
+	RenderObjClass * verbatim = assets.Create_Render_Obj (forms[0].Model);
+	Check (verbatim == nullptr, "the asset manager resolved a definition's raw model path verbatim -- the probe does not model the defect");
+	REF_PTR_RELEASE (verbatim);
+
+	for (int f = 0; f < 5; f++) {
+		WorldCollisionBoxStruct box;
+		const bool measured = WorldMetricsClass::Get_Collision_Box ((int)defs[f].Get_ID (), &box);
+		if (forms[f].Resolves) {
+			Check (measured && (box.MeasuredCount == 1) && Near (box.Length, 4.5f) && Near (box.Width, 2.5f) && Near (box.Height, 1.5f),
+					 "model '%s' (render object '%s') measured %d: %.3f x %.3f x %.3f, not the probe's WORLDBOX 4.5 x 2.5 x 1.5",
+					 forms[f].Model, PhysDefClass::Render_Obj_Name (forms[f].Model).Peek_Buffer (), measured ? 1 : 0, box.Length,
+					 box.Width, box.Height);
+		} else {
+			Check (!measured && (box.MeasuredCount == 0) && (box.UnmeasuredCount == 1) && (box.Length == 0.0f) && (box.Width == 0.0f),
+					 "a model nobody registered ('%s') was measured %.3f x %.3f", forms[f].Model, box.Length, box.Width);
+		}
+	}
+	Check (::strcmp (PhysDefClass::Render_Obj_Name (forms[0].Model).Peek_Buffer (), METRIC_PROBE_NAME) == 0 &&
+			 ::strcmp (PhysDefClass::Render_Obj_Name (METRIC_PROBE_NAME).Peek_Buffer (), METRIC_PROBE_NAME) == 0 &&
+			 ::strcmp (PhysDefClass::Render_Obj_Name (PhysDefClass::Render_Obj_Name (forms[0].Model)).Peek_Buffer (), METRIC_PROBE_NAME) == 0,
+			 "Render_Obj_Name does not reduce a definition path to its render object, or changes a canonical name");
+	printf ("  D-034 a definition's model path, its render-object name, the bare filename and an upper-case path all measure "
+			  "the probe's WORLDBOX 4.5 x 2.5 x 1.5; a missing model stays unmeasured\r\n");
+
+	for (int f = 0; f < 5; f++) DefinitionMgrClass::Unregister_Definition (&defs[f]);
+	WorldMetricsClass::Reset ();
 }
 
 
@@ -24433,6 +24564,7 @@ int	TerrainSelfCheck::Run (const char *which)
 	}
 	if ((which == nullptr) || (::strcmp (which, "hybridpreflight") == 0)) {
 		Check_Hybrid_Preflight ();
+		Check_World_Metrics_Model_Key ();
 	}
 	if ((which == nullptr) || (::strcmp (which, "mapplan") == 0)) {
 		Check_Map_Plan ();

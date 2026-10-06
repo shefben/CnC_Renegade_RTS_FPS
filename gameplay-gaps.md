@@ -175,3 +175,16 @@ console command bypasses the claim system entirely (unlike the real `B`-key path
 wired through the normal per-frame input table exactly like every other rebindable function —
 this is no longer "no dedicated input." Not confirmed this pass: whether it is actually listed in
 the controls/config remapping screen. One file to check, not a design question.
+
+## Procedural Skirmish
+
+### A Procedural Skirmish opens on an empty world with no terrain
+Start Procedural Game loads the native map (`ow_procedural.mix`, which has no level file under it) and generates the
+whole world in `CombatManager::Post_Load_Level`. When generation is refused, the failure is only logged and the level
+carries on, so the player stands in an empty scene with no land, roads or bases, and no message saying why.
+
+Today every native request is refused at the content preflight, before any terrain exists. It stopped at the Humvee
+metric until D-034, and now stops at `NO_HEAVY_CAPABLE_BRIDGE`: the game process registers no bridge definitions (D-034).
+
+Needs: generation to succeed (D-034's blocker), and a failed generation to return to the menu with its reason instead of
+loading the empty native level.
