@@ -554,6 +554,86 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-035 - The game registers its bridge kinds at startup and loads every building descriptor; the native profile then passes preflight and no seed passes Phase 5 (2026-10-06)
+
+**Direction (user, 2026-10-06: "continue").** D-034 stopped at the empty bridge registry and asked which owner registers
+bridge kinds at startup. The user's reply was to continue from the last session, so this record takes the smallest
+canonical answer and states it for review: the existing defaults, registered by the existing owner's own `Init`.
+D-033's stop rule is unchanged: find a requested seed that passes Phase 12 on the production profile and content, and
+stop without changing generator rules if the bounded search finds none.
+
+### Bridge kinds are registered by `WWPhys::Init`
+
+- **Owner.** `BridgeSystem` lives in wwphys, and `WWPhys::Init` already defines that library's default registries at
+  startup (`SurfaceRibbonSystem::Define_Default_Ribbons`, `WorldSurfaceMarkManager::Define_Default_Marks`). It now
+  calls `BridgeSystem::Init` too, which defines `Define_Default_Bridges`' three kinds: `ow_bridge_timber` 4,
+  `ow_bridge_concrete` 8 and `ow_bridge_steel_truss` 16 wide. `WWPhys::Shutdown` calls `BridgeSystem::Shutdown`.
+- **Content.** These are the three kinds the self checks and `bridge_test` already use. No kind is authored, and no width
+  or span is changed. A map may still retune a kind by name (`Define_Bridge` replaces by name).
+- **Teardown order.** `ProceduralWorldManager::Shutdown` clears placed bridges before `WWPhys::Shutdown` runs, so
+  `BridgeSystem::Shutdown` finds no geometry left to remove.
+- **Reach.** The client, the dedicated server and LevelEdit all call `WWPhys::Init`. The `bridge_test` console command's
+  own `BridgeSystem::Init` now re-defines the same three kinds and is otherwise unchanged.
+
+### Every building descriptor loads: the project presets are registered first
+
+With bridges registered, preflight stopped at `MISSING_STARTING_BUILDING_FOOTPRINT (gdi_construction_yard)` for every
+seed.
+- **Cause.** `CombatManager::Load_Game_Definitions` loaded `data/building_descriptors` before
+  `ProjectBuildingDefs::Register` added the project-owned presets. A descriptor validates only when its
+  `game_object_preset` resolves to a loaded definition, so the six descriptors naming an `ow_` preset were refused and
+  never loaded: both Construction Yards, both Tiberium Silos and both Advanced Communications Centers. The probe showed
+  16 of 22 loaded, last error `game_object_preset does not resolve to any loaded definition`.
+- **Scope.** This path is the game's own. Every level load had no Construction Yard, Silo or Advanced Comm Center
+  descriptor, not only the census.
+- **Fix.** `ProjectBuildingDefs::Register` now runs before the directory load. It already re-registers every level load
+  and skips a name already present, so nothing else changes. Now 22 of 22 load and all twelve starting buildings resolve.
+  The Construction Yards' radius is 44.749 and the Airstrip's 78.054.
+
+### Diagnostics
+
+The census start now prints the descriptor count and last load error, then one `METRIC building` line per starting
+building: its team, whether it resolved, whether its descriptor is loaded, and its radius and height.
+
+**Finding (not fixed; no consumer).** Every building height reads 0. `Get_Building_Footprint` asks the asset manager for
+the descriptor's `model_name` verbatim (`mgcon_ext.w3d`). That is D-034's defect in a second place, and the building
+models live in `data/building_models/`, not `always.dat`. Neither preflight nor its hashes, nor the generator, reads a
+building height; navigation and settlement placement discard it. It is left for the item that first needs a building
+height.
+
+### Production census, requested seeds 1..256 (`--procedural-census 1 256`, native.json, real content)
+
+- **Preflight passes** for every seed. Content revision `442E9F6A`, planning input hash `D0705A53`.
+- **Result.** 768 attempts over 258 distinct effective seeds. **None reaches Phase 6**, so none reaches Phase 12 and no
+  smoke test is possible. The stop rule applies, and no generator rule was changed.
+- **In game.** `--procedural-skirmish 1` prints the same three attempts as the census, now past preflight: identity
+  checksums `B1D45BE8`, `F9C44201` and `5A33DABB`, each stopping at the same Phase-5 ridge.
+
+Where each distinct effective seed stops:
+
+| Stage | Failure | Seeds |
+| --- | --- | --- |
+| Phase 5 | ridge `candidates_exhausted`, last refused by `BASE_PROTECTED` | 120 |
+| Phase 2 | `NO_AVAILABLE_BIOME_PAIR` (no primary biome has an available legal secondary) | 32 |
+| Phase 5 | ridge `candidates_exhausted`, same-type overlap | 24 |
+| Phase 3 | `NO_LEGAL_BASE_POSITION` (GDI 18, Nod 11) | 29 |
+| Phase 5 | hill `candidates_exhausted` (`BASE_PROTECTED` 11, same-type overlap 3) | 14 |
+| Phase 5 | cliff `candidates_exhausted` (Tiberium reserve 10, reserve disc 4, `BASE_PROTECTED` 8, heavy corridor dry width 1) | 23 |
+| Phase 3 | `NO_LEGAL_RESOURCE_POSITION` (REMOTE_TIBERIUM) | 10 |
+| Phase 4 | `BASE_ON_HARD_INTENT` (a `BASE_PROTECTED` cell carries water intent) | 6 |
+
+Phase 5 stops 181 of 258 seeds. The ridge failures are spread over every archetype and always fall on ridge stable
+ids 10 to 12, after all 32 alternate candidates (`retry.max_alternate_candidates_per_feature`). This is the first time
+the shipped 2400 m native profile has run past preflight; the 1200 m fixture census never exercised it.
+
+**Next.** Which Phase-5 input the native profile violates is a generator-rule question, outside this decision's stop
+rule. The candidates are the ridge count and dimensions for the native size class, the `BASE_PROTECTED` extent, and the
+alternate-candidate bound. It needs the user's direction.
+
+**Tests.** `terrain_bridges`, `terrain_native_bridges`, `terrain_bridgeplan`, `terrain_bridgerequired`,
+`terrain_bridgefallback`, `terrain_hybridpreflight`, `shader_buildingjson` and their `fds_` twins pass; full suite 237/237 (client and FDS). No self check
+can reach the ordering fix, because the harness loads no definition database; the census probe is the production check.
+
 ## D-034 - WorldMetricsClass resolves a definition's model as PhysClass does; the next production blocker is an empty bridge registry (2026-10-05)
 
 **Direction (user, 2026-10-05).** Fix `WorldMetricsClass::Resolve_Extents`'s model-name resolution at its owner, with

@@ -43,6 +43,7 @@
 #include "hybridplanrecords.h"
 #include "hybridpreflight.h"
 #include "proceduralworldprofile.h"
+#include "buildingdescriptormanager.h"
 
 #include <cstdio>
 
@@ -618,6 +619,15 @@ bool ProceduralWorldToolsService::Print_Vehicle_Metrics(FILE * out,const char * 
 		::fprintf (out,"%s %s (width %.3f)",(b == 0) ? ":" : ",",inputs.Bridges[b].Name.Peek_Buffer (),inputs.Bridges[b].Width);
 	}
 	::fprintf (out,"\n");
+	::fprintf (out,"METRIC building descriptors loaded %d, last load error '%s'\n",BuildingDescriptorManager::Get_Descriptor_Count (),
+				  BuildingDescriptorManager::Get_Last_Error ());
+	for (int i = 0; i < inputs.Buildings.Count (); i++) {
+		const HybridBuildingFootprintInput & building = inputs.Buildings[i];
+		::fprintf (out,"METRIC building %-34s %s %-8s | descriptor %s | radius %.3f height %.3f\n",building.Name.Peek_Buffer (),
+					  (building.Team == 0) ? "GDI" : "Nod",building.Found ? "resolved" : "MISSING",
+					  BuildingDescriptorManager::Is_Loaded (building.Name.Peek_Buffer ()) ? "loaded" : "not loaded",
+					  building.Radius,building.Height);
+	}
 	HybridPreflightResult result;
 	const bool passed = Hybrid_Run_Preflight (profile,inputs,&result);
 	::fprintf (out,"METRIC preflight %s%s%s%s\n",passed ? "passed" : Hybrid_Preflight_Failure_Name (result.Failure),passed ? "" : " (",

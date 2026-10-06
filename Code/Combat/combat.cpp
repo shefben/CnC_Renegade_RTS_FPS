@@ -808,6 +808,11 @@ void	CombatManager::Load_Game_Definitions( void )
 	//	DefinitionMgrClass, BuildingDescriptorManager's registry is not touched by
 	//	Free_Definitions.
 	//
+	//	The project presets are registered before the directory is loaded, not after: a
+	//	descriptor's game_object_preset must resolve to a loaded definition to validate, so a
+	//	descriptor naming an ow_ preset loaded ahead of it is refused and never loads at all.
+	//
+	ProjectBuildingDefs::Register ();
 	{
 		static bool descriptors_loaded = false;
 		if (!descriptors_loaded) {
@@ -816,7 +821,6 @@ void	CombatManager::Load_Game_Definitions( void )
 			BuildingDescriptorManager::Load_Directory ("data/building_descriptors",nullptr,nullptr);
 		}
 	}
-	ProjectBuildingDefs::Register ();
 	BuildingDescriptorManager::Resolve_Game_Object_Presets (nullptr);
 }
 

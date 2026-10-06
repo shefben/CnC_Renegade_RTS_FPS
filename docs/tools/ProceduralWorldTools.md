@@ -99,8 +99,9 @@ generation attempt `Generate_World` makes, it prints one line from the manager's
 
 Before the first seed, the census prints the reference-vehicle metrics preflight would gather from the loaded content
 (`Print_Vehicle_Metrics`, D-034). For each of the Humvee, the heavy reference and both Harvesters it prints the
-definition, its model string, the render object asked for, and the extents. It then prints the registered bridge kinds
-and the preflight verdict.
+definition, its model string, the render object asked for, and the extents. It then prints the registered bridge kinds,
+the loaded building-descriptor count with the last descriptor load error, one line per starting building (resolved,
+descriptor loaded, radius, height; D-035) and the preflight verdict.
 
 It then prints which effective seed the requested seed's loaded world is (the first attempt that completed with its
 required routes, else the last that completed) and the per-stage counts. It stops at the first requested seed whose

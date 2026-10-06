@@ -485,10 +485,16 @@ D-034 (2026-10-05) fixes `WorldMetricsClass`'s model-name resolution: it now use
 `bridge_test` console command. Census 1..16: 16 of 16 fail identically, and so does the in-game start, so no smoke test
 was possible.
 
+D-035 (2026-10-06) has `WWPhys::Init` register the three default bridge kinds. It also registers the project building
+presets before the descriptor directory loads, so all 22 descriptors load; before, the six naming an `ow_` preset were
+refused, the Construction Yards among them. Preflight now passes on real content. Census 1..256 (768 attempts, 258
+distinct effective seeds): none gets past Phase 5. Ridge `candidates_exhausted` refused by `BASE_PROTECTED` accounts for
+120 seeds; D-035 has the full table. No smoke test was possible. The stop rule applied, and no generator rule was changed.
+
 **Next exact action:**
-1. Wait for the user's direction on the bridge registry: which owner registers bridge kinds at game startup, and which
-   kinds (D-034). Then rerun `--procedural-census 1 256` and smoke-test the first Phase-12 seed with
-   `--procedural-skirmish`.
+1. Wait for the user's direction on the native profile's Phase-5 failure (D-035): which input is wrong for the 2400 m
+   native size class (ridge count/dimensions, `BASE_PROTECTED` extent, or the alternate-candidate bound). Then rerun
+   `--procedural-census 1 256` and smoke-test the first Phase-12 seed with `--procedural-skirmish`.
 2. Named later investigation (not started): why Phase 11 detects no physical roadbed-footprint conflict between roads
    whose centerlines do not intersect (fixture archetype 5 seed 64).
 3. Close I13.

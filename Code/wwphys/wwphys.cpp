@@ -44,6 +44,7 @@
 #include "worldlightmanager.h"
 #include "worldshroudmanager.h"
 #include "worldshadowmanager.h"
+#include "bridgesystem.h"
 
 
 void WWPhys::Init(void)
@@ -73,10 +74,16 @@ void WWPhys::Init(void)
 	//	Per-team strategic memory, fed only by registered sensor sources -- never by a camera --
 	//	roadmap Section 30.
 	WorldShroudManager::Init();
+
+	//	The bridge kinds a road may cross a gap on -- roadmap Section 20.  They are definitions, not
+	//	bridges, so they cost nothing until a map lays one; defining them here rather than on the first
+	//	bridge means every consumer, the generator's preflight among them, sees the same registry.
+	BridgeSystem::Init();
 }
 
 void WWPhys::Shutdown(void)
 {
+	BridgeSystem::Shutdown();
 	WorldShroudManager::Shutdown();
 	WorldLightManager::Shutdown();
 	WorldShadowManager::Shutdown();
