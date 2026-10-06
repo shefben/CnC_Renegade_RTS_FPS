@@ -13,9 +13,9 @@ Gated by `renegade -terrainselfcheck hybridrealization`. On that path Phase 12 i
 roads, bridge and overpass decks, junction surfaces and road cut/fill. The legacy strategic plan, road graph, bridge
 and tunnel plans and base selection do not run there.
 
-**Tunnels are deferred** (user, 2026-10-03). `Hybrid_Native_Tunnels_Available` forces `tunnel_available = false` in
-Phases 6, 9 and 11, so Phase 11 skips the optional tunnel fallback and a road takes the plan's own
-fallback/reroute/fail sequence. No tunnel is realized or adapted. Authored/legacy `TunnelSystem` is unchanged.
+**No tunnels** (D-032, user 2026-10-05). The native hybrid generator generates none: Phases 6, 9 and 11 have no
+tunnel method, and a road takes the plan's remaining fallback/reroute/fail sequence. Nothing is realized or adapted.
+Authored/legacy `TunnelSystem`, and the legacy (fit-to-level) generator's `TunnelPlanner`, are unchanged.
 
 ## Section 12.1 -- the vertical profile
 
@@ -71,7 +71,7 @@ The plan holds every physical road in routing order (`Hybrid_Route_Priority_Rank
 - any other edge on its own.
 
 Each road is realized by `Hybrid_Realized_Physical_Road` and graded once by Section 12.1 over its whole length:
-- Its compiled structures (bridges, tunnels, overpass decks) hold their own surfaces.
+- Its compiled structures (bridges, overpass decks) hold their own surfaces.
 - Every junction surface it shares holds it, as a level `2Q` patch:
   - an interchange local junction holds every road through `L_s` at its compiled `z_L`;
   - a ramp's gore holds the ramp at the highway's compiled surface there;

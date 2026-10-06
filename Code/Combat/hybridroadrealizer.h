@@ -33,8 +33,8 @@
  * cut/fill.  It drives WorldTerrainSystem, RoadSystem and BridgeSystem from the frozen Phase-12     *
  * plan (Hybrid_Plan_Realization) exactly once per attempt, keeps the reverse-order cleanup list,    *
  * verifies the runtime objects against the plan, and publishes read-only migration adapters into   *
- * the legacy planners the downstream systems still read.  Tunnels are deferred: the native hybrid   *
- * path plans with no tunnels (Hybrid_Native_Tunnels_Available) and realizes none.                  *
+ * the legacy planners the downstream systems still read.  The native hybrid generator builds no     *
+ * tunnels (D-032): none is planned, compiled or realized.                                          *
  *                                                                                               *
  *---------------------------------------------------------------------------------------------*/
 

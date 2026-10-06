@@ -102,7 +102,7 @@ void	Hybrid_Interchange_Footprint(const HybridConstants & k,const HybridIntercha
 /*
 **	One structural interval inside a route: the frozen straight centerline that carries the road across an
 **	accepted crossing window.  Phase 10 decides only that the interval is straight, where it starts and
-**	where it ends; whether it becomes a bridge, an overpass, a bore or a cut is the interaction phase's
+**	where it ends; whether it becomes a bridge, an overpass or a cut is the interaction phase's
 **	choice, so nothing here names a method.
 */
 struct HybridRouteStructuralSpan

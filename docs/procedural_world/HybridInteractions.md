@@ -1,7 +1,7 @@
 # Hybrid Phase 11 -- the interaction solver
 
 Runtime Phase 11 decides what each crossing Phase 10 left unresolved actually is. It realizes nothing: no
-`RoadSystem`, `BridgeSystem` or `TunnelSystem` object is created and no terrain is touched. The output is
+`RoadSystem` or `BridgeSystem` object is created and no terrain is touched. The output is
 one compiled solution record per conflict, which is the whole of what Phase 12 may know about a crossing.
 
 Owner: `Code/wwphys/hybridinteractions.{h,cpp}`, reached through
@@ -27,9 +27,12 @@ never moves an obligation to a different obstruction.
 | conflict | order |
 | --- | --- |
 | road x river | bridge, ford, one more Phase-10 envelope, fail |
-| road x canyon/ravine | bridge, surface pass, tunnel, envelope, fail |
-| road x cliff/ridge | road cut, ramp pass, tunnel, envelope, fail |
+| road x canyon/ravine | bridge, surface pass, envelope, fail |
+| road x cliff/ridge | road cut, ramp pass, envelope, fail |
 | road x road | at-grade junction, overpass, reroute the lower-priority road, fail |
+
+The native generator builds no tunnels (D-032, user 2026-10-05): the plan's tunnel fallback is not in either
+order, and a road that no remaining method serves takes the next envelope, then fails.
 
 A mandatory canyon or ravine **bridge** obligation skips both of its fallbacks: it compiles as a bridge or
 the attempt fails. A reserved `OVERPASS_OBLIGATION` always compiles as an overpass and never downgrades to
@@ -62,13 +65,13 @@ A topology node that two or more realized roads carry -- as an end or as a waypo
 topology made, apart from a heavy family's own consecutive trunk edges, which are one road. Phase 11 compiles one
 at-grade junction record for it (`HybridInteraction::NodeId`) and does not rediscover it as an incidental
 crossing. Its conditions are the ones the shared surface has to meet on every road arm there: outside every
-compiled bridge or tunnel approach reserve, gradeable to each arm inside cut/fill and the road's own grade, and
+compiled bridge approach reserve, gradeable to each arm inside cut/fill and the road's own grade, and
 the larger of the roads' cross-slope limits. The crossing-angle and both-sides arm rules are for two roads that
 *cross*; a fork leaves its node on one heading by design, and a road that ends there has one side. A refused
 topology junction asks the lowest-priority road there for its next envelope, then fails. The same two roads
 crossing again beyond the junction's reach is an ordinary incidental crossing.
 
-"Outside every bridge/tunnel approach reserve" is outside the straight road the structure owns: the segment from
+"Outside every bridge approach reserve" is outside the straight road the structure owns: the segment from
 its `ApproachA` to its `ApproachB` at that road's own roadbed width (`Inside_Approach_Reserve`). The test it
 replaces used the reserve's *length* as a radius around the whole straight, and refused junctions well beyond a
 bridge's approach.
@@ -151,7 +154,7 @@ allowance.
 
 The deck is straight, so the upper road must run straight under all of it. The ramps run along the upper road's centerline beyond the deck and may
 follow its curves. The upper road is then graded whole, as for a bridge: its realized centerline with every
-bridge and tunnel of pass one and every overpass already on it, and this deck held level at its top --
+bridge of pass one and every overpass already on it, and this deck held level at its top --
 grading the ramps alone left their feet free and accepted decks the road beyond could not climb to.
 
 ### The overpass count (Q-024)
@@ -253,7 +256,7 @@ rediscovers these as road-road intersections, and never withdraws the interchang
   - its `DIAMOND_ACCESS` crossing compiled;
   - no incidental solution between its own elements and its own highway.
 
-  In addition, no bridge, tunnel or overpass reserve may intersect an active gore reserve. The stage-11 checksum
+  In addition, no bridge or overpass reserve may intersect an active gore reserve. The stage-11 checksum
   includes `JunctionZ` and the merge/diverge records.
 
 ## Vertical constraints (D-029)

@@ -977,7 +977,7 @@ static HybridProfileStructure Level_Patch(float total,float station,float z,floa
 /*
 **	D-027: each compiled STRUCTURAL_PIN_LANDING on this road -- one whose pin its realized centerline passes through, or
 **	whose junction it is attached to -- held level at the pin's elevation for exactly the landing's length away from the
-**	pin on each ground side.  A deck or bore beside the pin keeps its own surface: a landing is never laid over a
+**	pin on each ground side.  A deck beside the pin keeps its own surface: a landing is never laid over a
 **	structure, so at a deck end it is the ground road outside the deck.
 **
 **	D-029: a road attached to a compiled junction carries its record, and the junction's landing, wherever its centerline
@@ -1399,7 +1399,7 @@ static bool Build_Plan(const HybridRealizationParams & params,const HybridTopolo
 		set.Base			= out->Constraints.Count();
 
 		if (compile) {
-			//	Its own compiled decks and bores.
+			//	Its own compiled decks.
 			DynamicVectorClass<HybridProfileStructure> structures;
 			DynamicVectorClass<unsigned int> owners;
 			if (!Hybrid_Road_Profile_Structures(interactions,road,&structures,&edges,&owners)) {
@@ -1568,7 +1568,7 @@ static bool Build_Plan(const HybridRealizationParams & params,const HybridTopolo
 			one.Position	= samples[i].Position;
 			one.Station		= samples[i].Station;
 			one.Z				= solved.Z[i];
-			//	Strictly inside a deck or bore: its two ends are the abutments and portals, which stand on the road's own ground.
+			//	Strictly inside a deck: its two ends are the abutments, which stand on the road's own ground.
 			for (int s = 0; (s < set.Structures.Count()) && !one.Structure; ++s) {
 				if (set.Records[s].Kind != HYBRID_VCON_STRUCTURE) continue;
 				one.Structure = (one.Station > (set.Structures[s].From + k.Q)) && (one.Station < (set.Structures[s].To - k.Q));
@@ -2073,7 +2073,7 @@ static void Deform_Roads(const HybridRealizationPlan & plan,const HybridConstant
 				const bool roadbed = (distance <= (edge + cell_reach));
 
 				/*
-				**	4: under a deck or in a bore, nothing -- but its two abutment seats, one and a half grid cells inside each
+				**	4: under a deck, nothing -- but its two abutment seats, one and a half grid cells inside each
 				**	end, are graded with the road, so the ground the road's last point stands on is the deck's own end and
 				**	not a sample of the bank under it.  A segment touching a structure sample lies wholly inside the
 				**	structure: its samples are strictly interior and its ends are the road's own.

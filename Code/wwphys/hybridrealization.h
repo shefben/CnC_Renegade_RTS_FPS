@@ -45,7 +45,7 @@
  * Phase 12's plan lives here too: every road in routing order, graded once with its structures and  *
  * junction surfaces and carrying its actual paved edges, the terrain deformation over a height grid,  *
  * and every compiled bridge as its BridgeAssembly.  The runtime owners (WorldTerrainSystem,          *
- * RoadSystem, BridgeSystem, TunnelSystem) are driven from that plan by the procedural world manager. *
+ * RoadSystem, BridgeSystem) are driven from that plan by the procedural world manager.              *
  *                                                                                               *
  *---------------------------------------------------------------------------------------------*/
 
@@ -104,11 +104,11 @@ struct HybridProfileSample
 	Vector2	Position;
 	float		Station;			// along-road arc length from the interval start
 	float		TerrainZ;		// Phase-7 / current terrain height before deformation
-	bool		Fixed;			// a compiled deck, portal or junction elevation pins this sample
+	bool		Fixed;			// a compiled deck or junction elevation pins this sample
 	float		FixedZ;
 
 	/*
-	**	A sample on a structure that carries its own surface -- a canyon deck, a tunnel bore -- is not on the
+	**	A sample on a structure that carries its own surface -- a canyon or ravine deck -- is not on the
 	**	ground, so no cut or fill interval applies there; only the grade does.  Its `TerrainZ` is then the line
 	**	the structure keeps to rather than the ground under it, so the clamp walk holds the deck on the line
 	**	between its two ends instead of pulling it down toward a canyon floor.
@@ -176,7 +176,7 @@ bool	Hybrid_Sample_Route_Interval(const HybridRoute & route,int first_point,int 
 /*
 **	The same sampler over any station-ordered polyline and any station range on it: the exact position at
 **	`from_station`, every whole multiple of `spacing` after it, and the exact position at `to_station`.  A
-**	compiled crossing's structure ends -- a bridge abutment, a tunnel portal -- fall between polyline points,
+**	compiled crossing's structure ends -- a bridge abutment, an overpass deck end -- fall between polyline points,
 **	and the road has to be sampled up to exactly there.  Sample stations are measured from `from_station`.
 */
 bool	Hybrid_Sample_Polyline_Range(const DynamicVectorClass<Vector2> & points,
@@ -192,7 +192,7 @@ Vector2	Hybrid_Polyline_Point_At(const DynamicVectorClass<Vector2> & points,
 /*
 **	A structure on a road, as Section 12.1 sees it: where it starts and stops along the road, and how it holds
 **	the profile there.  A LEVEL structure -- a river deck, an overpass deck -- holds every sample on it at one
-**	elevation.  A CARRIED one -- a canyon or ravine deck, a tunnel bore -- spans between the road's own
+**	elevation.  A CARRIED one -- a canyon or ravine deck -- spans between the road's own
 **	elevations at its two ends and holds its interior to the grade alone on the line between them; its ends are
 **	pinned once a compiled record has fixed them, and solved with the road while they have not.
 */
@@ -250,7 +250,7 @@ bool	Hybrid_Solve_Road_Stretch(const DynamicVectorClass<Vector2> & points,const 
 **	Section 12.2 / 12.2a -- the realization plan: every road Phase 12 builds, in routing order, graded once by
 **	Section 12.1 and carrying the cross section the terrain is deformed to; and every compiled bridge or overpass
 **	deck as the assembly Phase 12 builds it from.  Pure computation over the frozen Phase-9..11 records: the
-**	runtime owners (WorldTerrainSystem, RoadSystem, BridgeSystem, TunnelSystem) are driven from it, never the
+**	runtime owners (WorldTerrainSystem, RoadSystem, BridgeSystem) are driven from it, never the
 **	other way round.
 ***********************************************************************************************/
 
@@ -270,7 +270,7 @@ struct HybridRealizedSample
 	float		Right;			// ...and right of it
 	float		CarriageLeft;	// the paved carriageway's edge, left and right: the roadbed less its shoulder
 	float		CarriageRight;
-	bool		Structure;		// strictly inside a compiled deck or bore (its ends are on the road): not the road's ground
+	bool		Structure;		// strictly inside a compiled deck (its ends are on the road): not the road's ground
 };
 
 
@@ -496,7 +496,7 @@ struct HybridRealizationResult
 **	D-029: the canonical vertical constraints, compiled once.  The roads are solved in routing order (trunks, group 1b,
 **	the rest; Hybrid_Route_Priority_Rank then StableId), each graded whole once by Section 12.1 with every fixed height
 **	on it together:
-**	- its compiled decks and bores, and its D-027 landings;
+**	- its compiled decks, and its D-027 landings;
 **	- at every compiled at-grade or topology junction it shares with a road solved before it, that earlier road's own
 **	  solved surface over the junction's footprint (D-028);
 **	- an interchange local junction at z_L, a ramp's gore at the highway's solved surface, an overpass's lower road at
@@ -529,7 +529,7 @@ unsigned int	Hybrid_Realization_Checksum(const HybridRealizationPlan & plan,unsi
 **	in x), road by road in plan order:
 **	1-2. the roadbed and shoulder, out to the sample's actual paved edges either side, at the solved height;
 **	3. a smoothstep from the paved edge to the terrain over exactly `outer_blend = max(W, A/2)`;
-**	4. nothing under a deck or inside a bore, and no water;
+**	4. nothing under a deck, and no water;
 **	5. never an earlier road's roadbed or shoulder -- the earlier road owns that surface, a junction's shared patch
 **	   included, so a later road's blend (a ramp's at its gore) never modifies it.  Q-028: inside a compiled junction's
 **	   raster support (Hybrid_Junction_Raster_Support) the earlier road's band beyond its paved edge is the junction's,
@@ -552,7 +552,7 @@ struct HybridDeformationStats
 	int	Changed;			// vertex writes
 	int	Protected;		// left alone: an earlier road's roadbed
 	int	Water;
-	int	Structure;		// under a deck or in a bore
+	int	Structure;		// under a deck
 	int	Pins;				// structural pins realized
 	int	PinPasses;		// correction passes they took
 	float	PinResidual;	// the largest pin residual left, grid heights
@@ -660,7 +660,7 @@ bool	Hybrid_Envelope_Swept(unsigned int capabilities,int e);
 **
 **	A step with both samples fixed (a compiled hold: a deck, a landing, a junction's earlier surface), or inside a deck,
 **	keeps the class maximum: its height is a compiled constraint realized by its owner, never this road's own grade.
-**	An envelope whose grade points or triangle vertices stand over a deck or bore (`Decks`) is the deck end's, D-027's.
+**	An envelope whose grade points or triangle vertices stand over a deck (`Decks`) is the deck end's, D-027's.
 **	So is one with a vertex whose nearest foot is another pass of the same road (beyond pi * (widest half + a cell
 **	diagonal) of arc from the envelope, the farthest its own pass can put it): that height is the other pass's, never a
 **	grade of this one, and no grade budget can change it.
@@ -682,7 +682,7 @@ struct HybridGradeBudget
 	float											Right;
 	HybridRoadEdgesFunc						Edges;			// the realized paved edges at a sample (Section 12.2)
 	void *										EdgesContext;
-	DynamicVectorClass<HybridProfileStructure>	Decks;		// deck and bore spans, stations of the stretch's polyline
+	DynamicVectorClass<HybridProfileStructure>	Decks;		// deck spans, stations of the stretch's polyline
 };
 
 /*

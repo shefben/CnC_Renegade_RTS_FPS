@@ -5928,9 +5928,6 @@ static HybridHydrologyParams Hydrology_Fixture (const HybridMapIdentityParams & 
 	params.BridgeRequiredWidth	= 12.0f;
 	params.BridgeApproachLength= 30.0f;
 	params.BridgeWaterClearanceMargin = 2.0f;
-	params.TunnelsAvailable		= true;
-	params.TunnelRequiredWidth	= 9.0f;
-	params.TunnelRequiredHeight= 5.0f;
 	params.AllowFords				= false;
 	params.FordsAvailable		= false;
 	//	Native grading, so step 18's pass candidates are judged against the real allowance.
@@ -7186,7 +7183,6 @@ static HybridTopologyParams Topology_Fixture (const HybridMapIdentityParams & id
 	params.MinVehicleLaneClearance= 1.0f;
 	params.HarvesterLength			= 7.428105f;	// the measured Harvester WORLDBOX length
 	params.MaxRoutedEdges			= 32;				// R at MEDIUM
-	params.TunnelsAvailable			= true;
 
 	//	Section 12.6's step-15 inputs: native grading, the measured heavy vehicle's clear gap, and the fixture
 	//	bridge (2.0 deep, the 8W approach fallback, carrying every routed class).
@@ -8954,9 +8950,6 @@ static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArch
 															  ? metrics->BridgeRequiredWidth[crossing_class] : 0.0f;
 		hydrology_params.BridgeApproachLength	= metrics->BridgeApproachLength;
 		hydrology_params.BridgeWaterClearanceMargin = metrics->BridgeWaterClearanceMargin;
-		hydrology_params.TunnelsAvailable		= Hybrid_Native_Tunnels_Available (metrics->TunnelsAvailable);
-		hydrology_params.TunnelRequiredWidth	= metrics->TunnelRequiredWidth;
-		hydrology_params.TunnelRequiredHeight	= metrics->TunnelRequiredHeight;
 	}
 	if (!Hybrid_Build_Hydrology (hydrology_params,out->Identity,out->Intents,out->Graph,out->Landforms,
 											&out->Matrices,&out->Hydrology,&hydrology_result)) {
@@ -8988,7 +8981,6 @@ static bool Build_Hybrid_Pipeline (unsigned int seed,float world_size,HybridArch
 	}
 
 	HybridTopologyParams topology_params = Topology_Fixture (out->Sized);
-	topology_params.TunnelsAvailable = Hybrid_Native_Tunnels_Available (topology_params.TunnelsAvailable);
 	topology_params.TerrainCellSize = terrain_cell;
 	out->Reached = 8;
 	const bool topology_built = Hybrid_Build_Topology (topology_params,out->Identity,out->Graph,out->Landforms,
@@ -9059,8 +9051,6 @@ static HybridInteractionParams Interaction_Fixture (const HybridMapIdentityParam
 
 	params.AllowFords					= false;		// the native profile: no ford capability exists yet
 	params.FordCapabilityAvailable	= metrics.FordsAvailable;
-	params.TunnelsEnabled			= true;		// world_features.tunnels defaults on
-	params.TunnelAvailable			= metrics.TunnelsAvailable;
 
 	params.WorldUnitsPerMeter		= identity_params.Constants.WorldUnitsPerMeter;
 	params.HeavyVehicleWidth		= metrics.HeavyVehicleWidth;
@@ -9092,17 +9082,6 @@ static HybridInteractionParams Interaction_Fixture (const HybridMapIdentityParam
 		kind.StartSeat					= inputs.Bridges[i].StartSeat;
 		kind.EndSeat					= inputs.Bridges[i].EndSeat;
 		params.BridgeKinds.Add (kind);
-	}
-	for (int i = 0; i < inputs.TunnelModules.Count (); ++i) {
-
-		HybridTunnelModule one;
-		one.StableId			= i;
-		one.Length				= inputs.TunnelModules[i].Length;
-		one.ClearWidth			= inputs.TunnelModules[i].ClearanceWidth;
-		one.ClearHeight		= inputs.TunnelModules[i].ClearanceHeight;
-		one.MaxGradeRadians	= inputs.TunnelModules[i].MaxGradeRadians;
-		one.PortalCompatible	= inputs.TunnelModules[i].PortalCompatible;
-		params.TunnelModules.Add (one);
 	}
 	return params;
 }
@@ -10739,7 +10718,7 @@ void Check_Hybrid_Preflight (void)
 	HybridPreflightResult result;
 	Check (Hybrid_Run_Preflight (profile,input,&result),"valid preflight: %s",result.Detail.Peek_Buffer ());
 	const unsigned int baseline = result.Metrics.PlanningInputHash;
-	Check (!result.Metrics.TunnelsAvailable && !result.Metrics.DecorationAvailable && !result.Metrics.LampsAvailable,"optional missing assets do not fail preflight");
+	Check (!result.Metrics.DecorationAvailable && !result.Metrics.LampsAvailable,"optional missing assets do not fail preflight");
 	const HybridMetricCache metrics = result.Metrics;
 	Check (fabsf (metrics.Constants.H - 2.555953f) < 1.0e-5f && fabsf (metrics.Constants.W - 3.322739f) < 1.0e-5f,
 		"measured Humvee drives Section 0.5 H/W: %f %f",metrics.Constants.H,metrics.Constants.W);
@@ -10776,22 +10755,16 @@ void Check_Hybrid_Preflight (void)
 	oversize.World.Width = 0;
 	Check (!Hybrid_Run_Preflight (oversize,changed,&result) && result.Failure == HYBRID_PREFLIGHT_WORLD_SIZE_LIMIT_EXCEEDED,"developer path still rejects non-positive size");
 
-	// Tunnels: a portal-compatible module whose authored bore clears the widest and tallest vehicle.
-	ProceduralWorldProfile tunnels = profile; tunnels.Features.Tunnels = true;
-	HybridTunnelModuleInput module;
-	module.Name = "tight"; module.Length = 20; module.ClearanceWidth = 6; module.ClearanceHeight = 5; module.WallThickness = 1;
-	module.MaxTurnRadians = 0.3f; module.MaxGradeRadians = 0.1f; module.PortalCompatible = true;
-	changed = input; changed.TunnelModules.Add (module);
-	Check (Hybrid_Run_Preflight (tunnels,changed,&result) && !result.Metrics.TunnelsAvailable &&
-		result.Metrics.TunnelRequiredWidth > MAMMOTH[1] && result.Metrics.TunnelRequiredHeight == MAMMOTH[2],"narrow tunnel bore leaves tunnels unavailable");
-	module.Name = "tube"; module.ClearanceWidth = 0; module.ClearanceHeight = 0; module.PortalCompatible = false; changed.TunnelModules.Add (module);
-	Check (Hybrid_Run_Preflight (tunnels,changed,&result) && !result.Metrics.TunnelsAvailable,"tunnels need a portal-compatible module");
-	module.Name = "portal"; module.PortalCompatible = true; changed.TunnelModules.Add (module);
-	Check (Hybrid_Run_Preflight (tunnels,changed,&result) && result.Metrics.TunnelsAvailable && result.Metrics.TunnelPortalModule == 2,
-		"procedural portal module makes tunnels available");
-	ProceduralWorldProfile no_tunnels = profile; no_tunnels.Features.Tunnels = false;
-	Check (Hybrid_Run_Preflight (no_tunnels,changed,&result) && !result.Metrics.TunnelsAvailable,"tunnels feature toggle off keeps tunnels unavailable");
-	Check (result.Metrics.ContentRevision != metrics.ContentRevision,"tunnel module geometry affects content revision");
+	// D-032: the native generator builds no tunnels; the legacy world_features.tunnels field changes nothing it plans.
+	{
+		ProceduralWorldProfile tunnels_on = profile; tunnels_on.Features.Tunnels = true;
+		ProceduralWorldProfile tunnels_off = profile; tunnels_off.Features.Tunnels = false;
+		HybridPreflightResult on;
+		HybridPreflightResult off;
+		Check (Hybrid_Run_Preflight (tunnels_on,input,&on) && Hybrid_Run_Preflight (tunnels_off,input,&off) &&
+			(on.Metrics.PlanningInputHash == off.Metrics.PlanningInputHash) && (on.Metrics.ContentRevision == off.Metrics.ContentRevision),
+			"the legacy world_features.tunnels field changes the native plan's inputs");
+	}
 	changed = input; bridge.StructuralModels = "bridge_deck"; changed.Bridges[0] = bridge;
 	Check (Hybrid_Run_Preflight (profile,changed,&result) && result.Metrics.ContentRevision != metrics.ContentRevision,
 		"bridge structural models affect content revision");
@@ -10948,8 +10921,6 @@ void Check_Hybrid_Preflight (void)
 			"runtime gathering takes the scale and both fairness speeds from WorldMetricsClass");
 		Check (runtime.Bridges.Count () == BridgeSystem::Get_Definition_Count () && runtime.Bridges.Count () > 0,
 			"runtime gathering reads every registered bridge (%d of %d)",runtime.Bridges.Count (),BridgeSystem::Get_Definition_Count ());
-		Check (runtime.TunnelModules.Count () == TunnelSystem::Get_Module_Count () && runtime.TunnelModules.Count () > 0,
-			"runtime gathering reads every registered tunnel module (%d of %d)",runtime.TunnelModules.Count (),TunnelSystem::Get_Module_Count ());
 		Check (runtime.TerrainLayers.Count () == TerrainTextureSystem::Get_Layer_Count () && runtime.TerrainLayers.Count () > 0,
 			"runtime gathering reads every terrain layer (%d of %d)",runtime.TerrainLayers.Count (),TerrainTextureSystem::Get_Layer_Count ());
 		Check (runtime.Buildings.Count () == profile.Base.GdiInitialBuildings.Count () + profile.Base.NodInitialBuildings.Count (),
@@ -10998,8 +10969,6 @@ void Check_Hybrid_Preflight (void)
 		Check (runtime_result.Metrics.BridgeForClass[runtime_result.Metrics.HeavyRouteClass] >= 0 &&
 			runtime_result.Metrics.BridgeMaxSpanLength > 0.0f,
 			"a registered bridge definition carries the heavy route class");
-		Check (runtime_result.Metrics.TunnelPortalModule >= 0,
-			"a registered portal-compatible tunnel module clears the heavy envelope");
 		Check (runtime_result.Metrics.BiomeAvailable[HYBRID_BIOME_TEMPERATE] &&
 			runtime_result.Metrics.BiomeSlotLayer[HYBRID_BIOME_TEMPERATE][HYBRID_SLOT_GROUND] >= 0 &&
 			runtime_result.Metrics.BiomeSlotLayer[HYBRID_BIOME_TEMPERATE][HYBRID_SLOT_EXPOSED_ROCK] >= 0,
@@ -22195,8 +22164,6 @@ void Check_Hybrid_Interactions (void)
 
 		Check (Hybrid_Interaction_Counts_As_Bridge (HYBRID_METHOD_BRIDGE),"a bridge fills a bridge quota");
 		Check (!Hybrid_Interaction_Counts_As_Bridge (HYBRID_METHOD_FORD),"a ford never fills a bridge quota");
-		Check (!Hybrid_Interaction_Counts_As_Bridge (HYBRID_METHOD_TUNNEL),
-				 "a tunnel never fills a bridge quota");
 	}
 
 	/*
@@ -22643,7 +22610,7 @@ void Check_Hybrid_Interactions (void)
 			}
 
 			/*
-			**	The approach reserve is real on both sides, and symmetric about the station.  A bridge or tunnel
+			**	The approach reserve is real on both sides, and symmetric about the station.  A bridge
 			**	approach is straight along its crossing axis (Q-022), so the straight line to each approach end
 			**	measures it.  An overpass ramp is Section 12.3's `L_ramp` along the upper road's own centerline
 			**	beyond each end of its straight deck, and the plan does not ask the ramp itself to be straight, so
@@ -22797,33 +22764,6 @@ void Check_Hybrid_Interactions (void)
 							 "bridge %u deck bottom is %.2f over a %.2f water surface, under the %.2f margin",
 							 one.StableId,one.DeckBottomZ,surface,margin);
 				}
-			}
-
-			//	A tunnel: its module, the clear envelope, and a bore at least as long as the obstruction.
-			if (one.Method == HYBRID_METHOD_TUNNEL) {
-
-				Check ((one.TunnelModule >= 0) && (one.TunnelModule < params.TunnelModules.Count ()),
-						 "tunnel solution %u names module %d",one.StableId,one.TunnelModule);
-				if ((one.TunnelModule < 0) || (one.TunnelModule >= params.TunnelModules.Count ())) continue;
-
-				const HybridTunnelModule & module_kind = params.TunnelModules[one.TunnelModule];
-				const float swept_width = Gate_Max (preflight.Metrics.HeavyVehicleWidth,
-																 preflight.Metrics.HarvesterWidth) + 2.0f;
-				const float swept_height = Hybrid_Overpass_Clear_Gap (preflight.Metrics.HeavyVehicleHeight,
-																					 k.WorldUnitsPerMeter);
-				if (module_kind.ClearWidth > 0.0f) {
-					Check (module_kind.ClearWidth >= swept_width,"tunnel %u is narrower than the swept width",
-							 one.StableId);
-				}
-				if (module_kind.ClearHeight > 0.0f) {
-					Check (module_kind.ClearHeight >= swept_height,"tunnel %u is lower than the swept height",
-							 one.StableId);
-				}
-				Check (one.TunnelLength >= ((one.ApproachB - one.ApproachA).Length () - k.Q),
-						 "tunnel %u bores %.1f across a %.1f obstruction",one.StableId,one.TunnelLength,
-						 (one.ApproachB - one.ApproachA).Length ());
-				Check (module_kind.PortalCompatible,"tunnel %u uses a module that is not portal compatible",
-						 one.StableId);
 			}
 
 			//	A road cut stays inside the allowed cut and fill.
@@ -23123,8 +23063,6 @@ void Check_Hybrid_Interactions (void)
 						 "method selection is not stable at %d",i);
 				Check (again.Interactions[i].BridgeKind == interactions.Interactions[i].BridgeKind,
 						 "bridge kind selection is not stable at %d",i);
-				Check (again.Interactions[i].TunnelModule == interactions.Interactions[i].TunnelModule,
-						 "tunnel module selection is not stable at %d",i);
 				Check (again.Interactions[i].Station == interactions.Interactions[i].Station,
 						 "station selection is not stable at %d",i);
 			}
@@ -23137,14 +23075,14 @@ void Check_Hybrid_Interactions (void)
 
 	/*
 	**	What the walk actually exercised.  A method the shipped content cannot support is not a failure --
-	**	the plan makes fords and tunnels optional capabilities -- but the two obligations are not optional,
+	**	the plan makes fords an optional capability (and D-032 removed tunnels) -- but the two obligations are not optional,
 	**	and a bridge is the only method a quota accepts, so those have to have been seen.
 	*/
 	printf ("Phase 11 coverage: bridge %d, ford %d, surface pass %d, road cut %d, ramp pass %d, "
-					  "tunnel %d, junction %d, overpass %d; %d mandatory crossings, %d reserved overpasses\r\n",
+					  "junction %d, overpass %d; %d mandatory crossings, %d reserved overpasses\r\n",
 					  seen_method[HYBRID_METHOD_BRIDGE],seen_method[HYBRID_METHOD_FORD],
 					  seen_method[HYBRID_METHOD_SURFACE_PASS],seen_method[HYBRID_METHOD_ROAD_CUT],
-					  seen_method[HYBRID_METHOD_RAMP_PASS],seen_method[HYBRID_METHOD_TUNNEL],
+					  seen_method[HYBRID_METHOD_RAMP_PASS],
 					  seen_method[HYBRID_METHOD_AT_GRADE_JUNCTION],seen_method[HYBRID_METHOD_OVERPASS],
 					  mandatory_bridges,reserved_overpasses);
 
@@ -24026,7 +23964,6 @@ void Check_Hybrid_Interaction_Search (void)
 
 					const bool bridge_capable = window->Has_Method (HYBRID_WINDOW_METHOD_BRIDGE);
 					const bool pass_capable = window->Has_Method (HYBRID_WINDOW_METHOD_PASS);
-					const bool tunnel_capable = window->Has_Method (HYBRID_WINDOW_METHOD_TUNNEL);
 
 					//	Structurally available for *this road's* class, which is what Phase 11 will try.
 					const bool cut_capable = window->Cut_Planned_For (route.RoadClass);
@@ -24044,12 +23981,12 @@ void Check_Hybrid_Interaction_Search (void)
 					if (!interesting) continue;
 
 					printf ("SPAN archetype %d seed %u: edge %u (%s, capability 0x%x) window %u %s/%u span %.2f "
-							  "(bridge max %.2f) bridge %d pass %d cut-for-class %d cut-classes 0x%02x tunnel %d\r\n",
+							  "(bridge max %.2f) bridge %d pass %d cut-for-class %d cut-classes 0x%02x\r\n",
 							  (int)SEARCH_ARCHETYPES[ai],seed,route.EdgeId,Hybrid_Road_Class_Name (route.RoadClass),
 							  route.Capabilities,window->StableId,
 							  Hybrid_Obstruction_Kind_Name (window->Obstruction),window->ObstructionRecordId,
 							  window->Span,preflight.Metrics.BridgeMaxSpanLength,bridge_capable ? 1 : 0,
-							  pass_capable ? 1 : 0,cut_capable ? 1 : 0,window->CutClasses,tunnel_capable ? 1 : 0);
+							  pass_capable ? 1 : 0,cut_capable ? 1 : 0,window->CutClasses);
 				}
 			}
 
@@ -24168,7 +24105,6 @@ void Check_Hybrid_Interaction_Search (void)
 
 			//	Then what Phase 11 actually made of them, through the owner that owns the reroute.
 			HybridInteractionParams sp = Interaction_Fixture (scan.Sized,1200.0f,inputs,preflight.Metrics);
-			sp.TunnelAvailable = Hybrid_Native_Tunnels_Available (sp.TunnelAvailable);
 			//	D-027: every structural pin and road judged on the native terrain grid Phase 12 would deform.
 			sp.TerrainCellSize	= NATIVE_TERRAIN_CELL;
 			sp.TerrainOriginX		= Native_Terrain_Origin (1200.0f);

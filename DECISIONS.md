@@ -554,6 +554,56 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-032 - Hybrid rewrite: the native generator builds no tunnels (2026-10-05)
+
+**Decision (user, 2026-10-05).** Tunnels are removed from the native hybrid procedural-world generator: they are no
+longer an allowed generated crossing solution, fallback, quota or procedural feature. Where a tunnel was a fallback, the
+road continues to the next existing legal fallback (one more Phase-10 envelope, then failure); no new crossing method
+replaces it. Authored-map and legacy engine tunnel support is preserved. This is an explicit divergence from the audited
+plan's Sections 8 (Phase 11 method orders) and 12.5 (tunnels), recorded here rather than made silently.
+
+**Before.** Tunnels were already never generated: `Hybrid_Native_Tunnels_Available` forced `tunnel_available = false`
+in Phases 6, 9 and 11 since the 2026-10-03 deferral. The branches stayed, unreachable.
+
+**Removed from the native hybrid path:**
+- Phase 11: `HYBRID_METHOD_TUNNEL`, `Compile_Tunnel` and both its fallback calls (canyon/ravine: bridge, surface pass,
+  envelope; cliff/ridge: road cut, ramp pass, envelope), `HybridTunnelModule`, the interaction's `TunnelModule` /
+  `TunnelLength` (and their checksum contributions), the `TunnelsEnabled` / `TunnelAvailable` / `TunnelModules`
+  params, and every tunnel branch in the approach-reserve, swept-proxy, structure and gore-reserve checks.
+- Phase 6: `HYBRID_WINDOW_METHOD_TUNNEL` (bit 1 << 2 retired, the others keep their values) and the
+  `TunnelsAvailable` / `TunnelRequiredWidth` / `TunnelRequiredHeight` params.
+- Phase 9: the `TunnelsAvailable` param and the tunnel-obligation branch; Phase 2's `HYBRID_CROSSING_TUNNEL` (never
+  produced) and Section 2's `HYBRID_RESOLUTION_TUNNEL` (never set).
+- `Hybrid_Native_Tunnels_Available` itself.
+- Preflight: the tunnel-module gathering from `TunnelSystem`, `HybridTunnelModuleInput`, the metric cache's
+  `TunnelsAvailable` / `TunnelPortalModule` / `TunnelRequiredWidth` / `TunnelRequiredHeight`, their content-revision
+  and planning-hash contributions, and `world_features.tunnels` from the planning hash.
+- The manager's Phase 6/9/11 tunnel params and module copy; the manifest's canonical profile string now holds
+  `world_features.tunnels` constant on the hybrid path, as it already did for settlements.
+- `native.json`'s `world_features.tunnels`. The field still parses (the legacy fit-to-level profiles use it) and is
+  inert on the native hybrid path; a test proves it changes neither preflight hash.
+- Tests that only validated generated tunnel selection or preflight tunnel availability; the census's per-window
+  `tunnel` column.
+
+**Retained, deliberately:**
+- `TunnelSystem` (wwphys): authored and legacy map tunnels -- data, module chain, geometry, portal cuts, navigation
+  links, collision, save state, `tunnel_status`, `debug_layer tunnels`; its own `-terrainselfcheck tunnels` suite.
+- `TunnelPlanner` and `ProceduralWorldManager::Build_Tunnel_Plan`: the legacy (fit-to-level, non-hybrid) generator's
+  tunnel stage, which runs only when the native hybrid path does not (`!hybrid_roads`); the shipped default, small and
+  large_supported profiles are that generator. `SEED_DOMAIN_TUNNELS` and the manifest's `SelectedTunnelCandidateIds`
+  belong to it.
+- Three verbatim plan quotations in code comments that mention tunnels.
+
+**Generator identity** stays 16 (existing policy: no bump for in-progress rewrite changes). Checksums of every native
+interaction set change, because the dead tunnel fields left the stream and the method enum lost a member; nothing pins
+them.
+
+**Validation.** Client, FDS and leveledit build with no warnings. Full suite on the removal tree: 237/237 (122 client,
+115 FDS). Fixture census r16 (same 1,400-world corpus) is identical to r15 in every one of the 430 worlds it records
+(448 / 98 / 1 solve Phase 11; Phase 12 now 1 realized and verified, 0 failed, since D-031): no fixture world selected or
+needed a tunnel, as expected while the fallback was already forced off.
+
+
 ## D-031 - Hybrid rewrite: a bridge deck's ends conform to the ulp; the D-029 junction cut is verified (2026-10-05)
 
 **Direction (user, 2026-10-05).** Q-028 stays accepted and closed. The next fix is Phase 12's bridge deck-end

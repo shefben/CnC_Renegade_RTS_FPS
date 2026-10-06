@@ -471,7 +471,7 @@ bool HybridTopology::Has_Cycle(void) const
 
 HybridTopologyParams::HybridTopologyParams(void) :
 	RoadDensity(0.65f),FieldRadiusMax(60.0f),MinVehicleLaneClearance(1.0f),HarvesterLength(7.4f),
-	MaxRoutedEdges(32),TunnelsAvailable(false),MaxCutDepth(0.0f),MaxFillHeight(0.0f),OverpassClearGap(0.0f),TerrainCellSize(0.0f),
+	MaxRoutedEdges(32),MaxCutDepth(0.0f),MaxFillHeight(0.0f),OverpassClearGap(0.0f),TerrainCellSize(0.0f),
 	LightVehicleWidth(0.0f),HeavyVehicleWidth(0.0f),HarvesterWidth(0.0f)
 {
 	memset(&Constants,0,sizeof(Constants));
@@ -1557,8 +1557,6 @@ static bool Build_Family_Chains(TopologyBuilder & b,HybridTopologyResult * resul
 				if (!window.Has_Method(HYBRID_WINDOW_METHOD_BRIDGE)) { refused_method++; continue; }
 			} else if (obligation.RequiredMethod == HYBRID_CROSSING_PASS) {
 				if (!window.Has_Method(HYBRID_WINDOW_METHOD_PASS)) { refused_method++; continue; }
-			} else if (obligation.RequiredMethod == HYBRID_CROSSING_TUNNEL) {
-				if (!window.Has_Method(HYBRID_WINDOW_METHOD_TUNNEL)) { refused_method++; continue; }
 			}
 
 			const float distance = (window.Center - guide).Length();
@@ -2335,7 +2333,7 @@ static void Sort_By_Distance(DynamicVectorClass<PairCandidate> * pairs)
 /*
 **	A "non-base waypoint": every topology node a road may start or end at, which is everything except the
 **	logical base node, its entrances (reached only through BASE_INTERNAL) and the two structural waypoints.  A
-**	mid-edge overpass is a deck; a crossing obligation is a bridge, tunnel or pass the road through it must run
+**	mid-edge overpass is a deck; a crossing obligation is a bridge or pass the road through it must run
 **	straight across (Q-022), so a road ending there would end in the middle of a structure -- measured, four of
 **	seventeen Phase-11 road x road refusals in a 1400-world census were cross-links ending at one.
 */
@@ -3087,7 +3085,7 @@ static Vector2 Unit_Of(const Vector2 & v)
 **	candidate.  Each is framed, its arrivals sided, its form and crossing mode decided, and its gore candidates
 **	k = 0..K_GORE-1 tested in order against 12.6.8 on intent geometry, Phase-6 vectors, Phase-7 terrain and the
 **	frozen Phase-9 records; the first hard-valid one is frozen as a HIGHWAY_INTERCHANGE with its local junctions,
-**	ramps and crossing.  A ramp is never given its own bridge, tunnel, cut or pass: a candidate whose ramp, gore
+**	ramps and crossing.  A ramp is never given its own bridge, cut or pass: a candidate whose ramp, gore
 **	reserve, local junction or crossing would need one is refused here, never left for Phase 11.  Phase 9 proves
 **	the frozen pose realizable with the shared 5W ramp constructor; Phase 10 builds the routed ramp.
 ***********************************************************************************************/

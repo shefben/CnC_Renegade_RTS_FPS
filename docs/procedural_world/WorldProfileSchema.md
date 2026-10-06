@@ -85,7 +85,7 @@ the JSON example and the struct defaults can never silently drift apart).
 | `terrain.interior_cliff_density` | normalized weight, 0..1 | see note below | 0.16 | >= 0, finite | yes |
 | `terrain.valley_density` | normalized weight, 0..1 | see note below | 0.30 | >= 0, finite | yes |
 | `water.rivers`/`lakes`/`ponds`/`coastline` | bool | feature enabled | all `true` | -- | yes |
-| `world_features.forests`/`settlements`/`tunnels`/`highways`/`tiberium_fields` | bool | feature enabled | all `true` | -- | yes |
+| `world_features.forests`/`settlements`/`tunnels`/`highways`/`tiberium_fields` | bool | feature enabled (`tunnels` drives only the legacy fit-to-level generator; the native hybrid generator builds no tunnels and ignores it, D-032) | all `true` | -- | yes |
 | `retry.max_local_retries_per_stage` | count | Section 3C.1 step-1 ceiling every generator stage's local-adjustment loop is bounded by | 8 | > 0 | no (soft/behavioral, does not change chosen output given the same seed unless a stage actually exhausts it) |
 | `retry.max_alternate_candidates_per_feature` | count | Section 3C.1 step-2 ceiling | 6 | > 0 | no, same reasoning |
 | `fairness.*` | see Section 17A.1 | quantitative fairness thresholds, consumed starting Phase 15/17A | see example above | each field's own sign (nonnegative unless noted) | no (soft preference thresholds a repair pass may fail against, not generation inputs themselves) |

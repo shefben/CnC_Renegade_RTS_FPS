@@ -137,7 +137,6 @@ const char * Hybrid_Interaction_Method_Name(HybridInteractionMethod method)
 		case HYBRID_METHOD_SURFACE_PASS:		return "surface_pass";
 		case HYBRID_METHOD_ROAD_CUT:			return "road_cut";
 		case HYBRID_METHOD_RAMP_PASS:			return "ramp_pass";
-		case HYBRID_METHOD_TUNNEL:				return "tunnel";
 		case HYBRID_METHOD_AT_GRADE_JUNCTION:	return "at_grade_junction";
 		case HYBRID_METHOD_OVERPASS:			return "overpass";
 		default:										break;
@@ -313,7 +312,7 @@ int HybridInteractionSet::Count_Of_Method_On_Obstruction(HybridInteractionMethod
 HybridInteractionParams::HybridInteractionParams(void) :
 	WorldMinX(0.0f),WorldMinY(0.0f),WorldWidth(0.0f),WorldHeight(0.0f),
 	MaxCutDepth(0.0f),MaxFillHeight(0.0f),RiverWidth(0.0f),
-	AllowFords(false),FordCapabilityAvailable(false),TunnelsEnabled(false),TunnelAvailable(false),
+	AllowFords(false),FordCapabilityAvailable(false),
 	WorldUnitsPerMeter(1.0f),HeavyVehicleWidth(0.0f),HeavyVehicleHeight(0.0f),HarvesterWidth(0.0f),LightVehicleWidth(0.0f),
 	LightVehicleLength(0.0f),HeavyVehicleLength(0.0f),HarvesterLength(0.0f),
 	MinVehicleLaneClearance(0.0f),TierStep(1.0f),BridgeWaterClearanceMargin(0.0f),
@@ -525,8 +524,6 @@ unsigned int Hybrid_Interaction_Checksum(const HybridInteractionSet & set,unsign
 		stream.Add_Length(one.Span);
 		stream.Add_Length(one.ApproachReserve);
 		stream.Add_Int(one.BridgeKind);
-		stream.Add_Int(one.TunnelModule);
-		stream.Add_Length(one.TunnelLength);
 		stream.Add_Length(one.DeckBottomZ);
 		stream.Add_Length(one.DeckTopZ);
 		stream.Add_Length(one.LowerSurfaceZ);
@@ -936,7 +933,7 @@ struct InteractionBuilder
 
 
 /*
-**	Q-028: the native grid's grade budget for a road of `road_class` carrying `edges`, its decks and bores `decks`, on the
+**	Q-028: the native grid's grade budget for a road of `road_class` carrying `edges`, its decks `decks`, on the
 **	class's own paved edges (Hybrid_Apply_Grade_Budget): Phase 11's own gradings take the realization-aware grade Phase 12
 **	grades with, and the compiled plan then takes it on the road's realized edges.  Null without a grid.
 */
@@ -1415,7 +1412,7 @@ static bool Station_Is_Hard_Valid(InteractionBuilder & b,const HybridTopologyEdg
 		return false;
 	}
 
-	//	9 (12.6.10): no approach reserve -- a bridge's, a pass's, a tunnel's portals -- intersects an active gore reserve.
+	//	9 (12.6.10): no approach reserve -- a bridge's or a pass's -- intersects an active gore reserve.
 	if (Segment_Hits_Gore_Reserve(b,approach_a,approach_b,half_roadbed)) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_GORE_RESERVE;
 		return false;
@@ -1454,12 +1451,12 @@ static float Required_Swept_Width(const InteractionBuilder & b,unsigned int capa
 **	Can the roadbed itself carry that envelope?
 **
 **	The roadbed, and nothing added to it.  `swept + 2 * min_vehicle_lane_clearance` is the plan's *clear
-**	width* -- what a bridge deck or a tunnel bore must hold, or how much continuous legal floor a canyon pass
+**	width* -- what a bridge deck must hold, or how much continuous legal floor a canyon pass
 **	needs *around* the road -- and it is not the definition of a roadbed.  Requiring the roadbed to contain it
 **	made every class below `HIGHWAY_4` unable to carry any ground method at all, `PRIMARY_2` failing by 0.16
 **	world units, which is an arithmetic artifact of comparing the wrong two quantities rather than anything
 **	about the road.  The clearance margin is still required where the plan names it: see `Floor_Is_Legal` for
-**	a pass floor, Section 12.4 for a bridge deck and Section 12.5 for a tunnel bore.
+**	a pass floor and Section 12.4 for a bridge deck.
 */
 static bool Ground_Carries_Swept_Width(const InteractionBuilder & b,const HybridTopologyEdge & edge)
 {
@@ -1621,7 +1618,7 @@ static float Path_Station_Of(const HybridCrossingPath & path,const Vector2 & poi
 
 /*
 **	"Before the phase gate, run lightweight swept proxy validation over every compiled bridge/pass/
-**	tunnel/overpass interval using the cached collision envelopes."
+**	overpass interval using the cached collision envelopes" (the plan's tunnel is gone, D-032).
 **
 **	The proxy is the heavy reference vehicle's width and height swept along the compiled interval: every
 **	sample must stand on placeable ground, keep the class cross slope across the roadbed where the road is
@@ -1646,7 +1643,7 @@ static bool Sweep_Is_Clear(InteractionBuilder & b,const HybridInteraction & one,
 
 	/*
 	**	The swept line is the road the crossing is actually driven on -- its frozen path when it has one, the
-	**	straight between its two ends otherwise -- and a structure's own deck or bore carries its own surface,
+	**	straight between its two ends otherwise -- and a structure's own deck carries its own surface,
 	**	so the ground under it is not what a vehicle drives on.
 	*/
 	DynamicVectorClass<Vector2> line;
@@ -1669,12 +1666,11 @@ static bool Sweep_Is_Clear(InteractionBuilder & b,const HybridInteraction & one,
 	if (one.Method == HYBRID_METHOD_OVERPASS) {
 		structure_from	= 0.0f;
 		structure_to	= total;
-	} else if ((one.Method == HYBRID_METHOD_BRIDGE) || (one.Method == HYBRID_METHOD_TUNNEL)) {
+	} else if (one.Method == HYBRID_METHOD_BRIDGE) {
 		const Vector2 axis = Unit(one.Tangent);
 		const float half_before = one.DeckReachA;
 		const float half_after = one.DeckReachB;
-		const Vector2 middle = (one.Method == HYBRID_METHOD_BRIDGE)
-										? one.Station : ((one.ApproachA + one.ApproachB) * 0.5f);
+		const Vector2 middle = one.Station;
 		HybridCrossingPath probe;
 		probe.Points = line;
 		probe.Stations = stations;
@@ -1862,10 +1858,10 @@ static bool Realized_Range(const HybridRoute & road,const HybridCrossingPath & p
 
 
 /*
-**	A compiled crossing's structure on the realized road it belongs to: where its deck or bore starts and
-**	stops, and the surface it holds -- a river deck or an overpass deck level at its top, a canyon or ravine
-**	deck and a tunnel bore carried between the two end elevations the record froze.  False when the method
-**	builds no structure (a pass, a cut, a junction).
+**	A compiled crossing's structure on the realized road it belongs to: where its deck starts and stops, and
+**	the surface it holds -- a river deck or an overpass deck level at its top, a canyon or ravine deck carried
+**	between the two end elevations the record froze.  False when the method builds no structure (a pass, a
+**	cut, a junction).
 */
 static bool Compiled_Structure(const HybridInteraction & one,const HybridRoute & road,HybridProfileStructure * out)
 {
@@ -1882,7 +1878,7 @@ static bool Compiled_Structure(const HybridInteraction & one,const HybridRoute &
 		out->EndZ		= one.DeckTopZ;
 		return true;
 	}
-	if ((one.Method != HYBRID_METHOD_BRIDGE) && (one.Method != HYBRID_METHOD_TUNNEL)) return false;
+	if (one.Method != HYBRID_METHOD_BRIDGE) return false;
 
 	int lo = 0;
 	int hi = last;
@@ -1923,8 +1919,7 @@ bool Hybrid_Road_Profile_Structures(const HybridInteractionSet & set,const Hybri
 		if (!on_road) continue;
 		HybridProfileStructure structure;
 		if (!Compiled_Structure(one,realized,&structure)) {
-			if ((one.Method == HYBRID_METHOD_BRIDGE) || (one.Method == HYBRID_METHOD_TUNNEL) ||
-				 (one.Method == HYBRID_METHOD_OVERPASS)) return false;
+			if ((one.Method == HYBRID_METHOD_BRIDGE) || (one.Method == HYBRID_METHOD_OVERPASS)) return false;
 			continue;
 		}
 		out->Add(structure);
@@ -1941,7 +1936,7 @@ enum CrossingStructure
 {
 	CROSSING_STRUCTURE_NONE = 0,		// the road stays on the ground the whole way: a pass, a cut
 	CROSSING_STRUCTURE_LEVEL,			// a level deck at a fixed top both approaches must reach: a river bridge
-	CROSSING_STRUCTURE_CARRIED			// a deck or bore between the road's own elevations at its ends
+	CROSSING_STRUCTURE_CARRIED			// a canyon or ravine deck between the road's own elevations at its ends
 };
 
 
@@ -1957,7 +1952,7 @@ enum CrossingStructure
 **	road may not, or when Section 12.1's own solver cannot give it a profile.  That solver is the one Phase 12
 **	realizes the road with, so a crossing accepted here is one the realization can actually grade.
 **
-**	`structure_centre` / `structure_axis` and the two halves place a deck or a bore on the path -- a bridge's
+**	`structure_centre` / `structure_axis` and the two halves place a deck on the path -- a bridge's
 **	reaches past its obstruction by its own start and end abutment seats, which can differ.  A LEVEL
 **	structure holds every sample on it at `pin_z`; a CARRIED one holds its samples to the grade alone, on the
 **	line between the ground at its two ends, and its two end elevations come back in `start_z_out` and
@@ -2865,130 +2860,6 @@ static bool Compile_Road_Cut(InteractionBuilder & b,const HybridTopologyEdge & e
 
 
 /*
-**	A tunnel.  Section 12.5: never mandatory, a fallback only, and only when every one of its conditions
-**	holds.  The module sequence is the shortest sufficient one, tie broken by `StableId`; the geometry is
-**	whatever the registered modules already describe, and this phase invents none of it.
-*/
-static bool Compile_Tunnel(InteractionBuilder & b,const HybridTopologyEdge & edge,const HybridRoute & route,
-									const HybridRouteStructuralSpan & interval,const HybridCrossingWindow & window,
-									HybridInteraction * out,HybridInteractionProblem * problem_out)
-{
-	const HybridConstants & k = b.P->Constants;
-
-	if (!b.P->TunnelsEnabled || !b.P->TunnelAvailable ||
-		 !window.Has_Method(HYBRID_WINDOW_METHOD_TUNNEL)) {
-		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_METHOD_UNAVAILABLE;
-		return false;
-	}
-
-	const HybridRoadClassSpec & spec = Hybrid_Road_Class_Spec(edge.RoadClass);
-	const float max_grade = spec.MaxGradeDegrees * PI_OVER_180;
-	//	Section 12.5's bore holds this edge's own envelope plus the lane clearance either side.
-	const float swept_width = Required_Swept_Width(b,edge.Capabilities) + (2.0f * b.P->MinVehicleLaneClearance);
-	const float swept_height = Hybrid_Overpass_Clear_Gap(b.P->HeavyVehicleHeight,b.P->WorldUnitsPerMeter);
-
-	const Vector2 across = Travel_Axis(window,route.Points[interval.FirstPoint]);
-	const float reserve = Max2(STATION_HALF_LENGTH_W * k.W,window.ApproachLength);
-	Vector2 approach_a(0.0f,0.0f);
-	Vector2 approach_b(0.0f,0.0f);
-	if (!Station_Is_Hard_Valid(b,edge,route,window.Center,across,window.Span,reserve,&approach_a,
-										&approach_b,problem_out)) return false;
-	Own_Approaches(window,route.Points[interval.FirstPoint],&approach_a,&approach_b);
-
-	//	Both portals clear of water, base, Tiberium and any bridge approach reserve already compiled.
-	for (int side = 0; side < 2; ++side) {
-
-		const Vector2 & portal = (side == 0) ? approach_a : approach_b;
-		if (Hybrid_Point_In_Water(*b.Hydrology,portal)) {
-			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_RESERVE_CONFLICT;
-			return false;
-		}
-		if (Reserve_Hits_Unrelated_Reserve(b,edge,portal,portal)) {
-			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_RESERVE_CONFLICT;
-			return false;
-		}
-		for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
-			const HybridInteraction & other = b.Out->Interactions[i];
-			if (other.Method != HYBRID_METHOD_BRIDGE) continue;
-			if (Distance_To_Segment(portal,other.ApproachA,other.ApproachB,nullptr) >
-				 other.ApproachReserve) continue;
-			if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_RESERVE_CONFLICT;
-			return false;
-		}
-	}
-
-	//	The shortest sufficient module sequence, then the lower StableId.
-	const float bore = (approach_b - approach_a).Length();
-	int best = -1;
-	float best_length = 0.0f;
-	for (int i = 0; i < b.P->TunnelModules.Count(); ++i) {
-
-		const HybridTunnelModule & module_kind = b.P->TunnelModules[i];
-		if (!module_kind.PortalCompatible) continue;
-		if (!(module_kind.Length > 0.0f)) continue;
-		if ((module_kind.ClearWidth > 0.0f) && (module_kind.ClearWidth < swept_width)) continue;
-		if ((module_kind.ClearHeight > 0.0f) && (module_kind.ClearHeight < swept_height)) continue;
-		if ((module_kind.MaxGradeRadians > 0.0f) && (module_kind.MaxGradeRadians < max_grade)) continue;
-
-		const int modules = (int)::ceil((double)(bore / module_kind.Length));
-		const float total = (float)((modules > 0) ? modules : 1) * module_kind.Length;
-
-		if (best < 0) {
-			best			= i;
-			best_length	= total;
-			continue;
-		}
-		if (total < best_length) {
-			best			= i;
-			best_length	= total;
-		} else if ((total == best_length) && (module_kind.StableId < b.P->TunnelModules[best].StableId)) {
-			best = i;
-		}
-	}
-	if (best < 0) {
-		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_METHOD_UNAVAILABLE;
-		return false;
-	}
-
-	//	The road to each portal; the bore between them is the structure, and carries no ground of its own.
-	HybridCrossingPath path;
-	const Vector2 controls[2] = { approach_a,approach_b };
-	const Vector2 middle((approach_a.X + approach_b.X) * 0.5f,(approach_a.Y + approach_b.Y) * 0.5f);
-	float portal_z_a = 0.0f;
-	float portal_z_b = 0.0f;
-	if (!Judge_Crossing_Path(b,edge,route,interval,window,controls,2,middle,across,0.5f * bore,0.5f * bore,
-									 CROSSING_STRUCTURE_CARRIED,0.0f,&path,&portal_z_a,&portal_z_b,problem_out)) {
-		return false;
-	}
-
-	*out = HybridInteraction();
-	out->EdgeId					= edge.StableId;
-	out->Obstruction			= window.Obstruction;
-	out->ObstructionRecordId= window.ObstructionRecordId;
-	out->WindowId				= window.StableId;
-	out->Method					= HYBRID_METHOD_TUNNEL;
-	out->RoadClass				= edge.RoadClass;
-	out->Station				= Quantized(window.Center);
-	out->Tangent				= across;
-	out->ApproachA				= approach_a;
-	out->ApproachB				= approach_b;
-	out->Span					= window.Span;
-	out->ApproachReserve		= reserve;
-	out->TunnelModule			= best;
-	out->TunnelLength			= Hybrid_Quantize_Position(best_length);
-	out->DeckReachA			= Hybrid_Quantize_Position(0.5f * bore);
-	out->DeckReachB			= Hybrid_Quantize_Position(0.5f * bore);
-	out->Path					= path;
-	out->DeckStartZ			= Hybrid_Quantize_Position(portal_z_a);
-	out->DeckEndZ				= Hybrid_Quantize_Position(portal_z_b);
-	out->FirstPoint			= interval.FirstPoint;
-	out->LastPoint				= interval.LastPoint;
-	out->Envelope				= route.Envelope;
-	return true;
-}
-
-
-/*
 **	One road-obstruction conflict, through the fixed method order its obstruction kind decides.
 **
 **	A mandatory bridge obligation skips the canyon fallbacks entirely -- "it must compile as a bridge or the
@@ -3028,7 +2899,7 @@ static bool Solve_Obstruction(InteractionBuilder & b,const HybridTopologyEdge & 
 	/*
 	**	Each method in the order reports its own reason, and the *primary* method's reason is the one the
 	**	issue record keeps.  Letting a fallback overwrite it loses the diagnosis that matters: a canyon
-	**	crossing whose every bridge kind was too short would be recorded as "no tunnel available", which
+	**	crossing whose every bridge kind was too short would be recorded as "no pass available", which
 	**	names the last thing tried rather than the thing that failed.
 	*/
 	HybridInteractionProblem primary = HYBRID_PROBLEM_NONE;
@@ -3045,21 +2916,19 @@ static bool Solve_Obstruction(InteractionBuilder & b,const HybridTopologyEdge & 
 	} else if ((window->Obstruction == HYBRID_OBSTRUCTION_CANYON) ||
 				  (window->Obstruction == HYBRID_OBSTRUCTION_RAVINE)) {
 
-		//	Road x canyon/ravine: bridge, then a surface pass, then a tunnel, then one more envelope.
+		//	Road x canyon/ravine: bridge, then a surface pass, then one more envelope (no tunnel, D-032).
 		solved = Compile_Bridge(b,edge,route,interval,*window,mandatory,centre,&solution,&primary,&stations);
 		if (!solved && !mandatory) {
 			solved = Compile_Pass(b,edge,route,interval,*window,HYBRID_METHOD_SURFACE_PASS,&solution,
 										 &fallback);
-			if (!solved) solved = Compile_Tunnel(b,edge,route,interval,*window,&solution,&fallback);
 		}
 
 	} else {
 
-		//	Road x cliff/ridge: a road cut, then a ramp pass, then a tunnel, then one more envelope.
+		//	Road x cliff/ridge: a road cut, then a ramp pass, then one more envelope (no tunnel, D-032).
 		solved = Compile_Road_Cut(b,edge,route,interval,*window,&solution,&primary);
 		if (!solved) solved = Compile_Pass(b,edge,route,interval,*window,HYBRID_METHOD_RAMP_PASS,&solution,
 													 &fallback);
-		if (!solved) solved = Compile_Tunnel(b,edge,route,interval,*window,&solution,&fallback);
 	}
 
 	const HybridInteractionProblem problem = (primary != HYBRID_PROBLEM_NONE) ? primary : fallback;
@@ -3177,8 +3046,8 @@ static void Arm_Lengths(const HybridRoute & route,const Vector2 & point,float * 
 
 
 /*
-**	Is `point` inside a compiled bridge's or tunnel's approach reserve?  The reserve is the straight road the
-**	structure owns, from `ApproachA` to `ApproachB` through the deck or bore, at that road's own roadbed width.
+**	Is `point` inside a compiled bridge's approach reserve?  The reserve is the straight road the structure
+**	owns, from `ApproachA` to `ApproachB` through the deck, at that road's own roadbed width.
 **	The test this replaces used the reserve's *length* as a radius around the whole straight, which refused a
 **	junction 23 units beyond the end of a bridge's approach -- outside the reserve altogether.
 */
@@ -3186,7 +3055,7 @@ static bool Inside_Approach_Reserve(const InteractionBuilder & b,const Vector2 &
 {
 	for (int i = 0; i < b.Out->Interactions.Count(); ++i) {
 		const HybridInteraction & other = b.Out->Interactions[i];
-		if ((other.Method != HYBRID_METHOD_BRIDGE) && (other.Method != HYBRID_METHOD_TUNNEL)) continue;
+		if (other.Method != HYBRID_METHOD_BRIDGE) continue;
 		const float half = 0.5f * Hybrid_Roadbed_Width(other.RoadClass,b.P->Constants.W);
 		if (Distance_To_Segment(point,other.ApproachA,other.ApproachB,nullptr) <= half) return true;
 	}
@@ -3224,7 +3093,7 @@ static bool At_Grade_Is_Legal(InteractionBuilder & b,const HybridTopologyEdge & 
 		return false;
 	}
 
-	//	2: the intersection is outside every compiled bridge or tunnel approach reserve.
+	//	2: the intersection is outside every compiled bridge approach reserve.
 	if (Inside_Approach_Reserve(b,point)) {
 		if (problem_out != nullptr) *problem_out = HYBRID_PROBLEM_RESERVE_CONFLICT;
 		return false;
@@ -3709,7 +3578,7 @@ static bool Try_Overpass_Assignment(InteractionBuilder & b,const HybridTopologyE
 	/*
 	**	Section 12.1 grades the upper road whole, as Phase 12 will build it: its realized centerline with every
 	**	structure already compiled on it holding its own surface and this deck held level at its top.  Pass two
-	**	runs on realized roads, so the bridges and tunnels of pass one are on `upper_route` already; the ramps'
+	**	runs on realized roads, so the bridges of pass one are on `upper_route` already; the ramps'
 	**	smoothstep above is the plan's construction rule, and this is what decides whether the road can carry it.
 	**	Grading the ramps alone left their feet free, so a deck could be accepted that the road beyond its feet
 	**	cannot climb to.
@@ -4033,7 +3902,7 @@ static void Junction_Arms(const InteractionBuilder & b,const HybridTopologyEdge 
 **	design, and a road that ends at the node has one side.  What the shared junction surface itself must satisfy
 **	is kept, on every arm the roads have there:
 **
-**	1. the node is outside every compiled bridge or tunnel approach reserve;
+**	1. the node is outside every compiled bridge approach reserve;
 **	2. the surface is gradeable to each arm inside cut and fill and that road's grade, over the arm's own reach
 **	   (`max(4W, R)`, or the road's whole length where it is shorter);
 **	3. the surface satisfies the larger of the roads' cross-slope limits.
@@ -4674,7 +4543,7 @@ static bool Sweep_Interchanges(InteractionBuilder & b,HybridInteractionResult * 
 **	The Phase-11 gate's interchange clause (Section 8 P11): every realized interchange has one merge or diverge record
 **	per ramp, one local-junction record per L_s, its DIAMOND_ACCESS crossing compiled -- the reserved overpass, or
 **	the intended junction at X -- and no incidental solution between its own elements and its own highway; and no
-**	bridge, tunnel or overpass reserve anywhere intersects an active gore reserve.
+**	bridge or overpass reserve anywhere intersects an active gore reserve.
 */
 static bool Check_Interchanges_Gate(InteractionBuilder & b,HybridInteractionResult * result)
 {
@@ -4758,11 +4627,10 @@ static bool Check_Interchanges_Gate(InteractionBuilder & b,HybridInteractionResu
 		}
 	}
 
-	//	No bridge, tunnel or overpass reserve intersects an active gore reserve.
+	//	No bridge or overpass reserve intersects an active gore reserve.
 	for (int s = 0; s < b.Out->Interactions.Count(); ++s) {
 		const HybridInteraction & one = b.Out->Interactions[s];
-		const bool structure = Hybrid_Interaction_Counts_As_Bridge(one.Method) || (one.Method == HYBRID_METHOD_TUNNEL) ||
-									  (one.Method == HYBRID_METHOD_OVERPASS);
+		const bool structure = Hybrid_Interaction_Counts_As_Bridge(one.Method) || (one.Method == HYBRID_METHOD_OVERPASS);
 		if (!structure) continue;
 		const float radius = 0.5f * Hybrid_Roadbed_Width(one.RoadClass,k.W);
 		const bool hits = ((one.Method == HYBRID_METHOD_OVERPASS) && (one.Path.Points.Count() >= 2))
@@ -5479,7 +5347,7 @@ static bool Solve_Interactions(const HybridInteractionParams & params,const Hybr
 
 	/*
 	**	"Before the phase gate, run lightweight swept proxy validation over every compiled bridge/pass/
-	**	tunnel/overpass interval using the cached collision envelopes."
+	**	overpass interval using the cached collision envelopes."
 	*/
 	for (int i = 0; i < out->Interactions.Count(); ++i) {
 

@@ -39,7 +39,6 @@
 #include "bridgesystem.h"
 #include "bridgesection.h"
 #include "bridgeplanner.h"
-#include "tunnelsystem.h"
 #include "terraintexturesystem.h"
 #include "terrainmaterial.h"
 #include "foliagesystem.h"
@@ -317,27 +316,6 @@ void HybridPreflightInputs::Gather_From_Runtime(const ProceduralWorldProfile & p
 	BridgeWaterClearanceMargin = bridge_params.WaterClearanceMargin;
 	BridgeApproachLength = 0.0f;
 
-	/*
-	** Tunnel modules, in registry order.
-	*/
-	TunnelModules.Reset_Active();
-	for (int i = 0; i < TunnelSystem::Get_Module_Count(); ++i) {
-		const TunnelModuleDefinitionClass * def = TunnelSystem::Peek_Module(i);
-		if (def == NULL) {
-			continue;
-		}
-		HybridTunnelModuleInput module;
-		module.Name = def->Name;
-		module.Model = def->Model;
-		module.Length = def->Length;
-		module.ClearanceWidth = def->ClearanceWidth;
-		module.ClearanceHeight = def->ClearanceHeight;
-		module.WallThickness = def->WallThickness;
-		module.MaxTurnRadians = def->MaxTurnRadians;
-		module.MaxGradeRadians = def->MaxGradeRadians;
-		module.PortalCompatible = def->PortalCompatible;
-		TunnelModules.Add(module);
-	}
 	FordCapabilityAvailable = false;
 
 	/*
@@ -539,36 +517,6 @@ bool Hybrid_Run_Preflight(const ProceduralWorldProfile & profile,const HybridPre
 		return Fail(result,HYBRID_PREFLIGHT_NO_HEAVY_CAPABLE_BRIDGE,detail);
 	}
 
-	/*
-	** Tunnels carry Harvesters and, on the heavy route, the heavy vehicle (Section 12.6).  A module
-	** with authored clearance must hold the widest and tallest of them with lane clearance each
-	** side; zero clearance is a procedural tube sized per tunnel.  Tunnels are available only
-	** with a portal-compatible module that fits -- otherwise the fallback is simply off.
-	*/
-	float tunnel_width = m.HumveeWidth;
-	tunnel_width = (m.HarvesterWidth > tunnel_width) ? m.HarvesterWidth : tunnel_width;
-	tunnel_width = (m.HeavyVehicleWidth > tunnel_width) ? m.HeavyVehicleWidth : tunnel_width;
-	float tunnel_height = m.HumveeHeight;
-	tunnel_height = (m.HarvesterHeight > tunnel_height) ? m.HarvesterHeight : tunnel_height;
-	tunnel_height = (m.HeavyVehicleHeight > tunnel_height) ? m.HeavyVehicleHeight : tunnel_height;
-	m.TunnelRequiredWidth = tunnel_width + 2.0f * lane_clearance;
-	m.TunnelRequiredHeight = tunnel_height;
-	m.TunnelPortalModule = -1;
-	for (int t = 0; t < inputs.TunnelModules.Count(); ++t) {
-		const HybridTunnelModuleInput & module = inputs.TunnelModules[t];
-		const bool width_fits = (module.ClearanceWidth <= 0.0f) || (module.ClearanceWidth >= m.TunnelRequiredWidth);
-		const bool height_fits = (module.ClearanceHeight <= 0.0f) || (module.ClearanceHeight >= m.TunnelRequiredHeight);
-		if (module.PortalCompatible && width_fits && height_fits) {
-			m.TunnelPortalModule = t;
-			break;
-		}
-	}
-	m.TunnelsAvailable = profile.Features.Tunnels && (m.TunnelPortalModule >= 0);
-	if (profile.Features.Tunnels && !m.TunnelsAvailable) {
-		WWDEBUG_SAY(("Hybrid preflight: tunnels enabled but no portal-compatible module clears %.3f x %.3f; tunnels are unavailable\n",
-						  m.TunnelRequiredWidth,m.TunnelRequiredHeight));
-	}
-
 	m.FordsAvailable = profile.Plan.AllowFords && inputs.FordCapabilityAvailable;
 	if (profile.Plan.AllowFords && !inputs.FordCapabilityAvailable) {
 		return Fail(result,HYBRID_PREFLIGHT_FORD_CAPABILITY_UNAVAILABLE,"plan.allow_fords");
@@ -708,20 +656,6 @@ unsigned int Hybrid_Structural_Content_Revision(const HybridPreflightInputs & in
 	h.Add_Length(inputs.BridgeMaxSpanLength);
 	h.Add_Length(inputs.BridgeWaterClearanceMargin);
 	h.Add_Length(inputs.BridgeApproachLength);
-
-	h.Add_Int(inputs.TunnelModules.Count());
-	for (int t = 0; t < inputs.TunnelModules.Count(); ++t) {
-		const HybridTunnelModuleInput & module = inputs.TunnelModules[t];
-		h.Add_String(module.Name.Peek_Buffer());
-		h.Add_String(module.Model.Peek_Buffer());
-		h.Add_Length(module.Length);
-		h.Add_Length(module.ClearanceWidth);
-		h.Add_Length(module.ClearanceHeight);
-		h.Add_Length(module.WallThickness);
-		h.Add_Angle(module.MaxTurnRadians);
-		h.Add_Angle(module.MaxGradeRadians);
-		h.Add_Bool(module.PortalCompatible);
-	}
 	h.Add_Bool(inputs.FordCapabilityAvailable);
 
 	// Footprints only: a building's height comes from its render bounds.
@@ -832,9 +766,9 @@ unsigned int Hybrid_Planning_Input_Hash(const ProceduralWorldProfile & p,const H
 	h.Add_Bool(p.Resource.GrowthEnabled);
 	h.Add_Scalar(p.Resource.GrowthRatePerSecond);
 
-	// active world-feature toggles -- Settlements is legacy and excluded
+	// active world-feature toggles -- Settlements is legacy and excluded, and so is Tunnels: the native
+	// generator builds no tunnels (D-032), so the legacy field changes nothing it produces
 	h.Add_Bool(p.Features.Forests);
-	h.Add_Bool(p.Features.Tunnels);
 	h.Add_Bool(p.Features.Highways);
 	h.Add_Bool(p.Features.TiberiumFields);
 
@@ -886,10 +820,6 @@ unsigned int Hybrid_Planning_Input_Hash(const ProceduralWorldProfile & p,const H
 	h.Add_Int(m.HarvesterDefinitionID[1]);
 	h.Add_Scalar(m.ReferenceVehicleSpeed);
 	h.Add_Scalar(m.ReferenceInfantrySpeed);
-	h.Add_Bool(m.TunnelsAvailable);
-	h.Add_Int(m.TunnelPortalModule);
-	h.Add_Length(m.TunnelRequiredWidth);
-	h.Add_Length(m.TunnelRequiredHeight);
 	h.Add_Bool(m.FordsAvailable);
 	// Later crossing selection can choose any registered bridge, not just the first width
 	// match cached below. Registry indices are the canonical bridge StableIds.

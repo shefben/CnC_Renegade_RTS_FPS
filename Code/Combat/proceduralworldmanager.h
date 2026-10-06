@@ -335,7 +335,7 @@ class ProceduralWorldManager
 		**	cut/fill realized once through WorldTerrainSystem, RoadSystem and BridgeSystem (HybridRoadRealizer),
 		**	verified against the plan, and published through the migration adapters the downstream systems still
 		**	read.  On the native hybrid path it replaces the legacy strategic plan, road graph, bridge and tunnel
-		**	plans and base selection; tunnels are deferred and none is realized.
+		**	plans and base selection; the native generator builds no tunnels (D-032).
 		*/
 		static bool		Realize_Hybrid_Roads(const ProceduralWorldProfile & profile,StringClass * error_out);
 		//	Section 12.3 over the runtime objects: the record half and the physical half (swept envelopes, bridges, ramps).
@@ -522,7 +522,7 @@ class ProceduralWorldManager
 		static bool								HybridRealizationValid;
 
 		/*
-		**	The preflight inputs the metric cache indexes into.  Phase 11 needs the per-kind bridge and tunnel
+		**	The preflight inputs the metric cache indexes into.  Phase 11 needs the per-kind bridge
 		**	metrics themselves, not only the cache's indices into them, and re-measuring content
 		**	mid-generation is exactly what preflight exists to avoid.
 		**

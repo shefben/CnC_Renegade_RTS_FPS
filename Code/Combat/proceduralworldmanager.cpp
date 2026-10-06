@@ -723,10 +723,6 @@ bool ProceduralWorldManager::Build_Hybrid_Hydrology(const ProceduralWorldProfile
 	params.BridgeApproachLength		= HybridMetrics.BridgeApproachLength;
 	params.BridgeWaterClearanceMargin= HybridMetrics.BridgeWaterClearanceMargin;
 
-	params.TunnelsAvailable		= Hybrid_Native_Tunnels_Available (HybridMetrics.TunnelsAvailable && profile.Features.Tunnels);
-	params.TunnelRequiredWidth	= HybridMetrics.TunnelRequiredWidth;
-	params.TunnelRequiredHeight= HybridMetrics.TunnelRequiredHeight;
-
 	/*
 	**	Fords: the profile switch, preflight's answer about the runtime capability, and that
 	**	capability's depth limits.  No fordability query exists yet (`FORD_CAPABILITY_UNAVAILABLE`),
@@ -861,7 +857,6 @@ bool ProceduralWorldManager::Build_Hybrid_Topology(const ProceduralWorldProfile 
 	params.MinVehicleLaneClearance= profile.Fairness.MinVehicleLaneClearance;
 	params.HarvesterLength			= HybridMetrics.HarvesterLength;
 	params.MaxRoutedEdges			= HybridMetrics.Budgets.MaxRoutedEdges;
-	params.TunnelsAvailable			= Hybrid_Native_Tunnels_Available (HybridMetrics.TunnelsAvailable && profile.Features.Tunnels);
 	params.MaxCutDepth				= profile.Grading.MaxCutDepth;
 	params.MaxFillHeight				= profile.Grading.MaxFillHeight;
 	params.OverpassClearGap			= Hybrid_Overpass_Clear_Gap (HybridMetrics.HeavyVehicleHeight,
@@ -964,9 +959,9 @@ bool ProceduralWorldManager::Build_Hybrid_Routes(const ProceduralWorldProfile & 
  * Build_Hybrid_Interactions -- rewrite item I12, runtime Phase 11                                *
  *                                                                                             *
  * What each crossing actually is.  Phase 10 left every one of them as an unresolved structural    *
- * interval; this decides bridge, ford, surface pass, road cut, ramp pass, tunnel, at-grade         *
- * junction or overpass, in the fixed method order the plan sets out for each obstruction kind.     *
- * Nothing is realized: no RoadSystem, BridgeSystem or TunnelSystem object is created and no        *
+ * interval; this decides bridge, ford, surface pass, road cut, ramp pass, at-grade junction or    *
+ * overpass, in the fixed method order the plan sets out for each obstruction kind -- never a      *
+ * tunnel (D-032).  Nothing is realized: no RoadSystem or BridgeSystem object is created and no     *
  * terrain is touched, which is Phase 12's work.                                                   *
  *                                                                                             *
  * Every metric the solver needs comes from the frozen preflight cache -- the bridge registry and   *
@@ -1000,8 +995,6 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 
 	params.AllowFords					= profile.Plan.AllowFords;
 	params.FordCapabilityAvailable	= HybridMetrics.FordsAvailable;
-	params.TunnelsEnabled			= profile.Features.Tunnels;
-	params.TunnelAvailable			= Hybrid_Native_Tunnels_Available (HybridMetrics.TunnelsAvailable);
 
 	params.WorldUnitsPerMeter		= HybridMetrics.Constants.WorldUnitsPerMeter;
 	params.HeavyVehicleWidth		= HybridMetrics.HeavyVehicleWidth;
@@ -1056,19 +1049,6 @@ bool ProceduralWorldManager::Build_Hybrid_Interactions(const ProceduralWorldProf
 		kind.StartSeat					= bridges[i].StartSeat;
 		kind.EndSeat					= bridges[i].EndSeat;
 		params.BridgeKinds.Add (kind);
-	}
-
-	const DynamicVectorClass<HybridTunnelModuleInput> & modules = HybridInputs.TunnelModules;
-	for (int i = 0; i < modules.Count (); ++i) {
-
-		HybridTunnelModule one;
-		one.StableId			= i;
-		one.Length				= modules[i].Length;
-		one.ClearWidth			= modules[i].ClearanceWidth;
-		one.ClearHeight		= modules[i].ClearanceHeight;
-		one.MaxGradeRadians	= modules[i].MaxGradeRadians;
-		one.PortalCompatible	= modules[i].PortalCompatible;
-		params.TunnelModules.Add (one);
 	}
 
 	params.Arena	= &HybridArena;
@@ -2227,8 +2207,8 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 
 	/*
 	**	Runtime Phase 11 (rewrite item I12).  What each crossing Phase 10 left unresolved actually is:
-	**	a bridge, a ford, a surface pass, a road cut, a ramp pass, a tunnel, an at-grade junction or an
-	**	overpass, chosen in the fixed method order the plan sets out for each obstruction kind.  Nothing
+	**	a bridge, a ford, a surface pass, a road cut, a ramp pass, an at-grade junction or an overpass
+	**	(never a tunnel, D-032), chosen in the fixed method order the plan sets out for each obstruction kind.  Nothing
 	**	is realized here; Phase 12 consumes these records.
 	*/
 	bool hybrid_interactions_built = false;
@@ -2383,9 +2363,9 @@ bool ProceduralWorldManager::Generate_World_Attempt(const ProceduralWorldProfile
 		return false;
 	}
 
-	//	Tunnels, Phase 10.  After the bridge plan, whose unresolved crossings are one of its two
-	//	candidate sources; the other (cliff bypasses) needs only the strategic plan and terrain.
-	//	Tunnels are deferred on the native hybrid path (Hybrid_Native_Tunnels_Available): none is planned or realized.
+	//	Tunnels, Phase 10, on the legacy (non-hybrid) procedural path only.  After the bridge plan, whose
+	//	unresolved crossings are one of its two candidate sources; the other (cliff bypasses) needs only the
+	//	strategic plan and terrain.  The native hybrid generator builds no tunnels (D-032).
 	bool tunnel_plan_built = false;
 	StringClass tunnel_plan_error;
 	if (terrain_built && !hybrid_roads) {

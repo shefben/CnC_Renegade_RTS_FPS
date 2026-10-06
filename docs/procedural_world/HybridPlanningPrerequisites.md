@@ -45,9 +45,8 @@ Bridges are frozen per registered definition (clear width, deck thickness, requi
 clearance, support spacing and clearance, and the '|'-joined list of every colliding or
 traversable model), together with `BridgePlannerParams`'s span and water-clearance limits.
 `BridgePlannerParams` states no approach length, so the cache falls back to `8W` and says
-so. Tunnel modules are frozen per module with their full geometry (model, length, clear
-bore, wall thickness, turn and grade limits, portal compatibility); a zero clear bore is
-the procedural tube, which is sized per tunnel. Starting-building footprints come from the
+so. Tunnel modules are not gathered: the native generator builds no tunnels (D-032).
+Starting-building footprints come from the
 Section 39 descriptors; the descriptor owns the footprint, and the render-derived height is
 deliberately excluded from both digests. Terrain layers are frozen by name, kind and
 surface type, and Section 4.2's material slots resolve to the lowest layer index on a tie.
@@ -64,9 +63,9 @@ boundary settings, the terrain and water settings this rewrite consumes, every a
 `plan` field, resource/Tiberium settings, the active world-feature toggles, road grading
 limits, every fairness field, both retry limits, the starting-building footprints, and the
 resolved structural asset identities (vehicle metrics and provenance, fairness speeds,
-tunnel portal and bore, ford availability, every registered bridge plus the per-class
+ford availability, every registered bridge plus the per-class
 choice, and each biome's resolved material slots). Wall clock, watchdog, worker count, the
-inert legacy settlement/lane fields and render-only availability are excluded.
+inert legacy settlement/lane/tunnel fields and render-only availability are excluded.
 
 Both values are carried by the canonical owners without touching authored worlds:
 `WorldGenerationManifest` stores them next to the legacy profile hash and round-trips them
@@ -93,6 +92,6 @@ arena. `terrain_hybridpreflight` / `fds_terrain_hybridpreflight` cover the prefl
 named failure, the optional missing assets that only omit their own type, size-class
 derivation and the developer oversize path, biome slot resolution and mixed-pair legality,
 hash sensitivity and exclusions, the manifest carry, and one pass over the live registries
-that proves `Gather_From_Runtime` is repeatable, reads every registered bridge, tunnel
-module and terrain layer, and -- with no content mounted -- leaves every vehicle metric
+that proves `Gather_From_Runtime` is repeatable, reads every registered bridge and
+terrain layer, and -- with no content mounted -- leaves every vehicle metric
 unmeasured so preflight names the missing metric instead of inventing one.

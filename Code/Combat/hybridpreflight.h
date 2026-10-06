@@ -31,8 +31,8 @@
  * and 16.4).                                                                                  *
  *                                                                                             *
  * Preflight runs once per request, before any seeded work.  It resolves every runtime metric  *
- * the hybrid phases read -- Humvee / heavy-vehicle / Harvester collision widths, bridge and   *
- * tunnel capability, starting-building footprints, world units per meter, the fairness        *
+ * the hybrid phases read -- Humvee / heavy-vehicle / Harvester collision widths, bridge         *
+ * capability, starting-building footprints, world units per meter, the fairness               *
  * reference speeds, the Harvester load, biome material slots -- into one HybridMetricCache,    *
  * and rejects the request with a named failure when something required is missing.  Nothing  *
  * after preflight may query a live registry again, and nothing here draws from a seed.        *
@@ -99,7 +99,7 @@ const char *	Hybrid_Material_Slot_Name(HybridBiome biome,HybridMaterialSlot slot
 
 /*
 **	Raw runtime facts preflight consumes.  Gather_From_Runtime fills these from WorldMetricsClass,
-**	BridgeSystem, BridgePlannerParams, TunnelSystem, TerrainTextureSystem and FoliageSystem; tests
+**	BridgeSystem, BridgePlannerParams, TerrainTextureSystem and FoliageSystem; tests
 **	fill them by hand.  List order is registry order, which is each entry's StableId.
 */
 struct HybridVehicleMetricInput
@@ -150,28 +150,6 @@ struct HybridBridgeInput
 				 (EndSeat == that.EndSeat) && (StructuralModels == that.StructuralModels);
 	}
 	bool operator != (const HybridBridgeInput & that) const	{ return !(*this == that); }
-};
-
-struct HybridTunnelModuleInput
-{
-	StringClass		Name;
-	StringClass		Model;						// empty = procedural tube
-	float				Length;
-	float				ClearanceWidth;			// 0 = procedural tube sized per tunnel
-	float				ClearanceHeight;
-	float				WallThickness;
-	float				MaxTurnRadians;
-	float				MaxGradeRadians;
-	bool				PortalCompatible;
-
-	bool operator == (const HybridTunnelModuleInput & that) const
-	{
-		return (Name == that.Name) && (Model == that.Model) && (Length == that.Length) &&
-				 (ClearanceWidth == that.ClearanceWidth) && (ClearanceHeight == that.ClearanceHeight) &&
-				 (WallThickness == that.WallThickness) && (MaxTurnRadians == that.MaxTurnRadians) &&
-				 (MaxGradeRadians == that.MaxGradeRadians) && (PortalCompatible == that.PortalCompatible);
-	}
-	bool operator != (const HybridTunnelModuleInput & that) const	{ return !(*this == that); }
 };
 
 struct HybridBuildingFootprintInput
@@ -229,7 +207,6 @@ struct HybridPreflightInputs
 	bool		AllowOversizeDevelopment;
 
 	DynamicVectorClass<HybridBridgeInput>					Bridges;
-	DynamicVectorClass<HybridTunnelModuleInput>			TunnelModules;
 	DynamicVectorClass<HybridBuildingFootprintInput>	Buildings;
 	DynamicVectorClass<HybridTerrainLayerInput>			TerrainLayers;
 };
@@ -256,10 +233,6 @@ struct HybridMetricCache
 	float		ReferenceVehicleSpeed;
 	float		ReferenceInfantrySpeed;
 	float		HarvesterLoadAmount;
-	bool		TunnelsAvailable;
-	int		TunnelPortalModule;							// index into the input modules, -1 = none
-	float		TunnelRequiredWidth;							// clear bore every tunnel must provide
-	float		TunnelRequiredHeight;
 	bool		FordsAvailable;
 	bool		DecorationAvailable;
 	bool		LampsAvailable;
@@ -311,7 +284,7 @@ bool				Hybrid_Run_Preflight(const ProceduralWorldProfile & profile,const Hybrid
 
 /*
 **	The structural content identity: a digest of every collision-relevant record preflight froze
-**	-- vehicle collision boxes and their definitions, bridge and tunnel geometry and structural
+**	-- vehicle collision boxes and their definitions, bridge geometry and structural
 **	models, starting-building footprints, terrain layers and their surface types.  Render-only
 **	facts (decoration, lamps, bridge dressing, textures) are left out so a cosmetic content
 **	change does not invalidate a plan.

@@ -32,8 +32,9 @@
  *                                                                                             *
  * Phase 10 decided where every road runs and left each crossing as an unresolved structural      *
  * interval.  This phase decides *what each one is*: a bridge, a ford, a surface pass, a road cut, *
- * a ramp pass, a tunnel, an at-grade junction or an overpass.  It instantiates nothing -- no      *
- * RoadSystem, BridgeSystem or TunnelSystem object is created here, and no terrain is touched.     *
+ * a ramp pass, an at-grade junction or an overpass -- never a tunnel (D-032: the native generator *
+ * builds none).  It instantiates nothing -- no RoadSystem or BridgeSystem object is created here, *
+ * and no terrain is touched.                                                                      *
  * The output is one compiled solution record per conflict for Phase 12 to realize.                *
  *                                                                                             *
  * Every method order in this file is the plan's, and it is fixed: the solver never reorders a     *
@@ -82,7 +83,6 @@ enum HybridInteractionMethod
 	HYBRID_METHOD_SURFACE_PASS,		// canyon/ravine descent across an accepted pass-capable window
 	HYBRID_METHOD_ROAD_CUT,				// cliff/ridge, within max_cut_depth and the road deformation width
 	HYBRID_METHOD_RAMP_PASS,			// cliff/ridge, across an accepted RAMP_PASS_WINDOW
-	HYBRID_METHOD_TUNNEL,				// fallback only, and never mandatory in this generator version
 	HYBRID_METHOD_AT_GRADE_JUNCTION,	// road x road
 	HYBRID_METHOD_OVERPASS,				// road x road
 	HYBRID_METHOD_COUNT
@@ -142,28 +142,6 @@ struct HybridBridgeKind
 	*/
 	float		StartSeat;
 	float		EndSeat;
-};
-
-
-/*
-**	One tunnel module as the registry describes it, for Section 12.5's "shortest sufficient registered
-**	definition/module sequence, tie break by StableId".
-*/
-struct HybridTunnelModule
-{
-	HybridTunnelModule(void) :
-		StableId(0),Length(0.0f),ClearWidth(0.0f),ClearHeight(0.0f),MaxGradeRadians(0.0f),
-		PortalCompatible(false) { }
-
-	bool	operator == (const HybridTunnelModule & that) const	{ return StableId == that.StableId; }
-	bool	operator != (const HybridTunnelModule & that) const	{ return !(*this == that); }
-
-	int		StableId;
-	float		Length;
-	float		ClearWidth;					// 0 = a procedural tube, sized per tunnel
-	float		ClearHeight;
-	float		MaxGradeRadians;
-	bool		PortalCompatible;
 };
 
 
@@ -228,7 +206,7 @@ struct HybridInteraction
 		WindowId(0),Mandatory(false),Method(HYBRID_METHOD_BRIDGE),RoadClass(HYBRID_ROAD_CLASS_COUNT),
 		FallbackFrom(HYBRID_PROBLEM_NONE),
 		Station(0.0f,0.0f),Tangent(1.0f,0.0f),ApproachA(0.0f,0.0f),ApproachB(0.0f,0.0f),Span(0.0f),
-		ApproachReserve(0.0f),BridgeKind(-1),TunnelModule(-1),TunnelLength(0.0f),DeckBottomZ(0.0f),
+		ApproachReserve(0.0f),BridgeKind(-1),DeckBottomZ(0.0f),
 		DeckTopZ(0.0f),LowerSurfaceZ(0.0f),RampLength(0.0f),UpperIsThisEdge(true),CutDepth(0.0f),
 		DeckStartZ(0.0f),DeckEndZ(0.0f),DeckReachA(0.0f),DeckReachB(0.0f),
 		FirstPoint(0),LastPoint(0),Envelope(0),Score(0.0f),Role(HYBRID_JUNCTION_ROLE_NONE),JunctionZ(0.0f) { }
@@ -263,8 +241,6 @@ struct HybridInteraction
 	float							ApproachReserve;		// max(8W, selected_bridge.required_approach_length)
 
 	int							BridgeKind;				// index into the params' bridge kinds, -1 = none
-	int							TunnelModule;			// index into the params' tunnel modules, -1 = none
-	float							TunnelLength;
 
 	/*
 	**	Section 12.3's vertical geometry.  `DeckBottomZ`/`DeckTopZ` describe a bridge or an overpass deck;
@@ -279,18 +255,18 @@ struct HybridInteraction
 	float							CutDepth;
 
 	/*
-	**	The road surface where it meets the structure at each end, in travel order: a bridge's two abutments, a
-	**	tunnel's two portals, an overpass deck's two ends.  A river bridge and an overpass hold a level deck, so
-	**	both equal `DeckTopZ`; a canyon deck runs between the two road profiles (Section 12.3) and a bore between
-	**	its portals, so theirs are the road's own solved elevations there, frozen here for Phase 12 to pin.
+	**	The road surface where it meets the structure at each end, in travel order: a bridge's two abutments, an
+	**	overpass deck's two ends.  A river bridge and an overpass hold a level deck, so both equal `DeckTopZ`; a
+	**	canyon deck runs between the two road profiles (Section 12.3), so its are the road's own solved elevations
+	**	there, frozen here for Phase 12 to pin.
 	*/
 	float							DeckStartZ;
 	float							DeckEndZ;
 
 	/*
-	**	How far the deck or bore reaches from `Station` along `Tangent`, back towards `ApproachA` and on towards
-	**	`ApproachB`: a bridge's two abutment ends, a tunnel's two portals, an overpass deck's two ends.  These are
-	**	the structure's own endpoints, which Phase 12 hands to BridgeSystem / TunnelSystem.
+	**	How far the deck reaches from `Station` along `Tangent`, back towards `ApproachA` and on towards
+	**	`ApproachB`: a bridge's two abutment ends, an overpass deck's two ends.  These are the structure's own
+	**	endpoints, which Phase 12 hands to BridgeSystem.
 	*/
 	float							DeckReachA;
 	float							DeckReachB;
@@ -408,9 +384,9 @@ bool	Hybrid_Realized_Route(const HybridRoute & route,const HybridInteractionSet 
 
 /*
 **	Every structure one road's compiled crossings put on it, on that road's realized centerline
-**	(Hybrid_Realized_Route): each deck or bore's two ends along the road and the surface it holds -- a river or
-**	overpass deck level at its top, a canyon or ravine deck and a tunnel bore carried between the end elevations
-**	the record froze.  Section 12.1 over the realized road with these is the road's final profile; Phase 11
+**	(Hybrid_Realized_Route): each deck's two ends along the road and the surface it holds -- a river or
+**	overpass deck level at its top, a canyon or ravine deck carried between the end elevations the record
+**	froze.  Section 12.1 over the realized road with these is the road's final profile; Phase 11
 **	judges candidates with it and Phase 12 realizes it.  False when a structure cannot be placed on the road.
 */
 struct HybridProfileStructure;
@@ -487,7 +463,7 @@ struct HybridPinLanding
 */
 enum HybridVerticalConstraintKind
 {
-	HYBRID_VCON_STRUCTURE = 0,			// a compiled deck or bore holding its own surface
+	HYBRID_VCON_STRUCTURE = 0,			// a compiled deck holding its own surface
 	HYBRID_VCON_LANDING,					// a D-027 STRUCTURAL_PIN_LANDING
 	HYBRID_VCON_JUNCTION,				// an earlier road's solved surface over a compiled at-grade junction's footprint
 	HYBRID_VCON_LOCAL_JUNCTION,		// an interchange local junction at its compiled z_L
@@ -559,7 +535,7 @@ struct HybridInteractionSet
 
 
 /*
-**	Everything Phase 11 needs that is not already in a frozen record.  The bridge and tunnel metrics are
+**	Everything Phase 11 needs that is not already in a frozen record.  The bridge metrics are
 **	resolved by the caller from the registry and `BridgePlannerParams`; the vehicle and fairness numbers
 **	come from the frozen preflight metric cache.
 */
@@ -580,8 +556,6 @@ struct HybridInteractionParams
 
 	bool					AllowFords;							// plan.allow_fords
 	bool					FordCapabilityAvailable;		// preflight: a canonical fordability query exists
-	bool					TunnelsEnabled;					// world_features.tunnels
-	bool					TunnelAvailable;					// preflight: tunnel_available
 
 	float					WorldUnitsPerMeter;
 	float					HeavyVehicleWidth;				// the swept clearance reference
@@ -612,7 +586,6 @@ struct HybridInteractionParams
 	int					MaxProblemsPerEdge;				// 12
 
 	DynamicVectorClass<HybridBridgeKind>		BridgeKinds;
-	DynamicVectorClass<HybridTunnelModule>	TunnelModules;
 
 	HybridScratchArena *		Arena;
 	HybridWorkCounters *		Counters;

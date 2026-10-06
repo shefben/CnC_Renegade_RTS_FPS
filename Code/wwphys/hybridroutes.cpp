@@ -705,7 +705,7 @@ struct RouteBuilder
 	/*
 	**	True while the leg being routed *is* a crossing: both its endpoints are one window's frozen approach
 	**	points.  That interval is structural, not open road -- Phase 10 only decides it is straight and where
-	**	it starts and ends, and the interaction phase compiles the deck or bore and the ramps onto it -- so
+	**	it starts and ends, and the interaction phase compiles the deck and the ramps onto it -- so
 	**	the class's own turn geometry is not asked of it, exactly as the grade and cross-slope tests are not.
 	*/
 	bool									StructuralLeg;
@@ -3326,7 +3326,7 @@ static int First_Failing_Sample(RouteBuilder & b,const DynamicVectorClass<Vector
 		/*
 		**	Structural ground is *this road's own* crossing interval, by sample index: the straight between the
 		**	two frozen approach points, which is the obstruction and the alignment reserve either side of it.
-		**	The interaction phase compiles the deck or bore and grades that interval; everything outside it,
+		**	The interaction phase compiles the deck and grades that interval; everything outside it,
 		**	including the turn that lines the road up with the crossing, is open road and Phase 10's own
 		**	(revised D-009, Q-022), so it is validated in full like any other.
 		**
@@ -3426,7 +3426,7 @@ static int First_Failing_Sample(RouteBuilder & b,const DynamicVectorClass<Vector
 
 		/*
 		**	Grade and cross slope are terrain questions, so they are asked about open road only: inside an
-		**	accepted window the road stands on a deck or in a bore whose geometry the interaction phase
+		**	accepted window the road stands on a deck whose geometry the interaction phase
 		**	compiles, and the ground under it is not what a vehicle drives on.  That is the same exemption
 		**	the move-grade and curvature tests already make, for the reason Phase 10 states itself.
 		**
@@ -3507,7 +3507,7 @@ static int First_Failing_Sample(RouteBuilder & b,const DynamicVectorClass<Vector
 	**	"The local vertical feasibility intervals admit the class max grade", read as what it says: there is a
 	**	profile through every sample's `RoadVerticalInterval` that keeps the class grade -- Section 12.1's own
 	**	forward and backward interval propagation, over each stretch of open road between this road's
-	**	structural intervals (whose deck and bore elevations are the interaction phase's to compile).  Testing
+	**	structural intervals (whose deck elevations are the interaction phase's to compile).  Testing
 	**	only neighbouring pairs let a long climb steeper than the class through, each step absorbed by the
 	**	next sample's cut or fill until the allowance ran out, and the road then could not be graded at all.
 	*/
@@ -4741,7 +4741,7 @@ static bool Route_Road(RouteBuilder & b,const DynamicVectorClass<const HybridTop
 
 		/*
 		**	The cells whose positions earlier phases froze.  A structural point -- a crossing or an overpass
-		**	obligation -- is frozen: the road runs straight through it, because a deck or a bore is straight.  A
+		**	obligation -- is frozen: the road runs straight through it, because a deck is straight.  A
 		**	route-family waypoint, including the one between two logical edges of a trunk, is a strategic anchor:
 		**	the search's chain passes its cell (the plan's "every frozen waypoint's own cell is on the accepted
 		**	chain"), and the centerline is not bound to it -- its corner yields to a structure's lead.
@@ -6245,7 +6245,7 @@ bool Hybrid_Route_Census(const HybridRouteParams & params,const HybridMapIdentit
 
 		/*
 		**	A second flood with the move rule the search also obeys: a move is only usable when its grade is
-		**	within the class maximum, unless either end is structural (a deck or a bore carries it).  Cells
+		**	within the class maximum, unless either end is structural (a deck carries it).  Cells
 		**	being reachable while moves are not is the difference between "the ground is walled off" and "the
 		**	ground is too steep to drive", and the two have different fixes.
 		*/

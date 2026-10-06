@@ -306,7 +306,6 @@ HybridHydrologyParams::HybridHydrologyParams(void) :
 	HeavyVehicleWidth(0.0f),HeavyVehicleHeight(0.0f),HarvesterWidth(0.0f),
 	BridgeMaxSpanLength(0.0f),BridgeRequiredWidth(0.0f),BridgeApproachLength(0.0f),
 	BridgeWaterClearanceMargin(0.0f),
-	TunnelsAvailable(false),TunnelRequiredWidth(0.0f),TunnelRequiredHeight(0.0f),
 	AllowFords(false),FordsAvailable(false),FordMaxWaterDepthLight(0.0f),FordMaxWaterDepthHarvester(0.0f),
 	Arena(nullptr),Counters(nullptr)
 {
@@ -3138,7 +3137,7 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 		**
 		**	Only where a bridge is one of the window's methods.  Step 18 is explicit that "cliff stations are
 		**	`RAMP_PASS_WINDOW` pass/tunnel/cut metadata" while river and canyon/ravine stations carry the bridge
-		**	flag, and Section 8 Phase 11's cliff order -- cut, ramp pass, tunnel -- has no bridge in it.  A
+		**	flag, and Section 8 Phase 11's cliff order -- cut, then ramp pass (no tunnel, D-032) -- has no bridge in it.  A
 		**	bridge bit on a cliff window was never read by any method, but it kept the window alive, and a
 		**	window is the only hole in an immutable wall: measured over 200 seeds of every archetype, 55 routed
 		**	cliff crossings went through windows no cliff method could serve, and every one ended in an
@@ -3245,11 +3244,6 @@ static void Sample_Obstruction_Windows(HydrologyBuilder & b,const HydroObstructi
 					b.Out->PassRefusals[why]++;
 				}
 				Note_Pass_Measurement(*b.Out,measured);
-			}
-
-			if (b.P->TunnelsAvailable && (b.P->TunnelRequiredWidth >= b.P->HeavyVehicleWidth) &&
-				 (b.P->TunnelRequiredHeight >= b.P->HeavyVehicleHeight)) {
-				methods |= HYBRID_WINDOW_METHOD_TUNNEL;
 			}
 
 			/*

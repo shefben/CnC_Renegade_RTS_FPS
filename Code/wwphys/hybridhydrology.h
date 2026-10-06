@@ -113,7 +113,7 @@ enum HybridWindowMethodFlag
 {
 	HYBRID_WINDOW_METHOD_BRIDGE			= 1 << 0,
 	HYBRID_WINDOW_METHOD_PASS				= 1 << 1,	// a PRIMARY_2 swept path across the local floor/ramp
-	HYBRID_WINDOW_METHOD_TUNNEL			= 1 << 2,
+	//	1 << 2 was the tunnel flag; the native generator builds no tunnels (D-032).
 	HYBRID_WINDOW_METHOD_FORD_LIGHT		= 1 << 3,
 	HYBRID_WINDOW_METHOD_FORD_HARVESTER	= 1 << 4,
 	HYBRID_WINDOW_METHOD_CUT				= 1 << 5,	// cliff only: at least one class passes the planning cut test
@@ -453,9 +453,6 @@ struct HybridHydrologyParams
 	float					BridgeRequiredWidth;			// Section 12.4 clear width for the heavy route class
 	float					BridgeApproachLength;		// 0 = none registered; the 8W rule then stands alone
 	float					BridgeWaterClearanceMargin;
-	bool					TunnelsAvailable;
-	float					TunnelRequiredWidth;
-	float					TunnelRequiredHeight;
 
 	/*
 	**	Fords.  `AllowFords` is the profile switch and `FordsAvailable` is preflight's answer about

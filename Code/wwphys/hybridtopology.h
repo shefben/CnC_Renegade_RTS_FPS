@@ -453,7 +453,6 @@ struct HybridTopologyParams
 	float					MinVehicleLaneClearance;
 	float					HarvesterLength;				// the turning disc a field access point must clear
 	int					MaxRoutedEdges;				// R: 18 / 32 / 52 by size class, from the work budgets
-	bool					TunnelsAvailable;				// Section 5's tunnel toggle, for window method choice
 
 	//	Section 12.6's planning inputs for step 15 (highway access interchanges).
 	float					MaxCutDepth;					// grading.max_cut_depth

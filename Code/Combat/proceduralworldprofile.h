@@ -282,7 +282,7 @@ struct ProceduralWorldFeatureFlags
 													 LegacySettlementsPresent(false) { }
 	bool	Forests;
 	bool	Settlements;			// legacy -- inert on the hybrid path (Section 0.7)
-	bool	Tunnels;
+	bool	Tunnels;				// legacy path only -- the native hybrid generator builds no tunnels (D-032)
 	bool	Highways;
 	bool	TiberiumFields;
 

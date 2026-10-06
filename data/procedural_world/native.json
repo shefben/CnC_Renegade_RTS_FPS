@@ -77,7 +77,6 @@
 
 	"world_features": {
 		"forests": true,
-		"tunnels": true,
 		"highways": true,
 		"tiberium_fields": true
 	},

@@ -108,8 +108,8 @@ and a trail never becomes heavy-capable.
 
 Phase 11 uses the widest envelope in the mask for every width test: the ground roadbed
 (`required_swept_width <= RoadbedWidth(class)`), a pass floor's continuous width
-(`swept + 2 * min_vehicle_lane_clearance`), Section 12.4's bridge clear width and Section 12.5's tunnel
-bore. Preflight's per-class `BridgeRequiredWidth` table is unchanged: it runs before any edge exists and
+(`swept + 2 * min_vehicle_lane_clearance`), and Section 12.4's bridge clear width (no
+tunnel bore: D-032). Preflight's per-class `BridgeRequiredWidth` table is unchanged: it runs before any edge exists and
 answers only whether shipped content can carry a class at all.
 
 ## Structural-pose realizability (Q-023)
@@ -194,7 +194,7 @@ Gore candidates `k = 0..31` are tried in order; the first that passes every 12.6
    samples and both roadbed edges (D-022 asymmetric edges with the gore shoulder transition), the gore band's
    widened highway roadbed, the local-junction disc and the crossing segment must all be placeable and clear of:
    water, immutable walls, bases, entrance corridors and Tiberium reserves. **A ramp never gets its own bridge,
-   tunnel, cut or pass**: a candidate that would need one is refused here, never left for Phase 11.
+   cut or pass**: a candidate that would need one is refused here, never left for Phase 11.
 6. Ramp samples are grade-compatible at 12 degrees, and an at-grade crossing at its class grade.
 7. Local-junction stems lie within 60 degrees of `n_s`, and all arms are at least 30 degrees apart.
 

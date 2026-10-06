@@ -107,7 +107,6 @@ const char * Hybrid_Crossing_Method_Name(HybridCrossingMethod method)
 		case HYBRID_CROSSING_ANY:					return "ANY";
 		case HYBRID_CROSSING_BRIDGE:				return "BRIDGE";
 		case HYBRID_CROSSING_PASS:					return "PASS";
-		case HYBRID_CROSSING_TUNNEL:				return "TUNNEL";
 		case HYBRID_CROSSING_FORD_LIGHT:			return "FORD_LIGHT";
 		case HYBRID_CROSSING_FORD_HARVESTER:	return "FORD_HARVESTER";
 		default:											return "unknown";

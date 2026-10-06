@@ -108,7 +108,7 @@ Format_Canonical_Profile_String(const ProceduralWorldProfile & p)
 		p.Resource.FieldRadiusMin,p.Resource.FieldRadiusMax,p.Resource.InitialYieldMin,p.Resource.InitialYieldMax,
 			p.Resource.CrystalDensity,p.Resource.HarvestAnchorCount,p.Resource.HarvesterLoadAmount,
 			p.Resource.GrowthEnabled ? 1 : 0,p.Resource.GrowthRatePerSecond,
-		p.Features.Forests ? 1 : 0,(!hybrid && p.Features.Settlements) ? 1 : 0,p.Features.Tunnels ? 1 : 0,
+		p.Features.Forests ? 1 : 0,(!hybrid && p.Features.Settlements) ? 1 : 0,(!hybrid && p.Features.Tunnels) ? 1 : 0,
 			p.Features.Highways ? 1 : 0,p.Features.TiberiumFields ? 1 : 0,
 		p.Retry.MaxLocalRetriesPerStage,p.Retry.MaxAlternateCandidatesPerFeature,
 		p.Fairness.MaxInitialResourceTravelTimeDifferenceSeconds,p.Fairness.MaxProjectedInitialIncomeDifferencePercent,
