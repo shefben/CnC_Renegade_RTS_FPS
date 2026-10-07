@@ -61,6 +61,7 @@ int				cUserOptions::ProceduralCensusCount	= 0;
 unsigned int	cUserOptions::ProceduralSkirmishSeed	= 0;
 StringClass		cUserOptions::ProceduralProfilePath;
 StringClass		cUserOptions::ProceduralLogPath;
+bool				cUserOptions::ProceduralExhaustive	= false;
 
 cRegistryString cUserOptions::GameDir(					APPLICATION_SUB_KEY_NAME_OPTIONS, "GameDir",           "");
 
@@ -303,6 +304,10 @@ cUserOptions::ParseResult cUserOptions::Parse_Command_Line(int argc, char *argv[
 			ProceduralLogPath = argv[++i];
 			continue;
 		}
+		if (strcmp(cmd, "--procedural-exhaustive") == 0) {
+			ProceduralExhaustive = true;
+			continue;
+		}
 		if ((strcmp(cmd, "--procedural-census") == 0) || (strcmp(cmd, "--procedural-skirmish") == 0)) {
 			const bool census = (strcmp(cmd, "--procedural-census") == 0);
 			const int needed = census ? 2 : 1;
@@ -357,6 +362,7 @@ void cUserOptions::Print_Command_Line_Help(bool error)
 #endif
 	fprintf(file, "    [--procedural-census FIRST_SEED COUNT [PROFILE]] [--procedural-skirmish SEED [PROFILE]]\n");
 	fprintf(file, "    [--procedural-log PATH]\n");
+	fprintf(file, "    [--procedural-exhaustive]\n");
 	fprintf(file, "    [--help]\n");
 }
 

@@ -62,6 +62,8 @@ class cUserOptions
 		**	--procedural-census FIRST COUNT [PROFILE]: the production census (ProceduralWorldToolsService::Run_Seed_Census)
 		**	   over requested seeds FIRST.., printed to stdout, stopping at the first whose world passes Phase 12; then exit.
 		**	--procedural-skirmish SEED [PROFILE]: the main menu's Procedural Skirmish with that requested seed.
+		**	--procedural-exhaustive: with the census, D-036's diagnostic -- a generic Phase-5 feature that exhausts its
+		**	   alternates also reports how many of all its candidate cells were legal, and what refused the rest.
 		**	PROFILE defaults to the native profile path.  Neither is a player feature.
 		*/
 		static unsigned int	ProceduralCensusFirst;
@@ -69,6 +71,7 @@ class cUserOptions
 		static unsigned int	ProceduralSkirmishSeed;
 		static StringClass	ProceduralProfilePath;
 		static StringClass	ProceduralLogPath;		// --procedural-log PATH: where both write (default stdout)
+		static bool				ProceduralExhaustive;	// --procedural-exhaustive: D-036's Phase-5 candidate diagnostic
 
 		static void Set_Server_INI_File(const char *ini_file);
 

@@ -116,6 +116,10 @@ renegade --gamedir "C:\Westwood\Renegade_full" --procedural-log world.txt
          --procedural-skirmish SEED [PROFILE]          # the main menu's Procedural Skirmish at SEED
 ```
 
+Add `--procedural-exhaustive` to a census to append D-036's Phase-5 candidate diagnostic to each generic hill, ridge or
+cliff that exhausts its alternates: how many of all its candidate cells were legal, the tested ordinal of the first, and
+the first rule refusing the rest. It never changes an outcome.
+
 `PROFILE` defaults to `data/procedural_world/native.json` under the game directory. Pass the repository's file by
 absolute path when the install's copy is stale. The census mounts what a native level load mounts before
 `Post_Load_Level` generates: the definitions (`CombatManager::Load_Game_Definitions`, shared with the load thread)

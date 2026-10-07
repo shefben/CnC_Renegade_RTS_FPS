@@ -92,6 +92,10 @@ static const float	RIDGE_AMPLITUDE_MIN		= 1.00f;
 static const float	RIDGE_AMPLITUDE_MAX		= 2.00f;
 static const float	RIDGE_CORE_FRACTION		= 0.35f;		// steep core, for RoughnessClass only
 
+//	Q-018 (D-036): a LARGE generic hill or ridge is drawn against (5/8)D, so the LARGE hill
+//	radius is 0.05D..0.10D.  Archetype principal features keep D.
+static const float	GENERIC_LANDFORM_LARGE_SCALE	= 0.625f;
+
 static const float	CLIFF_LENGTH_MIN_W		= 8.0f;
 static const float	CLIFF_LENGTH_MIN_D		= 0.12f;
 static const float	CLIFF_LENGTH_MAX_D		= 0.45f;
@@ -236,6 +240,26 @@ static int Size_Pick(HybridSizeClass size_class,int small,int medium,int large)
 		default:							break;
 	}
 	return medium;
+}
+
+
+float Hybrid_Generic_Landform_Dimension_D(float d,HybridSizeClass size_class)
+{
+	return (size_class == HYBRID_SIZE_LARGE) ? (d * GENERIC_LANDFORM_LARGE_SCALE) : d;
+}
+
+
+void Hybrid_Landform_Horizontal_Ranges(float d,HybridSizeClass size_class,HybridLandformRole role,
+													HybridLandformHorizontalRanges * out)
+{
+	if (out == nullptr) return;
+	const float extent = (role == HYBRID_LANDFORM_ROLE_GENERIC) ? Hybrid_Generic_Landform_Dimension_D(d,size_class) : d;
+	out->HillRadiusMin		= HILL_RADIUS_MIN_D * extent;
+	out->HillRadiusMax		= HILL_RADIUS_MAX_D * extent;
+	out->RidgeLengthMin		= RIDGE_LENGTH_MIN_D * extent;
+	out->RidgeLengthMax		= RIDGE_LENGTH_MAX_D * extent;
+	out->RidgeHalfWidthMin	= RIDGE_HALF_WIDTH_MIN_D * extent;
+	out->RidgeHalfWidthMax	= RIDGE_HALF_WIDTH_MAX_D * extent;
 }
 
 
@@ -832,13 +856,16 @@ static void Prepare_Candidate_Order(LandformBuilder & b,HybridLandformKind kind,
 
 /*
 **	Step 4: every size/amplitude/angle parameter, drawn exactly once.  Retries move the feature and
-**	never come back here.
+**	never come back here.  The role is the placement path's (Q-018, D-036): it chooses the extent a
+**	hill's or ridge's horizontal size is drawn against.
 */
-static void Draw_Dimensions(const LandformBuilder & b,HybridLandform * landform)
+static void Draw_Dimensions(const LandformBuilder & b,HybridLandform * landform,HybridLandformRole role)
 {
 	const HybridLandformParams & p = *b.P;
 	const float w = p.Constants.W;
 	const float d = p.Constants.D;
+	HybridLandformHorizontalRanges horizontal;
+	Hybrid_Landform_Horizontal_Ranges(d,b.Identity->SizeClass,role,&horizontal);
 	const float relief = 0.50f + (0.50f * Clamp2(p.MacroRelief,0.0f,1.0f));
 	const unsigned int seed = p.TerrainSeed;
 	const HybridLandformKind kind = landform->Kind;
@@ -848,7 +875,7 @@ static void Draw_Dimensions(const LandformBuilder & b,HybridLandform * landform)
 
 		case HYBRID_LANDFORM_HILL:
 		{
-			const float radius = Hybrid_Range(HILL_RADIUS_MIN_D * d,HILL_RADIUS_MAX_D * d,
+			const float radius = Hybrid_Range(horizontal.HillRadiusMin,horizontal.HillRadiusMax,
 														 Landform_Hash(seed,kind,id,"radius"));
 			const float aspect = Hybrid_Range(HILL_ASPECT_MIN,HILL_ASPECT_MAX,
 														 Landform_Hash(seed,kind,id,"aspect"),HYBRID_QUANTUM_NORMALIZED);
@@ -865,9 +892,9 @@ static void Draw_Dimensions(const LandformBuilder & b,HybridLandform * landform)
 
 		case HYBRID_LANDFORM_RIDGE:
 		{
-			landform->Length				= Hybrid_Range(RIDGE_LENGTH_MIN_D * d,RIDGE_LENGTH_MAX_D * d,
+			landform->Length				= Hybrid_Range(horizontal.RidgeLengthMin,horizontal.RidgeLengthMax,
 																	Landform_Hash(seed,kind,id,"length"));
-			landform->InfluenceHalfWidth	= Hybrid_Range(RIDGE_HALF_WIDTH_MIN_D * d,RIDGE_HALF_WIDTH_MAX_D * d,
+			landform->InfluenceHalfWidth	= Hybrid_Range(horizontal.RidgeHalfWidthMin,horizontal.RidgeHalfWidthMax,
 																		Landform_Hash(seed,kind,id,"half_width"));
 			landform->Amplitude			= Hybrid_Quantize_Position(
 													p.TierStep * Hybrid_Range(RIDGE_AMPLITUDE_MIN,RIDGE_AMPLITUDE_MAX,
@@ -1637,6 +1664,114 @@ struct LandformIdReservation
 
 
 /*
+**	Step 3: the jittered centre and the keyed axis a generic feature is tried at in one candidate cell.
+*/
+static void Generic_Candidate_Pose(const LandformBuilder & b,const HybridLandform & landform,int cell,
+											  Vector2 * centre_out,float * angle_out)
+{
+	const HybridSemanticMatrix & matrix = b.Matrices->Matrix;
+	const float jitter = CANDIDATE_JITTER_S * b.P->Constants.S;
+	const HybridLandformKind kind = landform.Kind;
+	const int cx = cell % matrix.Get_Count_X();
+	const int cy = cell / matrix.Get_Count_X();
+	const Vector2 base = matrix.Cell_Center(cx,cy);
+
+	centre_out->Set(
+		base.X + Hybrid_Range(-jitter,+jitter,
+									 Landform_Hash(b.P->TerrainSeed,kind,landform.StableId,"jitter_x",(unsigned int)cell)),
+		base.Y + Hybrid_Range(-jitter,+jitter,
+									 Landform_Hash(b.P->TerrainSeed,kind,landform.StableId,"jitter_y",(unsigned int)cell)));
+
+	//	A line feature's axis is keyed once, like every other dimension.
+	*angle_out = Hybrid_Landform_Is_Line(kind)
+		? Hybrid_Range(0.0f,WWMATH_PI,Landform_Hash(b.P->TerrainSeed,kind,landform.StableId,"axis"),
+							HYBRID_QUANTUM_ANGLE)
+		: 0.0f;
+}
+
+
+/*
+**	D-036 diagnostic, off unless the production census asks for it.  When a generic feature has
+**	exhausted its alternates, every candidate cell is tried again -- not only the first
+**	retry.max_alternate_candidates_per_feature -- and the first rule refusing each one is tallied,
+**	so a search-budget shortfall can be told from a feature that fits nowhere.  It runs only after
+**	the attempt has already failed, accepts nothing and changes no outcome.
+*/
+static bool _ExhaustiveDiagnostic = false;
+
+void Hybrid_Landform_Set_Exhaustive_Diagnostic(bool enabled)
+{
+	_ExhaustiveDiagnostic = enabled;
+}
+
+
+static void Diagnose_Exhaustion(LandformBuilder & b,const HybridLandform & drawn,StringClass * detail)
+{
+	enum { MAX_REASONS = 16 };
+	const char *	reasons[MAX_REASONS];
+	int				counts[MAX_REASONS];
+	int				reason_count = 0;
+
+	int tested = 0;
+	int legal = 0;
+	int first_legal_ordinal = 0;
+	const char * const saved_reject = b.LastReject;
+
+	for (int candidate = 0; candidate < b.CandidateCount; ++candidate) {
+
+		HybridLandform landform = drawn;
+		Vector2 centre;
+		float angle = 0.0f;
+		Generic_Candidate_Pose(b,landform,b.Order[candidate].Cell,&centre,&angle);
+
+		const char * reason = nullptr;
+		bool counts_as_tested = false;
+		if (!Build_Geometry(b,&landform,centre,angle)) {
+			reason = "degenerate geometry";
+		} else if (!Clamp_To_Elevation_Envelope(b,&landform)) {
+			reason = "elevation envelope";
+			counts_as_tested = true;
+		} else {
+			const HybridCandidateVerdict verdict = Candidate_Verdict(b,landform);
+			if (verdict == HYBRID_CANDIDATE_ACCEPT) {
+				tested++;
+				legal++;
+				if (first_legal_ordinal == 0) first_legal_ordinal = tested;
+				continue;
+			}
+			reason = b.LastReject;
+			counts_as_tested = (verdict == HYBRID_CANDIDATE_CONFLICT);
+		}
+		if (counts_as_tested) tested++;
+
+		int r = 0;
+		while ((r < reason_count) && (::strcmp(reasons[r],reason) != 0)) ++r;
+		if (r == reason_count) {
+			if (reason_count == MAX_REASONS) continue;
+			reasons[reason_count] = reason;
+			counts[reason_count] = 0;
+			reason_count++;
+		}
+		counts[r]++;
+	}
+	b.LastReject = saved_reject;
+
+	StringClass line;
+	line.Format(" | exhaustive: %d cells, %d tested, %d legal",b.CandidateCount,tested,legal);
+	*detail += line;
+	if (legal > 0) {
+		line.Format(" (first at tested ordinal %d)",first_legal_ordinal);
+		*detail += line;
+	}
+	*detail += "; first refusal:";
+	for (int r = 0; r < reason_count; ++r) {
+		line.Format("%s %s %d",(r == 0) ? "" : ",",reasons[r],counts[r]);
+		*detail += line;
+	}
+}
+
+
+/*
 **	A generic feature: the plan's six-step candidate process, bounded by
 **	retry.max_alternate_candidates_per_feature.
 */
@@ -1649,7 +1784,7 @@ static bool Place_Generic(LandformBuilder & b,HybridLandformKind kind,unsigned i
 	landform.StableId	= reservation.Id();
 	landform.Kind		= kind;
 	landform.SystemId	= system_id;
-	Draw_Dimensions(b,&landform);
+	Draw_Dimensions(b,&landform,HYBRID_LANDFORM_ROLE_GENERIC);
 
 	if (!Clamp_To_Placeable_Span(b,&landform)) {
 		StringClass detail;
@@ -1658,9 +1793,8 @@ static bool Place_Generic(LandformBuilder & b,HybridLandformKind kind,unsigned i
 		return Fail(result,HYBRID_LANDFORM_CANDIDATES_EXHAUSTED,detail.Peek_Buffer());
 	}
 
-	const HybridSemanticMatrix & matrix = b.Matrices->Matrix;
-	const float jitter = CANDIDATE_JITTER_S * b.P->Constants.S;
 	Prepare_Candidate_Order(b,kind,landform.StableId);
+	const HybridLandform drawn = landform;
 
 	int tested = 0;
 	int elevation_refusals = 0;
@@ -1669,22 +1803,9 @@ static bool Place_Generic(LandformBuilder & b,HybridLandformKind kind,unsigned i
 
 		if (tested >= b.P->MaxAlternateCandidatesPerFeature) break;
 
-		const int cell = b.Order[candidate].Cell;
-		const int cx = cell % matrix.Get_Count_X();
-		const int cy = cell / matrix.Get_Count_X();
-		const Vector2 base = matrix.Cell_Center(cx,cy);
-
-		const Vector2 centre(
-			base.X + Hybrid_Range(-jitter,+jitter,
-										 Landform_Hash(b.P->TerrainSeed,kind,landform.StableId,"jitter_x",(unsigned int)cell)),
-			base.Y + Hybrid_Range(-jitter,+jitter,
-										 Landform_Hash(b.P->TerrainSeed,kind,landform.StableId,"jitter_y",(unsigned int)cell)));
-
-		//	A line feature's axis is keyed once, like every other dimension.
-		const float angle = Hybrid_Landform_Is_Line(kind)
-			? Hybrid_Range(0.0f,WWMATH_PI,Landform_Hash(b.P->TerrainSeed,kind,landform.StableId,"axis"),
-								HYBRID_QUANTUM_ANGLE)
-			: 0.0f;
+		Vector2 centre;
+		float angle = 0.0f;
+		Generic_Candidate_Pose(b,landform,b.Order[candidate].Cell,&centre,&angle);
 
 		if (!Build_Geometry(b,&landform,centre,angle)) {
 			b.LastReject = "degenerate geometry";
@@ -1716,6 +1837,7 @@ static bool Place_Generic(LandformBuilder & b,HybridLandformKind kind,unsigned i
 	StringClass detail;
 	detail.Format("%s %u exhausted %d alternate candidates, last refused by %s",Hybrid_Landform_Kind_Name(kind),
 					  landform.StableId,tested,(b.LastReject != nullptr) ? b.LastReject : "?");
+	if (_ExhaustiveDiagnostic) Diagnose_Exhaustion(b,drawn,&detail);
 
 	//	Nothing but the elevation envelope refused it: that is a profile envelope too tight for this
 	//	feature's drawn depth or amplitude, not a crowded map, and it is worth saying so by name.
@@ -1766,7 +1888,7 @@ static bool Place_Required(LandformBuilder & b,HybridLandformKind kind,const Hyb
 	landform.ParentStableId	= parent_id;
 	landform.IntentStableId	= intent.StableId;
 	landform.Required			= true;
-	Draw_Dimensions(b,&landform);
+	Draw_Dimensions(b,&landform,HYBRID_LANDFORM_ROLE_PRINCIPAL);
 
 	if (!Clamp_To_Placeable_Span(b,&landform)) {
 		StringClass detail;
@@ -1826,7 +1948,7 @@ static bool Place_Ravine_Branch(LandformBuilder & b,const HybridLandform & paren
 	landform.ParentStableId	= parent.StableId;
 	landform.IntentStableId	= intent.StableId;
 	landform.Required			= true;
-	Draw_Dimensions(b,&landform);
+	Draw_Dimensions(b,&landform,HYBRID_LANDFORM_ROLE_PRINCIPAL);
 
 	if (!Clamp_To_Placeable_Span(b,&landform)) {
 		return Fail(result,HYBRID_LANDFORM_REQUIRED_UNPLACEABLE,"a ravine branch does not fit the placeable interior");

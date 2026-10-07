@@ -5559,6 +5559,55 @@ void Check_Hybrid_Landforms (void)
 			&& Hybrid_Ravine_Branch_Count (HYBRID_SIZE_LARGE) == 5,"Section 6.8 branch counts are exactly 2/3/5");
 	}
 
+	/*
+	**	Q-018 (D-036): a LARGE generic hill or ridge is drawn against D_feature = (5/8)D; SMALL, MEDIUM
+	**	and every archetype principal feature keep D.  The counts above are the unchanged LARGE counts.
+	*/
+	{
+		Check (Hybrid_Generic_Landform_Dimension_D (2400.0f,HYBRID_SIZE_LARGE) == 1500.0f,"LARGE D_feature is not 5/8 D");
+		Check (Hybrid_Generic_Landform_Dimension_D (1200.0f,HYBRID_SIZE_MEDIUM) == 1200.0f,"MEDIUM D_feature is not D");
+		Check (Hybrid_Generic_Landform_Dimension_D (600.0f,HYBRID_SIZE_SMALL) == 600.0f,"SMALL D_feature is not D");
+
+		struct RangeCase { float D; HybridSizeClass Size; HybridLandformRole Role; float Hill[2]; float Length[2]; float Half[2]; const char * Name; };
+		static const RangeCase cases[] = {
+			//	large_generic_hill_scale / large_generic_ridge_scale
+			{ 2400.0f,HYBRID_SIZE_LARGE, HYBRID_LANDFORM_ROLE_GENERIC,  { 120.0f,240.0f },{ 375.0f, 825.0f },{ 60.0f,135.0f },"LARGE generic" },
+			//	principal_unscaled
+			{ 2400.0f,HYBRID_SIZE_LARGE, HYBRID_LANDFORM_ROLE_PRINCIPAL,{ 192.0f,384.0f },{ 600.0f,1320.0f },{ 96.0f,216.0f },"LARGE principal" },
+			//	medium_unchanged
+			{ 1200.0f,HYBRID_SIZE_MEDIUM,HYBRID_LANDFORM_ROLE_GENERIC,  {  96.0f,192.0f },{ 300.0f, 660.0f },{ 48.0f,108.0f },"MEDIUM generic" },
+			{ 1200.0f,HYBRID_SIZE_MEDIUM,HYBRID_LANDFORM_ROLE_PRINCIPAL,{  96.0f,192.0f },{ 300.0f, 660.0f },{ 48.0f,108.0f },"MEDIUM principal" },
+			//	small_unchanged
+			{  600.0f,HYBRID_SIZE_SMALL, HYBRID_LANDFORM_ROLE_GENERIC,  {  48.0f, 96.0f },{ 150.0f, 330.0f },{ 24.0f, 54.0f },"SMALL generic" },
+			{  600.0f,HYBRID_SIZE_SMALL, HYBRID_LANDFORM_ROLE_PRINCIPAL,{  48.0f, 96.0f },{ 150.0f, 330.0f },{ 24.0f, 54.0f },"SMALL principal" },
+		};
+		for (int c = 0; c < (int)(sizeof (cases) / sizeof (cases[0])); ++c) {
+			HybridLandformHorizontalRanges r;
+			Hybrid_Landform_Horizontal_Ranges (cases[c].D,cases[c].Size,cases[c].Role,&r);
+			Check (Near (r.HillRadiusMin,cases[c].Hill[0]) && Near (r.HillRadiusMax,cases[c].Hill[1]),
+					 "%s hill radius is %g..%g, not %g..%g",cases[c].Name,r.HillRadiusMin,r.HillRadiusMax,cases[c].Hill[0],cases[c].Hill[1]);
+			Check (Near (r.RidgeLengthMin,cases[c].Length[0]) && Near (r.RidgeLengthMax,cases[c].Length[1]),
+					 "%s ridge length is %g..%g, not %g..%g",cases[c].Name,r.RidgeLengthMin,r.RidgeLengthMax,cases[c].Length[0],cases[c].Length[1]);
+			Check (Near (r.RidgeHalfWidthMin,cases[c].Half[0]) && Near (r.RidgeHalfWidthMax,cases[c].Half[1]),
+					 "%s ridge half-width is %g..%g, not %g..%g",cases[c].Name,r.RidgeHalfWidthMin,r.RidgeHalfWidthMax,cases[c].Half[0],cases[c].Half[1]);
+		}
+
+		//	protected_area_unchanged: the native base reserve is base_radius_cells 3 * chunk 60, whatever
+		//	Phase 5 draws against.
+		HybridConstants native;
+		Hybrid_Compute_Constants (2.555953f,1.0f,60.0f,2400.0f,2400.0f,3.0f,10000.0f,&native);
+		Check ((native.SizeClass == HYBRID_SIZE_LARGE) && (native.D == 2400.0f),"the native world is not LARGE at D=2400");
+		Check (native.RBaseProtected == 180.0f,"the native R_BASE_PROTECTED is %g, not 180",native.RBaseProtected);
+
+		//	retry_budget_unchanged: the shipped native profile still searches 32 alternates per feature.
+		ProceduralWorldProfile native_profile;
+		StringClass profile_error;
+		Check (ProceduralWorldProfileManager::Load_Profile_From_File ("data/procedural_world/native.json",&native_profile,
+																						  &profile_error),"native.json: %s",profile_error.Peek_Buffer ());
+		Check (native_profile.Retry.MaxAlternateCandidatesPerFeature == 32,"native retry.max_alternate_candidates_per_feature is %d, not 32",
+				 native_profile.Retry.MaxAlternateCandidatesPerFeature);
+	}
+
 	//	The shared centripetal Catmull-Rom sampler: it interpolates every control at the asked spacing.
 	{
 		Vector2 controls[4];
@@ -5701,6 +5750,98 @@ void Check_Hybrid_Landforms (void)
 				 "independent hill fields must sum");
 	}
 
+	/*
+	**	Q-018 (D-036) on real LARGE builds: every archetype at the native D=2400 and two terrain seeds.
+	**	Every generic hill and ridge Phase 5 accepts is drawn from the D_feature ranges, every
+	**	principal ridge from the unscaled ones, the counts are the unchanged LARGE targets, and
+	**	Phase 5 leaves the Phase-4 BASE_PROTECTED mask exactly as it found it.
+	*/
+	{
+		HybridLandformHorizontalRanges generic;
+		HybridLandformHorizontalRanges principal;
+		Hybrid_Landform_Horizontal_Ranges (2400.0f,HYBRID_SIZE_LARGE,HYBRID_LANDFORM_ROLE_GENERIC,&generic);
+		Hybrid_Landform_Horizontal_Ranges (2400.0f,HYBRID_SIZE_LARGE,HYBRID_LANDFORM_ROLE_PRINCIPAL,&principal);
+
+		static const unsigned int terrain_seeds[2] = { 4242u, 777u };
+		int large_built = 0;
+		int generic_hills = 0;
+		int generic_ridges = 0;
+		int principal_ridges = 0;
+		int principal_beyond_generic = 0;
+
+		for (int a = 0; a < HYBRID_ARCHETYPE_COUNT; ++a) {
+			for (int s = 0; s < 2; ++s) {
+
+				HybridMapIdentityParams large = Graph_Identity_Fixture (2400.0f,3.0f);
+				large.ArchetypeSelector = (HybridArchetype)a;
+				if (!Hybrid_Resolve_Map_Identity (large,&identity,&intents,&identity_result)) continue;
+				HybridStrategicGraphParams graph_params = Graph_Fixture (large,2.0f);
+				if (!Hybrid_Build_Strategic_Graph (graph_params,identity,intents,&graph,&graph_result)) continue;
+				HybridCoarseMatrixParams coarse_params = Coarse_Fixture (large,2400.0f);
+				if (!Hybrid_Build_Coarse_Matrices (coarse_params,identity,intents,&graph,&matrices,&coarse_result)) continue;
+
+				const HybridSemanticMatrix & matrix = matrices.Matrix;
+				DynamicVectorClass<bool> protected_before;
+				for (int cy = 0; cy < matrix.Get_Count_Y (); ++cy) {
+					for (int cx = 0; cx < matrix.Get_Count_X (); ++cx) {
+						protected_before.Add (matrices.Is_Base_Protected (cx,cy));
+					}
+				}
+
+				HybridLandformParams params = Landform_Fixture (large,2400.0f);
+				params.TerrainSeed = WorldSeedService::Derive_Subsystem_Seed (terrain_seeds[s],WorldSeedService::SEED_DOMAIN_TERRAIN);
+				const bool built = Hybrid_Build_Landforms (params,identity,intents,graph,&matrices,&landforms,&result);
+
+				bool protected_same = true;
+				for (int cy = 0, n = 0; cy < matrix.Get_Count_Y (); ++cy) {
+					for (int cx = 0; cx < matrix.Get_Count_X (); ++cx, ++n) {
+						if (protected_before[n] != matrices.Is_Base_Protected (cx,cy)) protected_same = false;
+					}
+				}
+				Check (protected_same,"Phase 5 changed BASE_PROTECTED on %s seed %u",Hybrid_Archetype_Name (identity.Archetype),
+						 terrain_seeds[s]);
+				if (!built) continue;
+				large_built++;
+
+				Check (identity.SizeClass == HYBRID_SIZE_LARGE,"the D=2400 fixture is not LARGE");
+				Check (landforms.Count_Of_Kind (HYBRID_LANDFORM_HILL) == Hybrid_Hill_Target_Count (HYBRID_SIZE_LARGE,params.HillDensity)
+					 && landforms.Count_Of_Kind (HYBRID_LANDFORM_HILL) == 11,"LARGE hill count changed");
+				Check (landforms.Count_Of_Kind (HYBRID_LANDFORM_RIDGE) == Hybrid_Ridge_Target_Count (HYBRID_SIZE_LARGE,params.MountainDensity)
+					 && landforms.Count_Of_Kind (HYBRID_LANDFORM_RIDGE) == 4,"LARGE ridge count changed");
+
+				for (int f = 0; f < landforms.Landforms.Count (); ++f) {
+					const HybridLandform & landform = landforms.Landforms[f];
+					if (landform.Kind == HYBRID_LANDFORM_HILL) {
+						Check (!landform.Required,"a hill was placed as a principal feature");
+						generic_hills++;
+						Check ((landform.RadiusX >= generic.HillRadiusMin - 0.001f) && (landform.RadiusX <= generic.HillRadiusMax + 0.001f),
+								 "LARGE generic hill %u radius %g is outside 120..240",landform.StableId,landform.RadiusX);
+					}
+					if (landform.Kind != HYBRID_LANDFORM_RIDGE) continue;
+					const HybridLandformHorizontalRanges & r = landform.Required ? principal : generic;
+					Check ((landform.Length >= r.RidgeLengthMin - 0.001f) && (landform.Length <= r.RidgeLengthMax + 0.001f),
+							 "LARGE %s ridge %u length %g is outside %g..%g",landform.Required ? "principal" : "generic",
+							 landform.StableId,landform.Length,r.RidgeLengthMin,r.RidgeLengthMax);
+					Check ((landform.InfluenceHalfWidth >= r.RidgeHalfWidthMin - 0.001f) && (landform.InfluenceHalfWidth <= r.RidgeHalfWidthMax + 0.001f),
+							 "LARGE %s ridge %u half-width %g is outside %g..%g",landform.Required ? "principal" : "generic",
+							 landform.StableId,landform.InfluenceHalfWidth,r.RidgeHalfWidthMin,r.RidgeHalfWidthMax);
+					if (!landform.Required) { generic_ridges++; continue; }
+					principal_ridges++;
+					if ((landform.Length > generic.RidgeLengthMax + 0.001f) || (landform.InfluenceHalfWidth > generic.RidgeHalfWidthMax + 0.001f)) {
+						principal_beyond_generic++;
+					}
+				}
+			}
+		}
+
+		Check (large_built > 0,"no LARGE fixture built Phase 5");
+		Check ((generic_hills > 0) && (generic_ridges > 0),"the LARGE builds placed %d generic hills and %d generic ridges",
+				 generic_hills,generic_ridges);
+		//	principal_unscaled: a principal ridge is drawn past the generic maximum, which only D can give.
+		Check ((principal_ridges > 0) && (principal_beyond_generic > 0),
+				 "%d of %d LARGE principal ridges exceed the generic ranges",principal_beyond_generic,principal_ridges);
+	}
+
 	//	A full Phase-5 build at each size class, on top of a real Phase-2/3/4 chain.
 	const float sizes[3] = { 600.0f, 1200.0f, 2400.0f };
 	const float base_cells[3] = { 1.0f, 2.0f, 3.0f };
@@ -5725,10 +5866,9 @@ void Check_Hybrid_Landforms (void)
 		/*
 		**	Section 5: a quota that cannot be met is a *named* attempt failure the manager retries with
 		**	a new whole-world seed, not a half-built world.  So a failure here has to be named, has to
-		**	explain itself and has to leave nothing behind.  Q-018 tracks the one geometry the plan
-		**	over-constrains -- the LARGE hill quota against the 25%% same-type overlap cap -- which is
-		**	why a LARGE failure is tolerated here while MEDIUM, the size class the plan sets its own
-		**	quality target on, must succeed.
+		**	explain itself and has to leave nothing behind.  Q-018 (D-036) shrank LARGE generic hills and
+		**	ridges to D_feature; a LARGE attempt may still fail on this one fixture seed and is tolerated
+		**	here, while MEDIUM, the size class the plan sets its own quality target on, must succeed.
 		*/
 		if (!built) {
 			Check (result.Failure != HYBRID_LANDFORM_OK,"a failed Phase 5 must name its failure");
@@ -5759,12 +5899,18 @@ void Check_Hybrid_Landforms (void)
 			const HybridLandform & landform = landforms.Landforms[f];
 			Check (landform.StableId == (unsigned int)(f + 1),"StableIds are not creation order");
 
-			//	Section 8 Phase 5 geometry ranges, and the elevation envelope every value is clamped to.
+			//	Section 8 Phase 5 geometry ranges, and the elevation envelope every value is clamped to.  A
+			//	hill's or ridge's horizontal range is its role's (Q-018, D-036): required = principal.
+			HybridLandformHorizontalRanges horizontal;
+			Hybrid_Landform_Horizontal_Ranges (k.D,identity.SizeClass,
+														  landform.Required ? HYBRID_LANDFORM_ROLE_PRINCIPAL : HYBRID_LANDFORM_ROLE_GENERIC,
+														  &horizontal);
 			switch (landform.Kind) {
 
 				case HYBRID_LANDFORM_HILL:
-					Check ((landform.RadiusX >= (0.08f * k.D) - 0.001f) && (landform.RadiusX <= (0.16f * k.D) + 0.001f),
-							 "hill %u radius %g is outside 0.08D..0.16D",landform.StableId,landform.RadiusX);
+					Check ((landform.RadiusX >= horizontal.HillRadiusMin - 0.001f) && (landform.RadiusX <= horizontal.HillRadiusMax + 0.001f),
+							 "hill %u radius %g is outside %g..%g",landform.StableId,landform.RadiusX,
+							 horizontal.HillRadiusMin,horizontal.HillRadiusMax);
 					Check ((landform.RadiusY >= (0.75f * landform.RadiusX) - 0.01f)
 						&& (landform.RadiusY <= (1.25f * landform.RadiusX) + 0.01f),
 							 "hill %u aspect ratio is outside 0.75..1.25",landform.StableId);
@@ -5773,11 +5919,13 @@ void Check_Hybrid_Landforms (void)
 					break;
 
 				case HYBRID_LANDFORM_RIDGE:
-					Check ((landform.Length >= (0.25f * k.D) - 0.001f) && (landform.Length <= (0.55f * k.D) + 0.001f),
-							 "ridge %u length %g is outside 0.25D..0.55D",landform.StableId,landform.Length);
-					Check ((landform.InfluenceHalfWidth >= (0.04f * k.D) - 0.001f)
-						&& (landform.InfluenceHalfWidth <= (0.09f * k.D) + 0.001f),
-							 "ridge %u half-width is outside 0.04D..0.09D",landform.StableId);
+					Check ((landform.Length >= horizontal.RidgeLengthMin - 0.001f) && (landform.Length <= horizontal.RidgeLengthMax + 0.001f),
+							 "ridge %u length %g is outside %g..%g",landform.StableId,landform.Length,
+							 horizontal.RidgeLengthMin,horizontal.RidgeLengthMax);
+					Check ((landform.InfluenceHalfWidth >= horizontal.RidgeHalfWidthMin - 0.001f)
+						&& (landform.InfluenceHalfWidth <= horizontal.RidgeHalfWidthMax + 0.001f),
+							 "ridge %u half-width %g is outside %g..%g",landform.StableId,landform.InfluenceHalfWidth,
+							 horizontal.RidgeHalfWidthMin,horizontal.RidgeHalfWidthMax);
 					break;
 
 				case HYBRID_LANDFORM_CLIFF:
@@ -6244,7 +6392,7 @@ void Check_Hybrid_Hydrology (void)
 
 		HybridLandformParams landform_params = Landform_Fixture (sized,sizes[i]);
 		if (!Hybrid_Build_Landforms (landform_params,identity,intents,graph,&matrices,&landforms,&landform_result)) {
-			//	Q-018: the LARGE hill quota against the 25%% same-type overlap cap.  Phase 6 needs Phase 5.
+			//	A LARGE Phase 5 may still fail on this fixture seed (see Check_Hybrid_Landforms).  Phase 6 needs Phase 5.
 			Check (identity.SizeClass != HYBRID_SIZE_MEDIUM,"landforms at D=%g: %s (%s)",sizes[i],
 					 Hybrid_Landform_Failure_Name (landform_result.Failure),landform_result.Detail.Peek_Buffer ());
 			continue;

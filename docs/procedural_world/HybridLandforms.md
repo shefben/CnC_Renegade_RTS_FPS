@@ -113,11 +113,26 @@ thing standing in a cell is what decoration, material and tactical passes must r
 `out->Checksum` is a quantized digest of every accepted landform in StableId order, seeded with the
 Phase-2 identity checksum.
 
-## Known open question
+## LARGE generic dimensions (Q-018, D-036)
 
-**Q-018** (see `awaiting_answers.md`): at LARGE the plan's hill target
-(`10 + RoundHalfUp(hill_density*6)`) with hill radius `0.08D..0.16D` cannot satisfy rejection rule
-6's 25% same-type overlap cap together with the `BASE_PROTECTED` exclusion. An exhaustive search of
-every fitting candidate cell refuses the last hill, so this is not a retry-budget shortfall. Phase 5
-reports the named attempt failure the plan prescribes, and the self-check tolerates it at LARGE while
-requiring success at MEDIUM, the size class the plan sets its own quality target on.
+At LARGE the plan's hill target (`10 + RoundHalfUp(hill_density*6)`) with hill radius `0.08D..0.16D`
+could not satisfy rejection rule 6's 25% same-type overlap cap together with the `BASE_PROTECTED`
+exclusion, and the production census showed the same pressure on the remaining ridges. Q-018 closed on
+option (a): a generic hill's radius and a generic ridge's length and influence half-width are drawn
+against `D_feature = Hybrid_Generic_Landform_Dimension_D(D,size_class)`, which is `D` at SMALL and
+MEDIUM and `(5/8)D` at LARGE. At the native `D = 2400` that is hill radius `120..240`, ridge length
+`375..825` and ridge half-width `60..135`.
+
+- **Role.** `Draw_Dimensions` takes the placement path's `HybridLandformRole`: `Place_Generic` passes
+  `GENERIC`, `Place_Required` and `Place_Ravine_Branch` pass `PRINCIPAL`. Nothing infers it from a
+  `StableId`.
+- **One owner.** `Hybrid_Landform_Horizontal_Ranges` gives the ranges the draw uses and the checks
+  verify.
+- **Unchanged.** Archetype principal features, canyons, ravines, cliffs, every count, `BASE_PROTECTED`,
+  the 25% overlap rule and the 32-alternate budget.
+
+**Exhaustive diagnostic.** With `Hybrid_Landform_Set_Exhaustive_Diagnostic(true)` (the census's
+`--procedural-exhaustive`), a generic feature that exhausts its alternates tries every remaining candidate
+cell from its drawn dimensions and appends to the failure detail: the cells, how many counted as tested,
+how many were legal (and the tested ordinal of the first), and the first rule that refused each of the
+rest. It runs only after the attempt has failed, accepts nothing and is off by default.

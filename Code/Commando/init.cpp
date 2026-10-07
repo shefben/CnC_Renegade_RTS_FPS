@@ -124,6 +124,7 @@
 #include "dlgmainmenu.h"
 #include "proceduralworldmanager.h"
 #include "proceduralworldtools.h"
+#include "hybridlandforms.h"
 #include "assetdep.h"
 #include "mainloop.h"
 #include "combat.h"
@@ -1162,6 +1163,7 @@ bool Game_Init(void)
 		CombatManager::Load_Game_Definitions ();
 		AssetDependencyManager::Load_Always_Assets ();
 		ProceduralWorldManager::Set_Progress_Log (procedural_log);
+		Hybrid_Landform_Set_Exhaustive_Diagnostic (cUserOptions::ProceduralExhaustive);
 		ProceduralWorldToolsService::Print_Vehicle_Metrics (procedural_log,procedural_profile);
 		ProceduralWorldToolsService::Run_Seed_Census (cUserOptions::ProceduralCensusFirst,cUserOptions::ProceduralCensusCount,
 																	 procedural_profile,true,procedural_log);

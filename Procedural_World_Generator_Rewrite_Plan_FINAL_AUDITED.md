@@ -1351,6 +1351,11 @@ ravine rim half-width          = floor_half_width + (2W .. 5W)
 ravine depth                   = tier_step * (0.75 .. 1.50)
 ```
 
+**(Q-018)** For a generic hill and a generic (remaining) ridge, `D` in the hill radius, ridge centerline
+length and ridge influence half-width rows is `D_feature = Hybrid_Generic_Landform_Dimension_D(D,size_class)`:
+`D` at SMALL and MEDIUM, `(5/8)D` at LARGE (so a LARGE hill radius is `0.05D..0.10D`). Archetype principal
+features, every other row, every count and the 25% same-type overlap rule keep `D`. See `DECISIONS.md` D-036.
+
 All values are clamped so final provisional heights stay inside `terrain.min_elevation..terrain.max_elevation` relative to sea level.
 
 ### Exact generic landform candidate construction

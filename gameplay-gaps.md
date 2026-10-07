@@ -184,7 +184,7 @@ whole world in `CombatManager::Post_Load_Level`. When generation is refused, the
 carries on, so the player stands in an empty scene with no land, roads or bases, and no message saying why.
 
 Today every native request is refused before any terrain exists. Content preflight now passes (D-035), but in the
-production census no seed from 1 to 256 gets past landform placement (Phase 5) or earlier stages (D-035).
+production census no seed from 1 to 256 completes generation; the furthest reaches road routing (Phase 10) (D-036).
 
-Needs: generation to succeed (D-035's blocker), and a failed generation to return to the menu with its reason instead of
+Needs: generation to succeed (D-036's blockers), and a failed generation to return to the menu with its reason instead of
 loading the empty native level.

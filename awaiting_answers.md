@@ -59,22 +59,11 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
   ownership, the line-feature control frame, the `SURFACE_SADDLE` crossing obligation, and
   `highland_pass`'s wrongly tagged alternate guide). See `DECISIONS.md` D-011. Full suite 233/233.
 
-- **Q-018** Hybrid rewrite I6 (runtime Phase 5, vector landforms). At LARGE the plan's hill
- target -- `10 + RoundHalfUp(terrain.hill_density * 6)`, so 11 hills at the native
- `hill_density = 0.15` -- cannot be satisfied together with rejection rule 6's "overlap area of
- two accepted independent features of the same type must be <= 25% of the smaller polygon" and
- the `BASE_PROTECTED` exclusion, because the same section draws each hill radius from
- `0.08D..0.16D`, which is 192..384 world units at `D = 2400`. Evidence: an exhaustive search of
- every candidate cell that can hold the feature (3180 cells, so not a retry-budget shortfall)
- refuses the eleventh hill on the 25% cap; measured over twelve seeds, 6/12 LARGE seeds fail
- Phase 5 the same way, and the two rules are individually correct, so no source, donor or runtime
- data resolves which one yields. Blocks: closing I6's gate at LARGE, and the D-002/D-003 native
- visual run, whose profile is `2400 x 2400`. Phase 5 currently reports the named attempt failure
- Section 5 prescribes, the self-check requires success at MEDIUM and tolerates the LARGE failure,
- and nothing half-built is ever kept. Smallest decision needed: which of these the user wants --
- (a) scale hill radius by size class, for example `0.05D..0.10D` at LARGE; (b) exempt hills from
- rule 6 and cap them by a total-area budget instead; (c) reduce the LARGE hill base count; or
- (d) accept the attempt-failure rate and let whole-world retries carry it.
+- **Q-018 CLOSED (2026-10-06, option (a)).** LARGE generic hill/ridge horizontal size uses
+  `D_feature = 5D/8` (`Hybrid_Generic_Landform_Dimension_D`): at `D = 2400`, hill radius `120..240`,
+  ridge length `375..825`, ridge half-width `60..135`. SMALL, MEDIUM and archetype principal features
+  keep `D`. Counts, `BASE_PROTECTED`, the 25% same-type overlap rule and the 32-alternate budget are
+  unchanged. See `DECISIONS.md` D-036.
 
 - **Q-006** P08's acceptance -- that repeated map load and unload keeps what was
  retained and leaks nothing -- is proved as arithmetic by `asset_residency` but not

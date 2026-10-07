@@ -371,6 +371,52 @@ int	Hybrid_Ravine_System_Target_Count(HybridSizeClass size_class,float valley_de
 int	Hybrid_Ravine_Branch_Count(HybridSizeClass size_class);
 
 /*
+**	Q-018 (D-036).  Which placement path a landform's dimensions are drawn for.  An archetype
+**	principal feature (Section 6) keeps the plan's own proportions; a generic density-fill hill or
+**	remaining ridge, placed after every required feature, draws its horizontal size from the
+**	size class's generic dimension instead.  The placement path says which it is; nothing infers it
+**	from a StableId.
+*/
+enum HybridLandformRole
+{
+	HYBRID_LANDFORM_ROLE_PRINCIPAL = 0,
+	HYBRID_LANDFORM_ROLE_GENERIC
+};
+
+/*
+**	Q-018 (D-036): the effective map extent a generic hill's radius and a generic ridge's length
+**	and influence half-width are drawn against.  D at SMALL and MEDIUM, (5/8)D at LARGE, so LARGE
+**	keeps its higher hill/ridge counts without each feature also growing with the map.  Nothing
+**	else in the generator reads it: D itself is unchanged.
+*/
+float	Hybrid_Generic_Landform_Dimension_D(float d,HybridSizeClass size_class);
+
+/*
+**	The horizontal ranges Phase 5 draws a hill or ridge from, for one role and size class.  The
+**	draw and the checks share this one owner.
+*/
+struct HybridLandformHorizontalRanges
+{
+	float	HillRadiusMin;
+	float	HillRadiusMax;
+	float	RidgeLengthMin;
+	float	RidgeLengthMax;
+	float	RidgeHalfWidthMin;
+	float	RidgeHalfWidthMax;
+};
+
+void	Hybrid_Landform_Horizontal_Ranges(float d,HybridSizeClass size_class,HybridLandformRole role,
+													 HybridLandformHorizontalRanges * out);
+
+/*
+**	D-036 diagnostic (production census only, `--procedural-exhaustive`).  When on, a generic
+**	feature that exhausts its alternates also tries every remaining candidate cell and appends to
+**	the failure detail how many were legal and which rule first refused the rest.  It never accepts
+**	a candidate or changes an outcome; off by default.
+*/
+void	Hybrid_Landform_Set_Exhaustive_Diagnostic(bool enabled);
+
+/*
 **	Section 5 minimum qualifications, so the gate and any later validator share one owner.
 */
 float	Hybrid_Cliff_Min_Length(float w,float d);						// max(8W, 0.12D)

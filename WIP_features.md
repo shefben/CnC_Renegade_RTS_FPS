@@ -491,10 +491,20 @@ refused, the Construction Yards among them. Preflight now passes on real content
 distinct effective seeds): none gets past Phase 5. Ridge `candidates_exhausted` refused by `BASE_PROTECTED` accounts for
 120 seeds; D-035 has the full table. No smoke test was possible. The stop rule applied, and no generator rule was changed.
 
+D-036 (2026-10-06, Q-018 closed as option (a)): LARGE generic hills and ridges are drawn against `5D/8`. Census 1..256:
+the 144 ridge failures are gone, and Phase 5 now stops 67 of 258 seeds (it stopped 181). 114 seeds reach Phases 6 to 10;
+the furthest is effective seed 2, which reaches Phase 10 (`no_spline`). Phase 12 passes: 0. The largest category is now
+Phase 7 `bed_above_surface` (41). In the exhaustive diagnostic, every measured Phase-5 hill or cliff failure has legal
+candidates past the 32nd. The first census process exited 127 after requested seed 138; it did not reproduce, and that is
+recorded in D-036.
+
 **Next exact action:**
-1. Wait for the user's direction on the native profile's Phase-5 failure (D-035): which input is wrong for the 2400 m
-   native size class (ridge count/dimensions, `BASE_PROTECTED` extent, or the alternate-candidate bound). Then rerun
-   `--procedural-census 1 256` and smoke-test the first Phase-12 seed with `--procedural-skirmish`.
+1. Wait for the user's direction on D-036's two findings:
+   - Phase 7 `bed_above_surface` (41 seeds) as the next generator defect;
+   - whether the Phase-5 alternate budget is now the right question, since legal candidates exist beyond 32 in every
+     measured failure.
+
+   Then rerun `--procedural-census 1 256` and smoke-test the first Phase-12 seed with `--procedural-skirmish`.
 2. Named later investigation (not started): why Phase 11 detects no physical roadbed-footprint conflict between roads
    whose centerlines do not intersect (fixture archetype 5 seed 64).
 3. Close I13.

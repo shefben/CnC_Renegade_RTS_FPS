@@ -554,6 +554,140 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-036 - Q-018 option (a): LARGE generic hills and ridges are drawn against 5D/8; the native census clears Phase 5's ridge wall (2026-10-06)
+
+**Direction (user, 2026-10-06).** Approve D-035 as implemented. For the Phase-5 blocker, choose the landform-dimensions
+option and close Q-018 with option (a). Keep `BASE_PROTECTED`, the 32-alternate budget, the LARGE hill and ridge counts
+and the 25% same-type overlap rule unchanged. Change no second generator rule. Rerun the production census 1..256 and
+smoke-test the first Phase-12 seed if one appears. If Phase 5 still dominates, determine whether legal candidates exist
+beyond the first 32.
+
+### The rule
+
+- **Helper.** `Hybrid_Generic_Landform_Dimension_D(D,size_class)` (`hybridlandforms.{h,cpp}`) returns D at SMALL and
+  MEDIUM and `0.625 * D` at LARGE.
+- **What it scales.** It is used only for a generic hill's radius and a generic ridge's centerline length and influence
+  half-width. A plateau converted from one of them inherits that footprint.
+- **One owner.** `Hybrid_Landform_Horizontal_Ranges(D,size_class,role,&ranges)` gives the six ranges that both the draw
+  and the checks use.
+- **Role.** `Draw_Dimensions` takes an explicit `HybridLandformRole`:
+  - `Place_Generic` passes `GENERIC`;
+  - `Place_Required` (archetype principal features) and `Place_Ravine_Branch` pass `PRINCIPAL`;
+  - nothing infers the role from a `StableId`.
+- **Native values** (D = 2400, D_feature = 1500):
+
+  | Range | Generic | Principal (unchanged) |
+  | --- | --- | --- |
+  | Hill radius | 120..240 | 192..384 |
+  | Ridge length | 375..825 | 600..1320 |
+  | Ridge half-width | 60..135 | 96..216 |
+
+- **Unchanged.** D itself, world bounds, bases, `BASE_PROTECTED`, Tiberium reservations, cliffs, canyons, ravines,
+  hydrology, roads and bridges. Also unchanged: hill/ridge counts (LARGE 11 hills and 4 ridges at the native densities),
+  the 25% same-type overlap rule, and `retry.max_alternate_candidates_per_feature` = 32.
+- **Generator identity stays 16.** This follows the existing policy: no bump while no native world has been released.
+
+### Exhaustive candidate diagnostic (observational)
+
+`--procedural-exhaustive` on the census sets `Hybrid_Landform_Set_Exhaustive_Diagnostic`, which is off by default. When a
+generic feature exhausts its 32 alternates, the diagnostic retries every candidate cell with the dimensions already
+drawn. It appends to the failure detail:
+- the number of cells, how many count as tested and how many are legal;
+- the tested ordinal of the first legal candidate;
+- the first rule that refused each of the rest.
+
+It runs only after the attempt has failed, and it accepts nothing. The candidate centre and axis now come from one
+helper (`Generic_Candidate_Pose`) shared with the real search. Census 1..40 with and without the flag gave identical
+attempt lines.
+
+### Production census 1..256 (native.json, real content, preflight passed: content `442E9F6A`, planning `D0705A53`)
+
+The process exited with code 127 after requested seed 138, while seed 139's third attempt was in Phase 7. It left no
+crash dump. Seed 139 alone ran cleanly. The census was then completed as 140..256; memory peaked at 163 MB and the run
+exited 0. This record covers all 258 distinct effective seeds; the abnormal exit is recorded but not investigated.
+
+- **Phase 12 passes: 0.** No smoke test was possible.
+- **Furthest seed:** effective seed 2 (`highland_pass`, identity `F9C44201`, topology `0F94B7C5`), which stops in Phase 10:
+  `no_spline` on a `HIGHWAY_4` family trunk.
+
+Where each distinct effective seed stops (mutually exclusive):
+
+| Category | D-035 | D-036 |
+| --- | ---: | ---: |
+| Phase 2 `NO_AVAILABLE_BIOME_PAIR` | 32 | 32 |
+| Phase 3 `NO_LEGAL_BASE_POSITION` (GDI / Nod) | 18 / 11 | 18 / 11 |
+| Phase 3 `NO_LEGAL_RESOURCE_POSITION` | 10 | 10 |
+| Phase 4 `BASE_ON_HARD_INTENT` | 6 | 6 |
+| Phase 5 ridge / `BASE_PROTECTED` | 120 | **0** |
+| Phase 5 ridge / same-type overlap | 24 | **0** |
+| Phase 5 hill / `BASE_PROTECTED` | 11 | 14 |
+| Phase 5 hill / same-type overlap | 3 | 30 |
+| Phase 5 cliff (Tiberium reserve 10, reserve disc 4, `BASE_PROTECTED` 8, corridor width 1) | 23 | 23 |
+| Phase 6 hydrology (lake quota 33, water in reserve 10, no crossing window 1) | 0 | 44 |
+| Phase 7 terrain (`bed_above_surface` 41, `feature_lost` 7) | 0 | 48 |
+| Phase 8 anchors (`base_hard_overlap` 10, `resource_illegal` 1) | 0 | 11 |
+| Phase 9 topology (bridge quota 8, obligation unbound 2) | 0 | 10 |
+| Phase 10 routes (`no_spline`) | 0 | 1 |
+| **Phase 5 total** | **181** | **67** |
+
+- **Unchanged phases.** Phases 2 to 4 are identical seed for seed, as they must be: Phase 5 feeds none of them.
+- **Ridges.** All 144 ridge failures are gone.
+- **Hills.** Hill failures rose from 14 to 44 because seeds that used to stop at a ridge now reach the hills, which are
+  placed after it.
+- **Phase 5 no longer dominates.** It is 67 of 258 seeds; 114 now reach Phases 6 to 10.
+
+### Q-018's hill impossibility, measured
+
+Exhaustive diagnostic, census 1..40: 11 distinct Phase-5 failures, 6 hills and 5 cliffs. **Every one has legal candidates
+beyond the 32nd tested one.**
+
+| Effective seed | Feature | Cells | Tested | Legal | First legal at tested ordinal |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 1 | hill 22 | 2882 | 1781 | 92 | 35 |
+| 9 | hill 23 | 2948 | 1761 | 29 | 53 |
+| 12 | hill 21 | 3018 | 1721 | 175 | 37 |
+| 30 | hill 22 | 2902 | 1703 | 33 | 34 |
+| 33 | hill 23 | 3010 | 1845 | 83 | 72 |
+| 35 | hill 22 | 2922 | 1767 | 31 | 104 |
+| 5 | cliff 7 | 2894 | 1557 | 57 | 43 |
+| 16 | cliff 7 | 2934 | 1569 | 90 | 34 |
+| 21 | cliff 7 | 3015 | 1543 | 50 | 87 |
+| 22 | cliff 8 | 2963 | 1450 | 63 | 46 |
+| 29 | cliff 7 | 2926 | 1512 | 20 | 147 |
+
+What the measurements show:
+- **The old hill impossibility is gone.** Before D-036, the eleventh LARGE hill was refused everywhere. Every measured
+  hill failure now has 29 to 175 legal positions.
+- **What stops the remaining Phase-5 failures** is the 32-alternate budget, not geometry. By the user's interpretation
+  rule, the search budget becomes the legitimate next question for Phase 5.
+- **Not changed** in this iteration.
+- **Most common first refusals:**
+  - hills: same-type overlap and `BASE_PROTECTED`;
+  - cliffs: Tiberium reserve (cells and discs) and `BASE_PROTECTED`.
+- **No ridge failure remains** to diagnose.
+
+### Next blocker
+
+Phase 7 `bed_above_surface` is the largest single category (41 seeds). A lake bed ends up above its own water surface,
+by 0.2 to 40 units. Phase 6's lake quota is next (33). Neither is changed here.
+
+**Tests** (`-terrainselfcheck hybridlandforms`, client and FDS):
+- **Ranges:**
+  - LARGE generic: 120..240, 375..825 and 60..135;
+  - LARGE principal: unscaled;
+  - MEDIUM and SMALL generic and principal: identical to D.
+- **Constants:** D_feature is 1500, 1200 and 600.
+- **`BASE_PROTECTED`:** R_BASE_PROTECTED is still 180 at native.
+- **Retry budget:** native.json still says 32.
+- **Real LARGE builds** (every archetype, two terrain seeds):
+  - each generic hill and ridge is drawn from the generic ranges, and each principal ridge from the principal ones;
+  - at least one principal ridge exceeds the generic maximum;
+  - counts are 11 hills and 4 ridges;
+  - Phase 5 leaves the Phase-4 `BASE_PROTECTED` mask unchanged.
+- **Existing size-class loop:** now checks each landform against its own role's ranges.
+
+Full suite on the committed tree: 237/237 (client and FDS).
+
 ## D-035 - The game registers its bridge kinds at startup and loads every building descriptor; the native profile then passes preflight and no seed passes Phase 5 (2026-10-06)
 
 **Direction (user, 2026-10-06: "continue").** D-034 stopped at the empty bridge registry and asked which owner registers
