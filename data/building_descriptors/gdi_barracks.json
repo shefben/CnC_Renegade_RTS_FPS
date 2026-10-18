@@ -137,7 +137,8 @@
   "cost": 500,
   "tech_level": 1,
   "team": 1,
-  "display_name": "Barracks"
+  "display_name": "Barracks",
+  "icon_texture": "ow_bld_gdi_barracks.tga"
  },
  "production": {
   "kind": "infantry",

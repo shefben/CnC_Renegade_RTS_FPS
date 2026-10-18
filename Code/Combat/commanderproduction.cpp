@@ -711,6 +711,46 @@ void CommanderProductionService::Set_Facility_Runtime_State(int facility_id,bool
 }
 
 
+/***********************************************************************************************
+ * Is_First_Queue_Entry_For_Facility -- the de-dup rule the two accessors below count by          *
+ *                                                                                             *
+ *	The queue is global and in request order, so one facility appears once per queued item.  Its *
+ *	first entry is the one that represents it, which keeps the reported order the same request   *
+ *	order everything else about this service is in.                                              *
+ *=============================================================================================*/
+static bool	Is_First_Queue_Entry_For_Facility(int index)
+{
+	for (int i = 0; i < index; i++) {
+		if (_Queue [i].FacilityId == _Queue [index].FacilityId) return false;
+	}
+	return true;
+}
+
+
+int CommanderProductionService::Get_Queued_Facility_Count(void)
+{
+	int count = 0;
+	for (int i = 0; i < _Queue.Count (); i++) {
+		if (Is_First_Queue_Entry_For_Facility (i)) count++;
+	}
+	return count;
+}
+
+
+int CommanderProductionService::Get_Queued_Facility_Id(int index)
+{
+	if (index < 0) return 0;
+
+	int seen = 0;
+	for (int i = 0; i < _Queue.Count (); i++) {
+		if (!Is_First_Queue_Entry_For_Facility (i)) continue;
+		if (seen == index) return _Queue [i].FacilityId;
+		seen++;
+	}
+	return 0;
+}
+
+
 void CommanderProductionService::Update(float seconds)
 {
 	if (seconds <= 0.0f) return;

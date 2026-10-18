@@ -6,6 +6,67 @@ Only unresolved questions needing the user. Add a `Q-###` as soon as one appears
 
 ## Active
 
+- **Q-030 CLOSED (2026-10-17, option (b), with the Phase-5 budget raised).** The Procedural
+  Skirmish button keeps asking for the native world first and falls back to a fit-to-level world
+  over a stock skirmish map when native generation is refused, reporting the reason either way.
+  Separately, `retry.max_alternate_candidates_per_feature` is raised above 32 -- to 128, the
+  smallest round value past every first-legal ordinal D-036 measured. See `DECISIONS.md` D-038
+  and D-039. The census below is the evidence the decision was taken on; the nine remaining
+  native phase walls stay open work, in census order.
+
+  **Evidence checked.** Production census over requested seeds 1..256 (768 attempts) on the
+  committed tree plus the uncommitted D-037 work, native profile, generator identity 16: **no
+  seed reaches Phase 12.** Furthest kept worlds stop at Phase 10. Where the 256 requested seeds'
+  kept worlds stop: Phase 2 32, Phase 3 39, Phase 4 6, Phase 5 66, Phase 6 61, Phase 7 19,
+  Phase 8 14, Phase 9 12, Phase 10 7. Reason codes over all 768 attempts:
+
+  | count | phase | reason |
+  | --- | --- | --- |
+  | 199 | 5 landforms | `candidates_exhausted` (a generic hill/ridge/cliff exhausts its 32 alternates) |
+  | 156 | 6 hydrology | `lake_quota` |
+  | 56 | 7 macro terrain gate | `feature_lost` |
+  | 33 | 8 anchors | `base_hard_overlap` |
+  | 30 | 9 topology | `bridge_quota` |
+  | 24 | 6 hydrology | `water_in_reserve` |
+  | 23 | 10 routes | `no_spline` |
+  | 9 | 8 anchors | `resource_illegal` |
+  | 6 | 9 topology | `obligation_unbound` |
+  | 3 | 6 hydrology | `no_crossing_window` |
+
+  D-037 cleared Phase 7's `bed_above_surface` outright -- it appears nowhere in this census --
+  and Phase 7 now stops on `feature_lost` instead.
+
+  Also measured: the legacy `fit_to_level` path **works**. A census on
+  `data/procedural_world/default.json` completes requested seed 1 on attempt 0, connected,
+  through Phase 12, in 2.9 s. `Uses_Hybrid_Generator` is `Plan.Enabled && !World.FitToLevel`, so
+  a fit-to-level profile never enters the hybrid phases that refuse above.
+
+  **Why this needs a decision rather than more work.** D-036's direction is explicit: keep the
+  32-alternate budget and the Phase-5 rules unchanged, change no second generator rule. Phase 5's
+  own diagnostic already showed every measured failure has legal candidates past the 32nd tested
+  one, so the budget is the known next lever and is the one thing that direction froze. Beyond it
+  there are nine further walls, each historically its own `Q-###`, and D-002 chose the native
+  world for this button deliberately.
+
+  **Smallest decision needed:** which of these the button should do now.
+
+  - **(a)** Stay native, and work the walls in census order starting with the Phase-5 alternate
+    budget (which needs that part of D-036 reopened). Procedural Skirmish stays unplayable until
+    Phase 12 is reached.
+  - **(b)** Native first, fit-to-level fallback: when native generation is refused, load a
+    fit-to-level world over a stock skirmish map and say so once. Playable immediately; native
+    stays the preferred path and the refusal is still reported.
+  - **(c)** Point the button at a fit-to-level profile outright until the native generator
+    reaches Phase 12, and keep native behind `--procedural-skirmish`/console only.
+
+- **Q-029 CLOSED (2026-10-17, the bounded shoreline raster-support carve).** Phase 7 may lower otherwise-dry
+  vertices of native shoreline-straddling cells solely as bounded raster support for the wet portion of the
+  frozen Phase-6 water polygon. The authority is interpolation-driven and cell-local, it does not expand water
+  extent, and it uses the minimum lowering that satisfies the existing physical bed-clearance requirement. A seed
+  is no longer refused merely because the pointwise carve ends at the polygon while a 3.75 m triangle interpolates
+  across it; `bed_above_surface` stays a hard failure when the bounded correction cannot satisfy it.
+  See `DECISIONS.md` D-037.
+
 - **Q-028 CLOSED (2026-10-05, option (b); a junction raster support for C).** The profile solve takes a realization-aware
   grade budget derived from the native rasterizer's own geometry. D-026's check and the class grades are unchanged.
   The c3b18778 shared-surface rule is not widened: a compiled junction gets a raster support footprint instead,

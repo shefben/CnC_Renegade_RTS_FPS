@@ -83,7 +83,7 @@
 
 	"retry": {
 		"max_local_retries_per_stage": 8,
-		"max_alternate_candidates_per_feature": 32
+		"max_alternate_candidates_per_feature": 128
 	},
 
 	"base": {

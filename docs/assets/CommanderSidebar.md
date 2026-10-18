@@ -44,7 +44,7 @@ dimensions and framing as the vehicle page's images, so the two modes' cards mat
 
 ---
 
-## 2. Building icons for buildable descriptors — **art exists, packaging does not**
+## 2. Building icons for buildable descriptors — **done**
 
 **Status**: the art is done. `models/building images/purchase_images_2/tga/` holds 33 building
 icons covering both factions and the neutral props, named by faction and structure:
@@ -62,8 +62,11 @@ neutral_round_bunker  neutral_square_bunker  neutral_stone_bunker  neutral_snipe
 neutral_platform      neutral_czech_hedgehog neutral_barbed_wire_roll
 ```
 
-**Name** — whatever a descriptor's `build.icon_texture` names. These files are already
-appropriately named, so a descriptor sets e.g. `"icon_texture": "gdi_power_plant.tga"`.
+**Name** — whatever a descriptor's `build.icon_texture` names. The packaged cameo carries the
+project's `ow_` prefix so it cannot shadow a stock Renegade texture, so a descriptor sets e.g.
+`"icon_texture": "ow_bld_gdi_power_plant.tga"`. All 22 descriptors under
+`data/building_descriptors/` now name one; the two Communications Centers share their faction's
+`comm_center` cameo, because the art has no separate Advanced variant.
 
 **Where it is read** — `Add_Building_Cards`, `Code/Combat/commandersidebar.cpp`, onto
 `CommanderSidebarCard::IconTexture`; loaded by `Set_Icon_Texture`,
@@ -74,12 +77,19 @@ appropriately named, so a descriptor sets e.g. `"icon_texture": "gdi_power_plant
 cost and its status with no picture, and the miss is counted in
 `CommanderSidebarRenderer::Get_Missing_Icon_Count()`. Never a crash, never a stand-in file.
 
-**What is still missing: packaging.** `models/building images/` is not on the asset manager's
-search path, so `Get_Texture` will not find these today. They need to go where every other game
-texture lives — into `always.dat`, or the level's own mix, or the loose texture directory the
-client is run with. The files are also uncompressed TGAs of 3-6 MB each; at card size that is far
-more resolution than the panel uses, so the packaging step should also resize them to the same
-dimensions as the existing Purchase Terminal images rather than shipping them as-is.
+**Packaging** — `tools/build_commander_icons.py`. `models/building images/` is not on the asset
+manager's search path, and the authored files are uncompressed 1254x1254 TGAs of 3-6 MB each,
+which is far more resolution than a card draws and far more bytes than the client should hold
+resident. The tool resizes each to 128x128, converts to 32-bit, renames it `ow_bld_<stem>.tga`
+and writes it loose into the game's `Data` directory, where `Get_Texture` already finds every
+other `ow_` texture this project ships. 128x128x32 matches the cameos already in `Data`
+(`hud_rsf_*.tga`), so the four sidebar modes read as one panel.
+
+Re-run it after re-exporting the art:
+
+```text
+python -I tools/build_commander_icons.py
+```
 
 **Constraints** — match the existing Purchase Terminal images so the four sidebar modes read as
 one panel: same pixel dimensions, same aspect, same framing and margin conventions as the

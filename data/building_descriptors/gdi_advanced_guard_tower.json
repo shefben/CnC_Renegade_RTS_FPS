@@ -145,7 +145,8 @@
   "cost": 1500,
   "tech_level": 3,
   "team": 1,
-  "display_name": "Advanced Guard Tower"
+  "display_name": "Advanced Guard Tower",
+  "icon_texture": "ow_bld_gdi_agt.tga"
  },
  "construction_visual": {
   "duration_seconds": 15.0,

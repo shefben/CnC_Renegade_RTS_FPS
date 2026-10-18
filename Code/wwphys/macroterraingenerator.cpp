@@ -308,12 +308,19 @@ bool MacroTerrainGenerator::Generate(const MacroTerrainParams & params,StringCla
 	float * heights = new float[vx * vy];
 	bool  * locked  = new bool[vx * vy];
 
+	//	The boundary cliff band's own foot.  `locked` also holds the hybrid water and cliff profiles,
+	//	which Phase 7 itself may still correct (D-037); this mask is the narrower "no generator
+	//	authority may move this vertex at all".
+	bool  * immutable = new bool[vx * vy];
+
 	for (int iy = 0; iy < vy; iy++) {
 		for (int ix = 0; ix < vx; ix++) {
 
 			int idx = (iy * vx) + ix;
 			float wx = origin.X + ((float)ix * cell_size);
 			float wy = origin.Y + ((float)iy * cell_size);
+
+			immutable[idx] = false;
 
 			WorldBoundsZoneType zone = configured
 				? WorldBoundsService::Classify_Point (Vector2 (wx,wy))
@@ -326,6 +333,7 @@ bool MacroTerrainGenerator::Generate(const MacroTerrainParams & params,StringCla
 				//	this vertex is locked below, so neither generation nor relaxation can move it.
 				h = 0.0f;
 				locked[idx] = true;
+				immutable[idx] = true;
 
 			} else if (params.UseHybrid) {
 
@@ -403,6 +411,22 @@ bool MacroTerrainGenerator::Generate(const MacroTerrainParams & params,StringCla
 	}
 
 	if (params.UseHybrid) {
+
+		/*
+		**	D-037 (Q-029).  The pointwise carve above stops at the frozen water polygon, but this grid
+		**	realizes it as triangles and one of them can straddle that boundary, which lifts the realized
+		**	ground above the water at wet points the formula had put below it.  The correction is the
+		**	bounded shoreline-cell raster support, applied after relaxation so nothing can undo it, and
+		**	owned by Phase 7's formula rather than by this writer.
+		*/
+		int unresolved = 0;
+		const int supported = Hybrid_Apply_Water_Bed_Raster_Support (*params.HybridParams,
+																						 *params.HybridHydrology,*params.HybridSurfaces,
+																						 heights,immutable,vx,vy,cell_size,
+																						 Vector2 (origin.X,origin.Y),&unresolved);
+		params.HybridSurfaces->WaterBedSupportVertices	= supported;
+		params.HybridSurfaces->WaterBedSupportUnresolved= unresolved;
+
 		//	Phase 7's own record of what was realized, for its gate, its checksum and the manifest.
 		float lowest = heights[0];
 		float highest = heights[0];
@@ -420,6 +444,7 @@ bool MacroTerrainGenerator::Generate(const MacroTerrainParams & params,StringCla
 	bool set_ok = WorldTerrainSystem::Set_Heights (heights,vx * vy);
 	delete [] heights;
 	delete [] locked;
+	delete [] immutable;
 
 	if (!set_ok) {
 		FAIL ("WorldTerrainSystem refused the generated heights");

@@ -37,7 +37,8 @@
    "cost": 1000,
    "tech_level": 1,
    "team": 0,
-   "display_name": "Power Plant"
+   "display_name": "Power Plant",
+   "icon_texture": "ow_bld_nod_power_plant.tga"
  },
  "construction_visual": {
   "duration_seconds": 15.0,

@@ -61,7 +61,8 @@
   "cost": 750,
   "tech_level": 2,
   "team": 0,
-  "display_name": "SAM Site"
+  "display_name": "SAM Site",
+  "icon_texture": "ow_bld_nod_sam_site.tga"
  },
  "construction_visual": {
   "duration_seconds": 10.0,

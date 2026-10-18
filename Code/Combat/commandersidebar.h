@@ -76,6 +76,11 @@ enum CommanderCardStatusType
 	CARD_FACILITY_CONSTRUCTING,
 	CARD_FACILITY_UNPOWERED,
 	CARD_QUEUE_FULL,
+
+	//	No longer produced: a descriptor another faction owns is left off the panel entirely
+	//	rather than shown greyed out, because both factions author the same categories and the
+	//	other side's copy read as a duplicate card.  Kept so a saved/replicated status value
+	//	cannot silently become a different reason.
 	CARD_WRONG_FACTION,
 
 	CARD_STATUS_COUNT

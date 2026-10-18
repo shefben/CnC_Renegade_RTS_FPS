@@ -75,6 +75,23 @@
 MainMenuDialogClass *	MainMenuDialogClass::_TheInstance	= nullptr;
 bool MainMenuDialogClass::Animated = true;
 
+
+////////////////////////////////////////////////////////////////
+//	Q-030 option (b) -- the fit-to-level fallback
+//
+//	The native generator refuses a world several frames and two layers away from the button that
+//	asked for it: the request is made here, the generation runs inside
+//	CombatManager::Post_Load_Level, and CombatGameModeClass abandons the load and comes back to
+//	this menu.  These two flags are what carry the decision across that gap.
+//
+//	NativeInFlight is armed only for a native request, so the fallback can happen once per
+//	button press and a refused fallback can never arm another one.  FallbackPending holds the
+//	start until the player has dismissed the box saying why -- a reason that flashes past under
+//	a loading screen is a reason nobody reads.
+////////////////////////////////////////////////////////////////
+static bool	_ProceduralNativeInFlight	= false;
+static bool	_ProceduralFallbackPending	= false;
+
 ////////////////////////////////////////////////////////////////
 //
 //	MainMenuDialogClass
@@ -180,6 +197,83 @@ MainMenuDialogClass::On_Menu_Activate (bool onoff)
 	}
 
 	MenuDialogClass::On_Menu_Activate (onoff);
+
+	/*
+	**	A Procedural Skirmish whose world could not be generated lands back here (see the abandon
+	**	path in CombatGameModeClass) rather than loading the empty native level, and this is where
+	**	the player is told why.  Done on activation rather than in On_Init_Dialog because by now
+	**	the skirmish mode above has been shut down, so starting another game is as safe as it is
+	**	from the button itself.
+	**
+	**	Q-030 option (b): a refused *native* world falls back to a fit-to-level world over a stock
+	**	skirmish map, which the generator does build, so the button produces a playable match
+	**	instead of nothing.  Native stays what the button asks for first, and the refusal is still
+	**	reported every time.
+	*/
+	if (onoff && ProceduralWorldManager::Did_Generation_Fail ()) {
+
+		StringClass reason (ProceduralWorldManager::Get_Generation_Error ());
+		ProceduralWorldManager::Clear_Generation_Failure ();
+
+		bool may_fall_back			= _ProceduralNativeInFlight;
+		_ProceduralNativeInFlight	= false;
+
+		StringClass narrow;
+		if (may_fall_back) {
+			narrow.Format ("The generated world could not be built:\n\n%s\n\n"
+								"Loading a Procedural Skirmish over a stock map instead.",reason.Peek_Buffer ());
+		} else {
+			narrow = reason;
+		}
+
+		WideStringClass message;
+		message.Convert_From (narrow.Peek_Buffer ());
+
+		if (may_fall_back) {
+			_ProceduralFallbackPending = true;
+			DlgMsgBox::DoDialog (TRANSLATE (IDS_MENU_TEXT513),message,DlgMsgBox::Okay,this);
+		} else {
+			DlgMsgBox::DoDialog (TRANSLATE (IDS_MENU_TEXT513),message);
+		}
+	}
+
+	return ;
+}
+
+
+////////////////////////////////////////////////////////////////
+//
+//	HandleNotification
+//
+////////////////////////////////////////////////////////////////
+void
+MainMenuDialogClass::HandleNotification (DlgMsgBoxEvent &event)
+{
+	if (!_ProceduralFallbackPending) {
+		return ;
+	}
+
+	//	Dismissed either way -- the box has one button, and a dialog that quit without it is
+	//	still the player done reading.
+	if ((event.Event () != DlgMsgBoxEvent::Okay) && (event.Event () != DlgMsgBoxEvent::Quitting)) {
+		return ;
+	}
+
+	_ProceduralFallbackPending = false;
+
+	/*
+	**	The fallback profile is fit-to-level, so `Uses_Hybrid_Generator` is false for it and it
+	**	never enters the hybrid phases that refused the native world; Start_Procedural_Skirmish
+	**	lays it over a stock skirmish map by itself.  A refusal here is reported and nothing
+	**	further is attempted -- NativeInFlight is already clear, so this cannot recurse.
+	*/
+	StringClass world_error;
+	if (!Start_Procedural_Skirmish (0,ProceduralWorldManager::DEFAULT_PROFILE_PATH,&world_error)) {
+		WideStringClass message;
+		message.Convert_From (world_error.Peek_Buffer ());
+		DlgMsgBox::DoDialog (TRANSLATE (IDS_MENU_TEXT513),message);
+	}
+
 	return ;
 }
 
@@ -394,6 +488,13 @@ MainMenuDialogClass::Start_Procedural_Skirmish (unsigned int seed, const char *p
 			return false;
 		}
 	}
+
+	/*
+	**	Q-030 option (b).  Armed only for a native request, because only a native request can
+	**	leave the player with nothing: a fit-to-level world that is refused still has its host
+	**	map underneath.  Read and cleared by On_Menu_Activate when the load comes back refused.
+	*/
+	_ProceduralNativeInFlight = ProceduralWorldManager::Is_Requested_Native ();
 
 	const int SKIRMISH_LOAD_MENU_NUMBER	= 96;
 	CampaignManager::Select_Backdrop_Number (SKIRMISH_LOAD_MENU_NUMBER);

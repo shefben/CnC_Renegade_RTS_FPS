@@ -4393,19 +4393,31 @@ int	Run_Commander_Sidebar (void)
 				 CommanderSidebarModel::Get_Status_Name (card->Status));
 	}
 
-	//	A faction-locked descriptor on the wrong team: same card, a different reason -- which is
-	//	what distinguishes "cannot afford yet" from "cannot ever".
+	/*
+	**	A faction-locked descriptor on the wrong team is not a card at all.  Both factions author
+	**	the same categories, so a greyed-out copy of the other side's Power Plant / Refinery /
+	**	Communications Center put every shared category on the panel twice, which reads as a
+	**	duplicate list rather than as a reason.  The any-faction factory still shows.
+	*/
 	CommanderSidebarModel::Open (0);				// PLAYERTYPE_NOD
 	CommanderSidebarModel::Refresh (100000);
-	bool saw_wrong_faction = false;
+	bool saw_wrong_faction	= false;
+	bool saw_any_faction		= false;
 	for (int i = 0; i < CommanderSidebarModel::Get_Card_Count (); i++) {
 		const CommanderSidebarCard * card = CommanderSidebarModel::Get_Card (i);
 		if (card == nullptr) continue;
 		if (card->DescriptorName.Compare_No_Case ("ow_test_sb_plant") == 0) {
-			saw_wrong_faction = (card->Status == CARD_WRONG_FACTION);
+			saw_wrong_faction = true;
+		}
+		if (card->DescriptorName.Compare_No_Case ("ow_test_sb_factory") == 0) {
+			saw_any_faction = true;
 		}
 	}
-	Check (saw_wrong_faction,"a GDI-only building did not read WRONG_FACTION for Nod");
+	Check (!saw_wrong_faction,"a GDI-only building still produced a card on the Nod panel");
+	Check (saw_any_faction,"the any-faction building disappeared from the Nod panel");
+	Check (CommanderSidebarModel::Get_Card_Count () == 1,
+			 "Nod sees %d cards instead of the one building it may actually build",
+			 CommanderSidebarModel::Get_Card_Count ());
 
 	//	Paging: eight visible slots, a page count that follows the content, clamped at both ends.
 	CommanderSidebarModel::Open (TEAM_GDI);

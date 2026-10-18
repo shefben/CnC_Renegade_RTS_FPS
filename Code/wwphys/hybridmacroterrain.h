@@ -119,6 +119,8 @@ struct HybridMacroTerrainSet
 	float			MaxHeight;
 	int			ProtectedVertices;		// vertices excluded from ordinary-slope relaxation
 	int			SlopeViolations;			// what the enforcement pass could not reduce, outside profiles
+	int			WaterBedSupportVertices;	// D-037: vertices lowered as bounded shoreline raster support
+	int			WaterBedSupportUnresolved;	// wet samples the bounded support could not bring under water
 	unsigned int	Checksum;				// Phase 7 gate value
 };
 
@@ -226,6 +228,49 @@ float	Hybrid_Macro_Sample_Height(const HybridMacroTerrainParams & params,const H
 */
 bool	Hybrid_Macro_Is_Protected_Profile(const HybridMacroTerrainParams & params,const HybridLandformSet & landforms,
 														const HybridHydrologySet & hydrology,const Vector2 & world);
+
+/*
+**	D-037 (Q-029).  The water-bed ceiling the realized ground must stay at or below at `world`, in
+**	absolute world units: the lowest water surface covering it -- a non-island body's `SurfaceHeight`,
+**	and the frozen Phase-7 surface at the nearest sample of every river whose own channel covers it.
+**	False when `world` is dry, an island interior included, because no water stands there to support.
+**
+**	This is exactly the invariant the gate measures ("no lake or river bed above its own water
+**	surface"), expressed once so the gate and the raster-support pass below ask the same question of
+**	the same frozen record rather than keeping two opinions of where the bed may stand.
+*/
+bool	Hybrid_Water_Bed_Ceiling(const HybridMacroTerrainParams & params,const HybridHydrologySet & hydrology,
+											const HybridMacroTerrainSet & surfaces,const Vector2 & world,float * ceiling_out);
+
+/*
+**	D-037 (Q-029): bounded water-bed raster support.
+**
+**	The Phase-7 carve is a pointwise expression and stops exactly at the frozen Phase-6 water polygon,
+**	but the native grid realizes it as triangles, and one 3.75 m triangle can straddle that boundary.
+**	Interpolation across such a cell then lifts the realized ground above the water surface at wet
+**	points that the continuous expression had put below it -- the water is correct, its discrete
+**	realization is not.
+**
+**	This pass corrects the realization and nothing else.  For every native cell whose footprint meets
+**	the frozen water (a body ring, an island ring or a river channel) it evaluates the interpolation
+**	`HeightfieldClass::Sample_Cell` will perform, at the vertices of that cell's wet region, and
+**	lowers the least amount on the vertices that interpolation actually draws from -- a vertex outside
+**	the polygon included, which stays dry land and never becomes part of the water body.  A vertex is
+**	never taken below the ceiling it has to satisfy, never below the elevation floor, never because it
+**	merely sits near water, and never in a cell with no wet region at all.  No water polygon, water
+**	level, shoreline, topology or tolerance is touched.
+**
+**	`heights` is the grid the generator is about to write, relative to `params.SeaLevel`, row major,
+**	`vx * vy` vertices at `cell_size` spacing from `origin`.  `immutable` marks vertices no generator
+**	authority may move (the boundary cliff band's locked foot); it may be null.  The return value is
+**	the number of vertices lowered, and `unresolved_out` receives the number of wet samples the
+**	bounded correction could not satisfy -- those stay a legitimate hard gate failure.
+*/
+int	Hybrid_Apply_Water_Bed_Raster_Support(const HybridMacroTerrainParams & params,
+															const HybridHydrologySet & hydrology,
+															const HybridMacroTerrainSet & surfaces,
+															float * heights,const bool * immutable,int vx,int vy,
+															float cell_size,const Vector2 & origin,int * unresolved_out);
 
 /*
 **	The Phase 7 gate, run after the heightfield exists: the elevation envelope, every river surface

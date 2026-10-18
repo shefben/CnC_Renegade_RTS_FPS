@@ -14,6 +14,8 @@
 #include "buildingconstruction.h"
 #include "buildingdescriptormanager.h"
 #include "commanderproduction.h"
+#include "definition.h"
+#include "definitionmgr.h"
 #include "playertype.h"
 #include "purchaseavailability.h"
 #include "purchasesettings.h"
@@ -87,10 +89,22 @@ static void	Add_Purchase_Page_Cards(PurchaseSettingsDefClass::TYPE type,int avai
 		card.TechLevel		= page->Get_Tech_Level (i);
 		card.IconTexture	= page->Get_Texture (i);
 
-		//	The page's name is a unicode string id resolved through the string table; the
-		//	sidebar keeps the narrow name only as a fallback label, because a renderer that
-		//	wants the localized one asks the page for it directly with the same index.
+		/*
+		**	The page's name is a unicode string id resolved through the string table; the
+		**	sidebar keeps the narrow name only as a fallback label, because a renderer that
+		**	wants the localized one asks the page for it directly with the same index.
+		**
+		**	The preset's own definition name is that fallback.  It is what the renderer can draw
+		**	when a page entry names a cameo the asset manager cannot find, and what the
+		**	preset-name cameo table has to match against -- an empty string gave a blank cell
+		**	with no picture and no text, which says nothing at all about what the card is.
+		*/
 		card.DisplayName	= "";
+
+		DefinitionClass * definition = DefinitionMgrClass::Find_Definition ((uint32)definition_id);
+		if ((definition != nullptr) && (definition->Get_Name () != nullptr)) {
+			card.DisplayName = definition->Get_Name ();
+		}
 
 		unsigned char flags = PurchaseAvailabilityClass::Get_Flags (type,Page_Team (_Team),i);
 
@@ -128,6 +142,15 @@ static void	Add_Building_Cards(int available_credits)
 		const BuildingModelDescriptor * descriptor = BuildingDescriptorManager::Get_Descriptor_By_Index (i);
 		if (descriptor == nullptr) continue;
 		if (!descriptor->Build.Buildable) continue;
+
+		/*
+		**	A descriptor another faction owns is not a card at all.  Both factions author the
+		**	same twelve categories, so showing the other side's copy greyed out puts a second
+		**	"Power Plant", "Refinery", "Communications Center", "Repair Facility" and
+		**	"Tiberium Silo" on the panel -- which reads as a duplicate list, not as a reason.
+		**	-1 is "any faction" and still belongs to everyone.
+		*/
+		if ((descriptor->Build.Team != -1) && (descriptor->Build.Team != _Team)) continue;
 
 		CommanderSidebarCard card;
 		card.DescriptorName		= descriptor->DefinitionName;

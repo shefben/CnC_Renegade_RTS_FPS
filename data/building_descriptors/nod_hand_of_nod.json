@@ -201,7 +201,8 @@
   "cost": 500,
   "tech_level": 1,
   "team": 0,
-  "display_name": "Hand of Nod"
+  "display_name": "Hand of Nod",
+  "icon_texture": "ow_bld_nod_hon.tga"
  },
  "production": {
   "kind": "infantry",

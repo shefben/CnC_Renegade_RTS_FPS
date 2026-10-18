@@ -585,7 +585,10 @@ float Hybrid_Provisional_Height(const HybridHydrologyParams & params,const Hybri
 
 	const int tier = (int)matrix.BaseElevationTier[matrix.Index(cx,cy)];
 	const float tier_height = params.SeaLevel + ((float)(tier - middle) * params.TierStep);
-	return tier_height + Hybrid_Landform_Height(landforms,world,params.Constants.A);
+	// Phase 5's provisional relief obeys the same elevation envelope as the realized ground.
+	// Otherwise a lake can freeze a spill/shore level below the floor Phase 7 must enforce.
+	return Clamp2(tier_height + Hybrid_Landform_Height(landforms,world,params.Constants.A),
+		params.SeaLevel + params.MinElevation,params.SeaLevel + params.MaxElevation);
 }
 
 
@@ -2202,6 +2205,10 @@ static bool Try_Basin_Lake(HydrologyBuilder & b,const HydroBasin & basin,bool re
 	//	Water elevation: the spill height, never above the lowest shoreline point.
 	const float shore = Ring_Min_Shore_Height(b,body.Points);
 	body.SurfaceHeight = Hybrid_Quantize_Position(Min2(basin.SpillHeight,shore - b.P->Constants.Q));
+	if (body.SurfaceHeight < (b.P->SeaLevel + b.P->MinElevation)) {
+		b.LastReject = "lake surface is below the terrain floor";
+		return false;
+	}
 
 	*out = body;
 	return true;
@@ -2266,6 +2273,10 @@ static bool Try_Guide_Lake(HydrologyBuilder & b,const HybridArchetypeIntent & in
 
 		const float shore = Ring_Min_Shore_Height(b,body.Points);
 		body.SurfaceHeight = Hybrid_Quantize_Position(shore - b.P->Constants.Q);
+		if (body.SurfaceHeight < (b.P->SeaLevel + b.P->MinElevation)) {
+			b.LastReject = "lake surface is below the terrain floor";
+			continue;
+		}
 		*out = body;
 		return true;
 	}

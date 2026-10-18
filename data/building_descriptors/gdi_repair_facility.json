@@ -77,7 +77,8 @@
   "cost": 1200,
   "tech_level": 2,
   "team": 1,
-  "display_name": "Repair Facility"
+  "display_name": "Repair Facility",
+  "icon_texture": "ow_bld_gdi_repair_pad.tga"
  },
  "construction_visual": {
   "duration_seconds": 12.0,

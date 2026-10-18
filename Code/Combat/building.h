@@ -56,6 +56,7 @@
 */
 class AudibleSoundClass;
 class BaseControllerClass;
+struct CommanderFacilityContext;		// commanderproduction.h
 class BuildingMonitorClass;
 class PowerPlantGameObj;
 class SoldierFactoryGameObj;
@@ -369,6 +370,22 @@ public:
 	//	(Code/Commando/commanderproductionevent.cpp) -- neither invents its own.
 	//
 	void											Get_Commander_Exit_Point (Vector3 * out_point,float * out_radius) const;
+
+	//
+	//	Roadmap Section 45 -- everything CommanderProductionService needs to know about this
+	//	building as a production facility, read live from the canonical owners: this object for
+	//	aliveness, BuildingConstructionService for construction, TeamPowerGridService for power,
+	//	and the exit sphere above for whether a finished unit has anywhere to appear.
+	//
+	//	It lives here, on the building, because the service owns no scene and must not: both the
+	//	purchase that opens a queue slot (Code/Commando/commanderproductionevent.cpp) and the
+	//	per-tick refresh that keeps the queue moving (Code/Combat/combat.cpp) ask this one
+	//	function, so a facility cannot be judged by two different rules depending on who looked.
+	//
+	//	Returns false when this building has no production descriptor at all, leaving `*out`
+	//	untouched -- it is not a factory, which is a legitimate answer and not an error.
+	//
+	bool											Build_Commander_Facility_Context (CommanderFacilityContext * out) const;
 
 	//
 	//	Roadmap Section 29 -- the same generalized attachment layer vehicles use

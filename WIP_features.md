@@ -13,15 +13,30 @@ engine asks for and does not have is in `docs/assets/MissingAssets.md`.
   and then the final checklist (priority 9). It also needs the art listed in
   `docs/assets/MissingAssets.md`, which never blocks the code.
 
-**Next exact action:** D-001 priority 7. Run the manual verification list below with a client
-and a dedicated server, starting with a Procedural Skirmish on a generated-terrain profile. Then
-run the Phase 28 gate exactly as written. Every failure becomes a narrow new issue.
+**Next exact action:** the native generator wall under IMPLEMENT NOW below (re-census after
+D-039), then D-001 priority 7 — run the manual verification list below with a client and a
+dedicated server, starting with a Procedural Skirmish, and then the Phase 28 gate exactly as
+written. Every failure becomes a narrow new issue.
+
+A Procedural Skirmish now reaches a playable world through D-038's fit-to-level fallback, so the
+priority-7 list can be run before the native generator is finished; note which profile each check
+was run against.
 
 ---
 
 ## IMPLEMENT NOW
 
-Nothing. A failure found in priority 7 comes back here as a narrow item.
+- **The native hybrid generator's remaining phase walls.** No requested seed from 1 to 256 reaches
+  Phase 12 (census, generator identity 16, D-037 included). Worked in census order; the counts and
+  reason codes are in `gameplay-gaps.md` and `awaiting_answers.md` Q-030. D-039 raised Phase 5's
+  alternate budget to 128, which its own diagnostic measured as the only thing refusing the 199
+  Phase-5 attempts; the re-census confirms it (Phase 5 kept worlds 66 -> 7, 59 seeds deeper,
+  Phase 10 kept worlds 7 -> 14). **Next exact action: Phase 6 `lake_quota`**, now the wall at 213
+  of 768 attempts and 84 kept worlds. It is a generator rule rather than a search budget — the
+  native profile's lake quota and the rule that refuses a short count — so it needs a user
+  decision before it is changed, in the shape of D-036/D-039. Until a usable share of seeds
+  reaches Phase 12, the Procedural Skirmish button falls back to a fit-to-level world over a
+  stock map (D-038), so none of this is player-blocking.
 
 ---
 

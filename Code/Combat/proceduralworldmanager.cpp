@@ -84,9 +84,11 @@ bool	ProceduralWorldManager::Requested		= false;
 bool	ProceduralWorldManager::RequestedExact	= false;
 bool	ProceduralWorldManager::RequestedNative	= false;
 bool	ProceduralWorldManager::WorldActive	= false;
+bool	ProceduralWorldManager::GenerationFailed	= false;
 
 unsigned int	ProceduralWorldManager::RequestedSeed	= 0;
 StringClass		ProceduralWorldManager::RequestedProfilePath;
+StringClass		ProceduralWorldManager::LastGenerationError;
 
 int															ProceduralWorldManager::AttemptStage	= PROCEDURAL_STAGE_PREFLIGHT;
 DynamicVectorClass<ProceduralWorldAttemptRecord>	ProceduralWorldManager::AttemptLog;
@@ -1201,8 +1203,8 @@ bool ProceduralWorldManager::Realize_Hybrid_Roads(const ProceduralWorldProfile &
 		return false;
 	}
 	HybridRealizationValid = true;
-	WWDEBUG_SAY (("Hybrid Phase 12: %d road stretches, %d bridge/overpass assemblies realized, %d terrain vertices graded"
-					  NL,HybridRoadRealizer::Get_Piece_Count (),HybridRoadRealizer::Get_Bridge_Count (),
+	WWDEBUG_SAY (("Hybrid Phase 12: %d road stretches, %d bridge/overpass assemblies realized, %d terrain vertices graded\n",
+					  HybridRoadRealizer::Get_Piece_Count (),HybridRoadRealizer::Get_Bridge_Count (),
 					  (int)HybridRoadRealizer::Get_Terrain_Changed ()));
 	return true;
 }
@@ -1989,6 +1991,26 @@ void ProceduralWorldManager::Record_Attempt(const ProceduralWorldProfile & profi
 
 
 bool ProceduralWorldManager::Generate_World(StringClass * error_out)
+{
+	StringClass error ("");
+	bool generated = Generate_World_Internal (&error);
+
+	/*
+	**	Remembered for the level loader, which is several frames and two layers away from here by
+	**	the time it can act on it.  A refusal that is only logged is what left a player standing
+	**	in an empty native world wondering what happened.
+	*/
+	GenerationFailed		= !generated;
+	LastGenerationError	= generated ? StringClass ("") : error;
+
+	if (!generated && (error_out != nullptr)) {
+		*error_out = error;
+	}
+	return generated;
+}
+
+
+bool ProceduralWorldManager::Generate_World_Internal(StringClass * error_out)
 {
 	//	Directive 1.10.  No request, no procedural anything: this is every hand-authored map.
 	if (!Requested) {

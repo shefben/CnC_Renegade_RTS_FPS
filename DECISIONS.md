@@ -554,6 +554,150 @@ it leaves open is how three of those requirements are measured. These are the re
 
 
 
+## D-039 - Phase 5's alternate-candidate budget is 128 (2026-10-17)
+
+**Direction (user, 2026-10-17).** Raising `retry.max_alternate_candidates_per_feature` above 32 is approved, at a value
+smaller than 256. This supersedes D-036's "keep the 32-alternate budget unchanged" for that one number; every other part
+of D-036 stands.
+
+### The rule
+
+- **Value.** `data/procedural_world/native.json` sets `retry.max_alternate_candidates_per_feature` to **128**, chosen as
+  the smallest round value comfortably past every first-legal ordinal D-036's exhaustive diagnostic measured (its sample
+  took until the 43rd tested candidate, with 29 to 175 legal cells available per failure).
+- **What it changes.** Only how deep the keyed candidate-cell search goes. No landform rule, no `BASE_PROTECTED`, no
+  overlap rule, no count and no dimension changes, so a feature that was legal before is legal now and lands in the same
+  place; only features that previously ran out of budget behave differently.
+- **Determinism.** The candidate ordering is unchanged (`Hash01(terrain,type,StableId,"cell",row_major_index)` ascending,
+  ties by row-major index), so a larger budget tests a strict prefix-superset of the same sequence in the same order.
+- **Pinned.** `terrain_hybridlandforms` asserts the shipped native profile's value, so the budget cannot drift back
+  silently.
+- **Generator identity stays 16**, following the existing policy: no bump while no native world has been released.
+
+### Measured
+
+Census over requested seeds 1..256, before and after, everything else equal. `candidates_exhausted` falls from 199
+attempts to 21, and 59 requested seeds' kept worlds move to a later phase:
+
+| stage the kept world stops at | budget 32 | budget 128 |
+| --- | --- | --- |
+| Phase 2 identity | 32 | 32 |
+| Phase 3 graph | 39 | 39 |
+| Phase 4 coarse | 6 | 6 |
+| Phase 5 landforms | 66 | **7** |
+| Phase 6 hydrology | 61 | 84 |
+| Phase 7 terrain | 19 | 24 |
+| Phase 8 anchors | 14 | 29 |
+| Phase 9 topology | 12 | 21 |
+| Phase 10 routes | 7 | **14** |
+
+Phases 2 to 4 are identical seed for seed, as they must be: Phase 5 feeds none of them. No seed reaches Phase 12 yet.
+**The next wall is Phase 6 `lake_quota`** -- 213 of 768 attempts, 84 kept worlds -- and it is a generator rule, not a
+search budget, so it needs its own decision rather than another knob.
+
+## D-038 - Q-030 option (b): the Procedural Skirmish button falls back to a fit-to-level world (2026-10-17)
+
+**Direction (user, 2026-10-17).** Keep the button asking for the native generated world first. When native generation is
+refused, load a fit-to-level world over a stock skirmish map instead and say so once. Native stays the preferred path and
+the refusal is still reported. D-002's native choice is narrowed, not reversed.
+
+### Why
+
+Census over requested seeds 1..256 (768 attempts, generator identity 16, with D-037 in place): **no seed reaches Phase
+12**, and the furthest kept worlds stop at Phase 10. The 256 requested seeds' kept worlds stop at Phase 2 (32), Phase 3
+(39), Phase 4 (6), Phase 5 (66), Phase 6 (61), Phase 7 (19), Phase 8 (14), Phase 9 (12) and Phase 10 (7). The legacy
+fit-to-level path, by contrast, completes requested seed 1 on attempt 0, connected, through Phase 12, in 2.9 s --
+`Uses_Hybrid_Generator` is `Plan.Enabled && !World.FitToLevel`, so it never enters the phases that refuse.
+
+D-037 cleared Phase 7's `bed_above_surface` outright: it appears nowhere in this census, and Phase 7 now stops on
+`feature_lost` instead.
+
+### The rule
+
+- **Refusal is never silent.** `ProceduralWorldManager::Generate_World` records its refusal
+  (`Did_Generation_Fail`/`Get_Generation_Error`), because the generation runs deep inside
+  `CombatManager::Post_Load_Level`, two layers from anything that can act on it.
+- **A refused native load is abandoned.** `CombatGameModeClass` checks `Is_Native_Map` plus that flag after
+  `Post_Load_Level` and sets `GameInitMgrClass::Set_Needs_Game_Exit`. A native world has no level file under it (D-002),
+  so carrying on means standing inside an empty skybox.
+- **The fallback is the menu's.** `MainMenuDialogClass::On_Menu_Activate` shows the reason, and the player dismissing
+  that box starts `Start_Procedural_Skirmish` on `DEFAULT_PROFILE_PATH`. Held behind the dialog deliberately: a reason
+  that flashes past under a loading screen is a reason nobody reads.
+- **Once per button press.** The fallback is armed only by a native request (`Is_Requested_Native`), so a refused
+  fallback cannot arm another one and the path cannot recurse.
+- **Retire it by deleting it.** When the native generator reaches Phase 12 for a usable share of seeds, the fallback
+  becomes dead weight rather than a second authority -- there is no flag to flip.
+
+## D-037 - Q-029: bounded water-bed raster support at a frozen shoreline on the native terrain grid (2026-10-17)
+
+**Direction (user, 2026-10-17).** Q-029 is resolved in favour of the bounded shoreline raster-support carve. Phase 7
+**may** lower dry-side native terrain vertices belonging to shoreline-straddling cells when, and only when, that
+modification is required to give valid physical bed support to water already defined by the frozen Phase-6 polygon. This
+is a rasterization/support correction, not an expansion of water authority. An otherwise valid seed must not be refused
+merely because the continuous pointwise carve ends at the exact water polygon while a native 3.75 m triangle interpolates
+across that boundary and leaves the realized wet surface above the water level.
+
+### Why
+
+The water polygon and water level define the intended hydrology; the native mesh is only a discrete realization of it. At
+a polygon boundary one triangle holds both wet and dry points, so modifying only the vertices analytically inside the
+polygon does not make interpolation satisfy the bed requirement at wet sample locations. Effective seed 61 showed it
+exactly: a wet probe at `(-363.088,-112.941)` with formula height `-15.000`, water `-13.536` and a realized triangle at
+`-11.312` -- `2.224` above its own water surface. The expression is correct; its triangular realization is not.
+
+### The rule
+
+- **Owner.** `Hybrid_Apply_Water_Bed_Raster_Support` (`Code/wwphys/hybridmacroterrain.cpp`), Phase 7's own formula
+  owner. `MacroTerrainGenerator::Generate` calls it once on the hybrid path, after slope relaxation and its clamp so
+  nothing can undo it, and before the realized extents are recorded and the heights are written.
+- **Ceiling.** `Hybrid_Water_Bed_Ceiling` -- the lowest water surface covering the point: a non-island body's
+  `SurfaceHeight`, and the frozen Phase-7 surface at the nearest sample of a river whose own channel (out to half the
+  local width, never the bank blend) covers it. An island interior is dry and carries no ceiling. This is the same
+  invariant the gate measures, so the pass and the gate have one opinion of where a bed may stand.
+- **Authority, per cell.** For every native cell whose footprint meets the frozen water -- a body ring, an island ring
+  or a river channel -- the pass evaluates the interpolation `HeightfieldClass::Sample_Cell` will perform at the
+  vertices of that cell's wet region: the cell's corners, the water segment's own vertex inside the cell, its crossings
+  of the cell's four edges and of the cell diagonal that is the sampler's triangle split, plus a fixed 3x3 interior
+  lattice for a channel whose boundary is an offset curve rather than a polygon. A linear interpolant takes its maximum
+  over a convex region at a vertex of that region, so this set is measured instead of a dense sweep.
+- **Correction.** Where interpolation exceeds the ceiling, the heaviest-weight participating vertex above that ceiling
+  is lowered first, by `excess / weight`, which is the smallest total correction that removes the excess. A vertex is
+  never lowered below the ceiling it has to satisfy, never below `sea_level + min_elevation`, and never at all when it
+  takes no part in interpolation over a wet region of its own cell. A dry-side vertex may move only through that
+  interpolation dependency -- never because it sits near water.
+- **Bound.** Structural, never a distance: authority exists only on vertices of cells whose footprint intersects the
+  frozen water and that influence interpolation over that intersection. There is no shoreline expansion radius, no
+  one-cell carve, and no propagation into fully dry cells, so repeated generation cannot erode a shoreline outward.
+- **Unchanged.** Water polygon coordinates, water level, shoreline classification, body extent, rectangular topology,
+  the triangle split, `Sample_Cell` semantics, gate tolerances, the provisional-height correction, the dry-centroid gate
+  probe, and D-026/D-030 road support, which never gain authority over water geometry.
+- **Gate.** `bed_above_surface` stays a hard failure. A wet sample the bounded correction cannot satisfy is counted in
+  `HybridMacroTerrainSet::WaterBedSupportUnresolved` and the seed is still refused with the remaining conflict named.
+  The sequence is: continuous water definition -> frozen polygon and level -> native raster realization -> bounded
+  shoreline-cell support correction -> existing physical validation.
+- **Record.** `WaterBedSupportVertices` counts the vertices lowered. Neither counter enters the Phase-7 checksum.
+
+**Generator identity stays 16** (existing policy: no bump while no native world has been released).
+
+### Also in this work (independently validated, carried by the same decision)
+
+- **Phase 5's provisional height obeys the elevation envelope.** `Hybrid_Provisional_Height` clamps to
+  `sea_level + min_elevation .. sea_level + max_elevation` like the realized expression, so a basin cannot freeze a
+  spill or shore level below the floor Phase 7 must then enforce.
+- **A lake surface below the terrain floor is refused, not clamped.** `Try_Basin_Lake` and `Try_Guide_Lake` reject a
+  body whose surface would stand under `sea_level + min_elevation`.
+- **The gate's standing-water probe is a wet point.** A polygon centroid can fall outside a concave lake or on a
+  subtracted island; the gate now keeps the centroid when it is wet and otherwise takes the most interior wet analysis
+  sample of that body, and its failure detail names the probe, the formula's answer there and the floor.
+
+### Validation
+
+`terrain_hybridmacroterrain` carries the D-037 regression on a hand-built shoreline: the straddling-cell fault is
+reproduced on `HeightfieldClass` itself, every wet sample in the polygon is at or below the water after the pass, only
+vertices of shoreline cells move, each only downward, none past its ceiling or the elevation floor, a satisfied grid is
+left byte-identical by a second pass, the frozen polygon and level are unchanged, and a masked (immutable) grid moves
+nothing and reports the unresolved samples for the gate to refuse.
+
 ## D-036 - Q-018 option (a): LARGE generic hills and ridges are drawn against 5D/8; the native census clears Phase 5's ridge wall (2026-10-06)
 
 **Direction (user, 2026-10-06).** Approve D-035 as implemented. For the Phase-5 blocker, choose the landform-dimensions

@@ -129,7 +129,8 @@
   "cost": 1500,
   "tech_level": 3,
   "team": 0,
-  "display_name": "Obelisk of Light"
+  "display_name": "Obelisk of Light",
+  "icon_texture": "ow_bld_nod_obe.tga"
  },
  "construction_visual": {
   "duration_seconds": 15.0,

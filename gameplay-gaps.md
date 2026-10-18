@@ -24,25 +24,6 @@ enumeration Q-017 already built (not guessed), an Air Pad descriptor, and a smal
 air-roster table the sidebar's `AIR_VEHICLES` case reads from. Shape and limits in
 `docs/assets/CommanderSidebar.md`.
 
-### Building prices, build times and power figures are unset for 8 of 12 categories
-All 8 existing descriptors (GDI/Nod Power Plant, Communications Center, Advanced Communications
-Center, Tiberium Silo) already carry real authored cost, tech level, faction and power figures —
-this is no longer true of them. The real gap: the other 8 of the roadmap's 12 named categories
-(Barracks/Hand of Nod, Refinery, Repair Bay, War/Vehicle Factory, Airstrip, Construction Yard,
-faction defense structures) have no `data/building_descriptors/*.json` at all, so none of them
-can be built yet, at any price.
-
-Needs: a balance pass authoring the remaining 8 categories — recommended starting numbers in
-`docs/GameplayGapResolutionReport.md`'s Decision Log. Each new descriptor should set `build.team`
-explicitly the same way the existing 8 already do.
-
-### Building cards will draw without pictures until the icons are packaged
-33 building icons exist for both factions (`models/building images/purchase_images_2/tga/`), named
-to match what a descriptor's `build.icon_texture` would ask for. They are not on the asset
-manager's search path (confirmed empty this pass), so the sidebar cannot load them yet and every
-building card renders as a frame with a name, a cost and no image. They are also 3-6 MB
-uncompressed TGAs — far larger than a card needs. See `docs/assets/CommanderSidebar.md`.
-
 ---
 
 ## Base building
@@ -71,12 +52,13 @@ Needs: a `prerequisites` block added to the descriptor schema, checked at placem
 `docs/GameplayGapResolutionReport.md`'s Decision Log.
 
 ### Buildings cannot be sold or repaired from the sidebar
-Classic C&C has sell and repair as sidebar verbs. Neither exists here, and there is no way to
-even click a building in the world to select it for management — only units are hit-tested.
-Manual power on/off and priority override *do* exist as authoritative calls, but have no button.
+Classic C&C has sell and repair as sidebar verbs. Neither exists here. Clicking a friendly
+building *does* now select it, open its power panel and — for a production facility — fork the
+sidebar onto what it builds, so the surface to hang these verbs on exists. Manual power on/off
+and priority override exist as authoritative calls, but still have no button.
 
-Needs: a building-management surface reached by clicking a friendly building; recommended sell
-formula and repair model in the Decision Log.
+Needs: sell and repair buttons on the selected-building panel; recommended sell formula and
+repair model in the Decision Log.
 
 ---
 
@@ -178,13 +160,21 @@ the controls/config remapping screen. One file to check, not a design question.
 
 ## Procedural Skirmish
 
-### A Procedural Skirmish opens on an empty world with no terrain
-Start Procedural Game loads the native map (`ow_procedural.mix`, which has no level file under it) and generates the
-whole world in `CombatManager::Post_Load_Level`. When generation is refused, the failure is only logged and the level
-carries on, so the player stands in an empty scene with no land, roads or bases, and no message saying why.
+### The native generated world is still refused for every seed
+Start Procedural Game asks for the native world (`ow_procedural.mix`, which has no level file under it) and generates
+everything in `CombatManager::Post_Load_Level`. A player no longer ends up in an empty skybox: a refused generation
+abandons the load, reports its reason and loads a fit-to-level world over a stock skirmish map instead (D-038), which
+the generator does build. So the button produces a playable match — just not yet the native one it asks for first.
 
-Today every native request is refused before any terrain exists. Content preflight now passes (D-035), but in the
-production census no seed from 1 to 256 completes generation; the furthest reaches road routing (Phase 10) (D-036).
+What is still missing is native generation succeeding. Census over requested seeds 1..256 (768 attempts, generator
+identity 16, D-037 and D-039 included): no seed reaches Phase 12, and the 256 kept worlds stop at Phase 2 (32),
+Phase 3 (39), Phase 4 (6), Phase 5 (7), Phase 6 (84), Phase 7 (24), Phase 8 (29), Phase 9 (21) and Phase 10 (14). By
+reason, over all attempts: Phase 6 `lake_quota` 213, Phase 2 `NO_AVAILABLE_BIOME_PAIR` 94, Phase 3
+`NO_LEGAL_BASE_POSITION` 87, Phase 7 `feature_lost` 72, Phase 8 `base_hard_overlap` 63, Phase 9 `bridge_quota` 48,
+Phase 10 `no_spline` 44, Phase 6 `water_in_reserve` 33, Phase 3 `NO_LEGAL_RESOURCE_POSITION` 30, Phase 5
+`candidates_exhausted` 21, Phase 4 `BASE_ON_HARD_INTENT` 18, Phase 8 `resource_illegal` 18, Phase 9
+`obligation_unbound` 15, Phase 6 `no_crossing_window` 6.
 
-Needs: generation to succeed (D-036's blockers), and a failed generation to return to the menu with its reason instead of
-loading the empty native level.
+Needs: the walls worked in census order. D-039's budget raise took Phase 5 from 66 kept worlds to 7 and moved 59 seeds
+deeper, so **Phase 6 `lake_quota` is now the wall**. Unlike Phase 5's, it is a generator rule rather than a search
+budget, so it needs a decision of its own.

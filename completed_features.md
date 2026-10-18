@@ -5331,3 +5331,100 @@ Evidence: ctest `terrain_hybridtopology` + `fds_terrain_hybridtopology` green, a
 `docs/procedural_world/HybridTopology.md` and `DECISIONS.md` D-008. Open: **Q-019** -- on archetypes
 with no canyon obligation the Section-5 canyon/ravine bridge quota depends on where Phase 5 happened
 to put its ravines, which decides the attempt-0 pass rate item 21 measures.
+
+## Commander sidebar, orders and the Procedural Skirmish button -- seven reported defects (2026-10-17)
+
+**Contextual production (Section 42).** `CommanderSidebarModel::Bind_Facility` had existed with no
+caller anywhere in the tree, so no building click ever forked the sidebar and the
+`INFANTRY`/`GROUND_VEHICLES`/`AIR_VEHICLES` modes were unreachable. `commanderuiinput.cpp`'s
+click-release path now binds a clicked friendly building, passing the building's network id as the
+power-grid member id (the value `TeamPowerGridService::RegisterBuilding` is given in
+`Initialize_Building`). Resolves on map-authored levels too, because all four production
+descriptors name real stock presets and `BuildingDescriptorManager::Resolve_Game_Object_Presets`
+runs at startup. Evidence: ctest `shader_sidebar`, `shader_commandermode`.
+
+**Duplicate building cards.** `Add_Building_Cards` added the other faction's descriptors as greyed
+`CARD_WRONG_FACTION` cards, so every category both factions author (Power Plant, Refinery,
+Communications Center, Advanced Communications Center, Repair Facility, Tiberium Silo, Construction
+Yard) appeared twice. Wrong-faction descriptors are now left off the panel; the status value is
+kept but no longer produced, and the self check asserts absence.
+
+**Cursor picking through interiors.** `CommanderModeController::Pick_At_Cursor` took the first
+surface the cursor ray struck, which over any interior -- C&C_Under's cavern, a tunnel, a structure
+-- is the roof above it, so every waypoint landed in the ceiling. The ray now walks down through up
+to eight surfaces and takes the first one a pathfind sector contains, falling back to the first hit.
+
+**Orders onto unreachable points.** Nothing checked an order's destination against the pathfinder,
+and `ERROR_INVALID_DEST_POS` either kills the action (with pathfind data) or beelines into geometry
+(without it). `cCommanderOrderEvent::Act` now snaps each unit's destination, a patrol's second
+point and the waypoint marker to the nearest navigable point -- a deterministic expanding box,
+nearest clamped point, ties on sector index.
+
+**Building and unit cameos.** No descriptor carried `build.icon_texture` at all, and the authored
+art was 1254x1254 3-6 MB TGA off the asset manager's search path. `tools/build_commander_icons.py`
+packages all 33 to 128x128x32 `ow_bld_*.tga` (matching the `hud_rsf_*` cameos already in `Data`),
+and all 22 descriptors now name one. Unit cards already read the real Purchase Terminal images
+(`PurchaseSettingsDefClass::Get_Texture` on `TYPE_CLASSES`/`TYPE_VEHICLES`, the same accessor and
+loader the PT dialog uses) and only ever looked broken because those modes were unreachable; each
+unit card now also carries its preset's name, so a missing cameo falls back to text rather than an
+empty cell. Documented in `docs/assets/CommanderSidebar.md`.
+
+**Procedural Skirmish no longer opens on nothing (D-038).** `ProceduralWorldManager` records a
+refused generation; `CombatGameModeClass` abandons a native load that was refused instead of
+carrying on into an empty skybox; and the main menu reports the reason and, once the player
+dismisses it, loads a fit-to-level world over a stock skirmish map, which the generator does build
+(census: requested seed 1 complete and connected through Phase 12 in 2.9 s). Armed only by a native
+request, so it cannot recurse.
+
+**Phase 5's alternate budget (D-039).** `retry.max_alternate_candidates_per_feature` raised 32 ->
+128 in `native.json`, past every first-legal ordinal D-036's exhaustive diagnostic measured; pinned
+by `terrain_hybridlandforms`. Candidate ordering is unchanged, so the larger budget tests a strict
+prefix-superset of the same sequence. Measured on a re-census of requested seeds 1..256:
+`candidates_exhausted` falls from 199 attempts to 21, Phase 5's kept worlds from 66 to 7, and 59
+seeds move to a later phase (Phase 10's kept worlds double, 7 to 14). Phases 2 to 4 are identical
+seed for seed, as they must be.
+
+Evidence for the whole item: `renegade`, `renegadeserver` and `leveledit` build clean; all 90
+`shader_*` ctest entries pass, plus `terrain_hybridlandforms`, `terrain_hybridhydrology` and
+`terrain_hybridmacroterrain`.
+
+Open after this item: the remaining native phase walls, in census order. **Phase 6 `lake_quota`
+is now the wall** (213 of 768 attempts, 84 kept worlds), and unlike Phase 5's budget it is a
+generator rule, so it needs a decision of its own rather than another knob.
+
+## Commander production stalled queues and swallowed facility clicks (2026-10-17)
+
+**A purchase took the credits and never delivered.** Every fact `CommanderProductionService`
+holds about a facility -- alive, construction-complete, powered, exit-clear -- was a snapshot
+taken by the purchase that opened the queue slot: `Set_Facility_Runtime_State` had no caller
+anywhere except `Request_Production` itself. A finished item whose exit sphere was occupied parks
+at `PRODUCTION_STATE_BLOCKED_EXIT` by design ("do not release the next vehicle while the exit
+reservation remains blocked"), so with nothing re-sampling it the facility's line stopped
+permanently while the credits were already debited. The commonest way in was the Commander's own
+embodied body: walk to the War Factory, press `B`, click it, buy, and your soldier is standing in
+the exit. `CombatManager::Think` now refreshes every facility with something queued, once a tick,
+immediately before `Update` reads it (`Refresh_Commander_Production_Facilities`, combat.cpp), so
+"pause, not cancel" actually resumes.
+
+**One rule for judging a facility.** The gather moved onto its canonical owner as
+`BuildingGameObj::Build_Commander_Facility_Context` -- aliveness from the object,
+construction from `BuildingConstructionService`, power from `TeamPowerGridService`, exit from
+`Get_Commander_Exit_Point` plus a dynamic-only sphere query. `cCommanderProductionEvent::Act` and
+the new per-tick refresh both call it, so the duplicate the event used to carry is gone rather
+than doubled. `Get_Queued_Facility_Count`/`Get_Queued_Facility_Id` are the service's new
+request-ordered, de-duplicated list of facilities to refresh.
+
+**Clicking a second factory did nothing.** `Handle_Left_Release` treated any release past the
+four-pixel drag threshold as a box select, and a box over a building selects nothing at all --
+buildings are structurally absent from the unit selection -- so an ordinary click with a wobble in
+it left the panel bound to the previous facility. An empty box now falls through to the
+single-object pick, which is what makes clicking the Barracks after the War Factory (and the
+reverse) rebind the page. A friendly building that selects but does not bind a production page now
+says so in the log.
+
+**The queue says why it is held.** The head row of the queue strip draws `NO POWER`,
+`EXIT BLOCKED` or `HELD` from the service's own item state; a blocked exit previously showed a
+full progress bar that never delivered.
+
+Evidence: `renegade`, `renegadeserver` and `leveledit` build clean; the `shader_*` selfcheck group
+and the hybrid terrain suites pass.

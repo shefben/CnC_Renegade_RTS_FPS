@@ -954,6 +954,25 @@ void CommanderOverlay::Render_Queue_Strip (void)
 			RectClass bar (rect.Left, rect.Bottom - QUEUE_PROGRESS_HEIGHT, rect.Left + rect.Width () * fraction, rect.Bottom);
 			Draw_Panel (bar, COLOR_TEXT_GOOD, 0);
 		}
+
+		/*
+		**	Why the head of the line is not moving.  A held item looked identical to a building
+		**	one before this: the same row, and for a blocked exit a full progress bar that never
+		**	delivered, with the credits already spent.  The state is the service's own, so the
+		**	panel reports it rather than guessing from the bar.
+		*/
+		if (row == 0) {
+			const char *held = nullptr;
+			switch (item.State) {
+				case PRODUCTION_STATE_WAITING_FOR_POWER:	held = "NO POWER";		break;
+				case PRODUCTION_STATE_BLOCKED_EXIT:			held = "EXIT BLOCKED";	break;
+				case PRODUCTION_STATE_QUEUED:					held = "HELD";				break;
+				default:												held = nullptr;			break;
+			}
+			if (held != nullptr) {
+				Draw_Text (held, rect.Left + 2.0F, rect.Top + 10.0F, COLOR_TEXT_BAD);
+			}
+		}
 	}
 }
 

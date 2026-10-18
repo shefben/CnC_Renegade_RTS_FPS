@@ -20,7 +20,8 @@
     "cost": 1000,
     "tech_level": 1,
     "team": 0,
-    "display_name": "Tiberium Silo"
+    "display_name": "Tiberium Silo",
+    "icon_texture": "ow_bld_nod_sil.tga"
   },
   "capabilities": {
     "tiberium_silo": {

@@ -5599,12 +5599,17 @@ void Check_Hybrid_Landforms (void)
 		Check ((native.SizeClass == HYBRID_SIZE_LARGE) && (native.D == 2400.0f),"the native world is not LARGE at D=2400");
 		Check (native.RBaseProtected == 180.0f,"the native R_BASE_PROTECTED is %g, not 180",native.RBaseProtected);
 
-		//	retry_budget_unchanged: the shipped native profile still searches 32 alternates per feature.
+		/*
+		**	The shipped native profile's alternate budget.  D-036 measured it as the only thing
+		**	refusing its Phase-5 failures -- every one had 29 to 175 legal candidate cells, with
+		**	the first legal one as late as the 43rd tested -- and D-038 raised it to 128, past
+		**	every ordinal measured.  Pinned here so the budget cannot drift back silently.
+		*/
 		ProceduralWorldProfile native_profile;
 		StringClass profile_error;
 		Check (ProceduralWorldProfileManager::Load_Profile_From_File ("data/procedural_world/native.json",&native_profile,
 																						  &profile_error),"native.json: %s",profile_error.Peek_Buffer ());
-		Check (native_profile.Retry.MaxAlternateCandidatesPerFeature == 32,"native retry.max_alternate_candidates_per_feature is %d, not 32",
+		Check (native_profile.Retry.MaxAlternateCandidatesPerFeature == 128,"native retry.max_alternate_candidates_per_feature is %d, not 128",
 				 native_profile.Retry.MaxAlternateCandidatesPerFeature);
 	}
 
@@ -6399,6 +6404,27 @@ void Check_Hybrid_Hydrology (void)
 		}
 
 		HybridHydrologyParams params = Hydrology_Fixture (sized,sizes[i]);
+		// D-037: drainage and shoreline levels must use realizable provisional relief,
+		// including with a nonzero sea level. In-range relief must stay unchanged.
+		{
+			HybridHydrologyParams envelope = params;
+			envelope.SeaLevel = 7.0f;
+			envelope.MinElevation = -10000.0f;
+			envelope.MaxElevation = 10000.0f;
+			const Vector2 probe = matrices.Matrix.Cell_Center (0,0);
+			const float raw = Hybrid_Provisional_Height (envelope,matrices,landforms,probe);
+			envelope.MinElevation = raw - envelope.SeaLevel + 1.0f;
+			envelope.MaxElevation = envelope.MinElevation + 10.0f;
+			Check (Near (Hybrid_Provisional_Height (envelope,matrices,landforms,probe),raw + 1.0f),
+					 "provisional drainage height escaped its elevation floor");
+			envelope.MinElevation = raw - envelope.SeaLevel - 10.0f;
+			envelope.MaxElevation = raw - envelope.SeaLevel - 1.0f;
+			Check (Near (Hybrid_Provisional_Height (envelope,matrices,landforms,probe),raw - 1.0f),
+					 "provisional drainage height escaped its elevation ceiling");
+			envelope.MaxElevation = raw - envelope.SeaLevel + 10.0f;
+			Check (Near (Hybrid_Provisional_Height (envelope,matrices,landforms,probe),raw),
+					 "in-range provisional relief changed");
+		}
 		const bool built = Hybrid_Build_Hydrology (params,identity,intents,graph,landforms,&matrices,&hydrology,
 																 &result);
 
@@ -6476,6 +6502,8 @@ void Check_Hybrid_Hydrology (void)
 			Check (water.Area > 0.0f,"%s %u has no area",Hybrid_Water_Body_Kind_Name (water.Kind),water.StableId);
 
 			if (water.Kind == HYBRID_WATER_BODY_LAKE) {
+				Check (water.SurfaceHeight >= params.SeaLevel + params.MinElevation - params.Constants.Q,
+						 "lake %u froze its surface below the terrain floor",water.StableId);
 				Check (water.BedDepth == params.LakeBedDepth,"lake %u does not carve the lake bed depth",
 						 water.StableId);
 				for (int point = 0; point < water.Points.Count (); ++point) {
@@ -6867,6 +6895,45 @@ void Check_Hybrid_Macro_Terrain (void)
 		Check (refused.Rivers.Count () == 0,"a refused walk left records behind");
 	}
 
+	// D-037: a dry polygon centroid is not a lake bed. Probe wet ground instead,
+	// including when an island occupies the centroid; a genuinely raised bed still fails.
+	{
+		HybridMapIdentityParams sized = Graph_Identity_Fixture (1200.0f,2.0f);
+		HybridMacroTerrainParams params = Macro_Terrain_Fixture (sized);
+		HybridCoarseMatrices empty_matrices;
+		HybridLandformSet empty_landforms;
+		HybridHydrologySet set;
+		HybridMacroTerrainSet fixed;
+		HybridWaterBody lake;
+		lake.StableId = 1;
+		lake.Kind = HYBRID_WATER_BODY_LAKE;
+		lake.SurfaceHeight = -5.0f;
+		lake.BedDepth = 3.0f;
+		Fill_Square_Ring (&lake,Vector2 (0.0f,20.0f),100.0f);
+		lake.Points.Delete_All ();
+		const Vector2 ring[] = { Vector2 (-100,-80),Vector2 (100,-80),Vector2 (100,120),
+			Vector2 (40,120),Vector2 (40,-20),Vector2 (-40,-20),Vector2 (-40,120),Vector2 (-100,120) };
+		for (int i = 0; i < 8; ++i) lake.Points.Add (ring[i]);
+		set.Bodies.Add (lake);
+		MacroFormulaContext formula = { &params,&empty_matrices,&empty_landforms,&set,&fixed,0.0f };
+		Check (!Hybrid_Point_In_Standing_Water (set,lake.Center,NULL,NULL),"concave lake probe is not dry");
+		Check (Hybrid_Check_Macro_Terrain_Gate (params,empty_matrices,empty_landforms,set,&fixed,
+			Macro_Sample_From_Formula,&formula,&result),"dry centroid refused a valid lake: %s",result.Detail.Peek_Buffer ());
+		Fill_Square_Ring (&set.Bodies[0],lake.Center,100.0f);
+		HybridWaterBody island;
+		island.StableId = 2;
+		island.Kind = HYBRID_WATER_BODY_ISLAND;
+		island.HostBodyId = 1;
+		Fill_Square_Ring (&island,lake.Center,20.0f);
+		set.Bodies.Add (island);
+		Check (Hybrid_Check_Macro_Terrain_Gate (params,empty_matrices,empty_landforms,set,&fixed,
+			Macro_Sample_From_Formula,&formula,&result),"island centroid refused a valid lake: %s",result.Detail.Peek_Buffer ());
+		formula.Offset = 20.0f;
+		Check (!Hybrid_Check_Macro_Terrain_Gate (params,empty_matrices,empty_landforms,set,&fixed,
+			Macro_Sample_From_Formula,&formula,&result) && result.Failure == HYBRID_MACRO_BED_ABOVE_SURFACE,
+			"a genuinely protruding lake bed was accepted");
+	}
+
 	//	`detail_protection_factor`, the carve and the protected-profile test, on a real Phase 2-6 chain.
 	{
 		HybridMapIdentityParams sized = Graph_Identity_Fixture (1200.0f,2.0f);
@@ -7135,6 +7202,198 @@ void Check_Hybrid_Macro_Terrain (void)
 
 		WorldTerrainSystem::Shutdown ();
 		MacroTerrainGenerator::Init ();
+	}
+
+	/*
+	**	D-037 (Q-029): the bounded water-bed raster support, on a hand-built shoreline.
+	**
+	**	The pointwise carve takes every vertex inside the frozen polygon to the bed and leaves every
+	**	vertex outside it alone, which is correct as an expression and wrong as a triangle: the cell
+	**	the shoreline crosses interpolates from a dry vertex high above the water down to a wet one,
+	**	so the realized ground stands above the water surface at wet points inside the polygon.  That
+	**	is exactly effective seed 61's fault, written small enough to state every height by hand.
+	*/
+	{
+		HybridMacroTerrainParams params;
+		params.SeaLevel		= 0.0f;
+		params.MinElevation	= -15.0f;
+		params.MaxElevation	= 90.0f;
+
+		const float surface	= -5.0f;
+		const float bed		= -7.0f;			// surface less the lake's own bed depth
+		const float dry		= 3.0f;
+
+		HybridHydrologySet water;
+		HybridWaterBody lake;
+		lake.StableId		= 1;
+		lake.Kind			= HYBRID_WATER_BODY_LAKE;
+		lake.SurfaceHeight= surface;
+		lake.BedDepth		= 2.0f;
+		Fill_Square_Ring (&lake,Vector2 (0.0f,0.0f),5.0f);
+		water.Bodies.Add (lake);
+
+		const DynamicVectorClass<Vector2> frozen_ring = water.Bodies[0].Points;
+		const float frozen_level = water.Bodies[0].SurfaceHeight;
+
+		HybridMacroTerrainSet surfaces;		// no rivers: this is the standing-water case
+
+		const int vx = 9;
+		const int vy = 9;
+		const float cell = 3.75f;				// the native 60 m chunk over 16 cells
+		const Vector2 origin (-15.0f,-15.0f);
+
+		float * original = new float[vx * vy];
+		float * heights  = new float[vx * vy];
+		for (int iy = 0; iy < vy; ++iy) {
+			for (int ix = 0; ix < vx; ++ix) {
+				const Vector2 at (origin.X + ((float)ix * cell),origin.Y + ((float)iy * cell));
+				const bool wet = Hybrid_Point_In_Standing_Water (water,at,NULL,NULL);
+				original[(iy * vx) + ix] = wet ? bed : dry;
+			}
+		}
+		::memcpy (heights,original,sizeof (float) * (size_t)(vx * vy));
+
+		//	Ceiling: the water's own surface where water stands, nothing at all on dry land.
+		float ceiling = 0.0f;
+		Check (Hybrid_Water_Bed_Ceiling (params,water,surfaces,Vector2 (0.0f,0.0f),&ceiling)
+				 && Near (ceiling,surface),"the lake centre has no water-bed ceiling of its own");
+		Check (!Hybrid_Water_Bed_Ceiling (params,water,surfaces,Vector2 (12.0f,0.0f),NULL),
+				 "dry ground outside the polygon claims a water-bed ceiling");
+
+		//	The fault, measured on the real sampler before anything is corrected.
+		const Vector2 probe (-4.9f,0.0f);
+		HeightfieldClass field;
+		Check (field.Create (vx,vy,cell,Vector3 (origin.X,origin.Y,params.SeaLevel)),
+				 "the shoreline fixture field would not be created");
+		Check (field.Set_Heights (heights,vx * vy),"the uncorrected shoreline heights were refused");
+
+		float realized = 0.0f;
+		Check (field.Sample_Height (probe.X,probe.Y,&realized),"the wet probe is outside the fixture field");
+		Check (realized > surface,
+				 "the fixture does not reproduce the straddling-cell fault (realized %g, water %g)",realized,
+				 surface);
+
+		int unresolved = -1;
+		const int lowered = Hybrid_Apply_Water_Bed_Raster_Support (params,water,surfaces,heights,NULL,vx,vy,
+																					  cell,origin,&unresolved);
+		Check (lowered > 0,"the support pass lowered no vertex at a straddling shoreline");
+		Check (unresolved == 0,"%d wet samples stayed above the water after a correction that fits",unresolved);
+
+		Check (field.Set_Heights (heights,vx * vy),"the corrected shoreline heights were refused");
+
+		//	Every wet point in the polygon is now at or below the water, on the sampler itself.
+		int wet_samples = 0;
+		for (float y = -4.75f; y <= 4.75f; y += 0.25f) {
+			for (float x = -4.75f; x <= 4.75f; x += 0.25f) {
+				const Vector2 at (x,y);
+				if (!Hybrid_Point_In_Standing_Water (water,at,NULL,NULL)) continue;
+				float height = 0.0f;
+				if (!field.Sample_Height (x,y,&height)) continue;
+				wet_samples ++;
+				Check (height <= (surface + 0.001f),
+						 "the realized bed stands %g above the water at (%g,%g)",height - surface,x,y);
+			}
+		}
+		Check (wet_samples > 0,"the fixture produced no wet sample to measure");
+
+		/*
+		**	The bound: only vertices of cells the polygon crosses moved, each only downward, none past
+		**	the ceiling it had to satisfy, and none past the elevation floor.
+		*/
+		for (int iy = 0; iy < vy; ++iy) {
+			for (int ix = 0; ix < vx; ++ix) {
+
+				const int index = (iy * vx) + ix;
+				const float before = original[index];
+				const float after = heights[index];
+				if (Near (before,after)) continue;
+
+				Check (after < before,"a support vertex was raised (%g to %g)",before,after);
+				Check (after >= (surface - 0.001f),
+						 "a support vertex was lowered past the ceiling it had to satisfy (%g below %g)",after,
+						 surface);
+				Check (after >= (params.MinElevation - 0.001f),"a support vertex left the elevation floor (%g)",after);
+
+				//	The cell footprints this vertex takes part in must include one the polygon crosses.
+				bool participates = false;
+				for (int cy = iy - 1; (cy <= iy) && !participates; ++cy) {
+					for (int cx = ix - 1; (cx <= ix) && !participates; ++cx) {
+						if ((cx < 0) || (cy < 0) || (cx > (vx - 2)) || (cy > (vy - 2))) continue;
+						const float x0 = origin.X + ((float)cx * cell);
+						const float y0 = origin.Y + ((float)cy * cell);
+						bool any_wet = false;
+						bool any_dry = false;
+						for (float v = 0.0f; v <= 1.0f; v += 0.125f) {
+							for (float u = 0.0f; u <= 1.0f; u += 0.125f) {
+								const Vector2 at (x0 + (u * cell),y0 + (v * cell));
+								if (Hybrid_Point_In_Standing_Water (water,at,NULL,NULL)) any_wet = true;
+								else any_dry = true;
+							}
+						}
+						if (any_wet && any_dry) participates = true;
+					}
+				}
+				Check (participates,"a vertex with no shoreline cell of its own was lowered at %d,%d",ix,iy);
+			}
+		}
+
+		//	Fully dry ground away from the polygon is untouched, and so is the bed the carve already cut.
+		Check (Near (heights[0],dry),"a corner far from the water was lowered");
+		Check (Near (heights[(vy - 1) * vx],dry),"a corner far from the water was lowered");
+		for (int iy = 0; iy < vy; ++iy) {
+			for (int ix = 0; ix < vx; ++ix) {
+				const Vector2 at (origin.X + ((float)ix * cell),origin.Y + ((float)iy * cell));
+				if (!Hybrid_Point_In_Standing_Water (water,at,NULL,NULL)) continue;
+				Check (Near (heights[(iy * vx) + ix],bed),"a vertex already under the water was moved");
+			}
+		}
+
+		//	A grid that already satisfies the requirement is left exactly as it is.
+		float * again = new float[vx * vy];
+		::memcpy (again,heights,sizeof (float) * (size_t)(vx * vy));
+		int second_unresolved = -1;
+		const int second = Hybrid_Apply_Water_Bed_Raster_Support (params,water,surfaces,again,NULL,vx,vy,cell,
+																					 origin,&second_unresolved);
+		Check (second == 0,"the support pass moved %d vertices on ground that already satisfied it",second);
+		Check (second_unresolved == 0,"a satisfied grid reported %d unresolved samples",second_unresolved);
+		Check (::memcmp (again,heights,sizeof (float) * (size_t)(vx * vy)) == 0,
+				 "a second support pass changed a grid it reported unchanged");
+		delete [] again;
+
+		//	The frozen record is exactly what it was: no polygon, no water level, no topology moved.
+		Check (water.Bodies[0].Points.Count () == frozen_ring.Count (),"the water polygon changed size");
+		for (int point = 0; (point < frozen_ring.Count ()) && (point < water.Bodies[0].Points.Count ()); ++point) {
+			Check ((water.Bodies[0].Points[point].X == frozen_ring[point].X)
+				 && (water.Bodies[0].Points[point].Y == frozen_ring[point].Y),
+					 "the water polygon moved at point %d",point);
+		}
+		Check (water.Bodies[0].SurfaceHeight == frozen_level,"the water level moved");
+
+		//	An immutable vertex is never moved, and the sample it would have supported is reported.
+		float * masked = new float[vx * vy];
+		::memcpy (masked,original,sizeof (float) * (size_t)(vx * vy));
+		bool * immutable = new bool[vx * vy];
+		::memset (immutable,0,sizeof (bool) * (size_t)(vx * vy));
+		for (int iy = 0; iy < vy; ++iy) {
+			for (int ix = 0; ix < vx; ++ix) {
+				const Vector2 at (origin.X + ((float)ix * cell),origin.Y + ((float)iy * cell));
+				if (Hybrid_Point_In_Standing_Water (water,at,NULL,NULL)) continue;
+				immutable[(iy * vx) + ix] = true;		// every dry vertex, so no support is possible at all
+			}
+		}
+		int masked_unresolved = 0;
+		const int masked_lowered = Hybrid_Apply_Water_Bed_Raster_Support (params,water,surfaces,masked,immutable,
+																							 vx,vy,cell,origin,&masked_unresolved);
+		Check (masked_lowered == 0,"%d vertices were lowered with every movable vertex masked",masked_lowered);
+		Check (::memcmp (masked,original,sizeof (float) * (size_t)(vx * vy)) == 0,
+				 "an immutable vertex was lowered");
+		Check (masked_unresolved > 0,
+				 "a correction blocked on immutable vertices reported nothing for the gate to refuse");
+		delete [] immutable;
+		delete [] masked;
+
+		delete [] heights;
+		delete [] original;
 	}
 }
 

@@ -20,7 +20,8 @@
     "cost": 1800,
     "tech_level": 2,
     "team": 1,
-    "display_name": "Advanced Communications Center"
+    "display_name": "Advanced Communications Center",
+    "icon_texture": "ow_bld_gdi_comm_center.tga"
   },
   "capabilities": {
     "communications": {

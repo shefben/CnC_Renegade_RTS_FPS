@@ -204,6 +204,27 @@ class ProceduralWorldManager
 		*/
 		static bool		Generate_World(StringClass * error_out);
 
+		/*
+		**	Why the last Generate_World refused, kept after the call returns.
+		**
+		**	A native world has no level file under it (D-002), so a refused generation leaves the
+		**	player standing in a skybox with nothing in it, and the reason only in a log.  The
+		**	level loader cannot ask Generate_World for that reason -- it is called from deep
+		**	inside CombatManager::Post_Load_Level -- so the refusal is recorded here for whoever
+		**	owns the decision to abandon the load.
+		**
+		**	Cleared by Init, by a fresh request, and by a generation that succeeds.
+		*/
+		static bool					Did_Generation_Fail(void)		{ return GenerationFailed; }
+		static const char *		Get_Generation_Error(void)		{ return LastGenerationError.Peek_Buffer (); }
+
+		//	Called by whoever has shown the reason to the player, so it is reported once.
+		static void					Clear_Generation_Failure(void)
+		{
+			GenerationFailed		= false;
+			LastGenerationError	= "";
+		}
+
 		//	Tear the generated world down.  Called from the level unload path.
 		static void		Destroy_World(void);
 
@@ -332,6 +353,14 @@ class ProceduralWorldManager
 		static const HybridRealizationPlan &			Get_Hybrid_Realization(void)		{ return HybridRealization; }
 
 	private:
+
+		//	The whole of Generate_World's work.  The public entry is a thin wrapper that records
+		//	the refusal for Did_Generation_Fail/Get_Generation_Error, so there is exactly one
+		//	implementation of the attempt policy and one place that remembers how it ended.
+		static bool		Generate_World_Internal(StringClass * error_out);
+
+		static bool		GenerationFailed;
+		static StringClass	LastGenerationError;
 
 		static bool		Fit_Profile_To_Level(ProceduralWorldProfile * profile);
 		static bool		Build_Cliff_Ring(const ProceduralWorldProfile & profile,StringClass * error_out);

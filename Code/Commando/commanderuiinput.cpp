@@ -442,16 +442,24 @@ static void	Handle_Left_Release(const Vector2 & cursor)
 	CommanderSelection::Clear ();
 	CommanderSelection::Clear_Selected_Building ();
 
-	if (was_box) {
-		Select_In_Box (minimum,maximum);
+	/*
+	**	A box that caught something is a box.  A box that caught nothing is, in practice, a click
+	**	with a wobble in it: the significance threshold is four pixels of a software cursor
+	**	integrating raw mouse deltas, which an ordinary click on a building clears easily, and a
+	**	box drawn over a building selects nothing because buildings are structurally not in the
+	**	unit selection at all.  That is what made clicking one factory and then another look like
+	**	the second click was ignored -- the drag swallowed it and the panel kept the old binding.
+	**	So an empty box falls through to the single-object pick below.
+	*/
+	if (was_box && (Select_In_Box (minimum,maximum) > 0)) {
 		return;
 	}
 
 	/*
 	**	A click, not a box: whatever of the player's own team is under the pointer.  A building
-	**	opens its power panel; a living unit becomes a one-unit selection.  Anything else --
-	**	ground, an enemy, a corpse -- leaves the selection empty, which is what clicking empty
-	**	ground means.
+	**	opens its power panel and, when it is a production facility, forks the sidebar onto what
+	**	it builds; a living unit becomes a one-unit selection.  Anything else -- ground, an enemy,
+	**	a corpse -- leaves the selection empty, which is what clicking empty ground means.
 	*/
 	bool is_building = false;
 	int picked = Pick_Object (cursor,&is_building);
@@ -464,6 +472,25 @@ static void	Handle_Left_Release(const Vector2 & cursor)
 		BuildingGameObj * building = (scriptable != nullptr) ? scriptable->As_BuildingGameObj () : nullptr;
 		if ((building != nullptr) && (building->Get_Player_Type () == team) && !building->Is_Destroyed ()) {
 			CommanderSelection::Select_Building (picked);
+
+			/*
+			**	Section 42's contextual production: clicking the physical ground factory, Air
+			**	Pad, Barracks or Hand of Nod forks the sidebar onto what that building produces.
+			**	The power-grid member id is the building's own network id -- the same value
+			**	`TeamPowerGridService::RegisterBuilding` is handed in `Initialize_Building` -- so
+			**	the bound facility's power, construction and queue state all resolve.
+			**
+			**	A building that is not a production facility (a plant, a silo, a comm center)
+			**	refuses the bind and leaves the panel on BUILDINGS, which is the honest result:
+			**	it is still selected, and its power panel still opens.
+			*/
+			if (!CommanderSidebarModel::Bind_Facility (building,building->Get_ID ())) {
+				//	Selected, but not a production facility -- or its descriptor is not loaded, which
+				//	is the one case that looks identical from the player's seat and is worth saying.
+				WWDEBUG_SAY (("Commander: building %d ('%s') did not bind a production page\n",
+								  building->Get_ID (),
+								  building->Get_Definition ().Get_Descriptor_Name ().Peek_Buffer ()));
+			}
 		}
 		return;
 	}

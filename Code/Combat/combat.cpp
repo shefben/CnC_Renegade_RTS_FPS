@@ -1211,6 +1211,50 @@ class CommanderPopulationObserverClass : public GameObjObserverClass
 **	BuildingGameObj::Get_Commander_Exit_Point, the one formula both this and the ExitClear
 **	check in cCommanderProductionEvent::Act share.
 */
+/*
+**	Roadmap Section 45.  Every fact CommanderProductionService keeps about a facility is a
+**	snapshot taken by the purchase that opened the queue slot, and all four of them can change
+**	afterwards: a Power Plant falls, the building is destroyed or reverts to construction, or --
+**	the one that actually bites -- something walks into the exit sphere.
+**
+**	A finished item whose exit is blocked parks at BLOCKED_EXIT on purpose ("do not release the
+**	next vehicle while the exit reservation remains blocked"), and the service has no scene to
+**	re-test that with, so with nothing re-sampling it the facility's line stopped permanently
+**	while the credits had already been debited.  The commonest way in was the Commander's own
+**	embodied body: you walk up to the War Factory, press B, click it and buy, and your soldier is
+**	standing in the exit.
+**
+**	So the state is refreshed once a tick, immediately before Update reads it, from the same
+**	BuildingGameObj::Build_Commander_Facility_Context the purchase itself used -- one rule, asked
+**	again rather than remembered.  Only facilities with something queued are visited, so an idle
+**	base costs nothing.  A facility whose building has gone is left alone for
+**	On_Facility_Destroyed to resolve with its refund; dropping it silently here is exactly the
+**	invisible loss Section 45 forbids.
+*/
+static void	Refresh_Commander_Production_Facilities (void)
+{
+	for (int i = CommanderProductionService::Get_Queued_Facility_Count () - 1; i >= 0; i--) {
+
+		int facility_id = CommanderProductionService::Get_Queued_Facility_Id (i);
+		if (facility_id == 0) continue;
+
+		//	The same ambiguity narrowing the drain below explains: As_BuildingGameObj is inherited
+		//	from two bases, so the pointer is upcast to one of them first.
+		PhysicalGameObj * facility_obj = GameObjManager::Find_PhysicalGameObj (facility_id);
+		DamageableGameObj * damageable = (facility_obj != nullptr) ? (DamageableGameObj *)facility_obj : nullptr;
+		BuildingGameObj * building = (damageable != nullptr) ? damageable->As_BuildingGameObj () : nullptr;
+		if (building == nullptr) continue;
+
+		CommanderFacilityContext context;
+		if (!building->Build_Commander_Facility_Context (&context)) continue;
+
+		CommanderProductionService::Set_Facility_Runtime_State (facility_id,context.Alive,
+																				  context.ConstructionComplete,
+																				  context.Powered,context.ExitClear);
+	}
+}
+
+
 static void	Drain_Completed_Commander_Production (void)
 {
 	int count = CommanderProductionService::Get_Completed_Count ();
@@ -1380,6 +1424,7 @@ void 	CombatManager::Think()
 	**	rendering resources, satisfied by never calling into them.
 	*/
 	if ( CombatManager::I_Am_Server() ) {
+		Refresh_Commander_Production_Facilities();
 		CommanderProductionService::Update( TimeManager::Get_Frame_Seconds() );
 		Drain_Completed_Commander_Production();
 

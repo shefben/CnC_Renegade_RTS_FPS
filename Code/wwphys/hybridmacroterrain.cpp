@@ -108,6 +108,8 @@ void HybridMacroTerrainSet::Reset(void)
 	MaxHeight			= 0.0f;
 	ProtectedVertices	= 0;
 	SlopeViolations		= 0;
+	WaterBedSupportVertices		= 0;
+	WaterBedSupportUnresolved	= 0;
 	Checksum				= 0;
 }
 
@@ -560,6 +562,410 @@ bool Hybrid_Macro_Is_Protected_Profile(const HybridMacroTerrainParams & params,c
 
 
 /***********************************************************************************************
+**	D-037 (Q-029): bounded water-bed raster support.
+***********************************************************************************************/
+
+bool Hybrid_Water_Bed_Ceiling(const HybridMacroTerrainParams & params,const HybridHydrologySet & hydrology,
+											const HybridMacroTerrainSet & surfaces,const Vector2 & world,float * ceiling_out)
+{
+	//	An island is dry land standing in water: nothing supports a bed there, exactly as the carve says.
+	for (int i = 0; i < hydrology.Bodies.Count(); ++i) {
+		const HybridWaterBody & body = hydrology.Bodies[i];
+		if (body.Kind != HYBRID_WATER_BODY_ISLAND) continue;
+		if ((world.X < body.BoundsMin.X) || (world.X > body.BoundsMax.X) ||
+			 (world.Y < body.BoundsMin.Y) || (world.Y > body.BoundsMax.Y)) continue;
+		if (Point_In_Ring(body.Points,world)) return false;
+	}
+
+	bool wet = false;
+	float ceiling = 0.0f;
+
+	for (int i = 0; i < hydrology.Bodies.Count(); ++i) {
+		const HybridWaterBody & body = hydrology.Bodies[i];
+		if (body.Kind == HYBRID_WATER_BODY_ISLAND) continue;
+		if ((world.X < body.BoundsMin.X) || (world.X > body.BoundsMax.X) ||
+			 (world.Y < body.BoundsMin.Y) || (world.Y > body.BoundsMax.Y)) continue;
+		if (!Point_In_Ring(body.Points,world)) continue;
+		ceiling = wet ? Min2(ceiling,body.SurfaceHeight) : body.SurfaceHeight;
+		wet = true;
+	}
+
+	//	A river supports a bed only inside its own channel.  The bank blend is a carve profile, not
+	//	water: ground under a bank is dry and carries no ceiling of its own.
+	for (int i = 0; i < hydrology.Rivers.Count(); ++i) {
+
+		const HybridRiverSystem & river = hydrology.Rivers[i];
+		if ((world.X < river.BoundsMin.X) || (world.X > river.BoundsMax.X) ||
+			 (world.Y < river.BoundsMin.Y) || (world.Y > river.BoundsMax.Y)) continue;
+
+		int index_at = -1;
+		const float distance = Nearest_River_Sample(river,world,&index_at);
+		if (distance > (0.5f * river.Width_At_Index(index_at))) continue;
+
+		float surface = 0.0f;
+		if (!surfaces.River_Sample(river.StableId,index_at,&surface,nullptr)) continue;
+		ceiling = wet ? Min2(ceiling,surface) : surface;
+		wet = true;
+	}
+
+	if (!wet) return false;
+	if (ceiling_out != nullptr) *ceiling_out = ceiling;
+	return true;
+}
+
+
+/*
+**	The cells whose footprint can hold a shoreline: every cell a water ring segment or a river
+**	segment's own channel passes through.  A cell entirely inside water needs no correction (every
+**	corner is already carved to or below the ceiling, so no convex combination of them can exceed it)
+**	and a cell entirely outside it has no wet region to support, which is where the bound in D-037
+**	comes from -- the footprint, never a distance.  The walk below is per water segment rather than
+**	per cell, so the cost follows the length of the shoreline instead of the area of the world.
+*/
+struct HybridSupportCellRange
+{
+	int	X0;
+	int	X1;
+	int	Y0;
+	int	Y1;
+};
+
+static bool Support_Cell_Range(int cells_x,int cells_y,const Vector2 & origin,float cell_size,
+											const Vector2 & lo,const Vector2 & hi,HybridSupportCellRange * out)
+{
+	//	One cell of slack, so a segment lying exactly on a cell boundary takes in the cell either side
+	//	of it.  Visiting a cell with no wet region in it costs a few tests and can change nothing.
+	out->X0 = (int)WWMath::Floor((lo.X - origin.X) / cell_size) - 1;
+	out->X1 = (int)WWMath::Floor((hi.X - origin.X) / cell_size) + 1;
+	out->Y0 = (int)WWMath::Floor((lo.Y - origin.Y) / cell_size) - 1;
+	out->Y1 = (int)WWMath::Floor((hi.Y - origin.Y) / cell_size) + 1;
+
+	if (out->X0 < 0) out->X0 = 0;
+	if (out->Y0 < 0) out->Y0 = 0;
+	if (out->X1 > (cells_x - 1)) out->X1 = cells_x - 1;
+	if (out->Y1 > (cells_y - 1)) out->Y1 = cells_y - 1;
+
+	return (out->X0 <= out->X1) && (out->Y0 <= out->Y1);
+}
+
+
+//	Where two segments meet, if they do.  The wet region of a cell is a polygon whose vertices are
+//	cell corners, water-ring vertices inside the cell, and exactly these crossings; a linear
+//	interpolant over that region takes its maximum at one of them.
+static bool Segment_Crossing(const Vector2 & a,const Vector2 & b,const Vector2 & c,const Vector2 & d,
+										Vector2 * out)
+{
+	const Vector2 r = b - a;
+	const Vector2 s = d - c;
+	const float denominator = (r.X * s.Y) - (r.Y * s.X);
+	if ((float)fabs((double)denominator) <= 1.0e-9f) return false;
+
+	const Vector2 delta = c - a;
+	const float t = ((delta.X * s.Y) - (delta.Y * s.X)) / denominator;
+	const float u = ((delta.X * r.Y) - (delta.Y * r.X)) / denominator;
+	if ((t < 0.0f) || (t > 1.0f) || (u < 0.0f) || (u > 1.0f)) return false;
+
+	if (out != nullptr) *out = a + (r * t);
+	return true;
+}
+
+
+static int Add_Cell_Crossings(Vector2 * candidates,const Vector2 & a,const Vector2 & b,
+											 const Vector2 & corner0,float cell_size)
+{
+	const Vector2 corner1(corner0.X + cell_size,corner0.Y);
+	const Vector2 corner2(corner0.X + cell_size,corner0.Y + cell_size);
+	const Vector2 corner3(corner0.X,corner0.Y + cell_size);
+
+	//	The four edges and the cell's own diagonal, which is the triangle split the sampler uses.
+	const Vector2 edges[5][2] = {
+		{ corner0,corner1 },
+		{ corner1,corner2 },
+		{ corner2,corner3 },
+		{ corner3,corner0 },
+		{ corner0,corner2 }
+	};
+
+	int count = 0;
+	for (int edge = 0; edge < 5; ++edge) {
+		Vector2 crossing(0.0f,0.0f);
+		if (!Segment_Crossing(a,b,edges[edge][0],edges[edge][1],&crossing)) continue;
+		candidates[count ++] = crossing;
+	}
+	return count;
+}
+
+
+/*
+**	The interpolation `HeightfieldClass::Sample_Cell` performs, as weights on the four cell corners,
+**	so the correction below reasons about the same arithmetic the runtime sampler will.  Corner order
+**	is the sampler's: (cx,cy), (cx+1,cy), (cx+1,cy+1), (cx,cy+1).
+*/
+static void Cell_Interpolation_Weights(float u,float v,float * weights)
+{
+	u = Clamp2(u,0.0f,1.0f);
+	v = Clamp2(v,0.0f,1.0f);
+
+	weights[0] = 0.0f;
+	weights[1] = 0.0f;
+	weights[2] = 0.0f;
+	weights[3] = 0.0f;
+
+	if (u >= v) {
+		//	Below the diagonal: h = v0 + (v1 - v0) u + (v2 - v1) v.
+		weights[0] = 1.0f - u;
+		weights[1] = u - v;
+		weights[2] = v;
+	} else {
+		//	Above it: h = v0 + (v2 - v3) u + (v3 - v0) v.
+		weights[0] = 1.0f - v;
+		weights[2] = u;
+		weights[3] = v - u;
+	}
+}
+
+
+/*
+**	One cell, against one water segment that passes through it.  The candidate points are the vertices
+**	of the cell's wet region -- its corners, the segment's own vertex when it falls inside, the
+**	segment's crossings of the cell's edges and of its diagonal -- plus a fixed interior lattice,
+**	because a river channel's boundary is an offset curve rather than a polygon.  A linear interpolant
+**	takes its maximum over a convex region at a vertex of that region, which is what makes this set the
+**	right one to measure rather than a dense sweep of the cell.
+**
+**	`boundary_ceiling` is the water surface on the wet side of this segment.  The candidates the
+**	segment itself produces lie *on* the water boundary, where the pointwise test answers "dry" because
+**	a ring excludes its own edge; they belong to the closure of the wet region all the same, and they
+**	are where the interpolant takes its maximum, so they are measured against that surface.  A cell
+**	corner or lattice point is only ever measured when it is strictly wet.
+*/
+static void Correct_Support_Cell(const HybridMacroTerrainParams & params,const HybridHydrologySet & hydrology,
+											  const HybridMacroTerrainSet & surfaces,float * heights,
+											  const bool * immutable,bool * lowered,int vx,float cell_size,
+											  const Vector2 & origin,int cx,int cy,const Vector2 & seg_a,
+											  const Vector2 & seg_b,bool has_boundary_ceiling,
+											  float boundary_ceiling,float channel_half_width,int * unresolved)
+{
+	const float floor_rel = params.MinElevation;
+	const float epsilon = Max2(HYBRID_QUANTUM_POSITION * 0.5f,0.001f);
+
+	const Vector2 corner0(origin.X + ((float)cx * cell_size),origin.Y + ((float)cy * cell_size));
+	const Vector2 corner2(corner0.X + cell_size,corner0.Y + cell_size);
+
+	Vector2 candidates[32];
+	bool on_boundary[32];
+	int count = 0;
+
+	candidates[count] = corner0;								on_boundary[count ++] = false;
+	candidates[count] = Vector2(corner2.X,corner0.Y);	on_boundary[count ++] = false;
+	candidates[count] = corner2;								on_boundary[count ++] = false;
+	candidates[count] = Vector2(corner0.X,corner2.Y);	on_boundary[count ++] = false;
+
+	for (int ly = 1; ly <= 3; ++ly) {
+		for (int lx = 1; lx <= 3; ++lx) {
+			candidates[count] = Vector2(corner0.X + (cell_size * 0.25f * (float)lx),
+												 corner0.Y + (cell_size * 0.25f * (float)ly));
+			on_boundary[count ++] = false;
+		}
+	}
+
+	const int boundary_first = count;
+
+	if ((seg_a.X >= corner0.X) && (seg_a.X <= corner2.X) && (seg_a.Y >= corner0.Y) && (seg_a.Y <= corner2.Y)) {
+		candidates[count ++] = seg_a;
+	}
+	count += Add_Cell_Crossings(&candidates[count],seg_a,seg_b,corner0,cell_size);
+
+	/*
+	**	A channel's lateral boundary is an offset curve with no vertices of its own, so the two offsets
+	**	of this segment's own end stand in for it where they fall inside the cell.
+	*/
+	if (channel_half_width > 0.0f) {
+		Vector2 along = seg_b - seg_a;
+		if (along.Length() > 0.0f) {
+			along.Normalize();
+			const Vector2 across(-along.Y,along.X);
+			for (int side = -1; side <= 1; side += 2) {
+				const Vector2 edge = seg_a + (across * (channel_half_width * (float)side));
+				if ((edge.X < corner0.X) || (edge.X > corner2.X) ||
+					 (edge.Y < corner0.Y) || (edge.Y > corner2.Y)) continue;
+				candidates[count ++] = edge;
+			}
+		}
+	}
+
+	for (int i = boundary_first; i < count; ++i) {
+		on_boundary[i] = true;
+	}
+
+	const int corner_index[4] = {
+		(cy * vx) + cx,
+		(cy * vx) + cx + 1,
+		((cy + 1) * vx) + cx + 1,
+		((cy + 1) * vx) + cx
+	};
+
+	for (int i = 0; i < count; ++i) {
+
+		const Vector2 & point = candidates[i];
+
+		float ceiling_abs = 0.0f;
+		bool wet = Hybrid_Water_Bed_Ceiling(params,hydrology,surfaces,point,&ceiling_abs);
+		if (on_boundary[i] && has_boundary_ceiling) {
+			ceiling_abs = wet ? Min2(ceiling_abs,boundary_ceiling) : boundary_ceiling;
+			wet = true;
+		}
+		if (!wet) continue;
+
+		const float ceiling_rel = ceiling_abs - params.SeaLevel;
+		const float target = Max2(ceiling_rel,floor_rel);
+
+		float weights[4];
+		Cell_Interpolation_Weights((point.X - corner0.X) / cell_size,(point.Y - corner0.Y) / cell_size,weights);
+
+		float realized = 0.0f;
+		for (int corner = 0; corner < 4; ++corner) {
+			realized += weights[corner] * heights[corner_index[corner]];
+		}
+
+		float excess = realized - ceiling_rel;
+		if (excess <= epsilon) continue;
+
+		/*
+		**	Lower the least, on the vertices this interpolation actually draws from.  The heaviest weight
+		**	first, because that is the smallest total correction that removes the excess, and never past
+		**	the ceiling the wet point itself has to satisfy -- beyond that a drop would be flattening the
+		**	shoreline rather than supporting the water.
+		*/
+		for (int attempt = 0; (attempt < 4) && (excess > epsilon); ++attempt) {
+
+			int chosen = -1;
+			for (int corner = 0; corner < 4; ++corner) {
+				if (weights[corner] <= epsilon) continue;
+				if ((immutable != nullptr) && immutable[corner_index[corner]]) continue;
+				if (heights[corner_index[corner]] <= (target + epsilon)) continue;
+				if (chosen < 0) {
+					chosen = corner;
+					continue;
+				}
+				if (weights[corner] > weights[chosen]) chosen = corner;
+			}
+			if (chosen < 0) break;
+
+			const int index = corner_index[chosen];
+			const float drop = Min2(excess / weights[chosen],heights[index] - target);
+
+			heights[index] -= drop;
+			excess -= drop * weights[chosen];
+			lowered[index] = true;
+		}
+
+		//	A remaining excess is a real conflict with a frozen invariant -- the elevation floor, or a
+		//	cliff-band vertex -- and stays the gate's hard failure rather than a silent pass.
+		if (excess > epsilon) (*unresolved) ++;
+	}
+}
+
+
+int Hybrid_Apply_Water_Bed_Raster_Support(const HybridMacroTerrainParams & params,
+																	const HybridHydrologySet & hydrology,
+																	const HybridMacroTerrainSet & surfaces,
+																	float * heights,const bool * immutable,int vx,int vy,
+																	float cell_size,const Vector2 & origin,int * unresolved_out)
+{
+	if (unresolved_out != nullptr) *unresolved_out = 0;
+	if ((heights == nullptr) || (vx < 2) || (vy < 2) || (cell_size <= 0.0f)) return 0;
+	if ((hydrology.Bodies.Count() == 0) && (hydrology.Rivers.Count() == 0)) return 0;
+
+	const int cells_x = vx - 1;
+	const int cells_y = vy - 1;
+
+	bool * lowered = new bool[vx * vy];
+	memset(lowered,0,sizeof(bool) * (size_t)(vx * vy));
+
+	int unresolved = 0;
+	HybridSupportCellRange range;
+
+	//	Every water ring, islands included: a cell straddling an island's shore has a wet region too,
+	//	on the host's side of it, so an island's own ring is measured against its host's water surface.
+	for (int i = 0; i < hydrology.Bodies.Count(); ++i) {
+
+		const HybridWaterBody & body = hydrology.Bodies[i];
+
+		bool has_ceiling = (body.Kind != HYBRID_WATER_BODY_ISLAND);
+		float ceiling = body.SurfaceHeight;
+		if (!has_ceiling) {
+			for (int host = 0; host < hydrology.Bodies.Count(); ++host) {
+				if (hydrology.Bodies[host].StableId != body.HostBodyId) continue;
+				if (hydrology.Bodies[host].Kind == HYBRID_WATER_BODY_ISLAND) continue;
+				ceiling = hydrology.Bodies[host].SurfaceHeight;
+				has_ceiling = true;
+				break;
+			}
+		}
+
+		const DynamicVectorClass<Vector2> & ring = body.Points;
+		for (int point = 0; point < ring.Count(); ++point) {
+
+			const Vector2 & a = ring[point];
+			const Vector2 & b = ring[(point + 1) % ring.Count()];
+			if (!Support_Cell_Range(cells_x,cells_y,origin,cell_size,
+											Vector2(Min2(a.X,b.X),Min2(a.Y,b.Y)),
+											Vector2(Max2(a.X,b.X),Max2(a.Y,b.Y)),&range)) continue;
+
+			for (int cy = range.Y0; cy <= range.Y1; ++cy) {
+				for (int cx = range.X0; cx <= range.X1; ++cx) {
+					Correct_Support_Cell(params,hydrology,surfaces,heights,immutable,lowered,vx,cell_size,origin,
+												cx,cy,a,b,has_ceiling,ceiling,0.0f,&unresolved);
+				}
+			}
+		}
+	}
+
+	//	Every river channel.  A centerline is an open polyline, never a ring: the last point has no
+	//	segment after it, and the channel is the centerline inflated by its own local half width.
+	for (int i = 0; i < hydrology.Rivers.Count(); ++i) {
+
+		const HybridRiverSystem & river = hydrology.Rivers[i];
+		for (int point = 0; point < (river.Points.Count() - 1); ++point) {
+
+			const Vector2 & a = river.Points[point];
+			const Vector2 & b = river.Points[point + 1];
+			const float half = 0.5f * Max2(river.Width_At_Index(point),river.Width_At_Index(point + 1));
+			if (!Support_Cell_Range(cells_x,cells_y,origin,cell_size,
+											Vector2(Min2(a.X,b.X) - half,Min2(a.Y,b.Y) - half),
+											Vector2(Max2(a.X,b.X) + half,Max2(a.Y,b.Y) + half),&range)) continue;
+
+			//	The lower of the segment's two frozen surfaces, because a crossing can fall anywhere
+			//	along it and the walk leaves the surface non-increasing downstream.
+			float surface_a = 0.0f;
+			float surface_b = 0.0f;
+			const bool has_ceiling = surfaces.River_Sample(river.StableId,point,&surface_a,nullptr)
+										  && surfaces.River_Sample(river.StableId,point + 1,&surface_b,nullptr);
+			const float ceiling = Min2(surface_a,surface_b);
+
+			for (int cy = range.Y0; cy <= range.Y1; ++cy) {
+				for (int cx = range.X0; cx <= range.X1; ++cx) {
+					Correct_Support_Cell(params,hydrology,surfaces,heights,immutable,lowered,vx,cell_size,origin,
+												cx,cy,a,b,has_ceiling,ceiling,half,&unresolved);
+				}
+			}
+		}
+	}
+
+	int count = 0;
+	for (int i = 0; i < (vx * vy); ++i) {
+		if (lowered[i]) count ++;
+	}
+
+	delete [] lowered;
+
+	if (unresolved_out != nullptr) *unresolved_out = unresolved;
+	return count;
+}
+
+
+/***********************************************************************************************
 **	The Phase 7 gate.
 ***********************************************************************************************/
 
@@ -632,16 +1038,48 @@ bool Hybrid_Check_Macro_Terrain_Gate(const HybridMacroTerrainParams & params,con
 		const HybridWaterBody & body = hydrology.Bodies[i];
 		if (body.Kind == HYBRID_WATER_BODY_ISLAND) continue;
 
+		// A polygon centroid can lie outside a concave lake, or on a subtracted island.
+		// Keep the existing probe when wet; otherwise use the most interior wet analysis sample.
+		Vector2 probe = body.Center;
+		unsigned int owner = 0;
+		if (!Hybrid_Point_In_Standing_Water(hydrology,probe,&owner,nullptr) || (owner != body.StableId)) {
+			float best = -1.0f;
+			const float spacing = params.Constants.A;
+			if (spacing <= 0.0f) return Fail(result,HYBRID_MACRO_INVALID_INPUT,"no water-probe analysis spacing");
+			for (float y = body.BoundsMin.Y + (0.5f * spacing); y < body.BoundsMax.Y; y += spacing) {
+				for (float x = body.BoundsMin.X + (0.5f * spacing); x < body.BoundsMax.X; x += spacing) {
+					const Vector2 candidate(x,y);
+					if (!Hybrid_Point_In_Standing_Water(hydrology,candidate,&owner,nullptr) || (owner != body.StableId)) continue;
+					float clearance = Distance_To_Ring(body.Points,candidate);
+					for (int island = 0; island < hydrology.Bodies.Count(); ++island) {
+						const HybridWaterBody & hole = hydrology.Bodies[island];
+						if ((hole.Kind == HYBRID_WATER_BODY_ISLAND) && (hole.HostBodyId == body.StableId)) {
+							clearance = Min2(clearance,Distance_To_Ring(hole.Points,candidate));
+						}
+					}
+					if (clearance <= best) continue;
+					best = clearance;
+					probe = candidate;
+				}
+			}
+			if (best < 0.0f) return Fail(result,HYBRID_MACRO_INVALID_INPUT,"water body has no wet analysis probe");
+		}
+
 		float height = 0.0f;
-		if (!sample(body.Center,&height,context)) continue;
+		if (!sample(probe,&height,context)) continue;
 		if ((height < (floor_h - tolerance)) || (height > (ceiling + tolerance))) {
 			detail.Format("%s %u realized %.3f outside %.3f..%.3f",Hybrid_Water_Body_Kind_Name(body.Kind),
 								body.StableId,height,floor_h,ceiling);
 			return Fail(result,HYBRID_MACRO_ELEVATION_LIMIT,detail.Peek_Buffer());
 		}
 		if (height <= (body.SurfaceHeight + tolerance)) continue;
-		detail.Format("%s %u bed stands %.3f above its water surface",Hybrid_Water_Body_Kind_Name(body.Kind),
-							body.StableId,height - body.SurfaceHeight);
+		//	The probe, the formula's own answer there and the floor, because the three together say
+		//	whether the realization drifted from the expression or the expression hit the envelope.
+		detail.Format("%s %u bed stands %.3f above its water surface at (%.3f,%.3f) -- formula %.3f, surface %.3f, floor %.3f",
+							Hybrid_Water_Body_Kind_Name(body.Kind),body.StableId,height - body.SurfaceHeight,
+							probe.X,probe.Y,
+							Hybrid_Macro_Sample_Height(params,matrices,landforms,hydrology,*surfaces,probe),
+							body.SurfaceHeight,floor_h);
 		return Fail(result,HYBRID_MACRO_BED_ABOVE_SURFACE,detail.Peek_Buffer());
 	}
 

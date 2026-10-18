@@ -233,7 +233,8 @@
   "cost": 2000,
   "tech_level": 2,
   "team": 0,
-  "display_name": "Airstrip"
+  "display_name": "Airstrip",
+  "icon_texture": "ow_bld_nod_airstrip.tga"
  },
  "production": {
   "kind": "ground_vehicle",

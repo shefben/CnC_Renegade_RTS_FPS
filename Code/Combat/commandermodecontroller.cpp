@@ -36,6 +36,8 @@
 #include "ccamera.h"
 #include "combat.h"
 #include "lineseg.h"
+#include "pathfind.h"
+#include "pathfindsector.h"
 #include "phys.h"
 #include "physcoltest.h"
 #include "rendobj.h"
@@ -349,6 +351,33 @@ Matrix3D CommanderModeController::Compute_Camera_Transform(void)
 }
 
 
+/***********************************************************************************************
+ * Is_Commandable_Surface -- is this struck point somewhere a unit could actually be sent?       *
+ *                                                                                             *
+ *	The answer comes from the one authority on where this engine's AI can walk: the pathfind     *
+ *	sectors.  On a map-authored level they were built by the editor; on a generated world        *
+ *	`NavMeshGenerator` fills the same `PathfindClass` with sectors and portals.  Either way, a   *
+ *	point no sector contains is a point `Action_Goto` will refuse, so picking it is picking a    *
+ *	destination the order layer is guaranteed to throw away.                                     *
+ *                                                                                             *
+ *	A level with no pathfind data at all answers "yes" to everything -- there is nothing to       *
+ *	consult, and on such a level `GotoActionCodeClass::Pathfind` beelines rather than refusing,   *
+ *	so the first surface struck is still the honest answer.                                      *
+ *                                                                                             *
+ *	The fudge matches `HumanStateClass`'s own sector lookups (2.0): a point sampled on a floor    *
+ *	triangle sits on the boundary of the sector resting on it, and an exact containment test     *
+ *	would reject half the ground in the world to floating-point noise.                           *
+ *=============================================================================================*/
+static bool	Is_Commandable_Surface(const Vector3 & point)
+{
+	PathfindClass * pathfind = PathfindClass::Get_Instance ();
+	if (pathfind == nullptr) return true;
+	if (!pathfind->Does_Pathfind_Data_Exist ()) return true;
+
+	return (pathfind->Find_Sector (point,2.0f) != nullptr);
+}
+
+
 bool CommanderModeController::Pick_At_Cursor(const Vector3 & ray_origin,const Vector3 & ray_direction,
 															 Vector3 * out_world_point)
 {
@@ -359,26 +388,79 @@ bool CommanderModeController::Pick_At_Cursor(const Vector3 & ray_origin,const Ve
 	Vector3 direction = ray_direction * (1.0f / length);
 
 	Vector3 far_point = ray_origin + direction * COMMANDER_PICK_RAY_LENGTH;
-	LineSegClass ray (ray_origin,far_point);
-	CastResultStruct result;
-
-	//	Collision group 0: a Commander cursor pick is asking "what is the ground/geometry
-	//	here", not making a gameplay/team-filtered damage query, so no group restricts it.
-	PhysRayCollisionTestClass raytest (ray,&result,0);
 
 	_HavePickRay	= true;
 	_PickRayOrigin	= ray_origin;
 
-	if (!WorldSpatialIndex::Query_Ray (raytest)) {
-		_PickRayHit	= false;
-		_PickRayEnd	= far_point;
-		return false;
+	/*
+	**	The cursor ray keeps going past geometry it cannot command onto.  A strategic camera
+	**	looking down at an interior -- the cavern C&C_Under is almost entirely made of, a tunnel,
+	**	the inside of a structure -- strikes the roof over that space long before it reaches the
+	**	floor the units are standing on, and taking that first hit is what put every waypoint in
+	**	the ceiling.  Each miss restarts the cast just past the surface it struck, so the ray
+	**	walks down through the roof, and the first point a unit could actually be ordered to is
+	**	the one the cursor means.
+	**
+	**	Bounded on purpose: eight surfaces is deeper than any stacked interior in this game's
+	**	content, and a bound is what keeps a cursor that happens to graze a long run of thin
+	**	geometry from casting all day on the frame the player moved the mouse.  Exhausting the
+	**	budget falls back to the first surface struck -- the old behaviour, which is wrong in a
+	**	cave but right everywhere there is nothing better to choose.
+	*/
+	const int	MAX_PICK_SURFACES	= 8;
+
+	//	Past the surface just struck, so the next cast cannot re-hit the triangle it started on.
+	const float	SURFACE_ADVANCE	= 0.25f;
+
+	Vector3	first_hit (0.0f,0.0f,0.0f);
+	bool		have_first	= false;
+	float		travelled	= 0.0f;
+
+	for (int surface = 0; surface < MAX_PICK_SURFACES; surface++) {
+
+		float remaining = COMMANDER_PICK_RAY_LENGTH - travelled;
+		if (remaining <= 0.0f) break;
+
+		Vector3 segment_origin	= ray_origin + direction * travelled;
+		Vector3 segment_end		= segment_origin + direction * remaining;
+
+		LineSegClass ray (segment_origin,segment_end);
+		CastResultStruct result;
+
+		//	Collision group 0: a Commander cursor pick is asking "what is the ground/geometry
+		//	here", not making a gameplay/team-filtered damage query, so no group restricts it.
+		PhysRayCollisionTestClass raytest (ray,&result,0);
+
+		if (!WorldSpatialIndex::Query_Ray (raytest)) break;
+
+		float		hit_distance	= travelled + (result.Fraction * remaining);
+		Vector3	hit				= ray_origin + direction * hit_distance;
+
+		if (!have_first) {
+			first_hit	= hit;
+			have_first	= true;
+		}
+
+		if (Is_Commandable_Surface (hit)) {
+			*out_world_point	= hit;
+			_PickRayHit			= true;
+			_PickRayEnd			= hit;
+			return true;
+		}
+
+		travelled = hit_distance + SURFACE_ADVANCE;
 	}
 
-	*out_world_point = ray_origin + direction * (result.Fraction * COMMANDER_PICK_RAY_LENGTH);
-	_PickRayHit	= true;
-	_PickRayEnd	= *out_world_point;
-	return true;
+	if (have_first) {
+		*out_world_point	= first_hit;
+		_PickRayHit			= true;
+		_PickRayEnd			= first_hit;
+		return true;
+	}
+
+	_PickRayHit	= false;
+	_PickRayEnd	= far_point;
+	return false;
 }
 
 

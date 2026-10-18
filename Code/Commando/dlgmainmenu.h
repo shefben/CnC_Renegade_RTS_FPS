@@ -43,6 +43,7 @@
 
 
 #include "menudialog.h"
+#include "DlgMessageBox.h"
 
 
 ////////////////////////////////////////////////////////////////
@@ -56,7 +57,7 @@ class RenderObjClass;
 //	MainMenuDialogClass
 //
 ////////////////////////////////////////////////////////////////
-class MainMenuDialogClass : public MenuDialogClass
+class MainMenuDialogClass : public MenuDialogClass, public Observer<DlgMsgBoxEvent>
 {
 public:
 
@@ -74,6 +75,13 @@ public:
 	//	Notifications
 	//
 	void			On_Command (int ctrl_id, int mesage_id, unsigned int param) override;
+
+	//
+	//	Q-030 option (b).  The player dismissing the "native world refused" box is what starts
+	//	the fit-to-level fallback, so the reason is readable rather than flashing past under a
+	//	loading screen.
+	//
+	void			HandleNotification (DlgMsgBoxEvent &event) override;
 
 	//
 	//	Transition support

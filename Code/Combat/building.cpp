@@ -67,6 +67,7 @@
 #include "coltest.h"
 #include "buildingconstruction.h"
 #include "buildingdescriptormanager.h"
+#include "worldspatialindex.h"
 #include "runtimedoorservice.h"
 #include "pscene.h"
 #include "rendobj.h"
@@ -2136,6 +2137,62 @@ BuildingGameObj::Get_Commander_Exit_Point (Vector3 * out_point,float * out_radiu
 	if (out_radius != nullptr) {
 		*out_radius = CHECK_RADIUS;
 	}
+}
+
+
+////////////////////////////////////////////////////////////////////////////
+//
+//	Build_Commander_Facility_Context -- see the comment in building.h
+//
+////////////////////////////////////////////////////////////////////////////
+bool
+BuildingGameObj::Build_Commander_Facility_Context (CommanderFacilityContext * out) const
+{
+	if (out == nullptr) {
+		return false;
+	}
+
+	const BuildingModelDescriptor * descriptor = nullptr;
+	const StringClass & descriptor_name = Get_Definition ().Get_Descriptor_Name ();
+	if (descriptor_name.Get_Length () > 0) {
+		descriptor = BuildingDescriptorManager::Get_Descriptor (descriptor_name.Peek_Buffer ());
+	}
+	if (descriptor == nullptr) {
+		return false;
+	}
+	if (descriptor->Production.Kind == BUILDING_PRODUCTION_NONE) {
+		return false;
+	}
+
+	CommanderFacilityContext context;
+	context.FacilityId				= Get_ID ();
+	context.Team						= Get_Player_Type ();
+	context.Alive						= !Is_Destroyed ();
+	context.ConstructionComplete	= !BuildingConstructionService::Is_Under_Construction (context.FacilityId);
+	context.Powered					= descriptor->Production.RequiresPower
+												? TeamPowerGridService::Is_Member_Powered (context.FacilityId)
+												: true;
+	context.Kind						= descriptor->Production.Kind;
+	context.QueueCapacity			= descriptor->Production.QueueCapacity;
+
+	/*
+	**	Only dynamic objects count toward a blocked exit: the facility's own static collision is
+	**	not at this point by construction (Get_Commander_Exit_Point steps outside the footprint),
+	**	and a query would never return static geometry as "blocking an exit" anyway.
+	*/
+	{
+		Vector3 exit_point;
+		float exit_radius = 0.0f;
+		Get_Commander_Exit_Point (&exit_point,&exit_radius);
+
+		GameObjQueryListClass occupants;
+		WorldSpatialIndex::Query_Game_Objects_In_Sphere (exit_point,exit_radius,occupants,
+																		 WorldSpatialIndex::QUERY_DYNAMIC);
+		context.ExitClear = (occupants.Count () == 0);
+	}
+
+	*out = context;
+	return true;
 }
 
 

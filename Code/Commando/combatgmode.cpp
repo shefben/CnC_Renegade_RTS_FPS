@@ -77,6 +77,7 @@
 #include "consolefunction.h"
 #include "overlay.h"
 #include "gameinitmgr.h"
+#include "proceduralworldmanager.h"
 #include "campaign.h"
 #include "diaglog.h"
 #include "god.h"
@@ -780,6 +781,27 @@ void CombatGameModeClass::Load_Level( void )
 	LOADTIME_NETWORK_UPDATE;
 	CombatManager::Post_Load_Level();
 	WWLOG_INTERMEDIATE("CombatManager::Post_Load_Level()");
+
+	/*
+	**	A native procedural world has no level file under it (D-002): the map name names a mix
+	**	with nothing in it, and every object, every piece of terrain and the skybox's own
+	**	contents come from the generation CombatManager::Post_Load_Level just ran.  So a refused
+	**	generation does not degrade to an ordinary map -- it leaves the player standing inside an
+	**	empty skybox, with the reason only in a log they will never read.
+	**
+	**	Abandon the load instead.  The exit flag is the one the rest of the game already uses to
+	**	come back to the menu (cNetwork's own end-of-game paths); the reason stays recorded on
+	**	ProceduralWorldManager, and the main menu shows it once on the way back.
+	*/
+	if (ProceduralWorldManager::Is_Native_Map (map_name) &&
+		 ProceduralWorldManager::Did_Generation_Fail ()) {
+
+		WWDEBUG_SAY (("Procedural skirmish abandoned: %s\r\n",
+						  ProceduralWorldManager::Get_Generation_Error ()));
+		DIAG_LOG (( "PROCEDURAL_ABANDONED", "%s", ProceduralWorldManager::Get_Generation_Error () ));
+
+		GameInitMgrClass::Set_Needs_Game_Exit (true);
+	}
 
 	INIT_STATUS("Post_Load_Id_Uniqueness_Check");
 	loading_screen.Render(true);

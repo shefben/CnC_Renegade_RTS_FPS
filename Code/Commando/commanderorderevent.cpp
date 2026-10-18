@@ -10,6 +10,7 @@
 
 #include "commanderorderevent.h"
 
+#include "aabox.h"
 #include "action.h"
 #include "actionparams.h"
 #include "apppackettypes.h"
@@ -23,10 +24,13 @@
 #include "gameobjmanager.h"
 #include "networkobjectfactory.h"
 #include "networkobjectmgr.h"
+#include "pathfind.h"
+#include "pathfindsector.h"
 #include "physicalgameobj.h"
 #include "scriptcommands.h"
 #include "smartgameobj.h"
 #include "soldier.h"
+#include "wwmath.h"
 
 #include <string.h>
 
@@ -45,6 +49,99 @@ DECLARE_NETWORKOBJECT_FACTORY (cCommanderOrderEvent,NETCLASSID_COMMANDERORDEREVE
 **	Commander order.  Observer id 0 means nothing is listening for completion, which
 **	ActionClass::Notify_Completed already treats as a safe no-op.
 */
+/***********************************************************************************************
+ * Snap_To_Navigable -- the nearest point the pathfinder will actually accept                    *
+ *                                                                                             *
+ *	`GotoActionCodeClass` solves its path through `PathfindClass`, and a destination no sector   *
+ *	contains comes back `ERROR_INVALID_DEST_POS`: on a level that has pathfind data the action    *
+ *	is then killed outright, so the unit either never starts or stops dead, and on a level that   *
+ *	has none it beelines -- straight into whatever stands between it and the point.  Either way   *
+ *	an unreachable destination is what "it walked into a wall" and "it ignored me" look like      *
+ *	from the outside.                                                                            *
+ *                                                                                             *
+ *	So the server moves the destination onto navigable ground before dispatching it, rather than *
+ *	handing the AI a point it is guaranteed to refuse.  Done here, server-side, for the same      *
+ *	reason `Formation_Offset` is: the wire format stays one point, and no client gets to choose   *
+ *	a position the server did not derive.                                                        *
+ *                                                                                             *
+ *	Deterministic by construction -- an expanding box, the nearest clamped point, ties broken on  *
+ *	the sector's own index -- because an order's destination is authoritative gameplay state.     *
+ *	Nothing here consults `Find_Random_Spot`, which would make the same click resolve differently *
+ *	on a re-run.                                                                                 *
+ *=============================================================================================*/
+static Vector3	Snap_To_Navigable (const Vector3 & point)
+{
+	PathfindClass * pathfind = PathfindClass::Get_Instance ();
+	if (pathfind == nullptr) return point;
+
+	//	Nothing to consult: a level with no sectors beelines by design, and moving the point
+	//	would be inventing an authority that does not exist on that level.
+	if (!pathfind->Does_Pathfind_Data_Exist ()) return point;
+
+	//	Already somewhere a unit can be sent.  The fudge matches HumanStateClass's own lookups.
+	if (pathfind->Find_Sector (point,2.0f) != nullptr) return point;
+
+	/*
+	**	Outward in steps rather than one big query: the first radius that finds anything wins, so
+	**	a click just off the edge of a floor costs one small box, and only a click into genuine
+	**	void pays for the wide ones.  100 is about a third of a small map and well past "the
+	**	player meant somewhere near here"; beyond it the point is left alone to be refused.
+	*/
+	static const float SEARCH_RADII [] = { 6.0f,20.0f,50.0f,100.0f };
+
+	for (int step = 0; step < (int)(sizeof (SEARCH_RADII) / sizeof (SEARCH_RADII [0])); step++) {
+
+		float radius = SEARCH_RADII [step];
+
+		DynamicVectorClass<PathfindSectorClass *> sectors;
+		pathfind->Collect_Sectors (sectors,AABoxClass (point,Vector3 (radius,radius,radius)));
+
+		PathfindSectorClass *	best_sector		= nullptr;
+		Vector3						best_point		= point;
+		float							best_distance2	= 0.0f;
+		int							best_index		= 0;
+
+		for (int i = 0; i < sectors.Count (); i++) {
+
+			PathfindSectorClass * sector = sectors [i];
+			if (sector == nullptr) continue;
+
+			//	The closest point of the sector's own bounds: clamping each axis into the box is
+			//	the standard point-to-AABox projection, and a sector's bounds are what
+			//	Find_Sector tests against in the first place.
+			const AABoxClass & bounds = sector->Get_Bounding_Box ();
+
+			Vector3 candidate (
+				WWMath::Clamp (point.X,bounds.Center.X - bounds.Extent.X,bounds.Center.X + bounds.Extent.X),
+				WWMath::Clamp (point.Y,bounds.Center.Y - bounds.Extent.Y,bounds.Center.Y + bounds.Extent.Y),
+				WWMath::Clamp (point.Z,bounds.Center.Z - bounds.Extent.Z,bounds.Center.Z + bounds.Extent.Z));
+
+			float distance2	= (candidate - point).Length2 ();
+			int	index			= pathfind->Get_Sector_Index (sector);
+
+			//	Ties go to the lower sector index, so the same click resolves the same way every
+			//	time regardless of the order the sector tree happened to hand them over.
+			bool better = (best_sector == nullptr) ||
+							  (distance2 < best_distance2) ||
+							  ((distance2 == best_distance2) && (index < best_index));
+
+			if (better) {
+				best_sector		= sector;
+				best_point		= candidate;
+				best_distance2	= distance2;
+				best_index		= index;
+			}
+		}
+
+		if (best_sector != nullptr) return best_point;
+	}
+
+	//	Nothing navigable anywhere near: leave the point exactly as the Commander gave it, and
+	//	let the order layer refuse it the way it always has.
+	return point;
+}
+
+
 static void	Dispatch_Order (PhysicalGameObj * unit,CommanderUnitOrderType order,
 									  const Vector3 & target_point,const Vector3 & second_point,int target_id)
 {
@@ -409,8 +506,24 @@ void cCommanderOrderEvent::Act(void)
 		Vector3 offset = Formation_Offset (Formation,formation_slot,(alive > 0) ? alive : 1,group_forward);
 		formation_slot++;
 
-		//	A patrol keeps its formation at both ends, so the group turns around as a group.
-		Dispatch_Order (unit,(CommanderUnitOrderType)Order,TargetPoint + offset,SecondPoint + offset,TargetId);
+		/*
+		**	A patrol keeps its formation at both ends, so the group turns around as a group.
+		**
+		**	Snapped per unit rather than once for the packet: a formation slot is the point the
+		**	unit is actually sent to, and the slot is what lands inside a wall when the group is
+		**	ordered up against one.  The ordered point itself is snapped too -- the same call with
+		**	a zero offset -- so a single unit gets the same treatment as a group of twelve.
+		*/
+		Vector3 second = SecondPoint + offset;
+		if ((CommanderUnitOrderType)Order == ORDER_PATROL) {
+			//	Only a patrol has a second destination.  Every other order leaves SecondPoint at
+			//	the origin, and searching the void around (0,0,0) for navigable ground -- once per
+			//	unit, for a point nothing reads -- is work with no result.
+			second = Snap_To_Navigable (second);
+		}
+
+		Dispatch_Order (unit,(CommanderUnitOrderType)Order,
+							 Snap_To_Navigable (TargetPoint + offset),second,TargetId);
 	}
 
 	/*
@@ -432,8 +545,11 @@ void cCommanderOrderEvent::Act(void)
 		}
 
 		if ((CommanderUnitOrderType)Order != ORDER_NONE) {
+			//	The marker stands where the order actually sent the group, not where the cursor
+			//	ray happened to land: a marker a unit demonstrably walks past is worse than no
+			//	marker, and a human teammate reads this as "go here".
 			cCommanderWaypointEvent * event = new cCommanderWaypointEvent;
-			event->Init (team,(int)kind,TargetPoint,WAYPOINT_LIFETIME,Get_Network_ID ());
+			event->Init (team,(int)kind,Snap_To_Navigable (TargetPoint),WAYPOINT_LIFETIME,Get_Network_ID ());
 		}
 	}
 }

@@ -71,6 +71,30 @@ their shoreline band (`Hybrid_Macro_Is_Protected_Profile`). Those vertices are s
 their computed height; they are simply never a term in the relaxation loop's arithmetic, which is how
 a vertical-faced cliff survives a pass whose whole job is to flatten steep ground.
 
+**A shoreline cell gets bounded raster support (D-037, Q-029).** The carve is a pointwise expression
+and stops exactly at the frozen Phase-6 polygon, but the native grid realizes it as triangles and a
+3.75 m triangle can straddle that boundary. Interpolation across such a cell then lifts the realized
+ground above the water at wet points the expression had put below it — effective seed 61 had a wet
+probe whose formula height was `-15.000` under a `-13.536` water surface and whose realized triangle
+stood at `-11.312`. The water is right; its discrete realization is not.
+
+`Hybrid_Apply_Water_Bed_Raster_Support` corrects the realization and nothing else. For every native
+cell whose footprint meets the frozen water — a body ring, an island ring or a river channel — it
+evaluates the interpolation `HeightfieldClass::Sample_Cell` will perform at the vertices of that
+cell's wet region (cell corners, ring vertices inside the cell, ring crossings of the cell's edges and
+its diagonal, plus a fixed interior lattice for a channel's curved boundary) and lowers the least
+amount on the vertices that interpolation actually draws from. A vertex outside the polygon may move,
+because the authority comes from the wet part of its own cell rather than from the vertex, and it
+stays dry land: no water extent, level, shoreline classification, topology, triangle split or gate
+tolerance changes. A vertex is never taken below the ceiling it has to satisfy, never below the
+elevation floor, never because it merely sits near water, and never in a cell with no wet region.
+
+The ceiling is `Hybrid_Water_Bed_Ceiling`: the lowest covering water surface, which is the invariant
+the gate measures, so the pass and the gate have one opinion of where a bed may stand. The pass runs
+after relaxation, so nothing can undo it, and a wet sample it cannot satisfy within those bounds is
+counted in `WaterBedSupportUnresolved` and left to fail the gate as `bed_above_surface` — the gate is
+not weakened, the shoreline is not moved, and such a seed is still refused.
+
 **"Still represented" is a sign test against the tier reference.** The gate checks each Phase-5
 feature at its own mid-sample: a hill or ridge must stand above `tier_height + macro_bias` there, a
 canyon or ravine floor below it. A probe the water carved, or one the elevation clamp pinned, is

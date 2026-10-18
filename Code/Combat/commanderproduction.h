@@ -363,6 +363,21 @@ class CommanderProductionService
 		static void		Set_Facility_Runtime_State(int facility_id,bool alive,bool construction_complete,
 																  bool powered,bool exit_clear);
 
+		/*
+		**	The facilities with something queued right now, in request order and de-duplicated, so
+		**	the caller that owns the scene can refresh each one's runtime state before Update reads
+		**	it.
+		**
+		**	This exists because the state above is a snapshot, and every one of the four facts in
+		**	it can change after the purchase that recorded them: a Power Plant falls, a building is
+		**	destroyed, or -- the one that bites hardest -- something walks into the exit sphere.  A
+		**	finished item whose exit is blocked parks at BLOCKED_EXIT by design, so with nothing
+		**	re-sampling it the queue stops forever while the credits are already spent.  Walking
+		**	this list once a tick is what makes "pause, not cancel" actually resume.
+		*/
+		static int		Get_Queued_Facility_Count(void);
+		static int		Get_Queued_Facility_Id(int index);
+
 		static void		Update(float seconds);
 
 		/*

@@ -61,7 +61,8 @@
   "cost": 600,
   "tech_level": 1,
   "team": 0,
-  "display_name": "Turret"
+  "display_name": "Turret",
+  "icon_texture": "ow_bld_nod_turret.tga"
  },
  "construction_visual": {
   "duration_seconds": 10.0,

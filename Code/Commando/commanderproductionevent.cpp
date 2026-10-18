@@ -152,52 +152,30 @@ void cCommanderProductionEvent::Act(void)
 	//	An enemy or neutral building is never a Commander's factory, whatever the client says.
 	if (building->Get_Player_Type () != team) return;
 
+	/*
+	**	Everything the production service needs to know about the facility, read live from the
+	**	building itself -- which is what lets the service stay device-less and checkable while
+	**	still being the single authority on whether a purchase is allowed.  The same call the
+	**	per-tick refresh in combat.cpp makes, so a facility cannot be judged by two different
+	**	rules depending on who asked.  A building with no production descriptor is not a factory.
+	*/
+	CommanderFacilityContext facility;
+	if (!building->Build_Commander_Facility_Context (&facility)) return;
+
+	//	Team comes from the context's own reading of the building, which the check above already
+	//	confirmed matches the requester's.
+	int cost = 0;
+	bool available = false;
+	if (!Find_Purchase_Entry (team,facility.Kind,DefinitionId,&cost,&available)) {
+		return;
+	}
+
 	const BuildingModelDescriptor * descriptor = nullptr;
 	const StringClass & descriptor_name = building->Get_Definition ().Get_Descriptor_Name ();
 	if (descriptor_name.Get_Length () > 0) {
 		descriptor = BuildingDescriptorManager::Get_Descriptor (descriptor_name.Peek_Buffer ());
 	}
 	if (descriptor == nullptr) return;
-	if (descriptor->Production.Kind == BUILDING_PRODUCTION_NONE) return;
-
-	int cost = 0;
-	bool available = false;
-	if (!Find_Purchase_Entry (team,descriptor->Production.Kind,DefinitionId,&cost,&available)) {
-		return;
-	}
-
-	/*
-	**	Everything the production service needs to know about the facility, looked up here rather
-	**	than passed in -- which is what lets the service itself stay device-less and checkable
-	**	while still being the single authority on whether a purchase is allowed.
-	*/
-	CommanderFacilityContext facility;
-	facility.FacilityId				= FacilityId;
-	facility.Team						= team;
-	facility.Alive						= !building->Is_Destroyed ();
-	facility.ConstructionComplete	= !BuildingConstructionService::Is_Under_Construction (FacilityId);
-	facility.Powered					= descriptor->Production.RequiresPower
-												? TeamPowerGridService::Is_Member_Powered (FacilityId)
-												: true;
-	facility.Kind						= descriptor->Production.Kind;
-	facility.QueueCapacity			= descriptor->Production.QueueCapacity;
-
-	//	Roadmap Section 45's own "ExitClear" -- the same point Drain_Completed_Commander_Production
-	//	(combat.cpp) will spawn a completed item at, checked now rather than promising a queue
-	//	slot for a delivery that will arrive stuck inside whatever is already standing there.
-	//	Only dynamic objects count: the facility's own static collision is not at this point by
-	//	construction (Get_Commander_Exit_Point steps outside the footprint), and a query would
-	//	never return static geometry as "blocking an exit" in the first place.
-	{
-		Vector3 exit_point;
-		float exit_radius = 0.0f;
-		building->Get_Commander_Exit_Point (&exit_point,&exit_radius);
-
-		GameObjQueryListClass occupants;
-		WorldSpatialIndex::Query_Game_Objects_In_Sphere (exit_point,exit_radius,occupants,
-																		  WorldSpatialIndex::QUERY_DYNAMIC);
-		facility.ExitClear = (occupants.Count () == 0);
-	}
 
 	PlayerDataClass * player = soldier->Get_Player_Data ();
 	int credits = (player != nullptr) ? (int)player->Get_Money () : 0;

@@ -169,7 +169,8 @@
   "cost": 2000,
   "tech_level": 1,
   "team": 0,
-  "display_name": "Refinery"
+  "display_name": "Refinery",
+  "icon_texture": "ow_bld_nod_ref.tga"
  },
  "construction_visual": {
   "duration_seconds": 15.0,
